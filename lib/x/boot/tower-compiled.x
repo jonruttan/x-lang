@@ -531,29 +531,32 @@
     %cx-imag-frac-interp)
 (%tower-jit-global! %cx-imag-int #t
     (lit (fn (me buffer score chr)
-      (if (and (>= chr 48) (<= chr 57))
-        me
-        (if (= chr 46) %cx-imag-dot
-          (if (= chr 105) (%score-set score 1 buffer) ())))))
+      (match
+        ((and (>= chr 48) (<= chr 57)) me)
+        ((= chr 46) %cx-imag-dot)
+        ((= chr 105) (%score-set score 1 buffer))
+        (#t ()))))
     (list (pair (lit %cx-imag-dot) %cx-imag-dot))
     %cx-imag-int-interp)
 (%tower-jit-global! %cx-real-frac #t
     (lit (fn (me buffer score chr)
-      (if (and (>= chr 48) (<= chr 57))
-        me
-        (if (= chr 43) %cx-sign
-          (if (= chr 45) %cx-sign
-            (if (= chr 105) (%score-set score 1 buffer) ()))))))
+      (match
+        ((and (>= chr 48) (<= chr 57)) me)
+        ((= chr 43) %cx-sign)
+        ((= chr 45) %cx-sign)
+        ((= chr 105) (%score-set score 1 buffer))
+        (#t ()))))
     (list (pair (lit %cx-sign) %cx-sign))
     %cx-real-frac-interp)
 (%tower-jit-global! %cx-real-int #t
     (lit (fn (me buffer score chr)
-      (if (and (>= chr 48) (<= chr 57))
-        me
-        (if (= chr 46) %cx-real-dot
-          (if (= chr 43) %cx-sign
-            (if (= chr 45) %cx-sign
-              (if (= chr 105) (%score-set score 1 buffer) ())))))))
+      (match
+        ((and (>= chr 48) (<= chr 57)) me)
+        ((= chr 46) %cx-real-dot)
+        ((= chr 43) %cx-sign)
+        ((= chr 45) %cx-sign)
+        ((= chr 105) (%score-set score 1 buffer))
+        (#t ()))))
     (list (pair (lit %cx-real-dot) %cx-real-dot)
           (pair (lit %cx-sign) %cx-sign))
     %cx-real-int-interp)
@@ -593,17 +596,21 @@
     %dec-exp-digits-interp)
 (%tower-jit-global! %dec-frac #t
     (lit (fn (me buffer score chr)
-      (if (and (>= chr 48) (<= chr 57)) me
-        (if (= chr 100) (%score-set score 1 buffer)
-          (if (or (= chr 101) (= chr 69)) %dec-exp-sign ())))))
+      (match
+        ((and (>= chr 48) (<= chr 57)) me)
+        ((= chr 100) (%score-set score 1 buffer))
+        ((or (= chr 101) (= chr 69)) %dec-exp-sign)
+        (#t ()))))
     (list (pair (lit %dec-exp-sign) %dec-exp-sign))
     %dec-frac-interp)
 (%tower-jit-global! %dec-int #t
     (lit (fn (me buffer score chr)
-      (if (and (>= chr 48) (<= chr 57)) me
-        (if (= chr 100) (%score-set score 1 buffer)
-          (if (= chr 46) %dec-first-frac
-            (if (or (= chr 101) (= chr 69)) %dec-exp-sign ()))))))
+      (match
+        ((and (>= chr 48) (<= chr 57)) me)
+        ((= chr 100) (%score-set score 1 buffer))
+        ((= chr 46) %dec-first-frac)
+        ((or (= chr 101) (= chr 69)) %dec-exp-sign)
+        (#t ()))))
     (list (pair (lit %dec-first-frac) %dec-first-frac)
           (pair (lit %dec-exp-sign) %dec-exp-sign))
     %dec-int-interp)

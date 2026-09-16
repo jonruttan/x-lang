@@ -845,9 +845,11 @@
 (def %dec-frac ())
 (set! %dec-frac
   (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) %dec-frac
-      (if (= chr 100) (%score-set score 1 buffer)
-        (if (or (= chr 101) (= chr 69)) %dec-exp-sign ())))))
+    (match
+      ((and (>= chr 48) (<= chr 57)) %dec-frac)
+      ((= chr 100) (%score-set score 1 buffer))
+      ((or (= chr 101) (= chr 69)) %dec-exp-sign)
+      (#t ()))))
 
 (def %dec-first-frac
   (fn (_ buffer score chr)
@@ -856,10 +858,12 @@
 (def %dec-int ())
 (set! %dec-int
   (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) %dec-int
-      (if (= chr 100) (%score-set score 1 buffer)
-        (if (= chr 46) %dec-first-frac
-          (if (or (= chr 101) (= chr 69)) %dec-exp-sign ()))))))
+    (match
+      ((and (>= chr 48) (<= chr 57)) %dec-int)
+      ((= chr 100) (%score-set score 1 buffer))
+      ((= chr 46) %dec-first-frac)
+      ((or (= chr 101) (= chr 69)) %dec-exp-sign)
+      (#t ()))))
 
 ; A lone sign must see a digit next, so `-` and `+` stay operators.
 (def %dec-sign
