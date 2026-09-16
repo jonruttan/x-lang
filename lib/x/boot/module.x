@@ -761,6 +761,23 @@
           (#t (do (%module-import-one! name (first l) e) (self (rest l)))))))
     (%go syms)))
 
+; A sweep after a module has loaded, while a state image is being written,
+; and only then.  A module must not collect -- its importer may be holding
+; state the collector cannot see (boot/tower-compiled.x, at its end) -- and
+; import does not, in any ordinary boot: %image-writing is unbound there and
+; the guard answers nil.  The image writer's child is the exception it names
+; (tools/dev/image-write.x binds the marker for the length of the child's
+; load): that child is nobody's importer, its load is mostly garbage --
+; x-python's leaves 734M objects allocated and 305K live -- and nothing else
+; sweeps inside it until the writer does, after the load, which is too late
+; for a heap that size.  Where a module's load has returned is the quiet
+; point inside that load: the engine roots the includer's parked state for
+; the length of a load (x-engine-c 0.2.6), so what the sweep frees is the
+; load's own garbage.
+(def %heap-collect (prim-ref (lit heap) (lit collect)))
+(def %import-sweep!
+  (fn (_) (if (guard (_ ()) %image-writing) (%heap-collect) ())))
+
 (def import
   (op (name . syms) e
     (match
@@ -769,7 +786,8 @@
         (do
           ; register BEFORE loading -- cycle safety, mirrors include-once
           (%module-loaded! name)
-          (%module-load name (%module-resolve name)))))
+          (%module-load name (%module-resolve name))
+          (%import-sweep!))))
     (match
       ((eq? syms ()) ())
       (#t (%module-import-names! name syms e)))))

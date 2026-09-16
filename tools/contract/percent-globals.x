@@ -140,7 +140,12 @@
 (file "lib/img.x" 37)
 (file "lib/x/boot/data.x" 14)
 (file "lib/x/boot/engine.x" 2)
-(file "lib/x/boot/module.x" 70)   ; +20 for the scoped loader (x-lang#719): env/owner registries, provide/import doors, the peek reader and its two sizes -- boot code, no class to home them on
+; module.x: +20 for the scoped loader (x-lang#719): env/owner registries,
+; provide/import doors, the peek reader and its two sizes -- boot code, no
+; class to home them on.  Then +2 for the sweep after a module loads while a
+; state image is being written: the collect prim and the guarded read of the
+; writer's marker, on the loader's own quiet point.
+(file "lib/x/boot/module.x" 72)
 (file "lib/x/boot/operatives.x" 6)
 (file "lib/x/boot/printer.x" 74)
 (file "lib/x/boot/reflect.x" 32)
