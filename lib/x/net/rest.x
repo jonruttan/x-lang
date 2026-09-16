@@ -19,6 +19,7 @@
 ;
 ; Zero top-level %-globals (new-file budget 0).
 
+(module x/net/rest)
 (import x/type/class)
 (import x/core/list)
 (import x/type/assoc)

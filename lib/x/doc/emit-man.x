@@ -19,6 +19,7 @@
 ; backslashes reach roff as control characters, so every string that comes out
 ; of the walk goes through `esc` -- see its own note for the three rules.
 
+(module x/doc/emit-man)
 (import x/type/class)
 (import x/doc/emit)
 (import x/core/list)
@@ -165,5 +166,5 @@
       (List for-each (fn (_ s) (display #" \\fB{(self esc s)}\\fP")) names)
       (newline))))
 
-(doc (provide x/doc/emit-man)
+(doc (provide x/doc/emit-man DocMan)
   "roff (man page) emitter for the documentation generator.")

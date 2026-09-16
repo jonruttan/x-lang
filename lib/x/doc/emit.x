@@ -18,6 +18,7 @@
 ; already understood, so an emitter only has to know how to render -- the
 ; roff implementation never has to learn what a spliced variadic tail is.
 
+(module x/doc/emit)
 (import x/type/class)
 (import x/core/list)
 
@@ -165,5 +166,5 @@
       (List for-each (fn (_ s) (display #"[`{s}`](#{s}) ")) names)
       (newline) (newline))))
 
-(doc (provide x/doc/emit)
+(doc (provide x/doc/emit DocEmit DocMd)
   "The documentation output protocol (DocEmit) and its Markdown implementation (DocMd).")

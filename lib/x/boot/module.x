@@ -553,12 +553,14 @@
     ()))
 
 ; The form that names a scoped module, and denotes it everywhere else.  As
-; the first form of a file it is the loader's: the forms after it are
-; evaluated in an environment of the module's own.  As an expression it
-; answers that environment, so a reader can walk a module's names.  Reached
-; through `include` rather than `import`, a scoped file's header is this
-; expression, evaluated in the root, and the file loads unscoped -- the
-; boot amalgams take that path, which is why scoping is per import.
+; the first form of a file, after its comment banner, it is the loader's:
+; the forms after it are evaluated in an environment of the module's own.
+; As an expression it answers that environment, so a reader can walk a
+; module's names.  A scoped file reached through `include` rather than
+; `import` evaluates its header as this expression, and that raises: the
+; module was never loaded, so it has no environment.  A scoped file is
+; loaded only by `import`, which is why the boot floor and the amalgams,
+; which splice files with `include`, hold none.
 (def module
   (op (name) _
     (def %e (%module-assoc name (first %module-env-cell)))

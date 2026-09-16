@@ -18,6 +18,7 @@
 ; (this file's percent-globals budget is 0) and not %-methods (a per-
 ; character class dispatch is the measured 8-30x overhead, #332).
 
+(module x/codec/base64)
 (import x/type/class)
 (import x/core/list)
 

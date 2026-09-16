@@ -21,6 +21,7 @@
 ; Zero top-level %-globals (new-file budget 0): the cached byte prims that
 ; the hot paths want are bound inside the methods that use them.
 
+(module x/repl/edit)
 (import x/type/class)
 (import x/type/str)
 (import x/type/list)

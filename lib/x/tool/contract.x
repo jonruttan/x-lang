@@ -10,6 +10,7 @@
 ; Gates run from the repo root (make provides the cwd); walk paths are
 ; therefore repo-relative by construction.
 
+(module x/tool/contract)
 (import x/sys/posix)
 (import x/sys/file)
 (import x/type/list)
