@@ -26,13 +26,20 @@ Still external — 9 rows, 102 invocations: cc/strip (the compiler tier —
 the next mountain), codesign/sysctl (platform, permanent), git/curl
 (fetch, out of scope), tar (archive), find, and shasum.
 
-**Implementation is not adoption.** The figure above says the tool exists
-in x and its suite passes; it does not say the build calls it. The build
-still invokes the system binaries throughout, so a fresh measurement would
-move these counts very little. sha256sum is the plainest case: an applet
-byte-identical with the system tool, while the Makefile's install rules,
-x.sh and tools/release/package.sh each still prefer `shasum` and fall back
-to `sha256sum`. Switching a row over needs no new code, only the call site.
+**Implementation is not adoption.** The figure above says the tool exists in
+x and its suite passes; it does not say the build calls it. The build still
+invokes the system binaries throughout, so a fresh measurement would move
+these counts very little.
+
+Adoption is not uniformly available, either. A call site is **post-x** when x
+is built and runnable by the time it fires; those can take an applet, and the
+work is the call site alone. A call site is **pre-x** when it runs before
+there is an x to call — the wrapper's own boot guard, engine acquisition, the
+image-directory name computed ahead of `require_engine`. Those cannot switch
+at all. Among the integrity checks the barrier is not ordering but meaning: a
+digest that decides whether to trust x is worth nothing if x computes it.
+
+Closure therefore has a floor above zero, and 46 of 46 was never the target.
 
 The percentage re-scores the 2026-08-31 counts below against the
 implementations that exist today. The counts are that measurement's own and
@@ -115,12 +122,19 @@ PATH (4,455 logging wrappers) and running three phases in the x-lang checkout:
 - **make**: x-make. Recursion via $(MAKE); the GNU subset actually used is
   $(shell), $(wildcard), $(findstring), $(if), ifeq/ifdef, 2 pattern rules.
 - **crypto**: 155 calls for manifest and ISA pinning, still the system pair
-  at every call site. x has a byte-identical sha256sum; what is left here is
-  adoption, not implementation.
+  at every call site. x has a byte-identical sha256sum, but only three sites
+  can take it: `Makefile:1076` and `Makefile:1087`, under an `install` target
+  that has the built executable as a prerequisite, and
+  `tools/release/package.sh:37`. The other four are pre-x — `x.sh:1039`
+  guards the amalgam before boot, `x.sh:1111` verifies a fetched engine
+  tarball before unpacking it, and `x.sh:1471` and `x.sh:1524` name the image
+  cache directory ahead of `require_engine`. Which sites produce the 155 is
+  unmeasured; x.sh runs on every invocation, so their share may be large.
 - **compiler + binutils**: cc, strip — the open tier, and the largest
   external count left. ld/as never hit PATH, clang drives them internally,
   so the true compile closure is cc+as+ld+SDK.
-- **archive**: tar, 3 calls.
+- **archive**: tar, 3 calls. `x.sh:1116` unpacks a fetched engine, so part
+  of this row is pre-x, with curl beside it in the same acquisition.
 - **platform, likely permanent externals on macOS**: codesign, sysctl.
 - **out of scope (network/dev)**: git, curl.
 
