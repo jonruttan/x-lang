@@ -43,8 +43,12 @@
       ((prim-ref (lit io) (lit display)) v))
     (method read (self)
       (doc "Read and parse one expression from stdin."
+        (note "The read primitive answers the EOF sentinel, %token-eof, at end of input, so that a () in the input is a value; this method answers () there for callers that loop until nil.")
         (returns ANY "The parsed expression, or () at end of input"))
-      ((prim-ref (lit io) (lit read))))
+      (let ((%v ((prim-ref (lit io) (lit read)))))
+        (match
+          ((same? %v %token-eof) ())
+          (#t %v))))
     (method read-char (self)
       (doc "Read one character from stdin."
         (returns ANY "The character, or () at end of input"))
