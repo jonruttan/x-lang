@@ -1,0 +1,15 @@
+(module scoped/alpha)
+; alpha.x -- a scoped fixture: a private helper, an exported function and
+; an exported class.
+(def %helper (fn (_ n) (+ n 1)))
+(def %state 0)
+(def alpha-bump (fn (_) (set! %state (%helper %state)) %state))
+(doc (def alpha-twice (fn (_ n) (%helper (%helper n))))
+  (param n INT "A number")
+  (returns INT "n plus two")
+  "Add two, through the private helper twice.")
+(import x/type/class)
+(def-class Alpha ()
+  (static (method twice (self n) (alpha-twice n))))
+(def alpha-self (fn (_) (module scoped/alpha)))
+(provide scoped/alpha alpha-bump alpha-twice Alpha alpha-self)

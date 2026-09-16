@@ -5,6 +5,26 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A module can have a scope of its own.** A file whose first form is
+`(module NAME)` is evaluated in an environment of its own, a child of the
+root: its top-level definitions are private to it, and only what `provide`
+lists reaches the root ([#719], design note [#718]). A private helper stays
+in the module, two modules may share a private name, and a name is exported
+once — `provide` refuses a second module that defines a name another owns,
+while tolerating a re-export of the same object. A selective `(import NAME
+sym ...)` copies an export into the importer's own environment, by name or
+under an alias, so the importer holds the value and a later global rebind
+does not reach it; `(module NAME)` as an expression denotes the module's
+environment. Scoping is opt-in and per file: a file with no header loads
+through `include` in the root exactly as before, which is the whole boot
+floor and standard library, and the loader tells the two apart by the first
+bytes so an unscoped module is never re-read. Built on first-class
+environments (x-engine-c v0.2.11): a scoped module is an environment, and
+`import`/`provide` move bindings between it and the root.
+
+[#718]: https://github.com/jonruttan/x-lang/pull/718
+[#719]: https://github.com/jonruttan/x-lang/issues/719
+
 **`-l` is repeatable.** The first names the lang that owns the prompt, as it
 always has; each further one names a bundle to load beside it, resolved
 exactly as the first is and read ahead of its entry, so `x -l xe -l python`

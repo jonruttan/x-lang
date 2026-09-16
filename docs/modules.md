@@ -15,7 +15,17 @@ Declares a module and registers its exported symbols:
   map filter fold sort reverse append ...)
 ```
 
-`provide` records the module name and its export list in the module registry. It does not affect evaluation — any definitions in the file are already bound in the environment by the time `provide` runs at the bottom of the file.
+`provide` records the module name and its export list, and binds each
+listed name in the root environment as the module's export. Each exported
+name has **one owner**: a second module that provides a name another owns
+is refused, naming both, unless it is re-exporting the very same object
+(the way `x/core` re-exports its submodules' names). An unscoped module's
+definitions are already bound in the root by `include`, so `provide` there
+only records ownership, and it may sit ahead of the definitions, as the
+lang bundles write it. A [scoped module](#module-scope) keeps its
+definitions in its own environment, and `provide` copies the listed ones
+to the root, so there it follows the definitions: a name the module has
+not defined is refused.
 
 ### `import`
 
@@ -33,6 +43,14 @@ becomes `lib/x/core/list.x`), and loads the file. Name-keyed identity is
 what makes an installed tree work — the same module reached through a
 different root (repo `lib/` vs an installed absolute root) is still the
 same module.
+
+A **selective** import names what to bind: `(import NAME sym ...)` copies
+each named export into the importer's own environment, so the importer
+holds the value and a later rebinding of the global does not reach it. A
+`(sym alias)` pair binds the export under a different name. Importing the
+same export twice into one environment is a no-op; a name already bound
+there to a different object is refused, naming both. A selective import of
+a name the module does not export is an error.
 
 ### `import-version-once` / `import-version`
 
@@ -139,6 +157,40 @@ Module names map directly to file paths:
 | `x/sys/posix` | `lib/x/sys/posix.x` |
 
 The resolution rule is: `lib/<module-name>.x` where slashes in the module name become directory separators.
+
+## Module scope
+
+A file whose **first form** is `(module NAME)` is a *scoped module*: its
+top-level definitions live in an environment of their own, a child of the
+root, and only what `provide` lists reaches the root. Everything else — a
+private helper, module state, an intermediate — stays inside the module and
+cannot be seen or clobbered from outside. Two scoped modules may use the
+same private name without collision.
+
+```x
+(module x/example/counter)
+(def %count 0)                     ; private: nothing outside sees %count
+(def bump (fn (_) (set! %count (+ %count 1)) %count))
+(def total (fn (_) %count))
+(provide x/example/counter bump total)
+```
+
+`(import x/example/counter)` binds `bump` and `total` in the root, as any
+`provide` does; `%count` is not bound anywhere but the module. A selective
+`(import x/example/counter bump)` copies only `bump`, into the importer's
+own environment.
+
+As an expression, `(module NAME)` denotes the module's environment — a
+`(bindings . parent)` pair whose parent is the root — so a tool can walk a
+module's names. A module that is not loaded is an error.
+
+Scoping is **opt-in and per file**. A file with no `(module NAME)` header
+loads through `include`, in the root, exactly as before — which is every
+module in the boot floor and the standard library. The header must be the
+file's first form, before any comment; the loader decides scoped-versus-not
+by reading the first bytes, so an ordinary unscoped module is never fully
+re-read. The rules for every class of name conflict the doors can meet are
+in [Namespaces](namespaces.md).
 
 Two extensions to the rule:
 
