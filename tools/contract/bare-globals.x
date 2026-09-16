@@ -48,6 +48,7 @@
   (import-version-once)  ; GH #214
   (include-once)
   (provide)
+  (module)              ; x-lang#719: names a scoped module and denotes its environment, same family as provide/import
   (require-once)
   ; --- registry protocol (keep-list) ---
   (prim-domain)

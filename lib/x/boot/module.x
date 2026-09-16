@@ -270,6 +270,52 @@
 ; percent-globals budget is a ratchet.
 (%set-rest! %module-loaded-cell (pair () ()))
 
+; --- Module environments and export owners (x-lang#719) ---
+; Two more links on the chain.  A scoped module -- one whose first form is
+; (module NAME) -- is evaluated in an environment of its own, a child of
+; the root, and this cell keeps ((NAME . ENV) ...) so a selective import
+; can read an export from it and a reader can walk it.  The owner cell
+; keeps ((SYM . NAME) ...): every name `provide` binds in the root has one
+; owner, and a second module providing the same name is refused, naming
+; both -- the one-owner rule of docs/namespaces.md.
+(%set-rest! (rest %module-loaded-cell) (pair () ()))
+(def %module-env-cell (rest (rest %module-loaded-cell)))
+(%set-rest! %module-env-cell (pair () ()))
+(def %module-owner-cell (rest %module-env-cell))
+; The root environment, read through the contract each time rather than
+; held in a global: it is the base's, and a global holding it would be one
+; more reference for the image writer to explain.
+(def %module-root-env
+  (fn (_) (%reflect-base-cell (lit env-root))))
+; Object identity, never eq?: eq? compares the operand word, and every
+; closure carries the same call handler in that word, so eq? is #t for any
+; two procedures.  A re-export and an import repeat compare values, which
+; are usually closures, so they must ask same?.
+(def %module-same? (prim-ref (lit obj) (lit same?)))
+; The marker a guarded lookup answers for a name that is not bound: a
+; fresh pair, so nothing a lookup could return is the same object.
+(def %module-unbound (pair () ()))
+(def %module-assoc
+  (fn (self k l)
+    (match
+      ((eq? l ()) ())
+      ((eq? (first (first l)) k) (first l))
+      (#t (self k (rest l))))))
+(def %module-env-of
+  ; The environment a module's names live in: its own when scoped, the
+  ; root when it was loaded by include.
+  (fn (_ name)
+    (def %e (%module-assoc name (first %module-env-cell)))
+    (match
+      ((eq? %e ()) (%module-root-env))
+      (#t (rest %e)))))
+(def %module-owner-of
+  (fn (_ sym)
+    (def %o (%module-assoc sym (first %module-owner-cell)))
+    (match
+      ((eq? %o ()) ())
+      (#t (rest %o)))))
+
 (def %module-register!
   (fn (_ name exports)
     (%set-first! %module-registry-cell
@@ -440,10 +486,85 @@
           ((eq? (rest spec) ()) #t)
           ((eq? v ()) (= (first (rest spec)) 0))
           (#t (= (first (rest spec)) (first v))))))))
+; A definition made in a given environment: (def SYM 'VALUE) evaluated
+; there.  The value is quoted so `def` binds the object handed in rather
+; than evaluating it a second time -- a symbol value would be looked up.
+(def %module-define!
+  (fn (_ env sym value)
+    (eval (list (lit def) sym (list (lit lit) value)) env)))
+
+; Export one name: record its owner, refuse a second owner, and bind it in
+; the root so every environment in the base reaches it -- which is what an
+; export has always meant here, and what every importer relies on.  A
+; module providing again is a reload and rebinds.  The value is read in the
+; provider's own environment `e`: a scoped module's, or the root.
+;
+; One owner per name means one definition per name.  A module that lists a
+; name another module owns, bound to the very object the owner bound --
+; x/core re-exporting its submodules' predicates, a dialect toolbox
+; listing what it gathers -- is a re-export: it binds nothing new, and the
+; owner stays.  A different object is a second definition, and refused.
+(def %module-export!
+  (fn (_ name sym e)
+    (def %owner (%module-owner-of sym))
+    ; The value, or the unbound marker.  An unscoped file may `provide` at
+    ; its top, ahead of its definitions -- every lang bundle does -- and
+    ; such a provide records the owner and binds nothing: `include` binds
+    ; the definitions in the root when it reaches them, as it always has.
+    ; A scoped module's provide follows its definitions, because the value
+    ; is copied to the root here, so a name it has not defined is an error.
+    (def %value (guard (_ %module-unbound) (eval sym e)))
+    (match
+      ((not (%module-same? %value %module-unbound)) ())
+      ((%module-same? e (%module-root-env)) ())
+      (#t (error (%str-append "provide: "
+            (%str-append (symbol->str name)
+              (%str-append " exports "
+                (%str-append (symbol->str sym) ", which it does not define")))))))
+    (match
+      ((eq? %owner ())
+        (%set-first! %module-owner-cell
+          (pair (pair sym name) (first %module-owner-cell))))
+      ((eq? %owner name) ())
+      ((%module-same? %value %module-unbound) ())
+      ((%module-same? %value (eval sym (%module-root-env))) ())
+      (#t (error (%str-append "provide: "
+            (%str-append (symbol->str name)
+              (%str-append " exports "
+                (%str-append (symbol->str sym)
+                  (%str-append ", owned by " (symbol->str %owner)))))))))
+    ; An unscoped module's defs are already bound in the root by `include`,
+    ; so `e` is the root and there is nothing to copy -- provide only
+    ; records the owner.  A scoped module's value lives in its own
+    ; environment and is copied to the root here.
+    (match
+      ((%module-same? e (%module-root-env)) ())
+      (#t (%module-define! (%module-root-env) sym %value)))))
+
 (def provide
-  (op (name . syms) _
+  (op (name . syms) e
     (%module-register! name syms)
+    (def %go
+      (fn (self l)
+        (match
+          ((eq? l ()) ())
+          (#t (do (%module-export! name (first l) e) (self (rest l)))))))
+    (%go syms)
     ()))
+
+; The form that names a scoped module, and denotes it everywhere else.  As
+; the first form of a file it is the loader's: the forms after it are
+; evaluated in an environment of the module's own.  As an expression it
+; answers that environment, so a reader can walk a module's names.  Reached
+; through `include` rather than `import`, a scoped file's header is this
+; expression, evaluated in the root, and the file loads unscoped -- the
+; boot amalgams take that path, which is why scoping is per import.
+(def module
+  (op (name) _
+    (def %e (%module-assoc name (first %module-env-cell)))
+    (match
+      ((eq? %e ()) (error (%str-append "module: not loaded: " (symbol->str name))))
+      (#t (rest %e)))))
 
 ; Look up a module entry in the registry by name
 (def %module-find
@@ -478,22 +599,180 @@
                           (%str-append ": " (symbol->str %sym)))))))))))))
     (%check syms)))
 
+; --- The scoped loader (x-lang#719) ---
+; A file whose first form is (module NAME) is evaluated in an environment
+; of its own, a child of the root: every `def` at its top level lands
+; there, every closure it makes captures it, and only what `provide` lists
+; reaches the root.  Every other file loads through `include`, in the root,
+; exactly as before -- scoping is opt-in, one file at a time, and the
+; common unscoped case pays only a short prefix read and a byte scan, never
+; a second tokenize.
+;
+; Detecting a scoped file cheaply: read a prefix and scan the raw bytes for
+; a leading (module ...), skipping whitespace and `;`-comments -- no
+; tokenizer.  A header past the prefix (a very long comment banner) reads
+; as unscoped; module headers sit at the top.  Only a file that looks
+; scoped is read whole and tokenized, with the base's own reader so it gets
+; the session's reader macros; read-str drops a token left unterminated at
+; end of buffer (#161), so the appended space closes the last one.
+(def %module-peek-bytes 64)
+; A whole-file read, only ever for a scoped file, comes in chunks of this
+; many bytes: one page-sized buffer per read, small enough to keep the
+; garbage of a large module's read bounded.
+(def %module-read-chunk 65536)
+(def %module-read-fd
+  ; Read a file into a string with the raw catalog doors: imports run
+  ; during boot too, before File or Tok exist as classes.  A `limit` caps
+  ; the bytes -- the cheap prefix peek: one buffer, one read, no loop, so
+  ; the common unscoped case costs a single small read and nothing more.
+  ; Nil `limit` reads the whole file, a chunk at a time (only a scoped file).
+  (fn (_ path limit)
+    (def %open (prim-ref (lit sys) (lit open)))
+    (def %read (prim-ref (lit sys) (lit read)))
+    (def %close (prim-ref (lit sys) (lit close)))
+    (def %fd (%open path 0))                          ; O_RDONLY is 0 everywhere
+    (match
+      ((< %fd 0) (error (%str-append "import: cannot open " path)))
+      (#t ()))
+    (match
+      ((not (null? limit))
+        (let ((%buf (%str-make limit)))
+          (let ((%n (%read %fd (%str->ptr %buf) limit)))
+            (%close %fd)
+            (match
+              ((< %n 0) (error (%str-append "import: cannot read " path)))
+              (#t (%substring %buf 0 %n))))))
+      (#t
+        (let ((%go
+               (fn (self acc)
+                 (let ((%buf (%str-make %module-read-chunk)))
+                   (let ((%n (%read %fd (%str->ptr %buf) %module-read-chunk)))
+                     (match
+                       ((< %n 0) (do (%close %fd) (error (%str-append "import: cannot read " path))))
+                       ((= %n 0) acc)
+                       (#t (self (%str-append acc (%substring %buf 0 %n)))))))))) 
+          (let ((%text (%go "")))
+            (%close %fd)
+            %text))))))
+(def %module-ws?
+  (fn (_ c)
+    (match ((= c 32) #t) ((= c 9) #t) ((= c 10) #t) ((= c 13) #t) (#t #f))))
+(def %module-looks-scoped?
+  ; #t when the first non-whitespace bytes of `text` are "(module " -- the
+  ; header form.  A scoped module's (module NAME) header is its first form,
+  ; before any comment; a file that opens with anything else (a `;` banner,
+  ; a `(def`, whitespace then a form) is unscoped, decided in a step or two
+  ; without walking the file.  This is what keeps the boot and the library,
+  ; none of which is scoped, from paying to be scanned.
+  (fn (self text i n)
+    (match
+      ((>= i n) #f)
+      ((%module-ws? (%str-byte-ref text i)) (self text (+ i 1) n))
+      ((> (+ i 8) n) #f)
+      (#t (%str-starts? (%str-byte-sub text i 8) "(module ")))))
+(def %module-header?
+  ; The tokenized header, once a file looks scoped: (module NAME) as the
+  ; first form, NAME the module being imported.  A header naming another
+  ; module is an error -- the file is not the module the import asked for.
+  (fn (_ name forms)
+    (match
+      ((eq? forms ()) #f)
+      ((not (pair? (first forms))) #f)
+      ((not (eq? (first (first forms)) (lit module))) #f)
+      ((not (pair? (rest (first forms)))) #f)
+      ((eq? (first (rest (first forms))) name) #t)
+      (#t (error (%str-append "import: "
+            (%str-append (symbol->str name)
+              (%str-append " is headed (module "
+                (%str-append (symbol->str (first (rest (first forms)))) ")")))))))))
+(def %module-load-scoped
+  ; Evaluate every form after the header in a fresh child of the root, with
+  ; the include directory stack pointing at the file so `./` includes inside
+  ; it resolve.  The environment is recorded before the forms run, so a
+  ; module that asks (module NAME) for its own environment finds it.
+  (fn (_ name path forms)
+    (def %env (pair () (%module-root-env)))
+    (%set-first! %module-env-cell
+      (pair (pair name %env) (first %module-env-cell)))
+    (%include-dir-push! (%path-dir path))
+    (def %go
+      (fn (self l)
+        (match
+          ((eq? l ()) ())
+          (#t (do (eval (first l) %env) (self (rest l)))))))
+    (%go forms)
+    (%include-dir-pop!)
+    ()))
+(def %module-load
+  (fn (_ name path)
+    (let ((%head (%module-read-fd path %module-peek-bytes)))
+      (match
+        ((%module-looks-scoped? %head 0 (%str-byte-len %head))
+          (let ((%forms ((prim-ref (lit tok) (lit read-str)) (%base)
+                          (%str-append (%module-read-fd path ()) " "))))
+            (match
+              ((%module-header? name %forms) (%module-load-scoped name path (rest %forms)))
+              (#t (include path)))))
+        (#t (include path))))))
+
+; A selective import copies an export into the importer's environment `e`,
+; by the export's name or under an alias -- (import NAME sym (sym alias))
+; -- so the importer holds the value: a later rebinding of the global does
+; not reach it.  One binding per name per environment: a name already bound
+; in `e` to the same object (same?, never eq?, which is #t for any two
+; closures) is a repeat and does nothing; bound to anything else, refused.
+(def %module-import-one!
+  (fn (_ name spec e)
+    (def %sym (match ((pair? spec) (first spec)) (#t spec)))
+    (def %alias (match ((pair? spec) (first (rest spec))) (#t spec)))
+    (def %value (eval %sym (%module-env-of name)))
+    (def %have (guard (_ %module-unbound) (eval %alias e)))
+    (match
+      ((%module-same? %have %module-unbound) (%module-define! e %alias %value))
+      ((%module-same? %have %value) ())
+      (#t
+        (do
+          (def %owner (%module-owner-of %alias))
+          (error (%str-append "import: "
+            (%str-append (symbol->str %alias)
+              (%str-append " from "
+                (%str-append (symbol->str name)
+                  (%str-append " is already bound here"
+                    (match
+                      ((eq? %owner ()) "")
+                      (#t (%str-append " by " (symbol->str %owner)))))))))))))))
+(def %module-import-names!
+  (fn (_ name syms e)
+    (def %names
+      ((fn (self l)                                   ; a (sym alias) pair's sym
+         (match
+           ((eq? l ()) ())
+           ((pair? (first l)) (pair (first (first l)) (self (rest l))))
+           (#t (pair (first l) (self (rest l))))))
+       syms))
+    (let ((%entry (%module-find name)))
+      (match
+        ((eq? %entry ()) ())
+        (#t (%module-check-imports name %names (rest %entry)))))
+    (def %go
+      (fn (self l)
+        (match
+          ((eq? l ()) ())
+          (#t (do (%module-import-one! name (first l) e) (self (rest l)))))))
+    (%go syms)))
+
 (def import
-  (op (name . syms) _
+  (op (name . syms) e
     (match
       ((%module-loaded? name) ())
       (#t
         (do
           ; register BEFORE loading -- cycle safety, mirrors include-once
           (%module-loaded! name)
-          (include (%module-resolve name)))))
+          (%module-load name (%module-resolve name)))))
     (match
       ((eq? syms ()) ())
-      (#t
-        (let ((%entry (%module-find name)))
-          (match
-            ((eq? %entry ()) ())
-            (#t (%module-check-imports name syms (rest %entry)))))))))
+      (#t (%module-import-names! name syms e)))))
 
 ; --- Versioned lines (GH #214) ---
 ; A module may exist in several versions at once, as sibling files:
