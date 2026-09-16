@@ -45,6 +45,10 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+  # The job name uses the words "declared" and "main", never the version: a
+  # required status check is matched by name, and a name that carried the
+  # version would stop reporting the day lang.xon's release changes, blocking
+  # every merge until the requirement was edited to match.
   specs:
     name: specs (${{ matrix.os }}, x-lang ${{ matrix.x-lang }})
     needs: release
@@ -54,7 +58,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-14, ubuntu-24.04]
-        x-lang: ["${{ needs.release.outputs.version }}", main]
+        x-lang: [declared, main]
     steps:
       - uses: actions/checkout@v4
 
@@ -62,7 +66,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: jonruttan/x-lang
-          ref: ${{ matrix.x-lang }}
+          ref: ${{ matrix.x-lang == 'main' && 'main' || needs.release.outputs.version }}
           path: .x-lang
 
       # The engine is acquired, not built: x-lang pins one and fetches it.
