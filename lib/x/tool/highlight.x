@@ -15,6 +15,8 @@
 ; The keyword set is NOT written here: it comes from the caller, which reads
 ; lib/x/constructs.x. A construct added there highlights without touching this
 ; file.
+
+(module x/tool/highlight)
 (import x/type/str)
 (import x/type/class)
 

@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The first library modules have a scope of their own.** Nine modules
+that load through `import` at run time now carry a `(module NAME)` header
+and keep their private names to themselves: `x/tool/highlight`,
+`x/repl/paint`, `x/repl/line`, `x/repl/term`, `x/type/generic`,
+`x/type/trait`, `x/num/random`, `x/sys/date` and `x/tool/profile`
+([#719], step 4). Their `provide` lists are now complete, since an unlisted
+name is private; `Paint` and `Line` gained the `provide` they never had.
+The one seam another module reached through a private name is a door now:
+the numeric tower asked generic's `%g-absorbs?` at its miss handler, and
+asks `(Generic absorbs? k1 k2)` instead.
+The header follows the file's comment banner rather than preceding it, so
+a scoped file opens the way every library file does; the loader's peek
+skips the banner, finishing a long one from the whole file. A test that
+deliberately drives a module's private seam reaches it through the
+module's environment, `(eval (lit NAME) (module x/repl/line))`, which the
+repl specs now do.
+
 **A collect inside a guard body no longer frees the enclosing handlers**
 (x-engine-c v0.2.12, engine [x-engine-c#54]). Installing a guard's handler
 took the previous handler out of the error-handler slot and kept it in a C

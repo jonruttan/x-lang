@@ -28,6 +28,7 @@
 ; %-private functions over cached prims rather than class methods (the rule
 ; reader/analyser.x states); Line is the cold-call API over them.
 
+(module x/repl/line)
 (import x/type/class)
 (import x/type/str)
 (import x/type/list)
@@ -633,3 +634,4 @@
   (note "Tab completes against the documentation registry -- the same names apropos searches -- so a module that documents an export completes as soon as it loads.")
   (note "A lang that reads its own syntax has no names in that registry: it sets (Line completer) to its own, or () to turn Tab off, as it sets %repl-paint for the colour, and %repl-eval-line to read its syntax from the line the editor hands back. x/repl/lang bundles those as a named lang a session switches to with (lang NAME).")
   "Line: one edited, coloured line read from the terminal; the built-in replacement for rlwrap.")
+(provide x/repl/line Line)

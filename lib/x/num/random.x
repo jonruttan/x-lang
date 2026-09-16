@@ -17,6 +17,7 @@
 ; @copyright 2026 Jon Ruttan
 ; @license MIT No Attribution (MIT-0)
 
+(module x/num/random)
 (import x/sys/posix)            ; the Sys class: open-read / fd-read / close
 (import x/type/list)            ; the List class: fold / ref / length
 (import x/type/vector)          ; Vector from-list / ref / set! (Fisher-Yates)

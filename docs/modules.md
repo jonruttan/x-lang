@@ -186,9 +186,9 @@ module's names. A module that is not loaded is an error.
 
 Scoping is **opt-in and per file**. A file with no `(module NAME)` header
 loads through `include`, in the root, exactly as before — which is every
-module in the boot floor and the standard library. The header must be the
-file's first form, before any comment; the loader decides scoped-versus-not
-by reading the first bytes, so an ordinary unscoped module is never fully
+module in the boot floor. The header is the file's first form, after its
+comment banner; the loader decides scoped-versus-not by reading the first
+bytes past the banner, so an ordinary unscoped module is never fully
 re-read. The rules for every class of name conflict the doors can meet are
 in [Namespaces](namespaces.md).
 

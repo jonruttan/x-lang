@@ -26,6 +26,7 @@
 ;
 ; Zero top-level %-globals (new-file budget 0).
 
+(module x/repl/term)
 (import x/type/class)
 (import x/type/str)
 (import x/sys/posix)

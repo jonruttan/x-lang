@@ -26,6 +26,8 @@
 ; whose keys ABSORB the other's (each differing key declares a conversion
 ; FROM the other) wins, the same relation the C operator arbitration
 ; reads -- and a silent lattice is an error naming both candidates.
+
+(module x/type/generic)
 (import x/type/class)
 (def %g-str-append (prim-ref (lit str) (lit append)))
 (def %g-display-str (prim-ref (lit io) (lit display-to-str)))
@@ -212,6 +214,10 @@
         (returns ANY "nil"))
       (%set-first! (first (rest (rest (first g)))) f)
       ())
+    (method absorbs? (self (param k1 ANY "A signature key: a type handle, a class, or the #t wildcard") (param k2 ANY "The key it may absorb"))
+      (doc "Whether k1 absorbs k2 through the conversion lattice: k1 is a type handle whose type declares a conversion from k2, the relation the C operator arbitration reads. A class or wildcard absorbs nothing. The numeric tower's promotion asks this at its miss handler."
+        (returns BOOL "#t when k1's type converts from k2"))
+      (%g-absorbs? k1 k2))
     (method methods-of (self (param g ANY "The generic"))
       (doc "The registered (keys . fn) method records, newest first."
         (returns LIST "Method records"))

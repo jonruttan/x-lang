@@ -57,6 +57,7 @@
   ; absent: it wraps a real (def ...) the linter should still walk.
   (import  (fmt . call)    (scope . skip)        (branch . none))
   (provide (fmt . call)    (scope . skip)        (branch . none))
+  (module  (fmt . call)    (scope . skip)        (branch . none))
   (param   (fmt . call)    (scope . skip)        (branch . none))
   (returns (fmt . call)    (scope . skip)        (branch . none))
   (example (fmt . call)    (scope . skip)        (branch . none))
