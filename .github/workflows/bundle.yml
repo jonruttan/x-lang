@@ -1,0 +1,111 @@
+name: bundle
+
+# The CI a lang bundle runs, shipped by the platform so that every bundle is
+# checked the same way.  A bundle's own workflow calls it:
+#
+#   jobs:
+#     ci:
+#       uses: jonruttan/x-lang/.github/workflows/bundle.yml@main
+#
+# The suite runs on every operating system x-lang's own ci.yml tests, against
+# two x-lang revisions: the release the bundle declares in lang.xon's
+# (requires-release ...), and main.  The declared leg is the verdict; the main
+# leg reports that the platform has moved and is allowed to fail.  The release
+# is read from lang.xon, so it is named in one place.
+#
+# The operating systems here and in ci.yml are the same list and change
+# together.
+
+on:
+  workflow_call:
+    inputs:
+      spec-env:
+        description: >-
+          Environment for the spec gate, as space-separated NAME=VALUE pairs:
+          the runner knobs a suite needs, such as SPEC_BATCH or
+          TIMEOUT_UNIT_SECS.
+        type: string
+        default: ""
+
+jobs:
+  release:
+    name: declared release
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        name: Read (requires-release ...) from lang.xon
+        run: |
+          version=$(sed -n 's/^(requires-release "\(.*\)")$/\1/p' lang.xon)
+          if [ -z "$version" ]; then
+            echo "lang.xon declares no (requires-release ...)" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  # The job name uses the words "declared" and "main", never the version: a
+  # required status check is matched by name, and a name that carried the
+  # version would stop reporting the day lang.xon's release changes, blocking
+  # every merge until the requirement was edited to match.
+  specs:
+    name: specs (${{ matrix.os }}, x-lang ${{ matrix.x-lang }})
+    needs: release
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.x-lang == 'main' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04]
+        x-lang: [declared, main]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out x-lang
+        uses: actions/checkout@v4
+        with:
+          repository: jonruttan/x-lang
+          ref: ${{ matrix.x-lang == 'main' && 'main' || needs.release.outputs.version }}
+          path: .x-lang
+
+      # The engine is acquired, not built: x-lang pins one and fetches it.
+      - name: Build the platform
+        working-directory: .x-lang
+        run: |
+          make engine
+          make
+          make boot
+
+      # The gate compares failing test names with
+      # tests/contract/known-failures.txt: recorded debt stays green, and a new
+      # failure, or a recorded one that now passes, is red.
+      - name: Run the spec gate
+        run: env ${{ inputs.spec-env }} X="$PWD/.x-lang/x.sh" sh tests/spec-gate.sh
+
+  relocatable:
+    name: no root-relative includes
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # x.sh boots the declared dialect and arms the bundle root before run.x
+      # is read, so no file in a bundle needs a root-relative include, and one
+      # that has one works only from the directory it was written in.  Comment
+      # lines are ignored.
+      - name: No root-relative includes
+        run: |
+          hits=$(grep -rn '(include "[a-zA-Z]' --include='*.x' . \
+                 | grep -Ev ':[0-9]+:[[:space:]]*;' || true)
+          if [ -n "$hits" ]; then
+            echo "root-relative include:" >&2
+            echo "$hits" >&2
+            exit 1
+          fi
+
+      - name: The generated harness is not committed
+        run: |
+          if [ -e tests/lib/harness.gen.x ]; then
+            echo "tests/lib/harness.gen.x is generated and must not be committed" >&2
+            exit 1
+          fi
