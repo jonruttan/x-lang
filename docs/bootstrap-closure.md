@@ -2,31 +2,42 @@
 
 The self-hosting scorecard: every external tool the build system actually
 invokes, measured rather than grepped. The long-term goal is that each row
-below is either implemented in x, absorbed as an x-ash applet, or explicitly
-ruled a permanent external.
+below is either implemented in x, absorbed as an x-coreutils applet, or
+explicitly ruled a permanent external.
 
-## Progress (2026-09-01)
+## Progress (2026-09-15)
 
-One day after the measurement, 21 of the 46 rows have registered,
-oracle-checked implementations in x, covering ~94% of all logged
-invocations:
+37 of the 46 rows have a registered, spec-checked implementation in x.
+Those rows carry 99.1% of the logged invocations (11,120 of 11,222):
 
-- **the language tools**: awk (x-awk, 167 specs), grep (x-grep, 29),
+- **the language tools**: awk (x-awk, 167 cases), grep (x-grep, 29),
   sed (x-sed, 21), make (x-make, 23) — the original core four
-- **the applets** (x-coreutils, 24 specs, one bundle): cat sort uniq
-  head tail wc comm join tr cut basename dirname cp rm mkdir, and
-  **sha256sum as FIPS 180-4 in pure x**, byte-identical with the
-  system tool (retiring the sha256sum/shasum fallback pair)
-- **sh**: x-ash, in progress (2 recorded failures)
+- **sh**: x-ash, 363 cases
+- **the applets**: x-coreutils, 92 applets over 323 cases, of which 32
+  answer a row here — basename cat cmp comm cp cut date diff dirname
+  fold head install join ln ls mkdir mktemp mv nproc readlink rm
+  sha256sum sort stat timeout touch tr uname uniq wc which xargs.
+  sha256sum is FIPS 180-4 in pure x, byte-identical with the system tool.
 
 Pipelines of x tools compose today:
 `... | x -l awk '{print $1}' | x -l coreutils -- sort | x -l coreutils -- uniq -c`.
 
-Still external: cc/strip (the compiler tier — the next mountain),
-codesign/sysctl (platform, permanent), git/curl (fetch, out of scope),
-timeout/nproc (GNU externals, to eliminate from scripts), install,
-mktemp, tar/gzip, diff/cmp, find, xargs, date, readlink, ls, mv, ln,
-touch, stat, fold, shasum, uname, which.
+Still external — 9 rows, 102 invocations: cc/strip (the compiler tier —
+the next mountain), codesign/sysctl (platform, permanent), git/curl
+(fetch, out of scope), tar (archive), find, and shasum.
+
+**Implementation is not adoption.** The figure above says the tool exists
+in x and its suite passes; it does not say the build calls it. The build
+still invokes the system binaries throughout, so a fresh measurement would
+move these counts very little. sha256sum is the plainest case: an applet
+byte-identical with the system tool, while the Makefile's install rules,
+x.sh and tools/release/package.sh each still prefer `shasum` and fall back
+to `sha256sum`. Switching a row over needs no new code, only the call site.
+
+The percentage re-scores the 2026-08-31 counts below against the
+implementations that exist today. The counts are that measurement's own and
+predate four bundles; re-run them (see Reproducing) before reading anything
+into a single row.
 
 Measured 2026-08-31 on macOS (Darwin 25.5.0) by shimming every executable on
 PATH (4,455 logging wrappers) and running three phases in the x-lang checkout:
@@ -91,19 +102,25 @@ PATH (4,455 logging wrappers) and running three phases in the x-lang checkout:
 ## Reading it by self-hosting tier
 
 - **regex trio (grep/awk/sed)**: 7,391 invocations — 64% of everything.
-  One regex engine (lib/x/type/regex.x exists) + line-loop machinery covers
-  all three.
-- **coreutils subset**: ~25 small tools; busybox-style applets in x-ash.
-  `sort`+`join`+`comm` (1,892 calls) are the relational workhorses of the
-  contract gates. `timeout` and `nproc` are GNU extensions (Homebrew) —
-  either implement or eliminate from scripts.
-- **shell (sh)**: every make recipe line; count is a floor (see caveats).
-- **make**: recursion via $(MAKE); the GNU subset actually used is
+  Three bundles over one regex layer: lib/x/type/regex.x, which x-grep
+  extends with BRE and x-sed then reuses whole, plus each tool's own
+  line loop.
+- **coreutils subset**: x-coreutils, one busybox-shaped bundle, answers 32
+  of these rows. `sort`+`join`+`comm` (1,892 calls) are the relational
+  workhorses of the contract gates; `timeout` and `nproc`, the two GNU
+  extensions, are applets now rather than Homebrew. `find` (22 calls) is
+  the one row in this tier with no applet.
+- **shell (sh)**: x-ash; every make recipe line, and the count is a floor
+  (see caveats).
+- **make**: x-make. Recursion via $(MAKE); the GNU subset actually used is
   $(shell), $(wildcard), $(findstring), $(if), ifeq/ifdef, 2 pattern rules.
-- **crypto**: sha256sum/shasum pair (155 calls) — manifest + ISA pinning.
-  A self-hosted SHA-256 is small and removes the pair-fallback dance.
-- **compiler + binutils**: cc, strip. Note ld/as never hit PATH — clang
-  drives them internally, so the true compile closure is cc+as+ld+SDK.
+- **crypto**: 155 calls for manifest and ISA pinning, still the system pair
+  at every call site. x has a byte-identical sha256sum; what is left here is
+  adoption, not implementation.
+- **compiler + binutils**: cc, strip — the open tier, and the largest
+  external count left. ld/as never hit PATH, clang drives them internally,
+  so the true compile closure is cc+as+ld+SDK.
+- **archive**: tar, 3 calls.
 - **platform, likely permanent externals on macOS**: codesign, sysctl.
 - **out of scope (network/dev)**: git, curl.
 
