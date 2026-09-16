@@ -142,7 +142,16 @@
 ((prim-ref (lit type) (lit set-units!))
   ((prim-ref (lit type) (lit by-atom)) %vector) -1)
 
-(set! %vector-read (fn (_ . args) (%vector-from-list %vector (%read))))
+; The read primitive answers the EOF sentinel at end of input; a vector
+; literal cut off there reads as an empty vector, as it did when the
+; primitive answered nil.
+(set! %vector-read
+  (fn (_ . args)
+    (let ((%v (%read)))
+      (%vector-from-list %vector
+        (match
+          ((same? %v %token-eof) ())
+          (#t %v))))))
 
 (def-class Vector ()
   (static

@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**End of input is a value of its own** (x-engine-c v0.2.13, x-sweet
+v0.1.6). The engine's `read` primitive answered nil at end of input, and
+nil is also what a literal `()` reads as, so a loop that read until nil
+stopped at the first `()` in its input. The pinned engine answers the EOF
+sentinel, `%token-eof`, instead
+([x-engine-c#57](https://github.com/jonruttan/x-engine-c/pull/57)).
+`(Io read)` still answers `()` at end of input, so its callers are
+unchanged. The library's own callers of the primitive stop at the sentinel:
+the vector reader, and the lint driver, which no longer stops early at a
+`()` among the forms it lints. The sweet bundle moves to v0.1.6, whose
+readers stop at either
+([x-sweet#15](https://github.com/jonruttan/x-sweet/pull/15)).
+
 **The spec runner's NUL escaper is x, and runs only for a spec that asserts
 a zero byte** ([#733]). It was perl, which is not part of this project; it is
 now `tools/dev/nul-escape.x`, run through the wrapper and installed beside the

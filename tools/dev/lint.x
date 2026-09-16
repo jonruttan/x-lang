@@ -130,7 +130,9 @@
   ; Slurp remaining forms (order is irrelevant -- defs/uses are sets).
   (def %read-all (fn (self acc)
     (def form (%read))
-    (if (null? form) acc (self (pair form acc)))))
+    ; End of input is the EOF sentinel, so a () among the forms is read
+    ; as the form it is rather than ending the slurp.
+    (if (same? form %token-eof) acc (self (pair form acc)))))
   (def %forms-rev (%read-all ()))
   (def %all-forms
     (if %lib-mode %forms-rev (pair %first-form %forms-rev)))
