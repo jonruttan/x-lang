@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A collect inside a guard body no longer frees the enclosing handlers**
+(x-engine-c v0.2.12, engine [x-engine-c#54]). Installing a guard's handler
+took the previous handler out of the error-handler slot and kept it in a C
+local, so a collect inside the body swept the enclosing guard's handler and
+the base-eval handler under it, and the next raise went through freed
+memory. The handler now carries the handler it displaced. The library never
+collected inside a guard on its own, so nothing met this until [#728] swept
+after each module load during an image write and the tower's JIT probe, a
+guard around a lazy import, put that sweep inside one; the x-base, xe and rn
+image writers segfaulted on macOS CI. With this engine the same write is
+clean under ASan. The shortest program that showed it, on the previous
+engine, was a nested guard whose body collects and then raises to the outer
+guard.
+
+[x-engine-c#54]: https://github.com/jonruttan/x-engine-c/pull/54
+[#728]: https://github.com/jonruttan/x-lang/pull/728
+
 **A module can have a scope of its own.** A file whose first form is
 `(module NAME)` is evaluated in an environment of its own, a child of the
 root: its top-level definitions are private to it, and only what `provide`
