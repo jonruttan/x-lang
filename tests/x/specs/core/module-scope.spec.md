@@ -137,6 +137,44 @@ under `tests/x/fixtures/modscope`.
 ---
     "provide: scoped/zeta exports zeta-two, which it does not define"
 
+## a scoped file is read by its header
+
+`import` names the module it is loading, and the file's `(module NAME)`
+header reads the rest of the file with the reader, one form at a time, into
+the module's environment. Each form carries the file and its line, and is
+read after the forms before it have run.
+
+### a form that fails while a scoped module loads reports the module's file and line
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (guard (_ (list (Str8 ends? "scoped/broken.x" ((prim-ref (lit io) (lit error-file))))
+                    ((prim-ref (lit io) (lit error-line)))))
+      (import scoped/broken)))
+```
+---
+    (#t 4)
+
+### a form reads the forms after it, since the file is read one form at a time
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (import scoped/reads)
+    reads-next)
+```
+---
+    (1 2 3)
+
+### a literal () is a form like any other, and the module goes on after it
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (import scoped/unit)
+    (list (unit-reads) (guard (_ 'hidden) %unit-after)))
+```
+---
+    (2 'hidden)
+
 ## the module form denotes the module's environment
 
 ### a scoped module can name its own environment
