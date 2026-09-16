@@ -5,6 +5,7 @@
 ;    (hour . 21) (minute . 30) (second . 0) (wday . 6))
 ; month 1-12, day 1-31, wday 0-6 with 0 = Sunday.
 
+(module x/sys/date)
 (import x/core/alist)
 (import x/type/class)
 (import x/type/list)   ; from-iso field work (length/ref/map)

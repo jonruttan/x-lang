@@ -63,7 +63,7 @@
 (def %tw-ensure-of ())                      ; ((handle . ensure) ...), filled below
 (def %tw-absorb?
   (fn (_ h other)
-    (if (null? (%assoc-get h %tw-ensure-of)) #f (%g-absorbs? h other))))
+    (if (null? (%assoc-get h %tw-ensure-of)) #f (Generic absorbs? h other))))
 (def %tw-promote-for
   (fn (_ wtab)                              ; wtab: ((handle . worker) ...) for ONE generic
     (fn (_ g args)

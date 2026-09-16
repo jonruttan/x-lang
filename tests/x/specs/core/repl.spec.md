@@ -209,7 +209,7 @@ x-lang.
     (def %spec-old-marks %repl-marks)
     (def %spec-mine (fn (_ s) s))
     (set! %repl-paint %spec-mine)
-    (%paint-install-hook!)
+    ((eval (lit %paint-install-hook!) (module x/repl/paint)))
     (let ((kept (same? %repl-paint %spec-mine)))
       (set! %repl-paint %spec-old)
       (set! %repl-marks %spec-old-marks)
@@ -227,7 +227,7 @@ The install fills both seats, so both are put back.
     (def %spec-old %repl-paint)
     (def %spec-old-marks %repl-marks)
     (set! %repl-paint ())
-    (%paint-install-hook!)
+    ((eval (lit %paint-install-hook!) (module x/repl/paint)))
     (let ((filled (not (null? %repl-paint))))
       (set! %repl-paint %spec-old)
       (set! %repl-marks %spec-old-marks)
@@ -250,7 +250,7 @@ brackets are not x-lang's sets its own.
     (def %spec-old-paint %repl-paint)
     (def %spec-mine (fn (_ s at) ()))
     (set! %repl-marks %spec-mine)
-    (%paint-install-hook!)
+    ((eval (lit %paint-install-hook!) (module x/repl/paint)))
     (let ((kept (same? %repl-marks %spec-mine)))
       (set! %repl-marks %spec-old)
       (set! %repl-paint %spec-old-paint)
@@ -267,7 +267,8 @@ simply not drawn.
 
 ```x
 (do (import x/repl/line)
-    (list (%ln-marks "(f x)" 5 2 5) (%ln-marks "(f x)" 3 0 5)))
+    (let ((%ln-marks (eval (lit %ln-marks) (module x/repl/line))))
+      (list (%ln-marks "(f x)" 5 2 5) (%ln-marks "(f x)" 3 0 5))))
 ```
 ---
     (((2 0 #t)) ((0 0 #f) (4 0 #f)))

@@ -159,10 +159,12 @@ current: x  registered: x t1 t3
 
 ```x
 (do (import x/repl/line)
-    (list (same? (Assoc get '%repl-eval-line (Lang get "x")) %ln-eval-line)
-          (same? (Assoc get '%repl-complete (Lang get "x")) %ln-candidates)
-          (procedure? (Assoc get '%repl-paint (Lang get "x")))
-          (procedure? (Assoc get '%repl-marks (Lang get "x")))))
+    (let ((%ln-eval-line (eval (lit %ln-eval-line) (module x/repl/line)))
+          (%ln-candidates (eval (lit %ln-candidates) (module x/repl/line))))
+      (list (same? (Assoc get '%repl-eval-line (Lang get "x")) %ln-eval-line)
+            (same? (Assoc get '%repl-complete (Lang get "x")) %ln-candidates)
+            (procedure? (Assoc get '%repl-paint (Lang get "x")))
+            (procedure? (Assoc get '%repl-marks (Lang get "x"))))))
 ```
 ---
     (#t #t #t #t)
@@ -171,15 +173,17 @@ current: x  registered: x t1 t3
 
 ```x
 (do (import x/repl/line)
-    (let ((mine (fn (_ s) ())))
-      (Lang register! "t4" (list (pair '%repl-eval-line mine) (pair '%repl-complete ())))
-      (lang t4)
-      (let ((during (list (same? %repl-eval-line mine) (null? %repl-complete)
-                          (null? (Line completer)))))
-        (lang x)
-        (list during (same? %repl-eval-line %ln-eval-line)
-              (same? %repl-complete %ln-candidates)
-              (same? (Line completer) %ln-candidates)))))
+    (let ((%ln-eval-line (eval (lit %ln-eval-line) (module x/repl/line)))
+          (%ln-candidates (eval (lit %ln-candidates) (module x/repl/line))))
+      (let ((mine (fn (_ s) ())))
+        (Lang register! "t4" (list (pair '%repl-eval-line mine) (pair '%repl-complete ())))
+        (lang t4)
+        (let ((during (list (same? %repl-eval-line mine) (null? %repl-complete)
+                            (null? (Line completer)))))
+          (lang x)
+          (list during (same? %repl-eval-line %ln-eval-line)
+                (same? %repl-complete %ln-candidates)
+                (same? (Line completer) %ln-candidates))))))
 ```
 ---
     ((#t #t #t) #t #t #t)

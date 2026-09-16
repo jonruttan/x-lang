@@ -30,6 +30,7 @@
 ; The palette is repl/ansi.x's, so NO_COLOR, TERM=dumb and --no-color reach
 ; this for free, and a colourless terminal short-circuits the whole walk.
 
+(module x/repl/paint)
 (import x/type/class)
 (import x/type/str)
 (import x/type/dict)
@@ -503,3 +504,4 @@
   (note "The scan is %-private over cached prims and the palette is built once, not per render: class dispatch on a per-keystroke path costs more than the scanning between the doors.")
   (note "marks gives every paren its nesting depth with the scan's own rules for strings, comments and character literals; line colours them by depth when handed the result. The editor threads the two together on every redraw.")
   "Paint: ANSI syntax colouring for a REPL line that is still being typed.")
+(provide x/repl/paint Paint)

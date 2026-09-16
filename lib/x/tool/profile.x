@@ -8,6 +8,7 @@
 ; Also provides a smart heap-collect that skips collection when heap
 ; pressure is low, and a forced variant that always collects.
 
+(module x/tool/profile)
 (def %profile
   (fn (_ ) (%reflect-base-cell (lit profile))))
 

@@ -271,8 +271,8 @@
 (%set-rest! %module-loaded-cell (pair () ()))
 
 ; --- Module environments and export owners (x-lang#719) ---
-; Two more links on the chain.  A scoped module -- one whose first form is
-; (module NAME) -- is evaluated in an environment of its own, a child of
+; Two more links on the chain.  A scoped module -- one whose first form,
+; after its comment banner, is (module NAME) -- is evaluated in an environment of its own, a child of
 ; the root, and this cell keeps ((NAME . ENV) ...) so a selective import
 ; can read an export from it and a reader can walk it.  The owner cell
 ; keeps ((SYM . NAME) ...): every name `provide` binds in the root has one
@@ -609,13 +609,15 @@
 ; a second tokenize.
 ;
 ; Detecting a scoped file cheaply: read a prefix and scan the raw bytes for
-; a leading (module ...), skipping whitespace and `;`-comments -- no
-; tokenizer.  A header past the prefix (a very long comment banner) reads
-; as unscoped; module headers sit at the top.  Only a file that looks
-; scoped is read whole and tokenized, with the base's own reader so it gets
-; the session's reader macros; read-str drops a token left unterminated at
-; end of buffer (#161), so the appended space closes the last one.
-(def %module-peek-bytes 64)
+; a leading (module ...), skipping whitespace and `;` comment lines -- the
+; banner every library file opens with -- with no tokenizer.  The prefix is
+; a screenful; a banner longer than that is finished from the whole file,
+; which is then already in hand if the file turns out to be scoped.  Only a
+; file that looks scoped is tokenized, with the base's own reader so it
+; gets the session's reader macros; read-str drops a token left
+; unterminated at end of buffer (#161), so the appended space closes the
+; last one.
+(def %module-peek-bytes 4096)
 ; A whole-file read, only ever for a scoped file, comes in chunks of this
 ; many bytes: one page-sized buffer per read, small enough to keep the
 ; garbage of a large module's read bounded.
@@ -658,17 +660,25 @@
   (fn (_ c)
     (match ((= c 32) #t) ((= c 9) #t) ((= c 10) #t) ((= c 13) #t) (#t #f))))
 (def %module-looks-scoped?
-  ; #t when the first non-whitespace bytes of `text` are "(module " -- the
-  ; header form.  A scoped module's (module NAME) header is its first form,
-  ; before any comment; a file that opens with anything else (a `;` banner,
-  ; a `(def`, whitespace then a form) is unscoped, decided in a step or two
-  ; without walking the file.  This is what keeps the boot and the library,
-  ; none of which is scoped, from paying to be scanned.
+  ; #t when the first form of `text` opens with "(module " -- the header --
+  ; after any whitespace and any `;` comment lines; #f when the first form
+  ; is anything else; the symbol `more` when `text` ran out (a prefix that
+  ; ended inside the banner) and the caller must scan the whole file.  The
+  ; first form decides, in a step or two past the banner, so an unscoped
+  ; file never has its body walked.
   (fn (self text i n)
+    ; The index just past the newline that ends the line at `i`, or `n`.
+    (def %line-end
+      (fn (loop j)
+        (match
+          ((>= j n) n)
+          ((= (%str-byte-ref text j) 10) (+ j 1))
+          (#t (loop (+ j 1))))))
     (match
-      ((>= i n) #f)
+      ((>= i n) (lit more))
       ((%module-ws? (%str-byte-ref text i)) (self text (+ i 1) n))
-      ((> (+ i 8) n) #f)
+      ((= (%str-byte-ref text i) 59) (self text (%line-end i) n))
+      ((> (+ i 8) n) (lit more))
       (#t (%str-starts? (%str-byte-sub text i 8) "(module ")))))
 (def %module-header?
   ; The tokenized header, once a file looks scoped: (module NAME) as the
@@ -705,15 +715,29 @@
     ()))
 (def %module-load
   (fn (_ name path)
-    (let ((%head (%module-read-fd path %module-peek-bytes)))
-      (match
-        ((%module-looks-scoped? %head 0 (%str-byte-len %head))
-          (let ((%forms ((prim-ref (lit tok) (lit read-str)) (%base)
-                          (%str-append (%module-read-fd path ()) " "))))
-            (match
-              ((%module-header? name %forms) (%module-load-scoped name path (rest %forms)))
-              (#t (include path)))))
-        (#t (include path))))))
+    ; The whole text of `path` when its first form is the header, #f
+    ; otherwise.  A prefix is read first; when it ends inside the banner
+    ; the whole file decides, and that text is what the tokenizer gets.
+    (def %scoped-text
+      (fn (_)
+        (def %head (%module-read-fd path %module-peek-bytes))
+        (def %verdict (%module-looks-scoped? %head 0 (%str-byte-len %head)))
+        (match
+          ((eq? %verdict #t) (%module-read-fd path ()))
+          ((eq? %verdict #f) #f)
+          (#t (let ((%text (%module-read-fd path ())))
+                (match
+                  ((eq? (%module-looks-scoped? %text 0 (%str-byte-len %text)) #t) %text)
+                  (#t #f)))))))
+    (def %text (%scoped-text))
+    (match
+      ((eq? %text #f) (include path))
+      (#t
+        (let ((%forms ((prim-ref (lit tok) (lit read-str)) (%base)
+                        (%str-append %text " "))))
+          (match
+            ((%module-header? name %forms) (%module-load-scoped name path (rest %forms)))
+            (#t (include path))))))))
 
 ; A selective import copies an export into the importer's environment `e`,
 ; by the export's name or under an alias -- (import NAME sym (sym alias))

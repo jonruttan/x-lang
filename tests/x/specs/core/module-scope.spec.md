@@ -1,8 +1,8 @@
 # @weight 2
 # Module scope: a scoped module is an environment of its own
 
-A file whose first form is `(module NAME)` is evaluated in a child of the
-root: its top-level definitions are private to it, `provide` is the only
+A file whose first form, after its comment banner, is `(module NAME)` is
+evaluated in a child of the root: its top-level definitions are private to it, `provide` is the only
 door out, and a selective `import` is the door in. The rules for every
 name conflict the doors can meet are in
 [docs/namespaces.md](../../../../docs/namespaces.md). The fixtures live
@@ -107,6 +107,16 @@ under `tests/x/fixtures/modscope`.
 ```
 ---
     (7 7)
+
+### the header may follow the file's comment banner, however long
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (import scoped/banner)
+    (list (banner-five) (guard (_ 'hidden) %secret)))
+```
+---
+    (5 'hidden)
 
 ### a file with no header may provide ahead of its definitions
 

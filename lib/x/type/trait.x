@@ -23,6 +23,8 @@
 ; an inherited one; two traits supplying one selector with no own override
 ; refuse at definition time, naming both. Trait-supplied methods count as
 ; definitions for interface contracts.
+
+(module x/type/trait)
 (import x/type/class)
 
 ; A trait value: (%trait-tag name reqs iforms sforms env). The tag is the
