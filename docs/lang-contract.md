@@ -528,6 +528,7 @@ BUNDLE="$(cd "$(dirname "$0")/.." && pwd)"
 X_ROOT="$(x --share-dir)"
 X_BIN="$(x --engine-path)"
 SPEC_RUNNER_DIR="$X_ROOT/tests"; export SPEC_RUNNER_DIR
+BUNDLE="$BUNDLE" X=x sh "$X_ROOT/tools/lang-kit/gen-harness.sh"
 LANG_LIB="$BUNDLE/tests/lib/harness.gen.x"
 SPEC_PATH="$BUNDLE/tests/specs"
 . "$X_ROOT/tests/spec-runner.sh"
@@ -541,44 +542,40 @@ Four things that are not obvious, each of which costs an afternoon:
   engine is under `libexec/x/`. A sourced script cannot portably find its own
   path, so the caller says. Unset and wrong, the runner now names the path it
   looked at instead of dying without one.
-- **The harness must name the root before loading an amalgam.** An amalgam has
-  zero include literals, but its deferred `import` forms resolve against the
-  installed tree as it boots, and `module.x` learns where that is from
-  `%install-root`. `x.sh` emits `(def %install-root "…")` ahead of every boot
-  entry; a harness loading an amalgam directly must emit the same line first.
-- **Load `x-core.x` or `x-base.x`, not a dialect entry.** The dialect amalgams
-  end with `(unless %batch? (do (%banner) (repl)))` and would start a REPL
-  underneath the suite. `x-core.x` and `x-base.x` are the launcher-free ones,
-  and being amalgams they carry no path literals, so they load from any cwd.
-  `x-core.x` is the core the `he` dialect is, with nothing the bundle did not
-  import itself -- the honest harness for a helium-weight bundle, and the one
-  a state image can hold (below). `x-base.x` is the full compiled tower: what
-  an `xe`/`rn` bundle runs on, and what a helium bundle should NOT test
-  under, because it hides what the shipped lang lacks -- x-awk's arithmetic
-  was wrong under `x -l awk` for as long as its suite booted `x-base.x`.
-- **Its path is the one thing `<root>/…` does *not* settle.** `<root>/tests/`
-  is the runner in both modes, but the boot amalgams are at `<root>/boot/` in an
-  install and `<root>/build/boot/` in a checkout, where they are build output.
-  So probe both, install layout first, and fail naming what you looked for:
+- **The platform writes the harness; the bundle writes only its tail.**
+  `tools/lang-kit/gen-harness.sh` boots the dialect `lang.xon` declares, so a
+  suite runs on what `x -l NAME` runs on. A helium bundle tested under the full
+  numeric tower passes on what the shipped lang lacks: x-awk's arithmetic was
+  wrong under `x -l awk` for as long as its suite booted `x-base.x`. The
+  generated file holds, in order:
+  - `(def %install-root "…")`, as `x.sh` emits it ahead of every boot entry:
+    an amalgam's deferred `import` forms resolve against the tree `module.x`
+    learns from it;
+  - the dialect's **body**, the file its entry includes before starting a
+    REPL (`lib/he.x` includes `lib/x/boot/helium.x`), read out of the entry and
+    loaded from the amalgam `make boot` writes -- `<root>/boot/` in an install,
+    `<root>/build/boot/` in a checkout. An entry itself would start its REPL
+    underneath the suite;
+  - an `import-path!` for each `(requires-lang …)`, deepest first, each lang
+    found by the name its `lang.xon` declares in `X_LANG_DIR`, beside the
+    bundle, then among the acquired langs, with versions not compared (a
+    checkout carries no version stamp);
+  - the bundle's own `import-path!`, `%lang-root` and `%lang-lead`, as `x.sh`
+    emits them before a bundle's entry;
+  - the bundle's committed `tests/harness.x`: its imports and REPL printer,
+    the part of its entry that sets the lang up without starting it.
 
-  ```sh
-  for _c in "$X_ROOT/boot/x-base.x" "$X_ROOT/build/boot/x-base.x"; do
-      [ -f "$_c" ] && { X_BASE="$_c"; break; }
-  done
-  ```
-
-  `lib/x-base.x` is **not** a substitute. It is the *source* entry and opens
-  with `(include "lib/x-core.x")` — a root-relative literal that resolves only
-  with the cwd at the repo root, which is the addressing failure this whole
-  document exists to prevent. Loading it from a bundle fails with a bare
-  `include: cannot open`.
+  Every way the inputs can be wrong stops with a message: no `tests/harness.x`,
+  a dialect with no entry or no built body, a required lang not found or
+  claimed twice, a cycle. `make check-lang-kit-harness` holds the generator to
+  this, and to every dialect's body being built.
 - **The suite can boot from a state image of the harness.** The platform's
   `tools/dev/image-build.sh` images a child that loaded the harness and keys
   the image on the harness, the platform's `lib/`, its engine and the paths
   the caller adds (the bundle's module tree); the runner boots each spec
-  file from the image when `X_IMG_DIR` names its directory. A harness on
-  `x-core.x` images; one on `x-base.x` is refused (the compiled tower's JIT
-  entry points are unnameable) and boots from source as before. x-awk's
+  file from the image when `X_IMG_DIR` names its directory. A helium harness
+  images; a xenon or radon one is refused (the compiled tower's JIT entry
+  points are unnameable) and boots from source. x-awk's
   runner is the worked example -- twelve lines, `IMG=0` as the from-source
   control -- and its suite went from 38s to 16s. The writer is a checkout
   tool; an installed tree boots from source. See
@@ -614,7 +611,7 @@ Four things that are not obvious, each of which costs an afternoon:
   (the key covers the bundle's modules, so a reinstall rewrites it).
   Until the JIT lane stops leaking its temporaries into globals
   ([state-images.md](state-images.md), "Compiled code"), a harness that
-  compiles anything -- one on `x-base.x`, or a bundle with compiled
+  compiles anything -- a xenon or radon one, or a bundle with compiled
   analysers -- is refused and boots from source.
 - **`# @lib` resolves against `LANG_LIB`'s directory**, not the spec's. A
   harness beside the specs is named bare — `# @lib harness.gen.x` — and a path
