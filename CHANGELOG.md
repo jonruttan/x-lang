@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The engine-contract gate reads the library as forms** ([#739]). The
+checks `check-engine-contract` makes of the library run in x, in
+`tools/check/engine-contract.x`: the partition of the reference ISA into
+capability groups, the profiles, the rows of `tools/contract/requires.x`,
+and the parameter values `tools/contract/constraints.x` binds. The checks
+that judge the candidate engine stay in shell, so an engine that cannot run
+x is still refused by name, and the gate prints what it printed before.
+Deriving `requires.x` from forms corrects two of its rows:
+`lib/x/type/err.x` needs `isa/ffi-call` (its errno lookup calls
+`ffi dlopen`, `ffi dlsym` and `ptr call`, sites the text pattern did not
+resolve), and `lib/x/rn.x` does not need `isa/syscall` (the pattern matched
+a comment). The declared profile is still `posix`. The gate needs the built
+engine, and its library half takes about 15 seconds where the shell took 3.
+A clean answer is kept in `build/` under a digest of everything it read, so
+`check-second-engine`, which asks the gate about three more engines, and a
+tree that has not changed read it instead of deriving it again.
+
+[#739]: https://github.com/jonruttan/x-lang/pull/739
+
 **End of input is a value of its own** (x-engine-c v0.2.13, x-sweet
 v0.1.6). The engine's `read` primitive answered nil at end of input, and
 nil is also what a literal `()` reads as, so a loop that read until nil
