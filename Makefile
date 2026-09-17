@@ -636,8 +636,9 @@ check-constraints: ## Diff source constraint markers against tools/contract/cons
 # -- and re-derives requires.x from the tree rather than trusting it.  The partition
 # is the load-bearing part: the `ffi` tag carries eleven rows that split three ways
 # (pointer casts, foreign door, syscall door), and treating it as one group would
-# make dlopen mandatory for every engine including a sandboxed one.
-check-engine-contract: ## Hold features.x/requires.x against the engine's ISA
+# make dlopen mandatory for every engine including a sandboxed one.  The library
+# half is tools/check/engine-contract.x, so the gate needs the built engine.
+check-engine-contract: $(EXECUTABLE) ## Hold features.x/requires.x against the engine's ISA
 	sh tools/check/engine-contract.sh
 .PHONY: check-engine-contract
 
@@ -704,7 +705,7 @@ check-platform-seam: ## Assert the build triple is parsed only in the platform l
 # gate could not be asked about another engine at all, and the generator wrote
 # capability claims the engine had no rows for.  This runs the apparatus against a
 # paper engine on every build so those cannot come back.
-check-second-engine: ## Assert the contract apparatus is engine-agnostic
+check-second-engine: $(EXECUTABLE) ## Assert the contract apparatus is engine-agnostic
 	sh tools/check/second-engine.sh
 .PHONY: check-second-engine
 

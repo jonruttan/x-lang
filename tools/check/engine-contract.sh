@@ -28,6 +28,12 @@
 # target out of reach on paper while it works in fact.  So the partition is
 # machine-checked against isa.x rather than trusted.
 #
+# The checks that hold the library -- 1 to 6, and the constraints.x half of 8 --
+# run in x: tools/check/engine-contract.x reads the committed files as forms, on
+# this tree's built engine.  The checks that judge the candidate engine -- 7, and
+# the build-stamp half of 8 -- stay here, so an engine that cannot run x is still
+# refused by name.
+#
 # Usage: sh tools/check/engine-contract.sh
 set -e
 
@@ -75,179 +81,78 @@ CONS="tools/contract/constraints.x"
 fail=0
 note() { echo "  $1"; fail=1; }
 
-# --- the ISA's view: coordinate -> tag --------------------------------------
-# Catalog rows are (ns method tag); bare/keep rows are (name tag).  Both reduce
-# to "coordinate tag", with a bare name keyed by itself.
-awk '
-	/^\(def %isa-catalog/ { sect="catalog"; next }
-	/^\(def %isa-bare/    { sect="bare";    next }
-	/^\(def %isa-keep/    { sect="keep";    next }
-	/^\(def %isa-aliases/ { sect="";        next }   # x-level aliases: not C rows
-	# Values are part of the surface.  x-release, x-version, args and the rest
-	# must be nameable by an atom, or no requires row can demand them -- x.sh
-	# depends on x-release.  They carry no tag column, so they enter with the
-	# sentinel tag `value`, which no capability claims wholesale; the totality
-	# check then forces each one into an explicit group.
-	/^\(def %isa-values/  { sect="values";  next }
-	/^  \(/ {
-		if (sect == "") next
-		# Reassigning $0 re-splits with awk default FS, which ignores the
-		# leading indent; split() with an explicit regex FS does not, and
-		# yields an empty first field that shifts every coordinate.
-		l = $0; sub(/;.*/, "", l); gsub(/[()]/, "", l); $0 = l
-		if (sect == "catalog" && NF >= 3) print $1 "/" $2, $3
-		else if (sect == "values" && NF >= 1) print $1, "value"
-		else if (sect != "catalog" && NF >= 2) print $1, $2
-	}
-' "$ISA" > /tmp/ec-isa.$$
+CACHE="build/engine-contract.lib"
+trap 'rm -f /tmp/ec-*.$$ "$CACHE.$$"' EXIT INT TERM
 
-# --- the vocabulary's view ---------------------------------------------------
-# capabilities: atom -> source (a tag, a build flag, `rows`, or `-`)
-awk '/^\(def %feature-capabilities/{f=1;next} /^\)\)\)/{f=0}
-     f && /^  \(/ { l=$0; sub(/;.*/,"",l); gsub(/[()]/,"",l); $0=l
-                    if (NF>=2) print $1, $2 }' "$FEAT" > /tmp/ec-caps.$$
-# explicit group membership: atom coordinate...
-awk '/^\(def %feature-group-rows/{f=1;next} /^\)\)\)/{f=0}
-     f && /^  \(/ { l=$0; sub(/;.*/,"",l); gsub(/[()]/,"",l); $0=l; print }' "$FEAT" > /tmp/ec-rows.$$
-awk '/^\(def %feature-parameters/{f=1;next} /^\)\)\)/{f=0}
-     f && /^  \(/ { l=$0; sub(/;.*/,"",l); gsub(/[()]/,"",l); $0=l; print $1 }' "$FEAT" > /tmp/ec-params.$$
-# A profile row spans as many lines as it needs, so accumulate until its parens
-# balance and emit ONE line per profile.  Treating each physical line as a row
-# silently turned `core` into four bogus profiles named after their first atom --
-# and passed, because those atoms happened to be real capabilities.
-awk '/^\(def %feature-profiles/{f=1;next} /^\)\)\)/{f=0}
-     f {
-       l=$0; sub(/;.*/,"",l)
-       if (l ~ /^[ \t]*$/) next
-       buf = (buf == "" ? l : buf " " l)
-       n = gsub(/\(/, "(", buf); m = gsub(/\)/, ")", buf)
-       if (n > 0 && n == m) { gsub(/[()]/, "", buf); $0 = buf; $1=$1; print; buf = "" }
-     }' "$FEAT" > /tmp/ec-prof-raw.$$
-
-trap 'rm -f /tmp/ec-*.$$' EXIT INT TERM
-
-# --- 1/2/3: the partition ----------------------------------------------------
 echo "engine-contract:"
 
-# tags that a capability claims wholesale
-awk '$2 != "rows" && $2 != "-" { print $2 }' /tmp/ec-caps.$$ | sort -u > /tmp/ec-tagclaim.$$
-# coordinates claimed explicitly, with their group
-awk '{ for (i=2;i<=NF;i++) print $i, $1 }' /tmp/ec-rows.$$ | sort > /tmp/ec-explicit.$$
+# --- 1-6, and the values constraints.x binds: the library, in x --------------
+# The files the library half reads ride argv, the sources one path to a word:
+# the shell enumerates and x reads (tools/README.md).
+set -f
+IFS='
+'
+set -- "$FEAT" "$ISA" "$REQ" "$CONS" $(find lib apps -name '*.x' -type f | sort)
 
-# (3) grounded: every explicit coordinate exists in the ISA
-while read -r coord grp; do
-	grep -q "^$coord " /tmp/ec-isa.$$ || note "GROUNDED: $grp names $coord, which is not an isa.x row"
-done < /tmp/ec-explicit.$$
+# The library half's answer depends only on its arguments, the files they name,
+# and the program, wrapper and engine that read them, so a clean answer is kept
+# in build/ under a digest of all of those, the way check-boot-order keeps its
+# verdict (#325).  check-second-engine asks this gate about three more engines,
+# and the library's answer is the same each time.  An answer with findings, or
+# from a run that did not finish, is not kept.  The candidate engine is not an
+# input.  A file of the candidate's handed to the library half would be digested
+# with the rest, so check-second-engine still sees a derivation it perturbed.
+if command -v sha256sum >/dev/null 2>&1; then
+	digest() { sha256sum "$@"; }
+else
+	digest() { shasum -a 256 "$@"; }
+fi
+inputs=$(for f in tools/check/engine-contract.sh tools/check/engine-contract.x x.sh "${X_BIN:-x-bin}" \
+		engine/tools/contract/base-paths.x engine/tools/contract/obj-layout.x "$@"; do
+	if [ -f "$f" ]; then printf '%s\n' "$f"; fi
+done)
+key=$({ printf '%s\n' "$@"; digest $inputs; } | digest | cut -d' ' -f1)
+unset IFS
+set +f
 
-# (2) disjoint: no coordinate listed twice
-dupes=$(awk '{print $1}' /tmp/ec-explicit.$$ | sort | uniq -d)
-[ -z "$dupes" ] || note "DISJOINT: coordinate claimed by two groups: $dupes"
+xrc=0
+fresh=1
+if [ -n "$key" ] && [ -f "$CACHE" ] && [ "$(head -n 1 "$CACHE")" = "$key" ] \
+	&& [ "$(tail -n 1 "$CACHE")" = "@@end" ]; then
+	tail -n +2 "$CACHE" > /tmp/ec-lib.$$
+	: > /tmp/ec-lib-err.$$
+	fresh=0
+else
+	sh x.sh --no-pin -q -f tools/check/engine-contract.x -- "$@" \
+		> /tmp/ec-lib.$$ 2> /tmp/ec-lib-err.$$ || xrc=$?
+fi
 
-# (1) total: every ISA row is covered by its tag OR by an explicit row
-while read -r coord tag; do
-	if grep -q "^$tag$" /tmp/ec-tagclaim.$$; then continue; fi
-	if grep -q "^$coord " /tmp/ec-explicit.$$; then continue; fi
-	note "TOTAL: $coord (tag $tag) belongs to no capability group"
-done < /tmp/ec-isa.$$
-
-# a tag that is claimed wholesale must not ALSO be split explicitly
-while read -r coord grp; do
-	t=$(awk -v c="$coord" '$1==c {print $2}' /tmp/ec-isa.$$)
-	if [ -n "$t" ] && grep -q "^$t$" /tmp/ec-tagclaim.$$; then
-		note "DISJOINT: $coord is claimed both by tag $t and explicitly by $grp"
-	fi
-done < /tmp/ec-explicit.$$
-
-# --- 4/5: profiles -----------------------------------------------------------
-awk '{print $1}' /tmp/ec-caps.$$ | sort -u > /tmp/ec-atoms.$$
-seen=""
-while read -r line; do
-	[ -n "$line" ] || continue
-	name=$(echo "$line" | awk '{print $1}')
-	for atom in $(echo "$line" | cut -d' ' -f2-); do
-		if grep -q "^$atom$" /tmp/ec-params.$$; then
-			note "SEPARATE: profile $name names the PARAMETER $atom -- parameters are values, not capabilities (see constraints.x)"
-			continue
-		fi
-		if grep -q "^$atom$" /tmp/ec-atoms.$$; then continue; fi
-		case " $seen " in *" $atom "*) continue ;; esac
-		note "CLOSED: profile $name names $atom, which is neither a capability nor an earlier profile"
+# Each section becomes /tmp/ec-NAME.$$.  They carry the findings and the data
+# checks 7 and 8 read, so a run that fails, or stops before its last section,
+# fails the gate rather than leaving those checks nothing to judge.
+lib_failed() {
+	note "LIBRARY: tools/check/engine-contract.x $1"
+	sed 's/^/    /' /tmp/ec-lib-err.$$
+}
+if [ "$xrc" -ne 0 ]; then
+	lib_failed "exited $xrc"
+elif [ "$(tail -n 1 /tmp/ec-lib.$$)" != "@@end" ]; then
+	lib_failed "stopped before its last section"
+else
+	awk -v stem="/tmp/ec-" -v pid=".$$" '
+		/^@@/   { f = stem substr($0, 3) pid; printf "" > f; next }
+		f != "" { print > f }' /tmp/ec-lib.$$
+	for s in notes decl-atoms cons-notes pvals counts; do
+		[ -f "/tmp/ec-$s.$$" ] || note "LIBRARY: tools/check/engine-contract.x printed no $s section"
 	done
-	seen="$seen $name"
-done < /tmp/ec-prof-raw.$$
-
-# --- 6: requires.x is DERIVED, and re-derived here ---------------------------
-# Rows are computed from the tree, never authored: join every (prim-ref ns method)
-# site and every bare `syscall` call against the coordinate->group map, keep the
-# ABOVE-CORE groups, and diff.  A row cannot be added by opinion, and cannot go
-# stale when its subject changes.
-if [ -f "$REQ" ]; then
-	# coordinate -> group: explicit membership wins, else the tag's owner
-	awk '{ for (i=2;i<=NF;i++) print $i, $1 }' /tmp/ec-rows.$$ | sort > /tmp/ec-cg-exp.$$
-	awk '$2 != "rows" && $2 != "-" { print $2, $1 }' /tmp/ec-caps.$$ | sort -k1,1 > /tmp/ec-cg-tag.$$
-	sort -k2,2 /tmp/ec-isa.$$ > /tmp/ec-isa-bytag.$$
-	join -1 2 -2 1 -o 1.1,2.2 /tmp/ec-isa-bytag.$$ /tmp/ec-cg-tag.$$ | sort > /tmp/ec-cg-bytag.$$
-	{ cat /tmp/ec-cg-exp.$$
-	  awk 'NR==FNR{o[$1];next} !($1 in o)' /tmp/ec-cg-exp.$$ /tmp/ec-cg-bytag.$$
-	} | sort -u > /tmp/ec-cg.$$
-
-	: > /tmp/ec-derived.$$
-	find lib apps -name '*.x' -type f | sort | while IFS= read -r f; do
-		grep -hoE "\(prim-ref [^)]*\)[^)]*\)|\(prim-ref '[a-z0-9!?*/%<>=+-]+ '[^ )]+\)" "$f" 2>/dev/null \
-		 | sed -E "s/\(lit ([^)]*)\)/\1/g; s/'//g; s/\(prim-ref //; s/\)+$//" \
-		 | awk '{print $1"/"$2}' | sort -u > /tmp/ec-uf.$$
-		g=""
-		[ -s /tmp/ec-uf.$$ ] && g=$(join /tmp/ec-cg.$$ /tmp/ec-uf.$$ 2>/dev/null | awk '{print $2}' || true)
-		# the bare syscall door is not a catalog coordinate, so it is matched by name
-		if grep -qF "(syscall " "$f" 2>/dev/null; then g="$g
-isa/syscall"; fi
-		# `grep` finding nothing is the COMMON case here, not an error -- without
-		# the guard `set -e` aborts the whole gate on the first core-only file.
-		g=$(printf '%s\n' "$g" | grep -E "isa/(ffi-call|syscall|sys|gc)" | sort -u | tr '\n' ' ' | sed 's/ $//' || true)
-		# `if`, not `[ ... ] && ...`: a core-only file makes the test the loop's
-		# last command, and a false test would fail the whole pipeline under set -e.
-		if [ -n "$g" ]; then echo "$f $g" >> /tmp/ec-derived.$$; fi
-	done
-	awk '/^  \(needs /{ l=$0; sub(/;.*/,"",l); gsub(/[()]/,"",l); gsub(/"/,"",l); $0=l
-	                    printf "%s", $2; for(i=3;i<=NF;i++) printf " %s", $i; print "" }' "$REQ" \
-	  | sort > /tmp/ec-req-man.$$
-	sort -o /tmp/ec-derived.$$ /tmp/ec-derived.$$
-
-	# The declared profile must COVER every above-core capability the tree
-	# reaches.  Under-declaring is the unsafe direction: it would let a project
-	# pair with an engine that cannot load files the library actually uses.
-	decl=$(awk '/^  \(profile /{ l=$0; gsub(/[()]/,"",l); $0=l; print $2 }' "$REQ")
-	if [ -n "$decl" ]; then
-		grep "^$decl " /tmp/ec-prof-raw.$$ | cut -d' ' -f2- | tr ' ' '\n' | grep -v '^$' > /tmp/ec-decl-atoms.$$ || true
-		# Expand to a FIXPOINT, then drop the profile names themselves: posix
-		# names gc which names core, so one pass leaves two profile names sitting
-		# in the atom set and every later membership test asks whether the engine
-		# "provides core", which nothing does.
-		while :; do
-			expanded=0
-			: > /tmp/ec-decl-next.$$
-			while read -r a; do
-				if grep -q "^$a " /tmp/ec-prof-raw.$$; then
-					grep "^$a " /tmp/ec-prof-raw.$$ | cut -d' ' -f2- | tr ' ' '\n' | grep -v '^$' >> /tmp/ec-decl-next.$$
-					expanded=1
-				else
-					echo "$a" >> /tmp/ec-decl-next.$$
-				fi
-			done < /tmp/ec-decl-atoms.$$
-			sort -u -o /tmp/ec-decl-next.$$ /tmp/ec-decl-next.$$
-			mv /tmp/ec-decl-next.$$ /tmp/ec-decl-atoms.$$
-			[ "$expanded" = 0 ] && break
-		done
-		awk '{for(i=2;i<=NF;i++) print $i}' /tmp/ec-derived.$$ | sort -u > /tmp/ec-need.$$
-		while read -r g; do
-			grep -q "^$g$" /tmp/ec-decl-atoms.$$ || note "PROFILE: requires.x declares $decl, which does not include $g -- but the tree reaches it"
-		done < /tmp/ec-need.$$
-	fi
-	if ! diff -u /tmp/ec-req-man.$$ /tmp/ec-derived.$$ > /tmp/ec-req-diff.$$ 2>&1; then
-		echo "  DERIVED: requires.x disagrees with the tree (-manifest +derived):"
-		grep '^[-+][^-+]' /tmp/ec-req-diff.$$ | sed 's/^/    /'
-		fail=1
-	fi
+fi
+if [ -s /tmp/ec-notes.$$ ]; then
+	cat /tmp/ec-notes.$$
+	fail=1
+fi
+if [ "$fresh" = 1 ] && [ -n "$key" ] && [ "$fail" -eq 0 ] && [ ! -s /tmp/ec-cons-notes.$$ ] \
+	&& mkdir -p build; then
+	{ printf '%s\n' "$key"; cat /tmp/ec-lib.$$; } > "$CACHE.$$" && mv -f "$CACHE.$$" "$CACHE" || true
 fi
 
 # --- 7: the engine's declaration is current, and SATISFIES us ----------------
@@ -276,7 +181,8 @@ if [ -f "$XON" ]; then
 		grep '^[-+][^-+]' /tmp/ec-xon-diff.$$ | sed 's/^/    /'
 	fi
 
-	# satisfaction: every atom the declared profile needs must be provided
+	# satisfaction: every atom the declared profile needs must be provided.
+	# engine-contract.x expanded the profile into /tmp/ec-decl-atoms.$$.
 	awk '/^\(provides /{ l=$0; gsub(/[()]/,"",l); $0=l; print $2 }' "$XON" | sort -u > /tmp/ec-xon-prov.$$
 	if [ -s /tmp/ec-decl-atoms.$$ ]; then
 		miss=""
@@ -300,12 +206,17 @@ fi
 # names -- Rust says `macos` and `aarch64` for the same machines -- reports true
 # facts in a vocabulary nothing can read, and every comparison against a literal
 # fails silently.  The vocabulary belongs to the language, so it is checked here.
-awk '/^\(def %feature-parameters/{f=1;next} /^\)\)\)/{f=0}
-     f && /^  \(/ { l=$0; sub(/;.*/,"",l); gsub(/[()]/,"",l); $0=l
-                    if (NF >= 2) print }' "$FEAT" > /tmp/ec-pvals.$$
+
+# Every value a constraint binds must be spellable.  constraints.x is committed,
+# so this half needs no build stamp; engine-contract.x checked it above.
+if [ -s /tmp/ec-cons-notes.$$ ]; then
+	cat /tmp/ec-cons-notes.$$
+	fail=1
+fi
 
 # A parameter with no declared values is OPEN and accepts anything; `unknown` is
-# always legal and means the build could not say.
+# always legal and means the build could not say.  /tmp/ec-pvals.$$ holds a line
+# for each parameter that declares values: its name, then the values.
 param_legal() {
 	_row=$(awk -v k="$1" '$1 == k { print; exit }' /tmp/ec-pvals.$$)
 	[ -n "$_row" ] || return 0
@@ -313,26 +224,16 @@ param_legal() {
 	printf '%s\n' "$_row" | cut -d' ' -f2- | tr ' ' '\n' | grep -qx -- "$2"
 }
 
-# Every value a constraint binds must be spellable.  constraints.x is committed,
-# so this half is checkable in any tree, built or not.
-if [ -f "$CONS" ]; then
-	sed -n 's/^  (constraint "[^"]*" \([a-z-]*\) = \([^)]*\)).*/\1 \2/p' "$CONS" \
-	| while read -r _k _v; do
-		if ! param_legal "$_k" "$_v"; then
-			echo "  PARAM-VALUE: constraints.x binds $_k = $_v, which is not in the"
-			echo "    vocabulary.  Add it to %feature-parameters or fix the row."
-			echo "FAILVALUE" >> /tmp/ec-pvfail.$$
-		fi
-	done
-fi
-
 # And every value an engine STAMPS, when there is a stamp to read.  Unlike
 # x-engine.xon this file is a build output -- the C engine gitignores it -- so a
 # source tree that has never been built legitimately has none.  Absence is
 # reported rather than passed over, but it is not a failure: nothing is being
-# claimed that could be wrong.
+# claimed that could be wrong.  When the library half printed no parameter rows
+# the stamp cannot be judged, and the gate has already failed.
 STAMP="$ENGINE_DIR/x-engine-build.xon"
-if [ -f "$STAMP" ]; then
+if [ ! -f "$STAMP" ]; then
+	echo "  no build stamp at $STAMP -- parameter values unchecked (not built yet)"
+elif [ -f /tmp/ec-pvals.$$ ]; then
 	sed -n 's/^(param \([a-z-]*\) \([^)"]*\))[[:space:]]*$/\1 \2/p' "$STAMP" \
 	| while read -r _k _v; do
 		if ! param_legal "$_k" "$_v"; then
@@ -342,10 +243,8 @@ if [ -f "$STAMP" ]; then
 			echo "FAILVALUE" >> /tmp/ec-pvfail.$$
 		fi
 	done
-else
-	echo "  no build stamp at $STAMP -- parameter values unchecked (not built yet)"
 fi
-# The loops above run in subshells under `|`, so `fail=1` inside them would be
+# The loop above runs in a subshell under `|`, so `fail=1` inside it would be
 # lost.  A marker file is how the verdict gets back out.
 if [ -f /tmp/ec-pvfail.$$ ]; then fail=1; rm -f /tmp/ec-pvfail.$$; fi
 
@@ -354,8 +253,6 @@ if [ "$fail" -ne 0 ]; then
 	exit 1
 fi
 
-ncap=$(wc -l < /tmp/ec-caps.$$ | tr -d ' ')
-nisa=$(wc -l < /tmp/ec-isa.$$ | tr -d ' ')
-nprof=$(wc -l < /tmp/ec-prof-raw.$$ | tr -d ' ')
+read -r ncap nisa nprof < /tmp/ec-counts.$$
 echo "  $ncap capabilities partition $nisa ISA rows; $nprof profiles closed; parameters kept separate."
 exit 0

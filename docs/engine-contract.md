@@ -253,7 +253,9 @@ Three suites, asking three different questions.
 capability partition against the instruction manifest, keeps profiles closed,
 refuses a parameter in a requirements list, re-derives what the library needs from
 its own call sites, and answers the resolver's question: does this engine provide
-what x-lang requires?
+what x-lang requires? The checks of the library run in x, on the tree's own build,
+and read its files as forms. The engine being judged is never run: its declaration
+is read in shell, so an engine that cannot run x is still refused by name.
 
 **Conformance** (`make conformance`) asks *is this a correct x-lang evaluator?* It
 is the language's definition of correct, it loads nothing, and it runs against any
