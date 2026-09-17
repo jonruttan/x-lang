@@ -5,6 +5,38 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**Two lang budgets ratchet to zero, and the r5rs three are ours.**
+`tools/contract/langs.x` recorded one failure for x-python and two for
+x-ash; both bundles have fixed theirs, and the rows now say 0. The test
+counts are left where they are. They are floors, not censuses, and the file
+says why: a floor set to a moving high-water mark cries wolf.
+
+x-cc's row is unchanged too, and the reason is worth recording. The gate
+reported its suite had shrunk 119 -> 117 and asked for a re-record. It had
+not shrunk. `check-langs` reads `../languages`, and every one of the
+thirteen checkouts there was behind its remote -- x-coreutils by 30 commits,
+x-cc by 24, and five of them parked on a shared feature branch rather than
+`main`. Measured against fresh checkouts at each bundle's `origin/main`,
+x-cc runs 153 specs, x-coreutils 444 and x-ash 974. Re-recording 117 would
+have written a stale working copy into a contract that may only shrink.
+
+x-r5rs is red at 667/3 and the budget stays 0, because the three are this
+platform's. They are the R5RS pitfall 3.2 cases, which assert that a
+definition a macro introduces does not escape the `let` it was written in.
+x-r5rs fixed exactly those in its own repository on 2026-09-08 and measured
+667/0 against x-lang main on x-engine-c v0.2.8, the engine v0.14.0 pins.
+This tree pins v0.2.13, which crosses v0.2.11's "an environment is a value"
+([#720]): a `def` binds in the current environment, an `eval` with an
+environment makes it current with the binding staying put, and the frame
+marks, shadow list and local boundary that those fixes were written against
+were retired with it. x-r7rs gained the same three in the same window. A
+budget raised to 3 would record our own regression as the bundle's.
+
+`check-langs` has never run in CI and does not now: `make gates` runs on
+main only, a CI checkout has no `../languages`, and the gate prints SKIPPED
+and exits 0. It is a local gate, and these numbers are only ever as good as
+the checkouts beside the tree.
+
 **The numeric tower is right at the most negative integer** ([#748]).
 `LONG_MIN` is the one int whose negation is not an int, and every promotion
 route reached it through its own magnitude. `%bigint-from-int` took `(- 0 n)`
