@@ -208,8 +208,12 @@ $TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/verify2.x" >"$_TMP/out" 2>"$_TMP/e
 status=$?
 [ "$status" -ne 0 ] || fail "verify-tamper: tampered overlay verified clean" "$_TMP/out" "$_TMP/err"
 
-# drift simulation: the vendored copy grows a marker the platform lacks
-printf '(def %%pin-smoke-vendored "yes")\n' >> "$_TMP/proj2/deps/x/type/dict.x"
+# drift simulation: the vendored copy grows a marker the platform lacks.
+# x/type/dict has a scope of its own, so the marker is defined in that scope
+# and exported by name: a def alone is not a name the run below can reach,
+# and the marker is there to be read.
+printf '(def %%pin-smoke-vendored "yes")\n(provide x/type/dict %%pin-smoke-vendored)\n' \
+	>> "$_TMP/proj2/deps/x/type/dict.x"
 cat > "$_TMP/proj2/pin.xon" <<'EOF'
 (root "deps")
 EOF
