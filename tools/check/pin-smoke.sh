@@ -73,17 +73,14 @@ set -u
 cd "$(dirname "$0")/../.." || exit 1
 WRAPPER=./x.sh
 
-# Wall-time guard, same detection as spec-runner.sh (macOS: gtimeout).
-_TIMEOUT_BIN=""
-if command -v timeout >/dev/null 2>&1; then
-  _TIMEOUT_BIN="timeout"
-elif command -v gtimeout >/dev/null 2>&1; then
-  _TIMEOUT_BIN="gtimeout"
-fi
-TIMEOUT_CMD=""
-if [ -n "$_TIMEOUT_BIN" ]; then
-  TIMEOUT_CMD="$_TIMEOUT_BIN ${TIMEOUT_PIN_SECS:-120}"
-fi
+# Wall-time guard, through tools/lib/guard.sh rather than `timeout` itself:
+# timeout runs in a process group of its own, so an INT or TERM sent to this
+# script does not reach the run it is waiting for, and the script would wait
+# the run out -- seconds for one that writes a state image, and up to the
+# ceiling for one that hangs.  The guard finds timeout (macOS: gtimeout) the
+# way spec-runner.sh does.  Its path is absolute: some of the runs below are
+# made from another directory.
+TIMEOUT_CMD="sh $(pwd)/tools/lib/guard.sh ${TIMEOUT_PIN_SECS:-120}"
 
 _TMP="${TMPDIR:-/tmp}/pin-smoke.$$"
 trap 'rm -rf "$_TMP"' EXIT
