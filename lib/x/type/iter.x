@@ -13,6 +13,7 @@
 ; the C driver behind (Iter next) owns the box write-back.  A nil state marks
 ; exhaustion.  (Iter step it) is the functional door: (value . next-iterator)
 ; with the source untouched -- the generator view Gen pipelines drive.
+(module x/type/iter)
 
 (import x/core/list)
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).

@@ -6,6 +6,13 @@
 ; reverse/map/filter/for-each; boot-internal callers use the %-names.
 (import x/core/logic)
 
+; The iterator doors the drain below steps with, fetched here rather than
+; read from x/type/iter, which holds the same two under the same names: a
+; module's names are its own, and iter loads after this file anyway.  Both
+; are C primitives, so the fetch is good this early.
+(def %i-empty? (prim-ref (lit iter) (lit empty?)))
+(def %i-next   (prim-ref (lit iter) (lit next)))
+
 (doc (def %as-list
   (fn (_ x)
     ; Nested if, NOT `or`: or is an expand-per-evaluation macro (~330
