@@ -5,7 +5,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**Two lang budgets ratchet to zero, and the r5rs three are ours.**
+**Two lang budgets ratchet to zero, and the r5rs three are ours** ([#752]).
 `tools/contract/langs.x` recorded one failure for x-python and two for
 x-ash; both bundles have fixed theirs, and the rows now say 0. The test
 counts are left where they are. They are floors, not censuses, and the file
@@ -304,6 +304,7 @@ glossary and state-image documents.
 
 [#527]: https://github.com/jonruttan/x-lang/issues/527
 [#718]: https://github.com/jonruttan/x-lang/pull/718
+[#752]: https://github.com/jonruttan/x-lang/pull/752
 [#720]: https://github.com/jonruttan/x-lang/pull/720
 
 **A session switches languages.** `x/repl/lang` keeps the REPL's seams as a
