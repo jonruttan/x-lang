@@ -49,6 +49,8 @@ mkdir -p "$LOGS"
 BRANCH="bump/x-lang-$TAG"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 staged=""; red=""; skipped=""
 

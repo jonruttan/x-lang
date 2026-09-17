@@ -49,6 +49,8 @@ cat > "$SNIPPET" <<'EOF'
 (%stderr (%bp-kv "allocs=" (%bp-n %bp-c) (%bp-kv " evals=" (%bp-n (rest %bp-c)) (%bp-kv " tco=" (%bp-n (rest (rest %bp-c))) (%bp-kv " assoc-calls=" (%bp-n (rest (rest (rest %bp-c)))) (%bp-kv " assoc-steps=" (%bp-n (rest (rest (rest (rest %bp-c))))) (%bp-kv " sym-find-calls=" (%bp-n (rest (rest (rest (rest (rest %bp-c)))))) (%bp-kv " sym-find-steps=" (%bp-n (rest (rest (rest (rest (rest (rest %bp-c))))))) (%bp-kv " gc-runs=" (%bp-n (rest (rest (rest (rest (rest (rest (rest %bp-c)))))))) (%bp-kv " bst-hits=" (%bp-n (rest (rest (rest (rest (rest (rest (rest (rest %bp-c))))))))) (%bp-kv " bst-misses=" (%bp-n (rest (rest (rest (rest (rest (rest (rest (rest (rest %bp-c)))))))))) (%bp-kv " heap=" (Heap count) "\n")))))))))))))
 EOF
 trap 'rm -f "$SNIPPET"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # Header
 printf "name\twall_us\tevals\ttco\tassoc_calls\tassoc_steps\tsym_find_calls\tsym_find_steps\tgc_runs\tbst_hits\tbst_misses\theap\n" > "$OUTFILE"

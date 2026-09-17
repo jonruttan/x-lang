@@ -68,6 +68,8 @@ entry_for_dir() {
 _TMP="${TMPDIR:-/tmp}/check-examples.$$"
 mkdir -p "$_TMP"
 trap 'rm -rf "$_TMP"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 total=0; pinned=0; failed=0
 

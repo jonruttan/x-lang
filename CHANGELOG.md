@@ -69,7 +69,10 @@ under ASan. It now runs the boot in the background, and its `INT` and `TERM`
 traps stop the boot's process group before the gate exits. It still puts
 back the JIT byte cache it sets aside, and ignores a further signal while it
 does; one that arrived during the restore left the entries not yet moved in
-the gate's work directory.
+the gate's work directory. Fourteen more scripts set their cleanup on `EXIT`
+with no trap on `INT` or `TERM`. Such a script stops on either signal, but
+dash does not run the `EXIT` trap of a shell a signal ends, so under dash they
+left their scratch files behind. They now set the same two traps.
 
 **A scoped module's header reads the rest of its file.** The loader used to
 read a prefix of every imported file into a string to find out whether it

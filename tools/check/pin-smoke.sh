@@ -87,6 +87,8 @@ fi
 
 _TMP="${TMPDIR:-/tmp}/pin-smoke.$$"
 trap 'rm -rf "$_TMP"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 mkdir -p "$_TMP/proj/deps/acme" "$_TMP/proj/alt/acme" "$_TMP/proj/deps/x/core"
 
 fail() {

@@ -29,6 +29,8 @@ TMPDIR="${TMPDIR:-/tmp}"
 TMPTEST="${TMPDIR}/x-cov-test.$$.x"
 TMPTSV="${TMPDIR}/x-cov-raw.$$.tsv"
 trap 'rm -f "$TMPTEST" "$TMPTSV"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # Detect library: x-base.x if ext/ specs included, else x-core.x
 LIB="lib/x-core.x"

@@ -51,6 +51,8 @@ codesign --verify --strict --verbose=2 "$BIN"
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 ZIP="$WORK/engine.zip"
 # ditto is Apple's blessed zipper for notarization submissions.
 /usr/bin/ditto -c -k --keepParent "$BIN" "$ZIP"

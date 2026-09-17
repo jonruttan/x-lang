@@ -44,6 +44,8 @@ STAGE=$(mktemp -d 2>/dev/null || echo "${TMPDIR:-/tmp}/pkg-stage.$$")
 EXTRACT=$(mktemp -d 2>/dev/null || echo "${TMPDIR:-/tmp}/pkg-extract.$$")
 mkdir -p "$STAGE" "$EXTRACT"
 trap 'rm -rf "$STAGE" "$EXTRACT"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 fail() { echo "package: FAIL: $1" >&2; exit 1; }
 
 # Stage the install tree under a versioned prefix (no sudo, all in $STAGE).
