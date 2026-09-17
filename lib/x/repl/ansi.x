@@ -57,6 +57,7 @@
     (reset   (%sgr "0")  "Reset all attributes")
     (bold    (%sgr "1")  "Bold")
     (dim     (%sgr "2")  "Dim")
+    (inverse (%sgr "7")  "Inverse video: foreground and background swapped")
     (red     (%sgr "31") "Red foreground")
     (green   (%sgr "32") "Green foreground")
     (yellow  (%sgr "33") "Yellow foreground")
