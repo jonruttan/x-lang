@@ -271,10 +271,11 @@
 (%set-rest! %module-loaded-cell (pair () ()))
 
 ; --- Module environments and export owners (x-lang#719) ---
-; Two more links on the chain.  A scoped module -- one whose first form,
-; after its comment banner, is (module NAME) -- is evaluated in an environment of its own, a child of
-; the root, and this cell keeps ((NAME . ENV) ...) so a selective import
-; can read an export from it and a reader can walk it.  The owner cell
+; Two more links on the chain.  A scoped module -- a file whose first form,
+; after its comment banner, is (module NAME) -- is evaluated in an
+; environment of its own, a child of the root, and this cell keeps
+; ((NAME . ENV) ...) so a selective import can read an export from it and a
+; reader can walk it.  The owner cell
 ; keeps ((SYM . NAME) ...): every name `provide` binds in the root has one
 ; owner, and a second module providing the same name is refused, naming
 ; both -- the one-owner rule of docs/namespaces.md.
@@ -552,21 +553,63 @@
     (%go syms)
     ()))
 
-; The form that names a scoped module, and denotes it everywhere else.  As
-; the first form of a file, after its comment banner, it is the loader's:
-; the forms after it are evaluated in an environment of the module's own.
-; As an expression it answers that environment, so a reader can walk a
-; module's names.  A scoped file reached through `include` rather than
-; `import` evaluates its header as this expression, and that raises: the
-; module was never loaded, so it has no environment.  A scoped file is
-; loaded only by `import`, which is why the boot floor and the amalgams,
-; which splice files with `include`, hold none.
+; --- The module header (x-lang#719) ---
+; The name of the module whose file `import` is including, for that file's
+; header to find, or nil.  An unscoped file has no header and never reads
+; it, so `import` clears it once the file has loaded.
+(def %module-expected-cell (pair () ()))
+; The reader, one form from the head of the input: while `include` loads a
+; file, that file.  At end of input it answers the EOF sentinel, %token-eof,
+; so a () in the file is read as the form it is.
+(def %module-read (prim-ref (lit io) (lit read)))
+(def %module-load-rest
+  ; The rest of a scoped file, read by its header: a fresh child of the
+  ; root, recorded before any form runs so the module can name its own
+  ; environment, then every remaining form read and evaluated in it, one at
+  ; a time, until end of input.  The reader stamps each form with the
+  ; file's id and line, and reads it after the forms before it have run.
+  ; Answers the environment, which is what `include` then returns.
+  (fn (_ name)
+    (def %env (pair () (%module-root-env)))
+    (%set-first! %module-expected-cell ())
+    (%set-first! %module-env-cell
+      (pair (pair name %env) (first %module-env-cell)))
+    (def %go
+      (fn (self)
+        (def %form (%module-read))
+        (match
+          ((%module-same? %form %token-eof) %env)
+          (#t (do (eval %form %env) (self))))))
+    (%go)))
+
+; The form that names a scoped module, and denotes it everywhere else.
+;
+; As the first form of a file that `import` is loading, after the file's
+; comment banner, it is the header: it names the module being imported,
+; and it loads the rest of the file into an environment of the module's
+; own (above).  A header naming a module other than the one being imported
+; is refused, naming both: the file is not the module the import asked for.
+;
+; As an expression anywhere else it answers the named module's environment,
+; so a reader can walk a module's names.  A module that is not loaded is an
+; error, which is also what a scoped file reached through `include` rather
+; than `import` meets at its header: no import named it, so the header is
+; an expression, and the module has no environment.
 (def module
   (op (name) _
-    (def %e (%module-assoc name (first %module-env-cell)))
+    (def %expected (first %module-expected-cell))
+    (def %entry (%module-assoc name (first %module-env-cell)))
     (match
-      ((eq? %e ()) (error (%str-append "module: not loaded: " (symbol->str name))))
-      (#t (rest %e)))))
+      ((eq? %expected name) (%module-load-rest name))
+      ((match ((eq? %expected ()) #f) (#t (eq? %entry ())))
+        (do
+          (%set-first! %module-expected-cell ())
+          (error (%str-append "import: "
+            (%str-append (symbol->str %expected)
+              (%str-append " is headed (module "
+                (%str-append (symbol->str name) ")")))))))
+      ((eq? %entry ()) (error (%str-append "module: not loaded: " (symbol->str name))))
+      (#t (rest %entry)))))
 
 ; Look up a module entry in the registry by name
 (def %module-find
@@ -600,146 +643,6 @@
                         (%str-append (symbol->str name)
                           (%str-append ": " (symbol->str %sym)))))))))))))
     (%check syms)))
-
-; --- The scoped loader (x-lang#719) ---
-; A file whose first form is (module NAME) is evaluated in an environment
-; of its own, a child of the root: every `def` at its top level lands
-; there, every closure it makes captures it, and only what `provide` lists
-; reaches the root.  Every other file loads through `include`, in the root,
-; exactly as before -- scoping is opt-in, one file at a time, and the
-; common unscoped case pays only a short prefix read and a byte scan, never
-; a second tokenize.
-;
-; Detecting a scoped file cheaply: read a prefix and scan the raw bytes for
-; a leading (module ...), skipping whitespace and `;` comment lines -- the
-; banner every library file opens with -- with no tokenizer.  The prefix is
-; a screenful; a banner longer than that is finished from the whole file,
-; which is then already in hand if the file turns out to be scoped.  Only a
-; file that looks scoped is tokenized, with the base's own reader so it
-; gets the session's reader macros; read-str drops a token left
-; unterminated at end of buffer (#161), so the appended space closes the
-; last one.
-(def %module-peek-bytes 4096)
-; A whole-file read, only ever for a scoped file, comes in chunks of this
-; many bytes: one page-sized buffer per read, small enough to keep the
-; garbage of a large module's read bounded.
-(def %module-read-chunk 65536)
-(def %module-read-fd
-  ; Read a file into a string with the raw catalog doors: imports run
-  ; during boot too, before File or Tok exist as classes.  A `limit` caps
-  ; the bytes -- the cheap prefix peek: one buffer, one read, no loop, so
-  ; the common unscoped case costs a single small read and nothing more.
-  ; Nil `limit` reads the whole file, a chunk at a time (only a scoped file).
-  (fn (_ path limit)
-    (def %open (prim-ref (lit sys) (lit open)))
-    (def %read (prim-ref (lit sys) (lit read)))
-    (def %close (prim-ref (lit sys) (lit close)))
-    (def %fd (%open path 0))                          ; O_RDONLY is 0 everywhere
-    (match
-      ((< %fd 0) (error (%str-append "import: cannot open " path)))
-      (#t ()))
-    (match
-      ((not (null? limit))
-        (let ((%buf (%str-make limit)))
-          (let ((%n (%read %fd (%str->ptr %buf) limit)))
-            (%close %fd)
-            (match
-              ((< %n 0) (error (%str-append "import: cannot read " path)))
-              (#t (%substring %buf 0 %n))))))
-      (#t
-        (let ((%go
-               (fn (self acc)
-                 (let ((%buf (%str-make %module-read-chunk)))
-                   (let ((%n (%read %fd (%str->ptr %buf) %module-read-chunk)))
-                     (match
-                       ((< %n 0) (do (%close %fd) (error (%str-append "import: cannot read " path))))
-                       ((= %n 0) acc)
-                       (#t (self (%str-append acc (%substring %buf 0 %n)))))))))) 
-          (let ((%text (%go "")))
-            (%close %fd)
-            %text))))))
-(def %module-ws?
-  (fn (_ c)
-    (match ((= c 32) #t) ((= c 9) #t) ((= c 10) #t) ((= c 13) #t) (#t #f))))
-(def %module-looks-scoped?
-  ; #t when the first form of `text` opens with "(module " -- the header --
-  ; after any whitespace and any `;` comment lines; #f when the first form
-  ; is anything else; the symbol `more` when `text` ran out (a prefix that
-  ; ended inside the banner) and the caller must scan the whole file.  The
-  ; first form decides, in a step or two past the banner, so an unscoped
-  ; file never has its body walked.
-  (fn (self text i n)
-    ; The index just past the newline that ends the line at `i`, or `n`.
-    (def %line-end
-      (fn (loop j)
-        (match
-          ((>= j n) n)
-          ((= (%str-byte-ref text j) 10) (+ j 1))
-          (#t (loop (+ j 1))))))
-    (match
-      ((>= i n) (lit more))
-      ((%module-ws? (%str-byte-ref text i)) (self text (+ i 1) n))
-      ((= (%str-byte-ref text i) 59) (self text (%line-end i) n))
-      ((> (+ i 8) n) (lit more))
-      (#t (%str-starts? (%str-byte-sub text i 8) "(module ")))))
-(def %module-header?
-  ; The tokenized header, once a file looks scoped: (module NAME) as the
-  ; first form, NAME the module being imported.  A header naming another
-  ; module is an error -- the file is not the module the import asked for.
-  (fn (_ name forms)
-    (match
-      ((eq? forms ()) #f)
-      ((not (pair? (first forms))) #f)
-      ((not (eq? (first (first forms)) (lit module))) #f)
-      ((not (pair? (rest (first forms)))) #f)
-      ((eq? (first (rest (first forms))) name) #t)
-      (#t (error (%str-append "import: "
-            (%str-append (symbol->str name)
-              (%str-append " is headed (module "
-                (%str-append (symbol->str (first (rest (first forms)))) ")")))))))))
-(def %module-load-scoped
-  ; Evaluate every form after the header in a fresh child of the root, with
-  ; the include directory stack pointing at the file so `./` includes inside
-  ; it resolve.  The environment is recorded before the forms run, so a
-  ; module that asks (module NAME) for its own environment finds it.
-  (fn (_ name path forms)
-    (def %env (pair () (%module-root-env)))
-    (%set-first! %module-env-cell
-      (pair (pair name %env) (first %module-env-cell)))
-    (%include-dir-push! (%path-dir path))
-    (def %go
-      (fn (self l)
-        (match
-          ((eq? l ()) ())
-          (#t (do (eval (first l) %env) (self (rest l)))))))
-    (%go forms)
-    (%include-dir-pop!)
-    ()))
-(def %module-load
-  (fn (_ name path)
-    ; The whole text of `path` when its first form is the header, #f
-    ; otherwise.  A prefix is read first; when it ends inside the banner
-    ; the whole file decides, and that text is what the tokenizer gets.
-    (def %scoped-text
-      (fn (_)
-        (def %head (%module-read-fd path %module-peek-bytes))
-        (def %verdict (%module-looks-scoped? %head 0 (%str-byte-len %head)))
-        (match
-          ((eq? %verdict #t) (%module-read-fd path ()))
-          ((eq? %verdict #f) #f)
-          (#t (let ((%text (%module-read-fd path ())))
-                (match
-                  ((eq? (%module-looks-scoped? %text 0 (%str-byte-len %text)) #t) %text)
-                  (#t #f)))))))
-    (def %text (%scoped-text))
-    (match
-      ((eq? %text #f) (include path))
-      (#t
-        (let ((%forms ((prim-ref (lit tok) (lit read-str)) (%base)
-                        (%str-append %text " "))))
-          (match
-            ((%module-header? name %forms) (%module-load-scoped name path (rest %forms)))
-            (#t (include path))))))))
 
 ; A selective import copies an export into the importer's environment `e`,
 ; by the export's name or under an alias -- (import NAME sym (sym alias))
@@ -795,7 +698,11 @@
         (do
           ; register BEFORE loading -- cycle safety, mirrors include-once
           (%module-loaded! name)
-          (%module-load name (%module-resolve name)))))
+          (def %path (%module-resolve name))
+          ; Name the module for its file's header, if it has one.
+          (%set-first! %module-expected-cell name)
+          (include %path)
+          (%set-first! %module-expected-cell ()))))
     (match
       ((eq? syms ()) ())
       (#t (%module-import-names! name syms e)))))

@@ -140,7 +140,7 @@
 (file "lib/img.x" 37)
 (file "lib/x/boot/data.x" 14)
 (file "lib/x/boot/engine.x" 2)
-(file "lib/x/boot/module.x" 70)   ; +20 for the scoped loader (x-lang#719): env/owner registries, provide/import doors, the peek reader and its two sizes -- boot code, no class to home them on
+(file "lib/x/boot/module.x" 65)   ; +15 for scoped modules (x-lang#719): env/owner registries, provide/import doors, the header and its reader -- boot code, no class to home them on
 (file "lib/x/boot/operatives.x" 6)
 (file "lib/x/boot/printer.x" 74)
 (file "lib/x/boot/reflect.x" 32)

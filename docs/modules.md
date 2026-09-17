@@ -187,10 +187,13 @@ module's names. A module that is not loaded is an error.
 Scoping is **opt-in and per file**. A file with no `(module NAME)` header
 loads through `include`, in the root, exactly as before — which is every
 module in the boot floor. The header is the file's first form, after its
-comment banner; the loader decides scoped-versus-not by reading the first
-bytes past the banner, so an ordinary unscoped module is never fully
-re-read. The rules for every class of name conflict the doors can meet are
-in [Namespaces](namespaces.md).
+comment banner. `import` loads every file with `include` and names the
+module it is loading; a header that names that module makes the module's
+environment and reads the rest of the file into it itself, one form at a
+time, with the reader. So each form carries the file and its line, an error
+while the module loads names both, and a form can read the forms after it.
+A header naming a different module is refused. The rules for every class of
+name conflict the doors can meet are in [Namespaces](namespaces.md).
 
 Two extensions to the rule:
 

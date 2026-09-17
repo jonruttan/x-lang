@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A scoped module's header reads the rest of its file.** The loader used to
+read a prefix of every imported file into a string to find out whether it
+was scoped, then read a scoped file whole into a string and tokenize all of
+it before evaluating any form. Now `import` loads every file with `include`
+and names the module it is loading, and a file's `(module NAME)` header,
+finding that name, makes the module's environment and reads the rest of the
+file into it itself, one form at a time, with the reader. Nothing is read
+into a string, and no file is read twice. Each form carries the file and
+its line, so an error while a scoped module loads now names its file as
+well as the line; a form is read after the forms before it have run, so it
+can read the forms after it; and a literal `()` in a module is a form like
+any other, since `read` answers the EOF sentinel at end of input
+(x-engine-c v0.2.13). A header naming a module other than the one being
+imported is refused, naming both. module.x sheds the peek, the whole-file
+read and the tokenizer path: five fewer private definitions, and no use of
+the raw file-reading doors.
+
 **End of input is a value of its own** (x-engine-c v0.2.13, x-sweet
 v0.1.6). The engine's `read` primitive answered nil at end of input, and
 nil is also what a literal `()` reads as, so a loop that read until nil
