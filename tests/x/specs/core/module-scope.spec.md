@@ -175,10 +175,10 @@ read after the forms before it have run.
 ---
     (2 'hidden)
 
-## a scoped file loaded by include-once
+## a scoped file loaded by path
 
-`include-once` names no module, so a header under it takes whatever module
-the file names. This is how the boot files load.
+`include` and `include-once` name no module, so a header under either takes
+whatever module the file names. This is how the boot files load.
 
 ### a scoped file included once keeps its private names and exports the rest
 
@@ -188,6 +188,29 @@ the file names. This is how the boot files load.
 ```
 ---
     (7 'hidden #t)
+
+### a scoped file loaded by a plain include keeps its private names too
+
+```x
+(do (include "tests/x/fixtures/modscope/scoped/plainly.x")
+    (list (plainly-eleven) (guard (_ 'hidden) %plainly-secret)))
+```
+---
+    (11 'hidden)
+
+### the module an import names is not asked of the files that file loads
+
+An import names the module its own file must be headed with. A file that
+file loads by path is whatever module it names, which is how
+`x/boot/tower-compiled` loads `x/type/hash`.
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (import host)
+    (list (host-thirteen) (guard (_ 'hidden) %hosted-secret)))
+```
+---
+    (13 'hidden)
 
 ## the module form denotes the module's environment
 

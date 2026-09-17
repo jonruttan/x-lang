@@ -130,6 +130,16 @@ Raw file inclusion without deduplication:
 
 `include` always loads the file. Use `import` instead unless you specifically need to reload.
 
+A second argument names the module the file must be headed with:
+
+```x
+(include "lib/x/type/hash.x" x/type/hash)
+```
+
+A file loaded by path alone is whatever module its header names, or none;
+this is how `import` asks for the module it resolved. The name applies to
+that one file, not to the files it loads in turn.
+
 ### `include-once`
 
 Like `include`, but tracks which paths have been loaded and skips duplicates:
@@ -190,13 +200,14 @@ module in the boot floor. The header is the file's first form, after its
 comment banner. `import` loads every file with `include` and names the
 module it is loading; a header that names that module makes the module's
 environment and reads the rest of the file into it itself, one form at a
-time, with the reader. `include-once` names no module, so a header under it
-takes the module it names, which is how boot files that x-core includes
-once can be scoped. In an amalgam a scoped boot file is spliced in place,
+time, with the reader. `include` and `include-once` name no module, so a
+header under either takes the module it names, which is how boot files
+loaded by path can be scoped. In an amalgam a scoped boot file is spliced in place,
 so the generator writes a form naming the module before it and an end
-marker after it, where the header stops reading; it refuses to splice any
-other file inside a scoped one, since that file would load into the
-module. So each form carries the file and its line, an error
+marker after it, where the header stops reading. Nothing may be spliced
+inside a scoped file, since it would load into the module: a file the scoped
+file includes once or imports at top level is spliced ahead of it instead,
+and a plain `include` inside it is refused. So each form carries the file and its line, an error
 while the module loads names both, and a form can read the forms after it.
 A header naming a different module is refused. The rules for every class of
 name conflict the doors can meet are in [Namespaces](namespaces.md).

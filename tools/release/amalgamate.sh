@@ -58,21 +58,57 @@ function header_of(path,  line, name) {
 	close(path)
 	return name
 }
+# The files a scoped file includes once or imports at top level, spliced
+# ahead of it in the order they appear.  The header of a scoped module reads
+# every form after it into the module, so a file spliced in place would load
+# into the module instead of the root.  Spliced first, each is loaded by the
+# time the module runs, and its line inside the module becomes the comment a
+# repeat already becomes.
+function hoist(path,  line, inc, mod, file) {
+	if (path in hoisting) {
+		printf "amalgamate: %s imports itself, directly or through another file\n", path > "/dev/stderr"
+		bad = 1; exit 1
+	}
+	hoisting[path] = 1
+	while ((getline line < path) > 0) {
+		if (line ~ /^\(include-once[[:space:]]+"(lib|tools|apps|ext|engine)\/[^"]*"\)[[:space:]]*(;.*)?$/) {
+			inc = line
+			sub(/^\(include-once[[:space:]]+"/, "", inc)
+			sub(/".*$/, "", inc)
+			if (!(inc in seen) && (getline junk < inc) >= 0) {
+				close(inc)
+				splice(inc)
+			}
+		} else if (line ~ /^\(import[[:space:]]+[a-z0-9][a-z0-9_\/@.-]*[[:space:]]*\)[[:space:]]*(;.*)?$/) {
+			mod = line
+			sub(/^\(import[[:space:]]+/, "", mod)
+			sub(/[[:space:]]*\).*$/, "", mod)
+			file = resolve(mod)
+			if (file != "" && !(mod in seeded) && !(file in seen)) {
+				printf "(%%module-loaded! (lit %s))\n", mod
+				splice(file)
+			}
+		}
+	}
+	close(path)
+	delete hoisting[path]
+}
 function splice(path,  line, n, mod, file, name) {
-	# The header of a scoped module reads every form after it into the
-	# module, up to the end marker written below, so a file spliced inside
-	# one would load into that module instead of the root.
+	# The includes and imports of a scoped file are hoisted ahead of it, so
+	# the only splice that can reach here from inside one is a plain include,
+	# which has no place to go: its text would load into the module.
 	if (scoped != "") {
-		printf "amalgamate: %s would splice %s inside the scoped module it is; load it before the module instead\n", scoped, path > "/dev/stderr"
+		printf "amalgamate: %s includes %s, which would splice it inside the scoped module; include it once or import it, and it is spliced ahead of the module\n", scoped, path > "/dev/stderr"
 		bad = 1; exit 1
 	}
 	if (path in seen) {
 		printf "amalgamate: %s spliced twice\n", path > "/dev/stderr"
 		bad = 1; exit 1
 	}
+	name = header_of(path)
+	if (name != "") hoist(path)
 	seen[path] = 1
 	printf "; ---- begin %s ----\n", path
-	name = header_of(path)
 	if (name != "") {
 		printf "(%%module-expecting! (lit %s))\n", name
 		scoped = path

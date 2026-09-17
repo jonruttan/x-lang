@@ -4,6 +4,7 @@
 ; ext/hash.spec test lib all (include "lib/x-core.x") first), so def-class is
 ; available when this loads.
 
+(module x/type/hash)
 (import x/type/class)
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref 'str 'append))
