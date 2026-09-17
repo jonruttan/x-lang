@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**Four more modules have a scope of their own** ([#755]). `x/type/iter`,
+`x/sys/stream`, `x/sys/socket` and `x/sys/file` carry the `(module NAME)`
+header ([#719], step 4), hiding sixty-two private names between them.
+Three needed nothing: nothing outside them read a name of theirs. The
+fourth did. `%as-list` in `x/core/list` drained an iterator through
+`x/type/iter`'s `%i-empty?` and `%i-next`, and both of those are fetches of
+engine primitives, so `list.x` fetches them itself rather than reading
+another module's names; the duplicate-definition gate allows several files
+fetching one catalog entry, and the budget for `core/list.x` goes from 21
+%-globals to 23. In the same spirit the `Ansi` class carries `inverse`
+beside `bold` and `dim`, and `x/repl/paint` takes the cursor-pair colour
+from the class, as it already took every other colour. Boot time is
+unchanged: best of ten alternating runs against the base commit.
+
 **The r5rs three are walked to a release** ([#754]). The note this file and
 `tools/contract/langs.x` carried named x-engine-c v0.2.11 for "an
 environment is a value", taken from the entry below, which names the pin
@@ -344,6 +358,7 @@ glossary and state-image documents.
 
 [#527]: https://github.com/jonruttan/x-lang/issues/527
 [#718]: https://github.com/jonruttan/x-lang/pull/718
+[#755]: https://github.com/jonruttan/x-lang/pull/755
 [#754]: https://github.com/jonruttan/x-lang/pull/754
 [#752]: https://github.com/jonruttan/x-lang/pull/752
 [#720]: https://github.com/jonruttan/x-lang/pull/720
