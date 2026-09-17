@@ -8,6 +8,7 @@
 ;
 ; IPv4 only, blocking, no DNS: `host` is a dotted quad ("127.0.0.1").
 ; Failures raise tag 'io Errs via (Err from-errno (Err errno-of r) ...).
+(module x/sys/socket)
 
 (import x/sys/posix)
 (import x/type/class)
