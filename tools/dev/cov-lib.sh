@@ -69,14 +69,17 @@ for dir in "$@"; do
         BLOCKS=$(wc -l < "$TMPTEST" | tr -d ' ')
         [ "$BLOCKS" -eq 0 ] && continue
 
-        # Run: library + marker + tsv-mode + tests + report
+        # Run: library + marker + tsv-mode + tests + report.  The ceiling goes
+        # through tools/lib/guard.sh, which runs timeout where an INT or TERM
+        # sent to this script can stop the run: timeout on its own runs in a
+        # process group of its own, out of the signal's reach.
         {
             cat "$LIB"
             echo '(def %cov-library-end #t)'
             echo '(def %cov-tsv-mode #t)'
             cat "$TMPTEST"
             cat tools/dev/cov-report.x
-        } | timeout 60 ./x-bin-profile 2>>"${COV_ERR:-/dev/null}" | tee -a "${COV_RAW:-/dev/null}" | grep '^COV	' >> "$TMPTSV"
+        } | sh "$BASEDIR/tools/lib/guard.sh" 60 ./x-bin-profile 2>>"${COV_ERR:-/dev/null}" | tee -a "${COV_RAW:-/dev/null}" | grep '^COV	' >> "$TMPTSV"
         true  # don't fail on crash or empty grep
 
         printf "." >&2

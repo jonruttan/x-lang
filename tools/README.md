@@ -6,7 +6,7 @@
 | `check/` | Everything `make gates` / `make test` drives.  One file per gate; the Makefile target names (`check-isa`, ...) are the stable external contract. |
 | `release/` | Artifact production: amalgam generation, binary tarballs, the release manifest, macOS signing. |
 | `dev/` | Conveniences: formatter, linter, coverage, benchmarks, doc generation.  See `dev/README.md`. |
-| `lib/` | Shared shell helpers for the scripts above (`contract-diff.sh`). |
+| `lib/` | Shared shell helpers for the scripts above (`guard.sh`, a wall-time ceiling an interrupt can stop). |
 | `tests/` | The tools' own spec suite (`make test-tools`). |
 
 ## Shell policy: logic lives in x

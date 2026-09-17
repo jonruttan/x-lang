@@ -166,6 +166,22 @@ now sets the same three traps around that section and clears them at its end,
 so the boot that follows runs with the signal dispositions the wrapper was
 started with.
 
+**A wall-time ceiling an interrupt can stop.** `timeout SECONDS COMMAND`
+cannot be stopped by the script that runs it: GNU timeout puts itself in a
+process group of its own, so a signal sent to the script's group does not
+reach the command, and the script waits for the command before it acts on the
+signal. `tools/lib/guard.sh` runs the timeout in the background and waits for
+it, where a trapped signal interrupts the wait, and its `INT` and `TERM` traps
+pass `TERM` to the timeout's process group before exiting. The command's own
+status is passed through, timeout's 124 for a run that hit the ceiling
+included, and with neither timeout nor gtimeout on `PATH` the command replaces
+the guard, where the caller's signal reaches it directly.
+`tools/check/pin-smoke.sh`, which runs the wrapper 73 times under a
+120-second ceiling, and `tools/dev/cov-lib.sh`, which runs the profile engine
+once per spec file under a 60-second one, run theirs through it: a signal now
+ends pin-smoke where it stands, 4.0 seconds against 7.0 to 8.2 in the same
+runs.
+
 **A scoped module's header reads the rest of its file.** The loader used to
 read a prefix of every imported file into a string to find out whether it
 was scoped, then read a scoped file whole into a string and tokenize all of
