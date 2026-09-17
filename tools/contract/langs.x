@@ -31,18 +31,19 @@
 ; Green, and expected to stay that way.
 (lang "krn"   "x-krn"    74  0)
 (lang "sweet" "x-sweet"  32  0)
-; python is NOT green and the 0 was wrong, not optimistic: the row recorded 4
-; tests when the suite has 592, so it predates almost the whole bundle.  The
-; one failure is `what a class body accepts: only defs and pass`, which the
-; bundle accepts instead of raising -- x-python's own bug, in x-python's own
-; repository.  Measured identically on x-lang 41bca38f + x-engine-c v0.1.6 and
-; on the ERR branch + v0.2.2, so nothing this platform did moved it.
+; python's one failure was `what a class body accepts: only defs and pass`,
+; which the bundle accepted instead of raising -- x-python's own bug, in
+; x-python's own repository, measured identically on x-lang 41bca38f +
+; x-engine-c v0.1.6 and on the ERR branch + v0.2.2, so nothing this platform
+; did moved it.  The bundle has since fixed it: 1005 specs, 0 failed, measured
+; at x-python b8f652a against this tree.  Ratcheted 1 -> 0.
 ;
 ; 592 is a FLOOR, not a census: the bundle is under active development and
-; reported 601 minutes after the run this row records.  The lower measured
-; number is the safe one to record -- the column exists to catch a suite that
-; SHRANK, and a floor set to a moving high-water mark cries wolf.
-(lang "python" "x-python" 592  1)
+; reported 601 minutes after the run that first recorded it.  The lower
+; measured number is the safe one to record -- the column exists to catch a
+; suite that SHRANK, and a floor set to a moving high-water mark cries wolf.
+; It stays at 592 for that reason, not because the suite is that size.
+(lang "python" "x-python" 592  0)
 ; awk is the self-hosting arc's first tool bundle: the build closure's
 ; heaviest external after the regex trio (docs/bootstrap-closure.md).
 ; 167 = feature-complete: the language, the CLI (`x -l awk -- ...` with
@@ -117,12 +118,15 @@
 
 ; The recorded debt, each row with its reason.
 ;
-; ash's two are the single- and double-quoted string readers, which accumulate
-; the value in a module-level global during analyse and lose it -- a bundle bug,
-; documented in its own README.  It was 80 until x-engine-c v0.1.3: the stock
-; v0.1.2 segfaulted the isolated tokenizer base on the first character, so
-; nearly the whole suite was red for a reason that was never ash's.
-(lang "ash"   "x-ash"    82  2)
+; ash's two were the single- and double-quoted string readers, which
+; accumulated the value in a module-level global during analyse and lost it --
+; a bundle bug, documented in its own README.  It was 80 until x-engine-c
+; v0.1.3: the stock v0.1.2 segfaulted the isolated tokenizer base on the first
+; character, so nearly the whole suite was red for a reason that was never
+; ash's.  The bundle has since fixed both: 974 specs, 0 failed, measured at
+; x-ash b975506 against this tree.  Ratcheted 2 -> 0.  The 82 floor stays, for
+; the reason the python row states.
+(lang "ash"   "x-ash"    82  0)
 ; r5rs is GREEN, and it took both halves.  37 -> 9 came from the bundle: R5RS
 ; 6.6 ports rewritten against File (21), and exactness under 6.2.5 (7).  The
 ; last nine were the ELLIPSIS group, and they were the engine's: every token
@@ -136,6 +140,27 @@
 ;
 ; A zero here is a claim, not a hope: the row is what makes a tenth failure
 ; loud.
+;
+; IT IS LOUD NOW, and the zero stays.  The suite reports 667/3 against this
+; tree, all three the pitfall 3.2 cases that assert a macro-introduced
+; definition does not escape its `let`:
+;
+;   macro-defined variable does not leak (pitfall 3.2)              got 1
+;   define-syntax: the definition stays inside the expansion        got 777
+;   let-syntax: the definition stays inside the expansion           got 888
+;
+; Not the bundle's debt and not a stale checkout: measured at x-r5rs dd3ba79,
+; whose only commits since its last macro work are prose rewrites.  x-r5rs
+; fixed exactly these in 0514d99 and 2c45ab0 (2026-09-08) and recorded 667/0
+; against x-lang main with x-engine-c v0.2.8, the engine v0.14.0 pins.  This
+; tree pins v0.2.13, crossing v0.2.11's "an environment is a value" (#720):
+; `def` binds in the current environment, `eval` with an environment makes it
+; current with the binding staying put, and the frame marks, shadow list and
+; local boundary those two fixes were written against were retired with it.
+;
+; So the debt is this platform's, on an unreleased change, and the row is left
+; red deliberately -- a budget raised to 3 would be recording our own
+; regression as the bundle's.
 (lang "r5rs"  "x-r5rs"  667  0)
 ; r7rs moved 43 -> 27 on x-engine-c v0.1.5, and the sixteen are all of `error`,
 ; `error objects` and `guard`.  (base def-global) lets an operative define for
@@ -160,4 +185,11 @@
 ; than quietly because the alternative is worse: leaving the gate red on main
 ; means the next real regression in any bundle lands on a check that is already
 ; failing and says nothing new.  The debt is x-r7rs's to pay in its own repo.
+;
+; 30 -> 33 against this tree, measured at x-r7rs c80a88c.  The three are not
+; recorded, for the reason the r5rs row above gives at length: that bundle
+; gained the same +3 in the same window, its three are the same pitfall 3.2
+; assertions, and both bundles' macro layers were repaired against the engine
+; model v0.2.11 replaced.  One cause, two bundles; it is read as ours until
+; the r5rs three are answered.
 (lang "r7rs"  "x-r7rs"  637 30)
