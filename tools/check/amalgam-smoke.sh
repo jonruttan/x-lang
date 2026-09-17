@@ -54,4 +54,31 @@ smoke xe "$TOWER_EXPECT" '(display (/ 1 3))(newline)'
 smoke rn "$TOWER_EXPECT" '(display (/ 1 3))(newline)'
 smoke x-base "$TOWER_EXPECT" '(display (/ 1 3))(newline)'
 
+# A scoped module's header reads every form after it into the module, up to
+# the end marker the generator writes, so a file spliced inside a scoped
+# module would load into that module instead of the root.  The generator
+# refuses that.  A throwaway tree holds the generator, an empty x-core.x (it
+# reads the boot entry's pre-seeded names) and a scoped file that includes
+# another; the generator must fail and say which file would be spliced where.
+nest_tree=$(mktemp -d "${TMPDIR:-/tmp}/amalgam-nest.XXXXXX") || exit 1
+mkdir -p "$nest_tree/tools/release" "$nest_tree/lib/nest"
+cp tools/release/amalgamate.sh "$nest_tree/tools/release/"
+: > "$nest_tree/lib/x-core.x"
+printf '(include-once "lib/nest/outer.x")\n' > "$nest_tree/lib/nest-entry.x"
+printf '; outer.x -- scoped, and it includes another file.\n(module nest/outer)\n(include-once "lib/nest/inner.x")\n' > "$nest_tree/lib/nest/outer.x"
+printf '(def nest-inner 1)\n' > "$nest_tree/lib/nest/inner.x"
+_nest_err=$(sh "$nest_tree/tools/release/amalgamate.sh" lib/nest-entry.x 2>&1 >/dev/null)
+_nest_rc=$?
+rm -rf "$nest_tree"
+case "$_nest_rc:$_nest_err" in
+	0:*)
+		STATUS=1
+		echo "amalgam-smoke: FAIL -- a file spliced inside a scoped module was accepted" >&2 ;;
+	*"lib/nest/outer.x would splice lib/nest/inner.x inside the scoped module"*)
+		echo "amalgam-smoke: a splice inside a scoped module is refused ok" ;;
+	*)
+		STATUS=1
+		echo "amalgam-smoke: FAIL -- a splice inside a scoped module failed for another reason: $_nest_err" >&2 ;;
+esac
+
 exit "$STATUS"

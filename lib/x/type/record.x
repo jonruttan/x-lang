@@ -19,6 +19,8 @@
 ;
 ; Records are leaves: extending one is spelled def-class. Structural
 ; equality is a METHOD -- eq?/same? keep identity semantics, by ruling.
+
+(module x/type/record)
 (import x/type/class)
 
 ; Functional update: copy the record with the named fields replaced.
@@ -39,9 +41,16 @@
       (if (not (same? (class-of self) (class-of other))) #f
         (%equal? (%obj-fields self) (%obj-fields other))))))
 
+; The two methods every record gets.  def-record splices them into the
+; def-class it evaluates where the record is defined, and this module's
+; helpers have no names there, so each body carries its helper itself,
+; quoted, rather than the helper's name.
 (def %record-methods
-  (lit ((method with (self . overrides) (%record-with self overrides))
-        (method =? (self other) (%record=? self other)))))
+  (list
+    (list (lit method) (lit with) (lit (self . overrides))
+      (list (list (lit lit) %record-with) (lit self) (lit overrides)))
+    (list (lit method) (lit =?) (lit (self other))
+      (list (list (lit lit) %record=?) (lit self) (lit other)))))
 
 (doc (def def-record
   (op (name . fields) e

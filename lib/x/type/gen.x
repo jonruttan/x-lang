@@ -16,6 +16,7 @@
 ;
 ; Loads after object.x (def-class), list.x (reverse) and vector.x (Vector).
 
+(module x/type/gen)
 (import x/type/class)
 (import x/type/list)
 (import x/type/vector)

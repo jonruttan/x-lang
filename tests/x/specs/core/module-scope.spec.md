@@ -175,6 +175,20 @@ read after the forms before it have run.
 ---
     (2 'hidden)
 
+## a scoped file loaded by include-once
+
+`include-once` names no module, so a header under it takes whatever module
+the file names. This is how the boot files load.
+
+### a scoped file included once keeps its private names and exports the rest
+
+```x
+(do (include-once "tests/x/fixtures/modscope/scoped/once.x")
+    (list (once-seven) (guard (_ 'hidden) %once-secret) (not (null? (module scoped/once)))))
+```
+---
+    (7 'hidden #t)
+
 ## the module form denotes the module's environment
 
 ### a scoped module can name its own environment

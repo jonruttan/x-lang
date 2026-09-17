@@ -5,6 +5,7 @@
 ; Everything else is implemented here. Alists are ((key . val) ...) with keys
 ; compared by eq?; option stores (opt-get-or...) also accept flat plists.
 
+(module x/type/assoc)
 (import x/core/alist)
 (import x/type/class)
 

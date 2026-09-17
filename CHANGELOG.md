@@ -5,6 +5,24 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The first boot files have a scope of their own.** `x/core/quasi`,
+`x/type/record`, `x/type/err`, `x/type/assoc` and `x/type/gen` carry the
+`(module NAME)` header ([#719], step 4). x-core loads most of them with `include-once`,
+which names no module, so a header under `include-once` takes the module
+it names. In the amalgams a scoped boot file is spliced in place, and the
+generator now writes `(%module-expecting! (lit NAME))` before it and
+`(%module-end)` after it; the header reads up to that marker, since the end
+of the spliced text is not the end of the stream. The generator refuses to
+splice another file inside a scoped one, because that file would load into
+the module, and the amalgam smoke check proves the refusal on a throwaway
+tree. `x/type/dict` waits: the bitwise app imports it before anything has
+loaded `x/type/hash`, so its amalgam would splice hash inside dict.
+`x/core/boolean`, `x/core/control` and `x/sys/pact` wait too: every global
+name looked up inside a scoped module's code checks the module's
+environment first, and those three hold `and`, `or`, `if`, `let` and the
+number tower's contracts, which run constantly. Scoped, they made the
+x-base amalgam boot about 5% slower; the five above cost nothing measurable.
+
 **The declaration generator no longer fills the disk on a profile cycle.**
 `tools/contract/gen-engine-xon.sh` flattened each profile in work files
 named after the profiles, appending one profile's file to another's. A row

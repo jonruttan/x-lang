@@ -206,7 +206,12 @@
         (do
           (%set-first! %include-list-cell
             (pair %io-path (first %include-list-cell)))
-          (include %io-path))))))
+          ; A file included once may be a scoped module: its header takes
+          ; whatever module it names, since the path names no module.
+          (%set-first! %module-expected-cell %module-any)
+          (def %result (include %io-path))
+          (%set-first! %module-expected-cell ())
+          %result)))))
 (def require-once include-once)
 
 ; --- Module registry ---
@@ -554,10 +559,23 @@
     ()))
 
 ; --- The module header (x-lang#719) ---
-; The name of the module whose file `import` is including, for that file's
-; header to find, or nil.  An unscoped file has no header and never reads
-; it, so `import` clears it once the file has loaded.
+; What the file now loading may be headed with, for its header to find:
+; the name of the module `import` is including, %module-any while
+; `include-once` includes a file (its path names no module), or nil.  An
+; unscoped file has no header and never reads it, so the loader clears it
+; once the file has loaded.
 (def %module-expected-cell (pair () ()))
+(def %module-any (pair () ()))
+; In an amalgam a spliced file is not loaded by `import` or `include-once`
+; but read in place from the stream, so the amalgamator writes these two
+; forms around a spliced scoped file: the first names the module for its
+; header, and the header's reading stops at the second, since the end of
+; the spliced text is not the end of the input.  Evaluated anywhere else,
+; the second only clears what the first set.
+(def %module-expecting!
+  (fn (_ name) (%set-first! %module-expected-cell name)))
+(def %module-end
+  (fn (_) (%set-first! %module-expected-cell ())))
 ; The reader, one form from the head of the input: while `include` loads a
 ; file, that file.  At end of input it answers the EOF sentinel, %token-eof,
 ; so a () in the file is read as the form it is.
@@ -566,9 +584,10 @@
   ; The rest of a scoped file, read by its header: a fresh child of the
   ; root, recorded before any form runs so the module can name its own
   ; environment, then every remaining form read and evaluated in it, one at
-  ; a time, until end of input.  The reader stamps each form with the
-  ; file's id and line, and reads it after the forms before it have run.
-  ; Answers the environment, which is what `include` then returns.
+  ; a time, until end of input or an amalgam's (%module-end).  The reader
+  ; stamps each form with the file's id and line, and reads it after the
+  ; forms before it have run.  Answers the environment, which is what
+  ; `include` then returns.
   (fn (_ name)
     (def %env (pair () (%module-root-env)))
     (%set-first! %module-expected-cell ())
@@ -579,16 +598,18 @@
         (def %form (%module-read))
         (match
           ((%module-same? %form %token-eof) %env)
+          ((match ((pair? %form) (eq? (first %form) (lit %module-end))) (#t #f)) %env)
           (#t (do (eval %form %env) (self))))))
     (%go)))
 
 ; The form that names a scoped module, and denotes it everywhere else.
 ;
-; As the first form of a file that `import` is loading, after the file's
-; comment banner, it is the header: it names the module being imported,
-; and it loads the rest of the file into an environment of the module's
-; own (above).  A header naming a module other than the one being imported
-; is refused, naming both: the file is not the module the import asked for.
+; As the first form of a file that `import` or `include-once` is loading,
+; after the file's comment banner, it is the header, and it loads the rest
+; of the file into an environment of the module's own (above).  Under
+; `import` it must name the module being imported: a header naming another
+; is refused, naming both, since the file is not the module the import asked
+; for.  Under `include-once` it names the module the file is.
 ;
 ; As an expression anywhere else it answers the named module's environment,
 ; so a reader can walk a module's names.  A module that is not loaded is an
@@ -601,6 +622,7 @@
     (def %entry (%module-assoc name (first %module-env-cell)))
     (match
       ((eq? %expected name) (%module-load-rest name))
+      ((%module-same? %expected %module-any) (%module-load-rest name))
       ((match ((eq? %expected ()) #f) (#t (eq? %entry ())))
         (do
           (%set-first! %module-expected-cell ())
