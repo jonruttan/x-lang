@@ -280,6 +280,8 @@ model.
   value form, and whether the alias pair is `(name alias)` or `(alias name)`.
 - Whether the boot files are ever scoped, or whether the boot set stays
   global as the pin boundary already makes it.
-- Whether the loader evaluates a scoped file through the x-side reader
-  loop or through a C door that takes an environment; with environments as
-  values the second is one argument on the existing loader.
+- Answered: a scoped file needs neither. `import` loads it with the
+  ordinary `include`, and its header reads the rest of the file with the
+  reader, one form at a time, into the module's environment. The reader's
+  `read` answers the EOF sentinel at end of input (x-engine-c v0.2.13), so
+  a `()` in a module is a form rather than the end of the file.
