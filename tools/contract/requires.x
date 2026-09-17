@@ -5,11 +5,12 @@
 ; by SUPERSET (tools/contract/features.x holds the vocabulary both quote).
 ;
 ; Derived rather than decided.  Every row below is computed by
-; tools/check/engine-contract.sh, which joins the engine's isa.x against every
-; (prim-ref ns method) site and every bare `syscall` call in lib/ and apps/, maps
-; each coordinate to its capability group, and diffs the result against this
-; file.  A row cannot be added by opinion and cannot go stale: the gate fails
-; both ways.
+; tools/check/engine-contract.x, which tools/check/engine-contract.sh runs: it
+; reads lib/ and apps/ as forms, finds every (prim-ref ns method) site and every
+; `syscall` call, maps each coordinate to its capability group through the
+; reference engine's isa.x, and diffs the result against this file.  A site
+; nested inside another call counts; words in a comment or a string do not.  A
+; row cannot be added by opinion and cannot go stale: the gate fails both ways.
 ;
 ; A capability that is not prim-ref-able cannot be derived, and two are not:
 ; instr/cov and instr/profile are build flags that change how existing
@@ -34,9 +35,11 @@
 ; over-approximation is the safe direction: it can only make an engine look LESS
 ; capable of loading a file than it is.
 ;
-; FORMAT (rigid, one entry per line -- the awk parses the same bytes):
-;   (profile NAME)         the profile the COMPLETE library needs
-;   (needs "PATH" cap...)  a file and the above-core capabilities it references
+; Format:
+;   (profile NAME)         the profile the complete library needs
+;   (needs "PATH" cap...)  a file and the above-core capabilities it references,
+;                          in byte order, since the gate compares each row as
+;                          written
 
 (def %requires (lit (
   ; The profile the whole library needs.  DERIVED, and it is `posix`, not `full`:
@@ -65,7 +68,6 @@
   ; repl/line.x need neither: they are string and list work over what this
   ; file hands them.
   (needs "lib/x/repl/term.x" isa/ffi-call isa/syscall)
-  (needs "lib/x/rn.x" isa/syscall)
   (needs "lib/x/sys/file.x" isa/syscall)
   (needs "lib/x/sys/gc.x" isa/gc)
   (needs "lib/x/sys/posix.x" isa/ffi-call isa/sys)
@@ -75,6 +77,7 @@
   (needs "lib/x/tool/asm.x" isa/ffi-call)
   (needs "lib/x/tool/compile.x" isa/ffi-call)
   (needs "lib/x/tool/profile.x" isa/gc)
+  (needs "lib/x/type/err.x" isa/ffi-call)
   (needs "lib/x/type/ptr.x" isa/ffi-call)
   (needs "lib/xe.x" isa/gc)
 )))

@@ -84,7 +84,7 @@ c2g() {
 		/^\(def %isa-bare/    { s="bare";    next }
 		/^\(def %isa-keep/    { s="keep";    next }
 		/^\(def %isa-aliases/ { s="";        next }
-		/^\(def %isa-values/  { s="values";  next }   # part of the surface: see engine-contract.sh
+		/^\(def %isa-values/  { s="values";  next }   # part of the surface: see tools/check/engine-contract.x
 		/^  \(/ {
 			if (s == "") next
 			l = $0; sub(/;.*/, "", l); gsub(/[()]/, "", l); $0 = l
