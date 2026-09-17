@@ -5,13 +5,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**The numeric tower is right at the most negative integer.** `LONG_MIN` is
-the one int whose negation is not an int, and every promotion route reached
-it through its own magnitude. `%bigint-from-int` took `(- 0 n)` first, which
-for `LONG_MIN` hands back `LONG_MIN`; the limb loop then divided a negative
-number, whose remainders are negative too, so each limb came out carrying the
-sign. The bigint that built printed as `-9-223372036-854775808` and did
-arithmetic to match: `(+ LONG_MIN 18446744073709551616)` answered
+**The numeric tower is right at the most negative integer** ([#748]).
+`LONG_MIN` is the one int whose negation is not an int, and every promotion
+route reached it through its own magnitude. `%bigint-from-int` took `(- 0 n)`
+first, which for `LONG_MIN` hands back `LONG_MIN`; the limb loop then divided
+a negative number, whose remainders are negative too, so each limb came out
+carrying the sign. The bigint that built printed as `-9-223372036-854775808`
+and did arithmetic to match: `(+ LONG_MIN 18446744073709551616)` answered
 276701161091564327424. The limbs now come off `n` itself and are negated one
 at a time, which is always in range because a limb is smaller than the base.
 
@@ -106,6 +106,7 @@ A clean answer is kept in `build/` under a digest of everything it read, so
 `check-second-engine`, which asks the gate about three more engines, and a
 tree that has not changed read it instead of deriving it again.
 
+[#748]: https://github.com/jonruttan/x-lang/pull/748
 [#739]: https://github.com/jonruttan/x-lang/pull/739
 
 **The tool scripts stop on an interrupt or a TERM.** Twenty scripts under
