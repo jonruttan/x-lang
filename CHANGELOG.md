@@ -23,6 +23,18 @@ environment first, and those three hold `and`, `or`, `if`, `let` and the
 number tower's contracts, which run constantly. Scoped, they made the
 x-base amalgam boot about 5% slower; the five above cost nothing measurable.
 
+**The declaration generator no longer fills the disk on a profile cycle.**
+`tools/contract/gen-engine-xon.sh` flattened each profile in work files
+named after the profiles, appending one profile's file to another's. A row
+of `%feature-profiles` that named its own profile, or two rows that named
+each other, could make it append a file to itself; that append never
+reaches end of file, so the file grew until the disk was full.
+`check-engine-contract` reports such rows and then runs the generator. Each
+profile is now expanded at most once, a row's own name counts as expanded
+from the start, and no work file is named after a profile. A profile that
+names one defined after it now takes that profile's atoms, which were left
+out before. The declaration for the committed vocabulary is unchanged.
+
 **The engine-contract gate reads the library as forms** ([#739]). The
 checks `check-engine-contract` makes of the library run in x, in
 `tools/check/engine-contract.x`: the partition of the reference ISA into

@@ -159,44 +159,45 @@ fi
 sort -u -o "$W/provided" "$W/provided"
 
 # --- profiles that hold ------------------------------------------------------
-# A profile holds when every atom it names is provided; a named profile expands
-# to its own atoms first (the chain is closed, checked by check-engine-contract).
+# A profile holds when every capability it stands for is provided: the atoms it
+# names, with each profile named replaced by that profile's own atoms until only
+# capabilities are left.
 awk '/^\(def %feature-profiles/{f=1;next} /^\)\)\)/{f=0}
      f { l=$0; sub(/;.*/,"",l); if (l ~ /^[ \t]*$/) next
          buf = (buf=="" ? l : buf " " l)
          n=gsub(/\(/,"(",buf); m=gsub(/\)/,")",buf)
          if (n>0 && n==m) { gsub(/[()]/,"",buf); $0=buf; $1=$1; print; buf="" } }' "$FEAT" > "$W/profiles"
 
+# Each round replaces the profile names in todo by their atoms and moves the
+# capabilities to flat.  A profile is expanded at most once, and a row's own
+# name counts as expanded from the start, so the rounds end for a row that
+# names itself and for rows that name each other; check-engine-contract
+# reports such rows and still runs this script.  The work files have fixed
+# names rather than one per profile, so no file is appended to itself.
 : > "$W/holds"
 while read -r prow; do
 	pname=$(echo "$prow" | awk '{print $1}')
-	# expand: atoms, plus the atoms of any profile named
-	echo "$prow" | cut -d' ' -f2- | tr ' ' '\n' | grep -v '^$' > "$W/atoms.$pname"
-	changed=1
-	while [ "$changed" = 1 ]; do
-		changed=0
+	expanded=" $pname "
+	echo "$prow" | cut -d' ' -f2- | tr ' ' '\n' | grep -v '^$' > "$W/todo"
+	: > "$W/flat"
+	while [ -s "$W/todo" ]; do
+		: > "$W/next"
 		while read -r a; do
-			if grep -q "^$a\$" "$W/holds" 2>/dev/null; then
-				grep "^$a " "$W/profiles" | cut -d' ' -f2- | tr ' ' '\n' | grep -v '^$' >> "$W/atoms.$pname"
-				sort -u -o "$W/atoms.$pname" "$W/atoms.$pname"
+			case "$expanded" in *" $a "*) continue ;; esac
+			if grep -q "^$a " "$W/profiles"; then
+				expanded="$expanded$a "
+				grep "^$a " "$W/profiles" | cut -d' ' -f2- | tr ' ' '\n' | grep -v '^$' >> "$W/next"
+			else
+				echo "$a" >> "$W/flat"
 			fi
-		done < "$W/atoms.$pname"
-		changed=0
+		done < "$W/todo"
+		mv "$W/next" "$W/todo"
 	done
-	# substitute any profile name by its atoms (one level is enough: the chain is linear)
-	: > "$W/flat.$pname"
-	while read -r a; do
-		if grep -q "^$a " "$W/profiles"; then
-			if [ -f "$W/flat.$a" ]; then cat "$W/flat.$a" >> "$W/flat.$pname"; fi
-		else
-			echo "$a" >> "$W/flat.$pname"
-		fi
-	done < "$W/atoms.$pname"
-	sort -u -o "$W/flat.$pname" "$W/flat.$pname"
+	sort -u -o "$W/flat" "$W/flat"
 	missing=""
 	while read -r a; do
 		grep -q "^$a\$" "$W/provided" || missing="$missing $a"
-	done < "$W/flat.$pname"
+	done < "$W/flat"
 	if [ -z "$missing" ]; then echo "$pname" >> "$W/holds"; fi
 	echo "$pname |$missing" >> "$W/profile-report"
 done < "$W/profiles"
