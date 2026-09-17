@@ -4,6 +4,7 @@
 ; before the object system calls these. Value-passing call sites use
 ; (method-ref Num inc) etc.
 
+(module x/core/math)
 (import x/type/class)
 
 ; The machine-INT type handle, for (Num int?) and the N5 count/index guards.

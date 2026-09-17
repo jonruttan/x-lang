@@ -180,7 +180,17 @@
         (fn (_ path)
           (def %io-path (%resolve-include-path path (%include-curdir)))
           (%include-dir-push! (%path-dir %io-path))
+          ; The file may be a scoped module.  Unless an import has named
+          ; the module it is loading, the file's header takes whatever
+          ; module it names; an unscoped file never reads the mark, so it
+          ; is cleared after the load.
+          (match
+            ((eq? (first %module-expected-cell) ()) (%set-first! %module-expected-cell %module-any))
+            (#t ()))
           (def %result (%raw-include %io-path))
+          (match
+            ((%module-same? (first %module-expected-cell) %module-any) (%set-first! %module-expected-cell ()))
+            (#t ()))
           (%include-dir-pop!)
           %result))))
   (#t ()))
@@ -206,12 +216,7 @@
         (do
           (%set-first! %include-list-cell
             (pair %io-path (first %include-list-cell)))
-          ; A file included once may be a scoped module: its header takes
-          ; whatever module it names, since the path names no module.
-          (%set-first! %module-expected-cell %module-any)
-          (def %result (include %io-path))
-          (%set-first! %module-expected-cell ())
-          %result)))))
+          (include %io-path))))))
 (def require-once include-once)
 
 ; --- Module registry ---
@@ -560,8 +565,8 @@
 
 ; --- The module header (x-lang#719) ---
 ; What the file now loading may be headed with, for its header to find:
-; the name of the module `import` is including, %module-any while
-; `include-once` includes a file (its path names no module), or nil.  An
+; the name of the module `import` is including, %module-any while `include`
+; or `include-once` loads a file (a path names no module), or nil.  An
 ; unscoped file has no header and never reads it, so the loader clears it
 ; once the file has loaded.
 (def %module-expected-cell (pair () ()))
@@ -604,18 +609,17 @@
 
 ; The form that names a scoped module, and denotes it everywhere else.
 ;
-; As the first form of a file that `import` or `include-once` is loading,
-; after the file's comment banner, it is the header, and it loads the rest
-; of the file into an environment of the module's own (above).  Under
-; `import` it must name the module being imported: a header naming another
-; is refused, naming both, since the file is not the module the import asked
-; for.  Under `include-once` it names the module the file is.
+; As the first form of a file that `import`, `include` or `include-once` is
+; loading, after the file's comment banner, it is the header, and it loads
+; the rest of the file into an environment of the module's own (above).
+; Under `import` it must name the module being imported: a header naming
+; another is refused, naming both, since the file is not the module the
+; import asked for.  Under `include` or `include-once` it names the module
+; the file is, which is how the boot files, loaded by path, are scoped.
 ;
-; As an expression anywhere else it answers the named module's environment,
-; so a reader can walk a module's names.  A module that is not loaded is an
-; error, which is also what a scoped file reached through `include` rather
-; than `import` meets at its header: no import named it, so the header is
-; an expression, and the module has no environment.
+; As an expression anywhere else, inside code or at the prompt, it answers
+; the named module's environment, so a reader can walk a module's names.  A
+; module that is not loaded is an error.
 (def module
   (op (name) _
     (def %expected (first %module-expected-cell))

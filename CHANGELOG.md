@@ -5,6 +5,26 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**Nine more modules have a scope of their own, and amalgams hoist a scoped
+file's imports.** Eight boot files, `x/type/dict`, `x/type/bool`,
+`x/type/err-io`, `x/type/char-io`, `x/type/hash`, `x/core/math`,
+`x/protocol/str/utf8` and `x/type/regex`, and the run-time `x/codec/json`,
+carry the `(module NAME)` header ([#719], step 4). Nothing may be spliced
+inside a scoped file in an amalgam, since its header reads every form after
+it into the module. The generator used to refuse such a splice. It now
+splices the files a scoped file includes once or imports at top level
+ahead of it, in order, and the lines inside the module become the usual
+"inlined above" comments. That is what lets `x/type/dict` join: the bitwise
+app imports it before `x/type/hash` is loaded, and hash is now spliced
+ahead of dict. A plain `include` inside a scoped file is still refused, and
+the amalgam smoke check covers both cases. A header under a plain `include`
+now takes the module it names, as it already did under `include-once`: the
+tower dialects load `x/type/hash` and `x/type/regex` with `include` from
+`boot/tower-compiled.x`. Boot time is unchanged: best of
+ten alternating runs against main, the source boot, the x-core amalgam and
+the x-base amalgam differ by 0.0%, 0.0% and -0.7%, and loops over dict,
+strings, display, `Num` and regex are within 4% either way.
+
 **The first boot files have a scope of their own.** `x/core/quasi`,
 `x/type/record`, `x/type/err`, `x/type/assoc` and `x/type/gen` carry the
 `(module NAME)` header ([#719], step 4). x-core loads most of them with `include-once`,

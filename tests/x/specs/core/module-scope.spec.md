@@ -175,10 +175,10 @@ read after the forms before it have run.
 ---
     (2 'hidden)
 
-## a scoped file loaded by include-once
+## a scoped file loaded by path
 
-`include-once` names no module, so a header under it takes whatever module
-the file names. This is how the boot files load.
+`include` and `include-once` name no module, so a header under either takes
+whatever module the file names. This is how the boot files load.
 
 ### a scoped file included once keeps its private names and exports the rest
 
@@ -188,6 +188,15 @@ the file names. This is how the boot files load.
 ```
 ---
     (7 'hidden #t)
+
+### a scoped file loaded by a plain include keeps its private names too
+
+```x
+(do (include "tests/x/fixtures/modscope/scoped/plainly.x")
+    (list (plainly-eleven) (guard (_ 'hidden) %plainly-secret)))
+```
+---
+    (11 'hidden)
 
 ## the module form denotes the module's environment
 

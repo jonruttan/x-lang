@@ -11,6 +11,7 @@
 ; Loaded right after the codec and string layer at boot, before any
 ; character is printed.
 
+(module x/type/char-io)
 (import x/codec/utf8)
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))

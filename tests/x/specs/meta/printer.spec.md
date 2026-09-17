@@ -296,11 +296,16 @@ nosuchsym
 
 ### a lang can replace the wording, and put it back
 
+A lang reaches the ERR type through the type catalog, the same doors
+`x/type/err-io.x` uses; that module's own names for them are private.
+
 ```x
 (do
-  (def et (%err-io-by-atom (%err-io-type-of (first (%reflect-base-cell (lit err))))))
+  (def et ((prim-ref (lit type) (lit by-atom))
+           ((prim-ref (lit type) (lit of)) (first (%reflect-base-cell (lit err))))))
   (def before (%display-to-str (guard (e e) nosuchsym)))
-  (%err-io-push-display et (fn (_ e) (display (Str8 append "nope: " (Err subject-of e)))))
+  ((prim-ref (lit type) (lit push-display)) et
+   (fn (_ e) (display (Str8 append "nope: " (Err subject-of e)))))
   (def after (%display-to-str (guard (e e) nosuchsym)))
   (list before after))
 ```

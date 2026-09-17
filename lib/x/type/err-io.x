@@ -24,6 +24,7 @@
 ; loads an engine error renders as the bounded #<obj:ERR> form, and an
 ; error raised during boot is exactly when you can least afford that.
 
+(module x/type/err-io)
 (def %err-io-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %err-io-type-of (prim-ref (lit type) (lit of)))
 (def %err-io-push-write (prim-ref (lit type) (lit push-write)))

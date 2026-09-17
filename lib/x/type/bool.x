@@ -26,6 +26,7 @@
 ; singletons with its own type -- name-interned handles compare across
 ; bases, so the first claim serves every base.
 
+(module x/type/bool)
 (def %bool-make-type (prim-ref (lit type) (lit make)))
 (def %bool ())
 (set! %bool

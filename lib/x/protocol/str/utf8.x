@@ -1,4 +1,6 @@
 ; str/utf8.x -- StrUtf8: the UTF-8 code-point string class
+
+(module x/protocol/str/utf8)
 (import x/protocol/str/str8)
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
