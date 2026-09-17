@@ -71,6 +71,8 @@ DOC_X="tools/dev/doc.x"
 
 _TMP=$(mktemp -d)
 trap 'rm -rf "$_TMP"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # The sweep list, in stable sorted order.
 {

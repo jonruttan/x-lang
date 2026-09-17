@@ -35,6 +35,8 @@ LIB="${DIFF_LIB:-lib/x-base.x}"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # A run directory per engine: the tree's lib, that engine's seam.
 rundir() { # $1 = name, $2 = seam root

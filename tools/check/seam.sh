@@ -43,6 +43,8 @@ BUNDLE=$(sed -n 's/^(seam bundle \([^ ]*\) .*/\1/p' "$SEAM")
 W="${TMPDIR:-/tmp}/seam.$$"
 mkdir -p "$W"
 trap 'rm -rf "$W"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 PROBE="$W/probe.x"
 : > "$PROBE"
 for n in $ALWAYS $INSTALLED $BUNDLE; do

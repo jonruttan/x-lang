@@ -24,6 +24,8 @@ sh -n bootstrap.sh || { echo "bootstrap-smoke: bootstrap.sh has a syntax error" 
 T="${TMPDIR:-/tmp}/bootstrap-smoke.$$"
 mkdir -p "$T"
 trap 'rm -rf "$T"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 fail() { echo "bootstrap-smoke: FAIL: $1" >&2; [ -f "$T/log" ] && sed 's/^/  /' "$T/log" >&2; exit 1; }
 
 # Stage the tracked sources into a throwaway tree and drive bootstrap.sh there

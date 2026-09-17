@@ -38,6 +38,8 @@ WITH_C=no
 MAN3X="docs/ref/man/man3x"
 PREFIX_DIR=$(mktemp -d)
 trap 'rm -rf "$PREFIX_DIR"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 fail() { printf '  \033[1;31mman-smoke FAIL\033[0m %s\n' "$1" >&2; exit 1; }
 

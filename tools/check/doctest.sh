@@ -53,6 +53,8 @@ _MODS=$(find lib/x -name '*.x' | sed 's|^lib/||; s|\.x$||' | sort \
 # with a guard in the way (those modules' examples are silently absent).
 _TMP=$(mktemp) || exit 1
 trap 'rm -f "$_TMP"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 {
   printf '(alloc-limit! %s)\n' "$X_ALLOC_LIMIT_OBJS"

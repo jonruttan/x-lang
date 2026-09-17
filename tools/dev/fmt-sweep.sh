@@ -43,6 +43,8 @@ export X_ALLOC_LIMIT_OBJS
 
 _TMP=$(mktemp -d "${TMPDIR:-/tmp}/fmt-sweep.XXXXXX")
 trap 'rm -rf "$_TMP"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # The sweep list, stable order.
 {
