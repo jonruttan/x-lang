@@ -26,7 +26,9 @@ cd "$ROOT"
 
 T="${TMPDIR:-/tmp}/engine-fetch.$$"
 mkdir -p "$T"
-trap 'rm -rf "$T"; rm -rf "$ROOT/deps/engine/fixture-"* 2>/dev/null || true' EXIT INT TERM
+trap 'rm -rf "$T"; rm -rf "$ROOT/deps/engine/fixture-"* 2>/dev/null || true' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 fail() { echo "engine-fetch: FAIL: $1" >&2; shift; [ $# -gt 0 ] && sed 's/^/  /' "$@" >&2; exit 1; }
 

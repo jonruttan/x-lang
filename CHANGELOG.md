@@ -54,6 +54,17 @@ tree that has not changed read it instead of deriving it again.
 
 [#739]: https://github.com/jonruttan/x-lang/pull/739
 
+**The tool scripts stop on an interrupt or a TERM.** Twenty scripts under
+`tools/`, the conformance runner and the pre-push hook set their cleanup as
+a trap on `EXIT INT TERM` with no `exit` in it. On `INT` or `TERM` the
+cleanup ran and the script went on without its scratch files, so an
+interrupt ended only the command in progress, and a gate run under `timeout`
+went on into its later checks. Each now sets the cleanup on `EXIT` alone,
+with `trap 'exit 130' INT` and `trap 'exit 143' TERM` beside it, so the
+cleanup runs once and the script exits with the status a shell reports for
+that signal. `tools/check/asan-boot.sh` still puts back the JIT byte cache it
+sets aside.
+
 **A scoped module's header reads the rest of its file.** The loader used to
 read a prefix of every imported file into a string to find out whether it
 was scoped, then read a scoped file whole into a string and tokenize all of

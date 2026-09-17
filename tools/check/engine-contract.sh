@@ -82,7 +82,9 @@ fail=0
 note() { echo "  $1"; fail=1; }
 
 CACHE="build/engine-contract.lib"
-trap 'rm -f /tmp/ec-*.$$ "$CACHE.$$"' EXIT INT TERM
+trap 'rm -f /tmp/ec-*.$$ "$CACHE.$$"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 echo "engine-contract:"
 

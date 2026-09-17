@@ -26,7 +26,9 @@ set -e
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 TMP=$(mktemp -d)
-trap 'rm -rf "$TMP"' EXIT INT TERM
+trap 'rm -rf "$TMP"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # x.sh resolves the library against the CURRENT directory, so the engine has
 # to run from the repository root -- which means the paths handed to it must

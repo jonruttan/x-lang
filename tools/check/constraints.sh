@@ -44,7 +44,9 @@ MAN_LIST="$SCRATCH/constraints-man.$$"
 DIFF_OUT="$SCRATCH/constraints-diff.$$"
 # One trap covering all three: an interrupt between the diff and an inline rm
 # would leave the diff output behind.
-trap 'rm -f "$SRC_LIST" "$MAN_LIST" "$DIFF_OUT"' EXIT INT TERM
+trap 'rm -f "$SRC_LIST" "$MAN_LIST" "$DIFF_OUT"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # --- 1. the SOURCE's view: every marker line, as "PATH param op value" -------
 # The scan covers the same trees the other library gates do (lib + apps + tools);

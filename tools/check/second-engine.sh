@@ -24,7 +24,9 @@ FIX="tests/x/fixtures/engine-min"
 
 W="${TMPDIR:-/tmp}/second-engine.$$"
 mkdir -p "$W"
-trap 'rm -rf "$W"' EXIT INT TERM
+trap 'rm -rf "$W"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 fail=0
 
 # --- the declaration the generator writes for it -----------------------------

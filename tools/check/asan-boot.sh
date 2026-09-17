@@ -93,7 +93,9 @@ restore_cache() {
 	done
 	rm -rf "$W"
 }
-trap 'restore_cache' EXIT INT TERM
+trap 'restore_cache' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 for f in /tmp/x-asm-*; do
 	[ -e "$f" ] && mv -f "$f" "$W/cache/" 2>/dev/null
 done

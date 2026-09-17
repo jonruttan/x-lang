@@ -25,7 +25,9 @@ cd "$(dirname "$0")/../.." || exit 1
 
 W="${TMPDIR:-/tmp}/boot-closed.$$"
 mkdir -p "$W"
-trap 'rm -rf "$W"' EXIT INT TERM
+trap 'rm -rf "$W"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # The pre-seeded set: the modules x-core.x marks loaded because it raw-includes
 # them.  `include` does not register, so without that list a later import would

@@ -34,7 +34,9 @@ ISA="${ENGINE_DIR:-engine}/tools/contract/isa.x"
 
 W="${TMPDIR:-/tmp}/primitives-doc.$$"
 mkdir -p "$W"
-trap 'rm -rf "$W"' EXIT INT TERM
+trap 'rm -rf "$W"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # The four blocks, parsed the way the file is written: rows are INDENTED inside
 # `(def %isa-NAME (lit (`, and the block ends at a line-initial `)))`.  An

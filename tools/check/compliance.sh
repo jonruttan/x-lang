@@ -79,7 +79,9 @@ fi
 export X_BIN
 
 W="${TMPDIR:-/tmp}/compliance.$$"; mkdir -p "$W"
-trap 'rm -rf "$W"' EXIT INT TERM
+trap 'rm -rf "$W"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 fail=0
 
 digest() {

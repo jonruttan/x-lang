@@ -52,7 +52,9 @@ done
 
 W="${TMPDIR:-/tmp}/spec-globals.$$"
 mkdir -p "$W"
-trap 'rm -rf "$W"' EXIT INT TERM
+trap 'rm -rf "$W"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 {
 	sed -n '/^(def %isa-bare/,/^)))/p;/^(def %isa-keep/,/^)))/p' "$ISA" |

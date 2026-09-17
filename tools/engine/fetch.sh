@@ -137,7 +137,9 @@ fi
 
 mkdir -p deps/engine
 tmp="deps/engine/.fetch.$$.tar.gz"
-trap 'rm -rf "$tmp" "$tmp.d"' EXIT INT TERM
+trap 'rm -rf "$tmp" "$tmp.d"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 say "fetching $name $release for $os/$arch"
 if command -v curl >/dev/null 2>&1; then

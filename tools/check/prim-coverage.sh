@@ -42,7 +42,9 @@ ISA="$ENGINE/tools/contract/isa.x"
 [ -f "$ISA" ] || { echo "prim-coverage: no engine manifest at $ISA" >&2; exit 2; }
 
 SCAN="${TMPDIR:-/tmp}/prim-cov-scan.$$"
-trap 'rm -f "$SCAN" "$SCAN.files"' EXIT INT TERM
+trap 'rm -f "$SCAN" "$SCAN.files"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # The three sections that name primitives.  %isa-keep is absent: those are
 # names the engine keeps bound but does not register, and this gate asks about
