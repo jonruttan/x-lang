@@ -12,6 +12,8 @@
 ; <x evaluated>)). Without the counter the inner unquote leaked into the
 ; expansion and was EVALUATED -- a call to the unbound symbol `unquote`,
 ; surfacing as the raw-atom error the example runner caught.
+
+(module x/core/quasi)
 (def %quasi-compile
   (fn (self t d)
     (match

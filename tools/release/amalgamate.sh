@@ -42,13 +42,41 @@ function resolve(mod,  f) {
 	close(f)
 	return ""
 }
-function splice(path,  line, n, mod, file) {
+# The module a file is headed with, or "": its first line that is neither
+# blank nor a comment, when that line is (module NAME).
+function header_of(path,  line, name) {
+	name = ""
+	while ((getline line < path) > 0) {
+		if (line ~ /^[ \t]*$/ || line ~ /^[ \t]*;/) continue
+		if (match(line, /^\(module[ \t]+[^ \t()]+\)/)) {
+			name = substr(line, RSTART, RLENGTH)
+			sub(/^\(module[ \t]+/, "", name)
+			sub(/\)$/, "", name)
+		}
+		break
+	}
+	close(path)
+	return name
+}
+function splice(path,  line, n, mod, file, name) {
+	# The header of a scoped module reads every form after it into the
+	# module, up to the end marker written below, so a file spliced inside
+	# one would load into that module instead of the root.
+	if (scoped != "") {
+		printf "amalgamate: %s would splice %s inside the scoped module it is; load it before the module instead\n", scoped, path > "/dev/stderr"
+		bad = 1; exit 1
+	}
 	if (path in seen) {
 		printf "amalgamate: %s spliced twice\n", path > "/dev/stderr"
 		bad = 1; exit 1
 	}
 	seen[path] = 1
 	printf "; ---- begin %s ----\n", path
+	name = header_of(path)
+	if (name != "") {
+		printf "(%%module-expecting! (lit %s))\n", name
+		scoped = path
+	}
 	n = 0
 	while ((getline line < path) > 0) {
 		n++
@@ -118,6 +146,10 @@ function splice(path,  line, n, mod, file) {
 		} else print line
 	}
 	close(path)
+	if (name != "") {
+		printf "(%%module-end)\n"
+		scoped = ""
+	}
 	printf "; ---- end %s ----\n", path
 }
 BEGIN {

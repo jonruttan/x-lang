@@ -190,7 +190,13 @@ module in the boot floor. The header is the file's first form, after its
 comment banner. `import` loads every file with `include` and names the
 module it is loading; a header that names that module makes the module's
 environment and reads the rest of the file into it itself, one form at a
-time, with the reader. So each form carries the file and its line, an error
+time, with the reader. `include-once` names no module, so a header under it
+takes the module it names, which is how boot files that x-core includes
+once can be scoped. In an amalgam a scoped boot file is spliced in place,
+so the generator writes a form naming the module before it and an end
+marker after it, where the header stops reading; it refuses to splice any
+other file inside a scoped one, since that file would load into the
+module. So each form carries the file and its line, an error
 while the module loads names both, and a form can read the forms after it.
 A header naming a different module is refused. The rules for every class of
 name conflict the doors can meet are in [Namespaces](namespaces.md).
