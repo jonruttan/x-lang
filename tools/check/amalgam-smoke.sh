@@ -50,9 +50,12 @@ TOWER_EXPECT='3
 smoke x "$CORE_EXPECT" ''
 smoke he "$CORE_EXPECT" ''
 smoke x-core "$CORE_EXPECT" ''
+smoke helium "$CORE_EXPECT" ''
 smoke xe "$TOWER_EXPECT" '(display (/ 1 3))(newline)'
 smoke rn "$TOWER_EXPECT" '(display (/ 1 3))(newline)'
 smoke x-base "$TOWER_EXPECT" '(display (/ 1 3))(newline)'
+smoke xenon "$TOWER_EXPECT" '(display (/ 1 3))(newline)'
+smoke radon "$TOWER_EXPECT" '(display (/ 1 3))(newline)'
 
 # A scoped module's header reads every form after it into the module, up to
 # the end marker the generator writes, so a file spliced inside a scoped

@@ -1373,7 +1373,8 @@ it in one run (19 failures). The harness now imports `x/num/tower`
 interpreted, which is the tower `x-base.x` gave it and images clean; the
 gap in the shipped lang is recorded in the bundle, priced (the tower is 7s
 of a helium boot) and left for the bundle to close. An `xe` or `rn` bundle
-stays on `x-base.x` and from source until an image can carry compiled code.
+boots its dialect's body, which holds the compiled tower, from source until an
+image can carry compiled code.
 
 Two facts the suite surfaced that the format doc now carries as invariants
 11 and 12: a value an image cannot carry (`num/float.x`'s libm handle) is

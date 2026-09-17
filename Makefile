@@ -407,7 +407,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
+gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-lang-kit-harness check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
 .PHONY: gates
 
 .PHONY: check-spec-weights
@@ -438,7 +438,7 @@ check-spec-globals: ## No spec rebinds a name the engine or library owns
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
+gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-lang-kit-harness check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast check-asan-boot test-c test-x ## Pre-push gate: fast gates, the ASan boot, both spec suites (CI runs full `make test`)
@@ -591,6 +591,11 @@ boot: ## Generate amalgamated boot entries into build/boot
 	@mkdir -p build/boot
 	@for e in x he xe rn x-core x-base; do \
 		sh tools/release/amalgamate.sh "lib/$$e.x" > "build/boot/$$e.x" || exit 1; done
+	@# Each dialect's BODY, the entry less its launcher: what a lang bundle's
+	@# spec harness boots (tools/lang-kit/gen-harness.sh), since an entry
+	@# would start its REPL underneath the suite.
+	@for b in helium xenon radon; do \
+		sh tools/release/amalgamate.sh "lib/x/boot/$$b.x" > "build/boot/$$b.x" || exit 1; done
 	@# GUARDED, because apps/ is empty since Logo became a bundle and an
 	@# unmatched glob is the literal pattern, which amalgamate.sh would then
 	@# try to open.  The mechanism stays (see apps/README.md); the loop just
@@ -605,6 +610,10 @@ boot: ## Generate amalgamated boot entries into build/boot
 check-boot-amalgam: $(EXECUTABLE) boot ## Boot every amalgam in batch mode and pin a smoke expression
 	sh tools/check/amalgam-smoke.sh
 .PHONY: check-boot-amalgam
+
+check-lang-kit-harness: boot ## The lang kit's harness generator boots the dialect lang.xon declares, and every dialect's body is built
+	sh tools/check/lang-kit-harness.sh
+.PHONY: check-lang-kit-harness
 
 # THE TOP LEVEL IS SACRED (#108): the runtime library may bind only the names
 # tools/contract/bare-globals.x sanctions; the manifest can only shrink.
