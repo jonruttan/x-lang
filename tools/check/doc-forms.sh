@@ -20,7 +20,9 @@ cd "$ROOT"
 
 CHUNK=${DOC_FORMS_CHUNK:-25}
 TMP=$(mktemp -d)
-trap 'rm -rf "$TMP"' EXIT INT TERM
+trap 'rm -rf "$TMP"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [ ! -d docs/ref/x ]; then
   echo "doc-forms: docs/ref/x is not built -- run make doc-x first" >&2

@@ -122,7 +122,9 @@ for sha in $shas; do
 
 	# Remove it however this exits, interrupt included: a leaked worktree is
 	# a stale entry in `git worktree list` and a directory nobody prunes.
-	trap 'cd "$root"; git worktree remove --force "$wt" >/dev/null 2>&1; git worktree prune >/dev/null 2>&1' EXIT INT TERM
+	trap 'cd "$root"; git worktree remove --force "$wt" >/dev/null 2>&1; git worktree prune >/dev/null 2>&1' EXIT
+	trap 'exit 130' INT
+	trap 'exit 143' TERM
 
 	rc=0
 	( cd "$wt" && export X_ENGINE_DIR="$engine_dir" && run_fast "$short, worktree" ) || rc=1

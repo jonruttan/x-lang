@@ -19,7 +19,9 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$ROOT"
 
 TMP=$(mktemp -d)
-trap 'rm -rf "$TMP"' EXIT INT TERM
+trap 'rm -rf "$TMP"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # The pages that carry tagged blocks, discovered rather than listed.
 FILES=$(grep -rl --include='*.md' --exclude-dir=tests '^```x' docs README.md 2>/dev/null || true)

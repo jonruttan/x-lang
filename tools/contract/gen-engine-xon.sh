@@ -58,7 +58,9 @@ done
 
 W="${TMPDIR:-/tmp}/genxon.$$"
 mkdir -p "$W"
-trap 'rm -rf "$W"' EXIT INT TERM
+trap 'rm -rf "$W"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 digest() {
 	if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'

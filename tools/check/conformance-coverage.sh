@@ -30,7 +30,9 @@ FLOOR="tools/contract/conformance-covered.x"
 [ -f "$ISA" ] || { echo "conformance-coverage: no engine ISA at $ISA" >&2; exit 2; }
 
 W="${TMPDIR:-/tmp}/confcov.$$"; mkdir -p "$W"
-trap 'rm -rf "$W"' EXIT INT TERM
+trap 'rm -rf "$W"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # --- the surface: every ISA row, as the `covers:` lines spell it -------------
 # Catalog rows are ns/method; bare and keep rows are the bare name.  Values are

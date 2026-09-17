@@ -27,7 +27,9 @@ PATHS="$ENGINE_DIR/tools/contract/base-paths.x"
 
 W="${TMPDIR:-/tmp}/base-routes.$$"
 mkdir -p "$W"
-trap 'rm -rf "$W"' EXIT INT TERM
+trap 'rm -rf "$W"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # What the library asks for, by name.
 #

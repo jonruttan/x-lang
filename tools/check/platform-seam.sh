@@ -25,7 +25,9 @@ SEAM="lib/x/platform/syscall.x"
 [ -f "$SEAM" ] || { echo "platform-seam: no platform layer at $SEAM" >&2; exit 2; }
 
 W="${TMPDIR:-/tmp}/platform-seam.$$"
-trap 'rm -f "$W"' EXIT INT TERM
+trap 'rm -f "$W"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 fail=0
 
 # A parse is a substring test whose subject is the triple.  Both spellings the

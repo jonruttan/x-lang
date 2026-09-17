@@ -38,7 +38,9 @@ cd "$(dirname "$0")/../.." || exit 1
 
 ENGINE_DIR=engine
 W_LAYOUT="${TMPDIR:-/tmp}/relman-layout.$$"
-trap 'rm -f "$W_LAYOUT"' EXIT INT TERM
+trap 'rm -f "$W_LAYOUT"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 TAG="${1:-}"
 [ -n "$TAG" ] || { echo "release-manifest: usage: release-manifest.sh <tag>" >&2; exit 1; }

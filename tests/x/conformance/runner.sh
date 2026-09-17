@@ -62,7 +62,9 @@ fi
 
 WORK="${TMPDIR:-/tmp}/conformance.$$"
 mkdir -p "$WORK"
-trap 'rm -rf "$WORK"' EXIT INT TERM
+trap 'rm -rf "$WORK"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # The prelude every case gets is a REAL x-lang file, tests/x/conformance/prelude.x,
 # not a heredoc and not a stack of printf lines: the x-lang that tests the engine

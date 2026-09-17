@@ -67,3 +67,9 @@ allocation guard.
 - A gate's output contract (ok-line, failure strings, exit code) is part
   of the gate; changing it is a ratchet change and needs its own
   adjudication.
+- A script that cleans up on the way out sets the cleanup as its `EXIT`
+  trap, with `trap 'exit 130' INT` and `trap 'exit 143' TERM` beside it.
+  The exit runs the `EXIT` trap, so the cleanup runs once and the script
+  stops.  A trap action for `INT` or `TERM` that does not exit returns to
+  the script when it finishes, so the script carries on past the signal
+  and `timeout` cannot stop it.
