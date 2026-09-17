@@ -1486,6 +1486,16 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ "$X_LIB" != img ]; then
 		# left there is a .x file the tree's gates would read as the
 		# bundle's.
 		_itmp=$(mktemp -d "${TMPDIR:-/tmp}/x-image.XXXXXX" 2>/dev/null) || _itmp=
+		# That directory is the only scratch this wrapper owns, and the
+		# write below takes seconds, so a signal arriving in them would
+		# leave it behind.  INT and TERM end the wrapper here, and the EXIT
+		# trap removes it.  All three are cleared at the end of this
+		# section: the boot that follows runs with the dispositions this
+		# wrapper was started with, which is what a session's own Ctrl-C
+		# depends on.
+		trap 'rm -rf "$_itmp"' EXIT
+		trap 'exit 130' INT
+		trap 'exit 143' TERM
 		_ilib="$_itmp/$_iname.boot.x"
 		_iimg="$_idir/$_iname.boot.x.ximg"
 		if [ -n "$_itmp" ] && { root_form; param_forms; pin_form; cat "$ENTRY"; pin_arm; bundle_form image; \
@@ -1560,6 +1570,7 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ "$X_LIB" != img ]; then
 			[ -n "$IMAGE" ] && path_form_safe "$IMAGE" "state image"
 		fi
 		[ -n "$_itmp" ] && rm -rf "$_itmp"
+		trap - EXIT INT TERM
 	fi
 fi
 if [ -n "$image_write" ]; then

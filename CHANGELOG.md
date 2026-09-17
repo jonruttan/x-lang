@@ -72,7 +72,12 @@ does; one that arrived during the restore left the entries not yet moved in
 the gate's work directory. Fourteen more scripts set their cleanup on `EXIT`
 with no trap on `INT` or `TERM`. Such a script stops on either signal, but
 dash does not run the `EXIT` trap of a shell a signal ends, so under dash they
-left their scratch files behind. They now set the same two traps.
+left their scratch files behind. They now set the same two traps. `x.sh`
+writes the prefix a state image is built from in a temporary directory, and a
+signal during the write, which takes seconds, left that directory behind. It
+now sets the same three traps around that section and clears them at its end,
+so the boot that follows runs with the signal dispositions the wrapper was
+started with.
 
 **A scoped module's header reads the rest of its file.** The loader used to
 read a prefix of every imported file into a string to find out whether it
