@@ -176,21 +176,22 @@
     (do
       (prim-reg! (lit module) (lit include-wrapped) (pair () ()))
       (def %raw-include include)
+      ; A second argument names the module the file must be headed with, which
+      ; is what `import` asks for.  Called with a path alone, the file is
+      ; whatever module its header names, or none.
       (set! include
-        (fn (_ path)
+        (fn (_ path . expected)
           (def %io-path (%resolve-include-path path (%include-curdir)))
           (%include-dir-push! (%path-dir %io-path))
-          ; The file may be a scoped module.  Unless an import has named
-          ; the module it is loading, the file's header takes whatever
-          ; module it names; an unscoped file never reads the mark, so it
-          ; is cleared after the load.
-          (match
-            ((eq? (first %module-expected-cell) ()) (%set-first! %module-expected-cell %module-any))
-            (#t ()))
+          ; The mark is for THIS file, and reading it is the header's first
+          ; act, so a file this one loads in turn sets its own: by then a
+          ; header here has already read this one, and a file with no header
+          ; never will.  An import's name must not reach the files its file
+          ; loads -- x/boot/tower-compiled includes x/type/hash by path.
+          (%set-first! %module-expected-cell
+            (match ((eq? expected ()) %module-any) (#t (first expected))))
           (def %result (%raw-include %io-path))
-          (match
-            ((%module-same? (first %module-expected-cell) %module-any) (%set-first! %module-expected-cell ()))
-            (#t ()))
+          (%set-first! %module-expected-cell ())
           (%include-dir-pop!)
           %result))))
   (#t ()))
@@ -564,11 +565,11 @@
     ()))
 
 ; --- The module header (x-lang#719) ---
-; What the file now loading may be headed with, for its header to find:
-; the name of the module `import` is including, %module-any while `include`
-; or `include-once` loads a file (a path names no module), or nil.  An
-; unscoped file has no header and never reads it, so the loader clears it
-; once the file has loaded.
+; What the file now loading may be headed with, for its header to find: the
+; name of the module `import` is including, %module-any while a file is
+; loaded by path (a path names no module), or nil.  `include` sets it for
+; the one file it loads and clears it afterwards, since an unscoped file
+; never reads it.
 (def %module-expected-cell (pair () ()))
 (def %module-any (pair () ()))
 ; In an amalgam a spliced file is not loaded by `import` or `include-once`
@@ -726,9 +727,7 @@
           (%module-loaded! name)
           (def %path (%module-resolve name))
           ; Name the module for its file's header, if it has one.
-          (%set-first! %module-expected-cell name)
-          (include %path)
-          (%set-first! %module-expected-cell ()))))
+          (include %path name))))
     (match
       ((eq? syms ()) ())
       (#t (%module-import-names! name syms e)))))

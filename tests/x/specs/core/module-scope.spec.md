@@ -198,6 +198,20 @@ whatever module the file names. This is how the boot files load.
 ---
     (11 'hidden)
 
+### the module an import names is not asked of the files that file loads
+
+An import names the module its own file must be headed with. A file that
+file loads by path is whatever module it names, which is how
+`x/boot/tower-compiled` loads `x/type/hash`.
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (import host)
+    (list (host-thirteen) (guard (_ 'hidden) %hosted-secret)))
+```
+---
+    (13 'hidden)
+
 ## the module form denotes the module's environment
 
 ### a scoped module can name its own environment

@@ -130,6 +130,16 @@ Raw file inclusion without deduplication:
 
 `include` always loads the file. Use `import` instead unless you specifically need to reload.
 
+A second argument names the module the file must be headed with:
+
+```x
+(include "lib/x/type/hash.x" x/type/hash)
+```
+
+A file loaded by path alone is whatever module its header names, or none;
+this is how `import` asks for the module it resolved. The name applies to
+that one file, not to the files it loads in turn.
+
 ### `include-once`
 
 Like `include`, but tracks which paths have been loaded and skips duplicates:

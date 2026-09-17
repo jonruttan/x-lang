@@ -20,7 +20,10 @@ ahead of dict. A plain `include` inside a scoped file is still refused, and
 the amalgam smoke check covers both cases. A header under a plain `include`
 now takes the module it names, as it already did under `include-once`: the
 tower dialects load `x/type/hash` and `x/type/regex` with `include` from
-`boot/tower-compiled.x`. Boot time is unchanged: best of
+`boot/tower-compiled.x`. `include` takes the module the caller expects as a
+second argument, which is how `import` asks for one, so the mark a header
+reads belongs to the one file being loaded and an import's name is never
+asked of the files that file loads in turn. Boot time is unchanged: best of
 ten alternating runs against main, the source boot, the x-core amalgam and
 the x-base amalgam differ by 0.0%, 0.0% and -0.7%, and loops over dict,
 strings, display, `Num` and regex are within 4% either way.
