@@ -39,6 +39,13 @@
           (self (%int- bits 1) (%int+ (%int* acc 2) 1)))))
     (%bm (%int- (%int* %word-size 8) 1) 0)))
 
+; Min signed integer, spelled as -MAX - 1 in two steps that are each in range.
+; It has no positive counterpart, so it cannot be reached through its own
+; magnitude: (%int- 0 %long-min) is %long-min again.  The overflow predicates
+; and the promotion below all test for this one integer, and named once it
+; stays the same value in each of them.
+(def %long-min (%int- (%int- 0 %long-max) 1))
+
 ; Safe max decimal digits for native integer (conservative: 2 per byte)
 (def %int-max-digits (%int* %word-size 2))
 
@@ -332,16 +339,24 @@
                (%int+ acc (%int* (first lst) mult))))))
     (%int* sign (%go limbs 1 0))))
 
+; The limbs come off n ITSELF, not off a magnitude, and each one is negated on
+; its way into the list.  A limb is always smaller than the base, so negating
+; one is always in range -- which taking (%int- 0 n) first is not: MIN has no
+; magnitude to take, and the loop then divided a negative m, whose remainders
+; are negative too.  Every limb came out carrying the sign, and the bigint
+; built from them was wrong in both directions at once: it printed as
+; -9-223372036-854775808, and arithmetic on it gave answers to match.
 (def %bigint-from-int
   (fn (_ n)
     (def sign (if (%int< n 0) -1 1))
-    (def mag (if (%int< n 0) (%int- 0 n) n))
     (def %go
       (fn (self m acc)
         (if (%int= m 0) (if (null? acc) (list 0) acc)
-          (self (%int/ m %bigint-base)
-               (pair (%int% m %bigint-base) acc)))))
-    (pair sign (%reverse (%go mag ())))))
+          (let ()
+            (def limb (%int% m %bigint-base))
+            (self (%int/ m %bigint-base)
+                 (pair (if (%int< limb 0) (%int- 0 limb) limb) acc))))))
+    (pair sign (%reverse (%go n ())))))
 
 ; Forward declare %bigint and reader
 (def %bigint ())
@@ -456,8 +471,6 @@
 
 ; --- Overflow detection for integer operations ---
 
-(def %int-abs (fn (_ n) (if (%int< n 0) (%int- 0 n) n)))
-
 ; a+b overflows iff (b>0 and a > MAX-b) or (b<0 and a < MIN-b).  Both
 ; thresholds are computed on the side that cannot wrap: MAX-b for b>0 and
 ; MIN-b for b<0 stay in range (MIN itself is spelled -LONG_MAX - 1, both
@@ -470,7 +483,7 @@
     (if (%int< 0 b)
       (%int< (%int- %long-max b) a)
       (if (%int< b 0)
-        (%int< a (%int- (%int- (%int- 0 %long-max) 1) b))
+        (%int< a (%int- %long-min b))
         #f))))
 
 ; a-b overflows iff (b<0 and a > MAX+b) or (b>0 and a < MIN+b).  A direct
@@ -481,14 +494,30 @@
     (if (%int< b 0)
       (%int< (%int+ %long-max b) a)
       (if (%int< 0 b)
-        (%int< a (%int+ (%int- (%int- 0 %long-max) 1) b))
+        (%int< a (%int+ %long-min b))
         #f))))
 
+; a*b overflows iff the product leaves the range, tested by dividing the bound
+; that the product would cross -- MAX above, MIN below -- by b, which is the
+; side that cannot wrap once 0 and -1 are out of the way.  MIN / -1 is the one
+; division here that would overflow, and -1 is answered before any division
+; runs: it is also the one multiplier that overflows MIN.
+;
+; (The old form compared magnitudes through an abs that handed back MIN
+; unchanged.  MAX / MIN then truncates to 0, so the check saw a bound of zero
+; and reported overflow for every b -- harmless on the left, where the
+; promoted product demotes again, but the same abs read the RIGHT operand as
+; negative, and a negative b never exceeds a bound: (* 2 MIN) passed the check
+; and wrapped to 0.)
 (def %would-overflow-mul?
   (fn (_ a b)
     (if (%int= a 0) #f
       (if (%int= b 0) #f
-        (%int< (%int/ %long-max (%int-abs a)) (%int-abs b))))))
+        (if (%int= a -1) (%int= b %long-min)
+          (if (%int= b -1) (%int= a %long-min)
+            (if (%int< 0 a)
+              (%int< (%int/ (if (%int< 0 b) %long-max %long-min) b) a)
+              (%int< a (%int/ (if (%int< 0 b) %long-min %long-max) b)))))))))
 
 (note "Operator Overrides")
 
@@ -596,12 +625,11 @@
     (match
       ((eq? args ()) 0)
       ((eq? (rest args) ())
-        ; Unary negation: plain ints negate directly; typed values (bigint,
-        ; rational, float, ...) negate via the dispatching binary (- 0 x),
-        ; which routes to the type's own - handler.
-        (if (%int-number? (first args))
-          (%int- (first args))
-          (%int- 0 (first args))))
+        ; Unary negation is (0 - x) through the same binary the fold uses:
+        ; plain ints take its overflow check -- MIN is the one int whose
+        ; negation needs a bigint -- and typed values (bigint, rational,
+        ; float, ...) take its dispatch to the type's own - handler.
+        (%big-sub2 0 (first args)))
       ((eq? (rest (rest args)) ())
         (%big-sub2 (first args) (first (rest args))))
       (#t (%fold %big-sub2 (first args) (rest args))))))
@@ -626,9 +654,22 @@
     (match
       ((eq? args ()) 1)
       ((eq? (rest args) ()) (first args))
-      ((eq? (rest (rest args)) ()) (%int/ (first args) (first (rest args))))
+      ((eq? (rest (rest args)) ())
+        ; LONG_MIN / -1 is the one integer division whose quotient leaves the
+        ; range, and the one pair the prim under %int/ cannot be handed: it
+        ; evaluates a plain `a / b`, which is undefined there -- arm64 answers
+        ; LONG_MIN and x86 traps.  It promotes like any other overflow.  The
+        ; MIN test comes first and is one compare on a value already known to
+        ; be a plain int, so every other division reaches %int/ as before,
+        ; dispatch and division by zero included.
+        (let ()
+          (def a (first args))
+          (def b (first (rest args)))
+          (if (if (%int-number? a) (%int= a %long-min) #f)
+            (if (%int= b -1) (%big-sub2 0 a) (%int/ a b))
+            (%int/ a b))))
       (#t
-        (%fold (fn (_ acc x) (%int/ acc x))
+        (%fold (fn (_ acc x) (/ acc x))
           (first args) (rest args))))))
 
 ; --- Type registration ---

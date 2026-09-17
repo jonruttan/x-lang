@@ -252,6 +252,140 @@ largest native square, and the trim reaches LONG_MIN exactly.
 ---
     "n"
 
+## the most negative integer (regression: its limbs each carried the sign)
+
+Two's complement gives LONG_MIN no positive counterpart, so every route that
+reached it through its own magnitude wrapped straight back to it.  The value
+comes from the bitwise door rather than a literal: the reader promotes a
+19-digit literal to a bigint, which is the case that already worked.
+
+### promotes to the right magnitude
+
+```x
+(write (- 0 (<< 1 63)))
+```
+---
+    9223372036854775808
+
+### unary negation promotes the same way
+
+```x
+(write (- (<< 1 63)))
+```
+---
+    9223372036854775808
+
+### abs promotes through the generic layer
+
+```x
+(write (Num abs (<< 1 63)))
+```
+---
+    9223372036854775808
+
+### a bigint addend carries it back across zero
+
+```x
+(write (+ (<< 1 63) 18446744073709551616))
+```
+---
+    9223372036854775808
+
+### the same sum with the operands swapped
+
+```x
+(write (+ 18446744073709551616 (<< 1 63)))
+```
+---
+    9223372036854775808
+
+### a sum that still fits stays native
+
+```x
+(if (Bigint bigint? (+ (<< 1 63) 1)) "big" "native")
+```
+---
+    "native"
+
+### and answers what a native sum should
+
+```x
+(write (+ (<< 1 63) 1))
+```
+---
+    -9223372036854775807
+
+### one step below it promotes
+
+```x
+(write (- (<< 1 63) 1))
+```
+---
+    -9223372036854775809
+
+### converting to bigint and back round-trips
+
+```x
+(write (Convert to (<< 1 63) %bigint))
+```
+---
+    -9223372036854775808
+
+### the product that overflows
+
+```x
+(write (* (<< 1 63) -1))
+```
+---
+    9223372036854775808
+
+### a doubling that used to wrap to zero
+
+```x
+(write (* 2 (<< 1 63)))
+```
+---
+    -18446744073709551616
+
+### would-overflow-mul? sees it on the right
+
+The magnitude comparison this replaced read LONG_MIN as negative, and a
+negative operand never exceeds a bound, so the check passed and the product
+wrapped.
+
+```x
+(Bigint would-overflow-mul? 2 (<< 1 63))
+```
+---
+    #t
+
+### would-overflow-mul? still lets times-one through
+
+```x
+(if (Bigint would-overflow-mul? 1 (<< 1 63)) "y" "n")
+```
+---
+    "n"
+
+### the quotient the hardware cannot give
+
+`LONG_MIN / -1` is undefined in C, and the prim under `/` evaluates a plain
+`a / b`: arm64 answers LONG_MIN and x86 traps.  The tower promotes instead.
+
+```x
+(write (/ (<< 1 63) -1))
+```
+---
+    9223372036854775808
+
+### every other quotient is still the prim's
+
+```x
+(write (/ (<< 1 63) 2))
+```
+---
+    -4611686018427387904
+
 ## big+
 
 ### adds two bigints
