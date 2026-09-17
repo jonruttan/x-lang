@@ -5,6 +5,37 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The numeric tower is right at the most negative integer** ([#748]).
+`LONG_MIN` is the one int whose negation is not an int, and every promotion
+route reached it through its own magnitude. `%bigint-from-int` took `(- 0 n)`
+first, which for `LONG_MIN` hands back `LONG_MIN`; the limb loop then divided
+a negative number, whose remainders are negative too, so each limb came out
+carrying the sign. The bigint that built printed as `-9-223372036-854775808`
+and did arithmetic to match: `(+ LONG_MIN 18446744073709551616)` answered
+276701161091564327424. The limbs now come off `n` itself and are negated one
+at a time, which is always in range because a limb is smaller than the base.
+
+`%would-overflow-mul?` compared magnitudes through the same wrapping abs, and
+read `LONG_MIN` as negative on both sides. On the left that only promoted
+products that did not need it, and they demoted again; on the right a
+negative operand never exceeds a bound, so the check passed and the product
+wrapped -- `(* 2 LONG_MIN)` was 0. It now divides the bound the product would
+cross by `b`, after answering the two cases that no division can: `-1` is the
+one multiplier that overflows `LONG_MIN`, and `LONG_MIN / -1` the one
+division that would overflow.
+
+Unary `-` took a fast path that negated a plain int in place, which left
+`(- LONG_MIN)` as `LONG_MIN`; it now goes through the same binary the
+variadic fold uses, so it takes that binary's overflow check. Binary `/` had
+no overflow check at all, and `LONG_MIN / -1` is undefined in C -- the prim
+under it evaluates a plain `a / b`, which answers `LONG_MIN` on arm64 and
+traps on x86. That pair now promotes like any other overflow. `Num abs` and
+`Num negate` are right as a consequence: both are `(- 0 n)`.
+
+`(% LONG_MIN -1)` is left alone. It answers 0 on arm64, and `%` reaches the
+prim with no wrapper on purpose; the undefined division under it is the
+engine's to guard.
+
 **Nine more modules have a scope of their own, and amalgams hoist a scoped
 file's imports.** Eight boot files, `x/type/dict`, `x/type/bool`,
 `x/type/err-io`, `x/type/char-io`, `x/type/hash`, `x/core/math`,
@@ -75,6 +106,7 @@ A clean answer is kept in `build/` under a digest of everything it read, so
 `check-second-engine`, which asks the gate about three more engines, and a
 tree that has not changed read it instead of deriving it again.
 
+[#748]: https://github.com/jonruttan/x-lang/pull/748
 [#739]: https://github.com/jonruttan/x-lang/pull/739
 
 **The tool scripts stop on an interrupt or a TERM.** Twenty scripts under
