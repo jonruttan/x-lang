@@ -81,7 +81,8 @@ CONS="tools/contract/constraints.x"
 fail=0
 note() { echo "  $1"; fail=1; }
 
-trap 'rm -f /tmp/ec-*.$$' EXIT INT TERM
+CACHE="build/engine-contract.lib"
+trap 'rm -f /tmp/ec-*.$$ "$CACHE.$$"' EXIT INT TERM
 
 echo "engine-contract:"
 
@@ -92,12 +93,39 @@ set -f
 IFS='
 '
 set -- "$FEAT" "$ISA" "$REQ" "$CONS" $(find lib apps -name '*.x' -type f | sort)
+
+# The library half's answer depends only on its arguments, the files they name,
+# and the program, wrapper and engine that read them, so a clean answer is kept
+# in build/ under a digest of all of those, the way check-boot-order keeps its
+# verdict (#325).  check-second-engine asks this gate about three more engines,
+# and the library's answer is the same each time.  An answer with findings, or
+# from a run that did not finish, is not kept.  The candidate engine is not an
+# input.  A file of the candidate's handed to the library half would be digested
+# with the rest, so check-second-engine still sees a derivation it perturbed.
+if command -v sha256sum >/dev/null 2>&1; then
+	digest() { sha256sum "$@"; }
+else
+	digest() { shasum -a 256 "$@"; }
+fi
+inputs=$(for f in tools/check/engine-contract.sh tools/check/engine-contract.x x.sh "${X_BIN:-x-bin}" \
+		engine/tools/contract/base-paths.x engine/tools/contract/obj-layout.x "$@"; do
+	if [ -f "$f" ]; then printf '%s\n' "$f"; fi
+done)
+key=$({ printf '%s\n' "$@"; digest $inputs; } | digest | cut -d' ' -f1)
 unset IFS
 set +f
 
 xrc=0
-sh x.sh --no-pin -q -f tools/check/engine-contract.x -- "$@" \
-	> /tmp/ec-lib.$$ 2> /tmp/ec-lib-err.$$ || xrc=$?
+fresh=1
+if [ -n "$key" ] && [ -f "$CACHE" ] && [ "$(head -n 1 "$CACHE")" = "$key" ] \
+	&& [ "$(tail -n 1 "$CACHE")" = "@@end" ]; then
+	tail -n +2 "$CACHE" > /tmp/ec-lib.$$
+	: > /tmp/ec-lib-err.$$
+	fresh=0
+else
+	sh x.sh --no-pin -q -f tools/check/engine-contract.x -- "$@" \
+		> /tmp/ec-lib.$$ 2> /tmp/ec-lib-err.$$ || xrc=$?
+fi
 
 # Each section becomes /tmp/ec-NAME.$$.  They carry the findings and the data
 # checks 7 and 8 read, so a run that fails, or stops before its last section,
@@ -121,6 +149,10 @@ fi
 if [ -s /tmp/ec-notes.$$ ]; then
 	cat /tmp/ec-notes.$$
 	fail=1
+fi
+if [ "$fresh" = 1 ] && [ -n "$key" ] && [ "$fail" -eq 0 ] && [ ! -s /tmp/ec-cons-notes.$$ ] \
+	&& mkdir -p build; then
+	{ printf '%s\n' "$key"; cat /tmp/ec-lib.$$; } > "$CACHE.$$" && mv -f "$CACHE.$$" "$CACHE" || true
 fi
 
 # --- 7: the engine's declaration is current, and SATISFIES us ----------------
