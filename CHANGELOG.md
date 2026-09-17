@@ -62,8 +62,14 @@ interrupt ended only the command in progress, and a gate run under `timeout`
 went on into its later checks. Each now sets the cleanup on `EXIT` alone,
 with `trap 'exit 130' INT` and `trap 'exit 143' TERM` beside it, so the
 cleanup runs once and the script exits with the status a shell reports for
-that signal. `tools/check/asan-boot.sh` still puts back the JIT byte cache it
-sets aside.
+that signal. `tools/check/asan-boot.sh` runs each boot under a `timeout` of
+its own, which puts itself in a separate process group, so the signal did
+not reach a boot in progress and the gate waited for it to finish, minutes
+under ASan. It now runs the boot in the background, and its `INT` and `TERM`
+traps stop the boot's process group before the gate exits. It still puts
+back the JIT byte cache it sets aside, and ignores a further signal while it
+does; one that arrived during the restore left the entries not yet moved in
+the gate's work directory.
 
 **A scoped module's header reads the rest of its file.** The loader used to
 read a prefix of every imported file into a string to find out whether it

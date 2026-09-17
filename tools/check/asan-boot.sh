@@ -86,6 +86,9 @@ fi
 W="${TMPDIR:-/tmp}/asan-boot.$$"
 mkdir -p "$W/cache"
 restore_cache() {
+	# INT and TERM are ignored from here on.  Their traps exit, and an exit
+	# from inside this trap would leave the entries not yet moved in $W.
+	trap '' INT TERM
 	# Restore what was set aside; a fresh entry of the same name IS the same
 	# bytes, so either order of precedence is right.
 	for f in "$W"/cache/x-asm-*; do
@@ -93,9 +96,22 @@ restore_cache() {
 	done
 	rm -rf "$W"
 }
+# A boot runs under timeout, which puts itself in a process group of its own,
+# so an INT or TERM sent to the gate's group does not reach the boot.
+# stop_boot sends TERM to the boot's group, and to the timeout itself in case
+# it has not made its group yet, then waits for it.  TERM rather than INT: a
+# command started in the background may have INT ignored.
+boot=""
+stop_boot() {
+	trap '' INT TERM
+	if [ -n "$boot" ]; then
+		kill -s TERM -- "-$boot" "$boot" 2>/dev/null || :
+		wait "$boot" 2>/dev/null || :
+	fi
+}
 trap 'restore_cache' EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+trap 'stop_boot; exit 130' INT
+trap 'stop_boot; exit 143' TERM
 for f in /tmp/x-asm-*; do
 	[ -e "$f" ] && mv -f "$f" "$W/cache/" 2>/dev/null
 done
@@ -130,8 +146,22 @@ for d in $DIALECTS; do
 	# --no-pin: the sources carry no x-engine-build.xon and the pin guards
 	# would refuse the pairing before the engine ever ran; the seam gate boots
 	# the same way.  X_BIN is the wrapper's documented override.
-	if X_BIN="$ASAN_BIN" $TIMEOUT sh x.sh --no-pin -q -l "$d" -f "$PROBE" > "$out" 2> "$err" \
-		&& grep -qx "asan-boot=ok" "$out"; then
+	#
+	# Under timeout the boot runs in the background and the gate waits for it.
+	# A trapped signal interrupts `wait`, so stop_boot can end the boot; with
+	# the boot in the foreground the trap would run only after it finished.
+	# Without timeout the boot stays in the foreground, in the gate's process
+	# group, where the signal reaches it directly.
+	status=0
+	if [ -n "$TIMEOUT" ]; then
+		X_BIN="$ASAN_BIN" $TIMEOUT sh x.sh --no-pin -q -l "$d" -f "$PROBE" > "$out" 2> "$err" &
+		boot=$!
+		wait "$boot" || status=$?
+		boot=""
+	else
+		X_BIN="$ASAN_BIN" sh x.sh --no-pin -q -l "$d" -f "$PROBE" > "$out" 2> "$err" || status=$?
+	fi
+	if [ "$status" -eq 0 ] && grep -qx "asan-boot=ok" "$out"; then
 		printf '  %-3s ok\n' "$d"
 		continue
 	fi
