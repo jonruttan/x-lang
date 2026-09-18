@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The %-budget and the duplicate-definition gate look only at what stays
+global** ([#719], step 5). A scoped module's top-level definitions bind in
+its own environment, so its %-names never reach the global tree.
+`check-percent-globals` no longer counts a file whose first form is
+`(module NAME)`, and the thirty-seven rows such files held, 427 names, are
+retired. `check-dup-defs` checks a scoped module for the names it provides
+and nothing else: two scoped modules may share a private name, and a scoped
+module may reuse a global's, while a provided name that an unscoped file
+also defines is still refused. The third part of the step needed no change:
+lint already reports another module's private name as undefined for every
+scoped module, because that module's environment is not the linter's.
+
 **`x/type/str-utf8` has a scope of its own, and its list conversions are
 catalog doors** ([#719], step 4). The file loads before the object system,
 so there is no class to carry what other files need from it. It publishes
