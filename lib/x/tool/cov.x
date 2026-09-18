@@ -2,6 +2,7 @@
 ;
 ; Walks the env-alist, inspects procedure bodies for coverage flags
 ; (X_OBJ_FLAG_2 set by x-bin-profile), and reports covered/total nodes.
+(module x/tool/cov)
 
 ; --- Platform detection ---
 

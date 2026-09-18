@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**Six more modules have a scope of their own.** `x/reader/analyser`,
+`x/tool/cov`, `x/reader/indent`, `x/type/list`, `x/type/char` and
+`x/type/ptr` carry the `(module NAME)` header ([#719], step 4), hiding
+forty-one private names between them. None needed a door: nothing outside
+them reads a name of theirs, apart from per-file catalog aliases that an
+unscoped file still binds in the root, and every public name other code
+uses was already provided. `x/tool/cov` walks whatever environment its
+caller hands it, so what it reports is unchanged. Booting costs 0.02% to
+0.05% more evaluations, counted rather than timed: 22,428,516 to
+22,440,486 for the x-core amalgam, 60,240,457 to 60,252,679 for x-base,
+and 22,624,448 to 22,634,898 from source.
+
 **The assembler loads and stores at every width** ([#756]). x/tool/asm
 had eight-byte `ldr`/`str` and one-byte `ldrb`/`strb`; it now has the
 widths between, on both backends: `ldrh`, `ldrsh` and `strh` for two

@@ -3,6 +3,7 @@
 ; Plain functions homed on the Char class. Relocated past object.x (needs
 ; def-class); the pre-object string layer uses the char->integer C primitive,
 ; not these, so nothing before object.x references the Char class.
+(module x/type/char)
 
 (import x/type/class)
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).

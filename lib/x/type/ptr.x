@@ -10,6 +10,7 @@
 ; Pointer CONSTRUCTION from an int is int->ptr (catalog ns `int`, method
 ; ->ptr); (Ptr from-int n) fetches it. obj->ptr / str->ptr live on the Obj
 ; and (via Convert) string surfaces.
+(module x/type/ptr)
 
 (import x/type/class)
 

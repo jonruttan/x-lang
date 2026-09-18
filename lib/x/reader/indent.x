@@ -64,6 +64,8 @@
 ; callers fetch the raw ref once and call it directly, the discipline
 ; reader/analyser.x uses for its terminators. The Indent methods are the
 ; cold-call API over the same functions.
+(module x/reader/indent)
+
 (import x/type/class)
 (import x/type/list)
 (import x/type/err)
