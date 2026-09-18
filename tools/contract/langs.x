@@ -151,12 +151,30 @@
 ;
 ; Not the bundle's debt and not a stale checkout: measured at x-r5rs dd3ba79,
 ; whose only commits since its last macro work are prose rewrites.  x-r5rs
-; fixed exactly these in 0514d99 and 2c45ab0 (2026-09-08) and recorded 667/0
-; against x-lang main with x-engine-c v0.2.8, the engine v0.14.0 pins.  This
-; tree pins v0.2.13, crossing v0.2.11's "an environment is a value" (#720):
-; `def` binds in the current environment, `eval` with an environment makes it
+; fixed exactly these in 0514d99 and 2c45ab0 (2026-09-08).
+;
+; WALKED, one build and one suite run per row, x-r5rs held at dd3ba79 and each
+; x-lang commit built against the engine its own pin names:
+;
+;   x-lang       pin       result   what it is
+;   v0.14.0      v0.2.8    667/0    the last green pairing
+;   18f0b530^    v0.2.8    667/667  source already migrated, pin behind
+;   18f0b530     v0.2.10   667/3    the pin that takes the new env model
+;   edaabc2a     v0.2.11   667/3
+;   d6fdd68d     v0.2.12   667/3
+;   ef0cc505     v0.2.13   667/3    where this tree sits
+;
+; The three arrive with "an environment is a value" -- x-engine-c#49, released
+; in v0.2.10 and carried here by #720, which bumps the pin twice.  A `def`
+; binds in the current environment, an `eval` with an environment makes it
 ; current with the binding staying put, and the frame marks, shadow list and
-; local boundary those two fixes were written against were retired with it.
+; local boundary those two bundle fixes were written against were retired with
+; it.  Nothing since has moved the number in either direction.
+;
+; THE ENGINE AND OUR ADAPTATION TO IT CANNOT BE SEPARATED BY PINNING, and the
+; two 667/667 rows are why: v0.14.0's source does not run on v0.2.10, and the
+; migrated source does not run on v0.2.8.  The transition is atomic, so this
+; names a release, not yet a line.
 ;
 ; So the debt is this platform's, on an unreleased change, and the row is left
 ; red deliberately -- a budget raised to 3 would be recording our own
@@ -190,6 +208,6 @@
 ; recorded, for the reason the r5rs row above gives at length: that bundle
 ; gained the same +3 in the same window, its three are the same pitfall 3.2
 ; assertions, and both bundles' macro layers were repaired against the engine
-; model v0.2.11 replaced.  One cause, two bundles; it is read as ours until
+; model v0.2.10 replaced.  One cause, two bundles; it is read as ours until
 ; the r5rs three are answered.
 (lang "r7rs"  "x-r7rs"  637 30)

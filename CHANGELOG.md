@@ -5,6 +5,29 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The r5rs three are walked to a release** ([#754]). The note this file and
+`tools/contract/langs.x` carried named x-engine-c v0.2.11 for "an
+environment is a value", taken from the entry below, which names the pin
+[#720] ends on rather than the release the feature shipped in. The engine's
+own changelog puts it in 0.2.10 (x-engine-c#49, closing #46); 0.2.11 is the
+follow-up that makes a name found by identity (#52). Both rows now say
+0.2.10, and both carry the walk that settles it -- x-r5rs held at `dd3ba79`,
+each x-lang commit built against the engine its own pin names:
+
+    x-lang       pin       result   what it is
+    v0.14.0      v0.2.8    667/0    the last green pairing
+    18f0b530^    v0.2.8    667/667  source already migrated, pin behind
+    18f0b530     v0.2.10   667/3    the pin that takes the new env model
+    edaabc2a     v0.2.11   667/3
+    d6fdd68d     v0.2.12   667/3
+    ef0cc505     v0.2.13   667/3    where this tree sits
+
+Nothing since v0.2.10 has moved the number in either direction. The two
+667/667 rows are the limit of the method and are recorded as such: v0.14.0's
+source does not run on v0.2.10 and the migrated source does not run on
+v0.2.8, so the engine release and this tree's adaptation to it land together
+and pinning cannot separate them. This names a release, not yet a line.
+
 **Two lang budgets ratchet to zero, and the r5rs three are ours** ([#752]).
 `tools/contract/langs.x` recorded one failure for x-python and two for
 x-ash; both bundles have fixed theirs, and the rows now say 0. The test
@@ -25,12 +48,13 @@ platform's. They are the R5RS pitfall 3.2 cases, which assert that a
 definition a macro introduces does not escape the `let` it was written in.
 x-r5rs fixed exactly those in its own repository on 2026-09-08 and measured
 667/0 against x-lang main on x-engine-c v0.2.8, the engine v0.14.0 pins.
-This tree pins v0.2.13, which crosses v0.2.11's "an environment is a value"
-([#720]): a `def` binds in the current environment, an `eval` with an
-environment makes it current with the binding staying put, and the frame
-marks, shadow list and local boundary that those fixes were written against
-were retired with it. x-r7rs gained the same three in the same window. A
-budget raised to 3 would record our own regression as the bundle's.
+This tree pins v0.2.13, and the three arrive with "an environment is a
+value" -- x-engine-c#49, released in v0.2.10 and carried here by [#720]: a
+`def` binds in the current environment, an `eval` with an environment makes
+it current with the binding staying put, and the frame marks, shadow list
+and local boundary that those fixes were written against were retired with
+it. x-r7rs gained the same three in the same window. A budget raised to 3
+would record our own regression as the bundle's.
 
 `check-langs` has never run in CI and does not now: `make gates` runs on
 main only, a CI checkout has no `../languages`, and the gate prints SKIPPED
@@ -320,6 +344,7 @@ glossary and state-image documents.
 
 [#527]: https://github.com/jonruttan/x-lang/issues/527
 [#718]: https://github.com/jonruttan/x-lang/pull/718
+[#754]: https://github.com/jonruttan/x-lang/pull/754
 [#752]: https://github.com/jonruttan/x-lang/pull/752
 [#720]: https://github.com/jonruttan/x-lang/pull/720
 
