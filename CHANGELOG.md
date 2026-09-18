@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The assembler loads and stores at every width** ([#756]). x/tool/asm
+had eight-byte `ldr`/`str` and one-byte `ldrb`/`strb`; it now has the
+widths between, on both backends: `ldrh`, `ldrsh` and `strh` for two
+bytes, `ldrw`, `ldrsw` and `strw` for four, and `ldrsb` for a byte
+sign-extended. The names are arm64's own, except the four-byte pair,
+which arm64 writes as LDR and STR of a W register: the portable operands
+are X registers only, so the width goes in the name, as it does for a
+byte. A load fills all 64 bits of its register, and a store writes its
+width and nothing past it. Every one is a table entry, and
+`asm-widths.spec.md` runs on both hosts.
+
 **Four more modules have a scope of their own** ([#755]). `x/type/iter`,
 `x/sys/stream`, `x/sys/socket` and `x/sys/file` carry the `(module NAME)`
 header ([#719], step 4), hiding sixty-two private names between them.
@@ -358,6 +369,7 @@ glossary and state-image documents.
 
 [#527]: https://github.com/jonruttan/x-lang/issues/527
 [#718]: https://github.com/jonruttan/x-lang/pull/718
+[#756]: https://github.com/jonruttan/x-lang/pull/756
 [#755]: https://github.com/jonruttan/x-lang/pull/755
 [#754]: https://github.com/jonruttan/x-lang/pull/754
 [#752]: https://github.com/jonruttan/x-lang/pull/752
