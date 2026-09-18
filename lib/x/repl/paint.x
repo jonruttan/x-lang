@@ -392,7 +392,7 @@
     (set! %paint-c-depth (list (Ansi yellow) (Ansi magenta) (Ansi cyan)))
     (set! %paint-c-depth-n 3)
     (set! %paint-c-lone (Ansi bold-red))
-    (set! %paint-c-focus (%sgr "7"))
+    (set! %paint-c-focus (Ansi inverse))
     (set! %paint-last-in ())
     (set! %paint-last-out ())
     (set! %paint-last-marks ())

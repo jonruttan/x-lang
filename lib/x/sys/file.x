@@ -23,6 +23,8 @@
 ; name->number lookup). Read buffers come from (str make n) -- a GC-owned
 ; n-byte string region (fetched below as %make-str) -- so File runs under
 ; plain x-core; no extra dialect is needed.
+(module x/sys/file)
+
 (import x/core/list)
 (import x/core/alist)
 (import x/platform/syscall)

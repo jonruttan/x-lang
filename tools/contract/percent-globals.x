@@ -112,7 +112,11 @@
 ; non-tail %map1 put one C eval frame group per element and overflowed
 ; the C stack at 16K+ elements; the tail loop and its shared
 ; reverse-prepend are boot-layer by necessity -- list.x loads before the
-; class machinery that would home them.
+; class machinery that would home them.  21 to 23 is %i-empty?/%i-next
+; (x-lang#719, step 4): the drain in %as-list read those two from
+; x/type/iter, and a module's names are its own, so list.x fetches the
+; same two catalog doors itself.  The root loses more than it gains when
+; iter is scoped and its copies leave the root with it.
 ; What is NOT here is the point -- the text scanners (find, find-exp,
 ; parse-exp, digits) and the printer's zero/scientific helpers are LOCAL defs
 ; inside the two functions that use them, because a parse-local helper has no
@@ -178,7 +182,7 @@
 (file "lib/x/core/arithmetic.x" 17)
 (file "lib/x/core/boolean.x" 3)
 (file "lib/x/core/control.x" 2)
-(file "lib/x/core/list.x" 21)
+(file "lib/x/core/list.x" 23)
 (file "lib/x/core/logic.x" 2)
 (file "lib/x/core/math.x" 5)
 (file "lib/x/core/op-guard.x" 6)

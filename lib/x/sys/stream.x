@@ -14,6 +14,8 @@
 ; stack-int and corrupt the atom cell -- that is intrinsics.x's stale %stderr).
 ;
 ; File-backed streams need the radon dialect (File open/close/write -> syscall).
+(module x/sys/stream)
+
 (import x/sys/file)
 (import x/type/class)
 
