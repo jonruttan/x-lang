@@ -159,7 +159,11 @@
       (if (eq? len 0) () (pair seq 0)))))
 
 (def %vector-iter (fn (_ v) (%index-iter v (Vector length v) (fn (_ vv ii) (Vector ref ii vv)))))
-(def %str-iter (fn (_ s) (%list-iter (%str->list s))))
+; A string iterates its code points: (str ->list), which x/type/str-utf8
+; publishes, decodes them.
+(def %str-iter
+  (let ((str->list (prim-ref (lit str) (lit ->list))))
+    (fn (_ s) (%list-iter (str->list s)))))
 
 ; --- Wire the iter slot on each sequence type ------------------------------
 

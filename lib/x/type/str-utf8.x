@@ -19,6 +19,7 @@
 ;
 ; No UTF-8 in C: C packs/loads bytes; this x-lang layer owns the byte<->code-
 ; point transform, via the shared codec (x/codec/utf8).
+(module x/type/str-utf8)
 
 (import x/type/char)
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
@@ -136,6 +137,12 @@
 ; catalog is the seam it resolves through (it falls back to bytes when this
 ; entry is absent).
 (prim-reg! (lit str) (lit cp-len) (fn (_ s) (%cp-count s (%str-byte-len s) 0 0)))
+
+; The two list conversions, published the same way for the files that need
+; them: char-io, convert and iter.  This file loads before the object system,
+; so there is no class to carry them, and a caller fetches each once, at load.
+(prim-reg! (lit str) (lit from-list) %list->str)
+(prim-reg! (lit str) (lit ->list) %str->list)
 
 ; The string's value-call indexes: (s i) is the code point at i, (s a b) the
 ; substring between them.  A call with NO index is therefore an index call that
