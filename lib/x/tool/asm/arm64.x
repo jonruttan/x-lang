@@ -224,6 +224,61 @@
         (list 1 5 5 0)
         (list 1 10 12 0 1)))))
 
+    ; The narrower widths, in the same field shape.  The byte offset is
+    ; scaled by the width, so it must be a multiple of it.  A load into a
+    ; W register zero-extends; the S forms sign-extend to all 64 bits.
+    ; `ldrw`/`strw` are LDR/STR of a W register: the operands here are X
+    ; registers only, so the width is in the name, as it is for a byte.
+
+    ; LDRSB Xt, [Xn, #imm12] (byte, sign-extends)
+    (pair 'ldrsb (list
+      (pair 'rm (list 964689920          ; 0x39800000
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 1 10 12 0 1)))))
+
+    ; LDRH Wt, [Xn, #imm12*2] (halfword, zero-extends)
+    (pair 'ldrh (list
+      (pair 'rm (list 2034237440         ; 0x79400000
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 1 10 12 1 1)))))
+
+    ; LDRSH Xt, [Xn, #imm12*2] (halfword, sign-extends)
+    (pair 'ldrsh (list
+      (pair 'rm (list 2038431744         ; 0x79800000
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 1 10 12 1 1)))))
+
+    ; STRH Wt, [Xn, #imm12*2] (stores the low halfword of Wt)
+    (pair 'strh (list
+      (pair 'rm (list 2030043136         ; 0x79000000
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 1 10 12 1 1)))))
+
+    ; LDR Wt, [Xn, #imm12*4] (word, zero-extends)
+    (pair 'ldrw (list
+      (pair 'rm (list 3107979264         ; 0xB9400000
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 1 10 12 2 1)))))
+
+    ; LDRSW Xt, [Xn, #imm12*4] (word, sign-extends)
+    (pair 'ldrsw (list
+      (pair 'rm (list 3112173568         ; 0xB9800000
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 1 10 12 2 1)))))
+
+    ; STR Wt, [Xn, #imm12*4] (stores the low word of Wt)
+    (pair 'strw (list
+      (pair 'rm (list 3103784960         ; 0xB9000000
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 1 10 12 2 1)))))
+
     ; B (unconditional branch, PC-relative)
     (pair 'b (list
       (pair 'l (list 335544320           ; 0x14000000

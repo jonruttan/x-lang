@@ -414,11 +414,15 @@
     (pair 'sdiv (list (pair 'rrr 'sdiv3)))
     (pair 'msub (list (pair 'rrrr 'msub4)))
 
-    ; Loads/stores against (mem base disp): word and byte widths.
+    ; Loads/stores against (mem base disp), at every width.
     ; ldr/ldrb reg field = DESTINATION (8B / 0F B6 load direction);
     ; str/strb reg field = SOURCE (89 / 88 store direction).  ldrb is
     ; MOVZX -- zero-extension is the arm64 semantic the byte family's
-    ; specs pin (0xFF reads 255, never -1).
+    ; specs pin (0xFF reads 255, never -1).  The S forms are MOVSX and
+    ; MOVSXD, sign-extending to all 64 bits.  The 32-bit forms drop REX.W
+    ; (a plain REX still carries the R and B bits), and a 32-bit load
+    ; clears the upper half as arm64's does; the 16-bit store is the 66
+    ; operand-size prefix, which goes before the REX.
     (pair 'ldr (list
       (pair 'rm (list (list 72) (list 139) (list 0 1) ()))))       ; 8B /r
     (pair 'str (list
@@ -427,6 +431,20 @@
       (pair 'rm (list (list 72) (list 15 182) (list 0 1) ()))))    ; 0F B6 /r
     (pair 'strb (list
       (pair 'rm (list (list 72) (list 136) (list 0 1) ()))))       ; 88 /r
+    (pair 'ldrsb (list
+      (pair 'rm (list (list 72) (list 15 190) (list 0 1) ()))))    ; 0F BE /r
+    (pair 'ldrh (list
+      (pair 'rm (list (list 72) (list 15 183) (list 0 1) ()))))    ; 0F B7 /r
+    (pair 'ldrsh (list
+      (pair 'rm (list (list 72) (list 15 191) (list 0 1) ()))))    ; 0F BF /r
+    (pair 'strh (list
+      (pair 'rm (list (list 102 64) (list 137) (list 0 1) ()))))   ; 66 89 /r
+    (pair 'ldrw (list
+      (pair 'rm (list (list 64) (list 139) (list 0 1) ()))))       ; 8B /r
+    (pair 'ldrsw (list
+      (pair 'rm (list (list 72) (list 99) (list 0 1) ()))))        ; 63 /r
+    (pair 'strw (list
+      (pair 'rm (list (list 64) (list 137) (list 0 1) ()))))       ; 89 /r
 
     ; CMP r64, r64 (REX.W 39 /r) -- flags from arg0 - arg1, matching
     ; arm64's operand order (cmp left right)
