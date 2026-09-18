@@ -16,7 +16,10 @@ offset by the width, so it must be a multiple of it.  A load fills all 64
 bits of its register, and a store writes its width and nothing past it.
 
 Each case below builds its function over a string buffer's bytes: `x0`
-is the buffer's address and `x1` the value a store writes.
+is the buffer's address and `x1` the value a store writes.  The function
+opens with `asm-prologue!`, which is what puts the first argument in `x0`
+on x86-64 (SysV passes it in rdi, and x1 is rsi already), and closes with
+`asm-epilogue!`.
 
 ## loads
 
@@ -34,8 +37,9 @@ is the buffer's address and `x1` the value a store writes.
   (def load
     (fn (_ op off)
       (do (def a (asm-new))
+          (asm-prologue! a)
           (asm-emit! a op x0 (mem x0 off))
-          (asm-emit! a 'ret)
+          (asm-epilogue! a)
           (def r (Ptr call (asm-finalize! a) (%ptr->int %p) 0))
           (asm-free! a)
           r)))
@@ -58,8 +62,9 @@ is the buffer's address and `x1` the value a store writes.
   (def load
     (fn (_ op off)
       (do (def a (asm-new))
+          (asm-prologue! a)
           (asm-emit! a op x0 (mem x0 off))
-          (asm-emit! a 'ret)
+          (asm-epilogue! a)
           (def r (Ptr call (asm-finalize! a) (%ptr->int %p) 0))
           (asm-free! a)
           r)))
@@ -82,8 +87,9 @@ is the buffer's address and `x1` the value a store writes.
   (def load
     (fn (_ op off)
       (do (def a (asm-new))
+          (asm-prologue! a)
           (asm-emit! a op x0 (mem x0 off))
-          (asm-emit! a 'ret)
+          (asm-epilogue! a)
           (def r (Ptr call (asm-finalize! a) (%ptr->int %p) 0))
           (asm-free! a)
           r)))
@@ -109,8 +115,9 @@ is the buffer's address and `x1` the value a store writes.
   (def store
     (fn (_ op off)
       (do (def a (asm-new))
+          (asm-prologue! a)
           (asm-emit! a op x1 (mem x0 off))
-          (asm-emit! a 'ret)
+          (asm-epilogue! a)
           (Ptr call (asm-finalize! a) (%ptr->int %p) 1234605616436508552)
           (asm-free! a))))
   (store 'strb 0)
@@ -134,9 +141,10 @@ is the buffer's address and `x1` the value a store writes.
   (def trip
     (fn (_ st ld)
       (do (def a (asm-new))
+          (asm-prologue! a)
           (asm-emit! a st x1 (mem x0 16))
           (asm-emit! a ld x0 (mem x0 16))
-          (asm-emit! a 'ret)
+          (asm-epilogue! a)
           (def r (Ptr call (asm-finalize! a) (%ptr->int %p) -2))
           (asm-free! a)
           r)))
