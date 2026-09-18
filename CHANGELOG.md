@@ -5,7 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**Six more modules have a scope of their own.** `x/reader/analyser`,
+**A non-numeric type refuses arithmetic through one door.** `(Type
+refuse-arithmetic! ts tname)` registers a raising handler for each of
+`+ - * / % <` on a type struct, so `(+ 1 "a")` answers "no + for STRING"
+rather than falling through to integer arithmetic on the string's pointer
+([#52]'s refusal, now a method on the class that owns the type registry).
+`x/core/op-guard` calls it for strings, lists, pairs and vectors, and
+`x/type/bool` for BOOL. Before this, bool installed its refusals with three
+private names of op-guard's; op-guard now defines no global at all, and a
+lang that defines a type of its own can call the same door ([#719], step 4).
+
+**Six more modules have a scope of their own** ([#757]). `x/reader/analyser`,
 `x/tool/cov`, `x/reader/indent`, `x/type/list`, `x/type/char` and
 `x/type/ptr` carry the `(module NAME)` header ([#719], step 4), hiding
 forty-one private names between them. None needed a door: nothing outside
@@ -381,6 +391,8 @@ glossary and state-image documents.
 
 [#527]: https://github.com/jonruttan/x-lang/issues/527
 [#718]: https://github.com/jonruttan/x-lang/pull/718
+[#757]: https://github.com/jonruttan/x-lang/pull/757
+[#52]: https://github.com/jonruttan/x-lang/issues/52
 [#756]: https://github.com/jonruttan/x-lang/pull/756
 [#755]: https://github.com/jonruttan/x-lang/pull/755
 [#754]: https://github.com/jonruttan/x-lang/pull/754

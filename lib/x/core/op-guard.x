@@ -25,27 +25,10 @@
 ; error op would break working (= 'a 'a) code for no reported crash.
 ;
 ; Loads in x-core after err.x (Err raise) and vector.x (the #() handle).
-
-(def %og-push (prim-ref (lit type) (lit push-op)))
-(def %og-by-atom (prim-ref (lit type) (lit by-atom)))
-(def %og-type-of (prim-ref (lit type) (lit of)))
-
-; One raising handler per (op, type-name) pair, so the message names both.
-(def %og-refuse
-  (fn (_ opname tname)
-    (fn (_ a b)
-      (Err raise (lit type)
-        (%str-append "no " (%str-append opname (%str-append " for " tname)))
-        ()))))
-
-(def %og-install
-  (fn (_ handle tname ops)
-    (let ((t (%og-by-atom handle)))
-      (List for-each
-        (fn (_ op) (%og-push t op (%og-refuse (symbol->str op) tname)))
-        ops))))
-
-(def %og-all   (list (lit +) (lit -) (lit *) (lit /) (lit %) (lit <)))
+;
+; The refusal itself is (Type refuse-arithmetic!), in x/type/type.x, so
+; x/type/bool.x installs BOOL's through the same door; this file holds the
+; policy, which types refuse.
 
 ; CHAR is deliberately ABSENT: characters ARE their code points
 ; arithmetically, and that pun is load-bearing contract, not an accident --
@@ -54,10 +37,10 @@
 ; kills the reader), and utf8 decode masks CHAR-typed bytes with `&`
 ; (str-byte-ref returns CHAR). Both discovered by registering refusals and
 ; watching the suite burn.
-(%og-install (%og-type-of "") "STRING" %og-all)
-(%og-install (%og-type-of (lit (0))) "LIST" %og-all)
-(%og-install (%og-type-of (pair () ())) "PAIR" %og-all)
-(%og-install (%og-type-of #(0)) "VECTOR" %og-all)
+(Type refuse-arithmetic! (Type by-atom (Type of "")) "STRING")
+(Type refuse-arithmetic! (Type by-atom (Type of (lit (0)))) "LIST")
+(Type refuse-arithmetic! (Type by-atom (Type of (pair () ()))) "PAIR")
+(Type refuse-arithmetic! (Type by-atom (Type of #(0))) "VECTOR")
 
 ; SYMBOL is deliberately absent: a symbol's type slot is the interning
 ; tree, not a registered type, so op_try never consults a type for them -- a registration here lands somewhere dispatch cannot see.

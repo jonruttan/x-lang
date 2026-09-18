@@ -18,8 +18,8 @@
 ;
 ; The refusal ops close the #52 residual: (+ #t 1) now raises
 ; "no + for BOOL" through the same registry as every other non-numeric
-; type (op-guard.x, loaded just before this file -- %og-refuse and %og-all
-; are its globals). SYMBOLS remain the one residual: their type slot is the interning tree,
+; type, installed by the same door, (Type refuse-arithmetic!), that
+; op-guard.x uses. SYMBOLS remain the one residual: their type slot is the interning tree,
 ; and retagging it is not an option (every symbol shares it).
 ;
 ; Idempotent: a child base re-running boot must not re-claim the shared
@@ -49,16 +49,14 @@
 ; push-op wants the STRUCT, reached via by-atom of the make-type return --
 ; the return itself is the registry handle, not the struct (float.x's
 ; %float-type idiom; pushing onto the handle segfaults, found by bisecting
-; boot).
-(def %bool-push (prim-ref (lit type) (lit push-op)))
-(def %bool-type ((prim-ref (lit type) (lit by-atom)) %bool))
-(List for-each
-  (fn (_ op) (%bool-push %bool-type op (%og-refuse (symbol->str op) "BOOL")))
-  %og-all)
+; boot).  The refusals go on THIS base's type, as they always have: in a
+; child base that re-runs boot, the singletons keep the first claim's type
+; and this one is not attached to them.
+(Type refuse-arithmetic! (Type by-atom %bool) "BOOL")
 
 (def %bool-retag (prim-ref (lit obj) (lit retag!)))
 (match
-  ((null? (%og-type-of #t))
+  ((null? (Type of #t))
     (do
       (%bool-retag #t %bool)
       (%bool-retag #f %bool)))

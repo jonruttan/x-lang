@@ -231,6 +231,23 @@
       (doc "Register a binary generic-operator handler on a type; the C operators (+ - * / % = <) dispatch here. A re-registration shadows the older handler."
         (returns ANY "nil"))
       ((prim-ref (lit type) (lit push-op)) ts op f))
+    ; The arithmetic refusal of #52, for any non-numeric type: x/core/op-guard
+    ; installs it on string, list, pair and vector, and x/type/bool on BOOL.
+    ; One raising handler per operator, so the message names both.  `=` is
+    ; left out on purpose: it is a value-word compare in the fallthrough,
+    ; which interned symbols answer correctly by pointer.
+    (method refuse-arithmetic! (self (param ts ANY "Type struct (from Type by-atom)")
+                                     (param tname STRING "The type's name, as the error message spells it"))
+      (doc "Make a type refuse the arithmetic operators (+ - * / % <) with an err:type naming the operator and TNAME, where the C prims would otherwise fall through to integer arithmetic on the object's pointer."
+        (returns ANY "nil"))
+      (List for-each
+        (fn (_ op)
+          (Type push-op ts op
+            (fn (_ a b)
+              (Err raise (lit type)
+                (%str-append "no " (%str-append (symbol->str op) (%str-append " for " tname)))
+                ()))))
+        (list (lit +) (lit -) (lit *) (lit /) (lit %) (lit <))))
     (method cast! (self (param obj ANY "Object to retag") (param src ANY "Object whose type tag to copy"))
       (doc "LOW-LEVEL: overwrite OBJ's type tag with SRC's (raw pointer write)."
         (returns ANY "OBJ, retagged"))
