@@ -307,8 +307,8 @@
 
 ; BOOL claims the #t/#f singletons (#101): an x-defined type over the
 ; C statics via (obj retag!), closing the #52 boolean residual -- and
-; (Type of #t) finally answers. After op-guard (reuses its refusal
-; machinery).
+; (Type of #t) finally answers. Its arithmetic refusals go through
+; (Type refuse-arithmetic!), the door op-guard uses.
 (include-once "lib/x/type/bool.x")
 
 ; ANSI colour: syntax-highlighted REPL output + colourised help.  Loaded
