@@ -11,6 +11,8 @@
 ; %-private functions, registered in the catalog under ns `token`; reader-hot
 ; callers (logo/types.x) fetch-and-cache them and call the cached refs directly
 ; -- no dispatch on the hot path. The Analyser class methods are the cold-call API.
+(module x/reader/analyser)
+
 (import x/type/char)
 (import x/type/class)
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).

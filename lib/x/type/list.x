@@ -8,6 +8,7 @@
 ;
 ; Recursion uses `recur` (a method's own self-reference); cross-calls to other
 ; list operations go through (List ...).
+(module x/type/list)
 
 (import x/type/class)
 
