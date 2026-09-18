@@ -30,6 +30,13 @@
 #
 # Hot-path files keep large budgets on measured grounds: class dispatch costs
 # 8-30x, so sha256/asm are de-dispatched deliberately.
+#
+# A scoped module -- a file whose first form is (module NAME) -- is not
+# counted and carries no row (x-lang#719, step 5).  Its top-level defs bind in
+# the module's own environment, so its %-names never reach the global tree
+# this budget exists to protect; only what it provides does, and provide
+# refuses a second owner.  A (module form at the start of a line is taken as
+# the header: every such form in the tree is its file's first form.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -39,6 +46,7 @@ MANIFEST=tools/contract/percent-globals.x
 
 {
   find lib apps tools -name '*.x' 2>/dev/null | sort \
+    | xargs grep -L '^(module ' \
     | xargs awk -f tools/check/defs.awk \
     | awk -F'\t' '$2 ~ /^%/ { c[$1]++ } END { for (f in c) print "C", f, c[f] }'
   sed -n 's/^(file "\(.*\)" \([0-9][0-9]*\)).*/B \1 \2/p' "$MANIFEST"

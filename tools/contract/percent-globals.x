@@ -10,6 +10,12 @@
 ; (doc (def %name ...)), and defs directly inside a top-level (do ...),
 ; which is how tool scripts are written.
 ;
+; A scoped module -- a file whose first form is (module NAME) -- carries no
+; row (x-lang#719, step 5).  Its top-level defs bind in its own environment,
+; so its %-names never reach the global tree this budget protects; what it
+; provides does, and provide refuses a second owner.  Thirty-seven rows, 427
+; names, retired when this took effect.
+;
 ; Hot-path rows stand on measured de-dispatch grounds (8-30x class call
 ; overhead): sha256*, asm*, compile*, boot/*, and (#334: 15x on the fnv
 ; byte loop, 2x on dict ops, benchmarked) type/dict + type/hash, and
@@ -21,7 +27,10 @@
 ; resident memory of the cached byte prims -- 4KB of source wants ~2.5GB,
 ; and on byte-ref it peaks ~290MB above boot.  %hl-depth, the per-line
 ; paren scan that tells a transcript's continuation lines from its
-; results, is the same inner loop on the same grounds.
+; results, is the same inner loop on the same grounds.  type/dict,
+; type/hash, num/random, sys/socket and tool/highlight are scoped now and
+; carry no row; the grounds still explain why their helpers are %-private
+; defs rather than class statics.
 ;
 ; The type/class.x row grows during the object-model v2 arc: the dispatch
 ; engine's own helpers are the measured hot path (8-30x, #332) the
@@ -35,8 +44,6 @@
 ; boot/printer.x is 74: the engine raises a typed ERR, which dispatches to
 ; its own display handler like anything else, so no helper special-cases an
 ; identity-known error atom.
-; type/err-io.x is a NEW row at 7, the char-io.x shape: cached prim-refs
-; plus the renderer, filling IO stacks the C layer boots empty.
 ; core/logic.x grew by one, 1 -> 2, for %equal? -- the library's own handle on
 ; structural equality, shared by six seats in four files (type/dict, type/list
 ; x4, type/assoc, type/record).  One row rather than four private captures,
@@ -76,13 +83,6 @@
 ; budget row is a ratchet on a repo's own inventory; a lang in its own
 ; repository ratchets its own.
 ; Everything else is unhomed inventory awaiting the pin.x treatment.
-; lib/x/reader/indent.x arrives at 6, and every one is the reader-context
-; exception rather than convenience: four (advance/scan/measure/classify) are
-; the catalog-registered functions themselves -- ns `indent`, fetched raw by
-; per-character callers exactly as ns `token`'s terminators are -- and two are
-; cached int/char prims those functions call once per CHARACTER of every leading
-; whitespace run.  The stack arithmetic, which runs once per LINE, is homed on
-; the class as (Indent %pop) / (Indent %feed) and costs nothing here.  #520.
 ; boot/tower-compiled.x grew from 17 to 18 for %dec-analyse-interp, the sixth
 ; tower stage's interpreted analyser twin -- one per stage is what this file
 ; IS, and the twin is not optional: the decimal analyser is PUSHED rather than
@@ -174,7 +174,6 @@
 ; the load -- the two walks and the record are boot-level state with no
 ; class to live in, since the file runs before any module could hold them.
 (file "lib/x/boot/tower-compiled.x" 55)
-(file "lib/x/codec/json.x" 30)
 (file "lib/x/codec/sha256-jit.x" 34)
 (file "lib/x/codec/sha256.x" 32)
 (file "lib/x/codec/utf8.x" 6)
@@ -184,9 +183,7 @@
 (file "lib/x/core/control.x" 2)
 (file "lib/x/core/list.x" 23)
 (file "lib/x/core/logic.x" 2)
-(file "lib/x/core/math.x" 5)
 (file "lib/x/core/predicates.x" 12)
-(file "lib/x/core/quasi.x" 1)
 (file "lib/x/core/syntax.x" 5)
 (file "lib/x/doc/doc-gen.x" 32)
 (file "lib/x/doc/doc.x" 73)
@@ -194,14 +191,12 @@
 (file "lib/x/num/complex.x" 41)
 (file "lib/x/num/decimal.x" 72)
 (file "lib/x/num/float.x" 62)
-(file "lib/x/num/random.x" 6)
 (file "lib/x/num/tower.x" 10)
 (file "lib/x/num/rational.x" 39)
 (file "lib/x/platform/socket.x" 1)
 (file "lib/x/platform/syscall.x" 7)
 (file "lib/x/protocol/seq.x" 1)
 (file "lib/x/protocol/str/str8.x" 14)
-(file "lib/x/protocol/str/utf8.x" 5)
 ; intrinsics.x rose 5 to 8 for the variant channel: %score-variant-cell (the raw
 ; door to the cell the engine hangs off the score), %score-variant! (the
 ; analyser's end) and %read-variant (the reader's end) -- per-token intrinsics on
@@ -210,34 +205,7 @@
 (file "lib/x/reader/intrinsics.x" 8)
 (file "lib/x/reader/lit-reader.x" 21)
 (file "lib/x/reader/quasi-reader.x" 9)
-(file "lib/x/reader/analyser.x" 14)
-(file "lib/x/reader/indent.x" 6)
 (file "lib/x/repl/ansi.x" 26)
-; The line editor, on the hot-path grounds the rows above stand on -- the
-; same grounds reader/analyser.x and type/buf.x state in their own headers,
-; and measured here before they were claimed.  repl/paint.x paints on EVERY
-; keystroke, and a draft that reached through the class per token rendered a
-; 70-byte line in 27ms against the 32ms of the HTML renderer it was written
-; to replace; the %-private scan over cached prims does it in 19ms, and 0.24ms
-; when the text has not changed.  One class door measured 0.3-1.0ms on this
-; machine, which is why the palette, the memo accessors and the byte prims
-; are all resolved out of the loop.  repl/line.x is the redraw and the key
-; dispatch, per keystroke for the same reason, plus the completion and
-; history helpers that hang off them.
-; paint.x grew by eleven for bracket colouring: the depth walk that marks every
-; paren, the mark cursor the scan cuts a run on, the depth-to-code lookup, the
-; palette and its length, the lone and focus codes it paints with, the marks
-; half of the redraw cache and its comparison, the mod prim, and the guard for
-; the %repl-marks install.  All on the per-keystroke path, and homed beside
-; the scan for the reason the rest of this file's %-defs are.
-(file "lib/x/repl/paint.x" 46)
-; line.x grew by one for %ln-marks, which asks %repl-marks about the whole line
-; and translates the answer into the window being painted.
-; line.x shrank by two when Tab's candidate source and the continuation
-; prompt moved to repl/loop.x as %repl-complete and %repl-prompt-more: seams
-; a lang sets, which belong beside %repl-paint for the reason that one lives
-; there -- a bundle sets them before this file loads.
-(file "lib/x/repl/line.x" 35)
 (file "lib/x/repl/banner.x" 4)
 ; Grew by one for %repl-platform-repl: the identity anchor that lets two
 ; installers over `repl` -- a lang's reader and the line editor -- tell
@@ -257,12 +225,8 @@
 ; bundles the seven as a named lang.
 (file "lib/x/repl/loop.x" 18)
 (file "lib/x/rn.x" 1)
-(file "lib/x/sys/date.x" 6)
-(file "lib/x/sys/file.x" 7)
 (file "lib/x/sys/pact.x" 12)
 (file "lib/x/sys/posix.x" 32)
-(file "lib/x/sys/socket.x" 31)
-(file "lib/x/sys/stream.x" 5)
 ; asm-cache.x is a new file and 60 is nearly all DOORS: ~20 prim-refs and 10
 ; dlsym'd libc entries, fetched once at load because this module may not walk
 ; bytes and every catalog dispatch or symbol lookup on its path is a cost per
@@ -339,36 +303,12 @@
 ; same standing the int and symbol writers have.
 (file "lib/x/tool/compile/emit.x" 57)
 (file "lib/x/tool/compile/pipeline.x" 10)
-(file "lib/x/tool/contract.x" 4)
-(file "lib/x/tool/cov.x" 8)
 (file "lib/x/tool/fmt.x" 23)
-(file "lib/x/tool/highlight.x" 39)
 (file "lib/x/tool/lint.x" 89)
-(file "lib/x/tool/pin.x" 1)
-(file "lib/x/tool/profile.x" 4)
-(file "lib/x/type/array.x" 2)
-(file "lib/x/type/assoc.x" 1)
-(file "lib/x/type/bool.x" 3)
-(file "lib/x/type/char-io.x" 11)
-(file "lib/x/type/err-io.x" 7)
-(file "lib/x/type/char.x" 5)
-(file "lib/x/type/record.x" 3)
-(file "lib/x/type/trait.x" 6)
 (file "lib/x/type/class.x" 90)
 (file "lib/x/type/convert.x" 20)
-(file "lib/x/type/dict.x" 19)
-(file "lib/x/type/err.x" 6)
-(file "lib/x/type/gen.x" 1)
-(file "lib/x/type/generic.x" 19)
-(file "lib/x/type/hash.x" 7)
-(file "lib/x/type/iter.x" 19)
-(file "lib/x/type/list.x" 5)
-(file "lib/x/type/path.x" 2)
 (file "lib/x/type/promise.x" 6)
-(file "lib/x/type/ptr.x" 3)
-(file "lib/x/type/regex.x" 41)
 (file "lib/x/type/shape-rows.x" 2)
-(file "lib/x/type/str-utf8.x" 14)
 (file "lib/x/type/struct.x" 48)
 (file "lib/x/type/type.x" 3)
 (file "lib/x/type/vector.x" 17)

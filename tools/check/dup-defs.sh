@@ -24,6 +24,15 @@
 # env.  The driver scripts load x-core and then their tool file, so tools/
 # globals land in the same env.
 #
+# A scoped module, whose first form is (module NAME), is checked for what it
+# provides and nothing else (x-lang#719, step 5).  Its other top-level defs
+# bind in the module's own environment, so two scoped modules may use the
+# same private name, and a scoped module may reuse a global's, both by
+# design.  A provided name does reach the global tree, where a plain def of
+# the same name in an unscoped file is exactly the collision this check is
+# for.  The provided names come from a pre-pass over the scoped files' provide
+# lists, fed in as the first input.
+#
 # Extraction is a form scanner (paren depth outside strings, char literals and
 # ; comments), not a line grep.  Recognized definers: (def NAME ...),
 # (def-class NAME ...) and their (doc ...) wrappers.  A top-level (do ...) is
@@ -53,7 +62,17 @@ cd "$PROJECT_DIR" || exit 1
 
 _FILES=$(find lib apps tools -name '*.x' ! -path 'lib/img.x' 2>/dev/null | sort)
 
-awk '
+# One S line per scoped file, and one P line per name its provide lists name.
+# A provide list runs to its first `)`; comments are stripped a line at a time.
+_scoped_provides() {
+  for _f in $(grep -l '^(module ' $_FILES); do
+    printf 'S\t%s\n' "$_f"
+    sed 's/;.*$//' "$_f" | tr '\n' ' ' | grep -o '(provide [^)]*' \
+      | awk -v f="$_f" '{ for (i = 3; i <= NF; i++) printf "P\t%s\t%s\n", f, $i }'
+  done
+}
+
+_scoped_provides | awk '
 BEGIN {
   split("let compile-asm %c-read %c-malloc %c-free %c-close " \
         "%obj-set! %list-type %ptr %ptr-ref %int->ptr", aw, " ")
@@ -109,6 +128,8 @@ function handle(f,    tmp, name, body, key, kids, nk, j) {
     sub(/[ \t)].*$/, "", name)
     body = tmp
     sub(/^[^ \t]+[ \t]*/, "", body)
+    # A scoped module keeps what it does not provide (see the header).
+    if ((FILENAME in scoped) && !((FILENAME SUBSEP name) in provided)) name = ""
     if (name != "") {
       key = name SUBSEP FILENAME
       if (!(key in seen)) {
@@ -156,6 +177,15 @@ function flush_form(    tmp) {
   gsub(/'"'"'/, "Q:", form)
   handle(form)
   form = ""
+}
+
+# The pre-pass arrives first, on stdin: which files are scoped, and the names
+# each of them provides.
+FILENAME == "-" {
+  split($0, pp, "\t")
+  if (pp[1] == "S") scoped[pp[2]] = 1
+  else if (pp[1] == "P") provided[pp[2] SUBSEP pp[3]] = 1
+  next
 }
 
 FNR == 1 { depth = 0; instr = 0; form = "" }
@@ -210,4 +240,4 @@ END {
   if (bad) exit 1
   print "dup-defs: ok"
 }
-' $_FILES
+' - $_FILES
