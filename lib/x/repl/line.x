@@ -429,15 +429,103 @@
 ; for ctrl-c.  Both are the caller's business, not this loop's -- the REPL
 ; ends on one and reprompts on the other, and a different caller might do
 ; something else entirely.
+; --- history search -----------------------------------------------------------
+;
+; ctrl-r searches the history backward for the text typed after it, and ctrl-s
+; forward, the way readline's incremental search does.  Each key extends the
+; query and the match is shown on the prompt line as it is found; ctrl-r or
+; ctrl-s again moves on to the next entry that matches.  Enter accepts the
+; match and submits it, ctrl-g abandons the search and leaves the line as it
+; was, and any other key accepts the match into the buffer and is then handled
+; as usual.
+
+; The prompt a search shows in place of the line's own, in readline's wording.
+; `failed` marks a query that no entry in the searched direction contains.
+(def %ln-search-prompt
+  (fn (_ query dir failed)
+    (%ln-append (if failed "(failed " "(")
+      (%ln-append (if (eq? dir (lit back)) "reverse-i-search)`" "i-search)`")
+        (%ln-append query "': ")))))
+
+; One search, from the key that starts it to the key that ends it.  Answers
+; how it ended: 'submit for Enter, 'cancel for ctrl-c, 'eof when input ends,
+; 'done when the line is to be edited further, or (apply . key) for a key that
+; ends the search and is then handled by the editor's own loop.
+;
+; The buffer is not changed until a match is accepted: each match is shown
+; through a scratch buffer, and acceptance moves the real one with jump!, so
+; ctrl-g has nothing to undo and Up and Down carry on from the entry found.
+;
+; A query that no entry contains is not contained however it is extended, so
+; typing after a failed search, or repeating it in the same direction, looks
+; nothing up; a full pass over the history happens once, at the key where the
+; search first fails.  Backspace steps back through the states the search has
+; been in, the query and the match together.
+(def %ln-search
+  (fn (_ fd prompt ed read-byte dir0)
+    (let ((view (Edit make))
+          (original (ed text))
+          (point0 (ed point))
+          (browsed (ed position)))
+      (let ((shown (fn (_ hit)
+                     (if (null? hit) original (List ref (first hit) (ed hist)))))
+            ; Where a search with no match yet begins: at the entry being shown
+            ; when browsing, so that it can match itself, and otherwise at the
+            ; newest entry.  Walking forward from a fresh line there is nothing
+            ; newer to find.
+            (start (fn (_ dir)
+                     (if (null? browsed) (if (eq? dir (lit back)) 0 -1) browsed)))
+            (accept (fn (_ query hit)
+                      (do (unless (null? hit) (ed jump! (first hit) (rest hit)))
+                          (unless (= 0 (%ln-blen query)) (Line last-search query))))))
+        (let ((go (fn (self query dir hit failed undo)
+                    (do
+                      (if (null? hit) (view set-text! original point0)
+                        (view set-text! (shown hit) (rest hit)))
+                      (%ln-redraw fd (%ln-search-prompt query dir failed) view
+                                  (first (Term window fd)))
+                      (let ((k (Term key read-byte))
+                            (here (list query dir hit failed)))
+                        (match
+                          ((null? k) (lit eof))
+                          ((eq? k (lit interrupt)) (lit cancel))
+                          ((eq? k (lit abort)) (lit done))
+                          ((eq? k (lit enter)) (do (accept query hit) (lit submit)))
+                          ((eq? k (lit escape)) (do (accept query hit) (lit done)))
+                          ((eq? k (lit backspace))
+                            (if (null? undo) (self query dir hit failed undo)
+                              (let ((s (first undo)))
+                                (self (first s) (first (rest s)) (first (rest (rest s)))
+                                      (first (rest (rest (rest s)))) (rest undo)))))
+                          ((str? k)
+                            (let ((q (%ln-append query k)))
+                              (if failed (self q dir hit #t (pair here undo))
+                                (let ((h (ed search q (if (null? hit) (start dir) (first hit)) dir)))
+                                  (self q dir (if (null? h) hit h) (null? h) (pair here undo))))))
+                          ((if (eq? k (lit search-back)) #t (eq? k (lit search-forward)))
+                            (let ((d (if (eq? k (lit search-back)) (lit back) (lit forward)))
+                                  (q (if (= 0 (%ln-blen query)) (Line last-search) query)))
+                              (if (if (= 0 (%ln-blen q)) #t (if failed (eq? d dir) #f))
+                                (self query d hit failed undo)
+                                (let ((h (ed search q
+                                           (if (null? hit) (start d)
+                                             (if (eq? d (lit back)) (+ (first hit) 1) (- (first hit) 1)))
+                                           d (shown hit))))
+                                  (self q d (if (null? h) hit h) (null? h) (pair here undo))))))
+                          (#t (do (accept query hit) (pair (lit apply) k)))))))))
+          (go "" dir0 () #f ()))))))
+
 (def %ln-loop
-  (fn (self fd prompt ed read-byte)
+  (fn (self fd prompt ed read-byte . pending)
     ; The width is asked for on every keystroke, deliberately: it is one
     ; ioctl against a redraw that costs milliseconds, and asking each time is
     ; what makes a terminal resized mid-line simply start drawing to the new
     ; width on the next key, with no SIGWINCH handler to install.
     (let ((cols (first (Term window fd))))
       (%ln-redraw fd prompt ed cols)
-      (let ((k (Term key read-byte)))
+      ; A key handed back by a search that it ended is handled here as if
+      ; just read.
+      (let ((k (if (null? pending) (Term key read-byte) (first pending))))
         (match
           ; The descriptor ended under us: the same answer as ctrl-d.
           ((null? k) (lit eof))
@@ -445,6 +533,16 @@
           ; The line is kept: draw it once more with no cursor focus, since
           ; this frame is what the transcript keeps.
           ((eq? k (lit enter)) (do (%ln-redraw fd prompt ed cols #t) (ed text)))
+          ((if (eq? k (lit search-back)) #t (eq? k (lit search-forward)))
+            (let ((r (%ln-search fd prompt ed read-byte
+                                 (if (eq? k (lit search-back)) (lit back) (lit forward)))))
+              (match
+                ((eq? r (lit submit))
+                  (do (%ln-redraw fd prompt ed (first (Term window fd)) #t) (ed text)))
+                ((eq? r (lit cancel)) (lit cancel))
+                ((eq? r (lit eof)) (lit eof))
+                ((eq? r (lit done)) (self fd prompt ed read-byte))
+                (#t (self fd prompt ed read-byte (rest r))))))
           ((eq? k (lit interrupt)) (lit cancel))
           ((eq? k (lit eof))
             ; ctrl-d ends the session only on an EMPTY line; on a line with
@@ -485,9 +583,11 @@
   (doc "Read one line from the terminal with editing, history and as-you-type colour -- the built-in answer to wrapping a session in rlwrap."
     (note "Raw mode brackets the read only: the line is handed back with the terminal already restored, so whatever evaluates it runs in a cooked tty.")
     (note "Long lines scroll sideways within the row rather than wrapping, which also bounds a redraw's cost by the terminal's width rather than the line's length.")
+    (note "ctrl-r and ctrl-s search the history backward and forward as each key is typed, in the manner of readline; Enter runs the match, ctrl-g abandons the search, and any other key keeps the match for editing.")
     (see read) (see available?) (see history-path))
 
   (static
+    (last-search "" "The query of the last history search, which ctrl-r on an empty query repeats")
     (method available? (self)
       (doc "Whether a line can be edited here: a terminal on the read descriptor, and a build whose termios calls resolved. False means the caller should fall back to plain line-at-a-time reading."
         (returns BOOL "True when the editor can run"))
