@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`x/type/str-utf8` has a scope of its own, and its list conversions are
+catalog doors** ([#719], step 4). The file loads before the object system,
+so there is no class to carry what other files need from it. It publishes
+its two list conversions beside `(str cp-len)` instead: `(str from-list)`
+builds a UTF-8 string from a list of code-point characters, and
+`(str ->list)` decodes a string into one. `x/type/char-io`, `x/type/convert`
+and `x/type/iter` each fetch the one they use once, at load, where they used
+to read the file's private names. With that, the file carries the
+`(module NAME)` header and hides fourteen names.
+
 **A non-numeric type refuses arithmetic through one door.** `(Type
 refuse-arithmetic! ts tname)` registers a raising handler for each of
 `+ - * / % <` on a type struct, so `(+ 1 "a")` answers "no + for STRING"

@@ -108,7 +108,9 @@
                       (%number->str v)
                       (%number->str v (first extra)))))
     (pair %symbol (fn (_ v . extra) (symbol->str v)))
-    (pair %pair   (fn (_ v . extra) (%list->str v)))
+    ; x/type/str-utf8 publishes the list conversion as (str from-list).
+    (pair %pair   (let ((from-list (prim-ref (lit str) (lit from-list))))
+                    (fn (_ v . extra) (from-list v))))
     (pair %ptr    (fn (_ v . extra) (%ptr->str v)))))
 
 ; SYMBOL: from string
