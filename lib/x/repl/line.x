@@ -50,6 +50,13 @@
 ; after the swap %ln-repl does on its first turn.  That is why %ln-install!
 ; below asks about fd 3 as well: at LOAD time the terminal is still there.
 (def %ln-fd 0)
+
+; The earlier lines of the entry being read, each followed by a newline, or ""
+; on an entry's first line.  Line read sets it from its optional argument for
+; the length of one read, and the redraw hands it on: to the marker, so depths
+; and partners carry from one line of a multi-line entry to the next, and to
+; the painter, so a line that begins inside a string is coloured as one.
+(def %ln-context "")
 (def %ln-history-loaded ())
 
 ; --- escape sequences, named once ------------------------------------------
@@ -86,29 +93,39 @@
         (go i k)))))
 
 ; Guarded: a painter that raises must not lose the keystroke.  The line is
-; drawn unpainted for that redraw instead.
+; drawn unpainted for that redraw instead.  `before` is the entry's text ahead
+; of the window, for a painter that needs to know whether the window begins
+; inside a string or a comment.
 (def %ln-paint
-  (fn (_ window marks)
+  (fn (_ window marks before)
     (if (null? %repl-paint) window
-      (guard (_ window) (%repl-paint window marks)))))
+      (guard (_ window) (%repl-paint window marks before)))))
 
-; The marks for this redraw, asked of the whole line so that a partner that
-; has scrolled out of view is still found, then translated into the window:
-; offsets become window-relative and any that fall outside it are dropped.
-; Guarded like the painter, and for the same reason.
+; The marks for this redraw, asked of the whole entry so far -- the earlier
+; lines of a multi-line entry and all of this line -- so that a partner on an
+; earlier line, or scrolled out of view, is still found.  They are then
+; translated into the window: offsets become window-relative and any that fall
+; outside it are dropped.  A point below 0 asks for no focus, and stays below
+; 0.  Guarded like the painter, and for the same reason.
 (def %ln-marks
   (fn (_ text point start end)
     (if (null? %repl-marks) ()
-      (let ((go (fn (self ms acc)
-                  (if (null? ms) acc
-                    (let ((o (first (first ms))))
-                      (self (rest ms)
-                        (if (if (>= o start) (< o end) #f)
-                          (pair (pair (- o start) (rest (first ms))) acc)
-                          acc)))))))
-        ; Reversed back into source order: the scan consumes marks in the
-        ; order it meets them.
-        (%reverse (go (guard (_ ()) (%repl-marks text point)) ()))))))
+      (let ((base (%ln-blen %ln-context)))
+        (let ((lo (+ base start)) (hi (+ base end)))
+          (let ((go (fn (self ms acc)
+                      (if (null? ms) acc
+                        (let ((o (first (first ms))))
+                          (self (rest ms)
+                            (if (if (>= o lo) (< o hi) #f)
+                              (pair (pair (- o lo) (rest (first ms))) acc)
+                              acc)))))))
+            ; Reversed back into source order: the scan consumes marks in the
+            ; order it meets them.
+            (%reverse
+              (go (guard (_ ())
+                    (%repl-marks (if (= base 0) text (%ln-append %ln-context text))
+                                 (if (< point 0) -1 (+ base point))))
+                  ()))))))))
 
 ; --- the redraw -------------------------------------------------------------
 ;
@@ -139,7 +156,13 @@
                       ; The painter belongs to the session, not to this file.
                       ; A lang that reads its own syntax sets %repl-paint to a
                       ; painter that knows it; nil means no colouring.
-                      (%ln-append (%ln-paint window marks)
+                      ; On a line that is not scrolled the text before the
+                      ; window is the context itself, the same string on every
+                      ; keystroke, which the painter's cache compares by
+                      ; identity.
+                      (%ln-append (%ln-paint window marks
+                                    (if (= start 0) %ln-context
+                                      (%ln-append %ln-context (%ln-bsub text 0 start))))
                         (%ln-append "\r"
                           (if (= col 0) ""
                             (%ln-append "\x1b[" (%ln-append (Str8 str col) "C"))))))))))))))))
@@ -442,10 +465,12 @@
         (sample "(Line history-path)" "\"/home/you/.local/state/x/history\""))
       (%ln-history-path))
 
-    (method read (self (param prompt STRING "The prompt to show"))
+    (method read (self (param prompt STRING "The prompt to show")
+                       . (param context STRING "Optional: the lines already entered for this entry, joined by newlines"))
       (doc "Read one edited line. Returns the line as a string, 'eof for ctrl-d on an empty line, or 'cancel for ctrl-c. The terminal is restored before this returns, whichever way it ends."
         (returns ANY "A STRING, 'eof, or 'cancel")
-        (note "A line that is kept is pushed onto the history and appended to the history file; 'eof and 'cancel are not recorded."))
+        (note "A line that is kept is pushed onto the history and appended to the history file; 'eof and 'cancel are not recorded.")
+        (note "With context, a continuation line is marked and painted as the rest of the entry: paren depths carry on from the earlier lines, a close paren that closes one of them takes its colour, and a string left open there is coloured as a string."))
       (let ((fd %ln-fd))
         (let ((saved (Term raw! fd)))
           (if (null? saved) (lit eof)
@@ -453,14 +478,20 @@
                   (read-byte (fn (_) (let ((b (Sys fd-read fd 1)))
                                        (if (null? b) () (first b))))))
               (ed clear!)
+              (set! %ln-context
+                (if (null? context) ""
+                  (if (= 0 (%ln-blen (first context))) ""
+                    (%ln-append (first context) "\n"))))
               ; The terminal goes back even if the loop raises: a session that
               ; dies with ECHO off leaves the user's shell broken, and that is
               ; not a thing to leave to the happy path.
               (let ((r (guard (err
-                          (do (Term restore! fd saved)
+                          (do (set! %ln-context "")
+                              (Term restore! fd saved)
                               (Term emit fd "\r\n")
                               (Err raise (lit io) "Line read: interrupted" err)))
                         (%ln-loop fd prompt ed read-byte))))
+                (set! %ln-context "")
                 (Term restore! fd saved)
                 (Term emit fd "\r\n")
                 (when (str? r)
@@ -525,7 +556,7 @@
         ; Unfinished: ask for the rest.  ctrl-c abandons the whole entry,
         ; ctrl-d on an empty continuation line is the end of the session --
         ; the same two answers they give on the first line.
-        (let ((more (Line read %repl-prompt-more)))
+        (let ((more (Line read %repl-prompt-more text)))
           (match
             ((eq? more (lit eof)) (Sys exit 0))
             ((eq? more (lit cancel)) ())

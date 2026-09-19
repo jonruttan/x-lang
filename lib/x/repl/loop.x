@@ -76,19 +76,23 @@
 ; returning its argument untouched.  Setting this to nil to mean off does not
 ; work: the next install reads nil as nobody having set one.
 ;
-; The editor passes a second argument: the marks %repl-marks answered for this
-; redraw, translated into the window being painted.  A painter written for one
-; argument ignores it.
+; The editor passes two more arguments: the marks %repl-marks answered for this
+; redraw, translated into the window being painted, and the text that comes
+; before the window in the same entry -- the earlier lines of a multi-line
+; entry, each followed by a newline, and the part of the line scrolled out of
+; view.  A painter uses the last to know whether the window begins inside a
+; string or a comment.  A painter written for fewer arguments ignores the rest.
 (def %repl-paint ())
 
-; Which characters to mark on a redraw, given the whole line and the cursor: a
-; function from (text point) to a list of (offset depth focused) marks, one
-; per bracket, depth being its nesting level from 0 (shared by both halves of
-; a pair, -1 for a close with nothing to close) and focused true on the pair
-; the cursor is beside; or nil to mark nothing.  x/repl/paint installs the
-; platform's when the line editor loads it, under the same rule as
-; %repl-paint.  A lang whose brackets are not x-lang's sets its own, or
-; leaves it nil.
+; Which characters to mark on a redraw: a function from (text point) to a list
+; of (offset depth focused) marks, one per bracket, or nil to mark nothing.
+; text is the entry so far -- the earlier lines of a multi-line entry and the
+; line being edited, joined by newlines -- and point is the cursor's offset in
+; it.  A bracket's depth is its nesting level from 0, shared by both halves of
+; a pair, and -1 for a close with nothing to close; focused is true on the pair
+; the cursor is beside.  x/repl/paint installs the platform's when the line
+; editor loads it, under the same rule as %repl-paint.  A lang whose brackets
+; are not x-lang's sets its own, or leaves it nil.
 (def %repl-marks ())
 
 ; Tab's candidate source: a function from the editor's buffer to

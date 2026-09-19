@@ -117,3 +117,50 @@ final atom that nothing terminates. `name` at the prompt printed nothing while
 1
 2
 ```
+
+## a multi-line entry
+
+`Line read` takes the lines already entered for an entry, and the redraw asks
+the marker about the whole entry, then keeps the marks that fall on the line
+being edited. Here the first line was `(def f`, and the line being edited is
+`  (+ 1 2))`, whose last paren closes the one on the first line.
+
+### a close paren that closes an earlier line's paren takes its depth
+
+```x
+(do (import x/repl/line)
+    (let ((marks (eval (lit %ln-marks) (module x/repl/line))))
+      (eval (lit (set! %ln-context "(def f\n")) (module x/repl/line))
+      (let ((r (list (marks "  (+ 1 2))" 10 0 10)
+                     (marks "  (+ 1 2))" -1 0 10))))
+        (eval (lit (set! %ln-context "")) (module x/repl/line))
+        r)))
+```
+---
+    (((2 1 #f) (8 1 #f) (9 0 #t)) ((2 1 #f) (8 1 #f) (9 0 #f)))
+
+### on its own the same line reads its last paren as closing nothing
+
+```x
+(do (import x/repl/line)
+    (let ((marks (eval (lit %ln-marks) (module x/repl/line))))
+      (marks "  (+ 1 2))" 10 0 10)))
+```
+---
+    ((2 0 #f) (8 0 #f) (9 -1 #t))
+
+### a line that continues a string finds the paren after it
+
+The first line was `(display "hel`, so the line `lo")` begins inside the
+string and its paren closes the first line's.
+
+```x
+(do (import x/repl/line)
+    (let ((marks (eval (lit %ln-marks) (module x/repl/line))))
+      (eval (lit (set! %ln-context "(display \"hel\n")) (module x/repl/line))
+      (let ((r (marks "lo\")" 4 0 4)))
+        (eval (lit (set! %ln-context "")) (module x/repl/line))
+        r)))
+```
+---
+    ((3 0 #t))

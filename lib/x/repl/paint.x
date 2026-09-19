@@ -72,6 +72,7 @@
 (def %paint-last-in ())
 (def %paint-last-out ())
 (def %paint-last-marks ())
+(def %paint-last-before ())
 
 ; Two mark lists, the same or not: (offset depth focused) each, compared in
 ; place rather than through a generic equality a bundle might have rebound.
@@ -301,6 +302,42 @@
     (if (= 0 (%pt-blen code)) (pair text segs)
       (pair %paint-rst (pair text (pair code segs))))))
 
+; What the text ends inside, by the scan's rules for strings, comments and
+; character literals: 'string when a string literal is still open at its end,
+; 'comment when a comment is, and nil when neither is.  The painter asks it of
+; the text that comes before the part it paints, so the earlier lines of a
+; multi-line entry, or the part of a line scrolled out of view, decide how the
+; painted part begins.  Its cost is one pass over that text, paid only when the
+; painted text or its marks change.
+(def %paint-open-at-end
+  (fn (_ s)
+    (if (null? s) ()
+      (let ((n (%pt-blen s)))
+        ; Past the quote that closes a string whose body starts at i, or nil
+        ; when the text ends first.
+        (let ((close (fn (self i)
+                       (if (>= i n) ()
+                         (let ((b (%pt-cint (%pt-bref s i))))
+                           (if (= 92 b) (self (%pt+ i 2))
+                             (if (= 34 b) (%pt+ i 1) (self (%pt+ i 1)))))))))
+          (let ((go (fn (self i)
+                      (if (>= i n) ()
+                        (let ((b (%pt-cint (%pt-bref s i))))
+                          (match
+                            ((= b 59)
+                              (let ((e (%paint-to-eol s i n)))
+                                (if (>= e n) (lit comment) (self e))))
+                            ((= b 34)
+                              (let ((e (close (%pt+ i 1))))
+                                (if (null? e) (lit string) (self e))))
+                            ((and (= b 35) (and (< (%pt+ i 1) n) (= 34 (%pt-cint (%pt-bref s (%pt+ i 1))))))
+                              (let ((e (close (%pt+ i 2))))
+                                (if (null? e) (lit string) (self e))))
+                            ((and (= b 35) (and (< (%pt+ i 1) n) (= 92 (%pt-cint (%pt-bref s (%pt+ i 1))))))
+                              (self (%paint-atom-end s (if (> (%pt+ i 3) n) n (%pt+ i 3)) n)))
+                            (#t (self (%pt+ i 1)))))))))
+            (go 0)))))))
+
 (def %paint-scan
   (fn (self s i n segs marks)
     (if (>= i n) segs
@@ -396,6 +433,7 @@
     (set! %paint-last-in ())
     (set! %paint-last-out ())
     (set! %paint-last-marks ())
+    (set! %paint-last-before ())
     ()))
 
 ; --- the class: the cold-call API -----------------------------------------
@@ -409,23 +447,44 @@
     (see line) (see classify) (see forget!))
 
   (static
-    (method line (self (param s STRING "The line as typed so far")
-                       . (param marks LIST "Optional: (offset . kind) pairs to mark, from `focus`"))
-      (doc "The line with ANSI colour codes inserted, and otherwise byte for byte -- the author's own spacing is preserved, because the cursor column is measured against it. With marks from `marks`, each paren is coloured by its nesting depth, a close with nothing to close is bold red, and the pair beside the cursor is inverse as well. Returns s unchanged when colour is off."
+    (method line (self (param s STRING "The text to paint")
+                       . (param more LIST "Optional: the marks, as `marks` answers them, then the text that comes before s in the same entry"))
+      (doc "The text with ANSI colour codes inserted, and otherwise byte for byte -- the author's own spacing is preserved, because the cursor column is measured against it. With marks from `marks`, each paren is coloured by its nesting depth, a close with nothing to close is bold red, and the pair beside the cursor is inverse as well. With the text that comes before s -- the earlier lines of a multi-line entry, or the part of a line scrolled out of view -- s is painted as its continuation, so a string or a comment left open there colours the start of s. Returns s unchanged when colour is off."
         (returns STRING "A string safe to write to the terminal")
         (sample "(Paint line \"(def x 42)\")" "the same text, with `def` and `42` wrapped in SGR codes")
-        (sample "(Paint line \"(f (g))\" (Paint marks \"(f (g))\" 0))" "the outer parens yellow, the inner magenta"))
+        (sample "(Paint line \"(f (g))\" (Paint marks \"(f (g))\" 0))" "the outer parens yellow, the inner magenta")
+        (sample "(Paint line s () before)" "s painted as the continuation of before: when before leaves a string open, s is green up to the quote that closes it"))
       (if (not (Ansi enabled?)) s
-        (let ((ms (if (null? marks) () (first marks))))
-          (if (if (%pt-same? s %paint-last-in) (%paint-same-marks? ms %paint-last-marks) #f)
+        (let ((ms (if (null? more) () (first more)))
+              (before (if (if (null? more) #t (null? (rest more))) () (first (rest more)))))
+          (if (if (%pt-same? s %paint-last-in)
+                (if (%paint-same-marks? ms %paint-last-marks) (%pt-same? before %paint-last-before) #f)
+                #f)
             %paint-last-out
-            (let ((out (Str8 join "" (List reverse (%paint-scan s 0 (%pt-blen s) () ms)))))
-              (set! %paint-last-in s)
-              (set! %paint-last-marks ms)
-              (set! %paint-last-out out)
-              out)))))
+            (let ((n (%pt-blen s))
+                  (open (%paint-open-at-end before)))
+              ; A string or comment left open before s runs on into it, up to
+              ; its closing quote or the end of the line, and the scan takes
+              ; over from there.
+              (let ((head (match
+                            ((eq? open (lit string)) (%paint-str-end s 0 n))
+                            ((eq? open (lit comment)) (%paint-to-eol s 0 n))
+                            (#t 0))))
+                (let ((out (Str8 join ""
+                             (List reverse
+                               (%paint-scan s head n
+                                 (if (= head 0) ()
+                                   (%paint-seg ()
+                                     (if (eq? open (lit string)) %paint-c-string %paint-c-comment)
+                                     (%pt-bsub s 0 head)))
+                                 ms)))))
+                  (set! %paint-last-in s)
+                  (set! %paint-last-marks ms)
+                  (set! %paint-last-before before)
+                  (set! %paint-last-out out)
+                  out)))))))
 
-    (method marks (self (param s STRING "The line") (param at INT "The cursor, as a byte offset"))
+    (method marks (self (param s STRING "The text: a line, or a whole multi-line entry") (param at INT "The cursor, as a byte offset"))
       (doc "A mark for every paren in the line, as (offset depth focused): depth is the nesting level from 0, shared by both halves of a pair so they colour alike, and -1 for a close paren with nothing to close; focused is true on the two halves of the pair the cursor is beside, a close just before the cursor first, then an open under it. A cursor outside the line, -1 say, is beside nothing, which is how a settled line keeps its colours and loses its focus. Strings, comments and character literals are stepped over, so #\\( is not an open paren and a paren inside a string is not counted."
         (returns LIST "((offset depth focused) ...) in source order")
         (example "(Paint marks \"(f (g))\" 0)" "((0 0 #t) (3 1 #f) (5 1 #f) (6 0 #t))")
@@ -482,7 +541,9 @@
 ; them; the identity the install rule tests is the registered closure.
 (def %paint-install-hook!
   (fn (_)
-    (let ((painter (fn (_ s . marks) (Paint line s (if (null? marks) () (first marks)))))
+    (let ((painter (fn (_ s . more)
+                     (Paint line s (if (null? more) () (first more))
+                                   (if (if (null? more) #t (null? (rest more))) () (first (rest more))))))
           (marker (fn (_ s at) (%paint-depths s at))))
       (when (or (null? %repl-paint) (%pt-same? %repl-paint %paint-own))
         (set! %repl-paint painter))

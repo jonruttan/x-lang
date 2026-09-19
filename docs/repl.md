@@ -125,8 +125,12 @@ does not.
 
 Strings, comments and character literals are stepped over, so `#\(` is not
 an open paren and a paren inside a string is not counted. The depths are
-worked out on the whole line, not the visible window, so a line that has
-scrolled sideways still colours correctly.
+worked out on the whole entry, not just the visible window: across the lines
+of a multi-line entry, a continuation line carries on from the depth the lines
+before it reached, a close paren that closes a paren on an earlier line takes
+that paren's colour rather than showing as unmatched, and a line that begins
+inside a string left open on an earlier line is coloured as that string. A
+line that has scrolled sideways colours the same way.
 
 `(Paint marks line at)` answers the marks for a cursor position, one per
 paren as `(offset depth focused)`, and `(Paint line text marks)` paints them,
