@@ -15,17 +15,29 @@ Declares a module and registers its exported symbols:
   map filter fold sort reverse append ...)
 ```
 
-`provide` records the module name and its export list, and binds each
-listed name in the root environment as the module's export. Each exported
-name has **one owner**: a second module that provides a name another owns
-is refused, naming both, unless it is re-exporting the very same object
-(the way `x/core` re-exports its submodules' names). An unscoped module's
+`provide` records the module name and its export list in the registry,
+which is where a selective `import` finds an export. An unscoped module's
 definitions are already bound in the root by `include`, so `provide` there
 only records ownership, and it may sit ahead of the definitions, as the
 lang bundles write it. A [scoped module](#module-scope) keeps its
-definitions in its own environment, and `provide` copies the listed ones
-to the root, so there it follows the definitions: a name the module has
-not defined is refused.
+definitions in its own environment, and its `provide` follows them: a name
+the module has not defined is refused.
+
+Of a scoped module's exports, two kinds are also bound in the root: a
+class, and a name the list marks `(global NAME)`:
+
+```x
+(provide x/type/iter Iter (global iter))
+```
+
+Any other export stays the module's own, and an importer names it:
+`(import x/tool/cov cov-check-fn)`. The mark is for the names of the
+sanctioned bare set, `tools/contract/bare-globals.x`, and `check-bare-globals`
+holds it there: a mark on any other name, or a sanctioned name exported
+unmarked, fails the gate. A name bound in the root has **one owner**: a
+second module that provides a name another owns is refused, naming both,
+unless it is re-exporting the very same object (the way `x/core` re-exports
+its submodules' names).
 
 ### `import`
 
@@ -172,10 +184,11 @@ The resolution rule is: `lib/<module-name>.x` where slashes in the module name b
 
 A file whose **first form** is `(module NAME)` is a *scoped module*: its
 top-level definitions live in an environment of their own, a child of the
-root, and only what `provide` lists reaches the root. Everything else — a
+root, and only what `provide` lists leaves it -- to the root for a class or
+a `(global NAME)`, to an importer for any other export. Everything else — a
 private helper, module state, an intermediate — stays inside the module and
 cannot be seen or clobbered from outside. Two scoped modules may use the
-same private name without collision.
+same private name without collision, and export the same plain name too.
 
 ```x
 (module x/example/counter)
@@ -185,10 +198,10 @@ same private name without collision.
 (provide x/example/counter bump total)
 ```
 
-`(import x/example/counter)` binds `bump` and `total` in the root, as any
-`provide` does; `%count` is not bound anywhere but the module. A selective
-`(import x/example/counter bump)` copies only `bump`, into the importer's
-own environment.
+`(import x/example/counter)` loads the module. `bump` and `total` are plain
+exports, so they stay the module's own, and `%count` is not bound anywhere
+but the module. A selective `(import x/example/counter bump)` copies `bump`
+into the importer's own environment, where it is called directly.
 
 As an expression, `(module NAME)` denotes the module's environment — a
 `(bindings . parent)` pair whose parent is the root — so a tool can walk a

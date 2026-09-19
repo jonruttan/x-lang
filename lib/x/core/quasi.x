@@ -56,5 +56,5 @@
   (example "(def x 1) (quasi (a ,x b))" "('a 1 'b)")
   "Quasiquote: template with unquote and splicing.")
 
-(doc (provide x/core/quasi quasi)
+(doc (provide x/core/quasi (global quasi))
   "Quasiquote: template with unquote and splicing.")

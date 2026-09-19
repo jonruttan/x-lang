@@ -30,7 +30,7 @@
 ### TCO loop does not leak allocations
 
 ```x
-(import x/tool/profile)
+(import x/tool/profile profile-reset alloc-count)
 (profile-reset)
 (do (def loop (fn (self n) (if (= n 0) #t (self (- n 1))))) (loop 10000))
 (< (alloc-count) 200000)
@@ -41,7 +41,7 @@
 ### fold over list stays bounded
 
 ```x
-(import x/tool/profile)
+(import x/tool/profile profile-reset alloc-count)
 (profile-reset)
 (List fold (fn (_ acc x) (+ acc x)) 0 (List range 1 1001))
 (< (alloc-count) 500000)
@@ -54,7 +54,7 @@
 ### forced GC frees discarded objects
 
 ```x
-(import x/tool/profile)
+(import x/tool/profile heap-collect-force)
 (def before (Heap count))
 (do (def waste (fn (self n) (if (= n 0) () (do (list 1 2 3) (self (- n 1)))))) (waste 1000))
 (def after-waste (Heap count))
@@ -68,7 +68,7 @@
 ### GC reduces heap after waste
 
 ```x
-(import x/tool/profile)
+(import x/tool/profile heap-collect-force)
 (def before (Heap count))
 (do (def waste (fn (self n) (if (= n 0) () (do (list 1 2 3) (self (- n 1)))))) (waste 1000))
 (def after-waste (Heap count))

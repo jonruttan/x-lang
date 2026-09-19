@@ -184,7 +184,7 @@
 ; make: (step state) -- the step is (st) -> (value . next-state); state trails.
 (Block method! Iter (lit make) (lit element) 1)
 
-(doc (provide x/type/iter Iter iter)
+(doc (provide x/type/iter Iter (global iter))
   (note "(Iter new seq) iterates lists, vectors, strings, and def-class instances")
   (note "(instances yield (name . value) pairs); empty sequences give an empty iterator.")
   (example "(Iter ->list (Iter new (Vector of 1 2 3)))" "(1 2 3)")

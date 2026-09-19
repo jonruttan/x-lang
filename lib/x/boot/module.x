@@ -505,19 +505,35 @@
   (fn (_ env sym value)
     (eval (list (lit def) sym (list (lit lit) value)) env)))
 
-; Export one name: record its owner, refuse a second owner, and bind it in
-; the root so every environment in the base reaches it -- which is what an
-; export has always meant here, and what every importer relies on.  A
-; module providing again is a reload and rebinds.  The value is read in the
-; provider's own environment `e`: a scoped module's, or the root.
+; Export one name.  The value is read in the provider's own environment
+; `e`: a scoped module's, or the root.  An export is recorded in the
+; registry, which is where a selective `import` finds it; the registry entry
+; is the module's namespace (docs/namespaces.md, "provide is the export").
 ;
-; One owner per name means one definition per name.  A module that lists a
-; name another module owns, bound to the very object the owner bound --
-; x/core re-exporting its submodules' predicates, a dialect toolbox
-; listing what it gathers -- is a re-export: it binds nothing new, and the
-; owner stays.  A different object is a second definition, and refused.
+; Only some exports are also bound in the root.  In an unscoped module every
+; definition is there already.  A scoped module binds there a class -- a
+; value `class?` answers true for, which exists only once x/type/class has
+; loaded -- and a name its provide marks (global NAME): the operatives and
+; functions of the sanctioned bare set, tools/contract/bare-globals.x, which
+; check-bare-globals holds the marks to.  Any other export of a scoped module
+; stays its own and is reached with a selective import.
+;
+; A name bound in the root has one owner, and one owner per name means one
+; definition per name.  A module that lists a name another module owns,
+; bound to the very object the owner bound -- x/core re-exporting its
+; submodules' predicates, a dialect toolbox listing what it gathers -- is a
+; re-export: it binds nothing new, and the owner stays.  A different object
+; is a second definition, and refused.  A module providing again is a
+; reload and rebinds.
 (def %module-export!
-  (fn (_ name sym e)
+  (fn (_ name spec e)
+    (def %global (pair? spec))
+    (def sym (match (%global (first (rest spec))) (#t spec)))
+    (match
+      ((match (%global (match ((eq? (first spec) (lit global)) (symbol? sym)) (#t #f))) (#t (symbol? spec))) ())
+      (#t (error (%str-append "provide: "
+            (%str-append (symbol->str name)
+              ": an export is a name or (global name)")))))
     (def %owner (%module-owner-of sym))
     ; The value, or the unbound marker.  An unscoped file may `provide` at
     ; its top, ahead of its definitions -- every lang bundle does -- and
@@ -533,7 +549,15 @@
             (%str-append (symbol->str name)
               (%str-append " exports "
                 (%str-append (symbol->str sym) ", which it does not define")))))))
+    ; Whether the name is bound in the root (see above).  `class?` is
+    ; unbound until x/type/class loads, and nothing is a class before then.
+    (def %root
+      (match
+        ((%module-same? e (%module-root-env)) #t)
+        (%global #t)
+        (#t (guard (_ #f) (class? %value)))))
     (match
+      ((not %root) ())
       ((eq? %owner ())
         (%set-first! %module-owner-cell
           (pair (pair sym name) (first %module-owner-cell))))
@@ -548,20 +572,28 @@
     ; An unscoped module's defs are already bound in the root by `include`,
     ; so `e` is the root and there is nothing to copy -- provide only
     ; records the owner.  A scoped module's value lives in its own
-    ; environment and is copied to the root here.
+    ; environment and is copied to the root here when it goes there.
     (match
       ((%module-same? e (%module-root-env)) ())
+      ((not %root) ())
       (#t (%module-define! (%module-root-env) sym %value)))))
 
 (def provide
-  (op (name . syms) e
-    (%module-register! name syms)
+  (op (name . specs) e
+    ; The registry records each export by its name, (global NAME) as NAME.
+    (%module-register! name
+      ((fn (self l)
+         (match
+           ((eq? l ()) ())
+           ((pair? (first l)) (pair (first (rest (first l))) (self (rest l))))
+           (#t (pair (first l) (self (rest l))))))
+       specs))
     (def %go
       (fn (self l)
         (match
           ((eq? l ()) ())
           (#t (do (%module-export! name (first l) e) (self (rest l)))))))
-    (%go syms)
+    (%go specs)
     ()))
 
 ; --- The module header (x-lang#719) ---

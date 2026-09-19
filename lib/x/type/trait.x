@@ -69,7 +69,7 @@
   (see def-class)
   "Define a trait: a named method bundle classes mix in with (with ...).")
 
-(doc (provide x/type/trait def-trait trait?)
+(doc (provide x/type/trait (global def-trait) (global trait?))
   (note "Traits are composition for shared behaviour; `delegates` (a def-class")
   (note "body form) is the storage-forwarding counterpart; `interface` remains")
   (note "the abstract contract on an extends-chain -- three distinct tools.")

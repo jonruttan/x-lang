@@ -84,12 +84,20 @@ namespace. Names that are classes or in the sanctioned bare set
 so `(List map …)`, `when`, `equal?` and `(help x/core/list)` behave as they
 do now.
 
+The loader tells the two apart by the value and by a mark. A class is
+recognised as one. A sanctioned name is marked where it is exported,
+`(provide x/type/iter Iter (global iter))`, since the boot never loads the
+contract file; `check-bare-globals` holds the marks to it in both
+directions, so a mark on any other name, or a sanctioned name exported
+unmarked, fails the gate.
+
 ### `import` binds
 
 `(import x/core/list map filter)` copies those two exports into the
 importer's own frame. The bare form `(import x/core/list)` loads the module
 and binds nothing locally; references from the importer resolve through the
-global tree at call time, as today.
+global tree at call time, as today -- which reaches only the module's
+classes and marked names. Any other export is reached by importing it.
 
 An importer that wants a whole module under one name takes it as a value:
 
