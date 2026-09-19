@@ -207,17 +207,18 @@ status=$?
 
 # drift simulation: the vendored copy grows a marker the platform lacks.
 # x/type/dict has a scope of its own, so the marker is defined in that scope
-# and exported by name: a def alone is not a name the run below can reach,
-# and the marker is there to be read.
-printf '(def %%pin-smoke-vendored "yes")\n(provide x/type/dict %%pin-smoke-vendored)\n' \
+# and exported by name, and the run below imports it by name: a plain export
+# of a scoped module stays the module's own.  The platform copy exports no
+# such name, so if it is the one that loaded, the import itself fails.
+printf '(def pin-smoke-vendored "yes")\n(provide x/type/dict pin-smoke-vendored)\n' \
 	>> "$_TMP/proj2/deps/x/type/dict.x"
 cat > "$_TMP/proj2/pin.xon" <<'EOF'
 (root "deps")
 EOF
 cat > "$_TMP/proj2/main.x" <<'EOF'
 (alloc-limit! 300000000)
-(import x/type/dict)
-(display %pin-smoke-vendored)
+(import x/type/dict pin-smoke-vendored)
+(display pin-smoke-vendored)
 (newline)
 EOF
 $TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/proj2/main.x" >"$_TMP/out" 2>"$_TMP/err"
