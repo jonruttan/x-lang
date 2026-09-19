@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`x/sys/posix` has a scope of its own** ([#719], step 4), hiding
+thirty-two names. Three other files read two of them. `x/repl/term` and
+`x/sys/socket` sign-folded their libc int returns with `%sys-fold`; they now
+call `(Sys %sign-fold r)`, a static on the file's own class, one class call
+beside each syscall. `x/tool/compile` fetched libc's `unlink` with `%resolve`
+to remove its generated C source; it now calls `(File unlink)`, inside a
+`guard` because File raises on a failure the raw call ignored.
+
 **The arithmetic refusal costs a boot nothing again.** `(Type
 refuse-arithmetic!)`, added above, installed its thirty handlers through
 `(Type push-op)` and `(List for-each)`, a class call per operator, and that

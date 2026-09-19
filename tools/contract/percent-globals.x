@@ -175,7 +175,10 @@
 ; class to live in, since the file runs before any module could hold them.
 (file "lib/x/boot/tower-compiled.x" 55)
 (file "lib/x/codec/sha256-jit.x" 34)
-(file "lib/x/codec/sha256.x" 32)
+; codec/sha256.x grew by one, 32 -> 33, for %cvt: the catalog converter it read
+; from the root while x/sys/posix bound it there.  posix is scoped, and under
+; the plain x dialect nothing else binds it (x-lang#719, step 4).
+(file "lib/x/codec/sha256.x" 33)
 (file "lib/x/codec/utf8.x" 6)
 (file "lib/x/core/alist.x" 12)
 (file "lib/x/core/arithmetic.x" 17)
@@ -226,7 +229,6 @@
 (file "lib/x/repl/loop.x" 18)
 (file "lib/x/rn.x" 1)
 (file "lib/x/sys/pact.x" 12)
-(file "lib/x/sys/posix.x" 32)
 ; asm-cache.x is a new file and 60 is nearly all DOORS: ~20 prim-refs and 10
 ; dlsym'd libc entries, fetched once at load because this module may not walk
 ; bytes and every catalog dispatch or symbol lookup on its path is a cost per
@@ -297,7 +299,7 @@
 ; half of the cache key, held apart from the expression so the pairing can be
 ; named and asserted (#590 -- a key without engine identity served
 ; ABI-stale objects that silently misread numbers).
-(file "lib/x/tool/compile.x" 26)
+(file "lib/x/tool/compile.x" 25)
 ; emit.x rose 54 to 57 for the CHARACTER write handler: the type handle,
 ; the char->int door, and the writer itself -- one emitter family, the
 ; same standing the int and symbol writers have.

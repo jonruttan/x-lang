@@ -108,14 +108,14 @@
           ; returned, which is what keeps it alive until restore!.
           (let ((saved (mkstr 128)) (raw (mkstr 128)))
             (let ((sp (toptr saved)) (rp (toptr raw)))
-              (if (< (%sys-fold (call (Term c-tcget) fd sp)) 0) ()
+              (if (< (Sys %sign-fold (call (Term c-tcget) fd sp)) 0) ()
                 (do
                   ; Fill the second region from the terminal too, rather than
                   ; copying bytes between them: one more cheap syscall buys
                   ; freedom from the struct's size and padding.
                   (call (Term c-tcget) fd rp)
                   (call (Term c-cfraw) rp)
-                  (if (< (%sys-fold (call (Term c-tcset) fd (Term tcsadrain) rp)) 0) ()
+                  (if (< (Sys %sign-fold (call (Term c-tcset) fd (Term tcsadrain) rp)) 0) ()
                     saved))))))))
 
     (method restore! (self (param fd INT "Descriptor to restore")
@@ -125,7 +125,7 @@
       (if (null? saved) #f
         (let ((call (prim-ref (lit ptr) (lit call)))
               (toptr (prim-ref (lit str) (lit ->ptr))))
-          (>= (%sys-fold (call (Term c-tcset) fd (Term tcsadrain) (toptr saved))) 0))))
+          (>= (Sys %sign-fold (call (Term c-tcset) fd (Term tcsadrain) (toptr saved))) 0))))
 
     ; --- geometry -----------------------------------------------------------
     ; Named `window`, not `size`: `size` is a retired spelling in this tree
@@ -145,7 +145,7 @@
         (let ((w (mkstr 16)))
           (let ((p (toptr w)))
             (let ((r (if (< (Term ioctl-id) 0) -1
-                       (%sys-fold (syscall (Term ioctl-id) fd (Term tiocgwinsz) w)))))
+                       (Sys %sign-fold (syscall (Term ioctl-id) fd (Term tiocgwinsz) w)))))
               (let ((cols (if (< r 0) 0 (pref p 2 2)))
                     (rows (if (< r 0) 0 (pref p 0 2))))
                 (pair (if (> cols 0) cols (Term %env-int "COLUMNS" 80))

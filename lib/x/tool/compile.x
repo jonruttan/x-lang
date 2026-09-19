@@ -36,9 +36,11 @@
 ; via normal type dispatch, each type emitting its own C representation.
 ; The result is compiled with cc, loaded via dlopen/dlsym.
 
-; --- libc resolves (fd-write / file-exists? live on the Sys class) ---
-
-(def %c-unlink (%resolve "unlink"))
+; --- libc (fd-write / file-exists? live on the Sys class) ---
+; The generated source is removed with (File unlink) once cc has built the
+; library.  File raises on failure where the raw libc call's result was
+; ignored, so the two call sites guard it: a leftover temp file never fails
+; a compile.
 
 ; --- Compile counter for unique temp file names ---
 
@@ -299,7 +301,7 @@
 
         (compile-write %src-path (compile-to-c expr fvars))
         (compile-cc %src-path %cache-path)
-        (%ptr-call %c-unlink %src-path)
+        (guard (_ ()) (File unlink %src-path))
 
         (def %lib (%dlopen %cache-path 1))
         (if (null? %lib) (Err raise 'io (%compile-load-failure "compile" %cache-path) ()))
@@ -424,7 +426,7 @@
 
         (compile-write %src-path %c-source)
         (compile-cc %src-path %cache-path)
-        (%ptr-call %c-unlink %src-path)
+        (guard (_ ()) (File unlink %src-path))
 
         (def %lib (%dlopen %cache-path 1))
         (if (null? %lib) (Err raise 'io (%compile-load-failure "compile-batch" %cache-path) ()))
