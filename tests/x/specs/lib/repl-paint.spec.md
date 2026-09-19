@@ -257,3 +257,54 @@ is typed; an open under the cursor is matched forward.
 ```
 ---
     #t
+
+## Brackets across the lines of an entry
+
+The marker is handed the whole entry so far, earlier lines included, so depths
+carry from one line to the next and a close paren on a later line finds the
+open paren it closes.
+
+### depths and partners carry across a newline
+
+```x
+(do (import x/repl/paint) (Paint marks "(def f\n  (+ 1 2))" 17))
+```
+---
+    ((0 0 #t) (9 1 #f) (15 1 #f) (16 0 #t))
+
+### a paren inside a string that spans lines is not counted
+
+```x
+(do (import x/repl/paint) (Paint marks "(f \"a\nb)\")" 10))
+```
+---
+    ((0 0 #t) (9 0 #t))
+
+### the painter asks what the text before it leaves open
+
+A string still open at the end of that text runs on into what is painted; a
+comment runs to the end of its line, so one that a newline ends leaves
+nothing open. A character literal such as `#\"` opens nothing.
+
+```x
+(do (import x/repl/paint)
+    (let ((open (eval (lit %paint-open-at-end) (module x/repl/paint))))
+      (list (open "(display \"hel\n")
+            (open "(f) ; note")
+            (open "(f) ; note\n")
+            (open "(f \"a\" #\\\" x")
+            (open "#\"a {x")
+            (open ()))))
+```
+---
+    ('string 'comment () () 'string ())
+
+### with colour off, the text before changes nothing
+
+```x
+(do (import x/repl/paint)
+    (let ((s "lo\")"))
+      (Str8 =? (Paint line s () "(display \"hel\n") s)))
+```
+---
+    #t
