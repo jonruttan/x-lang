@@ -52,5 +52,29 @@ for n in $listed; do
   echo "$live" | grep -qx "$n" || { echo "bare-globals: STALE manifest row: $n (def is gone -- delete the row; shrinking is the point)"; fail=1; }
 done
 
-[ "$fail" -eq 0 ] && echo "bare-globals: boot/core top level matches the manifest."
+# The (global NAME) marks (x-lang#719).  A scoped module's provide binds in
+# the root only its classes and the exports it marks (global NAME)
+# (lib/x/boot/module.x), so the marks are how a scoped module keeps a name of
+# this manifest global.  Every mark must name a manifest row, and every
+# manifest name a scoped module exports must carry the mark -- unmarked, it
+# would quietly stop being bound in the root.  Each line below is FILE and an
+# export, a marked one written @NAME; a provide list runs to its first `)`
+# once the marks are folded, and comments are stripped a line at a time.
+exports=$(for f in $(find lib -name '*.x' | sort); do
+  sed 's/;.*$//' "$f" | tr '\n' ' ' | sed 's/(global \([^()]*\))/@\1/g' \
+    | grep -o '(provide [^)]*' \
+    | awk -v f="$f" '{ for (i = 3; i <= NF; i++) print f " " $i }'
+done)
+echo "$exports" | while read -r f n; do
+  [ -n "$n" ] || continue
+  case "$n" in
+    @*) echo "$listed" | grep -qx "${n#@}" \
+          || { echo "bare-globals: $f marks (global ${n#@}), which is not a manifest row"; exit 1; } ;;
+    *)  grep -q '^(module ' "$f" || continue
+        echo "$listed" | grep -qx "$n" \
+          && { echo "bare-globals: $f exports $n, a manifest name, without (global $n) -- it would not be bound in the root"; exit 1; } ;;
+  esac
+done || fail=1
+
+[ "$fail" -eq 0 ] && echo "bare-globals: boot/core top level matches the manifest, and the scoped modules' (global ...) marks match it too."
 exit $fail

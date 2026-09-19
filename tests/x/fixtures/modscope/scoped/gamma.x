@@ -1,4 +1,7 @@
 (module scoped/gamma)
-; gamma.x -- provides a name alpha already owns.
-(def alpha-twice (fn (_ n) n))
-(provide scoped/gamma alpha-twice)
+; gamma.x -- exports a class under the name alpha's class has.  A class is
+; bound in the root, where alpha already owns the name.
+(import x/type/class)
+(def-class Alpha ()
+  (static (method twice (self n) n)))
+(provide scoped/gamma Alpha)

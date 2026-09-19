@@ -31,6 +31,6 @@
   (example "(raised (fn (_) (error \"boom\")))" "\"boom\"")
   "The value a thunk raised, or %no-raise when it did not raise.")
 
-(doc (provide x/test/assert throws? raised)
+(doc (provide x/test/assert (global throws?) (global raised))
   (example "(throws? (fn (_) no-such-binding))" "#t")
   "Test-support assertions: error-path coverage for user test code.")

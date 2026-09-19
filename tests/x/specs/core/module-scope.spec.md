@@ -3,34 +3,40 @@
 
 A file whose first form, after its comment banner, is `(module NAME)` is
 evaluated in a child of the root: its top-level definitions are private to it, `provide` is the only
-door out, and a selective `import` is the door in. The rules for every
+door out, and a selective `import` is the door in. Of its exports, only a
+class and a name its provide marks `(global NAME)` are also bound in the
+root; any other export is reached with a selective import. The cases share
+one session, so each selective import below is made inside a `fn`, whose
+frame it binds, and never at the top, which is the root. The rules for every
 name conflict the doors can meet are in
 [docs/namespaces.md](../../../../docs/namespaces.md). The fixtures live
 under `tests/x/fixtures/modscope`.
 
 ## a scoped module keeps its private names
 
-### an export is bound in the root, a private name is not
+### a plain export is not bound in the root; a selective import binds it
 
 ```x
 (do (import-path! "tests/x/fixtures/modscope")
     (import scoped/alpha)
-    (list (alpha-twice 1) (guard (_ 'hidden) %helper)))
+    (list (guard (_ 'unbound) (alpha-twice 1))
+          ((fn (_) (import scoped/alpha alpha-twice) (alpha-twice 1)))
+          (guard (_ 'hidden) %helper)))
 ```
 ---
-    (3 'hidden)
+    ('unbound 3 'hidden)
 
 ### a private name is reached by the exports that close over it
 
 ```x
 (do (import-path! "tests/x/fixtures/modscope")
-    (import scoped/alpha)
-    (list (alpha-bump) (alpha-bump) (guard (_ 'hidden) %state)))
+    ((fn (_) (import scoped/alpha alpha-bump)
+       (list (alpha-bump) (alpha-bump) (guard (_ 'hidden) %state)))))
 ```
 ---
     (1 2 'hidden)
 
-### a class defined in the module is an export like any other
+### a class the module exports is bound in the root
 
 ```x
 (do (import-path! "tests/x/fixtures/modscope")
@@ -57,16 +63,15 @@ under `tests/x/fixtures/modscope`.
 
 ```x
 (do (import-path! "tests/x/fixtures/modscope")
-    (import scoped/alpha)
-    (import scoped/beta)
-    (list (alpha-twice 1) (beta-tenfold 3)))
+    ((fn (_) (import scoped/alpha alpha-twice) (import scoped/beta beta-tenfold)
+       (list (alpha-twice 1) (beta-tenfold 3)))))
 ```
 ---
     (3 30)
 
-## export against export: one owner per name
+## export against export: one owner per name in the root
 
-### a second module providing a name another owns is refused, naming both
+### a second module exporting a class another owns is refused, naming both
 
 ```x
 (do (import-path! "tests/x/fixtures/modscope")
@@ -74,7 +79,7 @@ under `tests/x/fixtures/modscope`.
     (guard (e e) (import scoped/gamma)))
 ```
 ---
-    "provide: scoped/gamma exports alpha-twice, owned by scoped/alpha"
+    "provide: scoped/gamma exports Alpha, owned by scoped/alpha"
 
 ### the refused module leaves the owner's binding as it was
 
@@ -82,10 +87,44 @@ under `tests/x/fixtures/modscope`.
 (do (import-path! "tests/x/fixtures/modscope")
     (import scoped/alpha)
     (guard (e ()) (import scoped/gamma))
-    (alpha-twice 1))
+    (Alpha twice 1))
 ```
 ---
     3
+
+### two modules may export the same plain name: an import names the module
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (import scoped/alpha)
+    (import scoped/theta)
+    ((fn (_) (import scoped/alpha alpha-twice) (import scoped/theta (alpha-twice theta-twice))
+       (list (alpha-twice 1) (theta-twice 1)))))
+```
+---
+    (3 100)
+
+## what reaches the root
+
+### an export marked (global NAME) is bound in the root, a plain one is not
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (import scoped/marks)
+    (list (marks-six) (guard (_ 'unbound) (marks-plain))
+          ((fn (_) (import scoped/marks marks-plain) (marks-plain)))))
+```
+---
+    (6 'unbound 60)
+
+### an export that is neither a name nor (global name) is refused
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (guard (e e) (import scoped/badmark)))
+```
+---
+    "provide: scoped/badmark: an export is a name or (global name)"
 
 ## the header names the module
 
@@ -113,7 +152,8 @@ under `tests/x/fixtures/modscope`.
 ```x
 (do (import-path! "tests/x/fixtures/modscope")
     (import scoped/banner)
-    (list (banner-five) (guard (_ 'hidden) %secret)))
+    ((fn (_) (import scoped/banner banner-five)
+       (list (banner-five) (guard (_ 'hidden) %secret)))))
 ```
 ---
     (5 'hidden)
@@ -159,8 +199,7 @@ read after the forms before it have run.
 
 ```x
 (do (import-path! "tests/x/fixtures/modscope")
-    (import scoped/reads)
-    reads-next)
+    ((fn (_) (import scoped/reads reads-next) reads-next)))
 ```
 ---
     (1 2 3)
@@ -169,8 +208,8 @@ read after the forms before it have run.
 
 ```x
 (do (import-path! "tests/x/fixtures/modscope")
-    (import scoped/unit)
-    (list (unit-reads) (guard (_ 'hidden) %unit-after)))
+    ((fn (_) (import scoped/unit unit-reads)
+       (list (unit-reads) (guard (_ 'hidden) %unit-after)))))
 ```
 ---
     (2 'hidden)
@@ -178,22 +217,25 @@ read after the forms before it have run.
 ## a scoped file loaded by path
 
 `include` and `include-once` name no module, so a header under either takes
-whatever module the file names. This is how the boot files load.
+whatever module the file names. This is how the boot files load. A module
+loaded by path is not marked loaded under its name, so these cases reach a
+plain export through the module's environment, `(module NAME)`.
 
 ### a scoped file included once keeps its private names and exports the rest
 
 ```x
 (do (include-once "tests/x/fixtures/modscope/scoped/once.x")
-    (list (once-seven) (guard (_ 'hidden) %once-secret) (not (null? (module scoped/once)))))
+    (list ((eval (lit once-seven) (module scoped/once))) (guard (_ 'hidden) %once-secret)
+          (guard (_ 'unbound) (once-seven))))
 ```
 ---
-    (7 'hidden #t)
+    (7 'hidden 'unbound)
 
 ### a scoped file loaded by a plain include keeps its private names too
 
 ```x
 (do (include "tests/x/fixtures/modscope/scoped/plainly.x")
-    (list (plainly-eleven) (guard (_ 'hidden) %plainly-secret)))
+    (list ((eval (lit plainly-eleven) (module scoped/plainly))) (guard (_ 'hidden) %plainly-secret)))
 ```
 ---
     (11 'hidden)
@@ -218,8 +260,7 @@ file loads by path is whatever module it names, which is how
 
 ```x
 (do (import-path! "tests/x/fixtures/modscope")
-    (import scoped/alpha)
-    (eq? (alpha-self) (module scoped/alpha)))
+    ((fn (_) (import scoped/alpha alpha-self) (eq? (alpha-self) (module scoped/alpha)))))
 ```
 ---
     #t
@@ -262,19 +303,20 @@ file loads by path is whatever module it names, which is how
 ---
     50
 
-### the copy is the importer's: a later rebinding of the global does not reach it
+### the copy is the importer's: a later rebinding in the module does not reach it
 
-The global rebind is restored so the case leaves the shared binding as it
-found it -- the file's cases share one session.
+The module's binding is restored so the case leaves it as it found it -- the
+file's cases share one session.
 
 ```x
 (do (import-path! "tests/x/fixtures/modscope")
     (import scoped/beta)
-    (def %orig beta-tenfold)
+    (def %env (module scoped/beta))
+    (def %orig (eval (lit beta-tenfold) %env))
     (def %held ((fn (_) (import scoped/beta (beta-tenfold t10)) (fn (_ n) (t10 n)))))
-    (set! beta-tenfold (fn (_ n) 0))
+    (eval (lit (set! beta-tenfold (fn (_ n) 0))) %env)
     (def %r (%held 6))
-    (set! beta-tenfold %orig)
+    (eval (list (lit set!) (lit beta-tenfold) (list (lit lit) %orig)) %env)
     %r)
 ```
 ---
@@ -297,7 +339,7 @@ found it -- the file's cases share one session.
     ((fn (_) (def beta-tenfold 5) (guard (e e) (import scoped/beta beta-tenfold)))))
 ```
 ---
-    "import: beta-tenfold from scoped/beta is already bound here by scoped/beta"
+    "import: beta-tenfold from scoped/beta is already bound here"
 
 ### a name that is not exported is refused
 
