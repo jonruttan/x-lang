@@ -51,9 +51,10 @@
 
 ; Sign-fold an FFI int return -- the canonical fold (and the full story:
 ; Linux ptr-call zero-extends libc's -1; Darwin sign-extends) is
-; %sys-fold in x/sys/posix, imported above. Alias kept for the call
-; sites below.
-(def %sk-fold %sys-fold)
+; %sys-fold in x/sys/posix, imported above, which that module keeps private
+; and serves as (Sys %sign-fold). One class call per socket syscall, beside
+; the syscall itself; the name is kept for the call sites below.
+(def %sk-fold (fn (_ r) (Sys %sign-fold r)))
 
 ; Parse a dotted quad into its four octets; tag 'value Err on anything
 ; else (no DNS here by design).

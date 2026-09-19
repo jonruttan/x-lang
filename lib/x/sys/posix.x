@@ -1,4 +1,6 @@
 ; posix.x -- Sys: POSIX system calls as static methods, via FFI (%dlsym + ptr-call)
+(module x/sys/posix)
+
 (import x/core/list)
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
@@ -88,6 +90,10 @@
 
 (def-class Sys ()
   (static
+    ; The sign-fold of an FFI int return (%sys-fold, above), for the other
+    ; files that call libc themselves: x/repl/term and x/sys/socket.
+    (method %sign-fold (self r)
+      (%sys-fold r))
     ; --- Process control ---
     (method fork (self)
       (doc "Fork the current process." (returns INT "PID of child in parent, 0 in child, -1 on error"))

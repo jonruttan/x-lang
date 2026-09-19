@@ -226,7 +226,6 @@
 (file "lib/x/repl/loop.x" 18)
 (file "lib/x/rn.x" 1)
 (file "lib/x/sys/pact.x" 12)
-(file "lib/x/sys/posix.x" 32)
 ; asm-cache.x is a new file and 60 is nearly all DOORS: ~20 prim-refs and 10
 ; dlsym'd libc entries, fetched once at load because this module may not walk
 ; bytes and every catalog dispatch or symbol lookup on its path is a cost per
@@ -297,7 +296,7 @@
 ; half of the cache key, held apart from the expression so the pairing can be
 ; named and asserted (#590 -- a key without engine identity served
 ; ABI-stale objects that silently misread numbers).
-(file "lib/x/tool/compile.x" 26)
+(file "lib/x/tool/compile.x" 25)
 ; emit.x rose 54 to 57 for the CHARACTER write handler: the type handle,
 ; the char->int door, and the writer itself -- one emitter family, the
 ; same standing the int and symbol writers have.
