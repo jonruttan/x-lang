@@ -111,8 +111,10 @@
     ; because "one or two names" is not the rule everywhere -- fold's
     ; callback is genuinely binary.
 
+    ; The catalog's converter is fetched here, on the way to the error: this
+    ; file binds no %cvt of its own, and x/sys/posix's is private to it.
     (method %shape-error (self what n)
-      (error (%str-append what (%cvt n %string))))
+      (error (%str-append what ((prim-ref (lit convert) (lit to)) n %string))))
 
     ; element: (x) is the element; (i x) is the 0-based index and THEN the
     ; element -- index first, the order Gen enumerate's (index . value) pair

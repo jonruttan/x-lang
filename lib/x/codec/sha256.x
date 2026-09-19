@@ -25,6 +25,9 @@
 ; ALL arithmetic rides the cached int prims: under the tower, bare
 ; +/-/* return tower numbers the C bit ops reject (>> errors) -- the
 ; hash.x precedent, met here via the doctest gate (which runs tower-up).
+; The converter is fetched here too: x/sys/posix's %cvt, which this file
+; used to read from the root, is private to that module.
+(def %cvt (prim-ref (lit convert) (lit to)))
 (def %sha+ (prim-ref 'int '+))
 (def %sha- (prim-ref 'int '-))
 (def %sha* (prim-ref 'int '*))

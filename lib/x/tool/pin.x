@@ -35,6 +35,9 @@
 
 (module x/tool/pin)
 (def %pin-floor (first %module-loaded-cell))
+; The catalog's converter, which this module read from the root while
+; x/sys/posix bound it there.
+(def %cvt (prim-ref (lit convert) (lit to)))
 
 (import x/sys/file)
 ; Eager on purpose, both: sha256 (and posix, which fetch's curl runner

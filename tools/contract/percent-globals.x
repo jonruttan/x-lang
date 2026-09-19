@@ -175,7 +175,10 @@
 ; class to live in, since the file runs before any module could hold them.
 (file "lib/x/boot/tower-compiled.x" 55)
 (file "lib/x/codec/sha256-jit.x" 34)
-(file "lib/x/codec/sha256.x" 32)
+; codec/sha256.x grew by one, 32 -> 33, for %cvt: the catalog converter it read
+; from the root while x/sys/posix bound it there.  posix is scoped, and under
+; the plain x dialect nothing else binds it (x-lang#719, step 4).
+(file "lib/x/codec/sha256.x" 33)
 (file "lib/x/codec/utf8.x" 6)
 (file "lib/x/core/alist.x" 12)
 (file "lib/x/core/arithmetic.x" 17)
