@@ -20,12 +20,11 @@
 ; It cannot ride the body include either: the REPL reads the CURRENT
 ; input source, and inside an include frame that is the file's EOF, not
 ; the session's stdin (see boot/helium.x).
-; THE LINE EDITOR IS AN INTERACTIVE-ONLY COST, so it is imported here, on
-; the branch that hands a session to a person, and not from the boot: it
-; pulls in the dict, file and path layers, and a batch run that will never
-; see a prompt should not pay for a line editor.  On load it replaces `repl`
-; -- the seam x-python and x-ash already use to install a reader of their
-; own -- but only when there is a terminal to edit on, so a pipe or a -f run
-; reaches the C reader's loop exactly as before.  Guarded: a build without
-; those modules must still start a REPL, just a plain one.
+; The line editor is imported here, where a session is handed to a person,
+; rather than in the boot: it loads the dict, file and path layers, which a
+; batch run has no use for.  On load it replaces `repl`, the seam x-python
+; and x-ash also use for their own readers, but only when there is a
+; terminal to edit on, so a pipe or a -f run reads through the C reader's
+; loop as before.  The guard leaves a plain REPL on a build without those
+; modules.
 (unless %batch? (do (guard (_ ()) (import x/repl/line)) (%banner) (repl)))

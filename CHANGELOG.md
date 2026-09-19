@@ -19,6 +19,12 @@ leaves open. The painter's cache compares that text by identity, so moving the
 cursor still repaints nothing. `%repl-marks` now receives the whole entry, and
 `%repl-paint` a third argument, which a painter written for fewer ignores.
 
+**A session started without `-l` has the line editor.** `lib/x.x`, the
+default entry, boots helium, but its launcher lacked the
+`(import x/repl/line)` that `lib/he.x`, `lib/xe.x` and `lib/rn.x` carry, so
+a bare `sh x.sh` read lines through the plain loop, without the editor's
+keys, history, Tab or colour. Its launcher is now the same as theirs.
+
 **`x/sys/posix` has a scope of its own** ([#719], step 4), hiding
 thirty-two names. Three other files read two of them. `x/repl/term` and
 `x/sys/socket` sign-folded their libc int returns with `%sys-fold`; they now
