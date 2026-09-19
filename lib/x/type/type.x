@@ -235,19 +235,25 @@
     ; installs it on string, list, pair and vector, and x/type/bool on BOOL.
     ; One raising handler per operator, so the message names both.  `=` is
     ; left out on purpose: it is a value-word compare in the fallthrough,
-    ; which interned symbols answer correctly by pointer.
+    ; which interned symbols answer correctly by pointer.  It runs at every
+    ; boot, five types by six operators, so it calls the push-op prim itself
+    ; in a plain loop: through (Type push-op) and (List for-each) it cost 0.7%
+    ; of an x-core boot's evaluations.
     (method refuse-arithmetic! (self (param ts ANY "Type struct (from Type by-atom)")
                                      (param tname STRING "The type's name, as the error message spells it"))
       (doc "Make a type refuse the arithmetic operators (+ - * / % <) with an err:type naming the operator and TNAME, where the C prims would otherwise fall through to integer arithmetic on the object's pointer."
         (returns ANY "nil"))
-      (List for-each
-        (fn (_ op)
-          (Type push-op ts op
-            (fn (_ a b)
-              (Err raise (lit type)
-                (%str-append "no " (%str-append (symbol->str op) (%str-append " for " tname)))
-                ()))))
-        (list (lit +) (lit -) (lit *) (lit /) (lit %) (lit <))))
+      (let ((push-op (prim-ref (lit type) (lit push-op))))
+        (let loop ((ops (list (lit +) (lit -) (lit *) (lit /) (lit %) (lit <))))
+          (if (null? ops) ()
+            (let ((op (first ops)))
+              (do
+                (push-op ts op
+                  (fn (_ a b)
+                    (Err raise (lit type)
+                      (%str-append "no " (%str-append (symbol->str op) (%str-append " for " tname)))
+                      ())))
+                (loop (rest ops))))))))
     (method cast! (self (param obj ANY "Object to retag") (param src ANY "Object whose type tag to copy"))
       (doc "LOW-LEVEL: overwrite OBJ's type tag with SRC's (raw pointer write)."
         (returns ANY "OBJ, retagged"))

@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The arithmetic refusal costs a boot nothing again.** `(Type
+refuse-arithmetic!)`, added above, installed its thirty handlers through
+`(Type push-op)` and `(List for-each)`, a class call per operator, and that
+added 0.7% to the evaluations of every x-core boot. It now calls the push-op
+primitive itself in a plain loop, and an x-core boot takes 22,437,175
+evaluations, fewer than the 22,451,999 it took before the door existed,
+counted with the engine's profiling build. The messages are unchanged.
+
 **The %-budget and the duplicate-definition gate look only at what stays
 global** ([#719], step 5). A scoped module's top-level definitions bind in
 its own environment, so its %-names never reach the global tree.
