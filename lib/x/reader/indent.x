@@ -273,8 +273,7 @@
       ; than reported as a block that opened.
       (List reverse (rest (List reverse (rest r)))))))
 
-(doc (provide x/reader/indent Indent
-       %indent-advance %indent-scan %indent-measure %indent-classify)
+(doc (provide x/reader/indent Indent)
   (note "Policy is constructor-set: tab stop and what an unmatched dedent means. Defaults are SRFI-110's, which are also Python's.")
   (note "Blank and comment-only lines are the CALLER's business: a line that produces no column never reaches feed.")
   (note "Registered under catalog ns `indent` (advance/scan/measure/classify) for per-character callers who must not dispatch.")

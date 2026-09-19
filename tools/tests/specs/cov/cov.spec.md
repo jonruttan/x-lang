@@ -219,7 +219,7 @@ is nil) because nothing exercised this layer.
 
 ```x
 (do
-  (import x/tool/cov)
+  (import x/tool/cov cov-count-tree)
   (def f (fn (_ x) (+ x 1)))
   (def spine ((prim-ref (lit obj) (lit ref)) f 1))
   (display (> (first (rest (cov-count-tree (first (rest spine)) 0))) 0)))
@@ -231,7 +231,7 @@ is nil) because nothing exercised this layer.
 
 ```x
 (do
-  (import x/tool/cov)
+  (import x/tool/cov cov-check-fn)
   (def f (fn (_ x) (+ x 1)))
   (f 1)
   (def r (cov-check-fn (lit f) f #f))
@@ -246,7 +246,7 @@ is nil) because nothing exercised this layer.
 
 ```x
 (do
-  (import x/tool/cov)
+  (import x/tool/cov cov-check-class)
   (def-class CovProbe ()
     (static
       (method touched (self x) (+ x 1))

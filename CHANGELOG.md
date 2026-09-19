@@ -25,6 +25,23 @@ default entry, boots helium, but its launcher lacked the
 a bare `sh x.sh` read lines through the plain loop, without the editor's
 keys, history, Tab or colour. Its launcher is now the same as theirs.
 
+**A scoped module's plain exports stay its own** ([#719]). `provide`
+records every export in the registry, where a selective `import` finds it,
+and now binds in the root only what `docs/namespaces.md` says it should: a
+class, and a name the provide list marks `(global NAME)`. The marks are for
+the sanctioned bare set, and `check-bare-globals` holds them to it both
+ways. Any other export of a scoped module is reached with
+`(import MODULE NAME)`, which copies it into the importer's own frame.
+- The nine sanctioned names that scoped modules export carry the mark:
+  `quasi`, `iter`, `def-record`, `def-trait`, `trait?`, `def-generic`, `on`,
+  `throws?` and `raised`.
+- `x/tool/cov`'s and `x/tool/profile`'s functions are imported by the tool
+  script and the specs that call them, and `x/reader/indent` stops
+  exporting its four catalog functions.
+- The one-owner rule applies to the names that reach the root, so two
+  scoped modules may export the same plain name; `check-dup-defs` counts,
+  for a scoped module, only what reaches the root.
+
 **`x/sys/posix` has a scope of its own** ([#719], step 4), hiding
 thirty-two names. Three other files read two of them. `x/repl/term` and
 `x/sys/socket` sign-folded their libc int returns with `%sys-fold`; they now

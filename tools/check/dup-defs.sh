@@ -24,14 +24,17 @@
 # env.  The driver scripts load x-core and then their tool file, so tools/
 # globals land in the same env.
 #
-# A scoped module, whose first form is (module NAME), is checked for what it
-# provides and nothing else (x-lang#719, step 5).  Its other top-level defs
-# bind in the module's own environment, so two scoped modules may use the
-# same private name, and a scoped module may reuse a global's, both by
-# design.  A provided name does reach the global tree, where a plain def of
-# the same name in an unscoped file is exactly the collision this check is
-# for.  The provided names come from a pre-pass over the scoped files' provide
-# lists, fed in as the first input.
+# A scoped module, whose first form is (module NAME), is checked only for the
+# names it binds in the root (x-lang#719).  Its other top-level defs bind in
+# the module's own environment, so two scoped modules may use the same
+# private name, and a scoped module may reuse a global's, both by design.
+# Its provide binds in the root the exports it marks (global NAME) and the
+# exports that are classes (lib/x/boot/module.x); there a plain def of the
+# same name in an unscoped file is exactly the collision this check is for.
+# Any other export stays the module's own, reached with a selective import.
+# A pre-pass over the scoped files' provide lists, fed in as the first input,
+# says which exports are marked (G) and which are plain (E); of the plain
+# ones, a (def-class NAME ...) and a (def NAME Class) alias count as classes.
 #
 # Extraction is a form scanner (paren depth outside strings, char literals and
 # ; comments), not a line grep.  Recognized definers: (def NAME ...),
@@ -62,13 +65,17 @@ cd "$PROJECT_DIR" || exit 1
 
 _FILES=$(find lib apps tools -name '*.x' ! -path 'lib/img.x' 2>/dev/null | sort)
 
-# One S line per scoped file, and one P line per name its provide lists name.
-# A provide list runs to its first `)`; comments are stripped a line at a time.
+# One S line per scoped file, then a G line per export it marks (global NAME)
+# and an E line per plain export.  The marks are folded to @NAME first, so a
+# provide list runs to its first `)`; comments are stripped a line at a time.
 _scoped_provides() {
   for _f in $(grep -l '^(module ' $_FILES); do
     printf 'S\t%s\n' "$_f"
-    sed 's/;.*$//' "$_f" | tr '\n' ' ' | grep -o '(provide [^)]*' \
-      | awk -v f="$_f" '{ for (i = 3; i <= NF; i++) printf "P\t%s\t%s\n", f, $i }'
+    sed 's/;.*$//' "$_f" | tr '\n' ' ' | sed 's/(global \([^()]*\))/@\1/g' \
+      | grep -o '(provide [^)]*' \
+      | awk -v f="$_f" '{ for (i = 3; i <= NF; i++)
+          if ($i ~ /^@/) printf "G\t%s\t%s\n", f, substr($i, 2)
+          else printf "E\t%s\t%s\n", f, $i }'
   done
 }
 
@@ -114,7 +121,7 @@ function split_children(f, kids,    s, i, n, c, depth, start, cnt, str) {
 # Record one top-level form (already quote-normalized).  A (do ...) is
 # descended: %do-seq tail-evals its children in the CALLER env, so a
 # def directly inside binds globally, same as a bare top-level def.
-function handle(f,    tmp, name, body, key, kids, nk, j) {
+function handle(f,    tmp, name, body, key, kids, nk, j, isclass) {
   if (f ~ /^\(do[ \t(]/) {
     nk = split_children(f, kids)
     for (j = 1; j <= nk; j++) handle(kids[j])
@@ -122,14 +129,19 @@ function handle(f,    tmp, name, body, key, kids, nk, j) {
   }
   tmp = f
   if (tmp ~ /^\(doc[ \t]*\(def(-class)?[ \t]/) sub(/^\(doc[ \t]*/, "", tmp)
+  isclass = (tmp ~ /^\(def-class[ \t]/)
   if (tmp ~ /^\(def(-class)?[ \t]/) {
     sub(/^\(def(-class)?[ \t]+/, "", tmp)
     name = tmp
     sub(/[ \t)].*$/, "", name)
     body = tmp
     sub(/^[^ \t]+[ \t]*/, "", body)
-    # A scoped module keeps what it does not provide (see the header).
-    if ((FILENAME in scoped) && !((FILENAME SUBSEP name) in provided)) name = ""
+    # A scoped module keeps what it does not bind in the root (see the
+    # header): a marked export, or an exported class or class alias, is kept.
+    if (FILENAME in scoped) {
+      key = FILENAME SUBSEP name
+      if (!((key in marked) || ((key in exported) && (isclass || body ~ /^[A-Z][^ \t()]*\)?$/)))) name = ""
+    }
     if (name != "") {
       key = name SUBSEP FILENAME
       if (!(key in seen)) {
@@ -184,7 +196,8 @@ function flush_form(    tmp) {
 FILENAME == "-" {
   split($0, pp, "\t")
   if (pp[1] == "S") scoped[pp[2]] = 1
-  else if (pp[1] == "P") provided[pp[2] SUBSEP pp[3]] = 1
+  else if (pp[1] == "G") marked[pp[2] SUBSEP pp[3]] = 1
+  else if (pp[1] == "E") exported[pp[2] SUBSEP pp[3]] = 1
   next
 }
 

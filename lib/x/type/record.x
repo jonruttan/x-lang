@@ -71,6 +71,6 @@
   (see def-class)
   "Define a lightweight named-field record type (a class with with/=? built in).")
 
-(doc (provide x/type/record def-record)
+(doc (provide x/type/record (global def-record))
   (example "(do (def-record Pt x y) ((new Pt 1 2) y))" "2")
   "Lightweight named-field records over the class system.")

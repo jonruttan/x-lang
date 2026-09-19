@@ -259,7 +259,7 @@
   (see def-generic)
   "Add a method to a generic function for a signature of argument types.")
 
-(doc (provide x/type/generic Generic def-generic on)
+(doc (provide x/type/generic Generic (global def-generic) (global on))
   (note "Message passing stays the hot path; generics are the multi-argument cold path.")
   (note "The ambiguity rule: pointwise specificity, then the cvt from-lattice, then a")
   (note "teaching error naming both candidates. No scalar rank, by ruling.")
