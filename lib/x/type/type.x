@@ -7,6 +7,7 @@
 ; (prim-ref ...) per the caching rule. Modules that wire types at load
 ; fetch-and-cache the helpers they use instead of calling the class:
 ;   (def %type-push-op (prim-ref (lit type) (lit push-op)))
+(module x/type/type)
 
 (import x/type/class)
 

@@ -503,7 +503,7 @@
 ### converts list to vector
 
 ```x
-(Vector vector? (Convert to (list 1 2 3) %vector))
+(Vector vector? (Convert to (list 1 2 3) (Type of #(0))))
 ```
 ---
     #t
@@ -511,7 +511,7 @@
 ### converted vector has correct contents
 
 ```x
-(Vector ->list (Convert to (list 1 2 3) %vector))
+(Vector ->list (Convert to (list 1 2 3) (Type of #(0))))
 ```
 ---
     (1 2 3)
@@ -519,7 +519,7 @@
 ### nil returns nil not vector
 
 ```x
-(null? (Convert to () %vector))
+(null? (Convert to () (Type of #(0))))
 ```
 ---
     #t

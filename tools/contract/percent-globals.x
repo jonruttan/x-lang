@@ -199,7 +199,6 @@
 (file "lib/x/platform/socket.x" 1)
 (file "lib/x/platform/syscall.x" 7)
 (file "lib/x/protocol/seq.x" 1)
-(file "lib/x/protocol/str/str8.x" 14)
 ; intrinsics.x rose 5 to 8 for the variant channel: %score-variant-cell (the raw
 ; door to the cell the engine hangs off the score), %score-variant! (the
 ; analyser's end) and %read-variant (the reader's end) -- per-token intrinsics on
@@ -312,8 +311,6 @@
 (file "lib/x/type/promise.x" 6)
 (file "lib/x/type/shape-rows.x" 2)
 (file "lib/x/type/struct.x" 48)
-(file "lib/x/type/type.x" 3)
-(file "lib/x/type/vector.x" 17)
 (file "tools/check/boot-order.x" 33)
 (file "tools/check/dialect-cover.x" 9)
 (file "tools/check/doc-forms.x" 5)

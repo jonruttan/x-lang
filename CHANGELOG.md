@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`x/type/vector`, `x/protocol/str/str8` and `x/type/type` have scopes of
+their own** ([#719], step 4), and two doors replace the five private names
+other files read from the first two. `(Convert to-int v what)` is a value
+as an INT, converting through the registry and raising `what` when there is
+no conversion: the coercion `x/type/array`, `x/type/gen` and `x/protocol/str/utf8`
+had each borrowed from a neighbour's private (`%vec->int`, `%str8->int`).
+The hot callers test for an INT themselves and reach the door only to
+convert. `(Str8 %check v what)` is the string check StrUtf8's own paths
+used through str8's private, homed on the class as `(Iter %check)` is.
+`x/doc/doc-gen` renders with `(Str str ...)`, which is what str8's
+`%str-build` did. The type-convert spec asks `(Type of #(0))` for the vector
+type instead of vector's private handle. Four rows of the private-read
+budget go down: array to none, utf8 by two, gen and doc-gen by one each.
+
 **Cross-file reads of private names may only decrease** ([#719]). Until a
 module is scoped, its `%` names are globals, and other files read them:
 127 files read 954 such names today, most of them the number tower reading

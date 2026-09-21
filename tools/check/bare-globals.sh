@@ -74,6 +74,9 @@ echo "$exports" | while read -r f n; do
         echo "$listed" | grep -qx "$n" \
           && { echo "bare-globals: $f exports $n, a manifest name, without (global $n) -- it would not be bound in the root"; exit 1; } ;;
   esac
+  # The loop's status is its last body command's, and for a plain export
+  # that is the test above failing benignly; only the exits above are a fail.
+  true
 done || fail=1
 
 [ "$fail" -eq 0 ] && echo "bare-globals: boot/core top level matches the manifest, and the scoped modules' (global ...) marks match it too."
