@@ -25,7 +25,8 @@ sh x.sh -l xe
 | ctrl-k, ctrl-u | kill to the end, kill to the start |
 | ctrl-y | yank back what was last killed |
 | Up / Down, ctrl-p / ctrl-n | history |
-| Tab | complete |
+| Tab | complete; after only whitespace, with nothing to complete, insert a tab |
+| ctrl-v | insert the next key as typed: ctrl-v Tab is a tab |
 | ctrl-l | clear the screen |
 | ctrl-c | abandon the line, keep the session |
 | ctrl-d | end the session (on an empty line); delete forwards otherwise |
@@ -91,6 +92,13 @@ inside:
 the search, because `Str8/starts?` is what the registry actually calls it. A
 Tab that could mean several things extends as far as they agree; a second Tab
 lists them.
+
+A Tab with nothing to complete and only whitespace before the cursor inserts a
+tab, so an indented line in a language that reads indentation is typed at the
+prompt as it is in a file. After text, a Tab that completes nothing changes
+nothing; ctrl-v followed by Tab inserts one there. A tab is drawn to the next
+multiple of eight columns, the stops a terminal has unless they have been
+moved.
 
 ## Colour
 

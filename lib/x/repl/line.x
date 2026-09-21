@@ -38,10 +38,14 @@
 (import x/repl/edit)
 (import x/repl/term)
 (import x/repl/paint)
+(import x/reader/indent)
 
 (def %ln-blen (prim-ref (lit str) (lit byte-len)))
 (def %ln-bsub (prim-ref (lit str) (lit byte-sub)))
 (def %ln-append (prim-ref (lit str) (lit append)))
+(def %ln-bref (prim-ref (lit str) (lit byte-ref)))
+(def %ln-cint (prim-ref (lit char) (lit ->int)))
+(def %ln-byte (fn (_ s i) (%ln-cint (%ln-bref s i))))
 
 ; The session's buffer: one Edit, so history survives from line to line.
 (def %ln-buffer ())
@@ -71,26 +75,50 @@
 ; counts it as one; that is a known and bounded wrongness -- the cursor sits
 ; one column left of where it looks like it should on a CJK line -- and
 ; fixing it needs a width table this tree does not have.)
-(def %ln-columns
-  (fn (_ s from to)
-    (let ((go (fn (self i k)
-                (if (>= i to) k (self (Edit next-start s i) (+ k 1))))))
-      (go from 0))))
+;
+; A tab occupies the columns up to the next multiple of eight, the stops a
+; terminal has unless something has moved them, so its width depends on the
+; column it starts at.  Each measure here therefore begins from a column, and
+; the step is x/reader/indent's, which is the tab stop x-python's and x-sweet's
+; readers measure a line with.
+(def %ln-tab-stop 8)
+(def %ln-indent-advance (prim-ref (lit indent) (lit advance)))
 
-; The byte offset k columns back from i.
+; The column after the character at byte i of s, drawn from column col.
+(def %ln-advance
+  (fn (_ s i col)
+    (if (= 9 (%ln-byte s i)) (%ln-indent-advance col 9 %ln-tab-stop) (+ col 1))))
+
+; The column reached by drawing s[from, to) from column col.
+(def %ln-columns
+  (fn (_ s from to col)
+    (let ((go (fn (self i c)
+                (if (>= i to) c (self (Edit next-start s i) (%ln-advance s i c))))))
+      (go from col))))
+
+; The byte offset to start drawing from so that s[start, i) fits in k columns.
+; Walking back, a tab is counted at its full width: what it really occupies
+; depends on where the drawing starts, which is what is being decided.  The
+; window may come out narrower than it needed to be when a tab has scrolled
+; into it, and the cursor is always in view.
 (def %ln-back-columns
   (fn (_ s i k)
     (let ((go (fn (self j c)
-                (if (<= c 0) j (if (<= j 0) 0 (self (Edit prev-start s j) (- c 1)))))))
+                (if (<= j 0) 0
+                  (let ((p (Edit prev-start s j)))
+                    (let ((w (if (= 9 (%ln-byte s p)) %ln-tab-stop 1)))
+                      (if (> w c) j (self p (- c w)))))))))
       (go i k))))
 
-; The byte offset at most k columns forward from i.
+; The byte offset at most k columns forward from i, drawing from column col.
 (def %ln-forward-columns
-  (fn (_ s i k)
-    (let ((n (%ln-blen s)))
+  (fn (_ s i k col)
+    (let ((n (%ln-blen s)) (limit (+ col k)))
       (let ((go (fn (self j c)
-                  (if (<= c 0) j (if (>= j n) n (self (Edit next-start s j) (- c 1)))))))
-        (go i k)))))
+                  (if (>= j n) n
+                    (let ((c2 (%ln-advance s j c)))
+                      (if (> c2 limit) j (self (Edit next-start s j) c2)))))))
+        (go i col)))))
 
 ; Guarded: a painter that raises must not lose the keystroke.  The line is
 ; drawn unpainted for that redraw instead.  `before` is the entry's text ahead
@@ -140,15 +168,15 @@
   (fn (_ fd prompt ed cols . settled)
     (let ((text (ed text))
           (point (ed point))
-          (pwidth (%ln-columns prompt 0 (%ln-blen prompt))))
+          (pwidth (%ln-columns prompt 0 (%ln-blen prompt) 0)))
       (let ((avail (let ((a (- cols pwidth 1))) (if (< a 8) 8 a))))
         ; Scroll sideways only as far as it takes to keep the cursor in view.
-        (let ((start (let ((cc (%ln-columns text 0 point)))
-                       (if (<= cc avail) 0 (%ln-back-columns text point avail)))))
-          (let ((end (%ln-forward-columns text start avail)))
+        (let ((start (let ((cc (%ln-columns text 0 point pwidth)))
+                       (if (<= (- cc pwidth) avail) 0 (%ln-back-columns text point avail)))))
+          (let ((end (%ln-forward-columns text start avail pwidth)))
             (let ((window (%ln-bsub text start (- end start)))
                   (marks (%ln-marks text (if (null? settled) point -1) start end))
-                  (col (+ pwidth (%ln-columns text start point))))
+                  (col (%ln-columns text start point pwidth)))
               (Term emit fd
                 (%ln-append "\r"
                   (%ln-append %ln-kill-right
@@ -269,8 +297,6 @@
             (let ((e (%ln-atom-end text st point)))
               (if (<= e st) "" (%ln-bsub text st (- e st))))))))))
 
-(def %ln-byte
-  (fn (_ s i) ((prim-ref (lit char) (lit ->int)) ((prim-ref (lit str) (lit byte-ref)) s i))))
 (def %ln-eol
   (fn (self s i n) (if (>= i n) i (if (= 10 (%ln-byte s i)) i (self s (+ i 1) n)))))
 (def %ln-string-end
@@ -340,32 +366,60 @@
   (fn (_ name typed)
     (%ln-bsub name (%ln-blen typed) (- (%ln-blen name) (%ln-blen typed)))))
 
+; Whether only spaces and tabs come before the point.
+(def %ln-blank-before?
+  (fn (_ ed)
+    (let ((text (ed text)) (point (ed point)))
+      (let ((go (fn (self i)
+                  (if (>= i point) #t
+                    (let ((b (%ln-byte text i)))
+                      (if (if (= b 32) #t (= b 9)) (self (+ i 1)) #f))))))
+        (go 0)))))
+
+; Tab.  With candidates the unique one is filled in, or the prefix all of them
+; share, or on the second Tab the list.  With nothing to complete -- no
+; completer, or one with no answer -- a Tab after only whitespace inserts a
+; tab, so an indented line in a lang that reads indentation is typed as it is
+; in a file; after text it changes nothing, and ctrl-v Tab inserts one there.
 (def %ln-complete!
   (fn (_ fd ed)
     ; With no completer installed there is nothing to destructure, and
     ; first/rest are unchecked prims, so the test comes before the walk.
-    (when %repl-complete
-      (let ((c (%repl-complete ed)))
-        (let ((typed (first c)) (names (rest c)))
-          (match
-            ((null? names) ())
-            ; One answer: finish the word.
-            ((null? (rest names)) (ed insert! (%ln-tail (first names) typed)))
-            (#t
-              ; Several: extend as far as they agree, and if that added
-              ; nothing, show them -- the shell's bargain, and the reason a
-              ; second Tab is what lists rather than the first.
-              (let ((common (%ln-common-prefix names)))
-                (if (> (%ln-blen common) (%ln-blen typed))
-                  (ed insert! (%ln-tail common typed))
-                  (do
-                    (Term emit fd "\r\n")
-                    (List for-each
-                          (fn (_ n) (Term emit fd (%ln-append "  " (%ln-append n "\r\n"))))
-                          (List take 40 names))
-                    (when (> (List length names) 40)
-                      (Term emit fd (%ln-append "  ... "
-                        (%ln-append (Str8 str (- (List length names) 40)) " more\r\n"))))))))))))))
+    (let ((c (if (null? %repl-complete) () (%repl-complete ed))))
+      (let ((typed (if (null? c) "" (first c)))
+            (names (if (null? c) () (rest c))))
+        (match
+          ((null? names) (when (%ln-blank-before? ed) (ed insert! "\t")))
+          ; One answer: finish the word.
+          ((null? (rest names)) (ed insert! (%ln-tail (first names) typed)))
+          (#t
+            ; Several: extend as far as they agree, and if that added
+            ; nothing, show them -- the shell's bargain, and the reason a
+            ; second Tab is what lists rather than the first.
+            (let ((common (%ln-common-prefix names)))
+              (if (> (%ln-blen common) (%ln-blen typed))
+                (ed insert! (%ln-tail common typed))
+                (do
+                  (Term emit fd "\r\n")
+                  (List for-each
+                        (fn (_ n) (Term emit fd (%ln-append "  " (%ln-append n "\r\n"))))
+                        (List take 40 names))
+                  (when (> (List length names) 40)
+                    (Term emit fd (%ln-append "  ... "
+                      (%ln-append (Str8 str (- (List length names) 40)) " more\r\n")))))))))))))
+
+; ctrl-v, readline's quoted-insert: the key after it goes into the buffer as
+; text, whatever it would have done on its own.  A Tab is the case that
+; matters, since a bare Tab completes; a printable key inserts as it would
+; anyway, and a control byte the buffer cannot hold is dropped as it is
+; elsewhere.
+(def %ln-quoted!
+  (fn (_ ed read-byte)
+    (let ((k (Term key read-byte)))
+      (match
+        ((eq? k (lit complete)) (ed insert! "\t"))
+        ((str? k) (ed insert! k))
+        (#t ())))))
 
 ; --- the key loop -------------------------------------------------------------
 ;
@@ -414,6 +468,7 @@
                 ((eq? k (lit kill-word))  (ed kill-word-back!))
                 ((eq? k (lit yank))       (ed yank!))
                 ((eq? k (lit complete))   (%ln-complete! fd ed))
+                ((eq? k (lit quoted-insert)) (%ln-quoted! ed read-byte))
                 ((eq? k (lit clear))      (Term emit fd %ln-clear-screen))
                 ; 'escape and 'unbound: a chord with no binding changes
                 ; nothing, and silently doing nothing is the right answer --
@@ -663,6 +718,7 @@
   (note "Built on repl/edit.x (the buffer), repl/term.x (the tty) and repl/paint.x (the colour); each is usable on its own.")
   (note "History is appended per line to $XDG_STATE_HOME/x/history, so a session that crashes still keeps what it typed. X_HISTORY overrides the path; an empty X_HISTORY disables it.")
   (note "Tab completes against the documentation registry -- the same names apropos searches -- so a module that documents an export completes as soon as it loads.")
+  (note "A Tab with nothing to complete and only whitespace before the cursor inserts a tab, and ctrl-v followed by Tab inserts one after text; a tab is drawn to the next multiple of eight columns.")
   (note "A lang that reads its own syntax has no names in that registry: it sets (Line completer) to its own, or () to turn Tab off, as it sets %repl-paint for the colour, and %repl-eval-line to read its syntax from the line the editor hands back. x/repl/lang bundles those as a named lang a session switches to with (lang NAME).")
   "Line: one edited, coloured line read from the terminal; the built-in replacement for rlwrap.")
 (provide x/repl/line Line)
