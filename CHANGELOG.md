@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A compile that carries fvars declares its calling world.** With no third
+argument `compile-asm` read the fvar table to choose between an integer
+function and an analyse callback -- present meant analyser -- though an fvar
+also names a callee the body calls (#603), so the table cannot say which. The
+reading stayed as a default for x-python's tokenizer, whose compiles were
+undeclared and adopted under a guard that would have hidden a refusal. That
+bundle now declares every compile
+([x-python#144](https://github.com/jonruttan/x-python/pull/144)), and its specs
+require the JIT to be `active` wherever the lane compiles an analyser
+([x-python#138](https://github.com/jonruttan/x-python/pull/138)), so the door
+stops guessing: fvars with no third argument refuse, naming both declarations.
+A compile with no fvars is an integer function, as before.
+
 **`x/type/vector`, `x/protocol/str/str8` and `x/type/type` have scopes of
 their own** ([#719], step 4), and two doors replace the five private names
 other files read from the first two. `(Convert to-int v what)` is a value

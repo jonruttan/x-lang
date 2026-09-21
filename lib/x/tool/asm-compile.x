@@ -223,22 +223,21 @@
 ; Only a call to THAT name is self-recursion; anything else is an
 ; unsupported form and must say so -- see %asm-compile-funcall.
 (def %asm-self-name ())
-; ANALYSER MODE, and it is DECLARED now, not inferred.
+; Analyser mode is declared, never inferred.
 ;
 ; Two calling worlds share this emitter: an integer function called from x
 ; (params arrive as unevaluated expressions and the result is boxed), and an
 ; analyse callback invoked from C's scoring loop (params arrive as live
-; objects and the result is one).  The discriminator used to be "are there
-; any fvars", which was a true proxy for exactly as long as the only reason
-; to pass an fvar was analyser state.  A callee named at compile time is an
-; fvar too (#603), so an integer function that calls another compiled
-; function would have been read as an analyser: its params would stop
-; evaluating and its result would come back unboxed -- silently wrong
-; answers, which is the failure mode this file refuses everywhere else.
+; objects and the result is one).  Whether fvars are present does not tell
+; them apart: a callee named at compile time is an fvar too (#603), so an
+; integer function that calls another compiled function would read as an
+; analyser -- its params would stop evaluating and its result would come back
+; unboxed, silently wrong answers, which is the failure mode this file
+; refuses everywhere else.
 ;
-; compile-asm still DEFAULTS to the old inference, so every existing caller
-; -- the tower burst, sha256-jit, the specs -- compiles exactly as before.
-; The third argument is how a caller says otherwise.
+; compile-asm (asm-cache.x) settles the mode at the door and hands it down: a
+; compile that carries fvars declares it or refuses, and one with neither is
+; an integer function.
 (def %asm-analyser? #f)
 ; In analyser mode the tokenizer protocol fixes the leading params: (self
 ; buffer score chr) -- buffer and score are x_obj_t*, chr is a raw character.
@@ -694,14 +693,12 @@
 ; In analyser mode the leading one or two params are x_obj_t* (%asm-object-
 ; params, above): the tokenizer builds them on the C stack and they reach the
 ; trampolines as the pointers they are.  An integer function's params are
-; numbers.  The mode the compile declares tells the two apart, and a caller that
-; declares nothing gets the door's reading of the fvar table (asm-cache.x), so
-; fvars passed only to name a prim the body calls (#603) produce an analyser.
+; numbers.  The mode the compile declares tells the two apart.
 ;
 ; Arithmetic, a shift or an ordered comparison on an object param is not
 ; something an analyser means: every state in the tower and in the bundles uses
 ; its object params as trampoline arguments and nothing else.  In an integer
-; function read as an analyser it is often the first thing the body does, and
+; function declared as an analyser it is often the first thing the body does, and
 ; the result is a wrong answer rather than an error -- the param is ordered as a
 ; pointer, the branch is taken on that, and an unboxed result hands the caller
 ; one of its own arguments.  So it refuses at generation, names the parameter,
