@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**Cross-file reads of private names may only decrease** ([#719]). Until a
+module is scoped, its `%` names are globals, and other files read them:
+127 files read 954 such names today, most of them the number tower reading
+its neighbours, the compiler's stages resolving free names in the root, and
+the dev tools driving internals. Step 4 turns each read into a door, and
+`check-private-reads` keeps the count from growing meanwhile: for every
+reader file, `tools/contract/private-reads.x` budgets the distinct `%`
+names it reads that another unscoped file defines at its top level and it
+does not define itself. A file over its budget fails and names the reads;
+a file under it fails until the row is lowered. It runs with the fast
+gates, so a pull request sees it.
+
 **Bracket colours carry across the lines of a multi-line entry.** Each line of
 an entry was marked and painted on its own, so a continuation line started
 again at depth 0, a close paren that closed a paren on an earlier line showed
