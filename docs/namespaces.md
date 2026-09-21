@@ -219,6 +219,10 @@ Two consequences belong in the contract:
   check that no `%` name appears in a `provide` list.
 - Lint treats a `%` name defined in another module as undefined, which is
   what it is.
+- Until a module is scoped, its `%` names are still globals that other files
+  can read. `private-reads.sh` budgets those reads per reader file
+  (`tools/contract/private-reads.x`), so the number can only fall as step 4
+  replaces each read with a door.
 
 ## What the engine must provide
 
