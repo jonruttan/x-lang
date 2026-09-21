@@ -597,25 +597,25 @@
 (def compile-asm
   (fn (_ expr . %asm-rest)
     (def fvars (unless (null? %asm-rest) (first %asm-rest)))
-    ; The calling world is settled here, at the door, and nowhere else.  With
-    ; no third argument the fvar table decides it -- present means analyser --
-    ; which is what every caller written before the third argument existed
-    ; means, including callers outside this repository.  x-python's tokenizer
-    ; compiles its states as (compile-asm form fvars) and adopts them under a
-    ; guard, so refusing the undeclared form here would not raise there: it
-    ; would pin the interpreted states and keep them, and a bundle spec cannot
-    ; assert that the JIT is active, so nothing would report it.  The misuse
-    ; refuses instead -- %asm-check-int-operands in asm-compile.x rejects an
-    ; object param handed to arithmetic or to an ordered comparison.
-    ;
-    ; Declaring the mode is the right way, and every call in this repository
-    ; declares it.  Settling it here rather than downstream keeps the key below
-    ; and the compile below naming the same answer.
+    ; The calling world is settled here, at the door, and nowhere else.  It is
+    ; declared, never read off the fvar table: an fvar is a handoff target in an
+    ; analyser and a callee in an integer function (#603), so a table says
+    ; nothing about which world a body is written for.  With no third argument,
+    ; a compile without fvars is an integer function and one with fvars
+    ; refuses, naming both declarations.  This is a check on the call, not a
+    ; cache doubt, so it raises before the cache is asked anything.  Settling
+    ; it here rather than downstream keeps the key below and the compile below
+    ; naming the same answer.
     (def analyser?
-      (if (null? %asm-rest) #f
-        (if (null? (rest %asm-rest))
-          (not (null? fvars))
-          (first (rest %asm-rest)))))
+      (match
+        ((null? %asm-rest) #f)
+        ((pair? (rest %asm-rest)) (first (rest %asm-rest)))
+        ((null? fvars) #f)
+        (#t (Err raise 'value
+              (Str append "compile-asm: fvars passed without declaring the calling "
+                "world.  Pass #t as compile-asm's third argument for an analyse "
+                "callback the tokenizer calls, or #f for an integer function "
+                "called from x.") ()))))
     ; Whether to stand aside is decided FIRST, before the printer is asked for
     ; anything: on that path this module gets out of the way entirely and the
     ; expression takes the route it took before there was a cache.
@@ -640,12 +640,11 @@
    persistent byte cache.  Accepts an optional fvar alist for free variable
    support, and a third argument declaring the calling mode: #f for an
    integer function called from x, #t for an analyse callback the tokenizer
-   calls.  Declare it whenever fvars are present: with no third argument the
-   fvars themselves are read as the declaration (present means analyser),
-   which is right for a tokenizer state and wrong for an integer function that
-   merely names a callee, and in analyser mode nothing evaluates the arguments
-   and the result is not boxed.  Arithmetic or an ordered comparison on a
-   leading param refuses in that mode rather than answering.
+   calls.  A compile with fvars must declare it and refuses without it; one
+   with neither fvars nor a declaration is an integer function.  In analyser
+   mode nothing evaluates the arguments and the result is not boxed, and
+   arithmetic or an ordered comparison on a leading param refuses rather than
+   answering.
    An fvar holding a prim may be called by name; (%call HEAD arg ...) calls a
    prim the code computes, and refuses at run time if the head is not one.
    The compiled function works with map, fold, closures, etc.")

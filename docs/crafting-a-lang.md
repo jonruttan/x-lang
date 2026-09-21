@@ -341,18 +341,17 @@ contesting type — and the platform can compile them:
 - **There are two JIT lanes.**  `compile-asm` (the assembler lane) emits
   machine code directly and needs no toolchain; `compile` (the cc lane)
   shells out to a PATH cc at runtime.  Analysers use the assembler lane.
-- **Fvars-present means analyser, unless you say otherwise.**  The compiler
-  has two calling worlds: integer functions (called from x, prim ABI, args
-  evaluated and unboxed, result boxed) versus analysers (called from C with
-  live stack values — nothing evaluated, objects stay pointers, result
-  returned unboxed).  It picks by the fvar table, so a compiled-with-fvars
-  function is **for the tokenizer, not for you**: direct-calling it is outside
-  the contract.  `compile-asm`'s optional **third** argument settles it —
-  pass `#f` for an integer function that carries fvars for some other reason,
-  which is what calling a named callee needs, and `#t` for an analyser.
-  Declare it: the guess cannot be made exact, because an fvar also names a
-  callee the body calls, so both worlds are `(fn (self a b c) …)` over one
-  vocabulary with nothing in the expression to separate them.
+- **Declare the calling world.**  The compiler has two: integer functions
+  (called from x, prim ABI, args evaluated and unboxed, result boxed) and
+  analysers (called from C with live stack values — nothing evaluated,
+  objects stay pointers, result returned unboxed).  `compile-asm`'s **third**
+  argument says which — `#t` for an analyser, `#f` for an integer function —
+  and a compile that carries fvars refuses without it: an fvar is a handoff
+  target in one world and a named callee in the other, so both are
+  `(fn (self a b c) …)` over one vocabulary with nothing in the expression to
+  separate them.  A compile with no fvars and no third argument is an integer
+  function.  An analyser is **for the tokenizer, not for you**:
+  direct-calling it is outside the contract.
 - **A body compiled for the wrong world refuses rather than answering.**  In
   analyser mode the leading one or two params are objects, and arithmetic, a
   shift or an ordered comparison on one of those is not something an analyser

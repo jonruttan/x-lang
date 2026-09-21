@@ -13,27 +13,52 @@ param evaluates and unboxes, and the result is boxed on the way out. An
 the C stack: nothing evaluates, the leading one or two params stay the
 `x_obj_t*` they arrived as, and the result is returned unboxed.
 
-The third argument declares which. With no third argument the door reads the
-fvar table — present means analyser — and that reading cannot be made exact,
-because an fvar also names a callee the body calls (#603). Both worlds are
-`(fn (self a b c) ...)` over the same vocabulary, and nothing in the expression
-or the table separates them.
+The third argument declares which, and a compile that carries fvars must give
+it: an fvar is a handoff target in an analyser and a callee in an integer
+function (#603), both worlds are `(fn (self a b c) ...)` over the same
+vocabulary, and nothing in the expression or the table separates them. With
+fvars and no third argument the compile refuses; with neither it is an integer
+function.
 
-So the misuse is what refuses. An object param handed to arithmetic, to a shift
-or to an ordered comparison is not something an analyser means — every state in
-the tower and in the lang bundles uses its object params as trampoline arguments
-and nothing else — and it is what an integer function read as an analyser does
-on its first line.
+A body declared for the wrong world refuses too. An object param handed to
+arithmetic, to a shift or to an ordered comparison is not something an analyser
+means — every state in the tower and in the lang bundles uses its object params
+as trampoline arguments and nothing else — and it is what an integer function
+declared as an analyser does on its first line.
+
+## a compile with fvars declares its world
+
+### with no third argument it refuses, and names both declarations
+
+An analyser state carrying a handoff fvar, and an integer function naming the
+prim it calls: the table is the same shape for both, so neither is guessed at.
+
+```x
+(do
+  (def %bref (prim-ref 'str 'byte-ref))
+  (def %st '(fn (me buffer score chr)
+              (if (and (>= chr 97) (<= chr 122)) me
+                (%score-set score 1 buffer))))
+  (write (list (guard (e (e msg)) (do (compile-asm %st (list (pair 'u 1))) 'compiled))
+               (guard (e (Err tag e))
+                 (do (compile-asm '(fn (self s i n) (if (>= i n) 1 0))
+                                  (list (pair 'bref %bref)))
+                     'compiled)))))
+```
+---
+```output
+("compile-asm: fvars passed without declaring the calling world.  Pass #t as compile-asm's third argument for an analyse callback the tokenizer calls, or #f for an integer function called from x." 'value)
+```
 
 ## an object param is not a number
 
 ### arithmetic on one refuses, and names the declaration that fixes it
 
 A scanner for the first byte at or below 32. `bref` and `cint` are fvars
-because that is how a compiled body calls a prim (#603), so with no third
-argument the compile is an analyser: `i` is a pointer, and ordering it against
-`n` is the refusal. Without the refusal the comparison reads a pointer as a
-number, the branch is taken on that, and the unboxed result is argument 2.
+because that is how a compiled body calls a prim (#603). Declared an analyser,
+`i` is a pointer, and ordering it against `n` is the refusal. Without the
+refusal the comparison reads a pointer as a number, the branch is taken on
+that, and the unboxed result is argument 2.
 
 ```x
 (do
@@ -45,7 +70,7 @@ number, the branch is taken on that, and the unboxed result is argument 2.
                       (if (>= i n) i
                         (if (<= (cint (bref s i)) 32) i
                           (self s (+ i 1) n))))
-                   (list (pair 'bref %bref) (pair 'cint %cint)))
+                   (list (pair 'bref %bref) (pair 'cint %cint)) #t)
       'compiled))))
 ```
 ---
@@ -65,7 +90,7 @@ rather than a corner.
   (def %bref (prim-ref 'str 'byte-ref))
   (write (guard (e (Err tag e))
     (do (compile-asm '(fn (self s i n) (if (>= i n) 1 0))
-                     (list (pair 'bref %bref)))
+                     (list (pair 'bref %bref)) #t)
         'compiled))))
 ```
 ---
@@ -136,19 +161,17 @@ integer is a SIGSEGV.
 
 ## what the declaration does not change
 
-### a real analyser still compiles with the mode inferred
+### a real analyser compiles, declared
 
-The bundles compile their tokenizer states as `(compile-asm form fvars)` and
-adopt them under a guard, so a refusal there would not raise: it would pin the
-interpreted states and keep them, with nothing reporting it. An analyser's
-object params reach only trampolines, so the check does not touch one.
+An analyser's object params reach only trampolines, so the check does not touch
+one, with a handoff fvar or without.
 
 ```x
 (do
   (def %st '(fn (me buffer score chr)
               (if (and (>= chr 97) (<= chr 122)) me
                 (%score-set score 1 buffer))))
-  (write (list (if (null? (compile-asm %st (list (pair 'u 1)))) 'nothing 'compiled)
+  (write (list (if (null? (compile-asm %st (list (pair 'u 1)) #t)) 'nothing 'compiled)
                (if (null? (compile-asm %st () #t)) 'nothing 'compiled))))
 ```
 ---
