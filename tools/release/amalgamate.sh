@@ -58,6 +58,28 @@ function header_of(path,  line, name) {
 	close(path)
 	return name
 }
+# The module a top-level import names, or "" when the line is not one.  An
+# import is bare, (import NAME), or selective, (import NAME sym (sym alias)
+# ...), and sits on one line at column 0 either way.
+# The character class is the whole match.  A class that omits a character
+# real module names use does not fail, it under-matches: without `_`,
+# x/platform/data/syscalls-x86_64 is skipped and keeps loading from the
+# platform while its siblings are inlined.
+function import_mod(line,  mod) {
+	if (line !~ /^\(import[[:space:]]+[a-z0-9][a-z0-9_\/@.-]*([[:space:]]+([^()[:space:]]+|\([^()]*\)))*[[:space:]]*\)[[:space:]]*(;.*)?$/)
+		return ""
+	mod = line
+	sub(/^\(import[[:space:]]+/, "", mod)
+	sub(/[[:space:])].*$/, "", mod)
+	return mod
+}
+# Whether a top-level import names exports to bind.  Such a line is kept
+# where it stands once its module is spliced: the load is a no-op by then,
+# since the splice marks the module loaded, and binding the names in the
+# importer is the other half of what the line does.
+function import_selective(line) {
+	return line ~ /^\(import[[:space:]]+[^[:space:]()]+[[:space:]]+[^[:space:])]/
+}
 # The files a scoped file includes once or imports at top level, spliced
 # ahead of it in the order they appear.  The header of a scoped module reads
 # every form after it into the module, so a file spliced in place would load
@@ -79,10 +101,7 @@ function hoist(path,  line, inc, mod, file) {
 				close(inc)
 				splice(inc)
 			}
-		} else if (line ~ /^\(import[[:space:]]+[a-z0-9][a-z0-9_\/@.-]*[[:space:]]*\)[[:space:]]*(;.*)?$/) {
-			mod = line
-			sub(/^\(import[[:space:]]+/, "", mod)
-			sub(/[[:space:]]*\).*$/, "", mod)
+		} else if ((mod = import_mod(line)) != "") {
 			file = resolve(mod)
 			if (file != "" && !(mod in seeded) && !(file in seen)) {
 				printf "(%%module-loaded! (lit %s))\n", mod
@@ -141,19 +160,12 @@ function splice(path,  line, n, mod, file, name) {
 				printf "; (include-once %s) -- inlined above\n", line
 			else
 				splice(line)
-		# The character class is the whole match.  A class that omits a
-		# character real module names use does not fail, it under-matches:
-		# without `_`, x/platform/data/syscalls-x86_64 is skipped and keeps
-		# loading from the platform while its siblings are inlined.
-		} else if (line ~ /^\(import[[:space:]]+[a-z0-9][a-z0-9_\/@.-]*[[:space:]]*\)[[:space:]]*(;.*)?$/) {
+		} else if ((mod = import_mod(line)) != "") {
 			# A top-level import is a boot-time load, and an amalgam that leaves
 			# one unresolved is not self-contained: it reaches into whatever
 			# library the platform has when it boots (#467).  The module is
 			# spliced in the position the import occupied, so load order is
-			# unchanged.
-			mod = line
-			sub(/^\(import[[:space:]]+/, "", mod)
-			sub(/[[:space:]]*\).*$/, "", mod)
+			# unchanged.  A selective import is kept after it (import_selective).
 			file = resolve(mod)
 			if (file == "") {
 				printf "amalgamate: %s:%d: cannot resolve (import %s)\n", path, n, mod > "/dev/stderr"
@@ -166,7 +178,8 @@ function splice(path,  line, n, mod, file, name) {
 				# the boot already contains.  The line is kept as it stands.
 				print line
 			} else if (file in seen) {
-				printf "; (import %s) -- inlined above\n", mod
+				if (import_selective(line)) print line
+				else printf "; (import %s) -- inlined above\n", mod
 			} else {
 				# Mark it loaded, because `provide` does not: provide fills the
 				# exports registry, while `import` consults the loaded set and
@@ -175,6 +188,7 @@ function splice(path,  line, n, mod, file, name) {
 				# platform.
 				printf "(%%module-loaded! (lit %s))\n", mod
 				splice(file)
+				if (import_selective(line)) print line
 			}
 		} else if (line ~ /\((include|include-once|require-once)[[:space:]]+"(lib|tools|apps|ext|engine)\//) {
 			printf "amalgamate: %s:%d: root-relative include not alone at column 0\n", path, n > "/dev/stderr"

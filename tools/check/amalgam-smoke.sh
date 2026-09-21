@@ -63,7 +63,11 @@ smoke radon "$TOWER_EXPECT" '(display (/ 1 3))(newline)'
 # instead; a plain include inside it is refused.  A throwaway tree holds the
 # generator, an empty x-core.x (it reads the boot entry's pre-seeded names),
 # a scoped file that includes another once, and one that includes another
-# plainly.
+# plainly.  A selective import, (import NAME sym ...), loads and binds: the
+# module is spliced as for a bare import, ahead of a scoped importer or in
+# place in an unscoped one, and the line itself is kept, since binding the
+# names is its other half and the load is a no-op once the splice has marked
+# the module loaded.
 nest_tree=$(mktemp -d "${TMPDIR:-/tmp}/amalgam-nest.XXXXXX") || exit 1
 mkdir -p "$nest_tree/tools/release" "$nest_tree/lib/nest"
 cp tools/release/amalgamate.sh "$nest_tree/tools/release/"
@@ -77,6 +81,14 @@ _hoist_out=$(sh "$nest_tree/tools/release/amalgamate.sh" lib/nest-entry.x 2>&1)
 _hoist_rc=$?
 _plain_err=$(sh "$nest_tree/tools/release/amalgamate.sh" lib/plain-entry.x 2>&1 >/dev/null)
 _plain_rc=$?
+printf '(module nest/sel-inner)\n(def sel-name 1)\n(provide nest/sel-inner sel-name)\n' > "$nest_tree/lib/nest/sel-inner.x"
+printf '; sel-outer.x -- scoped, and it imports a name.\n(module nest/sel-outer)\n(import nest/sel-inner sel-name)\n' > "$nest_tree/lib/nest/sel-outer.x"
+printf '(include-once "lib/nest/sel-outer.x")\n' > "$nest_tree/lib/sel-entry.x"
+printf '(import nest/sel-inner (sel-name other))\n(def sel-after 1)\n' > "$nest_tree/lib/sel2-entry.x"
+_sel_out=$(sh "$nest_tree/tools/release/amalgamate.sh" lib/sel-entry.x 2>&1)
+_sel_rc=$?
+_sel2_out=$(sh "$nest_tree/tools/release/amalgamate.sh" lib/sel2-entry.x 2>&1)
+_sel2_rc=$?
 rm -rf "$nest_tree"
 _inner_at=$(printf '%s\n' "$_hoist_out" | grep -n '^; ---- begin lib/nest/inner.x ----' | cut -d: -f1)
 _outer_at=$(printf '%s\n' "$_hoist_out" | grep -n '^; ---- begin lib/nest/outer.x ----' | cut -d: -f1)
@@ -98,5 +110,30 @@ case "$_plain_rc:$_plain_err" in
 		STATUS=1
 		echo "amalgam-smoke: FAIL -- a plain include inside a scoped module failed for another reason: $_plain_err" >&2 ;;
 esac
+
+# A scoped importer: the module ahead of it, marked loaded, the line kept.
+_sin_at=$(printf '%s\n' "$_sel_out" | grep -n '^; ---- begin lib/nest/sel-inner.x ----' | cut -d: -f1)
+_sout_at=$(printf '%s\n' "$_sel_out" | grep -n '^; ---- begin lib/nest/sel-outer.x ----' | cut -d: -f1)
+_sline_at=$(printf '%s\n' "$_sel_out" | grep -n '^(import nest/sel-inner sel-name)$' | cut -d: -f1)
+if [ "$_sel_rc" = 0 ] && [ -n "$_sin_at" ] && [ -n "$_sout_at" ] && [ -n "$_sline_at" ] \
+	&& [ "$_sin_at" -lt "$_sout_at" ] && [ "$_sout_at" -lt "$_sline_at" ] \
+	&& printf '%s\n' "$_sel_out" | grep -q '^(%module-loaded! (lit nest/sel-inner))$'; then
+	echo "amalgam-smoke: a selective import in a scoped module splices ahead of it and keeps its line ok"
+else
+	STATUS=1
+	echo "amalgam-smoke: FAIL -- a selective import in a scoped module was not spliced ahead with its line kept" >&2
+	printf '%s\n' "$_sel_out" >&2
+fi
+# An unscoped importer: the module in place, then the line, alias and all.
+_s2end_at=$(printf '%s\n' "$_sel2_out" | grep -n '^; ---- end lib/nest/sel-inner.x ----' | cut -d: -f1)
+_s2line_at=$(printf '%s\n' "$_sel2_out" | grep -n '^(import nest/sel-inner (sel-name other))$' | cut -d: -f1)
+if [ "$_sel2_rc" = 0 ] && [ -n "$_s2end_at" ] && [ -n "$_s2line_at" ] && [ "$_s2end_at" -lt "$_s2line_at" ] \
+	&& printf '%s\n' "$_sel2_out" | grep -q '^(%module-loaded! (lit nest/sel-inner))$'; then
+	echo "amalgam-smoke: a selective import at the top of an unscoped file splices in place and keeps its line ok"
+else
+	STATUS=1
+	echo "amalgam-smoke: FAIL -- a selective import in an unscoped file was not spliced in place with its line kept" >&2
+	printf '%s\n' "$_sel2_out" >&2
+fi
 
 exit "$STATUS"

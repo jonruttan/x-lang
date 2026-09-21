@@ -799,15 +799,19 @@
 (def %str-byte-ref (prim-ref (lit str) (lit byte-ref)))
 (def %str-make (prim-ref (lit str) (lit make)))
 (def %module-mode
-  ; O_* value by name out of the platform table, boot-style walk.
+  ; O_* value by name out of the platform table, boot-style walk.  The table
+  ; is x/platform/syscall's export, imported here, when the walk runs: this
+  ; file loads long before that one, and by the time a directory is listed
+  ; the import is a lookup, not a load.
   (fn (_ name)
+    (import x/platform/syscall file-modes)
     (def %go
       (fn (self lst)
         (match
           ((eq? lst ()) 0)
           ((eq? (first (first lst)) name) (first (rest (first lst))))
           (#t (self (rest lst))))))
-    (%go %file-modes)))
+    (%go file-modes)))
 (def %module-list-dir
   ; Entry names in dir; a dir that cannot be opened is no entries (a
   ; DELIBERATE boot policy -- resolution probes absent roots), but a

@@ -3,6 +3,8 @@
 ; STRING SPELLINGS: %-private byte helpers, NOT Str8 -- the table-selection
 ; walk below RUNS AT LOAD, and posix.x pulls this file into the x-core boot
 ; before str8.x exists (#108 strings round: a class call here is boot death).
+(module x/platform/syscall)
+
 (import x/core/list)
 (import x/core/alist)
 
@@ -86,7 +88,7 @@
 ; --- File open-mode flags (O_*) ---
 ; PLATFORM truth: the O_* flag VALUES differ by OS (verified: macOS
 ; O_CREAT=512 / O_TRUNC=1024 vs Linux 64 / 512), so there is one table per
-; platform and %file-modes picks at load via os-darwin?.  Consumed by
+; platform and file-modes picks at load via os-darwin?.  Consumed by
 ; sys/file.x (the (File file-modes) method + symbolic open modes) and
 ; sys/posix.x (its libc open() calls).  Formerly C-bound %O_* constants;
 ; retired with the ISA audit -- platform data is policy and lives in X.
@@ -133,7 +135,7 @@
 ; Select the table for this OS at load.  Both probes explicit: an
 ; unrecognized platform must fail loudly here, not silently run with Linux
 ; flag values (wrong O_* values corrupt the interpreter via raw syscalls).
-(def %file-modes
+(def file-modes
   (match
     (os-darwin? %file-modes-darwin)
     (os-linux? %file-modes-linux)
@@ -152,7 +154,14 @@
             (if (null? m) -1 m))
           n)))))
 
+; The predicates and the tables are names of the sanctioned bare set, bound in
+; the root; os-linux? and the two arch predicates were defined here and used
+; elsewhere without being listed.  file-modes is a plain export: sys/file,
+; sys/posix and the boot loader import it by name.
 (doc (provide x/platform/syscall
-  syscall-id os-darwin? x86_64-syscall-names i386-syscall-names darwin-syscall-numbers)
+  (global syscall-id) (global os-darwin?) (global os-linux?)
+  (global arch-arm64?) (global arch-x86-64?)
+  (global x86_64-syscall-names) (global i386-syscall-names) (global darwin-syscall-numbers)
+  file-modes)
   (note "syscall-id is platform-aware: Darwin -> bare BSD numbers (libc OR-folds the 0x2000000 UNIX class), else Linux x86_64/i386. os-darwin? is the platform flag (from x-machine).")
   "Syscall number tables for x86_64, i386, and Darwin/BSD. Maps symbolic names to syscall numbers.")

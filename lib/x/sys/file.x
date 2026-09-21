@@ -27,7 +27,7 @@
 
 (import x/core/list)
 (import x/core/alist)
-(import x/platform/syscall)
+(import x/platform/syscall file-modes)
 (import x/platform/dirent)
 (import x/codec/struct)   ; the stat-buffer decode rides a field spec (#371)
 (import x/type/class)
@@ -39,7 +39,7 @@
 ; --- The flag tables (surfaced via the methods below) ---
 ; Static value members can't carry help text, so the tables live as data and
 ; the (File file-modes)/(File stat-flags) methods expose + document them.
-; The O_* open-flag tables (%file-modes) are PLATFORM truth and live in
+; The O_* open-flag tables (file-modes) are PLATFORM truth and live in
 ; x/platform/syscall.x (imported above), shared with sys/posix.x.  The S_*
 ; stat flags below are POSIX-standard and identical across Linux/macOS, so
 ; they are not split per platform and stay here.
@@ -63,7 +63,7 @@
 
 ; Resolve an open-mode argument to a single numeric flag set:
 ;   a number   -> passed straight through (e.g. 577)
-;   a symbol   -> looked up in %file-modes (e.g. 'rdwr -> 2)
+;   a symbol   -> looked up in file-modes (e.g. 'rdwr -> 2)
 ;   a list     -> each element resolved and bitwise-OR'd together, so callers
 ;                 can write (list 'wronly 'creat 'trunc) -> 577
 (def %mode->int
@@ -71,7 +71,7 @@
     (match
       ((number? mode) mode)
       ((pair? mode) (%fold (fn (_ acc flag) (| acc (%mode->int flag))) 0 mode))
-      (#t (first (Assoc get mode %file-modes))))))
+      (#t (first (Assoc get mode file-modes))))))
 
 ; --- errno recovery (#22) ---
 ; Homed on the Err class ((Err errno-of r), lazily resolving the per-OS
@@ -124,7 +124,7 @@
         (returns LIST "Alist of (symbol value) for: accmode rdonly wronly rdwr creat excl noctty trunc append nonblock dsync fasync direct largefile directory nofollow noatime cloexec sync path")
         (sample "(File file-modes)" "the full (symbol value) table")
         (sample "(first (Assoc get 'rdwr (File file-modes)))" "2"))
-      %file-modes)
+      file-modes)
 
     (method stat-flags (self)
       (doc "The stat mode-flag table: an alist mapping each symbolic S_* name to its numeric Linux value, for decoding a stat result's st_mode (the ifmt bits select the file type; the rest are permission and set-id/sticky bits)."
@@ -289,7 +289,7 @@
         (sample "(File write-all \"out.txt\" \"hi\\n\")" "3"))
       (%fs-path path "File write-all")
       (unless (str? s) (Err raise 'type "File write-all: contents must be a string" ()))
-      ; symbolic modes: the O_* numbers differ per OS (%file-modes is per-OS)
+      ; symbolic modes: the O_* numbers differ per OS (file-modes is per-OS)
       (def fd (File open path (list 'wronly 'creat 'trunc) 420))
       (when (< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
       (def n (File write fd s (Str8 length s)))

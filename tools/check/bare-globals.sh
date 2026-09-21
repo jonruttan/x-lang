@@ -23,6 +23,13 @@
 #                     and its indent style defeats the heuristic
 # def-class is NOT scanned: classes ARE the sanctioned surface; a new
 # class needs no manifest row.
+#
+# A SCOPED MODULE -- a file whose first form is (module NAME) -- binds its
+# top-level defs in its own environment (x-lang#719), so a bare def there
+# reaches the shared top level only when the file's provide marks it
+# (global NAME).  The scan counts a scoped file's marked names and no others:
+# an unmarked bare def, exported for import or kept private, is the module's
+# own and needs no row.
 
 set -e
 cd "$(dirname "$0")/../.."
@@ -30,7 +37,20 @@ cd "$(dirname "$0")/../.."
 SCAN_FILES="lib/x-core.x $(find lib/x -name '*.x' | grep -v -e 'lib/x/xe\.x' -e 'lib/x/rn\.x' -e 'lib/x/tool/' | sort | tr '\n' ' ')"
 MANIFEST=tools/contract/bare-globals.x
 
-live=$(awk '
+# Every export of every library file, one "FILE NAME" line each, a marked
+# one written @NAME.  A provide list runs to its first `)` once the marks are
+# folded, and comments are stripped a line at a time.  The scan below reads
+# the marks; the mark check at the end reads them all.
+exports=$(for f in $(find lib -name '*.x' | sort); do
+  sed 's/;.*$//' "$f" | tr '\n' ' ' | sed 's/(global \([^()]*\))/@\1/g' \
+    | grep -o '(provide [^)]*' \
+    | awk -v f="$f" '{ for (i = 3; i <= NF; i++) print f " " $i }'
+done)
+
+live=$(printf '%s\n' "$exports" | awk '
+  FILENAME == "-" { if ($2 ~ /^@/) marked[$1 SUBSEP substr($2, 2)] = 1; next }
+  FNR == 1 { scoped = 0 }
+  /^\(module / { scoped = 1 }
   /^ {0,2}\((doc \()?\(?def [a-z#]/ {
     line = $0
     sub(/^ */, "", line)
@@ -38,9 +58,9 @@ live=$(awk '
     sub(/^\(/, "", line)
     sub(/^def /, "", line)
     sub(/[ )].*$/, "", line)
-    if (line !~ /^%/) print line
+    if (line !~ /^%/ && (!scoped || ((FILENAME SUBSEP line) in marked))) print line
   }
-' $SCAN_FILES | sort -u)
+' - $SCAN_FILES | sort -u)
 
 listed=$(awk '/^\(def %bare-globals/{next} /^ *\(/{gsub(/[()]/,""); print $1}' "$MANIFEST" | sort -u)
 
@@ -57,14 +77,8 @@ done
 # (lib/x/boot/module.x), so the marks are how a scoped module keeps a name of
 # this manifest global.  Every mark must name a manifest row, and every
 # manifest name a scoped module exports must carry the mark -- unmarked, it
-# would quietly stop being bound in the root.  Each line below is FILE and an
-# export, a marked one written @NAME; a provide list runs to its first `)`
-# once the marks are folded, and comments are stripped a line at a time.
-exports=$(for f in $(find lib -name '*.x' | sort); do
-  sed 's/;.*$//' "$f" | tr '\n' ' ' | sed 's/(global \([^()]*\))/@\1/g' \
-    | grep -o '(provide [^)]*' \
-    | awk -v f="$f" '{ for (i = 3; i <= NF; i++) print f " " $i }'
-done)
+# would quietly stop being bound in the root.  $exports, computed above, has
+# one "FILE NAME" line per export, a marked one written @NAME.
 echo "$exports" | while read -r f n; do
   [ -n "$n" ] || continue
   case "$n" in
