@@ -10,6 +10,13 @@
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
 (def %integer->char (prim-ref (lit int) (lit ->char)))
+; The fast index check: an INT passes without a call; (Convert to-int) is
+; the slow path.
+(def %u8-type-of (prim-ref (lit type) (lit of)))
+(def %u8-int-type (%u8-type-of 0))
+(def %u8->int
+  (fn (_ n what)
+    (if (if (null? n) #f (eq? (%u8-type-of n) %u8-int-type)) n (Convert to-int n what))))
 
 
 ; StrUtf8 reinterprets the SAME bytes as Str8, but one whole UTF-8 sequence per
@@ -52,7 +59,7 @@
       ; the last code point -- error instead of decoding past the end. The nil
       ; guard makes a piped index-search miss fail loudly; only the negative
       ; case pays the code-point count walk.
-      (def j (%str8->int i "Str ref: index not convertible to INT"))
+      (def j (%u8->int i "Str ref: index not convertible to INT"))
       (if (< j 0)
         (let ((k (+ j (self count v))))
           (if (< k 0) (Err raise (lit index) "Str ref: index out of range" ()) (self ref k v)))
@@ -65,11 +72,11 @@
       (doc "Substring of len CODE POINTS starting at code-point offset start (O(n) walk)."
         (returns STRING "The len-code-point slice of v from start")
         (example "(StrUtf8 sub 1 1 \"$¢€\")" "\"¢\""))
-      (def st2 (%str8->int start "Str sub: start not convertible to INT"))
-      (def len2 (%str8->int len "Str sub: length not convertible to INT"))
+      (def st2 (%u8->int start "Str sub: start not convertible to INT"))
+      (def len2 (%u8->int len "Str sub: length not convertible to INT"))
       ; StrUtf8 overrides sub, so Str8's guard does not cover this path
       ; (%u8-byte-offset walks the raw bytes just the same). See #51.
-      (%str8-check v "Str sub: not a string")
+      (Str8 %check v "Str sub: not a string")
       (def b0 (%u8-byte-offset v st2 0))
       (def b1 (%u8-byte-offset v len2 b0))
       (%str-byte-sub v b0 (- b1 b0)))

@@ -4,6 +4,8 @@
 ; and stays as module-level defs. The 7 public operations are homed on the Vector
 ; class. Loads after object.x (relocated in x-core.x) so def-class is available;
 ; nothing before object.x uses vectors or #() literals.
+(module x/type/vector)
+
 (import x/core/list)
 ; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
 (def %make-obj (prim-ref (lit obj) (lit make)))

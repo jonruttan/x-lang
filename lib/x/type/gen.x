@@ -50,19 +50,19 @@
     (method range (self (param start INT "Start (inclusive)") (param stop INT "Stop (exclusive)"))
       (doc "Integers from start up to (not including) stop."
         (returns GEN "Generator") (example "((Gen range 0 4) ->list)" "(0 1 2 3)"))
-      ; N5: count/index seats coerce to INT at construction (vector.x's
-      ; %vec->int, which loads before us); the lazy steps then run pure INTs.
-      (def a (%vec->int start "Gen range: start not convertible to INT"))
-      (def b (%vec->int stop "Gen range: stop not convertible to INT"))
+      ; N5: count/index seats coerce to INT at construction, through
+      ; (Convert to-int); the lazy steps then run pure INTs.
+      (def a (Convert to-int start "Gen range: start not convertible to INT"))
+      (def b (Convert to-int stop "Gen range: stop not convertible to INT"))
       (Gen make (fn (_ i) (if (< i b) (pair i (+ i 1)) ())) a))
 
     (method range-by (self (param start INT "Start") (param stop INT "Stop (exclusive)") (param by INT "Step, may be negative but not zero"))
       (doc "Integers from start toward stop, stepping by `by`."
         (returns GEN "Generator") (example "((Gen range-by 0 10 3) ->list)" "(0 3 6 9)"))
       ; a zero step would never advance i, so the generator would never terminate
-      (def a (%vec->int start "Gen range-by: start not convertible to INT"))
-      (def b (%vec->int stop "Gen range-by: stop not convertible to INT"))
-      (def d (%vec->int by "Gen range-by: step not convertible to INT"))
+      (def a (Convert to-int start "Gen range-by: start not convertible to INT"))
+      (def b (Convert to-int stop "Gen range-by: stop not convertible to INT"))
+      (def d (Convert to-int by "Gen range-by: step not convertible to INT"))
       (if (= d 0) (Err raise (lit value) "Gen range-by: step must be non-zero" ())
         (Gen make (fn (_ i) (if (if (> d 0) (< i b) (> i b)) (pair i (+ i d)) ())) a)))
 
@@ -70,7 +70,7 @@
       (doc "INFINITE: start, start+1, start+2, ...  Bound with take / take-while."
         (returns GEN "Infinite generator") (example "(((Gen count-from 1) take 3) ->list)" "(1 2 3)"))
       (Gen make (fn (_ i) (pair i (+ i 1)))
-        (%vec->int start "Gen count-from: start not convertible to INT")))
+        (Convert to-int start "Gen count-from: start not convertible to INT")))
 
     (method repeat (self (param x ANY "Value to repeat"))
       (doc "INFINITE: x, x, x, ...  Bound with take."
@@ -130,7 +130,7 @@
         (fn (_ st)
           (if (<= (first st) 0) ()
             (let ((s (src (rest st)))) (if (null? s) () (pair (first s) (pair (- (first st) 1) (rest s)))))))
-        (pair (%vec->int n "Gen take: count not convertible to INT") (self state)))))
+        (pair (Convert to-int n "Gen take: count not convertible to INT") (self state)))))
 
   (method drop (self (param n INT "How many to skip"))
     (doc "A generator that skips the first n values (lazy)."
@@ -141,7 +141,7 @@
           (let loop ((d (first st)) (ss (rest st)))
             (let ((s (src ss)))
               (if (null? s) () (if (> d 0) (loop (- d 1) (rest s)) (pair (first s) (pair 0 (rest s))))))))
-        (pair (%vec->int n "Gen drop: count not convertible to INT") (self state)))))
+        (pair (Convert to-int n "Gen drop: count not convertible to INT") (self state)))))
 
   (method take-while (self (param p CALLABLE "Predicate"))
     (doc "Values up to (not including) the first for which p fails (lazy)."
@@ -252,7 +252,7 @@
 
   (method ref (self (param n INT "0-based index"))
     (doc "The n-th value (0-based); errors when n is negative (a lazy stream has no end to count from) or past the last value." (returns ANY "Value at n"))
-    (def k (%vec->int n "Gen ref: index not convertible to INT"))
+    (def k (Convert to-int n "Gen ref: index not convertible to INT"))
     (if (< k 0) (Err raise (lit index) "Gen ref: index out of range" ())
       (let ((step (self step)))
         (let go ((st (self state)) (n k)) (let ((s (step st))) (if (null? s) (Err raise (lit index) "Gen ref: index out of range" ()) (if (<= n 0) (first s) (go (rest s) (- n 1)))))))))

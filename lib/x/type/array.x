@@ -11,6 +11,9 @@
 (import x/type/class)
 (import x/type/vector)
 (import x/type/list)
+; The fast index check: an INT passes without a call.
+(def %arr-type-of (prim-ref (lit type) (lit of)))
+(def %arr-int-type (%arr-type-of 0))
 
 ; Fetch the raw slot prims (ns `obj` is de-registered, R5). Slot 0 of the
 ; backing vector is its capacity; elements live in slots 1..len.
@@ -56,12 +59,12 @@
       (Err raise 'state "Array: uninitialized instance (use Array make / from-list / of)" ())))
 
   ; Normalize an index (negative counts from the end) and bounds-check it.
-  ; N5: coerces to INT via vector.x's %vec->int (loads before us); the probe
-  ; is inlined so the dynamic message is only built on the slow path.
+  ; N5: coerces to INT through (Convert to-int); the probe is inlined so the
+  ; dynamic message, and the class call, are only paid on the slow path.
   (method %index (self i what)
     (self %live)
-    (def i2 (if (if (null? i) #f (eq? (%vec-type-of i) %vec-int-type)) i
-      (%vec->int i (Str8 append what ": index not convertible to INT"))))
+    (def i2 (if (if (null? i) #f (eq? (%arr-type-of i) %arr-int-type)) i
+      (Convert to-int i (Str8 append what ": index not convertible to INT"))))
     (def j (if (< i2 0) (+ (member 'len) i2) i2))
     (if (< j 0) (Err raise 'index (Str8 append what ": index out of range") ())
       (if (< j (member 'len)) j

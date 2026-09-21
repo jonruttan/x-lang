@@ -185,7 +185,17 @@
                      . (param extra ANY "Converter-specific arguments (e.g. a radix)"))
       (doc "Convert VAL to the TARGET type via the type system's registered conversions."
         (returns ANY "The converted value; on no registered conversion, (Convert missing)'s result (default nil)"))
-      (apply %convert-to (pair val (pair target extra))))))
+      (apply %convert-to (pair val (pair target extra))))
+    ; An index or count seat: the value as an INT, or an error naming the
+    ; seat (N5, implicit conversion).  A caller on a hot path tests
+    ; (eq? (Type of v) INT) itself and reaches here only to convert.
+    (method to-int (self (param v ANY "Value to use as an INT")
+                         (param what STRING "The error's message when v does not convert"))
+      (doc "V as an INT: V itself when it is one, else its registered conversion to INT; raises WHAT when there is none."
+        (returns INT "The integer"))
+      (if (if (null? v) #f (eq? (%type-of v) %int)) v
+        (let ((k (%convert-to v %int)))
+          (if (if (null? k) #f (eq? (%type-of k) %int)) k (error what)))))))
 
 (doc (provide x/type/convert Convert)
   (note "Hot consumers fetch the dispatcher from the catalog: (prim-ref 'convert 'to). The no-match policy is the (Convert missing) member.")
