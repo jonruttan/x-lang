@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**Tab inserts a tab where there is nothing to complete.** With only
+whitespace before the cursor and no candidate to fill in, Tab puts a tab in
+the line, so an indented block in a lang that reads indentation, x-python's
+for one, is typed at the prompt as it is in a file. ctrl-v is readline's
+quoted-insert: the key after it goes into the line as typed, so ctrl-v Tab
+inserts a tab after text. The editor draws a tab to the next multiple of
+eight columns, and measures the cursor and the scrolled window with the
+column step `x/reader/indent` measures a line by.
+
 **`x/platform/syscall` has a scope of its own, and its open-flag table is an
 export its readers import** ([#719], step 4). The per-OS `O_*` table was
 `%file-modes`, a private name three other files read from the root. It is
