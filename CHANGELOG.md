@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**Three scoped modules fetch their own engine primitives** ([#719], step 4).
+`x/protocol/str/str8` called the raw integer, pointer and memory primitives
+through `boot/string.x`'s caches (`%sc-int+`, `%sc-int<`, `%n2s-int-`,
+`%mem-cmp`, ...), `x/repl/line` printed and collected through `repl/loop.x`'s
+(`%repl-write-to-str`, `%repl-collect`), and `x/doc/doc-gen` interned symbols
+through `convert.x`'s `%str->symbol`: ten reads of another file's private
+name, each a cache of a catalog entry any file may fetch. Each module fetches
+its own now, under its own names, in its own frame -- the rule since #755 for
+an engine primitive, which needs no door. Three private-read rows go down by
+ten between them, and the engine-contract manifest records that `x/repl/line`
+needs `isa/gc` in its own right: it is the turn loop when the line editor is
+installed, and sweeps at the top of each turn as `repl/loop` does.
+
 **A bigint product walks the shorter operand.** `%limb-mul`, the schoolbook
 multiply under every bigint product, walks the limbs of its first operand and
 adds each shifted partial product into the whole accumulator, so its cost

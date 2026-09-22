@@ -60,6 +60,9 @@
   (needs "lib/x/net/tls.x" isa/ffi-call)
   (needs "lib/x/num/float.x" isa/ffi-call)
   (needs "lib/x/repl/loop.x" isa/gc)
+  ; The line editor runs the turn loop itself when it is installed, and
+  ; sweeps at the top of each turn as loop.x does, through its own fetch.
+  (needs "lib/x/repl/line.x" isa/gc)
   ; The line editor's terminal layer: termios through the ffi door
   ; (tcgetattr/tcsetattr/cfmakeraw), and TIOCGWINSZ through the syscall door
   ; -- ioctl is variadic, and a variadic argument does not travel in the

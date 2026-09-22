@@ -15,6 +15,7 @@
 (import x/type/str)
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
 (def %integer->char (prim-ref 'int '->char))
+(def %str->symbol (prim-ref 'str '->sym))
 
 
 ; --- Predicates (cross-base: use str=? not eq?) ---
