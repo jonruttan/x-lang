@@ -44,6 +44,8 @@
 (def %ln-bsub (prim-ref (lit str) (lit byte-sub)))
 (def %ln-append (prim-ref (lit str) (lit append)))
 (def %ln-bref (prim-ref (lit str) (lit byte-ref)))
+(def %ln-write-to-str (prim-ref (lit io) (lit write-to-str)))
+(def %ln-collect (prim-ref (lit heap) (lit collect)))
 (def %ln-cint (prim-ref (lit char) (lit ->int)))
 (def %ln-byte (fn (_ s i) (%ln-cint (%ln-bref s i))))
 
@@ -633,7 +635,7 @@
               (if (Err stop? err) (display "\n")
                 (%seq
                   (%stderr (%str-append (%error-loc-prefix)
-                             (if (str? err) err (%repl-write-to-str err))))
+                             (if (str? err) err (%ln-write-to-str err))))
                   (%stderr "\n"))))
             (%repl-eval-line line)))))))
 
@@ -666,7 +668,7 @@
       (do (set! repl %repl-platform-repl) (repl))
       (do
         ; The turn sweep, at the top of the iteration where the seat is quiet.
-        (%repl-collect)
+        (%ln-collect)
         (%set-cell-int! %sigint-flag 0)
         (%ln-turn)
         (%ln-repl)))))

@@ -13,6 +13,16 @@
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
 (def %str->symbol (prim-ref (lit str) (lit ->sym)))
+; The raw C arithmetic and comparison, fetched from the catalog: the bare
+; + - < dispatch through the tower, and the byte loops below want the
+; primitives.  The pointer and memory prims are for the search loops.
+(def %int+ (prim-ref (lit int) (lit +)))
+(def %int- (prim-ref (lit int) (lit -)))
+(def %int< (prim-ref (lit int) (lit <)))
+(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
+(def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+(def %mem-cmp (prim-ref (lit mem) (lit cmp)))
 ; display-to-str renders any value the way display would -- used by (Str8 str ...)
 ; to coerce non-string arguments (and the target string interpolation expands to).
 (def %display-to-str (prim-ref (lit io) (lit display-to-str)))
@@ -147,12 +157,12 @@
     ; reverse) for the cost of a single type compare -- while done?/step,
     ; which run per element, stay raw.
     (method start (self v)     (do (%str8-check v "Str8: not a string") 0))
-    (method done? (self cur v) (if (%sc-int< cur (%str-byte-len v)) #f #t))
+    (method done? (self cur v) (if (%int< cur (%str-byte-len v)) #f #t))
     ; Raw byte read (#332): the cursor protocol structurally bounds cur
     ; (start type-checks, done? gates every step), the same trust model
     ; as unchecked first/rest -- ref's per-call coercion and double
     ; bounds check cost more than the read itself, per element.
-    (method step  (self cur v) (pair (%str-byte-ref v cur) (%sc-int+ cur 1)))
+    (method step  (self cur v) (pair (%str-byte-ref v cur) (%int+ cur 1)))
 
     ; encode: one byte element is its own low byte. Makes
     ; (Str8 ->str (Str8 ->list s)) an identity on the byte view.
@@ -180,9 +190,9 @@
     ; expression; collection is explicit-only (the str=? grounds).
     (method %match-bytes-at? (self sub bpos s)
       (def m (%str-byte-len sub))
-      (if (%sc-int< bpos 0) #f
-        (if (%sc-int< (%str-byte-len s) (%sc-int+ bpos m)) #f
-          (eq? 0 (%mem-cmp (%int->ptr (%sc-int+ (%ptr->int (%str->ptr s)) bpos))
+      (if (%int< bpos 0) #f
+        (if (%int< (%str-byte-len s) (%int+ bpos m)) #f
+          (eq? 0 (%mem-cmp (%int->ptr (%int+ (%ptr->int (%str->ptr s)) bpos))
                            (%str->ptr sub) m)))))
     ; Linear byte search from a byte offset: first-byte skip, block-
     ; compare confirm.  Returns the BYTE index or nil.  Sound for
@@ -191,19 +201,19 @@
     (method %find-bytes (self sub from s)
       (def m (%str-byte-len sub))
       (def n (%str-byte-len s))
-      (if (eq? m 0) (if (%sc-int< n from) () from)
+      (if (eq? m 0) (if (%int< n from) () from)
         (do
           (def c0 (%char->integer (%str-byte-ref sub 0)))
-          (def last (%n2s-int- n m))
+          (def last (%int- n m))
           (def subp (%str->ptr sub))
           (def sbase (%ptr->int (%str->ptr s)))
           (let go ((i from))
-            (if (%sc-int< last i) ()
+            (if (%int< last i) ()
               (if (eq? (%char->integer (%str-byte-ref s i)) c0)
-                (if (eq? 0 (%mem-cmp (%int->ptr (%sc-int+ sbase i)) subp m))
+                (if (eq? 0 (%mem-cmp (%int->ptr (%int+ sbase i)) subp m))
                   i
-                  (go (%sc-int+ i 1)))
-                (go (%sc-int+ i 1))))))))
+                  (go (%int+ i 1)))
+                (go (%int+ i 1))))))))
     ; Backward twin of %find-bytes.
     (method %rfind-bytes (self sub s)
       (def m (%str-byte-len sub))
@@ -213,13 +223,13 @@
           (def c0 (%char->integer (%str-byte-ref sub 0)))
           (def subp (%str->ptr sub))
           (def sbase (%ptr->int (%str->ptr s)))
-          (let go ((i (%n2s-int- n m)))
-            (if (%sc-int< i 0) ()
+          (let go ((i (%int- n m)))
+            (if (%int< i 0) ()
               (if (eq? (%char->integer (%str-byte-ref s i)) c0)
-                (if (eq? 0 (%mem-cmp (%int->ptr (%sc-int+ sbase i)) subp m))
+                (if (eq? 0 (%mem-cmp (%int->ptr (%int+ sbase i)) subp m))
                   i
-                  (go (%n2s-int- i 1)))
-                (go (%n2s-int- i 1))))))))
+                  (go (%int- i 1)))
+                (go (%int- i 1))))))))
 
     ; --- construction ---
     (method append (self . (param args STRING "Strings to concatenate"))
@@ -285,9 +295,9 @@
           (%str8-check b "Str8 <?: not a string")
           (def la (%str-byte-len a))
           (def lb (%str-byte-len b))
-          (def n (if (%sc-int< lb la) lb la))
+          (def n (if (%int< lb la) lb la))
           (def c (%mem-cmp (%str->ptr a) (%str->ptr b) n))
-          (if (eq? c 0) (%sc-int< la lb) (eq? c -1))))
+          (if (eq? c 0) (%int< la lb) (eq? c -1))))
     (method >?  (self (param a STRING "First string") (param b STRING "Second string"))
       (doc "True if a sorts after b in element (byte) order."
         (returns BOOL "#t when a is lexicographically greater than b")
@@ -552,8 +562,8 @@
       ; without paying its O(n) code-point length twice.
       (def s-len (%str-byte-len s))
       (def sfx-len (%str-byte-len sfx))
-      (if (%sc-int< s-len sfx-len) #f
-        (self %match-bytes-at? sfx (%n2s-int- s-len sfx-len) s)))
+      (if (%int< s-len sfx-len) #f
+        (self %match-bytes-at? sfx (%int- s-len sfx-len) s)))
 
     ; --- transformation ---
     (method reverse  (self (param s STRING "String to reverse"))
@@ -652,9 +662,9 @@
         (let go ((start 0) (acc ()))
           (let ((hit (self %find-bytes sep start s)))
             (if (null? hit)
-              (%reverse (pair (%str-byte-sub s start (%n2s-int- s-len start)) acc))
-              (go (%sc-int+ hit sep-len)
-                  (pair (%str-byte-sub s start (%n2s-int- hit start)) acc)))))))))
+              (%reverse (pair (%str-byte-sub s start (%int- s-len start)) acc))
+              (go (%int+ hit sep-len)
+                  (pair (%str-byte-sub s start (%int- hit start)) acc)))))))))
 
 (doc (provide x/protocol/str/str8 Str8)
   (note "The 8-bit byte view. Use (Str8 length s), (Str8 upcase s), etc.; (help Str8) lists every method, (help Str8 method) shows one.")
