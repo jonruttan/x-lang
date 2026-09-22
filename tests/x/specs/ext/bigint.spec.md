@@ -448,6 +448,70 @@ wrapped.
 ---
     #t
 
+## big* operand order
+
+`%limb-mul` walks the limbs of its first operand, and its cost grows with the
+square of that operand's length, so `%big-mul` passes the shorter limb list
+first.  The product does not depend on the order: each pair below pins the
+same product with the operands both ways round.
+
+### a long bigint times a one-limb int
+
+```x
+(write (* (Num expt 2 300) 3))
+```
+---
+    6111107929003458258805337065228134483154405180997808751908421348063143899290010118550192128
+
+### the one-limb int first
+
+```x
+(write (* 3 (Num expt 2 300)))
+```
+---
+    6111107929003458258805337065228134483154405180997808751908421348063143899290010118550192128
+
+### a negative one-limb int second
+
+```x
+(write (* (Num expt 2 300) -3))
+```
+---
+    -6111107929003458258805337065228134483154405180997808751908421348063143899290010118550192128
+
+### a negative one-limb int first
+
+```x
+(write (* -3 (Num expt 2 300)))
+```
+---
+    -6111107929003458258805337065228134483154405180997808751908421348063143899290010118550192128
+
+### a long bigint times a shorter bigint
+
+```x
+(write (* (Num expt 2 300) 18446744073709551616))
+```
+---
+    37576681324381331646231689548629392438010920782533117931316655544515344401833735095419183974156299248510959616
+
+### the shorter bigint first
+
+```x
+(write (* 18446744073709551616 (Num expt 2 300)))
+```
+---
+    37576681324381331646231689548629392438010920782533117931316655544515344401833735095419183974156299248510959616
+
+### a two-limb bigint times a one-limb int demotes either way round
+
+```x
+(let ((b (Convert to 10000000000 %bigint)))
+  (list (eq? (Bigint * b 3) 30000000000) (eq? (Bigint * 3 b) 30000000000)))
+```
+---
+    (#t #t)
+
 ## big/
 
 ### divides bigints
