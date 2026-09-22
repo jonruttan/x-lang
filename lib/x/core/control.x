@@ -4,6 +4,14 @@
 
 (import x/core/predicates)
 
+; The engine's apply, kept under a fixed name.  lib/x/core/fn.x binds the
+; library's apply over the bare one -- a value applies through its type's
+; call handler there -- and let, a derived form over fn, applies the closure
+; it just built: it has nothing for that door to look at, and a lang that
+; binds apply over the library's, as the library binds it over the engine's,
+; must not retarget every let.
+(def %apply apply)
+
 (def if
   (op (test then . else)
     e
@@ -33,7 +41,7 @@
 (def let
   (op (bindings . body)
     e
-    (apply
+    (%apply
       (eval (pair (lit fn) (pair (pair (lit _) (%let-params bindings)) body)) e)
       (%let-vals bindings e))))
 

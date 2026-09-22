@@ -265,3 +265,116 @@ dotted pair with no float module -- killed the process.
 ```
 ---
     ((1 2) 7 (1 2 3))
+
+## apply on values
+
+`apply` is the library's door over the engine's. The engine's `apply` calls
+through whatever it is handed, and a value that is not a closure, an
+operative or a primitive has no C function in its first slot to call: the
+process died with a bus error, past the reach of any guard. A value is
+callable through its type's call handler, and `(v args...)` dispatches that
+way, so `apply` takes the same door with the arguments as they are; a value
+with no handler raises.
+
+### a closure, a primitive and an operative apply as before
+
+```x
+(list (apply (fn (_ a b) (+ a b)) (list 1 2))
+      (apply + (list 1 2 3))
+      (apply (op (a) e a) (list 1)))
+```
+---
+    (3 6 1)
+
+### leading arguments splice onto the list
+
+```x
+(apply + 1 2 (list 3 4))
+```
+---
+    10
+
+### a make-type instance applies through its closure call handler
+
+```x
+(def %apply-spec-t
+  ((prim-ref (lit type) (lit make)) "APPLY-SPEC"
+    (list (pair (lit call) (fn (_ self . args) (list (first self) args))))))
+(def %apply-spec-v ((prim-ref (lit type) (lit make-instance)) %apply-spec-t 42))
+(list (%apply-spec-v 1 2) (apply %apply-spec-v (list 1 2)))
+```
+---
+    ((42 (1 2)) (42 (1 2)))
+
+### an operative call handler receives the values as its operands
+
+```x
+(def %apply-spec-o
+  ((prim-ref (lit type) (lit make)) "APPLY-SPEC-OP"
+    (list (pair (lit call) (op (self . argfs) e (list (first self) argfs))))))
+(apply ((prim-ref (lit type) (lit make-instance)) %apply-spec-o 7) (list 1 2))
+```
+---
+    (7 (1 2))
+
+### a class instance, a vector, a list, a string and a number apply as they call
+
+```x
+(def-class ApplySpecPoint () x y (method dist (self) (+ (self x) (self y))))
+(list (apply (new ApplySpecPoint x 3 y 4) (list (lit dist)))
+      (apply (Vector of 1 2 3) (list 1))
+      (apply (list 1 2 3) (list 1))
+      (apply "abc" (list 1))
+      (apply 5 (list (lit abs))))
+```
+---
+    (7 2 2 #\b 5)
+
+### a generic applies through its dispatch
+
+```x
+(do (import x/type/generic)
+    (def-generic apply-spec-g)
+    (on apply-spec-g (x) (list 'hit x))
+    (apply apply-spec-g (list 99)))
+```
+---
+    ('hit 99)
+
+### a value with no call handler raises a type error
+
+```x
+(def %apply-spec-n ((prim-ref (lit type) (lit make)) "APPLY-SPEC-NONE" ()))
+(list (guard (e (Err tag e))
+        (apply ((prim-ref (lit type) (lit make-instance)) %apply-spec-n 1) (list 1)))
+      (guard (e (Err tag e)) (apply %apply-spec-n (list 1)))
+      (guard (e (Err tag e)) (apply () (list 1)))
+      (guard (e (Err tag e)) (apply (lit a) (list 1))))
+```
+---
+    ('type 'type 'type 'type)
+
+### the error names the door
+
+```x
+(guard (e (Str8 includes? "apply: not callable" (Str8 str "" e))) (apply () (list 1)))
+```
+---
+    #t
+
+### apply without an argument list raises a type error
+
+```x
+(guard (e (Err tag e)) (apply +))
+```
+---
+    'type
+
+### the door keeps apply a tail call
+
+```x
+(def %apply-spec-go (fn (self n) (if (= n 0) 'done (apply self (list (- n 1))))))
+(%apply-spec-go 50000)
+```
+---
+    'done

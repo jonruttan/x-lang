@@ -146,8 +146,8 @@
 (file "lib/x/boot/engine.x" 2)
 (file "lib/x/boot/module.x" 68)   ; +18 for scoped modules (x-lang#719): env/owner registries, provide/import doors, the header, its reader and the amalgam markers -- boot code, no class to home them on
 (file "lib/x/boot/operatives.x" 6)
-(file "lib/x/boot/printer.x" 74)
-(file "lib/x/boot/reflect.x" 32)
+(file "lib/x/boot/printer.x" 75)   ; +1 %apply: a write/display handler from a type cell may be a C handler atom
+(file "lib/x/boot/reflect.x" 33)   ; +1 %apply: the iter handler from a type cell may be a C handler atom
 (file "lib/x/boot/registry.x" 8)
 (file "lib/x/boot/string.x" 25)
 ; tower-compiled.x rose 18 to 20 for %tower-jit? and %tower-asm: the burst
@@ -182,7 +182,8 @@
 (file "lib/x/core/alist.x" 12)
 (file "lib/x/core/arithmetic.x" 17)
 (file "lib/x/core/boolean.x" 3)
-(file "lib/x/core/control.x" 2)
+(file "lib/x/core/control.x" 3)   ; +1 %apply: let applies the closure it built through the engine's apply, not the library's door (fn.x)
+(file "lib/x/core/fn.x" 3)   ; %apply, the engine's apply under the library's door bound over it; %apply-args and %apply-value, the door's splice and its value path, kept off the closure fast path
 (file "lib/x/core/list.x" 23)
 (file "lib/x/core/logic.x" 1)
 (file "lib/x/core/predicates.x" 12)
@@ -297,7 +298,7 @@
 ; the char->int door, and the writer itself -- one emitter family, the
 ; same standing the int and symbol writers have.
 (file "lib/x/tool/lint.x" 89)
-(file "lib/x/type/class.x" 90)
+(file "lib/x/type/class.x" 91)   ; +1 %apply: the dispatcher applies resolved methods and displaced C handler atoms through the engine's apply
 (file "lib/x/type/convert.x" 20)
 (file "lib/x/type/promise.x" 6)
 (file "lib/x/type/shape-rows.x" 2)

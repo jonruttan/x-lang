@@ -42,12 +42,6 @@
   (example "(def my-if (op (test then else) e (if (eval test e) (eval then e) (eval else e))))" "")
   (see fn))
 
-(doc apply "Apply a function to a list of arguments."
-  (param f CALLABLE "Function to apply")
-  (param args LIST "Argument list")
-  (returns ANY "Result of application")
-  (example "(apply + '(1 2))" "3"))
-
 (doc eval "Evaluate an expression, optionally in a given environment."
   (param expr ANY "Expression to evaluate")
   (param env LIST "Environment alist (optional)")

@@ -27,6 +27,8 @@
   (str=?)
   (str?)
   (symbol?)
+  ; --- engine doors the library binds over: ruled x-lang level 2026-09-22 ---
+  (apply)         ; lib/x/core/fn.x: a value applies through its type's call handler; the engine's apply stays %apply
   ; --- syntax forms (keep-list) ---
   (and)
   (begin)

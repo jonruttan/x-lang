@@ -228,6 +228,16 @@ callable head must be told what to do.
 > looked like an accessor and silently returned a number. `(Str length s)` is
 > the length door and `(Str8 length s)` the byte count.
 
+**`apply` takes the same door.** The library binds `apply` over the engine's
+(`lib/x/core/fn.x`): a closure, a primitive or an operative is applied by the
+engine, and any other value is applied through its type's `call` handler with
+the arguments as they are, so `(apply v vals)` reaches the handler `(v ...)`
+reaches. A value whose type has no handler raises a `type` error. The engine's
+`apply` itself calls through whatever it is handed; a value that is not
+callable has no C function in its first slot, and the process died there. That
+is the engine's charter (the C prims are unchecked; see [core](glossary.md) in
+the glossary), which is why the door is in the library.
+
 **Write dispatch** — When a value is output:
 
 - Each type's `write` method produces its external representation
