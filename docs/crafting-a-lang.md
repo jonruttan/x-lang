@@ -196,7 +196,7 @@ What the handlers buy, mapped from Python:
 | `len(x)` | `length` |
 | `x[i]`, and calling a class `Foo()` | `call` |
 | iteration | `iter` |
-| `a + b` on your types | `%type-push-op` |
+| `a + b` on your types | `ops`, through `push-op` on the wrapped type (`((Type wrap t) push-op (lit +) f)`) |
 
 Details with teeth:
 

@@ -41,8 +41,8 @@ C** — `lib/x/type/struct.x` writes the type's units cell reflectively through
 the `type-units` row of the layout contract, and files it into the catalog with
 `prim-reg!`. So the count is readable from x by the same path, and a
 twenty-line `%obj-units` written against `%reflect-type-word`,
-`%reflect-satom-tw` and `%type-units-cell` answers correctly for every type
-that declares one:
+`%reflect-satom-tw` and the catalog's `(type units-cell)` answers correctly for
+every type that declares one:
 
 ```
 pair (1 . 2) -> 2      vector of 5 -> 6      vector of 0 -> 1

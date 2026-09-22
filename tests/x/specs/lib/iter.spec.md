@@ -169,8 +169,9 @@ The driver prims dispatch on their argument's type handle.  A `nil` is
 typeless and gives them none to read, which ends the process, so no door may
 pass one on.  `(Iter new)` answers nil for a value whose type carries no iter
 slot, and `(List from-seq)` sends every non-pair through it, which puts
-`(List length 5)` and `(List length (%type-alist))` on that path -- the
-reader's type alist is a C-built spine, so `pair?` answers `#f` on it.  Such
+`(List length 5)` and `(List length ((prim-ref (lit type) (lit alist))))` on
+that path -- the reader's type alist is a C-built spine, so `pair?` answers
+`#f` on it.  Such
 spines are walked with the bare `first`/`rest` accessors;
 `docs/sandboxing-tutorial.md` states the rule.  Each public door checks its
 iterator once on the way in and raises `type` instead.
@@ -194,7 +195,7 @@ iterator once on the way in and raises `type` instead.
 ### new refuses the reader's type alist
 
 ```x
-(Iter new (%type-alist))
+(Iter new ((prim-ref (lit type) (lit alist))))
 ```
 ---
     Error: #<err:type Iter new: not iterable>
@@ -203,7 +204,7 @@ iterator once on the way in and raises `type` instead.
 
 ```x
 (def go (fn (self al n) (if (null? al) n (self (rest al) (+ n 1)))))
-(> (go (%type-alist) 0) 0)
+(> (go ((prim-ref (lit type) (lit alist))) 0) 0)
 ```
 ---
     #t
