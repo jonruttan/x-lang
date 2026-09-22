@@ -2,6 +2,8 @@
 ; lint-known: Float
 ; (the numeric tower loads after this file; float-path methods reach
 ;  Float lazily at call time)
+(module x/protocol/str/str8)
+
 (import x/protocol/seq)
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
@@ -85,6 +87,10 @@
 
 (def-class Str8 (extends Seq)
   (static
+    ; The string check, for StrUtf8's own paths: v, or a type error naming
+    ; the seat.  Homed on the class rather than read from this file's
+    ; privates, as (Iter %check) is.
+    (method %check (self v what) (%str8-check v what))
     ; --- primitives (8-bit byte view; handler-immune via str-byte-*) ---
     (method length (self (param v STRING "String to measure"))
       (doc "Number of bytes in v (the 8-bit element count)."

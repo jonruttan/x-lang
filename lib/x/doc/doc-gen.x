@@ -137,10 +137,10 @@
 ; arm, which differ only in where the description sits.
 (def %doc-emit-member
   (fn (_ em name desc cname vis)
-    (em alias (%str-build cname "-" name))
+    (em alias (Str str cname "-" name))
     (em entry-head name)
     (unless (str=? desc "") (em text desc))
-    (em note (%str-build "Member: data carried by a " cname " instance."))
+    (em note (Str str "Member: data carried by a " cname " instance."))
     (%for-each (fn (_ n) (em note (DocEmit as-str (first (rest n)))))
                (%doc-vis-note vis cname))))
 
@@ -217,9 +217,9 @@
   (fn (self ps)
     (match
       ((null? ps) "")
-      ((symbol? ps) (%str-build " . " (symbol->str ps)))
-      ((%doc-param-form? ps) (%str-build " . " (symbol->str (first (rest ps)))))
-      ((pair? ps) (%str-build " " (%doc-param-name (first ps)) (self (rest ps))))
+      ((symbol? ps) (Str str " . " (symbol->str ps)))
+      ((%doc-param-form? ps) (Str str " . " (symbol->str (first (rest ps)))))
+      ((pair? ps) (Str str " " (%doc-param-name (first ps)) (self (rest ps))))
       (#t ""))))
 
 ; Collect (param ...) forms from a sig for the Parameters section, treating a
@@ -247,9 +247,9 @@
   (fn (_ vis cname)
     (match
       ((str=? vis "private")
-        (list (list 'note (%str-build "Private: reachable from " cname "'s own methods only."))))
+        (list (list 'note (Str str "Private: reachable from " cname "'s own methods only."))))
       ((str=? vis "protected")
-        (list (list 'note (%str-build "Protected: reachable from methods anywhere on " cname "'s chain."))))
+        (list (list 'note (Str str "Protected: reachable from methods anywhere on " cname "'s chain."))))
       (#t ()))))
 
 (def %doc-emit-method
@@ -263,8 +263,8 @@
     (def %meta (unless (null? %docf) (rest %docf)))
     (def %head
       (if static?
-        (%str-build "(" cname " " %mname (%doc-sig-str %args) ")")
-        (%str-build "(" %mname (%doc-sig-str %args) ")")))
+        (Str str "(" cname " " %mname (%doc-sig-str %args) ")")
+        (Str str "(" %mname (%doc-sig-str %args) ")")))
     (def %notes (%doc-extract-meta-type %meta "note" ()))
     ; Notes the LIVE registry holds for this method that the source form
     ; does not.  x/type/block.x adds "Block form: ..." to a method's doc
@@ -278,7 +278,7 @@
     (def %rt-notes
       (let ()
         (%doc-commit!)
-        (let ((%e (%doc-lookup (%str->symbol (%str-build cname "/" %mname)))))
+        (let ((%e (%doc-lookup (%str->symbol (Str str cname "/" %mname)))))
           (if (null? %e) ()
             ((fn (go l acc)
                (if (null? l) (%reverse acc)
@@ -293,7 +293,7 @@
              (%doc-entry-notes %e) ())))))
     ; The alias is built from the STRUCTURED name, not %head: a lookup name
     ; has to be typeable, and %head is a rendered signature.
-    (em alias (%str-build cname "-" %mname))
+    (em alias (Str str cname "-" %mname))
     ; params ride the SIGNATURE; a bare-variadic sig (self . opt) documents
     ; its option via (param ...) in the doc meta instead -- fall back to it.
     (def %sig-params (%doc-sig-params %args ()))
@@ -311,7 +311,7 @@
                 (if static? %notes
                   (%append %notes
                     (list (list 'note
-                      (%str-build "Instance method: called on a " cname " instance.")))))
+                      (Str str "Instance method: called on a " cname " instance.")))))
                 (%doc-vis-note vis cname))
               %rt-notes)))))
 
