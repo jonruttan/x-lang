@@ -303,16 +303,16 @@
 ; without the JIT (or the trampoline) is unchanged.  The body has no free
 ; variable, so its fvar table is empty and the analyser mode is declared.
 (def %type-delimit-cell (prim-ref 'type 'delimit-cell))
-; Compile only when the engine actually exports jit_buffer_last_char.
-; asm-compile resolved it to a non-zero address; an engine that predates it
-; (the released engine CI builds against, until the next engine release) left
-; it 0.  Decide up front rather than attempting the compile and catching the
-; failure: a compile aborted against a missing trampoline is not worth the
-; risk (an x86-64 backend left bad state and the next boot crashed), when the
-; answer -- keep the interpreted %macro-delimit -- is known here.  The guard
-; covers the (import-order) case where the name is not yet bound at all.
+; Compile only when the engine exports jit_buffer_last_char, asked of the
+; process with dlsym, the way the lane resolves its trampolines.  asm-compile.x
+; binds the address as well, but only once a cache miss has loaded the compiler,
+; and a boot whose compiles all hit the byte cache never loads it.  Decide up
+; front rather than attempting the compile and catching the failure: a compile
+; aborted against a missing trampoline is not worth the risk (an x86-64 backend
+; left bad state and the next boot crashed), when the answer -- keep the
+; interpreted %macro-delimit -- is known here.
 (def %c-macro-delimit %macro-delimit)
-(if (guard (_ #t) (= %jit-buffer-last-char 0)) ()
+(if (null? ((prim-ref 'ffi 'dlsym) ((prim-ref 'ffi 'dlopen) () 1) "jit_buffer_last_char")) ()
   (%tower-jit-global! %c-macro-delimit #f
     (lit (fn (_ buffer)
       ; ' ` (39 96) each end an adjacent token; the comma (44) does not, as
