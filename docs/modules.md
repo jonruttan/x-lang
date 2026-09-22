@@ -220,7 +220,10 @@ so the generator writes a form naming the module before it and an end
 marker after it, where the header stops reading. Nothing may be spliced
 inside a scoped file, since it would load into the module: a file the scoped
 file includes once or imports at top level is spliced ahead of it instead,
-and a plain `include` inside it is refused. So each form carries the file and its line, an error
+and a plain `include` inside it is refused. A selective import,
+`(import NAME sym ...)`, is spliced the same way and its line is kept: the
+splice marks the module loaded, so at boot the line loads nothing and binds
+the names. So each form carries the file and its line, an error
 while the module loads names both, and a form can read the forms after it.
 A header naming a different module is refused. The rules for every class of
 name conflict the doors can meet are in [Namespaces](namespaces.md).
