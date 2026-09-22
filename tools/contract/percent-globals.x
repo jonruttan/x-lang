@@ -184,7 +184,7 @@
 (file "lib/x/core/boolean.x" 3)
 (file "lib/x/core/control.x" 2)
 (file "lib/x/core/list.x" 23)
-(file "lib/x/core/logic.x" 2)
+(file "lib/x/core/logic.x" 1)
 (file "lib/x/core/predicates.x" 12)
 (file "lib/x/core/syntax.x" 5)
 (file "lib/x/doc/doc.x" 73)

@@ -531,8 +531,10 @@ the depth-independence of the drain.
 ## a rebound `equal?` does not move content comparison
 
 `index-of`, `includes?`, `uniq` and `uniq-by` compare by content, and a
-session may rebind the name that content equality is spelled with. They read
-`%equal?` in core/logic.x instead, as `Dict` does.
+session may rebind the name that content equality is spelled with. The module
+imports the name, `(import x/core/logic equal?)`, as `x/type/dict` does, and
+calls the closure held in its own frame, which a rebinding of the global does
+not reach.
 
 ### includes? and index-of still compare content while `equal?` is eq?
 

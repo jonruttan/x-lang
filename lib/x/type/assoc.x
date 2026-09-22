@@ -6,6 +6,7 @@
 ; compared by eq?; option stores (opt-get-or...) also accept flat plists.
 
 (module x/type/assoc)
+(import x/core/logic equal?)
 (import x/core/alist)
 (import x/type/class)
 
@@ -146,7 +147,7 @@
         (returns ANY "The matching entry pair, or nil")
         (example "(Assoc find \"b\" (list (pair \"a\" 1) (pair \"b\" 2)))" "(\"b\" . 2)"))
       (if (null? alist) ()
-        (if (%equal? key (first (first alist))) (first alist) (recur self key (rest alist)))))
+        (if (equal? key (first (first alist))) (first alist) (recur self key (rest alist)))))
 
     (method opt-get-or (self (param d ANY "Default value if key is absent")
                              (param key SYMBOL "Key to look up")

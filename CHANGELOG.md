@@ -5,6 +5,29 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The containers that compare by content import `equal?` by name**
+([#719], step 4). `x/type/dict`, `x/type/list`, `x/type/record` and
+`x/type/assoc` called `%equal?`, a second name for `equal?` that
+`x/core/logic` defined so that a session rebinding the bare global (x-sweet's
+Scheme shim does) would not retarget a bucket search or `index-of`. A
+selective import is that protection without the second name: each of the
+four has `(import x/core/logic equal?)` at its top, holds the closure in its
+own frame and calls it as `equal?`, and a rebinding of the global does not
+reach it. `%equal?` is gone.
+- **A selective import of a name the root binds made no copy.** The loader
+  asked whether the importer already bound the name with a lookup, which
+  walks to the root and found the name bound to the very object it was about
+  to copy, so it treated the import as a repeat and the module went on
+  reading the global. It reads the importer's own frame now; the root, which
+  has no parent, keeps the lookup. The module-scope spec has the case, and
+  the dict and list specs' rebinding cases hold under it.
+- `x/type/vector` installs its elementwise handler on `equal?`'s extension
+  hook, which it read from the root as `%equal-others`. The cell is in the
+  catalog now, `(prim-ref (lit logic) (lit equal-others))`, and vector fetches
+  it there.
+- Five rows of the private-read budget go down by one, and `x/core/logic`'s
+  `%`-budget row goes from 2 to 1.
+
 **The tower's JIT probe is a state in the form its states take.**
 `%tower-jit?` decided the whole compiled burst by compiling `(fn (_ x) (+ x k))`
 as an integer function, a mode none of the tower's states use, so it could open

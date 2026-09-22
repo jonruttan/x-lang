@@ -9,6 +9,7 @@
 ; Recursion uses `recur` (a method's own self-reference); cross-calls to other
 ; list operations go through (List ...).
 (module x/type/list)
+(import x/core/logic equal?)
 
 (import x/type/class)
 
@@ -236,13 +237,13 @@
         (go 0 lst)))
     (method index-of (self x lst)
       (doc "Return the index of the first occurrence of a value." (param x ANY "Value to find") (param lst LIST "List") (returns ANY "Zero-based index, or nil if not found"))
-      (List find-index (fn (_ el) (%equal? el x)) lst))
+      (List find-index (fn (_ el) (equal? el x)) lst))
     (method includes? (self x lst)
       (doc "Test if a list contains a value." (param x ANY "Value to search for") (param lst LIST "List or iterable") (returns BOOL "t if found"))
       (def go (fn (self xs)
         (match
           ((null? xs) #f)
-          ((%equal? x (first xs)) #t)
+          ((equal? x (first xs)) #t)
           (#t (self (rest xs))))))
       (go (List from-seq lst)))
     (method count-if (self pred lst)
@@ -423,7 +424,7 @@
         (match
           ((null? xs) (%reverse acc))
           ((null? (rest xs)) (%reverse (pair (first xs) acc)))
-          ((%equal? (first xs) (first (rest xs))) (self (rest xs) acc))
+          ((equal? (first xs) (first (rest xs))) (self (rest xs) acc))
           (#t (self (rest xs) (pair (first xs) acc))))))
       (go lst ()))
     (method uniq-by (self f lst)
@@ -440,7 +441,7 @@
              (match
                ((null? xs) (%reverse acc))
                ((null? (rest xs)) (%reverse (pair (first xs) acc)))
-               ((%equal? (f (first xs)) (f (first (rest xs))))
+               ((equal? (f (first xs)) (f (first (rest xs))))
                  (self (pair (first xs) (rest (rest xs))) acc))
                (#t (self (rest xs) (pair (first xs) acc)))))
            lst ()))))

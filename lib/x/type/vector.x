@@ -305,10 +305,11 @@
 (%bind-call-over! (Type of (Vector of 1)) Vector)
 
 ; Install elementwise vector equality on equal?'s extension hook (logic.x's
-; %equal-others -- logic loads before this file, so equal? cannot name the
-; vector type itself). Chains the previous handler; runs only after equal?'s
-; identity check has already failed. %obj-ref direct (not Vector ref): both
-; operands are known vectors and i is bounded by the slot-0 length.
+; %equal-others, fetched from the catalog -- logic loads before this file, so
+; equal? cannot name the vector type itself). Chains the previous handler;
+; runs only after equal?'s identity check has already failed. %obj-ref direct
+; (not Vector ref): both operands are known vectors and i is bounded by the
+; slot-0 length.
 (def %vector-equal
   (fn (_ eq a b)
     (def len (%obj-ref a 0))
@@ -318,6 +319,7 @@
           (if (eq (%obj-ref a (+ i 1)) (%obj-ref b (+ i 1)))
             (go (+ i 1)) #f)))
       #f)))
+(def %equal-others (prim-ref (lit logic) (lit equal-others)))
 (%set-first! %equal-others
   (let ((prev (first %equal-others)))
     (fn (_ eq a b)
