@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The symbol type's delimiter hook compiles on every boot that can.**
+`%c-macro-delimit` compiled only where `%jit-buffer-last-char` was bound, and
+that is `asm-compile.x`'s name, bound once a byte-cache miss has loaded the
+compiler. A boot whose compiles all hit the cache never loads it, so after a
+machine's first boot per version the symbol type kept the interpreted
+`%macro-delimit`; CI, which starts cold, compiled it. The hook now asks the
+engine whether it exports `jit_buffer_last_char`, with `dlsym` on the process,
+the way the lane resolves its trampolines. `tests/x/specs/e2e/tower-jit.spec.md`
+requires it compiled wherever the probe is open and the trampoline is
+exported, and now checks the `swap` sites with the others.
+
 **Three scoped modules fetch their own engine primitives** ([#719], step 4).
 `x/protocol/str/str8` called the raw integer, pointer and memory primitives
 through `boot/string.x`'s caches (`%sc-int+`, `%sc-int<`, `%n2s-int-`,

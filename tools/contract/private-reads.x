@@ -27,7 +27,7 @@
 (file "lib/x/boot/printer.x" 20)
 (file "lib/x/boot/radon.x" 4)
 (file "lib/x/boot/reflect.x" 18)
-(file "lib/x/boot/tower-compiled.x" 45)
+(file "lib/x/boot/tower-compiled.x" 44)
 (file "lib/x/boot/xenon.x" 4)
 (file "lib/x/codec/base64.x" 1)
 (file "lib/x/codec/csv.x" 1)
