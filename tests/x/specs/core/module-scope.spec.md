@@ -331,6 +331,25 @@ file's cases share one session.
 ---
     10
 
+### a name the root binds is copied, not taken as already bound
+
+Every frame can see a name the root binds, so a lookup would call it bound
+already and make no copy. The import reads the importer's own frame instead;
+the copy shadows the root's binding, and rebinding the global does not reach
+it. The global is restored on the raising path too, since the file's cases
+share one session.
+
+```x
+(let ((saved equal?)
+      (held ((fn (_) (import x/core/logic equal?) (fn (_ a b) (equal? a b))))))
+  (set! equal? eq?)
+  (let ((got (guard (e (list 'raised e)) (list (equal? "a" "a") (held "a" "a")))))
+    (set! equal? saved)
+    got))
+```
+---
+    (#f #t)
+
 ### a name already bound to something else in the importer is refused
 
 ```x

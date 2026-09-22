@@ -54,8 +54,9 @@ The counts come from `tools/check/defs.awk` over `lib/`, the same scanner
 the ratchets use. Three ratchets hold the line by counting rather than by
 scope: `tools/check/bare-globals.sh`, `tools/check/percent-globals.sh` and
 `tools/check/dup-defs.sh`. What they cannot prevent is recorded in the
-tree: `lib/x/core/logic.x` keeps `%equal?` because a lang bundle rebound
-`equal?` and retargeted the collection classes through it, and
+tree: a lang bundle rebound `equal?` and retargeted the collection classes
+through it, which is why those modules import the name (see [Early binding
+against late binding](#early-binding-against-late-binding)), and
 [Crafting a Lang](crafting-a-lang.md) records four collisions among one
 lang's `%`-prefixed names.
 
@@ -190,8 +191,9 @@ reference, and it decides how the library protects itself from a lang.
 
 A selective import copies the export's value into the importer's frame. A
 later global rebind cannot retarget it. That is the fixed-name rule of
-`%equal?` and `Str`/`Str8` made general: a module imports by name what it
-must keep. A bare import leaves the reference late-bound through the global
+`Str`/`Str8` made general: a module imports by name what it must keep, as the
+containers that compare by content do with `(import x/core/logic equal?)`. A
+bare import leaves the reference late-bound through the global
 tree, which is what the seams need: `repl` replaced by a lang, the `include`
 wrapper, the `%repl-print` family that `Lang` installs.
 

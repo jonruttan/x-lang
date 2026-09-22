@@ -61,8 +61,11 @@ each named export into the importer's own environment, so the importer
 holds the value and a later rebinding of the global does not reach it. A
 `(sym alias)` pair binds the export under a different name. Importing the
 same export twice into one environment is a no-op; a name already bound
-there to a different object is refused, naming both. A selective import of
-a name the module does not export is an error.
+there to a different object is refused, naming both. "There" is the
+importer's own frame, not the chain a lookup walks: a name the root binds is
+visible from every module, and an import of it still makes the module's own
+copy, which shadows the root's binding. A selective import of a name the
+module does not export is an error.
 
 ### `import-version-once` / `import-version`
 

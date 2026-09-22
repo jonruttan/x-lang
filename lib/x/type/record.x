@@ -21,6 +21,7 @@
 ; equality is a METHOD -- eq?/same? keep identity semantics, by ruling.
 
 (module x/type/record)
+(import x/core/logic equal?)
 (import x/type/class)
 
 ; Functional update: copy the record with the named fields replaced.
@@ -39,7 +40,7 @@
   (fn (_ self other)
     (if (not (object? other)) #f
       (if (not (same? (class-of self) (class-of other))) #f
-        (%equal? (%obj-fields self) (%obj-fields other))))))
+        (equal? (%obj-fields self) (%obj-fields other))))))
 
 ; The two methods every record gets.  def-record splices them into the
 ; def-class it evaluates where the record is defined, and this module's
