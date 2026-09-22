@@ -197,7 +197,6 @@
 (file "lib/x/num/tower.x" 10)
 (file "lib/x/num/rational.x" 39)
 (file "lib/x/platform/socket.x" 1)
-(file "lib/x/platform/syscall.x" 7)
 (file "lib/x/protocol/seq.x" 1)
 ; intrinsics.x rose 5 to 8 for the variant channel: %score-variant-cell (the raw
 ; door to the cell the engine hangs off the score), %score-variant! (the

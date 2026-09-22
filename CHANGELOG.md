@@ -14,6 +14,34 @@ inserts a tab after text. The editor draws a tab to the next multiple of
 eight columns, and measures the cursor and the scrolled window with the
 column step `x/reader/indent` measures a line by.
 
+**`x/platform/syscall` has a scope of its own, and its open-flag table is an
+export its readers import** ([#719], step 4). The per-OS `O_*` table was
+`%file-modes`, a private name three other files read from the root. It is
+now `file-modes`, a plain export: `x/sys/file` and `x/sys/posix` import it at
+their top, `(import x/platform/syscall file-modes)`, and the boot loader's
+`%module-mode` imports it when it runs, since `boot/module.x` loads long
+before the table does. `(File file-modes)` answers as before.
+- The file defined `os-linux?`, `arch-arm64?` and `arch-x86-64?` without
+  providing them, and other files use all three. They are in the provide
+  list now, marked `(global ...)` with the file's other sanctioned names.
+- **Amalgams carry a selective import.** The generator recognised only a
+  bare `(import NAME)`, so `(import NAME sym ...)` in an amalgamated file
+  would have been left unspliced and its module loaded from the platform at
+  boot. It splices the module as for a bare import -- ahead of a scoped
+  importer, in place in an unscoped one -- and keeps the line, because binding
+  the names is the line's other half and the load is a no-op once the splice
+  has marked the module loaded. The three library amalgams were byte-identical
+  before and after the generator change; the amalgam smoke check covers both
+  placements on a throwaway tree.
+- **`check-bare-globals` counts a scoped module's marked names only.** A
+  scoped module's other bare definitions are its own, exported for import or
+  not, and need no manifest row; `file-modes` is the first such name in the
+  files it scans. A scoped file that defines a sanctioned name and stops
+  exporting it is refused, which is the mistake the three predicates above
+  would have been.
+- Three rows of the private-read budget go down by one, and the file's
+  `%`-budget row is retired.
+
 **A compile that carries fvars declares its calling world.** With no third
 argument `compile-asm` read the fvar table to choose between an integer
 function and an analyse callback -- present meant analyser -- though an fvar
