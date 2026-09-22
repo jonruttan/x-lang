@@ -265,6 +265,16 @@ model.
   global tree. A module with a hundred private definitions taxes every
   global lookup made from inside it. Measure on a module the size of
   `class.x` before step 4.
+  - Measured, with the profile-only counter x-engine-c#59 put in the lookup
+    loop: scoping `core/boolean` and `core/control` alone adds 34% to the
+    environment comparisons of an x-core boot, 39% with a workload behind
+    it and 42% at x-base, with evaluations and allocations unchanged. The
+    cost is per lookup from inside the module, and those two modules'
+    operatives are looked up from everywhere. So six modules stay unscoped
+    by decision (2026-09-22): `core/boolean`, `core/control`, `core/syntax`,
+    `core/predicates`, `sys/pact` and `num/tower`. Their 44 private names are
+    read by nothing outside them, so a scope would buy only the frame, and
+    the frame is what costs.
 - **Source boot time.** The image writers and the asan-boot gate boot from
   source. A framed load of `regex.x` through the x-side reader took the same
   time as the C include, so the loader is not the risk; the lookup cost is.
