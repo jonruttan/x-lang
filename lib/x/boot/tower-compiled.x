@@ -56,9 +56,16 @@
 ; its interpreted twin, the same honest fallback the missing-C-headers branch
 ; used to be.  The cc lane (lib/x/tool/compile.x) remains a TOOL a user may
 ; import and call; the boot never touches it again.
+;
+; The probe is one state in the form the states below take -- analyser mode,
+; a loop through the self param, a handoff through an fvar -- so it refuses
+; where they would and nowhere else.  %tower-rejit! asks it again in the same
+; words.  Its result is never called.
 (def %tower-jit?
   (guard (_ #f)
-    (do (compile-asm (lit (fn (_ x) (+ x k))) (list (pair (lit k) 1)) #f) #t)))
+    (do (compile-asm (lit (fn (me buffer score chr) (if (= chr 32) me k)))
+                     (list (pair (lit k) 1)) #t)
+        #t)))
 
 ; One site shape for the ten states, a LADDER of three rungs:
 ;
@@ -200,7 +207,11 @@
 ; lane is asked again, since the loading engine is not the writing one.
 (def %tower-rejit!
   (fn (_)
-    (do (set! %tower-jit? (guard (_ #f) (do (compile-asm (lit (fn (_ x) (+ x k))) (list (pair (lit k) 1)) #f) #t)))
+    (do (set! %tower-jit?
+          (guard (_ #f)
+            (do (compile-asm (lit (fn (me buffer score chr) (if (= chr 32) me k)))
+                             (list (pair (lit k) 1)) #t)
+                #t)))
         ((fn (self l) (if (null? l) () (do (%tower-site-up! (first l)) (self (rest l)))))
          ((fn (self l acc) (if (null? l) acc (self (rest l) (pair (first l) acc)))) %tower-sites ())))))
 
@@ -426,9 +437,7 @@
       (if (and (>= chr 48) (<= chr 57))
         me
         (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
-    ; A lone throwaway fvar forces analyser mode for a body whose only free
-    ; name is its own self param.
-    (list (pair (lit _u) 1))
+    ()
     %float-frac-interp)
 (%tower-jit-global! %float-first-frac #t
     (lit (fn (_ buffer score chr)
@@ -491,7 +500,7 @@
       (if (and (>= chr 48) (<= chr 57))
         (%seq (%score-set score 1 buffer) me)
         (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
-    (list (pair (lit _u) 1))
+    ()
     %rat-denom-interp)
 (%tower-jit-global! %rat-numer #t
     (lit (fn (me buffer score chr)
@@ -527,7 +536,7 @@
       (if (and (>= chr 48) (<= chr 57))
         me
         (if (= chr 105) (%score-set score 1 buffer) ()))))
-    (list (pair (lit _u) 1))
+    ()
     %cx-imag-frac-interp)
 (%tower-jit-global! %cx-imag-int #t
     (lit (fn (me buffer score chr)
@@ -592,7 +601,7 @@
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57)) me
         (if (= chr 100) (%score-set score 1 buffer) ()))))
-    (list (pair (lit _u) 1))
+    ()
     %dec-exp-digits-interp)
 (%tower-jit-global! %dec-frac #t
     (lit (fn (me buffer score chr)

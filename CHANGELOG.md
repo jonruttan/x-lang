@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The tower's JIT probe is a state in the form its states take.**
+`%tower-jit?` decided the whole compiled burst by compiling `(fn (_ x) (+ x k))`
+as an integer function, a mode none of the tower's states use, so it could open
+or close independently of them. It is now an analyser state -- a loop through
+the self param and a handoff through an fvar, declared `#t` -- at boot and again
+in `%tower-rejit!`, the probe x-python's tokenizer uses
+([x-python#138](https://github.com/jonruttan/x-python/pull/138)). The four
+states that carried an unused `_u` fvar to force analyser mode pass an empty
+table, their mode being declared. A closed probe or a state that kept its
+interpreted twin was silent, since a twin answers what its compiled state
+answers: `tests/x/specs/e2e/tower-jit.spec.md` asks the lane directly whether it
+compiles an analyser, and where it does requires the probe to be open and every
+global and push site to hold compiled code.
+
 **`x/codec/utf8`, `x/tool/fmt` and `x/doc/doc-gen` have scopes of their
 own** ([#719], step 4), hiding sixty-one private names between them, and the
 seven names other files read from two of them become exports those files
