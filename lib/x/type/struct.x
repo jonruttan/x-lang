@@ -7,15 +7,17 @@
 ; CVT layout:
 ;   (from (to))
 ;
-; The helpers are %-private here and FILED IN THE CATALOG under ns `type`
-; (joining the C entries make / make-instance / ? / of / name). Consumers
-; fetch what they use at module load, e.g.:
+; The helpers are %-private to this module and FILED IN THE CATALOG under ns
+; `type` (joining the C entries make / make-instance / ? / of / name). The
+; module has a scope of its own, so the catalog is the one door to them.
+; Consumers fetch what they use at module load, e.g.:
 ;   (def %type-push-op (prim-ref (lit type) (lit push-op)))
 ; The human-facing API is the Type class (lib/x/type/type.x), which loads
 ; after the object system.
 ;
 ; Loads before doc.x so cannot use (doc ...) or (note ...); the Type class
-; carries the documentation.
+; carries the documentation, and lib/x-core.x carries the provide's.
+(module x/type/struct)
 
 ; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
 (def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
@@ -228,9 +230,10 @@
 
 ; --- Type casting ---
 
-; Offset to type tag in object layout (also reached by tool/compile.x) --
-; spelled from the committed descriptor, the one source for header offsets
-; (reflect.x's %reflect-type-off is this same product, hoisted at boot).
+; Offset to type tag in object layout (filed as (type offset) for
+; tool/compile.x) -- spelled from the committed descriptor, the one source
+; for header offsets (reflect.x's %reflect-type-off is this same product,
+; hoisted at boot).
 (def %type-offset (* %obj-slot-type %word-size))
 
 ; Overwrite an object's type tag with the type of another object
@@ -264,9 +267,14 @@
 (prim-reg! (lit type) (lit read-cell)     %type-read-cell)
 (prim-reg! (lit type) (lit push-delimit)  %type-push-delimit)
 (prim-reg! (lit type) (lit push-read)     %type-push-read)
+(prim-reg! (lit type) (lit units-cell)    %type-units-cell)
 (prim-reg! (lit type) (lit set-units!)    %type-set-units!)
 (prim-reg! (lit type) (lit iter-cell)     %type-iter-cell)
 (prim-reg! (lit type) (lit push-iter)     %type-push-iter)
 (prim-reg! (lit type) (lit ops-cell)      %type-ops-cell)
 (prim-reg! (lit type) (lit push-op)       %type-push-op)
+(prim-reg! (lit type) (lit offset)        %type-offset)
 (prim-reg! (lit type) (lit cast!)         %type-cast!)
+
+; Nothing is exported by name: every door is a catalog entry above.
+(provide x/type/struct)

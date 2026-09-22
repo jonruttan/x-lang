@@ -199,6 +199,7 @@
       (let ()
         (def %prim-sym (Str append (first (first fns)) "_prim"))
         (def %prim-ptr (%dlsym lib %prim-sym))
+        (def %type-offset (prim-ref 'type 'offset))
         (if (not (null? %prim-ptr))
           (%ptr-set-word! %prim-ptr %type-offset prim-type-val))
         (self lib (rest fns) prim-type-val)))))
@@ -212,6 +213,7 @@
             (unless (null? fn-ptr)
               (let ()
                 (%type-cast! fn-ptr first)
+                (def %type-offset (prim-ref 'type 'offset))
                 (def %prim-type-val (%ptr-ref-word (%cvt first %ptr) %type-offset))
                 (%patch-nested-prims lib (first fns-holder) %prim-type-val)
                 fn-ptr))))))))
@@ -308,6 +310,7 @@
         (def %fn (%dlsym %lib "fn_0"))
         (if (null? %fn) (Err raise 'io "compile: dlsym failed for fn_0" ()))
         (%type-cast! %fn first)
+        (def %type-offset (prim-ref 'type 'offset))
         (def %prim-type-val (%ptr-ref-word (%cvt first %ptr) %type-offset))
         (%patch-nested-prims %lib (first (list (list))) %prim-type-val)
         ; Patch fvar table

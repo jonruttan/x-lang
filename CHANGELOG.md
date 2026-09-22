@@ -5,6 +5,22 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`x/type/struct` has a scope of its own** ([#719], step 4). The type
+mechanism's 48 helpers were `%`-private names in the root that the file filed
+in the catalog under ns `type` for consumers to fetch at load; with the scope
+the catalog is the one door, as the file's header always said. Three names
+were reached from the root instead of through it: `%type-offset` by
+`x/tool/compile`, `%type-units-cell` by the image tools and a spec, and
+`%type-alist` by two specs. The first two are filed now, `(type offset)` and
+`(type units-cell)`, and every reader fetches from the catalog; `(type alist)`
+was there already.
+- No `%`-budget row goes up for the fetches: `x/tool/compile` fetches the
+  offset in the three functions that use it, the two image tools that read a
+  type's units once per type do so through the public door,
+  `(Type cell ts (lit type-units))`, and the image walk, which reads them per
+  object, keeps the fetched prim in a closure. The file's own row of 48 is
+  retired, and five private-read rows go down by one.
+
 **The containers that compare by content import `equal?` by name**
 ([#719], step 4). `x/type/dict`, `x/type/list`, `x/type/record` and
 `x/type/assoc` called `%equal?`, a second name for `equal?` that

@@ -44,7 +44,7 @@
   (def t (Type make "SHAPED" ()))
   (def ts ((prim-ref (lit type) (lit by-atom)) t))
   (Type set-shape! ts 1 '(bytes))
-  (first (%type-units-cell ts)))
+  (first ((prim-ref (lit type) (lit units-cell)) ts)))
 ```
 ---
     (1 . 2)
@@ -52,7 +52,7 @@
 ### the engine's atom types are declared at boot
 
 ```x
-(first (%type-units-cell ((prim-ref (lit type) (lit by-atom)) (Type of "x"))))
+(first ((prim-ref (lit type) (lit units-cell)) ((prim-ref (lit type) (lit by-atom)) (Type of "x"))))
 ```
 ---
     (1 . 2)

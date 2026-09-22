@@ -58,7 +58,7 @@
   (fn (self l)
     (if (null? l) ()
       (do (set! SHAPES (pair (pair ((Type wrap (rest (first l))) name)
-                                   (pair (first (%type-units-cell (rest (first l))))
+                                   (pair (Type cell (rest (first l)) (lit type-units))
                                          (rest (first l)))) SHAPES))
           (self (rest l))))))
 ; The reader's own type registry, not B's -- and that is a constraint worth
