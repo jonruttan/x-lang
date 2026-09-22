@@ -1,9 +1,7 @@
 ; compile.x -- Runtime compiler: x-lang to native code
+(module x/tool/compile)
 (import x/core/list)
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
-(def %type-by-atom (prim-ref 'type 'by-atom))
-(def %type-push-write (prim-ref 'type 'push-write))
-(def %type-pop-write (prim-ref 'type 'pop-write))
 (def %type-cast! (prim-ref 'type 'cast!))
 
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
@@ -145,19 +143,23 @@
 ; -- 67 specs at once -- where the honest answer is that the tower's compiled
 ; analysers are an OPTIMISATION over interpreted twins x-core already
 ; installed, and an engine without C headers simply keeps the twins.
-(def %compile-hosted?
+(def compile-hosted?
   (if (File exists? "engine/include")
     (File exists? "engine/ext/x-expr/include")
     #f))
+(doc compile-hosted? "Whether this engine ships the C headers the cc lane compiles against; the tower's JIT probe reads it to choose between compiling and keeping the interpreted twin."
+  (returns BOOL "#t when engine/include and engine/ext/x-expr/include exist"))
 
 ; --- Multi-arg string concatenation ---
 
 ; str moved to string.x
 
 ; --- The emitters and generation stages (#38 split; load order matters:
-; emit defines the state cells and write handlers pipeline brackets) ---
-(import x/tool/compile/emit)
-(import x/tool/compile/pipeline)
+; emit holds the compile state and the write handlers, pipeline the stages
+; that bracket them; each is a module of its own and exports what this
+; driver calls) ---
+(import x/tool/compile/emit c-param-decls compile-fvars compile-fvars-set! compile-fns-set! compile-push-writers compile-pop-writers compile-emitters compile-add-emitter!)
+(import x/tool/compile/pipeline generate-fn-body generate-c-with-fns compile-with-writers compile-patch-fvars)
 
 ; --- Exposed pipeline stages ---
 
@@ -223,12 +225,12 @@
 ; Pipeline stage docs use bare-symbol form to avoid tail-eval closure issues
 (def compile-to-c
   (fn (_ expr . rest)
-    (set! %compile-fvars (unless (null? rest) (first rest)))
+    (compile-fvars-set! (unless (null? rest) (first rest)))
     (if (not (eq? (first expr) 'fn))
       (Err raise 'type "compile-to-c: expression must be (fn (_ params...) body)" ()))
     (def %fns-holder (list (list)))
     (compile-with-writers
-      (fn (_ ) (%generate-c-with-fns expr %fns-holder)))))
+      (fn (_ ) (generate-c-with-fns expr %fns-holder)))))
 (doc compile-to-c "Generate C source code from an (fn ...) expression."
   (param expr LIST "A (fn (_ params...) body) expression")
   (returns STRING "Generated C source code"))
@@ -278,7 +280,7 @@
 (def compile-c
   (fn (_ expr . rest)
     (def fvars (unless (null? rest) (first rest)))
-    (set! %compile-fvars fvars)
+    (compile-fvars-set! fvars)
 
     ; Cache lookup: hash the expression to get a stable filename
     (def %expr-key (%write-to-str expr))
@@ -292,7 +294,7 @@
         ; Patch fvar table with current runtime pointers
         (if (not (null? fvars))
           (let ((lib (%dlopen %cache-path 1)))
-            (%compile-patch-fvars lib fvars)))
+            (compile-patch-fvars lib fvars)))
         %cached)
 
       ; Cache miss: generate, write, compile, load
@@ -315,7 +317,7 @@
         (%patch-nested-prims %lib (first (list (list))) %prim-type-val)
         ; Patch fvar table
         (if (not (null? fvars))
-          (%compile-patch-fvars %lib fvars))
+          (compile-patch-fvars %lib fvars))
         %fn))))
 (doc compile-c "Compile an (fn ...) expression to a native primitive via C compiler. Caches by expression hash."
   (param expr LIST "A (fn (_ params...) body) expression")
@@ -327,9 +329,14 @@
 ; --- JIT assembler: lazy-loaded on first pure-JIT use ---
 ; The assembler toolchain (asm-cache.x -> asm.x -> host platform) is ~900 lines,
 ; about half of compile.x's parse cost, and only the pure-JIT path needs it --
-; compile-to-c and the C-compiler path never do. So ship a stub that loads the
-; toolchain on first call via import (top-level defs bind globally and REPLACE
-; this stub with the real compile-asm), then dispatches. import, not a path
+; compile-to-c and the C-compiler path never do. So ship a door that loads the
+; toolchain on first call, then dispatches every call to asm-compile-cached,
+; asm-cache.x's function, fetched from the catalog as (compile asm-cached):
+; the module is not loaded when this file is, so its name cannot be a free
+; symbol here (the linter would rightly ask where it comes from), and a
+; catalog entry is how a seam across load order is crossed. The door is the
+; one compile-asm there is: a session that imported it from here, before or
+; after the toolchain loaded, holds this same function. import, not a path
 ; literal: resolves through the import roots so it works installed too.
 ; The stub loads the CACHE, which is the door: it probes for the emitted bytes
 ; before deciding whether the COMPILER (asm-compile.x, another 2.5M evals to
@@ -344,7 +351,7 @@
 (def compile-asm
   (fn (_ expr . %asm-rest)
     (import x/tool/asm-cache)
-    (apply compile-asm (pair expr %asm-rest))))
+    (apply (prim-ref (lit compile) (lit asm-cached)) (pair expr %asm-rest))))
 
 ; --- Default compile: JIT assembler with C compiler fallback ---
 
@@ -388,8 +395,8 @@
       (let ((lib (%dlopen %cache-path 1)))
         (when (not (null? lib))
           (do
-            (if (not (null? %compile-fvars))
-              (%compile-patch-fvars lib %compile-fvars))
+            (if (not (null? (compile-fvars)))
+              (compile-patch-fvars lib (compile-fvars)))
             (%resolve-all lib 0 %n ()))))
 
       ; Cache miss: generate, compile, cache, load
@@ -398,7 +405,7 @@
         (def %id (%cvt %compile-id %string))
         (def %src-path (Str append "/tmp/x-compile-" (%compile-pid-tag) "-" %id ".c"))
 
-        (%compile-push-writers)
+        (compile-push-writers)
 
         (def %c-all
           (fn (self es i acc)
@@ -409,23 +416,23 @@
                 (let ((params (first (rest expr)))
                       (body (first (rest (rest expr))))
                       (name (Str append "batch_" (%cvt i %string))))
-                  (set! %compile-fns (list (list)))
+                  (compile-fns-set! (list (list)))
                   (def %fn-c
                     (Str append "x_obj_t *" name
                          "(x_obj_t *p_base, x_obj_t *p_args) {\n"
-                         (%c-param-decls params)
-                         "    return " (%generate-fn-body params body) ";\n"
+                         (c-param-decls params)
+                         "    return " (generate-fn-body params body) ";\n"
                          "}\n\n"))
                   (self (rest es) (+ i 1) (pair %fn-c acc)))))))
 
         (def %c-source
           (Str append "#include \"x-obj.h\"\n"
                "#include \"x-type/buffer.h\"\n\n"
-               (if (null? %compile-fvars) ""
+               (if (null? (compile-fvars)) ""
                  "x_obj_t *x_fvar_table[64];\n\n")
                (%str-concat (%reverse (%c-all exprs 0 ())))))
 
-        (%compile-pop-writers)
+        (compile-pop-writers)
 
         (compile-write %src-path %c-source)
         (compile-cc %src-path %cache-path)
@@ -435,8 +442,8 @@
         (if (null? %lib) (Err raise 'io (%compile-load-failure "compile-batch" %cache-path) ()))
 
         ; Patch fvar table with current runtime pointers
-        (if (not (null? %compile-fvars))
-          (%compile-patch-fvars %lib %compile-fvars))
+        (if (not (null? (compile-fvars)))
+          (compile-patch-fvars %lib (compile-fvars)))
 
         (%resolve-all %lib 0 %n ())))))
 (doc compile-batch "Compile multiple (fn ...) expressions in a single cc invocation."
@@ -444,8 +451,9 @@
 
 (doc (provide x/tool/compile
   compile-to-c compile-write compile-cc compile-load
-  compile-cc-flags compile-ext compile-with-writers
+  compile-cc-flags compile-ext compile-hosted? compile-with-writers
   compile-emitters compile-add-emitter!
   compile compile-c compile-asm compile-batch)
   (note "Default compile uses JIT assembler. compile-c falls back to C compiler. compile-asm is the pure JIT path.")
+  (note "A module of its own: every name here is reached with (import x/tool/compile NAME); compile-with-writers, compile-emitters and compile-add-emitter! are re-exported from x/tool/compile/pipeline and x/tool/compile/emit.")
   "Native code compiler: JIT assembler (default) with C compiler fallback.")

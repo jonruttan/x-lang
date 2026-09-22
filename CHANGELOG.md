@@ -5,6 +5,37 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The compiler is three modules of its own: `x/tool/compile`,
+`x/tool/compile/emit` and `x/tool/compile/pipeline`** ([#719], step 4).
+Ninety-two private names leave the root. The three shared what they needed
+by reading each other's root names; they import it now: emit exports the C
+generator's helpers, pipeline the generation stages and the writer brackets
+it used to keep, and compile re-exports the public face. Three of emit's
+names were variables the driver, the pipeline and `x/tool/asm-compile`
+assigned around a compile -- the free-variable alist, the parameter list and
+the nested-function holder -- and an import copies a value, so those are
+reached through accessors (`compile-fvars`, `compile-fvars-set!`,
+`compile-fvar-lookup`, `compile-params-set!`, `compile-fns`,
+`compile-fns-set!`). For the same reason `compile-emitters` is a function
+answering the emitter table, and `compile-add-emitter!` grows the table it
+answers.
+- **`compile-asm` is one function.** `x/tool/compile` keeps the door that
+  loads the assembler on first use; `x/tool/asm-cache` used to redefine the
+  same name at the root behind it, which left a session holding two objects
+  under one name once the toolchain had loaded and refused any later import
+  of it. asm-cache's function is `asm-compile-cached` now, beside
+  asm-compile's `%asm-compile-fresh`, and the door dispatches to it.
+- `compile-hosted?` is an export: the tower's JIT probe imports it, with
+  `compile` and `compile-asm`, instead of reading a private. `x/codec/sha256-jit`
+  imports `compile-asm`, `x/tool/asm-compile` imports the two accessors it
+  needs, and the compile spec's fixture imports the API it exercises.
+- `tools/contract/requires.x` records that the pipeline needs `isa/ffi-call`
+  in its own right, for the dlsym that patches the fvar table. Three
+  `%`-budget rows are retired (57, 25 and 10) and five private-read rows go
+  down by thirty-one between them. The type-system guide's analyser example
+  passes the free variables as `compile`'s argument, which is what the API
+  always took, rather than setting the compiler's state.
+
 **A closed tower probe leaves a tower that reads.** The symbol type's delimiter
 hook took the full ladder, so with the probe closed on an engine that ships its
 C headers it went to the cc rung, which compiled it without refusing into a

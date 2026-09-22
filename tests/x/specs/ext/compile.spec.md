@@ -34,7 +34,7 @@
 ### is a list
 
 ```x
-(pair? compile-emitters)
+(pair? (compile-emitters))
 ```
 ---
     #t
@@ -42,7 +42,7 @@
 ### has entries
 
 ```x
-(> (List length compile-emitters) 10)
+(> (List length (compile-emitters)) 10)
 ```
 ---
     #t
@@ -52,9 +52,9 @@
 ### adds an emitter
 
 ```x
-(do (def before (List length compile-emitters))
+(do (def before (List length (compile-emitters)))
     (compile-add-emitter! 'test-emit-42 (fn (_ args) (display "42")))
-    (def after (List length compile-emitters))
+    (def after (List length (compile-emitters)))
     (> after before))
 ```
 ---
@@ -124,7 +124,7 @@ the property that keeps a new engine MISSING the old entries instead of
 hitting them, so it has to fail if either half is ever dropped.
 
 ```scheme
-(str=? %compile-cache-identity (Str append x-machine x-release))
+(str=? (eval (lit %compile-cache-identity) (module x/tool/compile)) (Str append x-machine x-release))
 ```
 ---
     #t
@@ -136,7 +136,7 @@ is the whole of the non-expression half, so hashing it with the expression
 is what partitions the cache.
 
 ```scheme
-(do (def %k (%compile-cache-key "expr"))
+(do (def %k ((eval (lit %compile-cache-key) (module x/tool/compile)) "expr"))
     (and (str? %k)
          (not (str=? %k (Hash ->hex (Hash fnv-1a (Str append x-machine "expr")))))))
 ```

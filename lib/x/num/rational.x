@@ -94,7 +94,7 @@
 ; the interpreted analyser below would otherwise allocate a fresh closure on
 ; every '-'/'+' char it sees, and the COMPILED analyser in
 ; boot/tower-compiled.x captures this value ONCE as a free variable. An
-; anonymous closure there is rooted by nothing after %compile-fvars is cleared,
+; anonymous closure there is rooted by nothing after the compile's free-variable alist is cleared,
 ; so a later collect frees the code the compiled analyser jumps to (#49).
 ; Every other tower stage already uses a module-level def for its sign state
 ; (%big-sign-state, %int-capped-sign, %float-neg-int, %cx-neg); rational was

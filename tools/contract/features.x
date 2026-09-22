@@ -99,7 +99,7 @@
                             ;   compiled numeric tower rides this; an engine
                             ;   without it keeps the interpreted analysers
                             ;   (boot/tower-compiled.x falls back on
-                            ;   %compile-hosted?, which probes exactly these
+                            ;   compile-hosted?, which probes exactly these
                             ;   two directories).
   (native/jit    -)         ; hosts the in-process assembler lane: EXPORTS the
                             ;   jit_* runtime helpers from its running binary

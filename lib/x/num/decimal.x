@@ -816,7 +816,7 @@
 ; The states are module-level defs, not inline closures, for the reason
 ; every other tower stage records: the COMPILED analyser in
 ; boot/tower-compiled.x captures them as free variables once, and an
-; anonymous closure there is rooted by nothing after %compile-fvars is
+; anonymous closure there is rooted by nothing after the compile's free-variable alist is
 ; cleared (#49).
 ;
 ; Only the terminal `d` scores, and the score covers the suffix, so 1.5d

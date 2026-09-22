@@ -1,8 +1,10 @@
 ; asm-compile.x -- JIT compiler: x-lang expressions to native machine code
 ; Produces proper x-lang prims that work with map, fold, closures, etc.
-; lint-known: %compile-fvars %compile-fvar-lookup
-; (defined in tool/compile/emit.x; compile.x's include order supplies them)
 (import x/core/list)
+; The compile state lives in tool/compile/emit.x; a JIT compile sets the
+; free-variable alist around itself and looks names up in it through the
+; two accessors emit exports.
+(import x/tool/compile/emit compile-fvars-set! compile-fvar-lookup)
 ; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
 (def %obj->ptr (prim-ref 'obj '->ptr))
 (def %make-callable (prim-ref 'obj 'make-callable))
@@ -235,7 +237,8 @@
 ; unboxed, silently wrong answers, which is the failure mode this file
 ; refuses everywhere else.
 ;
-; compile-asm (asm-cache.x) settles the mode at the door and hands it down: a
+; asm-compile-cached (asm-cache.x, behind the compile-asm door) settles the
+; mode at the door and hands it down: a
 ; compile that carries fvars declares it or refuses, and one with neither is
 ; an integer function.
 (def %asm-analyser? #f)
@@ -335,7 +338,7 @@
         (%emit-firstobj! asm))
     (do
     ; Check fvars first (before params, since fvar symbols may shadow)
-    (def fv-entry (%compile-fvar-lookup name))
+    (def fv-entry (compile-fvar-lookup name))
     (if (not (null? fv-entry))
       ; Load fvar pointer as raw 64-bit immediate
       (let ((val (rest fv-entry)))
@@ -880,12 +883,12 @@
     (asm-label! asm lbl-end)))
 
 ; Does NAME resolve, at generation, to an fvar holding a callable prim?
-; %compile-fvar-lookup answers () for an unbound name, and (rest ()) is not
+; compile-fvar-lookup answers () for an unbound name, and (rest ()) is not
 ; a question this engine survives being asked -- hence the explicit guard.
 (def %asm-fvar-callable?
   (fn (_ name)
     (if (not (symbol? name)) #f
-      (let ((entry (%compile-fvar-lookup name)))
+      (let ((entry (compile-fvar-lookup name)))
         (if (null? entry) #f
           (if (null? (rest entry)) #f
             (eq? (%asm-type-of (rest entry)) %asm-prim-type)))))))
@@ -1088,7 +1091,7 @@
             "); engine built without its exported symbols?")) ()))
     (if (not (eq? (first expr) 'fn))
       (Err raise 'type "compile-asm: expression must be (fn (_ params...) body)" ()))
-    (set! %compile-fvars fvars)
+    (compile-fvars-set! fvars)
     ; ANALYSER? arrives already decided.  The door (compile-asm, in
     ; asm-cache.x) applies the default, because the CACHE KEY has to name
     ; the same answer this compile does -- two modes over one source text
@@ -1155,7 +1158,7 @@
     (set! %asm-self-name ())
     (set! %asm-object-params ())
     (set! %asm-analyser? #f)
-    (set! %compile-fvars ())
+    (compile-fvars-set! ())
 
     ; Create proper x-lang prim from the raw function pointer
     (%make-callable raw-fn)))
@@ -1167,7 +1170,8 @@
 (doc %asm-compile-fresh
   (returns CALLABLE "X-lang callable prim")
   "Emit native code for an x-lang (fn ...) expression, with no cache in the
-   way.  compile-asm -- the public door, in asm-cache.x -- calls this only
+   way.  asm-compile-cached -- the cache behind the compile-asm door, in
+   asm-cache.x -- calls this only
    when the byte cache misses, which is why this module is imported lazily
    from there: loading it costs 2.5M evals, and a warm cache never needs it.
    Takes the fvar alist and ANALYSER? already decided by that door.
