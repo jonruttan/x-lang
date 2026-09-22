@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A closed tower probe leaves a tower that reads.** The symbol type's delimiter
+hook took the full ladder, so with the probe closed on an engine that ships its
+C headers it went to the cc rung, which compiled it without refusing into a
+hook that misread the source read after it, and the x-base boot failed
+(`Unbound SYMBOL '34`, or `Str8 append: not a string`, depending on what was
+read next). The hook calls the asm lane's trampolines, `%buffer-last-char` and
+`%buffer-unread`, like the states on `%tower-asm-only`, and now compiles the way
+they do: the asm lane or its interpreted twin.
+`tests/x/specs/e2e/tower-fallback.spec.md` takes the path a state image takes on
+a host whose lane refuses -- every site down, the probe closed, every site back
+up through its maker -- and requires the tower that results to read a sample of
+every tower literal as the compiled one does.
+
 **The symbol type's delimiter hook compiles on every boot that can.**
 `%c-macro-delimit` compiled only where `%jit-buffer-last-char` was bound, and
 that is `asm-compile.x`'s name, bound once a byte-cache miss has loaded the
