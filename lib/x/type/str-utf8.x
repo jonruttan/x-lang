@@ -38,7 +38,7 @@
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
 
 (import x/core/list)
-(import x/codec/utf8)
+(import x/codec/utf8 utf8-decode utf8-encode utf8-width utf8-cp-at)
 
 ; --- list <-> string (code-point) transforms -------------------------------
 
@@ -58,7 +58,7 @@
       (bytes->str
         (%map %integer->char
           (%reverse
-            (%fold (fn (_ acc ch) (%rev-onto (%utf8-encode (%char->integer ch)) acc))
+            (%fold (fn (_ acc ch) (%rev-onto (utf8-encode (%char->integer ch)) acc))
                   () chars)))))))
   (param chars LIST "List of CHARACTERs (Unicode code points)")
   (returns STRING "UTF-8 string encoding each code point")
@@ -70,7 +70,7 @@
     (let go ((i 0) (acc ()))
       (if (>= i len)
         (%reverse acc)
-        (let ((d (%utf8-decode s i)))
+        (let ((d (utf8-decode s i)))
           (go (rest d) (pair (%integer->char (first d)) acc)))))))
   (param s STRING "String to decode")
   (returns LIST "List of CHARACTERs, one per Unicode code point")
@@ -80,14 +80,14 @@
 ;
 ; ALLOCATION DISCIPLINE: the bare call may run inside tokenizer callbacks, where
 ; heap allocation can trip GC mid-parse. The code-point walk uses ONLY the
-; no-alloc codec accessors (%utf8-width / utf8-cp-at) -- never %utf8-decode (which
+; no-alloc codec accessors (utf8-width / utf8-cp-at) -- never utf8-decode (which
 ; conses a pair) -- and plain integer recursion, so it allocates no more than
 ; the one result object the byte path already made.
 
 (def %str-type (%type-by-atom (%type-of "x")))
 
 ; Byte offset of code-point index k: advance k whole sequences from byte `from`.
-; Clamps at byte length `len` instead of walking past the end (%utf8-width is
+; Clamps at byte length `len` instead of walking past the end (utf8-width is
 ; an unchecked read) -- callers detect out-of-range by landing at `len`. The
 ; length rides as a param so the walk stays alloc-free (str-byte-len is a prim
 ; call that makes an int per call).
@@ -95,18 +95,18 @@
   (fn (self s len k from)
     (if (= k 0) from
       (if (< from len)
-        (self s len (- k 1) (+ from (%utf8-width s from)))
+        (self s len (- k 1) (+ from (utf8-width s from)))
         from))))
 
 (def %cp-count
   (fn (self s len i n)
     (if (>= i len) n
-      (self s len (+ i (%utf8-width s i)) (+ n 1)))))
+      (self s len (+ i (utf8-width s i)) (+ n 1)))))
 
 ; i-th code point. Negative i counts from the end (matches the old byte path:
 ; the C call added the length to a negative index). Only the negative case pays
 ; for the extra code-point count walk. Out of range (either side) errors --
-; %utf8-cp-at is an unchecked read, so this is the x-lang guard. INT-ONLY by
+; utf8-cp-at is an unchecked read, so this is the x-lang guard. INT-ONLY by
 ; design (the N5 coercion exception): this handler can run under reader
 ; constraints, where conversion dispatch is illegal -- the protocol classes
 ; (Str8/StrUtf8 ref) are the coercing doors.
@@ -116,7 +116,7 @@
     (def k (if (null? i) -1 (if (< i 0) (+ i (%cp-count s len 0 0)) i)))
     (def b (if (< k 0) len (%cp-byte-offset s len k 0)))
     (if (< b len)
-      (%integer->char (%utf8-cp-at s b))
+      (%integer->char (utf8-cp-at s b))
       (Err raise (lit index) "str: index out of range" ()))))
 
 ; Clamped like StrUtf8 sub: offsets past the end yield the empty/short slice.

@@ -22,7 +22,7 @@
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 
 (do
-  (import x/doc/doc-gen)
+  (import x/doc/doc-gen doc-build-lookup doc-walk-with-prims)
   (import x/doc/emit)
   (import x/doc/emit-man)
   (import x/codec/xon)
@@ -88,8 +88,8 @@
                 ; The fallback page title: the source path as a module
                 ; name (lib/x/boot/module.x -> x/boot/module), used only
                 ; when the file declares no (provide ...).
-                (%doc-walk-with-prims %source-tokens
-                                      (%doc-build-lookup %prims-tokens)
+                (doc-walk-with-prims %source-tokens
+                                      (doc-build-lookup %prims-tokens)
                                       %emitter
                                       (Str8 replace ".x" ""
                                         (Str8 replace "lib/" "" %file))))))))))
