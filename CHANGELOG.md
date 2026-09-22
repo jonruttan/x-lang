@@ -5,6 +5,22 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A bigint product walks the shorter operand.** `%limb-mul`, the schoolbook
+multiply under every bigint product, walks the limbs of its first operand and
+adds each shifted partial product into the whole accumulator, so its cost
+grows with the square of that operand's length and linearly with the other's.
+`%big-mul` passed the operands in the order it was given them, and now passes
+the shorter limb list first; the product does not depend on the order. Both
+orders cost what the cheaper one did: `(* (Num expt 2 990) 3)` allocates 22K
+objects where it allocated 216K, and a 34-limb bigint times an 11-limb one
+174K where it allocated 342K. Equal lengths keep their order, and a square
+pays only for the length test, under 1%. `Num expt` squares factors of the
+same length, and its odd steps already put the smaller factor first; its last
+step multiplies the fully squared base by 1, and `(Num expt 2 990)` allocates
+409K objects where it allocated 461K. The bigint spec pins both orders for a
+one-limb int, a negative int, two bigints of different lengths, and a product
+that demotes to a native int.
+
 **`x/type/struct` has a scope of its own** ([#719], step 4). The type
 mechanism's 48 helpers were `%`-private names in the root that the file filed
 in the catalog under ns `type` for consumers to fetch at load; with the scope

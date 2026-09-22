@@ -143,7 +143,10 @@
         (pair (%int% p %bigint-base)
               (self (rest b) limb (%int/ p %bigint-base)))))))
 
-; Schoolbook multiply: a * b
+; Schoolbook multiply: a * b.  The walk is over a's limbs: each step scales b
+; by one limb, shifts the partial product by the step count and adds it into
+; the whole accumulator.  The work grows with the square of a's length and
+; linearly with b's, so %big-mul passes the shorter list as a.
 (def %limb-mul
   (fn (_ a b)
     (def %mul-go
@@ -429,12 +432,24 @@
     (def nb (%make-instance %bigint (pair sb (%big-limbs b))))
     (%big-add a nb)))
 
+; The product does not depend on the order of the limb lists, and the cost of
+; %limb-mul does: it grows with the square of the first list's length.  The
+; shorter list goes first.  %shorter? walks both lists together and stops at
+; the end of the shorter one, so the test takes as many steps as the shorter
+; list has limbs.
 (def %big-mul
   (fn (_ a b)
     (def sa (%big-sign a))
     (def sb (%big-sign b))
     (def sign (%int* sa sb))
-    (%make-bigint sign (%limb-mul (%big-limbs a) (%big-limbs b)))))
+    (def la (%big-limbs a))
+    (def lb (%big-limbs b))
+    (def %shorter?
+      (fn (self x y)
+        (if (null? y) #f
+          (if (null? x) #t (self (rest x) (rest y))))))
+    (%make-bigint sign
+      (if (%shorter? lb la) (%limb-mul lb la) (%limb-mul la lb)))))
 
 (def %big-div
   (fn (_ a b)
