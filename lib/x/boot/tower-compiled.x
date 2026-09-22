@@ -298,10 +298,14 @@
 ; boot itself drops ~13% (x-core is read before the compiler exists, so it,
 ; like the numeric literals, stays interpreted); the
 ; one op it needs that they do not, reading the last consumed character, is the
-; jit_buffer_last_char trampoline (%buffer-last-char below).  The %tower-asm
-; ladder keeps the interpreted %macro-delimit as the fallback, so an engine
-; without the JIT (or the trampoline) is unchanged.  The body has no free
-; variable, so its fvar table is empty and the analyser mode is declared.
+; jit_buffer_last_char trampoline (%buffer-last-char below).  It compiles
+; through %tower-asm-only, as the states do: %buffer-last-char and
+; %buffer-unread are the asm lane's trampolines, and the cc rung compiles the
+; hook without refusing into one that misreads the source read after it.  So
+; where the asm lane is closed the symbol type keeps the interpreted
+; %macro-delimit, and an engine without the JIT (or the trampoline) is
+; unchanged.  The body has no free variable, so its fvar table is empty and
+; the analyser mode is declared.
 (def %type-delimit-cell (prim-ref 'type 'delimit-cell))
 ; Compile only when the engine exports jit_buffer_last_char, asked of the
 ; process with dlsym, the way the lane resolves its trampolines.  asm-compile.x
@@ -313,7 +317,7 @@
 ; interpreted %macro-delimit -- is known here.
 (def %c-macro-delimit %macro-delimit)
 (if (null? ((prim-ref 'ffi 'dlsym) ((prim-ref 'ffi 'dlopen) () 1) "jit_buffer_last_char")) ()
-  (%tower-jit-global! %c-macro-delimit #f
+  (%tower-jit-global! %c-macro-delimit #t
     (lit (fn (_ buffer)
       ; ' ` (39 96) each end an adjacent token; the comma (44) does not, as
       ; in the interpreted %macro-delimit this twins.  %buffer-unread rewinds
