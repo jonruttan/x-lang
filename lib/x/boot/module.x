@@ -706,15 +706,26 @@
 ; A selective import copies an export into the importer's environment `e`,
 ; by the export's name or under an alias -- (import NAME sym (sym alias))
 ; -- so the importer holds the value: a later rebinding of the global does
-; not reach it.  One binding per name per environment: a name already bound
-; in `e` to the same object (same?, never eq?, which is #t for any two
-; closures) is a repeat and does nothing; bound to anything else, refused.
+; not reach it.  Whether `e` already binds the name is read from its own
+; frame, (first e), not by a lookup: a lookup walks to the root, where a name
+; every module can see is bound to the very object the import is about to
+; copy, and the copy would never be made.  The root has no parent, so there
+; the lookup is the frame.  One binding per name per environment: a name
+; already bound in `e` to the same object (same?, never eq?, which is #t for
+; any two closures) is a repeat and does nothing; bound to anything else,
+; refused.
 (def %module-import-one!
   (fn (_ name spec e)
     (def %sym (match ((pair? spec) (first spec)) (#t spec)))
     (def %alias (match ((pair? spec) (first (rest spec))) (#t spec)))
     (def %value (eval %sym (%module-env-of name)))
-    (def %have (guard (_ %module-unbound) (eval %alias e)))
+    (def %root? (%module-same? e (%module-root-env)))
+    (def %own (match (%root? ()) (#t (%module-assoc %alias (first e)))))
+    (def %have
+      (match
+        (%root? (guard (_ %module-unbound) (eval %alias e)))
+        ((eq? %own ()) %module-unbound)
+        (#t (rest %own))))
     (match
       ((%module-same? %have %module-unbound) (%module-define! e %alias %value))
       ((%module-same? %have %value) ())

@@ -93,6 +93,116 @@ each installs what it needs rather than inheriting the case above.
 ---
     (#t "(Str8 sta")
 
+## a tab
+
+A Tab with nothing to complete inserts a tab when only whitespace comes before
+the point, so an indented line in a lang that reads indentation is typed as it
+is in a file. After text, a Tab that completes nothing changes nothing. ctrl-v
+is readline's quoted-insert: the key after it goes into the buffer as text,
+which is how a tab is put after text.
+
+### with nothing to complete, Tab after only whitespace inserts a tab
+
+```x
+(do (import x/repl/line)
+    (let ((%ln-complete! (eval (lit %ln-complete!) (module x/repl/line))))
+      (let ((ed (Edit make)))
+        (Line completer (fn (_ e) (pair "" ())))
+        (ed set-text! "  " 2)
+        (%ln-complete! 2 ed)
+        (ed text))))
+```
+---
+    "  \t"
+
+### and with no completer at all
+
+```x
+(do (import x/repl/line)
+    (let ((%ln-complete! (eval (lit %ln-complete!) (module x/repl/line))))
+      (let ((ed (Edit make)))
+        (Line completer ())
+        (%ln-complete! 2 ed)
+        (ed text))))
+```
+---
+    "\t"
+
+### after text, a Tab that completes nothing changes nothing
+
+```x
+(do (import x/repl/line)
+    (let ((%ln-complete! (eval (lit %ln-complete!) (module x/repl/line))))
+      (let ((ed (Edit make)))
+        (Line completer ())
+        (ed set-text! "ab" 2)
+        (%ln-complete! 2 ed)
+        (ed text))))
+```
+---
+    "ab"
+
+### ctrl-v Tab inserts a tab after text
+
+```x
+(do (import x/repl/line)
+    (let ((%ln-quoted! (eval (lit %ln-quoted!) (module x/repl/line))))
+      (let ((ed (Edit make)))
+        (ed set-text! "ab" 2)
+        (%ln-quoted! ed (fn (_) 9))
+        (ed text))))
+```
+---
+    "ab\t"
+
+### ctrl-v inserts a printable key as typed, and drops an unbound one
+
+```x
+(do (import x/repl/line)
+    (let ((%ln-quoted! (eval (lit %ln-quoted!) (module x/repl/line))))
+      (let ((ed (Edit make)))
+        (%ln-quoted! ed (fn (_) 65))
+        (%ln-quoted! ed (fn (_) 24))
+        (ed text))))
+```
+---
+    "A"
+
+## measuring
+
+The redraw measures columns from the column it draws at, because a tab runs
+to the next multiple of eight and so is as wide as its position makes it.
+
+### a tab runs to the next stop
+
+```x
+(do (import x/repl/line)
+    (let ((columns (eval (lit %ln-columns) (module x/repl/line))))
+      (list (columns "a\tb" 0 3 0) (columns "\t" 0 1 2) (columns "\t" 0 1 8) (columns "abc" 0 3 5))))
+```
+---
+    (9 8 16 8)
+
+### the window ends before a tab that would not fit
+
+```x
+(do (import x/repl/line)
+    (let ((forward (eval (lit %ln-forward-columns) (module x/repl/line))))
+      (list (forward "ab\tcd" 0 4 0) (forward "ab\tcd" 0 10 0) (forward "abcdef" 0 3 0))))
+```
+---
+    (2 5 3)
+
+### scrolling back counts a tab at its widest
+
+```x
+(do (import x/repl/line)
+    (let ((back (eval (lit %ln-back-columns) (module x/repl/line))))
+      (list (back "ab\tcd" 5 10) (back "abcdef" 6 3) (back "abc" 3 10))))
+```
+---
+    (2 3 0)
+
 ## the line evaluator
 
 ### a bare atom at the end of the line is a form

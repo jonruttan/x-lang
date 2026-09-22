@@ -2,6 +2,8 @@
 ;
 ; Extracts (doc ...) and (note ...) forms from token trees
 ; and emits Markdown. Works with tokens from make-base + %token-read-string.
+(module x/doc/doc-gen)
+
 (import x/core/list)
 (import x/doc/emit)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
@@ -146,7 +148,7 @@
 
 ; --- Lookup alist for retroactive docs ---
 
-(doc (def %doc-build-lookup
+(doc (def doc-build-lookup
   (fn (self tokens)
     (unless (null? tokens)
       (let ((tok (first tokens)))
@@ -492,13 +494,13 @@
         (%append (self (rest (first tokens))) (self (rest tokens))))
       (#t (pair (first tokens) (self (rest tokens)))))))
 
-(doc (def %doc-walk-with-prims
+(doc (def doc-walk-with-prims
   (fn (_ tokens prims-alist em fallback)
     (def %spliced (%doc-splice-dos tokens))
     (%doc-emit-page-header em %spliced fallback)
     ; Build local doc lookup from standalone (doc name ...) forms in source,
     ; then merge with prims-alist so bare defs find their docs
-    (def %local-alist (%doc-build-lookup %spliced))
+    (def %local-alist (doc-build-lookup %spliced))
     (def %merged (%append %local-alist prims-alist))
     (%doc-walk-body-with-prims em %spliced %merged ())))
   (param tokens LIST "Source file token list")
@@ -509,10 +511,11 @@
 
 (doc (def %doc-walk
   (fn (_ tokens em)
-    (%doc-walk-with-prims tokens () em "")))
+    (doc-walk-with-prims tokens () em "")))
   (param tokens LIST "Token list from %token-read-string")
   (param em ANY "Emitter class (DocMd, DocMan)")
   "Walk a token tree, emitting all documentation through an emitter.")
 
-(doc (provide x/doc/doc-gen)
+(doc (provide x/doc/doc-gen doc-build-lookup doc-walk-with-prims)
+  (note "The two exports are the driver's, tools/dev/doc.x: it imports them by name.")
   "Documentation generator from x-lang source tokens; output format rides an emitter (x/doc/emit).")

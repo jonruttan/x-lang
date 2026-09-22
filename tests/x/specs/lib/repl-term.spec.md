@@ -71,6 +71,18 @@ it holds, and an unprintable byte has no width.
 ---
     'unbound
 
+### ctrl-v is quoted-insert
+
+The key after it is inserted as text, whatever it would have done; the loop
+in x/repl/line reads that key.
+
+```x
+(do (import x/repl/term)
+    (Term key (fn (_) 22)))
+```
+---
+    'quoted-insert
+
 ## Escape sequences
 
 ### the CSI arrows

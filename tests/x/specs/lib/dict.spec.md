@@ -391,8 +391,9 @@ would recurse into the field box and loop on cyclic instances).
 x-sweet ships `(def equal? eq?)` as part of its Scheme shim. A bucket search
 that read that name would answer a different question for the rest of the
 session without failing: the bytes, the FNV hash and the bucket are unchanged,
-only the comparison. `%dict-key=` holds its own handle, `%equal?` in
-core/logic.x.
+only the comparison. `x/type/dict` imports the name, `(import x/core/logic
+equal?)`, so `%dict-key=` calls the closure held in the module's own frame,
+which a rebinding of the global does not reach.
 
 ### a string key still hits while `equal?` is eq?
 

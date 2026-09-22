@@ -24,7 +24,7 @@ a stub that records `note` calls, so the spec is not coupled to Markdown.
         (method returns (self . a) ()) (method examples (self . a) ())
         (method see-also (self . a) ())
         (method note (self s) (DgRec got (pair s (DgRec got))))))
-    (%doc-emit-method DgRec '(method m (self f x) (doc "doc" (note "shared") (returns ANY "r")) (f x)) "DgT" #t "")
+    ((eval (lit %doc-emit-method) (module x/doc/doc-gen)) DgRec '(method m (self f x) (doc "doc" (note "shared") (returns ANY "r")) (f x)) "DgT" #t "")
     (list (List count-if (n) (Str8 includes? "Block form" n) (DgRec got))
           (List count-if (n) (Str8 includes? "shared" n) (DgRec got))))
 ```
@@ -44,7 +44,7 @@ a stub that records `note` calls, so the spec is not coupled to Markdown.
         (method returns (self . a) ()) (method examples (self . a) ())
         (method see-also (self . a) ())
         (method note (self s) (DgRec2 got (pair s (DgRec2 got))))))
-    (%doc-emit-method DgRec2 '(method zz (self f x) (doc "doc" (note "only")) (f x)) "NoSuchClassDg" #t "")
+    ((eval (lit %doc-emit-method) (module x/doc/doc-gen)) DgRec2 '(method zz (self f x) (doc "doc" (note "only")) (f x)) "NoSuchClassDg" #t "")
     (DgRec2 got))
 ```
 ---

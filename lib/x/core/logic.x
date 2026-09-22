@@ -19,7 +19,12 @@
 ; already failed by the time the hook runs. Class INSTANCES deliberately stay
 ; identity-compared (they have object identity); a value-semantics instance
 ; type can install its own handler here.
+;
+; The cell is in the catalog for the module that installs a handler:
+; x/type/vector fetches (prim-ref (lit logic) (lit equal-others)) rather than
+; reading this file's private name from the root.
 (def %equal-others (pair (fn (_ eq a b) #f) ()))
+(prim-reg! (lit logic) (lit equal-others) %equal-others)
 
 (doc (def equal?
   (fn (self (param a ANY "First value") (param b ANY "Second value"))
@@ -34,21 +39,20 @@
   (note "Vectors compare elementwise (handler installed by x/type/vector); class instances compare by identity.")
   "Structural equality: numbers by value, strings by content, pairs and vectors element-wise (deep), else identity.")
 
-; The library's own handle on structural equality.  `equal?` is a bare global,
-; so a session may rebind it, and lang bundles do -- x-sweet ships
-; `(def equal? eq?)` as part of its Scheme shim.  Every container that compares
-; by content reads that name: Dict's bucket search, Assoc find, List index-of,
-; includes?, uniq and uniq-by, and a record's =?.  A rebinding does not make
-; them fail, it makes them answer a different question for the rest of the
-; session, in code that never mentioned equality.
+; `equal?` is a bare global, so a session may rebind it, and lang bundles do --
+; x-sweet ships `(def equal? eq?)` as part of its Scheme shim.  Every container
+; that compares by content calls it: Dict's bucket search, Assoc find, List
+; index-of, includes?, uniq and uniq-by, and a record's =?.  A rebinding would
+; not make them fail, it would make them answer a different question for the
+; rest of the session, in code that never mentioned equality.
 ;
-; Library internals reach for this name and user code keeps `equal?` -- the
-; split protocol/str/utf8.x draws between `Str`, the rebindable ambient alias,
-; and `Str8`, the fixed name its own internals use.  What is captured is the
-; closure, not the behaviour: its body reads %equal-others at call time, so a
-; module that extends equality through that hook (x/type/vector does) still
-; reaches every one of these seats.  Only rebinding the name stops working.
-(def %equal? equal?)
+; So each of those modules imports the name, (import x/core/logic equal?), and
+; holds the closure in its own frame, where a rebinding of the global does not
+; reach -- the split protocol/str/utf8.x draws between `Str`, the rebindable
+; ambient alias, and `Str8`, the fixed name its own internals use.  What is
+; captured is the closure, not the behaviour: its body reads %equal-others at
+; call time, so a module that extends equality through that hook (x/type/vector
+; does) still reaches every one of these seats.
 
 ; --- Derived comparisons ---
 ;

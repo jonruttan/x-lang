@@ -21,6 +21,67 @@ step multiplies the fully squared base by 1, and `(Num expt 2 990)` allocates
 one-limb int, a negative int, two bigints of different lengths, and a product
 that demotes to a native int.
 
+**The containers that compare by content import `equal?` by name**
+([#719], step 4). `x/type/dict`, `x/type/list`, `x/type/record` and
+`x/type/assoc` called `%equal?`, a second name for `equal?` that
+`x/core/logic` defined so that a session rebinding the bare global (x-sweet's
+Scheme shim does) would not retarget a bucket search or `index-of`. A
+selective import is that protection without the second name: each of the
+four has `(import x/core/logic equal?)` at its top, holds the closure in its
+own frame and calls it as `equal?`, and a rebinding of the global does not
+reach it. `%equal?` is gone.
+- **A selective import of a name the root binds made no copy.** The loader
+  asked whether the importer already bound the name with a lookup, which
+  walks to the root and found the name bound to the very object it was about
+  to copy, so it treated the import as a repeat and the module went on
+  reading the global. It reads the importer's own frame now; the root, which
+  has no parent, keeps the lookup. The module-scope spec has the case, and
+  the dict and list specs' rebinding cases hold under it.
+- `x/type/vector` installs its elementwise handler on `equal?`'s extension
+  hook, which it read from the root as `%equal-others`. The cell is in the
+  catalog now, `(prim-ref (lit logic) (lit equal-others))`, and vector fetches
+  it there.
+- Five rows of the private-read budget go down by one, and `x/core/logic`'s
+  `%`-budget row goes from 2 to 1.
+
+**The tower's JIT probe is a state in the form its states take.**
+`%tower-jit?` decided the whole compiled burst by compiling `(fn (_ x) (+ x k))`
+as an integer function, a mode none of the tower's states use, so it could open
+or close independently of them. It is now an analyser state -- a loop through
+the self param and a handoff through an fvar, declared `#t` -- at boot and again
+in `%tower-rejit!`, the probe x-python's tokenizer uses
+([x-python#138](https://github.com/jonruttan/x-python/pull/138)). The four
+states that carried an unused `_u` fvar to force analyser mode pass an empty
+table, their mode being declared. A closed probe or a state that kept its
+interpreted twin was silent, since a twin answers what its compiled state
+answers: `tests/x/specs/e2e/tower-jit.spec.md` asks the lane directly whether it
+compiles an analyser, and where it does requires the probe to be open and every
+global and push site to hold compiled code.
+
+**`x/codec/utf8`, `x/tool/fmt` and `x/doc/doc-gen` have scopes of their
+own** ([#719], step 4), hiding sixty-one private names between them, and the
+seven names other files read from two of them become exports those files
+import. The UTF-8 codec's five functions -- `utf8-decode`, `utf8-encode`,
+`utf8-width`, `utf8-seq-len`, `utf8-cp-at` -- were private names that the two
+string layers, `x/protocol/str/utf8` and `x/type/str-utf8`, read from the
+root; both decode inside tokenizer callbacks, where a class call is not
+allowed, so each imports the ones it uses by name and calls them directly,
+at no new cost. `doc-build-lookup` and `doc-walk-with-prims` are the
+generator's two exports for its driver, `tools/dev/doc.x`, which imports
+them; the doc-gen spec reaches the one internal it exercises through the
+module's environment. `x/tool/fmt` needed nothing: its only outside mention
+was prose. The private-read rows for the two string layers and the doc
+driver go down, and the three files' `%`-budget rows are retired.
+
+**Tab inserts a tab where there is nothing to complete.** With only
+whitespace before the cursor and no candidate to fill in, Tab puts a tab in
+the line, so an indented block in a lang that reads indentation, x-python's
+for one, is typed at the prompt as it is in a file. ctrl-v is readline's
+quoted-insert: the key after it goes into the line as typed, so ctrl-v Tab
+inserts a tab after text. The editor draws a tab to the next multiple of
+eight columns, and measures the cursor and the scrolled window with the
+column step `x/reader/indent` measures a line by.
+
 **`x/platform/syscall` has a scope of its own, and its open-flag table is an
 export its readers import** ([#719], step 4). The per-OS `O_*` table was
 `%file-modes`, a private name three other files read from the root. It is

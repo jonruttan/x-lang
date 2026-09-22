@@ -14,6 +14,7 @@
 ; counts entries; set! doubles the table past a 3/4 load factor.
 
 (module x/type/dict)
+(import x/core/logic equal?)
 (import x/type/class)
 (import x/type/hash)
 (import x/type/vector)
@@ -80,11 +81,11 @@
 ; equal?, which would recurse into the field box and loop on cyclic
 ; instances -- while content keys keep structural equality.
 ;
-; %equal? rather than `equal?`: the name is rebindable, and a bucket search
+; equal? rather than `equal?`: the name is rebindable, and a bucket search
 ; that followed a rebinding would miss without failing.  core/logic.x states
 ; the rule; this file already caches its other dependencies, for speed.
 (def %dict-key=
-  (fn (_ a b) (if (object? a) (same? a b) (%equal? a b))))
+  (fn (_ a b) (if (object? a) (same? a b) (equal? a b))))
 
 ; Find the (key . val) entry pair in a bucket, or (). Returning the ENTRY
 ; (a box), not the value, keeps presence distinguishable from a stored nil.
