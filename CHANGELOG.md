@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`x/codec/utf8`, `x/tool/fmt` and `x/doc/doc-gen` have scopes of their
+own** ([#719], step 4), hiding sixty-one private names between them, and the
+seven names other files read from two of them become exports those files
+import. The UTF-8 codec's five functions -- `utf8-decode`, `utf8-encode`,
+`utf8-width`, `utf8-seq-len`, `utf8-cp-at` -- were private names that the two
+string layers, `x/protocol/str/utf8` and `x/type/str-utf8`, read from the
+root; both decode inside tokenizer callbacks, where a class call is not
+allowed, so each imports the ones it uses by name and calls them directly,
+at no new cost. `doc-build-lookup` and `doc-walk-with-prims` are the
+generator's two exports for its driver, `tools/dev/doc.x`, which imports
+them; the doc-gen spec reaches the one internal it exercises through the
+module's environment. `x/tool/fmt` needed nothing: its only outside mention
+was prose. The private-read rows for the two string layers and the doc
+driver go down, and the three files' `%`-budget rows are retired.
+
 **Tab inserts a tab where there is nothing to complete.** With only
 whitespace before the cursor and no candidate to fill in, Tab puts a tab in
 the line, so an indented block in a lang that reads indentation, x-python's

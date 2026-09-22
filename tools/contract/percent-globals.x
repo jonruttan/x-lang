@@ -179,7 +179,6 @@
 ; from the root while x/sys/posix bound it there.  posix is scoped, and under
 ; the plain x dialect nothing else binds it (x-lang#719, step 4).
 (file "lib/x/codec/sha256.x" 33)
-(file "lib/x/codec/utf8.x" 6)
 (file "lib/x/core/alist.x" 12)
 (file "lib/x/core/arithmetic.x" 17)
 (file "lib/x/core/boolean.x" 3)
@@ -188,7 +187,6 @@
 (file "lib/x/core/logic.x" 2)
 (file "lib/x/core/predicates.x" 12)
 (file "lib/x/core/syntax.x" 5)
-(file "lib/x/doc/doc-gen.x" 32)
 (file "lib/x/doc/doc.x" 73)
 (file "lib/x/num/bigint.x" 64)
 (file "lib/x/num/complex.x" 41)
@@ -303,7 +301,6 @@
 ; same standing the int and symbol writers have.
 (file "lib/x/tool/compile/emit.x" 57)
 (file "lib/x/tool/compile/pipeline.x" 10)
-(file "lib/x/tool/fmt.x" 23)
 (file "lib/x/tool/lint.x" 89)
 (file "lib/x/type/class.x" 90)
 (file "lib/x/type/convert.x" 20)

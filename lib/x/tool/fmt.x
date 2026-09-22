@@ -4,6 +4,8 @@
 ; lives in %-private functions -- the three core printers (%fmt-expr / %fmt-list
 ; / %fmt-body) are mutually recursive via forward-decl + set!, so they call each
 ; other directly (no per-node class dispatch). The Fmt class is the API.
+(module x/tool/fmt)
+
 (import x/type/str)
 (import x/type/class)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
