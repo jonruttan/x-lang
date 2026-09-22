@@ -306,7 +306,6 @@
 (file "lib/x/type/convert.x" 20)
 (file "lib/x/type/promise.x" 6)
 (file "lib/x/type/shape-rows.x" 2)
-(file "lib/x/type/struct.x" 48)
 (file "tools/check/boot-order.x" 33)
 (file "tools/check/dialect-cover.x" 9)
 (file "tools/check/doc-forms.x" 5)

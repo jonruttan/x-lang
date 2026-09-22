@@ -101,7 +101,11 @@
   (fn (_ u) (if (eq? (%reflect-type-word u) %reflect-spair-tw) (%int+ 0 (rest u)) 0)))
 (def %sh-desc  (fn (_ c) (if (%ilt c 0) (%int+ 1 (%int- 0 c)) c)))
 (def %kind (fn (_ m i d) (%int& (%shr m (%int* 2 (if (%ilt i d) i (%int- d 1)))) 3)))
-(def %cell-of (fn (_ tw) (first (%type-units-cell (%p->o (%i->p tw))))))
+; The units cell of a type word; the catalog prim is fetched once, here, and
+; closed over -- this runs per object walked.
+(def %cell-of
+  (let ((%units-cell (prim-ref (lit type) (lit units-cell))))
+    (fn (_ tw) (first (%units-cell (%p->o (%i->p tw)))))))
 (def %count-of
   (fn (_ p u)
     (if (%ilt (%sh-count u) 0)

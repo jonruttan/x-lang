@@ -280,7 +280,7 @@
    (if (null? al) ()
      ((fn (_ u) (if (null? u) (self (rest al))
                   (if (%sh-static? u) (%static! (%addr u) %X-STATIC "units-pair") (self (rest al)))))
-      (first (%type-units-cell (rest (first al)))))))
+      (Type cell (rest (first al)) (lit type-units)))))
  (first (%at %RAW (%row-steps %base-paths (lit type-alist)))))
 ; A fresh base's type structs hold the engine's static handlers, name atoms
 ; and default units at known rows; every off-chain node found there is named
@@ -557,7 +557,7 @@
   (do (display "  legend: satom-tw=") (write %reflect-satom-tw) (display " spair-tw=") (write %reflect-spair-tw)
       (display " true=") (write (%addr (first (%at %RAW (%row-steps %base-paths (lit true))))))
       (display " false=") (write (%addr (first (%at %RAW (%row-steps %base-paths (lit false))))))
-      (display " units-pair=") (write (%addr (first (%type-units-cell (Type by-atom ((prim-ref (lit type) (lit make)) "%probe" ()))))))
+      (display " units-pair=") (write (%addr (Type cell (Type by-atom ((prim-ref (lit type) (lit make)) "%probe" ())) (lit type-units))))
       (display " token-eof=") (write (if (null? %TOKEN-EOF) 0 (%addr %TOKEN-EOF)))
       (newline)))
 (display "image: ") (write (%int+ %HDRN (%int+ (%int* (%int+ %XCUR (%int+ %RTWORDS %OBJW)) %word-size) %BLOBN)))

@@ -1225,7 +1225,7 @@ it with the bare `first`/`rest` accessors, as `%type-by-atom` does.
 ### from-seq rejects the reader's type alist
 
 ```x
-(List from-seq (%type-alist))
+(List from-seq ((prim-ref (lit type) (lit alist))))
 ```
 ---
     Error: #<err:type Iter new: not iterable>
