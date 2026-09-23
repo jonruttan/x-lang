@@ -20,8 +20,10 @@ a list among the values arrives as itself. A value with no handler raises a
 stays under `%apply` for what the library built or reads from a type cell:
 `let`, the class dispatcher, the printer and the reflect layer keep it, so
 they pay for no check they have no use for and a lang that binds `apply` over
-the library's door cannot retarget them. The engine is unchanged: a C
-primitive jumps where it is told, and the guard is the language's. x-python's
+the library's door cannot retarget them. The image writer names that primitive
+as it names `include`'s, and the isa spec's library declares `%apply` as an
+alias of the bare name. The engine is unchanged: a C primitive jumps where it
+is told, and the guard is the language's. x-python's
 `%py-apply-any` had grown an arm per kind of callable to keep clear of this;
 those arms can go once the bundle pins this version.
 

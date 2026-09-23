@@ -432,7 +432,14 @@
          k))
      (%cp-word w p))))
 (set! %MAP (%map-add %MAP (Ptr ->int %lib) %F-DLOPEN ""))
+; The bare primitives the library binds its own definitions over: module.x's
+; include and x/core/fn's apply.  In the imaged base their bare names reach the
+; library's definitions, so each is named by the function it holds.  include
+; comes from module.x's %raw-include, since x-cli binds it in the root base
+; only; apply is asked of a fresh base, where the engine bound it.  The loader
+; finds each by its bare name in its own base.
 (set! %MAP (%map-add %MAP (%fnptr %raw-include) %F-BARE "include"))
+(set! %MAP (%map-add %MAP (%fnptr ((Base make) eval (lit apply))) %F-BARE "apply"))
 (guard (_ ()) (set! %MAP (%map-add %MAP (%fnptr (eval (lit syscall))) %F-BARE "syscall")))
 (%between)
 
