@@ -44,7 +44,7 @@ any other site that did.
     (fn (self l acc)
       (if (null? l) acc
         (self (rest l)
-          (if (if (%tower-same? (%tower-site-interp (first l)) %macro-delimit) #f
+          (if (if (%tower-same? (%tower-site-interp (first l)) (eval (lit macro-delimit) (module x/reader/lit-reader))) #f
                 (%tower-same? (first (%tower-site-value-cell (first l)))
                               (%tower-site-interp (first l))))
             (pair (if (eq? (%tower-site-kind (first l)) (lit global))
@@ -64,14 +64,14 @@ any other site that did.
 The engine is asked the way the tower asks it, with `dlsym` on the process.
 Where it exports `jit_buffer_last_char` and the probe is open,
 `%c-macro-delimit` is compiled code; otherwise it is the interpreted
-`%macro-delimit`. That holds whether or not a cache miss has loaded the
+`macro-delimit` of `x/reader/lit-reader`. That holds whether or not a cache miss has loaded the
 compiler.
 
 ```x
 (do
   (def %exported
     (not (null? ((prim-ref 'ffi 'dlsym) ((prim-ref 'ffi 'dlopen) () 1) "jit_buffer_last_char"))))
-  (write (eq? (not (%tower-same? %c-macro-delimit %macro-delimit))
+  (write (eq? (not (%tower-same? %c-macro-delimit (eval (lit macro-delimit) (module x/reader/lit-reader))))
               (if %tower-jit? %exported #f))))
 ```
 ---

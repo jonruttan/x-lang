@@ -14,6 +14,17 @@
 ; backslash, or newline in a string argument is escaped, so it can no
 ; longer change the number of forms a reader sees or break the line.
 
+(module x/codec/xon)
+
+; The #"..." literal's entry analyser comes from the quote reader; the type
+; and buffer prims arm-source! wires with are fetched into this module.
+(import x/reader/lit-reader interp-analyse)
+(def %buffer-last-char (prim-ref (lit buf) (lit last-char)))
+(def %type-analyse-cell (prim-ref (lit type) (lit analyse-cell)))
+(def %type-push-analyse (prim-ref (lit type) (lit push-analyse)))
+(def %type-read-cell (prim-ref (lit type) (lit read-cell)))
+(def %type-push-read (prim-ref (lit type) (lit push-read)))
+
 (def-class Xon ()
   (doc "xon (x object notation) codec: read forms from text, walk a closed vocabulary, emit forms as lines."
     (note "One form per line on emit -- the contract the shell-side extractors (x.sh, release scripts) anchor on.")
@@ -57,7 +68,7 @@
         (note "For tools that read SOURCE into a scratch base (fmt, doc). The literal survives verbatim instead of shattering."))
       (let ((st (Xon %xon-find-type b "STRING")))
         (unless (null? st)
-          (%type-push-analyse st (pair %interp-analyse (first (%type-analyse-cell st))))
+          (%type-push-analyse st (pair interp-analyse (first (%type-analyse-cell st))))
           ; The tok prim is fetched ONCE here and closed over (#333):
           ; fetching it inside the callback paid a catalog walk per
           ; string token of every armed read.

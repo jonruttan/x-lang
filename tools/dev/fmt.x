@@ -17,6 +17,10 @@
 ; the formatter how each form nests.
 
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+; The quote family's analysers and readers, seated on the scratch base below.
+(import x/reader/lit-reader lit-analyse lit-read macro-delimit)
+(import x/reader/quasi-reader quasi-analyse quasi-read unquote-analyse unquote-read)
+
 (def %buffer-token (prim-ref 'buf 'tok))
 
 (do
@@ -197,6 +201,7 @@
       (def %fmt-registry
         (first (%reflect-step %fmt-base (%reflect-path 'type-alist %base-paths))))
       ; Push the keeping reader through the blessed door (path-driven cell).
+      (def %type-push-read (prim-ref 'type 'push-read))
       (%type-push-read (%find-type %fmt-registry "COMMENT") %fmt-comment-reader)
       ; Same treatment for #"..." literals: keep them as their source
       ; text, so formatting cannot expand the sugar away -- see
@@ -214,12 +219,12 @@
       (def %type-push-delimit (prim-ref 'type 'push-delimit))
       (def %sym-t (%find-type %fmt-registry "SYMBOL"))
       (%type-push-analyse %sym-t
-        (pair %lit-analyse (pair %quasi-analyse (pair %unquote-analyse
+        (pair lit-analyse (pair quasi-analyse (pair unquote-analyse
           (first (%type-analyse-cell %sym-t))))))
       (%type-push-read %sym-t
-        (pair %lit-read (pair %quasi-read (pair %unquote-read
+        (pair lit-read (pair quasi-read (pair unquote-read
           (first (%type-read-cell %sym-t))))))
-      (%type-push-delimit %sym-t %macro-delimit)
+      (%type-push-delimit %sym-t macro-delimit)
       ; Boot-constrained files keep their (lit ...) spellings; everything
       ; else folds to the encouraged sugar.
       (Fmt fold-sugar! (not (%boot-file? file)))

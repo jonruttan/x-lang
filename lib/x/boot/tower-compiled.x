@@ -43,6 +43,9 @@
 (include "lib/x/type/hash.x")
 (include "lib/x/tool/compile.x")
 (import x/tool/compile compile compile-asm compile-hosted?)
+; The quote family's entry tests and states, to compile and to swap by identity.
+(import x/reader/lit-reader lit-accept lit-analyse macro-delimit interp-analyse interp-after-hash)
+(import x/reader/quasi-reader quasi-accept quasi-analyse unquote-after-comma unquote-analyse)
 
 ; --- THE BURST USES THE ENGINE'S OWN JIT, NEVER A SYSTEM TOOLCHAIN -----------
 ;
@@ -225,36 +228,36 @@
 (def %c-quasi-analyse ())
 (%tower-jit-global! %c-quasi-analyse #f
     (lit (fn (_ buffer score chr)
-      (if (= chr 96) %quasi-accept ())))
-    (list (pair (lit %quasi-accept) %quasi-accept))
+      (if (= chr 96) quasi-accept ())))
+    (list (pair (lit quasi-accept) quasi-accept))
     ; No JIT in this engine: keep the interpreted twin, so the identity
     ; swap below replaces this handler with itself.
-    %quasi-analyse)
+    quasi-analyse)
 
 (def %c-unquote-analyse ())
 (%tower-jit-global! %c-unquote-analyse #f
     (lit (fn (_ buffer score chr)
-      (if (= chr 44) %unquote-after-comma ())))
-    (list (pair (lit %unquote-after-comma) %unquote-after-comma))
-    %unquote-analyse)
+      (if (= chr 44) unquote-after-comma ())))
+    (list (pair (lit unquote-after-comma) unquote-after-comma))
+    unquote-analyse)
 
 (def %c-lit-analyse ())
 (%tower-jit-global! %c-lit-analyse #f
     (lit (fn (_ buffer score chr)
-      (if (= chr 39) %lit-accept ())))
-    (list (pair (lit %lit-accept) %lit-accept))
-    %lit-analyse)
+      (if (= chr 39) lit-accept ())))
+    (list (pair (lit lit-accept) lit-accept))
+    lit-analyse)
 
 ; Only the entry test compiles: it is the piece that runs on every character.
-; The states behind it (%interp-after-hash's machine) run inside a literal
+; The states behind it (interp-after-hash's machine) run inside a literal
 ; only, so they stay interpreted -- and they are closures over a `let`, with no
 ; global names for an fvar list to bind anyway.
 (def %c-interp-analyse ())
 (%tower-jit-global! %c-interp-analyse #f
     (lit (fn (_ buffer score chr)
-      (if (= chr 35) %interp-after-hash ())))
-    (list (pair (lit %interp-after-hash) %interp-after-hash))
-    %interp-analyse)
+      (if (= chr 35) interp-after-hash ())))
+    (list (pair (lit interp-after-hash) interp-after-hash))
+    interp-analyse)
 
 ; Swap the compiled analysers in for the interpreted handlers BY IDENTITY,
 ; never by seat.  A positional swap breaks silently the day lit-reader.x
@@ -275,10 +278,10 @@
 (def %tower-swap-one!
   (fn (_ cell)
     (match
-      ((%tower-same? (first cell) %interp-analyse) (%tower-swap! cell %interp-analyse (fn (_) %c-interp-analyse)))
-      ((%tower-same? (first cell) %lit-analyse) (%tower-swap! cell %lit-analyse (fn (_) %c-lit-analyse)))
-      ((%tower-same? (first cell) %quasi-analyse) (%tower-swap! cell %quasi-analyse (fn (_) %c-quasi-analyse)))
-      ((%tower-same? (first cell) %unquote-analyse) (%tower-swap! cell %unquote-analyse (fn (_) %c-unquote-analyse)))
+      ((%tower-same? (first cell) interp-analyse) (%tower-swap! cell interp-analyse (fn (_) %c-interp-analyse)))
+      ((%tower-same? (first cell) lit-analyse) (%tower-swap! cell lit-analyse (fn (_) %c-lit-analyse)))
+      ((%tower-same? (first cell) quasi-analyse) (%tower-swap! cell quasi-analyse (fn (_) %c-quasi-analyse)))
+      ((%tower-same? (first cell) unquote-analyse) (%tower-swap! cell unquote-analyse (fn (_) %c-unquote-analyse)))
       (#t ()))))
 (def %tower-swap-analysers!
   (fn (self cell)
@@ -289,7 +292,7 @@
 
 ; --- Compile the symbol type's delimiter hook -------------------------------
 ;
-; %macro-delimit (lit-reader.x) runs on EVERY character of every symbol-shaped
+; macro-delimit (lit-reader.x) runs on EVERY character of every symbol-shaped
 ; token: the C symbol analyser calls it per char to ask whether ' ` , ends the
 ; token (so foo'bar reads as foo then 'bar).  Interpreted, it is the single
 ; largest per-character reader cost.  It is the same shape as the numeric
@@ -304,7 +307,7 @@
 ; %buffer-unread are the asm lane's trampolines, and the cc rung compiles the
 ; hook without refusing into one that misreads the source read after it.  So
 ; where the asm lane is closed the symbol type keeps the interpreted
-; %macro-delimit, and an engine without the JIT (or the trampoline) is
+; macro-delimit, and an engine without the JIT (or the trampoline) is
 ; unchanged.  The body has no free variable, so its fvar table is empty and
 ; the analyser mode is declared.
 (def %type-delimit-cell (prim-ref 'type 'delimit-cell))
@@ -315,13 +318,13 @@
 ; front rather than attempting the compile and catching the failure: a compile
 ; aborted against a missing trampoline is not worth the risk (an x86-64 backend
 ; left bad state and the next boot crashed), when the answer -- keep the
-; interpreted %macro-delimit -- is known here.
-(def %c-macro-delimit %macro-delimit)
+; interpreted macro-delimit -- is known here.
+(def %c-macro-delimit macro-delimit)
 (if (null? ((prim-ref 'ffi 'dlsym) ((prim-ref 'ffi 'dlopen) () 1) "jit_buffer_last_char")) ()
   (%tower-jit-global! %c-macro-delimit #t
     (lit (fn (_ buffer)
       ; ' ` (39 96) each end an adjacent token; the comma (44) does not, as
-      ; in the interpreted %macro-delimit this twins.  %buffer-unread rewinds
+      ; in the interpreted macro-delimit this twins.  %buffer-unread rewinds
       ; the delimiter char AND returns the buffer, which is the value the C
       ; delimit protocol tests for a match -- so no %seq is needed (and the
       ; asm lane does not compile %seq with a call in discard position).
@@ -331,14 +334,14 @@
         (%buffer-unread buffer)
         ())))
     ()
-    %macro-delimit))
+    macro-delimit))
 (def %sym-delimit-list
   (first (%type-delimit-cell (%type-by-atom (%type-of "x")))))
 (def %tower-swap-delimit!
   (fn (self cell)
     (match
       ((null? cell) ())
-      ((%tower-same? (first cell) %macro-delimit) (%tower-swap! cell %macro-delimit (fn (_) %c-macro-delimit)))
+      ((%tower-same? (first cell) macro-delimit) (%tower-swap! cell macro-delimit (fn (_) %c-macro-delimit)))
       (#t (self (rest cell))))))
 (%tower-swap-delimit! %sym-delimit-list)
 

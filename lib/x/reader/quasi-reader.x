@@ -16,17 +16,19 @@
 
 ; Single-char accept: unread the lookahead char, score one, accept.
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(module x/reader/quasi-reader)
+
 (def %buffer-token (prim-ref (lit buf) (lit tok)))
 (def %buffer-last-char (prim-ref (lit buf) (lit last-char)))
 (def %token-read (prim-ref (lit tok) (lit read)))
 
 
-(def %quasi-accept
+(def quasi-accept
   (fn (_ buffer score _)
     (%seq (%buffer-unread buffer) (%score-set score 1 buffer))))
 
 ; After a comma, an @ makes it unquote-splicing; either way score one char.
-(def %unquote-after-comma
+(def unquote-after-comma
   (fn (_ buffer score chr)
     (if (= chr #\@)
       (%score-set score 1 buffer)
@@ -34,18 +36,18 @@
 
 ; --- analyse: score a leading ` or , as a one-char token ---
 
-(def %quasi-analyse
-  (fn (_ buffer score chr) (if (= chr #\`) %quasi-accept ())))
+(def quasi-analyse
+  (fn (_ buffer score chr) (if (= chr #\`) quasi-accept ())))
 
-(def %unquote-analyse
-  (fn (_ buffer score chr) (if (= chr #\,) %unquote-after-comma ())))
+(def unquote-analyse
+  (fn (_ buffer score chr) (if (= chr #\,) unquote-after-comma ())))
 
 ; --- read: confirm the token, then wrap the following expression ---
 ; ' ` , are delimiters, so a token ending in ` or , can only be that macro
 ; (a symbol never ends in one).  ,@ is the lone two-char token; it ends in
 ; @, so confirm a leading , (vs a symbol like x@) before splicing.
 
-(def %quasi-read
+(def quasi-read
   (fn (_ buffer . rest)
     (if (= (%buffer-last-char buffer) #\`)
       (pair (lit quasi) (pair (%token-read buffer) ()))
@@ -54,7 +56,7 @@
 ; Select on the token's LEADING char: the comma token is exactly "," or ",@".
 ; (A symbol may end in a comma -- foo, -- now that the comma is not a
 ; delimiter, so the last char no longer identifies the macro.)
-(def %unquote-read
+(def unquote-read
   (fn (_ buffer . rest)
     (if (= (%str-ref (%buffer-token buffer) 0) #\,)
       (if (= (%buffer-last-char buffer) #\@)
@@ -63,7 +65,8 @@
       ())))
 
 (doc (provide x/reader/quasi-reader
-  %quasi-analyse %unquote-analyse %quasi-read %unquote-read
-  %quasi-accept %unquote-after-comma)
+  quasi-analyse unquote-analyse quasi-read unquote-read
+  quasi-accept unquote-after-comma)
   "Quasiquote reader-macro handlers (backtick, comma, comma-at), placed on the
-symbol type by lit-reader.x.")
+symbol type by lit-reader.x, which imports them; the tower imports the entry
+tests and their states to compile them.")
