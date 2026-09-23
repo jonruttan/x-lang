@@ -306,16 +306,35 @@ with no handler raises.
 ---
     ((42 (1 2)) (42 (1 2)))
 
-### an operative call handler receives the values as its operands
+### an operative call handler gets each value back as it is
+
+An operative handler evaluates its operands, the way `(v x)` evaluates `x`, so
+`apply` hands it each value quoted: a symbol and a list among the values arrive
+as themselves, as they do in the direct call.
 
 ```x
 (def %apply-spec-o
   ((prim-ref (lit type) (lit make)) "APPLY-SPEC-OP"
-    (list (pair (lit call) (op (self . argfs) e (list (first self) argfs))))))
-(apply ((prim-ref (lit type) (lit make-instance)) %apply-spec-o 7) (list 1 2))
+    (list (pair (lit call)
+      (op (self . argfs) e (list (first self) (List map (fn (_ a) (eval a e)) argfs)))))))
+(def %apply-spec-oi ((prim-ref (lit type) (lit make-instance)) %apply-spec-o 7))
+(list (%apply-spec-oi 1 (lit s) (list (lit a) 2))
+      (apply %apply-spec-oi (list 1 (lit s) (list (lit a) 2))))
 ```
 ---
-    (7 (1 2))
+    ((7 (1 's ('a 2))) (7 (1 's ('a 2))))
+
+### a class instance takes a symbol or a list among the values as itself
+
+```x
+(def-class ApplySpecBox () v (method put (self x) (self v x) x))
+(def %apply-spec-b (new ApplySpecBox))
+(list (apply %apply-spec-b (list (lit put) (lit apply-spec-sym)))
+      (apply %apply-spec-b (list (lit put) (list (lit a) 2)))
+      (%apply-spec-b v))
+```
+---
+    ('apply-spec-sym ('a 2) ('a 2))
 
 ### a class instance, a vector, a list, a string and a number apply as they call
 

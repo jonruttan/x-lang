@@ -12,16 +12,20 @@
 ; The engine's apply calls through whatever it is handed.  Handed a value
 ; that is not a closure, an operative or a primitive, it jumps into the
 ; value's first slot: a crash, not an error.  That is the engine's charter
-; (docs/glossary.md "core": the C prims are unchecked, the library is the
-; guard site), so the door is here.  A value is callable through its type's
-; call handler -- (v args...) dispatches that way -- and apply takes the same
+; (docs/primitives.md, Coordinates: the C layer is a CPU and checks nothing),
+; so the door is here.  A value is callable through its type's call
+; handler, which is how (v args...) dispatches, and apply takes the same
 ; door: a vector, a class instance, a generic, or a make-type instance with
 ; a call handler applies like a closure, and a value with no handler raises
 ; a type error.
 ;
 ; The arguments arrive evaluated.  A closure handler is entered on the
-; engine's apply path, which binds them as they are; an operative handler
-; receives them as its operands, as a bare operative does under apply.
+; engine's apply path, which binds them as they are.  Any other handler, an
+; operative or one of the engine's C handlers, evaluates its operands the way
+; (v x) evaluates x, so it is handed each value quoted: (apply v vals) is
+; (v 'val ...), and a symbol or a list among the values arrives as itself.  A
+; bare operative gets the values as its operands, as the engine's apply hands
+; them over.
 ;
 ; The engine's apply stays under %apply.  What the library built, or what a
 ; type cell holds, is applied through it -- let, the class dispatcher, the
@@ -29,31 +33,46 @@
 ; them pays for a check it has no use for, and a lang that binds apply over
 ; this door, as this door is bound over the engine's, cannot retarget them.
 (def %apply apply)
+; The reflection doors the value path takes.  It dispatches on every call it
+; serves, so they are fetched once, here, as the modules that wire types fetch
+; theirs; fetched from the catalog on each call they cost 1,283 objects.
+(def %apply-type-of (prim-ref (lit type) (lit of)))
+(def %apply-by-atom (prim-ref (lit type) (lit by-atom)))
+(def %apply-call-top (prim-ref (lit type) (lit call-top)))
 ; The argument list: the tail alone, or the leading arguments spliced in
 ; front of it.  A walk of its own, never apply applied to apply: the engine's
 ; apply evaluates its operands, and a list among the leading arguments would
 ; be evaluated as a form.
 (def %apply-args
   (fn (self spread)
-    (if (null? (rest spread))
-      (first spread)
-      (pair (first spread) (self (rest spread))))))
-; The value path, off the fast path so a closure pays for nothing here:
-; the reflection doors are fetched inline, per the caching rule, and the
-; handler is the one (v args...) would reach.
+    (match
+      ((eq? (rest spread) ()) (first spread))
+      (#t (pair (first spread) (self (rest spread)))))))
+; Each value as a form that evaluates to itself, for a handler that
+; evaluates its operands.
+(def %apply-quoted
+  (fn (self vals)
+    (match
+      ((eq? vals ()) ())
+      (#t (pair (list (lit lit) (first vals)) (self (rest vals)))))))
+; The value path, off the fast path so a closure pays for nothing here.  The
+; handler is the one (v args...) would reach.  Its locals are bound with def,
+; the primitive; let is derived from apply and builds a form to do it.
 (def %apply-value
   (fn (_ f args)
-    (let ((t ((prim-ref (lit type) (lit by-atom))
-              ((prim-ref (lit type) (lit of)) f))))
-      (let ((h (if (null? t) () ((prim-ref (lit type) (lit call-top)) t))))
-        (if (null? h)
-          (Err raise (lit type) "apply: not callable" f)
-          (%apply h (pair f args)))))))
+    (def t (%apply-by-atom (%apply-type-of f)))
+    (def h (match
+             ((eq? t ()) ())
+             (#t (%apply-call-top t))))
+    (match
+      ((eq? h ()) (Err raise (lit type) "apply: not callable" f))
+      ((procedure? h) (%apply h (pair f args)))
+      (#t (%apply h (pair f (%apply-quoted args)))))))
 (doc (def apply
   (fn (_ (param f CALLABLE "What to apply: a closure, a primitive, an operative, or a value whose type has a call handler")
          . (param spread ANY "Leading arguments, then the list of the rest"))
     (match
-      ((null? spread) (Err raise (lit type) "apply: no argument list" ()))
+      ((eq? spread ()) (Err raise (lit type) "apply: no argument list" ()))
       ((procedure? f) (%apply f (%apply-args spread)))
       ((operative? f) (%apply f (%apply-args spread)))
       (#t (%apply-value f (%apply-args spread))))))
