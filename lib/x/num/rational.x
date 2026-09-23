@@ -41,7 +41,10 @@
     (if (%int= b 0) a
       (self b (%int% a b)))))
 
-(def %abs (fn (_ n) (if (%int< n 0) (%int- 0 n) n)))
+; The magnitude goes through the public - for the same reason the cross
+; products below do: (%int- 0 n) hands LONG_MIN back unchanged, since it has no
+; positive counterpart in the word, and the promoting - makes it a bigint.
+(def %abs (fn (_ n) (if (%int< n 0) (- 0 n) n)))
 ; --- Find '/' position in string ---
 
 (def %rat-find-slash
@@ -57,9 +60,10 @@
     (if (%int= d 0) (error "division by zero")
       (let ((g (%gcd (%abs n) (%abs d))))
         (let ((rn (%int/ n g)) (rd (%int/ d g)))
-          ; Normalize: denominator always positive
+          ; Normalize: denominator always positive.  Either part can be
+          ; LONG_MIN, so the negation promotes (see %abs).
           (if (%int< rd 0)
-            (%make-instance %rational (pair (%int- 0 rn) (%int- 0 rd)))
+            (%make-instance %rational (pair (- 0 rn) (- 0 rd)))
             ; Reduce to integer if denominator is 1
             (if (%int= rd 1) rn
               (%make-instance %rational (pair rn rd)))))))))
@@ -215,12 +219,14 @@
 
 ; Truncating modulo, matching int % and float fmod: a - b*trunc(a/b).
 ; trunc(a/b) = integer division of the cross products (%int/ dispatches
-; bigint operands when the promoting * produced them).
+; bigint operands when the promoting * produced them).  A divisor of -1 is
+; negation instead (see %exact-div).
 (def %rat-mod
   (fn (_ a b)
-    (let ((q (%int/ (* (%rat-numer-of a) (%rat-denom-of b))
-                    (* (%rat-denom-of a) (%rat-numer-of b)))))
-      (%rat-sub a (%rat-mul b (%make-rational q 1))))))
+    (let ((n (* (%rat-numer-of a) (%rat-denom-of b)))
+          (d (* (%rat-denom-of a) (%rat-numer-of b))))
+      (%rat-sub a
+        (%rat-mul b (%make-rational (if (%int= d -1) (- 0 n) (%int/ n d)) 1))))))
 
 (def %rat-eq
   (fn (_ a b)
@@ -262,12 +268,16 @@
 (%type-push-op %rational-type '= (fn (_ a b) (%rat-eq (%ensure-rat a) (%ensure-rat b))))
 (%type-push-op %rational-type '% (fn (_ a b) (%rat-mod (%ensure-rat a) (%ensure-rat b))))
 
-; Integer division that produces rational when not exact
+; Integer division that produces rational when not exact.  A divisor of -1 is
+; negation: LONG_MIN / -1 is the one int quotient that leaves the range, and
+; %int/ is a plain C a / b, which answers LONG_MIN there on arm64 and traps on
+; x86.  The public - promotes it.
 (def %exact-div
   (fn (_ a b)
-    (if (= (%int- a (%int* b (%int/ a b))) 0)
-      (%int/ a b)
-      (%make-rational a b))))
+    (if (%int= b -1) (- 0 a)
+      (if (= (%int- a (%int* b (%int/ a b))) 0)
+        (%int/ a b)
+        (%make-rational a b)))))
 
 ; / policy: this module OWNS the variadic / (one policy owner per operator --
 ; bigint owns + - * overflow promotion). Both-plain-int division promotes to

@@ -783,3 +783,42 @@ digits as at 34, and the suite is not the place to pay for 34.
 ```
 ---
     12
+
+## the most negative integer (regression: its magnitude kept the sign)
+
+A significand of LONG_MIN has no positive counterpart in the word, so its
+raw magnitude came back negative: it printed with two signs, divided by -1 to
+itself, and counted as one digit.  The value comes from the bitwise door
+rather than a literal.
+
+### it prints with one sign
+
+```x
+(* (<< 1 63) 1d)
+```
+---
+    -9223372036854775808d
+
+### and reads back the same
+
+```x
+-9223372036854775808d
+```
+---
+    -9223372036854775808d
+
+### dividing by -1 gives the positive value
+
+```x
+(/ (* (<< 1 63) 1d) -1)
+```
+---
+    9223372036854775808d
+
+### negation and magnitude promote
+
+```x
+(list (Decimal neg (* (<< 1 63) 1d)) (Decimal abs (* (<< 1 63) 1d)))
+```
+---
+    (9223372036854775808d 9223372036854775808d)
