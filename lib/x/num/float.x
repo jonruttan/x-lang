@@ -1,6 +1,6 @@
 ; float.x -- Floating-point type with IEEE 754 bit-pattern storage
-; lint-known: %bigint-base
-; (defined in num/bigint.x; the tower supplies it in load order)
+(module x/num/float)
+
 (import x/type/class)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
@@ -52,7 +52,7 @@
         ((Str8 includes? "n" s) s)
         (#t (Str8 append s ".0"))))))
 
-(def %int->float
+(def int->float
   (fn (_ n) (%ffi-call "i->d" () n)))
 
 (def %float->int
@@ -62,35 +62,35 @@
 ; Uses intrinsic scoring — score computed from buffer length.
 ; After first fractional digit: continue digits or score
 
-(def %float-frac ())
+(def float-frac ())
 
-(set! %float-frac
+(set! float-frac
   (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
-      %float-frac
+      float-frac
       (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
 ; Must see at least one digit after '.'
 
-(def %float-first-frac
+(def float-first-frac
   (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
-      (%seq (%score-set score 1 buffer) %float-frac)
+      (%seq (%score-set score 1 buffer) float-frac)
       ())))
 ; Integer part: digits until '.'
 
-(def %float-int-digits ())
+(def float-int-digits ())
 
-(set! %float-int-digits
+(set! float-int-digits
   (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
-      %float-int-digits
-      (if (= chr 46) %float-first-frac ()))))
+      float-int-digits
+      (if (= chr 46) float-first-frac ()))))
 ; Sign: a '-' entry must see a digit next, so a lone '-' (the operator)
 ; and '-.' fall through to the symbol type unclaimed.
 
-(def %float-neg-int
+(def float-neg-int
   (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) %float-int-digits ())))
+    (if (and (>= chr 48) (<= chr 57)) float-int-digits ())))
 ; --- Math library for strtod (needed by convert alist) ---
 ; Try libm.so.6 (Linux), libm.dylib (macOS), then fall back to current process
 
@@ -117,7 +117,7 @@
 ; maker below used to bind (let ((sym (%dlsym %libm name))) ...) and close
 ; over `sym`, which puts a raw address in the closure's own frame -- where
 ; the transient rule cannot reach it.  %image-transients names GLOBALS, so
-; clearing %fsin empties the global and leaves the frame the closure still
+; clearing fsin empties the global and leaves the frame the closure still
 ; holds; seventeen of those survived the child's collect and the writer
 ; refused the image on `unnameable: 16`.
 ;  IT REFUSED ON LINUX ONLY, and that is what kept it quiet.  Nothing about
@@ -136,29 +136,33 @@
   (fn (_ kind cell)
     (match
       ((str=? kind "d->d")
-        (fn (_ x) (%make-instance %float (%ffi-call "d->d" (first cell) (first x)))))
+        (fn (_ x) (%make-instance float (%ffi-call "d->d" (first cell) (first x)))))
       ((str=? kind "dd->d")
-        (fn (_ a b) (%make-instance %float (%ffi-call "dd->d" (first cell) (first a) (first b)))))
+        (fn (_ a b) (%make-instance float (%ffi-call "dd->d" (first cell) (first a) (first b)))))
       (#t (first cell)))))          ; "ptr": the pointer itself
 (def %libm-fn
   (fn (_ global kind name)
     (let ((cell (pair (%dlsym %libm name) ())))
       (do (set! %libm-rows (pair (list global kind name cell) %libm-rows))
-          (set! %image-transients (pair global %image-transients))
           (%libm-make kind cell)))))
-;  A THUNK, NOT A SYMBOL, because what has to be emptied is a cell that each
-; closure holds and no global names.  boot/reflect.x states the rule: a
-; symbol among the transients is cleared, a thunk is run.  Registered after
-; the maker and read at RUN time, so it empties every row made below it.
+;  A THUNK, NOT SYMBOLS.  boot/reflect.x states the rule: a symbol among the
+; transients is cleared in the child's root, a thunk is run.  The handle and
+; the rows' names live in this module's frame, which a symbol in the list
+; would not reach, and what has to be emptied for each row is a cell that
+; each closure holds and no name reaches at all.  So one thunk clears all
+; three: the handle, each row's binding (a set! evaluated here, in the
+; module's frame) and each row's cell.  Registered after the maker and read
+; at RUN time, so it covers every row made below it.
 (set! %image-transients
   (pair (fn (_)
-          ((fn (self l)
-             (if (null? l) ()
-               (do (self (rest l))
-                   (%set-first! (first (rest (rest (rest (first l))))) ()))))
-           %libm-rows))
+          (do (set! %libm ())
+              ((fn (self l)
+                 (if (null? l) ()
+                   (do (self (rest l))
+                       (eval (list (lit set!) (first (first l)) ()))
+                       (%set-first! (first (rest (rest (rest (first l))))) ()))))
+               %libm-rows)))
         %image-transients))
-(set! %image-transients (pair (lit %libm) %image-transients))
 (set! %image-recache-hooks
   (pair (fn (_)
           (do (set! %libm (%libm-open))
@@ -175,13 +179,13 @@
 
 (def %strtod (%libm-fn (lit %strtod) "ptr" "strtod"))
 
-(def %str->float
+(def str->float
   (fn (_ s) (%ffi-call "s0->d" %strtod s)))
 
 ; Float type with tokenizer, display, and alist-based convert
 
-(def %float ())
-(set! %float
+(def float ())
+(set! float
   (%make-type
     "FLOAT"
     (list
@@ -194,18 +198,18 @@
           ; Entry: digit [0-9], or '-' followed by a digit
 
           (if (and (>= chr 48) (<= chr 57))
-            %float-int-digits
-            (if (= chr 45) %float-neg-int ()))))
+            float-int-digits
+            (if (= chr 45) float-neg-int ()))))
       (pair 'read (fn (_ . args) (%float-read (first args))))
       (pair
         'from
         (list
           (pair
             (%type-of 42)
-            (fn (_ value) (%make-instance %float (%int->float value))))
+            (fn (_ value) (%make-instance float (int->float value))))
           (pair
             (%type-of "")
-            (fn (_ value) (%make-instance %float (%str->float value))))
+            (fn (_ value) (%make-instance float (str->float value))))
 ))
       (pair
         'to
@@ -219,23 +223,23 @@
 
 ; --- Predicates and constructors ---
 
-(def %float? (fn (_ x) (%type? x %float)))
+(def float? (fn (_ x) (%type? x float)))
 
 ; Door: coerce to float through the catalog; a miss is a raise, never nil
 ; into (first)/d+d (the C core is unchecked -- guards live in x-lang).
 (def %to-float
   (fn (_ x what)
-    (if (%float? x) x
-      (let ((f (%cvt x %float)))
-        (if (%float? f) f (Err raise 'type what x))))))
+    (if (float? x) x
+      (let ((f (%cvt x float)))
+        (if (float? f) f (Err raise 'type what x))))))
 
-(def %float-of
+(def float-of
   (fn (_ x) (%to-float x "Float from: not convertible to FLOAT")))
 
 (def %int-of
   (fn (_ x)
     (match
-      ((%float? x) (%float->int (first x)))
+      ((float? x) (%float->int (first x)))
       ((%int-number? x) x)
       (#t (Err raise 'type "Float ->int: not a float" x)))))
 
@@ -243,39 +247,39 @@
 
 ; --- Arithmetic ---
 
-(def %f-add
+(def f-add
   (fn (_ a b)
-    (%make-instance %float (%ffi-call "d+d" () (first a) (first b)))))
+    (%make-instance float (%ffi-call "d+d" () (first a) (first b)))))
 
-(def %f-sub
+(def f-sub
   (fn (_ a b)
-    (%make-instance %float (%ffi-call "d-d" () (first a) (first b)))))
+    (%make-instance float (%ffi-call "d-d" () (first a) (first b)))))
 
-(def %f-mul
+(def f-mul
   (fn (_ a b)
-    (%make-instance %float (%ffi-call "d*d" () (first a) (first b)))))
+    (%make-instance float (%ffi-call "d*d" () (first a) (first b)))))
 
-(def %f-div
+(def f-div
   (fn (_ a b)
-    (%make-instance %float (%ffi-call "d/d" () (first a) (first b)))))
+    (%make-instance float (%ffi-call "d/d" () (first a) (first b)))))
 
 ; fmod through the dlsym'd %libm handle (dd->d), like every other math
 ; function -- NOT an inline C convention.  The retired d%d convention was
 ; the binary's ONLY link-time libm reference; with it gone the link drops
 ; -lm entirely (%libm above already loads libm itself at runtime).
 (def %ffmod (%libm-fn (lit %ffmod) "ptr" "fmod"))
-(def %f-mod
+(def f-mod
   (fn (_ a b)
-    (%make-instance %float (%ffi-call "dd->d" %ffmod (first a) (first b)))))
+    (%make-instance float (%ffi-call "dd->d" %ffmod (first a) (first b)))))
 
 (note "Comparisons")
 
 ; --- Comparisons ---
 
-(def %f-lt
+(def f-lt
   (fn (_ a b) (%ffi-call "d<d" () (first a) (first b))))
 
-(def %f-eq
+(def f-eq
   (fn (_ a b) (%ffi-call "d=d" () (first a) (first b))))
 
 ; Reader: called by tokenizer after successful analyse
@@ -284,7 +288,7 @@
 (set! %float-read
   (fn (_ . args)
     (%make-instance
-      %float
+      float
       (%ffi-call "s0->d" %strtod (%buffer-token (first args))))))
 
 (note "Math Functions")
@@ -292,13 +296,13 @@
 ; Each resolves its symbol once and keeps the pointer in the closure; the
 ; row it registers (%libm-fn above) is how an image gets it back.
 
-(def %fsin (%libm-fn (lit %fsin) "d->d" "sin"))
+(def fsin (%libm-fn (lit fsin) "d->d" "sin"))
 
-(def %fcos (%libm-fn (lit %fcos) "d->d" "cos"))
+(def fcos (%libm-fn (lit fcos) "d->d" "cos"))
 
 (def %ftan (%libm-fn (lit %ftan) "d->d" "tan"))
 
-(def %fsqrt (%libm-fn (lit %fsqrt) "d->d" "sqrt"))
+(def fsqrt (%libm-fn (lit fsqrt) "d->d" "sqrt"))
 
 (def %fexp (%libm-fn (lit %fexp) "d->d" "exp"))
 
@@ -324,34 +328,34 @@
 
 (def %fpow (%libm-fn (lit %fpow) "dd->d" "pow"))
 
-(def %fatan2 (%libm-fn (lit %fatan2) "dd->d" "atan2"))
+(def fatan2 (%libm-fn (lit fatan2) "dd->d" "atan2"))
 
 ; --- Constants ---
 
-(def %pi (%fatan2 (%float-of 0) (%float-of -1)))
+(def pi (fatan2 (float-of 0) (float-of -1)))
 
-(def %e (%fexp (%float-of 1)))
+(def %e (%fexp (float-of 1)))
 
-(def %ensure-float
+(def ensure-float
   (fn (_ x) (%to-float x "Float: operand not convertible to FLOAT")))
 
 ; --- Type ops: the generic operators dispatch float operands here ---
-; %ensure-float goes through the cvt from-alist, so the other side may be an
+; ensure-float goes through the cvt from-alist, so the other side may be an
 ; int, string, bigint, or rational (all declared). The old %safe wrapper chain
 ; is gone: bigint owns the + - * int-overflow policy, rational owns /, and the
 ; binary C operators dispatch everything typed.
 
-(def %float-type (%type-by-atom %float))
-(%type-push-op %float-type '+ (fn (_ a b) (%f-add (%ensure-float a) (%ensure-float b))))
-(%type-push-op %float-type '- (fn (_ a b) (%f-sub (%ensure-float a) (%ensure-float b))))
-(%type-push-op %float-type '* (fn (_ a b) (%f-mul (%ensure-float a) (%ensure-float b))))
-(%type-push-op %float-type '/ (fn (_ a b) (%f-div (%ensure-float a) (%ensure-float b))))
+(def float-type (%type-by-atom float))
+(%type-push-op float-type '+ (fn (_ a b) (f-add (ensure-float a) (ensure-float b))))
+(%type-push-op float-type '- (fn (_ a b) (f-sub (ensure-float a) (ensure-float b))))
+(%type-push-op float-type '* (fn (_ a b) (f-mul (ensure-float a) (ensure-float b))))
+(%type-push-op float-type '/ (fn (_ a b) (f-div (ensure-float a) (ensure-float b))))
 ; Without this op, (% 1.2 1.4) fell through to x_prim_mod's integer
 ; fallback -- value-word % value-word on two float PAYLOAD POINTERS --
 ; and returned garbage ((gcd 1.2 1.4) famously yielded 8).
-(%type-push-op %float-type '% (fn (_ a b) (%f-mod (%ensure-float a) (%ensure-float b))))
-(%type-push-op %float-type '< (fn (_ a b) (%f-lt (%ensure-float a) (%ensure-float b))))
-(%type-push-op %float-type '= (fn (_ a b) (%f-eq (%ensure-float a) (%ensure-float b))))
+(%type-push-op float-type '% (fn (_ a b) (f-mod (ensure-float a) (ensure-float b))))
+(%type-push-op float-type '< (fn (_ a b) (f-lt (ensure-float a) (ensure-float b))))
+(%type-push-op float-type '= (fn (_ a b) (f-eq (ensure-float a) (ensure-float b))))
 
 (note "R7RS Predicates")
 
@@ -367,11 +371,7 @@
   (returns BOOL "True if x is a number")
   "Test whether a value is a number (integer or float).")
 
-(set! number? (fn (_ x) (if (%int-number? x) #t (%float? x))))
-
-(doc (def real? (fn (_ (param x ANY "Value to test")) (number? x)))
-  (returns BOOL "True if x is a real number")
-  "Test whether a value is a real number (complex.x narrows this to exclude complexes).")
+(set! number? (fn (_ x) (if (%int-number? x) #t (float? x))))
 
 ; --- Bigint -> float conversion (registered late, after f+/f* are defined) ---
 ; A pairwise registration: it needs bigint's handle (the from-alist key) and
@@ -385,22 +385,22 @@
   (fn (_ big)
     ; %bigint-base and `reverse` (x/core/list) are bigint.x's load-time
     ; bindings; the pact guarantees bigint fully loaded before this fires.
-    (let ((from-cell (%type-from-cell (%type-by-atom %float))))
+    (let ((from-cell (%type-from-cell (%type-by-atom float))))
       (%set-first! from-cell
         (pair
           (pair big
             (fn (_ value)
               (def sign (first (first value)))
               (def limbs (%reverse (rest (first value))))
-              (def fbase (%float-of %bigint-base))
-              (def fzero (%float-of 0))
+              (def fbase (float-of (eval (lit bigint-base) (module x/num/bigint))))
+              (def fzero (float-of 0))
               ; Horner's method on reversed (now MSB-first) limbs
               (def %go
                 (fn (self ls acc)
                   (if (null? ls) acc
-                    (self (rest ls) (%f-add (%f-mul acc fbase) (%float-of (first ls)))))))
+                    (self (rest ls) (f-add (f-mul acc fbase) (float-of (first ls)))))))
               (def mag (%go limbs fzero))
-              (if (%int= sign -1) (%f-sub fzero mag) mag)))
+              (if (%int= sign -1) (f-sub fzero mag) mag)))
           (first from-cell))))))
 
 (import x/type/class)
@@ -409,10 +409,10 @@
   (static
     (method float? (self (param x ANY "Value to test"))
       (doc "Test whether a value is a float." (returns BOOL "True if x is a float"))
-      (%float? x))
+      (float? x))
     (method inexact? (self (param x ANY "Value to test"))
       (doc "Test whether a value is inexact. Equivalent to float?." (returns BOOL "True if x is a float"))
-      (%float? x))
+      (float? x))
     (method integer? (self (param x ANY "Value to test"))
       (doc "Test whether a value is an integer (the pre-float number? predicate)."
         (returns BOOL "True if x is a native integer"))
@@ -430,48 +430,48 @@
       (%float->int bits))
     (method int->bits (self (param n INT "Integer value"))
       (doc "The IEEE 754 bit pattern of an integer's double value -- FFI plumbing, NOT a float constructor; (Float from) builds instances." (returns INT "IEEE 754 double bit pattern"))
-      (%int->float n))
+      (int->float n))
     (method str->bits (self (param s STRING "Decimal string to parse"))
       (doc "The IEEE 754 bit pattern of a decimal string's double value -- FFI plumbing, NOT a parser-to-instance; (Float from) builds instances (the old from-str name claimed FLOAT and returned bits, #66)." (returns INT "IEEE 754 double bit pattern"))
-      (%str->float s))
+      (str->float s))
     (method from (self (param x ANY "An exact number (int, bigint, rational), a numeric string, or a float (identity)"))
       (doc "Construct a float from any convertible value, through the conversion catalog -- the generic value door (was exact->inexact, #357). Raises tag 'type when nothing converts." (returns FLOAT "Float instance"))
-      (%float-of x))
+      (float-of x))
     (method ->int (self (param x FLOAT "Float value (machine ints pass through)"))
       (doc "Convert an inexact float to an exact integer by truncation." (returns INT "Truncated integer value"))
       (%int-of x))
     ; --- Arithmetic / comparison (operands coerce via the from-alist) ---
     (method + (self (param a NUMBER "First operand") (param b NUMBER "Second operand"))
       (doc "Add two floats (other numerics coerce)." (returns FLOAT "Sum"))
-      (%f-add (%ensure-float a) (%ensure-float b)))
+      (f-add (ensure-float a) (ensure-float b)))
     (method - (self (param a NUMBER "First operand") (param b NUMBER "Second operand"))
       (doc "Subtract two floats (other numerics coerce)." (returns FLOAT "Difference"))
-      (%f-sub (%ensure-float a) (%ensure-float b)))
+      (f-sub (ensure-float a) (ensure-float b)))
     (method * (self (param a NUMBER "First operand") (param b NUMBER "Second operand"))
       (doc "Multiply two floats (other numerics coerce)." (returns FLOAT "Product"))
-      (%f-mul (%ensure-float a) (%ensure-float b)))
+      (f-mul (ensure-float a) (ensure-float b)))
     (method / (self (param a NUMBER "Dividend") (param b NUMBER "Divisor"))
       (doc "Divide two floats (other numerics coerce)." (returns FLOAT "Quotient"))
-      (%f-div (%ensure-float a) (%ensure-float b)))
+      (f-div (ensure-float a) (ensure-float b)))
     (method < (self (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
       (doc "Test whether a is less than b (other numerics coerce)." (returns BOOL "True if a < b"))
-      (%f-lt (%ensure-float a) (%ensure-float b)))
+      (f-lt (ensure-float a) (ensure-float b)))
     (method = (self (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
       (doc "Test whether a equals b (other numerics coerce)." (returns BOOL "True if a equals b"))
-      (%f-eq (%ensure-float a) (%ensure-float b)))
+      (f-eq (ensure-float a) (ensure-float b)))
     ; --- libm ---
     (method sin (self (param x FLOAT "Angle in radians"))
       (doc "Compute the sine of a float." (returns FLOAT "Sine of x"))
-      (%fsin x))
+      (fsin x))
     (method cos (self (param x FLOAT "Angle in radians"))
       (doc "Compute the cosine of a float." (returns FLOAT "Cosine of x"))
-      (%fcos x))
+      (fcos x))
     (method tan (self (param x FLOAT "Angle in radians"))
       (doc "Compute the tangent of a float." (returns FLOAT "Tangent of x"))
       (%ftan x))
     (method sqrt (self (param x FLOAT "Non-negative float"))
       (doc "Compute the square root of a float." (returns FLOAT "Square root of x"))
-      (%fsqrt x))
+      (fsqrt x))
     (method exp (self (param x FLOAT "Exponent"))
       (doc "Compute e raised to a power." (returns FLOAT "e raised to the power x"))
       (%fexp x))
@@ -510,7 +510,7 @@
       (%fpow base exponent))
     (method atan2 (self (param y FLOAT "Y coordinate") (param x FLOAT "X coordinate"))
       (doc "Compute the arc tangent of y/x, using signs to determine the quadrant." (returns FLOAT "Angle in radians"))
-      (%fatan2 y x))
+      (fatan2 y x))
 
     ; --- The math tail (#363) ---
     ; Cold paths: dlsym per call (the kill pattern), keeping float.x inside
@@ -520,26 +520,31 @@
       (doc "Compute the base-2 logarithm of a float."
         (returns FLOAT "log2(x)")
         (sample "(Float log2 8.0)" "3.0"))
-      (%make-instance %float (%ffi-call "d->d" (%dlsym %libm "log2") (first x))))
+      (%make-instance float (%ffi-call "d->d" (%dlsym %libm "log2") (first x))))
     (method log10 (self (param x FLOAT "Positive float"))
       (doc "Compute the base-10 logarithm of a float."
         (returns FLOAT "log10(x)")
         (sample "(Float log10 1000.0)" "3.0"))
-      (%make-instance %float (%ffi-call "d->d" (%dlsym %libm "log10") (first x))))
+      (%make-instance float (%ffi-call "d->d" (%dlsym %libm "log10") (first x))))
     (method hypot (self (param x FLOAT "First leg") (param y FLOAT "Second leg"))
       (doc "Compute sqrt(x^2 + y^2) without intermediate overflow (libm hypot)."
         (returns FLOAT "The hypotenuse")
         (sample "(Float hypot 3.0 4.0)" "5.0"))
-      (%make-instance %float (%ffi-call "dd->d" (%dlsym %libm "hypot") (first x) (first y))))
+      (%make-instance float (%ffi-call "dd->d" (%dlsym %libm "hypot") (first x) (first y))))
 
     ; --- Constants (#363) ---
-    ; %pi and %e were already computed at load (atan2/exp); tau derives
+    ; pi and %e were already computed at load (atan2/exp); tau derives
     ; per call through the float adder.
+    (method type (self)
+      (doc "The float type handle, for Convert and Type."
+        (returns ATOM "The FLOAT type handle")
+        (sample "(Float float? (Convert to 42 (Float type)))" "#t"))
+      float)
     (method pi (self)
       (doc "The circle constant pi, 3.14159265..."
         (returns FLOAT "pi")
         (sample "(Float pi)" "3.14159265358979"))
-      %pi)
+      pi)
     (method e (self)
       (doc "Euler's number e, 2.71828182..."
         (returns FLOAT "e")
@@ -549,7 +554,7 @@
       (doc "The turn constant tau = 2*pi, 6.28318530..."
         (returns FLOAT "tau")
         (sample "(Float tau)" "6.28318530717959"))
-      (%f-add %pi %pi))
+      (f-add pi pi))
 
     ; --- IEEE-special predicates (#363) ---
     ; Bit tests on the stored pattern: exponent all-ones ((<< 2047 52),
@@ -562,7 +567,7 @@
       (doc "Is x a float NaN? #f for every non-float (an int is never NaN)."
         (returns BOOL "#t only for a NaN float")
         (sample "(Float nan? (/ 0.0 0.0))" "#t"))
-      (if (%float? x)
+      (if (float? x)
         (let ((em (<< 2047 52)))
           (if (= (& (first x) em) em)
             (not (= (& (first x) (- (<< 1 52) 1)) 0))
@@ -572,7 +577,7 @@
       (doc "Is x a float infinity, either sign? #f for every non-float."
         (returns BOOL "#t only for an infinite float")
         (sample "(Float inf? (/ 1.0 0.0))" "#t"))
-      (if (%float? x)
+      (if (float? x)
         (let ((em (<< 2047 52)))
           (if (= (& (first x) em) em)
             (= (& (first x) (- (<< 1 52) 1)) 0)
@@ -583,7 +588,7 @@
         (returns BOOL "#t for machine ints and finite floats")
         (sample "(Float finite? 42)" "#t"))
       (match
-        ((%float? x)
+        ((float? x)
          (let ((em (<< 2047 52)))
            (not (= (& (first x) em) em))))
         ((number? x) #t)
@@ -591,13 +596,16 @@
 
 ; Value dispatch (subject-last): (3.14 float?) -> (Float float? 3.14).
 (def %type-push-call (prim-ref 'type 'push-call))
-(%type-push-call (%type-by-atom %float) (%class-call-handler Float))
+(%type-push-call (%type-by-atom float) (%class-call-handler Float))
 
 ; Join the pact last, once the module is fully usable: any registration
 ; waiting on float fires against the finished class and type ops.
-(Pact join 'float %float)
+(Pact join 'float float)
 
-(doc (provide x/num/float Float)
+(doc (provide x/num/float Float
+  float float? float-of float-type ensure-float
+  f-add f-sub f-mul f-div f-mod f-eq f-lt fsin fcos fsqrt fatan2 str->float int->float pi
+  float-frac float-first-frac float-int-digits float-neg-int)
   (note "Literal syntax: 3.14. The generic operators dispatch float operands")
   (note "through the type ops; mixed operands resolve by the from-relation.")
   (example "(+ 1 3.14)" "4.14")

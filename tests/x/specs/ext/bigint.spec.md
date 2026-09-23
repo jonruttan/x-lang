@@ -326,7 +326,7 @@ comes from the bitwise door rather than a literal: the reader promotes a
 ### converting to bigint and back round-trips
 
 ```x
-(write (Convert to (<< 1 63) %bigint))
+(write (Convert to (<< 1 63) (Bigint type)))
 ```
 ---
     -9223372036854775808
@@ -391,7 +391,7 @@ wrapped.
 ### adds two bigints
 
 ```x
-(write (Bigint + (Convert to 100 %bigint) (Convert to 200 %bigint)))
+(write (Bigint + (Convert to 100 (Bigint type)) (Convert to 200 (Bigint type))))
 ```
 ---
     300
@@ -399,7 +399,7 @@ wrapped.
 ### adds large bigints
 
 ```x
-(write (Bigint + (Convert to 999999999999999999 %bigint) (Convert to 1 %bigint)))
+(write (Bigint + (Convert to 999999999999999999 (Bigint type)) (Convert to 1 (Bigint type))))
 ```
 ---
     1000000000000000000
@@ -409,7 +409,7 @@ wrapped.
 ### subtracts bigints
 
 ```x
-(write (Bigint - (Convert to 1000 %bigint) (Convert to 1 %bigint)))
+(write (Bigint - (Convert to 1000 (Bigint type)) (Convert to 1 (Bigint type))))
 ```
 ---
     999
@@ -419,7 +419,7 @@ wrapped.
 ### multiplies bigints
 
 ```x
-(write (Bigint * (Convert to 12345 %bigint) (Convert to 6789 %bigint)))
+(write (Bigint * (Convert to 12345 (Bigint type)) (Convert to 6789 (Bigint type))))
 ```
 ---
     83810205
@@ -427,7 +427,7 @@ wrapped.
 ### large multiply
 
 ```x
-(Bigint bigint? (Bigint * (Convert to 99999999999 %bigint) (Convert to 99999999999 %bigint)))
+(Bigint bigint? (Bigint * (Convert to 99999999999 (Bigint type)) (Convert to 99999999999 (Bigint type))))
 ```
 ---
     #t
@@ -435,7 +435,7 @@ wrapped.
 ### product that fits native demotes
 
 ```x
-(if (Bigint bigint? (Bigint * (Convert to 999999999 %bigint) (Convert to 999999999 %bigint))) "big" "native")
+(if (Bigint bigint? (Bigint * (Convert to 999999999 (Bigint type)) (Convert to 999999999 (Bigint type)))) "big" "native")
 ```
 ---
     "native"
@@ -443,7 +443,7 @@ wrapped.
 ### demoted product has the native value
 
 ```x
-(eq? (Bigint * (Convert to 999999999 %bigint) (Convert to 999999999 %bigint)) 999999998000000001)
+(eq? (Bigint * (Convert to 999999999 (Bigint type)) (Convert to 999999999 (Bigint type))) 999999998000000001)
 ```
 ---
     #t
@@ -506,7 +506,7 @@ same product with the operands both ways round.
 ### a two-limb bigint times a one-limb int demotes either way round
 
 ```x
-(let ((b (Convert to 10000000000 %bigint)))
+(let ((b (Convert to 10000000000 (Bigint type))))
   (list (eq? (Bigint * b 3) 30000000000) (eq? (Bigint * 3 b) 30000000000)))
 ```
 ---
@@ -517,7 +517,7 @@ same product with the operands both ways round.
 ### divides bigints
 
 ```x
-(write (Bigint / (Convert to 100 %bigint) (Convert to 7 %bigint)))
+(write (Bigint / (Convert to 100 (Bigint type)) (Convert to 7 (Bigint type))))
 ```
 ---
     14
@@ -525,7 +525,7 @@ same product with the operands both ways round.
 ### divides with a multi-limb quotient
 
 ```x
-(write (Bigint / (Convert to 99999999999999999999 %bigint) (Convert to 7 %bigint)))
+(write (Bigint / (Convert to 99999999999999999999 (Bigint type)) (Convert to 7 (Bigint type))))
 ```
 ---
     14285714285714285714
@@ -543,7 +543,7 @@ same product with the operands both ways round.
 ### less than
 
 ```x
-(Bigint < (Convert to 1 %bigint) (Convert to 2 %bigint))
+(Bigint < (Convert to 1 (Bigint type)) (Convert to 2 (Bigint type)))
 ```
 ---
     #t
@@ -551,7 +551,7 @@ same product with the operands both ways round.
 ### not less than
 
 ```x
-(Bigint < (Convert to 2 %bigint) (Convert to 1 %bigint))
+(Bigint < (Convert to 2 (Bigint type)) (Convert to 1 (Bigint type)))
 ```
 ---
     #f
@@ -561,7 +561,7 @@ same product with the operands both ways round.
 ### equal
 
 ```x
-(Bigint = (Convert to 42 %bigint) (Convert to 42 %bigint))
+(Bigint = (Convert to 42 (Bigint type)) (Convert to 42 (Bigint type)))
 ```
 ---
     #t
@@ -569,7 +569,7 @@ same product with the operands both ways round.
 ### not equal
 
 ```x
-(Bigint = (Convert to 1 %bigint) (Convert to 2 %bigint))
+(Bigint = (Convert to 1 (Bigint type)) (Convert to 2 (Bigint type)))
 ```
 ---
     #f

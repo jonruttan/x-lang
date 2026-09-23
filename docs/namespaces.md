@@ -111,6 +111,18 @@ A module value dispatches like a class's statics. It costs a dispatch per
 call, so hot code uses a selective import, which is the same trade
 `method-of` offers for classes.
 
+An unscoped importer's frame is the root, so its selective imports bind
+there. That is how a hot dispatcher that stays unscoped takes the vocabulary
+of modules that have scopes: `num/tower.x` imports the number modules'
+operations (`big-add`, `f-add`, ...) at its top, listed name by name, and
+each is a root binding by import -- the same surface those names had as
+private globals, reached at root-lookup cost (decision of 2026-09-22).
+
+A root name that other files extend in place with `set!` (`number?`,
+`real?`: the number modules widen and narrow them as they load) is defined
+in the root, never in a module. A module that defined it would keep calling
+its own frame's binding, which the `set!` in the root never reaches.
+
 ### What does not change
 
 Qualified symbols are not resolved by the evaluator. Symbol evaluation is C

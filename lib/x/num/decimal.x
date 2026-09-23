@@ -1,5 +1,5 @@
 ; decimal.x -- Arbitrary-precision decimal floating-point
-; lint-known: %bigint %bigint? %big-limbs %bigint-digits-per-limb
+; lint-known: bigint bigint? big-limbs bigint-digits-per-limb
 ; lint-known: %make-complex complex?
 ; (The first row is num/bigint.x's -- its handle, its predicate, and the
 ; base-10 limb storage %dec-ndigits counts through; the second is
@@ -29,6 +29,8 @@
 ; promotes without inventing digits.  Complex still absorbs decimal, as it
 ; absorbs every real.
 (import x/num/bigint)
+(import x/num/bigint bigint bigint? big-limbs bigint-digits-per-limb)
+(import x/num/float float)
 (import x/num/float)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
@@ -94,7 +96,7 @@
 ; and its general multi-limb long division, and it is the difference between
 ; a rounding that costs 7ms and one that costs 129.  Every power-of-ten
 ; division in this file goes a bite at a time for that reason.
-(def %dec-bite (%int- %bigint-digits-per-limb 1))
+(def %dec-bite (%int- bigint-digits-per-limb 1))
 (def %dec-bite-div (%dec-pow10 %dec-bite))
 
 ; v / 10^d, truncating toward zero, in bites.
@@ -111,7 +113,7 @@
 ; every series term below asks for this several times, and rendering a
 ; bigint allocates a string per limb.  A native int divides down in at most
 ; nineteen steps; a bigint is (limbs - 1) FULL limbs of
-; %bigint-digits-per-limb plus whatever its top limb carries, which one
+; bigint-digits-per-limb plus whatever its top limb carries, which one
 ; walk of the limb list gives up.  Reaching into bigint's storage for that
 ; is the same reach float.x makes for %bigint-base, and for the same
 ; reason: base 10^k limbs are a DECIMAL fact about the neighbour, not an
@@ -122,14 +124,14 @@
       (def %count
         (fn (self v acc)
           (if (%int< v 10) acc (self (%int/ v 10) (%int+ acc 1)))))
-      (if (%bigint? n)
+      (if (bigint? n)
         (let ()
           (def %walk
             (fn (self l k)
               (if (null? (rest l))
-                (%int+ (%int* k %bigint-digits-per-limb) (%count (first l) 1))
+                (%int+ (%int* k bigint-digits-per-limb) (%count (first l) 1))
                 (self (rest l) (%int+ k 1)))))
-          (%walk (%big-limbs n) 0))
+          (%walk (big-limbs n) 0))
         (%count (%dec-abs n) 1)))))
 
 (note "Construction")
@@ -142,7 +144,7 @@
 ; nothing to strip" -- must not cost a bigint long division to hear.
 (def %dec-low-digit
   (fn (_ n)
-    (%int% (if (%bigint? n) (first (%big-limbs n)) (%dec-abs n)) 10)))
+    (%int% (if (bigint? n) (first (big-limbs n)) (%dec-abs n)) 10)))
 
 ; Canonical form: strip trailing zeros, raising the exponent to match.
 ; Zero collapses to (0 . 0) so it has one spelling, not one per scale.
@@ -888,16 +890,16 @@
           (pair (%type-of 42) (fn (_ value) (%make-dec value 0)))
           ; A bigint instance IS an exact integer: it can be the
           ; significand as it stands, no limb walk in between.
-          (pair %bigint (fn (_ value) (%make-dec value 0)))
+          (pair bigint (fn (_ value) (%make-dec value 0)))
           (pair (%type-of "") (fn (_ value) (%dec-parse value)))
-          (pair %float (fn (_ value) (%dec-from-float value)))))
+          (pair float (fn (_ value) (%dec-from-float value)))))
       (pair 'to
         (list
           (pair (%type-of 42) (fn (_ self) (%dec->int self)))
           (pair (%type-of "") (fn (_ self) (%dec->str self)))
           ; Out through the text door on purpose: strtod is correctly
           ; rounded, and re-deriving that here would be a worse copy.
-          (pair %float (fn (_ self) (%cvt (%dec->str self) %float))))))))
+          (pair float (fn (_ self) (%cvt (%dec->str self) float))))))))
 
 ; --- Reader (set after make-type so the closure captures the real handle) ---
 (set! %dec-read
@@ -1028,7 +1030,7 @@
     (method ->float (self (param x DECIMAL "Decimal value"))
       (doc "Convert a decimal to the nearest IEEE 754 double. Lossy by definition; the rounding is strtod's."
         (returns FLOAT "Nearest double"))
-      (%cvt (%dec->str (%ensure-dec x)) %float))
+      (%cvt (%dec->str (%ensure-dec x)) float))
     ; --- Arithmetic (operands coerce via the from-alist) ---
     (method + (self (param a NUMBER "First operand") (param b NUMBER "Second operand"))
       (doc "Add two decimals, exactly (other numerics coerce)." (returns DECIMAL "Sum"))

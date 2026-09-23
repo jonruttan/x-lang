@@ -5,6 +5,38 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`x/num/bigint` and `x/num/float` are modules of their own** ([#719],
+step 4, the first batch of the number group). Their operations were
+`%`-named root globals -- `%big-add`, `%f-add`, `%ensure-float`,
+`%float-type` and forty more -- read by the tower's dispatcher, by the
+compiled tower's JIT sites, by the other three number modules, by the json
+codec and by the specs. They are bare exports now (`big-add`, `f-add`,
+`ensure-float`, `float-type`, ...) and each reader imports what it uses.
+`num/tower.x`, which stays unscoped as a hot path, takes the eighteen
+operations it wires by a selective import at its top, so they are root
+bindings by import, listed name by name; `docs/namespaces.md` records that
+door under "`import` binds". `boot/tower-compiled.x` imports bigint's five
+analyser states, which it reads and never rebinds, and reads float's four
+through the module's frame, since it rebinds three of them with their
+compiles: a JIT site now records the environment its name is set in, and
+`%tower-jit-global!` takes that environment as an optional sixth argument
+(the module's at the three float sites, the caller's own otherwise), so
+taking a site down and up sets the module's binding rather than a root copy.
+`num/rational`, `num/complex` and `num/decimal`, unscoped until the second
+batch, import the handles and operations they read; `codec/json` reads the
+float type through the module, as does float's one read of `bigint-base`
+inside its pact callback. `Float` and `Bigint` gain a `type` static that
+returns the type handle, which is what the specs used `%float` and `%bigint`
+for (`(Convert to 42 (Float type))`). `real?` moves from float to
+`core/predicates`, beside `number?`: complex and decimal extend it in the
+root with `set!`, and a definer inside a module frame keeps calling its own
+copy (`Float real?` did, and answered `#t` for a complex), so a root name
+that other files extend in place is defined in the root. Helium binds
+`real?` now. Fifty private reads leave
+the scan (851 to 801), the two files' `%`-budget rows retire, and
+`boot/tower-compiled.x`'s row falls 55 to 53: the four interpreted twins it
+named are the module's own bindings now.
+
 **Rationals and decimals are right at the most negative integer.** #748 gave
 the bigint routes to `LONG_MIN` a promotion, but `rational.x` and `decimal.x`
 still negated plain ints with the raw `%int-`, which hands `LONG_MIN` back

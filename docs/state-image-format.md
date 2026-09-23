@@ -334,8 +334,11 @@ structs and two indices; the loader does not care which is which.
    it here. `num/float.x`'s dlopen handle is one -- no symbol names it --
    and so is every pointer resolved through it: a symbol of a library the
    loader has not opened does not resolve (glibc keeps a dlopen'd libm out
-   of the global scope; macOS folds it into libSystem), so float registers
-   each such binding as it makes it and one hook remakes them all.
+   of the global scope; macOS folds it into libSystem), so float records
+   each such binding as it makes it, one thunk among the transients clears
+   the handle, the bindings and the cells they read (the names are the
+   module's own, which a symbol in the list would not reach: the writer
+   clears a symbol in the child's root), and one hook remakes them all.
    A value the image cannot carry but the library can REMAKE -- the tower's
    compiled analysers, native code in a page the writing process mapped --
    is the other half of the same rule: the module lists a THUNK in

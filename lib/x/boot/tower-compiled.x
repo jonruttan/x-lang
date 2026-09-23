@@ -132,27 +132,33 @@
 ; form each time: a state's free names are the analysers compiled before it,
 ; and after a rejit those are new objects.  A dialect booted from source
 ; records the sites and never walks them.
+; A global site's name may live in a module's own frame -- the float states
+; below do -- so the record carries the environment the name is set in, as
+; the sixth element; the other kinds store ().
 (def %tower-sites ())
 (def %tower-site!
-  (fn (_ kind place interp maker value)
-    (set! %tower-sites (pair (list kind place interp maker value) %tower-sites))))
+  (fn (_ kind place interp maker value env)
+    (set! %tower-sites (pair (list kind place interp maker value env) %tower-sites))))
 (def %tower-site-kind (fn (_ s) (first s)))
 (def %tower-site-place (fn (_ s) (first (rest s))))
 (def %tower-site-interp (fn (_ s) (first (rest (rest s)))))
 (def %tower-site-maker (fn (_ s) (first (rest (rest (rest s))))))
 (def %tower-site-value-cell (fn (_ s) (rest (rest (rest (rest s))))))
-; (%tower-jit-global! NAME ONLY? SRC FVARS INTERP): NAME is set! to the compile
-; of SRC over FVARS, or to INTERP when the lane refuses; ONLY? picks
-; %tower-asm-only over %tower-asm.  An operative, so FVARS stays a form.
+; (%tower-jit-global! NAME ONLY? SRC FVARS INTERP [ENV]): NAME is set! to the
+; compile of SRC over FVARS, or to INTERP when the lane refuses; ONLY? picks
+; %tower-asm-only over %tower-asm.  An operative, so FVARS stays a form.  ENV
+; is the environment NAME is bound in: a module's frame for a state the
+; module owns, the caller's own when left out.
 (def %tower-jit-global!
-  (op (name only? src fvars interp) e
-    (%tower-jit-global-run! name (eval only? e) (eval src e) (fn (_) (eval fvars e)) (eval interp e))))
+  (op (name only? src fvars interp . env) e
+    (%tower-jit-global-run! name (eval only? e) (eval src e) (fn (_) (eval fvars e)) (eval interp e)
+                            (if (null? env) e (eval (first env) e)))))
 (def %tower-jit-global-run!
-  (fn (_ name only? src fvarsf interp)
+  (fn (_ name only? src fvarsf interp env)
     ((fn (_ maker)
        ((fn (_ v)
-          (do (%tower-site! (lit global) name interp maker v)
-              (eval (list (lit set!) name (list (lit lit) v)))))
+          (do (%tower-site! (lit global) name interp maker v env)
+              (eval (list (lit set!) name (list (lit lit) v)) env)))
         (maker)))
      (fn (_) ((if only? %tower-asm-only %tower-asm) src (fvarsf) interp)))))
 ; (%tower-jit-push! TYPE SRC FVARS INTERP): the compile is pushed onto TYPE's
@@ -164,7 +170,7 @@
   (fn (_ ts src fvarsf interp)
     ((fn (_ maker)
        ((fn (_ v)
-          (do (%tower-site! (lit push) ts interp maker v)
+          (do (%tower-site! (lit push) ts interp maker v ())
               (%type-push-analyse ts v)))
         (maker)))
      (fn (_) (%tower-asm src (fvarsf) interp)))))
@@ -172,7 +178,7 @@
 (def %tower-swap!
   (fn (_ cell interp maker)
     ((fn (_ v)
-       (do (%tower-site! (lit swap) cell interp maker v)
+       (do (%tower-site! (lit swap) cell interp maker v ())
            (%set-first! cell v)))
      (maker))))
 ; Remove the first entry of L that is the object V.
@@ -184,7 +190,8 @@
   (fn (_ s)
     ((fn (_ kind place interp v)
        (match
-         ((eq? kind (lit global)) (eval (list (lit set!) place (list (lit lit) interp))))
+         ((eq? kind (lit global))
+           (eval (list (lit set!) place (list (lit lit) interp)) (first (rest (%tower-site-value-cell s)))))
          ((eq? kind (lit push))
            ((fn (_ cell) (%set-first! cell (%tower-without (first cell) v)))
             (%type-analyse-cell place)))
@@ -199,7 +206,8 @@
     ((fn (_ kind place v)
        (do (%set-first! (%tower-site-value-cell s) v)
            (match
-             ((eq? kind (lit global)) (eval (list (lit set!) place (list (lit lit) v))))
+             ((eq? kind (lit global))
+               (eval (list (lit set!) place (list (lit lit) v)) (first (rest (%tower-site-value-cell s)))))
              ((eq? kind (lit push)) (%type-push-analyse place v))
              (#t (%set-first! place v)))))
      (%tower-site-kind s) (%tower-site-place s) ((%tower-site-maker s)))))
@@ -349,6 +357,7 @@
 
 ; 1. Bigint + int-capped
 (include "lib/x/num/bigint.x")
+(import x/num/bigint big-digits big-sign-state int-capped-base int-capped-digits int-capped-sign)
 ; These two PUSH a new analyser rather than swapping one, so there is no
 ; interpreted twin already installed to fall back to -- the twin is written
 ; here.  The bodies must agree with the compiled forms below; they can, because
@@ -357,14 +366,14 @@
 (def %big-analyse-interp
   (fn (_ buffer score chr)
     (if (< chr 48)
-      (if (or (= chr 45) (= chr 43)) %big-sign-state ())
-      (if (< chr 58) %big-digits ()))))
+      (if (or (= chr 45) (= chr 43)) big-sign-state ())
+      (if (< chr 58) big-digits ()))))
 (def %int-analyse-interp
   (fn (_ buffer score chr)
     (if (< chr #\0)
-      (if (or (= chr #\-) (= chr #\+)) %int-capped-sign ())
-      (if (= chr #\0) %int-capped-base
-        (if (<= chr #\9) %int-capped-digits ())))))
+      (if (or (= chr #\-) (= chr #\+)) int-capped-sign ())
+      (if (= chr #\0) int-capped-base
+        (if (<= chr #\9) int-capped-digits ())))))
 ; --- The per-character digit LOOPS ---
 ; Each of these is entered once per token and then runs once per CHARACTER
 ; until the token ends, which is where a number's reading cost actually goes.
@@ -373,7 +382,7 @@
 ; The states they hand off to at the END of a run are left interpreted: those
 ; fire once per token, and an interpreted state resolves its successor by
 ; global name at call time, so it picks up whichever of these is installed.
-; %big-digits and %int-capped-digits are NOT compiled, and the attempt is not
+; big-digits and int-capped-digits are NOT compiled, and the attempt is not
 ; made.  Both close their run by measuring the token -- (%buffer-len buffer),
 ; against %int-max-digits -- and the lane has no door for it, so the compile
 ; raises.  A raise here is not free the way a miss is: the compiler emits most
@@ -391,20 +400,20 @@
 (%tower-jit-push! (%type-by-atom (%type-of (Num expt 2 64)))
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
-        (if (or (= chr 45) (= chr 43)) %big-sign-state ())
-        (if (< chr 58) %big-digits ()))))
-    (list (pair (lit %big-sign-state) %big-sign-state)
-          (pair (lit %big-digits) %big-digits))
+        (if (or (= chr 45) (= chr 43)) big-sign-state ())
+        (if (< chr 58) big-digits ()))))
+    (list (pair (lit big-sign-state) big-sign-state)
+          (pair (lit big-digits) big-digits))
     %big-analyse-interp)
 (%tower-jit-push! (%type-by-atom (%type-of 0))
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
-        (if (or (= chr 45) (= chr 43)) %int-capped-sign ())
-        (if (= chr 48) %int-capped-base
-          (if (<= chr 57) %int-capped-digits ())))))
-    (list (pair (lit %int-capped-sign) %int-capped-sign)
-          (pair (lit %int-capped-base) %int-capped-base)
-          (pair (lit %int-capped-digits) %int-capped-digits))
+        (if (or (= chr 45) (= chr 43)) int-capped-sign ())
+        (if (= chr 48) int-capped-base
+          (if (<= chr 57) int-capped-digits ())))))
+    (list (pair (lit int-capped-sign) int-capped-sign)
+          (pair (lit int-capped-base) int-capped-base)
+          (pair (lit int-capped-digits) int-capped-digits))
     %int-analyse-interp)
 
 ; 2. Regex (C analyser, no compile needed)
@@ -412,6 +421,12 @@
 
 ; 3. Float
 (include "lib/x/num/float.x")
+; bigint's states above are imported: the tower reads them and never rebinds
+; them, so the root's copies stay exact.  The float states are rebound by the
+; compiles below, in the module's own frame, and a copy would keep the
+; interpreted twin -- so the tower reads the module's binding, as it stands.
+(def %float-env (module x/num/float))
+(def %float-state (fn (_ name) (eval name %float-env)))
 ; --- The STATES, not just the entry test (x-lang#596's parked half) ---
 ;
 ; The entry analyser runs once per token; the states run once per CHARACTER,
@@ -436,32 +451,33 @@
 ; interpreted successor and the loop drops out of native code on its first
 ; transition.  And all four compile before the ENTRY analyser below, which
 ; names two of them the same way.
-(def %float-frac-interp %float-frac)
-(def %float-first-frac-interp %float-first-frac)
-(def %float-int-digits-interp %float-int-digits)
-(def %float-neg-int-interp %float-neg-int)
-(%tower-jit-global! %float-frac #t
+; The interpreted twin of each is the module's binding before its compile;
+; an fvar is the binding as it stands, which by then is the compiled one.
+(%tower-jit-global! float-frac #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         me
         (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
     ()
-    %float-frac-interp)
-(%tower-jit-global! %float-first-frac #t
+    (%float-state (lit float-frac))
+    %float-env)
+(%tower-jit-global! float-first-frac #t
     (lit (fn (_ buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
-        (%seq (%score-set score 1 buffer) %float-frac)
+        (%seq (%score-set score 1 buffer) float-frac)
         ())))
-    (list (pair (lit %float-frac) %float-frac))
-    %float-first-frac-interp)
-(%tower-jit-global! %float-int-digits #t
+    (list (pair (lit float-frac) (%float-state (lit float-frac))))
+    (%float-state (lit float-first-frac))
+    %float-env)
+(%tower-jit-global! float-int-digits #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         me
-        (if (= chr 46) %float-first-frac ()))))
-    (list (pair (lit %float-first-frac) %float-first-frac))
-    %float-int-digits-interp)
-; %float-neg-int -- the SIGN state -- is deliberately NOT compiled.
+        (if (= chr 46) float-first-frac ()))))
+    (list (pair (lit float-first-frac) (%float-state (lit float-first-frac))))
+    (%float-state (lit float-int-digits))
+    %float-env)
+; float-neg-int -- the SIGN state -- is deliberately NOT compiled.
 ;
 ; #49 was "a compiled analyser captured something nothing rooted, a later
 ; collect freed it, and the next leading '+'/'-' jumped into freed memory",
@@ -475,21 +491,23 @@
 ; while removing the one shape with a history of exactly this failure.
 
 ; The interpreted twin, for an engine with no JIT.  Must agree with
-; the compiled form below.
+; the compiled form below.  It is built in the module's frame so that its
+; successors resolve there at call time, to whichever state is installed.
 (def %float-analyse-interp
-  (fn (_ buffer score chr)
+  (eval (lit (fn (_ buffer score chr)
       (if (< chr 48)
-      (if (= chr 45) %float-neg-int ())
-      (if (< chr 58) %float-int-digits ()))))
+      (if (= chr 45) float-neg-int ())
+      (if (< chr 58) float-int-digits ()))))
+    %float-env))
 (%tower-jit-push! (%type-by-atom (%type-of 1.0))
     ; Sign branch mirrors the interpreted analyser -- without it, -7.5
     ; only parses via the stacked interpreted fallback (#45 R4).
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
-        (if (= chr 45) %float-neg-int ())
-        (if (< chr 58) %float-int-digits ()))))
-    (list (pair (lit %float-neg-int) %float-neg-int)
-          (pair (lit %float-int-digits) %float-int-digits))
+        (if (= chr 45) float-neg-int ())
+        (if (< chr 58) float-int-digits ()))))
+    (list (pair (lit float-neg-int) (%float-state (lit float-neg-int)))
+          (pair (lit float-int-digits) (%float-state (lit float-int-digits))))
     %float-analyse-interp)
 
 ; 4. Rational
