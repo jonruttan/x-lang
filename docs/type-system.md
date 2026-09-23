@@ -403,9 +403,12 @@ A custom type's `analyse` handler is the tokenizer's hot path — it is invoked 
 The fix is to **JIT-compile the analyser to native code** with `compile`, then install the compiled version. An analyser has the shape `(fn (_ buffer score chr) → next-state-fn | ())`: given the current byte `chr`, it returns a state function to continue scanning, or `()` to decline. `compile` takes the analyser as a quoted `(fn …)` AST plus an **fvar table** binding any free variables the body references (the state functions it transitions to). Pure expressions use the JIT assembler; expressions with fvars use the C-compiler-with-cache path.
 
 ```x
-; Fetch the wiring helpers from the catalog (registered by sys/type.x)
+; Fetch the wiring helpers from the catalog (registered by sys/type.x), and
+; import the two states the compiled body hands back to -- they are exports
+; of x/num/bigint, which is a module of its own.
 (def %type-by-atom      (prim-ref 'type 'by-atom))
 (def %type-push-analyse (prim-ref 'type 'push-analyse))
+(import x/num/bigint int-capped-sign int-capped-digits)
 
 ; Compile + install the int-capped analyser (digits, with +/- sign).  The
 ; free variables travel as compile's second argument, an alist of
@@ -414,10 +417,10 @@ The fix is to **JIT-compile the analyser to native code** with `compile`, then i
   (compile
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
-        (if (or (= chr 45) (= chr 43)) %int-capped-sign ())   ; sign
-        (if (< chr 58) %int-capped-digits ()))))              ; digit
-    (list (pair '%int-capped-sign   %int-capped-sign)
-          (pair '%int-capped-digits %int-capped-digits))))
+        (if (or (= chr 45) (= chr 43)) int-capped-sign ())   ; sign
+        (if (< chr 58) int-capped-digits ()))))              ; digit
+    (list (pair 'int-capped-sign   int-capped-sign)
+          (pair 'int-capped-digits int-capped-digits))))
 ```
 
 Two install idioms:

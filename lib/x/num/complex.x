@@ -1,5 +1,6 @@
 ; complex.x -- Complex number type
 (import x/num/float)
+(import x/num/float float float? float-of f-add f-mul fsqrt fsin fcos fatan2 pi str->float)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
 
@@ -133,7 +134,7 @@
 (def %cx-parse-num
   (fn (_ s)
     (if (%cx-find-char s 0 (%str-length s) 46)
-      (%make-instance %float (%str->float s))
+      (%make-instance float (str->float s))
       (%cvt s %int))))
 
 (set! %cx-read
@@ -175,7 +176,7 @@
         'from
         (list
           (pair (%type-of 42) (fn (_ value) (%make-complex value 0)))
-          (pair %float (fn (_ value) (%make-complex value 0)))
+          (pair float (fn (_ value) (%make-complex value 0)))
           (pair %rational (fn (_ value) (%make-complex value 0)))))
       (pair
         'to
@@ -229,20 +230,20 @@
 (def %cx-magnitude
   (fn (_ z)
     (if (%complex? z)
-      (let ((re (%float-of (%complex-re z)))
-            (im (%float-of (%complex-im z))))
-        (%fsqrt (%f-add (%f-mul re re) (%f-mul im im))))
+      (let ((re (float-of (%complex-re z)))
+            (im (float-of (%complex-im z))))
+        (fsqrt (f-add (f-mul re re) (f-mul im im))))
       (if (%real< z 0)
-        (%float-of (%real- 0 z))
-        (%float-of z)))))
+        (float-of (%real- 0 z))
+        (float-of z)))))
 
 (def %cx-angle
   (fn (_ z)
     (if (%complex? z)
-      (%fatan2
-        (%float-of (%complex-im z))
-        (%float-of (%complex-re z)))
-      (if (%real< z 0) %pi (%float-of 0)))))
+      (fatan2
+        (float-of (%complex-im z))
+        (float-of (%complex-re z)))
+      (if (%real< z 0) pi (float-of 0)))))
 ; --- Type ops: the generic operators dispatch complex operands here ---
 ; Complex absorbs every real type via its from-declarations (int, float,
 ; rational), so the other side of a mixed pair always coerces with
@@ -275,7 +276,7 @@
     (match
       ((%complex? x) #t)
       ((%rat? x) #t)
-      ((%float? x) #t)
+      ((float? x) #t)
       (#t (%int-number? x)))))
 
 (doc complex? "Test whether a value is any numeric type (alias for number?)."
@@ -289,7 +290,7 @@
 (set! real?
   (fn (_ x)
     (if (%rat? x) #t
-      (if (%float? x) #t
+      (if (float? x) #t
         (%int-number? x)))))
 
 (def-class Complex ()
@@ -305,10 +306,10 @@
     (method from-polar (self (param mag NUMBER "Magnitude") (param ang NUMBER "Angle in radians"))
       (doc "Construct a complex number from polar coordinates (magnitude and angle)."
         (returns COMPLEX|NUMBER "Complex number from polar coordinates"))
-      (let ((fang (%float-of ang)) (fmag (%float-of mag)))
+      (let ((fang (float-of ang)) (fmag (float-of mag)))
         (%make-complex
-          (%f-mul fmag (%fcos fang))
-          (%f-mul fmag (%fsin fang)))))
+          (f-mul fmag (fcos fang))
+          (f-mul fmag (fsin fang)))))
     (method real-part (self (param z COMPLEX|NUMBER "Complex or real number"))
       (doc "Return the real part of a complex number, or the number itself for reals."
         (returns NUMBER "Real part"))

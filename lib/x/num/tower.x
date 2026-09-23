@@ -23,8 +23,12 @@
 ; -- tower arithmetic is hot and the generic walk is the COLD path by
 ; design -- so only genuinely mixed pairs pay generic dispatch. Complex
 ; registers no ordering (unordered) and keeps its own loud % refusal.
-(import x/num/bigint)
-(import x/num/float)
+; The number modules are modules of their own; this dispatcher stays in the
+; root (a hot path, see docs/namespaces.md) and takes their operations by
+; import, so the names it wires below are the root's copies of each module's
+; exports.
+(import x/num/bigint ensure-big big-add big-sub big-mul big-div big-mod big-eq big-lt bigint-type)
+(import x/num/float ensure-float f-add f-sub f-mul f-div f-mod f-eq f-lt float-type)
 (import x/num/rational)
 (import x/num/complex)
 (import x/num/decimal)
@@ -116,20 +120,20 @@
 
 ; struct order: bigint, float, rational, decimal, complex
 (def %tw-types
-  (list %bigint-type %float-type %rational-type %decimal-type %complex-type))
+  (list bigint-type float-type %rational-type %decimal-type %complex-type))
 (set! %tw-ensure-of
-  (list (pair (%tw-handle %bigint-type) %ensure-big)
-        (pair (%tw-handle %float-type) %ensure-float)
+  (list (pair (%tw-handle bigint-type) ensure-big)
+        (pair (%tw-handle float-type) ensure-float)
         (pair (%tw-handle %rational-type) %ensure-rat)
         (pair (%tw-handle %decimal-type) %ensure-dec)
         (pair (%tw-handle %complex-type) %ensure-complex)))
-(%tw-op! num+ (lit +) %tw-types (list %big-add %f-add %rat-add %dec-add %cx-add))
-(%tw-op! num- (lit -) %tw-types (list %big-sub %f-sub %rat-sub %dec-sub %cx-sub))
-(%tw-op! num* (lit *) %tw-types (list %big-mul %f-mul %rat-mul %dec-mul %cx-mul))
-(%tw-op! num/ (lit /) %tw-types (list %big-div %f-div %rat-div %dec-div %cx-div))
-(%tw-op! num% (lit %) %tw-types (list %big-mod %f-mod %rat-mod %dec-mod ()))
-(%tw-op! num< (lit <) %tw-types (list %big-lt %f-lt %rat-lt %dec-lt ()))
-(%tw-op! num= (lit =) %tw-types (list %big-eq %f-eq %rat-eq %dec-eq %cx-eq))
+(%tw-op! num+ (lit +) %tw-types (list big-add f-add %rat-add %dec-add %cx-add))
+(%tw-op! num- (lit -) %tw-types (list big-sub f-sub %rat-sub %dec-sub %cx-sub))
+(%tw-op! num* (lit *) %tw-types (list big-mul f-mul %rat-mul %dec-mul %cx-mul))
+(%tw-op! num/ (lit /) %tw-types (list big-div f-div %rat-div %dec-div %cx-div))
+(%tw-op! num% (lit %) %tw-types (list big-mod f-mod %rat-mod %dec-mod ()))
+(%tw-op! num< (lit <) %tw-types (list big-lt f-lt %rat-lt %dec-lt ()))
+(%tw-op! num= (lit =) %tw-types (list big-eq f-eq %rat-eq %dec-eq %cx-eq))
 
 (doc (provide x/num/tower num+ num- num* num/ num% num< num=)
   (note "The mixed-type policy layer: import it whenever two numeric modules meet.")

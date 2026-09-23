@@ -158,7 +158,7 @@
 ### type-of key matches int for int convert
 
 ```x
-(Float float? (Convert to 42 %float))
+(Float float? (Convert to 42 (Float type)))
 ```
 ---
     #t
@@ -166,7 +166,7 @@
 ### type-of key matches string for float
 
 ```x
-(Float float? (Convert to "3.14" %float))
+(Float float? (Convert to "3.14" (Float type)))
 ```
 ---
     #t
@@ -282,7 +282,7 @@
 ### convert nil returns nil
 
 ```x
-(null? (Convert to () %float))
+(null? (Convert to () (Float type)))
 ```
 ---
     #t
@@ -300,7 +300,7 @@
 ### float to float is identity
 
 ```x
-(def x 3.14) (eq? (Convert to x %float) x)
+(def x 3.14) (eq? (Convert to x (Float type)) x)
 ```
 ---
     #t
@@ -318,7 +318,7 @@
 ### exact match calls converter
 
 ```x
-(Convert to 42 %float)
+(Convert to 42 (Float type))
 ```
 ---
     42.0
@@ -326,7 +326,7 @@
 ### exact match result has target type
 
 ```x
-(Float float? (Convert to 42 %float))
+(Float float? (Convert to 42 (Float type)))
 ```
 ---
     #t
@@ -334,7 +334,7 @@
 ### no match returns nil (the default miss policy)
 
 ```x
-(null? (Convert to #\a %float))
+(null? (Convert to #\a (Float type)))
 ```
 ---
     #t
@@ -345,7 +345,7 @@
 (do
   (def %saved-cm (Convert missing))
   (Convert missing (fn (_ v t) "missed"))
-  (def %cm-r (Convert to #\a %float))
+  (def %cm-r (Convert to #\a (Float type)))
   (Convert missing %saved-cm)
   %cm-r)
 ```
@@ -355,7 +355,7 @@
 ### convert negative int to float
 
 ```x
-(Convert to -5 %float)
+(Convert to -5 (Float type))
 ```
 ---
     -5.0
@@ -363,7 +363,7 @@
 ### convert zero to float
 
 ```x
-(Convert to 0 %float)
+(Convert to 0 (Float type))
 ```
 ---
     0.0
@@ -371,7 +371,7 @@
 ### convert zero result is float
 
 ```x
-(Float float? (Convert to 0 %float))
+(Float float? (Convert to 0 (Float type)))
 ```
 ---
     #t
@@ -459,7 +459,7 @@
 ### converts string to float
 
 ```x
-(Float float? (Convert to "3.14" %float))
+(Float float? (Convert to "3.14" (Float type)))
 ```
 ---
     #t
@@ -467,7 +467,7 @@
 ### converted string float has correct value
 
 ```x
-(Io write-to-str (Convert to "3.14" %float))
+(Io write-to-str (Convert to "3.14" (Float type)))
 ```
 ---
     "3.14"
@@ -475,7 +475,7 @@
 ### converts integer string to float
 
 ```x
-(Float float? (Convert to "42" %float))
+(Float float? (Convert to "42" (Float type)))
 ```
 ---
     #t

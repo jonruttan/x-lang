@@ -287,6 +287,10 @@
   (param x ANY "Value to test")
   (returns BOOL "t if integer"))
 
+(doc real? "Test if a value is a real number: a number that is not complex. The number modules extend it in place as they load."
+  (param x ANY "Value to test")
+  (returns BOOL "t if real"))
+
 (doc str? "Test if a value is a string."
   (param x ANY "Value to test")
   (returns BOOL "t if string"))
@@ -468,7 +472,7 @@
 ; their own (provide ...) in (doc ...). Their descriptions are registered here
 ; instead, keyed by module name -- the same key %display-overview looks up.
 (doc x/core/predicates
-  "Type predicates (null?, pair?, number?, str?, symbol?, char?, ...) built from C primitives.")
+  "Type predicates (null?, pair?, number?, real?, str?, symbol?, char?, ...) built from C primitives.")
 (doc x/core/control
   "Core control flow: if and let, as operatives built on match.")
 
