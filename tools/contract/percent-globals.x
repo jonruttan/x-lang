@@ -202,8 +202,6 @@
 ; the analyser protocol, the same grounds as %score-set beside them
 ; (reader/analyser.x: class dispatch allocates mid-reader-callback).
 (file "lib/x/reader/intrinsics.x" 8)
-(file "lib/x/reader/lit-reader.x" 21)
-(file "lib/x/reader/quasi-reader.x" 9)
 (file "lib/x/repl/ansi.x" 26)
 (file "lib/x/repl/banner.x" 4)
 ; Grew by one for %repl-platform-repl: the identity anchor that lets two

@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The quote and quasiquote readers are modules of their own, and so is the
+xon codec** ([#719], step 4, the reader group). `x/reader/lit-reader` and
+`x/reader/quasi-reader` exported their analysers, readers and states under
+`%` names -- `%lit-analyse`, `%quasi-read`, `%unquote-after-comma` and seven
+more -- which the tower, the formatter and lit-reader itself read from the
+root. They are bare exports now (`lit-analyse`, `quasi-read`,
+`unquote-after-comma`, ...), plus `interp-analyse` and `interp-after-hash`
+for the `#"..."` literal, and every reader imports what it uses:
+lit-reader seats quasi-reader's four handlers, `boot/tower-compiled.x` imports
+the nine entry tests and states it compiles and swaps by identity,
+`tools/dev/fmt.x` imports the seven it arms on its scratch base, and
+`x/codec/xon` -- a module of its own now, with its own fetches of the type
+and buffer prims -- imports the literal's entry analyser. The tower-jit spec
+reaches `macro-delimit` through the module. Thirty private names leave the
+root; two `%`-budget rows are retired (21 and 9) and five private-read rows
+go down by thirty-nine between them.
+
 **The compiler is three modules of its own: `x/tool/compile`,
 `x/tool/compile/emit` and `x/tool/compile/pipeline`** ([#719], step 4).
 Ninety-two private names leave the root. The three shared what they needed

@@ -15,6 +15,12 @@
 
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(module x/reader/lit-reader)
+
+; The quasiquote family is a module of its own; its analysers and readers
+; are seated on the symbol type here, beside the quote family's.
+(import x/reader/quasi-reader quasi-analyse unquote-analyse quasi-read unquote-read)
+
 (def %buffer-last-char (prim-ref (lit buf) (lit last-char)))
 (def %token-read (prim-ref (lit tok) (lit read)))
 
@@ -28,14 +34,14 @@
 
 (def %type-push-read (prim-ref (lit type) (lit push-read)))
 
-(def %lit-accept
+(def lit-accept
   (fn (_ buffer score _)
     (%seq (%buffer-unread buffer) (%score-set score 1 buffer))))
 
-(def %lit-analyse
-  (fn (_ buffer score chr) (if (= chr #\') %lit-accept ())))
+(def lit-analyse
+  (fn (_ buffer score chr) (if (= chr #\') lit-accept ())))
 
-(def %lit-read
+(def lit-read
   (fn (_ buffer . rest)
     (if (= (%buffer-last-char buffer) #\')
       (pair (lit lit) (pair (%token-read buffer) ()))
@@ -46,7 +52,7 @@
 ; comma inside a token is just a symbol character ({O,O} is one symbol).
 ; Nested if (no cond/or) and no binding keep it allocation-free on the
 ; per-char delimiter path.
-(def %macro-delimit
+(def macro-delimit
   (fn (_ buffer . rest)
     (if (if (= (%buffer-last-char buffer) #\') #t
           (= (%buffer-last-char buffer) #\`))
@@ -93,13 +99,13 @@
 ; stays interpreted -- it only runs INSIDE a literal, never on the hot path of
 ; ordinary characters.
 ;
-; %interp-after-hash: a # has been seen.  A " opens the literal and the scan
+; interp-after-hash: a # has been seen.  A " opens the literal and the scan
 ; runs to the quote that closes it; anything else declines.  Declining costs the
 ; rest of the # family nothing: x_token_analyse runs every handler from the
 ; token's first character independently, so #t, #\a, #(...) and #/.../ are
 ; scored by their own analysers exactly as before, and a bare # (or #foo) is
 ; still an ordinary symbol.
-(def %interp-after-hash
+(def interp-after-hash
   (let ((mk-text ()) (mk-open ()) (mk-hole ()) (mk-str ()))
     ; Literal text.  `k` is the state to resume when this literal's closing
     ; quote arrives; nil for the outermost literal, which scores the token
@@ -167,8 +173,8 @@
           body)))
     (fn (_ buffer score chr) (if (= chr #\") (mk-text ()) ()))))
 
-(def %interp-analyse
-  (fn (_ buffer score chr) (if (= chr #\#) %interp-after-hash ())))
+(def interp-analyse
+  (fn (_ buffer score chr) (if (= chr #\#) interp-after-hash ())))
 
 ; Interpolated text -> argument list for (Str8 str ...): literal chunks
 ; interleaved with parsed hole expressions.  A single { opens a hole; {{ and }}
@@ -298,17 +304,18 @@
 (def %sym-type (%type-by-atom (%type-of "x")))
 
 (%type-push-analyse %sym-type
-  (list %interp-analyse %lit-analyse %quasi-analyse %unquote-analyse
+  (list interp-analyse lit-analyse quasi-analyse unquote-analyse
         (first (first (%type-analyse-cell %sym-type)))))
 
 (%type-push-read %sym-type
-  (list %interp-read %lit-read %quasi-read %unquote-read
+  (list %interp-read lit-read quasi-read unquote-read
         (first (first (%type-read-cell %sym-type)))))
 
-(%type-push-delimit %sym-type %macro-delimit)
+(%type-push-delimit %sym-type macro-delimit)
 
 (doc (provide x/reader/lit-reader
-  %lit-analyse %lit-read %lit-accept %macro-delimit)
+  lit-analyse lit-read lit-accept macro-delimit
+  interp-analyse interp-after-hash)
   (note "'sym is a symbol, '(a b) a literal list, ''x nests; ' also terminates")
   (note "an adjacent token: foo'bar reads as foo then 'bar.")
   (example "'(1 2 3)" "(1 2 3)")
