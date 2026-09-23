@@ -42,6 +42,7 @@
 ; (posix.x already loaded by x-core.x)
 (include "lib/x/type/hash.x")
 (include "lib/x/tool/compile.x")
+(import x/tool/compile compile compile-asm compile-hosted?)
 
 ; --- THE BURST USES THE ENGINE'S OWN JIT, NEVER A SYSTEM TOOLCHAIN -----------
 ;
@@ -71,7 +72,7 @@
 ;
 ;   1. compile-asm -- the engine's own JIT, no toolchain, first choice.
 ;   2. the cc lane -- ONLY as a fallback, and only where the engine ships
-;      its C headers (%compile-hosted?): an engine without native/jit but
+;      its C headers (compile-hosted?): an engine without native/jit but
 ;      with a hosted toolchain still gets compiled analysers, and the cc
 ;      lane's content-keyed /tmp cache means each expression compiles once
 ;      per machine, not once per boot.
@@ -84,7 +85,7 @@
   (fn (_ src fvars interp)
     (if %tower-jit?
       (guard (_ interp) (compile-asm src fvars #t))
-      (if %compile-hosted?
+      (if compile-hosted?
         (guard (_ interp) (compile src fvars))
         interp))))
 

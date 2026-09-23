@@ -22,7 +22,7 @@
 ; standalone (its fvar plumbing lives in compile/emit.x), and compile.x
 ; is the module that loads the toolchain in the right order -- its
 ; compile-asm stub pulls the assembler lazily on first use.
-(import x/tool/compile)
+(import x/tool/compile compile-asm)
 
 (def %sj-make-str (prim-ref (lit str) (lit make)))
 (def %sj-str->ptr (prim-ref (lit str) (lit ->ptr)))

@@ -1,23 +1,31 @@
 ; tool/compile/pipeline.x -- C generation stages (#38: split from compile.x).
 ;
-; write-to-str C generation, top-level and multi-stage generation, the
-; write-handler push/pop bracketing, and fvar table patching. Loaded by
-; x/tool/compile after emit.x; not meaningful standalone.
+; write-to-str C generation, top-level and multi-stage generation, and
+; fvar table patching. Loaded by x/tool/compile after emit.x, whose state
+; accessors and writer brackets it imports.
+(module x/tool/compile/pipeline)
+
+(import x/tool/compile/emit c-param-decls compile-fvars compile-params-set! compile-fns compile-fns-set! compile-push-writers compile-pop-writers)
+; Fetched from the catalog into this module's frame.
+(def %cvt (prim-ref 'convert 'to))
+(def %write-to-str (prim-ref 'io 'write-to-str))
+(def %dlsym (prim-ref 'ffi 'dlsym))
+(def %ptr-set-word! (prim-ref 'ptr 'set-word!))
 
 ; --- Generate C via write-to-str ---
 
 ; Generate a C function body by pushing write handlers and serializing
-(def %generate-fn-body
+(def generate-fn-body
   (fn (_ params body)
-    (set! %compile-params params)
+    (compile-params-set! params)
     (%write-to-str body)))
 
 ; Generate a complete C function
 (def %generate-fn
   (fn (_ name params body)
     (Str append "x_obj_t *" name "(x_obj_t *p_base, x_obj_t *p_args) {\n"
-         (%c-param-decls params)
-         "    return " (%generate-fn-body params body) ";\n"
+         (c-param-decls params)
+         "    return " (generate-fn-body params body) ";\n"
          "}\n\n")))
 
 ; --- Top-level C generation ---
@@ -38,13 +46,13 @@
 ; --- Multi-stage C generation ---
 
 ; Generate nested function bodies iteratively until stable.
-; %compile-fns is populated by %cw-fn during generation.
+; The nested-function holder is populated by the fn emitter during generation.
 (def %generate-nested-fns
   (fn (_ )
     (def %nested-c "")
     (def %gen-loop
       (fn (self processed)
-        (def %current (first %compile-fns))
+        (def %current (first (compile-fns)))
         (def %len (%length %current))
         (if (= %len processed) %nested-c
           (let ()  ; scoped: def in tail position would leak to global
@@ -77,56 +85,42 @@
             (set! %all-fwd (Str append %all-fwd (%generate-fwd-decl %name)))
             (set! %all-prims (Str append %all-prims (%generate-static-prim %name)))
             (self (rest lst))))))
-    (%gen-decls (first %compile-fns))
+    (%gen-decls (first (compile-fns)))
     (pair %all-fwd %all-prims)))
 
 ; Generate complete C source with nested fn support.
 ; Write handlers must be pushed before calling this.
-(def %generate-c-with-fns
+(def generate-c-with-fns
   (fn (_ expr fns-holder)
     (let ((params (first (rest expr)))
           (body (first (rest (rest expr)))))
-      (set! %compile-fns fns-holder)
+      (compile-fns-set! fns-holder)
       (def %main-c (%generate-fn "fn_0" params body))
       (def %nested-c (%generate-nested-fns))
       (def %decls (%generate-declarations))
       (Str append "#include \"x-obj.h\"\n"
            "#include \"x-type/buffer.h\"\n\n"
-           (if (null? %compile-fvars) ""
+           (if (null? (compile-fvars)) ""
              "x_obj_t *x_fvar_table[64];\n\n")
            (first %decls) "\n"
            %nested-c
            (rest %decls)
            %main-c))))
 
-; --- Push/pop write handlers around code generation ---
-
-(def %compile-push-writers
-  (fn (_ )
-    (%type-push-write %list-type %compile-list-write)
-    (%type-push-write %symbol-type %compile-symbol-write)
-    (%type-push-write %int-type %compile-int-write)
-    (%type-push-write %char-type %compile-char-write)))
-
-(def %compile-pop-writers
-  (fn (_ )
-    (%type-pop-write %list-type)
-    (%type-pop-write %symbol-type)
-    (%type-pop-write %int-type)
-    (%type-pop-write %char-type)))
+; --- The writer brackets around a custom generation ---
 
 (doc (def compile-with-writers
   (fn (_ (param thunk CALLABLE "Zero-arg function to call with C emitters active"))
-    (%compile-push-writers)
+    (compile-push-writers)
     (def result (thunk))
-    (%compile-pop-writers)
+    (compile-pop-writers)
     result))
   (returns ANY "Result of calling thunk")
   "Push C code-generation write handlers, call thunk, pop handlers. Use for custom C generation.")
 
 ; --- Fvar table patching: write runtime pointers into loaded .so ---
 ; After dlopen, resolve x_fvar_table symbol and fill with current fvar values.
-(def %compile-patch-fvars
+(def compile-patch-fvars
   (fn (_ lib fvars)
     (unless (null? fvars)
       (let ((tbl (%dlsym lib "x_fvar_table")))
@@ -142,6 +136,5 @@
                     (self (rest fvs) (+ i 1))))))
             (%patch-go fvars 0)))))))
 
-; %type-cast! moved to type.x
-
-(provide x/tool/compile/pipeline)
+(provide x/tool/compile/pipeline
+  generate-fn-body generate-c-with-fns compile-with-writers compile-patch-fvars)

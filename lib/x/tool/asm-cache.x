@@ -594,7 +594,7 @@
 ; replaced.  That includes the JIT-runtime refusal: a missing trampoline makes
 ; dlsym answer nil, which misses, which reaches %asm-compile-fresh, which
 ; raises the same "JIT runtime unavailable" it always did.
-(def compile-asm
+(def asm-compile-cached
   (fn (_ expr . %asm-rest)
     (def fvars (unless (null? %asm-rest) (first %asm-rest)))
     ; The calling world is settled here, at the door, and nowhere else.  It is
@@ -634,10 +634,12 @@
             (%asm-cache-store! text base %asm-last-size %asm-last-relocs %asm-last-buf)
             f))))))
 
-(doc compile-asm
+(doc asm-compile-cached
   (returns CALLABLE "X-lang callable prim")
   "JIT compile an x-lang (fn ...) expression to a native prim, through a
-   persistent byte cache.  Accepts an optional fvar alist for free variable
+   persistent byte cache.  This is the function behind compile-asm, the door
+   in x/tool/compile, which loads this module on its first call and hands
+   every call here.  Accepts an optional fvar alist for free variable
    support, and a third argument declaring the calling mode: #f for an
    integer function called from x, #t for an analyse callback the tokenizer
    calls.  A compile with fvars must declare it and refuses without it; one
@@ -649,6 +651,11 @@
    prim the code computes, and refuses at run time if the head is not one.
    The compiled function works with map, fold, closures, etc.")
 
-(doc (provide x/tool/asm-cache compile-asm)
-  "The compile-asm door: a persistent cache of emitted native code, over the
-   JIT compiler it falls back to.")
+; Filed in the catalog for the compile-asm door in x/tool/compile: that module
+; loads this one on first use and cannot name a function of a module it has
+; not loaded, so it fetches the entry after the import.
+(prim-reg! (lit compile) (lit asm-cached) asm-compile-cached)
+
+(doc (provide x/tool/asm-cache asm-compile-cached)
+  "The cache behind the compile-asm door: persistent emitted native code, over
+   the JIT compiler it falls back to.")

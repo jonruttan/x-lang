@@ -2,9 +2,21 @@
 ;
 ; Everything that turns x forms into C text: generator utilities, the
 ; compile-state globals the write handlers read, type-system access,
-; and the per-form emitter families. Loaded by x/tool/compile (which
-; owns the libc resolves and cc flags these reference at CALL time);
-; not meaningful standalone.
+; and the per-form emitter families. Loaded by x/tool/compile, whose cc
+; flags and libc resolves the generated C reaches at CALL time. The compile
+; state lives here and is reached through the accessors this module exports;
+; x/tool/compile/pipeline and x/tool/compile import them, and so does
+; x/tool/asm-compile for the two it sets around a JIT compile.
+(module x/tool/compile/emit)
+
+; Fetched from the catalog into this module's frame: the conversion
+; dispatcher, the type prims the state cells use, and the write-stack push
+; and pop the writer brackets below call.
+(def %cvt (prim-ref 'convert 'to))
+(def %type-of (prim-ref 'type 'of))
+(def %type-by-atom (prim-ref 'type 'by-atom))
+(def %type-push-write (prim-ref 'type 'push-write))
+(def %type-pop-write (prim-ref 'type 'pop-write))
 
 ; --- C code generator utilities ---
 
@@ -15,7 +27,7 @@
       (Str append "x_restobj(" (self (- n 1)) ")"))))
 
 ; Generate parameter declarations at function entry
-(def %c-param-decls
+(def c-param-decls
   (fn (_ params)
     (def %go
       (fn (self ps i)
@@ -27,14 +39,37 @@
 
 ; memq replaced by memq from list.x
 
-; --- Compile state (globals read by write handlers) ---
+; --- Compile state (read by the write handlers) ---
+;
+; Three module variables the pipeline and the driver set around a compile,
+; and asm-compile sets around a JIT compile.  They are reached through the
+; accessors below, never by name: an import copies a value, so a variable
+; shared by name would go stale in every importer the first time it was set.
 
 (def %compile-fvars ())
 (def %compile-params ())
 (def %compile-fns ())
 
-(def %compile-fvar-lookup
-  (fn (_ sym) (%assq sym %compile-fvars)))
+(doc (def compile-fvars (fn (_) %compile-fvars))
+  (returns LIST "The free-variable alist ((sym . value) ...) of the compile in progress, or nil")
+  "The free variables the compile in progress resolves through the fvar table.")
+(doc (def compile-fvars-set! (fn (_ (param fvars LIST "Free-variable alist, or nil")) (set! %compile-fvars fvars)))
+  (returns ANY "nil")
+  "Set the free-variable alist for the compile about to run; the driver and asm-compile call it around each compile.")
+(doc (def compile-params-set! (fn (_ (param params LIST "Parameter symbols of the function being generated")) (set! %compile-params params)))
+  (returns ANY "nil")
+  "Set the parameter list the symbol writer distinguishes from free variables.")
+(doc (def compile-fns (fn (_) %compile-fns))
+  (returns LIST "The nested-function holder: a one-element list whose first is the (name params body) entries")
+  "The nested functions the fn emitter has collected during the compile in progress.")
+(doc (def compile-fns-set! (fn (_ (param fns LIST "A fresh holder, (list (list))")) (set! %compile-fns fns)))
+  (returns ANY "nil")
+  "Install the holder nested functions are collected into.")
+
+(doc (def compile-fvar-lookup
+  (fn (_ (param sym SYMBOL "A free-variable symbol")) (%assq sym %compile-fvars)))
+  (returns ANY "The (sym . value) entry, or nil when sym is not a free variable")
+  "Look a symbol up in the free-variable alist of the compile in progress.")
 
 ; Return the index of a fvar symbol in %compile-fvars (for table emission)
 (def %compile-fvar-index
@@ -67,7 +102,7 @@
   (fn (_ sym)
     (if (List includes? sym %compile-params)
       (display "p_" (%cvt sym %string))
-      (let ((fv-entry (%compile-fvar-lookup sym)))
+      (let ((fv-entry (compile-fvar-lookup sym)))
         (if (null? fv-entry)
           (Err raise 'value (Str append "compile: free variable: " (%cvt sym %string)) ())
           (let ((fv-val (rest fv-entry)))
@@ -392,8 +427,10 @@
     (%go args)
     (display ")")))
 
-; Emitter dispatch table: (operator . handler) alist
-(def compile-emitters
+; Emitter dispatch table: (operator . handler) alist.  A module variable,
+; because compile-add-emitter! grows it; the accessor below is how it is read
+; from outside, since an import would copy the list as it stood.
+(def %compile-emitters
   (list
     (pair 'if            %cw-if)
     (pair '=             (%cw-make-cmp " == "))
@@ -434,10 +471,14 @@
     (pair 'atom-set!     %cw-atom-set)
     (pair 'atom-val      %cw-atom-val)))
 
+(doc (def compile-emitters (fn (_) %compile-emitters))
+  (returns LIST "The (operator . handler) alist, most recently added first")
+  "The C emitter table as it stands.")
+
 (doc (def compile-add-emitter!
   (fn (_ (param op SYMBOL "Operator symbol to handle")
        (param handler CALLABLE "Emitter function: (fn (_ args) ...)"))
-    (set! compile-emitters (pair (pair op handler) compile-emitters))))
+    (set! %compile-emitters (pair (pair op handler) %compile-emitters))))
   (returns LIST "Updated emitter alist")
   "Register a new C code emitter for a form. The handler receives the argument list.")
 
@@ -446,10 +487,34 @@
   (fn (_ lst)
     (if (null? lst)
       (display "NULL")
-      (let ((entry (Assoc entry (first lst) compile-emitters)))
+      (let ((entry (Assoc entry (first lst) %compile-emitters)))
         (if entry
           ((rest entry) (rest lst))
           (Err raise 'value (Str append "compile: unsupported form: "
             (%cvt (first lst) %string)) ()))))))
 
-(provide x/tool/compile/emit)
+; --- The writer brackets: push the four C-emitting handlers, pop them ---
+(doc (def compile-push-writers
+  (fn (_)
+    (%type-push-write %list-type %compile-list-write)
+    (%type-push-write %symbol-type %compile-symbol-write)
+    (%type-push-write %int-type %compile-int-write)
+    (%type-push-write %char-type %compile-char-write)))
+  (returns ANY "nil")
+  "Push the C-emitting write handlers onto the list, symbol, int and char write stacks.")
+(doc (def compile-pop-writers
+  (fn (_)
+    (%type-pop-write %list-type)
+    (%type-pop-write %symbol-type)
+    (%type-pop-write %int-type)
+    (%type-pop-write %char-type)))
+  (returns ANY "nil")
+  "Pop the handlers compile-push-writers pushed.")
+
+(doc (provide x/tool/compile/emit
+  c-param-decls
+  compile-fvars compile-fvars-set! compile-fvar-lookup
+  compile-params-set! compile-fns compile-fns-set!
+  compile-push-writers compile-pop-writers
+  compile-emitters compile-add-emitter!)
+  "The C emitters and the compile state: what turns x forms into C text, reached by x/tool/compile, x/tool/compile/pipeline and x/tool/asm-compile through selective imports.")

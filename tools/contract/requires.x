@@ -80,6 +80,9 @@
   (needs "lib/x/tool/asm-compile.x" isa/ffi-call)
   (needs "lib/x/tool/asm.x" isa/ffi-call)
   (needs "lib/x/tool/compile.x" isa/ffi-call)
+  ; The pipeline resolves x_fvar_table in the loaded object with its own
+  ; dlsym fetch, to patch it after a load.
+  (needs "lib/x/tool/compile/pipeline.x" isa/ffi-call)
   (needs "lib/x/tool/profile.x" isa/gc)
   (needs "lib/x/type/err.x" isa/ffi-call)
   (needs "lib/x/type/ptr.x" isa/ffi-call)

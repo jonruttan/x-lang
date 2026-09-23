@@ -393,18 +393,17 @@ The fix is to **JIT-compile the analyser to native code** with `compile`, then i
 (def %type-by-atom      (prim-ref 'type 'by-atom))
 (def %type-push-analyse (prim-ref 'type 'push-analyse))
 
-; Compile + install the int-capped analyser (digits, with +/- sign)
-(set! %compile-fvars
-  (list (pair '%int-capped-sign   %int-capped-sign)
-        (pair '%int-capped-digits %int-capped-digits)))
+; Compile + install the int-capped analyser (digits, with +/- sign).  The
+; free variables travel as compile's second argument, an alist of
+; (symbol . value); the compiler resolves each through its fvar table.
 (%type-push-analyse (%type-by-atom (Type of 0))
   (compile
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
         (if (or (= chr 45) (= chr 43)) %int-capped-sign ())   ; sign
         (if (< chr 58) %int-capped-digits ()))))              ; digit
-    %compile-fvars))
-(set! %compile-fvars ())
+    (list (pair '%int-capped-sign   %int-capped-sign)
+          (pair '%int-capped-digits %int-capped-digits))))
 ```
 
 Two install idioms:
