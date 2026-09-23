@@ -27,6 +27,20 @@ is told, and the guard is the language's. x-python's
 `%py-apply-any` had grown an arm per kind of callable to keep clear of this;
 those arms can go once the bundle pins this version.
 
+**Rationals and decimals are right at the most negative integer.** #748 gave
+the bigint routes to `LONG_MIN` a promotion, but `rational.x` and `decimal.x`
+still negated plain ints with the raw `%int-`, which hands `LONG_MIN` back
+unchanged. A rational with `LONG_MIN` as divisor or denominator came out with
+the wrong sign and a negative denominator -- `(/ 1 LONG_MIN)` was
+`-1/-9223372036854775808` -- and a decimal significand of `LONG_MIN` printed as
+`--9223372036854775808d` and divided by -1 to itself. `(/ LONG_MIN -1)` reached
+the raw C division, which answers `LONG_MIN` on arm64 and traps on x86: under
+the tower `/` is `rational.x`'s, so #748's guard in `bigint.x`'s `/` is not the
+one that runs. The magnitudes and negations in both files now take the public
+promoting `-`, as their cross products and significand arithmetic already did,
+and a divisor of -1 is negation. A negative magnitude costs about 90 objects
+more; positive values cost what they did.
+
 **The six hot core modules stay unscoped, by decision** ([#719], step 4).
 `core/boolean`, `core/control`, `core/syntax`, `core/predicates`, `sys/pact`
 and `num/tower` are the last files the scan calls ready, and their operatives

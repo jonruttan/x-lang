@@ -74,7 +74,9 @@
 ; bigint's type ops and never overflow (division cannot).  That split is
 ; deliberate -- a plain %int* here would wrap silently at 2^63.
 
-(def %dec-abs (fn (_ n) (if (%int< n 0) (%int- 0 n) n)))
+; The magnitude uses the ambient - too: (%int- 0 n) hands LONG_MIN back
+; unchanged, and every digit count, division and print below reads it.
+(def %dec-abs (fn (_ n) (if (%int< n 0) (- 0 n) n)))
 
 ; base^n by squaring, n >= 0.  Powers of 10 scale significands, 2 and 5
 ; decompose a double's binary exponent (see %dec-from-float).
@@ -282,7 +284,7 @@
       (%int+ (%dec-exp a) (%dec-exp b)))))
 
 (def %dec-neg
-  (fn (_ x) (%make-dec (%int- 0 (%dec-sig x)) (%dec-exp x))))
+  (fn (_ x) (%make-dec (- 0 (%dec-sig x)) (%dec-exp x))))
 
 ; The one operation that rounds.  Scale the dividend so the quotient lands
 ; with at least one digit past the precision -- k = prec + 1 + digits(b) -
