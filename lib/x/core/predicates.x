@@ -31,6 +31,10 @@
 (def not (fn (_ x) (match (x #f) (#t #t))))
 (def atom? (fn (_ x) (not (pair? x))))
 (def number? (fn (_ x) (%type? x %type-int)))
+; real? and number? are extended in place by the number modules as they load
+; (float widens number?, complex narrows real?, decimal adds its own), which
+; is why both live here in the root and not in a module's own frame.
+(def real? (fn (_ x) (number? x)))
 (def str? (fn (_ x) (%type? x %type-str)))
 (def symbol? (fn (_ x) (%type? x %type-sym)))
 (def char? (fn (_ x) (%type? x %type-char)))
@@ -49,5 +53,5 @@
 ; wrap its provide in (doc ...). Its module description is registered
 ; retroactively in x/doc/doc-prims.x.
 (provide x/core/predicates
-  null? pair? not atom? number? str? symbol? char? procedure? operative?
+  null? pair? not atom? number? real? str? symbol? char? procedure? operative?
   )

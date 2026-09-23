@@ -182,7 +182,7 @@ that loads float.
     (%write-file (Str8 append %tmp "/forms.x") forms)
     (%sh (Str8 append "{ cat " (Str8 append %tmp (Str8 append "/pre.x tools/dev/image-read.x " (Str8 append %tmp (Str8 append "/forms.x; } | sh x.sh -q -l img > " (Str8 append %tmp "/out.txt 2>&1")))))))
     (File read-all (Str8 append %tmp "/out.txt"))))
-(display (%probe-in "float.x.ximg" "(write (list (not (null? %libm)) (Float hypot 3.0 4.0))) (newline)"))
+(display (%probe-in "float.x.ximg" "(write (list (not (null? (eval (lit %libm) (module x/num/float)))) (Float hypot 3.0 4.0))) (newline)"))
 ```
 ---
     (#t 5.0)

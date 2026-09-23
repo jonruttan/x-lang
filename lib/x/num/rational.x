@@ -1,5 +1,6 @@
 ; rational.x -- Rational number type (exact fractions)
 (import x/num/float)
+(import x/num/float float f-div int->float)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
 
@@ -144,11 +145,11 @@
         (list
           (pair (%type-of 42)
             (fn (_ self) (%int/ (first (first self)) (rest (first self)))))
-          (pair %float
+          (pair float
             (fn (_ self)
-              (%f-div
-                (%make-instance %float (%int->float (first (first self))))
-                (%make-instance %float (%int->float (rest (first self)))))))
+              (f-div
+                (%make-instance float (int->float (first (first self))))
+                (%make-instance float (int->float (rest (first self)))))))
           (pair (%type-of "")
             (fn (_ self)
               (%str-append
@@ -240,14 +241,14 @@
 ; Float absorbs rationals under the from-relation: declare the conversion on
 ; float's from-alist (the same late-registration precedent float.x uses for
 ; bigint). rational -> float = numerator/denominator in float space.
-(def %float-from-cell (%type-from-cell (%type-by-atom %float)))
+(def %float-from-cell (%type-from-cell (%type-by-atom float)))
 (%set-first! %float-from-cell
   (pair
     (pair %rational
       (fn (_ self)
-        (%f-div
-          (%make-instance %float (%int->float (first (first self))))
-          (%make-instance %float (%int->float (rest (first self)))))))
+        (f-div
+          (%make-instance float (int->float (first (first self))))
+          (%make-instance float (int->float (rest (first self)))))))
     (first %float-from-cell)))
 
 (def %rat? (fn (_ x) (%type? x %rational)))

@@ -99,7 +99,7 @@
               (#t (go (+ j 1))))))))
     ; %json-cvt, not the bits door (Float str->bits): that returns the raw IEEE bit
     ; pattern; the convert path boxes a real FLOAT value.
-    (def %v (if %floaty (%json-cvt %text %float) (%str->number %text)))
+    (def %v (if %floaty (%json-cvt %text (eval (lit float) (module x/num/float))) (%str->number %text)))
     (if (null? %v) (%json-err "malformed number" i) (pair %v %end))))
 
 ; --- strings ---------------------------------------------------------------

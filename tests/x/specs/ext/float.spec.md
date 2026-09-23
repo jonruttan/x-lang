@@ -72,7 +72,7 @@
 ### convert int to float
 
 ```x
-(Convert to 42 %float)
+(Convert to 42 (Float type))
 ```
 ---
     42.0
@@ -80,7 +80,7 @@
 ### convert result is float
 
 ```x
-(Float float? (Convert to 42 %float))
+(Float float? (Convert to 42 (Float type)))
 ```
 ---
     #t
@@ -88,7 +88,7 @@
 ### convert float to float is identity
 
 ```x
-(def x 3.14) (eq? (Convert to x %float) x)
+(def x 3.14) (eq? (Convert to x (Float type)) x)
 ```
 ---
     #t
@@ -96,7 +96,7 @@
 ### convert string to float
 
 ```x
-(Float float? (Convert to "3.14" %float))
+(Float float? (Convert to "3.14" (Float type)))
 ```
 ---
     #t
@@ -104,7 +104,7 @@
 ### convert nil returns nil
 
 ```x
-(null? (Convert to () %float))
+(null? (Convert to () (Float type)))
 ```
 ---
     #t
@@ -112,7 +112,7 @@
 ### convert negative int
 
 ```x
-(Convert to -5 %float)
+(Convert to -5 (Float type))
 ```
 ---
     -5.0
@@ -120,7 +120,7 @@
 ### convert zero
 
 ```x
-(Convert to 0 %float)
+(Convert to 0 (Float type))
 ```
 ---
     0.0
@@ -592,7 +592,7 @@
 ### pi is approximately 3.14159
 
 ```x
-(> %pi 3.14)
+(> (Float pi) 3.14)
 ```
 ---
     #t
@@ -600,7 +600,7 @@
 ### pi is approximately 3.14159 upper
 
 ```x
-(< %pi 3.15)
+(< (Float pi) 3.15)
 ```
 ---
     #t
@@ -608,7 +608,7 @@
 ### e is approximately 2.71828
 
 ```x
-(> %e 2.71)
+(> (Float e) 2.71)
 ```
 ---
     #t
@@ -616,7 +616,7 @@
 ### e is approximately 2.71828 upper
 
 ```x
-(< %e 2.72)
+(< (Float e) 2.72)
 ```
 ---
     #t
@@ -850,7 +850,7 @@ is unchanged.
 ### the Convert-level miss stays silent nil (policy unchanged)
 
 ```x
-(null? (Convert to (list 1) %float))
+(null? (Convert to (list 1) (Float type)))
 ```
 ---
     #t

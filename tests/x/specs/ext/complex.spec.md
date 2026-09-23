@@ -184,7 +184,7 @@
 ### angle of negative real is pi
 
 ```x
-(= (Complex angle -1) %pi)
+(= (Complex angle -1) (Float pi))
 ```
 ---
     #t
@@ -192,7 +192,7 @@
 ### angle of pure imaginary
 
 ```x
-(= (Complex angle (Complex make 0 1)) (Float / %pi 2.0))
+(= (Complex angle (Complex make 0 1)) (Float / (Float pi) 2.0))
 ```
 ---
     #t
