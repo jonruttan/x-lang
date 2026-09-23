@@ -508,3 +508,52 @@
 ```
 ---
     #t
+
+## the most negative integer (regression: its negation kept the sign)
+
+LONG_MIN has no positive counterpart in the word, so a raw negation hands it
+back unchanged.  As a divisor or a denominator it came out with the wrong
+sign, and a denominator stayed negative.  The value comes from the bitwise
+door rather than a literal.
+
+### dividing by -1 promotes
+
+```x
+(/ (<< 1 63) -1)
+```
+---
+    9223372036854775808
+
+### a quotient by a negative is positive
+
+```x
+(/ (<< 1 63) -3)
+```
+---
+    9223372036854775808/3
+
+### as a denominator the sign moves to the numerator
+
+```x
+(list (/ 1 (<< 1 63)) (/ -1 (<< 1 63)))
+```
+---
+    (-1/9223372036854775808 1/9223372036854775808)
+
+### that rational does arithmetic
+
+```x
+(list (+ (/ 1 (<< 1 63)) (/ 1 (<< 1 63)))
+      (* (/ 1 (<< 1 63)) (<< 1 63))
+      (- (/ 1 (<< 1 63))))
+```
+---
+    (-1/4611686018427387904 1 1/9223372036854775808)
+
+### a remainder whose cross products divide by -1
+
+```x
+(% -4611686018427387904 -1/2)
+```
+---
+    0
