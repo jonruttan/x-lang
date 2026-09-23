@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The six hot core modules stay unscoped, by decision** ([#719], step 4).
+`core/boolean`, `core/control`, `core/syntax`, `core/predicates`, `sys/pact`
+and `num/tower` are the last files the scan calls ready, and their operatives
+are looked up from everywhere: measured with the lookup counter of
+x-engine-c#59, a scope on boolean and control alone adds 34-42% to the
+environment comparisons of a boot, with evaluations unchanged. Their 44
+private names are read by nothing outside them, so a scope would buy only the
+frame. `docs/namespaces.md` records the numbers under "What to measure first".
+
 **The quote and quasiquote readers are modules of their own, and so is the
 xon codec** ([#719], step 4, the reader group). `x/reader/lit-reader` and
 `x/reader/quasi-reader` exported their analysers, readers and states under
