@@ -6,7 +6,7 @@
 ### make-rational basic
 
 ```x
-(%make-rational 3 4)
+(Rational make 3 4)
 ```
 ---
     3/4
@@ -14,7 +14,7 @@
 ### make-rational auto-reduce
 
 ```x
-(%make-rational 6 4)
+(Rational make 6 4)
 ```
 ---
     3/2
@@ -22,7 +22,7 @@
 ### make-rational reduces to integer
 
 ```x
-(%make-rational 6 3)
+(Rational make 6 3)
 ```
 ---
     2
@@ -30,7 +30,7 @@
 ### make-rational negative numerator
 
 ```x
-(%make-rational -3 4)
+(Rational make -3 4)
 ```
 ---
     -3/4
@@ -38,7 +38,7 @@
 ### make-rational negative denominator normalizes
 
 ```x
-(%make-rational 3 -4)
+(Rational make 3 -4)
 ```
 ---
     -3/4
@@ -46,7 +46,7 @@
 ### make-rational division by zero
 
 ```x
-(guard (e e) (%make-rational 1 0))
+(guard (e e) (Rational make 1 0))
 ```
 ---
     "division by zero"
@@ -308,7 +308,7 @@
 ### convert int to rational
 
 ```x
-(Convert to 5 %rational)
+(Convert to 5 (Rational type))
 ```
 ---
     5
@@ -316,7 +316,7 @@
 ### convert string to rational
 
 ```x
-(Convert to "3/4" %rational)
+(Convert to "3/4" (Rational type))
 ```
 ---
     3/4

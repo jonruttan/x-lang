@@ -137,7 +137,7 @@ written as a `match`.
 
 ### arms that hand back different states
 
-The shape of `%dec-int` in lib/x/num/decimal.x: a digit stays in the
+The shape of `dec-int` in lib/x/num/decimal.x: a digit stays in the
 state, `d` scores the token, `.` moves to the fraction state, and
 anything else declines.
 

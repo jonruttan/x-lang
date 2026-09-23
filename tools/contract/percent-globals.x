@@ -175,8 +175,9 @@
 ; class to live in, since the file runs before any module could hold them.
 ; tower-compiled.x fell 55 to 53 when the float states became a module's own
 ; (x-lang#719): the four interpreted twins it named are the module's bindings
-; before their compiles, read through the module's frame.
-(file "lib/x/boot/tower-compiled.x" 53)
+; before their compiles, read through the module's frame; and to 47 when the
+; rational, complex and decimal states followed.
+(file "lib/x/boot/tower-compiled.x" 47)
 (file "lib/x/codec/sha256-jit.x" 34)
 ; codec/sha256.x grew by one, 32 -> 33, for %cvt: the catalog converter it read
 ; from the root while x/sys/posix bound it there.  posix is scoped, and under
@@ -192,10 +193,7 @@
 (file "lib/x/core/predicates.x" 12)
 (file "lib/x/core/syntax.x" 5)
 (file "lib/x/doc/doc.x" 73)
-(file "lib/x/num/complex.x" 41)
-(file "lib/x/num/decimal.x" 72)
 (file "lib/x/num/tower.x" 10)
-(file "lib/x/num/rational.x" 39)
 (file "lib/x/platform/socket.x" 1)
 (file "lib/x/protocol/seq.x" 1)
 ; intrinsics.x rose 5 to 8 for the variant channel: %score-variant-cell (the raw

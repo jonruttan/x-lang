@@ -80,7 +80,7 @@ analyser to claiming the whole literal.
 ### bare integer is not rational type
 
 ```x
-(if (Type ? 42 %rational) "rat" "int")
+(if (Type ? 42 (Rational type)) "rat" "int")
 ```
 ---
     "int"
@@ -88,7 +88,7 @@ analyser to claiming the whole literal.
 ### slash notation is rational
 
 ```x
-(Type ? 3/4 %rational)
+(Type ? 3/4 (Rational type))
 ```
 ---
     #t

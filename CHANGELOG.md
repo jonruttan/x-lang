@@ -5,6 +5,27 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`x/num/rational`, `x/num/complex` and `x/num/decimal` are modules of
+their own** ([#719], step 4, the second batch of the number group; the first
+is below). Their forty-two cross-file names -- the tower's twenty-five
+operations and handles, the eighteen analyser states the compiled tower
+rebinds or reads, `%rational`, `%rat?`, `%make-rational` and
+`%make-complex` -- are bare exports now. `num/tower.x` takes the operations
+by selective import at its top, as it does bigint's and float's;
+`boot/tower-compiled.x` reaches each module's states through its frame, the
+way float's are reached, with one `%tower-state` helper for the four modules
+and its nine interpreted twins gone (its `%`-budget row falls 53 to 47);
+complex imports rational's handle and predicate; decimal reads
+`make-complex` from the module when its pact with complex fires, so loading
+decimal alone still loads no complex. `complex?` is a wrapper over `number?`
+rather than a copy of it, which retires decimal's re-pointing of the alias
+after its load. `Rational`, `Complex` and `Decimal` gain a `type` static like
+`Float` and `Bigint`, and `Rational` a `make`, which is what the specs used
+`%rational` and `%make-rational` for; the tower-states spec asks each site
+whether the module's binding is still the interpreted twin. Forty-six
+private reads leave the scan (801 to 755) and the three files' `%`-budget
+rows retire. Every number module is scoped now.
+
 **`apply` takes a value's call handler, and refuses a value without one.**
 The engine's `apply` calls through whatever it is handed, and handed a value
 that is not a closure, an operative or a primitive it jumps into the value's
