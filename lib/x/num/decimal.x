@@ -1,12 +1,4 @@
 ; decimal.x -- Arbitrary-precision decimal floating-point
-; lint-known: bigint bigint? big-limbs bigint-digits-per-limb
-; lint-known: %make-complex complex?
-; (The first row is num/bigint.x's -- its handle, its predicate, and the
-; base-10 limb storage %dec-ndigits counts through; the second is
-; num/complex.x's.  The tower supplies both in load order, decimal.x
-; imports bigint outright, and the complex references are filed with the
-; pact so they run only when complex loaded.)
-;
 ; Decimal values are stored as (significand . exponent) where:
 ;   significand = an exact integer -- native INT, promoting to BIGINT
 ;   exponent    = a native INT
@@ -28,10 +20,9 @@
 ; double is a finite decimal (m * 2^-k = m * 5^k * 10^-k), so a mixed pair
 ; promotes without inventing digits.  Complex still absorbs decimal, as it
 ; absorbs every real.
-(import x/num/bigint)
+(module x/num/decimal)
 (import x/num/bigint bigint bigint? big-limbs bigint-digits-per-limb)
 (import x/num/float float)
-(import x/num/float)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
 
@@ -269,17 +260,17 @@
 
 ; --- Arithmetic ---
 
-(def %dec-add
+(def dec-add
   (fn (_ a b)
     (let ((p (%dec-align a b)))
       (%make-dec (+ (first p) (rest p)) (%dec-min-exp a b)))))
 
-(def %dec-sub
+(def dec-sub
   (fn (_ a b)
     (let ((p (%dec-align a b)))
       (%make-dec (- (first p) (rest p)) (%dec-min-exp a b)))))
 
-(def %dec-mul
+(def dec-mul
   (fn (_ a b)
     (%make-dec
       (* (%dec-sig a) (%dec-sig b))
@@ -320,12 +311,12 @@
                       (first r))
                     (rest r)))))))))))
 
-(def %dec-div (fn (_ a b) (%dec-div-at a b %dec-prec)))
+(def dec-div (fn (_ a b) (%dec-div-at a b %dec-prec)))
 
 ; Truncating remainder -- a - b*trunc(a/b) -- matching int %, float fmod and
 ; rational %.  Exact: both sides align onto one scale and the quotient is an
 ; integer division there, so no precision is consulted.
-(def %dec-mod
+(def dec-mod
   (fn (_ a b)
     (let ((p (%dec-align a b)))
       (let ((na (first p)) (nb (rest p)))
@@ -364,11 +355,11 @@
                       (if (%int< adja adjb) -1 1))))
               (if (%int< sa 0) (%int- 0 mag) mag))))))))
 
-(def %dec-lt (fn (_ a b) (%int< (%dec-cmp a b) 0)))
+(def dec-lt (fn (_ a b) (%int< (%dec-cmp a b) 0)))
 
 ; Canonical storage buys this: equal values ARE the same pair, so equality
 ; is two integer compares and never an alignment.
-(def %dec-eq
+(def dec-eq
   (fn (_ a b)
     (if (%int= (%dec-sig a) (%dec-sig b))
       (%int= (%dec-exp a) (%dec-exp b))
@@ -418,14 +409,14 @@
 (def %dec-pow
   (fn (_ x n)
     (if (%int< n 0)
-      (%dec-div (%make-dec 1 0) (%dec-pow x (%int- 0 n)))
+      (dec-div (%make-dec 1 0) (%dec-pow x (%int- 0 n)))
       (let ()
         (def %go
           (fn (self acc b e)
             (if (%int= e 0) acc
               (self
-                (if (%int= (%int% e 2) 0) acc (%dec-mul acc b))
-                (%dec-mul b b)
+                (if (%int= (%int% e 2) 0) acc (dec-mul acc b))
+                (dec-mul b b)
                 (%int/ e 2)))))
         (%go (%make-dec 1 0) x n)))))
 
@@ -522,10 +513,10 @@
         (def one (%make-dec 1 0))
         (def v
           (%dec-round-to
-            (%dec-add
-              (%dec-mul (%make-dec 6 0)
+            (dec-add
+              (dec-mul (%make-dec 6 0)
                 (%dec-atanh (%dec-div-at one (%make-dec 3 0) w) w))
-              (%dec-mul (%make-dec 2 0)
+              (dec-mul (%make-dec 2 0)
                 (%dec-atanh (%dec-div-at one (%make-dec 9 0) w) w)))
             w))
         (%set-first! %dec-ln10-cell w)
@@ -548,20 +539,20 @@
         (Err raise 'value "Decimal ln: no logarithm of zero or a negative" x)
         (let ((nd (%dec-ndigits sig)) (adj (%dec-adj x)))
           (let ((m0 (%make-dec sig (%int- 1 nd))))
-            (let ((low (%dec-lt m0 (%make-dec 3 0))))
+            (let ((low (dec-lt m0 (%make-dec 3 0))))
               (let ((m (if low m0 (%make-dec sig (%int- 0 nd))))
                     (e (if low adj (%int+ adj 1)))
                     (one (%make-dec 1 0)))
                 (let ((z (%dec-div-at
-                           (%dec-sub m one) (%dec-add m one) w)))
-                  (let ((lm (%dec-mul (%make-dec 2 0) (%dec-atanh z w))))
+                           (dec-sub m one) (dec-add m one) w)))
+                  (let ((lm (dec-mul (%make-dec 2 0) (%dec-atanh z w))))
                     ; e is zero for every x already inside the window, and
                     ; ln 10 is a 70-term series -- so an argument near 1,
                     ; the common one, never pays for a constant it would
                     ; only multiply by nothing.
                     (if (%int= e 0) lm
-                      (%dec-add lm
-                        (%dec-mul (%make-dec e 0) (%dec-ln10 w))))))))))))))
+                      (dec-add lm
+                        (dec-mul (%make-dec e 0) (%dec-ln10 w))))))))))))))
 
 (def %dec-ln
   (fn (_ x)
@@ -605,7 +596,7 @@
         (def w (%int+ (%int+ %dec-prec %dec-guard) k))
         (def r
           (if (%int= k 0) x
-            (%dec-mul x (%make-dec (%dec-powi 5 k) (%int- 0 k)))))
+            (dec-mul x (%make-dec (%dec-powi 5 k) (%int- 0 k)))))
         (def rf (%dec-to-fx r (%int- 0 w)))
         (def one (%dec-pow10 w))
         ; sum r^n/n!, each term built from the last: term(n) = term(n-1)*r/n.
@@ -620,7 +611,7 @@
         (def %sq
           (fn (self v i)
             (if (%int= i 0) v
-              (self (%dec-round-to (%dec-mul v v) w) (%int- i 1)))))
+              (self (%dec-round-to (dec-mul v v) w) (%int- i 1)))))
         (%dec-round-to
           (%sq (%make-dec (%go one 1 one) (%int- 0 w)) k)
           %dec-prec)))))
@@ -806,7 +797,7 @@
 ; Door: coerce through the conversion catalog, so the other side may be an
 ; int, bigint, float, rational or numeric string.  A miss is a raise, never
 ; a nil into (first) -- the C core is unchecked, so the guard lives here.
-(def %ensure-dec
+(def ensure-dec
   (fn (_ x)
     (if (%dec? x) x
       (let ((d (%cvt x %decimal)))
@@ -827,52 +818,52 @@
 ; (4 chars) outbids float's 1.5 (3) on the same run.  Without the suffix
 ; nothing here scores at all and the float reader keeps the token.
 ;
-; %dec-int, %dec-frac and %dec-exp-digits have compiled twins in
+; dec-int, dec-frac and dec-exp-digits have compiled twins in
 ; boot/tower-compiled.x that must agree with them form for form, so a
 ; change to one of them here is a change there.
 
-(def %dec-exp-digits ())
-(set! %dec-exp-digits
+(def dec-exp-digits ())
+(set! dec-exp-digits
   (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) %dec-exp-digits
+    (if (and (>= chr 48) (<= chr 57)) dec-exp-digits
       (if (= chr 100) (%score-set score 1 buffer) ()))))
 
 (def %dec-exp-first
   (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) %dec-exp-digits ())))
+    (if (and (>= chr 48) (<= chr 57)) dec-exp-digits ())))
 
-(def %dec-exp-sign
+(def dec-exp-sign
   (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) %dec-exp-digits
+    (if (and (>= chr 48) (<= chr 57)) dec-exp-digits
       (if (or (= chr 45) (= chr 43)) %dec-exp-first ()))))
 
-(def %dec-frac ())
-(set! %dec-frac
+(def dec-frac ())
+(set! dec-frac
   (fn (_ buffer score chr)
     (match
-      ((and (>= chr 48) (<= chr 57)) %dec-frac)
+      ((and (>= chr 48) (<= chr 57)) dec-frac)
       ((= chr 100) (%score-set score 1 buffer))
-      ((or (= chr 101) (= chr 69)) %dec-exp-sign)
+      ((or (= chr 101) (= chr 69)) dec-exp-sign)
       (#t ()))))
 
-(def %dec-first-frac
+(def dec-first-frac
   (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) %dec-frac ())))
+    (if (and (>= chr 48) (<= chr 57)) dec-frac ())))
 
-(def %dec-int ())
-(set! %dec-int
+(def dec-int ())
+(set! dec-int
   (fn (_ buffer score chr)
     (match
-      ((and (>= chr 48) (<= chr 57)) %dec-int)
+      ((and (>= chr 48) (<= chr 57)) dec-int)
       ((= chr 100) (%score-set score 1 buffer))
-      ((= chr 46) %dec-first-frac)
-      ((or (= chr 101) (= chr 69)) %dec-exp-sign)
+      ((= chr 46) dec-first-frac)
+      ((or (= chr 101) (= chr 69)) dec-exp-sign)
       (#t ()))))
 
 ; A lone sign must see a digit next, so `-` and `+` stay operators.
-(def %dec-sign
+(def dec-sign
   (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) %dec-int ())))
+    (if (and (>= chr 48) (<= chr 57)) dec-int ())))
 
 (set! %decimal
   (%make-type
@@ -882,8 +873,8 @@
         (fn (_ self) (display (%dec->str self) "d")))
       (pair 'analyse
         (fn (_ buffer score chr)
-          (if (and (>= chr 48) (<= chr 57)) %dec-int
-            (if (or (= chr 45) (= chr 43)) %dec-sign ()))))
+          (if (and (>= chr 48) (<= chr 57)) dec-int
+            (if (or (= chr 45) (= chr 43)) dec-sign ()))))
       (pair 'read (fn (_ . args) (%dec-read (first args))))
       (pair 'from
         (list
@@ -908,17 +899,17 @@
 (note "Operator Overrides")
 
 ; --- Type ops: the generic operators dispatch decimal operands here ---
-; Handlers receive raw operands; %ensure-dec coerces the other side through
+; Handlers receive raw operands; ensure-dec coerces the other side through
 ; the from-alist, so an int, bigint, float or numeric string all land.
 
-(def %decimal-type (%type-by-atom %decimal))
-(%type-push-op %decimal-type '+ (fn (_ a b) (%dec-add (%ensure-dec a) (%ensure-dec b))))
-(%type-push-op %decimal-type '- (fn (_ a b) (%dec-sub (%ensure-dec a) (%ensure-dec b))))
-(%type-push-op %decimal-type '* (fn (_ a b) (%dec-mul (%ensure-dec a) (%ensure-dec b))))
-(%type-push-op %decimal-type '/ (fn (_ a b) (%dec-div (%ensure-dec a) (%ensure-dec b))))
-(%type-push-op %decimal-type '% (fn (_ a b) (%dec-mod (%ensure-dec a) (%ensure-dec b))))
-(%type-push-op %decimal-type '< (fn (_ a b) (%dec-lt (%ensure-dec a) (%ensure-dec b))))
-(%type-push-op %decimal-type '= (fn (_ a b) (%dec-eq (%ensure-dec a) (%ensure-dec b))))
+(def decimal-type (%type-by-atom %decimal))
+(%type-push-op decimal-type '+ (fn (_ a b) (dec-add (ensure-dec a) (ensure-dec b))))
+(%type-push-op decimal-type '- (fn (_ a b) (dec-sub (ensure-dec a) (ensure-dec b))))
+(%type-push-op decimal-type '* (fn (_ a b) (dec-mul (ensure-dec a) (ensure-dec b))))
+(%type-push-op decimal-type '/ (fn (_ a b) (dec-div (ensure-dec a) (ensure-dec b))))
+(%type-push-op decimal-type '% (fn (_ a b) (dec-mod (ensure-dec a) (ensure-dec b))))
+(%type-push-op decimal-type '< (fn (_ a b) (dec-lt (ensure-dec a) (ensure-dec b))))
+(%type-push-op decimal-type '= (fn (_ a b) (dec-eq (ensure-dec a) (ensure-dec b))))
 
 ; --- Cohort predicates ---
 ; number? and real? are extended IN PLACE by each tower module.  Decimal
@@ -953,12 +944,12 @@
     ; through the divider and lands on the current precision, exactly as
     ; rational -> float lands on 53 bits.  (numerator . denominator) is
     ; rational.x's payload.
-    (let ((cell (%type-from-cell %decimal-type)))
+    (let ((cell (%type-from-cell decimal-type)))
       (%set-first! cell
         (pair
           (pair rat
             (fn (_ value)
-              (%dec-div
+              (dec-div
                 (%make-dec (first (first value)) 0)
                 (%make-dec (rest (first value)) 0))))
           (first cell))))))
@@ -967,22 +958,26 @@
   (fn (_ cx)
     ; Complex absorbs every real, decimal included, so the edge is declared
     ; on COMPLEX's from-alist: the absorbing side owns the entry.  The
-    ; converter is %make-complex with a zero imaginary part -- which
+    ; converter is complex's make-complex with a zero imaginary part -- which
     ; collapses straight back to the real, exactly as the float and
-    ; rational entries do; the declaration is what the lattice reads.
-    (let ((cell (%type-from-cell (%type-by-atom cx))))
+    ; rational entries do; the declaration is what the lattice reads.  It is
+    ; read from the module here, when the pact fires, so that loading decimal
+    ; alone still loads no complex.
+    (let ((cell (%type-from-cell (%type-by-atom cx)))
+          (make-complex (eval (lit make-complex) (module x/num/complex))))
       (%set-first! cell
-        (pair (pair %decimal (fn (_ value) (%make-complex value 0)))
-          (first cell))))
-    ; complex? was bound to the number? of complex.x's load moment, so it
-    ; cannot see a type registered after it.  Re-point the alias at the
-    ; live predicate rather than leaving two answers in the tree.
-    (set! complex? number?)))
+        (pair (pair %decimal (fn (_ value) (make-complex value 0)))
+          (first cell))))))
 
 (import x/type/class)
 
 (def-class Decimal ()
   (static
+    (method type (self)
+      (doc "The decimal type handle, for Convert and Type."
+        (returns ATOM "The DECIMAL type handle")
+        (sample "(Type ? 1.5d (Decimal type))" "#t"))
+      %decimal)
     (method decimal? (self (param x ANY "Value to test"))
       (doc "Test whether a value is an arbitrary-precision decimal."
         (returns BOOL "True if x is a decimal"))
@@ -1004,7 +999,7 @@
       (doc "Construct a decimal from any convertible value, through the conversion catalog. A float converts EXACTLY; a rational rounds to the current precision. Raises tag 'type when nothing converts."
         (returns DECIMAL "Decimal instance")
         (sample "(Decimal ->str (Decimal from \"1.25\"))" "\"1.25\""))
-      (%ensure-dec x))
+      (ensure-dec x))
     (method make (self (param sig INT "Significand (int or bigint)")
                        (param exp INT "Power-of-ten exponent"))
       (doc "Construct the decimal sig * 10^exp directly, without going through text."
@@ -1014,96 +1009,96 @@
     (method significand (self (param x DECIMAL "Decimal value"))
       (doc "The decimal's significand, with trailing zeros already stripped."
         (returns INT "Significand as an exact integer"))
-      (%dec-sig (%ensure-dec x)))
+      (%dec-sig (ensure-dec x)))
     (method exponent (self (param x DECIMAL "Decimal value"))
       (doc "The decimal's power-of-ten exponent."
         (returns INT "Exponent"))
-      (%dec-exp (%ensure-dec x)))
+      (%dec-exp (ensure-dec x)))
     (method ->int (self (param x DECIMAL "Decimal value"))
       (doc "Convert a decimal to an exact integer by truncation toward zero."
         (returns INT "Truncated integer value"))
-      (%dec->int (%ensure-dec x)))
+      (%dec->int (ensure-dec x)))
     (method ->str (self (param x DECIMAL "Decimal value"))
       (doc "The decimal's text, without the d suffix that `write` adds for round-tripping."
         (returns STRING "Decimal text"))
-      (%dec->str (%ensure-dec x)))
+      (%dec->str (ensure-dec x)))
     (method ->float (self (param x DECIMAL "Decimal value"))
       (doc "Convert a decimal to the nearest IEEE 754 double. Lossy by definition; the rounding is strtod's."
         (returns FLOAT "Nearest double"))
-      (%cvt (%dec->str (%ensure-dec x)) float))
+      (%cvt (%dec->str (ensure-dec x)) float))
     ; --- Arithmetic (operands coerce via the from-alist) ---
     (method + (self (param a NUMBER "First operand") (param b NUMBER "Second operand"))
       (doc "Add two decimals, exactly (other numerics coerce)." (returns DECIMAL "Sum"))
-      (%dec-add (%ensure-dec a) (%ensure-dec b)))
+      (dec-add (ensure-dec a) (ensure-dec b)))
     (method - (self (param a NUMBER "First operand") (param b NUMBER "Second operand"))
       (doc "Subtract two decimals, exactly (other numerics coerce)." (returns DECIMAL "Difference"))
-      (%dec-sub (%ensure-dec a) (%ensure-dec b)))
+      (dec-sub (ensure-dec a) (ensure-dec b)))
     (method * (self (param a NUMBER "First operand") (param b NUMBER "Second operand"))
       (doc "Multiply two decimals, exactly (other numerics coerce)." (returns DECIMAL "Product"))
-      (%dec-mul (%ensure-dec a) (%ensure-dec b)))
+      (dec-mul (ensure-dec a) (ensure-dec b)))
     (method / (self (param a NUMBER "Dividend") (param b NUMBER "Divisor"))
       (doc "Divide two decimals, rounded half-even to the current precision (other numerics coerce)."
         (returns DECIMAL "Quotient"))
-      (%dec-div (%ensure-dec a) (%ensure-dec b)))
+      (dec-div (ensure-dec a) (ensure-dec b)))
     (method % (self (param a NUMBER "Dividend") (param b NUMBER "Divisor"))
       (doc "Truncating remainder of decimal division, exactly (other numerics coerce)."
         (returns DECIMAL "Remainder, with the dividend's sign"))
-      (%dec-mod (%ensure-dec a) (%ensure-dec b)))
+      (dec-mod (ensure-dec a) (ensure-dec b)))
     (method < (self (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
       (doc "Test whether a is less than b (other numerics coerce)." (returns BOOL "True if a < b"))
-      (%dec-lt (%ensure-dec a) (%ensure-dec b)))
+      (dec-lt (ensure-dec a) (ensure-dec b)))
     (method = (self (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
       (doc "Test whether a equals b (other numerics coerce)." (returns BOOL "True if a equals b"))
-      (%dec-eq (%ensure-dec a) (%ensure-dec b)))
+      (dec-eq (ensure-dec a) (ensure-dec b)))
     (method compare (self (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
       (doc "Three-way comparison of two decimals (other numerics coerce)."
         (returns INT "-1 if a < b, 0 if equal, 1 if a > b"))
-      (%dec-cmp (%ensure-dec a) (%ensure-dec b)))
+      (%dec-cmp (ensure-dec a) (ensure-dec b)))
     (method neg (self (param x NUMBER "Decimal value"))
       (doc "Negate a decimal." (returns DECIMAL "The negated value"))
-      (%dec-neg (%ensure-dec x)))
+      (%dec-neg (ensure-dec x)))
     (method abs (self (param x NUMBER "Decimal value"))
       (doc "The absolute value of a decimal." (returns DECIMAL "Magnitude"))
-      (let ((d (%ensure-dec x))) (if (%int< (%dec-sig d) 0) (%dec-neg d) d)))
+      (let ((d (ensure-dec x))) (if (%int< (%dec-sig d) 0) (%dec-neg d) d)))
     (method zero? (self (param x NUMBER "Decimal value"))
       (doc "Test whether a decimal is zero." (returns BOOL "True if x is zero"))
-      (%int= (%dec-sig (%ensure-dec x)) 0))
+      (%int= (%dec-sig (ensure-dec x)) 0))
     ; --- Rounding ---
     (method round (self (param x NUMBER "Decimal value")
                         (param places INT "Decimal places to keep; negative rounds to tens, hundreds, ..."))
       (doc "Round a decimal to a number of decimal places, half-even."
         (returns DECIMAL "Rounded value")
         (sample "(Decimal ->str (Decimal round 2.675d 2))" "\"2.68\""))
-      (%dec-rescale (%ensure-dec x) (%int- 0 places)))
+      (%dec-rescale (ensure-dec x) (%int- 0 places)))
     (method rescale (self (param x NUMBER "Decimal value") (param exp INT "Target power-of-ten exponent"))
       (doc "Restate a decimal at a given exponent, rounding half-even when that drops digits. The exponent-facing form of `round`, for a caller that thinks in scales."
         (returns DECIMAL "Value at the requested exponent"))
-      (%dec-rescale (%ensure-dec x) exp))
+      (%dec-rescale (ensure-dec x) exp))
     (method trunc (self (param x NUMBER "Decimal value"))
       (doc "Truncate a decimal toward zero, as an integral decimal."
         (returns DECIMAL "Integer part"))
-      (%make-dec (%dec->int (%ensure-dec x)) 0))
+      (%make-dec (%dec->int (ensure-dec x)) 0))
     (method floor (self (param x NUMBER "Decimal value"))
       (doc "The largest integral decimal not greater than x."
         (returns DECIMAL "Floor of x"))
-      (let ((d (%ensure-dec x)))
+      (let ((d (ensure-dec x)))
         (let ((t (%make-dec (%dec->int d) 0)))
-          (if (%dec-lt t d) t (if (%dec-eq t d) t (%dec-sub t (%make-dec 1 0)))))))
+          (if (dec-lt t d) t (if (dec-eq t d) t (dec-sub t (%make-dec 1 0)))))))
     (method ceil (self (param x NUMBER "Decimal value"))
       (doc "The smallest integral decimal not less than x."
         (returns DECIMAL "Ceiling of x"))
-      (let ((d (%ensure-dec x)))
+      (let ((d (ensure-dec x)))
         (let ((t (%make-dec (%dec->int d) 0)))
-          (if (%dec-lt d t) t (if (%dec-eq t d) t (%dec-add t (%make-dec 1 0)))))))
+          (if (dec-lt d t) t (if (dec-eq t d) t (dec-add t (%make-dec 1 0)))))))
     ; --- Roots and powers ---
     (method sqrt (self (param x NUMBER "Non-negative decimal"))
       (doc "The square root of a decimal, rounded half-even to the current precision."
         (returns DECIMAL "Square root of x"))
-      (%dec-sqrt (%ensure-dec x)))
+      (%dec-sqrt (ensure-dec x)))
     (method pow (self (param x NUMBER "Base") (param n INT "Integer exponent"))
       (doc "Raise a decimal to an integer power. A non-negative exponent is exact; a negative one divides once, at the current precision."
         (returns DECIMAL "x raised to the power n"))
-      (%dec-pow (%ensure-dec x) n))
+      (%dec-pow (ensure-dec x) n))
     ; --- Logarithms and the exponential ---
     ; Computed by series at the current precision plus guard digits, then
     ; rounded once -- there is no libm for a decimal this wide.
@@ -1111,27 +1106,30 @@
       (doc "Raise e to a power, to the current precision."
         (returns DECIMAL "e raised to the power x")
         (sample "(Decimal ->str (Decimal exp 0d))" "\"1\""))
-      (%dec-exp-of (%ensure-dec x)))
+      (%dec-exp-of (ensure-dec x)))
     (method ln (self (param x NUMBER "Positive decimal"))
       (doc "The natural logarithm of a decimal, to the current precision. Raises tag 'value for zero or a negative."
         (returns DECIMAL "Natural logarithm of x")
         (sample "(Decimal ->str (Decimal ln 1d))" "\"0\""))
-      (%dec-ln (%ensure-dec x)))
+      (%dec-ln (ensure-dec x)))
     (method log10 (self (param x NUMBER "Positive decimal"))
       (doc "The base-10 logarithm of a decimal, to the current precision. An exact power of ten answers its exponent exactly. Raises tag 'value for zero or a negative."
         (returns DECIMAL "log10(x)")
         (sample "(Decimal ->str (Decimal log10 1000d))" "\"3\""))
-      (%dec-log10 (%ensure-dec x)))))
+      (%dec-log10 (ensure-dec x)))))
 
 ; Value dispatch (subject-last): (1.5d decimal?) -> (Decimal decimal? 1.5d).
 (def %type-push-call (prim-ref 'type 'push-call))
-(%type-push-call %decimal-type (%class-call-handler Decimal))
+(%type-push-call decimal-type (%class-call-handler Decimal))
 
 ; Join the pact last, once the module is fully usable: any registration
 ; waiting on decimal fires against the finished class and type ops.
 (Pact join 'decimal %decimal)
 
-(doc (provide x/num/decimal Decimal)
+(doc (provide x/num/decimal Decimal
+  decimal-type ensure-dec
+  dec-add dec-sub dec-mul dec-div dec-mod dec-eq dec-lt
+  dec-int dec-first-frac dec-frac dec-exp-sign dec-exp-digits dec-sign)
   (note "Literal syntax: 1.5d, -0.001d, 3d, 1.5e-8d. The generic operators")
   (note "dispatch decimal operands through the type ops; mixed operands")
   (note "resolve by the from-relation, and a double widens EXACTLY.")

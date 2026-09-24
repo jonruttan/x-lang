@@ -29,9 +29,9 @@
 ; exports.
 (import x/num/bigint ensure-big big-add big-sub big-mul big-div big-mod big-eq big-lt bigint-type)
 (import x/num/float ensure-float f-add f-sub f-mul f-div f-mod f-eq f-lt float-type)
-(import x/num/rational)
-(import x/num/complex)
-(import x/num/decimal)
+(import x/num/rational ensure-rat rat-add rat-sub rat-mul rat-div rat-mod rat-eq rat-lt rational-type)
+(import x/num/complex ensure-complex cx-add cx-sub cx-mul cx-div cx-eq complex-type)
+(import x/num/decimal ensure-dec dec-add dec-sub dec-mul dec-div dec-mod dec-eq dec-lt decimal-type)
 (import x/type/generic)
 
 (def %tw-str-append (prim-ref (lit str) (lit append)))
@@ -42,7 +42,7 @@
 ; A type's HANDLE: the name-stack's current atom (field 0 of the
 ; type, (current . saved) stacked) -- the same atom (Type of v)
 ; returns and type? pointer-compares. The modules export their TYPES
-; (%rational-type et al., what push-op wants); the generics key on handles.
+; (rational-type et al., what push-op wants); the generics key on handles.
 (def %tw-handle (fn (_ t) (first (first t))))
 
 (def-generic num+ "Tower addition: one method per numeric type; a mixed pair promotes via the cvt lattice, and an unrelated pair errors naming both types.")
@@ -58,7 +58,7 @@
 ; absorber module's OWN formula -- (worker (ensure a) (ensure b)) -- run
 ; directly, never re-entered through the generic. That is forced, not
 ; stylistic: the tower's constructors NORMALIZE (a whole rational reduces
-; to the int it equals, so %ensure-rat is int-transparent and the workers
+; to the int it equals, so ensure-rat is int-transparent and the workers
 ; are int-tolerant) -- a promoted pair is not guaranteed to look same-type
 ; to the dispatcher, and re-entering on it looped forever, the hard way.
 ; A handle absorbs only when it is a tower member carrying an ensure (INT
@@ -120,20 +120,20 @@
 
 ; struct order: bigint, float, rational, decimal, complex
 (def %tw-types
-  (list bigint-type float-type %rational-type %decimal-type %complex-type))
+  (list bigint-type float-type rational-type decimal-type complex-type))
 (set! %tw-ensure-of
   (list (pair (%tw-handle bigint-type) ensure-big)
         (pair (%tw-handle float-type) ensure-float)
-        (pair (%tw-handle %rational-type) %ensure-rat)
-        (pair (%tw-handle %decimal-type) %ensure-dec)
-        (pair (%tw-handle %complex-type) %ensure-complex)))
-(%tw-op! num+ (lit +) %tw-types (list big-add f-add %rat-add %dec-add %cx-add))
-(%tw-op! num- (lit -) %tw-types (list big-sub f-sub %rat-sub %dec-sub %cx-sub))
-(%tw-op! num* (lit *) %tw-types (list big-mul f-mul %rat-mul %dec-mul %cx-mul))
-(%tw-op! num/ (lit /) %tw-types (list big-div f-div %rat-div %dec-div %cx-div))
-(%tw-op! num% (lit %) %tw-types (list big-mod f-mod %rat-mod %dec-mod ()))
-(%tw-op! num< (lit <) %tw-types (list big-lt f-lt %rat-lt %dec-lt ()))
-(%tw-op! num= (lit =) %tw-types (list big-eq f-eq %rat-eq %dec-eq %cx-eq))
+        (pair (%tw-handle rational-type) ensure-rat)
+        (pair (%tw-handle decimal-type) ensure-dec)
+        (pair (%tw-handle complex-type) ensure-complex)))
+(%tw-op! num+ (lit +) %tw-types (list big-add f-add rat-add dec-add cx-add))
+(%tw-op! num- (lit -) %tw-types (list big-sub f-sub rat-sub dec-sub cx-sub))
+(%tw-op! num* (lit *) %tw-types (list big-mul f-mul rat-mul dec-mul cx-mul))
+(%tw-op! num/ (lit /) %tw-types (list big-div f-div rat-div dec-div cx-div))
+(%tw-op! num% (lit %) %tw-types (list big-mod f-mod rat-mod dec-mod ()))
+(%tw-op! num< (lit <) %tw-types (list big-lt f-lt rat-lt dec-lt ()))
+(%tw-op! num= (lit =) %tw-types (list big-eq f-eq rat-eq dec-eq cx-eq))
 
 (doc (provide x/num/tower num+ num- num* num/ num% num< num=)
   (note "The mixed-type policy layer: import it whenever two numeric modules meet.")
