@@ -1,5 +1,6 @@
 ; complex.x -- Complex number type
-(import x/num/float)
+(module x/num/complex)
+
 (import x/num/float float float? float-of f-add f-mul fsqrt fsin fcos fatan2 pi str->float)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
@@ -11,7 +12,7 @@
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref 'convert 'to))
 
-(import x/num/rational)
+(import x/num/rational rational rat?)
 (import x/type/class)
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %make-instance (prim-ref 'type 'make-instance))
@@ -32,7 +33,7 @@
 (def %cx-read ())
 ; --- Constructor: collapse to real when imag is exactly integer 0 ---
 
-(def %make-complex
+(def make-complex
   (fn (_ re im)
     (if (if (%int-number? im) (%int= im 0) ())
       re
@@ -58,67 +59,67 @@
 ; Matches: <digits>[.<digits>][+-]<digits>[.<digits>]i
 ; Also: <digits>[.<digits>]i  (pure imaginary)
 
-(def %cx-imag-frac ())
-(set! %cx-imag-frac
+(def cx-imag-frac ())
+(set! cx-imag-frac
   (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
-      %cx-imag-frac
+      cx-imag-frac
       (if (= chr 105)
         (%score-set score 1 buffer)
         ()))))
 
-(def %cx-imag-dot
+(def cx-imag-dot
   (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
-      %cx-imag-frac
+      cx-imag-frac
       ())))
 
-(def %cx-imag-int ())
-(set! %cx-imag-int
+(def cx-imag-int ())
+(set! cx-imag-int
   (fn (_ buffer score chr)
     (match
-      ((and (>= chr 48) (<= chr 57)) %cx-imag-int)
-      ((= chr 46) %cx-imag-dot)
+      ((and (>= chr 48) (<= chr 57)) cx-imag-int)
+      ((= chr 46) cx-imag-dot)
       ((= chr 105) (%score-set score 1 buffer))
       (#t ()))))
 
-(def %cx-sign
+(def cx-sign
   (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
-      %cx-imag-int
+      cx-imag-int
       ())))
 
-(def %cx-real-frac ())
-(set! %cx-real-frac
+(def cx-real-frac ())
+(set! cx-real-frac
   (fn (_ buffer score chr)
     (match
-      ((and (>= chr 48) (<= chr 57)) %cx-real-frac)
-      ((= chr 43) %cx-sign)
-      ((= chr 45) %cx-sign)
+      ((and (>= chr 48) (<= chr 57)) cx-real-frac)
+      ((= chr 43) cx-sign)
+      ((= chr 45) cx-sign)
       ((= chr 105) (%score-set score 1 buffer))
       (#t ()))))
 
-(def %cx-real-dot
+(def cx-real-dot
   (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
-      %cx-real-frac
+      cx-real-frac
       ())))
 
 ; Entry after a leading '-': a digit starts the (negative) real part.
 ; The read side already handles the sign (its separator search starts
 ; at index 1), so this state is all -1+2i needed (#45 R4).
-(def %cx-neg
+(def cx-neg
   (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) %cx-real-int ())))
+    (if (and (>= chr 48) (<= chr 57)) cx-real-int ())))
 
-(def %cx-real-int ())
-(set! %cx-real-int
+(def cx-real-int ())
+(set! cx-real-int
   (fn (_ buffer score chr)
     (match
-      ((and (>= chr 48) (<= chr 57)) %cx-real-int)
-      ((= chr 46) %cx-real-dot)
-      ((= chr 43) %cx-sign)
-      ((= chr 45) %cx-sign)
+      ((and (>= chr 48) (<= chr 57)) cx-real-int)
+      ((= chr 46) cx-real-dot)
+      ((= chr 43) cx-sign)
+      ((= chr 45) cx-sign)
       ((= chr 105) (%score-set score 1 buffer))
       (#t ()))))
 
@@ -147,10 +148,10 @@
               (if (null? sign-pos)
                 (set! sign-pos (%cx-find-char body 1 blen 45)))
               (if sign-pos
-                (%make-complex
+                (make-complex
                   (%cx-parse-num (%substring body 0 sign-pos))
                   (%cx-parse-num (%substring body sign-pos blen)))
-                (%make-complex 0 (%cx-parse-num body))))))))))
+                (make-complex 0 (%cx-parse-num body))))))))))
 
 ; --- Type definition ---
 
@@ -169,15 +170,15 @@
         'analyse
         (fn (_ buffer score chr)
           ; Entry: digit, or '-' then digit (negative real part, R4)
-          (if (and (>= chr 48) (<= chr 57)) %cx-real-int
-            (if (= chr 45) %cx-neg ()))))
+          (if (and (>= chr 48) (<= chr 57)) cx-real-int
+            (if (= chr 45) cx-neg ()))))
       (pair 'read (fn (_ . args) (%cx-read (first args))))
       (pair
         'from
         (list
-          (pair (%type-of 42) (fn (_ value) (%make-complex value 0)))
-          (pair float (fn (_ value) (%make-complex value 0)))
-          (pair %rational (fn (_ value) (%make-complex value 0)))))
+          (pair (%type-of 42) (fn (_ value) (make-complex value 0)))
+          (pair float (fn (_ value) (make-complex value 0)))
+          (pair rational (fn (_ value) (make-complex value 0)))))
       (pair
         'to
         (list
@@ -187,36 +188,36 @@
 
 (note "Arithmetic")
 
-(def %cx-add
+(def cx-add
   (fn (_ a b)
-    (%make-complex
+    (make-complex
       (%real+ (%complex-re a) (%complex-re b))
       (%real+ (%complex-im a) (%complex-im b)))))
 
-(def %cx-sub
+(def cx-sub
   (fn (_ a b)
-    (%make-complex
+    (make-complex
       (%real- (%complex-re a) (%complex-re b))
       (%real- (%complex-im a) (%complex-im b)))))
 
-(def %cx-mul
+(def cx-mul
   (fn (_ a b)
     (let ((ar (%complex-re a)) (ai (%complex-im a))
           (br (%complex-re b)) (bi (%complex-im b)))
-      (%make-complex
+      (make-complex
         (%real- (%real* ar br) (%real* ai bi))
         (%real+ (%real* ar bi) (%real* ai br))))))
 
-(def %cx-div
+(def cx-div
   (fn (_ a b)
     (let ((ar (%complex-re a)) (ai (%complex-im a))
           (br (%complex-re b)) (bi (%complex-im b)))
       (let ((denom (%real+ (%real* br br) (%real* bi bi))))
-        (%make-complex
+        (make-complex
           (%real/ (%real+ (%real* ar br) (%real* ai bi)) denom)
           (%real/ (%real- (%real* ai br) (%real* ar bi)) denom))))))
 
-(def %cx-eq
+(def cx-eq
   (fn (_ a b)
     (if (%real= (%complex-re a) (%complex-re b))
       (%real= (%complex-im a) (%complex-im b))
@@ -251,17 +252,17 @@
 
 (note "Operator Overrides")
 
-(def %ensure-complex (fn (_ x) (if (%complex? x) x (%make-complex x 0))))
+(def ensure-complex (fn (_ x) (if (%complex? x) x (make-complex x 0))))
 
-(def %complex-type (%type-by-atom %complex))
-(%type-push-op %complex-type '+ (fn (_ a b) (%cx-add (%ensure-complex a) (%ensure-complex b))))
-(%type-push-op %complex-type '- (fn (_ a b) (%cx-sub (%ensure-complex a) (%ensure-complex b))))
-(%type-push-op %complex-type '* (fn (_ a b) (%cx-mul (%ensure-complex a) (%ensure-complex b))))
-(%type-push-op %complex-type '/ (fn (_ a b) (%cx-div (%ensure-complex a) (%ensure-complex b))))
-(%type-push-op %complex-type '= (fn (_ a b) (%cx-eq (%ensure-complex a) (%ensure-complex b))))
+(def complex-type (%type-by-atom %complex))
+(%type-push-op complex-type '+ (fn (_ a b) (cx-add (ensure-complex a) (ensure-complex b))))
+(%type-push-op complex-type '- (fn (_ a b) (cx-sub (ensure-complex a) (ensure-complex b))))
+(%type-push-op complex-type '* (fn (_ a b) (cx-mul (ensure-complex a) (ensure-complex b))))
+(%type-push-op complex-type '/ (fn (_ a b) (cx-div (ensure-complex a) (ensure-complex b))))
+(%type-push-op complex-type '= (fn (_ a b) (cx-eq (ensure-complex a) (ensure-complex b))))
 ; % is mathematically undefined over C -- refuse loudly instead of falling
 ; through to the generic dispatch's garbage-int path.
-(%type-push-op %complex-type '%
+(%type-push-op complex-type '%
   (fn (_ a b) (error "complex: % is undefined for complex numbers")))
 
 ; --- Predicates ---
@@ -275,26 +276,33 @@
   (fn (_ x)
     (match
       ((%complex? x) #t)
-      ((%rat? x) #t)
+      ((rat? x) #t)
       ((float? x) #t)
       (#t (%int-number? x)))))
 
 (doc complex? "Test whether a value is any numeric type (alias for number?)."
   (param x ANY "Value to test")
   (returns BOOL "True if x is a number"))
-(def complex? number?)
+; A wrapper, not an alias: number? is widened by the modules that load
+; after this one (decimal), and a copy taken here would stop at this moment.
+(def complex? (fn (_ x) (number? x)))
 
 (doc real? "Test whether a value is a real number (integer, rational, or float, but not complex)."
   (param x ANY "Value to test")
   (returns BOOL "True if x is a real number"))
 (set! real?
   (fn (_ x)
-    (if (%rat? x) #t
+    (if (rat? x) #t
       (if (float? x) #t
         (%int-number? x)))))
 
 (def-class Complex ()
   (static
+    (method type (self)
+      (doc "The complex type handle, for Convert and Type."
+        (returns ATOM "The COMPLEX type handle")
+        (sample "(Type ? 1+2i (Complex type))" "#t"))
+      %complex)
     (method complex? (self (param x ANY "Value to test"))
       (doc "Test whether a value is any numeric type (alias for number?)."
         (returns BOOL "True if x is a number"))
@@ -302,12 +310,12 @@
     (method make (self (param re NUMBER "Real part") (param im NUMBER "Imaginary part"))
       (doc "Construct a complex number from rectangular coordinates."
         (returns COMPLEX|NUMBER "Complex number, or real if imaginary part is zero"))
-      (%make-complex re im))
+      (make-complex re im))
     (method from-polar (self (param mag NUMBER "Magnitude") (param ang NUMBER "Angle in radians"))
       (doc "Construct a complex number from polar coordinates (magnitude and angle)."
         (returns COMPLEX|NUMBER "Complex number from polar coordinates"))
       (let ((fang (float-of ang)) (fmag (float-of mag)))
-        (%make-complex
+        (make-complex
           (f-mul fmag (fcos fang))
           (f-mul fmag (fsin fang)))))
     (method real-part (self (param z COMPLEX|NUMBER "Complex or real number"))
@@ -328,20 +336,20 @@
       (%cx-angle z))
     (method + (self (param a COMPLEX|NUMBER "First operand") (param b COMPLEX|NUMBER "Second operand"))
       (doc "Add two complex numbers (reals coerce)." (returns COMPLEX|NUMBER "Sum, collapsed to real if imaginary part is zero"))
-      (%cx-add (%ensure-complex a) (%ensure-complex b)))
+      (cx-add (ensure-complex a) (ensure-complex b)))
     (method - (self (param a COMPLEX|NUMBER "First operand") (param b COMPLEX|NUMBER "Second operand"))
       (doc "Subtract two complex numbers (reals coerce)." (returns COMPLEX|NUMBER "Difference, collapsed to real if imaginary part is zero"))
-      (%cx-sub (%ensure-complex a) (%ensure-complex b)))
+      (cx-sub (ensure-complex a) (ensure-complex b)))
     (method * (self (param a COMPLEX|NUMBER "First operand") (param b COMPLEX|NUMBER "Second operand"))
       (doc "Multiply two complex numbers (reals coerce)." (returns COMPLEX|NUMBER "Product, collapsed to real if imaginary part is zero"))
-      (%cx-mul (%ensure-complex a) (%ensure-complex b)))
+      (cx-mul (ensure-complex a) (ensure-complex b)))
     (method / (self (param a COMPLEX|NUMBER "Dividend") (param b COMPLEX|NUMBER "Divisor"))
       (doc "Divide two complex numbers (reals coerce)." (returns COMPLEX|NUMBER "Quotient, collapsed to real if imaginary part is zero"))
-      (%cx-div (%ensure-complex a) (%ensure-complex b)))
+      (cx-div (ensure-complex a) (ensure-complex b)))
     (method = (self (param a COMPLEX|NUMBER "Left operand") (param b COMPLEX|NUMBER "Right operand"))
       (doc "Test whether two complex numbers are equal (reals coerce)."
         (returns BOOL "True if both real and imaginary parts are equal"))
-      (%cx-eq (%ensure-complex a) (%ensure-complex b)))))
+      (cx-eq (ensure-complex a) (ensure-complex b)))))
 
 ; Value dispatch (subject-last): (1+2i real-part) -> (Complex real-part 1+2i).
 (def %type-push-call (prim-ref 'type 'push-call))
@@ -352,7 +360,10 @@
 (import x/sys/pact)
 (Pact join 'complex %complex)
 
-(doc (provide x/num/complex Complex)
+(doc (provide x/num/complex Complex (global complex?)
+  complex-type ensure-complex make-complex
+  cx-add cx-sub cx-mul cx-div cx-eq
+  cx-real-int cx-real-dot cx-real-frac cx-sign cx-neg cx-imag-int cx-imag-dot cx-imag-frac)
   (note "Literal syntax: a+bi, a-bi (e.g. 3+4i, 0+1i, 2-3i)")
   (note "Extends arithmetic operators (+, -, *, /, =) with complex promotion.")
   (example "3+4i" "3+4i")

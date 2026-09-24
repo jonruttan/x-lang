@@ -144,6 +144,9 @@
 (def %tower-site-interp (fn (_ s) (first (rest (rest s)))))
 (def %tower-site-maker (fn (_ s) (first (rest (rest (rest s))))))
 (def %tower-site-value-cell (fn (_ s) (rest (rest (rest (rest s))))))
+; (%tower-state ENV NAME): a module's binding of one of its states, as it
+; stands -- the interpreted twin before its compile, the compiled one after.
+(def %tower-state (fn (_ env name) (eval name env)))
 ; (%tower-jit-global! NAME ONLY? SRC FVARS INTERP [ENV]): NAME is set! to the
 ; compile of SRC over FVARS, or to INTERP when the lane refuses; ONLY? picks
 ; %tower-asm-only over %tower-asm.  An operative, so FVARS stays a form.  ENV
@@ -426,7 +429,6 @@
 ; compiles below, in the module's own frame, and a copy would keep the
 ; interpreted twin -- so the tower reads the module's binding, as it stands.
 (def %float-env (module x/num/float))
-(def %float-state (fn (_ name) (eval name %float-env)))
 ; --- The STATES, not just the entry test (x-lang#596's parked half) ---
 ;
 ; The entry analyser runs once per token; the states run once per CHARACTER,
@@ -451,31 +453,29 @@
 ; interpreted successor and the loop drops out of native code on its first
 ; transition.  And all four compile before the ENTRY analyser below, which
 ; names two of them the same way.
-; The interpreted twin of each is the module's binding before its compile;
-; an fvar is the binding as it stands, which by then is the compiled one.
 (%tower-jit-global! float-frac #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         me
         (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
     ()
-    (%float-state (lit float-frac))
+    (%tower-state %float-env (lit float-frac))
     %float-env)
 (%tower-jit-global! float-first-frac #t
     (lit (fn (_ buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         (%seq (%score-set score 1 buffer) float-frac)
         ())))
-    (list (pair (lit float-frac) (%float-state (lit float-frac))))
-    (%float-state (lit float-first-frac))
+    (list (pair (lit float-frac) (%tower-state %float-env (lit float-frac))))
+    (%tower-state %float-env (lit float-first-frac))
     %float-env)
 (%tower-jit-global! float-int-digits #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         me
         (if (= chr 46) float-first-frac ()))))
-    (list (pair (lit float-first-frac) (%float-state (lit float-first-frac))))
-    (%float-state (lit float-int-digits))
+    (list (pair (lit float-first-frac) (%tower-state %float-env (lit float-first-frac))))
+    (%tower-state %float-env (lit float-int-digits))
     %float-env)
 ; float-neg-int -- the SIGN state -- is deliberately NOT compiled.
 ;
@@ -506,8 +506,8 @@
       (if (< chr 48)
         (if (= chr 45) float-neg-int ())
         (if (< chr 58) float-int-digits ()))))
-    (list (pair (lit float-neg-int) (%float-state (lit float-neg-int)))
-          (pair (lit float-int-digits) (%float-state (lit float-int-digits))))
+    (list (pair (lit float-neg-int) (%tower-state %float-env (lit float-neg-int)))
+          (pair (lit float-int-digits) (%tower-state %float-env (lit float-int-digits))))
     %float-analyse-interp)
 
 ; 4. Rational
@@ -517,97 +517,103 @@
 ; compiled analyser captured and nothing rooted once the fvar list was
 ; cleared -- a later collect freed it, and the next leading '+'/'-'
 ; jumped into freed memory (#49).
-; The interpreted twin, for an engine with no JIT.  Must agree with
-; the compiled form below.
-(def %rat-numer-interp %rat-numer)
-(def %rat-denom-interp %rat-denom)
-(%tower-jit-global! %rat-denom #t
+; The states are the module's own, read and set through its frame as float's
+; are above.
+(def %rat-env (module x/num/rational))
+(%tower-jit-global! rat-denom #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         (%seq (%score-set score 1 buffer) me)
         (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
     ()
-    %rat-denom-interp)
-(%tower-jit-global! %rat-numer #t
+    (%tower-state %rat-env (lit rat-denom))
+    %rat-env)
+(%tower-jit-global! rat-numer #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         me
-        (if (= chr 47) %rat-first-denom ()))))
-    (list (pair (lit %rat-first-denom) %rat-first-denom))
-    %rat-numer-interp)
+        (if (= chr 47) rat-first-denom ()))))
+    (list (pair (lit rat-first-denom) (%tower-state %rat-env (lit rat-first-denom))))
+    (%tower-state %rat-env (lit rat-numer))
+    %rat-env)
+; The interpreted twin, for an engine with no JIT.  Must agree with the
+; compiled form below; built in the module's frame, see float's.
 (def %rat-analyse-interp
-  (fn (_ buffer score chr)
+  (eval (lit (fn (_ buffer score chr)
       (if (< chr 48)
-      (if (= chr 45) %rat-sign (if (= chr 43) %rat-sign ()))
-      (if (< chr 58) %rat-numer ()))))
+      (if (= chr 45) rat-sign (if (= chr 43) rat-sign ()))
+      (if (< chr 58) rat-numer ()))))
+    %rat-env))
 (%tower-jit-push! (%type-by-atom (%type-of 1/2))
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
-        (if (= chr 45) %rat-sign (if (= chr 43) %rat-sign ()))
-        (if (< chr 58) %rat-numer ()))))
-    (list (pair (lit %rat-sign) %rat-sign)
-          (pair (lit %rat-numer) %rat-numer))
+        (if (= chr 45) rat-sign (if (= chr 43) rat-sign ()))
+        (if (< chr 58) rat-numer ()))))
+    (list (pair (lit rat-sign) (%tower-state %rat-env (lit rat-sign)))
+          (pair (lit rat-numer) (%tower-state %rat-env (lit rat-numer))))
     %rat-analyse-interp)
 
 ; 5. Complex
 (include "lib/x/num/complex.x")
-; The interpreted twin, for an engine with no JIT.  Must agree with
-; the compiled form below.
-(def %cx-real-int-interp %cx-real-int)
-(def %cx-real-frac-interp %cx-real-frac)
-(def %cx-imag-int-interp %cx-imag-int)
-(def %cx-imag-frac-interp %cx-imag-frac)
-(%tower-jit-global! %cx-imag-frac #t
+(def %cx-env (module x/num/complex))
+(%tower-jit-global! cx-imag-frac #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         me
         (if (= chr 105) (%score-set score 1 buffer) ()))))
     ()
-    %cx-imag-frac-interp)
-(%tower-jit-global! %cx-imag-int #t
+    (%tower-state %cx-env (lit cx-imag-frac))
+    %cx-env)
+(%tower-jit-global! cx-imag-int #t
     (lit (fn (me buffer score chr)
       (match
         ((and (>= chr 48) (<= chr 57)) me)
-        ((= chr 46) %cx-imag-dot)
+        ((= chr 46) cx-imag-dot)
         ((= chr 105) (%score-set score 1 buffer))
         (#t ()))))
-    (list (pair (lit %cx-imag-dot) %cx-imag-dot))
-    %cx-imag-int-interp)
-(%tower-jit-global! %cx-real-frac #t
+    (list (pair (lit cx-imag-dot) (%tower-state %cx-env (lit cx-imag-dot))))
+    (%tower-state %cx-env (lit cx-imag-int))
+    %cx-env)
+(%tower-jit-global! cx-real-frac #t
     (lit (fn (me buffer score chr)
       (match
         ((and (>= chr 48) (<= chr 57)) me)
-        ((= chr 43) %cx-sign)
-        ((= chr 45) %cx-sign)
+        ((= chr 43) cx-sign)
+        ((= chr 45) cx-sign)
         ((= chr 105) (%score-set score 1 buffer))
         (#t ()))))
-    (list (pair (lit %cx-sign) %cx-sign))
-    %cx-real-frac-interp)
-(%tower-jit-global! %cx-real-int #t
+    (list (pair (lit cx-sign) (%tower-state %cx-env (lit cx-sign))))
+    (%tower-state %cx-env (lit cx-real-frac))
+    %cx-env)
+(%tower-jit-global! cx-real-int #t
     (lit (fn (me buffer score chr)
       (match
         ((and (>= chr 48) (<= chr 57)) me)
-        ((= chr 46) %cx-real-dot)
-        ((= chr 43) %cx-sign)
-        ((= chr 45) %cx-sign)
+        ((= chr 46) cx-real-dot)
+        ((= chr 43) cx-sign)
+        ((= chr 45) cx-sign)
         ((= chr 105) (%score-set score 1 buffer))
         (#t ()))))
-    (list (pair (lit %cx-real-dot) %cx-real-dot)
-          (pair (lit %cx-sign) %cx-sign))
-    %cx-real-int-interp)
+    (list (pair (lit cx-real-dot) (%tower-state %cx-env (lit cx-real-dot)))
+          (pair (lit cx-sign) (%tower-state %cx-env (lit cx-sign))))
+    (%tower-state %cx-env (lit cx-real-int))
+    %cx-env)
+; The interpreted twin, for an engine with no JIT.  Must agree with the
+; compiled form below; built in the module's frame, see float's.
 (def %cx-analyse-interp
-  (fn (_ buffer score chr)
+  (eval (lit (fn (_ buffer score chr)
       (if (< chr 48)
-      (if (= chr 45) %cx-neg ())
-      (if (< chr 58) %cx-real-int ()))))
+      (if (= chr 45) cx-neg ())
+      (if (< chr 58) cx-real-int ()))))
+    %cx-env))
 (%tower-jit-push! (%type-by-atom (%type-of 1+1i))
     ; Sign branch: -1+2i analyses as complex (#45 R4).
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
-        (if (= chr 45) %cx-neg ())
-        (if (< chr 58) %cx-real-int ()))))
-    (list (pair (lit %cx-neg) %cx-neg)
-          (pair (lit %cx-real-int) %cx-real-int))
+        (if (= chr 45) cx-neg ())
+        (if (< chr 58) cx-real-int ()))))
+    (list (pair (lit cx-neg) (%tower-state %cx-env (lit cx-neg)))
+          (pair (lit cx-real-int) (%tower-state %cx-env (lit cx-real-int))))
     %cx-analyse-interp)
 
 ; 6. Decimal
@@ -618,51 +624,53 @@
 ; is a longer claim than float's on the same digits -- 1.5d beats 1.5 by the
 ; suffix, and a token without one is never contested.
 (include "lib/x/num/decimal.x")
-; The interpreted twin, for an engine with no JIT.  Must agree with
-; the compiled form below.
-(def %dec-int-interp %dec-int)
-(def %dec-frac-interp %dec-frac)
-(def %dec-exp-digits-interp %dec-exp-digits)
-(%tower-jit-global! %dec-exp-digits #t
+(def %dec-env (module x/num/decimal))
+(%tower-jit-global! dec-exp-digits #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57)) me
         (if (= chr 100) (%score-set score 1 buffer) ()))))
     ()
-    %dec-exp-digits-interp)
-(%tower-jit-global! %dec-frac #t
+    (%tower-state %dec-env (lit dec-exp-digits))
+    %dec-env)
+(%tower-jit-global! dec-frac #t
     (lit (fn (me buffer score chr)
       (match
         ((and (>= chr 48) (<= chr 57)) me)
         ((= chr 100) (%score-set score 1 buffer))
-        ((or (= chr 101) (= chr 69)) %dec-exp-sign)
+        ((or (= chr 101) (= chr 69)) dec-exp-sign)
         (#t ()))))
-    (list (pair (lit %dec-exp-sign) %dec-exp-sign))
-    %dec-frac-interp)
-(%tower-jit-global! %dec-int #t
+    (list (pair (lit dec-exp-sign) (%tower-state %dec-env (lit dec-exp-sign))))
+    (%tower-state %dec-env (lit dec-frac))
+    %dec-env)
+(%tower-jit-global! dec-int #t
     (lit (fn (me buffer score chr)
       (match
         ((and (>= chr 48) (<= chr 57)) me)
         ((= chr 100) (%score-set score 1 buffer))
-        ((= chr 46) %dec-first-frac)
-        ((or (= chr 101) (= chr 69)) %dec-exp-sign)
+        ((= chr 46) dec-first-frac)
+        ((or (= chr 101) (= chr 69)) dec-exp-sign)
         (#t ()))))
-    (list (pair (lit %dec-first-frac) %dec-first-frac)
-          (pair (lit %dec-exp-sign) %dec-exp-sign))
-    %dec-int-interp)
+    (list (pair (lit dec-first-frac) (%tower-state %dec-env (lit dec-first-frac)))
+          (pair (lit dec-exp-sign) (%tower-state %dec-env (lit dec-exp-sign))))
+    (%tower-state %dec-env (lit dec-int))
+    %dec-env)
+; The interpreted twin, for an engine with no JIT.  Must agree with the
+; compiled form below; built in the module's frame, see float's.
 (def %dec-analyse-interp
-  (fn (_ buffer score chr)
+  (eval (lit (fn (_ buffer score chr)
       (if (< chr 48)
-      (if (or (= chr 45) (= chr 43)) %dec-sign ())
-      (if (< chr 58) %dec-int ()))))
+      (if (or (= chr 45) (= chr 43)) dec-sign ())
+      (if (< chr 58) dec-int ()))))
+    %dec-env))
 (%tower-jit-push! (%type-by-atom (%type-of 1.5d))
     ; Sign branch mirrors the interpreted analyser: -0.001d is one
     ; token, not a `-` applied to a decimal (#45 R4's lesson).
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
-        (if (or (= chr 45) (= chr 43)) %dec-sign ())
-        (if (< chr 58) %dec-int ()))))
-    (list (pair (lit %dec-sign) %dec-sign)
-          (pair (lit %dec-int) %dec-int))
+        (if (or (= chr 45) (= chr 43)) dec-sign ())
+        (if (< chr 58) dec-int ()))))
+    (list (pair (lit dec-sign) (%tower-state %dec-env (lit dec-sign)))
+          (pair (lit dec-int) (%tower-state %dec-env (lit dec-int))))
     %dec-analyse-interp)
 
 ; --- Reclaim the load burst: NOT HERE ---------------------------------------

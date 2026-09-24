@@ -1,5 +1,6 @@
 ; rational.x -- Rational number type (exact fractions)
-(import x/num/float)
+(module x/num/rational)
+
 (import x/num/float float f-div int->float)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
@@ -30,7 +31,7 @@
 ; Forward-declare reader and type handle
 
 (def %rational-read ())
-(def %rational ())
+(def rational ())
 ; --- GCD (Euclidean algorithm) ---
 
 ; The modulo is the %int% binary, NOT a - b*(a/b): the reconstruction
@@ -56,7 +57,7 @@
         (self s (%int+ i 1) len)))))
 ; --- Constructor: auto-reduce and normalize sign ---
 
-(def %make-rational
+(def make-rational
   (fn (_ n d)
     (if (%int= d 0) (error "division by zero")
       (let ((g (%gcd (%abs n) (%abs d))))
@@ -64,35 +65,35 @@
           ; Normalize: denominator always positive.  Either part can be
           ; LONG_MIN, so the negation promotes (see %abs).
           (if (%int< rd 0)
-            (%make-instance %rational (pair (- 0 rn) (- 0 rd)))
+            (%make-instance rational (pair (- 0 rn) (- 0 rd)))
             ; Reduce to integer if denominator is 1
             (if (%int= rd 1) rn
-              (%make-instance %rational (pair rn rd)))))))))
+              (%make-instance rational (pair rn rd)))))))))
 ; --- Tokenizer state machine: [+-]?[0-9]+/[0-9]+ ---
 ; After '/' — must see at least one digit
 
-(def %rat-denom ())
+(def rat-denom ())
 
-(set! %rat-denom
+(set! rat-denom
   (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
-      (%seq (%score-set score 1 buffer) %rat-denom)
+      (%seq (%score-set score 1 buffer) rat-denom)
       (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
 
-(def %rat-first-denom
+(def rat-first-denom
   (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
-      (%seq (%score-set score 1 buffer) %rat-denom)
+      (%seq (%score-set score 1 buffer) rat-denom)
       ())))
 ; Integer digits before '/'
 
-(def %rat-numer ())
+(def rat-numer ())
 
-(set! %rat-numer
+(set! rat-numer
   (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
-      %rat-numer
-      (if (= chr 47) %rat-first-denom ()))))
+      rat-numer
+      (if (= chr 47) rat-first-denom ()))))
 
 ; The state after a leading sign: digits continue into the numerator, anything
 ; else rejects. A module-level def, NOT an inline closure, for two reasons --
@@ -104,12 +105,12 @@
 ; Every other tower stage already uses a module-level def for its sign state
 ; (%big-sign-state, %int-capped-sign, %float-neg-int, %cx-neg); rational was
 ; the odd one out.
-(def %rat-sign
+(def rat-sign
   (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) %rat-numer ())))
+    (if (and (>= chr 48) (<= chr 57)) rat-numer ())))
 ; --- Rational type ---
 
-(set! %rational
+(set! rational
   (%make-type
     "RATIONAL"
     (list
@@ -121,21 +122,21 @@
         'analyse
         (fn (_ buffer score chr)
           (match
-            ((and (>= chr 48) (<= chr 57)) %rat-numer)
-            ((= chr 45) %rat-sign)
-            ((= chr 43) %rat-sign)
+            ((and (>= chr 48) (<= chr 57)) rat-numer)
+            ((= chr 45) rat-sign)
+            ((= chr 43) rat-sign)
             (#t ()))))
       (pair 'read (fn (_ . args) (%rational-read (first args))))
       (pair
         'from
         (list
-          (pair (%type-of 42) (fn (_ value) (%make-rational value 1)))
+          (pair (%type-of 42) (fn (_ value) (make-rational value 1)))
           (pair
             (%type-of "")
             (fn (_ value)
               (let ((pos (%rat-find-slash value 0 (%str-length value))))
                 (if pos
-                  (%make-rational
+                  (make-rational
                     (%cvt (%substring value 0 pos) %int)
                     (%cvt
                       (%substring value (%int+ pos 1) (%str-length value)) %int))
@@ -160,11 +161,11 @@
 (note "Predicates")
 
 ; Private predicates/accessors; the public API is the Rational class.
-(def %rational? (fn (_ x) (if (%type? x %rational) #t (%int-number? x))))
+(def %rational? (fn (_ x) (if (%type? x rational) #t (%int-number? x))))
 (def %numer-of
-  (fn (_ x) (if (%type? x %rational) (first (first x)) x)))
+  (fn (_ x) (if (%type? x rational) (first (first x)) x)))
 (def %denom-of
-  (fn (_ x) (if (%type? x %rational) (rest (first x)) 1)))
+  (fn (_ x) (if (%type? x rational) (rest (first x)) 1)))
 
 ; --- Arithmetic ---
 
@@ -181,38 +182,38 @@
 ; reduce them back down through the dispatching binaries (which already
 ; route bigint operands).  Without bigint in the tower the publics are the
 ; raw folds and behavior is unchanged.
-(def %rat-add
+(def rat-add
   (fn (_ a b)
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
-      (%make-rational
+      (make-rational
         (+ (* an bd) (* bn ad))
         (* ad bd)))))
 
-(def %rat-sub
+(def rat-sub
   (fn (_ a b)
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
-      (%make-rational
+      (make-rational
         (- (* an bd) (* bn ad))
         (* ad bd)))))
 
-(def %rat-mul
+(def rat-mul
   (fn (_ a b)
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
-      (%make-rational (* an bn) (* ad bd)))))
+      (make-rational (* an bn) (* ad bd)))))
 
-(def %rat-div
+(def rat-div
   (fn (_ a b)
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
-      (%make-rational (* an bd) (* ad bn)))))
+      (make-rational (* an bd) (* ad bn)))))
 ; --- Comparisons ---
 
 (note "Comparison")
 
-(def %rat-lt
+(def rat-lt
   (fn (_ a b)
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
@@ -222,14 +223,14 @@
 ; trunc(a/b) = integer division of the cross products (%int/ dispatches
 ; bigint operands when the promoting * produced them).  A divisor of -1 is
 ; negation instead (see %exact-div).
-(def %rat-mod
+(def rat-mod
   (fn (_ a b)
     (let ((n (* (%rat-numer-of a) (%rat-denom-of b)))
           (d (* (%rat-denom-of a) (%rat-numer-of b))))
-      (%rat-sub a
-        (%rat-mul b (%make-rational (if (%int= d -1) (- 0 n) (%int/ n d)) 1))))))
+      (rat-sub a
+        (rat-mul b (make-rational (if (%int= d -1) (- 0 n) (%int/ n d)) 1))))))
 
-(def %rat-eq
+(def rat-eq
   (fn (_ a b)
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
@@ -244,30 +245,30 @@
 (def %float-from-cell (%type-from-cell (%type-by-atom float)))
 (%set-first! %float-from-cell
   (pair
-    (pair %rational
+    (pair rational
       (fn (_ self)
         (f-div
           (%make-instance float (int->float (first (first self))))
           (%make-instance float (int->float (rest (first self)))))))
     (first %float-from-cell)))
 
-(def %rat? (fn (_ x) (%type? x %rational)))
+(def rat? (fn (_ x) (%type? x rational)))
 
-(def %ensure-rat
-  (fn (_ x) (if (%rat? x) x (%make-rational x 1))))
+(def ensure-rat
+  (fn (_ x) (if (rat? x) x (make-rational x 1))))
 
 ; Generic-operator handlers: the C binaries dispatch rational operands here.
 ; The non-rational side is an int (float absorbs rationals via from; bigint
 ; and rational do not declare each other, so that mix falls through -- as
 ; before this conversion).
-(def %rational-type (%type-by-atom %rational))
-(%type-push-op %rational-type '+ (fn (_ a b) (%rat-add (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-type '- (fn (_ a b) (%rat-sub (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-type '* (fn (_ a b) (%rat-mul (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-type '/ (fn (_ a b) (%rat-div (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-type '< (fn (_ a b) (%rat-lt (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-type '= (fn (_ a b) (%rat-eq (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-type '% (fn (_ a b) (%rat-mod (%ensure-rat a) (%ensure-rat b))))
+(def rational-type (%type-by-atom rational))
+(%type-push-op rational-type '+ (fn (_ a b) (rat-add (ensure-rat a) (ensure-rat b))))
+(%type-push-op rational-type '- (fn (_ a b) (rat-sub (ensure-rat a) (ensure-rat b))))
+(%type-push-op rational-type '* (fn (_ a b) (rat-mul (ensure-rat a) (ensure-rat b))))
+(%type-push-op rational-type '/ (fn (_ a b) (rat-div (ensure-rat a) (ensure-rat b))))
+(%type-push-op rational-type '< (fn (_ a b) (rat-lt (ensure-rat a) (ensure-rat b))))
+(%type-push-op rational-type '= (fn (_ a b) (rat-eq (ensure-rat a) (ensure-rat b))))
+(%type-push-op rational-type '% (fn (_ a b) (rat-mod (ensure-rat a) (ensure-rat b))))
 
 ; Integer division that produces rational when not exact.  A divisor of -1 is
 ; negation: LONG_MIN / -1 is the one int quotient that leaves the range, and
@@ -278,7 +279,7 @@
     (if (%int= b -1) (- 0 a)
       (if (= (%int- a (%int* b (%int/ a b))) 0)
         (%int/ a b)
-        (%make-rational a b)))))
+        (make-rational a b)))))
 
 ; / policy: this module OWNS the variadic / (one policy owner per operator --
 ; bigint owns + - * overflow promotion). Both-plain-int division promotes to
@@ -307,7 +308,7 @@
     (let ((tok (%buffer-token (first args))))
       (let ((pos (%rat-find-slash tok 0 (%str-length tok))))
         (if pos
-          (%make-rational
+          (make-rational
             (%cvt (%substring tok 0 pos) %int)
             (%cvt
               (%substring tok (%int+ pos 1) (%str-length tok)) %int))
@@ -317,6 +318,16 @@
 
 (def-class Rational ()
   (static
+    (method type (self)
+      (doc "The rational type handle, for Convert and Type."
+        (returns ATOM "The RATIONAL type handle")
+        (sample "(Type ? 3/4 (Rational type))" "#t"))
+      rational)
+    (method make (self (param n INT "Numerator") (param d INT "Denominator, not zero"))
+      (doc "Make the rational n/d in lowest terms; a whole result is the integer it equals."
+        (returns RATIONAL|INT "n/d reduced")
+        (sample "(Rational make 6 4)" "3/2"))
+      (make-rational n d))
     (method rational? (self (param x ANY "Value to test"))
       (doc "Test whether a value is a rational number or integer."
         (returns BOOL "True if x is rational or integer"))
@@ -335,34 +346,37 @@
       (%denom-of x))
     (method + (self (param a RATIONAL|INT "First operand") (param b RATIONAL|INT "Second operand"))
       (doc "Add two rationals (ints coerce)." (returns RATIONAL|INT "Sum, reduced to lowest terms"))
-      (%rat-add (%ensure-rat a) (%ensure-rat b)))
+      (rat-add (ensure-rat a) (ensure-rat b)))
     (method - (self (param a RATIONAL|INT "First operand") (param b RATIONAL|INT "Second operand"))
       (doc "Subtract two rationals (ints coerce)." (returns RATIONAL|INT "Difference, reduced to lowest terms"))
-      (%rat-sub (%ensure-rat a) (%ensure-rat b)))
+      (rat-sub (ensure-rat a) (ensure-rat b)))
     (method * (self (param a RATIONAL|INT "First operand") (param b RATIONAL|INT "Second operand"))
       (doc "Multiply two rationals (ints coerce)." (returns RATIONAL|INT "Product, reduced to lowest terms"))
-      (%rat-mul (%ensure-rat a) (%ensure-rat b)))
+      (rat-mul (ensure-rat a) (ensure-rat b)))
     (method / (self (param a RATIONAL|INT "Dividend") (param b RATIONAL|INT "Divisor"))
       (doc "Divide two rationals (ints coerce)." (returns RATIONAL|INT "Quotient, reduced to lowest terms"))
-      (%rat-div (%ensure-rat a) (%ensure-rat b)))
+      (rat-div (ensure-rat a) (ensure-rat b)))
     (method < (self (param a RATIONAL|INT "Left operand") (param b RATIONAL|INT "Right operand"))
       (doc "Test whether a is less than b (ints coerce)." (returns BOOL "True if a < b"))
-      (%rat-lt (%ensure-rat a) (%ensure-rat b)))
+      (rat-lt (ensure-rat a) (ensure-rat b)))
     (method = (self (param a RATIONAL|INT "Left operand") (param b RATIONAL|INT "Right operand"))
       (doc "Test whether a equals b (ints coerce)." (returns BOOL "True if a equals b"))
-      (%rat-eq (%ensure-rat a) (%ensure-rat b)))))
+      (rat-eq (ensure-rat a) (ensure-rat b)))))
 
 ; Make a rational VALUE dispatch its calls to the Rational class (subject-last):
 ; (1/2 numerator) -> (Rational numerator 1/2); (1/2 - 1/3) -> (Rational - 1/2 1/3).
 (def %type-push-call (prim-ref 'type 'push-call))
-(%type-push-call (%type-by-atom %rational) (%class-call-handler Rational))
+(%type-push-call (%type-by-atom rational) (%class-call-handler Rational))
 
 ; Join the pact last, once the module is fully usable: tower members
 ; announce themselves so pairwise registrations fire in any load order.
 (import x/sys/pact)
-(Pact join 'rational %rational)
+(Pact join 'rational rational)
 
-(doc (provide x/num/rational Rational)
+(doc (provide x/num/rational Rational
+  rational rational-type rat? ensure-rat make-rational
+  rat-add rat-sub rat-mul rat-div rat-mod rat-eq rat-lt
+  rat-numer rat-denom rat-first-denom rat-sign)
   (note "Literal syntax: 1/3, -2/7. The generic operators dispatch rational")
   (note "operands through the type ops; / promotes inexact int division.")
   (example "(+ 1/3 1/6)" "1/2")
