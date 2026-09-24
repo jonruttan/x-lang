@@ -14,26 +14,34 @@
 ; pulls a ./-relative sibling (which imports acme/four), and hides an import
 ; of acme/three inside a deferred fn body -- and `vfix` holds acme/vd in
 ; three versions for the constraint-import cases.  Idempotent: mkdir is
-; guarded, write-all overwrites, and import-path! is a set.
+; guarded, a file is written only when its bytes differ, and import-path! is
+; a set.  The six pin files each call this as they start, together under the
+; parallel runner, and a rewrite of identical bytes would still truncate a
+; file a sibling may be reading at that moment.
+(def %pin-write!
+  (fn (_ path text)
+    (if (if (File exists? path) (str=? (File read-all path) text) #f)
+      ()
+      (File write-all path text))))
 (def %pin-fixture!
   (fn (_)
     (guard (_ ()) (File mkdir "build"))
     (guard (_ ()) (File mkdir "build/pin-spec"))
     (guard (_ ()) (File mkdir "build/pin-spec/lib0"))
     (guard (_ ()) (File mkdir "build/pin-spec/lib0/acme"))
-    (File write-all "build/pin-spec/lib0/acme/one.x"
+    (%pin-write! "build/pin-spec/lib0/acme/one.x"
       "(import acme/two)\n(include-once \"./one-extra.x\")\n(def %acme-deferred (fn (_) (import acme/three)))\n(provide acme/one)\n")
-    (File write-all "build/pin-spec/lib0/acme/one-extra.x" "(import acme/four)\n")
-    (File write-all "build/pin-spec/lib0/acme/two.x"
+    (%pin-write! "build/pin-spec/lib0/acme/one-extra.x" "(import acme/four)\n")
+    (%pin-write! "build/pin-spec/lib0/acme/two.x"
       "(import x/core/list)\n(provide acme/two)\n")
-    (File write-all "build/pin-spec/lib0/acme/three.x" "(provide acme/three)\n")
-    (File write-all "build/pin-spec/lib0/acme/four.x" "(provide acme/four)\n")
-    (File write-all "build/pin-spec/lib0/acme/bad.x" "(include-once (computed))\n")
+    (%pin-write! "build/pin-spec/lib0/acme/three.x" "(provide acme/three)\n")
+    (%pin-write! "build/pin-spec/lib0/acme/four.x" "(provide acme/four)\n")
+    (%pin-write! "build/pin-spec/lib0/acme/bad.x" "(include-once (computed))\n")
     (import-path! "build/pin-spec/lib0")
     (guard (_ ()) (File mkdir "build/pin-spec/vfix"))
     (guard (_ ()) (File mkdir "build/pin-spec/vfix/acme"))
-    (File write-all "build/pin-spec/vfix/acme/vd.x" "(provide acme/vd)\n")
-    (File write-all "build/pin-spec/vfix/acme/vd@1.3.x" "(provide acme/vd)\n")
-    (File write-all "build/pin-spec/vfix/acme/vd@1.3.1.x" "(provide acme/vd)\n")
+    (%pin-write! "build/pin-spec/vfix/acme/vd.x" "(provide acme/vd)\n")
+    (%pin-write! "build/pin-spec/vfix/acme/vd@1.3.x" "(provide acme/vd)\n")
+    (%pin-write! "build/pin-spec/vfix/acme/vd@1.3.1.x" "(provide acme/vd)\n")
     (import-path! "build/pin-spec/vfix")
     "ready"))
