@@ -145,6 +145,11 @@
     (let ((cell (pair (%dlsym %libm name) ())))
       (do (set! %libm-rows (pair (list global kind name cell) %libm-rows))
           (%libm-make kind cell)))))
+; The same door, exported, for a module or a bundle that binds a libm function
+; this file does not -- erf, the hyperbolics.  Its rows are rows here: the
+; thunk below clears them and the recache hook remakes them, and libm is
+; opened once, by this file.
+(def libm-fn %libm-fn)
 ;  A THUNK, NOT SYMBOLS.  boot/reflect.x states the rule: a symbol among the
 ; transients is cleared in the child's root, a thunk is run.  The handle and
 ; the rows' names live in this module's frame, which a symbol in the list
@@ -605,7 +610,7 @@
 (doc (provide x/num/float Float
   float float? float-of float-type ensure-float
   f-add f-sub f-mul f-div f-mod f-eq f-lt fsin fcos fsqrt fatan2 str->float int->float pi
-  float-frac float-first-frac float-int-digits float-neg-int)
+  float-frac float-first-frac float-int-digits float-neg-int libm-fn)
   (note "Literal syntax: 3.14. The generic operators dispatch float operands")
   (note "through the type ops; mixed operands resolve by the from-relation.")
   (example "(+ 1 3.14)" "4.14")

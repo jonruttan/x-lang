@@ -900,3 +900,17 @@ is unchanged.
 ```
 ---
     (#t #t #f #f #f)
+
+## the libm door
+
+### a selective import binds a libm function the float file does not
+
+```x
+((fn (_)
+   (import x/num/float libm-fn)
+   (def spec-erf (libm-fn (lit spec-erf) "d->d" "erf"))
+   (def spec-copysign (libm-fn (lit spec-copysign) "dd->d" "copysign"))
+   (list (spec-erf 0.0) (spec-copysign 2.0 -1.0))))
+```
+---
+    (0.0 -2.0)
