@@ -15,6 +15,14 @@ that is a wrapped combiner is applied the same way. One call, `%apply-kind`,
 now tells the door what it was handed, with type tests and a flag read
 fetched into its own closure, in place of `procedure?` and `operative?`.
 
+**The pin specs no longer share a vendor overlay.** The closure file and
+the lockfile file both vendored into `build/pin-spec/out`, and the runner
+has the two in flight together, so a verify in the lockfile file could count
+the tree the closure file was rewriting; it did once, on the macOS leg of
+#784's run (one file of five). The lockfile file vendors into `lout` now,
+and the shared fixture writes a file only when its bytes differ, since the
+six files build the fixture together as they start.
+
 **`x/num/rational`, `x/num/complex` and `x/num/decimal` are modules of
 their own** ([#719], step 4, the second batch of the number group; the first
 is below). Their forty-two cross-file names -- the tower's twenty-five
