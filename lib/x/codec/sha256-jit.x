@@ -6,7 +6,7 @@
 ; pure-x digest in sha256.x remains the reference implementation and the
 ; fallback; this engine is only ever an accelerator, and it is adopted
 ; only after it AGREES with the pure-x digest on the FIPS vectors plus a
-; multi-block padding case (%sha-jit-make runs that differential check
+; multi-block padding case (sha-jit-make runs that differential check
 ; itself and raises on any disagreement -- the caller's guard turns any
 ; raise, including "wrong architecture", into "stay pure-x").
 ;
@@ -22,6 +22,8 @@
 ; standalone (its fvar plumbing lives in compile/emit.x), and compile.x
 ; is the module that loads the toolchain in the right order -- its
 ; compile-asm stub pulls the assembler lazily on first use.
+(module x/codec/sha256-jit)
+
 (import x/tool/compile compile-asm)
 
 (def %sj-make-str (prim-ref (lit str) (lit make)))
@@ -126,7 +128,7 @@
 ; reference.  The caller guards; a raise means "stay pure-x", never a
 ; wrong digest.  Both current backends (ARM64, x86-64) compile the same
 ; vocabulary, so this module is arch-blind.
-(def %sha-jit-make
+(def sha-jit-make
   (fn (_ k-vec ih ref)
     (def %rounds (compile-asm %sj-rounds-expr))
     (def %fill (compile-asm %sj-fill-expr))
@@ -221,5 +223,10 @@
     (%check-n %sj-bin2 200)
     %digest))
 
-(doc (provide x/codec/sha256-jit %sha-jit-make)
+; The codec reaches the maker through the catalog: it loads this module inside
+; the function that builds the engine, and a name imported there is one the
+; linter cannot see.
+(prim-reg! (lit sha256) (lit jit-make) sha-jit-make)
+
+(doc (provide x/codec/sha256-jit sha-jit-make)
   "The compiled SHA-256 engine (JIT, ARM64 and x86-64 backends); built and adopted only via (Sha256 jit!) after proving agreement with the pure-x digest.")

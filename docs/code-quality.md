@@ -188,7 +188,7 @@ skip.
 | `%awk-p-primary` | `x-awk/parse.x` | 14 | 553 |
 | `%py-fmt-one` | `x-python/format.x` | 13 | 549 |
 | `%cc-lex-go` | `x-cc/lex.x` | 21 | 539 |
-| `%sha-jit-make` | `x-lang lib/x/codec/sha256-jit.x` | 12 | 514 |
+| `sha-jit-make` | `x-lang lib/x/codec/sha256-jit.x` | 12 | 514 |
 
 **Fix:** apply 1.1 first — some of the depth *is* ladder, and `%py-str-attr`
 appears on both lists. What remains, extract as named top-level `%`-helpers

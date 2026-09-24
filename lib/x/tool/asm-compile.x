@@ -1,5 +1,7 @@
 ; asm-compile.x -- JIT compiler: x-lang expressions to native machine code
 ; Produces proper x-lang prims that work with map, fold, closures, etc.
+(module x/tool/asm-compile)
+
 (import x/core/list)
 ; The compile state lives in tool/compile/emit.x; a JIT compile sets the
 ; free-variable alist around itself and looks names up in it through the
@@ -83,16 +85,29 @@
 ; cache never reaches them -- a pour re-resolves every trampoline by name --
 ; which is how x-base loaded fine until its first cold compile after a load,
 ; which died with SIGBUS inside the analyser it had just emitted.  So each
-; binding registers itself as it is made (the transient rule, boot/reflect.x:
-; the writer images it as nil) with the row the recache hook remakes it
-; from, the handle with them; the name table is read off the rows.
+; binding records its row as it is made, and one thunk among the transients
+; (the transient rule, boot/reflect.x) clears the handle and every row's
+; binding before the writer's walk, so the writer images them as nil; the
+; recache hook remakes them from the rows, the handle with them, and the
+; name table is read off the rows.
 (def %jit-rows ())                 ; ((global name optional?) ...), newest first
 (def %jit-bind!
   (fn (_ global name optional?)
     (do (set! %jit-rows (pair (list global name optional?) %jit-rows))
-        (set! %image-transients (pair global %image-transients))
         (%jit-addr name optional?))))
-(set! %image-transients (pair (lit %jit-lib) %image-transients))
+;  A THUNK, NOT SYMBOLS: the writer clears a symbol in the child's root, and
+; the handle and the rows' names live in this module's frame.  Each row's
+; binding is cleared by a set! evaluated here, in the module's frame; the
+; rows are read at run time, so every row made below is covered.
+(set! %image-transients
+  (pair (fn (_)
+          (do (set! %jit-lib ())
+              ((fn (self l)
+                 (if (null? l) ()
+                   (do (self (rest l))
+                       (eval (list (lit set!) (first (first l)) ())))))
+               %jit-rows)))
+        %image-transients))
 (def %jit-mkint    (%jit-bind! (lit %jit-mkint) "jit_mkint" #f))
 (def %jit-mkpair   (%jit-bind! (lit %jit-mkpair) "jit_mkpair" #f))
 (def %jit-firstobj (%jit-bind! (lit %jit-firstobj) "jit_firstobj" #f))
@@ -1078,7 +1093,7 @@
 
 ; --- Public API ---
 
-(def %asm-compile-fresh
+(def asm-compile-fresh
   (fn (_ expr fvars analyser?)
     ; Refuse before emitting anything when the JIT runtime is not
     ; reachable.  An unresolved helper is address 0, and a compiled call
@@ -1165,9 +1180,9 @@
 
 ; Fill in asm.x's compiler slot: this file is imported lazily, by the cache
 ; door, on the one path that needs a compiler.
-(set! %asm-compiler %asm-compile-fresh)
+(set! %asm-compiler asm-compile-fresh)
 
-(doc %asm-compile-fresh
+(doc asm-compile-fresh
   (returns CALLABLE "X-lang callable prim")
   "Emit native code for an x-lang (fn ...) expression, with no cache in the
    way.  asm-compile-cached -- the cache behind the compile-asm door, in
@@ -1179,5 +1194,5 @@
    a prim the code computes, and refuses at run time if the head is not
    one.")
 
-(doc (provide x/tool/asm-compile %asm-compile-fresh)
+(doc (provide x/tool/asm-compile asm-compile-fresh)
   "JIT compiler: x-lang to native code via assembler.")

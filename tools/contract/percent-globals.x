@@ -178,7 +178,6 @@
 ; before their compiles, read through the module's frame; and to 47 when the
 ; rational, complex and decimal states followed.
 (file "lib/x/boot/tower-compiled.x" 47)
-(file "lib/x/codec/sha256-jit.x" 34)
 ; codec/sha256.x grew by one, 32 -> 33, for %cvt: the catalog converter it read
 ; from the root while x/sys/posix bound it there.  posix is scoped, and under
 ; the plain x dialect nothing else binds it (x-lang#719, step 4).
@@ -231,7 +230,6 @@
 ; one lane where that is exactly what must not happen (x-lang#590).  The rest
 ; are the size cap and the stand-aside seam -- the two reasons this module
 ; declines an expression rather than keying it.
-(file "lib/x/tool/asm-cache.x" 65)
 ; asm-compile.x rose 63 to 64 for %jit-addr-optional: an OPTIONAL JIT
 ; trampoline (jit_buffer_last_char, newer than the core set) resolves through
 ; it WITHOUT recording a miss, so an older engine that lacks only that symbol
@@ -273,7 +271,6 @@
 ; to a wrong answer.  Its op set is a literal inside it rather than a second
 ; row, and asm-cache.x spends none: the codegen epoch in its key is a literal
 ; in %asm-cache-identity.
-(file "lib/x/tool/asm-compile.x" 82)
 ; asm.x rose 37 to 38 for %ptr-ref: the relocator reads a site back (the
 ; ARM64 MOVZ carries the destination register) rather than making every
 ; relocation record carry one.
