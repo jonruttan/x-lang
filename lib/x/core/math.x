@@ -5,6 +5,12 @@
 ; (method-ref Num inc) etc.
 
 (module x/core/math)
+
+; The binary integer primitives, fetched from the catalog: the C operators as
+; they were before core/arithmetic.x wrapped the bare names.
+(def %int+ (prim-ref (lit int) (lit +)))
+(def %int/ (prim-ref (lit int) (lit /)))
+(def %int% (prim-ref (lit int) (lit %)))
 (import x/type/class)
 
 ; The machine-INT type handle, for (Num int?) and the N5 count/index guards.

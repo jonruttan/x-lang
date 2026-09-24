@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The number modules, `type/hash`, `core/math` and the coverage report fetch
+the integer primitives themselves** ([#719], step 4). `core/arithmetic.x`
+saves the binary C operators as `%int+`, `%int-`, `%int*`, `%int/`,
+`%int%`, `%int<` and `%int=` before it wraps the bare names, and seven
+library files and one tool read those saved names across the file
+boundary; the catalog files the same C functions under `int`, so each
+reader fetches its own, `(prim-ref (lit int) (lit +))`, as the image walk
+already did. `%int-number?`, the machine-INT test as `number?` was before
+float widened it, has no catalog entry; the four readers that need it test
+the INT type directly. Thirty-six private reads leave the scan (754 to 718),
+and `core/arithmetic.x` has no reader outside itself. It stays unscoped for
+now: its operator wrappers are the most called functions in the library, and
+a module frame would put its scan in front of every name their bodies
+resolve, which is the cost the six hot modules were measured for before
+staying put. `docs/namespaces.md` records that the seven boot files loading
+before `boot/module.x` cannot be modules at all.
+
 **The JIT compiler, its byte cache and the compiled SHA-256 engine are
 modules of their own** ([#719], step 4, the JIT group). `x/tool/asm-compile`,
 `x/tool/asm-cache` and `x/codec/sha256-jit` carry `(module ...)` headers,

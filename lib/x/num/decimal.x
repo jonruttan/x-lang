@@ -21,6 +21,16 @@
 ; promotes without inventing digits.  Complex still absorbs decimal, as it
 ; absorbs every real.
 (module x/num/decimal)
+
+; The binary integer primitives, fetched from the catalog: the C operators as
+; they were before core/arithmetic.x wrapped the bare names.
+(def %int+ (prim-ref (lit int) (lit +)))
+(def %int- (prim-ref (lit int) (lit -)))
+(def %int* (prim-ref (lit int) (lit *)))
+(def %int/ (prim-ref (lit int) (lit /)))
+(def %int% (prim-ref (lit int) (lit %)))
+(def %int< (prim-ref (lit int) (lit <)))
+(def %int= (prim-ref (lit int) (lit =)))
 (import x/num/bigint bigint bigint? big-limbs bigint-digits-per-limb)
 (import x/num/float float)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).

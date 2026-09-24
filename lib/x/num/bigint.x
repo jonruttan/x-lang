@@ -24,6 +24,18 @@
 (def %make-type (prim-ref 'type 'make))
 (def %type-of (prim-ref 'type 'of))
 (def %type? (prim-ref 'type '?))
+; The binary integer primitives, fetched from the catalog: the C operators as
+; they were before core/arithmetic.x wrapped the bare names.
+(def %int+ (prim-ref (lit int) (lit +)))
+(def %int- (prim-ref (lit int) (lit -)))
+(def %int* (prim-ref (lit int) (lit *)))
+(def %int/ (prim-ref (lit int) (lit /)))
+(def %int% (prim-ref (lit int) (lit %)))
+(def %int< (prim-ref (lit int) (lit <)))
+(def %int= (prim-ref (lit int) (lit =)))
+; The machine-INT test, as predicates.x's number? was before float widened it.
+(def %int-t (%type-of 0))
+(def %int-number? (fn (_ x) (%type? x %int-t)))
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref 'char '->int))
 
