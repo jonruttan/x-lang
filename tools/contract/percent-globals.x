@@ -187,7 +187,7 @@
 (file "lib/x/core/arithmetic.x" 17)
 (file "lib/x/core/boolean.x" 3)
 (file "lib/x/core/control.x" 3)   ; +1 %apply: let applies the closure it built through the engine's apply, not the library's door (fn.x)
-(file "lib/x/core/fn.x" 7)   ; the apply door: %apply, the engine's apply it is bound over; %apply-args and %apply-quoted, its splice and the quoting a handler that evaluates its operands needs; %apply-value, the value path, kept off the closure fast path; %apply-type-of, %apply-by-atom and %apply-call-top, the reflection doors that path takes on every call, cached (1,283 objects a call fetched from the catalog)
+(file "lib/x/core/fn.x" 8)   ; the apply door: %apply, the engine's apply it is bound over; %apply-args and %apply-quoted, its splice and the quoting a handler that evaluates its operands needs; %apply-value, the value path, kept off the closure fast path; %apply-type-of, %apply-by-atom and %apply-call-top, the reflection doors that path takes on every call, cached (1,283 objects a call fetched from the catalog); %apply-kind, the one call that says what kind of callable the door was handed, wrapped combiners included (its doors ride its closure)
 (file "lib/x/core/list.x" 23)
 (file "lib/x/core/logic.x" 1)
 (file "lib/x/core/predicates.x" 12)
