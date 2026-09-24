@@ -389,6 +389,41 @@ as themselves, as they do in the direct call.
 ---
     'type
 
+### a wrapped operative applies as the operative, as the direct call does
+
+`(wrap c)` evaluates the operands and hands `c` the values, and through `apply`
+the values reach `c` as they are. The engine's `apply` binds a wrapped
+combiner like a closure with no parameters and no body, and answered nil.
+
+```x
+(def %apply-spec-w (wrap (op (a b) e (list a b))))
+(list (%apply-spec-w (+ 1 1) 3) (apply %apply-spec-w (list 2 3)) (apply %apply-spec-w 2 (list 3)))
+```
+---
+    ((2 3) (2 3) (2 3))
+
+### a wrapped closure and a wrap of a wrap apply as what they wrap
+
+```x
+(def %apply-spec-wf (wrap (fn (_ a) (list (lit got) a))))
+(def %apply-spec-ww (wrap %apply-spec-w))
+(list (apply %apply-spec-wf (list 5)) (apply %apply-spec-ww (list 1 2)) (%apply-spec-ww 1 2))
+```
+---
+    (('got 5) (1 2) (1 2))
+
+### a call handler that is a wrapped combiner is applied as its combiner
+
+```x
+(def %apply-spec-wt
+  ((prim-ref (lit type) (lit make)) "APPLY-SPEC-WRAP"
+    (list (pair (lit call) (wrap (op (self . xs) e (list (first self) xs)))))))
+(def %apply-spec-wi ((prim-ref (lit type) (lit make-instance)) %apply-spec-wt 9))
+(list (%apply-spec-wi 1 2) (apply %apply-spec-wi (list 1 2)))
+```
+---
+    ((9 (1 2)) (9 (1 2)))
+
 ### the door keeps apply a tail call
 
 ```x

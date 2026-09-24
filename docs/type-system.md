@@ -230,7 +230,8 @@ callable head must be told what to do.
 
 **`apply` takes the same door.** The library binds `apply` over the engine's
 (`lib/x/core/fn.x`): a closure, a primitive or an operative is applied by the
-engine, and any other value is applied through its type's `call` handler, so
+engine, a wrapped combiner, `(wrap c)`, is applied as `c`, and any other value
+is applied through its type's `call` handler, so
 `(apply v vals)` reaches the handler `(v ...)` reaches. A closure handler takes
 the values as they are. A handler that evaluates its operands, an operative or
 one of the engine's C handlers, is handed each value quoted, so `(apply v vals)`

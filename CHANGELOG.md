@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`apply` applies a wrapped combiner as the combiner it wraps.**
+`(apply (wrap c) vals)` answered nil. A wrapped combiner is a procedure whose
+parameters and body are nil and whose environment slot holds `c`, and the
+engine's `apply` bound it like a closure with nothing to run. The library's
+`apply` now reads the wrap flag and applies `c` to the values, as the direct
+call `((wrap c) ...)` hands `c` the values it evaluated, and a call handler
+that is a wrapped combiner is applied the same way. One call, `%apply-kind`,
+now tells the door what it was handed, with type tests and a flag read
+fetched into its own closure, in place of `procedure?` and `operative?`.
+
 **`apply` takes a value's call handler, and refuses a value without one.**
 The engine's `apply` calls through whatever it is handed, and handed a value
 that is not a closure, an operative or a primitive it jumps into the value's

@@ -27,6 +27,12 @@
 ; bare operative gets the values as its operands, as the engine's apply hands
 ; them over.
 ;
+; A wrapped combiner, (wrap c), is applied as c: the direct call evaluates
+; the operands and hands c the values, and the door hands c the values it was
+; given.  The engine's apply cannot do that for it: the wrapped combiner is a
+; procedure whose parameters and body are nil and whose environment slot holds
+; c, and the engine's apply binds it like any closure, so it answered nil.
+;
 ; The engine's apply stays under %apply.  What the library built, or what a
 ; type cell holds, is applied through it -- let, the class dispatcher, the
 ; printer and the reflect layer each keep their own capture -- so none of
@@ -39,6 +45,38 @@
 (def %apply-type-of (prim-ref (lit type) (lit of)))
 (def %apply-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %apply-call-top (prim-ref (lit type) (lit call-top)))
+; What kind of callable f is, in one call on the door's fast path: (lit fn)
+; for a closure or a primitive, which take the values as they are; (lit op)
+; for an operative; (lit wrap) for a wrapped combiner, a procedure carrying
+; the engine's wrap flag (flag 1, engine/tools/contract/obj-layout.x); and ()
+; for anything else, which its type's call handler takes.  The doors it reads
+; with are fetched into its own closure, as x/tool/cov.x fetches its flag
+; reader, so they add no module global.
+(def %apply-kind
+  ((fn (_ )
+     (def type-of (prim-ref (lit type) (lit of)))
+     (def is? (prim-ref (lit type) (lit ?)))
+     (def proc-t (type-of (fn (_ ) ())))
+     (def prim-t (type-of eq?))
+     (def op-t (type-of (op (_ ) ())))
+     (def o->p (prim-ref (lit obj) (lit ->ptr)))
+     (def ref-word (prim-ref (lit ptr) (lit ref-word)))
+     (def bit-and (prim-ref (lit int) (lit &)))
+     (def word-size
+       (match
+         ((< 0 ((prim-ref (lit ptr) (lit ->int)) ((prim-ref (lit int) (lit ->ptr)) 4294967296))) 8)
+         (#t 4)))
+     (def flags-off (* %obj-slot-flags word-size))
+     (fn (_ f)
+       (match
+         ((is? f proc-t)
+           (match
+             ((eq? (bit-and (ref-word (o->p f) flags-off) %obj-flag-1) 0) (lit fn))
+             (#t (lit wrap))))
+         ((is? f prim-t) (lit fn))
+         ((is? f op-t) (lit op))
+         (#t ()))))
+   ()))
 ; The argument list: the tail alone, or the leading arguments spliced in
 ; front of it.  A walk of its own, never apply applied to apply: the engine's
 ; apply evaluates its operands, and a list among the leading arguments would
@@ -64,24 +102,29 @@
     (def h (match
              ((eq? t ()) ())
              (#t (%apply-call-top t))))
+    (def k (%apply-kind h))
     (match
       ((eq? h ()) (Err raise (lit type) "apply: not callable" f))
-      ((procedure? h) (%apply h (pair f args)))
+      ((eq? k (lit fn)) (%apply h (pair f args)))
+      ((eq? k (lit wrap)) (apply h (pair f args)))
       (#t (%apply h (pair f (%apply-quoted args)))))))
 (doc (def apply
-  (fn (_ (param f CALLABLE "What to apply: a closure, a primitive, an operative, or a value whose type has a call handler")
+  (fn (_ (param f CALLABLE "What to apply: a closure, a primitive, an operative, a wrapped combiner, or a value whose type has a call handler")
          . (param spread ANY "Leading arguments, then the list of the rest"))
+    (def kind (%apply-kind f))
     (match
       ((eq? spread ()) (Err raise (lit type) "apply: no argument list" ()))
-      ((procedure? f) (%apply f (%apply-args spread)))
-      ((operative? f) (%apply f (%apply-args spread)))
+      ((eq? kind (lit fn)) (%apply f (%apply-args spread)))
+      ((eq? kind (lit op)) (%apply f (%apply-args spread)))
+      ((eq? kind (lit wrap)) (apply (unwrap f) (%apply-args spread)))
       (#t (%apply-value f (%apply-args spread))))))
   (returns ANY "What f answers")
   (example "(apply + (list 1 2))" "3")
   (example "(apply + 1 2 (list 3 4))" "10")
   (example "(apply (Vector of 1 2 3) (list 1))" "2")
+  (example "(apply (wrap (op (a) e a)) (list 5))" "5")
   (example "(guard (e (Err tag e)) (apply () (list 1)))" "'type")
-  "Apply f to a list of arguments, with any leading arguments spliced in front: (apply f a b (list c d)) calls f with (a b c d). A closure, a primitive or an operative is applied by the engine; any other value is applied through its type's call handler, the way (v args...) calls it, and a value with no handler raises a type error.")
+  "Apply f to a list of arguments, with any leading arguments spliced in front: (apply f a b (list c d)) calls f with (a b c d). A closure, a primitive or an operative is applied by the engine; a wrapped combiner, (wrap c), is applied as c; any other value is applied through its type's call handler, the way (v args...) calls it, and a value with no handler raises a type error.")
 
 (def-class Fn ()
   (static
