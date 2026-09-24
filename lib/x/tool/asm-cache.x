@@ -46,6 +46,8 @@
 ;
 ; Plain defs, not a class: this sits on the compile path beside asm.x and
 ; asm-compile.x, which are written the same way.
+(module x/tool/asm-cache)
+
 (import x/type/hash)
 (import x/tool/asm)
 
@@ -592,7 +594,7 @@
 ; key that does not match byte for byte, a symbol that will not resolve -- so
 ; the worst a broken cache can do is make this the uncached compiler it
 ; replaced.  That includes the JIT-runtime refusal: a missing trampoline makes
-; dlsym answer nil, which misses, which reaches %asm-compile-fresh, which
+; dlsym answer nil, which misses, which reaches asm-compile-fresh, which
 ; raises the same "JIT runtime unavailable" it always did.
 (def asm-compile-cached
   (fn (_ expr . %asm-rest)

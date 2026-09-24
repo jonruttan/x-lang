@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The JIT compiler, its byte cache and the compiled SHA-256 engine are
+modules of their own** ([#719], step 4, the JIT group). `x/tool/asm-compile`,
+`x/tool/asm-cache` and `x/codec/sha256-jit` carry `(module ...)` headers,
+which hides 181 private names; nothing outside them read one except two
+specs, which reach the cache's five functions and the engine's two
+expressions through the modules' environments now. Their two `%`-named
+exports are bare: `asm-compile-fresh` (the uncached compile the cache falls
+back to) and `sha-jit-make`, which the codec reaches through a catalog
+entry, `(prim-ref (lit sha256) (lit jit-make))`, since it loads the engine
+inside the function that builds it and the linter cannot see a name
+imported there. The compiler's image transients are one thunk in place of
+symbols, as float's became in #783: the writer clears a symbol in the
+child's root, and the JIT library handle and the trampoline addresses live
+in the module's frame. The assembler's two architecture backends stay
+unscoped, and `docs/namespaces.md` says why: their bare names are one
+interface with two implementations, chosen by `asm.x` at load, which a
+reader cannot import from. Two `%`-named exports remain in the library, both
+in `type/class.x`.
+
 **`apply` applies a wrapped combiner as the combiner it wraps.**
 `(apply (wrap c) vals)` answered nil. A wrapped combiner is a procedure whose
 parameters and body are nil and whose environment slot holds `c`, and the

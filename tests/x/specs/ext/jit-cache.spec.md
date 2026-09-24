@@ -10,8 +10,11 @@ code is per-process except the addresses it bakes in, and those are recorded
 address re-encoded for the process loading them.
 
 `compile-asm` arrives as a stub that loads this module on first call, so a
-case that reaches for `%asm-cache-*` without compiling first says `import`
-outright rather than leaning on the case above it having run.
+case that reaches for the cache without compiling first says `import`
+outright. The cache is a module of its own, and the five internals these
+cases drive are bound once from its frame by the first case below; the slurp
+chunk is a variable the loader reads, so the case that moves it does so in
+the module's frame.
 
 That makes the KEY the whole correctness story. x-lang#590 was a cache key
 blind to engine identity serving ABI-stale objects that silently misread
@@ -19,6 +22,26 @@ numbers — `2.5` came back as `2` followed by the symbol `.5`. A wrong answer
 is the only failure that matters here; a missed hit merely costs a recompile,
 which is what the cache was avoiding anyway. These cases pin both halves:
 that a hit is the same function, and that everything else misses.
+
+## the internals, reached through the module
+
+### the five functions these cases drive, bound from the module's frame
+
+```x
+(do
+  (import x/tool/asm-cache)
+  (def %ac (fn (_ name) (eval name (module x/tool/asm-cache))))
+  (def %asm-cache-text (%ac (lit %asm-cache-text)))
+  (def %asm-cache-load (%ac (lit %asm-cache-load)))
+  (def %asm-cache-path (%ac (lit %asm-cache-path)))
+  (def %asm-cache-creat (%ac (lit %asm-cache-creat)))
+  (def %asm-cache-put (%ac (lit %asm-cache-put)))
+  (write (list (procedure? %asm-cache-text) (procedure? %asm-cache-load) (procedure? %asm-cache-path)
+               (procedure? %asm-cache-creat) (procedure? %asm-cache-put)))
+  (newline))
+```
+---
+    (#t #t #t #t #t)
 
 ## a hit is the same function
 
@@ -129,10 +152,10 @@ default.
   (def %e '(fn (_ x) (+ x 40)))
   (def %t (%asm-cache-text %e () #f))
   (compile-asm %e)
-  (def %saved %asm-cache-slurp-chunk)
-  (set! %asm-cache-slurp-chunk 64)
+  (def %saved (%ac (lit %asm-cache-slurp-chunk)))
+  (eval (lit (set! %asm-cache-slurp-chunk 64)) (module x/tool/asm-cache))
   (def %g (%asm-cache-load %t (%asm-cache-path %t) ()))
-  (set! %asm-cache-slurp-chunk %saved)
+  (eval (list (lit set!) (lit %asm-cache-slurp-chunk) %saved) (module x/tool/asm-cache))
   (write (if (null? %g) 'miss (%g 2)))
   (newline))
 ```

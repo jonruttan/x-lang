@@ -33,7 +33,7 @@
 (file "lib/x/codec/csv.x" 1)
 (file "lib/x/codec/hex.x" 1)
 (file "lib/x/codec/json.x" 4)
-(file "lib/x/codec/sha256.x" 4)
+(file "lib/x/codec/sha256.x" 3)
 (file "lib/x/codec/struct.x" 1)
 (file "lib/x/codec/utf8.x" 1)
 (file "lib/x/codec/xon.x" 11)

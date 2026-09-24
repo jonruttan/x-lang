@@ -14,7 +14,7 @@ refusal on a host with NO backend keeps its guard and its teeth, but no
 CI machine can exercise it any more; the adoption gate's differential
 check is what actually protects it.)
 
-The engine is adopted only after `%sha-jit-make`'s own differential
+The engine is adopted only after `sha-jit-make`'s own differential
 check: agreement with the pure-x digest on the FIPS vectors plus a
 multi-block padding case, any disagreement raising instead of adopting.
 These cases then re-prove agreement THROUGH THE CLASS API, where the
@@ -67,10 +67,12 @@ compile, in every process that digests an archive.
   (import x/codec/sha256)
   (Sha256 jit!)
   (import x/tool/asm-cache)
+  (def %ac (fn (_ name) (eval name (module x/tool/asm-cache))))
+  (def %sj (fn (_ name) (eval name (module x/codec/sha256-jit))))
   (def %hit? (fn (_ e)
-    (def %t (%asm-cache-text e () #f))
-    (not (null? (%asm-cache-load %t (%asm-cache-path %t) ())))))
-  (display (list (%hit? %sj-rounds-expr) (%hit? %sj-fill-expr))))
+    (def %t ((%ac (lit %asm-cache-text)) e () #f))
+    (not (null? ((%ac (lit %asm-cache-load)) %t ((%ac (lit %asm-cache-path)) %t) ())))))
+  (display (list (%hit? (%sj (lit %sj-rounds-expr))) (%hit? (%sj (lit %sj-fill-expr))))))
 ```
 ---
     (#t #t)

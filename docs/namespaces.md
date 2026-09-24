@@ -123,6 +123,12 @@ A root name that other files extend in place with `set!` (`number?`,
 in the root, never in a module. A module that defined it would keep calling
 its own frame's binding, which the `set!` in the root never reaches.
 
+The assembler's architecture backends (`tool/asm/arm64.x`, `tool/asm/x86_64.x`)
+stay unscoped for a related reason: their bare names, the registers and the
+push, pop and prologue helpers, are one interface with two implementations,
+and `asm.x` picks one at load. A reader cannot import from a module chosen
+at run time, so the interface stays in the root.
+
 ### What does not change
 
 Qualified symbols are not resolved by the evaluator. Symbol evaluation is C

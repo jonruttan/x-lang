@@ -12,9 +12,6 @@
 ; -- the post-#108 boot spelling, as codec/json.x) -- transcription is
 ; checkable against the standard by eye, and the (example) vectors on
 ; `hex` are the executable proof.
-; lint-known: %sha-jit-make
-; (defined in sha256-jit.x, supplied by the LAZY include that defers the
-; ~14.5s JIT engine build -- an eager import would defeat the deferral)
 (import x/type/vector)
 ; Collection is explicit-trigger-only: without the periodic collect in
 ; the block loop below, digesting an amalgam-sized input allocates
@@ -249,7 +246,7 @@
 ; The pure-x digest above stays the reference and the fallback; the
 ; engine must AGREE with it on the FIPS vectors and a multi-block
 ; padding case before it is adopted (the differential check lives in
-; %sha-jit-make and raises on any disagreement), so the failure mode of
+; sha-jit-make and raises on any disagreement), so the failure mode of
 ; a bad JIT is "slower", never "wrong hash".
 ;
 ; WHEN TO BUILD: for an input that repays the build by itself.  (Sha256
@@ -287,7 +284,7 @@
             (guard (_ (lit failed))
               (do
                 (import x/codec/sha256-jit)
-                (%sha-jit-make %sha-k %sha-ih %sha-digest-words))))
+                ((prim-ref (lit sha256) (lit jit-make)) %sha-k %sha-ih %sha-digest-words))))
           (not (eq? %sha-jit-engine (lit failed)))))
       ((eq? %sha-jit-engine (lit failed)) #f)
       (#t #t))))
