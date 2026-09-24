@@ -15,6 +15,16 @@ that is a wrapped combiner is applied the same way. One call, `%apply-kind`,
 now tells the door what it was handed, with type tests and a flag read
 fetched into its own closure, in place of `procedure?` and `operative?`.
 
+**`x/num/float` exports its libm door as `libm-fn`.** Since the float file
+became a module, `%libm-fn` -- the door that binds a libm function as a row a
+state image re-resolves -- has lived in its frame, unexported, and a bundle
+that binds a libm function the float file does not could no longer reach it:
+x-python binds `erf`, `tgamma` and the hyperbolics through it, and its load
+died on `Unbound SYMBOL '%libm-fn'` against main. The module exports the same
+door as `libm-fn`, reached by a selective import. Its rows are the file's own
+rows, cleared by its image thunk and remade by its recache hook, so libm is
+still opened once.
+
 **The pin specs no longer share a vendor overlay.** The closure file and
 the lockfile file both vendored into `build/pin-spec/out`, and the runner
 has the two in flight together, so a verify in the lockfile file could count
