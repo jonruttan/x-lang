@@ -5,6 +5,12 @@
 ; available when this loads.
 
 (module x/type/hash)
+
+; The binary integer primitives, fetched from the catalog: the C operators as
+; they were before core/arithmetic.x wrapped the bare names.
+(def %int+ (prim-ref (lit int) (lit +)))
+(def %int* (prim-ref (lit int) (lit *)))
+(def %int= (prim-ref (lit int) (lit =)))
 (import x/type/class)
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref 'str 'append))

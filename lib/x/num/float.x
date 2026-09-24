@@ -17,6 +17,12 @@
 (def %make-type (prim-ref 'type 'make))
 (def %type-of (prim-ref 'type 'of))
 (def %type? (prim-ref 'type '?))
+; The binary integer primitives, fetched from the catalog: the C operators as
+; they were before core/arithmetic.x wrapped the bare names.
+(def %int= (prim-ref (lit int) (lit =)))
+; The machine-INT test, as predicates.x's number? was before float widened it.
+(def %int-t (%type-of 0))
+(def %int-number? (fn (_ x) (%type? x %int-t)))
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
 (def %dlopen (prim-ref 'ffi 'dlopen))
 (def %dlsym (prim-ref 'ffi 'dlsym))

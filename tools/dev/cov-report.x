@@ -50,7 +50,7 @@
                       (display "    ") (write rname) (display " UNTESTED\n"))
                   (do (set! %cov-partial (+ %cov-partial 1))
                       (display "    ") (write rname) (display " " cov "/" total " ("
-                                                             (%int/ (* cov 100) total)
+                                                             ((prim-ref (lit int) (lit /)) (* cov 100) total)
                                                              "%)\n")))))))))
     (def %tally-rows
       (fn (self rows)

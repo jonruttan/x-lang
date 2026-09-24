@@ -123,6 +123,11 @@ A root name that other files extend in place with `set!` (`number?`,
 in the root, never in a module. A module that defined it would keep calling
 its own frame's binding, which the `set!` in the root never reaches.
 
+Seven boot files cannot be modules at all: `boot/engine.x`, `registry.x`,
+`operatives.x`, `data.x`, `reflect.x`, `printer.x` and `string.x` load before
+`boot/module.x` defines the `module` form, and `module.x` is the loader
+itself. Their private names stay in the root, behind the `%`-budget.
+
 The assembler's architecture backends (`tool/asm/arm64.x`, `tool/asm/x86_64.x`)
 stay unscoped for a related reason: their bare names, the registers and the
 push, pop and prologue helpers, are one interface with two implementations,
