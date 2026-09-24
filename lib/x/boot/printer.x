@@ -20,6 +20,10 @@
 
 ; --- the OUT door and the sink ---
 (def %print-out (prim-ref (lit io) (lit write-str)))
+; The engine's apply, kept under a fixed name: a handler read from a type's
+; write or display cell may be one of the engine's C handler atoms, which the
+; library's apply (lib/x/core/fn.x) does not take.
+(def %apply apply)
 ; The sink box: (first %print-sink) is the current emitter, a fn of one
 ; string.  to-str swaps it for a collector; everything renders through it.
 (def %print-sink (pair (fn (_ s) (%print-out s)) ()))
@@ -256,7 +260,7 @@
           (#t %print-hd))))
       (match
         ((eq? %print-mh ()) (%print-cell-walk o tw path fallback-path))
-        (#t (do (apply %print-mh (pair o ())) ()))))))
+        (#t (do (%apply %print-mh (pair o ())) ()))))))
 (def %print-cell-walk
   (fn (_ o tw path fallback-path)
     (do
@@ -271,7 +275,7 @@
         (#t %print-hd)))
       (match
         ((eq? %print-hd2 ()) (%print-obj-opaque o))
-        (#t (do (apply %print-hd2 (pair o ())) ()))))))
+        (#t (do (%apply %print-hd2 (pair o ())) ()))))))
 ; ONE dispatch body for both modes (write and display differ only in the
 ; path pair handed to the cell dispatch); %print-w/%print-d stay as named
 ; fronts because handlers and walkers reference them.  `self` is the

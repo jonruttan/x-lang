@@ -392,6 +392,11 @@ re-evaluated. When applying a C primitive, the arguments must be self-evaluating
 values (integers, strings, etc.) since primitives may internally evaluate their
 arguments.
 
+The library binds `apply` over this primitive: a value whose type has a `call`
+handler applies through it, the way `(v args...)` calls it, and a value with no
+handler raises a `type` error. See [Call dispatch](type-system.md) in the type
+system guide.
+
 ```x-repl
 (apply + (list 1 2 3)) -> 6
 (apply list (list 1 2 3)) -> (1 2 3)

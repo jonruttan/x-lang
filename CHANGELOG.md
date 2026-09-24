@@ -5,6 +5,28 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`apply` takes a value's call handler, and refuses a value without one.**
+The engine's `apply` calls through whatever it is handed, and handed a value
+that is not a closure, an operative or a primitive it jumps into the value's
+first slot: a vector, a list, a string, a class instance, a generic, a number,
+or a `make-type` instance with a `call` handler each took the process down
+with a bus error, past the reach of any guard, while the direct call
+`(v args...)` dispatched through the type's handler. The library now binds
+`apply` over the engine's, in `x/core/fn`: a value applies through its type's
+call handler, so `(apply v vals)` and `(v ...)` reach the same handler, and a
+handler that evaluates its operands is handed each value quoted, so a symbol or
+a list among the values arrives as itself. A value with no handler raises a
+`type` error, as does an `apply` with no argument list. The engine's `apply`
+stays under `%apply` for what the library built or reads from a type cell:
+`let`, the class dispatcher, the printer and the reflect layer keep it, so
+they pay for no check they have no use for and a lang that binds `apply` over
+the library's door cannot retarget them. The image writer names that primitive
+as it names `include`'s, and the isa spec's library declares `%apply` as an
+alias of the bare name. The engine is unchanged: a C primitive jumps where it
+is told, and the guard is the language's. x-python's
+`%py-apply-any` had grown an arm per kind of callable to keep clear of this;
+those arms can go once the bundle pins this version.
+
 **`x/num/bigint` and `x/num/float` are modules of their own** ([#719],
 step 4, the first batch of the number group). Their operations were
 `%`-named root globals -- `%big-add`, `%f-add`, `%ensure-float`,

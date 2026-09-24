@@ -27,6 +27,8 @@
   (str=?)
   (str?)
   (symbol?)
+  ; --- names the engine binds bare (isa.x %isa-bare) and the library redefines ---
+  (apply)         ; lib/x/core/fn.x: a value applies through its type's call handler; the engine's apply stays %apply
   ; --- syntax forms (keep-list) ---
   (and)
   (begin)

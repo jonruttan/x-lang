@@ -25,6 +25,11 @@
 
 ; The materialization instruction: read a word back AS an object (see the
 ; (ptr ->obj) manifest entry).  With it, accessors can RETURN objects.
+; The engine's apply, kept under a fixed name: the iter handler a type cell
+; holds is one of the engine's C handler atoms for the engine's own types,
+; which the library's apply (lib/x/core/fn.x) does not take.
+(def %apply apply)
+
 (def %ptr->obj (prim-ref (lit ptr) (lit ->obj)))
 
 ; Header-word byte offsets, computed ONCE: these accessors run multiple
@@ -291,7 +296,7 @@
                       (def %reflect-ih (%reflect-step %reflect-tt %reflect-iter-path))
                       (match
                         ((eq? %reflect-ih ()) ())
-                        (#t (apply %reflect-ih (pair o ()))))))
+                        (#t (%apply %reflect-ih (pair o ()))))))
                   (#t ()))))))))))
 
 ; (prim-reg! ns method value) -- the catalog protocol's producer half:

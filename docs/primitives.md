@@ -351,6 +351,8 @@ Creates an operative (user-level fexpr). Like `fn`, but receives arguments uneva
 
 Calls callable `f` with a pre-evaluated list of arguments `args`. Works with both closures and C primitives. Arguments in the list are not re-evaluated.
 
+The library binds `apply` over this primitive so that a value whose type has a `call` handler applies through it too, and a value with no handler raises a `type` error; see [Call dispatch](type-system.md) in the type system guide.
+
 ```x-repl
 (apply + (list 1 2 3)) -> 6
 (apply first (list (list 1 2))) -> 1

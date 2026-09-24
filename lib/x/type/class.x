@@ -13,6 +13,12 @@
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-call-top (prim-ref (lit type) (lit call-top)))
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
+; The engine's apply, kept under a fixed name.  The dispatcher applies what
+; it resolved -- a method closure, or the handler a type's call cell held
+; before %bind-call-over! pushed over it, which for the engine's own types is
+; a C handler atom -- and none of that is for the library's apply (fn.x),
+; whose door looks at a value's type to find such a handler.
+(def %apply apply)
 
 
 ;
@@ -270,7 +276,7 @@
                 (%box-put! (%class-statics-box class) selector v)
                 (%classes-invalidate!)
                 v))))
-        (#t (apply inner (pair target (%map1 (fn (_ a) (eval a e)) args))))))))
+        (#t (%apply inner (pair target (%map1 (fn (_ a) (eval a e)) args))))))))
 
 ; Entry discrimination for the cold resolvers (method-of, method-ref, the
 ; value-call handlers): a callable PUBLIC method entry, or nil for a miss,
@@ -301,7 +307,7 @@
                 ()))))
       (if (null? entry)
         (error (%str-append "delegates: no such method " (symbol->str sel)))
-        (apply entry (pair target args))))))
+        (%apply entry (pair target args))))))
 
 ; A class's hot record, built on first dispatch. Lives in the class
 ; object's SLOT 1 -- the free traced slot make-instance leaves nil -- while
@@ -436,7 +442,7 @@
                   (%str-append what
                     (%str-append (symbol->str selector) (%sug-hint tab selector))))
                 (#t (%str-append what (%display-to-str selector)))))))
-          (apply m (list target selector
+          (%apply m (list target selector
                      (%map1 (fn (_ a) (eval a e)) args))))))))
 
 (note "Member lookup (walks the single-inheritance parent chain)")
@@ -570,7 +576,7 @@
             (let ((itab (first hot)))
               (let ((m (%entry-inner (%tab-find! itab itab (lit %init)))))
                 (unless (if (null? m) #t (eq? m %field-tag))
-                  (apply m (list inst)))))
+                  (%apply m (list inst)))))
             inst))))))
 
 (note "Dispatch handlers")
@@ -762,7 +768,7 @@
       ; binds args to a bare atom, which no prior handler can index into
       ; either -- echo it as data rather than delegating.
       (if (null? args)
-        (apply prior (list obj))
+        (%apply prior (list obj))
         (if (not (pair? args))
           (pair obj (eval args e))
           (let ((sel (%selector (first args))))
@@ -780,7 +786,7 @@
                     (tail-eval
                       (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
                       e))))
-              (apply prior (pair obj (%data-echo (fn (_ a) (eval a e)) args))))))))))
+              (%apply prior (pair obj (%data-echo (fn (_ a) (eval a e)) args))))))))))
 
 ; Install value-to-class method dispatch OVER a type's existing call handler:
 ; symbol selector -> the class's static method (subject-last); anything else
@@ -908,7 +914,7 @@
                 (pair (list (lit lit) sel)
                   (%map1 (fn (_ a) (list (lit lit) a)) args)))
               e)
-            (apply entry (pair target args))))))))
+            (%apply entry (pair target args))))))))
   (note "Selector is literal: (method-ref Class method). Works for static and instance methods.")
   (example "(List map (method-ref Str upcase) (list \"a\" \"b\"))" "(\"A\" \"B\")")
   (see def-class)
