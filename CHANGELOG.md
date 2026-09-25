@@ -5,6 +5,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-09-25
+
 **The base types have a public door: `(Type named INTEGER)`** ([#719],
 step 4). A lookup by registered name through the type registry, it answers
 the handle `(Type of)` answers for a value of that type, for any type
@@ -609,6 +611,11 @@ x-ash; both bundles have fixed theirs, and the rows now say 0. The test
 counts are left where they are. They are floors, not censuses, and the file
 says why: a floor set to a moving high-water mark cries wolf.
 
+**`check-pin`'s drift marker is exported from the module** ([#749]). The
+gate's drift case appends a marker to a vendored copy of `type/dict.x` and
+read it at the top level, which a scoped module does not expose; the marker
+is provided beside its definition.
+
 x-cc's row is unchanged too, and the reason is worth recording. The gate
 reported its suite had shrunk 119 -> 117 and asked for a re-record. It had
 not shrunk. `check-langs` reads `../languages`, and every one of the
@@ -689,6 +696,12 @@ asked of the files that file loads in turn. Boot time is unchanged: best of
 ten alternating runs against main, the source boot, the x-core amalgam and
 the x-base amalgam differ by 0.0%, 0.0% and -0.7%, and loops over dict,
 strings, display, `Num` and regex are within 4% either way.
+
+**A lang bundle's spec harness is generated from the dialect it declares**
+([#744]). Every bundle had loaded `x-base.x` whatever its `lang.xon` said;
+the lang kit writes the harness from the declared dialect, so a helium
+bundle is tested without a tower it never loads, and a xenon or radon
+bundle with its dialect's library set.
 
 **The first boot files have a scope of their own.** `x/core/quasi`,
 `x/type/record`, `x/type/err`, `x/type/assoc` and `x/type/gen` carry the
@@ -836,6 +849,9 @@ which had no `provide` at all, provides `Opts`. Importing a scoped module is
 no slower than importing it unscoped: the same five imports timed in-process
 ran between 2 and 10 percent faster with the header.
 
+**A reusable CI workflow runs a lang bundle's suite on every platform x-lang
+is tested on** ([#736]).
+
 **The first library modules have a scope of their own.** Nine modules
 that load through `import` at run time now carry a `(module NAME)` header
 and keep their private names to themselves: `x/tool/highlight`,
@@ -867,6 +883,19 @@ clean under ASan. The shortest program that showed it, on the previous
 engine, was a nested guard whose body collects and then raises to the outer
 guard.
 
+**The bootstrap closure is rescored** ([#727], [#729], [#731]).
+`docs/bootstrap-closure.md` reports 37 of 46 rows implemented, splits the
+closure's call sites into those reachable before and after self-hosting,
+and re-measures the 45 tools at 20,398 invocations.
+
+**x-cc runs 119 specs** ([#730]): the contract row for the bundle, with two
+new cases that call a compiled twin by name.
+
+**The engine link is refused when the pin does not name it** ([#726]). A
+tree on the wrong engine built, booted and passed the suite, and failed
+only when it wrote a state image; `make engine-link` checks the link
+against the pin first.
+
 [x-engine-c#54]: https://github.com/jonruttan/x-engine-c/pull/54
 [#728]: https://github.com/jonruttan/x-lang/pull/728
 
@@ -887,6 +916,13 @@ bytes so an unscoped module is never re-read. Built on first-class
 environments (x-engine-c v0.2.11): a scoped module is an environment, and
 `import`/`provide` move bindings between it and the root.
 
+**The library's `if` ladders are `match` forms** ([#707], [#711], [#722],
+[#724]). The linter's ladder rule reads any chain of three or more nested
+`if`s, whatever their tests compare, and reads a `set!` body as the
+definition it is; the 38 chains it found across `lib/` and `apps/`, the
+sixteen the `set!` rule surfaced and the tower's five compiled states are
+written with `match`.
+
 [#718]: https://github.com/jonruttan/x-lang/pull/718
 [#719]: https://github.com/jonruttan/x-lang/issues/719
 
@@ -898,6 +934,10 @@ away. `%lang-lead`, a new bundle-class seam, carries the first name into
 the pipe so a bundle's entry knows whether to take the prompt or only
 register what it is. The state image of such a boot is its own, named for
 every lang in it.
+
+**The JIT call spec roots its dispatch table's callables** ([#721]). The
+case stored three compiled closures only as addresses in a scratch buffer,
+which a collection between the store and the call could free.
 
 **An environment is a value** (x-engine-c v0.2.11, [#720]; design note
 [#718]). The pinned engine's environment is one pair, bindings and parent:
@@ -916,6 +956,11 @@ rows by name moved with the pin: the sandbox and ISA specs, the image
 reader and inspector, the normative example in the spec, the sandboxing
 tutorial and the layout passages in the architecture, type-system,
 glossary and state-image documents.
+
+**Two design notes: namespaces for the library, and first-class
+environments beneath them** ([#718]). `docs/namespaces.md` and
+`docs/environment-model.md`; the environment model was built in
+x-engine-c#49 and its readers moved in #720.
 
 [#527]: https://github.com/jonruttan/x-lang/issues/527
 [#718]: https://github.com/jonruttan/x-lang/pull/718
@@ -1114,6 +1159,12 @@ replaces it too, only when there is a terminal to drive, and a pipe, `-f`,
 `-c` or a spec harness reaches the C reader's loop unchanged and never loads
 any of this.
 
+**Five specs are weighted by their measured footprint** ([#696]), so the
+runner's heavy-job cap sees them.
+
+**Comments in `tools/` and the linter's preload rules are stated plainly**
+([#691], [#694]).
+
 The reader's type alist reaches this from ordinary code. It is a C-built
 spine, so `pair?` answers `#f` and `from-seq` treats it as a non-list; the
 catalog carries it as `type/alist`, and `(Base cell 'type-alist)` addresses
@@ -1139,6 +1190,13 @@ silence. `(Pin verify)` checks the same row on demand and in CI.
 `%repl-print` as the REPL's third customisation point: a function from the
 line's text to the text to display for it, which the line editor calls in the
 one place it paints.
+
+**The lang kit's linter is corrected in six places** ([#683], [#687],
+[#695], [#699]; [#686] and [#689] were reverted by [#693]). A group's
+`lint-known` declarations come from every file, not the first; the boot
+amalgam is found in a checkout as well as an install; the walk's write
+comes from the catalog, not the global; the assembler shape is named and
+the cause of an engine death kept.
 
 It is a hook because colouring is the part of an interactive session that
 depends on the language. Reading a key, moving a cursor and remembering a line
