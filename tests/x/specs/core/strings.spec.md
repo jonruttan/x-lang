@@ -122,7 +122,7 @@ the seat that renders non-strings.
 ### converts string to symbol
 
 ```x
-(Convert to "hello" %symbol)
+(Convert to "hello" (Type symbol))
 ```
 ---
     'hello
@@ -130,7 +130,7 @@ the seat that renders non-strings.
 ### interned equality
 
 ```x
-(eq? (Convert to "hello" %symbol) 'hello)
+(eq? (Convert to "hello" (Type symbol)) 'hello)
 ```
 ---
     #t
@@ -140,7 +140,7 @@ the seat that renders non-strings.
 ### converts symbol to string
 
 ```x
-(Convert to 'hello %string)
+(Convert to 'hello (Type string))
 ```
 ---
     "hello"
@@ -148,7 +148,7 @@ the seat that renders non-strings.
 ### round-trip string/symbol/string
 
 ```x
-(Convert to (Convert to "test" %symbol) %string)
+(Convert to (Convert to "test" (Type symbol)) (Type string))
 ```
 ---
     "test"
@@ -158,7 +158,7 @@ the seat that renders non-strings.
 ### converts positive number
 
 ```x
-(Convert to 42 %string)
+(Convert to 42 (Type string))
 ```
 ---
     "42"
@@ -166,7 +166,7 @@ the seat that renders non-strings.
 ### converts zero
 
 ```x
-(Convert to 0 %string)
+(Convert to 0 (Type string))
 ```
 ---
     "0"
@@ -174,7 +174,7 @@ the seat that renders non-strings.
 ### converts negative number
 
 ```x
-(Convert to -7 %string)
+(Convert to -7 (Type string))
 ```
 ---
     "-7"
@@ -184,7 +184,7 @@ the seat that renders non-strings.
 ### parses positive number
 
 ```x
-(Convert to "42" %int)
+(Convert to "42" (Type integer))
 ```
 ---
     42
@@ -192,7 +192,7 @@ the seat that renders non-strings.
 ### parses negative number
 
 ```x
-(Convert to "-5" %int)
+(Convert to "-5" (Type integer))
 ```
 ---
     -5
@@ -200,7 +200,7 @@ the seat that renders non-strings.
 ### parses zero
 
 ```x
-(Convert to "0" %int)
+(Convert to "0" (Type integer))
 ```
 ---
     0
@@ -250,7 +250,7 @@ the seat that renders non-strings.
 ### hex escape produces correct byte
 
 ```x
-(= (Convert to (%str-ref "\x41" 0) %int) 65)
+(= (Convert to (%str-ref "\x41" 0) (Type integer)) 65)
 ```
 ---
     #t
@@ -268,7 +268,7 @@ the seat that renders non-strings.
 ### round-trips number/string/number
 
 ```x
-(Convert to (Convert to 99 %string) %int)
+(Convert to (Convert to 99 (Type string)) (Type integer))
 ```
 ---
     99

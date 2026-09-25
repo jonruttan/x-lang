@@ -75,6 +75,9 @@
 
 
 ; --- Type handles ---
+; The handles below are read by name from other files and from the lang
+; bundles; their public spelling is the Type statics ((Type integer), ...),
+; and these names go when the bundles have moved to it.
 (def %int    (%type-of 0))
 (def %char   (%type-of (%integer->char 0)))
 (def %string (%type-of ""))
@@ -199,4 +202,5 @@
 
 (doc (provide x/type/convert Convert)
   (note "Hot consumers fetch the dispatcher from the catalog: (prim-ref 'convert 'to). The no-match policy is the (Convert missing) member.")
+  (note "The base type handles have a public spelling on Type: (Type integer), (Type string), (Type symbol), (Type character), (Type pointer), (Type list). The %-named handles this file defines stay until the lang bundles that read them have moved to it.")
   "Generic type conversion: the Convert class over the type system's from/to alists.")

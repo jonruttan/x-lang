@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The base types have a public door: `(Type integer)`, `(Type string)`,
+`(Type symbol)`, `(Type character)`, `(Type pointer)`, `(Type list)`,
+`(Type bool)`, `(Type procedure)`, `(Type primitive)` and `(Type operative)`**
+([#719], step 4). Each answers the handle `(Type of)` answers for a value of
+that type, named as `(Type name)` names it, so `(Type name (Type integer))`
+is `"INTEGER"`. Until now the only spelling of a base type's handle was a
+private cache in `type/convert.x` -- `%int`, `%string`, `%symbol`, `%char`,
+`%ptr`, `%pair` -- read by fourteen library files, the tools, the specs and
+ten lang bundles. The twelve scoped readers fetch from the door once at load
+(`(def %string (Type string))`) and the specs write it out (`(Convert to 42
+(Type string))`); nineteen private reads leave the scan (705 to 686). The
+private handles stay in `convert.x`, and so do the reads of them by the
+unscoped files still at their `%`-budget and by the bundles, until a release
+carries the door and the bundles' `requires-release` pins move; the file
+takes its header when the last bundle has. `docs/namespaces.md` records the
+plan.
+
 **No provide list names a `%`-private, and the gate that keeps it so**
 ([#719], step 4, three decisions of 2026-09-24). `type/class.x` exported the
 last two `%`-named names in the library, the hooks that give a type's values

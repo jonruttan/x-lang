@@ -34,6 +34,9 @@
 ; vendor sessions are run fresh with this module imported FIRST.
 
 (module x/tool/pin)
+
+; The base type handles, from their public door, fetched once at load.
+(def %string (Type string))
 (def %pin-floor (first %module-loaded-cell))
 ; The catalog's converter, which this module read from the root while
 ; x/sys/posix bound it there.

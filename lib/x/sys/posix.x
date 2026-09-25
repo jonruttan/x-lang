@@ -1,6 +1,11 @@
 ; posix.x -- Sys: POSIX system calls as static methods, via FFI (%dlsym + ptr-call)
 (module x/sys/posix)
 
+; The base type handles, from their public door, fetched once at load.
+(def %int (Type integer))
+(def %ptr (Type pointer))
+(def %string (Type string))
+
 (import x/core/list)
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))

@@ -6,6 +6,9 @@
 ; other directly (no per-node class dispatch). The Fmt class is the API.
 (module x/tool/fmt)
 
+; The base type handles, from their public door, fetched once at load.
+(def %string (Type string))
+
 (import x/type/str)
 (import x/type/class)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).

@@ -468,7 +468,7 @@
 ### converts lowercase letter
 
 ```x
-(Convert to #\a %int)
+(Convert to #\a (Type integer))
 ```
 ---
     97
@@ -476,7 +476,7 @@
 ### converts uppercase letter
 
 ```x
-(Convert to #\A %int)
+(Convert to #\A (Type integer))
 ```
 ---
     65
@@ -484,7 +484,7 @@
 ### converts digit character
 
 ```x
-(Convert to #\0 %int)
+(Convert to #\0 (Type integer))
 ```
 ---
     48
@@ -494,7 +494,7 @@
 ### converts code point to character
 
 ```x
-(Convert to 65 %char)
+(Convert to 65 (Type character))
 ```
 ---
     #\A
@@ -502,7 +502,7 @@
 ### round-trips char/integer
 
 ```x
-(= (Convert to (Convert to 97 %char) %int) 97)
+(= (Convert to (Convert to 97 (Type character)) (Type integer)) 97)
 ```
 ---
     #t
