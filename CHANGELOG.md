@@ -5,17 +5,24 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**The base types have a public door: `(Type integer)`, `(Type string)`,
-`(Type symbol)`, `(Type character)`, `(Type pointer)`, `(Type list)`,
-`(Type bool)`, `(Type procedure)`, `(Type primitive)` and `(Type operative)`**
-([#719], step 4). Each answers the handle `(Type of)` answers for a value of
-that type, named as `(Type name)` names it, so `(Type name (Type integer))`
-is `"INTEGER"`. Until now the only spelling of a base type's handle was a
-private cache in `type/convert.x` -- `%int`, `%string`, `%symbol`, `%char`,
-`%ptr`, `%pair` -- read by fourteen library files, the tools, the specs and
-ten lang bundles. The twelve scoped readers fetch from the door once at load
-(`(def %string (Type string))`) and the specs write it out (`(Convert to 42
-(Type string))`); nineteen private reads leave the scan (705 to 686). The
+**The base types have a public door: `(Type named INTEGER)`** ([#719],
+step 4). A lookup by registered name through the type registry, it answers
+the handle `(Type of)` answers for a value of that type, for any type
+registered at the time, and nil for a name nothing carries; the set of types
+is open, so the door is a lookup, not a list of statics (a first cut named
+one static per base type and was withdrawn the same day). The name is
+written bare or quoted, `(Type named INTEGER)` or `(Type named "INTEGER")`,
+and any other form is evaluated and must answer a symbol or a string; the
+static is an operative for that, added through the class's open door. The
+linter learns the general rule -- an operative static's arguments are not
+references -- through a new accessor, `class-static-ref`, which answers a
+class's static method as defined where `method-ref` answers it bound. Until
+now the only spelling of a base type's handle was a private cache in
+`type/convert.x` -- `%int`, `%string`, `%symbol`, `%char`, `%ptr`, `%pair` --
+read by fourteen library files, the tools, the specs and ten lang bundles.
+The twelve scoped readers fetch from the door once at load (`(def %string
+(Type named STRING))`) and the specs write it out (`(Convert to 42 (Type
+named STRING))`); nineteen private reads leave the scan (705 to 686). The
 private handles stay in `convert.x`, and so do the reads of them by the
 unscoped files still at their `%`-budget and by the bundles, until a release
 carries the door and the bundles' `requires-release` pins move; the file

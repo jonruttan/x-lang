@@ -1,4 +1,17 @@
 # @weight 1
+## Type named
+
+### a type by its registered name: bare, quoted, computed, and a miss
+
+```x
+(list (Type name (Type named INTEGER))
+      (Type name (Type named "INTEGER"))
+      (Type name (Type named (Str8 upcase "string")))
+      (Type named NO-SUCH-TYPE))
+```
+---
+    ("INTEGER" "INTEGER" "STRING" ())
+
 ## Type alist
 
 ### returns non-nil

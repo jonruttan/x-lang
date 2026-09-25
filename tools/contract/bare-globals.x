@@ -100,6 +100,10 @@
   ; class.x stays unscoped, so its exports are bare names of the top level.
   (class-call-handler)
   (bind-call-over!)
+  ; class-static-ref answers a static method as defined (method-ref binds it),
+  ; so a tool can ask whether it is an operative; the linter does, since an
+  ; operative static's arguments are not references (Type named STRING).
+  (class-static-ref)
   ; --- doc/help REPL verbs ---
   (apropos)
   (doc)

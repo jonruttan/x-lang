@@ -739,7 +739,16 @@
     ((if (%lint-value-subject? (first form))
        (symbol? (first (rest form))) #f)
       (do (%lint-form (first form))          ; the subject is a real use
-          (%lint-seq (rest (rest form)))))   ; selector skipped, args walked
+          ; An operative static takes its arguments unevaluated -- (Type named
+          ; STRING) -- so they are not references; the class says which kind
+          ; the selector names.  Anything unresolvable walks the arguments.
+          (if (guard (_ #f)
+                (let ((subject (eval! (%str->symbol (%cvt (first form) %string)))))
+                  (if (class? subject)
+                    (operative? (class-static-ref subject (%str->symbol (%cvt (first (rest form)) %string))))
+                    #f)))
+            ()
+            (%lint-seq (rest (rest form))))))   ; selector skipped, args walked
     ((%lint-member-send? form)
       (do (%lint-form (first form))          ; self is a real use (the param)
           (%lint-seq (rest (rest form)))))   ; member name skipped, args walked

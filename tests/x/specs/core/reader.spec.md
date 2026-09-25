@@ -88,7 +88,7 @@
 ### reads string with hex escape
 
 ```x
-(= (Convert to (%str-ref "\x41" 0) (Type integer)) 65)
+(= (Convert to (%str-ref "\x41" 0) (Type named INTEGER)) 65)
 ```
 ---
     #t
@@ -140,7 +140,7 @@
 ### reads specific character
 
 ```x
-(Convert to #\a (Type integer))
+(Convert to #\a (Type named INTEGER))
 ```
 ---
     97
@@ -148,7 +148,7 @@
 ### reads uppercase character
 
 ```x
-(Convert to #\Z (Type integer))
+(Convert to #\Z (Type named INTEGER))
 ```
 ---
     90
@@ -156,7 +156,7 @@
 ### reads named character space
 
 ```x
-(Convert to #\space (Type integer))
+(Convert to #\space (Type named INTEGER))
 ```
 ---
     32
@@ -164,7 +164,7 @@
 ### reads named character newline
 
 ```x
-(Convert to #\newline (Type integer))
+(Convert to #\newline (Type named INTEGER))
 ```
 ---
     10
@@ -172,7 +172,7 @@
 ### reads named character tab
 
 ```x
-(Convert to #\tab (Type integer))
+(Convert to #\tab (Type named INTEGER))
 ```
 ---
     9

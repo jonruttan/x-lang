@@ -19,7 +19,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 ### identity: converting a value to its own type returns it unchanged
 
 ```x
-(Convert to 42 (Type integer))
+(Convert to 42 (Type named INTEGER))
 ```
 ---
     42
@@ -27,7 +27,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 ### a registered conversion runs (int -> decimal string)
 
 ```x
-(Convert to 255 (Type string))
+(Convert to 255 (Type named STRING))
 ```
 ---
     "255"
@@ -35,7 +35,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 ### the radix extra arg is threaded through (int -> hex string)
 
 ```x
-(Convert to 255 (Type string) 16)
+(Convert to 255 (Type named STRING) 16)
 ```
 ---
     "ff"
@@ -43,7 +43,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 ### and the inverse parses with the radix (hex string -> int)
 
 ```x
-(Convert to "ff" (Type integer) 16)
+(Convert to "ff" (Type named INTEGER) 16)
 ```
 ---
     255
@@ -51,7 +51,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 ### a symbol/string roundtrip preserves the name
 
 ```x
-(Convert to (Convert to 'hi (Type string)) (Type symbol))
+(Convert to (Convert to 'hi (Type named STRING)) (Type named SYMBOL))
 ```
 ---
     'hi
@@ -59,7 +59,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 ### a nil value converts to nil (absence stays absence)
 
 ```x
-(Convert to () (Type integer))
+(Convert to () (Type named INTEGER))
 ```
 ---
 
@@ -68,7 +68,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 ### an unregistered conversion returns nil by DEFAULT (silent)
 
 ```x
-(null? (Convert to 42 (Type symbol)))
+(null? (Convert to 42 (Type named SYMBOL)))
 ```
 ---
     #t
@@ -79,7 +79,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 (do
   (def %orig (Convert missing))
   (Convert missing (fn (_ v t) (error "no conversion")))
-  (def %caught (throws? (fn (_) (Convert to 42 (Type symbol)))))
+  (def %caught (throws? (fn (_) (Convert to 42 (Type named SYMBOL)))))
   (Convert missing %orig)
   %caught)
 ```
@@ -89,7 +89,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 ### the default policy is restored afterward (no leak to later tests)
 
 ```x
-(null? (Convert to 42 (Type symbol)))
+(null? (Convert to 42 (Type named SYMBOL)))
 ```
 ---
     #t

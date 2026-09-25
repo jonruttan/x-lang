@@ -149,50 +149,6 @@
       (doc "Return the name string of a type handle."
         (returns STRING "The type's registered name"))
       ((prim-ref (lit type) (lit name)) handle))
-    ; The base types by name: one static per type the engine registers, each
-    ; answering the handle (Type of) answers for a value of that type, so
-    ; (Type name (Type integer)) is "INTEGER".  These are the public spelling
-    ; of the handles the library's %-named caches hold (x/type/convert).
-    (method integer (self)
-      (doc "The INTEGER type handle: the machine integer."
-        (returns ATOM "The type's handle atom"))
-      ((prim-ref (lit type) (lit of)) 0))
-    (method string (self)
-      (doc "The STRING type handle: the byte string."
-        (returns ATOM "The type's handle atom"))
-      ((prim-ref (lit type) (lit of)) ""))
-    (method symbol (self)
-      (doc "The SYMBOL type handle: the interned symbol."
-        (returns ATOM "The type's handle atom"))
-      ((prim-ref (lit type) (lit of)) (lit x)))
-    (method character (self)
-      (doc "The CHARACTER type handle: the character."
-        (returns ATOM "The type's handle atom"))
-      ((prim-ref (lit type) (lit of)) ((prim-ref (lit int) (lit ->char)) 65)))
-    (method list (self)
-      (doc "The LIST type handle: the pair, the cell every list is made of."
-        (returns ATOM "The type's handle atom"))
-      ((prim-ref (lit type) (lit of)) (pair 1 2)))
-    (method bool (self)
-      (doc "The BOOL type handle: the two booleans."
-        (returns ATOM "The type's handle atom"))
-      ((prim-ref (lit type) (lit of)) #t))
-    (method procedure (self)
-      (doc "The PROCEDURE type handle: a closure made by fn."
-        (returns ATOM "The type's handle atom"))
-      ((prim-ref (lit type) (lit of)) (fn (_) ())))
-    (method primitive (self)
-      (doc "The PRIMITIVE type handle: a C primitive."
-        (returns ATOM "The type's handle atom"))
-      ((prim-ref (lit type) (lit of)) (prim-ref (lit type) (lit of))))
-    (method operative (self)
-      (doc "The OPERATIVE type handle: an operative made by op."
-        (returns ATOM "The type's handle atom"))
-      ((prim-ref (lit type) (lit of)) (op (_) e ())))
-    (method pointer (self)
-      (doc "The POINTER type handle: the raw pointer."
-        (returns ATOM "The type's handle atom"))
-      ((prim-ref (lit type) (lit of)) ((prim-ref (lit int) (lit ->ptr)) 0)))
     (method alist (self)
       (doc "Return the interpreter's type alist from the base object."
         (returns LIST "The ((handle . struct) ...) registry, reader-priority order"))
@@ -303,6 +259,29 @@
       (doc "LOW-LEVEL: overwrite OBJ's type tag with SRC's (raw pointer write)."
         (returns ANY "OBJ, retagged"))
       ((prim-ref (lit type) (lit cast!)) obj src))))
+
+; (Type named NAME): the type registered under NAME, nil when none is.  The
+; set of types is open -- the tower, a lang and a program register and retire
+; types -- so this is a lookup of the registry as it stands, not a list of
+; statics.  NAME is written bare or quoted, (Type named INTEGER) or
+; (Type named "INTEGER"); any other form is evaluated and must answer a symbol
+; or a string.  A (method ...) form would evaluate its argument, so the static
+; is an operative, added through the class's open door.
+(def %type-named
+  (fn (self name l)
+    (if (null? l) ()
+      (if (str=? ((prim-ref (lit type) (lit name)) (first (first l))) name)
+        (first (first l))
+        (self name (rest l))))))
+(Type def-static! (lit named)
+  (op (self form) e
+    (let ((name (if (if (symbol? form) #t (str? form)) form (eval form e))))
+      (%type-named (if (symbol? name) (symbol->str name) name)
+                   ((prim-ref (lit type) (lit alist)))))))
+(doc Type/named "Look up a type handle by its registered name: nil when no registered type has that name. NAME is a bare symbol or a string as written; any other form is evaluated and must answer one."
+  (param name ANY "The registered name: a symbol or a string as written, or a form that answers one")
+  (returns ATOM "The type's handle atom, or nil")
+  (example "(Type name (Type named INTEGER))" "\"INTEGER\""))
 
 ; --- Shapes for the engine's own atom types ---------------------------------
 ;

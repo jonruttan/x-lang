@@ -5,9 +5,9 @@
 (module x/tool/cov)
 
 ; The base type handles, from their public door, fetched once at load.
-(def %int (Type integer))
-(def %ptr (Type pointer))
-(def %string (Type string))
+(def %int (Type named INTEGER))
+(def %ptr (Type named POINTER))
+(def %string (Type named STRING))
 
 ; --- Platform detection ---
 

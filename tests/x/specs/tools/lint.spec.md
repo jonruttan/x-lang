@@ -307,6 +307,30 @@ locals and unbound heads keep plain call analysis.
 ---
     #t
 
+### an operative static's argument is not a use
+
+`(Type named STRING)` names a type; `named` is an operative static, so its
+argument is a message, not a reference (the class says which kind the
+selector names, through class-static-ref).
+
+```x
+(do
+  (def %r (lint-forms (list '(def f (fn (_ s) (Type named STRING)))) () ()))
+  (display (not (lint-has? "STRING" (first (rest %r))))))
+```
+---
+    #t
+
+### a procedure static's argument is still a use
+
+```x
+(do
+  (def %r (lint-forms (list '(def f (fn (_ s) (Type name FROBNICATE)))) () ()))
+  (display (lint-has? "FROBNICATE" (first (rest %r)))))
+```
+---
+    #t
+
 ### an argument after a callable head is still a use
 
 ```x

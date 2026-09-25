@@ -1005,6 +1005,19 @@
   (see class-static-members)
   "List a class's own static method names (not inherited).")
 
+; The static method itself, not the bound callable method-ref answers: what a
+; caller needs to ask about the method rather than call it -- the linter asks
+; whether it is an operative, whose arguments are not references.  Walks the
+; parent chain, as dispatch does; nil when no class in the chain has it.
+(doc (def class-static-ref
+  (fn (self (param c CLASS "A class") (param name SYMBOL "A static method's name"))
+    (if (not (class? c)) ()
+      (let ((entry (%assq name (%assoc-get (lit s-methods) (%class-data c)))))
+        (if (null? entry) (self (class-parent c) name) (rest entry))))))
+  (returns CALLABLE "The static method as defined -- a procedure or an operative -- or nil, also for a C that is not a class")
+  (see method-ref)
+  "Look up a class's static method by name, through the parent chain, as the value it was defined as.")
+
 (note "Class definition")
 
 (def %make-class
@@ -1623,7 +1636,7 @@
 (doc (provide x/type/class
   def-class new new-from super method-ref method-of
   object? class? class-of class-name class-parent instance-of?
-  class-members class-methods class-static-members class-static-methods
+  class-members class-methods class-static-members class-static-methods class-static-ref
   class-call-handler bind-call-over!)
   (note "Instances: (obj name args...) -- method wins, else member (obj m)/(obj m v).")
   (note "Classes are callable: (Class name args...) -- static method, (Class new ...) to")

@@ -13,7 +13,7 @@
 (module x/type/regex)
 
 ; The base type handles, from their public door, fetched once at load.
-(def %char (Type character))
+(def %char (Type named CHARACTER))
 (import x/type/class)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
