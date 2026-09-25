@@ -308,6 +308,14 @@ model.
     `core/predicates`, `sys/pact` and `num/tower`. Their 44 private names are
     read by nothing outside them, so a scope would buy only the frame, and
     the frame is what costs.
+  - `core/arithmetic.x`, measured the same way once its readers fetched the
+    integer primitives themselves (2026-09-24): a module header adds 3.6% to
+    the environment comparisons of an x-core boot and 4.3 times to those of
+    a 200,000-step loop of `=`, `-` and `+`, 124 more bindings compared per
+    wrapper call, with evaluations and allocations unchanged. Its operator
+    wrappers resolve `match`, `eq?`, `first`, `rest` and the saved primitive
+    on every call, and the module frame would sit in front of each. It stays
+    unscoped with the six.
 - **Source boot time.** The image writers and the asan-boot gate boot from
   source. A framed load of `regex.x` through the x-side reader took the same
   time as the C include, so the loader is not the risk; the lookup cost is.
