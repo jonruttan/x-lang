@@ -485,7 +485,7 @@
 ### copies the C string back (FFI getenv path)
 
 ```x
-(do (def s "hello") (Convert to (Convert to s (Type pointer)) (Type string)))
+(do (def s "hello") (Convert to (Convert to s (Type named POINTER)) (Type named STRING)))
 ```
 ---
     "hello"
@@ -493,7 +493,7 @@
 ### copy is a new string, not the source
 
 ```x
-(do (def s "hello") (not (eq? (Convert to (Convert to s (Type pointer)) (Type string)) s)))
+(do (def s "hello") (not (eq? (Convert to (Convert to s (Type named POINTER)) (Type named STRING)) s)))
 ```
 ---
     #t

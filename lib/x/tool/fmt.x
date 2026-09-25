@@ -7,7 +7,7 @@
 (module x/tool/fmt)
 
 ; The base type handles, from their public door, fetched once at load.
-(def %string (Type string))
+(def %string (Type named STRING))
 
 (import x/type/str)
 (import x/type/class)

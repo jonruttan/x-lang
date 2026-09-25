@@ -2,9 +2,9 @@
 (module x/sys/posix)
 
 ; The base type handles, from their public door, fetched once at load.
-(def %int (Type integer))
-(def %ptr (Type pointer))
-(def %string (Type string))
+(def %int (Type named INTEGER))
+(def %ptr (Type named POINTER))
+(def %string (Type named STRING))
 
 (import x/core/list)
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).

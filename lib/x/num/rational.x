@@ -2,8 +2,8 @@
 (module x/num/rational)
 
 ; The base type handles, from their public door, fetched once at load.
-(def %int (Type integer))
-(def %string (Type string))
+(def %int (Type named INTEGER))
+(def %string (Type named STRING))
 
 (import x/num/float float f-div int->float)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).

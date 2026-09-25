@@ -6,8 +6,8 @@
 (module x/tool/compile/pipeline)
 
 ; The base type handles, from their public door, fetched once at load.
-(def %int (Type integer))
-(def %ptr (Type pointer))
+(def %int (Type named INTEGER))
+(def %ptr (Type named POINTER))
 
 (import x/tool/compile/emit c-param-decls compile-fvars compile-params-set! compile-fns compile-fns-set! compile-push-writers compile-pop-writers)
 ; Fetched from the catalog into this module's frame.

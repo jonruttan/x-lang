@@ -2,8 +2,8 @@
 (module x/tool/compile)
 
 ; The base type handles, from their public door, fetched once at load.
-(def %ptr (Type pointer))
-(def %string (Type string))
+(def %ptr (Type named POINTER))
+(def %string (Type named STRING))
 (import x/core/list)
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-cast! (prim-ref 'type 'cast!))

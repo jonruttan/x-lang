@@ -135,11 +135,13 @@ they are; a reader that wants a door takes the class.
 
 `type/convert.x` waits on the lang bundles. Its base type handles (`%int`,
 `%string`, `%symbol`, `%char`, `%ptr`, `%pair`) are read by ten bundles as
-well as by the library, so the door came first: the `Type` statics
-`(Type integer)`, `(Type string)`, `(Type symbol)`, `(Type character)`,
-`(Type pointer)`, `(Type list)` and the rest of the engine's base types,
-named as `(Type name)` names them. The library's scoped readers fetch from
-the door at load; the bundles can follow once a release carries it and
+well as by the library, so the door came first: `(Type named INTEGER)`, a
+lookup by registered name through the type registry, which answers for any
+type registered at the time and nil for a name nothing carries; the name is
+written bare or quoted, and any other form is evaluated. The set
+of types is open (the tower, a lang and a program register and retire
+types), so the door is a lookup, not a list of statics. The library's scoped
+readers fetch from the door at load; the bundles can follow once a release carries it and
 their `requires-release` pins move, and the file takes its header when the
 last of them has.
 

@@ -2,7 +2,7 @@
 (module x/num/complex)
 
 ; The base type handles, from their public door, fetched once at load.
-(def %int (Type integer))
+(def %int (Type named INTEGER))
 
 (import x/num/float float float? float-of f-add f-mul fsqrt fsin fcos fatan2 pi str->float)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).

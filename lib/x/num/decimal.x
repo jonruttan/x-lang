@@ -23,7 +23,7 @@
 (module x/num/decimal)
 
 ; The base type handles, from their public door, fetched once at load.
-(def %string (Type string))
+(def %string (Type named STRING))
 
 ; The binary integer primitives, fetched from the catalog: the C operators as
 ; they were before core/arithmetic.x wrapped the bare names.
