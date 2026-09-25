@@ -378,7 +378,7 @@
 ; Make a rational VALUE dispatch its calls to the Rational class (subject-last):
 ; (1/2 numerator) -> (Rational numerator 1/2); (1/2 - 1/3) -> (Rational - 1/2 1/3).
 (def %type-push-call (prim-ref 'type 'push-call))
-(%type-push-call (%type-by-atom rational) (%class-call-handler Rational))
+(%type-push-call (%type-by-atom rational) (class-call-handler Rational))
 
 ; Join the pact last, once the module is fully usable: tower members
 ; announce themselves so pairwise registrations fire in any load order.

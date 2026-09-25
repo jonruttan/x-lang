@@ -140,7 +140,7 @@
 ; trailing `it` parameter -- exactly the shape every Iter consumer already has,
 ; so (it for-each f) routes to (Iter for-each f it).
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
-(%type-push-call (%type-by-atom %iter) (%class-call-handler Iter))
+(%type-push-call (%type-by-atom %iter) (class-call-handler Iter))
 
 ; --- Per-type iterator constructors (the values pushed onto the iter slot) ---
 

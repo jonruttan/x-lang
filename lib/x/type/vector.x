@@ -302,7 +302,7 @@
 ; dispatches subject-LAST, so (v ref i) -> (Vector ref i v) and (v ->list) work;
 ; (v i) still indexes via the underlying call. `ref` is data-last ((self i v)),
 ; matching the library's Ramda data-last convention.
-(%bind-call-over! (Type of (Vector of 1)) Vector)
+(bind-call-over! (Type of (Vector of 1)) Vector)
 
 ; Install elementwise vector equality on equal?'s extension hook (logic.x's
 ; %equal-others, fetched from the catalog -- logic loads before this file, so

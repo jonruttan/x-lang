@@ -150,7 +150,7 @@
 
 ; Value dispatch over the existing code-point call handler: ("hi" index 0) and
 ; ("hi" upcase) dispatch to Str methods; ("hi" 0) still does code-point access.
-(%bind-call-over! (Type of "x") Str)
+(bind-call-over! (Type of "x") Str)
 
 (doc (provide x/protocol/str/utf8 StrUtf8 Str)
   (note "The UTF-8 code-point view (a Str8 subclass). Str is the blessed ambient alias -- it names the ACTIVE protocol (rebindable); Str8 and StrUtf8 are the canonical fixed names (A11: the Utf8 alias was retired). (help StrUtf8) lists every method.")

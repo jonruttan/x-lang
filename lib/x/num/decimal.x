@@ -1130,7 +1130,7 @@
 
 ; Value dispatch (subject-last): (1.5d decimal?) -> (Decimal decimal? 1.5d).
 (def %type-push-call (prim-ref 'type 'push-call))
-(%type-push-call decimal-type (%class-call-handler Decimal))
+(%type-push-call decimal-type (class-call-handler Decimal))
 
 ; Join the pact last, once the module is fully usable: any registration
 ; waiting on decimal fires against the finished class and type ops.

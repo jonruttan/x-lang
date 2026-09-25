@@ -361,7 +361,7 @@
 
 ; Value dispatch (subject-last): (1+2i real-part) -> (Complex real-part 1+2i).
 (def %type-push-call (prim-ref 'type 'push-call))
-(%type-push-call (%type-by-atom %complex) (%class-call-handler Complex))
+(%type-push-call (%type-by-atom %complex) (class-call-handler Complex))
 
 ; Join the pact last, once the module is fully usable: tower members
 ; announce themselves so pairwise registrations fire in any load order.

@@ -886,7 +886,7 @@
 
 ; Value dispatch (subject-last): (big bigint?) -> (Bigint bigint? big).
 (def %type-push-call (prim-ref 'type 'push-call))
-(%type-push-call (%type-by-atom bigint) (%class-call-handler Bigint))
+(%type-push-call (%type-by-atom bigint) (class-call-handler Bigint))
 
 ; Join the pact last, once the module is fully usable: this fires any
 ; pairwise registration waiting on bigint (e.g. float's bigint->float

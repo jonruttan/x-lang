@@ -93,6 +93,13 @@
   ; --- predicates, scope-extension additions (join the ruled family) ---
   (complex?)
   (real?)
+  ; --- object-system hooks: ruled bare 2026-09-24 (x-lang#719, step 4) ---
+  ; The two names type/class.x exports for the files that give a type's
+  ; values method dispatch.  They were the last %-named exports in the
+  ; library; a provide list names no %-private (check-provide-names), and
+  ; class.x stays unscoped, so its exports are bare names of the top level.
+  (class-call-handler)
+  (bind-call-over!)
   ; --- doc/help REPL verbs ---
   (apropos)
   (doc)

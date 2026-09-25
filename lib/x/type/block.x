@@ -11,7 +11,7 @@
 ;   (List map (i x) (list i x) xs)        ; two names: the 0-based index, then the element
 ;
 ; NOTHING IN THE DISPATCH PATH CHANGES.  A method stored as an `op` already
-; receives its argument FORMS plus the caller's env: %class-call-handler
+; receives its argument FORMS plus the caller's env: class-call-handler
 ; tail-evals (m class . forms) for a value send, %class-dispatch does the same
 ; for the prefix form, and %object-dispatch does it for an instance send.  So
 ; this is a wrapper over the stored method, and a selector nobody wraps pays

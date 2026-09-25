@@ -657,7 +657,7 @@
 
 ; --- Value-call dispatch ---
 ; (Subject selector args...) -- when the head resolves to a NON-callable
-; value (a class or instance), the call routes through %class-call-handler
+; value (a class or instance), the call routes through class-call-handler
 ; and the second element is a MESSAGE NAME: data, never a variable
 ; reference.  Recording it as a use made every method spelling (`append`,
 ; `close`, ...) read "Undefined" in class-call-heavy code (the apps).

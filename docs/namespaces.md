@@ -123,6 +123,16 @@ A root name that other files extend in place with `set!` (`number?`,
 in the root, never in a module. A module that defined it would keep calling
 its own frame's binding, which the `set!` in the root never reaches.
 
+The boot-layer walkers of `core/list.x` and `core/alist.x` are a sanctioned
+shared vocabulary (decision of 2026-09-24): `%fold`, `%map`, `%map1`,
+`%reverse`, `%length`, `%append`, `%append2`, `%filter`, `%find`, `%memq?`,
+`%member-str?`, `%for-each`, `%rev-onto`, `%assoc-get`, `%assq`,
+`%assoc-str`, `%assoc-has?` and `%assoc-keys` are the private layer the
+`List` and `Assoc` classes stand on, and some forty files read them at the
+root for speed, as those two files' provide notes say. They stay root
+globals, and the private-reads rows their readers hold for them stay where
+they are; a reader that wants a door takes the class.
+
 Seven boot files cannot be modules at all: `boot/engine.x`, `registry.x`,
 `operatives.x`, `data.x`, `reflect.x`, `printer.x` and `string.x` load before
 `boot/module.x` defines the `module` form, and `module.x` is the loader
@@ -298,6 +308,14 @@ model.
     `core/predicates`, `sys/pact` and `num/tower`. Their 44 private names are
     read by nothing outside them, so a scope would buy only the frame, and
     the frame is what costs.
+  - `core/arithmetic.x`, measured the same way once its readers fetched the
+    integer primitives themselves (2026-09-24): a module header adds 3.6% to
+    the environment comparisons of an x-core boot and 4.3 times to those of
+    a 200,000-step loop of `=`, `-` and `+`, 124 more bindings compared per
+    wrapper call, with evaluations and allocations unchanged. Its operator
+    wrappers resolve `match`, `eq?`, `first`, `rest` and the saved primitive
+    on every call, and the module frame would sit in front of each. It stays
+    unscoped with the six.
 - **Source boot time.** The image writers and the asan-boot gate boot from
   source. A framed load of `regex.x` through the x-side reader took the same
   time as the C include, so the loader is not the risk; the lookup cost is.

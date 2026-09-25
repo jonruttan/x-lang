@@ -48,7 +48,7 @@
 ; ((delay (+ 1 2)) force) -> (Promise force (delay (+ 1 2))).
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
-(%type-push-call (%type-by-atom %promise) (%class-call-handler Promise))
+(%type-push-call (%type-by-atom %promise) (class-call-handler Promise))
 
 (doc (provide x/type/promise Promise delay)
   (note "Promises are memoized -- forced only once.")
