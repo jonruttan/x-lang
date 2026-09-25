@@ -148,7 +148,7 @@
 (def %type-of (prim-ref (lit type) (lit of)))
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
-(%type-push-call (%type-by-atom (%type-of 0)) (%class-call-handler Num))
+(%type-push-call (%type-by-atom (%type-of 0)) (class-call-handler Num))
 
 (doc (provide x/core/math Num)
   (example "(Num clamp 0 10 15)" "10")

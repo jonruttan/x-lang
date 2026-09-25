@@ -290,7 +290,7 @@ render whole; the writer is hijacked by the walk for lists and symbols).
 
 ## lint: value-call dispatch (the app surface)
 
-A value call routes (Subject selector args...) through %class-call-handler:
+A value call routes (Subject selector args...) through class-call-handler:
 the selector is a message name, not a variable reference. Without this the
 apps -- class-call-heavy by style -- read every method spelling as
 "Undefined". Subjects are recognised by resolving to a non-callable value;

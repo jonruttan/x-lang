@@ -242,7 +242,7 @@ the Doxygen house style — live with the code they govern, in
   module-private helper (`%opt-cell`), a cached raw C prim behind a class
   method (`%str-append`, the prim-caching pattern), a macro-expansion
   runtime hook referenced from `op` expansions (`%opts`), and type-system
-  plumbing (`%make-type`, `%class-call-handler`). The sigil promises
+  plumbing (`%make-type`, `%type-push-call`). The sigil promises
   "not API"; it does not say which flavor — the defining comment should.
 - **Doc type vocabulary** — one token per concept in `(param ...)`/`(returns ...)`:
   `INT` (not INTEGER), `BOOL` (not BOOLEAN), `CALLABLE` (not FUNCTION), plus

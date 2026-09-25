@@ -123,6 +123,16 @@ A root name that other files extend in place with `set!` (`number?`,
 in the root, never in a module. A module that defined it would keep calling
 its own frame's binding, which the `set!` in the root never reaches.
 
+The boot-layer walkers of `core/list.x` and `core/alist.x` are a sanctioned
+shared vocabulary (decision of 2026-09-24): `%fold`, `%map`, `%map1`,
+`%reverse`, `%length`, `%append`, `%append2`, `%filter`, `%find`, `%memq?`,
+`%member-str?`, `%for-each`, `%rev-onto`, `%assoc-get`, `%assq`,
+`%assoc-str`, `%assoc-has?` and `%assoc-keys` are the private layer the
+`List` and `Assoc` classes stand on, and some forty files read them at the
+root for speed, as those two files' provide notes say. They stay root
+globals, and the private-reads rows their readers hold for them stay where
+they are; a reader that wants a door takes the class.
+
 Seven boot files cannot be modules at all: `boot/engine.x`, `registry.x`,
 `operatives.x`, `data.x`, `reflect.x`, `printer.x` and `string.x` load before
 `boot/module.x` defines the `module` form, and `module.x` is the loader

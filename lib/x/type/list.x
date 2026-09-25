@@ -553,7 +553,7 @@
 ; bound.  Nested list DATA re-evaluated by the iterator keeps its #69
 ; echo: a list head followed by a non-symbol delegates to the prior handler
 ; as it always did.
-(%bind-call-over! (Type of (list 1)) List)
+(bind-call-over! (Type of (list 1)) List)
 
 (doc (provide x/type/list List)
   (note "The list/sequence operations as static methods; core/list.x keeps the low-level layer (fold/map/filter globals + %-helpers) it is built on.")

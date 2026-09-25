@@ -580,7 +580,7 @@ help's layout.
 
 ## a list has value dispatch (0.14.0): a symbol selector sends to `List`
 
-`(%bind-call-over! (Type of (list 1)) List)` sits OVER the engine's list
+`(bind-call-over! (Type of (list 1)) List)` sits OVER the engine's list
 call, so the value form reads exactly as a vector's or a string's --
 `((List of 1 2 3) filter (x) (> x 1))` -- while an index or a slice still
 goes to the handler underneath, and nested list DATA the iterator

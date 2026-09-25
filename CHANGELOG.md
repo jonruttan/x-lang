@@ -5,6 +5,22 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**No provide list names a `%`-private, and the gate that keeps it so**
+([#719], step 4, two decisions of 2026-09-24). `type/class.x` exported the
+last two `%`-named names in the library, the hooks that give a type's values
+method dispatch: they are `class-call-handler` and `bind-call-over!` now,
+bare, documented, and named that way in the eleven and five files that
+install them, in the specs that mention them and in the contributing guide.
+A new gate, `make check-provide-names`, reads every provide form under
+`lib/` and refuses an export that starts with `%`; it runs in the fast gates,
+so the pre-push sees it. The other decision holds still: the boot-layer
+walkers of `core/list.x` and `core/alist.x` (`%fold`, `%map`, `%reverse`,
+`%length`, `%append`, `%assoc-get`, `%assq` and their kin) are a sanctioned
+shared vocabulary, the private layer the `List` and `Assoc` classes stand
+on that some forty files read at the root for speed; `docs/namespaces.md`
+and the private-reads contract record that their rows hold and are not
+doors owed.
+
 **The number modules, `type/hash`, `core/math` and the coverage report fetch
 the integer primitives themselves** ([#719], step 4). `core/arithmetic.x`
 saves the binary C operators as `%int+`, `%int-`, `%int*`, `%int/`,

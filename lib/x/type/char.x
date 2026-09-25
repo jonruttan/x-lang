@@ -86,7 +86,7 @@
 (def %type-of (prim-ref (lit type) (lit of)))
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
-(%type-push-call (%type-by-atom (%type-of (%integer->char 0))) (%class-call-handler Char))
+(%type-push-call (%type-by-atom (%type-of (%integer->char 0))) (class-call-handler Char))
 
 (doc (provide x/type/char Char)
   (note "ASCII only. Classification, case conversion, and comparison homed on the Char class.")

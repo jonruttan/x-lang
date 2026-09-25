@@ -407,7 +407,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-lang-kit-harness check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-private-reads check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
+gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-lang-kit-harness check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
 .PHONY: gates
 
 .PHONY: check-spec-weights
@@ -438,7 +438,7 @@ check-spec-globals: ## No spec rebinds a name the engine or library owns
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-lang-kit-harness check-doc-vocab check-dup-defs check-bare-globals check-private-reads check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
+gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-lang-kit-harness check-doc-vocab check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast check-asan-boot test-c test-x ## Pre-push gate: fast gates, the ASan boot, both spec suites (CI runs full `make test`)
@@ -624,6 +624,12 @@ check-bare-globals: ## Diff the runtime library's bare top-level defs against to
 check-private-reads: ## Ratchet the cross-file reads of % names against tools/contract/private-reads.x
 	sh tools/check/private-reads.sh
 .PHONY: check-private-reads
+
+# A provide list is a module's public surface, and a %-prefixed name says
+# "not API": no export carries the sigil (x-lang#719, step 4).
+check-provide-names: ## Refuse a %-private name in any provide list
+	sh tools/check/provide-names.sh
+.PHONY: check-provide-names
 
 # The %-global budget (the bare ratchet's closed exemption): per-file
 # counts in tools/contract/percent-globals.x, shrink-only.

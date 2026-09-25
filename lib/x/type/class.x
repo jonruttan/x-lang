@@ -15,7 +15,7 @@
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
 ; The engine's apply, kept under a fixed name.  The dispatcher applies what
 ; it resolved -- a method closure, or the handler a type's call cell held
-; before %bind-call-over! pushed over it, which for the engine's own types is
+; before bind-call-over! pushed over it, which for the engine's own types is
 ; a C handler atom -- and none of that is for the library's apply (fn.x),
 ; whose door looks at a value's type to find such a handler.
 (def %apply apply)
@@ -704,7 +704,7 @@
 ; lst). Commutative ops read naturally ((1/2 + 1/3) -> (Rational + 1/3 1/2) ->
 ; 5/6); non-commutative ones are subject-last too (use the prefix (- a b) form).
 ; Install via type-push-call: (%type-push-call (%type-by-atom %rational)
-; (%class-call-handler Rational)). An `op` (not fn) so the method selector stays
+; (class-call-handler Rational)). An `op` (not fn) so the method selector stays
 ; unevaluated while the remaining args evaluate in the caller's env.
 ; Data-form echo for the non-selector paths below (#69 ruled: a non-callable
 ; head was never a call, so DATA IN, DATA OUT). Evaluates each element of the
@@ -721,7 +721,7 @@
       ((not (pair? xs)) (f xs))
       (#t (pair (f (first xs)) (self f (rest xs)))))))
 
-(def %class-call-handler
+(def class-call-handler
   (fn (_ class)
     (op (obj . args) e
       ; A method call has a SYMBOL selector as its first arg ((1/2 numerator)).
@@ -759,12 +759,12 @@
 ; anything else DELEGATES to the PRIOR handler (captured at install), so the
 ; existing call form keeps working. So a string gets both ("hi" split ",")
 ; (method) and ("hi" 0) (code point); a vector both (v ->list) and (v 0).
-; Install with %bind-call-over! (below), which captures the current top handler
+; Install with bind-call-over! (below), which captures the current top handler
 ; before pushing this one.
 (def %class-call-handler-over
   (fn (_ class prior)
     (op (obj . args) e
-      ; Same atom-tail guard as %class-call-handler (#69): a dotted form
+      ; Same atom-tail guard as class-call-handler (#69): a dotted form
       ; binds args to a bare atom, which no prior handler can index into
       ; either -- echo it as data rather than delegating.
       (if (null? args)
@@ -791,7 +791,7 @@
 ; Install value-to-class method dispatch OVER a type's existing call handler:
 ; symbol selector -> the class's static method (subject-last); anything else
 ; falls through to whatever the type's call slot did before.
-(def %bind-call-over!
+(def bind-call-over!
   (fn (_ type-handle class)
     (let ((t (%type-by-atom type-handle)))
       (%type-push-call t (%class-call-handler-over class (%type-call-top t))))))
@@ -1612,17 +1612,25 @@
                     (if eval? (eval (first cell) e) (first cell))))
                 (loop (rest members) inits e eval?)))))))
 
+(doc class-call-handler "Make the call handler that gives a type's values method dispatch: (value selector args...) calls the class's static method, subject-last, and any other call form is echoed as data."
+  (param class CLASS "The class whose static methods answer the value's messages")
+  (returns CALLABLE "An operative for the type's call slot, installed with Type push-call"))
+(doc bind-call-over! "Install method dispatch to a class over a type's existing call handler: a symbol selector reaches the class's static method, and anything else falls through to what the type's call slot did before."
+  (param type-handle ATOM "The type handle whose values gain the dispatch")
+  (param class CLASS "The class whose static methods answer")
+  (returns ANY "What the type's push-call answers"))
+
 (doc (provide x/type/class
   def-class new new-from super method-ref method-of
   object? class? class-of class-name class-parent instance-of?
   class-members class-methods class-static-members class-static-methods
-  %class-call-handler %bind-call-over!)
+  class-call-handler bind-call-over!)
   (note "Instances: (obj name args...) -- method wins, else member (obj m)/(obj m v).")
   (note "Classes are callable: (Class name args...) -- static method, (Class new ...) to")
   (note "instantiate, else class-wide member (Class m)/(Class m v). Use classes as")
   (note "namespaces of static methods. Raw member access in methods: (member 'm)/(set-member! 'm v).")
-  (note "%class-call-handler / %bind-call-over! are the PUBLIC value-call extension hooks")
-  (note "(the % marks handler-layer machinery, not module privacy): (%bind-call-over! (Type of v) Class)")
+  (note "class-call-handler / bind-call-over! are the PUBLIC value-call extension hooks")
+  (note "(the % marks handler-layer machinery, not module privacy): (bind-call-over! (Type of v) Class)")
   (note "routes a value's symbol-selector calls to the class's statics, subject-LAST.")
   (example "(do (def-class P () x (method get (self) (self x))) ((new P x 5) get))" "5")
   "Object-oriented class system: classes-as-objects, message passing, single inheritance.")

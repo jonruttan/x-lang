@@ -858,7 +858,7 @@
 
 ; Value dispatch over the existing match call handler: (rx match s) / (rx find s)
 ; dispatch to Regex methods; (rx "input") still runs the bare match.
-(%bind-call-over! (Type of #/x/) Regex)
+(bind-call-over! (Type of #/x/) Regex)
 
 (doc (provide x/type/regex Regex)
   (note "Syntax: #/pattern/. Supports: . * + ? \\ [class] [^neg] (group) | alternation ^ $ anchors {n,m} repetition \\d \\w \\s.")

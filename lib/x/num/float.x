@@ -607,7 +607,7 @@
 
 ; Value dispatch (subject-last): (3.14 float?) -> (Float float? 3.14).
 (def %type-push-call (prim-ref 'type 'push-call))
-(%type-push-call (%type-by-atom float) (%class-call-handler Float))
+(%type-push-call (%type-by-atom float) (class-call-handler Float))
 
 ; Join the pact last, once the module is fully usable: any registration
 ; waiting on float fires against the finished class and type ops.
