@@ -149,6 +149,50 @@
       (doc "Return the name string of a type handle."
         (returns STRING "The type's registered name"))
       ((prim-ref (lit type) (lit name)) handle))
+    ; The base types by name: one static per type the engine registers, each
+    ; answering the handle (Type of) answers for a value of that type, so
+    ; (Type name (Type integer)) is "INTEGER".  These are the public spelling
+    ; of the handles the library's %-named caches hold (x/type/convert).
+    (method integer (self)
+      (doc "The INTEGER type handle: the machine integer."
+        (returns ATOM "The type's handle atom"))
+      ((prim-ref (lit type) (lit of)) 0))
+    (method string (self)
+      (doc "The STRING type handle: the byte string."
+        (returns ATOM "The type's handle atom"))
+      ((prim-ref (lit type) (lit of)) ""))
+    (method symbol (self)
+      (doc "The SYMBOL type handle: the interned symbol."
+        (returns ATOM "The type's handle atom"))
+      ((prim-ref (lit type) (lit of)) (lit x)))
+    (method character (self)
+      (doc "The CHARACTER type handle: the character."
+        (returns ATOM "The type's handle atom"))
+      ((prim-ref (lit type) (lit of)) ((prim-ref (lit int) (lit ->char)) 65)))
+    (method list (self)
+      (doc "The LIST type handle: the pair, the cell every list is made of."
+        (returns ATOM "The type's handle atom"))
+      ((prim-ref (lit type) (lit of)) (pair 1 2)))
+    (method bool (self)
+      (doc "The BOOL type handle: the two booleans."
+        (returns ATOM "The type's handle atom"))
+      ((prim-ref (lit type) (lit of)) #t))
+    (method procedure (self)
+      (doc "The PROCEDURE type handle: a closure made by fn."
+        (returns ATOM "The type's handle atom"))
+      ((prim-ref (lit type) (lit of)) (fn (_) ())))
+    (method primitive (self)
+      (doc "The PRIMITIVE type handle: a C primitive."
+        (returns ATOM "The type's handle atom"))
+      ((prim-ref (lit type) (lit of)) (prim-ref (lit type) (lit of))))
+    (method operative (self)
+      (doc "The OPERATIVE type handle: an operative made by op."
+        (returns ATOM "The type's handle atom"))
+      ((prim-ref (lit type) (lit of)) (op (_) e ())))
+    (method pointer (self)
+      (doc "The POINTER type handle: the raw pointer."
+        (returns ATOM "The type's handle atom"))
+      ((prim-ref (lit type) (lit of)) ((prim-ref (lit int) (lit ->ptr)) 0)))
     (method alist (self)
       (doc "Return the interpreter's type alist from the base object."
         (returns LIST "The ((handle . struct) ...) registry, reader-priority order"))

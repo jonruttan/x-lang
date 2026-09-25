@@ -9,6 +9,9 @@
 ; x/tool/asm-compile for the two it sets around a JIT compile.
 (module x/tool/compile/emit)
 
+; The base type handles, from their public door, fetched once at load.
+(def %string (Type string))
+
 ; Fetched from the catalog into this module's frame: the conversion
 ; dispatcher, the type prims the state cells use, and the write-stack push
 ; and pop the writer brackets below call.

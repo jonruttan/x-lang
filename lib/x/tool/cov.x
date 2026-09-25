@@ -4,6 +4,11 @@
 ; (X_OBJ_FLAG_2 set by x-bin-profile), and reports covered/total nodes.
 (module x/tool/cov)
 
+; The base type handles, from their public door, fetched once at load.
+(def %int (Type integer))
+(def %ptr (Type pointer))
+(def %string (Type string))
+
 ; --- Platform detection ---
 
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).

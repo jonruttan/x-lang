@@ -1,6 +1,9 @@
 ; complex.x -- Complex number type
 (module x/num/complex)
 
+; The base type handles, from their public door, fetched once at load.
+(def %int (Type integer))
+
 (import x/num/float float float? float-of f-add f-mul fsqrt fsin fcos fatan2 pi str->float)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))

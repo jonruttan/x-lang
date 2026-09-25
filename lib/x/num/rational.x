@@ -1,6 +1,10 @@
 ; rational.x -- Rational number type (exact fractions)
 (module x/num/rational)
 
+; The base type handles, from their public door, fetched once at load.
+(def %int (Type integer))
+(def %string (Type string))
+
 (import x/num/float float f-div int->float)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))

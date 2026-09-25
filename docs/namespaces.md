@@ -133,6 +133,16 @@ root for speed, as those two files' provide notes say. They stay root
 globals, and the private-reads rows their readers hold for them stay where
 they are; a reader that wants a door takes the class.
 
+`type/convert.x` waits on the lang bundles. Its base type handles (`%int`,
+`%string`, `%symbol`, `%char`, `%ptr`, `%pair`) are read by ten bundles as
+well as by the library, so the door came first: the `Type` statics
+`(Type integer)`, `(Type string)`, `(Type symbol)`, `(Type character)`,
+`(Type pointer)`, `(Type list)` and the rest of the engine's base types,
+named as `(Type name)` names them. The library's scoped readers fetch from
+the door at load; the bundles can follow once a release carries it and
+their `requires-release` pins move, and the file takes its header when the
+last of them has.
+
 Seven boot files cannot be modules at all: `boot/engine.x`, `registry.x`,
 `operatives.x`, `data.x`, `reflect.x`, `printer.x` and `string.x` load before
 `boot/module.x` defines the `module` form, and `module.x` is the loader

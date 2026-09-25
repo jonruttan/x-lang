@@ -1,5 +1,9 @@
 ; compile.x -- Runtime compiler: x-lang to native code
 (module x/tool/compile)
+
+; The base type handles, from their public door, fetched once at load.
+(def %ptr (Type pointer))
+(def %string (Type string))
 (import x/core/list)
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-cast! (prim-ref 'type 'cast!))
