@@ -4,7 +4,7 @@
 ; the methods fetch inline per the cold rule. Both namespaces are
 ; DE-REGISTERED (R5): the classes -- or catalog fetches -- are the only
 ; surface. Low-level/hot consumers (boot/data.x's int mutators, the JIT
-; assembler, the FFI float ops) fetch-and-cache into module %-vars:
+; assembler, x/num/float's stubs) fetch-and-cache into module %-vars:
 ;   (def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
 ;
 ; Pointer CONSTRUCTION from an int is int->ptr (catalog ns `int`, method
@@ -79,13 +79,11 @@
     (method dlsym (self (param lib PTR "Library handle from dlopen") (param name STRING "Symbol name"))
       (doc "Look up a symbol in a loaded library."
         (returns PTR "Function or data pointer"))
-      ((prim-ref (lit ffi) (lit dlsym)) lib name))
-    (method call (self (param sig STRING "Calling signature (e.g. \"d+d\", \"s0->d\")")
-                       (param lib ANY "Library handle, or () for a built-in signature")
-                       . (param args ANY "Call arguments (variadic)"))
-      (doc "Invoke a C function through the typed-signature FFI bridge."
-        (returns ANY "The converted C return value"))
-      (apply (prim-ref (lit ffi) (lit call)) (pair sig (pair lib args))))))
+      ((prim-ref (lit ffi) (lit dlsym)) lib name))))
+; There is no typed call here.  (Ptr call) calls through a pointer with
+; long arguments and a long result; a C function that takes or returns a
+; double is reached through x/num/float's libm-fn, whose stubs move the
+; bits into the FP registers.
 
 (doc (provide x/type/ptr Ptr Ffi)
   (note "ns `ptr`/`ffi` are de-registered; low-level/hot callers fetch-and-cache the prims. int->ptr is ns `int` (Ptr from-int).")

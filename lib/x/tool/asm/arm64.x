@@ -18,6 +18,12 @@
 (def xzr (reg 31))
 (def lr  (reg 30))
 
+; The double registers.  An FP operand is a (reg n) like any other; the
+; mnemonic says which bank its fields name.  d0-d7 carry a double's
+; arguments and its return in the C convention.
+(def d0 (reg 0)) (def d1 (reg 1)) (def d2 (reg 2)) (def d3 (reg 3))
+(def d4 (reg 4)) (def d5 (reg 5)) (def d6 (reg 6)) (def d7 (reg 7))
+
 ; Positional access on RAW prims.  This encoder runs once per emitted
 ; instruction and reached for (List ref) six times per field, three or
 ; four fields deep -- roughly twenty class-dispatched calls to read a
@@ -365,6 +371,66 @@
     (pair 'b/le (list
       (pair 'l (list 1409286157          ; 0x5400000D
         (list 0 5 19 2)))))
+
+    ; --- Scalar double family ---
+    ; The operands are (reg n) throughout; the mnemonic says which are
+    ; d registers.  fmov/d and fmov/x move the 64 bits unchanged between
+    ; the banks, which is how a double's bit pattern (an INT to x-lang)
+    ; reaches the FP unit and comes back.  Encodings checked against
+    ; clang's assembler.
+
+    ; FMOV Dd, Xn (bits, general -> FP)
+    (pair 'fmov/d (list
+      (pair 'rr (list 2657550336         ; 0x9E670000
+        (list 0 0 5 0)       ; Dd
+        (list 1 5 5 0)))))   ; Xn
+
+    ; FMOV Xd, Dn (bits, FP -> general)
+    (pair 'fmov/x (list
+      (pair 'rr (list 2657484800         ; 0x9E660000
+        (list 0 0 5 0)       ; Xd
+        (list 1 5 5 0)))))   ; Dn
+
+    ; FADD/FSUB/FMUL/FDIV Dd, Dn, Dm
+    (pair 'fadd (list
+      (pair 'rrr (list 509618176         ; 0x1E602800
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 2 16 5 0)))))
+    (pair 'fsub (list
+      (pair 'rrr (list 509622272         ; 0x1E603800
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 2 16 5 0)))))
+    (pair 'fmul (list
+      (pair 'rrr (list 509609984         ; 0x1E600800
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 2 16 5 0)))))
+    (pair 'fdiv (list
+      (pair 'rrr (list 509614080         ; 0x1E601800
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 2 16 5 0)))))
+
+    ; SCVTF Dd, Xn (signed integer -> double)
+    (pair 'scvtf (list
+      (pair 'rr (list 2657222656         ; 0x9E620000
+        (list 0 0 5 0)       ; Dd
+        (list 1 5 5 0)))))   ; Xn
+
+    ; FCVTZS Xd, Dn (double -> signed integer, toward zero)
+    (pair 'fcvtzs (list
+      (pair 'rr (list 2658664448         ; 0x9E780000
+        (list 0 0 5 0)       ; Xd
+        (list 1 5 5 0)))))   ; Dn
+
+    ; flt/feq Xd, Dn, Dm: Xd = 1 when Dn < Dm (or Dn = Dm), else 0, and 0
+    ; when either is NaN.  Two instructions, so a lowering: FCMP, then
+    ; CSET on MI or EQ, the two conditions an unordered compare leaves
+    ; false (LT would answer 1 for a NaN).
+    (pair 'flt (list (pair 'rrr 'flt)))
+    (pair 'feq (list (pair 'rrr 'feq)))
   ))
 
 ; --- Prologue/epilogue helpers ---
@@ -401,12 +467,25 @@
     (%emit-u32-le! asm 2831252477)    ; ldp x29, x30, [sp], #16
     (%emit-u32-le! asm 3596551104)))  ; ret
 
+; --- Double compare: FCMP Dn, Dm, then CSET Xd on COND ---
+; CSET Xd, cond is CSINC Xd, XZR, XZR with the condition inverted, so the
+; word carries the inverse: PL (5) for MI, NE (1) for EQ.
+(def %arm64-encode-fcset
+  (fn (_ asm inverse args)
+    (def rd (%op-value (first args)))
+    (def rn (%op-value (first (rest args))))
+    (def rm (%op-value (first (rest (rest args)))))
+    (%emit-u32-le! asm (| 509616128 (| (<< rm 16) (<< rn 5))))      ; 0x1E602000 FCMP
+    (%emit-u32-le! asm (| 2594113504 (| (<< inverse 12) rd)))))     ; 0x9A9F07E0 CSET
+
 ; --- Dispatch encoder ---
 (def %arm64-dispatch
   (fn (_ asm descriptor args)
-    (if (eq? descriptor 'movz)
-      (%arm64-encode-movz asm () args)
-      (%arm64-encode asm descriptor args))))
+    (match
+      ((eq? descriptor 'movz) (%arm64-encode-movz asm () args))
+      ((eq? descriptor 'flt)  (%arm64-encode-fcset asm 5 args))    ; MI
+      ((eq? descriptor 'feq)  (%arm64-encode-fcset asm 1 args))    ; EQ
+      (#t (%arm64-encode asm descriptor args)))))
 
 ; --- Patch resolver: ARM64 PC-relative branches ---
 ; For B/BL: imm26 = (target - offset) >> 2, OR'd into low 26 bits

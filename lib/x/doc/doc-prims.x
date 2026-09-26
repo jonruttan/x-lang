@@ -254,7 +254,7 @@
 
 (note "Foreign function interface")
 
-; dlopen/dlsym/ffi-call (ns ffi) and ptr-call/ptr->int/... (ns ptr) are
+; dlopen/dlsym (ns ffi) and ptr-call/ptr->int/... (ns ptr) are
 ; de-registered (R5); the Ffi and Ptr classes (lib/x/type/ptr.x) carry their
 ; docs. int->ptr (ns int) is de-registered (R5) too -- (Ptr from-int) is the
 ; surface; reader/hot callers fetch (prim-ref 'int '->ptr).
