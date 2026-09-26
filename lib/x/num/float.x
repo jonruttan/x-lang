@@ -20,6 +20,10 @@
 ; The binary integer primitives, fetched from the catalog: the C operators as
 ; they were before core/arithmetic.x wrapped the bare names.
 (def %int= (prim-ref (lit int) (lit =)))
+(def %int+ (prim-ref (lit int) (lit +)))
+(def %int* (prim-ref (lit int) (lit *)))
+(def %int/ (prim-ref (lit int) (lit /)))
+(def %int% (prim-ref (lit int) (lit %)))
 ; The machine-INT test, as predicates.x's number? was before float widened it.
 (def %int-t (%type-of 0))
 (def %int-number? (fn (_ x) (%type? x %int-t)))
@@ -55,9 +59,11 @@
 ; A finite double is exactly m * 2^e with an integer m.  For e >= 0 that is
 ; the integer m * 2^e; for e < 0 it is (m * 5^-e) * 10^e, so its decimal
 ; digits are those of the integer m * 5^-e with the point moved -e places.
-; Either way the digits are exact (bigint does the large products), and
-; rounding them to 15 significant digits, ties to even, is what C's
-; printf("%.15g") does with the same value.
+; That integer is held as limbs, base 10^9, least significant first, and
+; built by multiplying by a small factor a pass at a time, so every product
+; fits a machine int and the digits are exact without bigint (float loads
+; with or without it).  Rounding them to 15 significant digits, ties to
+; even, is what C's printf("%.15g") does with the same value.
 
 (def %float-precision 15)
 
@@ -65,13 +71,49 @@
 (def %byte-at
   (fn (_ s i) (%char->int (%str-byte-ref s i))))
 
-; 5^k by squaring; the generic * promotes to bigint past the machine int.
-(def %pow5
-  (fn (self k)
-    (match
-      ((%int= k 0) 1)
-      ((%int= (& k 1) 1) (* 5 (self (- k 1))))
-      (#t (let ((h (self (>> k 1)))) (* h h))))))
+; The limb base, and the largest factor each kind of pass multiplies by:
+; a limb times a factor, plus the carry, stays under 2^63.
+(def %limb-base 1000000000)
+(def %limb-digits 9)
+(def %pow5-step 12)                  ; 5^12 = 244140625
+(def %pow2-step 29)                  ; 2^29 = 536870912
+
+; The machine int operators throughout: these are limbs and small factors,
+; and the generic / answers a rational once num/rational has loaded.
+
+; N (positive) as limbs, least significant first, with no zero top limb.
+(def %int->limbs
+  (fn (self n)
+    (if (%int= n 0) ()
+      (pair (%int% n %limb-base) (self (%int/ n %limb-base))))))
+
+; LIMBS * S, S small.
+(def %limbs*
+  (fn (_ limbs s)
+    ((fn (self ls carry)
+       (if (null? ls)
+         (%int->limbs carry)
+         (let ((v (%int+ (%int* (first ls) s) carry)))
+           (pair (%int% v %limb-base) (self (rest ls) (%int/ v %limb-base))))))
+     limbs 0)))
+
+; LIMBS * B^K, K passes of B^STEP and one of the rest.
+(def %limbs*pow
+  (fn (self limbs b step k)
+    (if (> k step)
+      (self (%limbs* limbs (%int-pow b step)) b step (- k step))
+      (%limbs* limbs (%int-pow b k)))))
+
+(def %int-pow
+  (fn (self b k) (if (%int= k 0) 1 (%int* b (self b (- k 1))))))
+
+; The decimal digits of LIMBS, the top limb bare and the rest padded to nine.
+(def %limbs->str
+  (fn (self limbs)
+    (if (null? (rest limbs)) (%display-to-str (first limbs))
+      (Str8 append (self (rest limbs))
+        (let ((d (%display-to-str (first limbs))))
+          (Str8 append (%zeros (- %limb-digits (%str-byte-len d))) d))))))
 
 ; A string of N copies of "0".
 (def %zeros
@@ -154,20 +196,14 @@
       (#t
         (let ((m (if (%int= ex 0) frac (| frac (<< 1 52))))
               (e (if (%int= ex 0) -1074 (- ex 1075))))
-          (def ds (%display-to-str
-                    (if (< e 0) (* m (%pow5 (- 0 e))) (%two-power-times m e))))
+          (def ds (%limbs->str
+                    (if (< e 0)
+                      (%limbs*pow (%int->limbs m) 5 %pow5-step (- 0 e))
+                      (%limbs*pow (%int->limbs m) 2 %pow2-step e))))
           (def x (+ (- (%str-byte-len ds) 1) (if (< e 0) e 0)))
           (def r (%round-digits ds x %float-precision))
           (Str8 append sign
             (%g-layout (%strip-zeros (first r)) (rest r) %float-precision)))))))
-
-; M * 2^E for E >= 0, by doubling (the generic * promotes to bigint).
-(def %two-power-times
-  (fn (self m e)
-    (if (< e 1) m
-      (if (> e 29)
-        (self (* m 536870912) (- e 29))
-        (* m (<< 1 e))))))
 
 (def %float->str
   (fn (_ bits)
