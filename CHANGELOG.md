@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**x86-64 add and sub with an immediate read their source register**
+([#797]). The x86-64 backend encoded `(add Xd Xn (imm N))` and its `sub` as
+the two-address form on Xd and never read Xn, so with the two different it
+computed Xd plus N where ARM64 computes Xn plus N. It now moves Xn into Xd
+first, as the register form does. `asm-three-address.spec.md` runs the form
+on both backends.
+
+[#797]: https://github.com/jonruttan/x-lang/pull/797
+
 **The kit's lint reads a scoped bundle's imports** ([#795]). The linter lints
 a bundle's directory of modules as one group, with a preload that imported
 each sibling bare and ran the imports of only the first file. A scoped
