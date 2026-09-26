@@ -43,6 +43,14 @@
 (include "lib/x/type/hash.x")
 (include "lib/x/tool/compile.x")
 (import x/tool/compile compile compile-asm compile-hosted?)
+; The assembler, loaded here rather than on the first compile-asm.  The
+; tower's analyser compiles below load it at run time through asm-cache, and
+; num/float.x imports it for its stubs.  A run-time import is invisible to
+; tools/release/amalgamate.sh, which inlines float's top-level import instead:
+; asm.x then loaded twice in an amalgam, and the second load left %arch
+; empty, so the first stub float emitted crashed the boot.  Imported here, at
+; top level and ahead of both, it is inlined once and both imports find it.
+(import x/tool/asm)
 ; The quote family's entry tests and states, to compile and to swap by identity.
 (import x/reader/lit-reader lit-accept lit-analyse macro-delimit interp-analyse interp-after-hash)
 (import x/reader/quasi-reader quasi-accept quasi-analyse unquote-after-comma unquote-analyse)
