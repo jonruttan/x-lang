@@ -5,9 +5,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**Floats no longer need the engine's `ffi-call`.** x-engine-c is removing
-`(ffi call)`: the engine does no floating point, and float work is the
-language's. `lib/x/num/float.x` now emits each double operation as a small
+**Floats no longer need the engine's `ffi-call`** ([#796]). x-engine-c is
+removing `(ffi call)`: the engine does no floating point, and float work is
+the language's. `lib/x/num/float.x` now emits each double operation as a small
 machine-code stub through the library's own assembler and calls it with
 `(ptr call)`, which passes a double's bit pattern in a general register as
 it passes any integer. A stub moves the bits into the FP registers,
@@ -25,6 +25,29 @@ with `d0`-`d7` naming arm64's d registers and x86-64's xmm registers.
 Works on the pinned engine, v0.2.13, which still has `ffi-call`; dropping
 `ffi/call` from `tools/contract/features.x` waits for the engine release
 without it.
+
+[#796]: https://github.com/jonruttan/x-lang/pull/796
+
+**The kit's lint reads a scoped bundle's imports** ([#795]). The linter lints
+a bundle's directory of modules as one group, with a preload that imported
+each sibling bare and ran the imports of only the first file. A scoped
+module answers a bare import with its classes alone, so every name a scoped
+file imported from a sibling read as Undefined -- x-cc's 53, once its parts
+became modules. The preload now runs every file's own imports, read whole
+though they run over several lines, and is the same whichever file it is
+computed from. `check-lang-kit-lint` holds it on a two-module fixture, and
+holds that a name nothing defines is still reported.
+
+[#795]: https://github.com/jonruttan/x-lang/pull/795
+
+**The lang kit ships whole** ([#794]). `make install` copied three of the
+kit's files by name and not `gen-harness.sh`, so the 0.15.0 release, which
+is the install tree, carried no harness generator, and a bundle reaching
+the kit through `x --share-dir` could not generate its spec harness on an
+installed x. The install now copies every file in `tools/lang-kit/`,
+diffing each, so a file added to the kit ships without a line of its own.
+
+[#794]: https://github.com/jonruttan/x-lang/pull/794
 
 ## [0.15.0] - 2026-09-25
 

@@ -67,6 +67,19 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# FILE's top-level (import ...) forms on one line, comments dropped.  A form
+# may run over several lines, so it is read to its closing paren; an
+# import's parts are symbols, so counting parens finds it.
+_import_forms() {
+  sed 's/;.*$//' "$1" | awk '
+    !open && /^\(import / { open = 1; form = ""; depth = 0 }
+    open {
+      form = form " " $0
+      depth += gsub(/\(/, "(") - gsub(/\)/, ")")
+      if (depth <= 0) { printf "%s ", form; open = 0 }
+    }'
+}
+
 # Compute the preload for one ABSOLUTE target path into _PRELOAD -- the
 # imports executed ahead of the linter so the target's legitimate env is
 # bound.  Factored out (#323): the per-file loop and the batch grouper
@@ -77,6 +90,14 @@ done
 # own root have that shape -- a directory of (provide ...) modules plus
 # an entry with none -- so the walk takes the modules root as an
 # argument rather than matching one hard-coded path.
+#
+# Every file's own imports go into it.  A scoped module (one headed
+# `(module NAME)`) takes a sibling's names by a selective import into its
+# own environment, and the bare `(import NS/NAME)` below binds nothing of a
+# scoped sibling but its classes -- so without its imports the target's
+# every such name reads Undefined.  Taking every file's imports, rather
+# than the target's alone, also keeps the preload the same whichever file
+# of the directory --group computes it from.
 _preload_siblings() {
   _MOD_DIR="$(cd "$(dirname "$1")" && pwd)"
   _ROOT="$(dirname "$_MOD_DIR")"
@@ -84,8 +105,7 @@ _preload_siblings() {
   _ABS_F="$_MOD_DIR/$(basename "$1")"
   _PRELOAD="(import-path! \"$_ROOT\")"
   for _m in "$_MOD_DIR"/*.x; do
-    grep -q '(provide ' "$_m" && [ "$_m" != "$_ABS_F" ] && continue
-    _PRELOAD="$_PRELOAD $(grep '^(import ' "$_m" | sed 's/;.*$//' | tr '\n' ' ')"
+    _PRELOAD="$_PRELOAD $(_import_forms "$_m")"
   done
   # An assembler is preloaded whole rather than fragment by fragment.  A
   # bundle like x-coreutils or x-cc is one module built from files carrying
@@ -141,7 +161,7 @@ _preload_for() {
   _PRELOAD=""
   case "$1" in
     */lib/x/*.x)
-      _PRELOAD="$(grep '^(import ' "$1" | sed 's/;.*$//' | tr '\n' ' ')"
+      _PRELOAD="$(_import_forms "$1")"
       ;;
     */apps/*/*.x)
       _preload_siblings "$1"
@@ -168,7 +188,7 @@ _preload_for() {
                 _MD="$(basename "$(dirname "$_m")")"
                 _PRELOAD="$_PRELOAD (import $_MD/$(basename "$_m" .x))"
               done
-              _PRELOAD="$_PRELOAD $(grep '^(import ' "$1" | sed 's/;.*$//' | tr '\n' ' ')"
+              _PRELOAD="$_PRELOAD $(_import_forms "$1")"
             fi
             ;;
         esac
