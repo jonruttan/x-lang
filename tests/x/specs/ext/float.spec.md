@@ -914,3 +914,61 @@ is unchanged.
 ```
 ---
     (0.0 -2.0)
+
+## printing
+
+The printer is x (lib/x/num/float.x): exact digits from bigint, rounded to
+15 significant digits ties to even, laid out as C's `%.15g`, with `.0`
+kept on an integral value so it reads back as a float.
+
+### fifteen significant digits, rounded
+
+```x
+(list (Float from "0.30000000000000004") (/ 1.0 3.0) (Float from "123456789012345678"))
+```
+---
+    (0.3 0.333333333333333 1.23456789012346e+17)
+
+### the exponent form below 1e-4 and from 1e15
+
+```x
+(list (Float from "1e-5") (Float from "0.0001") (Float from "1e15") (Float from "1e14"))
+```
+---
+    (1e-05 0.0001 1e+15 100000000000000.0)
+
+### the extremes: largest finite, smallest subnormal, a big exponent
+
+```x
+(list (Float from "1.7976931348623157e308") (Float from "5e-324") (Float from "1e100"))
+```
+---
+    (1.79769313486232e+308 4.94065645841247e-324 1e+100)
+
+### signed zero, the infinities, NaN
+
+```x
+(list (- 0.0 0.0) (* -1.0 0.0) (/ 1.0 0.0) (/ -1.0 0.0) (/ 0.0 0.0))
+```
+---
+    (0.0 -0.0 inf -inf nan)
+
+### a printed float reads back as the same float
+
+```x
+(let ((x (/ 2.0 7.0)))
+  (list x (Float from (Str8 str x))))
+```
+---
+    (0.285714285714286 0.285714285714286)
+
+## comparisons with NaN
+
+### NaN is neither less than, equal to, nor greater than anything
+
+```x
+(let ((n (/ 0.0 0.0)))
+  (list (< n 1.0) (< 1.0 n) (= n n) (> n 1.0)))
+```
+---
+    (#f #f #f #f)
