@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The kit's lint reads a scoped bundle's imports** ([#795]). The linter lints
+a bundle's directory of modules as one group, with a preload that imported
+each sibling bare and ran the imports of only the first file. A scoped
+module answers a bare import with its classes alone, so every name a scoped
+file imported from a sibling read as Undefined -- x-cc's 53, once its parts
+became modules. The preload now runs every file's own imports, read whole
+though they run over several lines, and is the same whichever file it is
+computed from. `check-lang-kit-lint` holds it on a two-module fixture, and
+holds that a name nothing defines is still reported.
+
+[#795]: https://github.com/jonruttan/x-lang/pull/795
+
 **The lang kit ships whole** ([#794]). `make install` copied three of the
 kit's files by name and not `gen-harness.sh`, so the 0.15.0 release, which
 is the install tree, carried no harness generator, and a bundle reaching
