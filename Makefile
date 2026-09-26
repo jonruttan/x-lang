@@ -1140,16 +1140,14 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	# file was written twice and needed three fixes backported to the second
 	# copy the day it was written -- so they ship here and bundles carry a
 	# shim, addressed as <root>/tools/lang-kit where <root> is what
-	# `x --share-dir` answers.
+	# `x --share-dir` answers.  The whole directory ships, so a file added
+	# to the kit is in every install without a line of its own here.
 	#
 	# Outside the payload fingerprint, for the same reason the runner is.
 	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tools/lang-kit
-	install $C -m 0644 tools/lang-kit/release-refs.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/release-refs.sh
-	diff tools/lang-kit/release-refs.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/release-refs.sh
-	install $C -m 0644 tools/lang-kit/spec-gate.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/spec-gate.sh
-	diff tools/lang-kit/spec-gate.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/spec-gate.sh
-	install $C -m 0644 tools/lang-kit/lint.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/lint.sh
-	diff tools/lang-kit/lint.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/lint.sh
+	for f in tools/lang-kit/*; do \
+		install $C -m 0644 $$f $(DESTDIR)$(LIBDIR)/$$f || exit 1; \
+		diff $$f $(DESTDIR)$(LIBDIR)/$$f || exit 1; done
 	# THE LINTER ITSELF, which the kit shim drives: `make lint-x` sweeps
 	# lib/ and apps/, and a bundle under languages/ was swept by nothing.
 	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tools/dev
