@@ -5,6 +5,29 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**Floats no longer need the engine's `ffi-call`** ([#796]). x-engine-c is
+removing `(ffi call)`: the engine does no floating point, and float work is
+the language's. `lib/x/num/float.x` now emits each double operation as a small
+machine-code stub through the library's own assembler and calls it with
+`(ptr call)`, which passes a double's bit pattern in a general register as
+it passes any integer. A stub moves the bits into the FP registers,
+operates, and moves the result back: arithmetic, the two comparisons, the
+int casts, `strtod`, and every libm function, whose stub calls the
+`dlsym`'d address. The stubs are process-local, so they live in the same
+cells the libm pointers did, emptied for a state image and remade when one
+loads. `libm-fn` keeps its kinds, `"d->d"`, `"dd->d"` and `"ptr"`.
+Printing (`%.15g`, which `ffi-call` did with `sprintf`) is x: exact digits
+from bigint, rounded to fifteen significant digits, ties to even. The
+assembler gains the scalar double family on both backends -- `fmov/d`,
+`fmov/x`, `fadd`, `fsub`, `fmul`, `fdiv`, `scvtf`, `fcvtzs`, `flt`, `feq`,
+with `d0`-`d7` naming arm64's d registers and x86-64's xmm registers.
+`(Ffi call)`, which wrapped `ffi-call` and had no callers, is removed.
+Works on the pinned engine, v0.2.13, which still has `ffi-call`; dropping
+`ffi/call` from `tools/contract/features.x` waits for the engine release
+without it.
+
+[#796]: https://github.com/jonruttan/x-lang/pull/796
+
 **The kit's lint reads a scoped bundle's imports** ([#795]). The linter lints
 a bundle's directory of modules as one group, with a preload that imported
 each sibling bare and ran the imports of only the first file. A scoped

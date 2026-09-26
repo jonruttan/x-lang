@@ -48,6 +48,9 @@
 (def x19 rbx) (def x20 r12) (def x21 r13) (def x22 r14)
 (def xzr (reg 99))
 (def %x86-zr 99)
+; d0-d7 are xmm0-xmm7 (the scalar double family below)
+(def d0 (reg 0)) (def d1 (reg 1)) (def d2 (reg 2)) (def d3 (reg 3))
+(def d4 (reg 4)) (def d5 (reg 5)) (def d6 (reg 6)) (def d7 (reg 7))
 
 ; Positional access on RAW prims -- same de-dispatch as the arm64
 ; encoder (#196): (List ref) costs ~226us a call against ~26us for the
@@ -317,6 +320,93 @@
       (list (%x86-rex r 0) 139 (%modrm 0 r 4) 36           ; mov r, [rsp]
             72 131 196 16))))                              ; add rsp,16
 
+; --- Scalar double family (SSE2) ---
+; The d registers are the xmm registers, one for one: SysV passes a
+; double's arguments in xmm0-xmm7 and returns it in xmm0, as arm64 does in
+; d0-d7.  The general operands are the portable x registers above.  Every
+; form is prefix, optional REX, 0F, opcode, ModR/M; the REX is needed only
+; for W (a 64-bit general operand) or an operand past 7.
+;
+; One lowering for the whole family, (%x86-float asm KEY args), with its
+; helpers bound inside it: the table names each form (sse KEY).
+(def %x86-float
+  (let ()
+    (def arg (fn (_ args n) (%op-value (%x86-nth n args))))
+
+    ; REX without W, or nothing when neither operand needs one.
+    (def rex-opt
+      (fn (_ reg-val rm-val)
+        (if (or (> reg-val 7) (> rm-val 7))
+          (list (| 64 (| (if (> reg-val 7) 4 0) (if (> rm-val 7) 1 0))))
+          ())))
+
+    ; PFX [REX] 0F OP /r, with reg and rm as given.  W? asks for REX.W.
+    (def sse!
+      (fn (_ asm pfx op w? reg-val rm-val)
+        (%emit-bytes! asm
+          (pair pfx
+            (%append (if w? (list (%x86-rex reg-val rm-val)) (rex-opt reg-val rm-val))
+                     (list 15 op (%modrm 3 reg-val rm-val)))))))
+
+    ; SETcc into the low byte of R.  A REX is always emitted, so 4-7 name
+    ; spl-dil and not ah-bh.
+    (def setcc!
+      (fn (_ asm cc r)
+        (%emit-bytes! asm (list (| 64 (if (> r 7) 1 0)) 15 cc (%modrm 3 0 r)))))
+
+    ; MOVZX r64, r8 (REX.W 0F B6), widening the flag byte to 0 or 1.
+    (def movzx8!
+      (fn (_ asm r)
+        (%emit-bytes! asm (list (%x86-rex r r) 15 182 (%modrm 3 r r)))))
+
+    ; fadd/fsub/fmul/fdiv d, n, m: MOVAPD d, n when they differ, then the
+    ; two-address F2 0F op.  The same dst==src2 refusal as the integer family.
+    (def arith!
+      (fn (_ asm op args)
+        (def dst  (arg args 0))
+        (def src1 (arg args 1))
+        (def src2 (arg args 2))
+        (if (and (= dst src2) (not (= dst src1)))
+          (Err raise 'value "x86_64: unsupported 3-address shape (dst==src2)" ()))
+        (unless (= dst src1) (sse! asm 102 40 #f dst src1))     ; MOVAPD
+        (sse! asm 242 op #f dst src2)))
+
+    (fn (_ asm key args)
+      (match
+        ; fmov/d xmm, r64 (MOVQ 66 REX.W 0F 6E) and fmov/x r64, xmm (66 REX.W
+        ; 0F 7E): both put the xmm register in the reg field.
+        ((eq? key 'fmov/d) (sse! asm 102 110 #t (arg args 0) (arg args 1)))
+        ((eq? key 'fmov/x) (sse! asm 102 126 #t (arg args 1) (arg args 0)))
+        ((eq? key 'fadd) (arith! asm 88 args))                   ; ADDSD
+        ((eq? key 'fsub) (arith! asm 92 args))                   ; SUBSD
+        ((eq? key 'fmul) (arith! asm 89 args))                   ; MULSD
+        ((eq? key 'fdiv) (arith! asm 94 args))                   ; DIVSD
+        ; scvtf xmm, r64 (CVTSI2SD F2 REX.W 0F 2A); fcvtzs r64, xmm
+        ; (CVTTSD2SI F2 REX.W 0F 2C), truncating as FCVTZS does.  Out of
+        ; range, x86 answers 0x8000000000000000 where arm64 saturates.
+        ((eq? key 'scvtf) (sse! asm 242 42 #t (arg args 0) (arg args 1)))
+        ((eq? key 'fcvtzs) (sse! asm 242 44 #t (arg args 0) (arg args 1)))
+        ; flt d, a, b: UCOMISD b, a sets CF and ZF from b against a, so SETA
+        ; (CF=0 and ZF=0) is a < b.  An unordered compare sets both flags,
+        ; so a NaN answers 0, as MI does on arm64.
+        ((eq? key 'flt)
+          (do (sse! asm 102 46 #f (arg args 2) (arg args 1))    ; UCOMISD
+              (setcc! asm 151 (arg args 0))                      ; SETA
+              (movzx8! asm (arg args 0))))
+        ; feq d, a, b: equal is ZF=1 with PF=0; an unordered compare sets
+        ; PF, so SETE alone would answer 1 for a NaN.  PF goes through r11,
+        ; which is scratch here as it is for sdiv.
+        ((eq? key 'feq)
+          (let ((dst (arg args 0)))
+            (if (= dst 11)
+              (Err raise 'value "x86_64: feq destination cannot be r11" ()))
+            (sse! asm 102 46 #f (arg args 1) (arg args 2))      ; UCOMISD
+            (setcc! asm 148 dst)                                 ; SETE
+            (setcc! asm 155 11)                                  ; SETNP r11b
+            (%emit-bytes! asm (list (| 68 (if (> dst 7) 1 0)) 32 (%modrm 3 11 dst))) ; AND dst8, r11b
+            (movzx8! asm dst)))
+        (#t (Err raise 'value "x86_64: no such double form" key))))))
+
 ; --- Dispatch encoder: symbol descriptors name lowerings ---
 (def %x86_64-dispatch
   (fn (_ asm descriptor args)
@@ -338,6 +428,8 @@
       ((eq? descriptor 'blr1)  (%x86-lower-blr asm args))
       ((eq? descriptor 'push1) (%x86-lower-push asm args))
       ((eq? descriptor 'pop1)  (%x86-lower-pop asm args))
+      ((and (pair? descriptor) (eq? (first descriptor) 'sse))
+        (%x86-float asm (first (rest descriptor)) args))
       (#t (%x86_64-encode asm descriptor args)))))
 
 ; --- Opcode table ---
@@ -506,6 +598,18 @@
     (pair 'call (list
       (pair 'l (list () (list 232) ()           ; 0xE8
         (list (list 'rel32 0))))))
+
+    ; The scalar double family, all lowered by %x86-float
+    (pair 'fmov/d (list (pair 'rr '(sse fmov/d))))
+    (pair 'fmov/x (list (pair 'rr '(sse fmov/x))))
+    (pair 'fadd   (list (pair 'rrr '(sse fadd))))
+    (pair 'fsub   (list (pair 'rrr '(sse fsub))))
+    (pair 'fmul   (list (pair 'rrr '(sse fmul))))
+    (pair 'fdiv   (list (pair 'rrr '(sse fdiv))))
+    (pair 'scvtf  (list (pair 'rr '(sse scvtf))))
+    (pair 'fcvtzs (list (pair 'rr '(sse fcvtzs))))
+    (pair 'flt    (list (pair 'rrr '(sse flt))))
+    (pair 'feq    (list (pair 'rrr '(sse feq))))
   ))
 
 ; asm-push!/asm-pop!: the function forms of the 'push/'pop lowerings --
