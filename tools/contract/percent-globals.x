@@ -285,7 +285,11 @@
 (file "lib/x/tool/asm/arm64.x" 9)
 ; x86_64.x rose 23 to 24 for %x86_64-reloc: the same operation, one flat
 ; 8-byte store after the two opcode bytes.
-(file "lib/x/tool/asm/x86_64.x" 24)
+; x86_64.x rose 24 to 25 for %x86-float: the scalar double family (SSE2),
+; which float.x's stubs emit now that the engine does no floating point.
+; One lowering for the ten forms, its helpers bound inside it; arm64 needs
+; no row, its forms being table words and one dispatch clause.
+(file "lib/x/tool/asm/x86_64.x" 25)
 ; compile.x rose 25 to 26 for %compile-cache-identity: the engine-and-machine
 ; half of the cache key, held apart from the expression so the pairing can be
 ; named and asserted (#590 -- a key without engine identity served

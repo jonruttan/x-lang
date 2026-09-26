@@ -137,7 +137,7 @@ what it may rely on, and how one is written or extracted.
 - **Regular expressions** — Custom type with `#/pattern/` literal syntax.
 - **Self-hosted tools** — Linter, formatter, coverage analyzer, profiler, and documentation generator written in x-lang.
 - **Tail-call optimization** — Trampoline-based TCO with environment save/restore.
-- **No third-party dependencies** — the engine's expression core links only `libc`; the full binary adds `-ldl` for the FFI/JIT layer (float math dlopens `libm` at runtime rather than linking it). x-engine-c is C89 and builds with gcc or clang on macOS and Linux.
+- **No third-party dependencies** — the engine reaches the host only through its CLI and x-expr's system wrappers, and does no floating point; the full binary adds `-ldl` for `dlopen`/`dlsym`. Floats are x-lang's: the arithmetic is machine code the library's own assembler emits, and the math functions are `libm`'s, opened at runtime rather than linked. x-engine-c is C89 and builds with gcc or clang on macOS and Linux.
 
 ## Architecture
 
@@ -146,7 +146,7 @@ The system is layered. Each layer expands capabilities without modifying those b
 1. **Atom/pair bootstrap** (the engine) — One storage shape, two blessed lengths: every object is a fixed-size vector of slots, and the two smallest — the atom (one) and the pair (two) — are sufficient for evaluation and data construction. The evaluator dispatches through type methods, so these two suffice to get the system running.
 2. **Adaptive type system** — Runtime type definitions with dispatch methods (call, eval, write, length, etc.). Types and the base object share the same nested-list contract structure, extensible by appending pairs.
 3. **Modular library** (`lib/`) — ~100 modules organized by domain: core operations, custom types (vectors, strings, promises), a numeric tower (bigint, float, rational, complex, decimal), system interfaces (POSIX, FFI, GC), self-hosted tools (linter, formatter, coverage, profiler, doc generator), and platform-specific code (x86_64, ARM64).
-4. **FFI and native code** — Dynamic library loading via `dlopen`/`dlsym`, typed foreign calls, raw pointer operations, and a JIT compiler that compiles x-lang functions to native machine code via a data-driven assembler.
+4. **FFI and native code** — Dynamic library loading via `dlopen`/`dlsym`, calls through a pointer, raw pointer operations, and a JIT compiler that compiles x-lang functions to native machine code via a data-driven assembler.
 
 See [docs/](docs/) for complete reference documentation.
 
@@ -237,10 +237,12 @@ somewhere else with `make X_ENGINE_DIR=/path/to/engine`, and the choice
 sticks until you change it. The target may be a checkout (built here) or an
 unpacked engine release (used as it comes).
 
-The engine's expression core needs nothing beyond `libc`; the full binary
-adds `-ldl` for the FFI/JIT layer. There is no `-lm` — float math
-resolves `libm` at runtime through the FFI, the same way it resolves any
-other library. One optional tool needs more: `x/tool/compile` — the
+The engine reaches the host only through its CLI and x-expr's system
+wrappers; the full binary adds `-ldl` for `dlopen`/`dlsym`. There is no
+`-lm`, and the engine does no floating point at all: `lib/x/num/float.x`
+emits the double operations as machine code through the library's own
+assembler (arm64 and x86-64), and reaches `libm` at runtime through
+`dlopen`, the same way it reaches any other library. One optional tool needs more: `x/tool/compile` — the
 C-emitting compiler — invokes `cc` at *runtime* and `dlopen`s the result, so
 it needs a host C toolchain present when it runs. Nothing else does.
 
