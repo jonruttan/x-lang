@@ -31,6 +31,7 @@
 ; The string prims the printer below reads digits with.
 (def %str-byte-len (prim-ref 'str 'byte-len))
 (def %str-byte-ref (prim-ref 'str 'byte-ref))
+(def %char->int (prim-ref 'char '->int))
 (def %str-byte-sub (prim-ref 'str 'byte-sub))
 (def %display-to-str (prim-ref 'io 'display-to-str))
 
@@ -60,6 +61,10 @@
 
 (def %float-precision 15)
 
+; The byte at I of S, as an INT (byte-ref answers a CHAR).
+(def %byte-at
+  (fn (_ s i) (%char->int (%str-byte-ref s i))))
+
 ; 5^k by squaring; the generic * promotes to bigint past the machine int.
 (def %pow5
   (fn (self k)
@@ -76,7 +81,7 @@
 (def %strip-zeros
   (fn (_ ds)
     ((fn (self n)
-       (if (and (> n 1) (%int= (%str-byte-ref ds (- n 1)) 48))
+       (if (and (> n 1) (%int= (%byte-at ds (- n 1)) 48))
          (self (- n 1))
          (%str-byte-sub ds 0 n)))
      (%str-byte-len ds))))
@@ -85,14 +90,14 @@
 (def %any-nonzero?
   (fn (self ds i)
     (if (>= i (%str-byte-len ds)) #f
-      (if (%int= (%str-byte-ref ds i) 48) (self ds (+ i 1)) #t))))
+      (if (%int= (%byte-at ds i) 48) (self ds (+ i 1)) #t))))
 
 ; The machine int the first N digits of DS spell (N <= 15, so it fits).
 (def %digits->int
   (fn (_ ds n)
     ((fn (self i acc)
        (if (>= i n) acc
-         (self (+ i 1) (+ (* acc 10) (- (%str-byte-ref ds i) 48)))))
+         (self (+ i 1) (+ (* acc 10) (- (%byte-at ds i) 48)))))
      0 0)))
 
 ; Round the digit string DS (value DS * 10^(X - len + 1), leading digit
@@ -102,7 +107,7 @@
   (fn (_ ds x p)
     (if (<= (%str-byte-len ds) p) (pair ds x)
       (let ((kept (%str-byte-sub ds 0 p))
-            (next (- (%str-byte-ref ds p) 48)))
+            (next (- (%byte-at ds p) 48)))
         (def k (%digits->int ds p))
         (def up
           (match

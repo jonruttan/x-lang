@@ -467,24 +467,21 @@
     (%emit-u32-le! asm 2831252477)    ; ldp x29, x30, [sp], #16
     (%emit-u32-le! asm 3596551104)))  ; ret
 
-; --- Double compare: FCMP Dn, Dm, then CSET Xd on COND ---
-; CSET Xd, cond is CSINC Xd, XZR, XZR with the condition inverted, so the
-; word carries the inverse: PL (5) for MI, NE (1) for EQ.
-(def %arm64-encode-fcset
-  (fn (_ asm inverse args)
-    (def rd (%op-value (first args)))
-    (def rn (%op-value (first (rest args))))
-    (def rm (%op-value (first (rest (rest args)))))
-    (%emit-u32-le! asm (| 509616128 (| (<< rm 16) (<< rn 5))))      ; 0x1E602000 FCMP
-    (%emit-u32-le! asm (| 2594113504 (| (<< inverse 12) rd)))))     ; 0x9A9F07E0 CSET
-
 ; --- Dispatch encoder ---
+; flt/feq are FCMP Dn, Dm then CSET Xd, and CSET Xd, cond is CSINC Xd, XZR,
+; XZR with the condition inverted, so its word carries the inverse: PL (5)
+; for MI, NE (1) for EQ.
 (def %arm64-dispatch
   (fn (_ asm descriptor args)
     (match
       ((eq? descriptor 'movz) (%arm64-encode-movz asm () args))
-      ((eq? descriptor 'flt)  (%arm64-encode-fcset asm 5 args))    ; MI
-      ((eq? descriptor 'feq)  (%arm64-encode-fcset asm 1 args))    ; EQ
+      ((or (eq? descriptor 'flt) (eq? descriptor 'feq))
+        (let ((rd (%op-value (first args)))
+              (rn (%op-value (first (rest args))))
+              (rm (%op-value (first (rest (rest args)))))
+              (inverse (if (eq? descriptor 'flt) 5 1)))
+          (%emit-u32-le! asm (| 509616128 (| (<< rm 16) (<< rn 5))))      ; 0x1E602000 FCMP
+          (%emit-u32-le! asm (| 2594113504 (| (<< inverse 12) rd)))))     ; 0x9A9F07E0 CSET
       (#t (%arm64-encode asm descriptor args)))))
 
 ; --- Patch resolver: ARM64 PC-relative branches ---
