@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The lang kit ships whole** ([#794]). `make install` copied three of the
+kit's files by name and not `gen-harness.sh`, so the 0.15.0 release, which
+is the install tree, carried no harness generator, and a bundle reaching
+the kit through `x --share-dir` could not generate its spec harness on an
+installed x. The install now copies every file in `tools/lang-kit/`,
+diffing each, so a file added to the kit ships without a line of its own.
+
+[#794]: https://github.com/jonruttan/x-lang/pull/794
+
 ## [0.15.0] - 2026-09-25
 
 **The base types have a public door: `(Type named INTEGER)`** ([#719],
