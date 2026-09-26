@@ -193,14 +193,22 @@
 
 ; --- Lowerings (symbol-delegated from the table) ---
 
-; alu3 family: (op dst src1 src2), all registers
+; alu3 family: (op dst src1 src2), src2 a register or an immediate.  The
+; immediate form is REX.W 81 /n imm32, n being bits 5-3 of the register
+; form's opcode (ADD 0x01 is /0, SUB 0x29 is /5); the mov cannot clobber
+; an immediate, so every shape of it lowers.
 (def %x86-lower-alu3
   (fn (_ asm op args)
     (def dst  (%op-value (%x86-nth 0 args)))
     (def src1 (%op-value (%x86-nth 1 args)))
-    (def src2 (%op-value (%x86-nth 2 args)))
-    ; the xzr idiom: sub d, zr, s = negate
+    (def b    (%x86-nth 2 args))
+    (def src2 (%op-value b))
     (match
+      ((eq? (%op-type b) 'imm)
+        (do (%x86-mov! asm dst src1)
+            (%emit-bytes! asm (list (%x86-rex 0 dst) 129 (%modrm 3 (>> op 3) dst)))
+            (%emit-u32-le! asm src2)))
+      ; the xzr idiom: sub d, zr, s = negate
       ((and (= op 41) (= src1 %x86-zr))
         (do (%x86-mov! asm dst src2)
             (%x86-f7! asm 3 dst)))               ; NEG
@@ -365,12 +373,13 @@
         ()
         (list (list 'imm64 1))))))
 
-    ; Three-address ALU family: lowered (mov dst,src1; op dst,src2).
-    ; The two-operand rr forms remain for HAND-WRITTEN x86 code (the
-    ; asm.x86_64 specs speak native two-address style); the compiler
-    ; only ever emits rrr.
+    ; Three-address ALU family: lowered (mov dst,src1; op dst,src2), src2
+    ; a register (rrr) or an immediate (rri).  The two-operand rr and ri
+    ; forms remain for hand-written x86 code (the asm.x86_64 specs speak
+    ; native two-address style).
     (pair 'add (list
       (pair 'rrr 'add3)
+      (pair 'rri 'add3)
       (pair 'rr (list
         (list 72)
         (list 1)                 ; 0x01 ADD r/m64, r64
@@ -380,14 +389,10 @@
         (list 72)
         (list 129)               ; 0x81 /0 ADD r/m64, imm32 (two-operand)
         (list (list '/ 0) 0)
-        (list (list 'imm32 1))))
-      (pair 'rri (list
-        (list 72)
-        (list 129)               ; 0x81
-        (list (list '/ 0) 0)     ; /0 = ADD, rm=arg0 (dst==src1 form)
-        (list (list 'imm32 2))))))
+        (list (list 'imm32 1))))))
     (pair 'sub (list
       (pair 'rrr 'sub3)
+      (pair 'rri 'sub3)
       (pair 'rr (list
         (list 72)
         (list 41)                ; 0x29 SUB r/m64, r64
@@ -397,12 +402,7 @@
         (list 72)
         (list 129)               ; 0x81 /5 SUB r/m64, imm32 (two-operand)
         (list (list '/ 5) 0)
-        (list (list 'imm32 1))))
-      (pair 'rri (list
-        (list 72)
-        (list 129)
-        (list (list '/ 5) 0)     ; /5 = SUB
-        (list (list 'imm32 2))))))
+        (list (list 'imm32 1))))))
     (pair 'and (list (pair 'rrr 'and3)))
     (pair 'orr (list (pair 'rrr 'orr3)))
     (pair 'eor (list (pair 'rrr 'eor3)))
