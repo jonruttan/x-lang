@@ -52,17 +52,21 @@
 (def %sha-char->int (prim-ref (lit char) (lit ->int)))
 (def %sha-mask 4294967295)
 
+; The integer type's handle is fetched once, by name through Type's door,
+; and held by the function that asks the converter for it.
 (def %sha-words
-  (fn (_ hexes)
-    ; the %cvt narrows: under the tower %str->number returns a TOWER
-    ; integer (bigint-capable parsing), which the C bit ops reject --
-    ; %int coercion is identity under bare x-core and a narrowing
-    ; conversion tower-up; every value fits 32 bits by construction
-    ((fn (self lst)
-       (match
-         ((null? lst) ())
-         (#t (pair (%cvt (%str->number (first lst) 16) %int) (self (rest lst))))))
-     hexes)))
+  (let ((int-type (Type named INTEGER)))
+    (fn (_ hexes)
+      ; the %cvt narrows: under the tower %str->number returns a TOWER
+      ; integer (bigint-capable parsing), which the C bit ops reject --
+      ; the coercion is identity under bare x-core and a narrowing
+      ; conversion tower-up; every value fits 32 bits by construction
+      ((fn (self lst)
+         (match
+           ((null? lst) ())
+           (#t (pair (%cvt (%str->number (first lst) 16) int-type)
+                     (self (rest lst))))))
+       hexes))))
 
 ; Fractional parts of the cube roots of the first 64 primes (FIPS 180-4 4.2.2).
 (def %sha-k (Vector from-list (%sha-words (lit (
@@ -197,7 +201,8 @@
                 (& (%sha+ h7 (first (rest (rest (rest (rest (rest (rest (rest r))))))))) %sha-mask))))))))
 
 (def %sha-hex8
-  (fn (_ wd) (Str pad-left 8 #\0 (%cvt wd %string 16))))
+  (let ((string-type (Type named STRING)))
+    (fn (_ wd) (Str pad-left 8 #\0 (%cvt wd string-type 16)))))
 
 (def %sha-hex-list
   (fn (self hs)

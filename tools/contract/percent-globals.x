@@ -297,7 +297,7 @@
 ; emit.x rose 54 to 57 for the CHARACTER write handler: the type handle,
 ; the char->int door, and the writer itself -- one emitter family, the
 ; same standing the int and symbol writers have.
-(file "lib/x/tool/lint.x" 89)
+(file "lib/x/tool/lint.x" 88)
 ; class.x fell 91 to 89: its two exported hooks, class-call-handler and
 ; bind-call-over!, are bare names now (x-lang#719, the last %-named exports).
 (file "lib/x/type/class.x" 89)   ; +1 %apply: the dispatcher applies resolved methods and displaced C handler atoms through the engine's apply

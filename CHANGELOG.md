@@ -5,6 +5,22 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The library's last readers of `type/convert.x`'s handles use the door**
+([#799]). `%int`, `%string` and `%ptr` were still read by name in
+`codec/sha256.x`, `type/block.x`, `tool/lint.x`, five dev tools, the
+engine-contract checker, the cov spec and a line of `docs/contributing.md`.
+Each takes the handle from `(Type named ...)` now: held by the one function
+that uses it where the read is warm, asked for in place where it is cold,
+and kept as a class static in the contract checker. `tool/lint.x` takes its
+handle from the catalog's `(type of)`, as it takes the two type structs
+beside it, and no longer caches the two type prims it used at load alone, so
+its %-row falls from 89 to 88. Eight private-reads rows fall by eleven
+between them, 686 to 675. `type/convert.x` keeps its handles and takes its
+module header when the lang bundles have moved; each of the eight that read
+them has a pull request open in its own repository.
+
+[#799]: https://github.com/jonruttan/x-lang/pull/799
+
 **No division reaches the machine with a divisor it traps on.** The C
 division under `%int/` and `%int%` tests nothing, and x86-64 traps on a zero
 divisor and on `LONG_MIN` over -1, where arm64 answers: 0 for a zero divisor,

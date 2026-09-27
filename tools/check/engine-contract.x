@@ -63,6 +63,8 @@
 (def-class EngineContract ()
   (static
     (%cvt (prim-ref 'convert 'to))
+    ; The string type's handle, by name through Type's door.
+    (%string-type (Type named STRING))
     (%collect (prim-ref (lit heap) (lit collect)))
     ; Every file needs the core groups, so a row records only these: the ones
     ; a minimal engine may lack.
@@ -70,7 +72,8 @@
 
     ; --- text ---------------------------------------------------------------
 
-    (method %text (self d) ((EngineContract %cvt) d %string))
+    (method %text (self d)
+      ((EngineContract %cvt) d (EngineContract %string-type)))
 
     (method %texts (self data) (List map (fn (_ d) (EngineContract %text d)) data))
 
@@ -333,6 +336,7 @@
     (method %derive-all (self paths gmap)
       (let ((above (EngineContract %above-core))
             (cvt (EngineContract %cvt))
+            (string-type (EngineContract %string-type))
             (collect (EngineContract %collect)))
         (let ((member? (fn (member? s l)
                          (match
@@ -359,8 +363,8 @@
                               ((eq? (first x) (lit syscall)) (pair "isa/syscall" acc))
                               ((if (eq? (first x) (lit prim-ref)) (lits? x) #f)
                                 (onto (Str8 append
-                                        (Str8 append (cvt (first (rest (first (rest x)))) %string) "/")
-                                        (cvt (first (rest (first (rest (rest x))))) %string))
+                                        (Str8 append (cvt (first (rest (first (rest x)))) string-type) "/")
+                                        (cvt (first (rest (first (rest (rest x))))) string-type))
                                       hot acc))
                               (#t acc)))))
                 ; FORM? says whether X was reached as an element (a form) or is
