@@ -538,6 +538,20 @@ same product with the operands both ways round.
 ---
     1
 
+### a zero divisor raises (regression: x86 trapped, arm64 answered 0)
+
+This / replaces core/arithmetic.x's, so it carries that one's zero test, and
+a bigint's own division refuses a zero limb.
+
+```x
+(list (guard (e (lit R)) (/ 1 0))
+      (guard (e (lit R)) (/ 100000000000000000000 0))
+      (guard (e (lit R)) (% 100000000000000000000 0))
+      (guard (e (lit R)) (Num quotient 100000000000000000000 (- 5 5))))
+```
+---
+    ('R 'R 'R 'R)
+
 ## big<
 
 ### less than

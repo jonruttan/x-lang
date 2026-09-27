@@ -190,11 +190,16 @@
 ; Uses trial division at the limb level
 (def %limb-divmod
   (fn (_ a b)
-    ; Single-limb divisor: fast path
+    ; Single-limb divisor: fast path.  A zero limb is the zero divisor, and
+    ; %limb-divmod1 would hand it to the plain C division under %int/ (x86
+    ; traps, arm64 answers 0), so it raises first.  Every bigint quotient and
+    ; remainder comes through here, whichever door the division came in by.
     (if (null? (rest b))
-      (let ()
-        (def r (%limb-divmod1 a (first b)))
-        (pair (first r) (list (rest r))))
+      (match
+        ((%int= (first b) 0) (error "division by zero"))
+        (#t (let ()
+              (def r (%limb-divmod1 a (first b)))
+              (pair (first r) (list (rest r))))))
       ; Multi-limb: positional schoolbook long division (#401).  The old
       ; arm subtracted q-est*b UNSHIFTED and stacked each iteration's
       ; count as if it were a positional digit: wrong quotients once the
@@ -684,19 +689,21 @@
       ((eq? args ()) 1)
       ((eq? (rest args) ()) (first args))
       ((eq? (rest (rest args)) ())
-        ; LONG_MIN / -1 is the one integer division whose quotient leaves the
-        ; range, and the one pair the prim under %int/ cannot be handed: it
-        ; evaluates a plain `a / b`, which is undefined there -- arm64 answers
-        ; LONG_MIN and x86 traps.  It promotes like any other overflow.  The
-        ; MIN test comes first and is one compare on a value already known to
-        ; be a plain int, so every other division reaches %int/ as before,
-        ; dispatch and division by zero included.
+        ; The prim under %int/ evaluates a plain `a / b`, which x86 traps on
+        ; for a zero divisor and for LONG_MIN / -1, where arm64 answers.  A
+        ; zero divisor raises, as core/arithmetic.x's / did before this one
+        ; replaced it.  LONG_MIN / -1 is the one integer division whose
+        ; quotient leaves the range; it promotes like any other overflow.  The
+        ; MIN test is one compare on a value already known to be a plain int,
+        ; so every other division reaches %int/ as before, dispatch included.
         (let ()
           (def a (first args))
           (def b (first (rest args)))
-          (if (if (%int-number? a) (%int= a %long-min) #f)
-            (if (%int= b -1) (%big-sub2 0 a) (%int/ a b))
-            (%int/ a b))))
+          (match
+            ((if (%int-number? b) (eq? b 0) #f) (error "/: division by zero"))
+            ((if (%int-number? a) (%int= a %long-min) #f)
+              (if (%int= b -1) (%big-sub2 0 a) (%int/ a b)))
+            (#t (%int/ a b)))))
       (#t
         (%fold (fn (_ acc x) (/ acc x))
           (first args) (rest args))))))

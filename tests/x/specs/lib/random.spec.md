@@ -61,6 +61,22 @@ sequence.
 ---
     5
 
+### int refuses a bound below 1, and so do empty ranges
+
+A bound of 0 used to reach the remainder as its divisor: x86 trapped, and
+arm64 looped, since no draw is under a limit of 0.
+
+```x
+(do (import x/num/random)
+  (let ((r (Random sw 1)))
+    (list (guard (e (Err tag e)) (r int 0))
+          (guard (e (Err tag e)) (r int -3))
+          (guard (e (Err tag e)) (r range 5 5))
+          (guard (e (Err tag e)) (r between 5 4)))))
+```
+---
+    ('value 'value 'value 'value)
+
 ### bytes returns the requested count
 
 ```x

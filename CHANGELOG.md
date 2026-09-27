@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**No division reaches the machine with a divisor it traps on.** The C
+division under `%int/` and `%int%` tests nothing, and x86-64 traps on a zero
+divisor and on `LONG_MIN` over -1, where arm64 answers: 0 for a zero divisor,
+`LONG_MIN` for the pair. The #80 zero guard covered only `core/arithmetic.x`'s
+`/` and `%`. Under the tower `rational.x`'s `/` divided before its zero check,
+so `(/ 1 0)` trapped on x86, and `(/ 0 0)`, a bigint over 0 and `(/ 1+2i 0)`
+answered 0 on arm64. `bigint.x`'s `/` dropped the guard it replaced, and
+`Num quotient`, `remainder`, `modulo` and `divmod` had none. `Random int` with
+0, which an empty `range` passes, trapped on x86 and never returned on arm64.
+A zero divisor now raises in each, and `Random int` refuses any bound below 1,
+as its documentation says. At -1, `%` and the `Num` methods answer without
+dividing: `(% LONG_MIN -1)` is 0, and `(Num quotient LONG_MIN -1)` promotes
+under the tower. Helium's `(/ LONG_MIN -1)` wraps to `LONG_MIN`, as its `*`
+and `-` do there.
+
 **x86-64 add and sub with an immediate read their source register**
 ([#797]). The x86-64 backend encoded `(add Xd Xn (imm N))` and its `sub` as
 the two-address form on Xd and never read Xn, so with the two different it

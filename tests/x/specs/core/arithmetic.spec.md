@@ -548,6 +548,38 @@ is stopped; boxed tower divisors keep their own dispatch.
 ---
     (0 0 1 1)
 
+## the most negative integer over -1 (regression: x86 trapped)
+
+LONG_MIN / -1 is the one integer division whose quotient leaves the range,
+and C division has no test for it: x86-64 traps and arm64 answers.  -1
+answers without dividing -- the quotient wraps, as `*` and `-` do at that
+value, and the remainder is 0.  The value comes from the bitwise door rather
+than a literal.
+
+### the quotient wraps like the other operators
+
+```x
+(list (/ (<< 1 63) -1) (* (<< 1 63) -1) (- 0 (<< 1 63)))
+```
+---
+    (-9223372036854775808 -9223372036854775808 -9223372036854775808)
+
+### the remainder is 0
+
+```x
+(% (<< 1 63) -1)
+```
+---
+    0
+
+### any other dividend over -1 divides as before
+
+```x
+(list (/ 7 -1) (/ -7 -1) (% 7 -1) (% -7 -1) (/ 8 -1 2) (% 17 -1 3))
+```
+---
+    (-7 7 0 0 -4 0)
+
 ## non-numeric operands refuse (#52 ruled)
 
 The refusal lives in the dispatch registry: string/char/list/pair/vector

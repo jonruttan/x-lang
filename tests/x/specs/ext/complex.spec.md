@@ -223,6 +223,17 @@
 ---
     #t
 
+### an exact zero divisor raises (regression: x86 trapped, arm64 answered 0)
+
+The parts divide by |b|^2, which is the exact 0 here, through the tower's /.
+
+```x
+(list (guard (e (lit R)) (/ 1+2i 0))
+      (guard (e (lit R)) (Complex / (Complex make 1 2) (Complex make 0 0))))
+```
+---
+    ('R 'R)
+
 ## from-polar
 
 ### from-polar with zero angle
