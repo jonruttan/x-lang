@@ -316,7 +316,61 @@
   (method browsing? (self)
     (doc "Whether the buffer is showing a history entry rather than a fresh line."
       (returns BOOL "True while browsing"))
-    (not (null? (member 'hpos)))))
+    (not (null? (member 'hpos))))
+
+  (method position (self)
+    (doc "The index of the history entry being shown, 0 being the newest, or nil while a fresh line is being edited."
+      (returns ANY "An index, or nil"))
+    (member 'hpos))
+
+  ; --- searching the history -------------------------------------------------
+  ;
+  ; A search reports where a match is rather than moving there, so a caller
+  ; can show a match without disturbing the line being edited.  jump! moves
+  ; there once the match is accepted, the same way earlier! would have, so
+  ; later! walks back down to the line that was being typed.
+
+  (method search (self (param query STRING "Text to look for")
+                       (param from INT "Index of the first entry to try; 0 is the newest")
+                       (param dir SYMBOL "'back to walk toward older entries, 'forward toward newer ones")
+                       . (param unlike STRING "An entry equal to this is passed over; optional"))
+    (doc "Find the first history entry at or beyond `from`, walking in direction `dir`, that contains query. Answers (index . offset): the entry's index, and where query occurs in it -- its last occurrence walking back, its first walking forward -- or nil when no entry matches. An entry equal to `unlike` is passed over, so a repeated search moves on to a different line."
+      (returns ANY "(index . offset), or nil")
+      (example "(let ((e (Edit make (list \"cd\" \"ls a\" \"ls b\")))) (e search \"ls\" 0 'back))" "(1 . 0)"))
+    (let ((h (member 'hist))
+          (skip (if (null? unlike) () (first unlike)))
+          (back? (eq? dir 'back)))
+      (let ((at (fn (_ entry)
+                  (if (if (null? skip) #f (Str8 =? entry skip)) ()
+                    (if back? (Str8 last-index-of query entry) (Str8 index-of query entry)))))
+            (n (List length h)))
+        (let ((go (fn (self entries k step)
+                    (if (null? entries) ()
+                      (let ((o (at (first entries))))
+                        (if (null? o) (self (rest entries) (+ k step) step) (pair k o)))))))
+          (if back?
+            (if (>= from n) ()
+              (let ((f (if (< from 0) 0 from))) (go (List drop f h) f 1)))
+            ; Walking toward the present is a walk down the first from+1
+            ; entries reversed, so the list is taken once rather than
+            ; indexed once per step.
+            (let ((top (if (>= from n) (- n 1) from)))
+              (if (< top 0) ()
+                (go (List reverse (List take (+ top 1) h)) top -1))))))))
+
+  (method jump! (self (param k INT "Index of the entry to show; 0 is the newest")
+                      . (param at INT "Where to leave the point; default the end"))
+    (doc "Show history entry k as if walked to with earlier!, stashing the fresh line first when not already browsing, so later! walks back down to it. The point is left at `at`, the end of the entry by default. An index outside the history leaves the buffer as it was."
+      (returns BOOL "True when the buffer changed")
+      (example "(let ((e (Edit make (list \"b\" \"a\")))) (e insert! \"draft\") (e jump! 1) (e later!) (e later!) (e text))" "\"draft\""))
+    (let ((h (member 'hist)))
+      (if (if (< k 0) #t (>= k (List length h))) #f
+        (do
+          (when (null? (member 'hpos)) (set-member! 'stash (member 'text)))
+          (set-member! 'hpos k)
+          (if (null? at) (self set-text! (List ref k h))
+            (self set-text! (List ref k h) (first at)))
+          #t)))))
 
 (doc (provide x/repl/edit Edit)
   (note "Pure: no terminal, no descriptor. repl/term.x owns the tty and repl/line.x drives both.")
