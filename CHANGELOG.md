@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A directory listing decodes on the integer primitives** ([#811]). `File
+list-dir` on a 50-name directory allocated about 111,000 objects: the dirent
+decoder read each record a byte at a time through the tower's `+`, `*`, `=`
+and `<`, `.` and `..` were dropped with `List reject`, and the directory was
+opened and closed through two class dispatches. The decoder now works on the
+integer primitives and reads a Darwin name by its `namlen`, one walk drops the
+dot entries and keeps the order, and the method opens and closes the directory
+through the module's syscall doors. The same listing allocates about 11,300,
+and a 52-entry batch decodes in about 7,000 where it took 38,900.
+
+[#811]: https://github.com/jonruttan/x-lang/pull/811
+
 **The engine pin moves to x-engine-c v0.2.15** ([#810]). Every engine release
 now ships `x-bin-profile` beside `x-bin`, and under `X_PROFILE` each object's
 flags word counts how many times evaluation reached it (x-engine-c#66). The
