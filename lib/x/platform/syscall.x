@@ -244,15 +244,20 @@
 ; A name's number answers "which call"; it does not answer "called how", and on
 ; the generic table the two part: `open` has no number there, and the call that
 ; does its work takes a directory descriptor first.  A door is the name
-; resolved to both -- once, when it is made -- and is what a caller applies.
+; resolved to both when it is made: a function of six arguments whose body is
+; the call, so a call through a door is one call of the primitive.
 ;
-; Six slots always.  The syscall primitive zero-fills what it is not given and
-; the kernel reads only the arguments a call declares, so a door passes all six
-; and needs no arity.
-(def %door-plain (lit (a0 a1 a2 a3 a4 a5)))
-(def %door-arg-index
-  (lit ((a0 0) (a1 1) (a2 2) (a3 3) (a4 4) (a5 5))))
+; A plain door hands its arguments to the primitive as they are.  The
+; primitive reads nil as zero and the kernel reads only the arguments a call
+; declares, so a door needs no arity: an argument a caller leaves out is nil.
+(def %door-plain
+  (fn (_ n)
+    (fn (_ a0 a1 a2 a3 a4 a5) (syscall n a0 a1 a2 a3 a4 a5))))
 
+; A shape is the argument list of the call that stands in for a name: a0 to a5
+; are the door's arguments, cwd is AT_FDCWD (-100, the working directory), and
+; a number is itself.  A shaped door is the plain door's form with the shape in
+; place of the six arguments, built and evaluated when the door is made.
 (def %door-shape
   (fn (_ name)
     (match
@@ -260,54 +265,27 @@
         (%assoc-get name linux-generic-syscall-shapes))
       (#t ()))))
 
-; A slot as the door holds it: a number for a literal, a one-element list
-; holding the argument's index for an argument.
-(def %door-slot
-  (fn (_ s)
+(def %door-slots
+  (fn (self slots)
     (match
-      ((eq? s (lit cwd)) -100)
-      ((number? s) s)
-      (#t (%assoc-get s %door-arg-index)))))
+      ((eq? slots ()) ())
+      ((eq? (first slots) (lit cwd)) (pair -100 (self (rest slots))))
+      (#t (pair (first slots) (self (rest slots)))))))
 
-(def %door-slot-at
-  (fn (loop i slots)
-    (match
-      ((eq? slots ()) 0)
-      ((= i 0) (%door-slot (first slots)))
-      (#t (loop (- i 1) (rest slots))))))
-
-(def %door-arg
-  (fn (loop i args)
-    (match
-      ((eq? args ()) ())
-      ((= i 0) (first args))
-      (#t (loop (- i 1) (rest args))))))
-
-(def %door-value
-  (fn (_ slot args)
-    (match
-      ((number? slot) slot)
-      (#t (%door-arg (first slot) args)))))
+(def %door-shaped
+  (fn (_ n slots)
+    (eval (list (lit fn) (lit (_ a0 a1 a2 a3 a4 a5))
+                (pair (lit syscall) (pair n (%door-slots slots)))))))
 
 (doc (def syscall-door
   (fn (_ (param name SYMBOL "The call, by the name the x86-64 and Darwin tables give it"))
     (def shape (%door-shape name))
     (def n (syscall-id (match ((eq? shape ()) name) (#t (first shape)))))
-    (def slots (match ((eq? shape ()) %door-plain) (#t (first (rest shape)))))
-    (def s0 (%door-slot-at 0 slots))
-    (def s1 (%door-slot-at 1 slots))
-    (def s2 (%door-slot-at 2 slots))
-    (def s3 (%door-slot-at 3 slots))
-    (def s4 (%door-slot-at 4 slots))
-    (def s5 (%door-slot-at 5 slots))
     (match
       ((< n 0) (error (pair (lit unsupported-syscall) name)))
-      (#t
-        (fn (_ . args)
-          (syscall n
-            (%door-value s0 args) (%door-value s1 args) (%door-value s2 args)
-            (%door-value s3 args) (%door-value s4 args) (%door-value s5 args)))))))
-  (returns CALLABLE "A function of the call's arguments, answering what the syscall primitive answers")
+      ((eq? shape ()) (%door-plain n))
+      (#t (%door-shaped n (first (rest shape)))))))
+  (returns CALLABLE "A function of up to six arguments, answering what the syscall primitive answers")
   (note "Raises (unsupported-syscall . NAME) when this platform has neither the call nor a shape standing in for it.")
   (sample "((syscall-door 'close) fd)" "0")
   (sample "((syscall-door 'open) \"/etc/hostname\" 0 0)" "a descriptor, through openat where open has no number")
