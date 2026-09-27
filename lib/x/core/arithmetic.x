@@ -13,27 +13,37 @@
 (def %int= =)
 (def %int-number? number?)
 
-; --- Divisor-zero guard (#80) ---
+; --- Divisor guard (#80) ---
 ;
-; C's x_prim_div ends in x_intval(a) / x_intval(b) with no zero test, no
-; SIGFPE handler exists anywhere, and guard cannot catch a hardware trap --
-; so (/ 1 0) killed the whole session, with no message.  The guard belongs
-; here per the standing rule: the C core is the unchecked processor.
+; C's x_prim_div ends in x_intval(a) / x_intval(b) with no test, no SIGFPE
+; handler exists anywhere, and guard cannot catch a hardware trap -- so
+; (/ 1 0) killed the whole session, with no message.  x86-64 traps on one
+; more pair: LONG_MIN and -1, whose quotient leaves the range.  arm64 answers
+; both instead, 0 for a zero divisor and LONG_MIN for the pair.  The guard
+; belongs here per the standing rule: the C core is the unchecked processor.
+;
+; A zero divisor raises.  -1 answers without dividing: the negation for /,
+; which wraps at LONG_MIN as (* LONG_MIN -1) and (- 0 LONG_MIN) do, and 0
+; for %.
 ;
 ; The gate is %int-number?, the SAVED C number?, deliberately: it is #f for
 ; every boxed tower instance, so float/rational/bigint divisors fall through
 ; to the tower's own type-op dispatch untouched ((/ 1.0 0.0) stays IEEE inf,
-; rational zero keeps its own error).  Only a C-level integer zero -- the
-; one value that reaches raw C division -- is stopped.  eq? alone would NOT
-; be a safe gate: it is a raw slot compare, and a boxed zero could collide.
-(def %div-zero-guard
-  (fn (_ name prim)
+; rational zero keeps its own error).  Only a C-level integer divisor -- the
+; one kind that reaches raw C division -- is tested, and -1 is answered only
+; over a C-level integer dividend.  eq? alone would NOT be a safe gate: it is
+; a raw slot compare, and a boxed zero could collide.
+(def %div-guard
+  (fn (_ name prim at-minus-one)
     (fn (_ a b)
-      (if (if (%int-number? b) (eq? b 0) #f)
-        (error (%str-append name ": division by zero"))
+      (if (%int-number? b)
+        (match
+          ((eq? b 0) (error (%str-append name ": division by zero")))
+          ((eq? b -1) (if (%int-number? a) (at-minus-one a) (prim a b)))
+          (#t (prim a b)))
         (prim a b)))))
-(def %int/0 (%div-zero-guard "/" %int/))
-(def %int%0 (%div-zero-guard "%" %int%))
+(def %int/0 (%div-guard "/" %int/ (fn (_ a) (%int- 0 a))))
+(def %int%0 (%div-guard "%" %int% (fn (_ a) 0)))
 
 ; The BINARY case bypasses fold entirely: (op a b) is the overwhelming
 ; shape (every counter, every digit loop), and the fold entry costs

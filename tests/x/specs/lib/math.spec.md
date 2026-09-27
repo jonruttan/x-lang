@@ -387,6 +387,35 @@ each even step until it exhausted memory.
 ---
     (3 1)
 
+### a zero divisor raises 'value (regression: x86 trapped, arm64 answered)
+
+```x
+(list (guard (e (Err tag e)) (Num quotient 1 0))
+      (guard (e (Err tag e)) (Num remainder 1 0))
+      (guard (e (Err tag e)) (Num modulo 1 0))
+      (guard (e (Err tag e)) (Num divmod 1 0)))
+```
+---
+    ('value 'value 'value 'value)
+
+### -1 divides without the machine at the most negative integer
+
+```x
+(list (Num quotient (<< 1 63) -1) (Num remainder (<< 1 63) -1)
+      (Num modulo (<< 1 63) -1) (Num divmod (<< 1 63) -1))
+```
+---
+    (-9223372036854775808 0 0 (-9223372036854775808 0))
+
+### any other dividend over -1 divides as before
+
+```x
+(list (Num quotient 7 -1) (Num remainder -7 -1) (Num modulo 7 -1)
+      (Num modulo -7 -1) (Num divmod -7 -1))
+```
+---
+    (-7 0 0 0 (7 0))
+
 ## variadic min / max
 
 ### more than two arguments

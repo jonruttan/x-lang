@@ -286,16 +286,18 @@
 (%type-push-op rational-type '= (fn (_ a b) (rat-eq (ensure-rat a) (ensure-rat b))))
 (%type-push-op rational-type '% (fn (_ a b) (rat-mod (ensure-rat a) (ensure-rat b))))
 
-; Integer division that produces rational when not exact.  A divisor of -1 is
-; negation: LONG_MIN / -1 is the one int quotient that leaves the range, and
-; %int/ is a plain C a / b, which answers LONG_MIN there on arm64 and traps on
-; x86.  The public - promotes it.
+; Integer division that produces rational when not exact.  %int/ is a plain C
+; a / b, which x86 traps on for a zero divisor and for LONG_MIN / -1, the one
+; int quotient that leaves the range; arm64 answers 0 and LONG_MIN.  So neither
+; divisor reaches it.  Zero goes to make-rational, whose check raises, and -1
+; is negation, which the public - promotes.
 (def %exact-div
   (fn (_ a b)
-    (if (%int= b -1) (- 0 a)
-      (if (= (%int- a (%int* b (%int/ a b))) 0)
-        (%int/ a b)
-        (make-rational a b)))))
+    (match
+      ((%int= b 0) (make-rational a b))
+      ((%int= b -1) (- 0 a))
+      ((= (%int- a (%int* b (%int/ a b))) 0) (%int/ a b))
+      (#t (make-rational a b)))))
 
 ; / policy: this module OWNS the variadic / (one policy owner per operator --
 ; bigint owns + - * overflow promotion). Both-plain-int division promotes to

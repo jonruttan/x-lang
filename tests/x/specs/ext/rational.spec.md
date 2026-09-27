@@ -557,3 +557,27 @@ door rather than a literal.
 ```
 ---
     0
+
+### its remainder by -1 is 0, and its quotient promotes through Num too
+
+```x
+(list (% (<< 1 63) -1) (Num quotient (<< 1 63) -1))
+```
+---
+    (0 9223372036854775808)
+
+## a zero divisor raises before the machine divides (regression: x86 trapped)
+
+The plain C division under the tower's `/` has no zero test: x86-64 traps,
+and arm64 answered, so `(/ 0 0)` and a bigint over 0 came out as 0.
+
+### every integer shape of a zero division raises
+
+```x
+(list (guard (e (lit R)) (/ 1 0)) (guard (e (lit R)) (/ 0 0))
+      (guard (e (lit R)) (/ (<< 1 63) 0))
+      (guard (e (lit R)) (/ 100000000000000000000 0))
+      (guard (e (lit R)) (/ 6 3 0)))
+```
+---
+    ('R 'R 'R 'R 'R)
