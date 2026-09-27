@@ -20,15 +20,25 @@
     (#t 4)))
 (def %data-offset (* %word-size %obj-meta-len))
 
+; The engine's integer + and *, fetched once.  The formula below runs on every
+; data-slot access, and the names + and * are rebound after this file: to the
+; variadic wrappers (core/arithmetic.x), then to the numeric tower's generic
+; dispatch.  The doors raise on nil and check nothing else: the class layer
+; above validates an index.
+(def %data-int+ (prim-ref (lit int) (lit +)))
+(def %data-int* (prim-ref (lit int) (lit *)))
+
 ; THE data-word addressing formula -- the byte offset of data word i.  One
 ; definition: reflect.x's read half (%reflect-obj-ref) and the write half
 ; below must always address the same word, or set!/ref silently diverge.
-(def %data-word-off (fn (_ i) (+ %data-offset (* i %word-size))))
+(def %data-word-off
+  (fn (_ i) (%data-int+ %data-offset (%data-int* i %word-size))))
 
 ; The two pair-slot offsets, hoisted through THE formula at load time --
-; coherence (one addressing definition) AND faster than re-computing
-; (+ %data-offset %word-size) on every accessor call.
+; coherence (one addressing definition) AND no arithmetic at all on a
+; first/rest write.
 (def %data-off-0 (%data-word-off 0))
+(def %data-off-1 (%data-word-off 1))
 
 ; Data-slot write, pure reflection: the stored word is the value's object
 ; pointer.  Formerly the C (obj set!) prim -- boot/reflect.x files this
@@ -39,8 +49,10 @@
       (%ptr->int (%obj->ptr v)))
     v))
 
-(def %set-first! (fn (_ p v) (%obj-set! p 0 v) p))
-(def %set-rest! (fn (_ p v) (%obj-set! p 1 v) p))
+(def %set-first!
+  (fn (_ p v) (%ptr-set-word! (%obj->ptr p) %data-off-0 (%ptr->int (%obj->ptr v))) p))
+(def %set-rest!
+  (fn (_ p v) (%ptr-set-word! (%obj->ptr p) %data-off-1 (%ptr->int (%obj->ptr v))) p))
 
 ; Int cells: read/write a raw machine integer in an object's first data
 ; word.  Reshaped from a pair-style first/rest accessor quartet (#231):

@@ -36,6 +36,50 @@ instruments (`%word`, `%flags`, the catalog fetches) live in the harness
 ---
     42
 
+### a pair-slot write computes no offset
+
+The first and rest offsets are computed once, at load, so `%set-first!` and
+`%set-rest!` cost their own frame over the word write itself: fewer than 20
+objects a call.
+
+```x
+(def %cost
+  (fn (_ f)
+    (f)
+    (def c0 (Heap count))
+    ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 100)
+    (- (Heap count) c0)))
+(def %p (pair 1 2))
+(def %off (%data-word-off 1))
+(def %raw
+  (%cost (fn (_) (%ptr-set-word! (%obj->ptr %p) %off (%ptr->int (%obj->ptr 4))))))
+(list (< (- (%cost (fn (_) (%set-first! %p 3))) %raw) (* 20 100))
+      (< (- (%cost (fn (_) (%set-rest! %p 4))) %raw) (* 20 100))
+      %p)
+```
+---
+    (#t #t (3 . 4))
+
+### the data-word formula runs on the integer doors
+
+`(obj ref)` and `(obj set!)` address data word i through `%data-word-off` on
+every call: its frame and two integer operations, fewer than 16 objects a call
+over one integer add.
+
+```x
+(def %cost
+  (fn (_ f)
+    (f)
+    (def c0 (Heap count))
+    ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 100)
+    (- (Heap count) c0)))
+(def %add (prim-ref (lit int) (lit +)))
+(list (< (- (%cost (fn (_) (%data-word-off 1))) (%cost (fn (_) (%add 1 2)))) (* 16 100))
+      (eq? (%data-word-off 1) (* (+ %obj-meta-len 1) %word-size)))
+```
+---
+    (#t #t)
+
 ## header words
 
 ### the type slot: equal within a type, distinct across types
