@@ -21,7 +21,7 @@
 #                 to tools/contract/constraints.x instead.
 #
 # Checks 1 and 2 carry the weight, because the groups are hand-drawn.  The `ffi`
-# tag carries eleven rows that split three ways: the pointer casts (mandatory --
+# tag carries ten rows that split three ways: the pointer casts (mandatory --
 # boot reads header words through them), the foreign door (dlopen/dlsym/
 # ptr-call), and the raw syscall door.  Treating the tag as one group makes
 # dlopen mandatory for every engine, a sandboxed one included, putting that

@@ -30,11 +30,11 @@
 ; being, by its own definition, derivable.
 ;
 ; Groups partition the ISA, and a tag is not always a group.  Most groups are
-; exactly one isa.x tag; the `ffi` tag is not.  It carries eleven rows that
+; exactly one isa.x tag; the `ffi` tag is not.  It carries ten rows that
 ; split into three unrelated capabilities, and treating it as one group makes
 ; dlopen mandatory for every engine, a sandboxed one included.  lib/x/boot
 ; reaches int/->ptr, obj/->ptr, ptr/->int, ptr/->obj, str/->ptr, ptr/ref-word
-; and ptr/set-word!, and reaches dlopen/dlsym/ffi-call zero times: boot needs
+; and ptr/set-word!, and reaches dlopen/dlsym zero times: boot needs
 ; the casts, not the door.  So the split below is by explicit row membership,
 ; and tools/check/engine-contract.sh asserts the partition is total and
 ; disjoint over isa.x -- every row lands in exactly one group, so a new C row
@@ -162,7 +162,7 @@
 ; row must be classified in the same commit that adds it.
 (def %feature-group-rows (lit (
   (reflect/ptr-casts int/->ptr obj/->ptr ptr/->int ptr/->obj ptr/->str str/->ptr)
-  (isa/ffi-call      ffi/call ffi/dlopen ffi/dlsym ptr/call)
+  (isa/ffi-call      ffi/dlopen ffi/dlsym ptr/call)
   (isa/syscall       syscall)
   ; The value rows.  isa.x's %isa-values carries no tag column, so each one is
   ; classified here or the partition fails.  Unclassified, they are nameable by
