@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The engine pin moves to x-engine-c v0.2.15** ([#PR]). Every engine release
+now ships `x-bin-profile` beside `x-bin`, and under `X_PROFILE` each object's
+flags word counts how many times evaluation reached it (x-engine-c#66). The
+count takes bits 11 to 30, above the trace bit, 1024, that the image writer
+marks with, which the engine now names `X_OBJ_FLAG_TRACE`; the plain `x-bin`
+is unchanged. The engine's `tools/contract/obj-layout.x` gains the trace and
+count rows, and the declaration's layout digest changes with them.
+
+[#PR]: https://github.com/jonruttan/x-lang/pull/PR
+
 ## [0.16.0] - 2026-09-27
 
 **A call through a syscall door walks nothing** ([#807]). A door from
