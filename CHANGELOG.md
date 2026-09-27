@@ -5,6 +5,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-09-27
+
 **The engine pin moves to x-engine-c v0.2.14, which has no `ffi-call`**
 ([#804]). v0.2.14 removes the `(ffi call)` primitive and its ISA row
 (x-engine-c#63), which [#796] had already stopped using, so
