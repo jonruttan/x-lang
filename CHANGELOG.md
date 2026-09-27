@@ -6,7 +6,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased]
 
 **The engine pin moves to x-engine-c v0.2.14, which has no `ffi-call`**
-([#PR]). v0.2.14 removes the `(ffi call)` primitive and its ISA row
+([#804]). v0.2.14 removes the `(ffi call)` primitive and its ISA row
 (x-engine-c#63), which [#796] had already stopped using, so
 `tools/contract/features.x` drops `ffi/call` from the `isa/ffi-call` group,
 which keeps `ffi/dlopen`, `ffi/dlsym` and `ptr/call`, and the conformance
@@ -21,7 +21,7 @@ writer loads a library into had neither, and every image write crashed in
 `err.x`'s errno lookup. `tools/dev/image-write.x` files both in the child's
 catalog, as it already binds the CLI's `include` and `syscall` there.
 
-[#PR]: https://github.com/jonruttan/x-lang/pull/PR
+[#804]: https://github.com/jonruttan/x-lang/pull/804
 
 **`type/convert.x` has a module header** ([#802]). Its six type handles and
 its fourteen other `%` names are its own now. The root keeps the `Convert`
