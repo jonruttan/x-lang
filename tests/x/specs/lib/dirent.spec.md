@@ -54,12 +54,14 @@ namlen bound decodes correctly on Darwin.
 
 ## cost
 
-### a batch decodes in fewer than 300 objects an entry
+### a batch decodes in fewer than 300 objects an entry, 450 on Linux
 
 The decode runs per directory entry on every listing, so its offsets,
 lengths and bytes go through the integer primitives, not the tower's
-checked operators.  Sixteen 32-byte entries, decoded ten times, with the
-same loop around an empty thunk subtracted.
+checked operators.  A Darwin name is read by its length and a Linux name
+by scanning it for its NUL, hence two bounds.  Sixty-four 32-byte
+entries, decoded ten times, with the same loop around an empty thunk
+subtracted.
 
 ```x
 (do
@@ -76,7 +78,7 @@ same loop around an empty thunk subtracted.
                    (if os-darwin? (list 0 0 0) (list 0 0 0 0 0)))))))
   (def %ents
     (fn (self i acc) (if (= i 0) acc (self (- i 1) (%append (%ent i) acc)))))
-  (def %buf (%bs (%ents 16 ())))
+  (def %buf (%bs (%ents 64 ())))
   (def %cost
     (fn (_ f)
       (f)
@@ -84,9 +86,10 @@ same loop around an empty thunk subtracted.
       ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 10)
       (- (Heap count) c0)))
   (def %over
-    (- (%cost (fn (_) (dirent-names %buf 512 ())))
+    (- (%cost (fn (_) (dirent-names %buf 2048 ())))
        (%cost (fn (_) ()))))
-  (list (%length (dirent-names %buf 512 ())) (< %over (* 300 16 10))))
+  (list (%length (dirent-names %buf 2048 ()))
+        (< %over (* (if os-darwin? 300 450) 64 10))))
 ```
 ---
-    (16 #t)
+    (64 #t)
