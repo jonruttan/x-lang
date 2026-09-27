@@ -53,10 +53,6 @@
     ; dereference, and a zero- or one-argument send arrives here with a short
     ; list, so every walk below tests before it steps.
 
-    (method %all-syms? (self xs)
-      (if (null? xs) #t
-        (and (pair? xs) (and (symbol? (first xs)) (recur self (rest xs))))))
-
     (method %len>=? (self xs n)
       (if (< n 1) #t (and (pair? xs) (recur self (rest xs) (- n 1)))))
 
@@ -88,13 +84,39 @@
     ; (leading forms + names + one body form + trailing).  `()` is accepted
     ; as a binding list -- the thunk shape -- and each shape validates its
     ; own count, so `()` in an element seat still fails, only clearly.
-    (method %block-call? (self args pos n)
-      (and (self %len>=? args n)
-        (let ((names (self %nth args pos)))
-          (and (or (null? names) (pair? names)) (self %all-syms? names)))))
-
-    (method %nth (self xs i)
-      (if (null? xs) () (if (< i 1) (first xs) (recur self (rest xs) (- i 1)))))
+    ;
+    ; Every send of a wrapped selector is tested, applicative ones included,
+    ; so the test is made once per wrap: closures over the integer
+    ; primitives, with no class dispatch and no derived forms per send.  The
+    ; counts are the wrap's own, never nil.
+    (method %block-send? (self pos n)
+      (def %int< (prim-ref (lit int) (lit <)))
+      (def %int- (prim-ref (lit int) (lit -)))
+      ; at least k forms
+      (def long?
+        (fn (loop xs k)
+          (match
+            ((%int< k 1) #t)
+            ((pair? xs) (loop (rest xs) (%int- k 1)))
+            (#t #f))))
+      ; the form at i
+      (def at
+        (fn (loop xs i)
+          (match
+            ((eq? xs ()) ())
+            ((%int< i 1) (first xs))
+            (#t (loop (rest xs) (%int- i 1))))))
+      ; () or a proper list of symbols
+      (def names?
+        (fn (loop xs)
+          (match
+            ((eq? xs ()) #t)
+            ((pair? xs) (match ((symbol? (first xs)) (loop (rest xs))) (#t #f)))
+            (#t #f))))
+      (fn (_ args)
+        (match
+          ((long? args n) (names? (at args pos)))
+          (#t #f))))
 
     (method %take-n (self xs n)
       (if (< n 1) () (if (null? xs) () (pair (first xs) (recur self (rest xs) (- n 1))))))
@@ -193,20 +215,22 @@
     ; and every existing call site -- variadic ones included -- keeps its exact
     ; behaviour.
     (method %block-op (self m shape trailing pos)
+      (def block-send? (self %block-send? pos (+ pos (+ 2 trailing))))
       (op (recv . args) e
-        (if (self %block-call? args pos (+ pos (+ 2 trailing)))
-          ; args = (lead... names body... trailing...): the leading forms
-          ; evaluate in the caller's env and ride ahead of the callback.
-          (let ((tail (self %drop-n args pos)))
-            (apply m
-              (pair recv
-                (self %append (self %eval-each (self %take-n args pos) e)
-                  (pair (self %adapt shape
-                          (self %block-fn (first tail)
-                                (self %but-last-n (rest tail) trailing) e)
-                          (self %name-count (first tail)))
-                        (self %eval-each (self %last-n (rest tail) trailing) e))))))
-          (tail-eval (pair m (pair (list (lit lit) recv) args)) e))))
+        (match
+          ((block-send? args)
+            ; args = (lead... names body... trailing...): the leading forms
+            ; evaluate in the caller's env and ride ahead of the callback.
+            (let ((tail (self %drop-n args pos)))
+              (apply m
+                (pair recv
+                  (self %append (self %eval-each (self %take-n args pos) e)
+                    (pair (self %adapt shape
+                            (self %block-fn (first tail)
+                                  (self %but-last-n (rest tail) trailing) e)
+                            (self %name-count (first tail)))
+                          (self %eval-each (self %last-n (rest tail) trailing) e)))))))
+          (#t (tail-eval (pair m (pair (list (lit lit) recv) args)) e)))))
 
     ; --- documenting the wrap ------------------------------------------
     ; (help Class/sel) answered only the applicative signature: true, and
