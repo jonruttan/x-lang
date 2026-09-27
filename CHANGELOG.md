@@ -5,6 +5,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-09-27
+
 **A call through a syscall door walks nothing** ([#807]). A door from
 `syscall-door` found each of the six arguments it hands the primitive by
 walking the list it was called with, on every call, so a call cost 400 objects
@@ -36,6 +38,16 @@ that no entry holds is not held however it is extended, so typing after a
 failed search, or repeating it in the same direction, looks nothing up. Every
 language whose prompt reads through the line editor has the search, x-ash and
 x-python included.
+
+**CI runs the specs on arm64 Linux** ([#803]). The specs job gains an
+`ubuntu-24.04-arm` leg, which reports without gating: the run's verdict stays
+with macOS and x86-64 Linux. The pin declares no linux arm64 engine, so the
+leg builds the pinned release from source, and the state-image cache key now
+carries the runner's architecture. The one case the leg failed,
+`tools/tests/specs/cov/meta.spec.md`'s read of an unwritten meta slot, now
+builds its pair at width 0, the branch it names.
+
+[#803]: https://github.com/jonruttan/x-lang/pull/803
 
 **The engine pin moves to x-engine-c v0.2.14, which has no `ffi-call`**
 ([#804]). v0.2.14 removes the `(ffi call)` primitive and its ISA row
