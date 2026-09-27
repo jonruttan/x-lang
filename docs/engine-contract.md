@@ -103,7 +103,7 @@ direction is deliberate: a partly-built engine under-declares and is refused ear
 by the contract gate, rather than being accepted and dying at runtime on the first
 instruction it never implemented.
 
-**A tag is not a group.** The `ffi` tag carries eleven instructions that split three
+**A tag is not a group.** The `ffi` tag carries ten instructions that split three
 ways, and treating it as one would make `dlopen` mandatory for every engine
 including a sandboxed one:
 

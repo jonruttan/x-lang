@@ -64,8 +64,8 @@ awk '
 
 # x-lang's specs, and only those: the engine's C suite is not in the tree once
 # the engine arrives as a release.  What it uniquely covered is covered here --
-# ffi/call by the conformance suite, which reaches primitives through %coord
-# (see below), and heap/sweep by a declared exemption.
+# the conformance suite reaches primitives through %coord (see below), and
+# heap/sweep is a declared exemption.
 find tests \( -name '*.spec.md' -o -name '*.spec.c' \) | sort > "$SCAN.files"
 
 awk -v scan="$SCAN" '
@@ -123,8 +123,8 @@ FNR == 1 { in_fence = 0; is_c = (FILENAME ~ /\.spec\.c$/) }
 			s = substr(s, RSTART + RLENGTH)
 		}
 		# A C test may drive the primitive by calling its C function
-		# directly rather than through an x-lang string -- ffi-call, clock
-		# and atomic are all tested that way.
+		# directly rather than through an x-lang string -- clock and atomic
+		# are tested that way.
 		s = $0
 		while (match(s, /x_(prim|syntax)_[A-Za-z_0-9]+/)) {
 			ctok[substr(s, RSTART, RLENGTH)] = 1
@@ -151,8 +151,8 @@ FNR == 1 { in_fence = 0; is_c = (FILENAME ~ /\.spec\.c$/) }
 
 	# The conformance door.  That suite runs against a bare engine, where
 	# prim-ref does not exist -- it is x-level -- so it reaches a primitive by
-	# walking the base to the catalog: (%coord (lit ffi) (lit call)).  Reading
-	# that idiom is what keeps ffi/call from reading as unexercised.
+	# walking the base to the catalog: (%coord (lit ffi) (lit dlopen)).  Reading
+	# that idiom is what keeps ffi/dlopen from reading as unexercised.
 	#
 	# No apostrophes in this program: it is single-quoted by the shell, which
 	# is also why the quote character below is built with sprintf.

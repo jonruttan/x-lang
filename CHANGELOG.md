@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The engine pin moves to x-engine-c v0.2.14, which has no `ffi-call`**
+([#PR]). v0.2.14 removes the `(ffi call)` primitive and its ISA row
+(x-engine-c#63), which [#796] had already stopped using, so
+`tools/contract/features.x` drops `ffi/call` from the `isa/ffi-call` group,
+which keeps `ffi/dlopen`, `ffi/dlsym` and `ptr/call`, and the conformance
+case for the signature-driven double call goes with it. The release also
+stops a primitive called with too few arguments, such as `(eval)`, `(-)` or
+`(fn)`, at the missing argument instead of segfaulting (x-engine-c#62), and
+adds a tenth profiling counter, `profile-env-steps`, at the end of the base's
+profile group (x-engine-c#59); the library reads base cells by name, so
+nothing here moves with it.
+
+[#PR]: https://github.com/jonruttan/x-lang/pull/PR
+
 **`type/convert.x` has a module header** ([#802]). Its six type handles and
 its fourteen other `%` names are its own now. The root keeps the `Convert`
 class, and the catalog keeps `(convert to)`, which is how every hot caller
