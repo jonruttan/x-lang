@@ -23,8 +23,24 @@
 ### obj-meta-ref on non-extended object returns 0
 
 ```x
+; At the default width every object is extended, and a slot nothing has
+; written holds whatever the allocator handed over.  An object with no slots
+; is one born at width 0.
+(do
+  (Obj meta-count! 0)
+  (def %p (pair 1 2))
+  (Obj meta-count! 2)
+  (display (Obj meta-ref %p 0)))
+```
+---
+    0
+
+### obj-meta-ref reads what x-lang wrote, zero included
+
+```x
 (do
   (def %p (pair 1 2))
+  (Obj meta-set! %p 0 0)
   (display (Obj meta-ref %p 0)))
 ```
 ---
