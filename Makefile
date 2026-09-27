@@ -1005,7 +1005,16 @@ doc-x: $(EXECUTABLE) ## Generate x-lang documentation
 	@sh x.sh --no-pin -q -f tools/dev/doc-index.x > docs/ref/x/index.md
 	@printf '  %s\n' "docs/ref/x/index.md"
 	@sh tools/check/doc-forms.sh
+	@sh tools/check/doc-annotations.sh
 .PHONY: doc-x
+
+# An annotation, the T of a (param NAME T ...) or (returns T ...) doc form,
+# names a runtime type, a class, or a name tools/contract/doc-annotations.x
+# lists.  It is never evaluated, so this check is the only thing that fails
+# when one names nothing.  doc-x runs it; the target runs it alone.
+check-doc-annotations: $(EXECUTABLE) ## Assert every doc annotation names a type
+	@sh tools/check/doc-annotations.sh
+.PHONY: check-doc-annotations
 
 # The x-lang library as roff, section 3x -- the same sweep as doc-x behind
 # its --man flag (one file list, one chunking policy, one set of per-file
