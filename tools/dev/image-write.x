@@ -57,6 +57,41 @@
 (if (null? %IMG-LIB) ()
   (do (%child-prim! (lit include) %raw-include)
       (guard (_ ()) (%child-prim! (lit syscall) (eval (lit syscall))))
+      ; x-cli files catalog entries into the root base's catalog too: since
+      ; x-engine-c 0.2.14, (ffi dlopen) and (ffi dlsym) are x-cli's, and a
+      ; child has neither.  Without them the child's prim-ref answers nil, and
+      ; err.x's errno lookup, which calls dlsym on dlopen's answer, ends in a
+      ; (ptr call) through whatever the call on nil returned.  Each entry is
+      ; filed in the child's own catalog, from the function pointer the root's
+      ; primitive holds, under names the child interns; the image's foreign
+      ; table then names it ffi/NAME, and the loader takes the loading
+      ; process's own.  Symbols are per base, so the child's catalog is
+      ; searched by name.
+      ((fn (_ named add!)
+         (do (add! named "ffi" "dlopen" (prim-ref (lit ffi) (lit dlopen)))
+             (add! named "ffi" "dlsym" (prim-ref (lit ffi) (lit dlsym)))))
+       (fn (self l name)
+         (if (null? l) ()
+           (if (str=? (symbol->str (first (first l))) name) (first l) (self (rest l) name))))
+       (fn (_ named ns m fnobj)
+         ((fn (_ cell put! sym)
+            ((fn (_ dom)
+               (if (if (null? fnobj) #t (not (null? (named (if (null? dom) () (rest dom)) m)))) ()
+                 ((fn (_ entry)
+                    (if (null? dom)
+                      (put! cell 0
+                        (%B eval (list (lit pair)
+                                       (list (lit pair) (sym ns) (list (lit pair) (list (lit lit) entry) (list (lit lit) ())))
+                                       (list (lit lit) (first cell)))))
+                      (put! dom 1
+                        (%B eval (list (lit pair) (list (lit lit) entry) (list (lit lit) (rest dom)))))))
+                  (%B eval (list (lit pair) (sym m)
+                                 (list (prim-ref (lit obj) (lit make-callable))
+                                       (list (lit lit) (%i->p (%word-at (%o->p fnobj) 0)))))))))
+             (named (first cell) ns)))
+          (%B cell (lit prims))
+          (prim-ref (lit obj) (lit set!))
+          (fn (_ name) (list (prim-ref (lit str) (lit ->sym)) name)))))
       (%child-str! (lit x-machine) x-machine)
       (%child-str! (lit x-version) x-version)
       (%child-str! (lit x-release) x-release)

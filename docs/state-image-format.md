@@ -40,7 +40,7 @@ generated `x-eval-layout.h`):
 | ctrl | `save-stack`, `error-handler`, `tco-expr`, `tco-env` | evaluator transients; **nil at image time and at install** (§6) |
 | io-group | `type-alist` (cell) | the type registry: `((name-stack . struct) …)`, keyed by the name-stack node (`x_alist_assoc` compares `first(key)`, `x-alist.c`) |
 | io-state | `line`, `true`, `false` | `true`/`false` hold the engine statics `x_true_obj`/`x_false_obj` |
-| profile | nine counters | plain integers; the loader may keep its own |
+| profile | ten counters | plain integers; the loader may keep its own |
 | state | `eval-list`, `token-cache`, `sigint`, `err`, `prims`, `file`, `err-line`, `err-file`, `file-registry` | `err` is the one base-resident ERR instance every raise fills (`x_type_err_register`); `prims` is the catalog, a list of `(ns (method . PRIMITIVE) …)` (`x_prim_register`); `sigint` is a shared atom |
 
 Process state, which the loader keeps: `files` (descriptors, write-buf, and
