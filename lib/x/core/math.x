@@ -11,7 +11,19 @@
 (def %int+ (prim-ref (lit int) (lit +)))
 (def %int/ (prim-ref (lit int) (lit /)))
 (def %int% (prim-ref (lit int) (lit %)))
+(def %int< (prim-ref (lit int) (lit <)))
 (import x/type/class)
+
+; The floored modulo from r, the truncated remainder by b.  r already has the
+; divisor's sign when it is 0 or shares b's; otherwise one b moves it across.
+; Only then is b added, when r and b have opposite signs, so the sum cannot
+; overflow -- where ((a % b) + b) % b does once b passes half the range.
+(def %num-floor-mod
+  (fn (_ r b)
+    (match
+      ((eq? r 0) r)
+      ((eq? (%int< r 0) (%int< b 0)) r)
+      (#t (%int+ r b)))))
 
 ; The machine-INT type handle, for (Num int?) and the N5 count/index guards.
 ; Type handles are C-static atoms, so the eq? compare is pointer-stable.
@@ -77,8 +89,8 @@
         (example "(Num modulo -7 3)" "2"))
       (match
         ((eq? b 0) (Err raise (lit value) "Num modulo: division by zero" b))
-        ((eq? b -1) (%int% (%int+ (%int% a 1) b) b))
-        (#t (%int% (%int+ (%int% a b) b) b))))
+        ((eq? b -1) (%num-floor-mod (%int% a 1) b))
+        (#t (%num-floor-mod (%int% a b) b))))
     (method divmod (self (param a INT "Dividend") (param b INT "Divisor"))
       (doc "Truncating quotient and remainder together.  A zero divisor raises." (returns LIST "(quotient remainder)")
         (example "(Num divmod 7 2)" "(3 1)"))

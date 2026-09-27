@@ -379,6 +379,21 @@ each even step until it exhausted memory.
 ---
     (2 -2)
 
+### modulo stays right with a divisor past half the range (regression: it wrapped)
+
+The divisor is added only when the truncated remainder has the other sign, so
+the sum cannot leave the range.  ((a % b) + b) % b wrapped here.
+
+```x
+(list (Num modulo 9223372036854775806 9223372036854775807)
+      (Num modulo 5 9223372036854775807)
+      (Num modulo -1 (<< 1 63))
+      (Num modulo 4611686018427387904 4611686018427387905)
+      (Num modulo -2 9223372036854775807))
+```
+---
+    (9223372036854775806 5 -1 4611686018427387904 9223372036854775805)
+
 ### divmod pairs them
 
 ```x
