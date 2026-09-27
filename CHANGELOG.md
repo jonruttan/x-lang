@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`File stat` decodes through a Struct reader made once** ([#813]). A stat
+allocated about 51,000 objects, 40,600 of them decoding three fields: `Struct
+unpack` compiled its field spec on every call and assembled each byte with
+the tower's `*`, `+` and `<`, three `Assoc entry` sends followed, and the
+decode was a second class dispatch. The codec's readers now work on the
+integer primitives, a reader's fields carry their offsets with the pads
+dropped, and `File` makes its stat reader when it loads: a stat allocates
+about 1,800. `File exists?` tests the call's result instead of raising and
+catching an `Err` on a miss, about 980 objects either way where a miss took
+25,600. A machine integer wraps at 64 bits, so an `i64` field reads as its
+two's-complement value with the numeric tower loaded too, where -1 read back
+as 18446744073709551615, and a pre-1970 modification time no longer depends
+on the dialect. A reader raises `type` for a record offset that is not an
+integer.
+
+[#813]: https://github.com/jonruttan/x-lang/pull/813
+
 ## [0.16.0] - 2026-09-27
 
 **A call through a syscall door walks nothing** ([#807]). A door from
