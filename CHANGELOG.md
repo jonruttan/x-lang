@@ -15,6 +15,19 @@ count rows, and the declaration's layout digest changes with them.
 
 [#810]: https://github.com/jonruttan/x-lang/pull/810
 
+**A data-slot access does no generic arithmetic** ([#809]). `(obj ref)`,
+`(obj set!)` and the pair mutators address data word i by one formula, the data
+offset plus i words, and it was computed with the `+` and `*` bound at the root:
+the variadic wrappers under helium, the numeric tower's generic dispatch under
+xenon. The formula now runs on the engine's integer `+` and `*`, fetched once,
+and `%set-first!` and `%set-rest!` write at the first and rest offsets computed
+at load, so they do no arithmetic at all. Under xenon a `%set-first!` allocates
+13 objects where it took 237, `%set-rest!` 13 where it took 293, and `(obj ref)`
+and `(obj set!)` 22 and 25 where they took 280 and 283; under helium the four
+took 51, 51, 38 and 41.
+
+[#809]: https://github.com/jonruttan/x-lang/pull/809
+
 ## [0.16.0] - 2026-09-27
 
 **A call through a syscall door walks nothing** ([#807]). A door from
