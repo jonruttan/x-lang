@@ -177,7 +177,7 @@
     ;   a SYMBOL  -- a named key: 'up 'down 'left 'right 'home 'end 'delete
     ;                'enter 'backspace 'tab 'interrupt 'eof 'clear 'kill-eol
     ;                'kill-bol 'kill-word 'yank 'word-left 'word-right 'escape
-    ;                'complete 'quoted-insert
+    ;                'complete 'quoted-insert 'search-back 'search-forward 'abort
     ;   nil       -- the descriptor ended (EOF on the read itself)
     ;
     ; read-byte is a function of no arguments returning a byte value or nil.
@@ -199,6 +199,7 @@
             ((= b 4)   (lit eof))
             ((= b 5)   (lit end))
             ((= b 6)   (lit right))
+            ((= b 7)   (lit abort))
             ((= b 8)   (lit backspace))
             ((= b 9)   (lit complete))
             ((= b 10)  (lit enter))
@@ -206,6 +207,8 @@
             ((= b 12)  (lit clear))
             ((= b 14)  (lit down))
             ((= b 16)  (lit up))
+            ((= b 18)  (lit search-back))
+            ((= b 19)  (lit search-forward))
             ((= b 13)  (lit enter))
             ((= b 21)  (lit kill-bol))
             ((= b 22)  (lit quoted-insert))

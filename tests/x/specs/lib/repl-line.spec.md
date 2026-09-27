@@ -274,3 +274,153 @@ string and its paren closes the first line's.
 ```
 ---
     ((3 0 #t))
+
+## history search
+
+A search is driven here by canned bytes into the editor's own key loop, with
+its redraws written to `/dev/null`, so no terminal is needed. The history is
+newest first: "echo hi", then "ls -la", then "cd /tmp". The bytes are ctrl-r
+18, ctrl-s 19, ctrl-g 7, ctrl-c 3, ctrl-e 5, Backspace 127, Enter 13, and
+Up and Down as `ESC [ A` and `ESC [ B`.
+
+### ctrl-r finds the newest entry holding what is typed, and Enter runs it
+
+```x
+(do (import x/repl/line) (import x/sys/file)
+    (let ((loop (eval (lit %ln-loop) (module x/repl/line)))
+          (fd (File open "/dev/null" 'wronly)))
+      (let ((run (fn (_ bytes)
+                   (let ((bs bytes))
+                     (loop fd "> " (Edit make (list "echo hi" "ls -la" "cd /tmp"))
+                           (fn (_) (if (null? bs) () (let ((b (first bs))) (set! bs (rest bs)) b))))))))
+        (let ((r (run (list 18 108 115 13))))
+          (File close fd)
+          r))))
+```
+---
+    "ls -la"
+
+### ctrl-r again moves on to an older match
+
+```x
+(do (import x/repl/line) (import x/sys/file)
+    (let ((loop (eval (lit %ln-loop) (module x/repl/line)))
+          (fd (File open "/dev/null" 'wronly)))
+      (let ((run (fn (_ bytes)
+                   (let ((bs bytes))
+                     (loop fd "> " (Edit make (list "echo hi" "ls -la" "cd /tmp"))
+                           (fn (_) (if (null? bs) () (let ((b (first bs))) (set! bs (rest bs)) b))))))))
+        (let ((r (run (list 18 99 18 13))))
+          (File close fd)
+          r))))
+```
+---
+    "cd /tmp"
+
+### a query nothing holds leaves the line as it was, and ctrl-g abandons a search
+
+```x
+(do (import x/repl/line) (import x/sys/file)
+    (let ((loop (eval (lit %ln-loop) (module x/repl/line)))
+          (fd (File open "/dev/null" 'wronly)))
+      (let ((run (fn (_ bytes)
+                   (let ((bs bytes))
+                     (loop fd "> " (Edit make (list "echo hi" "ls -la" "cd /tmp"))
+                           (fn (_) (if (null? bs) () (let ((b (first bs))) (set! bs (rest bs)) b))))))))
+        (let ((r (list (run (list 120 18 122 122 13))
+                       (run (list 120 18 108 115 7 13)))))
+          (File close fd)
+          r))))
+```
+---
+    ("x" "x")
+
+### another key keeps the match and is then handled as usual
+
+ctrl-e ends the search with "cd /tmp" in the buffer and moves to its end, so
+what is typed next extends it; Down then walks on from the entry that was
+found.
+
+```x
+(do (import x/repl/line) (import x/sys/file)
+    (let ((loop (eval (lit %ln-loop) (module x/repl/line)))
+          (fd (File open "/dev/null" 'wronly)))
+      (let ((run (fn (_ bytes)
+                   (let ((bs bytes))
+                     (loop fd "> " (Edit make (list "echo hi" "ls -la" "cd /tmp"))
+                           (fn (_) (if (null? bs) () (let ((b (first bs))) (set! bs (rest bs)) b))))))))
+        (let ((r (list (run (list 18 99 100 5 32 47 13))
+                       (run (list 18 99 100 5 27 91 66 13)))))
+          (File close fd)
+          r))))
+```
+---
+    ("cd /tmp /" "ls -la")
+
+### Backspace steps back to the match before the last key
+
+```x
+(do (import x/repl/line) (import x/sys/file)
+    (let ((loop (eval (lit %ln-loop) (module x/repl/line)))
+          (fd (File open "/dev/null" 'wronly)))
+      (let ((run (fn (_ bytes)
+                   (let ((bs bytes))
+                     (loop fd "> " (Edit make (list "echo hi" "ls -la" "cd /tmp"))
+                           (fn (_) (if (null? bs) () (let ((b (first bs))) (set! bs (rest bs)) b))))))))
+        (let ((r (run (list 18 99 100 127 13))))
+          (File close fd)
+          r))))
+```
+---
+    "echo hi"
+
+### ctrl-s searches forward from the entry being browsed
+
+Up three times shows "cd /tmp"; ctrl-s then finds the next newer entry
+holding "e".
+
+```x
+(do (import x/repl/line) (import x/sys/file)
+    (let ((loop (eval (lit %ln-loop) (module x/repl/line)))
+          (fd (File open "/dev/null" 'wronly)))
+      (let ((run (fn (_ bytes)
+                   (let ((bs bytes))
+                     (loop fd "> " (Edit make (list "echo hi" "ls -la" "cd /tmp"))
+                           (fn (_) (if (null? bs) () (let ((b (first bs))) (set! bs (rest bs)) b))))))))
+        (let ((r (run (list 27 91 65 27 91 65 27 91 65 19 101 13))))
+          (File close fd)
+          r))))
+```
+---
+    "echo hi"
+
+### ctrl-c abandons the line, and ctrl-r on an empty query repeats the last search
+
+```x
+(do (import x/repl/line) (import x/sys/file)
+    (let ((loop (eval (lit %ln-loop) (module x/repl/line)))
+          (fd (File open "/dev/null" 'wronly)))
+      (let ((run (fn (_ bytes)
+                   (let ((bs bytes))
+                     (loop fd "> " (Edit make (list "echo hi" "ls -la" "cd /tmp"))
+                           (fn (_) (if (null? bs) () (let ((b (first bs))) (set! bs (rest bs)) b))))))))
+        ; Nested so the runs happen in order: the third repeats the query
+        ; the second remembered.
+        (let ((a (run (list 18 108 3))))
+          (let ((b (run (list 18 108 115 13))))
+            (let ((c (run (list 18 18 13))))
+              (File close fd)
+              (list a b c)))))))
+```
+---
+    ('cancel "ls -la" "ls -la")
+
+### the prompt is readline's
+
+```x
+(do (import x/repl/line)
+    (let ((p (eval (lit %ln-search-prompt) (module x/repl/line))))
+      (list (p "ls" 'back #f) (p "ls" 'forward #f) (p "zz" 'back #t))))
+```
+---
+    ("(reverse-i-search)`ls': " "(i-search)`ls': " "(failed reverse-i-search)`zz': ")
