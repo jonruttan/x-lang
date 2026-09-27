@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A block-wrapped method tests for a block send without a class dispatch**
+([#815]). Every send of a selector `Block method!` wraps -- `List map`,
+`filter`, `fold`, `sort` and the rest, plain applicative sends included --
+first asked whether it was a block send, through four `Block` class
+dispatches, `and`, `or`, `let` and the tower's `<` and `-`. The test is made
+once per wrap now, as closures over the integer primitives, and answers as
+before. A wrapped method called through its table entry costs about 210
+objects a send where it cost 16,300; with the dispatch table's reordering
+as well, `(List map f ())` costs about 1,900 where it cost 25,300.
+
+[#815]: https://github.com/jonruttan/x-lang/pull/815
+
 **A data-slot access does no generic arithmetic** ([#809]). `(obj ref)`,
 `(obj set!)` and the pair mutators address data word i by one formula, the data
 offset plus i words, and it was computed with the `+` and `*` bound at the root:
