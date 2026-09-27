@@ -1065,6 +1065,39 @@ stress belongs in specs/applicative/, serial by design.
 ---
     'b
 
+### two selectors sent in turn settle at the front of the table
+
+A hit deeper than second place moves to the head and the entry it
+displaces moves second, so two statics of one class sent in turn walk no
+further than the top two once each has been found.  Thirty statics, the
+pair from the middle, ten rounds of the pair, the loop around an empty
+thunk subtracted: under 3,000 objects a round.
+
+```x
+(do
+  (import x/sys/gc)
+  (def-class Wide ()
+    (static
+      (method s00 (self) 0) (method s01 (self) 1) (method s02 (self) 2) (method s03 (self) 3)
+      (method s04 (self) 4) (method s05 (self) 5) (method s06 (self) 6) (method s07 (self) 7)
+      (method s08 (self) 8) (method s09 (self) 9) (method s10 (self) 10) (method s11 (self) 11)
+      (method s12 (self) 12) (method s13 (self) 13) (method s14 (self) 14) (method s15 (self) 15)
+      (method s16 (self) 16) (method s17 (self) 17) (method s18 (self) 18) (method s19 (self) 19)
+      (method s20 (self) 20) (method s21 (self) 21) (method s22 (self) 22) (method s23 (self) 23)
+      (method s24 (self) 24) (method s25 (self) 25) (method s26 (self) 26) (method s27 (self) 27)
+      (method s28 (self) 28) (method s29 (self) 29)))
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 10)
+      (- (Heap count) c0)))
+  (def %over (- (%cost (fn (_) (Wide s14) (Wide s15))) (%cost (fn (_) ()))))
+  (list (Wide s14) (Wide s15) (< %over (* 3000 10))))
+```
+---
+    (14 15 #t)
+
 ### an ad-hoc set-member! key stays reachable through dispatch
 
 ```x
