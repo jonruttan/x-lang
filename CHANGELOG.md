@@ -7,6 +7,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.16.0] - 2026-09-27
 
+**A call through a syscall door walks nothing** ([#807]). A door from
+`syscall-door` found each of the six arguments it hands the primitive by
+walking the list it was called with, on every call, so a call cost 400 objects
+in x-core where the `syscall-id` lookup it replaced cost 220. A door is now
+resolved when it is made, into a function of six arguments whose body is the
+call: a plain door hands its arguments to the primitive as they are, and a
+shaped door is the same form with its shape's slots in place, built and
+evaluated once. A call through a door allocates 20 objects, and `File read` and
+`File write` 977 each, where they took 1,357 since [#801] and 1,170 and 1,187
+in v0.15.0.
+
+[#807]: https://github.com/jonruttan/x-lang/pull/807
+
 **The REPL searches its history.** ctrl-r searches backward for what is typed
 after it and ctrl-s forward, as readline's incremental search does: the prompt
 becomes `(reverse-i-search)`query': `, the newest entry holding the query is
