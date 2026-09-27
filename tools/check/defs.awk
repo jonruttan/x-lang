@@ -12,7 +12,8 @@
 # (doc ...) wrappers.  Strings, #\X char literals and ; comments are tracked
 # so their parens and semicolons cannot be miscounted.
 #
-# Consumers: tools/check/percent-globals.sh (counts %-names per file).
+# Consumers: tools/check/percent-globals.sh (counts %-names per file) and
+# tools/check/spec-globals.sh (the %-names a spec may not rebind).
 # dup-defs.sh still carries its own copy of this scan; migrating it onto this
 # file is tracked in #304 -- it is a working gate with adjudicated allowlists,
 # so it moves on its own change, not as a side effect of this one.

@@ -18,13 +18,18 @@
 #     glob mode, SPEC_BATCH=8        2695, 2 failed
 #
 # The failure reads as a missing binding in a C primitive, rather than as a
-# `(do (def op '+) ...)` eight files earlier in the same process.
+# `(do (def op '+) ...)` eight files earlier in the same process.  A library
+# name breaks the rest of its own file as well: `+` and `*` call `%fold` past
+# two arguments, so a spec's `(def %fold ...)` breaks every later `(+ 1 2 3)`.
 #
-# The protected set is the shared vocabulary, derived from the two manifests
-# that already define it: the engine's bare and keep names
-# (engine/tools/contract/isa.x) and the runtime library's sanctioned top level
-# (tools/contract/bare-globals.x).  Deriving rather than listing means a name
-# that becomes global tomorrow is protected tomorrow.
+# The protected set is the shared vocabulary, derived from where it is
+# defined: the engine's bare and keep names (engine/tools/contract/isa.x), the
+# runtime library's sanctioned bare top level (tools/contract/bare-globals.x),
+# and the library's root %-definitions, which are the top-level %-defs
+# (tools/check/defs.awk) of every lib file without a (module NAME) header.  A
+# scoped module's defs bind in its own environment and are not protected.
+# Deriving rather than listing means a name that becomes global tomorrow is
+# protected tomorrow.
 #
 # Everything else a spec defines is unprotected.  Helper names (`x`, `xs`, `f`)
 # are the normal way to write a spec and collide with nothing; the rule is only
@@ -56,11 +61,19 @@ trap 'rm -rf "$W"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+# The library's root %-definitions.  An empty list means the scan broke, not
+# that the library has none.
+find lib -name '*.x' | sort | xargs grep -L '^(module ' |
+	xargs awk -f tools/check/defs.awk |
+	awk -F'\t' '$2 ~ /^%/ { print $2 }' > "$W/library"
+[ -s "$W/library" ] || { echo "spec-globals: no library root definitions found" >&2; exit 2; }
+
 {
 	sed -n '/^(def %isa-bare/,/^)))/p;/^(def %isa-keep/,/^)))/p' "$ISA" |
 		awk '/^  \(/ { gsub(/[()]/, " "); print $1 }'
 	awk '/^\(def %bare-globals/ { next }
 	     /^ *\(/            { gsub(/[()]/, ""); print $1 }' "$BARE"
+	cat "$W/library"
 } | grep -v '^$' | sort -u > "$W/protected"
 
 # Every (def NAME ...) a snippet evaluates at global binding position.
@@ -131,10 +144,10 @@ hits=$(awk -F'\t' '
 
 if [ -n "$hits" ]; then
 	echo "spec-globals: a spec rebinds a name the shared vocabulary owns." >&2
-	echo "  These bind GLOBALLY and outlive the file, so every later spec in the" >&2
-	echo "  same SPEC_BATCH bucket sees the replacement.  Rename the local to" >&2
-	echo "  something the vocabulary does not own (a %-prefixed name is the" >&2
-	echo "  convention), or move the def inside the frame that needs it." >&2
+	echo "  These bind GLOBALLY and outlive the snippet, so the rest of the file" >&2
+	echo "  and every later spec in its SPEC_BATCH bucket see the replacement." >&2
+	echo "  Prefix the local with the spec's subject (%posix-fold, not %fold)," >&2
+	echo "  or move the def inside the frame that needs it." >&2
 	echo >&2
 	printf '%s\n' "$hits" | sed 's/^/    /' >&2
 	exit 1

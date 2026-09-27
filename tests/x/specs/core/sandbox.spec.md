@@ -130,8 +130,8 @@ itself, not on a cell holding it.
 (do (def %eb (Base make))
     (%eb bind (lit marker) 77)
     (def %root (%eb cell (lit env-root)))
-    (def %find (fn (self t) (if (null? t) () (if (eq? (first (first t)) (lit marker)) (rest (first t)) (let ((l (self (first (rest t))))) (if (null? l) (self (rest (rest t))) l))))))
-    (list (null? (rest %root)) (%find (first %root))))
+    (def %sandbox-find (fn (self t) (if (null? t) () (if (eq? (first (first t)) (lit marker)) (rest (first t)) (let ((l (self (first (rest t))))) (if (null? l) (self (rest (rest t))) l))))))
+    (list (null? (rest %root)) (%sandbox-find (first %root))))
 ```
 ---
     (#t 77)
