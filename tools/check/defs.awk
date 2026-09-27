@@ -4,7 +4,7 @@
 #
 # "Top-level" means "binds globally", which is not the same as "starts in
 # column 0": a def directly inside a top-level (do ...) binds in the caller's
-# env too, because %do-seq tail-evals its children there.  Descending that is
+# env too, because do evaluates its forms there.  Descending that is
 # what makes the tool scripts visible -- they wrap their whole body in one
 # (do ...), so a column-0 line grep sees almost nothing.
 #

@@ -56,23 +56,10 @@
 (def prim-ref (fn (_ ns m) (%img-assoc m (prim-domain ns))))
 
 ; --- sequencing ------------------------------------------------------------
-; do, without operatives.x.  Two OPERATIVES that hand the rest of the body to
-; each other through tail-eval, the way boot/operatives.x's %do-seq nests: the
-; trampoline honours a tail-eval from an operative, so (do ... (self ...))
-; iterates in constant stack.  Neither `match` clause bodies nor a helper
-; procedure will do: a match clause evaluates ONE form, and a tail-eval inside
-; a procedure body is an ordinary call -- a 300,000-step loop segfaulted where
-; the same loop on bare `match` ran.  An op body IS a sequence.
-(def %img-do-rest
-  (op body e
-    (eval (first body) e)
-    (tail-eval (pair do (rest body)) e)))
-(def do
-  (op body e
-    (match
-      ((null? body) ())
-      ((null? (rest body)) (tail-eval (first body) e))
-      (#t (tail-eval (pair %img-do-rest body) e)))))
+; do is the engine's %seq, as boot/operatives.x binds it: each form but the
+; last is evaluated in the caller's environment, and the last in tail position,
+; so (do ... (self ...)) iterates in constant stack.
+(def do %seq)
 (def list (fn (_ . args) args))
 
 ; --- strings ---------------------------------------------------------------

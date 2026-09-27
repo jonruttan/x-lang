@@ -163,15 +163,6 @@
     (%cw-emit (first args))
     (display ")")))
 
-; (%seq a b) => comma operator
-(def %cw-seq
-  (fn (_ args)
-    (display "(")
-    (%cw-emit (first args))
-    (display ", ")
-    (%cw-emit (first (rest args)))
-    (display ")")))
-
 ; (%buffer-unread buffer) => decrement read pointer
 (def %cw-buffer-unread
   (fn (_ args)
@@ -418,7 +409,7 @@
     (%cw-emit (first args))
     (display "))")))
 
-; (do a b c ...) => comma-chained: (a, b, c)
+; (do a b c ...) and (%seq a b c ...) => comma-chained: (a, b, c)
 (def %cw-do
   (fn (_ args)
     (display "(")
@@ -467,7 +458,7 @@
     (pair '%set-first!   %cw-set-first)
     (pair '%set-rest!    %cw-set-rest)
     (pair '%score-set    %cw-score-set)
-    (pair '%seq          %cw-seq)
+    (pair '%seq          %cw-do)
     (pair '%buffer-unread %cw-buffer-unread)
     (pair 'fn            %cw-fn)
     (pair 'atom-add!     %cw-atom-add)

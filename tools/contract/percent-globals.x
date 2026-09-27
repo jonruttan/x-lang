@@ -124,7 +124,7 @@
 
 ; State images.  lib/img.x is the loader's dialect, function-only by design:
 ; it declares the engine's type shapes and rebuilds an image on a base with no
-; class system at all, so there is no class to home anything on, and its 37 are
+; class system at all, so there is no class to home anything on, and its 36 are
 ; the dialect's whole surface.  lib/x/type/shape-rows.x (2) is the rows that
 ; dialect and lib/x/type/type.x (3) both read -- data by design -- and the three
 ; in type.x are the per-base shape declaration that runs at boot, before Type
@@ -141,11 +141,10 @@
 ; the writer co-loads with helium, the loader with nothing at all (it runs
 ; on img).  They are inventory awaiting the pin.x treatment, entered at
 ; their counts so the ratchet holds them from here.
-(file "lib/img.x" 37)
+(file "lib/img.x" 36)
 (file "lib/x/boot/data.x" 17)   ; +3 %data-int+ %data-int* %data-off-1: the slot formula's integer doors and the rest slot's hoisted offset, off the tower's + and * on every slot access
 (file "lib/x/boot/engine.x" 2)
 (file "lib/x/boot/module.x" 68)   ; +18 for scoped modules (x-lang#719): env/owner registries, provide/import doors, the header, its reader and the amalgam markers -- boot code, no class to home them on
-(file "lib/x/boot/operatives.x" 5)
 (file "lib/x/boot/printer.x" 75)   ; +1 %apply: a write/display handler from a type cell may be a C handler atom
 (file "lib/x/boot/reflect.x" 33)   ; +1 %apply: the iter handler from a type cell may be a C handler atom
 (file "lib/x/boot/registry.x" 8)

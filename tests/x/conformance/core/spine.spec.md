@@ -257,13 +257,12 @@ bindings and the tables would be decoration.
 ## %seq, %cc-invoke, base/make-tok and base/make-type -- not defined here
 
 `%seq` does not return a value the way a call does: it PRODUCES A TCO
-CONTINUATION for the evaluator to resolve in tail position (see
-`lib/x/boot/operatives.x`, which notes it must propagate the environment to
-exactly that continuation). Asked for a value directly it answers neither its
-first argument, its last, nor nil. Defining it in isolation would mean pinning
-the shape of an internal handoff rather than a behaviour a library can rely on;
-what IS observable is do-body sequencing, and that is `operatives.x`'s contract,
-covered by the library's own suite.
+CONTINUATION for the evaluator to resolve in tail position
+(`lib/x/boot/operatives.x` binds `do` to it). Asked for a value directly it
+answers neither its first argument, its last, nor nil. Defining it in
+isolation would mean pinning the shape of an internal handoff rather than a
+behaviour a library can rely on; what IS observable is do-body sequencing, and
+that is `operatives.x`'s contract, covered by the library's own suite.
 
 `%cc-invoke` is the continuation-application half of `call/cc`, reachable only
 with a continuation in hand; the observable behaviour is `call/cc`'s, which

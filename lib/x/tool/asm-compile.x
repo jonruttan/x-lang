@@ -580,11 +580,8 @@
     (asm-emit! asm (lit strb) x1 (mem 0 0))
     (asm-emit! asm 'mov x0 x1)))                         ; yield the value
 
-; Compile (do a b ...): evaluate each in order, result is the last.
-; %seq below is the tokenizer's internal TWO-arg form; `do` is the
-; language's own sequencing form, and the JIT lacked it entirely -- a
-; compiled (do ...) body fell through to the function-call path and
-; failed obscurely.  Any number of forms; none yields nil.
+; Compile (do a b ...) and (%seq a b ...), which are one form: evaluate each
+; in order, result is the last.  Any number of forms; none yields nil.
 (def %asm-compile-do
   (fn (_ asm args params)
     (if (null? args)
@@ -596,12 +593,6 @@
               (%asm-compile-expr asm (first as) params)
               (unless (null? (rest as)) (self (rest as))))))
         (%go args)))))
-
-; Compile (%seq a b): evaluate a, discard, evaluate b, return
-(def %asm-compile-seq
-  (fn (_ asm args params)
-    (%asm-compile-expr asm (first args) params)
-    (%asm-compile-expr asm (first (rest args)) params)))
 
 ; Compile (%score-set score sign buffer): jit_score_set(score, sign, buffer)
 ; score and buffer are x_obj_t* (fvars or params), sign is raw int
@@ -799,7 +790,7 @@
         ; emitter does not recognise still refuses loudly
         ; instead of becoming a computed call by accident.
         (%asm-compile-callable-call asm (first args) (rest args) params))
-      ((eq? op '%seq) (%asm-compile-seq asm args params))
+      ((eq? op '%seq) (%asm-compile-do asm args params))
       ((if (eq? op '%score-set) #t (eq? op '%score-variant!))
         (if (eq? op '%score-set)
           (%asm-compile-score-set asm args params)
