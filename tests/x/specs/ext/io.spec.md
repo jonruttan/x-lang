@@ -21,7 +21,7 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
   (def %p "/tmp/x-spec-io-sys.txt")
   (def %w (Sys open-write %p)) (Sys fd-write %w "abc") (Sys close %w)
   (def %r (Sys open-read %p)) (def %b (Sys fd-read %r 8)) (Sys close %r)
-  (syscall (syscall-id 'unlink) %p)
+  ((syscall-door 'unlink) %p)
   %b)
 ```
 ---
@@ -37,7 +37,7 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
   (Sys fd-read %r 8)
   (def %eof (Sys fd-read %r 8))
   (Sys close %r)
-  (syscall (syscall-id 'unlink) %p)
+  ((syscall-door 'unlink) %p)
   (null? %eof))
 ```
 ---
@@ -48,11 +48,11 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
 ```x
 (do
   (def %p "/tmp/x-spec-io-exists.txt")
-  (syscall (syscall-id 'unlink) %p)
+  ((syscall-door 'unlink) %p)
   (def %before (Sys file-exists? %p))
   (def %w (Sys open-write %p)) (Sys fd-write %w "x") (Sys close %w)
   (def %after (Sys file-exists? %p))
-  (syscall (syscall-id 'unlink) %p)
+  ((syscall-door 'unlink) %p)
   (def %gone (Sys file-exists? %p))
   (list %before %after %gone))
 ```
@@ -70,7 +70,7 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
   (File write %w "hello" 5)
   (File close %w)
   (def %r (Sys open-read %p)) (def %b (Sys fd-read %r 16)) (Sys close %r)
-  (syscall (syscall-id 'unlink) %p)
+  ((syscall-door 'unlink) %p)
   %b)
 ```
 ---
@@ -91,7 +91,7 @@ region (File read/getc were blocked before it existed).
   (def %buf ((prim-ref 'str 'make) 8))
   (def %n (File read %r %buf 8))
   (File close %r)
-  (syscall (syscall-id 'unlink) %p)
+  ((syscall-door 'unlink) %p)
   (list (> %n 0) (%str-ref %buf 0)))
 ```
 ---
@@ -106,7 +106,7 @@ region (File read/getc were blocked before it existed).
   (def %r (File open %p 'rdonly))
   (def %c (File getc %r))
   (File close %r)
-  (syscall (syscall-id 'unlink) %p)
+  ((syscall-door 'unlink) %p)
   %c)
 ```
 ---
@@ -121,7 +121,7 @@ region (File read/getc were blocked before it existed).
   (def %p "/tmp/x-spec-io-stream.txt")
   (Stream with-file %p (fn (_) (display "hi")))
   (def %r (Sys open-read %p)) (def %b (Sys fd-read %r 8)) (Sys close %r)
-  (syscall (syscall-id 'unlink) %p)
+  ((syscall-door 'unlink) %p)
   %b)
 ```
 ---

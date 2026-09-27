@@ -19,15 +19,15 @@
 ;         (File close fd)
 ;         n)))
 ;
-; Dependencies: this module imports x/platform/syscall for `syscall-id` (the
-; name->number lookup). Read buffers come from (str make n) -- a GC-owned
+; Dependencies: this module imports x/platform/syscall for `syscall-door` (a
+; call resolved by name for this platform). Read buffers come from (str make n) -- a GC-owned
 ; n-byte string region (fetched below as %make-str) -- so File runs under
 ; plain x-core; no extra dialect is needed.
 (module x/sys/file)
 
 (import x/core/list)
 (import x/core/alist)
-(import x/platform/syscall file-modes)
+(import x/platform/syscall file-modes stat-layout)
 (import x/platform/dirent)
 (import x/codec/struct)   ; the stat-buffer decode rides a field spec (#371)
 (import x/type/class)
@@ -35,6 +35,47 @@
 ; GC-owned read buffers: (str make n) allocates an n-byte string region the
 ; collector owns (no free needed). Fetched once here; getc allocates per call.
 (def %make-str (prim-ref 'str 'make))
+
+; The calls this module makes, each resolved once through the platform's door:
+; a number on its own does not say how a call is made, and on arm64 Linux the
+; path calls are made through their -at forms.  Darwin's stat trio and statfs
+; are the 64-bit-inode variants, and its directory reader has its own name.
+(def %sys-open      (syscall-door 'open))
+(def %sys-close     (syscall-door 'close))
+(def %sys-read      (syscall-door 'read))
+(def %sys-write     (syscall-door 'write))
+(def %sys-lseek     (syscall-door 'lseek))
+(def %sys-ftruncate (syscall-door 'ftruncate))
+(def %sys-stat      (syscall-door (if os-darwin? 'stat64 'stat)))
+(def %sys-lstat     (syscall-door (if os-darwin? 'lstat64 'lstat)))
+(def %sys-statfs    (syscall-door (if os-darwin? 'statfs64 'statfs)))
+(def %sys-dirents   (syscall-door (if os-darwin? 'getdirentries64 'getdents64)))
+(def %sys-mkdir     (syscall-door 'mkdir))
+(def %sys-unlink    (syscall-door 'unlink))
+(def %sys-rmdir     (syscall-door 'rmdir))
+(def %sys-rename    (syscall-door 'rename))
+(def %sys-chmod     (syscall-door 'chmod))
+(def %sys-chown     (syscall-door 'chown))
+(def %sys-link      (syscall-door 'link))
+(def %sys-symlink   (syscall-door 'symlink))
+(def %sys-readlink  (syscall-door 'readlink))
+(def %sys-utimes    (syscall-door 'utimes))
+(def %sys-mknod     (syscall-door 'mknod))
+
+; The fields (File stat) answers with, cut from the platform's layout: each
+; one kept, and everything between two of them folded into a pad.
+(def %stat-fields
+  (let go ((rows stat-layout) (gap 0) (acc ()))
+    (match
+      ((null? rows) (List reverse acc))
+      (#t
+        (let ((row (first rows)))
+          (match
+            ((or (eq? (first row) 'mode) (eq? (first row) 'size)
+                 (eq? (first row) 'mtime))
+              (go (rest rows) 0
+                  (pair row (if (> gap 0) (pair (list 'pad gap) acc) acc))))
+            (#t (go (rest rows) (+ gap (Struct length (list row))) acc))))))))
 
 ; --- The flag tables (surfaced via the methods below) ---
 ; Static value members can't carry help text, so the tables live as data and
@@ -116,7 +157,7 @@
     (note "Return values are the raw syscall results: a negative number is an error (-errno). (File read) returns the byte count, 0 at EOF; (File getc) returns -1 at EOF.")
     (note "read/write/getc operate on a caller-allocated string buffer -- allocate one with (str make N), fetched via (prim-ref 'str 'make): read fills it and returns how many bytes landed; write sends `size` bytes out of it.")
     (note "(File open)'s mode is flexible: a number passes straight through; a single symbol (rdonly, wronly, ...) resolves via (File file-modes); a list of symbols is OR'd together -- (list 'wronly 'creat 'trunc) is 577. Call (File file-modes) for the full table, or (File stat-flags) for the stat S_* flags.")
-    (note "`syscall-id` is pulled in automatically (imports x/platform/syscall); `syscall` and (str make) are core primitives, so File runs under plain x-core.")
+    (note "`syscall-door` is pulled in automatically (imports x/platform/syscall); `syscall` and (str make) are core primitives, so File runs under plain x-core.")
     (sample "(let ((fd (File open \"/etc/hostname\" 'rdonly))) (let ((buf ((prim-ref 'str 'make) 64))) (let ((n (File read fd buf 64))) (File close fd) n)))" "the byte count read into buf, with the fd closed afterward"))
   (static
     (method file-modes (self)
@@ -144,14 +185,14 @@
       ; Always pass the 3rd open() arg: the kernel ignores it unless O_CREAT is
       ; set, so it is harmless for non-creating opens and correct for creating
       ; ones. 420 = 0644 (rw-r--r--).
-      (syscall (syscall-id 'open) pathname (%mode->int mode)
-               (if (null? perm) 420 (first perm))))
+      (%sys-open pathname (%mode->int mode)
+                 (if (null? perm) 420 (first perm))))
 
     (method close (self (param fd INT "File descriptor to close"))
       (doc "Close a file descriptor."
         (returns INT "0 on success, negative on error")
         (sample "(File close fd)" "0"))
-      (syscall (syscall-id 'close) fd))
+      (%sys-close fd))
 
     (method read (self (param fd INT "File descriptor to read from")
                        (param buffer STRING "Buffer to read into")
@@ -159,7 +200,7 @@
       (doc "Read bytes from a file descriptor into a buffer."
         (returns INT "Bytes read, 0 at EOF, negative on error")
         (sample "(File read fd buf 64)" "bytes read into buf (0 at EOF)"))
-      (syscall (syscall-id 'read) fd buffer size))
+      (%sys-read fd buffer size))
 
     (method write (self (param fd INT "File descriptor to write to")
                         (param buffer STRING "Data to write")
@@ -167,7 +208,7 @@
       (doc "Write bytes from a buffer to a file descriptor."
         (returns INT "Bytes written, or negative on error")
         (sample "(File write fd \"hello\" 5)" "5"))
-      (syscall (syscall-id 'write) fd buffer size))
+      (%sys-write fd buffer size))
 
     (method getc (self (param fd INT "File descriptor to read from"))
       (doc "Read a single character from a file descriptor."
@@ -200,8 +241,8 @@
         (sample "(File seek fd 16)" "16 -- absolute seek")
         (sample "(File seek fd 0 'end)" "the file's size, with the offset now at end")
         (sample "(File seek fd -1 'cur)" "steps the offset back one byte"))
-      (syscall (syscall-id 'lseek) fd offset
-               (File %whence (if (null? whence) 'set (first whence)))))
+      (%sys-lseek fd offset
+                  (File %whence (if (null? whence) 'set (first whence)))))
 
     (method tell (self (param fd INT "File descriptor"))
       (doc "The file descriptor's current offset -- (File seek fd 0 'cur)."
@@ -215,8 +256,8 @@
         (returns INT "0 on success, negative on error")
         (sample "(File truncate fd 3)" "0 -- the file is now 3 bytes")
         (sample "(File truncate fd)" "0 -- cut at the current offset"))
-      (syscall (syscall-id 'ftruncate) fd
-               (if (null? size) (File tell fd) (first size))))
+      (%sys-ftruncate fd
+                      (if (null? size) (File tell fd) (first size))))
 
     ; ======================================================================
     ; The ergonomic tier (#22): whole-file and filesystem operations that
@@ -225,23 +266,16 @@
     ; documented raw contract (absence-model rule 5).
     ; ======================================================================
 
-    ; The per-OS stat-struct field spec, decoded through the Struct codec
-    ; (#371 -- this decode was the codec's want-evidence). Pads carry the
-    ; layout to each field: Darwin mode u16@4 / mtime i64@48 / size i64@96
-    ; (the stat64 layout); Linux mode u32@24 / size i64@48 / mtime i64@88.
-    ; Both specs are 64-bit layouts and nothing branches on the width, so a
-    ; 32-bit build decodes neighbouring fields.
+    ; The stat struct's layout is the platform's (stat-layout, in
+    ; x/platform/syscall); %stat-fields is the three fields of it this
+    ; decode reads, through the Struct codec (#371).  Every layout there is
+    ; a 64-bit one and nothing branches on the width, so a 32-bit build
+    ; decodes neighbouring fields.
     ; constraint: word-size = 8 -- stat/stat64 field offsets are 64-bit
     (method %stat-decode (self (param buf STRING "A stat buffer a syscall filled"))
       (doc "Decode a stat64/stat buffer into the public metadata alist."
         (returns ALIST "((size . N) (mode . M) (kind . K) (mtime . T))"))
-      (def d (Struct unpack
-               (if os-darwin?
-                 (list (list 'pad 4) (list 'mode 'u16) (list 'pad 42)
-                       (list 'mtime 'i64) (list 'pad 40) (list 'size 'i64))
-                 (list (list 'pad 24) (list 'mode 'u32) (list 'pad 20)
-                       (list 'size 'i64) (list 'pad 32) (list 'mtime 'i64)))
-               buf))
+      (def d (Struct unpack %stat-fields buf))
       (def mode (rest (Assoc entry 'mode d)))
       (list (pair 'size (rest (Assoc entry 'size d)))
             (pair 'mode mode)
@@ -254,9 +288,7 @@
         (sample "(File stat \"lib/x.x\")" "((size . 461) (mode . 33188) (kind . file) (mtime . 1752861000))"))
       (%fs-path path "File stat")
       (def buf (%make-str 160))
-      (def r (if os-darwin?
-               (syscall (syscall-id 'stat64) path buf)
-               (syscall (syscall-id 'stat) path buf)))
+      (def r (%sys-stat path buf))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'stat path)))
       (File %stat-decode buf))
 
@@ -320,9 +352,9 @@
       (def basep (%make-str 8))   ; Darwin getdirentries64's position cookie
       (def names
         (let batch ((acc ()))
-          (let ((n (if os-darwin?
-                     (syscall (syscall-id 'getdirentries64) fd buf 4096 basep)
-                     (syscall (syscall-id 'getdents64) fd buf 4096))))
+          ; basep is the fourth argument on Darwin alone; Linux's call
+          ; declares three and reads three
+          (let ((n (%sys-dirents fd buf 4096 basep)))
             (match
               ((< n 0) (let ((en (%fs-errno n)))  ; before close clobbers errno
                          (File close fd)
@@ -338,7 +370,7 @@
         (returns ANY "nil")
         (sample "(File mkdir \"build/out\")" "creates the directory"))
       (%fs-path path "File mkdir")
-      (def r (syscall (syscall-id 'mkdir) path (if (null? perm) 493 (first perm))))
+      (def r (%sys-mkdir path (if (null? perm) 493 (first perm))))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'mkdir path)))
       ())
 
@@ -347,7 +379,7 @@
         (returns ANY "nil")
         (sample "(File unlink \"out.txt\")" "removes the file"))
       (%fs-path path "File unlink")
-      (def r (syscall (syscall-id 'unlink) path))
+      (def r (%sys-unlink path))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'unlink path)))
       ())
 
@@ -356,7 +388,7 @@
         (returns ANY "nil")
         (sample "(File rmdir \"build/out\")" "removes the directory"))
       (%fs-path path "File rmdir")
-      (def r (syscall (syscall-id 'rmdir) path))
+      (def r (%sys-rmdir path))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'rmdir path)))
       ())
 
@@ -366,7 +398,7 @@
         (sample "(File rename \"a.txt\" \"b.txt\")" "moves a.txt to b.txt"))
       (%fs-path from "File rename")
       (%fs-path to "File rename")
-      (def r (syscall (syscall-id 'rename) from to))
+      (def r (%sys-rename from to))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'rename (list from to))))
       ())
 
@@ -384,7 +416,7 @@
         (returns ANY "nil")
         (sample "(File chmod \"run.sh\" 493)" "makes it 0755"))
       (%fs-path path "File chmod")
-      (def r (syscall (syscall-id 'chmod) path mode))
+      (def r (%sys-chmod path mode))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'chmod path)))
       ())
 
@@ -396,7 +428,7 @@
         (sample "(File chown \"out.txt\" 501 20)" "sets both")
         (sample "(File chown \"out.txt\" -1 20)" "sets only the group"))
       (%fs-path path "File chown")
-      (def r (syscall (syscall-id 'chown) path uid gid))
+      (def r (%sys-chown path uid gid))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'chown path)))
       ())
 
@@ -407,7 +439,7 @@
         (sample "(File link \"a.txt\" \"b.txt\")" "b.txt is now a.txt"))
       (%fs-path target "File link")
       (%fs-path path "File link")
-      (def r (syscall (syscall-id 'link) target path))
+      (def r (%sys-link target path))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'link (list target path))))
       ())
 
@@ -418,7 +450,7 @@
         (sample "(File symlink \"../lib/x.x\" \"here.x\")" "creates the link"))
       (%fs-path target "File symlink")
       (%fs-path path "File symlink")
-      (def r (syscall (syscall-id 'symlink) target path))
+      (def r (%sys-symlink target path))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'symlink (list target path))))
       ())
 
@@ -428,7 +460,7 @@
         (sample "(File readlink \"here.x\")" "\"../lib/x.x\""))
       (%fs-path path "File readlink")
       (def buf (%make-str 4096))
-      (def n (syscall (syscall-id 'readlink) path buf 4096))
+      (def n (%sys-readlink path buf 4096))
       (when (< n 0) (error (Err from-errno (%fs-errno n) 'readlink path)))
       ; readlink does NOT terminate what it writes; the length is the answer
       (Str8 sub 0 n buf))
@@ -439,7 +471,7 @@
         (note "Explicit timestamps would want a packed pair of timevals, and this module holds no pointer prims to build one; the clock is the door.")
         (sample "(File utimes \"out.txt\")" "bumps both stamps to now"))
       (%fs-path path "File utimes")
-      (def r (syscall (syscall-id 'utimes) path ()))
+      (def r (%sys-utimes path ()))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'utimes path)))
       ())
 
@@ -450,7 +482,7 @@
         (sample "(File mkfifo \"work.pipe\")" "creates the FIFO"))
       (%fs-path path "File mkfifo")
       ; S_IFIFO is 0010000; mknod's device argument is unused for a FIFO
-      (def r (syscall (syscall-id 'mknod) path
+      (def r (%sys-mknod path
                (| 4096 (if (null? perm) 420 (first perm))) 0))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'mkfifo path)))
       ())
@@ -462,9 +494,7 @@
       (%fs-path path "File statfs")
       ; Darwin's struct carries two 1024-byte mount names after the counts
       (def buf (%make-str 2304))
-      (def r (if os-darwin?
-               (syscall (syscall-id 'statfs64) path buf)
-               (syscall (syscall-id 'statfs) path buf)))
+      (def r (%sys-statfs path buf))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'statfs path)))
       ; The field spec, inlined the way (File %stat-decode)'s is: Darwin's
       ; f_bsize is a u32 leading the struct, Linux's is the second of
@@ -488,9 +518,7 @@
         (sample "(File lstat \"some-symlink\")" "((size . 11) (mode . 41453) (kind . link) (mtime . ...))"))
       (%fs-path path "File lstat")
       (def buf (%make-str 160))
-      (def r (if os-darwin?
-               (syscall (syscall-id 'lstat64) path buf)
-               (syscall (syscall-id 'lstat) path buf)))
+      (def r (%sys-lstat path buf))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'lstat path)))
       (File %stat-decode buf))
 
@@ -575,5 +603,5 @@
                     (#t (go rel (rest names) (pair r acc)))))))))))))
 
 (doc (provide x/sys/file File)
-  (note "Imports x/platform/syscall for syscall-id; read buffers come from the (str make) core primitive, so File runs under plain x-core. Call (File file-modes) / (File stat-flags) for the symbolic flag tables.")
+  (note "Imports x/platform/syscall for syscall-door; read buffers come from the (str make) core primitive, so File runs under plain x-core. Call (File file-modes) / (File stat-flags) for the symbolic flag tables.")
   "File I/O via POSIX syscalls, homed on the File class.")

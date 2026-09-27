@@ -5,6 +5,26 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**File runs on arm64 Linux.** `syscall-id` gave every host that was not Darwin
+the x86-64 numbers. arm64 Linux uses the generic table, where those numbers
+name other calls and fourteen of the path calls -- `open`, `stat`, `lstat`,
+`mkdir`, `unlink`, `rmdir`, `rename`, `chmod`, `chown`, `link`, `symlink`,
+`readlink`, `utimes`, `mknod` -- have no number at all, their work being done
+by the `-at` forms. `x/platform/syscall` now selects Darwin's table, x86-64's
+or the generic one, and exports `syscall-door`: a call resolved by name, once,
+to a function that makes it, through the `-at` form where the platform needs
+one. `File` and the module loader's directory reader call through doors. The
+stat struct's layout is platform data beside the open flags, exported as
+`stat-layout`; arm64's has `mode` at 16 where x86-64's has it at 24. arm64
+Linux has its own open-flag table, since `direct`, `largefile`, `directory`
+and `nofollow` trade values there.
+
+A Linux host that is neither x86-64 nor arm64 raises `unsupported-platform`
+when the platform layer loads, where it ran on x86-64's numbers. `syscall-id`
+answers -1 for the fourteen names on arm64 Linux; a caller making one of them
+wants a door. The Linux `sync` open flag is 1052672, `O_SYNC` as `<fcntl.h>`
+has it, where the table held the bare `__O_SYNC` bit, 1048576.
+
 **No division reaches the machine with a divisor it traps on.** The C
 division under `%int/` and `%int%` tests nothing, and x86-64 traps on a zero
 divisor and on `LONG_MIN` over -1, where arm64 answers: 0 for a zero divisor,

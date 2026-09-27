@@ -15,6 +15,7 @@
 (import x/platform/data/syscalls-x86_64)
 (import x/platform/data/syscalls-i386)
 (import x/platform/data/syscalls-darwin)
+(import x/platform/data/syscalls-linux-generic)
 
 ; --- platform detection ---
 ; x-machine is the build triple, e.g. "arm64-apple-darwin25.5.0" vs
@@ -85,10 +86,23 @@
   (match ((eq? %declared-arch ()) (%os-contains? "x86_64" x-machine 0))
          (#t (eq? %declared-arch (lit x86-64)))))
 
+; --- the platform, named once ---
+; Every table below is picked by this.  A host that is none of these raises
+; here, at load: a syscall number, an O_* value and a struct offset are each
+; valid on the wrong platform, so nothing downstream can tell a wrong table
+; from a right one.
+(def %platform
+  (match
+    (os-darwin? (lit darwin))
+    ((if os-linux? arch-x86-64? #f) (lit linux-x86-64))
+    ((if os-linux? arch-arm64? #f) (lit linux-arm64))
+    (#t (error (pair (lit unsupported-platform) x-machine)))))
+
 ; --- File open-mode flags (O_*) ---
 ; PLATFORM truth: the O_* flag VALUES differ by OS (verified: macOS
-; O_CREAT=512 / O_TRUNC=1024 vs Linux 64 / 512), so there is one table per
-; platform and file-modes picks at load via os-darwin?.  Consumed by
+; O_CREAT=512 / O_TRUNC=1024 vs Linux 64 / 512), and on Linux four of them
+; differ by architecture, so there is one table per platform and file-modes
+; picks at load.  Consumed by
 ; sys/file.x (the (File file-modes) method + symbolic open modes) and
 ; sys/posix.x (its libc open() calls).  Formerly C-bound %O_* constants;
 ; retired with the ISA audit -- platform data is policy and lives in X.
@@ -111,7 +125,32 @@
   (list (lit nofollow)   131072)   ; 00400000
   (list (lit noatime)    262144)   ; 01000000
   (list (lit cloexec)    524288)   ; 02000000
-  (list (lit sync)       1048576)  ; 04000000
+  ; O_SYNC is __O_SYNC (04000000) with O_DSYNC folded in, as <fcntl.h> has it.
+  (list (lit sync)       1052672)  ; 04010000
+  (list (lit path)       2097152)))  ; 010000000
+
+; arm64 Linux: direct, largefile, directory and nofollow trade values with
+; x86-64's (arch/arm64/include/uapi/asm/fcntl.h); the rest are the same.
+(def %file-modes-linux-arm64 (list
+  (list (lit accmode)    3)        ; 00000003
+  (list (lit rdonly)     0)        ; 00000000
+  (list (lit wronly)     1)        ; 00000001
+  (list (lit rdwr)       2)        ; 00000002
+  (list (lit creat)      64)       ; 00000100
+  (list (lit excl)       128)      ; 00000200
+  (list (lit noctty)     256)      ; 00000400
+  (list (lit trunc)      512)      ; 00001000
+  (list (lit append)     1024)     ; 00002000
+  (list (lit nonblock)   2048)     ; 00004000
+  (list (lit dsync)      4096)     ; 00010000
+  (list (lit fasync)     8192)     ; 00020000
+  (list (lit directory)  16384)    ; 00040000
+  (list (lit nofollow)   32768)    ; 00100000
+  (list (lit direct)     65536)    ; 00200000
+  (list (lit largefile)  131072)   ; 00400000
+  (list (lit noatime)    262144)   ; 01000000
+  (list (lit cloexec)    524288)   ; 02000000
+  (list (lit sync)       1052672)  ; 04010000
   (list (lit path)       2097152)))  ; 010000000
 
 ; Darwin/macOS O_* flag values (from <sys/fcntl.h>) -- note the divergence from
@@ -132,36 +171,158 @@
   (list (lit directory) 1048576)    ; 0x100000
   (list (lit cloexec)   16777216))) ; 0x1000000
 
-; Select the table for this OS at load.  Both probes explicit: an
-; unrecognized platform must fail loudly here, not silently run with Linux
-; flag values (wrong O_* values corrupt the interpreter via raw syscalls).
 (def file-modes
   (match
-    (os-darwin? %file-modes-darwin)
-    (os-linux? %file-modes-linux)
-    (#t (error (pair (lit unsupported-platform) x-machine)))))
+    ((eq? %platform (lit darwin)) %file-modes-darwin)
+    ((eq? %platform (lit linux-arm64)) %file-modes-linux-arm64)
+    (#t %file-modes-linux)))
 
+; --- the stat struct ---
+; The whole struct as a Struct field spec, one per platform: Darwin's is
+; stat64's, Linux x86-64's is its own, and arm64's is the generic one, which
+; narrows nlink to a u32 and so puts mode at 16 where x86-64 has it at 24.
+; All three are 64-bit layouts.
+(def %stat-layout-darwin (list
+  (list (lit dev) (lit u32)) (list (lit mode) (lit u16))
+  (list (lit nlink) (lit u16)) (list (lit ino) (lit u64))
+  (list (lit uid) (lit u32)) (list (lit gid) (lit u32))
+  (list (lit rdev) (lit u32)) (list (lit pad) 4)
+  (list (lit atime) (lit i64)) (list (lit pad) 8)
+  (list (lit mtime) (lit i64)) (list (lit pad) 8)
+  (list (lit ctime) (lit i64)) (list (lit pad) 8)
+  (list (lit btime) (lit i64)) (list (lit pad) 8)
+  (list (lit size) (lit i64)) (list (lit blocks) (lit i64))
+  (list (lit blksize) (lit u32))))
+
+(def %stat-layout-linux-x86-64 (list
+  (list (lit dev) (lit u64)) (list (lit ino) (lit u64))
+  (list (lit nlink) (lit u64)) (list (lit mode) (lit u32))
+  (list (lit uid) (lit u32)) (list (lit gid) (lit u32))
+  (list (lit pad) 4) (list (lit rdev) (lit u64))
+  (list (lit size) (lit i64)) (list (lit blksize) (lit i64))
+  (list (lit blocks) (lit i64)) (list (lit atime) (lit i64))
+  (list (lit pad) 8) (list (lit mtime) (lit i64)) (list (lit pad) 8)
+  (list (lit ctime) (lit i64))))
+
+(def %stat-layout-linux-generic (list
+  (list (lit dev) (lit u64)) (list (lit ino) (lit u64))
+  (list (lit mode) (lit u32)) (list (lit nlink) (lit u32))
+  (list (lit uid) (lit u32)) (list (lit gid) (lit u32))
+  (list (lit rdev) (lit u64)) (list (lit pad) 8)
+  (list (lit size) (lit i64)) (list (lit blksize) (lit i32))
+  (list (lit pad) 4)
+  (list (lit blocks) (lit i64)) (list (lit atime) (lit i64))
+  (list (lit pad) 8) (list (lit mtime) (lit i64)) (list (lit pad) 8)
+  (list (lit ctime) (lit i64))))
+
+(def stat-layout
+  (match
+    ((eq? %platform (lit darwin)) %stat-layout-darwin)
+    ((eq? %platform (lit linux-arm64)) %stat-layout-linux-generic)
+    (#t %stat-layout-linux-x86-64)))
+
+; --- syscall numbers ---
 (def syscall-id
   (fn (_ call)
-    (if os-darwin?
-      (let ((e (%assoc-get call darwin-syscall-numbers)))
-        (if (null? e) -1 (first e)))
+    (match
+      ((eq? %platform (lit darwin))
+        (let ((e (%assoc-get call darwin-syscall-numbers)))
+          (if (null? e) -1 (first e))))
+      ((eq? %platform (lit linux-arm64))
+        (let ((e (%assoc-get call linux-generic-syscall-numbers)))
+          (if (null? e) -1 (first e))))
       ; index-of misses with nil; -1 stays this table's OS-domain invalid
       ; marker (never a valid syscall number)
-      (let ((n (List index-of call x86_64-syscall-names)))
-        (if (null? n)
-          (let ((m (List index-of call i386-syscall-names)))
-            (if (null? m) -1 m))
-          n)))))
+      (#t
+        (let ((n (List index-of call x86_64-syscall-names)))
+          (if (null? n)
+            (let ((m (List index-of call i386-syscall-names)))
+              (if (null? m) -1 m))
+            n))))))
+
+; --- the door ---
+; A name's number answers "which call"; it does not answer "called how", and on
+; the generic table the two part: `open` has no number there, and the call that
+; does its work takes a directory descriptor first.  A door is the name
+; resolved to both -- once, when it is made -- and is what a caller applies.
+;
+; Six slots always.  The syscall primitive zero-fills what it is not given and
+; the kernel reads only the arguments a call declares, so a door passes all six
+; and needs no arity.
+(def %door-plain (lit (a0 a1 a2 a3 a4 a5)))
+(def %door-arg-index
+  (lit ((a0 0) (a1 1) (a2 2) (a3 3) (a4 4) (a5 5))))
+
+(def %door-shape
+  (fn (_ name)
+    (match
+      ((eq? %platform (lit linux-arm64))
+        (%assoc-get name linux-generic-syscall-shapes))
+      (#t ()))))
+
+; A slot as the door holds it: a number for a literal, a one-element list
+; holding the argument's index for an argument.
+(def %door-slot
+  (fn (_ s)
+    (match
+      ((eq? s (lit cwd)) -100)
+      ((number? s) s)
+      (#t (%assoc-get s %door-arg-index)))))
+
+(def %door-slot-at
+  (fn (loop i slots)
+    (match
+      ((eq? slots ()) 0)
+      ((= i 0) (%door-slot (first slots)))
+      (#t (loop (- i 1) (rest slots))))))
+
+(def %door-arg
+  (fn (loop i args)
+    (match
+      ((eq? args ()) ())
+      ((= i 0) (first args))
+      (#t (loop (- i 1) (rest args))))))
+
+(def %door-value
+  (fn (_ slot args)
+    (match
+      ((number? slot) slot)
+      (#t (%door-arg (first slot) args)))))
+
+(doc (def syscall-door
+  (fn (_ (param name SYMBOL "The call, by the name the x86-64 and Darwin tables give it"))
+    (def shape (%door-shape name))
+    (def n (syscall-id (match ((eq? shape ()) name) (#t (first shape)))))
+    (def slots (match ((eq? shape ()) %door-plain) (#t (first (rest shape)))))
+    (def s0 (%door-slot-at 0 slots))
+    (def s1 (%door-slot-at 1 slots))
+    (def s2 (%door-slot-at 2 slots))
+    (def s3 (%door-slot-at 3 slots))
+    (def s4 (%door-slot-at 4 slots))
+    (def s5 (%door-slot-at 5 slots))
+    (match
+      ((< n 0) (error (pair (lit unsupported-syscall) name)))
+      (#t
+        (fn (_ . args)
+          (syscall n
+            (%door-value s0 args) (%door-value s1 args) (%door-value s2 args)
+            (%door-value s3 args) (%door-value s4 args) (%door-value s5 args)))))))
+  (returns CALLABLE "A function of the call's arguments, answering what the syscall primitive answers")
+  (note "Raises (unsupported-syscall . NAME) when this platform has neither the call nor a shape standing in for it.")
+  (sample "((syscall-door 'close) fd)" "0")
+  (sample "((syscall-door 'open) \"/etc/hostname\" 0 0)" "a descriptor, through openat where open has no number")
+  "Resolve a system call by name to something that makes it on this platform."))
 
 ; The predicates and the tables are names of the sanctioned bare set, bound in
 ; the root; os-linux? and the two arch predicates were defined here and used
-; elsewhere without being listed.  file-modes is a plain export: sys/file,
-; sys/posix and the boot loader import it by name.
+; elsewhere without being listed.  file-modes and stat-layout are plain
+; exports: sys/file, sys/posix and the boot loader import them by name.
 (doc (provide x/platform/syscall
-  (global syscall-id) (global os-darwin?) (global os-linux?)
+  (global syscall-id) (global syscall-door)
+  (global os-darwin?) (global os-linux?)
   (global arch-arm64?) (global arch-x86-64?)
   (global x86_64-syscall-names) (global i386-syscall-names) (global darwin-syscall-numbers)
-  file-modes)
-  (note "syscall-id is platform-aware: Darwin -> bare BSD numbers (libc OR-folds the 0x2000000 UNIX class), else Linux x86_64/i386. os-darwin? is the platform flag (from x-machine).")
-  "Syscall number tables for x86_64, i386, and Darwin/BSD. Maps symbolic names to syscall numbers.")
+  (global linux-generic-syscall-numbers) (global linux-generic-syscall-shapes)
+  file-modes stat-layout)
+  (note "syscall-id answers a number from this platform's table: Darwin's bare BSD numbers (libc OR-folds the 0x2000000 UNIX class), Linux x86-64's, or the Linux generic table on arm64. syscall-door answers something to call, and is what reaches a call the generic table spells differently.")
+  "The platform layer: which OS and architecture this is, and the syscall numbers, call shapes, open flags and stat layout that follow from it.")

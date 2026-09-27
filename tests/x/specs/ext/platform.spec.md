@@ -17,10 +17,13 @@ values **without issuing any real syscall**; the assertions branch on
 ---
     #t
 
-### syscall-id maps open to the platform's number (BSD 5 / Linux 2)
+### syscall-id maps open to the platform's number (BSD 5 / Linux x86-64 2 / none on arm64 Linux)
+
+The Linux generic table, which arm64 uses, has no `open`: the miss is -1.
 
 ```x
-(eq? (syscall-id 'open) (if os-darwin? 5 2))
+(eq? (syscall-id 'open)
+     (match (os-darwin? 5) (arch-arm64? -1) (#t 2)))
 ```
 ---
     #t
@@ -28,9 +31,12 @@ values **without issuing any real syscall**; the assertions branch on
 ### syscall-id maps read / write / close per platform
 
 ```x
-(and (eq? (syscall-id 'read)  (if os-darwin? 3 0))
-     (eq? (syscall-id 'write) (if os-darwin? 4 1))
-     (eq? (syscall-id 'close) (if os-darwin? 6 3)))
+(def %want
+  (match (os-darwin? (list 3 4 6))
+         (arch-arm64? (list 63 64 57))
+         (#t (list 0 1 3))))
+(equal? (list (syscall-id 'read) (syscall-id 'write) (syscall-id 'close))
+        %want)
 ```
 ---
     #t
@@ -38,12 +44,40 @@ values **without issuing any real syscall**; the assertions branch on
 ### syscall-id maps fork / execve / wait4 per platform (examples/or/execve-ls.x)
 
 ```x
-(and (eq? (syscall-id 'fork)   (if os-darwin? 2 57))
-     (eq? (syscall-id 'execve) 59)
-     (eq? (syscall-id 'wait4)  (if os-darwin? 7 61)))
+(def %want
+  (match (os-darwin? (list 2 59 7))
+         (arch-arm64? (list -1 221 260))
+         (#t (list 57 59 61))))
+(equal? (list (syscall-id 'fork) (syscall-id 'execve) (syscall-id 'wait4))
+        %want)
 ```
 ---
     #t
+
+## platform: the door
+
+`syscall-door` resolves a call by name to something that makes it. These cases
+make real calls, on a path every host has.
+
+### a door opens and closes a directory
+
+On arm64 Linux this is `openat`, with the working directory's descriptor ahead
+of the path.
+
+```x
+(def %fd ((syscall-door 'open) "/" 0 0))
+(list (> %fd 2) ((syscall-door 'close) %fd))
+```
+---
+    (#t 0)
+
+### a door for a name the platform cannot make raises when it is made
+
+```x
+(guard (e e) (syscall-door 'no-such-call))
+```
+---
+    ('unsupported-syscall . 'no-such-call)
 
 ## platform: open flags
 
@@ -59,6 +93,24 @@ values **without issuing any real syscall**; the assertions branch on
 
 ```x
 (eq? (first (Assoc get 'trunc (File file-modes))) (if os-darwin? 1024 512))
+```
+---
+    #t
+
+### O_DIRECTORY matches the platform (macOS 1048576 / Linux x86-64 65536 / arm64 16384)
+
+```x
+(eq? (first (Assoc get 'directory (File file-modes)))
+     (match (os-darwin? 1048576) (arch-arm64? 16384) (#t 65536)))
+```
+---
+    #t
+
+### O_SYNC on Linux carries O_DSYNC
+
+```x
+(if os-darwin? #t
+  (eq? (first (Assoc get 'sync (File file-modes))) 1052672))
 ```
 ---
     #t
