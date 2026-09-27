@@ -245,12 +245,15 @@ the Doxygen house style — live with the code they govern, in
   plumbing (`%make-type`, `%type-push-call`). The sigil promises
   "not API"; it does not say which flavor — the defining comment should.
 - **Doc type vocabulary** — one token per concept in `(param ...)`/`(returns ...)`:
-  `INT` (not INTEGER), `BOOL` (not BOOLEAN), `CALLABLE` (not FUNCTION), plus
-  `ANY STRING SYMBOL LIST PAIR CHAR NUMBER VECTOR REGEX FLOAT BIGINT RATIONAL
-  COMPLEX ITER OBJECT CLASS PTR BUF`. `PROCEDURE`/`OPERATIVE` are reserved for
-  the fn/op constructors' returns. Class names (`Dict`, `Array`, `Random`, ...)
-  are legitimate returns types as-is. `make check-doc-vocab` enforces the
-  banned aliases.
+  `INTEGER` (not INT), `BOOL` (not BOOLEAN), `CALLABLE` (not FUNCTION), plus
+  `ANY STRING SYMBOL LIST PAIR CHARACTER NUMBER VECTOR REGEX FLOAT BIGINT
+  RATIONAL COMPLEX ITER OBJECT CLASS POINTER BUFFER`. `PROCEDURE`/`OPERATIVE`
+  are reserved for the fn/op constructors' returns. Class names (`Dict`,
+  `Array`, `Random`, ...) are legitimate returns types as-is. The
+  [glossary](glossary.md) defines an annotation: a runtime type's name, a
+  class's name, or a name `tools/contract/doc-annotations.x` lists.
+  `make check-doc-annotations` fails one that is none of these, and
+  `make doc-x` runs it.
 - **Absence discipline** (normative; the full statement is spec.md's "Nil,
   false, and truthiness"): falsy = {nil, `#f`} only; predicates answer
   `#t`/`#f`; misses return nil (never `#f`) — index-search misses included;

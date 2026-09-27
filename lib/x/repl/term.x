@@ -128,8 +128,8 @@
           (>= (Sys %sign-fold (call (Term c-tcset) fd (Term tcsadrain) (toptr saved))) 0))))
 
     ; --- geometry -----------------------------------------------------------
-    ; Named `window`, not `size`: `size` is a retired spelling in this tree
-    ; (check-doc-vocab holds the line), and two dimensions are not a count.
+    ; Named `window`, not `size`: `size` is a retired spelling in this tree,
+    ; and two dimensions are not a count.
 
     (method window (self (param fd INTEGER "Descriptor to measure"))
       (doc "The terminal window's (columns . rows), from TIOCGWINSZ. Falls back to COLUMNS/LINES in the environment and then to 80x24, because a width is needed on every redraw and a wrong one is better than a failed one."
