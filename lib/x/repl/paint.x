@@ -484,7 +484,7 @@
                   (set! %paint-last-out out)
                   out)))))))
 
-    (method marks (self (param s STRING "The text: a line, or a whole multi-line entry") (param at INT "The cursor, as a byte offset"))
+    (method marks (self (param s STRING "The text: a line, or a whole multi-line entry") (param at INTEGER "The cursor, as a byte offset"))
       (doc "A mark for every paren in the line, as (offset depth focused): depth is the nesting level from 0, shared by both halves of a pair so they colour alike, and -1 for a close paren with nothing to close; focused is true on the two halves of the pair the cursor is beside, a close just before the cursor first, then an open under it. A cursor outside the line, -1 say, is beside nothing, which is how a settled line keeps its colours and loses its focus. Strings, comments and character literals are stepped over, so #\\( is not an open paren and a paren inside a string is not counted."
         (returns LIST "((offset depth focused) ...) in source order")
         (example "(Paint marks \"(f (g))\" 0)" "((0 0 #t) (3 1 #f) (5 1 #f) (6 0 #t))")

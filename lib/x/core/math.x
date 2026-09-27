@@ -70,36 +70,36 @@
     ; public negation, which promotes LONG_MIN under the tower and wraps it
     ; without one.  A remainder by -1 is the remainder by 1, since the two
     ; truncated quotients differ only in sign, and no dividend overflows 1.
-    (method quotient (self (param a INT "Dividend") (param b INT "Divisor"))
-      (doc "Integer division truncating toward zero -- always an integer, where / on integers may promote to a rational under the tower.  A zero divisor raises." (returns INT "trunc(a/b)")
+    (method quotient (self (param a INTEGER "Dividend") (param b INTEGER "Divisor"))
+      (doc "Integer division truncating toward zero -- always an integer, where / on integers may promote to a rational under the tower.  A zero divisor raises." (returns INTEGER "trunc(a/b)")
         (example "(Num quotient -7 2)" "-3"))
       (match
         ((eq? b 0) (Err raise (lit value) "Num quotient: division by zero" b))
         ((eq? b -1) (- 0 a))
         (#t (%int/ a b))))
-    (method remainder (self (param a INT "Dividend") (param b INT "Divisor"))
-      (doc "Truncating remainder (the dividend's sign) -- the pair of quotient; identical to % on integers.  A zero divisor raises." (returns INT "a - b*trunc(a/b)")
+    (method remainder (self (param a INTEGER "Dividend") (param b INTEGER "Divisor"))
+      (doc "Truncating remainder (the dividend's sign) -- the pair of quotient; identical to % on integers.  A zero divisor raises." (returns INTEGER "a - b*trunc(a/b)")
         (example "(Num remainder -7 2)" "-1"))
       (match
         ((eq? b 0) (Err raise (lit value) "Num remainder: division by zero" b))
         ((eq? b -1) (%int% a 1))
         (#t (%int% a b))))
-    (method modulo (self (param a INT "Dividend") (param b INT "Divisor"))
-      (doc "Floored modulo: the result takes the DIVISOR's sign -- (Num modulo -7 3) is 2 where % gives -1.  A zero divisor raises." (returns INT "a - b*floor(a/b)")
+    (method modulo (self (param a INTEGER "Dividend") (param b INTEGER "Divisor"))
+      (doc "Floored modulo: the result takes the DIVISOR's sign -- (Num modulo -7 3) is 2 where % gives -1.  A zero divisor raises." (returns INTEGER "a - b*floor(a/b)")
         (example "(Num modulo -7 3)" "2"))
       (match
         ((eq? b 0) (Err raise (lit value) "Num modulo: division by zero" b))
         ((eq? b -1) (%num-floor-mod (%int% a 1) b))
         (#t (%num-floor-mod (%int% a b) b))))
-    (method divmod (self (param a INT "Dividend") (param b INT "Divisor"))
+    (method divmod (self (param a INTEGER "Dividend") (param b INTEGER "Divisor"))
       (doc "Truncating quotient and remainder together.  A zero divisor raises." (returns LIST "(quotient remainder)")
         (example "(Num divmod 7 2)" "(3 1)"))
       (match
         ((eq? b 0) (Err raise (lit value) "Num divmod: division by zero" b))
         ((eq? b -1) (list (- 0 a) (%int% a 1)))
         (#t (list (%int/ a b) (%int% a b)))))
-    (method isqrt (self (param n INT "Non-negative integer"))
-      (doc "Integer square root: the largest k with k*k <= n (Newton's method); errors on a negative input." (returns INT "floor(sqrt(n))")
+    (method isqrt (self (param n INTEGER "Non-negative integer"))
+      (doc "Integer square root: the largest k with k*k <= n (Newton's method); errors on a negative input." (returns INTEGER "floor(sqrt(n))")
         (example "(Num isqrt 99)" "9"))
       (if (< n 0) (Err raise (lit value) "Num isqrt: negative input" ())
         (if (< n 2) n

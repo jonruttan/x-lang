@@ -317,7 +317,7 @@
         (example "(Sha256 hex \"abc\")" "\"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\""))
       (%sha-hex-list (%sha-hash-words s)))
     (method hex-n (self (param s STRING "Byte region to digest")
-                        (param n INT "How many bytes of s to digest"))
+                        (param n INTEGER "How many bytes of s to digest"))
       (doc "SHA-256 of the FIRST n BYTES of s, for input hex cannot reach: hex bounds itself by Str8 length, which has strlen semantics and stops at the first NUL, so a binary region (a downloaded archive, a compressed block) digests as its leading fragment instead of itself. Identical to hex whenever n is the string's own length, and it takes the same two engines. THE LENGTH IS YOUR CLAIM AND IS NOT CHECKED: n past the region's allocation reads past the allocation, so pass a length you know -- (Assoc get 'size (File stat path)) for a file read whole."
         (returns STRING "64 hex characters")
         (example "(Sha256 hex-n \"abc\" 3)" "\"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\"")

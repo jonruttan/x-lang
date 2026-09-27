@@ -448,9 +448,9 @@ Wrap function definitions in `(doc ...)`:
 (doc (def my-function
   (fn (_ x y)
     (+ x y)))
-  (param x INT "First operand")
-  (param y INT "Second operand")
-  (returns INT "Sum of x and y")
+  (param x INTEGER "First operand")
+  (param y INTEGER "Second operand")
+  (returns INTEGER "Sum of x and y")
   "Add two integers.")
 ```
 

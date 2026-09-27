@@ -44,7 +44,7 @@
         c)))
 
   (method add! (self (param x ANY "Value to tally")
-                     . (param n INT "Tally increment; default 1 (negative decrements)"))
+                     . (param n INTEGER "Tally increment; default 1 (negative decrements)"))
     (doc "Add n (default 1) to x's tally. Returns the counter for chaining; a tally may go negative -- the counter records what it is told."
       (returns Counter "self"))
     (let ((d (self %d)))
@@ -53,7 +53,7 @@
 
   (method get (self (param x ANY "Value to read"))
     (doc "x's tally; 0 when x was never added -- absence and zero read alike, the counting convention."
-      (returns INT "The tally"))
+      (returns INTEGER "The tally"))
     ((self %d) get-or 0 x))
 
   (method del! (self (param x ANY "Value to forget"))
@@ -64,7 +64,7 @@
 
   (method total (self)
     (doc "The sum of every tally."
-      (returns INT "Sum of counts")
+      (returns INTEGER "Sum of counts")
       (example "(let ((c (Counter from-list (list 'a 'b 'a)))) (c total))" "3"))
     (List fold (fn (_ acc e) (+ acc (rest e))) 0 ((self %d) ->alist)))
 
@@ -78,7 +78,7 @@
       (returns ALIST "(value . count) pairs"))
     ((self %d) ->alist))
 
-  (method most-common (self . (param n INT "How many entries; default all"))
+  (method most-common (self . (param n INTEGER "How many entries; default all"))
     (doc "The tallies as ((value . count) ...) sorted by count, largest first (ties in table order -- the sort is stable); pass n for just the top n."
       (returns ALIST "(value . count) pairs, descending by count")
       (example "(let ((c (Counter from-list (list 'a 'b 'a 'c 'a 'b)))) (c most-common 2))" "(('a . 3) ('b . 2))"))

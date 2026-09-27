@@ -101,17 +101,17 @@
       (%sys-fold r))
     ; --- Process control ---
     (method fork (self)
-      (doc "Fork the current process." (returns INT "PID of child in parent, 0 in child, -1 on error"))
+      (doc "Fork the current process." (returns INTEGER "PID of child in parent, 0 in child, -1 on error"))
       (%sys-fold (%ptr-call %c-fork)))
     (method getpid (self)
-      (doc "Return the current process ID." (returns INT "Process ID"))
+      (doc "Return the current process ID." (returns INTEGER "Process ID"))
       (%sys-fold (%ptr-call %c-getpid)))
-    (method exit (self (param status INT "Exit status code"))
+    (method exit (self (param status INTEGER "Exit status code"))
       (doc "Terminate the process with the given exit status.")
       (%ptr-call %c-exit status))
-    (method wait (self (param pid INT "Process ID to wait for"))
+    (method wait (self (param pid INTEGER "Process ID to wait for"))
       (doc "Wait for a child and return how it ended."
-        (returns INT "Exit status 0-255 for a normal exit; 128+N when signal N killed the child (the shell convention)")
+        (returns INTEGER "Exit status 0-255 for a normal exit; 128+N when signal N killed the child (the shell convention)")
         (note "The old contract returned WEXITSTATUS unconditionally, so a signal-killed child reported 0 -- success (#226)."))
       ; Status word lands in a GC-owned (str make) region (see pipe).
       ; Low 7 bits = the killing signal, 0 for a normal exit; the exit
@@ -147,25 +147,25 @@
     (sigterm 15 "SIGTERM: polite termination request")
     (sig-dfl 0 "signal(2) disposition: restore the default action")
     (sig-ign 1 "signal(2) disposition: ignore the signal")
-    (method kill (self (param pid INT "Process ID")
-                       (param sig INT "Signal number, e.g. (Sys sigterm)"))
-      (doc "Send a signal to a process." (returns INT "0 on success, -1 on error"))
+    (method kill (self (param pid INTEGER "Process ID")
+                       (param sig INTEGER "Signal number, e.g. (Sys sigterm)"))
+      (doc "Send a signal to a process." (returns INTEGER "0 on success, -1 on error"))
       ; Cold path: resolve per call (the file-exists? pattern), keeping
       ; the module inside its %-globals budget.
       (%sys-fold (%ptr-call (%resolve "kill") pid sig)))
-    (method signal (self (param sig INT "Signal number")
-                         (param disposition INT "(Sys sig-ign) or (Sys sig-dfl) ONLY -- an x-lang closure cannot be a C signal handler"))
+    (method signal (self (param sig INTEGER "Signal number")
+                         (param disposition INTEGER "(Sys sig-ign) or (Sys sig-dfl) ONLY -- an x-lang closure cannot be a C signal handler"))
       (doc "Set a signal's disposition to ignore or default."
         (returns ANY "The previous disposition; meaningful only when it was one of the two constants"))
       ; signal(2) returns a POINTER (the old handler) -- never %sys-fold
       ; a pointer return (see the fold's comment above).
       (%ptr-call (%resolve "signal") sig disposition))
     ; --- File descriptors ---
-    (method close (self (param fd INT "File descriptor to close"))
-      (doc "Close a file descriptor." (returns INT "0 on success, -1 on error"))
+    (method close (self (param fd INTEGER "File descriptor to close"))
+      (doc "Close a file descriptor." (returns INTEGER "0 on success, -1 on error"))
       (%sys-fold (%ptr-call %c-close fd)))
-    (method dup2 (self (param old INT "Source file descriptor") (param new INT "Target file descriptor"))
-      (doc "Duplicate a file descriptor onto another." (returns INT "New file descriptor, or -1 on error"))
+    (method dup2 (self (param old INTEGER "Source file descriptor") (param new INTEGER "Target file descriptor"))
+      (doc "Duplicate a file descriptor onto another." (returns INTEGER "New file descriptor, or -1 on error"))
       (%sys-fold (%ptr-call %c-dup2 old new)))
     (method pipe (self)
       (doc "Create a pipe and return a pair of file descriptors." (returns PAIR "Pair of (read-fd . write-fd)"))
@@ -177,15 +177,15 @@
           (pair (%ptr-ref buf 0 4) (%ptr-ref buf 4 4)))))
     ; --- File I/O (O_* flags from the platform table, resolved at load above) ---
     (method open-read (self (param path STRING "File path to open"))
-      (doc "Open a file for reading." (returns INT "File descriptor, or -1 on error"))
+      (doc "Open a file for reading." (returns INTEGER "File descriptor, or -1 on error"))
       (%sys-fold (%ptr-call %c-open path %O_RDONLY)))
     (method open-write (self (param path STRING "File path to open"))
-      (doc "Open a file for writing, creating or truncating it." (returns INT "File descriptor, or -1 on error"))
+      (doc "Open a file for writing, creating or truncating it." (returns INTEGER "File descriptor, or -1 on error"))
       (let ((fd (%sys-fold (%ptr-call %c-open path (+ %O_WRONLY (+ %O_CREAT %O_TRUNC)) 438))))
         (if (>= fd 0) (%ptr-call %c-fchmod fd 438))
         fd))
     (method open-append (self (param path STRING "File path to open"))
-      (doc "Open a file for appending, creating it if necessary." (returns INT "File descriptor, or -1 on error"))
+      (doc "Open a file for appending, creating it if necessary." (returns INTEGER "File descriptor, or -1 on error"))
       (let ((fd (%sys-fold (%ptr-call %c-open path (+ %O_WRONLY (+ %O_CREAT %O_APPEND)) 438))))
         (if (>= fd 0) (%ptr-call %c-fchmod fd 438))
         fd))
@@ -214,7 +214,7 @@
       (= (%sys-fold (%ptr-call (%resolve "access") path 0)) 0))
     ; --- Environment ---
     (method chdir (self (param path STRING "Directory path"))
-      (doc "Change the current working directory -- (Sys getcwd) reads it back." (returns INT "0 on success, -1 on error"))
+      (doc "Change the current working directory -- (Sys getcwd) reads it back." (returns INTEGER "0 on success, -1 on error"))
       (%sys-fold (%ptr-call %c-chdir path)))
     (method getcwd (self)
       (doc "The current working directory (getcwd) -- the symmetric half of (Sys chdir) (#361)."
@@ -226,7 +226,7 @@
         (let ((r (%ptr-call (%resolve "getcwd") (%str->ptr s) 4096)))
           (if (= r 0) () (%cvt (%cvt r %ptr) %string)))))
     (method setenv (self (param name STRING "Variable name") (param val STRING "Variable value"))
-      (doc "Set an environment variable, overwriting any existing value -- (Sys unsetenv) removes it." (returns INT "0 on success, -1 on error"))
+      (doc "Set an environment variable, overwriting any existing value -- (Sys unsetenv) removes it." (returns INTEGER "0 on success, -1 on error"))
       (%sys-fold (%ptr-call %c-setenv name val 1)))
     (method getenv (self (param name STRING "Variable name"))
       (doc "Get the value of an environment variable." (returns STRING "Variable value, or nil if not set"))
@@ -235,7 +235,7 @@
         (if (= result 0) () (%cvt (%cvt result %ptr) %string))))
     (method unsetenv (self (param name STRING "Variable name"))
       (doc "Remove an environment variable -- the symmetric half of (Sys setenv) (#361). Removing an absent name succeeds."
-        (returns INT "0 on success, -1 on error"))
+        (returns INTEGER "0 on success, -1 on error"))
       (%sys-fold (%ptr-call (%resolve "unsetenv") name)))
     (method environ (self)
       (doc "The whole environment as a list of \"NAME=VALUE\" strings, in table order (#361). Split an entry at its FIRST '=' only -- values may themselves contain '='."
@@ -257,20 +257,20 @@
     ; syscall numbers appear here.
     (method getuid (self)
       (doc "The process's REAL user id -- who invoked it, before any setuid."
-        (returns INT "User id")
+        (returns INTEGER "User id")
         (sample "(Sys getuid)" "501"))
       (%sys-fold (%ptr-call (%resolve "getuid"))))
     (method geteuid (self)
       (doc "The process's EFFECTIVE user id -- who it acts as, which is what a permission check reads."
-        (returns INT "User id"))
+        (returns INTEGER "User id"))
       (%sys-fold (%ptr-call (%resolve "geteuid"))))
     (method getgid (self)
       (doc "The process's real group id."
-        (returns INT "Group id"))
+        (returns INTEGER "Group id"))
       (%sys-fold (%ptr-call (%resolve "getgid"))))
     (method getegid (self)
       (doc "The process's effective group id."
-        (returns INT "Group id"))
+        (returns INTEGER "Group id"))
       (%sys-fold (%ptr-call (%resolve "getegid"))))
     (method getgroups (self)
       (doc "The process's supplementary group ids, as a list. getgroups is asked its own count first, so the buffer is never guessed."
@@ -305,7 +305,7 @@
                   (pair (lit machine) (%at 4)))))))
     (method cpu-count (self)
       (doc "How many processors are online (sysconf _SC_NPROCESSORS_ONLN) -- what nproc(1) reports. Answers 1 when the query fails, never 0."
-        (returns INT "Processor count, at least 1")
+        (returns INTEGER "Processor count, at least 1")
         (sample "(Sys cpu-count)" "10"))
       ; _SC_NPROCESSORS_ONLN is one of the sysconf names that is NOT
       ; shared: 58 on Darwin, 84 on Linux.
@@ -316,26 +316,26 @@
         (returns ANY "nil"))
       (%ptr-call (%resolve "sync"))
       ())
-    (method fsync (self (param fd INT "File descriptor to flush"))
+    (method fsync (self (param fd INTEGER "File descriptor to flush"))
       (doc "Flush ONE open file's buffers to disk (fsync), rather than the whole system."
-        (returns INT "0 on success, -1 on error"))
+        (returns INTEGER "0 on success, -1 on error"))
       (%sys-fold (%ptr-call (%resolve "fsync") fd)))
-    (method nice (self (param increment INT "Amount to add to the scheduling priority"))
+    (method nice (self (param increment INTEGER "Amount to add to the scheduling priority"))
       (doc "Raise the process's nice value -- a HIGHER number means a LOWER priority, and only a privileged process may lower it."
-        (returns INT "The new nice value, or -1 on error"))
+        (returns INTEGER "The new nice value, or -1 on error"))
       (%sys-fold (%ptr-call (%resolve "nice") increment)))
     (method chroot (self (param path STRING "New filesystem root"))
       (doc "Change the process's filesystem root. Privileged: an unprivileged caller gets -1 with EPERM."
-        (returns INT "0 on success, -1 on error"))
+        (returns INTEGER "0 on success, -1 on error"))
       (%sys-fold (%ptr-call (%resolve "chroot") path)))
     ; --- Sleep (#361) ---
-    (method sleep (self (param seconds INT "Whole seconds to block"))
+    (method sleep (self (param seconds INTEGER "Whole seconds to block"))
       (doc "Block for the given number of seconds (libc sleep). A signal can wake it early; sub-second waits are (Sys usleep)."
-        (returns INT "0 after the full interval; the seconds left unslept when a signal woke it early"))
+        (returns INTEGER "0 after the full interval; the seconds left unslept when a signal woke it early"))
       (%sys-fold (%ptr-call (%resolve "sleep") seconds)))
-    (method usleep (self (param micros INT "Microseconds to block"))
+    (method usleep (self (param micros INTEGER "Microseconds to block"))
       (doc "Block for the given number of microseconds (libc usleep) -- the sub-second door; whole seconds read better through (Sys sleep)."
-        (returns INT "0 on success, -1 on error"))
+        (returns INTEGER "0 on success, -1 on error"))
       (%sys-fold (%ptr-call (%resolve "usleep") micros)))
     (method isatty (self (param fd NUMBER "File descriptor to test"))
       (doc "Test whether a file descriptor refers to a terminal (TTY)."
@@ -346,7 +346,7 @@
     ; here as the catalog bridge retires (R4). Cold path -> inline prim-ref.
     (method clock (self)
       (doc "Current process CPU time in microseconds (the (Sys time) profiler reads this). WALL-clock time is (Sys now) / (Sys time-of-day)."
-        (returns INT "Microseconds of CPU time consumed"))
+        (returns INTEGER "Microseconds of CPU time consumed"))
       ((prim-ref (lit sys) (lit clock))))
 
     ; The verb seat (#108 rethink, ruled 2026-07-22): (Sys time thunk) TIMES;
@@ -358,7 +358,7 @@
     ; through the closure: (def r ()) (Sys time (fn () (set! r ...))).
     (method time (self (param thunk CALLABLE "Zero-argument fn to run and time"))
       (doc "Run THUNK and return its elapsed CPU time in microseconds. The thunk's result is discarded -- capture it via the closure when needed."
-        (returns INT "Elapsed CPU microseconds")
+        (returns INTEGER "Elapsed CPU microseconds")
         (example "(number? (Sys time (fn () (List fold + 0 (List range 0 100)))))" "#t")
         (sample "(Sys time (fn () (heavy-computation)))" "1234"))
       (let ((t0 ((prim-ref (lit sys) (lit clock)))))
@@ -385,7 +385,7 @@
 
     (method now (self)
       (doc "Wall-clock time as unix seconds (UTC) -- the noun reading; (Sys time thunk) is the verb. CPU time is (Sys clock); civil dates are the Date class (x/sys/date)."
-        (returns INT "Seconds since the unix epoch")
+        (returns INTEGER "Seconds since the unix epoch")
         (sample "(Sys now)" "1752861000"))
       (first (Sys time-of-day)))))
 

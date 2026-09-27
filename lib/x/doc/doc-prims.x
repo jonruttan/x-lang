@@ -119,11 +119,11 @@
 
 (doc set-first-int! "Mutate the first element as a raw integer."
   (param p PAIR "A pair")
-  (param val INT "Integer value"))
+  (param val INTEGER "Integer value"))
 
 (doc set-rest-int! "Mutate the second element as a raw integer."
   (param p PAIR "A pair")
-  (param val INT "Integer value"))
+  (param val INTEGER "Integer value"))
 
 ; === Arithmetic ===
 
@@ -158,33 +158,33 @@
   (example "(% 10 3)" "1"))
 
 (doc ~ "Bitwise NOT."
-  (param n INT "Integer")
-  (returns INT "Bitwise complement"))
+  (param n INTEGER "Integer")
+  (returns INTEGER "Bitwise complement"))
 
 (doc & "Bitwise AND."
-  (param a INT "First operand")
-  (param b INT "Second operand")
-  (returns INT "Bitwise AND"))
+  (param a INTEGER "First operand")
+  (param b INTEGER "Second operand")
+  (returns INTEGER "Bitwise AND"))
 
 (doc | "Bitwise OR."
-  (param a INT "First operand")
-  (param b INT "Second operand")
-  (returns INT "Bitwise OR"))
+  (param a INTEGER "First operand")
+  (param b INTEGER "Second operand")
+  (returns INTEGER "Bitwise OR"))
 
 (doc ^ "Bitwise XOR."
-  (param a INT "First operand")
-  (param b INT "Second operand")
-  (returns INT "Bitwise XOR"))
+  (param a INTEGER "First operand")
+  (param b INTEGER "Second operand")
+  (returns INTEGER "Bitwise XOR"))
 
 (doc << "Left shift."
-  (param n INT "Value to shift")
-  (param count INT "Number of bits")
-  (returns INT "Shifted value"))
+  (param n INTEGER "Value to shift")
+  (param count INTEGER "Number of bits")
+  (returns INTEGER "Shifted value"))
 
 (doc >> "Arithmetic right shift."
-  (param n INT "Value to shift")
-  (param count INT "Number of bits")
-  (returns INT "Shifted value"))
+  (param n INTEGER "Value to shift")
+  (param count INTEGER "Number of bits")
+  (returns INTEGER "Shifted value"))
 
 ; === Predicates ===
 
@@ -196,13 +196,13 @@
   (returns BOOL "t if identical"))
 
 (doc = "Test numeric equality."
-  (param a INT "First number")
-  (param b INT "Second number")
+  (param a INTEGER "First number")
+  (param b INTEGER "Second number")
   (returns BOOL "t if equal"))
 
 (doc < "Test numeric less-than."
-  (param a INT "First number")
-  (param b INT "Second number")
+  (param a INTEGER "First number")
+  (param b INTEGER "Second number")
   (returns BOOL "t if a < b"))
 
 ; char->integer (ns char) and integer->char (ns int) are de-registered (R5);
@@ -243,7 +243,7 @@
 (note "Memory management")
 
 (doc alloc-limit! "Set the allocation ceiling (runaway-memory guard): the process stops rather than allocate past n objects. 0 disables."
-  (param n INT "Object-count ceiling; 0 = unlimited"))
+  (param n INTEGER "Object-count ceiling; 0 = unlimited"))
 
 ; === Type system ===
 
@@ -373,27 +373,27 @@
   (returns BOOL "t if atom"))
 
 (doc number->str "Convert an integer to a string."
-  (param n INT "Integer to convert")
-  (param radix INT "Base (optional, default 10)")
+  (param n INTEGER "Integer to convert")
+  (param radix INTEGER "Base (optional, default 10)")
   (returns STRING "String representation"))
 
 (doc str->number "Parse a string as an integer."
   (param s STRING "String to parse")
-  (returns INT "Parsed integer, or nil on failure"))
+  (returns INTEGER "Parsed integer, or nil on failure"))
 
 (doc str-ref "Return the character at an index in a string."
   (param s STRING "A string")
-  (param i INT "Zero-based index")
-  (returns CHAR "Character at index"))
+  (param i INTEGER "Zero-based index")
+  (returns CHARACTER "Character at index"))
 
 (doc str-length "Return the length of a string."
   (param s STRING "A string")
-  (returns INT "Number of characters"))
+  (returns INTEGER "Number of characters"))
 
 (doc substring "Extract a substring."
   (param s STRING "Source string")
-  (param start INT "Start index (inclusive)")
-  (param end INT "End index (exclusive)")
+  (param start INTEGER "Start index (inclusive)")
+  (param end INTEGER "End index (exclusive)")
   (returns STRING "The substring"))
 
 (doc str=? "Test string equality."
@@ -407,10 +407,10 @@
   (see include-once))
 
 (doc peek-char "Return the next character from stdin without consuming it."
-  (returns CHAR "The next character, or () at EOF"))
+  (returns CHARACTER "The next character, or () at EOF"))
 
 (doc current-line "Return the current source line number."
-  (returns INT "Line number in the current input"))
+  (returns INTEGER "Line number in the current input"))
 
 ; === Documentation system (x/doc/doc) ===
 

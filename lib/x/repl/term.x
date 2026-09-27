@@ -86,13 +86,13 @@
 
     ; --- raw mode -----------------------------------------------------------
 
-    (method tty? (self (param fd INT "Descriptor to test"))
+    (method tty? (self (param fd INTEGER "Descriptor to test"))
       (doc "Whether fd is a terminal and this build can drive one -- the two questions a caller actually has, answered together, so nothing has to test for a nil libc symbol."
         (returns BOOL "True when fd is a tty and termios resolved"))
       (and (Sys isatty fd)
            (and (not (null? (Term c-tcget))) (not (null? (Term c-cfraw))))))
 
-    (method raw! (self (param fd INT "Descriptor to put into raw mode"))
+    (method raw! (self (param fd INTEGER "Descriptor to put into raw mode"))
       (doc "Put fd into raw mode (cfmakeraw: no echo, no line discipline, no signal keys) and return a token holding the previous settings. Returns nil when fd is not a terminal, which is the caller's signal to fall back to line-at-a-time reading."
         (returns ANY "A saved-state token for restore!, or nil")
         (note "cfmakeraw also clears OPOST, so a newline no longer implies a carriage return: everything written while raw must spell \\r\\n itself.")
@@ -118,7 +118,7 @@
                   (if (< (Sys %sign-fold (call (Term c-tcset) fd (Term tcsadrain) rp)) 0) ()
                     saved))))))))
 
-    (method restore! (self (param fd INT "Descriptor to restore")
+    (method restore! (self (param fd INTEGER "Descriptor to restore")
                            (param saved ANY "The token raw! returned"))
       (doc "Put fd back the way raw! found it. A nil token is a no-op, so the unwind path can call this unconditionally."
         (returns BOOL "True when the terminal was restored"))
@@ -131,7 +131,7 @@
     ; Named `window`, not `size`: `size` is a retired spelling in this tree
     ; (check-doc-vocab holds the line), and two dimensions are not a count.
 
-    (method window (self (param fd INT "Descriptor to measure"))
+    (method window (self (param fd INTEGER "Descriptor to measure"))
       (doc "The terminal window's (columns . rows), from TIOCGWINSZ. Falls back to COLUMNS/LINES in the environment and then to 80x24, because a width is needed on every redraw and a wrong one is better than a failed one."
         (returns PAIR "(columns . rows)")
         (note "Reached as a SYSCALL, not through the FFI: ioctl is variadic, and on Apple arm64 a variadic argument goes on the stack where a fixed one goes in a register -- through the fixed-signature ffi door the winsize pointer never reached the kernel and every terminal measured 80x24.")
@@ -152,9 +152,9 @@
                       (if (> rows 0) rows (Term %env-int "LINES" 24)))))))))
 
     (method %env-int (self (param name STRING "Environment variable")
-                           (param dflt INT "Value when unset or unparseable"))
+                           (param dflt INTEGER "Value when unset or unparseable"))
       (doc "An environment variable read as a positive integer, or the default."
-        (returns INT "The parsed value, or dflt"))
+        (returns INTEGER "The parsed value, or dflt"))
       (let ((v (Sys getenv name)))
         (if (null? v) dflt
           (guard (_ dflt)
@@ -162,10 +162,10 @@
 
     ; --- output --------------------------------------------------------------
 
-    (method emit (self (param fd INT "Descriptor to write to")
+    (method emit (self (param fd INTEGER "Descriptor to write to")
                        (param s STRING "Bytes to write"))
       (doc "Write bytes straight to the descriptor, bypassing the printer. A redraw is a burst of escape sequences and must not be interleaved with whatever the evaluator is writing to stdout."
-        (returns INT "Bytes written"))
+        (returns INTEGER "Bytes written"))
       (Sys fd-write fd s))
 
     ; --- keys -----------------------------------------------------------------
@@ -225,12 +225,12 @@
             ; so that the buffer only ever holds whole characters.
             (#t (Term %utf8 read-byte b))))))
 
-    (method %one-byte (self (param b INT "A byte value 0-255"))
+    (method %one-byte (self (param b INTEGER "A byte value 0-255"))
       (doc "A one-byte string holding b." (returns STRING "The byte as text"))
       (bytes->str (list b)))
 
     (method %utf8 (self (param read-byte CALLABLE "Byte reader")
-                        (param lead INT "The leading byte"))
+                        (param lead INTEGER "The leading byte"))
       (doc "Read the continuation bytes of a UTF-8 sequence whose leading byte is `lead`, and return the whole character. A truncated or malformed sequence yields what arrived, which the redraw will render as the terminal sees fit."
         (returns STRING "One character"))
       (let ((need (match ((= 192 (& lead 224)) 1)
@@ -286,7 +286,7 @@
                       (#t (Term %csi-final b (List reverse params))))))))
         (go ())))
 
-    (method %csi-final (self (param final INT "The sequence's final byte")
+    (method %csi-final (self (param final INTEGER "The sequence's final byte")
                              (param params LIST "The parameter bytes, in order"))
       (doc "Name the key a CSI sequence's final byte and parameters stand for."
         (returns ANY "A key symbol"))

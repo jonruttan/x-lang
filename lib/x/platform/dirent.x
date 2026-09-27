@@ -19,7 +19,7 @@
 
 (doc (def dirent-names
   (fn (_ (param buf STRING "One getdents batch buffer (a (str make N) region a syscall filled)")
-       (param n INT "Byte count the syscall returned -- NOT the buffer's string length (the region is full of NULs)")
+       (param n INTEGER "Byte count the syscall returned -- NOT the buffer's string length (the region is full of NULs)")
        (param acc LIST "Accumulator; entry names cons onto it"))
     ; Fetched per call, not per byte: one batch decode is one fetch.
     (def %byte-ref (prim-ref (lit str) (lit byte-ref)))

@@ -25,7 +25,7 @@
       ((prim-ref (lit buf) (lit tok)) buffer))
     (method last-char (self (param buffer ANY "A tokenizer buffer"))
       (doc "The last character read into the buffer, as its integer code."
-        (returns INT "The character code"))
+        (returns INTEGER "The character code"))
       ((prim-ref (lit buf) (lit last-char)) buffer))
     (method reset (self (param buffer ANY "A tokenizer buffer"))
       (doc "Empty a tokenizer buffer: reset its read and write cursors to the base."
@@ -35,7 +35,7 @@
       (doc "Compact a buffer's unread data to the front, freeing consumed space."
         (returns ANY "The buffer"))
       ((prim-ref (lit buf) (lit retain)) buffer))
-    (method append (self (param buffer ANY "A tokenizer buffer") (param ch CHAR "Character to write"))
+    (method append (self (param buffer ANY "A tokenizer buffer") (param ch CHARACTER "Character to write"))
       (doc "Append one character at a buffer's write cursor."
         (returns ANY "The buffer"))
       ((prim-ref (lit buf) (lit append)) buffer ch))

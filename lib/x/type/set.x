@@ -74,7 +74,7 @@
 
   ; --- size ---------------------------------------------------------------
   (method length (self)
-    (doc "The number of members (a stored property, O(1))." (returns INT "Member count"))
+    (doc "The number of members (a stored property, O(1))." (returns INTEGER "Member count"))
     ((self %d) length))
 
   (method empty? (self)
