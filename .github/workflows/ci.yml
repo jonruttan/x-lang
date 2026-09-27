@@ -54,10 +54,15 @@ jobs:
     # fifteen seconds into doc-examples: the cap sits inside the job's normal
     # spread now, so a slow runner reads as a failure.
     timeout-minutes: 30
+    # The arm64 Linux leg reports and does not gate: a failure there leaves
+    # the run's verdict, which the release gate reads, to the other two.
+    # The engine pin declares no linux arm64 artifact, so that leg's
+    # `make engine` clones the pinned release and builds it.
+    continue-on-error: ${{ matrix.os == 'ubuntu-24.04-arm' }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-24.04]
+        os: [macos-14, ubuntu-24.04, ubuntu-24.04-arm]
     steps:
       - uses: actions/checkout@v7
       # x-lang is the language; the engine is a separate project, acquired
@@ -76,12 +81,14 @@ jobs:
       # binary, which does not exist until `make engine` has run -- and the
       # builder re-checks its own key on load, so a stale hit only costs a
       # rewrite, never a stale library.  After the engine step on purpose:
-      # the contract files under engine/ are part of the hash.
+      # the contract files under engine/ are part of the hash.  The
+      # architecture is in the key because an image is one machine's heap:
+      # the two Linux legs share an OS name and nothing else.
       - name: State images
         uses: actions/cache@v4
         with:
           path: .images
-          key: images-${{ runner.os }}-${{ hashFiles('tools/engine/engine.pin.xon', 'lib/**/*.x', 'tests/x/lib/*.x', 'engine/tools/contract/*.x', 'tools/dev/image-build.sh', 'tools/dev/image-write.x', 'tools/dev/image-walk.x', 'tools/dev/image-name.x', 'tools/dev/image-read.x', 'lib/img.x') }}
+          key: images-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/engine/engine.pin.xon', 'lib/**/*.x', 'tests/x/lib/*.x', 'engine/tools/contract/*.x', 'tools/dev/image-build.sh', 'tools/dev/image-write.x', 'tools/dev/image-walk.x', 'tools/dev/image-name.x', 'tools/dev/image-read.x', 'lib/img.x') }}
       - name: x-lang specs
         run: make test-x
         env:
@@ -97,7 +104,7 @@ jobs:
           # light fill bounds the window at ONE big heap (~9GB worst
           # measured). The macOS leg keeps the default: its peaks are
           # smaller and it has passed at width 2 throughout.
-          SPEC_HEAVY_JOBS: ${{ matrix.os == 'ubuntu-24.04' && '1' || '2' }}
+          SPEC_HEAVY_JOBS: ${{ runner.os == 'Linux' && '1' || '2' }}
           # The applicative stress lane (#300): serial tail, ~4.7GB peak
           # per file -- inside the heavy-spec envelope on these runners.
           # NEVER set STRESS on the asan job: the sanitizer multiplies
