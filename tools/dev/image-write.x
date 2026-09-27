@@ -54,9 +54,44 @@
 (def %child-str!
   (fn (_ nm s)
     (%child-def! nm (list (prim-ref (lit str) (lit append)) "" (list (lit lit) s)))))
+; x-cli files catalog entries into the root base's catalog too: since
+; x-engine-c 0.2.14, (ffi dlopen) and (ffi dlsym) are x-cli's, and a child has
+; neither.  Without them the child's prim-ref answers nil, and err.x's errno
+; lookup, which calls dlsym on dlopen's answer, ends in a (ptr call) through
+; whatever the call on nil returned.  Each entry is filed in the child's own
+; catalog, from the function pointer the root's primitive holds, under names
+; the child interns; the image's foreign table then names it ffi/NAME, and the
+; loader takes the loading process's own.  Symbols are per base, so the
+; child's catalog is searched by name.
+(def %named? (fn (_ s name) (str=? (symbol->str s) name)))
+(def %assoc-named
+  (fn (self l name)
+    (if (null? l) () (if (%named? (first (first l)) name) (first l) (self (rest l) name)))))
+(def %child-sym (fn (_ name) (list (prim-ref (lit str) (lit ->sym)) name)))
+(def %child-catalog-add!
+  (fn (_ ns m fnobj)
+    ((fn (_ cell)
+       ((fn (_ dom)
+          (if (null? (%assoc-named (if (null? dom) () (rest dom)) m))
+            ((fn (_ entry)
+               (if (null? dom)
+                 (%set-first! cell
+                   (%B eval (list (lit pair)
+                                  (list (lit pair) (%child-sym ns) (list (lit pair) (list (lit lit) entry) (list (lit lit) ())))
+                                  (list (lit lit) (first cell)))))
+                 (%set-rest! dom
+                   (%B eval (list (lit pair) (list (lit lit) entry) (list (lit lit) (rest dom)))))))
+             (%B eval (list (lit pair) (%child-sym m)
+                            (list (prim-ref (lit obj) (lit make-callable))
+                                  (list (lit lit) (%i->p (%word-at (%o->p fnobj) 0)))))))
+            ()))
+        (%assoc-named (first cell) ns)))
+     (%B cell (lit prims)))))
 (if (null? %IMG-LIB) ()
   (do (%child-prim! (lit include) %raw-include)
       (guard (_ ()) (%child-prim! (lit syscall) (eval (lit syscall))))
+      ((fn (_ p) (if (null? p) () (%child-catalog-add! "ffi" "dlopen" p))) (prim-ref (lit ffi) (lit dlopen)))
+      ((fn (_ p) (if (null? p) () (%child-catalog-add! "ffi" "dlsym" p))) (prim-ref (lit ffi) (lit dlsym)))
       (%child-str! (lit x-machine) x-machine)
       (%child-str! (lit x-version) x-version)
       (%child-str! (lit x-release) x-release)
