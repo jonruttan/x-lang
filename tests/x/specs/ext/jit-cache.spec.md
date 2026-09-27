@@ -285,3 +285,45 @@ The ordinary cold case, and the one every other miss is spelled as.
 ```
 ---
     ()
+
+## where the entries live
+
+### X_ASM_CACHE_DIR names the directory, and /tmp is the default
+
+Unset or empty, the entries live in /tmp, which every engine on the machine
+shares. A process that keeps its compiles apart -- a gate that needs a cold
+boot, a run that must leave other runs' entries alone -- names a directory of
+its own. The variable is read on each compile, so an entry stored while it is
+set is found in that directory and not in /tmp. The body carries this
+process's id, so no other process has stored an entry for it.
+
+```x
+(do
+  (def %dir-pcall (%ac (lit %asm-cache-pcall)))
+  (def %dir-sym (fn (_ name) ((%ac (lit %asm-cache-dlsym)) (%ac (lit %asm-cache-lib)) name)))
+  (def %dir-pid (Sys getpid))
+  (def %dir-path (Str append "/tmp/jit-cache-spec-" ((%ac (lit %asm-cache-wts)) %dir-pid)))
+  (%dir-pcall (%dir-sym "mkdir") %dir-path 448)
+  (def %dir-e (list 'fn '(_ x) (list '+ 'x %dir-pid)))
+  (def %dir-t (%asm-cache-text %dir-e () #f))
+  (Sys setenv "X_ASM_CACHE_DIR" %dir-path)
+  (def %dir-at (%asm-cache-path %dir-t))
+  (compile-asm %dir-e)
+  (def %dir-hit (%asm-cache-load %dir-t %dir-at ()))
+  (Sys setenv "X_ASM_CACHE_DIR" "")
+  (def %dir-empty (%asm-cache-path %dir-t))
+  (Sys unsetenv "X_ASM_CACHE_DIR")
+  (def %dir-home (%asm-cache-path %dir-t))
+  (def %dir-miss (%asm-cache-load %dir-t %dir-home ()))
+  (%dir-pcall (%dir-sym "unlink") (Str append %dir-at ".bin"))
+  (%dir-pcall (%dir-sym "unlink") (Str append %dir-at ".asm"))
+  (%dir-pcall (%dir-sym "rmdir") %dir-path)
+  (write (list (Str8 match-at? (Str append %dir-path "/x-asm-") 0 %dir-at)
+               (if (null? %dir-hit) 'miss (= (%dir-hit 0) %dir-pid))
+               (str=? %dir-empty %dir-home)
+               (Str8 match-at? "/tmp/x-asm-" 0 %dir-home)
+               %dir-miss))
+  (newline))
+```
+---
+    (#t #t #t #t ())
