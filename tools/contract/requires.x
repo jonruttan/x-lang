@@ -60,6 +60,9 @@
   (needs "lib/x/codec/zlib.x" isa/ffi-call)
   (needs "lib/x/net/tls.x" isa/ffi-call)
   (needs "lib/x/num/float.x" isa/ffi-call)
+  ; syscall-door makes the call for whoever holds the door; sys/file.x reaches
+  ; the kernel through it and names the primitive nowhere.
+  (needs "lib/x/platform/syscall.x" isa/syscall)
   (needs "lib/x/repl/loop.x" isa/gc)
   ; The line editor runs the turn loop itself when it is installed, and
   ; sweeps at the top of each turn as loop.x does, through its own fetch.
@@ -72,7 +75,6 @@
   ; repl/line.x need neither: they are string and list work over what this
   ; file hands them.
   (needs "lib/x/repl/term.x" isa/ffi-call isa/syscall)
-  (needs "lib/x/sys/file.x" isa/syscall)
   (needs "lib/x/sys/gc.x" isa/gc)
   (needs "lib/x/sys/posix.x" isa/ffi-call isa/sys)
   (needs "lib/x/sys/socket.x" isa/ffi-call)

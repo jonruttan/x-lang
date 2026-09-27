@@ -124,6 +124,10 @@
   (darwin-syscall-numbers)
   (dirent-names)
   (i386-syscall-names)
+  ; The generic table's numbers and the call shapes beside them: a fourth
+  ; platform's data, bare as the other three tables are.
+  (linux-generic-syscall-numbers)
+  (linux-generic-syscall-shapes)
   ; arch-*? join os-*? for the same reason those rows exist: the build triple is
   ; parsed once, in lib/x/platform/syscall.x, and the answer is read by
   ; lib/x/tool/asm.x and lib/x/tool/compile.x rather than sniffed again in
@@ -136,6 +140,10 @@
   (protocol-format-id)
   (sock-id)
   (socketcall-id)
+  ; syscall-door is syscall-id's companion and bare for its reason: the module
+  ; loader calls it mid-boot, and the File spec harness rebinds it to capture
+  ; what File would have called.
+  (syscall-door)
   (syscall-id)
   (x86_64-syscall-names)
   ; --- spec-harness vocabulary (tests/x/lib loads these) ---
