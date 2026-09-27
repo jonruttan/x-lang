@@ -140,6 +140,30 @@ keep their raw contract -- see ext/file.spec.md.
 ---
     #t
 
+### listing an empty directory costs fewer than 10,000 objects
+
+A listing opens and closes the directory through the module's doors and
+drops "." and ".." in one walk; the loop around an empty thunk is
+subtracted.
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/sys/gc)
+  (def d "/tmp/x-spec22-dir3")
+  (guard (_ ()) (File rmdir d))
+  (File mkdir d)
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 10)
+      (- (Heap count) c0)))
+  (def %over (- (%cost (fn (_) (File list-dir d))) (%cost (fn (_) ()))))
+  (File rmdir d)
+  (< %over (* 10000 10)))
+```
+---
+    #t
+
 ## structured failure
 
 ### a missing file read-alls to a tag 'io enoent Err

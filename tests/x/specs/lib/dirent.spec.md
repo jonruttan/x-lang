@@ -51,3 +51,42 @@ namlen bound decodes correctly on Darwin.
 ```
 ---
     ("abc" "." "alpha")
+
+## cost
+
+### a batch decodes in fewer than 300 objects an entry
+
+The decode runs per directory entry on every listing, so its offsets,
+lengths and bytes go through the integer primitives, not the tower's
+checked operators.  Sixteen 32-byte entries, decoded ten times, with the
+same loop around an empty thunk subtracted.
+
+```x
+(do
+  (import x/sys/gc)
+  (import x/platform/dirent)
+  (def %i->c (prim-ref 'int '->char))
+  (def %bs (fn (_ ints) (bytes->str (%map (fn (_ i) (%i->c i)) ints))))
+  ; one 32-byte entry named "abcdefgh"
+  (def %ent
+    (fn (_ ino)
+      (%append (list ino 0 0 0 0 0 0 0  0 0 0 0 0 0 0 0  32 0)
+        (%append (if os-darwin? (list 8 0 0) (list 0))
+          (%append (list 97 98 99 100 101 102 103 104)
+                   (if os-darwin? (list 0 0 0) (list 0 0 0 0 0)))))))
+  (def %ents
+    (fn (self i acc) (if (= i 0) acc (self (- i 1) (%append (%ent i) acc)))))
+  (def %buf (%bs (%ents 16 ())))
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 10)
+      (- (Heap count) c0)))
+  (def %over
+    (- (%cost (fn (_) (dirent-names %buf 512 ())))
+       (%cost (fn (_) ()))))
+  (list (%length (dirent-names %buf 512 ())) (< %over (* 300 16 10))))
+```
+---
+    (16 #t)
