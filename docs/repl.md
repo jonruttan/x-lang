@@ -25,6 +25,8 @@ sh x.sh -l xe
 | ctrl-k, ctrl-u | kill to the end, kill to the start |
 | ctrl-y | yank back what was last killed |
 | Up / Down, ctrl-p / ctrl-n | history |
+| ctrl-r / ctrl-s | search the history backward / forward |
+| ctrl-g | abandon a search |
 | Tab | complete; after only whitespace, with nothing to complete, insert a tab |
 | ctrl-v | insert the next key as typed: ctrl-v Tab is a tab |
 | ctrl-l | clear the screen |
@@ -65,6 +67,18 @@ Each edited line is one entry, so the two lines of a multi-line definition
 are recalled separately — and an entry can never contain a newline, which is
 what keeps the one-line-per-entry file format honest. Blank lines are not
 recorded, and neither is a line identical to the one before it.
+
+ctrl-r searches the history backward for what you type after it, as readline
+does. The prompt becomes `(reverse-i-search)`query': ` and the newest entry
+holding the query is shown with the cursor on the match; each key extends the
+query, and ctrl-r again moves on to the next older entry that holds it. ctrl-s
+searches forward, toward newer entries, from the entry being shown. Backspace
+steps back to the match before the last key. Enter runs the match, ctrl-g
+abandons the search and leaves the line as it was, and any other key keeps the
+match in the buffer for editing and then does what it always does — so Up and
+Down carry on from the entry that was found. ctrl-r on an empty query repeats
+the last search. When no entry holds the query the prompt says
+`(failed reverse-i-search)` and the last match stays on the line.
 
 Set `X_HISTORY` to keep it somewhere else. Set `X_HISTORY` to the empty string
 to turn persistence off entirely — what you want in a session that will handle

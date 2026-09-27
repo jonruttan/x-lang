@@ -266,3 +266,69 @@ press by accident.
 ```
 ---
     ("" #f (#t "two"))
+
+## Searching the history
+
+`search` reports where a match is without moving there, and `jump!` moves
+there once it is accepted. The history below is newest first: "echo hi" is
+entry 0.
+
+### walking back answers the last occurrence, walking forward the first
+
+```x
+(do (import x/repl/edit)
+    (let ((e (Edit make (list "echo hi" "ls -la" "cd /tmp"))))
+      (list (e search "l" 0 'back) (e search "l" 1 'back) (e search "l" 1 'forward))))
+```
+---
+    ((1 . 4) (1 . 4) (1 . 0))
+
+### an entry equal to unlike is passed over
+
+A repeated search passes the line it is already showing, so each ctrl-r moves.
+
+```x
+(do (import x/repl/edit)
+    (let ((e (Edit make (list "echo hi" "ls -la" "cd /tmp"))))
+      (e search "c" 0 'back "echo hi")))
+```
+---
+    (2 . 0)
+
+### no match, or a start outside the history, answers nil
+
+```x
+(do (import x/repl/edit)
+    (let ((e (Edit make (list "echo hi" "ls -la" "cd /tmp"))))
+      (list (null? (e search "zz" 0 'back))
+            (null? (e search "l" 3 'back))
+            (null? (e search "l" -1 'forward))
+            (e search "cd" 99 'forward))))
+```
+---
+    (#t #t #t (2 . 0))
+
+### jump! shows an entry, and later! walks back down to the line being typed
+
+```x
+(do (import x/repl/edit)
+    (let ((e (Edit make (list "echo hi" "ls -la" "cd /tmp"))))
+      (e insert! "draft")
+      (e jump! 1 3)
+      (let ((shown (list (e text) (e point) (e position))))
+        (e later!) (e later!)
+        (list shown (e text) (e position)))))
+```
+---
+    (("ls -la" 3 1) "draft" ())
+
+### jump! to an index outside the history changes nothing
+
+```x
+(do (import x/repl/edit)
+    (let ((e (Edit make (list "echo hi"))))
+      (e insert! "draft")
+      (list (e jump! 5) (e text) (e position))))
+```
+---
+    (#f "draft" ())

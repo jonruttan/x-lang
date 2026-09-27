@@ -59,6 +59,15 @@ the input ended.
 ---
     ('home 'left 'interrupt 'eof 'end 'right 'complete 'enter 'enter 'kill-eol 'kill-bol 'kill-word 'yank 'backspace)
 
+### ctrl-g, ctrl-r and ctrl-s are the search keys
+
+```x
+(do (import x/repl/term)
+    (List map (fn (_ b) (Term key (fn (_) b))) (list 7 18 19)))
+```
+---
+    ('abort 'search-back 'search-forward)
+
 ### an unbound control byte is dropped, not inserted
 
 A byte with no binding must never reach the buffer: the redraw measures what

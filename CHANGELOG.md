@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The REPL searches its history.** ctrl-r searches backward for what is typed
+after it and ctrl-s forward, as readline's incremental search does: the prompt
+becomes `(reverse-i-search)`query': `, the newest entry holding the query is
+shown with the cursor on the match, and each key extends the query. ctrl-r or
+ctrl-s again moves on to the next entry that holds it, passing over a line
+identical to the one shown. Backspace steps back to the match before the last
+key, Enter runs the match, ctrl-g abandons the search and leaves the line as it
+was, and any other key keeps the match for editing and is then handled as
+usual, so Up and Down carry on from the entry that was found. ctrl-r on an
+empty query repeats the last search, which `(Line last-search)` holds.
+
+The search is `Edit search` and `Edit jump!`, both pure: `search` reports where
+a match is without moving there, and `jump!` moves there only once the match is
+accepted, stashing the line being typed so that Down walks back to it. A query
+that no entry holds is not held however it is extended, so typing after a
+failed search, or repeating it in the same direction, looks nothing up. Every
+language whose prompt reads through the line editor has the search, x-ash and
+x-python included.
+
 **The engine pin moves to x-engine-c v0.2.14, which has no `ffi-call`**
 ([#804]). v0.2.14 removes the `(ffi call)` primitive and its ISA row
 (x-engine-c#63), which [#796] had already stopped using, so
