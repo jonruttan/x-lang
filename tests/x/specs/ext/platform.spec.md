@@ -79,6 +79,54 @@ of the path.
 ---
     ('unsupported-syscall . 'no-such-call)
 
+### a shaped door puts each slot of its shape in place
+
+A shape is the argument list of the call that stands in for a name. Only arm64
+Linux has shapes, so this case builds one through the module's own builder:
+`write` with the count fixed at two, which writes two bytes of the three it is
+handed.
+
+```x
+(def %shaped (eval (lit %door-shaped) (module x/platform/syscall)))
+(def %null (File open "/dev/null" 'wronly))
+(def %write-2 (%shaped (syscall-id 'write) (lit (a0 a1 2))))
+(list (%write-2 %null "abc") (File close %null))
+```
+---
+    (2 0)
+
+### cwd in a shape is the working directory's descriptor
+
+```x
+((eval (lit %door-slots) (module x/platform/syscall)) (lit (cwd a0 cwd a1 0)))
+```
+---
+    (-100 'a0 -100 'a1 0)
+
+### a call through a door resolves nothing
+
+A door is resolved when it is made, so a call through it costs its own frame
+and no more: fewer than 40 objects a call over the primitive called with the
+number in hand.
+
+```x
+(def %null (File open "/dev/null" 'wronly))
+(def %n (syscall-id 'write))
+(def %door (syscall-door 'write))
+(def %cost
+  (fn (_ f)
+    (f)
+    (def c0 (Heap count))
+    ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 100)
+    (- (Heap count) c0)))
+(def %over
+  (- (%cost (fn (_ ) (%door %null "ab" 2)))
+     (%cost (fn (_ ) (syscall %n %null "ab" 2)))))
+(list (< %over (* 40 100)) (File close %null))
+```
+---
+    (#t 0)
+
 ## platform: open flags
 
 ### O_CREAT matches the platform (macOS 512 / Linux 64)
