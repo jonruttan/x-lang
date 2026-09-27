@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`type/convert.x` has a module header** ([#802]). Its six type handles and
+its fourteen other `%` names are its own now. The root keeps the `Convert`
+class, and the catalog keeps `(convert to)`, which is how every hot caller
+reaches the dispatcher. Nothing read the handles by name any longer: the
+library's readers moved to `(Type named ...)` in [#799], and the lang
+bundles in their own repositories. Counted with the lookup counter on an
+x-core boot, the header adds 0.02% to the environment comparisons. A
+conversion through the dispatcher compares about 740 more bindings, 9% more
+on a loop of symbol to string and 5% more on integer to string and back,
+with evaluations and allocations unchanged; `docs/namespaces.md` records
+the numbers beside `core/arithmetic.x`'s. The file's %-row of 20 is retired.
+
+[#802]: https://github.com/jonruttan/x-lang/pull/802
+
 **File runs on arm64 Linux** ([#801]). `syscall-id` gave every host that was
 not Darwin the x86-64 numbers. arm64 Linux uses the generic table, where those
 numbers name other calls and fourteen of the path calls -- `open`, `stat`, `lstat`,

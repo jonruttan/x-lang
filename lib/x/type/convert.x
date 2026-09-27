@@ -25,7 +25,8 @@
 ; to-alist, then (Convert missing). A nil VALUE converts to nil (absence stays
 ; absence; see the nil-handling specs).
 ;
-; Type handles: %int, %char, %string, %symbol, %ptr, %pair
+; Type handles: this file's own, private to the module. Their public
+; spelling is (Type named INTEGER), and so on for any registered name.
 ;
 ; Registered conversions:
 ;   INT  <- char (char->integer), string (%str->number), ptr (%ptr->int)
@@ -36,10 +37,12 @@
 ;   PTR  <- int (int->ptr), string (%str->ptr), any (%obj->ptr)
 ;
 ; Examples:
-;   (Convert to 65 %char)        -> #\A
-;   (Convert to #\A %int)        -> 65
-;   (Convert to 255 %string 16)  -> "ff"
-;   (Convert to "ff" %int 16)    -> 255 (hex parse)
+;   (Convert to 65 (Type named CHARACTER))     -> #\A
+;   (Convert to #\A (Type named INTEGER))      -> 65
+;   (Convert to 255 (Type named STRING) 16)    -> "ff"
+;   (Convert to "ff" (Type named INTEGER) 16)  -> 255 (hex parse)
+
+(module x/type/convert)
 
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %type-of (prim-ref (lit type) (lit of)))
@@ -75,9 +78,6 @@
 
 
 ; --- Type handles ---
-; The handles below are read by name from other files and from the lang
-; bundles; their public spelling is (Type named INTEGER) and so on, and
-; these names go when the bundles have moved to it.
 (def %int    (%type-of 0))
 (def %char   (%type-of (%integer->char 0)))
 (def %string (%type-of ""))
@@ -202,5 +202,5 @@
 
 (doc (provide x/type/convert Convert)
   (note "Hot consumers fetch the dispatcher from the catalog: (prim-ref 'convert 'to). The no-match policy is the (Convert missing) member.")
-  (note "The base type handles have a public spelling: (Type named INTEGER), (Type named STRING), and so on for any registered name. The %-named handles this file defines stay until the lang bundles that read them have moved to it.")
+  (note "The base type handles have a public spelling: (Type named INTEGER), (Type named STRING), and so on for any registered name.")
   "Generic type conversion: the Convert class over the type system's from/to alists.")

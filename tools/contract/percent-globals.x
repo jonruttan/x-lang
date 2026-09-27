@@ -301,7 +301,6 @@
 ; class.x fell 91 to 89: its two exported hooks, class-call-handler and
 ; bind-call-over!, are bare names now (x-lang#719, the last %-named exports).
 (file "lib/x/type/class.x" 89)   ; +1 %apply: the dispatcher applies resolved methods and displaced C handler atoms through the engine's apply
-(file "lib/x/type/convert.x" 20)
 (file "lib/x/type/promise.x" 6)
 (file "lib/x/type/shape-rows.x" 2)
 (file "tools/check/boot-order.x" 33)
