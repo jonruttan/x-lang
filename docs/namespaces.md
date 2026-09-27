@@ -133,19 +133,18 @@ root for speed, as those two files' provide notes say. They stay root
 globals, and the private-reads rows their readers hold for them stay where
 they are; a reader that wants a door takes the class.
 
-`type/convert.x` waits on the lang bundles. Its base type handles (`%int`,
+`type/convert.x` waited on the lang bundles. Its base type handles (`%int`,
 `%string`, `%symbol`, `%char`, `%ptr`, `%pair`) were read by ten bundles as
 well as by the library, so the door came first: `(Type named INTEGER)`, a
 lookup by registered name through the type registry, which answers for any
 type registered at the time and nil for a name nothing carries; the name is
 written bare or quoted, and any other form is evaluated. The set
 of types is open (the tower, a lang and a program register and retire
-types), so the door is a lookup, not a list of statics. Nothing in the
-library or its tools reads the handles by name now. A scoped reader fetches
-from the door at load. An unscoped one holds the handle in the function that
-uses it, or asks the door in place where the read is cold. The bundles
-follow as their `requires-release` pins move to the release that carries the
-door, and the file takes its header when the last of them has.
+types), so the door is a lookup, not a list of statics. A scoped reader
+fetches from the door at load. An unscoped one holds the handle in the
+function that uses it, or asks the door in place where the read is cold. The
+bundles moved as their `requires-release` pins moved to the release that
+carries the door, and the file has its header now: its handles are its own.
 
 Seven boot files cannot be modules at all: `boot/engine.x`, `registry.x`,
 `operatives.x`, `data.x`, `reflect.x`, `printer.x` and `string.x` load before
@@ -330,6 +329,15 @@ model.
     wrappers resolve `match`, `eq?`, `first`, `rest` and the saved primitive
     on every call, and the module frame would sit in front of each. It stays
     unscoped with the six.
+  - `type/convert.x`, measured the same way (2026-09-26): a module header
+    adds 0.02% to the environment comparisons of an x-core boot, where
+    little converts. A conversion through the dispatcher compares about 740
+    more bindings with the header, whatever it converts: 9% more on a loop
+    of symbol to string, which costs 8,200 comparisons a conversion without
+    it, and 5% more on integer to string and back. Evaluations and
+    allocations are unchanged, at about 1,900 and 1,400 a conversion for
+    symbol to string. The dispatcher is the cost, and the frame adds little
+    to it, so the file is scoped.
 - **Source boot time.** The image writers and the asan-boot gate boot from
   source. A framed load of `regex.x` through the x-side reader took the same
   time as the C include, so the loader is not the risk; the lookup cost is.
