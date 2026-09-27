@@ -855,6 +855,39 @@ landed in which group, or in what order the groups come back.
 ---
     ((0 5) (0 7) (1 90) (1 10))
 
+### sorts any iterable: a vector converts once
+
+```x
+(do (import x/type/vector) (List sort < (Vector of 3 1 2)))
+```
+---
+    (1 2 3)
+
+### a sort costs fewer than 1,000 objects an element
+
+The split, the merge and the recursion are plain functions made once, and
+a sort converts its input once.  Fifty elements under a comparator that
+allocates nothing, ten times, with the same loop around an empty sort
+subtracted: what remains is the per-element work.
+
+```x
+(do (import x/sys/gc)
+  (def %lt (prim-ref (lit int) (lit <)))
+  (def %l50 (list 50 3 48 12 7 33 21 45 1 29 17 40 9 26 38 5 31 14 44 2 36 19 47 11 24
+                  42 8 30 16 49 4 27 39 13 22 46 6 35 18 41 10 28 43 15 32 20 37 23 34 25))
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 10)
+      (- (Heap count) c0)))
+  (def %over
+    (- (%cost (fn (_) (List sort %lt %l50))) (%cost (fn (_) (List sort %lt ())))))
+  (list (List sort %lt %l50) (< %over (* 1000 50 10))))
+```
+---
+    ((1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50) #t)
+
 ## sort-by
 
 ### sorts by key function
@@ -864,6 +897,14 @@ landed in which group, or in what order the groups come back.
 ```
 ---
     (-1 -2 3)
+
+### is stable: equal keys keep input order
+
+```x
+(List sort-by first (list (list 1 'a) (list 0 'b) (list 1 'c) (list 0 'd)))
+```
+---
+    ((0 'b) (0 'd) (1 'a) (1 'c))
 
 ## uniq
 

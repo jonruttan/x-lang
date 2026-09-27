@@ -16,6 +16,41 @@ through a `method-of` door allocates 135 where it took 417.
 
 [#812]: https://github.com/jonruttan/x-lang/pull/812
 
+**A directory listing decodes on the integer primitives** ([#811]). `File
+list-dir` on a 50-name directory allocated about 111,000 objects: the dirent
+decoder read each record a byte at a time through the tower's `+`, `*`, `=`
+and `<`, `.` and `..` were dropped with `List reject`, and the directory was
+opened and closed through two class dispatches. The decoder now works on the
+integer primitives and reads a Darwin name by its `namlen`, one walk drops the
+dot entries and keeps the order, and the method opens and closes the directory
+through the module's syscall doors. The same listing allocates about 11,300,
+and a 52-entry batch decodes in about 7,000 where it took 38,900.
+
+[#811]: https://github.com/jonruttan/x-lang/pull/811
+
+**The engine pin moves to x-engine-c v0.2.15** ([#810]). Every engine release
+now ships `x-bin-profile` beside `x-bin`, and under `X_PROFILE` each object's
+flags word counts how many times evaluation reached it (x-engine-c#66). The
+count takes bits 11 to 30, above the trace bit, 1024, that the image writer
+marks with, which the engine now names `X_OBJ_FLAG_TRACE`; the plain `x-bin`
+is unchanged. The engine's `tools/contract/obj-layout.x` gains the trace and
+count rows, and the declaration's layout digest changes with them.
+
+[#810]: https://github.com/jonruttan/x-lang/pull/810
+
+**A data-slot access does no generic arithmetic** ([#809]). `(obj ref)`,
+`(obj set!)` and the pair mutators address data word i by one formula, the data
+offset plus i words, and it was computed with the `+` and `*` bound at the root:
+the variadic wrappers under helium, the numeric tower's generic dispatch under
+xenon. The formula now runs on the engine's integer `+` and `*`, fetched once,
+and `%set-first!` and `%set-rest!` write at the first and rest offsets computed
+at load, so they do no arithmetic at all. Under xenon a `%set-first!` allocates
+13 objects where it took 237, `%set-rest!` 13 where it took 293, and `(obj ref)`
+and `(obj set!)` 22 and 25 where they took 280 and 283; under helium the four
+took 51, 51, 38 and 41.
+
+[#809]: https://github.com/jonruttan/x-lang/pull/809
+
 ## [0.16.0] - 2026-09-27
 
 **A call through a syscall door walks nothing** ([#807]). A door from
