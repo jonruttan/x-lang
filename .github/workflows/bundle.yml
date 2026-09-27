@@ -13,8 +13,9 @@ name: bundle
 # leg reports that the platform has moved and is allowed to fail.  The release
 # is read from lang.xon, so it is named in one place.
 #
-# The operating systems here and in ci.yml are the same list and change
-# together.
+# The operating systems here and in ci.yml's gating legs are the same list and
+# change together.  ci.yml's arm64 Linux leg reports without gating and has no
+# counterpart here until it gates.
 
 on:
   workflow_call:
