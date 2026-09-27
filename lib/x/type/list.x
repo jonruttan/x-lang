@@ -29,6 +29,51 @@
     (let ((k (%list-cvt n %list-int-type)))
       (if (%list-int? k) k (error what))))))
 
+; --- sort ---
+; A stable merge sort over a proper list, its pieces made once rather than
+; per call.  Stability needs both halves of it: the split takes the first
+; half in order, and the merge takes from the left half unless the right
+; element comes strictly first, so ties keep their input order.
+
+; l reversed onto tail.
+(def %sort-rev-onto
+  (fn (loop l tail)
+    (match
+      ((eq? l ()) tail)
+      (#t (loop (rest l) (pair (first l) tail))))))
+
+; (first-half . second-half) of a list of two or more, the first half in
+; order: slow steps once for each two steps of fast.
+(def %sort-split
+  (fn (loop slow fast acc)
+    (match
+      ((eq? fast ()) (pair (%reverse acc) slow))
+      ((eq? (rest fast) ()) (pair (%reverse acc) slow))
+      (#t (loop (rest slow) (rest (rest fast)) (pair (first slow) acc))))))
+
+; a and b merged by cmp onto acc, which holds the output reversed; a tie
+; takes from a.  Iterative: stack depth does not grow with the output.
+(def %sort-merge
+  (fn (loop cmp a b acc)
+    (match
+      ((eq? a ()) (%sort-rev-onto acc b))
+      ((eq? b ()) (%sort-rev-onto acc a))
+      ((cmp (first b) (first a)) (loop cmp a (rest b) (pair (first b) acc)))
+      (#t (loop cmp (rest a) b (pair (first a) acc))))))
+
+; halves sorted by sort, then merged.
+(def %sort-halves
+  (fn (_ sort cmp halves)
+    (%sort-merge cmp (sort cmp (first halves)) (sort cmp (rest halves)) ())))
+
+; lst sorted by cmp.  Recursion depth is log2 of the length.
+(def %sort
+  (fn (self cmp lst)
+    (match
+      ((eq? lst ()) lst)
+      ((eq? (rest lst) ()) lst)
+      (#t (%sort-halves self cmp (%sort-split lst lst ()))))))
+
 (def-class List ()
   (static
     (method of (self . (param args ANY "Elements, in order"))
@@ -377,39 +422,10 @@
         (List fold (fn (_ acc x) (add-to-group acc (f x) x)) () lst)))
     (method sort (self cmp lst)
       (doc "Stable merge sort using a comparison function: equal-key elements keep their input order." (param cmp CALLABLE "Comparison: (a b) -> #t if a comes strictly first") (param lst LIST "List or iterable"))
-      (let ((lst (List from-seq lst)))
-        ; STABILITY needs both halves of this: (a) split by taking the first
-        ; half in order (the old alternate-cons split reversed and interleaved
-        ; the halves), and (b) merge takes from the LEFT half unless the right
-        ; element comes strictly first, so ties keep input order.
-        ; Helpers first: a closure only sees sibling defs made BEFORE it.
-        (def %rev-onto2 (fn (self l tail)
-          (match ((null? l) tail) (#t (self (rest l) (pair (first l) tail))))))
-        (def %split (fn (self slow fast acc)
-          (match
-            ((null? fast) (pair (%reverse acc) slow))
-            ((null? (rest fast)) (pair (%reverse acc) slow))
-            (#t (self (rest slow) (rest (rest fast)) (pair (first slow) acc))))))
-        (def merge
-          ; Iterative merge (#336): the recursive body was non-tail
-          ; (stack depth = output length) and the old split paid
-          ; length/take/drop dispatches -- ~4 extra O(n) passes per
-          ; level.  The split walks once, tortoise-and-hare.
-          (fn (_ a b)
-            (def go (fn (self a b acc)
-              (match
-                ((null? a) (%rev-onto2 acc b))
-                ((null? b) (%rev-onto2 acc a))
-                ((cmp (first b) (first a)) (self a (rest b) (pair (first b) acc)))
-                (#t (self (rest a) b (pair (first a) acc))))))
-            (go a b ())))
-        (if (if (null? lst) #t (null? (rest lst))) lst
-          (let ((halves (%split lst lst ())))
-            (merge (recur self cmp (first halves))
-                   (recur self cmp (rest halves)))))))
+      (%sort cmp (List from-seq lst)))
     (method sort-by (self f lst)
       (doc "Sort by a key function (ascending)." (param f CALLABLE "Key function: element -> comparable value") (param lst LIST "List"))
-      (List sort (fn (_ a b) (< (f a) (f b))) lst))
+      (%sort (fn (_ a b) (< (f a) (f b))) (List from-seq lst)))
     (method distinct (self lst)
       (doc "Remove ALL duplicates (equal?), keeping each element's first occurrence -- unlike uniq, no sorting needed." (param lst LIST "List") (returns LIST "lst without later duplicates") (example "(List distinct (list 1 2 1 3 2))" "(1 2 3)")
         (note "O(n^2) via equal?, so it works for every element type; hashable elements (symbols/strings/ints/chars) can dedupe O(n) through x/type/set instead."))
