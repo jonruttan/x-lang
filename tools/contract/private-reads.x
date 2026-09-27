@@ -61,7 +61,6 @@
 (file "lib/x/num/random.x" 1)
 (file "lib/x/num/rational.x" 7)
 (file "lib/x/num/tower.x" 1)
-(file "lib/x/platform/dirent.x" 1)
 (file "lib/x/platform/syscall.x" 3)
 (file "lib/x/protocol/seq.x" 4)
 (file "lib/x/protocol/str/str8.x" 5)

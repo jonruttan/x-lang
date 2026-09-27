@@ -21,6 +21,29 @@ is added. `make check-doc-vocab` is removed, with the four lists it carried.
 
 [#817]: https://github.com/jonruttan/x-lang/pull/817
 
+**A system call's result folds on the integer primitives** ([#812]). Every
+`Sys` method that calls libc passes its result through `%sys-fold`, which turns
+the top half of the u32 range back into negatives: Linux hands an `int` return
+back zero-extended, so its -1 arrives as 4294967295. The test and the fold ran
+on the library's generic `>` and `-`, about 290 objects a call. The result is
+always the integer the FFI returns, so they now run on the engine's integer `<`
+and `-`: the fold allocates 7 objects, and 8 when it folds, and a `Sys getpid`
+through a `method-of` door allocates 135 where it took 417.
+
+[#812]: https://github.com/jonruttan/x-lang/pull/812
+
+**A directory listing decodes on the integer primitives** ([#811]). `File
+list-dir` on a 50-name directory allocated about 111,000 objects: the dirent
+decoder read each record a byte at a time through the tower's `+`, `*`, `=`
+and `<`, `.` and `..` were dropped with `List reject`, and the directory was
+opened and closed through two class dispatches. The decoder now works on the
+integer primitives and reads a Darwin name by its `namlen`, one walk drops the
+dot entries and keeps the order, and the method opens and closes the directory
+through the module's syscall doors. The same listing allocates about 11,300,
+and a 52-entry batch decodes in about 7,000 where it took 38,900.
+
+[#811]: https://github.com/jonruttan/x-lang/pull/811
+
 **The engine pin moves to x-engine-c v0.2.15** ([#810]). Every engine release
 now ships `x-bin-profile` beside `x-bin`, and under `X_PROFILE` each object's
 flags word counts how many times evaluation reached it (x-engine-c#66). The

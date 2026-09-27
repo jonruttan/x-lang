@@ -46,8 +46,16 @@
 ; socket.x's %sk-fold aliases it. Int returns ONLY -- never fold a
 ; pointer return (malloc/getenv/mmap/__errno_location), those use the
 ; full register.
+; r is the INT the FFI hands back, never nil, so the test and the fold run
+; on the engine's integer < and -: the library's > and - are generic, and
+; the fold runs on every system call.
+(def %sys-int< (prim-ref (lit int) (lit <)))
+(def %sys-int- (prim-ref (lit int) (lit -)))
 (def %sys-fold
-  (fn (_ r) (if (> r 2147483647) (- r 4294967296) r)))
+  (fn (_ r)
+    (match
+      ((%sys-int< 2147483647 r) (%sys-int- r 4294967296))
+      (#t r))))
 
 ;
 ; Pure x-lang over the FFI layer; the libc resolves stay %-private. Loads after

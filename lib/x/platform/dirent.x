@@ -21,48 +21,58 @@
   (fn (_ (param buf STRING "One getdents batch buffer (a (str make N) region a syscall filled)")
        (param n INTEGER "Byte count the syscall returned -- NOT the buffer's string length (the region is full of NULs)")
        (param acc LIST "Accumulator; entry names cons onto it"))
-    ; Fetched per call, not per byte: one batch decode is one fetch.
+    ; Fetched per call, not per byte: one batch decode is one fetch.  Every
+    ; value the walk computes is a byte, an offset or a length, never nil,
+    ; so the integer primitives serve where the tower's operators would
+    ; check and dispatch on every byte.
     (def %byte-ref (prim-ref (lit str) (lit byte-ref)))
+    (def %byte-sub (prim-ref (lit str) (lit byte-sub)))
     (def %char->int (prim-ref (lit char) (lit ->int)))
-    (def %u8 (fn (_ i) (%char->int (%byte-ref buf i))))
-    (def %u16 (fn (_ i) (+ (%u8 i) (* 256 (%u8 (+ i 1))))))
+    (def %int+ (prim-ref (lit int) (lit +)))
+    (def %int- (prim-ref (lit int) (lit -)))
+    (def %int< (prim-ref (lit int) (lit <)))
+    (def %int<< (prim-ref (lit int) (lit <<)))
+    (def %u16
+      (fn (_ i)
+        (%int+ (%char->int (%byte-ref buf i))
+               (%int<< (%char->int (%byte-ref buf (%int+ i 1))) 8))))
     ; ino u64@0 all-zero = a deleted-but-not-compacted slot (byte-wise:
     ; only the zero test matters, and boot has no i64 peek).
     (def %ino-zero?
-      (fn (loop off i)
+      (fn (loop i end)
         (match
-          ((= i 8) #t)
-          ((= (%u8 (+ off i)) 0) (loop off (+ i 1)))
+          ((= i end) #t)
+          ((= (%char->int (%byte-ref buf i)) 0) (loop (%int+ i 1) end))
           (#t #f))))
-    ; NUL-terminated name between start and end (end from namlen or reclen).
+    ; The first NUL at or after i, or end.
+    (def %nul-at
+      (fn (loop i end)
+        (match
+          ((= i end) i)
+          ((= (%char->int (%byte-ref buf i)) 0) i)
+          (#t (loop (%int+ i 1) end)))))
+    ; The name of the record at off: NAMLEN bytes on Darwin, NUL-terminated
+    ; within the record on Linux.
     (def %name
-      (fn (_ start end)
-        (def %scan
-          (fn (loop i)
-            (match
-              ((= i end) i)
-              ((= (%u8 i) 0) i)
-              (#t (loop (+ i 1))))))
-        (%substring buf start (%scan start))))
+      (match
+        (os-darwin?
+          (fn (_ off reclen) (%byte-sub buf (%int+ off 21) (%u16 (%int+ off 18)))))
+        (#t
+          (fn (_ off reclen)
+            (def start (%int+ off 19))
+            (%byte-sub buf start (%int- (%nul-at start (%int+ off reclen)) start))))))
+    ; One record, then the rest through walk; a zero reclen would never
+    ; advance (the corrupt-buffer guard).
+    (def %record
+      (fn (_ walk off reclen acc)
+        (match
+          ((= reclen 0) acc)
+          ((%ino-zero? off (%int+ off 8)) (walk (%int+ off reclen) acc))
+          (#t (walk (%int+ off reclen) (pair (%name off reclen) acc))))))
     (def %walk
       (fn (loop off acc)
         (match
-          ((< off n)
-            (do
-              (def %reclen (%u16 (+ off 16)))
-              (match
-                ; a zero reclen would never advance: corrupt-buffer guard
-                ((= %reclen 0) acc)
-                (#t
-                  (do
-                    (def %nm
-                      (match
-                        (os-darwin? (%name (+ off 21) (+ (+ off 21) (%u16 (+ off 18)))))
-                        (#t (%name (+ off 19) (+ off %reclen)))))
-                    (loop (+ off %reclen)
-                          (match
-                            ((%ino-zero? off 0) acc)
-                            (#t (pair %nm acc)))))))))
+          ((%int< off n) (%record loop off (%u16 (%int+ off 16)) acc))
           (#t acc))))
     (%walk 0 acc)))
   (returns LIST "Entry names consed onto acc, deleted (ino-0) slots skipped, dot entries KEPT")
