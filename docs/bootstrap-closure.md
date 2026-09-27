@@ -165,12 +165,13 @@ failed); install 27 / 441.
 
 ## Caveats
 
-- **`mv`'s 3,307 is not a property of the build.**
-  `tools/check/asan-boot.sh` sets every `/tmp/x-asm-*` file aside and puts it
-  back, two `mv` calls per file, and that directory holds however much asm
-  byte cache has accumulated on the machine. This run saw ~1,653 of them; a
-  clean runner sees almost none, and the 2026-08-31 measurement recorded 16.
-  Read the row as environmental, not structural.
+- **`mv`'s 3,307 is not a property of the build.** In the measured run,
+  `tools/check/asan-boot.sh` set every `/tmp/x-asm-*` file aside and put it
+  back, two `mv` calls per file, over however much asm byte cache had
+  accumulated on the machine: ~1,653 files that day, against 16 in the
+  2026-08-31 measurement. The gate moves no files: each of its boots gets an
+  empty cache directory of its own through `X_ASM_CACHE_DIR`. Read the row as
+  environmental, not structural.
 - `sh` is invoked by make via absolute /bin/sh for every recipe line —
   PATH shims never see those. Its true count is the largest of all.
 - Absolute-path invocations (`/usr/bin/env`, hardcoded paths) bypass shims.
@@ -201,6 +202,5 @@ the log between phases:
 3. `make install DESTDIR=<sandbox>`
 
 `sort | uniq -c | sort -rn` over the combined logs yields the table above.
-Empty `/tmp/x-asm-*` first, or the mv row measures the cache rather than the
-build. Re-measure after adding or retiring a tool, and when widening coverage
-to the full `make test` and release targets.
+Re-measure after adding or retiring a tool, and when widening coverage to the
+full `make test` and release targets.
