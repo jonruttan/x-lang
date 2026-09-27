@@ -16,14 +16,11 @@
 (def %str->symbol (prim-ref 'str '->sym))
 
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
-(def %type-by-atom (prim-ref 'type 'by-atom))
 (def %type-push-write (prim-ref 'type 'push-write))
 (def %type-pop-write (prim-ref 'type 'pop-write))
 
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref 'convert 'to))
-; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
-(def %type-of (prim-ref 'type 'of))
 
 
 (import x/core/alist)
@@ -43,8 +40,12 @@
 (import x/type/struct)
 
 ; Type structs we attach handlers to (LIST = forms, SYMBOL = references).
-(def %lint-list-type   (%type-by-atom (%type-of (list 1))))
-(def %lint-symbol-type (%type-by-atom (%type-of 'a)))
+(def %lint-list-type   ((prim-ref 'type 'by-atom) ((prim-ref 'type 'of) (list 1))))
+(def %lint-symbol-type ((prim-ref 'type 'by-atom) ((prim-ref 'type 'of) 'a)))
+; The string type's handle: every conversion in this file asks for a name's
+; string.  The two type prims are fetched from the catalog (ns `type` is
+; de-registered, R5) for these three lines, which run once at load.
+(def %lint-string-type ((prim-ref 'type 'of) ""))
 
 ; A name is "known" if it resolves to an existing binding -- a C primitive or
 ; a library def.  We test by evaluating the interned symbol under a guard:
@@ -96,7 +97,7 @@
 ; them and in-file self-references look "undefined".
 (def %lint-unwrap-doc (fn (_ form)
   (if (if (pair? form) (symbol? (first form)) #f)
-    (if (str=? (%cvt (first form) %string) "doc") (first (rest form)) form)
+    (if (str=? (%cvt (first form) %lint-string-type) "doc") (first (rest form)) form)
     form)))
 
 ; --- Scope helpers (scope holds name strings) ---
@@ -108,10 +109,10 @@
 ; is never added to scope (so its uses look "undefined").
 (def %param-name (fn (_ p)
   (if (pair? p)
-    (if (if (symbol? (first p)) (str=? (%cvt (first p) %string) "param") #f)
-      (%cvt (first (rest p)) %string)   ; (param NAME TYPE "desc") -> NAME
-      (%cvt (first p) %string))          ; other pair -> its head
-    (%cvt p %string))))                  ; bare symbol
+    (if (if (symbol? (first p)) (str=? (%cvt (first p) %lint-string-type) "param") #f)
+      (%cvt (first (rest p)) %lint-string-type)   ; (param NAME TYPE "desc") -> NAME
+      (%cvt (first p) %lint-string-type))          ; other pair -> its head
+    (%cvt p %lint-string-type))))                  ; bare symbol
 
 ; Does scope (a list of (name . used-box) entries) already bind this name?
 ; Entries are always pairs, so the canonical entry lookup is safe here.
@@ -148,13 +149,13 @@
 (def %add-params (fn (self params scope)
   (match
     ((null? params) scope)
-    ((symbol? params) (%add-rest-name (%cvt params %string) scope))   ; improper tail = rest
+    ((symbol? params) (%add-rest-name (%cvt params %lint-string-type) scope))   ; improper tail = rest
     ((pair? params)
       ; A bare `param` symbol is the flattened remnant of an inline-doc rest
       ; param `. (param NAME TYPE "desc")` (the reader flattens `. (list)`):
       ; the NEXT element is the real rest-param name; add it and stop, since
       ; everything after is doc metadata (TYPE, description), not params.
-      (if (if (symbol? (first params)) (str=? (%cvt (first params) %string) "param") #f)
+      (if (if (symbol? (first params)) (str=? (%cvt (first params) %lint-string-type) "param") #f)
         (if (pair? (rest params))
           (%add-rest-name (%param-name (first (rest params))) scope)
           scope)
@@ -209,10 +210,10 @@
 ; accidental hide, so it should not be flagged as a shadow.
 (def %form-mentions? (fn (self name form)
   (if (pair? form)
-    (if (if (symbol? (first form)) (str=? (%cvt (first form) %string) "lit") #f)
+    (if (if (symbol? (first form)) (str=? (%cvt (first form) %lint-string-type) "lit") #f)
       #f
       (if (self name (first form)) #t (self name (rest form))))
-    (if (symbol? form) (str=? (%cvt form %string) name) #f))))
+    (if (symbol? form) (str=? (%cvt form %lint-string-type) name) #f))))
 
 ; --- Traversal core ---
 
@@ -230,7 +231,7 @@
       (do (when (if (Lint %lint-out-verb? (first forms))
                   (if (pair? (rest forms)) (Lint %lint-out-verb? (first (rest forms))) #f)
                   #f)
-            (%warn! "display-chain" (%cvt (first (first forms)) %string)))
+            (%warn! "display-chain" (%cvt (first (first forms)) %lint-string-type)))
           (%lint-form (first forms))
           (when (%lint-binds? (first forms))
             (let ((bn (%lint-bound-name (first forms))))
@@ -249,7 +250,7 @@
 ; Compared by name (the head symbol is fresh -- it is part of the walked form).
 (def %lint-literal-non-list? (fn (_ arg)
   (if (pair? arg)
-    (if (if (symbol? (first arg)) (str=? (%cvt (first arg) %string) "lit") #f)
+    (if (if (symbol? (first arg)) (str=? (%cvt (first arg) %lint-string-type) "lit") #f)
       (let ((x (first (rest arg))))
         (if (null? x) #f (if (pair? x) #f #t)))
       #f)
@@ -258,7 +259,7 @@
 (def %lint-first-rest (fn (_ form)
   (when (%lint-literal-non-list? (first (rest form)))
     (%set-first! %lint-issues
-      (pair (%cvt (first form) %string) (first %lint-issues))))
+      (pair (%cvt (first form) %lint-string-type) (first %lint-issues))))
   (%lint-seq form)))            ; record use of first/rest + recurse into the arg
 
 ; --- def-in-tail-position leak check ---
@@ -281,7 +282,7 @@
 
 (def %lint-leak-scan (fn (_ form)
   (when (and (pair? form) (symbol? (first form)))
-    (let ((h (%cvt (first form) %string)))
+    (let ((h (%cvt (first form) %lint-string-type)))
       (match
         ((str=? h "def")    (%lint-leak! form))
         ((str=? h "do")     (%lint-leak-list (rest form)))
@@ -323,7 +324,7 @@
   (%set-first! %lint-scope
     (let ((envp (first (rest (rest form)))))
       (if (symbol? envp)
-        (pair (pair (%cvt envp %string) (list #f))                     ; env var entry
+        (pair (pair (%cvt envp %lint-string-type) (list #f))                     ; env var entry
               (%add-params (first (rest form)) saved))
         (%add-params (first (rest form)) saved))))
   (def params (first %lint-scope))                      ; params + env var (boxes shared)
@@ -338,7 +339,7 @@
 (def %lint-let-bindings (fn (self bindings)
   (unless (null? bindings)
     (do (%lint-form (first (rest (first bindings))))   ; init in current scope
-        (let ((vn (%cvt (first (first bindings)) %string)))
+        (let ((vn (%cvt (first (first bindings)) %lint-string-type)))
           ; skip the rebind idiom (let ((x (f x))) ..): init mentions x -> a
           ; deliberate refinement, not an accidental hide
           (unless (%form-mentions? vn (first (rest (first bindings))))
@@ -350,7 +351,7 @@
   (def saved (first %lint-scope))
   (def a (first (rest form)))
   (if (symbol? a)
-    (do (%scope-add! (%cvt a %string))              ; named let
+    (do (%scope-add! (%cvt a %lint-string-type))              ; named let
         (%lint-let-bindings (first (rest (rest form))))
         (%lint-seq (rest (rest (rest form))))
         (%lint-leak-scan (%last (rest (rest (rest form))))))  ; let body has its own tail
@@ -364,16 +365,16 @@
   (def name-part (first (rest form)))
   (if (pair? name-part)
     (let ((saved (first %lint-scope)))                 ; (def (name params) body)
-        (%scope-add! (%cvt (first name-part) %string))
+        (%scope-add! (%cvt (first name-part) %lint-string-type))
         (%set-first! %lint-scope (%add-params (rest name-part) (first %lint-scope)))
-        (%lint-ladder-scan (%cvt (first name-part) %string) (rest (rest form)))
-        (%lint-shape-scan  (%cvt (first name-part) %string) (rest (rest form)))
+        (%lint-ladder-scan (%cvt (first name-part) %lint-string-type) (rest (rest form)))
+        (%lint-shape-scan  (%cvt (first name-part) %lint-string-type) (rest (rest form)))
         (%lint-seq (rest (rest form)))
         (%lint-leak-scan (%last (rest (rest form))))   ; def-form body has its own tail
         (%set-first! %lint-scope saved))
-    (do (%scope-add! (%cvt name-part %string))      ; (def name val): self-ref ok
-        (%lint-ladder-scan (%cvt name-part %string) (%ladder-at form 2))
-        (%lint-shape-scan  (%cvt name-part %string) (%ladder-at form 2))
+    (do (%scope-add! (%cvt name-part %lint-string-type))      ; (def name val): self-ref ok
+        (%lint-ladder-scan (%cvt name-part %lint-string-type) (%ladder-at form 2))
+        (%lint-shape-scan  (%cvt name-part %lint-string-type) (%ladder-at form 2))
         (%lint-form (first (rest (rest form))))))))
 
 ; (set! NAME (fn ...)) is the second half of a self-referential definition:
@@ -385,15 +386,15 @@
 (def %lint-set (fn (_ form)
   (let ((target (first (rest form))))
     (when (symbol? target)
-      (%lint-ladder-scan (%cvt target %string) (%ladder-at form 2))
-      (%lint-shape-scan  (%cvt target %string) (%ladder-at form 2))))
+      (%lint-ladder-scan (%cvt target %lint-string-type) (%ladder-at form 2))
+      (%lint-shape-scan  (%cvt target %lint-string-type) (%ladder-at form 2))))
   (%lint-form (first (rest form)))
   (%lint-form (first (rest (rest form))))))
 
 (def %lint-guard (fn (_ form)
   (def clause (first (rest form)))
   (def saved (first %lint-scope))
-  (%scope-add! (%cvt (first clause) %string))       ; error var for the handler
+  (%scope-add! (%cvt (first clause) %lint-string-type))  ; error var for the handler
   (def evar (first (first %lint-scope)))               ; its (name . used-box) entry
   (%lint-seq (rest clause))                            ; walk ALL handler forms
   ; Check only the error var.  A handler may `def` names that leak to the
@@ -421,8 +422,8 @@
       (#t (not (null? (rest (rest clause))))))))
   (def %clause-name (fn (_ test)
     (match
-      ((pair? test) (if (symbol? (first test)) (%cvt (first test) %string) "?"))
-      ((symbol? test) (%cvt test %string))
+      ((pair? test) (if (symbol? (first test)) (%cvt (first test) %lint-string-type) "?"))
+      ((symbol? test) (%cvt test %lint-string-type))
       (#t (guard (_ "?") (%write-to-str test))))))
   (def %scan (fn (self clauses)
     (unless (null? clauses)
@@ -488,10 +489,10 @@
 (def %ladder-pair (fn (_ a b)
   (let ((ka (%ladder-lit-kind b)))
     (if (if (symbol? a) (not (null? ka)) #f)
-      (pair (%cvt a %string) ka)
+      (pair (%cvt a %lint-string-type) ka)
       (let ((kb (%ladder-lit-kind a)))
         (if (if (symbol? b) (not (null? kb)) #f)
-          (pair (%cvt b %string) kb)
+          (pair (%cvt b %lint-string-type) kb)
           ()))))))
 
 ; One comparison, in either spelling: the bare call (= c 40) or the
@@ -501,11 +502,11 @@
   (match
     ((not (pair? test)) ())
     ((not (symbol? (first test))) ())
-    ((%ladder-cmp? (%cvt (first test) %string))
+    ((%ladder-cmp? (%cvt (first test) %lint-string-type))
       (%ladder-pair (%ladder-at test 1) (%ladder-at test 2)))
     (#t
       (let ((sel (%ladder-at test 1)))
-        (if (if (symbol? sel) (%ladder-cmp? (%cvt sel %string)) #f)
+        (if (if (symbol? sel) (%ladder-cmp? (%cvt sel %lint-string-type)) #f)
           (%ladder-pair (%ladder-at test 2) (%ladder-at test 3))
           ()))))))
 
@@ -521,7 +522,7 @@
       ((not (null? plain)) plain)
       ((not (pair? test)) ())
       ((not (symbol? (first test))) ())
-      ((not (str=? (%cvt (first test) %string) "if")) ())
+      ((not (str=? (%cvt (first test) %lint-string-type) "if")) ())
       ((not (eq? (%ladder-at test 2) #t)) ())
       (#t
         (let ((a (self (%ladder-at test 1))))
@@ -540,7 +541,7 @@
   (match
     ((not (pair? form)) 0)
     ((not (symbol? (first form))) 0)
-    ((not (str=? (%cvt (first form) %string) "if")) 0)
+    ((not (str=? (%cvt (first form) %lint-string-type) "if")) 0)
     (#t (+ 1 (self (%ladder-at form 3)))))))
 
 ; Longest chain found in the def under analysis, as (count . kind).
@@ -558,7 +559,7 @@
 ;           to the definition that actually holds the tower.
 (def %ladder-skip? (fn (_ form)
   (if (symbol? (first form))
-    (let ((h (%cvt (first form) %string)))
+    (let ((h (%cvt (first form) %lint-string-type)))
       (if (str=? h "lit") #t (str=? h "def")))
     #f)))
 
@@ -569,7 +570,7 @@
     (unless (%ladder-skip? form)
       (do
         (when (if (symbol? (first form))
-                (str=? (%cvt (first form) %string) "if") #f)
+                (str=? (%cvt (first form) %lint-string-type) "if") #f)
           (let ((n (%ladder-run form)))
             ; A chain is a chain whatever its tests compare; the key kind
             ; rides along only when the whole of it is keyed on one
@@ -612,7 +613,7 @@
 ; (depth . nodes) for one form.
 (def %shape-of (fn (_ form)
   (if (not (pair? form)) (pair 0 1)
-    (if (if (symbol? (first form)) (str=? (%cvt (first form) %string) "lit") #f)
+    (if (if (symbol? (first form)) (str=? (%cvt (first form) %lint-string-type) "lit") #f)
       (pair 1 1)
       (let ((s (%shape-elems form 0 0)))
         (pair (+ 1 (first s)) (+ 1 (rest s))))))))
@@ -630,7 +631,7 @@
     (when (if (>= (first s) %shape-depth-min) (>= (rest s) %shape-nodes-min) #f)
       (%warn! "shape"
         (Str8 append (Str8 append (Str8 append (Str8 append name "/")
-          (%cvt (first s) %string)) "d/") (%cvt (rest s) %string)))))))
+          (%cvt (first s) %lint-string-type)) "d/") (%cvt (rest s) %lint-string-type)))))))
 
 ; Report at most one finding per definition, named NAME/ARMS so the count
 ; survives into the wrapper's flat kind listing.
@@ -644,14 +645,14 @@
           (if (str=? (rest b) "str")
             (if (>= (first b) %ladder-dict-min) "ladder-dict" "ladder")
             "ladder")
-          (Str8 append (Str8 append name "/") (%cvt (first b) %string))))))))
+          (Str8 append (Str8 append name "/") (%cvt (first b) %lint-string-type))))))))
 
 (def %lint-quasi (fn (self form)
   (unless (null? form)
     (when (pair? form)
-      (if (if (symbol? (first form)) (str=? (%cvt (first form) %string) "unquote") #f)
+      (if (if (symbol? (first form)) (str=? (%cvt (first form) %lint-string-type) "unquote") #f)
           (%lint-form (first (rest form)))
-        (if (if (symbol? (first form)) (str=? (%cvt (first form) %string) "unquote-splicing") #f)
+        (if (if (symbol? (first form)) (str=? (%cvt (first form) %lint-string-type) "unquote-splicing") #f)
             (%lint-form (first (rest form)))
           (do (self (first form)) (self (rest form)))))))))
 
@@ -697,10 +698,10 @@
     ((not (symbol? head)) #f)
     ; A class defined in this file IS in scope -- but a call through it
     ; dispatches the selector as a message, so it is a subject.
-    ((%member-str? (%cvt head %string) (first %lint-class-names)) #t)
-    ((%scope-has-name? (%cvt head %string) (first %lint-scope)) #f)
+    ((%member-str? (%cvt head %lint-string-type) (first %lint-class-names)) #t)
+    ((%scope-has-name? (%cvt head %lint-string-type) (first %lint-scope)) #f)
     (#t (guard (_ #f)
-      (let ((v (eval! (%str->symbol (%cvt head %string)))))
+      (let ((v (eval! (%str->symbol (%cvt head %lint-string-type)))))
         (match
           ((null? v) #f)
           ((procedure? v) #f)
@@ -718,12 +719,12 @@
 (def %lint-member-send? (fn (_ form)
   (match
     ((not (symbol? (first form))) #f)
-    ((not (%scope-has-name? (%cvt (first form) %string) (first %lint-scope))) #f)
+    ((not (%scope-has-name? (%cvt (first form) %lint-string-type) (first %lint-scope))) #f)
     ((not (pair? (rest form))) #f)
     ((not (symbol? (first (rest form)))) #f)
-    ((%scope-has-name? (%cvt (first (rest form)) %string) (first %lint-scope)) #f)
+    ((%scope-has-name? (%cvt (first (rest form)) %lint-string-type) (first %lint-scope)) #f)
     (#t (guard (_ #t)
-      (do (eval! (%str->symbol (%cvt (first (rest form)) %string))) #f))))))
+      (do (eval! (%str->symbol (%cvt (first (rest form)) %lint-string-type))) #f))))))
 
 ; Computed subject: ((self %d) keys ...) -- a pair-headed call whose
 ; second element is an unresolvable symbol is a value-call send; the
@@ -743,9 +744,9 @@
           ; STRING) -- so they are not references; the class says which kind
           ; the selector names.  Anything unresolvable walks the arguments.
           (if (guard (_ #f)
-                (let ((subject (eval! (%str->symbol (%cvt (first form) %string)))))
+                (let ((subject (eval! (%str->symbol (%cvt (first form) %lint-string-type)))))
                   (if (class? subject)
-                    (operative? (class-static-ref subject (%str->symbol (%cvt (first (rest form)) %string))))
+                    (operative? (class-static-ref subject (%str->symbol (%cvt (first (rest form)) %lint-string-type))))
                     #f)))
             ()
             (%lint-seq (rest (rest form))))))   ; selector skipped, args walked
@@ -764,18 +765,18 @@
 
 (set! %lint-binds? (fn (_ form)
   (when (and (pair? form) (symbol? (first form)))
-    (str=? (%cvt (first form) %string) "def"))))
+    (str=? (%cvt (first form) %lint-string-type) "def"))))
 
 (set! %lint-bound-name (fn (_ form)
   (let ((np (first (rest form))))
-    (%cvt (if (pair? np) (first np) np) %string))))
+    (%cvt (if (pair? np) (first np) np) %lint-string-type))))
 
 ; Hardcoded special forms (by name); everything else is a function call.
 (set! %lint-dispatch (fn (_ form)
   (def head (first form))
   (if (not (symbol? head))
     (if (Lint %lint-block-form? form) (Lint %lint-block-form! form) (%lint-seq form))
-    (let ((h (%cvt head %string)))
+    (let ((h (%cvt head %lint-string-type)))
       (match
         ((str=? h "fn")    (%lint-fn form))
         ((str=? h "op")    (%lint-op form))
@@ -810,7 +811,7 @@
       ; A bare `param` symbol element is the flattened remnant of an inline-doc
       ; rest param `. (param NAME ...)` (the reader flattens `. (list)`), so the
       ; rest is variadic.  (A param literally named `param` is vanishingly rare.)
-      (if (if (symbol? (first params)) (str=? (%cvt (first params) %string) "param") #f)
+      (if (if (symbol? (first params)) (str=? (%cvt (first params) %lint-string-type) "param") #f)
         (pair n #t)
         (self (rest params) (+ n 1)))
       (pair n #t))))) ; bare symbol tail -> rest param
@@ -823,17 +824,17 @@
 
 (def %arity-record (fn (_ name val)
   (when (if (pair? val) (symbol? (first val)) #f)
-    (when (if (str=? (%cvt (first val) %string) "fn") (symbol? name) #f)
+    (when (if (str=? (%cvt (first val) %lint-string-type) "fn") (symbol? name) #f)
       (%set-first! %lint-arity
-        (pair (pair (%cvt name %string) (%fn-arity val)) (first %lint-arity)))))))
+        (pair (pair (%cvt name %lint-string-type) (%fn-arity val)) (first %lint-arity)))))))
 
 ; Pre-pass over top-level (def NAME (fn ..)) / (set! NAME (fn ..)).
 (def %arity-collect (fn (self forms)
   (when (pair? forms)
     (do (let ((f (%lint-unwrap-doc (first forms))))
           (when (if (pair? f) (symbol? (first f)) #f)
-            (when (if (str=? (%cvt (first f) %string) "def") #t
-                  (str=? (%cvt (first f) %string) "set!"))
+            (when (if (str=? (%cvt (first f) %lint-string-type) "def") #t
+                  (str=? (%cvt (first f) %lint-string-type) "set!"))
               (%arity-record (first (rest f)) (first (rest (rest f)))))))
         (self (rest forms))))))
 
@@ -855,7 +856,7 @@
 ; linter cannot distinguish from a call.
 (def %lint-noncallable? (fn (_ head)
   (if (pair? head)
-    (if (symbol? (first head)) (str=? (%cvt (first head) %string) "lit") #f)
+    (if (symbol? (first head)) (str=? (%cvt (first head) %lint-string-type) "lit") #f)
     #f)))
 
 ; --- Malformed core form check ---
@@ -883,7 +884,7 @@
 
 ; SYMBOL: record its NAME unless bound or already seen.
 (def %lint-symbol-handler (fn (_ sym)
-  (let ((name (%cvt sym %string)))
+  (let ((name (%cvt sym %lint-string-type)))
     ; A #/.../ spelling is a reader-macro literal (regex), not a variable
     ; reference -- the linter reads the file as data, so the macro never
     ; ran.  Two byte compares (#344): the (Str8 starts? ...) spelling
@@ -904,9 +905,9 @@
   ; driver's dispatch override) reads %lint-head-cell instead of
   ; re-running the conversion catalog.
   (%set-first! %lint-head-cell
-    (if (symbol? (first form)) (guard (_ ()) (%cvt (first form) %string)) ()))
+    (if (symbol? (first form)) (guard (_ ()) (%cvt (first form) %lint-string-type)) ()))
   (when (%lint-noncallable? (first form))
-    (%warn! "call-nonfn" (guard (_ "?") (%cvt (first form) %string))))
+    (%warn! "call-nonfn" (guard (_ "?") (%cvt (first form) %lint-string-type))))
   (%lint-check-arity form)
   (%lint-check-malformed form)
   (%lint-dispatch form) ()))
@@ -966,7 +967,7 @@
       (if (null? xs) #f
         (if (self %lint-resolves? (first xs)) (recur self (rest xs)) #t)))
     (method %lint-resolves? (self sym)
-      (let ((nm (%cvt sym %string)))
+      (let ((nm (%cvt sym %lint-string-type)))
         (if (%scope-has-name? nm (first %lint-scope)) #t (self %env-known? nm))))
     (method %lint-block-send? (self sel args)
       (match
@@ -988,7 +989,7 @@
         ((not (pair? form)) #f)
         ((not (pair? (rest form))) #f)
         ((not (symbol? (first (rest form)))) #f)
-        (#t (self %lint-block-send? (%cvt (first (rest form)) %string) (rest (rest form))))))
+        (#t (self %lint-block-send? (%cvt (first (rest form)) %lint-string-type) (rest (rest form))))))
     (method %lint-block-form! (self form)
       (%lint-form (first form))                  ; the subject is a real use
       (self %lint-block-body (rest (rest form))))  ; names bound over the rest
@@ -1009,7 +1010,7 @@
       (match
         ((not (pair? form)) #f)
         ((not (symbol? (first form))) #f)
-        (#t (let ((h (%cvt (first form) %string)))
+        (#t (let ((h (%cvt (first form) %lint-string-type)))
               (match
                 ((str=? h "display") #t)
                 ((str=? h "newline") #t)
@@ -1022,7 +1023,7 @@
       (match
         ((not (pair? form)) 0)
         ((not (symbol? (first form))) 0)
-        ((not (str=? (%cvt (first form) %string) "if")) 0)
+        ((not (str=? (%cvt (first form) %lint-string-type) "if")) 0)
         (#t
           (let ((vk (%ladder-test (%ladder-at form 1))))
             (match
@@ -1046,10 +1047,10 @@
           (recur self (rest clauses)
             (match
               ((not (pair? c)) acc)
-              ((eq? (first c) 'method) (pair (%cvt (first (rest c)) %string) acc))
+              ((eq? (first c) 'method) (pair (%cvt (first (rest c)) %lint-string-type) acc))
               ((eq? (first c) 'static) (recur self (rest c) acc))
               ((if (eq? (first c) 'doc) (if (pair? (first (rest c))) (eq? (first (first (rest c))) 'method) #f) #f)
-                (pair (%cvt (first (rest (first (rest c)))) %string) acc))
+                (pair (%cvt (first (rest (first (rest c)))) %lint-string-type) acc))
               (#t acc)))))))
     (method %lint-class-clause (self c)
   (match
@@ -1073,7 +1074,7 @@
   (%lint-leak-scan (%last (rest (rest (rest form)))))
   (%set-first! %lint-scope saved))
     (method %lint-class (self form)
-  (def name-str (%cvt (first (rest form)) %string))
+  (def name-str (%cvt (first (rest form)) %lint-string-type))
   (%scope-add! name-str)
   (%set-first! %lint-class-names (pair name-str (first %lint-class-names)))
   ; def-record has NO parents slot -- (def-record NAME field...) -- so its
@@ -1101,16 +1102,16 @@
                   (if (eq? (first f) 'def-class) #t (eq? (first f) 'def-record))
                   #f)
             (%set-first! %lint-class-names
-              (pair (%cvt (first (rest f)) %string) (first %lint-class-names)))))
+              (pair (%cvt (first (rest f)) %lint-string-type) (first %lint-class-names)))))
         (recur self (rest forms)))))
     (method %lint-computed-call (self form)
   (match
     ((self %lint-block-form? form) (self %lint-block-form! form))
     ((if (pair? (rest form))
        (if (symbol? (first (rest form)))
-         (if (%scope-has-name? (%cvt (first (rest form)) %string) (first %lint-scope)) #f
+         (if (%scope-has-name? (%cvt (first (rest form)) %lint-string-type) (first %lint-scope)) #f
            (guard (_ #t)
-             (do (eval! (%str->symbol (%cvt (first (rest form)) %string))) #f)))
+             (do (eval! (%str->symbol (%cvt (first (rest form)) %lint-string-type))) #f)))
          #f) #f)
       (do (%lint-form (first form))
           (%lint-seq (rest (rest form)))))

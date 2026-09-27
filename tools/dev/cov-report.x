@@ -30,10 +30,11 @@
         (if (null? lst) #f
           (if (str=? s (first lst)) #t (self s (rest lst))))))
     (def %row-new?
-      (fn (_ name)
-        (let ((s (%cvt name %string)))
-          (if (%seen? s (first %seen)) #f
-            (do (%set-first! %seen (pair s (first %seen))) #t)))))
+      (let ((string-type (Type named STRING)))
+        (fn (_ name)
+          (let ((s (%cvt name string-type)))
+            (if (%seen? s (first %seen)) #f
+              (do (%set-first! %seen (pair s (first %seen))) #t))))))
     (def %tally-row
       (fn (_ result)
         (if (if (null? result) #f (%row-new? (nth 0 result)))

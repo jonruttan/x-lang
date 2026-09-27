@@ -267,9 +267,10 @@ the Doxygen house style — live with the code they govern, in
   only an UNCONVERTIBLE value errors ("… not convertible to INT") — which is
   how a piped nil miss fails loudly. Coercion runs ONCE per public entry;
   self-recursive walks live in inner `go` fns so loops never re-probe.
-  Explicit control: pre-convert (`(Convert to x %int)`) or test with
-  `(Num int? x)`. Exception: the bare `(s i)` boot door stays INT-only —
-  it can run under reader constraints where conversion dispatch is illegal.
+  Explicit control: pre-convert (`(Convert to x (Type named INTEGER))`) or
+  test with `(Num int? x)`. Exception: the bare `(s i)` boot door stays
+  INT-only — it can run under reader constraints where conversion dispatch is
+  illegal.
 - **Generators and iterators** (see the [glossary](glossary.md)): a *generator*
   is the pure step contract — `(step state) -> (value . next-state)` or `()` —
   and an *iterator* is a generator boxed with a cursor cell; `Iter next` owns

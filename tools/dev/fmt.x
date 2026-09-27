@@ -128,7 +128,8 @@
              (if (eq? h 'import-version) #t (eq? h 'import-version-once))))))
        ; Module symbol -> repo-relative lib path.
        (def %module->path (fn (_ sym)
-         (Str8 append "lib/" (Str8 append (%cvt sym %string) ".x"))))
+         (Str8 append "lib/"
+           (Str8 append (%cvt sym (Type named STRING)) ".x"))))
        ; Imports of one parsed file's top-level forms, as paths.
        (def %file-imports (fn (_ forms)
          (List filter (fn (_ p) (File exists? p))

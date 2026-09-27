@@ -112,9 +112,12 @@
     ; callback is genuinely binary.
 
     ; The catalog's converter is fetched here, on the way to the error: this
-    ; file binds no %cvt of its own, and x/sys/posix's is private to it.
+    ; file binds no %cvt of its own, and x/sys/posix's is private to it.  The
+    ; string type's handle comes the same way, by name through Type's door.
     (method %shape-error (self what n)
-      (error (%str-append what ((prim-ref (lit convert) (lit to)) n %string))))
+      (error
+        (%str-append what
+          ((prim-ref (lit convert) (lit to)) n (Type named STRING)))))
 
     ; element: (x) is the element; (i x) is the 0-based index and THEN the
     ; element -- index first, the order Gen enumerate's (index . value) pair

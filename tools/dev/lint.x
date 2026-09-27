@@ -35,8 +35,8 @@
   (def %props->str (fn (self props)
     (unless (null? props)
       (if (pair? (first props))
-        (pair (pair (if (symbol? (first (first props))) (%lint-cvt (first (first props)) %string) "")
-                    (if (symbol? (rest (first props)))  (%lint-cvt (rest (first props)) %string)  ""))
+        (pair (pair (if (symbol? (first (first props))) (%lint-cvt (first (first props)) %lint-string-type) "")
+                    (if (symbol? (rest (first props)))  (%lint-cvt (rest (first props)) %lint-string-type)  ""))
               (self (rest props)))
         (self (rest props))))))
 
@@ -44,7 +44,7 @@
   (def %build-lookup (fn (_ entries acc)
     (if (null? entries) acc
       (let () (def entry (first entries))   ; scoped: tail-position defs would leak
-          (def name (%lint-cvt (first entry) %string))
+          (def name (%lint-cvt (first entry) %lint-string-type))
           (def props (%props->str (rest entry)))
           (%build-lookup (rest entries)
             (pair (pair name props) acc))))))
@@ -56,7 +56,7 @@
   ; per-query CONVERSION was (#344).  The string-keyed twin serves
   ; callers already holding the converted head (the dispatch's cell).
   (def %scope-lookup (fn (_ name)
-    (def entry (%assoc-str (%lint-cvt name %string) %scope-table))
+    (def entry (%assoc-str (%lint-cvt name %lint-string-type) %scope-table))
     (unless (null? entry)
       (rest entry))))
   (def %scope-lookup-str (fn (_ h)
@@ -97,8 +97,8 @@
       ; old code re-converted here AND inside %scope-lookup -- two more
       ; catalog dispatches per node.  Parallel let (props cannot see h),
       ; so the cell read repeats; both arms are cheap.
-      (let ((h (if (null? (first %lint-head-cell)) (%lint-cvt head %string) (first %lint-head-cell)))
-            (props (%scope-lookup-str (if (null? (first %lint-head-cell)) (%lint-cvt head %string) (first %lint-head-cell)))))
+      (let ((h (if (null? (first %lint-head-cell)) (%lint-cvt head %lint-string-type) (first %lint-head-cell)))
+            (props (%scope-lookup-str (if (null? (first %lint-head-cell)) (%lint-cvt head %lint-string-type) (first %lint-head-cell)))))
         (let ((st (if (null? props) ""
                     (let ((s (%get-prop "scope" props))) (if (null? s) "" s)))))
           (match
@@ -194,7 +194,7 @@
   ; legacy single-file behaviour, byte-for-byte.
   (def %batch-marker? (fn (_ f)
     (if (pair? f) (if (symbol? (first f))
-      (str=? (%lint-cvt (first f) %string) "%lint-next-file") #f) #f)))
+      (str=? (%lint-cvt (first f) %lint-string-type) "%lint-next-file") #f) #f)))
   (def %emit-out (fn (_ . parts) (%for-each (fn (_ p) (display p)) parts)))
   (def %emit-err (fn (_ . parts) (%for-each (fn (_ p) (%stderr p)) parts)))
 
