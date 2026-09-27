@@ -5,22 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**`File stat` decodes through a Struct reader made once** ([#813]). A stat
-allocated about 51,000 objects, 40,600 of them decoding three fields: `Struct
-unpack` compiled its field spec on every call and assembled each byte with
-the tower's `*`, `+` and `<`, three `Assoc entry` sends followed, and the
-decode was a second class dispatch. The codec's readers now work on the
-integer primitives, a reader's fields carry their offsets with the pads
-dropped, and `File` makes its stat reader when it loads: a stat allocates
-about 1,800. `File exists?` tests the call's result instead of raising and
-catching an `Err` on a miss, about 980 objects either way where a miss took
-25,600. A machine integer wraps at 64 bits, so an `i64` field reads as its
-two's-complement value with the numeric tower loaded too, where -1 read back
-as 18446744073709551615, and a pre-1970 modification time no longer depends
-on the dialect. A reader raises `type` for a record offset that is not an
-integer.
+**A directory listing decodes on the integer primitives** ([#811]). `File
+list-dir` on a 50-name directory allocated about 111,000 objects: the dirent
+decoder read each record a byte at a time through the tower's `+`, `*`, `=`
+and `<`, `.` and `..` were dropped with `List reject`, and the directory was
+opened and closed through two class dispatches. The decoder now works on the
+integer primitives and reads a Darwin name by its `namlen`, one walk drops the
+dot entries and keeps the order, and the method opens and closes the directory
+through the module's syscall doors. The same listing allocates about 11,300,
+and a 52-entry batch decodes in about 7,000 where it took 38,900.
 
-[#813]: https://github.com/jonruttan/x-lang/pull/813
+[#811]: https://github.com/jonruttan/x-lang/pull/811
 
 **The engine pin moves to x-engine-c v0.2.15** ([#810]). Every engine release
 now ships `x-bin-profile` beside `x-bin`, and under `X_PROFILE` each object's
@@ -44,6 +39,23 @@ and `(obj set!)` 22 and 25 where they took 280 and 283; under helium the four
 took 51, 51, 38 and 41.
 
 [#809]: https://github.com/jonruttan/x-lang/pull/809
+
+**`File stat` decodes through a Struct reader made once** ([#813]). A stat
+allocated about 51,000 objects, 40,600 of them decoding three fields: `Struct
+unpack` compiled its field spec on every call and assembled each byte with
+the tower's `*`, `+` and `<`, three `Assoc entry` sends followed, and the
+decode was a second class dispatch. The codec's readers now work on the
+integer primitives, a reader's fields carry their offsets with the pads
+dropped, and `File` makes its stat reader when it loads: a stat allocates
+about 1,800. `File exists?` tests the call's result instead of raising and
+catching an `Err` on a miss, about 980 objects either way where a miss took
+25,600. A machine integer wraps at 64 bits, so an `i64` field reads as its
+two's-complement value with the numeric tower loaded too, where -1 read back
+as 18446744073709551615, and a pre-1970 modification time no longer depends
+on the dialect. A reader raises `type` for a record offset that is not an
+integer.
+
+[#813]: https://github.com/jonruttan/x-lang/pull/813
 
 ## [0.16.0] - 2026-09-27
 

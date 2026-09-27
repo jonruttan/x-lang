@@ -135,6 +135,45 @@
       (Err raise 'type (Str8 append what ": path must be a string") ()))
     path))
 
+; --- directory listing ---
+; The descriptor, byte counts and name lengths a listing compares are never
+; nil, so the integer primitive serves where the tower's `<` would check and
+; dispatch on every call.
+(def %int< (prim-ref (lit int) (lit <)))
+(def %byte-len (prim-ref (lit str) (lit byte-len)))
+(def %o-rdonly (%mode->int 'rdonly))
+
+; A read error mid-listing: errno is taken before the close clobbers it.
+(def %dir-fail
+  (fn (_ fd n path)
+    (def en (%fs-errno n))
+    (%sys-close fd)
+    (error (Err from-errno en 'readdir path))))
+
+; Every name left to read from the directory open on fd, consed onto acc a
+; getdents batch at a time.  basep is Darwin getdirentries64's position
+; cookie; Linux's call declares three arguments and reads three.
+(def %dir-batches
+  (fn (loop fd buf basep path acc)
+    (def n (%sys-dirents fd buf 4096 basep))
+    (match
+      ((= n 0) acc)
+      ((%int< n 0) (%dir-fail fd n path))
+      (#t (loop fd buf basep path (dirent-names buf n acc))))))
+
+; names without "." and "..", in the order given: kept names cons onto acc,
+; which is reversed at the end.  A name longer than two bytes is neither,
+; and one length read settles that for nearly every name.
+(def %drop-dots
+  (fn (loop names acc)
+    (match
+      ((eq? names ()) (%reverse acc))
+      ((%int< 2 (%byte-len (first names)))
+        (loop (rest names) (pair (first names) acc)))
+      ((str=? (first names) ".") (loop (rest names) acc))
+      ((str=? (first names) "..") (loop (rest names) acc))
+      (#t (loop (rest names) (pair (first names) acc))))))
+
 ; --- Struct decoding helpers (#22: stat + dirent are per-OS byte layouts) ---
 ; Little-endian byte peeks over a (str make N) buffer filled by a syscall.
 (def %fs-byte-ref (prim-ref 'str 'byte-ref))   ; temp's suffix bytes
@@ -362,23 +401,13 @@
         (returns LIST "Entry-name strings")
         (sample "(File list-dir \"lib\")" "(\"x-core.x\" \"x.x\" ...)"))
       (%fs-path path "File list-dir")
-      (def fd (File open path 'rdonly))
-      (when (< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
-      (def buf (%make-str 4096))
-      (def basep (%make-str 8))   ; Darwin getdirentries64's position cookie
-      (def names
-        (let batch ((acc ()))
-          ; basep is the fourth argument on Darwin alone; Linux's call
-          ; declares three and reads three
-          (let ((n (%sys-dirents fd buf 4096 basep)))
-            (match
-              ((< n 0) (let ((en (%fs-errno n)))  ; before close clobbers errno
-                         (File close fd)
-                         (error (Err from-errno en 'readdir path))))
-              ((= n 0) acc)
-              (#t (batch (dirent-names buf n acc)))))))
-      (File close fd)
-      (List reject (fn (_ nm) (or (str=? nm ".") (str=? nm ".."))) names))
+      (def fd (%sys-open path %o-rdonly 420))
+      (match
+        ((%int< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
+        (#t ()))
+      (def names (%dir-batches fd (%make-str 4096) (%make-str 8) path ()))
+      (%sys-close fd)
+      (%drop-dots names ()))
 
     (method mkdir (self (param path STRING "Directory to create")
                         . (param perm INT "Permission bits; default 0755"))
