@@ -552,6 +552,17 @@ a bigint's own division refuses a zero limb.
 ---
     ('R 'R 'R 'R)
 
+### a floored modulo with bigint operands takes the divisor's sign
+
+```x
+(list (Num modulo -100000000000000000000 7)
+      (Num modulo 100000000000000000000 -7)
+      (Num modulo -100000000000000000000 30000000000000000000)
+      (Num modulo 100000000000000000000 30000000000000000000))
+```
+---
+    (5 -5 20000000000000000000 10000000000000000000)
+
 ## big<
 
 ### less than

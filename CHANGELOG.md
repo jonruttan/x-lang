@@ -35,6 +35,13 @@ them has a pull request open in its own repository.
 
 [#799]: https://github.com/jonruttan/x-lang/pull/799
 
+**`Num modulo` is right when the divisor passes half the integer range.** It
+computed `((a % b) + b) % b`, and the sum wrapped once `b` was past half the
+range: `(Num modulo 5 LONG_MAX)` answered -9223372036854775804, and
+`(Num modulo -1 LONG_MIN)` answered `LONG_MAX`. It now adds the divisor only
+when the truncated remainder has the other sign, where the sum cannot
+overflow. A call costs about 9 objects more.
+
 **No division reaches the machine with a divisor it traps on.** The C
 division under `%int/` and `%int%` tests nothing, and x86-64 traps on a zero
 divisor and on `LONG_MIN` over -1, where arm64 answers: 0 for a zero divisor,
