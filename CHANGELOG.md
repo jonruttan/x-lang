@@ -28,6 +28,18 @@ and a 52-entry batch decodes in about 7,000 where it took 38,900.
 
 [#811]: https://github.com/jonruttan/x-lang/pull/811
 
+**A block-wrapped method tests for a block send without a class dispatch**
+([#815]). Every send of a selector `Block method!` wraps -- `List map`,
+`filter`, `fold`, `sort` and the rest, plain applicative sends included --
+first asked whether it was a block send, through four `Block` class
+dispatches, `and`, `or`, `let` and the tower's `<` and `-`. The test is made
+once per wrap now, as closures over the integer primitives, and answers as
+before. A wrapped method called through its table entry costs about 210
+objects a send where it cost 16,300; with the dispatch table's reordering
+as well, `(List map f ())` costs about 1,900 where it cost 25,300.
+
+[#815]: https://github.com/jonruttan/x-lang/pull/815
+
 **The engine pin moves to x-engine-c v0.2.15** ([#810]). Every engine release
 now ships `x-bin-profile` beside `x-bin`, and under `X_PROFILE` each object's
 flags word counts how many times evaluation reached it (x-engine-c#66). The
