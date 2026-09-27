@@ -23,6 +23,9 @@
 (def %read (prim-ref 'io 'read))
 ; The bare `convert` global was homed (the conversion surface is the Convert
 ; class); fetch the dispatcher directly -- same door tools/dev/lint.x uses.
+; The type handles it is asked for come by name through Type's door: at the
+; site where a table is built once, and held by the walker, which converts a
+; head per form.
 (def %cov-cvt (prim-ref 'convert 'to))
 
 
@@ -41,7 +44,7 @@
   (def %build-lookup (fn (_ entries acc)
     (if (null? entries) acc
       (do (def entry (first entries))
-          (def name (%cov-cvt (first entry) %string))
+          (def name (%cov-cvt (first entry) (Type named STRING)))
           (def props (rest entry))
           (%build-lookup (rest entries)
             (pair (pair name props) acc))))))
@@ -50,7 +53,8 @@
   ; Cross-base lookup: table keys are strings, so the canonical str=?
   ; entry lookup (%assoc-str, core/alist.x) is the comparator.
   (def %construct-lookup (fn (_ name)
-    (def entry (%assoc-str (%cov-cvt name %string) %construct-table))
+    (def entry
+      (%assoc-str (%cov-cvt name (Type named STRING)) %construct-table))
     (unless (null? entry)
       (rest entry))))
 
@@ -61,7 +65,7 @@
   (def %get-prop (fn (_ key props)
     (unless (null? props)
       (if (pair? (first props))
-        (if (str=? (%cov-cvt (first (first props)) %string) key)
+        (if (str=? (%cov-cvt (first (first props)) (Type named STRING)) key)
           (rest (first props))
           (%get-prop key (rest props)))
         (%get-prop key (rest props))))))
@@ -69,7 +73,10 @@
   ; --- Derive word-size and define flag access ---
 
   (def word-size
-    (if (> (%cov-cvt (%cov-cvt 4294967296 %ptr) %int) 0) 8 4))
+    (if (> (%cov-cvt (%cov-cvt 4294967296 (Type named POINTER))
+                     (Type named INTEGER))
+           0)
+      8 4))
 
   (def %flags-offset (* 2 word-size))
   (def %cov-bit 2)
@@ -192,7 +199,7 @@
   (def %build-dispatch (fn (_ entries acc)
     (if (null? entries) acc
       (do (def entry (first entries))
-          (def name (%cov-cvt (first entry) %string))
+          (def name (%cov-cvt (first entry) (Type named STRING)))
           (def props (rest entry))
           (def branch-type (%get-prop "branch" props))
           (def handler
@@ -214,20 +221,22 @@
           (%safe-walk walk (rest forms))))))
 
   (def %cov-eval ())
-  (set! %cov-eval (fn (_ form)
-    (unless (null? form)
-      (unless (not (pair? form))
-        (if (not (symbol? (first form)))
-          (%safe-walk %cov-eval form)
-          (do
-            ; Canonical %assoc-str, not a local walker: a same-named def
-            ; here binds globally (top-level do) and once clobbered
-            ; class.x's %lookup.
-            (def handler
-              (%assoc-str (%cov-cvt (first form) %string) %dispatch))
-            (if handler
-              ((rest handler) form %cov-eval)
-              (%safe-walk %cov-eval form))))))))
+  (set! %cov-eval
+    (let ((string-type (Type named STRING)))
+      (fn (_ form)
+        (unless (null? form)
+          (unless (not (pair? form))
+            (if (not (symbol? (first form)))
+              (%safe-walk %cov-eval form)
+              (do
+                ; Canonical %assoc-str, not a local walker: a same-named def
+                ; here binds globally (top-level do) and once clobbered
+                ; class.x's %lookup.
+                (def handler
+                  (%assoc-str (%cov-cvt (first form) string-type) %dispatch))
+                (if handler
+                  ((rest handler) form %cov-eval)
+                  (%safe-walk %cov-eval form)))))))))
 
   ; Walk all top-level forms
   (%for-each %cov-eval %tokens)

@@ -3,7 +3,7 @@
 ### convert obj to ptr returns a non-nil value
 
 ```x
-(display (not (null? (Convert to (pair 1 2) %ptr))))
+(display (not (null? (Convert to (pair 1 2) (Type named POINTER)))))
 ```
 ---
     #t
@@ -11,7 +11,7 @@
 ### convert integer to ptr returns a non-nil value
 
 ```x
-(display (not (null? (Convert to 42 %ptr))))
+(display (not (null? (Convert to 42 (Type named POINTER)))))
 ```
 ---
     #t
@@ -21,10 +21,10 @@
 ```x
 (do
   (def word-size
-    (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
+    (if (> (Convert to (Convert to 4294967296 (Type named POINTER)) (Type named INTEGER)) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def %p (pair 1 2))
-  (display (number? (Ptr ref-word (Convert to %p %ptr) %flags-offset))))
+  (display (number? (Ptr ref-word (Convert to %p (Type named POINTER)) %flags-offset))))
 ```
 ---
     #t
@@ -34,12 +34,12 @@
 ```x
 (do
   (def word-size
-    (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
+    (if (> (Convert to (Convert to 4294967296 (Type named POINTER)) (Type named INTEGER)) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def %p (pair 1 2))
-  (Ptr set-word! (Convert to %p %ptr) %flags-offset
-    (| (Ptr ref-word (Convert to %p %ptr) %flags-offset) 2))
-  (display (> (& (Ptr ref-word (Convert to %p %ptr) %flags-offset) 2) 0)))
+  (Ptr set-word! (Convert to %p (Type named POINTER)) %flags-offset
+    (| (Ptr ref-word (Convert to %p (Type named POINTER)) %flags-offset) 2))
+  (display (> (& (Ptr ref-word (Convert to %p (Type named POINTER)) %flags-offset) 2) 0)))
 ```
 ---
     #t
@@ -51,10 +51,10 @@
 ```x
 (do
   (def word-size
-    (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
+    (if (> (Convert to (Convert to 4294967296 (Type named POINTER)) (Type named INTEGER)) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (_ obj)
-    (Ptr ref-word (Convert to obj %ptr) %flags-offset)))
+    (Ptr ref-word (Convert to obj (Type named POINTER)) %flags-offset)))
   (def %tokens (Tok read-str (%base) "(+ 1 2)\n"))
   (def %form (first %tokens))
   (eval %form)
@@ -68,10 +68,10 @@
 ```x
 (do
   (def word-size
-    (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
+    (if (> (Convert to (Convert to 4294967296 (Type named POINTER)) (Type named INTEGER)) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (_ obj)
-    (Ptr ref-word (Convert to obj %ptr) %flags-offset)))
+    (Ptr ref-word (Convert to obj (Type named POINTER)) %flags-offset)))
   (def %tokens (Tok read-str (%base) "(if #t (+ 1 1) (+ 2 2))\n"))
   (def %form (first %tokens))
   (def %then (first (rest (rest %form))))
@@ -90,7 +90,7 @@
 ```x
 (do
   (def word-size
-    (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
+    (if (> (Convert to (Convert to 4294967296 (Type named POINTER)) (Type named INTEGER)) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   ; %obj->ptr, not the convert catalog: an atom's int->ptr conversion is
   ; a value cast -- the historical crash this spec pins (#231 chip).
@@ -113,10 +113,10 @@
 ```x
 (do
   (def word-size
-    (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
+    (if (> (Convert to (Convert to 4294967296 (Type named POINTER)) (Type named INTEGER)) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (_ obj)
-    (Ptr ref-word (Convert to obj %ptr) %flags-offset)))
+    (Ptr ref-word (Convert to obj (Type named POINTER)) %flags-offset)))
   (def %tokens (Tok read-str (%base) "(if #t (+ 1 1) (+ 2 2))\n"))
   (def %form (first %tokens))
   (def %else (first (rest (rest (rest %form)))))
@@ -131,10 +131,10 @@
 ```x
 (do
   (def word-size
-    (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
+    (if (> (Convert to (Convert to 4294967296 (Type named POINTER)) (Type named INTEGER)) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (_ obj)
-    (Ptr ref-word (Convert to obj %ptr) %flags-offset)))
+    (Ptr ref-word (Convert to obj (Type named POINTER)) %flags-offset)))
   (def %marked? (fn (_ obj)
     (if (null? obj) #t
       (> (& (obj-flags obj) 2) 0))))
@@ -166,10 +166,10 @@
 ```x
 (do
   (def word-size
-    (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
+    (if (> (Convert to (Convert to 4294967296 (Type named POINTER)) (Type named INTEGER)) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (_ obj)
-    (Ptr ref-word (Convert to obj %ptr) %flags-offset)))
+    (Ptr ref-word (Convert to obj (Type named POINTER)) %flags-offset)))
   (def %tokens (Tok read-str (%base)
     "(def f (fn (_ x) (if (< x 0) (- 0 x) (+ x 1))))\n(f 5)\n"))
   (def %def-form (first %tokens))
@@ -194,12 +194,12 @@
 ```x
 (do
   (def word-size
-    (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
+    (if (> (Convert to (Convert to 4294967296 (Type named POINTER)) (Type named INTEGER)) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (_ obj)
-    (Ptr ref-word (Convert to obj %ptr) %flags-offset)))
+    (Ptr ref-word (Convert to obj (Type named POINTER)) %flags-offset)))
   (def %p (pair 1 2))
-  (Ptr set-word! (Convert to %p %ptr) %flags-offset
+  (Ptr set-word! (Convert to %p (Type named POINTER)) %flags-offset
     (| (obj-flags %p) 2))
   ; Force some allocations to trigger GC
   (def %junk (%map (fn (_ x) (pair x x)) (list 1 2 3 4 5 6 7 8 9 10)))
