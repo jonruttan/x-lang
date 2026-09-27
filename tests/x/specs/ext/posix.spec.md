@@ -156,6 +156,42 @@ the end of the buffer.
 ---
     #t
 
+### the fold turns the u32 range's top half negative and nothing else
+
+Called directly, so the folding arm runs on every host, Darwin included.
+
+```x
+(def %posix-fold (eval (lit %sys-fold) (module x/sys/posix)))
+(list (%posix-fold 0) (%posix-fold 2147483647) (%posix-fold 2147483648)
+      (%posix-fold 4294967295) (%posix-fold -1))
+```
+---
+    (0 2147483647 -2147483648 -1 -1)
+
+### the fold costs its own frame
+
+Every system call's result passes through the fold, so it runs on the
+integer primitives: fewer than 10 objects a call over a function that
+answers its argument.
+
+```x
+(def %posix-fold (eval (lit %sys-fold) (module x/sys/posix)))
+(def %fold-cost
+  (fn (_ f)
+    (f)
+    (def c0 (Heap count))
+    ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 100)
+    (- (Heap count) c0)))
+(def %fold-same (fn (_ r) r))
+(list (< (- (%fold-cost (fn (_) (%posix-fold 4294967295)))
+            (%fold-cost (fn (_) (%fold-same 4294967295))))
+         (* 10 100))
+      (< (- (%fold-cost (fn (_) (%posix-fold 3))) (%fold-cost (fn (_) (%fold-same 3))))
+         (* 10 100)))
+```
+---
+    (#t #t)
+
 ## marshal guards: nil is NULL, unsupported args raise (#244)
 
 `syscall` and the ptr-call FFI prim marshal arguments into positional

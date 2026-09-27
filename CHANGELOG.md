@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A system call's result folds on the integer primitives** ([#812]). Every
+`Sys` method that calls libc passes its result through `%sys-fold`, which turns
+the top half of the u32 range back into negatives: Linux hands an `int` return
+back zero-extended, so its -1 arrives as 4294967295. The test and the fold ran
+on the library's generic `>` and `-`, about 290 objects a call. The result is
+always the integer the FFI returns, so they now run on the engine's integer `<`
+and `-`: the fold allocates 7 objects, and 8 when it folds, and a `Sys getpid`
+through a `method-of` door allocates 135 where it took 417.
+
+[#812]: https://github.com/jonruttan/x-lang/pull/812
+
 ## [0.16.0] - 2026-09-27
 
 **A call through a syscall door walks nothing** ([#807]). A door from
