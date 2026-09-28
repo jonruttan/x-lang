@@ -75,6 +75,17 @@ load, which name it has, as x-coreutils and x-python do:
 
 [#821]: https://github.com/jonruttan/x-lang/pull/821
 
+**The r5rs three and the r7rs six are answered in the bundles** ([#831]).
+`tools/contract/langs.x` recorded x-r5rs at 667/3 and x-r7rs at 33 failures
+on this tree, read as the platform's debt since the engine made an
+environment a value. x-r5rs now evaluates a macro's expansion in a child of
+the use site's environment (x-r5rs#17, its v0.2.4), and x-r7rs binds
+`let-values`' formals in one (x-r7rs#19). Measured on v0.15.0 and on main,
+x-r5rs is 667/0 and x-r7rs 637/27, the 27 it records by name, and its row
+here follows the count from 30 to 27.
+
+[#831]: https://github.com/jonruttan/x-lang/pull/831
+
 **A spec may not rebind the library's root %-definitions** ([#818]). A spec
 snippet is evaluated at the root, so its top-level defs outlive it, and
 `check-spec-globals` refuses one that takes a name the shared vocabulary owns.
