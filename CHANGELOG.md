@@ -74,6 +74,15 @@ used the form yet.
 
 [#841]: https://github.com/jonruttan/x-lang/pull/841
 
+**The reference renders `(doc)` as the field it declares** ([#847]). A doc
+form with no argument, `(doc)`, is neither a class's description nor a field's
+doc, and `lib/x/type/class.x` declares it as a field named `doc`. The reference
+generator read its argument without a check and stopped with a segmentation
+fault. It now renders the form as a field named `doc`, and the doc-forms gate
+checks it under that name. Nothing under `lib/` writes the form.
+
+[#847]: https://github.com/jonruttan/x-lang/pull/847
+
 **An instance's data is its fields** ([#829]). A field is a named component of
 an instance or a record, and a member is a field or a method. Inside a method,
 `(field 'name)` reads an instance's storage and `(set-field! 'name v)` writes

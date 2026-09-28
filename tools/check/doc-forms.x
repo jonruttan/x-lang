@@ -51,13 +51,16 @@
                     ; lib/x/type/class.x reads it.  The name follows the
                     ; head, so the gate checks a documented declaration as
                     ; it checks a bare one.  %df-name answers "" for a
-                    ; string, which is the class's own doc.
+                    ; string, which is the class's own doc.  A doc form
+                    ; with no argument, (doc), is a field named doc to
+                    ; class.x, so doc is its name.
                     (when (%df-is? (first f) "doc")
-                      (when (pair? (rest f))
+                      (if (pair? (rest f))
                         (let ((decl (first (rest f))))
                           (let ((mname (%df-name (if (pair? decl) (first decl) decl))))
                             (unless (str=? mname "")
-                              (do (display " ") (display mname)))))))
+                              (do (display " ") (display mname)))))
+                        (display " doc")))
                     (newline)
                     ; static and the visibility blocks all SPLICE their tail
                     ; into the class body, so their contents are class-body

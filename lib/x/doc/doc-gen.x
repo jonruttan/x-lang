@@ -377,7 +377,10 @@
                 ; reads that as an empty one.  The tail is then the empty
                 ; list, and first is unchecked, so the read is guarded with
                 ; pair? as the bare-field arm below guards its own.
-                ((%docgen-form? f)
+                ; A doc form with no argument at all, (doc), is neither:
+                ; class.x declares it as a field named doc, so it is left to
+                ; the field arm below, which renders it that way.
+                ((if (%docgen-form? f) (pair? (rest f)) #f)
                   (if (str? (first (rest f)))
                     (%doc-emit-class-doc em f)
                     (%doc-emit-field em
