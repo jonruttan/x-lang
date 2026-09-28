@@ -178,10 +178,10 @@
 ; Little-endian byte peeks over a (str make N) buffer filled by a syscall.
 (def %fs-byte-ref (prim-ref 'str 'byte-ref))   ; temp's suffix bytes
 
-; File kind from the S_IFMT bits of a stat mode.  A decoded mode is never
+; File type from the S_IFMT bits of a stat mode.  A decoded mode is never
 ; nil, so the integer primitive masks it.
 (def %int& (prim-ref (lit int) (lit &)))
-(def %fmt-kind
+(def %fmt-file-type
   (fn (_ fmt)
     (match
       ((= fmt 32768) 'file)
@@ -192,7 +192,7 @@
       ((= fmt 4096)  'fifo)
       ((= fmt 49152) 'socket)
       (#t 'unknown))))
-(def %mode-kind (fn (_ mode) (%fmt-kind (%int& mode 61440))))
+(def %mode-file-type (fn (_ mode) (%fmt-file-type (%int& mode 61440))))
 
 ; The value a decoded stat record holds for name.
 (def %stat-field
@@ -214,7 +214,7 @@
     (def mode (%stat-field 'mode d))
     (list (pair 'size (%stat-field 'size d))
           (pair 'mode mode)
-          (pair 'kind (%mode-kind mode))
+          (pair 'file-type (%mode-file-type mode))
           (pair 'mtime (%stat-field 'mtime d)))))
 
 
@@ -335,9 +335,9 @@
     ; ======================================================================
 
     (method stat (self (param path STRING "Path to stat"))
-      (doc "File metadata as an alist: ((size . BYTES) (mode . RAW) (kind . SYM) (mtime . UNIX-SECONDS)). kind is one of 'file 'dir 'link 'char 'block 'fifo 'socket (from the S_IFMT bits). Raises a label 'io Err on failure."
-        (returns ALIST "((size . N) (mode . M) (kind . K) (mtime . T))")
-        (sample "(File stat \"lib/x.x\")" "((size . 461) (mode . 33188) (kind . file) (mtime . 1752861000))"))
+      (doc "File metadata as an alist: ((size . BYTES) (mode . RAW) (file-type . SYM) (mtime . UNIX-SECONDS)). file-type is one of 'file 'dir 'link 'char 'block 'fifo 'socket (from the S_IFMT bits). Raises a label 'io Err on failure."
+        (returns ALIST "((size . N) (mode . M) (file-type . K) (mtime . T))")
+        (sample "(File stat \"lib/x.x\")" "((size . 461) (mode . 33188) (file-type . file) (mtime . 1752861000))"))
       (%fs-path path "File stat")
       (def buf (%make-str 160))
       (def r (%sys-stat path buf))
@@ -345,7 +345,7 @@
       (%stat-decode buf))
 
     (method exists? (self (param path STRING "Path to test"))
-      (doc "Does path name an existing filesystem entry? (Any kind -- file, directory, link target...)"
+      (doc "Does path name an existing filesystem entry? (Any file type -- file, directory, link target...)"
         (returns BOOL "True when stat succeeds")
         (note "Deliberately duplicated across tiers with (Sys file-exists?) (#361): that access(2) door is what boot/module.x can reach before this module loads. Post-boot file work belongs here.")
         (sample "(File exists? \"lib/x.x\")" "#t"))
@@ -558,9 +558,9 @@
     ; --- The coverage tail (#364) ---
 
     (method lstat (self (param path STRING "Path to stat, symlinks NOT followed"))
-      (doc "File metadata like (File stat), but a symbolic link reports itself (kind 'link) instead of its target -- the door (File walk) uses to avoid following link cycles. Raises a label 'io Err on failure."
-        (returns ALIST "((size . N) (mode . M) (kind . K) (mtime . T))")
-        (sample "(File lstat \"some-symlink\")" "((size . 11) (mode . 41453) (kind . link) (mtime . ...))"))
+      (doc "File metadata like (File stat), but a symbolic link reports itself (file-type 'link) instead of its target -- the door (File walk) uses to avoid following link cycles. Raises a label 'io Err on failure."
+        (returns ALIST "((size . N) (mode . M) (file-type . K) (mtime . T))")
+        (sample "(File lstat \"some-symlink\")" "((size . 11) (mode . 41453) (file-type . link) (mtime . ...))"))
       (%fs-path path "File lstat")
       (def buf (%make-str 160))
       (def r (%sys-lstat path buf))
@@ -630,7 +630,7 @@
             (if (< fd 0) (attempt (- left 1)) (pair fd path))))))
 
     (method walk (self (param path STRING "Directory to walk"))
-      (doc "Every non-directory entry under path, recursively, as paths RELATIVE to path (files, links, sockets, fifos alike -- filter on (File lstat) kind for finer policy). Recursion decisions ride lstat, so a symlinked directory is REPORTED as its link, never followed (no cycle risk). Order follows the directory tables; treat it as unspecified. Raises a label 'io Err on failure."
+      (doc "Every non-directory entry under path, recursively, as paths RELATIVE to path (files, links, sockets, fifos alike -- filter on (File lstat) file-type for finer policy). Recursion decisions ride lstat, so a symlinked directory is REPORTED as its link, never followed (no cycle risk). Order follows the directory tables; treat it as unspecified. Raises a label 'io Err on failure."
         (returns LIST "Relative path strings")
         (sample "(File walk \"lib/x/num\")" "(\"bigint.x\" \"complex.x\" ...)"))
       (%fs-path path "File walk")
@@ -640,9 +640,9 @@
           (#t
             (let ((name (first names)))
               (let ((r (if (str=? rel "") name (Str8 append rel "/" name))))
-                (let ((kind (Assoc get 'kind (File lstat (Str8 append path "/" r)))))
+                (let ((file-type (Assoc get 'file-type (File lstat (Str8 append path "/" r)))))
                   (match
-                    ((eq? kind 'dir)
+                    ((eq? file-type 'dir)
                       (go rel (rest names)
                           (go r (File list-dir (Str8 append path "/" r)) acc)))
                     (#t (go rel (rest names) (pair r acc)))))))))))))
