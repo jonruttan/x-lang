@@ -5,19 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**The ASan boot gate is safe beside another run of itself** ([#820]).
-`tools/check/asan-boot.sh` made its boots cold by moving every `/tmp/x-asm-*`
-entry into its scratch directory and back under `set -e`, so a second run that
-moved the same file first ended it with status 1 and nothing printed.
-compile-asm's byte cache takes its directory from `X_ASM_CACHE_DIR`, and from
-`/tmp` when that is unset or empty, and the gate gives each dialect's boot an
-empty directory of its own: it moves no files and shares no entries. Every boot
-compiles cold, rn's included; xe and rn compile the same 24 units, and a cache
-shared by the run left rn none to compile. The boots pass `--no-image`, because
-rewriting a stale state image boots the dialect first and fills the cache before
-the boot under test.
+**A spec may not rebind the library's root %-definitions** ([#818]). A spec
+snippet is evaluated at the root, so its top-level defs outlive it, and
+`check-spec-globals` refuses one that takes a name the shared vocabulary owns.
+That vocabulary was the engine's bare and keep names and
+`tools/contract/bare-globals.x`; it now also holds the top-level %-defs of every
+library file without a `(module NAME)` header, 930 names in all where the gate
+held 137. Rebinding one breaks the rest of the spec's own file as well as later
+files in its batch: `+` and `*` call `%fold` past two arguments. Four specs
+whose local helpers took such a name (`%find`, `%str->ptr`, `%ptr->int`,
+`%ptr-set!`, `%ptr-ref`, `%obj->ptr`) now prefix them with their subject.
 
-[#820]: https://github.com/jonruttan/x-lang/pull/820
+[#818]: https://github.com/jonruttan/x-lang/pull/818
 
 **Doc annotations spell the runtime type's name** ([#817]). An annotation, the
 T of a `(param NAME T ...)` or `(returns T ...)` doc form, names a runtime type
@@ -58,6 +57,20 @@ and a 52-entry batch decodes in about 7,000 where it took 38,900.
 
 [#811]: https://github.com/jonruttan/x-lang/pull/811
 
+**The ASan boot gate is safe beside another run of itself** ([#820]).
+`tools/check/asan-boot.sh` made its boots cold by moving every `/tmp/x-asm-*`
+entry into its scratch directory and back under `set -e`, so a second run that
+moved the same file first ended it with status 1 and nothing printed.
+compile-asm's byte cache takes its directory from `X_ASM_CACHE_DIR`, and from
+`/tmp` when that is unset or empty, and the gate gives each dialect's boot an
+empty directory of its own: it moves no files and shares no entries. Every boot
+compiles cold, rn's included; xe and rn compile the same 24 units, and a cache
+shared by the run left rn none to compile. The boots pass `--no-image`, because
+rewriting a stale state image boots the dialect first and fills the cache before
+the boot under test.
+
+[#820]: https://github.com/jonruttan/x-lang/pull/820
+
 **A block-wrapped method tests for a block send without a class dispatch**
 ([#815]). Every send of a selector `Block method!` wraps -- `List map`,
 `filter`, `fold`, `sort` and the rest, plain applicative sends included --
@@ -69,6 +82,18 @@ objects a send where it cost 16,300; with the dispatch table's reordering
 as well, `(List map f ())` costs about 1,900 where it cost 25,300.
 
 [#815]: https://github.com/jonruttan/x-lang/pull/815
+
+**`List sort` recurses on plain functions made once** ([#816]). The sort
+re-created its split, merge and reverse-onto closures on every call and
+recursed through `recur`, re-entering the method and `from-seq`'s dispatch
+at every level. They are module functions now, the sort proper is one
+function recursing on itself, and the input is converted once; `sort-by`
+calls the same function. Fifty integers sort in about 56,200 objects where
+they took 204,500, and in about 24,700 with the dispatch table's reordering
+and the block wrap's test as well; an empty sort costs about 1,600 with all
+three, where it cost 33,200.
+
+[#816]: https://github.com/jonruttan/x-lang/pull/816
 
 **The engine pin moves to x-engine-c v0.2.15** ([#810]). Every engine release
 now ships `x-bin-profile` beside `x-bin`, and under `X_PROFILE` each object's
