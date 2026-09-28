@@ -7,7 +7,7 @@
 # Coverage is the checkable property.  A closed vocabulary of class-body forms
 # is not: a member is declared as (name), (name default) or
 # (name default "description"), so the head is the member's own name and the
-# set is open.  A documented member is (doc DECL "description"), where DECL is
+# set is open.  A documented one is (doc DECL "description"), where DECL is
 # NAME or (NAME default); the walker reports its name beside the doc head.
 # Declared against rendered is what catches a generator that drops members
 # while the page still looks finished.
@@ -69,9 +69,9 @@ STRUCTURAL='^(doc|method|static|interface|private|protected)$'
 missing=0
 checked=0
 while read -r file cname form member; do
-  # A doc form that documents a member carries the member's name as a fourth
-  # field, and the member is checked under that name.  A doc line without one
-  # is the class's own description, which is structural.
+  # A doc form that documents a field or a static member carries its name in
+  # a fourth column, and it is checked under that name.  A doc line without
+  # one is the class's own description, which is structural.
   if [ "$form" = doc ] && [ -n "$member" ]; then
     form=$member
   elif echo "$form" | grep -qE "$STRUCTURAL"; then

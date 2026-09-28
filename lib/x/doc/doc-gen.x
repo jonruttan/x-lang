@@ -135,11 +135,11 @@
   (param info LIST "Extracted doc info from doc-extract")
   "Emit a single entry's documentation through an emitter.")
 
-; One member declaration -> heading, optional description, the member note and
-; its visibility tier.  Shared by the (doc DECL "...") arm and the bare-member
+; One field declaration -> heading, optional description, the field note and
+; its visibility tier.  Shared by the (doc DECL "...") arm and the bare-field
 ; arm, which differ only in where the description sits.  static? picks the
-; note: an instance member is data each instance carries, and a member
-; declared in (static ...) is data the class holds.
+; note: a field is data each instance carries, and a static member, one
+; declared in (static ...), is data the class holds.
 (def %doc-emit-member
   (fn (_ em name desc cname static? vis)
     (em alias (Str str cname "-" name))
@@ -148,7 +148,7 @@
     (em note
       (if static?
         (Str str "Static member: data held by " cname " itself, not by its instances.")
-        (Str str "Member: data carried by a " cname " instance.")))
+        (Str str "Field: data carried by a " cname " instance.")))
     (%for-each (fn (_ n) (em note (DocEmit as-str (first (rest n)))))
                (%doc-vis-note vis cname))))
 
@@ -202,7 +202,7 @@
 
 ; --- def-class emission -----------------------------------------------------
 ; A class form is (def-class NAME parent-spec body...) where body items are a
-; class-level (doc "desc" (note ...) (example ...)), bare members, (interface
+; class-level (doc "desc" (note ...) (example ...)), bare fields, (interface
 ; ...), (static (method ...) ...), and instance (method ...) forms.  Method
 ; docs ride INSIDE the method: (method NAME (self sig...) (doc ...) body...).
 ; All symbol comparison is by string (per-base interning; see %doc-splice-dos).
@@ -246,7 +246,7 @@
 ; (Class m a b) for statics, (m a b) + an instance note for instance methods.
 ; vis is "" for an undeclared (public) entry, or "private"/"protected" when
 ; the entry came out of a visibility block.  Documented, not hidden: (help ...)
-; lists private members too, and a reader needs to know a name exists before
+; lists private fields too, and a reader needs to know a name exists before
 ; they can be told they may not call it.
 ; The tier, in the words docs/object-system.md uses for it: private is this
 ; class's own methods, protected is any method on the chain in either
@@ -338,9 +338,9 @@
     (match
       ((not (pair? body)) ())
       (#t
-        ; A bare symbol IS a member declaration -- (private balance ...)
+        ; A bare symbol IS a field declaration -- (private balance ...)
         ; declares `balance` with no default -- so it is normalised to the
-        ; (name) shape and flows through the member arm below.  Left alone it
+        ; (name) shape and flows through the field arm below.  Left alone it
         ; hit the not-a-pair arm and vanished, the same silence this walker
         ; keeps having to be taught out of.
         (do (let ((f (if (symbol? (first body)) (list (first body)) (first body))))
@@ -350,7 +350,7 @@
                 ((%doc-sym-is? (first f) "static") (self em (rest f) cname #t vis))
                 ; (private ...) / (protected ...) splice their tail into the
                 ; class body -- lib/x/type/class.x explodes them exactly so --
-                ; and hold bare member names, member declarations and methods.
+                ; and hold bare field names, field declarations and methods.
                 ; They nest inside (static ...) as well, so the static flag
                 ; rides through unchanged.
                 ((%doc-sym-is? (first f) "private")
@@ -363,20 +363,20 @@
                 ((%doc-sym-is? (first f) "interface")
                   (em interface-line (%map (fn (_ n) (symbol->str n)) (rest f))))
                 ; A doc form is the CLASS's own when its first argument is a
-                ; string, and a MEMBER's when it is that member's name --
-                ; which is the only thing telling them apart, and why members
+                ; string, and a FIELD's when it is that field's name --
+                ; which is the only thing telling them apart, and why fields
                 ; reached the page as nothing at all: %doc-emit-class-doc
                 ; guards on str? and returns quietly for anything else, so
                 ; (doc raw "...") fell into that guard and vanished.
-                ; A member's doc wraps its declaration, NAME or (NAME
-                ; default), as lib/x/type/class.x reads it, so the member is
+                ; A field's doc wraps its declaration, NAME or (NAME
+                ; default), as lib/x/type/class.x reads it, so the field is
                 ; named by the declaration's name.  symbol->str is unchecked:
                 ; handed the (NAME default) pair it returned bytes that are
                 ; not text, and those became the heading.
                 ; The description may be absent, (doc DECL), and class.x
                 ; reads that as an empty one.  The tail is then the empty
                 ; list, and first is unchecked, so the read is guarded with
-                ; pair? as the bare-member arm below guards its own.
+                ; pair? as the bare-field arm below guards its own.
                 ((%docgen-form? f)
                   (if (str? (first (rest f)))
                     (%doc-emit-class-doc em f)
@@ -388,28 +388,28 @@
                           (if (str? (first tail)) (first tail) "")
                           ""))
                       cname static? vis)))
-                ; ANYTHING ELSE IS A MEMBER.  A class body declares members
+                ; ANYTHING ELSE IS A FIELD.  A class body declares fields
                 ; as (name), (name default) or (name default "description")
-                ; -- the head is the MEMBER'S OWN NAME, so class-body heads
+                ; -- the head is the FIELD'S OWN NAME, so class-body heads
                 ; are an open set no list can enumerate, and an arm that
-                ; dropped them dropped every member in the library: Ansi's
+                ; dropped them dropped every field in the library: Ansi's
                 ; colours, Random's kind/state/fd, all of it, while the page
                 ; still looked finished.
                 ;
-                ; Treating the unknown as a member also converts the old
+                ; Treating the unknown as a field also converts the old
                 ; silence into something VISIBLE.  When the object-model v2
                 ; (private ...) and (protected ...) blocks land, they will
-                ; render as a nonsense member named "private" rather than
+                ; render as a nonsense field named "private" rather than
                 ; vanishing -- wrong, but wrong where someone can see it.
                 (#t
                   (when (symbol? (first f))
                     ; pair? FIRST: first/rest are unchecked, so (first ())
-                    ; is undefined behaviour, and a member with no
+                    ; is undefined behaviour, and a field with no
                     ; description -- (state 2463534242), (fd ()) -- has
                     ; exactly that empty tail.  It segfaulted the generator
                     ; outright.
                     ; BOTH steps guarded, not just the first: for a bare
-                    ; member (ledger) the tail is (rest ()), and rest is as
+                    ; field (ledger) the tail is (rest ()), and rest is as
                     ; unchecked as first.  Guarding only the (first tail)
                     ; still segfaulted -- the same trap, one level further in.
                     (%doc-emit-member em

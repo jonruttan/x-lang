@@ -45,7 +45,7 @@ what a project importing acme/one must vendor.
 ---
     ("acme/one.x" "acme/two.x" "acme/one-extra.x" "acme/four.x" "acme/three.x")
 
-### the deferred-body import is vendored too (deep closure member)
+### the deferred-body import is vendored too (deep in the import closure)
 
 ```x
 (display (File exists? "build/pin-spec/pout/acme/three.x"))

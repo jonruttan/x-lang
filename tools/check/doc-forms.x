@@ -4,8 +4,9 @@
 ;
 ; Prints one "FILE CLASS FORM" line per class-body form, for
 ; tools/check/doc-forms.sh to check against tools/contract/doc-forms.x.
-; A doc form that documents a member prints "FILE CLASS doc MEMBER": the
-; fourth field is the member's name, and only such a line has one.
+; A doc form that documents a field or a static member prints
+; "FILE CLASS doc NAME": the fourth column is its name, and only such a line
+; has one.
 ;
 ; Structural rather than a grep: a class body is s-expressions, and the head of
 ; a body form is knowable only by reading it as one.  The file is parsed, never
@@ -45,11 +46,12 @@
                 (do (display file) (display " ") (display cname) (display " ")
                     (display (%df-name (first f)))
                     ; A doc form whose first argument is not a string
-                    ; documents a member and wraps its declaration, NAME or
-                    ; (NAME default), as lib/x/type/class.x reads it.  The
-                    ; member's name follows the head, so the gate checks a
-                    ; documented member as it checks a bare one.  %df-name
-                    ; answers "" for a string, which is the class's own doc.
+                    ; documents a field or a static member and wraps its
+                    ; declaration, NAME or (NAME default), as
+                    ; lib/x/type/class.x reads it.  The name follows the
+                    ; head, so the gate checks a documented declaration as
+                    ; it checks a bare one.  %df-name answers "" for a
+                    ; string, which is the class's own doc.
                     (when (%df-is? (first f) "doc")
                       (when (pair? (rest f))
                         (let ((decl (first (rest f))))

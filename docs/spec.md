@@ -1299,7 +1299,7 @@ called with the instance (after the closure's implicit self slot).
 `(Type wrap t) -> instance`
 
 Clothes a type handle (from `Type of`) or the type itself (from `Type by-atom`)
-as an interactive Type instance carrying both forms: the `handle` member is
+as an interactive Type instance carrying both forms: the `handle` field is
 the name atom, `raw` the struct the wiring statics consume.
 
 ```x-repl
@@ -1344,7 +1344,7 @@ pinned by `tests/x/specs/lib/type.spec.md`):
 
 Creates a fresh, sandboxed interpreter — all built-in types and C primitives,
 no library — wrapped as a Base instance. The raw C base object rides the
-instance's `raw` member; every `Base` static accepts either form, and
+instance's `raw` field; every `Base` static accepts either form, and
 `(Base raw-of v)` unwraps. A fresh child is the bare C ISA: no output verbs,
 no catalog protocol, no reader macros — reach in with parent closures or
 `bind`.

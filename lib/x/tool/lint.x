@@ -676,7 +676,7 @@
 
 ; Sibling method names of the class currently being walked: instance
 ; methods call each other bare, and the calling convention also binds
-; recur (self-reference) and the member/set-member! accessors.
+; recur (self-reference) and the field/set-field! accessors.
 
 ; (method NAME (self params...) body...) -- a named fn, shifted one.
 ; The method NAME is a member, not a global: never recorded, so it can
@@ -1054,7 +1054,7 @@
               (#t acc)))))))
     (method %lint-class-clause (self c)
   (match
-    ((not (pair? c)) ())                          ; bare symbol member: a declaration
+    ((not (pair? c)) ())                          ; bare symbol field: a declaration
     ((eq? (first c) 'method) (Lint %lint-method c))
     ((eq? (first c) 'static) (%for-each (fn (_ k) (recur self k)) (rest c)))
     ((eq? (first c) 'interface) ())               ; declared NAMES, not references
@@ -1063,11 +1063,11 @@
     (method %lint-method (self form)
   (def saved (first %lint-scope))
   ; The calling convention binds recur (the method's own self-reference),
-  ; the member/set-member! instance accessors, and the class's sibling
+  ; the field/set-field! instance accessors, and the class's sibling
   ; method names (instance methods call each other bare).
   (%scope-add! "recur")
-  (%scope-add! "member")
-  (%scope-add! "set-member!")
+  (%scope-add! "field")
+  (%scope-add! "set-field!")
   (%for-each (fn (_ n) (%scope-add! n)) (first (Lint %lint-class-siblings)))
   (%set-first! %lint-scope (%add-params (first (rest (rest form))) (first %lint-scope)))
   (%lint-seq (rest (rest (rest form))))
@@ -1078,7 +1078,7 @@
   (%scope-add! name-str)
   (%set-first! %lint-class-names (pair name-str (first %lint-class-names)))
   ; def-record has NO parents slot -- (def-record NAME field...) -- so its
-  ; whole tail is member declarations; def-class's third element is the
+  ; whole tail is field declarations; def-class's third element is the
   ; parents form, (Parent ...) or (extends Proto ...): the extends KEYWORD
   ; is not a reference, everything else is.
   (def body

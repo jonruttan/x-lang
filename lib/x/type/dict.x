@@ -71,7 +71,7 @@
   (fn (_ cap k) (%dict-int+ 1 (%dict-int% (%dict-hash k) cap))))
 
 ; Uninitialized guard: an instance built outside make (raw new-from)
-; has nil members; fail loudly instead of feeding nil to the raw slot
+; has nil fields; fail loudly instead of feeding nil to the raw slot
 ; layer (segfault class).
 (def %dict-uninit!
   (fn (_) (Err raise 'state "Dict: uninitialized instance (use Dict make / from-*)" ())))
@@ -131,7 +131,7 @@
 
     ; Constructor adjudication (one meaning per name): `make` is THE public
     ; constructor (positional, sizing args); `new` is the class system's
-    ; member-init record door, which cannot build a container's internal
+    ; field-init record door, which cannot build a container's internal
     ; state.  No refusal method here -- documenting a door only to slam it
     ; is worse than the disease.  The generic new builds an inert instance
     ; and the %slot uninitialized guard below raises the teaching 'state
@@ -169,12 +169,12 @@
   ; between buckets; it does not copy), so this is O(n) with no reallocation
   ; of the entries themselves.
   (method %grow! (self)
-    (def old (member 'store))
-    (def oldcap (member 'cap))
+    (def old (field 'store))
+    (def oldcap (field 'cap))
     (def newcap (%dict-int* 2 oldcap))
     (def new (Vector make newcap ()))
-    (set-member! 'store new)
-    (set-member! 'cap newcap)
+    (set-field! 'store new)
+    (set-field! 'cap newcap)
     (let go ((i 1))
       (unless (> i oldcap)
         (do (List for-each
@@ -191,9 +191,9 @@
       (param k ANY "Key (symbol, string, integer, or char)")
       (returns ANY "Stored value, or nil")
       (example "(let ((d (Dict make))) (d set! 'a 1) (d get 'a))" "1"))
-    (def %cap (member 'cap))
+    (def %cap (field 'cap))
     (when (null? %cap) (%dict-uninit!))
-    (let ((hit (%dict-find k (%dict-obj-ref (member 'store) (%dict-slot %cap k)))))
+    (let ((hit (%dict-find k (%dict-obj-ref (field 'store) (%dict-slot %cap k)))))
       (unless (null? hit) (rest hit))))
 
   (method get-or (self d k)
@@ -201,9 +201,9 @@
       (param d ANY "Default for an absent key")
       (param k ANY "Key to look up")
       (returns ANY "Stored value (a stored nil included), or the default"))
-    (def %cap (member 'cap))
+    (def %cap (field 'cap))
     (when (null? %cap) (%dict-uninit!))
-    (let ((hit (%dict-find k (%dict-obj-ref (member 'store) (%dict-slot %cap k)))))
+    (let ((hit (%dict-find k (%dict-obj-ref (field 'store) (%dict-slot %cap k)))))
       (if (null? hit) d (rest hit))))
 
   (method get-or-else (self thunk k)
@@ -211,18 +211,18 @@
       (param thunk CALLABLE "Nullary default producer; runs only on a miss")
       (param k ANY "Key to look up")
       (returns ANY "Stored value (a stored nil included), or (thunk)"))
-    (def %cap (member 'cap))
+    (def %cap (field 'cap))
     (when (null? %cap) (%dict-uninit!))
-    (let ((hit (%dict-find k (%dict-obj-ref (member 'store) (%dict-slot %cap k)))))
+    (let ((hit (%dict-find k (%dict-obj-ref (field 'store) (%dict-slot %cap k)))))
       (if (null? hit) (thunk) (rest hit))))
 
   (method has? (self k)
     (doc "Test whether a key is present."
       (param k ANY "Key to test")
       (returns BOOL "#t when the key is stored"))
-    (def %cap (member 'cap))
+    (def %cap (field 'cap))
     (when (null? %cap) (%dict-uninit!))
-    (pair? (%dict-find k (%dict-obj-ref (member 'store) (%dict-slot %cap k)))))
+    (pair? (%dict-find k (%dict-obj-ref (field 'store) (%dict-slot %cap k)))))
 
   ; --- mutation -----------------------------------------------------------
   (method set! (self k v)
@@ -231,16 +231,16 @@
       (param v ANY "Value to store")
       (returns Dict "self")
       (example "(((Dict make) set! 'a 1) get 'a)" "1"))
-    (def %store (member 'store))
-    (def %cap (member 'cap))
+    (def %store (field 'store))
+    (def %cap (field 'cap))
     (when (null? %cap) (%dict-uninit!))
     (def i (%dict-slot %cap k))
     (def bucket (%dict-obj-ref %store i))
     (def hit (%dict-find k bucket))
     (if (null? hit)
       (do (%dict-obj-set! %store i (pair (pair k v) bucket))
-          (def %n (%dict-int+ (member 'n) 1))
-          (set-member! 'n %n)
+          (def %n (%dict-int+ (field 'n) 1))
+          (set-field! 'n %n)
           (when (> (%dict-int* 4 %n) (%dict-int* 3 %cap))
             (self %grow!)))
       (%set-rest! hit v))
@@ -250,24 +250,24 @@
     (doc "Remove a key (a no-op when absent); returns the dict for chaining."
       (param k ANY "Key to remove")
       (returns Dict "self"))
-    (def %store (member 'store))
-    (def %cap (member 'cap))
+    (def %store (field 'store))
+    (def %cap (field 'cap))
     (when (null? %cap) (%dict-uninit!))
     (def i (%dict-slot %cap k))
     (def bucket (%dict-obj-ref %store i))
     (when (pair? (%dict-find k bucket))
       (do (%dict-obj-set! %store i (%dict-remove k bucket))
-          (set-member! 'n (%dict-int- (member 'n) 1))))
+          (set-field! 'n (%dict-int- (field 'n) 1))))
     self)
 
   ; --- size ---------------------------------------------------------------
   (method length (self)
     (doc "The number of stored entries (a stored property, O(1))." (returns INTEGER "Entry count"))
-    (member 'n))
+    (field 'n))
 
   (method empty? (self)
     (doc "Test whether the dict holds no entries." (returns BOOL "#t when empty"))
-    (= 0 (member 'n)))
+    (= 0 (field 'n)))
 
   ; --- extraction ---------------------------------------------------------
   (method ->alist (self)
@@ -275,8 +275,8 @@
       (returns LIST "((key . val) ...) -- new assocs, detached from the table"))
     ; copy each entry: the live (key . val) pairs are mutated by set!, so a
     ; snapshot must not alias them
-    (def %store (member 'store))
-    (def %cap (member 'cap))
+    (def %store (field 'store))
+    (def %cap (field 'cap))
     (when (null? %cap) (%dict-uninit!))
     (let go ((i 1) (acc ()))
       (if (> i %cap) acc

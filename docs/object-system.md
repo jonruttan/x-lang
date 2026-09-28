@@ -23,9 +23,9 @@ The whole system is written in x-lang with no C code — it is built on the runt
 type system's `call` handler (see [How it works](#how-it-works) and
 [Type System](type-system.md)). It supports single inheritance with `super`,
 members are mutable, and access is encapsulated: from the outside an object is
-reached **only** through `(obj …)` dispatch. **Classes are objects too** — they
-carry static methods and class-wide members and double as namespaces (see
-[Classes as objects](#classes-as-objects-statics-and-namespaces)).
+reached **only** through `(obj …)` dispatch. **Classes are values too** — they
+carry static methods and static members and double as namespaces (see
+[Classes as values](#classes-as-values-statics-and-namespaces)).
 
 ---
 
@@ -53,7 +53,7 @@ form headed by `method` is a method, anything else is a member.
   inheritance. These are the only two forms: anything else — a bare
   `(OtherClass)` list, a bare symbol, `(extends)` with no class — is refused
   loudly at class-definition time.
-- **member** — `name`, or `(name default)`, or `(name default "description")`. The
+- **field** — `name`, or `(name default)`, or `(name default "description")`. The
   optional middle value is the member's default (used when `new` doesn't supply
   one); the optional trailing string documents it and is shown by `(help Class)`.
   Declare as many (or as few) as you like; a class can have none. A
@@ -67,8 +67,8 @@ form headed by `method` is a method, anything else is a member.
 - **`(method NAME (self . params) body...)`** — a method. The first parameter is
   always `self`, the receiving instance; any further parameters receive the
   evaluated message arguments.
-- **`(static …)`** — optional; a block of class-wide members (same member form) and
-  static methods. See [Classes as objects](#classes-as-objects-statics-and-namespaces).
+- **`(static …)`** — optional; a block of static members (same field form) and
+  static methods. See [Classes as values](#classes-as-values-statics-and-namespaces).
 
 ```x
 (def-class Circle ()
@@ -108,12 +108,12 @@ arguments:
 ```x
 (c area)         ; => 25   a method
 (c scale 2)      ; => the instance (doubles r)
-(c r)            ; => 10   a data member (getter)
-(c r 7)          ; a data member (setter)
+(c r)            ; => 10   a field (getter)
+(c r 7)          ; a field (setter)
 ```
 
 Dispatch is uniform: `(obj name)` looks `name` up as a **method** first; if there
-is no such method it is treated as a **data member** — `(obj m)` reads it,
+is no such method it is treated as a **field** — `(obj m)` reads it,
 `(obj m v)` writes it. A method therefore **shadows** a member of the same name,
 which is the basis for computed properties and for private data (below).
 
@@ -179,11 +179,11 @@ Calling `super` outside an instance method (e.g. from a static) is an error.
 
 ---
 
-### Classes as objects: statics and namespaces
+### Classes as values: statics and namespaces
 
-A class is itself a callable object, so it can hold class-wide members and static
-methods — the same dispatch, one level up (`self` is the class). Declare them in a
-`(static …)` block:
+A class is itself a callable value of runtime type CLASS, so it can hold static
+members and static methods — the same dispatch, one level up (`self` is the
+class). Declare them in a `(static …)` block:
 
 ```x
 (def-class Math ()
@@ -453,7 +453,7 @@ no global member accessor, so external code cannot poke at an instance's storage
 name:
 
 ```x
-(%member p x)           ; error — no such binding
+(%field p x)            ; error — no such binding
 ```
 
 Privacy is declared, per class, with a `(private ...)` or `(protected ...)`
@@ -483,8 +483,8 @@ Inside methods, two extra accessors are in scope (and *only* in scope there)
 for **raw** member access:
 
 ```x
-(member 'name)          ; raw read
-(set-member! 'name v)   ; raw write
+(field 'name)          ; raw read
+(set-field! 'name v)   ; raw write
 ```
 
 They take a **quoted** name — both because they are ordinary functions and
@@ -505,7 +505,7 @@ the strictest private door of all: no code outside a method body has them.
 | `(class-of inst)` | the (callable) class an instance belongs to |
 | `(class-name x)` | the name symbol of a class, or of an instance's class |
 | `(instance-of? inst Class)` | `#t` if `inst` is a `Class` or a subclass of it |
-| `(class-members c)` / `(class-methods c)` | a class's own instance member / method names |
+| `(class-fields c)` / `(class-methods c)` | a class's own instance field / method names |
 | `(class-static-members c)` / `(class-static-methods c)` | its own static member / method names |
 
 ```x
@@ -522,7 +522,7 @@ the strictest private door of all: no code outside a method body has them.
 ### Documentation
 
 `(help Class)` lists everything a class offers, grouped **static vs instance** and
-**members vs methods**, each list merged across the inheritance chain and sorted by
+**fields vs methods**, each list merged across the inheritance chain and sorted by
 name (a subclass override hides the inherited entry). Members and methods documented
 with a description string show it; empty groups are omitted:
 
@@ -533,7 +533,7 @@ Counter
       LIMIT -- max before reset
     methods:
       reset -- reset the count to zero
-  members:
+  fields:
     count -- the running count
     step
   methods:
@@ -613,7 +613,7 @@ Two implementation details: x-lang binds a function's *first* parameter to the
 function itself (the recursion handle), so `def-class` prepends a hidden slot to
 each method's parameter list — the `self` you write lands in the second slot,
 which dispatch fills with the receiver. And every method body is wrapped in a
-`let` that binds the raw `member` / `set-member!` accessors (instance methods
+`let` that binds the raw `member` / `set-field!` accessors (instance methods
 only) plus `%this-class`, a box holding the method's **defining** class — the
 channel `super` derives its parent from and the privacy check reads the
 caller's identity from.
@@ -726,7 +726,7 @@ too.
 | `(Class name args...)` | Static method, or class-wide member if no method |
 | `(Class member)` / `(Class member val)` | Read / write a class-wide member |
 | `(super self name args...)` | Call the parent's method |
-| `(member 'name)` / `(set-member! 'name v)` | Raw member access — **inside methods only** |
+| `(field 'name)` / `(set-field! 'name v)` | Raw member access — **inside methods only** |
 | `(object? x)` / `(class? x)` | Instance / class predicate |
 | `(class-of inst)` / `(class-name x)` | Class of an instance / name of a class or instance |
 | `(instance-of? inst Class)` | Subtype predicate |
