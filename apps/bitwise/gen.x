@@ -240,7 +240,7 @@
 
     (method params (self (param name STRING "The project's name"))
       (doc "The traits sha256(name) settles: hue (tenths), operator, sampled bit, multipliers, offset, salt, grid; then the gate walk (bit, then op) until the field reads as a texture."
-        (returns DICT "'name 'hue10 'op 'bit 'a 'b 'ox 'oy 'salt 'n 'lit 'opname 'formula")
+        (returns Dict "'name 'hue10 'op 'bit 'a 'b 'ox 'oy 'salt 'n 'lit 'opname 'formula")
         (example "((Bitwise params \"x-lang\") get 'formula)" "\"(x*11) ^ (y*15) >> 3 & 1\""))
       (def h (self %digest name))
       (def b (fn (_ i) (List ref i h)))

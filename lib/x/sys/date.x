@@ -61,7 +61,7 @@
     (example "(Assoc get 'year (Date from-unix 0))" "1970")
     (example "(Date ->iso (Date from-unix 0))" "\"1970-01-01T00:00:00Z\""))
   (static
-    (method from-unix (self (param secs INT "Seconds since the unix epoch (negative = pre-1970)"))
+    (method from-unix (self (param secs INTEGER "Seconds since the unix epoch (negative = pre-1970)"))
       (doc "Split unix seconds into a civil date-time alist (UTC)."
         (returns ALIST "((year . Y) (month . M) (day . D) (hour . H) (minute . MIN) (second . S) (wday . W))")
         (example "(Assoc get 'wday (Date from-unix 0))" "4")
@@ -80,7 +80,7 @@
 
     (method to-unix (self (param date ALIST "Date alist; hour/minute/second default to 0 when absent"))
       (doc "Civil date-time alist (UTC) back to unix seconds -- the inverse of from-unix."
-        (returns INT "Seconds since the unix epoch")
+        (returns INTEGER "Seconds since the unix epoch")
         (example "(Date to-unix '((year . 1970) (month . 1) (day . 1)))" "0")
         (example "(Date to-unix (Date from-unix 1234567890))" "1234567890"))
       (+ (* (%days-from-civil (Assoc get 'year date)
@@ -156,7 +156,7 @@
         (%bad "no such civil date"))
       canon)
 
-    (method leap-year? (self (param y INT "Year"))
+    (method leap-year? (self (param y INTEGER "Year"))
       (doc "Gregorian leap-year test."
         (returns BOOL "True for leap years")
         (example "(list (Date leap-year? 2024) (Date leap-year? 1900) (Date leap-year? 2000))" "(#t #f #t)"))

@@ -22,9 +22,9 @@
         (returns ANY "nil (count freed objects via (Heap count) deltas; see x/tool/profile)"))
       ((prim-ref (lit heap) (lit collect))))
     (method count (self)
-      (doc "Count live heap objects." (returns INT "Number of objects on the heap"))
+      (doc "Count live heap objects." (returns INTEGER "Number of objects on the heap"))
       ((prim-ref (lit heap) (lit count))))
-    (method limit! (self (param n INT "Heap-object ceiling; 0 disables"))
+    (method limit! (self (param n INTEGER "Heap-object ceiling; 0 disables"))
       (doc "Set the heap-object ceiling: a collection that cannot get under it errors."
         (returns ANY "nil"))
       ((prim-ref (lit heap) (lit limit!)) n))

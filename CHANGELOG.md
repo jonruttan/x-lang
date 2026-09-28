@@ -18,6 +18,22 @@ whose local helpers took such a name (`%find`, `%str->ptr`, `%ptr->int`,
 
 [#818]: https://github.com/jonruttan/x-lang/pull/818
 
+**Doc annotations spell the runtime type's name** ([#817]). An annotation, the
+T of a `(param NAME T ...)` or `(returns T ...)` doc form, names a runtime type
+as registered, a class as spelled, or one of `ANY`, `NUMBER`, `CALLABLE`,
+`ALIST`, `TYPE` and `NIL`. The library spelled seven of them short, and 540
+annotations now say `INTEGER` for `INT`, `CHARACTER` for `CHAR`, `POINTER` for
+`PTR`, `STRING` for `STR`, `PRIMITIVE` for `PRIM`, `Gen` for `GEN` and `Dict`
+for `DICT`. `(help ...)` and the generated reference show the new spellings.
+
+`make check-doc-annotations` holds the rule, and `make doc-x` runs it. It asks
+the platform it runs on for its runtime types, reads the classes from the
+source's `def-class` forms, and takes the six other names from
+`tools/contract/doc-annotations.x`, so nothing is edited when a type or a class
+is added. `make check-doc-vocab` is removed, with the four lists it carried.
+
+[#817]: https://github.com/jonruttan/x-lang/pull/817
+
 **A system call's result folds on the integer primitives** ([#812]). Every
 `Sys` method that calls libc passes its result through `%sys-fold`, which turns
 the top half of the u32 range back into negatives: Linux hands an `int` return
@@ -63,6 +79,21 @@ count rows, and the declaration's layout digest changes with them.
 
 [#810]: https://github.com/jonruttan/x-lang/pull/810
 
+**Two selectors of one class sent in turn settle at the front of its
+dispatch table** ([#814]). A lookup that found its selector deeper than
+second place swapped it with the head, which sent the head's entry to the
+hit's cell, so a method and a helper of the same class sent in turn --
+`List sort` and the `List from-seq` inside it, `File open` and `File close`
+-- traded places at that depth on every send, and each lookup walked the
+table that far. A deep hit now moves to the head, the head's entry to second
+place and the second's to the hit's cell, and the walk is a plain loop.
+`(List sort < ())` allocates about 4,100 objects where it took 33,200, `List
+map`, `filter` and `fold` on an empty list about 4,300 where they took 21,400
+to 25,400, and a `File open` and `File close` pair about 2,200 where it took
+15,800.
+
+[#814]: https://github.com/jonruttan/x-lang/pull/814
+
 **A data-slot access does no generic arithmetic** ([#809]). `(obj ref)`,
 `(obj set!)` and the pair mutators address data word i by one formula, the data
 offset plus i words, and it was computed with the `+` and `*` bound at the root:
@@ -75,6 +106,23 @@ and `(obj set!)` 22 and 25 where they took 280 and 283; under helium the four
 took 51, 51, 38 and 41.
 
 [#809]: https://github.com/jonruttan/x-lang/pull/809
+
+**`File stat` decodes through a Struct reader made once** ([#813]). A stat
+allocated about 51,000 objects, 40,600 of them decoding three fields: `Struct
+unpack` compiled its field spec on every call and assembled each byte with
+the tower's `*`, `+` and `<`, three `Assoc entry` sends followed, and the
+decode was a second class dispatch. The codec's readers now work on the
+integer primitives, a reader's fields carry their offsets with the pads
+dropped, and `File` makes its stat reader when it loads: a stat allocates
+about 1,800. `File exists?` tests the call's result instead of raising and
+catching an `Err` on a miss, about 980 objects either way where a miss took
+25,600. A machine integer wraps at 64 bits, so an `i64` field reads as its
+two's-complement value with the numeric tower loaded too, where -1 read back
+as 18446744073709551615, and a pre-1970 modification time no longer depends
+on the dialect. A reader raises `type` for a record offset that is not an
+integer.
+
+[#813]: https://github.com/jonruttan/x-lang/pull/813
 
 ## [0.16.0] - 2026-09-27
 

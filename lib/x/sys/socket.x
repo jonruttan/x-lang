@@ -107,10 +107,10 @@
     (note "No DNS: hosts are dotted quads (\"127.0.0.1\"). Failures raise tag 'io Errs with errno detail; recv answers nil at orderly EOF (absence, not a sentinel).")
     (sample "(let ((fd (Socket tcp-connect \"127.0.0.1\" 8080))) (Socket send fd \"ping\") (Socket recv fd 4096))" "the reply string"))
   (static
-    (method tcp-listen (self (param port INT "Port to bind")
-                             . (param backlog INT "Listen backlog; default 16"))
+    (method tcp-listen (self (param port INTEGER "Port to bind")
+                             . (param backlog INTEGER "Listen backlog; default 16"))
       (doc "Create a TCP server socket: socket + SO_REUSEADDR + bind(INADDR_ANY, port) + listen."
-        (returns INT "The listening file descriptor")
+        (returns INTEGER "The listening file descriptor")
         (sample "(Socket tcp-listen 8080)" "a listening fd"))
       (def fd (%sk-fold (%sk-ptr-call %c-socket %AF-INET %SOCK-STREAM 0)))
       (when (< fd 0) (%sk-fail fd 'socket port ()))
@@ -129,18 +129,18 @@
       (when (< lr 0) (do (%sk-ptr-call %c-close fd) (%sk-fail lr 'listen port ())))
       fd)
 
-    (method accept (self (param fd INT "Listening file descriptor"))
+    (method accept (self (param fd INTEGER "Listening file descriptor"))
       (doc "Block until a client connects; the peer address is discarded (stat the fd's peer later if wanted)."
-        (returns INT "The connected client file descriptor")
+        (returns INTEGER "The connected client file descriptor")
         (sample "(Socket accept listen-fd)" "a client fd"))
       (def cfd (%sk-fold (%sk-ptr-call %c-accept fd 0 0)))
       (when (< cfd 0) (%sk-fail cfd 'accept fd ()))
       cfd)
 
     (method tcp-connect (self (param host STRING "Dotted-quad IPv4 address")
-                              (param port INT "Port to connect to"))
+                              (param port INTEGER "Port to connect to"))
       (doc "Open a TCP connection to host:port (no DNS -- dotted quads only)."
-        (returns INT "The connected file descriptor")
+        (returns INTEGER "The connected file descriptor")
         (sample "(Socket tcp-connect \"127.0.0.1\" 8080)" "a connected fd"))
       (def fd (%sk-fold (%sk-ptr-call %c-socket %AF-INET %SOCK-STREAM 0)))
       (when (< fd 0) (%sk-fail fd 'socket port ()))
@@ -150,16 +150,16 @@
       (%sk-ptr-call %c-free addr)
       fd)
 
-    (method send (self (param fd INT "Connected file descriptor")
+    (method send (self (param fd INTEGER "Connected file descriptor")
                        (param s STRING "Bytes to send"))
       (doc "Send the whole string; raises on failure."
-        (returns INT "Bytes sent"))
+        (returns INTEGER "Bytes sent"))
       (def r (%sk-fold (%sk-ptr-call %c-send fd s (Str8 length s) 0)))
       (when (< r 0) (%sk-fail r 'send fd ()))
       r)
 
-    (method recv (self (param fd INT "Connected file descriptor")
-                       (param maxlen INT "Maximum bytes to receive"))
+    (method recv (self (param fd INTEGER "Connected file descriptor")
+                       (param maxlen INTEGER "Maximum bytes to receive"))
       (doc "Receive up to maxlen bytes as a string; nil at orderly EOF (the peer closed); raises on failure."
         (returns ANY "The received string, or nil at EOF"))
       (def buf (%sk-int->ptr (%sk-ptr-call %c-malloc (+ maxlen 1))))
@@ -218,8 +218,8 @@
         (Err raise (lit value) (Str8 append "Socket resolve: no IPv4 address for " name) ()))
       quad)
 
-    (method recv-bytes (self (param fd INT "Connected file descriptor")
-                            (param maxlen INT "Maximum bytes to receive"))
+    (method recv-bytes (self (param fd INTEGER "Connected file descriptor")
+                            (param maxlen INTEGER "Maximum bytes to receive"))
       (doc "Receive up to maxlen bytes as a BYTE LIST -- the lossless door (recv's string return truncates at the first NUL; this one carries binary intact, #374); nil at orderly EOF; raises on failure."
         (returns ANY "Byte list (0-255 values), or nil at EOF"))
       (def %pref (prim-ref (lit ptr) (lit ref)))
@@ -236,7 +236,7 @@
       (%sk-ptr-call %c-free buf)
       (if (= n 0) () out))
 
-    (method close (self (param fd INT "File descriptor to close"))
+    (method close (self (param fd INTEGER "File descriptor to close"))
       (doc "Close a socket file descriptor."
         (returns ANY "nil"))
       (%sk-ptr-call %c-close fd)
@@ -248,9 +248,9 @@
     ; OSes. Cold path ((%sk ...) per call), like sendto/recvfrom below,
     ; so the module's %-globals budget stays flat.
 
-    (method local-port (self (param fd INT "A bound or listening file descriptor"))
+    (method local-port (self (param fd INTEGER "A bound or listening file descriptor"))
       (doc "The local port fd is bound to -- the one the kernel chose when the bind asked for port 0. TCP and UDP alike."
-        (returns INT "The bound port, host order")
+        (returns INTEGER "The bound port, host order")
         (sample "(Socket local-port (Socket tcp-listen 0))" "an ephemeral port, e.g. 52341"))
       (def addr (%sk-int->ptr (%sk-ptr-call %c-malloc 16)))
       (def alen (%sk-int->ptr (%sk-ptr-call %c-malloc 4)))
@@ -274,9 +274,9 @@
     ; sendto/recvfrom per call ((%sk ...)), keeping the module's %-globals
     ; budget flat.
 
-    (method udp-bind (self (param port INT "Port to bind (INADDR_ANY)"))
+    (method udp-bind (self (param port INTEGER "Port to bind (INADDR_ANY)"))
       (doc "Create a UDP socket bound to port on all interfaces -- the receiving end. Read with (Socket recv-from fd n) for sender identity, or plain (Socket recv) when it does not matter."
-        (returns INT "The bound datagram file descriptor")
+        (returns INTEGER "The bound datagram file descriptor")
         (sample "(Socket udp-bind 9999)" "a bound fd"))
       (def fd (%sk-fold (%sk-ptr-call %c-socket %AF-INET 2 0)))
       (when (< fd 0) (%sk-fail fd 'socket port ()))
@@ -287,9 +287,9 @@
       fd)
 
     (method udp-connect (self (param host STRING "Dotted-quad IPv4 address")
-                              (param port INT "Destination port"))
+                              (param port INTEGER "Destination port"))
       (doc "Create a CONNECTED UDP socket: the peer address is fixed once, and the plain (Socket send)/(Socket recv) pair then works datagram-wise -- the request/reply shape. For unconnected sends use (Socket send-to)."
-        (returns INT "The connected datagram file descriptor")
+        (returns INTEGER "The connected datagram file descriptor")
         (sample "(Socket udp-connect \"127.0.0.1\" 9999)" "a connected fd"))
       (def fd (%sk-fold (%sk-ptr-call %c-socket %AF-INET 2 0)))
       (when (< fd 0) (%sk-fail fd 'socket port ()))
@@ -299,20 +299,20 @@
       (%sk-ptr-call %c-free addr)
       fd)
 
-    (method send-to (self (param fd INT "Datagram file descriptor")
+    (method send-to (self (param fd INTEGER "Datagram file descriptor")
                           (param s STRING "Bytes to send (one datagram)")
                           (param host STRING "Dotted-quad IPv4 destination")
-                          (param port INT "Destination port"))
+                          (param port INTEGER "Destination port"))
       (doc "Send one datagram to host:port through an unconnected UDP socket."
-        (returns INT "Bytes sent"))
+        (returns INTEGER "Bytes sent"))
       (def addr (%make-sockaddr-in port host))
       (def r (%sk-fold (%sk-ptr-call (%sk "sendto") fd s (Str8 length s) 0 addr 16)))
       (when (< r 0) (%sk-fail r 'sendto (list host port) addr))
       (%sk-ptr-call %c-free addr)
       r)
 
-    (method recv-from (self (param fd INT "Bound datagram file descriptor")
-                            (param maxlen INT "Maximum bytes to receive"))
+    (method recv-from (self (param fd INTEGER "Bound datagram file descriptor")
+                            (param maxlen INTEGER "Maximum bytes to receive"))
       (doc "Block for one datagram; return it WITH the sender's identity. Like recv, the payload string truncates at the first NUL byte (ptr->str) -- fine for text protocols."
         (returns PAIR "(payload . (host . port))")
         (sample "(Socket recv-from fd 4096)" "(\"ping\" . (\"127.0.0.1\" . 51234))"))
@@ -349,7 +349,7 @@
 
     (method %sockaddr-un (self (param path STRING "Filesystem socket path (under 100 bytes)"))
       (doc "Build a malloc'd sockaddr_un for path -- the caller frees. Raises tag 'value past 99 bytes (the struct's path field is 104)."
-        (returns PTR "The packed address (110 bytes)"))
+        (returns POINTER "The packed address (110 bytes)"))
       (def plen (Str8 length path))
       (when (> plen 99)
         (Err raise 'value "Socket: unix path exceeds sockaddr_un capacity" path))
@@ -367,9 +367,9 @@
       addr)
 
     (method unix-listen (self (param path STRING "Filesystem socket path to create")
-                              . (param backlog INT "Listen backlog; default 16"))
+                              . (param backlog INTEGER "Listen backlog; default 16"))
       (doc "Create a unix-domain stream server socket at path: socket + bind + listen. The path must not already exist (bind refuses) -- unlink a stale one first; accept/send/recv/close are shared with TCP."
-        (returns INT "The listening file descriptor")
+        (returns INTEGER "The listening file descriptor")
         (sample "(Socket unix-listen \"/tmp/app.sock\")" "a listening fd"))
       (def fd (%sk-fold (%sk-ptr-call %c-socket 1 %SOCK-STREAM 0)))
       (when (< fd 0) (%sk-fail fd 'socket path ()))
@@ -383,7 +383,7 @@
 
     (method unix-connect (self (param path STRING "Filesystem socket path to connect to"))
       (doc "Open a unix-domain stream connection to the socket at path."
-        (returns INT "The connected file descriptor")
+        (returns INTEGER "The connected file descriptor")
         (sample "(Socket unix-connect \"/tmp/app.sock\")" "a connected fd"))
       (def fd (%sk-fold (%sk-ptr-call %c-socket 1 %SOCK-STREAM 0)))
       (when (< fd 0) (%sk-fail fd 'socket path ()))

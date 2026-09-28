@@ -142,3 +142,21 @@ that residue stays open on #584.
 ```
 ---
     #t
+
+## machine-width reads with the tower loaded
+
+### Struct reads an 8-byte field as its two's-complement value
+
+The tower's `*` and `+` promote past 2^63, so a byte assembly on them would
+read -1 as 2^64 - 1; the codec's readers work on machine integers.
+
+```x
+(do (import x/codec/struct)
+  (def s (list (list 'v 'i64)))
+  (def u (list (list 'v 'u64)))
+  (list (rest (first (Struct unpack s (bytes->str (list 255 255 255 255 255 255 255 255)))))
+        (rest (first (Struct unpack s (bytes->str (Struct pack s (list (pair 'v -123456789)))))))
+        (rest (first (Struct unpack u (bytes->str (list 0 0 0 0 0 0 0 128)))))))
+```
+---
+    (-1 -123456789 -9223372036854775808)

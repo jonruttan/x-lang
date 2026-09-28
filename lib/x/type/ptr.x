@@ -22,19 +22,19 @@
 
 (def-class Ptr ()
   (static
-    (method from-int (self (param n INT "Integer address"))
+    (method from-int (self (param n INTEGER "Integer address"))
       (doc "Construct a pointer from an integer address (the int->ptr cast)."
-        (returns PTR "A pointer to that address"))
+        (returns POINTER "A pointer to that address"))
       ((prim-ref (lit int) (lit ->ptr)) n))
     (method ptr? (self (param x ANY "Value to test"))
       (doc "Test whether a value is a raw pointer."
         (returns BOOL "True if x is a pointer"))
       (%type? x %ptr))
-    (method ->int (self (param p PTR "A pointer"))
+    (method ->int (self (param p POINTER "A pointer"))
       (doc "The integer (address) representation of a pointer."
-        (returns INT "Integer address"))
+        (returns INTEGER "Integer address"))
       ((prim-ref (lit ptr) (lit ->int)) p))
-    (method ->str (self (param p PTR "A C string pointer"))
+    (method ->str (self (param p POINTER "A C string pointer"))
       (doc "Copy the NUL-terminated C string at P into a fresh x-lang string."
         (returns STRING "A new string (survives the C buffer)"))
       ((prim-ref (lit ptr) (lit ->str)) p))
@@ -44,41 +44,41 @@
     ; reads wrong -- which is what "little-endian" in the doc below means.
     ; ref-word is exempt: a full-width copy has no byte-order question.
     ; constraint: endian = little -- widening (ptr ref) is a low-end memcpy
-    (method ref (self (param p PTR "Base pointer") (param off INT "Byte offset")
-                      (param width INT "Read width in bytes (1,2,4,8)"))
+    (method ref (self (param p POINTER "Base pointer") (param off INTEGER "Byte offset")
+                      (param width INTEGER "Read width in bytes (1,2,4,8)"))
       (doc "Read a WIDTH-byte little-endian value at P+OFF."
-        (returns INT "The value read"))
+        (returns INTEGER "The value read"))
       ((prim-ref (lit ptr) (lit ref)) p off width))
-    (method set! (self (param p PTR "Base pointer") (param off INT "Byte offset")
-                       (param v INT "Value to store") (param width INT "Write width in bytes"))
+    (method set! (self (param p POINTER "Base pointer") (param off INTEGER "Byte offset")
+                       (param v INTEGER "Value to store") (param width INTEGER "Write width in bytes"))
       (doc "Write a WIDTH-byte little-endian value V at P+OFF."
         (returns ANY "nil"))
       ((prim-ref (lit ptr) (lit set!)) p off v width))
-    (method ref-word (self (param p PTR "Base pointer") (param off INT "Byte offset"))
+    (method ref-word (self (param p POINTER "Base pointer") (param off INTEGER "Byte offset"))
       (doc "Read one machine word (sizeof(long)) at P+OFF."
-        (returns INT "The word value"))
+        (returns INTEGER "The word value"))
       ((prim-ref (lit ptr) (lit ref-word)) p off))
-    (method set-word! (self (param p PTR "Base pointer") (param off INT "Byte offset")
-                            (param v INT "Word value to store"))
+    (method set-word! (self (param p POINTER "Base pointer") (param off INTEGER "Byte offset")
+                            (param v INTEGER "Word value to store"))
       (doc "Write one machine word V at P+OFF."
         (returns ANY "nil"))
       ((prim-ref (lit ptr) (lit set-word!)) p off v))
-    (method call (self (param p PTR "C function pointer")
+    (method call (self (param p POINTER "C function pointer")
                        . (param args STRING "String arguments (variadic)"))
       (doc "Call a C function pointer with string arguments."
-        (returns INT "The C return value"))
+        (returns INTEGER "The C return value"))
       (apply (prim-ref (lit ptr) (lit call)) (pair p args)))))
 
 (def-class Ffi ()
   (static
     (method dlopen (self (param path STRING "Library file path (() for the main program)")
-                         (param mode INT "dlopen mode flags (e.g. 1 = RTLD_LAZY)"))
+                         (param mode INTEGER "dlopen mode flags (e.g. 1 = RTLD_LAZY)"))
       (doc "Load a shared library."
-        (returns PTR "Library handle, or () on failure"))
+        (returns POINTER "Library handle, or () on failure"))
       ((prim-ref (lit ffi) (lit dlopen)) path mode))
-    (method dlsym (self (param lib PTR "Library handle from dlopen") (param name STRING "Symbol name"))
+    (method dlsym (self (param lib POINTER "Library handle from dlopen") (param name STRING "Symbol name"))
       (doc "Look up a symbol in a loaded library."
-        (returns PTR "Function or data pointer"))
+        (returns POINTER "Function or data pointer"))
       ((prim-ref (lit ffi) (lit dlsym)) lib name))))
 ; There is no typed call here.  (Ptr call) calls through a pointer with
 ; long arguments and a long result; a C function that takes or returns a

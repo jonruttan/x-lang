@@ -76,6 +76,21 @@ First adopter: sys/file.x's stat/lstat decode.
 ---
     ((('a . 7) ('b . 513)) #t)
 
+### a reader refuses a record offset that is not an integer
+
+The reads add to the offset unchecked, so the reader tests it once per
+record.
+
+```x
+(do (import x/codec/struct)
+  (def spec (list (list 'a 'u8)))
+  (def buf (bytes->str (list 7)))
+  (list (guard (e (Err tag e)) ((Struct reader spec) buf ()))
+        (guard (e (Err tag e)) (Struct unpack spec buf "1"))))
+```
+---
+    ('type 'type)
+
 ## strictness (#61)
 
 ### unknown types and missing pack values raise 'value

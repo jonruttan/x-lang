@@ -195,7 +195,7 @@
     (method to-int (self (param v ANY "Value to use as an INT")
                          (param what STRING "The error's message when v does not convert"))
       (doc "V as an INT: V itself when it is one, else its registered conversion to INT; raises WHAT when there is none."
-        (returns INT "The integer"))
+        (returns INTEGER "The integer"))
       (if (if (null? v) #f (eq? (%type-of v) %int)) v
         (let ((k (%convert-to v %int)))
           (if (if (null? k) #f (eq? (%type-of k) %int)) k (error what)))))))

@@ -81,9 +81,9 @@
 
     ; --- response parsing (byte-level; spec-testable without a socket) ---
     ; hex chunk-size parse over bytes; -1 marks a non-hex byte
-    (method %hex-nibble (self (param c INT "Byte value"))
+    (method %hex-nibble (self (param c INTEGER "Byte value"))
       (doc "The hex value of one byte, or -1 off-domain."
-        (returns INT "0-15, or -1"))
+        (returns INTEGER "0-15, or -1"))
       (match
         ((if (>= c 48) (<= c 57) #f) (- c 48))
         ((if (>= c 97) (<= c 102) #f) (- c 87))
@@ -303,7 +303,7 @@
     ; The method a redirect hop uses (RFC 9110 + the curl/requests
     ; convention): 303 always becomes GET (body dropped); 301/302 become
     ; GET only when the original was POST; 307/308 preserve method+body.
-    (method %redirect-method (self (param status INT "The 3xx status")
+    (method %redirect-method (self (param status INTEGER "The 3xx status")
                                    (param method STRING "The current verb"))
       (doc "The (verb . keep-body?) pair for following one redirect."
         (returns PAIR "(method-string . BOOL)")

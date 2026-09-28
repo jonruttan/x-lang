@@ -47,13 +47,13 @@
   (static
     (method length (self (param v STRING "String to measure"))
       (doc "Number of UTF-8 CODE POINTS in v (not bytes), via a cursor walk."
-        (returns INT "Code-point count of v")
+        (returns INTEGER "Code-point count of v")
         (example "(StrUtf8 length \"$¢€\")" "3"))
       (self count v))   ; code points, via Seq's cursor walk
 
-    (method ref (self (param i INT "Code-point position (0-based; negative counts from the end)") (param v STRING "String to index"))
+    (method ref (self (param i INTEGER "Code-point position (0-based; negative counts from the end)") (param v STRING "String to index"))
       (doc "The i-th CODE POINT of v as a CHARACTER, found by an O(n) UTF-8 walk; negative i counts from the end. Errors when i is nil or out of range."
-        (returns CHAR "Code point at position i")
+        (returns CHARACTER "Code point at position i")
         (example "(StrUtf8 ref 1 \"$¢€\")" "#\\¢"))
       ; The walker clamps at the byte length, so landing there means i is past
       ; the last code point -- error instead of decoding past the end. The nil
@@ -68,7 +68,7 @@
             (%integer->char (first (utf8-decode v b)))
             (Err raise (lit index) "Str ref: index out of range" ())))))
 
-    (method sub (self (param start INT "Start code-point offset (0-based)") (param len INT "Number of code points") (param v STRING "Source string"))
+    (method sub (self (param start INTEGER "Start code-point offset (0-based)") (param len INTEGER "Number of code points") (param v STRING "Source string"))
       (doc "Substring of len CODE POINTS starting at code-point offset start (O(n) walk)."
         (returns STRING "The len-code-point slice of v from start")
         (example "(StrUtf8 sub 1 1 \"$¢€\")" "\"¢\""))
@@ -81,7 +81,7 @@
       (def b1 (%u8-byte-offset v len2 b0))
       (%str-byte-sub v b0 (- b1 b0)))
 
-    (method step (self (param cur INT "Current byte offset of the cursor") (param v STRING "String being traversed"))
+    (method step (self (param cur INTEGER "Current byte offset of the cursor") (param v STRING "String being traversed"))
       (doc "Cursor step: decode one UTF-8 sequence at byte offset cur, yielding (CODE-POINT . next-byte-offset)."
         (returns PAIR "Pair of the decoded code point (CHARACTER) and the next byte offset")
         (example "(StrUtf8 step 1 \"$¢\")" "(#\\¢ . 3)"))
@@ -112,33 +112,33 @@
       (let ((b (self %rfind-bytes sub s)))
         (if (null? b) () (self %byte->cp b s))))
 
-    (method char->bytes (self (param el CHAR "Code point to encode"))
+    (method char->bytes (self (param el CHARACTER "Code point to encode"))
       (doc "Encode one CODE POINT to its 1-4 UTF-8 bytes (inverse of step)."
         (returns LIST "List of the UTF-8 byte values (integers) for el")
         (example "(StrUtf8 char->bytes (Char from-int 162))" "(194 162)"))
       (utf8-encode (%char->integer el)))
 
     ; --- The byte <-> code-point codec (x/codec/utf8 surfaces here) ---
-    (method seq-len (self (param b INT "Lead byte value (0-255)"))
+    (method seq-len (self (param b INTEGER "Lead byte value (0-255)"))
       (doc "Number of bytes in the UTF-8 sequence introduced by lead byte b."
-        (returns INT "Sequence length 1-4"))
+        (returns INTEGER "Sequence length 1-4"))
       (utf8-seq-len b))
-    (method decode (self (param s STRING "Byte string") (param i INT "Byte index of a sequence start"))
+    (method decode (self (param s STRING "Byte string") (param i INTEGER "Byte index of a sequence start"))
       (doc "Decode the UTF-8 sequence at byte index i."
         (returns PAIR "(code-point . next-byte-index)"))
       (utf8-decode s i))
-    (method encode (self (param cp INT "Code point to encode"))
+    (method encode (self (param cp INTEGER "Code point to encode"))
       (doc "Encode a code point as a list of its 1-4 UTF-8 byte values. Out-of-range emits U+FFFD."
         (returns LIST "UTF-8 byte values (integers)")
         (example "(StrUtf8 encode 162)" "(194 162)"))
       (utf8-encode cp))
-    (method width (self (param s STRING "Byte string") (param i INT "Byte index of a sequence start"))
+    (method width (self (param s STRING "Byte string") (param i INTEGER "Byte index of a sequence start"))
       (doc "Byte width of the UTF-8 sequence at byte index i. Allocation-free."
-        (returns INT "Sequence length 1-4"))
+        (returns INTEGER "Sequence length 1-4"))
       (utf8-width s i))
-    (method cp-at (self (param s STRING "Byte string") (param i INT "Byte index of a sequence start"))
+    (method cp-at (self (param s STRING "Byte string") (param i INTEGER "Byte index of a sequence start"))
       (doc "Code point at byte index i. Allocation-free (no pair, no closure)."
-        (returns INT "Decoded code point"))
+        (returns INTEGER "Decoded code point"))
       (utf8-cp-at s i))))
 
 ; Str = the AMBIENT string protocol. The default is UTF-8 (code points): the

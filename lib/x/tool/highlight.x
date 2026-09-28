@@ -325,27 +325,27 @@
         (returns LIST "Construct names as strings"))
       (List map (fn (_ entry) (Str8 str (first entry))) constructs))
 
-    (method spans (self (param text STR "Source text")
+    (method spans (self (param text STRING "Source text")
                         (param keywords LIST "Keyword names as strings"))
       (doc "Write span markup for source text, WITHOUT the surrounding container."
         (returns ANY "nil (output via display)"))
       (%hl-write-source text keywords))
 
-    (method source (self (param text STR "Source text")
+    (method source (self (param text STRING "Source text")
                          (param keywords LIST "Keyword names as strings"))
       (doc "Write x-lang source as a complete Rouge-shaped code block."
         (returns ANY "nil (output via display)"))
       (do (%hl-open) (%hl-write-source text keywords) (%hl-close)))
 
-    (method transcript (self (param text STR "REPL transcript text")
+    (method transcript (self (param text STRING "REPL transcript text")
                              (param keywords LIST "Keyword names as strings"))
       (doc "Write a REPL transcript -- \"> expr\" prompts and \"expr => result\" lines -- as a complete code block."
         (returns ANY "nil (output via display)"))
       (do (%hl-open) (%hl-write-transcript text keywords) (%hl-close)))
 
-    (method escape (self (param text STR "Text to escape"))
+    (method escape (self (param text STRING "Text to escape"))
       (doc "HTML-escape &, < and > in text."
-        (returns STR "Escaped text"))
+        (returns STRING "Escaped text"))
       (%hl-escape text))))
 
 (doc (provide x/tool/highlight Highlight)

@@ -104,13 +104,13 @@
     ; --- primitives (8-bit byte view; handler-immune via str-byte-*) ---
     (method length (self (param v STRING "String to measure"))
       (doc "Number of bytes in v (the 8-bit element count)."
-        (returns INT "Byte length of v")
+        (returns INTEGER "Byte length of v")
         (example "(Str8 length \"abc\")" "3"))
       (%str8-check v "Str8 length: not a string")
       (%str-byte-len v))
-    (method ref    (self (param i INT "Byte position (0-based; negative counts from the end)") (param v STRING "String to index"))
+    (method ref    (self (param i INTEGER "Byte position (0-based; negative counts from the end)") (param v STRING "String to index"))
       (doc "The i-th byte of v as a CHARACTER (code 0-255); negative i counts from the end. Errors when i is nil or out of range."
-        (returns CHAR "Byte at position i")
+        (returns CHARACTER "Byte at position i")
         (example "(Str8 ref 0 \"abc\")" "#\\a"))
       ; %str-byte-ref reads s[i] unchecked (heap over-read past the string), so
       ; the byte-length compare here is the x-lang guard. Nested ifs, not `or`:
@@ -123,7 +123,7 @@
           (%str-byte-ref v (+ j (%str-byte-len v))))
         (if (< j (%str-byte-len v)) (%str-byte-ref v j)
           (Err raise (lit index) "Str8 ref: index out of range" ()))))
-    (method sub    (self (param st INT "Start byte offset (0-based)") (param len INT "Number of bytes") (param v STRING "Source string"))
+    (method sub    (self (param st INTEGER "Start byte offset (0-based)") (param len INTEGER "Number of bytes") (param v STRING "Source string"))
       (doc "Substring of len bytes starting at byte offset st; st and len clamp to v's bounds (like StrUtf8 sub)."
         (returns STRING "The len-byte slice of v from st")
         (example "(Str8 sub 1 3 \"hello\")" "\"ell\""))
@@ -136,14 +136,14 @@
         (let ((s0 (if (< st2 0) 0 (if (< st2 n) st2 n))))
           (%str-byte-sub v s0
             (if (< len2 0) 0 (if (< len2 (- n s0)) len2 (- n s0)))))))
-    (method slice  (self (param st INT "Start offset (0-based, inclusive)") (param end INT "End offset (exclusive)") (param v STRING "Source string"))
+    (method slice  (self (param st INTEGER "Start offset (0-based, inclusive)") (param end INTEGER "End offset (exclusive)") (param v STRING "Source string"))
       (doc "Substring [st, end) -- the slice convention (start/end-exclusive), delegating to sub (start/length). Dispatches through (self sub), so StrUtf8 slices code points."
         (returns STRING "The [st, end) slice of v")
         (example "(Str8 slice 1 4 \"hello\")" "\"ell\""))
       (self sub st (- end st) v))
-    (method index  (self (param i INT "Byte position (0-based)") (param v STRING "String to index"))
+    (method index  (self (param i INTEGER "Byte position (0-based)") (param v STRING "String to index"))
       (doc "Alias for ref (the adjudicated element-access name): the i-th byte of v as a CHARACTER."
-        (returns CHAR "Byte at position i")
+        (returns CHARACTER "Byte at position i")
         (example "(Str8 index 0 \"abc\")" "#\\a"))
       (self ref i v))  ; alias: index = ref
 
@@ -252,7 +252,7 @@
     (method iter (self (param s STRING "String to iterate"))
       (doc "An iterator over the string's characters." (returns ITER "Character iterator"))
       (Iter new s))
-    (method make   (self (param k INT "Number of elements") . (param rest CHAR "Fill character (default space)"))
+    (method make   (self (param k INTEGER "Number of elements") . (param rest CHARACTER "Fill character (default space)"))
       (doc "A string of k copies of the fill character (space if omitted)."
         (returns STRING "k-element string of the fill character")
         (example "(Str8 make 3 (\" \" 0))" "\"   \""))
@@ -362,7 +362,7 @@
                     (%fold (fn (_ acc s)
                              (pair sep (pair (%str8-check s "Str8 join: element not a string") acc)))
                            () (%reverse (rest lst))))))))
-    (method repeat (self (param n INT "Number of copies") (param s STRING "String to repeat"))
+    (method repeat (self (param n INTEGER "Number of copies") (param s STRING "String to repeat"))
       (doc "Concatenate n copies of s (empty string when n <= 0)."
         (returns STRING "s repeated n times")
         (example "(Str8 repeat 3 \"ab\")" "\"ababab\""))
@@ -382,7 +382,7 @@
 
     ; --- padding (to n ELEMENTS: bytes for Str8, code points for Str --
     ; NOT display columns; wcwidth-style column tables are a known gap) ---
-    (method pad-left (self (param n INT "Target element count") (param ch CHAR "Padding character") (param s STRING "String to pad"))
+    (method pad-left (self (param n INTEGER "Target element count") (param ch CHARACTER "Padding character") (param s STRING "String to pad"))
       (doc "Left-pad s with ch until it is at least n ELEMENTS long (bytes for Str8, code points for Str) -- element count, not display columns."
         (returns STRING "s padded on the left to n elements (unchanged if already >= n)")
         (example "(Str8 pad-left 5 #\\0 \"42\")" "\"00042\""))
@@ -391,7 +391,7 @@
       (if (not (< len k)) s
         (%str-append (self make (- k len) ch) s)))
 
-    (method pad-right (self (param n INT "Target element count") (param ch CHAR "Padding character") (param s STRING "String to pad"))
+    (method pad-right (self (param n INTEGER "Target element count") (param ch CHARACTER "Padding character") (param s STRING "String to pad"))
       (doc "Right-pad s with ch until it is at least n ELEMENTS long (bytes for Str8, code points for Str) -- pad-left's missing twin."
         (returns STRING "s padded on the right to n elements (unchanged if already >= n)")
         (example "(Str8 pad-right 5 #\\0 \"42\")" "\"42000\""))
@@ -615,7 +615,7 @@
       (self trim-left (self trim-right s)))
 
     ; --- splitting (empty sep -> per element; else element search) ---
-    (method wrap (self (param width INT "Column limit, in bytes")
+    (method wrap (self (param width INTEGER "Column limit, in bytes")
                        (param s STRING "Text to wrap"))
       (doc "Greedy word-wrap: split s on whitespace (spaces, tabs, newlines all break words) and pack words into lines at most width bytes long. A word longer than width stands alone on its own over-length line -- words are never broken (#375). Returns no empty lines; all-whitespace input gives ()."
         (returns LIST "Lines, in order")
@@ -636,7 +636,7 @@
                     (go (rest ws) (Str8 append line " " w) (+ llen (+ 1 wlen)) acc))
                   (#t (go (rest ws) w wlen (pair line acc)))))))))) 
 
-    (method fill (self (param width INT "Column limit, in bytes")
+    (method fill (self (param width INTEGER "Column limit, in bytes")
                        (param s STRING "Text to wrap"))
       (doc "wrap, joined back with newlines: one string, lines at most width bytes (over-length single words excepted)."
         (returns STRING "The wrapped text")

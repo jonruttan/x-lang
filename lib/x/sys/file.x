@@ -77,6 +77,10 @@
                   (pair row (if (> gap 0) (pair (list 'pad gap) acc) acc))))
             (#t (go (rest rows) (+ gap (Struct length (list row))) acc))))))))
 
+; The fields' reader, compiled once: a stat pays for reading three fields,
+; not for building the plan.
+(def %stat-read (Struct reader %stat-fields))
+
 ; --- The flag tables (surfaced via the methods below) ---
 ; Static value members can't carry help text, so the tables live as data and
 ; the (File file-modes)/(File stat-flags) methods expose + document them.
@@ -174,19 +178,44 @@
 ; Little-endian byte peeks over a (str make N) buffer filled by a syscall.
 (def %fs-byte-ref (prim-ref 'str 'byte-ref))   ; temp's suffix bytes
 
-; File kind from the S_IFMT bits of a stat mode.
-(def %mode-kind
-  (fn (_ mode)
-    (let ((fmt (& mode 61440)))
-      (match
-        ((= fmt 32768) 'file)
-        ((= fmt 16384) 'dir)
-        ((= fmt 40960) 'link)
-        ((= fmt 8192)  'char)
-        ((= fmt 24576) 'block)
-        ((= fmt 4096)  'fifo)
-        ((= fmt 49152) 'socket)
-        (#t 'unknown)))))
+; File kind from the S_IFMT bits of a stat mode.  A decoded mode is never
+; nil, so the integer primitive masks it.
+(def %int& (prim-ref (lit int) (lit &)))
+(def %fmt-kind
+  (fn (_ fmt)
+    (match
+      ((= fmt 32768) 'file)
+      ((= fmt 16384) 'dir)
+      ((= fmt 40960) 'link)
+      ((= fmt 8192)  'char)
+      ((= fmt 24576) 'block)
+      ((= fmt 4096)  'fifo)
+      ((= fmt 49152) 'socket)
+      (#t 'unknown))))
+(def %mode-kind (fn (_ mode) (%fmt-kind (%int& mode 61440))))
+
+; The value a decoded stat record holds for name.
+(def %stat-field
+  (fn (loop name d)
+    (match
+      ((eq? d ()) ())
+      ((eq? (first (first d)) name) (rest (first d)))
+      (#t (loop name (rest d))))))
+
+; A stat64/stat buffer as the public metadata alist.  The stat struct's
+; layout is the platform's (stat-layout, in x/platform/syscall);
+; %stat-fields is the three fields of it this decode reads, through the
+; Struct codec (#371).  Every layout there is a 64-bit one and nothing
+; branches on the width, so a 32-bit build decodes neighbouring fields.
+; constraint: word-size = 8 -- stat/stat64 field offsets are 64-bit
+(def %stat-decode
+  (fn (_ buf)
+    (def d (%stat-read buf 0))
+    (def mode (%stat-field 'mode d))
+    (list (pair 'size (%stat-field 'size d))
+          (pair 'mode mode)
+          (pair 'kind (%mode-kind mode))
+          (pair 'mtime (%stat-field 'mtime d)))))
 
 
 
@@ -217,7 +246,7 @@
                        (param mode ANY "Open mode -- a number (e.g. 577), one symbol from (File file-modes) (e.g. 'rdonly), or a list of symbols OR'd together (e.g. (list 'wronly 'creat 'trunc))")
                        . (param perm ANY "Permission bits for a newly created file when the mode includes creat; default 0644. Ignored when the file is not created."))
       (doc "Open a file, returning a file descriptor."
-        (returns INT "File descriptor, or negative on error")
+        (returns INTEGER "File descriptor, or negative on error")
         (sample "(File open \"/etc/hostname\" 'rdonly)" "a file descriptor opened read-only")
         (sample "(File open \"out.svg\" (list 'wronly 'creat 'trunc))" "an fd opened for writing, new file mode 0644 (577 = O_WRONLY|O_CREAT|O_TRUNC)")
         (sample "(File open \"x\" 'creat 511)" "create with mode 0777 (511)"))
@@ -227,31 +256,31 @@
       (%sys-open pathname (%mode->int mode)
                  (if (null? perm) 420 (first perm))))
 
-    (method close (self (param fd INT "File descriptor to close"))
+    (method close (self (param fd INTEGER "File descriptor to close"))
       (doc "Close a file descriptor."
-        (returns INT "0 on success, negative on error")
+        (returns INTEGER "0 on success, negative on error")
         (sample "(File close fd)" "0"))
       (%sys-close fd))
 
-    (method read (self (param fd INT "File descriptor to read from")
+    (method read (self (param fd INTEGER "File descriptor to read from")
                        (param buffer STRING "Buffer to read into")
-                       (param size INT "Maximum bytes to read"))
+                       (param size INTEGER "Maximum bytes to read"))
       (doc "Read bytes from a file descriptor into a buffer."
-        (returns INT "Bytes read, 0 at EOF, negative on error")
+        (returns INTEGER "Bytes read, 0 at EOF, negative on error")
         (sample "(File read fd buf 64)" "bytes read into buf (0 at EOF)"))
       (%sys-read fd buffer size))
 
-    (method write (self (param fd INT "File descriptor to write to")
+    (method write (self (param fd INTEGER "File descriptor to write to")
                         (param buffer STRING "Data to write")
-                        (param size INT "Number of bytes to write"))
+                        (param size INTEGER "Number of bytes to write"))
       (doc "Write bytes from a buffer to a file descriptor."
-        (returns INT "Bytes written, or negative on error")
+        (returns INTEGER "Bytes written, or negative on error")
         (sample "(File write fd \"hello\" 5)" "5"))
       (%sys-write fd buffer size))
 
-    (method getc (self (param fd INT "File descriptor to read from"))
+    (method getc (self (param fd INTEGER "File descriptor to read from"))
       (doc "Read a single character from a file descriptor."
-        (returns CHAR "Character read, or -1 at EOF")
+        (returns CHARACTER "Character read, or -1 at EOF")
         (sample "(File getc fd)" "the next byte as a char, or -1 at EOF"))
       (let ((buffer (%make-str 1)))
         (let ((bytes-read (File read fd buffer 1)))
@@ -264,7 +293,7 @@
     ; takes 32-bit offsets (llseek is the 64-bit door there; not wired).
     (method %whence (self (param whence ANY "Seek origin -- symbol or number"))
       (doc "Resolve a seek origin to its POSIX SEEK_* value (identical across Linux/macOS): 'set -> 0, 'cur -> 1, 'end -> 2; a number passes through. Raises a tag 'type Err on anything else -- an unknown origin must not reach the kernel."
-        (returns INT "0, 1, 2, or the number given"))
+        (returns INTEGER "0, 1, 2, or the number given"))
       (match
         ((number? whence) whence)
         ((eq? whence 'set) 0)
@@ -272,27 +301,27 @@
         ((eq? whence 'end) 2)
         (#t (Err raise 'type "File seek: whence must be 'set, 'cur, 'end, or a number" whence))))
 
-    (method seek (self (param fd INT "File descriptor")
-                       (param offset INT "Byte offset, interpreted per whence")
+    (method seek (self (param fd INTEGER "File descriptor")
+                       (param offset INTEGER "Byte offset, interpreted per whence")
                        . (param whence ANY "Origin -- 'set (absolute, the default), 'cur (relative to the current offset), 'end (relative to end of file); or the numeric 0/1/2"))
       (doc "Reposition a file descriptor's read/write offset (lseek). Seeking past end of file is allowed; a later write there leaves a hole that reads back as zero bytes."
-        (returns INT "The new offset from the start of the file, or negative on error")
+        (returns INTEGER "The new offset from the start of the file, or negative on error")
         (sample "(File seek fd 16)" "16 -- absolute seek")
         (sample "(File seek fd 0 'end)" "the file's size, with the offset now at end")
         (sample "(File seek fd -1 'cur)" "steps the offset back one byte"))
       (%sys-lseek fd offset
                   (File %whence (if (null? whence) 'set (first whence)))))
 
-    (method tell (self (param fd INT "File descriptor"))
+    (method tell (self (param fd INTEGER "File descriptor"))
       (doc "The file descriptor's current offset -- (File seek fd 0 'cur)."
-        (returns INT "Current offset from the start of the file, or negative on error")
+        (returns INTEGER "Current offset from the start of the file, or negative on error")
         (sample "(File tell fd)" "the current offset"))
       (File seek fd 0 'cur))
 
-    (method truncate (self (param fd INT "File descriptor, opened writable")
-                           . (param size INT "New size in bytes; default the current offset"))
+    (method truncate (self (param fd INTEGER "File descriptor, opened writable")
+                           . (param size INTEGER "New size in bytes; default the current offset"))
       (doc "Truncate (or extend) the open file to size bytes (ftruncate). The offset does not move -- seek explicitly if it now lies past the end."
-        (returns INT "0 on success, negative on error")
+        (returns INTEGER "0 on success, negative on error")
         (sample "(File truncate fd 3)" "0 -- the file is now 3 bytes")
         (sample "(File truncate fd)" "0 -- cut at the current offset"))
       (%sys-ftruncate fd
@@ -305,22 +334,6 @@
     ; documented raw contract (absence-model rule 5).
     ; ======================================================================
 
-    ; The stat struct's layout is the platform's (stat-layout, in
-    ; x/platform/syscall); %stat-fields is the three fields of it this
-    ; decode reads, through the Struct codec (#371).  Every layout there is
-    ; a 64-bit one and nothing branches on the width, so a 32-bit build
-    ; decodes neighbouring fields.
-    ; constraint: word-size = 8 -- stat/stat64 field offsets are 64-bit
-    (method %stat-decode (self (param buf STRING "A stat buffer a syscall filled"))
-      (doc "Decode a stat64/stat buffer into the public metadata alist."
-        (returns ALIST "((size . N) (mode . M) (kind . K) (mtime . T))"))
-      (def d (Struct unpack %stat-fields buf))
-      (def mode (rest (Assoc entry 'mode d)))
-      (list (pair 'size (rest (Assoc entry 'size d)))
-            (pair 'mode mode)
-            (pair 'kind (%mode-kind mode))
-            (pair 'mtime (rest (Assoc entry 'mtime d)))))
-
     (method stat (self (param path STRING "Path to stat"))
       (doc "File metadata as an alist: ((size . BYTES) (mode . RAW) (kind . SYM) (mtime . UNIX-SECONDS)). kind is one of 'file 'dir 'link 'char 'block 'fifo 'socket (from the S_IFMT bits). Raises a tag 'io Err on failure."
         (returns ALIST "((size . N) (mode . M) (kind . K) (mtime . T))")
@@ -329,14 +342,17 @@
       (def buf (%make-str 160))
       (def r (%sys-stat path buf))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'stat path)))
-      (File %stat-decode buf))
+      (%stat-decode buf))
 
     (method exists? (self (param path STRING "Path to test"))
       (doc "Does path name an existing filesystem entry? (Any kind -- file, directory, link target...)"
         (returns BOOL "True when stat succeeds")
         (note "Deliberately duplicated across tiers with (Sys file-exists?) (#361): that access(2) door is what boot/module.x can reach before this module loads. Post-boot file work belongs here.")
         (sample "(File exists? \"lib/x.x\")" "#t"))
-      (guard (_ #f) (do (File stat path) #t)))
+      ; stat(2) answers 0 on success; a miss needs no Err built and caught
+      (match
+        ((str? path) (= (%sys-stat path (%make-str 160)) 0))
+        (#t #f)))
 
     (method read-all (self (param path STRING "File to read"))
       (doc "The whole file as one string (stat for the size, one read). Raises a tag 'io Err on open/read failure."
@@ -356,7 +372,7 @@
     (method write-all (self (param path STRING "File to write (created/truncated)")
                        (param s STRING "Contents"))
       (doc "Write s as the entire contents of path (create or truncate, mode 0644). Raises a tag 'io Err on failure; returns the byte count written."
-        (returns INT "Bytes written")
+        (returns INTEGER "Bytes written")
         (sample "(File write-all \"out.txt\" \"hi\\n\")" "3"))
       (%fs-path path "File write-all")
       (unless (str? s) (Err raise 'type "File write-all: contents must be a string" ()))
@@ -394,7 +410,7 @@
       (%drop-dots names ()))
 
     (method mkdir (self (param path STRING "Directory to create")
-                        . (param perm INT "Permission bits; default 0755"))
+                        . (param perm INTEGER "Permission bits; default 0755"))
       (doc "Create a directory (default mode 0755). Raises a tag 'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File mkdir \"build/out\")" "creates the directory"))
@@ -440,7 +456,7 @@
     ; are syscalls the platform table already names.
 
     (method chmod (self (param path STRING "Path whose mode to set")
-                        (param mode INT "Permission bits, e.g. 420 for 0644"))
+                        (param mode INTEGER "Permission bits, e.g. 420 for 0644"))
       (doc "Set a path's permission bits (chmod). Raises a tag 'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File chmod \"run.sh\" 493)" "makes it 0755"))
@@ -450,8 +466,8 @@
       ())
 
     (method chown (self (param path STRING "Path whose owner to set")
-                        (param uid INT "Owning user id, or -1 to leave it")
-                        (param gid INT "Owning group id, or -1 to leave it"))
+                        (param uid INTEGER "Owning user id, or -1 to leave it")
+                        (param gid INTEGER "Owning group id, or -1 to leave it"))
       (doc "Set a path's owning user and group (chown). Either id may be -1 to leave that half alone. Raises a tag 'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File chown \"out.txt\" 501 20)" "sets both")
@@ -505,7 +521,7 @@
       ())
 
     (method mkfifo (self (param path STRING "FIFO to create")
-                    . (param perm INT "Permission bits; default 0644"))
+                    . (param perm INTEGER "Permission bits; default 0644"))
       (doc "Create a named pipe (mknod with the S_IFIFO bit). Raises a tag 'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File mkfifo \"work.pipe\")" "creates the FIFO"))
@@ -525,10 +541,10 @@
       (def buf (%make-str 2304))
       (def r (%sys-statfs path buf))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'statfs path)))
-      ; The field spec, inlined the way (File %stat-decode)'s is: Darwin's
-      ; f_bsize is a u32 leading the struct, Linux's is the second of
-      ; eleven longs.  Only the block and inode counts are decoded --
-      ; Darwin puts two 1024-byte mount names after them.
+      ; The field spec per OS: Darwin's f_bsize is a u32 leading the
+      ; struct, Linux's is the second of eleven longs.  Only the block and
+      ; inode counts are decoded -- Darwin puts two 1024-byte mount names
+      ; after them.
       (Struct unpack
         (if os-darwin?
           (list (list 'bsize 'u32) (list 'iosize 'i32)
@@ -549,11 +565,11 @@
       (def buf (%make-str 160))
       (def r (%sys-lstat path buf))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'lstat path)))
-      (File %stat-decode buf))
+      (%stat-decode buf))
 
     (method copy (self (param from STRING "Source file") (param to STRING "Destination (created/truncated, mode 0644)"))
       (doc "Copy a file's bytes, binary-safe: a 64KB fd-level read/write loop driven by the raw byte counts, never by string length (a string's observable bytes end at the first NUL, so read-all->write-all corrupts binary). Raises a tag 'io Err on failure; returns the byte count copied."
-        (returns INT "Bytes copied")
+        (returns INTEGER "Bytes copied")
         (sample "(File copy \"a.bin\" \"b.bin\")" "1048576"))
       (%fs-path from "File copy")
       (%fs-path to "File copy")

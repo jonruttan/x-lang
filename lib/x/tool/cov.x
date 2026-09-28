@@ -98,7 +98,7 @@
     (go expr depth)
     (list (first cov-cell) (first tot-cell))))
   (param expr ANY "AST node to walk")
-  (param depth INT "Current recursion depth (limit 15)")
+  (param depth INTEGER "Current recursion depth (limit 15)")
   (returns LIST "(covered total) pair")
   "Count covered and total AST nodes in a tree.")
 
@@ -181,7 +181,7 @@
                   (cov-check-class name val tsv-mode) ())))))
         (self (rest alist) (+ n 1) tsv-mode)))))
   (param alist LIST "Environment alist to walk")
-  (param n INT "Counter (limit 5000)")
+  (param n INTEGER "Counter (limit 5000)")
   (param tsv-mode BOOL "Output TSV format if true")
   "Walk an environment alist checking coverage on each procedure and class.")
 
