@@ -343,10 +343,15 @@ structs and two indices; the loader does not care which is which.
    compiled analysers, native code in a page the writing process mapped --
    is the other half of the same rule: the module lists a THUNK in
    `%image-transients` instead of a symbol, the writer runs it inside the
-   child before its walk, and that thunk puts the carryable form back -- `boot/tower-compiled.x` restores
-   every interpreted analyser and lets go of the compiled objects -- while
-   the module's recache hook here compiles them anew, in boot order, asking
-   the lane again because the loading engine is not the writing one.
+   child before its walk, and that thunk puts the carryable form back.
+   `lib/x/sys/swap.x` keeps such values as sites, and its thunk puts every
+   site down: the tower's interpreted analysers are seated again and the
+   compiled objects let go. Each site added a recache hook of its own as it
+   was made, so here they come up in the order they were made, after the
+   hook of `boot/tower-compiled.x` that asks the lane again, because the
+   loading engine is not the writing one.
+   A module adds to either list through the catalog, `(image transient!)`
+   and `(image recache-hook!)`, which `boot/reflect.x` files.
 
 The loader is silent when a runner drives it; with `%IMG-VERBOSE` bound it
 prints one line of counts and the unresolved externals by name.
