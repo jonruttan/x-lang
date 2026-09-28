@@ -35,6 +35,25 @@ as a field is.
 
 [#833]: https://github.com/jonruttan/x-lang/pull/833
 
+**The reference gate checks a documented field** ([#841]).
+`tools/check/doc-forms.sh` checks that every field and static field declared
+in a class body under `lib/` has an entry on its module's page in
+`docs/ref/x`. A declaration wrapped in a doc form, `(doc NAME "...")` or
+`(doc (NAME default) "...")`, was skipped, because the gate read the form's
+head, `doc`, as the class's own description. The walker,
+`tools/check/doc-forms.x`, now reports such a form's declared name in a fourth
+column, and the gate checks it under that name. Three fields were skipped
+before: `Base raw`, `Type handle` and `Type raw`.
+
+A field documented with no description, `(doc NAME)`, which `(help Class/NAME)`
+reads as an empty description, stopped the reference generator with a
+segmentation fault. The generator read the description with an unchecked
+`first` of the empty list. It now reads an absent description as the empty
+string, and the entry keeps its heading and its note. No module under `lib/`
+used the form yet.
+
+[#841]: https://github.com/jonruttan/x-lang/pull/841
+
 **An instance's data is its fields** ([#829]). A field is a named component of
 an instance or a record, and a member is a field or a method. Inside a method,
 `(field 'name)` reads an instance's storage and `(set-field! 'name v)` writes
