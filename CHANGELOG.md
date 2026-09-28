@@ -64,6 +64,14 @@ load, which name it has, as x-coreutils and x-python do:
 
 [#821]: https://github.com/jonruttan/x-lang/pull/821
 
+**`docs/namespaces.md` opens by saying the design is built** ([#839]). It
+opened as a proposal with nothing implemented. It now says what it is, the
+record of the design's reasoning, points to `docs/modules.md` for how a
+scoped module is written, and dates the counts of its first section to the
+tree before any of it. The index no longer calls it a proposal.
+
+[#839]: https://github.com/jonruttan/x-lang/pull/839
+
 **The r5rs three and the r7rs six are answered in the bundles** ([#831]).
 `tools/contract/langs.x` recorded x-r5rs at 667/3 and x-r7rs at 33 failures
 on this tree, read as the platform's debt since the engine made an
