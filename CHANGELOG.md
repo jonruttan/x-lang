@@ -113,6 +113,17 @@ member. The exit codes and what is checked are unchanged.
 
 [#844]: https://github.com/jonruttan/x-lang/pull/844
 
+**The tokenizer's channel is the label channel** ([#851]). The integer an
+accepting state declares for its type's reader is a label: the value that
+says which variant the state saw. `%score-label!` writes it and
+`%read-label` reads it; they were `%score-variant!` and `%read-variant`. The
+assembler lane's message reads `a state that declares a label cannot be
+compiled`, and the two spec files are `lib/reader-label.spec.md` and
+`ext/jit-analyser-label.spec.md`. No alias is kept. x-python, the one bundle
+that reads the pair, takes either name since x-python#184.
+
+[#851]: https://github.com/jonruttan/x-lang/pull/851
+
 **A stat record holds a file's type under `file-type`** ([#823]).
 `(File stat p)` and `(File lstat p)` answer
 `((size . N) (mode . M) (file-type . K) (mtime . T))`; the third key was
@@ -1981,10 +1992,11 @@ of calling address 0.** An optional JIT symbol -- `jit_score_variant`,
 `jit_buffer_last_char` -- binds as 0 on an engine that lacks it, so that
 every other form keeps compiling; but a form that needed one was emitted
 anyway, as `blr 0`, and died arbitrarily far from the cause: x-python's
-compiled number states declared their variant on an engine without the
+compiled number states declared their label on an engine without the
 symbol and the first number token after the swap segfaulted (its main-lane
 CI, 3 of 5 runs). `%emit-call!` now refuses an address of 0 with a `'state`
-Err, and `%score-variant!` refuses by name the way a call through a value
+Err, and `%score-label!` (released as `%score-variant!`) refuses by name
+the way a call through a value
 already did, so a bundle's probe hears no and its guard keeps the
 interpreted twin. Pinned in `ext/jit-optional-symbol.spec.md` on every
 engine, by standing in for the missing symbol.
@@ -2029,20 +2041,21 @@ a file's type -- 'file 'dir 'link.)
 **A reader hears which state accepted, instead of rescanning to find out.**
 An analyser state knows which of its states accepted and threw it away; the
 type's reader then rescanned the text to learn what it had just been told.
-The engine now hangs a variant cell off the score cell (x-engine-c#43),
-records the winning handler's variant at the accept, and hands it to the
+The engine now hangs a label cell off the score cell (x-engine-c#43),
+records the winning handler's label at the accept, and hands it to the
 reader as its second argument; this release is the library's two ends of
-that channel. `%score-variant!` is the writing end, called by a state at
-its accept, and `%read-variant` the reading end -- the integer, or nil when
-no state declared one. The variant travels as a raw atom cell because an
+that channel. `%score-label!` is the writing end, called by a state at
+its accept, and `%read-label` the reading end -- the integer, or nil when
+no state declared one; they were released as `%score-variant!` and
+`%read-variant`. The label travels as a raw atom cell because an
 int object only exists relative to a base that registered the int type, and
 a tokenizer base has none by design. The assembler lane compiles
-`%score-variant!` through an optional JIT symbol, so an engine without it
+`%score-label!` through an optional JIT symbol, so an engine without it
 keeps compiling every state that does not use one. The capability is
 `tok/variant` in the contract, claimed by the engine, and the two spec files
 that need it say so with `# @requires`: the interpreted twin in
-`lib/reader-variant.spec.md` and the compiled one in
-`ext/jit-analyser-variant.spec.md`, split out of `jit-analyser-self` so
+`lib/reader-label.spec.md` and the compiled one in
+`ext/jit-analyser-label.spec.md`, split out of `jit-analyser-self` so
 that file keeps its self-param coverage on an engine without the door. The
 runner honoured only the FIRST `# @requires` line of a file, so one needing
 two capabilities was gated on one and would have run, and failed, where the
