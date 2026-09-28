@@ -14,6 +14,19 @@ as before.
 
 [#842]: https://github.com/jonruttan/x-lang/pull/842
 
+**The counted private reads are the ones that still want a door** ([#852]).
+Three changes to what `check-private-reads` counts, 183 reads in 40 files
+before and 81 in 14 after. A name in the selector's place of a send,
+`(self %walk ...)`, is a message and no longer a read. The names other files
+read from the files that stay unscoped are listed in
+`tools/contract/shared-privates.x`, each with what it is: a door in front of
+a name that stays in the root would hide nothing and cost a dispatch. And
+seven readers of `%stderr`, five tool scripts and the line editor's two
+files, write through `(Stream with-fd 2 thunk)`. What is left is the tool
+scripts reading one another and a few catalog aliases.
+
+[#852]: https://github.com/jonruttan/x-lang/pull/852
+
 **The profiler says which functions evaluation goes to** ([#835]). The
 profiling engine that x-engine-c ships from v0.2.15 counts, in each object, how
 many times evaluation reached it. `x/tool/profile` now reads those counts by
