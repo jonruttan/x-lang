@@ -2,11 +2,17 @@
 
 *x-lang: computational expressions over a minimal, type-agnostic engine.*
 
-This is a design proposal. Nothing in it is implemented. The measurements
-were taken on the tree at `b11084e9` (2026-09-14) and are reproducible
-with the commands beside them.
+This began as a design proposal, and the design is built. A file headed
+`(module NAME)` is a scoped module, and [Modules](modules.md#module-scope)
+says how to write one. This document keeps the reasoning: the rules, what
+was measured, and why each file without a scope has none. On 2026-09-28,
+78 of the library's 138 files were scoped.
 
-The proposal has three parts: a module gets a scope of its own, `provide`
+The counts under "Where names live today" describe the tree before any of
+it. They were taken at `b11084e9` (2026-09-14) and are reproducible with
+the commands beside them.
+
+The design has three parts: a module gets a scope of its own, `provide`
 and `import` become the only doors through that scope, and every name
 conflict the doors can meet has a stated rule. The third part is a
 requirement of the design, not a consequence of it: a scheme that removes
