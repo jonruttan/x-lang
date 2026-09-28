@@ -56,6 +56,18 @@ as well, `(List map f ())` costs about 1,900 where it cost 25,300.
 
 [#815]: https://github.com/jonruttan/x-lang/pull/815
 
+**`List sort` recurses on plain functions made once** ([#816]). The sort
+re-created its split, merge and reverse-onto closures on every call and
+recursed through `recur`, re-entering the method and `from-seq`'s dispatch
+at every level. They are module functions now, the sort proper is one
+function recursing on itself, and the input is converted once; `sort-by`
+calls the same function. Fifty integers sort in about 56,200 objects where
+they took 204,500, and in about 24,700 with the dispatch table's reordering
+and the block wrap's test as well; an empty sort costs about 1,600 with all
+three, where it cost 33,200.
+
+[#816]: https://github.com/jonruttan/x-lang/pull/816
+
 **The engine pin moves to x-engine-c v0.2.15** ([#810]). Every engine release
 now ships `x-bin-profile` beside `x-bin`, and under `X_PROFILE` each object's
 flags word counts how many times evaluation reached it (x-engine-c#66). The
