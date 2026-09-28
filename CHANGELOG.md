@@ -35,7 +35,7 @@ as a field is.
 
 [#833]: https://github.com/jonruttan/x-lang/pull/833
 
-**The compiled SHA-256 engine is a site** ([#PR]). `x/codec/sha256` kept its
+**The compiled SHA-256 engine is a site** ([#849]). `x/codec/sha256` kept its
 own record of the engine `(Sha256 jit!)` builds: nothing, the symbol `failed`,
 or the engine. It makes a site of `x/sys/swap` instead, named `sha256`, the
 first time a build is asked for, with the pure-x digest as its twin. A build
@@ -44,7 +44,7 @@ that raises is refused by the site, which keeps the raise's text, so
 `(Sha256 jit!)`, the digests and the 12KB bar are unchanged. A process that
 loads a state image holding the site builds the engine again as it loads.
 
-[#PR]: https://github.com/jonruttan/x-lang/pull/PR
+[#849]: https://github.com/jonruttan/x-lang/pull/849
 
 **The reference gate checks a documented field** ([#841]).
 `tools/check/doc-forms.sh` checks that every field and static field declared
