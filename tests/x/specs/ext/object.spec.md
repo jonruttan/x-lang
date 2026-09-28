@@ -544,6 +544,71 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
 ---
     #t
 
+## construction stores
+
+### the dotted-alist form fills members like the plist form
+
+```x
+(do
+  (def-class P2 () x y)
+  (def p (new P2 (x . 1) (y . 2)))
+  (list (p x) (p y)))
+```
+---
+    (1 2)
+
+### a store key that names no member is an error naming both
+
+```x
+(do
+  (def-class P3 () x)
+  (guard (e e) (new-from P3 '(q 1))))
+```
+---
+    "new: q is not a field of P3"
+
+### a plist key with no value is an error
+
+```x
+(do
+  (def-class P4 () x)
+  (guard (e e) (new-from P4 '(x))))
+```
+---
+    "new: init key without a value (use bare field names)"
+
+### a store that is not a list is an error
+
+```x
+(do
+  (def-class P5 () x)
+  (guard (e e) (new-from P5 5)))
+```
+---
+    "new: init store must be an alist or plist"
+
+### constructing a three-member instance costs fewer than 2,000 objects
+
+Every construction checks its store's keys, fills each member and looks
+for an %init hook; none of it builds a derived form per member.  Ten
+constructions, the loop around an empty thunk subtracted.
+
+```x
+(do
+  (import x/sys/gc)
+  (def-class Three () a b c)
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 10)
+      (- (Heap count) c0)))
+  (def %over (- (%cost (fn (_) (new Three a 1 b 2 c 3))) (%cost (fn (_) ()))))
+  (list ((new Three a 1 b 2 c 3) b) (< %over (* 2000 10))))
+```
+---
+    (2 #t)
+
 ## super correctness
 
 ### super from an inherited method resolves to the defining class's parent

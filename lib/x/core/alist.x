@@ -111,18 +111,19 @@
       ; non-list store (e.g. (first args) that yielded a bare symbol) and a
       ; plist key with no value cell (odd length, or the pair-valued "keys"
       ; you get from quoting names) both error cleanly instead of crashing.
-      ((not (pair? store))
-        (error "opt store: expected an alist or plist"))
-      ((pair? (first store))                              ; alist entry (k . v)
-        (if (eq? key (first (first store)))
-          (list (rest (first store)))
-          (loop key (rest store))))
-      ((not (pair? (rest store)))                         ; plist key, no value
-        (error "opt store: key without a value (use bare names, not quoted)"))
-      (#t                                                 ; plist cell: k then v
-        (if (eq? key (first store))
-          (list (first (rest store)))
-          (loop key (rest (rest store))))))))
+      ((pair? store)
+        (match
+          ((pair? (first store))                          ; alist entry (k . v)
+            (match
+              ((eq? key (first (first store))) (pair (rest (first store)) ()))
+              (#t (loop key (rest store)))))
+          ((pair? (rest store))                           ; plist cell: k then v
+            (match
+              ((eq? key (first store)) (pair (first (rest store)) ()))
+              (#t (loop key (rest (rest store))))))
+          (#t                                             ; plist key, no value
+            (error "opt store: key without a value (use bare names, not quoted)"))))
+      (#t (error "opt store: expected an alist or plist")))))
 
 ; let-opts' runtime lookup hook: the expansion below references this %-private
 ; by name, so it must stay a global def in the bootstrap layer.  The public API
