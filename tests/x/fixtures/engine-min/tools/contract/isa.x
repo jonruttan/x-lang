@@ -12,12 +12,12 @@
 ; commit -- a deliberate, reviewable act.  Shrinking it is always welcome.
 ;
 ; FORMAT (rigid, one entry per line -- the awk parses the same bytes):
-;   %isa-catalog: (ns method tag)   filed in the prims catalog by C
-;   %isa-bare:    (name tag)        bound bare by C, no catalog entry
-;   %isa-values:  (name [tag])      non-prim VALUES bound by C
+;   %isa-catalogue: (ns method label)   filed in the prims catalogue by C
+;   %isa-bare:      (name label)        bound bare by C, no catalogue entry
+;   %isa-values:    (name [label])      non-prim VALUES bound by C
 ;
-; Tags justify why the entry must be C.  An entry that cannot honestly take
-; one of these tags does not belong in C -- it is a migration candidate:
+; Labels justify why the entry must be C.  An entry that cannot honestly take
+; one of these labels does not belong in C -- it is a migration candidate:
 ;   spine    the evaluator/binder itself (eval, apply, fn/op, def, call/cc)
 ;   alloc    constructs heap objects (pair, atoms, instances)
 ;   gc       heap management (collect, hooks, limits)
@@ -50,7 +50,7 @@
 ; #t/#f are bound from interned singletons, not name literals -- the scanner
 ; special-cases them.
 
-(def %isa-catalog (lit (
+(def %isa-catalogue (lit (
   (  base bind spine           )
   (  base def-global spine)
   (  base eval spine)
@@ -135,7 +135,7 @@
   (  type make types)
   (  type make-instance alloc)
   (  type of hot               )
-  (  type set-shape! types)
+  (  type set-unit-labels! types)
 )))
 
 (def %isa-bare (lit (

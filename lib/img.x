@@ -184,14 +184,14 @@
   (fn (_ ts)
     ((fn (_ row)
        (if (null? row) ()
-         ((prim-ref (lit type) (lit set-shape!))
+         ((prim-ref (lit type) (lit set-unit-labels!))
           ts (first (rest row)) (%img-kind-mask (first (rest (rest row))) 0 1))))
      (%img-shape-row %type-shape-rows (%type-name ts)))))
 (def %img-declare-shapes!
   (fn (self alist)
     (if (null? alist) ()
       (do (%img-declare-shape! (rest (first alist))) (self (rest alist))))))
-(if (null? (prim-ref (lit type) (lit set-shape!)))
+(if (null? (prim-ref (lit type) (lit set-unit-labels!)))
   ()
   (%img-declare-shapes! (first %reflect-type-alist-cell)))
 
