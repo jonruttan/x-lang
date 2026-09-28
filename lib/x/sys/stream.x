@@ -59,7 +59,7 @@
 
   (static
     ; --- constructors ---
-    (method to-fd (self (param fd INT "An already-open file descriptor"))
+    (method to-fd (self (param fd INTEGER "An already-open file descriptor"))
       (doc "Wrap an already-open fd in a stream. Not owned -- (close) is a no-op."
         (returns Stream "A stream writing to FD")
         (sample "(Stream to-fd 2)" "a stream onto stderr"))
@@ -84,12 +84,12 @@
     ; --- introspection ---
     (method output-fd (self)
       (doc "The file descriptor display/write currently emit to."
-        (returns INT "the current output fd")
+        (returns INTEGER "the current output fd")
         (sample "(Stream output-fd)" "1 (stdout), normally"))
       (%output-fd))
 
     ; --- thunk redirect helpers ---
-    (method with-fd (self (param fd INT "Target file descriptor")
+    (method with-fd (self (param fd INTEGER "Target file descriptor")
                                     (param thunk CALLABLE "Zero-arg thunk to run"))
       (doc "Run THUNK with display/write redirected to FD, restoring the previous target afterward (even if THUNK errors)."
         (returns ANY "THUNK's result")
@@ -109,7 +109,7 @@
 
   ; --- instance methods ---
   (method fd (self)
-    (doc "The file descriptor this stream writes to." (returns INT "the fd"))
+    (doc "The file descriptor this stream writes to." (returns INTEGER "the fd"))
     (member 'fd))
 
   (method with (self (param thunk CALLABLE "Zero-arg thunk to run"))
@@ -119,9 +119,9 @@
     (%with-fd (member 'fd) thunk))
 
   (method write (self (param data STRING "Bytes to write")
-                      (param size INT "Number of bytes"))
+                      (param size INTEGER "Number of bytes"))
     (doc "Write SIZE bytes of DATA directly to the stream's fd. Needs the radon dialect."
-      (returns INT "Bytes written, or negative on error"))
+      (returns INTEGER "Bytes written, or negative on error"))
     (File write (member 'fd) data size))
 
   (method display (self (param v ANY "Value to render"))

@@ -35,7 +35,7 @@
     ; Resolve one libz symbol, per call (cold; dlopen caches the handle).
     (method %sym (self (param name STRING "libz function name"))
       (doc "The named libz symbol, resolving libz.so.1 / libz.dylib / the current process, in that order."
-        (returns PTR "The function pointer"))
+        (returns POINTER "The function pointer"))
       (def %dlopen (prim-ref (lit ffi) (lit dlopen)))
       (def %dlsym (prim-ref (lit ffi) (lit dlsym)))
       (def h
@@ -63,7 +63,7 @@
       (pair region p))
 
     ; buffer ptr -> byte list of the first n bytes.
-    (method %from-buf (self (param p PTR "Buffer pointer") (param n INT "Byte count"))
+    (method %from-buf (self (param p POINTER "Buffer pointer") (param n INTEGER "Byte count"))
       (doc "Read n bytes from a buffer into a byte list."
         (returns LIST "Byte values (0-255)"))
       (def %pref (prim-ref (lit ptr) (lit ref)))
@@ -73,20 +73,20 @@
 
     ; Write a machine word little-endian into a length cell; read it back.
     ; uLongf is unsigned long = the machine word on both target OSes.
-    (method %len-cell! (self (param p PTR "Cell pointer") (param v INT "Value"))
+    (method %len-cell! (self (param p POINTER "Cell pointer") (param v INTEGER "Value"))
       (doc "Store v as the platform word in a length in/out cell."
         (returns ANY "nil"))
       (def %pset-word (prim-ref (lit ptr) (lit set-word!)))
       (%pset-word p 0 v)
       ())
-    (method %len-cell (self (param p PTR "Cell pointer"))
+    (method %len-cell (self (param p POINTER "Cell pointer"))
       (doc "Read the platform word from a length in/out cell."
-        (returns INT "The stored value"))
+        (returns INTEGER "The stored value"))
       (def %pref-word (prim-ref (lit ptr) (lit ref-word)))
       (%pref-word p 0))
 
     (method compress (self (param bytes LIST "Bytes to compress")
-                           . (param level INT "zlib level 0-9; default 6"))
+                           . (param level INTEGER "zlib level 0-9; default 6"))
       (doc "Compress a byte list (zlib format, RFC 1950) at the given level. Raises tag 'value with zlib's code on failure."
         (returns LIST "The compressed bytes")
         (example "(Zlib decompress (Zlib compress (list 1 2 3 1 2 3 1 2 3)))" "(1 2 3 1 2 3 1 2 3)"))
@@ -111,7 +111,7 @@
       (Zlib %from-buf dst (Zlib %len-cell lencell)))
 
     (method decompress (self (param bytes LIST "zlib-format bytes to decompress")
-                             . (param hint INT "Expected output size; default 4x the input (the buffer doubles on shortfall either way)"))
+                             . (param hint INTEGER "Expected output size; default 4x the input (the buffer doubles on shortfall either way)"))
       (doc "Decompress zlib-format bytes. The format carries no output size, so the destination starts at hint (or 4x the input) and DOUBLES on Z_BUF_ERROR until it fits. Corrupt input raises tag 'value with zlib's code (Z_DATA_ERROR is -3)."
         (returns LIST "The decompressed bytes")
         (example "(Zlib decompress (Zlib compress (list 104 105)))" "(104 105)"))
@@ -167,9 +167,9 @@
 
     (method gz-write-all (self (param path STRING "The .gz file to write (created/truncated)")
                                (param bytes LIST "Bytes to compress into it")
-                               . (param level INT "zlib level 1-9; default 6"))
+                               . (param level INTEGER "zlib level 1-9; default 6"))
       (doc "Write a byte list as a gzip file. Raises tag 'io on open or short-write failure; returns the byte count written."
-        (returns INT "Bytes written (the uncompressed count)")
+        (returns INTEGER "Bytes written (the uncompressed count)")
         (sample "(Zlib gz-write-all \"notes.txt.gz\" (Str8 char->bytes ...))" "the byte count"))
       (def %call (prim-ref (lit ptr) (lit call)))
       (def mode (Str8 append "wb" (%number->str (if (null? level) 6 (first level)))))

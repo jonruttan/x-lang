@@ -96,7 +96,7 @@
 
   (method length (self)
     (doc "How many values the deque holds (kept O(1))."
-      (returns INT "The count"))
+      (returns INTEGER "The count"))
     (member 'len))
 
   (method empty? (self)

@@ -136,14 +136,14 @@
 
     (method length (self (param spec LIST "Field spec"))
       (doc "The record's total byte width -- the sum of every field and pad."
-        (returns INT "Byte count")
+        (returns INTEGER "Byte count")
         (example "(Struct length (list (list 'a 'u16) (list 'pad 5) (list 'b 'i64)))" "15"))
       (List fold (fn (_ acc entry) (+ acc (first (rest entry))))
         0 (Struct %plan spec)))
 
     (method unpack (self (param spec LIST "Field spec")
                          (param buf STRING "Record buffer (a (str make N) region a syscall filled; reads are NUL-blind)")
-                         . (param offset INT "Byte offset of the record; default 0"))
+                         . (param offset INTEGER "Byte offset of the record; default 0"))
       (doc "Decode one record at offset into an alist, fields in spec order, pads skipped. No bounds check is possible (a buffer's observable strlen lies past a NUL) -- the caller owns the bound, as with the raw peeks this replaces."
         (returns ALIST "((name . value) ...)")
         (note "Compiles the spec on every call; a record decoded repeatedly wants (Struct reader), which compiles it once.")

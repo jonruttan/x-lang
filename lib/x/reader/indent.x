@@ -172,25 +172,25 @@
                       (if (null? (rest opts)) (lit error) (first (rest opts))))
               'cols (list 0))))
 
-    (method advance (self (param col INT "Column so far")
-                          (param chr INT "The character")
-                          (param tab-stop INT "A tab advances to the next multiple of this"))
+    (method advance (self (param col INTEGER "Column so far")
+                          (param chr INTEGER "The character")
+                          (param tab-stop INTEGER "A tab advances to the next multiple of this"))
       (doc "The column after one character: a space is one, a tab advances to the next multiple of tab-stop, anything else leaves it alone."
-        (returns INT "The new column")
+        (returns INTEGER "The new column")
         (example "(Indent advance 1 #\\tab 8)" "8"))
       (%indent-advance col chr tab-stop))
 
     (method measure (self (param s STRING "The line")
-                          (param start INT "Index the leading run begins at")
-                          (param tab-stop INT "A tab advances to the next multiple of this"))
+                          (param start INTEGER "Index the leading run begins at")
+                          (param tab-stop INTEGER "A tab advances to the next multiple of this"))
       (doc "The column reached by the run of spaces and tabs at `start`, for a consumer holding a whole line rather than driving characters."
-        (returns INT "The column")
+        (returns INTEGER "The column")
         (example "(Indent measure \"    x\" 0 8)" "4"))
       (%indent-measure s start tab-stop))
 
     (method scan (self (param s STRING "The line")
-                       (param start INT "Index the leading run begins at")
-                       (param tab-stop INT "A tab advances to the next multiple of this"))
+                       (param start INTEGER "Index the leading run begins at")
+                       (param tab-stop INTEGER "A tab advances to the next multiple of this"))
       (doc "(COLUMN . END-INDEX) for the leading run of spaces and tabs at `start` -- both from one walk, because a column and an index stop being the same number as soon as a tab is worth more than one."
         (returns PAIR "(column . index of the first character that is neither)")
         (example "(Indent scan \"  x\" 0 8)" "(2 . 2)"))
@@ -231,8 +231,8 @@
                 (Err raise (lit indent)
                   "unindent does not match any outer indentation level" col)))))))
 
-    (method classify (self (param col INT "The incoming column")
-                           (param ref INT "The column being compared against"))
+    (method classify (self (param col INTEGER "The incoming column")
+                           (param ref INTEGER "The column being compared against"))
       (doc "deeper, same or shallower -- the three rules, for a consumer that keeps its own control flow and only wants to stop owning them."
         (returns SYMBOL "deeper | same | shallower")
         (example "(Indent classify 4 0)" "'deeper"))
@@ -246,15 +246,15 @@
 
   (method column (self)
     (doc "The innermost open column."
-      (returns INT "The column"))
+      (returns INTEGER "The column"))
     (first (member 'cols)))
 
   (method depth (self)
     (doc "How many levels are open. A fresh indenter is 1: column 0 counts."
-      (returns INT "The depth"))
+      (returns INTEGER "The depth"))
     (List length (member 'cols)))
 
-  (method feed (self (param col INT "The column this line begins at"))
+  (method feed (self (param col INTEGER "The column this line begins at"))
     (doc "Advance to a line at `col`. Returns zero or more `close` events followed by exactly one `open` or `same` -- so a caller never counts levels itself, which is the loop both previous implementations owned. Raises 'indent when the column matches no open level and the mode is 'error."
       (returns LIST "The events, outermost close first")
       (example "(let ((i (Indent make))) (i feed 4) (i feed 0))" "('close 'same)"))

@@ -266,7 +266,7 @@
     %fn))
 (doc compile-load "Load a compiled shared library and return fn_0 as a callable primitive."
   (param lib-path STRING "Path to shared library")
-  (returns PRIM "Native function"))
+  (returns PRIMITIVE "Native function"))
 
 (def compile-cc-flags %compile-cc-flags)
 (doc compile-cc-flags "Compiler flags for the current platform."
@@ -325,7 +325,7 @@
         %fn))))
 (doc compile-c "Compile an (fn ...) expression to a native primitive via C compiler. Caches by expression hash."
   (param expr LIST "A (fn (_ params...) body) expression")
-  (returns PRIM "Compiled native function"))
+  (returns PRIMITIVE "Compiled native function"))
 
 ; --- Full C compilation (called by compile-cache.x on cache miss) ---
 
@@ -366,7 +366,7 @@
       (compile-c expr (first %c-rest)))))
 (doc compile "Compile an (fn ...) expression to native code. Pure expressions use JIT assembler; fvar expressions use C compiler with persistent caching."
   (param expr LIST "A (fn (_ params...) body) expression")
-  (returns PRIM "Compiled native function"))
+  (returns PRIMITIVE "Compiled native function"))
 
 ; compile-batch: compile multiple (fn ...) expressions in one cc call.
 ; Returns a list of prims, one per expression.

@@ -63,7 +63,7 @@
       ((prim-ref (lit io) (lit display-to-str)) v))
     (method error-line (self)
       (doc "The source line number where the most recent error was raised. Frozen at raise time, so it is accurate read from inside a guard handler; between errors it retains the last one (boot itself catches some, so it is rarely 0)."
-        (returns INT "Line number"))
+        (returns INTEGER "Line number"))
       ((prim-ref (lit io) (lit error-line))))
     (method error-file (self)
       (doc "The source file path where the most recent error was raised, or \"\" when it arose from stdin/REPL input rather than an included file. Frozen at raise time (see error-line)."

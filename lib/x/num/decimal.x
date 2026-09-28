@@ -998,12 +998,12 @@
     ; --- Context ---
     (method precision (self)
       (doc "The significant digits division and sqrt round to."
-        (returns INT "Current precision")
+        (returns INTEGER "Current precision")
         (sample "(Decimal precision)" "34"))
       %dec-prec)
-    (method precision! (self (param n INT "Significant digits, at least 1"))
+    (method precision! (self (param n INTEGER "Significant digits, at least 1"))
       (doc "Set the significant digits division and sqrt round to. Addition, subtraction and multiplication stay exact and are unaffected."
-        (returns INT "The new precision"))
+        (returns INTEGER "The new precision"))
       (if (%int< n 1)
         (Err raise 'value "Decimal precision!: precision must be at least 1" n)
         (do (set! %dec-prec n) n)))
@@ -1013,23 +1013,23 @@
         (returns DECIMAL "Decimal instance")
         (sample "(Decimal ->str (Decimal from \"1.25\"))" "\"1.25\""))
       (ensure-dec x))
-    (method make (self (param sig INT "Significand (int or bigint)")
-                       (param exp INT "Power-of-ten exponent"))
+    (method make (self (param sig INTEGER "Significand (int or bigint)")
+                       (param exp INTEGER "Power-of-ten exponent"))
       (doc "Construct the decimal sig * 10^exp directly, without going through text."
         (returns DECIMAL "Decimal instance")
         (sample "(Decimal ->str (Decimal make 125 -2))" "\"1.25\""))
       (%make-dec sig exp))
     (method significand (self (param x DECIMAL "Decimal value"))
       (doc "The decimal's significand, with trailing zeros already stripped."
-        (returns INT "Significand as an exact integer"))
+        (returns INTEGER "Significand as an exact integer"))
       (%dec-sig (ensure-dec x)))
     (method exponent (self (param x DECIMAL "Decimal value"))
       (doc "The decimal's power-of-ten exponent."
-        (returns INT "Exponent"))
+        (returns INTEGER "Exponent"))
       (%dec-exp (ensure-dec x)))
     (method ->int (self (param x DECIMAL "Decimal value"))
       (doc "Convert a decimal to an exact integer by truncation toward zero."
-        (returns INT "Truncated integer value"))
+        (returns INTEGER "Truncated integer value"))
       (%dec->int (ensure-dec x)))
     (method ->str (self (param x DECIMAL "Decimal value"))
       (doc "The decimal's text, without the d suffix that `write` adds for round-tripping."
@@ -1065,7 +1065,7 @@
       (dec-eq (ensure-dec a) (ensure-dec b)))
     (method compare (self (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
       (doc "Three-way comparison of two decimals (other numerics coerce)."
-        (returns INT "-1 if a < b, 0 if equal, 1 if a > b"))
+        (returns INTEGER "-1 if a < b, 0 if equal, 1 if a > b"))
       (%dec-cmp (ensure-dec a) (ensure-dec b)))
     (method neg (self (param x NUMBER "Decimal value"))
       (doc "Negate a decimal." (returns DECIMAL "The negated value"))
@@ -1078,12 +1078,12 @@
       (%int= (%dec-sig (ensure-dec x)) 0))
     ; --- Rounding ---
     (method round (self (param x NUMBER "Decimal value")
-                        (param places INT "Decimal places to keep; negative rounds to tens, hundreds, ..."))
+                        (param places INTEGER "Decimal places to keep; negative rounds to tens, hundreds, ..."))
       (doc "Round a decimal to a number of decimal places, half-even."
         (returns DECIMAL "Rounded value")
         (sample "(Decimal ->str (Decimal round 2.675d 2))" "\"2.68\""))
       (%dec-rescale (ensure-dec x) (%int- 0 places)))
-    (method rescale (self (param x NUMBER "Decimal value") (param exp INT "Target power-of-ten exponent"))
+    (method rescale (self (param x NUMBER "Decimal value") (param exp INTEGER "Target power-of-ten exponent"))
       (doc "Restate a decimal at a given exponent, rounding half-even when that drops digits. The exponent-facing form of `round`, for a caller that thinks in scales."
         (returns DECIMAL "Value at the requested exponent"))
       (%dec-rescale (ensure-dec x) exp))
@@ -1108,7 +1108,7 @@
       (doc "The square root of a decimal, rounded half-even to the current precision."
         (returns DECIMAL "Square root of x"))
       (%dec-sqrt (ensure-dec x)))
-    (method pow (self (param x NUMBER "Base") (param n INT "Integer exponent"))
+    (method pow (self (param x NUMBER "Base") (param n INTEGER "Integer exponent"))
       (doc "Raise a decimal to an integer power. A non-negative exponent is exact; a negative one divides once, at the current precision."
         (returns DECIMAL "x raised to the power n"))
       (%dec-pow (ensure-dec x) n))

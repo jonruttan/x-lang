@@ -163,7 +163,7 @@
   "Boot-layer eq? membership test.")
 
 (doc (def %member-str?
-  (fn (self (param s STR "String to look for (str=? comparison)")
+  (fn (self (param s STRING "String to look for (str=? comparison)")
        (param lst LIST "List of strings"))
     (match
       ((null? lst) #f)

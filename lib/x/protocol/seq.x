@@ -67,7 +67,7 @@
     ; counting; O(1) encodings override length, never count.
     (method count (self (param v ANY "Value to traverse"))
       (doc "Count the elements: the cursor-walk ACTION, from start to done. `length` is the property this action computes."
-        (returns INT "Number of elements in v")
+        (returns INTEGER "Number of elements in v")
         (example "(Str8 count \"abc\")" "3"))
       ; Handlers hoisted once per traversal (#332); the loop then pays
       ; two direct applies per element instead of two full dispatches.
@@ -79,7 +79,7 @@
 
     (method length (self (param v ANY "Value to measure"))
       (doc "Number of elements: the PROPERTY every finite collection exposes. The default is computed by the `count` walk in O(n); fixed-width encodings (e.g. Str8) override it in O(1)."
-        (returns INT "Element count of v"))
+        (returns INTEGER "Element count of v"))
       (self count v))
 
     (method ->list (self (param v ANY "Value to traverse"))

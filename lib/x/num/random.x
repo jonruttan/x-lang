@@ -60,7 +60,7 @@
   ; --- seeding (software only) --------------------------------------------
   (method seed! (self n)
     (doc "Reseed the software PRNG. A zero seed is replaced -- xorshift needs a nonzero state."
-      (param n INT "Seed value")
+      (param n INTEGER "Seed value")
       (returns Random "self, for chaining"))
     (set-member! 'state (if (= n 0) %rand-default-seed (& n %rand-mask32)))
     self)
@@ -101,8 +101,8 @@
   ; --- public API ---------------------------------------------------------
   (method int (self n)
     (doc "A random integer in [0, n), uniform via rejection sampling."
-      (param n INT "Exclusive upper bound (must be > 0)")
-      (returns INT "A value in [0, n)")
+      (param n INTEGER "Exclusive upper bound (must be > 0)")
+      (returns INTEGER "A value in [0, n)")
       (example "((Random sw 1) int 6)" "3"))
     ; (% bits n) alone is BIASED whenever n does not divide 2^31 (low values
     ; come up once more often); redraw above the largest exact multiple of n.
@@ -117,16 +117,16 @@
 
   (method range (self lo hi)
     (doc "A random integer in [lo, hi) -- exclusive upper bound; `between` is the inclusive twin. The name carries the bound contract."
-      (param lo INT "Inclusive lower bound")
-      (param hi INT "Exclusive upper bound")
-      (returns INT "A value in [lo, hi)"))
+      (param lo INTEGER "Inclusive lower bound")
+      (param hi INTEGER "Exclusive upper bound")
+      (returns INTEGER "A value in [lo, hi)"))
     (+ lo (self int (- hi lo))))
 
   (method between (self lo hi)
     (doc "A random integer in [lo, hi] -- both ends inclusive; `range` is the exclusive twin. The name carries the bound contract."
-      (param lo INT "Inclusive lower bound")
-      (param hi INT "Inclusive upper bound")
-      (returns INT "A value in [lo, hi]"))
+      (param lo INTEGER "Inclusive lower bound")
+      (param hi INTEGER "Inclusive upper bound")
+      (returns INTEGER "A value in [lo, hi]"))
     (+ lo (self int (+ 1 (- hi lo)))))
 
   (method bool (self)
@@ -137,7 +137,7 @@
 
   (method bytes (self n)
     (doc "A list of n random byte values (0-255)."
-      (param n INT "How many bytes")
+      (param n INTEGER "How many bytes")
       (returns LIST "n byte values"))
     (let go ((i n) (acc ()))
       (if (= i 0) acc (go (- i 1) (pair (self int 256) acc)))))
@@ -182,7 +182,7 @@
 
   (method sample (self k lst)
     (doc "k distinct elements of lst, uniformly, in random order -- a shuffled prefix (#363). Raises tag 'value when k exceeds the population."
-      (param k INT "How many to draw")
+      (param k INTEGER "How many to draw")
       (param lst LIST "The population")
       (returns LIST "k distinct elements")
       (sample "((Random sw 5) sample 2 (list 1 2 3 4))" "(1 3)"))

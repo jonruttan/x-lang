@@ -54,9 +54,9 @@
     ; UTF-8 motion, as statics because they are facts about a string rather
     ; than about any one buffer -- repl/line.x measures a prompt with them too.
     (method next-start (self (param s STRING "Byte string")
-                             (param i INT "A sequence start, or the end"))
+                             (param i INTEGER "A sequence start, or the end"))
       (doc "The byte offset of the sequence after the one starting at i, clamped to the end of s."
-        (returns INT "Offset of the next character, or (Str8 length s) at the end")
+        (returns INTEGER "Offset of the next character, or (Str8 length s) at the end")
         (example "(Edit next-start \"hé\" 1)" "3"))
       (let ((n (Str8 length s)))
         (if (>= i n) n
@@ -64,9 +64,9 @@
             (if (> e n) n e)))))
 
     (method prev-start (self (param s STRING "Byte string")
-                             (param i INT "A sequence start, or the end"))
+                             (param i INTEGER "A sequence start, or the end"))
       (doc "The byte offset of the sequence before the one starting at i, clamped to 0. Walks back over continuation bytes (0x80-0xBF), so it lands on a character boundary rather than inside one."
-        (returns INT "Offset of the previous character, or 0 at the start")
+        (returns INTEGER "Offset of the previous character, or 0 at the start")
         (example "(Edit prev-start \"hé\" 3)" "1"))
       (let ((bref (prim-ref (lit str) (lit byte-ref)))
             (cint (prim-ref (lit char) (lit ->int))))
@@ -83,7 +83,7 @@
     ; reader would break on.  A REPL's words are mostly symbols, and a symbol
     ; may hold nearly any punctuation, so the class is defined by what it
     ; excludes rather than by an alphabet.
-    (method word-byte? (self (param b INT "A byte value"))
+    (method word-byte? (self (param b INTEGER "A byte value"))
       (doc "Whether a byte counts as part of a word for ctrl-left / meta-b motion: not whitespace, and not one of ()\";'`|."
         (returns BOOL "True when the byte is word material")
         (example "(Edit word-byte? 40)" "#f"))
@@ -98,7 +98,7 @@
     (member 'text))
 
   (method point (self)
-    (doc "The cursor, as a byte offset into the text." (returns INT "Byte offset"))
+    (doc "The cursor, as a byte offset into the text." (returns INTEGER "Byte offset"))
     (member 'point))
 
   (method empty? (self)
@@ -119,7 +119,7 @@
   ; --- editing --------------------------------------------------------------
 
   (method set-text! (self (param s STRING "Replacement text")
-                          . (param at INT "Where to leave the point; default the end"))
+                          . (param at INTEGER "Where to leave the point; default the end"))
     (doc "Replace the whole buffer, leaving the point at `at` (the end by default). The point is clamped into the new text."
       (returns Edit "self"))
     (set-member! 'text s)
@@ -331,7 +331,7 @@
   ; later! walks back down to the line that was being typed.
 
   (method search (self (param query STRING "Text to look for")
-                       (param from INT "Index of the first entry to try; 0 is the newest")
+                       (param from INTEGER "Index of the first entry to try; 0 is the newest")
                        (param dir SYMBOL "'back to walk toward older entries, 'forward toward newer ones")
                        . (param unlike STRING "An entry equal to this is passed over; optional"))
     (doc "Find the first history entry at or beyond `from`, walking in direction `dir`, that contains query. Answers (index . offset): the entry's index, and where query occurs in it -- its last occurrence walking back, its first walking forward -- or nil when no entry matches. An entry equal to `unlike` is passed over, so a repeated search moves on to a different line."
@@ -358,8 +358,8 @@
               (if (< top 0) ()
                 (go (List reverse (List take (+ top 1) h)) top -1))))))))
 
-  (method jump! (self (param k INT "Index of the entry to show; 0 is the newest")
-                      . (param at INT "Where to leave the point; default the end"))
+  (method jump! (self (param k INTEGER "Index of the entry to show; 0 is the newest")
+                      . (param at INTEGER "Where to leave the point; default the end"))
     (doc "Show history entry k as if walked to with earlier!, stashing the fresh line first when not already browsing, so later! walks back down to it. The point is left at `at`, the end of the entry by default. An index outside the history leaves the buffer as it was."
       (returns BOOL "True when the buffer changed")
       (example "(let ((e (Edit make (list \"b\" \"a\")))) (e insert! \"draft\") (e jump! 1) (e later!) (e later!) (e text))" "\"draft\""))

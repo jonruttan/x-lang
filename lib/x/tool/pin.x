@@ -1307,7 +1307,7 @@
           (#t (display "pin: lock isa fingerprint DIFFERS from this tree -- a pinned platform pairs with its release's engine\n")))))
     (method verify (self (param dest STRING "Overlay root directory"))
       (doc "Verify dest against its lockfile, BOTH halves: every overlay entry's digest must match and every file in the tree must be listed (an unlisted file is a rogue shadow ready to win root precedence), and when the lock pins a boot amalgam, the amalgam on disk must match the lock's recorded digest -- the boot-time wrapper only compares recorded ISA strings, so verify is where a tampered or skewed amalgam is caught (#145). A missing lockfile, missing file, digest mismatch, or unlisted file is a loud error naming each offender; release, payload and ISA drift against the running engine are notices, never errors -- the release pairing is ENFORCED by the wrapper at boot, where a refusal can still prevent the crash, and verify is where you read what it will decide. Returns the number of overlay files verified."
-        (returns INT "Files verified")
+        (returns INTEGER "Files verified")
         (sample "(Pin verify \"deps\")" "5"))
       (match
         ((not (File exists? (Pin %pin-lock-path dest)))

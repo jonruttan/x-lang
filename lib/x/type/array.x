@@ -100,20 +100,20 @@
 
   (method ref (self i)
     (doc "The element at index i (negative counts from the end); errors out of range."
-      (param i INT "Zero-based index")
+      (param i INTEGER "Zero-based index")
       (returns ANY "Element at i"))
     (%arr-obj-ref (member 'store) (+ 1 (self %index i "Array ref"))))
 
   (method set! (self i x)
     (doc "Store x at index i (in place; negative counts from the end); errors out of range; returns the array for chaining."
-      (param i INT "Zero-based index")
+      (param i INTEGER "Zero-based index")
       (param x ANY "Value to store")
       (returns Array "self"))
     (%arr-obj-set! (member 'store) (+ 1 (self %index i "Array set!")) x)
     self)
 
   (method length (self)
-    (doc "The live element count." (returns INT "Element count"))
+    (doc "The live element count." (returns INTEGER "Element count"))
     (self %live)
     (member 'len))
 

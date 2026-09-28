@@ -15,51 +15,51 @@
 ; --- Counter accessors ---
 
 (doc (def alloc-count (fn (_ ) (%cell-int (first (first (%profile))))))
-  (returns INT "Total heap allocations since last reset")
+  (returns INTEGER "Total heap allocations since last reset")
   "Return the number of heap objects allocated.")
 
 (doc (def eval-count (fn (_ ) (%cell-int (first (first (rest (%profile)))))))
-  (returns INT "Total eval calls since last reset")
+  (returns INTEGER "Total eval calls since last reset")
   "Return the number of eval invocations.")
 
 (doc (def tco-count
   (fn (_ ) (%cell-int (first (first (rest (rest (%profile))))))))
-  (returns INT "Total tail-call optimizations since last reset")
+  (returns INTEGER "Total tail-call optimizations since last reset")
   "Return the number of tail-call optimizations performed.")
 
 (doc (def assoc-calls-count
   (fn (_ ) (%cell-int (first (first (rest (rest (rest (%profile)))))))))
-  (returns INT "Total alist lookup calls")
+  (returns INTEGER "Total alist lookup calls")
   "Return the number of association list lookup operations.")
 
 (doc (def assoc-steps-count
   (fn (_ ) (%cell-int (first (first (rest (rest (rest (rest (%profile))))))))))
-  (returns INT "Total alist walk steps")
+  (returns INTEGER "Total alist walk steps")
   "Return the total steps walked during alist lookups.")
 
 (doc (def sym-find-calls-count
   (fn (_ ) (%cell-int (first (first (rest (rest (rest (rest (rest (%profile)))))))))))
-  (returns INT "Total symbol-find calls")
+  (returns INTEGER "Total symbol-find calls")
   "Return the number of symbol lookup operations.")
 
 (doc (def sym-find-steps-count
   (fn (_ ) (%cell-int (first (first (rest (rest (rest (rest (rest (rest (%profile))))))))))))
-  (returns INT "Total symbol-find steps")
+  (returns INTEGER "Total symbol-find steps")
   "Return the total steps walked during symbol lookups.")
 
 (doc (def gc-runs-count
   (fn (_ ) (%cell-int (first (first (rest (rest (rest (rest (rest (rest (rest (%profile)))))))))))))
-  (returns INT "Total GC mark/sweep cycles")
+  (returns INTEGER "Total GC mark/sweep cycles")
   "Return the number of garbage collection runs.")
 
 (doc (def bst-hits-count
   (fn (_ ) (%cell-int (first (first (rest (rest (rest (rest (rest (rest (rest (rest (%profile))))))))))))))
-  (returns INT "BST cache hits")
+  (returns INTEGER "BST cache hits")
   "Return the number of successful BST (binary search tree) lookups.")
 
 (doc (def bst-misses-count
   (fn (_ ) (%cell-int (first (first (rest (rest (rest (rest (rest (rest (rest (rest (rest (%profile)))))))))))))))
-  (returns INT "BST cache misses")
+  (returns INTEGER "BST cache misses")
   "Return the number of BST lookups that fell through to alist walk.")
 
 ; --- Reset ---
@@ -96,7 +96,7 @@
     (set! %hc-last-allocs (alloc-count))
     (set! %hc-last-surviving %hcf-after)
     (- %hcf-before %hcf-after)))
-  (returns INT "Number of objects freed")
+  (returns INTEGER "Number of objects freed")
   "Force a full GC mark/sweep cycle, returning the number of objects freed.")
 
 (doc (def heap-collect
@@ -105,7 +105,7 @@
     (if (> (- (alloc-count) %hc-last-allocs) %hc-last-surviving)
       (heap-collect-force)
       0)))
-  (returns INT "Number of objects freed, or 0 if skipped")
+  (returns INTEGER "Number of objects freed, or 0 if skipped")
   "Smart GC: only collect when allocations since last run exceed surviving objects.")
 
 ; --- Output ---

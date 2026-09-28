@@ -20,7 +20,7 @@
   (static
     (method run! (self (param argv LIST "Command and arguments, e.g. (list \"curl\" \"-fsSL\" url)"))
       (doc "Fork/exec argv; wait; return how the child ended."
-        (returns INT "Exit status; 127 = exec failed; 128+N = signal death")
+        (returns INTEGER "Exit status; 127 = exec failed; 128+N = signal death")
         (example "(Proc run! (list \"/bin/sh\" \"-c\" \"exit 3\"))" "3"))
       ; The child must die on exec failure -- AND on any failure at all
       ; between fork and exec: an uncaught error there aborts the form
@@ -52,7 +52,7 @@
     (method run-with! (self (param opts ALIST "Options: (cwd . PATH) working directory, (env . ((NAME . VALUE) ...)) environment overrides -- both optional")
                             (param argv LIST "Command and arguments"))
       (doc "run! with a child-side working directory and/or environment overrides (#364). Env pairs are set on top of the inherited environment; cwd applies after them."
-        (returns INT "Exit status; 126 = the cwd was unusable; 127 = exec failed; 128+N = signal death")
+        (returns INTEGER "Exit status; 126 = the cwd was unusable; 127 = exec failed; 128+N = signal death")
         (example "(Proc run-with! (list (pair 'cwd \"/tmp\")) (list \"/bin/sh\" \"-c\" \"test $(pwd) = /tmp || test $(pwd) = /private/tmp\"))" "0"))
       (let ((pid (Sys fork)))
         (match
