@@ -939,13 +939,13 @@ An iterator over the vector's elements.
 
 ## 17. Objects
 
-Message-passing classes with single inheritance, mutable members, and encapsulated
+Message-passing classes with single inheritance, mutable fields, and encapsulated
 access, built on the `make-type` mechanism. Send a message by applying an instance
 to a **literal** member name (no quote): `(obj name args...)`. A method named
-`name` wins; otherwise `name` is a member — `(obj m)` reads it, `(obj m v)` writes
-it. From outside, dispatch is the only way in. **Classes are objects too:**
+`name` wins; otherwise `name` is a field — `(obj m)` reads it, `(obj m v)` writes
+it. From outside, dispatch is the only way in. **Classes are values too:**
 `(Class name args...)` calls a static method, `(Class member)` / `(Class member val)`
-reads/writes a class-wide member, and `(Class new member val...)` builds an instance.
+reads/writes a static member, and `(Class new member val...)` builds an instance.
 See the [Object System](object-system.md) guide for the full walkthrough.
 
 ### `def-class`
@@ -970,10 +970,10 @@ members take their declared default (nil if none).
 (do (def-class Point () x y) (new Point x 1 y 2)) -> #<Point x=1 y=2>
 ```
 
-### member access
+### field access
 `(obj name)` / `(obj name value)`
 Reads or writes member `name`: a method named `name` is called, otherwise the
-member is read/written.
+field is read/written.
 ```x-repl
 (do (def-class P () n) (def p (new P n 5)) (p n 10) (p n)) -> 10
 ```
@@ -992,8 +992,8 @@ Invokes the parent class's version of a method. Resolves from the parent of the
 method's **defining** class (fixed at `def-class` time), so it chains correctly
 through multi-level inheritance. Only valid inside an instance method.
 
-### `member` / `set-member!` — inside methods only
-`(member 'name)` / `(set-member! 'name value)`
+### `field` / `set-field!` — inside methods only
+`(field 'name)` / `(set-field! 'name value)`
 Raw member access that bypasses a same-named method override (the private-data
 pattern). Bound only inside method bodies; not available to external code.
 

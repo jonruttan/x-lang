@@ -22,7 +22,7 @@ speaks a different language (x-logo's Logo reader is one of these).
 
 `(Base make)` answers a **Base instance** wrapping the raw C base object.
 The instance is the interactive surface; the raw object (its `raw`
-member) is what C-level plumbing consumes. Every `Base` static accepts
+field) is what C-level plumbing consumes. Every `Base` static accepts
 either form.
 
 ## A first sandbox

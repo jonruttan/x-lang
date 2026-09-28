@@ -19,6 +19,21 @@ from an unpacked release, and the image tools mark with the engine's
 
 [#835]: https://github.com/jonruttan/x-lang/pull/835
 
+**An instance's data is its fields** ([#829]). A field is a named component of
+an instance or a record, a member is a field or a method, and a class's own
+data is a static member. Inside a method, `(field 'name)` reads an instance's
+storage and `(set-field! 'name v)` writes it; they were `(member 'name)` and
+`(set-member! 'name v)`. `(class-fields c)` lists a class's own field names; it
+was `(class-members c)`. `(help Class)` heads an instance's data `fields:`, and
+the generated reference notes each one as a field. `class-static-members`, the
+`(static ...)` block and the `members:` heading under `static:` keep their
+names. No alias is kept.
+
+Five messages follow: `is not a field of`, `use bare field names`,
+`declare fields directly`, `expected a field name` and `duplicate field`.
+
+[#829]: https://github.com/jonruttan/x-lang/pull/829
+
 **A stat record holds a file's type under `file-type`** ([#823]).
 `(File stat p)` and `(File lstat p)` answer
 `((size . N) (mode . M) (file-type . K) (mtime . T))`; the third key was
@@ -63,6 +78,17 @@ load, which name it has, as x-coreutils and x-python do:
 
 [#821]: https://github.com/jonruttan/x-lang/pull/821
 
+**The r5rs three and the r7rs six are answered in the bundles** ([#831]).
+`tools/contract/langs.x` recorded x-r5rs at 667/3 and x-r7rs at 33 failures
+on this tree, read as the platform's debt since the engine made an
+environment a value. x-r5rs now evaluates a macro's expansion in a child of
+the use site's environment (x-r5rs#17, its v0.2.4), and x-r7rs binds
+`let-values`' formals in one (x-r7rs#19). Measured on v0.15.0 and on main,
+x-r5rs is 667/0 and x-r7rs 637/27, the 27 it records by name, and its row
+here follows the count from 30 to 27.
+
+[#831]: https://github.com/jonruttan/x-lang/pull/831
+
 **A spec may not rebind the library's root %-definitions** ([#818]). A spec
 snippet is evaluated at the root, so its top-level defs outlive it, and
 `check-spec-globals` refuses one that takes a name the shared vocabulary owns.
@@ -102,6 +128,16 @@ and `-`: the fold allocates 7 objects, and 8 when it folds, and a `Sys getpid`
 through a `method-of` door allocates 135 where it took 417.
 
 [#812]: https://github.com/jonruttan/x-lang/pull/812
+
+**The assembler takes a label's address** ([#834]). `(adr Xd (label L))` sets
+`Xd` to the address of the label `L`, counted from where the instruction sits,
+so code that runs wherever it is loaded can hand out addresses inside itself.
+On ARM64 it is ADR, which reaches a label less than a megabyte away in either
+direction, and `asm-finalize!` refuses one farther; on x86-64 it is a `lea`
+from `rip`, which reaches two gigabytes either way. A register holding a
+label's address is called with `blr`.
+
+[#834]: https://github.com/jonruttan/x-lang/pull/834
 
 **A directory listing decodes on the integer primitives** ([#811]). `File
 list-dir` on a 50-name directory allocated about 111,000 objects: the dirent
@@ -3349,7 +3385,7 @@ engine to run it.
 - **Optional build modules under `opt/`** — first occupant is `opt/x-prim/signal.c`; gated by `X_SIGNAL` (default on), `make X_SIGNAL=` drops the module and compiles the eval poll out
 - **`examples/logo/ch1.logo`** — Chapter-1 programs from *Turtle Geometry* (ARCR/ARCL, RAY, POLY/NEWPOLY, POLYSPI/POLYSPII, INSPI)
 - **x-spec coverage for GC hook & root API** — `tests/x/specs/applicative/gc-hooks.spec.md` (STRESS-only)
-- **Object-oriented class system** (`lib/x/type/class.x`) — classes are themselves callable `%class` objects; instances are `%object`. Message-passing dispatch with literal selectors (`(obj name args)`, no quotes — the `call` handler is an operative), single inheritance with `super`, and a `(static …)` block of static methods + class-wide members so a class doubles as a namespace (`(Class name)`, `(Class new …)`). Members are declared directly in the class body (no wrapper) with a uniform form — `name` | `(name default)` | `(name default "desc")` — identical in the static block; instance members gain optional default values. Access is encapsulated (external reads/writes only via dispatch; method-internal `(member 'm)`/`(set-member! 'm v)` for the private-data pattern). `(help Class)` lists members and methods grouped static-vs-instance, merged across the inheritance chain and sorted by name. Spec: `tests/x/specs/ext/object.spec.md`; guide: `docs/object-system.md`
+- **Object-oriented class system** (`lib/x/type/class.x`) — classes are themselves callable `%class` objects; instances are `%object`. Message-passing dispatch with literal selectors (`(obj name args)`, no quotes — the `call` handler is an operative), single inheritance with `super`, and a `(static …)` block of static methods + class-wide members so a class doubles as a namespace (`(Class name)`, `(Class new …)`). Members are declared directly in the class body (no wrapper) with a uniform form — `name` | `(name default)` | `(name default "desc")` — identical in the static block; instance members gain optional default values. Access is encapsulated (external reads/writes only via dispatch; method-internal `(field 'm)`/`(set-field! 'm v)`, released as `(member 'm)`/`(set-member! 'm v)`, for the private-data pattern). `(help Class)` lists members and methods grouped static-vs-instance, merged across the inheritance chain and sorted by name. Spec: `tests/x/specs/ext/object.spec.md`; guide: `docs/object-system.md`
 - **Quote reader** (`lib/x/type/lit-reader.x`) — `'expr` is reader shorthand for `(lit expr)` (`'sym`, `'(a b)`, `''x`, and `'` as a terminating macro char). The analyser is JIT-compiled in x/and and x/or so it doesn't slow tokenizing. Spec: `tests/x/specs/core/quote-reader.spec.md`
 
 ### Changed

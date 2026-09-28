@@ -45,11 +45,11 @@
       (self from-list args)))
 
   ; Uninitialized guard: an instance built outside make (generic new,
-  ; raw new-from) has a nil dict member; every op funnels through %d so
+  ; raw new-from) has a nil dict field; every op funnels through %d so
   ; first USE raises the teaching error instead of calling nil.
   (method %d (self)
-    (when (null? (member 'd)) (Err raise 'state "Set: uninitialized instance (use Set make / from-list / of)" ()))
-    (member 'd))
+    (when (null? (field 'd)) (Err raise 'state "Set: uninitialized instance (use Set make / from-list / of)" ()))
+    (field 'd))
 
   ; --- membership ---------------------------------------------------------
   (method add! (self x)

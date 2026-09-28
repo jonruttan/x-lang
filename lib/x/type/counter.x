@@ -20,13 +20,13 @@
   d  ; the backing Dict: value -> count
 
   ; Uninitialized guard, unified with Set's: an instance built outside
-  ; make (generic new, raw new-from) has a nil dict member; every op
+  ; make (generic new, raw new-from) has a nil dict field; every op
   ; funnels through %d so first USE raises the teaching error instead of
   ; calling nil -- the drift between the two Dict-backed wrappers (Set
   ; guarded, Counter raw) is closed on the guarded side.
   (method %d (self)
-    (when (null? (member 'd)) (Err raise 'state "Counter: uninitialized instance (use Counter make / from-list)" ()))
-    (member 'd))
+    (when (null? (field 'd)) (Err raise 'state "Counter: uninitialized instance (use Counter make / from-list)" ()))
+    (field 'd))
 
   (static
     (method make (self)

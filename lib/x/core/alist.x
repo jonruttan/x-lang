@@ -5,7 +5,7 @@
 ; Keys compared with eq? (symbol pointer equality)
 ;
 ; This file is the BOOTSTRAP layer: the five operations the object system
-; itself runs on (object.x dispatches members through assoc-get/assoc-put/
+; itself runs on (class.x dispatches fields through assoc-get/assoc-put/
 ; assoc-has?/assoc-keys, and assoc-put needs assoc-del), plus the let-opts
 ; form and its %-private runtime support. It loads before object.x, so it
 ; cannot reference classes. The full association API homes on the Assoc
