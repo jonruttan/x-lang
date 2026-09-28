@@ -189,6 +189,16 @@ integer.
 
 [#813]: https://github.com/jonruttan/x-lang/pull/813
 
+**A failed call's errno is read without per-call lookups** ([#826]). `(Err
+errno-of)` fetched its three pointer primitives with `prim-ref` on every
+call, and `(Err from-errno)` built its message through a `Str8` class send;
+the primitives are resolved when the module loads and the message is joined
+directly. `errno-of` allocates about 700 objects where it took 1,630; with
+the construction change as well, a failed `File stat` allocates about 4,500
+where it took 9,650.
+
+[#826]: https://github.com/jonruttan/x-lang/pull/826
+
 ## [0.16.0] - 2026-09-27
 
 **A call through a syscall door walks nothing** ([#807]). A door from
