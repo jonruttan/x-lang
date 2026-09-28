@@ -347,7 +347,7 @@ Clothes a type handle (from `Type of`) or the type itself (from
 `Type by-atom`) as an interactive Type instance: `(t name)`,
 `(t cell 'type-write-stack)`, `(t fields)`, and the wiring verbs
 `push-write` / `push-display` / `push-call` / `push-op` as instance
-methods. The `handle` member holds the name atom, `raw` the struct the
+methods. The `handle` field holds the name atom, `raw` the struct the
 `Type` statics consume.
 
 `cell` and `fields` walk the layout contract (`engine/tools/contract/base-paths.x`)
@@ -385,7 +385,7 @@ The `call` handler enables `(v 0)` indexing. The `write` handler produces `#(1 2
 
 #### Example: Object System
 
-The standard library's object system (`lib/x/type/class.x`) is the richest use of `make-type`. It defines two callable types — `%object` (instances) and `%class` (classes) — each with an **operative** `call` handler, so `(obj name args...)` reaches the handler with the receiver as `self` and `name` *unevaluated* (a literal selector, no quote needed). The handler looks `name` up as a method (walking the parent chain for inheritance); finding none, it falls back to a member get/set.
+The standard library's object system (`lib/x/type/class.x`) is the richest use of `make-type`. It defines two callable types — `%object` (instances) and `%class` (classes) — each with an **operative** `call` handler, so `(obj name args...)` reaches the handler with the receiver as `self` and `name` *unevaluated* (a literal selector, no quote needed). The handler looks `name` up as a method (walking the parent chain for inheritance); finding none, it falls back to a field get/set.
 
 ```x
 (def-class Point ()
@@ -395,7 +395,7 @@ The standard library's object system (`lib/x/type/class.x`) is the richest use o
 (p sum)              ; dispatches through the %object call handler (no quote)
 ```
 
-A class is itself a callable `%class` object — `(Class static-method …)` dispatches its statics — wrapping a descriptor alist; each instance carries its class plus a mutable member box, and external code reaches either only through dispatch. Because it all rides on the type system's existing `call` hook, the whole class system — single inheritance, `super`, static methods and class-wide members, encapsulation — needs no C code. See the [Object System](object-system.md) guide for the full API.
+A class is itself a callable value of runtime type CLASS — `(Class static-method …)` dispatches its statics — wrapping a descriptor alist; each instance carries its class plus a mutable field box, and external code reaches either only through dispatch. Because it all rides on the type system's existing `call` hook, the whole class system — single inheritance, `super`, static methods and static members, encapsulation — needs no C code. See the [Object System](object-system.md) guide for the full API.
 
 #### Performance: compiling analysers
 
@@ -485,7 +485,7 @@ x_eval_field_tco_env(X)        /* TCO environment register    */
 
 #### Properties
 
-**Independence** — Each base is a self-contained interpreter. It has its own type registry, its own variable bindings, its own I/O streams. Creating a new base with `(Base make)` produces an independent interpreter, wrapped as a Base instance: the raw C base object rides the instance's `raw` member, every `Base` static accepts either form, and the instance answers `eval`/`bind`/`make-type` directly.
+**Independence** — Each base is a self-contained interpreter. It has its own type registry, its own variable bindings, its own I/O streams. Creating a new base with `(Base make)` produces an independent interpreter, wrapped as a Base instance: the raw C base object rides the instance's `raw` field, every `Base` static accepts either form, and the instance answers `eval`/`bind`/`make-type` directly.
 
 **Swappable** — A base can be replaced during execution. Swapping the base swaps the entire language — bindings, types, and state — in one operation.
 

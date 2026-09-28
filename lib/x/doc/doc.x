@@ -413,7 +413,7 @@
 
 ; Print one "<name> -- <desc>" listing line (description omitted when empty),
 ; then a newline.  The single formatter every name+desc listing routes through
-; -- module exports, apropos hits, class members, the overview -- so colour and
+; -- module exports, apropos hits, class fields, the overview -- so colour and
 ; layout cannot drift apart between them.
 (def %display-entry-line
   (fn (_ indent name desc)
@@ -519,9 +519,9 @@
         (def %e (%doc-lookup %k))
         (if (null? %e) (self (class-parent c) method-str) %e)))))
 
-; --- Class help: members/methods grouped static vs instance, sorted, merged ---
+; --- Class help: fields/methods grouped static vs instance, sorted, merged ---
 
-; Lexicographic byte compare of two strings (sorts member/method names).
+; Lexicographic byte compare of two strings (sorts field/method names).
 ; Lengths hoisted above the walk (#338): the old loop recomputed both
 ; on every character inside a sort comparator.
 (def %str<?
@@ -591,13 +591,13 @@
         (display indent label "\n")
         (%display-entries entries (%str-append indent "  "))))))
 
-; Print a class's members + methods, grouped static vs instance, at `base` indent.
+; Print a class's fields + methods, grouped static vs instance, at `base` indent.
 ; Empty sections are hidden; inheritance is merged + sorted within each section.
 (def %display-class-sections
   (fn (_ cls base)
     (let ((s-mem  (%class-section-entries cls class-static-members))
           (s-meth (%class-section-entries cls class-static-methods))
-          (i-mem  (%class-section-entries cls class-members))
+          (i-mem  (%class-section-entries cls class-fields))
           (i-meth (%class-section-entries cls class-methods)))
       (do
         (if (if (null? s-mem) (null? s-meth) #f) ()    ; static: only if non-empty
@@ -605,7 +605,7 @@
             (display base "static:\n")
             (%display-section "members:" s-mem  (%str-append base "  "))
             (%display-section "methods:" s-meth (%str-append base "  "))))
-        (%display-section "members:" i-mem  base)
+        (%display-section "fields:" i-mem  base)
         (%display-section "methods:" i-meth base)))))
 
 ; Resolve an evaluated value to a class for help: the class itself, or -- when
@@ -652,7 +652,7 @@
               (%display-module %mod e)
               (let ()
                 ; A class is shown as its summary (the body-level (doc ...), if any)
-                ; ABOVE its member/method sections -- so detect class BEFORE the
+                ; ABOVE its field/method sections -- so detect class BEFORE the
                 ; generic doc-lookup, which would otherwise show the summary alone.
                 (def %cls (%resolve-class (guard (_ ()) (eval %h-name e))))
                 (if (if (null? %cls) #f (class? %cls))

@@ -62,25 +62,25 @@
     (doc "Reseed the software PRNG. A zero seed is replaced -- xorshift needs a nonzero state."
       (param n INTEGER "Seed value")
       (returns Random "self, for chaining"))
-    (set-member! 'state (if (= n 0) %rand-default-seed (& n %rand-mask32)))
+    (set-field! 'state (if (= n 0) %rand-default-seed (& n %rand-mask32)))
     self)
 
   ; --- the entropy source -------------------------------------------------
   ; 31 random bits in [0, 2^31). Both backends yield the same shape so every
   ; method below is backend-agnostic. Private (% prefix); dispatched per call.
   (method %bits (self)
-    (if (eq? (member 'kind) 'hw) (self %hw-bits) (self %sw-bits)))
+    (if (eq? (field 'kind) 'hw) (self %hw-bits) (self %sw-bits)))
 
   ; 32-bit xorshift (Marsaglia 13/17/5). The REGISTER keeps the full 32 bits
   ; (the triple's period/quality analysis assumes a 32-bit state -- the old
   ; 31-bit-masked register was an unanalyzed variant); only the RESULT is
   ; masked to 31 bits so every backend yields the same [0, 2^31) shape.
   (method %sw-bits (self)
-    (let ((s0 (member 'state)))
+    (let ((s0 (field 'state)))
       (let ((s1 (& (^ s0 (<< s0 13)) %rand-mask32)))
         (let ((s2 (^ s1 (>> s1 17))))
           (let ((s3 (& (^ s2 (<< s2 5)) %rand-mask32)))
-            (set-member! 'state s3)
+            (set-field! 'state s3)
             (& s3 %rand-mask))))))
 
   ; Four bytes from /dev/urandom packed big-endian, masked to 31 bits. The fd is
@@ -91,10 +91,10 @@
 
   ; Lazily open and cache the /dev/urandom descriptor.
   (method %fd (self)
-    (let ((fd (member 'fd)))
+    (let ((fd (field 'fd)))
       (if (null? fd)
         (let ((opened (Sys open-read %urandom-path)))
-          (set-member! 'fd opened)
+          (set-field! 'fd opened)
           opened)
         fd)))
 

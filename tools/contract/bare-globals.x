@@ -69,7 +69,7 @@
   ; SANCTIONED-AS-FOUND: each awaits its own ruling round; sweep candidates
   ; are marked.  Shrinking is the point.
   ; --- class-system vocabulary (the homing mechanism itself) ---
-  (class-members)
+  (class-fields)
   (class-methods)
   (class-name)
   (class-of)

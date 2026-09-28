@@ -22,20 +22,20 @@
 
 
 ;
-; CLASSES ARE OBJECTS. A class is a callable %class object; an instance is a
-; callable %object. Dispatch mirrors one level up:
+; CLASSES ARE VALUES. A class is a callable value of runtime type CLASS; an
+; instance is a callable %object. Dispatch mirrors one level up:
 ;
 ;            (obj name ...)                 (Class name ...)
 ;   method   instance method (from class)   static method
-;   member   instance member get/set        class-wide member get/set
+;   field    instance field get/set         static member get/set
 ;   self     the instance                   the class
 ;
 ; A class's data is an alist:
 ;   ((name . N) (fields . MEM) (methods . IM) (parent . P)
 ;    (s-methods . SM) (statics . STATICS-BOX))
-; -- the `fields` key holds the instance members as a (name . default-value) alist;
+; -- the `fields` key holds the instance fields as a (name . default-value) alist;
 ; IM the instance methods; SM the static methods; STATICS-BOX a one-cell mutable box
-; holding the class-wide (static) member alist. An instance's slot 0 holds
+; holding the static member alist. An instance's slot 0 holds
 ; (class . field-box); the field-box is a one-cell mutable (name . value) alist.
 ;
 ; Selectors are literal -- both dispatch handlers are OPERATIVES, so (obj name)
@@ -43,13 +43,13 @@
 
 (note "Accessors (internal plumbing)")
 
-(def %obj-class  (fn (_ inst) (first (first inst))))   ; an instance's class object
+(def %obj-class  (fn (_ inst) (first (first inst))))   ; an instance's class value
 (def %obj-box    (fn (_ inst) (rest  (first inst))))   ; instance field box
 (def %obj-fields (fn (_ inst) (first (%obj-box inst))))
-(def %class-data (fn (_ c) (first c)))                 ; a class object's alist
+(def %class-data (fn (_ c) (first c)))                 ; a class value's alist
 
 ; In-place write into a boxed alist: mutate the existing entry when the key
-; is present (the common case -- every declared member exists from
+; is present (the common case -- every declared field exists from
 ; construction), else prepend a fresh entry. Replaces the %assoc-put path,
 ; which copied the whole alist per write and reordered the written key to
 ; the head: the update path now allocates nothing and field order stays
@@ -66,11 +66,11 @@
 ; Raw field accessors injected into every instance-method body (closing over
 ; `self`), so a method can bypass a same-named override to reach a field's
 ; storage -- the "private data" pattern. Method-local only.
-;   (member 'name) / (set-member! 'name v)
+;   (field 'name) / (set-field! 'name v)
 (def %method-raw-bindings
   (lit
-    ((member     (fn (_ n) (%assoc-get n (%obj-fields self))))
-     (set-member! (fn (_ n v) (%box-put! (%obj-box self) n v))))))
+    ((field      (fn (_ n) (%assoc-get n (%obj-fields self))))
+     (set-field! (fn (_ n v) (%box-put! (%obj-box self) n v))))))
 
 (note "Flat dispatch tables (the hot path)")
 
@@ -85,7 +85,7 @@
 
 ; The ambient caller-class probe. Every method body lexically rebinds
 ; %this-class to a one-cell box holding its DEFINING class (filled by
-; def-class once the class object exists); evaluated from a non-method
+; def-class once the class value exists); evaluated from a non-method
 ; context it resolves to this nil. super derives its parent from the same
 ; box, replacing the old direct %super-class binding at zero added
 ; per-call bindings.
@@ -195,7 +195,7 @@
                   (fn (_ row) (%vis-wrap class visal (first row) %field-tag))
                   (%walk-methods class (lit s-methods) %svis-of ()))))
             fields
-            (%ctor-member-names class)))))
+            (%ctor-field-names class)))))
 
 ; Every class ever built, for table invalidation: a shadow-write (or, later
 ; in this arc, runtime method addition) clears every class's slot 1 with
@@ -203,7 +203,7 @@
 ; carry no child links, so "which descendants are stale" is unanswerable
 ; locally -- and mutation is cold, so clearing everything is the cheap side
 ; of the trade (the hot path keeps ZERO staleness checks). The registry
-; pins redefined class objects; redefinition is a REPL affair and the cold
+; pins redefined class values; redefinition is a REPL affair and the cold
 ; alists are small.
 (def %class-registry (list ()))
 (def %classes-invalidate!
@@ -322,7 +322,7 @@
 ; object's SLOT 1 -- the free traced slot make-instance leaves nil -- while
 ; slot 0 keeps the cold authoritative alist. No staleness probe on the hot
 ; path: classes are immutable after def-class today, and a redefinition
-; mints a fresh class object (fresh empty slot 1). The open-classes phase
+; mints a fresh class value (fresh empty slot 1). The open-classes phase
 ; adds mutators; they must clear slot 1 (via a class registry) rather than
 ; tax every dispatch with a generation compare.
 (def %class-hot
@@ -474,14 +474,14 @@
       (first (rest s))
       s)))
 
-; Reject an init key that names no declared member, so (new Cell 1 2) -- where 1
-; is read as a member name -- fails loudly instead of silently using defaults.
-; `fields` is the %all-fields alist (member name . default).
+; Reject an init key that names no declared field, so (new Cell 1 2) -- where 1
+; is read as a field name -- fails loudly instead of silently using defaults.
+; `fields` is the %all-fields alist (field name . default).
 (def %check-init-key
   (fn (_ key fields class)
     (unless (%assoc-has? key fields)
       (error (%str-append "new: " (%str-append (%display-to-str key)
-        (%str-append " is not a member of " (%display-to-str (class-name class)))))))))
+        (%str-append " is not a field of " (%display-to-str (class-name class)))))))))
 
 ; Walk an init store (plist `name val ...` OR alist `((name . val) ...)`),
 ; checking every key, before %init-fields uses it. Mirrors %opt-cell's walk and
@@ -495,7 +495,7 @@
         (do (%check-init-key (first (first store)) fields class)
             (loop (rest store) fields class)))
       ((not (pair? (rest store)))                         ; plist key with no value
-        (error "new: init key without a value (use bare member names)"))
+        (error "new: init key without a value (use bare field names)"))
       (#t                                                 ; plist cell: k then v
         (do (%check-init-key (first store) fields class)
             (loop (rest (rest store)) fields class))))))
@@ -514,12 +514,12 @@
         (pair (first names)
               (loop (rest names) (pair (first names) seen)))))))
 
-; Instance members in CONSTRUCTOR order: the root ancestor's members first,
+; Instance fields in CONSTRUCTOR order: the root ancestor's fields first,
 ; then each subclass's own additions; an override keeps its ancestor's slot
 ; (the child's default still wins, via %all-fields). This is the order a
 ; positional (new C v1 v2 ...) fills -- %all-fields keeps the child-first
 ; order introspection shows.
-(def %ctor-member-names
+(def %ctor-field-names
   (fn (loop class)
     (unless (null? class)
       (let ((up (loop (%assoc-get (lit parent) (%class-data class)))))
@@ -527,25 +527,25 @@
           (%names-minus (%assoc-keys (%assoc-get (lit fields) (%class-data class))) up))))))
 
 ; The keyword tail of a new call begins at `inits` when its head form is a
-; (name . val) pair headed by a declared member (dotted-alist form), or a bare
-; member name WITH a value form after it (plist form). A TRAILING bare member
+; (name . val) pair headed by a declared field (dotted-alist form), or a bare
+; field name WITH a value form after it (plist form). A TRAILING bare field
 ; name is a positional value -- the common constructor arg named after the
-; member it fills: (def root ...) (Distances new root). The residual footgun,
-; documented on new: a NON-trailing positional value spelled as a bare member
+; field it fills: (def root ...) (Distances new root). The residual footgun,
+; documented on new: a NON-trailing positional value spelled as a bare field
 ; name (or a call headed by one) still reads as the keyword tail.
 (def %keyword-tail?
   (fn (_ inits fields)
     (let ((form (first inits)))
       (match
-        ; (name . val) dotted-alist entry: keyword when its head names a member
+        ; (name . val) dotted-alist entry: keyword when its head names a field
         ((pair? form) (and (symbol? (first form)) (%assoc-has? (first form) fields)))
-        ; a bare member name opens the keyword tail only when a VALUE form
+        ; a bare field name opens the keyword tail only when a VALUE form
         ; follows it; a TRAILING one is a positional value ((Distances new root))
         ((symbol? form) (and (%assoc-has? form fields) (pair? (rest inits))))
         (#t #f)))))
 
 ; Split a new op's args into positional prefix + keyword tail: positional
-; forms are paired with %ctor-member-names as (name . form) alist entries, and
+; forms are paired with %ctor-field-names as (name . form) alist entries, and
 ; the tail passes through as-is -- %check-init-keys and %opt-cell both walk
 ; the resulting mixed store.
 (def %positional->store
@@ -598,7 +598,7 @@
 ; no per-arg eval closure, no apply save/restore. (Stack semantics are the
 ; trampoline's, unchanged: the old apply path already rode it -- measured,
 ; both dispatches complete a 30k-deep method recursion.)
-; A table miss still consults the instance's own fields: set-member! can
+; A table miss still consults the instance's own fields: set-field! can
 ; add an undeclared key to ONE instance, which the class-wide table cannot
 ; know about. NOTE: `rest` is the caller's raw form tail and is often a
 ; C-BUILT STRUCTURAL SPINE (method bodies are), for which pair? answers #f
@@ -654,7 +654,7 @@
 (def %class-statics-box (fn (_ class) (%assoc-get (lit statics) (%class-data class))))
 (def %class-statics     (fn (_ class) (first (%class-statics-box class))))
 
-; Class dispatch: one flat-table walk decides static method vs class-wide
+; Class dispatch: one flat-table walk decides static method vs static
 ; member vs the new builtin -- the same tail-eval re-drive as instance
 ; dispatch. A static METHOD named new is in the table and shadows the
 ; builtin (as always); a static MEMBER named new was dropped at flatten,
@@ -693,7 +693,7 @@
           ; `new`: a static method of the same name shadows them (checked
           ; above via the table). sel and fn are ordinary evaluated args, so
           ; selectors can be computed (a runtime-defined command language
-          ; needs exactly that). The fn is stored AS-IS -- no super/member
+          ; needs exactly that). The fn is stored AS-IS -- no super/field
           ; injection; it receives (self . args) and uses (self f) access.
           ; The cold alist is mutated (single source of truth: help and
           ; introspection see the addition immediately) and every hot table
@@ -946,7 +946,7 @@
     (if (object? inst) (%obj-class inst) (error "class-of: not an instance"))))
   (returns CLASS "The class an instance belongs to")
   (see class-name)
-  "Return the class an instance belongs to (itself a callable class object).")
+  "Return the class an instance belongs to (itself a callable class value).")
 
 (doc (def class-name
   (fn (_ (param x ANY "An instance or a class"))
@@ -988,24 +988,24 @@
 ; its siblings.  The member accessors need nothing: their alists are
 ; written through %box-put!, which replaces an entry in place.
 
-(doc (def class-members
+(doc (def class-fields
   (fn (_ (param c CLASS "A class")) (%assoc-keys (%assoc-get (lit fields) (%class-data c)))))
-  (returns LIST "This class's own instance-member names")
+  (returns LIST "This class's own instance-field names")
   (see class-methods)
-  "List a class's own instance member names (not inherited).")
+  "List a class's own instance field names (not inherited).")
 
 (doc (def class-methods
   (fn (_ (param c CLASS "A class"))
     (%names-minus (%assoc-keys (%assoc-get (lit methods) (%class-data c))) ())))
   (returns LIST "This class's own instance-method names")
-  (see class-members)
+  (see class-fields)
   "List a class's own instance method names (not inherited).")
 
 (doc (def class-static-members
   (fn (_ (param c CLASS "A class")) (%assoc-keys (%class-statics c))))
   (returns LIST "This class's own static-member names")
   (see class-static-methods)
-  "List a class's own static (class-wide) member names (not inherited).")
+  "List a class's own static member names (not inherited).")
 
 (doc (def class-static-methods
   (fn (_ (param c CLASS "A class"))
@@ -1045,7 +1045,7 @@
 
 ; Find a top-level body form whose head is `tag`, returning its rest (or ()).
 ; Find the (tag ...) form in a class body, returning its tail (or () if absent).
-; pair?-guarded: a bare-symbol member (links, north, ...) is not a tagged form,
+; pair?-guarded: a bare-symbol field (links, north, ...) is not a tagged form,
 ; and an unchecked (first symbol) is silently wrong on 64-bit / a SIGSEGV on the
 ; 32-bit Pi -- so skip non-pairs instead of reading their car. (cf. %find-doc-form)
 (def %find-form
@@ -1100,12 +1100,13 @@
                            (pair desc (%append2 meta (%sig-params sig)))))
                   (first %doc-pending-cell))))))))
 
-; A class body holds two kinds of (doc ...) form, told apart by the first element
-; after `doc`: a STRING is the class summary (doc "..." meta...); a symbol or a
-; (NAME default) declaration is a member's doc (doc NAME "..." meta...). Members
-; thus carry NO positional description -- documentation always decorates, exactly
-; like the top-level `doc` op wraps a (def ...). pair?-guarded so a bare-symbol
-; member (links, north, ...) never reaches an unchecked (first symbol) -- which
+; A class body holds two variants of (doc ...) form, told apart by the first
+; element after `doc`: a STRING is the class summary (doc "..." meta...); a
+; symbol or a (NAME default) declaration is a field's doc (doc NAME "..."
+; meta...). Fields thus carry NO positional description -- documentation always
+; decorates, exactly like the top-level `doc` op wraps a (def ...).
+; pair?-guarded so a bare-symbol field (links, north, ...) never reaches an
+; unchecked (first symbol) -- which
 ; is silently wrong on 64-bit and a crash on the 32-bit Pi.
 (def %doc-form?
   (fn (_ f) (if (pair? f) (eq? (first f) (lit doc)) #f)))
@@ -1114,23 +1115,23 @@
     (if (%doc-form? f)
       (if (null? (rest f)) #f (str? (first (rest f))))
       #f)))
-(def %member-doc-form?
+(def %field-doc-form?
   (fn (_ f)
     (if (%doc-form? f)
       (if (null? (rest f)) #f (not (str? (first (rest f)))))
       #f)))
 
-; Stash a member's doc from its (doc DECL "desc" meta...) form, keyed Class/NAME
+; Stash a field's doc from its (doc DECL "desc" meta...) form, keyed Class/NAME
 ; (same namespace as methods; a same-named method shadows it, matching dispatch).
 ; DESC may be absent; meta (see/example/...) rides through like a method's doc.
-(def %stash-member-doc!
-  (fn (_ class-name member-name dform)
+(def %stash-field-doc!
+  (fn (_ class-name field-name dform)
     (let ((dargs (rest (rest dform))))               ; skip `doc` and the DECL
       (let ((desc (if (null? dargs) "" (if (str? (first dargs)) (first dargs) "")))
             (meta (unless (null? dargs) (if (str? (first dargs)) (rest dargs) dargs))))
         (%set-first! %doc-pending-cell
           (pair (pair (lit %bare)
-                   (pair (%method-doc-key class-name member-name)
+                   (pair (%method-doc-key class-name field-name)
                          (pair desc meta)))
                 (first %doc-pending-cell)))))))
 
@@ -1139,7 +1140,7 @@
   (fn (_ body) (%find %class-doc-form? body)))
 
 ; Stash a class-level (doc "desc" meta...) under the bare class name, so
-; (help Class) shows a summary above the member/method sections. DESC may be
+; (help Class) shows a summary above the field/method sections. DESC may be
 ; absent; meta (note/see/example) rides through like a method's doc.
 (def %stash-class-doc!
   (fn (_ class-name dform)
@@ -1185,10 +1186,10 @@
 
 ; Build a method closure from (NAME (self . params) body...). The body is
 ; wrapped in a let binding %this-class -- a one-cell box def-class fills
-; with the class object once it exists (methods are built BEFORE the class;
+; with the class value once it exists (methods are built BEFORE the class;
 ; the box breaks the cycle). super reads the defining class's parent from
 ; it; the privacy check reads the caller's class from it. For instance
-; methods (raw? true) the raw member/set-member! accessors ride the same
+; methods (raw? true) the raw field/set-field! accessors ride the same
 ; let. A leading (doc ...) body form and inline (param ...) signature
 ; annotations are stripped here (their registration happens in
 ; %collect-methods). The box is spliced as (lit BOX): a raw pair in value
@@ -1215,7 +1216,7 @@
 (def %collect-methods
   (fn (loop class-name forms raw? tbox e)
     (unless (null? forms)
-      ; Guard the head test: a bare member name is a SYMBOL, and first on a
+      ; Guard the head test: a bare field name is a SYMBOL, and first on a
       ; non-pair is unchecked -- (first 'x) yields the name buffer as an
       ; "object", so the eq? below would read past a 2-byte allocation
       ; (ASan heap-buffer-overflow; the 32-bit/Pi segfault class).
@@ -1228,36 +1229,36 @@
                 (loop class-name (rest forms) raw? tbox e)))
         (loop class-name (rest forms) raw? tbox e)))))
 
-; A member declaration is  NAME  |  (NAME default).  Its doc, if any, comes from
-; a separate (doc DECL "desc" meta...) form (see %member-doc-form? above), so a
-; member never carries a description positionally.
-(def %member-name (fn (_ form) (if (pair? form) (first form) form)))
-(def %member-value
+; A field declaration is  NAME  |  (NAME default).  Its doc, if any, comes from
+; a separate (doc DECL "desc" meta...) form (see %field-doc-form? above), so a
+; field never carries a description positionally.
+(def %field-name (fn (_ form) (if (pair? form) (first form) form)))
+(def %field-value
   (fn (_ form e)
     (when (if (pair? form) (not (null? (rest form))) #f)
       (eval (first (rest form)) e))))                                          ; bare name / (NAME) -> nil default
 
-; Instance-member default: the EXPRESSION wrapped as a nullary closure over the
+; Instance-field default: the EXPRESSION wrapped as a nullary closure over the
 ; defining env, so %init-fields evaluates it once PER CONSTRUCTION -- a mutable
 ; default like (links (Set make)) is fresh for every instance, never shared.
-; Statics keep %member-value's once-at-definition evaluation: they ARE the
+; Statics keep %field-value's once-at-definition evaluation: they ARE the
 ; class-wide shared state.
-(def %member-default-thunk
+(def %field-default-thunk
   (fn (_ form e)
     (when (if (pair? form) (not (null? (rest form))) #f)
       (eval (list (lit fn) (list (lit _)) (first (rest form))) e))))
 
-; The member declaration a body form carries: the form itself, or -- for a
-; member-doc form (doc DECL ...) -- the wrapped DECL.
-(def %member-decl
-  (fn (_ f) (if (%member-doc-form? f) (first (rest f)) f)))
+; The field declaration a body form carries: the form itself, or -- for a
+; field-doc form (doc DECL ...) -- the wrapped DECL.
+(def %field-decl
+  (fn (_ f) (if (%field-doc-form? f) (first (rest f)) f)))
 
-; Collect member declarations from `forms` into a (name . value) alist, skipping
-; (method ...), (static ...), and the class summary (doc "..."). A member-doc
-; form (doc DECL "desc" ...) declares its member AND registers the doc.
-; thunk? selects the default representation: #t (instance members) stores the
+; Collect field declarations from `forms` into a (name . value) alist, skipping
+; (method ...), (static ...), and the class summary (doc "..."). A field-doc
+; form (doc DECL "desc" ...) declares its field AND registers the doc.
+; thunk? selects the default representation: #t (instance fields) stores the
 ; default as a per-construction thunk; #f (statics) evaluates it here, once.
-(def %collect-members
+(def %collect-fields
   (fn (loop class-name forms e thunk?)
     (unless (null? forms)
       (let ((f (first forms)))
@@ -1271,11 +1272,11 @@
                 (#t (%class-doc-form? f)))    ; skip methods/statics/interface/with/delegates/class doc
               #f)
           (loop class-name (rest forms) e thunk?)
-          (let ((decl (%member-decl f)))
-            (when (%member-doc-form? f)
-              (%stash-member-doc! class-name (%member-name decl) f))
-            (pair (pair (%member-name decl)
-                    (if thunk? (%member-default-thunk decl e) (%member-value decl e)))
+          (let ((decl (%field-decl f)))
+            (when (%field-doc-form? f)
+              (%stash-field-doc! class-name (%field-name decl) f))
+            (pair (pair (%field-name decl)
+                    (if thunk? (%field-default-thunk decl e) (%field-value decl e)))
                   (loop class-name (rest forms) e thunk?))))))))
 
 (def %resolve-parent
@@ -1294,8 +1295,8 @@
           (error "def-class: parents are declared () or (extends Class)"))
         (eval (first (rest parent)) e)))))
 
-; A body form is a member NAME (symbol), or a list headed by a symbol --
-; (method ...), (static ...), or a (NAME value ...) member declaration.
+; A body form is a field NAME (symbol), or a list headed by a symbol --
+; (method ...), (static ...), or a (NAME value ...) field declaration.
 (def %valid-head?
   (fn (_ form)
     (if (symbol? form) #t
@@ -1307,9 +1308,9 @@
       (do
         (let ((f (first body)))
           (if (if (pair? f) (eq? (first f) (lit fields)) #f)
-            (error "def-class: the (fields ...) wrapper was removed -- declare members directly, e.g. (def-class C () x y (method m (self) ...))")
+            (error "def-class: the (fields ...) wrapper was removed -- declare fields directly, e.g. (def-class C () x y (method m (self) ...))")
             (unless (%valid-head? f)
-              (error "def-class: invalid body form -- expected a member name, (name value), (doc ...), (interface ...), (method ...), or (static ...)"))))
+              (error "def-class: invalid body form -- expected a field name, (name value), (doc ...), (interface ...), (method ...), or (static ...)"))))
         (loop (rest body))))))
 
 ; --- Interface (contract) enforcement --------------------------------------
@@ -1363,7 +1364,7 @@
     (when (null? (%class-interface cls))           ; concrete -> enforce inherited interface(s)
       (%check-ancestors! cls (%assoc-get (lit parent) (%class-data cls))))))                                      ; declares an interface -> abstract -> skip
 
-; Resolve the parent once, validate the body, build the class object, and enforce
+; Resolve the parent once, validate the body, build the class value, and enforce
 ; any inherited interface. Kept out of the def-class op body so the op's tail
 ; stays the bare tail-eval (see below).
 (def %build-class
@@ -1385,7 +1386,7 @@
         (fn (_ f)
           (if (if (pair? f) (eq? (first f) (lit method)) #f)
             (first (rest f))
-            (%member-name (%member-decl f)))))
+            (%field-name (%field-decl f)))))
       (def %explode-vis                    ; forms -> (spliced-forms . vis-alist)
         (fn (loop fs)
           (match
@@ -1409,11 +1410,11 @@
       (def body (first %ix))
       (def ivis (rest %ix))
       (%validate-body body)
-      ; A member name declared twice in ONE class body is always a mistake
+      ; A field name declared twice in ONE class body is always a mistake
       ; -- the common shape is a bare declaration beside its (doc NAME ...)
-      ; form, which ALSO declares (see %collect-members).  The duplicate is
+      ; form, which ALSO declares (see %collect-fields).  The duplicate is
       ; silent poison: positional construction fills the doubled slot twice
-      ; and a LATER member stays nil (found via (Type wrap ...): `raw`
+      ; and a LATER field stays nil (found via (Type wrap ...): `raw`
       ; stayed nil and a downstream (first nil) segfaulted).  Subclass
       ; overrides are unaffected -- one body's own list only, never the
       ; chain.  LOCAL fns, mid-body on purpose: the file's %-global budget
@@ -1429,7 +1430,7 @@
             (do
               (when (%member-key? (first (first ms)) (rest ms))
                 (error (%str-append (symbol->str name)
-                  (%str-append ": duplicate member "
+                  (%str-append ": duplicate field "
                     (%str-append (symbol->str (first (first ms)))
                       " -- declared twice in one class body (a (doc NAME ...) form also declares)")))))
               (loop (rest ms))))))
@@ -1501,8 +1502,8 @@
             (svis (rest %sx))
             (traits (%with-traits body ()))
             (tbox (list ())))                          ; %this-class box, filled below
-        (let ((imems (%collect-members name body e #t))    ; instance members: per-construction defaults
-              (smems (%collect-members name sblock e #f))) ; static members: once, class-wide
+        (let ((imems (%collect-fields name body e #t))    ; instance fields: per-construction defaults
+              (smems (%collect-fields name sblock e #f))) ; static members: once, class-wide
           (do
             (%check-dups! imems)
             (%check-dups! smems)
@@ -1547,38 +1548,38 @@
     (tail-eval
       (list (lit def) name (list (lit lit) (%build-class name parent body e)))
       e)))
-  (note "Names are literal (no quotes). Body forms (members and methods intermixed):")
-  (note "  NAME | (NAME default)                    instance member (default optional, nil if omitted;")
+  (note "Names are literal (no quotes). Body forms (fields and methods intermixed):")
+  (note "  NAME | (NAME default)                    instance field (default optional, nil if omitted;")
   (note "                                           evaluated per construction, so (links (Set make)) is fresh each time)")
-  (note "  (doc DECL \"desc\" meta..)                 document a member; DECL is NAME or (NAME default)")
+  (note "  (doc DECL \"desc\" meta..)                 document a field; DECL is NAME or (NAME default)")
   (note "  (method NAME (self . args) body...)      instance method")
-  (note "  (static MEMBER... (method ...)...)       class-wide members + static methods")
+  (note "  (static MEMBER... (method ...)...)       static members + static methods")
   (note "  (interface NAME...)                      abstract: a concrete subclass must implement each NAME")
-  (note "  (private DECL...) | (protected DECL...)  visibility blocks (members and methods; also inside (static ...)):")
+  (note "  (private DECL...) | (protected DECL...)  visibility blocks (fields and methods; also inside (static ...)):")
   (note "                                           private = defining class's methods only; protected = its chain.")
   (note "                                           Enforced at the dispatch door; introspection and (help) still list them.")
   (note "  (doc \"summary\" (note ..) (see ..) (example ..))   class-level docs, shown by (help Class)")
-  (note "A method shadows a member of the same name. Parent: () or (extends Class).")
-  (note "Inside a method, (self m) accesses members; (member 'm)/(set-member! 'm v) are raw.")
+  (note "A method shadows a field of the same name. Parent: () or (extends Class).")
+  (note "Inside a method, (self m) accesses fields; (field 'm)/(set-field! 'm v) are raw.")
   (note "A (method %init (self) ...) runs after every construction, fields built --")
   (note "the initialize hook; a child's override wins, (super self %init) chains.")
   (example "(do (def-class C () (static (n 7) (method get (self) (self n)))) (C get))" "7")
   (see new)
-  "Define a class (a callable class object) with fields, methods, and statics.")
+  "Define a class (a callable class value) with fields, methods, and statics.")
 
 (doc (def new
   (op (class-expr . inits)
     e
     (%instantiate (eval class-expr e) inits e #t)))
-  (note "Inline construction: member names are literal (bare, not quoted) and")
+  (note "Inline construction: field names are literal (bare, not quoted) and")
   (note "values are expressions, evaluated in the caller's env:")
   (note "  (new C name val name val ...)   plist form -- the usual one")
   (note "  (new C (name . val) ...)        dotted-alist form (val is an expression)")
-  (note "  (new C v1 v2 ... name val ...)  positional prefix: values fill members in")
-  (note "    constructor order (root ancestor's members first, then each subclass's own),")
-  (note "    until the first bare declared-member name starts the keyword tail.")
-  (note "A TRAILING bare member name is positional ((new Distances root) passes the root")
-  (note "variable); the footgun: a NON-trailing positional value spelled as a bare member")
+  (note "  (new C v1 v2 ... name val ...)  positional prefix: values fill fields in")
+  (note "    constructor order (root ancestor's fields first, then each subclass's own),")
+  (note "    until the first bare declared-field name starts the keyword tail.")
+  (note "A TRAILING bare field name is positional ((new Distances root) passes the root")
+  (note "variable); the footgun: a NON-trailing positional value spelled as a bare field")
   (note "name (or a call headed by one) reads as the keyword tail -- use keywords there.")
   (note "For a computed/quoted store (a list of ready values) use new-from.")
   (example "(do (def-class P () x) ((new P x 5) x))" "5")
@@ -1604,8 +1605,8 @@
         (loop (rest al) known)
         (pair (first al) (loop (rest al) known))))))
 
-; All instance members across the inheritance chain as a (name . default) alist;
-; a member redefined in a subclass overrides the inherited one (child wins).
+; All instance fields across the inheritance chain as a (name . default) alist;
+; a field redefined in a subclass overrides the inherited one (child wins).
 (def %all-fields
   (fn (loop class)
     (unless (null? class)
@@ -1613,7 +1614,7 @@
         (%append2 own
           (%reject-known (loop (%assoc-get (lit parent) (%class-data class))) own))))))
 
-; Build the instance field box: each member takes its init value if supplied --
+; Build the instance field box: each field takes its init value if supplied --
 ; from a flat plist `name val ...` OR an alist `((name . val) ...)` -- otherwise
 ; its declared default.  eval? selects how a supplied value is treated: #t (the
 ; (new ...) ops, whose values are code) evaluates it in caller env e; #f (new-from,
@@ -1623,16 +1624,16 @@
 ; quoted one ('(1 2)) is the one literal, exactly as quote means; null? on the
 ; box distinguishes a supplied 0/nil from a missing key.
 (def %init-fields
-  (fn (loop members inits e eval?)
-    (unless (null? members)
-      (let ((name (first (first members)))
-            (default (rest (first members))))
+  (fn (loop fields inits e eval?)
+    (unless (null? fields)
+      (let ((name (first (first fields)))
+            (default (rest (first fields))))
         (let ((cell (%opt-cell name inits)))
           (pair (pair name
                   (if (null? cell)
                     (unless (null? default) (default))
                     (if eval? (eval (first cell) e) (first cell))))
-                (loop (rest members) inits e eval?)))))))
+                (loop (rest fields) inits e eval?)))))))
 
 (doc class-call-handler "Make the call handler that gives a type's values method dispatch: (value selector args...) calls the class's static method, subject-last, and any other call form is echoed as data."
   (param class CLASS "The class whose static methods answer the value's messages")
@@ -1645,14 +1646,14 @@
 (doc (provide x/type/class
   def-class new new-from super method-ref method-of
   object? class? class-of class-name class-parent instance-of?
-  class-members class-methods class-static-members class-static-methods class-static-ref
+  class-fields class-methods class-static-members class-static-methods class-static-ref
   class-call-handler bind-call-over!)
-  (note "Instances: (obj name args...) -- method wins, else member (obj m)/(obj m v).")
+  (note "Instances: (obj name args...) -- method wins, else field (obj m)/(obj m v).")
   (note "Classes are callable: (Class name args...) -- static method, (Class new ...) to")
-  (note "instantiate, else class-wide member (Class m)/(Class m v). Use classes as")
-  (note "namespaces of static methods. Raw member access in methods: (member 'm)/(set-member! 'm v).")
+  (note "instantiate, else static member (Class m)/(Class m v). Use classes as")
+  (note "namespaces of static methods. Raw field access in methods: (field 'm)/(set-field! 'm v).")
   (note "class-call-handler / bind-call-over! are the PUBLIC value-call extension hooks")
   (note "(the % marks handler-layer machinery, not module privacy): (bind-call-over! (Type of v) Class)")
   (note "routes a value's symbol-selector calls to the class's statics, subject-LAST.")
   (example "(do (def-class P () x (method get (self) (self x))) ((new P x 5) get))" "5")
-  "Object-oriented class system: classes-as-objects, message passing, single inheritance.")
+  "Object-oriented class system: classes-as-values, message passing, single inheritance.")

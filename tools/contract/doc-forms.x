@@ -2,14 +2,14 @@
 ;
 ; Pure data -- no code, just s-expressions.  Each entry: (name "what the
 ; generator does with it").  This is the STRUCTURAL vocabulary: the forms a
-; class body can hold that are not members.
+; class body can hold that are not fields.
 ;
 ; It is documentation, not the gate's authority.  tools/check/doc-forms.sh
-; checks COVERAGE -- every member declared under lib/ appears on its page --
-; because the obvious check does not exist to be written: a member is
+; checks COVERAGE -- every field declared under lib/ appears on its page --
+; because the obvious check does not exist to be written: a field is
 ; declared as (name), (name default) or (name default "description"), so the
-; head of a class-body form is the MEMBER'S OWN NAME and the set is open.
-; Anything not listed below is therefore a member, and the generator renders
+; head of a class-body form is the FIELD'S OWN NAME and the set is open.
+; Anything not listed below is therefore a field, and the generator renders
 ; it as one.
 ;
 ; A walker that ends in a silent catch-all renders an unrecognised form as
@@ -19,10 +19,10 @@
 ; The object-model v2 (private ...) and (protected ...) blocks are taught:
 ; their tail SPLICES into the class body (lib/x/type/class.x explodes them
 ; that way), so the walker descends and marks what it finds with its tier.
-; A bare symbol inside one is a member declaration and normalises to (name).
+; A bare symbol inside one is a field declaration and normalises to (name).
 
 (
-  (doc       "The class's own description, notes and examples -- and a member's documentation when its first argument is a symbol rather than a string.")
+  (doc       "The class's own description, notes and examples -- and a field's documentation when its first argument is a symbol rather than a string.")
   (method    "An instance method, or a static when it sits inside a (static ...) block.")
   (static    "A block of statics; its body is walked as methods.")
   (interface "The operations a type must supply to satisfy the protocol.")

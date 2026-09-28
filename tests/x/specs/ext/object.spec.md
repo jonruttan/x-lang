@@ -67,7 +67,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 (do
   (def-class Secret () code
     (method code (self) 'hidden)            ; public getter hides the field
-    (method raw (self) (member 'code)))      ; method-internal raw access
+    (method raw (self) (field 'code)))      ; method-internal raw access
   (def s (new Secret code 42))
   (list (s code) (s raw)))
 ```
@@ -80,7 +80,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 (do
   (def-class P () x)
   (def p (new P x 5))
-  (guard (e 'blocked) (%member p 'x)))
+  (guard (e 'blocked) (%field p 'x)))
 ```
 ---
     'blocked
@@ -157,9 +157,9 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ---
     #<Point x=1 y=2>
 
-## classes are objects
+## classes are values too
 
-### static methods and a class-wide member
+### static methods and a static member
 
 ```x
 (do
@@ -172,7 +172,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ---
     (25 30 10)
 
-### a class-wide member is mutable
+### a static member is mutable
 
 ```x
 (do
@@ -390,13 +390,13 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
 ---
     10
 
-### method-internal (set-member! 'f v) writes the member raw
+### method-internal (set-field! 'f v) writes the field raw
 
 ```x
 (do
   (def-class P () x
-    (method reset (self) (set-member! 'x 0) self)
-    (method get (self) (member 'x)))
+    (method reset (self) (set-field! 'x 0) self)
+    (method get (self) (field 'x)))
   (def p (new P x 99))
   (p reset)
   (p get))
@@ -431,7 +431,7 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
 ---
     'kk
 
-### class-wide members hold strings and symbols
+### static members hold strings and symbols
 
 ```x
 (do
@@ -943,7 +943,7 @@ binding.
 
 A member write mutates the field's entry in place: no allocation on the
 update path, and field order stays construction order instead of the written
-key jumping to the head. The statics box and `set-member!` share the
+key jumping to the head. The statics box and `set-field!` share the
 mechanism. An in-flight iteration over the field alist therefore sees a
 live view, not a snapshot.
 
@@ -1098,12 +1098,12 @@ thunk subtracted: under 3,000 objects a round.
 ---
     (14 15 #t)
 
-### an ad-hoc set-member! key stays reachable through dispatch
+### an ad-hoc set-field! key stays reachable through dispatch
 
 ```x
 (do
   (def-class P () x
-    (method poke (self) (set-member! 'extra 7)))
+    (method poke (self) (set-field! 'extra 7)))
   (def p (new P x 1))
   (p poke)
   (p extra))
@@ -1349,7 +1349,7 @@ naming convention, and introspection/(help) still lists everything.
 ---
     'blocked
 
-### static-side blocks guard class-wide members
+### static-side blocks guard static members
 
 ```x
 (do
@@ -1362,13 +1362,13 @@ naming convention, and introspection/(help) still lists everything.
 ---
     (42 'blocked)
 
-### member/set-member! raw access is untouched by privacy
+### field/set-field! raw access is untouched by privacy
 
 ```x
 (do
   (def-class B ()
     (private x)
-    (method poke (self) (set-member! 'x 7) (member 'x)))
+    (method poke (self) (set-field! 'x 7) (field 'x)))
   ((new B) poke))
 ```
 ---
@@ -1379,7 +1379,7 @@ naming convention, and introspection/(help) still lists everything.
 ```x
 (do
   (def-class H () (private hidden) shown)
-  (class-members H))
+  (class-fields H))
 ```
 ---
     ('hidden 'shown)
