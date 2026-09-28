@@ -419,6 +419,16 @@ compile `do`.
 
 [#832]: https://github.com/jonruttan/x-lang/pull/832
 
+**The image loader sequences its install with `atomic`** ([#850]).
+`tools/dev/image-read.x` installs the image's cells and rebinds `args` inside
+one form of primitive calls, and carries on in the image's environment. It
+sequenced the two with `%seq`. From x-engine-c#72, `%seq` makes the environment
+it started in current again when its last form is done, which would put the
+loader's own back. `atomic` evaluates each form itself and leaves the
+environment as the forms leave it. Images load as before on v0.2.16.
+
+[#850]: https://github.com/jonruttan/x-lang/pull/850
+
 **`File stat` decodes through a Struct reader made once** ([#813]). A stat
 allocated about 51,000 objects, 40,600 of them decoding three fields: `Struct
 unpack` compiled its field spec on every call and assembled each byte with
