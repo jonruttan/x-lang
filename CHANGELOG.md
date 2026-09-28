@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A site that was never brought up is down** ([#842]). `x/sys/swap` documents
+`state`, `reason` and the static `all` with their defaults,
+`(doc (NAME default) "...")`, which the reference can name since [#833]. A
+site made with `new` is `down` with an empty reason until it is brought up;
+both were nil. `(Swap site! ...)` brings a site up as it makes one, and is
+as before.
+
+[#842]: https://github.com/jonruttan/x-lang/pull/842
+
 **The profiler says which functions evaluation goes to** ([#835]). The
 profiling engine that x-engine-c ships from v0.2.15 counts, in each object, how
 many times evaluation reached it. `x/tool/profile` now reads those counts by
@@ -18,6 +27,17 @@ from an unpacked release, and the image tools mark with the engine's
 `%obj-flag-trace` instead of 1024.
 
 [#835]: https://github.com/jonruttan/x-lang/pull/835
+
+**`core/fn.x` has a module header** ([#846]). The apply door's eight private
+names are the module's own, and the root keeps `apply` and the `Fn` class.
+The file had been measured and left unscoped: a call through the library's
+`apply` compares 351 bindings with the header where it compared 190, with
+evaluations and allocations unchanged. It is scoped by decision. The
+library's own callers hold the engine's `apply`, so the cost falls only on a
+call through the door. One %-row is retired, and 79 of the library's 138
+files are scoped.
+
+[#846]: https://github.com/jonruttan/x-lang/pull/846
 
 **The reference names a field documented with a default** ([#833]). A field's
 doc form wraps its declaration, `(doc NAME "...")` or
@@ -64,6 +84,15 @@ string, and the entry keeps its heading and its note. No module under `lib/`
 used the form yet.
 
 [#841]: https://github.com/jonruttan/x-lang/pull/841
+
+**The reference renders `(doc)` as the field it declares** ([#847]). A doc
+form with no argument, `(doc)`, is neither a class's description nor a field's
+doc, and `lib/x/type/class.x` declares it as a field named `doc`. The reference
+generator read its argument without a check and stopped with a segmentation
+fault. It now renders the form as a field named `doc`, and the doc-forms gate
+checks it under that name. Nothing under `lib/` writes the form.
+
+[#847]: https://github.com/jonruttan/x-lang/pull/847
 
 **An instance's data is its fields** ([#829]). A field is a named component of
 an instance or a record, and a member is a field or a method. Inside a method,
@@ -269,6 +298,13 @@ its temp file and reuses the name. Every assertion is unchanged.
 
 [#843]: https://github.com/jonruttan/x-lang/pull/843
 
+**The sh-open-write spec case leaves no file behind** ([#848]). `ext/posix.spec.md`'s
+"opens and closes without error" opened `/tmp/x-test-open.txt` and never
+removed it. It takes a fresh name from `(File temp PREFIX)` and unlinks it
+after the close.
+
+[#848]: https://github.com/jonruttan/x-lang/pull/848
+
 **The assembler takes a label's address** ([#834]). `(adr Xd (label L))` sets
 `Xd` to the address of the label `L`, counted from where the instruction sits,
 so code that runs wherever it is loaded can hand out addresses inside itself.
@@ -409,6 +445,16 @@ took 43, and 2 for `(do (def x 1) x)`, where it took 8. `lib/img.x` binds its
 compile `do`.
 
 [#832]: https://github.com/jonruttan/x-lang/pull/832
+
+**The image loader sequences its install with `atomic`** ([#850]).
+`tools/dev/image-read.x` installs the image's cells and rebinds `args` inside
+one form of primitive calls, and carries on in the image's environment. It
+sequenced the two with `%seq`. From x-engine-c#72, `%seq` makes the environment
+it started in current again when its last form is done, which would put the
+loader's own back. `atomic` evaluates each form itself and leaves the
+environment as the forms leave it. Images load as before on v0.2.16.
+
+[#850]: https://github.com/jonruttan/x-lang/pull/850
 
 **`File stat` decodes through a Struct reader made once** ([#813]). A stat
 allocated about 51,000 objects, 40,600 of them decoding three fields: `Struct

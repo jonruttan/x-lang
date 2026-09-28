@@ -49,8 +49,8 @@
   (doc twin "The slow value, which the seat holds whenever the site is not up")
   (doc maker "(fn (_)) answering the fast value; a raise refuses, and answering the twin declines")
   (doc seat "(fn (_ value)) putting a value in place")
-  (doc state "up, twin, refused or down; a site is brought up as it is made")
-  (doc reason "The text of the raise that refused the site, or the empty string")
+  (doc (state (lit down)) "up, twin, refused or down; a site is brought up as it is made")
+  (doc (reason "") "The text of the raise that refused the site, or the empty string")
   (doc value "The made value while the site is up, and nil otherwise")
 
   (method %seat! (self v state reason)
@@ -80,7 +80,7 @@
     (self %seat! (self twin) (lit down) ""))
 
   (static
-    (doc all "Every site made, newest first")
+    (doc (all ()) "Every site made, newest first")
 
     (method site! (self (param name SYMBOL "What the report calls the site")
                         (param twin ANY "The slow value, in its seat already")
