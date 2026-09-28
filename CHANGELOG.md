@@ -100,6 +100,16 @@ through a `method-of` door allocates 135 where it took 417.
 
 [#812]: https://github.com/jonruttan/x-lang/pull/812
 
+**The assembler takes a label's address** ([#834]). `(adr Xd (label L))` sets
+`Xd` to the address of the label `L`, counted from where the instruction sits,
+so code that runs wherever it is loaded can hand out addresses inside itself.
+On ARM64 it is ADR, which reaches a label less than a megabyte away in either
+direction, and `asm-finalize!` refuses one farther; on x86-64 it is a `lea`
+from `rip`, which reaches two gigabytes either way. A register holding a
+label's address is called with `blr`.
+
+[#834]: https://github.com/jonruttan/x-lang/pull/834
+
 **A directory listing decodes on the integer primitives** ([#811]). `File
 list-dir` on a 50-name directory allocated about 111,000 objects: the dirent
 decoder read each record a byte at a time through the tower's `+`, `*`, `=`
