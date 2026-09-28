@@ -21,6 +21,22 @@ compares 190, and `docs/namespaces.md` has the numbers.
 
 [#824]: https://github.com/jonruttan/x-lang/pull/824
 
+**The names read across files by decision are listed, and not counted**
+([#836]). `tools/contract/shared-privates.x` lists the private names other
+files may read, with what each is: fifty-nine names of the eight boot files,
+the eighteen walkers of `core/list.x` and `core/alist.x`, and the four names
+of the analyse protocol. `check-private-reads` does not count a read of a
+listed name, nor of a `%` name of the seam, which it takes from
+`tools/contract/seam.x`. It refuses a read of any other private name of a
+boot file, whatever the reader's budget, so what the boot layer shares grows
+only by an edit to the list. A row is held to the tree in turn: its file has
+to define the name, another file has to read it, and a name a document
+promises has to be mentioned there. The budget rows fall from 673 reads in
+121 files to 183 in 40, the reads that still want a door. No library file
+changes.
+
+[#836]: https://github.com/jonruttan/x-lang/pull/836
+
 **An error's classifying symbol is its label** ([#821]). `(Err label e)` is the
 total accessor, `(e label)` the field and `(e label? 'io)` the predicate, and
 `make` and `raise` take a `label`. They were `(Err tag e)`, `(e tag)` and
