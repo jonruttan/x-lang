@@ -106,6 +106,17 @@ took 51, 51, 38 and 41.
 
 [#809]: https://github.com/jonruttan/x-lang/pull/809
 
+**`do` builds only the nest a body needs** ([#822]). `do` checked each cell of
+its body with a function call and rebuilt the whole body as nested two-form
+`%seq` calls on every run: 19 objects for one form, 36 for two and 87 for five.
+The checks are now match tests over the type prims, which allocate nothing. One
+form is tail-evaluated as it is, two are handed to `%seq` in the body's own
+cells, and a longer body builds its nest with the body's last cell innermost.
+Every cell is still checked before any form runs. One form now allocates 5
+objects, two 6, three 23 and five 43, and `(do (def x 1) x)` 8 where it took 38.
+
+[#822]: https://github.com/jonruttan/x-lang/pull/822
+
 **`File stat` decodes through a Struct reader made once** ([#813]). A stat
 allocated about 51,000 objects, 40,600 of them decoding three fields: `Struct
 unpack` compiled its field spec on every call and assembled each byte with
