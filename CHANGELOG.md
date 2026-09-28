@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The reference gate checks a documented field** ([#841]).
+`tools/check/doc-forms.sh` checks that every field and static member declared
+in a class body under `lib/` has an entry on its module's page in
+`docs/ref/x`. A declaration wrapped in a doc form, `(doc NAME "...")` or
+`(doc (NAME default) "...")`, was skipped, because the gate read the form's
+head, `doc`, as the class's own description. The walker,
+`tools/check/doc-forms.x`, now reports such a form's declared name in a fourth
+column, and the gate checks it under that name. `make doc-x` checks 79 where
+it checked 76: `Base raw`, `Type handle` and `Type raw`.
+
+A field documented with no description, `(doc NAME)`, which `(help Class/NAME)`
+reads as an empty description, stopped the reference generator with a
+segmentation fault. The generator read the description with an unchecked
+`first` of the empty list. It now reads an absent description as the empty
+string, and the entry keeps its heading and its note. No module under `lib/`
+used the form yet.
+
+[#841]: https://github.com/jonruttan/x-lang/pull/841
+
 **The reference names a field documented with a default** ([#833]). A field's
 doc form wraps its declaration, `(doc NAME "...")` or
 `(doc (NAME default) "...")`, and a static member's does the same.
