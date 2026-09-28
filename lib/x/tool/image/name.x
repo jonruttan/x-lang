@@ -1,7 +1,8 @@
-; image-name.x -- what a foreign address is called, from three sources that
+; name.x -- what a foreign address is called, from three sources that
 ; never go looking.
+; lint-known: %isa-bare
 ;
-; Included by tools/dev/image-foreign.x (which counts them) and
+; Imported by tools/dev/image-foreign.x (which counts them) and
 ; tools/dev/image-write.x (which emits them as the image's foreign table).
 ;
 ; Nothing here searches for a name, because nothing in x safely can: `first`
@@ -12,11 +13,15 @@
 ; looked up (the prims catalog), or asked of the linker (dladdr, round-trip
 ; checked).
 ;
+; Plain defs in the root, with no module header, as x/tool/image/walk is
+; and for its reason.  The ISA contract is read through the engine seam's
+; root (lib/x/boot/engine.x).
+;
 ; @author [Jon Ruttan](jonruttan@gmail.com)
 ; @copyright 2026 Jon Ruttan
 ; @license MIT No Attribution (MIT-0)
 
-(include "tools/dev/image-walk.x")
+(import x/tool/image/walk image-word-at image-obj->ptr image-int< image-int-)
 
 ; --- the naming sources: address -> the path it was found at ---------------
 ; The key is the C function pointer the primitive holds in unit 0, not the
@@ -24,7 +29,10 @@
 ; distinct primitive objects (catalog + and bare +) share one function and stay
 ; two object records in the image, so identity survives; what the foreign table
 ; names is the C function behind them.
-(def %fnptr (fn (_ v) (%word-at (%o->p v) 0)))
+(doc (def image-fnptr (fn (_ v) (image-word-at (image-obj->ptr v) 0)))
+  (param v ANY "A primitive, or any object whose unit 0 is a function pointer")
+  (returns INTEGER "The address unit 0 holds")
+  "The C function pointer an object holds in its first unit.")
 (def %prim? (fn (_ v) (str=? (Type name v) "PRIMITIVE")))
 
 ; A map is a plain list of (addr . tag); ~150 entries, so a linear probe is
@@ -32,14 +40,27 @@
 ; An entry is (fnptr . (kind . payload)): kind 1 catalog, 2 bare, 3 dlsym, and
 ; the payload is the NAME the loader will reacquire it by.  Kept as a list --
 ; ~130 entries, so a linear probe beats anything with structure.
-(def %F-CATALOG 1)
-(def %F-BARE 2)
-(def %F-DLSYM 3)
-(def %map-add (fn (_ m a kind payload) (pair (pair a (pair kind payload)) m)))
-(def %map-get
+(doc (def image-foreign-catalog 1)
+  "Foreign kind 1: a catalog primitive, named NAMESPACE/NAME.")
+(doc (def image-foreign-bare 2)
+  "Foreign kind 2: a bare global the engine binds, named by its symbol.")
+(doc (def image-foreign-dlsym 3)
+  "Foreign kind 3: a symbol of the dynamic linker, named as dlsym takes it.")
+(doc (def image-name-map-add (fn (_ m a kind payload) (pair (pair a (pair kind payload)) m)))
+  (param m LIST "Naming map")
+  (param a INTEGER "Address to name")
+  (param kind INTEGER "Foreign kind")
+  (param payload STRING "The name the loader reacquires the address by")
+  (returns LIST "The map with the entry in front")
+  "Add one address to a naming map.")
+(doc (def image-name-map-get
   (fn (self m a)
     (if (null? m) ()
       (if (eq? (first (first m)) a) (rest (first m)) (self (rest m) a)))))
+  (param m LIST "Naming map")
+  (param a INTEGER "Address to look up")
+  (returns PAIR "(kind . name), or nil when the map does not name the address")
+  "Look an address up in a naming map.")
 
 ; catalog: LIST of (ns . ((name . value) ...))
 (def %from-catalog
@@ -53,7 +74,7 @@
 (def %method-add
   (fn (_ e m ns)
     (if (%prim? (rest e))
-      (%map-add m (%fnptr (rest e)) %F-CATALOG
+      (image-name-map-add m (image-fnptr (rest e)) image-foreign-catalog
         (Str append (symbol->str ns) "/" (symbol->str (first e))))
       m)))
 
@@ -67,16 +88,16 @@
       (if (pair? x) #t (eq? (%reflect-type-word x) %reflect-spair-tw)))))
 (def %from-env
   (fn (self x m d)
-    (if (%ilt d 0) m
+    (if (image-int< d 0) m
       (if (%walkable? x)
         ; `rest` is list traversal at the SAME level and must not spend depth:
         ; spending it there bounded the number of BINDINGS seen, not the nesting.
-        (%from-env (rest x) (%from-env (first x) (%from-entry x m) (%int- d 1)) d)
+        (%from-env (rest x) (%from-env (first x) (%from-entry x m) (image-int- d 1)) d)
         m))))
 (def %from-entry
   (fn (_ x m)
     (if (%walkable? x)
-      (if (%prim? (rest x)) (%map-add m (%fnptr (rest x)) 2) m)
+      (if (%prim? (rest x)) (image-name-map-add m (image-fnptr (rest x)) 2) m)
       m)))
 
 ; Catalog only.  Walking the base env for the bare bindings crashes exactly as
@@ -100,14 +121,14 @@
 ; has rebound (the six raw bitwise operators, wrapped by core/arithmetic.x)
 ; yields the wrapper, not the primitive, and is simply not added -- those
 ; survive only inside a closure, which docs/state-images.md already records.
-(include "engine/tools/contract/isa.x")
+(include (Str append %engine-root "/tools/contract/isa.x"))
 (def %from-bare
   (fn (self rows m b)
     (if (null? rows) m (self (rest rows) (%bare-add (first (first rows)) m b) b))))
 (def %bare-add
   (fn (_ nm m b)
     (guard (_ m)
-      ((fn (_ v) (if (%prim? v) (%map-add m (%fnptr v) %F-BARE (symbol->str nm)) m))
+      ((fn (_ v) (if (%prim? v) (image-name-map-add m (image-fnptr v) image-foreign-bare (symbol->str nm)) m))
        (b eval nm)))))
 
 ; NOT by walking the base env, and two failed attempts are why.
@@ -123,9 +144,12 @@
 ;
 ; Built FOR a base rather than for the ambient one: the writer images a child,
 ; whose catalog and bare bindings are its own.
-(def %make-map
+(doc (def image-name-map
   (fn (_ b)
     (%from-bare %isa-bare (%from-catalog (first (b cell (lit prims))) ()) b)))
+  (param b ANY "The base to name: a Base instance")
+  (returns LIST "Entries (address . (kind . name)), for the base's catalog and bare primitives")
+  "Build the naming map of a base from its prims catalog and the bare globals the ISA contract declares.")
 
 ; --- the call pointer a whole TYPE shares -----------------------------------
 ; A PROCEDURE's unit 0 is the engine's procedure-call function, and EVERY
@@ -134,10 +158,12 @@
 ; will not give it back -- and it needs none: a loader creating an object of
 ; that type gives it the type's own call pointer.  The writer recognises one
 ; by its type: the word the type's call handler holds (image-write.x).
-(def %F-TYPECALL 4)
+(doc (def image-foreign-typecall 4)
+  "Foreign kind 4: the call pointer a whole type shares, named by the type.")
 ; A dlopen HANDLE is not a symbol and dladdr will never name one: the
 ; writer's own, re-opened by the loader.
-(def %F-DLOPEN 5)
+(doc (def image-foreign-dlopen 5)
+  "Foreign kind 5: a dlopen handle, which the loader opens again.")
 
 ; --- source 3: ask the dynamic linker what an address is called -----------
 ;
@@ -148,8 +174,9 @@
 ; name that does not resolve is worse than no name -- macOS reports getpid as
 ; "__getpid", which does dlsym back to the same address, and a mechanism that
 ; silently produced unresolvable names would look like coverage.
-(def %lib (Ffi dlopen () 1))
-(def %c-dladdr (Ffi dlsym %lib "dladdr"))
+(doc (def image-dl-handle (Ffi dlopen () 1))
+  "This process's dlopen handle on itself, the one the names are asked of.")
+(def %c-dladdr (Ffi dlsym image-dl-handle "dladdr"))
 ; The engine's allocator.  dlopen/dlsym/dladdr stay: naming a C function is
 ; the dynamic linker's job, and there is no engine-side substitute for it.
 (def %dl-buf ((prim-ref (lit ptr) (lit alloc)) 64))
@@ -158,9 +185,12 @@
 ; The round trip is checked rather than assumed: macOS reports getpid as
 ; "__getpid", which does resolve back, and a mechanism quietly producing
 ; unresolvable names would look exactly like coverage.
-(def %dl-name
+(doc (def image-dl-name
   (fn (_ w)
     (if (eq? (Ptr call %c-dladdr w %dl-buf) 0) () (%dl-check w (Ptr ref-word %dl-buf %DLI-SNAME)))))
+  (param w INTEGER "Address to name")
+  (returns STRING "The symbol's name, or nil when none resolves back to the address")
+  "Ask the dynamic linker what an address is called, and keep the name only if dlsym gives the address back.")
 (def %dl-check
   (fn (_ w sname)
     (if (eq? sname 0) ()
@@ -169,6 +199,15 @@
 (def %dl-verify
   (fn (_ w nm)
     ((fn (_ back) (if (null? back) () (if (eq? (Ptr ->int back) w) nm ())))
-     (Ffi dlsym %lib nm))))
-(def %dl-round-trips? (fn (_ w) (if (null? (%dl-name w)) #f #t)))
+     (Ffi dlsym image-dl-handle nm))))
+(doc (def image-dl-round-trips? (fn (_ w) (if (null? (image-dl-name w)) #f #t)))
+  (param w INTEGER "Address to name")
+  (returns BOOL "#t when the dynamic linker names the address and the name resolves back")
+  "Whether image-dl-name has a name for an address.")
 
+(doc (provide x/tool/image/name
+  image-name-map image-name-map-add image-name-map-get image-fnptr
+  image-dl-name image-dl-round-trips? image-dl-handle
+  image-foreign-catalog image-foreign-bare image-foreign-dlsym
+  image-foreign-typecall image-foreign-dlopen)
+  "Names for the foreign addresses a state image holds.")

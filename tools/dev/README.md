@@ -204,12 +204,12 @@ sh x.sh -q -l xe -f tools/dev/image-write.x  # xenon
 It images the base it runs in, so the dialect flag chooses what gets imaged.
 Output path is the `%IMG` def near the bottom of the file.
 
-`image-walk.x` holds the heap walk and unit reader both image tools share; it
-is a file rather than a copy in each because its three rules were each learned
-by breaking them. Run it from the repository root -- the include is
-cwd-relative -- and note that `tools/dev/lint.sh` does not follow the include,
-so the two including files report the shared names as undefined. `make lint-x`
-covers `lib/` and `apps/`, not `tools/`, so nothing is gated on it.
+The heap walk and unit reader the image tools share is a library module,
+`x/tool/image/walk` (`lib/x/tool/image/walk.x`), and the names for foreign
+addresses are `x/tool/image/name`; the scripts here take what they use by
+selective import. The walk is one module rather than a copy in each script
+because its three rules were each learned by breaking them. Run the scripts
+from the repository root: their contract includes are cwd-relative.
 
 ## Foreign-unit census
 

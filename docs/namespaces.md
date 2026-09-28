@@ -190,6 +190,14 @@ push, pop and prologue helpers, are one interface with two implementations,
 and `asm.x` picks one at load. A reader cannot import from a module chosen
 at run time, so the interface stays in the root.
 
+The state-image modules (`tool/image/walk.x`, `tool/image/name.x`) are
+unscoped and have not been measured with a header. The walk runs once per
+object of the heap it images, and its readers are the image scripts under
+`tools/dev/`, which are unscoped and take its exports by selective import,
+so those bind in the root either way. The names the scripts read are
+exports, renamed bare; what stays `%`-named in the two files is read by
+nothing outside them.
+
 ### What does not change
 
 Qualified symbols are not resolved by the evaluator. Symbol evaluation is C

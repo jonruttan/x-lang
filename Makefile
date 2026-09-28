@@ -1139,12 +1139,14 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	# wrapper writes a dialect's image on a miss and a bundle's installer
 	# writes the bundle's (x --image NAME), and both load through lib/img.x
 	# plus tools/dev/image-read.x.  The writer and loader include the three
-	# layout contracts and the walk by root-relative path, so those land at
-	# the same relative paths under the share tree as in a checkout --
+	# layout contracts by root-relative path, so those land at the same
+	# relative paths under the share tree as in a checkout; the walk and the
+	# namer are library modules (x/tool/image/walk, x/tool/image/name) and
+	# install with lib/ --
 	# engine/tools/contract/ holds the contracts a checkout reads from the
 	# engine submodule (isa.x is the namer's catalog), and nothing else.
 	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tools/dev $(DESTDIR)$(LIBDIR)/engine/tools/contract
-	for f in image-build.sh image-write.x image-walk.x image-name.x image-read.x; do \
+	for f in image-build.sh image-write.x image-read.x; do \
 		install $C -m 0644 tools/dev/$$f $(DESTDIR)$(LIBDIR)/tools/dev/$$f || exit 1; \
 		diff tools/dev/$$f $(DESTDIR)$(LIBDIR)/tools/dev/$$f || exit 1; done
 	for f in obj-layout.x base-paths.x base-layout.x isa.x; do \
