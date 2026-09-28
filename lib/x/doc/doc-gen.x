@@ -373,13 +373,20 @@
                 ; named by the declaration's name.  symbol->str is unchecked:
                 ; handed the (NAME default) pair it returned bytes that are
                 ; not text, and those became the heading.
+                ; The description may be absent, (doc DECL), and class.x
+                ; reads that as an empty one.  The tail is then the empty
+                ; list, and first is unchecked, so the read is guarded with
+                ; pair? as the bare-member arm below guards its own.
                 ((%docgen-form? f)
                   (if (str? (first (rest f)))
                     (%doc-emit-class-doc em f)
                     (%doc-emit-member em
                       (let ((decl (first (rest f))))
                         (symbol->str (if (pair? decl) (first decl) decl)))
-                      (if (str? (first (rest (rest f)))) (first (rest (rest f))) "")
+                      (let ((tail (rest (rest f))))
+                        (if (pair? tail)
+                          (if (str? (first tail)) (first tail) "")
+                          ""))
                       cname static? vis)))
                 ; ANYTHING ELSE IS A MEMBER.  A class body declares members
                 ; as (name), (name default) or (name default "description")

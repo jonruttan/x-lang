@@ -201,3 +201,79 @@ An instance member is data each instance carries. A member declared inside
 ```
 ---
     (2 1)
+
+
+## a member documented with no description
+
+`(doc DECL)` with no description is allowed: `(help Class/NAME)` reads it as
+an empty description. The page gives such a member its heading and its note,
+and no description text.
+
+### a heading and no text, for both shapes of declaration
+
+```x
+(do (import x/doc/doc-gen doc-walk-with-prims)
+    (def-class DgBare (extends DocEmit)
+      (static (got ())
+        (method page-header (self . a) ()) (method section (self . a) ())
+        (method class-head (self . a) ()) (method interface-line (self . a) ())
+        (method alias (self . a) ()) (method note (self . a) ())
+        (method params (self . a) ()) (method returns (self . a) ())
+        (method examples (self . a) ()) (method see-also (self . a) ())
+        (method entry-head (self s) (DgBare got (pair s (DgBare got))))
+        (method text (self s) (DgBare got (pair (list "text" s) (DgBare got))))))
+    (doc-walk-with-prims
+      '((def-class DgSite6 ()
+          (doc label)
+          (doc (state (lit down)))
+          (static (doc (made 0)) (doc all))))
+      () DgBare "")
+    (DgBare got))
+```
+---
+    ("all" "made" "state" "label")
+
+### a description beside an undescribed member is still shown
+
+```x
+(do (import x/doc/doc-gen doc-walk-with-prims)
+    (def-class DgBare2 (extends DocEmit)
+      (static (got ())
+        (method page-header (self . a) ()) (method section (self . a) ())
+        (method class-head (self . a) ()) (method interface-line (self . a) ())
+        (method alias (self . a) ()) (method note (self . a) ())
+        (method params (self . a) ()) (method returns (self . a) ())
+        (method examples (self . a) ()) (method see-also (self . a) ())
+        (method entry-head (self s) (DgBare2 got (pair s (DgBare2 got))))
+        (method text (self s) (DgBare2 got (pair (list "text" s) (DgBare2 got))))))
+    (doc-walk-with-prims
+      '((def-class DgSite7 ()
+          (doc label)
+          (doc (state (lit down)) "Where the site stands.")))
+      () DgBare2 "")
+    (DgBare2 got))
+```
+---
+    (("text" "Where the site stands.") "state" "label")
+
+### a member's note is kept when the description is absent
+
+```x
+(do (import x/doc/doc-gen doc-walk-with-prims)
+    (def-class DgBare3 (extends DocEmit)
+      (static (got ())
+        (method page-header (self . a) ()) (method section (self . a) ())
+        (method class-head (self . a) ()) (method interface-line (self . a) ())
+        (method entry-head (self . a) ()) (method alias (self . a) ())
+        (method text (self . a) ()) (method params (self . a) ())
+        (method returns (self . a) ()) (method examples (self . a) ())
+        (method see-also (self . a) ())
+        (method note (self s) (DgBare3 got (pair s (DgBare3 got))))))
+    (doc-walk-with-prims
+      '((def-class DgSite8 ()
+          (doc (state (lit down)))))
+      () DgBare3 "")
+    (DgBare3 got))
+```
+---
+    ("Member: data carried by a DgSite8 instance.")
