@@ -45,6 +45,22 @@ compares 190, and `docs/namespaces.md` has the numbers.
 
 [#824]: https://github.com/jonruttan/x-lang/pull/824
 
+**The names read across files by decision are listed, and not counted**
+([#836]). `tools/contract/shared-privates.x` lists the private names other
+files may read, with what each is: fifty-nine names of the eight boot files,
+the eighteen walkers of `core/list.x` and `core/alist.x`, and the four names
+of the analyse protocol. `check-private-reads` does not count a read of a
+listed name, nor of a `%` name of the seam, which it takes from
+`tools/contract/seam.x`. It refuses a read of any other private name of a
+boot file, whatever the reader's budget, so what the boot layer shares grows
+only by an edit to the list. A row is held to the tree in turn: its file has
+to define the name, another file has to read it, and a name a document
+promises has to be mentioned there. The budget rows fall from 673 reads in
+121 files to 183 in 40, the reads that still want a door. No library file
+changes.
+
+[#836]: https://github.com/jonruttan/x-lang/pull/836
+
 **An error's classifying symbol is its label** ([#821]). `(Err label e)` is the
 total accessor, `(e label)` the field and `(e label? 'io)` the predicate, and
 `make` and `raise` take a `label`. They were `(Err tag e)`, `(e tag)` and
@@ -184,6 +200,17 @@ is unchanged. The engine's `tools/contract/obj-layout.x` gains the trace and
 count rows, and the declaration's layout digest changes with them.
 
 [#810]: https://github.com/jonruttan/x-lang/pull/810
+
+**The engine pin moves to x-engine-c v0.2.16** ([#838]). v0.2.16 carries the
+engine's contract in the glossary's words (x-engine-c#69) and `%seq` over any
+number of forms (x-engine-c#70), and x-lang follows its names: the ISA
+manifest's block is `%isa-catalogue`, `(type set-shape!)` is
+`(type set-unit-labels!)` and `Type set-shape!` is `Type set-unit-labels!`, the
+compiled states' door is `jit_score_label`, and the tokenizer's claim is
+`tok/label`. `obj-layout.x` no longer carries x-expr's simple-type codes, and
+the base's field routes end in `-fields`.
+
+[#838]: https://github.com/jonruttan/x-lang/pull/838
 
 **Two selectors of one class sent in turn settle at the front of its
 dispatch table** ([#814]). A lookup that found its selector deeper than
