@@ -6,7 +6,7 @@ This began as a design proposal, and the design is built. A file headed
 `(module NAME)` is a scoped module, and [Modules](modules.md#module-scope)
 says how to write one. This document keeps the reasoning: the rules, what
 was measured, and why each file without a scope has none. On 2026-09-28,
-78 of the library's 138 files were scoped.
+79 of the library's 138 files were scoped.
 
 The counts under "Where names live today" describe the tree before any of
 it. They were taken at `b11084e9` (2026-09-14) and are reproducible with
@@ -378,8 +378,10 @@ model.
     library's own callers keep the engine's `apply`. A call through the
     library's `apply` compares 161 more bindings with the header, 351 where
     it compared 190, with evaluations and allocations unchanged at 88 and 38
-    a call. The door is small, so the frame would nearly double its lookups,
-    for eight names hidden. The file is unscoped.
+    a call. The door is small, so the frame nearly doubles its lookups, for
+    eight names hidden. The file is scoped all the same (decision of
+    2026-09-28): the library's own callers keep the engine's `apply`, so the
+    cost falls only on a call through the door.
   - The six large files were measured the same way (2026-09-28) and held to
     one line (decision of 2026-09-27): a header goes on when it adds under
     0.1% to the environment comparisons of an x-core boot, and under 10% to
