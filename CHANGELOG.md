@@ -170,6 +170,15 @@ to 25,400, and a `File open` and `File close` pair about 2,200 where it took
 
 [#814]: https://github.com/jonruttan/x-lang/pull/814
 
+**Constructing an object fills its members without derived forms**
+([#825]). `(new C ...)` ran every member through `let` frames, `unless`,
+`do`, `not` and `if` in `%instantiate`, `%init-fields`, `%check-init-keys`
+and `%opt-cell`; the same steps run on `def`, `match` and an applied `fn`.
+A three-member `(new Err ...)` allocates about 1,050 objects where it took
+3,500, and `(Err make ...)` about 1,740 where it took 4,200.
+
+[#825]: https://github.com/jonruttan/x-lang/pull/825
+
 **A data-slot access does no generic arithmetic** ([#809]). `(obj ref)`,
 `(obj set!)` and the pair mutators address data word i by one formula, the data
 offset plus i words, and it was computed with the `+` and `*` bound at the root:
@@ -210,6 +219,16 @@ on the dialect. A reader raises `type` for a record offset that is not an
 integer.
 
 [#813]: https://github.com/jonruttan/x-lang/pull/813
+
+**A failed call's errno is read without per-call lookups** ([#826]). `(Err
+errno-of)` fetched its three pointer primitives with `prim-ref` on every
+call, and `(Err from-errno)` built its message through a `Str8` class send;
+the primitives are resolved when the module loads and the message is joined
+directly. `errno-of` allocates about 700 objects where it took 1,630; with
+the construction change as well, a failed `File stat` allocates about 4,500
+where it took 9,650.
+
+[#826]: https://github.com/jonruttan/x-lang/pull/826
 
 ## [0.16.0] - 2026-09-27
 
