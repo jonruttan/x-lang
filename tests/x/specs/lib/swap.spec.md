@@ -96,6 +96,20 @@ environment the cases' names are bound in, as an operative is handed it.
 ---
     ('up ())
 
+### a site that was never brought up is down, with no reason
+
+`site!` brings a site up as it makes one. One made with `new` has not been
+brought up, and its state and reason are the members' defaults.
+
+```x
+(do (import x/sys/swap)
+  (def %site-new
+    (new Swap name (lit n) twin 1 maker (fn (_) 2) seat (fn (_ v) v)))
+  (write (list (%site-new state) (%site-new reason) (%site-new value))))
+```
+---
+    (down "" ())
+
 ## down and up
 
 ### down seats the twin and lets go of the made value
