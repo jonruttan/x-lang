@@ -150,6 +150,7 @@
 (def %profile-i->p (prim-ref (lit int) (lit ->ptr)))
 (def %profile-rw (prim-ref (lit ptr) (lit ref-word)))
 (def %profile-sw (prim-ref (lit ptr) (lit set-word!)))
+(def %profile-chain-clear! (prim-ref (lit heap) (lit chain-clear!)))
 
 ; Byte offsets in an object, from the layout contract's word offsets.  The
 ; meta words are prepended, word i at -(i+1) words, and the reader keeps a
@@ -270,11 +271,13 @@
 ; collection, for the reasons tools/dev/image-walk.x gives.
 
 ; How many objects, or pairs of bodies, a walk passes between collections,
-; less one so that it serves as a mask.  A step leaves garbage behind and
-; nothing collects unless asked, so a walk of a booted heap would otherwise
-; hold gigabytes; a collection marks the whole live heap, so it cannot run
-; at every step either.
-(def %profile-collect-mask 4095)
+; less one so that it serves as a mask.  A step leaves garbage behind -- the
+; frames of the calls it makes, a few dozen objects -- and nothing collects
+; unless asked, so a walk of a booted heap would otherwise hold gigabytes; a
+; collection marks the whole live heap, so it cannot run at every step
+; either.  At this interval a walk holds some tens of megabytes between
+; collections.
+(def %profile-collect-mask 16383)
 
 ; How far down the firsts of a body's first form to look for a pair the
 ; reader stamped with its line.  The first form is nearly always one.
@@ -284,22 +287,22 @@
 ; slot is not a line.
 (def %profile-line-limit 1000000)
 
-(def %profile-next
-  (fn (_ obj)
-    ((fn (_ word)
-       (match ((eq? word 0) ())
-              (#t (%profile-p->o (%profile-i->p word)))))
-     (%profile-rw (%profile-o->p obj) %profile-heap-off))))
+; The object after cur on the heap chain, read after any collection, which
+; may free the object that followed it.
+(def %profile-after
+  (fn (_ cur n)
+    (match ((eq? (%profile-int& n %profile-collect-mask) 0) (%heap-collect-prim))
+           (#t ()))
+    (%profile-next-of (%profile-rw (%profile-o->p cur) %profile-heap-off))))
+(def %profile-next-of
+  (fn (_ word)
+    (match ((eq? word 0) ())
+           (#t (%profile-p->o (%profile-i->p word))))))
 
 (def %profile-each
   (fn (self cur f acc n)
     (match ((eq? cur ()) acc)
-           (#t ((fn (_ acc)
-                  (match ((eq? (%profile-int& n %profile-collect-mask) 0)
-                          (%heap-collect-prim))
-                         (#t ()))
-                  (self (%profile-next cur) f acc (%profile-int+ n 1)))
-                (f cur acc))))))
+           (#t (self (%profile-after cur n) f (f cur acc) (%profile-int+ n 1))))))
 
 ; body joins acc unless its first cell is already claimed.
 (def %profile-claim
@@ -323,17 +326,19 @@
                   (self (rest bodies) trace))
                 (cov-flags (first bodies)))))))
 
+(def %profile-body-of
+  (fn (_ obj acc trace word)
+    (match ((eq? (%profile-int- word %profile-proc-tw) 0)
+            (%profile-claim (cov-body obj) acc trace))
+           ((eq? (%profile-int- word %profile-op-tw) 0)
+            (%profile-claim (cov-body obj) acc trace))
+           (#t acc))))
 (def %profile-bodies
   (fn (_ trace)
     (%profile-each (pair () ())
       (fn (_ obj acc)
-        ((fn (_ word)
-           (match ((eq? (%profile-int- word %profile-proc-tw) 0)
-                   (%profile-claim (cov-body obj) acc trace))
-                  ((eq? (%profile-int- word %profile-op-tw) 0)
-                   (%profile-claim (cov-body obj) acc trace))
-                  (#t acc)))
-         (%profile-rw (%profile-o->p obj) %profile-type-off)))
+        (%profile-body-of obj acc trace
+                          (%profile-rw (%profile-o->p obj) %profile-type-off)))
       () 1)))
 
 ; The path the loader filed a file id under, or nil for an id it never
@@ -446,21 +451,12 @@
   (returns LIST "One (file line calls evals nodes saturated) row for each function body evaluation reached, in no order")
   "Return the calls and evaluation of every function on the heap, by the file and line its body starts on.")
 
+; The engine clears the count's bits across the whole allocation chain in one
+; pass, and leaves every other flag bit as it was.
 (doc (def profile-clear!
   (fn (_)
-    (%heap-collect-prim)
-    ((fn (_ field)
-       (%profile-each (pair () ())
-         (fn (_ obj n)
-           ((fn (_ flags)
-              (match ((eq? (%profile-int& flags field) 0) ())
-                     (#t (%profile-sw (%profile-o->p obj) %profile-flags-off
-                                      (%profile-int- flags (%profile-int& flags field)))))
-              (%profile-int+ n 1))
-            (cov-flags obj)))
-         0 1))
-     (%profile-int<< (profile-evals-max) %obj-evals-shift))))
-  (returns INTEGER "Objects visited")
+    (%profile-chain-clear! (%profile-int<< (profile-evals-max) %obj-evals-shift))))
+  (returns NIL "nil")
   "Set the eval count of every object on the heap to zero, so that what is counted next belongs to what runs next.")
 
 (def %profile-print

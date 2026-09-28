@@ -205,15 +205,25 @@ counted.
 ---
     (0 0 4 #f)
 
-### clearing answers how many objects it visited
+### clearing zeroes the count and leaves every other flag bit
+
+The engine clears the count's bits across the allocation chain; the trace
+bit, the one below them, is still set afterwards.
 
 ```x
 (do
-  (import x/tool/profile profile-clear!)
-  (display (> (profile-clear!) 1000)))
+  (import x/tool/profile profile-evals profile-clear!)
+  (def %form (first (Tok read-str (%base) "(+ 1 2)\n")))
+  (def %off (* %obj-slot-flags %word-size))
+  (eval %form) (eval %form)
+  (Ptr set-word! (Obj ->ptr %form) %off
+    (+ (Ptr ref-word (Obj ->ptr %form) %off) %obj-flag-trace))
+  (profile-clear!)
+  (display (list (profile-evals %form)
+                 (& (Ptr ref-word (Obj ->ptr %form) %off) %obj-flag-trace))))
 ```
 ---
-    #t
+    (0 1024)
 
 ### the profiler's own work leaves no row
 
