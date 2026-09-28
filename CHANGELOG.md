@@ -61,6 +61,33 @@ changes.
 
 [#836]: https://github.com/jonruttan/x-lang/pull/836
 
+**Sites: a slow value set aside for a faster one** ([#827]). `x/sys/swap` is
+new. A site records one replacement of a slow value by a faster one: the seat
+the value sits in, the slow twin that belongs there, and the maker of the fast
+value. `(Swap site! name twin maker seat)` records one and brings it up. A
+maker that raises is refused, and one that answers the twin has declined; the
+twin stays seated either way, and the site's `state` is `up`, `twin` or
+`refused`, with the raise's text as its `reason`. `(Swap report)` prints every
+site, so a compile that was refused shows. `(Swap in-env name env)` and
+`(Swap in-cell pair)` make the two seats the library has needed, and any
+function of one value is a seat.
+
+Every site is put down before a state image is written and comes up again
+after one is loaded, in the order the sites were made. The tower's compiled
+analysers (`boot/tower-compiled.x`) are sites of the module, where the record
+and its two walks were the tower's own: `%tower-sites`, `%tower-unjit!` and
+`%tower-rejit!` are gone, with the record's accessors. The tower's makers no
+longer catch a refused compile, so the raise reaches the site. A type's entry
+analyser is pushed as its interpreted twin and compiled in place, where the
+compiled one was pushed and, before an image write, removed, so an image holds
+the twin in the type's list.
+
+`boot/reflect.x` files two doors in the catalog, `(image transient!)` and
+`(image recache-hook!)`, which add to the image writer's transients and to the
+loader's recache hooks.
+
+[#827]: https://github.com/jonruttan/x-lang/pull/827
+
 **An error's classifying symbol is its label** ([#821]). `(Err label e)` is the
 total accessor, `(e label)` the field and `(e label? 'io)` the predicate, and
 `make` and `raise` take a `label`. They were `(Err tag e)`, `(e tag)` and

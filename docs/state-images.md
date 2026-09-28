@@ -1494,14 +1494,15 @@ and no name reacquires it in another process. The tower does not need it
 to be *carried*, only *remade*: every compile in `boot/tower-compiled.x` is
 the same shape, source over free variables, with an interpreted twin it
 displaces. So each compile goes through a **site** that records where the
-result went (a global, a type's analyse stack, one cell of the symbol
-type's lists), the twin, a maker, and the value in place. Two walks over
-the record: `%tower-unjit!` puts every twin back and lets go of the
-compiled objects, run by the writer inside the child before its walk
-(a thunk among `%image-transients`, the second half of the transient rule
-in `boot/reflect.x`); `%tower-rejit!` compiles every site anew in boot order,
-run by the loader after the install (`%image-recache-hooks`), asking the
-lane again since the loading engine is not the writing one. Measured
+result went (a name's binding, or one cell of a type's handler list), the
+twin, a maker, and the value in place. The record is `lib/x/sys/swap.x`'s
+since 2026-09-27, where it was the tower's own before. `(Swap down!)` puts
+every twin back and lets go of the compiled objects, run by the writer
+inside the child before its walk (a thunk among `%image-transients`, the
+second half of the transient rule in `boot/reflect.x`); each site's own
+recache hook compiles it anew, in boot order, run by the loader after the
+install (`%image-recache-hooks`), and the tower's probe asks the lane again
+first since the loading engine is not the writing one. Measured
 2026-09-05: x-base's twelve unnameable words go to zero from the tower;
 x-base, xe and rn each write clean at ~130K objects; the x-base smoke and
 reader specs run from the image in 1s a file against 6s from source, and

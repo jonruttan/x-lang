@@ -54,6 +54,9 @@
 ; The quote family's entry tests and states, to compile and to swap by identity.
 (import x/reader/lit-reader lit-accept lit-analyse macro-delimit interp-analyse interp-after-hash)
 (import x/reader/quasi-reader quasi-accept quasi-analyse unquote-after-comma unquote-analyse)
+; Every compile below is a site of Swap's: it is put down before a state
+; image is written and made again after one is loaded.
+(import x/sys/swap)
 
 ; --- THE BURST USES THE ENGINE'S OWN JIT, NEVER A SYSTEM TOOLCHAIN -----------
 ;
@@ -71,13 +74,22 @@
 ;
 ; The probe is one state in the form the states below take -- analyser mode,
 ; a loop through the self param, a handoff through an fvar -- so it refuses
-; where they would and nowhere else.  %tower-rejit! asks it again in the same
-; words.  Its result is never called.
-(def %tower-jit?
-  (guard (_ #f)
-    (do (compile-asm (lit (fn (me buffer score chr) (if (= chr 32) me k)))
-                     (list (pair (lit k) 1)) #t)
-        #t)))
+; where they would and nowhere else.  Its result is never called.
+;
+; It is asked again once a state image has loaded, since the loading engine
+; is not the writing one.  Its hook is added after its first run and before
+; the first site's: whatever the first compile loaded has its own hooks in
+; by then, and every site comes up under this process's answer.
+(def %tower-jit? #f)
+(def %tower-probe!
+  (fn (_)
+    (set! %tower-jit?
+      (guard (_ #f)
+        (do (compile-asm (lit (fn (me buffer score chr) (if (= chr 32) me k)))
+                         (list (pair (lit k) 1)) #t)
+            #t)))))
+(%tower-probe!)
+((prim-ref (lit image) (lit recache-hook!)) %tower-probe!)
 
 ; One site shape for the ten states, a LADDER of three rungs:
 ;
@@ -89,15 +101,18 @@
 ;      per machine, not once per boot.
 ;   3. the interpreted twin -- always correct, never raises.
 ;
-; Any refusal at a rung drops one rung, never dies.  Fvars are passed as
-; arguments and every value is a module-level def, which is what roots them
-; after the burst (#49's lesson, kept).
+; A closed rung answers the twin, and the site's state is `twin`.  A compile
+; that raises is not caught here: the raise reaches the site, which seats the
+; twin and keeps the raise's text, so (Swap report) names every state that
+; was refused and why.  Fvars are passed as arguments and every value is a
+; module-level def, which is what roots them after the burst (#49's lesson,
+; kept).
 (def %tower-asm
   (fn (_ src fvars interp)
     (if %tower-jit?
-      (guard (_ interp) (compile-asm src fvars #t))
+      (compile-asm src fvars #t)
       (if compile-hosted?
-        (guard (_ interp) (compile src fvars))
+        (compile src fvars)
         interp))))
 
 ; The ladder's MIDDLE RUNG is for bodies EITHER compiler can lower, and none of
@@ -121,40 +136,30 @@
 ; these bodies at all.
 (def %tower-asm-only
   (fn (_ src fvars interp)
-    (if %tower-jit? (guard (_ interp) (compile-asm src fvars #t)) interp)))
+    (if %tower-jit? (compile-asm src fvars #t) interp)))
 
-; --- JIT SITES ARE RECORDED, so a state image can put them down and pick them up --
-; A compiled analyser is native code in a page THIS process mapped, and no
-; image can carry it (docs/state-images.md, the unnameable rule) -- which is
-; why x-base, xe and rn could not be imaged at all.  So every compile below
-; goes through a site: it records WHERE the result went (a global, a type's
-; analyse stack, one cell of the symbol type's lists), the interpreted twin it
-; displaced, a maker that compiles it again, and the value now in place.  Two
-; walks over the record do the rest.  %tower-unjit! puts every twin back --
-; the writer runs it inside the child before the walk (a THUNK on
-; %image-transients, boot/reflect.x),
-; so the image holds the interpreted tower and nothing unnameable.
-; %tower-rejit! compiles every site anew in boot order -- the loader runs it
-; once the install is done (%image-recache-hooks) -- so a loaded image has
-; the native analysers a source boot has.  A maker re-evaluates its fvars
-; form each time: a state's free names are the analysers compiled before it,
-; and after a rejit those are new objects.  A dialect booted from source
-; records the sites and never walks them.
-; A global site's name may live in a module's own frame -- the float states
-; below do -- so the record carries the environment the name is set in, as
-; the sixth element; the other kinds store ().
-(def %tower-sites ())
-(def %tower-site!
-  (fn (_ kind place interp maker value env)
-    (set! %tower-sites (pair (list kind place interp maker value env) %tower-sites))))
-(def %tower-site-kind (fn (_ s) (first s)))
-(def %tower-site-place (fn (_ s) (first (rest s))))
-(def %tower-site-interp (fn (_ s) (first (rest (rest s)))))
-(def %tower-site-maker (fn (_ s) (first (rest (rest (rest s))))))
-(def %tower-site-value-cell (fn (_ s) (rest (rest (rest (rest s))))))
+; --- Every compile is a site ---------------------------------------------------
+; A compiled analyser is native code in a page this process mapped, and no
+; state image can carry it.  So every compile below goes through a site
+; (lib/x/sys/swap.x): the seat the result sits in, the interpreted twin that
+; belongs there, and a maker that compiles it again.  The image writer puts
+; every site down before its walk, so an image holds the interpreted tower,
+; and the loader brings each up again in the order it was made here.  A
+; maker evaluates its fvars form each time it runs: a state's free names are
+; the states compiled before it, and after a load those are new objects.
+;
+; The tower's seats are of two kinds: a name's binding, which may be in a
+; module's own environment as the float states' are, and one cell of a
+; type's handler list.
+
 ; (%tower-state ENV NAME): a module's binding of one of its states, as it
 ; stands -- the interpreted twin before its compile, the compiled one after.
 (def %tower-state (fn (_ env name) (eval name env)))
+; A site whose maker is one of the two ladders over SRC and the fvars FVARSF
+; answers.
+(def %tower-site!
+  (fn (_ name asm src fvarsf interp seat)
+    (Swap site! name interp (fn (_) (asm src (fvarsf) interp)) seat)))
 ; (%tower-jit-global! NAME ONLY? SRC FVARS INTERP [ENV]): NAME is set! to the
 ; compile of SRC over FVARS, or to INTERP when the lane refuses; ONLY? picks
 ; %tower-asm-only over %tower-asm.  An operative, so FVARS stays a form.  ENV
@@ -162,81 +167,25 @@
 ; module owns, the caller's own when left out.
 (def %tower-jit-global!
   (op (name only? src fvars interp . env) e
-    (%tower-jit-global-run! name (eval only? e) (eval src e) (fn (_) (eval fvars e)) (eval interp e)
-                            (if (null? env) e (eval (first env) e)))))
-(def %tower-jit-global-run!
-  (fn (_ name only? src fvarsf interp env)
-    ((fn (_ maker)
-       ((fn (_ v)
-          (do (%tower-site! (lit global) name interp maker v env)
-              (eval (list (lit set!) name (list (lit lit) v)) env)))
-        (maker)))
-     (fn (_) ((if only? %tower-asm-only %tower-asm) src (fvarsf) interp)))))
-; (%tower-jit-push! TYPE SRC FVARS INTERP): the compile is pushed onto TYPE's
-; analyse stack, where %type-push-analyse puts it.
+    (%tower-site! name
+      (if (eval only? e) %tower-asm-only %tower-asm)
+      (eval src e) (fn (_) (eval fvars e)) (eval interp e)
+      (Swap in-env name (if (null? env) e (eval (first env) e))))))
+; (%tower-jit-push! NAME TYPE SRC FVARS INTERP): INTERP is pushed onto TYPE's
+; analyse stack, where %type-push-analyse puts it, and the cell it landed in
+; is the seat of the site NAME.
 (def %tower-jit-push!
-  (op (ts src fvars interp) e
-    (%tower-jit-push-run! (eval ts e) (eval src e) (fn (_) (eval fvars e)) (eval interp e))))
+  (op (name ts src fvars interp) e
+    (%tower-jit-push-run! name (eval ts e) (eval src e) (fn (_) (eval fvars e)) (eval interp e))))
 (def %tower-jit-push-run!
-  (fn (_ ts src fvarsf interp)
-    ((fn (_ maker)
-       ((fn (_ v)
-          (do (%tower-site! (lit push) ts interp maker v ())
-              (%type-push-analyse ts v)))
-        (maker)))
-     (fn (_) (%tower-asm src (fvarsf) interp)))))
-; (%tower-swap! CELL INTERP MAKER): CELL's first, INTERP, becomes (MAKER).
+  (fn (_ name ts src fvarsf interp)
+    (%type-push-analyse ts interp)
+    (%tower-site! name %tower-asm src fvarsf interp
+      (Swap in-cell (first (%type-analyse-cell ts))))))
+; (%tower-swap! NAME CELL INTERP MAKER): CELL's first, INTERP, becomes (MAKER).
 (def %tower-swap!
-  (fn (_ cell interp maker)
-    ((fn (_ v)
-       (do (%tower-site! (lit swap) cell interp maker v ())
-           (%set-first! cell v)))
-     (maker))))
-; Remove the first entry of L that is the object V.
-(def %tower-without
-  (fn (self l v)
-    (if (null? l) ()
-      (if (%tower-same? (first l) v) (rest l) (pair (first l) (self (rest l) v))))))
-(def %tower-site-down!
-  (fn (_ s)
-    ((fn (_ kind place interp v)
-       (match
-         ((eq? kind (lit global))
-           (eval (list (lit set!) place (list (lit lit) interp)) (first (rest (%tower-site-value-cell s)))))
-         ((eq? kind (lit push))
-           ((fn (_ cell) (%set-first! cell (%tower-without (first cell) v)))
-            (%type-analyse-cell place)))
-         (#t (%set-first! place interp))))
-     (%tower-site-kind s) (%tower-site-place s) (%tower-site-interp s)
-     ;  The record lets go of the compiled object too: held here, the writer
-     ; would still reach it, and reach it unnameable.
-     ((fn (_ v) (do (%set-first! (%tower-site-value-cell s) ()) v))
-      (first (%tower-site-value-cell s))))))
-(def %tower-site-up!
-  (fn (_ s)
-    ((fn (_ kind place v)
-       (do (%set-first! (%tower-site-value-cell s) v)
-           (match
-             ((eq? kind (lit global))
-               (eval (list (lit set!) place (list (lit lit) v)) (first (rest (%tower-site-value-cell s)))))
-             ((eq? kind (lit push)) (%type-push-analyse place v))
-             (#t (%set-first! place v)))))
-     (%tower-site-kind s) (%tower-site-place s) ((%tower-site-maker s)))))
-(def %tower-unjit!
-  (fn (_)
-    ((fn (self l) (if (null? l) () (do (%tower-site-down! (first l)) (self (rest l)))))
-     %tower-sites)))
-;  Boot order, so each state's fvars see the states already remade; and the
-; lane is asked again, since the loading engine is not the writing one.
-(def %tower-rejit!
-  (fn (_)
-    (do (set! %tower-jit?
-          (guard (_ #f)
-            (do (compile-asm (lit (fn (me buffer score chr) (if (= chr 32) me k)))
-                             (list (pair (lit k) 1)) #t)
-                #t)))
-        ((fn (self l) (if (null? l) () (do (%tower-site-up! (first l)) (self (rest l)))))
-         ((fn (self l acc) (if (null? l) acc (self (rest l) (pair (first l) acc)))) %tower-sites ())))))
+  (fn (_ name cell interp maker)
+    (Swap site! name interp maker (Swap in-cell cell))))
 
 ; --- Compile the quote-family analysers and swap them into the symbol
 ;     type's analyse list.  x-core.x (lit-reader.x) installed interpreted
@@ -297,10 +246,10 @@
 (def %tower-swap-one!
   (fn (_ cell)
     (match
-      ((%tower-same? (first cell) interp-analyse) (%tower-swap! cell interp-analyse (fn (_) %c-interp-analyse)))
-      ((%tower-same? (first cell) lit-analyse) (%tower-swap! cell lit-analyse (fn (_) %c-lit-analyse)))
-      ((%tower-same? (first cell) quasi-analyse) (%tower-swap! cell quasi-analyse (fn (_) %c-quasi-analyse)))
-      ((%tower-same? (first cell) unquote-analyse) (%tower-swap! cell unquote-analyse (fn (_) %c-unquote-analyse)))
+      ((%tower-same? (first cell) interp-analyse) (%tower-swap! (lit interp-analyse) cell interp-analyse (fn (_) %c-interp-analyse)))
+      ((%tower-same? (first cell) lit-analyse) (%tower-swap! (lit lit-analyse) cell lit-analyse (fn (_) %c-lit-analyse)))
+      ((%tower-same? (first cell) quasi-analyse) (%tower-swap! (lit quasi-analyse) cell quasi-analyse (fn (_) %c-quasi-analyse)))
+      ((%tower-same? (first cell) unquote-analyse) (%tower-swap! (lit unquote-analyse) cell unquote-analyse (fn (_) %c-unquote-analyse)))
       (#t ()))))
 (def %tower-swap-analysers!
   (fn (self cell)
@@ -360,7 +309,7 @@
   (fn (self cell)
     (match
       ((null? cell) ())
-      ((%tower-same? (first cell) macro-delimit) (%tower-swap! cell macro-delimit (fn (_) %c-macro-delimit)))
+      ((%tower-same? (first cell) macro-delimit) (%tower-swap! (lit macro-delimit) cell macro-delimit (fn (_) %c-macro-delimit)))
       (#t (self (rest cell))))))
 (%tower-swap-delimit! %sym-delimit-list)
 
@@ -408,7 +357,7 @@
 ; characters, which is why an integer literal still reads 58% cheaper.
 ; Compiling these two wants a buffer-length door on the lane.
 
-(%tower-jit-push! (%type-by-atom (%type-of (Num expt 2 64)))
+(%tower-jit-push! big-analyse (%type-by-atom (%type-of (Num expt 2 64)))
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
         (if (or (= chr 45) (= chr 43)) big-sign-state ())
@@ -416,7 +365,7 @@
     (list (pair (lit big-sign-state) big-sign-state)
           (pair (lit big-digits) big-digits))
     %big-analyse-interp)
-(%tower-jit-push! (%type-by-atom (%type-of 0))
+(%tower-jit-push! int-analyse (%type-by-atom (%type-of 0))
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
         (if (or (= chr 45) (= chr 43)) int-capped-sign ())
@@ -507,7 +456,7 @@
       (if (= chr 45) float-neg-int ())
       (if (< chr 58) float-int-digits ()))))
     %float-env))
-(%tower-jit-push! (%type-by-atom (%type-of 1.0))
+(%tower-jit-push! float-analyse (%type-by-atom (%type-of 1.0))
     ; Sign branch mirrors the interpreted analyser -- without it, -7.5
     ; only parses via the stacked interpreted fallback (#45 R4).
     (lit (fn (_ buffer score chr)
@@ -552,7 +501,7 @@
       (if (= chr 45) rat-sign (if (= chr 43) rat-sign ()))
       (if (< chr 58) rat-numer ()))))
     %rat-env))
-(%tower-jit-push! (%type-by-atom (%type-of 1/2))
+(%tower-jit-push! rat-analyse (%type-by-atom (%type-of 1/2))
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
         (if (= chr 45) rat-sign (if (= chr 43) rat-sign ()))
@@ -614,7 +563,7 @@
       (if (= chr 45) cx-neg ())
       (if (< chr 58) cx-real-int ()))))
     %cx-env))
-(%tower-jit-push! (%type-by-atom (%type-of 1+1i))
+(%tower-jit-push! cx-analyse (%type-by-atom (%type-of 1+1i))
     ; Sign branch: -1+2i analyses as complex (#45 R4).
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
@@ -670,7 +619,7 @@
       (if (or (= chr 45) (= chr 43)) dec-sign ())
       (if (< chr 58) dec-int ()))))
     %dec-env))
-(%tower-jit-push! (%type-by-atom (%type-of 1.5d))
+(%tower-jit-push! dec-analyse (%type-by-atom (%type-of 1.5d))
     ; Sign branch mirrors the interpreted analyser: -0.001d is one
     ; token, not a `-` applied to a decimal (#45 R4's lesson).
     (lit (fn (_ buffer score chr)
@@ -700,8 +649,3 @@
 ; collect anyone adds is the one that finds them.  Boot is the safe moment --
 ; nothing else is in flight -- and the dialect bodies are the files that are
 ; never imported.
-
-; The two hooks of the site record above: down before a write (a thunk among
-; the transients), up after a load.
-(set! %image-transients (pair %tower-unjit! %image-transients))
-(set! %image-recache-hooks (pair %tower-rejit! %image-recache-hooks))
