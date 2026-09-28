@@ -548,7 +548,7 @@ for _spec in "$@"; do
   # engine declared: a check that cannot pass is not a check, and this one
   # failed shut in the configuration a consumer's CI actually runs.
   # EVERY `# @requires` LINE GATES, not the first.  A file that needs two
-  # capabilities -- the compiled variant channel needs native/jit AND tok/variant
+  # capabilities -- the compiled variant channel needs native/jit AND tok/label
   # -- was read with `head -1`, gated on one, and ran where the other was
   # absent; the skip names the capability that was missing.
   _reqs=$(sed -n 's/^# @requires //p' "$_spec")

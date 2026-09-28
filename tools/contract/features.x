@@ -107,15 +107,15 @@
                             ;   and permits executing assembled pages.
                             ;   Consumer: x/tool/asm-compile.x; spec files
                             ;   carrying `# @requires native/jit`.
-  (tok/variant      -)         ; the tokenizer's VARIANT CHANNEL: an analyser state
+  (tok/label     -)         ; the tokenizer's LABEL CHANNEL: an analyser state
                             ;   declares what it accepted (x-token.c hangs a
-                            ;   variant cell off the score; jit_score_variant is the
+                            ;   label cell off the score; jit_score_label is the
                             ;   compiled states' door) and the type's reader
                             ;   receives it as its second argument, nil when
                             ;   no state declared one.  Consumer:
                             ;   x/reader/intrinsics.x %score-variant! and
                             ;   %read-variant, x/tool/asm-compile.x; spec files
-                            ;   carrying `# @requires tok/variant`.
+                            ;   carrying `# @requires tok/label`.
   ; --- reflection support that is not a row at all ---
   (reflect/layout-data -)   ; ships obj-layout.x + base-paths.x, the two files
                             ;   lib/x/boot/engine.x includes before data.x runs.

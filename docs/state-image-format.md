@@ -38,7 +38,7 @@ generated `x-eval-layout.h`):
 |---|---|---|
 | env | `env`, `env-root` (slots) | the current environment and the root, each one pair of bindings and parent; the root's bindings are the tree over globals |
 | ctrl | `save-stack`, `error-handler`, `tco-expr`, `tco-env` | evaluator transients; **nil at image time and at install** (§6) |
-| io-group | `type-alist` (cell) | the type registry: `((name-stack . struct) …)`, keyed by the name-stack node (`x_alist_assoc` compares `first(key)`, `x-alist.c`) |
+| io-fields | `type-alist` (cell) | the type registry: `((name-stack . struct) …)`, keyed by the name-stack node (`x_alist_assoc` compares `first(key)`, `x-alist.c`) |
 | io-state | `line`, `true`, `false` | `true`/`false` hold the engine statics `x_true_obj`/`x_false_obj` |
 | profile | ten counters | plain integers; the loader may keep its own |
 | state | `eval-list`, `token-cache`, `sigint`, `err`, `prims`, `file`, `err-line`, `err-file`, `file-registry` | `err` is the one base-resident ERR instance every raise fills (`x_type_err_register`); `prims` is the catalog, a list of `(ns (method . PRIMITIVE) …)` (`x_prim_register`); `sigint` is a shared atom |
@@ -343,10 +343,15 @@ structs and two indices; the loader does not care which is which.
    compiled analysers, native code in a page the writing process mapped --
    is the other half of the same rule: the module lists a THUNK in
    `%image-transients` instead of a symbol, the writer runs it inside the
-   child before its walk, and that thunk puts the carryable form back -- `boot/tower-compiled.x` restores
-   every interpreted analyser and lets go of the compiled objects -- while
-   the module's recache hook here compiles them anew, in boot order, asking
-   the lane again because the loading engine is not the writing one.
+   child before its walk, and that thunk puts the carryable form back.
+   `lib/x/sys/swap.x` keeps such values as sites, and its thunk puts every
+   site down: the tower's interpreted analysers are seated again and the
+   compiled objects let go. Each site added a recache hook of its own as it
+   was made, so here they come up in the order they were made, after the
+   hook of `boot/tower-compiled.x` that asks the lane again, because the
+   loading engine is not the writing one.
+   A module adds to either list through the catalog, `(image transient!)`
+   and `(image recache-hook!)`, which `boot/reflect.x` files.
 
 The loader is silent when a runner drives it; with `%IMG-VERBOSE` bound it
 prints one line of counts and the unresolved externals by name.

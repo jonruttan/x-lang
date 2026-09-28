@@ -50,7 +50,7 @@ trap 'exit 143' TERM
 # names the engine keeps bound but does not register, and this gate asks about
 # the registered surface.
 awk '
-	/^\(def %isa-catalog/ { s="catalog"; next }
+	/^\(def %isa-catalogue/ { s="catalog"; next }
 	/^\(def %isa-bare/    { s="bare";    next }
 	/^\(def %isa-keep/    { s="keep";    next }
 	/^\(def %isa-aliases/ { s="";        next }

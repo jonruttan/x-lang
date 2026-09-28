@@ -7,7 +7,7 @@ feature that has to be built into the engine first.
 
 This document is the design for that: a binary image of a live base, written
 from x and read by the engine at startup. **The unit-shape declaration it rests on is implemented**
-(x-engine-c branch `feat/unit-shapes`, plus `Type set-shape!` and the atom-type
+(x-engine-c branch `feat/unit-shapes`, plus `Type set-unit-labels!` and the atom-type
 declarations here); the image format, the writer and the reader are still
 design. The measurements are real and every one of them is reproducible with
 the script in "The image, measured"; the rulings are proposals, marked as such
@@ -333,13 +333,13 @@ the three sites that read the slot — the collector's traversal
 guard (`x_eval_spine_guard`) — and a shift and mask per unit. No allocation, no
 symbol comparison, nothing in the inner loop that was not there before.
 
-The readable spelling stays in x. `Type set-shape!` takes `'(word ref)`,
+The readable spelling stays in x. `Type set-unit-labels!` takes `'(word ref)`,
 `'(bytes)`, `'(foreign)` and compiles it to `(count . mask)`; the engine only
 ever sees two integers. Policy in x, unchecked mechanism in C — and
 `set-units!` keeps working untouched, because the integer form is still the
 integer form.
 
-> **The shape pair must be built in C, and that is why `set-shape!` is a
+> **The shape pair must be built in C, and that is why `set-unit-labels!` is a
 > primitive.** x's `pair` makes LIST-typed pairs; the readers discriminate the
 > two forms with `x_obj_type_isspair()`, which matches *structural* pairs only
 > — one pointer comparison on a path the collector walks per object. An
@@ -1494,14 +1494,15 @@ and no name reacquires it in another process. The tower does not need it
 to be *carried*, only *remade*: every compile in `boot/tower-compiled.x` is
 the same shape, source over free variables, with an interpreted twin it
 displaces. So each compile goes through a **site** that records where the
-result went (a global, a type's analyse stack, one cell of the symbol
-type's lists), the twin, a maker, and the value in place. Two walks over
-the record: `%tower-unjit!` puts every twin back and lets go of the
-compiled objects, run by the writer inside the child before its walk
-(a thunk among `%image-transients`, the second half of the transient rule
-in `boot/reflect.x`); `%tower-rejit!` compiles every site anew in boot order,
-run by the loader after the install (`%image-recache-hooks`), asking the
-lane again since the loading engine is not the writing one. Measured
+result went (a name's binding, or one cell of a type's handler list), the
+twin, a maker, and the value in place. The record is `lib/x/sys/swap.x`'s
+since 2026-09-27, where it was the tower's own before. `(Swap down!)` puts
+every twin back and lets go of the compiled objects, run by the writer
+inside the child before its walk (a thunk among `%image-transients`, the
+second half of the transient rule in `boot/reflect.x`); each site's own
+recache hook compiles it anew, in boot order, run by the loader after the
+install (`%image-recache-hooks`), and the tower's probe asks the lane again
+first since the loading engine is not the writing one. Measured
 2026-09-05: x-base's twelve unnameable words go to zero from the tower;
 x-base, xe and rn each write clean at ~130K objects; the x-base smoke and
 reader specs run from the image in 1s a file against 6s from source, and

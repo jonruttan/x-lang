@@ -40,7 +40,7 @@ trap 'exit 143' TERM
 # nothing exercises is a gap in the suite like any other.  Aliases are x-level
 # and carry no obligation.
 awk '
-	/^\(def %isa-catalog/ { s="catalog"; next }
+	/^\(def %isa-catalogue/ { s="catalog"; next }
 	/^\(def %isa-bare/    { s="bare";    next }
 	/^\(def %isa-keep/    { s="keep";    next }
 	/^\(def %isa-aliases/ { s="";        next }

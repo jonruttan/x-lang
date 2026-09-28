@@ -11,7 +11,7 @@
 # against:
 #
 #   The C instruction set   %isa-bare or %isa-keep -- a bare name bound by C
-#   Coordinates             an (ns method) row in %isa-catalog, no bare name
+#   Coordinates             an (ns method) row in %isa-catalogue, no bare name
 #   What boots on top       in no block at all -- library code
 #
 # The classification is mechanical, and a failure names the section, the part
@@ -40,10 +40,10 @@ trap 'exit 143' TERM
 
 # The four blocks, parsed the way the file is written: rows are INDENTED inside
 # `(def %isa-NAME (lit (`, and the block ends at a line-initial `)))`.  An
-# anchored `^%isa-catalog:` matches only the format comment and would classify
+# anchored `^%isa-catalogue:` matches only the format comment and would classify
 # every name as library -- a check that passes by seeing nothing.
 awk -v w="$W" '
-	/^\(def %isa-catalog/ { sec = "catalog"; next }
+	/^\(def %isa-catalogue/ { sec = "catalog"; next }
 	/^\(def %isa-bare/    { sec = "bare";    next }
 	/^\(def %isa-keep/    { sec = "bare";    next }   # keep-list binds bare too
 	/^\(def %isa-/        { sec = "";        next }
@@ -119,7 +119,7 @@ done < "$DOC"
 if [ "$bad" != 0 ]; then
 	echo "primitives-doc: FAIL -- a form is documented as something it is not." >&2
 	echo "  c       = bound bare by C            (%isa-bare / %isa-keep)" >&2
-	echo "  coord   = catalog row, no bare name  (%isa-catalog)" >&2
+	echo "  coord   = catalog row, no bare name  (%isa-catalogue)" >&2
 	echo "  library = in no ISA block            (lib/x/boot, lib/x/core)" >&2
 	exit 1
 fi

@@ -19,6 +19,22 @@ from an unpacked release, and the image tools mark with the engine's
 
 [#835]: https://github.com/jonruttan/x-lang/pull/835
 
+**The reference names a field documented with a default** ([#833]). A field's
+doc form wraps its declaration, `(doc NAME "...")` or
+`(doc (NAME default) "...")`, and a static member's does the same.
+`(help Class/NAME)` read both, and the generated reference read the first:
+handed the second, it passed the declaration, a pair, to `symbol->str`, which
+is unchecked, and the entry's heading and its man page name came out as bytes
+that are not text. macOS's awk stops on such bytes, so `make doc-x` and
+`make check-man` failed there for a module that used the form, and passed on
+Linux. The generator now names the entry by its declaration's name.
+
+A static member is noted in the reference as "Static member: data held by C
+itself, not by its instances." It was noted as data carried by a C instance,
+as a field is.
+
+[#833]: https://github.com/jonruttan/x-lang/pull/833
+
 **An instance's data is its fields** ([#829]). A field is a named component of
 an instance or a record, a member is a field or a method, and a class's own
 data is a static member. Inside a method, `(field 'name)` reads an instance's
@@ -59,6 +75,49 @@ compares 190, and `docs/namespaces.md` has the numbers.
 
 [#824]: https://github.com/jonruttan/x-lang/pull/824
 
+**The names read across files by decision are listed, and not counted**
+([#836]). `tools/contract/shared-privates.x` lists the private names other
+files may read, with what each is: fifty-nine names of the eight boot files,
+the eighteen walkers of `core/list.x` and `core/alist.x`, and the four names
+of the analyse protocol. `check-private-reads` does not count a read of a
+listed name, nor of a `%` name of the seam, which it takes from
+`tools/contract/seam.x`. It refuses a read of any other private name of a
+boot file, whatever the reader's budget, so what the boot layer shares grows
+only by an edit to the list. A row is held to the tree in turn: its file has
+to define the name, another file has to read it, and a name a document
+promises has to be mentioned there. The budget rows fall from 673 reads in
+121 files to 183 in 40, the reads that still want a door. No library file
+changes.
+
+[#836]: https://github.com/jonruttan/x-lang/pull/836
+
+**Sites: a slow value set aside for a faster one** ([#827]). `x/sys/swap` is
+new. A site records one replacement of a slow value by a faster one: the seat
+the value sits in, the slow twin that belongs there, and the maker of the fast
+value. `(Swap site! name twin maker seat)` records one and brings it up. A
+maker that raises is refused, and one that answers the twin has declined; the
+twin stays seated either way, and the site's `state` is `up`, `twin` or
+`refused`, with the raise's text as its `reason`. `(Swap report)` prints every
+site, so a compile that was refused shows. `(Swap in-env name env)` and
+`(Swap in-cell pair)` make the two seats the library has needed, and any
+function of one value is a seat.
+
+Every site is put down before a state image is written and comes up again
+after one is loaded, in the order the sites were made. The tower's compiled
+analysers (`boot/tower-compiled.x`) are sites of the module, where the record
+and its two walks were the tower's own: `%tower-sites`, `%tower-unjit!` and
+`%tower-rejit!` are gone, with the record's accessors. The tower's makers no
+longer catch a refused compile, so the raise reaches the site. A type's entry
+analyser is pushed as its interpreted twin and compiled in place, where the
+compiled one was pushed and, before an image write, removed, so an image holds
+the twin in the type's list.
+
+`boot/reflect.x` files two doors in the catalog, `(image transient!)` and
+`(image recache-hook!)`, which add to the image writer's transients and to the
+loader's recache hooks.
+
+[#827]: https://github.com/jonruttan/x-lang/pull/827
+
 **An error's classifying symbol is its label** ([#821]). `(Err label e)` is the
 total accessor, `(e label)` the field and `(e label? 'io)` the predicate, and
 `make` and `raise` take a `label`. They were `(Err tag e)`, `(e tag)` and
@@ -88,6 +147,22 @@ x-r5rs is 667/0 and x-r7rs 637/27, the 27 it records by name, and its row
 here follows the count from 30 to 27.
 
 [#831]: https://github.com/jonruttan/x-lang/pull/831
+
+**The six large files were measured for a module header, and none takes
+one** ([#837]). The line was decided on 2026-09-27: a header goes on when it
+adds under 0.1% to the environment comparisons of an x-core boot and under
+10% to those of the file's own work. With a header, `type/class.x` makes an
+x-core boot compare 3.8 times as many bindings and a static call 10.5 times;
+`doc/doc.x` adds 0.98% to the boot and makes a `doc` form compare 5.8 times
+as many; `tool/asm.x` doubles an instruction emitted; `tool/lint.x` adds 33%
+to a lint and `codec/sha256.x` 37% to a digest of 1 KB. The evaluations and
+allocations are the same either way. `boot/tower-compiled.x` is a load
+sequence, and a scoped file holds no plain include. `docs/namespaces.md`
+has the numbers, and records that a development tool reads a module's
+private name as a spec does, `(eval (lit NAME) (module M))`. No code
+changes.
+
+[#837]: https://github.com/jonruttan/x-lang/pull/837
 
 **A spec may not rebind the library's root %-definitions** ([#818]). A spec
 snippet is evaluated at the root, so its top-level defs outlive it, and
@@ -199,6 +274,17 @@ count rows, and the declaration's layout digest changes with them.
 
 [#810]: https://github.com/jonruttan/x-lang/pull/810
 
+**The engine pin moves to x-engine-c v0.2.16** ([#838]). v0.2.16 carries the
+engine's contract in the glossary's words (x-engine-c#69) and `%seq` over any
+number of forms (x-engine-c#70), and x-lang follows its names: the ISA
+manifest's block is `%isa-catalogue`, `(type set-shape!)` is
+`(type set-unit-labels!)` and `Type set-shape!` is `Type set-unit-labels!`, the
+compiled states' door is `jit_score_label`, and the tokenizer's claim is
+`tok/label`. `obj-layout.x` no longer carries x-expr's simple-type codes, and
+the base's field routes end in `-fields`.
+
+[#838]: https://github.com/jonruttan/x-lang/pull/838
+
 **Two selectors of one class sent in turn settle at the front of its
 dispatch table** ([#814]). A lookup that found its selector deeper than
 second place swapped it with the head, which sent the head's entry to the
@@ -246,6 +332,18 @@ Every cell is still checked before any form runs. One form now allocates 5
 objects, two 6, three 23 and five 43, and `(do (def x 1) x)` 8 where it took 38.
 
 [#822]: https://github.com/jonruttan/x-lang/pull/822
+
+**`do` is the engine's `%seq`** ([#832]). `do` and `begin` are bound to `%seq`,
+which sequences any number of forms (x-engine-c#70): each form but the last is
+evaluated in the caller's environment, the last in tail position, no forms
+answer nil, and a dotted body raises before any form runs, with the engine's
+message, `call: improper argument list (dotted tail)`. A `do` body allocates what
+a function body with the same forms does: nothing for `(do 1 2 3 4 5)`, where it
+took 43, and 2 for `(do (def x 1) x)`, where it took 8. `lib/img.x` binds its
+`do` the same way, and the asm and cc compile lanes compile `%seq` as they
+compile `do`.
+
+[#832]: https://github.com/jonruttan/x-lang/pull/832
 
 **`File stat` decodes through a Struct reader made once** ([#813]). A stat
 allocated about 51,000 objects, 40,600 of them decoding three fields: `Struct

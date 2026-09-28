@@ -6,7 +6,7 @@
 ## GC hook & root API
 
 End-to-end coverage for the per-pass GC extensible lists in x-expr's
-heap-group, driven through the x-lang surface: (Heap mark-hook!),
+heap-fields, driven through the x-lang surface: (Heap mark-hook!),
 (Heap free-hook!), (Heap mark-root!), and the atomic (Heap collect).
 
 (Heap collect) runs mark+sweep in one C call with no allocation between

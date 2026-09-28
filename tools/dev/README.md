@@ -343,7 +343,7 @@ segfaulted -- named where the fault *surfaced*, not where it came from.
 Two causes have been found since, both in this tree:
 
 - **Shapes are per-base.** A fresh base has no library, so none of the
-  `(Type set-shape!)` declarations ran on it, and a type with no mask means
+  `(Type set-unit-labels!)` declarations ran on it, and a type with no mask means
   "every unit is a reference" -- so reading a child's units generically
   dereferences a `PROCEDURE`'s call pointer. Fixed:
   `(%type-declare-shapes! (first (b cell 'type-alist)))` declares them on any

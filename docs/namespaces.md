@@ -111,6 +111,11 @@ A module value dispatches like a class's statics. It costs a dispatch per
 call, so hot code uses a selective import, which is the same trade
 `method-of` offers for classes.
 
+A private name is read from outside through the module's environment:
+`(eval (lit NAME) (module M))`. That is how a spec reaches an internal it
+tests, and how a development tool reaches one it drives (decision of
+2026-09-27). The module grows no public surface for either.
+
 An unscoped importer's frame is the root, so its selective imports bind
 there. That is how a hot dispatcher that stays unscoped takes the vocabulary
 of modules that have scopes: `num/tower.x` imports the number modules'
@@ -130,8 +135,11 @@ shared vocabulary (decision of 2026-09-24): `%fold`, `%map`, `%map1`,
 `%assoc-str`, `%assoc-has?` and `%assoc-keys` are the private layer the
 `List` and `Assoc` classes stand on, and some forty files read them at the
 root for speed, as those two files' provide notes say. They stay root
-globals, and the private-reads rows their readers hold for them stay where
-they are; a reader that wants a door takes the class.
+globals; a reader that wants a door takes the class. They are listed in
+`tools/contract/shared-privates.x`, and the private-reads gate does not
+count a read of a listed name (decision of 2026-09-27). The two files' other
+private names are not in the list, and a read of one is counted against its
+reader as before.
 
 `type/convert.x` waited on the lang bundles. Its base type handles (`%int`,
 `%string`, `%symbol`, `%char`, `%ptr`, `%pair`) were read by ten bundles as
@@ -150,6 +158,25 @@ Seven boot files cannot be modules at all: `boot/engine.x`, `registry.x`,
 `operatives.x`, `data.x`, `reflect.x`, `printer.x` and `string.x` load before
 `boot/module.x` defines the `module` form, and `module.x` is the loader
 itself. Their private names stay in the root, behind the `%`-budget.
+
+Fifty-nine of those names are read by other files: the pair setters, the
+cell and word accessors, the byte-level string layer, the type words, the
+state-image hooks, the registries and the resolver. They are a shared
+vocabulary by decision (2026-09-27), and
+`tools/contract/shared-privates.x` lists them name by name, with what each
+is. The private-reads gate does not count a read of a listed name, and it
+refuses a read of any other private name of a boot file, whatever the
+reader's budget. So what the boot layer shares grows only by an edit to
+that file, and a row goes once its name has no reader left.
+
+The names a lang is promised stay `%` names in the root (decision of
+2026-09-27). `repl/loop.x`, `repl/banner.x` and `reader/intrinsics.x` own
+them, and stay unscoped for it. The gate takes the seam's names from
+`tools/contract/seam.x`, which is the list already, and the four names of
+the analyse protocol from the shared list, where each row names the
+document that describes it to a lang's author
+([Crafting a Lang](crafting-a-lang.md)). What those three files define
+beyond the promised names is counted as any private read is.
 
 The assembler's architecture backends (`tool/asm/arm64.x`, `tool/asm/x86_64.x`)
 stay unscoped for a related reason: their bare names, the registers and the
@@ -270,7 +297,9 @@ Two consequences belong in the contract:
 - Until a module is scoped, its `%` names are still globals that other files
   can read. `private-reads.sh` budgets those reads per reader file
   (`tools/contract/private-reads.x`), so the number can only fall as step 4
-  replaces each read with a door.
+  replaces each read with a door. The names read across files by decision
+  are outside the count: those `tools/contract/shared-privates.x` lists,
+  and the `%` names of the seam.
 
 ## What the engine must provide
 
@@ -345,6 +374,33 @@ model.
     it compared 190, with evaluations and allocations unchanged at 88 and 38
     a call. The door is small, so the frame would nearly double its lookups,
     for eight names hidden. The file is unscoped.
+  - The six large files were measured the same way (2026-09-28) and held to
+    one line (decision of 2026-09-27): a header goes on when it adds under
+    0.1% to the environment comparisons of an x-core boot, and under 10% to
+    those of the file's own work. `type/convert.x` had passed that line and
+    `core/fn.x` had not. Each file was measured with its header on and a
+    copy of its names left in the root for its readers, and in each the
+    work's evaluations and allocations are unchanged. None passes, and the
+    six stay unscoped.
+    - `type/class.x`, 89 private names: 3.8 times the comparisons of an
+      x-core boot, 185 million where it made 49 million, since every method
+      call runs through the file. A static call compares 10.5 times as many
+      bindings, an instance call 5.8 times and a `new` 8.6 times.
+    - `doc/doc.x`, 73: 0.98% more at boot, 5.8 times for a `doc` form and
+      6.3 times for an `apropos`.
+    - `tool/lint.x`, 88: 33% more to lint an 87-line file, `codec/hex.x`.
+      The x-core boot does not load it.
+    - `tool/asm.x`, 43: 2.0 times for an instruction emitted, 15,000
+      comparisons where it made 7,400. The x-core boot does not load it.
+    - `codec/sha256.x`, 33: 37% more on a digest of 1 KB, and 13% more on
+      a digest of one block. The x-core boot does not load it.
+    - `boot/tower-compiled.x`, 47, cannot take a header as it stands: it is
+      a load sequence, with six of its eight includes between its compiles,
+      and a plain include has no place in a scoped file. Its twenty-one
+      compile-site helpers were measured in a module of their own, and add
+      0.05% to the tower's load. They stay in the file all the same: their
+      caller is the load sequence, which is unscoped and would take them
+      back into the root by import.
 - **Source boot time.** The image writers and the asan-boot gate boot from
   source. A framed load of `regex.x` through the x-side reader took the same
   time as the C include, so the loader is not the risk; the lookup cost is.
@@ -373,7 +429,9 @@ model.
 - The names of the new forms: the override form of `provide`, the module
   value form, and whether the alias pair is `(name alias)` or `(alias name)`.
 - Whether the boot files are ever scoped, or whether the boot set stays
-  global as the pin boundary already makes it.
+  global as the pin boundary already makes it. Answered (2026-09-27): the
+  boot set stays global, and the names it shares are listed in
+  `tools/contract/shared-privates.x`.
 - Answered: a scoped file needs neither. `import` loads it with the
   ordinary `include`, and its header reads the rest of the file with the
   reader, one form at a time, into the module's environment. The reader's

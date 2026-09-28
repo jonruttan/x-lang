@@ -25,13 +25,13 @@ tower. On a disagreement the case prints what the closed tower read.
   (def %text (prim-ref 'io 'write-to-str))
   (def %sample "(a 1 -2 3.5 1/2 1+2i 0.25d 18446744073709551616 'b `c ,d e'f \"g\" (h i))")
   (def %compiled (Xon parse %sample))
-  (%tower-unjit!)
+  (Swap down!)
   (set! %tower-jit? #f)
-  ((fn (self l) (if (null? l) () (do (%tower-site-up! (first l)) (self (rest l)))))
-   ((fn (self l acc) (if (null? l) acc (self (rest l) (pair (first l) acc)))) %tower-sites ()))
+  (Swap up!)
   (def %closed (guard (e (list (lit raised) (e msg))) (Xon parse %sample)))
-  (%tower-unjit!)
-  (%tower-rejit!)
+  (Swap down!)
+  (%tower-probe!)
+  (Swap up!)
   (write (if (str=? (%text %closed) (%text %compiled)) #t %closed)))
 ```
 ---

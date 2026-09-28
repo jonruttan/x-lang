@@ -292,9 +292,9 @@ so the pushed handler shows through the list writer.
 ---
     ("(0x1 0x2 0x2a)" "(1 2 42)")
 
-## Type set-shape!
+## Type set-unit-labels!
 
-`set-units!` says how many units an instance has. `set-shape!` says what each
+`set-units!` says how many units an instance has. `set-unit-labels!` says what each
 one **is**, installing the pair form of the slot -- `(count . mask)`, two bits
 per unit, unit 0 lowest: `REF` 0, `WORD` 1, `BYTES` 2, `FOREIGN` 3.
 
@@ -317,7 +317,7 @@ walked it as one, this case would not finish.
 ```x
 (do
   (import x/sys/gc)
-  (def %ss (prim-ref (lit type) (lit set-shape!)))
+  (def %ss (prim-ref (lit type) (lit set-unit-labels!)))
   (def %by (prim-ref (lit type) (lit by-atom)))
   (def %mi (prim-ref (lit type) (lit make-instance)))
   (def %set! (prim-ref (lit obj) (lit set!)))
@@ -340,7 +340,7 @@ describes an all-reference instance and both units are traced as before.
 ```x
 (do
   (import x/sys/gc)
-  (def %ss (prim-ref (lit type) (lit set-shape!)))
+  (def %ss (prim-ref (lit type) (lit set-unit-labels!)))
   (def %by (prim-ref (lit type) (lit by-atom)))
   (def %mi (prim-ref (lit type) (lit make-instance)))
   (def %set! (prim-ref (lit obj) (lit set!)))
