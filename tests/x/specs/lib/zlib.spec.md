@@ -46,7 +46,9 @@ trips, the buffer-doubling path, and the error contract.
 
 ```x
 (do (import x/codec/zlib) (import x/sys/posix) (import x/sys/file)
-  (def p "/tmp/x-373-spec.gz")
+  (def tmp (File temp "/tmp/x-373-spec-gz-"))
+  (File close (first tmp))
+  (def p (rest tmp))
   (def payload (List flat-map (fn (_ i) (list 65 66 67 0 68)) (List range 0 50)))
   (Zlib gz-write-all p payload)
   (def back (Zlib gz-read-all p))

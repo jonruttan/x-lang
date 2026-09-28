@@ -3,8 +3,10 @@
 
 The ergonomic tier over the raw syscall layer: whole-file operations
 that RAISE label 'io Errs (via Err from-errno) instead of returning
-negative results. Real I/O under /tmp; every test cleans up after
-itself. The raw ops (open/close/read/write/getc/seek/tell/truncate)
+negative results. Real I/O under /tmp, on names from `File temp`, so
+overlapping runs never share a path; every test cleans up after itself.
+A test that needs a path that does not exist yet (a directory, a link,
+a fifo) unlinks its fresh temp file and reuses the name. The raw ops (open/close/read/write/getc/seek/tell/truncate)
 keep their raw contract -- see ext/file.spec.md.
 
 ## write-all and read-all
@@ -13,7 +15,9 @@ keep their raw contract -- see ext/file.spec.md.
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  (def p "/tmp/x-spec22-a")
+  (def tmp (File temp "/tmp/x-spec22-a-"))
+  (File close (first tmp))
+  (def p (rest tmp))
   (def n (File write-all p "alpha\nbeta\n"))
   (def s (File read-all p))
   (File unlink p)
@@ -26,7 +30,9 @@ keep their raw contract -- see ext/file.spec.md.
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  (def p "/tmp/x-spec22-b")
+  (def tmp (File temp "/tmp/x-spec22-b-"))
+  (File close (first tmp))
+  (def p (rest tmp))
   (File write-all p "a longer first body")
   (File write-all p "short")
   (def s (File read-all p))
@@ -42,7 +48,9 @@ keep their raw contract -- see ext/file.spec.md.
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  (def p "/tmp/x-spec22-c")
+  (def tmp (File temp "/tmp/x-spec22-c-"))
+  (File close (first tmp))
+  (def p (rest tmp))
   (File write-all p "12345")
   (def st (File stat p))
   (File unlink p)
@@ -107,7 +115,9 @@ around an empty thunk is subtracted.
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  (def p "/tmp/x-spec22-d")
+  (def tmp (File temp "/tmp/x-spec22-d-"))
+  (File close (first tmp))
+  (def p (rest tmp))
   (File write-all p "one\ntwo\nthree\n")
   (def ls (File read-lines p))
   (File unlink p)
@@ -120,7 +130,9 @@ around an empty thunk is subtracted.
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  (def p "/tmp/x-spec22-e")
+  (def tmp (File temp "/tmp/x-spec22-e-"))
+  (File close (first tmp))
+  (def p (rest tmp))
   (File write-all p "one\ntwo")
   (def ls (File read-lines p))
   (File unlink p)
@@ -135,21 +147,17 @@ around an empty thunk is subtracted.
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  (def d "/tmp/x-spec22-dir")
-  ; REMOVED BEFORE IT IS BUILT, not only after.  These fixtures live at fixed
-  ; paths in /tmp, and `File mkdir` on an existing directory raises -- so a run
-  ; that was KILLED between the mkdir and the cleanup leaves a tree that fails
-  ; every later run on this machine, with a diagnosis that points at the walk
-  ; rather than at the corpse.  Measured, after the machine died mid-suite.
-  ; The removals are guarded because absence is the normal case.
-  (guard (_ ()) (File unlink "/tmp/x-spec22-dir/inner"))
-  (guard (_ ()) (File unlink "/tmp/x-spec22-dir/moved"))
-  (guard (_ ()) (File rmdir d))
+  (def tmp (File temp "/tmp/x-spec22-dir-"))
+  (File close (first tmp))
+  (File unlink (rest tmp))
+  (def d (rest tmp))
+  (def inner (Str8 append d "/inner"))
+  (def moved (Str8 append d "/moved"))
   (File mkdir d)
-  (File write-all "/tmp/x-spec22-dir/inner" "x")
-  (File rename "/tmp/x-spec22-dir/inner" "/tmp/x-spec22-dir/moved")
+  (File write-all inner "x")
+  (File rename inner moved)
   (def names (File list-dir d))
-  (File unlink "/tmp/x-spec22-dir/moved")
+  (File unlink moved)
   (File rmdir d)
   (list names (File exists? d)))
 ```
@@ -160,10 +168,10 @@ around an empty thunk is subtracted.
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  (def d "/tmp/x-spec22-dir2")
-  ; Same pre-clean as above, and this one needs it twice over: a leftover would
-  ; fail the mkdir AND, if anything were in it, the empty-listing expectation.
-  (guard (_ ()) (File rmdir d))
+  (def tmp (File temp "/tmp/x-spec22-dir2-"))
+  (File close (first tmp))
+  (File unlink (rest tmp))
+  (def d (rest tmp))
   (File mkdir d)
   (def names (File list-dir d))
   (File rmdir d)
@@ -180,8 +188,10 @@ subtracted.
 
 ```x
 (do (import x/sys/posix) (import x/sys/file) (import x/sys/gc)
-  (def d "/tmp/x-spec22-dir3")
-  (guard (_ ()) (File rmdir d))
+  (def tmp (File temp "/tmp/x-spec22-dir3-"))
+  (File close (first tmp))
+  (File unlink (rest tmp))
+  (def d (rest tmp))
   (File mkdir d)
   (def %cost
     (fn (_ f)
@@ -242,7 +252,9 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  (def p "/tmp/x-spec360-a")
+  (def tmp (File temp "/tmp/x-spec360-a-"))
+  (File close (first tmp))
+  (def p (rest tmp))
   (File write-all p "hello world")
   (def fd (File open p 'rdonly))
   (def at-end (File seek fd 0 'end))
@@ -260,7 +272,9 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  (def p "/tmp/x-spec360-b")
+  (def tmp (File temp "/tmp/x-spec360-b-"))
+  (File close (first tmp))
+  (def p (rest tmp))
   (File write-all p "abcdef")
   (def fd (File open p 'rdonly))
   (def t0 (File tell fd))
@@ -278,7 +292,9 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  (def p "/tmp/x-spec360-c")
+  (def tmp (File temp "/tmp/x-spec360-c-"))
+  (File close (first tmp))
+  (def p (rest tmp))
   (File write-all p "abcdef")
   (def fd (File open p 'wronly))
   (def r (File truncate fd 3))
@@ -295,7 +311,9 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  (def p "/tmp/x-spec360-d")
+  (def tmp (File temp "/tmp/x-spec360-d-"))
+  (File close (first tmp))
+  (def p (rest tmp))
   (File write-all p "abcdef")
   (def fd (File open p 'rdwr))
   (File seek fd 2)
@@ -356,22 +374,22 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  ; Same pre-clean as the mkdir roundtrip above.  This is the fixture that
-  ; proved the point: a kill left /tmp/x-364-walk behind and the next run failed
-  ; here, looking like a walk bug.
-  (guard (_ ()) (File unlink "/tmp/x-364-walk/a.txt"))
-  (guard (_ ()) (File unlink "/tmp/x-364-walk/sub/b.txt"))
-  (guard (_ ()) (File rmdir "/tmp/x-364-walk/sub"))
-  (guard (_ ()) (File rmdir "/tmp/x-364-walk"))
-  (File mkdir "/tmp/x-364-walk")
-  (File mkdir "/tmp/x-364-walk/sub")
-  (File write-all "/tmp/x-364-walk/a.txt" "1")
-  (File write-all "/tmp/x-364-walk/sub/b.txt" "2")
-  (def found (List sort (fn (_ a b) (Str8 <? a b)) (File walk "/tmp/x-364-walk")))
-  (File unlink "/tmp/x-364-walk/a.txt")
-  (File unlink "/tmp/x-364-walk/sub/b.txt")
-  (File rmdir "/tmp/x-364-walk/sub")
-  (File rmdir "/tmp/x-364-walk")
+  (def tmp (File temp "/tmp/x-364-walk-"))
+  (File close (first tmp))
+  (File unlink (rest tmp))
+  (def d (rest tmp))
+  (def sub (Str8 append d "/sub"))
+  (def a (Str8 append d "/a.txt"))
+  (def b (Str8 append d "/sub/b.txt"))
+  (File mkdir d)
+  (File mkdir sub)
+  (File write-all a "1")
+  (File write-all b "2")
+  (def found (List sort (fn (_ x y) (Str8 <? x y)) (File walk d)))
+  (File unlink a)
+  (File unlink b)
+  (File rmdir sub)
+  (File rmdir d)
   found)
 ```
 ---
@@ -381,12 +399,15 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ```x
 (do (import x/sys/posix) (import x/sys/file) (import x/sys/proc)
-  (def p "/tmp/x-364-lnk-target")
+  (def tmp (File temp "/tmp/x-364-lnk-target-"))
+  (File close (first tmp))
+  (def p (rest tmp))
+  (def l (Str8 append p "-lnk"))
   (File write-all p "x")
-  (Proc run! (list "/bin/ln" "-s" p "/tmp/x-364-lnk"))
-  (def file-types (list (Assoc get 'file-type (File lstat "/tmp/x-364-lnk"))
-                        (Assoc get 'file-type (File stat "/tmp/x-364-lnk"))))
-  (File unlink "/tmp/x-364-lnk")
+  (Proc run! (list "/bin/ln" "-s" p l))
+  (def file-types (list (Assoc get 'file-type (File lstat l))
+                        (Assoc get 'file-type (File stat l))))
+  (File unlink l)
   (File unlink p)
   file-types)
 ```
@@ -399,7 +420,9 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
-  (def p "/tmp/x-doors-chmod")
+  (def tmp (File temp "/tmp/x-doors-chmod-"))
+  (File close (first tmp))
+  (def p (rest tmp))
   (File write-all p "x")
   (File chmod p 384)
   (def m (& (Assoc get 'mode (File stat p)) 4095))
@@ -415,7 +438,10 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
-  (def l "/tmp/x-doors-link")
+  (def tmp (File temp "/tmp/x-doors-link-"))
+  (File close (first tmp))
+  (File unlink (rest tmp))
+  (def l (rest tmp))
   (File symlink "../relative/target" l)
   (def t (File readlink l))
   (File unlink l)
@@ -428,8 +454,10 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
-  (def a "/tmp/x-doors-hard-a")
-  (def b "/tmp/x-doors-hard-b")
+  (def tmp (File temp "/tmp/x-doors-hard-"))
+  (File close (first tmp))
+  (def a (rest tmp))
+  (def b (Str8 append a "-b"))
   (File write-all a "shared")
   (File link a b)
   (def same (= (Assoc get 'ino (File stat a)) (Assoc get 'ino (File stat b))))
@@ -446,7 +474,9 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file) (import x/type/err)
-  (def p "/tmp/x-doors-notlink")
+  (def tmp (File temp "/tmp/x-doors-notlink-"))
+  (File close (first tmp))
+  (def p (rest tmp))
   (File write-all p "x")
   (def r (guard (e (Err label e)) (do (File readlink p) (lit no-raise))))
   (File unlink p)
@@ -459,7 +489,9 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
-  (def p "/tmp/x-doors-utimes")
+  (def tmp (File temp "/tmp/x-doors-utimes-"))
+  (File close (first tmp))
+  (def p (rest tmp))
   (File write-all p "unchanged")
   (File utimes p)
   (def s (File stat p))
@@ -474,7 +506,10 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
-  (def p "/tmp/x-doors-fifo")
+  (def tmp (File temp "/tmp/x-doors-fifo-"))
+  (File close (first tmp))
+  (File unlink (rest tmp))
+  (def p (rest tmp))
   (File mkfifo p)
   (def k (Assoc get 'file-type (File stat p)))
   (File unlink p)

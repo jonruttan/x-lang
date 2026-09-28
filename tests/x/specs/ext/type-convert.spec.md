@@ -339,7 +339,7 @@
 ---
     #t
 
-### the miss policy is the dialect's (the Convert `missing` member)
+### the miss policy is the dialect's (the Convert `missing` static field)
 
 ```x
 (do

@@ -68,7 +68,7 @@
     ; entries are PAIRs, and pair? asks for the type the pair primitive
     ; builds, LIST, so the walk tests for nil.  The entries of the
     ; catalogue are fetched where they are used: two of them are closures,
-    ; and a closure held as a static member is a method.
+    ; and a closure held as a static field is a method.
     (method %registered (self)
       (let ((type-name (prim-ref (lit type) (lit name))))
         (let go ((l ((prim-ref (lit type) (lit alist)))) (acc ()))

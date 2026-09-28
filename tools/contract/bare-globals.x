@@ -74,7 +74,7 @@
   (class-name)
   (class-of)
   (class-parent)
-  (class-static-members)
+  (class-static-fields)
   (class-static-methods)
   (class?)
   (def-class)

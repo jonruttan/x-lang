@@ -7,7 +7,8 @@ Actual end-to-end file I/O: write a temp file, read it back, assert the bytes,
 and unlink. Previously untested -- `ext/file.spec.md` and `ext/stream.spec.md`
 stub the syscall or only test fd-wrapping. `Sys` reads via libc FFI and returns
 a list of byte values; `File` writes via raw syscall; `Stream` redirects
-displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`.
+displayed output to a file. Each test takes a fresh `/tmp` file from
+`File temp`, so overlapping runs never share one, and unlinks it.
 
 (Bytes are asserted directly: "abc" = `(97 98 99)`, "hello" =
 `(104 101 108 108 111)`, "hi" = `(104 105)`.)
@@ -18,7 +19,9 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
 
 ```x
 (do
-  (def %p "/tmp/x-spec-io-sys.txt")
+  (def %t (File temp "/tmp/x-spec-io-sys-"))
+  (File close (first %t))
+  (def %p (rest %t))
   (def %w (Sys open-write %p)) (Sys fd-write %w "abc") (Sys close %w)
   (def %r (Sys open-read %p)) (def %b (Sys fd-read %r 8)) (Sys close %r)
   ((syscall-door 'unlink) %p)
@@ -31,7 +34,9 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
 
 ```x
 (do
-  (def %p "/tmp/x-spec-io-eof.txt")
+  (def %t (File temp "/tmp/x-spec-io-eof-"))
+  (File close (first %t))
+  (def %p (rest %t))
   (def %w (Sys open-write %p)) (Sys fd-write %w "z") (Sys close %w)
   (def %r (Sys open-read %p))
   (Sys fd-read %r 8)
@@ -47,7 +52,9 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
 
 ```x
 (do
-  (def %p "/tmp/x-spec-io-exists.txt")
+  (def %t (File temp "/tmp/x-spec-io-exists-"))
+  (File close (first %t))
+  (def %p (rest %t))
   ((syscall-door 'unlink) %p)
   (def %before (Sys file-exists? %p))
   (def %w (Sys open-write %p)) (Sys fd-write %w "x") (Sys close %w)
@@ -65,7 +72,9 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
 
 ```x
 (do
-  (def %p "/tmp/x-spec-io-file.txt")
+  (def %t (File temp "/tmp/x-spec-io-file-"))
+  (File close (first %t))
+  (def %p (rest %t))
   (def %w (File open %p (list 'wronly 'creat 'trunc)))
   (File write %w "hello" 5)
   (File close %w)
@@ -85,7 +94,9 @@ region (File read/getc were blocked before it existed).
 
 ```x
 (do
-  (def %p "/tmp/x-spec-io-fread.txt")
+  (def %t (File temp "/tmp/x-spec-io-fread-"))
+  (File close (first %t))
+  (def %p (rest %t))
   (def %w (Sys open-write %p)) (Sys fd-write %w "abc") (Sys close %w)
   (def %r (File open %p 'rdonly))
   (def %buf ((prim-ref 'str 'make) 8))
@@ -101,7 +112,9 @@ region (File read/getc were blocked before it existed).
 
 ```x
 (do
-  (def %p "/tmp/x-spec-io-getc.txt")
+  (def %t (File temp "/tmp/x-spec-io-getc-"))
+  (File close (first %t))
+  (def %p (rest %t))
   (def %w (Sys open-write %p)) (Sys fd-write %w "Q") (Sys close %w)
   (def %r (File open %p 'rdonly))
   (def %c (File getc %r))
@@ -118,7 +131,9 @@ region (File read/getc were blocked before it existed).
 
 ```x
 (do
-  (def %p "/tmp/x-spec-io-stream.txt")
+  (def %t (File temp "/tmp/x-spec-io-stream-"))
+  (File close (first %t))
+  (def %p (rest %t))
   (Stream with-file %p (fn (_) (display "hi")))
   (def %r (Sys open-read %p)) (def %b (Sys fd-read %r 8)) (Sys close %r)
   ((syscall-door 'unlink) %p)

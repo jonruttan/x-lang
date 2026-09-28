@@ -6,10 +6,16 @@
 ### writes to file descriptor
 
 ```x
-(do (def fd (Sys open-write "/tmp/x-test-fd.txt"))
+(do (import x/sys/file)
+    (def tmp (File temp "/tmp/x-test-fd-"))
+    (File close (first tmp))
+    (File unlink (rest tmp))
+    (def fd (Sys open-write (rest tmp)))
     (Sys fd-write fd "hello")
     (Sys close fd)
-    (Sys file-exists? "/tmp/x-test-fd.txt"))
+    (def r (Sys file-exists? (rest tmp)))
+    (File unlink (rest tmp))
+    r)
 ```
 ---
     #t
@@ -355,7 +361,9 @@ this file uses the `Sys` abstraction for that reason).
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
-  (def p "/tmp/x-doors-fsync")
+  (def tmp (File temp "/tmp/x-doors-fsync-"))
+  (File close (first tmp))
+  (def p (rest tmp))
   (def fd (File open p (list 'wronly 'creat 'trunc) 420))
   (File write fd "flushed" 7)
   (def r (Sys fsync fd))
@@ -391,7 +399,9 @@ regular file is ENOTDIR for everyone, root included.
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
-  (def p "/tmp/x-doors-notadir")
+  (def tmp (File temp "/tmp/x-doors-notadir-"))
+  (File close (first tmp))
+  (def p (rest tmp))
   (File write-all p "x")
   (def r (Sys chroot p))
   (File unlink p)
