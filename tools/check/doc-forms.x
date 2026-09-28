@@ -4,7 +4,7 @@
 ;
 ; Prints one "FILE CLASS FORM" line per class-body form, for
 ; tools/check/doc-forms.sh to check against tools/contract/doc-forms.x.
-; A doc form that documents a field or a static member prints
+; A doc form that documents a field or a static field prints
 ; "FILE CLASS doc NAME": the fourth column is its name, and only such a line
 ; has one.
 ;
@@ -39,14 +39,14 @@
   (def %df-emit-body
     (fn (self body file cname)
       (unless (null? body)
-        ; A bare symbol IS a member declaration -- (private balance ...) --
+        ; A bare symbol IS a field declaration -- (private balance ...) --
         ; so it normalises to the (name) shape, exactly as doc-gen does.
         (do (let ((f (if (symbol? (first body)) (list (first body)) (first body))))
               (when (pair? f)
                 (do (display file) (display " ") (display cname) (display " ")
                     (display (%df-name (first f)))
                     ; A doc form whose first argument is not a string
-                    ; documents a field or a static member and wraps its
+                    ; documents a field or a static field and wraps its
                     ; declaration, NAME or (NAME default), as
                     ; lib/x/type/class.x reads it.  The name follows the
                     ; head, so the gate checks a documented declaration as
@@ -61,7 +61,7 @@
                     (newline)
                     ; static and the visibility blocks all SPLICE their tail
                     ; into the class body, so their contents are class-body
-                    ; forms too and must be walked, or a member declared
+                    ; forms too and must be walked, or a field declared
                     ; inside one goes unchecked.
                     (when (or (%df-is? (first f) "static")
                             (or (%df-is? (first f) "private")
