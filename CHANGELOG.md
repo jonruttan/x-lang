@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A stat record holds a file's type under `file-type`** ([#823]).
+`(File stat p)` and `(File lstat p)` answer
+`((size . N) (mode . M) (file-type . K) (mtime . T))`; the third key was
+`kind`. The values are the same: `'file`, `'dir`, `'link`, `'char`, `'block`,
+`'fifo`, `'socket` and `'unknown`. No alias is kept: a caller that read
+`(Assoc get 'kind st)` now reads `(Assoc get 'file-type st)`.
+
+[#823]: https://github.com/jonruttan/x-lang/pull/823
+
 **A spec may not rebind the library's root %-definitions** ([#818]). A spec
 snippet is evaluated at the root, so its top-level defs outlive it, and
 `check-spec-globals` refuses one that takes a name the shared vocabulary owns.
@@ -1685,8 +1694,9 @@ so: `(Err tag e)` is the total accessor (the noun applied to the value, the
 way `(List length lst)` reads), `(e tag)` the field, `(e tag? 'io)` the
 predicate, and `make` / `raise` take a `tag`. No alias is kept: a guard
 that matched on `(Err kind-of e)` now writes `(Err tag e)`. (`Err code-of`
-and `File stat`'s `kind` key are untouched: the first is an engine raise's
-message literal, the second names a file's kind -- 'file 'dir 'link.)
+and `File stat`'s `file-type` key, released as `kind`, are untouched: the
+first is an engine raise's message literal, the second names a file's type
+-- 'file 'dir 'link.)
 
 **A reader hears which state accepted, instead of rescanning to find out.**
 An analyser state knows which of its states accepted and threw it away; the
