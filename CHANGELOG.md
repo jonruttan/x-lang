@@ -139,6 +139,15 @@ to 25,400, and a `File open` and `File close` pair about 2,200 where it took
 
 [#814]: https://github.com/jonruttan/x-lang/pull/814
 
+**Constructing an object fills its members without derived forms**
+([#825]). `(new C ...)` ran every member through `let` frames, `unless`,
+`do`, `not` and `if` in `%instantiate`, `%init-fields`, `%check-init-keys`
+and `%opt-cell`; the same steps run on `def`, `match` and an applied `fn`.
+A three-member `(new Err ...)` allocates about 1,050 objects where it took
+3,500, and `(Err make ...)` about 1,740 where it took 4,200.
+
+[#825]: https://github.com/jonruttan/x-lang/pull/825
+
 **A data-slot access does no generic arithmetic** ([#809]). `(obj ref)`,
 `(obj set!)` and the pair mutators address data word i by one formula, the data
 offset plus i words, and it was computed with the `+` and `*` bound at the root:
