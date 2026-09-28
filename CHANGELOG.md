@@ -57,6 +57,20 @@ and a 52-entry batch decodes in about 7,000 where it took 38,900.
 
 [#811]: https://github.com/jonruttan/x-lang/pull/811
 
+**The ASan boot gate is safe beside another run of itself** ([#820]).
+`tools/check/asan-boot.sh` made its boots cold by moving every `/tmp/x-asm-*`
+entry into its scratch directory and back under `set -e`, so a second run that
+moved the same file first ended it with status 1 and nothing printed.
+compile-asm's byte cache takes its directory from `X_ASM_CACHE_DIR`, and from
+`/tmp` when that is unset or empty, and the gate gives each dialect's boot an
+empty directory of its own: it moves no files and shares no entries. Every boot
+compiles cold, rn's included; xe and rn compile the same 24 units, and a cache
+shared by the run left rn none to compile. The boots pass `--no-image`, because
+rewriting a stale state image boots the dialect first and fills the cache before
+the boot under test.
+
+[#820]: https://github.com/jonruttan/x-lang/pull/820
+
 **A block-wrapped method tests for a block send without a class dispatch**
 ([#815]). Every send of a selector `Block method!` wraps -- `List map`,
 `filter`, `fold`, `sort` and the rest, plain applicative sends included --
