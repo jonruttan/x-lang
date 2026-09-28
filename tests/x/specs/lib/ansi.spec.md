@@ -11,9 +11,10 @@ regression jon caught at the REPL.
 
 ```x
 (do (import x/repl/ansi)
-  (list (%code-sugar '(lit x)) (%code-sugar (list 'quasi 'x))
-        (%code-sugar (list 'unquote 'x)) (%code-sugar (list 'unquote-splicing 'x))
-        (null? (%code-sugar '(lit x y))) (null? (%code-sugar '(f x)))))
+  (let ((sugar (eval (lit %code-sugar) (module x/repl/ansi))))
+    (list (sugar '(lit x)) (sugar (list 'quasi 'x))
+          (sugar (list 'unquote 'x)) (sugar (list 'unquote-splicing 'x))
+          (null? (sugar '(lit x y))) (null? (sugar '(f x))))))
 ```
 ---
     ("'" "`" "," ",@" #t #t)

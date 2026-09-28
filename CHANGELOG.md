@@ -19,6 +19,22 @@ from an unpacked release, and the image tools mark with the engine's
 
 [#835]: https://github.com/jonruttan/x-lang/pull/835
 
+**`type/promise.x` and `repl/ansi.x` have module headers** ([#824]). The
+promise type's handle and five other `%` names, and ansi's twenty-six, are
+their files' own now. The root keeps the `Promise` and `Ansi` classes and
+`delay`. x-r7rs defines a `%promise` of its own at the root, which until now
+rebound the name the platform's class and `delay` read. `repl/ansi.x` still
+sets the names other files own, the REPL's printer, `doc.x`'s colour stubs
+and the image recache hooks, through its module's parent, and a boot from a
+state image prints in colour as before. The ansi spec reaches `%code-sugar`
+through the module. Two %-rows are retired, and `apps/bitwise/gen.x`'s
+private-reads row falls by one, 674 to 673: its own `%esc` method had been
+counted as a read of ansi's. `core/fn.x` was measured for a header and is
+left as it is: a call through `apply` would compare 351 bindings where it
+compares 190, and `docs/namespaces.md` has the numbers.
+
+[#824]: https://github.com/jonruttan/x-lang/pull/824
+
 **An error's classifying symbol is its label** ([#821]). `(Err label e)` is the
 total accessor, `(e label)` the field and `(e label? 'io)` the predicate, and
 `make` and `raise` take a `label`. They were `(Err tag e)`, `(e tag)` and
@@ -153,6 +169,15 @@ to 25,400, and a `File open` and `File close` pair about 2,200 where it took
 
 [#814]: https://github.com/jonruttan/x-lang/pull/814
 
+**Constructing an object fills its members without derived forms**
+([#825]). `(new C ...)` ran every member through `let` frames, `unless`,
+`do`, `not` and `if` in `%instantiate`, `%init-fields`, `%check-init-keys`
+and `%opt-cell`; the same steps run on `def`, `match` and an applied `fn`.
+A three-member `(new Err ...)` allocates about 1,050 objects where it took
+3,500, and `(Err make ...)` about 1,740 where it took 4,200.
+
+[#825]: https://github.com/jonruttan/x-lang/pull/825
+
 **A data-slot access does no generic arithmetic** ([#809]). `(obj ref)`,
 `(obj set!)` and the pair mutators address data word i by one formula, the data
 offset plus i words, and it was computed with the `+` and `*` bound at the root:
@@ -193,6 +218,16 @@ on the dialect. A reader raises `type` for a record offset that is not an
 integer.
 
 [#813]: https://github.com/jonruttan/x-lang/pull/813
+
+**A failed call's errno is read without per-call lookups** ([#826]). `(Err
+errno-of)` fetched its three pointer primitives with `prim-ref` on every
+call, and `(Err from-errno)` built its message through a `Str8` class send;
+the primitives are resolved when the module loads and the message is joined
+directly. `errno-of` allocates about 700 objects where it took 1,630; with
+the construction change as well, a failed `File stat` allocates about 4,500
+where it took 9,650.
+
+[#826]: https://github.com/jonruttan/x-lang/pull/826
 
 ## [0.16.0] - 2026-09-27
 

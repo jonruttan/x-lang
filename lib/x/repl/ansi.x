@@ -14,6 +14,8 @@
 ;
 ; Requires: posix.x (Sys isatty/getenv), type.x (%type-push-write)
 
+(module x/repl/ansi)
+
 (import x/sys/posix)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %token-read-string (prim-ref 'tok 'read-str))
