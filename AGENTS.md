@@ -174,8 +174,8 @@ guesses a language that is not this one.
   exactly `{nil, #f}`.
 - **member / field / slot are three different tiers**, not synonyms — see
   [docs/contributing.md](docs/contributing.md).
-- Doc type vocabulary is fixed: `INT` not INTEGER, `BOOL` not BOOLEAN,
-  `CALLABLE` not FUNCTION. `make check-doc-vocab` enforces it.
+- Doc type vocabulary is fixed: `INTEGER` not INT, `BOOL` not BOOLEAN,
+  `CALLABLE` not FUNCTION. `make check-doc-annotations` enforces it.
 
 Full style rules: [docs/contributing.md](docs/contributing.md) and
 [CONVENTIONS.md](CONVENTIONS.md).

@@ -84,7 +84,7 @@
     (method page-header (self (param mod STRING "Module name, e.g. x/type/base")
                               (param desc STRING "Module description, or \"\"")
                               (param notes LIST "Note strings")
-                              (param depth INT "Directory depth, for the relative index link")
+                              (param depth INTEGER "Directory depth, for the relative index link")
                               (param declared? BOOL "Whether the file declared (provide ...)"))
       (doc "Emit the page header: the index back-link, the H1, the module description and its notes."
         (note "depth drives the ../ prefix on the index link; roff has no such link and ignores it.")

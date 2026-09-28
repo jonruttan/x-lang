@@ -640,8 +640,8 @@
         (%int* acc x)))))
 
 (doc + "Add numbers, promoting to bigint on overflow."
-  (param args INT|BIGINT "Numbers to add")
-  (returns INT|BIGINT "Sum"))
+  (param args INTEGER|BIGINT "Numbers to add")
+  (returns INTEGER|BIGINT "Sum"))
 (set! +
   (fn (_ . args)
     (match
@@ -652,8 +652,8 @@
       (#t (%fold %big-add2 (first args) (rest args))))))
 
 (doc - "Subtract numbers, promoting to bigint on overflow. Unary form negates."
-  (param args INT|BIGINT "Numbers to subtract")
-  (returns INT|BIGINT "Difference"))
+  (param args INTEGER|BIGINT "Numbers to subtract")
+  (returns INTEGER|BIGINT "Difference"))
 (set! -
   (fn (_ . args)
     (match
@@ -669,8 +669,8 @@
       (#t (%fold %big-sub2 (first args) (rest args))))))
 
 (doc * "Multiply numbers, promoting to bigint on overflow."
-  (param args INT|BIGINT "Numbers to multiply")
-  (returns INT|BIGINT "Product"))
+  (param args INTEGER|BIGINT "Numbers to multiply")
+  (returns INTEGER|BIGINT "Product"))
 (set! *
   (fn (_ . args)
     (match
@@ -681,8 +681,8 @@
       (#t (%fold %big-mul2 (first args) (rest args))))))
 
 (doc / "Divide numbers; bigint operands dispatch through the type ops."
-  (param args INT|BIGINT "Numbers to divide")
-  (returns INT|BIGINT "Quotient"))
+  (param args INTEGER|BIGINT "Numbers to divide")
+  (returns INTEGER|BIGINT "Quotient"))
 (set! /
   (fn (_ . args)
     (match
@@ -861,32 +861,32 @@
       (doc "Test whether a value is an arbitrary-precision integer."
         (returns BOOL "True if x is a bigint"))
       (bigint? x))
-    (method + (self (param a INT|BIGINT "First operand") (param b INT|BIGINT "Second operand"))
-      (doc "Add two bigints (ints coerce)." (returns INT|BIGINT "Sum, demoted to integer if it fits"))
+    (method + (self (param a INTEGER|BIGINT "First operand") (param b INTEGER|BIGINT "Second operand"))
+      (doc "Add two bigints (ints coerce)." (returns INTEGER|BIGINT "Sum, demoted to integer if it fits"))
       (big-add (ensure-big a) (ensure-big b)))
-    (method - (self (param a INT|BIGINT "First operand") (param b INT|BIGINT "Second operand"))
-      (doc "Subtract two bigints (ints coerce)." (returns INT|BIGINT "Difference, demoted to integer if it fits"))
+    (method - (self (param a INTEGER|BIGINT "First operand") (param b INTEGER|BIGINT "Second operand"))
+      (doc "Subtract two bigints (ints coerce)." (returns INTEGER|BIGINT "Difference, demoted to integer if it fits"))
       (big-sub (ensure-big a) (ensure-big b)))
-    (method * (self (param a INT|BIGINT "First operand") (param b INT|BIGINT "Second operand"))
-      (doc "Multiply two bigints (ints coerce)." (returns INT|BIGINT "Product, demoted to integer if it fits"))
+    (method * (self (param a INTEGER|BIGINT "First operand") (param b INTEGER|BIGINT "Second operand"))
+      (doc "Multiply two bigints (ints coerce)." (returns INTEGER|BIGINT "Product, demoted to integer if it fits"))
       (big-mul (ensure-big a) (ensure-big b)))
-    (method / (self (param a INT|BIGINT "Dividend") (param b INT|BIGINT "Divisor"))
-      (doc "Divide two bigints (truncating; ints coerce)." (returns INT|BIGINT "Quotient, demoted to integer if it fits"))
+    (method / (self (param a INTEGER|BIGINT "Dividend") (param b INTEGER|BIGINT "Divisor"))
+      (doc "Divide two bigints (truncating; ints coerce)." (returns INTEGER|BIGINT "Quotient, demoted to integer if it fits"))
       (big-div (ensure-big a) (ensure-big b)))
-    (method % (self (param a INT|BIGINT "Dividend") (param b INT|BIGINT "Divisor"))
-      (doc "Remainder of bigint division (ints coerce)." (returns INT|BIGINT "Remainder, demoted to integer if it fits"))
+    (method % (self (param a INTEGER|BIGINT "Dividend") (param b INTEGER|BIGINT "Divisor"))
+      (doc "Remainder of bigint division (ints coerce)." (returns INTEGER|BIGINT "Remainder, demoted to integer if it fits"))
       (big-mod (ensure-big a) (ensure-big b)))
-    (method < (self (param a INT|BIGINT "Left operand") (param b INT|BIGINT "Right operand"))
+    (method < (self (param a INTEGER|BIGINT "Left operand") (param b INTEGER|BIGINT "Right operand"))
       (doc "Test whether a is less than b (ints coerce)." (returns BOOL "True if a < b"))
       (big-lt (ensure-big a) (ensure-big b)))
-    (method = (self (param a INT|BIGINT "Left operand") (param b INT|BIGINT "Right operand"))
+    (method = (self (param a INTEGER|BIGINT "Left operand") (param b INTEGER|BIGINT "Right operand"))
       (doc "Test whether a equals b (ints coerce)." (returns BOOL "True if a equals b"))
       (big-eq (ensure-big a) (ensure-big b)))
-    (method would-overflow-add? (self (param a INT "First operand") (param b INT "Second operand"))
+    (method would-overflow-add? (self (param a INTEGER "First operand") (param b INTEGER "Second operand"))
       (doc "Test whether addition of two native integers would overflow."
         (returns BOOL "True if a + b would overflow native integer"))
       (%would-overflow-add? a b))
-    (method would-overflow-mul? (self (param a INT "First operand") (param b INT "Second operand"))
+    (method would-overflow-mul? (self (param a INTEGER "First operand") (param b INTEGER "Second operand"))
       (doc "Test whether multiplication of two native integers would overflow."
         (returns BOOL "True if a * b would overflow native integer"))
       (%would-overflow-mul? a b))))

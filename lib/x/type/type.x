@@ -94,14 +94,14 @@
           (let ((handle t) (raw ((prim-ref (lit type) (lit by-atom)) t)))
             (new Type handle handle raw raw)))))
     (method %kind-code (self (param k SYMBOL "A unit kind"))
-      (doc "The engine's numeric code for a unit kind." (returns INT "0..3"))
+      (doc "The engine's numeric code for a unit kind." (returns INTEGER "0..3"))
       ((fn (loop rows)
          (if (null? rows) (error (pair (lit type-shape-unknown-kind) k))
            (if (eq? (first (first rows)) k) (rest (first rows)) (loop (rest rows)))))
        %type-kind-codes))
     (method %kind-mask (self (param kinds LIST "Unit kinds, unit 0 first"))
       (doc "Pack kinds into the engine's two-bits-per-unit mask."
-        (returns INT "The mask"))
+        (returns INTEGER "The mask"))
       (let ((%go
               (fn (loop ks acc scale)
                 (if (null? ks)
@@ -111,7 +111,7 @@
                           (* scale 4))))))
         (%go kinds 0 1)))
     (method set-shape! (self (param ts ANY "Type struct (from Type by-atom)")
-                             (param n INT "Unit count -- fixed, or -k for the slot-0-counted convention")
+                             (param n INTEGER "Unit count -- fixed, or -k for the slot-0-counted convention")
                              (param kinds LIST "One kind per unit (ref word bytes foreign); the last repeats"))
       (doc "Declare what each of a type's units IS, not just how many there are. The collector traces `ref` units and leaves the rest alone -- which is what makes a unit holding bytes or a foreign address declarable at all, since the marker writes through any pointer it is handed."
         (note "A fixed count describes its own units; a count of -k describes k leading units plus the kind of the slot-0-counted payload that follows, so (Type set-shape! ts -1 '(word ref)) is the vector.")

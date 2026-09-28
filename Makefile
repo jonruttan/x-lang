@@ -407,7 +407,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-lang-kit-harness check-lang-kit-lint check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
+gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-lang-kit-harness check-lang-kit-lint check-pin check-release-manifest check-bootstrap check-package check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
 .PHONY: gates
 
 .PHONY: check-spec-weights
@@ -438,7 +438,7 @@ check-spec-globals: ## No spec rebinds a name the engine or library owns
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-lang-kit-harness check-lang-kit-lint check-doc-vocab check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
+gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-lang-kit-harness check-lang-kit-lint check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast check-asan-boot test-c test-x ## Pre-push gate: fast gates, the ASan boot, both spec suites (CI runs full `make test`)
@@ -568,9 +568,6 @@ check-boot-order: $(EXECUTABLE) ## Lint the boot load order: class-call order + 
 	sh tools/check/boot-order.sh
 .PHONY: check-boot-order
 
-# Doc-type vocabulary ratchet: the adjudicated losers (INTEGER/BOOLEAN/
-# FUNCTION -- see contributing.md) must not reappear in (param ...)/
-# (returns ...) forms; INT/BOOL/CALLABLE are the one-name-per-concept picks.
 # The duplicate-global-def ratchet (#47): top-level redefinition updates the
 # shared binding in place, so two modules defining one name with different
 # meanings is a real collision (the %alist-find segfault).  tools/check/dup-defs.sh
@@ -826,61 +823,6 @@ doc-examples: $(EXECUTABLE) ## Run the prose docs' examples (see doc-examples.co
 	sh tools/check/doc-examples.sh
 .PHONY: doc-examples
 
-check-doc-vocab: ## Lint doc forms for banned type-token aliases + retired names
-	@if grep -rn 'INTEGER\|BOOLEAN\|FUNCTION' lib --include='*.x' \
-		| grep '(param \|(returns '; then \
-		echo "doc-vocab: FAIL (use INT/BOOL/CALLABLE; see contributing.md)" >&2; \
-		exit 1; \
-	else echo "doc-vocab: ok"; fi
-	@# Retired/banned names from the #42/#44 adjudications (see contributing.md's
-	@# adjudication block): shapes ride the name, synonyms stay dead.
-	@if grep -rnw 'from-pairs\|->pairs' lib --include='*.x' \
-		|| grep -rn '(method nth \|(method member? \|(method every? \|(method size ' lib --include='*.x'; then \
-		echo "doc-vocab: FAIL (retired name; see contributing.md adjudications)" >&2; \
-		exit 1; \
-	else echo "retired-names: ok"; fi
-	@# Retired dialect spellings (#95): the noble-gas names (he/xe/rn,
-	@# modules x/xe, x/rn) replaced x-and/x-or; the compat shims are gone.
-	@if grep -rnw 'x-and\|x-or\|x/and\|x/or' lib --include='*.x'; then \
-		echo "doc-vocab: FAIL (retired dialect spelling; use he/xe/rn -- #95)" >&2; \
-		exit 1; \
-	else echo "retired-dialects: ok"; fi
-	@# The quote-idiom ratchet (#45 R2/R8, added at the 2026-07-18 reopen):
-	@# user-facing doc STRINGS -- (example ...), (sample ...), (note ...) --
-	@# speak 'x, never the longhand (lit x), even inside boot-constrained
-	@# files (strings never hit the boot reader).  Allowlist: doc-prims.x's
-	@# definitional docs for lit itself.
-	@if grep -rn '(example "\|(sample "\|(note "' lib --include='*.x' \
-		| grep -v 'lib/x/doc/doc-prims\.x' \
-		| grep '(lit '; then \
-		echo "doc-vocab: FAIL (doc strings speak 'x, not (lit x); #45 R2/R8)" >&2; \
-		exit 1; \
-	else echo "doc-string-quotes: ok"; fi
-	@# Retired C symbols (#249): dead exports deleted with the audit.  A
-	@# grep-ratchet so they cannot quietly return -- if one is reintroduced,
-	@# it is either genuinely needed (delete the name from this list with a
-	@# caller) or the deletion is being undone by mistake.
-	@#
-	@# The SUBJECT-EXISTS GUARD is not decoration.  This ratchet greps the C
-	@# tree, and when that tree moved to the engine submodule the grep began
-	@# reporting "No such file or directory" on stderr and PASSING -- a scan
-	@# over nothing finds nothing.  Caught by reading gate output, which is
-	@# the only reason it did not rot silently.  A missing subject is now a
-	@# failure, so the next move breaks the gate instead of hollowing it.
-	@if [ ! -f $(ENGINE_DIR)/Makefile ] && [ -x $(ENGINE_DIR)/$(EXECUTABLE) ]; then \
-		echo "retired-c-symbols: SKIPPED -- $(ENGINE_DIR) is a released engine and ships no C."; \
-		exit 0; \
-	fi; \
-	if [ ! -d $(ENGINE_DIR)/src ] || [ ! -d $(ENGINE_DIR)/include ]; then \
-		echo "retired-c-symbols: FAIL (no C tree at $(ENGINE_DIR); run 'git submodule update --init --recursive')" >&2; \
-		exit 1; \
-	fi; \
-	if grep -rnw 'x_eval_filein_push\|x_eval_filein_pop\|x_eval_buffer_pop\|x_char_utf8_len\|x_char_utf8_encode\|x_type_alist_iter\|x_type_alist_iter_prim\|x_type_iter_isempty' $(ENGINE_DIR)/src $(ENGINE_DIR)/include; then \
-		echo "retired-c-symbols: FAIL (dead export removed in #249 reintroduced)" >&2; \
-		exit 1; \
-	else echo "retired-c-symbols: ok"; fi
-.PHONY: check-doc-vocab
-
 # Memory-safety gate: run BOTH suites against an AddressSanitizer build (reuses
 # the x-asan target). Catches the crash class we keep hitting -- e.g. an
 # unchecked `first` reading past a non-pair, which is silently wrong on 64-bit
@@ -1005,7 +947,16 @@ doc-x: $(EXECUTABLE) ## Generate x-lang documentation
 	@sh x.sh --no-pin -q -f tools/dev/doc-index.x > docs/ref/x/index.md
 	@printf '  %s\n' "docs/ref/x/index.md"
 	@sh tools/check/doc-forms.sh
+	@sh tools/check/doc-annotations.sh
 .PHONY: doc-x
+
+# An annotation, the T of a (param NAME T ...) or (returns T ...) doc form,
+# names a runtime type, a class, or a name tools/contract/doc-annotations.x
+# lists.  It is never evaluated, so this check is the only thing that fails
+# when one names nothing.  doc-x runs it; the target runs it alone.
+check-doc-annotations: $(EXECUTABLE) ## Assert every doc annotation names a type
+	@sh tools/check/doc-annotations.sh
+.PHONY: check-doc-annotations
 
 # The x-lang library as roff, section 3x -- the same sweep as doc-x behind
 # its --man flag (one file list, one chunking policy, one set of per-file

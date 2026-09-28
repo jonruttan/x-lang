@@ -262,7 +262,7 @@
 
   ; --- size ---------------------------------------------------------------
   (method length (self)
-    (doc "The number of stored entries (a stored property, O(1))." (returns INT "Entry count"))
+    (doc "The number of stored entries (a stored property, O(1))." (returns INTEGER "Entry count"))
     (member 'n))
 
   (method empty? (self)

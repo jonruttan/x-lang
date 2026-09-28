@@ -163,7 +163,7 @@
         (returns VECTOR "New vector containing the arguments")
         (example "(Vector of 1 2 3)" "#(1 2 3)"))
       (%vector-from-list %vector args))
-    (method make (self (param n INT "Number of elements")
+    (method make (self (param n INTEGER "Number of elements")
                        (param fill ANY "Value to fill each slot with"))
       (doc "Create a vector of length n, with every element set to fill."
         (returns VECTOR "New vector of length n filled with fill"))
@@ -179,7 +179,7 @@
             (do (%obj-set! v i fill) (self (+ i 1))))))
       (loop 1)
       v)
-    (method build (self (param n INT "Number of elements")
+    (method build (self (param n INTEGER "Number of elements")
                         (param f ANY "Index -> element function, called as (f i) for i in [0, n)"))
       (doc "Create a vector of length n where element i is (f i). Built in place -- no intermediate list."
         (returns VECTOR "New vector of length n, element i = (f i)")
@@ -197,7 +197,7 @@
       (doc "Test whether a value is a vector." (returns BOOL "True if x is a vector"))
       (%type? x %vector))
     ; --- Access ---
-    (method ref (self (param i INT "Zero-based index; negative counts from the end") (param v VECTOR "Vector"))
+    (method ref (self (param i INTEGER "Zero-based index; negative counts from the end") (param v VECTOR "Vector"))
       (doc "Return the element at index i of a vector; negative i counts from the end. Errors when i is out of range."
         (returns ANY "Element at index i"))
       ; %obj-ref is a raw slot read (arbitrary memory past the object), so the
@@ -211,7 +211,7 @@
       (if (< j 0) (Err raise (lit index) "Vector ref: index out of range" ())
         (if (< j len) (%obj-ref v (+ j 1))
           (Err raise (lit index) "Vector ref: index out of range" ()))))
-    (method set! (self (param i INT "Zero-based index; negative counts from the end")
+    (method set! (self (param i INTEGER "Zero-based index; negative counts from the end")
                        (param x ANY "Value to store")
                        (param v VECTOR "Vector"))
       (doc "Store x at index i of a vector (in place); negative i counts from the end. Errors when i is out of range; returns the vector for chaining."
@@ -227,7 +227,7 @@
         (if (< j len) (do (%obj-set! v (+ j 1) x) v)
           (Err raise (lit index) "Vector set!: index out of range" ()))))
     (method length (self (param v VECTOR "Vector"))
-      (doc "Return the number of elements in a vector." (returns INT "Number of elements"))
+      (doc "Return the number of elements in a vector." (returns INTEGER "Number of elements"))
       (%vec-check v "Vector length: not a vector")
       (%obj-ref v 0))
     ; --- Conversion ---

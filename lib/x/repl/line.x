@@ -593,9 +593,9 @@
         (returns BOOL "True when the editor can run"))
       (Term tty? %ln-fd))
 
-    (method fd (self . (param fd INT "The descriptor to read from; omit to read the current one"))
+    (method fd (self . (param fd INTEGER "The descriptor to read from; omit to read the current one"))
       (doc "The descriptor the editor reads from, and sets it when given one. repl/loop.x reclaims the terminal onto fd 0 before the first read, so 0 is right for a session; a caller driving a different tty says so here."
-        (returns INT "The descriptor in force"))
+        (returns INTEGER "The descriptor in force"))
       (unless (null? fd) (set! %ln-fd (first fd)))
       %ln-fd)
 

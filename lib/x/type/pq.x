@@ -87,7 +87,7 @@
 
   (method length (self)
     (doc "How many values are queued."
-      (returns INT "The count"))
+      (returns INTEGER "The count"))
     ((member 'store) length))
 
   (method empty? (self)

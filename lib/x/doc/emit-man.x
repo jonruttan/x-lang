@@ -72,7 +72,7 @@
     (method page-header (self (param mod STRING "Module name, e.g. x/type/base")
                               (param desc STRING "Module description, or \"\"")
                               (param notes LIST "Note strings")
-                              (param depth INT "Directory depth -- unused; man pages have no relative links")
+                              (param depth INTEGER "Directory depth -- unused; man pages have no relative links")
                               (param declared? BOOL "Whether the file declared (provide ...) -- unused; a man page needs a .TH either way"))
       (doc "Emit the .TH header, the NAME section man's apropos database reads, and DESCRIPTION."
         (note "Unlike Markdown, roff gets a header even for an undeclared file: without .TH the file is not a man page, and man renders it with no header at all. The title then comes from the source path."))

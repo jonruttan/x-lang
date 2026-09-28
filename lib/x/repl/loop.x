@@ -127,7 +127,7 @@
 (doc (def quit
   (fn (_ . args)
     (Sys exit (if (eq? args ()) 0 (first args)))))
-  (param status INT "Optional exit status; default 0")
+  (param status INTEGER "Optional exit status; default 0")
   (sample "(quit)" "end the session with status 0")
   (note "Never returns: exits the process, same as ctrl-d at the prompt.")
   "End the session.")

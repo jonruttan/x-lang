@@ -5,6 +5,22 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**Doc annotations spell the runtime type's name** ([#817]). An annotation, the
+T of a `(param NAME T ...)` or `(returns T ...)` doc form, names a runtime type
+as registered, a class as spelled, or one of `ANY`, `NUMBER`, `CALLABLE`,
+`ALIST`, `TYPE` and `NIL`. The library spelled seven of them short, and 540
+annotations now say `INTEGER` for `INT`, `CHARACTER` for `CHAR`, `POINTER` for
+`PTR`, `STRING` for `STR`, `PRIMITIVE` for `PRIM`, `Gen` for `GEN` and `Dict`
+for `DICT`. `(help ...)` and the generated reference show the new spellings.
+
+`make check-doc-annotations` holds the rule, and `make doc-x` runs it. It asks
+the platform it runs on for its runtime types, reads the classes from the
+source's `def-class` forms, and takes the six other names from
+`tools/contract/doc-annotations.x`, so nothing is edited when a type or a class
+is added. `make check-doc-vocab` is removed, with the four lists it carried.
+
+[#817]: https://github.com/jonruttan/x-lang/pull/817
+
 **A system call's result folds on the integer primitives** ([#812]). Every
 `Sys` method that calls libc passes its result through `%sys-fold`, which turns
 the top half of the u32 range back into negatives: Linux hands an `int` return

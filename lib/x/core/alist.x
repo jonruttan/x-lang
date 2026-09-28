@@ -53,7 +53,7 @@
   "Look up a key in an alist, returning the entry pair or nil.")
 
 (doc (def %assoc-str
-  (fn (self (param key STR "String key (str=? comparison)")
+  (fn (self (param key STRING "String key (str=? comparison)")
        (param alist LIST "Alist with string keys"))
     (match
       ((null? alist) ())

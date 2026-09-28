@@ -93,7 +93,7 @@
                    (first (%reflect-step (Base raw-of b)
                             (%reflect-path (lit type-alist) %base-paths))))))
         (if (null? hit) () (rest hit))))
-    (method parse (self (param s STR "xon text")
+    (method parse (self (param s STRING "xon text")
                        . (param base ANY "Optional base to intern into (default: the current base)"))
       (doc "Tokenize xon text into a list of forms."
         (returns LIST "The forms, in file order")
@@ -107,7 +107,7 @@
                     (Str8 append s " ")))
     (method emit-form (self (param form LIST "One form"))
       (doc "Render one form as one xon line, newline-terminated, strings escaped."
-        (returns STR "One line of xon text")
+        (returns STRING "One line of xon text")
         (example "(Xon emit-form (list 'file \"a\" \"sha256:aa\"))" "\"(file \\\"a\\\" \\\"sha256:aa\\\")\\n\""))
       ; Pieces prepend, ONE concat (#333): the old right-recursive
       ; append chain re-copied every argument's tail per argument.
@@ -125,7 +125,7 @@
               (pair "(" (pair (symbol->str (first form)) (%args (rest form) ())))))))
     (method emit (self (param forms LIST "Forms to render"))
       (doc "Render forms as xon text, one per line."
-        (returns STR "xon text"))
+        (returns STRING "xon text"))
       ; One rendered piece per form, one concat (#333).
       (%str-concat (%map (fn (_ f) (Xon emit-form f)) forms)))
     (method walk (self (param table LIST "Vocabulary: ((head . handler) ...) alist, eq?-keyed")
