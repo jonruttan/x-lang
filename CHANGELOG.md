@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A site that was never brought up is down** ([#842]). `x/sys/swap` documents
+`state`, `reason` and the static `all` with their defaults,
+`(doc (NAME default) "...")`, which the reference can name since [#833]. A
+site made with `new` is `down` with an empty reason until it is brought up;
+both were nil. `(Swap site! ...)` brings a site up as it makes one, and is
+as before.
+
+[#842]: https://github.com/jonruttan/x-lang/pull/842
+
 **The reference names a field documented with a default** ([#833]). A field's
 doc form wraps its declaration, `(doc NAME "...")` or
 `(doc (NAME default) "...")`, and a static member's does the same.
