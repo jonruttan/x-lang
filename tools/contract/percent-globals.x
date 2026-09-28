@@ -204,7 +204,6 @@
 ; the analyser protocol, the same grounds as %score-set beside them
 ; (reader/analyser.x: class dispatch allocates mid-reader-callback).
 (file "lib/x/reader/intrinsics.x" 8)
-(file "lib/x/repl/ansi.x" 26)
 (file "lib/x/repl/banner.x" 4)
 ; Grew by one for %repl-platform-repl: the identity anchor that lets two
 ; installers over `repl` -- a lang's reader and the line editor -- tell
@@ -304,7 +303,6 @@
 ; class.x fell 91 to 89: its two exported hooks, class-call-handler and
 ; bind-call-over!, are bare names now (x-lang#719, the last %-named exports).
 (file "lib/x/type/class.x" 89)   ; +1 %apply: the dispatcher applies resolved methods and displaced C handler atoms through the engine's apply
-(file "lib/x/type/promise.x" 6)
 (file "lib/x/type/shape-rows.x" 2)
 (file "tools/check/boot-order.x" 33)
 (file "tools/check/dialect-cover.x" 9)

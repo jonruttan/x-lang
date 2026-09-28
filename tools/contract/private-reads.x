@@ -21,7 +21,7 @@
 ; shared vocabulary (decision of 2026-09-24, docs/namespaces.md): the reads
 ; of them in the rows below hold, and are not doors owed.
 (file "apps/bitwise/cli.x" 5)
-(file "apps/bitwise/gen.x" 10)
+(file "apps/bitwise/gen.x" 9)
 (file "apps/bitwise/run.x" 1)
 (file "lib/he.x" 2)
 (file "lib/rn.x" 2)

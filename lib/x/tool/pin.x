@@ -787,9 +787,9 @@
               ((null? a) b)
               (#t (pair (first a) (self (rest a) b))))))
       (%rec a b))
-    ; path -> 'file | 'dir | ... (File stat's kind)
-    (method %pin-kind (self path)
-      (%assoc-get 'kind (File stat path)))
+    ; path -> 'file | 'dir | ... (File stat's file-type)
+    (method %pin-file-type (self path)
+      (%assoc-get 'file-type (File stat path)))
     ; does name end in ".x"?
     (method %pin-ends-x? (self name)
       (Str8 ends? ".x" name))
@@ -804,7 +804,7 @@
                     (let ((p (%path-join dir (first names))))
                       (Pin %pin-concat
                         (match
-                          ((eq? (Pin %pin-kind p) 'dir) (self p))
+                          ((eq? (Pin %pin-file-type p) 'dir) (self p))
                           ((Pin %pin-ends-x? (first names)) (list p))
                           (#t ()))
                         (go (rest names))))))))

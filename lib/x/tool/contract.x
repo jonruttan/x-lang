@@ -44,7 +44,7 @@
     (def %go
       (fn (self path acc)
         (match
-          ((eq? 'dir (Assoc get 'kind (File stat path)))
+          ((eq? 'dir (Assoc get 'file-type (File stat path)))
             (let ents ((names (File list-dir path)) (acc acc))
               (if (null? names) acc
                 (ents (rest names)

@@ -5,6 +5,8 @@
 ; delay stays a global operative (a form); the operations home on the Promise
 ; class. Loads after object.x (needs def-class); nothing earlier uses promises.
 
+(module x/type/promise)
+
 (import x/type/class)
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %make-type (prim-ref (lit type) (lit make)))
@@ -50,7 +52,7 @@
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
 (%type-push-call (%type-by-atom %promise) (class-call-handler Promise))
 
-(doc (provide x/type/promise Promise delay)
+(doc (provide x/type/promise Promise (global delay))
   (note "Promises are memoized -- forced only once.")
   (example "(Promise force (delay (+ 1 2)))" "3")
   "Lazy evaluation: the delay form plus the Promise class.")
