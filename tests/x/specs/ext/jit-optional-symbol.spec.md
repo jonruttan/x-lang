@@ -20,7 +20,7 @@ pins compiled-where-exported, refused-where-absent, and nothing else.
 
 ```x
 (let ((present (not (null? ((prim-ref 'ffi 'dlsym) ((prim-ref 'ffi 'dlopen) () 1) "jit_score_variant"))))
-      (r (guard (e (list (Err tag e) (e msg)))
+      (r (guard (e (list (Err label e) (e msg)))
            (%seq (compile-asm (lit (fn (_ buffer score chr) (%score-variant! score 7)))
                               () #t)
                  'compiled))))
@@ -41,7 +41,7 @@ The emitter's own refusal, which no caller can reach around.
 
 ```x
 (let ((present (not (null? ((prim-ref 'ffi 'dlsym) ((prim-ref 'ffi 'dlopen) () 1) "jit_buffer_last_char"))))
-      (r (guard (e (Err tag e))
+      (r (guard (e (Err label e))
            (%seq (compile-asm (lit (fn (_ buffer score chr) (%buffer-last-char buffer)))
                               () #t)
                  'compiled))))

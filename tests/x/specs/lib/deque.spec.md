@@ -2,7 +2,7 @@
 # @weight 1
 
 The two-list construction: both ends push and pop amortized O(1);
-length rides a counter. Empty pops raise tag 'value.
+length rides a counter. Empty pops raise a label 'value.
 
 ## both ends
 
@@ -32,8 +32,8 @@ length rides a counter. Empty pops raise tag 'value.
 
 ```x
 (do (import x/type/deque)
-  (list (guard (e (Err tag e)) ((Deque make) pop!))
-        (guard (e (Err tag e)) ((Deque make) pop-left!))))
+  (list (guard (e (Err label e)) ((Deque make) pop!))
+        (guard (e (Err label e)) ((Deque make) pop-left!))))
 ```
 ---
     ('value 'value)
