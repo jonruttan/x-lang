@@ -1,10 +1,10 @@
 # @lib ../tests/x/lib/compile.x
 # @requires native/jit
-# @requires tok/variant
+# @requires tok/label
 # @weight 1
 
 The variant channel through the assembler lane: `%score-variant!` compiles to the
-`jit_score_variant` trampoline, so a native state declares what it accepted the
+`jit_score_label` trampoline, so a native state declares what it accepted the
 way an interpreted one does (lib/reader-variant.spec.md is the interpreted twin).
 ## the variant a state declares reaches the reader
 

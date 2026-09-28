@@ -205,7 +205,7 @@
 (do 1 2 . 3)
 ```
 ---
-    Error: do: improper body (dotted tail)
+    Error: call: improper argument list (dotted tail)
 
 ### rejects a non-list body
 
@@ -213,7 +213,7 @@
 (begin . 3)
 ```
 ---
-    Error: do: improper body (dotted tail)
+    Error: call: improper argument list (dotted tail)
 
 ### evaluates all forms
 
@@ -250,11 +250,11 @@
 ---
     ('rejected 'rejected 'rejected ())
 
-### a do body allocates little over a function body with the same forms
+### a do body costs what a function body does
 
-One or two forms are handed to the evaluator with at most one new pair; a
-longer body builds its nest.  Per call, over the same forms as a function body:
-two forms allocate fewer than 12 objects more, and five fewer than 60.
+`do` is the engine's `%seq`, which sequences its forms as a function body does,
+without building anything per run: two forms or five in a `do` allocate fewer
+than 2 objects a call more than the same forms as a function body.
 
 ```x
 (def %forms-cost
@@ -264,9 +264,9 @@ two forms allocate fewer than 12 objects more, and five fewer than 60.
     ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 100)
     (- (Heap count) c0)))
 (list (< (- (%forms-cost (fn (_) (do (def x 1) x))) (%forms-cost (fn (_) (def x 1) x)))
-         (* 12 100))
+         (* 2 100))
       (< (- (%forms-cost (fn (_) (do 1 2 3 4 5))) (%forms-cost (fn (_) 1 2 3 4 5)))
-         (* 60 100)))
+         (* 2 100)))
 ```
 ---
     (#t #t)

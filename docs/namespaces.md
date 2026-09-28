@@ -2,11 +2,17 @@
 
 *x-lang: computational expressions over a minimal, type-agnostic engine.*
 
-This is a design proposal. Nothing in it is implemented. The measurements
-were taken on the tree at `b11084e9` (2026-09-14) and are reproducible
-with the commands beside them.
+This began as a design proposal, and the design is built. A file headed
+`(module NAME)` is a scoped module, and [Modules](modules.md#module-scope)
+says how to write one. This document keeps the reasoning: the rules, what
+was measured, and why each file without a scope has none. On 2026-09-28,
+78 of the library's 138 files were scoped.
 
-The proposal has three parts: a module gets a scope of its own, `provide`
+The counts under "Where names live today" describe the tree before any of
+it. They were taken at `b11084e9` (2026-09-14) and are reproducible with
+the commands beside them.
+
+The design has three parts: a module gets a scope of its own, `provide`
 and `import` become the only doors through that scope, and every name
 conflict the doors can meet has a stated rule. The third part is a
 requirement of the design, not a consequence of it: a scheme that removes
@@ -110,6 +116,11 @@ An importer that wants a whole module under one name takes it as a value:
 A module value dispatches like a class's statics. It costs a dispatch per
 call, so hot code uses a selective import, which is the same trade
 `method-of` offers for classes.
+
+A private name is read from outside through the module's environment:
+`(eval (lit NAME) (module M))`. That is how a spec reaches an internal it
+tests, and how a development tool reaches one it drives (decision of
+2026-09-27). The module grows no public surface for either.
 
 An unscoped importer's frame is the root, so its selective imports bind
 there. That is how a hot dispatcher that stays unscoped takes the vocabulary
@@ -369,6 +380,33 @@ model.
     it compared 190, with evaluations and allocations unchanged at 88 and 38
     a call. The door is small, so the frame would nearly double its lookups,
     for eight names hidden. The file is unscoped.
+  - The six large files were measured the same way (2026-09-28) and held to
+    one line (decision of 2026-09-27): a header goes on when it adds under
+    0.1% to the environment comparisons of an x-core boot, and under 10% to
+    those of the file's own work. `type/convert.x` had passed that line and
+    `core/fn.x` had not. Each file was measured with its header on and a
+    copy of its names left in the root for its readers, and in each the
+    work's evaluations and allocations are unchanged. None passes, and the
+    six stay unscoped.
+    - `type/class.x`, 89 private names: 3.8 times the comparisons of an
+      x-core boot, 185 million where it made 49 million, since every method
+      call runs through the file. A static call compares 10.5 times as many
+      bindings, an instance call 5.8 times and a `new` 8.6 times.
+    - `doc/doc.x`, 73: 0.98% more at boot, 5.8 times for a `doc` form and
+      6.3 times for an `apropos`.
+    - `tool/lint.x`, 88: 33% more to lint an 87-line file, `codec/hex.x`.
+      The x-core boot does not load it.
+    - `tool/asm.x`, 43: 2.0 times for an instruction emitted, 15,000
+      comparisons where it made 7,400. The x-core boot does not load it.
+    - `codec/sha256.x`, 33: 37% more on a digest of 1 KB, and 13% more on
+      a digest of one block. The x-core boot does not load it.
+    - `boot/tower-compiled.x`, 47, cannot take a header as it stands: it is
+      a load sequence, with six of its eight includes between its compiles,
+      and a plain include has no place in a scoped file. Its twenty-one
+      compile-site helpers were measured in a module of their own, and add
+      0.05% to the tower's load. They stay in the file all the same: their
+      caller is the load sequence, which is unscoped and would take them
+      back into the root by import.
 - **Source boot time.** The image writers and the asan-boot gate boot from
   source. A framed load of `regex.x` through the x-side reader took the same
   time as the C include, so the loader is not the risk; the lookup cost is.
