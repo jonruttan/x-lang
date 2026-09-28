@@ -21,6 +21,15 @@ carried by a C instance, as an instance's member is.
 
 [#833]: https://github.com/jonruttan/x-lang/pull/833
 
+**A stat record holds a file's type under `file-type`** ([#823]).
+`(File stat p)` and `(File lstat p)` answer
+`((size . N) (mode . M) (file-type . K) (mtime . T))`; the third key was
+`kind`. The values are the same: `'file`, `'dir`, `'link`, `'char`, `'block`,
+`'fifo`, `'socket` and `'unknown`. No alias is kept: a caller that read
+`(Assoc get 'kind st)` now reads `(Assoc get 'file-type st)`.
+
+[#823]: https://github.com/jonruttan/x-lang/pull/823
+
 **`type/promise.x` and `repl/ansi.x` have module headers** ([#824]). The
 promise type's handle and five other `%` names, and ansi's twenty-six, are
 their files' own now. The root keeps the `Promise` and `Ansi` classes and
@@ -55,6 +64,17 @@ load, which name it has, as x-coreutils and x-python do:
 ```
 
 [#821]: https://github.com/jonruttan/x-lang/pull/821
+
+**The r5rs three and the r7rs six are answered in the bundles** ([#831]).
+`tools/contract/langs.x` recorded x-r5rs at 667/3 and x-r7rs at 33 failures
+on this tree, read as the platform's debt since the engine made an
+environment a value. x-r5rs now evaluates a macro's expansion in a child of
+the use site's environment (x-r5rs#17, its v0.2.4), and x-r7rs binds
+`let-values`' formals in one (x-r7rs#19). Measured on v0.15.0 and on main,
+x-r5rs is 667/0 and x-r7rs 637/27, the 27 it records by name, and its row
+here follows the count from 30 to 27.
+
+[#831]: https://github.com/jonruttan/x-lang/pull/831
 
 **A spec may not rebind the library's root %-definitions** ([#818]). A spec
 snippet is evaluated at the root, so its top-level defs outlive it, and
@@ -1781,9 +1801,9 @@ value, the way `(List length lst)` reads), `(e label)` the field,
 `(e label? 'io)` the predicate, and `make` / `raise` take a `label`. No
 alias is kept: a guard that matched on `(Err kind-of e)` now writes
 `(Err label e)` (released as `(Err tag e)`, now `(Err label e)`).
-(`Err code-of` and `File stat`'s `kind` key are untouched: the first is an
-engine raise's message literal, the second names a file's kind -- 'file 'dir
-'link.)
+(`Err code-of` and `File stat`'s `file-type` key, released as `kind`, are
+untouched: the first is an engine raise's message literal, the second names
+a file's type -- 'file 'dir 'link.)
 
 **A reader hears which state accepted, instead of rescanning to find out.**
 An analyser state knows which of its states accepted and threw it away; the

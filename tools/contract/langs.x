@@ -179,6 +179,12 @@
 ; So the debt is this platform's, on an unreleased change, and the row is left
 ; red deliberately -- a budget raised to 3 would be recording our own
 ; regression as the bundle's.
+;
+; Answered in the bundle (x-r5rs#17, released as its v0.2.4).  Its macro layer
+; evaluates an expansion in a child of the use site's environment,
+; (pair () env), so a definition the expansion makes goes with the child.  The
+; engine's model stayed as it is; the lang chose where its definitions live.
+; Measured at x-r5rs e1d261e on x-lang v0.15.0: 667/0.
 (lang "r5rs"  "x-r5rs"  667  0)
 ; r7rs moved 43 -> 27 on x-engine-c v0.1.5, and the sixteen are all of `error`,
 ; `error objects` and `guard`.  (base def-global) lets an operative define for
@@ -210,4 +216,13 @@
 ; assertions, and both bundles' macro layers were repaired against the engine
 ; model v0.2.10 replaced.  One cause, two bundles; it is read as ours until
 ; the r5rs three are answered.
-(lang "r7rs"  "x-r7rs"  637 30)
+;
+; Answered in the bundles, and the row follows the count down.  x-r7rs runs on
+; x-r5rs, whose expansions now evaluate in a child environment.  Its own
+; let-values built the body's environment by consing a binding cell onto the
+; caller's, which is not an environment on the model v0.2.10 brought, and its
+; six specs ended the interpreter; it binds the formals in a child
+; environment now (x-r7rs#19).  Measured at x-r7rs b705c54 with x-r5rs v0.2.4
+; beside it, on x-lang v0.15.0 and on main at f66ab6cf: 637/27, the 27 the
+; bundle records by name.
+(lang "r7rs"  "x-r7rs"  637 27)
