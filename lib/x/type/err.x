@@ -112,12 +112,18 @@
 ; 'missing = libc lacks the symbol, else the dlsym'd function pointer.
 (def %errno-loc-cell (pair () ()))
 
+; The primitives errno-of reads that location through, fetched once: a
+; failed call reaches errno-of on every error path.
+(def %errno-call (prim-ref (lit ptr) (lit call)))
+(def %errno-int->ptr (prim-ref (lit int) (lit ->ptr)))
+(def %errno-ptr-ref (prim-ref (lit ptr) (lit ref)))
+
 (def %errno-find
   (fn (self n table)
-    (if (null? table) ()
-      (if (= (first (first table)) n)
-        (first table)
-        (self n (rest table))))))
+    (match
+      ((eq? table ()) ())
+      ((= (first (first table)) n) (first table))
+      (#t (self n (rest table))))))
 
 (def-class Err ()
   (doc "Structured error value: label symbol + message string + data alist."
@@ -215,16 +221,16 @@
     (method errno-of (self (param r INTEGER "A failed call's raw return value (negative)"))
       (doc "Recover the CURRENT errno after a failed libc/syscall call. The syscall prim routes through libc on both OSes, returning a bare -1 with the reason parked behind the per-thread errno location -- __error() on Darwin, __errno_location() on Linux; this derefs it (lazily resolving the symbol once). Falls back to (- 0 r) on a libc without the symbol. Fetch BEFORE any intervening call (a close on the error path clobbers errno)."
         (returns INTEGER "The positive errno"))
-      (when (null? (first %errno-loc-cell))
-        (%set-first! %errno-loc-cell
-          (let ((loc ((prim-ref 'ffi 'dlsym) ((prim-ref 'ffi 'dlopen) () 1)
-                      (if os-darwin? "__error" "__errno_location"))))
-            (if (null? loc) 'missing loc))))
-      (if (eq? (first %errno-loc-cell) 'missing)
-        (- 0 r)
-        ((prim-ref 'ptr 'ref)
-          ((prim-ref 'int '->ptr) ((prim-ref 'ptr 'call) (first %errno-loc-cell)))
-          0 4)))
+      (match
+        ((null? (first %errno-loc-cell))
+          (%set-first! %errno-loc-cell
+            (let ((loc ((prim-ref 'ffi 'dlsym) ((prim-ref 'ffi 'dlopen) () 1)
+                        (if os-darwin? "__error" "__errno_location"))))
+              (if (null? loc) 'missing loc))))
+        (#t ()))
+      (match
+        ((eq? (first %errno-loc-cell) 'missing) (- 0 r))
+        (#t (%errno-ptr-ref (%errno-int->ptr (%errno-call (first %errno-loc-cell))) 0 4))))
 
     (method from-errno (self (param n INTEGER "errno, positive or the syscall layer's negative -errno")
                              (param op SYMBOL "The operation, e.g. 'open")
@@ -233,13 +239,13 @@
         (returns OBJECT "The Err instance")
         (example "((Err from-errno 2 'open \"/nope\") msg)" "\"open: No such file or directory\"")
         (example "(Assoc get 'errno ((Err from-errno -2 'open ()) data))" "2"))
-      (def en (if (< n 0) (- 0 n) n))
+      (def en (match ((< n 0) (- 0 n)) (#t n)))
       (def hit (%errno-find en %errno-table))
-      (def sym (if (null? hit) 'unknown (first (rest hit))))
-      (def text (if (null? hit) "Unknown error" (first (rest (rest hit)))))
-      (def d (if (null? detail) () (first detail)))
+      (def sym (match ((null? hit) 'unknown) (#t (first (rest hit)))))
+      (def text (match ((null? hit) "Unknown error") (#t (first (rest (rest hit))))))
+      (def d (match ((null? detail) ()) (#t (first detail))))
       (Err make 'io
-        (Str8 append (symbol->str op) ": " text)
+        (%str-append (symbol->str op) (%str-append ": " text))
         (list (pair 'errno en) (pair 'sym sym) (pair 'op op) (pair 'detail d))))))
 
 (doc (provide x/type/err Err)
