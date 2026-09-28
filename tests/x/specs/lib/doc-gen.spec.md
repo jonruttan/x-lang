@@ -278,3 +278,40 @@ its heading and its note, and no description text.
 ```
 ---
     ("Field: data carried by a DgSite8 instance.")
+
+
+## a doc form with no argument
+
+`(doc)` carries neither a declaration nor a description. `lib/x/type/class.x`
+reads it as a field named `doc`, and the page shows it as that field.
+
+### class.x declares a field named doc
+
+```x
+(do (def-class DgEmpty () (doc) (state 0))
+    (class-fields DgEmpty))
+```
+---
+    (doc state)
+
+### the page heads it doc and notes it as a field
+
+```x
+(do (import x/doc/doc-gen doc-walk-with-prims)
+    (def-class DgEmptyDoc (extends DocEmit)
+      (static (got ())
+        (method page-header (self . a) ()) (method section (self . a) ())
+        (method class-head (self . a) ()) (method interface-line (self . a) ())
+        (method alias (self . a) ()) (method text (self . a) ())
+        (method params (self . a) ()) (method returns (self . a) ())
+        (method examples (self . a) ()) (method see-also (self . a) ())
+        (method entry-head (self s) (DgEmptyDoc got (pair s (DgEmptyDoc got))))
+        (method note (self s) (DgEmptyDoc got (pair s (DgEmptyDoc got))))))
+    (doc-walk-with-prims
+      '((def-class DgSite9 ()
+          (doc)))
+      () DgEmptyDoc "")
+    (DgEmptyDoc got))
+```
+---
+    ("Field: data carried by a DgSite9 instance." "doc")
