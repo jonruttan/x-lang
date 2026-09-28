@@ -28,10 +28,10 @@ as `(obj ref)`: the caller owns the buffer and its bounds.
 ```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
-  (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-  (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+  (def %jit-mem-str->ptr (prim-ref (lit str) (lit ->ptr)))
+  (def %jit-mem-ptr->int (prim-ref (lit ptr) (lit ->int)))
   (def %buf (%make-str 512))
-  (def %addr (%ptr->int (%str->ptr %buf)))
+  (def %addr (%jit-mem-ptr->int (%jit-mem-str->ptr %buf)))
   ((compile-asm '(fn (_ a v) (%mem-set! a 3 v))) %addr 123456789)
   (display ((compile-asm '(fn (_ a) (%mem-ref a 3))) %addr)))
 ```
@@ -43,10 +43,10 @@ as `(obj ref)`: the caller owns the buffer and its bounds.
 ```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
-  (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-  (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+  (def %jit-mem-str->ptr (prim-ref (lit str) (lit ->ptr)))
+  (def %jit-mem-ptr->int (prim-ref (lit ptr) (lit ->int)))
   (def %buf (%make-str 512))
-  (def %addr (%ptr->int (%str->ptr %buf)))
+  (def %addr (%jit-mem-ptr->int (%jit-mem-str->ptr %buf)))
   ((compile-asm '(fn (_ a v) (%mem-set! a 7 v))) %addr 4294967295)
   (display ((compile-asm '(fn (_ a) (%mem-ref a 7))) %addr)))
 ```
@@ -58,10 +58,10 @@ as `(obj ref)`: the caller owns the buffer and its bounds.
 ```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
-  (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-  (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+  (def %jit-mem-str->ptr (prim-ref (lit str) (lit ->ptr)))
+  (def %jit-mem-ptr->int (prim-ref (lit ptr) (lit ->int)))
   (def %buf (%make-str 512))
-  (def %addr (%ptr->int (%str->ptr %buf)))
+  (def %addr (%jit-mem-ptr->int (%jit-mem-str->ptr %buf)))
   ((compile-asm '(fn (_ a) (do (%mem-set! a 1 111) (%mem-set! a 2 222)))) %addr)
   (display ((compile-asm '(fn (_ a) (+ (%mem-ref a 1) (%mem-ref a 2)))) %addr)))
 ```
@@ -95,10 +95,10 @@ The scaled offset is a 12-bit field: 0..4095 words.
 ```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
-  (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-  (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+  (def %jit-mem-str->ptr (prim-ref (lit str) (lit ->ptr)))
+  (def %jit-mem-ptr->int (prim-ref (lit ptr) (lit ->int)))
   (def %buf (%make-str 512))
-  (def %addr (%ptr->int (%str->ptr %buf)))
+  (def %addr (%jit-mem-ptr->int (%jit-mem-str->ptr %buf)))
   ((compile-asm '(fn (_ a v) (%mem-set! a 5 v))) %addr 999)
   (display ((compile-asm '(fn (_ a i) (%mem-ref-at a (& i 15)))) %addr 21)))
 ```
@@ -110,10 +110,10 @@ The scaled offset is a 12-bit field: 0..4095 words.
 ```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
-  (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-  (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+  (def %jit-mem-str->ptr (prim-ref (lit str) (lit ->ptr)))
+  (def %jit-mem-ptr->int (prim-ref (lit ptr) (lit ->int)))
   (def %buf (%make-str 512))
-  (def %addr (%ptr->int (%str->ptr %buf)))
+  (def %addr (%jit-mem-ptr->int (%jit-mem-str->ptr %buf)))
   (def %st (compile-asm '(fn (_ a i v) (%mem-set-at! a i v))))
   (def %ld (compile-asm '(fn (_ a i) (%mem-ref-at a i))))
   (%st %addr 10 4242)
@@ -128,10 +128,10 @@ The scaled offset is a 12-bit field: 0..4095 words.
 ```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
-  (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-  (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+  (def %jit-mem-str->ptr (prim-ref (lit str) (lit ->ptr)))
+  (def %jit-mem-ptr->int (prim-ref (lit ptr) (lit ->int)))
   (def %buf (%make-str 512))
-  (def %addr (%ptr->int (%str->ptr %buf)))
+  (def %addr (%jit-mem-ptr->int (%jit-mem-str->ptr %buf)))
   (display ((compile-asm '(fn (_ a i v) (%mem-set-at! a i v))) %addr 4 77)))
 ```
 ---
@@ -156,13 +156,13 @@ is self-consistently wrong.
 ```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
-  (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-  (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+  (def %jit-mem-str->ptr (prim-ref (lit str) (lit ->ptr)))
+  (def %jit-mem-ptr->int (prim-ref (lit ptr) (lit ->int)))
   (def %pset (prim-ref (lit ptr) (lit set!)))
   (def %pref (prim-ref (lit ptr) (lit ref)))
   (def %buf (%make-str 256))
-  (def %p (%str->ptr %buf))
-  (def %a (%ptr->int %p))
+  (def %p (%jit-mem-str->ptr %buf))
+  (def %a (%jit-mem-ptr->int %p))
   (%pset %p 11 66 1)
   ((compile-asm '(fn (_ a v) (%mem-byte-set! a 20 v))) %a 200)
   (display (list ((compile-asm '(fn (_ a) (%mem-byte-ref a 11))) %a)
@@ -180,12 +180,12 @@ it.
 ```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
-  (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-  (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+  (def %jit-mem-str->ptr (prim-ref (lit str) (lit ->ptr)))
+  (def %jit-mem-ptr->int (prim-ref (lit ptr) (lit ->int)))
   (def %pset (prim-ref (lit ptr) (lit set!)))
   (def %buf (%make-str 256))
-  (def %p (%str->ptr %buf))
-  (def %a (%ptr->int %p))
+  (def %p (%jit-mem-str->ptr %buf))
+  (def %a (%jit-mem-ptr->int %p))
   (%pset %p 30 255 1)
   (display ((compile-asm '(fn (_ a) (%mem-byte-ref a 30))) %a)))
 ```
@@ -200,12 +200,12 @@ truncation happens in memory, where STRB ignores everything above bit 7.
 ```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
-  (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-  (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+  (def %jit-mem-str->ptr (prim-ref (lit str) (lit ->ptr)))
+  (def %jit-mem-ptr->int (prim-ref (lit ptr) (lit ->int)))
   (def %pref (prim-ref (lit ptr) (lit ref)))
   (def %buf (%make-str 256))
-  (def %p (%str->ptr %buf))
-  (def %a (%ptr->int %p))
+  (def %p (%jit-mem-str->ptr %buf))
+  (def %a (%jit-mem-ptr->int %p))
   (def %yield ((compile-asm '(fn (_ a v) (%mem-byte-set-at! a 21 v))) %a 511))
   (display (list %yield (%pref %p 21 1))))
 ```
@@ -221,10 +221,10 @@ lets one buffer serve both families at once.
 ```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
-  (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-  (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+  (def %jit-mem-str->ptr (prim-ref (lit str) (lit ->ptr)))
+  (def %jit-mem-ptr->int (prim-ref (lit ptr) (lit ->int)))
   (def %buf (%make-str 256))
-  (def %a (%ptr->int (%str->ptr %buf)))
+  (def %a (%jit-mem-ptr->int (%jit-mem-str->ptr %buf)))
   ((compile-asm '(fn (_ a) (%mem-set! a 6 258))) %a)
   (display (list ((compile-asm '(fn (_ a) (%mem-byte-ref a 48))) %a)
                  ((compile-asm '(fn (_ a) (%mem-byte-ref a 49))) %a))))
@@ -237,12 +237,12 @@ lets one buffer serve both families at once.
 ```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
-  (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-  (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+  (def %jit-mem-str->ptr (prim-ref (lit str) (lit ->ptr)))
+  (def %jit-mem-ptr->int (prim-ref (lit ptr) (lit ->int)))
   (def %pset (prim-ref (lit ptr) (lit set!)))
   (def %buf (%make-str 256))
-  (def %p (%str->ptr %buf))
-  (def %a (%ptr->int %p))
+  (def %p (%jit-mem-str->ptr %buf))
+  (def %a (%jit-mem-ptr->int %p))
   (%pset %p 100 7 1)
   (%pset %p 101 9 1)
   (def %ld (compile-asm '(fn (_ a i) (%mem-byte-ref-at a i))))
