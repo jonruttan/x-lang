@@ -192,3 +192,46 @@ value it was given.
 ```
 ---
     plain string
+
+## the errno path's cost
+
+### errno-of reads the location in fewer than 1,200 objects
+
+Every failed File call reads errno; the primitives the read goes through
+are fetched once, when the module loads.  Ten reads, the loop around an
+empty thunk subtracted.
+
+```x
+(do
+  (import x/sys/gc)
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 10)
+      (- (Heap count) c0)))
+  (< (- (%cost (fn (_) (Err errno-of -1))) (%cost (fn (_) ()))) (* 1200 10)))
+```
+---
+    #t
+
+### from-errno adds fewer than 1,500 objects to the Err it makes
+
+The errno table walk and the message are built without class dispatch or
+derived forms, so what from-errno costs beyond its (Err make) is small.
+
+```x
+(do
+  (import x/sys/gc)
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 10)
+      (- (Heap count) c0)))
+  (def %made (%cost (fn (_) (Err make 'io "stat: No such file or directory" ()))))
+  (def %from (%cost (fn (_) (Err from-errno 2 'stat "/x"))))
+  (list ((Err from-errno 2 'stat "/x") msg) (< (- %from %made) (* 1500 10))))
+```
+---
+    ("stat: No such file or directory" #t)
