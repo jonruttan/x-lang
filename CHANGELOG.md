@@ -228,6 +228,17 @@ count rows, and the declaration's layout digest changes with them.
 
 [#810]: https://github.com/jonruttan/x-lang/pull/810
 
+**The engine pin moves to x-engine-c v0.2.16** ([#838]). v0.2.16 carries the
+engine's contract in the glossary's words (x-engine-c#69) and `%seq` over any
+number of forms (x-engine-c#70), and x-lang follows its names: the ISA
+manifest's block is `%isa-catalogue`, `(type set-shape!)` is
+`(type set-unit-labels!)` and `Type set-shape!` is `Type set-unit-labels!`, the
+compiled states' door is `jit_score_label`, and the tokenizer's claim is
+`tok/label`. `obj-layout.x` no longer carries x-expr's simple-type codes, and
+the base's field routes end in `-fields`.
+
+[#838]: https://github.com/jonruttan/x-lang/pull/838
+
 **Two selectors of one class sent in turn settle at the front of its
 dispatch table** ([#814]). A lookup that found its selector deeper than
 second place swapped it with the head, which sent the head's entry to the
@@ -275,6 +286,18 @@ Every cell is still checked before any form runs. One form now allocates 5
 objects, two 6, three 23 and five 43, and `(do (def x 1) x)` 8 where it took 38.
 
 [#822]: https://github.com/jonruttan/x-lang/pull/822
+
+**`do` is the engine's `%seq`** ([#832]). `do` and `begin` are bound to `%seq`,
+which sequences any number of forms (x-engine-c#70): each form but the last is
+evaluated in the caller's environment, the last in tail position, no forms
+answer nil, and a dotted body raises before any form runs, with the engine's
+message, `call: improper argument list (dotted tail)`. A `do` body allocates what
+a function body with the same forms does: nothing for `(do 1 2 3 4 5)`, where it
+took 43, and 2 for `(do (def x 1) x)`, where it took 8. `lib/img.x` binds its
+`do` the same way, and the asm and cc compile lanes compile `%seq` as they
+compile `do`.
+
+[#832]: https://github.com/jonruttan/x-lang/pull/832
 
 **`File stat` decodes through a Struct reader made once** ([#813]). A stat
 allocated about 51,000 objects, 40,600 of them decoding three fields: `Struct

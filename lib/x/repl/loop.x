@@ -193,10 +193,6 @@
             (%set-cell-int! %sigint-flag 0)
             (if (Err stop? err)
               (display "\n")
-              ; %seq is BINARY (it is the primitive `do` is built on), so a
-              ; flat (%seq a b c ...) would silently run only the first two and
-              ; drop the rest.  Build the whole line as one string and emit it
-              ; with a single binary %seq (message + newline).
               ; repl-read numbers lines relative to this input (line 1 = first
               ; line), so only show [line N] for N > 1 -- i.e. a multi-line
               ; entry where the line helps locate the error.  A one-liner just

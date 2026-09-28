@@ -39,7 +39,7 @@
 # Extraction is a form scanner (paren depth outside strings, char literals and
 # ; comments), not a line grep.  Recognized definers: (def NAME ...),
 # (def-class NAME ...) and their (doc ...) wrappers.  A top-level (do ...) is
-# descended into, because %do-seq tail-evals children in the caller's env, so
+# descended into, because do evaluates its forms in the caller's env, so
 # defs directly inside it bind globally.  (let ...) is not descended: its
 # bindings are scoped.
 #
@@ -54,7 +54,7 @@
 #                  -- libc symbols re-resolved per module through
 #                     different FFI helpers (%resolve/%sk/%dlsym); same
 #                     pointer by construction.
-#   %obj-set! %list-type %ptr %ptr-ref %int->ptr
+#   %obj-set! %ptr %ptr-ref %int->ptr
 #                  -- same value re-derived from different doors
 #                     (data.x raw path vs prim-ref-composed).
 # New entries need the same-value argument written here.
@@ -82,7 +82,7 @@ _scoped_provides() {
 _scoped_provides | awk '
 BEGIN {
   split("let compile-asm %c-read %c-malloc %c-free %c-close " \
-        "%obj-set! %list-type %ptr %ptr-ref %int->ptr", aw, " ")
+        "%obj-set! %ptr %ptr-ref %int->ptr", aw, " ")
   for (i in aw) allow[aw[i]] = 1
 }
 
@@ -119,7 +119,7 @@ function split_children(f, kids,    s, i, n, c, depth, start, cnt, str) {
 }
 
 # Record one top-level form (already quote-normalized).  A (do ...) is
-# descended: %do-seq tail-evals its children in the CALLER env, so a
+# descended: do evaluates its forms in the CALLER env, so a
 # def directly inside binds globally, same as a bare top-level def.
 function handle(f,    tmp, name, body, key, kids, nk, j, isclass) {
   if (f ~ /^\(do[ \t(]/) {

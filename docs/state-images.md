@@ -7,7 +7,7 @@ feature that has to be built into the engine first.
 
 This document is the design for that: a binary image of a live base, written
 from x and read by the engine at startup. **The unit-shape declaration it rests on is implemented**
-(x-engine-c branch `feat/unit-shapes`, plus `Type set-shape!` and the atom-type
+(x-engine-c branch `feat/unit-shapes`, plus `Type set-unit-labels!` and the atom-type
 declarations here); the image format, the writer and the reader are still
 design. The measurements are real and every one of them is reproducible with
 the script in "The image, measured"; the rulings are proposals, marked as such
@@ -333,13 +333,13 @@ the three sites that read the slot — the collector's traversal
 guard (`x_eval_spine_guard`) — and a shift and mask per unit. No allocation, no
 symbol comparison, nothing in the inner loop that was not there before.
 
-The readable spelling stays in x. `Type set-shape!` takes `'(word ref)`,
+The readable spelling stays in x. `Type set-unit-labels!` takes `'(word ref)`,
 `'(bytes)`, `'(foreign)` and compiles it to `(count . mask)`; the engine only
 ever sees two integers. Policy in x, unchecked mechanism in C — and
 `set-units!` keeps working untouched, because the integer form is still the
 integer form.
 
-> **The shape pair must be built in C, and that is why `set-shape!` is a
+> **The shape pair must be built in C, and that is why `set-unit-labels!` is a
 > primitive.** x's `pair` makes LIST-typed pairs; the readers discriminate the
 > two forms with `x_obj_type_isspair()`, which matches *structural* pairs only
 > — one pointer comparison on a path the collector walks per object. An

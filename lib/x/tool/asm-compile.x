@@ -126,10 +126,10 @@
 ; -- at %emit-call! -- and falls back, which is what the delimiter's %tower-asm
 ; ladder wants.
 (def %jit-buffer-last-char (%jit-bind! (lit %jit-buffer-last-char) "jit_buffer_last_char" #t))
-; jit_score_variant is newer still, and OPTIONAL for the same reason: only a
+; jit_score_label is newer still, and OPTIONAL for the same reason: only a
 ; state that declares a variant needs it, and an engine without it must keep
 ; compiling every state that does not.
-(def %jit-score-variant (%jit-bind! (lit %jit-score-variant) "jit_score_variant" #t))
+(def %jit-score-variant (%jit-bind! (lit %jit-score-variant) "jit_score_label" #t))
 ; jit_call_value is newer still, and OPTIONAL for the same reason: an
 ; engine with the JIT but not this symbol must keep compiling every form
 ; that does not need it.  A call through a computed head is the only form
@@ -185,7 +185,7 @@
   (fn (_ asm addr)
     ; An unresolved OPTIONAL trampoline is address 0 (%jit-addr), and `blr 0`
     ; is a SIGSEGV arbitrarily far from the cause: x-python's compiled number
-    ; states declared a variant through jit_score_variant on an engine that
+    ; states declared a variant through jit_score_label on an engine that
     ; had no such symbol, and the first number token after the swap died.
     ; Refuse here, once, for every caller -- the compile raises, the caller's
     ; guard falls back, and the interpreted twin runs.
@@ -580,11 +580,8 @@
     (asm-emit! asm (lit strb) x1 (mem 0 0))
     (asm-emit! asm 'mov x0 x1)))                         ; yield the value
 
-; Compile (do a b ...): evaluate each in order, result is the last.
-; %seq below is the tokenizer's internal TWO-arg form; `do` is the
-; language's own sequencing form, and the JIT lacked it entirely -- a
-; compiled (do ...) body fell through to the function-call path and
-; failed obscurely.  Any number of forms; none yields nil.
+; Compile (do a b ...) and (%seq a b ...), which are one form: evaluate each
+; in order, result is the last.  Any number of forms; none yields nil.
 (def %asm-compile-do
   (fn (_ asm args params)
     (if (null? args)
@@ -596,12 +593,6 @@
               (%asm-compile-expr asm (first as) params)
               (unless (null? (rest as)) (self (rest as))))))
         (%go args)))))
-
-; Compile (%seq a b): evaluate a, discard, evaluate b, return
-(def %asm-compile-seq
-  (fn (_ asm args params)
-    (%asm-compile-expr asm (first args) params)
-    (%asm-compile-expr asm (first (rest args)) params)))
 
 ; Compile (%score-set score sign buffer): jit_score_set(score, sign, buffer)
 ; score and buffer are x_obj_t* (fvars or params), sign is raw int
@@ -636,18 +627,18 @@
       (asm-load-imm64! asm x1 sign-val))  ; x1 = sign
     (%emit-call! asm %jit-score-set)))
 
-; Compile (%score-variant! score variant): jit_score_variant(score, variant).  The
+; Compile (%score-variant! score variant): jit_score_label(score, variant).  The
 ; score is an OBJECT, loaded the way %score-set loads it; the variant is a
 ; literal integer, like the sign, and lands in x1 the same way.
 (def %asm-compile-score-variant
   (fn (_ asm args params)
-    ; Refuse BY NAME when this engine has no jit_score_variant (the bind is
+    ; Refuse BY NAME when this engine has no jit_score_label (the bind is
     ; optional, so the address is 0), the way %asm-compile-callable-call does
     ; for jit_call_value: a bundle probes the lane by compiling exactly this
     ; form, and must hear no rather than get a state that calls address 0.
     (if (= %jit-score-variant 0)
       (Err raise 'state
-        (Str append "asm-compile: this engine has no jit_score_variant, so "
+        (Str append "asm-compile: this engine has no jit_score_label, so "
           "a state that declares a variant cannot be compiled") ()))
     (if (symbol? (first args))
       (%asm-compile-param asm (first args) params #f)
@@ -799,7 +790,7 @@
         ; emitter does not recognise still refuses loudly
         ; instead of becoming a computed call by accident.
         (%asm-compile-callable-call asm (first args) (rest args) params))
-      ((eq? op '%seq) (%asm-compile-seq asm args params))
+      ((eq? op '%seq) (%asm-compile-do asm args params))
       ((if (eq? op '%score-set) #t (eq? op '%score-variant!))
         (if (eq? op '%score-set)
           (%asm-compile-score-set asm args params)

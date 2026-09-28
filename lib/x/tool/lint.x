@@ -585,7 +585,7 @@
 ; --- Shape check: depth x size (docs/code-quality.md 1.3) ---
 ;
 ; Neither number is a finding on its own, and the corpus says why.  Long and
-; FLAT is a data table (syscalls-*.x, %arm64-table, %isa-catalog) that only
+; FLAT is a data table (syscalls-*.x, %arm64-table, %isa-catalogue) that only
 ; gets worse when split.  Deep and SMALL is a tight recursive walker, which
 ; is the idiom.  The defect is the pair: a definition deep enough to have to
 ; be held in the head AND large enough that it cannot be.

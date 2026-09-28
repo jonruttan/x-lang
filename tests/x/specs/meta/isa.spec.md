@@ -28,7 +28,7 @@ checked for liveness only.
        (prims))
   (def %man ())
   (List map (fn (_ e) (set! %man (pair (pair (first e) (first (rest e))) %man)))
-       %isa-catalog)
+       %isa-catalogue)
   (def %report (fn (self label a b)
     (List map (fn (_ p)
            (if (List includes? p b)

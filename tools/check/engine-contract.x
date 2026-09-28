@@ -156,7 +156,7 @@
       (if (not (EngineContract %def? form)) acc
         (let ((name (List second form)) (rows (List second (List third form))))
           (match
-            ((eq? name (lit %isa-catalog))
+            ((eq? name (lit %isa-catalogue))
               (EngineContract %onto rows 3 acc
                 (fn (_ r) (pair (Str8 append (EngineContract %text (first r)) "/"
                                              (EngineContract %text (List second r)))

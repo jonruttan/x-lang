@@ -706,6 +706,8 @@ Evaluates `cond`. If truthy (not `()`), tail-evaluates `then`. If falsy, tail-ev
 
 Evaluates each `form` in sequence and returns the value of the last one. The final form is tail-evaluated for TCO. With no arguments, returns `()`.
 
+`do` is the library's name for the engine's `%seq`, so its error comes from C: a dotted form list raises before any form is evaluated.
+
 ```x-repl
 (do 1 2 3) -> 3
 (do (def x 1) (+ x 1)) -> 2
