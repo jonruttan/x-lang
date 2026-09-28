@@ -294,7 +294,7 @@
             (import x/codec/sha256-jit)
             ((prim-ref (lit sha256) (lit jit-make)) %sha-k %sha-ih %sha-digest-words))
           (fn (_ v) ()))))
-    (eq? (%sha-site state) (lit up))))
+    ((fn (_ site) (eq? (site state) (lit up))) %sha-site)))
 
 ; Renamed from %sha-words (lint dup-def): the hex-constant parser above
 ; shares nothing with this but load-order luck made the overload work.
@@ -305,10 +305,14 @@
       (when (and (null? %sha-site)
                  (>= %len %sha-jit-threshold))
         (%sha-jit-try!))
-      (match
-        ((null? %sha-site) (%sha-digest-words s %len))
-        ((eq? (%sha-site state) (lit up)) ((%sha-site value) s %len))
-        (#t (%sha-digest-words s %len))))))
+      ; The site is sent to through a parameter: the linter reads a send to
+      ; a global as a call with names for arguments.
+      ((fn (_ site)
+         (match
+           ((null? site) (%sha-digest-words s %len))
+           ((eq? (site state) (lit up)) ((site value) s %len))
+           (#t (%sha-digest-words s %len))))
+       %sha-site))))
 
 (def-class Sha256 ()
   (static
