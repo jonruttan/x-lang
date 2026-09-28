@@ -18,6 +18,15 @@ Five messages follow: `is not a field of`, `use bare field names`,
 
 [#829]: https://github.com/jonruttan/x-lang/pull/829
 
+**A class's own data is its static fields** ([#840]). `(class-static-fields c)`
+lists them; it was `(class-static-members c)`. `(help Class)` heads them
+`fields:` under `static:`, where it said `members:`. A static member is a
+static field or a static method, so `no such static member` reads as it did.
+One message follows: `call with no selector -- name a field or method`. No
+alias is kept.
+
+[#840]: https://github.com/jonruttan/x-lang/pull/840
+
 **A stat record holds a file's type under `file-type`** ([#823]).
 `(File stat p)` and `(File lstat p)` answer
 `((size . N) (mode . M) (file-type . K) (mtime . T))`; the third key was
