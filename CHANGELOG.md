@@ -134,6 +134,22 @@ here follows the count from 30 to 27.
 
 [#831]: https://github.com/jonruttan/x-lang/pull/831
 
+**The six large files were measured for a module header, and none takes
+one** ([#837]). The line was decided on 2026-09-27: a header goes on when it
+adds under 0.1% to the environment comparisons of an x-core boot and under
+10% to those of the file's own work. With a header, `type/class.x` makes an
+x-core boot compare 3.8 times as many bindings and a static call 10.5 times;
+`doc/doc.x` adds 0.98% to the boot and makes a `doc` form compare 5.8 times
+as many; `tool/asm.x` doubles an instruction emitted; `tool/lint.x` adds 33%
+to a lint and `codec/sha256.x` 37% to a digest of 1 KB. The evaluations and
+allocations are the same either way. `boot/tower-compiled.x` is a load
+sequence, and a scoped file holds no plain include. `docs/namespaces.md`
+has the numbers, and records that a development tool reads a module's
+private name as a spec does, `(eval (lit NAME) (module M))`. No code
+changes.
+
+[#837]: https://github.com/jonruttan/x-lang/pull/837
+
 **A spec may not rebind the library's root %-definitions** ([#818]). A spec
 snippet is evaluated at the root, so its top-level defs outlive it, and
 `check-spec-globals` refuses one that takes a name the shared vocabulary owns.
