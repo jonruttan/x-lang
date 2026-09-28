@@ -622,6 +622,11 @@ check-bare-globals: ## Diff the runtime library's bare top-level defs against to
 	sh tools/check/bare-globals.sh
 .PHONY: check-bare-globals
 
+# A % name read from another file is a coupling that a module header breaks.
+# The reads are budgeted per reader in tools/contract/private-reads.x.  The
+# names read across files by decision are outside the count: those
+# tools/contract/shared-privates.x lists, and the % names of the seam.  A
+# read of a boot file's name that has no row there is refused.
 check-private-reads: ## Ratchet the cross-file reads of % names against tools/contract/private-reads.x
 	sh tools/check/private-reads.sh
 .PHONY: check-private-reads
