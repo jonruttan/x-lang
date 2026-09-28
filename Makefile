@@ -275,8 +275,22 @@ $(ENGINE_DIR)/$(EXECUTABLE): engine-link FORCE
 x-bin-asan x-bin-cov x-bin-profile x-bin-debug: %: $(ENGINE_DIR)/%
 	cp $< $@
 
-$(ENGINE_DIR)/x-bin-asan $(ENGINE_DIR)/x-bin-cov $(ENGINE_DIR)/x-bin-profile $(ENGINE_DIR)/x-bin-debug: $(ENGINE_DIR)/%: FORCE
+$(ENGINE_DIR)/x-bin-asan $(ENGINE_DIR)/x-bin-cov $(ENGINE_DIR)/x-bin-debug: $(ENGINE_DIR)/%: FORCE
 	$(ENGINE_MAKE) $*
+
+# The profiling engine ships in a release beside the plain one, from
+# x-engine-c v0.2.15 on, so it takes the plain engine's rule: a checkout
+# builds it, and an unpacked release already holds it.
+$(ENGINE_DIR)/x-bin-profile: engine-link FORCE
+	@$(ENGINE_ENSURE)
+	@if [ -f $(ENGINE_DIR)/Makefile ]; then \
+		$(MAKE) --no-print-directory -C $(ENGINE_DIR) x-bin-profile; \
+	elif [ ! -x $(ENGINE_DIR)/x-bin-profile ]; then \
+		echo "$(ENGINE_DIR) -> $(ENGINE_SRC) has neither sources to build nor a profiling engine to use." >&2; \
+		echo "A release ships x-bin-profile from x-engine-c v0.2.15 on." >&2; \
+		echo "For your own: make X_ENGINE_DIR=/path/to/engine x-bin-profile" >&2; \
+		exit 1; \
+	fi
 
 # The C spec suite belongs to the engine repo and its CI runs it.  This is
 # the local door to it, so `make test` here can still be the whole verdict.

@@ -35,7 +35,7 @@
 (def %hc (prim-ref (lit heap) (lit count)))
 (def %mark! (prim-ref (lit heap) (lit tree-mark!)))
 (def %clear! (prim-ref (lit heap) (lit chain-clear!)))
-(def %TRACE 1024)
+(def %TRACE %obj-flag-trace)
 (def %heap-off  (* %obj-slot-heap  %word-size))
 (def %flags-off (* %obj-slot-flags %word-size))
 (def %next (fn (_ p) (%rw p %heap-off)))

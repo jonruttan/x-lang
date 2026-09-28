@@ -219,7 +219,7 @@ rebuilds it, and the rebuilt struct is a struct whose name reads back.
 
 ```x
 (include "engine/tools/contract/obj-layout.x")
-(def %FLAG 1024)
+(def %FLAG %obj-flag-trace)
 (def %flags-off (* %obj-slot-flags %word-size))
 (def %type-off (* %obj-slot-type %word-size))
 (def %data-off (* %obj-meta-len %word-size))
