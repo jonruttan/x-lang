@@ -70,7 +70,7 @@ which registers what it owns into `"x"` whether or not there is a terminal.
 ### a key outside the vocabulary is refused
 
 ```x
-(guard (e (Err tag e))
+(guard (e (Err label e))
   (Lang register! "t2" (list (pair '%repl-nope 1))))
 ```
 ---
@@ -79,7 +79,7 @@ which registers what it owns into `"x"` whether or not there is a terminal.
 ### an entry that is not a pair is refused
 
 ```x
-(guard (e (Err tag e))
+(guard (e (Err label e))
   (Lang register! "t2" (list '%repl-prompt)))
 ```
 ---
@@ -88,7 +88,7 @@ which registers what it owns into `"x"` whether or not there is a terminal.
 ### a name nobody registered is refused
 
 ```x
-(guard (e (Err tag e)) (Lang use! "nobody"))
+(guard (e (Err label e)) (Lang use! "nobody"))
 ```
 ---
     'lang

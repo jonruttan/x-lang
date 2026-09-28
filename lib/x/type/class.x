@@ -479,26 +479,32 @@
 ; `fields` is the %all-fields alist (member name . default).
 (def %check-init-key
   (fn (_ key fields class)
-    (unless (%assoc-has? key fields)
-      (error (%str-append "new: " (%str-append (%display-to-str key)
-        (%str-append " is not a member of " (%display-to-str (class-name class)))))))))
+    (match
+      ((%assoc-has? key fields) ())
+      (#t (error (%str-append "new: " (%str-append (%display-to-str key)
+            (%str-append " is not a member of " (%display-to-str (class-name class))))))))))
 
 ; Walk an init store (plist `name val ...` OR alist `((name . val) ...)`),
 ; checking every key, before %init-fields uses it. Mirrors %opt-cell's walk and
-; its malformed-store guards so the two agree on what counts as a key.
+; its malformed-store guards so the two agree on what counts as a key.  Every
+; construction runs it, so a declared key continues the walk directly and only
+; an undeclared one reaches %check-init-key's raise.
 (def %check-init-keys
   (fn (loop store fields class)
     (match
       ((null? store) ())
-      ((not (pair? store)) (error "new: init store must be an alist or plist"))
-      ((pair? (first store))                              ; alist entry (k . v)
-        (do (%check-init-key (first (first store)) fields class)
-            (loop (rest store) fields class)))
-      ((not (pair? (rest store)))                         ; plist key with no value
-        (error "new: init key without a value (use bare member names)"))
-      (#t                                                 ; plist cell: k then v
-        (do (%check-init-key (first store) fields class)
-            (loop (rest (rest store)) fields class))))))
+      ((pair? store)
+        (match
+          ((pair? (first store))                          ; alist entry (k . v)
+            (match
+              ((%assoc-has? (first (first store)) fields) (loop (rest store) fields class))
+              (#t (%check-init-key (first (first store)) fields class))))
+          ((pair? (rest store))                           ; plist cell: k then v
+            (match
+              ((%assoc-has? (first store) fields) (loop (rest (rest store)) fields class))
+              (#t (%check-init-key (first store) fields class))))
+          (#t (error "new: init key without a value (use bare member names)"))))
+      (#t (error "new: init store must be an alist or plist")))))
 
 ; Names in `names` not already in `seen`, in order, each one once -- the
 ; subclass-additions step of the constructor order below, and the name
@@ -535,14 +541,16 @@
 ; name (or a call headed by one) still reads as the keyword tail.
 (def %keyword-tail?
   (fn (_ inits fields)
-    (let ((form (first inits)))
-      (match
-        ; (name . val) dotted-alist entry: keyword when its head names a member
-        ((pair? form) (and (symbol? (first form)) (%assoc-has? (first form) fields)))
-        ; a bare member name opens the keyword tail only when a VALUE form
-        ; follows it; a TRAILING one is a positional value ((Distances new root))
-        ((symbol? form) (and (%assoc-has? form fields) (pair? (rest inits))))
-        (#t #f)))))
+    (def form (first inits))
+    (match
+      ; (name . val) dotted-alist entry: keyword when its head names a member
+      ((pair? form)
+        (match ((symbol? (first form)) (%assoc-has? (first form) fields)) (#t #f)))
+      ; a bare member name opens the keyword tail only when a VALUE form
+      ; follows it; a TRAILING one is a positional value ((Distances new root))
+      ((symbol? form)
+        (match ((%assoc-has? form fields) (pair? (rest inits))) (#t #f)))
+      (#t #f))))
 
 ; Split a new op's args into positional prefix + keyword tail: positional
 ; forms are paired with %ctor-member-names as (name . form) alist entries, and
@@ -568,25 +576,25 @@
     ; fields (the %all-fields template) and the positional ctor order both
     ; come from the class's hot record -- computed once per table build, not
     ; re-walked per construction.
-    (let ((hot (%class-hot class)))
-      (let ((fields (first (rest (rest hot)))))
-        (let ((store (if eval?
-                       (%positional->store inits (first (rest (rest (rest hot)))) fields class)
-                       inits)))
-          (%check-init-keys store fields class)
-          (let ((inst (%make-instance %object
-                        (list class (%init-fields fields store e eval?)))))
-            ; %init protocol hook (the initialize slot): a class's %init
-            ; method, if any, runs once the fields are built -- construction
-            ; logic beyond plain field values. Resolved through the flat
-            ; table, so a child's override wins and (super self %init)
-            ; chains as usual. Fires on every construction door (new,
-            ; class-dispatch new, new-from).
-            (let ((itab (first hot)))
-              (let ((m (%entry-inner (%tab-find! itab itab (lit %init)))))
-                (unless (if (null? m) #t (eq? m %field-tag))
-                  (%apply m (list inst)))))
-            inst))))))
+    (def hot (%class-hot class))
+    (def fields (first (rest (rest hot))))
+    (def store
+      (match
+        (eval? (%positional->store inits (first (rest (rest (rest hot)))) fields class))
+        (#t inits)))
+    (%check-init-keys store fields class)
+    (def inst (%make-instance %object (list class (%init-fields fields store e eval?))))
+    ; %init protocol hook (the initialize slot): a class's %init method, if
+    ; any, runs once the fields are built -- construction logic beyond plain
+    ; field values. Resolved through the flat table, so a child's override
+    ; wins and (super self %init) chains as usual. Fires on every
+    ; construction door (new, class-dispatch new, new-from).
+    (def m (%entry-inner (%tab-find! (first hot) (first hot) (lit %init))))
+    (match
+      ((null? m) ())
+      ((eq? m %field-tag) ())
+      (#t (%apply m (list inst))))
+    inst))
 
 (note "Dispatch handlers")
 
@@ -1624,15 +1632,18 @@
 ; box distinguishes a supplied 0/nil from a missing key.
 (def %init-fields
   (fn (loop members inits e eval?)
-    (unless (null? members)
-      (let ((name (first (first members)))
-            (default (rest (first members))))
-        (let ((cell (%opt-cell name inits)))
-          (pair (pair name
-                  (if (null? cell)
-                    (unless (null? default) (default))
-                    (if eval? (eval (first cell) e) (first cell))))
-                (loop (rest members) inits e eval?)))))))
+    (match
+      ((null? members) ())
+      (#t ((fn (_ name default cell)
+             (pair (pair name
+                     (match
+                       ((null? cell) (match ((null? default) ()) (#t (default))))
+                       (eval? (eval (first cell) e))
+                       (#t (first cell))))
+                   (loop (rest members) inits e eval?)))
+           (first (first members))
+           (rest (first members))
+           (%opt-cell (first (first members)) inits))))))
 
 (doc class-call-handler "Make the call handler that gives a type's values method dispatch: (value selector args...) calls the class's static method, subject-last, and any other call form is echoed as data."
   (param class CLASS "The class whose static methods answer the value's messages")

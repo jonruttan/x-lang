@@ -69,10 +69,10 @@ arm64 looped, since no draw is under a limit of 0.
 ```x
 (do (import x/num/random)
   (let ((r (Random sw 1)))
-    (list (guard (e (Err tag e)) (r int 0))
-          (guard (e (Err tag e)) (r int -3))
-          (guard (e (Err tag e)) (r range 5 5))
-          (guard (e (Err tag e)) (r between 5 4)))))
+    (list (guard (e (Err label e)) (r int 0))
+          (guard (e (Err label e)) (r int -3))
+          (guard (e (Err label e)) (r range 5 5))
+          (guard (e (Err label e)) (r between 5 4)))))
 ```
 ---
     ('value 'value 'value 'value)
@@ -202,7 +202,7 @@ arm64 looped, since no draw is under a limit of 0.
 
 ```x
 (do (import x/num/random)
-  (list (guard (e (Err tag e)) ((Random sw 1) sample 3 (list 1 2)))))
+  (list (guard (e (Err label e)) ((Random sw 1) sample 3 (list 1 2)))))
 ```
 ---
     ('value)

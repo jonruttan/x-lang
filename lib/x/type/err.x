@@ -1,11 +1,11 @@
-; err.x -- Err: structured errors -- tag + message + data (#20)
+; err.x -- Err: structured errors -- label + message + data (#20)
 ;
 ; An error VALUE is any x value (the C error prim raises whatever it is
 ; handed); Err is the structured convention on top:
 ;
 ;   (Err raise 'io "open failed" '((path . "/tmp/x")))
 ;
-; The tag vocabulary is BLESSED BUT OPEN (any symbol is legal; these are
+; The label vocabulary is BLESSED BUT OPEN (any symbol is legal; these are
 ; the words the stdlib itself uses -- see contributing.md):
 ;
 ;   'type   wrong shape/type of argument
@@ -13,18 +13,18 @@
 ;   'index  out of range
 ;   'io     errno-backed OS boundary (see from-errno)
 ;   'state  wrong lifecycle state (uninitialized, already closed)
-;   'user   everything untagged -- ALL legacy bare-string errors
+;   'user   everything unlabelled -- ALL legacy bare-string errors
 ;   'engine  the ENGINE raised it, not the library: an ERR value, whose
 ;            code and subject are reachable with (Err code-of) and
 ;            (Err subject-of).  Not in the blessed list above because a
 ;            library raise never uses it -- only the engine can.
 ;
-; (Err tag v) is TOTAL: an Err answers its tag, an engine-raised ERR
+; (Err label v) is TOTAL: an Err answers its label, an engine-raised ERR
 ; answers 'engine, and anything else (a legacy bare string) answers 'user
 ; -- so one match discriminates every error the system can raise:
 ;
 ;   (guard (e (match
-;               ((eq? (Err tag e) 'io) (retry))
+;               ((eq? (Err label e) 'io) (retry))
 ;               (#t (error e))))          ; re-raise what we don't handle
 ;     body)
 ;
@@ -120,22 +120,22 @@
         (self n (rest table))))))
 
 (def-class Err ()
-  (doc "Structured error value: tag symbol + message string + data alist."
-    (note "The tag vocabulary is blessed but open: 'type 'value 'index 'io 'state 'user (see contributing.md). Raise with (Err raise ...) or (error (Err make ...)); discriminate in a guard with (Err tag e) -- total over all error values, legacy bare strings answer 'user.")
-    (example "((Err make 'io \"boom\" ()) tag)" "'io")
-    (example "(guard (e (Err tag e)) (Err raise 'state \"closed\" ()))" "'state"))
-  tag
+  (doc "Structured error value: label symbol + message string + data alist."
+    (note "The label vocabulary is blessed but open: 'type 'value 'index 'io 'state 'user (see contributing.md). Raise with (Err raise ...) or (error (Err make ...)); discriminate in a guard with (Err label e) -- total over all error values, legacy bare strings answer 'user.")
+    (example "((Err make 'io \"boom\" ()) label)" "'io")
+    (example "(guard (e (Err label e)) (Err raise 'state \"closed\" ()))" "'state"))
+  label
   msg
   data
-  (method tag? (self (param k SYMBOL "Tag to test against"))
-    (doc "Test this error's tag."
-      (returns BOOL "True when the error's tag is k")
-      (example "((Err make 'io \"x\" ()) tag? 'io)" "#t"))
-    (eq? (self tag) k))
+  (method label? (self (param k SYMBOL "Label to test against"))
+    (doc "Test this error's label."
+      (returns BOOL "True when the error's label is k")
+      (example "((Err make 'io \"x\" ()) label? 'io)" "#t"))
+    (eq? (self label) k))
   (method %repr (self)
-    (doc "Inspection form: #<err:KIND MESSAGE>."
+    (doc "Inspection form: #<err:LABEL MESSAGE>."
       (returns STRING "The repr string"))
-    (Str8 append "#<err:" (symbol->str (self tag)) " " (self msg) ">"))
+    (Str8 append "#<err:" (symbol->str (self label)) " " (self msg) ">"))
   (static
     ; --- engine errors ---------------------------------------------------
     ; The ERR type handle, resolved once from the base's own ERR -- the
@@ -151,27 +151,27 @@
         (note "An ERR's code and subject are static-string ATOMS -- the engine repoints their string pointers per raise, which is what keeps a raise allocation-free -- so they carry no STRING type and Str8 refuses them. Appending to \"\" copies the bytes out, the same lift the printer always used on a raw error atom."))
       (%str-append "" a))
 
-    (method make (self (param tag SYMBOL "Error tag, e.g. 'io")
+    (method make (self (param label SYMBOL "Error label, e.g. 'io")
                        (param msg STRING "Human-readable message")
                        (param data ALIST "Context alist (or ())"))
       (doc "Construct an Err value."
         (returns OBJECT "The Err instance")
         (example "(Err make 'value \"bad\" ())" "#<err:value bad>"))
-      (new Err tag tag msg msg data data))
+      (new Err label label msg msg data data))
 
-    (method raise (self (param tag SYMBOL "Error tag, e.g. 'io")
+    (method raise (self (param label SYMBOL "Error label, e.g. 'io")
                         (param msg STRING "Human-readable message")
                         (param data ALIST "Context alist (or ())"))
-      (doc "Construct an Err and raise it: (error (Err make tag msg data) \"tag: msg\")."
+      (doc "Construct an Err and raise it: (error (Err make label msg data) \"label: msg\")."
         (returns ANY "Does not return"))
       ; The second argument is the UNCAUGHT report.  A guard still
-      ; receives the Err object -- (Err tag e) depends on that -- but
+      ; receives the Err object -- (Err label e) depends on that -- but
       ; an uncaught object printed as the bare word "error", because the
       ; evaluator cannot render one and will not learn the class layout
       ; (x-lang#211).  So the prose travels with the raise: every message
       ; below is now visible when nothing catches it.
-      (error (Err make tag msg data)
-             (Str8 append (symbol->str tag) (Str8 append ": " msg))))
+      (error (Err make label msg data)
+             (Str8 append (symbol->str label) (Str8 append ": " msg))))
 
     (method err? (self (param v ANY "Any value"))
       (doc "Test whether v is an Err instance."
@@ -179,13 +179,13 @@
         (example "(Err err? 42)" "#f"))
       (if (object? v) (eq? (class-of v) Err) #f))
 
-    (method tag (self (param v ANY "Any error value"))
-      (doc "The tag of any error value -- TOTAL, so one match discriminates every error the system can raise: an Err answers its own tag, an engine-raised ERR answers 'engine, and anything else (a legacy bare string) answers 'user."
-        (returns SYMBOL "The Err's tag, 'engine, or 'user")
-        (example "(Err tag \"bare string\")" "'user")
-        (example "(Err tag (Err make 'index \"oops\" ()))" "'index")
-        (example "(guard (e (Err tag e)) (no-such-binding))" "'engine"))
-      (if (Err err? v) (v tag) (if (Err engine? v) 'engine 'user)))
+    (method label (self (param v ANY "Any error value"))
+      (doc "The label of any error value -- TOTAL, so one match discriminates every error the system can raise: an Err answers its own label, an engine-raised ERR answers 'engine, and anything else (a legacy bare string) answers 'user."
+        (returns SYMBOL "The Err's label, 'engine, or 'user")
+        (example "(Err label \"bare string\")" "'user")
+        (example "(Err label (Err make 'index \"oops\" ()))" "'index")
+        (example "(guard (e (Err label e)) (no-such-binding))" "'engine"))
+      (if (Err err? v) (v label) (if (Err engine? v) 'engine 'user)))
 
     (method engine? (self (param v ANY "Any error value"))
       (doc "Test whether v is an ERR -- the value the ENGINE raises (an unbound symbol, a failed include), as opposed to an Err the library raised or a bare string."
@@ -229,7 +229,7 @@
     (method from-errno (self (param n INTEGER "errno, positive or the syscall layer's negative -errno")
                              (param op SYMBOL "The operation, e.g. 'open")
                              . (param detail ANY "Optional context value, e.g. the path"))
-      (doc "Translate an errno into a tag 'io Err. The message is strerror-style prefixed with op; data carries ((errno . N) (sym . ENOENT-style-symbol) (op . OP) (detail . D)). Numbers are per-OS (picked at load via os-darwin?); unknown numbers get sym 'unknown."
+      (doc "Translate an errno into a label 'io Err. The message is strerror-style prefixed with op; data carries ((errno . N) (sym . ENOENT-style-symbol) (op . OP) (detail . D)). Numbers are per-OS (picked at load via os-darwin?); unknown numbers get sym 'unknown."
         (returns OBJECT "The Err instance")
         (example "((Err from-errno 2 'open \"/nope\") msg)" "\"open: No such file or directory\"")
         (example "(Assoc get 'errno ((Err from-errno -2 'open ()) data))" "2"))
@@ -243,5 +243,5 @@
         (list (pair 'errno en) (pair 'sym sym) (pair 'op op) (pair 'detail d))))))
 
 (doc (provide x/type/err Err)
-  (note "The structured-error convention: tag + message + data over the untyped C error prim. See the header comment for the tag vocabulary and the guard/match idiom.")
-  "Structured errors: the Err class, tag taxonomy, errno translation.")
+  (note "The structured-error convention: label + message + data over the untyped C error prim. See the header comment for the label vocabulary and the guard/match idiom.")
+  "Structured errors: the Err class, label taxonomy, errno translation.")

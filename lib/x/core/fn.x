@@ -123,7 +123,7 @@
   (example "(apply + 1 2 (list 3 4))" "10")
   (example "(apply (Vector of 1 2 3) (list 1))" "2")
   (example "(apply (wrap (op (a) e a)) (list 5))" "5")
-  (example "(guard (e (Err tag e)) (apply () (list 1)))" "'type")
+  (example "(guard (e (Err label e)) (apply () (list 1)))" "'type")
   "Apply f to a list of arguments, with any leading arguments spliced in front: (apply f a b (list c d)) calls f with (a b c d). A closure, a primitive or an operative is applied by the engine; a wrapped combiner, (wrap c), is applied as c; any other value is applied through its type's call handler, the way (v args...) calls it, and a value with no handler raises a type error.")
 
 (def-class Fn ()
