@@ -185,6 +185,17 @@ count rows, and the declaration's layout digest changes with them.
 
 [#810]: https://github.com/jonruttan/x-lang/pull/810
 
+**The engine pin moves to x-engine-c v0.2.16** ([#838]). v0.2.16 carries the
+engine's contract in the glossary's words (x-engine-c#69) and `%seq` over any
+number of forms (x-engine-c#70), and x-lang follows its names: the ISA
+manifest's block is `%isa-catalogue`, `(type set-shape!)` is
+`(type set-unit-labels!)` and `Type set-shape!` is `Type set-unit-labels!`, the
+compiled states' door is `jit_score_label`, and the tokenizer's claim is
+`tok/label`. `obj-layout.x` no longer carries x-expr's simple-type codes, and
+the base's field routes end in `-fields`.
+
+[#838]: https://github.com/jonruttan/x-lang/pull/838
+
 **Two selectors of one class sent in turn settle at the front of its
 dispatch table** ([#814]). A lookup that found its selector deeper than
 second place swapped it with the head, which sent the head's entry to the
