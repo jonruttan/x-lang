@@ -21,17 +21,16 @@
 ; across files by decision (2026-09-24 and 2026-09-27, docs/namespaces.md).
 ; By the count before that the rows came to 673 reads in 121 files.  What
 ; is counted since is the reads that still want a door: 183, in 40 files.
+; A selector in a send, (self %walk ...), stopped counting as a read on
+; 2026-09-28, which took seven from that: 176, in 36 files.
 ; A read of a boot file's name that has no row in that manifest is not
 ; budgeted here; the gate refuses it.
-(file "apps/bitwise/cli.x" 1)
-(file "apps/bitwise/gen.x" 2)
 (file "lib/x/doc/doc-gen.x" 4)
 (file "lib/x/num/bigint.x" 1)
 (file "lib/x/repl/ansi.x" 10)
 (file "lib/x/repl/line.x" 4)
 (file "lib/x/repl/loop.x" 1)
 (file "lib/x/repl/paint.x" 1)
-(file "lib/x/sys/opts.x" 1)
 (file "lib/x/tool/asm-cache.x" 6)
 (file "lib/x/tool/asm-compile.x" 6)
 (file "lib/x/tool/asm/arm64.x" 4)
@@ -41,7 +40,6 @@
 (file "lib/x/type/assoc.x" 3)
 (file "lib/x/type/block.x" 7)
 (file "lib/x/type/class.x" 2)
-(file "lib/x/type/gen.x" 1)
 (file "lib/x/type/generic.x" 1)
 (file "lib/x/type/iter.x" 2)
 (file "lib/x/type/list.x" 2)
@@ -50,7 +48,7 @@
 (file "lib/x/type/type.x" 2)
 (file "tools/check/doc-forms.x" 1)
 (file "tools/check/doctest.x" 4)
-(file "tools/check/engine-contract.x" 10)
+(file "tools/check/engine-contract.x" 8)
 (file "tools/dev/bench-sha256.x" 7)
 (file "tools/dev/cov-report.x" 1)
 (file "tools/dev/doc.x" 2)
