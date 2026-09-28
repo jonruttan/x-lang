@@ -295,6 +295,9 @@
       (pair 'l (list 2483027968          ; 0x94000000
         (list 0 0 26 2)))))
 
+    ; ADR Xd, label (the label's address, PC-relative, within a megabyte)
+    (pair 'adr (list (pair 'rl 'adr)))
+
     ; BR Xn (branch to register)
     (pair 'br (list
       (pair 'r (list 3592355840          ; 0xD61F0000
@@ -475,6 +478,13 @@
   (fn (_ asm descriptor args)
     (match
       ((eq? descriptor 'movz) (%arm64-encode-movz asm () args))
+      ; ADR Xd, label = 0x10000000 | immlo<<29 | immhi<<5 | Rd: the byte
+      ; offset to the label in 21 bits, the low two at [30:29] and the high
+      ; nineteen at [23:5], which the resolver fills in once the label is
+      ; placed
+      ((eq? descriptor 'adr)
+        (do (asm-patch! asm 4 'arm64-adr (%op-value (first (rest args))))
+            (%emit-u32-le! asm (| 268435456 (& (%op-value (first args)) 31)))))
       ((or (eq? descriptor 'flt) (eq? descriptor 'feq))
         (let ((rd (%op-value (first args)))
               (rn (%op-value (first (rest args))))
@@ -484,22 +494,31 @@
           (%emit-u32-le! asm (| 2594113504 (| (<< inverse 12) rd)))))     ; 0x9A9F07E0 CSET
       (#t (%arm64-encode asm descriptor args)))))
 
-; --- Patch resolver: ARM64 PC-relative branches ---
+; --- Patch resolver: ARM64 PC-relative branches and addresses ---
 ; For B/BL: imm26 = (target - offset) >> 2, OR'd into low 26 bits
 (def %arm64-patch
   (fn (_ buf-ptr offset width ptype target)
     (def word (%ptr-ref buf-ptr offset 4))
     (def rel (>> (- target offset) 2))
-    (if (eq? ptype 'arm64-rel)
+    (match
       ; B/BL: imm26 at [25:0]
-      (let ((mask (- (<< 1 26) 1)))
-        (%ptr-set! buf-ptr offset (| (& word (~ mask)) (& rel mask)) 4))
-      (if (eq? ptype 'arm64-rel19)
-        ; CBZ/CBNZ/B.cond: imm19 at [23:5]
+      ((eq? ptype 'arm64-rel)
+        (let ((mask (- (<< 1 26) 1)))
+          (%ptr-set! buf-ptr offset (| (& word (~ mask)) (& rel mask)) 4)))
+      ; CBZ/CBNZ/B.cond: imm19 at [23:5]
+      ((eq? ptype 'arm64-rel19)
         (let ((mask (<< (- (<< 1 19) 1) 5)))
-          (%ptr-set! buf-ptr offset (| (& word (~ mask)) (& (<< (& rel (- (<< 1 19) 1)) 5) mask)) 4))
-        ; Generic fallback
-        (%ptr-set! buf-ptr offset (- target (+ offset width)) width)))))
+          (%ptr-set! buf-ptr offset (| (& word (~ mask)) (& (<< (& rel (- (<< 1 19) 1)) 5) mask)) 4)))
+      ; ADR: the byte offset, not the word offset, in 21 bits either way
+      ((eq? ptype 'arm64-adr)
+        (let ((bytes (- target offset)))
+          (if (or (< bytes (- 0 1048576)) (>= bytes 1048576))
+            (Err raise 'value "asm: adr to a label a megabyte or more away" ()))
+          ; 0x9F00001F keeps the opcode bits and Rd
+          (%ptr-set! buf-ptr offset
+            (| (& word 2667577375) (| (<< (& bytes 3) 29) (<< (& (>> bytes 2) 524287) 5))) 4)))
+      ; Generic fallback
+      (#t (%ptr-set! buf-ptr offset (- target (+ offset width)) width)))))
 
 ; --- Export architecture: (table . encoder . resolver) ---
 ; --- Relocate a 64-bit immediate in place (MOVZ + 3x MOVK) ---
