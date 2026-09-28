@@ -57,6 +57,14 @@ alias is kept.
 
 [#840]: https://github.com/jonruttan/x-lang/pull/840
 
+**The `doc-forms` gate counts fields, and its lines say so** ([#844]). Its
+lines read `doc-forms: ok (87 fields, all rendered)`,
+`doc-forms: FAIL -- fields declared but never rendered:` and
+`FILE  class NAME  field NAME  (absent from PAGE)`; they said members and
+member. The exit codes and what is checked are unchanged.
+
+[#844]: https://github.com/jonruttan/x-lang/pull/844
+
 **A stat record holds a file's type under `file-type`** ([#823]).
 `(File stat p)` and `(File lstat p)` answer
 `((size . N) (mode . M) (file-type . K) (mtime . T))`; the third key was

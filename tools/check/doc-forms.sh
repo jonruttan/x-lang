@@ -1,15 +1,15 @@
 #!/bin/sh
-# doc-forms.sh -- every class member must reach the generated reference
+# doc-forms.sh -- every class field must reach the generated reference
 #
-# The contract: every member declared in a (def-class ...) body under lib/
+# The contract: every field declared in a (def-class ...) body under lib/
 # appears as an entry on that module's page in docs/ref/x.
 #
 # Coverage is the checkable property.  A closed vocabulary of class-body forms
-# is not: a member is declared as (name), (name default) or
-# (name default "description"), so the head is the member's own name and the
+# is not: a field is declared as (name), (name default) or
+# (name default "description"), so the head is the field's own name and the
 # set is open.  A documented one is (doc DECL "description"), where DECL is
 # NAME or (NAME default); the walker reports its name beside the doc head.
-# Declared against rendered is what catches a generator that drops members
+# Declared against rendered is what catches a generator that drops fields
 # while the page still looks finished.
 #
 # Needs the reference BUILT: run after `make doc-x`, which is why this hangs
@@ -62,18 +62,18 @@ done
 
 [ -s "$TMP/forms" ] || { echo "doc-forms: no class bodies found -- the walker is broken" >&2; exit 1; }
 
-# Structural forms carry their own rendering; everything else is a member.
+# Structural forms carry their own rendering; everything else is a field.
 # The list mirrors tools/contract/doc-forms.x, which says what each one is.
 STRUCTURAL='^(doc|method|static|interface|private|protected)$'
 
 missing=0
 checked=0
-while read -r file cname form member; do
-  # A doc form that documents a field or a static member carries its name in
+while read -r file cname form field; do
+  # A doc form that documents a field or a static field carries its name in
   # a fourth column, and it is checked under that name.  A doc line without
   # one is the class's own description, which is structural.
-  if [ "$form" = doc ] && [ -n "$member" ]; then
-    form=$member
+  if [ "$form" = doc ] && [ -n "$field" ]; then
+    form=$field
   elif echo "$form" | grep -qE "$STRUCTURAL"; then
     continue
   fi
@@ -84,10 +84,10 @@ while read -r file cname form member; do
   checked=$((checked + 1))
   if ! grep -qF "### \`$form\`" "$page"; then
     if [ "$missing" -eq 0 ]; then
-      echo "doc-forms: FAIL -- members declared but never rendered:" >&2
+      echo "doc-forms: FAIL -- fields declared but never rendered:" >&2
     fi
     missing=$((missing + 1))
-    [ "$missing" -le 10 ] && printf '  %s  class %s  member %s  (absent from %s)\n' \
+    [ "$missing" -le 10 ] && printf '  %s  class %s  field %s  (absent from %s)\n' \
       "$file" "$cname" "$form" "$page" >&2
   fi
 done < "$TMP/forms"
@@ -97,4 +97,4 @@ if [ "$missing" -gt 0 ]; then
   exit 1
 fi
 
-printf 'doc-forms: ok (%d members, all rendered)\n' "$checked"
+printf 'doc-forms: ok (%d fields, all rendered)\n' "$checked"
