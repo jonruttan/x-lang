@@ -40,7 +40,7 @@
 
   (static
     ; --- libc, resolved once ------------------------------------------------
-    ; Static members, not file globals: the percent-global budget for a new
+    ; Static fields, not file globals: the percent-global budget for a new
     ; file is zero and these are this class's business anyway.
     (libc      ()  "The libc handle (dlopen), resolved at class definition")
     (c-tcget   ()  "tcgetattr")

@@ -395,7 +395,7 @@ The standard library's object system (`lib/x/type/class.x`) is the richest use o
 (p sum)              ; dispatches through the %object call handler (no quote)
 ```
 
-A class is itself a callable value of runtime type CLASS — `(Class static-method …)` dispatches its statics — wrapping a descriptor alist; each instance carries its class plus a mutable field box, and external code reaches either only through dispatch. Because it all rides on the type system's existing `call` hook, the whole class system — single inheritance, `super`, static methods and static members, encapsulation — needs no C code. See the [Object System](object-system.md) guide for the full API.
+A class is itself a callable value of runtime type CLASS — `(Class static-method …)` dispatches its statics — wrapping a descriptor alist; each instance carries its class plus a mutable field box, and external code reaches either only through dispatch. Because it all rides on the type system's existing `call` hook, the whole class system — single inheritance, `super`, static methods and static fields, encapsulation — needs no C code. See the [Object System](object-system.md) guide for the full API.
 
 #### Performance: compiling analysers
 

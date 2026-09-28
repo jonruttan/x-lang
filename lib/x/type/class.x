@@ -27,7 +27,7 @@
 ;
 ;            (obj name ...)                 (Class name ...)
 ;   method   instance method (from class)   static method
-;   field    instance field get/set         static member get/set
+;   field    instance field get/set         static field get/set
 ;   self     the instance                   the class
 ;
 ; A class's data is an alist:
@@ -35,7 +35,7 @@
 ;    (s-methods . SM) (statics . STATICS-BOX))
 ; -- the `fields` key holds the instance fields as a (name . default-value) alist;
 ; IM the instance methods; SM the static methods; STATICS-BOX a one-cell mutable box
-; holding the static member alist. An instance's slot 0 holds
+; holding the static field alist. An instance's slot 0 holds
 ; (class . field-box); the field-box is a one-cell mutable (name . value) alist.
 ;
 ; Selectors are literal -- both dispatch handlers are OPERATIVES, so (obj name)
@@ -125,10 +125,10 @@
 ; construction caches, shape
 ;   (itab stab fields ctor-names)
 ; itab holds instance methods + instance-field markers; stab holds static
-; methods + static-member markers, both chain-merged. An OWN static member
+; methods + static-field markers, both chain-merged. An OWN static field
 ; marks as the bare %field-tag; an INHERITED one as (%field-tag . OWNER),
 ; the nearest ancestor whose box holds it -- reads go to the owner's box,
-; matching what (help) has always displayed. A static member named `new`
+; matching what (help) has always displayed. A static field named `new`
 ; is dropped at every level: it never shadowed the new builtin. fields is
 ; the %all-fields (name . default-thunk) alist and ctor-names the
 ; positional constructor order. Most-derived wins: the chain walk records a
@@ -179,7 +179,7 @@
               (%fold-rows (%assoc-get (lit fields) (%class-data c))
                 (fn (_ row) (%vis-wrap c visal (first row) %field-tag))
                 acc))))))
-    (def %walk-statics                    ; ancestor static members, nearest first
+    (def %walk-statics                    ; ancestor static fields, nearest first
       (fn (loop c acc)
         (if (null? c) acc
           (loop (%assoc-get (lit parent) (%class-data c))
@@ -446,7 +446,7 @@
             (error (%str-append (symbol->str (class-name class))
               (match
                 ((null? selector)
-                  ": call with no selector -- name a member or method")
+                  ": call with no selector -- name a field or method")
                 ((symbol? selector)
                   (%str-append what
                     (%str-append (symbol->str selector) (%sug-hint tab selector))))
@@ -663,9 +663,9 @@
 (def %class-statics     (fn (_ class) (first (%class-statics-box class))))
 
 ; Class dispatch: one flat-table walk decides static method vs static
-; member vs the new builtin -- the same tail-eval re-drive as instance
+; field vs the new builtin -- the same tail-eval re-drive as instance
 ; dispatch. A static METHOD named new is in the table and shadows the
-; builtin (as always); a static MEMBER named new was dropped at flatten,
+; builtin (as always); a static FIELD named new was dropped at flatten,
 ; so the builtin still wins there (as always).
 (def %class-dispatch
   (op (self sel-raw . args) e
@@ -673,12 +673,12 @@
           (stab (first (rest (%class-hot self)))))
       (let ((entry (%tab-find! stab stab selector)))
         (match
-          ((eq? entry %field-tag)                     ; own static member
+          ((eq? entry %field-tag)                     ; own static field
             (match
               ((null? args) (%assoc-get selector (%class-statics self)))
               (#t (%box-put! (%class-statics-box self) selector (eval (first args) e)))))
           ((if (pair? entry) (eq? (first entry) %field-tag) #f)
-            ; inherited static member: reads go to the owning ancestor's box
+            ; inherited static field: reads go to the owning ancestor's box
             ; (nearest wins, matching help's display); a write SHADOWS into
             ; our own box -- the parent's value is never mutated through a
             ; child; spell a deliberate parent write (Parent name v). The
@@ -756,7 +756,7 @@
           (pair obj (eval args e))
           (let ((sel (%selector (first args))))
             (if (symbol? sel)
-              ; Static-method resolve via the flat table; a static-member
+              ; Static-method resolve via the flat table; a static-field
               ; marker is not callable here (same miss as before). The call
               ; is re-driven through tail-eval: raw arg forms evaluate once
               ; in the caller's env, and the receiver rides LAST, spliced as
@@ -790,7 +790,7 @@
           (pair obj (eval args e))
           (let ((sel (%selector (first args))))
             (if (symbol? sel)
-              ; Static-method resolve via the flat table; a static-member
+              ; Static-method resolve via the flat table; a static-field
               ; marker is not callable here (same miss as before). The call
               ; is re-driven through tail-eval: raw arg forms evaluate once
               ; in the caller's env, and the receiver rides LAST, spliced as
@@ -901,7 +901,7 @@
 ; class or instance) and the literal selector sel, and returns a closure that,
 ; when applied, re-drives the normal dispatch: (Target sel . args). It does NOT
 ; introspect the method tables -- it just defers the call -- so it works for
-; static methods, instance methods, and members uniformly, with any arity.
+; static methods, instance methods, and fields uniformly, with any arity.
 ;   (%map (method-ref Str upcase) lst)
 ;   (regex-replace rx s (method-ref Str upcase))
 ; Each captured value (target, selector, and every applied arg) is spliced as a
@@ -913,7 +913,7 @@
         ; Late-bound by contract: resolve per call (so a rebuilt table is
         ; honoured), but through the flat tables -- a method hit applies the
         ; closure directly on the already-evaluated args, no form rebuild.
-        ; A member (field marker) or non-class target falls back to driving
+        ; A field marker or a non-class target falls back to driving
         ; the normal dispatch form, values spliced as (lit V) literals so
         ; nothing re-evaluates.
         (let ((entry
@@ -985,7 +985,7 @@
   (see object?)
   "Test whether an instance belongs to a class or any of its descendants.")
 
-(note "Introspection -- member/method names (own, not inherited), used by help")
+(note "Introspection -- field/method names (own, not inherited), used by help")
 
 ; The method accessors below strain their keys through %names-minus: a
 ; selector defined again after the class was built is a SECOND ROW in the
@@ -993,7 +993,7 @@
 ; dispatch, and the class still has one method under that name.  Every
 ; (Block method! ...) wrap goes that way, so without this every wrapped
 ; selector was named twice -- and printed twice by (help x/type/list) and
-; its siblings.  The member accessors need nothing: their alists are
+; its siblings.  The field accessors need nothing: their alists are
 ; written through %box-put!, which replaces an entry in place.
 
 (doc (def class-fields
@@ -1009,17 +1009,17 @@
   (see class-fields)
   "List a class's own instance method names (not inherited).")
 
-(doc (def class-static-members
+(doc (def class-static-fields
   (fn (_ (param c CLASS "A class")) (%assoc-keys (%class-statics c))))
-  (returns LIST "This class's own static-member names")
+  (returns LIST "This class's own static-field names")
   (see class-static-methods)
-  "List a class's own static member names (not inherited).")
+  "List a class's own static field names (not inherited).")
 
 (doc (def class-static-methods
   (fn (_ (param c CLASS "A class"))
     (%names-minus (%assoc-keys (%assoc-get (lit s-methods) (%class-data c))) ())))
   (returns LIST "This class's own static-method names")
-  (see class-static-members)
+  (see class-static-fields)
   "List a class's own static method names (not inherited).")
 
 ; The static method itself, not the bound callable method-ref answers: what a
@@ -1511,7 +1511,7 @@
             (traits (%with-traits body ()))
             (tbox (list ())))                          ; %this-class box, filled below
         (let ((imems (%collect-fields name body e #t))    ; instance fields: per-construction defaults
-              (smems (%collect-fields name sblock e #f))) ; static members: once, class-wide
+              (smems (%collect-fields name sblock e #f))) ; static fields: once, class-wide
           (do
             (%check-dups! imems)
             (%check-dups! smems)
@@ -1561,7 +1561,7 @@
   (note "                                           evaluated per construction, so (links (Set make)) is fresh each time)")
   (note "  (doc DECL \"desc\" meta..)                 document a field; DECL is NAME or (NAME default)")
   (note "  (method NAME (self . args) body...)      instance method")
-  (note "  (static MEMBER... (method ...)...)       static members + static methods")
+  (note "  (static FIELD... (method ...)...)        static fields + static methods")
   (note "  (interface NAME...)                      abstract: a concrete subclass must implement each NAME")
   (note "  (private DECL...) | (protected DECL...)  visibility blocks (fields and methods; also inside (static ...)):")
   (note "                                           private = defining class's methods only; protected = its chain.")
@@ -1657,11 +1657,11 @@
 (doc (provide x/type/class
   def-class new new-from super method-ref method-of
   object? class? class-of class-name class-parent instance-of?
-  class-fields class-methods class-static-members class-static-methods class-static-ref
+  class-fields class-methods class-static-fields class-static-methods class-static-ref
   class-call-handler bind-call-over!)
   (note "Instances: (obj name args...) -- method wins, else field (obj m)/(obj m v).")
   (note "Classes are callable: (Class name args...) -- static method, (Class new ...) to")
-  (note "instantiate, else static member (Class m)/(Class m v). Use classes as")
+  (note "instantiate, else static field (Class m)/(Class m v). Use classes as")
   (note "namespaces of static methods. Raw field access in methods: (field 'm)/(set-field! 'm v).")
   (note "class-call-handler / bind-call-over! are the PUBLIC value-call extension hooks")
   (note "(the % marks handler-layer machinery, not module privacy): (bind-call-over! (Type of v) Class)")

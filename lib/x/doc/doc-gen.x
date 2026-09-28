@@ -138,7 +138,7 @@
 ; One field declaration -> heading, optional description, the field note and
 ; its visibility tier.  Shared by the (doc NAME "...") arm and the bare-field
 ; arm, which differ only in where the description sits.
-(def %doc-emit-member
+(def %doc-emit-field
   (fn (_ em name desc cname vis)
     (em alias (Str str cname "-" name))
     (em entry-head name)
@@ -366,7 +366,7 @@
                 ((%docgen-form? f)
                   (if (str? (first (rest f)))
                     (%doc-emit-class-doc em f)
-                    (%doc-emit-member em
+                    (%doc-emit-field em
                       (symbol->str (first (rest f)))
                       (if (str? (first (rest (rest f)))) (first (rest (rest f))) "")
                       cname vis)))
@@ -394,7 +394,7 @@
                     ; field (ledger) the tail is (rest ()), and rest is as
                     ; unchecked as first.  Guarding only the (first tail)
                     ; still segfaulted -- the same trap, one level further in.
-                    (%doc-emit-member em
+                    (%doc-emit-field em
                       (symbol->str (first f))
                       (let ((tail (if (pair? (rest f)) (rest (rest f)) ())))
                         (if (pair? tail)

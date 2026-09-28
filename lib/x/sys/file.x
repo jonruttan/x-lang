@@ -82,7 +82,7 @@
 (def %stat-read (Struct reader %stat-fields))
 
 ; --- The flag tables (surfaced via the methods below) ---
-; Static value members can't carry help text, so the tables live as data and
+; Static value fields can't carry help text, so the tables live as data and
 ; the (File file-modes)/(File stat-flags) methods expose + document them.
 ; The O_* open-flag tables (file-modes) are PLATFORM truth and live in
 ; x/platform/syscall.x (imported above), shared with sys/posix.x.  The S_*

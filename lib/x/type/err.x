@@ -145,7 +145,7 @@
   (static
     ; --- engine errors ---------------------------------------------------
     ; The ERR type handle, resolved once from the base's own ERR -- the
-    ; single instance every engine raise fills.  A static member and not a
+    ; single instance every engine raise fills.  A static field and not a
     ; top-level %-global: the top level is sacred (#108), and a class is
     ; the namespace the rule points at.
     (%engine-type ((prim-ref (lit type) (lit of))
