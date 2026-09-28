@@ -19,6 +19,15 @@ from an unpacked release, and the image tools mark with the engine's
 
 [#835]: https://github.com/jonruttan/x-lang/pull/835
 
+**A stat record holds a file's type under `file-type`** ([#823]).
+`(File stat p)` and `(File lstat p)` answer
+`((size . N) (mode . M) (file-type . K) (mtime . T))`; the third key was
+`kind`. The values are the same: `'file`, `'dir`, `'link`, `'char`, `'block`,
+`'fifo`, `'socket` and `'unknown`. No alias is kept: a caller that read
+`(Assoc get 'kind st)` now reads `(Assoc get 'file-type st)`.
+
+[#823]: https://github.com/jonruttan/x-lang/pull/823
+
 **`type/promise.x` and `repl/ansi.x` have module headers** ([#824]). The
 promise type's handle and five other `%` names, and ansi's twenty-six, are
 their files' own now. The root keeps the `Promise` and `Ansi` classes and
@@ -1779,9 +1788,9 @@ value, the way `(List length lst)` reads), `(e label)` the field,
 `(e label? 'io)` the predicate, and `make` / `raise` take a `label`. No
 alias is kept: a guard that matched on `(Err kind-of e)` now writes
 `(Err label e)` (released as `(Err tag e)`, now `(Err label e)`).
-(`Err code-of` and `File stat`'s `kind` key are untouched: the first is an
-engine raise's message literal, the second names a file's kind -- 'file 'dir
-'link.)
+(`Err code-of` and `File stat`'s `file-type` key, released as `kind`, are
+untouched: the first is an engine raise's message literal, the second names
+a file's type -- 'file 'dir 'link.)
 
 **A reader hears which state accepted, instead of rescanning to find out.**
 An analyser state knows which of its states accepted and threw it away; the
