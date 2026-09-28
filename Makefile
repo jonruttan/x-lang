@@ -275,8 +275,22 @@ $(ENGINE_DIR)/$(EXECUTABLE): engine-link FORCE
 x-bin-asan x-bin-cov x-bin-profile x-bin-debug: %: $(ENGINE_DIR)/%
 	cp $< $@
 
-$(ENGINE_DIR)/x-bin-asan $(ENGINE_DIR)/x-bin-cov $(ENGINE_DIR)/x-bin-profile $(ENGINE_DIR)/x-bin-debug: $(ENGINE_DIR)/%: FORCE
+$(ENGINE_DIR)/x-bin-asan $(ENGINE_DIR)/x-bin-cov $(ENGINE_DIR)/x-bin-debug: $(ENGINE_DIR)/%: FORCE
 	$(ENGINE_MAKE) $*
+
+# The profiling engine ships in a release beside the plain one, from
+# x-engine-c v0.2.15 on, so it takes the plain engine's rule: a checkout
+# builds it, and an unpacked release already holds it.
+$(ENGINE_DIR)/x-bin-profile: engine-link FORCE
+	@$(ENGINE_ENSURE)
+	@if [ -f $(ENGINE_DIR)/Makefile ]; then \
+		$(MAKE) --no-print-directory -C $(ENGINE_DIR) x-bin-profile; \
+	elif [ ! -x $(ENGINE_DIR)/x-bin-profile ]; then \
+		echo "$(ENGINE_DIR) -> $(ENGINE_SRC) has neither sources to build nor a profiling engine to use." >&2; \
+		echo "A release ships x-bin-profile from x-engine-c v0.2.15 on." >&2; \
+		echo "For your own: make X_ENGINE_DIR=/path/to/engine x-bin-profile" >&2; \
+		exit 1; \
+	fi
 
 # The C spec suite belongs to the engine repo and its CI runs it.  This is
 # the local door to it, so `make test` here can still be the whole verdict.
@@ -374,16 +388,19 @@ test-stress: $(EXECUTABLE) ## Run x-lang tests including the stress lane
 .PHONY: test-stress
 
 # The tools' own spec suite (tools/tests), repaired from the post-overhaul
-# rot (#180).  Two runners: spec-runner.sh takes the top-level specs on the
+# rot (#180).  Three runners: spec-runner.sh takes the top-level specs on the
 # plain engine; cov-spec-runner.sh takes specs/cov/ on x-bin-cov, because
-# coverage marking only exists under -DX_COV.
+# coverage marking only exists under -DX_COV; profile-spec-runner.sh takes
+# specs/profile/ on x-bin-profile, because only -DX_PROFILE counts evaluation.
+# A release ships x-bin-profile, so that half runs on every tree.
 # THE COV HALF NEEDS A COV ENGINE, and the rest of the suite does not.  Making
 # the whole target depend on x-bin-cov meant a tree running a released engine
 # could not run ANY tool spec: the variant has to be compiled, and a release
 # ships no C.  Splitting it keeps the artifact path honest -- the tools are
 # x-lang's, and only the coverage tool needs an instrumented engine under it.
-test-tools: $(EXECUTABLE) ## Run the tool suite's specs (tools/tests)
+test-tools: $(EXECUTABLE) x-bin-profile ## Run the tool suite's specs (tools/tests)
 	sh tools/tests/spec-runner.sh
+	sh tools/tests/profile-spec-runner.sh
 	@$(ENGINE_ENSURE); if [ -f $(ENGINE_DIR)/Makefile ]; then \
 		$(MAKE) --no-print-directory x-bin-cov && sh tools/tests/cov-spec-runner.sh; \
 	else \
@@ -909,7 +926,12 @@ bench: x-bin-profile ## Run benchmarks
 
 cov-x: x-bin-profile ## x-lang library coverage report
 	sh tools/dev/cov-lib.sh
-.PHONY: bench
+
+# FILE is the program to profile; LIB and ROWS are profile.sh's -l and -n.
+profile-x: x-bin-profile ## Which functions a program's evaluation goes to (FILE=program.x)
+	@[ -n "$(FILE)" ] || { echo "profile-x: name the program, make profile-x FILE=program.x" >&2; exit 2; }
+	sh tools/dev/profile.sh $(if $(LIB),-l $(LIB)) $(if $(ROWS),-n $(ROWS)) $(FILE)
+.PHONY: bench cov-x profile-x
 
 # ============================================================================
 # Dev tools
