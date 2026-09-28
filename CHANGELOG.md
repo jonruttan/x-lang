@@ -5,7 +5,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**An instance's data is its fields** ([#826]). A field is a named component of
+**An instance's data is its fields** ([#829]). A field is a named component of
 an instance or a record, a member is a field or a method, and a class's own
 data is a static member. Inside a method, `(field 'name)` reads an instance's
 storage and `(set-field! 'name v)` writes it; they were `(member 'name)` and
@@ -18,7 +18,26 @@ names. No alias is kept.
 Five messages follow: `is not a field of`, `use bare field names`,
 `declare fields directly`, `expected a field name` and `duplicate field`.
 
-[#826]: https://github.com/jonruttan/x-lang/pull/826
+[#829]: https://github.com/jonruttan/x-lang/pull/829
+
+**An error's classifying symbol is its label** ([#821]). `(Err label e)` is the
+total accessor, `(e label)` the field and `(e label? 'io)` the predicate, and
+`make` and `raise` take a `label`. They were `(Err tag e)`, `(e tag)` and
+`(e tag? 'io)`. The glossary's word for the value that says which variant
+something is, is label, and an error's `'io` is one. No alias is kept: a guard
+that matched on `(Err tag e)` now writes `(Err label e)`.
+
+A bundle that runs on both sides of the rename asks the platform once, at
+load, which name it has, as x-coreutils and x-python do:
+
+```x
+(def %cu-err-label
+  (guard (_ (fn (_ e) (Err tag e)))
+    (do (Err label "probe")
+        (fn (_ e) (Err label e)))))
+```
+
+[#821]: https://github.com/jonruttan/x-lang/pull/821
 
 **A spec may not rebind the library's root %-definitions** ([#818]). A spec
 snippet is evaluated at the root, so its top-level defs outlive it, and
@@ -71,6 +90,20 @@ through the module's syscall doors. The same listing allocates about 11,300,
 and a 52-entry batch decodes in about 7,000 where it took 38,900.
 
 [#811]: https://github.com/jonruttan/x-lang/pull/811
+
+**The ASan boot gate is safe beside another run of itself** ([#820]).
+`tools/check/asan-boot.sh` made its boots cold by moving every `/tmp/x-asm-*`
+entry into its scratch directory and back under `set -e`, so a second run that
+moved the same file first ended it with status 1 and nothing printed.
+compile-asm's byte cache takes its directory from `X_ASM_CACHE_DIR`, and from
+`/tmp` when that is unset or empty, and the gate gives each dialect's boot an
+empty directory of its own: it moves no files and shares no entries. Every boot
+compiles cold, rn's included; xe and rn compile the same 24 units, and a cache
+shared by the run left rn none to compile. The boots pass `--no-image`, because
+rewriting a stale state image boots the dialect first and fills the cache before
+the boot under test.
+
+[#820]: https://github.com/jonruttan/x-lang/pull/820
 
 **A block-wrapped method tests for a block send without a class dispatch**
 ([#815]). Every send of a selector `Block method!` wraps -- `List map`,
@@ -133,6 +166,17 @@ and `(obj set!)` 22 and 25 where they took 280 and 283; under helium the four
 took 51, 51, 38 and 41.
 
 [#809]: https://github.com/jonruttan/x-lang/pull/809
+
+**`do` builds only the nest a body needs** ([#822]). `do` checked each cell of
+its body with a function call and rebuilt the whole body as nested two-form
+`%seq` calls on every run: 19 objects for one form, 36 for two and 87 for five.
+The checks are now match tests over the type prims, which allocate nothing. One
+form is tail-evaluated as it is, two are handed to `%seq` in the body's own
+cells, and a longer body builds its nest with the body's last cell innermost.
+Every cell is still checked before any form runs. One form now allocates 5
+objects, two 6, three 23 and five 43, and `(do (def x 1) x)` 8 where it took 38.
+
+[#822]: https://github.com/jonruttan/x-lang/pull/822
 
 **`File stat` decodes through a Struct reader made once** ([#813]). A stat
 allocated about 51,000 objects, 40,600 of them decoding three fields: `Struct
@@ -1691,17 +1735,19 @@ becoming a code point list that can hold one, so a bare `print` of such a
 value had to be pinnable at all. `tests/spec-format.md` states the
 contract, `meta/multiline.spec.md` holds it.
 
-**An error's classifying symbol is its TAG, not its "kind".** `Err` grew
+**An error's classifying symbol is its LABEL, not its "kind".** `Err` grew
 up saying `kind`: `(Err kind-of e)`, `(e kind? 'io)`, the `kind` field,
 `(Err make kind msg data)`, and every doc string that promised "a kind-'io
 Err". Kind is not a term this tree uses for a classifier -- a token's
-classification is its variant, an error's is its tag -- so the API now says
-so: `(Err tag e)` is the total accessor (the noun applied to the value, the
-way `(List length lst)` reads), `(e tag)` the field, `(e tag? 'io)` the
-predicate, and `make` / `raise` take a `tag`. No alias is kept: a guard
-that matched on `(Err kind-of e)` now writes `(Err tag e)`. (`Err code-of`
-and `File stat`'s `kind` key are untouched: the first is an engine raise's
-message literal, the second names a file's kind -- 'file 'dir 'link.)
+classification is its variant, an error's is its label -- so the API now
+says so: `(Err label e)` is the total accessor (the noun applied to the
+value, the way `(List length lst)` reads), `(e label)` the field,
+`(e label? 'io)` the predicate, and `make` / `raise` take a `label`. No
+alias is kept: a guard that matched on `(Err kind-of e)` now writes
+`(Err label e)` (released as `(Err tag e)`, now `(Err label e)`).
+(`Err code-of` and `File stat`'s `kind` key are untouched: the first is an
+engine raise's message literal, the second names a file's kind -- 'file 'dir
+'link.)
 
 **A reader hears which state accepted, instead of rescanning to find out.**
 An analyser state knows which of its states accepted and threw it away; the
@@ -2035,7 +2081,7 @@ says what a send with no selector does.
 
 **Opts: the command line, parsed against a declaration.** Every bundle was
 writing this by hand -- x-grep's and x-make's option readers were byte
-identical apart from an error tag, and x-coreutils had grown nine of its own.
+identical apart from an error label, and x-coreutils had grown nine of its own.
 The cost was never the duplication but the drift between the check and the
 read. A bundle declares its options and Opts answers them.
 
@@ -2284,13 +2330,14 @@ same shape `char-io.x` has always used for CHARACTER:
   (fn (_ e) (display (Str8 append "symbole non liée : " (Err subject-of e)))))
 ```
 
-`Err` learned the vocabulary: `(Err kind-of e)` answers `'engine` for an
-engine raise rather than lumping it in with `'user`, and `(Err code-of e)` /
-`(Err subject-of e)` return the two facts as strings. The engine's whole
-raise vocabulary is five codes, so keying a translation off them is
-tractable. `boot/printer.x` lost the identity test it used to need (#54): a
-nil-typed atom had to be recognised by pointer to print at all, and a typed
-value simply dispatches — two `%`-globals gone with it.
+`Err` learned the vocabulary: `(Err label e)` (released as
+`(Err kind-of e)`, later `(Err tag e)`, now `(Err label e)`) answers
+`'engine` for an engine raise rather than lumping it in with `'user`, and
+`(Err code-of e)` / `(Err subject-of e)` return the two facts as strings.
+The engine's whole raise vocabulary is five codes, so keying a translation
+off them is tractable. `boot/printer.x` lost the identity test it used to
+need (#54): a nil-typed atom had to be recognised by pointer to print at
+all, and a typed value simply dispatches — two `%`-globals gone with it.
 
 Uncaught errors still word themselves in C and read exactly as before: that
 path runs before any library is loaded, and nothing on a fatal path should
@@ -2308,8 +2355,9 @@ failing loudly, which is the one unkind part of this change:
 | `(Str8 append "" e)` | `(Err code-of e)` for just the code |
 | — | `(Err subject-of e)` for just the name it is about |
 
-Guards that only *re-raise* or match on `(Err kind-of e)` are unaffected,
-and `(error "msg")` still delivers the string itself exactly as before.
+Guards that only *re-raise* or match on `(Err label e)` (released as
+`(Err kind-of e)`) are unaffected, and `(error "msg")` still delivers the
+string itself exactly as before.
 
 
 **The documentation answers a machine now.** `AGENTS.md` (with `CLAUDE.md`

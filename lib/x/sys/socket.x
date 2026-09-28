@@ -7,7 +7,7 @@
 ; socket()/bind()/... exist identically on both OSes.
 ;
 ; IPv4 only, blocking, no DNS: `host` is a dotted quad ("127.0.0.1").
-; Failures raise tag 'io Errs via (Err from-errno (Err errno-of r) ...).
+; Failures raise label 'io Errs via (Err from-errno (Err errno-of r) ...).
 (module x/sys/socket)
 
 (import x/sys/posix)
@@ -56,7 +56,7 @@
 ; the syscall itself; the name is kept for the call sites below.
 (def %sk-fold (fn (_ r) (Sys %sign-fold r)))
 
-; Parse a dotted quad into its four octets; tag 'value Err on anything
+; Parse a dotted quad into its four octets; label 'value Err on anything
 ; else (no DNS here by design).
 (def %parse-quad
   (fn (_ host)
@@ -94,7 +94,7 @@
         (%sk-set1! addr 7 (List ref 3 o))))
     addr))
 
-; Raise a tag 'io Err for a failed call (fetch errno FIRST -- any
+; Raise a label 'io Err for a failed call (fetch errno FIRST -- any
 ; intervening libc call clobbers it), freeing addr if given.
 (def %sk-fail
   (fn (_ r op detail addr)
@@ -104,7 +104,7 @@
 
 (def-class Socket ()
   (doc "Blocking IPv4 TCP over libc FFI: listen/accept on the server side, connect on the client side, send/recv/close on both."
-    (note "No DNS: hosts are dotted quads (\"127.0.0.1\"). Failures raise tag 'io Errs with errno detail; recv answers nil at orderly EOF (absence, not a sentinel).")
+    (note "No DNS: hosts are dotted quads (\"127.0.0.1\"). Failures raise label 'io Errs with errno detail; recv answers nil at orderly EOF (absence, not a sentinel).")
     (sample "(let ((fd (Socket tcp-connect \"127.0.0.1\" 8080))) (Socket send fd \"ping\") (Socket recv fd 4096))" "the reply string"))
   (static
     (method tcp-listen (self (param port INTEGER "Port to bind")
@@ -175,7 +175,7 @@
           s)))
 
     (method resolve (self (param name STRING "Hostname to resolve"))
-      (doc "The host's first IPv4 address as a dotted quad, via getaddrinfo (#412) -- the DNS door; every other Socket method still takes quads. Raises tag 'io with the gai code when resolution fails, tag 'value when the name has no IPv4 address."
+      (doc "The host's first IPv4 address as a dotted quad, via getaddrinfo (#412) -- the DNS door; every other Socket method still takes quads. Raises a label 'io with the gai code when resolution fails, label 'value when the name has no IPv4 address."
         (returns STRING "A dotted quad, e.g. \"140.82.114.3\"")
         (sample "(Socket resolve \"localhost\")" "\"127.0.0.1\""))
       (def %pref-word (prim-ref (lit ptr) (lit ref-word)))
@@ -348,7 +348,7 @@
     ; the same methods TCP uses.
 
     (method %sockaddr-un (self (param path STRING "Filesystem socket path (under 100 bytes)"))
-      (doc "Build a malloc'd sockaddr_un for path -- the caller frees. Raises tag 'value past 99 bytes (the struct's path field is 104)."
+      (doc "Build a malloc'd sockaddr_un for path -- the caller frees. Raises a label 'value past 99 bytes (the struct's path field is 104)."
         (returns POINTER "The packed address (110 bytes)"))
       (def plen (Str8 length path))
       (when (> plen 99)
