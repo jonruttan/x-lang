@@ -19,7 +19,7 @@
 - [Architecture](architecture.md) — System design, evaluation model, the contract pattern
 - [The Engine Contract](engine-contract.md) — What an engine must provide, promise and report; how a second implementation is checked
 - [Type System](type-system.md) — Objects, types, the base object, dispatch, extensibility
-- [Object System](object-system.md) — Message-passing classes, single inheritance, encapsulated members, `super`
+- [Object System](object-system.md) — Message-passing classes, single inheritance, encapsulated fields, `super`
 - [Dialects](dialects.md) — the helium, xenon, and radon dialect layers
 - [The Lang Contract](lang-contract.md) — what a lang may rely on, and how one is acquired as a pinned bundle
 - [Crafting a Lang](crafting-a-lang.md) — how one is actually built: the reader's machinery, the type-system mapping, the rules that bite, distilled from building x-python

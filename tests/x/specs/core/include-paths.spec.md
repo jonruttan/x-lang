@@ -257,9 +257,9 @@ handed out the newer one would rebind the exported names under every caller.
 ```x
 (do
   (File write-all "build/ivspec/vmod/layer@1.0.x"
-    "(def-class L ()\n  (doc (x 10) \"The x slot.\")\n  (static (method new (self) (new-from self (list))))\n  (method x (self) (member 'x))\n  (method describe (self) \"v1\"))\n(provide vmod/layer L)\n")
+    "(def-class L ()\n  (doc (x 10) \"The x slot.\")\n  (static (method new (self) (new-from self (list))))\n  (method x (self) (field 'x))\n  (method describe (self) \"v1\"))\n(provide vmod/layer L)\n")
   (File write-all "build/ivspec/vmod/layer@2.0.x"
-    "(import-version-once vmod/layer \"1.0.*\")\n(def L1 L)\n(def-class L (extends L1)\n  (doc (y 20) \"The y slot.\")\n  (method y (self) (member 'y))\n  (method describe (self) (Str str \"v2 over \" (super self describe))))\n(provide vmod/layer L)\n")
+    "(import-version-once vmod/layer \"1.0.*\")\n(def L1 L)\n(def-class L (extends L1)\n  (doc (y 20) \"The y slot.\")\n  (method y (self) (field 'y))\n  (method describe (self) (Str str \"v2 over \" (super self describe))))\n(provide vmod/layer L)\n")
   (display "ready"))
 ```
 ---
@@ -267,7 +267,7 @@ handed out the newer one would rebind the exported names under every caller.
 
 ### the self-lower import loads, and the subclass answers for both versions
 
-Inherited static `new`, the parent's slot and method, the subclass's own,
+Inherited static `new`, the parent's field and method, the subclass's own,
 and `super` reaching the v1 method through the chain.
 
 ```x

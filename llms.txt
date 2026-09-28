@@ -36,7 +36,7 @@ runnable example, and `(modules)` lists everything available. From a shell:
 - [Syntax](https://jonruttan.github.io/x-lang/docs/syntax.html): the preferred forms and idioms
 - [Architecture](https://jonruttan.github.io/x-lang/docs/architecture.html): system design, the evaluation model, the contract pattern
 - [Type system](https://jonruttan.github.io/x-lang/docs/type-system.html): objects, types, the base object, dispatch, extensibility
-- [Object system](https://jonruttan.github.io/x-lang/docs/object-system.html): message-passing classes, single inheritance, encapsulated members, `super`
+- [Object system](https://jonruttan.github.io/x-lang/docs/object-system.html): message-passing classes, single inheritance, encapsulated fields, `super`
 - [Dialects](https://jonruttan.github.io/x-lang/docs/dialects.html): helium (default, no numeric tower), xenon (full stack), radon (experimental)
 - [Modules](https://jonruttan.github.io/x-lang/docs/modules.html): the provide/import system, and pinning a project's libraries
 

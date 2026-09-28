@@ -52,10 +52,10 @@
       (self from-list args)))
 
   ; Uninitialized guard: an instance built outside make (generic new, raw
-  ; new-from) has nil members; %live raises the teaching 'state Err at
-  ; first USE, before nil reaches the raw vector layer (segfault class).
+  ; new-from) has nil fields; %live raises the teaching 'state Err at
+  ; first USE, before nil reaches the raw vector layer (otherwise a segfault).
   (method %live (self)
-    (when (null? (member 'store))
+    (when (null? (field 'store))
       (Err raise 'state "Array: uninitialized instance (use Array make / from-list / of)" ())))
 
   ; Normalize an index (negative counts from the end) and bounds-check it.
@@ -65,9 +65,9 @@
     (self %live)
     (def i2 (if (if (null? i) #f (eq? (%arr-type-of i) %arr-int-type)) i
       (Convert to-int i (Str8 append what ": index not convertible to INT"))))
-    (def j (if (< i2 0) (+ (member 'len) i2) i2))
+    (def j (if (< i2 0) (+ (field 'len) i2) i2))
     (if (< j 0) (Err raise 'index (Str8 append what ": index out of range") ())
-      (if (< j (member 'len)) j
+      (if (< j (field 'len)) j
         (Err raise 'index (Str8 append what ": index out of range") ()))))
 
   (method push! (self x)
@@ -75,59 +75,59 @@
       (param x ANY "Element to append")
       (returns Array "self"))
     (self %live)
-    (def n (member 'len))
-    (when (= n (%arr-obj-ref (member 'store) 0))
-      (let ((bigger (Vector make (* 2 (%arr-obj-ref (member 'store) 0)) ())))
+    (def n (field 'len))
+    (when (= n (%arr-obj-ref (field 'store) 0))
+      (let ((bigger (Vector make (* 2 (%arr-obj-ref (field 'store) 0)) ())))
         (do (let go ((i 1))
               (unless (> i n)
-                (do (%arr-obj-set! bigger i (%arr-obj-ref (member 'store) i))
+                (do (%arr-obj-set! bigger i (%arr-obj-ref (field 'store) i))
                     (go (+ i 1)))))
-            (set-member! 'store bigger))))
-    (%arr-obj-set! (member 'store) (+ n 1) x)
-    (set-member! 'len (+ n 1))
+            (set-field! 'store bigger))))
+    (%arr-obj-set! (field 'store) (+ n 1) x)
+    (set-field! 'len (+ n 1))
     self)
 
   (method pop! (self)
     (doc "Remove and return the last element; errors when empty."
       (returns ANY "The removed element"))
     (self %live)
-    (def n (member 'len))
+    (def n (field 'len))
     (if (= n 0) (Err raise 'value "Array pop!: empty" ())
-      (let ((x (%arr-obj-ref (member 'store) n)))
-        (do (%arr-obj-set! (member 'store) n ())   ; drop the reference
-            (set-member! 'len (- n 1))
+      (let ((x (%arr-obj-ref (field 'store) n)))
+        (do (%arr-obj-set! (field 'store) n ())   ; drop the reference
+            (set-field! 'len (- n 1))
             x))))
 
   (method ref (self i)
     (doc "The element at index i (negative counts from the end); errors out of range."
       (param i INTEGER "Zero-based index")
       (returns ANY "Element at i"))
-    (%arr-obj-ref (member 'store) (+ 1 (self %index i "Array ref"))))
+    (%arr-obj-ref (field 'store) (+ 1 (self %index i "Array ref"))))
 
   (method set! (self i x)
     (doc "Store x at index i (in place; negative counts from the end); errors out of range; returns the array for chaining."
       (param i INTEGER "Zero-based index")
       (param x ANY "Value to store")
       (returns Array "self"))
-    (%arr-obj-set! (member 'store) (+ 1 (self %index i "Array set!")) x)
+    (%arr-obj-set! (field 'store) (+ 1 (self %index i "Array set!")) x)
     self)
 
   (method length (self)
     (doc "The live element count." (returns INTEGER "Element count"))
     (self %live)
-    (member 'len))
+    (field 'len))
 
   (method empty? (self)
     (doc "Test whether the array holds no elements." (returns BOOL "#t when empty"))
     (self %live)
-    (= 0 (member 'len)))
+    (= 0 (field 'len)))
 
   (method ->list (self)
     (doc "The elements as a list, in order." (returns LIST "List of elements"))
     (self %live)
-    (let go ((i (member 'len)) (acc ()))
+    (let go ((i (field 'len)) (acc ()))
       (if (= i 0) acc
-        (go (- i 1) (pair (%arr-obj-ref (member 'store) i) acc))))))
+        (go (- i 1) (pair (%arr-obj-ref (field 'store) i) acc))))))
 
 (doc (provide x/type/array Array)
   (note "Backing VECTOR doubles on overflow; slot 0 of the backing store is its capacity.")

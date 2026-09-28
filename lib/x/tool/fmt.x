@@ -88,7 +88,7 @@
 ; them to 'x there produces an unbootable tree (proven: 152/152 spec
 ; failures).  Everything post-boot gets the encouraged sugar
 ; (docs/syntax.md).  The driver flips this cell per file; a plain cell,
-; not a class member, because %src-sugar runs per printed node and a
+; not a class field, because %src-sugar runs per printed node and a
 ; class dispatch per node is the #342 anti-pattern.
 (def %fmt-fold-sugar (pair #t ()))
 

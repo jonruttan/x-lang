@@ -110,29 +110,29 @@
   ; --- instance methods ---
   (method fd (self)
     (doc "The file descriptor this stream writes to." (returns INTEGER "the fd"))
-    (member 'fd))
+    (field 'fd))
 
   (method with (self (param thunk CALLABLE "Zero-arg thunk to run"))
     (doc "Run THUNK with the current display/write output redirected to this stream, restoring afterward (even if THUNK errors)."
       (returns ANY "THUNK's result")
       (sample "(s with (fn (_) (display x)))" "displays x to the stream s"))
-    (%with-fd (member 'fd) thunk))
+    (%with-fd (field 'fd) thunk))
 
   (method write (self (param data STRING "Bytes to write")
                       (param size INTEGER "Number of bytes"))
     (doc "Write SIZE bytes of DATA directly to the stream's fd. Needs the radon dialect."
       (returns INTEGER "Bytes written, or negative on error"))
-    (File write (member 'fd) data size))
+    (File write (field 'fd) data size))
 
   (method display (self (param v ANY "Value to render"))
     (doc "Render V (display form) to this stream."
       (returns ANY "nil"))
-    (%with-fd (member 'fd) (fn (_) (display v))))
+    (%with-fd (field 'fd) (fn (_) (display v))))
 
   (method close (self)
     (doc "Close the stream's fd if it owns it (opened via to-file); a no-op for wrapped fds (to-fd/stdout/stderr)."
       (returns ANY "File close result, or nil when not owned"))
-    (if (member 'owned?) (File close (member 'fd)) ())))
+    (if (field 'owned?) (File close (field 'fd)) ())))
 
 (doc (provide x/sys/stream Stream)
   (note "Redirection is pure X -- push/pop the base's fileout fd (an atom in the io `files` group); no C primitive. File targets need the radon dialect.")
