@@ -15,36 +15,36 @@ sending it a message — no quoting required.
 
 (def p (new Point x 3 y 4))
 (p dist)         ; => 7    call a method
-(p x)            ; => 3    read a member
-(p x 10)         ; set a member
+(p x)            ; => 3    read a field
+(p x 10)         ; set a field
 ```
 
 The whole system is written in x-lang with no C code — it is built on the runtime
 type system's `call` handler (see [How it works](#how-it-works) and
 [Type System](type-system.md)). It supports single inheritance with `super`,
-members are mutable, and access is encapsulated: from the outside an object is
+fields are mutable, and access is encapsulated: from the outside an object is
 reached **only** through `(obj …)` dispatch. **Classes are values too** — they
-carry static methods and static members and double as namespaces (see
+carry static methods and static fields and double as namespaces (see
 [Classes as values](#classes-as-values-statics-and-namespaces)).
 
 ---
 
 ### Defining a class
 
-`def-class` introduces a class and binds it to a name. Member names, method names,
+`def-class` introduces a class and binds it to a name. Field names, method names,
 and the class name are all literal — `def-class` is an operative, so nothing is
-quoted. Members and methods are declared **directly** in the body — no wrapper: a
-form headed by `method` is a method, anything else is a member.
+quoted. Fields and methods are declared **directly** in the body — no wrapper: a
+form headed by `method` is a method, anything else is a field.
 
 ```x
 (def-class NAME PARENT-SPEC
-  member1                                ; instance members, declared directly:
-  (member2 default)                      ;   name | (name default) | (name default "desc")
-  (member3 default "a description")
+  field1                                 ; instance fields, declared directly:
+  (field2 default)                       ;   name | (name default) | (name default "desc")
+  (field3 default "a description")
   (method m1 (self . args) body...)      ; instance methods
   ...
   (static                                ; optional class-level block
-    (CONST value "a description")         ; class-wide members — same member form
+    (CONST value "a description")         ; static fields — same field form
     (method s1 (self . args) body...)))   ; static methods
 ```
 
@@ -54,20 +54,20 @@ form headed by `method` is a method, anything else is a member.
   `(OtherClass)` list, a bare symbol, `(extends)` with no class — is refused
   loudly at class-definition time.
 - **field** — `name`, or `(name default)`, or `(name default "description")`. The
-  optional middle value is the member's default (used when `new` doesn't supply
+  optional middle value is the field's default (used when `new` doesn't supply
   one); the optional trailing string documents it and is shown by `(help Class)`.
   Declare as many (or as few) as you like; a class can have none. A
-  `(doc DECL "description" …)` body form **also declares** its member (see
-  [Documentation](#documentation)), so declare each member exactly once —
-  bare *or* doc-form, never both. A member name declared twice in one class
+  `(doc DECL "description" …)` body form **also declares** its field (see
+  [Documentation](#documentation)), so declare each field exactly once —
+  bare *or* doc-form, never both. A field name declared twice in one class
   body is refused loudly: the duplicate used to poison positional
   construction silently (the doubled slot absorbed two values and a later
-  member stayed nil). Subclass overrides are unaffected — the check never
+  field stayed nil). Subclass overrides are unaffected — the check never
   walks the inheritance chain.
 - **`(method NAME (self . params) body...)`** — a method. The first parameter is
   always `self`, the receiving instance; any further parameters receive the
   evaluated message arguments.
-- **`(static …)`** — optional; a block of static members (same field form) and
+- **`(static …)`** — optional; a block of static fields (same field form) and
   static methods. See [Classes as values](#classes-as-values-statics-and-namespaces).
 
 ```x
@@ -81,7 +81,7 @@ form headed by `method` is a method, anything else is a member.
 
 ### Creating instances
 
-`new` constructs an instance, taking the class followed by literal member names
+`new` constructs an instance, taking the class followed by literal field names
 paired with values (the values are evaluated, the names are not):
 
 ```x
@@ -89,8 +89,8 @@ paired with values (the values are evaluated, the names are not):
 (def c2 (new Circle r (* 2 3)))   ; value side is evaluated
 ```
 
-A member that `new` doesn't initialise takes its declared default (nil, `()`, if
-the declaration gave none). Inherited members are included automatically.
+A field that `new` doesn't initialise takes its declared default (nil, `()`, if
+the declaration gave none). Inherited fields are included automatically.
 
 ```x
 (def-class Counter () (n 0))      ; n defaults to 0
@@ -114,7 +114,7 @@ arguments:
 
 Dispatch is uniform: `(obj name)` looks `name` up as a **method** first; if there
 is no such method it is treated as a **field** — `(obj m)` reads it,
-`(obj m v)` writes it. A method therefore **shadows** a member of the same name,
+`(obj m v)` writes it. A method therefore **shadows** a field of the same name,
 which is the basis for computed properties and for private data (below).
 
 > `(obj 'name)` also works — a quoted selector is unwrapped to the bare name — but
@@ -126,7 +126,7 @@ argument leniency binds it to nil — and a non-symbol selector names nothing
 either, so both raise rather than guessing:
 
 ```x
-((new Point x 1))   ; => Point: call with no selector -- name a member or method
+((new Point x 1))   ; => Point: call with no selector -- name a field or method
 (Point 5)           ; => Point: no such static member 5
 ```
 
@@ -182,31 +182,31 @@ Calling `super` outside an instance method (e.g. from a static) is an error.
 ### Classes as values: statics and namespaces
 
 A class is itself a callable value of runtime type CLASS, so it can hold static
-members and static methods — the same dispatch, one level up (`self` is the
+fields and static methods — the same dispatch, one level up (`self` is the
 class). Declare them in a `(static …)` block:
 
 ```x
 (def-class Math ()
   (static
-    (base 10)                                    ; class-wide member (any value)
+    (base 10)                                    ; static field (any value)
     (method square (self n) (* n n))             ; static method
     (method scaled (self n) (* n (self base))))) ; static method using (self base)
 
 (Math square 5)    ; => 25     call a static method
-(Math base)        ; => 10     read a class-wide member
+(Math base)        ; => 10     read a static field
 (Math base 100)    ; write it
 (Math scaled 3)    ; => 300     after the write
 ```
 
 - `(Class name …)` dispatches on the class: a static method named `name` wins,
-  else `name` is a class-wide member that `(Class m)` reads and `(Class m v)` sets.
-- Members hold any value — symbols, strings, numbers — useful for class-wide
+  else `name` is a static field that `(Class m)` reads and `(Class m v)` sets.
+- Static fields hold any value — symbols, strings, numbers — useful for class-wide
   constants and state, and they take the same `(name value "desc")` form.
-- Static methods **and class-wide members** are inherited: a read reaches the
-  nearest ancestor that declares the member, and a write through a subclass
+- Static methods **and static fields** are inherited: a read reaches the
+  nearest ancestor that declares the field, and a write through a subclass
   **shadows** into the subclass's own storage — the parent's value is never
   mutated through a child (write to the parent by naming it: `(Parent m v)`).
-- `(Class new member val …)` constructs an instance — equivalent to the global
+- `(Class new field val …)` constructs an instance — equivalent to the global
   `(new Class …)`.
 
 So a class doubles as a **namespace** of static functions, the way modules do in
@@ -295,7 +295,7 @@ definition (`(import x/type/trait)`):
 
 Trait bodies close over their **definition site** (free names resolve where
 the trait was written) but build against the **host's** chain — `super` and
-member access work as if written in the class. Precedence is explicit, no
+field access work as if written in the class. Precedence is explicit, no
 linearization: the class's own method beats a trait's beats an inherited one;
 two traits supplying one selector refuse at definition time unless the class
 overrides it; an unmet `(require ...)` refuses at definition, and
@@ -449,7 +449,7 @@ Without a hook, a miss errors naming the class and selector.
 ### Encapsulation and private data
 
 From outside, an object is reached **only** through `(obj …)` dispatch — there is
-no global member accessor, so external code cannot poke at an instance's storage by
+no global field accessor, so external code cannot poke at an instance's storage by
 name:
 
 ```x
@@ -480,7 +480,7 @@ a privacy marker.
 > raw reflection is the maintenance hatch.
 
 Inside methods, two extra accessors are in scope (and *only* in scope there)
-for **raw** member access:
+for **raw** field access:
 
 ```x
 (field 'name)          ; raw read
@@ -489,8 +489,8 @@ for **raw** member access:
 
 They take a **quoted** name — both because they are ordinary functions and
 because the quote visually marks "raw, bypass dispatch." They read the field's
-storage directly, so a method can reach a member even when a same-named method
-shadows its public door (a method shadows a member of the same name — the
+storage directly, so a method can reach a field even when a same-named method
+shadows its public door (a method shadows a field of the same name — the
 basis for computed properties). Being method-local by construction, they are
 the strictest private door of all: no code outside a method body has them.
 
@@ -506,7 +506,7 @@ the strictest private door of all: no code outside a method body has them.
 | `(class-name x)` | the name symbol of a class, or of an instance's class |
 | `(instance-of? inst Class)` | `#t` if `inst` is a `Class` or a subclass of it |
 | `(class-fields c)` / `(class-methods c)` | a class's own instance field / method names |
-| `(class-static-members c)` / `(class-static-methods c)` | its own static member / method names |
+| `(class-static-fields c)` / `(class-static-methods c)` | its own static field / method names |
 
 ```x
 (instance-of? b Bonus)    ; => #t
@@ -523,13 +523,13 @@ the strictest private door of all: no code outside a method body has them.
 
 `(help Class)` lists everything a class offers, grouped **static vs instance** and
 **fields vs methods**, each list merged across the inheritance chain and sorted by
-name (a subclass override hides the inherited entry). Members and methods documented
+name (a subclass override hides the inherited entry). Fields and methods documented
 with a description string show it; empty groups are omitted:
 
 ```
 Counter
   static:
-    members:
+    fields:
       LIMIT -- max before reset
     methods:
       reset -- reset the count to zero
@@ -540,11 +540,11 @@ Counter
     bump -- increment the counter
 ```
 
-A method is documented with a leading `(doc "description" …)` form; a member with
+A method is documented with a leading `(doc "description" …)` form; a field with
 its trailing `"description"` string, or with a body-level
-`(doc DECL "description" …)` form — which **declares the member as well as
-documenting it**, so a doc-form member needs no separate bare declaration
-(and having both is a refused duplicate). `(help Class member-or-method)`
+`(doc DECL "description" …)` form — which **declares the field as well as
+documenting it**, so a doc-form field needs no separate bare declaration
+(and having both is a refused duplicate). `(help Class field-or-method)`
 prints the full entry for one of them, and `(help x/type/class)` prints the
 module overview.
 
@@ -552,7 +552,7 @@ module overview.
 
 ### Printing
 
-Instances print as `#<ClassName member=value ...>`:
+Instances print as `#<ClassName field=value ...>`:
 
 ```x
 (write (new Circle r 4))
@@ -583,19 +583,19 @@ the raw argument forms, which evaluate once in the caller's environment. This is
 the dispatch hook described in the [Type System](type-system.md) guide — the
 object system is its richest example.
 
-An **instance** (`%object`) stores `(class . member-box)` in its first slot,
-where `member-box` is a one-cell mutable box holding the member alist; a member
+An **instance** (`%object`) stores `(class . field-box)` in its first slot,
+where `field-box` is a one-cell mutable box holding the field alist; a field
 write mutates its entry **in place** (no copying, and field order stays
-construction order). A **class** (`%class`) is a callable object whose first
+construction order). A **class** (`%class`) is a callable value whose first
 slot is the cold, authoritative descriptor alist — `name`, `fields`, `methods`,
 `parent`, `s-methods`, the visibility alists, and a `statics` box — the single
 source of truth that `(help)` and introspection read.
 
 Dispatch does not walk that alist per call. Each class lazily builds a **hot
 record** in its second slot: flat, chain-merged instance and static tables
-(most-derived wins; a method beats a same-named member, exactly as dispatch
+(most-derived wins; a method beats a same-named field, exactly as dispatch
 always resolved) plus cached construction data. One table walk decides method
-vs member vs miss; the table self-organizes, promoting a hot selector toward
+vs field vs miss; the table self-organizes, promoting a hot selector toward
 the front; a method hit is re-driven through `tail-eval`, so the closure runs
 on the caller's raw argument forms with no per-argument closure and no `apply`
 frame. Runtime mutation — `def-method!`, a static shadow-write, trait mixing —
@@ -613,7 +613,7 @@ Two implementation details: x-lang binds a function's *first* parameter to the
 function itself (the recursion handle), so `def-class` prepends a hidden slot to
 each method's parameter list — the `self` you write lands in the second slot,
 which dispatch fills with the receiver. And every method body is wrapped in a
-`let` that binds the raw `member` / `set-field!` accessors (instance methods
+`let` that binds the raw `field` / `set-field!` accessors (instance methods
 only) plus `%this-class`, a box holding the method's **defining** class — the
 channel `super` derives its parent from and the privacy check reads the
 caller's identity from.
@@ -705,7 +705,7 @@ adds interest:
 (instance-of? s Account)   ; => #t
 ```
 
-`balance` is an ordinary member — methods read and write it with the ordinary
+`balance` is an ordinary field — methods read and write it with the ordinary
 `(self balance)` door — but because it is declared inside a `(protected ...)`
 block, only methods on `Account`'s chain may. From the outside, `(s balance)`
 is a named error, and `(s amount)` is the interface. Construction is not
@@ -719,14 +719,14 @@ too.
 
 | Form | Purpose |
 |------|---------|
-| `(def-class Name (extends P?) member... (method ...) (static ...))` | Define a class |
-| `(new Class member val ...)` / `(Class new member val ...)` | Construct an instance |
-| `(obj name args...)` | Send a message (instance method, or member if no method) |
-| `(obj member)` / `(obj member val)` | Read / write an instance member |
-| `(Class name args...)` | Static method, or class-wide member if no method |
-| `(Class member)` / `(Class member val)` | Read / write a class-wide member |
+| `(def-class Name (extends P?) field... (method ...) (static ...))` | Define a class |
+| `(new Class field val ...)` / `(Class new field val ...)` | Construct an instance |
+| `(obj name args...)` | Send a message (instance method, or field if no method) |
+| `(obj field)` / `(obj field val)` | Read / write an instance field |
+| `(Class name args...)` | Static method, or static field if no method |
+| `(Class field)` / `(Class field val)` | Read / write a static field |
 | `(super self name args...)` | Call the parent's method |
-| `(field 'name)` / `(set-field! 'name v)` | Raw member access — **inside methods only** |
+| `(field 'name)` / `(set-field! 'name v)` | Raw field access — **inside methods only** |
 | `(object? x)` / `(class? x)` | Instance / class predicate |
 | `(class-of inst)` / `(class-name x)` | Class of an instance / name of a class or instance |
 | `(instance-of? inst Class)` | Subtype predicate |

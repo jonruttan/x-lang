@@ -944,17 +944,17 @@ access, built on the `make-type` mechanism. Send a message by applying an instan
 to a **literal** member name (no quote): `(obj name args...)`. A method named
 `name` wins; otherwise `name` is a field — `(obj m)` reads it, `(obj m v)` writes
 it. From outside, dispatch is the only way in. **Classes are values too:**
-`(Class name args...)` calls a static method, `(Class member)` / `(Class member val)`
-reads/writes a static member, and `(Class new member val...)` builds an instance.
+`(Class name args...)` calls a static method, `(Class field)` / `(Class field val)`
+reads/writes a static field, and `(Class new field val...)` builds an instance.
 See the [Object System](object-system.md) guide for the full walkthrough.
 
 ### `def-class`
-`(def-class name parent member... (method m (self . args) body...) (static ...))`
+`(def-class name parent field... (method m (self . args) body...) (static ...))`
 Defines a class bound to `name`. `parent` is `()` for none, or `(extends Class)`
-for single inheritance. Names are literal (`def-class` is an operative). Members are
+for single inheritance. Names are literal (`def-class` is an operative). Fields are
 declared directly (no wrapper) as `name`, `(name default)`, or `(name default "desc")`;
-a `method`-headed form is a method. An optional `(static (List member val)... (method ...)...)`
-block adds class-wide members and static methods (inherited by subclasses; `self` is
+a `method`-headed form is a method. An optional `(static (List field val)... (method ...)...)`
+block adds static fields and static methods (inherited by subclasses; `self` is
 the class inside them).
 ```x
 (do
@@ -964,8 +964,8 @@ the class inside them).
 
 ### `new`
 `(new class field value ...) -> object`
-Constructs an instance; member names are literal, values are evaluated. Unset
-members take their declared default (nil if none).
+Constructs an instance; field names are literal, values are evaluated. Unset
+fields take their declared default (nil if none).
 ```x-repl
 (do (def-class Point () x y) (new Point x 1 y 2)) -> #<Point x=1 y=2>
 ```
@@ -980,8 +980,8 @@ field is read/written.
 
 ### static access
 `(Class name)` / `(Class name value)`
-A static method named `name` is called, else `name` is a class-wide member that is
-read or written. `(Class new member val...)` constructs an instance.
+A static method named `name` is called, else `name` is a static field that is
+read or written. `(Class new field val...)` constructs an instance.
 ```x-repl
 (do (def-class C () (static (n 7) (method get (self) (self n)))) (list (C get) (C n))) -> (7 7)
 ```
@@ -994,7 +994,7 @@ through multi-level inheritance. Only valid inside an instance method.
 
 ### `field` / `set-field!` — inside methods only
 `(field 'name)` / `(set-field! 'name value)`
-Raw member access that bypasses a same-named method override (the private-data
+Raw field access that bypasses a same-named method override (the private-data
 pattern). Bound only inside method bodies; not available to external code.
 
 ### `object?`
@@ -1024,7 +1024,7 @@ Returns `#t` if `inst` is an instance of `class` or any of its subclasses.
 ```
 
 ### `(private ...)` / `(protected ...)` — class body blocks
-Enforced visibility for the members and methods declared inside:
+Enforced visibility for the fields and methods declared inside:
 `private` = the defining class's methods only; `protected` = methods anywhere
 on its chain. Checked at the dispatch door (violations name class, selector,
 tier, and definer); opt-in per class; `(help)` still lists everything.

@@ -36,7 +36,7 @@
 ; instance field read / write
 (%bench "field-read    " (fn (_) (bp x)))
 (%bench "field-write   " (fn (_) (bp x 9)))
-; static member read
+; static field read
 (%bench "static-read   " (fn (_) (BP count)))
 ; hoisted direct call (the de-dispatch door)
 (def %g (method-of BP (lit sget)))

@@ -145,6 +145,21 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ---
     (#t #t)
 
+### class-fields and class-static-fields list a class's own names
+
+```x
+(do
+  (def-class A ()
+    (static (limit 10) (method make (self) (new A)))
+    (size 1)
+    (method grow (self) (field 'size)))
+  (def-class B (extends A) (static (floor 0)) (depth 2))
+  (list (class-fields A) (class-static-fields A)
+        (class-fields B) (class-static-fields B)))
+```
+---
+    (('size) ('limit) ('depth) ('floor))
+
 ## write handler
 
 ### instances print as #<Class field=value ...>
@@ -159,7 +174,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ## classes are values too
 
-### static methods and a static member
+### static methods and a static field
 
 ```x
 (do
@@ -172,7 +187,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ---
     (25 30 10)
 
-### a static member is mutable
+### a static field is mutable
 
 ```x
 (do
@@ -290,7 +305,7 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
   (guard (e e) ((new C v 1))))
 ```
 ---
-    "C: call with no selector -- name a member or method"
+    "C: call with no selector -- name a field or method"
 
 ### the class side answers the same way
 
@@ -300,7 +315,7 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
   (guard (e e) (C)))
 ```
 ---
-    "C: call with no selector -- name a member or method"
+    "C: call with no selector -- name a field or method"
 
 ### an explicit nil selector is the same mistake
 
@@ -310,7 +325,7 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
   (guard (e e) ((new C v 1) ())))
 ```
 ---
-    "C: call with no selector -- name a member or method"
+    "C: call with no selector -- name a field or method"
 
 ### a non-symbol selector reports what was asked for
 
@@ -431,7 +446,7 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
 ---
     'kk
 
-### static members hold strings and symbols
+### static fields hold strings and symbols
 
 ```x
 (do
@@ -441,9 +456,9 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
 ---
     ("x-lang" 'lang)
 
-## member defaults and descriptions
+## field defaults and descriptions
 
-### an instance member's value defaults to its declaration
+### an instance field's value defaults to its declaration
 
 ```x
 (do
@@ -453,7 +468,7 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
 ---
     5
 
-### new overrides a member's default
+### new overrides a field's default
 
 ```x
 (do
@@ -463,7 +478,7 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
 ---
     9
 
-### a member description does not affect its value
+### a field description does not affect its value
 
 ```x
 (do
@@ -474,7 +489,7 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
 ---
     (5 100)
 
-### a member default is evaluated per construction, not at class definition
+### a field default is evaluated per construction, not at class definition
 
 ```x
 (do
@@ -534,7 +549,7 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
 ---
     #t
 
-### a static member default still evaluates once (class-wide state)
+### a static field default still evaluates once (class-wide state)
 
 ```x
 (do
@@ -546,7 +561,7 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
 
 ## construction stores
 
-### the dotted-alist form fills members like the plist form
+### the dotted-alist form fills fields like the plist form
 
 ```x
 (do
@@ -557,7 +572,7 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
 ---
     (1 2)
 
-### a store key that names no member is an error naming both
+### a store key that names no field is an error naming both
 
 ```x
 (do
@@ -587,10 +602,10 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
 ---
     "new: init store must be an alist or plist"
 
-### constructing a three-member instance costs fewer than 2,000 objects
+### constructing a three-field instance costs fewer than 2,000 objects
 
-Every construction checks its store's keys, fills each member and looks
-for an %init hook; none of it builds a derived form per member.  Ten
+Every construction checks its store's keys, fills each field and looks
+for an %init hook; none of it builds a derived form per field.  Ten
 constructions, the loop around an empty thunk subtracted.
 
 ```x
@@ -755,7 +770,7 @@ It accepts an alist `((k . v) ...)` or a flat plist `(k v ...)`.
 ---
     3
 
-### quoting new's member names errors cleanly (use bare names)
+### quoting new's field names errors cleanly (use bare names)
 
 ```x
 (do
@@ -777,11 +792,11 @@ It accepts an alist `((k . v) ...)` or a flat plist `(k v ...)`.
 
 ## positional construction
 
-A `new` call may open with a positional prefix: values fill members in
-constructor order (root ancestor's members first, then each subclass's own)
-until the first bare declared-member name starts the keyword tail.
+A `new` call may open with a positional prefix: values fill fields in
+constructor order (root ancestor's fields first, then each subclass's own)
+until the first bare declared-field name starts the keyword tail.
 
-### positional values fill members in declaration order
+### positional values fill fields in declaration order
 
 ```x
 (do
@@ -792,7 +807,7 @@ until the first bare declared-member name starts the keyword tail.
 ---
     (1 2)
 
-### unfilled members keep their defaults
+### unfilled fields keep their defaults
 
 ```x
 (do
@@ -815,7 +830,7 @@ until the first bare declared-member name starts the keyword tail.
 ---
     (1 2 3)
 
-### an overridden member keeps its ancestor's slot
+### an overridden field keeps its ancestor's slot
 
 ```x
 (do
@@ -860,13 +875,13 @@ until the first bare declared-member name starts the keyword tail.
 
 ## def-class body validation
 
-A member name declared twice in ONE class body errors at def-class time
+A field name declared twice in ONE class body errors at def-class time
 -- the common shape is a bare declaration beside its (doc NAME ...)
 form, which ALSO declares.  The duplicate was silent poison: positional
-construction filled the doubled slot twice and a LATER member stayed
+construction filled the doubled slot twice and a LATER field stayed
 nil (found via (Type wrap ...): `raw` stayed nil and a downstream
 (first nil) segfaulted).  Subclass overrides are unaffected -- the
-check never walks the chain (see "an overridden member keeps its
+check never walks the chain (see "an overridden field keeps its
 ancestor's slot" above).  The parent slot is validated the same way:
 the documented forms are () and (extends Class); a bare (Parent) list
 used to reach (first ()) through the UNCHECKED C first and segfault at
@@ -881,7 +896,7 @@ class-def time.
 ---
     'dup
 
-### a doc-form member is declared once and fills positionally
+### a doc-form field is declared once and fills positionally
 
 ```x
 (do
@@ -892,7 +907,7 @@ class-def time.
 ---
     (1 2)
 
-### duplicate static members are refused
+### duplicate static fields are refused
 
 ```x
 (guard (e 'dup)
@@ -970,7 +985,7 @@ are built -- the initialize slot for logic beyond plain field values.
 ---
     42
 
-### a trailing bare member name is a positional value
+### a trailing bare field name is a positional value
 
 ```x
 (do
@@ -1004,9 +1019,9 @@ binding.
 ---
     'marker
 
-## in-place member writes
+## in-place field writes
 
-A member write mutates the field's entry in place: no allocation on the
+A field write mutates its entry in place: no allocation on the
 update path, and field order stays construction order instead of the written
 key jumping to the head. The statics box and `set-field!` share the
 mechanism. An in-flight iteration over the field alist therefore sees a
@@ -1055,7 +1070,7 @@ live view, not a snapshot.
 
 Dispatch resolves selectors in a flat, chain-merged per-class table built
 lazily and cached on the class (most-derived wins; a method beats a
-same-named member). Method calls are re-driven through tail-eval -- no
+same-named field). Method calls are re-driven through tail-eval -- no
 per-arg eval closure, no apply save/restore.
 
 ### override precedence holds through three levels
@@ -1176,15 +1191,15 @@ thunk subtracted: under 3,000 objects a round.
 ---
     7
 
-## static members inherit
+## static fields inherit
 
-Static (class-wide) members now resolve up the chain, matching what (help)
+Static fields now resolve up the chain, matching what (help)
 has always displayed. Reads reach the nearest ancestor's value; a write
 through a subclass SHADOWS into the subclass's own box -- the parent's
 value is never mutated through a child (a deliberate parent write is
 spelled `(Parent name v)`).
 
-### a subclass reads an inherited static member
+### a subclass reads an inherited static field
 
 ```x
 (do
@@ -1240,7 +1255,7 @@ an instance method, `(C def-static! sel fn)` a static. Both are built-in
 class selectors (shadowable by a same-named static method, like `new`);
 sel and fn are ordinary evaluated arguments, so selectors can be computed.
 The fn is stored as-is -- it receives (self . args) and uses `(self f)`
-member access, with no super/member injection. The cold alist mutates
+member access, with no super/field injection. The cold alist mutates
 (help sees the addition immediately) and every hot table clears.
 
 ### add a static, then call it -- selector computed
@@ -1254,7 +1269,7 @@ member access, with no super/member injection. The cold alist mutates
 ---
     42
 
-### add an instance method reaching members
+### add an instance method reaching fields
 
 ```x
 (do
@@ -1352,7 +1367,7 @@ a hook, the miss stays the named error.
 
 ## privacy: (private ...) and (protected ...) declaration blocks
 
-Members and methods declared inside a `(private ...)` or `(protected ...)`
+Fields and methods declared inside a `(private ...)` or `(protected ...)`
 block (body top level, or inside `(static ...)`) are enforced at the
 dispatch door. `private` = callable/readable only from methods of the
 defining class; `protected` = from methods anywhere on its chain. The
@@ -1361,7 +1376,7 @@ top-level code has none, so it is always "outside". Enforcement is
 per-class opt-in: undeclared members stay public, `%`-prefix stays a
 naming convention, and introspection/(help) still lists everything.
 
-### a private member: own methods reach it, outside is blocked
+### a private field: own methods reach it, outside is blocked
 
 ```x
 (do
@@ -1414,7 +1429,7 @@ naming convention, and introspection/(help) still lists everything.
 ---
     'blocked
 
-### static-side blocks guard static members
+### static-side blocks guard static fields
 
 ```x
 (do
@@ -1439,7 +1454,7 @@ naming convention, and introspection/(help) still lists everything.
 ---
     7
 
-### introspection still lists private members (reflection is the escape)
+### introspection still lists private fields (reflection is the escape)
 
 ```x
 (do

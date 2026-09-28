@@ -138,16 +138,16 @@
 ; One field declaration -> heading, optional description, the field note and
 ; its visibility tier.  Shared by the (doc DECL "...") arm and the bare-field
 ; arm, which differ only in where the description sits.  static? picks the
-; note: a field is data each instance carries, and a static member, one
+; note: a field is data each instance carries, and a static field, one
 ; declared in (static ...), is data the class holds.
-(def %doc-emit-member
+(def %doc-emit-field
   (fn (_ em name desc cname static? vis)
     (em alias (Str str cname "-" name))
     (em entry-head name)
     (unless (str=? desc "") (em text desc))
     (em note
       (if static?
-        (Str str "Static member: data held by " cname " itself, not by its instances.")
+        (Str str "Static field: data held by " cname " itself, not by its instances.")
         (Str str "Field: data carried by a " cname " instance.")))
     (%for-each (fn (_ n) (em note (DocEmit as-str (first (rest n)))))
                (%doc-vis-note vis cname))))
@@ -380,7 +380,7 @@
                 ((%docgen-form? f)
                   (if (str? (first (rest f)))
                     (%doc-emit-class-doc em f)
-                    (%doc-emit-member em
+                    (%doc-emit-field em
                       (let ((decl (first (rest f))))
                         (symbol->str (if (pair? decl) (first decl) decl)))
                       (let ((tail (rest (rest f))))
@@ -412,7 +412,7 @@
                     ; field (ledger) the tail is (rest ()), and rest is as
                     ; unchecked as first.  Guarding only the (first tail)
                     ; still segfaulted -- the same trap, one level further in.
-                    (%doc-emit-member em
+                    (%doc-emit-field em
                       (symbol->str (first f))
                       (let ((tail (if (pair? (rest f)) (rest (rest f)) ())))
                         (if (pair? tail)

@@ -10,7 +10,7 @@
 ;     handlers) fetch-and-cache it at module load:
 ;       (def %cvt (prim-ref (lit convert) (lit to)))
 ;   - The Convert CLASS is the API: (Convert to val target . extra) for cold
-;     call sites, and the no-match POLICY as the static member `missing`.
+;     call sites, and the no-match POLICY as the static field `missing`.
 ;
 ; The no-match policy is the dialect's call, not the mechanism's (SoC):
 ;   (Convert missing)                      -- read the handler
@@ -201,6 +201,6 @@
           (if (if (null? k) #f (eq? (%type-of k) %int)) k (error what)))))))
 
 (doc (provide x/type/convert Convert)
-  (note "Hot consumers fetch the dispatcher from the catalog: (prim-ref 'convert 'to). The no-match policy is the (Convert missing) member.")
+  (note "Hot consumers fetch the dispatcher from the catalog: (prim-ref 'convert 'to). The no-match policy is the (Convert missing) static field.")
   (note "The base type handles have a public spelling: (Type named INTEGER), (Type named STRING), and so on for any registered name.")
   "Generic type conversion: the Convert class over the type system's from/to alists.")

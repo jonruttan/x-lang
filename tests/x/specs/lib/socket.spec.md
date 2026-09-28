@@ -134,8 +134,10 @@ accept is called -- no step blocks.
 
 ```x
 (do (import x/sys/socket) (import x/sys/file)
-  (def up "/tmp/x-364-spec.sock")
-  (guard (_ ()) (File unlink up))
+  (def tmp (File temp "/tmp/x-364-spec-sock-"))
+  (File close (first tmp))
+  (File unlink (rest tmp))
+  (def up (rest tmp))
   (def lfd (Socket unix-listen up))
   (def c (Socket unix-connect up))
   (def a (Socket accept lfd))
@@ -165,8 +167,10 @@ accept is called -- no step blocks.
 
 ```x
 (do (import x/sys/socket) (import x/sys/file)
-  (def up "/tmp/x-374-rb.sock")
-  (guard (_ ()) (File unlink up))
+  (def tmp (File temp "/tmp/x-374-rb-sock-"))
+  (File close (first tmp))
+  (File unlink (rest tmp))
+  (def up (rest tmp))
   (def lfd (Socket unix-listen up))
   (def c (Socket unix-connect up))
   (def a (Socket accept lfd))
