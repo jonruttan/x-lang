@@ -5,6 +5,22 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The reference names a field documented with a default** ([#833]). A field's
+doc form wraps its declaration, `(doc NAME "...")` or
+`(doc (NAME default) "...")`, and a static member's does the same.
+`(help Class/NAME)` read both, and the generated reference read the first:
+handed the second, it passed the declaration, a pair, to `symbol->str`, which
+is unchecked, and the entry's heading and its man page name came out as bytes
+that are not text. macOS's awk stops on such bytes, so `make doc-x` and
+`make check-man` failed there for a module that used the form, and passed on
+Linux. The generator now names the entry by its declaration's name.
+
+A static member is noted in the reference as "Static member: data held by C
+itself, not by its instances." It was noted as data carried by a C instance,
+as a field is.
+
+[#833]: https://github.com/jonruttan/x-lang/pull/833
+
 **An instance's data is its fields** ([#829]). A field is a named component of
 an instance or a record, a member is a field or a method, and a class's own
 data is a static member. Inside a method, `(field 'name)` reads an instance's
