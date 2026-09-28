@@ -102,6 +102,50 @@ collection.  Limitations: interned atoms are shared (marking one `x`
 marks them all -- compound branch expressions are the reliable signal);
 no line numbers; the target must run under `x-bin-cov` itself.
 
+## Profiling
+
+Which functions a program's evaluation goes to.  The profiling engine,
+`x-bin-profile`, counts in each object's flags word how many times evaluation
+reached it, and an x-engine-c release ships it from v0.2.15 on.
+`x/tool/profile` reads the counts back by function.
+
+```sh
+make profile-x FILE=program.x               # the 30 functions evaluation reached most
+sh tools/dev/profile.sh -n 50 program.x arg...
+sh tools/dev/profile.sh -x --no-image program.x   # boot without writing a state image
+sh tools/dev/profile.sh --tsv program.x     # every row, tab-separated, for a script
+```
+
+The driver boots the library on `x-bin-profile`, sets every count to zero
+with `(profile-clear!)`, includes the program, and prints
+`(profile-report N)`: one row per function body, most evaluation first.
+
+    evals   calls   pairs   where
+    2555    465     21      /path/to/program.x:1
+
+- **calls**: a procedure steps onto its body's first cell once a call, and
+  that cell's count is its calls.  The engine does not count an operative's
+  body cells, so an operative's calls are the count of its first form, which
+  every call evaluates once; one whose body starts with a name or a constant
+  reads 0.
+- **evals**: the counts summed through the body's pairs.  The body of a
+  function made inside it is left out when that function has a row of its
+  own, so the rows divide the evaluation between them.  Forms are counted,
+  not names: a symbol is interned, so its count is every evaluation of it.
+- **pairs**: the pairs walked in the body.
+- **where**: the file and line the body's first form was read from.
+
+Everything from the clear to the report is counted: the program's own
+functions, the library functions it calls, and the reader, which is x code
+and reads the program after the clear.  The profiler adds nothing of its own:
+between the clear and the reading it runs only the engine's forms and
+primitives.  A count stops at 1,048,575; a row whose evals end in `+` holds
+one, so its sum is a lower bound, and a shorter run gives the whole count.
+
+From x: `(profile-evals obj)`, `(profile-fn f)`, `(profile-rows)` and
+`(profile-clear!)`.  Their specs, `tools/tests/specs/profile/`, run on
+`x-bin-profile` under `make test-tools`.
+
 ## SHA-256 / JIT benchmark
 
 Where a digest's time actually goes, and the harness that proved the JIT

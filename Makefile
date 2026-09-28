@@ -921,7 +921,12 @@ bench: x-bin-profile ## Run benchmarks
 
 cov-x: x-bin-profile ## x-lang library coverage report
 	sh tools/dev/cov-lib.sh
-.PHONY: bench
+
+# FILE is the program to profile; LIB and ROWS are profile.sh's -l and -n.
+profile-x: x-bin-profile ## Which functions a program's evaluation goes to (FILE=program.x)
+	@[ -n "$(FILE)" ] || { echo "profile-x: name the program, make profile-x FILE=program.x" >&2; exit 2; }
+	sh tools/dev/profile.sh $(if $(LIB),-l $(LIB)) $(if $(ROWS),-n $(ROWS)) $(FILE)
+.PHONY: bench cov-x profile-x
 
 # ============================================================================
 # Dev tools
