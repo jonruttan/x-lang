@@ -199,7 +199,7 @@
 ---
     3
 
-### rejects a dotted body instead of walking it
+### raises at a dotted tail instead of walking into it
 
 ```x
 (do 1 2 . 3)
@@ -207,7 +207,7 @@
 ---
     Error: call: improper argument list (dotted tail)
 
-### rejects a non-list body
+### raises at a non-list body
 
 ```x
 (begin . 3)
@@ -238,17 +238,17 @@
 ---
     (2 5)
 
-### a dotted body raises before any of its forms runs
+### a dotted body runs the forms before the dot, then raises
 
 ```x
 (def %forms-ran ())
-(list (guard (e 'rejected) (do (def %forms-ran 1) . 2))
-      (guard (e 'rejected) (do (def %forms-ran 2) 3 . 4))
-      (guard (e 'rejected) (do (def %forms-ran 3) 4 5 . 6))
+(list (guard (e 'raised) (do (def %forms-ran 1) . 2))
+      (guard (e 'raised) (do (def %forms-ran 2) 3 . 4))
+      (guard (e 'raised) (do (def %forms-ran 3) 4 5 . 6))
       %forms-ran)
 ```
 ---
-    ('rejected 'rejected 'rejected ())
+    ('raised 'raised 'raised 3)
 
 ### a do body costs what a function body does
 
