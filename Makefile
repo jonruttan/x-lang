@@ -388,16 +388,19 @@ test-stress: $(EXECUTABLE) ## Run x-lang tests including the stress lane
 .PHONY: test-stress
 
 # The tools' own spec suite (tools/tests), repaired from the post-overhaul
-# rot (#180).  Two runners: spec-runner.sh takes the top-level specs on the
+# rot (#180).  Three runners: spec-runner.sh takes the top-level specs on the
 # plain engine; cov-spec-runner.sh takes specs/cov/ on x-bin-cov, because
-# coverage marking only exists under -DX_COV.
+# coverage marking only exists under -DX_COV; profile-spec-runner.sh takes
+# specs/profile/ on x-bin-profile, because only -DX_PROFILE counts evaluation.
+# A release ships x-bin-profile, so that half runs on every tree.
 # THE COV HALF NEEDS A COV ENGINE, and the rest of the suite does not.  Making
 # the whole target depend on x-bin-cov meant a tree running a released engine
 # could not run ANY tool spec: the variant has to be compiled, and a release
 # ships no C.  Splitting it keeps the artifact path honest -- the tools are
 # x-lang's, and only the coverage tool needs an instrumented engine under it.
-test-tools: $(EXECUTABLE) ## Run the tool suite's specs (tools/tests)
+test-tools: $(EXECUTABLE) x-bin-profile ## Run the tool suite's specs (tools/tests)
 	sh tools/tests/spec-runner.sh
+	sh tools/tests/profile-spec-runner.sh
 	@$(ENGINE_ENSURE); if [ -f $(ENGINE_DIR)/Makefile ]; then \
 		$(MAKE) --no-print-directory x-bin-cov && sh tools/tests/cov-spec-runner.sh; \
 	else \
