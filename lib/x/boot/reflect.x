@@ -330,3 +330,15 @@
 (prim-reg! (lit io)  (lit error-file)  %reflect-error-file)
 (prim-reg! (lit type) (lit name)       %reflect-type-name)
 (prim-reg! (lit iter) (lit new)        %reflect-iter-new)
+
+; The doors to the two image lists above, for a module that adds to one and
+; reads neither: (image transient!) takes a symbol or a thunk, and (image
+; recache-hook!) a thunk.  Each entry is the newest of its list.
+(prim-reg! (lit image) (lit transient!)
+  (fn (_ entry)
+    (set! %image-transients (pair entry %image-transients))
+    ()))
+(prim-reg! (lit image) (lit recache-hook!)
+  (fn (_ hook)
+    (set! %image-recache-hooks (pair hook %image-recache-hooks))
+    ()))
