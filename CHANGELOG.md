@@ -21,7 +21,7 @@ from an unpacked release, and the image tools mark with the engine's
 
 **The reference names a field documented with a default** ([#833]). A field's
 doc form wraps its declaration, `(doc NAME "...")` or
-`(doc (NAME default) "...")`, and a static member's does the same.
+`(doc (NAME default) "...")`, and a static field's does the same.
 `(help Class/NAME)` read both, and the generated reference read the first:
 handed the second, it passed the declaration, a pair, to `symbol->str`, which
 is unchecked, and the entry's heading and its man page name came out as bytes
@@ -29,26 +29,33 @@ that are not text. macOS's awk stops on such bytes, so `make doc-x` and
 `make check-man` failed there for a module that used the form, and passed on
 Linux. The generator now names the entry by its declaration's name.
 
-A static member is noted in the reference as "Static member: data held by C
+A static field is noted in the reference as "Static field: data held by C
 itself, not by its instances." It was noted as data carried by a C instance,
 as a field is.
 
 [#833]: https://github.com/jonruttan/x-lang/pull/833
 
 **An instance's data is its fields** ([#829]). A field is a named component of
-an instance or a record, a member is a field or a method, and a class's own
-data is a static member. Inside a method, `(field 'name)` reads an instance's
-storage and `(set-field! 'name v)` writes it; they were `(member 'name)` and
-`(set-member! 'name v)`. `(class-fields c)` lists a class's own field names; it
-was `(class-members c)`. `(help Class)` heads an instance's data `fields:`, and
-the generated reference notes each one as a field. `class-static-members`, the
-`(static ...)` block and the `members:` heading under `static:` keep their
-names. No alias is kept.
+an instance or a record, and a member is a field or a method. Inside a method,
+`(field 'name)` reads an instance's storage and `(set-field! 'name v)` writes
+it; they were `(member 'name)` and `(set-member! 'name v)`. `(class-fields c)`
+lists a class's own field names; it was `(class-members c)`. `(help Class)`
+heads an instance's data `fields:`, and the generated reference notes each one
+as a field. No alias is kept.
 
 Five messages follow: `is not a field of`, `use bare field names`,
 `declare fields directly`, `expected a field name` and `duplicate field`.
 
 [#829]: https://github.com/jonruttan/x-lang/pull/829
+
+**A class's own data is its static fields** ([#840]). `(class-static-fields c)`
+lists them; it was `(class-static-members c)`. `(help Class)` heads them
+`fields:` under `static:`, where it said `members:`. A static member is a
+static field or a static method, so `no such static member` reads as it did.
+One message follows: `call with no selector -- name a field or method`. No
+alias is kept.
+
+[#840]: https://github.com/jonruttan/x-lang/pull/840
 
 **A stat record holds a file's type under `file-type`** ([#823]).
 `(File stat p)` and `(File lstat p)` answer
@@ -308,11 +315,11 @@ to 25,400, and a `File open` and `File close` pair about 2,200 where it took
 
 [#814]: https://github.com/jonruttan/x-lang/pull/814
 
-**Constructing an object fills its members without derived forms**
-([#825]). `(new C ...)` ran every member through `let` frames, `unless`,
+**Constructing an object fills its fields without derived forms**
+([#825]). `(new C ...)` ran every field through `let` frames, `unless`,
 `do`, `not` and `if` in `%instantiate`, `%init-fields`, `%check-init-keys`
 and `%opt-cell`; the same steps run on `def`, `match` and an applied `fn`.
-A three-member `(new Err ...)` allocates about 1,050 objects where it took
+A three-field `(new Err ...)` allocates about 1,050 objects where it took
 3,500, and `(Err make ...)` about 1,740 where it took 4,200.
 
 [#825]: https://github.com/jonruttan/x-lang/pull/825
@@ -1609,7 +1616,7 @@ alist's keys as they stood, so a selector defined a second time was named a
 second time, and help -- which walks those names -- had an entry for each
 row. The accessors strain their keys through `%names-minus` now, which keeps
 the first occurrence of a name: for a method alist that is the row a dispatch
-reaches. The alist and the dispatch order are unchanged, and the member
+reaches. The alist and the dispatch order are unchanged, and the field
 accessors need nothing -- their alists are written through `%box-put!`,
 which replaces an entry in place.
 
@@ -3413,9 +3420,9 @@ routing works.
 - **x-lang reaches its engine through one path** — `engine`, a `.gitignore`d symlink in the repo root that `make` points at whatever the tree builds against: a fetched release, a checkout named by `X_ENGINE_DIR`, or any unpacked engine directory. Everything downstream uses that one spelling — the boot's contract includes, the JIT's `-I` flags, the gates, the conformance runner — so a second implementation needs no edit to `lib/`. An engine directory either has sources (built here) or ships a binary (used as-is); the build asks which rather than assuming. Once pointed somewhere explicitly the link stays there, and `make install` stamps the ISA fingerprint from the engine it actually built against, not from a hardcoded path.
 
 - **Object model v2** — message passing now runs over flat per-class dispatch tables (the hot path), with `method-of` as the sanctioned de-dispatch door; value-call subject-last is routing sugar into the same door; generic functions are the multi-argument cold path; and the C ops cell's seven spellings shim into the tower's generics, so promotion has one authority. Composition (`with`/`delegates`), contracts, records, open classes and `%missing` are table-shaping features that never change routing. Measured: a 110-entry static back-hit went 231 → ~100 µs/call, and `method-of`-hoisted calls sit at ~31 µs against a plain `fn`'s ~21.
-- **Static members inherit**, with shadow-on-write, and classes are tracked in a registry.
+- **Static fields inherit**, with shadow-on-write, and classes are tracked in a registry.
 - **Stored methods are applicative** — the stale wrap sites are gone.
-- **`%this-class` box replaces the `%super-class` binding**; member and static writes go in place through `%box-put!`; the dispatch arg frame is tail-evaluated.
+- **`%this-class` box replaces the `%super-class` binding**; field and static writes go in place through `%box-put!`; the dispatch arg frame is tail-evaluated.
 - **Library version 0.5.0** — `x-lib-version` had read `0.3.0` since before v0.4.0 shipped, so the banner and `x -V` under-reported the library by two releases while claiming precision. `docs/spec.md`, `docs/standard-library.md` and the README's maturity line move with it.
 
 - **The pin records which engine a project was verified against** — a lock's
@@ -3491,7 +3498,7 @@ engine to run it.
 - **Optional build modules under `opt/`** — first occupant is `opt/x-prim/signal.c`; gated by `X_SIGNAL` (default on), `make X_SIGNAL=` drops the module and compiles the eval poll out
 - **`examples/logo/ch1.logo`** — Chapter-1 programs from *Turtle Geometry* (ARCR/ARCL, RAY, POLY/NEWPOLY, POLYSPI/POLYSPII, INSPI)
 - **x-spec coverage for GC hook & root API** — `tests/x/specs/applicative/gc-hooks.spec.md` (STRESS-only)
-- **Object-oriented class system** (`lib/x/type/class.x`) — classes are themselves callable `%class` objects; instances are `%object`. Message-passing dispatch with literal selectors (`(obj name args)`, no quotes — the `call` handler is an operative), single inheritance with `super`, and a `(static …)` block of static methods + class-wide members so a class doubles as a namespace (`(Class name)`, `(Class new …)`). Members are declared directly in the class body (no wrapper) with a uniform form — `name` | `(name default)` | `(name default "desc")` — identical in the static block; instance members gain optional default values. Access is encapsulated (external reads/writes only via dispatch; method-internal `(field 'm)`/`(set-field! 'm v)`, released as `(member 'm)`/`(set-member! 'm v)`, for the private-data pattern). `(help Class)` lists members and methods grouped static-vs-instance, merged across the inheritance chain and sorted by name. Spec: `tests/x/specs/ext/object.spec.md`; guide: `docs/object-system.md`
+- **Object-oriented class system** (`lib/x/type/class.x`) — classes are themselves callable `%class` objects; instances are `%object`. Message-passing dispatch with literal selectors (`(obj name args)`, no quotes — the `call` handler is an operative), single inheritance with `super`, and a `(static …)` block of static methods + static fields so a class doubles as a namespace (`(Class name)`, `(Class new …)`). Fields are declared directly in the class body (no wrapper) with a uniform form — `name` | `(name default)` | `(name default "desc")` — identical in the static block; instance fields gain optional default values. Access is encapsulated (external reads/writes only via dispatch; method-internal `(field 'm)`/`(set-field! 'm v)`, released as `(member 'm)`/`(set-member! 'm v)`, for the private-data pattern). `(help Class)` lists fields and methods grouped static-vs-instance, merged across the inheritance chain and sorted by name. Spec: `tests/x/specs/ext/object.spec.md`; guide: `docs/object-system.md`
 - **Quote reader** (`lib/x/type/lit-reader.x`) — `'expr` is reader shorthand for `(lit expr)` (`'sym`, `'(a b)`, `''x`, and `'` as a terminating macro char). The analyser is JIT-compiled in x/and and x/or so it doesn't slow tokenizing. Spec: `tests/x/specs/core/quote-reader.spec.md`
 
 ### Changed
@@ -3524,7 +3531,7 @@ engine to run it.
 - **Lint spec batch footprint: ~5 GB → ~0.8 GB** — every one of the 31 tests raw-`include`d the whole lint tool (~150 MB of objects each, never collected: the harness doesn't GC between snippets), so the batch OOM'd any small-RAM box. macOS *appeared* fine only because memory compression hid it (peak footprint told the truth). Now loads once per batch via `# @lib ../tests/x/lib/lint.x`, matching every other tool spec. Investigation notes: object counts and sizes are identical across platforms, and jemalloc matched glibc byte-for-byte — there was no leak and no allocator pathology, just honest accounting on Linux.
 - **Type-field reads on non-type tags** — six sites (`type?`, `type-name`, `units`, `length`, and the `write`/`display` hook dispatch) navigated `x_type_field_*` on whatever sat in an object's type slot. A child base's slot holds the `x_eval_obj` sentinel (a static atom tagging the raw string `"BASE"`), so e.g. `(pair? (Base make))` read 8 bytes past the tag string (ASan global-buffer-overflow) and worked only because the garbage compared unequal. All six now use `x_type_op_try`'s documented guard: only a pair-tree type has fields; sentinel-typed objects get defined fallbacks (`type?` → `#f`, atom units/length, default repr).
 - **call/cc vs AddressSanitizer** — under ASan the capture size went negative (instrumented frames live on ASan's heap-side fake stack, breaking `&local` ordering against the stack base) and the segment copies tripped the `memcpy` interceptor on other frames' redzones. The capture/restore functions are now exempt (`no_sanitize_address`, which also keeps the setjmp frame in the captured segment) and copy through an uninstrumented byte loop under ASan; plain builds are unchanged (`memcpy`, empty attribute).
-- **def-class heap under-read on bare members** — `%collect-methods` tested `(eq? (first (first forms)) (lit method))` without a `pair?` guard, so a bare member name (a symbol) had its name buffer dereferenced as an object — an out-of-bounds read that 64-bit malloc tolerates (garbage compares unequal, so bare members were skipped *by luck*) but ASan flags and 32-bit/Pi can segfault on. This was the tracked "eq?/match under-read" blocking `make test-asan` from hard-gating.
+- **def-class heap under-read on bare fields** — `%collect-methods` tested `(eq? (first (first forms)) (lit method))` without a `pair?` guard, so a bare field name (a symbol) had its name buffer dereferenced as an object — an out-of-bounds read that 64-bit malloc tolerates (garbage compares unequal, so bare fields were skipped *by luck*) but ASan flags and 32-bit/Pi can segfault on. This was the tracked "eq?/match under-read" blocking `make test-asan` from hard-gating.
 - **call/cc reinvocation segfault on Linux/gcc** — the stack capture's lower bound came from `&local`, missing frame slots the compiler placed below it (gcc spills `p_base`/`cont` there); clang's register allocation masked it. Capture now bounds from a non-inlinable callee frame, and the restore descent keeps a two-pad margin so the memcpy can't clobber the live restore frame.
 - **A64 detection on GNU triplets** — `%asm-arm64?` matched only Darwin's "arm64" spelling, loading the x86_64 backend on aarch64 Linux
 - **Op lexical scope** — operative bodies now capture the environment at `(op …)` definition time, not the caller's environment at call time. Co-issue: a C-spec for `procedure_call` / `operative_call` was updated to match.

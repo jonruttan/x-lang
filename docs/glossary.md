@@ -91,9 +91,10 @@ this tree.
 - **field** — a named component of a record or object: an instance's
   data (`(field 'n)`, `set-field!`), a def-record's components, a leaf of
   the base tree or of a runtime type (`x_eval_field_*`,
-  `x_type_field_*`).
-- **member** — a field or a method. A class's own data, declared in
-  `(static ...)`, is a **static member**.
+  `x_type_field_*`). A class's own data, declared in `(static ...)`, is
+  a **static field**.
+- **member** — a field or a method. A **static member** is a static
+  field or a static method.
 - **slot** — a raw position in a storage object: `Obj ref`, a runtime
   type's units.
 - **method** — a function chosen by dispatch on a class or a type; a

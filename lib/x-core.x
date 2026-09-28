@@ -198,7 +198,7 @@
 (include-once "lib/x/type/record.x")
 ((prim-ref (lit heap) (lit collect)))
 ; Convert: the conversion dispatcher (registered in the catalog as
-; (convert . to)) + the Convert class with the no-match policy member.
+; (convert . to)) + the Convert class with the no-match policy field.
 ; Relocated past object.x from the early type-internals block -- it needs
 ; def-class + doc, and every caller (tower, regex, posix, hash, tools)
 ; loads later still.

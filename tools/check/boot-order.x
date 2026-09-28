@@ -145,7 +145,7 @@
       (#t ()))))
 
 ; def-class body: (method ...) bodies are deferred; (static ...) recurses;
-; (interface ...) is declared NAMES (not evaluated references); member
+; (interface ...) is declared NAMES (not evaluated references); field
 ; values and (doc ...) evaluate at class-build time.
 (def %walk-class-body
   (fn (self body file)

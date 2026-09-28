@@ -1,6 +1,6 @@
 ; ansi.x -- Ansi: terminal color support, homed on the Ansi class.
 ;
-; Detects terminal capabilities; the color codes live as Ansi static MEMBERS
+; Detects terminal capabilities; the color codes live as Ansi static FIELDS
 ; (computed once at class definition -- empty strings when color is off, so
 ; every use is a zero-cost no-op). When stdout is not a terminal, or NO_COLOR
 ; is set, or TERM is "dumb", or --no-color was passed, color is off.
@@ -50,8 +50,8 @@
 (def %esc "\x1b")
 (def %sgr (fn (_ code) (if %ansi? (%str-append %esc (%str-append "[" (%str-append code "m"))) "")))
 
-; --- The Ansi class: color members + operations ---
-; Members evaluate once, here, at class definition. Methods referencing the
+; --- The Ansi class: color fields + operations ---
+; Fields evaluate once, here, at class definition. Methods referencing the
 ; %-helpers below resolve them at call time (deferred, the List precedent).
 
 (def-class Ansi ()
@@ -332,6 +332,6 @@
 
 (doc (provide x/repl/ansi Ansi)
   (note "Color scheme: LSP semantic tokens — number=yellow, string=green, symbol=blue, char=magenta, bool=bold-red, function=cyan.")
-  (note "Colors are Ansi static members ((Ansi red), (Ansi bold-cyan), ...); empty strings when color is off.")
+  (note "Colors are Ansi static fields ((Ansi red), (Ansi bold-cyan), ...); empty strings when color is off.")
   (note "Respects NO_COLOR and TERM=dumb; pass --no-color to disable.")
   "ANSI terminal color support, homed on the Ansi class.")

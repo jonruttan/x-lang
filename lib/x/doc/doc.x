@@ -595,7 +595,7 @@
 ; Empty sections are hidden; inheritance is merged + sorted within each section.
 (def %display-class-sections
   (fn (_ cls base)
-    (let ((s-mem  (%class-section-entries cls class-static-members))
+    (let ((s-mem  (%class-section-entries cls class-static-fields))
           (s-meth (%class-section-entries cls class-static-methods))
           (i-mem  (%class-section-entries cls class-fields))
           (i-meth (%class-section-entries cls class-methods)))
@@ -603,7 +603,7 @@
         (if (if (null? s-mem) (null? s-meth) #f) ()    ; static: only if non-empty
           (do
             (display base "static:\n")
-            (%display-section "members:" s-mem  (%str-append base "  "))
+            (%display-section "fields:" s-mem  (%str-append base "  "))
             (%display-section "methods:" s-meth (%str-append base "  "))))
         (%display-section "fields:" i-mem  base)
         (%display-section "methods:" i-meth base)))))

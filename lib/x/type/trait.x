@@ -17,7 +17,7 @@
 ;
 ; A trait stores its method FORMS plus its defining env: at class-close the
 ; host builds them with the ordinary method builder, so `super` resolves
-; against the HOST's chain and member access works, while the body's free
+; against the HOST's chain and field access works, while the body's free
 ; names resolve where the trait was written. Conflict rules are explicit,
 ; no linearization: the class's own method beats a trait's; a trait's beats
 ; an inherited one; two traits supplying one selector with no own override

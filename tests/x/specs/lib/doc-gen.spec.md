@@ -54,7 +54,7 @@ a stub that records `note` calls, so the spec is not coupled to Markdown.
 
 A field's doc form wraps its declaration, `(doc DECL "description")`, and a
 declaration is `NAME` or `(NAME default)`. The page names the field by the
-declaration's name in both shapes, and a static member the same way. Each
+declaration's name in both shapes, and a static field the same way. Each
 case walks a class form as the generator's driver does, through
 `doc-walk-with-prims`, into a stub emitter that records the calls the case
 reads.
@@ -84,7 +84,7 @@ reads.
 ---
     ("label" "reason" "state")
 
-### a static member documented with a default is headed by its name
+### a static field documented with a default is headed by its name
 
 ```x
 (do (import x/doc/doc-gen doc-walk-with-prims)
@@ -130,13 +130,13 @@ reads.
     ("Where the site stands." "DgSite2-state")
 
 
-## a member's note says who holds it
+## a field's note says who holds it
 
-A field is data each instance carries. A member declared inside
-`(static ...)` is the class's own, a static member, so its note says that
+A field is data each instance carries. One declared inside
+`(static ...)` is the class's own, a static field, so its note says that
 instead.
 
-### a static member's note says the class holds it
+### a static field's note says the class holds it
 
 ```x
 (do (import x/doc/doc-gen doc-walk-with-prims)
@@ -156,7 +156,7 @@ instead.
     (DgNotes got))
 ```
 ---
-    ("Static member: data held by DgSite3 itself, not by its instances.")
+    ("Static field: data held by DgSite3 itself, not by its instances.")
 
 ### a field's note says an instance carries it
 
@@ -180,7 +180,7 @@ instead.
 ---
     ("Field: data carried by a DgSite4 instance.")
 
-### a static member declared without a doc form gets the static note too
+### a static field declared without a doc form gets the static note too
 
 ```x
 (do (import x/doc/doc-gen doc-walk-with-prims)
@@ -197,7 +197,7 @@ instead.
       '((def-class DgSite5 ()
           (static (made 0) (private held))))
       () DgNotes3 "")
-    (list (List count-if (n) (Str8 includes? "Static member" n) (DgNotes3 got))
+    (list (List count-if (n) (Str8 includes? "Static field" n) (DgNotes3 got))
           (List count-if (n) (Str8 includes? "Private:" n) (DgNotes3 got))))
 ```
 ---
@@ -207,7 +207,7 @@ instead.
 ## a field documented with no description
 
 `(doc DECL)` with no description is allowed: `(help Class/NAME)` reads it as
-an empty description. The page gives such a field, or such a static member,
+an empty description. The page gives such a field, or such a static field,
 its heading and its note, and no description text.
 
 ### a heading and no text, for both shapes of declaration
