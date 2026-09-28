@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**An error's classifying symbol is its label** ([#821]). `(Err label e)` is the
+total accessor, `(e label)` the field and `(e label? 'io)` the predicate, and
+`make` and `raise` take a `label`. They were `(Err tag e)`, `(e tag)` and
+`(e tag? 'io)`. The glossary's word for the value that says which variant
+something is, is label, and an error's `'io` is one. No alias is kept: a guard
+that matched on `(Err tag e)` now writes `(Err label e)`.
+
+A bundle that runs on both sides of the rename asks the platform once, at
+load, which name it has, as x-coreutils and x-python do:
+
+```x
+(def %cu-err-label
+  (guard (_ (fn (_ e) (Err tag e)))
+    (do (Err label "probe")
+        (fn (_ e) (Err label e)))))
+```
+
+[#821]: https://github.com/jonruttan/x-lang/pull/821
+
 **Doc annotations spell the runtime type's name** ([#817]). An annotation, the
 T of a `(param NAME T ...)` or `(returns T ...)` doc form, names a runtime type
 as registered, a class as spelled, or one of `ANY`, `NUMBER`, `CALLABLE`,
@@ -1651,17 +1670,19 @@ becoming a code point list that can hold one, so a bare `print` of such a
 value had to be pinnable at all. `tests/spec-format.md` states the
 contract, `meta/multiline.spec.md` holds it.
 
-**An error's classifying symbol is its TAG, not its "kind".** `Err` grew
+**An error's classifying symbol is its LABEL, not its "kind".** `Err` grew
 up saying `kind`: `(Err kind-of e)`, `(e kind? 'io)`, the `kind` field,
 `(Err make kind msg data)`, and every doc string that promised "a kind-'io
 Err". Kind is not a term this tree uses for a classifier -- a token's
-classification is its variant, an error's is its tag -- so the API now says
-so: `(Err tag e)` is the total accessor (the noun applied to the value, the
-way `(List length lst)` reads), `(e tag)` the field, `(e tag? 'io)` the
-predicate, and `make` / `raise` take a `tag`. No alias is kept: a guard
-that matched on `(Err kind-of e)` now writes `(Err tag e)`. (`Err code-of`
-and `File stat`'s `kind` key are untouched: the first is an engine raise's
-message literal, the second names a file's kind -- 'file 'dir 'link.)
+classification is its variant, an error's is its label -- so the API now
+says so: `(Err label e)` is the total accessor (the noun applied to the
+value, the way `(List length lst)` reads), `(e label)` the field,
+`(e label? 'io)` the predicate, and `make` / `raise` take a `label`. No
+alias is kept: a guard that matched on `(Err kind-of e)` now writes
+`(Err label e)` (released as `(Err tag e)`, now `(Err label e)`).
+(`Err code-of` and `File stat`'s `kind` key are untouched: the first is an
+engine raise's message literal, the second names a file's kind -- 'file 'dir
+'link.)
 
 **A reader hears which state accepted, instead of rescanning to find out.**
 An analyser state knows which of its states accepted and threw it away; the
@@ -1995,7 +2016,7 @@ says what a send with no selector does.
 
 **Opts: the command line, parsed against a declaration.** Every bundle was
 writing this by hand -- x-grep's and x-make's option readers were byte
-identical apart from an error tag, and x-coreutils had grown nine of its own.
+identical apart from an error label, and x-coreutils had grown nine of its own.
 The cost was never the duplication but the drift between the check and the
 read. A bundle declares its options and Opts answers them.
 
@@ -2244,13 +2265,14 @@ same shape `char-io.x` has always used for CHARACTER:
   (fn (_ e) (display (Str8 append "symbole non liée : " (Err subject-of e)))))
 ```
 
-`Err` learned the vocabulary: `(Err kind-of e)` answers `'engine` for an
-engine raise rather than lumping it in with `'user`, and `(Err code-of e)` /
-`(Err subject-of e)` return the two facts as strings. The engine's whole
-raise vocabulary is five codes, so keying a translation off them is
-tractable. `boot/printer.x` lost the identity test it used to need (#54): a
-nil-typed atom had to be recognised by pointer to print at all, and a typed
-value simply dispatches — two `%`-globals gone with it.
+`Err` learned the vocabulary: `(Err label e)` (released as
+`(Err kind-of e)`, later `(Err tag e)`, now `(Err label e)`) answers
+`'engine` for an engine raise rather than lumping it in with `'user`, and
+`(Err code-of e)` / `(Err subject-of e)` return the two facts as strings.
+The engine's whole raise vocabulary is five codes, so keying a translation
+off them is tractable. `boot/printer.x` lost the identity test it used to
+need (#54): a nil-typed atom had to be recognised by pointer to print at
+all, and a typed value simply dispatches — two `%`-globals gone with it.
 
 Uncaught errors still word themselves in C and read exactly as before: that
 path runs before any library is loaded, and nothing on a fatal path should
@@ -2268,8 +2290,9 @@ failing loudly, which is the one unkind part of this change:
 | `(Str8 append "" e)` | `(Err code-of e)` for just the code |
 | — | `(Err subject-of e)` for just the name it is about |
 
-Guards that only *re-raise* or match on `(Err kind-of e)` are unaffected,
-and `(error "msg")` still delivers the string itself exactly as before.
+Guards that only *re-raise* or match on `(Err label e)` (released as
+`(Err kind-of e)`) are unaffected, and `(error "msg")` still delivers the
+string itself exactly as before.
 
 
 **The documentation answers a machine now.** `AGENTS.md` (with `CLAUDE.md`
