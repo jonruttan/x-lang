@@ -22,7 +22,7 @@
 ; A bare symbol inside one is a member declaration and normalises to (name).
 
 (
-  (doc       "The class's own description, notes and examples -- and a member's documentation when its first argument is a symbol rather than a string.")
+  (doc       "The class's own description, notes and examples -- and a member's documentation when its first argument is the declaration, NAME or (NAME default), rather than a string.")
   (method    "An instance method, or a static when it sits inside a (static ...) block.")
   (static    "A block of statics; its body is walked as methods.")
   (interface "The operations a type must supply to satisfy the protocol.")

@@ -7,8 +7,10 @@
 # Coverage is the checkable property.  A closed vocabulary of class-body forms
 # is not: a member is declared as (name), (name default) or
 # (name default "description"), so the head is the member's own name and the
-# set is open.  Declared against rendered is what catches a generator that
-# drops members while the page still looks finished.
+# set is open.  A documented member is (doc DECL "description"), where DECL is
+# NAME or (NAME default); the walker reports its name beside the doc head.
+# Declared against rendered is what catches a generator that drops members
+# while the page still looks finished.
 #
 # Needs the reference BUILT: run after `make doc-x`, which is why this hangs
 # off the docs path and not the contract gates (a separate CI job with no
@@ -66,8 +68,15 @@ STRUCTURAL='^(doc|method|static|interface|private|protected)$'
 
 missing=0
 checked=0
-while read -r file cname form; do
-  echo "$form" | grep -qE "$STRUCTURAL" && continue
+while read -r file cname form member; do
+  # A doc form that documents a member carries the member's name as a fourth
+  # field, and the member is checked under that name.  A doc line without one
+  # is the class's own description, which is structural.
+  if [ "$form" = doc ] && [ -n "$member" ]; then
+    form=$member
+  elif echo "$form" | grep -qE "$STRUCTURAL"; then
+    continue
+  fi
   # lib/x/foo/bar.x -> docs/ref/x/foo/bar.md
   page="docs/ref/$(echo "${file#lib/}" | sed 's/\.x$/.md/')"
   # A module with no page of its own (an include fragment) cannot be checked.
