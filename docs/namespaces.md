@@ -184,6 +184,16 @@ document that describes it to a lang's author
 ([Crafting a Lang](crafting-a-lang.md)). What those three files define
 beyond the promised names is counted as any private read is.
 
+A file that stays unscoped keeps its names in the root, so a door in front
+of one hides nothing and costs a dispatch. The names other files read from
+those files are listed as well (decision of 2026-09-28): the dispatcher's
+parts in `type/class.x`, the registry's parts and the colour stubs in
+`doc/doc.x`, what a backend emits through and the slots the JIT fills in
+`tool/asm.x`, the linter's hooks and analysers, what the benchmark and the
+pin tool read of `codec/sha256.x`, and the six walker names their classes
+read. `%stderr` is not listed: its door is `(Stream with-fd 2 thunk)`, in
+`x/sys/stream`, and the readers that can load that module use it.
+
 The assembler's architecture backends (`tool/asm/arm64.x`, `tool/asm/x86_64.x`)
 stay unscoped for a related reason: their bare names, the registers and the
 push, pop and prologue helpers, are one interface with two implementations,

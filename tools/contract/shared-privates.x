@@ -31,7 +31,8 @@
 ; the name, and that a rename has those readers to move.
 ;
 ; Decisions, in docs/namespaces.md: the walkers on 2026-09-24; the boot
-; names, the seams and the reader protocol on 2026-09-27.
+; names, the seams and the reader protocol on 2026-09-27; the names of the
+; files that stay unscoped on 2026-09-28.
 
 ; --- the boot files ---------------------------------------------------------
 (boot "lib/x/boot/engine.x" "loads before boot/module.x defines the module form")
@@ -143,3 +144,98 @@
 (promised "lib/x/reader/intrinsics.x" %buffer-unread "docs/crafting-a-lang.md" "gives the current character back before an accept")
 (promised "lib/x/reader/intrinsics.x" %score-label! "docs/crafting-a-lang.md" "declares which variant the accepting state saw")
 (promised "lib/x/reader/intrinsics.x" %read-label "docs/crafting-a-lang.md" "the label, as the type's reader recovers it")
+
+; --- the files that stay unscoped by decision or by measurement ---------------
+; These keep their names in the root (docs/namespaces.md), so a door in front
+; of one would hide nothing and cost a dispatch.  The rows are the names
+; other files read today.  The files are not boot files: a read of another
+; of their % names is counted against its reader.  Decision of 2026-09-28.
+
+; --- core/list.x and core/alist.x: read by the class that is their door -------
+(shared "lib/x/core/list.x" %for-each1 "calls a function on each element of one list; read by the List class")
+(shared "lib/x/core/list.x" %any-null? "whether any of several lists is empty; read by the List class")
+(shared "lib/x/core/alist.x" %assoc-put "an association list with a key set; the class door is (Assoc put)")
+(shared "lib/x/core/alist.x" %assoc-del "an association list without a key; the class door is (Assoc del)")
+(shared "lib/x/core/alist.x" %opt-get-or-else "the lookup a let-opts expansion names; the class door is (Assoc opt-get-or-else)")
+(shared "lib/x/core/alist.x" %opt-cell "an option's value in a box, or nil when absent; read by the class system")
+
+; --- type/class.x: the dispatcher's parts, read by the types built on it ------
+(shared "lib/x/type/class.x" %class-hot "a class's method tables, as the dispatcher holds them")
+(shared "lib/x/type/class.x" %tab-find! "finds a selector's entry in a method table")
+(shared "lib/x/type/class.x" %entry-method "the callable method of a table entry, or nil")
+(shared "lib/x/type/class.x" %selector "a quoted selector as the bare symbol")
+(shared "lib/x/type/class.x" %find-form "the tail of a tagged form in a class body")
+(shared "lib/x/type/class.x" %obj-fields "an instance's fields")
+(shared "lib/x/type/class.x" %object "the OBJECT type")
+
+; --- doc/doc.x: the registry's parts, and the colour stubs ansi.x sets --------
+(shared "lib/x/doc/doc.x" %doc-commit! "files the documentation that is pending")
+(shared "lib/x/doc/doc.x" %doc-lookup "the entry documented under a name")
+(shared "lib/x/doc/doc.x" %doc-pending-cell "the cell that holds documentation not yet filed")
+(shared "lib/x/doc/doc.x" %doc-find-last-string "the last string in a list")
+(shared "lib/x/doc/doc.x" %doc-entry-name "an entry's name")
+(shared "lib/x/doc/doc.x" %doc-entry-params "an entry's parameters")
+(shared "lib/x/doc/doc.x" %doc-entry-examples "an entry's examples")
+(shared "lib/x/doc/doc.x" %doc-entry-notes "an entry's notes")
+(shared "lib/x/doc/doc.x" %doc-entry-samples "an entry's samples")
+(shared "lib/x/doc/doc.x" %highlight-code "prints code; display until repl/ansi.x sets it")
+(shared "lib/x/doc/doc.x" %c-reset "a colour code, empty until repl/ansi.x sets it")
+(shared "lib/x/doc/doc.x" %c-bold "a colour code, empty until repl/ansi.x sets it")
+(shared "lib/x/doc/doc.x" %c-dim "a colour code, empty until repl/ansi.x sets it")
+(shared "lib/x/doc/doc.x" %c-name "a colour code, empty until repl/ansi.x sets it")
+(shared "lib/x/doc/doc.x" %c-type "a colour code, empty until repl/ansi.x sets it")
+(shared "lib/x/doc/doc.x" %c-param "a colour code, empty until repl/ansi.x sets it")
+(shared "lib/x/doc/doc.x" %c-example "a colour code, empty until repl/ansi.x sets it")
+(shared "lib/x/doc/doc.x" %c-error "a colour code, empty until repl/ansi.x sets it")
+(shared "lib/x/doc/doc.x" %c-module "a colour code, empty until repl/ansi.x sets it")
+
+; --- tool/asm.x: what a backend emits through, and the slots the JIT fills ----
+(shared "lib/x/tool/asm.x" %arch "the architecture's table and encoder; the backend sets it at load")
+(shared "lib/x/tool/asm.x" %op-type "an operand's type")
+(shared "lib/x/tool/asm.x" %op-value "an operand's value")
+(shared "lib/x/tool/asm.x" %emit-u8! "emits one byte")
+(shared "lib/x/tool/asm.x" %emit-bytes! "emits a list of bytes")
+(shared "lib/x/tool/asm.x" %emit-u32-le! "emits a 32-bit word, low byte first")
+(shared "lib/x/tool/asm.x" %emit-u64-le! "emits a 64-bit word, low byte first")
+(shared "lib/x/tool/asm.x" %asm-compiler "the compiler, once asm-compile.x has loaded and filed it")
+(shared "lib/x/tool/asm.x" %jit-missing "the runtime helpers the compiler could not resolve")
+(shared "lib/x/tool/asm.x" %asm-last-relocs "the relocations of the function produced last")
+(shared "lib/x/tool/asm.x" %asm-last-size "the size of the function produced last")
+(shared "lib/x/tool/asm.x" %asm-last-buf "the code buffer of the function produced last")
+(shared "lib/x/tool/asm.x" %obj-ref "the catalog's obj ref, fetched once")
+
+; --- tool/lint.x: the hooks and analysers its driver sets and routes to -------
+(shared "lib/x/tool/lint.x" %lint-binds? "a hook: whether a form binds a name; the driver sets it")
+(shared "lib/x/tool/lint.x" %lint-dispatch "a hook: the analysis of one list form; the driver sets it")
+(shared "lib/x/tool/lint.x" %lint-head-cell "the head of the form in hand, as a string")
+(shared "lib/x/tool/lint.x" %lint-string-type "the string type's handle")
+(shared "lib/x/tool/lint.x" %lint-def "the analyser of a definition")
+(shared "lib/x/tool/lint.x" %lint-set "the analyser of an assignment")
+(shared "lib/x/tool/lint.x" %lint-fn "the analyser of a function")
+(shared "lib/x/tool/lint.x" %lint-op "the analyser of an operative")
+(shared "lib/x/tool/lint.x" %lint-let "the analyser of a let")
+(shared "lib/x/tool/lint.x" %lint-guard "the analyser of a guard")
+(shared "lib/x/tool/lint.x" %lint-quasi "the analyser of a quasiquoted form")
+(shared "lib/x/tool/lint.x" %lint-first-rest "the analyser of first and rest")
+(shared "lib/x/tool/lint.x" %lint-match "the analyser of a match")
+(shared "lib/x/tool/lint.x" %lint-method-ref "the analyser of a method-ref")
+(shared "lib/x/tool/lint.x" %lint-call "the analyser of a call")
+
+; --- codec/sha256.x: what the benchmark and the pin tool read ----------------
+(shared "lib/x/codec/sha256.x" %sha-jit-threshold "the input size from which a digest builds the compiled engine")
+(shared "lib/x/codec/sha256.x" %sha-k "the round constants")
+(shared "lib/x/codec/sha256.x" %sha-ih "the initial hash values")
+(shared "lib/x/codec/sha256.x" %sha-word "one message word, read from the input")
+(shared "lib/x/codec/sha256.x" %sha-oref "the catalog's obj ref, fetched once")
+(shared "lib/x/codec/sha256.x" %sha+ "the catalog's int +, fetched once")
+
+; --- repl/loop.x: beside the seam, what the line editor reads ----------------
+(shared "lib/x/repl/loop.x" %error-loc-prefix "the file and line an error message opens with")
+(shared "lib/x/repl/loop.x" %repl-platform-repl "the platform's own repl, to tell it from one a lang installed")
+
+; --- reader/intrinsics.x: beside the analyse protocol -------------------------
+(shared "lib/x/reader/intrinsics.x" %buffer-len "the length of what the tokenizer buffer has taken in")
+
+; --- type/shape-rows.x: data, which the img dialect includes on a bare base ---
+(shared "lib/x/type/shape-rows.x" %type-kind-codes "the engine's codes for a unit's kind")
+(shared "lib/x/type/shape-rows.x" %type-shape-rows "each engine type's units, as rows")

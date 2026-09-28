@@ -22,6 +22,7 @@
   (import x/sys/file)
   (import x/tool/highlight)
   (import x/tool/contract)
+  (import x/sys/stream)
   (import x/codec/xon)
 
   (Contract alloc-guard!)
@@ -30,7 +31,7 @@
 
   (def %hl-files (Contract argv))
   (when (null? %hl-files)
-    (do (%stderr "Usage: x.sh --no-pin -q -f tools/dev/highlight.x -- FILE...\n")
+    (do (Stream with-fd 2 (fn (_) (display "Usage: x.sh --no-pin -q -f tools/dev/highlight.x -- FILE...\n")))
         (Sys exit 1)))
 
   ; The keyword set comes from the construct declarations, so a construct
