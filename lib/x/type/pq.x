@@ -31,7 +31,7 @@
 
   ; --- the sift halves (private; both ride the backing array in place) ---
   (method %sift-up! (self i)
-    (let ((st (member 'store)) (cmp (member 'cmp)))
+    (let ((st (field 'store)) (cmp (field 'cmp)))
       (let up ((i i))
         (if (= i 0) ()
           (let ((p (/ (- i 1) 2)))
@@ -43,7 +43,7 @@
               ()))))))
 
   (method %sift-down! (self i)
-    (let ((st (member 'store)) (cmp (member 'cmp)))
+    (let ((st (field 'store)) (cmp (field 'cmp)))
       (let ((n (st length)))
         (let down ((i i))
           (let ((l (+ (* 2 i) 1)) (r (+ (* 2 i) 2)))
@@ -59,22 +59,22 @@
   (method push! (self (param v ANY "Value to enqueue"))
     (doc "Enqueue a value: O(log n). Returns the queue for chaining."
       (returns Pq "self"))
-    ((member 'store) push! v)
-    (self %sift-up! (- ((member 'store) length) 1))
+    ((field 'store) push! v)
+    (self %sift-up! (- ((field 'store) length) 1))
     self)
 
   (method peek (self)
     (doc "The front value (the one pop! would return), without removing it; raises a label 'value when empty."
       (returns ANY "The front value"))
-    (if (= ((member 'store) length) 0)
+    (if (= ((field 'store) length) 0)
       (Err raise 'value "Pq peek: empty" ())
-      ((member 'store) ref 0)))
+      ((field 'store) ref 0)))
 
   (method pop! (self)
     (doc "Remove and return the front value: O(log n); raises a label 'value when empty."
       (returns ANY "The front value")
       (example "(let ((q (Pq make (fn (_ a b) (< a b))))) (q push! 9) (q push! 4) (list (q pop!) (q pop!)))" "(4 9)"))
-    (let ((st (member 'store)))
+    (let ((st (field 'store)))
       (let ((n (st length)))
         (match
           ((= n 0) (Err raise 'value "Pq pop!: empty" ()))
@@ -88,12 +88,12 @@
   (method length (self)
     (doc "How many values are queued."
       (returns INTEGER "The count"))
-    ((member 'store) length))
+    ((field 'store) length))
 
   (method empty? (self)
     (doc "Is the queue empty?"
       (returns BOOL "#t when nothing is queued"))
-    (= ((member 'store) length) 0)))
+    (= ((field 'store) length) 0)))
 
 (doc (provide x/type/pq Pq)
   (note "The heap structure under the queue name -- Heap is the GC class. Comparator contract matches List sort: (cmp a b) -> #t when a comes strictly first.")

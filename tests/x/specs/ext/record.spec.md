@@ -31,7 +31,7 @@ keep identity semantics).
 ---
     (() 9 ())
 
-### fields write in place, like any member
+### fields write in place, like any object field
 
 ```x
 (do

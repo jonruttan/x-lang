@@ -83,7 +83,7 @@
       (%go %base-paths))
     (method wrap (self (param t ANY "A type handle (from Type of) or the type itself (from Type by-atom)"))
       (doc "Clothe a type as a Type instance for interactive use."
-        (returns OBJECT "The Type instance; handle/raw members hold both forms")
+        (returns OBJECT "The Type instance; handle/raw fields hold both forms")
         (example "((Type wrap (Type of 0)) name)" "\"INTEGER\""))
       (match
         ((null? t) (error (lit type-wrap-nil)))

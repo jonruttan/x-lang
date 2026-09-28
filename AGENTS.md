@@ -172,7 +172,7 @@ guesses a language that is not this one.
 - **Indexes are 0-based; negatives count from the end.**
 - **Misses return nil, never `#f`.** Predicates answer `#t`/`#f`. Falsy is
   exactly `{nil, #f}`.
-- **member / field / slot are three different tiers**, not synonyms — see
+- **field, member, slot are three distinct terms**, not synonyms — see
   [docs/contributing.md](docs/contributing.md).
 - Doc type vocabulary is fixed: `INTEGER` not INT, `BOOL` not BOOLEAN,
   `CALLABLE` not FUNCTION. `make check-doc-annotations` enforces it.

@@ -27,7 +27,7 @@ list and binds nothing either. See [Modules](modules.md).
 
 Three mechanisms already do part of a namespace's job:
 
-- **Classes.** A class holds static methods and members, so `(List map …)`
+- **Classes.** A class holds static methods and fields, so `(List map …)`
   is a qualified call and `Pin` homes a whole tool under one global. A
   `%`-prefixed static is private by convention; a `(private …)` block is
   private in fact. Static dispatch costs 8 to 30 times a direct call, which
