@@ -38,7 +38,7 @@ keep their raw contract -- see ext/file.spec.md.
 
 ## stat
 
-### stat reports size and kind for a file we control
+### stat reports size and file type for a file we control
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
@@ -46,16 +46,16 @@ keep their raw contract -- see ext/file.spec.md.
   (File write-all p "12345")
   (def st (File stat p))
   (File unlink p)
-  (list (Assoc get 'size st) (Assoc get 'kind st) (> (Assoc get 'mtime st) 0)))
+  (list (Assoc get 'size st) (Assoc get 'file-type st) (> (Assoc get 'mtime st) 0)))
 ```
 ---
     (5 'file #t)
 
-### a directory stats as kind 'dir
+### a directory stats as file type 'dir
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  (Assoc get 'kind (File stat "/tmp")))
+  (Assoc get 'file-type (File stat "/tmp")))
 ```
 ---
     'dir
@@ -384,11 +384,11 @@ through the REPL error path -- jon hit corrupted error bytes).
   (def p "/tmp/x-364-lnk-target")
   (File write-all p "x")
   (Proc run! (list "/bin/ln" "-s" p "/tmp/x-364-lnk"))
-  (def kinds (list (Assoc get 'kind (File lstat "/tmp/x-364-lnk"))
-                   (Assoc get 'kind (File stat "/tmp/x-364-lnk"))))
+  (def file-types (list (Assoc get 'file-type (File lstat "/tmp/x-364-lnk"))
+                        (Assoc get 'file-type (File stat "/tmp/x-364-lnk"))))
   (File unlink "/tmp/x-364-lnk")
   (File unlink p)
-  kinds)
+  file-types)
 ```
 ---
     ('link 'file)
@@ -470,13 +470,13 @@ through the REPL error path -- jon hit corrupted error bytes).
 ---
     ("unchanged" 9)
 
-### mkfifo makes a path whose kind is fifo
+### mkfifo makes a path whose file type is fifo
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-doors-fifo")
   (File mkfifo p)
-  (def k (Assoc get 'kind (File stat p)))
+  (def k (Assoc get 'file-type (File stat p)))
   (File unlink p)
   k)
 ```
