@@ -51,7 +51,6 @@
 (import x/type/hash)
 (import x/tool/asm)
 
-(def %asm-cache-dir "/tmp/x-asm-")
 ; "XAC3" little-endian, read back as one 4-byte ptr-ref.  Bump it and every
 ; existing entry misses -- the format's own version, and the reason a format
 ; change can never be mistaken for a working entry.
@@ -108,6 +107,7 @@
 (def %asm-libc-realloc (%asm-cache-dlsym %asm-cache-lib "realloc"))
 (def %asm-libc-free   (%asm-cache-dlsym %asm-cache-lib "free"))
 (def %asm-libc-getpid (%asm-cache-dlsym %asm-cache-lib "getpid"))
+(def %asm-libc-getenv (%asm-cache-dlsym %asm-cache-lib "getenv"))
 
 ; --- the key ----------------------------------------------------------------
 ; These are native bytes against one engine's ABI on one machine, so the key
@@ -163,6 +163,19 @@
     (Str append %asm-cache-identity (%asm-cache-mode fvars analyser?)
                 (%asm-cache-wts expr))))
 
+; The directory the entries live in: X_ASM_CACHE_DIR when it is set and not
+; empty, else /tmp, which every engine on the machine shares.  A process that
+; must not share it names a directory of its own: tools/check/asan-boot.sh
+; gives each of its boots an empty one, so every compile is cold and no other
+; process's entries are read or moved.  Read on each call rather than at load,
+; because a state image carries this module's globals from the process that
+; wrote it.
+(def %asm-cache-dir
+  (fn (_)
+    (def p (%asm-cache-pcall %asm-libc-getenv "X_ASM_CACHE_DIR"))
+    (def d (if (= p 0) "" (%asm-cache-ptr->str (%asm-cache-int->ptr p))))
+    (if (= (%asm-cache-byte-len d) 0) "/tmp" d)))
+
 ; Decimal, through write-to-str -- one native call.  The hex spelling the cc
 ; cache uses costs ~180,000 evals per key here (Str pad-left over the number
 ; formatter), which on this lane is a quarter of a whole compile.  A filename
@@ -170,7 +183,8 @@
 ; both.  Callers hold the answer and pass it down, because hashing the key
 ; text again for the sibling file would cost as much as hashing it did.
 (def %asm-cache-path
-  (fn (_ text) (Str append %asm-cache-dir (%asm-cache-wts (Hash fnv-1a text)))))
+  (fn (_ text)
+    (Str append (%asm-cache-dir) "/x-asm-" (%asm-cache-wts (Hash fnv-1a text)))))
 
 ; --- what is worth keying: everything ----------------------------------------
 ; A key has to name the expression, and the only exact name available is its
@@ -651,7 +665,9 @@
    answering.
    An fvar holding a prim may be called by name; (%call HEAD arg ...) calls a
    prim the code computes, and refuses at run time if the head is not one.
-   The compiled function works with map, fold, closures, etc.")
+   The compiled function works with map, fold, closures, etc.
+   The cache keeps two files per entry, in /tmp or in the directory the
+   X_ASM_CACHE_DIR environment variable names.")
 
 ; Filed in the catalog for the compile-asm door in x/tool/compile: that module
 ; loads this one on first use and cannot name a function of a module it has

@@ -230,6 +230,47 @@
 ```
 ---
 
+### returns the last of two forms and of five
+
+```x
+(list (do 1 2) (do 1 2 3 4 5))
+```
+---
+    (2 5)
+
+### a dotted body raises before any of its forms runs
+
+```x
+(def %forms-ran ())
+(list (guard (e 'rejected) (do (def %forms-ran 1) . 2))
+      (guard (e 'rejected) (do (def %forms-ran 2) 3 . 4))
+      (guard (e 'rejected) (do (def %forms-ran 3) 4 5 . 6))
+      %forms-ran)
+```
+---
+    ('rejected 'rejected 'rejected ())
+
+### a do body allocates little over a function body with the same forms
+
+One or two forms are handed to the evaluator with at most one new pair; a
+longer body builds its nest.  Per call, over the same forms as a function body:
+two forms allocate fewer than 12 objects more, and five fewer than 60.
+
+```x
+(def %forms-cost
+  (fn (_ f)
+    (f)
+    (def c0 (Heap count))
+    ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 100)
+    (- (Heap count) c0)))
+(list (< (- (%forms-cost (fn (_) (do (def x 1) x))) (%forms-cost (fn (_) (def x 1) x)))
+         (* 12 100))
+      (< (- (%forms-cost (fn (_) (do 1 2 3 4 5))) (%forms-cost (fn (_) 1 2 3 4 5)))
+         (* 60 100)))
+```
+---
+    (#t #t)
+
 ## match
 
 ### returns first matching branch

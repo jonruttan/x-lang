@@ -16,34 +16,45 @@
 (def %list-type ((prim-ref (lit type) (lit of)) (lit (0))))
 (def %pair-type ((prim-ref (lit type) (lit of)) (pair () ())))
 
-(def %boot-cell?
-  (fn (_ %bc-x)
-    (match
-      ((%boot-type? %bc-x %list-type) #t)
-      (#t (%boot-type? %bc-x %pair-type)))))
-
+; The form that runs a body of three or more forms, (%seq a (%seq b ... (%seq y
+; z))).  Each rest is checked before any form runs, so a dotted body raises with
+; nothing evaluated.  The innermost %seq takes the body's own last cell, (y z),
+; as its operand list.
 (def %do-nest
   (fn (self %dn-f)
     (match
-      ((eq? (rest %dn-f) ()) (first %dn-f))
-      ((%boot-cell? (rest %dn-f))
-        (pair
-          (lit %seq)
-          (pair (first %dn-f) (pair (self (rest %dn-f)) ()))))
-      (#t (error "do: improper body (dotted tail)")))))
+      ((match ((%boot-type? (rest %dn-f) %list-type) #f)
+              ((%boot-type? (rest %dn-f) %pair-type) #f)
+              (#t #t))
+        (error "do: improper body (dotted tail)"))
+      ((eq? (rest (rest %dn-f)) ()) (pair (lit %seq) %dn-f))
+      (#t (pair (lit %seq) (pair (first %dn-f) (pair (self (rest %dn-f)) ())))))))
 
+; A cell is tested by a match over the type prims, which allocates nothing,
+; where a helper would cost a call per test.  One form is tail-evaluated as it
+; is, two are handed to %seq in the body's own cells, and only a longer body
+; builds a nest.
 (def %do-seq
   (op %do-f
     %do-e
     (match
       ((eq? %do-f ()) ())
-      ; Tail-eval (NOT eval) so the expansion runs in %do-e (the caller's
-      ; env): ops are lexically scoped, so any (def ...) in the body must
-      ; resolve to the caller's frame, not do's own frame.  eval-with-env
+      ((match ((%boot-type? %do-f %list-type) #f)
+              ((%boot-type? %do-f %pair-type) #f)
+              (#t #t))
+        (error "do: improper body (dotted tail)"))
+      ; Tail-eval (NOT eval) so the body runs in %do-e (the caller's env):
+      ; ops are lexically scoped, so any (def ...) in the body must resolve
+      ; to the caller's frame, not do's own frame.  eval-with-env
       ; save/restores env around a synchronous eval and so does NOT
       ; propagate env to the TCO continuation that %seq produces.
-      ((%boot-cell? %do-f) (tail-eval (%do-nest %do-f) %do-e))
-      (#t (error "do: improper body (dotted tail)")))))
+      ((eq? (rest %do-f) ()) (tail-eval (first %do-f) %do-e))
+      ((match ((%boot-type? (rest %do-f) %list-type) #f)
+              ((%boot-type? (rest %do-f) %pair-type) #f)
+              (#t #t))
+        (error "do: improper body (dotted tail)"))
+      ((eq? (rest (rest %do-f)) ()) (tail-eval (pair (lit %seq) %do-f) %do-e))
+      (#t (tail-eval (%do-nest %do-f) %do-e)))))
 
 (def do %do-seq)
 

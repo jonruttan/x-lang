@@ -9,11 +9,11 @@ class's first consumer, and was verified end-to-end against nc.
 
 ## address validation
 
-### a non-quad host raises tag 'value before any syscall
+### a non-quad host raises a label 'value before any syscall
 
 ```x
 (do (import x/sys/socket)
-  (guard (e (Err tag e)) (Socket tcp-connect "not.an.ip" 1)))
+  (guard (e (Err label e)) (Socket tcp-connect "not.an.ip" 1)))
 ```
 ---
     'value
@@ -22,7 +22,7 @@ class's first consumer, and was verified end-to-end against nc.
 
 ```x
 (do (import x/sys/socket)
-  (guard (e (Err tag e)) (Socket tcp-connect "127.0.0.999" 1)))
+  (guard (e (Err label e)) (Socket tcp-connect "127.0.0.999" 1)))
 ```
 ---
     'value
@@ -41,7 +41,7 @@ kernel choose, and reads the choice back with local-port.
 (do (import x/sys/socket)
   (def lfd (Socket tcp-listen 0))
   (def port (Socket local-port lfd))
-  (def second (guard (e (list (Err tag e) (Assoc get 'sym (e data)))) (Socket tcp-listen port)))
+  (def second (guard (e (list (Err label e) (Assoc get 'sym (e data)))) (Socket tcp-listen port)))
   (Socket close lfd)
   (list (> lfd 2) (> port 0) second))
 ```
@@ -83,7 +83,7 @@ kernel choose, and reads the choice back with local-port.
 (do (import x/sys/socket)
   (def l (Socket tcp-listen 0))
   (Socket close l)
-  (guard (e (list (Err tag e) (Assoc get 'op (e data)))) (Socket local-port l)))
+  (guard (e (list (Err label e) (Assoc get 'op (e data)))) (Socket local-port l)))
 ```
 ---
     ('io 'getsockname)
@@ -100,7 +100,7 @@ something on the ubuntu CI runner (connect returned an fd; the pin got
   (def l (Socket tcp-listen 0))
   (def port (Socket local-port l))
   (Socket close l)
-  (guard (e (list (Err tag e) (Assoc get 'sym (e data)) (Assoc get 'op (e data))))
+  (guard (e (list (Err label e) (Assoc get 'sym (e data)) (Assoc get 'op (e data))))
     (Socket tcp-connect "127.0.0.1" port)))
 ```
 ---
@@ -152,7 +152,7 @@ accept is called -- no step blocks.
 
 ```x
 (do (import x/sys/socket)
-  (list (guard (e (Err tag e))
+  (list (guard (e (Err label e))
     (Socket unix-connect (Str8 repeat 25 "aaaa")))))
 ```
 ---

@@ -145,7 +145,7 @@
 (file "lib/x/boot/data.x" 17)   ; +3 %data-int+ %data-int* %data-off-1: the slot formula's integer doors and the rest slot's hoisted offset, off the tower's + and * on every slot access
 (file "lib/x/boot/engine.x" 2)
 (file "lib/x/boot/module.x" 68)   ; +18 for scoped modules (x-lang#719): env/owner registries, provide/import doors, the header, its reader and the amalgam markers -- boot code, no class to home them on
-(file "lib/x/boot/operatives.x" 6)
+(file "lib/x/boot/operatives.x" 5)
 (file "lib/x/boot/printer.x" 75)   ; +1 %apply: a write/display handler from a type cell may be a C handler atom
 (file "lib/x/boot/reflect.x" 33)   ; +1 %apply: the iter handler from a type cell may be a C handler atom
 (file "lib/x/boot/registry.x" 8)

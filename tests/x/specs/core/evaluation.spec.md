@@ -364,11 +364,11 @@ as themselves, as they do in the direct call.
 
 ```x
 (def %apply-spec-n ((prim-ref (lit type) (lit make)) "APPLY-SPEC-NONE" ()))
-(list (guard (e (Err tag e))
+(list (guard (e (Err label e))
         (apply ((prim-ref (lit type) (lit make-instance)) %apply-spec-n 1) (list 1)))
-      (guard (e (Err tag e)) (apply %apply-spec-n (list 1)))
-      (guard (e (Err tag e)) (apply () (list 1)))
-      (guard (e (Err tag e)) (apply (lit a) (list 1))))
+      (guard (e (Err label e)) (apply %apply-spec-n (list 1)))
+      (guard (e (Err label e)) (apply () (list 1)))
+      (guard (e (Err label e)) (apply (lit a) (list 1))))
 ```
 ---
     ('type 'type 'type 'type)
@@ -384,7 +384,7 @@ as themselves, as they do in the direct call.
 ### apply without an argument list raises a type error
 
 ```x
-(guard (e (Err tag e)) (apply +))
+(guard (e (Err label e)) (apply +))
 ```
 ---
     'type

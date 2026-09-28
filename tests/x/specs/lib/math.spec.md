@@ -405,10 +405,10 @@ the sum cannot leave the range.  ((a % b) + b) % b wrapped here.
 ### a zero divisor raises 'value (regression: x86 trapped, arm64 answered)
 
 ```x
-(list (guard (e (Err tag e)) (Num quotient 1 0))
-      (guard (e (Err tag e)) (Num remainder 1 0))
-      (guard (e (Err tag e)) (Num modulo 1 0))
-      (guard (e (Err tag e)) (Num divmod 1 0)))
+(list (guard (e (Err label e)) (Num quotient 1 0))
+      (guard (e (Err label e)) (Num remainder 1 0))
+      (guard (e (Err label e)) (Num modulo 1 0))
+      (guard (e (Err label e)) (Num divmod 1 0)))
 ```
 ---
     ('value 'value 'value 'value)

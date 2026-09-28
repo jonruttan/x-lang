@@ -40,7 +40,7 @@ prim it calls: the table is the same shape for both, so neither is guessed at.
               (if (and (>= chr 97) (<= chr 122)) me
                 (%score-set score 1 buffer))))
   (write (list (guard (e (e msg)) (do (compile-asm %st (list (pair 'u 1))) 'compiled))
-               (guard (e (Err tag e))
+               (guard (e (Err label e))
                  (do (compile-asm '(fn (self s i n) (if (>= i n) 1 0))
                                   (list (pair 'bref %bref)))
                      'compiled)))))
@@ -64,7 +64,7 @@ that, and the unboxed result is argument 2.
 (do
   (def %bref (prim-ref 'str 'byte-ref))
   (def %cint (prim-ref 'char '->int))
-  (write (guard (e (list (Err tag e) (e msg)))
+  (write (guard (e (list (Err label e) (e msg)))
     (do
       (compile-asm '(fn (self s i n)
                       (if (>= i n) i
@@ -88,7 +88,7 @@ rather than a corner.
 ```x
 (do
   (def %bref (prim-ref 'str 'byte-ref))
-  (write (guard (e (Err tag e))
+  (write (guard (e (Err label e))
     (do (compile-asm '(fn (self s i n) (if (>= i n) 1 0))
                      (list (pair 'bref %bref)) #t)
         'compiled))))

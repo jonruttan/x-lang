@@ -71,31 +71,18 @@ else
 fi
 
 # --- a COLD boot, or nothing is being tested ----------------------------------
-# compile-asm caches its emitted bytes under /tmp/x-asm-* (lib/x/tool/asm-cache.x)
-# and a warm cache never runs the compiler at all -- so on a developer's machine
-# the tower boots without one collect from the JIT, and the exact use-after-free
-# this gate exists for cannot happen.  The first version of this script passed
-# green on a library that CI had just crashed on, for precisely that reason.
-# The prefix is hard-coded and shared, so the cache is set aside for the run
-# and put back after: the boots below repopulate it with identical bytes (the
-# key is the source text).  Not concurrency-safe: two of these at once, or an
-# engine booting alongside, can leave the cache short some entries -- a miss
-# costs one recompile, nothing else -- because the cache has no directory to
-# point elsewhere.  The gate runs alone in test-fast and gates, which is
-# where it belongs.
-W="${TMPDIR:-/tmp}/asan-boot.$$"
-mkdir -p "$W/cache"
-restore_cache() {
-	# INT and TERM are ignored from here on.  Their traps exit, and an exit
-	# from inside this trap would leave the entries not yet moved in $W.
-	trap '' INT TERM
-	# Restore what was set aside; a fresh entry of the same name IS the same
-	# bytes, so either order of precedence is right.
-	for f in "$W"/cache/x-asm-*; do
-		[ -e "$f" ] && mv -f "$f" /tmp/ 2>/dev/null
-	done
-	rm -rf "$W"
-}
+# compile-asm caches its emitted bytes (lib/x/tool/asm-cache.x), and a warm
+# cache never runs the compiler at all -- so on a developer's machine the tower
+# boots without one collect from the JIT, and the exact use-after-free this
+# gate exists for cannot happen.  Each boot below points X_ASM_CACHE_DIR at an
+# empty directory of its own: xe and rn compile the same units, so a cache
+# shared by the run would leave every boot after the first with nothing to
+# compile.  The shared cache in /tmp is neither read nor written, so runs that
+# overlap, and engines booting alongside, never see or move each other's
+# entries.
+W=$(mktemp -d "${TMPDIR:-/tmp}/asan-boot.XXXXXX") || {
+	echo "asan-boot: could not make a scratch directory" >&2; exit 2; }
+trap 'rm -rf "$W"' EXIT
 # A boot runs under timeout, which puts itself in a process group of its own,
 # so an INT or TERM sent to the gate's group does not reach the boot.
 # stop_boot sends TERM to the boot's group, and to the timeout itself in case
@@ -109,12 +96,8 @@ stop_boot() {
 		wait "$boot" 2>/dev/null || :
 	fi
 }
-trap 'restore_cache' EXIT
 trap 'stop_boot; exit 130' INT
 trap 'stop_boot; exit 143' TERM
-for f in /tmp/x-asm-*; do
-	[ -e "$f" ] && mv -f "$f" "$W/cache/" 2>/dev/null
-done
 
 # --- the probe -------------------------------------------------------------------
 PROBE="$W/probe.x"
@@ -142,10 +125,15 @@ export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0:quarantine_size_mb=2048}"
 fail=0
 trapped=0
 for d in $DIALECTS; do
-	out="$W/$d.out"; err="$W/$d.err"
+	out="$W/$d.out"; err="$W/$d.err"; cache="$W/cache-$d"
+	mkdir "$cache"
 	# --no-pin: the sources carry no x-engine-build.xon and the pin guards
 	# would refuse the pairing before the engine ever ran; the seam gate boots
 	# the same way.  X_BIN is the wrapper's documented override.
+	#
+	# --no-image: the boot under test is the one from source.  A state image
+	# would stand in for it, and a stale one is rewritten first by a boot of
+	# the same dialect, which fills the cache before this boot reads it.
 	#
 	# Under timeout the boot runs in the background and the gate waits for it.
 	# A trapped signal interrupts `wait`, so stop_boot can end the boot; with
@@ -154,12 +142,14 @@ for d in $DIALECTS; do
 	# group, where the signal reaches it directly.
 	status=0
 	if [ -n "$TIMEOUT" ]; then
-		X_BIN="$ASAN_BIN" $TIMEOUT sh x.sh --no-pin -q -l "$d" -f "$PROBE" > "$out" 2> "$err" &
+		X_ASM_CACHE_DIR="$cache" X_BIN="$ASAN_BIN" $TIMEOUT \
+			sh x.sh --no-pin --no-image -q -l "$d" -f "$PROBE" > "$out" 2> "$err" &
 		boot=$!
 		wait "$boot" || status=$?
 		boot=""
 	else
-		X_BIN="$ASAN_BIN" sh x.sh --no-pin -q -l "$d" -f "$PROBE" > "$out" 2> "$err" || status=$?
+		X_ASM_CACHE_DIR="$cache" X_BIN="$ASAN_BIN" \
+			sh x.sh --no-pin --no-image -q -l "$d" -f "$PROBE" > "$out" 2> "$err" || status=$?
 	fi
 	if [ "$status" -eq 0 ] && grep -qx "asan-boot=ok" "$out"; then
 		printf '  %-3s ok\n' "$d"
