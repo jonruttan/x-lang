@@ -85,8 +85,8 @@ record.
 (do (import x/codec/struct)
   (def spec (list (list 'a 'u8)))
   (def buf (bytes->str (list 7)))
-  (list (guard (e (Err tag e)) ((Struct reader spec) buf ()))
-        (guard (e (Err tag e)) (Struct unpack spec buf "1"))))
+  (list (guard (e (Err label e)) ((Struct reader spec) buf ()))
+        (guard (e (Err label e)) (Struct unpack spec buf "1"))))
 ```
 ---
     ('type 'type)
@@ -97,9 +97,9 @@ record.
 
 ```x
 (do (import x/codec/struct)
-  (list (guard (e (Err tag e))
+  (list (guard (e (Err label e))
           (Struct unpack (list (list 'x 'float)) "ab"))
-        (guard (e (Err tag e))
+        (guard (e (Err label e))
           (Struct pack (list (list 'v 'i64)) ()))))
 ```
 ---

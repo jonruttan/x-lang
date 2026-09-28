@@ -1,7 +1,7 @@
 ; sys/opts.x -- Opts: the command line, parsed once.
 ;
 ; EVERY BUNDLE WAS WRITING THIS.  x-grep's %grep-optarg and x-make's
-; %mk-optarg are byte-identical apart from the error tag, and
+; %mk-optarg are byte-identical apart from the error label, and
 ; x-coreutils grew nine parsers of its own -- one for clustered
 ; letters, one for attached values, one per applet for the operands.
 ; The cost was not the duplication.  It was that the CHECK and the

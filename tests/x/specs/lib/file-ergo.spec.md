@@ -2,7 +2,7 @@
 # @weight 2
 
 The ergonomic tier over the raw syscall layer: whole-file operations
-that RAISE tag 'io Errs (via Err from-errno) instead of returning
+that RAISE label 'io Errs (via Err from-errno) instead of returning
 negative results. Real I/O under /tmp; every test cleans up after
 itself. The raw ops (open/close/read/write/getc/seek/tell/truncate)
 keep their raw contract -- see ext/file.spec.md.
@@ -198,11 +198,11 @@ subtracted.
 
 ## structured failure
 
-### a missing file read-alls to a tag 'io enoent Err
+### a missing file read-alls to a label 'io enoent Err
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  (guard (e (list (Err tag e) (Assoc get 'sym (e data)) (Assoc get 'op (e data))))
+  (guard (e (list (Err label e) (Assoc get 'sym (e data)) (Assoc get 'op (e data))))
     (File read-all "/tmp/x-spec22-definitely-not")))
 ```
 ---
@@ -220,7 +220,7 @@ subtracted.
 
 ## boundary guards
 
-### a missing/nil path fails as tag 'type at the door, not EFAULT in the kernel
+### a missing/nil path fails as label 'type at the door, not EFAULT in the kernel
 
 The class dispatch binds a missing argument as nil; before this guard
 (File list-dir) surfaced as a baffling "Bad address" io error (or worse
@@ -228,10 +228,10 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  (list (guard (e (Err tag e)) (File list-dir))
-        (guard (e (Err tag e)) (File read-all))
-        (guard (e (Err tag e)) (File stat 42))
-        (guard (e (Err tag e)) (File rename "a" ()))))
+  (list (guard (e (Err label e)) (File list-dir))
+        (guard (e (Err label e)) (File read-all))
+        (guard (e (Err label e)) (File stat 42))
+        (guard (e (Err label e)) (File rename "a" ()))))
 ```
 ---
     ('type 'type 'type 'type)
@@ -312,7 +312,7 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ```x
 (do (import x/sys/posix) (import x/sys/file)
-  (list (guard (e (Err tag e)) (File seek 0 0 'nope))))
+  (list (guard (e (Err label e)) (File seek 0 0 'nope))))
 ```
 ---
     ('type)
@@ -448,7 +448,7 @@ through the REPL error path -- jon hit corrupted error bytes).
 (do (import x/sys/posix) (import x/sys/file) (import x/type/err)
   (def p "/tmp/x-doors-notlink")
   (File write-all p "x")
-  (def r (guard (e (Err tag e)) (do (File readlink p) (lit no-raise))))
+  (def r (guard (e (Err label e)) (do (File readlink p) (lit no-raise))))
   (File unlink p)
   r)
 ```
