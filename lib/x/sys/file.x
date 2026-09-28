@@ -77,6 +77,10 @@
                   (pair row (if (> gap 0) (pair (list 'pad gap) acc) acc))))
             (#t (go (rest rows) (+ gap (Struct length (list row))) acc))))))))
 
+; The fields' reader, compiled once: a stat pays for reading three fields,
+; not for building the plan.
+(def %stat-read (Struct reader %stat-fields))
+
 ; --- The flag tables (surfaced via the methods below) ---
 ; Static value members can't carry help text, so the tables live as data and
 ; the (File file-modes)/(File stat-flags) methods expose + document them.
@@ -174,19 +178,44 @@
 ; Little-endian byte peeks over a (str make N) buffer filled by a syscall.
 (def %fs-byte-ref (prim-ref 'str 'byte-ref))   ; temp's suffix bytes
 
-; File kind from the S_IFMT bits of a stat mode.
-(def %mode-kind
-  (fn (_ mode)
-    (let ((fmt (& mode 61440)))
-      (match
-        ((= fmt 32768) 'file)
-        ((= fmt 16384) 'dir)
-        ((= fmt 40960) 'link)
-        ((= fmt 8192)  'char)
-        ((= fmt 24576) 'block)
-        ((= fmt 4096)  'fifo)
-        ((= fmt 49152) 'socket)
-        (#t 'unknown)))))
+; File kind from the S_IFMT bits of a stat mode.  A decoded mode is never
+; nil, so the integer primitive masks it.
+(def %int& (prim-ref (lit int) (lit &)))
+(def %fmt-kind
+  (fn (_ fmt)
+    (match
+      ((= fmt 32768) 'file)
+      ((= fmt 16384) 'dir)
+      ((= fmt 40960) 'link)
+      ((= fmt 8192)  'char)
+      ((= fmt 24576) 'block)
+      ((= fmt 4096)  'fifo)
+      ((= fmt 49152) 'socket)
+      (#t 'unknown))))
+(def %mode-kind (fn (_ mode) (%fmt-kind (%int& mode 61440))))
+
+; The value a decoded stat record holds for name.
+(def %stat-field
+  (fn (loop name d)
+    (match
+      ((eq? d ()) ())
+      ((eq? (first (first d)) name) (rest (first d)))
+      (#t (loop name (rest d))))))
+
+; A stat64/stat buffer as the public metadata alist.  The stat struct's
+; layout is the platform's (stat-layout, in x/platform/syscall);
+; %stat-fields is the three fields of it this decode reads, through the
+; Struct codec (#371).  Every layout there is a 64-bit one and nothing
+; branches on the width, so a 32-bit build decodes neighbouring fields.
+; constraint: word-size = 8 -- stat/stat64 field offsets are 64-bit
+(def %stat-decode
+  (fn (_ buf)
+    (def d (%stat-read buf 0))
+    (def mode (%stat-field 'mode d))
+    (list (pair 'size (%stat-field 'size d))
+          (pair 'mode mode)
+          (pair 'kind (%mode-kind mode))
+          (pair 'mtime (%stat-field 'mtime d)))))
 
 
 
@@ -305,22 +334,6 @@
     ; documented raw contract (absence-model rule 5).
     ; ======================================================================
 
-    ; The stat struct's layout is the platform's (stat-layout, in
-    ; x/platform/syscall); %stat-fields is the three fields of it this
-    ; decode reads, through the Struct codec (#371).  Every layout there is
-    ; a 64-bit one and nothing branches on the width, so a 32-bit build
-    ; decodes neighbouring fields.
-    ; constraint: word-size = 8 -- stat/stat64 field offsets are 64-bit
-    (method %stat-decode (self (param buf STRING "A stat buffer a syscall filled"))
-      (doc "Decode a stat64/stat buffer into the public metadata alist."
-        (returns ALIST "((size . N) (mode . M) (kind . K) (mtime . T))"))
-      (def d (Struct unpack %stat-fields buf))
-      (def mode (rest (Assoc entry 'mode d)))
-      (list (pair 'size (rest (Assoc entry 'size d)))
-            (pair 'mode mode)
-            (pair 'kind (%mode-kind mode))
-            (pair 'mtime (rest (Assoc entry 'mtime d)))))
-
     (method stat (self (param path STRING "Path to stat"))
       (doc "File metadata as an alist: ((size . BYTES) (mode . RAW) (kind . SYM) (mtime . UNIX-SECONDS)). kind is one of 'file 'dir 'link 'char 'block 'fifo 'socket (from the S_IFMT bits). Raises a tag 'io Err on failure."
         (returns ALIST "((size . N) (mode . M) (kind . K) (mtime . T))")
@@ -329,14 +342,17 @@
       (def buf (%make-str 160))
       (def r (%sys-stat path buf))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'stat path)))
-      (File %stat-decode buf))
+      (%stat-decode buf))
 
     (method exists? (self (param path STRING "Path to test"))
       (doc "Does path name an existing filesystem entry? (Any kind -- file, directory, link target...)"
         (returns BOOL "True when stat succeeds")
         (note "Deliberately duplicated across tiers with (Sys file-exists?) (#361): that access(2) door is what boot/module.x can reach before this module loads. Post-boot file work belongs here.")
         (sample "(File exists? \"lib/x.x\")" "#t"))
-      (guard (_ #f) (do (File stat path) #t)))
+      ; stat(2) answers 0 on success; a miss needs no Err built and caught
+      (match
+        ((str? path) (= (%sys-stat path (%make-str 160)) 0))
+        (#t #f)))
 
     (method read-all (self (param path STRING "File to read"))
       (doc "The whole file as one string (stat for the size, one read). Raises a tag 'io Err on open/read failure."
@@ -525,10 +541,10 @@
       (def buf (%make-str 2304))
       (def r (%sys-statfs path buf))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'statfs path)))
-      ; The field spec, inlined the way (File %stat-decode)'s is: Darwin's
-      ; f_bsize is a u32 leading the struct, Linux's is the second of
-      ; eleven longs.  Only the block and inode counts are decoded --
-      ; Darwin puts two 1024-byte mount names after them.
+      ; The field spec per OS: Darwin's f_bsize is a u32 leading the
+      ; struct, Linux's is the second of eleven longs.  Only the block and
+      ; inode counts are decoded -- Darwin puts two 1024-byte mount names
+      ; after them.
       (Struct unpack
         (if os-darwin?
           (list (list 'bsize 'u32) (list 'iosize 'i32)
@@ -549,7 +565,7 @@
       (def buf (%make-str 160))
       (def r (%sys-lstat path buf))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'lstat path)))
-      (File %stat-decode buf))
+      (%stat-decode buf))
 
     (method copy (self (param from STRING "Source file") (param to STRING "Destination (created/truncated, mode 0644)"))
       (doc "Copy a file's bytes, binary-safe: a 64KB fd-level read/write loop driven by the raw byte counts, never by string length (a string's observable bytes end at the first NUL, so read-all->write-all corrupts binary). Raises a tag 'io Err on failure; returns the byte count copied."

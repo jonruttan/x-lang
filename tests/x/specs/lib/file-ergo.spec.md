@@ -69,6 +69,38 @@ keep their raw contract -- see ext/file.spec.md.
 ---
     (#t #f)
 
+### exists? answers #f for a path that is not a string
+
+```x
+(do (import x/sys/posix) (import x/sys/file)
+  (list (File exists? 42) (File exists?)))
+```
+---
+    (#f #f)
+
+### stat and exists? cost fewer than 5,000 objects a call
+
+The stat buffer decodes through a Struct reader compiled once, and exists?
+tests the call's result without building an Err for a miss.  The loop
+around an empty thunk is subtracted.
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/sys/gc)
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 10)
+      (- (Heap count) c0)))
+  (def %nop (%cost (fn (_) ())))
+  (list (< (- (%cost (fn (_) (File stat "/tmp"))) %nop) (* 5000 10))
+        (< (- (%cost (fn (_) (File exists? "/tmp"))) %nop) (* 5000 10))
+        (< (- (%cost (fn (_) (File exists? "/tmp/x-spec22-definitely-not"))) %nop)
+           (* 5000 10))))
+```
+---
+    (#t #t #t)
+
 ## read-lines
 
 ### splits on newline, no phantom empty last line

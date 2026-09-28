@@ -75,6 +75,37 @@
 ---
     (5 10)
 
+### an applicative send pays under 1,000 objects for the wrap
+
+Every send of a wrapped selector is tested for a block first, and the test
+is closures made once per wrap.  A wrapped and an unwrapped static with the
+same body, each called through its table entry ten times: the wrap's share
+stays under 1,000 objects a send.
+
+```x
+(do
+  (import x/sys/gc)
+  (def-class BlkCost ()
+    (static
+      (method w (self f x) x)
+      (method u (self f x) x)))
+  (Block method! BlkCost (lit w))
+  (def %w (method-of BlkCost (lit w)))
+  (def %u (method-of BlkCost (lit u)))
+  (def %id (fn (_ x) x))
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 10)
+      (- (Heap count) c0)))
+  (list (%w BlkCost %id 7)
+        (< (- (%cost (fn (_) (%w BlkCost %id 7))) (%cost (fn (_) (%u BlkCost %id 7))))
+           (* 1000 10))))
+```
+---
+    (7 #t)
+
 ## arity is checked per shape
 
 ### three names is an error for the element shape

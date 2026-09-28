@@ -50,18 +50,29 @@
     (method %plan (self (param spec LIST "Field spec"))
       (doc "Compile a field spec into ((name width reader-closure) ...) -- pads carry a nil reader. Raises tag 'value on malformed fields or unknown types."
         (returns LIST "The plan, in spec order"))
+      ; The readers assemble values on the integer primitives: a byte, an
+      ; offset or a width is never nil, and a machine int wraps at 64 bits,
+      ; which is what makes an 8-byte read the two's-complement value with
+      ; the numeric tower loaded or not (the tower's `*` and `+` would
+      ; promote past 2^63 instead).
       (def %bref (prim-ref (lit str) (lit byte-ref)))
       (def %c->i (prim-ref (lit char) (lit ->int)))
       (def %bsub (prim-ref (lit str) (lit byte-sub)))
-      (def %b (fn (_ buf i) (%c->i (%bref buf i))))
+      (def %int+ (prim-ref (lit int) (lit +)))
+      (def %int- (prim-ref (lit int) (lit -)))
+      (def %int< (prim-ref (lit int) (lit <)))
+      (def %int<< (prim-ref (lit int) (lit <<)))
       (def %bad (fn (_ what f)
         (Err raise (lit value) (Str8 append "Struct: " what) f)))
-      ; little-endian unsigned reader over w bytes
+      ; little-endian unsigned reader over w bytes: the last byte first, each
+      ; earlier one shifted in below it
       (def %le (fn (_ w)
-        (fn (_ buf off)
-          (let go ((i (- w 1)) (acc 0))
-            (if (< i 0) acc
-              (go (- i 1) (+ (* acc 256) (%b buf (+ off i)))))))))
+        (def go (fn (self buf off i acc)
+          (match
+            ((%int< i 0) acc)
+            (#t (self buf off (%int- i 1)
+                  (%int+ (%int<< acc 8) (%c->i (%bref buf (%int+ off i)))))))))
+        (fn (_ buf off) (go buf off (%int- w 1) 0))))
       ; sign-fold a w-byte unsigned value.  The half/span constants are
       ; (<< 1 (- (* 8 w) 1)) -- (<< 1 31) for a 4-byte field, which overflows
       ; a 32-bit fixnum, and the 8-byte case below relies on a 64-bit machine
@@ -73,16 +84,18 @@
       ; (and (<< 1 64) is 1 under hardware shift-count masking -- the
       ; fold there subtracted one, caught by the i64 round-trip smoke).
       (def %signed (fn (_ w rdr)
-        (let ((half (<< 1 (- (* 8 w) 1))) (span (<< 1 (* 8 w))))
-          (fn (_ buf off)
-            (let ((v (rdr buf off)))
-              (if (< v half) v (- v span)))))))
+        (def half (%int<< 1 (%int- (%int<< w 3) 1)))
+        (def span (%int<< 1 (%int<< w 3)))
+        (def fold (fn (_ v) (match ((%int< v half) v) (#t (%int- v span)))))
+        (fn (_ buf off) (fold (rdr buf off)))))
       ; big-endian unsigned reader over w bytes
       (def %be (fn (_ w)
-        (fn (_ buf off)
-          (let go ((i 0) (acc 0))
-            (if (= i w) acc
-              (go (+ i 1) (+ (* acc 256) (%b buf (+ off i)))))))))
+        (def go (fn (self buf off i acc)
+          (match
+            ((= i w) acc)
+            (#t (self buf off (%int+ i 1)
+                  (%int+ (%int<< acc 8) (%c->i (%bref buf (%int+ off i)))))))))
+        (fn (_ buf off) (go buf off 0 0))))
       (List map
         (fn (_ f)
           (match
@@ -112,13 +125,12 @@
                       (list name n (fn (_ buf off) (%bsub buf off n)))))
                   ((eq? ty (lit cstr))
                     (let ((n (first (rest (rest f)))))
-                      (list name n
-                        (fn (_ buf off)
-                          (let scan ((i 0))
-                            (match
-                              ((= i n) (%bsub buf off n))
-                              ((= (%b buf (+ off i)) 0) (%bsub buf off i))
-                              (#t (scan (+ i 1)))))))))
+                      (def scan (fn (self buf off i)
+                        (match
+                          ((= i n) (%bsub buf off n))
+                          ((= (%c->i (%bref buf (%int+ off i))) 0) (%bsub buf off i))
+                          (#t (self buf off (%int+ i 1))))))
+                      (list name n (fn (_ buf off) (scan buf off 0)))))
                   (#t (%bad "unknown field type" f)))))))
         spec))
 
@@ -134,38 +146,49 @@
                          . (param offset INT "Byte offset of the record; default 0"))
       (doc "Decode one record at offset into an alist, fields in spec order, pads skipped. No bounds check is possible (a buffer's observable strlen lies past a NUL) -- the caller owns the bound, as with the raw peeks this replaces."
         (returns ALIST "((name . value) ...)")
+        (note "Compiles the spec on every call; a record decoded repeatedly wants (Struct reader), which compiles it once.")
         (example "(Struct unpack (list (list 'pad 1) (list 'p 'u16be)) (bytes->str (list 9 1 187)))" "(('p . 443))"))
-      (let go ((plan (Struct %plan spec))
-               (off (if (null? offset) 0 (first offset)))
-               (acc ()))
+      ((Struct reader spec) buf (if (null? offset) 0 (first offset))))
+
+    ; A plan's fields at their offsets in the record, pads dropped, LAST field
+    ; first: a reader that conses each field's value as it walks this list
+    ; ends with the alist in spec order.  Cold, build-time only.
+    (method %fields (self (param plan LIST "A plan from (Struct %plan)"))
+      (doc "The plan's fields with each one's byte offset in the record, pads dropped, last field first."
+        (returns LIST "((name offset reader-closure) ...), in reverse spec order"))
+      (let go ((p plan) (off 0) (acc ()))
         (match
-          ((null? plan) (%reverse acc))
+          ((null? p) acc)
+          ((null? (first (rest (rest (first p)))))
+            (go (rest p) (+ off (first (rest (first p)))) acc))
           (#t
-            (let ((entry (first plan)))
-              (go (rest plan)
-                  (+ off (first (rest entry)))
-                  (if (null? (first (rest (rest entry)))) acc
-                    (pair (pair (first entry)
-                                ((first (rest (rest entry))) buf off))
-                          acc))))))))
+            (go (rest p) (+ off (first (rest (first p))))
+                (pair (list (first (first p)) off (first (rest (rest (first p)))))
+                      acc))))))
 
     (method reader (self (param spec LIST "Field spec"))
       (doc "Compile the spec ONCE into a decode closure (fn (buf off) -> alist) -- the hot-path door: build it at load, call it per record, zero class dispatch inside (the analyser pattern)."
         (returns CALLABLE "(fn (buf off) -> ((name . value) ...))")
         (sample "(def %rec (Struct reader SPEC)) ... (%rec buf off)" "one alist per call, no dispatch"))
-      (def plan (Struct %plan spec))
-      (fn (_ buf off0)
-        (let go ((p plan) (off off0) (acc ()))
+      (def fields (Struct %fields (Struct %plan spec)))
+      (def %int+ (prim-ref (lit int) (lit +)))
+      (def %type-of (prim-ref (lit type) (lit of)))
+      (def %int-t (%type-of 0))
+      ; one (name . value) per field, consed in reverse spec order
+      (def walk
+        (fn (self fs buf off acc)
           (match
-            ((null? p) (%reverse acc))
-            (#t
-              (let ((entry (first p)))
-                (go (rest p)
-                    (+ off (first (rest entry)))
-                    (if (null? (first (rest (rest entry)))) acc
-                      (pair (pair (first entry)
-                                  ((first (rest (rest entry))) buf off))
-                            acc)))))))))
+            ((eq? fs ()) acc)
+            (#t (self (rest fs) buf off
+                  (pair (pair (first (first fs))
+                              ((first (rest (rest (first fs))))
+                                buf (%int+ off (first (rest (first fs))))))
+                        acc))))))
+      ; the offset is the caller's, and the reads add to it unchecked
+      (fn (_ buf off)
+        (match
+          ((eq? (%type-of off) %int-t) (walk fields buf off ()))
+          (#t (Err raise (lit type) "Struct: a record offset must be an integer" off)))))
 
     (method pack (self (param spec LIST "Field spec")
                        (param values ALIST "((name . value) ...); every non-pad field must be present"))
