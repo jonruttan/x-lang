@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**An instance's data is its fields** ([#826]). A field is a named component of
+an instance or a record, a member is a field or a method, and a class's own
+data is a static member. Inside a method, `(field 'name)` reads an instance's
+storage and `(set-field! 'name v)` writes it; they were `(member 'name)` and
+`(set-member! 'name v)`. `(class-fields c)` lists a class's own field names; it
+was `(class-members c)`. `(help Class)` heads an instance's data `fields:`, and
+the generated reference notes each one as a field. `class-static-members`, the
+`(static ...)` block and the `members:` heading under `static:` keep their
+names. No alias is kept.
+
+Five messages follow: `is not a field of`, `use bare field names`,
+`declare fields directly`, `expected a field name` and `duplicate field`.
+
+[#826]: https://github.com/jonruttan/x-lang/pull/826
+
 **A spec may not rebind the library's root %-definitions** ([#818]). A spec
 snippet is evaluated at the root, so its top-level defs outlive it, and
 `check-spec-globals` refuses one that takes a name the shared vocabulary owns.
@@ -3243,7 +3258,7 @@ engine to run it.
 - **Optional build modules under `opt/`** — first occupant is `opt/x-prim/signal.c`; gated by `X_SIGNAL` (default on), `make X_SIGNAL=` drops the module and compiles the eval poll out
 - **`examples/logo/ch1.logo`** — Chapter-1 programs from *Turtle Geometry* (ARCR/ARCL, RAY, POLY/NEWPOLY, POLYSPI/POLYSPII, INSPI)
 - **x-spec coverage for GC hook & root API** — `tests/x/specs/applicative/gc-hooks.spec.md` (STRESS-only)
-- **Object-oriented class system** (`lib/x/type/class.x`) — classes are themselves callable `%class` objects; instances are `%object`. Message-passing dispatch with literal selectors (`(obj name args)`, no quotes — the `call` handler is an operative), single inheritance with `super`, and a `(static …)` block of static methods + class-wide members so a class doubles as a namespace (`(Class name)`, `(Class new …)`). Members are declared directly in the class body (no wrapper) with a uniform form — `name` | `(name default)` | `(name default "desc")` — identical in the static block; instance members gain optional default values. Access is encapsulated (external reads/writes only via dispatch; method-internal `(member 'm)`/`(set-member! 'm v)` for the private-data pattern). `(help Class)` lists members and methods grouped static-vs-instance, merged across the inheritance chain and sorted by name. Spec: `tests/x/specs/ext/object.spec.md`; guide: `docs/object-system.md`
+- **Object-oriented class system** (`lib/x/type/class.x`) — classes are themselves callable `%class` objects; instances are `%object`. Message-passing dispatch with literal selectors (`(obj name args)`, no quotes — the `call` handler is an operative), single inheritance with `super`, and a `(static …)` block of static methods + class-wide members so a class doubles as a namespace (`(Class name)`, `(Class new …)`). Members are declared directly in the class body (no wrapper) with a uniform form — `name` | `(name default)` | `(name default "desc")` — identical in the static block; instance members gain optional default values. Access is encapsulated (external reads/writes only via dispatch; method-internal `(field 'm)`/`(set-field! 'm v)`, released as `(member 'm)`/`(set-member! 'm v)`, for the private-data pattern). `(help Class)` lists members and methods grouped static-vs-instance, merged across the inheritance chain and sorted by name. Spec: `tests/x/specs/ext/object.spec.md`; guide: `docs/object-system.md`
 - **Quote reader** (`lib/x/type/lit-reader.x`) — `'expr` is reader shorthand for `(lit expr)` (`'sym`, `'(a b)`, `''x`, and `'` as a terminating macro char). The analyser is JIT-compiled in x/and and x/or so it doesn't slow tokenizing. Spec: `tests/x/specs/core/quote-reader.spec.md`
 
 ### Changed
