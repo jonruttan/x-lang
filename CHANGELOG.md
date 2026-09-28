@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The profiler says which functions evaluation goes to** ([#835]). The
+profiling engine that x-engine-c ships from v0.2.15 counts, in each object, how
+many times evaluation reached it. `x/tool/profile` now reads those counts by
+function: `profile-fn` gives a function's calls and the evaluation its body
+did, `profile-report` lists every function on the heap by the file and line its
+body starts on, and `make profile-x FILE=program.x` profiles a program. Between
+clearing the counts and reading them, the profiler runs only the engine's forms
+and primitives, so it adds nothing of its own; the reader, which is x code, is
+counted when it reads the program. `make x-bin-profile` takes the shipped binary
+from an unpacked release, and the image tools mark with the engine's
+`%obj-flag-trace` instead of 1024.
+
+[#835]: https://github.com/jonruttan/x-lang/pull/835
+
 **An error's classifying symbol is its label** ([#821]). `(Err label e)` is the
 total accessor, `(e label)` the field and `(e label? 'io)` the predicate, and
 `make` and `raise` take a `label`. They were `(Err tag e)`, `(e tag)` and
