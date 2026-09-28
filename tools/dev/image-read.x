@@ -270,9 +270,10 @@
 ; the writer's child's ("--batch").  A lang booted from an image reads its
 ; operands from `args`, so the install is followed -- inside the same form,
 ; since nothing this loader named survives it -- by a def-global of this
-; process's list: %seq (a C prim) evaluates the writes, then the rebind, and
-; the name is interned after the install, in the image's table.
-(eval (list (eval (lit %seq)) %INSTALL
+; process's list: atomic (a C prim) evaluates the writes, then the rebind, and
+; the name is interned after the install, in the image's table.  atomic leaves
+; the environment as its forms leave it, which is the image's.
+(eval (list (eval (lit atomic)) %INSTALL
         (list (prim! (lit base) (lit def-global)) (list %->sym (list (lit lit) "args")) (list (lit lit) args))))
 
 ;  The library recomputes what it cached by address (spec 5.5).  Resolved
