@@ -292,7 +292,7 @@ reads it as a field named `doc`, and the page shows it as that field.
     (class-fields DgEmpty))
 ```
 ---
-    (doc state)
+    ('doc 'state)
 
 ### the page heads it doc and notes it as a field
 
