@@ -1,4 +1,4 @@
-; Test harness: x-core.x + the ISA manifest as data (%isa-catalog,
+; Test harness: x-core.x + the ISA manifest as data (%isa-catalogue,
 ; %isa-bare, %isa-values from engine/tools/contract/isa.x -- the committed C-surface
 ; contract the isa spec ratchets against).
 (include "lib/x-core.x")

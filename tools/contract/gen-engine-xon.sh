@@ -82,7 +82,7 @@ awk '/^\(def %feature-capabilities/{f=1;next} /^\)\)\)/{f=0}
 c2g() {
 	_isa="$1"; _out="$2"
 	awk '
-		/^\(def %isa-catalog/ { s="catalog"; next }
+		/^\(def %isa-catalogue/ { s="catalog"; next }
 		/^\(def %isa-bare/    { s="bare";    next }
 		/^\(def %isa-keep/    { s="keep";    next }
 		/^\(def %isa-aliases/ { s="";        next }

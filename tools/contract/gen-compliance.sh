@@ -53,7 +53,7 @@ awk '/^\(def %feature-capabilities/{f=1;next} /^\)\)\)/{f=0}
 # resolves -- so they enter as `bare`.  They were skipped, which is why the rows
 # meta/identity is made of had no compliance probe: declared, required, and
 # never falsified.  Their isa.x entries carry no tag column, hence the NF>=1.
-awk '/^\(def %isa-catalog/{s="cat";next} /^\(def %isa-bare/{s="bare";next}
+awk '/^\(def %isa-catalogue/{s="cat";next} /^\(def %isa-bare/{s="bare";next}
      /^\(def %isa-keep/{s="bare";next} /^\(def %isa-aliases/{s="";next}
      /^\(def %isa-values/{s="values";next} /^\)\)\)/{s=s}
      /^  \(/ { if (s=="") next

@@ -1,7 +1,7 @@
 ; base.x -- Base: execution-context ("base") objects via the object system.
 ;
 ; (Base make) answers a Base INSTANCE wrapping the raw C base object (the
-; `raw` member), so a base is interactive: (b eval ...), (b bind ...),
+; `raw` field), so a base is interactive: (b eval ...), (b bind ...),
 ; (b cell 'line).  Every static accepts either form -- raw-of unwraps --
 ; so plumbing that holds raw bases (logo's entry doors, tool scratch
 ; bases, the C prims' own returns) is untouched; the tokenizer seams
@@ -17,7 +17,7 @@
 (def-class Base ()
   (doc "Execution-context / sandbox objects: each base is a whole, isolated interpreter -- its own environment, type registry, and reader state -- wrapped as a Base instance."
     (note "CONTRACT: a fresh base is the bare C ISA -- no display/write, no reader macros, no catalog protocol. Reach in with parent closures or (b bind ...); see core/sandbox specs.")
-    (note "An instance renders as #<base:objs N>; the raw C base it wraps (the `raw` member) renders as the opaque #<obj:BASE>.")
+    (note "An instance renders as #<base:objs N>; the raw C base it wraps (the `raw` field) renders as the opaque #<obj:BASE>.")
     (note "Field access walks the layout contract: (b cell 'line), names from (Base fields).")
     (example "(let ((b (Base make))) (b eval '(+ 1 2)))" "3"))
   (doc raw "The raw C base object this instance wraps -- what the C prims and tokenizer doors consume. Read it to hand the base to raw plumbing; (Base wrap r) re-clothes one.")
@@ -55,7 +55,7 @@
   (static
     (method make (self)
       (doc "Create a fully initialized, isolated interpreter base, wrapped as a Base instance: the built-in types, the C prims, and a read buffer -- no lib is loaded."
-        (returns OBJECT "A Base instance; its raw member is the C base object")
+        (returns OBJECT "A Base instance; its raw field is the C base object")
         (example "(let ((b (Base make))) (b eval '(* 6 7)))" "42"))
       (let ((raw ((prim-ref (lit base) (lit make))))) (new Base raw raw)))
     (method make-tok (self)
@@ -108,6 +108,6 @@
 (doc (provide x/type/base Base)
   (note "(Base make) -> a Base instance wrapping a fresh execution-context; (b eval expr) / (Base eval b expr) evaluates expr inside it, isolated from the outer env.")
   (note "CONTRACT: a fresh base is the bare C ISA -- no display/write, no catalog protocol. Reach in with parent closures or (b bind ...); see core/sandbox specs.")
-  (note "Field reflection: (b cell 'line) walks the layout contract; (Base fields) lists the names. The raw C base rides the `raw` member; statics and tokenizer seams accept either form.")
+  (note "Field reflection: (b cell 'line) walks the layout contract; (Base fields) lists the names. The raw C base rides the `raw` field; statics and tokenizer seams accept either form.")
   (example "(let ((b (Base make))) (b eval '(+ 1 2)))" "3")
   "Base: execution-context / sandbox objects, via the Base class.")

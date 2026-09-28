@@ -62,7 +62,7 @@
       (pair (lit def-class)
         (pair name (pair () (%append2 fields %record-methods))))
       e)))
-  (note "Fields: NAME | (NAME default), exactly as def-class members.")
+  (note "Fields: NAME | (NAME default), exactly as def-class fields.")
   (note "Construction, access, and update ride the ordinary class doors:")
   (note "  (new R v1 v2 ...) positional/keyword; (r field) reads; (r field v) writes in place;")
   (note "  (r with 'field v ...) copies with replacements (keys quoted -- with is a")

@@ -10,7 +10,7 @@
 ;     handlers) fetch-and-cache it at module load:
 ;       (def %cvt (prim-ref (lit convert) (lit to)))
 ;   - The Convert CLASS is the API: (Convert to val target . extra) for cold
-;     call sites, and the no-match POLICY as the class-wide member `missing`.
+;     call sites, and the no-match POLICY as the static member `missing`.
 ;
 ; The no-match policy is the dialect's call, not the mechanism's (SoC):
 ;   (Convert missing)                      -- read the handler

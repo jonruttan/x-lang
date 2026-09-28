@@ -98,7 +98,7 @@
     ; the prim through this door, so refusing here is what gives them an
     ; error rather than a crash.
     (method new (self (param x ANY "A sequence: list, vector, string, or def-class instance; nil gives an empty iterator"))
-      (doc "An iterator over a sequence, via the type's iter slot. Instances yield their members as (name . value) pairs; also available bare as `iter`. Raises `type` on a value whose type carries no iter slot -- an INT, a fn, or one of the engine's C-built spines such as the reader's type alist, which are walked with the bare first/rest accessors instead."
+      (doc "An iterator over a sequence, via the type's iter slot. Instances yield their fields as (name . value) pairs; also available bare as `iter`. Raises `type` on a value whose type carries no iter slot -- an INT, a fn, or one of the engine's C-built spines such as the reader's type alist, which are walked with the bare first/rest accessors instead."
         (returns ITER "An iterator positioned at the first element")
         (example "(Iter ->list (Iter new (list 1 2)))" "(1 2)"))
       (if (null? x) (%i-make %list-iter-step ())
@@ -170,7 +170,7 @@
 (%type-push-iter (%type-by-atom (%type-of (list 1))) %list-iter)
 (%type-push-iter (%type-by-atom (%type-of (Vector of 1))) %vector-iter)
 (%type-push-iter (%type-by-atom (%type-of "x")) %str-iter)
-; def-class instances (all share the %object type): iterate the member alist as
+; def-class instances (all share the %object type): iterate the field alist as
 ; (name . value) pairs.  %object / %obj-fields are object.x internals.
 (def %object-iter (fn (_ inst) (%list-iter (%obj-fields inst))))
 (%type-push-iter (%type-by-atom %object) %object-iter)

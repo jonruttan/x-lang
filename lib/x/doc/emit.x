@@ -9,7 +9,7 @@
 ;
 ; Emitters are stateless and their methods are all STATIC, so the emitter
 ; travels as the bare class (`(def em DocMd)`, then `(em note "...")`).
-; No instances, no members, no per-call dispatch on instance state -- the
+; No instances, no fields, no per-call dispatch on instance state -- the
 ; walk threads one value through and nothing has to be constructed.
 ;
 ; The protocol takes PLAIN DATA, never raw token forms: strings, lists of
@@ -116,7 +116,7 @@
       (display "\n\n"))
 
     (method entry-head (self (param name STRING "Entry name or rendered signature"))
-      (doc "Emit the heading for one documented entry: a def, a method, or a member.")
+      (doc "Emit the heading for one documented entry: a def, a method, or a field.")
       (display #"### `{name}`\n\n"))
 
     (method alias (self (param name STRING "Lookup name for the entry that follows"))

@@ -27,7 +27,7 @@ list and binds nothing either. See [Modules](modules.md).
 
 Three mechanisms already do part of a namespace's job:
 
-- **Classes.** A class holds static methods and members, so `(List map …)`
+- **Classes.** A class holds static methods and fields, so `(List map …)`
   is a qualified call and `Pin` homes a whole tool under one global. A
   `%`-prefixed static is private by convention; a `(private …)` block is
   private in fact. Static dispatch costs 8 to 30 times a direct call, which
@@ -338,6 +338,13 @@ model.
     allocations are unchanged, at about 1,900 and 1,400 a conversion for
     symbol to string. The dispatcher is the cost, and the frame adds little
     to it, so the file is scoped.
+  - `core/fn.x`, measured the same way (2026-09-27): a module header adds
+    0.01% to the environment comparisons of an x-core boot, since the
+    library's own callers keep the engine's `apply`. A call through the
+    library's `apply` compares 161 more bindings with the header, 351 where
+    it compared 190, with evaluations and allocations unchanged at 88 and 38
+    a call. The door is small, so the frame would nearly double its lookups,
+    for eight names hidden. The file is unscoped.
 - **Source boot time.** The image writers and the asan-boot gate boot from
   source. A framed load of `regex.x` through the x-side reader took the same
   time as the C include, so the loader is not the risk; the lookup cost is.

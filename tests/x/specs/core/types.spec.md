@@ -35,7 +35,7 @@
 ---
     #t
 
-## set-shape!
+## set-unit-labels!
 
 ### declares the pair form of a type's units slot
 
@@ -43,7 +43,7 @@
 (do
   (def t (Type make "SHAPED" ()))
   (def ts ((prim-ref (lit type) (lit by-atom)) t))
-  (Type set-shape! ts 1 '(bytes))
+  (Type set-unit-labels! ts 1 '(bytes))
   (first ((prim-ref (lit type) (lit units-cell)) ts)))
 ```
 ---
@@ -81,7 +81,7 @@
 (do
   (def t (Type make "SHAPED" ()))
   (def ts ((prim-ref (lit type) (lit by-atom)) t))
-  (Type set-shape! ts -1 '(ref ref))
+  (Type set-unit-labels! ts -1 '(ref ref))
   (def o (Obj make t 3))
   (Obj set! o 0 2)
   (Obj set! o 1 (pair 1 2))

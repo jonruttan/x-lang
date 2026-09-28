@@ -3,7 +3,7 @@
      through it are invisible to the parent's mark, so this file runs with no
      seam collects. -->
 # @weight 1
-# @requires tok/variant
+# @requires tok/label
 
 The variant channel (`lib/x/reader/intrinsics.x`, x-token.h): an analyser state
 declares what it accepted with `(%score-variant! score K)`, the engine records the

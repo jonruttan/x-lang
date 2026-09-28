@@ -194,7 +194,7 @@
   (def %fmt-one
     (fn (_ file)
       ; The RAW base: this tool walks the spine directly (%reflect-step)
-      ; and hands the base to tokenizer doors, so it holds the raw member.
+      ; and hands the base to tokenizer doors, so it holds the raw field.
       (def %fmt-base ((Base make) raw))
       ; The fresh base's type registry: descriptor row `type-alist`,
       ; walked FROM %fmt-base (reflect's own cell accessor is bound to

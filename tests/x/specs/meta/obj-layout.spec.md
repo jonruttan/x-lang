@@ -98,10 +98,8 @@ over one integer add.
 
 ### the flags slot: alike within a type, differing int vs str
 
-Note: the simple-type code (%obj-flag-int etc.) is an ADVISORY tag -- C sets
-it where it needs it (e.g. FFI-created atoms), and plain heap ints carry no
-code. The contract probed here is the flags slot's POSITION and that it
-holds per-object attribute bits (str atoms own their storage; ints don't).
+The contract probed here is the flags slot's POSITION and that it holds
+per-object attribute bits (str atoms own their storage; ints don't).
 
 ```x
 (do

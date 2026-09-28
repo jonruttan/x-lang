@@ -143,7 +143,7 @@ definition body it is.
 ### 1.3 Length and depth together, never either alone
 
 Long-and-flat is fine: 17 definitions exceed 60 lines at depth ≤8, and they
-are data tables (`x86_64-syscall-names`, `%arm64-table`, `%isa-catalog`).
+are data tables (`x86_64-syscall-names`, `%arm64-table`, `%isa-catalogue`).
 Splitting those makes them worse.
 
 Deep-and-short is usually fine: 279 definitions sit at depth ≥12 under 40

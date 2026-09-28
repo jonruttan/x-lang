@@ -83,7 +83,7 @@
       (%go %base-paths))
     (method wrap (self (param t ANY "A type handle (from Type of) or the type itself (from Type by-atom)"))
       (doc "Clothe a type as a Type instance for interactive use."
-        (returns OBJECT "The Type instance; handle/raw members hold both forms")
+        (returns OBJECT "The Type instance; handle/raw fields hold both forms")
         (example "((Type wrap (Type of 0)) name)" "\"INTEGER\""))
       (match
         ((null? t) (error (lit type-wrap-nil)))
@@ -110,14 +110,14 @@
                           (+ acc (* scale (Type %kind-code (first ks))))
                           (* scale 4))))))
         (%go kinds 0 1)))
-    (method set-shape! (self (param ts ANY "Type struct (from Type by-atom)")
+    (method set-unit-labels! (self (param ts ANY "Type struct (from Type by-atom)")
                              (param n INTEGER "Unit count -- fixed, or -k for the slot-0-counted convention")
                              (param kinds LIST "One kind per unit (ref word bytes foreign); the last repeats"))
       (doc "Declare what each of a type's units IS, not just how many there are. The collector traces `ref` units and leaves the rest alone -- which is what makes a unit holding bytes or a foreign address declarable at all, since the marker writes through any pointer it is handed."
-        (note "A fixed count describes its own units; a count of -k describes k leading units plus the kind of the slot-0-counted payload that follows, so (Type set-shape! ts -1 '(word ref)) is the vector.")
+        (note "A fixed count describes its own units; a count of -k describes k leading units plus the kind of the slot-0-counted payload that follows, so (Type set-unit-labels! ts -1 '(word ref)) is the vector.")
         (returns ANY "The type struct")
-        (example "(let ((st (Type by-atom (Type of \"s\")))) (same? (Type set-shape! st 1 '(bytes)) st))" "#t"))
-      ((prim-ref (lit type) (lit set-shape!)) ts n (Type %kind-mask kinds)))
+        (example "(let ((st (Type by-atom (Type of \"s\")))) (same? (Type set-unit-labels! st 1 '(bytes)) st))" "#t"))
+      ((prim-ref (lit type) (lit set-unit-labels!)) ts n (Type %kind-mask kinds)))
     (method fields (self)
       (doc "Every type field name in the layout contract (type-rooted rows of engine/tools/contract/base-paths.x)."
         (returns LIST "Field name symbols, contract order"))
@@ -300,7 +300,7 @@
 ; type with no units was never traversed at all and a type whose units are
 ; all non-`ref` is not traversed either.  Same behaviour, more information.
 ; The coordinate is an engine capability: an engine that predates it answers
-; nil for (type set-shape!), and the types simply stay undeclared -- the state
+; nil for (type set-unit-labels!), and the types simply stay undeclared -- the state
 ; every engine was in before this.  Guarded rather than required so the
 ; platform still boots on the pinned engine while the shape release lands.
 ; SHAPES ARE PER-BASE, and that is the reason this is data rather than a run of
@@ -320,14 +320,14 @@
   (fn (_ ts)
     ((fn (_ row)
        (if (null? row) ()
-         (Type set-shape! ts (first (rest row)) (first (rest (rest row))))))
+         (Type set-unit-labels! ts (first (rest row)) (first (rest (rest row))))))
      (%type-shape-find %type-shape-rows ((Type wrap ts) name)))))
 (def %type-declare-shapes!
   (fn (self alist)
     (if (null? alist) ()
       (do (%type-shape-row! (rest (first alist))) (self (rest alist))))))
 
-(if (null? (prim-ref (lit type) (lit set-shape!)))
+(if (null? (prim-ref (lit type) (lit set-unit-labels!)))
   ()
   (%type-declare-shapes! (first %reflect-type-alist-cell)))
 
