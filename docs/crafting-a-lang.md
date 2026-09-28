@@ -98,8 +98,8 @@ state function (keep consuming), a score (accept), or nil (reject).
 - `(%score-set score 1 buffer)` accepts **including** the current character.
 - `(%buffer-unread buffer)` first accepts **excluding** it — how a token that
   ends at a delimiter gives the delimiter back.
-- `(%score-variant! score K)` declares **which variant** the accepting state saw —
-  an integer the type's reader recovers with `(%read-variant args)` (its second
+- `(%score-label! score K)` declares which variant the accepting state saw —
+  an integer the type's reader recovers with `(%read-label args)` (its second
   argument carries it as a raw cell; nil when no state declared one).  The
   analyser already knows whether a literal ran through the fraction or the
   exponent state; this is how it says so, instead of the reader rescanning
@@ -374,7 +374,7 @@ contesting type — and the platform can compile them:
   once produced an infinite recursion and a crash far from the cause.
 - `%score-set`'s sign folds `(- 0 1)` and raises loudly on other
   non-literals; any other non-trivial constant belongs in an fvar.
-  `%score-variant!`'s variant is a literal integer the same way.
+  `%score-label!`'s label is a literal integer the same way.
 - **Adopt with sha256.x's pattern**: lazy, threshold-triggered, the whole
   attempt in a guard that pins `failed` and carries on pure-x.  Compiling
   costs seconds once; never per-call, and never unconditionally at load.

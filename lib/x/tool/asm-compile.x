@@ -127,9 +127,9 @@
 ; ladder wants.
 (def %jit-buffer-last-char (%jit-bind! (lit %jit-buffer-last-char) "jit_buffer_last_char" #t))
 ; jit_score_label is newer still, and OPTIONAL for the same reason: only a
-; state that declares a variant needs it, and an engine without it must keep
+; state that declares a label needs it, and an engine without it must keep
 ; compiling every state that does not.
-(def %jit-score-variant (%jit-bind! (lit %jit-score-variant) "jit_score_label" #t))
+(def %jit-score-label (%jit-bind! (lit %jit-score-label) "jit_score_label" #t))
 ; jit_call_value is newer still, and OPTIONAL for the same reason: an
 ; engine with the JIT but not this symbol must keep compiling every form
 ; that does not need it.  A call through a computed head is the only form
@@ -185,7 +185,7 @@
   (fn (_ asm addr)
     ; An unresolved OPTIONAL trampoline is address 0 (%jit-addr), and `blr 0`
     ; is a SIGSEGV arbitrarily far from the cause: x-python's compiled number
-    ; states declared a variant through jit_score_label on an engine that
+    ; states declared a label through jit_score_label on an engine that
     ; had no such symbol, and the first number token after the swap died.
     ; Refuse here, once, for every caller -- the compile raises, the caller's
     ; guard falls back, and the interpreted twin runs.
@@ -627,27 +627,27 @@
       (asm-load-imm64! asm x1 sign-val))  ; x1 = sign
     (%emit-call! asm %jit-score-set)))
 
-; Compile (%score-variant! score variant): jit_score_label(score, variant).  The
-; score is an OBJECT, loaded the way %score-set loads it; the variant is a
+; Compile (%score-label! score label): jit_score_label(score, label).  The
+; score is an OBJECT, loaded the way %score-set loads it; the label is a
 ; literal integer, like the sign, and lands in x1 the same way.
-(def %asm-compile-score-variant
+(def %asm-compile-score-label
   (fn (_ asm args params)
     ; Refuse BY NAME when this engine has no jit_score_label (the bind is
     ; optional, so the address is 0), the way %asm-compile-callable-call does
     ; for jit_call_value: a bundle probes the lane by compiling exactly this
     ; form, and must hear no rather than get a state that calls address 0.
-    (if (= %jit-score-variant 0)
+    (if (= %jit-score-label 0)
       (Err raise 'state
         (Str append "asm-compile: this engine has no jit_score_label, so "
-          "a state that declares a variant cannot be compiled") ()))
+          "a state that declares a label cannot be compiled") ()))
     (if (symbol? (first args))
       (%asm-compile-param asm (first args) params #f)
       (%asm-compile-expr asm (first args) params))
-    (def variant-val (first (rest args)))
-    (if (and (>= variant-val 0) (<= variant-val 65535))
-      (asm-emit! asm 'mov x1 (imm variant-val))
-      (asm-load-imm64! asm x1 variant-val))   ; x1 = variant
-    (%emit-call! asm %jit-score-variant)))
+    (def label-val (first (rest args)))
+    (if (and (>= label-val 0) (<= label-val 65535))
+      (asm-emit! asm 'mov x1 (imm label-val))
+      (asm-load-imm64! asm x1 label-val))   ; x1 = label
+    (%emit-call! asm %jit-score-label)))
 
 ; Compile a unary buffer call -- (%buffer-unread b), (%buffer-len b),
 ; (%buffer-last-char b): eval the single buffer argument into x0, then call
@@ -791,10 +791,10 @@
         ; instead of becoming a computed call by accident.
         (%asm-compile-callable-call asm (first args) (rest args) params))
       ((eq? op '%seq) (%asm-compile-do asm args params))
-      ((if (eq? op '%score-set) #t (eq? op '%score-variant!))
+      ((if (eq? op '%score-set) #t (eq? op '%score-label!))
         (if (eq? op '%score-set)
           (%asm-compile-score-set asm args params)
-          (%asm-compile-score-variant asm args params)))
+          (%asm-compile-score-label asm args params)))
       ((eq? op '%buffer-unread)
         (%asm-compile-buffer-op asm args params %jit-buffer-unread))
       ((eq? op '%buffer-last-char)

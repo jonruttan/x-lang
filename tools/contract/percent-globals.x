@@ -197,9 +197,9 @@
 (file "lib/x/num/tower.x" 10)
 (file "lib/x/platform/socket.x" 1)
 (file "lib/x/protocol/seq.x" 1)
-; intrinsics.x rose 5 to 8 for the variant channel: %score-variant-cell (the raw
-; door to the cell the engine hangs off the score), %score-variant! (the
-; analyser's end) and %read-variant (the reader's end) -- per-token intrinsics on
+; intrinsics.x rose 5 to 8 for the label channel: %score-label-cell (the raw
+; door to the cell the engine hangs off the score), %score-label! (the
+; analyser's end) and %read-label (the reader's end) -- per-token intrinsics on
 ; the analyser protocol, the same grounds as %score-set beside them
 ; (reader/analyser.x: class dispatch allocates mid-reader-callback).
 (file "lib/x/reader/intrinsics.x" 8)
@@ -261,9 +261,9 @@
 ; %asm-prim-type (deciding at GENERATION whether a named fvar can be called),
 ; %jit-call-value (the new trampoline) and %asm-analyser? (the calling world,
 ; declared now instead of inferred from whether fvars are present).
-; asm-compile.x rose 79 to 81 for the variant channel: %jit-score-variant (the
+; asm-compile.x rose 79 to 81 for the label channel: %jit-score-label (the
 ; optional trampoline binding, the %jit-buffer-last-char shape) and
-; %asm-compile-score-variant (its emitter, the %asm-compile-score-set shape).
+; %asm-compile-score-label (its emitter, the %asm-compile-score-set shape).
 ; asm-compile.x rose 81 to 82 for %asm-check-int-operands, the %sug-hint shape:
 ; it takes a row because both sites that put two operands in registers need it
 ; -- the call emitter, and the comparison an `if` test folds into its branch,
