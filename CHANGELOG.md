@@ -19,6 +19,17 @@ from an unpacked release, and the image tools mark with the engine's
 
 [#835]: https://github.com/jonruttan/x-lang/pull/835
 
+**`core/fn.x` has a module header** ([#846]). The apply door's eight private
+names are the module's own, and the root keeps `apply` and the `Fn` class.
+The file had been measured and left unscoped: a call through the library's
+`apply` compares 351 bindings with the header where it compared 190, with
+evaluations and allocations unchanged. It is scoped by decision. The
+library's own callers hold the engine's `apply`, so the cost falls only on a
+call through the door. One %-row is retired, and 79 of the library's 138
+files are scoped.
+
+[#846]: https://github.com/jonruttan/x-lang/pull/846
+
 **The reference names a field documented with a default** ([#833]). A field's
 doc form wraps its declaration, `(doc NAME "...")` or
 `(doc (NAME default) "...")`, and a static field's does the same.
