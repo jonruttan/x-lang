@@ -108,7 +108,7 @@ brought up, and its state and reason are the members' defaults.
   (write (list (%site-new state) (%site-new reason) (%site-new value))))
 ```
 ---
-    (down "" ())
+    ('down "" ())
 
 ## down and up
 
