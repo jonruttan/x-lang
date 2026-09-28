@@ -50,6 +50,21 @@ count rows, and the declaration's layout digest changes with them.
 
 [#810]: https://github.com/jonruttan/x-lang/pull/810
 
+**Two selectors of one class sent in turn settle at the front of its
+dispatch table** ([#814]). A lookup that found its selector deeper than
+second place swapped it with the head, which sent the head's entry to the
+hit's cell, so a method and a helper of the same class sent in turn --
+`List sort` and the `List from-seq` inside it, `File open` and `File close`
+-- traded places at that depth on every send, and each lookup walked the
+table that far. A deep hit now moves to the head, the head's entry to second
+place and the second's to the hit's cell, and the walk is a plain loop.
+`(List sort < ())` allocates about 4,100 objects where it took 33,200, `List
+map`, `filter` and `fold` on an empty list about 4,300 where they took 21,400
+to 25,400, and a `File open` and `File close` pair about 2,200 where it took
+15,800.
+
+[#814]: https://github.com/jonruttan/x-lang/pull/814
+
 **A data-slot access does no generic arithmetic** ([#809]). `(obj ref)`,
 `(obj set!)` and the pair mutators address data word i by one formula, the data
 offset plus i words, and it was computed with the `+` and `*` bound at the root:

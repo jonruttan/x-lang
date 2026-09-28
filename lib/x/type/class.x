@@ -92,25 +92,34 @@
 (def %this-class ())
 
 ; Find `sel` in a flat table and self-organize: a hit DEEPER THAN POSITION
-; TWO swaps its (sel . entry) pair with the head's via two %set-first!, so a
-; hot selector is a front hit from its second call on. The top-2 exemption
-; matters: a method that reads a field alternates two hot selectors, and
-; unconditional move-to-front made them ping-pong the head slot -- two swap
-; writes per call, measured slower than no table at all. With the exemption
-; an alternating pair settles into the top two and never swaps again.
+; TWO moves its (sel . entry) pair to the head, the head's pair to second
+; place and the second's to the hit's cell, so a hot selector is a front hit
+; from its second call on. The top-2 exemption matters: a method that reads
+; a field alternates two hot selectors, and unconditional move-to-front made
+; them ping-pong the head slot -- writes on every call, measured slower than
+; no table at all. With the exemption an alternating pair settles into the
+; top two and never moves again, because the pair a hit displaces lands
+; second: put back in the hit's cell instead, the two would trade places at
+; the hit's depth, and each would walk the table that far on every call.
 ; Returns the entry (a method closure or %field-tag) or nil. `head` is the
-; table's first spine cell; callers pass the table twice.
+; table's first spine cell; callers pass the table twice.  The walk is a
+; plain loop: it runs on every dispatch, a cell at a time.
 (def %tab-find!
   (fn (loop cell head sel)
-    (unless (null? cell)
-      (let ((p (first cell)))
-        (if (eq? (first p) sel)
-          (do
-            (unless (if (eq? cell head) #t (eq? cell (rest head)))
-              (%set-first! cell (first head))
-              (%set-first! head p))
-            (rest p))
-          (loop (rest cell) head sel))))))
+    (match
+      ((eq? cell ()) ())
+      ((eq? (first (first cell)) sel)
+        (match
+          ((eq? cell head) (rest (first cell)))
+          ((eq? cell (rest head)) (rest (first cell)))
+          ; p is bound before the writes that move it
+          (#t ((fn (_ p)
+                 (%set-first! cell (first (rest head)))
+                 (%set-first! (rest head) (first head))
+                 (%set-first! head p)
+                 (rest p))
+               (first cell)))))
+      (#t (loop (rest cell) head sel)))))
 
 ; Build a class's hot record: flat, chain-merged dispatch tables plus the
 ; construction caches, shape
