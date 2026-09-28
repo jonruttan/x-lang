@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A site that was never brought up is down** ([#842]). `x/sys/swap` documents
+`state`, `reason` and the static `all` with their defaults,
+`(doc (NAME default) "...")`, which the reference can name since [#833]. A
+site made with `new` is `down` with an empty reason until it is brought up;
+both were nil. `(Swap site! ...)` brings a site up as it makes one, and is
+as before.
+
+[#842]: https://github.com/jonruttan/x-lang/pull/842
+
 **The profiler says which functions evaluation goes to** ([#835]). The
 profiling engine that x-engine-c ships from v0.2.15 counts, in each object, how
 many times evaluation reached it. `x/tool/profile` now reads those counts by
