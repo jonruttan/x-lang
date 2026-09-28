@@ -1,4 +1,4 @@
-# doc-gen: what a class's page shows of its methods and members
+# doc-gen: what a class's page shows of its members
 # @weight 1
 
 ## runtime notes reach the generated entry
@@ -50,15 +50,16 @@ a stub that records `note` calls, so the spec is not coupled to Markdown.
 ---
     ("only")
 
-## a documented member is named by its declaration
+## a documented field is named by its declaration
 
-A member's doc form wraps its declaration, `(doc DECL "description")`, and a
-declaration is `NAME` or `(NAME default)`. The page names the member by the
-declaration's name in both shapes. Each case walks a class form as the
-generator's driver does, through `doc-walk-with-prims`, into a stub emitter
-that records the calls the case reads.
+A field's doc form wraps its declaration, `(doc DECL "description")`, and a
+declaration is `NAME` or `(NAME default)`. The page names the field by the
+declaration's name in both shapes, and a static member the same way. Each
+case walks a class form as the generator's driver does, through
+`doc-walk-with-prims`, into a stub emitter that records the calls the case
+reads.
 
-### a member documented with a default is headed by its name
+### a field documented with a default is headed by its name
 
 ```x
 (do (import x/doc/doc-gen doc-walk-with-prims)
@@ -76,7 +77,7 @@ that records the calls the case reads.
           (doc "A site.")
           (doc (state (lit down)) "Where the site stands.")
           (doc (reason "") "Why it stands there.")
-          (doc label "A member documented by name alone.")))
+          (doc label "A field documented by name alone.")))
       () DgHeads "")
     (DgHeads got))
 ```
@@ -131,8 +132,9 @@ that records the calls the case reads.
 
 ## a member's note says who holds it
 
-An instance member is data each instance carries. A member declared inside
-`(static ...)` is the class's own, so its note says that instead.
+A field is data each instance carries. A member declared inside
+`(static ...)` is the class's own, a static member, so its note says that
+instead.
 
 ### a static member's note says the class holds it
 
@@ -156,7 +158,7 @@ An instance member is data each instance carries. A member declared inside
 ---
     ("Static member: data held by DgSite3 itself, not by its instances.")
 
-### an instance member's note says an instance carries it
+### a field's note says an instance carries it
 
 ```x
 (do (import x/doc/doc-gen doc-walk-with-prims)
@@ -173,11 +175,10 @@ An instance member is data each instance carries. A member declared inside
       '((def-class DgSite4 ()
           (doc (state (lit down)) "Where the site stands.")))
       () DgNotes2 "")
-    (list (List count-if (n) (Str8 includes? "DgSite4 instance" n) (DgNotes2 got))
-          (List count-if (n) (Str8 includes? "Static member" n) (DgNotes2 got))))
+    (DgNotes2 got))
 ```
 ---
-    (1 0)
+    ("Field: data carried by a DgSite4 instance.")
 
 ### a static member declared without a doc form gets the static note too
 
