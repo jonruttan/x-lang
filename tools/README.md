@@ -38,9 +38,7 @@ Tool LOGIC is written in x-lang -- entry scripts here or modules under
      makes the handler read the vector's elements from the AMBIENT input
      port -- eating the calling script's own stdin (repro in the filed
      issue).  Until fixed, read-str over arbitrary source is unsafe.
-   In-language directory enumeration is also off the table on cost
-   (~355K heap objects per file for the interpreted dirent+stat decode);
-   file lists ride shell `find | sort` onto argv -- the boot-order
+   File lists ride shell `find | sort` onto argv -- the boot-order
    pattern: shell enumerates, x analyzes.
 4. **Thin launch glue where an engine variant is required**
    (`dev/cov.sh` needs `x-bin-cov`).
