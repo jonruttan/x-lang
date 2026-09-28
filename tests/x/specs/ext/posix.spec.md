@@ -91,8 +91,13 @@
 ### opens and closes without error
 
 ```x
-(do (def fd (Sys open-write "/tmp/x-test-open.txt"))
+(do (import x/sys/file)
+    (def tmp (File temp "/tmp/x-test-open-"))
+    (File close (first tmp))
+    (File unlink (rest tmp))
+    (def fd (Sys open-write (rest tmp)))
     (Sys close fd)
+    (File unlink (rest tmp))
     #t)
 ```
 ---
