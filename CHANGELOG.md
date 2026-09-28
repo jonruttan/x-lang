@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A spec may not rebind the library's root %-definitions** ([#818]). A spec
+snippet is evaluated at the root, so its top-level defs outlive it, and
+`check-spec-globals` refuses one that takes a name the shared vocabulary owns.
+That vocabulary was the engine's bare and keep names and
+`tools/contract/bare-globals.x`; it now also holds the top-level %-defs of every
+library file without a `(module NAME)` header, 930 names in all where the gate
+held 137. Rebinding one breaks the rest of the spec's own file as well as later
+files in its batch: `+` and `*` call `%fold` past two arguments. Four specs
+whose local helpers took such a name (`%find`, `%str->ptr`, `%ptr->int`,
+`%ptr-set!`, `%ptr-ref`, `%obj->ptr`) now prefix them with their subject.
+
+[#818]: https://github.com/jonruttan/x-lang/pull/818
+
 **A system call's result folds on the integer primitives** ([#812]). Every
 `Sys` method that calls libc passes its result through `%sys-fold`, which turns
 the top half of the u32 range back into negatives: Linux hands an `int` return
