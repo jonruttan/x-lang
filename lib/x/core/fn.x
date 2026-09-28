@@ -4,6 +4,7 @@
 ; before the object system references these combinators -- there are zero call
 ; sites in the tree -- so the module is the class, and apply, the combinator
 ; the others are built on, bound over the engine's.
+(module x/core/fn)
 
 (import x/type/class)
 
@@ -189,7 +190,7 @@
       (doc "Return a predicate that passes when any predicate passes." (returns CALLABLE "Combined predicate"))
       (fn (_ x) (List any? (fn (_ p) (p x)) preds)))))
 
-(doc (provide x/core/fn apply Fn)
+(doc (provide x/core/fn (global apply) Fn)
   (note "Function combinators as static methods: (Fn compose f g), (Fn flip f), (Fn tap f).")
   (example "((Fn compose (method-ref Num inc) (method-ref Num inc)) 1)" "3")
   "Higher-order function combinators, homed on the Fn class.")
