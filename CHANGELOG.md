@@ -278,6 +278,13 @@ its temp file and reuses the name. Every assertion is unchanged.
 
 [#843]: https://github.com/jonruttan/x-lang/pull/843
 
+**The sh-open-write spec case leaves no file behind** ([#848]). `ext/posix.spec.md`'s
+"opens and closes without error" opened `/tmp/x-test-open.txt` and never
+removed it. It takes a fresh name from `(File temp PREFIX)` and unlinks it
+after the close.
+
+[#848]: https://github.com/jonruttan/x-lang/pull/848
+
 **The assembler takes a label's address** ([#834]). `(adr Xd (label L))` sets
 `Xd` to the address of the label `L`, counted from where the instruction sits,
 so code that runs wherever it is loaded can hand out addresses inside itself.
