@@ -14,6 +14,22 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 [#823]: https://github.com/jonruttan/x-lang/pull/823
 
+**`type/promise.x` and `repl/ansi.x` have module headers** ([#824]). The
+promise type's handle and five other `%` names, and ansi's twenty-six, are
+their files' own now. The root keeps the `Promise` and `Ansi` classes and
+`delay`. x-r7rs defines a `%promise` of its own at the root, which until now
+rebound the name the platform's class and `delay` read. `repl/ansi.x` still
+sets the names other files own, the REPL's printer, `doc.x`'s colour stubs
+and the image recache hooks, through its module's parent, and a boot from a
+state image prints in colour as before. The ansi spec reaches `%code-sugar`
+through the module. Two %-rows are retired, and `apps/bitwise/gen.x`'s
+private-reads row falls by one, 674 to 673: its own `%esc` method had been
+counted as a read of ansi's. `core/fn.x` was measured for a header and is
+left as it is: a call through `apply` would compare 351 bindings where it
+compares 190, and `docs/namespaces.md` has the numbers.
+
+[#824]: https://github.com/jonruttan/x-lang/pull/824
+
 **An error's classifying symbol is its label** ([#821]). `(Err label e)` is the
 total accessor, `(e label)` the field and `(e label? 'io)` the predicate, and
 `make` and `raise` take a `label`. They were `(Err tag e)`, `(e tag)` and
