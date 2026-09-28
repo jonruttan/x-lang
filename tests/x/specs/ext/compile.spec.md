@@ -91,8 +91,14 @@
 ### writes string to file
 
 ```x
-(do (compile-write "/tmp/x-test-write.txt" "hello")
-    (Sys file-exists? "/tmp/x-test-write.txt"))
+(do (import x/sys/file)
+    (def tmp (File temp "/tmp/x-test-write-"))
+    (File close (first tmp))
+    (File unlink (rest tmp))
+    (compile-write (rest tmp) "hello")
+    (def r (Sys file-exists? (rest tmp)))
+    (File unlink (rest tmp))
+    r)
 ```
 ---
     #t
