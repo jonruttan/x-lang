@@ -219,6 +219,18 @@ through a `method-of` door allocates 135 where it took 417.
 
 [#812]: https://github.com/jonruttan/x-lang/pull/812
 
+**A spec case that writes a file writes a fresh one** ([#843]). A case that
+wrote a fixed `/tmp` path and then checked it failed when two runs of
+`make test-x` overlapped on one machine: one run unlinked the other's file
+between its write and its check, and `ext/io.spec.md`'s "file-exists? tracks
+create then unlink" answered `(#f #f #f)` where it expects `(#f #t #f)`. Those
+cases in `ext/io`, `ext/posix`, `ext/compile`, `ext/jit-cache`,
+`lib/file-ergo`, `lib/socket` and `lib/zlib` take their path from
+`(File temp PREFIX)`; a case that needs a path that does not exist yet unlinks
+its temp file and reuses the name. Every assertion is unchanged.
+
+[#843]: https://github.com/jonruttan/x-lang/pull/843
+
 **The assembler takes a label's address** ([#834]). `(adr Xd (label L))` sets
 `Xd` to the address of the label `L`, counted from where the instruction sits,
 so code that runs wherever it is loaded can hand out addresses inside itself.

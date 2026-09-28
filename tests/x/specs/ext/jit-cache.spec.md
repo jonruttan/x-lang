@@ -248,10 +248,15 @@ single byte is trusted.
 
 ```scheme
 (do
-  (import x/tool/asm-cache)
-  (def %fd (%asm-cache-creat "/tmp/x-asm-spec-junk.asm"))
+  (import x/tool/asm-cache) (import x/sys/file)
+  (def %junk-tmp (File temp "/tmp/x-asm-spec-junk-"))
+  (File close (first %junk-tmp))
+  (def %junk-at (rest %junk-tmp))
+  (def %fd (%asm-cache-creat (Str8 append %junk-at ".asm")))
   (%asm-cache-put %fd "this is not a cache entry at all" 32)
-  (write (%asm-cache-load "any key" "/tmp/x-asm-spec-junk" ()))
+  (write (%asm-cache-load "any key" %junk-at ()))
+  (File unlink (Str8 append %junk-at ".asm"))
+  (File unlink %junk-at)
   (newline))
 ```
 ---
