@@ -136,14 +136,19 @@
   "Emit a single entry's documentation through an emitter.")
 
 ; One member declaration -> heading, optional description, the member note and
-; its visibility tier.  Shared by the (doc NAME "...") arm and the bare-member
-; arm, which differ only in where the description sits.
+; its visibility tier.  Shared by the (doc DECL "...") arm and the bare-member
+; arm, which differ only in where the description sits.  static? picks the
+; note: an instance member is data each instance carries, and a member
+; declared in (static ...) is data the class holds.
 (def %doc-emit-member
-  (fn (_ em name desc cname vis)
+  (fn (_ em name desc cname static? vis)
     (em alias (Str str cname "-" name))
     (em entry-head name)
     (unless (str=? desc "") (em text desc))
-    (em note (Str str "Member: data carried by a " cname " instance."))
+    (em note
+      (if static?
+        (Str str "Static member: data held by " cname " itself, not by its instances.")
+        (Str str "Member: data carried by a " cname " instance.")))
     (%for-each (fn (_ n) (em note (DocEmit as-str (first (rest n)))))
                (%doc-vis-note vis cname))))
 
@@ -363,13 +368,19 @@
                 ; reached the page as nothing at all: %doc-emit-class-doc
                 ; guards on str? and returns quietly for anything else, so
                 ; (doc raw "...") fell into that guard and vanished.
+                ; A member's doc wraps its declaration, NAME or (NAME
+                ; default), as lib/x/type/class.x reads it, so the member is
+                ; named by the declaration's name.  symbol->str is unchecked:
+                ; handed the (NAME default) pair it returned bytes that are
+                ; not text, and those became the heading.
                 ((%docgen-form? f)
                   (if (str? (first (rest f)))
                     (%doc-emit-class-doc em f)
                     (%doc-emit-member em
-                      (symbol->str (first (rest f)))
+                      (let ((decl (first (rest f))))
+                        (symbol->str (if (pair? decl) (first decl) decl)))
                       (if (str? (first (rest (rest f)))) (first (rest (rest f))) "")
-                      cname vis)))
+                      cname static? vis)))
                 ; ANYTHING ELSE IS A MEMBER.  A class body declares members
                 ; as (name), (name default) or (name default "description")
                 ; -- the head is the MEMBER'S OWN NAME, so class-body heads
@@ -400,7 +411,7 @@
                         (if (pair? tail)
                           (if (str? (first tail)) (first tail) "")
                           ""))
-                      cname vis)))))
+                      cname static? vis)))))
             (self em (rest body) cname static? vis))))))
 
 (def %doc-emit-class
