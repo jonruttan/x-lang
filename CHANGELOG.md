@@ -5,7 +5,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**Sites: a slow value set aside for a faster one** ([#PR]). `x/sys/swap` is
+**Sites: a slow value set aside for a faster one** ([#827]). `x/sys/swap` is
 new. A site records one replacement of a slow value by a faster one: the seat
 the value sits in, the slow twin that belongs there, and the maker of the fast
 value. `(Swap site! name twin maker seat)` records one and brings it up. A
@@ -30,7 +30,7 @@ the twin in the type's list.
 `(image recache-hook!)`, which add to the image writer's transients and to the
 loader's recache hooks.
 
-[#PR]: https://github.com/jonruttan/x-lang/pull/PR
+[#827]: https://github.com/jonruttan/x-lang/pull/827
 **A spec may not rebind the library's root %-definitions** ([#818]). A spec
 snippet is evaluated at the root, so its top-level defs outlive it, and
 `check-spec-globals` refuses one that takes a name the shared vocabulary owns.
