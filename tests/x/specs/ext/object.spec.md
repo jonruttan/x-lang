@@ -145,6 +145,21 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ---
     (#t #t)
 
+### class-fields and class-static-fields list a class's own names
+
+```x
+(do
+  (def-class A ()
+    (static (limit 10) (method make (self) (new A)))
+    (size 1)
+    (method grow (self) (field 'size)))
+  (def-class B (extends A) (static (floor 0)) (depth 2))
+  (list (class-fields A) (class-static-fields A)
+        (class-fields B) (class-static-fields B)))
+```
+---
+    (('size) ('limit) ('depth) ('floor))
+
 ## write handler
 
 ### instances print as #<Class field=value ...>
