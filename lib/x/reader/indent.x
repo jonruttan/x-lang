@@ -241,33 +241,33 @@
   (method reset! (self)
     (doc "Close everything and start again at column 0. The state a fresh instance has."
       (returns Indent "self"))
-    (set-member! 'cols (list 0))
+    (set-field! 'cols (list 0))
     self)
 
   (method column (self)
     (doc "The innermost open column."
       (returns INTEGER "The column"))
-    (first (member 'cols)))
+    (first (field 'cols)))
 
   (method depth (self)
     (doc "How many levels are open. A fresh indenter is 1: column 0 counts."
       (returns INTEGER "The depth"))
-    (List length (member 'cols)))
+    (List length (field 'cols)))
 
   (method feed (self (param col INTEGER "The column this line begins at"))
     (doc "Advance to a line at `col`. Returns zero or more `close` events followed by exactly one `open` or `same` -- so a caller never counts levels itself, which is the loop both previous implementations owned. Raises 'indent when the column matches no open level and the mode is 'error."
       (returns LIST "The events, outermost close first")
       (example "(let ((i (Indent make))) (i feed 4) (i feed 0))" "('close 'same)"))
-    (let ((r (Indent %feed (member 'cols) col (member 'mode))))
-      (set-member! 'cols (first r))
+    (let ((r (Indent %feed (field 'cols) col (field 'mode))))
+      (set-field! 'cols (first r))
       (rest r)))
 
   (method close-all (self)
     (doc "The events for end of input: one `close` per open level above column 0. Leaves the indenter reset."
       (returns LIST "The close events")
       (example "(let ((i (Indent make))) (i feed 4) (i close-all))" "('close)"))
-    (let ((r (Indent %feed (member 'cols) 0 (lit close))))
-      (set-member! 'cols (list 0))
+    (let ((r (Indent %feed (field 'cols) 0 (lit close))))
+      (set-field! 'cols (list 0))
       ; feed's contract ends every result with open or same; at end of input
       ; there is no line to continue, so the trailing `same` is dropped rather
       ; than reported as a block that opened.

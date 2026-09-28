@@ -434,6 +434,15 @@
       ((eq? descriptor 'cbz1)  (%x86-lower-cb asm 132 args))   ; JZ
       ((eq? descriptor 'cbnz1) (%x86-lower-cb asm 133 args))   ; JNZ
       ((eq? descriptor 'blr1)  (%x86-lower-blr asm args))
+      ; adr: a label's address, LEA r64, [RIP + disp32] -- REX.W (and R
+      ; for r8-r15), 8D, then ModR/M with mod 00 and rm 101 for RIP.  The
+      ; displacement ends the instruction, which is where the rel32 patch
+      ; measures from, as arm64's ADR measures from its own word.
+      ((eq? descriptor 'adr1)
+        (let ((r (%op-value (%x86-nth 0 args))))
+          (%emit-bytes! asm (list (if (> r 7) 76 72) 141 (| 5 (<< (& r 7) 3))))
+          (asm-patch! asm 4 'rel (%op-value (%x86-nth 1 args)))
+          (%emit-u32-le! asm 0)))
       ((eq? descriptor 'push1) (%x86-lower-push asm args))
       ((eq? descriptor 'pop1)  (%x86-lower-pop asm args))
       ((and (pair? descriptor) (eq? (first descriptor) 'sse))
@@ -585,10 +594,12 @@
       (pair 'l (list () (list 15 142) ()        ; 0F 8E = JLE
         (list (list 'rel32 0))))))
 
-    ; Zero-test branches and the indirect call, all lowered
+    ; Zero-test branches, the indirect call, and a label's address, all
+    ; lowered
     (pair 'cbz  (list (pair 'rl 'cbz1)))
     (pair 'cbnz (list (pair 'rl 'cbnz1)))
     (pair 'blr  (list (pair 'r 'blr1)))
+    (pair 'adr  (list (pair 'rl 'adr1)))
 
     ; 16-byte stack push/pop (see the lowerings for the alignment story)
     (pair 'push (list (pair 'r 'push1)))

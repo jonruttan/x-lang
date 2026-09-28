@@ -27,7 +27,7 @@
 ## Base instances
 
 (Base make) answers a Base INSTANCE wrapping the raw C base (the `raw`
-member): methods make the base interactive, every static unwraps either
+field): methods make the base interactive, every static unwraps either
 form, and the tokenizer seams (Tok read-str, Xon's walks) unwrap the
 same way -- raw bases from the catalog prims stay plumbing.
 

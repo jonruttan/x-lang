@@ -95,26 +95,26 @@
 
   (method text (self)
     (doc "The buffer's bytes." (returns STRING "The line as typed so far"))
-    (member 'text))
+    (field 'text))
 
   (method point (self)
     (doc "The cursor, as a byte offset into the text." (returns INTEGER "Byte offset"))
-    (member 'point))
+    (field 'point))
 
   (method empty? (self)
     (doc "Whether the buffer holds no bytes." (returns BOOL "True when the line is empty"))
-    (= 0 (Str8 length (member 'text))))
+    (= 0 (Str8 length (field 'text))))
 
   (method before (self)
     (doc "The text to the left of the point -- what a completion has to work from."
       (returns STRING "Bytes in [0, point)")
       (example "(let ((e (Edit make))) (e insert! \"ab\") (e back!) (e before))" "\"a\""))
-    (Str8 sub 0 (member 'point) (member 'text)))
+    (Str8 sub 0 (field 'point) (field 'text)))
 
   (method after (self)
     (doc "The text to the right of the point." (returns STRING "Bytes in [point, end)"))
-    (let ((t (member 'text)))
-      (Str8 sub (member 'point) (- (Str8 length t) (member 'point)) t)))
+    (let ((t (field 'text)))
+      (Str8 sub (field 'point) (- (Str8 length t) (field 'point)) t)))
 
   ; --- editing --------------------------------------------------------------
 
@@ -122,42 +122,42 @@
                           . (param at INTEGER "Where to leave the point; default the end"))
     (doc "Replace the whole buffer, leaving the point at `at` (the end by default). The point is clamped into the new text."
       (returns Edit "self"))
-    (set-member! 'text s)
+    (set-field! 'text s)
     (let ((n (Str8 length s)))
       (let ((p (if (null? at) n (first at))))
-        (set-member! 'point (if (< p 0) 0 (if (> p n) n p)))))
+        (set-field! 'point (if (< p 0) 0 (if (> p n) n p)))))
     self)
 
   (method insert! (self (param s STRING "Text to insert at the point"))
     (doc "Insert s at the point and leave the point after it."
       (returns Edit "self")
       (example "(let ((e (Edit make))) (e insert! \"hi\") (e text))" "\"hi\""))
-    (let ((t (member 'text)) (p (member 'point)))
-      (set-member! 'text (Str8 append (Str8 sub 0 p t)
+    (let ((t (field 'text)) (p (field 'point)))
+      (set-field! 'text (Str8 append (Str8 sub 0 p t)
                                       (Str8 append s (Str8 sub p (- (Str8 length t) p) t))))
-      (set-member! 'point (+ p (Str8 length s))))
+      (set-field! 'point (+ p (Str8 length s))))
     self)
 
   (method del-back! (self)
     (doc "Delete the character before the point (backspace). A no-op at the start of the line."
       (returns Edit "self")
       (example "(let ((e (Edit make))) (e insert! \"ab\") (e del-back!) (e text))" "\"a\""))
-    (let ((p (member 'point)))
+    (let ((p (field 'point)))
       (unless (<= p 0)
-        (let ((t (member 'text)))
+        (let ((t (field 'text)))
           (let ((b (Edit prev-start t p)))
-            (set-member! 'text (Str8 append (Str8 sub 0 b t)
+            (set-field! 'text (Str8 append (Str8 sub 0 b t)
                                             (Str8 sub p (- (Str8 length t) p) t)))
-            (set-member! 'point b)))))
+            (set-field! 'point b)))))
     self)
 
   (method del! (self)
     (doc "Delete the character at the point (the Delete key). A no-op at the end of the line."
       (returns Edit "self"))
-    (let ((t (member 'text)) (p (member 'point)))
+    (let ((t (field 'text)) (p (field 'point)))
       (unless (>= p (Str8 length t))
         (let ((e (Edit next-start t p)))
-          (set-member! 'text (Str8 append (Str8 sub 0 p t)
+          (set-field! 'text (Str8 append (Str8 sub 0 p t)
                                           (Str8 sub e (- (Str8 length t) e) t))))))
     self)
 
@@ -165,22 +165,22 @@
 
   (method back! (self)
     (doc "Move the point one character left." (returns Edit "self"))
-    (set-member! 'point (Edit prev-start (member 'text) (member 'point)))
+    (set-field! 'point (Edit prev-start (field 'text) (field 'point)))
     self)
 
   (method forward! (self)
     (doc "Move the point one character right." (returns Edit "self"))
-    (set-member! 'point (Edit next-start (member 'text) (member 'point)))
+    (set-field! 'point (Edit next-start (field 'text) (field 'point)))
     self)
 
   (method bol! (self)
     (doc "Move the point to the start of the line (ctrl-a / Home)." (returns Edit "self"))
-    (set-member! 'point 0)
+    (set-field! 'point 0)
     self)
 
   (method eol! (self)
     (doc "Move the point to the end of the line (ctrl-e / End)." (returns Edit "self"))
-    (set-member! 'point (Str8 length (member 'text)))
+    (set-field! 'point (Str8 length (field 'text)))
     self)
 
   ; Word motion skips the run of non-word bytes first, then the word itself --
@@ -192,13 +192,13 @@
       (example "(let ((e (Edit make))) (e insert! \"ab cd\") (e back-word!) (e point))" "3"))
     (let ((bref (prim-ref (lit str) (lit byte-ref)))
           (cint (prim-ref (lit char) (lit ->int)))
-          (t (member 'text)))
+          (t (field 'text)))
       (let ((skip (fn (self j want)
                     (if (<= j 0) 0
                       (let ((b (Edit prev-start t j)))
                         (if (eq? want (Edit word-byte? (cint (bref t b))))
                           (self b want) j))))))
-        (set-member! 'point (skip (skip (member 'point) #f) #t))))
+        (set-field! 'point (skip (skip (field 'point) #f) #t))))
     self)
 
   (method forward-word! (self)
@@ -206,12 +206,12 @@
       (returns Edit "self"))
     (let ((bref (prim-ref (lit str) (lit byte-ref)))
           (cint (prim-ref (lit char) (lit ->int)))
-          (t (member 'text)))
+          (t (field 'text)))
       (let ((skip (fn (self j want)
                     (if (>= j (Str8 length t)) (Str8 length t)
                       (if (eq? want (Edit word-byte? (cint (bref t j))))
                         (self (Edit next-start t j) want) j)))))
-        (set-member! 'point (skip (skip (member 'point) #f) #t))))
+        (set-field! 'point (skip (skip (field 'point) #f) #t))))
     self)
 
   ; --- killing and yanking ---------------------------------------------------
@@ -219,40 +219,40 @@
   (method kill-eol! (self)
     (doc "Delete from the point to the end of the line, saving it for yank! (ctrl-k)."
       (returns Edit "self"))
-    (let ((t (member 'text)) (p (member 'point)))
-      (set-member! 'kill (Str8 sub p (- (Str8 length t) p) t))
-      (set-member! 'text (Str8 sub 0 p t)))
+    (let ((t (field 'text)) (p (field 'point)))
+      (set-field! 'kill (Str8 sub p (- (Str8 length t) p) t))
+      (set-field! 'text (Str8 sub 0 p t)))
     self)
 
   (method kill-bol! (self)
     (doc "Delete from the start of the line to the point, saving it for yank! (ctrl-u)."
       (returns Edit "self"))
-    (let ((t (member 'text)) (p (member 'point)))
-      (set-member! 'kill (Str8 sub 0 p t))
-      (set-member! 'text (Str8 sub p (- (Str8 length t) p) t))
-      (set-member! 'point 0))
+    (let ((t (field 'text)) (p (field 'point)))
+      (set-field! 'kill (Str8 sub 0 p t))
+      (set-field! 'text (Str8 sub p (- (Str8 length t) p) t))
+      (set-field! 'point 0))
     self)
 
   (method kill-word-back! (self)
     (doc "Delete the word before the point, saving it for yank! (ctrl-w)."
       (returns Edit "self")
       (example "(let ((e (Edit make))) (e insert! \"ab cd\") (e kill-word-back!) (e text))" "\"ab \""))
-    (let ((p (member 'point)))
+    (let ((p (field 'point)))
       (self back-word!)
-      (let ((b (member 'point)) (t (member 'text)))
-        (set-member! 'kill (Str8 sub b (- p b) t))
-        (set-member! 'text (Str8 append (Str8 sub 0 b t)
+      (let ((b (field 'point)) (t (field 'text)))
+        (set-field! 'kill (Str8 sub b (- p b) t))
+        (set-field! 'text (Str8 append (Str8 sub 0 b t)
                                         (Str8 sub p (- (Str8 length t) p) t)))))
     self)
 
   (method yank! (self)
     (doc "Insert the last killed text at the point (ctrl-y)." (returns Edit "self"))
-    (self insert! (member 'kill))
+    (self insert! (field 'kill))
     self)
 
   (method kill (self)
     (doc "The last killed text." (returns STRING "The kill ring's one entry"))
-    (member 'kill))
+    (field 'kill))
 
   (method clear! (self)
     (doc "Empty the buffer, put the point at 0, and end any history walk -- the three things that together mean `a fresh line starts here`."
@@ -260,8 +260,8 @@
       (note "Ending the walk is the part that is easy to leave out: without it, a line abandoned halfway through browsing leaves hpos where it was, and the next Up carries on from the middle of the history instead of from the newest entry.")
       (example "(let ((e (Edit make))) (e remember! \"a\") (e earlier!) (e clear!) (list (e text) (e browsing?)))" "(\"\" #f)"))
     (self set-text! "" 0)
-    (set-member! 'hpos ())
-    (set-member! 'stash "")
+    (set-field! 'hpos ())
+    (set-field! 'stash "")
     self)
 
   ; --- history ---------------------------------------------------------------
@@ -274,54 +274,54 @@
 
   (method hist (self)
     (doc "The history list, newest first." (returns LIST "Entries"))
-    (member 'hist))
+    (field 'hist))
 
   (method remember! (self (param s STRING "The line to record"))
     (doc "Push a line onto the front of the history and leave browsing. A blank line, or a repeat of the newest entry, is not recorded -- the two cases that otherwise fill a history with noise."
       (returns Edit "self")
       (example "(let ((e (Edit make))) (e remember! \"a\") (e remember! \"a\") (List length (e hist)))" "1"))
-    (let ((h (member 'hist)))
+    (let ((h (field 'hist)))
       (unless (or (= 0 (Str8 length (Str8 trim s)))
                   (and (not (null? h)) (Str8 =? s (first h))))
-        (set-member! 'hist (pair s h))))
-    (set-member! 'hpos ())
-    (set-member! 'stash "")
+        (set-field! 'hist (pair s h))))
+    (set-field! 'hpos ())
+    (set-field! 'stash "")
     self)
 
   (method earlier! (self)
     (doc "Show the next entry further back in history (Up / ctrl-p), stashing the fresh line on the way out. A no-op at the oldest entry."
       (returns BOOL "True when the buffer changed"))
-    (let ((h (member 'hist)) (hp (member 'hpos)))
+    (let ((h (field 'hist)) (hp (field 'hpos)))
       (let ((next (if (null? hp) 0 (+ hp 1))))
         (if (>= next (List length h)) #f
           (do
-            (when (null? hp) (set-member! 'stash (member 'text)))
-            (set-member! 'hpos next)
+            (when (null? hp) (set-field! 'stash (field 'text)))
+            (set-field! 'hpos next)
             (self set-text! (List ref next h))
             #t)))))
 
   (method later! (self)
     (doc "Show the next entry toward the present (Down / ctrl-n), restoring the stashed fresh line at the bottom. A no-op when already editing a fresh line."
       (returns BOOL "True when the buffer changed"))
-    (let ((hp (member 'hpos)))
+    (let ((hp (field 'hpos)))
       (if (null? hp) #f
         (if (= hp 0)
-          (do (set-member! 'hpos ())
-              (self set-text! (member 'stash))
+          (do (set-field! 'hpos ())
+              (self set-text! (field 'stash))
               #t)
-          (do (set-member! 'hpos (- hp 1))
-              (self set-text! (List ref (- hp 1) (member 'hist)))
+          (do (set-field! 'hpos (- hp 1))
+              (self set-text! (List ref (- hp 1) (field 'hist)))
               #t)))))
 
   (method browsing? (self)
     (doc "Whether the buffer is showing a history entry rather than a fresh line."
       (returns BOOL "True while browsing"))
-    (not (null? (member 'hpos))))
+    (not (null? (field 'hpos))))
 
   (method position (self)
     (doc "The index of the history entry being shown, 0 being the newest, or nil while a fresh line is being edited."
       (returns ANY "An index, or nil"))
-    (member 'hpos))
+    (field 'hpos))
 
   ; --- searching the history -------------------------------------------------
   ;
@@ -337,7 +337,7 @@
     (doc "Find the first history entry at or beyond `from`, walking in direction `dir`, that contains query. Answers (index . offset): the entry's index, and where query occurs in it -- its last occurrence walking back, its first walking forward -- or nil when no entry matches. An entry equal to `unlike` is passed over, so a repeated search moves on to a different line."
       (returns ANY "(index . offset), or nil")
       (example "(let ((e (Edit make (list \"cd\" \"ls a\" \"ls b\")))) (e search \"ls\" 0 'back))" "(1 . 0)"))
-    (let ((h (member 'hist))
+    (let ((h (field 'hist))
           (skip (if (null? unlike) () (first unlike)))
           (back? (eq? dir 'back)))
       (let ((at (fn (_ entry)
@@ -363,11 +363,11 @@
     (doc "Show history entry k as if walked to with earlier!, stashing the fresh line first when not already browsing, so later! walks back down to it. The point is left at `at`, the end of the entry by default. An index outside the history leaves the buffer as it was."
       (returns BOOL "True when the buffer changed")
       (example "(let ((e (Edit make (list \"b\" \"a\")))) (e insert! \"draft\") (e jump! 1) (e later!) (e later!) (e text))" "\"draft\""))
-    (let ((h (member 'hist)))
+    (let ((h (field 'hist)))
       (if (if (< k 0) #t (>= k (List length h))) #f
         (do
-          (when (null? (member 'hpos)) (set-member! 'stash (member 'text)))
-          (set-member! 'hpos k)
+          (when (null? (field 'hpos)) (set-field! 'stash (field 'text)))
+          (set-field! 'hpos k)
           (if (null? at) (self set-text! (List ref k h))
             (self set-text! (List ref k h) (first at)))
           #t)))))

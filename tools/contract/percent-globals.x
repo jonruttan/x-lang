@@ -50,7 +50,7 @@
 ; because it is one fact: `equal?` is a bare global, a lang bundle may rebind
 ; it, and a container that reads the name answers a different question for the
 ; rest of the session without failing.
-; doc-gen grew by one for %doc-vis-note, shared by the method and member
+; doc-gen grew by one for %doc-vis-note, shared by the method and field
 ; emitters when an entry comes out of a (private ...) or (protected ...)
 ; block: inlining it instead would duplicate the tier wording at both call
 ; sites, which is how the two drift.
