@@ -5,6 +5,22 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The reference names a member documented with a default** ([#833]). A member's
+doc form wraps its declaration, `(doc NAME "...")` or
+`(doc (NAME default) "...")`. `(help Class/NAME)` read both, and the generated
+reference read the first: handed the second, it passed the declaration, a
+pair, to `symbol->str`, which is unchecked, and the entry's heading and its
+man page name came out as bytes that are not text. macOS's awk stops on such
+bytes, so `make doc-x` and `make check-man` failed there for a module that
+used the form, and passed on Linux. The generator now names the member by its
+declaration's name.
+
+A member declared in `(static ...)` is noted in the reference as "Static
+member: data held by C itself, not by its instances." It was noted as data
+carried by a C instance, as an instance's member is.
+
+[#833]: https://github.com/jonruttan/x-lang/pull/833
+
 **An error's classifying symbol is its label** ([#821]). `(Err label e)` is the
 total accessor, `(e label)` the field and `(e label? 'io)` the predicate, and
 `make` and `raise` take a `label`. They were `(Err tag e)`, `(e tag)` and
