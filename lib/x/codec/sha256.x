@@ -261,8 +261,10 @@
 ; The site has nothing to seat.  The digest below asks it for its value at
 ; each call, so the engine is reached through the site and through nothing
 ; else, and when the site is down for a state image the pure-x digest
-; answers.  A process that loads an image holding the site builds the
-; engine again as it loads, as every site comes up.
+; answers.  The site is made on demand, so a process that loads an image
+; holding it does not build the engine as it loads: the site stays down
+; until a build is asked for again, by (Sha256 jit!) or by an input over
+; the bar.
 ;
 ; WHEN TO BUILD: for an input that repays the build by itself.  (Sha256
 ; jit!) builds explicitly; hex builds on its own when the input in hand
@@ -289,12 +291,17 @@
   (fn (_)
     (when (null? %sha-site)
       (set! %sha-site
-        (Swap site! (lit sha256) %sha-digest-words
+        (Swap site-on-demand! (lit sha256) %sha-digest-words
           (fn (_)
             (import x/codec/sha256-jit)
             ((prim-ref (lit sha256) (lit jit-make)) %sha-k %sha-ih %sha-digest-words))
           (fn (_ v) ()))))
-    ((fn (_ site) (eq? (site state) (lit up))) %sha-site)))
+    ; The site is sent to through a parameter: the linter reads a send to a
+    ; global as a call with names for arguments.
+    ((fn (_ site)
+       (when (eq? (site state) (lit down)) (site up!))
+       (eq? (site state) (lit up)))
+     %sha-site)))
 
 ; Renamed from %sha-words (lint dup-def): the hex-constant parser above
 ; shares nothing with this but load-order luck made the overload work.
@@ -302,11 +309,13 @@
   (fn (_ s . n)
     (def %len (match ((null? n) (Str8 length s)) (#t (first n))))
     (do
-      (when (and (null? %sha-site)
-                 (>= %len %sha-jit-threshold))
+      ; A build is wanted when none was tried, or when the site is down, as
+      ; it is after a state image loads.  A refused site is not tried again.
+      (when (and (>= %len %sha-jit-threshold)
+                 ((fn (_ site)
+                    (if (null? site) #t (eq? (site state) (lit down))))
+                  %sha-site))
         (%sha-jit-try!))
-      ; The site is sent to through a parameter: the linter reads a send to
-      ; a global as a call with names for arguments.
       ((fn (_ site)
          (match
            ((null? site) (%sha-digest-words s %len))
