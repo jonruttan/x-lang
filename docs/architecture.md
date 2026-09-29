@@ -159,7 +159,7 @@ stdin -> buffer -> tokenizer -> s-expression reader -> evaluator -> writer -> st
 
 4. **S-expression reader.** `x_sexp_read` delegates to `x_token_read`. Pair/list syntax is handled by `x_sexp_pair_read` and `x_sexp_list_read`, which recursively call the token reader for sub-expressions. The reader produces a tree of atoms and pairs.
 
-5. **Evaluator.** `x_eval` takes a wrapped expression, checks the expression's type for an `eval` dispatch method, and calls it. Symbols resolve through environment lookup. Lists dispatch through the callable in head position. Self-evaluating types (integers, strings) return themselves.
+5. **Evaluator.** `x_eval` takes a wrapped expression, checks the expression's type for an `eval` dispatch method, and calls it. Symbols resolve through environment lookup. Lists dispatch through the callable in head position: the head is evaluated, and the call goes to the `call` method of the head's *type*. A PRIMITIVE's `call` method jumps to the function pointer in the object's first unit; a PROCEDURE's evaluates the arguments and then the body, and does not read the first unit. Self-evaluating types (integers, strings) return themselves.
 
 6. **Writer.** `x_sexp_write` dispatches on type: intrinsic atoms and pairs have hardcoded writers; all other types dispatch through `x_type_field_write`. Output goes to the base's stdout file descriptor.
 
