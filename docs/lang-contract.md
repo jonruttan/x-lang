@@ -86,7 +86,7 @@ piece — everything else below is an arrangement of parts that already exist.
 
 ## What a bundle is
 
-A lang bundle is an **app-shaped tree**: a directory holding one entry
+A lang bundle is a **tree laid out as an app's is**: a directory holding one entry
 file and the modules it loads.
 
 ```
@@ -99,7 +99,7 @@ x-r5rs-v0.2.0/
 └── tests/specs/*.spec.md
 ```
 
-**The shape is not new, and that is the point.** `x.sh -l NAME` already resolves
+**The layout is not new, and that is the point.** `x.sh -l NAME` already resolves
 `lib/NAME.x` first and then `apps/NAME/run.x`; Logo has ridden that seam since
 #35. A bundle is the **third step**: the wrapper searches
 `<root>/langs/*/lang.xon` for one declaring `NAME`, reading it
@@ -123,7 +123,7 @@ cat …/r5rs-v0.2.0/run.x         ; the lang
 cat lib/x/repl/launch.x         ; the prompt, when no -f was given
 ```
 
-That is exactly the shape `-F` has had all along — entry in batch, file, then
+That is exactly the layout `-F` has had all along — entry in batch, file, then
 launcher — so there is no new loader and no new composition.
 
 **A bundle's entry therefore needs no root-relative literals at all.** The
@@ -392,7 +392,7 @@ contract; the rest of `lib/` is not.**
 being explicit about. That gate derives route names from the library's own call
 sites, because the caller is in this tree. A lang's call sites are *not* in this
 tree and never will be — that is what makes it a lang — so there is nothing here
-to derive from. `seam.x` is the other shape the repo already uses: a closed
+to derive from. `seam.x` follows a pattern the repo already uses: a closed
 vocabulary the language owns, like `tools/contract/features.x`.
 
 The gate also holds this table and `seam.x` to each other. Two lists for one
@@ -446,7 +446,7 @@ being true by accident rather than by decision.
 
 Three questions, deliberately in three places:
 
-**Does it acquire?** A hermetic `file://` smoke, the exact shape of
+**Does it acquire?** A hermetic `file://` smoke, the exact pattern of
 `tools/check/engine-fetch.sh` — which proves the acquisition path without a
 network by pointing the pin at a local URL. This lives in x-lang, because
 x-lang owns the acquisition code.

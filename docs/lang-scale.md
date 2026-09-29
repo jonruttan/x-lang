@@ -32,7 +32,7 @@ platform release is therefore 18 hand edits across 6 repositories today and 60
 across 20 tomorrow. This is the cost that is already being felt.
 
 **The cross-repo gate runs every suite in sequence.** `check-langs` is the
-right idea and it is on the deep tier, but `tools/contract/langs.x` documents
+right idea and it rides gates, not gates-fast, but `tools/contract/langs.x` documents
 what running six suites back to back does to the measurement: one unchanged
 x-r7rs tree reported 49, 58 and 247 failures under that load, with batches
 dying mid-run. The gate that exists to detect regression is at the mercy of the
@@ -50,8 +50,8 @@ replace it:
 
 | | catches | cost |
 |---|---|---|
-| `check-seam` | a rename in the platform breaking every lang | ~8s, fast tier |
-| `check-langs` | a behaviour change the platform cannot see | six suites, deep tier |
+| `check-seam` | a rename in the platform breaking every lang | ~8s, gates-fast |
+| `check-langs` | a behaviour change the platform cannot see | six suites, gates |
 | per-bundle CI | the bundle's own correctness, on a release matrix | per bundle |
 | `requires-release` | running against an untested platform | a string compare |
 | `requires-lang` | a lang's dependency on another lang | a string compare |
@@ -93,7 +93,7 @@ it.
 
 The enforcement already exists in another form: `check-path-literals` asserts
 that a path is not nailed into a file that has no business knowing it. The same
-shape applied to version literals — no release string outside the manifest —
+rule applied to version literals — no release string outside the manifest —
 turns a platform release from 18 edits into one line per bundle, which is small
 enough for a bot to open as a pull request and a human to merge without
 reading twice.
@@ -126,7 +126,7 @@ Three bugs, and where they came from is the useful part:
 
 **A workflow may not pin a version literally**, which covers what the scan
 structurally cannot: `ref:` sits on its own line, so no per-line proximity test
-can pair it with its name. Forbidding the shape was smaller than teaching the
+can pair it with its name. Forbidding it was smaller than teaching the
 scan about YAML.
 
 **The cost is now visible.** The same file exists twice, and the second copy
@@ -140,7 +140,7 @@ did not, and the PR showed passing checks belonging to an earlier commit.
 Green against the wrong revision is its own small version of the failure this
 document is about.
 
-## Ruling 3: tier the checks by cadence, not by repository
+## Ruling 3: arrange the checks by cadence, not by repository
 
 The sequential six-suite sweep does not belong on every commit. What belongs
 where is a question about **when the answer can still change the outcome**:
@@ -180,17 +180,17 @@ Discovery is not a nice-to-have at twenty langs. A user who has to know a URL
 to install a lang is a user who only ever installs the langs they already knew
 about.
 
-## Ruling 5: a variant is a lang that requires a lang
+## Ruling 5: a dependent lang is a lang that requires a lang
 
-R5RS and R7RS are the first family, and no new concept was needed to express
+R5RS and R7RS are the first case, and no new concept was needed to express
 the relationship: `x-r7rs` declares `(requires-lang "r5rs" "v0.2.0")` and the
 platform arms the dependency's root before the dependent's own. A Python 2
-beside a Python 3, or a family of shells, falls out the same way.
+beside a Python 3, or several related shells, falls out the same way.
 
-**Resist a variant mechanism.** The axes are already named and already
+**Resist a dependency mechanism.** The axes are already named and already
 checked — a lang declares its dialect, and `check-dialect-cover` holds the
 platform to all three. What grows with a large catalogue is the *matrix*
-(lang × release), not the *vocabulary*. A new kind of thing in `lang.xon`
+(lang × release), not the *vocabulary*. A new row in `lang.xon`
 would have to be understood by every reader of every manifest, forever, to
 express something two existing rows already say.
 
@@ -202,7 +202,7 @@ CI, once per tag is the cheapest honest place to pay it — not that it becomes
 free.
 
 **A quiet machine is still a requirement for a trustworthy count.** Moving the
-sweep off the per-commit tier reduces how often that matters; it does not make
+sweep so it no longer runs on every commit reduces how often that matters; it does not make
 the measurement robust. The 49/58/247 spread stands as a warning about any
 number produced under load.
 

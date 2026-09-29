@@ -36,7 +36,7 @@ Measured, 40 arms over an integer key, 10,000 lookups, xenon dialect:
 win on clarity and on speed at the same time, everywhere, with no tradeoff
 to weigh.
 
-Shape:
+Example:
 
 ```x
 (match
@@ -67,7 +67,7 @@ and their cost is documented in the source:
 So: reach for `match`, not `cond`. The existing avoidance of `cond` was
 correct; the conclusion drawn from it was too broad.
 
-## Tier 1 — structural
+## 1. Structural
 
 ### 1.1 Multi-way dispatch on one variable → `match`
 
@@ -118,7 +118,7 @@ Exactly one definition in the corpus meets this bar: `%py-str-attr`, 26
 string arms — every `"".upper()` in a Python program walks it. Every other
 ladder found is keyed on characters or integers and wants `match` instead.
 **Check the key type before converting** — this is exactly where a plausible
-rule goes wrong, and the linter reports the two cases as different kinds so
+rule goes wrong, and the linter reports the two cases under different labels so
 the distinction cannot be lost.
 
 ### What the linter counts
@@ -213,7 +213,7 @@ way are not sharing a concept. Check before moving.
 and any helper whose comment states why the library version is wrong here.
 State it; do not leave the reader guessing.
 
-## Tier 2 — noise
+## 2. Noise
 
 Mechanical, no performance dimension, no judgment required.
 
@@ -245,14 +245,14 @@ define their own `go`.
 
 **Fix:** lift to a top-level `%`-helper, or bind with `let`.
 
-## Tier 3 — cold code only
+## 3. Cold code only
 
 ### 3.1 Hand-inlined `or` and `and`
 
 `(if a #t (if b #t c))` is `(or a b c)` spelled out — 137 occurrences across
 22 files.
 
-Unlike Tier 1, this one has a real tradeoff: `or`/`and` are interpreted and
+Unlike the structural fixes above, this one has a real tradeoff: `or`/`and` are interpreted and
 cost per arm, so in an eval loop or per-character tokenizer the inlined form
 is correct. In CLI parsing, error formatting, or setup code it is noise.
 
@@ -270,7 +270,7 @@ elsewhere that goes stale — a duplicated fact is a bug here:
   (fn (self s i n) …))
 ```
 
-`; lint: hot` on the line above a `def` exempts that definition from Tier 3.
+`; lint: hot` on the line above a `def` exempts that definition from criterion 3.
 It must carry a reason on the same line: the marker is a claim about
 measurement, and if you cannot say what runs per what, the code is not hot.
 
@@ -278,7 +278,7 @@ Prefer the per-definition form. A file-level marker in the header comment is
 allowed but blunt — `x-python/runtime.x` carries real perf notes in only two
 regions, so marking the file would excuse 3,600 lines to protect 40.
 
-It does **not** exempt Tier 1. Those fixes are faster than what they replace.
+It does **not** exempt 1.1-1.5. Those fixes are faster than what they replace.
 
 ## Not criteria
 
@@ -358,7 +358,7 @@ than `Lint` statics — the grounds the file's existing walk already stands
 on — and `tools/contract/percent-globals.x` carries the ratchet and its
 reason.
 
-New rules are **report-only** until the Tier 1.3 backlog is cleared: they
+New rules are **report-only** until the 1.3 backlog is cleared: they
 warn, with counts, and `make lint` stays green. Flipping them to failures is
 a separate change, made when the count reaches zero.
 

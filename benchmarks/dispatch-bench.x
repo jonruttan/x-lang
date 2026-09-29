@@ -42,7 +42,7 @@
 (def %g (method-of BP (lit sget)))
 (%bench "method-of-call" (fn (_) (%g BP)))
 
-; Pin-shaped case: a class with 110 statics; call one registered EARLY (a
+; A case laid out like Pin: a class with 110 statics; call one registered EARLY (a
 ; back-of-table hit for a fresh table). Old dispatch walked the whole alist
 ; per call; the flat table promotes it to the front after the first hits.
 (def %mk-method

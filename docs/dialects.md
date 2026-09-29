@@ -15,7 +15,7 @@ A dialect is a composition of x-lang library modules that determines what capabi
 | `xe` | xenon | full numeric tower, POSIX, compiler; stable |
 | `rn` | radon | xenon's surface plus experimental/raw APIs; explicitly volatile |
 
-**The rule that shapes the family: dialects may differ in what surface is *loaded*; they must never differ in what a shared spelling *means*.** A `+` that means pointer arithmetic in one dialect, or a `+` that coerces `"123"` to a number, is not a dialect — it is a different language wearing the same clothes (that would be a *lang*, below). If radon ever grows ergonomic address math, it gets a distinct spelling (the `Ptr` class), not an overload.
+**The rule dialects follow: they may differ in what surface is *loaded*; they must never differ in what a shared spelling *means*.** A `+` that means pointer arithmetic in one dialect, or a `+` that coerces `"123"` to a number, is not a dialect — it is a different language wearing the same clothes (that would be a *lang*, below). If radon ever grows ergonomic address math, it gets a distinct spelling (the `Ptr` class), not an overload.
 
 The interpreter core has no knowledge of any dialect. Dialects are loaded by shell concatenation before user input. The shell wrapper (`x.sh`) selects a dialect with the `-l` flag:
 

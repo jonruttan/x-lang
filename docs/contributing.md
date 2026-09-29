@@ -95,8 +95,8 @@ make clean && make
 ### C Code
 
 There is no C in this repository. The engine's C conventions — C89,
-declarations at the top of the function, the `x_` prefix, the accessor
-families, no globals, stack-allocated pairs, the GC rooting discipline and
+declarations at the top of the function, the `x_` prefix, consistent
+accessor naming, no globals, stack-allocated pairs, the GC rooting discipline and
 the Doxygen house style — live with the code they govern, in
 [x-engine-c](https://github.com/jonruttan/x-engine-c).
 
@@ -135,7 +135,7 @@ the Doxygen house style — live with the code they govern, in
   call me": a stateful container whose internals `new` cannot build guards
   at the point of harm — first USE of the uninitialized instance raises a
   label `'state` Err naming `make` / `from-*` (Dict's `%slot`, Set's `%d`,
-  Array's `%live`). Input-shape constructors are `from-x` (one name per shape:
+  Array's `%live`). Input-layout constructors are `from-x` (one name per layout:
   `from-alist` / `from-plist` / `from-bindings` / `from-list`), variadic
   literals are `of`.
 - **Element access is `ref`** on every class (`List ref`, `Vector ref`, `Str8 ref`,
@@ -156,9 +156,9 @@ the Doxygen house style — live with the code they govern, in
   (`list->str`, `str->number`) are the pre-class boot layer only — don't add new ones.
 - **Association vocabulary** (see the [glossary](glossary.md)): an **assoc** is one
   dotted `(key . val)` pair; an **alist** is a list of assocs; a **plist** is the
-  flat `(k v k v ...)` shape, legal ONLY in option stores (the `%opt-cell`
-  family: `let-opts`, `Assoc opt-get-or`/`opt-get-or-else`, `new`, `new-from`);
-  a **bindings list** is `((key value) ...)` two-element lists, the `let` shape.
+  flat `(k v k v ...)` layout, legal ONLY in option stores (the `%opt-cell`
+  functions: `let-opts`, `Assoc opt-get-or`/`opt-get-or-else`, `new`, `new-from`);
+  a **bindings list** is `((key value) ...)` two-element lists, as `let` writes them.
   The word "pairs" appears in NO method name — pairing producers (`List zip`,
   `Gen zip`/`enumerate`, `List group-by`) emit alists; the converters are
   `Dict from-alist`/`->alist` and `Assoc from-bindings`/`->bindings`. Equality:
@@ -166,9 +166,9 @@ the Doxygen house style — live with the code they govern, in
   `Assoc find` (`equal?`) and `Assoc entry` (`eq?`) return the assoc itself and
   are the presence-unambiguous entry doors.
 - **Bang marks mutation, bare verbs mark persistence** (#358): `Dict set!`/`del!`
-  mutate in place; `Assoc put`/`del` return new alists. Same data shape, opposite
-  update models -- the suffix tells you which you are holding.
-- **One membership verb per kind** (#358): keyed containers answer `has?`
+  mutate in place; `Assoc put`/`del` return new alists. Same underlying representation,
+  opposite update models -- the suffix tells you which you are holding.
+- **One membership verb per access pattern** (#358): keyed containers answer `has?`
   (Dict, Set, Assoc, Pact); positional searches answer `includes?` (List
   element, Str8/StrUtf8 substring). `contains?` is retired.
 - **Codecs parse** (#358): text-to-values in codec/ is `parse` (Json, Xon);
@@ -180,11 +180,11 @@ the Doxygen house style — live with the code they govern, in
   `(Str8 make k ch)` — a constructor's optional tail rides `(. opt)`
   positionally. Option STORES (alist-or-plist) are for *named* config only
   (`let-opts`, `new`/`new-from`); don't mix the two styles in one signature.
-- **Mutator returns have two tiers**: container bangs return the receiver
-  for chaining (`Dict put!`, `Array set!`, `Set add!`); raw-tier bangs
-  return `()` per the C side-effect rule (`Obj set!`, `Ptr set!`); removers
-  return the removed element (`Array pop!`). Crossing tiers? Check which
-  one you're on before chaining.
+- **A mutator's return depends on what it does**: container bangs return the receiver
+  for chaining (`Dict put!`, `Array set!`, `Set add!`); raw bangs return
+  `()` per the C side-effect rule (`Obj set!`, `Ptr set!`); removers
+  return the removed element (`Array pop!`). Check which one applies
+  before chaining.
 - **Two blessed value sentinels, no third**: `raised`'s `%no-raise` (test
   layer only — distinguishes a raised nil from no-raise) and OS-domain
   `-1` (boundary vocabulary, like JSON's `null` symbol). Everything else
@@ -201,7 +201,7 @@ the Doxygen house style — live with the code they govern, in
   and Regex methods are subject-last on the COMPILED REGEX — `(rx match
   str)` ⇒ `(Regex match str rx)`; the string is an argument, the regex is
   the subject.
-- **Keyed lookup follows the dispatch tiers** (no signature to memorize):
+- **Keyed lookup has no signature to memorize** -- containers, value classes and registries each call `get` their own way:
   containers speak `(store get k)` (Dict, Set — instance dispatch); value
   classes speak `(Class get key store)` (Assoc — data-last static);
   registries speak `(Class get name)` (Pact — module-state singleton).
@@ -226,7 +226,7 @@ the Doxygen house style — live with the code they govern, in
   (`Dict make`, `Gen make step state`); `of` = variadic literal, on every
   element container (`List`/`Vector`/`Array`/`Set`/`Gen of ...`; Dict excluded —
   flat values can't spell pairs; strings' variadic literal is `str`);
-  `from-X` = conversion from another shape (`from-list`, `from-alist`,
+  `from-X` = conversion from another layout (`from-list`, `from-alist`,
   `from-bindings`, `from-seq`); `build` = generate elements by function
   (`Vector build n f`); `new`/`new-from` = allocate an instance over
   something (object system; `Iter new v` boxes a value into a cursor).
@@ -238,12 +238,12 @@ the Doxygen house style — live with the code they govern, in
   instance data; a **member** is a field or a method, the umbrella term for
   either; a **slot** is a raw position in a value's storage (`Obj ref`, type
   slots, the vector's backing slots). Same ladder as the storage terms.
-- **The `%` sigil means private**, in four flavors (all legitimate): a
+- **The `%` sigil means private**, in four uses (all legitimate): a
   module-private helper (`%opt-cell`), a cached raw C prim behind a class
   method (`%str-append`, the prim-caching pattern), a macro-expansion
   runtime hook referenced from `op` expansions (`%opts`), and type-system
   plumbing (`%make-type`, `%type-push-call`). The sigil promises
-  "not API"; it does not say which flavor — the defining comment should.
+  "not API"; it does not say which use — the defining comment should.
 - **Doc type vocabulary** — one token per concept in `(param ...)`/`(returns ...)`:
   `INTEGER` (not INT), `BOOL` (not BOOLEAN), `CALLABLE` (not FUNCTION), plus
   `ANY STRING SYMBOL LIST PAIR CHARACTER NUMBER VECTOR REGEX FLOAT BIGINT
@@ -339,16 +339,16 @@ The spec runner evaluates the `scheme` code block and compares stdout against th
 
 ### Error-path assertions
 
-`tests/x/lib/assert.x` names the "this must raise" pattern, so the silent-failure class (a form that should raise but returns nil) can't read as a pass. Add `# @lib ../tests/x/lib/assert.x` to a spec, then:
+`tests/x/lib/assert.x` names the "this must raise" pattern, so a silent failure (a form that should raise but returns nil) can't read as a pass. Add `# @lib ../tests/x/lib/assert.x` to a spec, then:
 
 - `(throws? (fn (_) EXPR))` → `#t` if `EXPR` raises, else `#f`
 - `(raised  (fn (_) EXPR))` → the value `EXPR` raised, or the symbol `%no-raise`
 
 ### Memory safety (AddressSanitizer)
 
-`make test-asan` runs both suites against an ASan build. It catches the crash class that is silently wrong on 64-bit but faults on 32-bit/Pi (e.g. an unchecked read past an object) — run it before pushing C or eval-core changes. The baseline is **clean** (since 2026-07-13) and CI hard-gates it on merges to `main`: a red ASan run is a real regression. Note the pinned `ASAN_OPTIONS` in the Makefile — leak detection is off (the GC does not free at exit), so is the fake stack (incompatible with stack-copying call/cc), and the quarantine is 2G: a tower boot frees more than ASan's default 256M holds, after which a use-after-free reads a recycled cell and reports nothing.
+`make test-asan` runs both suites against an ASan build. It catches bugs that are silently wrong on 64-bit but fault on 32-bit/Pi (e.g. an unchecked read past an object) — run it before pushing C or eval-core changes. The baseline is **clean** (since 2026-07-13) and CI hard-gates it on merges to `main`: a red ASan run is a real regression. Note the pinned `ASAN_OPTIONS` in the Makefile — leak detection is off (the GC does not free at exit), so is the fake stack (incompatible with stack-copying call/cc), and the quarantine is 2G: a tower boot frees more than ASan's default 256M holds, after which a use-after-free reads a recycled cell and reports nothing.
 
-`make check-asan-boot` is the cheap, pre-push half of the same idea: it boots every dialect **cold** on an ASan build of the pinned engine's sources (~1 min the first time, under a minute after) and fails on any sanitizer report. It exists because the engine has no auto-GC and a precise collector — an object referenced only from a C frame is garbage the moment anything collects, and whether the freed cell is *reused* before it is read depends on the allocator: glibc reuses it at once, macOS mostly does not. So the whole class was invisible on the desk and red in CI (#614). ASan makes the allocator irrelevant. It rides `test-fast` (the pre-push hook) and `gates`.
+`make check-asan-boot` is the cheap, pre-push half of the same idea: it boots every dialect **cold** on an ASan build of the pinned engine's sources (~1 min the first time, under a minute after) and fails on any sanitizer report. It exists because the engine has no auto-GC and a precise collector — an object referenced only from a C frame is garbage the moment anything collects, and whether the freed cell is *reused* before it is read depends on the allocator: glibc reuses it at once, macOS mostly does not. So all of it was invisible on the desk and red in CI (#614). ASan makes the allocator irrelevant. It rides `test-fast` (the pre-push hook) and `gates`.
 
 ### Pre-push gate
 

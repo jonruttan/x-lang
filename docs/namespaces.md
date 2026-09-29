@@ -225,8 +225,8 @@ unpinnable.
 
 ## Name conflicts
 
-Every conflict the design can meet falls into one of four classes. Each
-class has one rule, and every refusal names both sides and the name.
+Every conflict the design can meet falls into one of four variants. Each
+variant has one rule, and every refusal names both sides and the name.
 Nothing is skipped silently; that is the same standard `Pin` holds.
 
 ### Private against private
@@ -295,7 +295,7 @@ later global rebind cannot retarget it. That is the fixed-name rule of
 containers that compare by content do with `(import x/core/logic equal?)`. A
 bare import leaves the reference late-bound through the global
 tree, which is what the seams need: `repl` replaced by a lang, the `include`
-wrapper, the `%repl-print` family that `Lang` installs.
+wrapper, the `%repl-print` functions that `Lang` installs.
 
 So the choice is made per reference, visibly, by the author. Import a name
 to freeze it. Leave it global to keep it a seam. Library internals freeze

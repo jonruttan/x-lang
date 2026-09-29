@@ -6,7 +6,7 @@ the interpreter can already read — so saving it is a **traversal**, not a
 feature that has to be built into the engine first.
 
 This document is the design for that: a binary image of a live base, written
-from x and read by the engine at startup. **The unit-shape declaration it rests on is implemented**
+from x and read by the engine at startup. **The unit-label declaration it rests on is implemented**
 (x-engine-c branch `feat/unit-shapes`, plus `Type set-unit-labels!` and the atom-type
 declarations here); the image format, the writer and the reader are still
 design. The measurements are real and every one of them is reproducible with
@@ -52,7 +52,7 @@ integer -> REFUSED     string -> REFUSED     symbol, char, prim -> REFUSED
 
 **What is missing is the declaration itself, for the atom types.** INTEGER,
 STRING, SYMBOL, CHARACTER, PRIMITIVE and POINTER declare no units anywhere.
-Their one-unit shape is implicit in the C constructors and recorded in no
+Their one unit's label is implicit in the C constructors and recorded in no
 contract — and the engine cannot answer either: `x_type_prim_units` reaches
 the same NULL and returns NULL for exactly these types.
 
@@ -72,7 +72,7 @@ any unit that is not a reference.
 So the declaration must distinguish a reference from a word, from bytes, from
 a foreign address, and the collector must consult the distinction. That was an
 engine change — not "expose an accessor" but "teach the collector to read the
-kind of each unit" — and it needed no new field: the shape widens `p_units` in
+label of each unit" — and it needed no new field: the declaration widens `p_units` in
 place. **It is done**; the section below is what was built, and with the six
 atom types declared, `%obj-units` answers for every type in a booted helium.
 
@@ -150,7 +150,7 @@ A booted **helium**, collected, is about **89,700 objects**:
 Counts drift by a few dozen between runs because the probe is part of what it
 measures; the `include` of the layout contract alone accounts for about 3,800
 of them (the same walk with the offsets inlined reports 85,862). Read the
-table for shape, not for a checksum.
+table for proportion, not for a checksum.
 
 Ninety percent of a whole interpreter is pairs. **The part that holds a
 machine address at all is 147 objects, under two tenths of one percent** — and
@@ -195,8 +195,8 @@ tables you can walk; the fourth is not, and it is the interesting one.
 [`lib/x/core/arithmetic.x`](../lib/x/core/arithmetic.x) wraps the bitwise
 operators in arity and type guards and `set!`s the global to the wrapper, so
 the raw primitive survives only inside the wrapper's closure — the file says
-so on purpose: the raw prim rides in the closure so that no `%int&` /
-`%int^` family lands in the global namespace. The probe finds them exactly
+so on purpose: the raw prim rides in the closure so that none of
+`%int&` / `%int^` lands in the global namespace. The probe finds them exactly
 there, in `%arith-guard`'s own parameter frame, beside the operator name:
 
 ```
@@ -230,7 +230,7 @@ catalog, and nothing merges them. So **naming a primitive by "a coordinate
 that yields an equivalent value" silently merges objects the running base kept
 apart**, and `same?` starts answering differently after a round trip — a
 defect that survives the load and shows up much later, which is the worst
-shape a bug in this design can have.
+a bug in this design can be.
 
 The rule that survives is narrower and is the one to build against:
 
@@ -258,8 +258,8 @@ order, at the same moment:
 | what needs a free-hook because C owns it? | what needs externalising because C owns it? |
 | when is it safe — the seat is quiet | when is it safe — the seat is quiet |
 
-Every row is the same question. That gives the design its shape and its
-correctness argument in one: **if the collector can trace an object, the image
+Every row is the same question. That gives the design its structure and
+its correctness argument in one: **if the collector can trace an object, the image
 can write it; if the collector needs a declaration, the image needs the same
 declaration; if the collector needs a hook, the image needs the counterpart
 hook.** There is no third category, and no object that is collectable but
@@ -276,7 +276,7 @@ At the quiet seam they are nil and there is nothing to serialise. Anywhere
 else, the writer must refuse — an image of a half-finished eval is not a
 smaller image, it is a false one.
 
-**A type's units must become a shape, not a count.** Today
+**A type's units must be declared with labels, not a count alone.** Today
 [`lib/x/type/obj.x`](../lib/x/type/obj.x) carries the GC contract as a note:
 raw slots are traced only if the type declares units, `-1` for the slot-0
 counted Vector convention or a fixed number, and without it a collect frees
@@ -285,9 +285,9 @@ trace. An image needs to know *what each unit is*, and so, it turns out, does
 the collector — tracing every declared unit as a reference is strictly less
 correct than tracing the ones that are references.
 
-A unit is declared as one of four kinds.
+A unit is declared with one of four labels.
 
-| kind | code | is | collector | image |
+| label | code | is | collector | image |
 |---|--:|---|---|---|
 | `ref` | 0 | a heap object pointer | traces it | writes an index |
 | `word` | 1 | an immediate | ignores it | copies the word |
@@ -303,16 +303,16 @@ determined by the base-wide meta width, the header length from
 else can carry it, and a second field beside it could only drift from it.
 
 `p_units` is an object slot, so it can widen in place — the same contract
-pattern the base and the types already use, where a reader takes the shape it
-understands:
+pattern the base and the types already use, where a reader takes the layout
+it understands:
 
 | `p_units` holds | means |
 |---|---|
 | an INT atom, N ≥ 0 | today: N units, every one a reference |
 | an INT atom, N < 0 | today: slot 0 holds the payload count, total N = slot0 + 1, every one a reference |
-| a pair `(count . mask)` | *count* keeps both meanings above; *mask* is an INT bitfield, two bits per unit, giving each unit's kind |
+| a pair `(count . mask)` | *count* keeps both meanings above; *mask* is an INT bitfield, two bits per unit, giving each unit's label |
 
-Units past the end of the mask take the kind of the last unit it describes, so
+Units past the end of the mask take the label of the last unit it describes, so
 a dynamic-size type says what its payload units are without a marker. And
 because `ref` is code 0, a zero mask means "all references", so the pair form
 degrades exactly onto the integer form.
@@ -339,11 +339,11 @@ ever sees two integers. Policy in x, unchecked mechanism in C — and
 `set-units!` keeps working untouched, because the integer form is still the
 integer form.
 
-> **The shape pair must be built in C, and that is why `set-unit-labels!` is a
+> **The `(count . mask)` pair must be built in C, and that is why `set-unit-labels!` is a
 > primitive.** x's `pair` makes LIST-typed pairs; the readers discriminate the
 > two forms with `x_obj_type_isspair()`, which matches *structural* pairs only
 > — one pointer comparison on a path the collector walks per object. An
-> x-built shape is therefore read as a bare count, and the count comes out as
+> x-built pair is therefore read as a bare count, and the count comes out as
 > the pair's first data word. `isa.x` already records that x makes list-pairs
 > only; this is that constraint biting, and it cost one segfault to find.
 
@@ -496,8 +496,8 @@ over hundreds of items — one header, ~150 foreign entries, ~1,000 static paths
 - **C, one primitive** — allocate N objects from the extent table and patch
   their units. Per-object across 154k objects, so it can be nothing else.
 
-That is ~80–100 lines and one ISA coordinate against ~350 lines and five kinds
-of resolution logic. The C refuses with a code; x turns the code into a
+That is ~80–100 lines and one ISA coordinate against ~350 lines and five separate
+pieces of resolution logic. The C refuses with a code; x turns the code into a
 sentence. Which is the division the ISA contract already states in its opening
 lines: the C layer is a CPU, and checks, dispatch and policy live in x.
 
@@ -519,7 +519,7 @@ pages, and every address it baked in is wrong in a new process.
 Both were solved before this document existed. `%asm-cache-pour` in
 `lib/x/tool/asm-cache.x` already pours cached bytes into a fresh buffer and
 re-encodes every baked address for the loading process, across three
-relocation kinds — trampoline, fvar, self. The lane is:
+relocation labels — trampoline, fvar, self. The lane is:
 
 ```
 asm-new (mmap) -> one read(2) into the buffer -> walk the relocation records
@@ -533,8 +533,8 @@ lane is `(obj make-callable alloc)`, which is already pinned.
 So an image need not store machine code at all. The analysers are reachable
 from the heap — they are swapped into the symbol type's analyse list — so
 *something* callable must land in those slots; but a foreign entry can name an
-**asm-cache key**, and resolving it calls the existing pour. One more foreign
-kind, resolved in x, no C. The two mechanisms already agree on identity: the
+**asm-cache key**, and resolving it calls the existing pour. One more variant
+of foreign entry, resolved in x, no C. The two mechanisms already agree on identity: the
 cache keys on `x-machine` and `x-release`, which is the refusal the image
 header makes on arch and engine release.
 
@@ -603,24 +603,24 @@ same x-core from source. The same reader hosted on helium took 1.95s, and
 
 | phase | cost | what it is |
 |---|--:|---|
-| boot img | 50ms | `if`, `do`, `prim-ref`, byte strings, reflection, shapes |
+| boot img | 50ms | `if`, `do`, `prim-ref`, byte strings, reflection, unit labels |
 | read | 5ms | one `sys read` into raw memory |
-| types | 87ms | 19 names matched to live types, absent ones registered, shapes |
+| types | 87ms | 19 names matched to live types, absent ones registered, unit labels |
 | statics | 170ms | 1,084 base-path walks from the target base |
 | foreign | 44ms | 149 names reacquired |
 | rebuild | 9ms | the one primitive, allocate then patch |
 | roots, cells | 36ms | two env roots and 209 handler stacks written into place |
 | eval | 0.7ms | `(write (list 1 2 3))`, through the image's own printer |
 
-So "per-entry work in milliseconds" above is right in kind and optimistic by an
-order: the statics walk is ~0.16ms an entry and there are a thousand of them.
+So "per-entry work in milliseconds" above is right in character and optimistic
+by an order: the statics walk is ~0.16ms an entry and there are a thousand of them.
 It is the next thing to cut, not a floor.
 
 The prelude carries everything the library would otherwise have supplied and
 nothing else: `(obj ref)` and `(obj set!)` are not engine primitives — the
 engine's own comment says they are "pure x-lang now" — so img defines them
 from the same addressing formula as `boot/data.x`; type names and units cells
-are walks of the type-rooted rows of `base-paths.x`; the unit shapes are the
+are walks of the type-rooted rows of `base-paths.x`; the unit labels are the
 rows of `lib/x/type/unit-label-rows.x`, split out of `type.x` so that one file
 feeds both helium's boot and this one. Its `do` is two operatives handing the
 body to each other through `tail-eval`: a helper *procedure* does not keep a
@@ -639,7 +639,7 @@ roots gets a helium that can run `list` and cannot `write`.
 
 The table is one entry per type per pushed-on stack — the eleven rows the
 `type push-*` coordinates and the from/to cells name — in the statics' own
-type-rooted form, `[object index][type name][steps]`, minus the tag word.
+type-rooted form, `[object index][type name][steps]`, minus the label word.
 The loader walks its own struct to the parent and sets the half the last
 step names. 209 entries, 36ms.
 
@@ -659,12 +659,12 @@ imaged graph:
   is what a fresh base holds at `(type STRING type-read)`, and every loader
   has a fresh base — so the writer also walks a pristine `(Base make)` and
   records its off-chain nodes under the same type-rooted paths. Off-chain,
-  not "atom-tagged": the token handlers are type-word-0 objects that `write`
-  prints as nothing at all, and a filter on the tag skipped every one.
+  not "atom-labelled": the token handlers are type-word-0 objects that `write`
+  prints as nothing at all, and a filter on the label skipped every one.
 
 **Still unnamed, and harmless for now:** `%token-eof`, a global the engine
 registers in every base whose value is a static the writer has no path to —
-the name itself is the path, and that is a small new statics kind — and eight
+the name itself is the path, and that is a small new variant of static — and eight
 nodes of the tokenizer's syntax table, a `todo` subtree of `base-layout.x`
 that the loader never installs because it keeps its own. Both restore as nil.
 
@@ -690,7 +690,7 @@ vocabulary stays **closed and declared**, because the refusal is the point: a
 type whose foreign values cannot be named this way should be told so at write
 time, not have it discovered at load time.
 
-| kind | payload | how it is reacquired |
+| label | payload | how it is reacquired |
 |---|---|---|
 | `nil` | — | NULL |
 | `catalog` | ns, method | walk the host base's prims catalog |
@@ -721,7 +721,7 @@ are the base's own spine** — measured by dumping them:
 ```
 
 Those atoms are exactly what `filein`, `fileout` and `fileerr` answer, and the
-pairs are the io group they hang from. None of it is heap-allocated: it is
+pairs are the io fields they hang from. None of it is heap-allocated: it is
 built at base creation, which is why it has no metadata prefix and why the
 chain walk never reaches it.
 
@@ -735,9 +735,9 @@ from the base. That is exactly the vocabulary
 `engine/tools/contract/base-paths.x` already commits — its rows *are* step
 lists, `make check-base-paths` re-derives them from the C headers, and
 `lib/x/boot/reflect.x` already walks them at runtime. So the foreign table
-gains one more kind:
+gains one more label:
 
-| kind | payload | how it is reacquired |
+| label | payload | how it is reacquired |
 |---|---|---|
 | `base-path` | a step list (`f`/`r`) | walk it from the host base |
 
@@ -763,23 +763,23 @@ header        magic "XIMG" + format version
               root index -- the base object
 type table    per type: name, units count, units mask, and which of
               { static ATOM, static PAIR, heap type } it is
-foreign table per entry: kind + payload, from the closed table above
+foreign table per entry: label + payload, from the closed table above
 extent table  one word per object: its unit count
 object table  per object: type index, flags, then its units
 byte blob     string bytes, symbol names, and the tables' own strings
 ```
 
-**Index 0 is nil**, so objects number from 1 and a nil unit needs no tag.
+**Index 0 is nil**, so objects number from 1 and a nil unit needs no label.
 
-**Every unit is one word, and the type's shape says what it means** — a
+**Every unit is one word, and the type's unit labels say what it means** — a
 reference is an object index, a word is the value itself, bytes is an index
 into the byte blob, foreign is an index into the foreign table. This is why
-the shape declaration is the linchpin: without it the format needs a tag per
+the unit-label declaration is the linchpin: without it the format needs a label per
 unit, which on this measurement is megabytes spent restating what fourteen
 type rows already say.
 
-**The extent table is explicit** rather than derived. A fixed-shape type's
-count comes from its shape, but a slot-0-counted type's does not without
+**The extent table is explicit** rather than derived. A fixed-count type's
+count comes from its declaration, but a slot-0-counted type's does not without
 reading slot 0 first, and one word per object buys a pass-one that is a
 straight loop.
 
@@ -803,7 +803,7 @@ primitive, being the only per-object work:
    the host cannot see, and nothing else is keeping them alive.
 3. **Allocate.** *(C)* One object per record, from the extent table, in index
    order. Fill nothing. Keep the index-to-pointer table.
-4. **Patch.** *(C)* Walk the unit stream, writing each unit per its kind. Set
+4. **Patch.** *(C)* Walk the unit stream, writing each unit per its label. Set
    the flags the image records, including `X_OBJ_FLAG_SHARED` where it had it.
 
 Then `Base wrap` the image's root and evaluate in it. The host stays where it
@@ -835,7 +835,7 @@ path, no privilege, and the hard case simply stops existing.
 
 **Where this ended up, before the account of how.** The writer enumerates by
 walking the heap chain, filters by asking the collector what is reachable, and
-reads each object's units through its type's shape. Two passes: stamp an index
+reads each object's units through its type's unit labels. Two passes: stamp an index
 into metadata slot 1, then resolve every unit against those indices.
 
 ```x
@@ -894,7 +894,7 @@ finished, and the obstacles are worth recording before anyone tries again:
 Against a payoff of **one reference** on helium, that is not yet worth it. The
 discipline half is free and already banked: nothing defined between the mark
 and the last pass took seven down to one. The child-base writer is the right
-shape for a writer that is a module rather than a prototype — written for the
+design for a writer that is a module rather than a prototype — written for the
 child from the start, instead of retrofitted into it.
 
 **120 traced objects cannot hold an index, and do not need one.** Their flags
@@ -993,7 +993,7 @@ width. They are a contiguous tail of the walk — indices 88,703 to 88,822 of
 last. So they need a 120-entry side table and a range check, not a general
 fallback map.
 
-**Pass 2 resolves every unit per its type's shape.** On a booted helium:
+**Pass 2 resolves every unit per its type's unit labels.** On a booted helium:
 
 | units | count | | references | count |
 |---|--:|---|---|--:|
@@ -1002,7 +1002,7 @@ fallback map.
 | `word` | 1,113 | | unstampable tail | 265 |
 | `foreign` | **148** | | unresolved | 19 |
 
-Nothing was refused for want of a shape. The classification cross-checks
+Nothing was refused for want of unit labels. The classification cross-checks
 against the census at the top of this document, arrived at by a completely
 different route: `foreign` is 148, which is exactly the 129 primitives plus 17
 pointers plus 2 buffers counted there; `bytes` is the strings plus the
@@ -1070,7 +1070,7 @@ does not appear in that list.
 
 **It holds across the dialects, unchanged.** The same writer, run against each:
 
-| dialect | indexed | visited | unresolved | refused for want of a shape |
+| dialect | indexed | visited | unresolved | refused for want of unit labels |
 |---|--:|--:|--:|--:|
 | helium | 84,130 | 79,917 | 6 | **0** |
 | xenon | 132,670 | 128,409 | 6 | **0** |
@@ -1117,7 +1117,7 @@ which is the argument for doing so:
 > **The base is not a chain-linked heap object, so no walk can reach it.**
 > Three measurements say so together. Its flags word is **0**, where every
 > ordinary object carries the metadata bit (128, or 160 for an owned string).
-> Its type word sits in the static address band but is *neither* static tag —
+> Its type word sits in the static address band but is *neither* static label —
 > `4366025000` against `satom` 4366027776 and `spair` 4366027808 — which is
 > the engine's own base sentinel, the one `x_type_heap_mark` special-cases to
 > traverse a base's pair tree instead of treating it as an object. And walking
@@ -1158,7 +1158,7 @@ other type obeys does not reach here. **The base tree must be walked through
 which leaves are cells, which are direct values, and which are external —
 exactly as `lib/x/boot/reflect.x` walks it, and never as ordinary structure.
 
-This is the same lesson BUFFER teaches one level down: a per-type shape
+This is the same lesson BUFFER teaches one level down: a per-type declaration
 describes a type whose instances agree, and the two places that break the rule
 are the two the engine already treats as special.
 
@@ -1259,7 +1259,7 @@ that nothing else is reading, and a way to take it back.
 > unreachable between the mark and the clear keeps the flag for good. That is
 > harmless in a writer that exits — which is the only mode this design claims
 > — but a long-running process wanting to image itself repeatedly would want a
-> chain-based clear instead, in the shape of `x_heap_root_chain_mark`'s
+> chain-based clear instead, in the pattern of `x_heap_root_chain_mark`'s
 > existing pre-clear pass.
 
 **What this replaces.** Seeding the walk from named base fields does not work:
@@ -1270,19 +1270,19 @@ of 85,431 live — 39%. Whether the missing 61% is the writer's own machinery
 settled by adding roots, which is the argument for asking the collector
 instead of guessing.
 
-### BUFFER cannot be described by a per-type shape
+### BUFFER cannot be described by a per-type declaration
 
 The only two objects that could not state their extent were the reader
-buffers, and looking at why turned up a limit the shape design did not
+buffers, and looking at why turned up a limit the unit-label design did not
 anticipate. A BUFFER is two units: a raw `char *` and a reference to an inner
 bookkeeping object which is *itself* BUFFER-typed and holds two raw `char *`
 cursors. So the outer instance is `(bytes ref)` and the inner is
-`(bytes bytes)` — **the same type, two shapes.**
+`(bytes bytes)` — **the same type, two layouts.**
 
 It costs the collector nothing, because BUFFER has a custom mark handler and
-its shape is never read. It costs the image nothing either, because buffers
+its declaration is never read. It costs the image nothing either, because buffers
 are not imaged: they are cursors into a char array, the loader's fresh base
-has its own, and the base field is repointed. But it means a per-type shape is
+has its own, and the base field is repointed. But it means a per-type declaration is
 not universally sufficient, and a type whose instances differ has to say so
 some other way.
 
@@ -1301,7 +1301,7 @@ where they are consumed. An image is exactly such a consumer.
 
 The writer refuses too, and its refusals are the more important half: control
 state that is not empty, a type with an undeclared `foreign` unit, a type with
-no shape at all.
+no declaration at all.
 
 ## What it buys
 
@@ -1393,7 +1393,7 @@ cache never reaches those integers -- a pour re-resolves every trampoline
 by name from the relocation records -- which is why every warm run passed
 and CI, where the images came from the actions cache and `/tmp` was cold,
 did not. Each binding now registers itself as it is made, the float.x
-shape: a transient the writer images as nil, a row the recache hook
+pattern: a transient the writer images as nil, a row the recache hook
 remakes it from, the handle with them. The rule it states: a value that is
 an address is a transient whatever type it is stored as.
 
@@ -1413,7 +1413,7 @@ marker that stops the write being retried until the key changes:
   holding nodes of C frames that no longer exist, and the child's next
   collect walks freed stack. That was every silent SIGSEGV.
 - **A reference word the writer cannot place is not read.** The census used
-  to read the word's heap link, flags and type to say which kind of miss it
+  to read the word's heap link, flags and type to say which miss it
   was; a lang object whose declared reference unit holds an integer made
   that a read at an integer. It is reported by the holder's type and the
   word (`reference-unplaced`); `X_IMG_WHO=1` chases the holders through
@@ -1428,7 +1428,7 @@ marker that stops the write being retried until the key changes:
   `(Sys exit)`, which took the writer with it. The child is told:
   `%image-writing` is bound there before the include, and an entry that
   loads and stops while it is bound images like any other. The refusal
-  names the shape when one does not: "ended the writer while loading".
+  names the case when one does not: "ended the writer while loading".
 
   The spelling an entry uses is a guarded read, because that name is bound
   in the writer's child ALONE and this language has no `bound?` predicate
@@ -1453,8 +1453,8 @@ Both refusals that remained on 2026-09-06 said the same thing -- logo,
 three unplaced references held by two spine nodes and a list; python, two,
 held by lists -- and both bundles were making a second base at load. A
 reference into another base's heap is one this writer, which walks one
-chain, cannot place. Both are fixed now, in the bundles, and the shape of
-the fix is the same one either way: find every base made at load, turn what
+chain, cannot place. Both are fixed now, in the bundles, and the fix is
+the same one either way: find every base made at load, turn what
 registers onto it into a table that can be replayed, give it ONE builder,
 nil it in a transient and call the builder from a recache hook. Nothing
 about that is particular to a lang, so it is written here rather than
@@ -1495,7 +1495,7 @@ code and its relocation records: `lib/x/tool/asm-cache.x` holds each entry
 in the heap, the code in an object of `word` units and the records as a
 list, so a compile after a load is a copy into a fresh page and a patch,
 with no file and no compiler. The page itself is remade: every compile in `boot/tower-compiled.x` is
-the same shape, source over free variables, with an interpreted twin it
+the same pattern, source over free variables, with an interpreted twin it
 displaces. So each compile makes an entry that records where the result is
 installed (a name's binding, or one cell of a type's handler list), the
 twin, the function that compiles it, and the compiled version in place. The
@@ -1555,9 +1555,9 @@ the three waited for the pin. `make images` lists them now.
   a handle on that library: additive to format v1, and undecided until
   something needs it.
 
-- **The writer half needs a door.** Reading needs the shape declaration above
-  and nothing else; writing objects back means setting type words and flags, which today is raw word
-  surgery of the kind `lib/x/boot/reflect.x` already does in `%reflect-relabel!`.
+- **The writer half needs a door.** Reading needs the unit-label declaration above
+  and nothing else; writing objects back means setting type words and flags, which today is the raw
+  word surgery `lib/x/boot/reflect.x` already does in `%reflect-relabel!`.
   Whether that stays reflective or earns a primitive is open.
 - ~~**How the runner knows an image is stale.**~~ Decided, and it is a
   content hash: `tools/dev/image-build.sh` keys each image on the library
@@ -1605,14 +1605,14 @@ the three waited for the pin. `make images` lists them now.
   repoints an imaged environment pair; adding two took the count from 6 to
   10. The mutation-free rule applies to the writer's setup, not only its
   loops.
-- **Whether the base spine's shape is stable enough to address by steps.** The
+- **Whether the base spine's layout is stable enough to address by steps.** The
   step lists come from a contract that a gate re-derives from the headers, so
   a spine change fails the build rather than silently moving a reference — but
   an image written before such a change and loaded after it would resolve its
   steps against a different tree. The header's layout digest is what should
   refuse that, and it is already in the format.
-- **Whether a per-type shape is enough.** BUFFER says it is not: one type,
-  two instance shapes. Nothing needs it today — buffers are not imaged — but
+- **Whether a per-type declaration is enough.** BUFFER says it is not: one type,
+  two instance layouts. Nothing needs it today — buffers are not imaged — but
   the next type whose instances differ will need an answer, and the format
   has no place to put one.
 - **What ash costs, and whether an image can carry a tokenizer base.** ash was

@@ -93,7 +93,7 @@ x -l logo                   # REPL + viewer at http://localhost:8080
 | [x-grep](https://github.com/jonruttan/x-grep) | a grep: BRE by translation, ERE native, `-F` on bytes | unreleased |
 | [x-sed](https://github.com/jonruttan/x-sed) | a sed, riding x-grep's regex doors — the first cross-bundle lang | unreleased |
 | [x-make](https://github.com/jonruttan/x-make) | a make: the GNU subset x-lang's own Makefiles use | unreleased |
-| [x-coreutils](https://github.com/jonruttan/x-coreutils) | forty-four applets in one busybox-shaped bundle, `sort` to `sha256sum` | unreleased |
+| [x-coreutils](https://github.com/jonruttan/x-coreutils) | forty-four applets in one bundle made as busybox is, `sort` to `sha256sum` | unreleased |
 | [x-cc](https://github.com/jonruttan/x-cc) | a C front end and evaluator; eligible functions lower to native through the engine | unreleased |
 
 **No version numbers in that column, deliberately** — and no dialect column
@@ -107,7 +107,7 @@ when the table was next read. `releases/latest` cannot go stale, the
 row without a release says `unreleased` rather than linking a page that would
 404.
 
-The rows from x-awk down are a second kind of demonstration — the
+The rows from x-awk down are a second variant of demonstration — the
 **self-hosting arc**: tools x-lang's own build invokes, reimplemented as
 langs, with [the bootstrap tool closure](docs/bootstrap-closure.md) as the
 scorecard. `x -l cc` runs C, and eligible functions lower to native code
@@ -139,7 +139,7 @@ what it may rely on, and how one is written or extracted.
 - **Object system** — Classes are callable values with message-passing dispatch (no quoting), single inheritance and `super`, encapsulated mutable fields, and a `(static …)` block for static methods and static fields — so a class doubles as a namespace. All in x-lang, on `make-type`.
 - **Module system** — `provide`/`import` with deduplication. Modules are auto-discovered.
 - **Numeric tower** — Arbitrary-precision integers, IEEE 754 floats, exact rationals, complex numbers, arbitrary-precision decimals with automatic promotion.
-- **JIT compiler** — A data-driven assembler assembles, maps, and executes native machine code on both ARM64 and x86_64 (arch-tagged specs execute on each in CI). The automatic x-lang-function-to-native compiler currently targets ARM64.
+- **JIT compiler** — A data-driven assembler assembles, maps, and executes native machine code on both ARM64 and x86_64 (arch-labelled specs execute on each in CI). The automatic x-lang-function-to-native compiler currently targets ARM64.
 - **POSIX interface** — Fork, exec, pipe, dup2, wait, open, close, read, write, chdir, getenv, setenv via FFI.
 - **Regular expressions** — Custom type with `#/pattern/` literal syntax.
 - **Self-hosted tools** — Linter, formatter, coverage analyzer, profiler, and documentation generator written in x-lang.
@@ -150,7 +150,7 @@ what it may rely on, and how one is written or extracted.
 
 The system is layered. Each layer expands capabilities without modifying those below it.
 
-1. **Atom/pair bootstrap** (the engine) — One storage shape, two blessed lengths: every object is a fixed-size vector of slots, and the two smallest — the atom (one) and the pair (two) — are sufficient for evaluation and data construction. The evaluator dispatches through type methods, so these two suffice to get the system running.
+1. **Atom/pair bootstrap** (the engine) — One storage layout, two blessed lengths: every object is a fixed-size vector of slots, and the two smallest — the atom (one) and the pair (two) — are sufficient for evaluation and data construction. The evaluator dispatches through type methods, so these two suffice to get the system running.
 2. **Adaptive type system** — Runtime type definitions with dispatch methods (call, eval, write, length, etc.). Types and the base object share the same nested-list contract structure, extensible by appending pairs.
 3. **Modular library** (`lib/`) — ~100 modules organized by domain: core operations, custom types (vectors, strings, promises), a numeric tower (bigint, float, rational, complex, decimal), system interfaces (POSIX, FFI, GC), self-hosted tools (linter, formatter, coverage, profiler, doc generator), and platform-specific code (x86_64, ARM64).
 4. **FFI and native code** — Dynamic library loading via `dlopen`/`dlsym`, calls through a pointer, raw pointer operations, and a JIT compiler that compiles x-lang functions to native machine code via a data-driven assembler.

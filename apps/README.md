@@ -9,7 +9,7 @@ step.
 project (`x -l bitwise -- --all`). Logo lived here before it — it is what the
 second step was added for (#35) — and it left for
 [x-logo](https://github.com/jonruttan/x-logo) when the bundle format could
-carry it. Bitwise is the shape's second use: a program that belongs to this
+carry it. Bitwise is the second use of this pattern: a program that belongs to this
 repository and is not a language.
 
 ## When something belongs here

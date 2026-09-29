@@ -102,7 +102,7 @@ Values pass through `bind` unchanged, so you can seed data too:
 1
 ```
 
-The shape of a sandboxed evaluator, then: make a base, bind the verbs you
+A sandboxed evaluator, then: make a base, bind the verbs you
 are willing to expose, `guard` around `eval`, and keep everything else
 out. What you did not bind, the child cannot name.
 
@@ -150,7 +150,7 @@ layout contract — `engine/tools/contract/base-paths.x`, one row per field — 
 ```
 
 `(b cell 'name)` walks the contract's path from the child and answers the
-addressed object; a cell-kind field's value sits in the cell's first
+addressed object; a cell-label field's value sits in the cell's first
 slot. The walk is honest about live state — bind something and it is in
 the child's root environment, one pair of bindings and parent, whose
 parent is nil and whose bindings are a tree the child's every lookup
@@ -218,7 +218,7 @@ see your handler arrive and leave.)
 
 Two things worth knowing before you reach for this:
 
-- **Write and display are separate stacks.** The REPL echo is write mode;
+- **Write and display are separate stacks.** The REPL echo goes through write;
   `display` consults the display stack first and falls back to write only
   when the display stack is empty. INTEGER carries its own display
   handlers, so the push above changes the echo but not `display`.

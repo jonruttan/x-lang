@@ -32,7 +32,7 @@ Both are extensible by appending pairs beyond the fixed prefix.
 
 ### Objects
 
-Every runtime value is an object. Objects are union-based data cells with a metadata prefix:
+Every runtime value is represented by an object. Objects are union-based data cells with a metadata prefix:
 
 ```
 [ type-pointer | flags | gc-link? ]   ← metadata (2-3 units)
@@ -62,12 +62,6 @@ X_OBJ_FLAG_1       0x01   app-defined (WRAP on procedures, SHADOW on env pairs)
 X_OBJ_FLAG_2       0x02   app-defined (COV)
 X_OBJ_FLAG_3       0x04   app-defined
 X_OBJ_FLAG_4       0x08   app-defined
-X_OBJ_FLAG_PRIM    0x10   simple-type code: C primitive     ┐ advisory tag for
-X_OBJ_FLAG_FN      0x11   simple-type code: function        │ C consumers --
-X_OBJ_FLAG_INT     0x12   simple-type code: integer         │ NOT the type
-X_OBJ_FLAG_CHAR    0x13   simple-type code: character       │ slot; the core
-X_OBJ_FLAG_STR     0x14   simple-type code: string          │ dispatches on
-X_OBJ_FLAG_PTR     0x15   simple-type code: generic pointer ┘ the type pointer
 X_OBJ_FLAG_OWN     0x20   object owns its (string) storage (freed with it)
 X_OBJ_FLAG_RO      0x40   read-only (advisory)
 X_OBJ_FLAG_META    0x80   extended metadata units prepended
@@ -115,12 +109,12 @@ operations manipulate without C):
 (
   name                                   ; field 0
   data                                   ; field 1
-  (mark make free clone units length)    ; field 2 — heap group
-  (call eval)                            ; field 3 — proc group
-  (from to)                              ; field 4 — cvt group
-  (analyse delimit read write display)   ; field 5 — io group
-  (iter)                                 ; field 6 — iter group
-  (ops)                                  ; field 7 — ops group
+  (mark make free clone units length)    ; field 2 — heap fields
+  (call eval)                            ; field 3 — proc fields
+  (from to)                              ; field 4 — cvt fields
+  (analyse delimit read write display)   ; field 5 — io fields
+  (iter)                                 ; field 6 — iter fields
+  (ops)                                  ; field 7 — ops fields
 )
 ```
 
@@ -131,7 +125,7 @@ doubles as the arbitration relation when both operands carry handlers (see
 
 Nil fields indicate the type does not implement that method. The dispatch system checks for nil before invoking.
 
-#### Field Groups
+#### Fields
 
 **Identity**: `name`, `data`
 
@@ -401,7 +395,7 @@ A class is itself a callable value of runtime type CLASS — `(Class static-meth
 
 A custom type's `analyse` handler is the tokenizer's hot path — it is invoked for **every token of every source file** parsed while the type is registered, to decide whether the token belongs to this type. An interpreted `(fn …)` closure there costs a full `x_eval` per call, so registering several interpreted analysers makes *all* subsequent parsing dramatically slower (measured at **up to ~20× on symbol-heavy input** with the numeric tower's analysers left interpreted).
 
-The fix is to **JIT-compile the analyser to native code** with `compile`, then install the compiled version. An analyser has the shape `(fn (_ buffer score chr) → next-state-fn | ())`: given the current byte `chr`, it returns a state function to continue scanning, or `()` to decline. `compile` takes the analyser as a quoted `(fn …)` AST plus an **fvar table** binding any free variables the body references (the state functions it transitions to). Pure expressions use the JIT assembler; expressions with fvars use the C-compiler-with-cache path.
+The fix is to **JIT-compile the analyser to native code** with `compile`, then install the compiled version. An analyser has the signature `(fn (_ buffer score chr) → next-state-fn | ())`: given the current byte `chr`, it returns a state function to continue scanning, or `()` to decline. `compile` takes the analyser as a quoted `(fn …)` AST plus an **fvar table** binding any free variables the body references (the state functions it transitions to). Pure expressions use the JIT assembler; expressions with fvars use the C-compiler-with-cache path.
 
 ```x
 ; Fetch the wiring helpers from the catalog (registered by sys/type.x), and
@@ -431,7 +425,7 @@ Two install idioms:
 
 Do the compilation **incrementally, right after each type's module loads**, so subsequent source files are parsed through the already-compiled (fast) analysers rather than interpreted ones.
 
-Worked examples live in the tower-loading libraries: the xenon/radon bodies (`lib/x/boot/{xenon,radon}.x`, interactive dialects) and `lib/x-base.x` (non-interactive) all compile the quote-family and numeric-tower analysers this way. See [Dialects](dialects.md) for the dialect-level view.
+Worked examples live in the tower-loading libraries: the xenon/radon bodies (`lib/x/boot/{xenon,radon}.x`, interactive dialects) and `lib/x-base.x` (non-interactive) all compile the quote, quasiquote and numeric-tower analysers this way. See [Dialects](dialects.md) for the dialect-level view.
 
 > **Note:** `compile`'s fvar path shells out to the host C compiler and caches the resulting shared object by expression hash, so the *first* load against a cold cache pays the `cc` cost; later loads reuse the cached `.so`.
 
