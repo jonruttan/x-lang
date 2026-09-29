@@ -3,7 +3,7 @@
 
 End-to-end smoke of the default pointer `x.x` (bare `sh x.sh` boots
 helium through it), exactly as the README documents it (#70).  One file
-per dialect so the boots schedule in parallel (#320); the family story
+per dialect so the boots schedule in parallel (#320); the story behind these specs
 is in this directory's README.md.
 
 # @lib x.x

@@ -357,7 +357,7 @@
 ---
     -1.5
 
-### % float by int coerces
+### % float by int promotes
 
 ```x
 (% 5.5 2)
@@ -808,7 +808,7 @@
 ---
     (1.0 2.0)
 
-## unconvertible operands raise (engine-crash class)
+## unconvertible operands raise, not crash the engine
 
 A conversion-catalog miss used to return silent nil, which reached the
 unchecked `(first)`/FFI seats and segfaulted the engine. The door in

@@ -27,7 +27,7 @@
 # table is read from it rather than written here.
 #
 # A claim is a version preceded, within 24 characters, by the name it belongs
-# to: every version in a bundle has the same shape, so only what it sits beside
+# to: every version in a bundle has the same layout, so only what it sits beside
 # says whether it is x-lang's, a required lang's, the bundle's own or the
 # engine's.  Two rules narrow that window:
 #
@@ -101,7 +101,7 @@ scan() {
 
 # A workflow may not pin a version literally.  A `ref:` sits on its own line,
 # so the name it belongs to is on another one and the per-line proximity test
-# above cannot pair them; the shape is forbidden instead.  A ref is derived.
+# above cannot pair them; the multi-line ref is forbidden instead.  A ref is derived.
 refs=$(grep -n "^[[:space:]]*ref:[[:space:]]*v[0-9]" .github/workflows/*.yml 2>/dev/null || true)
 if [ -n "$refs" ]; then
 	echo "$refs" | sed 's/^/release-refs: literal ref in a workflow: /' >&2

@@ -19,7 +19,7 @@ This is what every predicate in `lib/x/core/predicates.x` is: `(type ? x T)`.
 ---
     *** ERROR: ok
 
-### distinct kinds of value have distinct type objects
+### values of different types have distinct type objects
 
 covers: type/of
 

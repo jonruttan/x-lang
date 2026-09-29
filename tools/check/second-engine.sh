@@ -55,7 +55,7 @@ done
 # --- a partially implemented group is not a capability ------------------------
 # docs/engine-contract.md defines a capability as "the coordinates in that
 # group resolve" -- all of them.  Deriving (provides G) from "the engine has at
-# least one row tagged for G" would let an engine implementing `error` and
+# least one row labelled for G" would let an engine implementing `error` and
 # nothing else of the evaluator declare the whole 25-instruction isa/spine
 # group, and the resolver report it satisfied; the library would then die on
 # its first `fn`, at runtime.

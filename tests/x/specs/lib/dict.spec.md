@@ -40,7 +40,7 @@ in the help listing, the guard sits at the point of harm.
 ---
     Error: #<err:state Dict: uninitialized instance (use Dict make / from-*)>
 
-### from-plist is the simplest literal shape
+### from-plist is the simplest literal representation
 
 ```x
 (do (import x/type/dict)
@@ -58,7 +58,7 @@ in the help listing, the guard sits at the point of harm.
 ---
     Error: #<err:value Dict from-plist: odd-length plist>
 
-### from-bindings takes the let shape
+### from-bindings takes bindings as let writes them
 
 ```x
 (do (import x/type/dict)
@@ -67,7 +67,7 @@ in the help listing, the guard sits at the point of harm.
 ---
     1
 
-### every shape converts back out: ->plist and ->bindings
+### every representation converts back out: ->plist and ->bindings
 
 ```x
 (do (import x/type/dict)

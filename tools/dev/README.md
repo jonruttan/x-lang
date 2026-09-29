@@ -175,12 +175,12 @@ rather than timing loops the digest no longer runs.
 `--unroll N` emits N round bodies per recursive call. It is a knob for
 RE-MEASURING, not a recommendation: 1/2/4 measure as noise (the boxing it
 amortises is a fraction of that 0.9%), and 8 trips the allocation
-ceiling. The unrolled shape lives here so the negative result stays
+ceiling. The unrolled version lives here so the negative result stays
 reproducible rather than being re-derived.
 
 `--fold` moves the H shuffles into the compiled function (one native
 call per block); `--fill` compiles the W fill itself via the byte-width
-`%mem-byte` family, padding included. Together they take the 25KB digest
+`%mem-byte` functions, padding included. Together they take the 25KB digest
 from ~964ms interpreted-parts to ~71ms — at the price of ~9s of compile,
 so the compiled digest pays off on reuse, not one-shot hashing. All
 knobs compose, and the FIPS vectors plus a differential check against

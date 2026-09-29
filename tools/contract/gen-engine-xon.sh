@@ -4,7 +4,7 @@
 #   Usage: sh tools/contract/gen-engine-xon.sh <engine-dir>   (writes to stdout)
 #
 # This lives in x-lang rather than in the engine.  Generating the declaration needs
-# the VOCABULARY -- the tag-to-atom map and, for a split tag, the explicit group
+# the VOCABULARY -- the label-to-atom map and, for a split label, the explicit group
 # membership -- and that is tools/contract/features.x, which the language owns.
 # An engine that generated its own declaration would be choosing the terms it is
 # judged by; the same reason the conformance suite and the compliance checks are
@@ -35,7 +35,7 @@
 #               list, which is the one this arc has already made once.
 #
 # The output is xon: read with the ordinary reader, NEVER evaluated -- the same
-# closed-vocabulary family as pin.xon and pin.lock.xon.
+# closed vocabulary as pin.xon and pin.lock.xon.
 set -e
 
 ENGINE="${1:-}"
@@ -68,7 +68,7 @@ digest() {
 	else echo "gen-engine-xon: no sha256sum or shasum on PATH" >&2; exit 2; fi
 }
 
-# --- the vocabulary: tag -> capability group, and explicit per-coordinate rows -
+# --- the vocabulary: label -> capability group, and explicit per-coordinate rows -
 awk '/^\(def %feature-group-rows/{f=1;next} /^\)\)\)/{f=0}
      f && /^  \(/ { l=$0; sub(/;.*/,"",l); gsub(/[()]/,"",l); $0=l
                     for (i=2;i<=NF;i++) print $i, $1 }' "$FEAT" | sort > "$W/exp"
@@ -209,7 +209,7 @@ done < "$W/profiles"
 # the directory an engine happens to sit in: `x-engine-c` for a checkout,
 # `x-engine-c-<release>-<os>-<arch>` for an unpacked release.  Same engine, two
 # identities, and the wrapper compares this row to a project's (engine "...")
-# choice -- so a released engine would be refused for the shape of its path.
+# choice -- so a released engine would be refused for the layout of its path.
 # Found by generating a declaration for an unpacked dist tarball.
 #
 # Same rule as (binary ...) below: what an engine is called is the engine's to

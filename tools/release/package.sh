@@ -89,7 +89,7 @@ out=$( cd / && "$EXTRACT/x-$TAG/bin/x" -f "$EXTRACT/hello.x" 2>/dev/null | tail 
 # call put a `./`-prefixed install root into the boot stream, import
 # resolution read that as include-relative, and the boot failed with
 # `include: cannot open`.  Absolute and bare-relative spellings both
-# worked, so only this exact shape catches it.
+# worked, so only this exact case catches it.
 out=$( cd "$EXTRACT" && "./x-$TAG/bin/x" -f "$EXTRACT/hello.x" 2>/dev/null | tail -1 )
 [ "$out" = "42" ] || fail "the packaged x did not run by relative path (got: '$out')"
 

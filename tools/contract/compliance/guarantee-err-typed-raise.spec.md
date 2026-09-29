@@ -8,8 +8,8 @@ that same type.
 An engine that flattens them into one English string passes every capability
 check and every other spec in this suite, and then leaves a lang nothing to
 reword: the structure is gone before x-lang sees it, and a type-less value has
-no dispatch stacks to push a handler onto. That is exactly the kind of
-difference a guarantee exists to pin.
+no dispatch stacks to push a handler onto. That is exactly the difference a
+guarantee exists to pin.
 
 **Identity is not claimed.** The reference engine reuses one base-resident
 instance so a raise allocates nothing -- which is why a caught error must be

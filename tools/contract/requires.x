@@ -17,14 +17,14 @@
 ; primitives behave, so no call site names them and no row below can find them.
 ; The coverage and profiling tools do need a suitably built engine, and that
 ; dependency is invisible to this derivation.  Recording it needs a
-; hand-written row of the constraints.x kind; until then this file
+; hand-written row like those constraints.x holds; until then this file
 ; under-reports by exactly those two.
 ;
 ; Only above-core capabilities get rows.  Every file needs the `core` group, so
 ; the useful question is which files need more, those being the ones a minimal
 ; engine cannot load.  Of ~150 files in lib/ and apps/, the ones below are the
 ; entire above-core surface; everything else runs with no foreign door, no
-; syscalls and no collector, which is the sandbox dialect's shape.
+; syscalls and no collector, which is the sandbox dialect.
 ;
 ; The rows over-approximate, deliberately: a row says the file references the
 ; capability, not that boot needs it.  lib/x/boot/module.x is the example:

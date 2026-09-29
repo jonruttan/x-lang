@@ -128,7 +128,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 ### a boot form is accepted and contributes no root
 
 The wrapper consumes `(boot "FILE")` (the entry must be chosen before
-the pipe exists); the loader only shape-checks it.
+the pipe exists); the loader only structure-checks it.
 
 ```x
 (do
@@ -182,7 +182,7 @@ the pipe exists); the loader only shape-checks it.
 
 The manifest's second wrapper-consumed form (#435): it waives the
 boot-time release pairing refusal for this project, so like `(boot ...)`
-it is decided before the pipe exists and the loader only shape-checks it.
+it is decided before the pipe exists and the loader only structure-checks it.
 
 ```x
 (do

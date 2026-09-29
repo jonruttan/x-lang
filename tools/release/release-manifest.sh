@@ -7,7 +7,7 @@
 #   SHASUMS          coreutils format (HEX  name), so a consumer can run
 #                    `sha256sum -c SHASUMS` beside downloaded files
 #   pin.release.xon  the machine-readable manifest -- xon (read, never
-#                    evaluated), the same closed-vocabulary family as
+#                    evaluated), the same closed vocabulary as
 #                    pin.xon / pin.lock.xon:
 #                      (release "TAG")
 #                      (isa "sha256:HEX")     the C-surface fingerprint:

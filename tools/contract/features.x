@@ -6,7 +6,7 @@
 ; This file is the vocabulary both sides quote from, and the language owns it:
 ; an engine that defined the terms would be grading its own exam.
 ;
-; Three row kinds, three compare operators, which must not be collapsed:
+; Three row labels, three compare operators, which must not be collapsed:
 ;
 ;   capability  a group of instructions is reachable.  Set membership; compared
 ;               by superset, so a richer engine is never refused.
@@ -40,14 +40,14 @@
 ; disjoint over isa.x -- every row lands in exactly one group, so a new C row
 ; cannot appear without landing somewhere on purpose.
 ;
-; (isa.x's header legend also lists `registry`, which tags zero rows -- stale
+; (isa.x's header legend also lists `registry`, which labels zero rows -- stale
 ; legend text in the engine's manifest, not a capability; no row here.)
 ;
 ; Format (rigid, one entry per line -- the awk parses the same bytes):
 ;   (atom source)         source = the isa.x tag that proves it, a build flag,
 ;                         `rows` when membership is listed explicitly below, or
 ;                         `-` when proven some other way (named in the comment)
-;   (group-rows atom ns/method ...)   explicit membership, for split tags
+;   (group-rows atom ns/method ...)   explicit membership, for split labels
 
 ; --- CAPABILITIES ------------------------------------------------------------
 ; Every group below is genuinely reached by lib/ or apps/ -- verified by joining
@@ -77,7 +77,7 @@
                            ;   a pointer.  Genuinely optional; a sandboxed or
                            ;   wasm engine drops it and still boots x-core.
   (isa/syscall       rows) ; the raw kernel door                     [X_SYSCALL]
-  ; --- capabilities that are BUILD FLAGS, not tags ---
+  ; --- capabilities that are BUILD FLAGS, not labels ---
   ; Absent from isa.x because the manifest describes the default build's surface,
   ; not the switches behind it.
   (io/include    X_INCLUDE) ; the `include` primitive.  Repo-mode boot CANNOT
@@ -267,16 +267,16 @@
 ; Bundles, so a partial engine has a TARGET instead of an all-or-nothing wall.
 ; A profile INCLUDES the one before it (the gate checks the chain is closed).
 ;
-; Four tiers rather than six.  `reader` and `io` do not separate from core:
+; Four profiles rather than six.  `reader` and `io` do not separate from core:
 ; lib/x/boot reaches the `io` tag (the printer is x-level but must emit bytes)
 ; and lib/x/type reaches `tok`.  `posix` does not separate from the foreign
-; door either -- lib/x/sys/posix.x, the foundation of that tier, fetches
+; door either -- lib/x/sys/posix.x, the foundation of that profile, fetches
 ; dlopen, dlsym and ptr/call alongside syscall.  The chain below is what the
 ; library is, rather than what a tidier diagram would show.
 ;
 ; The interesting boundary is therefore core|gc: an engine with NO foreign door,
-; NO syscalls and NO collector still boots x-core.  That is the sandbox dialect's
-; shape (docs/sandboxing-tutorial.md), and it is the first target worth aiming a
+; NO syscalls and NO collector still boots x-core.  That is the sandbox dialect
+; (docs/sandboxing-tutorial.md), and it is the first target worth aiming a
 ; second engine at.
 (def %feature-profiles (lit (
   (core  isa/spine isa/alloc isa/raw-op isa/raw-mem isa/types isa/tok isa/io

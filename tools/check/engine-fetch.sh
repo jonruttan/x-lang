@@ -37,7 +37,7 @@ digest() {
 	else sha256sum "$1" | cut -d' ' -f1; fi
 }
 
-# --- a release fixture: the smallest thing shaped like an engine directory ----
+# --- a release fixture: the smallest thing laid out like an engine directory ----
 # Not a real engine: fetch.sh verifies bytes and publishes a directory, and
 # knows nothing about what is in it.  Building a real engine here would test the
 # engine's Makefile a second time and make this gate minutes long.

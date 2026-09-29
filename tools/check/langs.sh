@@ -16,8 +16,8 @@
 #
 # A companion to check-seam rather than a replacement.  Seam asks whether the
 # platform still provides the names a lang is promised -- eight seconds, fast
-# tier, and catches a rename.  This asks whether the langs still run, which
-# takes minutes and catches the rest.  Deep tier.
+# pass, and catches a rename.  This asks whether the langs still run, which
+# takes minutes and catches the rest.  Deep pass.
 #
 # Presence is advisory, regression is strict.  A bundle lives in its own
 # repository and this tree must build for someone who cloned nothing else, so a

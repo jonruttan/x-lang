@@ -87,7 +87,7 @@ fi
 # 300M now that the seam collect removed batch accumulation entirely.  Each
 # step was a measurement; the number is only ever as good as its last one.
 #
-# HOW THE OLD NUMBER WENT STALE, because the shape repeats.  300M was ~2x the
+# HOW THE OLD NUMBER WENT STALE, because the pattern repeats.  300M was ~2x the
 # logo spec at ~150M, measured when logo lived here; ext/complex, the heaviest
 # batch remaining in THIS suite, peaks ~130M.  The note this replaced already
 # said the binding case had left the repository -- what it did not say is that
@@ -114,7 +114,7 @@ export X_ALLOC_LIMIT_OBJS="${X_ALLOC_LIMIT_OBJS:-300000000}"
 # it is what lets the 300M ceiling above cover a single peak instead of a
 # batch's sum.  A LANG BUNDLE whose eval path holds objects only C-side state
 # can reach -- x-python's python-run builds an isolated tokenizer base, the
-# x-lang#283 family -- sets this to 0 in its own wrapper and keeps the old
+# an x-lang#283 case -- sets this to 0 in its own wrapper and keeps the old
 # accumulate-then-exit regime (and should size X_ALLOC_LIMIT_OBJS for batch
 # sums, not peaks).  Per-FILE opt-out stays `# @no-seam-collect`; this knob is
 # for a suite whose GENERATED files all share one C-state-holding eval door,
@@ -209,8 +209,8 @@ fi
 # input writes `<<NUL>>` somewhere: each run boots the wrapper, and a suite runs
 # far more batches than it has specs asserting a NUL.
 
-# Host arch for arch-tagged specs (e.g. asm.arm64.spec.md runs only on A64
-# hosts). Darwin says arm64 where GNU says aarch64; normalize to the tags the
+# Host arch for arch-labelled specs (e.g. asm.arm64.spec.md runs only on A64
+# hosts). Darwin says arm64 where GNU says aarch64; normalize to the labels the
 # platform backends use (lib/x/platform/<arch>.x).
 _HOST_ARCH=$(uname -m)
 case "$_HOST_ARCH" in
@@ -250,7 +250,7 @@ _cpus=$(( _cpus * 2 / 3 ))
 
 # Heavy-set admission cap: at most SPEC_HEAVY_JOBS jobs whose @weight is
 # >= SPEC_HEAVY_MIN may be in flight together, whatever PARALLEL_JOBS
-# says.  @weight doubles as a footprint class: the files heavy in TIME
+# says.  @weight also tracks footprint: the files heavy in TIME
 # are the same ones heavy in RESIDENT MEMORY (tower/test-lib loads, the
 # jit builds), and running them heaviest-FIRST would otherwise mean
 # running them ALL AT ONCE -- the 2026-08-19 lockup above.  Two heavies
@@ -295,7 +295,7 @@ if [ "$_memb" -ge 25769803776 ]; then _heavy_default=2; else _heavy_default=1; f
 # job's own output: every awk job writes spec-<id>.cnt as its last act,
 # and a vanished process (`kill -0` fails once the shell has reaped it)
 # covers a job killed before it could write.  The FIFO escape hatch in
-# _admit guarantees progress in the one undetectable shape -- an awk job
+# _admit guarantees progress in the one undetectable case -- an awk job
 # killed while the shell still holds its zombie unreaped -- by falling
 # back to the old blocking wait after ~60s without progress; the
 # collector's missing-.cnt warning still names the lost job.
@@ -487,8 +487,8 @@ _classify() {
 }
 
 # Positional arguments name EXACTLY the specs to run (GH #221: they used
-# to be silently ignored -- accepted-and-discarded is the silent-fallback
-# shape).  A named path that does not exist is a loud error, never a
+# to be silently ignored -- accepted-and-discarded is the silent
+# fallback).  A named path that does not exist is a loud error, never a
 # fallthrough to the glob.  Explicit args keep one job per file (exact
 # runs stay exact, with their own timing tails); the glob walk buckets.
 # No arguments = every spec under SPEC_PATH, as ever; the SPECS='<glob>'
@@ -513,7 +513,7 @@ for _spec in "$@"; do
   # Applicative (stress) specs are skipped by the glob walk; naming one
   # explicitly runs it.
   case "$_spec" in */applicative/*) [ "$_args_mode" = 1 ] || continue ;; esac
-  # Arch-tagged specs (<name>.<arch>.spec.md) run only on matching hosts.
+  # Arch-labelled specs (<name>.<arch>.spec.md) run only on matching hosts.
   _tag="${_spec%.spec.md}"; _tag="${_tag##*.}"
   case "$_tag" in
     arm64|x86_64) [ "$_tag" = "$_HOST_ARCH" ] || continue ;;
@@ -525,7 +525,7 @@ for _spec in "$@"; do
   # file only against an engine whose x-engine.xon declares
   # `(provides <capability>)`.  The vocabulary is tools/contract/features.x.
   # A skipped file is NAMED, because silently thinner coverage is the
-  # vacuous-pass shape; naming the file explicitly overrides the gate, the
+  # vacuous-pass failure; naming the file explicitly overrides the gate, the
   # same deliberate-override rule the applicative/ specs use.  An engine
   # with no xon beside it skips gated files too -- an undeclared capability
   # is an absent one, which is the whole point of declaring.
@@ -609,15 +609,15 @@ else
   : "${SPEC_BATCH:=8}"
 fi
 if [ "$_args_mode" = 0 ]; then
-  _CLS="$_TMPDIR/classes.lst"
-  : > "$_CLS"
+  _BATCH="$_TMPDIR/batches.lst"
+  : > "$_BATCH"
   while IFS= read -r _spec; do
-    printf '%s|%s\n' "$(_classify "$_spec")" "$_spec" >> "$_CLS"
+    printf '%s|%s\n' "$(_classify "$_spec")" "$_spec" >> "$_BATCH"
   done < "$_LIST"
-  # Stable sort by class: same-lib files become adjacent, glob order is
-  # preserved within a class ("|" delimiter -- it survives an empty
+  # Stable sort by batch: same-lib files become adjacent, glob order is
+  # preserved within a batch ("|" delimiter -- it survives an empty
   # leading field where a tab would not, and no repo path contains one).
-  sort -s -t '|' -k1,1 "$_CLS" > "$_CLS.sorted"
+  sort -s -t '|' -k1,1 "$_BATCH" > "$_BATCH.sorted"
 
   # First pass collects the jobs (one line each: weight|timeout|files);
   # a bucket's weight is its heaviest member's.  The job list is then
@@ -648,7 +648,7 @@ if [ "$_args_mode" = 0 ]; then
     case "$_w" in ''|*[!0-9]*) _w=0 ;; esac
     [ "$_w" -gt "$_bw" ] && _bw="$_w"
     [ "$_cls" = "!" ] && _flush
-  done < "$_CLS.sorted"
+  done < "$_BATCH.sorted"
   _flush
 
   sort -s -t '|' -k1,1rn "$_JOBS" > "$_JOBS.sorted"
@@ -663,7 +663,7 @@ fi
 # after the main fleet drains: these files accumulate eval garbage
 # across deep TCO loops (regression.spec.md peaks ~3.9GB NATIVE,
 # tco-stress ~1.7GB, measured 2026-08-20), and two co-resident on a
-# 7GB CI runner is the #366 OOM shape.  Serial costs ~35s total.
+# 7GB CI runner is the #366 OOM.  Serial costs ~35s total.
 # ASan jobs must keep STRESS unset: the sanitizer multiplies these
 # peaks 2-4x past any runner.
 if [ "$_args_mode" = 0 ] && [ -n "$STRESS" ] && [ -d "$SPEC_PATH/applicative" ]; then

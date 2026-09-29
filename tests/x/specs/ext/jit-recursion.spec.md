@@ -2,7 +2,7 @@
 # @requires native/jit
 # @weight 1
 
-JIT self-recursion. Untagged on purpose: both backends (ARM64 and x86-64) compile the
+JIT self-recursion. Unlabelled on purpose: both backends (ARM64 and x86-64) compile the
 same vocabulary, so this file runs on every host and IS the parity
 contract.
 
@@ -78,7 +78,7 @@ path and compile AS a recursive call: the code ran, recursed forever,
 and segfaulted far from the cause. `abs` stands in for any unimplemented
 form — it reads as an operator and has no emitter.
 
-(This case originally used `&`, which the bitwise family later
+(This case originally used `&`, which the bitwise operators later
 implemented; the suite caught the stale premise. Any stand-in here is
 only valid while it stays unimplemented — if `abs` ever lands, pick
 another rather than deleting the case.)

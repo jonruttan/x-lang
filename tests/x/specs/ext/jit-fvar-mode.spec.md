@@ -3,7 +3,7 @@
 # @weight 2
 
 The two calling worlds, and what happens to a body compiled for the wrong one.
-Untagged on purpose: both backends compile the same vocabulary, so this file
+Unlabelled on purpose: both backends compile the same vocabulary, so this file
 runs on every host.
 
 `compile-asm` emits for two worlds. An **integer function** is called from x
@@ -31,7 +31,7 @@ declared as an analyser does on its first line.
 ### with no third argument it refuses, and names both declarations
 
 An analyser state carrying a handoff fvar, and an integer function naming the
-prim it calls: the table is the same shape for both, so neither is guessed at.
+prim it calls: the table is the same layout for both, so neither is guessed at.
 
 ```x
 (do
@@ -82,8 +82,7 @@ that, and the unboxed result is argument 2.
 
 `if` folds a comparison in its test into the branch, so that operand does not
 reach the call emitter and the check runs there as well. A body whose only
-arithmetic is its loop guard is an ordinary shape, so this is the common case
-rather than a corner.
+arithmetic is its loop guard is the common case, not a corner.
 
 ```x
 (do

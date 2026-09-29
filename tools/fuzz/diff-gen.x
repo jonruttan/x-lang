@@ -64,7 +64,7 @@
         ((= k 5) (- 0 (+ 1 (%dg-rand 70000))))
         (#t (%dg-rand 10))))))
 
-; --- the grammar: a TABLE of (operator . shape) rows, jit-fuzz style.
+; --- the grammar: a TABLE of (operator . label) rows, jit-fuzz style.
 ; Integer core plus the territory the JIT grammar cannot reach: pairs and
 ; lists, predicates as values, closures applied in place, and let frames.
 ;   ee both recurse       el operand + leaf       ed operand + divisor

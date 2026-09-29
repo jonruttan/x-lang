@@ -19,7 +19,7 @@
 # resolve-against-the-INCLUDING-FILE -- so the root got re-based and the
 # boot's first include failed with `include: cannot open` (x-lang#188).
 # Only the `./` spelling broke; bare and deeper relative paths happened
-# to work, which is exactly the kind of accident normalising removes.
+# to work, which is exactly the accident normalising removes.
 SCRIPT_PATH=$(cd "$(dirname "$0")" && pwd)
 X_EXT=.x
 X_LIB=x
@@ -84,7 +84,7 @@ path_form_safe() {
 # A bundle is a DIFFERENT SURFACE LANGUAGE acquired as a pinned artifact
 # (Pin bundle; docs/lang-contract.md).  Unlike a dialect entry it
 # does not boot itself: the wrapper boots the dialect the bundle DECLARES,
-# then loads the bundle on top -- exactly the shape -F already has (entry
+# then loads the bundle on top -- exactly the pattern -F already has (entry
 # in --batch so its own launcher stays quiet, the file next, the launcher
 # last).  That is why a bundle's entry needs no root-relative literals at
 # all: the platform is already up when it is read, and its own modules
@@ -851,7 +851,7 @@ fi
 # and the entry must be chosen HERE, before the pipe exists: the loader
 # import lands after the entry has already booted, too late to pick it.
 # Textual extraction of data, nothing evaluated; the form must sit alone
-# on its line (the loader still checks its shape).  A relative FILE
+# on its line (the loader still checks its structure).  A relative FILE
 # resolves against the manifest's directory, like (root ...).  An
 # explicit --boot wins over the manifest.
 if [ -z "$boot_file" ] && [ -n "$PIN_FILE" ]; then
@@ -868,7 +868,7 @@ fi
 # on any engine meeting the contract (docs/engine-contract.md); a project that
 # needs a particular one says (engine "NAME") and the wrapper holds it to that.
 # Textual extraction, alone on its line, like (boot ...) -- and the loader still
-# shape-checks it under the closed vocabulary.
+# structure-checks it under the closed vocabulary.
 #
 # This is INTENT, not safety.  The pairing that can corrupt is the layout, and
 # (engine-layout ...) refuses that by equality below.  Refusing on the NAME would
@@ -905,7 +905,7 @@ fi
 # release's engine says so once, in the manifest, instead of every runner
 # remembering the flag; --allow-release-skew is the same decision made per
 # invocation.  Zero arguments, alone on its line, textual like (boot ...) --
-# and the loader still shape-checks it under the closed vocabulary.
+# and the loader still structure-checks it under the closed vocabulary.
 if [ -z "$allow_skew" ] && [ -n "$PIN_FILE" ] && [ -f "$PIN_FILE" ]; then
 	if grep -q '^[[:space:]]*(allow-release-skew)[[:space:]]*$' "$PIN_FILE"; then
 		allow_skew=1
@@ -926,7 +926,7 @@ if [ ! -e "$ENTRY" ] && [ -e "${APPS_PATH}${X_LIB}/${X_RUN}${X_EXT}" ]; then
 fi
 # THIRD STEP: an acquired lang bundle.  Unlike the first two this
 # does not make the NAMED file the entry -- the entry becomes the DIALECT
-# the bundle declares, and the bundle rides after it as a -F-shaped load.
+# the bundle declares, and the bundle rides after it as a load made the way -F makes one.
 if [ ! -e "$ENTRY" ]; then
 	bundle_resolve "$X_LIB"
 	if [ -n "$BUNDLE_DIR" ]; then
@@ -958,7 +958,7 @@ fi
 
 # A pinned boot replaces the entry outright (-l is not consulted).  A
 # missing file is a broken project pin -- fail loudly, never fall back
-# to the platform entry: a silent fallback is the very shape #139 closes.
+# to the platform entry: a silent fallback is the very failure #139 closes.
 if [ -n "$boot_file" ]; then
 	ENTRY="$boot_file"
 	if [ ! -e "$ENTRY" ]; then
@@ -1214,7 +1214,7 @@ if [ -n "$boot_file" ]; then
 		_have=$(cat "$_mine")
 		# A lock that EXISTS but yields no fingerprint is a corrupt or
 		# truncated lock -- skipping it silently is the same
-		# disappearing-guard shape #313 closed for a MISSING lock.
+		# disappearing-guard failure #313 closed for a MISSING lock.
 		if [ -z "$_want" ]; then
 			echo "x.sh: boot pin armed but no isa fingerprint readable in $_rel -- engine pairing unchecked; re-run (Pin boot <tag>) to rewrite the lock" >&2
 		fi
@@ -1353,7 +1353,7 @@ fi
 # A supplied file suppresses the dialect entry's interactive launcher, so
 # the read-eval loop reaches the file instead of the launcher reclaiming
 # stdin and discarding it.  -F re-launches afterwards via $post.  A pinned
-# REPL rides the same -F shape: --batch suppresses the entry's own
+# REPL rides the same -F pattern: --batch suppresses the entry's own
 # launcher so the arming import lands before the prompt, then launch.x
 # hands over the session.
 #

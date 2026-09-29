@@ -45,7 +45,7 @@
 
 The drain recursed in argument position -- (pair h (drain it)) -- one C
 eval frame group per element, so a ~16K+ iterator crashed the C stack
-(the shape %map1 had before 2026-09-01).  Now tail accumulate +
+(the recursion %map1 had before 2026-09-01).  Now tail accumulate +
 %rev-onto, reverse once; the end probes pin that order survived the
 reverse.
 

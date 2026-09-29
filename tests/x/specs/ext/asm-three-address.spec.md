@@ -5,7 +5,7 @@
 The three-address arithmetic forms: `(add Xd Xn OPERAND)` sets Xd to Xn plus
 the operand, a register or an immediate, and `sub` to Xn minus it; Xn keeps
 its value.  ARM64 encodes these directly.  x86-64 has only the two-address
-form, so its backend moves Xn into Xd first when they differ.  Untagged on
+form, so its backend moves Xn into Xd first when they differ.  Unlabelled on
 purpose: both backends take the same mnemonics, so this file runs on every
 host.
 

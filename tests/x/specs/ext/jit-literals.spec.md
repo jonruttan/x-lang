@@ -2,7 +2,7 @@
 # @requires native/jit
 # @weight 1
 
-Wide integer literals in JIT-compiled code. Untagged on purpose: both backends (ARM64 and x86-64) compile the
+Wide integer literals in JIT-compiled code. Unlabelled on purpose: both backends (ARM64 and x86-64) compile the
 same vocabulary, so this file runs on every host and IS the parity
 contract.
 

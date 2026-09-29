@@ -157,7 +157,7 @@ code they belong to.
 ---
     '#foo
 
-## the rest of the # family is untouched
+## the rest of the # forms are untouched
 
 The literal's analyser sits on the symbol type in front of the C symbol
 reader, and it declines every `#` that a `"` does not follow. That costs the
@@ -175,7 +175,7 @@ their own analysers exactly as they were when the literal was spelled `$"..."`.
 
 ### the quote character literal is not an empty literal
 
-`#\"` starts with `#` and ends with `"`, the shape of the token the reader
+`#\"` starts with `#` and ends with `"`, the layout of the token the reader
 strips; it is three bytes of character literal, and the read guard checks the
 whole `#"` opener rather than the first byte alone.
 

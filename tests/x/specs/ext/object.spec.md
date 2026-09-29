@@ -450,8 +450,8 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
 
 ```x
 (do
-  (def-class App () (static (label "x-lang") (kind 'lang)))
-  (list (App label) (App kind)))
+  (def-class App () (static (name "x-lang") (label 'lang)))
+  (list (App name) (App label)))
 ```
 ---
     ("x-lang" 'lang)
@@ -876,7 +876,7 @@ until the first bare declared-field name starts the keyword tail.
 ## def-class body validation
 
 A field name declared twice in ONE class body errors at def-class time
--- the common shape is a bare declaration beside its (doc NAME ...)
+-- the common case is a bare declaration beside its (doc NAME ...)
 form, which ALSO declares.  The duplicate was silent poison: positional
 construction filled the doubled slot twice and a LATER field stayed
 nil (found via (Type wrap ...): `raw` stayed nil and a downstream

@@ -10,7 +10,7 @@
 ;
 ; Structural rather than a grep: a class body is s-expressions, and the head of
 ; a body form is knowable only by reading it as one.  The file is parsed, never
-; evaluated, and walks the same shape lib/x/doc/doc-gen.x walks, so what it
+; evaluated, and walks the same structure lib/x/doc/doc-gen.x walks, so what it
 ; finds is what that walker will be handed.
 ;
 ; Symbol comparison is by name, like doc-gen's own: symbols intern per base, so
@@ -41,7 +41,7 @@
     (fn (self body file cname)
       (unless (null? body)
         ; A bare symbol IS a field declaration -- (private balance ...) --
-        ; so it normalises to the (name) shape, exactly as doc-gen does.
+        ; so it normalises to the (name) layout, exactly as doc-gen does.
         (do (let ((f (if (symbol? (first body)) (list (first body)) (first body))))
               (when (pair? f)
                 (do (display file) (display " ") (display cname) (display " ")

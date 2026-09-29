@@ -9,7 +9,7 @@
 #
 # tools/contract/conformance-covered.x lists the ISA rows the suite defines.
 # Coverage may grow freely; a row that was covered and is no longer fails this
-# check.  Same shape as the %-global budgets, pointed at a suite: it cannot
+# check.  Same pattern as the %-global budgets, pointed at a suite: it cannot
 # claim completeness it does not have, and it cannot regress quietly.
 #
 # A row is covered when some spec section names it on a `covers:` line.  Naming

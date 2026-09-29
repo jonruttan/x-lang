@@ -24,7 +24,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 ---
     -0.001d
 
-### parses an integer-shaped decimal
+### parses a decimal that looks like an integer
 
 ```x
 3d
@@ -632,7 +632,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 ---
     9.999999999999999999995e-22d
 
-### other numerics coerce
+### other numerics promote
 
 ```x
 (do (Decimal precision! 12)
@@ -701,7 +701,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ## mixed operands
 
-### an int coerces
+### an int promotes
 
 ```x
 (+ 1 0.5d)
@@ -717,7 +717,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 ---
     -0.5d
 
-### a bigint coerces
+### a bigint promotes
 
 ```x
 (+ 99999999999999999999 0.5d)
@@ -725,7 +725,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 ---
     99999999999999999999.5d
 
-### a float coerces, exactly
+### a float promotes, exactly
 
 ```x
 (* 2d 3.5)
@@ -733,7 +733,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 ---
     7d
 
-### a rational coerces
+### a rational promotes
 
 ```x
 (+ 1/2 0.25d)

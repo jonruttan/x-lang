@@ -2,7 +2,7 @@
 
 Collection is a SEPARATE PROFILE, not part of `core`. An engine with no collector
 still boots x-lang: only `lib/x/sys/gc.x`, `lib/x/repl/loop.x` and
-`lib/x/tool/profile.x` reach this family, which is why `tools/contract/requires.x`
+`lib/x/tool/profile.x` reach this profile, which is why `tools/contract/requires.x`
 lists exactly those three.
 
 The behavioural promise that goes with these instructions -- that allocation NEVER
@@ -93,7 +93,7 @@ LAYER". The engine only puts it on a list, and that list is a base field the
 layout contract addresses. So the contract to define is registration, and it is
 observable without running a collection at all.
 
-Each path ends at a CELL whose first is the list -- the same shape as the prims
+Each path ends at a CELL whose first is the list -- the same layout as the prims
 catalog, and the same trap: one `first` too few and every lookup silently misses.
 
 ### mark-hook! prepends the callable to the base's mark-hook list
@@ -142,7 +142,7 @@ collection honours the list is the collector's behaviour, and `gc/non-moving` an
 
 ## heap mark and sweep -- deliberately not defined here
 
-These two are not a matter of finding the right call shape, and the library says so
+These two are not simply a matter of calling them correctly, and the library says so
 in its own words: `lib/x/sys/gc.x` notes that `heap-collect` runs an atomic
 mark+sweep in ONE C call and "MUST be atomic: mark and sweep cannot straddle an
 allocation, or the sweep frees the [objects] alive only by marking".

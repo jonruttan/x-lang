@@ -75,7 +75,7 @@ BEGIN {
 	# ---- the surface
 	while ((getline line < scan) > 0) {
 		n = split(line, f, " ")
-		# Two kinds of subject, in the terms the contract uses: a bare row is
+		# A subject is either of two things, in the terms the contract uses: a bare row is
 		# its name and a catalog row is its coordinate, which is how x-lang
 		# addresses them.  The registration name a C table carries as a third
 		# string is not recorded in isa.x, and a non-C engine has none.
@@ -175,7 +175,7 @@ FNR == 1 { in_fence = 0; is_c = (FILENAME ~ /\.spec\.c$/) }
 	}
 
 	# bare tokens.  Split on structure rather than matching an identifier
-	# shape: primitive names include ~ & << >> | ^ = < - * /, which no
+	# pattern: primitive names include ~ & << >> | ^ = < - * /, which no
 	# word-ish pattern accepts, and those were exactly the ones missed.
 	s = code
 	gsub(/[()`",;]/, " ", s)

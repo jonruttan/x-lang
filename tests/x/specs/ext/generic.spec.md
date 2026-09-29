@@ -42,12 +42,12 @@ silent lattice is an error naming both.
 ```x
 (do
   (import x/type/generic)
-  (def-generic kind)
+  (def-generic nearest)
   (def-class A ())
   (def-class B (extends A))
-  (on kind ((a A)) 'a)
-  (on kind ((b B)) 'b)
-  (list (kind (new B)) (kind (new A))))
+  (on nearest ((a A)) 'a)
+  (on nearest ((b B)) 'b)
+  (list (nearest (new B)) (nearest (new A))))
 ```
 ---
     ('b 'a)

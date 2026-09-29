@@ -27,8 +27,8 @@
 #
 # Both directions are red.  A failure that is not recorded is a regression; a
 # recorded failure that now passes must be struck from the list, or it
-# re-authorises that failure later.  x-lang's percent-globals gate is the same
-# shape.
+# re-authorises that failure later.  x-lang's percent-globals gate follows the same
+# pattern.
 #
 # A bundle provides tests/spec-runner.sh and, unless KNOWN_FAILURES says
 # otherwise, tests/contract/known-failures.txt.  Every variable spec-runner.sh

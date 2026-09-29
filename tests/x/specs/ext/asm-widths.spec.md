@@ -2,7 +2,7 @@
 # @requires native/jit
 # @weight 1
 
-Loads and stores at every width.  Untagged on purpose: both backends
+Loads and stores at every width.  Unlabelled on purpose: both backends
 (ARM64 and x86-64) take the same mnemonics, so this file runs on every
 host and IS the parity contract.
 

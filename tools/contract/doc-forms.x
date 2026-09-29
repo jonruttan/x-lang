@@ -18,7 +18,7 @@
 ;
 ; The object-model v2 (private ...) and (protected ...) blocks are taught:
 ; their tail SPLICES into the class body (lib/x/type/class.x explodes them
-; that way), so the walker descends and marks what it finds with its tier.
+; that way), so the walker descends and marks what it finds with its visibility.
 ; A bare symbol inside one is a field declaration and normalises to (name).
 
 (

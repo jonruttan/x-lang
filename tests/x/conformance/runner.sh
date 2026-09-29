@@ -121,7 +121,7 @@ for spec in $SPECS; do
 	printf "%s%s%s\n" "$BLUE" "${spec#$SUITE/}" "$OFF"
 
 	rm -rf "$WORK/cases"; mkdir -p "$WORK/cases"
-	# Same shape as every other spec file here: ### name, a fenced block, ---,
+	# Same layout as every other spec file here: ### name, a fenced block, ---,
 	# then the expected value indented.  A `covers:` line is metadata for the
 	# coverage gate and is skipped by the splitter.
 	awk -v out="$WORK/cases" '

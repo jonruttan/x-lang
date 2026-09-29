@@ -220,7 +220,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ## from-bindings
 
-### converts a bindings list (the let shape) to an alist
+### converts a bindings list (the let form's arrangement) to an alist
 
 ```x
 (do (def al (Assoc from-bindings (list (list 'a 1) (list 'b 2)))) (Assoc get 'a al))
@@ -405,7 +405,7 @@ Value, not length: omitting the WRONG key also counts 2.
 ## Assoc entry guards (#51 ruled from the benchmark)
 
 The public seats check ONCE per call that the spine head and first entry are
-cells -- the two crash shapes the review filed ((Assoc get 'k 42) and
+cells -- the two crash cases the review filed ((Assoc get 'k 42) and
 (Assoc get 'k (pair 1 2))) both segfaulted. The boot walkers stay
 documented-unchecked: a per-step spine guard measured +66% on the walk and
 +7.4% on EVERY method dispatch (the object system routes through assoc-get),

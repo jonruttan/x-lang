@@ -15,7 +15,7 @@ hook survives a collection, which is true of a hook nobody calls, and it passed
 covers: obj/eq? str/byte-ref
 
 A CHARACTER equals the INTEGER of its code, because `eq?` reads slot 0 of both
-operands without asking their kinds. `lib/x/boot/printer.x` rests on it: the
+operands without asking their types. `lib/x/boot/printer.x` rests on it: the
 escape classifier is handed `(str byte-ref s i)` and matches it against 34, 92,
 10, 9 and 13. An engine that type-gates the comparison misses every arm, and
 prints a quote unescaped and a newline as `\x0a`.
@@ -105,7 +105,7 @@ covers: type/make type/make-instance int/+
 
 Generic-operator dispatch (`x_type_op_try`). Every value carries a type label, so
 "is it typed" is not the test — CARRYING A HANDLER is: a type that registers `+`
-receives `(handler a b)` and owns the coercion. An engine without the dispatch
+receives `(handler a b)` and owns the promotion. An engine without the dispatch
 adds the operand words and answers a machine integer, which is how
 `(+ 2.0 2.0)` once answered a float's bit pattern.
 

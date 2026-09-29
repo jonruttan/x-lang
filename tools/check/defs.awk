@@ -20,7 +20,7 @@
 
 # Split the children of a top-level (do ...) body into kids[1..n], tracking
 # strings and #\X char literals so their parens do not count.  Only
-# list-shaped children are collected (an atom cannot define anything).
+# children recognised as lists are collected (an atom cannot define anything).
 function split_children(f, kids,    s, i, n, c, depth, start, cnt, str) {
   s = f
   sub(/^\(do[ \t]*/, "", s)

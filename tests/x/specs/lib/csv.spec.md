@@ -4,7 +4,7 @@
 Tables are rows of field STRINGS -- parse never guesses types. Quoted
 fields carry commas, doubled quotes, and newlines; rows end at LF, CRLF,
 or CR; strict per #61 on malformed quoting and record widths. The
-records tier keys alists by the header row's strings ((Assoc find), the
+records layer keys alists by the header row's strings ((Assoc find), the
 equal?-keyed door).
 
 ## parse
@@ -44,7 +44,7 @@ equal?-keyed door).
 ---
     ("a,b\n" #t)
 
-## the records tier
+## the records layer
 
 ### header-keyed alists in, explicit header order out
 

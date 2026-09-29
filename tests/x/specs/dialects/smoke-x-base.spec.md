@@ -3,7 +3,7 @@
 End-to-end smoke of the tower base entry (#70).  `x-base.x` has no
 `(repl)`, so these forms reach the C read-eval loop -- the path the
 dialect entries do NOT take.  One file per dialect so the boots schedule
-in parallel (#320); the family story is in this directory's README.md.
+in parallel (#320); the story behind these specs is in this directory's README.md.
 
 # @weight 4
 

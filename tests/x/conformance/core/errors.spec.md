@@ -9,7 +9,7 @@ write/display stacks; a lang pushes its own over that. None of it works
 if the engine flattens the two into one string, or delivers a value with
 no type for the stacks to hang off.
 
-That is the whole of the obligation. The engine names no kinds, spells no
+That is the whole of the obligation. The engine names no labels, spells no
 prose, and is not asked to: the codes it raises are its own vocabulary,
 and what they should say in a given language is not its business.
 

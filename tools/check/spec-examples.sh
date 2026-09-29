@@ -21,7 +21,7 @@
 #
 # Environment:
 #   DOC          source document (default docs/spec.md)
-#   SECTION      heading prefix that opens a spec group (default '## ').
+#   SECTION      heading prefix that opens a spec section (default '## ').
 #                primitives.md needs '### ': its `##` headings are the three
 #                parts it is filed into, so grouping at level 2 emits three
 #                enormous files and re-creates the batching failure the

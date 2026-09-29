@@ -15,7 +15,7 @@
 ; tools/check/base-routes.sh derives the route names from the library's own
 ; call sites, because the caller is in this tree.  A lang's call sites are not
 ; in this tree, so there is nothing here to derive from.  This is the other
-; shape the repo uses: a closed vocabulary the language owns, like
+; approach the repo uses: a closed vocabulary the language owns, like
 ; tools/contract/features.x, held against reality by a gate.
 ;
 ; Format (one form per line, closed vocabulary -- an unknown form is an error):
@@ -65,8 +65,8 @@
 ; eval! is how a lang implements define, which its docstring ("evaluate in
 ; current environment") does not convey.  A lang's define is an operative that
 ; must bind in the caller's world, and plain `eval` manages that only when the
-; call sits in tail position, so TCO has popped the frame -- an accident of
-; shape that breaks under one extra frame (x-lang#527).  eval! does no env
+; call sits in tail position, so TCO has popped the frame -- an accident that
+; breaks under one extra frame (x-lang#527).  eval! does no env
 ; save/restore, so the binding persists regardless.  x-krn's suite turns on it:
 ; 59 of 72 specs fail without it, 0 with.
 (seam always eval!          "evaluate without env save/restore -- how a lang's define binds in its caller")

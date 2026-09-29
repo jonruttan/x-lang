@@ -260,7 +260,7 @@ bindings and the tables would be decoration.
 CONTINUATION for the evaluator to resolve in tail position
 (`lib/x/boot/operatives.x` binds `do` to it). Asked for a value directly it
 answers neither its first argument, its last, nor nil. Defining it in
-isolation would mean pinning the shape of an internal handoff rather than a
+isolation would mean pinning the internal handoff's details rather than a
 behaviour a library can rely on; what IS observable is do-body sequencing, and
 that is `operatives.x`'s contract, covered by the library's own suite.
 

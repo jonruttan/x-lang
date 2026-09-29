@@ -4,7 +4,7 @@
 
 `(adr Xd (label L))` sets Xd to the address of the label L, worked out from
 where the instruction is: ARM64 encodes it as ADR, which reaches a label
-within a megabyte either way, and x86-64 as LEA from RIP.  Untagged on
+within a megabyte either way, and x86-64 as LEA from RIP.  Unlabelled on
 purpose: both backends take the same mnemonic, so this file runs on every
 host.
 

@@ -1,7 +1,7 @@
 # Ansi: terminal color + the REPL/help renderers
 # @weight 1
 
-## help renders the quote family as sugar
+## help renders the quote forms as sugar
 
 ### %code-sugar folds the reader expansions back to their shorthand
 

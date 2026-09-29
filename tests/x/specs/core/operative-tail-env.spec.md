@@ -78,7 +78,7 @@ if that fix is reverted, independent of how `#"..."` is parsed.
 ---
     9
 
-### a token-read-string operative (the fmt.x class) in if-tail likewise
+### a token-read-string operative (fmt.x has the same pattern) in if-tail likewise
 
 ```x
 (do
