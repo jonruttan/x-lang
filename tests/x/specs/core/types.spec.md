@@ -57,20 +57,20 @@
 ---
     (1 . 2)
 
-### a kind mask packs two bits per unit, unit 0 lowest
+### a unit-label mask packs two bits per unit, unit 0 lowest
 
 ```x
-(list (Type %kind-mask '(ref)) (Type %kind-mask '(word))
-      (Type %kind-mask '(bytes)) (Type %kind-mask '(foreign))
-      (Type %kind-mask '(word ref)))
+(list (Type %unit-label-mask '(ref)) (Type %unit-label-mask '(word))
+      (Type %unit-label-mask '(bytes)) (Type %unit-label-mask '(foreign))
+      (Type %unit-label-mask '(word ref)))
 ```
 ---
     (0 1 2 3 1)
 
-### an unknown kind is refused
+### an unknown label is refused
 
 ```x
-(guard (e 'refused) (Type %kind-mask '(banana)))
+(guard (e 'refused) (Type %unit-label-mask '(banana)))
 ```
 ---
     'refused

@@ -298,7 +298,7 @@ so the pushed handler shows through the list writer.
 one **is**, installing the pair form of the slot -- `(count . mask)`, two bits
 per unit, unit 0 lowest: `REF` 0, `WORD` 1, `BYTES` 2, `FOREIGN` 3.
 
-The kind decides who may touch the unit. Only a `REF` holds a heap object
+The label decides who may touch the unit. Only a `REF` holds a heap object
 pointer, and only a `REF` may be handed to the collector's mark walk -- which
 sets a mark bit *through* the pointer before it can establish that the pointer
 is a heap object. Tracing a `WORD` therefore writes through whatever that
