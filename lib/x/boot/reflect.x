@@ -160,15 +160,15 @@
 ; through the labels this module recomputes, so this module's thunk runs first.
 ; The walk RECURSES FIRST and calls on the way out, which is what puts the
 ; oldest hook first over a newest-first list -- asm-compile.x's walk over
-; %jit-rows has the same shape for the same reason, and it needs no reversal
+; %jit-rows has the same pattern for the same reason, and it needs no reversal
 ; to get there.
 ;  IT IS ALSO THE ONLY SPELLING A DIALECT CANNOT MISREAD.  A `do` whose FIRST
 ; OPERAND IS A LIST OF PAIRS is indistinguishable from R5RS iteration, and
 ; `(do ((first l)) (self (rest l)))` -- the spelling that stood here -- is
 ; exactly that: one binding list `(first l)`, then a (test . results) pair.
 ; A dialect that shadows `do` to serve both meanings has to dispatch on
-; shape, reads this as a loop, and calls NO HOOK AT ALL.  x-r5rs does exactly
-; that (scm/derived.scm dispatches on shape and says so, believing no such
+; structure, reads this as a loop, and calls NO HOOK AT ALL.  x-r5rs does exactly
+; that (scm/derived.scm dispatches on structure and says so, believing no such
 ; form existed here), and the silence is total: no raise, no hook, every
 ; transient left nil, and the first thing to fail is a float parsed through a
 ; dlsym handle the load never remade -- thousands of forms from the cause.

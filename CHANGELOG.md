@@ -218,6 +218,17 @@ names a class. No alias is kept, and no bundle uses the old name.
 
 [#862]: https://github.com/jonruttan/x-lang/pull/862
 
+**The library's private names and comments take the glossary's words**
+([#866]). Names that said kind or tag for the value that says which variant
+something is say label, `%apply-label`, `%field-label` and `%asm-cache-label-`
+among them, and a type's named leaves are fields, as in `%type-proc-fields`.
+Two instance fields follow: `Random`'s `kind` and `Indent`'s `mode` are
+`label`. Two raised messages read `Float: no such stub label` and
+`x86_64: unsupported 3-address arrangement (dst==src2)`. No alias is kept,
+and no bundle uses any of them.
+
+[#866]: https://github.com/jonruttan/x-lang/pull/866
+
 **The linter's depth warning is named `depth`** ([#864]). A definition at
 least 12 deep and 500 nodes large was reported as `shape`; a lint run now
 prints `depth:` for it. The lang kit's `--strict` matches the new name, so a
@@ -872,7 +883,7 @@ parameters and body are nil and whose environment slot holds `c`, and the
 engine's `apply` bound it like a closure with nothing to run. The library's
 `apply` now reads the wrap flag and applies `c` to the values, as the direct
 call `((wrap c) ...)` hands `c` the values it evaluated, and a call handler
-that is a wrapped combiner is applied the same way. One call, `%apply-kind`,
+that is a wrapped combiner is applied the same way. One call, `%apply-label` (released as `%apply-kind`),
 now tells the door what it was handed, with type tests and a flag read
 fetched into its own closure, in place of `procedure?` and `operative?`.
 

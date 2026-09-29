@@ -67,14 +67,14 @@
 ; bytes sitting in the cache.  So the slurp reads in rounds now and an entry
 ; is whatever size it is; this number only decides how many rounds.
 (def %asm-cache-slurp-chunk 65536)
-; Kinds, as they sit in the file.  A trampoline's name is the dlsym SYMBOL, an
+; Labels, as they sit in the file.  A trampoline's name is the dlsym SYMBOL, an
 ; fvar's is the free variable's symbol, and a self-cell has no name -- there is
 ; one per compile and the loader mints its own.
-(def %asm-cache-kind-trampoline 0)
-(def %asm-cache-kind-fvar 1)
-(def %asm-cache-kind-self 2)
+(def %asm-cache-label-trampoline 0)
+(def %asm-cache-label-fvar 1)
+(def %asm-cache-label-self 2)
 ; The fixed part: magic, code size, record count, blob offset, then eight
-; bytes per record (site offset, kind).  Every name, and then the key text,
+; bytes per record (site offset, label).  Every name, and then the key text,
 ; follows NUL-terminated in the blob, in record order.
 (def %asm-cache-head-bytes 16)
 (def %asm-cache-rec-bytes 8)
@@ -133,7 +133,7 @@
   (Str append x-machine x-release x-lib-version "g2"))
 
 ; The emitted code is not a function of the source alone, so the fvar table's
-; SHAPE is part of the key.  Inside analyser mode a name absent from the table
+; ARRANGEMENT is part of the key.  Inside analyser mode a name absent from the table
 ; is read as a PARAMETER, while a name present-but-nil is emitted as a literal
 ; zero with no relocation at all -- two different bodies for one source text.
 ; Names and nil-ness, then; the VALUES are per-process, and re-resolving those
@@ -244,10 +244,10 @@
   (fn (_ fd s) (%asm-cache-put fd s (+ (%asm-cache-byte-len s) 1))))
 
 ; --- store ------------------------------------------------------------------
-(def %asm-cache-kind-int
+(def %asm-cache-label-int
   (fn (_ k)
-    (if (eq? k 'trampoline) %asm-cache-kind-trampoline
-      (if (eq? k 'fvar) %asm-cache-kind-fvar %asm-cache-kind-self))))
+    (if (eq? k 'trampoline) %asm-cache-label-trampoline
+      (if (eq? k 'fvar) %asm-cache-label-fvar %asm-cache-label-self))))
 
 ; asm.x records a trampoline's name as a dlsym string and an fvar's as the
 ; free variable's SYMBOL; a self-cell has none.  The file carries all three as
@@ -270,7 +270,7 @@
          (do (def at (+ %asm-cache-head-bytes (* %asm-cache-rec-bytes i)))
              (%asm-cache-ptr-set! hb at (first (first rs)) 4)
              (%asm-cache-ptr-set! hb (+ at 4)
-               (%asm-cache-kind-int (first (rest (first rs)))) 4)
+               (%asm-cache-label-int (first (rest (first rs)))) 4)
              (self (rest rs) (+ i 1)))))
       relocs 0)
     (pair hb bytes)))
@@ -407,7 +407,7 @@
 
 ; Walk the fixed-stride records and the blob together: two ptr-refs and one
 ; ptr->str per record, no loop over bytes anywhere.  Answers
-; (records . key-text), records as (offset kind name) oldest first.
+; (records . key-text), records as (offset label name) oldest first.
 (def %asm-cache-parse
   (fn (_ buf nrel blob end)
     (def r
@@ -452,12 +452,12 @@
 ; The address a record names, in THIS process.  () means unresolvable, which
 ; makes the whole load a miss.
 (def %asm-cache-value
-  (fn (_ kind nm table cell)
+  (fn (_ label nm table cell)
     (match
-      ((= kind %asm-cache-kind-trampoline)
+      ((= label %asm-cache-label-trampoline)
         (do (def p (%asm-cache-dlsym %asm-cache-lib nm))
             (if (null? p) () (%asm-cache-ptr->int p))))
-      ((= kind %asm-cache-kind-fvar)
+      ((= label %asm-cache-label-fvar)
         (do (def hit (%asm-cache-fvar nm table))
             (if (null? hit) () (%asm-cache-ptr->int (%asm-cache-obj->ptr (rest hit))))))
       ((null? cell) ())
@@ -513,7 +513,7 @@
         ; The key text is stored whole and compared whole.  The filename is a
         ; 64-bit hash, and a hash is an invitation to collide; this is what
         ; makes a collision cost a recompile instead of handing back a
-        ; function compiled from different source, for a different fvar shape,
+        ; function compiled from different source, for a different fvar arrangement,
         ; or by a different engine -- the exact failure #590 was.
         (if (null? pr) ()
           (if (not (str=? text (rest pr))) ()
@@ -561,15 +561,15 @@
                 (%asm-cache-publish! recs size code)
                 (%asm-cache-make-callable code)))))))))
 
-; Records in the shape asm.x hands them out -- kind as a SYMBOL, a self-cell's
+; Records in the layout asm.x hands them out -- label as a SYMBOL, a self-cell's
 ; name as nil, an fvar's as a symbol -- so that %asm-last-relocs says the same
-; thing after a load as after a compile.  The file carries kinds as small
+; thing after a load as after a compile.  The file carries labels as small
 ; integers because the relocation loop compares them once per site; this runs
-; once per load, at the seam where the two shapes meet.
-(def %asm-cache-kind-sym
+; once per load, at the seam where the two layouts meet.
+(def %asm-cache-label-sym
   (fn (_ k)
-    (if (= k %asm-cache-kind-trampoline) 'trampoline
-      (if (= k %asm-cache-kind-fvar) 'fvar 'self-cell))))
+    (if (= k %asm-cache-label-trampoline) 'trampoline
+      (if (= k %asm-cache-label-fvar) 'fvar 'self-cell))))
 
 (def %asm-cache-publish!
   (fn (_ recs size code)
@@ -583,9 +583,9 @@
                (def k (first (rest r)))
                (def nm (first (rest (rest r))))
                (self (rest rs)
-                 (pair (list (first r) (%asm-cache-kind-sym k)
-                         (if (= k %asm-cache-kind-self) ()
-                           (if (= k %asm-cache-kind-fvar) (%asm-cache-str->sym nm) nm)))
+                 (pair (list (first r) (%asm-cache-label-sym k)
+                         (if (= k %asm-cache-label-self) ()
+                           (if (= k %asm-cache-label-fvar) (%asm-cache-str->sym nm) nm)))
                    acc)))))
           recs ())
         ()))))

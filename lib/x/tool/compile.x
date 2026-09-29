@@ -349,8 +349,8 @@
 ; argument is the fvar table.  The original stub took only `expr`, so the
 ; FIRST compile-asm call in any fresh process silently dropped its fvars and
 ; raised "asm-compile: unbound: <fvar>" -- while the second call, dispatching
-; to the real definition, worked.  A first-call-only failure is the worst
-; kind to chase (every REPL retry "fixes" it); found while reconstructing the
+; to the real definition, worked.  A first-call-only failure is the hardest
+; to chase (every REPL retry "fixes" it); found while reconstructing the
 ; x-lang#573 second-accept repro, whose first line died here instead.
 (def compile-asm
   (fn (_ expr . %asm-rest)

@@ -2,8 +2,8 @@
 ;
 ; A record IS a class (instances are plain objects): no new runtime type,
 ; because make-type registrations prepend to the reader-priority type alist
-; -- a per-record tokenization tax -- and a parallel instance kind would
-; fork every downstream facility (write, iter, equal?, help) that already
+; -- a per-record tokenization tax -- and a parallel instance runtime type
+; would fork every downstream facility (write, iter, equal?, help) that already
 ; understands objects. def-record is sugar over def-class plus the two
 ; methods a data carrier wants:
 ;

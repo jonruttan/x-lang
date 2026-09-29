@@ -1,6 +1,6 @@
 ; type/io.x -- Io: the input/output surface.
 ;
-; THE I/O TIERS (#365) -- four classes, four jobs:
+; THE I/O PROFILES (#365) -- four classes, four jobs:
 ;   Io     (this file)      the VERBS on the current channels: write/
 ;                           display (also bare), read/read-char, the
 ;                           to-str captures, error-line/file, repl-read.
@@ -8,7 +8,7 @@
 ;                           to an fd or file (to-fd/to-file/with-...).
 ;   File   (x/sys/file)     the FILESYSTEM: descriptors and raw ops
 ;                           (open/read/write/seek), plus the ergonomic
-;                           whole-file tier (read-all/stat/walk/...).
+;                           whole-file profile (read-all/stat/walk/...).
 ;   Buf    (x/type/buf)     the READER's side: the tokenizer's non-owning
 ;                           buffer view and the Tok token stream -- input
 ;                           machinery, not general I/O.

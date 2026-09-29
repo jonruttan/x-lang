@@ -1,5 +1,5 @@
 ; type/buf.x -- Buf + Tok: the tokenizer buffer and token-stream API.
-; One of the four I/O tiers -- Io holds the verbs, Stream redirects
+; One of the four I/O profiles -- Io holds the verbs, Stream redirects
 ; output, File is the filesystem, Buf is the reader's side; the full
 ; statement lives in x/type/io.x's header (#365).
 ;

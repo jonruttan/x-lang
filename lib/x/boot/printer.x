@@ -173,7 +173,7 @@
       (#t #f))))
 
 ; --- walkers: proper/dotted lists and structural pairs ---
-; C shape: "(" elem { " " elem } [ " . " tail ] ")", nil elements as "()".
+; C grammar: "(" elem { " " elem } [ " . " tail ] ")", nil elements as "()".
 (def %print-seq-loop
   (fn (self o render tail?)
     (do
@@ -540,7 +540,7 @@
               ())
             ((first cell) s)))))
     (pair () ()))))
-; The bare verbs: write is unary; display is variadic (the shape the old
+; The bare verbs: write is unary; display is variadic (the calling convention the old
 ; string.x shim over the retired C prim established).
 ; The bare verbs are OPS, not fns: the repl's print seat calls them between
 ; a form's eval and the next form's READ, and an X fn there (save-stack push

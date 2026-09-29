@@ -78,8 +78,8 @@
 ;
 ; A formatter emits SOURCE, not the REPL echo: `write` (post-R1) renders
 ; symbols re-readably as 'x, which would corrupt formatted code
-; ((doc ...) must not become ('doc ...)). Symbols display bare; the
-; quote family folds to its reader sugar; strings/chars keep write's
+; ((doc ...) must not become ('doc ...)). Symbols display bare;
+; quote and quasiquote fold to their reader sugar; strings/chars keep write's
 ; escaping.
 
 ; Sugar folding is PER-FILE state (#307): a boot-constrained file's
@@ -115,7 +115,7 @@
       ; A ('%interp "...") token is a #"..." literal the reader kept as its
       ; own source text (Xon arm-source!): print the text, never the marker.
       ; It IS a pair, so this clause must precede the list printer -- which
-      ; would otherwise emit the raw marker, the #39 symptom in the shape
+      ; would otherwise emit the raw marker, the #39 symptom in the pattern
       ; comments already guard against.
       ((if (pair? form) (eq? (first form) (lit %interp)) #f)
         (display (first (rest form))))
@@ -292,7 +292,7 @@
         (returns ANY "nil (output via display)"))
       (%fmt-tokens tokens table))
 
-    (method fold-sugar! (self (param on BOOL "Fold quote-family forms to reader sugar?"))
+    (method fold-sugar! (self (param on BOOL "Fold lit/quasi/unquote forms to reader sugar?"))
       (doc "Set whether (lit x) / (quasi x) / (unquote x) fold to ' ` , sugar in output. ON is the docs/syntax.md ruling for post-boot code; a driver formatting a BOOT-CONSTRAINED file (its text loads before the quote reader arms) must turn it OFF or the output cannot boot (#307)."
         (returns ANY "nil"))
       (%set-first! %fmt-fold-sugar on))))

@@ -137,7 +137,7 @@
 ; binding expects.  The default is wrapped in a (fn () ...) thunk so %opt-get-or-else
 ; evaluates it only when the option is absent -- a present option never runs its
 ; default expression.  %opt-get-form builds that lazy lookup form; %opt-binding
-; dispatches on spec shape:
+; dispatches on spec structure:
 ;   symbol         -> default (), key = name
 ;   (name default) -> key = name
 ;   (name key def) -> explicit lookup key, distinct from the bound name

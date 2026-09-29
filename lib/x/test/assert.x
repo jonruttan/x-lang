@@ -5,9 +5,9 @@
 ; (import x/test/assert) and get the same error-path coverage idiom.
 ;
 ; Why these exist: "this expression must raise" is otherwise hand-rolled as
-; (guard (e <sentinel>) expr) at every site -- and the SILENT-FAILURE class
-; (a form that should raise but returns nil, reading as a pass under a naive
-; value check) stays invisible. throws? reports it (#f), raised exposes the
+; (guard (e <sentinel>) expr) at every site -- and this silent failure
+; -- a form that should raise but returns nil, reading as a pass under a
+; naive value check -- stays invisible. throws? reports it (#f), raised exposes the
 ; error's content for assertion.
 ;
 ; Thunks follow the self-passing convention: pass (fn (_) EXPR); the helper

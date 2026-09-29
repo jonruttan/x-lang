@@ -569,7 +569,7 @@
 ; cross-engine fuzzer as a divergence (the C answer moves with ASLR, the
 ; rust answer sits on the pinned arena).  The folds ask %big-mixed-check
 ; first: exactly that pair raises the lattice's teaching error at the
-; operator door.  Every other shape keeps the raw path -- same-type,
+; operator door.  Every other pattern keeps the raw path -- same-type,
 ; declared, and single-handler pairs are op dispatch's to run, and the
 ; raw nil raise stays the error the specs pin.  The from/ops alists are
 ; read through the type catalog: one lattice, one authority (the same
@@ -612,7 +612,7 @@
                 (#t ())))))))))
 
 ; The per-pair binaries, NAMED so the 2-arg fast path below calls them
-; directly -- (op a b) is the overwhelming shape and the fold entry
+; directly -- (op a b) is the overwhelming pattern and the fold entry
 ; costs ~1,100 objects per call (the measured allocation disease).
 (def %big-add2
   (fn (_ acc x)
@@ -837,7 +837,7 @@
 ; --- Type ops: the generic operators dispatch here for bigint operands ---
 ; Handlers receive raw operands; the non-bigint side is always an int (a wider
 ; type would have absorbed the bigint via its from-declaration), so ensure-big
-; covers the coercion.
+; covers the promotion.
 
 (def bigint-type (%type-by-atom bigint))
 (%type-push-op bigint-type '+ (fn (_ a b) (big-add (ensure-big a) (ensure-big b))))
@@ -862,25 +862,25 @@
         (returns BOOL "True if x is a bigint"))
       (bigint? x))
     (method + (self (param a INTEGER|BIGINT "First operand") (param b INTEGER|BIGINT "Second operand"))
-      (doc "Add two bigints (ints coerce)." (returns INTEGER|BIGINT "Sum, demoted to integer if it fits"))
+      (doc "Add two bigints (ints promote)." (returns INTEGER|BIGINT "Sum, demoted to integer if it fits"))
       (big-add (ensure-big a) (ensure-big b)))
     (method - (self (param a INTEGER|BIGINT "First operand") (param b INTEGER|BIGINT "Second operand"))
-      (doc "Subtract two bigints (ints coerce)." (returns INTEGER|BIGINT "Difference, demoted to integer if it fits"))
+      (doc "Subtract two bigints (ints promote)." (returns INTEGER|BIGINT "Difference, demoted to integer if it fits"))
       (big-sub (ensure-big a) (ensure-big b)))
     (method * (self (param a INTEGER|BIGINT "First operand") (param b INTEGER|BIGINT "Second operand"))
-      (doc "Multiply two bigints (ints coerce)." (returns INTEGER|BIGINT "Product, demoted to integer if it fits"))
+      (doc "Multiply two bigints (ints promote)." (returns INTEGER|BIGINT "Product, demoted to integer if it fits"))
       (big-mul (ensure-big a) (ensure-big b)))
     (method / (self (param a INTEGER|BIGINT "Dividend") (param b INTEGER|BIGINT "Divisor"))
-      (doc "Divide two bigints (truncating; ints coerce)." (returns INTEGER|BIGINT "Quotient, demoted to integer if it fits"))
+      (doc "Divide two bigints (truncating; ints promote)." (returns INTEGER|BIGINT "Quotient, demoted to integer if it fits"))
       (big-div (ensure-big a) (ensure-big b)))
     (method % (self (param a INTEGER|BIGINT "Dividend") (param b INTEGER|BIGINT "Divisor"))
-      (doc "Remainder of bigint division (ints coerce)." (returns INTEGER|BIGINT "Remainder, demoted to integer if it fits"))
+      (doc "Remainder of bigint division (ints promote)." (returns INTEGER|BIGINT "Remainder, demoted to integer if it fits"))
       (big-mod (ensure-big a) (ensure-big b)))
     (method < (self (param a INTEGER|BIGINT "Left operand") (param b INTEGER|BIGINT "Right operand"))
-      (doc "Test whether a is less than b (ints coerce)." (returns BOOL "True if a < b"))
+      (doc "Test whether a is less than b (ints promote)." (returns BOOL "True if a < b"))
       (big-lt (ensure-big a) (ensure-big b)))
     (method = (self (param a INTEGER|BIGINT "Left operand") (param b INTEGER|BIGINT "Right operand"))
-      (doc "Test whether a equals b (ints coerce)." (returns BOOL "True if a equals b"))
+      (doc "Test whether a equals b (ints promote)." (returns BOOL "True if a equals b"))
       (big-eq (ensure-big a) (ensure-big b)))
     (method would-overflow-add? (self (param a INTEGER "First operand") (param b INTEGER "Second operand"))
       (doc "Test whether addition of two native integers would overflow."

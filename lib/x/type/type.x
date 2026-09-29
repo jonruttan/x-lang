@@ -52,7 +52,7 @@
     ; here as %-statics per the percent-globals budget -- classes ARE
     ; namespaces).  Contract rows (engine/tools/contract/base-paths.x) are
     ; (name root step...).  Cell resolution REFUSES a name whose root
-    ; walks a different shape: a type-rooted name stepped from a base (or
+    ; walks a different pattern: a type-rooted name stepped from a base (or
     ; vice versa) addresses arbitrary spine words, and a consumer
     ; mutating "its cell" would overwrite live interpreter state.
     (method %layout-entry (self fname paths)

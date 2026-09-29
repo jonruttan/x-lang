@@ -62,7 +62,7 @@
     (%fold (fn (_ acc _) (+ acc 1)) 0 lst)))
   "Boot-layer length; the public face is (List length).")
 
-; Reverse-prepend: the tail-shape list builder (one trampolined self-call
+; Reverse-prepend: the tail-recursive list builder (one trampolined self-call
 ; per element, no C frame growth).  Every walker below that used to grow
 ; the C stack -- one eval frame group per element, a segfault at ~16K
 ; elements -- now accumulates through this and reverses once (#333).
@@ -109,7 +109,7 @@
 
 ; Multi-list loop, inputs already normalized (the old recursion went
 ; back through the public entry, re-as-listing every tail per step).
-; Tail-shape accumulate, like %map1-go.
+; Tail-recursive accumulate, like %map1-go.
 (def %mapn-go
   (fn (self f lsts acc)
     (if (%any-null? lsts)

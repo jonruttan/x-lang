@@ -4,7 +4,7 @@
 ; bit ops (& | ^ ~ << >> are int-only, tower-untouched); additions go
 ; through the cached int '+ prim and mask to 32 bits, so the digest is
 ; tower-proof (ambient + becomes the tower dispatcher once x/num loads
-; -- the TOWER-DIVISION trap class; there is no division here at all,
+; -- the TOWER-DIVISION trap; there is no division here at all,
 ; block math rides shifts).  Deliberately x-lang and slower than C:
 ; this is tooling, and NO NEW C is the rule.
 ;
@@ -213,7 +213,7 @@
       (#t (Str8 append (%sha-hex8 (first hs)) (self (rest hs)))))))
 
 ; The pure-x digest as a function: bytes -> the eight H words.  Both
-; paths end here shape-wise -- the compiled engine returns the same
+; paths end here equivalently -- the compiled engine returns the same
 ; 8-word list -- so the hex formatting is shared and the engine is a
 ; drop-in for exactly this function.
 ; The optional LENGTH is what makes this usable on binary.  Str8 length has
@@ -270,7 +270,7 @@
 ; jit!) builds explicitly; hex builds on its own when the input in hand
 ; is %sha-jit-threshold bytes or more, and never otherwise.  The rule
 ; was once CUMULATIVE -- build once 64KB had been digested in total --
-; and that shape paid the build for the wrong input: a lockfile of two
+; and that design paid the build for the wrong input: a lockfile of two
 ; files, 16KB then 2KB, digested the first pure-x (just under the bar)
 ; and then built the whole engine to digest the second (over it), 12s
 ; where pure-x alone was 10.  A total says nothing about what is left

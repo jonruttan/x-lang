@@ -56,13 +56,13 @@
       (#t (self (rest ps) acc)))))
 
 (def %doc-extract-meta-type
-  (fn (self forms tag acc)
+  (fn (self forms label acc)
     (if (null? forms) (%reverse acc)
       (if (pair? (first forms))
-        (if (%doc-sym-is? (first (first forms)) tag)
-          (self (rest forms) tag (pair (first forms) acc))
-          (self (rest forms) tag acc))
-        (self (rest forms) tag acc)))))
+        (if (%doc-sym-is? (first (first forms)) label)
+          (self (rest forms) label (pair (first forms) acc))
+          (self (rest forms) label acc))
+        (self (rest forms) label acc)))))
 
 ; --- Main doc form extraction ---
 
@@ -136,7 +136,7 @@
   "Emit a single entry's documentation through an emitter.")
 
 ; One field declaration -> heading, optional description, the field note and
-; its visibility tier.  Shared by the (doc DECL "...") arm and the bare-field
+; its visibility.  Shared by the (doc DECL "...") arm and the bare-field
 ; arm, which differ only in where the description sits.  static? picks the
 ; note: a field is data each instance carries, and a static field, one
 ; declared in (static ...), is data the class holds.
@@ -242,13 +242,13 @@
       ((%doc-param-form? (first ps)) (self (rest ps) (pair (first ps) acc)))
       (#t (self (rest ps) acc)))))
 
-; Emit one (method ...) form as a doc entry.  static? picks the heading shape:
+; Emit one (method ...) form as a doc entry.  static? picks the heading pattern:
 ; (Class m a b) for statics, (m a b) + an instance note for instance methods.
 ; vis is "" for an undeclared (public) entry, or "private"/"protected" when
 ; the entry came out of a visibility block.  Documented, not hidden: (help ...)
 ; lists private fields too, and a reader needs to know a name exists before
 ; they can be told they may not call it.
-; The tier, in the words docs/object-system.md uses for it: private is this
+; Visibility, in the words docs/object-system.md uses for it: private is this
 ; class's own methods, protected is any method on the chain in either
 ; direction.
 (def %doc-vis-note
@@ -396,7 +396,7 @@
                 ; -- the head is the FIELD'S OWN NAME, so class-body heads
                 ; are an open set no list can enumerate, and an arm that
                 ; dropped them dropped every field in the library: Ansi's
-                ; colours, Random's kind/state/fd, all of it, while the page
+                ; colours, Random's label/state/fd, all of it, while the page
                 ; still looked finished.
                 ;
                 ; Treating the unknown as a field also converts the old

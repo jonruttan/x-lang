@@ -22,7 +22,7 @@
     (example "(let ((b (Base make))) (b eval '(+ 1 2)))" "3"))
   (doc raw "The raw C base object this instance wraps -- what the C prims and tokenizer doors consume. Read it to hand the base to raw plumbing; (Base wrap r) re-clothes one.")
   (method eval (self (param expr ANY "The form to evaluate (quote it -- it is a value here)"))
-    (doc "Evaluate expr inside this base, isolated from the outer env. An error raised inside propagates to the caller's guard; the base's env is restored to its pre-eval shape on the way out."
+    (doc "Evaluate expr inside this base, isolated from the outer env. An error raised inside propagates to the caller's guard; the base's env is restored to its pre-eval structure on the way out."
       (returns ANY "The result of the evaluation")
       (example "(let ((b (Base make))) (b eval '(+ 1 2)))" "3"))
     ((prim-ref (lit base) (lit eval)) (self raw) expr))
@@ -38,7 +38,7 @@
       (returns ANY "The type handle, for use inside this base"))
     ((prim-ref (lit base) (lit make-type)) (self raw) name h))
   (method cell (self (param fname SYMBOL "A base field name -- see (Base fields)"))
-    (doc "The object the layout contract's path addresses for fname, walked from this base. A cell-kind field's value sits in the cell's first slot; refuses non-base-rooted names."
+    (doc "The object the layout contract's path addresses for fname, walked from this base. A cell-label field's value sits in the cell's first slot; refuses non-base-rooted names."
       (returns ANY "The addressed cell/object")
       (note "What it hands back is raw engine structure. Some of it is a C-built spine -- the type-alist field is one -- whose nodes answer #f to pair?; walk those with the bare first/rest/null? accessors, never the List or Iter walkers, which refuse them.")
       (example "(let ((b (Base make))) (%cell-int (first (b cell 'line))))" "1"))
@@ -76,7 +76,7 @@
       (if (Base base? v) (v raw) v))
     (method eval (self (param target ANY "The base to evaluate in (instance or raw)")
                        (param expr ANY "The form to evaluate (quote it -- it is a value here)"))
-      (doc "Evaluate expr inside target, isolated from the outer env. An error raised in target propagates to the caller's guard; target's env is restored to its pre-eval shape on the way out."
+      (doc "Evaluate expr inside target, isolated from the outer env. An error raised in target propagates to the caller's guard; target's env is restored to its pre-eval structure on the way out."
         (returns ANY "The result of evaluating expr in target")
         (example "(let ((b (Base make))) (Base eval b '(+ 1 2)))" "3"))
       ((prim-ref (lit base) (lit eval)) (Base raw-of target) expr))

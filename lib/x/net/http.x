@@ -13,13 +13,13 @@
 ; through (Socket resolve) at request time; the Host header carries the
 ; NAME (virtual hosting), the connect takes the quad.
 ;
-; net/ is the network-PROTOCOL tier: message shapes over sys/socket's
-; transport, the way codec/ is data shapes over strings and bytes.
+; net/ is the network-PROTOCOL profile: it carries messages over sys/socket's
+; transport, the way codec/ carries data over strings and bytes.
 ;
 ; Bodies ride BYTE LISTS (the lossless carrier: recv's string door
 ; truncates at NUL; this client reads through Socket recv-bytes) --
 ; (bytes->str body) for textual responses. Request bodies are strings
-; (text protocols; NUL-free by the string tier's nature).
+; (text protocols; NUL-free by the string profile's nature).
 ;
 ; Zero top-level %-globals (new-file budget 0).
 
@@ -136,7 +136,7 @@
         (Err raise (lit value) (Str8 append "Http: bad response: " what) ())))
       ; split head/body at the first CRLFCRLF; the look-ahead rides a
       ; helper (a hand-inlined six-if chain cost a paren-slip that
-      ; mis-tiered every later method -- structure over cleverness)
+      ; placed every later method at the wrong layer -- structure over cleverness)
       (def %crlf2?
         (fn (_ l)
           (let ((b? (fn (_ l v) (if (pair? l) (= (first l) v) #f))))
@@ -193,7 +193,7 @@
 
     (method %quad? (self (param host STRING "Host text"))
       (doc "Is this a dotted quad already (digits and dots only)? Names go through (Socket resolve)."
-        (returns BOOL "#t for quad-shaped text"))
+        (returns BOOL "#t for dotted-quad text"))
       (def %blen (prim-ref (lit str) (lit byte-len)))
       (def %bref (prim-ref (lit str) (lit byte-ref)))
       (def %c->i (prim-ref (lit char) (lit ->int)))
@@ -414,5 +414,5 @@
       (Http request "HEAD" url (if (null? headers) () (first headers)) ()))))
 
 (doc (provide x/net/http Http)
-  (note "http/1.1 over Socket -- and https over Tls (#412), verification on, names resolved via (Socket resolve) with the Host header keeping the name. Connection: close; chunked + Content-Length framing decoded; bodies are byte lists (bytes->str for text); redirects auto-follow (cap 10; (redirects . 0) opts out; 303->GET, 301/302 POST->GET, 307/308 preserve). Verbs: get/post/put/patch/delete/head; url-encode/with-query build query strings; (Http basic-auth u p) / (Http bearer-auth tok) are the Authorization pairs (stripped on cross-host redirects). net/ = protocol shapes over sys/socket transport.")
+  (note "http/1.1 over Socket -- and https over Tls (#412), verification on, names resolved via (Socket resolve) with the Host header keeping the name. Connection: close; chunked + Content-Length framing decoded; bodies are byte lists (bytes->str for text); redirects auto-follow (cap 10; (redirects . 0) opts out; 303->GET, 301/302 POST->GET, 307/308 preserve). Verbs: get/post/put/patch/delete/head; url-encode/with-query build query strings; (Http basic-auth u p) / (Http bearer-auth tok) are the Authorization pairs (stripped on cross-host redirects). net/ = messages carried over sys/socket transport.")
   "A plain-http client, homed on the Http class.")

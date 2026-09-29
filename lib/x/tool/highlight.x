@@ -162,7 +162,7 @@
   (do (display "<span class=\"") (display cls) (display "\">")
       (%hl-display-escaped text) (display "</span>"))))
 
-; Each writer WRITES its token and returns where it stopped, the shape
+; Each writer WRITES its token and returns where it stopped, the pattern
 ; x/tool/fmt's printers use.
 ;
 ; MEASURED, twice, and the first answer was wrong. An early draft built one
@@ -228,7 +228,7 @@
 
 ; --- Transcripts -------------------------------------------------------------
 ;
-; Two shapes, both common in the documentation and neither a program: the
+; Two patterns, both common in the documentation and neither a program: the
 ; tutorial's REPL sessions ("> expr" and the value on the next line) and the
 ; generated reference's "(expr) => result" from (example ...) forms.
 
@@ -333,7 +333,7 @@
 
     (method source (self (param text STRING "Source text")
                          (param keywords LIST "Keyword names as strings"))
-      (doc "Write x-lang source as a complete Rouge-shaped code block."
+      (doc "Write x-lang source as a complete Rouge-style code block."
         (returns ANY "nil (output via display)"))
       (do (%hl-open) (%hl-write-source text keywords) (%hl-close)))
 

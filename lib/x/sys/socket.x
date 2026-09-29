@@ -288,7 +288,7 @@
 
     (method udp-connect (self (param host STRING "Dotted-quad IPv4 address")
                               (param port INTEGER "Destination port"))
-      (doc "Create a CONNECTED UDP socket: the peer address is fixed once, and the plain (Socket send)/(Socket recv) pair then works datagram-wise -- the request/reply shape. For unconnected sends use (Socket send-to)."
+      (doc "Create a CONNECTED UDP socket: the peer address is fixed once, and the plain (Socket send)/(Socket recv) pair then works datagram-wise -- the request/reply pattern. For unconnected sends use (Socket send-to)."
         (returns INTEGER "The connected datagram file descriptor")
         (sample "(Socket udp-connect \"127.0.0.1\" 9999)" "a connected fd"))
       (def fd (%sk-fold (%sk-ptr-call %c-socket %AF-INET 2 0)))

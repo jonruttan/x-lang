@@ -2,7 +2,7 @@
 ;
 ; Everything that turns x forms into C text: generator utilities, the
 ; compile-state globals the write handlers read, type-system access,
-; and the per-form emitter families. Loaded by x/tool/compile, whose cc
+; and the per-form emitters. Loaded by x/tool/compile, whose cc
 ; flags and libc resolves the generated C reaches at CALL time. The compile
 ; state lives here and is reached through the accessors this module exports;
 ; x/tool/compile/pipeline and x/tool/compile import them, and so does
@@ -242,7 +242,7 @@
     (%cw-emit (first args))
     (display ")")))
 
-; --- Helpers for emitter families ---
+; --- Helpers for the emitters ---
 
 ; Emit an integer operand: literal numbers inline, else x_atomint(expr)
 (def %cw-int-operand

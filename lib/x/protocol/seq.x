@@ -1,6 +1,6 @@
 ; seq.x -- Seq: the base sequence protocol (cursor-based traversal)
 ;
-; THE ITERATION TIERS (#365) -- three classes, three jobs:
+; THE ITERATION PROFILES (#365) -- three classes, three jobs:
 ;   Seq  (this file)     DEFINE an encoding: subclass with three cursor
 ;                        primitives (start/done?/step) and the derived
 ;                        walk API arrives free -- Str8 and StrUtf8 are
@@ -133,7 +133,7 @@
       ; Reverse-prepend each element's bytes, reverse once (#333): the
       ; per-element %append re-copied the whole accumulated byte list
       ; -- O(n^2) pairs to encode an n-char string (this backs make,
-      ; upcase/downcase, reverse, and the pad family).
+      ; upcase/downcase, reverse, and the pad operations).
       (def %rev-onto (fn (self l acc)
         (match ((null? l) acc) (#t (self (rest l) (pair (first l) acc))))))
       (bytes->str

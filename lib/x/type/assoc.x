@@ -31,7 +31,7 @@
 
 (def-class Assoc ()
   (doc "Persistent association lists: every operation returns a NEW alist, the input untouched."
-    (note "The verb rule (#358): persistent operations carry bare verbs (put/del) because nothing mutates; the mutating twins live on Dict with the bang (set!/del!). Same data shape, opposite update models -- pick by whether callers share the structure.")
+    (note "The verb rule (#358): persistent operations carry bare verbs (put/del) because nothing mutates; the mutating twins live on Dict with the bang (set!/del!). Same underlying representation, opposite update models -- pick by whether callers share the structure.")
     (example "(Assoc get 'b (Assoc put 'b 2 (list (pair 'a 1))))" "2"))
   (static
     ; --- Lookup ---
@@ -102,7 +102,7 @@
       (doc "Remove entries whose keys appear in a given list." (returns LIST "Alist without the excluded keys"))
       (%filter (fn (_ entry) (not (List includes? (first entry) keys))) alist))
     ; --- Conversion ---
-    (method from-bindings (self (param bindings LIST "Bindings list: ((key value) ...) two-element lists, the let shape"))
+    (method from-bindings (self (param bindings LIST "Bindings list: ((key value) ...) two-element lists, as let writes them"))
       (doc "Convert a bindings list into an alist of (key . val) assocs." (returns LIST "Association list"))
       (%map (fn (_ b) (pair (first b) (first (rest b)))) bindings))
     (method ->bindings (self (param alist LIST "Association list"))
