@@ -1,8 +1,8 @@
 ; array.x -- Array: the growable container over a vector backing store.
 ;
-; The VECTOR is the fundamental fixed-size shape (the atom is its 1-slot
+; The VECTOR is the fundamental fixed-size structure (the atom is its 1-slot
 ; case, the pair its 2-slot case); an Array is NOT a vector -- it is a
-; stateful container (Dict/Set tier: instance dispatch) that wraps a backing
+; stateful container (Dict/Set layer: instance dispatch) that wraps a backing
 ; vector, doubling it on overflow, plus a live length. The stdlib itself
 ; wanted this -- random.x's shuffle was O(n^2) "because there is no
 ; vector-set!".

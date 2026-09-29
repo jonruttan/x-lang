@@ -84,19 +84,19 @@
 ; Match a single AST node at position: STATE (pos . caps) or ()
 (def %regex-exec-one
   (fn (_ node str pos end caps)
-    (def tag (first node))
+    (def label (first node))
     (match
-      ((eq? tag 'lit)
+      ((eq? label 'lit)
         (if (if (< pos end) (= (%str-ref str pos) (first (rest node))) #f)
           (pair (+ pos 1) caps) ()))
-      ((eq? tag 'any)
+      ((eq? label 'any)
         (if (< pos end) (pair (+ pos 1) caps) ()))
-      ((eq? tag 'class)
+      ((eq? label 'class)
         (if (< pos end)
           (if (%regex-class-match (rest node) (%str-ref str pos))
             (pair (+ pos 1) caps) ())
           ()))
-      ((eq? tag 'nclass)
+      ((eq? label 'nclass)
         (if (< pos end)
           (if (%regex-class-match (rest node) (%str-ref str pos))
             () (pair (+ pos 1) caps))
@@ -105,7 +105,7 @@
       (#t (%regex-exec (list node) str pos end caps)))))
 
 ; Greedy star: collect all reachable STATES, try rest from farthest first.
-; Tail accumulate (the %map1 shape, 2026-09-01): (pair st (self next))
+; Tail accumulate (the %map1 pattern, 2026-09-01): (pair st (self next))
 ; recursed in argument position -- one C eval frame group per MATCHED
 ; CHARACTER, not per pattern node -- so a* over a ~16K+ input crashed
 ; the C stack.  The accumulator comes out farthest-first, which is the
@@ -203,35 +203,35 @@
     (if (null? nodes) (pair pos caps)
       (let ((node (first nodes))
             (rest-nodes (rest nodes))
-            (tag (first (first nodes))))
+            (label (first (first nodes))))
         (match
-          ((eq? tag 'lit)
+          ((eq? label 'lit)
             (if (if (< pos end) (= (%str-ref str pos) (first (rest node))) #f)
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
-          ((eq? tag 'any)
+          ((eq? label 'any)
             (if (< pos end)
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
-          ((eq? tag 'class)
+          ((eq? label 'class)
             (if (if (< pos end)
                   (%regex-class-match (rest node) (%str-ref str pos)) #f)
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
-          ((eq? tag 'nclass)
+          ((eq? label 'nclass)
             (if (if (< pos end)
                   (not (%regex-class-match (rest node) (%str-ref str pos))) #f)
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
-          ((eq? tag 'star)
+          ((eq? label 'star)
             (%regex-exec-star (first (rest node)) rest-nodes str pos end caps))
-          ((eq? tag 'plus)
+          ((eq? label 'plus)
             (%regex-exec-plus (first (rest node)) rest-nodes str pos end caps))
-          ((eq? tag 'opt)
+          ((eq? label 'opt)
             (%regex-exec-opt (first (rest node)) rest-nodes str pos end caps))
-          ((eq? tag 'lazy-star)
+          ((eq? label 'lazy-star)
             (%regex-exec-lazy-star (first (rest node)) rest-nodes str pos end caps))
-          ((eq? tag 'lazy-plus)
+          ((eq? label 'lazy-plus)
             (%regex-exec-lazy-plus (first (rest node)) rest-nodes str pos end caps))
-          ((eq? tag 'lazy-opt)
+          ((eq? label 'lazy-opt)
             (%regex-exec-lazy-opt (first (rest node)) rest-nodes str pos end caps))
-          ((eq? tag 'repeat)
+          ((eq? label 'repeat)
             (%regex-exec-repeat (first (rest node))
               (first (rest (rest node)))
               (first (rest (rest (rest node))))
@@ -242,37 +242,37 @@
           ; allocated the markers and double-appended on every starting
           ; position and every backtrack. One append of the static
           ; splice onto the (varying) continuation remains.
-          ((eq? tag 'group)
+          ((eq? label 'group)
             (%regex-exec
               (%append (first (rest (rest (rest node)))) rest-nodes)
               str pos end caps))
-          ((eq? tag 'g-open)
+          ((eq? label 'g-open)
             (%regex-exec rest-nodes str pos end
               (pair (list 'g-open (first (rest node)) pos) caps)))
-          ((eq? tag 'g-close)
+          ((eq? label 'g-close)
             (%regex-exec rest-nodes str pos end
               (%regex-close-group caps (first (rest node)) pos)))
-          ((eq? tag 'alt)
+          ((eq? label 'alt)
             (let ((left (%regex-exec (%append (first (rest node)) rest-nodes) str pos end caps)))
               (if left left
                 (%regex-exec (%append (first (rest (rest node))) rest-nodes) str pos end caps))))
-          ((eq? tag 'anchor-start)
+          ((eq? label 'anchor-start)
             (if (= pos 0) (%regex-exec rest-nodes str pos end caps) ()))
-          ((eq? tag 'anchor-word-boundary)
+          ((eq? label 'anchor-word-boundary)
             (let ((left-word (if (= pos 0) #f
                     (%regex-is-word-char (%char->integer (%str-ref str (- pos 1))))))
                   (right-word (if (= pos end) #f
                     (%regex-is-word-char (%char->integer (%str-ref str pos))))))
               (if (eq? left-word right-word) ()
                 (%regex-exec rest-nodes str pos end caps))))
-          ((eq? tag 'anchor-not-word-boundary)
+          ((eq? label 'anchor-not-word-boundary)
             (let ((left-word (if (= pos 0) #f
                     (%regex-is-word-char (%char->integer (%str-ref str (- pos 1))))))
                   (right-word (if (= pos end) #f
                     (%regex-is-word-char (%char->integer (%str-ref str pos))))))
               (if (eq? left-word right-word)
                 (%regex-exec rest-nodes str pos end caps) ())))
-          ((eq? tag 'anchor-end)
+          ((eq? label 'anchor-end)
             (if (= pos end) (%regex-exec rest-nodes str pos end caps) ()))
           (#t ()))))))
 
@@ -281,7 +281,7 @@
 ; branches never see it.
 (def %regex-close-group
   (fn (_ caps n endpos)
-    ; Tail accumulate + %rev-onto for shape uniformity with the state
+    ; Tail accumulate + %rev-onto for structural uniformity with the state
     ; collectors (caps is group-count-bounded, so this one was depth-safe
     ; in practice).  Not-found keeps the old copy-of-caps answer: the
     ; walked prefix reverses back onto ().
@@ -297,9 +297,9 @@
 
 (def %regex-write-node
   (fn (self node)
-    (def tag (first node))
+    (def label (first node))
     (match
-      ((eq? tag 'lit)
+      ((eq? label 'lit)
         (let ((ch (first (rest node))))
           (match
             ((= ch #\.) (do (display "\\" ".")))
@@ -314,35 +314,35 @@
             ((= ch #\^) (do (display "\\" "^")))
             ((= ch #\$) (do (display "\\" "$")))
             (#t (display (%cvt ch %char))))))
-      ((eq? tag 'any) (display "."))
-      ((eq? tag 'star)
+      ((eq? label 'any) (display "."))
+      ((eq? label 'star)
         (do (self (first (rest node))) (display "*")))
-      ((eq? tag 'plus)
+      ((eq? label 'plus)
         (do (self (first (rest node))) (display "+")))
-      ((eq? tag 'opt)
+      ((eq? label 'opt)
         (do (self (first (rest node))) (display "?")))
-      ((eq? tag 'class)
+      ((eq? label 'class)
         (do (display "[") (%regex-write-class (rest node)) (display "]")))
-      ((eq? tag 'nclass)
+      ((eq? label 'nclass)
         (do (display "[^") (%regex-write-class (rest node)) (display "]")))
-      ((eq? tag 'group)
-        ; numbered shape (group N nodes) -- the nodes are the third element
+      ((eq? label 'group)
+        ; numbered layout (group N nodes) -- the nodes are the third element
         (do (display "(") (%regex-write (first (rest (rest node)))) (display ")")))
-      ((eq? tag 'alt)
+      ((eq? label 'alt)
         (do (%regex-write (first (rest node)))
             (display "|")
             (%regex-write (first (rest (rest node))))))
-      ((eq? tag 'anchor-start) (display "^"))
-      ((eq? tag 'anchor-end) (display "$"))
-      ((eq? tag 'anchor-word-boundary) (display "\\b"))
-      ((eq? tag 'anchor-not-word-boundary) (display "\\B"))
-      ((eq? tag 'lazy-star)
+      ((eq? label 'anchor-start) (display "^"))
+      ((eq? label 'anchor-end) (display "$"))
+      ((eq? label 'anchor-word-boundary) (display "\\b"))
+      ((eq? label 'anchor-not-word-boundary) (display "\\B"))
+      ((eq? label 'lazy-star)
         (do (self (first (rest node))) (display "*?")))
-      ((eq? tag 'lazy-plus)
+      ((eq? label 'lazy-plus)
         (do (self (first (rest node))) (display "+?")))
-      ((eq? tag 'lazy-opt)
+      ((eq? label 'lazy-opt)
         (do (self (first (rest node))) (display "??")))
-      ((eq? tag 'repeat)
+      ((eq? label 'repeat)
         (let ((mx (first (rest (rest (rest node))))))
             (self (first (rest node)))
             (display "{" (first (rest (rest node))))
@@ -442,14 +442,14 @@
   (fn (_ s pos end)
     (def negated (and (< pos end) (= (%str-ref s pos) #\^)))
     (def start (if negated (+ pos 1) pos))
-    (def tag (if negated 'nclass 'class))
+    (def label (if negated 'nclass 'class))
     (def %go
       (fn (self i acc)
-        (if (>= i end) (pair (pair tag (%reverse acc)) i)
+        (if (>= i end) (pair (pair label (%reverse acc)) i)
           (let ((ch (%char->integer (%str-ref s i))))
             (match
               ((= ch #\])
-                (pair (pair tag (%reverse acc)) (+ i 1)))
+                (pair (pair label (%reverse acc)) (+ i 1)))
               ; Escape inside class: \d \w \s etc. expand to ranges/literals
               ((= ch #\\)
                 (if (>= (+ i 1) end) (self (+ i 1) (pair ch acc))
@@ -544,9 +544,9 @@
           (pair (walk-one (first ns)) (self (rest ns))))))
     (set! walk-one
       (fn (_ node)
-        (def tag (first node))
+        (def label (first node))
         (match
-          ((eq? tag 'group)
+          ((eq? label 'group)
             (do (%set-first! counter (+ (first counter) 1))
                 (let ((n (first counter)))
                   (let ((body (walk-list (first (rest node)))))
@@ -556,16 +556,16 @@
                     (list 'group n body
                       (pair (list 'g-open n)
                         (%append body (list (list 'g-close n)))))))))
-          ((eq? tag 'alt)
+          ((eq? label 'alt)
             (list 'alt (walk-list (first (rest node)))
                        (walk-list (first (rest (rest node))))))
-          ((eq? tag 'star) (list 'star (walk-one (first (rest node)))))
-          ((eq? tag 'plus) (list 'plus (walk-one (first (rest node)))))
-          ((eq? tag 'opt) (list 'opt (walk-one (first (rest node)))))
-          ((eq? tag 'lazy-star) (list 'lazy-star (walk-one (first (rest node)))))
-          ((eq? tag 'lazy-plus) (list 'lazy-plus (walk-one (first (rest node)))))
-          ((eq? tag 'lazy-opt) (list 'lazy-opt (walk-one (first (rest node)))))
-          ((eq? tag 'repeat)
+          ((eq? label 'star) (list 'star (walk-one (first (rest node)))))
+          ((eq? label 'plus) (list 'plus (walk-one (first (rest node)))))
+          ((eq? label 'opt) (list 'opt (walk-one (first (rest node)))))
+          ((eq? label 'lazy-star) (list 'lazy-star (walk-one (first (rest node)))))
+          ((eq? label 'lazy-plus) (list 'lazy-plus (walk-one (first (rest node)))))
+          ((eq? label 'lazy-opt) (list 'lazy-opt (walk-one (first (rest node)))))
+          ((eq? label 'repeat)
             (list 'repeat (walk-one (first (rest node)))
                   (first (rest (rest node)))
                   (first (rest (rest (rest node))))))
@@ -713,7 +713,7 @@
   (fn (_ rep matched groups)
     (if (procedure? rep) (rep matched) (%regex-expand-rep rep groups))))
 
-; The AST inside a compiled regex, with a type guard: handing the exec family
+; The AST inside a compiled regex, with a type guard: handing the exec functions
 ; a non-REGEX (e.g. the bare AST from (Regex parse) or a plain string) used to
 ; silently no-op -- (first non-regex) walked garbage that never matched.
 (def %rx-nodes

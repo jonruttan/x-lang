@@ -27,9 +27,9 @@
 (module x/type/trait)
 (import x/type/class)
 
-; A trait value: (%trait-tag name reqs iforms sforms env). The tag is the
+; A trait value: (%trait-label name reqs iforms sforms env). The label is the
 ; unforgeable-pair trick; traits are data, not callables.
-(def %trait-tag (list (lit %trait)))
+(def %trait-label (list (lit %trait)))
 (def %trait-name   (fn (_ t) (first (rest t))))
 (def %trait-reqs   (fn (_ t) (first (rest (rest t)))))
 (def %trait-iforms (fn (_ t) (first (rest (rest (rest t))))))
@@ -38,7 +38,7 @@
 
 (doc (def trait?
   (fn (_ (param x ANY "Value to test"))
-    (if (pair? x) (eq? (first x) %trait-tag) #f)))
+    (if (pair? x) (eq? (first x) %trait-label) #f)))
   (returns BOOL "#t for a trait value")
   (see def-trait)
   "Test whether a value is a trait.")
@@ -56,7 +56,7 @@
       (tail-eval
         (list (lit def) name
           (list (lit lit)
-            (list %trait-tag (%selector name) reqs
+            (list %trait-label (%selector name) reqs
               (%methods-of body) (%methods-of sblock) e)))
         e))))
   (note "(def-trait NAME (require SEL...) (method ...)... (static (method ...)...))")

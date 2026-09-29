@@ -441,7 +441,7 @@
 ; double is what libm computes in; an arbitrary-precision decimal is not,
 ; so these three ARE the implementation rather than a call to one.
 ;
-; The shape all three share: reduce the argument into a window where a
+; The pattern all three share: reduce the argument into a window where a
 ; series converges quickly, run the series at prec + guard digits, undo the
 ; reduction, round ONCE at the end.  The guard digits are what let every
 ; truncation inside the series sit far enough below the answer's last digit
@@ -670,7 +670,7 @@
       ; Is [i, len) a non-empty run of digits?  The gate that keeps
       ; (Decimal from "abc") a RAISE: %str->number answers 0 for text it
       ; cannot read, and a numeric door that turns garbage into zero is
-      ; the silent kind of wrong.
+      ; silently wrong.
       (def %digits?
         (fn (self s i len)
           (match
@@ -807,7 +807,7 @@
 
 (def %dec? (fn (_ x) (%type? x %decimal)))
 
-; Door: coerce through the conversion catalog, so the other side may be an
+; Door: promote through the conversion catalog, so the other side may be an
 ; int, bigint, float, rational or numeric string.  A miss is a raise, never
 ; a nil into (first) -- the C core is unchecked, so the guard lives here.
 (def ensure-dec
@@ -912,7 +912,7 @@
 (note "Operator Overrides")
 
 ; --- Type ops: the generic operators dispatch decimal operands here ---
-; Handlers receive raw operands; ensure-dec coerces the other side through
+; Handlers receive raw operands; ensure-dec promotes the other side through
 ; the from-alist, so an int, bigint, float or numeric string all land.
 
 (def decimal-type (%type-by-atom %decimal))
@@ -1039,32 +1039,32 @@
       (doc "Convert a decimal to the nearest IEEE 754 double. Lossy by definition; the rounding is strtod's."
         (returns FLOAT "Nearest double"))
       (%cvt (%dec->str (ensure-dec x)) float))
-    ; --- Arithmetic (operands coerce via the from-alist) ---
+    ; --- Arithmetic (operands promote via the from-alist) ---
     (method + (self (param a NUMBER "First operand") (param b NUMBER "Second operand"))
-      (doc "Add two decimals, exactly (other numerics coerce)." (returns DECIMAL "Sum"))
+      (doc "Add two decimals, exactly (other numerics promote)." (returns DECIMAL "Sum"))
       (dec-add (ensure-dec a) (ensure-dec b)))
     (method - (self (param a NUMBER "First operand") (param b NUMBER "Second operand"))
-      (doc "Subtract two decimals, exactly (other numerics coerce)." (returns DECIMAL "Difference"))
+      (doc "Subtract two decimals, exactly (other numerics promote)." (returns DECIMAL "Difference"))
       (dec-sub (ensure-dec a) (ensure-dec b)))
     (method * (self (param a NUMBER "First operand") (param b NUMBER "Second operand"))
-      (doc "Multiply two decimals, exactly (other numerics coerce)." (returns DECIMAL "Product"))
+      (doc "Multiply two decimals, exactly (other numerics promote)." (returns DECIMAL "Product"))
       (dec-mul (ensure-dec a) (ensure-dec b)))
     (method / (self (param a NUMBER "Dividend") (param b NUMBER "Divisor"))
-      (doc "Divide two decimals, rounded half-even to the current precision (other numerics coerce)."
+      (doc "Divide two decimals, rounded half-even to the current precision (other numerics promote)."
         (returns DECIMAL "Quotient"))
       (dec-div (ensure-dec a) (ensure-dec b)))
     (method % (self (param a NUMBER "Dividend") (param b NUMBER "Divisor"))
-      (doc "Truncating remainder of decimal division, exactly (other numerics coerce)."
+      (doc "Truncating remainder of decimal division, exactly (other numerics promote)."
         (returns DECIMAL "Remainder, with the dividend's sign"))
       (dec-mod (ensure-dec a) (ensure-dec b)))
     (method < (self (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
-      (doc "Test whether a is less than b (other numerics coerce)." (returns BOOL "True if a < b"))
+      (doc "Test whether a is less than b (other numerics promote)." (returns BOOL "True if a < b"))
       (dec-lt (ensure-dec a) (ensure-dec b)))
     (method = (self (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
-      (doc "Test whether a equals b (other numerics coerce)." (returns BOOL "True if a equals b"))
+      (doc "Test whether a equals b (other numerics promote)." (returns BOOL "True if a equals b"))
       (dec-eq (ensure-dec a) (ensure-dec b)))
     (method compare (self (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
-      (doc "Three-way comparison of two decimals (other numerics coerce)."
+      (doc "Three-way comparison of two decimals (other numerics promote)."
         (returns INTEGER "-1 if a < b, 0 if equal, 1 if a > b"))
       (%dec-cmp (ensure-dec a) (ensure-dec b)))
     (method neg (self (param x NUMBER "Decimal value"))

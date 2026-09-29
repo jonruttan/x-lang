@@ -2,7 +2,7 @@
 ;
 ; The value mapping: a table is a LIST OF ROWS, each row a list of field
 ; STRINGS -- parse never guesses types (a "3" stays a string; the caller
-; converts). The records tier reads the first row as headers and hands
+; converts). The records profile reads the first row as headers and hands
 ; back one alist per data row, string-keyed -- (Assoc find), the
 ; equal?-keyed entry door, is the lookup that matches.
 ;
@@ -165,5 +165,5 @@
             records))))))
 
 (doc (provide x/codec/csv Csv)
-  (note "Tables are rows of field STRINGS -- parse never guesses types. Comma is the separator (RFC 4180); strict on malformed quoting per #61. The records tier keys alists by the header strings.")
+  (note "Tables are rows of field STRINGS -- parse never guesses types. Comma is the separator (RFC 4180); strict on malformed quoting per #61. The records profile keys alists by the header strings.")
   "RFC 4180 csv parse/emit, homed on the Csv class.")

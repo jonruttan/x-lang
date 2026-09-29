@@ -833,7 +833,7 @@
     (import x/platform/syscall)
     (import x/platform/dirent)
     ; Three args always, like sys/file.x: the kernel ignores the perm
-    ; unless O_CREAT is set, and the prim's call shape stays uniform.  Through
+    ; unless O_CREAT is set, and the prim's calling convention stays uniform.  Through
     ; the door, because open is the one call here the generic table has no
     ; number for.
     (def %fd ((syscall-door (lit open)) dir (%module-mode (lit rdonly)) 420))

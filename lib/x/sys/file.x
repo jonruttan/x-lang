@@ -1,5 +1,5 @@
 ; file.x -- File: file I/O via POSIX syscalls, homed on the File class.
-; One of the four I/O tiers -- Io holds the verbs, Stream redirects
+; One of the four I/O profiles -- Io holds the verbs, Stream redirects
 ; output, File is the filesystem, Buf is the reader's side; the full
 ; statement lives in x/type/io.x's header (#365).
 ;
@@ -125,7 +125,7 @@
 ; any intervening syscall (a close on the error path would clobber it).
 (def %fs-errno (fn (_ r) (Err errno-of r)))
 
-; Boundary guard for the ergonomic tier: a path must be a string.  The
+; Boundary guard for the ergonomic profile: a path must be a string.  The
 ; class dispatch binds a MISSING argument as nil, and a nil path fed to
 ; the raw syscall layer surfaces as a baffling EFAULT ("Bad address") --
 ; or worse through the REPL error path.  Fail as 'type at the door.
@@ -288,7 +288,7 @@
             -1
             (Str8 ref 0 buffer)))))
 
-    ; The seek trio (#360). Raw-tier contract like read/write: the raw
+    ; The seek trio (#360). Raw-layer contract like read/write: the raw
     ; syscall result comes back, negative = -errno. i386's lseek syscall
     ; takes 32-bit offsets (llseek is the 64-bit door there; not wired).
     (method %whence (self (param whence ANY "Seek origin -- symbol or number"))
@@ -328,7 +328,7 @@
                       (if (null? size) (File tell fd) (first size))))
 
     ; ======================================================================
-    ; The ergonomic tier (#22): whole-file and filesystem operations that
+    ; The ergonomic profile (#22): whole-file and filesystem operations that
     ; RAISE a label 'io Err (via Err from-errno, #20) instead of returning
     ; the raw layer's negative -errno.  The five raw ops above keep their
     ; documented raw contract (absence-model rule 5).
@@ -347,7 +347,7 @@
     (method exists? (self (param path STRING "Path to test"))
       (doc "Does path name an existing filesystem entry? (Any file type -- file, directory, link target...)"
         (returns BOOL "True when stat succeeds")
-        (note "Deliberately duplicated across tiers with (Sys file-exists?) (#361): that access(2) door is what boot/module.x can reach before this module loads. Post-boot file work belongs here.")
+        (note "Deliberately duplicated across layers with (Sys file-exists?) (#361): that access(2) door is what boot/module.x can reach before this module loads. Post-boot file work belongs here.")
         (sample "(File exists? \"lib/x.x\")" "#t"))
       ; stat(2) answers 0 on success; a miss needs no Err built and caught
       (match
@@ -449,7 +449,7 @@
 
     ; --- The metadata doors ---
     ;
-    ; A tool tier needs more of the filesystem than reading and writing:
+    ; A tool profile needs more of the filesystem than reading and writing:
     ; chmod(1) and install -m want the mode, ln(1) wants both link
     ; calls, readlink(1) and realpath(1) want the target, touch(1) wants
     ; the timestamps, and df(1) wants the mount's block counts.  All six

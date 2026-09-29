@@ -2,7 +2,7 @@
 ; Convert class.
 ;
 ; Three concerns, one mechanism each:
-;   - The TYPE SYSTEM carries the data: each type's cvt group holds a
+;   - The TYPE SYSTEM carries the data: each type's cvt fields hold a
 ;     from-alist (source-type -> converter) and a to-alist (target-type ->
 ;     converter), set with the %type-set-from! helper below.
 ;   - The CATALOG carries the implementation: %convert-to is registered as

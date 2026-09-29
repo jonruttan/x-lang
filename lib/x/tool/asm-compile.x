@@ -261,7 +261,7 @@
 ; buffer score chr) -- buffer and score are x_obj_t*, chr is a raw character.
 ; A bare object param must load its POINTER, never unbox it: atomint on a
 ; buffer reads its first word as an integer, and the trampolines then
-; dereference that.  These two names are the object-kinded ones.
+; dereference that.  These two names are the object params.
 (def %asm-object-params ())
 ; The %asm-last-* facts this fills in live in asm.x -- see the note there.
 (def %asm-memq
@@ -450,7 +450,7 @@
 ;   (%mem-set! ADDR-EXPR INDEX VALUE)  -> stores, yields VALUE
 ;
 ; INDEX is a literal (imm12 scaled by 8: 0..4095 words).  No bounds
-; check exists and none is possible -- this is the raw-pointer tier,
+; check exists and none is possible -- this is the raw-pointer layer,
 ; the same trust model as (obj ref); the caller owns the buffer.
 (def %asm-mem-offset
   (fn (_ idx)
@@ -520,10 +520,10 @@
     (asm-emit! asm 'mov x0 x1)))                         ; yield the value
 
 ; --- Byte-width scratch access -----------------------------------------
-; The word family above addresses the JIT's own scratch state; this
-; family reads and writes BYTES, which is what a compiled function needs
+; The word-scratch functions above address the JIT's own scratch state; these
+; read and write BYTES, which is what a compiled function needs
 ; to consume input that arrives as a string's data pointer (a digest's
-; message, a codec's buffer).  Same trust model, same shapes, two
+; message, a codec's buffer).  Same trust model, same arrangement, two
 ; differences: the index counts bytes (imm12 unscaled, 0..4095; no *8),
 ; and the width is one byte -- LDRB zero-extends into the value, STRB
 ; stores the value's LOW byte and ignores the rest, so a store yields
@@ -651,7 +651,7 @@
 
 ; Compile a unary buffer call -- (%buffer-unread b), (%buffer-len b),
 ; (%buffer-last-char b): eval the single buffer argument into x0, then call
-; the given jit_buffer_* trampoline.  One shape, three (and counting)
+; the given jit_buffer_* trampoline.  One pattern, three (and counting)
 ; call sites that differ only in which trampoline they end on.
 (def %asm-compile-buffer-op
   (fn (_ asm args params jit-fn)
@@ -678,9 +678,9 @@
     (asm-emit! asm 'mov x0 (imm 1))
     (asm-label! asm lbl-end)))
 
-; The bitwise/shift family: op -> the ARM64 instruction its two operands
+; The bitwise/shift operators: op -> the ARM64 instruction its two operands
 ; feed.  A TABLE, not more if-nesting -- the chain below is already
-; twenty deep, and these all share the binop shape (both operands to
+; twenty deep, and these all share the binop arrangement (both operands to
 ; registers, one instruction).  Shifts take a register amount (LSLV/
 ; ASRV), so a shift by an expression works like any other operand.
 ;
@@ -714,7 +714,7 @@
 ; and names the declaration that makes the compile an integer function.
 ;
 ; The ops checked are the ones whose operands are raw integers and nothing else:
-; arithmetic, the bitwise family and the ordered comparisons each put two
+; arithmetic, the bitwise operators and the ordered comparisons each put two
 ; operands in registers for one instruction that reads them as numbers.  `=`,
 ; `not`, `and` and `or` are absent deliberately -- they test a word for equality
 ; or for truth, and on a pointer both are meaningful, as (= buffer ()) is.  The
@@ -916,10 +916,10 @@
 ; The last two share one emitter: both put an x_obj_t* for the callee in x0
 ; and hand the whole thing to jit_call_value.  Only the first needs the cell.
 
-; Is ARG index I an OBJECT-kinded position?  The analyser protocol's buffer
+; Is ARG index I an an OBJECT position?  The analyser protocol's buffer
 ; and score are pushed as pointers and must NOT be re-boxed; every other
 ; position is a raw integer that must be.  Read off the CALLER's params,
-; which under that protocol have the same shape as the callee's.
+; which under that protocol are arranged the same way as the callee's.
 (def %asm-arg-is-object?
   (fn (self i ps n)
     (if (null? ps) #f
@@ -1061,7 +1061,7 @@
   (fn (_ head)
     (if (symbol? head) (symbol->str head) (%write-to-str head))))
 
-; The dispatch: which of the three call shapes this head is.
+; The dispatch: which of the three ways this head's call compiles.
 (set! %asm-compile-funcall
   (fn (_ asm fn-name args params)
     (if (null? %asm-self-cell)

@@ -7,7 +7,7 @@
 ; mutual recursion over a base column, on the live stream). A third is coming.
 ; The drivers differ and should; the arithmetic underneath has no Logo and no
 ; sweet in it, and the proof is that two independent implementations reached the
-; same shape.
+; same design.
 ;
 ; ## WHAT WAS ACTUALLY DIFFERENT
 ;
@@ -53,7 +53,7 @@
 ; MEASUREMENT (advance/measure) answers "what column is this?". THE STACK
 ; (make/feed/close-all) answers "what opened and what closed?". Logo takes both.
 ; A recursive consumer like sweet takes measurement and `classify` and keeps its
-; own control flow -- the rules stop being its business without its shape having
+; own control flow -- the rules stop being its business without its design having
 ; to change.
 ;
 ; ## ALLOCATION
@@ -158,17 +158,17 @@
     (see feed) (see make))
 
   tab       ; tab stop: a tab advances to the next multiple of this
-  mode      ; what an unmatched dedent means: open | close | error
+  label     ; what an unmatched dedent means: open | close | error
   cols      ; open columns, deepest first, always ending in 0
 
   (static
-    (method make (self . (param opts LIST "Optional (TAB-STOP MISMATCH-MODE); defaults 8 and 'error"))
+    (method make (self . (param opts LIST "Optional (TAB-STOP MISMATCH-LABEL); defaults 8 and 'error"))
       (doc "An indenter with nothing but column 0 open. Defaults are SRFI-110's and Python's: a tab advances to the next multiple of 8, and a dedent matching no open level is an error -- the only one of the three historical answers with a specification behind it."
         (returns Indent "A fresh indenter")
         (example "((Indent make 1 'open) feed 3)" "('open)"))
       (new-from self
         (list 'tab  (if (null? opts) 8 (first opts))
-              'mode (if (null? opts) (lit error)
+              'label (if (null? opts) (lit error)
                       (if (null? (rest opts)) (lit error) (first (rest opts))))
               'cols (list 0))))
 
@@ -210,7 +210,7 @@
           (Indent %pop (rest cols) col (pair (lit close) acc))
           (pair cols acc))))
 
-    (method %feed (self cols col mode)
+    (method %feed (self cols col label)
       (doc "The stack and the events for a line at col. Every result ends with exactly one `open` or `same`, so no caller counts levels."
         (returns PAIR "(new-stack . events)"))
       (let ((popped (Indent %pop cols col ())))
@@ -221,11 +221,11 @@
             (pair rest-cols (List reverse (pair (lit same) closes)))
             ; Deeper. Two ways to arrive and they are one event: a genuine
             ; indent, or a dedent that landed between two open levels -- which
-            ; is only reachable when mode is `open`, the other two modes having
+            ; is only reachable when label is `open`, the other two labels having
             ; been intercepted here.
-            (if (if (null? closes) #t (eq? mode (lit open)))
+            (if (if (null? closes) #t (eq? label (lit open)))
               (pair (pair col rest-cols) (List reverse (pair (lit open) closes)))
-              (if (eq? mode (lit close))
+              (if (eq? label (lit close))
                 ; The dedent stands; the odd column opens nothing.
                 (pair rest-cols (List reverse (pair (lit same) closes)))
                 (Err raise (lit indent)
@@ -258,7 +258,7 @@
     (doc "Advance to a line at `col`. Returns zero or more `close` events followed by exactly one `open` or `same` -- so a caller never counts levels itself, which is the loop both previous implementations owned. Raises 'indent when the column matches no open level and the mode is 'error."
       (returns LIST "The events, outermost close first")
       (example "(let ((i (Indent make))) (i feed 4) (i feed 0))" "('close 'same)"))
-    (let ((r (Indent %feed (field 'cols) col (field 'mode))))
+    (let ((r (Indent %feed (field 'cols) col (field 'label))))
       (set-field! 'cols (first r))
       (rest r)))
 

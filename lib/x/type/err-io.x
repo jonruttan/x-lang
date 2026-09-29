@@ -17,7 +17,7 @@
 ;   (%type-push-display (%type-by-atom (%type-of e))
 ;     (fn (_ e) (Str8 append "symbole non liee : " (rest e))))
 ;
-; and pops it again to get this file's wording back.  The same shape
+; and pops it again to get this file's wording back.  The same representation
 ; char-io.x uses for CHARACTER, for the same reason.
 ;
 ; Loaded beside char-io in x-core's IO block: EARLY, because until it

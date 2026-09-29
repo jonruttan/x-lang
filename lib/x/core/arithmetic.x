@@ -46,12 +46,12 @@
 (def %int%0 (%div-guard "%" %int% (fn (_ a) 0)))
 
 ; The BINARY case bypasses fold entirely: (op a b) is the overwhelming
-; shape (every counter, every digit loop), and the fold entry costs
+; pattern (every counter, every digit loop), and the fold entry costs
 ; ~1,100 objects per call (per-step churn -- the measured 2026-07-16
-; allocation disease).  0/1/2-arg tiers touch no list machinery.
+; allocation disease).  Zero-, one- and two-argument cases touch no list machinery.
 ; Nil operands raise INSIDE the C prims (the x_prim_eq nil-safety
 ; convention, #52 ruled): an x-level test here measured +9% on every method
-; dispatch -- the wrapper tiers stay lean on purpose.
+; dispatch -- the wrapper's zero-, one- and two-argument cases stay lean on purpose.
 (set! +
   (fn (_ . args)
     (match
@@ -82,9 +82,9 @@
       (#t (%fold %int- (first args) (rest args))))))
 (set! %
   (fn (_ . args)
-    ; The zero-arg tier is an ERROR, not an identity (#72, ruled): unlike
+    ; The zero-argument case is an ERROR, not an identity (#72, ruled): unlike
     ; + - * /, % has no meaningful identity element, and spec.md's old
-    ; "(%) -> 0" claim was arbitrary. Without this tier (%) fell through to
+    ; "(%) -> 0" claim was arbitrary. Without this case (%) fell through to
     ; (first ()) -- the documented-unchecked prim -- and segfaulted.
     (match
       ((eq? args ()) (error "%: needs at least one argument"))
@@ -98,11 +98,11 @@
 ; missing operand arrives as NULL and the process dies -- (& 6) and (< 1) both
 ; segfaulted, and a REPL user typing either lost the session. The guard belongs
 ; here rather than in C: the core stays the unchecked processor, and this is
-; the same layer that already gives + - * / their 0/1/2-arg tiers.
+; the same layer that already gives + - * / their zero-, one- and two-argument cases.
 ;
 ; ONE new global, not one per operator. The raw prim rides in the wrapper's
 ; CLOSURE -- (%arith-guard 2 "&" &) is handed the current value of & before
-; set! rebinds it -- so no %int& / %int^ / %int<< family lands in the global
+; set! rebinds it -- so none of %int& / %int^ / %int<< land in the global
 ; namespace. (The %int+ .. %int= saves above predate this and stay: the tower
 ; and bigint fetch them by name.)
 ;
@@ -111,7 +111,7 @@
 ;
 ; COUNTING ARGUMENTS IS NOT ENOUGH. A nil operand reaches the prim and is
 ; dereferenced exactly like a missing one: x_prim_lt reads x_intval(NULL)
-; (src/x-prim/pred.c) where x_prim_eq is explicitly nil-safe. The arity tier
+; (src/x-prim/pred.c) where x_prim_eq is explicitly nil-safe. The arity case
 ; alone therefore left (< 1 ()) live, and with it every derived comparison in
 ; core/logic.x -- (> 1) binds b to nil and calls (< nil 1), which passes an
 ; arity test with two arguments and then dies. Reject nil here, once, rather
@@ -136,7 +136,7 @@
             (error (%str-append name ": operands must not be nil")))
           (#t (prim (first args) (first (rest args)))))))))
 
-; Strict-INT variant for the BITWISE family (#52 ruled): these have no tower
+; Strict-INT variant for bitwise operators (#52 ruled): these have no tower
 ; semantics -- there is no float `&` and never will be -- so unlike `<`
 ; (where a strict test would break float comparisons dispatched through the
 ; C op registry), rejecting every non-INT operand is simply correct. The

@@ -1,7 +1,7 @@
 ; boot/tower-compiled.x -- the numeric tower with compiled tokenizer analysers
 ;
 ; The shared heart of every full-stack dialect body (x-base.x and
-; boot/{xenon,radon}.x): load the compiler, compile the quote-family analysers and swap
+; boot/{xenon,radon}.x): load the compiler, compile the quote and quasiquote analysers and swap
 ; them into the symbol type's analyse list, then load each tower type and
 ; immediately compile its analyser.  Analysers run on every char while
 ; tokenizing, so compiling them makes every SUBSEQUENT file parse through
@@ -51,7 +51,8 @@
 ; empty, so the first stub float emitted crashed the boot.  Imported here, at
 ; top level and ahead of both, it is inlined once and both imports find it.
 (import x/tool/asm)
-; The quote family's entry tests and states, to compile and to swap by identity.
+; The quote and quasiquote readers' entry tests and states, to compile and to
+; swap by identity.
 (import x/reader/lit-reader lit-accept lit-analyse macro-delimit interp-analyse interp-after-hash)
 (import x/reader/quasi-reader quasi-accept quasi-analyse unquote-after-comma unquote-analyse)
 ; Every compile below is a site of Swap's: it is put down before a state
@@ -187,7 +188,7 @@
   (fn (_ name cell interp maker)
     (Swap site! name interp maker (Swap in-cell cell))))
 
-; --- Compile the quote-family analysers and swap them into the symbol
+; --- Compile the quote and quasiquote analysers and swap them into the symbol
 ;     type's analyse list.  x-core.x (lit-reader.x) installed interpreted
 ;     versions; these run on every char while tokenizing, so compiling them
 ;     keeps subsequent files parsing fast. ---
@@ -239,7 +240,7 @@
 ; Identity MUST be (obj same?) -- pointer identity.  eq? compares value
 ; words, and two DIFFERENT interpreted closures answer eq? #t (their
 ; first data words coincide), so an eq?-keyed draft of this walk stamped
-; the first compiled handler over every seat and killed the quote family.
+; the first compiled handler over every seat and killed quote and quasiquote alike.
 (def %tower-same? (prim-ref 'obj 'same?))
 (def %sym-analyse-list
   (first (first (%type-analyse-cell (%type-by-atom (%type-of "x"))))))
@@ -321,7 +322,7 @@
 ; These two PUSH a new analyser rather than swapping one, so there is no
 ; interpreted twin already installed to fall back to -- the twin is written
 ; here.  The bodies must agree with the compiled forms below; they can, because
-; unlike the quote family these use byte codes on both sides and so are
+; unlike quote and quasiquote, these use byte codes on both sides and so are
 ; textually identical.
 (def %big-analyse-interp
   (fn (_ buffer score chr)

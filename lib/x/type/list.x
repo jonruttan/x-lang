@@ -145,7 +145,7 @@
     (method last (self lst)
       (doc "Return the last element of a list." (param lst LIST "Non-empty list"))
       (if (null? (rest lst)) (first lst) (recur self (rest lst))))
-    ; The rest of the #336 family (#300 caught the stragglers): every
+    ; The rest of #336's fixes (#300 caught the stragglers): every
     ; (pair x (recur ...)) walk below was NON-TAIL -- C-stack depth =
     ; list length, a segfault at ~10^4 elements (List range 10000 died
     ; in the stress lane).  All converted to accumulate-and-reverse or
@@ -187,10 +187,10 @@
            lsts ()))))
     ; Inner go loops (#336), the fold precedent: `recur` re-entered the
     ; method and re-ran the from-seq normalization dispatch on EVERY
-    ; tail; the accumulate-and-reverse shape also makes the walks
+    ; tail; the accumulate-and-reverse pattern also makes the walks
     ; iterative -- the old (pair x (recur ...)) bodies were non-tail
-    ; and overflowed the C stack on ~10^5-element lists (the repeat
-    ; segfault family, #333).
+    ; and overflowed the C stack on ~10^5-element lists (these repeat
+    ; segfaults, #333).
     (method filter (self pred lst)
       (doc "Return elements that satisfy a predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable") (returns LIST "Filtered list"))
       (def go (fn (self xs acc)

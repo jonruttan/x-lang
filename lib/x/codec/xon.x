@@ -8,7 +8,7 @@
 ; disagreed with the reader about escaping (#224).  One codec, so each
 ; layer has a single definition (#230).
 ;
-; The line shape is load-bearing OUTSIDE this module: x.sh and the
+; The one-line convention is load-bearing OUTSIDE this module: x.sh and the
 ; release scripts extract forms with line-anchored sed/grep.  emit keeps
 ; their contract -- one form per line -- and makes it robust: a quote,
 ; backslash, or newline in a string argument is escaped, so it can no
@@ -52,13 +52,13 @@
     ; as its own text.  lit-reader's EXPANDING reader would be exactly wrong
     ; here -- fmt would print (Str8 str ...) and destroy the sugar it was
     ; asked to format.  The token rides in a ('%interp "...") marker, the
-    ; shape fmt already uses for comments; a bare string is indistinguishable
+    ; pattern fmt already uses for comments; a bare string is indistinguishable
     ; from a real one, and converting to a symbol is not available -- the
     ; conversion catalog is off-limits inside x_token_read.
     ;
     ; Call ONCE per base, before its first read.  A handler slot is a LIST in
-    ; every base; a fresh base's is STATIC-tagged, so it answers pair? with
-    ; #f while walking like any other list (the #296 static-spine class).
+    ; every base; a fresh base's is STATIC-labelled, so it answers pair? with
+    ; #f while walking like any other list (#296's static-spine bug).
     ; Prepending with pair handles both -- treating pair? #f as "a lone
     ; handler" and wrapping it makes the tokenizer apply a LIST as a handler,
     ; which bus-errors.
@@ -84,7 +84,7 @@
                       ())))
                   (first (%type-read-cell st)))))))
     ; The base's type registry by NAME, through the contract-driven reflect
-    ; door (engine/tools/contract/base-paths.x), never a shape heuristic.
+    ; door (engine/tools/contract/base-paths.x), never a structural heuristic.
     (method %xon-find-type (self b name)
       ; The walk needs the RAW spine; a Base instance unwraps here.
       (let ((hit (%find (fn (_ e)

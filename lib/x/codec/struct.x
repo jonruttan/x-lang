@@ -1,6 +1,6 @@
 ; codec/struct.x -- Struct: binary record pack/unpack against a field spec.
 ;
-; The shape every hand-rolled binary decode in the tree wanted (#371):
+; The pattern every hand-rolled binary decode in the tree wanted (#371):
 ; platform/dirent.x grew %u8/%u16 peeks, sys/file.x grew %peek-u16/u32/i64,
 ; sockets hand-packed big-endian ports. This codec names the pattern once:
 ;

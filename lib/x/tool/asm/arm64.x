@@ -29,7 +29,7 @@
 ; four fields deep -- roughly twenty class-dispatched calls to read a
 ; handful of small integers.  (List ref) measured at 226us against 26us
 ; for an identical hand-rolled walk, so ~90% of that was dispatch.  The
-; descriptors are fixed-shape data this file writes itself, so the
+; descriptors are data with a fixed layout, which this file writes itself, so the
 ; bounds and coercion (List ref) provides buy nothing here; the field
 ; walk below destructures in ONE pass instead of re-walking per element.
 (def %arm64-nth
@@ -123,8 +123,8 @@
         (list 1 5 5 0)       ; Rn
         (list 2 10 12 0))))) ; imm12
 
-    ; --- Bitwise / shift family (64-bit, register forms only) ---
-    ; Register forms keep the JIT's binop shape uniform: both operands
+    ; --- Bitwise / shift operators (64-bit, register forms only) ---
+    ; Register forms keep the JIT's binop arrangement uniform: both operands
     ; land in registers, so shifts take their amount from a register
     ; (LSLV/LSRV) rather than the immediate UBFM aliases.  Encodings
     ; verified with: python3 -c "print(hex(N))"
@@ -215,7 +215,7 @@
         (list 1 10 12 3 1)))))
 
     ; LDRB Wt, [Xn, #imm12] (unsigned offset, byte, zero-extends)
-    ; Same field shape as ldr, but the offset is UNSCALED (shift 0):
+    ; Same field layout as ldr, but the offset is UNSCALED (shift 0):
     ; imm12 counts bytes, not words.
     (pair 'ldrb (list
       (pair 'rm (list 960495616          ; 0x39400000
@@ -230,7 +230,7 @@
         (list 1 5 5 0)
         (list 1 10 12 0 1)))))
 
-    ; The narrower widths, in the same field shape.  The byte offset is
+    ; The narrower widths, in the same field layout.  The byte offset is
     ; scaled by the width, so it must be a multiple of it.  A load into a
     ; W register zero-extends; the S forms sign-extend to all 64 bits.
     ; `ldrw`/`strw` are LDR/STR of a W register: the operands here are X

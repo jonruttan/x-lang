@@ -86,14 +86,14 @@
 
 ; --- Three-address lowering ---
 ; arm64's op dst, src1, src2 on a two-address machine: land src1 in dst,
-; then combine with src2.  The one shape this cannot express is
+; then combine with src2.  The one arrangement this cannot express is
 ; dst==src2 with dst!=src1 (the mov clobbers src2 first); asm-compile
 ; never emits it, and the guard makes that a loud error instead of a
 ; silent miscompile if it ever does.
 (def %x86-alu3!
   (fn (_ asm op dst src1 src2)
     (if (and (= dst src2) (not (= dst src1)))
-      (Err raise 'value "x86_64: unsupported 3-address shape (dst==src2)" ()))
+      (Err raise 'value "x86_64: unsupported 3-address arrangement (dst==src2)" ()))
     (%x86-mov! asm dst src1)
     (%x86-rr! asm op src2 dst)))
 
@@ -107,7 +107,7 @@
 ; modrm-spec: () | (reg-arg rm-arg) | ((/ digit) rm-arg)
 ;   A bare number is an ARGUMENT INDEX whose register fills the reg
 ;   field; the Intel /digit opcode extension is spelled (/ n).
-; extras: list of (kind arg-idx) for immediates/displacements
+; extras: list of (label arg-idx) for immediates/displacements
 ;
 ; The mem path handles the two ModR/M escapes the compiled code can
 ; reach: a base whose low bits are 100 (rsp/r12) needs a SIB byte, and
@@ -183,20 +183,20 @@
     ; Immediates / relocations
     (%for-each
       (fn (_ spec)
-        (def kind (%x86-nth 0 spec))
+        (def label (%x86-nth 0 spec))
         (def idx  (%x86-nth 1 spec))
         (def val (%op-value (%x86-nth idx args)))
-        (if (eq? kind 'imm8)  (%emit-u8! asm (& val 255)))
-        (if (eq? kind 'imm32) (%emit-u32-le! asm val))
-        (if (eq? kind 'imm64) (%emit-u64-le! asm val))
-        (if (eq? kind 'rel32)
+        (if (eq? label 'imm8)  (%emit-u8! asm (& val 255)))
+        (if (eq? label 'imm32) (%emit-u32-le! asm val))
+        (if (eq? label 'imm64) (%emit-u64-le! asm val))
+        (if (eq? label 'rel32)
           (do (asm-patch! asm 4 'rel val)
               (%emit-u32-le! asm 0))))
       extras)))
 
 ; --- Lowerings (symbol-delegated from the table) ---
 
-; alu3 family: (op dst src1 src2), src2 a register or an immediate.  The
+; alu3 lowering: (op dst src1 src2), src2 a register or an immediate.  The
 ; immediate form is REX.W 81 /n imm32, n being bits 5-3 of the register
 ; form's opcode (ADD 0x01 is /0, SUB 0x29 is /5); the mov cannot clobber
 ; an immediate, so every shape of it lowers.
@@ -217,7 +217,7 @@
             (%x86-f7! asm 3 dst)))               ; NEG
       (#t (%x86-alu3! asm op dst src1 src2)))))
 
-; orn d, zr, s = bitwise NOT (the only orn shape the compiler emits)
+; orn d, zr, s = bitwise NOT (the only orn arrangement the compiler emits)
 (def %x86-lower-orn
   (fn (_ asm args)
     (def dst  (%op-value (%x86-nth 0 args)))
@@ -235,12 +235,12 @@
     (def src1 (%op-value (%x86-nth 1 args)))
     (def src2 (%op-value (%x86-nth 2 args)))
     (if (and (= dst src2) (not (= dst src1)))
-      (Err raise 'value "x86_64: unsupported 3-address shape (dst==src2)" ()))
+      (Err raise 'value "x86_64: unsupported 3-address arrangement (dst==src2)" ()))
     (%x86-mov! asm dst src1)
     (%emit-bytes! asm (list (%x86-rex dst src2) 15 175 (%modrm 3 dst src2)))))
 
 ; shifts: amount must be in CL.  x2 maps to rcx, so the only emitted
-; shape (op x0 x0 x2) needs no amount move; any other amount register
+; arrangement (op x0 x0 x2) needs no amount move; any other amount register
 ; is moved in, with dst==rcx refused (the mov would clobber the amount).
 (def %x86-lower-shift
   (fn (_ asm ext args)
@@ -275,7 +275,7 @@
           (%x86-mov! asm dst 0)                          ; dst = quotient
           (%x86-mov! asm 0 11)))))                       ; rax restored
 
-; msub d, a, b, c = c - a*b, with d==c (the only emitted shape); a is
+; msub d, a, b, c = c - a*b, with d==c (the only arrangement emitted); a is
 ; scratch afterwards, so the multiply lands in it.
 (def %x86-lower-msub
   (fn (_ asm args)
@@ -375,7 +375,7 @@
         (def src1 (arg args 1))
         (def src2 (arg args 2))
         (if (and (= dst src2) (not (= dst src1)))
-          (Err raise 'value "x86_64: unsupported 3-address shape (dst==src2)" ()))
+          (Err raise 'value "x86_64: unsupported 3-address arrangement (dst==src2)" ()))
         (unless (= dst src1) (sse! asm 102 40 #f dst src1))     ; MOVAPD
         (sse! asm 242 op #f dst src2)))
 
@@ -474,7 +474,7 @@
         ()
         (list (list 'imm64 1))))))
 
-    ; Three-address ALU family: lowered (mov dst,src1; op dst,src2), src2
+    ; Three-address ALU ops: lowered (mov dst,src1; op dst,src2), src2
     ; a register (rrr) or an immediate (rri).  The two-operand rr and ri
     ; forms remain for hand-written x86 code (the asm.x86_64 specs speak
     ; native two-address style).
@@ -518,7 +518,7 @@
     ; Loads/stores against (mem base disp), at every width.
     ; ldr/ldrb reg field = DESTINATION (8B / 0F B6 load direction);
     ; str/strb reg field = SOURCE (89 / 88 store direction).  ldrb is
-    ; MOVZX -- zero-extension is the arm64 semantic the byte family's
+    ; MOVZX -- zero-extension is the arm64 semantic the byte-width
     ; specs pin (0xFF reads 255, never -1).  The S forms are MOVSX and
     ; MOVSXD, sign-extending to all 64 bits.  The 32-bit forms drop REX.W
     ; (a plain REX still carries the R and B bits), and a 32-bit load

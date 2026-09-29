@@ -30,7 +30,7 @@
 ; Every walk below is derived at MODULE LOAD from the committed layout
 ; descriptor (engine/tools/contract/base-paths.x) via registry.x's walker -- a layout
 ; change follows the contract automatically; nothing here re-flattens the
-; tree by hand.  Group accessors resolve their row's full step list; each
+; tree by hand.  Field accessors resolve their row's full step list; each
 ; *-cell resolves the PARENT of the row naming the value it fronts (via
 ; the shared %reflect-path-parent, exactly like the printer's handler
 ; pushes), because set-first! on that parent is what replaces the value.
@@ -66,22 +66,22 @@
 
 ; --- Field access ---
 
-; Navigate to IO group (row type-io)
+; Navigate to IO fields (row type-io)
 (def %type-io-path (%reflect-path (lit type-io) %base-paths))
 (def %type-io
   (fn (_ t) (%reflect-step t %type-io-path)))
 
-; Navigate to CVT group (row type-cvt)
+; Navigate to CVT fields (row type-cvt)
 (def %type-cvt-path (%reflect-path (lit type-cvt) %base-paths))
 (def %type-cvt
   (fn (_ t) (%reflect-step t %type-cvt-path)))
 
-; Navigate to PROC group (row type-proc): (call-stack eval-stack).
+; Navigate to PROC fields (row type-proc): (call-stack eval-stack).
 ; NOT %type-proc: boot's predicates.x owns that name (the FN type handle
 ; backing procedure?), and this file loads after it -- a same-named def here
 ; clobbers the handle and breaks procedure? everywhere.
 (def %type-proc-path (%reflect-path (lit type-proc) %base-paths))
-(def %type-proc-group
+(def %type-proc-fields
   (fn (_ t) (%reflect-step t %type-proc-path)))
 
 ; The write-stack cell of a type: parent of row type-write-stack.
@@ -201,7 +201,7 @@
     (let ((c (%type-iter-cell ts)))
       (%set-first! c (pair handler (first c))))))
 
-; --- Generic-operator dispatch (ops group: 8th element, past iter) ---
+; --- Generic-operator dispatch (ops fields: 8th element, past iter) ---
 
 ; The ops cell (the ((op-sym . handler) ...) alist stack cell): parent of
 ; row type-ops (the VALUE alist; its parent is what set-first! replaces).
@@ -250,7 +250,7 @@
 (prim-reg! (lit type) (lit by-atom)       %type-by-atom)
 (prim-reg! (lit type) (lit io)            %type-io)
 (prim-reg! (lit type) (lit cvt)           %type-cvt)
-(prim-reg! (lit type) (lit proc)          %type-proc-group)
+(prim-reg! (lit type) (lit proc)          %type-proc-fields)
 (prim-reg! (lit type) (lit write-cell)    %type-write-cell)
 (prim-reg! (lit type) (lit display-cell)  %type-display-cell)
 (prim-reg! (lit type) (lit analyse-cell)  %type-analyse-cell)

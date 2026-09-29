@@ -258,7 +258,7 @@
       (if (%real< z 0) pi (float-of 0)))))
 ; --- Type ops: the generic operators dispatch complex operands here ---
 ; Complex absorbs every real type via its from-declarations (int, float,
-; rational), so the other side of a mixed pair always coerces with
+; rational), so the other side of a mixed pair always promotes with
 ; %ensure-complex. No < handler: complexes are unordered.
 
 (note "Operator Overrides")
@@ -346,19 +346,19 @@
         (returns FLOAT "Angle in radians"))
       (%cx-angle z))
     (method + (self (param a COMPLEX|NUMBER "First operand") (param b COMPLEX|NUMBER "Second operand"))
-      (doc "Add two complex numbers (reals coerce)." (returns COMPLEX|NUMBER "Sum, collapsed to real if imaginary part is zero"))
+      (doc "Add two complex numbers (reals promote)." (returns COMPLEX|NUMBER "Sum, collapsed to real if imaginary part is zero"))
       (cx-add (ensure-complex a) (ensure-complex b)))
     (method - (self (param a COMPLEX|NUMBER "First operand") (param b COMPLEX|NUMBER "Second operand"))
-      (doc "Subtract two complex numbers (reals coerce)." (returns COMPLEX|NUMBER "Difference, collapsed to real if imaginary part is zero"))
+      (doc "Subtract two complex numbers (reals promote)." (returns COMPLEX|NUMBER "Difference, collapsed to real if imaginary part is zero"))
       (cx-sub (ensure-complex a) (ensure-complex b)))
     (method * (self (param a COMPLEX|NUMBER "First operand") (param b COMPLEX|NUMBER "Second operand"))
-      (doc "Multiply two complex numbers (reals coerce)." (returns COMPLEX|NUMBER "Product, collapsed to real if imaginary part is zero"))
+      (doc "Multiply two complex numbers (reals promote)." (returns COMPLEX|NUMBER "Product, collapsed to real if imaginary part is zero"))
       (cx-mul (ensure-complex a) (ensure-complex b)))
     (method / (self (param a COMPLEX|NUMBER "Dividend") (param b COMPLEX|NUMBER "Divisor"))
-      (doc "Divide two complex numbers (reals coerce)." (returns COMPLEX|NUMBER "Quotient, collapsed to real if imaginary part is zero"))
+      (doc "Divide two complex numbers (reals promote)." (returns COMPLEX|NUMBER "Quotient, collapsed to real if imaginary part is zero"))
       (cx-div (ensure-complex a) (ensure-complex b)))
     (method = (self (param a COMPLEX|NUMBER "Left operand") (param b COMPLEX|NUMBER "Right operand"))
-      (doc "Test whether two complex numbers are equal (reals coerce)."
+      (doc "Test whether two complex numbers are equal (reals promote)."
         (returns BOOL "True if both real and imaginary parts are equal"))
       (cx-eq (ensure-complex a) (ensure-complex b)))))
 
