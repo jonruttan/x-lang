@@ -11,8 +11,8 @@
 # Writes OUT-DIR/<lib file name>.ximg with tools/dev/image-write.x imaging a
 # child base that loaded LIB-FILE, and OUT-DIR/<name>.key beside it.  The key
 # is what the image depends on: the library file, every .x under lib/,
-# tests/x/lib/ and the engine's contract directory, the writer and the walk
-# it includes, the engine binary -- an image is a heap laid out by one
+# tests/x/lib/ and the engine's contract directory, the writer (the walk and
+# the namer it imports are under lib/), the engine binary -- an image is a heap laid out by one
 # engine release and holds every definition the library made, so a change to
 # any of those is a different image -- and every .x under each KEY-PATH,
 # which is how a lang bundle's harness names the bundle's own modules: the
@@ -65,7 +65,7 @@ _caller_key() {
 		fi
 	done
 }
-key="$( { cat "$lib"; for d in lib tests/x/lib engine/tools/contract; do [ -d "$d" ] && find "$d" -name '*.x'; done | LC_ALL=C sort | xargs cat; cat tools/dev/image-write.x tools/dev/image-walk.x tools/dev/image-name.x; cat "$engine"; _caller_key "$@"; } | shasum | cut -d' ' -f1)"
+key="$( { cat "$lib"; for d in lib tests/x/lib engine/tools/contract; do [ -d "$d" ] && find "$d" -name '*.x'; done | LC_ALL=C sort | xargs cat; cat tools/dev/image-write.x; cat "$engine"; _caller_key "$@"; } | shasum | cut -d' ' -f1)"
 # A library the writer could not name (see the unnameable rule below) is
 # remembered by a marker beside the key, so the answer is not re-derived by
 # a failed write on every run: the marker holds until the key changes.

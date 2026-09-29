@@ -268,7 +268,7 @@
 ; clears it again.
 ;
 ; The cursor of a walk is an object and its successor is read after any
-; collection, for the reasons tools/dev/image-walk.x gives.
+; collection, for the reasons lib/x/tool/image/walk.x gives.
 
 ; How many objects, or pairs of bodies, a walk passes between collections,
 ; less one so that it serves as a mask.  A step leaves garbage behind -- the
