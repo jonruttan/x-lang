@@ -3,22 +3,22 @@
 # @requires tok/label
 # @weight 1
 
-The variant channel through the assembler lane: `%score-variant!` compiles to the
+The label channel through the assembler lane: `%score-label!` compiles to the
 `jit_score_label` trampoline, so a native state declares what it accepted the
-way an interpreted one does (lib/reader-variant.spec.md is the interpreted twin).
-## the variant a state declares reaches the reader
+way an interpreted one does (lib/reader-label.spec.md is the interpreted twin).
+## the label a state declares reaches the reader
 
 An analyser knows which of its states accepted -- whether a literal ran
-through a fraction -- and `(%score-variant! score K)` is how it says so: the
-engine hangs a variant cell off the score, records the winning handler's variant,
+through a fraction -- and `(%score-label! score K)` is how it says so: the
+engine hangs a label cell off the score, records the winning handler's label,
 and hands it to the type's reader as its second argument.  Nil when no
 state declared one, so every reader written before the channel existed
 reads what it always read.
 
-### a compiled state declares its variant, and the reader reads it
+### a compiled state declares its label, and the reader reads it
 
-Digits alone are variant 1; a dot promotes the literal to variant 2.  The two
-accepting states differ only in the variant they declare.
+Digits alone are label 1; a dot promotes the literal to label 2.  The two
+accepting states differ only in the label they declare.
 
 ```x
 (do
@@ -30,7 +30,7 @@ accepting states differ only in the variant they declare.
       '(fn (me buffer score chr)
         (if (and (>= chr 48) (<= chr 57))
           me
-          (%seq (%buffer-unread buffer) (%seq (%score-variant! score 2) (%score-set score 1 buffer)))))
+          (%seq (%buffer-unread buffer) (%seq (%score-label! score 2) (%score-set score 1 buffer)))))
       () #t))
   (def %body
     (compile-asm
@@ -39,7 +39,7 @@ accepting states differ only in the variant they declare.
           me
           (if (= chr 46)
             frac
-            (%seq (%buffer-unread buffer) (%seq (%score-variant! score 1) (%score-set score 1 buffer))))))
+            (%seq (%buffer-unread buffer) (%seq (%score-label! score 1) (%score-set score 1 buffer))))))
       (list (pair 'frac %frac)) #t))
   (def %start
     (compile-asm
@@ -48,7 +48,7 @@ accepting states differ only in the variant they declare.
       (list (pair 'body %body)) #t))
   (Base make-type %b "V-NUM"
     (list (pair 'analyse %start)
-      (pair 'read (fn (_ . args) (list (%buf-tok (first args)) (%read-variant args))))))
+      (pair 'read (fn (_ . args) (list (%buf-tok (first args)) (%read-label args))))))
   (Base make-type %b "V-WS"
     (list (pair 'analyse
       (fn (_ buffer score chr)
@@ -59,9 +59,9 @@ accepting states differ only in the variant they declare.
 ---
     (("12" 1) ("3.5" 2) ("7" 1))
 
-### a state that declares no variant hands the reader nil
+### a state that declares no label hands the reader nil
 
-The same reader on a type whose states never call `%score-variant!`: the
+The same reader on a type whose states never call `%score-label!`: the
 second argument is nil, as it was before the channel existed.
 
 ```x
@@ -83,7 +83,7 @@ second argument is nil, as it was before the channel existed.
       (list (pair 'body %body)) #t))
   (Base make-type %b "V-NAME"
     (list (pair 'analyse %start)
-      (pair 'read (fn (_ . args) (list (%buf-tok (first args)) (%read-variant args))))))
+      (pair 'read (fn (_ . args) (list (%buf-tok (first args)) (%read-label args))))))
   (Base make-type %b "V-WS"
     (list (pair 'analyse
       (fn (_ buffer score chr)

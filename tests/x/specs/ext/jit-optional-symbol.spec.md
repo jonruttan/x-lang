@@ -5,7 +5,7 @@
 An OPTIONAL JIT symbol -- one an older engine may lack, so the lane binds it
 as address 0 rather than refusing every compile -- must make the one form
 that needs it REFUSE at compile time, never emit a call to 0. x-python's
-compiled number states declared their variant through `jit_score_label` on
+compiled number states declared their label through `jit_score_label` on
 an engine that had no such symbol, and the first number token after the swap
 died with a SIGSEGV nowhere near the cause. The compile now raises a `'state`
 Err, and the caller's guard falls back to the interpreted twin.
@@ -14,19 +14,19 @@ The engine decides which outcome is right, so each case asks the running
 process itself -- `dlsym`, the way the lane resolves its trampolines -- and
 pins compiled-where-exported, refused-where-absent, and nothing else.
 
-## a state that declares a variant
+## a state that declares a label
 
 ### compiled where the engine exports jit_score_label, refused by name where it does not
 
 ```x
 (let ((present (not (null? ((prim-ref 'ffi 'dlsym) ((prim-ref 'ffi 'dlopen) () 1) "jit_score_label"))))
       (r (guard (e (list (Err label e) (e msg)))
-           (%seq (compile-asm (lit (fn (_ buffer score chr) (%score-variant! score 7)))
+           (%seq (compile-asm (lit (fn (_ buffer score chr) (%score-label! score 7)))
                               () #t)
                  'compiled))))
   (if present
     (eq? r 'compiled)
-    (equal? r (list 'state "asm-compile: this engine has no jit_score_label, so a state that declares a variant cannot be compiled"))))
+    (equal? r (list 'state "asm-compile: this engine has no jit_score_label, so a state that declares a label cannot be compiled"))))
 ```
 ---
 ```output

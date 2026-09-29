@@ -141,5 +141,5 @@
 ; --- reader/intrinsics.x: the analyse protocol -------------------------------
 (promised "lib/x/reader/intrinsics.x" %score-set "docs/crafting-a-lang.md" "accepts a token, the current character included")
 (promised "lib/x/reader/intrinsics.x" %buffer-unread "docs/crafting-a-lang.md" "gives the current character back before an accept")
-(promised "lib/x/reader/intrinsics.x" %score-variant! "docs/crafting-a-lang.md" "declares which variant the accepting state saw")
-(promised "lib/x/reader/intrinsics.x" %read-variant "docs/crafting-a-lang.md" "the variant, as the type's reader recovers it")
+(promised "lib/x/reader/intrinsics.x" %score-label! "docs/crafting-a-lang.md" "declares which variant the accepting state saw")
+(promised "lib/x/reader/intrinsics.x" %read-label "docs/crafting-a-lang.md" "the label, as the type's reader recovers it")

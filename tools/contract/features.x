@@ -113,8 +113,8 @@
                             ;   compiled states' door) and the type's reader
                             ;   receives it as its second argument, nil when
                             ;   no state declared one.  Consumer:
-                            ;   x/reader/intrinsics.x %score-variant! and
-                            ;   %read-variant, x/tool/asm-compile.x; spec files
+                            ;   x/reader/intrinsics.x %score-label! and
+                            ;   %read-label, x/tool/asm-compile.x; spec files
                             ;   carrying `# @requires tok/label`.
   ; --- reflection support that is not a row at all ---
   (reflect/layout-data -)   ; ships obj-layout.x + base-paths.x, the two files
