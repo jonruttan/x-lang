@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A compiled state reaches another through a cell** ([#881]). The assembler
+lane lowers `(first CELL)` and `(rest CELL)`, in analyser mode, to
+`jit_firstobj` and `jit_restobj`. CELL is an fvar holding a pair, read when
+the code runs, so two states that hand to each other both compile: the
+caller puts each state in its cell with `%set-first!` once every state
+exists. The operand is an fvar, an object parameter, or another `first` or
+`rest`; a number, an fvar that holds nil, and an integer function refuse at
+generation. The collector reaches a state through the cell that holds it.
+The engine is unchanged.
+
+[#881]: https://github.com/jonruttan/x-lang/pull/881
+
 **The assembler and the float stubs work in single precision** ([#877]). A
 single (a C float) is the low 32 bits of a d register, the bits above it
 zero on both backends. `fcvt/d` converts one to a double, `fcvt/s` a double
