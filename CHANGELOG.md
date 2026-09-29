@@ -6,7 +6,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased]
 
 **The list of functions that have a compiled version is `Compiled`**
-([#PR]). `x/sys/swap` and its class `Swap` are `x/tool/compiled` and
+([#859]). `x/sys/swap` and its class `Swap` are `x/tool/compiled` and
 `Compiled`, with names that say what each thing is. An entry holds a
 function's `interpreted` version, the function that does the `compile`, the
 function that does the `install`, and the `compiled` version once there is
@@ -24,7 +24,7 @@ one; its `state` is `compiled`, `interpreted` or `failed`. No alias is kept.
 `(Swap site-on-demand! ...)`, new in 0.17.0, is `(Compiled make-on-demand ...)`.
 The compiled SHA-256 engine's entry is made with it, as before.
 
-[#PR]: https://github.com/jonruttan/x-lang/pull/PR
+[#859]: https://github.com/jonruttan/x-lang/pull/859
 
 ## [0.17.0] - 2026-09-28
 
