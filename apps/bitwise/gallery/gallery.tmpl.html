@@ -171,7 +171,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
   async function draw() {
     const my = ++token;
     const proj = PROJECTS.find((p) => p.name === state.name);
-    const r = await Bitwise.render(state.name, state.fmt, proj ? proj.tagline : "", proj ? proj.kind : "", "stage");
+    const r = await Bitwise.render(state.name, state.fmt, proj ? proj.tagline : "", proj ? proj.label : "", "stage");
     if (my !== token) return;
     current = r;
     plate.dataset.fmt = state.fmt;
@@ -210,7 +210,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
     const q = (s) => "'" + String(s).replace(/'/g, "'\\''") + "'";
     const proj = PROJECTS.find((p) => p.name === state.name);
     let cmd = "x -l bitwise -- " + q(state.name) + " --fmt " + state.fmt;
-    if (state.fmt === "banner") cmd += " --tagline " + q(proj ? proj.tagline : "") + " --kind " + q(proj ? proj.kind : "");
+    if (state.fmt === "banner") cmd += " --tagline " + q(proj ? proj.tagline : "") + " --label " + q(proj ? proj.label : "");
     cmd += " -o " + q((state.name || "bitwise").replace(/[^A-Za-z0-9._-]+/g, "-") + "-" + state.fmt + ".svg") + " --png";
     copy(cmd, e.currentTarget);
   });

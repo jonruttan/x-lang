@@ -282,31 +282,31 @@
   }
   const text = (x, y, size, fill, extra, body) => '<text x="' + x + '" y="' + y + '" font-family="' + FONT +
     '" font-size="' + size + '"' + extra + ' fill="' + fill + '">' + esc(body) + "</text>";
-  function fmtBanner(p, pal, lang, tagline, kind, uid) {
+  function fmtBanner(p, pal, lang, tagline, label, uid) {
     const x = 560, name = p.name, nlen = chars(name), fs = nlen <= 10 ? 96 : (nlen <= 14 ? 72 : 56);
     let y = 356; const tag = wrap(tagline, 42).map((l) => { const t = text(x, y, 26, INK, "", l); y += 36; return t; }).join("");
     const col = lang.logo ? lang.logo : "hue " + div(p.hue10, 10) + "&#176;";
     return svgOpen(1280, 640, name + ", with Bitwise") + '<rect width="1280" height="640" fill="' + PAPER + '"/>' +
       bitfield(p, 40, 20, 32 * U, pal.accent, "0.09") + owlIn(pal, lang, uid, 60, 90, 440, 460) +
-      text(x, 200, 20, pal.deep, ' letter-spacing="4"', (kind === "" ? "an x project" : kind).toUpperCase()) +
+      text(x, 200, 20, pal.deep, ' letter-spacing="4"', (label === "" ? "an x project" : label).toUpperCase()) +
       text(x, 300, fs, INK, ' font-weight="700"', name) + tag +
       (lang.reference ? text(x, 524, 24, pal.deep, ' xml:space="preserve"', lang.reference) : "") +
       '<text x="' + x + '" y="580" font-family="' + FONT + '" font-size="15" fill="' + pal.deep + '">plumage  ' + esc(p.formula) + "   " + col + "</text></svg>";
   }
 
-  function renderWith(h, name, fmt_, tagline, kind, uid) {
-    uid = uid || "o"; tagline = tagline || ""; kind = kind || "";
+  function renderWith(h, name, fmt_, tagline, label, uid) {
+    uid = uid || "o"; tagline = tagline || ""; label = label || "";
     const p = params(name, h), lang = LANGS[name] || {}, pal = palette(p, lang);
     p.costume = lang.mascot || lang.logo || "";
     p.reference = lang.reference || "";
     let svg;
     if (fmt_ === "mark") svg = fmtMark(p, pal, lang, uid);
     else if (fmt_ === "avatar") svg = fmtAvatar(p, pal, lang, uid);
-    else if (fmt_ === "banner") svg = fmtBanner(p, pal, lang, tagline, kind, uid);
+    else if (fmt_ === "banner") svg = fmtBanner(p, pal, lang, tagline, label, uid);
     else throw new Error("bitwise: unknown format " + fmt_);
     return { svg, params: p, palette: pal };
   }
-  async function render(name, fmt_, tagline, kind, uid) { return renderWith(await digest(name), name, fmt_, tagline, kind, uid); }
+  async function render(name, fmt_, tagline, label, uid) { return renderWith(await digest(name), name, fmt_, tagline, label, uid); }
   // "LENGTH:FNV1A32" over the UTF-8 bytes, as gen.x's bitwise-fingerprint.
   function fingerprint(s) {
     const bytes = new TextEncoder().encode(s);
