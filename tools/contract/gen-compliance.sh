@@ -46,13 +46,13 @@ awk '/^\(def %feature-group-rows/{f=1;next} /^\)\)\)/{f=0}
                     for (i=2;i<=NF;i++) print $i, $1 }' "$FEAT" | sort > "$W/exp"
 awk '/^\(def %feature-capabilities/{f=1;next} /^\)\)\)/{f=0}
      f && /^  \(/ { l=$0; sub(/;.*/,"",l); gsub(/[()]/,"",l); $0=l
-                    if (NF>=2 && $2!="rows" && $2!="-") print $2, $1 }' "$FEAT" | sort -k1,1 > "$W/tagmap"
+                    if (NF>=2 && $2!="rows" && $2!="-") print $2, $1 }' "$FEAT" | sort -k1,1 > "$W/labelmap"
 # Catalog rows carry an ns/method split; bare and keep rows do not, and are probed
 # by resolving the symbol instead of by walking the catalog.
 # VALUES probe exactly like bare names -- evaluate the symbol and see whether it
 # resolves -- so they enter as `bare`.  They were skipped, which is why the rows
 # meta/identity is made of had no compliance probe: declared, required, and
-# never falsified.  Their isa.x entries carry no tag column, hence the NF>=1.
+# never falsified.  Their isa.x entries carry no label column, hence the NF>=1.
 awk '/^\(def %isa-catalogue/{s="cat";next} /^\(def %isa-bare/{s="bare";next}
      /^\(def %isa-keep/{s="bare";next} /^\(def %isa-aliases/{s="";next}
      /^\(def %isa-values/{s="values";next} /^\)\)\)/{s=s}
@@ -62,12 +62,12 @@ awk '/^\(def %isa-catalogue/{s="cat";next} /^\(def %isa-bare/{s="bare";next}
                else if (s=="values" && NF>=1) print $1, "value", "bare"
                else if (s=="bare" && NF>=2) print $1, $2, "bare" }' "$ISA" | sort > "$W/isa"
 
-sort -k2,2 "$W/isa" > "$W/isa-bytag"
-join -1 2 -2 1 -o 1.1,2.2,1.3 "$W/isa-bytag" "$W/tagmap" | sort > "$W/bytag"
+sort -k2,2 "$W/isa" > "$W/isa-bylabel"
+join -1 2 -2 1 -o 1.1,2.2,1.3 "$W/isa-bylabel" "$W/labelmap" | sort > "$W/bylabel"
 # explicit membership wins over the label mapping (the `ffi` label splits three ways)
-awk 'NR==FNR{g[$1]=$2;next} {print $1, ($1 in g ? g[$1] : $2), $3}' "$W/exp" "$W/bytag" \
+awk 'NR==FNR{g[$1]=$2;next} {print $1, ($1 in g ? g[$1] : $2), $3}' "$W/exp" "$W/bylabel" \
 	| sort -u > "$W/c2g"
-# rows named explicitly but whose label no capability claims are absent from bytag
+# rows named explicitly but whose label no capability claims are absent from bylabel
 # FILENAME==ARGV[1] for the same reason as in gen-engine-xon.sh: c2g is empty for
 # an engine that declares no isa rows at all, and NR==FNR inverts on an empty
 # first file rather than failing.

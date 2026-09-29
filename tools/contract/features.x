@@ -29,8 +29,8 @@
 ; written in.  That is why `isa/hot` is a capability like any other while
 ; being, by its own definition, derivable.
 ;
-; Groups partition the ISA, and a tag is not always a group.  Most groups are
-; exactly one isa.x tag; the `ffi` tag is not.  It carries ten rows that
+; Groups partition the ISA, and a label is not always a group.  Most groups are
+; exactly one isa.x label; the `ffi` label is not.  It carries ten rows that
 ; split into three unrelated capabilities, and treating it as one group makes
 ; dlopen mandatory for every engine, a sandboxed one included.  lib/x/boot
 ; reaches int/->ptr, obj/->ptr, ptr/->int, ptr/->obj, str/->ptr, ptr/ref-word
@@ -44,7 +44,7 @@
 ; legend text in the engine's manifest, not a capability; no row here.)
 ;
 ; Format (rigid, one entry per line -- the awk parses the same bytes):
-;   (atom source)         source = the isa.x tag that proves it, a build flag,
+;   (atom source)         source = the isa.x label that proves it, a build flag,
 ;                         `rows` when membership is listed explicitly below, or
 ;                         `-` when proven some other way (named in the comment)
 ;   (group-rows atom ns/method ...)   explicit membership, for split labels
@@ -69,7 +69,7 @@
                           ;   resolve) but the ONE group an engine may always
                           ;   implement in x -- requires.x must never demand it
                           ;   be a primitive.
-  ; --- the three-way split of tag `ffi` (see the header) ---
+  ; --- the three-way split of label `ffi` (see the header) ---
   (reflect/ptr-casts rows) ; object<->pointer<->int materialization.  MANDATORY
                            ;   under decision L1: reflect.x reads header words
                            ;   through these, and boot cannot start without them.
@@ -86,7 +86,7 @@
   (instr/cov     X_COV)     ; coverage marking -- tools/dev/cov.x, x-bin-cov
   (instr/profile X_PROFILE) ; eval counters -- lib/x/tool/profile.x
   ; --- the native-extension lanes -----------------------------------------
-  ; Neither is a tag: both are things an engine SHIPS or EXPORTS, proven the
+  ; Neither is a label: both are things an engine SHIPS or EXPORTS, proven the
   ; way reflect/layout-data is.  They were undeclared assumptions until a
   ; second engine met them: x-base.x died on `cc failed with status 160`
   ; because nothing said an engine can host a compiled prim, and the jit/asm
@@ -157,14 +157,14 @@
                             ;   the params first and parses this only if absent.
 )))
 
-; Explicit membership for the split tag.  Every ffi-tagged isa.x row appears
+; Explicit membership for the split label.  Every ffi-labelled isa.x row appears
 ; exactly once below; the gate checks that against isa.x directly, so a new ffi
 ; row must be classified in the same commit that adds it.
 (def %feature-group-rows (lit (
   (reflect/ptr-casts int/->ptr obj/->ptr ptr/->int ptr/->obj ptr/->str str/->ptr)
   (isa/ffi-call      ffi/dlopen ffi/dlsym ptr/call)
   (isa/syscall       syscall)
-  ; The value rows.  isa.x's %isa-values carries no tag column, so each one is
+  ; The value rows.  isa.x's %isa-values carries no label column, so each one is
   ; classified here or the partition fails.  Unclassified, they are nameable by
   ; no atom, and x.sh can depend on a value no engine is obliged to have.
   (meta/identity     x-release x-version)
@@ -268,7 +268,7 @@
 ; A profile INCLUDES the one before it (the gate checks the chain is closed).
 ;
 ; Four profiles rather than six.  `reader` and `io` do not separate from core:
-; lib/x/boot reaches the `io` tag (the printer is x-level but must emit bytes)
+; lib/x/boot reaches the `io` label (the printer is x-level but must emit bytes)
 ; and lib/x/type reaches `tok`.  `posix` does not separate from the foreign
 ; door either -- lib/x/sys/posix.x, the foundation of that profile, fetches
 ; dlopen, dlsym and ptr/call alongside syscall.  The chain below is what the

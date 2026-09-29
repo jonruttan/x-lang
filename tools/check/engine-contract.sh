@@ -8,7 +8,7 @@
 #
 # What it checks
 #   1. total      every isa.x row lands in exactly one capability group -- by its
-#                 tag, or by explicit membership for a split tag.  A new C row
+#                 label, or by explicit membership for a split label.  A new C row
 #                 cannot appear without being classified in the same commit.
 #   2. disjoint   no coordinate is claimed by two groups.
 #   3. grounded   every explicitly-listed coordinate actually exists in isa.x, so
@@ -21,9 +21,9 @@
 #                 to tools/contract/constraints.x instead.
 #
 # Checks 1 and 2 carry the weight, because the groups are hand-drawn.  The `ffi`
-# tag carries ten rows that split three ways: the pointer casts (mandatory --
+# label carries ten rows that split three ways: the pointer casts (mandatory --
 # boot reads header words through them), the foreign door (dlopen/dlsym/
-# ptr-call), and the raw syscall door.  Treating the tag as one group makes
+# ptr-call), and the raw syscall door.  Treating the label as one group makes
 # dlopen mandatory for every engine, a sandboxed one included, putting that
 # target out of reach on paper while it works in fact.  So the partition is
 # machine-checked against isa.x rather than trusted.
