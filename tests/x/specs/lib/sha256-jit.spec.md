@@ -50,13 +50,33 @@ the cases below build the engine explicitly, and the state is per process.
   (def %site (Swap named (lit sha256)))
   (def %up (Sha256 hex "abc"))
   (%site down!)
-  (def %down (list (%site state) (Sha256 hex "abc") (Sha256 jit!)))
+  (def %down (list (%site state) (Sha256 hex "abc")))
   (%site up!)
   (write (list (str=? %up (first (rest %down))) (first %down)
-               (first (rest (rest %down))) (%site state) (Sha256 jit!))))
+               (%site state) (Sha256 jit!))))
 ```
 ---
-    (#t 'down #f 'up #t)
+    (#t 'down 'up #t)
+
+### after a load the site is down, and a build asked for brings it up
+
+The loader's recache leaves a site made on demand down, so a process that
+loads a state image does not build the engine until one is wanted.
+
+```x
+(do
+  (import x/codec/sha256)
+  (def %site (Swap named (lit sha256)))
+  (%site down!)
+  (%image-recache!)
+  (def %loaded (%site state))
+  (def %small (Sha256 hex "abc"))
+  (def %still (%site state))
+  (write (list %loaded %still (Sha256 jit!) (%site state)
+               (str=? %small (Sha256 hex "abc")))))
+```
+---
+    ('down 'down #t 'up #t)
 
 ### jit! reports the engine active, and is idempotent
 
