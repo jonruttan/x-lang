@@ -207,6 +207,13 @@ names a class. No alias is kept, and no bundle uses the old name.
 
 [#862]: https://github.com/jonruttan/x-lang/pull/862
 
+**The linter's depth warning is named `depth`** ([#864]). A definition at
+least 12 deep and 500 nodes large was reported as `shape`; a lint run now
+prints `depth:` for it. The lang kit's `--strict` matches the new name, so a
+bundle's strict lint fails on the same findings as before.
+
+[#864]: https://github.com/jonruttan/x-lang/pull/864
+
 **A stat record holds a file's type under `file-type`** ([#823]).
 `(File stat p)` and `(File lstat p)` answer
 `((size . N) (mode . M) (file-type . K) (mtime . T))`; the third key was
@@ -1753,7 +1760,7 @@ as the painter appends a space for the same reason.
 **The linter reads a `set!` body as a definition body.** `(def NAME ())`
 followed by `(set! NAME (fn ...))` is how a self-referential function is
 written -- the forward declaration lets the body name itself -- and the walk
-scanned only the `def` spelling, so the ladder and shape rules never saw
+scanned only the `def` spelling, so the ladder and depth rules never saw
 those bodies. Every tokenizer state machine in `lib/x/num/` is written that
 way and reported nothing; `decimal.x` held two four-deep chains while
 reporting zero ladders. `%arity-collect` already read the two spellings
@@ -2871,15 +2878,16 @@ install tree gained the half the shim migration had been waiting on:
 surfaced it with five bundles red on the missing file and zero on their
 suites.
 
-**The linter reports shape, on measured criteria.** Three advisory rules,
+**The linter reports depth, on measured criteria.** Three advisory rules,
 one finding per definition with the numbers carried in the name: `ladder`
 (a nested if chain branching on one variable), `ladder-dict` (the same,
-string-keyed, ≥15 arms) and `shape` (depth ≥12 and ≥500 nodes). `match` is
+string-keyed, ≥15 arms) and `depth` (released as `shape`; depth ≥12 and
+≥500 nodes). `match` is
 an engine primitive and measures faster than the chain it replaces (605ms vs
 897ms over 40 arms and 10k lookups), so `ladder` has no hot-path exemption —
 hot code converts first, not last — while a Dict wins only on string keys
 (2.75s vs 6.90s at 25 arms) and is 5x SLOWER than `match` on integer keys,
-which is why the fix rides the key type. `shape` counts NODES, not lines:
+which is why the fix rides the key type. `depth` counts NODES, not lines:
 the linter reads forms as data and density runs 4.8–9.7 nodes/line, so a
 line count would partly measure the formatter. The 500 is calibrated — at
 250 the rule found 83 definitions in a smooth decay with no natural gap.
