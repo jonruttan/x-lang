@@ -323,8 +323,8 @@ structs and two indices; the loader does not care which is which.
    inside the image.
  5. Call `(%image-recache!)`, resolved in the image. A library module that
    caches an address at boot, or writes into an engine static -- the two
-   type tags `boot/reflect.x` keeps, the four struct words `boot/printer.x`
-   keeps, the retag of `#t` and `#f` in `type/bool.x` -- adds a thunk to
+   type labels `boot/reflect.x` keeps, the four struct words `boot/printer.x`
+   keeps, the relabel of `#t` and `#f` in `type/bool.x` -- adds a thunk to
    `%image-recache-hooks`, and this call runs them all, in the order they
    were added. Every image's
    library binds the name; `lib/img.x` binds it to nothing.

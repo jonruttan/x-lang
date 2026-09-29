@@ -103,7 +103,7 @@ covers: str/byte-len bytes/->str
 
 covers: type/make type/make-instance int/+
 
-Generic-operator dispatch (`x_type_op_try`). Every value carries a type tag, so
+Generic-operator dispatch (`x_type_op_try`). Every value carries a type label, so
 "is it typed" is not the test — CARRYING A HANDLER is: a type that registers `+`
 receives `(handler a b)` and owns the coercion. An engine without the dispatch
 adds the operand words and answers a machine integer, which is how

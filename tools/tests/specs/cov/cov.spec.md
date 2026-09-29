@@ -212,7 +212,7 @@
 
 The blocks above prove the C flag mechanics; these prove the x/tool/cov
 LIBRARY against real fn objects. The tool rotted to 0/0 invisibly when
-the type-tag model changed (fn bodies are C-built spines whose type name
+the type-label model changed (fn bodies are C-built spines whose type name
 is nil) because nothing exercised this layer.
 
 ### cov-count-tree walks a C-built fn body spine

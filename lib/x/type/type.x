@@ -255,9 +255,9 @@
                       (%str-append "no " (%str-append (symbol->str op) (%str-append " for " tname)))
                       ())))
                 (loop (rest ops))))))))
-    (method cast! (self (param obj ANY "Object to retag") (param src ANY "Object whose type tag to copy"))
-      (doc "LOW-LEVEL: overwrite OBJ's type tag with SRC's (raw pointer write)."
-        (returns ANY "OBJ, retagged"))
+    (method cast! (self (param obj ANY "Object to relabel") (param src ANY "Object whose type label to copy"))
+      (doc "LOW-LEVEL: overwrite OBJ's type label with SRC's (raw pointer write)."
+        (returns ANY "OBJ, relabelled"))
       ((prim-ref (lit type) (lit cast!)) obj src))))
 
 ; (Type named NAME): the type registered under NAME, nil when none is.  The

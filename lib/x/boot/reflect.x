@@ -121,16 +121,16 @@
       (first %reflect-file-registry-cell))))
 
 ; --- type reflection ---
-; The type slot (header word 1) as an integer tag.
+; The type slot (header word 1) as an integer label.
 (def %reflect-type-word
   (fn (_ o) (%ptr-ref-word (%obj->ptr o) %reflect-type-off)))
 
-; Discriminator tags, resolved once at boot (static objects, stable).
-; The static-ATOM sentinel tag marks type HANDLES (the name atoms `type of`
+; Discriminator labels, resolved once at boot (static objects, stable).
+; The static-ATOM sentinel label marks type HANDLES (the name atoms `type of`
 ; returns) and other raw atoms.  It is NOT what #t/#f carry (nil-typed,
-; tag 0) and NOT what interned symbols carry (the interning tree) -- so
-; probe it from a real handle.  The structural-PAIR tag is every registered
-; TYPE's own tag, probed from the first type-alist entry; C files the
+; label 0) and NOT what interned symbols carry (the interning tree) -- so
+; probe it from a real handle.  The structural-PAIR label is every registered
+; TYPE's own label, probed from the first type-alist entry; C files the
 ; alist during init, before any lib loads.
 (def %reflect-type-alist-cell (%reflect-base-cell (lit type-alist)))
 (def %reflect-satom-tw
@@ -156,8 +156,8 @@
 ; carryable form back (tower-compiled.x restores its interpreted analysers);
 ; the module's recache thunk above remakes the rest after the load.
 (def %image-transients ())
-;  In the order the modules added them: bool.x's retag resolves its handle
-; through the tags this module recomputes, so this module's thunk runs first.
+;  In the order the modules added them: bool.x's relabel resolves its handle
+; through the labels this module recomputes, so this module's thunk runs first.
 ; The walk RECURSES FIRST and calls on the way out, which is what puts the
 ; oldest hook first over a newest-first list -- asm-compile.x's walk over
 ; %jit-rows has the same shape for the same reason, and it needs no reversal
@@ -185,9 +185,9 @@
                 (%reflect-type-word (rest (first (first %reflect-type-alist-cell)))))))
         %image-recache-hooks))
 
-; THE TYPE-TAG TRAP predicate: does this type word mark a type HANDLE
-; rather than an instance?  Both sentinel tags qualify -- the static-atom
-; tag (bare handle atoms) and the structural-pair tag (registered
+; THE TYPE-LABEL TRAP predicate: does this type word mark a type HANDLE
+; rather than an instance?  Both sentinel labels qualify -- the static-atom
+; label (bare handle atoms) and the structural-pair label (registered
 ; types) -- and neither carries a navigable type pointer, so every
 ; consumer must branch on BOTH before dereferencing the word.
 (def %reflect-handle-tw?
@@ -196,24 +196,24 @@
       ((eq? tw %reflect-satom-tw) #t)
       (#t (eq? tw %reflect-spair-tw)))))
 
-; (obj retag!) -- write an object's type header slot to the type resolved
+; (obj relabel!) -- write an object's type header slot to the type resolved
 ; from a registry handle: the door for x-defined types over C-created
 ; values (#101 -- BOOL claims the #t/#f statics at boot; C prims return
 ; them by IDENTITY, so only the object itself changing type touches them).
 ; Born as a C instruction on the #101 branch, retired here by ruling: the
 ; store is the same layout-contract write %type-cast! (struct.x) performs,
 ; so it is pure reflection like every accessor above.  RAW like the mem
-; ops: retagging an object whose payload does not match the new type's
+; ops: relabelling an object whose payload does not match the new type's
 ; declared layout (its units walk -- see bool.x's units 0) is UB, and the
 ; caller owns it; any new consumer on the collect path gets ASan-verified
 ; before it lands (the #101 lesson).  Unknown handles refuse -- policy in
 ; x.  Returns nil (the C side-effect-primitive contract, kept).
-(def %reflect-retag!
+(def %reflect-relabel!
   (fn (_ o h)
     (do
       (def %reflect-rtt (%registry-assoc-rest h (first %reflect-type-alist-cell)))
       (match
-        ((eq? %reflect-rtt ()) (error "retag!: unknown type handle"))
+        ((eq? %reflect-rtt ()) (error "relabel!: unknown type handle"))
         (#t (do
               (%ptr-set-word! (%obj->ptr o) %reflect-type-off
                 (%ptr->int (%obj->ptr %reflect-rtt)))
@@ -229,10 +229,10 @@
 ; (type name o) -- the type's name as a FRESH string, or nil.  Mirrors the
 ; C branches exactly: a bare atom / structural pair is a type HANDLE,
 ; resolved against the type-alist (its own type field holds a sentinel, so
-; navigating it would misread the tag payload); nil-typed objects have no
-; name; a NON-navigable type tag -- an ATOM sentinel like the base tag
+; navigating it would misread the label payload); nil-typed objects have no
+; name; a NON-navigable type label -- an ATOM sentinel like the base label
 ; x_eval_obj ("BASE"), never a registered type -- answers its own
-; bytes (C returned the raw tag; x_type_prim_type_name's "must not be
+; bytes (C returned the raw label; x_type_prim_type_name's "must not be
 ; navigated" rule): stepping the name path through an atom with the
 ; UNCHECKED first/rest is a segfault, which is exactly how printing a
 ; (base make) child died; anything else reads its type's name field.
@@ -325,7 +325,7 @@
 (prim-reg! (lit obj) (lit meta-set!)   %reflect-meta-set!)
 (prim-reg! (lit obj) (lit meta-count)  %reflect-meta-count)
 (prim-reg! (lit obj) (lit meta-count!) %reflect-meta-count!)
-(prim-reg! (lit obj) (lit retag!)      %reflect-retag!)
+(prim-reg! (lit obj) (lit relabel!)    %reflect-relabel!)
 (prim-reg! (lit io)  (lit error-line)  %reflect-error-line)
 (prim-reg! (lit io)  (lit error-file)  %reflect-error-file)
 (prim-reg! (lit type) (lit name)       %reflect-type-name)

@@ -230,13 +230,13 @@
 
 ; --- Type casting ---
 
-; Offset to type tag in object layout (filed as (type offset) for
+; Offset to type label in object layout (filed as (type offset) for
 ; tool/compile.x) -- spelled from the committed descriptor, the one source
 ; for header offsets (reflect.x's %reflect-type-off is this same product,
 ; hoisted at boot).
 (def %type-offset (* %obj-slot-type %word-size))
 
-; Overwrite an object's type tag with the type of another object
+; Overwrite an object's type label with the type of another object
 (def %type-cast!
   (fn (_ obj type-src)
     (def %dst-ptr (%obj->ptr obj))
