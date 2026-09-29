@@ -654,7 +654,7 @@ body.  A chain there is the same chain.
 ---
     #t
 
-## lint: shape warning, depth x size (docs/code-quality.md 1.3)
+## lint: depth warning, depth x size (docs/code-quality.md 1.3)
 
 Neither number is a finding alone: long-and-flat is a data table, and
 deep-and-small is a tight recursive walker.  The pair is the defect.  The
@@ -669,7 +669,7 @@ nodes.
     (if (= n 0) acc (self (- n 1) (list 'if (list '= 'c n) 1 acc)))))
   (def %r (lint-forms
             (list (list 'def 'big (list 'fn (list '_ 'c) (build 120 0)))) () ()))
-  (display (not (null? (lint-warnings-of "shape" %r)))))
+  (display (not (null? (lint-warnings-of "depth" %r)))))
 ```
 ---
     #t
@@ -682,7 +682,7 @@ nodes.
     (if (= n 0) acc (self (- n 1) (list 'if (list '= 'c n) 1 acc)))))
   (def %r (lint-forms
             (list (list 'def 'tight (list 'fn (list '_ 'c) (build 14 0)))) () ()))
-  (display (null? (lint-warnings-of "shape" %r))))
+  (display (null? (lint-warnings-of "depth" %r))))
 ```
 ---
     #t
@@ -696,7 +696,7 @@ A data table: hundreds of nodes, nesting of two.
   (def wide (fn (self n acc) (if (= n 0) acc (self (- n 1) (pair n acc)))))
   (def %r (lint-forms
             (list (list 'def 'table (pair 'list (wide 400 ())))) () ()))
-  (display (null? (lint-warnings-of "shape" %r))))
+  (display (null? (lint-warnings-of "depth" %r))))
 ```
 ---
     #t
@@ -712,7 +712,7 @@ A data table: hundreds of nodes, nesting of two.
             (list (list 'def 'q (list 'fn (list '_ 'c)
                     (list 'lit (wide 900 ()))
                     (build 14 0)))) () ()))
-  (display (null? (lint-warnings-of "shape" %r))))
+  (display (null? (lint-warnings-of "depth" %r))))
 ```
 ---
     #t

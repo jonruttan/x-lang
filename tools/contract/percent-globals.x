@@ -57,8 +57,8 @@
 ; tool/lint.x grew by fourteen, 69 -> 83, for the multi-way ladder check
 ; (docs/code-quality.md 1.1): %ladder-at/-lit-kind/-cmp?/-pair/-cmp-test/
 ; -test/-run/-best/-note!/-skip?/-walk, the two thresholds, and
-; %lint-ladder-scan; then by five more, 83 -> 88, for the depth-x-size shape
-; check (1.3): %shape-of/-elems, its two thresholds, and %lint-shape-scan.
+; %lint-ladder-scan; then by five more, 83 -> 88, for the depth check
+; (1.3): %depth-nodes-of/-elems, its two thresholds, and %lint-depth-scan.
 ; These are WALK CORE, not cold analysis: both walks visit every node of
 ; every def body, exactly the ground on which the file's existing per-form
 ; walk stays off the Lint class (see the class comment there, and #344 --
