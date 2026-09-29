@@ -321,6 +321,13 @@ Nothing a program calls is renamed.
 
 [#874]: https://github.com/jonruttan/x-lang/pull/874
 
+**The engine-contract gate calls an ISA row's justification its label**
+([#879]). Its failure lines read `TOTAL: COORD (label X)` and `claimed both by
+label X`; they said tag. `features.x` and the two generators follow, and an
+engine's `x-engine.xon` comes out as before.
+
+[#879]: https://github.com/jonruttan/x-lang/pull/879
+
 **The seam gate calls a row's `always`, `installed` or `bundle` its label**
 ([#878]). It refuses an unknown one with `seam: unknown label(s) in FILE: NAME`;
 the line said `class(es)`. `tools/contract/seam.x` gives a row as
