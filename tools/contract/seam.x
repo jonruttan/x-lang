@@ -20,7 +20,7 @@
 ;
 ; Format (one form per line, closed vocabulary -- an unknown form is an error):
 ;
-;   (seam CLASS NAME "what it is")
+;   (seam LABEL NAME "what it is")
 ;
 ;   always     bound in every dialect, in every tree.  A lang may use it
 ;              plainly.
@@ -33,7 +33,7 @@
 ;              checks both halves, and the second half needs a bundle to load:
 ;              tools/contract/bundles/seamprobe/ is that bundle, a fixture
 ;              rather than a lang, nine lines whose only job is to be loaded.
-;              A class nothing can probe is documentation rather than a gate.
+;              A label nothing can probe is documentation rather than a gate.
 ;
 ; docs/lang-contract.md carries the same table for readers; the gate holds the
 ; two to each other, so the documented seam cannot drift from the enforced one.
