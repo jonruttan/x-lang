@@ -10,11 +10,14 @@
 ; interpreted version itself, the interpreted one stays installed and the
 ; entry says which happened.
 ;
-; Compiled code is machine code in a page this process mapped, and a state
-; image cannot carry it (docs/state-images.md, "Compiled code: put down
+; Compiled code runs from a page this process mapped, and a state image
+; cannot carry the page (docs/state-images.md, "Compiled code: put down
 ; before the write, picked up after the load").  So every entry is switched
 ; to its interpreted version before an image is written, and compiled again
-; once one is loaded.  This module adds one thunk to the image writer's
+; once one is loaded.  A compile through compile-asm is then a copy and a
+; patch: the assembler's cache holds the code and its relocation records in
+; the heap, and the image carries those (lib/x/tool/asm-cache.x).  This
+; module adds one thunk to the image writer's
 ; transients, which switches every entry to interpreted, and each entry
 ; adds its own recache hook as it is made.  The hook is the entry's own so
 ; that it runs after the hooks of everything loaded before the entry: the

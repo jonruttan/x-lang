@@ -1489,9 +1489,12 @@ because that run pays a boot twice.
 
 ### Compiled code: put down before the write, picked up after the load
 
-A compiled analyser is native code in a page the writing process mapped,
-and no name reacquires it in another process. The tower does not need it
-to be *carried*, only *remade*: every compile in `boot/tower-compiled.x` is
+A compiled analyser runs from a page the writing process mapped, and no
+name reacquires that page in another process. What an image carries is the
+code and its relocation records: `lib/x/tool/asm-cache.x` holds each entry
+in the heap, the code in an object of `word` units and the records as a
+list, so a compile after a load is a copy into a fresh page and a patch,
+with no file and no compiler. The page itself is remade: every compile in `boot/tower-compiled.x` is
 the same shape, source over free variables, with an interpreted twin it
 displaces. So each compile makes an entry that records where the result is
 installed (a name's binding, or one cell of a type's handler list), the

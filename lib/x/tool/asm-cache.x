@@ -44,6 +44,12 @@
 ; record is what a reader probes: by the time it exists, the bytes it names
 ; are already whole.
 ;
+; AN ENTRY IS HELD IN THE HEAP AS WELL.  Every entry this process stores or
+; loads is also kept as two objects: the code in an object whose payload is
+; words, and the records as a list.  Neither holds an address, so a state
+; image carries them, and a process booted from that image pours from what it
+; holds without the files.  See "entries held in the heap" below.
+;
 ; Plain defs, not a class: this sits on the compile path beside asm.x and
 ; asm-compile.x, which are written the same way.
 (module x/tool/asm-cache)
@@ -95,6 +101,11 @@
 (def %asm-cache-wts (prim-ref 'io 'write-to-str))
 (def %asm-cache-byte-len (prim-ref 'str 'byte-len))
 (def %asm-cache-str->sym (prim-ref 'str '->sym))
+(def %asm-cache-obj-make (prim-ref 'obj 'make))
+(def %asm-cache-copy! (prim-ref 'ptr 'copy!))
+; The engine's integer division: `/` is the tower's once the tower has loaded,
+; and answers a rational.
+(def %asm-cache-int/ (prim-ref 'int '/))
 
 (def %asm-libc-creat  (%asm-cache-dlsym %asm-cache-lib "creat"))
 (def %asm-libc-open   (%asm-cache-dlsym %asm-cache-lib "open"))
@@ -483,7 +494,7 @@
             (def r (%asm-cache-read-entry buf (rest sl) text))
             (%asm-cache-pcall %asm-libc-free buf)
             (if (null? r) (%asm-cache-miss)
-              (%asm-cache-pour base (first r) (rest r) fvars))))))))
+              (%asm-cache-pour (%asm-cache-fill-file base) (first r) (rest r) fvars))))))))
 
 ; The header says where the records end and the blob begins, and every read of
 ; the entry is an OFFSET taken from it.  A file that disagrees with itself --
@@ -522,44 +533,54 @@
 ; Pour the bytes into a fresh buffer, re-encode every baked address for THIS
 ; process, then protect.  THE ORDER IS FORCED: asm-finalize! mprotects the page
 ; R+X, and a write after that is a segfault, not an error.
+;
+; FILL is (fn (_ dst size)) and puts SIZE bytes of code at DST, answering #f
+; when it cannot: the bytes come from a file or from an entry held in the heap,
+; and everything after them is the same.
 (def %asm-cache-pour
-  (fn (_ base size recs fvars)
-    (def fd (%asm-cache-pcall %asm-libc-open (Str append base ".bin") 0))
-    (if (< fd 0) (%asm-cache-miss)
+  (fn (_ fill size recs fvars)
+    (def a (asm-new (+ size 256)))
+    (if (not (fill (%obj-ref a 0) size)) (%asm-cache-miss-mapped a)
       (do
-        (def a (asm-new (+ size 256)))
-        ; One read(2) straight into the mmap'd buffer -- the whole reason this
-        ; module exists.  A short read means a truncated entry: miss.
-        (def got (%asm-cache-pcall %asm-libc-read fd (%obj-ref a 0) size))
-        (%asm-cache-pcall %asm-libc-close fd)
-        (if (not (= got size)) (%asm-cache-miss-mapped a)
+        (%obj-set! a 1 size)
+        (def cell (%asm-cache-self-cell))
+        (def table (%asm-cache-fvar-table fvars))
+        ; The relocator and the buffer are fetched ONCE and the sites walked
+        ; against them.  asm-reloc-apply! re-finds both per call, and a
+        ; loaded analyser has scores of sites -- the lookup alone was more
+        ; than half the cost of a hit.
+        (def reloc (asm-relocator a))
+        (def code-buf (%obj-ref a 0))
+        (def ok
+          (if (null? reloc) #f
+            ((fn (self rs)
+               (if (null? rs) #t
+                 (do (def r (first rs))
+                   (def val (%asm-cache-value (first (rest r))
+                              (first (rest (rest r))) table cell))
+                   (if (null? val) #f
+                     (do (reloc code-buf (first r) val) (self (rest rs)))))))
+              recs)))
+        (if (not ok) (%asm-cache-miss-mapped a)
           (do
-            (%obj-set! a 1 size)
-            (def cell (%asm-cache-self-cell))
-            (def table (%asm-cache-fvar-table fvars))
-            ; The relocator and the buffer are fetched ONCE and the sites walked
-            ; against them.  asm-reloc-apply! re-finds both per call, and a
-            ; loaded analyser has scores of sites -- the lookup alone was more
-            ; than half the cost of a hit.
-            (def reloc (asm-relocator a))
-            (def code-buf (%obj-ref a 0))
-            (def ok
-              (if (null? reloc) #f
-                ((fn (self rs)
-                   (if (null? rs) #t
-                     (do (def r (first rs))
-                       (def val (%asm-cache-value (first (rest r))
-                                  (first (rest (rest r))) table cell))
-                       (if (null? val) #f
-                         (do (reloc code-buf (first r) val) (self (rest rs)))))))
-                  recs)))
-            (if (not ok) (%asm-cache-miss-mapped a)
-              (do
-                (def code (asm-finalize! a))
-                (unless (null? cell)
-                  (%asm-cache-ptr-set-word! cell 0 (%asm-cache-ptr->int code)))
-                (%asm-cache-publish! recs size code)
-                (%asm-cache-make-callable code)))))))))
+            (def code (asm-finalize! a))
+            (unless (null? cell)
+              (%asm-cache-ptr-set-word! cell 0 (%asm-cache-ptr->int code)))
+            (%asm-cache-publish! recs size code)
+            (%asm-cache-make-callable code)))))))
+
+; The fill for an entry's file: one read(2) straight into the mmap'd buffer --
+; the whole reason this module exists.  A file that will not open, or a short
+; read, which means a truncated entry, is a miss.
+(def %asm-cache-fill-file
+  (fn (_ base)
+    (fn (_ dst size)
+      (def fd (%asm-cache-pcall %asm-libc-open (Str append base ".bin") 0))
+      (if (< fd 0) #f
+        (do
+          (def got (%asm-cache-pcall %asm-libc-read fd dst size))
+          (%asm-cache-pcall %asm-libc-close fd)
+          (= got size))))))
 
 ; Records in the layout asm.x hands them out -- label as a SYMBOL, a self-cell's
 ; name as nil, an fvar's as a symbol -- so that %asm-last-relocs says the same
@@ -589,6 +610,80 @@
                    acc)))))
           recs ())
         ()))))
+
+; --- entries held in the heap -------------------------------------------------
+; The code object's first unit is its length in words, an INTEGER, and the
+; units after it are labelled `word`: the collector does not follow them, and
+; an image writes and rebuilds them as they are, zero bytes included.  An
+; engine without (type set-unit-labels!) cannot describe such an object, and
+; this module then holds no entries.
+(def %asm-cache-code-type
+  (if (null? (prim-ref 'type 'set-unit-labels!)) ()
+    ((fn (_ handle)
+       (Type set-unit-labels! (Type by-atom handle) -1 '(ref word))
+       handle)
+     ((prim-ref 'type 'make) "ASM-CODE" ()))))
+
+; Each entry is (text size code records): the key text a hit must match, the
+; code's size in bytes, the code object, and the records in the file's layout,
+; (offset label name) with the label an integer and the name a string.
+(def %asm-cache-held ())
+
+(def %asm-cache-held-find
+  (fn (self text l)
+    (if (null? l) ()
+      (if (str=? text (first (first l))) (first l)
+        (self text (rest l))))))
+
+; Where a code object's bytes begin: its second unit.
+(def %asm-cache-code-at
+  (fn (_ code)
+    (%asm-cache-int->ptr
+      (+ (%asm-cache-ptr->int (%asm-cache-obj->ptr code)) (%data-word-off 1)))))
+
+; Records as asm.x hands them out, in the file's layout.
+(def %asm-cache-file-recs
+  (fn (_ relocs)
+    ((fn (self rs acc)
+       (if (null? rs) (%asm-cache-rev acc ())
+         (self (rest rs)
+           (pair (list (first (first rs))
+                       (%asm-cache-label-int (first (rest (first rs))))
+                       (%asm-cache-name-str (first (rest (rest (first rs))))))
+             acc))))
+      relocs ())))
+
+; Hold the entry for TEXT: SIZE bytes of code at BUF, moved by one block copy,
+; and RELOCS as asm.x hands them out.  The last word is cleared first, since
+; the code need not fill it.  A text already held is left as it is.
+(def %asm-cache-hold!
+  (fn (_ text size relocs buf)
+    (if (null? %asm-cache-code-type) ()
+      (if (not (null? (%asm-cache-held-find text %asm-cache-held))) ()
+        (guard (_ ())
+          (do
+            (def words (%asm-cache-int/ (+ size (- %word-size 1)) %word-size))
+            (def code (%asm-cache-obj-make %asm-cache-code-type (+ words 1)))
+            (%obj-set! code 0 words)
+            (%asm-cache-ptr-set-word! (%asm-cache-obj->ptr code) (%data-word-off words) 0)
+            (%asm-cache-copy! (%asm-cache-code-at code) buf size)
+            (set! %asm-cache-held
+              (pair (list text size code (%asm-cache-file-recs relocs))
+                    %asm-cache-held))
+            ()))))))
+
+; The callable for TEXT from the entry held for it, or () on any miss.
+(def %asm-cache-held-load
+  (fn (_ text fvars)
+    (guard (_ ())
+      (do
+        (def e (%asm-cache-held-find text %asm-cache-held))
+        (if (null? e) (%asm-cache-miss)
+          (%asm-cache-pour
+            (fn (_ dst size)
+              (%asm-cache-copy! dst (%asm-cache-code-at (first (rest (rest e)))) size)
+              #t)
+            (first (rest e)) (first (rest (rest (rest e)))) fvars))))))
 
 ; --- the public door --------------------------------------------------------
 ; THE CACHE IS THE DOOR AND THE COMPILER IS WHAT IT FALLS BACK TO, which is the
@@ -642,13 +737,22 @@
         ; down: hashing the same text again for the store, or for the sibling
         ; file, would cost as much as hashing it did the first time.
         (def text (%asm-cache-text expr fvars analyser?))
-        (def base (%asm-cache-path text))
-        (def hit (%asm-cache-load text base fvars))
-        (if (not (null? hit)) hit
+        ; The entry this process holds comes first: it costs no file, and in
+        ; a process booted from a state image it is the entry the image
+        ; carried.
+        (def held (%asm-cache-held-load text fvars))
+        (if (not (null? held)) held
           (do
-            (def f (%asm-cache-uncached expr fvars analyser?))
-            (%asm-cache-store! text base %asm-last-size %asm-last-relocs %asm-last-buf)
-            f))))))
+            (def base (%asm-cache-path text))
+            (def hit (%asm-cache-load text base fvars))
+            (if (not (null? hit))
+              (do (%asm-cache-hold! text %asm-last-size %asm-last-relocs %asm-last-buf)
+                  hit)
+              (do
+                (def f (%asm-cache-uncached expr fvars analyser?))
+                (%asm-cache-store! text base %asm-last-size %asm-last-relocs %asm-last-buf)
+                (%asm-cache-hold! text %asm-last-size %asm-last-relocs %asm-last-buf)
+                f))))))))
 
 (doc asm-compile-cached
   (returns CALLABLE "X-lang callable prim")
@@ -667,7 +771,8 @@
    prim the code computes, and refuses at run time if the head is not one.
    The compiled function works with map, fold, closures, etc.
    The cache keeps two files per entry, in /tmp or in the directory the
-   X_ASM_CACHE_DIR environment variable names.")
+   X_ASM_CACHE_DIR environment variable names, and holds each entry in the
+   heap as well, where a state image carries it.")
 
 ; Filed in the catalog for the compile-asm door in x/tool/compile: that module
 ; loads this one on first use and cannot name a function of a module it has
