@@ -134,7 +134,7 @@ three gaps (VECTOR, ASM, ITER) are fixed, the rest verified.
 ---
     ((1 2 3) #t ((5) (6)) "ab" 42 ('deep))
 
-## retagged singletons survive collection (#101)
+## relabelled singletons survive collection (#101)
 
 The mark hook walks typed objects by their type's declared units, and
 build_struct DEFAULTS x-made types to pair units -- over a 1-slot static

@@ -297,6 +297,11 @@
 ; emit.x rose 54 to 57 for the CHARACTER write handler: the type handle,
 ; the char->int door, and the writer itself -- one emitter family, the
 ; same standing the int and symbol writers have.
+; image/name.x and image/walk.x came from tools/dev/image-name.x (26) and
+; tools/dev/image-walk.x (50).  What is left is what no other file reads;
+; their exports are bare names.  Both are unscoped, the walk being per object.
+(file "lib/x/tool/image/name.x" 14)
+(file "lib/x/tool/image/walk.x" 17)
 (file "lib/x/tool/lint.x" 88)
 ; class.x fell 91 to 89: its two exported hooks, class-call-handler and
 ; bind-call-over!, are bare names now (x-lang#719, the last %-named exports).
@@ -320,9 +325,7 @@
 (file "tools/dev/highlight.x" 8)
 (file "tools/dev/image-foreign.x" 8)
 (file "tools/dev/image-inspect.x" 23)
-(file "tools/dev/image-name.x" 26)
 (file "tools/dev/image-read.x" 57)
-(file "tools/dev/image-walk.x" 50)
 (file "tools/dev/image-write.x" 97)
 (file "tools/dev/lint.x" 22)
 (file "tools/fuzz/diff-gen.x" 18)

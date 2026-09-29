@@ -28,12 +28,7 @@
 ; listed for the three that cannot load the door: 78, in 11 files.
 ; What is left is the tool scripts reading one another, and a few aliases.
 ; A read of a boot file's name that has no row in that manifest is not
-; budgeted here; the gate refuses it.
-; Five reads of a catalog alias that another file happened to bind went to
-; the public doors, and a member a class body declares stopped counting:
-; 70, in 5 files.
+; budgeted here; the gate refuses it.  The reads of a catalog alias another
+; file happened to bind went to the public doors, and a member a class body
+; declares stopped counting: 6, in 1 file.
 (file "tools/check/engine-contract.x" 6)
-(file "tools/dev/image-foreign.x" 13)
-(file "tools/dev/image-inspect.x" 8)
-(file "tools/dev/image-name.x" 4)
-(file "tools/dev/image-write.x" 39)

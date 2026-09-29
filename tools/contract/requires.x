@@ -85,6 +85,9 @@
   ; The pipeline resolves x_fvar_table in the loaded object with its own
   ; dlsym fetch, to patch it after a load.
   (needs "lib/x/tool/compile/pipeline.x" isa/ffi-call)
+  ; The image walk collects as it goes, and hands the collector, the mark and
+  ; the clear to the image tools.
+  (needs "lib/x/tool/image/walk.x" isa/gc)
   (needs "lib/x/tool/profile.x" isa/gc)
   (needs "lib/x/type/err.x" isa/ffi-call)
   (needs "lib/x/type/ptr.x" isa/ffi-call)

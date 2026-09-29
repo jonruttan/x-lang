@@ -1101,7 +1101,7 @@ record 1: type=83972 flags=128 extent=2 units=[83580, 0]
 ```
 
 Types and references are **indices, not addresses** — indices 0, 1 and 2 are
-reserved for nil and the two static type tags, so pass 1 stamps from 3 and no
+reserved for nil and the two static type labels, so pass 1 stamps from 3 and no
 pointer reaches the file.
 
 Three defects were found by reading the file back rather than by writing it,
@@ -1553,7 +1553,7 @@ the three waited for the pin. `make images` lists them now.
 
 - **The writer half needs a door.** Reading needs the shape declaration above
   and nothing else; writing objects back means setting type words and flags, which today is raw word
-  surgery of the kind `lib/x/boot/reflect.x` already does in `%reflect-retag!`.
+  surgery of the kind `lib/x/boot/reflect.x` already does in `%reflect-relabel!`.
   Whether that stays reflective or earns a primitive is open.
 - ~~**How the runner knows an image is stale.**~~ Decided, and it is a
   content hash: `tools/dev/image-build.sh` keys each image on the library

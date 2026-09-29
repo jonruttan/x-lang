@@ -145,18 +145,18 @@
 ---
     #t
 
-## obj retag!
+## obj relabel!
 
 The handle-resolving sibling of cast!, pure reflection in boot/reflect.x
 (retired from C by the #101 ruling). The singleton claim itself is pinned
 by bool.spec.md and the gc-stress collect path.
 
-### retags an object to a handle-resolved type
+### relabels an object to a handle-resolved type
 
 ```x
 (do (def rt-t ((prim-ref (lit type) (lit make)) "RETAGT" ()))
     (def rt-a (pair 1 2))
-    ((prim-ref (lit obj) (lit retag!)) rt-a rt-t)
+    ((prim-ref (lit obj) (lit relabel!)) rt-a rt-t)
     (Type name (Type of rt-a)))
 ```
 ---
@@ -165,10 +165,10 @@ by bool.spec.md and the gc-stress collect path.
 ### an unknown handle refuses -- policy in x
 
 ```x
-(guard (e e) ((prim-ref (lit obj) (lit retag!)) (pair 1 2) (lit no-such-type)))
+(guard (e e) ((prim-ref (lit obj) (lit relabel!)) (pair 1 2) (lit no-such-type)))
 ```
 ---
-    "retag!: unknown type handle"
+    "relabel!: unknown type handle"
 ## Type name
 
 ### resolves a built-in handle (the documented handle form)

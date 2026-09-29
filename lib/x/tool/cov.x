@@ -61,14 +61,14 @@
   (returns BOOL "True if object was evaluated (FLAG_2 set)")
   "Test whether an object was marked as evaluated by x-bin-profile.")
 
-; Cons test by cached type-handle eq? (#342), REPAIRED for the type-tag
+; Cons test by cached type-handle eq? (#342), REPAIRED for the type-label
 ; model (#402): a fn body is a C-BUILT spine carrying the structural-
-; PAIR sentinel tag -- its %type-name is NIL and its handle matches
+; PAIR sentinel label -- its %type-name is NIL and its handle matches
 ; neither LIST nor PAIR, so the old name compare (and a handle-only
 ; compare) scored every body 0/0 and the whole sweep reported nothing.
 ; The sentinel is probed from a real fn's own body spine at load, and
 ; tested by raw type WORD (header word 1) -- an int compare, no
-; navigation, safe on every object per the type-tag-trap rule.
+; navigation, safe on every object per the type-label-trap rule.
 (doc (def cov-cons?
   ((fn (_)
      (def %t-of (prim-ref 'type 'of))
