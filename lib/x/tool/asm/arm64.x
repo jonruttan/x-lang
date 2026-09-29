@@ -428,6 +428,21 @@
         (list 0 0 5 0)       ; Xd
         (list 1 5 5 0)))))   ; Dn
 
+    ; A single (a C float) is the low 32 bits of a d register, the bits
+    ; above it zero.  fcvt/d and fcvt/s convert between the two widths,
+    ; each named for what it writes, as fmov/d and fmov/x are.
+    ; FCVT Dd, Sn (single -> double)
+    (pair 'fcvt/d (list
+      (pair 'rr (list 505593856          ; 0x1E22C000
+        (list 0 0 5 0)       ; Dd
+        (list 1 5 5 0)))))   ; Sn
+
+    ; FCVT Sd, Dn (double -> single, rounded; the bits above it zero)
+    (pair 'fcvt/s (list
+      (pair 'rr (list 509755392          ; 0x1E624000
+        (list 0 0 5 0)       ; Sd
+        (list 1 5 5 0)))))   ; Dn
+
     ; flt/feq Xd, Dn, Dm: Xd = 1 when Dn < Dm (or Dn = Dm), else 0, and 0
     ; when either is NaN.  Two instructions, so a lowering: FCMP, then
     ; CSET on MI or EQ, the two conditions an unordered compare leaves

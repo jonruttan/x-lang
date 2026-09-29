@@ -915,6 +915,18 @@ is unchanged.
 ---
     (0.0 -2.0)
 
+### with no name, a stub by its label: 0.1 to a single and 0.1f back
+
+```x
+((fn (_)
+   (import x/num/float libm-fn)
+   (def spec-d->f (libm-fn (lit spec-d->f) "d->f" ()))
+   (def spec-f->d (libm-fn (lit spec-f->d) "f->d" ()))
+   (list (spec-d->f 4591870180066957722) (spec-f->d 1036831949))))
+```
+---
+    (1036831949 4591870180174331904)
+
 ## printing
 
 The printer is x (lib/x/num/float.x): exact digits from bigint, rounded to
