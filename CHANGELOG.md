@@ -335,6 +335,13 @@ the line said `class(es)`. `tools/contract/seam.x` gives a row as
 
 [#878]: https://github.com/jonruttan/x-lang/pull/878
 
+**Catalogue, in every file** ([#882]). The glossary's word is catalogue, and
+the tree's comments, doc strings, specs and docs spell it so.
+`image-foreign-catalogue` was `image-foreign-catalog`, and the conformance
+spec is `core/catalogue-ops.spec.md`. No alias is kept.
+
+[#882]: https://github.com/jonruttan/x-lang/pull/882
+
 **The linter's depth warning is named `depth`** ([#864]). A definition at
 least 12 deep and 500 nodes large was reported as `shape`; a lint run now
 prints `depth:` for it. The lang kit's `--strict` matches the new name, so a
