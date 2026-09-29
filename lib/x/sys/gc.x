@@ -1,9 +1,9 @@
 ; gc.x -- Heap: garbage-collection control as static methods.
 ;
-; The underlying operations are C primitives (src/x-prim/io.c, catalog ns
+; The underlying operations are C primitives (src/x-prim/io.c, catalogue ns
 ; `heap`); the methods fetch them from the registry -- cold operations, so
 ; inline (prim-ref ...) per the caching rule. The `heap` namespace is
-; DE-REGISTERED (R5): no bare heap-* names exist; the class (or a catalog
+; DE-REGISTERED (R5): no bare heap-* names exist; the class (or a catalogue
 ; fetch, for pre-object/hook callers) is the only surface.
 ;
 ; heap-collect runs an atomic mark+sweep in one C call. It MUST be atomic:

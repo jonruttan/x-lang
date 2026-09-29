@@ -11,15 +11,15 @@
 ; Input order on stdin: constructs.x, lang-constructs (or ()),
 ; then quoted source string.
 
-; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
-; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
-; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` de-registered, R5).
+; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
+; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
+; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` de-registered, R5).
 (def %ptr-ref-word (prim-ref 'ptr 'ref-word))
 (def %ptr-set-word! (prim-ref 'ptr 'set-word!))
 
 (def %obj-meta-count! (prim-ref 'obj 'meta-count!))
 (def %obj-meta-ref (prim-ref 'obj 'meta-ref))
-; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
 (def %read (prim-ref 'io 'read))
 ; The bare `convert` global was homed (the conversion surface is the Convert
 ; class); fetch the dispatcher directly -- same door tools/dev/lint.x uses.
@@ -81,7 +81,7 @@
   (def %flags-offset (* 2 word-size))
   (def %cov-bit 2)
 
-  ; %obj->ptr (boot data.x), NOT the convert catalog: int->%ptr there is
+  ; %obj->ptr (boot data.x), NOT the convert catalogue: int->%ptr there is
   ; a VALUE cast, so an atom branch -- the then of (if c 1 2) -- would
   ; have its value dereferenced as an address (garbage or SIGSEGV).
   ; %obj->ptr yields the object HEADER address for atoms and pairs alike

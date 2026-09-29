@@ -210,7 +210,7 @@
   (param d INTEGER "Units the mask describes")
   (returns INTEGER "The label of unit i")
   "The label of one unit, read from the mask.")
-; The units cell of a type word; the catalog prim is fetched once, here, and
+; The units cell of a type word; the catalogue prim is fetched once, here, and
 ; closed over -- this runs per object walked.
 (def %image-cell-of
   (let ((%units-cell (prim-ref (lit type) (lit units-cell))))

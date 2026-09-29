@@ -13,8 +13,8 @@
 ;
 ; Requires: quasi-reader.x, intrinsics.x, str.x, char.x, x/type/struct.
 
-; Fetch the type-system helpers from the catalog (registered by sys/type.x).
-; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
+; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
 (module x/reader/lit-reader)
 
 ; Quasiquote is a module of its own; its analysers and readers
@@ -29,7 +29,7 @@
 (def %type-push-analyse (prim-ref (lit type) (lit push-analyse)))
 (def %type-read-cell (prim-ref (lit type) (lit read-cell)))
 (def %type-push-delimit (prim-ref (lit type) (lit push-delimit)))
-; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %type-of (prim-ref (lit type) (lit of)))
 
 (def %type-push-read (prim-ref (lit type) (lit push-read)))

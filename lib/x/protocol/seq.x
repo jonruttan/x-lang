@@ -16,7 +16,7 @@
 ; now -> Iter (or the sequence class's own methods); building a pipeline
 ; -> Gen.
 (import x/type/class)
-; Fetch the int->char cast from the catalog (ns `int` utility member de-registered, R5).
+; Fetch the int->char cast from the catalogue (ns `int` utility member de-registered, R5).
 (def %integer->char (prim-ref (lit int) (lit ->char)))
 
 ; A Seq subclass describes how to walk some in-memory value V as a sequence of

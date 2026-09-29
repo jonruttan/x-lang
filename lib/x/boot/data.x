@@ -2,13 +2,13 @@
 ;
 ; Derived pair operations and low-level integer slot access.
 
-; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
 (def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
-; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
 (def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
 (def %ptr-set-word! (prim-ref (lit ptr) (lit set-word!)))
-; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 (def %int->ptr (prim-ref (lit int) (lit ->ptr)))
 
 ; %word-size and %data-offset computed once at boot; the header length comes
@@ -42,7 +42,7 @@
 
 ; Data-slot write, pure reflection: the stored word is the value's object
 ; pointer.  Formerly the C (obj set!) prim -- boot/reflect.x files this
-; same fn back into the catalog under that name.  Returns v (C contract).
+; same fn back into the catalogue under that name.  Returns v (C contract).
 (def %obj-set!
   (fn (_ o i v)
     (%ptr-set-word! (%obj->ptr o) (%data-word-off i)

@@ -34,7 +34,7 @@
 # A CRASH prints neither "ok" nor a reason, so a wrong answer and a dead engine
 # stay distinguishable.
 #
-# CWD IS THE ENGINE'S ROOT, because the catalog prelude includes the engine's own
+# CWD IS THE ENGINE'S ROOT, because the catalogue prelude includes the engine's own
 # committed base paths, and `include` resolves against the current directory.
 # Under decision L1 every engine ships those descriptors, so this works for any
 # engine, not just the C one.

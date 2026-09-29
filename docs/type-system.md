@@ -352,7 +352,7 @@ methods. The `handle` field holds the name atom, `raw` the struct the
 
 `cell` and `fields` walk the layout contract (`engine/tools/contract/base-paths.x`)
 — the same rows the C accessor macros flatten — so every struct field is
-addressable by its contract name: handler stacks, the conversion catalog
+addressable by its contract name: handler stacks, the conversion catalogue
 cells, the generic-operator alist. A name whose row is not type-rooted is
 refused: a base-rooted path stepped from a type would address
 arbitrary spine words. The worked path through this surface is
@@ -404,7 +404,7 @@ A custom type's `analyse` handler is the tokenizer's hot path — it is invoked 
 The fix is to **JIT-compile the analyser to native code** with `compile`, then install the compiled version. An analyser has the shape `(fn (_ buffer score chr) → next-state-fn | ())`: given the current byte `chr`, it returns a state function to continue scanning, or `()` to decline. `compile` takes the analyser as a quoted `(fn …)` AST plus an **fvar table** binding any free variables the body references (the state functions it transitions to). Pure expressions use the JIT assembler; expressions with fvars use the C-compiler-with-cache path.
 
 ```x
-; Fetch the wiring helpers from the catalog (registered by sys/type.x), and
+; Fetch the wiring helpers from the catalogue (registered by sys/type.x), and
 ; import the two states the compiled body hands back to -- they are exports
 ; of x/num/bigint, which is a module of its own.
 (def %type-by-atom      (prim-ref 'type 'by-atom))
@@ -426,7 +426,7 @@ The fix is to **JIT-compile the analyser to native code** with `compile`, then i
 
 Two install idioms:
 
-- **`(%type-push-analyse type compiled)`** — prepend a compiled analyser onto a type's analyse stack (used for each numeric type right after its module loads). Load-time wiring fetches the helper from the catalog as above; interactive reflection can use the class instead: `(Type push-analyse …)`.
+- **`(%type-push-analyse type compiled)`** — prepend a compiled analyser onto a type's analyse stack (used for each numeric type right after its module loads). Load-time wiring fetches the helper from the catalogue as above; interactive reflection can use the class instead: `(Type push-analyse …)`.
 - **`(%set-first! slot compiled)`** on a cell of `(%type-analyse-cell …)` — replace an existing interpreted handler in place (used to swap the symbol type's compiled `lit`/`quasi`/`unquote` analysers in for the interpreted ones from `lit-reader.x`).
 
 Do the compilation **incrementally, right after each type's module loads**, so subsequent source files are parsed through the already-compiled (fast) analysers rather than interpreted ones.

@@ -38,10 +38,10 @@ ends.
 
 It is not the accessor that is missing. `set-units!` turns out to be **x, not
 C** — `lib/x/type/struct.x` writes the type's units cell reflectively through
-the `type-units` row of the layout contract, and files it into the catalog with
+the `type-units` row of the layout contract, and files it into the catalogue with
 `prim-reg!`. So the count is readable from x by the same path, and a
 twenty-line `%obj-units` written against `%reflect-type-word`,
-`%reflect-satom-tw` and the catalog's `(type units-cell)` answers correctly for
+`%reflect-satom-tw` and the catalogue's `(type units-cell)` answers correctly for
 every type that declares one:
 
 ```
@@ -175,7 +175,7 @@ externalised form is the expression that produced them.
 
 ### Naming a primitive: measured, and it is not one table
 
-The obvious plan for the 129 primitives is the catalog: it is a live
+The obvious plan for the 129 primitives is the catalogue: it is a live
 `(ns . methods)` table in the base's `prims` field, it is what `prim-ref`
 already reads, and a coordinate is a perfectly good name. It is also not
 enough. A probe that collects primitive addresses from each naming table in
@@ -183,7 +183,7 @@ turn and diffs them against the heap walk above:
 
 | naming source | primitives it accounts for | left over |
 |---|--:|--:|
-| the catalog (135 coordinates, 22 namespaces) | 85 | 44 |
+| the catalogue (135 coordinates, 22 namespaces) | 85 | 44 |
 | plus the bare boot bindings (`x_callable_bind`'s keep-list) | 117 | 12 |
 | plus the global BST (`env-global-tree`) | 123 | 6 |
 | plus six raw operators held only in closures — below | 129 | **0** |
@@ -226,7 +226,7 @@ The measurement that decides this:
 
 Two distinct primitive objects, one C function. `x_callable_bind` allocates
 one object for the bare global and `x_prims_add` allocates another for the
-catalog, and nothing merges them. So **naming a primitive by "a coordinate
+catalogue, and nothing merges them. So **naming a primitive by "a coordinate
 that yields an equivalent value" silently merges objects the running base kept
 apart**, and `same?` starts answering differently after a round trip — a
 defect that survives the load and shows up much later, which is the worst
@@ -237,8 +237,8 @@ The rule that survives is narrower and is the one to build against:
 > **A foreign leaf is named by the path it was found at, in a fresh base —
 > not by a path that yields an equal value.**
 
-Bare `+` restores from the fresh base's bare `+`; catalog `(int +)` restores
-from the fresh base's catalog; the six raw bitwise operators restore from the
+Bare `+` restores from the fresh base's bare `+`; catalogue `(int +)` restores
+from the fresh base's catalogue; the six raw bitwise operators restore from the
 fresh base's bare bindings, which is where they still are before a library
 rebinds them. A fresh base has all three, and it has them distinct, so
 identity is preserved *because* the naming is by path rather than by value.
@@ -372,7 +372,7 @@ rather than code:
 
 ```x
 (foreign resolved)                       ; the writer finds the path itself —
-                                         ; catalog coordinate or bare global
+                                         ; catalogue coordinate or bare global
 (foreign drop)                           ; restore as nil — control state,
                                          ; caches, anything rebuilt on demand
 (foreign externalise F internalise G)    ; the general case
@@ -503,7 +503,7 @@ lines: the C layer is a CPU, and checks, dispatch and policy live in x.
 
 **But the host may not be a dialect.** The reader is x, so *something* must be
 booted before it runs, and that something is a floor under every load. helium
-is the tempting host — it has `Sys/open-read`, `Sys/fd-read`, the catalog and
+is the tempting host — it has `Sys/open-read`, `Sys/fd-read`, the catalogue and
 the whole library vocabulary — and for a xenon startup its 0.83s is a fair
 trade against 5.24s. It is the wrong answer anyway, because the suite is the
 consumer that matters and helium costs more than what the suite loads. The
@@ -693,7 +693,7 @@ time, not have it discovered at load time.
 | kind | payload | how it is reacquired |
 |---|---|---|
 | `nil` | — | NULL |
-| `catalog` | ns, method | walk the host base's prims catalog |
+| `catalogue` | ns, method | walk the host base's prims catalogue |
 | `bare` | name | look up the host base's boot binding |
 | `dlsym` | library, symbol | `dlopen` + `dlsym` |
 | `fd` | role (in/out/err) | the process's own descriptors |
@@ -705,7 +705,7 @@ Types wanting richer reacquisition get it after boot, from x, through
 saying so at write time is the whole point of the refusal.
 
 The measured foreign surface fits this: a booted helium's 147 address-holding
-objects are 129 primitives (catalog or bare — both nameable) and 17
+objects are 129 primitives (catalogue or bare — both nameable) and 17
 pointers that are sixteen `dlsym` results over one `dlopen` handle.
 
 ## Naming the statics: a reference into the base is a path, not a copy
@@ -815,7 +815,7 @@ bare `+`.
 one object must come back as one object, and two that differed must stay
 distinct. The index table gives that for free within the image; the foreign
 table gives it across the boundary, which is why naming is by path and not by
-value — resolving bare `+` and catalog `(int +)` to the same object would
+value — resolving bare `+` and catalogue `(int +)` to the same object would
 merge two the running base kept apart.
 
 ## One path, not two
@@ -1432,9 +1432,9 @@ marker that stops the write being retried until the key changes:
 
   The spelling an entry uses is a guarded read, because that name is bound
   in the writer's child ALONE and this language has no `bound?` predicate
-  (boot/module.x says so, and gives the catalog's nil answer as the test
-  where a catalog entry exists; here there is none, since the child has no
-  catalog until the library it is loading arrives):
+  (boot/module.x says so, and gives the catalogue's nil answer as the test
+  where a catalogue entry exists; here there is none, since the child has no
+  catalogue until the library it is loading arrives):
 
   ```
   (if (guard (_ #f) %image-writing)

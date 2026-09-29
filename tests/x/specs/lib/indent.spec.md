@@ -11,7 +11,7 @@ where the unmatched-dedent question lives. Both questions are constructor
 policy, because the two previous implementations answered them differently and
 neither wrote down that it had chosen.
 
-The per-character functions are registered under catalog ns `indent`; the
+The per-character functions are registered under catalogue ns `indent`; the
 harness caches them as `%adv` / `%msr` / `%cls`.
 
 ## Indent advance

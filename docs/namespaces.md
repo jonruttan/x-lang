@@ -38,7 +38,7 @@ Three mechanisms already do part of a namespace's job:
   `%`-prefixed static is private by convention; a `(private …)` block is
   private in fact. Static dispatch costs 8 to 30 times a direct call, which
   is why hot helpers are kept as bare globals on purpose.
-- **The catalog.** `(prim-ref ns name)` is a two-level table with a
+- **The catalogue.** `(prim-ref ns name)` is a two-level table with a
   producer door, `prim-reg!`. It is the C surface, and the ISA check
   rejects an x-side alias of a C primitive filed there.
 - **Slash-qualified names in the docs.** `(help Str8/split)` and
@@ -52,7 +52,7 @@ None of the three gives a module a private name.
 | top-level `%` definitions | 2,045 |
 | distinct `%` names referenced from a file other than their definer | 353 of 1,793 |
 | `%` names defined in more than one file | 72 |
-| `%` definitions that only cache a catalog fetch | 427 |
+| `%` definitions that only cache a catalogue fetch | 427 |
 | bare top-level definitions | 313 |
 | classes | 75 |
 

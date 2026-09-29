@@ -11,14 +11,14 @@
 
 ; --- Platform detection ---
 
-; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
-; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
+; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
 (def %obj-ref (prim-ref 'obj 'ref))
 
 (def %cvt (prim-ref 'convert 'to))
-; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %type-name (prim-ref 'type 'name))
-; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr-ref-word (prim-ref 'ptr 'ref-word))
 
 
@@ -37,10 +37,10 @@
 ; cov-flags, cov-cons? and cov-body are also how x/tool/profile reads the eval
 ; counts, and anything they call while it reads is counted with the program
 ; it measures.  So when they run they call only the engine's own forms and
-; catalog primitives -- match, first, rest, eq? and pointer reads -- and none
+; catalogue primitives -- match, first, rest, eq? and pointer reads -- and none
 ; of the library's functions.  What they compute once, at load, may use any.
 
-; Object-ADDRESS cast via (obj ->ptr), never the convert catalog: %cvt
+; Object-ADDRESS cast via (obj ->ptr), never the convert catalogue: %cvt
 ; to %ptr on an INT node is a VALUE cast (the #277 ruling) -- it walked
 ; garbage for every int in a body.  The prim rides a closure capture,
 ; not a new module global (the percent-globals budget stays at 8).

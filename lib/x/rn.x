@@ -10,7 +10,7 @@
 ; --- Heavy imports ---
 (import x/sys/posix)
 (import x/sys/proc)
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str-append (prim-ref 'str 'append))
 
 (import x/type/hash)

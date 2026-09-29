@@ -22,18 +22,18 @@
 (module x/type/str-utf8)
 
 (import x/type/char)
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str-byte-len (prim-ref (lit str) (lit byte-len)))
-; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %type-of (prim-ref (lit type) (lit of)))
 
 (def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
-; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
 (def %integer->char (prim-ref (lit int) (lit ->char)))
 
 
-; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
 
@@ -134,7 +134,7 @@
 ; Publish the code-point counter so the boot printer can find it.  write-fits?
 ; decides every line break in the formatter and needs code points, not bytes,
 ; but printer.x loads long before this file and cannot name %cp-count; the
-; catalog is the seam it resolves through (it falls back to bytes when this
+; catalogue is the seam it resolves through (it falls back to bytes when this
 ; entry is absent).
 (prim-reg! (lit str) (lit cp-len) (fn (_ s) (%cp-count s (%str-byte-len s) 0 0)))
 

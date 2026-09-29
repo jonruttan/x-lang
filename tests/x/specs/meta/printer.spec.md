@@ -95,7 +95,7 @@ stepping the name path through an atom with the UNCHECKED first/rest
 reads its payload as a pair pointer, which is how the REPL echo of a
 fresh base segfaulted mid-#<obj: (the opaque form calls type-name for
 the label).  (Base make) wraps the raw base in an instance now, so these
-pins reach through the catalog for the raw object.
+pins reach through the catalogue for the raw object.
 
 ### a base's sentinel type label answers its bytes, not a navigation
 
@@ -296,7 +296,7 @@ nosuchsym
 
 ### a lang can replace the wording, and put it back
 
-A lang reaches the ERR type through the type catalog, the same doors
+A lang reaches the ERR type through the type catalogue, the same doors
 `x/type/err-io.x` uses; that module's own names for them are private.
 
 ```x

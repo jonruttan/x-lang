@@ -8,8 +8,8 @@ error messages are all library code. None of it is present here. An engine must
 provide the machine operation; everything above it is x-lang's job.
 
 The `covers:` labels below name the BARE bindings (`+`, `-`, ...) rather than the
-catalog coordinates (`int/+`, ...), because that is what these cases call. The same
-primitive is reachable both ways -- bare, and through the catalog -- and the library
+catalogue coordinates (`int/+`, ...), because that is what these cases call. The same
+primitive is reachable both ways -- bare, and through the catalogue -- and the library
 uses both doors, so they are tracked as separate coverage.
 
 That distinction is the reason this suite loads nothing: a test that reaches `+`

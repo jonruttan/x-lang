@@ -810,7 +810,7 @@
 
 ## unconvertible operands raise, not crash the engine
 
-A conversion-catalog miss used to return silent nil, which reached the
+A conversion-catalogue miss used to return silent nil, which reached the
 unchecked `(first)`/FFI seats and segfaulted the engine. The door in
 float.x raises instead; the Convert dispatcher's silent-nil miss policy
 is unchanged.

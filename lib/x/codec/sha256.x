@@ -41,7 +41,7 @@
 (def %sha-oref (prim-ref (lit obj) (lit ref)))
 (def %sha-oset! (prim-ref (lit obj) (lit set!)))
 ; Message bytes come through (str byte-ref) + (char ->int), NOT the
-; generic converter.  %cvt is a catalog dispatch: measured at ~142us per
+; generic converter.  %cvt is a catalogue dispatch: measured at ~142us per
 ; byte against ~11us for the pair below, and filling W is 92% of a
 ; digest's runtime (25KB amalgam: 3.68s of 4.0s total), so this one
 ; substitution is worth more than everything the JIT can do to the round

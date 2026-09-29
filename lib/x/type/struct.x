@@ -1,4 +1,4 @@
-; type.x -- Type system reflection: the mechanism, registered in the catalog.
+; type.x -- Type system reflection: the mechanism, registered in the catalogue.
 ;
 ; Navigate the type layout:
 ;   (name (data (heap (proc (cvt (io (iter (ops))))))))
@@ -7,9 +7,9 @@
 ; CVT layout:
 ;   (from (to))
 ;
-; The helpers are %-private to this module and FILED IN THE CATALOG under ns
+; The helpers are %-private to this module and FILED IN THE CATALOGUE under ns
 ; `type` (joining the C entries make / make-instance / ? / of / name). The
-; module has a scope of its own, so the catalog is the one door to them.
+; module has a scope of its own, so the catalogue is the one door to them.
 ; Consumers fetch what they use at module load, e.g.:
 ;   (def %type-push-op (prim-ref (lit type) (lit push-op)))
 ; The human-facing API is the Type class (lib/x/type/type.x), which loads
@@ -19,9 +19,9 @@
 ; carries the documentation, and lib/x-core.x carries the provide's.
 (module x/type/struct)
 
-; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
 (def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
-; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
 (def %ptr-set-word! (prim-ref (lit ptr) (lit set-word!)))
 
@@ -245,7 +245,7 @@
     (%ptr-set-word! %dst-ptr %type-offset %type-val)
     obj))
 
-; --- File everything in the catalog (ns type) ---
+; --- File everything in the catalogue (ns type) ---
 (prim-reg! (lit type) (lit alist)         %type-alist)
 (prim-reg! (lit type) (lit by-atom)       %type-by-atom)
 (prim-reg! (lit type) (lit io)            %type-io)
@@ -276,5 +276,5 @@
 (prim-reg! (lit type) (lit offset)        %type-offset)
 (prim-reg! (lit type) (lit cast!)         %type-cast!)
 
-; Nothing is exported by name: every door is a catalog entry above.
+; Nothing is exported by name: every door is a catalogue entry above.
 (provide x/type/struct)

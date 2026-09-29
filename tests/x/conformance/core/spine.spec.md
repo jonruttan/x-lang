@@ -8,7 +8,7 @@ Several are reachable only as bare names because they ARE the binder.
 covers: %base
 
 Everything reflective starts here: the prelude walks the committed base paths from
-`(%base)` to reach the prims catalog, so an engine without it cannot even be asked
+`(%base)` to reach the prims catalogue, so an engine without it cannot even be asked
 what it provides.
 
 ```x
@@ -266,7 +266,7 @@ that is `operatives.x`'s contract, covered by the library's own suite.
 
 `%cc-invoke` is the continuation-application half of `call/cc`, reachable only
 with a continuation in hand; the observable behaviour is `call/cc`'s, which
-`core/evaluation.spec.md` and `core/catalog-ops.spec.md` both define.
+`core/evaluation.spec.md` and `core/catalogue-ops.spec.md` both define.
 
 `base/make-tok` and `base/make-type` construct tokenizer and type objects whose
 contracts are the reader's and the type registry's, not the spine's. They belong

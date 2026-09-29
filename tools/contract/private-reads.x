@@ -5,7 +5,7 @@
 ; unscoped file defines at its top level and the file does not define
 ; itself.  Each is a coupling that scoping the owner breaks, and step 4 of
 ; x-lang#719 is spent replacing them with doors: a class static where the
-; owner has a class, a catalog entry where it loads before the object
+; owner has a class, a catalogue entry where it loads before the object
 ; system, an export the reader imports where the owner is scoped.  A row
 ; goes down as its file's reads become doors, and a file absent here reads
 ; none.
@@ -28,7 +28,7 @@
 ; listed for the three that cannot load the door: 78, in 11 files.
 ; What is left is the tool scripts reading one another, and a few aliases.
 ; A read of a boot file's name that has no row in that manifest is not
-; budgeted here; the gate refuses it.  The reads of a catalog alias another
+; budgeted here; the gate refuses it.  The reads of a catalogue alias another
 ; file happened to bind went to the public doors, and a member a class body
 ; declares stopped counting: 6, in 1 file.
 ; A file under tools/ stopped counting as an owner on 2026-09-29: a tool

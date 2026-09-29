@@ -17,13 +17,13 @@
 (module x/repl/ansi)
 
 (import x/sys/posix)
-; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
 (def %token-read-string (prim-ref 'tok 'read-str))
 
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str-append (prim-ref 'str 'append))
 
-; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 (def %type-push-write (prim-ref 'type 'push-write))
 
 (import x/type/struct)

@@ -92,7 +92,7 @@
   (def word-size
     (if (> (Convert to (Convert to 4294967296 (Type named POINTER)) (Type named INTEGER)) 0) 8 4))
   (def %flags-offset (* 2 word-size))
-  ; %obj->ptr, not the convert catalog: an atom's int->ptr conversion is
+  ; %obj->ptr, not the convert catalogue: an atom's int->ptr conversion is
   ; a value cast -- the historical crash this spec pins (#231 chip).
   (def obj-flags (fn (_ obj)
     (Ptr ref-word (%obj->ptr obj) %flags-offset)))

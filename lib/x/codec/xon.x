@@ -35,7 +35,7 @@
     ; but renders symbols as 'sym, and xon heads/args are bare, so
     ; symbols go through symbol->str instead.
     (method %xon-emit-atom (self v)
-      ; ONE catalog fetch per call (#333); it was one per matched branch.
+      ; ONE catalogue fetch per call (#333); it was one per matched branch.
       (let ((w (prim-ref (lit io) (lit write-to-str))))
         (match
           ((str? v) (w v))
@@ -54,7 +54,7 @@
     ; asked to format.  The token rides in a ('%interp "...") marker, the
     ; pattern fmt already uses for comments; a bare string is indistinguishable
     ; from a real one, and converting to a symbol is not available -- the
-    ; conversion catalog is off-limits inside x_token_read.
+    ; conversion catalogue is off-limits inside x_token_read.
     ;
     ; Call ONCE per base, before its first read.  A handler slot is a LIST in
     ; every base; a fresh base's is STATIC-labelled, so it answers pair? with
@@ -70,7 +70,7 @@
         (unless (null? st)
           (%type-push-analyse st (pair interp-analyse (first (%type-analyse-cell st))))
           ; The tok prim is fetched ONCE here and closed over (#333):
-          ; fetching it inside the callback paid a catalog walk per
+          ; fetching it inside the callback paid a catalogue walk per
           ; string token of every armed read.
           (%type-push-read st
             (pair (let ((%tokf (prim-ref (lit buf) (lit tok))))

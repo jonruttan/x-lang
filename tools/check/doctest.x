@@ -18,7 +18,7 @@
 ; skipped, not emitted.  Every other example is emitted verbatim; the harness
 ; verdict buckets them.
 
-; Fetch the string prim from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prim from the catalogue (ns `str` is de-registered, R5).
 (def %str->sym (prim-ref 'str '->sym))
 
 (def %emit (fn (_ s) (do (display s "\n"))))

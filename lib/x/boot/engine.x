@@ -25,7 +25,7 @@
 ; Choosing an engine is therefore no longer an edit to this file at all.  It was
 ; four lines here; now it is where the link points.
 ;
-; ORDER: base-paths.x must precede registry.x (the catalog walk reads it), and
+; ORDER: base-paths.x must precede registry.x (the catalogue walk reads it), and
 ; obj-layout.x must precede data.x (its header offsets).  Both are pure `def`
 ; forms over integers and lists -- no dependencies of their own -- so loading them
 ; together here, ahead of both consumers, is safe and keeps the seam in one place.

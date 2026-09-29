@@ -28,14 +28,14 @@
 ; --- Helpers ---
 
 ; Local reverse (list.x not yet loaded)
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
 (def %str->symbol (prim-ref (lit str) (lit ->sym)))
 ; Two-arg front for %str<? (the pure-X byte compare defined below; the body
 ; resolves it at call time, so definition order is fine). Was the C (str <?)
 ; prim, retired -- sorting help output is cold, no C residency case.
 (def %str-lt (fn (_ a b) (%str<? a b 0)))
-; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
 
 

@@ -5,13 +5,13 @@
 
 The C layer is the interpreter's instruction set: unchecked, minimal, FIXED.
 `engine/tools/contract/isa.x` is the committed manifest of every C function reachable from x-lang.
-These tests walk the LIVE primitives catalog and fail on drift in either
+These tests walk the LIVE primitives catalogue and fail on drift in either
 direction, so growing the C surface requires editing the manifest in the same
 commit. The source-level companion (`make check-isa`) covers the bare binding
 sites the runtime walk cannot enumerate; here the bare/value sections are
 checked for liveness only.
 
-## catalog surface
+## catalogue surface
 
 ### every live C prim is in the manifest, and every manifest entry is live
 
@@ -72,11 +72,11 @@ ok
 ok
 ```
 
-### every live PRIMITIVE-typed global is catalog-filed or manifested
+### every live PRIMITIVE-typed global is catalogue-filed or manifested
 
 The reverse direction the liveness checks above cannot see: walk the env
 global BST and demand that every PRIMITIVE-typed binding is either (a) a
-value alias of a catalog-filed prim (module `%`-caches -- already-gated
+value alias of a catalogue-filed prim (module `%`-caches -- already-gated
 surface), or (b) named in `%isa-bare`/`%isa-keep`.  A NEW bare C binding
 -- however it is spelled in the source, across however many lines --
 exists in the live env and fails here.  (Keep-list names the lib shadows

@@ -16,14 +16,14 @@
 ; somewhere else -> Stream; touching the filesystem -> File; writing a
 ; reader -> Buf.
 ;
-; The C primitives live in src/x-prim/io.c (catalog ns `io`). ns `io` is
+; The C primitives live in src/x-prim/io.c (catalogue ns `io`). ns `io` is
 ; DE-REGISTERED (R5) -- EXCEPT `write` and `display`, the universal output
 ; verbs, which stay bound bare via the C keep-list (x_prims_name_kept), the
 ; same treatment eq?/same? get. So both forms work for those two:
 ;   (display x)        (Io display x)
 ;   (write x)          (Io write x)
 ; The others (read, read-char, write-to-str, display-to-str, error-line,
-; error-file, repl-read) have NO bare name; the Io class -- or a catalog fetch, for
+; error-file, repl-read) have NO bare name; the Io class -- or a catalogue fetch, for
 ; reader-context/hot code -- is the only surface. Reader-context callers
 ; (e.g. the %vector-read handler) must fetch-and-cache, never class-dispatch
 ; inside a tokenizer callback:

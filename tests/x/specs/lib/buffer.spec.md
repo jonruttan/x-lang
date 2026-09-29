@@ -1,7 +1,7 @@
 # Buffer reading (Buf)
 # @weight 1
 
-Buffer construction from x-lang is back: `(buf make s)` (catalog ns `buf` is
+Buffer construction from x-lang is back: `(buf make s)` (catalogue ns `buf` is
 de-registered, so fetch via `prim-ref`) wraps a BUFFER around a string's
 bytes -- non-owning, the wrap rule -- and `(str make n)` provides the
 GC-owned backing region. Both cursors start at the base, so the working

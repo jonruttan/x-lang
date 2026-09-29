@@ -1,9 +1,9 @@
 ; type/obj.x -- Obj: raw object construction, slot access, metadata, and
 ; FFI handles.
 ;
-; The C primitives live in src/x-prim/type.c and src/x-prim/ffi.c (catalog
+; The C primitives live in src/x-prim/type.c and src/x-prim/ffi.c (catalogue
 ; ns `obj`); the methods fetch inline per the cold rule. ns `obj` is
-; DE-REGISTERED (R5): the class -- or a catalog fetch, for boot and other
+; DE-REGISTERED (R5): the class -- or a catalogue fetch, for boot and other
 ; load-time callers (boot/data.x's pair mutators are built on these) -- is
 ; the only surface. eq? and same? also file under ns `obj` but are
 ; keep-list globals: the C binder's kept-names list keeps them bare.
@@ -51,5 +51,5 @@
       ((prim-ref (lit obj) (lit make-callable)) p))))
 
 (doc (provide x/type/obj Obj)
-  (note "ns `obj` is de-registered -- no bare names; boot/hot callers fetch from the catalog.")
+  (note "ns `obj` is de-registered -- no bare names; boot/hot callers fetch from the catalogue.")
   "Raw object layer: construction, slot and metadata access, FFI handles, on the Obj class.")

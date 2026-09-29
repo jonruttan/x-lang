@@ -20,7 +20,7 @@
 (import x/type/vector)
 (import x/type/list)
 
-; Fetch the raw slot prims from the catalog (ns `obj` is de-registered, R5).
+; Fetch the raw slot prims from the catalogue (ns `obj` is de-registered, R5).
 (def %dict-obj-ref (prim-ref 'obj 'ref))
 (def %dict-obj-set! (prim-ref 'obj 'set!))
 ; Fetch the char cast (ns `char` utility members de-registered, R5).

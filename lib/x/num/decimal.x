@@ -25,7 +25,7 @@
 ; The base type handles, from their public door, fetched once at load.
 (def %string (Type named STRING))
 
-; The binary integer primitives, fetched from the catalog: the C operators as
+; The binary integer primitives, fetched from the catalogue: the C operators as
 ; they were before core/arithmetic.x wrapped the bare names.
 (def %int+ (prim-ref (lit int) (lit +)))
 (def %int- (prim-ref (lit int) (lit -)))
@@ -36,25 +36,25 @@
 (def %int= (prim-ref (lit int) (lit =)))
 (import x/num/bigint bigint bigint? big-limbs bigint-digits-per-limb)
 (import x/num/float float)
-; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
 
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str-append (prim-ref 'str 'append))
 
-; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 (def %type-by-atom (prim-ref 'type 'by-atom))
 (def %type-from-cell (prim-ref 'type 'from-cell))
 (def %type-push-op (prim-ref 'type 'push-op))
 
-; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
 (def %cvt (prim-ref 'convert 'to))
-; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %make-instance (prim-ref 'type 'make-instance))
 (def %make-type (prim-ref 'type 'make))
 (def %type-of (prim-ref 'type 'of))
 (def %type? (prim-ref 'type '?))
-; Fetch the char/int cast from the catalog (ns `char` utility members de-registered, R5).
+; Fetch the char/int cast from the catalogue (ns `char` utility members de-registered, R5).
 (def %char->integer (prim-ref 'char '->int))
 
 ; Forward-declare the handle and the reader (set below, after make-type).
@@ -807,7 +807,7 @@
 
 (def %dec? (fn (_ x) (%type? x %decimal)))
 
-; Door: promote through the conversion catalog, so the other side may be an
+; Door: promote through the conversion catalogue, so the other side may be an
 ; int, bigint, float, rational or numeric string.  A miss is a raise, never
 ; a nil into (first) -- the C core is unchecked, so the guard lives here.
 (def ensure-dec
@@ -1009,7 +1009,7 @@
         (do (set! %dec-prec n) n)))
     ; --- Conversions ---
     (method from (self (param x ANY "An int, bigint, float, rational, numeric string, or decimal (identity)"))
-      (doc "Construct a decimal from any convertible value, through the conversion catalog. A float converts EXACTLY; a rational rounds to the current precision. Raises a label 'type when nothing converts."
+      (doc "Construct a decimal from any convertible value, through the conversion catalogue. A float converts EXACTLY; a rational rounds to the current precision. Raises a label 'type when nothing converts."
         (returns DECIMAL "Decimal instance")
         (sample "(Decimal ->str (Decimal from \"1.25\"))" "\"1.25\""))
       (ensure-dec x))

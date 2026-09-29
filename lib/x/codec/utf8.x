@@ -12,7 +12,7 @@
 ; (see the tokenizer-callback constraints in project memory).
 
 ; Number of bytes in the UTF-8 sequence introduced by lead byte b (0-255).
-; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 (module x/codec/utf8)
 
 (def %char->integer (prim-ref (lit char) (lit ->int)))

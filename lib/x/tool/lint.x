@@ -12,24 +12,24 @@
 ; strings are compared/stored.  lint-forms returns (defs uses issues) as NAME
 ; STRINGS; lint-has? tests membership.
 (import x/core/list)
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str->symbol (prim-ref 'str '->sym))
 
-; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 (def %type-push-write (prim-ref 'type 'push-write))
 (def %type-pop-write (prim-ref 'type 'pop-write))
 
-; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
 (def %cvt (prim-ref 'convert 'to))
 
 
 (import x/core/alist)
 (import x/type/str)
-; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
 (def %write-to-str (prim-ref 'io 'write-to-str))
 ; The walk writes the form it is analysing, and the handlers attached to the
 ; list and symbol types (%lint-push) collect defs and uses as the write
-; dispatches to them.  The door comes from the catalog rather than the global
+; dispatches to them.  The door comes from the catalogue rather than the global
 ; `write`, which a lang may rebind: x-r5rs binds it to a Scheme writer that
 ; renders symbols bare and recurses by hand, so it never reaches the type
 ; dispatch and the walk collects nothing.  `(io write)` is the door the global
@@ -43,7 +43,7 @@
 (def %lint-list-type   ((prim-ref 'type 'by-atom) ((prim-ref 'type 'of) (list 1))))
 (def %lint-symbol-type ((prim-ref 'type 'by-atom) ((prim-ref 'type 'of) 'a)))
 ; The string type's handle: every conversion in this file asks for a name's
-; string.  The two type prims are fetched from the catalog (ns `type` is
+; string.  The two type prims are fetched from the catalogue (ns `type` is
 ; de-registered, R5) for these three lines, which run once at load.
 (def %lint-string-type ((prim-ref 'type 'of) ""))
 
@@ -69,7 +69,7 @@
 ; only with a dispatch-free table or the #323 batch harness landed.
 ; The current list node's head, converted ONCE per node by the list
 ; handler (#344): arity/malformed/dispatch each re-ran the conversion
-; catalog on the same head -- 5-6 full %convert-to dispatches per node.
+; catalogue on the same head -- 5-6 full %convert-to dispatches per node.
 ; Valid only within the handler's dynamic extent; nil for non-symbol
 ; heads.
 (def %lint-head-cell (list ()))
@@ -319,7 +319,7 @@
   (def saved (first %lint-scope))
   ; The env slot may be () -- "ignore the caller env", legal at runtime
   ; (x-logo's logo-repl) -- so only a SYMBOL adds a scope entry.  %cvt
-  ; on the nil slot answered nil (catalog misses are silent), and that nil
+  ; on the nil slot answered nil (catalogue misses are silent), and that nil
   ; NAME later reached str=? -- an unchecked C prim -- and crashed.
   (%set-first! %lint-scope
     (let ((envp (first (rest (rest form)))))
@@ -904,7 +904,7 @@
 (def %lint-list-handler (fn (_ form)
   ; The head converts ONCE here (#344); every consumer below (and the
   ; driver's dispatch override) reads %lint-head-cell instead of
-  ; re-running the conversion catalog.
+  ; re-running the conversion catalogue.
   (%set-first! %lint-head-cell
     (if (symbol? (first form)) (guard (_ ()) (%cvt (first form) %lint-string-type)) ()))
   (when (%lint-noncallable? (first form))

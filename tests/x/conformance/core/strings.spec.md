@@ -1,6 +1,6 @@
 # Conformance: strings, symbols and bytes (profile `core`)
 
-Reached through the catalog, not through bare names: these namespaces are
+Reached through the catalogue, not through bare names: these namespaces are
 de-registered, so `(%coord (lit str) (lit make))` is the door. There is no
 `str=?` at this level -- string comparison is x-lang -- so equality is asserted
 byte by byte, which is also the only way to observe a string without a printer.
@@ -84,7 +84,7 @@ conventions pass and the case would prove nothing.
 
 covers: str/->sym
 
-Interning is what makes the catalog's pointer comparisons correct; an engine that
+Interning is what makes the catalogue's pointer comparisons correct; an engine that
 returned a fresh symbol would fail here and make every lookup in the library
 quietly wrong.
 

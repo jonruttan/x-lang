@@ -8,7 +8,7 @@ reflective accessors read their offsets from it. These tests probe LIVE
 objects word by word (`%obj->ptr` + `%ptr-ref-word`) and fail if the running
 build's layout disagrees with the descriptor. The source half
 (`make check-obj-layout`) diffs the same values against x-obj.h.  The
-instruments (`%word`, `%flags`, the catalog fetches) live in the harness
+instruments (`%word`, `%flags`, the catalogue fetches) live in the harness
 (`tests/x/lib/obj-layout.x`), fetched once per batch.
 
 ## data words

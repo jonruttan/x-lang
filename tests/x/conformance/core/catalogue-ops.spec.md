@@ -1,7 +1,7 @@
-# Conformance: the machine ops through the CATALOG door (profile `core`)
+# Conformance: the machine ops through the CATALOGUE door (profile `core`)
 
 The same primitives `core/arithmetic.spec.md` reaches by their bare names, reached
-instead by their catalog coordinates. These are two genuinely different doors and
+instead by their catalogue coordinates. These are two genuinely different doors and
 the library uses both: hot paths fetch `(prim-ref 'int '+)` once and call the value
 directly, precisely to skip the bare binding's lookup.
 

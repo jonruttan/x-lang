@@ -5,15 +5,15 @@
 (module x/protocol/str/str8)
 
 (import x/protocol/seq)
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
 (def %str-byte-len (prim-ref (lit str) (lit byte-len)))
 (def %str-byte-ref (prim-ref (lit str) (lit byte-ref)))
 (def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
-; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
 (def %str->symbol (prim-ref (lit str) (lit ->sym)))
-; The raw C arithmetic and comparison, fetched from the catalog: the bare
+; The raw C arithmetic and comparison, fetched from the catalogue: the bare
 ; + - < dispatch through the tower, and the byte loops below want the
 ; primitives.  The pointer and memory prims are for the search loops.
 (def %int+ (prim-ref (lit int) (lit +)))
@@ -88,7 +88,7 @@
     (let ((k (%str8-cvt n %str8-int-type)))
       (if (if (null? k) #f (eq? (%str8-type-of k) %str8-int-type)) k (error what))))))
 
-; Per-element C arithmetic (#332): the catalog carries int < and = but
+; Per-element C arithmetic (#332): the catalogue carries int < and = but
 ; NO >= or > (a prim-ref miss is a SILENT nil, and a nil head returns
 ; the form itself -- truthy -- so the first draft's done? was instantly
 ; "true"; the whole suite went quietly wrong).  >= and > are spelled

@@ -167,7 +167,7 @@ tokenize entry point re-raises once reading is over and x is driving again.
 x's class system is for types written in x, resolved when a file loads.  A
 lang's values are built at run time and follow the lang's own rules — one
 level lower is the level that fits.  The door is the **two-argument**
-`make-type` (catalog `type`/`make`), which registers on **the base it is
+`make-type` (catalogue `type`/`make`), which registers on **the base it is
 called in** — the running base, where the numeric tower already lives.
 
 Two prims, and the difference decided a failed design:
@@ -182,7 +182,7 @@ x-python first tried a child base per lang (`Base make` + `base-make-type` +
 has no numeric tower — float and bigint are library types registered on
 whichever base loaded them.  The wrong conclusion ("this design cannot work")
 was written into a doc and survived a day; the capability it asked for
-already existed under a name in another catalog namespace.  **Before
+already existed under a name in another catalogue namespace.  **Before
 concluding the engine cannot do something, grep all of `src/x-prim/*.c` —
 the namespace/member pair is often not what the C name suggests — and look
 for a library type that already does the thing** (`x/num/rational.x` and

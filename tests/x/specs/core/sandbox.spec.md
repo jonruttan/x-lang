@@ -29,7 +29,7 @@
 (Base make) answers a Base INSTANCE wrapping the raw C base (the `raw`
 field): methods make the base interactive, every static unwraps either
 form, and the tokenizer seams (Tok read-str, Xon's walks) unwrap the
-same way -- raw bases from the catalog prims stay plumbing.
+same way -- raw bases from the catalogue prims stay plumbing.
 
 ### the instance evaluates directly
 
@@ -425,7 +425,7 @@ itself, not on a cell holding it.
 ## bare-children contract
 
 A fresh base is the bare C ISA -- arithmetic, binding, eval -- and nothing
-more.  The x layers (output verbs, the catalog protocol) live in the PARENT;
+more.  The x layers (output verbs, the catalogue protocol) live in the PARENT;
 reaching into a child is done with parent closures or (Base bind), never by
 expecting a library inside.  (The pre-x-printer C runtime bound display and
 prim-ref into every child; that was incidental, and no consumer used it.)
@@ -439,7 +439,7 @@ prim-ref into every child; that was incidental, and no consumer used it.)
 ---
     'bare
 
-### a child has no catalog protocol
+### a child has no catalogue protocol
 
 ```x
 (do (def %bc2 (Base make))

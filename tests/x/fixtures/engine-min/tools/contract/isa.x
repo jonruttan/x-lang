@@ -3,7 +3,7 @@
 ; SINGLE SOURCE OF TRUTH for the C surface, the "ISA" of the interpreter.
 ; The C layer is a CPU: unchecked, minimal, fixed.  Checks, dispatch, and
 ; policy live in X.  Consumed two ways, so the surface cannot drift silently:
-;   1. tests/x/specs/meta/isa.spec.md -- walks the LIVE catalog at runtime
+;   1. tests/x/specs/meta/isa.spec.md -- walks the LIVE catalogue at runtime
 ;      and fails on any C prim not listed here (and any stale entry)
 ;   2. tools/check/isa.sh (make check-isa) -- extracts every binding site from
 ;      the C SOURCE and diffs it against this file, catching bare bindings
@@ -28,7 +28,7 @@
 ;   ffi      the foreign-function/syscall door (dlopen, ptr calls)
 ;   sys      OS facilities (clock, signals)
 ;   types    the C type-object registry protocol (type-of, iter)
-;   registry the prims catalog protocol itself (prim-ref, use)
+;   registry the prims catalogue protocol itself (prim-ref, use)
 ;   hot      DERIVED (X-expressible via reflection) but kept in C on an
 ;            explicit exception: used inside reader lambdas (X calls allocate
 ;            arg spines; tokenizer callbacks must not allocate) or measured
@@ -164,10 +164,10 @@
 )))
 
 ; The keep-list (x_prims_name_kept): the approved permanent global
-; vocabulary -- names that bind BARE even when their catalog namespace is
+; vocabulary -- names that bind BARE even when their catalogue namespace is
 ; de-registered.  Tracked here so growing the C array requires a manifest
 ; edit (isa-scan.sh extracts the array; the runtime env walk enforces that
-; every live PRIMITIVE-typed global is catalog-filed or manifested).
+; every live PRIMITIVE-typed global is catalogue-filed or manifested).
 (def %isa-keep (lit (
   (  % raw-op)
   (  & raw-op)

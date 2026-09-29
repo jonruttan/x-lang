@@ -6,7 +6,7 @@
 
 (module x/core/math)
 
-; The binary integer primitives, fetched from the catalog: the C operators as
+; The binary integer primitives, fetched from the catalogue: the C operators as
 ; they were before core/arithmetic.x wrapped the bare names.
 (def %int+ (prim-ref (lit int) (lit +)))
 (def %int/ (prim-ref (lit int) (lit /)))

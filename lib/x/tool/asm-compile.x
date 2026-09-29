@@ -7,11 +7,11 @@
 ; free-variable alist around itself and looks names up in it through the
 ; two accessors emit exports.
 (import x/tool/compile/emit compile-fvars-set! compile-fvar-lookup)
-; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
 (def %obj->ptr (prim-ref 'obj '->ptr))
 (def %make-callable (prim-ref 'obj 'make-callable))
 
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str->symbol (prim-ref 'str '->sym))
 
 ; What a PRIMITIVE's type atom is, taken from a prim this file already holds
@@ -31,13 +31,13 @@
 ; every %asm-gc-window nodes, so a build's peak is the WINDOW's garbage,
 ; not the whole build's; small compiles (under a window) never collect.
 (import x/sys/gc)
-; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr-call (prim-ref 'ptr 'call))
 (def %ptr->int (prim-ref 'ptr '->int))
 (def %ptr-set-word! (prim-ref 'ptr 'set-word!))
 (def %dlopen (prim-ref 'ffi 'dlopen))
 (def %dlsym (prim-ref 'ffi 'dlsym))
-; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
 (def %write-to-str (prim-ref 'io 'write-to-str))
 
 

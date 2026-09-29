@@ -11,11 +11,11 @@
 
 (import x/type/str)
 (import x/type/class)
-; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
 (def %token-read-string (prim-ref 'tok 'read-str))
-; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
 (def %cvt (prim-ref 'convert 'to))
-; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
 (def %write-to-str (prim-ref 'io 'write-to-str))
 
 ; --- Construct table helpers ---
@@ -187,7 +187,7 @@
 ; (io write-fits?) counts through the printer's own sink and stops at the
 ; limit, so one node's question costs 60 columns of work, not its subtree.
 ; The door is captured ONCE: fmt.x is at its %-global budget, and a
-; per-node prim-ref would pay a catalog lookup per node.
+; per-node prim-ref would pay a catalogue lookup per node.
 ; %fmt-width stays exact, for (Fmt width) -- the public API documents a
 ; true width, and only the layout decision moves here.
 (set! %fmt-list

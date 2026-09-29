@@ -49,10 +49,10 @@ new instruction cannot appear unclassified.
 A capability means *the coordinates in that group resolve* — `(prim-ref 'ns 'method)`
 finds something callable, or the bare name is bound. It does **not** mean
 "implemented natively". `lib/x/boot/reflect.x` already replaces engine primitives
-with x-level ones under the same catalog names. The contract is the coordinate, not
+with x-level ones under the same catalogue names. The contract is the coordinate, not
 the language it is written in.
 
-The catalog is what the *library* calls. An engine's own routines need not go
+The catalogue is what the *library* calls. An engine's own routines need not go
 through it, and x-engine-c's do not: its C calls C by name. Filing a new value under
 a coordinate changes what the library reaches from then on, and leaves what the
 engine calls internally as it was.

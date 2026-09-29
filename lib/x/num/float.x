@@ -2,22 +2,22 @@
 (module x/num/float)
 
 (import x/type/class)
-; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
 
-; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 (def %type-by-atom (prim-ref 'type 'by-atom))
 (def %type-from-cell (prim-ref 'type 'from-cell))
 (def %type-push-op (prim-ref 'type 'push-op))
 
-; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
 (def %cvt (prim-ref 'convert 'to))
-; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %make-instance (prim-ref 'type 'make-instance))
 (def %make-type (prim-ref 'type 'make))
 (def %type-of (prim-ref 'type 'of))
 (def %type? (prim-ref 'type '?))
-; The binary integer primitives, fetched from the catalog: the C operators as
+; The binary integer primitives, fetched from the catalogue: the C operators as
 ; they were before core/arithmetic.x wrapped the bare names.
 (def %int= (prim-ref (lit int) (lit =)))
 (def %int+ (prim-ref (lit int) (lit +)))
@@ -27,7 +27,7 @@
 ; The machine-INT test, as predicates.x's number? was before float widened it.
 (def %int-t (%type-of 0))
 (def %int-number? (fn (_ x) (%type? x %int-t)))
-; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
 (def %dlopen (prim-ref 'ffi 'dlopen))
 (def %dlsym (prim-ref 'ffi 'dlsym))
 (def %ptr-call (prim-ref 'ptr 'call))
@@ -492,7 +492,7 @@
 
 (def float? (fn (_ x) (%type? x float)))
 
-; Door: promote to float through the catalog; a miss is a raise, never nil
+; Door: promote to float through the catalogue; a miss is a raise, never nil
 ; into (first)/d+d (the C core is unchecked -- guards live in x-lang).
 (def %to-float
   (fn (_ x what)
@@ -702,7 +702,7 @@
       (doc "The IEEE 754 bit pattern of a decimal string's double value -- FFI plumbing, NOT a parser-to-instance; (Float from) builds instances (the old from-str name claimed FLOAT and returned bits, #66)." (returns INTEGER "IEEE 754 double bit pattern"))
       (str->float s))
     (method from (self (param x ANY "An exact number (int, bigint, rational), a numeric string, or a float (identity)"))
-      (doc "Construct a float from any convertible value, through the conversion catalog -- the generic value door (was exact->inexact, #357). Raises a label 'type when nothing converts." (returns FLOAT "Float instance"))
+      (doc "Construct a float from any convertible value, through the conversion catalogue -- the generic value door (was exact->inexact, #357). Raises a label 'type when nothing converts." (returns FLOAT "Float instance"))
       (float-of x))
     (method ->int (self (param x FLOAT "Float value (machine ints pass through)"))
       (doc "Convert an inexact float to an exact integer by truncation." (returns INTEGER "Truncated integer value"))

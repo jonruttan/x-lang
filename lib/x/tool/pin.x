@@ -38,7 +38,7 @@
 ; The base type handles, from their public door, fetched once at load.
 (def %string (Type named STRING))
 (def %pin-floor (first %module-loaded-cell))
-; The catalog's converter, which this module read from the root while
+; The catalogue's converter, which this module read from the root while
 ; x/sys/posix bound it there.
 (def %cvt (prim-ref (lit convert) (lit to)))
 

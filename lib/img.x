@@ -124,7 +124,7 @@
 
 ; --- data-slot access ------------------------------------------------------
 ; (obj ref) and (obj set!) are not engine primitives: boot/data.x and
-; boot/reflect.x define them and file them into the catalog under those
+; boot/reflect.x define them and file them into the catalogue under those
 ; names, so in a bare base the coordinate is simply absent.  One addressing
 ; formula for both halves, as data.x insists, so a read and a write can never
 ; name different words.

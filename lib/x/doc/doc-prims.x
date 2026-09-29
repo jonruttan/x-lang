@@ -429,17 +429,17 @@
 
 (doc modules "List all known modules with load status and descriptions.")
 
-; === Primitives catalog (the registry protocol) ===
+; === Primitives catalogue (the registry protocol) ===
 
-(note "Primitives catalog")
+(note "Primitives catalogue")
 
-(doc prims "The primitives catalog: an alist of (ns . ((method . impl) ...)) domains."
+(doc prims "The primitives catalogue: an alist of (ns . ((method . impl) ...)) domains."
   (note "The registry of stable implementation identities; modules fetch dependencies")
   (note "from it at load instead of assuming ambient global names.")
-  (returns LIST "The live catalog alist")
+  (returns LIST "The live catalogue alist")
   (see prim-ref))
 
-(doc prim-domain "The method alist filed under a catalog namespace, or nil."
+(doc prim-domain "The method alist filed under a catalogue namespace, or nil."
   (param ns SYMBOL "Namespace symbol, e.g. 'int")
   (returns LIST "((method . impl) ...) for the namespace, or nil")
   (see prims))
@@ -453,7 +453,7 @@
   (example "(prim-ref 'int '+)" "#<prim>")
   (see prim-reg!))
 
-(doc prim-reg! "File an x-lang value into the catalog under ns/method."
+(doc prim-reg! "File an x-lang value into the catalogue under ns/method."
   (note "The producer half of the registry protocol: library implementations register")
   (note "under the same stable identities as C prims. Registration prepends, so a")
   (note "re-registration shadows the older entry on lookup. Returns nil.")
@@ -465,7 +465,7 @@
 
 ; (`use` -- the qualified fetch+define convenience -- is retired: it had no
 ; callers.  The registry protocol itself is pure x-lang now: boot/registry.x
-; reads the catalog, boot/reflect.x writes it.)
+; reads the catalogue, boot/reflect.x writes it.)
 
 ; === Pre-doc module descriptions ===
 ; These modules are included before x/doc/doc.x exists, so they cannot wrap

@@ -19,7 +19,7 @@
 ; Tokenizes both, builds a lookup alist from doc-prims.x, then walks
 ; the source tokens using the alist as fallback for bare (def ...) forms.
 
-; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
 
 (do
   (import x/doc/doc-gen doc-build-lookup doc-walk-with-prims)

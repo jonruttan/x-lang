@@ -5,7 +5,7 @@
 ;   array  <-> list          string <-> string      true/false <-> #t/#f
 ;   null   <-> the symbol `null` (nil would collide with the empty array)
 ;   number <-> integer, or FLOAT when the text carries . / e (built at runtime
-;              via the conversion catalog -- this SOURCE file stays float-literal-free
+;              via the conversion catalogue -- this SOURCE file stays float-literal-free
 ;              so it loads under plain x-core)
 ;
 ; Parsing is recursive descent over BYTES (the str-byte-* prims, handler-
@@ -23,7 +23,7 @@
 (import x/type/list)
 (import x/num/float)
 
-; Fetch the byte-level string prims from the catalog (ns `str` de-registered, R5).
+; Fetch the byte-level string prims from the catalogue (ns `str` de-registered, R5).
 (def %json-byte-len (prim-ref 'str 'byte-len))
 (def %json-byte-ref (prim-ref 'str 'byte-ref))
 (def %json-byte-sub (prim-ref 'str 'byte-sub))
@@ -72,7 +72,7 @@
 
 ; --- numbers ---------------------------------------------------------------
 ; Scan the number's extent, then classify: . / e / E anywhere makes it a
-; float (built via the conversion catalog -- runtime, no float literals here).
+; float (built via the conversion catalogue -- runtime, no float literals here).
 (def %json-num-byte?
   (fn (_ b)
     (match
@@ -310,7 +310,7 @@
 (def-class Json ()
   (doc "JSON text codec: parse to Dict/list/string/number/#t/#f/null values, emit with proper escaping."
     (note "JSON objects are Dicts (string keys); arrays are lists; null is the SYMBOL null (nil would collide with []).")
-    (note "Decimal and exponent numbers parse as floats (via the conversion catalog); plain digit runs parse as integers.")
+    (note "Decimal and exponent numbers parse as floats (via the conversion catalogue); plain digit runs parse as integers.")
     (example "((Json parse \"{\\\"a\\\": [1, true]}\") get \"a\")" "(1 #t)")
     (see parse) (see emit))
   (static

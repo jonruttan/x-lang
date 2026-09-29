@@ -110,11 +110,11 @@ answer the code-point length, which made `(x-version)` look like an accessor.
 ---
     (5 6)
 
-### the code-point counter is published on the catalog for the boot printer
+### the code-point counter is published on the catalogue for the boot printer
 
 `write-fits?` decides every line break in the formatter and needs code points,
 but the printer loads long before the UTF-8 layer, so it resolves the counter
-through the catalog and falls back to bytes when it is absent.
+through the catalogue and falls back to bytes when it is absent.
 
 ```x
 (list ((prim-ref 'str 'cp-len) "héllo")

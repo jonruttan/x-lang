@@ -1,7 +1,7 @@
 ; type/type.x -- Type: the type-system reflection API.
 ;
 ; The mechanism lives in lib/x/type/struct.x (pre-object, %-private) and is
-; filed in the catalog under ns `type`, beside the C entries (make,
+; filed in the catalogue under ns `type`, beside the C entries (make,
 ; make-instance, ?, of, name). This class presents it: reflection and
 ; wiring are cold operations, so every method fetches inline with
 ; (prim-ref ...) per the caching rule. Modules that wire types at load
@@ -333,6 +333,6 @@
   (%type-declare-unit-labels! (first %reflect-type-alist-cell)))
 
 (doc (provide x/type/type Type)
-  (note "Mechanism in lib/x/type/struct.x, filed under catalog ns `type`; load-time wiring fetch-and-caches the helpers instead of calling the class.")
+  (note "Mechanism in lib/x/type/struct.x, filed under catalogue ns `type`; load-time wiring fetch-and-caches the helpers instead of calling the class.")
   (note "(Type wrap t) makes a type interactive: (t name), (t cell 'type-write-stack), (t fields), (t push-write f). Field names come from the layout contract (engine/tools/contract/base-paths.x); (Type fields) lists them.")
   "Type-system reflection: construction, lookup, struct navigation, and handler-stack wiring on the Type class.")

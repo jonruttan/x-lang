@@ -2,12 +2,12 @@
 
 (module x/protocol/str/utf8)
 (import x/protocol/str/str8)
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
 (def %str-byte-len (prim-ref (lit str) (lit byte-len)))
 
 (import x/codec/utf8 utf8-decode utf8-encode utf8-width utf8-seq-len utf8-cp-at)
-; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
 (def %integer->char (prim-ref (lit int) (lit ->char)))
 ; The fast index check: an INT passes without a call; (Convert to-int) is

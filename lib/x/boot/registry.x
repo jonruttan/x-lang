@@ -1,14 +1,14 @@
-; registry.x -- the primitives-catalog protocol, pure X (bootstrap stage 0)
+; registry.x -- the primitives-catalogue protocol, pure X (bootstrap stage 0)
 ;
 ; The FIRST file x-core loads: everything after it -- operatives.x included
 ; -- fetches its C instruments with prim-ref, so the protocol must exist
-; before any other X code runs.  It can: the catalog is just a cell in the
+; before any other X code runs.  It can: the catalogue is just a cell in the
 ; base spine (engine/tools/contract/base-paths.x, included immediately before this file),
 ; and reading it is a pure first/rest walk from (%base).  Uses ONLY the C
 ; spine forms (fn/def/match/lit + first/rest/eq?).
 ;
 ; This file replaces the C `prims`/`prim-domain`/`prim-ref` bindings (the
-; C table rows are deleted; C still FILES the catalog at init through its
+; C table rows are deleted; C still FILES the catalogue at init through its
 ; internal registration path).  The producer half, prim-reg!, needs
 ; mutation (set-first!/set-rest!) and therefore lives in boot/reflect.x;
 ; `use` is retired outright (zero callers).
@@ -57,12 +57,12 @@
 (def %reflect-base-cell
   (fn (_ name) (%reflect-step (%base) (%reflect-path name %base-paths))))
 
-; The catalog cell, resolved once (spine-stable: its CONTENT mutates, the
+; The catalogue cell, resolved once (spine-stable: its CONTENT mutates, the
 ; cell is never replaced).
 (def %registry-prims-cell (%reflect-base-cell (lit prims)))
 
 ; The entry PAIR keyed k in an assoc list, or () -- prim-reg! setcdrs it.
-; Both catalog levels share this structure: ((ns . methods) ...) and
+; Both catalogue levels share this structure: ((ns . methods) ...) and
 ; ((method . value) ...).  Keys are interned symbols, so eq? compares
 ; identity.  ONE walk; assoc-rest below is its value-projecting front.
 (def %registry-domain-pair
@@ -85,7 +85,7 @@
   (fn (_ k cur) (%registry-rest-or-nil (%registry-domain-pair k cur))))
 
 ; --- the protocol (formerly C prims; semantics preserved exactly) ---
-; (prims)                the catalog alist, for introspection and fetching
+; (prims)                the catalogue alist, for introspection and fetching
 ; (prim-domain ns)       the method alist filed under a namespace, or nil
 ; (prim-ref ns method)   the value filed under ns/method, or nil
 (def prims (fn (_) (first %registry-prims-cell)))
@@ -100,7 +100,7 @@
 ; land on the wrong spine slots and every later fetch walks garbage.
 ; Three stage-0 facts catch it at the first possible moment: the false
 ; route must land on the cell holding the #f singleton -- a value the
-; walk cannot counterfeit -- the catalog route must answer an alist,
+; walk cannot counterfeit -- the catalogue route must answer an alist,
 ; and a row every engine files must resolve.  A healthy boot pays
 ; three walks, once.  One applied form, no globals: this file's %-def
 ; budget is part of what stage 0 means.

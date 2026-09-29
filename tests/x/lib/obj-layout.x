@@ -4,10 +4,10 @@
 (include "lib/x-core.x")
 (include "engine/tools/contract/obj-layout.x")
 
-; Shared instruments, catalog-fetched ONCE per batch.  Every spec block used
+; Shared instruments, catalogue-fetched ONCE per batch.  Every spec block used
 ; to re-fetch private copies; a missed edit in one block would probe stale
 ; coordinates while printing plausible output.  The fetches HERE are the pin:
-; if a catalog coordinate moves, the whole file fails at once.
+; if a catalogue coordinate moves, the whole file fails at once.
 (def %obj->ptr     (prim-ref (lit obj) (lit ->ptr)))
 (def %ptr->obj     (prim-ref (lit ptr) (lit ->obj)))
 (def %ptr->int     (prim-ref (lit ptr) (lit ->int)))

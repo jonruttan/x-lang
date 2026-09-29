@@ -15,7 +15,7 @@
 ; --- analyser accept states ---
 
 ; Single-char accept: unread the lookahead char, score one, accept.
-; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
 (module x/reader/quasi-reader)
 
 (def %buffer-token (prim-ref (lit buf) (lit tok)))

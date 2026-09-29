@@ -12,7 +12,7 @@
 ; Input order on stdin: constructs.x, lang-constructs (or ()), then optional
 ; %lint-lib flag, then target file forms.
 
-; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
 (def %read (prim-ref 'io 'read))
 ; The bare `convert` global was homed (the conversion surface is the Convert
 ; class); fetch the dispatcher directly -- same door lib/x/tool/lint.x uses.
@@ -95,7 +95,7 @@
     (if (not (symbol? head)) (Lint %lint-computed-call form)
       ; The head string comes from the list handler's cell (#344); the
       ; old code re-converted here AND inside %scope-lookup -- two more
-      ; catalog dispatches per node.  Parallel let (props cannot see h),
+      ; catalogue dispatches per node.  Parallel let (props cannot see h),
       ; so the cell read repeats; both arms are cheap.
       (let ((h (if (null? (first %lint-head-cell)) (%lint-cvt head %lint-string-type) (first %lint-head-cell)))
             (props (%scope-lookup-str (if (null? (first %lint-head-cell)) (%lint-cvt head %lint-string-type) (first %lint-head-cell)))))

@@ -12,7 +12,7 @@
 ; The key is the C function pointer, not the object address: a foreign unit is
 ; the function pointer a primitive holds in unit 0, so a naming map keyed on
 ; the primitive object's own address matches nothing.  Keying on the function
-; merges nothing it should not -- the catalog's `+` and the bare `+` are two
+; merges nothing it should not -- the catalogue's `+` and the bare `+` are two
 ; distinct objects sharing one C function, and they stay two records in the
 ; image, so identity survives.  docs/state-images.md's warning is about naming
 ; an object by a path that yields an equal value, which is a different thing.
@@ -24,11 +24,11 @@
 (import x/tool/image/walk image-walk image-over-units image-trace-flag image-collect image-mark! image-clear! image-int+)
 (import x/tool/image/walk image-word-at image-obj->ptr image-ptr->obj image-int->ptr image-ref-word image-type-off image-type-label image-type-heap)
 (import x/tool/image/name image-name-map image-name-map-add image-name-map-get image-dl-round-trips? image-dl-handle)
-(import x/tool/image/name image-foreign-catalog image-foreign-bare image-foreign-typecall image-foreign-dlopen)
+(import x/tool/image/name image-foreign-catalogue image-foreign-bare image-foreign-typecall image-foreign-dlopen)
 
 ; --- census: classify every foreign unit in the heap -----------------------
 ; The tally is a list of six counts, in the order the report prints them:
-; catalog, bare binding, type-call, dlopen handle, dladdr round trip, unnamed.
+; catalogue, bare binding, type-call, dlopen handle, dladdr round trip, unnamed.
 (def %bump
   (fn (self acc i)
     (if (eq? i 0) (pair (image-int+ (first acc) 1) (rest acc))
@@ -58,7 +58,7 @@
 (def %tally
   (fn (_ tag acc w)
     (if (null? tag) (%bump acc (if (image-dl-round-trips? w) 4 5))
-      (if (eq? (first tag) image-foreign-catalog) (%bump acc 0)
+      (if (eq? (first tag) image-foreign-catalogue) (%bump acc 0)
         (if (eq? (first tag) image-foreign-dlopen) (%bump acc 3)
           (%bump acc 1))))))
 (def %f-walk
@@ -70,7 +70,7 @@
             a))
       acc)))
 
-; The map is the base's catalog and bare primitives, and this process's
+; The map is the base's catalogue and bare primitives, and this process's
 ; dlopen handle, as the writer builds it.  Built before the mark, so its defs
 ; are made before any walk.
 (def %MAP
@@ -81,7 +81,7 @@
 (image-mark! (%base) image-trace-flag)
 ((fn (_ r)
    ((fn (_ t)
-      (do (display "foreign units named by catalog: ") (write (t 0)) (newline)
+      (do (display "foreign units named by catalogue: ") (write (t 0)) (newline)
           (display "               by bare binding: ") (write (t 1)) (newline)
           (display "       by its type (type-call): ") (write (t 2)) (newline)
           (display "           as the dlopen handle: ") (write (t 3)) (newline)

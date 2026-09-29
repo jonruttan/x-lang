@@ -76,7 +76,7 @@ covers: alloc/limit!
 
 `alloc-limit!` is bound BARE precisely so a harness can arm it before anything
 loads -- every runner in this repo does, including this one. An engine that filed
-it only in the catalog would leave every bare harness unable to guard itself.
+it only in the catalogue would leave every bare harness unable to guard itself.
 
 ```x
 (%ok (match ((eq? alloc-limit! ()) ()) (#t 1)))
@@ -94,7 +94,7 @@ layout contract addresses. So the contract to define is registration, and it is
 observable without running a collection at all.
 
 Each path ends at a CELL whose first is the list -- the same layout as the prims
-catalog, and the same trap: one `first` too few and every lookup silently misses.
+catalogue, and the same trap: one `first` too few and every lookup silently misses.
 
 ### mark-hook! prepends the callable to the base's mark-hook list
 
