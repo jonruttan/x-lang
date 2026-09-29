@@ -467,6 +467,15 @@ environment as the forms leave it. Images load as before on v0.2.16.
 
 [#850]: https://github.com/jonruttan/x-lang/pull/850
 
+**The engine is x-engine-c v0.2.17** ([#853]). Its `%seq`, which `do` is,
+walks its forms as an operative body is walked (x-engine-c#72). A dotted body
+raises where the walk reaches the dot, after the forms before it have run,
+with the same message, `call: improper argument list (dotted tail)`. The
+environment `%seq` started in is current again when its last form is done.
+`do` still allocates nothing a call.
+
+[#853]: https://github.com/jonruttan/x-lang/pull/853
+
 **`File stat` decodes through a Struct reader made once** ([#813]). A stat
 allocated about 51,000 objects, 40,600 of them decoding three fields: `Struct
 unpack` compiled its field spec on every call and assembled each byte with
