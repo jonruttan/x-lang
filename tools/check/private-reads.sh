@@ -40,7 +40,9 @@
 #
 # The scan strips comments, strings and #\ character literals the way
 # dup-defs.sh does, and reads names between the reader's delimiters; the
-# definitions come from tools/check/defs.awk, which is form-accurate.
+# definitions come from tools/check/defs.awk, which is form-accurate.  A
+# name in the selector's place of a send, after `self`, `super` or a class at
+# the head of a form, or declared by `method`, is a message and not a read.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -159,11 +161,16 @@ _counts() {
   $1 == "F" { flush(); file = $2; instr = 0; next }
   {
     line = code($0)
-    gsub(/[()\[\]{}`,]/, " ", line)
+    gsub(/\(/, " ( ", line)
+    gsub(/[)\[\]{}`,]/, " ", line)
     gsub(/\047/, " ", line)
     n = split(line, tok, /[ \t]+/)
     for (i = 1; i <= n; i++) {
       if (tok[i] == "def" && i < n && tok[i+1] ~ /^%/) owndef[tok[i+1]] = 1
+      # A selector is not a read: (self %walk ...) and (Lint %lint-class ...)
+      # send a message, and (method %walk ...) declares one.  The name
+      # belongs to the receiver, whatever the root binds under that spelling.
+      if (i > 2 && tok[i-2] == "(" && tok[i-1] ~ /^(self|super|method|[A-Z][A-Za-z0-9-]*)$/) continue
       if (tok[i] ~ /^%/ && (tok[i] in owner)) reads[tok[i]] = 1
     }
   }

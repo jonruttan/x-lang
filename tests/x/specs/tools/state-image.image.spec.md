@@ -75,7 +75,7 @@ says why.
 ### a rebuilt pair is typed like a fresh one, and its contents read back
 
 ```x
-(display (%probe "(write (list (first (first %type-shape-rows)) (eq? (%reflect-type-word (first %type-shape-rows)) (%reflect-type-word (pair 1 2))))) (newline)"))
+(display (%probe "(write (list (first (first %type-unit-label-rows)) (eq? (%reflect-type-word (first %type-unit-label-rows)) (%reflect-type-word (pair 1 2))))) (newline)"))
 ```
 ---
     ("INTEGER" #t)
@@ -83,7 +83,7 @@ says why.
 ### strings, symbols, integers and characters survive
 
 ```x
-(display (%probe "(write (list (< 0 (Str8 length x-machine)) (first (rest (first %type-shape-rows))) (first (first (rest (rest (first %type-shape-rows))))) %word-size)) (newline)"))
+(display (%probe "(write (list (< 0 (Str8 length x-machine)) (first (rest (first %type-unit-label-rows))) (first (first (rest (rest (first %type-unit-label-rows))))) %word-size)) (newline)"))
 ```
 ---
     (#t 1 'word 8)

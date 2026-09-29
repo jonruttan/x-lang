@@ -125,7 +125,7 @@
 ; State images.  lib/img.x is the loader's dialect, function-only by design:
 ; it declares the engine's type shapes and rebuilds an image on a base with no
 ; class system at all, so there is no class to home anything on, and its 36 are
-; the dialect's whole surface.  lib/x/type/shape-rows.x (2) is the rows that
+; the dialect's whole surface.  lib/x/type/unit-label-rows.x (2) is the rows that
 ; dialect and lib/x/type/type.x (3) both read -- data by design -- and the three
 ; in type.x are the per-base shape declaration that runs at boot, before Type
 ; could hold it.  boot/reflect.x grows by two for %image-recache-hooks and
@@ -196,9 +196,9 @@
 (file "lib/x/num/tower.x" 10)
 (file "lib/x/platform/socket.x" 1)
 (file "lib/x/protocol/seq.x" 1)
-; intrinsics.x rose 5 to 8 for the variant channel: %score-variant-cell (the raw
-; door to the cell the engine hangs off the score), %score-variant! (the
-; analyser's end) and %read-variant (the reader's end) -- per-token intrinsics on
+; intrinsics.x rose 5 to 8 for the label channel: %score-label-cell (the raw
+; door to the cell the engine hangs off the score), %score-label! (the
+; analyser's end) and %read-label (the reader's end) -- per-token intrinsics on
 ; the analyser protocol, the same grounds as %score-set beside them
 ; (reader/analyser.x: class dispatch allocates mid-reader-callback).
 (file "lib/x/reader/intrinsics.x" 8)
@@ -260,9 +260,9 @@
 ; %asm-prim-type (deciding at GENERATION whether a named fvar can be called),
 ; %jit-call-value (the new trampoline) and %asm-analyser? (the calling world,
 ; declared now instead of inferred from whether fvars are present).
-; asm-compile.x rose 79 to 81 for the variant channel: %jit-score-variant (the
+; asm-compile.x rose 79 to 81 for the label channel: %jit-score-label (the
 ; optional trampoline binding, the %jit-buffer-last-char shape) and
-; %asm-compile-score-variant (its emitter, the %asm-compile-score-set shape).
+; %asm-compile-score-label (its emitter, the %asm-compile-score-set shape).
 ; asm-compile.x rose 81 to 82 for %asm-check-int-operands, the %sug-hint shape:
 ; it takes a row because both sites that put two operands in registers need it
 ; -- the call emitter, and the comparison an `if` test folds into its branch,
@@ -306,7 +306,7 @@
 ; class.x fell 91 to 89: its two exported hooks, class-call-handler and
 ; bind-call-over!, are bare names now (x-lang#719, the last %-named exports).
 (file "lib/x/type/class.x" 89)   ; +1 %apply: the dispatcher applies resolved methods and displaced C handler atoms through the engine's apply
-(file "lib/x/type/shape-rows.x" 2)
+(file "lib/x/type/unit-label-rows.x" 2)
 (file "tools/check/boot-order.x" 33)
 (file "tools/check/dialect-cover.x" 9)
 (file "tools/check/doc-forms.x" 5)

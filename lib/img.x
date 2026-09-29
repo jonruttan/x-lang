@@ -8,7 +8,7 @@
 ;   tools/dev/image-read.x reaches for: `if`/`do`, prim-ref (a base-path walk
 ;   and two assoc lookups), byte strings and an integer printer, the object
 ;   and type reflection of boot/data.x and boot/reflect.x re-derived on this
-;   base, and the unit shapes of lib/x/type/shape-rows.x declared on it.
+;   base, and the unit labels of lib/x/type/unit-label-rows.x declared on it.
 ;   Every definition here is a function or an operative -- no classes, no
 ;   modules -- and every fact it uses comes from a contract or a shared file,
 ;   never a copy.  Load with `sh x.sh -l img`.
@@ -147,40 +147,40 @@
   (fn (_ ns m)
     ((fn (_ p) (if (null? p) (error "no such primitive") p)) (prim-ref ns m))))
 
-; --- unit shapes -----------------------------------------------------------
+; --- unit labels -----------------------------------------------------------
 ; The same declarations helium makes at boot (lib/x/type/type.x), on this base.
 ; Without them a fresh base says every unit is a reference, and an image
 ; rebuild reading a type's units then walks a STRING's byte pointer as an
 ; object.  Guarded the same way type.x guards it: an engine without the
 ; coordinate simply leaves the types undeclared.
-(include "lib/x/type/shape-rows.x")
-(def %img-kind-code
+(include "lib/x/type/unit-label-rows.x")
+(def %img-unit-label-code
   (fn (self k rows)
-    (if (null? rows) (error (pair (lit type-shape-unknown-kind) k))
+    (if (null? rows) (error (pair (lit type-unit-labels-unknown-label) k))
       (if (eq? (first (first rows)) k) (rest (first rows)) (self k (rest rows))))))
-(def %img-kind-mask
+(def %img-unit-label-mask
   (fn (self ks acc scale)
     (if (null? ks) acc
-      (self (rest ks) (+ acc (* scale (%img-kind-code (first ks) %type-kind-codes)))
+      (self (rest ks) (+ acc (* scale (%img-unit-label-code (first ks) %type-unit-labels)))
             (* scale 4)))))
-(def %img-shape-row
+(def %img-unit-labels-row
   (fn (self rows nm)
     (if (null? rows) ()
       (if (str=? (first (first rows)) nm) (first rows) (self (rest rows) nm)))))
-(def %img-declare-shape!
+(def %img-declare-unit-labels!
   (fn (_ ts)
     ((fn (_ row)
        (if (null? row) ()
          ((prim-ref (lit type) (lit set-unit-labels!))
-          ts (first (rest row)) (%img-kind-mask (first (rest (rest row))) 0 1))))
-     (%img-shape-row %type-shape-rows (%type-name ts)))))
-(def %img-declare-shapes!
+          ts (first (rest row)) (%img-unit-label-mask (first (rest (rest row))) 0 1))))
+     (%img-unit-labels-row %type-unit-label-rows (%type-name ts)))))
+(def %img-declare-all-unit-labels!
   (fn (self alist)
     (if (null? alist) ()
-      (do (%img-declare-shape! (rest (first alist))) (self (rest alist))))))
+      (do (%img-declare-unit-labels! (rest (first alist))) (self (rest alist))))))
 (if (null? (prim-ref (lit type) (lit set-unit-labels!)))
   ()
-  (%img-declare-shapes! (first %reflect-type-alist-cell)))
+  (%img-declare-all-unit-labels! (first %reflect-type-alist-cell)))
 
 ; The spec runner's seam between snippets, in direct mode (tests/spec-runner.awk).
 (def heap-collect (prim! (lit heap) (lit collect)))

@@ -93,31 +93,31 @@
         (#t
           (let ((handle t) (raw ((prim-ref (lit type) (lit by-atom)) t)))
             (new Type handle handle raw raw)))))
-    (method %kind-code (self (param k SYMBOL "A unit kind"))
-      (doc "The engine's numeric code for a unit kind." (returns INTEGER "0..3"))
+    (method %unit-label (self (param k SYMBOL "A unit label"))
+      (doc "The engine's numeric code for a unit label." (returns INTEGER "0..3"))
       ((fn (loop rows)
-         (if (null? rows) (error (pair (lit type-shape-unknown-kind) k))
+         (if (null? rows) (error (pair (lit type-unit-labels-unknown-label) k))
            (if (eq? (first (first rows)) k) (rest (first rows)) (loop (rest rows)))))
-       %type-kind-codes))
-    (method %kind-mask (self (param kinds LIST "Unit kinds, unit 0 first"))
-      (doc "Pack kinds into the engine's two-bits-per-unit mask."
+       %type-unit-labels))
+    (method %unit-label-mask (self (param labels LIST "Unit labels, unit 0 first"))
+      (doc "Pack labels into the engine's two-bits-per-unit mask."
         (returns INTEGER "The mask"))
       (let ((%go
               (fn (loop ks acc scale)
                 (if (null? ks)
                     acc
                     (loop (rest ks)
-                          (+ acc (* scale (Type %kind-code (first ks))))
+                          (+ acc (* scale (Type %unit-label (first ks))))
                           (* scale 4))))))
-        (%go kinds 0 1)))
+        (%go labels 0 1)))
     (method set-unit-labels! (self (param ts ANY "Type struct (from Type by-atom)")
                              (param n INTEGER "Unit count -- fixed, or -k for the slot-0-counted convention")
-                             (param kinds LIST "One kind per unit (ref word bytes foreign); the last repeats"))
+                             (param labels LIST "One label per unit (ref word bytes foreign); the last repeats"))
       (doc "Declare what each of a type's units IS, not just how many there are. The collector traces `ref` units and leaves the rest alone -- which is what makes a unit holding bytes or a foreign address declarable at all, since the marker writes through any pointer it is handed."
-        (note "A fixed count describes its own units; a count of -k describes k leading units plus the kind of the slot-0-counted payload that follows, so (Type set-unit-labels! ts -1 '(word ref)) is the vector.")
+        (note "A fixed count describes its own units; a count of -k describes k leading units plus the label of the slot-0-counted payload that follows, so (Type set-unit-labels! ts -1 '(word ref)) is the vector.")
         (returns ANY "The type struct")
         (example "(let ((st (Type by-atom (Type of \"s\")))) (same? (Type set-unit-labels! st 1 '(bytes)) st))" "#t"))
-      ((prim-ref (lit type) (lit set-unit-labels!)) ts n (Type %kind-mask kinds)))
+      ((prim-ref (lit type) (lit set-unit-labels!)) ts n (Type %unit-label-mask labels)))
     (method fields (self)
       (doc "Every type field name in the layout contract (type-rooted rows of engine/tools/contract/base-paths.x)."
         (returns LIST "Field name symbols, contract order"))
@@ -283,7 +283,7 @@
   (returns ATOM "The type's handle atom, or nil")
   (example "(Type name (Type named INTEGER))" "\"INTEGER\""))
 
-; --- Shapes for the engine's own atom types ---------------------------------
+; --- Unit labels for the engine's own atom types ----------------------------
 ;
 ; Each of these carries ONE data unit that is not a reference: an integer or
 ; character holds the value itself, a string or symbol holds a pointer to
@@ -295,41 +295,42 @@
 ; The count could not simply be declared: the collector's fallback traverses
 ; every declared unit with x_heap_tree_mark, which sets the mark bit THROUGH
 ; the pointer before it can establish the pointer is on the heap, so a traced
-; `bytes` unit writes into the bytes it names.  Declaring the KIND is what
-; makes the count safe to state -- and safe by construction here, because a
-; type with no units was never traversed at all and a type whose units are
-; all non-`ref` is not traversed either.  Same behaviour, more information.
+; `bytes` unit writes into the bytes it names.  Declaring each unit's LABEL
+; is what makes the count safe to state -- and safe by construction here,
+; because a type with no units was never traversed at all and a type whose
+; units are all non-`ref` is not traversed either.  Same behaviour, more
+; information.
 ; The coordinate is an engine capability: an engine that predates it answers
 ; nil for (type set-unit-labels!), and the types simply stay undeclared -- the state
 ; every engine was in before this.  Guarded rather than required so the
-; platform still boots on the pinned engine while the shape release lands.
-; SHAPES ARE PER-BASE, and that is the reason this is data rather than a run of
+; platform still boots on the pinned engine while the unit-labels release lands.
+; UNIT LABELS ARE PER-BASE, and that is the reason this is data rather than a run of
 ; calls.  A fresh (Base make) carries none of them, and a type with no mask
 ; means "every unit is a reference" -- so anything reading units generically
 ; then dereferences a PROCEDURE's call pointer.  Declaring them on another base
 ; is walking its own type alist, which needs the rows, not the samples -- and
 ; the rows live in their own file because the image loader (lib/img.x) needs
 ; them on a base with no class system at all.
-(import x/type/shape-rows)
+(import x/type/unit-label-rows)
 
-(def %type-shape-find
+(def %type-unit-labels-find
   (fn (self rows nm)
     (if (null? rows) ()
       (if (str=? (first (first rows)) nm) (first rows) (self (rest rows) nm)))))
-(def %type-shape-row!
+(def %type-unit-labels-row!
   (fn (_ ts)
     ((fn (_ row)
        (if (null? row) ()
          (Type set-unit-labels! ts (first (rest row)) (first (rest (rest row))))))
-     (%type-shape-find %type-shape-rows ((Type wrap ts) name)))))
-(def %type-declare-shapes!
+     (%type-unit-labels-find %type-unit-label-rows ((Type wrap ts) name)))))
+(def %type-declare-unit-labels!
   (fn (self alist)
     (if (null? alist) ()
-      (do (%type-shape-row! (rest (first alist))) (self (rest alist))))))
+      (do (%type-unit-labels-row! (rest (first alist))) (self (rest alist))))))
 
 (if (null? (prim-ref (lit type) (lit set-unit-labels!)))
   ()
-  (%type-declare-shapes! (first %reflect-type-alist-cell)))
+  (%type-declare-unit-labels! (first %reflect-type-alist-cell)))
 
 (doc (provide x/type/type Type)
   (note "Mechanism in lib/x/type/struct.x, filed under catalog ns `type`; load-time wiring fetch-and-caches the helpers instead of calling the class.")

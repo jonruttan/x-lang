@@ -20,6 +20,8 @@ rows go from 64 names to none.
 
 [#857]: https://github.com/jonruttan/x-lang/pull/857
 
+## [0.17.0] - 2026-09-28
+
 **A site that was never brought up is down** ([#842]). `x/sys/swap` documents
 `state`, `reason` and the static `all` with their defaults,
 `(doc (NAME default) "...")`, which the reference can name since [#833]. A
@@ -28,6 +30,20 @@ both were nil. `(Swap site! ...)` brings a site up as it makes one, and is
 as before.
 
 [#842]: https://github.com/jonruttan/x-lang/pull/842
+
+**The counted private reads are the ones that still want a door** ([#852]).
+Three changes to what `check-private-reads` counts, 183 reads in 40 files
+before and 78 in 11 after. A name in the selector's place of a send,
+`(self %walk ...)`, is a message and no longer a read. The names other files
+read from the files that stay unscoped are listed in
+`tools/contract/shared-privates.x`, each with what it is: a door in front of
+a name that stays in the root would hide nothing and cost a dispatch. And
+seven readers of `%stderr`, five tool scripts and the line editor's two
+files, write through `(Stream with-fd 2 thunk)`; the name is listed for the
+three readers that cannot load that module. What is left is the tool
+scripts reading one another and a few catalog aliases.
+
+[#852]: https://github.com/jonruttan/x-lang/pull/852
 
 **The profiler says which functions evaluation goes to** ([#835]). The
 profiling engine that x-engine-c ships from v0.2.15 counts, in each object, how
@@ -42,6 +58,19 @@ from an unpacked release, and the image tools mark with the engine's
 `%obj-flag-trace` instead of 1024.
 
 [#835]: https://github.com/jonruttan/x-lang/pull/835
+
+**A site can be made on demand, and the SHA-256 engine's is** ([#854]).
+`(Swap site-on-demand! name twin maker seat)` records a site and brings it up
+as `site!` does, and adds no recache hook: the site goes down with every other
+before a state image is written, and stays down after one is loaded until its
+owner sends it `up!`. It is for a value that is dear to make and not always
+wanted. The compiled SHA-256 engine is one, so a process that loads an image
+holding its site does not build the engine as it loads; `(Sha256 jit!)` or an
+input of 12KB or more builds it again. `(Sha256 jit!)` on a site that is down
+therefore builds and answers `#t`, where it answered `#f`. A refused build is
+still not tried again.
+
+[#854]: https://github.com/jonruttan/x-lang/pull/854
 
 **`core/fn.x` has a module header** ([#846]). The apply door's eight private
 names are the module's own, and the root keeps `apply` and the `Fn` class.
@@ -69,6 +98,17 @@ itself, not by its instances." It was noted as data carried by a C instance,
 as a field is.
 
 [#833]: https://github.com/jonruttan/x-lang/pull/833
+
+**The compiled SHA-256 engine is a site** ([#849]). `x/codec/sha256` kept its
+own record of the engine `(Sha256 jit!)` builds: nothing, the symbol `failed`,
+or the engine. It makes a site of `x/sys/swap` instead, named `sha256`, the
+first time a build is asked for, with the pure-x digest as its twin. A build
+that raises is refused by the site, which keeps the raise's text, so
+`(Swap report)` shows why an engine is not in use. `%sha-jit-engine` is gone;
+`(Sha256 jit!)`, the digests and the 12KB bar are unchanged. A process that
+loads a state image holding the site builds the engine again as it loads.
+
+[#849]: https://github.com/jonruttan/x-lang/pull/849
 
 **The reference gate checks a documented field** ([#841]).
 `tools/check/doc-forms.sh` checks that every field and static field declared
@@ -127,6 +167,29 @@ lines read `doc-forms: ok (87 fields, all rendered)`,
 member. The exit codes and what is checked are unchanged.
 
 [#844]: https://github.com/jonruttan/x-lang/pull/844
+
+**The tokenizer's channel is the label channel** ([#851]). The integer an
+accepting state declares for its type's reader is a label: the value that
+says which variant the state saw. `%score-label!` writes it and
+`%read-label` reads it; they were `%score-variant!` and `%read-variant`. The
+assembler lane's message reads `a state that declares a label cannot be
+compiled`, and the two spec files are `lib/reader-label.spec.md` and
+`ext/jit-analyser-label.spec.md`. No alias is kept. x-python, the one bundle
+that reads the pair, takes either name since x-python#184.
+
+[#851]: https://github.com/jonruttan/x-lang/pull/851
+
+**A unit's `ref`, `word`, `bytes` or `foreign` is its label** ([#855]). The
+helpers behind `(Type set-unit-labels!)` said kind for the label and shape
+for the declaration. `%unit-label` and `%unit-label-mask` were `%kind-code`
+and `%kind-mask`, the rows are `%type-unit-label-rows` in
+`lib/x/type/unit-label-rows.x`, which was `%type-shape-rows` in
+`shape-rows.x`, and an unknown label raises
+`'type-unit-labels-unknown-label`. The image loader's copies follow, under
+`%img-unit-label-` and `%img-declare-`. No alias is kept, and no bundle
+uses any of them.
+
+[#855]: https://github.com/jonruttan/x-lang/pull/855
 
 **A stat record holds a file's type under `file-type`** ([#823]).
 `(File stat p)` and `(File lstat p)` answer
@@ -459,6 +522,15 @@ loader's own back. `atomic` evaluates each form itself and leaves the
 environment as the forms leave it. Images load as before on v0.2.16.
 
 [#850]: https://github.com/jonruttan/x-lang/pull/850
+
+**The engine is x-engine-c v0.2.17** ([#853]). Its `%seq`, which `do` is,
+walks its forms as an operative body is walked (x-engine-c#72). A dotted body
+raises where the walk reaches the dot, after the forms before it have run,
+with the same message, `call: improper argument list (dotted tail)`. The
+environment `%seq` started in is current again when its last form is done.
+`do` still allocates nothing a call.
+
+[#853]: https://github.com/jonruttan/x-lang/pull/853
 
 **`File stat` decodes through a Struct reader made once** ([#813]). A stat
 allocated about 51,000 objects, 40,600 of them decoding three fields: `Struct
@@ -1996,10 +2068,11 @@ of calling address 0.** An optional JIT symbol -- `jit_score_variant`,
 `jit_buffer_last_char` -- binds as 0 on an engine that lacks it, so that
 every other form keeps compiling; but a form that needed one was emitted
 anyway, as `blr 0`, and died arbitrarily far from the cause: x-python's
-compiled number states declared their variant on an engine without the
+compiled number states declared their label on an engine without the
 symbol and the first number token after the swap segfaulted (its main-lane
 CI, 3 of 5 runs). `%emit-call!` now refuses an address of 0 with a `'state`
-Err, and `%score-variant!` refuses by name the way a call through a value
+Err, and `%score-label!` (released as `%score-variant!`) refuses by name
+the way a call through a value
 already did, so a bundle's probe hears no and its guard keeps the
 interpreted twin. Pinned in `ext/jit-optional-symbol.spec.md` on every
 engine, by standing in for the missing symbol.
@@ -2044,20 +2117,21 @@ a file's type -- 'file 'dir 'link.)
 **A reader hears which state accepted, instead of rescanning to find out.**
 An analyser state knows which of its states accepted and threw it away; the
 type's reader then rescanned the text to learn what it had just been told.
-The engine now hangs a variant cell off the score cell (x-engine-c#43),
-records the winning handler's variant at the accept, and hands it to the
+The engine now hangs a label cell off the score cell (x-engine-c#43),
+records the winning handler's label at the accept, and hands it to the
 reader as its second argument; this release is the library's two ends of
-that channel. `%score-variant!` is the writing end, called by a state at
-its accept, and `%read-variant` the reading end -- the integer, or nil when
-no state declared one. The variant travels as a raw atom cell because an
+that channel. `%score-label!` is the writing end, called by a state at
+its accept, and `%read-label` the reading end -- the integer, or nil when
+no state declared one; they were released as `%score-variant!` and
+`%read-variant`. The label travels as a raw atom cell because an
 int object only exists relative to a base that registered the int type, and
 a tokenizer base has none by design. The assembler lane compiles
-`%score-variant!` through an optional JIT symbol, so an engine without it
+`%score-label!` through an optional JIT symbol, so an engine without it
 keeps compiling every state that does not use one. The capability is
 `tok/variant` in the contract, claimed by the engine, and the two spec files
 that need it say so with `# @requires`: the interpreted twin in
-`lib/reader-variant.spec.md` and the compiled one in
-`ext/jit-analyser-variant.spec.md`, split out of `jit-analyser-self` so
+`lib/reader-label.spec.md` and the compiled one in
+`ext/jit-analyser-label.spec.md`, split out of `jit-analyser-self` so
 that file keeps its self-param coverage on an engine without the door. The
 runner honoured only the FIRST `# @requires` line of a file, so one needing
 two capabilities was gated on one and would have run, and failed, where the

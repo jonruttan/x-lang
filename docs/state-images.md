@@ -621,7 +621,7 @@ nothing else: `(obj ref)` and `(obj set!)` are not engine primitives — the
 engine's own comment says they are "pure x-lang now" — so img defines them
 from the same addressing formula as `boot/data.x`; type names and units cells
 are walks of the type-rooted rows of `base-paths.x`; the unit shapes are the
-rows of `lib/x/type/shape-rows.x`, split out of `type.x` so that one file
+rows of `lib/x/type/unit-label-rows.x`, split out of `type.x` so that one file
 feeds both helium's boot and this one. Its `do` is two operatives handing the
 body to each other through `tail-eval`: a helper *procedure* does not keep a
 tail call in constant stack, and a 300,000-step loop found that out.

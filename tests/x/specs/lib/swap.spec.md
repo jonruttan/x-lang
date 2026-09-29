@@ -265,6 +265,24 @@ its own hook as it was made.
 ---
     (('slow 'down) 'fast 'up)
 
+### a site made on demand stays down after a load, until it is sent up
+
+```x
+(do (import x/sys/swap)
+  (def %seat-m (lit slow))
+  (def %site-m
+    (Swap site-on-demand! (lit m) (lit slow) (fn (_) (lit fast))
+      (Swap in-env (lit %seat-m) %here)))
+  (def %made (list %seat-m (%site-m state)))
+  (Swap down!)
+  (%image-recache!)
+  (def %loaded (list %seat-m (%site-m state)))
+  (%site-m up!)
+  (write (list %made %loaded %seat-m (%site-m state))))
+```
+---
+    (('fast 'up) ('slow 'down) 'fast 'up)
+
 ### one of the transients puts every site down
 
 ```x

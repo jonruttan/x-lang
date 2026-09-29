@@ -26,6 +26,7 @@
   (import x/doc/emit)
   (import x/doc/emit-man)
   (import x/codec/xon)
+  (import x/sys/stream)
   (import x/tool/contract)
 
   (Contract alloc-guard!)
@@ -42,7 +43,7 @@
     (let ((a (Contract argv)))
       (if (null? a) a (if (str=? (first a) "--man") (rest a) a))))
   (when (null? %argv)
-    (do (%stderr "Usage: x.sh --no-pin -q -f tools/dev/doc.x -- [--man] FILE...\n")
+    (do (Stream with-fd 2 (fn (_) (display "Usage: x.sh --no-pin -q -f tools/dev/doc.x -- [--man] FILE...\n")))
         (Sys exit 1)))
 
   (def %prims-path "lib/x/doc/doc-prims.x")
@@ -52,7 +53,7 @@
   (def %doc-one
     (fn (_ %file)
       (unless (File exists? %file)
-        (do (%stderr (Str8 append "Error: " (Str8 append %file " not found\n")))
+        (do (Stream with-fd 2 (fn (_) (display (Str8 append "Error: " (Str8 append %file " not found\n")))))
             (Sys exit 1)))
       ; --- Tokenize both with a fresh base ---
       ; (Base make): make-base retired when the constructors homed on the Base class

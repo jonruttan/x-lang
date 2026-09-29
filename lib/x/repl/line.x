@@ -34,6 +34,7 @@
 (import x/type/list)
 (import x/sys/posix)
 (import x/sys/file)
+(import x/sys/stream)
 (import x/type/path)
 (import x/repl/edit)
 (import x/repl/term)
@@ -733,10 +734,11 @@
           (guard (err
               (%set-cell-int! %sigint-flag 0)
               (if (Err stop? err) (display "\n")
-                (%seq
-                  (%stderr (%str-append (%error-loc-prefix)
-                             (if (str? err) err (%ln-write-to-str err))))
-                  (%stderr "\n"))))
+                (Stream with-fd 2
+                  (fn (_)
+                    (display (%str-append (%error-loc-prefix)
+                               (if (str? err) err (%ln-write-to-str err)))
+                             "\n")))))
             (%repl-eval-line line)))))))
 
 ; The whole loop, replacing repl/loop.x's.  Replacing `repl` is the seam
