@@ -2,7 +2,7 @@
 ## BOOL: the singletons as a real type (#101)
 
 #t and #f are C-static satoms claimed at boot by an x-defined BOOL type via
-(obj retag!). Everything identity-based must be bit-for-bit unchanged; what
+(obj relabel!). Everything identity-based must be bit-for-bit unchanged; what
 changes is that the type system can finally SEE them.
 
 ### the singletons carry the BOOL type

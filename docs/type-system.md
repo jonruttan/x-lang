@@ -332,7 +332,7 @@ Tests whether `obj` is an instance of the type identified by `type-handle`.
 (Type name obj) → string
 ```
 
-Returns the type name of any object as a string. Non-navigable type tags —
+Returns the type name of any object as a string. Non-navigable type labels —
 the base sentinel that marks child execution contexts, and bare handle
 atoms — answer their own bytes rather than a struct walk, mirroring the C
 branches (their fields must not be navigated).

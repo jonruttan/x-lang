@@ -91,7 +91,7 @@ echo "x-lang coverage: $SPEC_COUNT spec files" >&2
 echo "" >&2
 
 # A sweep that produced NO rows is a broken sweep, not an empty report:
-# the tool rotted to 0/0 invisibly once (#402 -- the type-tag model
+# the tool rotted to 0/0 invisibly once (#402 -- the type-label model
 # changed under it and every run "succeeded" with nothing to say).
 # Set COV_ERR=<file> to capture the engine stderr the pipeline hides.
 if [ ! -s "$TMPTSV" ]; then
