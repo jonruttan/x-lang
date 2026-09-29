@@ -162,7 +162,7 @@ _counts() {
     for (k in heads) if (!(k in sent)) reads[k] = 1
     for (k in reads) {
       if (k in owndef) continue
-      if ((k in kind) || (k in seam)) { used[k] = 1; continue }
+      if ((k in label) || (k in seam)) { used[k] = 1; continue }
       if (k in bootname) { print "V " file " " k " " bootname[k]; continue }
       names[++n] = k
     }
@@ -172,8 +172,8 @@ _counts() {
     delete reads; delete owndef; delete names; delete heads; delete sent
   }
   file == "" && $1 == "K" && NF == 2 { boot[$2] = 1; next }
-  file == "" && $1 == "S" && NF == 3 { kind[$2] = "shared"; home[$2] = $3; rows[$2]++; next }
-  file == "" && $1 == "P" && NF == 4 { kind[$2] = "promised"; home[$2] = $3; rows[$2]++; next }
+  file == "" && $1 == "S" && NF == 3 { label[$2] = "shared"; home[$2] = $3; rows[$2]++; next }
+  file == "" && $1 == "P" && NF == 4 { label[$2] = "promised"; home[$2] = $3; rows[$2]++; next }
   file == "" && $1 == "M" && NF == 2 { seam[$2] = 1; next }
   file == "" && $1 == "O" && NF == 3 {
     owner[$2] = 1; defines[$2, $3] = 1
@@ -203,12 +203,12 @@ _counts() {
   }
   END {
     flush()
-    for (k in kind) {
+    for (k in label) {
       ns++
       if (rows[k] > 1) print "X twice " k " " home[k]
       if (k in seam) print "X seam " k " " home[k]
       if (!((k, home[k]) in defines)) print "X undefined " k " " home[k]
-      else if (kind[k] == "shared" && !(k in used)) print "X unread " k " " home[k]
+      else if (label[k] == "shared" && !(k in used)) print "X unread " k " " home[k]
     }
     for (k in seam) if (k in owner) nm++
     print "T " (ns + 0) " " (nm + 0)

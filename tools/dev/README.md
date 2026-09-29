@@ -175,12 +175,12 @@ rather than timing loops the digest no longer runs.
 `--unroll N` emits N round bodies per recursive call. It is a knob for
 RE-MEASURING, not a recommendation: 1/2/4 measure as noise (the boxing it
 amortises is a fraction of that 0.9%), and 8 trips the allocation
-ceiling. The unrolled shape lives here so the negative result stays
+ceiling. The unrolled version lives here so the negative result stays
 reproducible rather than being re-derived.
 
 `--fold` moves the H shuffles into the compiled function (one native
 call per block); `--fill` compiles the W fill itself via the byte-width
-`%mem-byte` family, padding included. Together they take the 25KB digest
+`%mem-byte` functions, padding included. Together they take the 25KB digest
 from ~964ms interpreted-parts to ~71ms — at the price of ~9s of compile,
 so the compiled digest pays off on reuse, not one-shot hashing. All
 knobs compose, and the FIPS vectors plus a differential check against
@@ -237,13 +237,13 @@ asked of the dynamic linker.
 
 The image carries the object graph -- extent table, object table and byte blob,
 with every reference resolved to an object index -- and a **foreign table**:
-one entry per named address, as a kind word, a name-length word and the name
+one entry per named address, as a label word, a name-length word and the name
 bytes padded to a word boundary. Foreign units in the object table are indices
 into it. The section references nothing else, so it can be built before the
 object walk.
 
 It also carries a **type table** -- one entry per distinct type word the heap
-actually uses, as kind, unit count, unit mask and name -- and object records
+actually uses, as label, unit count, unit mask and name -- and object records
 name their type by index into it. A count may be negative: that is the
 slot-0-counted form, and the loader needs the sign as much as the magnitude.
 
@@ -282,8 +282,8 @@ payload means the process handle.
 
 Nothing unnameable is written as 0 any more, in either table. 0 means nil for
 both a reference and a foreign unit, so an address that could not be named
-would come back as "no address" instead of failing -- the same silent-wrong
-shape twice. Both now emit a value one past their table, which a loader can
+would come back as "no address" instead of failing -- the same silent
+wrong answer twice. Both now emit a value one past their table, which a loader can
 refuse.
 
 **Still not loadable**, because nothing can read the file until the engine

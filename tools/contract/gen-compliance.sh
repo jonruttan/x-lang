@@ -64,17 +64,17 @@ awk '/^\(def %isa-catalogue/{s="cat";next} /^\(def %isa-bare/{s="bare";next}
 
 sort -k2,2 "$W/isa" > "$W/isa-bytag"
 join -1 2 -2 1 -o 1.1,2.2,1.3 "$W/isa-bytag" "$W/tagmap" | sort > "$W/bytag"
-# explicit membership wins over the tag mapping (the `ffi` tag splits three ways)
+# explicit membership wins over the label mapping (the `ffi` label splits three ways)
 awk 'NR==FNR{g[$1]=$2;next} {print $1, ($1 in g ? g[$1] : $2), $3}' "$W/exp" "$W/bytag" \
 	| sort -u > "$W/c2g"
-# rows named explicitly but whose tag no capability claims are absent from bytag
+# rows named explicitly but whose label no capability claims are absent from bytag
 # FILENAME==ARGV[1] for the same reason as in gen-engine-xon.sh: c2g is empty for
 # an engine that declares no isa rows at all, and NR==FNR inverts on an empty
 # first file rather than failing.
 awk 'FILENAME==ARGV[1]{seen[$1];next} !($1 in seen) { print $1, $2 }' "$W/c2g" "$W/exp" > "$W/exp-only"
 while read -r coord grp; do
-	kind=$(awk -v c="$coord" '$1==c {print $3}' "$W/isa" | head -1)
-	if [ -n "$kind" ]; then echo "$coord $grp $kind" >> "$W/c2g"; fi
+	label=$(awk -v c="$coord" '$1==c {print $3}' "$W/isa" | head -1)
+	if [ -n "$label" ]; then echo "$coord $grp $label" >> "$W/c2g"; fi
 done < "$W/exp-only"
 sort -u -o "$W/c2g" "$W/c2g"
 

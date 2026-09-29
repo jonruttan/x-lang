@@ -6,7 +6,7 @@ statuses kept as data. The wire path was proven live at build time:
 https-by-name GETs against github.com (DNS -> verified TLS -> parse),
 a decoded Dict from api.github.com's rate_limit endpoint, and a
 captured PUT showing the verb, json headers, and emitted body. These
-specs pin the pure tier.
+specs pin the pure layer.
 
 ## decoding
 

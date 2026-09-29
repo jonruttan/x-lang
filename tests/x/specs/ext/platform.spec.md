@@ -95,7 +95,7 @@ handed.
 ---
     (2 0)
 
-### cwd in a shape is the working directory's descriptor
+### cwd in a stand-in is the working directory's descriptor
 
 ```x
 ((eval (lit %door-slots) (module x/platform/syscall)) (lit (cwd a0 cwd a1 0)))
@@ -188,7 +188,7 @@ length, not its text.
 
 ### x-version carries a dotted version
 
-The exact value moves with the release, so this asserts the shape.
+The exact value moves with the release, so this asserts the layout.
 
 ```x
 (Str8 includes? "." x-version)
@@ -198,7 +198,7 @@ The exact value moves with the release, so this asserts the shape.
 
 ### x-release is a non-empty string
 
-Set from `git describe` at build time, so only its shape is stable.
+Set from `git describe` at build time, so only its layout is stable.
 
 ```x
 (if (str? x-release) (> ((prim-ref 'str 'byte-len) x-release) 0) #f)

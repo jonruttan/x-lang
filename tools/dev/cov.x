@@ -127,12 +127,12 @@
   (def %covered-branches 0)
   (def %uncovered ())
 
-  (def %check-branch (fn (_ kind form)
+  (def %check-branch (fn (_ label form)
     (set! %total-branches (+ %total-branches 1))
     (if (%marked? form)
       (set! %covered-branches (+ %covered-branches 1))
       (set! %uncovered
-        (pair (list kind form (%obj-meta-ref form 0)) %uncovered)))))
+        (pair (list label form (%obj-meta-ref form 0)) %uncovered)))))
 
   ; --- Per-type branch evaluators ---
 

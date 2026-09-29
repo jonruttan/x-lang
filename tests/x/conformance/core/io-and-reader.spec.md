@@ -1,4 +1,4 @@
-# Conformance: byte output, and what the reader family cannot be asked here
+# Conformance: byte output, and what the reader cannot be asked here
 
 The I/O boundary and the tokenizer's buffers. One instruction here has a case; the
 rest are deferred with their reasons, because the harness itself is the obstacle

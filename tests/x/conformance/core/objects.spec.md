@@ -6,9 +6,9 @@ object header words directly and `lib/x/boot/data.x` sizes a word by round-tripp
 2^32 through a pointer cast. These are the instructions that makes that possible,
 and an engine that cannot supply them cannot boot the library at all.
 
-The casts (`obj/->ptr`, `ptr/->obj`, `int/->ptr`, `ptr/->int`) are tagged `ffi` in
+The casts (`obj/->ptr`, `ptr/->obj`, `int/->ptr`, `ptr/->int`) are labelled `ffi` in
 the ISA alongside `dlopen`, but they are a different capability -- see
-`tools/contract/features.x`, which splits that tag three ways. `lib/x/boot` reaches
+`tools/contract/features.x`, which splits that label three ways. `lib/x/boot` reaches
 these six and never reaches the foreign door.
 
 ### an object round-trips through a pointer

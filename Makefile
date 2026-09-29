@@ -270,7 +270,7 @@ $(ENGINE_DIR)/$(EXECUTABLE): engine-link FORCE
 		exit 1; \
 	fi
 
-# The variants, same shape.  Each is PHONY-free for the same reason as the
+# The variants, same pattern.  Each is PHONY-free for the same reason as the
 # plain engine: the copy must compare timestamps, not run unconditionally.
 x-bin-asan x-bin-cov x-bin-profile x-bin-debug: %: $(ENGINE_DIR)/%
 	cp $< $@
@@ -527,12 +527,12 @@ check-examples: $(EXECUTABLE) ## Run every example under its documented dialect
 # whether the engine's C agrees with the manifests it publishes -- a question
 # with no subject in a released artifact, which carries the manifests and no C.
 #
-# SKIPPING IS THE DANGEROUS SHAPE, so it says so on every run and names what
+# SKIPPING IS THE DANGEROUS CASE, so it says so on every run and names what
 # still covers the ground: the engine's own repository runs these three on
 # every build of itself, and check-compliance here verifies that the digests
 # its declaration states still describe the manifests shipped beside it.  A
 # gate that goes quiet is indistinguishable from a gate that passed, which is
-# the vacuous-pass family this project has now met five times.
+# the vacuous-pass failure this project has now met five times.
 check-isa check-obj-layout check-base-paths: ## Engine contract ratchets (delegated)
 	@$(ENGINE_ENSURE); if [ -f $(ENGINE_DIR)/Makefile ]; then \
 		$(MAKE) --no-print-directory -C $(ENGINE_DIR) $@; \
@@ -760,7 +760,7 @@ check-base-routes: ## Assert the engine's base carries the routes lib/ walks
 # silently and this tree stays green -- one of the three ways the last
 # generation of langs rotted, and the one no amount of testing over there can
 # catch in time.  ~8s for all three dialects, which is why it rides the fast
-# gates rather than the deep tier.
+# gates rather than the deep pass.
 check-seam: $(EXECUTABLE) ## Assert the platform still provides what a lang is promised
 	sh tools/check/seam.sh
 .PHONY: check-seam
@@ -780,14 +780,14 @@ check-asan-boot: ## Boot every dialect on an ASan engine: a freed read fails her
 # change, a reader that scores a tie differently all leave this tree green while
 # a bundle in its own repository breaks.  Each bundle's CI runs on its own
 # schedule against a RELEASE, so the break surfaces weeks later as somebody
-# else's mystery.  That is the same shape as the rot the five 2024-era
+# else's mystery.  That is the same pattern as the rot the five 2024-era
 # personalities died of.
 #
 # Measured when this gate was written: x-lang green at 2590/0, and the six
 # bundles carrying 175 failures between them with nothing here saying so.
 #
 # Minutes, not seconds (r5rs and r7rs are ~1300 specs together), which is why it
-# rides the deep tier and check-seam rides the fast one.  Advisory about
+# rides the deep pass and check-seam rides the fast one.  Advisory about
 # presence -- a bundle that is not on the disk is announced and skipped, because
 # this tree must build for someone who cloned nothing else -- and strict about
 # regression.  Budgets in tools/contract/langs.x, which may only shrink.
@@ -812,7 +812,7 @@ check-release-version: ## Assert the tag, x-lib-version and the CHANGELOG agree
 # every rendered block, unescape the three entities, and the fence's original
 # bytes must come back.  A highlighter that drops a character or eats a brace
 # is worse than none -- the reader cannot tell, and the page is the reference.
-# Deep tier only: it sweeps every page, which is tens of seconds.
+# Deep pass only: it sweeps every page, which is tens of seconds.
 check-highlight-roundtrip: $(EXECUTABLE) ## Assert highlighting is byte-preserving
 	@sh tools/check/highlight-roundtrip.sh
 .PHONY: check-highlight-roundtrip
@@ -1062,7 +1062,7 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	@# now.  Read from the row the engine declares rather than asked of the
 	@# binary: the wrapper compares this before deciding whether an engine may
 	@# boot a pinned amalgam, and starting an engine to find out whether it is
-	@# allowed to start is the wrong shape.  Absent (an engine that predates
+	@# allowed to start is the wrong design.  Absent (an engine that predates
 	@# the row) leaves no file, and the guard announces rather than assumes.
 	@sed -n 's/^(param release "\(.*\)")[[:space:]]*$$/\1/p' \
 		$(ENGINE_DIR)/x-engine-build.xon 2>/dev/null | head -1 \

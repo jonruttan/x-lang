@@ -10,8 +10,7 @@
 # and carries the matching row in the manifest.  The diff runs both ways, so a
 # marker without a row fails (an assumption added silently) and a row without a
 # marker fails (a row outliving its subject) -- the discipline
-# check/prim-coverage.sh applies to its exemptions, pointed at a different kind
-# of claim.
+# check/prim-coverage.sh applies to its exemptions, pointed at a different claim.
 #
 # A parameter is not a capability.  `word-size = 8` in a requires-list would
 # lock out the 32-bit Pi, a supported target, and would be false besides:

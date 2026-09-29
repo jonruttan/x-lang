@@ -14,7 +14,7 @@
 ; word size, byte order or engine release that is not this process's;
 ; resolve every external to an object or an address; rebuild the object
 ; table in one primitive; then write the roots into this base's language
-; cells as ONE form of nested primitive calls, env group last, tree last of
+; cells as ONE form of nested primitive calls, env cells last, tree last of
 ; all.  After that form nothing here resolves and the next form on stdin
 ; evaluates inside the image.
 ;
@@ -217,8 +217,9 @@
      (%img-row %base-paths nm)
      ((fn (_ o) (if (null? o) 0 (%ptr->int (%obj->ptr o)))) (%ref-obj (%root-ref ROOTS nm))))))
 
-; The order: every root but the env group, then the env group with the root
-; environment, which holds the tree, last.  Each root the image carries is written; a language cell the image
+; The order: every root but env and env-root, then those two with the root
+; environment, which holds the tree, last.  Each root the image carries is
+; written; a language cell the image
 ; does not carry (the contract grew) is an error, never a silent skip.
 (def %rev-l (fn (_ l) ((fn (loop l acc) (if (null? l) acc (loop (rest l) (pair (first l) acc)))) l ())))
 (def %append-l (fn (self a b) (if (null? a) b (pair (first a) (self (rest a) b)))))
@@ -229,7 +230,7 @@
 (def %prefix? (fn (_ sym pre) (if (%lt (%str-byte-len (%p->s (%symbytes sym))) (%str-byte-len pre)) #f (str=? (%str-byte-sub (%p->s (%symbytes sym)) 0 (%str-byte-len pre)) pre))))
 (def %root-cell? (fn (_ nm) (if (eq? nm (lit sigint)) #f (if (eq? nm (lit line)) #f (not (%prefix? nm "profile-"))))))
 (def %OTHERS ((fn (self l acc) (if (null? l) acc (self (rest l) (if (%root-cell? (first (first l))) (if (%env-cell? %ENV-ORDER (first (first l))) acc (pair (first (first l)) acc)) acc)))) %LANG ()))
-; execution order: the others, then the env group, the root last
+; execution order: the others, then env and env-root, the root last
 (def %ORDER (%append-l %OTHERS %ENV-ORDER))
 (def %WRITES ((fn (self l acc) (if (null? l) (%rev-l acc) (self (rest l) (pair (%write-of (first l)) acc)))) %ORDER ()))
 

@@ -46,11 +46,11 @@
   ; --- module system: ruled bare 2026-07-22 (user: "I want to keep them") ---
   (import)
   (import-path!)
-  (import-version)       ; GH #214: versioned siblings of import, same family
+  (import-version)       ; GH #214: versioned siblings of import, among the module-system forms above
   (import-version-once)  ; GH #214
   (include-once)
   (provide)
-  (module)              ; x-lang#719: names a scoped module and denotes its environment, same family as provide/import
+  (module)              ; x-lang#719: names a scoped module and denotes its environment, alongside provide/import
   (require-once)
   ; --- registry protocol (keep-list) ---
   (prim-domain)
@@ -90,7 +90,7 @@
   (new-from)
   (object?)
   (super)
-  ; --- predicates, scope-extension additions (join the ruled family) ---
+  ; --- predicates, scope-extension additions (join the already-ruled bare-globals) ---
   (complex?)
   (real?)
   ; --- object-system hooks: ruled bare 2026-09-24 (x-lang#719, step 4) ---
@@ -124,7 +124,7 @@
   (darwin-syscall-numbers)
   (dirent-names)
   (i386-syscall-names)
-  ; The generic table's numbers and the call shapes beside them: a fourth
+  ; The generic table's numbers and the stand-in calls beside them: a fourth
   ; platform's data, bare as the other three tables are.
   (linux-generic-syscall-numbers)
   (linux-generic-syscall-stand-ins)

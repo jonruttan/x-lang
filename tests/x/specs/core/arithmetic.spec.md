@@ -420,7 +420,7 @@
 
 These all SEGFAULTED before #72 -- a REPL user typing `(< 1)` lost the session.
 The guard lives in `lib/x/core/arithmetic.x`, the same layer that gives
-`+ - * /` their 0/1/2-arg tiers, so the C prims stay unchecked by design.
+`+ - * /` their zero-, one- and two-argument cases, so the C prims stay unchecked by design.
 
 ### zero-arg modulo is an error, not an identity
 
@@ -478,8 +478,8 @@ than returning a value. spec.md's old `(%) -> 0` claim is retracted.
 
 Counting arguments is not enough: a nil operand reaches the primitive and is
 dereferenced exactly like a missing one. `x_prim_lt` reads `x_intval(NULL)`
-where `x_prim_eq` is nil-safe, so an explicit `()` was a live crash after the
-arity tier landed.
+where `x_prim_eq` is nil-safe, so an explicit `()` was a live crash even after
+arity checking landed.
 
 ```x
 (list (guard (e (lit R)) (< 1 ())) (guard (e (lit R)) (< () 1))
@@ -491,7 +491,7 @@ arity tier landed.
 ### the derived comparisons raise instead of passing nil through
 
 `>` is `(fn (_ a b) (< b a))`, so `(> 1)` binds `b` to nil and calls
-`(< nil 1)` -- two arguments, so the arity tier passes it straight to the
+`(< nil 1)` -- two arguments, so arity checking passes it straight to the
 unchecked primitive.
 
 ```x
@@ -508,7 +508,7 @@ catch a hardware trap -- so before the guard, `(/ 1 0)` killed the whole
 process. The gate is the saved C `number?`, so only a C-level integer zero
 is stopped; boxed tower divisors keep their own dispatch.
 
-### binary tier raises for / and %
+### two operands raise for / and %
 
 ```x
 (list (guard (e (lit R)) (/ 1 0)) (guard (e (lit R)) (% 1 0)))
@@ -516,7 +516,7 @@ is stopped; boxed tower divisors keep their own dispatch.
 ---
     ('R 'R)
 
-### fold tier raises mid-fold
+### folding raises mid-fold
 
 ```x
 (list (guard (e (lit R)) (/ 8 2 0)) (guard (e (lit R)) (% 17 10 0)))
@@ -540,7 +540,7 @@ is stopped; boxed tower divisors keep their own dispatch.
 ---
     (2 7 5 16 1 -1 1 #t #f)
 
-### the identity-carrying operators keep their zero-arg tiers
+### the identity-carrying operators keep their zero-argument cases
 
 ```x
 (list (+) (-) (*) (/))
@@ -589,7 +589,7 @@ Zero cost on the int path (op_try fast-declines ops-less types; benchmarked
 at baseline). Symbols (their type slot is the interning tree) are the one documented residual; the
 booleans are a real BOOL type (#101) and refuse like everything else.
 
-### wrong-type operands raise err:type across the family
+### wrong-type operands raise err:type across + - * / % <
 
 ```x
 (list (guard (e (Err label e)) (+ 1 "abc"))
@@ -634,7 +634,7 @@ An x-level wrapper test measured +9% on every method dispatch, so the check
 follows x_prim_eq's existing nil-safety convention instead: two pointer
 tests inside the prim, after op_try. (+ 1 ()) segfaulted before this.
 
-### nil raises catchably on all five, all shapes
+### nil raises catchably on all five, every layout
 
 ```x
 (list (guard (e (lit R)) (+ 1 ())) (guard (e (lit R)) (- ())) (guard (e (lit R)) (- 5 ()))
@@ -646,11 +646,11 @@ tests inside the prim, after op_try. (+ 1 ()) segfaulted before this.
 
 ## bitwise is integer-only (#52 ruled)
 
-No tower semantics exist for the bitwise family, so unlike `<` (whose
+No tower semantics exist for the bitwise operators, so unlike `<` (whose
 strictness would break float comparisons) rejecting every non-INT operand
 is simply correct -- inline type tests in the wrappers, nil included.
 
-### non-integers raise across the bitwise family
+### non-integers raise across the bitwise operators
 
 ```x
 (list (guard (e (lit R)) (& "a" 1)) (guard (e (lit R)) (| 1 (list 2)))

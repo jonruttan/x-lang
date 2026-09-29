@@ -54,7 +54,7 @@ a stub that records `note` calls, so the spec is not coupled to Markdown.
 
 A field's doc form wraps its declaration, `(doc DECL "description")`, and a
 declaration is `NAME` or `(NAME default)`. The page names the field by the
-declaration's name in both shapes, and a static field the same way. Each
+declaration's name in both layouts, and a static field the same way. Each
 case walks a class form as the generator's driver does, through
 `doc-walk-with-prims`, into a stub emitter that records the calls the case
 reads.
@@ -210,7 +210,7 @@ instead.
 an empty description. The page gives such a field, or such a static field,
 its heading and its note, and no description text.
 
-### a heading and no text, for both shapes of declaration
+### a heading and no text, for both layouts of declaration
 
 ```x
 (do (import x/doc/doc-gen doc-walk-with-prims)

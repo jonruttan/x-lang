@@ -2,12 +2,12 @@
 # @requires native/jit
 # @weight 2
 
-Calling something other than the function being compiled. Untagged on purpose:
+Calling something other than the function being compiled. Unlabelled on purpose:
 both backends (ARM64 and x86-64) compile the same vocabulary, so this file runs
 on every host and IS the parity contract.
 
-The lane had exactly one call shape -- the self-call -- so a compiled function
-could recurse and nothing else. Two shapes join it here, and they differ only in
+The lane had exactly one call layout -- the self-call -- so a compiled function
+could recurse and nothing else. Two layouts join it here, and they differ only in
 when the callee's address is known:
 
     (CALLEE arg ...)      CALLEE is a name bound to an fvar holding a prim,
@@ -16,7 +16,7 @@ when the callee's address is known:
                           known until the call runs (#604)
 
 Both build the argument list the self-call already built and hand
-`(callee arg0 arg1 ...)` -- the prim ABI shape, callee in the self slot -- to
+`(callee arg0 arg1 ...)` -- the prim ABI layout, callee in the self slot -- to
 `jit_call_value`, which checks the head really is a callable prim before it
 branches. That check is the whole reason the branch is safe: on anything that
 is not a PRIMITIVE, the word `jit_call_value` would jump through is a length or
@@ -97,10 +97,10 @@ which is the whole difference from the section above.
 ---
     81
 
-### the callback shape that motivated this: f(f(x))
+### the callback pattern that motivated this: f(f(x))
 
 `int twice(int (*f)(int), int x) { return f(f(x)); }` -- a C function pointer,
-and the shape that kept every compiled caller of a callback interpreted.
+and the pattern that kept every compiled caller of a callback interpreted.
 
 ```x
 (do
@@ -115,7 +115,7 @@ and the shape that kept every compiled caller of a callback interpreted.
 
 `ops[i](x)`: the table holds prim ADDRESSES in scratch memory and the index is
 computed, so the head is an expression, not a name. A compiled opcode switch is
-this shape, and so is a sort with a comparator.
+this pattern, and so is a sort with a comparator.
 
 The three callables are held in names as well as in the table: an address in
 raw memory is not a root, so a collection between the store and the call would

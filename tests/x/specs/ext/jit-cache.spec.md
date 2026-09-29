@@ -88,7 +88,7 @@ each key finds its own — not the one that happened to be stored last.
 
 `%asm-last-relocs` and `%asm-last-size` are how anything downstream learns
 what was just produced. A warm cache never loads asm-compile.x at all, so the
-LOADER has to publish them too, in the shape the assembler uses — kind as a
+LOADER has to publish them too, in the layout the assembler uses — label as a
 symbol, a trampoline's name as the dlsym string.
 
 ```scheme
@@ -181,7 +181,7 @@ merely hashed in — it is in the text the entry stores and the load compares.
 ---
     (#t #t)
 
-### the fvar table's shape is part of the key
+### the fvar table's layout is part of the key
 
 The emitted code is not a function of the source alone. Within analyser mode
 a name absent from the table is read as a parameter while a name
@@ -226,7 +226,7 @@ the identical source and the identical fvar table as an integer function. An
 integer function boxes its result; an analyser's would come back raw.
 
 The arithmetic sits on the third param because analyser mode's leading two are
-object-kinded, and arithmetic on one of those refuses (jit-fvar-mode.spec.md).
+object params, and arithmetic on one of those refuses (jit-fvar-mode.spec.md).
 This case needs a body legal in both worlds, so that the two modes are told
 apart by their key rather than by one of them failing to compile.
 

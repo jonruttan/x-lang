@@ -5,8 +5,8 @@ by round-tripping 2^32 through a pointer cast. Two independent answers to one
 question, and they can disagree in exactly one way: the integer cannot faithfully
 carry a pointer.
 
-That is the ptr/int confusion class, which 32-bit builds have surfaced in this
-project before, and it is worth catching as a loud mismatch here rather than as
+That is the ptr/int confusion, which 32-bit builds have surfaced in this project
+before, and it is worth catching as a loud mismatch here rather than as
 corruption at the first reflective read. The library is entitled to trust the
 probe — everything in `reflect.x` is built on it — so a declaration that
 contradicts it means the declaration is wrong, or the casts are.

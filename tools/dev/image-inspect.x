@@ -69,7 +69,7 @@
 ; type registry the image was written against.
 (add-unit-labels (first %reflect-type-alist-cell))
 (def lookup (fn (self l nm) (if (null? l) () (if (str=? (first (first l)) nm) (rest (first l)) (self (rest l) nm)))))
-(def tagged (fn (_ nm) (if (str=? nm "PAIR") (pair 2 0) (if (str=? nm "ATOM") (pair 1 1) (if (str=? nm "NIL") (pair 1 1) ())))))
+(def labelled (fn (_ nm) (if (str=? nm "PAIR") (pair 2 0) (if (str=? nm "ATOM") (pair 1 1) (if (str=? nm "NIL") (pair 1 1) ())))))
 (def TN (mkn (%i+ TCOUNT 1)))  (def TS (mkn (%i+ TCOUNT 1)))  (def TT (mkn (%i+ TCOUNT 1)))
 (def TCNT (mkn (%i+ TCOUNT 1)))
 (def rdtypes
@@ -78,7 +78,7 @@
       ((fn (_ nm) (do (%oset! TN i nm)
                       (%oset! TS i ((fn (_ e) (if (null? e) () (first e))) (lookup UNIT-LABELS nm)))
                       (%oset! TT i ((fn (_ e) (if (null? e) () (rest e))) (lookup UNIT-LABELS nm)))
-                      (%oset! TCNT i ((fn (_ t) (if (null? t) -1 (first t))) (tagged nm)))
+                      (%oset! TCNT i ((fn (_ t) (if (null? t) -1 (first t))) (labelled nm)))
                       (self (%i+ i 1) (%i+ pos (%i+ 2 (image-int>> (w pos) 3))))))
        (Ptr ->str (%i2p (at (%i+ pos 1))))))))
 (rdtypes 1 TSTART)
@@ -89,14 +89,14 @@
                   (if (str=? (%oref TN i) "SYMBOL") i (self (%i+ i 1))))) 1))
 (def units-of
   (fn (_ ti pos)
-    ((fn (_ t) (if (null? t) (%uheap ti pos) (first t))) (tagged (%oref TN ti)))))
+    ((fn (_ t) (if (null? t) (%uheap ti pos) (first t))) (labelled (%oref TN ti)))))
 (def %uheap
   (fn (_ ti pos)
     ((fn (_ u) (if (null? u) 0 ((fn (_ c) (if (%lt c 0) (%i+ (w (%i+ pos 2)) (%i- 0 c)) c)) (image-unit-labels-count u))))
      (%oref TS ti))))
 (def label-of
   (fn (_ ti j)
-    ((fn (_ t) (if (null? t) (%kheap ti j) (rest t))) (tagged (%oref TN ti)))))
+    ((fn (_ t) (if (null? t) (%kheap ti j) (rest t))) (labelled (%oref TN ti)))))
 (def %kheap
   (fn (_ ti j)
     ((fn (_ u) (if (null? u) 1 (image-unit-label (image-unit-labels-mask u) j (image-unit-labels-desc (image-unit-labels-count u))))) (%oref TS ti))))

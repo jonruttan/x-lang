@@ -24,7 +24,7 @@
 ; recommendation: 1/2/4 measured 4.00s/3.92s/3.97s on a 25KB input --
 ; noise, because the boxing it removes is a fraction of that 0.9% -- and
 ; 8 trips the allocation ceiling while tripling compile time.  The
-; unrolled shape is kept here, and only here, so the negative result
+; unrolled version is kept here, and only here, so the negative result
 ; stays reproducible instead of being re-derived from scratch.
 ;
 ; --fold moves the H shuffles INTO the compiled function (sentinel entry
@@ -40,7 +40,7 @@
 ; block (#198: 963.8 -> 666.7ms at 25KB).
 ;
 ; --fill compiles the W fill itself against the message's raw address,
-; using the byte-width %mem-byte family; the FIPS padding is compiled
+; using the byte-width %mem-byte functions; the FIPS padding is compiled
 ; arithmetic against len/total parked in scratch slots, so one function
 ; serves every block including the padded tail.  This was the last
 ; interpreted part that mattered: 666.7 -> ~71ms at 25KB (the fill part
@@ -156,7 +156,7 @@
   (def %store-h-expr
     (%seq8 (fn (_ i) (%setC (+ %HB i) (%m32 (list '+ (%C (+ %HB i)) (%C (+ 16 i))))))))
 
-  ; --unroll aside, the shape is either
+  ; --unroll aside, the pattern is either
   ;   (if (= t 64) 0 <rounds>)                       -- shuffles outside
   ; or, folded, a THREE-way loop entered at t = -1:
   ;   (if (< t 0)   (do <load>  (self a 0))          -- entry
@@ -177,7 +177,7 @@
   ; --- the W fill as a COMPILED function (--fill) ---
   ; The fill is the digest's dominant interpreted cost (66% after #198's
   ; fold), and what kept it interpreted was that the JIT could not read
-  ; message BYTES.  With the %mem-byte family it can: the message
+  ; message BYTES.  With the %mem-byte functions it can: the message
   ; arrives as a second raw address, and the FIPS padding -- 0x80 at
   ; len, zeros, the bit length big-endian in the last eight bytes -- is
   ; ordinary compiled arithmetic against len/total parked in scratch

@@ -215,7 +215,7 @@
 
 The star state collector recursed in argument position -- one C eval
 frame group per matched character, NOT pattern-bounded -- so a* over a
-~16K+ input crashed the C stack (the %map1 shape, fixed 2026-09-01).
+~16K+ input crashed the C stack (the %map1 recursion, fixed 2026-09-01).
 Now tail accumulate, states farthest-first for free.
 
 ```x
@@ -686,7 +686,7 @@ Now tail accumulate, states farthest-first for free.
 
 collect-from gathered its state list by recursing in argument position
 -- one C eval frame group per repetition -- so a ~16K+ count crashed
-the C stack (the %map1 shape, fixed 2026-09-01).  Now tail accumulate;
+the C stack (the %map1 recursion, fixed 2026-09-01).  Now tail accumulate;
 the states come out farthest-first, which is the order greedy try-from
 wanted anyway.
 

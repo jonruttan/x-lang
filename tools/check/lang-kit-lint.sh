@@ -6,7 +6,7 @@
 # of two scoped modules:
 #
 #   - a name one module imports from its sibling, by name and over several
-#     lines, is defined, whichever file of the directory the group's preload
+#     lines, is defined, whichever file of the directory the batch's preload
 #     is computed from;
 #   - a name nothing defines or imports is still reported, so the check can
 #     fail.

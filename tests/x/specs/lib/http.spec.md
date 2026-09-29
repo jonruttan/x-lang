@@ -3,7 +3,7 @@
 
 The ruled strategy, as amended by #412: pure x; https rides the Tls
 class (libssl over the dlopen FFI) and names resolve through
-(Socket resolve). These specs pin the protocol tier --
+(Socket resolve). These specs pin the protocol layer --
 url splitting, request rendering, response parsing under both framings
 -- through the %-private doors, which need no live socket. The wire
 path (request/get/post over tcp-connect + recv-bytes) was proven live
@@ -78,7 +78,7 @@ both ends of a blocking exchange, so the wire stays out of the suite.
     ('value 'value)
 
 
-## the REST tier (#412)
+## the REST layer (#412)
 
 ### url-encode passes unreserved bytes, encodes the rest uppercase
 

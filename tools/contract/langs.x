@@ -70,15 +70,15 @@
 ; rules and automatics x-lang's own Makefiles use; it dry-runs x-awk's
 ; real Makefile.
 (lang "make"  "x-make"   23  0)
-; coreutils is the arc's second tier: NINETY-TWO applets in one bundle
-; (busybox shape) -- parity with busybox's coreutils set.  The measured
+; coreutils comes second in the arc: NINETY-TWO applets in one bundle
+; (as busybox is) -- parity with busybox's coreutils set.  The measured
 ; core (sort/tr/cut/join/comm), every digest byte-identical with the
 ; system tool (md5sum sha1sum sha256sum sha512sum cksum sum), expr with
 ; its own anchored matcher, od, the scripting set, and the nineteen
 ; applets that ride v0.11.0's doors (chmod ln readlink realpath df
 ; uname id ...).  Absent for want of a door: who stty hostid mknod.
 (lang "coreutils" "x-coreutils" 103 0)
-; cc is the arc's final tier: the full C front end, a cell-machine
+; cc comes last in the arc: the full C front end, a cell-machine
 ; evaluator (`run` -- every spec an oracle row against /usr/bin/cc),
 ; and `build` -- eligible integer functions lower through the engine's
 ; compile-asm lane to NATIVE code, no external toolchain.  The build
@@ -133,7 +133,7 @@
 ; beginning with `.` reached the reader as the pair-dot sentinel, so `...` was
 ; unreadable and syntax-rules patterns could not be written at all.
 ;
-; x-engine-c v0.1.4 stopped the dot being a token kind -- nothing claims the
+; x-engine-c v0.1.4 stopped the dot being one of the single-character tokens -- nothing claims the
 ; character now, and the list reader recognises the one-character symbol "."
 ; where it already decides pair-versus-list.  R5RS's macro layer is written
 ; entirely in ellipsis patterns, so one reader fix moved all nine at once.

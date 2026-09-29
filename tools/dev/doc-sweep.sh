@@ -87,7 +87,7 @@ trap 'exit 143' TERM
 } > "$_TMP/files.lst"
 
 # Source path -> output page path.  Markdown keeps the module's directory
-# shape (the old Makefile's sed, kept exact); man has no directories, so the
+# layout (the old Makefile's sed, kept exact); man has no directories, so the
 # path is flattened to the page name the .TH header and the aliases use.
 _out_for() {
   if [ "$MODE" = man ]; then

@@ -352,7 +352,7 @@ cp lib/x.x "$_TMP/proj4/boot/entry.x"
 printf '(def %%pin-smoke-boot "custom")\n' >> "$_TMP/proj4/boot/entry.x"
 cp "$_TMP/proj/deps/acme/util.x" "$_TMP/proj4/deps/acme/util.x"
 cat > "$_TMP/proj4/pin.xon" <<'EOF'
-; both tiers, one declaration
+; overlay and amalgam pinning, one declaration
 (root "deps")
 (boot "boot/entry.x")
 EOF
@@ -515,7 +515,7 @@ printf '(display "ran")\n' > "$_TMP/pair4/main.x"
 grep -q "engine pairing unchecked" "$_TMP/err" || fail "pairing-guard: lockless armed pin skipped WITHOUT the unchecked notice (#313)" "$_TMP/err"
 
 # A lock that EXISTS but yields no fingerprint (corrupt, truncated) is
-# the same disappearing-guard shape -- it must say so too.
+# the same disappearing-guard failure -- it must say so too.
 mkdir -p "$_TMP/pair5/boot"
 printf '(root "deps")\n(boot "boot/he.x")\n' > "$_TMP/pair5/pin.xon"
 printf '; not a real amalgam -- never reached\n' > "$_TMP/pair5/boot/he.x"
@@ -663,7 +663,7 @@ _eng_proj eng3 ""
 grep -q "different engine build" "$_TMP/err" && fail "engine-guard: a lock predating the row was refused" "$_TMP/err"
 
 # A lock that NAMES an engine against a tree that cannot answer: announce,
-# never assume.  A guard that disappears without a word is the #313 shape.
+# never assume.  A guard that disappears without a word is the #313 failure.
 mv "$_fake2/share/x/contract/engine-release" "$_fake2/share/x/contract/engine-release.away"
 (cd "$_TMP" && $TIMEOUT_CMD sh "$_fake2/bin/x" -f "$_TMP/eng2/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
 grep -q "no engine stamp" "$_TMP/err" || fail "engine-guard: an unanswerable pairing passed in silence" "$_TMP/err"
@@ -1020,7 +1020,7 @@ X_LANG_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-nodialect -f /
 grep -q "declares dialect 'zz'" "$_TMP/err" \
   || fail "load-dialect: the missing dialect was not named" "$_TMP/err"
 
-# A tarball with a top-level directory, which is the normal kind: `git archive
+# A tarball with a top-level directory, which a tarball normally has: `git archive
 # --prefix=NAME/` is how a publisher rolls one and what every release tarball
 # looks like.  Refusing it would mean saying "ships no lang.xon" about a bundle
 # that plainly does -- found the first time a bundle was rolled for release.

@@ -116,7 +116,7 @@ time-of-day and both sides of the epoch.
 ---
     ("2009-02-13T23:31:30Z" 1234567890 5 "1970-01-01T00:00:00Z")
 
-### strict: bad shapes, out-of-range fields, nonexistent civil dates all raise 'value
+### strict: badly formed inputs, out-of-range fields, nonexistent civil dates all raise 'value
 
 ```x
 (do (import x/sys/date)

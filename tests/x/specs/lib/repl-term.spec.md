@@ -5,7 +5,7 @@
 descriptor, which is the whole reason a terminal's key decoding can be tested
 here at all: a spec hands it a list and never opens a tty.
 
-Each case below builds such a reader over a byte list. Three shapes come
+Each case below builds such a reader over a byte list. Three cases come
 back: a STRING of literal text to insert, a SYMBOL naming a key, or nil when
 the input ended.
 

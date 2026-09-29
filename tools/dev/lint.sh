@@ -87,7 +87,7 @@ _import_forms() {
 # The sibling preload for a directory of modules: the target reads its
 # siblings' exports, so linting it alone would call every one of them
 # Undefined.  Both an app under apps/NAME/ and a LANG BUNDLE under its
-# own root have that shape -- a directory of (provide ...) modules plus
+# own root have that layout -- a directory of (provide ...) modules plus
 # an entry with none -- so the walk takes the modules root as an
 # argument rather than matching one hard-coded path.
 #
@@ -432,7 +432,7 @@ for f in "$@"; do
     # Every OTHER error is the engine dying, and is the only account of why:
     # dropping all of them left a bare `F` with nothing under it, which is
     # less than the group path prints for the same death.  Matched whole, so
-    # `*** ERROR: Unbound SYMBOL ...` and its kind still reach the reader.
+    # `*** ERROR: Unbound SYMBOL ...` and its label still reach the reader.
     printf '%s\n' "$_OUT" | while IFS= read -r line; do
       case "$line" in
         "*** ERROR: error") ;;
