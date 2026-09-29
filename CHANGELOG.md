@@ -14,6 +14,7 @@ clear the bits the last two leave. `libm-fn` with no name makes the new
 stubs `"d->f"`, `"f->d"` and `"i->f"`.
 
 [#877]: https://github.com/jonruttan/x-lang/pull/877
+
 **The foreign census runs again, and the image inspector is gone** ([#873]).
 `tools/dev/image-foreign.x` called three helpers that left the tree on
 2026-09-04, when the writer began to recognise a type's call pointer by the
