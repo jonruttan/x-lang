@@ -185,6 +185,13 @@ the old name.
 
 [#860]: https://github.com/jonruttan/x-lang/pull/860
 
+**What `Paint classify` answers is a label** ([#862]). `(Paint labels)` lists
+the nine symbols `classify` can answer; it was `(Paint classes)`. `classify`
+keeps its name, and `'class` stays among the nine, the label of an atom that
+names a class. No alias is kept, and no bundle uses the old name.
+
+[#862]: https://github.com/jonruttan/x-lang/pull/862
+
 **A stat record holds a file's type under `file-type`** ([#823]).
 `(File stat p)` and `(File lstat p)` answer
 `((size . N) (mode . M) (file-type . K) (mtime . T))`; the third key was
