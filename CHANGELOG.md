@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The image tools' heap walk and foreign namer are library modules** ([#857]).
+`tools/dev/image-walk.x` and `tools/dev/image-name.x` are
+`x/tool/image/walk` and `x/tool/image/name`, with provide lists, and
+`image-write.x`, `image-inspect.x` and `image-foreign.x` take what they use
+by selective import. An export is a bare name, `image-walk`,
+`image-over-units`, `image-name-map`, and a name left private is
+`%image-NAME`. The walk's periodic collect is switched with
+`image-walk-collect!`. Both modules are unscoped, the walk being per object,
+and a header was not measured. `tools/dev/image-read.x` is as before, a
+file included by path, since it loads where there is no module system. An
+install carries the two modules with `lib/`. The image scripts' private-read
+rows go from 64 names to none.
+
+[#857]: https://github.com/jonruttan/x-lang/pull/857
+
 **A site that was never brought up is down** ([#842]). `x/sys/swap` documents
 `state`, `reason` and the static `all` with their defaults,
 `(doc (NAME default) "...")`, which the reference can name since [#833]. A
