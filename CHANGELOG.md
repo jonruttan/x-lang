@@ -135,6 +135,18 @@ that reads the pair, takes either name since x-python#184.
 
 [#851]: https://github.com/jonruttan/x-lang/pull/851
 
+**A unit's `ref`, `word`, `bytes` or `foreign` is its label** ([#855]). The
+helpers behind `(Type set-unit-labels!)` said kind for the label and shape
+for the declaration. `%unit-label` and `%unit-label-mask` were `%kind-code`
+and `%kind-mask`, the rows are `%type-unit-label-rows` in
+`lib/x/type/unit-label-rows.x`, which was `%type-shape-rows` in
+`shape-rows.x`, and an unknown label raises
+`'type-unit-labels-unknown-label`. The image loader's copies follow, under
+`%img-unit-label-` and `%img-declare-`. No alias is kept, and no bundle
+uses any of them.
+
+[#855]: https://github.com/jonruttan/x-lang/pull/855
+
 **A stat record holds a file's type under `file-type`** ([#823]).
 `(File stat p)` and `(File lstat p)` answer
 `((size . N) (mode . M) (file-type . K) (mtime . T))`; the third key was
