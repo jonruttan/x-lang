@@ -113,6 +113,13 @@ langs, with [the bootstrap tool closure](docs/bootstrap-closure.md) as the
 scorecard. `x -l cc` runs C, and eligible functions lower to native code
 through the engine's compile lane, no external toolchain.
 
+[x-os](https://github.com/jonruttan/x-os) is the langs as a system: the Linux
+kernel, x and its langs and nothing else, with x-ash as the shell and
+x-coreutils as its commands. It is a container, `docker run -it
+jonruttan/x-os`, and a [bootable ISO
+image](https://github.com/jonruttan/x-os/releases/tag/latest) for x86-64 and
+arm64.
+
 Bundles live in their own repositories, but this tree still answers for the
 ones present on disk: [`tools/contract/langs.x`](tools/contract/langs.x)
 records each bundle's suite counts and `make check-langs` holds them —
