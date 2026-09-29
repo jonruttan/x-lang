@@ -31,4 +31,7 @@
 ; budgeted here; the gate refuses it.  The reads of a catalog alias another
 ; file happened to bind went to the public doors, and a member a class body
 ; declares stopped counting: 6, in 1 file.
-(file "tools/check/engine-contract.x" 6)
+; A file under tools/ stopped counting as an owner on 2026-09-29: a tool
+; script wraps library functions, and no file of lib/ or apps/ loads one,
+; which the gate holds.  No row is left.  A new read fails the gate and
+; names itself.

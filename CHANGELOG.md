@@ -37,8 +37,14 @@ as before.
 was in the root only because another file had fetched it. The tools call
 `(Convert to ...)` and `(Str8 ->sym ...)`, and `block.x` fetches the
 primitive where it uses it. `check-private-reads` also stops counting a
-member that a class body declares, `(%size 8192)`. 70 reads in 5 files are
-left, 64 of them the image tools reading one another.
+member that a class body declares, `(%size 8192)`.
+
+A tool script is a reader of private names and never an owner: the gate
+takes its owners from `lib/` and `apps/` alone, and refuses a file of `lib/`
+or `apps/` that loads a file under `tools/`, which is what that rests on. A
+tool that reads a library's private name is counted as before. With both,
+`tools/contract/private-reads.x` holds no row; the count was 954 on
+2026-09-21.
 
 [#861]: https://github.com/jonruttan/x-lang/pull/861
 

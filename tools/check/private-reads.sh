@@ -32,8 +32,10 @@
 # a row's file has to define its name, some other file has to read a
 # `shared` name, and the document of a `promised` name has to mention it.
 #
-# Scope: lib/ + apps/ + tools/, the files that can co-load into one base, as
-# dup-defs.sh has it, and for its reason.  lib/img.x is a dialect of its own
+# Scope: the readers are the files of lib/ + apps/ + tools/, and the owners
+# those of lib/ + apps/.  A script under tools/ wraps library functions, and
+# what one script shares with another is its own affair: no library file
+# loads a tool, which this check holds.  lib/img.x is a dialect of its own
 # and is out of scope entirely.  The two manifests of names are lists and
 # not readers.  Specs are prose with fences and are not scanned; the
 # loader's own doors are what they exercise.
@@ -101,10 +103,24 @@ _docs() {
   done
 }
 
-# The owners: every % name an UNSCOPED file defines at its top level, with
-# the file, so that a row can be held to its file and a boot name known.
+# A tool script is a wrapper around library functions, so nothing in lib/ or
+# apps/ loads one.  That is what lets the scripts stay out of the owners
+# below, and it is held here.  The engine's contract files, reached through
+# the engine link, are not this tree's tools.
+_loads=$(grep -nE '^[[:space:]]*\((include|include-once|import)[[:space:]]+"?tools/' \
+  $(find lib apps -name '*.x' 2>/dev/null | sort) /dev/null)
+if [ -n "$_loads" ]; then
+  echo "private-reads: a file under lib/ or apps/ loads a file under tools/ -- move what it needs into the library:" >&2
+  printf '%s\n' "$_loads" | sed 's/^/  /' >&2
+  exit 1
+fi
+
+# The owners: every % name an UNSCOPED file of lib/ or apps/ defines at its
+# top level, with the file, so that a row can be held to its file and a boot
+# name known.  A file under tools/ is a reader and never an owner.
 _owners() {
   for _f in $_FILES; do
+    case "$_f" in tools/*) continue ;; esac
     grep -q '^(module ' "$_f" && continue
     awk -f tools/check/defs.awk "$_f"
   done | awk -F'\t' '$2 ~ /^%/ { print "O", $2, $1 }' | sort -u

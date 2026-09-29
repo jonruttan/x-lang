@@ -326,7 +326,10 @@ Two consequences belong in the contract:
   (`tools/contract/private-reads.x`), so the number can only fall as step 4
   replaces each read with a door. The names read across files by decision
   are outside the count: those `tools/contract/shared-privates.x` lists,
-  and the `%` names of the seam.
+  and the `%` names of the seam. A file under `tools/` is a reader and never
+  an owner (decision of 2026-09-28): a tool script wraps library functions,
+  and the gate refuses a file of `lib/` or `apps/` that loads one. With
+  that the count is nought, and the gate's work is to refuse a new read.
 
 ## What the engine must provide
 
