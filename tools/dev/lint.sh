@@ -237,7 +237,7 @@ if [ -n "${GROUP_LIST:-}" ]; then
     }
     /^%%LINT%% / { name = substr($0, 10); buf = ""; next }
     # A clean file still has its warnings.  Printing the dot without buf
-    # would discard every advisory finding -- ladder, shape, unused -- on a
+    # would discard every advisory finding -- ladder, depth, unused -- on a
     # file that otherwise passed, leaving visible only the warnings riding
     # on a failing one.  The per-file path prints both.
     /^%%OK%%$/   { printf "  \033[1;32m.\033[0m %s\n", name; printf "%s", buf; done[name] = 1; name = ""; next }

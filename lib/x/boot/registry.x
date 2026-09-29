@@ -62,7 +62,7 @@
 (def %registry-prims-cell (%reflect-base-cell (lit prims)))
 
 ; The entry PAIR keyed k in an assoc list, or () -- prim-reg! setcdrs it.
-; Both catalog levels share this shape: ((ns . methods) ...) and
+; Both catalog levels share this structure: ((ns . methods) ...) and
 ; ((method . value) ...).  Keys are interned symbols, so eq? compares
 ; identity.  ONE walk; assoc-rest below is its value-projecting front.
 (def %registry-domain-pair

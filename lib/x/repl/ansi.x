@@ -272,7 +272,7 @@
         (do (display " . ") (%ansi-write-code (rest obj)))
         (do (display " ") (self (rest obj)))))))
 
-; Quote-family shorthand: the tokenizer expands 'x to (lit x) (and `,
+; Quote-and-quasiquote shorthand: the tokenizer expands 'x to (lit x) (and `,
 ; ,@ likewise), so re-rendering parsed code must fold them back or help
 ; samples written as 'rdonly display as (lit rdonly) -- the R1/R8 echo
 ; regression jon caught in (help File).

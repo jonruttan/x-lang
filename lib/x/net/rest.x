@@ -3,7 +3,7 @@
 ; RESTful endpoints speak JSON: these verbs emit x values as JSON request
 ; bodies (Content-Type/Accept set) and decode JSON response bodies back
 ; to x values by content-type. The Json mapping applies both ways:
-; object <-> Dict, array <-> list, null <-> 'null, numbers/strings/bools.
+; JSON object <-> Dict, array <-> list, null <-> 'null, numbers/strings/bools.
 ;
 ;   (Rest get url [headers])          (Rest delete url [headers])
 ;   (Rest post url value [headers])   (Rest put url value [headers])
@@ -27,7 +27,7 @@
 (import x/codec/json)
 
 (def-class Rest ()
-  (doc "JSON-speaking verbs over Http: values go out as JSON bodies, JSON responses come back decoded (object <-> Dict, array <-> list, null <-> 'null). Statuses stay data -- (Rest ok? resp) answers the 2xx question."
+  (doc "JSON-speaking verbs over Http: values go out as JSON bodies, JSON responses come back decoded (JSON object <-> Dict, array <-> list, null <-> 'null). Statuses stay data -- (Rest ok? resp) answers the 2xx question."
     (sample "(Assoc find 'body (Rest get \"http://127.0.0.1:8080/users/1\"))" "('body . the decoded Dict)")
     (see get) (see post) (see ok?))
   (static
@@ -116,5 +116,5 @@
         (if (>= st 200) (< st 300) #f)))))
 
 (doc (provide x/net/rest Rest)
-  (note "The JSON layer over Http: values out (Json emit + the json headers), values back (Json parse by content-type). Statuses stay data -- ok? answers 2xx; redirects auto-follow at the Http tier, so a 3xx here means the chain ENDED on one (no location, or following disabled).")
+  (note "The JSON layer over Http: values out (Json emit + the json headers), values back (Json parse by content-type). Statuses stay data -- ok? answers 2xx; redirects auto-follow at the Http profile, so a 3xx here means the chain ENDED on one (no location, or following disabled).")
   "JSON-speaking REST verbs, homed on the Rest class.")

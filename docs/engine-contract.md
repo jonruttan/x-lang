@@ -52,6 +52,11 @@ finds something callable, or the bare name is bound. It does **not** mean
 with x-level ones under the same catalog names. The contract is the coordinate, not
 the language it is written in.
 
+The catalog is what the *library* calls. An engine's own routines need not go
+through it, and x-engine-c's do not: its C calls C by name. Filing a new value under
+a coordinate changes what the library reaches from then on, and leaves what the
+engine calls internally as it was.
+
 ### Identity: the engine says which engine it is
 
 Two implementations exist, so this is a real question with a wrong answer

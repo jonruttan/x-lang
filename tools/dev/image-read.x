@@ -98,7 +98,7 @@
 (def %tail (fn (_ s i) (%str-byte-sub s (%i+ i 1) (%i- (%str-byte-len s) (%i+ i 1)))))
 
 ; --- externals (spec 3.4) -------------------------------------------------------
-; Entry k of XV is an object (kinds 6-8) or an integer address (kinds 1-5).
+; Entry k of XV is an object (labels 6-8) or an integer address (labels 1-5).
 ; Every engine type this base registers lazily is registered first, so a
 ; type-static row of a type the image used has a struct to be walked here.
 ((prim! (lit ptr) (lit alloc)) 8)
@@ -118,32 +118,32 @@
    ((prim! (lit type) (lit make)) "%img-probe" ())))
 (def %unresolved 0)
 (def %UNRESOLVED ())
-(def %miss (fn (_ kind nm) (do (set! %unresolved (%i+ %unresolved 1)) (set! %UNRESOLVED (pair (pair kind nm) %UNRESOLVED)) ())))
+(def %miss (fn (_ label nm) (do (set! %unresolved (%i+ %unresolved 1)) (set! %UNRESOLVED (pair (pair label nm) %UNRESOLVED)) ())))
 (def %resolve-external
-  (fn (_ kind nm)
-    (guard (_ (%miss kind nm))
-      (if (eq? kind 1)
+  (fn (_ label nm)
+    (guard (_ (%miss label nm))
+      (if (eq? label 1)
           ((fn (_ i) (fnptr-of (prim-ref (%->sym (%head nm i)) (%->sym (%tail nm i)))))
            (%split nm 0 (%str-byte-len nm) SLASH))
-        (if (eq? kind 2) (fnptr-of (eval (%->sym nm)))
-          (if (eq? kind 3) (%p2i (%dlsym %lib0 nm))
-            (if (eq? kind 4) (if (str=? nm "PROCEDURE") (fnptr-of (fn (_ x) x)) (fnptr-of (op (x) x)))
-              (if (eq? kind 5) (%p2i %lib0)
-                (if (eq? kind 6)
+        (if (eq? label 2) (fnptr-of (eval (%->sym nm)))
+          (if (eq? label 3) (%p2i (%dlsym %lib0 nm))
+            (if (eq? label 4) (if (str=? nm "PROCEDURE") (fnptr-of (fn (_ x) x)) (fnptr-of (op (x) x)))
+              (if (eq? label 5) (%p2i %lib0)
+                (if (eq? label 6)
                     (if (str=? nm "true") (first (%img-cell (lit true)))
                       (if (str=? nm "false") (first (%img-cell (lit false)))
                         (if (str=? nm "sigint") (first (%img-cell (lit sigint)))
                           (if (str=? nm "token-eof") (eval (lit %token-eof))
                             (if (str=? nm "units-pair") %probe-units
-                              (%miss kind nm))))))
-                  (if (eq? kind 7)
+                              (%miss label nm))))))
+                  (if (eq? label 7)
                       ((fn (_ i)
-                         ((fn (_ st) (if (null? st) (%miss kind nm) (%img-of st (%->sym (%tail nm i)))))
+                         ((fn (_ st) (if (null? st) (%miss label nm) (%img-of st (%->sym (%tail nm i)))))
                           (%struct-named (first %reflect-type-alist-cell) (%head nm i))))
                        (%split nm 0 (%str-byte-len nm) SPACE))
-                    (if (eq? kind 8)
+                    (if (eq? label 8)
                         (if (str=? nm "base") (%base) (%img-walk (%base) (%img-row %base-paths (%->sym nm))))
-                        (%miss kind nm))))))))))))
+                        (%miss label nm))))))))))))
 (def rdexternals
   (fn (self k pos)
     (if (%lt XCOUNT k) ()
@@ -199,7 +199,7 @@
 (def node (op (nm . kids) e (do (%eval-all kids e) ())))
 (def build (op (x) e (do (set! %IN-BUILD #t) (eval x e) (set! %IN-BUILD #f) ())))
 (include "engine/tools/contract/base-layout.x")
-(def %kind-of (fn (self l nm) (if (null? l) (%fail (pair (lit not-a-cell) nm)) (if (eq? (first (first l)) nm) (rest (first l)) (self (rest l) nm)))))
+(def %label-of (fn (self l nm) (if (null? l) (%fail (pair (lit not-a-cell) nm)) (if (eq? (first (first l)) nm) (rest (first l)) (self (rest l) nm)))))
 (def %but-last (fn (self l) (if (null? (rest l)) () (pair (first l) (self (rest l))))))
 (def %last-of (fn (self l) (if (null? (rest l)) (first l) (self (rest l)))))
 
@@ -209,7 +209,7 @@
 (def %write-of
   (fn (_ nm)
     ((fn (_ steps v)
-       (if (eq? (%kind-of %LANG nm) (lit cell))
+       (if (eq? (%label-of %LANG nm) (lit cell))
            (list (%obj->ptr (%img-walk (%base) steps)) (%data-word-off 0) v)
            (list (%obj->ptr (%img-walk (%base) (%but-last steps)))
                  (%data-word-off (if (eq? (%last-of steps) (lit f)) 0 1))
@@ -237,7 +237,7 @@
     (do (display "image: objects=") (say-num N)
         (display " externals=") (say-num XCOUNT) (display " roots=") (say-num RTCOUNT)
         (display " unresolved=") (say-num %unresolved) (newline)
-        ((fn (self l) (if (null? l) () (do (display "  unresolved kind ") (say-num (first (first l))) (display " ") (display (rest (first l))) (newline) (self (rest l))))) %UNRESOLVED))
+        ((fn (self l) (if (null? l) () (do (display "  unresolved label ") (say-num (first (first l))) (display " ") (display (rest (first l))) (newline) (self (rest l))))) %UNRESOLVED))
     ())
 
 ;  This base's own type structs stay alive.  Its process state -- the read

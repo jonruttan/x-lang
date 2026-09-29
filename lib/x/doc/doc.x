@@ -168,31 +168,31 @@
         (if (pair? (first forms))
           (let ()
             (def %form (first forms))
-            (def %tag (first %form))
+            (def %label (first %form))
             (match
-              ((eq? %tag (lit returns))
+              ((eq? %label (lit returns))
                 (%set-first! %doc-pending-returns
                   (list (first (rest %form))
                     (if (null? (rest (rest %form))) ""
                       (if (str? (first (rest (rest %form))))
                         (first (rest (rest %form)))
                         "")))))
-              ((eq? %tag (lit example))
+              ((eq? %label (lit example))
                 (%set-first! %doc-pending-examples
                   (pair (pair (first (rest %form)) (first (rest (rest %form))))
                         (first %doc-pending-examples))))
-              ((eq? %tag (lit sample))
+              ((eq? %label (lit sample))
                 (%set-first! %doc-pending-samples
                   (pair (pair (first (rest %form)) (first (rest (rest %form))))
                         (first %doc-pending-samples))))
-              ((eq? %tag (lit see))
+              ((eq? %label (lit see))
                 (%set-first! %doc-pending-sees
                   (pair (first (rest %form)) (first %doc-pending-sees))))
-              ((eq? %tag (lit note))
+              ((eq? %label (lit note))
                 (%set-first! %doc-pending-notes
                   (pair (first (rest %form)) (first %doc-pending-notes))))
               (#t
-                (if (eq? %tag (lit param))
+                (if (eq? %label (lit param))
                   (%set-first! %doc-params-acc
                     (pair (%doc-extract-param %form)
                           (first %doc-params-acc))))))))
@@ -264,7 +264,7 @@
 
 ; --- Main doc operative (fast path) ---
 ;
-; Three modes:
+; Three variants:
 ;   (doc (def name value) [meta...] "desc")      — wraps def
 ;   (doc (provide name sym...) [meta...] "desc")  — wraps provide
 ;   (doc name [meta...] "desc")                   — bare symbol
@@ -302,13 +302,13 @@
 
 ; Commit one stashed entry into the registry (reproduces original doc logic).
 (def %doc-commit-entry!
-  (fn (_ kind form meta)
-    (if (eq? kind (lit %bare))
+  (fn (_ label form meta)
+    (if (eq? label (lit %bare))
       (do
         (%doc-reset-pending!)
         (%doc-process-meta meta)
         (%doc-collect-and-register! form (%doc-find-last-string meta)))
-    (if (eq? kind (lit %provide))
+    (if (eq? label (lit %provide))
       (do
         (%doc-reset-pending!)
         (%doc-process-meta meta)

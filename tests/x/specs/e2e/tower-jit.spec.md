@@ -3,15 +3,15 @@
 
 The tower's compiled analysers (`lib/x/boot/tower-compiled.x`). One probe,
 `%tower-jit?`, decides whether the burst compiles at all, and each state then
-compiles through a site (`lib/x/sys/swap.x`) that keeps its interpreted twin
-when the lane refuses it. A twin answers what its compiled state answers, so
+compiles through an entry on Compiled's list (`lib/x/tool/compiled.x`) that
+keeps its interpreted twin when the lane refuses it. A twin answers what its compiled state answers, so
 the other tower specs pass either way; this file tells the two apart.
 
 Whether the lane compiles an analyser state is asked here directly, with the
 mode declared and nothing taken from the tower. Where it does, the probe must
 be open and every state must hold compiled code, the delimiter hook wherever the
 engine exports its trampoline; where it does not, the probe must be closed. A
-state image asks the probe again and brings every site up again, so this holds
+state image asks the probe again and compiles every entry again, so this holds
 for both boots.
 
 ## the burst compiles wherever the lane compiles an analyser
@@ -31,26 +31,26 @@ for both boots.
 
 ### every state holds compiled code
 
-Every site of the tower's is up. The delimiter hook's two sites are the next
+Every entry of the tower's is compiled. The delimiter hook's two are the next
 case's, since it compiles only where the engine exports its trampoline. The
-answer is the row of each site that is not up: its name, its state, and the
-reason when its compile was refused.
+answer is the row of each entry that is not compiled: its name, its state,
+and the reason when its compile failed.
 
 ```x
 (do
   (def %delimiter?
     (fn (_ name)
       (if (eq? name (lit macro-delimit)) #t (eq? name (lit %c-macro-delimit)))))
-  (def %not-up
+  (def %not-compiled
     (fn (self rows acc)
       (if (null? rows) acc
         (self (rest rows)
           (if (if (%delimiter? (first (first rows))) #t
-                (eq? (first (rest (first rows))) (lit up)))
+                (eq? (first (rest (first rows))) (lit compiled)))
             acc
             (pair (first rows) acc))))))
   (write (if %tower-jit?
-           (if (null? (Swap rows)) (lit no-sites) (%not-up (Swap rows) ()))
+           (if (null? (Compiled list)) (lit no-entries) (%not-compiled (Compiled list) ()))
            ())))
 ```
 ---

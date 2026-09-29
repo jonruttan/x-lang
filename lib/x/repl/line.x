@@ -662,7 +662,7 @@
 ; repl/loop.x runs one TURN per iteration and reads it with the C reader,
 ; which reads a form straight off the descriptor and therefore cannot be
 ; edited.  Rather than reach into that loop, this file installs a whole turn
-; -- the same shape repl/ansi.x uses when it installs a printer -- and
+; -- the same pattern repl/ansi.x uses when it installs a printer -- and
 ; loop.x keeps its own path untouched for every case where there is no
 ; terminal to edit on.
 ;
@@ -685,7 +685,7 @@
 ; Everything the reader said it could not finish, and nothing else: any other
 ; raise is a real syntax error and belongs on stderr.
 ;
-; Two shapes, because the reader's raise has two.  With x/type/err loaded it
+; Two representations, because the reader's raise has two.  With x/type/err loaded it
 ; arrives as an engine ERR whose code carries the text; without it, as the
 ; bare string it has always been.  Reading the CODE rather than rendering the
 ; error and matching that is what keeps this working when an Err grows a

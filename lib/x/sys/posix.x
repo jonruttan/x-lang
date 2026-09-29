@@ -218,7 +218,7 @@
     (method file-exists? (self (param path STRING "File path to check"))
       (doc "Check if a file exists (via access with F_OK=0)."
         (returns BOOL "True if file exists")
-        (note "Deliberately duplicated across tiers with (File exists?) (#361): boot/module.x resolves imports through THIS door before sys/file (stat + Err, the ergonomic sibling) can load. Post-boot callers doing file work generally want the File class."))
+        (note "Deliberately duplicated across profiles with (File exists?) (#361): boot/module.x resolves imports through THIS door before sys/file (stat + Err, the ergonomic sibling) can load. Post-boot callers doing file work generally want the File class."))
       (= (%sys-fold (%ptr-call (%resolve "access") path 0)) 0))
     ; --- Environment ---
     (method chdir (self (param path STRING "Directory path"))
@@ -259,7 +259,7 @@
               (go (+ i 1) (pair (%cvt (%cvt e %ptr) %string) acc)))))))
     ; --- Process identity and the machine ---
     ;
-    ; The tool tier's remaining questions: who am I (id, whoami, groups),
+    ; The tool profile's remaining questions: who am I (id, whoami, groups),
     ; what am I running on (uname, arch, nproc), and the two process-state
     ; doors nice(1) and chroot(1).  All libc, so all portable -- no
     ; syscall numbers appear here.
@@ -358,7 +358,7 @@
       ((prim-ref (lit sys) (lit clock))))
 
     ; The verb seat (#108 rethink, ruled 2026-07-22): (Sys time thunk) TIMES;
-    ; the wall-clock reading it displaced is (Sys now). Thunk-shaped by
+    ; the wall-clock reading it displaced is (Sys now). A thunk parameter by
     ; necessity -- class dispatch evaluates arguments, so an op cannot ride a
     ; static seat (probed) -- and it RETURNS the measurement: mechanism
     ; returns data, printing is the caller's policy ((display (Sys time ...))

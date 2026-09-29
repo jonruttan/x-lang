@@ -79,17 +79,17 @@ of the path.
 ---
     ('unsupported-syscall . 'no-such-call)
 
-### a shaped door puts each slot of its shape in place
+### a door through a stand-in puts each of its slots in place
 
-A shape is the argument list of the call that stands in for a name. Only arm64
-Linux has shapes, so this case builds one through the module's own builder:
+A stand-in is the call made in a name's place, with its argument list. Only arm64
+Linux has stand-ins, so this case builds one through the module's own builder:
 `write` with the count fixed at two, which writes two bytes of the three it is
 handed.
 
 ```x
-(def %shaped (eval (lit %door-shaped) (module x/platform/syscall)))
+(def %standing-in (eval (lit %door-standing-in) (module x/platform/syscall)))
 (def %null (File open "/dev/null" 'wronly))
-(def %write-2 (%shaped (syscall-id 'write) (lit (a0 a1 2))))
+(def %write-2 (%standing-in (syscall-id 'write) (lit (a0 a1 2))))
 (list (%write-2 %null "abc") (File close %null))
 ```
 ---

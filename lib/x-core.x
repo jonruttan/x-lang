@@ -45,7 +45,7 @@
 ; core boot, included by the dialect bodies and the test harnesses at their
 ; top level and imported by nothing, so at each line below nothing of an
 ; includer's is in flight -- the case the module rule guards against does
-; not arise.  Fourteen collects at the group boundaries, not one behind
+; not arise.  Fourteen collects at the batch boundaries, not one behind
 ; every include: measured on a 12-core arm64 box, every include (55
 ; collects) took the writer's peak to 1.20GB for +0.36s on a 1.97s boot, and
 ; every fourth (13) to 1.28GB for +0.24s; the sweep is the cost, and it is
@@ -203,7 +203,7 @@
 ; def-class + doc, and every caller (tower, regex, posix, hash, tools)
 ; loads later still.
 (include-once "lib/x/type/convert.x")
-; Block-form methods: the (names ...) body ... call shape. Machinery only --
+; Block-form methods: a call written (names ...) body .... Machinery only --
 ; each class wires its own selectors -- so it loads before the collections do.
 (include-once "lib/x/type/block.x")
 ; Type: the type-system reflection API (the Type class). The mechanism stays

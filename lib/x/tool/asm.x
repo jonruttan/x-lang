@@ -66,7 +66,7 @@
 (def imm   (fn (_ v)        (list 'imm v)))
 ; A mem base may be a raw register NUMBER or a (reg n) OPERAND -- the
 ; alias form carries each backend's register mapping (x8 is r10 on
-; x86-64), which retires the (mem x0 off)-vs-(mem 0 off) trap class:
+; x86-64), which retires the (mem x0 off)-vs-(mem 0 off) trap:
 ; both spellings now mean the same thing.
 (def mem   (fn (_ base off) (list 'mem (if (pair? base) (first (rest base)) base) off)))
 (def label (fn (_ name)     (list 'label name)))
@@ -97,7 +97,7 @@
     (if (null? xs) ()
       (if (eq? (first (first xs)) k) (first xs) (self k (rest xs))))))
 
-; A small integer key for the operand shape: base-5 digits, seeded at 1
+; A small integer key for the operand combination: base-5 digits, seeded at 1
 ; so leading operands stay significant.
 (def %op-code
   (fn (_ op)
@@ -112,10 +112,10 @@
     (if (null? args) acc
       (self (rest args) (+ (* acc 5) (%op-code (first args)))))))
 
-; Signature symbols are built ONCE per distinct operand shape.  The old
+; Signature symbols are built ONCE per distinct operand combination.  The old
 ; path appended a fresh string per operand and interned the result on
-; EVERY emit; the whole instruction set uses a handful of shapes, so the
-; second and later emits of each shape now cost a walk over that handful.
+; EVERY emit; the whole instruction set uses a handful of combinations, so the
+; second and later emits of each combination now cost a walk over that handful.
 (def %sig-cache ())
 (def %asm-sig-intern
   (fn (_ k args)
@@ -226,7 +226,7 @@
 (def %jit-missing ())
 
 ; The fresh compiler, registered by asm-compile.x when it loads -- the same
-; shape as %arch above, and for the same reason: the seam has to be nameable
+; pattern as %arch above, and for the same reason: the seam has to be nameable
 ; by a file that does not import the one filling it in.  asm-cache.x is the
 ; compile-asm door and reaches the compiler only when the byte cache misses,
 ; so it imports asm-compile.x on that line and calls whatever landed HERE.
@@ -264,7 +264,7 @@
     (%obj-set! a 3 ())       ; labels
     (%obj-set! a 4 ())       ; patches
     (%obj-set! a 5 %arch)    ; (table . encoder)
-    (%obj-set! a 6 ())       ; relocs: (offset kind name), newest first
+    (%obj-set! a 6 ())       ; relocs: (offset label name), newest first
     a))
 
 (def asm-emit!
@@ -300,16 +300,16 @@
 ; pointer, the self-call trampoline cell.  Every one of those is an address
 ; valid only in the process that compiled -- which is exactly what stops the
 ; emitted bytes from being reusable.  Recording each site as
-; (offset kind name) is what makes them reusable: a loader can pour the same
+; (offset label name) is what makes them reusable: a loader can pour the same
 ; bytes into a fresh buffer and re-encode each immediate for the process it
 ; is loading into.  Nothing here changes what is emitted; it only writes down
 ; where the addresses went.
 ;
-; KIND is `trampoline` (NAME is the dlsym symbol), `fvar` (NAME is the free
+; LABEL is `trampoline` (NAME is the dlsym symbol), `fvar` (NAME is the free
 ; variable's symbol) or `self-cell` (NAME is nil -- there is one per compile).
 (def asm-reloc!
-  (fn (_ asm offset kind name)
-    (%obj-set! asm 6 (pair (list offset kind name) (%obj-ref asm 6)))))
+  (fn (_ asm offset label name)
+    (%obj-set! asm 6 (pair (list offset label name) (%obj-ref asm 6)))))
 
 ; Oldest-first, which is the order a loader wants to walk them.
 (def asm-relocs

@@ -1,6 +1,6 @@
 ; pin.x -- arm a project's overlay import roots from its pin.xon manifest
 ;
-; Tier 2 of the pinning design (GH #115): a project vendors the modules it
+; Overlay pinning (GH #115): a project vendors the modules it
 ; pins into a tree (e.g. deps/) and declares that tree in pin.xon; import
 ; then resolves pinned names against the overlay before the platform
 ; library.  The shell wrapper probes for pin.xon (walking up from the
@@ -20,12 +20,12 @@
 ;                  manifest's own directory.  First root listed wins.
 ;   (boot "FILE")  boot entry (a pinned amalgam) -- consumed by the
 ;                  SHELL WRAPPER, which must choose the entry before
-;                  the pipe exists; this loader only checks the shape.
+;                  the pipe exists; this loader only checks the structure.
 ;
 ; The pre-seeded boot set is unpinnable by construction: boot modules
 ; are already registered in %module-loaded-cell, so an import of them
 ; no-ops before any root is consulted.  Pinning the platform itself is
-; tier 1 (amalgam pinning), not this file.
+; amalgam pinning, not this file.
 
 ; Boot-floor snapshot -- MUST stay this module's first form, before its
 ; own imports below add to the registry.  At arming time (the wrapper's
@@ -138,7 +138,7 @@
             (#t (%path-join dir (first (rest form))))))
     ; One (boot "FILE") form -> () -- wrapper-consumed (GH #139): the entry
     ; must be chosen before the pipe exists, so by the time this loader
-    ; runs the pinned boot is already the running boot.  Shape-checked here
+    ; runs the pinned boot is already the running boot.  Structure-checked here
     ; so a malformed form stays a loud error under the closed vocabulary.
     (method %pin-boot (self form)
       (match
@@ -164,7 +164,7 @@
     ; repeated choice; --allow-release-skew is the same waiver made once,
     ; per invocation.  Neither is a fix -- the pairing that segfaults is
     ; still the pairing that segfaults -- so the wrapper stays loud about
-    ; proceeding.  Zero arguments, shape-checked so a malformed spelling
+    ; proceeding.  Zero arguments, structure-checked so a malformed spelling
     ; is a loud error rather than a silently ignored safety waiver.
     (method %pin-allow-skew (self form)
       (match
@@ -724,7 +724,7 @@
     (method %pin-digest-bin (self path)
       (Str8 append "sha256:"
         (Sha256 hex-n (File read-all path) (%assoc-get 'size (File stat path)))))
-    ; Unpack via tar through Proc run!, the shape %pin-download-tmp! uses for
+    ; Unpack via tar through Proc run!, the pattern %pin-download-tmp! uses for
     ; curl: 127 = tar absent, anything else nonzero = the archive is bad.
     (method %pin-untar! (self archive dest)
       (let ((status (Proc run! (list "tar" "-xzf" archive "-C" dest))))
@@ -772,7 +772,7 @@
                 (#t (Pin %pin-bad (Str8 append "unknown form in lang.xon: "
                                     (symbol->str (first (first forms)))))))))
       (%go forms () () () ()))
-    ; Unpack via tar through Proc run!, the shape %pin-download-tmp! uses for
+    ; Unpack via tar through Proc run!, the pattern %pin-download-tmp! uses for
     ; curl: 127 = tar absent, anything else nonzero = the archive is bad.
     (method %pin-untar! (self archive dest)
       (let ((status (Proc run! (list "tar" "-xzf" archive "-C" dest))))
@@ -1124,7 +1124,7 @@
 
     (method %pin-scan-form (self form dirs) (Pin %pin-scan-pair (lit form) form dirs))
     (method %pin-scan-list (self forms dirs) (Pin %pin-scan-pair (lit list) forms dirs))
-    ; The project-scan mutual pair, same one-fn mode-discriminated shape.
+    ; The project-scan mutual pair, the same one-fn pattern, split by a which label.
     (method %pin-scan-project-pair (self which arg)
       (def %scan (fn (self which form)
         (match
@@ -1698,7 +1698,7 @@
             (Pin %pin-mkdirs stage)
             (Pin %pin-untar! tmp stage)
             (guard (_ ()) (File unlink tmp))
-            ; A TARBALL WITH A TOP-LEVEL DIRECTORY IS THE NORMAL KIND.
+            ; A TARBALL NORMALLY HAS A TOP-LEVEL DIRECTORY.
             ; `git archive --prefix=NAME/` is how a publisher rolls one, and it
             ; is what every release tarball on the internet looks like, so a
             ; tool that only accepted a flat one would refuse the obvious thing

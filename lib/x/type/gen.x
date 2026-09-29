@@ -1,6 +1,6 @@
 ; gen.x -- Gen: lazy generators.
 ;
-; One of the three iteration tiers -- Seq defines encodings, Iter drives
+; One of the three iteration profiles -- Seq defines encodings, Iter drives
 ; sequences, Gen composes lazy pipelines; the full statement lives in
 ; x/protocol/seq.x's header (#365).
 ;

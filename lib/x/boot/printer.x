@@ -33,7 +33,7 @@
 (def %print-type-of (prim-ref (lit type) (lit of)))
 (def %print-type
   (fn (_ handle) (%registry-assoc-rest handle (first %reflect-type-alist-cell))))
-; List/symbol checks are by type HANDLE (name-interned), not tag identity:
+; List/symbol checks are by type HANDLE (name-interned), not label identity:
 ; C's islist compares the type NAME, so lists from OTHER bases (make-base
 ; children) must print as lists too -- their types differ, their names
 ; intern to the same atom.
@@ -49,7 +49,7 @@
 (def %print-path-display-stack (%reflect-path (lit type-display-stack) %base-paths))
 
 ; --- generic sentinel-atom form: #<ATOM:0x{value-hex}> ---
-; For SENTINEL-tagged atoms only (their value word IS the payload).  A
+; For SENTINEL-labelled atoms only (their value word IS the payload).  A
 ; handler-less CELL instance must never come here: first-int on a
 ; zero-data-word instance reads past the allocation, and a slot-0 pointer
 ; is not a value -- those render via %print-obj-opaque below.
@@ -173,7 +173,7 @@
       (#t #f))))
 
 ; --- walkers: proper/dotted lists and structural pairs ---
-; C shape: "(" elem { " " elem } [ " . " tail ] ")", nil elements as "()".
+; C grammar: "(" elem { " " elem } [ " . " tail ] ")", nil elements as "()".
 (def %print-seq-loop
   (fn (self o render tail?)
     (do
@@ -266,7 +266,7 @@
     (do
       (def %print-own (%ptr->obj (%int->ptr tw)))
       (def %print-hd (match
-        ; guard like reflect.x: only a spair-tagged word is a navigable type
+        ; guard like reflect.x: only a spair-labelled word is a navigable type
         ((eq? (%reflect-type-word %print-own) %reflect-spair-tw)
           (%print-type-h %print-own path fallback-path))
         (#t ())))
@@ -540,7 +540,7 @@
               ())
             ((first cell) s)))))
     (pair () ()))))
-; The bare verbs: write is unary; display is variadic (the shape the old
+; The bare verbs: write is unary; display is variadic (the calling convention the old
 ; string.x shim over the retired C prim established).
 ; The bare verbs are OPS, not fns: the repl's print seat calls them between
 ; a form's eval and the next form's READ, and an X fn there (save-stack push

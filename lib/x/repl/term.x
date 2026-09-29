@@ -170,7 +170,7 @@
 
     ; --- keys -----------------------------------------------------------------
     ;
-    ; `key` returns one of three shapes, and the caller tells them apart with
+    ; `key` returns one of three types, and the caller tells them apart with
     ; the ordinary predicates:
     ;
     ;   a STRING  -- literal text to insert (one whole character, UTF-8 included)

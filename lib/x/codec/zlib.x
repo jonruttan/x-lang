@@ -15,7 +15,7 @@
 ; Payloads ride BYTE LISTS both ways (the lossless carrier, #362):
 ; compressed data is binary and strings truncate observably at NUL. The
 ; FFI buffers are (str make N) regions -- NUL-blind through byte-ref/ptr
-; access with every length EXPLICIT, so the string tier's limits never
+; access with every length EXPLICIT, so the string profile's limits never
 ; touch the data.
 ;
 ; Failures raise a label 'value with zlib's code in the payload (corrupt

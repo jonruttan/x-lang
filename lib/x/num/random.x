@@ -37,7 +37,7 @@
     (example "(let ((r (Random sw 42))) (r int 6))" "0")
     (see sw) (see hw) (see int) (see shuffle))
 
-  (kind 'sw)          ; 'sw -> xorshift PRNG,  'hw -> /dev/urandom
+  (label 'sw)         ; 'sw -> xorshift PRNG,  'hw -> /dev/urandom
   (state 2463534242)  ; xorshift register (sw only); must stay nonzero
   (fd ())             ; cached /dev/urandom fd (hw only); opened on first use
 
@@ -47,7 +47,7 @@
         (param opt LIST "Optional (seed) -- a nonzero integer seed")
         (returns Random "A software RNG")
         (sample "(Random sw 42)" "a seeded, reproducible PRNG"))
-      (let ((r (new-from self (list 'kind 'sw))))
+      (let ((r (new-from self (list 'label 'sw))))
         (if (pair? opt) (r seed! (first opt)))
         r))
 
@@ -55,7 +55,7 @@
       (doc "A hardware RNG reading the kernel CSPRNG from /dev/urandom."
         (returns Random "A hardware RNG")
         (sample "(Random hw)" "a /dev/urandom-backed source"))
-      (new-from self (list 'kind 'hw))))
+      (new-from self (list 'label 'hw))))
 
   ; --- seeding (software only) --------------------------------------------
   (method seed! (self n)
@@ -66,15 +66,15 @@
     self)
 
   ; --- the entropy source -------------------------------------------------
-  ; 31 random bits in [0, 2^31). Both backends yield the same shape so every
+  ; 31 random bits in [0, 2^31). Both backends yield the same range so every
   ; method below is backend-agnostic. Private (% prefix); dispatched per call.
   (method %bits (self)
-    (if (eq? (field 'kind) 'hw) (self %hw-bits) (self %sw-bits)))
+    (if (eq? (field 'label) 'hw) (self %hw-bits) (self %sw-bits)))
 
   ; 32-bit xorshift (Marsaglia 13/17/5). The REGISTER keeps the full 32 bits
   ; (the triple's period/quality analysis assumes a 32-bit state -- the old
   ; 31-bit-masked register was an unanalyzed variant); only the RESULT is
-  ; masked to 31 bits so every backend yields the same [0, 2^31) shape.
+  ; masked to 31 bits so every backend yields the same [0, 2^31) range.
   (method %sw-bits (self)
     (let ((s0 (field 'state)))
       (let ((s1 (& (^ s0 (<< s0 13)) %rand-mask32)))

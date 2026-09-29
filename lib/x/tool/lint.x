@@ -76,13 +76,13 @@
 (def %lint-issues (list ()))    ; op names where first/rest hit a literal non-list
 (def %lint-leaks  (list ()))    ; def names that bind in tail position (leak to global)
 
-; --- Pedantic findings (kind . name) pairs; one bag for all the extra checks ---
+; --- Pedantic findings (label . name) pairs; one bag for all the extra checks ---
 ; x-lang does not enforce arity (missing args -> nil, extra -> ignored) and
 ; silently overwrites redefinitions, so these mistakes never error at runtime;
 ; the linter is the only thing that catches them.
 (def %lint-warn (list ()))
-(def %warn! (fn (_ kind name)
-  (%set-first! %lint-warn (pair (pair kind name) (first %lint-warn)))))
+(def %warn! (fn (_ label name)
+  (%set-first! %lint-warn (pair (pair label name) (first %lint-warn)))))
 
 ; Swappable hooks -- tools/dev/lint.x overrides these for data-driven, construct-
 ; table dispatch.  Forward-declared; defaults set below once the helpers exist.
@@ -368,13 +368,13 @@
         (%scope-add! (%cvt (first name-part) %lint-string-type))
         (%set-first! %lint-scope (%add-params (rest name-part) (first %lint-scope)))
         (%lint-ladder-scan (%cvt (first name-part) %lint-string-type) (rest (rest form)))
-        (%lint-shape-scan  (%cvt (first name-part) %lint-string-type) (rest (rest form)))
+        (%lint-depth-scan  (%cvt (first name-part) %lint-string-type) (rest (rest form)))
         (%lint-seq (rest (rest form)))
         (%lint-leak-scan (%last (rest (rest form))))   ; def-form body has its own tail
         (%set-first! %lint-scope saved))
     (do (%scope-add! (%cvt name-part %lint-string-type))      ; (def name val): self-ref ok
         (%lint-ladder-scan (%cvt name-part %lint-string-type) (%ladder-at form 2))
-        (%lint-shape-scan  (%cvt name-part %lint-string-type) (%ladder-at form 2))
+        (%lint-depth-scan  (%cvt name-part %lint-string-type) (%ladder-at form 2))
         (%lint-form (first (rest (rest form))))))))
 
 ; (set! NAME (fn ...)) is the second half of a self-referential definition:
@@ -387,7 +387,7 @@
   (let ((target (first (rest form))))
     (when (symbol? target)
       (%lint-ladder-scan (%cvt target %lint-string-type) (%ladder-at form 2))
-      (%lint-shape-scan  (%cvt target %lint-string-type) (%ladder-at form 2))))
+      (%lint-depth-scan  (%cvt target %lint-string-type) (%ladder-at form 2))))
   (%lint-form (first (rest form)))
   (%lint-form (first (rest (rest form))))))
 
@@ -465,7 +465,7 @@
     (if (= n 0) (first xs) (self (rest xs) (- n 1))))))
 
 ; The literal side of a comparison: a chain arm needs one.
-(def %ladder-lit-kind (fn (_ x)
+(def %ladder-lit-label (fn (_ x)
   (match
     ((str? x) "str")
     ((number? x) "int")
@@ -484,13 +484,13 @@
     ((str=? h "string=?") #t)
     (#t #f))))
 
-; One comparison's operands -> (varname . kind), or nil when this is not a
+; One comparison's operands -> (varname . label), or nil when this is not a
 ; variable-against-literal test.  Either operand may be the literal.
 (def %ladder-pair (fn (_ a b)
-  (let ((ka (%ladder-lit-kind b)))
+  (let ((ka (%ladder-lit-label b)))
     (if (if (symbol? a) (not (null? ka)) #f)
       (pair (%cvt a %lint-string-type) ka)
-      (let ((kb (%ladder-lit-kind a)))
+      (let ((kb (%ladder-lit-label a)))
         (if (if (symbol? b) (not (null? kb)) #f)
           (pair (%cvt b %lint-string-type) kb)
           ()))))))
@@ -511,7 +511,7 @@
           ()))))))
 
 ; A chain arm's test: one comparison, or an inlined `or` over the SAME
-; variable -- (if T1 #t T2), the Tier 3.1 spelling -- which still selects
+; variable -- (if T1 #t T2), the criterion 3.1 spelling -- which still selects
 ; one arm of the same dispatch.  %py-str-attr is why this matters: its
 ; 25-arm string dispatch reads as a 10-arm run without it, and lands in
 ; the wrong bucket.  Every leaf must agree on the variable; a compound
@@ -544,13 +544,13 @@
     ((not (str=? (%cvt (first form) %lint-string-type) "if")) 0)
     (#t (+ 1 (self (%ladder-at form 3)))))))
 
-; Longest chain found in the def under analysis, as (count . kind).
+; Longest chain found in the def under analysis, as (count . label).
 (def %ladder-best (list ()))
 
-(def %ladder-note! (fn (_ n kind)
+(def %ladder-note! (fn (_ n label)
   (let ((b (first %ladder-best)))
     (when (if (null? b) #t (> n (first b)))
-      (%set-first! %ladder-best (pair n kind))))))
+      (%set-first! %ladder-best (pair n label))))))
 
 ; Heads whose subtree this walk does not enter.
 ;   lit  -- quoted DATA, not code: a ladder cannot live there, and the rest
@@ -572,7 +572,7 @@
         (when (if (symbol? (first form))
                 (str=? (%cvt (first form) %lint-string-type) "if") #f)
           (let ((n (%ladder-run form)))
-            ; A chain is a chain whatever its tests compare; the key kind
+            ; A chain is a chain whatever its tests compare; the key label
             ; rides along only when the whole of it is keyed on one
             ; variable, because only then can a table replace it.
             (let ((vk (%ladder-test (%ladder-at form 1))))
@@ -582,7 +582,7 @@
         (%ladder-walk (first form))
         (self (rest form)))))))
 
-; --- Shape check: depth x size (docs/code-quality.md 1.3) ---
+; --- Depth check: depth x size (docs/code-quality.md 1.3) ---
 ;
 ; Neither number is a finding on its own, and the corpus says why.  Long and
 ; FLAT is a data table (syscalls-*.x, %arm64-table, %isa-catalogue) that only
@@ -607,34 +607,35 @@
 ; deep and seven times the size; SIZE is the discriminator.  At 500 the
 ; finding set is 16, and every one of them is a definition nobody claims
 ; is fine.  A report that flags good code is a report people learn to skip.
-(def %shape-depth-min 12)
-(def %shape-nodes-min 500)
+(def %depth-min 12)
+(def %nodes-min 500)
 
 ; (depth . nodes) for one form.
-(def %shape-of (fn (_ form)
+(def %depth-nodes-of (fn (_ form)
   (if (not (pair? form)) (pair 0 1)
     (if (if (symbol? (first form)) (str=? (%cvt (first form) %lint-string-type) "lit") #f)
       (pair 1 1)
-      (let ((s (%shape-elems form 0 0)))
+      (let ((s (%depth-nodes-elems form 0 0)))
         (pair (+ 1 (first s)) (+ 1 (rest s))))))))
 
-; Fold %shape-of over a form's elements, keeping the deepest and the total.
-(def %shape-elems (fn (self xs d n)
+; Fold %depth-nodes-of over a form's elements, keeping the deepest and the
+; total.
+(def %depth-nodes-elems (fn (self xs d n)
   (if (not (pair? xs)) (pair d n)
-    (let ((s (%shape-of (first xs))))
+    (let ((s (%depth-nodes-of (first xs))))
       (self (rest xs)
             (if (> (first s) d) (first s) d)
             (+ n (rest s)))))))
 
-(def %lint-shape-scan (fn (_ name body)
-  (let ((s (%shape-of body)))
-    (when (if (>= (first s) %shape-depth-min) (>= (rest s) %shape-nodes-min) #f)
-      (%warn! "shape"
+(def %lint-depth-scan (fn (_ name body)
+  (let ((s (%depth-nodes-of body)))
+    (when (if (>= (first s) %depth-min) (>= (rest s) %nodes-min) #f)
+      (%warn! "depth"
         (Str8 append (Str8 append (Str8 append (Str8 append name "/")
           (%cvt (first s) %lint-string-type)) "d/") (%cvt (rest s) %lint-string-type)))))))
 
 ; Report at most one finding per definition, named NAME/ARMS so the count
-; survives into the wrapper's flat kind listing.
+; survives into the wrapper's flat label listing.
 (def %lint-ladder-scan (fn (_ name body)
   (%set-first! %ladder-best ())
   (%ladder-walk body)
@@ -741,8 +742,8 @@
        (symbol? (first (rest form))) #f)
       (do (%lint-form (first form))          ; the subject is a real use
           ; An operative static takes its arguments unevaluated -- (Type named
-          ; STRING) -- so they are not references; the class says which kind
-          ; the selector names.  Anything unresolvable walks the arguments.
+          ; STRING) -- so they are not references; the class says whether
+          ; the selector names an operative.  Anything unresolvable walks the arguments.
           (if (guard (_ #f)
                 (let ((subject (eval! (%str->symbol (%cvt (first form) %lint-string-type)))))
                   (if (class? subject)
@@ -944,7 +945,7 @@
         (if (pair? xs)
           (if (symbol? (first xs)) (recur self (rest xs)) #f)
           #f)))
-    ; Keyed by SELECTOR, not by shape alone: only a wrapped selector may read a
+    ; Keyed by SELECTOR, not by structure alone: only a wrapped selector may read a
     ; list of symbols as a binding list, so an ordinary call that happens to
     ; pass (f x) still lints as a call.
     ; The binding list may sit at position 0 or 1 -- (List times 3 (i) ...)
@@ -1149,7 +1150,7 @@
   (param forms LIST "List of top-level forms to analyze")
   (param defs LIST "Accumulator for defined symbol NAMES")
   (param uses LIST "Accumulator for used symbol NAMES")
-  (returns LIST "(defs uses issues leaks warnings) -- defs/uses/issues/leaks are NAME STRINGS; warnings are (kind . name) pairs for arity / call-nonfn / display-chain / dup-def / ladder / ladder-dict / malformed / match-multi / shadow / unused; ladder names carry the arm count as NAME/ARMS")
+  (returns LIST "(defs uses issues leaks warnings) -- defs/uses/issues/leaks are NAME STRINGS; warnings are (label . name) pairs for arity / call-nonfn / display-chain / dup-def / ladder / ladder-dict / malformed / match-multi / shadow / unused; ladder names carry the arm count as NAME/ARMS")
   "Walk top-level forms via the write stacks, collecting def/use names, first/rest issues, tail-position def leaks, and pedantic warnings (arity, non-callable calls, duplicate defs, malformed forms, lexical shadows, and unused locals).")
 
 (doc (def lint-undefined (fn (_ defs uses)
@@ -1186,16 +1187,16 @@
 
 (doc (def lint-warnings (fn (_ result) (first (rest (rest (rest (rest result)))))))
   (param result LIST "Result of lint-forms")
-  (returns LIST "Pedantic findings as (kind . name) pairs")
+  (returns LIST "Pedantic findings as (label . name) pairs")
   "Extract all pedantic warnings (arity, call-nonfn, dup-def, ...) from a result.")
 
-(doc (def lint-warnings-of (fn (_ kind result)
+(doc (def lint-warnings-of (fn (_ label result)
   (%map (fn (_ w) (rest w))
-    (%filter (fn (_ w) (str=? (first w) kind)) (lint-warnings result)))))
-  (param kind STRING "Warning kind: arity | call-nonfn | dup-def | malformed | match-multi | shadow | unused")
+    (%filter (fn (_ w) (str=? (first w) label)) (lint-warnings result)))))
+  (param label STRING "Warning label: arity | call-nonfn | dup-def | malformed | match-multi | shadow | unused")
   (param result LIST "Result of lint-forms")
-  (returns LIST "The names for warnings of that kind")
-  "Filter pedantic warnings to one kind, returning their names.")
+  (returns LIST "The names for warnings of that label")
+  "Filter pedantic warnings to one label, returning their names.")
 
 (doc (def lint-has? (fn (_ name names) (%member-str? name names)))
   (param name STRING "A symbol name")

@@ -1,7 +1,7 @@
 ; boot/tower-compiled.x -- the numeric tower with compiled tokenizer analysers
 ;
 ; The shared heart of every full-stack dialect body (x-base.x and
-; boot/{xenon,radon}.x): load the compiler, compile the quote-family analysers and swap
+; boot/{xenon,radon}.x): load the compiler, compile the quote and quasiquote analysers and swap
 ; them into the symbol type's analyse list, then load each tower type and
 ; immediately compile its analyser.  Analysers run on every char while
 ; tokenizing, so compiling them makes every SUBSEQUENT file parse through
@@ -51,12 +51,13 @@
 ; empty, so the first stub float emitted crashed the boot.  Imported here, at
 ; top level and ahead of both, it is inlined once and both imports find it.
 (import x/tool/asm)
-; The quote family's entry tests and states, to compile and to swap by identity.
+; The quote and quasiquote readers' entry tests and states, to compile and to
+; swap by identity.
 (import x/reader/lit-reader lit-accept lit-analyse macro-delimit interp-analyse interp-after-hash)
 (import x/reader/quasi-reader quasi-accept quasi-analyse unquote-after-comma unquote-analyse)
-; Every compile below is a site of Swap's: it is put down before a state
-; image is written and made again after one is loaded.
-(import x/sys/swap)
+; Every compile below is on Compiled's list: it is switched to interpreted
+; before a state image is written and compiled again after one is loaded.
+(import x/tool/compiled)
 
 ; --- THE BURST USES THE ENGINE'S OWN JIT, NEVER A SYSTEM TOOLCHAIN -----------
 ;
@@ -78,8 +79,8 @@
 ;
 ; It is asked again once a state image has loaded, since the loading engine
 ; is not the writing one.  Its hook is added after its first run and before
-; the first site's: whatever the first compile loaded has its own hooks in
-; by then, and every site comes up under this process's answer.
+; the first entry's: whatever the first compile loaded has its own hooks in
+; by then, and every entry compiles under this process's answer.
 (def %tower-jit? #f)
 (def %tower-probe!
   (fn (_)
@@ -91,7 +92,7 @@
 (%tower-probe!)
 ((prim-ref (lit image) (lit recache-hook!)) %tower-probe!)
 
-; One site shape for the ten states, a LADDER of three rungs:
+; One pattern for the ten states, a LADDER of three rungs:
 ;
 ;   1. compile-asm -- the engine's own JIT, no toolchain, first choice.
 ;   2. the cc lane -- ONLY as a fallback, and only where the engine ships
@@ -101,10 +102,10 @@
 ;      per machine, not once per boot.
 ;   3. the interpreted twin -- always correct, never raises.
 ;
-; A closed rung answers the twin, and the site's state is `twin`.  A compile
-; that raises is not caught here: the raise reaches the site, which seats the
-; twin and keeps the raise's text, so (Swap report) names every state that
-; was refused and why.  Fvars are passed as arguments and every value is a
+; A closed rung answers the interpreted twin, and the entry's state is
+; `interpreted`.  A compile that raises is not caught here: the raise reaches
+; the entry, which installs the twin and keeps the raise's text, so
+; (Compiled report) names every state whose compile failed and why.  Fvars are passed as arguments and every value is a
 ; module-level def, which is what roots them after the burst (#49's lesson,
 ; kept).
 (def %tower-asm
@@ -138,28 +139,29 @@
   (fn (_ src fvars interp)
     (if %tower-jit? (compile-asm src fvars #t) interp)))
 
-; --- Every compile is a site ---------------------------------------------------
+; --- Every compile is on the list ---------------------------------------------
 ; A compiled analyser is native code in a page this process mapped, and no
-; state image can carry it.  So every compile below goes through a site
-; (lib/x/sys/swap.x): the seat the result sits in, the interpreted twin that
-; belongs there, and a maker that compiles it again.  The image writer puts
-; every site down before its walk, so an image holds the interpreted tower,
-; and the loader brings each up again in the order it was made here.  A
-; maker evaluates its fvars form each time it runs: a state's free names are
-; the states compiled before it, and after a load those are new objects.
+; state image can carry it.  So every compile below makes an entry of
+; Compiled's (lib/x/tool/compiled.x): the interpreted twin, the function that
+; compiles it, and the function that installs either.  The image writer
+; switches every entry to interpreted before its walk, so an image holds the
+; interpreted tower, and the loader compiles each again in the order it was
+; made here.  A compile evaluates its fvars form each time it runs: a
+; state's free names are the states compiled before it, and after a load
+; those are new objects.
 ;
-; The tower's seats are of two kinds: a name's binding, which may be in a
-; module's own environment as the float states' are, and one cell of a
-; type's handler list.
+; The tower installs into one of two places: a name's binding, which may
+; be in a module's own environment as the float states' are, and one cell
+; of a type's handler list.
 
 ; (%tower-state ENV NAME): a module's binding of one of its states, as it
 ; stands -- the interpreted twin before its compile, the compiled one after.
 (def %tower-state (fn (_ env name) (eval name env)))
-; A site whose maker is one of the two ladders over SRC and the fvars FVARSF
-; answers.
-(def %tower-site!
-  (fn (_ name asm src fvarsf interp seat)
-    (Swap site! name interp (fn (_) (asm src (fvarsf) interp)) seat)))
+; An entry whose compile is one of the two ladders over SRC and the fvars
+; FVARSF answers.
+(def %tower-compiled!
+  (fn (_ name asm src fvarsf interp install)
+    (Compiled make name interp (fn (_) (asm src (fvarsf) interp)) install)))
 ; (%tower-jit-global! NAME ONLY? SRC FVARS INTERP [ENV]): NAME is set! to the
 ; compile of SRC over FVARS, or to INTERP when the lane refuses; ONLY? picks
 ; %tower-asm-only over %tower-asm.  An operative, so FVARS stays a form.  ENV
@@ -167,27 +169,28 @@
 ; module owns, the caller's own when left out.
 (def %tower-jit-global!
   (op (name only? src fvars interp . env) e
-    (%tower-site! name
+    (%tower-compiled! name
       (if (eval only? e) %tower-asm-only %tower-asm)
       (eval src e) (fn (_) (eval fvars e)) (eval interp e)
-      (Swap in-env name (if (null? env) e (eval (first env) e))))))
+      (Compiled into-name name (if (null? env) e (eval (first env) e))))))
 ; (%tower-jit-push! NAME TYPE SRC FVARS INTERP): INTERP is pushed onto TYPE's
-; analyse stack, where %type-push-analyse puts it, and the cell it landed in
-; is the seat of the site NAME.
+; analyse stack, where %type-push-analyse puts it, and the entry NAME
+; installs into the cell it landed in.
 (def %tower-jit-push!
   (op (name ts src fvars interp) e
     (%tower-jit-push-run! name (eval ts e) (eval src e) (fn (_) (eval fvars e)) (eval interp e))))
 (def %tower-jit-push-run!
   (fn (_ name ts src fvarsf interp)
     (%type-push-analyse ts interp)
-    (%tower-site! name %tower-asm src fvarsf interp
-      (Swap in-cell (first (%type-analyse-cell ts))))))
-; (%tower-swap! NAME CELL INTERP MAKER): CELL's first, INTERP, becomes (MAKER).
+    (%tower-compiled! name %tower-asm src fvarsf interp
+      (Compiled into-cell (first (%type-analyse-cell ts))))))
+; (%tower-swap! NAME CELL INTERP COMPILE): CELL's first, INTERP, becomes
+; (COMPILE).
 (def %tower-swap!
-  (fn (_ name cell interp maker)
-    (Swap site! name interp maker (Swap in-cell cell))))
+  (fn (_ name cell interp compile)
+    (Compiled make name interp compile (Compiled into-cell cell))))
 
-; --- Compile the quote-family analysers and swap them into the symbol
+; --- Compile the quote and quasiquote analysers and swap them into the symbol
 ;     type's analyse list.  x-core.x (lit-reader.x) installed interpreted
 ;     versions; these run on every char while tokenizing, so compiling them
 ;     keeps subsequent files parsing fast. ---
@@ -227,7 +230,7 @@
     (list (pair (lit interp-after-hash) interp-after-hash))
     interp-analyse)
 
-; Swap the compiled analysers in for the interpreted handlers BY IDENTITY,
+; Compiled the compiled analysers in for the interpreted handlers BY IDENTITY,
 ; never by seat.  A positional swap breaks silently the day lit-reader.x
 ; grows a handler: when #"..." interpolation joined the list at seat 0,
 ; the old three-seat overwrite destroyed its analyser (every interpolated
@@ -239,7 +242,7 @@
 ; Identity MUST be (obj same?) -- pointer identity.  eq? compares value
 ; words, and two DIFFERENT interpreted closures answer eq? #t (their
 ; first data words coincide), so an eq?-keyed draft of this walk stamped
-; the first compiled handler over every seat and killed the quote family.
+; the first compiled handler over every seat and killed quote and quasiquote alike.
 (def %tower-same? (prim-ref 'obj 'same?))
 (def %sym-analyse-list
   (first (first (%type-analyse-cell (%type-by-atom (%type-of "x"))))))
@@ -260,10 +263,10 @@
 
 ; --- Compile the symbol type's delimiter hook -------------------------------
 ;
-; macro-delimit (lit-reader.x) runs on EVERY character of every symbol-shaped
+; macro-delimit (lit-reader.x) runs on EVERY character of every symbol
 ; token: the C symbol analyser calls it per char to ask whether ' ` , ends the
 ; token (so foo'bar reads as foo then 'bar).  Interpreted, it is the single
-; largest per-character reader cost.  It is the same shape as the numeric
+; largest per-character reader cost.  It has the same pattern as the numeric
 ; analysers, so it JITs through the same lane, and like them it speeds every
 ; read AFTER it -- the rest of the tower, xe.x, and (the bulk of the win) all
 ; source read once the platform is up: bundles, user files, specs.  A tower
@@ -321,7 +324,7 @@
 ; These two PUSH a new analyser rather than swapping one, so there is no
 ; interpreted twin already installed to fall back to -- the twin is written
 ; here.  The bodies must agree with the compiled forms below; they can, because
-; unlike the quote family these use byte codes on both sides and so are
+; unlike quote and quasiquote, these use byte codes on both sides and so are
 ; textually identical.
 (def %big-analyse-interp
   (fn (_ buffer score chr)
@@ -445,7 +448,7 @@
 ;
 ; It is also the cheapest one to give up: a sign runs ONCE per token, not once
 ; per character, so leaving it interpreted costs almost nothing of the win
-; while removing the one shape with a history of exactly this failure.
+; while removing the one pattern with a history of exactly this failure.
 
 ; The interpreted twin, for an engine with no JIT.  Must agree with
 ; the compiled form below.  It is built in the module's frame so that its

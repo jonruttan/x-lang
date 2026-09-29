@@ -5,6 +5,27 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The list of functions that have a compiled version is `Compiled`**
+([#859]). `x/sys/swap` and its class `Swap` are `x/tool/compiled` and
+`Compiled`, with names that say what each thing is. An entry holds a
+function's `interpreted` version, the function that does the `compile`, the
+function that does the `install`, and the `compiled` version once there is
+one; its `state` is `compiled`, `interpreted` or `failed`. No alias is kept.
+
+| was | is |
+|---|---|
+| `(Swap site! name twin maker seat)` | `(Compiled make name interpreted compile install)` |
+| `(Swap in-env name env)`, `(Swap in-cell pair)` | `(Compiled into-name name env)`, `(Compiled into-cell pair)` |
+| `(Swap down!)`, `(Swap up!)` | `(Compiled interpret-all!)`, `(Compiled compile-all!)` |
+| `(s down!)`, `(s up!)`, `(s value)` | `(c interpret!)`, `(c compile!)`, `(c compiled)` |
+| `(Swap rows)` | `(Compiled list)` |
+| states `up`, `twin`, `down`, `refused` | `compiled`, `interpreted`, `interpreted`, `failed` |
+
+`(Swap site-on-demand! ...)`, new in 0.17.0, is `(Compiled make-on-demand ...)`.
+The compiled SHA-256 engine's entry is made with it, as before.
+
+[#859]: https://github.com/jonruttan/x-lang/pull/859
+
 **The image tools' heap walk and foreign namer are library modules** ([#857]).
 `tools/dev/image-walk.x` and `tools/dev/image-name.x` are
 `x/tool/image/walk` and `x/tool/image/name`, with provide lists, and
@@ -30,6 +51,23 @@ both were nil. `(Swap site! ...)` brings a site up as it makes one, and is
 as before.
 
 [#842]: https://github.com/jonruttan/x-lang/pull/842
+
+**Five reads of a borrowed catalog alias take the public doors** ([#861]).
+`tools/dev/fmt.x`, `bench-sha256.x`, `cov-report.x` and `doc.x`, and
+`type/block.x`, called `%cvt` or `%str->symbol` without binding it; the name
+was in the root only because another file had fetched it. The tools call
+`(Convert to ...)` and `(Str8 ->sym ...)`, and `block.x` fetches the
+primitive where it uses it. `check-private-reads` also stops counting a
+member that a class body declares, `(%size 8192)`.
+
+A tool script is a reader of private names and never an owner: the gate
+takes its owners from `lib/` and `apps/` alone, and refuses a file of `lib/`
+or `apps/` that loads a file under `tools/`, which is what that rests on. A
+tool that reads a library's private name is counted as before. With both,
+`tools/contract/private-reads.x` holds no row; the count was 954 on
+2026-09-21.
+
+[#861]: https://github.com/jonruttan/x-lang/pull/861
 
 **The counted private reads are the ones that still want a door** ([#852]).
 Three changes to what `check-private-reads` counts, 183 reads in 40 files
@@ -206,6 +244,42 @@ keeps its name, and `'class` stays among the nine, the label of an atom that
 names a class. No alias is kept, and no bundle uses the old name.
 
 [#862]: https://github.com/jonruttan/x-lang/pull/862
+
+**The library's private names and comments take the glossary's words**
+([#866]). Names that said kind or tag for the value that says which variant
+something is say label, `%apply-label`, `%field-label` and `%asm-cache-label-`
+among them, and a type's named leaves are fields, as in `%type-proc-fields`.
+Two instance fields follow: `Random`'s `kind` and `Indent`'s `mode` are
+`label`. Two raised messages read `Float: no such stub label` and
+`x86_64: unsupported 3-address arrangement (dst==src2)`. No alias is kept,
+and no bundle uses any of them.
+
+[#866]: https://github.com/jonruttan/x-lang/pull/866
+
+**The library's last loose uses of kind, shape, family and tag are reworded**
+([#871]). On arm64 Linux the call made in a name's place is a stand-in:
+`linux-generic-syscall-stand-ins` was `linux-generic-syscall-shapes`, and the
+two private door builders follow. Comments that said "two kinds of", "the
+same shape", "the scalar double family" and "tagged" name what they mean.
+No alias is kept, and no bundle uses the names.
+
+[#871]: https://github.com/jonruttan/x-lang/pull/871
+
+**The linter's depth warning is named `depth`** ([#864]). A definition at
+least 12 deep and 500 nodes large was reported as `shape`; a lint run now
+prints `depth:` for it. The lang kit's `--strict` matches the new name, so a
+bundle's strict lint fails on the same findings as before.
+
+[#864]: https://github.com/jonruttan/x-lang/pull/864
+
+**The image tools say label and unit labels** ([#869]). `image-unit-label`
+and `image-type-label` were `image-unit-kind` and `image-type-kind`, and
+`image-unit-labels-count`, `-mask`, `-desc` and `-static?` were
+`image-shape-count`, `-mask`, `-desc` and `-static?`. A foreign table
+entry's 1 to 8 is its label, and the reader prints `unresolved label` for
+one it cannot place. No alias is kept, and no bundle uses any of them.
+
+[#869]: https://github.com/jonruttan/x-lang/pull/869
 
 **A stat record holds a file's type under `file-type`** ([#823]).
 `(File stat p)` and `(File lstat p)` answer
@@ -854,7 +928,7 @@ parameters and body are nil and whose environment slot holds `c`, and the
 engine's `apply` bound it like a closure with nothing to run. The library's
 `apply` now reads the wrap flag and applies `c` to the values, as the direct
 call `((wrap c) ...)` hands `c` the values it evaluated, and a call handler
-that is a wrapped combiner is applied the same way. One call, `%apply-kind`,
+that is a wrapped combiner is applied the same way. One call, `%apply-label` (released as `%apply-kind`),
 now tells the door what it was handed, with type tests and a flag read
 fetched into its own closure, in place of `procedure?` and `operative?`.
 
@@ -1753,7 +1827,7 @@ as the painter appends a space for the same reason.
 **The linter reads a `set!` body as a definition body.** `(def NAME ())`
 followed by `(set! NAME (fn ...))` is how a self-referential function is
 written -- the forward declaration lets the body name itself -- and the walk
-scanned only the `def` spelling, so the ladder and shape rules never saw
+scanned only the `def` spelling, so the ladder and depth rules never saw
 those bodies. Every tokenizer state machine in `lib/x/num/` is written that
 way and reported nothing; `decimal.x` held two four-deep chains while
 reporting zero ladders. `%arity-collect` already read the two spellings
@@ -2871,15 +2945,16 @@ install tree gained the half the shim migration had been waiting on:
 surfaced it with five bundles red on the missing file and zero on their
 suites.
 
-**The linter reports shape, on measured criteria.** Three advisory rules,
+**The linter reports depth, on measured criteria.** Three advisory rules,
 one finding per definition with the numbers carried in the name: `ladder`
 (a nested if chain branching on one variable), `ladder-dict` (the same,
-string-keyed, ≥15 arms) and `shape` (depth ≥12 and ≥500 nodes). `match` is
+string-keyed, ≥15 arms) and `depth` (released as `shape`; depth ≥12 and
+≥500 nodes). `match` is
 an engine primitive and measures faster than the chain it replaces (605ms vs
 897ms over 40 arms and 10k lookups), so `ladder` has no hot-path exemption —
 hot code converts first, not last — while a Dict wins only on string keys
 (2.75s vs 6.90s at 25 arms) and is 5x SLOWER than `match` on integer keys,
-which is why the fix rides the key type. `shape` counts NODES, not lines:
+which is why the fix rides the key type. `depth` counts NODES, not lines:
 the linter reads forms as data and density runs 4.8–9.7 nodes/line, so a
 line count would partly measure the formatter. The 500 is calibrated — at
 250 the rule found 83 definitions in a smooth decay with no natural gap.

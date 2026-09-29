@@ -45,7 +45,7 @@
 (import x/type/class)
 
 (def-class Block ()
-  (doc "Block-form methods: give a higher-order method a (names ...) body ... call shape.")
+  (doc "Block-form methods: give a higher-order method a block form, (names ...) body ....")
 
   (static
     ; --- guarded list walks --------------------------------------------
@@ -234,8 +234,8 @@
 
     ; --- documenting the wrap ------------------------------------------
     ; (help Class/sel) answered only the applicative signature: true, and
-    ; incomplete -- the block form is a second call shape a reader cannot
-    ; discover from it.  The wrap is the one place that knows the shape, so it
+    ; incomplete -- the block form is a second way to write the call, which a
+    ; reader cannot discover from it.  The wrap is the one place that knows the shape, so it
     ; adds the note itself: one fact, stated where it is decided, instead of
     ; fifty (doc ...) forms repeating it by hand and drifting.
     ;
@@ -311,7 +311,7 @@
 
     ; The pending entry keyed "Class/sel", by NAME: keys are symbols made by
     ; %str->symbol at stash time, and a symbol built here may not be eq? to
-    ; one built there.  The kind and key are tested before symbol->str
+    ; one built there.  The label and key are tested before symbol->str
     ; touches them -- it is unchecked on a non-symbol (#638).
     (method %pending-entry (self key)
       ((fn (go l)
@@ -347,7 +347,7 @@
             (seat (%str-append (self %shape-names shape) " body ..."))
             (alt (self %shape-alt shape)))
         (let ((pend (self %pending-entry key)))
-          (let ((e (if (null? pend) (%doc-lookup (%str->symbol key)) ())))
+          (let ((e (if (null? pend) (%doc-lookup ((prim-ref (lit str) (lit ->sym)) key)) ())))
             (let ((names (if (null? pend)
                            (if (null? e) () (self %entry-param-names (%doc-entry-params e)))
                            (self %meta-param-names (rest (rest pend))))))

@@ -147,7 +147,7 @@
 ; The string's value-call indexes: (s i) is the code point at i, (s a b) the
 ; substring between them.  A call with NO index is therefore an index call that
 ; named nothing, and it raises -- the same answer (v) gives on a vector, and
-; the same shape of mistake (obj) makes on the object side.
+; the same mistake (obj) makes on the object side.
 ;
 ; It used to answer the string's code-point LENGTH, which made a bare (s) a
 ; second, unrelated operation wearing the indexing syntax: (x-version) looked

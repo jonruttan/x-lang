@@ -258,11 +258,11 @@
         (example "(Str8 make 3 (\" \" 0))" "\"   \""))
       (def ch (if (null? rest) #\space (first rest)))
       ; Encode the fill character ONCE, then delegate to repeat's binary
-      ; doubling.  The old shape encoded a k-element char list through
+      ; doubling.  The old representation encoded a k-element char list through
       ; ->str, whose %map recursion is non-tail -- one C eval frame per
       ; element, so (Str8 make 16384 c) overflowed the C stack outright
-      ; (segfault; found via x-awk's stdin slurp).  Same class of crash
-      ; repeat already fixed (#333); same cure.
+      ; (segfault; found via x-awk's stdin slurp).  The same crash repeats
+      ; here, already fixed once (#333); same cure.
       (def unit (self ->str (list ch)))
       ; A fill that encodes to NUL is a request the string model cannot
       ; hold: strings are C strings, so the result would BE "" -- and the
@@ -368,7 +368,7 @@
         (example "(Str8 repeat 3 \"ab\")" "\"ababab\""))
       (def k (%str8->int n "Str8 repeat: count not convertible to INT"))
       ; Binary doubling (#333): ~2*log2(n) C appends instead of n.  The
-      ; old shape was O(n^2) bytes AND non-tail -- (Str8 repeat 10000
+      ; old representation was O(n^2) bytes AND non-tail -- (Str8 repeat 10000
       ; "a") overflowed the C stack outright (segfault, noted on the
       ; issue); a flat n-piece concat fixed the crash but paid
       ; interpreter overhead per piece (measured ~40us/piece), where

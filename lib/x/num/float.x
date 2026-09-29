@@ -71,7 +71,7 @@
 (def %byte-at
   (fn (_ s i) (%char->int (%str-byte-ref s i))))
 
-; The limb base, and the largest factor each kind of pass multiplies by:
+; The limb base, and the largest factor each pass multiplies by:
 ; a limb times a factor, plus the carry, stays under 2^63.
 (def %limb-base 1000000000)
 (def %limb-digits 9)
@@ -277,7 +277,7 @@
 ; move the result back -- emitted once by the assembler, in the portable
 ; vocabulary both backends lower (lib/x/tool/asm/).
 ;
-; KIND names the stub, in the convention strings the engine's retired
+; LABEL names the stub, in the convention strings the engine's retired
 ; ffi-call used:
 ;   "d+d" "d-d" "d*d" "d/d"   bits, bits -> bits
 ;   "d<d" "d=d"               bits, bits -> BOOL (#f when either is NaN)
@@ -303,43 +303,43 @@
         (asm-emit! a 'blr x8))))
 
 (def %stub-body!
-  (fn (_ a kind addr)
+  (fn (_ a label addr)
     (match
-      ((str=? kind "d+d") (do (%stub-args2! a) (asm-emit! a 'fadd d0 d0 d1) (%stub-ret! a)))
-      ((str=? kind "d-d") (do (%stub-args2! a) (asm-emit! a 'fsub d0 d0 d1) (%stub-ret! a)))
-      ((str=? kind "d*d") (do (%stub-args2! a) (asm-emit! a 'fmul d0 d0 d1) (%stub-ret! a)))
-      ((str=? kind "d/d") (do (%stub-args2! a) (asm-emit! a 'fdiv d0 d0 d1) (%stub-ret! a)))
-      ((str=? kind "d<d") (do (%stub-args2! a) (asm-emit! a 'flt x0 d0 d1)))
-      ((str=? kind "d=d") (do (%stub-args2! a) (asm-emit! a 'feq x0 d0 d1)))
-      ((str=? kind "i->d") (do (asm-emit! a 'scvtf d0 x0) (%stub-ret! a)))
-      ((str=? kind "d->i") (do (asm-emit! a 'fmov/d d0 x0) (asm-emit! a 'fcvtzs x0 d0)))
-      ((str=? kind "d->d") (do (asm-emit! a 'fmov/d d0 x0) (%stub-call! a addr) (%stub-ret! a)))
-      ((str=? kind "dd->d") (do (%stub-args2! a) (%stub-call! a addr) (%stub-ret! a)))
-      ((str=? kind "s0->d") (do (asm-emit! a 'mov x1 (imm 0)) (%stub-call! a addr) (%stub-ret! a)))
-      (#t (Err raise 'value "Float: no such stub kind" kind)))))
+      ((str=? label "d+d") (do (%stub-args2! a) (asm-emit! a 'fadd d0 d0 d1) (%stub-ret! a)))
+      ((str=? label "d-d") (do (%stub-args2! a) (asm-emit! a 'fsub d0 d0 d1) (%stub-ret! a)))
+      ((str=? label "d*d") (do (%stub-args2! a) (asm-emit! a 'fmul d0 d0 d1) (%stub-ret! a)))
+      ((str=? label "d/d") (do (%stub-args2! a) (asm-emit! a 'fdiv d0 d0 d1) (%stub-ret! a)))
+      ((str=? label "d<d") (do (%stub-args2! a) (asm-emit! a 'flt x0 d0 d1)))
+      ((str=? label "d=d") (do (%stub-args2! a) (asm-emit! a 'feq x0 d0 d1)))
+      ((str=? label "i->d") (do (asm-emit! a 'scvtf d0 x0) (%stub-ret! a)))
+      ((str=? label "d->i") (do (asm-emit! a 'fmov/d d0 x0) (asm-emit! a 'fcvtzs x0 d0)))
+      ((str=? label "d->d") (do (asm-emit! a 'fmov/d d0 x0) (%stub-call! a addr) (%stub-ret! a)))
+      ((str=? label "dd->d") (do (%stub-args2! a) (%stub-call! a addr) (%stub-ret! a)))
+      ((str=? label "s0->d") (do (asm-emit! a 'mov x1 (imm 0)) (%stub-call! a addr) (%stub-ret! a)))
+      (#t (Err raise 'value "Float: no such stub label" label)))))
 
 ; Room for the longest stub: a frame, a 64-bit immediate, a call and three
 ; moves, well under this on both backends.
 (def %stub-capacity 128)
 
-; The entry point for KIND (NAME resolved through libm when it has one), or
+; The entry point for LABEL (NAME resolved through libm when it has one), or
 ; nil when NAME does not resolve.  Each stub is its own small buffer.  The
 ; frame is the assembler's prologue: on x86-64 it is also what moves the
 ; first argument into x0, and it keeps the stack aligned for the libm call.
 (def %stub-emit
-  (fn (_ kind name)
+  (fn (_ label name)
     (let ((addr (if (null? name) () (%dlsym %libm name))))
       (if (and (not (null? name)) (null? addr)) ()
         (let ((a (asm-new %stub-capacity)))
           (do (asm-prologue! a)
-              (%stub-body! a kind (if (null? addr) 0 (%ptr->int addr)))
+              (%stub-body! a label (if (null? addr) 0 (%ptr->int addr)))
               (asm-epilogue! a)
               (asm-finalize! a)))))))
 
 ; What a row's cell holds: the stub, or for "ptr" the pointer itself.
 (def %stub-address
-  (fn (_ kind name)
-    (if (str=? kind "ptr") (%dlsym %libm name) (%stub-emit kind name))))
+  (fn (_ label name)
+    (if (str=? label "ptr") (%dlsym %libm name) (%stub-emit label name))))
 
 ; --- What the stubs are is this process's alone --------------------------------
 ; The handle, every pointer resolved through it, and every stub (an address
@@ -351,7 +351,7 @@
 ; once, on the line that makes it: a row the hook remakes it from, and a
 ; transient the writer images as nil.  The maker is shared by the load and
 ; the hook.
-(def %stub-rows ())                 ; ((global kind name cell) ...), newest first
+(def %stub-rows ())                 ; ((global label name cell) ...), newest first
 ;  THE ADDRESS LIVES IN A CELL, AND NEVER INSIDE A CLOSURE.  The maker used
 ; to close over the resolved address, which puts a raw address in the
 ; closure's own frame -- where the transient rule cannot reach it.
@@ -371,25 +371,25 @@
 ; an ordinary pair and images like one; the cost is one indirection per
 ; call.
 (def %stub-make
-  (fn (_ kind cell)
+  (fn (_ label cell)
     (match
-      ((str=? kind "d->d")
+      ((str=? label "d->d")
         (fn (_ x) (%make-instance float (%ptr-call (first cell) (first x)))))
-      ((str=? kind "dd->d")
+      ((str=? label "dd->d")
         (fn (_ a b) (%make-instance float (%ptr-call (first cell) (first a) (first b)))))
-      ((or (str=? kind "d<d") (str=? kind "d=d"))
+      ((or (str=? label "d<d") (str=? label "d=d"))
         (fn (_ a b) (%int= (%ptr-call (first cell) a b) 1)))
-      ((or (str=? kind "i->d") (str=? kind "d->i") (str=? kind "s0->d"))
+      ((or (str=? label "i->d") (str=? label "d->i") (str=? label "s0->d"))
         (fn (_ x) (%ptr-call (first cell) x)))
-      ((str=? kind "ptr") (first cell))  ; the pointer itself
+      ((str=? label "ptr") (first cell))  ; the pointer itself
       (#t (fn (_ a b) (%ptr-call (first cell) a b))))))
 (def %stub-fn
-  (fn (_ global kind name)
-    (let ((cell (pair (%stub-address kind name) ())))
-      (do (set! %stub-rows (pair (list global kind name cell) %stub-rows))
-          (%stub-make kind cell)))))
+  (fn (_ global label name)
+    (let ((cell (pair (%stub-address label name) ())))
+      (do (set! %stub-rows (pair (list global label name cell) %stub-rows))
+          (%stub-make label cell)))))
 ; The same door, exported, for a module or a bundle that binds a libm function
-; this file does not -- erf, the hyperbolics -- with the kinds "d->d",
+; this file does not -- erf, the hyperbolics -- with the labels "d->d",
 ; "dd->d" and "ptr".  Its rows are rows here: the thunk below clears them and
 ; the recache hook remakes them, and libm is opened once, by this file.
 (def libm-fn %stub-fn)
@@ -485,7 +485,7 @@
 
 (def float? (fn (_ x) (%type? x float)))
 
-; Door: coerce to float through the catalog; a miss is a raise, never nil
+; Door: promote to float through the catalog; a miss is a raise, never nil
 ; into (first)/d+d (the C core is unchecked -- guards live in x-lang).
 (def %to-float
   (fn (_ x what)
@@ -700,24 +700,24 @@
     (method ->int (self (param x FLOAT "Float value (machine ints pass through)"))
       (doc "Convert an inexact float to an exact integer by truncation." (returns INTEGER "Truncated integer value"))
       (%int-of x))
-    ; --- Arithmetic / comparison (operands coerce via the from-alist) ---
+    ; --- Arithmetic / comparison (operands promote via the from-alist) ---
     (method + (self (param a NUMBER "First operand") (param b NUMBER "Second operand"))
-      (doc "Add two floats (other numerics coerce)." (returns FLOAT "Sum"))
+      (doc "Add two floats (other numerics promote)." (returns FLOAT "Sum"))
       (f-add (ensure-float a) (ensure-float b)))
     (method - (self (param a NUMBER "First operand") (param b NUMBER "Second operand"))
-      (doc "Subtract two floats (other numerics coerce)." (returns FLOAT "Difference"))
+      (doc "Subtract two floats (other numerics promote)." (returns FLOAT "Difference"))
       (f-sub (ensure-float a) (ensure-float b)))
     (method * (self (param a NUMBER "First operand") (param b NUMBER "Second operand"))
-      (doc "Multiply two floats (other numerics coerce)." (returns FLOAT "Product"))
+      (doc "Multiply two floats (other numerics promote)." (returns FLOAT "Product"))
       (f-mul (ensure-float a) (ensure-float b)))
     (method / (self (param a NUMBER "Dividend") (param b NUMBER "Divisor"))
-      (doc "Divide two floats (other numerics coerce)." (returns FLOAT "Quotient"))
+      (doc "Divide two floats (other numerics promote)." (returns FLOAT "Quotient"))
       (f-div (ensure-float a) (ensure-float b)))
     (method < (self (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
-      (doc "Test whether a is less than b (other numerics coerce)." (returns BOOL "True if a < b"))
+      (doc "Test whether a is less than b (other numerics promote)." (returns BOOL "True if a < b"))
       (f-lt (ensure-float a) (ensure-float b)))
     (method = (self (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
-      (doc "Test whether a equals b (other numerics coerce)." (returns BOOL "True if a equals b"))
+      (doc "Test whether a equals b (other numerics promote)." (returns BOOL "True if a equals b"))
       (f-eq (ensure-float a) (ensure-float b)))
     ; --- libm ---
     (method sin (self (param x FLOAT "Angle in radians"))

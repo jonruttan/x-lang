@@ -28,11 +28,10 @@
 ; listed for the three that cannot load the door: 78, in 11 files.
 ; What is left is the tool scripts reading one another, and a few aliases.
 ; A read of a boot file's name that has no row in that manifest is not
-; budgeted here; the gate refuses it.
-(file "lib/x/type/block.x" 1)
-(file "tools/check/engine-contract.x" 7)
-(file "tools/dev/bench-sha256.x" 1)
-(file "tools/dev/cov-report.x" 1)
-(file "tools/dev/doc.x" 1)
-(file "tools/dev/fmt.x" 1)
-(file "tools/dev/nul-escape.x" 1)
+; budgeted here; the gate refuses it.  The reads of a catalog alias another
+; file happened to bind went to the public doors, and a member a class body
+; declares stopped counting: 6, in 1 file.
+; A file under tools/ stopped counting as an owner on 2026-09-29: a tool
+; script wraps library functions, and no file of lib/ or apps/ loads one,
+; which the gate holds.  No row is left.  A new read fails the gate and
+; names itself.

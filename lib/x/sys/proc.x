@@ -3,8 +3,8 @@
 ; The tree grew four incompatible ways to spawn a child: raw fork/execve
 ; with no wait (rn.x), libc system() over a whitespace-joined command
 ; line (compile.x), fork/execvp/wait with the exec-failure guard
-; (pin.x -- the one correct shape), and fork-without-exec plus dlsym'd
-; signal calls (logo).  This class homes the correct shape once; the
+; (pin.x -- the one correct pattern), and fork-without-exec plus dlsym'd
+; signal calls (logo).  This class homes the correct pattern once; the
 ; call sites keep only their policy.
 ;
 ; No shell parse: argv reaches execvp verbatim, so a path with spaces

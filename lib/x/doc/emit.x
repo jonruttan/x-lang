@@ -14,7 +14,7 @@
 ;
 ; The protocol takes PLAIN DATA, never raw token forms: strings, lists of
 ; strings, lists of (name type desc) triples.  Destructuring the (param
-; ...) and (example ...) forms stays in doc-gen where the token shapes are
+; ...) and (example ...) forms stays in doc-gen where the token layouts are
 ; already understood, so an emitter only has to know how to render -- the
 ; roff implementation never has to learn what a spliced variadic tail is.
 
@@ -49,7 +49,7 @@
 
     (method param-triples (self (param ps LIST "(param NAME TYPE desc) forms"))
       (doc "Flatten parameter forms to (name type desc) string triples, each absent field empty."
-        (note "The shapes are load-bearing and predate the protocol: a THIRD element that is a string is not a type at all -- it carries no type, and its description was never rendered either. Both rules are preserved rather than fixed, because the pages are a ratcheted artifact.")
+        (note "The layouts are load-bearing and predate the protocol: a THIRD element that is a string is not a type at all -- it carries no type, and its description was never rendered either. Both rules are preserved rather than fixed, because the pages are a ratcheted artifact.")
         (returns LIST "List of three-element string lists"))
       (%map
         (fn (_ p)

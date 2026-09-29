@@ -57,8 +57,8 @@
 ; tool/lint.x grew by fourteen, 69 -> 83, for the multi-way ladder check
 ; (docs/code-quality.md 1.1): %ladder-at/-lit-kind/-cmp?/-pair/-cmp-test/
 ; -test/-run/-best/-note!/-skip?/-walk, the two thresholds, and
-; %lint-ladder-scan; then by five more, 83 -> 88, for the depth-x-size shape
-; check (1.3): %shape-of/-elems, its two thresholds, and %lint-shape-scan.
+; %lint-ladder-scan; then by five more, 83 -> 88, for the depth check
+; (1.3): %depth-nodes-of/-elems, its two thresholds, and %lint-depth-scan.
 ; These are WALK CORE, not cold analysis: both walks visit every node of
 ; every def body, exactly the ground on which the file's existing per-form
 ; walk stays off the Lint class (see the class comment there, and #344 --
@@ -176,9 +176,10 @@
 ; (x-lang#719): the four interpreted twins it named are the module's bindings
 ; before their compiles, read through the module's frame; and to 47 when the
 ; rational, complex and decimal states followed.
-; tower-compiled.x fell 47 to 36 when the site record moved to x/sys/swap:
-; the record, its accessors and the two walks are the module's, and the
-; tower keeps the ladders, the probe and the three shapes its sites take.
+; tower-compiled.x fell 47 to 36 when the list of what it compiled moved to
+; x/tool/compiled: the list, its accessors and the two walks are the
+; module's, and the tower keeps the ladders, the probe and the three shapes
+; its entries take.
 (file "lib/x/boot/tower-compiled.x" 36)
 ; codec/sha256.x grew by one, 32 -> 33, for %cvt: the catalog converter it read
 ; from the root while x/sys/posix bound it there.  posix is scoped, and under

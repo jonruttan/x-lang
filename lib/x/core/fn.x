@@ -46,14 +46,14 @@
 (def %apply-type-of (prim-ref (lit type) (lit of)))
 (def %apply-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %apply-call-top (prim-ref (lit type) (lit call-top)))
-; What kind of callable f is, in one call on the door's fast path: (lit fn)
+; The label of callable f, in one call on the door's fast path: (lit fn)
 ; for a closure or a primitive, which take the values as they are; (lit op)
 ; for an operative; (lit wrap) for a wrapped combiner, a procedure carrying
 ; the engine's wrap flag (flag 1, engine/tools/contract/obj-layout.x); and ()
 ; for anything else, which its type's call handler takes.  The doors it reads
 ; with are fetched into its own closure, as x/tool/cov.x fetches its flag
 ; reader, so they add no module global.
-(def %apply-kind
+(def %apply-label
   ((fn (_ )
      (def type-of (prim-ref (lit type) (lit of)))
      (def is? (prim-ref (lit type) (lit ?)))
@@ -103,7 +103,7 @@
     (def h (match
              ((eq? t ()) ())
              (#t (%apply-call-top t))))
-    (def k (%apply-kind h))
+    (def k (%apply-label h))
     (match
       ((eq? h ()) (Err raise (lit type) "apply: not callable" f))
       ((eq? k (lit fn)) (%apply h (pair f args)))
@@ -112,12 +112,12 @@
 (doc (def apply
   (fn (_ (param f CALLABLE "What to apply: a closure, a primitive, an operative, a wrapped combiner, or a value whose type has a call handler")
          . (param spread ANY "Leading arguments, then the list of the rest"))
-    (def kind (%apply-kind f))
+    (def label (%apply-label f))
     (match
       ((eq? spread ()) (Err raise (lit type) "apply: no argument list" ()))
-      ((eq? kind (lit fn)) (%apply f (%apply-args spread)))
-      ((eq? kind (lit op)) (%apply f (%apply-args spread)))
-      ((eq? kind (lit wrap)) (apply (unwrap f) (%apply-args spread)))
+      ((eq? label (lit fn)) (%apply f (%apply-args spread)))
+      ((eq? label (lit op)) (%apply f (%apply-args spread)))
+      ((eq? label (lit wrap)) (apply (unwrap f) (%apply-args spread)))
       (#t (%apply-value f (%apply-args spread))))))
   (returns ANY "What f answers")
   (example "(apply + (list 1 2))" "3")

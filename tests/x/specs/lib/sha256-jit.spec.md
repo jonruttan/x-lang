@@ -35,48 +35,48 @@ the cases below build the engine explicitly, and the state is per process.
   (def %under (Str8 repeat (- %sha-jit-threshold 1) "a"))
   (Sha256 hex %under)
   (Sha256 hex %under)
-  (def %after-two (null? (Swap named (lit sha256))))
+  (def %after-two (null? (Compiled named (lit sha256))))
   (Sha256 hex (Str8 repeat %sha-jit-threshold "a"))
-  (write (list %after-two ((Swap named (lit sha256)) state) (Sha256 jit!))))
+  (write (list %after-two ((Compiled named (lit sha256)) state) (Sha256 jit!))))
 ```
 ---
-    (#t 'up #t)
+    (#t 'compiled #t)
 
-### the engine is a site, and the pure-x digest answers while it is down
+### the engine is on Compiled's list, and the pure-x digest answers while it is interpreted
 
 ```x
 (do
   (import x/codec/sha256)
-  (def %site (Swap named (lit sha256)))
+  (def %entry (Compiled named (lit sha256)))
   (def %up (Sha256 hex "abc"))
-  (%site down!)
-  (def %down (list (%site state) (Sha256 hex "abc")))
-  (%site up!)
-  (write (list (str=? %up (first (rest %down))) (first %down)
-               (%site state) (Sha256 jit!))))
+  (%entry interpret!)
+  (def %interpreted (list (%entry state) (Sha256 hex "abc")))
+  (%entry compile!)
+  (write (list (str=? %up (first (rest %interpreted))) (first %interpreted)
+               (%entry state) (Sha256 jit!))))
 ```
 ---
-    (#t 'down 'up #t)
+    (#t 'interpreted 'compiled #t)
 
-### after a load the site is down, and a build asked for brings it up
+### after a load the entry is interpreted, and a build asked for compiles it
 
-The loader's recache leaves a site made on demand down, so a process that
+The loader's recache leaves an entry made on demand interpreted, so a process that
 loads a state image does not build the engine until one is wanted.
 
 ```x
 (do
   (import x/codec/sha256)
-  (def %site (Swap named (lit sha256)))
-  (%site down!)
+  (def %entry (Compiled named (lit sha256)))
+  (%entry interpret!)
   (%image-recache!)
-  (def %loaded (%site state))
+  (def %loaded (%entry state))
   (def %small (Sha256 hex "abc"))
-  (def %still (%site state))
-  (write (list %loaded %still (Sha256 jit!) (%site state)
+  (def %still (%entry state))
+  (write (list %loaded %still (Sha256 jit!) (%entry state)
                (str=? %small (Sha256 hex "abc")))))
 ```
 ---
-    ('down 'down #t 'up #t)
+    ('interpreted 'interpreted #t 'compiled #t)
 
 ### jit! reports the engine active, and is idempotent
 

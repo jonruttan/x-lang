@@ -1,6 +1,6 @@
 ; codec/hex.x -- Hex: bytes <-> hexadecimal text.
 ;
-; Two doors each way, the Base64 shape (#362):
+; Two doors each way, the same pattern as Base64 (#362):
 ;   encode / decode             string <-> string, the common case
 ;   encode-bytes / decode-bytes byte list <-> string, the binary-lossless door
 ; str values are C strings (bytes past NUL unobservable -- the x-lib ruling),

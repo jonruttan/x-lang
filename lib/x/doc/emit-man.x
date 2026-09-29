@@ -132,7 +132,7 @@
       (display #".RS 4\n.PP\n{(self esc s)}\n.RE\n"))
 
     (method params (self (param ps LIST "List of (name type desc) string triples"))
-      (doc "Emit the parameter list as tagged paragraphs -- the shape man readers expect for arguments.")
+      (doc "Emit the parameter list as tagged paragraphs -- the layout man readers expect for arguments.")
       (display ".PP\n\\fBParameters:\\fP\n")
       (List for-each
         (fn (_ p)

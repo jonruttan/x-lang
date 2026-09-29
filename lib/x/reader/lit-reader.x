@@ -1,5 +1,5 @@
 ; lit-reader.x -- quote (') reader macro, plus the wiring that places the
-; quote family (lit / quasi / unquote) onto the symbol type.
+; quote handlers (lit / quasi / unquote) onto the symbol type.
 ;
 ;   'expr -> (lit expr)
 ;
@@ -17,8 +17,8 @@
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (module x/reader/lit-reader)
 
-; The quasiquote family is a module of its own; its analysers and readers
-; are seated on the symbol type here, beside the quote family's.
+; Quasiquote is a module of its own; its analysers and readers
+; are seated on the symbol type here, beside quote's.
 (import x/reader/quasi-reader quasi-analyse unquote-analyse quasi-read unquote-read)
 
 (def %buffer-last-char (prim-ref (lit buf) (lit last-char)))
@@ -93,7 +93,7 @@
 (def %token-read-string (prim-ref (lit tok)  (lit read-str)))
 (def %buffer-token      (prim-ref (lit buf)  (lit tok)))
 
-; The analyser, in two pieces like the rest of the quote family: the per-char
+; The analyser, in two pieces like the rest of the quote handlers: the per-char
 ; entry test is its own def so the tower can compile it (boot/tower-compiled.x
 ; captures this state as a free variable), and the state machine it hands off to
 ; stays interpreted -- it only runs INSIDE a literal, never on the hot path of
@@ -101,7 +101,7 @@
 ;
 ; interp-after-hash: a # has been seen.  A " opens the literal and the scan
 ; runs to the quote that closes it; anything else declines.  Declining costs the
-; rest of the # family nothing: x_token_analyse runs every handler from the
+; other # handlers nothing: x_token_analyse runs every handler from the
 ; token's first character independently, so #t, #\a, #(...) and #/.../ are
 ; scored by their own analysers exactly as before, and a bare # (or #foo) is
 ; still an ordinary symbol.
@@ -130,7 +130,7 @@
           (if (= chr #\{) back
             ((mk-hole back) buffer score chr)))))
     ; Inside {...}: expression context.  " opens a plain string; # opens the
-    ; hash family -- #" a nested literal, #\ a character literal (so #\" and
+    ; hash literals -- #" a nested literal, #\ a character literal (so #\" and
     ; #\} cannot derail the scan), #/ a regex literal (whose {2,3} quantifiers
     ; otherwise read as braces); } closes the hole and resumes `back`.
     (set! mk-hole
@@ -319,5 +319,5 @@
   (note "'sym is a symbol, '(a b) a literal list, ''x nests; ' also terminates")
   (note "an adjacent token: foo'bar reads as foo then 'bar.")
   (example "'(1 2 3)" "(1 2 3)")
-  "Quote reader ('expr -> (lit expr)) plus the wiring that puts the quote family
+  "Quote reader ('expr -> (lit expr)) plus the wiring that puts the quote readers
 of readers on the symbol type.")

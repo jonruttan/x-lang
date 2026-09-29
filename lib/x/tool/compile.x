@@ -349,8 +349,8 @@
 ; argument is the fvar table.  The original stub took only `expr`, so the
 ; FIRST compile-asm call in any fresh process silently dropped its fvars and
 ; raised "asm-compile: unbound: <fvar>" -- while the second call, dispatching
-; to the real definition, worked.  A first-call-only failure is the worst
-; kind to chase (every REPL retry "fixes" it); found while reconstructing the
+; to the real definition, worked.  A first-call-only failure is the hardest
+; to chase (every REPL retry "fixes" it); found while reconstructing the
 ; x-lang#573 second-accept repro, whose first line died here instead.
 (def compile-asm
   (fn (_ expr . %asm-rest)
@@ -376,7 +376,7 @@
     (def %n (%length exprs))
 
     ; Resolve functions from a loaded library.  Tail accumulate +
-    ; %rev-onto (the 2026-09-01 %map1 shape): the old (pair %fn (self ...))
+    ; %rev-onto (the 2026-09-01 %map1 pattern): the old (pair %fn (self ...))
     ; recursed in argument position, one C eval frame group per batch
     ; entry -- a huge compile-batch would have crashed the C stack.
     (def %resolve-all

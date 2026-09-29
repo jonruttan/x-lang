@@ -58,7 +58,7 @@
 ; word.  Reshaped from a pair-style first/rest accessor quartet (#231):
 ; every caller is a single-slot int CELL (the C-written sigint flag,
 ; reflect's counters, the profiler spine leaves), so the rest-slot half
-; never had a caller -- the pair framing was the wrong shape, not the
+; never had a caller -- the pair framing was the wrong design, not the
 ; unused half an accident.
 (def %cell-int (fn (_ x) (%ptr-ref-word (%obj->ptr x) %data-off-0)))
 (def %set-cell-int! (fn (_ p v) (%ptr-set-word! (%obj->ptr p) %data-off-0 v) p))

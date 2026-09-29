@@ -2,7 +2,7 @@
 ;
 ; A Dict of value -> occurrence count with the counting ergonomics
 ; pre-built: absent keys read 0, add! increments (by 1 or n), and
-; most-common hands back the tallies sorted. Key kinds are Dict's
+; most-common hands back the tallies sorted. Key runtime types are Dict's
 ; (symbols, strings, ints, chars by content; instances by identity).
 ;
 ; Zero top-level %-globals (new-file budget 0).
@@ -13,7 +13,7 @@
 (import x/type/list)
 
 (def-class Counter ()
-  (doc "A counting map: (c add! x) tallies, (c get x) reads (0 when never seen), (c most-common) ranks. Backed by Dict, so key kinds and equality are Dict's."
+  (doc "A counting map: (c add! x) tallies, (c get x) reads (0 when never seen), (c most-common) ranks. Backed by Dict, so key runtime types and equality are Dict's."
     (example "(let ((c (Counter from-list (list 'a 'b 'a)))) (c get 'a))" "2")
     (see add!) (see most-common))
 
@@ -87,5 +87,5 @@
       (if (null? n) ranked (List take (first n) ranked)))))
 
 (doc (provide x/type/counter Counter)
-  (note "Dict-backed: key kinds and equality are Dict's; absent keys read 0; most-common rides the stable List sort, so equal counts keep table order.")
+  (note "Dict-backed: key runtime types and equality are Dict's; absent keys read 0; most-common rides the stable List sort, so equal counts keep table order.")
   "A counting map, homed on the Counter class.")

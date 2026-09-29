@@ -1,7 +1,7 @@
 ; codec/json.x -- Json: parse and emit JSON text.
 ;
 ; The value mapping (both directions):
-;   object <-> Dict (string keys -- the reason this codec waited for x/type/dict)
+;   JSON object <-> Dict (string keys -- the reason this codec waited for x/type/dict)
 ;   array  <-> list          string <-> string      true/false <-> #t/#f
 ;   null   <-> the symbol `null` (nil would collide with the empty array)
 ;   number <-> integer, or FLOAT when the text carries . / e (built at runtime
@@ -309,7 +309,7 @@
 
 (def-class Json ()
   (doc "JSON text codec: parse to Dict/list/string/number/#t/#f/null values, emit with proper escaping."
-    (note "Objects are Dicts (string keys); arrays are lists; null is the SYMBOL null (nil would collide with []).")
+    (note "JSON objects are Dicts (string keys); arrays are lists; null is the SYMBOL null (nil would collide with []).")
     (note "Decimal and exponent numbers parse as floats (via the conversion catalog); plain digit runs parse as integers.")
     (example "((Json parse \"{\\\"a\\\": [1, true]}\") get \"a\")" "(1 #t)")
     (see parse) (see emit))

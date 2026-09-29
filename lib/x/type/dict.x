@@ -26,7 +26,7 @@
 ; Fetch the char cast (ns `char` utility members de-registered, R5).
 (def %dict-char->int (prim-ref 'char '->int))
 ; Cached int arithmetic (#334): ambient + - * % re-route through the
-; tower's op dispatch once x/num loads (the tower-division trap class),
+; tower's op dispatch once x/num loads (the tower-division trap),
 ; and %slot's index math ran on every get/set!/has?/del!.
 (def %dict-int+ (prim-ref 'int '+))
 (def %dict-int- (prim-ref 'int '-))
@@ -72,7 +72,7 @@
 
 ; Uninitialized guard: an instance built outside make (raw new-from)
 ; has nil fields; fail loudly instead of feeding nil to the raw slot
-; layer (segfault class).
+; layer (otherwise a segfault).
 (def %dict-uninit!
   (fn (_) (Err raise 'state "Dict: uninitialized instance (use Dict make / from-*)" ())))
 
@@ -107,8 +107,8 @@
   (doc "A mutable hash table: O(1) expected get/set!/del! over content-hashed keys."
     (note "Keys may be symbols, strings, integers, or chars (hashed by content, compared with equal?), or class instances (identity keys: hashed by address, compared with same?); anything else errors.")
     (note "Mutators (set!/del!) return the dict for chaining. get-or is presence-based: a stored nil is returned, not the default.")
-    (note "The verb rule (#358): mutating operations carry the bang (set!/del!); the persistent twins live on Assoc with bare verbs (put/del). Same data shape, opposite update models.")
-    (note "Every association shape has a named door: from-alist ((k . v) ...), from-plist (k v k v ...), from-bindings ((k v) ...) -- and ->alist/->plist/->bindings back out.")
+    (note "The verb rule (#358): mutating operations carry the bang (set!/del!); the persistent twins live on Assoc with bare verbs (put/del). Same underlying representation, opposite update models.")
+    (note "Every association representation has a named door: from-alist ((k . v) ...), from-plist (k v k v ...), from-bindings ((k v) ...) -- and ->alist/->plist/->bindings back out.")
     (example "((Dict from-plist (list 'a 1 'b 2)) get 'b)" "2")
     (see make) (see get) (see set!) (see from-plist))
 
@@ -138,7 +138,7 @@
     ; Err at first USE, which is where the harm would happen.
 
     (method from-plist (self (param plist LIST "Flat (k v k v ...) plist"))
-      (doc "Build a dict from a flat plist -- the simplest literal shape."
+      (doc "Build a dict from a flat plist -- the simplest literal representation."
         (returns Dict "A dict of the plist's pairs")
         (example "((Dict from-plist (list 'a 1 'b 2)) get 'b)" "2"))
       (def d (self make))
@@ -148,7 +148,7 @@
           ((null? (rest ps)) (Err raise 'value "Dict from-plist: odd-length plist" ()))
           (#t (do (d set! (first ps) (first (rest ps))) (go (rest (rest ps))))))))
 
-    (method from-bindings (self (param bindings LIST "Bindings list: ((key value) ...), the let shape"))
+    (method from-bindings (self (param bindings LIST "Bindings list: ((key value) ...), as let writes them"))
       (doc "Build a dict from a bindings list."
         (returns Dict "A dict of the bindings")
         (example "((Dict from-bindings (list (list 'a 1))) get 'a)" "1"))

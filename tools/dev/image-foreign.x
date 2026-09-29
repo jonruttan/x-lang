@@ -22,7 +22,7 @@
 ; @license MIT No Attribution (MIT-0)
 
 (import x/tool/image/walk image-walk image-over-units image-trace-flag image-collect image-mark! image-clear! image-int+)
-(import x/tool/image/walk image-word-at image-obj->ptr image-ptr->obj image-int->ptr image-ref-word image-type-off image-type-kind image-type-heap)
+(import x/tool/image/walk image-word-at image-obj->ptr image-ptr->obj image-int->ptr image-ref-word image-type-off image-type-label image-type-heap)
 (import x/tool/image/name image-name-map image-name-map-add image-name-map-get image-dl-round-trips? image-dl-handle)
 (import x/tool/image/name image-foreign-catalog image-foreign-bare image-foreign-typecall image-foreign-dlopen)
 
@@ -52,7 +52,7 @@
 (def %type-call?
   (fn (_ w p)
     ((fn (_ tw)
-       (if (eq? (image-type-kind tw) image-type-heap) (eq? w (%call-word-of tw)) #f))
+       (if (eq? (image-type-label tw) image-type-heap) (eq? w (%call-word-of tw)) #f))
      (image-ref-word p image-type-off))))
 ; The writer's order: the type-call test, then the map, then the linker.
 (def %tally

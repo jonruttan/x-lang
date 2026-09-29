@@ -8,7 +8,7 @@
 ; The label vocabulary is BLESSED BUT OPEN (any symbol is legal; these are
 ; the words the stdlib itself uses -- see contributing.md):
 ;
-;   'type   wrong shape/type of argument
+;   'type   wrong structure/type of argument
 ;   'value  right type, bad content (parse failures, out of domain)
 ;   'index  out of range
 ;   'io     errno-backed OS boundary (see from-errno)

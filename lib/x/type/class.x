@@ -76,12 +76,12 @@
 
 ; Unique sentinel marking a FIELD entry in a flat table (a method entry is
 ; the method closure itself). A fresh pair, compared by eq? -- unforgeable.
-(def %field-tag (list (lit %field)))
+(def %field-label (list (lit %field)))
 
-; Privacy wrapper sentinel: a table entry (%priv-tag vis defining . inner)
+; Privacy wrapper sentinel: a table entry (%priv-label vis defining . inner)
 ; guards inner behind the dispatch-door check below. Same unforgeable-pair
-; trick as %field-tag.
-(def %priv-tag (list (lit %priv)))
+; trick as %field-label.
+(def %priv-label (list (lit %priv)))
 
 ; The ambient caller-class probe. Every method body lexically rebinds
 ; %this-class to a one-cell box holding its DEFINING class (filled by
@@ -101,7 +101,7 @@
 ; top two and never moves again, because the pair a hit displaces lands
 ; second: put back in the hit's cell instead, the two would trade places at
 ; the hit's depth, and each would walk the table that far on every call.
-; Returns the entry (a method closure or %field-tag) or nil. `head` is the
+; Returns the entry (a method closure or %field-label) or nil. `head` is the
 ; table's first spine cell; callers pass the table twice.  The walk is a
 ; plain loop: it runs on every dispatch, a cell at a time.
 (def %tab-find!
@@ -122,11 +122,11 @@
       (#t (loop (rest cell) head sel)))))
 
 ; Build a class's hot record: flat, chain-merged dispatch tables plus the
-; construction caches, shape
+; construction caches, layout
 ;   (itab stab fields ctor-names)
 ; itab holds instance methods + instance-field markers; stab holds static
 ; methods + static-field markers, both chain-merged. An OWN static field
-; marks as the bare %field-tag; an INHERITED one as (%field-tag . OWNER),
+; marks as the bare %field-label; an INHERITED one as (%field-label . OWNER),
 ; the nearest ancestor whose box holds it -- reads go to the owner's box,
 ; matching what (help) has always displayed. A static field named `new`
 ; is dropped at every level: it never shadowed the new builtin. fields is
@@ -155,12 +155,12 @@
     (def %not-new? (fn (_ row) (not (eq? (first row) (lit new)))))
     ; Visibility wrap: a name listed in the defining level's vis alist
     ; ((name . private|protected) ...) gets its entry guarded as
-    ; (%priv-tag vis defining . inner); anything else passes bare.
+    ; (%priv-label vis defining . inner); anything else passes bare.
     (def %vis-wrap
       (fn (_ c visal name inner)
         (let ((v (%assoc-get name visal)))
           (if (null? v) inner
-            (pair %priv-tag (pair v (pair c inner)))))))
+            (pair %priv-label (pair v (pair c inner)))))))
     (def %ivis-of (fn (_ c) (%assoc-get (lit ivis) (%class-data c))))
     (def %svis-of (fn (_ c) (%assoc-get (lit svis) (%class-data c))))
     (def %walk-methods                    ; `key` method alists, derived first
@@ -177,7 +177,7 @@
           (loop (%assoc-get (lit parent) (%class-data c))
             (let ((visal (%ivis-of c)))
               (%fold-rows (%assoc-get (lit fields) (%class-data c))
-                (fn (_ row) (%vis-wrap c visal (first row) %field-tag))
+                (fn (_ row) (%vis-wrap c visal (first row) %field-label))
                 acc))))))
     (def %walk-statics                    ; ancestor static fields, nearest first
       (fn (loop c acc)
@@ -185,14 +185,14 @@
           (loop (%assoc-get (lit parent) (%class-data c))
             (let ((visal (%svis-of c)))
               (%fold-rows (%filter %not-new? (%class-statics c))
-                (fn (_ row) (%vis-wrap c visal (first row) (pair %field-tag c)))
+                (fn (_ row) (%vis-wrap c visal (first row) (pair %field-label c)))
                 acc))))))
     (let ((fields (%all-fields class)))
       (list (%walk-ifields class (%walk-methods class (lit methods) %ivis-of ()))
             (%walk-statics (%assoc-get (lit parent) (%class-data class))
               (let ((visal (%svis-of class)))
                 (%fold-rows (%filter %not-new? (%class-statics class))
-                  (fn (_ row) (%vis-wrap class visal (first row) %field-tag))
+                  (fn (_ row) (%vis-wrap class visal (first row) %field-label))
                   (%walk-methods class (lit s-methods) %svis-of ()))))
             fields
             (%ctor-field-names class)))))
@@ -233,7 +233,7 @@
 ; instance's behalf whatever the hook's declared visibility.
 (def %entry-inner
   (fn (_ entry)
-    (if (if (pair? entry) (eq? (first entry) %priv-tag) #f)
+    (if (if (pair? entry) (eq? (first entry) %priv-label) #f)
       (rest (rest (rest entry)))
       entry)))
 
@@ -254,7 +254,7 @@
           (#t (%class-ancestor? defining caller)))))))
 
 ; A pair entry reaching a dispatch method branch is a privacy wrapper
-; (%priv-tag vis defining . inner): check access, then process inner
+; (%priv-label vis defining . inner): check access, then process inner
 ; exactly as the plain branches would. Guarded members are the cold side
 ; by construction, so the method path uses plain apply -- no trampoline
 ; subtleties inside a helper fn.
@@ -269,7 +269,7 @@
             (%str-append (if (eq? vis (lit private)) " is private to " " is protected to ")
               (symbol->str (class-name defining))))))))
       (match
-        ((eq? inner %field-tag)
+        ((eq? inner %field-label)
           (if static?
             (match
               ((null? args) (%assoc-get selector (%class-statics class)))
@@ -277,7 +277,7 @@
             (match
               ((null? args) (%assoc-get selector (%obj-fields target)))
               (#t (%box-put! (%obj-box target) selector (eval (first args) e))))))
-        ((if (pair? inner) (eq? (first inner) %field-tag) #f)   ; inherited static
+        ((if (pair? inner) (eq? (first inner) %field-label) #f)   ; inherited static
           (match
             ((null? args) (%assoc-get selector (%class-statics (rest inner))))
             (#t
@@ -296,7 +296,7 @@
   (fn (_ entry)
     (match
       ((null? entry) ())
-      ((eq? entry %field-tag) ())
+      ((eq? entry %field-label) ())
       ((if (pair? entry) #t #f) ())
       (#t entry))))
 
@@ -367,8 +367,8 @@
             ((>= j lb) (<= (- la i) slack))
             ((= (%sg-ref a i) (%sg-ref b j)) (self a b (+ i 1) (+ j 1) slack))
             ((= slack 0) #f)
-            ; The three shapes one edit can take, tried in turn with
-            ; the slack spent: substitute, drop from a, drop from b.
+            ; The three ways one edit can go, tried in turn as the
+            ; slack allows: substitute, drop from a, drop from b.
             ((self a b (+ i 1) (+ j 1) 0) #t)
             ((self a b (+ i 1) j 0) #t)
             (#t (self a b i (+ j 1) 0))))))
@@ -397,7 +397,7 @@
             acc
             (let ((p (first cell)))
               (let ((entry (rest p)))
-                (if (if (pair? entry) (eq? (first entry) %priv-tag) #f)
+                (if (if (pair? entry) (eq? (first entry) %priv-label) #f)
                   (self (rest cell) miss acc n)
                   (let ((cand (symbol->str (first p))))
                     (if (%sg-near? miss cand)
@@ -592,7 +592,7 @@
     (def m (%entry-inner (%tab-find! (first hot) (first hot) (lit %init))))
     (match
       ((null? m) ())
-      ((eq? m %field-tag) ())
+      ((eq? m %field-label) ())
       (#t (%apply m (list inst))))
     inst))
 
@@ -618,7 +618,7 @@
           (itab (first (%class-hot (%obj-class self)))))
       (let ((entry (%tab-find! itab itab selector)))
         (match
-          ((eq? entry %field-tag)
+          ((eq? entry %field-label)
             (match
               ((null? args) (%assoc-get selector (%obj-fields self)))
               (#t (%box-put! (%obj-box self) selector (eval (first args) e)))))
@@ -673,11 +673,11 @@
           (stab (first (rest (%class-hot self)))))
       (let ((entry (%tab-find! stab stab selector)))
         (match
-          ((eq? entry %field-tag)                     ; own static field
+          ((eq? entry %field-label)                     ; own static field
             (match
               ((null? args) (%assoc-get selector (%class-statics self)))
               (#t (%box-put! (%class-statics-box self) selector (eval (first args) e)))))
-          ((if (pair? entry) (eq? (first entry) %field-tag) #f)
+          ((if (pair? entry) (eq? (first entry) %field-label) #f)
             ; inherited static field: reads go to the owning ancestor's box
             ; (nearest wins, matching help's display); a write SHADOWS into
             ; our own box -- the parent's value is never mutated through a
@@ -886,7 +886,7 @@
           (let ((method (if (null? sc) ()
                           (let ((itab (first (%class-hot sc))))
                             (%tab-find! itab itab selector)))))
-            (if (if (null? method) #t (eq? method %field-tag))
+            (if (if (null? method) #t (eq? method %field-label))
               (error "object: super has no parent method")
               (tail-eval (pair method (pair inst args)) e))))))))
   (note "Selector is literal: (super self method args...). Instance methods only.")
@@ -1051,17 +1051,17 @@
         (pair (lit svis) svis)                     ; static-side visibility alist
         (pair (lit statics) (list statics))))))   ; statics in a one-cell mutable box
 
-; Find a top-level body form whose head is `tag`, returning its rest (or ()).
-; Find the (tag ...) form in a class body, returning its tail (or () if absent).
-; pair?-guarded: a bare-symbol field (links, north, ...) is not a tagged form,
+; Find a top-level body form whose head is `head`, returning its rest (or ()).
+; Find the (head ...) form in a class body, returning its tail (or () if absent).
+; pair?-guarded: a bare-symbol field (links, north, ...) is not a form with a head,
 ; and an unchecked (first symbol) is silently wrong on 64-bit / a SIGSEGV on the
 ; 32-bit Pi -- so skip non-pairs instead of reading their car. (cf. %find-doc-form)
 (def %find-form
-  (fn (loop body tag)
+  (fn (loop body head)
     (unless (null? body)
-      (if (if (pair? (first body)) (eq? (first (first body)) tag) #f)
+      (if (if (pair? (first body)) (eq? (first (first body)) head) #f)
         (rest (first body))
-        (loop (rest body) tag)))))
+        (loop (rest body) head)))))
 
 ; --- Method documentation ---
 ; A method may carry an optional leading (doc "desc" (param ...) (returns ...)
@@ -1227,7 +1227,7 @@
       ; Guard the head test: a bare field name is a SYMBOL, and first on a
       ; non-pair is unchecked -- (first 'x) yields the name buffer as an
       ; "object", so the eq? below would read past a 2-byte allocation
-      ; (ASan heap-buffer-overflow; the 32-bit/Pi segfault class).
+      ; (ASan heap-buffer-overflow; the 32-bit/Pi segfault).
       (if (if (pair? (first forms)) (eq? (first (first forms)) (lit method)) #f)
         (do
           (when (%method-has-doc? (first forms))
@@ -1419,7 +1419,7 @@
       (def ivis (rest %ix))
       (%validate-body body)
       ; A field name declared twice in ONE class body is always a mistake
-      ; -- the common shape is a bare declaration beside its (doc NAME ...)
+      ; -- the common pattern is a bare declaration beside its (doc NAME ...)
       ; form, which ALSO declares (see %collect-fields).  The duplicate is
       ; silent poison: positional construction fills the doubled slot twice
       ; and a LATER field stays nil (found via (Type wrap ...): `raw`
@@ -1462,9 +1462,9 @@
                 (%append2 acc
                   (%map (fn (_ tx)
                           (let ((t (eval tx e)))
-                            ; the trait tag is a pair whose head is the
+                            ; the trait label is a pair whose head is the
                             ; interned symbol %trait (trait.x's unforgeable
-                            ; list); shape-checked here because the tag
+                            ; list); structure-checked here because the label
                             ; value itself lives in a later-loading module
                             (if (if (pair? t)
                                   (if (pair? (first t)) (eq? (first (first t)) (lit %trait)) #f)

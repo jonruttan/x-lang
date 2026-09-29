@@ -1,10 +1,10 @@
 ; stream.x -- Stream: output redirection as first-class streams (pure X).
-; One of the four I/O tiers -- Io holds the verbs, Stream redirects
+; One of the four I/O profiles -- Io holds the verbs, Stream redirects
 ; output, File is the filesystem, Buf is the reader's side; the full
 ; statement lives in x/type/io.x's header (#365).
 ;
-; display/write emit to the base's `fileout` fd -- an integer ATOM in the io
-; `files` group (filein fileout fileerr write-buf buffer), whose rows the
+; display/write emit to the base's `fileout` fd -- an integer ATOM among the io
+; `files` fields (filein fileout fileerr write-buf buffer), whose rows the
 ; layout contract names.  The base is just a pair tree, so redirection is
 ; first/set-first! on the fileout cell -- no C primitive needed. A Stream wraps
 ; a target fd; write to it directly, or redirect the current output through it.
@@ -48,7 +48,7 @@
 
 (def-class Stream ()
   (doc "A first-class output stream over a file descriptor: write to it, or redirect display/write output through it for the duration of a thunk."
-    (note "Pure X: display/write target the base's fileout fd (an atom in the io `files` group, whose rows the layout contract names); a Stream just pushes/pops that fd.")
+    (note "Pure X: display/write target the base's fileout fd (an atom among the io `files` fields, whose rows the layout contract names); a Stream just pushes/pops that fd.")
     (note "(Stream to-fd fd) wraps an existing fd (not owned). (Stream to-file path) opens path for writing and OWNS it -- (close) closes it. (Stream stdout)/(Stream stderr) are conveniences.")
     (note "File-backed streams (to-file, write, with-file) need the radon dialect (File open/close/write -> syscall/make-str).")
     (sample "(Stream with-file \"grid.svg\" (fn (_) (grid ->svg)))" "saves whatever (grid ->svg) displays into grid.svg")
@@ -135,5 +135,5 @@
     (if (field 'owned?) (File close (field 'fd)) ())))
 
 (doc (provide x/sys/stream Stream)
-  (note "Redirection is pure X -- push/pop the base's fileout fd (an atom in the io `files` group); no C primitive. File targets need the radon dialect.")
+  (note "Redirection is pure X -- push/pop the base's fileout fd (an atom among the io `files` fields); no C primitive. File targets need the radon dialect.")
   "Output redirection as first-class Streams: to-fd/to-file/stdout/stderr, (s with thunk)/write/display/close, plus the with-fd / with-file helpers.")

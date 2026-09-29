@@ -1,5 +1,5 @@
 ; platform/data/syscalls-linux-generic.x -- the Linux generic syscall-number
-; alist and the call shapes that stand in for the names it leaves out. One
+; alist and the calls that stand in for the names it leaves out. One
 ; table per file, loaded by syscall.x; boot-constrained (loads mid-x-core
 ; through sys/posix.x), so boot accessors only.
 
@@ -327,7 +327,7 @@
 ; utimes is the one row whose argument changes meaning: utimes reads a pair of
 ; timevals and utimensat a pair of timespecs, so only a nil a1 -- stamp with the
 ; current clock -- means the same to both.
-(def linux-generic-syscall-shapes
+(def linux-generic-syscall-stand-ins
   (lit (
     (open     openat     (cwd a0 a1 a2))
     (stat     newfstatat (cwd a0 a1 0))
