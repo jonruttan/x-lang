@@ -71,7 +71,7 @@
 (def %byte-at
   (fn (_ s i) (%char->int (%str-byte-ref s i))))
 
-; The limb base, and the largest factor each kind of pass multiplies by:
+; The limb base, and the largest factor each pass multiplies by:
 ; a limb times a factor, plus the carry, stays under 2^63.
 (def %limb-base 1000000000)
 (def %limb-digits 9)

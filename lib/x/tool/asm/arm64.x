@@ -375,7 +375,7 @@
       (pair 'l (list 1409286157          ; 0x5400000D
         (list 0 5 19 2)))))
 
-    ; --- Scalar double family ---
+    ; --- Scalar double instructions ---
     ; The operands are (reg n) throughout; the mnemonic says which are
     ; d registers.  fmov/d and fmov/x move the 64 bits unchanged between
     ; the banks, which is how a double's bit pattern (an INT to x-lang)

@@ -234,7 +234,7 @@
 ; cells, but every call evaluates an operative's first form once, and that
 ; form is counted when it is a pair; a name or a constant is shared, and not
 ; counted by place.  For a procedure the two agree whenever the first form is
-; a pair, so the larger of the two is the calls of either kind.
+; a pair, so the larger of the two counts the calls of both.
 (def %profile-calls
   (fn (_ body)
     ((fn (_ cell form)

@@ -724,7 +724,7 @@
     (method %pin-digest-bin (self path)
       (Str8 append "sha256:"
         (Sha256 hex-n (File read-all path) (%assoc-get 'size (File stat path)))))
-    ; Unpack via tar through Proc run!, the shape %pin-download-tmp! uses for
+    ; Unpack via tar through Proc run!, the pattern %pin-download-tmp! uses for
     ; curl: 127 = tar absent, anything else nonzero = the archive is bad.
     (method %pin-untar! (self archive dest)
       (let ((status (Proc run! (list "tar" "-xzf" archive "-C" dest))))
@@ -772,7 +772,7 @@
                 (#t (Pin %pin-bad (Str8 append "unknown form in lang.xon: "
                                     (symbol->str (first (first forms)))))))))
       (%go forms () () () ()))
-    ; Unpack via tar through Proc run!, the shape %pin-download-tmp! uses for
+    ; Unpack via tar through Proc run!, the pattern %pin-download-tmp! uses for
     ; curl: 127 = tar absent, anything else nonzero = the archive is bad.
     (method %pin-untar! (self archive dest)
       (let ((status (Proc run! (list "tar" "-xzf" archive "-C" dest))))
@@ -1124,7 +1124,7 @@
 
     (method %pin-scan-form (self form dirs) (Pin %pin-scan-pair (lit form) form dirs))
     (method %pin-scan-list (self forms dirs) (Pin %pin-scan-pair (lit list) forms dirs))
-    ; The project-scan mutual pair, same one-fn mode-discriminated shape.
+    ; The project-scan mutual pair, the same one-fn pattern, split by a which label.
     (method %pin-scan-project-pair (self which arg)
       (def %scan (fn (self which form)
         (match

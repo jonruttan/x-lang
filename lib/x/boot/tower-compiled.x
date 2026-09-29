@@ -92,7 +92,7 @@
 (%tower-probe!)
 ((prim-ref (lit image) (lit recache-hook!)) %tower-probe!)
 
-; One shape for the ten states, a LADDER of three rungs:
+; One pattern for the ten states, a LADDER of three rungs:
 ;
 ;   1. compile-asm -- the engine's own JIT, no toolchain, first choice.
 ;   2. the cc lane -- ONLY as a fallback, and only where the engine ships
@@ -150,7 +150,7 @@
 ; state's free names are the states compiled before it, and after a load
 ; those are new objects.
 ;
-; The tower installs into two kinds of place: a name's binding, which may
+; The tower installs into one of two places: a name's binding, which may
 ; be in a module's own environment as the float states' are, and one cell
 ; of a type's handler list.
 
@@ -263,10 +263,10 @@
 
 ; --- Compile the symbol type's delimiter hook -------------------------------
 ;
-; macro-delimit (lit-reader.x) runs on EVERY character of every symbol-shaped
+; macro-delimit (lit-reader.x) runs on EVERY character of every symbol
 ; token: the C symbol analyser calls it per char to ask whether ' ` , ends the
 ; token (so foo'bar reads as foo then 'bar).  Interpreted, it is the single
-; largest per-character reader cost.  It is the same shape as the numeric
+; largest per-character reader cost.  It has the same pattern as the numeric
 ; analysers, so it JITs through the same lane, and like them it speeds every
 ; read AFTER it -- the rest of the tower, xe.x, and (the bulk of the win) all
 ; source read once the platform is up: bundles, user files, specs.  A tower
@@ -448,7 +448,7 @@
 ;
 ; It is also the cheapest one to give up: a sign runs ONCE per token, not once
 ; per character, so leaving it interpreted costs almost nothing of the win
-; while removing the one shape with a history of exactly this failure.
+; while removing the one pattern with a history of exactly this failure.
 
 ; The interpreted twin, for an engine with no JIT.  Must agree with
 ; the compiled form below.  It is built in the module's frame so that its

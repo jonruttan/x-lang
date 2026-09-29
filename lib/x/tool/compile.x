@@ -376,7 +376,7 @@
     (def %n (%length exprs))
 
     ; Resolve functions from a loaded library.  Tail accumulate +
-    ; %rev-onto (the 2026-09-01 %map1 shape): the old (pair %fn (self ...))
+    ; %rev-onto (the 2026-09-01 %map1 pattern): the old (pair %fn (self ...))
     ; recursed in argument position, one C eval frame group per batch
     ; entry -- a huge compile-batch would have crashed the C stack.
     (def %resolve-all

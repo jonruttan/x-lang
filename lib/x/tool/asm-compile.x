@@ -319,7 +319,7 @@
 ; p_args = (self arg0 arg1 ...) — walk rest N+1 times, first, eval, atomint.
 ; If symbol is a free variable (fvar), load its pointer as a 64-bit immediate.
 ;
-; TWO MODES, because two kinds of parameter exist.  An arithmetic operand wants
+; TWO MODES, because a parameter is one of two things.  An arithmetic operand wants
 ; the raw machine word, so the default unboxes with atomint.  An OBJECT operand
 ; -- the score and buffer an analyse callback receives -- must stay a pointer:
 ; atomint on a buffer reads its first word as an integer, and jit_score_set
