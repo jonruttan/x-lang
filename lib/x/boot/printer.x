@@ -467,7 +467,7 @@
   (fn (_ o render)
     (%print-to-str-run o render (pair () ()) (first %print-sink))))
 
-; --- the public surface: catalog entries + the bare verbs ---
+; --- the public surface: catalogue entries + the bare verbs ---
 (def %print-display1 (fn (_ o) (%print-d o) ()))
 (def %print-write1   (fn (_ o) (%print-w o) ()))
 (prim-reg! (lit io) (lit display)        %print-display1)
@@ -525,7 +525,7 @@
   ; with no index is an index call that named nothing, and it raises).  The
   ; counter lives in the UTF-8 layer, which loads ~120 include lines further
   ; down x-core and cannot be named from here, so it arrives through the
-  ; CATALOG -- resolved once into a cell that rides this registration
+  ; CATALOGUE -- resolved once into a cell that rides this registration
   ; closure, per the note above, since the %-budget is shrink-only.  Absent
   ; (a dialect with no UTF-8 layer), bytes stand in: bytes >= code points,
   ; so the only cost is wrapping a non-ASCII form that would have fit.

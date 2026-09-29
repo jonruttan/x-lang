@@ -13,11 +13,11 @@
 ;      " "
 
 ; --- Bootstrap (minimum to get provide/import working) ---
-; The base-paths contract + the catalog protocol load FIRST: everything
+; The base-paths contract + the catalogue protocol load FIRST: everything
 ; after them (operatives.x included) fetches its C instruments through
 ; prim-ref, which is pure X -- a first/rest walk over the prims cell.
 ; engine.x is the ONE place the library names its engine: it carries both
-; contract includes (base-paths for the catalog walk, obj-layout for the header
+; contract includes (base-paths for the catalogue walk, obj-layout for the header
 ; offsets) and the engine root the JIT and the pin tool read at runtime.
 ; tools/check/engine-seam.sh holds it to being the only such place.
 (include "lib/x/boot/engine.x")
@@ -197,7 +197,7 @@
 ; Records: def-record, lightweight named-field data types over def-class.
 (include-once "lib/x/type/record.x")
 ((prim-ref (lit heap) (lit collect)))
-; Convert: the conversion dispatcher (registered in the catalog as
+; Convert: the conversion dispatcher (registered in the catalogue as
 ; (convert . to)) + the Convert class with the no-match policy field.
 ; Relocated past object.x from the early type-internals block -- it needs
 ; def-class + doc, and every caller (tower, regex, posix, hash, tools)
@@ -207,7 +207,7 @@
 ; each class wires its own selectors -- so it loads before the collections do.
 (include-once "lib/x/type/block.x")
 ; Type: the type-system reflection API (the Type class). The mechanism stays
-; in sys/type.x (pre-object, %-private, filed under catalog ns `type`);
+; in sys/type.x (pre-object, %-private, filed under catalogue ns `type`);
 ; this class presents it and carries the docs.
 (include-once "lib/x/type/type.x")
 ((prim-ref (lit heap) (lit collect)))
@@ -238,7 +238,7 @@
 (include-once "lib/x/type/assoc.x")
 ((prim-ref (lit heap) (lit collect)))
 ; Heap: GC control (the Heap class; methods fetch the C prims from the
-; catalog). Relocated from the early block -- the heap-* bare C names are
+; catalogue). Relocated from the early block -- the heap-* bare C names are
 ; bound by registration regardless of where this module loads.
 (include-once "lib/x/sys/gc.x")
 ; Sys: POSIX wrappers (the Sys class). Relocated -- every caller (the REPL's
@@ -345,7 +345,7 @@
 (doc (provide x/boot/engine)
   "Boot: the engine seam -- the one place the library names its engine, carrying both contract includes and the engine root.")
 (doc (provide x/boot/registry)
-  "Boot: the catalog protocol -- prim-ref and the instrument registry (loads first).")
+  "Boot: the catalogue protocol -- prim-ref and the instrument registry (loads first).")
 (doc (provide x/boot/operatives)
   "Boot: the core operative layer over the C primitives.")
 (doc (provide x/boot/data)
@@ -359,8 +359,8 @@
 (doc (provide x/boot/module)
   "Boot: include-once/import/provide and the include-list registry.")
 (doc (provide x/type/struct)
-  (note "The reflection helpers are %-private here and filed under catalog ns `type`; the API is the Type class (x/type/type).")
-  "Type system mechanism: struct navigation and handler-stack wiring, registered in the catalog.")
+  (note "The reflection helpers are %-private here and filed under catalogue ns `type`; the API is the Type class (x/type/type).")
+  "Type system mechanism: struct navigation and handler-stack wiring, registered in the catalogue.")
 (doc (provide x/core
   null? if let do begin not atom? list
   str=?

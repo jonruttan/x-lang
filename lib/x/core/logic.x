@@ -20,7 +20,7 @@
 ; identity-compared (they have object identity); a value-semantics instance
 ; type can install its own handler here.
 ;
-; The cell is in the catalog for the module that installs a handler:
+; The cell is in the catalogue for the module that installs a handler:
 ; x/type/vector fetches (prim-ref (lit logic) (lit equal-others)) rather than
 ; reading this file's private name from the root.
 (def %equal-others (pair (fn (_ eq a b) #f) ()))

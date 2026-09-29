@@ -4,9 +4,9 @@
 
 ; repl-read resets the source-line counter before reading, so error lines are
 ; relative to the current input rather than the whole boot+session stream.
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str-append (prim-ref 'str 'append))
-; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
 (def %error-line (prim-ref 'io 'error-line))
 (def %error-file (prim-ref 'io 'error-file))
 (def %repl-write-to-str (prim-ref 'io 'write-to-str))
@@ -29,7 +29,7 @@
         "Error: "))))
 
 
-; ns `io` is de-registered (R5): fetch the REPL reader from the catalog.
+; ns `io` is de-registered (R5): fetch the REPL reader from the catalogue.
 (def %repl-read (prim-ref 'io 'repl-read))
 ; The turn sweep: collect at the TOP of every repl iteration, before
 ; the prompt/read -- the seat is quiet (the previous turn's eval

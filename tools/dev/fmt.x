@@ -16,7 +16,7 @@
 ; language-specific table when --lang or the file's path names one) tell
 ; the formatter how each form nests.
 
-; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
 ; The quote forms' analysers and readers, seated on the scratch base below.
 (import x/reader/lit-reader lit-analyse lit-read macro-delimit)
 (import x/reader/quasi-reader quasi-analyse quasi-read unquote-analyse unquote-read)

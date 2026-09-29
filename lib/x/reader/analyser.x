@@ -1,24 +1,24 @@
 ; analyser.x -- Analyser: composable tokenizer state-machine builders.
 ; (Renamed from Token, #359: it builds analyse-state machines, not tokens --
 ; and Tok, the token-stream class in type/buf.x, is the unrelated neighbour
-; the old name collided with. The catalog ns for the terminators stays
+; the old name collided with. The catalogue ns for the terminators stays
 ; `token`: it names the tokenizer domain, not this class.)
 ;
 ; The builders run at type-build (setup) time, so they are Analyser methods. The
 ; three TERMINATORS (accept/accept-inclusive/reject), however, are invoked
 ; per-character INSIDE reader/analyse lambdas, where class dispatch would
 ; allocate and risk a GC mid-C-reader-callback. So their logic lives in
-; %-private functions, registered in the catalog under ns `token`; reader-hot
+; %-private functions, registered in the catalogue under ns `token`; reader-hot
 ; callers (logo/types.x) fetch-and-cache them and call the cached refs directly
 ; -- no dispatch on the hot path. The Analyser class methods are the cold-call API.
 (module x/reader/analyser)
 
 (import x/type/char)
 (import x/type/class)
-; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
 
-; --- Terminators: %-private logic + catalog registration ---
+; --- Terminators: %-private logic + catalogue registration ---
 ; States call these to finish: accept (rewind last char), accept-inclusive
 ; (keep it), reject (no match). Registered so reader-context consumers fetch
 ; raw refs rather than dispatching (Analyser accept ...) per character.
@@ -211,5 +211,5 @@
 
 (doc (provide x/reader/analyser Analyser)
   (note "States receive (self buffer score chr): return self to loop, another state to transition, a score to accept, nil to reject.")
-  (note "Terminators registered under catalog ns `token` (accept/accept-inclusive/reject) -- reader-context callers fetch-and-cache them; never dispatch (Analyser accept ...) per character.")
+  (note "Terminators registered under catalogue ns `token` (accept/accept-inclusive/reject) -- reader-context callers fetch-and-cache them; never dispatch (Analyser accept ...) per character.")
   "Composable tokenizer state-machine builders on the Analyser class.")

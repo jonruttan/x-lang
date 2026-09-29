@@ -20,10 +20,10 @@
 ;               are recorded as constraint rows in
 ;               tools/contract/constraints.x.
 ;
-; A capability row means the catalog coordinates in that group resolve:
+; A capability row means the catalogue coordinates in that group resolve:
 ; (prim-ref 'ns 'method) finds something callable, or the bare name is bound.
 ; It does not mean "implemented in C".  lib/x/boot/reflect.x replaces C prims
-; with x-level ones filed under the same catalog names, and isa.x's surface is
+; with x-level ones filed under the same catalogue names, and isa.x's surface is
 ; the reduced set that survives that.  An engine may satisfy a coordinate
 ; natively or in x; the contract is the coordinate, not the language it is
 ; written in.  That is why `isa/hot` is a capability like any other while
@@ -51,7 +51,7 @@
 
 ; --- CAPABILITIES ------------------------------------------------------------
 ; Every group below is genuinely reached by lib/ or apps/ -- verified by joining
-; the catalog against every (prim-ref ...) site in the tree.  None is speculative.
+; the catalogue against every (prim-ref ...) site in the tree.  None is speculative.
 (def %feature-capabilities (lit (
   (isa/spine    spine)    ; the evaluator and binder: eval, apply, fn/op, def, call/cc
   (isa/alloc    alloc)    ; heap construction: pair, atoms, instances

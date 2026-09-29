@@ -3,7 +3,7 @@
 ; The interpreter is fully reflective: %obj->ptr + the ptr word ops reach
 ; every word of every object, and engine/tools/contract/obj-layout.x (included by x-core.x
 ; before data.x) commits the offsets.  These accessors REPLACE the C prims
-; of the same catalog names -- the C table rows are deleted and the ISA
+; of the same catalogue names -- the C table rows are deleted and the ISA
 ; keeps only the load/store instructions -- filed with prim-reg! so every
 ; later consumer's (prim-ref (lit obj) ...) fetch is unchanged.
 ;
@@ -299,7 +299,7 @@
                         (#t (%apply %reflect-ih (pair o ()))))))
                   (#t ()))))))))))
 
-; (prim-reg! ns method value) -- the catalog protocol's producer half:
+; (prim-reg! ns method value) -- the catalogue protocol's producer half:
 ; file an entry under ns/method.  Prepend semantics (a re-registration
 ; shadows on lookup); returns nil (C contract).  Needs set-first!/set-rest!
 ; (data.x), which is why it lives here and not in boot/registry.x with the
@@ -317,7 +317,7 @@
         (#t (%set-rest! %reflect-dom (pair (pair method value) (rest %reflect-dom)))))
       ())))
 
-; File into the catalog under the retired C prims' names; %obj-set! is
+; File into the catalogue under the retired C prims' names; %obj-set! is
 ; data.x's (already the pure-reflection implementation).
 (prim-reg! (lit obj) (lit ref)         %reflect-obj-ref)
 (prim-reg! (lit obj) (lit set!)        %obj-set!)

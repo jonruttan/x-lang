@@ -5,10 +5,10 @@
 (def %ptr (Type named POINTER))
 (def %string (Type named STRING))
 (import x/core/list)
-; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 (def %type-cast! (prim-ref 'type 'cast!))
 
-; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
 (def %cvt (prim-ref 'convert 'to))
 
 (import x/type/str)
@@ -17,15 +17,15 @@
 (import x/sys/file)
 (import x/sys/proc)
 (import x/type/hash)
-; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %type-of (prim-ref 'type 'of))
-; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr-call (prim-ref 'ptr 'call))
 (def %ptr-ref-word (prim-ref 'ptr 'ref-word))
 (def %ptr-set-word! (prim-ref 'ptr 'set-word!))
 (def %dlopen (prim-ref 'ffi 'dlopen))
 (def %dlsym (prim-ref 'ffi 'dlsym))
-; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
 (def %write-to-str (prim-ref 'io 'write-to-str))
 
 
@@ -335,10 +335,10 @@
 ; about half of compile.x's parse cost, and only the pure-JIT path needs it --
 ; compile-to-c and the C-compiler path never do. So ship a door that loads the
 ; toolchain on first call, then dispatches every call to asm-compile-cached,
-; asm-cache.x's function, fetched from the catalog as (compile asm-cached):
+; asm-cache.x's function, fetched from the catalogue as (compile asm-cached):
 ; the module is not loaded when this file is, so its name cannot be a free
 ; symbol here (the linter would rightly ask where it comes from), and a
-; catalog entry is how a seam across load order is crossed. The door is the
+; catalogue entry is how a seam across load order is crossed. The door is the
 ; one compile-asm there is: a session that imported it from here, before or
 ; after the toolchain loaded, holds this same function. import, not a path
 ; literal: resolves through the import roots so it works installed too.

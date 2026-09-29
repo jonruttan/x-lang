@@ -3,12 +3,12 @@
 ; Basic string functions needed by the module system.
 ; Uses match instead of if (if not yet available).
 
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
 (def %str-byte-len (prim-ref (lit str) (lit byte-len)))
 (def %str-byte-ref (prim-ref (lit str) (lit byte-ref)))
 (def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
-; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
 
 

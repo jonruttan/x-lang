@@ -64,7 +64,7 @@
 ; walk stays off the Lint class (see the class comment there, and #344 --
 ; the linter's own Dict-vs-alist ruling, lost on value-call dispatch).
 ; Homing them as %-statics would put a class send on each node of the walk.
-; Then by one, 88 -> 89, for %lint-write: the catalog door the walk writes
+; Then by one, 88 -> 89, for %lint-write: the catalogue door the walk writes
 ; through, fetched at load as %write-to-str and %cvt beside it are.  It is read
 ; once per node of the same walk, so homing it on the class would add a send to
 ; every node of every file.
@@ -104,7 +104,7 @@
 ; Rows 61-63 are the #584 guard: %big-mixed-check raises the lattice's
 ; teaching error where the C arbitration would fall through to
 ; payload-word reads (an undeclared typed pair with handlers on both
-; sides), and %type-from-cell/%type-ops-cell are its cached catalog
+; sides), and %type-from-cell/%type-ops-cell are its cached catalogue
 ; accessors, per the file's own fetch-and-cache convention.  Row 64 is
 ; %would-overflow-sub? from the exactness arc (208578f9): a direct
 ; subtract predicate, because add?-of-negation wraps for b = LONG_MIN.
@@ -115,7 +115,7 @@
 ; class machinery that would home them.  21 to 23 is %i-empty?/%i-next
 ; (x-lang#719, step 4): the drain in %as-list read those two from
 ; x/type/iter, and a module's names are its own, so list.x fetches the
-; same two catalog doors itself.  The root loses more than it gains when
+; same two catalogue doors itself.  The root loses more than it gains when
 ; iter is scoped and its copies leave the root with it.
 ; What is NOT here is the point -- the text scanners (find, find-exp,
 ; parse-exp, digits) and the printer's zero/scientific helpers are LOCAL defs
@@ -181,7 +181,7 @@
 ; module's, and the tower keeps the ladders, the probe and the three states
 ; its entries take.
 (file "lib/x/boot/tower-compiled.x" 36)
-; codec/sha256.x grew by one, 32 -> 33, for %cvt: the catalog converter it read
+; codec/sha256.x grew by one, 32 -> 33, for %cvt: the catalogue converter it read
 ; from the root while x/sys/posix bound it there.  posix is scoped, and under
 ; the plain x dialect nothing else binds it (x-lang#719, step 4).
 (file "lib/x/codec/sha256.x" 33)
@@ -225,7 +225,7 @@
 (file "lib/x/sys/pact.x" 12)
 ; asm-cache.x is a new file and 60 is nearly all DOORS: ~20 prim-refs and 10
 ; dlsym'd libc entries, fetched once at load because this module may not walk
-; bytes and every catalog dispatch or symbol lookup on its path is a cost per
+; bytes and every catalogue dispatch or symbol lookup on its path is a cost per
 ; site.  The rest are the format's own constants (magic, labels, strides) and
 ; the parse and store helpers.  A class here would be a door per call on the
 ; one lane where that is exactly what must not happen (x-lang#590).  The rest

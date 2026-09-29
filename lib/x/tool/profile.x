@@ -80,7 +80,7 @@
 
 ; --- Heap collection ---
 
-; ns `heap` is de-registered (R5): fetch the raw collector from the catalog.
+; ns `heap` is de-registered (R5): fetch the raw collector from the catalogue.
 ; The instrumented heap-collect / heap-collect-force ops below are this
 ; tool's own exports, defined fresh (nothing bare to shadow anymore).
 (def %heap-collect-prim (prim-ref (lit heap) (lit collect)))
@@ -128,7 +128,7 @@
 (import x/tool/cov cov-flags cov-cons? cov-body cov-word-size)
 
 ; The walks below run once per pair of every body and once per object on
-; the heap, so they take the integer primitives from the catalog: under the
+; the heap, so they take the integer primitives from the catalogue: under the
 ; numeric tower the bare names dispatch on their operands' types first.
 ;
 ; They also run between the moment the counts are cleared and the moment
@@ -136,7 +136,7 @@
 ; the program they measure: a heap walk would add a call of `if` and of
 ; `null?` for every object.  So what runs from profile-clear! to the end of
 ; profile-rows is the engine's own forms -- fn, match, first, rest, pair,
-; eq? -- the catalog primitives, and the functions of this module and of
+; eq? -- the catalogue primitives, and the functions of this module and of
 ; x/tool/cov, whose rows the report leaves out.  What is computed once, at
 ; load, may use anything.
 (def %profile-int+ (prim-ref (lit int) (lit +)))

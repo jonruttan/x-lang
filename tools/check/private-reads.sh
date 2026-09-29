@@ -4,13 +4,13 @@
 # A % name is private by convention, and until its module is scoped it is a
 # global like any other: a second file can read it, and does.  Every such
 # read is a coupling that scoping the owner will break, so step 4 of #719 is
-# spent turning them into doors -- a class static, a catalog entry, an export
+# spent turning them into doors -- a class static, a catalogue entry, an export
 # the reader imports.  This check keeps the count from growing meanwhile.
 #
 # What counts, per READER file: the distinct % names it mentions that some
 # OTHER unscoped file defines at its top level, and that the reader does not
 # define itself, at any depth.  A file's own definition of a name -- the
-# per-file catalog alias, `(def %cvt (prim-ref ...))` -- is not a read of
+# per-file catalogue alias, `(def %cvt (prim-ref ...))` -- is not a read of
 # anyone else's.  A scoped module's top-level defs are not in the root, so a
 # scoped file is never an owner; it can still be a reader of an unscoped
 # file's names, and those reads count.

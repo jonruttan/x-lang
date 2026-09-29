@@ -57,9 +57,9 @@ covers: eq?
 
 covers: eq? lit
 
-Symbol interning is what lets the catalog compare by pointer; an engine that
+Symbol interning is what lets the catalogue compare by pointer; an engine that
 allocated a fresh symbol per occurrence would fail here and would make every
-catalog lookup in the library quietly linear-and-wrong.
+catalogue lookup in the library quietly linear-and-wrong.
 
 ```x
 (%ok (eq? (lit alpha) (lit alpha)))

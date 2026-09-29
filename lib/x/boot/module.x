@@ -7,7 +7,7 @@
 ; Last bootstrap file — after this, normal modules can use provide/import.
 
 ; Extend base tree: add include-list cell under io-state
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
 
 ; THE COMMITTED ROUTES, not a hand-walked chain.  Both of these used to spell
@@ -28,9 +28,9 @@
 ; the first two lines of anyone's personality extraction, and it used to
 ; SIGSEGV with nothing on stdout or stderr.
 ;
-; The state lives in the CATALOG rather than in cells this file owns, because a
+; The state lives in the CATALOGUE rather than in cells this file owns, because a
 ; `def` here is re-evaluated on a re-load -- so any flag this file keeps is
-; reset exactly when it is needed.  The catalog belongs to the base and
+; reset exactly when it is needed.  The catalogue belongs to the base and
 ; survives.  There is no bound?/defined? predicate to test with either: this
 ; runs before `let`, let alone the type system, and prim-ref answering nil for
 ; an unregistered member is the test.
@@ -161,11 +161,11 @@
 ; %raw-include capture the WRAPPER, so `include` called itself forever -- and
 ; with no depth limit on non-tail calls (#56) that is a bare SIGSEGV.
 ; The flag is a PLAIN PAIR, deliberately.  Stashing the raw C `include` in the
-; catalog also works and reads better, but the catalog is the C surface the ISA
+; catalogue also works and reads better, but the catalogue is the C surface the ISA
 ; manifest describes -- tools/contract/isa.x -- and putting a C prim there under
 ; a second name makes the manifest claim a C function that does not exist.
 ; tests/x/specs/meta/isa.spec.md catches it, correctly.  An x-side value in the
-; catalog is ignored by that check, which is why `convert to` and `token accept`
+; catalogue is ignored by that check, which is why `convert to` and `token accept`
 ; already live there.
 ;
 ; On a re-load the flag is set, so this whole form is skipped -- and because it

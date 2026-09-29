@@ -7,7 +7,7 @@
 (module x/type/vector)
 
 (import x/core/list)
-; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
 (def %make-obj (prim-ref (lit obj) (lit make)))
 (def %obj-ref (prim-ref (lit obj) (lit ref)))
 
@@ -23,13 +23,13 @@
 (def %obj-set! (prim-ref (lit obj) (lit set!)))
 
 (import x/type/class)
-; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %make-type (prim-ref (lit type) (lit make)))
 (def %type-of (prim-ref (lit type) (lit of)))
 (def %type? (prim-ref (lit type) (lit ?)))
-; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
 (def %read (prim-ref (lit io) (lit read)))
-; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
 
 
@@ -305,7 +305,7 @@
 (bind-call-over! (Type of (Vector of 1)) Vector)
 
 ; Install elementwise vector equality on equal?'s extension hook (logic.x's
-; %equal-others, fetched from the catalog -- logic loads before this file, so
+; %equal-others, fetched from the catalogue -- logic loads before this file, so
 ; equal? cannot name the vector type itself). Chains the previous handler;
 ; runs only after equal?'s identity check has already failed. %obj-ref direct
 ; (not Vector ref): both operands are known vectors and i is bounded by the

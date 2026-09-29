@@ -82,7 +82,7 @@ awk '/^\(def %feature-capabilities/{f=1;next} /^\)\)\)/{f=0}
 c2g() {
 	_isa="$1"; _out="$2"
 	awk '
-		/^\(def %isa-catalogue/ { s="catalog"; next }
+		/^\(def %isa-catalogue/ { s="catalogue"; next }
 		/^\(def %isa-bare/    { s="bare";    next }
 		/^\(def %isa-keep/    { s="keep";    next }
 		/^\(def %isa-aliases/ { s="";        next }
@@ -90,9 +90,9 @@ c2g() {
 		/^  \(/ {
 			if (s == "") next
 			l = $0; sub(/;.*/, "", l); gsub(/[()]/, "", l); $0 = l
-			if (s == "catalog" && NF >= 3) print $1 "/" $2, $3
+			if (s == "catalogue" && NF >= 3) print $1 "/" $2, $3
 			else if (s == "values" && NF >= 1) print $1, "value"
-			else if (s != "catalog" && NF >= 2) print $1, $2
+			else if (s != "catalogue" && NF >= 2) print $1, $2
 		}' "$_isa" > "$W/rows"
 	sort -k2,2 "$W/rows" > "$W/rows-bylabel"
 	join -1 2 -2 1 -o 1.1,2.2 "$W/rows-bylabel" "$W/labelmap" | sort > "$W/bylabel"

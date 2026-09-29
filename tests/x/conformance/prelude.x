@@ -22,14 +22,14 @@
 ; distinguishable from a wrong answer.
 (def %ok (fn (self c) (match (c (error "ok")) (#t (error "no")))))
 
-; --- the catalog door -------------------------------------------------------
+; --- the catalogue door -------------------------------------------------------
 ; `prim-ref` DOES NOT EXIST bare: it is x-level (lib/x/boot/registry.x replaces
 ; the C bindings).  A coordinate is reached by walking the engine's own committed
 ; base paths to the prims cell -- and then taking ONE MORE first, because the path
-; ends at the CELL whose car is the catalog.  Without that step every lookup
+; ends at the CELL whose car is the catalogue.  Without that step every lookup
 ; misses in silence and a fully equipped engine reports as having nothing.
 ;
-; The catalog is an alist-of-alists, ((ns . ((method . prim) ...)) ...), built by
+; The catalogue is an alist-of-alists, ((ns . ((method . prim) ...)) ...), built by
 ; x_prims_file.  Namespace and method symbols are interned, so these comparisons
 ; are pointer comparisons.
 (include "tools/contract/base-paths.x")
@@ -76,7 +76,7 @@
 
 ; (%count-missing-bare '(name ...)) -> how many of those BARE names are unbound.
 ; Bare-bound primitives carry no ns/method split, so they cannot be looked up in
-; the catalog; `eval!` resolves a symbol held in a variable, which is what lets
+; the catalogue; `eval!` resolves a symbol held in a variable, which is what lets
 ; this be data-driven too -- the alternative was a shell script printf-ing one
 ; line of x-lang per name, which is how this file came to exist.
 (def %count-missing-bare

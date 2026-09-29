@@ -10,7 +10,7 @@
 ; `pair?` answers #f for the structural pairs the base spine is built from; and
 ; %reflect-type-word is itself a dereference, so the test for "may I walk
 ; this?" is already the unsafe act.  Names are declared (the ISA's %isa-bare),
-; looked up (the prims catalog), or asked of the linker (dladdr, round-trip
+; looked up (the prims catalogue), or asked of the linker (dladdr, round-trip
 ; checked).
 ;
 ; Plain defs in the root, with no module header, as x/tool/image/walk is
@@ -26,7 +26,7 @@
 ; --- the naming sources: address -> the path it was found at ---------------
 ; The key is the C function pointer the primitive holds in unit 0, not the
 ; primitive object's own address -- a foreign unit is that pointer.  Two
-; distinct primitive objects (catalog + and bare +) share one function and stay
+; distinct primitive objects (catalogue + and bare +) share one function and stay
 ; two object records in the image, so identity survives; what the foreign table
 ; names is the C function behind them.
 (doc (def image-fnptr (fn (_ v) (image-word-at (image-obj->ptr v) 0)))
@@ -37,11 +37,11 @@
 
 ; A map is a plain list of (addr . label); ~150 entries, so a linear probe is
 ; cheaper than anything with structure.
-; An entry is (fnptr . (label . payload)): label 1 catalog, 2 bare, 3 dlsym, and
+; An entry is (fnptr . (label . payload)): label 1 catalogue, 2 bare, 3 dlsym, and
 ; the payload is the NAME the loader will reacquire it by.  Kept as a list --
 ; ~130 entries, so a linear probe beats anything with structure.
-(doc (def image-foreign-catalog 1)
-  "Foreign label 1: a catalog primitive, named NAMESPACE/NAME.")
+(doc (def image-foreign-catalogue 1)
+  "Foreign label 1: a catalogue primitive, named NAMESPACE/NAME.")
 (doc (def image-foreign-bare 2)
   "Foreign label 2: a bare global the engine binds, named by its symbol.")
 (doc (def image-foreign-dlsym 3)
@@ -62,8 +62,8 @@
   (returns PAIR "(label . name), or nil when the map does not name the address")
   "Look an address up in a naming map.")
 
-; catalog: LIST of (ns . ((name . value) ...))
-(def %image-from-catalog
+; catalogue: LIST of (ns . ((name . value) ...))
+(def %image-from-catalogue
   (fn (self cat m)
     (if (null? cat) m
       (self (rest cat) (%image-from-methods (rest (first cat)) m (first (first cat)))))))
@@ -74,7 +74,7 @@
 (def %image-method-add
   (fn (_ e m ns)
     (if (%image-prim? (rest e))
-      (image-name-map-add m (image-fnptr (rest e)) image-foreign-catalog
+      (image-name-map-add m (image-fnptr (rest e)) image-foreign-catalogue
         (Str append (symbol->str ns) "/" (symbol->str (first e))))
       m)))
 
@@ -100,7 +100,7 @@
       (if (%image-prim? (rest x)) (image-name-map-add m (image-fnptr (rest x)) 2) m)
       m)))
 
-; Catalog only.  Walking the base env for the bare bindings crashes exactly as
+; Catalogue only.  Walking the base env for the bare bindings crashes exactly as
 ; docs/state-images.md predicts: a structural pair in the base tree may hold a
 ; raw C function pointer (the collector's own hooks), so following it as a
 ; reference is a wild read.  The bare bindings must come through base-paths.x
@@ -143,13 +143,13 @@
 ; crash, which is why %isa-bare is the door.
 ;
 ; Built FOR a base rather than for the ambient one: the writer images a child,
-; whose catalog and bare bindings are its own.
+; whose catalogue and bare bindings are its own.
 (doc (def image-name-map
   (fn (_ b)
-    (%image-from-bare %isa-bare (%image-from-catalog (first (b cell (lit prims))) ()) b)))
+    (%image-from-bare %isa-bare (%image-from-catalogue (first (b cell (lit prims))) ()) b)))
   (param b ANY "The base to name: a Base instance")
-  (returns LIST "Entries (address . (label . name)), for the base's catalog and bare primitives")
-  "Build the naming map of a base from its prims catalog and the bare globals the ISA contract declares.")
+  (returns LIST "Entries (address . (label . name)), for the base's catalogue and bare primitives")
+  "Build the naming map of a base from its prims catalogue and the bare globals the ISA contract declares.")
 
 ; --- the call pointer a whole TYPE shares -----------------------------------
 ; A PROCEDURE's unit 0 is the engine's procedure-call function, and EVERY
@@ -208,6 +208,6 @@
 (doc (provide x/tool/image/name
   image-name-map image-name-map-add image-name-map-get image-fnptr
   image-dl-name image-dl-round-trips? image-dl-handle
-  image-foreign-catalog image-foreign-bare image-foreign-dlsym
+  image-foreign-catalogue image-foreign-bare image-foreign-dlsym
   image-foreign-typecall image-foreign-dlopen)
   "Names for the foreign addresses a state image holds.")

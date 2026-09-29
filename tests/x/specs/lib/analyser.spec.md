@@ -3,7 +3,7 @@
 
 Analyser (`lib/x/reader/analyser.x`) is the tokenizer state-builder vocabulary. The
 builders are `Analyser` methods (called at setup); the terminators (accept /
-accept-inclusive / reject) are registered under catalog ns `token` for
+accept-inclusive / reject) are registered under catalogue ns `token` for
 reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 
 ## Analyser accept

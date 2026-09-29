@@ -233,7 +233,7 @@ sources, in the order the writer tries them:
 | source | named by |
 |---|---|
 | the type's own call pointer | the type's name |
-| the prims catalog | `NAMESPACE/NAME` |
+| the prims catalogue | `NAMESPACE/NAME` |
 | the bare globals the ISA contract declares (`%isa-bare`) | the symbol |
 | the process's `dlopen` handle | nothing; the loader opens its own |
 | `dladdr`, checked back through `dlsym` | the linker's symbol |

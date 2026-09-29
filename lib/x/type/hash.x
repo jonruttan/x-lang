@@ -9,20 +9,20 @@
 ; The base type handles, from their public door, fetched once at load.
 (def %string (Type named STRING))
 
-; The binary integer primitives, fetched from the catalog: the C operators as
+; The binary integer primitives, fetched from the catalogue: the C operators as
 ; they were before core/arithmetic.x wrapped the bare names.
 (def %int+ (prim-ref (lit int) (lit +)))
 (def %int* (prim-ref (lit int) (lit *)))
 (def %int= (prim-ref (lit int) (lit =)))
 (import x/type/class)
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str-append (prim-ref 'str 'append))
 
-; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
 (def %cvt (prim-ref 'convert 'to))
 
 ; Message bytes ride (str byte-len)/(str byte-ref) + (char ->int), NOT
-; the generic converter: %cvt is a full catalog dispatch per character,
+; the generic converter: %cvt is a full catalogue dispatch per character,
 ; and this loop is the inner loop of every Dict get/set! with a symbol
 ; or string key (#334).  sha256.x measured this exact substitution on
 ; its own byte loop at ~142us -> ~11us per byte.  Values are unchanged

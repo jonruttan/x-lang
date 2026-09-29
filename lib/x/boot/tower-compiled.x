@@ -18,7 +18,7 @@
 ; pre-seed below (with the tower modules) per the pre-seed invariant that
 ; make check-boot-order enforces.
 
-; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 (def %type-by-atom (prim-ref 'type 'by-atom))
 (def %type-of (prim-ref 'type 'of))
 (def %type-analyse-cell (prim-ref 'type 'analyse-cell))

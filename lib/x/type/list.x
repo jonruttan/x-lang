@@ -14,7 +14,7 @@
 (import x/type/class)
 
 ; N5 (implicit conversion): count/index seats COERCE to INT through the
-; conversion catalog. An already-INT arg costs one type-handle eq?
+; conversion catalogue. An already-INT arg costs one type-handle eq?
 ; (C-static atoms, pointer-stable; nil is typeless so it is checked
 ; first); anything else converts through %cvt, and only an UNCONVERTIBLE
 ; value errors. Coercion runs ONCE per public entry -- self-recursive

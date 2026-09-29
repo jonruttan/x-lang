@@ -6,12 +6,12 @@
 ; same? (identity) and eq? (value equality) are C primitives. eq? compares
 ; immediate scalars (int, char) by value and falls back to identity, so it
 ; still covers nil, booleans, and interned symbols too.
-; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
 (def %obj-meta-ref (prim-ref (lit obj) (lit meta-ref)))
-; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %type-of (prim-ref (lit type) (lit of)))
 (def %type? (prim-ref (lit type) (lit ?)))
-; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 (def %integer->char (prim-ref (lit int) (lit ->char)))
 
 

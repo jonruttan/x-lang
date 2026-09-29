@@ -39,7 +39,7 @@ honestly take one is a migration candidate, not a fixture.
 
 **A bare name here is not always what a caller reaches.** The `%isa-keep`
 entries — the arithmetic, bitwise and comparison operators — bind bare *even
-when their catalog namespace is de-registered*, and the library then shadows
+when their catalogue namespace is de-registered*, and the library then shadows
 twelve of the sixteen with tower-aware generics. So `+` and `<` reach x-lang
 code that dispatches over the numeric tower, while `=`, `eq?`, `same?` and
 `call/cc` reach the C primitive directly. The entries below describe the C
@@ -420,7 +420,7 @@ Signals an error with the evaluated `message`. If a `guard` handler is installed
 ## Coordinates
 
 These are C primitives with **no bare name at all**. They are filed in the
-prims catalog under a namespace, and the namespaces `str`, `mem`, `heap`, `io`,
+prims catalogue under a namespace, and the namespaces `str`, `mem`, `heap`, `io`,
 `sym` and `type` are de-registered — so `prim-ref` is the door:
 
 ```x-repl
@@ -428,7 +428,7 @@ prims catalog under a namespace, and the namespaces `str`, `mem`, `heap`, `io`,
 ```
 
 `Base`, `Type` and `Io` are **classes**, not prims: the spellings below are the
-class's own selectors, and the class reaches the same catalog coordinate on
+class's own selectors, and the class reaches the same catalogue coordinate on
 your behalf. Both routes are documented here because both are how the surface
 is actually used.
 

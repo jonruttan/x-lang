@@ -58,15 +58,15 @@
 (if (null? %IMG-LIB) ()
   (do (%child-prim! (lit include) %raw-include)
       (guard (_ ()) (%child-prim! (lit syscall) (eval (lit syscall))))
-      ; x-cli files catalog entries into the root base's catalog too: since
+      ; x-cli files catalogue entries into the root base's catalogue too: since
       ; x-engine-c 0.2.14, (ffi dlopen) and (ffi dlsym) are x-cli's, and a
       ; child has neither.  Without them the child's prim-ref answers nil, and
       ; err.x's errno lookup, which calls dlsym on dlopen's answer, ends in a
       ; (ptr call) through whatever the call on nil returned.  Each entry is
-      ; filed in the child's own catalog, from the function pointer the root's
+      ; filed in the child's own catalogue, from the function pointer the root's
       ; primitive holds, under names the child interns; the image's foreign
       ; table then names it ffi/NAME, and the loader takes the loading
-      ; process's own.  Symbols are per base, so the child's catalog is
+      ; process's own.  Symbols are per base, so the child's catalogue is
       ; searched by name.
       ((fn (_ named add!)
          (do (add! named "ffi" "dlopen" (prim-ref (lit ffi) (lit dlopen)))
@@ -437,7 +437,7 @@
          (%ht-find %SPINE-NAMES w))
       ((fn (_ e) (if (eq? e 0) (%sentinel! w) (%x-index w (first (image-ptr->obj (image-int->ptr e))) (rest (image-ptr->obj (image-int->ptr e))))))
        (%ht-find %STATIC-NAMES w)))))
-; A function pointer: catalog, bare global, dlsym, type-call, dlopen handle.
+; A function pointer: catalogue, bare global, dlsym, type-call, dlopen handle.
 ;  A type-call pointer -- a closure's call slot, the address a whole TYPE
 ; shares -- is the word its type's own call handler holds: a procedure is
 ; made with x_type_procedure_call in unit 0 and PROCEDURE's call cell wraps
@@ -455,7 +455,7 @@
            (%x-index w image-foreign-typecall (Type name (image-ptr->obj p)))
            ()))
      (image-ref-word p image-type-off))))
-; A function pointer: type-call, catalog, bare global, dlopen handle, dlsym.
+; A function pointer: type-call, catalogue, bare global, dlopen handle, dlsym.
 (def %fn-word
   (fn (_ w p)
     ((fn (_ k)

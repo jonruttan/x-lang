@@ -2,11 +2,11 @@
 ; (renamed from object.x, #36: it collided with obj.x, the small raw-slot
 ; wrapper class -- one name per concept)
 (import x/core/alist)
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
 (def %str->symbol (prim-ref (lit str) (lit ->sym)))
 (def %display-to-str (prim-ref (lit io) (lit display-to-str)))  ; render a bad init key in errors
-; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %make-type (prim-ref (lit type) (lit make)))
 (def %make-instance (prim-ref (lit type) (lit make-instance)))
 (def %type? (prim-ref (lit type) (lit ?)))

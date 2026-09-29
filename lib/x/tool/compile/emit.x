@@ -12,7 +12,7 @@
 ; The base type handles, from their public door, fetched once at load.
 (def %string (Type named STRING))
 
-; Fetched from the catalog into this module's frame: the conversion
+; Fetched from the catalogue into this module's frame: the conversion
 ; dispatcher, the type prims the state cells use, and the write-stack push
 ; and pop the writer brackets below call.
 (def %cvt (prim-ref 'convert 'to))

@@ -60,7 +60,7 @@
 ;
 ; `advance` runs per character inside a tokenizer callback, where a collection
 ; mid-token is a hazard and class dispatch allocates. So the logic lives in
-; %-private functions registered in the catalog under ns `indent`; reader-hot
+; %-private functions registered in the catalogue under ns `indent`; reader-hot
 ; callers fetch the raw ref once and call it directly, the discipline
 ; reader/analyser.x uses for its terminators. The Indent methods are the
 ; cold-call API over the same functions.
@@ -276,5 +276,5 @@
 (doc (provide x/reader/indent Indent)
   (note "Policy is constructor-set: tab stop and what an unmatched dedent means. Defaults are SRFI-110's, which are also Python's.")
   (note "Blank and comment-only lines are the CALLER's business: a line that produces no column never reaches feed.")
-  (note "Registered under catalog ns `indent` (advance/scan/measure/classify) for per-character callers who must not dispatch.")
+  (note "Registered under catalogue ns `indent` (advance/scan/measure/classify) for per-character callers who must not dispatch.")
   "The stack discipline under indentation-sensitive grouping (#520).")

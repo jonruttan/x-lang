@@ -3,7 +3,7 @@
 ; standalone -- it references (reg n) from asm.x)
 
 ; --- Register aliases ---
-; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr-ref (prim-ref 'ptr 'ref))
 (def %ptr-set! (prim-ref 'ptr 'set!))
 

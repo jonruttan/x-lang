@@ -11,7 +11,7 @@ corruption at the first reflective read. The library is entitled to trust the
 probe — everything in `reflect.x` is built on it — so a declaration that
 contradicts it means the declaration is wrong, or the casts are.
 
-The probe below is the same one `data.x` runs, written with the catalog door
+The probe below is the same one `data.x` runs, written with the catalogue door
 because this suite loads no library.
 
 ### the declared word size is the one the engine actually has

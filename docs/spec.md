@@ -929,7 +929,7 @@ Converts a symbol to a string.
 `(Convert to n (Type of "")) -> string`
 
 Converts an integer to its decimal string representation through the
-conversion catalog. The bare `number->str` spelling is retired (#108); the
+conversion catalogue. The bare `number->str` spelling is retired (#108); the
 boot layer keeps it %-private for the printer's hot path.
 
 ```x-repl
@@ -1309,7 +1309,7 @@ the name atom, `raw` the struct the wiring statics consume.
 
 `(t cell 'field-name)` walks the layout contract
 (`engine/tools/contract/base-paths.x`) to the object the type-rooted row for
-`field-name` addresses — handler stacks, the conversion catalog cells, the
+`field-name` addresses — handler stacks, the conversion catalogue cells, the
 generic-operator alist. `(t fields)` lists the row names. A name whose row is
 not type-rooted is refused: a base-rooted path stepped from a type
 would address arbitrary spine words.
@@ -1346,7 +1346,7 @@ Creates a fresh, sandboxed interpreter — all built-in types and C primitives,
 no library — wrapped as a Base instance. The raw C base object rides the
 instance's `raw` field; every `Base` static accepts either form, and
 `(Base raw-of v)` unwraps. A fresh child is the bare C ISA: no output verbs,
-no catalog protocol, no reader macros — reach in with parent closures or
+no catalogue protocol, no reader macros — reach in with parent closures or
 `bind`.
 
 ```x
@@ -1403,7 +1403,7 @@ is the base:
 (b eval 'x) -> 5
 ```
 
-The statics keep working on raw bases from the catalog prims — plumbing
+The statics keep working on raw bases from the catalogue prims — plumbing
 that holds a raw base passes it straight through:
 
 ```x

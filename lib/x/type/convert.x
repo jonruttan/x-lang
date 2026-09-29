@@ -5,7 +5,7 @@
 ;   - The TYPE SYSTEM carries the data: each type's cvt fields hold a
 ;     from-alist (source-type -> converter) and a to-alist (target-type ->
 ;     converter), set with the %type-set-from! helper below.
-;   - The CATALOG carries the implementation: %convert-to is registered as
+;   - The CATALOGUE carries the implementation: %convert-to is registered as
 ;     (convert . to); hot consumers (the tower's coercions, reader and write
 ;     handlers) fetch-and-cache it at module load:
 ;       (def %cvt (prim-ref (lit convert) (lit to)))
@@ -44,27 +44,27 @@
 
 (module x/type/convert)
 
-; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %type-of (prim-ref (lit type) (lit of)))
 
-; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
 (def %integer->char (prim-ref (lit int) (lit ->char)))
 (def %int->ptr (prim-ref (lit int) (lit ->ptr)))
 
-; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
 (def %ptr->str (prim-ref (lit ptr) (lit ->str)))
 
 (import x/type/class)
-; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
 (def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
 
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str->symbol (prim-ref (lit str) (lit ->sym)))
 (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
 
-; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-from-cell (prim-ref (lit type) (lit from-cell)))
 (def %type-to-cell (prim-ref (lit type) (lit to-cell)))
@@ -175,7 +175,7 @@
             (apply (rest entry) (pair val extra))))))))
 
 ; Register the implementation: consumers fetch (convert . to) from the
-; catalog instead of assuming an ambient name.
+; catalogue instead of assuming an ambient name.
 (prim-reg! (lit convert) (lit to) %convert-to)
 
 ; --- The API ---
@@ -201,6 +201,6 @@
           (if (if (null? k) #f (eq? (%type-of k) %int)) k (error what)))))))
 
 (doc (provide x/type/convert Convert)
-  (note "Hot consumers fetch the dispatcher from the catalog: (prim-ref 'convert 'to). The no-match policy is the (Convert missing) static field.")
+  (note "Hot consumers fetch the dispatcher from the catalogue: (prim-ref 'convert 'to). The no-match policy is the (Convert missing) static field.")
   (note "The base type handles have a public spelling: (Type named INTEGER), (Type named STRING), and so on for any registered name.")
   "Generic type conversion: the Convert class over the type system's from/to alists.")

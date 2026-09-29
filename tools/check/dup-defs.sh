@@ -6,8 +6,8 @@
 # whichever loads last rewires every caller.
 #
 # Rule, per global name defined at top level in more than one module:
-#   - catalog fetches -- a body that is (prim-ref ...) -- must all fetch
-#     the same catalog entry (normalized-identical args);
+#   - catalogue fetches -- a body that is (prim-ref ...) -- must all fetch
+#     the same catalogue entry (normalized-identical args);
 #   - one non-fetch definition (the registrar/owner) plus any number of
 #     fetches is fine: the fetches return the registered object;
 #   - several distinct non-fetch definitions fail, unless the name is in
@@ -241,7 +241,7 @@ END {
   for (name in nfiles) {
     if (nfiles[name] < 2) continue
     if (name in fetch_diverge) {
-      printf "dup-def: %s -- modules fetch DIFFERENT catalog entries under one name\n", name
+      printf "dup-def: %s -- modules fetch DIFFERENT catalogue entries under one name\n", name
       bad = 1
     }
     if ((name in own_diverge) && !(name in allow) && (name in own_outside_arch)) {

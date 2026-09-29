@@ -16,7 +16,7 @@
 (import x/type/list)
 (import x/type/path)
 
-; Fetch the byte prims from the catalog: the walk and the gates' line
+; Fetch the byte prims from the catalogue: the walk and the gates' line
 ; matchers are hot loops, and class dispatch costs hundreds of objects per
 ; call (the #123 lesson).
 (def %ct-byte-len (prim-ref 'str 'byte-len))

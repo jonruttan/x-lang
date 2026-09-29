@@ -17,7 +17,7 @@ body doesn't leave a half-finished call for the sweep to free.
 
 Installing hooks via the class is fine (cold path), but code that runs
 MID-COLLECT must not class-dispatch (dispatch allocates; the mark phase
-must not): such callables are fetched raw from the catalog instead.
+must not): such callables are fetched raw from the catalogue instead.
 
 ### a no-op mark-hook survives a full collect
 
@@ -54,7 +54,7 @@ and the call deferred; the collect then freed the in-flight frame.
 
 ### a C-primitive callable works as a mark-hook
 
-The hook runs mid-collect, so it is the raw catalog prim, not a class
+The hook runs mid-collect, so it is the raw catalogue prim, not a class
 dispatch.
 
 ```x
@@ -93,7 +93,7 @@ is intact.
 ### a mark-hook may register a root mid-collect
 
 The hook registers a root during the mark phase, so it calls the raw
-catalog prim (no allocation mid-collect); the freshly registered root
+catalogue prim (no allocation mid-collect); the freshly registered root
 is honoured and the object survives.
 
 ```x

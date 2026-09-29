@@ -19,7 +19,7 @@
 ;            division through RAX/RDX -- are dodged by the register
 ;            mapping below or handled inside the lowering.
 
-; Fetch the ptr prims from the catalog (ns `ptr` is de-registered, R5).
+; Fetch the ptr prims from the catalogue (ns `ptr` is de-registered, R5).
 (def %ptr-set! (prim-ref 'ptr 'set!))
 
 ; --- Register aliases (hardware encoding numbers) ---

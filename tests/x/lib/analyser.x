@@ -1,7 +1,7 @@
 ; Test harness: x-core.x (which loads x/reader/analyser -> the Analyser class and the
-; catalog-registered terminators) + cached terminator refs for the cases.
+; catalogue-registered terminators) + cached terminator refs for the cases.
 ;
-; The terminators (accept/reject) live under catalog ns `token` rather than as
+; The terminators (accept/reject) live under catalogue ns `token` rather than as
 ; globals -- reader-context callers fetch them. The spec runs cold, so it fetches
 ; them here once and the cases use %acc / %rej.
 (include "lib/x-core.x")

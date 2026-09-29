@@ -10,7 +10,7 @@
 (def %ptr (Type named POINTER))
 
 (import x/tool/compile/emit c-param-decls compile-fvars compile-params-set! compile-fns compile-fns-set! compile-push-writers compile-pop-writers)
-; Fetched from the catalog into this module's frame.
+; Fetched from the catalogue into this module's frame.
 (def %cvt (prim-ref 'convert 'to))
 (def %write-to-str (prim-ref 'io 'write-to-str))
 (def %dlsym (prim-ref 'ffi 'dlsym))

@@ -2,7 +2,7 @@
 # prim-coverage.sh -- every C primitive is exercised by a spec, or says why not.
 #
 # The contract: for each primitive the C source registers, the spec suite
-# either exercises it -- by name, through its catalog coordinate, or through
+# either exercises it -- by name, through its catalogue coordinate, or through
 # the class that fronts its namespace -- or carries a section saying it is
 # deliberately unspecced and why.  A primitive that is neither fails this gate.
 #
@@ -50,7 +50,7 @@ trap 'exit 143' TERM
 # names the engine keeps bound but does not register, and this gate asks about
 # the registered surface.
 awk '
-	/^\(def %isa-catalogue/ { s="catalog"; next }
+	/^\(def %isa-catalogue/ { s="catalogue"; next }
 	/^\(def %isa-bare/    { s="bare";    next }
 	/^\(def %isa-keep/    { s="keep";    next }
 	/^\(def %isa-aliases/ { s="";        next }
@@ -58,8 +58,8 @@ awk '
 	/^  \(/ {
 		if (s == "") next
 		l = $0; sub(/;.*/, "", l); gsub(/[()]/, "", l); $0 = l
-		if (s == "catalog" && NF >= 3)      print "catalog", $1, $2
-		else if (s != "catalog" && NF >= 1) print s, $1
+		if (s == "catalogue" && NF >= 3)      print "catalogue", $1, $2
+		else if (s != "catalogue" && NF >= 1) print s, $1
 	}' "$ISA" > "$SCAN"
 
 # x-lang's specs, and only those: the engine's C suite is not in the tree once
@@ -76,17 +76,17 @@ BEGIN {
 	while ((getline line < scan) > 0) {
 		n = split(line, f, " ")
 		# A subject is either of two things, in the terms the contract uses: a bare row is
-		# its name and a catalog row is its coordinate, which is how x-lang
+		# its name and a catalogue row is its coordinate, which is how x-lang
 		# addresses them.  The registration name a C table carries as a third
 		# string is not recorded in isa.x, and a non-C engine has none.
 		if (f[1] == "bare" || f[1] == "value") { bare[f[2]] = 1; bound[f[2]] = 1 }
 		# KEEP rows are bound but not registered: `%` and the rest of the int
-		# operators are reachable by name and filed in the catalog as well.
+		# operators are reachable by name and filed in the catalogue as well.
 		# They are not subjects of this gate -- the scanner did not make them
 		# subjects either -- but they are how a spec reaches the primitive
-		# behind a catalog coordinate, so they count as a way of reaching it.
+		# behind a catalogue coordinate, so they count as a way of reaching it.
 		else if (f[1] == "keep")               { bound[f[2]] = 1 }
-		else if (f[1] == "catalog" && n >= 3)  { cat[f[2] " " f[3]] = f[3] }
+		else if (f[1] == "catalogue" && n >= 3)  { cat[f[2] " " f[3]] = f[3] }
 	}
 	close(scan)
 }
@@ -151,7 +151,7 @@ FNR == 1 { in_fence = 0; is_c = (FILENAME ~ /\.spec\.c$/) }
 
 	# The conformance door.  That suite runs against a bare engine, where
 	# prim-ref does not exist -- it is x-level -- so it reaches a primitive by
-	# walking the base to the catalog: (%coord (lit ffi) (lit dlopen)).  Reading
+	# walking the base to the catalogue: (%coord (lit ffi) (lit dlopen)).  Reading
 	# that idiom is what keeps ffi/dlopen from reading as unexercised.
 	#
 	# No apostrophes in this program: it is single-quoted by the shell, which
@@ -204,7 +204,7 @@ END {
 		printf "  %s -- no spec exercises it, and no section declares it unspecced\n", p
 	}
 
-	# --- the catalog surface -----------------------------------------------
+	# --- the catalogue surface -----------------------------------------------
 	for (c in cat) {
 		m = cat[c]
 		split(c, f, " ")
@@ -224,7 +224,7 @@ END {
 		# function behind both.  They are merged only when isa.x lists the
 		# name as bound.
 		#
-		# Reconstructing the registration name: the C files a catalog entry
+		# Reconstructing the registration name: the C files a catalogue entry
 		# under a name as well as a coordinate -- (alloc limit!) is called as
 		# alloc-limit!, (io repl-read) as repl-read -- and that name is a free
 		# string in the C table which isa.x does not record.  In practice it is

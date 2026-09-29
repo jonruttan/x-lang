@@ -8,7 +8,7 @@
 ; (Tok read-str, Xon's base walks) unwrap the same way.
 ;
 ; The base C prims are de-registered (no bare names); each method hands
-; its evaluated args to the matching prim, captured from the catalog.
+; its evaluated args to the matching prim, captured from the catalogue.
 ; Field reflection walks the layout contract (engine/tools/contract/base-paths.x)
 ; through type/type.x's %layout-* helpers (that module loads earlier).
 
@@ -16,7 +16,7 @@
 
 (def-class Base ()
   (doc "Execution-context / sandbox objects: each base is a whole, isolated interpreter -- its own environment, type registry, and reader state -- wrapped as a Base instance."
-    (note "CONTRACT: a fresh base is the bare C ISA -- no display/write, no reader macros, no catalog protocol. Reach in with parent closures or (b bind ...); see core/sandbox specs.")
+    (note "CONTRACT: a fresh base is the bare C ISA -- no display/write, no reader macros, no catalogue protocol. Reach in with parent closures or (b bind ...); see core/sandbox specs.")
     (note "An instance renders as #<base:objs N>; the raw C base it wraps (the `raw` field) renders as the opaque #<obj:BASE>.")
     (note "Field access walks the layout contract: (b cell 'line), names from (Base fields).")
     (example "(let ((b (Base make))) (b eval '(+ 1 2)))" "3"))
@@ -107,7 +107,7 @@
 
 (doc (provide x/type/base Base)
   (note "(Base make) -> a Base instance wrapping a fresh execution-context; (b eval expr) / (Base eval b expr) evaluates expr inside it, isolated from the outer env.")
-  (note "CONTRACT: a fresh base is the bare C ISA -- no display/write, no catalog protocol. Reach in with parent closures or (b bind ...); see core/sandbox specs.")
+  (note "CONTRACT: a fresh base is the bare C ISA -- no display/write, no catalogue protocol. Reach in with parent closures or (b bind ...); see core/sandbox specs.")
   (note "Field reflection: (b cell 'line) walks the layout contract; (Base fields) lists the names. The raw C base rides the `raw` field; statics and tokenizer seams accept either form.")
   (example "(let ((b (Base make))) (b eval '(+ 1 2)))" "3")
   "Base: execution-context / sandbox objects, via the Base class.")

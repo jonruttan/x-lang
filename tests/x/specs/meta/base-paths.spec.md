@@ -8,7 +8,7 @@ half (`make check-base-paths`) re-derives the paths from the headers.
 
 ## walked cells are the C layer's cells
 
-### the prims path lands on the catalog cell
+### the prims path lands on the catalogue cell
 
 ```x
 (eq? (first (%reflect-base-cell 'prims)) (prims))

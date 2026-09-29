@@ -7,7 +7,7 @@
 (def %string (Type named STRING))
 
 (import x/core/list)
-; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
 
 (import x/type/class)
@@ -23,7 +23,7 @@
 (def %O_TRUNC  (first (%assoc-get (lit trunc)  file-modes)))
 (def %O_APPEND (first (%assoc-get (lit append) file-modes)))
 
-; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr-call (prim-ref (lit ptr) (lit call)))
 (def %ptr-ref (prim-ref (lit ptr) (lit ref)))
 (def %ptr-set-word! (prim-ref (lit ptr) (lit set-word!)))
@@ -350,8 +350,8 @@
         (returns BOOL "True if fd refers to a terminal")
         (sample "(Sys isatty 1)" "#t"))
       (= 1 (%sys-fold (%ptr-call %c-isatty fd))))
-    ; clock was previously reached via the catalog auto-class (ns sys); authored
-    ; here as the catalog bridge retires (R4). Cold path -> inline prim-ref.
+    ; clock was previously reached via the catalogue auto-class (ns sys); authored
+    ; here as the catalogue bridge retires (R4). Cold path -> inline prim-ref.
     (method clock (self)
       (doc "Current process CPU time in microseconds (the (Sys time) profiler reads this). WALL-clock time is (Sys now) / (Sys time-of-day)."
         (returns INTEGER "Microseconds of CPU time consumed"))

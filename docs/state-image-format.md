@@ -41,7 +41,7 @@ generated `x-eval-layout.h`):
 | io-fields | `type-alist` (cell) | the type registry: `((name-stack . struct) …)`, keyed by the name-stack node (`x_alist_assoc` compares `first(key)`, `x-alist.c`) |
 | io-state | `line`, `true`, `false` | `true`/`false` hold the engine statics `x_true_obj`/`x_false_obj` |
 | profile | ten counters | plain integers; the loader may keep its own |
-| state | `eval-list`, `token-cache`, `sigint`, `err`, `prims`, `file`, `err-line`, `err-file`, `file-registry` | `err` is the one base-resident ERR instance every raise fills (`x_type_err_register`); `prims` is the catalog, a list of `(ns (method . PRIMITIVE) …)` (`x_prim_register`); `sigint` is a shared atom |
+| state | `eval-list`, `token-cache`, `sigint`, `err`, `prims`, `file`, `err-line`, `err-file`, `file-registry` | `err` is the one base-resident ERR instance every raise fills (`x_type_err_register`); `prims` is the catalogue, a list of `(ns (method . PRIMITIVE) …)` (`x_prim_register`); `sigint` is a shared atom |
 
 Process state, which the loader keeps: `files` (descriptors, write-buf, and
 the read buffer — a BUFFER over a C array on `main`'s stack, `x-cli.c`),
@@ -83,7 +83,7 @@ Consequences:
    `load` (§4.3): a type turns its own objects into labelled words and fixes a
    rebuilt one up. The writer never reads a type's units from outside; it
    asks the type, through `(image save!)`.
-2. Handler stacks, the resident ERR, the catalog, the symbol table and the
+2. Handler stacks, the resident ERR, the catalogue, the symbol table and the
    file registry come with the image because they are reachable from the
    cells.
 3. The only things not in the image are the two variants of thing the loader
@@ -123,7 +123,7 @@ Words are `%word-size` bytes, little-endian. Sections are contiguous:
 
 The loader refuses a `RELEASE` that is not its own: an image is a heap laid
 out by one build of the engine, and its externals are named against that
-build's catalog and statics.
+build's catalogue and statics.
 
 ### 3.2 Names and steps
 
@@ -158,7 +158,7 @@ index (negative in a `ref` unit, plain in a `foreign` unit). Labels:
 
 | label | names | loader resolves to |
 |---|---|---|
-| 1 `catalog` | `ns/method` | the C function pointer behind its own `(prim-ref ns method)` |
+| 1 `catalogue` | `ns/method` | the C function pointer behind its own `(prim-ref ns method)` |
 | 2 `bare` | a global's name | the function pointer of the callable bound to that name in a fresh base |
 | 3 `dlsym` | a C symbol | `dlsym` |
 | 4 `typecall` | `PROCEDURE` or `OPERATIVE` | the call pointer a fresh closure of that type carries |
@@ -364,7 +364,7 @@ structs and two indices; the loader does not care which is which.
    `lib/x/tool/asm-cache.x` holds each compile's code and relocation
    records in the heap, so a compile here copies the code into a fresh
    page and patches it.
-   A module adds to either list through the catalog, `(image transient!)`
+   A module adds to either list through the catalogue, `(image transient!)`
    and `(image recache-hook!)`, which `boot/reflect.x` files.
 
 The loader is silent when a runner drives it; with `%IMG-VERBOSE` bound it

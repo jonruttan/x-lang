@@ -1,17 +1,17 @@
 ; asm.x -- Data-driven assembler: JIT machine code generation
 (import x/core/list)
-; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
 (def %make-obj (prim-ref 'obj 'make))
 (def %obj-ref (prim-ref 'obj 'ref))
 (def %obj-set! (prim-ref 'obj 'set!))
 (def %make-type (prim-ref 'type 'make))
 
-; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str-append (prim-ref 'str 'append))
 (def %str->symbol (prim-ref 'str '->sym))
 
 (import x/type/str)
-; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr-call (prim-ref 'ptr 'call))
 (def %ptr->int (prim-ref 'ptr '->int))
 (def %ptr-set! (prim-ref 'ptr 'set!))

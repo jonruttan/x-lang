@@ -47,8 +47,8 @@ awk '/^\(def %feature-group-rows/{f=1;next} /^\)\)\)/{f=0}
 awk '/^\(def %feature-capabilities/{f=1;next} /^\)\)\)/{f=0}
      f && /^  \(/ { l=$0; sub(/;.*/,"",l); gsub(/[()]/,"",l); $0=l
                     if (NF>=2 && $2!="rows" && $2!="-") print $2, $1 }' "$FEAT" | sort -k1,1 > "$W/labelmap"
-# Catalog rows carry an ns/method split; bare and keep rows do not, and are probed
-# by resolving the symbol instead of by walking the catalog.
+# Catalogue rows carry an ns/method split; bare and keep rows do not, and are probed
+# by resolving the symbol instead of by walking the catalogue.
 # VALUES probe exactly like bare names -- evaluate the symbol and see whether it
 # resolves -- so they enter as `bare`.  They were skipped, which is why the rows
 # meta/identity is made of had no compliance probe: declared, required, and

@@ -774,7 +774,7 @@
    X_ASM_CACHE_DIR environment variable names, and holds each entry in the
    heap as well, where a state image carries it.")
 
-; Filed in the catalog for the compile-asm door in x/tool/compile: that module
+; Filed in the catalogue for the compile-asm door in x/tool/compile: that module
 ; loads this one on first use and cannot name a function of a module it has
 ; not loaded, so it fetches the entry after the import.
 (prim-reg! (lit compile) (lit asm-cached) asm-compile-cached)

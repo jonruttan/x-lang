@@ -13,7 +13,7 @@ does.  Its forms reach the engine's own read-eval loop; there is no `(repl)`.
 
 ## img.x -- the loader's dialect
 
-### a primitive reached by its catalog coordinate
+### a primitive reached by its catalogue coordinate
 
 ```x
 (display (num->str ((prim! (lit int) (lit +)) 2 3))) (newline)

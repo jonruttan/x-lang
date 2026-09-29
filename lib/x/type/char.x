@@ -6,7 +6,7 @@
 (module x/type/char)
 
 (import x/type/class)
-; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
 (def %integer->char (prim-ref (lit int) (lit ->char)))
 

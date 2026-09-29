@@ -21,7 +21,7 @@
     (%set-cell-int! %fo %s)))
 
 ; Quick profile dump to stderr (alloc-count + heap object count).
-; ns `heap` is de-registered (R5): fetch the prim from the catalog.
+; ns `heap` is de-registered (R5): fetch the prim from the catalogue.
 
 
 ; Buffer length and unread for tokenizer scoring

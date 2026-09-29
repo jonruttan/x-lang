@@ -42,7 +42,7 @@
 (def %apply apply)
 ; The reflection doors the value path takes.  It dispatches on every call it
 ; serves, so they are fetched once, here, as the modules that wire types fetch
-; theirs; fetched from the catalog on each call they cost 1,283 objects.
+; theirs; fetched from the catalogue on each call they cost 1,283 objects.
 (def %apply-type-of (prim-ref (lit type) (lit of)))
 (def %apply-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %apply-call-top (prim-ref (lit type) (lit call-top)))

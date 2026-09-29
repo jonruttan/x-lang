@@ -16,14 +16,14 @@
 (module x/type/iter)
 
 (import x/core/list)
-; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-push-iter (prim-ref (lit type) (lit push-iter)))
 
 (import x/type/class)
 (import x/type/vector)
 
-; The C iter prims, captured from the catalog (the `iter` namespace is
+; The C iter prims, captured from the catalogue (the `iter` namespace is
 ; de-registered, so they have no bare names).  Applicative -- the methods call
 ; them with their param symbols, a single eval.
 (def %i-make   (prim-ref (lit iter) (lit make)))
@@ -31,7 +31,7 @@
 (def %i-step   (prim-ref (lit iter) (lit step)))
 (def %i-empty? (prim-ref (lit iter) (lit empty?)))
 (def %i-new    (prim-ref (lit iter) (lit new)))
-; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %type-of (prim-ref (lit type) (lit of)))
 (def %type? (prim-ref (lit type) (lit ?)))
 ; The ITER type handle, for iter?: type-of a degenerate iterator.

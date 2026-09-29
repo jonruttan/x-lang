@@ -2,7 +2,7 @@
 ## GC stress
 
 Exercises mark+sweep over non-trivial heaps via the atomic `(Heap collect)`
-(ns `heap` is de-registered: the class -- or a catalog fetch -- is the only
+(ns `heap` is de-registered: the class -- or a catalogue fetch -- is the only
 surface; the bare `heap-collect` name no longer exists).
 
 List sizes are kept at/below 1000: larger non-tail recursion (e.g.

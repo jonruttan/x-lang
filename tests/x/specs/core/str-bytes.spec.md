@@ -1,13 +1,13 @@
 # Byte-level string primitives
 # @weight 1
 
-The `str` catalog: byte length, byte indexing, byte substrings and
+The `str` catalogue: byte length, byte indexing, byte substrings and
 string-to-symbol interning.  These are the layer the UTF-8 codec is built on,
 so they are deliberately BYTE-oriented -- `str byte-len` counts bytes, not
 code points, and that difference is the whole reason this layer exists.
 
 The `str` namespace is de-registered, so these have no bare binding and are
-reached through the catalog.
+reached through the catalogue.
 
 ## str byte-len
 

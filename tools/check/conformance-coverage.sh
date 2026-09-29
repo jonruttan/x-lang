@@ -35,12 +35,12 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 # --- the surface: every ISA row, as the `covers:` lines spell it -------------
-# Catalog rows are ns/method; bare and keep rows are the bare name.  Values are
+# Catalogue rows are ns/method; bare and keep rows are the bare name.  Values are
 # counted too -- meta/identity is made of them and `core` requires it, so a row
 # nothing exercises is a gap in the suite like any other.  Aliases are x-level
 # and carry no obligation.
 awk '
-	/^\(def %isa-catalogue/ { s="catalog"; next }
+	/^\(def %isa-catalogue/ { s="catalogue"; next }
 	/^\(def %isa-bare/    { s="bare";    next }
 	/^\(def %isa-keep/    { s="keep";    next }
 	/^\(def %isa-aliases/ { s="";        next }
@@ -48,8 +48,8 @@ awk '
 	/^  \(/ {
 		if (s == "") next
 		l = $0; sub(/;.*/, "", l); gsub(/[()]/, "", l); $0 = l
-		if (s == "catalog" && NF >= 3) print $1 "/" $2
-		else if (s != "catalog" && NF >= 1) print $1
+		if (s == "catalogue" && NF >= 3) print $1 "/" $2
+		else if (s != "catalogue" && NF >= 1) print $1
 	}' "$ISA" | sort -u > "$W/surface"
 
 # --- what the suite claims to define ----------------------------------------

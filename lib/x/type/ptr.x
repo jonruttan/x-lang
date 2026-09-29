@@ -1,20 +1,20 @@
 ; type/ptr.x -- Ptr + Ffi: the raw-pointer and foreign-function surface.
 ;
-; The C primitives live in src/x-prim/ffi.c (catalog ns `ptr` and `ffi`);
+; The C primitives live in src/x-prim/ffi.c (catalogue ns `ptr` and `ffi`);
 ; the methods fetch inline per the cold rule. Both namespaces are
-; DE-REGISTERED (R5): the classes -- or catalog fetches -- are the only
+; DE-REGISTERED (R5): the classes -- or catalogue fetches -- are the only
 ; surface. Low-level/hot consumers (boot/data.x's int mutators, the JIT
 ; assembler, x/num/float's stubs) fetch-and-cache into module %-vars:
 ;   (def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
 ;
-; Pointer CONSTRUCTION from an int is int->ptr (catalog ns `int`, method
+; Pointer CONSTRUCTION from an int is int->ptr (catalogue ns `int`, method
 ; ->ptr); (Ptr from-int n) fetches it. obj->ptr / str->ptr live on the Obj
 ; and (via Convert) string surfaces.
 (module x/type/ptr)
 
 (import x/type/class)
 
-; Type helpers for ptr? (ns `type` de-registered; fetch from the catalog).
+; Type helpers for ptr? (ns `type` de-registered; fetch from the catalogue).
 ; The PTR handle is obtained by type-of'ing a null pointer -- not dereferenced.
 (def %type-of (prim-ref (lit type) (lit of)))
 (def %type? (prim-ref (lit type) (lit ?)))

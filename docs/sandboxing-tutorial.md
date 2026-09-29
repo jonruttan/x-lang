@@ -65,7 +65,7 @@ child stays usable afterwards — a caught error does not corrupt it:
 
 A fresh child is the **bare C ISA** — arithmetic, binding, eval — and
 nothing more. The library you are typing at lives in the *parent*; the
-child has no output verbs, no catalog protocol, no reader macros:
+child has no output verbs, no catalogue protocol, no reader macros:
 
 ```x-repl
 > (guard (e 'bare) (b eval '(display "hi")))
@@ -192,7 +192,7 @@ answers a Type instance:
 ```
 
 `(t cell 'field-name)` walks the type-rooted rows of the same layout
-contract — handler stacks, the conversion catalog cells, the
+contract — handler stacks, the conversion catalogue cells, the
 generic-operator alist — and refuses base-rooted names, mirroring
 `Base cell`.
 
@@ -265,7 +265,7 @@ never the canonical `List` walkers.
 ## Raw bases, and when you need them
 
 The instance is the right thing to hold almost always. The raw object —
-`(b raw)`, or anything the catalog prims hand you — matters at three
+`(b raw)`, or anything the catalogue prims hand you — matters at three
 seams:
 
 - **C plumbing.** `(prim-ref 'tok 'read-str)` and friends consume raw

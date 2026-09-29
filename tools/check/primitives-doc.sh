@@ -43,7 +43,7 @@ trap 'exit 143' TERM
 # anchored `^%isa-catalogue:` matches only the format comment and would classify
 # every name as library -- a check that passes by seeing nothing.
 awk -v w="$W" '
-	/^\(def %isa-catalogue/ { sec = "catalog"; next }
+	/^\(def %isa-catalogue/ { sec = "catalogue"; next }
 	/^\(def %isa-bare/    { sec = "bare";    next }
 	/^\(def %isa-keep/    { sec = "bare";    next }   # keep-list binds bare too
 	/^\(def %isa-/        { sec = "";        next }
@@ -51,10 +51,10 @@ awk -v w="$W" '
 	sec != "" && /^[[:space:]]*\(/ {
 		line = $0; sub(/;.*/, "", line); gsub(/[()]/, " ", line)
 		if (split(line, f, " ") == 0) next
-		if (sec == "catalog") print tolower(f[1]) " " f[2] >> (w "/catalog")
+		if (sec == "catalogue") print tolower(f[1]) " " f[2] >> (w "/catalogue")
 		else                  print f[1]                  >> (w "/bare")
 	}' "$ISA"
-[ -s "$W/catalog" ] || { echo "primitives-doc: parsed no catalog rows from $ISA" >&2; exit 2; }
+[ -s "$W/catalogue" ] || { echo "primitives-doc: parsed no catalogue rows from $ISA" >&2; exit 2; }
 [ -s "$W/bare" ]    || { echo "primitives-doc: parsed no bare rows from $ISA" >&2; exit 2; }
 
 # Which part each `##` heading opens.  Renaming a part here without renaming it
@@ -75,7 +75,7 @@ belongs() {
 		*" "*)
 			_ns=$(printf '%s' "$_n" | cut -d' ' -f1 | tr 'A-Z' 'a-z')
 			_m=$(printf '%s' "$_n" | cut -d' ' -f2-)
-			if grep -qxF -- "$_ns $_m" "$W/catalog"; then echo coord; else echo library; fi ;;
+			if grep -qxF -- "$_ns $_m" "$W/catalogue"; then echo coord; else echo library; fi ;;
 		*)
 			if grep -qxF -- "$_n" "$W/bare"; then echo c; else echo library; fi ;;
 	esac
@@ -119,7 +119,7 @@ done < "$DOC"
 if [ "$bad" != 0 ]; then
 	echo "primitives-doc: FAIL -- a form is documented as something it is not." >&2
 	echo "  c       = bound bare by C            (%isa-bare / %isa-keep)" >&2
-	echo "  coord   = catalog row, no bare name  (%isa-catalogue)" >&2
+	echo "  coord   = catalogue row, no bare name  (%isa-catalogue)" >&2
 	echo "  library = in no ISA block            (lib/x/boot, lib/x/core)" >&2
 	exit 1
 fi

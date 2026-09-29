@@ -223,7 +223,7 @@
     (%check-n %sj-bin2 200)
     %digest))
 
-; The codec reaches the maker through the catalog: it loads this module inside
+; The codec reaches the maker through the catalogue: it loads this module inside
 ; the function that builds the engine, and a name imported there is one the
 ; linter cannot see.
 (prim-reg! (lit sha256) (lit jit-make) sha-jit-make)

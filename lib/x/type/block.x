@@ -133,7 +133,7 @@
     ; because "one or two names" is not the rule everywhere -- fold's
     ; callback is genuinely binary.
 
-    ; The catalog's converter is fetched here, on the way to the error: this
+    ; The catalogue's converter is fetched here, on the way to the error: this
     ; file binds no %cvt of its own, and x/sys/posix's is private to it.  The
     ; string type's handle comes the same way, by name through Type's door.
     (method %shape-error (self what n)

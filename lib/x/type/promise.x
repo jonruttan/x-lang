@@ -8,7 +8,7 @@
 (module x/type/promise)
 
 (import x/type/class)
-; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %make-type (prim-ref (lit type) (lit make)))
 (def %make-instance (prim-ref (lit type) (lit make-instance)))
 (def %type? (prim-ref (lit type) (lit ?)))

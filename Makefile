@@ -522,7 +522,7 @@ check-examples: $(EXECUTABLE) ## Run every example under its documented dialect
 #
 # Their RUNTIME halves stay here and run under test-x, because only a booted
 # engine can answer them: tests/x/specs/meta/{isa,obj-layout,base-paths}.spec.md
-# walk the live catalog, the live object header and the live base spine.
+# walk the live catalogue, the live object header and the live base spine.
 # ANNOUNCE, DO NOT FAIL, when the engine ships no sources.  These three ask
 # whether the engine's C agrees with the manifests it publishes -- a question
 # with no subject in a released artifact, which carries the manifests and no C.
@@ -1144,7 +1144,7 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	# namer are library modules (x/tool/image/walk, x/tool/image/name) and
 	# install with lib/ --
 	# engine/tools/contract/ holds the contracts a checkout reads from the
-	# engine submodule (isa.x is the namer's catalog), and nothing else.
+	# engine submodule (isa.x is the namer's catalogue), and nothing else.
 	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tools/dev $(DESTDIR)$(LIBDIR)/engine/tools/contract
 	for f in image-build.sh image-write.x image-read.x; do \
 		install $C -m 0644 tools/dev/$$f $(DESTDIR)$(LIBDIR)/tools/dev/$$f || exit 1; \

@@ -265,7 +265,7 @@ the Doxygen house style — live with the code they govern, in
   `(s i)`; `Gen ref` excepted — a lazy stream has no end). Index-search
   misses return `()` (the old `-1` exception is repealed).
 - **Count/index seats coerce to INT implicitly** through the conversion
-  catalog (N5): an already-INT argument costs one cached type-handle `eq?`;
+  catalogue (N5): an already-INT argument costs one cached type-handle `eq?`;
   anything else converts (a float truncates per the tower's converter), and
   only an UNCONVERTIBLE value errors ("… not convertible to INT") — which is
   how a piped nil miss fails loudly. Coercion runs ONCE per public entry;

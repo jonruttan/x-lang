@@ -630,7 +630,7 @@ root precedence, the unpinnable core, the closed vocabulary,
 
 The bootstrap loader `lib/x-core.x` loads modules in a specific order:
 
-1. **Boot phase** — Loads the boot layer via raw `include`: two repo contracts (`engine/tools/contract/base-paths.x`, `engine/tools/contract/obj-layout.x`) and the seven `lib/x/boot/` files (`registry.x`, `operatives.x`, `data.x`, `reflect.x`, `printer.x`, `string.x`, `module.x`). These establish the catalog, the object layout, printing, and the minimum needed for `provide`/`import` to work.
+1. **Boot phase** — Loads the boot layer via raw `include`: two repo contracts (`engine/tools/contract/base-paths.x`, `engine/tools/contract/obj-layout.x`) and the seven `lib/x/boot/` files (`registry.x`, `operatives.x`, `data.x`, `reflect.x`, `printer.x`, `string.x`, `module.x`). These establish the catalogue, the object layout, printing, and the minimum needed for `provide`/`import` to work.
 
 2. **Pre-registration** — Every library path x-core loads (all its raw `include`s, the boot files, and `lib/x-core.x` itself) is pre-registered in the include-list, so `import` calls within those modules are no-ops (the paths are already marked as "included"). Raw `include` does not register a path, so this parallel list is the registration; `make check-boot-order` enforces that the two stay in sync.
 
