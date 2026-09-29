@@ -903,7 +903,7 @@ without it.
 [#796]: https://github.com/jonruttan/x-lang/pull/796
 
 **The kit's lint reads a scoped bundle's imports** ([#795]). The linter lints
-a bundle's directory of modules as one group, with a preload that imported
+a bundle's directory of modules as one batch, with a preload that imported
 each sibling bare and ran the imports of only the first file. A scoped
 module answers a bare import with its classes alone, so every name a scoped
 file imported from a sibling read as Undefined -- x-cc's 53, once its parts
@@ -989,7 +989,7 @@ staying put. `docs/namespaces.md` records that the seven boot files loading
 before `boot/module.x` cannot be modules at all.
 
 **The JIT compiler, its byte cache and the compiled SHA-256 engine are
-modules of their own** ([#719], step 4, the JIT group). `x/tool/asm-compile`,
+modules of their own** ([#719], step 4, the JIT batch). `x/tool/asm-compile`,
 `x/tool/asm-cache` and `x/codec/sha256-jit` carry `(module ...)` headers,
 which hides 181 private names; nothing outside them read one except two
 specs, which reach the cache's five functions and the engine's two
@@ -1036,7 +1036,7 @@ and the shared fixture writes a file only when its bytes differ, since the
 six files build the fixture together as they start.
 
 **`x/num/rational`, `x/num/complex` and `x/num/decimal` are modules of
-their own** ([#719], step 4, the second batch of the number group; the first
+their own** ([#719], step 4, the second batch of the number modules; the first
 is below). Their forty-two cross-file names -- the tower's twenty-five
 operations and handles, the eighteen analyser states the compiled tower
 rebinds or reads, `%rational`, `%rat?`, `%make-rational` and
@@ -1075,11 +1075,11 @@ the library's door cannot retarget them. The image writer names that primitive
 as it names `include`'s, and the isa spec's library declares `%apply` as an
 alias of the bare name. The engine is unchanged: a C primitive jumps where it
 is told, and the guard is the language's. x-python's
-`%py-apply-any` had grown an arm per kind of callable to keep clear of this;
+`%py-apply-any` had grown an arm per callable type to keep clear of this;
 those arms can go once the bundle pins this version.
 
 **`x/num/bigint` and `x/num/float` are modules of their own** ([#719],
-step 4, the first batch of the number group). Their operations were
+step 4, the first batch of the number modules). Their operations were
 `%`-named root globals -- `%big-add`, `%f-add`, `%ensure-float`,
 `%float-type` and forty more -- read by the tower's dispatcher, by the
 compiled tower's JIT sites, by the other three number modules, by the json
@@ -1134,7 +1134,7 @@ private names are read by nothing outside them, so a scope would buy only the
 frame. `docs/namespaces.md` records the numbers under "What to measure first".
 
 **The quote and quasiquote readers are modules of their own, and so is the
-xon codec** ([#719], step 4, the reader group). `x/reader/lit-reader` and
+xon codec** ([#719], step 4, the reader batch). `x/reader/lit-reader` and
 `x/reader/quasi-reader` exported their analysers, readers and states under
 `%` names -- `%lit-analyse`, `%quasi-read`, `%unquote-after-comma` and seven
 more -- which the tower, the formatter and lit-reader itself read from the
@@ -1869,7 +1869,7 @@ in `e`, and `doc`, `def-class`, `def-record` and a lang's `define` work in
 a closure body the way they always did at top level ([#527]). The engine
 retired the frame marks, the shadow list, the local boundary, the tree a
 closure carried and the top-level bracket's frame stripping with it, and
-its base layout's env group is now `env` and `env-root`. What read the old
+its base layout's env fields are now `env` and `env-root`. What read the old
 rows by name moved with the pin: the sandbox and ISA specs, the image
 reader and inspector, the normative example in the spec, the sandboxing
 tutorial and the layout passages in the architecture, type-system,
@@ -2028,13 +2028,13 @@ fvar table to decide which: present means analyser. An fvar also names a callee
 the body calls, so a body that calls a prim that way compiles as a tokenizer
 state. Its first ordered comparison then reads a param as a pointer, takes the
 branch on that, and the unboxed result is one of the arguments; other argument
-shapes dereference an argument expression as an integer and reach a SIGSEGV.
+forms dereference an argument expression as an integer and reach a SIGSEGV.
 
 The misuse refuses rather than the undeclared call. Refusing the two-argument
 form would not raise in a bundle: x-python compiles its tokenizer states that
 way and adopts them under a guard, so the refusal would pin the interpreted
 states and keep them, and a bundle spec cannot assert that the JIT is active, so
-nothing would report it. What refuses is the shape. In analyser mode the leading
+nothing would report it. The refusal is structural. In analyser mode the leading
 one or two params are `x_obj_t*`, and arithmetic, a shift or an ordered
 comparison on one is not something an analyser means -- every state in the tower
 and in the bundles uses its object params as trampoline arguments and nothing
@@ -2110,11 +2110,11 @@ line's text to the text to display for it, which the line editor calls in the
 one place it paints.
 
 **The lang kit's linter is corrected in six places** ([#683], [#687],
-[#695], [#699]; [#686] and [#689] were reverted by [#693]). A group's
+[#695], [#699]; [#686] and [#689] were reverted by [#693]). A batch's
 `lint-known` declarations come from every file, not the first; the boot
 amalgam is found in a checkout as well as an install; the walk's write
-comes from the catalog, not the global; the assembler shape is named and
-the cause of an engine death kept.
+comes from the catalogue, not the global; an assembler is recognised by
+its including a sibling .x file, and the cause of an engine death is kept.
 
 It is a hook because colouring is the part of an interactive session that
 depends on the language. Reading a key, moving a cursor and remembering a line
@@ -2142,7 +2142,7 @@ that keystroke.
 **The digest engine is built for the input in hand, not for a running
 total.** `Sha256 hex` built the compiled engine once 64KB had been
 digested in a session, cumulatively -- a bar set when the build cost 12
-seconds and pure-x ran at 2.3KB/s, and a shape that paid the build for
+seconds and pure-x ran at 2.3KB/s, and a rule that paid the build for
 the wrong input: `Pin vendor`'s lockfile is two files, 16KB then 2KB,
 and with the bar lowered to what the build costs now the first digested
 pure-x, just under, and the second built the whole engine to digest 2KB,
@@ -2239,7 +2239,8 @@ say what they claim rather than "47913 happened to be free"; the door
 has two cases of its own, one for the failure path.
 
 **The assembler lane refuses a form it cannot spell on this engine, instead
-of calling address 0.** An optional JIT symbol -- `jit_score_variant`,
+of calling address 0.** An optional JIT symbol -- `jit_score_label` (released
+as `jit_score_variant`),
 `jit_buffer_last_char` -- binds as 0 on an engine that lacks it, so that
 every other form keeps compiling; but a form that needed one was emitted
 anyway, as `blr 0`, and died arbitrarily far from the cause: x-python's
@@ -2303,7 +2304,8 @@ int object only exists relative to a base that registered the int type, and
 a tokenizer base has none by design. The assembler lane compiles
 `%score-label!` through an optional JIT symbol, so an engine without it
 keeps compiling every state that does not use one. The capability is
-`tok/variant` in the contract, claimed by the engine, and the two spec files
+`tok/label` (released as `tok/variant`) in the contract, claimed by the
+engine, and the two spec files
 that need it say so with `# @requires`: the interpreted twin in
 `lib/reader-label.spec.md` and the compiled one in
 `ext/jit-analyser-label.spec.md`, split out of `jit-analyser-self` so
@@ -2321,7 +2323,7 @@ writer for `lib/x-core.x` peaked at 3.05GB on arm64 and 2.9GB on x86-64
 for a heap that holds 85K objects when it is done, and on x86-64 the
 x-base writer reached 6.2GB and the tower harness 7.7GB, which is why the
 Linux runner writes its images one at a time. `x-core.x` now collects at
-fourteen group boundaries between its own includes; it may, because it is
+fourteen batch boundaries between its own includes; it may, because it is
 included at the top level of the dialect bodies and the harnesses and
 imported by nothing, so nothing of an includer's is in flight -- the case
 the module rule guards against does not arise. Measured on a 12-core
@@ -2413,7 +2415,8 @@ first argument as an index, and a vector's or a string's value form -- `(v
 filter (x) (> x 1))` -- had no counterpart for the one collection every other
 one is built from. `x/type/list` now binds `List` OVER that handler the way
 `Vector` and `Str` are bound, so a symbol selector sends to the class,
-subject-last, and both call shapes ride it: `(xs map (i x) (* i x))` and `(xs
+subject-last, and a call rides it with a block or with a function:
+`(xs map (i x) (* i x))` and `(xs
 map (fn (_ x) (* x 10)))`. Everything the handler underneath did it still
 does -- `(xs 0)` indexes, `(xs 1 3)` slices, and nested list data the iterator
 re-evaluates keeps its #69 echo, since a list head followed by a non-symbol
@@ -2424,8 +2427,9 @@ send binds its names at any head now, still keyed by the selector table. The
 full suite ran with the binding in place before it was kept: 2961 tests, 0
 failed.
 
-**A comma is not a token delimiter, and the owl's nose is one.** The quote
-family's shared delimit hook ended a token on `'`, `` ` `` and `,` -- so
+**A comma is not a token delimiter, and the owl's nose is one.** The delimit
+hook quote, quasiquote and unquote share ended a token on `'`, `` ` `` and
+`,` -- so
 `foo'bar` reads as `foo` then `'bar`, which is right, and a comma glued to a
 token split it, which was not: `{O,O}` was two tokens. Unquote is recognised
 only where a token BEGINS, so with a space or a paren before it the comma
@@ -2440,7 +2444,8 @@ delimiter.
 
 **A wrapped method's help shows its block form.** `(help Vector for-each)`
 answered the applicative signature and nothing else -- true, and incomplete:
-the block form is a second call shape a reader could not discover from it.
+the block form is a second way to write the call, which a reader could not
+discover from it.
 The wrap is the one place that knows the shape, so it adds the note itself,
 onto the method's own entry, pending or committed; wrapping twice does not
 say it twice. It shows the method's own head with the block in the
@@ -2476,7 +2481,7 @@ advisory warnings no longer dropped with its dot, and `string=?` known to
 the ladder rule -- 476 uses across eight bundles that `%ladder-cmp?` could
 not spell. Pointing it at the bundles found the next two: an assembler's own
 top level was missed (`cc/base.x` defines `%cc-x-write`; five fragments call
-it; an import cannot reach it), and a group's preload omitted its own first
+it; an import cannot reach it), and a batch's preload omitted its own first
 file. The assembler is preloaded whole now, in the order the bundle really
 uses, which also drops the order reconstruction; `%cc-x-write` resolves and
 two phantom `go/N` ladders vanish. Swept: x-coreutils, x-awk, x-grep,
@@ -2507,7 +2512,7 @@ was a mistake: every other reader extension -- `#t`, `#\a`, `#(…)`, `#/…/`
 -- wears the `#`, and interpolation was the one form that did not. It does
 now: `#"a{x}b"` reads exactly as `$"a{x}b"` did, into `(Str8 str "a" x "b")`,
 a `#"…"` nests inside a hole the same way, and `{{`, `}}` and `\{` mean what
-they meant. The rest of the `#` family is untouched, and the spec pins the
+they meant. The other `#`-prefixed readers are untouched, and the spec pins the
 neighbours: `x_token_analyse` runs every handler from the token's first
 character independently, so the literal's analyser declining on `#t` or
 `#\"` costs their own readers nothing -- and the read guard now checks the
@@ -2578,9 +2583,9 @@ the class assuming something it had been told -- both found by x-coreutils
 within hours of adopting the library. `(Opts on? o "-m")` answered `#f` for
 a flag that HAD been given, when it was declared as taking an argument:
 `on?` read only the standalone list, so a caller asking "was -m given" had
-to know which of its own two lists it went into. It answers presence for
-either kind now; a value flag is still read with `(Opts value ...)`. And
-`-5` read as an operand because it looks like a number -- decided by shape
+to know which of its own two lists it went into. It answers presence
+either way now; a value flag is still read with `(Opts value ...)`. And
+`-5` read as an operand because it looks like a number -- a structural test
 alone, before consulting the declaration -- so `comm(1)`, which declares
 `-5`, could not take it. The declaration is asked first; the heuristic
 still stands where nothing claims the token (`sort -5` is an operand, not
@@ -2684,7 +2689,7 @@ engine's program and the child's stdin are one descriptor) is refused as
 and two unplaced references into the second base each makes at load.
 
 
-**The recache walk is not shaped like R5RS iteration.** `(%image-recache!)`
+**The recache walk does not iterate the way R5RS does.** `(%image-recache!)`
 remakes what an image could not carry -- a dlopen handle, a JIT trampoline,
 the colour detection -- and its hook walk was spelled `(do ((first l)) ...)`,
 which sequences correctly here and nowhere else: `do` is late-bound, and a
@@ -2832,12 +2837,12 @@ from `chmod` to `whoami` that take it to busybox parity at 92.
 `compile-asm` lane refused every head but the function's own name, so a
 compiled function could recurse and nothing else: anything a lane function
 needed from another function had to be inlined into it, which cannot reach a
-callee that loops. Two shapes join the self-call. A name bound to an fvar
+callee that loops. Two call forms join the self-call. A name bound to an fvar
 holding a prim compiles to a call to that prim, its address baked at
 generation (#603). `(%call HEAD arg ...)` takes an **operand** as its head
 — a callback parameter, a pointer read out of a dispatch table — so which
-prim runs is decided at run time (#604); C function pointers are exactly
-that shape, and a compiled caller of one no longer has to drop back to the
+prim runs is decided at run time (#604); C function pointers match that
+form exactly, and a compiled caller of one no longer has to drop back to the
 interpreter. Both build the argument list the self-call already built and
 hand `(callee arg0 ...)` to a new `jit_call_value` trampoline, which
 **checks the head is a callable prim before it branches**: on anything else
@@ -2849,7 +2854,7 @@ inferred: `compile-asm` takes an optional third argument, defaulting to the
 old fvars-present guess, so an integer function may carry a callee fvar
 without its params silently ceasing to evaluate. The byte cache's key
 carries that mode in its own right for the same reason it carries the fvar
-table's shape: the two worlds emit different bodies for one source text,
+table's layout: the two worlds emit different bodies for one source text,
 and a key that could not tell them apart would serve the wrong one as a hit.
 
 **A lang can word the engine's errors.** `(no-such-binding)` reached x-lang as
@@ -2864,7 +2869,7 @@ site's message literal and what it was about, unflattened — and
 `x/type/err-io.x` pushes the default wording onto that type's write/display
 stacks. The wording is byte-for-byte what C emitted; the difference is that
 it is now a handler, so a lang pushes its own over it and pops it again, the
-same shape `char-io.x` has always used for CHARACTER:
+way `char-io.x` has always used for CHARACTER:
 
 ```x
 (%type-push-display ERR
@@ -2951,7 +2956,7 @@ divergence is loud. The C surface grew across the release to pointers,
 structs (fields as cell offsets, `->` and `.`, arrays of structs, scaled
 pointer steps, typedef, copy), `switch` with fallthrough, function-like
 macros with argument text and rescan, `enum`, `union`, function pointers,
-initializer lists and the `#ifdef`/`#elif`/`#undef` family.
+initializer lists and the `#ifdef`, `#elif` and `#undef`.
 
 The half that makes it more than an interpreter is `build`: eligible integer
 functions lower through the engine's own `compile-asm` lane to **native code
@@ -2982,7 +2987,7 @@ emits an instruction, and a warm process never loads it at all.
 
 Correctness rests on the key, because the failure this replaces was a cache
 key blind to engine identity serving ABI-stale objects that silently misread
-numbers. The key carries machine, engine release and the fvar table's shape,
+numbers. The key carries machine, engine release and the fvar table's layout,
 and the whole key text is stored in the entry and compared before a byte is
 trusted — so a hash collision costs a recompile, not a wrong function. Every
 doubt is a miss rather than an error. Expressions past 128 nodes are not
@@ -2996,10 +3001,10 @@ collection turned three live records into a single nil. Quiet since it
 landed, because nothing yet held those records across an allocation.
 
 **The reader's hottest hook is compiled too.** `%macro-delimit` runs on every
-character of every symbol-shaped token — the C symbol analyser calls it per
+character of every symbol token — the C symbol analyser calls it per
 char to ask whether `'` `` ` `` `,` terminates the token — and it was the
 single largest per-character reader cost while the numeric analysers beside
-it were already compiled. It is the same shape, so it goes through the same
+it were already compiled. It takes the same path, so it goes through the same
 lane, reaching the new `jit_buffer_last_char` trampoline as
 `%buffer-last-char`. It stays safe on an engine that predates that
 trampoline: the compiled twin is built ONLY when the address resolved, and
@@ -3016,13 +3021,14 @@ the self-call's result was unboxed the same way — but the tokenizer protocol
 fixes the leading params as OBJECTS and a handler returns an object. Any one
 is a segfault on the first self-call, which is why a self-recursive analyser
 had never worked: it died before returning. The lane now knows which
-parameter positions are object-kinded and honours that in the loader, the
+parameter positions are object-typed and honours that in the loader, the
 boxing and the result. Library-only — no engine change, no new trampoline.
 
 **The core tool set is complete at forty-four applets.** x-coreutils grew
 from 24 specs to 48, taking the bundle from the measured core
 (sort/tr/cut/join/comm, `sha256sum` as FIPS 180-4 in pure x) to the full
-busybox shape with the scripting set beside it — `echo printf seq test [
+set laid out like busybox, with the scripting set beside it —
+`echo printf seq test [
 diff cmp ls mv touch install mktemp which xargs env date` and friends. The
 install tree gained the half the shim migration had been waiting on:
 `tools/lang-kit/spec-gate.sh` now ships, so kit-gated bundles stop answering
@@ -3088,11 +3094,12 @@ with handlers on both sides now raises the lattice's teaching error at
 the operator door instead of falling through to payload-word reads.
 
 **16K+ is no longer a cliff.** The boot layer's non-tail recursions each
-put one C eval frame group per element on the stack, so any walk over
+put several C eval frames per element on the stack, so any walk over
 ~16K elements segfaulted outright — first surfaced by `(Str8 make 16384
-c)` in x-awk's stdin slurp, then found across the family. `Str8 make`
+c)` in x-awk's stdin slurp, then found in the rest of the boot layer's
+non-tail recursions. `Str8 make`
 delegates to `repeat`'s binary doubling; boot `%map1`/`%mapn-go`/
-`%append2`/`%filter-go` are tail-shaped; `%as-list`'s iterator drain
+`%append2`/`%filter-go` recurse in tail position; `%as-list`'s iterator drain
 actually drains; `Iter ->list` (behind `List from-seq`) is tail; the
 regex quantifier state collectors got the same cure. Each is pinned by a
 16K spec. One behavior change fell out and is deliberate: **`Str8 make`
@@ -3339,7 +3346,7 @@ Removing a lang from `apps/` moves the payload fingerprint, so this release
   in the built engine differs.
 
   `tests/x/fixtures/engine-min` grows the same row. The paper engine declares
-  `core` and no more, `def-global` is tagged `spine`, and a group missing one
+  `core` and no more, `def-global` is labelled `spine`, and a group missing one
   coordinate is not a capability — so the fixture stopped claiming `core` the
   moment the vocabulary grew. `check-second-engine` predicted this in its own
   header, which is the argument for fixtures over remembering.
@@ -3354,7 +3361,7 @@ green without a line changing in it.
 - **The engine pin moves to x-engine-c v0.1.4**, and x-r5rs goes green without
   a line changing in it — 667/9 to **667/0**.
 
-  v0.1.4 stopped the dot being a token *kind*. It sat in
+  v0.1.4 stopped the dot being one of the single-character tokens. It sat in
   `X_SEXP_LIST_CHARS_STR` beside the brackets, so the analyser scored it on
   sight: correct for `(` and `)`, which really are always single-character
   tokens, and false for `.`, which separates a pair only when nothing follows
@@ -3430,7 +3437,7 @@ green without a line changing in it.
   is ordinary Scheme, and any lang implementing exponentiation on top of
   `Num expt` inherited it.
 
-  `expt` now raises `err:value` on a negative exponent, the same shape
+  `expt` now raises `err:value` on a negative exponent, just as
   `Num isqrt` already used for a negative input. The doc stated the contract;
   this enforces it rather than changing it — a caller wanting Python's or
   Scheme's answer needs a float, which is the caller's decision to make and not
@@ -3466,8 +3473,8 @@ green without a line changing in it.
   changed four files, none of them the reader, and
   `src/x-token/sexp/list.c` is byte-identical to v0.1.2's. The 28 came from
   x-r5rs itself — R5RS §6.6 ports rewritten against `File` (21), and exactness
-  under §6.2.5 (7). The nine that remain say so: they are the **ellipsis**
-  group, which is exactly what a pair-dot fix would have removed.
+  under §6.2.5 (7). The nine that remain say so: they are all **ellipsis**
+  patterns, exactly what a pair-dot fix would have removed.
 
   `(base def-global)` was described as shipping in v0.1.3. It is not in v0.1.3;
   it is proposed and unmerged.
@@ -3610,7 +3617,8 @@ died.
 - **`-l NAME` runs an acquired lang** — the third resolution step after
   `lib/NAME.x` and `apps/NAME/run.x`. Unlike those, a bundle does not boot
   itself: the wrapper boots the dialect its `lang.xon` **declares**, arms the
-  bundle's module root, and loads it on top — the shape `-F` has always had.
+  bundle's module root, and loads it on top — the same way `-F` has always
+  worked.
   So a bundle needs no root-relative literals at all. A dialect this tree
   cannot supply, and two bundles claiming one name, are refused before
   anything boots. (#530)
@@ -3679,7 +3687,7 @@ died.
 
 ## [0.5.2] - 2026-08-26
 
-The first release shaped by a second engine: two undeclared assumptions
+The first release built alongside a second engine: two undeclared assumptions
 became declared capabilities, eight unwritten laws became written ones with
 conformance checks, and a pinned project now runs the release it names
 instead of reporting an errand.
@@ -3815,7 +3823,7 @@ engine to run it.
 
 ### Added (reproducibility)
 
-- **Project pinning** — a `pin.xon` manifest (`root` overlay, `src` scan tree, `boot` entry) and the `Pin` verbs over it: `init`, `boot`, `sync`, `check`, `vendor`, `verify`, `closure`, `fetch`, `resolve`, `unused`. Two tiers, because there are two kinds of drift: an **overlay pin** freezes the library modules a project imports — vendored closure-wise, digests in a lockfile — and a **boot pin** freezes the language itself by committing a released amalgam. The lockfile records the release tag, that release's ISA fingerprint, and the amalgam's digest; the wrapper arms both pins, announces them on stderr, and refuses to boot an amalgam whose fingerprint doesn't match the running engine.
+- **Project pinning** — a `pin.xon` manifest (`root` overlay, `src` scan tree, `boot` entry) and the `Pin` verbs over it: `init`, `boot`, `sync`, `check`, `vendor`, `verify`, `closure`, `fetch`, `resolve`, `unused`. Two pin mechanisms, because drift takes two forms: an **overlay pin** freezes the library modules a project imports — vendored closure-wise, digests in a lockfile — and a **boot pin** freezes the language itself by committing a released amalgam. The lockfile records the release tag, that release's ISA fingerprint, and the amalgam's digest; the wrapper arms both pins, announces them on stderr, and refuses to boot an amalgam whose fingerprint doesn't match the running engine.
 - **Versioned module lines** — `import-version-once` / `import-version` select among sibling `@`-suffixed version files by spec string (`"1.3"`, `"1.3.*"`, `"^1"`, `"*"`). Files are append-only, so a fix is a new patch file and every import whose spec admits it picks the fix up on its next run; dedup keys the base name, and a loaded version that doesn't satisfy a later spec is a loud error naming both sides. `Pin resolve` is the dry run, `Pin unused` the safe-removal answer (#214, #215, #216).
 - **Release engineering** — every tag now publishes per-platform prebuilt binary tarballs (Developer ID signed and notarized on macOS) beside the dialect amalgams, each with a coreutils-checkable `.sha256` sidecar, so a release runs with no toolchain and no compile. `bootstrap.sh` covers the from-source path in one command: clone, acquire the engine the pin names, build it (a ~4-second C89 compile), and optionally install under a user prefix.
 
@@ -3826,8 +3834,8 @@ engine to run it.
 
 ### Added (standard library and reader)
 
-- **`$"…"` string interpolation** — holes hold code, and the literal scans as one token instead of shattering into fragments (#292); the quote family's char codes become char literals. Adopted across the library wherever an output call was a text template (#291).
-- **Library growth** — `Path` (#225), a `Proc` tier over `Sys` with one correct spawn shape (#226), `File read-all`/`write-all`, and the coverage tail: `Pq`, `Deque`, `Counter`, `Random uuid`, `Str8 wrap`/`fill` (#375), `from-iso`, UDP and unix sockets, `Proc` options, `walk`, `glob`, `relpath`, `copy`, `temp` (#364).
+- **`$"…"` string interpolation** — holes hold code, and the literal scans as one token instead of shattering into fragments (#292); the quote, quasiquote and unquote's char codes become char literals. Adopted across the library wherever an output call was a text template (#291).
+- **Library growth** — `Path` (#225), a `Proc` layer over `Sys` with one correct way to spawn (#226), `File read-all`/`write-all`, and the coverage tail: `Pq`, `Deque`, `Counter`, `Random uuid`, `Str8 wrap`/`fill` (#375), `from-iso`, UDP and unix sockets, `Proc` options, `walk`, `glob`, `relpath`, `copy`, `temp` (#364).
 - **Consolidation** — canonical membership/assoc/find helpers replacing 32 private copies (#227), one shared xon codec with a single reader door (#230), and one dirent decoder replacing a drifted pair (#228).
 
 
@@ -3842,9 +3850,9 @@ engine to run it.
 ### Added
 
 - **x86_64 assembler parity** (`lib/x/platform/x86_64.x`) — `cmp` (rr/ri), the six conditional branches (`b/eq b/ne b/lt b/ge b/gt b/le` as Jcc rel32, sharing arm64's mnemonic names), a `b` alias for `jmp`, and per-arch `asm-prologue!`/`asm-epilogue!` (SysV frame + rbx/r12-r14) and `asm-load-imm64!`. The JIT codegen module (`asm-compile.x`) remains arm64-only (registers hard-wired) — tracked separately.
-- **Arch-tagged specs** — the spec runner skips `<name>.<arch>.spec.md` files on non-matching hosts (`uname -m`, arm64/aarch64 and x86_64/amd64 normalized); asm specs split into `.arm64.`/`.x86_64.` variants since the scenarios are ABI-specific (A64's x0 arg-and-return duality vs SysV's rdi-in/rax-out)
+- **Arch-labelled specs** — the spec runner skips `<name>.<arch>.spec.md` files on non-matching hosts (`uname -m`, arm64/aarch64 and x86_64/amd64 normalized); asm specs split into `.arm64.`/`.x86_64.` variants since the scenarios are ABI-specific (A64's x0 arg-and-return duality vs SysV's rdi-in/rax-out)
 
-- **GC hook/root registration API** — `heap-mark-hook!`, `heap-free-hook!`, `heap-mark-root!` primitives wired through to x-expr's heap-group extensible lists; `lib/x/sys/gc.x` is now a thin re-export layer
+- **GC hook/root registration API** — `heap-mark-hook!`, `heap-free-hook!`, `heap-mark-root!` primitives wired through to x-expr's heap-fields (released as heap-group) extensible lists; `lib/x/sys/gc.x` is now a thin re-export layer
 - **Optional build modules under `opt/`** — first occupant is `opt/x-prim/signal.c`; gated by `X_SIGNAL` (default on), `make X_SIGNAL=` drops the module and compiles the eval poll out
 - **`examples/logo/ch1.logo`** — Chapter-1 programs from *Turtle Geometry* (ARCR/ARCL, RAY, POLY/NEWPOLY, POLYSPI/POLYSPII, INSPI)
 - **x-spec coverage for GC hook & root API** — `tests/x/specs/applicative/gc-hooks.spec.md` (STRESS-only)
@@ -3855,8 +3863,8 @@ engine to run it.
 
 - **Renames across the surface** — `Bignum` → `Bigint` (#356), `Token` → `Analyser` and `StrUTF8` → `StrUtf8` (#359), the cross-class verbs unified (#358), and the R7RS method names retired (#357). Pre-1.0 surface churn, done in one pass rather than a drip.
 - **A bare `make` no longer mutates the binary** — the strip is stamp-gated (#367), and per-variant object suffixes retired the `clean-obj` brackets (#329).
-- **Renamed `x_base_*` → `x_interp_*`** across the interpreter source tree; the file formerly at `src/x-base.c` is now `src/x-interp.c`. `x_base_*` names are reserved for x-expr's library-level skeleton (file descriptors, hooks, heap-group); `x_interp_*` covers the environment/control/extras half this project fills in.
-- **GC hook & root lists moved from x-interp's `extras` group into x-expr's `heap-group`** — one canonical storage location for everything GC, registered by name via `x_heap_{mark,free}_hook_add()` / `x_heap_mark_root_add()` instead of raw `(rest (rest …))` path-walking from x-lang
+- **Renamed `x_base_*` → `x_interp_*`** across the interpreter source tree; the file formerly at `src/x-base.c` is now `src/x-interp.c`. `x_base_*` names are reserved for x-expr's library-level skeleton (file descriptors, hooks, heap-fields, released as heap-group); `x_interp_*` covers the environment/control/extras half this project fills in.
+- **GC hook & root lists moved from x-interp's `extras` group into x-expr's `heap-fields`** (released as `heap-group`) — one canonical storage location for everything GC, registered by name via `x_heap_{mark,free}_hook_add()` / `x_heap_mark_root_add()` instead of raw `(rest (rest …))` path-walking from x-lang
 - **Lazy doc metadata processing** — `(doc …)` forms stash raw metadata at load time; the full processor runs only on first `(help)`/`(apropos)`/`(modules)` invocation (~1s startup savings)
 - **Syscall name tables compacted** — x86_64 (267 entries) and i386 (256 entries) shifted from `(list (lit name) ;N …)` to `(lit (name name …))`; ~1000 lines lighter, same in-memory shape
 - **`lib/x-and` / `lib/x-or` module-loading layer tightened** — drop duplicate posix re-imports (x-core already loads it); pre-compile quasi/unquote reader analysers in x-or so subsequent file parses aren't ~20% slower; make x/or's system extensions (syscall/file/socket) opt-in to save ~660 lines per startup
