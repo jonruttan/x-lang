@@ -235,6 +235,7 @@
 
 ; --- reader/intrinsics.x: beside the analyse protocol -------------------------
 (shared "lib/x/reader/intrinsics.x" %buffer-len "the length of what the tokenizer buffer has taken in")
+(shared "lib/x/reader/intrinsics.x" %stderr "displays to the error stream; the door is (Stream with-fd 2 thunk), for a reader that can load x/sys/stream")
 
 ; --- type/shape-rows.x: data, which the img dialect includes on a bare base ---
 (shared "lib/x/type/shape-rows.x" %type-kind-codes "the engine's codes for a unit's kind")

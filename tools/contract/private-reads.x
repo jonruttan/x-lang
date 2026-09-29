@@ -24,12 +24,11 @@
 ; A selector in a send, (self %walk ...), stopped counting as a read on
 ; 2026-09-28, which took seven from that: 176, in 36 files.
 ; The names of the files that stay unscoped were listed the same day, and
-; seven readers of %stderr moved to (Stream with-fd 2 ...): 81, in 14 files.
+; seven readers of %stderr moved to (Stream with-fd 2 ...), with the name
+; listed for the three that cannot load the door: 78, in 11 files.
 ; What is left is the tool scripts reading one another, and a few aliases.
 ; A read of a boot file's name that has no row in that manifest is not
 ; budgeted here; the gate refuses it.
-(file "lib/x/repl/loop.x" 1)
-(file "lib/x/tool/profile.x" 1)
 (file "lib/x/type/block.x" 1)
 (file "tools/check/engine-contract.x" 8)
 (file "tools/dev/bench-sha256.x" 1)
@@ -40,5 +39,4 @@
 (file "tools/dev/image-inspect.x" 8)
 (file "tools/dev/image-name.x" 4)
 (file "tools/dev/image-write.x" 39)
-(file "tools/dev/lint.x" 1)
 (file "tools/dev/nul-escape.x" 1)

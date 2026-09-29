@@ -191,8 +191,11 @@ parts in `type/class.x`, the registry's parts and the colour stubs in
 `doc/doc.x`, what a backend emits through and the slots the JIT fills in
 `tool/asm.x`, the linter's hooks and analysers, what the benchmark and the
 pin tool read of `codec/sha256.x`, and the six walker names their classes
-read. `%stderr` is not listed: its door is `(Stream with-fd 2 thunk)`, in
-`x/sys/stream`, and the readers that can load that module use it.
+read. `%stderr` has a door, `(Stream with-fd 2 thunk)` in `x/sys/stream`,
+and the readers that can load that module use it. It is listed for the three
+that cannot: `repl/loop.x` is in the x-core boot, which loads no stream
+module; `tool/profile.x` prints counters that a module load would change;
+and what the linter's driver loads, the linter takes as known.
 
 The assembler's architecture backends (`tool/asm/arm64.x`, `tool/asm/x86_64.x`)
 stay unscoped for a related reason: their bare names, the registers and the
