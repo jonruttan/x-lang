@@ -328,6 +328,14 @@ engine's `x-engine.xon` comes out as before.
 
 [#879]: https://github.com/jonruttan/x-lang/pull/879
 
+**The documentation takes the glossary's words** ([#880]). A discriminant is
+a label, a tier is a profile, a layer, a pin or visibility, and shape is a
+block form's and nothing else. `docs/type-system.md`'s flags table loses the
+six simple-type codes, which are x-expr's. Prose only: nothing a program
+calls is renamed.
+
+[#880]: https://github.com/jonruttan/x-lang/pull/880
+
 **The seam gate calls a row's `always`, `installed` or `bundle` its label**
 ([#878]). It refuses an unknown one with `seam: unknown label(s) in FILE: NAME`;
 the line said `class(es)`. `tools/contract/seam.x` gives a row as
