@@ -23,7 +23,7 @@ lang bundles write it. A [scoped module](#module-scope) keeps its
 definitions in its own environment, and its `provide` follows them: a name
 the module has not defined is refused.
 
-Of a scoped module's exports, two kinds are also bound in the root: a
+Of a scoped module's exports, two variants are also bound in the root: a
 class, and a name the list marks `(global NAME)`:
 
 ```x
@@ -228,8 +228,8 @@ and a plain `include` inside it is refused. A selective import,
 splice marks the module loaded, so at boot the line loads nothing and binds
 the names. So each form carries the file and its line, an error
 while the module loads names both, and a form can read the forms after it.
-A header naming a different module is refused. The rules for every class of
-name conflict the doors can meet are in [Namespaces](namespaces.md).
+A header naming a different module is refused. The rules for every variant
+of name conflict the doors can meet are in [Namespaces](namespaces.md).
 
 Two extensions to the rule:
 
@@ -477,12 +477,12 @@ exists; drift is reported, not an error — a pinned platform pairs with
 its own release's engine. A trailing base-URL argument overrides the
 default release home (a mirror, or `file://` in the smoke).
 
-Both tiers compose through the manifest: declare the fetched amalgam
+Both pins compose through the manifest: declare the fetched amalgam
 with `(boot "boot/xe.x")` beside the `(root ...)` forms, and the plain
 `x -f main.x` boots the pinned platform *and* arms the overlay,
 announcing both. The direct `cat` pipe above remains the zero-wrapper
 path, but it bypasses the wrapper — no probe, no arming, no notices —
-so a project pinned at both tiers should run through the manifest.
+so a project pinned both ways should run through the manifest.
 
 ### Probing and arming
 
@@ -502,7 +502,7 @@ hands the manifest's path over as data (`(def %pin-file "<path>")`
 ahead of the boot entry) and loads `x/tool/pin` right after boot,
 before the first user form. That loader — always resolved from the
 platform library, never from an overlay — reads the manifest, checks
-the vocabulary (including the shape of `(boot ...)`), and arms the
+the vocabulary (including the syntax of `(boot ...)`), and arms the
 roots via `import-path!`. Because nothing in the manifest is
 evaluated, a manifest can only do what pinning does: redirect import
 resolution into its own project's files, and select which verified

@@ -336,8 +336,8 @@ addition immediately) and every cached dispatch table refolds.
 
 ### Block-form methods
 
-A higher-order method normally takes a callable. `Block method!` gives one a
-second call shape where the callback's parameter names and body are written at
+A higher-order method normally takes a callable. `Block method!` gives one
+a block form, a second way to write the call, where the callback's parameter names and body are written at
 the call site:
 
 ```x
@@ -468,7 +468,7 @@ block (at the body top level, or inside `(static ...)`):
 ```
 
 The check runs at the dispatch door -- a violation errors naming the class,
-selector, tier, and defining class -- and costs public method calls exactly one
+selector, visibility, and defining class -- and costs public method calls exactly one
 added pair test. Enforcement is opt-in per class: undeclared members stay
 public, and the `%` prefix remains a naming convention for protocol hooks, not
 a privacy marker.
@@ -524,7 +524,7 @@ the strictest private door of all: no code outside a method body has them.
 `(help Class)` lists everything a class offers, grouped **static vs instance** and
 **fields vs methods**, each list merged across the inheritance chain and sorted by
 name (a subclass override hides the inherited entry). Fields and methods documented
-with a description string show it; empty groups are omitted:
+with a description string show it; empty sections are omitted:
 
 ```
 Counter
@@ -736,7 +736,7 @@ too.
 | `(def-trait T ...)` / `(with T...)` | Define a trait / mix it into a class |
 | `(delegates field (sel...))` | Generate forwarders to a field's value |
 | `(C def-method! sel fn)` / `(C def-static! sel fn)` | Add a method at runtime |
-| `(Block method! C sel [shape] [trailing])` | Give a method a `(names…) body…` call shape |
+| `(Block method! C sel [shape] [trailing])` | Give a method a block form, `(names…) body…` |
 | `(method %init/%repr/%str/%missing ...)` | Protocol hooks: construction, printing, miss |
 | `(method-of Class sel)` | Resolve a static once for hot-loop direct calls |
 

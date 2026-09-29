@@ -14,7 +14,7 @@ the transferable part: the next lang author will be tempted by the same wrong
 turns, and a rule without its failure mode reads as style advice and gets
 ignored.
 
-## 1. The shape of a bundle
+## 1. The layout of a bundle
 
 A lang is a bundle: `lang.xon` declares it, `run.x` is the entry, the
 implementation lives in one directory named for the lang, and
@@ -51,7 +51,7 @@ runs is worth more than green against six hand-picked cases.
 
 But learn what that scoreboard is **for**.  Each conformance case compares a
 whole program's whole stdout, so one missing feature zeroes a sixty-line
-program: a `dict` group scoring 0/19 says nothing about dicts when every case
+program: a `dict` section scoring 0/19 says nothing about dicts when every case
 also needs `str()`, `while`, `+=` and `er.args`.  Whole-program comparison
 forbids partial credit by design.  So:
 
@@ -62,8 +62,8 @@ forbids partial credit by design.  So:
   what it is.  x-python's suite grew from 0 to 426 cases this way, and the
   spec prose is now the best documentation the bundle has.
 - When choosing what to build next, **count the corpus** instead of trusting
-  the per-group scores: "`type` appears in 28 of 112 files" chooses better
-  than "the class group is at 0%".
+  the per-section scores: "Python's `type` appears in 28 of 112 files"
+  chooses better than "the class section is at 0%".
 
 ## 3. Where the seams go
 
@@ -78,7 +78,7 @@ system:
   is a place where a lang rule can be stated.  A parser that emits the host's
   operators is writing a different language wearing the same clothes.
 - **parse.x** owns grammar only.  It should know nothing about
-  representation — x-python's parser never sees a tag or a type handle.
+  representation — x-python's parser never sees a label or a type handle.
 
 ## 4. The reader is the engine's loop — use it
 
@@ -108,16 +108,16 @@ state function (keep consuming), a score (accept), or nil (reject).
 - The score's magnitude is the match length, so contests between types are
   settled by **longest match**.
 - **Discarding is "matched, with no read handler."**  A negative score does
-  not suppress a type that has a reader; if you need a line-shape that
+  not suppress a type that has a reader; if you need a line-layout that
   vanishes (blank lines, comment-only lines), give it its **own reader-less
-  type** whose analyser claims exactly those shapes.
+  type** whose analyser claims exactly those layouts.
 
 Idioms that matter: the accept is the *return value* of `%score-set` — wrap
 it in a sequencing form that returns nil and you have written a reject.  And
 state builders that close over the current character must copy it
 (`(+ chr 0)`), never capture the callback's own binding.
 
-### Nesting is free: groups and blocks
+### Nesting is free: regions and blocks
 
 `(prim-ref 'tok 'read)` reads the next expression *from the same buffer*, and
 a `read` handler may call it.  So a delimited region collects its own
@@ -125,10 +125,10 @@ contents by recursing through the engine's reader:
 
 - **Brackets**: an opener's read handler loops `tok read` until it sees its
   closer token, and the bracketed run becomes ONE token with its contents
-  nested inside.  Strings are consumed by the string types before the group
+  nested inside.  Strings are consumed by the string types before the region's
   handler ever asks, so `["]"]` needs no quote tracking — the problem is not
   solved, it never exists.  Implicit line joining falls out: a newline inside
-  a group never reaches the line-structure machinery.
+  a region never reaches the line-structure machinery.
 - **Indentation** is a delimitation question too — a column opens and closes
   a region the way a bracket does — so blocks work the same way: the newline
   type measures the column (through the shared `x/reader/indent` stack, so
@@ -139,7 +139,7 @@ contents by recursing through the engine's reader:
 
 After this conversion, x-python's line-structure pass went from 134 lines to
 a name, four closing-bracket scanners were deleted rather than moved, and
-comma-splitting needed no depth count — an inner group is a single token.
+comma-splitting needed no depth count — an inner region is a single token.
 
 ### What the reader cannot do
 
@@ -184,7 +184,7 @@ whichever base loaded them.  The wrong conclusion ("this design cannot work")
 was written into a doc and survived a day; the capability it asked for
 already existed under a name in another catalog namespace.  **Before
 concluding the engine cannot do something, grep all of `src/x-prim/*.c` —
-the namespace/member pair is often not what the C name suggests — and look
+the namespace/method pair is often not what the C name suggests — and look
 for a library type that already does the thing** (`x/num/rational.x` and
 `x/type/vector.x` were working models of everything x-python needed).
 
@@ -287,7 +287,7 @@ What the loop must know:
   declarations, undefined-name shims) must be **conditional** — a guard that
   evaluates the name and only defines on the unbound raise — or line two
   clobbers line one's bindings.
-- **Echo by emitted shape.**  The parser's output says which forms are
+- **Echo by emitted layout.**  The parser's output says which forms are
   statements (silent) and which are expressions (echo their repr) — but
   inspect carefully: the same head (`let`) can serve both, distinguished by
   what it binds.
@@ -341,7 +341,7 @@ contesting type — and the platform can compile them:
 - **There are two JIT lanes.**  `compile-asm` (the assembler lane) emits
   machine code directly and needs no toolchain; `compile` (the cc lane)
   shells out to a PATH cc at runtime.  Analysers use the assembler lane.
-- **Declare the calling world.**  The compiler has two: integer functions
+- **Declare the calling mode.**  The compiler has two: integer functions
   (called from x, prim ABI, args evaluated and unboxed, result boxed) and
   analysers (called from C with live stack values — nothing evaluated,
   objects stay pointers, result returned unboxed).  `compile-asm`'s **third**
@@ -421,7 +421,7 @@ contesting type — and the platform can compile them:
   interpreted twin of every compiled failure, exchange exact command lines
   before comparing results across sessions, and when an error names an
   operation your code never performs, check the arguments you handed the
-  machinery first.  An error that changes shape across versions of the
+  machinery first.  An error that changes wording across versions of the
   callee while your code stands still is near-proof the defect is in what
   you handed it.
 - **State divergences as pending specs**, not code comments.  A divergence
@@ -432,7 +432,7 @@ contesting type — and the platform can compile them:
 
 ## 10. The failure mode to fear is the silent wrong number
 
-Across the whole build, the expensive bugs shared one shape: no error,
+Across the whole build, the expensive bugs shared one pattern: no error,
 plausible output, wrong value.  `[1] + [2]` printing a pointer as an integer;
 `1e10` reading as `1`; `float('abc')` answering `0.0`; a float literal
 silently truncated to its integer prefix; a discard score arriving as

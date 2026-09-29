@@ -763,7 +763,7 @@ Returns the alist with entries for the given keys removed.
 
 ### `Assoc from-bindings`
 `(Assoc from-bindings bindings) -> alist`
-Converts a bindings list -- `((key value) ...)` two-element lists, the `let` shape -- into an alist of assocs.
+Converts a bindings list -- `((key value) ...)` two-element lists, as `let` writes them -- into an alist of assocs.
 ```x-repl
 (Assoc from-bindings (list (list 'a 1) (list 'b 2))) -> (('a . 1) ('b . 2))
 ```
@@ -1027,7 +1027,7 @@ Returns `#t` if `inst` is an instance of `class` or any of its subclasses.
 Enforced visibility for the fields and methods declared inside:
 `private` = the defining class's methods only; `protected` = methods anywhere
 on its chain. Checked at the dispatch door (violations name class, selector,
-tier, and definer); opt-in per class; `(help)` still lists everything.
+visibility, and definer); opt-in per class; `(help)` still lists everything.
 
 ### `method-of`
 `(method-of Class sel) -> closure | ()`

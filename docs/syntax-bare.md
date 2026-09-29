@@ -56,10 +56,10 @@ the tail. Its idiomatic use is the bare-variadic parameter list:
 
 - `#t` and `#f` are **symbols** here; the boot library binds them to the
   boolean singletons.
-- No quote family: `'x`, `` `x ``, `,x`, `,@x` are library reader macros;
+- No quote forms: `'x`, `` `x ``, `,x`, `,@x` are library reader macros;
   at the bare layer `'x` is part of a symbol.
 - No floats, rationals, complexes, bigints, vectors (`#(…)`), or regexes
-  (`#/…/`) — all library- or dialect-added. A `1.5`-shaped token reads as
+  (`#/…/`) — all library- or dialect-added. A token structured like `1.5` reads as
   the integer `1`, the dot sentinel, and the integer `5`.
 - **No writer.** The bare interpreter produces no textual representation
   of values; `write`/`display` are pure x-lang (the boot printer).

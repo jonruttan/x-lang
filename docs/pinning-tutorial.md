@@ -31,7 +31,7 @@ a long-lived script, a project that must not move — you **pin**: keep
 the exact module files your project was written against in the project
 itself, and have `import` resolve them there.
 
-Two tiers, because there are two kinds of drift:
+Two pins, because there are two variants of drift:
 
 - **Overlay pins** (this tutorial, mostly) freeze *library modules* —
   anything you `import` that is not part of the running dialect's boot.
@@ -235,7 +235,7 @@ are those verbs driven from the manifest.
 ## Pinning the platform
 
 When the *language* must not move — not just a library — run a released
-platform. Every release tag publishes two kinds of artifact, built from
+platform. Every release tag publishes two variants of artifact, built from
 the same tagged source:
 
 - **per-platform binary tarballs** (`x-<tag>-<os>-<arch>.tar.gz` +
@@ -310,7 +310,7 @@ No curl on the machine? The fetch prints the URLs and stops — download
 by hand, then check with coreutils beside the files: `sha256sum -c
 SHASUMS`.
 
-Then declare it beside your overlay roots — both tiers, one manifest:
+Then declare it beside your overlay roots — both pins, one manifest:
 
 ```x
 ; pin.xon
@@ -325,7 +325,7 @@ pinned boot: /path/to/myproj/boot/xe.x
 ```
 
 The wrapper boots your amalgam *and* arms the overlay — two notices,
-two tiers. (The `(boot ...)` form is the one form the wrapper itself
+two pins. (The `(boot ...)` form is the one form the wrapper itself
 consumes, so it must sit alone on its own line; `--boot FILE` on the
 command line overrides it.)
 
@@ -336,7 +336,7 @@ $ cat boot/xe.x main.x | ./x-bin --batch
 ```
 
 — but know what it skips: no wrapper means no probe, no overlay
-arming, no notices. A project pinned at both tiers should run through
+arming, no notices. A project pinned both ways should run through
 the manifest, not the pipe.
 
 Read the fingerprint line for what it is: **matches this tree** means

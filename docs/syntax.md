@@ -23,7 +23,7 @@ The REPL echoes symbols as `'a` and quoted structures with the same
 shorthand — the echo pastes back. (Implemented: the printer's `'`
 shorthand is live; `(lit a)` echoes are history.)
 
-`` `x ``, `,x`, `,@x` are the quasiquote family; the printer already
+`` `x ``, `,x`, `,@x` are the quasiquote forms; the printer already
 echoes them in shorthand.
 
 ## Numbers
@@ -64,9 +64,9 @@ echoes them in shorthand.
 - **Vectors have a literal**: `#(1 2 3)`, `#()` — reads and prints.
 - **Lists** quote as data: `'(a b c)`; a bare `(a b c)` is a call.
 - **Associations have named doors, not literal syntax** — the name
-  carries the shape: `'((a . 1))` is an alist literal via quote;
+  carries the layout: `'((a . 1))` is an alist literal via quote;
   `(Dict from-plist '(a 1 b 2))` is the simplest dict literal;
-  `from-alist` / `from-bindings` for the other shapes. Dict/Set/Array
+  `from-alist` / `from-bindings` for the other layouts. Dict/Set/Array
   print as opaque `#<obj:…>` forms (echoes of containers do not paste
   back — by design, they are mutable objects).
 - `#/pattern/` regex literals (dialect-gated with the tower).

@@ -23,7 +23,7 @@ invocations (20,096 of 20,398):
 Pipelines of x tools compose today:
 `... | x -l awk '{print $1}' | x -l coreutils -- sort | x -l coreutils -- uniq -c`.
 
-Still external — 8 rows, 302 invocations: cc (the JIT's compiler tier),
+Still external — 8 rows, 302 invocations: cc (the JIT's cc lane),
 shasum, codesign/sysctl (platform, permanent), git/curl (fetch, out of
 scope), tar, strip.
 
@@ -57,11 +57,11 @@ rule takes the source branch only when the engine directory has a Makefile:
 
 With a prebuilt artifact linked, it does not, and **`make` compiles nothing**.
 Measured: zero invocations of cc, clang, ld, as, strip or codesign across the
-whole build phase. The compiler tier did not get cheaper; it moved to the
+whole build phase. Compiling C did not get cheaper; it moved to the
 engine's own repo and CI.
 
 `cc` has not left the closure, though. It reappears in the **test** phase, 127
-invocations, where the JIT's cc-hosted tier compiles at runtime — the middle
+invocations, where the JIT's cc lane compiles at runtime — the middle
 rung of the asm → cc-hosted → twins ladder. That is a different thing from a
 build dependency, and the two should not be read as one row.
 
@@ -126,13 +126,13 @@ build calls.
 Per phase: build 9 tools / 23 invocations; test 42 / 19,934 (3143 tests, 0
 failed); install 27 / 441.
 
-## Reading it by self-hosting tier
+## Reading it by how far each is self-hosted
 
 - **regex trio (grep/awk/sed)**: 9,380 invocations — 46% of everything.
   Three bundles over one regex layer: lib/x/type/regex.x, which x-grep
   extends with BRE and x-sed then reuses whole, plus each tool's own
   line loop.
-- **coreutils subset**: x-coreutils, one busybox-shaped bundle, answers 31
+- **coreutils subset**: x-coreutils, one bundle made as busybox is, answers 31
   of these rows. `sort`+`join`+`comm` (2,148 calls) are the relational
   workhorses of the contract gates. `find` is an applet as of x-coreutils#31,
   which matters more than the old count suggested: 315 invocations, not 22.
@@ -156,7 +156,7 @@ failed); install 27 / 441.
   one. It is `tools/dev/nul-escape.x`, run through the wrapper, and only for a
   spec file that writes `<<NUL>>` — one run in a suite rather than one a
   batch. The table row carries the name the measurement logged.
-- **compiler tier**: cc, in the test phase only, from the JIT. `strip` is one
+- **compiler**: cc, in the test phase only, from the JIT. `strip` is one
   install-time call. Neither is a build dependency any more.
 - **archive**: tar, 3 calls. `x.sh:1116` unpacks a fetched engine, so part
   of this row is pre-x, with curl beside it in the same acquisition.

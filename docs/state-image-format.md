@@ -19,13 +19,13 @@ system, the reader, the printer, the collector and the allocator know is a
 node of that tree. There is no table anywhere that is not reachable from the
 base object.
 
-The tree's shape is the contract `engine/tools/contract/base-layout.x`, and
-its tags already say which parts belong to whom:
+The tree's layout is the contract `engine/tools/contract/base-layout.x`, and
+its labels already say which parts belong to whom:
 
-| tag | who builds it | what it holds |
+| label | who builds it | what it holds |
 |---|---|---|
-| `(build …)` subtrees | `x_eval_make` (`x-eval.c`) from the descriptor | **language state**: env, ctrl, type-alist, io-state, profile counters, the state group |
-| `(todo …)` subtrees | `x_base_make` (`x-base.c`) | **process state**: file descriptors, the read buffer, the hooks, the heap group, the allocation group |
+| `(build …)` subtrees | `x_eval_make` (`x-eval.c`) from the descriptor | **language state**: env, ctrl, type-alist, io-state, profile counters, the state fields |
+| `(todo …)` subtrees | `x_base_make` (`x-base.c`) | **process state**: file descriptors, the read buffer, the hooks, the heap fields, the allocation fields |
 
 That split is the whole design. An image is a base's **language state** and
 every object reachable from it. A loader has a base of its own with its own
@@ -34,7 +34,7 @@ every object reachable from it. A loader has a base of its own with its own
 Language state, cell by cell (the `x_eval_field_*` accessors of the
 generated `x-eval-layout.h`):
 
-| group | cells | notes |
+| fields | cells | notes |
 |---|---|---|
 | env | `env`, `env-root` (slots) | the current environment and the root, each one pair of bindings and parent; the root's bindings are the tree over globals |
 | ctrl | `save-stack`, `error-handler`, `tco-expr`, `tco-env` | evaluator transients; **nil at image time and at install** (§6) |
@@ -45,10 +45,10 @@ generated `x-eval-layout.h`):
 
 Process state, which the loader keeps: `files` (descriptors, write-buf, and
 the read buffer — a BUFFER over a C array on `main`'s stack, `x-cli.c`),
-the four `hooks` and the heap group's mark/free hooks (static atoms holding
+the four `hooks` and the heap fields' mark/free hooks (static atoms holding
 C function pointers), `mark-hooks`, `free-hooks`, `mark-roots`, the
 `root-chain` (off-chain stack objects pushed by frames, marked never swept,
-`x-base.h`), `obj-meta-extra`, and the `alloc` group.
+`x-base.h`), `obj-meta-extra`, and the `alloc` fields.
 
 Two more facts about where things live:
 
@@ -80,13 +80,13 @@ Consequences:
    matched by name against anything the loader has.
 0. Two types are primitive — atom and pair — and every other type is a
    struct whose cells are its behaviour. Two of those cells are `save` and
-   `load` (§4.3): a type turns its own objects into tagged words and fixes a
+   `load` (§4.3): a type turns its own objects into labelled words and fixes a
    rebuilt one up. The writer never reads a type's units from outside; it
    asks the type, through `(image save!)`.
 2. Handler stacks, the resident ERR, the catalog, the symbol table and the
    file registry come with the image because they are reachable from the
    cells.
-3. The only things not in the image are the two kinds of thing the loader
+3. The only things not in the image are the two variants of thing the loader
    already owns: **C functions** and the **engine's static objects**. One
    table names them (§3.4).
 4. The roots are the language-state cells, named by the contract (§3.5).
@@ -131,15 +131,15 @@ A name is `[len][bytes…]` in `words-for(len) = 1 + ((len + 1) >> 3)` words —
 room for a NUL, which a zeroed buffer supplies. Steps, where used, are
 `[n][s…]` with `0` = first, `1` = rest.
 
-### 3.3 Objects carry their own shape
+### 3.3 Objects carry their own unit labels
 
-There is no shape table. Every record (§3.6) says how many units it has and
-what kind each is, because the type's `save` handler wrote it that way.
-Kinds: `ref` 0, `word` 1, `bytes` 2, `foreign` 3.
+There is no unit-label table. Every record (§3.6) says how many units it has and
+what label each is, because the type's `save` handler wrote it that way.
+Labels: `ref` 0, `word` 1, `bytes` 2, `foreign` 3.
 
 Three types have no struct and are saved structurally, by role:
 
-| role | tag | payload |
+| role | label | payload |
 |---|---|---|
 | `spair` | `x_type_pair_obj` — a type-struct node | 2 ref |
 | `satom` | `x_type_atom_obj` — a static atom, or a type handle: the name atom `make-type` allocates | 1 unit: bytes when the object is OWN (the handle's name), else a word |
@@ -151,43 +151,43 @@ the registry like any other, and its `save` says two references.
 
 ### 3.4 Externals table — what the loader already owns
 
-    [kind][name]
+    [label][name]
 
 A unit that refers to something outside the image stores an external
-index (negative in a `ref` unit, plain in a `foreign` unit). Kinds:
+index (negative in a `ref` unit, plain in a `foreign` unit). Labels:
 
-| kind | names | loader resolves to |
+| label | names | loader resolves to |
 |---|---|---|
 | 1 `catalog` | `ns/method` | the C function pointer behind its own `(prim-ref ns method)` |
 | 2 `bare` | a global's name | the function pointer of the callable bound to that name in a fresh base |
 | 3 `dlsym` | a C symbol | `dlsym` |
-| 4 `typecall` | `PROCEDURE` or `OPERATIVE` | the call pointer a fresh closure of that kind carries |
+| 4 `typecall` | `PROCEDURE` or `OPERATIVE` | the call pointer a fresh closure of that type carries |
 | 5 `dlopen` | — | the process handle |
 | 6 `static` | a role name | one of the engine's static objects, by role — see below |
 | 7 `type-static` | a type name and a row of `base-paths.x` | the static object a **freshly registered** type of that name holds at that row |
 | 8 `base-row` | a base-rooted row of `base-paths.x`, or `base` | that node of the **loader's** base tree — the spine cell the library cached (`%reflect-base-cell`), or the base object itself |
 
-Kind 8 exists because the library holds spine cells by reference:
+Label 8 exists because the library holds spine cells by reference:
 `boot/reflect.x` and `boot/registry.x` cache `type-alist`, `prims`, `false`,
 `err-line`, `err-file`, `file-registry`, `obj-meta-extra`. A spine node is
 never imaged; a reference to one resolves to the loader's node of the same
 row, and a spine node with no row is unnameable.
 
-Kind 6 names the
+Label 6 names the
 statics that are not inside any type struct: `true`, `false` (`x_true_obj`,
-`x_false_obj`), `tag-atom`, `tag-pair` (the two tags, when they appear as
+`x_false_obj`), `label-atom`, `label-pair` (the two labels, when they appear as
 type words), `units-atom`, `units-pair`, `length-atom`, `length-pair`,
-`token-eof` (`x_token_eof_prim`). Kind 7 names the statics that are: a
+`token-eof` (`x_token_eof_prim`). Label 7 names the statics that are: a
 built-in type's name atom, its C handler atoms, its default units value.
 `x_type_int_register` builds INTEGER's struct from the same static
 descriptors in every base, so `(type-make INTEGER)` is the same object in
 the writer's process and the loader's.
 
-The writer discovers kind-7 names by walking a pristine `(base make)` and
+The writer discovers label-7 names by walking a pristine `(base make)` and
 recording every **off-chain** node (heap link 0) under the row that reaches
 it. That is why a C reader buried under four library pushes in STRING's read
 stack still has a name: it is what a fresh STRING holds at `type-read`.
-Kind 6 comes from a fixed list; kind 7 is derived; nothing else is static.
+Label 6 comes from a fixed list; label 7 is derived; nothing else is static.
 
 An external the writer cannot name is stored as `XCOUNT + 1`; the loader
 resolves it to nil, **counts it, and reports the count**. A nonzero count
@@ -210,10 +210,10 @@ contract's, not the loader's.
 
 `N` records, no length word:
 
-    [type][flags][n][kind word]…n
+    [type][flags][n][label word]…n
 
 `type` is the object index of its type struct, or `-1 spair`, `-2 satom`,
-`-3 nil-typed`. `n` and the kinds are what `(image save!)` answered for this
+`-3 nil-typed`. `n` and the labels are what `(image save!)` answered for this
 object. `flags` are the writer's flags masked to `WRAP 0x01`, `COV 0x02`,
 `RO 0x40` (bits `0x04` and `0x08`, once `FRAME` and `FNFRAME`, are free
 since environments became values); `SHARED` is set on every rebuilt
@@ -278,14 +278,14 @@ any other; `(type make name handlers)` takes them under the keys `save`
 and `load`.
 
 - `save`, applied by `(image save! obj buf)` with evaluated arguments,
-  writes the unit count at `buf[0]` and `[kind][word]` pairs after it, and
+  writes the unit count at `buf[0]` and `[label][word]` pairs after it, and
   returns the object. The engine provides one per built-in type whose
   payload is not all references — STRING and SYMBOL say `bytes`, INTEGER
   and CHARACTER `word`, POINTER `foreign`, PRIMITIVE `foreign foreign`
   (the function pointer, then a second address the engine owns), PROCEDURE
   and OPERATIVE `foreign ref`, BUFFER `bytes ref word` for its outer (the bytes,
   the inner, the consumed count) and two words for its inner (0 and the
-  unread count) — and `x_type_save_default`, which walks the units shape,
+  unread count) — and `x_type_save_default`, which walks the unit labels,
   for every type that declares none. A type the library registers gets the
   default, two references (`make-instance`'s layout), unless it pushes its
   own. A handler evaluates nothing and allocates nothing: the per-type
@@ -296,7 +296,7 @@ and `load`.
   unread count and the bytes' new address; a rebuilt outer has the third
   unit, a fresh one does not. Most types have none.
 
-A word is a reference iff its kind says so. An INTEGER's unit is `word`; it
+A word is a reference iff its label says so. An INTEGER's unit is `word`; it
 is never resolved, even when it holds an address — a global that caches a
 type word (`%reflect-satom-tw`, `%print-int-tw`) is written verbatim and is
 **wrong after load** until the library recomputes it. A cached process
@@ -316,13 +316,13 @@ structs and two indices; the loader does not care which is which.
    that resolve to nil.
 3. `(image rebuild!)`: three passes over the object table. The first
    allocates every object on this base's chain (its own `obj-meta-extra`
-   applies) with the record's unit count, typed by the static tag for a
+   applies) with the record's unit count, typed by the static label for a
    role and untyped otherwise. The second sets each untyped object's type
    word to the *rebuilt* struct its record names and patches every unit by
-   the kind the record carries. The third applies each object's type `load`
+   the label the record carries. The third applies each object's type `load`
    where there is one. The loader hands the primitive the externals as one
-   vector whose entry `k` is an object (kinds 6–8) or an integer address
-   (kinds 1–5), and the blob's address.
+   vector whose entry `k` is an object (labels 6–8) or an integer address
+   (labels 1–5), and the blob's address.
 4. Install the roots (§3.5) as **separate top-level forms, each a direct
    primitive call**, `ctrl` cells last and to nil. Any operative or
    procedure here pushes a TCO compound onto the save-stack that a later
@@ -412,12 +412,12 @@ test, not the unit test.
   in place provides a `load`.
 - `(image save!)` applies a type's save with evaluated arguments and saves
   the three roles structurally; `(image rebuild!)` allocates from the
-  record's own count and kinds, sets `SHARED`, and runs the load pass.
+  record's own count and labels, sets `SHARED`, and runs the load pass.
 - `(image write!)` is the writer's loop: it walks the chain from a cursor,
   indexes every object carrying the caller's flag, and writes each one's
   record through the same save. It names nothing. A word it cannot place
   -- a reference to an object outside the image, a foreign address -- goes
-  to a callable the caller supplies, `(name word kind obj)`, once per
+  to a callable the caller supplies, `(name word label obj)`, once per
   distinct word; an integer answer is the external index and anything else
   the sentinel. It also answers the object index of each root value the
   caller lists, so the roots table needs no second index.

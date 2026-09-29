@@ -26,7 +26,7 @@ collection.
 ### 1 — `eq?` compares the operand word
 
 `x_prim_eq` is one expression: `a == b || (!isnil(a) && !isnil(b) && x_intval(a)
-== x_intval(b))`. It reads slot 0 of both operands without asking their kinds,
+== x_intval(b))`. It reads slot 0 of both operands without asking their types,
 so a CHARACTER equals the INTEGER of its code. `lib/x/boot/printer.x` depends
 on it: `%print-str-esc?` and `%print-str-esc-byte` match `(str byte-ref s i)` —
 a character — against 34, 92, 10, 9, 13.
@@ -46,7 +46,7 @@ predicates return the base's true and false fields, which a child base inherits
 the handler is called as `(handler a b)` and owns the coercion. When both sides
 carry one, the same type takes `a`'s; otherwise the side whose type declares a
 conversion FROM the other absorbs it; with neither declaring, the operator falls
-through. Offered by `+ - * / %`, `<` and `=`, and not by the bitwise family.
+through. Offered by `+ - * / %`, `<` and `=`, and not by the bitwise operators.
 
 ### 4 — the collector invokes the hooks
 

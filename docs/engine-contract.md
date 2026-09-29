@@ -8,13 +8,13 @@ reports, and how the language finds out.
 It is written for someone building a second engine. Everything here is checked by
 something in the tree; where a claim is not checked, it says so.
 
-## The three kinds of row
+## A row carries one of three labels
 
-An engine describes itself in `x-engine.xon`. Three kinds of statement live there,
-and they are compared three different ways. Collapsing them is the mistake the
+An engine describes itself in `x-engine.xon`. Each statement there carries one of
+three labels, and the three are compared three different ways. Collapsing them is the mistake the
 vocabulary exists to prevent.
 
-| kind | means | compared by |
+| label | means | compared by |
 |---|---|---|
 | **capability** | a group of instructions is reachable | superset — a richer engine is never refused |
 | **guarantee** | a behaviour the engine promises, usually by *not* doing something | must-hold |
@@ -108,7 +108,7 @@ direction is deliberate: a partly-built engine under-declares and is refused ear
 by the contract gate, rather than being accepted and dying at runtime on the first
 instruction it never implemented.
 
-**A tag is not a group.** The `ffi` tag carries ten instructions that split three
+**A label is not a group.** The `ffi` label carries ten instructions that split three
 ways, and treating it as one would make `dlopen` mandatory for every engine
 including a sandboxed one:
 
@@ -180,7 +180,7 @@ executable form of all of this, and tests no `eq?` between two raises.
 
 ## Profiles
 
-Four tiers, so a partial engine has a target instead of an all-or-nothing wall.
+Four profiles, so a partial engine has a target instead of an all-or-nothing wall.
 Each includes the one before it.
 
 | profile | adds | boots |
@@ -192,10 +192,10 @@ Each includes the one before it.
 
 The interesting boundary is `core|gc`: an engine with **no foreign door, no
 syscalls and no collector** still boots x-lang. Of roughly 150 files in `lib/` and
-`apps/`, eighteen need anything above `core`. That is the shape of the sandbox
-dialect, and the first target worth aiming a new engine at.
+`apps/`, eighteen need anything above `core`. That is what the sandbox dialect
+amounts to, and the first target worth aiming a new engine at.
 
-The tiers are what the library *is*, not a tidy diagram. `posix` cannot be
+The profiles are what the library *is*, not a tidy diagram. `posix` cannot be
 separated from the foreign door because `lib/x/sys/posix.x` fetches `dlopen`
 alongside `syscall`.
 
@@ -229,7 +229,7 @@ by raising an error. Both bare suites rely on this.
 
 ## What an engine ships
 
-    tools/contract/isa.x            the instruction manifest, with a tag per row
+    tools/contract/isa.x            the instruction manifest, with a label per row
     tools/contract/obj-layout.x     object header layout, in WORDS
     tools/contract/base-paths.x     interpreter state as first/rest walks
     tools/contract/base-layout.x    the base spine descriptor
@@ -292,7 +292,7 @@ The order that gets you running soonest:
    more: under-declaring costs you capability, over-declaring costs correctness.
 3. Generate `x-engine.xon` with x-lang's generator.
 4. Run conformance and compliance against your binary. Both take `X_BIN`.
-5. Add `gc`, then `posix`, as you want the library tiers that need them.
+5. Add `gc`, then `posix`, as you want the library profiles that need them.
 
 The bar for step 1 is lower than it looks — no collector, no syscalls, no foreign
 door — and higher in one specific way: the reflective library needs word-addressed

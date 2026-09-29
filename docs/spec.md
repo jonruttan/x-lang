@@ -522,9 +522,9 @@ the same registry.
 ```x-repl
 (Type name (Type of #t)) -> "BOOL"
 (guard (e "caught") (+ #t 1)) -> "caught"
-``` The bitwise family
-(`~ & | ^ << >>`) is stricter: integer or char operands only, enforced in its
-wrappers.
+``` The bitwise operators
+(`~ & | ^ << >>`) are stricter: integer or char operands only, enforced in
+their wrappers.
 
 ```x-repl
 (guard (e "caught") (+ 1 ())) -> "caught"
@@ -1329,7 +1329,7 @@ pinned by `tests/x/specs/lib/type.spec.md`):
 ```x
 (def t-int (Type wrap (Type of 0)))
 (t-int push-write (fn (_ n) (display (Str8 append "0x" (%number->str n 16)))))
-; the write/echo mode now renders integers as 0x2a ...
+; write now renders integers as 0x2a ...
 (Type pop-write (t-int raw))
 ; ... and is restored byte-for-byte
 ```
@@ -1415,7 +1415,7 @@ that holds a raw base passes it straight through:
 
 `(b cell 'field-name)` walks the layout contract
 (`engine/tools/contract/base-paths.x`) to the object the base-rooted row for
-`field-name` addresses; `(Base fields)` lists the row names. A cell-kind
+`field-name` addresses; `(Base fields)` lists the row names. A cell-label
 field's value sits in the cell's first slot. A name whose row is not
 base-rooted is refused — a type-rooted path stepped from a base spine would
 address arbitrary interpreter state.
@@ -2347,7 +2347,7 @@ Returns entries whose keys are NOT in `keys`.
 
 `(Assoc from-bindings bindings) -> alist`
 
-Converts a bindings list -- `((key value) ...)` two-element lists, the `let` shape -- to an alist of assocs.
+Converts a bindings list -- `((key value) ...)` two-element lists, as `let` writes them -- to an alist of assocs.
 
 ```x-repl
 (Assoc from-bindings (list (list 'a 1) (list 'b 2))) -> (('a . 1) ('b . 2))

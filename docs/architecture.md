@@ -27,7 +27,7 @@ The engine is a type-agnostic expression evaluator. It provides atom/pair primit
 
 Each layer expands capabilities without modifying those below it.
 
-**Layer 1: Atom/Pair Bootstrap.** One storage shape, two blessed lengths: every object is a fixed-size vector of datum slots, and the two smallest -- the atom (one slot) and the pair (two) -- provide enough machinery for evaluation and data construction. The evaluator dispatches through type methods rather than hardcoding knowledge of specific types, so these two suffice to get the system running; the user-facing `Vector` type is the same shape with the length exposed.
+**Layer 1: Atom/Pair Bootstrap.** One storage layout, two blessed lengths: every object is a fixed-size vector of datum slots, and the two smallest -- the atom (one slot) and the pair (two) -- provide enough machinery for evaluation and data construction. The evaluator dispatches through type methods rather than hardcoding knowledge of specific types, so these two suffice to get the system running; the user-facing `Vector` type is the same layout with the length exposed.
 
 **Layer 2: Adaptive Type System.** `make-type` and `make-instance` introduce new types at runtime. Each type is a nested linked list carrying a fixed prefix of dispatch methods (call, eval, write, length, etc.) and an extensible tail for type-specific data. New types plug into the existing evaluation, printing, and comparison infrastructure the moment they are registered. Types registered at startup include symbols, lists, integers, strings, characters, primitives, procedures, operatives, buffers, whitespace, and comments.
 
@@ -37,7 +37,7 @@ Each layer expands capabilities without modifying those below it.
 
 ### The Base Object
 
-The base object (`p_base`) is the interpreter's root context: a pair tree built from the same atoms and pairs as every other value (there is no struct). x-engine-c builds it in two halves: its embeddable expression core supplies a skeleton -- the I/O and metadata groups, profile counters, hooks, and heap-fields -- and its eval layer fills the environment/control half the core leaves nil, appending a few fields of its own. Every leaf is either a stack cell `(current . saved)` for dynamic push/pop, or a direct value. The split is that engine's; what any engine must carry is the layout contract, `engine/tools/contract/base-layout.x`.
+The base object (`p_base`) is the interpreter's root context: a pair tree built from the same atoms and pairs as every other value (there is no struct). x-engine-c builds it in two halves: its embeddable expression core supplies a skeleton -- the I/O and metadata fields, profile counters, hooks, and heap-fields -- and its eval layer fills the environment/control half the core leaves nil, appending a few fields of its own. Every leaf is either a stack cell `(current . saved)` for dynamic push/pop, or a direct value. The split is that engine's; what any engine must carry is the layout contract, `engine/tools/contract/base-layout.x`.
 
 ```
 base = x_base(p_base)
@@ -50,7 +50,7 @@ base = x_base(p_base)
            mark-hooks, free-hooks, mark-roots, sigint
 ```
 
-Field access is via nested `first`/`rest` traversal, expressed with the `x_<binary>` accessor family (`x_0` = first, `x_1` = rest, read left-to-right outer-to-inner). For example `x_eval_field_env_alist(X)` resolves to `first(first(first(base)))`. The authoritative layout, including which leaves are field cells versus direct values, is `engine/tools/contract/base-layout.x` (mirrored by `engine/include/x-eval-layout.h`, generated there from it, and pinned by `make check-base-paths`).
+Field access is via nested `first`/`rest` traversal, expressed with the `x_<binary>` accessors (`x_0` = first, `x_1` = rest, read left-to-right outer-to-inner). For example `x_eval_field_env_alist(X)` resolves to `first(first(first(base)))`. The authoritative layout, including which leaves are field cells versus direct values, is `engine/tools/contract/base-layout.x` (mirrored by `engine/include/x-eval-layout.h`, generated there from it, and pinned by `make check-base-paths`).
 
 #### Nil
 
@@ -58,7 +58,7 @@ Nil is `NULL`. The empty list `()` parses to `NULL`, and `x_obj_isnil` checks `p
 
 ### The Object Model
 
-Every runtime value is an `x_obj_t`, a union of pointer, integer, character, string, function pointer, and void pointer. Objects are allocated as contiguous arrays of this union:
+Every runtime value is represented by an object: a contiguous array of `x_obj_t` units, each a union of pointer, integer, character, string, function pointer, and void pointer:
 
 ```
 [ gc | type | flags | data... ]
@@ -66,7 +66,7 @@ Every runtime value is an `x_obj_t`, a union of pointer, integer, character, str
 
 - **gc** -- GC chain pointer (present only when `X_GC` is defined).
 - **type** -- pointer to the object's type definition (or to `x_type_atom_obj` / `x_type_pair_obj` for intrinsic types).
-- **flags** -- bit field encoding sub-type (prim, fn, int, char, str, ptr) and ownership/read-only status.
+- **flags** -- the attribute bits: ownership, read-only status and the rest.
 - **data** -- one datum for atoms, two for pairs.
 
 Atoms carry a single `x_obj_t` datum. Pairs carry two: `first` and `rest`. All compound structures (lists, environments, the base itself, type definitions) are built from chains of pairs terminated by nil (`p_base`).
@@ -75,7 +75,7 @@ Atoms carry a single `x_obj_t` datum. Pairs carry two: `first` and `rest`. All c
 
 Types and the base object share the same structural contract: a nested linked list with a fixed-layout prefix followed by an extensible tail.
 
-**Type contract** (13 fields across 5 groups):
+**Type contract** (13 fields, in five parts):
 
 ```x
 (
@@ -87,7 +87,7 @@ Types and the base object share the same structural contract: a nested linked li
 )
 ```
 
-The `struct x_type_t` mirrors this layout for convenient initialization in C, but the runtime representation is pairs. The heap group governs allocation and sizing. The proc group governs evaluation and invocation. The io group governs parsing and output. The `data` field and any pairs appended beyond field 4 are owned by the specific type -- the infrastructure only inspects the prefix it understands.
+The `struct x_type_t` mirrors this layout for convenient initialization in C, but the runtime representation is pairs. The heap fields govern allocation and sizing. The proc fields govern evaluation and invocation. The io fields govern parsing and output. The `data` field and any pairs appended beyond field 4 are owned by the specific type -- the infrastructure only inspects the prefix it understands.
 
 **Base contract** (3 top-level fields with nested tuples):
 

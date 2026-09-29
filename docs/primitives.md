@@ -33,7 +33,7 @@ Every entry below is a C function the engine binds under a bare name — the
 arguments** (fexpr-style) and evaluate what they need internally, which is why
 `fn` can be built on top of them; `wrap` supplies applicative semantics.
 
-Each ISA entry carries a tag justifying why it must be C at all — `spine` (the
+Each ISA entry carries a label justifying why it must be C at all — `spine` (the
 evaluator itself), `alloc`, `gc`, `raw-mem`, `raw-op`. An entry that cannot
 honestly take one is a migration candidate, not a fixture.
 
