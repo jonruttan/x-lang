@@ -332,3 +332,56 @@ process's id, so no other process has stored an entry for it.
 ```
 ---
     (#t #t #t #t ())
+
+## an entry is held in the heap
+
+Every entry a process stores or loads is kept in the heap as well: the code
+in an object whose payload is words, and the relocation records as a list.
+Nothing in a held entry is an address, so a state image carries it, and a
+process booted from that image pours from what it holds.
+
+### with its files gone, a second compile answers from the held entry
+
+The directory is this case's own and the body carries this process's id. The
+second compile finds no file, and stores none: the file loader still misses
+after it.
+
+```x
+(do
+  (def %held-pcall (%ac (lit %asm-cache-pcall)))
+  (def %held-sym (fn (_ name) ((%ac (lit %asm-cache-dlsym)) (%ac (lit %asm-cache-lib)) name)))
+  (def %held-pid (Sys getpid))
+  (def %held-path (Str append "/tmp/jit-cache-held-" ((%ac (lit %asm-cache-wts)) %held-pid)))
+  (%held-pcall (%held-sym "mkdir") %held-path 448)
+  (def %held-e (list 'fn '(_ x) (list '- 'x %held-pid)))
+  (def %held-t (%asm-cache-text %held-e () #f))
+  (Sys setenv "X_ASM_CACHE_DIR" %held-path)
+  (def %held-at (%asm-cache-path %held-t))
+  (def %held-f (compile-asm %held-e))
+  (%held-pcall (%held-sym "unlink") (Str append %held-at ".bin"))
+  (%held-pcall (%held-sym "unlink") (Str append %held-at ".asm"))
+  (def %held-g (compile-asm %held-e))
+  (def %held-file (%asm-cache-load %held-t %held-at ()))
+  (Sys unsetenv "X_ASM_CACHE_DIR")
+  (def %held-rmdir (%held-pcall (%held-sym "rmdir") %held-path))
+  (write (list (%held-f %held-pid) (%held-g %held-pid) (same? %held-f %held-g)
+               %held-file %held-rmdir))
+  (newline))
+```
+---
+    (0 0 #f () 0)
+
+### a held entry is its size, and a code object of whole words
+
+```x
+(do
+  (def %held-entry ((%ac (lit %asm-cache-held-find)) %held-t (%ac (lit %asm-cache-held))))
+  (def %held-size (first (rest %held-entry)))
+  (def %held-words (%obj-ref (first (rest (rest %held-entry))) 0))
+  (write (list (= %held-size %asm-last-size)
+               (<= %held-size (* %word-size %held-words))
+               (< (* %word-size %held-words) (+ %held-size %word-size))))
+  (newline))
+```
+---
+    (#t #t #t)
