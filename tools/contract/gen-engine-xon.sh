@@ -74,7 +74,7 @@ awk '/^\(def %feature-group-rows/{f=1;next} /^\)\)\)/{f=0}
                     for (i=2;i<=NF;i++) print $i, $1 }' "$FEAT" | sort > "$W/exp"
 awk '/^\(def %feature-capabilities/{f=1;next} /^\)\)\)/{f=0}
      f && /^  \(/ { l=$0; sub(/;.*/,"",l); gsub(/[()]/,"",l); $0=l
-                    if (NF>=2 && $2!="rows" && $2!="-") print $2, $1 }' "$FEAT" | sort -k1,1 > "$W/tagmap"
+                    if (NF>=2 && $2!="rows" && $2!="-") print $2, $1 }' "$FEAT" | sort -k1,1 > "$W/labelmap"
 
 # coordinate -> capability group, for ONE isa.x.  Factored because it is now run
 # twice: once for the candidate and once for the reference, which is what makes
@@ -94,8 +94,8 @@ c2g() {
 			else if (s == "values" && NF >= 1) print $1, "value"
 			else if (s != "catalog" && NF >= 2) print $1, $2
 		}' "$_isa" > "$W/rows"
-	sort -k2,2 "$W/rows" > "$W/rows-bytag"
-	join -1 2 -2 1 -o 1.1,2.2 "$W/rows-bytag" "$W/tagmap" | sort > "$W/bytag"
+	sort -k2,2 "$W/rows" > "$W/rows-bylabel"
+	join -1 2 -2 1 -o 1.1,2.2 "$W/rows-bylabel" "$W/labelmap" | sort > "$W/bylabel"
 	# The explicit rows must be INTERSECTED with what this isa actually has.
 	# Without that, any group with explicit membership in features.x was reported
 	# as provided by every engine -- the generator manufacturing a capability
@@ -116,7 +116,7 @@ c2g() {
 	# under-reporting itself, with no error anywhere.  Found by declaring
 	# x-engine-rust's first row.
 	{ cat "$W/exp-present"
-	  awk 'FILENAME==ARGV[1]{o[$1];next} !($1 in o)' "$W/exp-present" "$W/bytag"
+	  awk 'FILENAME==ARGV[1]{o[$1];next} !($1 in o)' "$W/exp-present" "$W/bylabel"
 	} | sort -u > "$_out"
 }
 

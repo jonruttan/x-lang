@@ -29,10 +29,10 @@
 ;
 ; The checks, numbered as the gate numbers them:
 ;
-;   1. total     every ISA row lands in a capability group, by its tag or by
+;   1. total     every ISA row lands in a capability group, by its label or by
 ;                explicit membership
 ;   2. disjoint  no coordinate is listed by two groups, or listed by one while
-;                its tag is claimed whole
+;                its label is claimed whole
 ;   3. grounded  every coordinate a group lists is an ISA row
 ;   4. closed    every atom a profile names is a capability or an earlier
 ;                profile
@@ -145,7 +145,7 @@
 
     ; --- the ISA ------------------------------------------------------------
 
-    ; (COORD . TAG) for every row, following the defs in file order
+    ; (COORD . LABEL) for every row, following the defs in file order
     (method %isa-pairs (self forms)
       (let ((go (fn (go fs acc)
                   (if (null? fs) (List reverse acc)
@@ -167,7 +167,7 @@
             ; Values are part of the surface: x-release, x-version, args and
             ; the rest must be nameable by an atom, or no requires row could
             ; demand them, and x.sh depends on x-release.  A value row has no
-            ; tag, so it enters with the sentinel `value`, which no capability
+            ; label, so it enters with the sentinel `value`, which no capability
             ; claims whole, and check 1 then makes each one join a group
             ; explicitly.
             ((eq? name (lit %isa-values))
@@ -187,13 +187,13 @@
     ; --- checks 1 to 3: the partition ---------------------------------------
 
     ; A capability whose source is `rows` lists its members, and one whose
-    ; source is `-` has none.  Any other source is a tag it claims whole.
-    (method %claims-tag? (self src) (not (if (str=? src "rows") #t (str=? src "-"))))
+    ; source is `-` has none.  Any other source is a label it claims whole.
+    (method %claims-label? (self src) (not (if (str=? src "rows") #t (str=? src "-"))))
 
-    (method %tag-claims (self caps)
+    (method %label-claims (self caps)
       (EngineContract %set
         (List map (fn (_ c) (rest c))
-          (List filter (fn (_ c) (EngineContract %claims-tag? (rest c))) caps))))
+          (List filter (fn (_ c) (EngineContract %claims-label? (rest c))) caps))))
 
     ; (COORD . GROUP) for every coordinate a group lists, in the order of the
     ; lines "COORD GROUP"
@@ -222,25 +222,25 @@
     ; (1) total
     (method %total (self isa claims explicit)
       (let ((listed (List map (fn (_ p) (first p)) explicit)))
-        (List map (fn (_ p) (Str8 append "  TOTAL: " (first p) " (tag " (rest p)
+        (List map (fn (_ p) (Str8 append "  TOTAL: " (first p) " (label " (rest p)
                                          ") belongs to no capability group"))
           (List filter (fn (_ p) (not (if (EngineContract %member? (rest p) claims) #t
                                         (EngineContract %member? (first p) listed))))
             isa))))
 
-    ; (2) disjoint: a coordinate listed while its tag is claimed whole
+    ; (2) disjoint: a coordinate listed while its label is claimed whole
     (method %claimed-twice (self explicit isa claims)
       (let go ((ps explicit) (acc ()))
         (if (null? ps) (List reverse acc)
-          (let ((tags (EngineContract %tags-of (first (first ps)) isa)))
+          (let ((labels (EngineContract %labels-of (first (first ps)) isa)))
             (go (rest ps)
-              (if (EngineContract %any-member? tags claims)
-                (pair (Str8 append "  DISJOINT: " (first (first ps)) " is claimed both by tag "
-                                   (Str8 join "\n" tags) " and explicitly by " (rest (first ps)))
+              (if (EngineContract %any-member? labels claims)
+                (pair (Str8 append "  DISJOINT: " (first (first ps)) " is claimed both by label "
+                                   (Str8 join "\n" labels) " and explicitly by " (rest (first ps)))
                       acc)
                 acc))))))
 
-    (method %tags-of (self coord isa)
+    (method %labels-of (self coord isa)
       (List map (fn (_ p) (rest p)) (List filter (fn (_ p) (str=? coord (first p))) isa)))
 
     ; --- checks 4 and 5: profiles -------------------------------------------
@@ -297,12 +297,12 @@
 
     ; coordinate -> group, as a list of (COORD . GROUP).  A coordinate named in
     ; %feature-group-rows belongs to those groups; any other takes each
-    ; capability that claims its tag whole.
+    ; capability that claims its label whole.
     (method %groups-map (self isa caps explicit)
       (List append explicit
-        (EngineContract %by-tag isa caps (List map (fn (_ p) (first p)) explicit))))
+        (EngineContract %by-label isa caps (List map (fn (_ p) (first p)) explicit))))
 
-    (method %by-tag (self isa caps taken)
+    (method %by-label (self isa caps taken)
       (let ((go (fn (go is acc)
                   (match
                     ((null? is) acc)
@@ -310,12 +310,12 @@
                     (#t (go (rest is) (EngineContract %owners-onto (first is) caps acc)))))))
         (go isa ())))
 
-    (method %owners-onto (self coord-tag caps acc)
+    (method %owners-onto (self coord-label caps acc)
       (if (null? caps) acc
-        (EngineContract %owners-onto coord-tag (rest caps)
+        (EngineContract %owners-onto coord-label (rest caps)
           (let ((src (rest (first caps))))
-            (if (if (str=? src (rest coord-tag)) (EngineContract %claims-tag? src) #f)
-              (pair (pair (first coord-tag) (first (first caps))) acc)
+            (if (if (str=? src (rest coord-label)) (EngineContract %claims-label? src) #f)
+              (pair (pair (first coord-label) (first (first caps))) acc)
               acc)))))
 
     ; (PATH CAP...) for every source that reaches a group above core, its
@@ -485,7 +485,7 @@
               (params (EngineContract %text-rows (EngineContract %rows feat (lit %feature-parameters))))
               (profs (EngineContract %text-rows (EngineContract %rows feat (lit %feature-profiles)))))
           (let ((explicit (EngineContract %explicit rows))
-                (claims (EngineContract %tag-claims caps)))
+                (claims (EngineContract %label-claims caps)))
             (let ((required (if (File exists? req-path)
                               (EngineContract %requires req-path profs sources
                                 (EngineContract %groups-map isa caps explicit))
