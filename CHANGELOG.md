@@ -28,6 +28,19 @@ from an unpacked release, and the image tools mark with the engine's
 
 [#835]: https://github.com/jonruttan/x-lang/pull/835
 
+**A site can be made on demand, and the SHA-256 engine's is** ([#PR]).
+`(Swap site-on-demand! name twin maker seat)` records a site and brings it up
+as `site!` does, and adds no recache hook: the site goes down with every other
+before a state image is written, and stays down after one is loaded until its
+owner sends it `up!`. It is for a value that is dear to make and not always
+wanted. The compiled SHA-256 engine is one, so a process that loads an image
+holding its site does not build the engine as it loads; `(Sha256 jit!)` or an
+input of 12KB or more builds it again. `(Sha256 jit!)` on a site that is down
+therefore builds and answers `#t`, where it answered `#f`. A refused build is
+still not tried again.
+
+[#PR]: https://github.com/jonruttan/x-lang/pull/PR
+
 **`core/fn.x` has a module header** ([#846]). The apply door's eight private
 names are the module's own, and the root keeps `apply` and the `Fn` class.
 The file had been measured and left unscoped: a call through the library's
