@@ -176,6 +176,15 @@ uses any of them.
 
 [#855]: https://github.com/jonruttan/x-lang/pull/855
 
+**The type word is a label, and `(obj relabel!)` writes it** ([#860]). The
+word in an object's header that says which type it is was called the type
+tag. `(obj relabel!)` was `(obj retag!)`, and its refusal reads
+`relabel!: unknown type handle`. `Type cast!`'s doc strings and the
+library's comments say type label. No alias is kept, and no bundle uses
+the old name.
+
+[#860]: https://github.com/jonruttan/x-lang/pull/860
+
 **A stat record holds a file's type under `file-type`** ([#823]).
 `(File stat p)` and `(File lstat p)` answer
 `((size . N) (mode . M) (file-type . K) (mtime . T))`; the third key was
