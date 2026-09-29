@@ -16,7 +16,8 @@
 ; hook as it is made.  The hook is the site's own so that it runs after the
 ; hooks of everything loaded before the site: a maker's compiler has its
 ; addresses back before the maker runs, and a maker that reads an earlier
-; site's value finds the one just made.
+; site's value finds the one just made.  A site made on demand adds no
+; hook: it stays down after a load until its owner brings it up.
 ;
 ; A seat is a function of one value that puts the value in place.  (Swap
 ; in-env) and (Swap in-cell) make the two seats the library has needed; any
@@ -95,6 +96,19 @@
          ; After the maker has run: what it loaded has added its own hooks
          ; by now, and this one follows them.
          (%swap-recache-hook! (fn (_) (s up!)))
+         s)
+       (new Swap name name twin twin maker maker seat seat)))
+
+    (method site-on-demand! (self (param name SYMBOL "What the report calls the site")
+                                  (param twin ANY "The slow value, in its seat already")
+                                  (param maker CALLABLE "(fn (_)) answering the fast value; a raise refuses, and answering the twin declines")
+                                  (param seat CALLABLE "(fn (_ value)) putting a value in place; see in-env and in-cell"))
+      (doc "Record a site and bring it up, as site! does, for a value that is dear to make and not always wanted. The site goes down with every other before a state image is written, and stays down after one is loaded until its owner sends it up!."
+        (returns Swap "The site")
+        (see site!) (see up!))
+      ((fn (_ s)
+         (s up!)
+         (Swap all (pair s (Swap all)))
          s)
        (new Swap name name twin twin maker maker seat seat)))
 
