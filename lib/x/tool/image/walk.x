@@ -1,8 +1,8 @@
 ; walk.x -- one heap walk and one unit reader, shared by the image tools.
 ;
-; Imported by x/tool/image/name and by tools/dev/image-write.x,
-; image-inspect.x and image-foreign.x, so the rules below hold in one place
-; rather than in a copy each.
+; Imported by x/tool/image/name and by tools/dev/image-write.x and
+; image-foreign.x, so the rules below hold in one place rather than in a copy
+; each.
 ;
 ;   (image-walk start f acc)  ->  (acc . visited)
 ;
@@ -182,8 +182,8 @@
 ;  A units value is one of THREE things -- docs/state-image-format.md 3.3 --
 ; and the third is not an integer: a type the library registered holds the
 ; engine's static x_type_units_pair_obj (type word 0), which means what
-; make-instance allocates, two reference units.  The writer and the
-; inspector read unit labels through here.
+; make-instance allocates, two reference units.  The walk reads unit labels
+; through here.
 (doc (def image-unit-labels-static? (fn (_ u) (eq? (%reflect-type-word u) 0)))
   (param u ANY "A type's units value")
   (returns BOOL "#t when it is the engine's static units pair")
