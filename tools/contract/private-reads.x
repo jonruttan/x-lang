@@ -30,13 +30,9 @@
 ; A read of a boot file's name that has no row in that manifest is not
 ; budgeted here; the gate refuses it.
 (file "lib/x/type/block.x" 1)
-(file "tools/check/engine-contract.x" 8)
+(file "tools/check/engine-contract.x" 7)
 (file "tools/dev/bench-sha256.x" 1)
 (file "tools/dev/cov-report.x" 1)
 (file "tools/dev/doc.x" 1)
 (file "tools/dev/fmt.x" 1)
-(file "tools/dev/image-foreign.x" 13)
-(file "tools/dev/image-inspect.x" 8)
-(file "tools/dev/image-name.x" 4)
-(file "tools/dev/image-write.x" 39)
 (file "tools/dev/nul-escape.x" 1)

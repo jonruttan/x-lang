@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The image tools' heap walk and foreign namer are library modules** ([#857]).
+`tools/dev/image-walk.x` and `tools/dev/image-name.x` are
+`x/tool/image/walk` and `x/tool/image/name`, with provide lists, and
+`image-write.x`, `image-inspect.x` and `image-foreign.x` take what they use
+by selective import. An export is a bare name, `image-walk`,
+`image-over-units`, `image-name-map`, and a name left private is
+`%image-NAME`. The walk's periodic collect is switched with
+`image-walk-collect!`. Both modules are unscoped, the walk being per object,
+and a header was not measured. `tools/dev/image-read.x` is as before, a
+file included by path, since it loads where there is no module system. An
+install carries the two modules with `lib/`. The image scripts' private-read
+rows go from 64 names to none.
+
+[#857]: https://github.com/jonruttan/x-lang/pull/857
+
 **The list of functions that have a compiled version is `Compiled`**
 ([#859]). `x/sys/swap` and its class `Swap` are `x/tool/compiled` and
 `Compiled`, with names that say what each thing is. An entry holds a
@@ -183,6 +198,15 @@ and `%kind-mask`, the rows are `%type-unit-label-rows` in
 uses any of them.
 
 [#855]: https://github.com/jonruttan/x-lang/pull/855
+
+**The type word is a label, and `(obj relabel!)` writes it** ([#860]). The
+word in an object's header that says which type it is was called the type
+tag. `(obj relabel!)` was `(obj retag!)`, and its refusal reads
+`relabel!: unknown type handle`. `Type cast!`'s doc strings and the
+library's comments say type label. No alias is kept, and no bundle uses
+the old name.
+
+[#860]: https://github.com/jonruttan/x-lang/pull/860
 
 **A stat record holds a file's type under `file-type`** ([#823]).
 `(File stat p)` and `(File lstat p)` answer

@@ -10,7 +10,7 @@
 ; @copyright 2026 Jon Ruttan
 ; @license MIT No Attribution (MIT-0)
 
-(include "tools/dev/image-walk.x")
+(import x/tool/image/walk image-word-at image-obj->ptr image-ref-word image-int>> image-shape-count image-shape-mask image-shape-desc image-unit-kind)
 (def %lib0 (Ffi dlopen () 1))
 ; The engine's own read and allocator, not libc's.  dlopen stays only for
 ; reacquiring foreign ADDRESSES by name, which is the dynamic linker's job and
@@ -29,7 +29,7 @@
 (def fd (Sys open-read "/tmp/x-core.ximg"))
 (def got (%sread fd buf (* 8 1000000)))
 (Sys close fd)
-(def w (fn (_ i) (%rw buf (%i* i W))))
+(def w (fn (_ i) (image-ref-word buf (%i* i W))))
 (def at (fn (_ i) (%i+ (Ptr ->int buf) (%i* i W))))
 (def N (w 4)) (def OBJW (w 5)) (def ROOTENV (w 7)) (def ROOTG (w 12))
 (def FCOUNT (w 8)) (def FWORDS (w 9)) (def TCOUNT (w 10)) (def TWORDS (w 11))
@@ -79,7 +79,7 @@
                       (%oset! TS i ((fn (_ e) (if (null? e) () (first e))) (lookup SHAPES nm)))
                       (%oset! TT i ((fn (_ e) (if (null? e) () (rest e))) (lookup SHAPES nm)))
                       (%oset! TCNT i ((fn (_ t) (if (null? t) -1 (first t))) (tagged nm)))
-                      (self (%i+ i 1) (%i+ pos (%i+ 2 (%shr (w pos) 3))))))
+                      (self (%i+ i 1) (%i+ pos (%i+ 2 (image-int>> (w pos) 3))))))
        (Ptr ->str (%i2p (at (%i+ pos 1))))))))
 (rdtypes 1 TSTART)
 ; Which index the file calls SYMBOL: the primitive interns those by name
@@ -92,14 +92,14 @@
     ((fn (_ t) (if (null? t) (%uheap ti pos) (first t))) (tagged (%oref TN ti)))))
 (def %uheap
   (fn (_ ti pos)
-    ((fn (_ u) (if (null? u) 0 ((fn (_ c) (if (%lt c 0) (%i+ (w (%i+ pos 2)) (%i- 0 c)) c)) (%sh-count u))))
+    ((fn (_ u) (if (null? u) 0 ((fn (_ c) (if (%lt c 0) (%i+ (w (%i+ pos 2)) (%i- 0 c)) c)) (image-shape-count u))))
      (%oref TS ti))))
 (def kind-of
   (fn (_ ti j)
     ((fn (_ t) (if (null? t) (%kheap ti j) (rest t))) (tagged (%oref TN ti)))))
 (def %kheap
   (fn (_ ti j)
-    ((fn (_ u) (if (null? u) 1 (%kind (%sh-mask u) j (%sh-desc (%sh-count u))))) (%oref TS ti))))
+    ((fn (_ u) (if (null? u) 1 (image-unit-kind (image-shape-mask u) j (image-shape-desc (image-shape-count u))))) (%oref TS ti))))
 
 ; --- statics: walk the declared steps from THIS base ------------------------
 (def ST (mkn (%i+ SCOUNT 1)))
@@ -151,13 +151,13 @@
                             (tstruct nm)))
               (k (%i+ i 1) (%i+ np (%i+ 1 (w np))))))
         (Ptr ->str (%i2p (at (%i+ pos 2))))
-        (%i+ pos (%i+ 3 (%shr nl 3)))))
+        (%i+ pos (%i+ 3 (image-int>> nl 3)))))
      (w (%i+ pos 1)))))
 (rdstatics 1 SSTART)
 
 ; --- foreign: reacquire by name --------------------------------------------
 (def FV (mkn (%i+ FCOUNT 1)))
-(def fnptr-of (fn (_ v) (%word-at (%o->p v) 0)))
+(def fnptr-of (fn (_ v) (image-word-at (image-obj->ptr v) 0)))
 ; (Str8 sub st len v): START, LENGTH, and the SUBJECT LAST -- methods dispatch
 ; subject-last.  These calls had the string first and an END offset instead of
 ; a length, so every catalog name raised into the guard and came back 0.  105 of
@@ -192,7 +192,7 @@
   (fn (self i pos)
     (if (%lt FCOUNT i) ()
       (do (%oset! FV i (resolve (w pos) (Ptr ->str (%i2p (at (%i+ pos 2))))))
-          (self (%i+ i 1) (%i+ pos (%i+ 3 (%shr (w (%i+ pos 1)) 3))))))))
+          (self (%i+ i 1) (%i+ pos (%i+ 3 (image-int>> (w (%i+ pos 1)) 3))))))))
 (rdforeign 1 FSTART)
 
 ; --- allocate, then patch every unit ---------------------------------------
@@ -208,7 +208,7 @@
 ; The index is raw memory now, so reading an entry is a word read and a cast,
 ; not (obj ref).
 (def %p2o (prim-ref (lit ptr) (lit ->obj)))
-(def ixref (fn (_ ix i) (%p2o (%i2p (%rw ix (%i* i W))))))
+(def ixref (fn (_ ix i) (%p2o (%i2p (image-ref-word ix (%i* i W))))))
 (def alloc
   (fn (self i pos)
     (if (%lt N i) pos
@@ -240,7 +240,7 @@
                ((fn (_ o)
                   (if (if (str=? (guard (_ "?") (Type name o)) "PROCEDURE") #t
                         (str=? (guard (_ "?") (Type name o)) "PRIMITIVE"))
-                    (if (eq? (%word-at (%o->p o) 0) 0)
+                    (if (eq? (image-word-at (image-obj->ptr o) 0) 0)
                       (pair (%i+ (first acc) 1) (%i+ (rest acc) 1))
                       (pair (%i+ (first acc) 1) (rest acc)))
                     acc))

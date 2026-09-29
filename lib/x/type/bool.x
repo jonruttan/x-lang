@@ -4,14 +4,14 @@
 ; could close: (+ #t 1) fell through to machine arithmetic (op_try cannot
 ; consult a type that is not there -- the #52 residual), and (Type of #t)
 ; answered nil, a documented wart. The type is defined HERE, in x, and the
-; singletons are claimed with (obj retag!), which writes an object's type
+; singletons are claimed with (obj relabel!), which writes an object's type
 ; header slot. C prims return the singletons by IDENTITY, so rebinding the
 ; name #t would touch nothing -- the objects themselves change type.
-; retag! began as a C instruction on the #101 branch and was retired by
+; relabel! began as a C instruction on the #101 branch and was retired by
 ; ruling into boot/reflect.x (pure reflection over the layout contract):
 ; type policy in x, and the C surface never grew for it.
 ;
-; Everything identity-based survives retagging untouched, verified by spec:
+; Everything identity-based survives relabelling untouched, verified by spec:
 ; truthiness (if/match test isnil-or-false-singleton, never the type),
 ; eq? (value word), the printer's #t/#f fast path, boolean?, and Dict's
 ; unhashable-key refusal.
@@ -20,7 +20,7 @@
 ; "no + for BOOL" through the same registry as every other non-numeric
 ; type, installed by the same door, (Type refuse-arithmetic!), that
 ; op-guard.x uses. SYMBOLS remain the one residual: their type slot is the interning tree,
-; and retagging it is not an option (every symbol shares it).
+; and relabelling it is not an option (every symbol shares it).
 ;
 ; Idempotent: a child base re-running boot must not re-claim the shared
 ; singletons with its own type -- name-interned handles compare across
@@ -54,14 +54,14 @@
 ; and this one is not attached to them.
 (Type refuse-arithmetic! (Type by-atom %bool) "BOOL")
 
-(def %bool-retag (prim-ref (lit obj) (lit retag!)))
+(def %bool-relabel (prim-ref (lit obj) (lit relabel!)))
 (match
   ((null? (Type of #t))
     (do
-      (%bool-retag #t %bool)
-      (%bool-retag #f %bool)))
+      (%bool-relabel #t %bool)
+      (%bool-relabel #f %bool)))
   (#t ()))
-;  The retag writes into two engine statics, and a state image carries no
+;  The relabel writes into two engine statics, and a state image carries no
 ; static's header (docs/state-image-format.md 5, step 5): redone when an
 ; image loads, through the hook list reflect.x runs.
 ;  AND THE INTERNED NAMES SHARE THE SINGLETONS' BYTES.  Binding "#t" at
@@ -72,8 +72,8 @@
 ; pointed back at this process's singleton.
 (set! %image-recache-hooks
   (pair (fn (_)
-          (do (%bool-retag #t %bool)
-              (%bool-retag #f %bool)
+          (do (%bool-relabel #t %bool)
+              (%bool-relabel #f %bool)
               ((fn (self l)
                  (if (null? l) ()
                    (do ((prim-ref (lit ptr) (lit set-word!))
