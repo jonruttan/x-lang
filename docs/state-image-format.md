@@ -360,7 +360,10 @@ structs and two indices; the loader does not care which is which.
    go. Each entry added a recache hook of its own as it was made, so here
    they compile again in the order they were made, after the
    hook of `boot/tower-compiled.x` that asks the lane again, because the
-   loading engine is not the writing one.
+   loading engine is not the writing one. The code itself is in the image:
+   `lib/x/tool/asm-cache.x` holds each compile's code and relocation
+   records in the heap, so a compile here copies the code into a fresh
+   page and patches it.
    A module adds to either list through the catalog, `(image transient!)`
    and `(image recache-hook!)`, which `boot/reflect.x` files.
 
