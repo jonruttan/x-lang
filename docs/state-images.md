@@ -1493,14 +1493,15 @@ A compiled analyser is native code in a page the writing process mapped,
 and no name reacquires it in another process. The tower does not need it
 to be *carried*, only *remade*: every compile in `boot/tower-compiled.x` is
 the same shape, source over free variables, with an interpreted twin it
-displaces. So each compile goes through a **site** that records where the
-result went (a name's binding, or one cell of a type's handler list), the
-twin, a maker, and the value in place. The record is `lib/x/sys/swap.x`'s
-since 2026-09-27, where it was the tower's own before. `(Swap down!)` puts
-every twin back and lets go of the compiled objects, run by the writer
-inside the child before its walk (a thunk among `%image-transients`, the
-second half of the transient rule in `boot/reflect.x`); each site's own
-recache hook compiles it anew, in boot order, run by the loader after the
+displaces. So each compile makes an entry that records where the result is
+installed (a name's binding, or one cell of a type's handler list), the
+twin, the function that compiles it, and the compiled version in place. The
+list is `lib/x/tool/compiled.x`'s since 2026-09-27, where it was the
+tower's own before. `(Compiled interpret-all!)` puts every twin back and
+lets go of the compiled objects, run by the writer inside the child before
+its walk (a thunk among `%image-transients`, the second half of the
+transient rule in `boot/reflect.x`); each entry's own recache hook compiles
+it anew, in boot order, run by the loader after the
 install (`%image-recache-hooks`), and the tower's probe asks the lane again
 first since the loading engine is not the writing one. Measured
 2026-09-05: x-base's twelve unnameable words go to zero from the tower;

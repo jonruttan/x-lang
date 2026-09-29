@@ -176,9 +176,10 @@
 ; (x-lang#719): the four interpreted twins it named are the module's bindings
 ; before their compiles, read through the module's frame; and to 47 when the
 ; rational, complex and decimal states followed.
-; tower-compiled.x fell 47 to 36 when the site record moved to x/sys/swap:
-; the record, its accessors and the two walks are the module's, and the
-; tower keeps the ladders, the probe and the three shapes its sites take.
+; tower-compiled.x fell 47 to 36 when the list of what it compiled moved to
+; x/tool/compiled: the list, its accessors and the two walks are the
+; module's, and the tower keeps the ladders, the probe and the three shapes
+; its entries take.
 (file "lib/x/boot/tower-compiled.x" 36)
 ; codec/sha256.x grew by one, 32 -> 33, for %cvt: the catalog converter it read
 ; from the root while x/sys/posix bound it there.  posix is scoped, and under

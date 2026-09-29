@@ -344,10 +344,11 @@ structs and two indices; the loader does not care which is which.
    is the other half of the same rule: the module lists a THUNK in
    `%image-transients` instead of a symbol, the writer runs it inside the
    child before its walk, and that thunk puts the carryable form back.
-   `lib/x/sys/swap.x` keeps such values as sites, and its thunk puts every
-   site down: the tower's interpreted analysers are seated again and the
-   compiled objects let go. Each site added a recache hook of its own as it
-   was made, so here they come up in the order they were made, after the
+   `lib/x/tool/compiled.x` keeps the list of functions that have a compiled
+   version, and its thunk switches every one to interpreted: the tower's
+   interpreted analysers are installed again and the compiled objects let
+   go. Each entry added a recache hook of its own as it was made, so here
+   they compile again in the order they were made, after the
    hook of `boot/tower-compiled.x` that asks the lane again, because the
    loading engine is not the writing one.
    A module adds to either list through the catalog, `(image transient!)`
