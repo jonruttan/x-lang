@@ -311,6 +311,13 @@ Nothing a program calls is renamed.
 
 [#874]: https://github.com/jonruttan/x-lang/pull/874
 
+**The seam gate calls a row's `always`, `installed` or `bundle` its label**
+([#878]). It refuses an unknown one with `seam: unknown label(s) in FILE: NAME`;
+the line said `class(es)`. `tools/contract/seam.x` gives a row as
+`(seam LABEL NAME "what it is")`. The rows and the three values are unchanged.
+
+[#878]: https://github.com/jonruttan/x-lang/pull/878
+
 **The linter's depth warning is named `depth`** ([#864]). A definition at
 least 12 deep and 500 nodes large was reported as `shape`; a lint run now
 prints `depth:` for it. The lang kit's `--strict` matches the new name, so a
