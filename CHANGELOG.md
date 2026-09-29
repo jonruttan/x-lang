@@ -20,27 +20,6 @@ rows go from 64 names to none.
 
 [#857]: https://github.com/jonruttan/x-lang/pull/857
 
-**The list of functions that have a compiled version is `Compiled`**
-([#859]). `x/sys/swap` and its class `Swap` are `x/tool/compiled` and
-`Compiled`, with names that say what each thing is. An entry holds a
-function's `interpreted` version, the function that does the `compile`, the
-function that does the `install`, and the `compiled` version once there is
-one; its `state` is `compiled`, `interpreted` or `failed`. No alias is kept.
-
-| was | is |
-|---|---|
-| `(Swap site! name twin maker seat)` | `(Compiled make name interpreted compile install)` |
-| `(Swap in-env name env)`, `(Swap in-cell pair)` | `(Compiled into-name name env)`, `(Compiled into-cell pair)` |
-| `(Swap down!)`, `(Swap up!)` | `(Compiled interpret-all!)`, `(Compiled compile-all!)` |
-| `(s down!)`, `(s up!)`, `(s value)` | `(c interpret!)`, `(c compile!)`, `(c compiled)` |
-| `(Swap rows)` | `(Compiled list)` |
-| states `up`, `twin`, `down`, `refused` | `compiled`, `interpreted`, `interpreted`, `failed` |
-
-`(Swap site-on-demand! ...)`, new in 0.17.0, is `(Compiled make-on-demand ...)`.
-The compiled SHA-256 engine's entry is made with it, as before.
-
-[#859]: https://github.com/jonruttan/x-lang/pull/859
-
 ## [0.17.0] - 2026-09-28
 
 **A site that was never brought up is down** ([#842]). `x/sys/swap` documents
@@ -79,6 +58,19 @@ from an unpacked release, and the image tools mark with the engine's
 `%obj-flag-trace` instead of 1024.
 
 [#835]: https://github.com/jonruttan/x-lang/pull/835
+
+**A site can be made on demand, and the SHA-256 engine's is** ([#854]).
+`(Swap site-on-demand! name twin maker seat)` records a site and brings it up
+as `site!` does, and adds no recache hook: the site goes down with every other
+before a state image is written, and stays down after one is loaded until its
+owner sends it `up!`. It is for a value that is dear to make and not always
+wanted. The compiled SHA-256 engine is one, so a process that loads an image
+holding its site does not build the engine as it loads; `(Sha256 jit!)` or an
+input of 12KB or more builds it again. `(Sha256 jit!)` on a site that is down
+therefore builds and answers `#t`, where it answered `#f`. A refused build is
+still not tried again.
+
+[#854]: https://github.com/jonruttan/x-lang/pull/854
 
 **`core/fn.x` has a module header** ([#846]). The apply door's eight private
 names are the module's own, and the root keeps `apply` and the `Fn` class.
