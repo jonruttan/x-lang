@@ -347,7 +347,7 @@
             (seat (%str-append (self %shape-names shape) " body ..."))
             (alt (self %shape-alt shape)))
         (let ((pend (self %pending-entry key)))
-          (let ((e (if (null? pend) (%doc-lookup (%str->symbol key)) ())))
+          (let ((e (if (null? pend) (%doc-lookup ((prim-ref (lit str) (lit ->sym)) key)) ())))
             (let ((names (if (null? pend)
                            (if (null? e) () (self %entry-param-names (%doc-entry-params e)))
                            (self %meta-param-names (rest (rest pend))))))

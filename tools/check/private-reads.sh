@@ -43,6 +43,8 @@
 # definitions come from tools/check/defs.awk, which is form-accurate.  A
 # name in the selector's place of a send, after `self`, `super` or a class at
 # the head of a form, or declared by `method`, is a message and not a read.
+# A member a class body declares, (%size 8192), is known by the file sending
+# the same name as a selector and using it nowhere else but at a form's head.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -138,6 +140,10 @@ _counts() {
   function flush(    n, i, k, line) {
     if (file == "") return
     n = 0
+    # A name met only at the head of a form, in a file that also sends it as
+    # a selector, is a member that file declares.  Anywhere else the head of
+    # a form is a call, and a read.
+    for (k in heads) if (!(k in sent)) reads[k] = 1
     for (k in reads) {
       if (k in owndef) continue
       if ((k in kind) || (k in seam)) { used[k] = 1; continue }
@@ -147,7 +153,7 @@ _counts() {
     line = "C " file " " n
     for (i = 1; i <= n; i++) line = line " " names[i]
     print line
-    delete reads; delete owndef; delete names
+    delete reads; delete owndef; delete names; delete heads; delete sent
   }
   file == "" && $1 == "K" && NF == 2 { boot[$2] = 1; next }
   file == "" && $1 == "S" && NF == 3 { kind[$2] = "shared"; home[$2] = $3; rows[$2]++; next }
@@ -170,8 +176,13 @@ _counts() {
       # A selector is not a read: (self %walk ...) and (Lint %lint-class ...)
       # send a message, and (method %walk ...) declares one.  The name
       # belongs to the receiver, whatever the root binds under that spelling.
-      if (i > 2 && tok[i-2] == "(" && tok[i-1] ~ /^(self|super|method|[A-Z][A-Za-z0-9-]*)$/) continue
-      if (tok[i] ~ /^%/ && (tok[i] in owner)) reads[tok[i]] = 1
+      if (i > 2 && tok[i-2] == "(" && tok[i-1] ~ /^(self|super|method|[A-Z][A-Za-z0-9-]*)$/) { sent[tok[i]] = 1; continue }
+      if (tok[i] ~ /^%/ && (tok[i] in owner)) {
+        # At the head of a form the name is a call, or the declaration of a
+        # member: (%size 8192) in a class body.  Which, flush decides.
+        if (i > 1 && tok[i-1] == "(") heads[tok[i]] = 1
+        else reads[tok[i]] = 1
+      }
     }
   }
   END {

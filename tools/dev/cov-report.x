@@ -32,7 +32,7 @@
     (def %row-new?
       (let ((string-type (Type named STRING)))
         (fn (_ name)
-          (let ((s (%cvt name string-type)))
+          (let ((s (Convert to name string-type)))
             (if (%seen? s (first %seen)) #f
               (do (%set-first! %seen (pair s (first %seen))) #t))))))
     (def %tally-row

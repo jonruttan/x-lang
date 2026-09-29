@@ -31,6 +31,17 @@ as before.
 
 [#842]: https://github.com/jonruttan/x-lang/pull/842
 
+**Five reads of a borrowed catalog alias take the public doors** ([#861]).
+`tools/dev/fmt.x`, `bench-sha256.x`, `cov-report.x` and `doc.x`, and
+`type/block.x`, called `%cvt` or `%str->symbol` without binding it; the name
+was in the root only because another file had fetched it. The tools call
+`(Convert to ...)` and `(Str8 ->sym ...)`, and `block.x` fetches the
+primitive where it uses it. `check-private-reads` also stops counting a
+member that a class body declares, `(%size 8192)`. 70 reads in 5 files are
+left, 64 of them the image tools reading one another.
+
+[#861]: https://github.com/jonruttan/x-lang/pull/861
+
 **The counted private reads are the ones that still want a door** ([#852]).
 Three changes to what `check-private-reads` counts, 183 reads in 40 files
 before and 78 in 11 after. A name in the selector's place of a send,
