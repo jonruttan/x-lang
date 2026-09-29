@@ -98,20 +98,20 @@ A line being typed is unreadable most of the time; that is not a failure.
 ---
     (#f #t)
 
-### every class has a colour entry, empty though they are here
+### every label has a colour entry, empty though they are here
 
 ```x
 (do (import x/repl/paint)
-    (List all? (fn (_ c) (str? (Paint colour c))) (Paint classes)))
+    (List all? (fn (_ c) (str? (Paint colour c))) (Paint labels)))
 ```
 ---
     #t
 
-### classes covers what classify can answer
+### the labels cover what classify can answer
 
 ```x
 (do (import x/repl/paint)
-    (List all? (fn (_ c) (List includes? c (Paint classes)))
+    (List all? (fn (_ c) (List includes? c (Paint labels)))
       (List map (fn (_ s) (Paint classify s))
         (list "42" "\"s\"" "#\\a" "#t" "def" "foo" "%p" "Str8"))))
 ```

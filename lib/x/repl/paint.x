@@ -1,6 +1,6 @@
 ; repl/paint.x -- Paint: colouring a line that is still being typed.
 ;
-; What decides a colour here is the reader, not this file.  An atom's class is
+; What decides a colour here is the reader, not this file.  An atom's label is
 ; settled by handing its bytes to the base and taking the type of the value
 ; that comes back, which is the verdict the evaluator reaches on the same
 ; bytes.  There is no second set of rules here for what counts as a number, so
@@ -53,10 +53,10 @@
 
 ; --- state, all of it rebuilt by %paint-install! -------------------------
 (def %paint-kw ())        ; Dict: construct name -> #t
-(def %paint-memo ())      ; Dict: atom text -> class symbol
+(def %paint-memo ())      ; Dict: atom text -> label symbol
 (def %paint-memo-get ())  ; instance-bound (method-ref memo get-or)
 (def %paint-memo-set ())  ; instance-bound (method-ref memo set!)
-(def %paint-pal ())       ; the nine codes, in %paint-classes order
+(def %paint-pal ())       ; the nine codes, in %paint-labels order
 (def %paint-rst "")       ; the reset code
 (def %paint-c-comment "") ; hoisted: the two codes the scan needs without a classify
 (def %paint-c-string "")
@@ -88,7 +88,7 @@
             (self (rest a) (rest b))
             #f))))))
 
-(def %paint-classes
+(def %paint-labels
   (list (lit symbol) (lit construct) (lit number) (lit string) (lit char)
         (lit bool) (lit private) (lit class) (lit comment)))
 
@@ -119,9 +119,9 @@
 
 ; --- classification, on the base ------------------------------------------
 
-; Which kind of NAME an atom is, by the conventions the library itself
+; Which LABEL of NAME an atom is, by the conventions the library itself
 ; follows: a leading % marks a private, a leading capital marks a class.
-(def %paint-name-class
+(def %paint-name-label
   (fn (_ text)
     (let ((b0 (if (= 0 (%pt-blen text)) 0 (%pt-cint (%pt-bref text 0)))))
       (match
@@ -147,11 +147,11 @@
           ((eq? v #t)  (lit bool))
           ((eq? v #f)  (lit bool))
           ((null? v)   (lit bool))
-          (#t (%paint-name-class text)))))))
+          (#t (%paint-name-label text)))))))
 
-; The memo holds both answers.  An entry is (class . code): the class is what
+; The memo holds both answers.  An entry is (label . code): the label is what
 ; `classify` is asked for and what a spec can check without a terminal, the
-; code is what the scan actually writes.  Keeping only the class meant the
+; code is what the scan actually writes.  Keeping only the label meant the
 ; scan walked the palette list per atom to turn one into the other -- nine
 ; eq? tests a token, and closure calls are the unit of cost here, so that
 ; walk alone was a fifth of a render.
@@ -166,7 +166,7 @@
 
 (def %paint-classify (fn (_ text) (first (%paint-entry text))))
 
-; The code for a class: a walk down two lists in step.  Nine eq? tests at
+; The code for a label: a walk down two lists in step.  Nine eq? tests at
 ; worst, no allocation, no dispatch.
 (def %paint-code
   (fn (_ cls)
@@ -175,7 +175,7 @@
                   ((null? names) "")
                   ((eq? cls (first names)) (first codes))
                   (#t (self (rest names) (rest codes)))))))
-      (go %paint-classes %paint-pal))))
+      (go %paint-labels %paint-pal))))
 
 ; The code for a paren: its depth's colour, cycling through the palette, with
 ; the focus code added on the pair the cursor is beside; -1 is a close with
@@ -200,8 +200,8 @@
     (if (>= i n) i (if (= 10 (%pt-cint (%pt-bref s i))) i (self s (%pt+ i 1) n)))))
 
 ; To the closing quote, honouring backslash escapes.  An unterminated string
-; runs to the end of the line rather than erroring: optimistic colouring is
-; the only kind a half-typed line can have.
+; runs to the end of the line rather than erroring: a half-typed line can
+; only be coloured optimistically.
 (def %paint-str-end
   (fn (self s i n)
     (if (>= i n) n
@@ -298,7 +298,7 @@
       (if (< (first (first marks)) i) (self (rest marks) i) marks))))
 
 ; One coloured token onto the reversed segment list.  An empty code -- a
-; class with no colour, or colour switched off -- pushes bare text, so
+; label with no colour, or colour switched off -- pushes bare text, so
 ; nothing emits a stray reset.
 (def %paint-seg
   (fn (_ segs code text)
@@ -442,7 +442,7 @@
 ; --- the class: the cold-call API -----------------------------------------
 
 (def-class Paint ()
-  (doc "Syntax colouring for a line of x-lang that may still be half-typed. An atom's class comes from the READER -- the base is asked what the bytes read as -- so numbers, characters, strings and any literal a lang added all colour correctly without this class knowing their syntax."
+  (doc "Syntax colouring for a line of x-lang that may still be half-typed. An atom's label comes from the READER -- the base is asked what the bytes read as -- so numbers, characters, strings and any literal a lang added all colour correctly without this class knowing their syntax."
     (note "Lexical at the span level: an unterminated string or an unclosed form colours optimistically rather than failing, which is the normal state of a line being typed.")
     (note "Returns a string rather than writing one, so the caller composes prompt and line and issues a single write; a redraw never tears.")
     (note "The scan itself is %-private over cached prims -- the hot-path rule reader/analyser.x states -- and this class is the cold-call surface over it.")
@@ -497,21 +497,21 @@
 
     (method classify (self (param text STRING "One atom's bytes"))
       (doc "What an atom is, as a symbol: 'construct 'number 'string 'char 'bool 'private 'class or 'symbol. Constructs come from lib/x/constructs.x; everything else is decided by READING the bytes on the base and taking the type of the value, so the reader and the colour cannot disagree."
-        (returns SYMBOL "The atom's class")
+        (returns SYMBOL "The atom's label")
         (example "(list (Paint classify \"def\") (Paint classify \"3.14\") (Paint classify \"-\"))" "('construct 'number 'symbol)")
         (note "Memoised per distinct atom; forget! drops the memo."))
       (%paint-classify text))
 
-    (method colour (self (param cls SYMBOL "A class from classify"))
-      (doc "The SGR code a class is painted with -- the LSP semantic token mapping repl/ansi.x already uses for printed values, so a name looks the same being typed as it does coming back."
+    (method colour (self (param cls SYMBOL "A label from classify"))
+      (doc "The SGR code a label is painted with -- the LSP semantic token mapping repl/ansi.x already uses for printed values, so a name looks the same being typed as it does coming back."
         (returns STRING "An SGR code, empty when colour is off")
         (example "(Str8 =? (Paint colour 'number) (Ansi yellow))" "#t"))
       (%paint-code cls))
 
-    (method classes (self)
-      (doc "Every class `classify` can answer, in palette order."
-        (returns LIST "Class symbols"))
-      %paint-classes)
+    (method labels (self)
+      (doc "Every label `classify` can answer, in palette order."
+        (returns LIST "Label symbols"))
+      %paint-labels)
 
     (method keywords (self)
       (doc "The construct set, as a Dict used as a set."
@@ -563,7 +563,7 @@
   (pair (fn (_) (do (%paint-install!) (%paint-install-hook!))) %image-recache-hooks))
 
 (doc (provide x/repl/paint Paint)
-  (note "An atom's class comes from the base: the bytes are read and the value's type decides, so a colour cannot disagree with the evaluator.")
+  (note "An atom's label comes from the base: the bytes are read and the value's type decides, so a colour cannot disagree with the evaluator.")
   (note "Token SPANS are scanned here because the base offers none -- its reader is recursive and yields values. A primitive exposing the tokenizer's per-type scoring (span plus winning type) would move this last scanned piece onto the base too.")
   (note "The scan is %-private over cached prims and the palette is built once, not per render: class dispatch on a per-keystroke path costs more than the scanning between the doors.")
   (note "marks gives every paren its nesting depth with the scan's own rules for strings, comments and character literals; line colours them by depth when handed the result. The editor threads the two together on every redraw.")
