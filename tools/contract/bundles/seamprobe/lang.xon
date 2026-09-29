@@ -1,6 +1,6 @@
 ; seamprobe -- a FIXTURE, not a lang.
 ;
-; tools/check/seam.sh declares %lang-root class `bundle`: bound while a bundle
+; tools/check/seam.sh declares %lang-root label `bundle`: bound while a bundle
 ; is loaded, absent in a bare dialect.  Checking the second half needs only a
 ; dialect boot; checking the FIRST half needs a bundle to exist, and a gate
 ; that must clone another repository to run is a gate that does not run.

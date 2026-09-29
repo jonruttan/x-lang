@@ -27,9 +27,9 @@ DOC=docs/lang-contract.md
 # extended without wondering which readers obeyed which half of it.
 bad=$(sed -n 's/^(\([a-z-]*\)[ )].*/\1/p' "$SEAM" | sort -u | grep -vx 'seam' || true)
 [ -z "$bad" ] || { echo "seam: unknown form(s) in $SEAM: $bad" >&2; exit 2; }
-badclass=$(sed -n 's/^(seam \([a-z-]*\) .*/\1/p' "$SEAM" | sort -u \
+badlabel=$(sed -n 's/^(seam \([a-z-]*\) .*/\1/p' "$SEAM" | sort -u \
 	| grep -vxE 'always|installed|bundle' || true)
-[ -z "$badclass" ] || { echo "seam: unknown class(es) in $SEAM: $badclass" >&2; exit 2; }
+[ -z "$badlabel" ] || { echo "seam: unknown label(s) in $SEAM: $badlabel" >&2; exit 2; }
 
 ALWAYS=$(sed -n 's/^(seam always \([^ ]*\) .*/\1/p' "$SEAM")
 INSTALLED=$(sed -n 's/^(seam installed \([^ ]*\) .*/\1/p' "$SEAM")
@@ -76,9 +76,9 @@ for d in he xe rn; do
 			fail=1
 		fi
 	done
-	# A bare dialect is not a bundle, so the bundle-class names must be absent
+	# A bare dialect is not a bundle, so the bundle-label names must be absent
 	# here.  Same reasoning as the installed rows above: a name that quietly
-	# became unconditional turns the class into a fiction, and the bundle half
+	# became unconditional turns the label into a fiction, and the bundle half
 	# of this gate would then be proving nothing.
 	for n in $BUNDLE; do
 		if grep -qx "$n=ok" "$out"; then
@@ -88,7 +88,7 @@ for d in he xe rn; do
 	done
 done
 
-# --- the bundle class, with a bundle actually loaded -----------------------
+# --- the bundle label, with a bundle actually loaded -----------------------
 # The other half.  X_LANG_DIR points -l at the fixture's parent (see
 # tools/contract/bundles/seamprobe/lang.xon); the entry defines nothing, so
 # everything the probe finds came from the wrapper's bundle_form.
