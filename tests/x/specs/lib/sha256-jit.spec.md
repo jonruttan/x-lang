@@ -35,12 +35,28 @@ the cases below build the engine explicitly, and the state is per process.
   (def %under (Str8 repeat (- %sha-jit-threshold 1) "a"))
   (Sha256 hex %under)
   (Sha256 hex %under)
-  (def %after-two (null? %sha-jit-engine))
+  (def %after-two (null? (Swap named (lit sha256))))
   (Sha256 hex (Str8 repeat %sha-jit-threshold "a"))
-  (display (list %after-two (not (null? %sha-jit-engine)) (Sha256 jit!))))
+  (write (list %after-two ((Swap named (lit sha256)) state) (Sha256 jit!))))
 ```
 ---
-    (#t #t #t)
+    (#t 'up #t)
+
+### the engine is a site, and the pure-x digest answers while it is down
+
+```x
+(do
+  (import x/codec/sha256)
+  (def %site (Swap named (lit sha256)))
+  (def %up (Sha256 hex "abc"))
+  (%site down!)
+  (def %down (list (%site state) (Sha256 hex "abc") (Sha256 jit!)))
+  (%site up!)
+  (write (list (str=? %up (first (rest %down))) (first %down)
+               (first (rest (rest %down))) (%site state) (Sha256 jit!))))
+```
+---
+    (#t 'down #f 'up #t)
 
 ### jit! reports the engine active, and is idempotent
 
