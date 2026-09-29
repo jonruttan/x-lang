@@ -18,8 +18,8 @@
 ; gigabytes and dies on small machines (the release runner did).  The
 ; live set at a block boundary is tiny, so the collects stay cheap.
 (import x/sys/gc)
-; The compiled engine is a site of Swap's.
-(import x/sys/swap)
+; The compiled engine is on Compiled's list.
+(import x/tool/compiled)
 
 ; ALL arithmetic rides the cached int prims: under the tower, bare
 ; +/-/* return tower numbers the C bit ops reject (>> errors) -- the
@@ -247,24 +247,24 @@
 
 ; --- The compiled engine (JIT), adopted only when it proves out ------
 ;
-; The engine is a site (lib/x/sys/swap.x), made the first time a build is
-; asked for.  Its twin is the pure-x digest above, which stays the
-; reference: the engine must agree with it on the FIPS vectors and a
-; multi-block padding case before it is adopted (the differential check
-; lives in sha-jit-make and raises on any disagreement), so the failure mode
-; of a bad JIT is "slower", never "wrong hash".  A build that raises --
-; no assembler backend for the host, a toolchain error, a failed check --
-; is refused by the site, which keeps the raise's text, and (Swap report)
-; shows it.  A refused build is not tried again: what fails one does not
-; heal within a session.
+; The engine is an entry of Compiled's (lib/x/tool/compiled.x), made the
+; first time a build is asked for.  Its interpreted version is the pure-x
+; digest above, which stays the reference: the engine must agree with it on
+; the FIPS vectors and a multi-block padding case before it is adopted (the
+; differential check lives in sha-jit-make and raises on any disagreement),
+; so the failure mode of a bad JIT is "slower", never "wrong hash".  A build
+; that raises -- no assembler backend for the host, a toolchain error, a
+; failed check -- leaves the entry failed, with the raise's text, and
+; (Compiled report) shows it.  A failed build is not tried again: what fails
+; one does not heal within a session.
 ;
-; The site has nothing to seat.  The digest below asks it for its value at
-; each call, so the engine is reached through the site and through nothing
-; else, and when the site is down for a state image the pure-x digest
-; answers.  The site is made on demand, so a process that loads an image
-; holding it does not build the engine as it loads: the site stays down
-; until a build is asked for again, by (Sha256 jit!) or by an input over
-; the bar.
+; The entry installs nothing.  The digest below asks it for its compiled
+; version at each call, so the engine is reached through the entry and
+; through nothing else, and while the entry is interpreted for a state image
+; the pure-x digest answers.  The entry is made on demand, so a process that
+; loads an image holding it does not build the engine as it loads: it stays
+; interpreted until a build is asked for again, by (Sha256 jit!) or by an
+; input over the bar.
 ;
 ; WHEN TO BUILD: for an input that repays the build by itself.  (Sha256
 ; jit!) builds explicitly; hex builds on its own when the input in hand
@@ -284,24 +284,24 @@
 ; scale together on a slower host.  Below the bar a session that only
 ; ever digests small things -- the doctests, a lockfile spot-check --
 ; never pays for what it would never earn back.
-(def %sha-site ())
+(def %sha-entry ())
 (def %sha-jit-threshold 12288)
 
 (def %sha-jit-try!
   (fn (_)
-    (when (null? %sha-site)
-      (set! %sha-site
-        (Swap site-on-demand! (lit sha256) %sha-digest-words
+    (when (null? %sha-entry)
+      (set! %sha-entry
+        (Compiled make-on-demand (lit sha256) %sha-digest-words
           (fn (_)
             (import x/codec/sha256-jit)
             ((prim-ref (lit sha256) (lit jit-make)) %sha-k %sha-ih %sha-digest-words))
           (fn (_ v) ()))))
-    ; The site is sent to through a parameter: the linter reads a send to a
+    ; The entry is sent to through a parameter: the linter reads a send to a
     ; global as a call with names for arguments.
-    ((fn (_ site)
-       (when (eq? (site state) (lit down)) (site up!))
-       (eq? (site state) (lit up)))
-     %sha-site)))
+    ((fn (_ entry)
+       (when (eq? (entry state) (lit interpreted)) (entry compile!))
+       (eq? (entry state) (lit compiled)))
+     %sha-entry)))
 
 ; Renamed from %sha-words (lint dup-def): the hex-constant parser above
 ; shares nothing with this but load-order luck made the overload work.
@@ -309,19 +309,20 @@
   (fn (_ s . n)
     (def %len (match ((null? n) (Str8 length s)) (#t (first n))))
     (do
-      ; A build is wanted when none was tried, or when the site is down, as
-      ; it is after a state image loads.  A refused site is not tried again.
+      ; A build is wanted when none was tried, or when the entry is
+      ; interpreted, as it is after a state image loads.  A failed entry is
+      ; not tried again.
       (when (and (>= %len %sha-jit-threshold)
-                 ((fn (_ site)
-                    (if (null? site) #t (eq? (site state) (lit down))))
-                  %sha-site))
+                 ((fn (_ entry)
+                    (if (null? entry) #t (eq? (entry state) (lit interpreted))))
+                  %sha-entry))
         (%sha-jit-try!))
-      ((fn (_ site)
+      ((fn (_ entry)
          (match
-           ((null? site) (%sha-digest-words s %len))
-           ((eq? (site state) (lit up)) ((site value) s %len))
+           ((null? entry) (%sha-digest-words s %len))
+           ((eq? (entry state) (lit compiled)) ((entry compiled) s %len))
            (#t (%sha-digest-words s %len))))
-       %sha-site))))
+       %sha-entry))))
 
 (def-class Sha256 ()
   (static
