@@ -5,6 +5,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-09-28
+
 **A site that was never brought up is down** ([#842]). `x/sys/swap` documents
 `state`, `reason` and the static `all` with their defaults,
 `(doc (NAME default) "...")`, which the reference can name since [#833]. A
