@@ -6,7 +6,7 @@
 ;
 ; Scope is lib/ + apps/ + tools/ (#304): a tool script co-loads with the
 ; library, so its globals share the env.  Counting is form-accurate
-; (tools/check/defs.awk), which sees two shapes a line grep does not --
+; (tools/check/defs.awk), which sees two patterns a line grep does not --
 ; (doc (def %name ...)), and defs directly inside a top-level (do ...),
 ; which is how tool scripts are written.
 ;
@@ -52,10 +52,10 @@
 ; rest of the session without failing.
 ; doc-gen grew by one for %doc-vis-note, shared by the method and field
 ; emitters when an entry comes out of a (private ...) or (protected ...)
-; block: inlining it instead would duplicate the tier wording at both call
+; block: inlining it instead would duplicate the visibility wording at both call
 ; sites, which is how the two drift.
 ; tool/lint.x grew by fourteen, 69 -> 83, for the multi-way ladder check
-; (docs/code-quality.md 1.1): %ladder-at/-lit-kind/-cmp?/-pair/-cmp-test/
+; (docs/code-quality.md 1.1): %ladder-at/-lit-label/-cmp?/-pair/-cmp-test/
 ; -test/-run/-best/-note!/-skip?/-walk, the two thresholds, and
 ; %lint-ladder-scan; then by five more, 83 -> 88, for the depth check
 ; (1.3): %depth-nodes-of/-elems, its two thresholds, and %lint-depth-scan.
@@ -123,11 +123,11 @@
 ; business in a flat global namespace.  #550.
 
 ; State images.  lib/img.x is the loader's dialect, function-only by design:
-; it declares the engine's type shapes and rebuilds an image on a base with no
+; it declares the engine's type unit labels and rebuilds an image on a base with no
 ; class system at all, so there is no class to home anything on, and its 36 are
 ; the dialect's whole surface.  lib/x/type/unit-label-rows.x (2) is the rows that
 ; dialect and lib/x/type/type.x (3) both read -- data by design -- and the three
-; in type.x are the per-base shape declaration that runs at boot, before Type
+; in type.x are the per-base unit-label declaration that runs at boot, before Type
 ; could hold it.  boot/reflect.x grows by two for %image-recache-hooks and
 ; %image-recache!: the list a module adds its address-recomputing thunk to, and
 ; the call the loader makes last; boot-level because reflect.x is where the
@@ -137,7 +137,7 @@
 ; are made: float.x rises by two for %libm-open, %libm-rows, %libm-make
 ; and %libm-fn against the two factories they replace.  The
 ; six tools/dev/image-*.x rows are the writer, loader, walk, naming,
-; foreign-pointer and inspector scripts, written in the tool-script shape;
+; foreign-pointer and inspector scripts, written in the tool-script pattern;
 ; the writer co-loads with helium, the loader with nothing at all (it runs
 ; on img).  They are inventory awaiting the pin.x treatment, entered at
 ; their counts so the ratchet holds them from here.
@@ -178,7 +178,7 @@
 ; rational, complex and decimal states followed.
 ; tower-compiled.x fell 47 to 36 when the list of what it compiled moved to
 ; x/tool/compiled: the list, its accessors and the two walks are the
-; module's, and the tower keeps the ladders, the probe and the three shapes
+; module's, and the tower keeps the ladders, the probe and the three states
 ; its entries take.
 (file "lib/x/boot/tower-compiled.x" 36)
 ; codec/sha256.x grew by one, 32 -> 33, for %cvt: the catalog converter it read
@@ -226,7 +226,7 @@
 ; asm-cache.x is a new file and 60 is nearly all DOORS: ~20 prim-refs and 10
 ; dlsym'd libc entries, fetched once at load because this module may not walk
 ; bytes and every catalog dispatch or symbol lookup on its path is a cost per
-; site.  The rest are the format's own constants (magic, kinds, strides) and
+; site.  The rest are the format's own constants (magic, labels, strides) and
 ; the parse and store helpers.  A class here would be a door per call on the
 ; one lane where that is exactly what must not happen (x-lang#590).  The rest
 ; are the size cap and the stand-aside seam -- the two reasons this module
@@ -251,20 +251,20 @@
 ; and %asm-compile-fresh arrived -- this file is now the MISS path under the
 ; cache door in asm-cache.x, not the public entry.
 ; asm-compile.x rose 68 to 79 for calling something OTHER than itself
-; (#603, #604).  The lane had one call shape -- the self-call -- and now has
+; (#603, #604).  The lane had one call layout -- the self-call -- and now has
 ; three, so the shared parts are named rather than nested inside one
 ; definition: %asm-emit-arg-list! and %asm-arg-is-object? (the marshalling
 ; both share), %asm-emit-call-result! (the unbox-only-for-an-integer-function
 ; rule, at two call sites), %asm-compile-self-call and
-; %asm-compile-callable-call (the two shapes), %asm-form-name (a rejected head
+; %asm-compile-callable-call (the two layouts), %asm-form-name (a rejected head
 ; is not always a symbol), %asm-fvar-callable? plus %asm-type-of and
 ; %asm-prim-type (deciding at GENERATION whether a named fvar can be called),
 ; %jit-call-value (the new trampoline) and %asm-analyser? (the calling world,
 ; declared now instead of inferred from whether fvars are present).
 ; asm-compile.x rose 79 to 81 for the label channel: %jit-score-label (the
-; optional trampoline binding, the %jit-buffer-last-char shape) and
-; %asm-compile-score-label (its emitter, the %asm-compile-score-set shape).
-; asm-compile.x rose 81 to 82 for %asm-check-int-operands, the %sug-hint shape:
+; optional trampoline binding, the %jit-buffer-last-char pattern) and
+; %asm-compile-score-label (its emitter, the %asm-compile-score-set pattern).
+; asm-compile.x rose 81 to 82 for %asm-check-int-operands, the %sug-hint pattern:
 ; it takes a row because both sites that put two operands in registers need it
 ; -- the call emitter, and the comparison an `if` test folds into its branch,
 ; which does not reach that emitter -- and two inlined copies of the rule drift.
@@ -286,7 +286,7 @@
 (file "lib/x/tool/asm/arm64.x" 9)
 ; x86_64.x rose 23 to 24 for %x86_64-reloc: the same operation, one flat
 ; 8-byte store after the two opcode bytes.
-; x86_64.x rose 24 to 25 for %x86-float: the scalar double family (SSE2),
+; x86_64.x rose 24 to 25 for %x86-float: the scalar double instructions (SSE2),
 ; which float.x's stubs emit now that the engine does no floating point.
 ; One lowering for the ten forms, its helpers bound inside it; arm64 needs
 ; no row, its forms being table words and one dispatch clause.
@@ -296,7 +296,7 @@
 ; named and asserted (#590 -- a key without engine identity served
 ; ABI-stale objects that silently misread numbers).
 ; emit.x rose 54 to 57 for the CHARACTER write handler: the type handle,
-; the char->int door, and the writer itself -- one emitter family, the
+; the char->int door, and the writer itself -- one emitter, the
 ; same standing the int and symbol writers have.
 ; image/name.x and image/walk.x came from tools/dev/image-name.x (26) and
 ; tools/dev/image-walk.x (50).  What is left is what no other file reads;

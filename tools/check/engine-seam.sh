@@ -58,7 +58,7 @@ PATTERN='ext/x-engine|"engine/|-Iengine/'
 fail=0
 found=$(grep -rlnE "$PATTERN" lib --include='*.x' 2>/dev/null | sort || true)
 for f in $found; do
-	# Only occurrences that RESOLVE a path count.  Two kinds are documentation and
+	# Only occurrences that RESOLVE a path count.  Two are documentation and
 	# are dropped: `;` comments, and doc-form strings -- (doc ...), (note ...) and
 	# their siblings, which several modules use to tell a reader where the layout
 	# contract lives.  Forbidding those would trade real documentation for a tidier

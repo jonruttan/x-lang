@@ -1,12 +1,12 @@
 # Conformance: a value carries its base's type (profile `core`)
 
 Allocation stamps a value with the type registered in the base that
-allocates it: the kind's type is found in that base's type-alist, or
+allocates it: its handle is found in that base's type-alist, or
 built and filed there. Dispatch reads the value's stamp, not the base
 it is evaluated in.
 
 The type word is found by probing, not by a committed offset: it is the
-header word two values of one kind share and a value of another kind
+header word two values of one type share and a value of another type
 does not. The word holds the type's address, which `ptr ->int` of
 `obj ->ptr` on an alist entry's rest reproduces.
 

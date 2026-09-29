@@ -3,7 +3,7 @@
 # @weight 15
 # @timeout-scale 4
 
-The compiled digest engine behind `(Sha256 jit!)`. Untagged on purpose:
+The compiled digest engine behind `(Sha256 jit!)`. Unlabelled on purpose:
 the assembler has both ARM64 and x86-64 backends now, so the engine
 builds — and must prove itself — on every CI host. The
 `@timeout-scale` above buys the BUILD its budget: compiling the engine

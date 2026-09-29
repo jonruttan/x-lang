@@ -2,7 +2,7 @@
 # @requires native/jit
 # @weight 1
 
-The JIT's bitwise and shift family. Untagged on purpose: both backends (ARM64 and x86-64) compile the
+The JIT's bitwise and shift operators. Unlabelled on purpose: both backends (ARM64 and x86-64) compile the
 same vocabulary, so this file runs on every host and IS the parity
 contract.
 

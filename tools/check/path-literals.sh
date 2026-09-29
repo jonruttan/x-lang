@@ -41,7 +41,7 @@ echo "path-literals: ok"
 # the engine's headers.  A stale path there surfaces only in the JIT lane,
 # which is stress-gated, and arrives as specs reporting "interpreter died
 # mid-batch" rather than as "cc could not find x.h".  This scan is one line,
-# so it runs on every push instead of waiting for the heavy lane.  Same shape
+# so it runs on every push instead of waiting for the heavy lane.  Same pattern
 # as the include ratchet above: a path literal in the runtime library that
 # must resolve.
 BAD=0

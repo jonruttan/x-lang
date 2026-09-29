@@ -313,6 +313,14 @@ No alias is kept, and no bundle uses the names.
 
 [#871]: https://github.com/jonruttan/x-lang/pull/871
 
+**The specs, the runner and the tools take the glossary's words** ([#874]).
+Comments, spec prose and spec headings under `tests/` and `tools/` say
+label for a discriminant, and pattern, layout, structure or case where
+they said shape. A spec with an arch in its file name is arch-labelled.
+Nothing a program calls is renamed.
+
+[#874]: https://github.com/jonruttan/x-lang/pull/874
+
 **The linter's depth warning is named `depth`** ([#864]). A definition at
 least 12 deep and 500 nodes large was reported as `shape`; a lint run now
 prints `depth:` for it. The lang kit's `--strict` matches the new name, so a

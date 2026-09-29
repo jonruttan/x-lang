@@ -1,6 +1,6 @@
 # @no-seam-collect
 <!-- Sigint state is held on the C side (the installed handler's cells) where
-     the mark cannot see it -- the same x-lang#283 family, and the "sigint"
+     the mark cannot see it -- x-lang#283 and the failures like it, and the "sigint"
      field the runner's pre-seam-collect note always named.  A seam collect
      frees it live: SIGSEGV on Linux, tolerated by macOS.  Runs alone. -->
 # @weight 1

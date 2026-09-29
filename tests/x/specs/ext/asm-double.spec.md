@@ -2,10 +2,10 @@
 # @requires native/jit
 # @weight 1
 
-The scalar double family, which lib/x/num/float.x's stubs are made of,
-and the conversions to and from a single (a C float), which is the
+The scalar double instructions, which lib/x/num/float.x's stubs are made
+of, and the conversions to and from a single (a C float), which is the
 low 32 bits of a d register with the bits above it zero.
-Untagged: both backends lower the same forms, d0-d7 being arm64's d
+Unlabelled: both backends lower the same forms, d0-d7 being arm64's d
 registers and x86-64's xmm registers.  A double travels as its IEEE 754
 bit pattern in a general register, so each case moves the bits in with
 fmov/d and the answer out with fmov/x.  The assembler's prologue is what

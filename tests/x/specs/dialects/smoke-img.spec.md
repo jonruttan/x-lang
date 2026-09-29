@@ -1,6 +1,6 @@
 # img.x smoke (dialect entry points)
 
-End-to-end smoke of the state-image loader's dialect (#70 family; the story
+End-to-end smoke of the state-image loader's dialect (#70; the story behind these specs
 is in this directory's README.md).  img is functions and operatives only, no
 class system and no numeric tower: the surface a loader needs to read a file,
 resolve names and install a base, booting in a fraction of the time helium

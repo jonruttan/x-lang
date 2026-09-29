@@ -2,7 +2,7 @@
 # @requires native/jit
 # @weight 1
 
-The JIT's `do` form and its code-buffer bounds. Untagged on purpose: both backends (ARM64 and x86-64) compile the
+The JIT's `do` form and its code-buffer bounds. Unlabelled on purpose: both backends (ARM64 and x86-64) compile the
 same vocabulary, so this file runs on every host and IS the parity
 contract.
 
@@ -116,7 +116,7 @@ Arch-neutral by measurement: one `mov x0 x0` is emitted into a probe
 buffer to learn the instruction size (four bytes on ARM64, three on
 x86-64), and the real buffer is sized to hold exactly four of them plus
 ONE SPARE BYTE — so the fifth mov begins in bounds and ends past the
-end, the exact tear shape. The case then pins that the failing emit
+end, the exact tear case. The case then pins that the failing emit
 moved the position by NOTHING: a torn instruction would leave it past
 `4*size`.
 

@@ -2,8 +2,7 @@
 
 The capabilities a sandboxed or wasm engine drops. `tools/contract/features.x`
 splits the ISA's `ffi` tag three ways precisely so these can be absent while the
-pointer CASTS stay mandatory: `lib/x/boot` needs the casts and never touches this
-family.
+pointer CASTS stay mandatory: `lib/x/boot` needs the casts and never touches ffi.
 
 Everything here has real side effects on the host, so the cases stay inside
 operations that cannot damage anything: resolving a libc symbol, calling a pure

@@ -571,7 +571,7 @@ door rather than a literal.
 The plain C division under the tower's `/` has no zero test: x86-64 traps,
 and arm64 answered, so `(/ 0 0)` and a bigint over 0 came out as 0.
 
-### every integer shape of a zero division raises
+### every integer case of a zero division raises
 
 ```x
 (list (guard (e (lit R)) (/ 1 0)) (guard (e (lit R)) (/ 0 0))

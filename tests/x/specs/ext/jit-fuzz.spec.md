@@ -7,7 +7,7 @@ grammar, run each BOTH compiled and interpreted, and require the two to
 agree. The interpreter is the oracle — there are no hand-written
 expectations to rot.
 
-Untagged on purpose: both backends (ARM64 and x86-64) compile the
+Unlabelled on purpose: both backends (ARM64 and x86-64) compile the
 same vocabulary, so this file runs on every host and IS the parity
 contract.
 
@@ -60,11 +60,11 @@ reasons that are not defects.
 
   ; --- generators: integer-valued expr, boolean-valued test ---
   ;
-  ; The grammar is a TABLE of (operator . operand-shape) rows, not a
+  ; The grammar is a TABLE of (operator . operand-label) rows, not a
   ; cascade of ifs.  It was a cascade at eight forms and was already
-  ; hard to read; the bitwise family took it to fifteen, and every
+  ; hard to read; the bitwise operators took it to fifteen, and every
   ; future JIT form would deepen it further.  Adding a form is now a
-  ; row, and the shapes are named:
+  ; row, and the labels are named:
   ;
   ;   ee   both operands recurse       el   operand then a bare leaf
   ;   ed   operand then a NON-ZERO divisor literal
@@ -79,7 +79,7 @@ reasons that are not defects.
           ((= k 0) 'a)
           ((= k 1) 'b)
           ((= k 2) (%rand 100))
-          ; wide literals: the MOVZ/MOVK boundary (the #189 class)
+          ; wide literals: the MOVZ/MOVK boundary (#189)
           ((= k 3) (+ 65500 (%rand 200)))
           ((= k 4) (+ 100000 (%rand 900000)))
           ; NEGATIVE literals.  Two's complement needs all four MOVK
@@ -201,7 +201,7 @@ reasons that are not defects.
 
 Recursion needs one guard the straight-line grammar does not:
 **termination**. Free-form recursive calls would generate functions that
-never return, so these use a fixed decreasing-counter shape —
+never return, so these use a fixed decreasing-counter pattern —
 `(fn (self n acc) (if (<= n 0) BASE (self (- n 1) STEP)))` — with `BASE`
 and `STEP` generated. The counter always decreases and the base case is
 `<=`, so every generated function terminates by construction.
@@ -227,7 +227,7 @@ anything the JIT does not implement used to compile *as* a self-call.
     (fn (_)
       (def %k (%rand 4))
       (if (= %k 0) 'n (if (= %k 1) 'acc (%rand 50)))))
-  ; The same operator/shape table the straight-line grammar uses, minus
+  ; The same operator/label table the straight-line grammar uses, minus
   ; the growers.  `&`, `|`, `^`, `~` and `>>` are bounded by their
   ; operands and survive six iterations; `<<` is not, and an overflow
   ; compounded once per level puts the oracle past the point where its
@@ -313,14 +313,14 @@ interpreter *is* still the oracle for that index arithmetic, which is
 ordinary integer work; it is only the load and store that need the
 model.
 
-Cases alternate between the WORD family and the BYTE family
-(`%mem-byte-*`), which shares the shape but not the scale: byte indices
+Cases alternate between the word operations and the byte operations
+(`%mem-byte-*`), which shares the label but not the scale: byte indices
 mask with `(& i 255)` over the same 256-byte region the word slots
 occupy, the byte model is sentinel-filled and verified per BYTE, and a
 byte store lands `(& v 255)` while the form yields the full value.
 Sharing one region is deliberate — a scale confusion between the
-families (a byte store scaled by 8, a word store unscaled) corrupts the
-other family's sentinels and is caught by whichever phase runs next.
+word and byte operations (a byte store scaled by 8, a word store unscaled) corrupts the
+other's sentinels and is caught by whichever phase runs next.
 
 ```x
 (do
@@ -380,7 +380,7 @@ other family's sentinels and is caught by whichever phase runs next.
               ((eq? (rest row) 'es) (list op (%gen (- d 1)) (%rand 32)))
               (#t (list op (%gen (- d 1))))))))))
 
-  ; --- one compiled runtime loader per family, shared by every case ---
+  ; --- one compiled runtime loader per width, shared by every case ---
   (def %ld (compile-asm '(fn (_ m i) (%mem-ref-at m i))))
   (def %ldb (compile-asm '(fn (_ m i) (%mem-byte-ref-at m i))))
 

@@ -174,7 +174,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 
 ### make at 16K elements (crash regression)
 
-The list-encode shape of make put one C eval frame per element on the
+The list-encode representation of make put one C eval frame per element on the
 stack (%map is non-tail), so 16384 segfaulted where 8192 squeaked by --
 found via x-awk's stdin slurp.  make now delegates to repeat's binary
 doubling; this pins the depth-independence, and the ref probes pin that
@@ -205,7 +205,7 @@ belongs to the str make prim; this pins the teaching error.
 
 upcase/downcase/->str run %map over every element, so the non-tail %map1
 put one C eval frame group per byte -- 16384 segfaulted even after make
-itself was fixed.  Pins the tail-shape %map1.
+itself was fixed.  Pins the tail-recursive %map1.
 
 ```x
 (def s (Str8 upcase (Str8 make 16384 #\a)))

@@ -2,8 +2,8 @@
 
 End-to-end smoke of the experimental tower dialect launcher (#70).  Its
 forms go through the x-lang REPL reader -- the path #49 lived on.  One
-file per dialect so the boots schedule in parallel (#320); the family
-story is in this directory's README.md.
+file per dialect so the boots schedule in parallel (#320); the story
+behind these specs is in this directory's README.md.
 
 # @weight 6
 

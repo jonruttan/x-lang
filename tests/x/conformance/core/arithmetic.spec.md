@@ -87,7 +87,7 @@ covers: <
 ---
     *** ERROR: ok
 
-### the bitwise family
+### the bitwise operators
 
 covers: & | ^ ~ << >>
 

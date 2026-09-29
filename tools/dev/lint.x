@@ -164,19 +164,19 @@
     ; Pedantic warnings (advisory -- shown but do not fail the lint): arity,
     ; call-nonfn, dup-def, ladder, malformed, shadow (lexical), unused (local).
     ; Grouped
-    ; by kind, discovered from the results so a new kind needs no change here.
+    ; by label, discovered from the results so a new label needs no change here.
     (def %warnings (lint-warnings %result))
-    (def %uniq-kinds (fn (self ws acc)
+    (def %uniq-labels (fn (self ws acc)
       (if (null? ws) acc
         (let ((k (first (first ws))))
           (self (rest ws) (if (lint-has? k acc) acc (pair k acc)))))))
-    (def %show-kind (fn (_ k)
+    (def %show-label (fn (_ k)
       (emit "  " k ": ")
       (%for-each (fn (_ s) (emit s " ")) (lint-warnings-of k %result))
       (emit "\n")))
     (unless (null? %warnings)
       (do (emit "Warnings:\n")
-          (%for-each %show-kind (%uniq-kinds %warnings ()))))
+          (%for-each %show-label (%uniq-labels %warnings ()))))
 
     ; match-multi fails (not advisory): a clause body past the first
     ; expression can never run -- every hit is dead code with no legitimate
@@ -187,7 +187,7 @@
   ; Batch protocol (#323): the stream may hold SEVERAL files, each
   ; introduced by a (%lint-next-file "NAME") marker form the shell
   ; injects between file bodies -- one engine boot lints the whole
-  ; same-preload group.  Soundness rides on the SHELL grouping only
+  ; same-preload batch.  Soundness rides on the SHELL batching only
   ; files with IDENTICAL mode+preload (a union environment would mask
   ; missing-import bugs); this loop just resets analysis state per
   ; file, which lint-forms already does at entry.  No markers = the
@@ -217,8 +217,8 @@
     (if (%lint-one (first %groups) %emit-err)
       (display "ok\n")
       (error 'lint-failed))
-    ; Batch: first group is pre-marker prologue (constructs already
-    ; consumed upstream; normally empty).  Each marked group prints a
+    ; Batch: first batch is pre-marker prologue (constructs already
+    ; consumed upstream; normally empty).  Each marked batch prints a
     ; %%LINT%% block; the shell reassembles per-file verdicts.
     (do
       (def %any-fail (list #f))
@@ -232,7 +232,7 @@
                   ; one (a single-file child would pay ~5s to free a heap
                   ; the exit is about to drop anyway).  x has no automatic
                   ; GC, so without this a child's heap grows monotonically
-                  ; across the group: the live-object count at the end of
+                  ; across the batch: the live-object count at the end of
                   ; a batch is the SUM of every file's analysis garbage (a
                   ; 16GB release runner OOM-killed four such children,
                   ; #622).  Before the FIRST file the sweep drops the boot

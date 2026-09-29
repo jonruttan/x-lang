@@ -5,8 +5,8 @@ ruling, not an accident -- x-lib's stated contract is exact libc semantics, and
 the codecs are written to it.
 
 An engine holding strings as a pointer and a length would answer differently here
-while behaving identically everywhere else in the suite, which is exactly the kind
-of difference a guarantee exists to pin.
+while behaving identically everywhere else in the suite, which is exactly the difference
+a guarantee exists to pin.
 
 The bytes below are `a`, NUL, `b`. A C string sees one byte; a counted string sees
 three.

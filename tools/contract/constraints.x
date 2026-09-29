@@ -1,6 +1,6 @@
 ; tools/contract/constraints.x -- per-module platform-parameter constraints.
 ;
-; The row kind this file holds.  The evaluator contract has three kinds of row:
+; The rows this file holds. The  evaluator contract gives a row one of three labels:
 ; CAPABILITIES (a primitive group is present -- set membership, compared by
 ; superset), GUARANTEES (a behaviour the engine promises, compared by must-hold),
 ; and PARAMETERS (values the engine REPORTS: word size, endianness, OS, arch).

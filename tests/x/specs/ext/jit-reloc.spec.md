@@ -8,7 +8,7 @@ pointer, the self-call trampoline cell. Every one of those is an address
 valid only in the process that compiled — which is exactly what stops the
 emitted bytes from being reused anywhere else.
 
-Recording each site as `(offset kind name)` is what makes them reusable: the
+Recording each site as `(offset label name)` is what makes them reusable: the
 bytes can be poured into a fresh buffer and each immediate re-encoded for the
 process loading them. These cases pin the two halves — that the sites are
 recorded, and that re-encoding one actually changes what the code does.

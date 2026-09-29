@@ -1,7 +1,7 @@
 # File ergonomics: read-all / write-all / stat / read-lines / list-dir (#22)
 # @weight 2
 
-The ergonomic tier over the raw syscall layer: whole-file operations
+The ergonomic layer over the raw syscall layer: whole-file operations
 that RAISE label 'io Errs (via Err from-errno) instead of returning
 negative results. Real I/O under /tmp, on names from `File temp`, so
 overlapping runs never share a path; every test cleans up after itself.
@@ -246,7 +246,7 @@ through the REPL error path -- jon hit corrupted error bytes).
 ---
     ('type 'type 'type 'type)
 
-## seek / tell / truncate (raw tier, #360)
+## seek / tell / truncate (raw layer, #360)
 
 ### seek to end reports the size; an absolute seek rereads mid-file
 

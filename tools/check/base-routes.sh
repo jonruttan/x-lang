@@ -62,7 +62,7 @@ sed -n 's/^  (\([a-z-][a-z-]*\) .*/\1/p' "$PATHS" | sort -u > "$W/declared"
 # scribbled past the false singleton and made #f truthy.
 #
 # Matched loosely on purpose: any first/rest chain three deep reaching %base is
-# suspicious whatever its shape, and a false positive here costs one comment
+# suspicious whatever its layout, and a false positive here costs one comment
 # while a false negative costs a boot.
 walks=$(grep -rnE "\((first|rest) \((first|rest) \((first|rest) [^)]*\(%base\)" lib/ \
 	| grep -v '^\s*[0-9]*:\s*;' | grep -vE ":[0-9]+:\s*;" || true)

@@ -12,7 +12,7 @@
 # Every dialect is checked, because a lang declares which one it loads on and
 # any of the three is a legal answer.  ~8s for all three (he 1s, xe 4s, rn 3s;
 # the tower's runtime cc compilations dominate), which fits the fast gates
-# rather than the deep tier.
+# rather than the deep pass.
 set -e
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

@@ -9,7 +9,7 @@
 ; smoke group exists for it.  The reverse direction holds too -- a group naming
 ; a dialect that no longer exists is stale coverage, green against nothing.
 ;
-; Same shape as check-isa and the other contract ratchets.
+; Same pattern as check-isa and the other contract ratchets.
 ;
 ; Run: sh x.sh --no-pin -q -f tools/check/dialect-cover.x  (make check-dialect-cover)
 

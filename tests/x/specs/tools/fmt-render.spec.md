@@ -5,7 +5,7 @@ Characterizes the formatter's **rendering** — width estimation and the
 indentation/width-threshold logic of the mutually-recursive `%fmt-expr` /
 `%fmt-list` / `%fmt-body` printers (homed on the `Fmt` class in `lib/x/tool/fmt.x`).
 This guards that refactor: a regression in the recursion would change the
-indented shape below. Previously unassertable — the formatter writes multi-line
+indented layout below. Previously unassertable — the formatter writes multi-line
 output, which needs the harness's full-output (```` ```output ````) mode.
 
 These feed hand-quoted forms via `'…` (so no tokenizer — sidestepping the

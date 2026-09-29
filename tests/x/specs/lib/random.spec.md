@@ -210,7 +210,7 @@ arm64 looped, since no draw is under a limit of 0.
 
 ## uuid (#375)
 
-### v4 shape: 36 chars, version nibble 4, IETF variant, seeded reproducibility
+### v4 form: 36 chars, version nibble 4, IETF variant, seeded reproducibility
 
 ```x
 (do (import x/num/random) (import x/codec/hex)

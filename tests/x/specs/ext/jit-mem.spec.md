@@ -2,7 +2,7 @@
 # @requires native/jit
 # @weight 1
 
-The JIT's scratch-memory forms. Untagged on purpose: both backends (ARM64 and x86-64) compile the
+The JIT's scratch-memory forms. Unlabelled on purpose: both backends (ARM64 and x86-64) compile the
 same vocabulary, so this file runs on every host and IS the parity
 contract.
 
@@ -18,7 +18,7 @@ index, so each access is a single scaled-offset `ldr`/`str`.
     (%mem-ref-at  ADDR IDX-EXPR)     same, index computed at run time
     (%mem-set-at! ADDR IDX-EXPR VAL)
 
-Unchecked by design — this is the raw-pointer tier, the same trust model
+Unchecked by design — this is the raw-pointer layer, the same trust model
 as `(obj ref)`: the caller owns the buffer and its bounds.
 
 ## constant-index access
@@ -90,7 +90,7 @@ The scaled offset is a 12-bit field: 0..4095 words.
 
 ### a computed index reads the slot a constant index wrote
 
-`(& i 15)` is the shape a round loop uses for a 16-word window.
+`(& i 15)` is what a round loop uses for a 16-word window.
 
 ```x
 (do
@@ -139,7 +139,7 @@ The scaled offset is a 12-bit field: 0..4095 words.
 
 ## byte-width access
 
-The word family above is the JIT's own scratch state; the byte family is
+The word operations above are the JIT's own scratch state; the byte operations are
 how a compiled function consumes INPUT -- a message, a codec buffer --
 arriving as a string's data pointer. Indices count bytes (no *8), LDRB
 zero-extends, STRB stores the low byte.
@@ -194,7 +194,7 @@ it.
 
 ### a store yields the FULL value while memory takes the low byte
 
-The form's value is the expression's value, same as the word family; the
+The form's value is the expression's value, same as the word operations; the
 truncation happens in memory, where STRB ignores everything above bit 7.
 
 ```x
@@ -216,7 +216,7 @@ truncation happens in memory, where STRB ignores everything above bit 7.
 
 Word slot 6 is bytes 48..55, little-endian: the word 258 (0x102) reads
 back as byte 2 at 48 and byte 1 at 49. This is the layout contract that
-lets one buffer serve both families at once.
+lets one buffer serve both word and byte operations at once.
 
 ```x
 (do

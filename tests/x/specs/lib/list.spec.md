@@ -309,7 +309,7 @@ advances it -- (it) yields a singleton of the iterator -- so the loop
 spun forever, and the recursion was in argument position, so it spun
 straight into a C-stack crash at ANY size (nothing in boot ever hit the
 branch).  Now it drains via %i-empty?/%i-next in the tail accumulate
-shape.  %length counts through %fold, which normalizes first; 16K pins
+pattern.  %length counts through %fold, which normalizes first; 16K pins
 the depth-independence of the drain.
 
 ```x

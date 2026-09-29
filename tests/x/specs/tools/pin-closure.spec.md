@@ -80,7 +80,7 @@ and hides an import of acme/three inside a deferred fn body.
 ### an argument-less (import) in scanned source is a loud error, not a crash
 
 `(first (rest form))` on a form with no argument derefs nil, so the
-argument check has to precede the shape check that used to reach for it.
+argument check has to precede the structure check that used to reach for it.
 
 ```x
 (do

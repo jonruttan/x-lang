@@ -112,7 +112,7 @@ elif command -v gtimeout >/dev/null 2>&1; then TIMEOUT="gtimeout 600"; fi
 
 # ASan's own exit status is what fails the boot.  Leak detection is off: a
 # batch process that exits without freeing its heap is the engine's normal
-# shape, not a finding.
+# behaviour, not a finding.
 #
 # The quarantine is the gate's memory.  ASan catches a freed read only while
 # the freed chunk is still quarantined, and its default quarantine is 256M

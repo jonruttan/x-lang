@@ -148,9 +148,9 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 			# snippet's peak (the bundles re-measured 250-275M down to
 			# 75-150M -- see spec-runner.sh's calibration).
 			#
-			# This was long refused by a note citing the #283/#299
-			# rooting family for "40 spec failures".  The bisect
-			# (2026-08-31) split that into TWO families, and the old
+			# This was long refused by a note citing #283/#299 and
+			# the failures like them, tallied as "40 spec failures".  The bisect
+			# (2026-08-31) split that into two separate causes, and the old
 			# note had one of them right:
 			#
 			#   - the meta-width specs (meta/base-paths, meta/
@@ -162,7 +162,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 			#     its own batch at the next seam -- the policy
 			#     enforced loudly; see reflect.x's meta-count! note.
 			#
-			#   - the #283 family is REAL and remains: objects
+			#   - #283 and the failures like it are real and remain: objects
 			#     reachable only through C-held state (sigint's
 			#     handler cells, a child base's internals) are
 			#     invisible to the mark, so a collect frees them live.
@@ -176,7 +176,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 			#     python-run builds an isolated tokenizer base) turns
 			#     the whole run off with SPEC_SEAM_COLLECT=0 in its
 			#     wrapper -- proven by exactly the works-twice,
-			#     dies-third shape in its conformance cases.
+			#     dies-third pattern in its conformance cases.
 			#
 			# Still no per-snippet heap dump: a heap-count is an
 			# O(heap) chain walk whose output went to discarded stderr
@@ -184,7 +184,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 			# A file may declare `# @no-seam-collect`, for either
 			# reason above: its SUBJECT is the divergent-width
 			# mechanism (cov/meta), or it holds objects only C-side
-			# state can reach (#283 family).  The classifier makes
+			# state can reach (#283 and the failures like it).  The classifier makes
 			# such a file run alone, so the opt-out never strips
 			# collects from an innocent bucket-mate.
 			if (i > from) {
@@ -360,7 +360,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 				close(errfile)
 				if (_lw != "") got = got " -- engine stderr: " _lw
 				# Name the wall-clock budget: a timeout kill produces exactly
-				# this shape, and on the one-true-awk close() returns 0, so the
+				# this case, and on the one-true-awk close() returns 0, so the
 				# exit suffix never identifies it there -- a load-induced 60s
 				# kill once read as a mystery one-off crash (the doctest-
 				# variance investigation, 2026-08-02).
@@ -454,7 +454,7 @@ fenced == 1 { next }
 # Comments and metadata (only in IDLE state)
 state == 0 && /^# @no-seam-collect/ { noseam = 1 }
 # Direct mode for one file: its snippets go to the dialect's own read-eval
-# loop, unwrapped, and print for themselves -- the shape for a dialect with
+# loop, unwrapped, and print for themselves -- the pattern for a dialect with
 # no `Io read` and no REPL printer (lib/img.x, the state-image loader's host).
 state == 0 && /^# @direct/ { direct = 1 }
 

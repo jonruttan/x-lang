@@ -20,7 +20,7 @@ else outside the alphabet (#61: no silent repair).
 ---
     ("" "Zg==" "Zm8=" "Zm9v" "Zm9vYg==" "Zm9vYmE=" "Zm9vYmFy")
 
-### decode: round trips, both padded shapes
+### decode: round trips, both padded forms
 
 ```x
 (do (import x/codec/base64)
@@ -54,7 +54,7 @@ else outside the alphabet (#61: no silent repair).
 
 ## tolerance and strictness
 
-### whitespace-wrapped payload decodes (the PEM shape)
+### whitespace-wrapped payload decodes (the PEM style)
 
 ```x
 (do (import x/codec/base64)

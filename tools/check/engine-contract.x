@@ -323,7 +323,7 @@
     ;
     ; The walk visits every cons cell of every file, so it runs as local
     ; closures calling themselves: a class-dispatched method per cell cost about
-    ; a hundred times as much.  One pass finds both kinds of site, and the group
+    ; a hundred times as much.  One pass finds both sites, and the group
     ; map is cut to the above-core groups first, since no other group can reach
     ; a row.
     ;

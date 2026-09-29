@@ -63,7 +63,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 ```
 ---
 
-## the no-match policy (the silent-nil class)
+## the no-match policy (silent nil)
 
 ### an unregistered conversion returns nil by DEFAULT (silent)
 

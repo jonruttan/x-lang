@@ -1,7 +1,7 @@
 # @no-seam-collect
 <!-- Child bases: objects reachable only through a child base's internal
      structure or C-registered state are invisible to the parent's mark
-     (the x-lang#283 rooting family), so a seam collect frees live objects
+     (x-lang#283 and the failures like it), so a seam collect frees live objects
      -- SIGSEGV on Linux, silently tolerated by macOS's allocator, which is
      how the hazard hid from a macOS bisect.  Runs alone, no seam collects,
      until the rooting hole closes engine-side. -->
@@ -501,14 +501,14 @@ the canonical List walkers must not touch them.
 ## raw prims guard nil in a child base (#239)
 
 A `(Base make)` child gets the C prims raw -- the lib wrappers
-(lib/x/core/arithmetic.x) are absent -- so the bitwise family's nil guard
+(lib/x/core/arithmetic.x) are absent -- so the bitwise operators' nil guard
 must live in the prims themselves. Before #239 each of these killed the
 whole process.
 
 One child per op here is incidental; a single child now survives
 repeated caught errors (see "repeated caught errors" below, #253).
 
-### the bitwise family raises catchably on nil operands
+### the bitwise operators raise catchably on nil operands
 
 ```x
 (do (def %bn (Base make))
@@ -530,7 +530,7 @@ shared `x_error_handler_saved_env` accessor (which reads the env one
 level below an `(env . boundary)` cell) restored `first(env)` instead of
 `env` on every caught error -- degrading the child's environment each
 time until a symbol lookup walked a non-pair and segfaulted (the
-"fifth caught error" crash). The handler now matches `guard`'s shape and
+"fifth caught error" crash). The handler now matches `guard`'s pattern and
 restores both env and boundary.
 
 ### many caught errors, then the child still evaluates

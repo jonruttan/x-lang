@@ -20,7 +20,7 @@
 ; does NOT register a path (only include-once/import do), so a lib module
 ; loaded raw must appear in a pre-seed or a later import of it silently
 ; reloads the file mid-boot (the type/list.x double-load, the x-and/x-or ansi
-; double-include that broke (Ansi disable-repl)).  Two extra finding kinds:
+; double-include that broke (Ansi disable-repl)).  Two extra findings:
 ;   %%double-load   -- a path actually loaded twice in the simulated order
 ;   %%unregistered  -- a raw-included lib path never pre-seed registered
 ;                      (one import away from a double load)
@@ -55,7 +55,7 @@
 (def %raw-cell (pair () ()))       ; ((path . including-file) ...) raw lib includes
 (def %defined-cell (pair () ()))   ; class names def-class'd so far (symbols)
 (def %classes-cell (pair () ()))   ; ((name . file) ...) -- every def-class in lib
-(def %findings-cell (pair () ()))  ; ((file kind detail) ...), newest first
+(def %findings-cell (pair () ()))  ; ((file label detail) ...), newest first
 (def %forms-cache-cell (pair () ())) ; ((path . forms) ...) -- phase 1 tokenizations
 
 (def %cell-push!

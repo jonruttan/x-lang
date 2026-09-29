@@ -164,7 +164,7 @@
 (shared "lib/x/type/class.x" %tab-find! "finds a selector's entry in a method table")
 (shared "lib/x/type/class.x" %entry-method "the callable method of a table entry, or nil")
 (shared "lib/x/type/class.x" %selector "a quoted selector as the bare symbol")
-(shared "lib/x/type/class.x" %find-form "the tail of a tagged form in a class body")
+(shared "lib/x/type/class.x" %find-form "the tail of the form with a given head in a class body")
 (shared "lib/x/type/class.x" %obj-fields "an instance's fields")
 (shared "lib/x/type/class.x" %object "the OBJECT type")
 

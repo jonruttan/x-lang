@@ -310,8 +310,8 @@ locals and unbound heads keep plain call analysis.
 ### an operative static's argument is not a use
 
 `(Type named STRING)` names a type; `named` is an operative static, so its
-argument is a message, not a reference (the class says which kind the
-selector names, through class-static-ref).
+argument is a message, not a reference (the class says whether the selector
+names an operative, through class-static-ref).
 
 ```x
 (do
@@ -560,7 +560,7 @@ the way down.
 `(first ())` is undefined (docs/spec.md) and segfaults, so every step down a
 form goes through %ladder-at.  A malformed `(= c)` in an if test reaches the
 operand accessors directly: with the unguarded `(first (rest (rest test)))`
-this shape segfaults the engine, so it is the regression that pins the fix.
+this case segfaults the engine, so it is the regression that pins the fix.
 
 ```x
 (do

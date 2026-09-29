@@ -20,12 +20,12 @@
 #             ceiling and loads no library, which is why a probe there sees
 #             engine capabilities and not library ones -- and it needs nothing
 #             from the engine but the engine: an artifact with no tests/ in it
-#             is a legitimate subject, and so is an engine that never built an
-#             x-lang-shaped harness.
+#             is a legitimate subject, and so is an engine that never built a
+#             harness for x-lang.
 #   UNTESTED  every declared row for which NO experiment exists is named out loud.
 #             A suite that silently skips a claim is indistinguishable from one
-#             that verified it, and the skipped rows here are guarantees -- the
-#             kind whose violation is silent corruption.
+#             that verified it, and the skipped rows here are guarantees, and a
+#             guarantee's violation is silent corruption.
 set -e
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -41,8 +41,8 @@ XON="$ENGINE_ABS/x-engine.xon"
 # harness it is judged by holds the arbiter's pen -- the same reason the
 # conformance suite lives here rather than there.  Requiring one would also
 # refuse two legitimate subjects: a released engine, since an artifact ships no
-# tests, and any second implementation that does not build an x-lang-shaped
-# smoke harness.  The checks below are ordinary spec files run through x-lang's
+# tests, and any second implementation that does not build a smoke
+# harness for x-lang.  The checks below are ordinary spec files run through x-lang's
 # conformance runner.
 
 # --- which binary is on trial ------------------------------------------------

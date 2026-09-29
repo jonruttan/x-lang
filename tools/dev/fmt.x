@@ -17,7 +17,7 @@
 ; the formatter how each form nests.
 
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
-; The quote family's analysers and readers, seated on the scratch base below.
+; The quote forms' analysers and readers, seated on the scratch base below.
 (import x/reader/lit-reader lit-analyse lit-read macro-delimit)
 (import x/reader/quasi-reader quasi-analyse quasi-read unquote-analyse unquote-read)
 
@@ -90,7 +90,7 @@
     (list '%comment (%buffer-token (first args)))))
 
   ; Find a type by NAME in a scratch base's registry (fresh string via
-  ; the reflect walk), not by shape heuristics.
+  ; the reflect walk), not by structural heuristics.
   (def %find-type (fn (_ entries name)
     (let ((hit (%find (fn (_ e)
                         (str=? (%reflect-sym->str (%reflect-type-name-atom (rest e)))
@@ -103,7 +103,7 @@
   ; --- Boot-constrained set (#307) ---
   ;
   ; Files whose TEXT the boot reader consumes before lit-reader.x arms
-  ; the quote family must spell the mechanism -- (lit x) -- because 'x
+  ; the quote forms must spell the mechanism -- (lit x) -- because 'x
   ; does not exist for them yet; folding their spellings to sugar makes
   ; an unbootable tree.  The set derives MECHANICALLY from
   ; lib/x-core.x's include chain up to AND INCLUDING the reader files,
@@ -188,7 +188,7 @@
   ; while the script itself keeps running on the booted one.
   ; Navigation is CONTRACT-DRIVEN (#39): the old hand-rolled walk
   ; hardcoded "type-struct has 7 elements, io is the 7th" and a
-  ; shape-heuristic COMMENT probe -- both bit-rotted against the layout
+  ; structural-heuristic COMMENT probe -- both bit-rotted against the layout
   ; and segfaulted. Everything below rides engine/tools/contract/base-paths.x
   ; rows through the reflect/type doors, so a layout change moves these
   ; accessors automatically (or fails the check-base-paths gate loudly).
@@ -209,7 +209,7 @@
       ; text, so formatting cannot expand the sugar away -- see
       ; (Xon arm-source!).
       (Xon arm-source! %fmt-base)
-      ; Arm the quote family (' ` , ,@) on the scratch base (#307): a
+      ; Arm the quote forms (' ` , ,@) on the scratch base (#307): a
       ; BARE base tokenizes 'x as a quote-bearing symbol (stable only
       ; by accident) and '(1 2) as a bare ' symbol beside a list --
       ; which the printer then CORRUPTED to "' (1 2)".  The handlers

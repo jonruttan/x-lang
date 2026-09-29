@@ -4,7 +4,7 @@
 # The declaration is mandatory.  The runner's heavy-set admission cap
 # classifies on @weight: files at or above SPEC_HEAVY_MIN are limited to
 # SPEC_HEAVY_JOBS in flight, whatever PARALLEL_JOBS says, because two big heaps
-# co-resident is the shape that exhausts a 16GB box.
+# co-resident is what exhausts a 16GB box.
 #
 # The runner reads an absent weight as heavy, so forgetting is safe but not
 # free: an unweighted file is capped, and under PARALLEL it drags the whole
@@ -12,8 +12,8 @@
 # this gate is for.
 #
 # The number is rough serial-seconds, the unit the existing declarations use.
-# It doubles as a footprint class, on the observation that the files heavy in
-# time are the files heavy in memory.  Measure with
+# It also tracks footprint, on the observation that the files heavy in time are
+# the files heavy in memory.  Measure with
 # `SPEC_BATCH=1 sh tests/x/spec-runner.sh` on a quiet machine: batching
 # amortises one interpreter boot across a whole bucket, so batched timings
 # cannot be attributed to a file.  A stale number mis-ranks a schedule; a

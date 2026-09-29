@@ -1,6 +1,6 @@
 # Dialect entry-point smokes
 
-The shipped dialects had **zero** end-to-end coverage until this family (#70).
+The shipped dialects had **zero** end-to-end coverage until these specs (#70).
 Every numeric spec runs against a bespoke `@lib` harness, which passes -- so the
 tower is well covered while the launchers users actually run were covered
 not at all. That is how #49 shipped: a dialect that cannot add two numbers.
