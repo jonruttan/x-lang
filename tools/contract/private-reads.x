@@ -40,7 +40,6 @@
 (file "lib/x/type/assoc.x" 3)
 (file "lib/x/type/block.x" 7)
 (file "lib/x/type/class.x" 2)
-(file "lib/x/type/gen.x" 1)
 (file "lib/x/type/generic.x" 1)
 (file "lib/x/type/iter.x" 2)
 (file "lib/x/type/list.x" 2)

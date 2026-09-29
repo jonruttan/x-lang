@@ -33,7 +33,7 @@
   (param v ANY "A primitive, or any object whose unit 0 is a function pointer")
   (returns INTEGER "The address unit 0 holds")
   "The C function pointer an object holds in its first unit.")
-(def %prim? (fn (_ v) (str=? (Type name v) "PRIMITIVE")))
+(def %image-prim? (fn (_ v) (str=? (Type name v) "PRIMITIVE")))
 
 ; A map is a plain list of (addr . tag); ~150 entries, so a linear probe is
 ; cheaper than anything with structure.
@@ -63,17 +63,17 @@
   "Look an address up in a naming map.")
 
 ; catalog: LIST of (ns . ((name . value) ...))
-(def %from-catalog
+(def %image-from-catalog
   (fn (self cat m)
     (if (null? cat) m
-      (self (rest cat) (%from-methods (rest (first cat)) m (first (first cat)))))))
-(def %from-methods
+      (self (rest cat) (%image-from-methods (rest (first cat)) m (first (first cat)))))))
+(def %image-from-methods
   (fn (self ms m ns)
     (if (null? ms) m
-      (self (rest ms) (%method-add (first ms) m ns) ns))))
-(def %method-add
+      (self (rest ms) (%image-method-add (first ms) m ns) ns))))
+(def %image-method-add
   (fn (_ e m ns)
-    (if (%prim? (rest e))
+    (if (%image-prim? (rest e))
       (image-name-map-add m (image-fnptr (rest e)) image-foreign-catalog
         (Str append (symbol->str ns) "/" (symbol->str (first e))))
       m)))
@@ -82,22 +82,22 @@
 ; structural pairs built at base creation -- and `pair?` and `atom?` both
 ; answer about heap objects, so `pair?` is #f and `atom?` is #t for a binding
 ; that first/rest walk perfectly well.  The type word is what tells the truth.
-(def %walkable?
+(def %image-walkable?
   (fn (_ x)
     (if (null? x) #f
       (if (pair? x) #t (eq? (%reflect-type-word x) %reflect-spair-tw)))))
-(def %from-env
+(def %image-from-env
   (fn (self x m d)
     (if (image-int< d 0) m
-      (if (%walkable? x)
+      (if (%image-walkable? x)
         ; `rest` is list traversal at the SAME level and must not spend depth:
         ; spending it there bounded the number of BINDINGS seen, not the nesting.
-        (%from-env (rest x) (%from-env (first x) (%from-entry x m) (image-int- d 1)) d)
+        (%image-from-env (rest x) (%image-from-env (first x) (%image-from-entry x m) (image-int- d 1)) d)
         m))))
-(def %from-entry
+(def %image-from-entry
   (fn (_ x m)
-    (if (%walkable? x)
-      (if (%prim? (rest x)) (image-name-map-add m (image-fnptr (rest x)) 2) m)
+    (if (%image-walkable? x)
+      (if (%image-prim? (rest x)) (image-name-map-add m (image-fnptr (rest x)) 2) m)
       m)))
 
 ; Catalog only.  Walking the base env for the bare bindings crashes exactly as
@@ -122,13 +122,13 @@
 ; yields the wrapper, not the primitive, and is simply not added -- those
 ; survive only inside a closure, which docs/state-images.md already records.
 (include (Str append %engine-root "/tools/contract/isa.x"))
-(def %from-bare
+(def %image-from-bare
   (fn (self rows m b)
-    (if (null? rows) m (self (rest rows) (%bare-add (first (first rows)) m b) b))))
-(def %bare-add
+    (if (null? rows) m (self (rest rows) (%image-bare-add (first (first rows)) m b) b))))
+(def %image-bare-add
   (fn (_ nm m b)
     (guard (_ m)
-      ((fn (_ v) (if (%prim? v) (image-name-map-add m (image-fnptr v) image-foreign-bare (symbol->str nm)) m))
+      ((fn (_ v) (if (%image-prim? v) (image-name-map-add m (image-fnptr v) image-foreign-bare (symbol->str nm)) m))
        (b eval nm)))))
 
 ; NOT by walking the base env, and two failed attempts are why.
@@ -146,7 +146,7 @@
 ; whose catalog and bare bindings are its own.
 (doc (def image-name-map
   (fn (_ b)
-    (%from-bare %isa-bare (%from-catalog (first (b cell (lit prims))) ()) b)))
+    (%image-from-bare %isa-bare (%image-from-catalog (first (b cell (lit prims))) ()) b)))
   (param b ANY "The base to name: a Base instance")
   (returns LIST "Entries (address . (kind . name)), for the base's catalog and bare primitives")
   "Build the naming map of a base from its prims catalog and the bare globals the ISA contract declares.")
@@ -176,27 +176,27 @@
 ; silently produced unresolvable names would look like coverage.
 (doc (def image-dl-handle (Ffi dlopen () 1))
   "This process's dlopen handle on itself, the one the names are asked of.")
-(def %c-dladdr (Ffi dlsym image-dl-handle "dladdr"))
+(def %image-c-dladdr (Ffi dlsym image-dl-handle "dladdr"))
 ; The engine's allocator.  dlopen/dlsym/dladdr stay: naming a C function is
 ; the dynamic linker's job, and there is no engine-side substitute for it.
-(def %dl-buf ((prim-ref (lit ptr) (lit alloc)) 64))
-(def %DLI-SNAME 16)   ; Dl_info: fname, fbase, sname, saddr
+(def %image-dl-buf ((prim-ref (lit ptr) (lit alloc)) 64))
+(def %image-dli-sname 16)   ; Dl_info: fname, fbase, sname, saddr
 ; Returns the symbol NAME if it round-trips back to the same address, else nil.
 ; The round trip is checked rather than assumed: macOS reports getpid as
 ; "__getpid", which does resolve back, and a mechanism quietly producing
 ; unresolvable names would look exactly like coverage.
 (doc (def image-dl-name
   (fn (_ w)
-    (if (eq? (Ptr call %c-dladdr w %dl-buf) 0) () (%dl-check w (Ptr ref-word %dl-buf %DLI-SNAME)))))
+    (if (eq? (Ptr call %image-c-dladdr w %image-dl-buf) 0) () (%image-dl-check w (Ptr ref-word %image-dl-buf %image-dli-sname)))))
   (param w INTEGER "Address to name")
   (returns STRING "The symbol's name, or nil when none resolves back to the address")
   "Ask the dynamic linker what an address is called, and keep the name only if dlsym gives the address back.")
-(def %dl-check
+(def %image-dl-check
   (fn (_ w sname)
     (if (eq? sname 0) ()
       (guard (_ ())
-        (%dl-verify w (Ptr ->str (Ptr from-int sname)))))))
-(def %dl-verify
+        (%image-dl-verify w (Ptr ->str (Ptr from-int sname)))))))
+(def %image-dl-verify
   (fn (_ w nm)
     ((fn (_ back) (if (null? back) () (if (eq? (Ptr ->int back) w) nm ())))
      (Ffi dlsym image-dl-handle nm))))
