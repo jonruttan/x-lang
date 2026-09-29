@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The foreign census runs again, and the image inspector is gone** ([#873]).
+`tools/dev/image-foreign.x` called three helpers that left the tree on
+2026-09-04, when the writer began to recognise a type's call pointer by the
+type. The census makes the writer's test, then asks the naming map and the
+linker, in the writer's order, and reports the `dlopen` handle on a line of
+its own. `tools/dev/image-inspect.x` read a header and called
+`(image rebuild!)` as they were before that day, and is deleted; the loader
+under `%IMG-VERBOSE` prints the counts and the externals that did not
+resolve. `tools/dev/README.md` describes the writer, the loader and the
+census as they are.
+
+[#873]: https://github.com/jonruttan/x-lang/pull/873
+
 **The list of functions that have a compiled version is `Compiled`**
 ([#859]). `x/sys/swap` and its class `Swap` are `x/tool/compiled` and
 `Compiled`, with names that say what each thing is. An entry holds a
