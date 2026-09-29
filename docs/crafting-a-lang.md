@@ -372,6 +372,16 @@ contesting type — and the platform can compile them:
   (passing fewer segfaults).  A head the emitter cannot resolve still
   refuses at generation: silently compiling one as a self-call is what
   once produced an infinite recursion and a crash far from the cause.
+- **States that hand to each other go through a cell.**  An fvar is baked as
+  its object's address, so a state is given the states it hands to when it
+  is made, and of two states that hand to each other one compiles before the
+  other exists.  `(first CELL)` and `(rest CELL)` read a pair when the code
+  runs: bind the fvar to a pair, compile every state, then put the states in
+  their cells with `%set-first!`.  The operand is an fvar, an object
+  parameter, or another `first` or `rest`; analyser mode only.  The cell is
+  an object of the heap, so rooting the cell roots the state it holds, which
+  an address baked into code does not.  The interpreted twin reads the same
+  form.  See `tests/x/specs/ext/jit-cell.spec.md`.
 - `%score-set`'s sign folds `(- 0 1)` and raises loudly on other
   non-literals; any other non-trivial constant belongs in an fvar.
   `%score-label!`'s label is a literal integer the same way.
