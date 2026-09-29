@@ -17,6 +17,30 @@ resolve. `tools/dev/README.md` describes the writer, the loader and the
 census as they are.
 
 [#873]: https://github.com/jonruttan/x-lang/pull/873
+**A state image carries compiled code** ([#872]). The asm cache keeps each
+entry in the heap as well as in its two files: the code in an object of type
+`ASM-CODE`, whose first unit is its length and whose payload is `word`
+units, and the relocation records as a list. Nothing in a held entry is an
+address, so an image carries it. `compile-asm` looks for the held entry
+first and pours from it with one block copy, then probes the files, then
+compiles. The entries on `Compiled`'s list are switched to interpreted
+before a write and compile again after a load, as before, and the compile
+after a load is a copy into a fresh page and a patch, with no file and no
+compiler. The cache's files stay, for boots from source.
+
+On x-engine-c v0.2.17, darwin/arm64, a xenon image loaded with the cache
+directory empty:
+
+| | time | cache files afterwards |
+|---|---|---|
+| with held entries | 0.59s | 0 |
+| before, cache warm | 0.70s | 48 |
+| before, cache directory empty | 1.81s | 48 |
+
+The image grows from 8,845,204 to 9,043,065 bytes. A process holds its
+entries whether or not it writes an image.
+
+[#872]: https://github.com/jonruttan/x-lang/pull/872
 
 **The list of functions that have a compiled version is `Compiled`**
 ([#859]). `x/sys/swap` and its class `Swap` are `x/tool/compiled` and
