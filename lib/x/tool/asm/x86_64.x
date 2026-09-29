@@ -367,6 +367,14 @@
       (fn (_ asm r)
         (%emit-bytes! asm (list (%x86-rex r r) 15 182 (%modrm 3 r r)))))
 
+    ; A single written by CVTSD2SS or CVTSI2SS leaves the destination's bits
+    ; above it as they were, where arm64 clears them; PSLLQ then PSRLQ by 32
+    ; (66 0F 73 /6 ib and /2 ib) clear bits 32-63 here.
+    (def clear-high!
+      (fn (_ asm d)
+        (do (%emit-bytes! asm (%append (pair 102 (rex-opt 0 d)) (list 15 115 (%modrm 3 6 d) 32)))
+            (%emit-bytes! asm (%append (pair 102 (rex-opt 0 d)) (list 15 115 (%modrm 3 2 d) 32))))))
+
     ; fadd/fsub/fmul/fdiv d, n, m: MOVAPD d, n when they differ, then the
     ; two-address F2 0F op.  The same dst==src2 refusal as the integer instructions.
     (def arith!
@@ -394,6 +402,16 @@
         ; range, x86 answers 0x8000000000000000 where arm64 saturates.
         ((eq? key 'scvtf) (sse! asm 242 42 #t (arg args 0) (arg args 1)))
         ((eq? key 'fcvtzs) (sse! asm 242 44 #t (arg args 0) (arg args 1)))
+        ; fcvt/d xmm, xmm (CVTSS2SD F3 0F 5A): the single in the low 32
+        ; bits to a double.  fcvt/s xmm, xmm (CVTSD2SS F2 0F 5A) and
+        ; scvtf/s xmm, r64 (CVTSI2SS F3 REX.W 0F 2A) write a single.
+        ((eq? key 'fcvt/d) (sse! asm 243 90 #f (arg args 0) (arg args 1)))
+        ((eq? key 'fcvt/s)
+          (do (sse! asm 242 90 #f (arg args 0) (arg args 1))
+              (clear-high! asm (arg args 0))))
+        ((eq? key 'scvtf/s)
+          (do (sse! asm 243 42 #t (arg args 0) (arg args 1))
+              (clear-high! asm (arg args 0))))
         ; flt d, a, b: UCOMISD b, a sets CF and ZF from b against a, so SETA
         ; (CF=0 and ZF=0) is a < b.  An unordered compare sets both flags,
         ; so a NaN answers 0, as MI does on arm64.
@@ -619,6 +637,9 @@
     (pair 'fdiv   (list (pair 'rrr '(sse fdiv))))
     (pair 'scvtf  (list (pair 'rr '(sse scvtf))))
     (pair 'fcvtzs (list (pair 'rr '(sse fcvtzs))))
+    (pair 'fcvt/d (list (pair 'rr '(sse fcvt/d))))
+    (pair 'fcvt/s (list (pair 'rr '(sse fcvt/s))))
+    (pair 'scvtf/s (list (pair 'rr '(sse scvtf/s))))
     (pair 'flt    (list (pair 'rrr '(sse flt))))
     (pair 'feq    (list (pair 'rrr '(sse feq))))
   ))
