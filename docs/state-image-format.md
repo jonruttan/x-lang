@@ -223,11 +223,19 @@ object regardless (the image lives as long as the process); `OWN`, `META`,
 Unit words: `ref` — `> 0` object index, `< 0` external, `0` nil; `word` —
 verbatim; `bytes` — blob byte offset; `foreign` — external index.
 
+A `word` unit carries any value a machine word can hold, so an object of
+`word` units carries arbitrary bytes, zero bytes included. A type whose
+units are declared `-1` with the labels `(ref word)` is such an object: slot 0
+is its length, an INTEGER, and the payload after it is words.
+
 
 ### 3.7 Blob
 
 `[len][bytes… NUL]` at the offset a `bytes` unit stores. The loader's buffer
 outlives the image; a rebuilt `bytes` unit points into it.
+
+The writer measures a `bytes` unit as a C string, so `len` is the count up to
+the first NUL. Bytes that may contain a NUL go in `word` units (§3.6).
 
 ## 4. Rules the writer keeps
 
@@ -273,8 +281,9 @@ and `load`.
   writes the unit count at `buf[0]` and `[kind][word]` pairs after it, and
   returns the object. The engine provides one per built-in type whose
   payload is not all references — STRING and SYMBOL say `bytes`, INTEGER
-  and CHARACTER `word`, PRIMITIVE and POINTER `foreign`, PROCEDURE and
-  OPERATIVE `foreign ref`, BUFFER `bytes ref word` for its outer (the bytes,
+  and CHARACTER `word`, POINTER `foreign`, PRIMITIVE `foreign foreign`
+  (the function pointer, then a second address the engine owns), PROCEDURE
+  and OPERATIVE `foreign ref`, BUFFER `bytes ref word` for its outer (the bytes,
   the inner, the consumed count) and two words for its inner (0 and the
   unread count) — and `x_type_save_default`, which walks the units shape,
   for every type that declares none. A type the library registers gets the
@@ -320,7 +329,8 @@ structs and two indices; the loader does not care which is which.
    restore would use to put this base's stale env back (`x_tco_restore`,
    `x-eval.c`); a primitive call pushes nothing. After the last write the
    loader's own names are gone, and the next form on stdin evaluates
-   inside the image.
+   inside the image. Nothing the library defined has been called so far,
+   except a type's `load` handler in step 3.
  5. Call `(%image-recache!)`, resolved in the image. A library module that
    caches an address at boot, or writes into an engine static -- the two
    type labels `boot/reflect.x` keeps, the four struct words `boot/printer.x`

@@ -80,7 +80,7 @@
             (when (Str8 includes? "Block method!" %source-input)
               (unless (or (eq? (Str8 index-of "x/boot/" %mod) 0)
                           (or (str=? %mod "x-core") (or (str=? %mod "x/xe") (str=? %mod "x/rn"))))
-                (guard (_ ()) (eval (list (lit import) (%str->symbol %mod)))))))
+                (guard (_ ()) (eval (list (lit import) (Str8 ->sym %mod)))))))
           (let ((%doc-base (Base make)))
             (Xon arm-source! %doc-base)
             (let ((%prims-tokens (Xon parse %prims-input %doc-base)))

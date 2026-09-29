@@ -277,7 +277,7 @@
            (#t (self (+ i 1)
                  (Str8 append acc
                    (Str pad-left 8 #\0
-                     (%cvt (%peek (+ %HB i)) (Type named STRING) 16))))))) 0 "")))
+                     (Convert to (%peek (+ %HB i)) (Type named STRING) 16))))))) 0 "")))
 
   ; --- correctness before speed: a fast wrong digest is worth nothing ---
   (def %vec

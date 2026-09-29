@@ -137,7 +137,7 @@ Both spellings of a definition are counted: `(def NAME body)` and the
 `(def NAME ())` + `(set! NAME body)` pair that a self-referential function
 needs so its body can name itself. The tokenizer state machines in
 `lib/x/num/` are written the second way, and were invisible to both this
-rule and the shape rule until the walk learned to read a `set!` body as the
+rule and the depth rule until the walk learned to read a `set!` body as the
 definition body it is.
 
 ### 1.3 Length and depth together, never either alone
@@ -302,7 +302,7 @@ Measured 2026-09-02, so progress is checkable rather than asserted.
 |---|---|---|
 | 1.1 ladders ≥4 arms (`ladder`) | 26 | 13 |
 | 1.2 string-keyed ladders ≥15 arms (`ladder-dict`) | 1 (`%py-str-attr/26`) | 1 |
-| 1.3 depth ≥12 and ≥500 nodes (`shape`) | 16 | 12 |
+| 1.3 depth ≥12 and ≥500 nodes (`depth`) | 16 | 12 |
 | 2.1 `(- 0 N)` | 73 | 14 |
 | 2.2 `(if (not …))` | 261 | 59 |
 | 2.3 `rest` chains ≥3 | 188 | 30 |
@@ -342,8 +342,8 @@ which the bundle repos run through `tools/dev/lint.sh`. Construct metadata
 belongs in [`lib/x/constructs.x`](../lib/x/constructs.x), which already
 records `match` as `(branch . clauses)`.
 
-1.1, 1.2 and 1.3 are implemented: warning kinds `ladder`, `ladder-dict` and
-`shape`, one finding per definition, named `NAME/ARMS` and
+1.1, 1.2 and 1.3 are implemented: warning labels `ladder`, `ladder-dict` and
+`depth`, one finding per definition, named `NAME/ARMS` and
 `NAME/DEPTHd/NODES` so the numbers survive. They are
 advisory, so a file carrying one still passes. Advisory warnings are
 dropped along with the output of a file that verdicts `ok`, so read them
