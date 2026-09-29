@@ -256,6 +256,15 @@ and no bundle uses any of them.
 
 [#866]: https://github.com/jonruttan/x-lang/pull/866
 
+**The library's last loose uses of kind, shape, family and tag are reworded**
+([#871]). On arm64 Linux the call made in a name's place is a stand-in:
+`linux-generic-syscall-stand-ins` was `linux-generic-syscall-shapes`, and the
+two private door builders follow. Comments that said "two kinds of", "the
+same shape", "the scalar double family" and "tagged" name what they mean.
+No alias is kept, and no bundle uses the names.
+
+[#871]: https://github.com/jonruttan/x-lang/pull/871
+
 **The linter's depth warning is named `depth`** ([#864]). A definition at
 least 12 deep and 500 nodes large was reported as `shape`; a lint run now
 prints `depth:` for it. The lang kit's `--strict` matches the new name, so a

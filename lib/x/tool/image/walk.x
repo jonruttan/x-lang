@@ -252,7 +252,7 @@
         (%image-units p g (g (image-unit-label m i d) (image-word-at p i) acc) (image-int+ i 1) n m d))))
 
 
-; How a type word is tagged.  Three of the four are not heap types at all --
+; How a type word is labelled.  Three of the four are not heap types at all --
 ; nil-typed, the static ATOM sentinel, the structural PAIR sentinel -- and none
 ; of those carries a navigable type pointer, so every consumer branches here
 ; before dereferencing one.
@@ -268,7 +268,7 @@
         (if (eq? tw %reflect-spair-tw) %image-t-pair image-type-heap)))))
   (param tw INTEGER "A type word")
   (returns INTEGER "0 nil-typed, 1 the static atom, 2 the structural pair, 3 a heap type")
-  "How a type word is tagged.")
+  "How a type word is labelled.")
 
 (doc (provide x/tool/image/walk
   image-walk image-walk-all image-walk-collect! image-walk-collect?

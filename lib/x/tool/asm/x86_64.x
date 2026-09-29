@@ -48,7 +48,7 @@
 (def x19 rbx) (def x20 r12) (def x21 r13) (def x22 r14)
 (def xzr (reg 99))
 (def %x86-zr 99)
-; d0-d7 are xmm0-xmm7 (the scalar double family below)
+; d0-d7 are xmm0-xmm7 (the scalar double instructions below)
 (def d0 (reg 0)) (def d1 (reg 1)) (def d2 (reg 2)) (def d3 (reg 3))
 (def d4 (reg 4)) (def d5 (reg 5)) (def d6 (reg 6)) (def d7 (reg 7))
 
@@ -199,7 +199,7 @@
 ; alu3 lowering: (op dst src1 src2), src2 a register or an immediate.  The
 ; immediate form is REX.W 81 /n imm32, n being bits 5-3 of the register
 ; form's opcode (ADD 0x01 is /0, SUB 0x29 is /5); the mov cannot clobber
-; an immediate, so every shape of it lowers.
+; an immediate, so every arrangement of it lowers.
 (def %x86-lower-alu3
   (fn (_ asm op args)
     (def dst  (%op-value (%x86-nth 0 args)))
@@ -328,14 +328,14 @@
       (list (%x86-rex r 0) 139 (%modrm 0 r 4) 36           ; mov r, [rsp]
             72 131 196 16))))                              ; add rsp,16
 
-; --- Scalar double family (SSE2) ---
+; --- Scalar double instructions (SSE2) ---
 ; The d registers are the xmm registers, one for one: SysV passes a
 ; double's arguments in xmm0-xmm7 and returns it in xmm0, as arm64 does in
 ; d0-d7.  The general operands are the portable x registers above.  Every
 ; form is prefix, optional REX, 0F, opcode, ModR/M; the REX is needed only
 ; for W (a 64-bit general operand) or an operand past 7.
 ;
-; One lowering for the whole family, (%x86-float asm KEY args), with its
+; One lowering for all of them, (%x86-float asm KEY args), with its
 ; helpers bound inside it: the table names each form (sse KEY).
 (def %x86-float
   (let ()
@@ -368,7 +368,7 @@
         (%emit-bytes! asm (list (%x86-rex r r) 15 182 (%modrm 3 r r)))))
 
     ; fadd/fsub/fmul/fdiv d, n, m: MOVAPD d, n when they differ, then the
-    ; two-address F2 0F op.  The same dst==src2 refusal as the integer family.
+    ; two-address F2 0F op.  The same dst==src2 refusal as the integer instructions.
     (def arith!
       (fn (_ asm op args)
         (def dst  (arg args 0))
@@ -610,7 +610,7 @@
       (pair 'l (list () (list 232) ()           ; 0xE8
         (list (list 'rel32 0))))))
 
-    ; The scalar double family, all lowered by %x86-float
+    ; The scalar double instructions, all lowered by %x86-float
     (pair 'fmov/d (list (pair 'rr '(sse fmov/d))))
     (pair 'fmov/x (list (pair 'rr '(sse fmov/x))))
     (pair 'fadd   (list (pair 'rrr '(sse fadd))))

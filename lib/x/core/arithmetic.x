@@ -30,7 +30,7 @@
 ; every boxed tower instance, so float/rational/bigint divisors fall through
 ; to the tower's own type-op dispatch untouched ((/ 1.0 0.0) stays IEEE inf,
 ; rational zero keeps its own error).  Only a C-level integer divisor -- the
-; one kind that reaches raw C division -- is tested, and -1 is answered only
+; only divisor that reaches raw C division -- is tested, and -1 is answered only
 ; over a C-level integer dividend.  eq? alone would NOT be a safe gate: it is
 ; a raw slot compare, and a boxed zero could collide.
 (def %div-guard

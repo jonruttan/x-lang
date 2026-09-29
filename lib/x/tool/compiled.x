@@ -68,7 +68,7 @@
   (method compile! (self)
     (doc "Compile the function and install the compiled version. A compile that raises has failed: the interpreted version is installed and the raise's text is kept as the reason. A compile that answers the interpreted version has declined, and the interpreted version is installed."
       (returns SYMBOL "The state the entry is left in: compiled, interpreted or failed"))
-    ; The answer is tagged, so that a compile answering nil is told from one
+    ; The answer is labelled, so that a compile answering nil is told from one
     ; that raised.
     ((fn (_ made)
        (if (first made)

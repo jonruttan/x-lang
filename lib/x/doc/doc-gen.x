@@ -340,7 +340,7 @@
       (#t
         ; A bare symbol IS a field declaration -- (private balance ...)
         ; declares `balance` with no default -- so it is normalised to the
-        ; (name) shape and flows through the field arm below.  Left alone it
+        ; (name) layout and flows through the field arm below.  Left alone it
         ; hit the not-a-pair arm and vanished, the same silence this walker
         ; keeps having to be taught out of.
         (do (let ((f (if (symbol? (first body)) (list (first body)) (first body))))

@@ -254,15 +254,15 @@
   (fn (_ n)
     (fn (_ a0 a1 a2 a3 a4 a5) (syscall n a0 a1 a2 a3 a4 a5))))
 
-; A shape is the argument list of the call that stands in for a name: a0 to a5
+; A stand-in is the call made in a name's place, with its argument list: a0 to a5
 ; are the door's arguments, cwd is AT_FDCWD (-100, the working directory), and
-; a number is itself.  A shaped door is the plain door's form with the shape in
-; place of the six arguments, built and evaluated when the door is made.
-(def %door-shape
+; a number is itself.  A door through a stand-in is the plain door's form with
+; the stand-in's arguments in place of the six, built and evaluated when the door is made.
+(def %door-stand-in
   (fn (_ name)
     (match
       ((eq? %platform (lit linux-arm64))
-        (%assoc-get name linux-generic-syscall-shapes))
+        (%assoc-get name linux-generic-syscall-stand-ins))
       (#t ()))))
 
 (def %door-slots
@@ -272,21 +272,21 @@
       ((eq? (first slots) (lit cwd)) (pair -100 (self (rest slots))))
       (#t (pair (first slots) (self (rest slots)))))))
 
-(def %door-shaped
+(def %door-standing-in
   (fn (_ n slots)
     (eval (list (lit fn) (lit (_ a0 a1 a2 a3 a4 a5))
                 (pair (lit syscall) (pair n (%door-slots slots)))))))
 
 (doc (def syscall-door
   (fn (_ (param name SYMBOL "The call, by the name the x86-64 and Darwin tables give it"))
-    (def shape (%door-shape name))
-    (def n (syscall-id (match ((eq? shape ()) name) (#t (first shape)))))
+    (def stand-in (%door-stand-in name))
+    (def n (syscall-id (match ((eq? stand-in ()) name) (#t (first stand-in)))))
     (match
       ((< n 0) (error (pair (lit unsupported-syscall) name)))
-      ((eq? shape ()) (%door-plain n))
-      (#t (%door-shaped n (first (rest shape)))))))
+      ((eq? stand-in ()) (%door-plain n))
+      (#t (%door-standing-in n (first (rest stand-in)))))))
   (returns CALLABLE "A function of up to six arguments, answering what the syscall primitive answers")
-  (note "Raises (unsupported-syscall . NAME) when this platform has neither the call nor a shape standing in for it.")
+  (note "Raises (unsupported-syscall . NAME) when this platform has neither the call nor a stand-in for it.")
   (sample "((syscall-door 'close) fd)" "0")
   (sample "((syscall-door 'open) \"/etc/hostname\" 0 0)" "a descriptor, through openat where open has no number")
   "Resolve a system call by name to something that makes it on this platform."))
@@ -300,7 +300,7 @@
   (global os-darwin?) (global os-linux?)
   (global arch-arm64?) (global arch-x86-64?)
   (global x86_64-syscall-names) (global i386-syscall-names) (global darwin-syscall-numbers)
-  (global linux-generic-syscall-numbers) (global linux-generic-syscall-shapes)
+  (global linux-generic-syscall-numbers) (global linux-generic-syscall-stand-ins)
   file-modes stat-layout)
   (note "syscall-id answers a number from this platform's table: Darwin's bare BSD numbers (libc OR-folds the 0x2000000 UNIX class), Linux x86-64's, or the Linux generic table on arm64. syscall-door answers something to call, and is what reaches a call the generic table spells differently.")
-  "The platform layer: which OS and architecture this is, and the syscall numbers, call shapes, open flags and stat layout that follow from it.")
+  "The platform layer: which OS and architecture this is, and the syscall numbers, stand-in calls, open flags and stat layout that follow from it.")

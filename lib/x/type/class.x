@@ -1051,17 +1051,17 @@
         (pair (lit svis) svis)                     ; static-side visibility alist
         (pair (lit statics) (list statics))))))   ; statics in a one-cell mutable box
 
-; Find a top-level body form whose head is `tag`, returning its rest (or ()).
-; Find the (tag ...) form in a class body, returning its tail (or () if absent).
-; pair?-guarded: a bare-symbol field (links, north, ...) is not a tagged form,
+; Find a top-level body form whose head is `head`, returning its rest (or ()).
+; Find the (head ...) form in a class body, returning its tail (or () if absent).
+; pair?-guarded: a bare-symbol field (links, north, ...) is not a form with a head,
 ; and an unchecked (first symbol) is silently wrong on 64-bit / a SIGSEGV on the
 ; 32-bit Pi -- so skip non-pairs instead of reading their car. (cf. %find-doc-form)
 (def %find-form
-  (fn (loop body tag)
+  (fn (loop body head)
     (unless (null? body)
-      (if (if (pair? (first body)) (eq? (first (first body)) tag) #f)
+      (if (if (pair? (first body)) (eq? (first (first body)) head) #f)
         (rest (first body))
-        (loop (rest body) tag)))))
+        (loop (rest body) head)))))
 
 ; --- Method documentation ---
 ; A method may carry an optional leading (doc "desc" (param ...) (returns ...)
@@ -1464,7 +1464,7 @@
                           (let ((t (eval tx e)))
                             ; the trait label is a pair whose head is the
                             ; interned symbol %trait (trait.x's unforgeable
-                            ; list); shape-checked here because the tag
+                            ; list); structure-checked here because the label
                             ; value itself lives in a later-loading module
                             (if (if (pair? t)
                                   (if (pair? (first t)) (eq? (first (first t)) (lit %trait)) #f)
