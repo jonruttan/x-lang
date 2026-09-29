@@ -5,6 +5,27 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The list of functions that have a compiled version is `Compiled`**
+([#859]). `x/sys/swap` and its class `Swap` are `x/tool/compiled` and
+`Compiled`, with names that say what each thing is. An entry holds a
+function's `interpreted` version, the function that does the `compile`, the
+function that does the `install`, and the `compiled` version once there is
+one; its `state` is `compiled`, `interpreted` or `failed`. No alias is kept.
+
+| was | is |
+|---|---|
+| `(Swap site! name twin maker seat)` | `(Compiled make name interpreted compile install)` |
+| `(Swap in-env name env)`, `(Swap in-cell pair)` | `(Compiled into-name name env)`, `(Compiled into-cell pair)` |
+| `(Swap down!)`, `(Swap up!)` | `(Compiled interpret-all!)`, `(Compiled compile-all!)` |
+| `(s down!)`, `(s up!)`, `(s value)` | `(c interpret!)`, `(c compile!)`, `(c compiled)` |
+| `(Swap rows)` | `(Compiled list)` |
+| states `up`, `twin`, `down`, `refused` | `compiled`, `interpreted`, `interpreted`, `failed` |
+
+`(Swap site-on-demand! ...)`, new in 0.17.0, is `(Compiled make-on-demand ...)`.
+The compiled SHA-256 engine's entry is made with it, as before.
+
+[#859]: https://github.com/jonruttan/x-lang/pull/859
+
 **The image tools' heap walk and foreign namer are library modules** ([#857]).
 `tools/dev/image-walk.x` and `tools/dev/image-name.x` are
 `x/tool/image/walk` and `x/tool/image/name`, with provide lists, and
