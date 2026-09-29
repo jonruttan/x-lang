@@ -368,13 +368,13 @@
         (%scope-add! (%cvt (first name-part) %lint-string-type))
         (%set-first! %lint-scope (%add-params (rest name-part) (first %lint-scope)))
         (%lint-ladder-scan (%cvt (first name-part) %lint-string-type) (rest (rest form)))
-        (%lint-shape-scan  (%cvt (first name-part) %lint-string-type) (rest (rest form)))
+        (%lint-depth-scan  (%cvt (first name-part) %lint-string-type) (rest (rest form)))
         (%lint-seq (rest (rest form)))
         (%lint-leak-scan (%last (rest (rest form))))   ; def-form body has its own tail
         (%set-first! %lint-scope saved))
     (do (%scope-add! (%cvt name-part %lint-string-type))      ; (def name val): self-ref ok
         (%lint-ladder-scan (%cvt name-part %lint-string-type) (%ladder-at form 2))
-        (%lint-shape-scan  (%cvt name-part %lint-string-type) (%ladder-at form 2))
+        (%lint-depth-scan  (%cvt name-part %lint-string-type) (%ladder-at form 2))
         (%lint-form (first (rest (rest form))))))))
 
 ; (set! NAME (fn ...)) is the second half of a self-referential definition:
@@ -387,7 +387,7 @@
   (let ((target (first (rest form))))
     (when (symbol? target)
       (%lint-ladder-scan (%cvt target %lint-string-type) (%ladder-at form 2))
-      (%lint-shape-scan  (%cvt target %lint-string-type) (%ladder-at form 2))))
+      (%lint-depth-scan  (%cvt target %lint-string-type) (%ladder-at form 2))))
   (%lint-form (first (rest form)))
   (%lint-form (first (rest (rest form))))))
 
@@ -582,7 +582,7 @@
         (%ladder-walk (first form))
         (self (rest form)))))))
 
-; --- Shape check: depth x size (docs/code-quality.md 1.3) ---
+; --- Depth check: depth x size (docs/code-quality.md 1.3) ---
 ;
 ; Neither number is a finding on its own, and the corpus says why.  Long and
 ; FLAT is a data table (syscalls-*.x, %arm64-table, %isa-catalogue) that only
@@ -607,29 +607,30 @@
 ; deep and seven times the size; SIZE is the discriminator.  At 500 the
 ; finding set is 16, and every one of them is a definition nobody claims
 ; is fine.  A report that flags good code is a report people learn to skip.
-(def %shape-depth-min 12)
-(def %shape-nodes-min 500)
+(def %depth-min 12)
+(def %nodes-min 500)
 
 ; (depth . nodes) for one form.
-(def %shape-of (fn (_ form)
+(def %depth-nodes-of (fn (_ form)
   (if (not (pair? form)) (pair 0 1)
     (if (if (symbol? (first form)) (str=? (%cvt (first form) %lint-string-type) "lit") #f)
       (pair 1 1)
-      (let ((s (%shape-elems form 0 0)))
+      (let ((s (%depth-nodes-elems form 0 0)))
         (pair (+ 1 (first s)) (+ 1 (rest s))))))))
 
-; Fold %shape-of over a form's elements, keeping the deepest and the total.
-(def %shape-elems (fn (self xs d n)
+; Fold %depth-nodes-of over a form's elements, keeping the deepest and the
+; total.
+(def %depth-nodes-elems (fn (self xs d n)
   (if (not (pair? xs)) (pair d n)
-    (let ((s (%shape-of (first xs))))
+    (let ((s (%depth-nodes-of (first xs))))
       (self (rest xs)
             (if (> (first s) d) (first s) d)
             (+ n (rest s)))))))
 
-(def %lint-shape-scan (fn (_ name body)
-  (let ((s (%shape-of body)))
-    (when (if (>= (first s) %shape-depth-min) (>= (rest s) %shape-nodes-min) #f)
-      (%warn! "shape"
+(def %lint-depth-scan (fn (_ name body)
+  (let ((s (%depth-nodes-of body)))
+    (when (if (>= (first s) %depth-min) (>= (rest s) %nodes-min) #f)
+      (%warn! "depth"
         (Str8 append (Str8 append (Str8 append (Str8 append name "/")
           (%cvt (first s) %lint-string-type)) "d/") (%cvt (rest s) %lint-string-type)))))))
 

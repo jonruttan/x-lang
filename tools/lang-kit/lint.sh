@@ -22,7 +22,7 @@
 # the run on them instead, for a bundle that wants them gated.
 #
 # --strict fails on the structural rules only -- ladder, ladder-dict and
-# shape, which say a definition is built wrong.  Not `unused`, which an applet
+# depth, which say a definition is built wrong.  Not `unused`, which an applet
 # protocol trips by design (every applet takes stdin-thunk and most never read
 # it), and not `shadow` or `display-chain`, which are style.
 #
@@ -95,7 +95,7 @@ for _d in $_DIRS; do
 	# Findings are counted, not lines: the linter prints one line per rule
 	# with every definition on it, so "ladder: %t-binary/11 %t-unary2/10
 	# %t-unary/9" is three findings on one line.
-	_N=$(printf '%s\n' "$_OUT" | grep -E '^      (ladder|ladder-dict|shape):' \
+	_N=$(printf '%s\n' "$_OUT" | grep -E '^      (ladder|ladder-dict|depth):' \
 		| sed 's/^ *[a-z-]*://' | wc -w | tr -d ' ')
 	_WARNINGS=$((_WARNINGS + ${_N:-0}))
 done
@@ -105,7 +105,7 @@ done
 # A warning line is indented under the file it belongs to; the verdict
 # lines are not.  Strict mode fails when any appears.
 if [ "$STRICT" -eq 1 ] && [ "$_WARNINGS" -gt 0 ]; then
-	echo "lang-kit lint: $_WARNINGS structural finding(s) -- ladder/shape -- and --strict was asked" >&2
+	echo "lang-kit lint: $_WARNINGS structural finding(s) -- ladder/depth -- and --strict was asked" >&2
 	exit 1
 fi
 echo "lang-kit lint: ok"
