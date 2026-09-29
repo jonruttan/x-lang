@@ -230,7 +230,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 	# The image path reaches the loader as a bound global, one form ahead;
 	# the engine reads no environment.  No image, and nothing changes.
 	#  THE LOADER'S INCLUDES ARE REPO-RELATIVE (engine/tools/contract/*.x,
-	# lib/x/type/shape-rows.x), as x.sh's repo mode requires of everything
+	# lib/x/type/unit-label-rows.x), as x.sh's repo mode requires of everything
 	# under lib/; this process runs wherever the caller is -- a lang bundle's
 	# suite runs in the bundle -- so the sed roots them at X_ROOT on the way
 	# in.  Its first symptom was 161 of x-awk's 167 dying on `include:

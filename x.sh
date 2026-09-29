@@ -1438,7 +1438,7 @@ img_root() { if [ -n "$INSTALL_ROOT" ]; then printf '%s' "$INSTALL_ROOT"; else p
 img_loader() {
 	printf '(def %%IMG-PATH "%s")\n' "$IMAGE"
 	# The loader's includes are root-relative (engine/tools/contract/*.x,
-	# lib/x/type/shape-rows.x), as everything under lib/ is; this process
+	# lib/x/type/unit-label-rows.x), as everything under lib/ is; this process
 	# runs wherever the user is, so they are rooted here, on the way in --
 	# the same sed the spec runner uses.
 	sed 's|^(include "\([^/]\)|(include "'"$_iroot"'/\1|' "$_iroot/lib/img.x" "$_iroot/tools/dev/image-read.x"

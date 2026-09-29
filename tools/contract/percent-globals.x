@@ -125,7 +125,7 @@
 ; State images.  lib/img.x is the loader's dialect, function-only by design:
 ; it declares the engine's type shapes and rebuilds an image on a base with no
 ; class system at all, so there is no class to home anything on, and its 36 are
-; the dialect's whole surface.  lib/x/type/shape-rows.x (2) is the rows that
+; the dialect's whole surface.  lib/x/type/unit-label-rows.x (2) is the rows that
 ; dialect and lib/x/type/type.x (3) both read -- data by design -- and the three
 ; in type.x are the per-base shape declaration that runs at boot, before Type
 ; could hold it.  boot/reflect.x grows by two for %image-recache-hooks and
@@ -301,7 +301,7 @@
 ; class.x fell 91 to 89: its two exported hooks, class-call-handler and
 ; bind-call-over!, are bare names now (x-lang#719, the last %-named exports).
 (file "lib/x/type/class.x" 89)   ; +1 %apply: the dispatcher applies resolved methods and displaced C handler atoms through the engine's apply
-(file "lib/x/type/shape-rows.x" 2)
+(file "lib/x/type/unit-label-rows.x" 2)
 (file "tools/check/boot-order.x" 33)
 (file "tools/check/dialect-cover.x" 9)
 (file "tools/check/doc-forms.x" 5)
