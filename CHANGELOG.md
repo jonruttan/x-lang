@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The assembler and the float stubs work in single precision** ([#877]). A
+single (a C float) is the low 32 bits of a d register, the bits above it
+zero on both backends. `fcvt/d` converts one to a double, `fcvt/s` a double
+to one, and `scvtf/s` an integer to one in a single rounding: FCVT and SCVTF
+on arm64; CVTSS2SD, CVTSD2SS and CVTSI2SS on x86-64, where PSLLQ and PSRLQ
+clear the bits the last two leave. `libm-fn` with no name makes the new
+stubs `"d->f"`, `"f->d"` and `"i->f"`.
+
+[#877]: https://github.com/jonruttan/x-lang/pull/877
+
 **A state image carries compiled code** ([#872]). The asm cache keeps each
 entry in the heap as well as in its two files: the code in an object of type
 `ASM-CODE`, whose first unit is its length and whose payload is `word`
