@@ -242,6 +242,15 @@ bundle's strict lint fails on the same findings as before.
 
 [#864]: https://github.com/jonruttan/x-lang/pull/864
 
+**The image tools say label and unit labels** ([#869]). `image-unit-label`
+and `image-type-label` were `image-unit-kind` and `image-type-kind`, and
+`image-unit-labels-count`, `-mask`, `-desc` and `-static?` were
+`image-shape-count`, `-mask`, `-desc` and `-static?`. A foreign table
+entry's 1 to 8 is its label, and the reader prints `unresolved label` for
+one it cannot place. No alias is kept, and no bundle uses any of them.
+
+[#869]: https://github.com/jonruttan/x-lang/pull/869
+
 **A stat record holds a file's type under `file-type`** ([#823]).
 `(File stat p)` and `(File lstat p)` answer
 `((size . N) (mode . M) (file-type . K) (mtime . T))`; the third key was

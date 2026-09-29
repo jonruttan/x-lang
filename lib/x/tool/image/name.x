@@ -35,21 +35,21 @@
   "The C function pointer an object holds in its first unit.")
 (def %image-prim? (fn (_ v) (str=? (Type name v) "PRIMITIVE")))
 
-; A map is a plain list of (addr . tag); ~150 entries, so a linear probe is
+; A map is a plain list of (addr . label); ~150 entries, so a linear probe is
 ; cheaper than anything with structure.
-; An entry is (fnptr . (kind . payload)): kind 1 catalog, 2 bare, 3 dlsym, and
+; An entry is (fnptr . (label . payload)): label 1 catalog, 2 bare, 3 dlsym, and
 ; the payload is the NAME the loader will reacquire it by.  Kept as a list --
 ; ~130 entries, so a linear probe beats anything with structure.
 (doc (def image-foreign-catalog 1)
-  "Foreign kind 1: a catalog primitive, named NAMESPACE/NAME.")
+  "Foreign label 1: a catalog primitive, named NAMESPACE/NAME.")
 (doc (def image-foreign-bare 2)
-  "Foreign kind 2: a bare global the engine binds, named by its symbol.")
+  "Foreign label 2: a bare global the engine binds, named by its symbol.")
 (doc (def image-foreign-dlsym 3)
-  "Foreign kind 3: a symbol of the dynamic linker, named as dlsym takes it.")
-(doc (def image-name-map-add (fn (_ m a kind payload) (pair (pair a (pair kind payload)) m)))
+  "Foreign label 3: a symbol of the dynamic linker, named as dlsym takes it.")
+(doc (def image-name-map-add (fn (_ m a label payload) (pair (pair a (pair label payload)) m)))
   (param m LIST "Naming map")
   (param a INTEGER "Address to name")
-  (param kind INTEGER "Foreign kind")
+  (param label INTEGER "Foreign label")
   (param payload STRING "The name the loader reacquires the address by")
   (returns LIST "The map with the entry in front")
   "Add one address to a naming map.")
@@ -59,7 +59,7 @@
       (if (eq? (first (first m)) a) (rest (first m)) (self (rest m) a)))))
   (param m LIST "Naming map")
   (param a INTEGER "Address to look up")
-  (returns PAIR "(kind . name), or nil when the map does not name the address")
+  (returns PAIR "(label . name), or nil when the map does not name the address")
   "Look an address up in a naming map.")
 
 ; catalog: LIST of (ns . ((name . value) ...))
@@ -148,7 +148,7 @@
   (fn (_ b)
     (%image-from-bare %isa-bare (%image-from-catalog (first (b cell (lit prims))) ()) b)))
   (param b ANY "The base to name: a Base instance")
-  (returns LIST "Entries (address . (kind . name)), for the base's catalog and bare primitives")
+  (returns LIST "Entries (address . (label . name)), for the base's catalog and bare primitives")
   "Build the naming map of a base from its prims catalog and the bare globals the ISA contract declares.")
 
 ; --- the call pointer a whole TYPE shares -----------------------------------
@@ -159,11 +159,11 @@
 ; that type gives it the type's own call pointer.  The writer recognises one
 ; by its type: the word the type's call handler holds (image-write.x).
 (doc (def image-foreign-typecall 4)
-  "Foreign kind 4: the call pointer a whole type shares, named by the type.")
+  "Foreign label 4: the call pointer a whole type shares, named by the type.")
 ; A dlopen HANDLE is not a symbol and dladdr will never name one: the
 ; writer's own, re-opened by the loader.
 (doc (def image-foreign-dlopen 5)
-  "Foreign kind 5: a dlopen handle, which the loader opens again.")
+  "Foreign label 5: a dlopen handle, which the loader opens again.")
 
 ; --- source 3: ask the dynamic linker what an address is called -----------
 ;
