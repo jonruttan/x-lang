@@ -2,12 +2,12 @@
 # @weight 3
 
 The tower's fallback (`lib/x/boot/tower-compiled.x`). Where the probe is
-closed, a site on the full ladder takes the cc rung if the engine ships its C
-headers, and every other site keeps its interpreted twin; the tower that
+closed, an entry on the full ladder takes the cc rung if the engine ships its C
+headers, and every other entry keeps its interpreted twin; the tower that
 results must read source as the compiled one does. No boot reaches that path
 while the lane compiles, so this file takes the path a state image takes on a
-host whose lane refuses: every site goes down to its twin, the probe closes, and
-every site comes back up through its maker. The probe then reopens and the
+host whose lane refuses: every entry is switched to its twin, the probe closes,
+and every entry is compiled again. The probe then reopens and the
 compiled tower is remade.
 
 ## a closed probe leaves a tower that reads what the compiled one reads
@@ -25,13 +25,13 @@ tower. On a disagreement the case prints what the closed tower read.
   (def %text (prim-ref 'io 'write-to-str))
   (def %sample "(a 1 -2 3.5 1/2 1+2i 0.25d 18446744073709551616 'b `c ,d e'f \"g\" (h i))")
   (def %compiled (Xon parse %sample))
-  (Swap down!)
+  (Compiled interpret-all!)
   (set! %tower-jit? #f)
-  (Swap up!)
+  (Compiled compile-all!)
   (def %closed (guard (e (list (lit raised) (e msg))) (Xon parse %sample)))
-  (Swap down!)
+  (Compiled interpret-all!)
   (%tower-probe!)
-  (Swap up!)
+  (Compiled compile-all!)
   (write (if (str=? (%text %closed) (%text %compiled)) #t %closed)))
 ```
 ---

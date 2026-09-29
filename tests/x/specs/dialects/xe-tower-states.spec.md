@@ -4,9 +4,9 @@
 
 The tower's compiled analyser states take the compile.
 
-A refused compile is not an error here: the state's site seats the
-interpreted twin, so the state keeps working.  The site also says that it
-was refused, and that is what these cases read.  These five are written with
+A compile that fails is not an error here: the state's entry on Compiled's
+list installs the interpreted twin, so the state keeps working.  The entry
+also says that its compile failed, and that is what these cases read.  These five are written with
 `match`, which the assembler lane lowers as of #714.
 
 ## the states are compiled, not their twins
@@ -14,7 +14,7 @@ was refused, and that is what these cases read.  These five are written with
 ### none of the five falls back to its interpreted twin
 
 ```x
-(def %state-of (fn (_ name) ((Swap named name) state)))
+(def %state-of (fn (_ name) ((Compiled named name) state)))
 (write (list (%state-of (lit dec-int))
              (%state-of (lit dec-frac))
              (%state-of (lit cx-real-int))
@@ -22,13 +22,13 @@ was refused, and that is what these cases read.  These five are written with
              (%state-of (lit cx-imag-int))))
 ```
 ---
-    ('up 'up 'up 'up 'up)
+    ('compiled 'compiled 'compiled 'compiled 'compiled)
 
-### and the binding in the module's frame is the value its site made
+### and the binding in the module's frame is the compiled version of its entry
 
 ```x
 (def %seated?
-  (fn (_ env name) (same? (eval name env) ((Swap named name) value))))
+  (fn (_ env name) (same? (eval name env) ((Compiled named name) compiled))))
 (write (list (%seated? (module x/num/decimal) (lit dec-int))
              (%seated? (module x/num/complex) (lit cx-real-int))))
 ```
