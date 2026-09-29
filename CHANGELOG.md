@@ -17,6 +17,7 @@ resolve. `tools/dev/README.md` describes the writer, the loader and the
 census as they are.
 
 [#873]: https://github.com/jonruttan/x-lang/pull/873
+
 **A state image carries compiled code** ([#872]). The asm cache keeps each
 entry in the heap as well as in its two files: the code in an object of type
 `ASM-CODE`, whose first unit is its length and whose payload is `word`
