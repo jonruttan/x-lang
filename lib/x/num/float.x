@@ -282,6 +282,8 @@
 ;   "d+d" "d-d" "d*d" "d/d"   bits, bits -> bits
 ;   "d<d" "d=d"               bits, bits -> BOOL (#f when either is NaN)
 ;   "i->d" "d->i"             int -> bits; bits -> int (toward zero)
+;   "d->f" "f->d"             double bits -> single bits (rounded); back
+;   "i->f"                    int -> single bits (rounded once)
 ;   "d->d" "dd->d"            a libm function NAME: FLOAT(s) -> FLOAT
 ;   "s0->d"                   a libm function NAME, called (s, NULL): STRING -> bits
 ;   "ptr"                     no stub: the dlsym'd pointer itself
@@ -313,6 +315,9 @@
       ((str=? label "d=d") (do (%stub-args2! a) (asm-emit! a 'feq x0 d0 d1)))
       ((str=? label "i->d") (do (asm-emit! a 'scvtf d0 x0) (%stub-ret! a)))
       ((str=? label "d->i") (do (asm-emit! a 'fmov/d d0 x0) (asm-emit! a 'fcvtzs x0 d0)))
+      ((str=? label "d->f") (do (asm-emit! a 'fmov/d d0 x0) (asm-emit! a 'fcvt/s d0 d0) (%stub-ret! a)))
+      ((str=? label "f->d") (do (asm-emit! a 'fmov/d d0 x0) (asm-emit! a 'fcvt/d d0 d0) (%stub-ret! a)))
+      ((str=? label "i->f") (do (asm-emit! a 'scvtf/s d0 x0) (%stub-ret! a)))
       ((str=? label "d->d") (do (asm-emit! a 'fmov/d d0 x0) (%stub-call! a addr) (%stub-ret! a)))
       ((str=? label "dd->d") (do (%stub-args2! a) (%stub-call! a addr) (%stub-ret! a)))
       ((str=? label "s0->d") (do (asm-emit! a 'mov x1 (imm 0)) (%stub-call! a addr) (%stub-ret! a)))
@@ -379,7 +384,8 @@
         (fn (_ a b) (%make-instance float (%ptr-call (first cell) (first a) (first b)))))
       ((or (str=? label "d<d") (str=? label "d=d"))
         (fn (_ a b) (%int= (%ptr-call (first cell) a b) 1)))
-      ((or (str=? label "i->d") (str=? label "d->i") (str=? label "s0->d"))
+      ((or (str=? label "i->d") (str=? label "d->i") (str=? label "s0->d")
+           (str=? label "d->f") (str=? label "f->d") (str=? label "i->f"))
         (fn (_ x) (%ptr-call (first cell) x)))
       ((str=? label "ptr") (first cell))  ; the pointer itself
       (#t (fn (_ a b) (%ptr-call (first cell) a b))))))
@@ -390,8 +396,9 @@
           (%stub-make label cell)))))
 ; The same door, exported, for a module or a bundle that binds a libm function
 ; this file does not -- erf, the hyperbolics -- with the labels "d->d",
-; "dd->d" and "ptr".  Its rows are rows here: the thunk below clears them and
-; the recache hook remakes them, and libm is opened once, by this file.
+; "dd->d" and "ptr", or wants a stub this file makes none of, by any label
+; above with NAME nil.  Its rows are rows here: the thunk below clears them
+; and the recache hook remakes them, and libm is opened once, by this file.
 (def libm-fn %stub-fn)
 ;  A THUNK, NOT SYMBOLS.  boot/reflect.x states the rule: a symbol among the
 ; transients is cleared in the child's root, a thunk is run.  The handle and
