@@ -737,6 +737,73 @@
              (self (rest as)))))
        args))))
 
+; A state reaches another through a cell.
+;
+; An fvar is baked as its object's address, so a state is given the states it
+; hands to when it is made, and two states that hand to each other cannot both
+; be: whichever compiles first has nothing to name.  (first CELL) and
+; (rest CELL) break the circle.  CELL is an fvar holding a pair, the code
+; reads the pair when it RUNS, and what the pair holds is set once every state
+; exists:
+;
+;   (def cell (pair () ()))
+;   (def a (compile-asm '(fn (me buffer score chr) ... (first to-b) ...)
+;                       (list (pair 'to-b cell)) #t))
+;   (def b (compile-asm '(fn (me buffer score chr) ... a ...)
+;                       (list (pair 'a a)) #t))
+;   (%set-first! cell b)
+;
+; The cell is an object of the heap, so the collector reaches the state it
+; holds through it, where it cannot see an address baked into code: a caller
+; that roots the cell has rooted the state.
+;
+; The operand is an object and nothing else: an fvar, an object parameter, or
+; another (first ...) or (rest ...).  A number there would be dereferenced, and
+; so would nil, so each refuses at generation.  Analyser mode only, where a
+; result is an object: an integer function would box the pointer as a number.
+(def %asm-object-operand?
+  (fn (_ e)
+    (match
+      ((pair? e) (if (eq? (first e) 'first) #t (eq? (first e) 'rest)))
+      ((not (symbol? e)) #f)
+      ((%asm-memq e %asm-object-params) #t)
+      (#t (not (null? (compile-fvar-lookup e)))))))
+
+(def %asm-nil-fvar?
+  (fn (_ e)
+    (match
+      ((not (symbol? e)) #f)
+      ((null? (compile-fvar-lookup e)) #f)
+      (#t (null? (rest (compile-fvar-lookup e)))))))
+
+(def %asm-compile-object-field
+  (fn (_ asm op args params field)
+    (def operand (first args))
+    (match
+      ((not %asm-analyser?)
+        (Err raise 'value
+          (Str append "asm-compile: " (symbol->str op)
+            " reads an object, and this compile is an integer function, whose "
+            "result is a number.  Pass #t as compile-asm's third argument for "
+            "an analyser.") ()))
+      ((not (%asm-object-operand? operand))
+        (Err raise 'value
+          (Str append "asm-compile: " (symbol->str op) " cannot take "
+            (if (symbol? operand) (symbol->str operand) (%write-to-str operand))
+            " as its operand: it reads an object, which "
+            "is an fvar, an object parameter, or another first or rest.") ()))
+      ((%asm-nil-fvar? operand)
+        (Err raise 'value
+          (Str append "asm-compile: " (symbol->str op) " cannot take the fvar "
+            (symbol->str operand) ", which holds nil: bind it to the pair the "
+            "code is to read.") ()))
+      (#t
+        (do
+          (if (pair? operand)
+            (%asm-compile-call asm operand params)
+            (%asm-compile-param asm operand params #f))
+          (%emit-call! asm field))))))
+
 ; Compile a call expression
 (set! %asm-compile-call
   (fn (_ asm expr params)
@@ -791,6 +858,10 @@
         ; instead of becoming a computed call by accident.
         (%asm-compile-callable-call asm (first args) (rest args) params))
       ((eq? op '%seq) (%asm-compile-do asm args params))
+      ((eq? op 'first)
+        (%asm-compile-object-field asm op args params %jit-firstobj))
+      ((eq? op 'rest)
+        (%asm-compile-object-field asm op args params %jit-restobj))
       ((if (eq? op '%score-set) #t (eq? op '%score-label!))
         (if (eq? op '%score-set)
           (%asm-compile-score-set asm args params)
