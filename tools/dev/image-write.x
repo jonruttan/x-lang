@@ -9,7 +9,7 @@
 ; it, this base images itself (a development route; the writer's own names
 ; come along).
 ;
-; The image is the child's LANGUAGE STATE -- the cells base-layout.x tags
+; The image is the child's LANGUAGE STATE -- the cells base-layout.x labels
 ; (build ...) -- and every object reachable from them (spec 1, 2).  Nothing
 ; of the spine and nothing of process state is written; a reference to
 ; either is an external, by contract row (spec 3.4).
@@ -18,7 +18,7 @@
 ; @copyright 2026 Jon Ruttan
 ; @license MIT No Attribution (MIT-0)
 
-(import x/tool/image/walk image-walk image-walk-collect! image-walk-collect? image-over-units image-word-at image-traced? image-trace-flag image-collect image-heap-count image-mark! image-clear! image-shape-static? image-type-kind image-type-heap)
+(import x/tool/image/walk image-walk image-walk-collect! image-walk-collect? image-over-units image-word-at image-traced? image-trace-flag image-collect image-heap-count image-mark! image-clear! image-unit-labels-static? image-type-label image-type-heap)
 (import x/tool/image/walk image-heap-off image-flags-off image-type-off image-obj->ptr image-ptr->obj image-int->ptr image-ref-word image-set-word! image-ptr->str image-byte-len image-int+ image-int- image-int* image-int& image-int>> image-int<)
 (import x/tool/image/name image-name-map image-name-map-add image-name-map-get image-fnptr image-dl-name image-dl-handle image-foreign-bare image-foreign-dlsym image-foreign-typecall image-foreign-dlopen)
 (include "engine/tools/contract/base-paths.x")
@@ -187,7 +187,7 @@
 (def %between (fn (_) (if (image-walk-collect?) () (image-collect))))
 
 ; --- the contract, read as data (spec 1) -------------------------------------
-; base-layout.x's tags are bound as operatives: inside a (build ...) subtree,
+; base-layout.x's labels are bound as operatives: inside a (build ...) subtree,
 ; `cell` and `slot` record the language cells.  Everything else evaluates to
 ; nothing; `pair` is the primitive and carries the walk.
 (def %LANG ())                    ; ((name . cell|slot) ...)
@@ -224,7 +224,7 @@
     ((fn (_ node) (if (eq? (rest r) (lit cell)) (first node) node))
      (%at %RAW (%row-steps %base-paths (first r))))))
 
-; --- the spine set (spec 1, 3.4 kind 8) ----------------------------------------
+; --- the spine set (spec 1, 3.4 label 8) ----------------------------------------
 ; Every node of the base tree that is NOT a language object: the pairs of the
 ; tree walked structurally from the base object's data, and the process
 ; leaves under them.  Never descended: a root's value.  Recorded in raw
@@ -302,9 +302,9 @@
 (%ht-add! %SPINE-NAMES (%addr %RAW) (%addr (first %NAME-OBJS)))
 
 ; --- the engine's statics, by role and by pristine type row (spec 3.4) --------
-(def %STATIC-NAMES (%ht-new))   ; address -> (kind . name) object address
+(def %STATIC-NAMES (%ht-new))   ; address -> (label . name) object address
 (def %STATIC-OBJS ())
-(def %static! (fn (_ a kind nm) (if (eq? (%ht-find %STATIC-NAMES a) 0) (do (set! %STATIC-OBJS (pair (pair kind nm) %STATIC-OBJS)) (%ht-add! %STATIC-NAMES a (%addr (first %STATIC-OBJS)))) ())))
+(def %static! (fn (_ a label nm) (if (eq? (%ht-find %STATIC-NAMES a) 0) (do (set! %STATIC-OBJS (pair (pair label nm) %STATIC-OBJS)) (%ht-add! %STATIC-NAMES a (%addr (first %STATIC-OBJS)))) ())))
 (def %X-STATIC 6) (def %X-TYPE-STATIC 7) (def %X-BASE-ROW 8)
 (%static! (%addr (first (%at %RAW (%row-steps %base-paths (lit true))))) %X-STATIC "true")
 (%static! (%addr (first (%at %RAW (%row-steps %base-paths (lit false))))) %X-STATIC "false")
@@ -315,7 +315,7 @@
 ((fn (self al)
    (if (null? al) ()
      ((fn (_ u) (if (null? u) (self (rest al))
-                  (if (image-shape-static? u) (%static! (%addr u) %X-STATIC "units-pair") (self (rest al)))))
+                  (if (image-unit-labels-static? u) (%static! (%addr u) %X-STATIC "units-pair") (self (rest al)))))
       (Type cell (rest (first al)) (lit type-units)))))
  (first (%at %RAW (%row-steps %base-paths (lit type-alist)))))
 ; A fresh base's type structs hold the engine's static handlers, name atoms
@@ -346,7 +346,7 @@
 ; at the same rows, and a static is the same object in every base.
 (%name-statics-of! (first (%at %RAW (%row-steps %base-paths (lit type-alist)))))
 
-; --- function pointers (spec 3.4 kinds 1-5), the naming x/tool/image/name does ----
+; --- function pointers (spec 3.4 labels 1-5), the naming x/tool/image/name does ----
 (def %MAP (image-name-map %B))
 
 ; --- mark (spec 4.1) ------------------------------------------------------------
@@ -400,20 +400,20 @@
            (image-int+ cur (image-int+ 1 (%words-for n)))))
      (image-byte-len nm))))
 (def %x-new!
-  (fn (_ a kind nm)
+  (fn (_ a label nm)
     (do (set! %XCOUNT (image-int+ %XCOUNT 1))
         (%ht-add! %XIDX a %XCOUNT)
-        (set! %XCUR (%put-name %x-p (%put %x-p %XCUR kind) nm))
+        (set! %XCUR (%put-name %x-p (%put %x-p %XCUR label) nm))
         %XCOUNT)))
 (def %x-index
-  (fn (_ a kind nm) ((fn (_ i) (if (eq? i 0) (%x-new! a kind nm) i)) (%ht-find %XIDX a))))
+  (fn (_ a label nm) ((fn (_ i) (if (eq? i 0) (%x-new! a label nm) i)) (%ht-find %XIDX a))))
 (def %SENT 0)                    ; unnameable references, counted and described
 (def %SENT-LOG ())               ; ((holder address . description) ...)
-(def %CUR ())                    ; (type word, unit kind, address) of the object whose word is being named
+(def %CUR ())                    ; (type word, unit label, address) of the object whose word is being named
 (def %describe
   (fn (_ w)
-    ((fn (_ %CUR-TW %CUR-KIND)
-    (if (eq? %CUR-KIND 3) (list (%ty-name %CUR-TW 0) (lit foreign-unnamed) w)
+    ((fn (_ %CUR-TW %CUR-LABEL)
+    (if (eq? %CUR-LABEL 3) (list (%ty-name %CUR-TW 0) (lit foreign-unnamed) w)
     ;  A reference word the writer could not place is not read.  Reading its
     ; heap link, flags and type word to classify the miss is a read at an
     ; integer whenever a lang's object holds one in a declared reference unit
@@ -451,7 +451,7 @@
 (def %cp-word
   (fn (_ w p)
     ((fn (_ tw)
-       (if (if (eq? (image-type-kind tw) image-type-heap) (eq? w (%call-word-of tw)) #f)
+       (if (if (eq? (image-type-label tw) image-type-heap) (eq? w (%call-word-of tw)) #f)
            (%x-index w image-foreign-typecall (Type name (image-ptr->obj p)))
            ()))
      (image-ref-word p image-type-off))))
@@ -495,10 +495,10 @@
 ; word it cannot place -- a reference to an object outside the image, or a
 ; foreign address -- and says which object it met it in.
 (def %name
-  (fn (_ w kind o)
+  (fn (_ w label o)
     ((fn (_ p)
-       (do (set! %CUR (list (image-ref-word p image-type-off) kind (Ptr ->int p)))
-           (if (eq? kind 3) (%fn-word w p) (%extern-ref w))))
+       (do (set! %CUR (list (image-ref-word p image-type-off) label (Ptr ->int p)))
+           (if (eq? label 3) (%fn-word w p) (%extern-ref w))))
      (image-obj->ptr o))))
 ; The roots' values, in %ROOTS order; the write answers with their indices.
 (def %ROOT-VALUES ((fn (self l) (if (null? l) () (pair (%root-value (first l)) (self (rest l))))) %ROOTS))
@@ -570,7 +570,7 @@
        (first (image-walk %CURSOR
          (fn (_ p acc)
            (image-over-units p
-             (fn (_ kind w acc2)
+             (fn (_ label w acc2)
                (if (in? w targets)
                    (do (display "    ") (write (list (%ty-name (image-ref-word p image-type-off) p) (Ptr ->int p) (lit holds) w (first-name p) (spine-name p))) (newline)
                        (pair (Ptr ->int p) acc2))

@@ -10,7 +10,7 @@
 ; @copyright 2026 Jon Ruttan
 ; @license MIT No Attribution (MIT-0)
 
-(import x/tool/image/walk image-word-at image-obj->ptr image-ref-word image-int>> image-shape-count image-shape-mask image-shape-desc image-unit-kind)
+(import x/tool/image/walk image-word-at image-obj->ptr image-ref-word image-int>> image-unit-labels-count image-unit-labels-mask image-unit-labels-desc image-unit-label)
 (def %lib0 (Ffi dlopen () 1))
 ; The engine's own read and allocator, not libc's.  dlopen stays only for
 ; reacquiring foreign ADDRESSES by name, which is the dynamic linker's job and
@@ -52,22 +52,22 @@
 (def B (Base make))
 (def RAWB (Base raw-of B))
 
-; --- live shapes by name ---------------------------------------------------
-(def SHAPES ())   ; (name . (units-cell . struct))
-(def add-shape
+; --- live unit labels by name ----------------------------------------------
+(def UNIT-LABELS ())   ; (name . (units-cell . struct))
+(def add-unit-labels
   (fn (self l)
     (if (null? l) ()
-      (do (set! SHAPES (pair (pair ((Type wrap (rest (first l))) name)
+      (do (set! UNIT-LABELS (pair (pair ((Type wrap (rest (first l))) name)
                                    (pair (Type cell (rest (first l)) (lit type-units))
-                                         (rest (first l)))) SHAPES))
+                                         (rest (first l)))) UNIT-LABELS))
           (self (rest l))))))
 ; The reader's own type registry, not B's -- and that is a constraint worth
 ; naming: an image of helium CANNOT be loaded into a bare base.  It references
 ; fifteen types by name and a fresh (Base make) does not have VECTOR, PROMISE
-; or ITER, so the shape lookup misses, units-of returns 0, and the record walk
+; or ITER, so the unit-labels lookup misses, units-of returns 0, and the record walk
 ; desyncs on the first such object.  A loader's base must already carry the
 ; type registry the image was written against.
-(add-shape (first %reflect-type-alist-cell))
+(add-unit-labels (first %reflect-type-alist-cell))
 (def lookup (fn (self l nm) (if (null? l) () (if (str=? (first (first l)) nm) (rest (first l)) (self (rest l) nm)))))
 (def tagged (fn (_ nm) (if (str=? nm "PAIR") (pair 2 0) (if (str=? nm "ATOM") (pair 1 1) (if (str=? nm "NIL") (pair 1 1) ())))))
 (def TN (mkn (%i+ TCOUNT 1)))  (def TS (mkn (%i+ TCOUNT 1)))  (def TT (mkn (%i+ TCOUNT 1)))
@@ -76,8 +76,8 @@
   (fn (self i pos)
     (if (%lt TCOUNT i) ()
       ((fn (_ nm) (do (%oset! TN i nm)
-                      (%oset! TS i ((fn (_ e) (if (null? e) () (first e))) (lookup SHAPES nm)))
-                      (%oset! TT i ((fn (_ e) (if (null? e) () (rest e))) (lookup SHAPES nm)))
+                      (%oset! TS i ((fn (_ e) (if (null? e) () (first e))) (lookup UNIT-LABELS nm)))
+                      (%oset! TT i ((fn (_ e) (if (null? e) () (rest e))) (lookup UNIT-LABELS nm)))
                       (%oset! TCNT i ((fn (_ t) (if (null? t) -1 (first t))) (tagged nm)))
                       (self (%i+ i 1) (%i+ pos (%i+ 2 (image-int>> (w pos) 3))))))
        (Ptr ->str (%i2p (at (%i+ pos 1))))))))
@@ -92,14 +92,14 @@
     ((fn (_ t) (if (null? t) (%uheap ti pos) (first t))) (tagged (%oref TN ti)))))
 (def %uheap
   (fn (_ ti pos)
-    ((fn (_ u) (if (null? u) 0 ((fn (_ c) (if (%lt c 0) (%i+ (w (%i+ pos 2)) (%i- 0 c)) c)) (image-shape-count u))))
+    ((fn (_ u) (if (null? u) 0 ((fn (_ c) (if (%lt c 0) (%i+ (w (%i+ pos 2)) (%i- 0 c)) c)) (image-unit-labels-count u))))
      (%oref TS ti))))
-(def kind-of
+(def label-of
   (fn (_ ti j)
     ((fn (_ t) (if (null? t) (%kheap ti j) (rest t))) (tagged (%oref TN ti)))))
 (def %kheap
   (fn (_ ti j)
-    ((fn (_ u) (if (null? u) 1 (image-unit-kind (image-shape-mask u) j (image-shape-desc (image-shape-count u))))) (%oref TS ti))))
+    ((fn (_ u) (if (null? u) 1 (image-unit-label (image-unit-labels-mask u) j (image-unit-labels-desc (image-unit-labels-count u))))) (%oref TS ti))))
 
 ; --- statics: walk the declared steps from THIS base ------------------------
 (def ST (mkn (%i+ SCOUNT 1)))
@@ -134,7 +134,7 @@
      (%row-steps %base-paths nm))))
 
 (def tstruct
-  (fn (_ nm) ((fn (_ e) (if (null? e) () (rest e))) (lookup SHAPES nm))))
+  (fn (_ nm) ((fn (_ e) (if (null? e) () (rest e))) (lookup UNIT-LABELS nm))))
 (def rdstatics
   (fn (self i pos)
     (if (%lt SCOUNT i) ()
@@ -167,13 +167,13 @@
   (fn (self s i n)
     (if (eq? i n) -1 (if (str=? (Str8 sub i 1 s) "/") i (self s (%i+ i 1) n)))))
 (def resolve
-  (fn (_ kind nm)
+  (fn (_ label nm)
     (guard (_ 0)
-      (if (eq? kind 1) (%res-cat nm)
-        (if (eq? kind 2) (fnptr-of (eval ((prim-ref (lit str) (lit ->sym)) nm)))
-          (if (eq? kind 3) (Ptr ->int (Ffi dlsym %lib0 nm))
-            (if (eq? kind 4) (%res-typecall nm)
-              (if (eq? kind 5) (Ptr ->int %lib0) 0))))))))
+      (if (eq? label 1) (%res-cat nm)
+        (if (eq? label 2) (fnptr-of (eval ((prim-ref (lit str) (lit ->sym)) nm)))
+          (if (eq? label 3) (Ptr ->int (Ffi dlsym %lib0 nm))
+            (if (eq? label 4) (%res-typecall nm)
+              (if (eq? label 5) (Ptr ->int %lib0) 0))))))))
 ; prim-ref is a BARE GLOBAL and it evaluates its arguments; (prim ref) is not a
 ; coordinate and never was.  Every catalog entry raised into the guard and came
 ; back 0 -- 105 of 145 foreign entries unresolved, `int/+` among them -- and a

@@ -138,7 +138,7 @@
             (%image-walk-on (image-ptr->obj (image-int->ptr (%image-next (image-obj->ptr cur)))) f acc
                       (image-int+ n 1) seen filt)))))
 
-; --- shapes ---------------------------------------------------------------
+; --- unit labels ----------------------------------------------------------
 (doc (def image-int- (prim-ref (lit int) (lit -)))
   (param a INTEGER "Minuend")
   (param b INTEGER "Subtrahend")
@@ -183,33 +183,33 @@
 ; and the third is not an integer: a type the library registered holds the
 ; engine's static x_type_units_pair_obj (type word 0), which means what
 ; make-instance allocates, two reference units.  The writer and the
-; inspector read shapes through here.
-(doc (def image-shape-static? (fn (_ u) (eq? (%reflect-type-word u) 0)))
+; inspector read unit labels through here.
+(doc (def image-unit-labels-static? (fn (_ u) (eq? (%reflect-type-word u) 0)))
   (param u ANY "A type's units value")
   (returns BOOL "#t when it is the engine's static units pair")
   "Whether a units value is the static one every library-registered type holds.")
-(doc (def image-shape-count
+(doc (def image-unit-labels-count
   (fn (_ u)
     (if (eq? (%reflect-type-word u) %reflect-spair-tw) (image-int+ 0 (first u))
-      (if (image-shape-static? u) 2 (image-int+ 0 u)))))
+      (if (image-unit-labels-static? u) 2 (image-int+ 0 u)))))
   (param u ANY "A type's units value")
   (returns INTEGER "The unit count it declares; negative for a counted tail")
   "The unit count of a units value, whichever of its three forms it takes.")
-(doc (def image-shape-mask
+(doc (def image-unit-labels-mask
   (fn (_ u) (if (eq? (%reflect-type-word u) %reflect-spair-tw) (image-int+ 0 (rest u)) 0)))
   (param u ANY "A type's units value")
-  (returns INTEGER "Two bits of kind per described unit, or 0")
-  "The kind mask of a units value.")
-(doc (def image-shape-desc  (fn (_ c) (if (image-int< c 0) (image-int+ 1 (image-int- 0 c)) c)))
-  (param c INTEGER "A unit count, as image-shape-count answers")
+  (returns INTEGER "Two bits of label per described unit, or 0")
+  "The unit-label mask of a units value.")
+(doc (def image-unit-labels-desc  (fn (_ c) (if (image-int< c 0) (image-int+ 1 (image-int- 0 c)) c)))
+  (param c INTEGER "A unit count, as image-unit-labels-count answers")
   (returns INTEGER "How many units the mask describes")
-  "The number of units a shape's mask describes; the last description repeats for any unit past it.")
-(doc (def image-unit-kind (fn (_ m i d) (image-int& (image-int>> m (image-int* 2 (if (image-int< i d) i (image-int- d 1)))) 3)))
-  (param m INTEGER "Kind mask")
+  "The number of units the mask describes; the last description repeats for any unit past it.")
+(doc (def image-unit-label (fn (_ m i d) (image-int& (image-int>> m (image-int* 2 (if (image-int< i d) i (image-int- d 1)))) 3)))
+  (param m INTEGER "Unit-label mask")
   (param i INTEGER "Unit index")
   (param d INTEGER "Units the mask describes")
-  (returns INTEGER "The kind of unit i")
-  "The kind of one unit, read from a shape's mask.")
+  (returns INTEGER "The label of unit i")
+  "The label of one unit, read from the mask.")
 ; The units cell of a type word; the catalog prim is fetched once, here, and
 ; closed over -- this runs per object walked.
 (def %image-cell-of
@@ -217,9 +217,9 @@
     (fn (_ tw) (first (%units-cell (image-ptr->obj (image-int->ptr tw)))))))
 (def %image-count-of
   (fn (_ p u)
-    (if (image-int< (image-shape-count u) 0)
-        (image-int+ (image-ref-word p %image-data-off) (image-int- 0 (image-shape-count u)))
-        (image-shape-count u))))
+    (if (image-int< (image-unit-labels-count u) 0)
+        (image-int+ (image-ref-word p %image-data-off) (image-int- 0 (image-unit-labels-count u)))
+        (image-unit-labels-count u))))
 (doc (def image-word-at (fn (_ p i) (image-ref-word p (image-int+ %image-data-off (image-int* i %word-size)))))
   (param p POINTER "Pointer to an object's header")
   (param i INTEGER "Unit index")
@@ -230,10 +230,10 @@
   (fn (_ p g acc)
     (%image-over-tw p (image-ref-word p image-type-off) g acc)))
   (param p POINTER "Pointer to an object's header")
-  (param g CALLABLE "Called (g kind word acc) for each unit")
+  (param g CALLABLE "Called (g label word acc) for each unit")
   (param acc ANY "Starting accumulator")
   (returns ANY "The fold's result")
-  "Fold g over each unit of the object at p, by the shape its type declares.")
+  "Fold g over each unit of the object at p, by the unit labels its type declares.")
 (def %image-over-tw
   (fn (_ p tw g acc)
     (if (eq? tw %reflect-satom-tw) (g 1 (image-word-at p 0) acc)
@@ -244,12 +244,12 @@
   (fn (_ p u g acc)
     (if (eq? u ())
         acc                                  ; type declares nothing
-        (%image-units p g acc 0 (%image-count-of p u) (image-shape-mask u) (image-shape-desc (image-shape-count u))))))
+        (%image-units p g acc 0 (%image-count-of p u) (image-unit-labels-mask u) (image-unit-labels-desc (image-unit-labels-count u))))))
 (def %image-units
   (fn (_ p g acc i n m d)
     (if (eq? i n)
         acc
-        (%image-units p g (g (image-unit-kind m i d) (image-word-at p i) acc) (image-int+ i 1) n m d))))
+        (%image-units p g (g (image-unit-label m i d) (image-word-at p i) acc) (image-int+ i 1) n m d))))
 
 
 ; How a type word is tagged.  Three of the four are not heap types at all --
@@ -260,8 +260,8 @@
 (def %image-t-atom 1)
 (def %image-t-pair 2)
 (doc (def image-type-heap 3)
-  "What image-type-kind answers for a heap type, the one kind whose type word is a pointer to follow.")
-(doc (def image-type-kind
+  "What image-type-label answers for a heap type, the one label whose type word is a pointer to follow.")
+(doc (def image-type-label
   (fn (_ tw)
     (if (eq? tw 0) %image-t-nil
       (if (eq? tw %reflect-satom-tw) %image-t-atom
@@ -274,8 +274,8 @@
   image-walk image-walk-all image-walk-collect! image-walk-collect?
   image-over-units image-word-at image-traced? image-trace-flag
   image-collect image-heap-count image-mark! image-clear!
-  image-shape-static? image-shape-count image-shape-mask image-shape-desc
-  image-unit-kind image-type-kind image-type-heap
+  image-unit-labels-static? image-unit-labels-count image-unit-labels-mask image-unit-labels-desc
+  image-unit-label image-type-label image-type-heap
   image-heap-off image-flags-off image-type-off
   image-obj->ptr image-ptr->obj image-int->ptr
   image-ref-word image-set-word! image-ptr->str image-byte-len
