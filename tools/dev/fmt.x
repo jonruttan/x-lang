@@ -26,6 +26,7 @@
 (do
   (import x/tool/fmt)
   (import x/codec/xon)
+  (import x/sys/stream)
   (import x/tool/contract)
 
   (Contract alloc-guard!)
@@ -40,12 +41,12 @@
       ((null? %lang) %argv)
       (#t (rest (rest %argv)))))
   (when (null? %fmt-files)
-    (do (%stderr "Usage: x.sh --no-pin -q -f tools/dev/fmt.x -- [--lang LANG] FILE...\n")
+    (do (Stream with-fd 2 (fn (_) (display "Usage: x.sh --no-pin -q -f tools/dev/fmt.x -- [--lang LANG] FILE...\n")))
         (Sys exit 1)))
   (List for-each
     (fn (_ f)
       (unless (File exists? f)
-        (do (%stderr (Str8 append "Error: " (Str8 append f " not found\n")))
+        (do (Stream with-fd 2 (fn (_) (display (Str8 append "Error: " (Str8 append f " not found\n")))))
             (Sys exit 1))))
     %fmt-files)
 

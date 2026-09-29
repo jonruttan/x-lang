@@ -21,12 +21,13 @@
   (import x/sys/file)
   (import x/codec/xon)
   (import x/tool/contract)
+  (import x/sys/stream)
 
   (Contract alloc-guard!)
 
   (def %df-argv (Contract argv))
   (when (null? %df-argv)
-    (do (%stderr "Usage: x.sh --no-pin -q -f tools/check/doc-forms.x -- FILE...\n")
+    (do (Stream with-fd 2 (fn (_) (display "Usage: x.sh --no-pin -q -f tools/check/doc-forms.x -- FILE...\n")))
         (Sys exit 1)))
 
   (def %df-name (fn (_ x) (if (symbol? x) (symbol->str x) "")))

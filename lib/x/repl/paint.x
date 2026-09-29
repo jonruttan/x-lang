@@ -37,6 +37,7 @@
 (import x/type/list)
 (import x/repl/ansi)
 (import x/sys/file)
+(import x/sys/stream)
 
 ; --- cached prims (the scan runs per byte; none of these may be a door) ---
 (def %pt-bref   (prim-ref (lit str)  (lit byte-ref)))
@@ -104,8 +105,10 @@
 ; line to stderr, naming what could not be read.
 (def %paint-load-keywords
   (fn (_)
-    (guard (e (do (%stderr "x/repl/paint: construct vocabulary unreadable ("
-                           e ") -- constructs will not colour\n")
+    (guard (e (do (Stream with-fd 2
+                    (fn (_)
+                      (display "x/repl/paint: construct vocabulary unreadable ("
+                               e ") -- constructs will not colour\n")))
                   (Dict make)))
       (let ((path (%module-resolve-file "x/constructs.x"))
             (d (Dict make)))

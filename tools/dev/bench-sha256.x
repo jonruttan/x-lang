@@ -57,6 +57,7 @@
   (import x/tool/compile)
   (import x/codec/sha256)
   (import x/tool/contract)
+  (import x/sys/stream)
 
   (Contract alloc-guard!)
 
@@ -88,7 +89,7 @@
   ; 64 rounds have to divide evenly into groups, or the loop steps past
   ; its own terminator and runs forever.
   (unless (= 0 (% 64 %unroll))
-    (do (%stderr "bench-sha256: --unroll must divide 64 (1 2 4 8 16 32 64)\n")
+    (do (Stream with-fd 2 (fn (_) (display "bench-sha256: --unroll must divide 64 (1 2 4 8 16 32 64)\n")))
         (Sys exit 1)))
 
   ; layout: 0..15 W | 16..23 a..h | 24 t1 25 t2 | 32..95 K | 96..103 H
