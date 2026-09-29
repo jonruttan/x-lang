@@ -12,7 +12,7 @@
 ;      " "
 ;
 ;   x -l bitwise -- NAME [--fmt mark|avatar|banner] [--tagline TEXT]
-;                        [--kind KIND] [--costume FILE] [-o FILE] [--png] [--json]
+;                        [--label TEXT] [--costume FILE] [-o FILE] [--png] [--json]
 ;   x -l bitwise -- --all [--root DIR] [--out DIR] [--png]
 ;
 ; --all discovers x-expr, x-lang, engines/* and languages/* under --root
@@ -36,7 +36,7 @@
   (doc "The command line over Bitwise: (BitwiseCli main args) draws one project or every project under a workspace root.")
   (static
     (%widths (list (list "mark" 512) (list "avatar" 512) (list "banner" 1280)))
-    (%kinds (list (list "x-expr" "a C library") (list "x-lang" "the language")))
+    (%labels (list (list "x-expr" "a C library") (list "x-lang" "the language")))
     (%subdirs (list (list "engines" "an x-lang engine") (list "languages" "a language on x-lang")))
 
     (method %width (self fmt)
@@ -61,7 +61,7 @@
       (def o (Dict make))
       (o set! 'fmt "mark")
       (o set! 'tagline "")
-      (o set! 'kind "")
+      (o set! 'label "")
       (o set! 'costume #f)
       (o set! 'out #f)
       (o set! 'png #f)
@@ -76,7 +76,7 @@
             (match
               ((str=? a "--fmt") (do (o set! 'fmt (first more)) (go (rest more))))
               ((str=? a "--tagline") (do (o set! 'tagline (first more)) (go (rest more))))
-              ((str=? a "--kind") (do (o set! 'kind (first more)) (go (rest more))))
+              ((str=? a "--label") (do (o set! 'label (first more)) (go (rest more))))
               ((str=? a "--costume") (do (o set! 'costume (first more)) (go (rest more))))
               ((str=? a "-o") (do (o set! 'out (first more)) (go (rest more))))
               ((str=? a "--root") (do (o set! 'root (first more)) (go (rest more))))
@@ -104,7 +104,7 @@
           (let ((d (%path-join root (first e))))
             (when (File exists? (%path-join d "README.md"))
               (set! found (pair (list (first e) d (first (rest e))) found)))))
-        (BitwiseCli %kinds))
+        (BitwiseCli %labels))
       (List for-each
         (fn (_ sub)
           (let ((base (%path-join root (first sub))))
@@ -206,11 +206,11 @@
       (def index
         (List map
           (fn (_ proj)
-            (let ((name (first proj)) (dir (first (rest proj))) (kind (first (rest (rest proj)))))
+            (let ((name (first proj)) (dir (first (rest proj))) (label (first (rest (rest proj)))))
               (let ((tag (BitwiseCli %tagline (%path-join dir "README.md"))))
                 (let ((p (let go ((fs (list "mark" "avatar" "banner")) (last #f))
                            (if (null? fs) last
-                             (let ((r (Bitwise render name (first fs) tag kind "o")))
+                             (let ((r (Bitwise render name (first fs) tag label "o")))
                                (let ((path (%path-join outdir (%str-concat (list name "-" (first fs) ".svg")))))
                                  (File write-all path (first r))
                                  (when (o get 'png) (BitwiseCli %png! path (first fs)))
@@ -220,7 +220,7 @@
                                               "  hue " (Str8 pad-left 5 #\space (Bitwise %hue-str (p get 'hue10)))
                                               "  " (Str8 pad-right 24 #\space (p get 'costume)) " " (p get 'reference) "\n")))
                   (let ((d (Dict make)))
-                    (d set! "name" name) (d set! "kind" kind) (d set! "tagline" tag)
+                    (d set! "name" name) (d set! "label" label) (d set! "tagline" tag)
                     (d set! "opname" (p get 'opname)) (d set! "formula" (p get 'formula))
                     (d set! "bit" (p get 'bit)) (d set! "n" (p get 'n)) (d set! "hue10" (p get 'hue10))
                     (d set! "lit" (p get 'lit)) (d set! "costume" (p get 'costume)) (d set! "reference" (p get 'reference))
@@ -234,7 +234,7 @@
       (if (o get 'costume) (Bitwise costume-load! (o get 'costume))
         (let ((proj (%find (fn (_ e) (str=? (first e) (o get 'name))) (self %discover (o get 'root)))))
           (when proj (self %wear! (first (rest proj))))))
-      (def r (Bitwise render (o get 'name) (o get 'fmt) (o get 'tagline) (o get 'kind) "o"))
+      (def r (Bitwise render (o get 'name) (o get 'fmt) (o get 'tagline) (o get 'label) "o"))
       (if (o get 'json)
         (display (%str-concat (list (Json emit (rest r)) "\n")))
         (if (o get 'out)
@@ -249,7 +249,7 @@
       (def o (self %opts (self %argv raw)))
       (if (o get 'all) (self %run-all o)
         (if (o get 'name) (self %run-one o)
-          (display (%str-concat (list "usage: x -l bitwise -- NAME [--fmt mark|avatar|banner] [--tagline TEXT] [--kind KIND] [--costume FILE] [-o FILE] [--png] [--json]\n"
+          (display (%str-concat (list "usage: x -l bitwise -- NAME [--fmt mark|avatar|banner] [--tagline TEXT] [--label TEXT] [--costume FILE] [-o FILE] [--png] [--json]\n"
                                       "       x -l bitwise -- --all [--root DIR] [--out DIR] [--png]\n"))))))))
 
 (provide bitwise/cli BitwiseCli)

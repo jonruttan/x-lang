@@ -362,6 +362,13 @@ spec is `core/catalogue-ops.spec.md`. No alias is kept.
 
 [#882]: https://github.com/jonruttan/x-lang/pull/882
 
+**Bitwise's `--kind` is `--label`** ([#884]). The text Bitwise draws above a
+project's name on a banner says which sort of project it is, so it is the
+project's label. The option is `--label TEXT`, and the index the app writes
+holds it under `"label"`. No alias is kept.
+
+[#884]: https://github.com/jonruttan/x-lang/pull/884
+
 **The linter's depth warning is named `depth`** ([#864]). A definition at
 least 12 deep and 500 nodes large was reported as `shape`; a lint run now
 prints `depth:` for it. The lang kit's `--strict` matches the new name, so a

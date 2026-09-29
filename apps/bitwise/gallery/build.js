@@ -16,9 +16,9 @@ if (!langs) console.warn("build.js: no " + costumesPath + "; every owl will be p
 const js = fs.readFileSync(path.join(here, "bitwise.js"), "utf8");
 let projects;
 if (fs.existsSync(indexPath)) {
-  projects = JSON.parse(fs.readFileSync(indexPath, "utf8")).map((p) => ({ name: p.name, kind: p.kind, tagline: p.tagline }));
+  projects = JSON.parse(fs.readFileSync(indexPath, "utf8")).map((p) => ({ name: p.name, label: p.label, tagline: p.tagline }));
 } else {
-  projects = Object.keys(require("./bitwise.js").LANGS).map((name) => ({ name, kind: "", tagline: "" }));
+  projects = Object.keys(require("./bitwise.js").LANGS).map((name) => ({ name, label: "", tagline: "" }));
   console.warn("build.js: no " + indexPath + "; flock has no taglines (run: x -l bitwise -- --all)");
 }
 const html = fs.readFileSync(path.join(here, "gallery.tmpl.html"), "utf8")

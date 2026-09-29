@@ -17,7 +17,7 @@ idiom of its own wears it as a costume. Same name, same picture, forever.
 ```sh
 x -l bitwise -- --all --png                  # every project under ../, three formats each
 x -l bitwise -- x-awk                        # the mark, SVG on stdout
-x -l bitwise -- x-awk --fmt banner --tagline "POSIX awk on x-lang" --kind "a language on x-lang" -o x-awk.svg --png
+x -l bitwise -- x-awk --fmt banner --tagline "POSIX awk on x-lang" --label "a language on x-lang" -o x-awk.svg --png
 x -l bitwise -- x-awk --json                 # the seeded parameters
 ```
 
@@ -35,7 +35,7 @@ its README, and writes into `--out` (default `build/bitwise`) plus an
 | file | what |
 |---|---|
 | `run.x` | the entry: boots the core, arms the roots, runs the command line |
-| `gen.x` | class `Bitwise`: seeding, field, palette, costume, the owl, the formats; `(Bitwise render name fmt tagline kind uid)`, `(Bitwise params name)`, `(Bitwise diff a b)` |
+| `gen.x` | class `Bitwise`: seeding, field, palette, costume, the owl, the formats; `(Bitwise render name fmt tagline label uid)`, `(Bitwise params name)`, `(Bitwise diff a b)` |
 | `cli.x` | class `BitwiseCli`: arguments, workspace discovery, README taglines, files and PNGs; `(BitwiseCli main args)` |
 | `glyphs.xon` | printable ASCII, λ and ▲ as outlines from Roboto Mono Regular (Apache-2.0); ▲ borrowed from Menlo |
 | `gallery/bitwise.js` | the browser twin: the same integer geometry, byte-identical output |

@@ -39,7 +39,7 @@
 (import x/sys/file)
 
 (def-class Bitwise ()
-  (doc "The owl sigil, drawn for a project: (Bitwise render name fmt tagline kind uid) is an SVG whose field, colours and costume the name decides."
+  (doc "The owl sigil, drawn for a project: (Bitwise render name fmt tagline label uid) is an SVG whose field, colours and costume the name decides."
     (example "(first (Bitwise params \"x-lang\"))" "..."))
   (static
     ; where glyphs.xon lives: the entry arms it from
@@ -460,7 +460,7 @@
       (%str-concat (list "<text x=\"" (Io display-to-str x) "\" y=\"" (Io display-to-str y) "\" font-family=\"" (Bitwise %font)
                          "\" font-size=\"" (Io display-to-str size) "\"" extra " fill=\"" fill "\">" (self %esc body) "</text>")))
 
-    (method %banner (self p pal lang tagline kind uid)
+    (method %banner (self p pal lang tagline label uid)
       (def x 560)
       (def name (p get 'name))
       (def nlen (self %chars name))
@@ -477,7 +477,7 @@
               "<rect width=\"1280\" height=\"640\" fill=\"" (Bitwise %paper) "\"/>"
               (self %bitfield p 40 20 (* 32 (Bitwise %U)) (pal get 'accent) "0.09")
               (self %owl-in pal lang uid 60 90 440 460)
-              (self %text x 200 20 (pal get 'deep) " letter-spacing=\"4\"" (Str8 upcase (if (str=? kind "") "an x project" kind)))
+              (self %text x 200 20 (pal get 'deep) " letter-spacing=\"4\"" (Str8 upcase (if (str=? label "") "an x project" label)))
               (self %text x 300 fs (Bitwise %ink) " font-weight=\"700\"" name)
               (%str-concat tag-lines)
               (if (lang has? "reference")
@@ -496,7 +496,7 @@
     (method render (self (param name STRING "The project's name")
                          (param fmt STRING "mark, avatar or banner")
                          (param tagline STRING "One sentence for the banner; may be empty")
-                         (param kind STRING "The banner's eyebrow, e.g. \"a language on x-lang\"; empty for the default")
+                         (param label STRING "The project's label, drawn above its name on a banner, e.g. \"a language on x-lang\"; empty for the default")
                          (param uid STRING "Prefix for the SVG ids, so several pictures can share a page"))
       (doc "Draw the project: (svg . params).  The owl is set from outlines, the field and hue from sha256(name), the costume from whatever (Bitwise costume-load! ...) registered for the name."
         (returns PAIR "The SVG text, then the params Dict with 'costume and 'reference added")
@@ -510,7 +510,7 @@
         (match
           ((str=? fmt "mark") (self %mark p pal lang uid))
           ((str=? fmt "avatar") (self %avatar p pal lang uid))
-          ((str=? fmt "banner") (self %banner p pal lang tagline kind uid))
+          ((str=? fmt "banner") (self %banner p pal lang tagline label uid))
           (#t (Err raise 'value (%str-concat (list "bitwise: unknown format " fmt)) ())))
         p))
 

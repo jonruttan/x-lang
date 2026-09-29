@@ -126,7 +126,7 @@ from an earlier one.
   (import x/codec/json)
   (BitwiseCli main (list "x-bin" "--" "--all" "--root" "tests/x/fixtures/bitwise/root" "--out" "build/bitwise-spec"))
   (def index (Json parse (File read-all "build/bitwise-spec/index.json")))
-  (display (List map (fn (_ d) (list (d get "name") (d get "kind") (d get "tagline"))) index))
+  (display (List map (fn (_ d) (list (d get "name") (d get "label") (d get "tagline"))) index))
   (newline)
   (display (List map (fn (_ f) (File exists? (%path-join "build/bitwise-spec" f)))
              (list "x-lang-mark.svg" "x-lang-avatar.svg" "x-lang-banner.svg" "x-fixture-banner.svg")))
