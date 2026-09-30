@@ -931,6 +931,26 @@
 ; it runs per node of every form of every swept file.
 (def-class Lint ()
   (static
+    (%lint-sweep-at 20000000 "Heap objects, live and garbage, past which the walk sweeps before the next top-level form")
+    ; x has no automatic GC, and the walk makes garbage at every node: every
+    ; call in the analysers allocates its frame.  Linting x-coreutils's
+    ; cu/text.x (1,697 lines) made 130M objects, all of it garbage by the end
+    ; of the form that made it, and none of it freed until the file ended --
+    ; an 8.0 GB footprint for the lint step, where the linter's own boot
+    ; floor is 1.75 GB.  A sweep between top-level forms once the count
+    ; passes the threshold keeps the heap near the threshold instead.  The
+    ; sweeping is the same work in total -- the same garbage, swept sooner --
+    ; plus a mark of the live set, a few hundred thousand objects, per sweep.
+    ;
+    ; The count is the base's alloc-count cell, which the engine keeps as it
+    ; allocates and frees.  (Heap count) answers the same number by walking
+    ; the heap, one step an object, and asked once a form it doubled the
+    ; lint step's CPU.
+    (%lint-alloc-cell (%reflect-base-cell (lit alloc-count)) "The base's count of allocated objects, live and garbage")
+    (method %lint-sweep! (self)
+      (if (> (%cell-int (first (Lint %lint-alloc-cell))) (Lint %lint-sweep-at))
+        ((prim-ref (lit heap) (lit collect)))
+        ()))
     (%lint-class-siblings (list ()) "Sibling method names of the class being walked")
     (%lint-embedder-known (list "%install-root" "%pin-file") "Embedder-contract names, announced before any file runs")
     (%lint-block-selectors
@@ -1073,7 +1093,10 @@
   (%set-first! %lint-scope (%add-params (first (rest (rest form))) (first %lint-scope)))
   (%lint-seq (rest (rest (rest form))))
   (%lint-leak-scan (%last (rest (rest (rest form)))))
-  (%set-first! %lint-scope saved))
+  (%set-first! %lint-scope saved)
+  ; a class is ONE top-level form -- a lib file is one def-class -- so its
+  ; methods are where the walk can sweep
+  (Lint %lint-sweep!))
     (method %lint-class (self form)
   (def name-str (%cvt (first (rest form)) %lint-string-type))
   (%scope-add! name-str)
@@ -1129,6 +1152,7 @@
             (%warn! "dup-def" nm))                  ; same top-level name defined twice
           (%set-first! %lint-scope ())
           (%write-to-str form)                         ; drive the walk (string discarded)
+          (Lint %lint-sweep!)                          ; the form's garbage, past the threshold
           (self (rest forms) (if (null? nm) defs (pair nm defs)))))))))
 
 (doc (def lint-forms (fn (_ forms defs uses)
