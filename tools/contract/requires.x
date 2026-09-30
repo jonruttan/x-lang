@@ -88,6 +88,9 @@
   ; The image walk collects as it goes, and hands the collector, the mark and
   ; the clear to the image tools.
   (needs "lib/x/tool/image/walk.x" isa/gc)
+  ; The linter sweeps between top-level forms and between a class's methods
+  ; once the allocated count passes its threshold.
+  (needs "lib/x/tool/lint.x" isa/gc)
   (needs "lib/x/tool/profile.x" isa/gc)
   (needs "lib/x/type/err.x" isa/ffi-call)
   (needs "lib/x/type/ptr.x" isa/ffi-call)

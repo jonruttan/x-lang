@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The linter sweeps within a file** ([#889]). A lint child sweeps between
+top-level forms, between a class's methods and between the forms it reads
+once more than 20M objects are allocated, where it swept only between files.
+x-coreutils's lint step, 31 files in one child, measured an 8,029 MB
+footprint before and 1,436 MB after, with the same findings and no more CPU
+(215 s before, 192 s after). The count is the base's alloc-count cell;
+`(Heap count)` walks the heap to answer it. A file's preload is loaded
+before the linter runs, so `lib/x/num/tower.x`, which imports the whole
+numeric tower, still peaks at 9.4 GB.
+
+[#889]: https://github.com/jonruttan/x-lang/pull/889
+
 ## [0.18.0] - 2026-09-30
 
 **Bitwise has one generator** ([#886]). The JavaScript copy of `gen.x` -- the

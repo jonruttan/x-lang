@@ -314,7 +314,17 @@ if [ $# -eq 0 ]; then
   # than the workload; a caller that knows its box should say so.
   # Within a batch child the driver sweeps the heap before every file
   # (lint.x; x has no automatic GC), so a group costs its heaviest FILE,
-  # not the sum of its files: the figures above are per file.
+  # not the sum of its files: the figures above are per file.  Within a
+  # file it also sweeps between top-level forms, between a class's methods
+  # (a lib file is one def-class, one form), and between forms while it
+  # reads the batch, once the base's allocated count passes 20M objects
+  # (%lint-sweep! in lib/x/tool/lint.x), so a file costs its heaviest form
+  # or method: x-coreutils's 31-file group, one child, measured an 8.0 GB
+  # footprint without those sweeps and 1.4 GB with them, the same
+  # findings, and no more CPU (2026-09-30, macOS arm64).  What the sweeps
+  # cannot reach is the PRELOAD, the target's imports, loaded before the
+  # linter runs: lib/x/num/tower.x's (the whole numeric tower) alone is a
+  # 9.4 GB footprint, and that child is lint-x's heaviest.
   # Batch by PRELOAD SIGNATURE (#323): one engine boot lints every file
   # that shares an identical mode+preload -- ~160 boots collapse to ~55
   # groups.  Identical preloads are the SOUNDNESS line: batching files
