@@ -27,8 +27,9 @@ Formats: `mark` (owl over its field, square, transparent ground, viewBox
 GitHub social-preview size). `--all` discovers `x-expr`, `x-lang`,
 `engines/*` and `languages/*` under `--root` (default `..`, the x workspace
 when run from this checkout), reads each tagline from the first paragraph of
-its README, and writes into `--out` (default `build/bitwise`) plus an
-`index.json`. `--png` shells out to `rsvg-convert` when it is on PATH.
+its README and each label from its `bitwise.xon`, and writes into `--out`
+(default `build/bitwise`) plus an `index.json`. `--png` shells out to
+`rsvg-convert` when it is on PATH.
 
 ## Files
 
@@ -81,6 +82,7 @@ inlines for the browser twin. Every field is optional:
 
 ```
 (costume "x-python"
+  (label "a language on x-lang")          the line above the name on a banner; absent, "an x project"
   (mascot "the two Python snakes")        shown on the gallery card and in the readout
   (logo "Python blue and yellow")         printed where the hue would be
   (accent 207 51 44)                      h s l: replaces the hashed hue in the field and the eyes

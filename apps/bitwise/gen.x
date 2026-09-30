@@ -496,21 +496,22 @@
     (method render (self (param name STRING "The project's name")
                          (param fmt STRING "mark, avatar or banner")
                          (param tagline STRING "One sentence for the banner; may be empty")
-                         (param label STRING "The project's label, drawn above its name on a banner, e.g. \"a language on x-lang\"; empty for the default")
+                         (param label STRING "The project's label, drawn above its name on a banner, e.g. \"a language on x-lang\"; empty takes the costume's (label ...), and a costume without one draws \"an x project\"")
                          (param uid STRING "Prefix for the SVG ids, so several pictures can share a page"))
       (doc "Draw the project: (svg . params).  The owl is set from outlines, the field and hue from sha256(name), the costume from whatever (Bitwise costume-load! ...) registered for the name."
-        (returns PAIR "The SVG text, then the params Dict with 'costume and 'reference added")
+        (returns PAIR "The SVG text, then the params Dict with 'costume, 'reference and 'label added")
         (example "(Str8 sub 0 4 (first (Bitwise render \"x-lang\" \"mark\" \"\" \"\" \"o\")))" "\"<svg\""))
       (def p (self params name))
       (def lang (self %lang-of name))
       (def pal (self %palette p lang))
       (p set! 'costume (if (lang has? "mascot") (lang get "mascot") (if (lang has? "logo") (lang get "logo") "")))
       (p set! 'reference (if (lang has? "reference") (lang get "reference") ""))
+      (p set! 'label (if (str=? label "") (if (lang has? "label") (lang get "label") "") label))
       (pair
         (match
           ((str=? fmt "mark") (self %mark p pal lang uid))
           ((str=? fmt "avatar") (self %avatar p pal lang uid))
-          ((str=? fmt "banner") (self %banner p pal lang tagline label uid))
+          ((str=? fmt "banner") (self %banner p pal lang tagline (p get 'label) uid))
           (#t (Err raise 'value (%str-concat (list "bitwise: unknown format " fmt)) ())))
         p))
 

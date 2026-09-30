@@ -116,7 +116,8 @@ A fixture for x-lang's owl, the second tool of the self-hosting arc
 
 Both fixture projects carry their own `bitwise.xon`, so the costume column
 and the gathered `costumes.xon` are this case's own doing, not a leftover
-from an earlier one.
+from an earlier one. x-lang's carries a label and x-fixture's does not, so
+the index shows both a label read from the file and the empty one.
 
 ```x
 (do
