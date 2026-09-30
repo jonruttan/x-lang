@@ -184,6 +184,13 @@
       (let ((f (self %costume-file dir)))
         (when (File exists? f) (Bitwise costume-load! f))))
 
+    ; mkdir -p: every prefix of dir, so --out may name a path whose parents
+    ; do not exist yet
+    (method %mkdirs (self dir)
+      (unless (if (str=? dir "") #t (if (str=? dir ".") #t (File exists? dir)))
+        (self %mkdirs (%path-dir dir))
+        (File mkdir dir)))
+
     (method %png! (self svg-path fmt)
       (def png (%str-concat (list (Str8 sub 0 (- (Str8 length svg-path) 4) svg-path) ".png")))
       (Proc run! (list "rsvg-convert" "-w" (Io display-to-str (self %width fmt)) svg-path "-o" png))
@@ -191,7 +198,7 @@
 
     (method %run-all (self o)
       (def outdir (o get 'outdir))
-      (unless (File exists? outdir) (File mkdir outdir))
+      (self %mkdirs outdir)
       (def projects (self %discover (o get 'root)))
       ; every project's own costume, before anything is drawn -- and the
       ; gathered forms beside the pictures, for the gallery build
