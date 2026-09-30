@@ -362,6 +362,14 @@ spec is `core/catalogue-ops.spec.md`. No alias is kept.
 
 [#882]: https://github.com/jonruttan/x-lang/pull/882
 
+**A project's label comes from its `bitwise.xon`** ([#887]). The line above
+a project's name on a banner is the costume's `(label "...")`, read by
+`(Bitwise render ...)` when the caller passes none, instead of a table in
+`cli.x` keyed by directory; a costume without one draws "an x project".
+Every project's file carries the text the table gave it.
+
+[#887]: https://github.com/jonruttan/x-lang/pull/887
+
 **Bitwise's `--kind` is `--label`** ([#884]). The text Bitwise draws above a
 project's name on a banner says which sort of project it is, so it is the
 project's label. The option is `--label TEXT`, and the index the app writes
