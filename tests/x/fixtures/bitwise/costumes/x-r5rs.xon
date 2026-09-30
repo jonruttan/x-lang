@@ -1,8 +1,0 @@
-; x-r5rs's bitwise.xon, frozen: the parity specs must not depend on a
-; sibling checkout being present, or on its costume staying still.
-
-(costume "x-r5rs"
-  (mascot "lambda")
-  (rows "., .," "{O,O}" "( λ )" " \" \"")
-  (roles "ii ii" "ieifi" "i a i" " i i ")
-  (reference "(define owl \"{O,O}\")"))

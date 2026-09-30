@@ -25,8 +25,7 @@
 ; its root, and this is what finds it -- discovery hands every one it meets
 ; to (Bitwise costume-load! ...), and a single NAME is looked up the same way
 ; (--costume names one directly, for a project that is not in the workspace).
-; --all also writes the gathered forms as costumes.xon beside the pictures,
-; which is what the gallery build inlines for the browser twin.
+; --all also writes the gathered forms as costumes.xon beside the pictures.
 (import x/type/class)
 (import bitwise/gen)
 (import x/sys/proc)
@@ -201,7 +200,7 @@
       (self %mkdirs outdir)
       (def projects (self %discover (o get 'root)))
       ; every project's own costume, before anything is drawn -- and the
-      ; gathered forms beside the pictures, for the gallery build
+      ; gathered forms beside the pictures
       (List for-each (fn (_ proj) (BitwiseCli %wear! (first (rest proj)))) projects)
       (File write-all (%path-join outdir "costumes.xon")
         (%str-concat

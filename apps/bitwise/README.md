@@ -39,9 +39,6 @@ its README and each label from its `bitwise.xon`, and writes into `--out`
 | `gen.x` | class `Bitwise`: seeding, field, palette, costume, the owl, the formats; `(Bitwise render name fmt tagline label uid)`, `(Bitwise params name)`, `(Bitwise diff a b)` |
 | `cli.x` | class `BitwiseCli`: arguments, workspace discovery, README taglines, files and PNGs; `(BitwiseCli main args)` |
 | `glyphs.xon` | printable ASCII, λ and ▲ as outlines from Roboto Mono Regular (Apache-2.0); ▲ borrowed from Menlo |
-| `gallery/bitwise.js` | the browser twin: the same integer geometry, byte-identical output |
-| `gallery/gallery.tmpl.html`, `gallery/build.js` | the live page: `node apps/bitwise/gallery/build.js` → `build/bitwise/gallery.html` |
-| `gallery/parity.js` | renders the twin's side of the parity set, from the same frozen costumes the specs load |
 
 The project files this app reads live in the projects: each repository
 carries `bitwise.xon` at its root. Each file here is one class and one public global, every helper a `%`-static on
@@ -53,8 +50,7 @@ it (the tree's rule for `%`-globals); the data root is armed with
 
 Every quantity is an integer. Geometry is carried in micro-units and
 formatted half-up to one, two or four decimals, so the picture is a function
-of the name alone and the twin computes the identical bytes with the same
-integer arithmetic. The first ten digest bytes settle the traits:
+of the name alone. The first ten digest bytes settle the traits:
 
 | digest bytes | trait |
 |---|---|
@@ -77,19 +73,18 @@ itself is never generated.
 at its root holding its own `(costume "NAME" ...)` form; discovery hands
 every one it finds to `(Bitwise costume-load! path)`, and a name with no
 costume registered wears the plain owl. `--all` also writes the gathered
-forms as `costumes.xon` beside the pictures, which is what the gallery build
-inlines for the browser twin. Every field is optional:
+forms as `costumes.xon` beside the pictures. Every field is optional:
 
 ```
 (costume "x-python"
   (label "a language on x-lang")          the line above the name on a banner; absent, "an x project"
-  (mascot "the two Python snakes")        shown on the gallery card and in the readout
+  (mascot "the two Python snakes")        shown in the readout
   (logo "Python blue and yellow")         printed where the hue would be
   (accent 207 51 44)                      h s l: replaces the hashed hue in the field and the eyes
   (secondary 45 100 42)                   the colour for role b
   (eyes (207 51 44) (45 100 42))          two-tone eyes, left then right
   (rows "., .," "{O,O}" "( py)" " \" \"")  the owl's glyph rows in costume: printable ASCII, λ or ▲
-  (roles "ii ii" "ieifi" "i aai" " i i ") same shape: i ink, e/f the eyes, a accent, b secondary
+  (roles "ii ii" "ieifi" "i aai" " i i ") same layout: i ink, e/f the eyes, a accent, b secondary
   (reference "print(\"{O,O}\")"))         one line in the project's own language, on the banner
 ```
 
@@ -102,16 +97,9 @@ plain belly. The Rust engine is Ferris: `{O,O}` over `V   V`.
 
 ## Changing the design
 
-`gen.x` is the definition; `gallery/bitwise.js` follows it. After a change to
-either, regenerate the digests both must answer and put them in the parity
-spec:
-
-```sh
-node apps/bitwise/gallery/parity.js
-```
-
-Never edit a rendered SVG by hand; change the generator and re-render. A
-project renames, its field changes, and that is the point. The owl does not
+`gen.x` is the definition. Never edit a rendered SVG by hand; change the
+generator and re-render. A project renames, its field changes, and that is
+the point. The owl does not change, ever.
 change, ever.
 
 `glyphs.xon` was extracted once from `RobotoMono-Regular.ttf` with a

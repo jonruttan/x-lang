@@ -128,11 +128,16 @@
   (def %lib-mode (eq? %first-form '%lint-lib))
 
   ; Slurp remaining forms (order is irrelevant -- defs/uses are sets).
+  ; Reading makes garbage too, and a batch reads every file before it lints
+  ; any: x-coreutils's 31 files left 77M objects on the heap before the
+  ; first sweep.  The walk's threshold sweep runs between forms here as
+  ; well; the forms read so far ride ACC, so they are kept.
   (def %read-all (fn (self acc)
     (def form (%read))
     ; End of input is the EOF sentinel, so a () among the forms is read
     ; as the form it is rather than ending the slurp.
-    (if (same? form %token-eof) acc (self (pair form acc)))))
+    (if (same? form %token-eof) acc
+      (do (Lint %lint-sweep!) (self (pair form acc))))))
   (def %forms-rev (%read-all ()))
   (def %all-forms
     (if %lib-mode %forms-rev (pair %first-form %forms-rev)))

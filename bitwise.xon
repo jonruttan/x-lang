@@ -6,7 +6,7 @@
 ; the owl goes plain.  Fields, all optional:
 ;
 ;   (label "TEXT")            the line above this project's name on a banner
-;   (mascot "NAME")           shown on the gallery card and in the readout
+;   (mascot "NAME")           shown in the readout
 ;   (logo "COLOUR NAME")      printed where the hashed hue would be
 ;   (accent H S L)            replaces the hashed hue in the field and the eyes
 ;   (secondary H S L)         the colour for role b
