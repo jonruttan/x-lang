@@ -6,13 +6,11 @@
 project: the owl is set from Roboto Mono outlines, the field it sits on and
 its accent hue come from sha256(name), and the project's own `bitwise.xon`
 adds its mascot, colours and idiom.  Every quantity is an integer, so the
-picture is a function of the name alone -- and the gallery's browser twin,
-`apps/bitwise/gallery/bitwise.js`, must produce the identical bytes: see
-`bitwise-parity.spec.md` for the digests both sides answer.
+picture is a function of the name alone.
 
 ## seeding
 
-### the name seeds the field, and the walk lands where the twin lands
+### the name seeds the field
 
 ```x
 (do
@@ -76,7 +74,7 @@ touches; these two are the ones whose first draw was outside it.
 (#t #t #t #t #t)
 ```
 
-### a divergence from the twin is reported at its first byte
+### two renderings that differ are reported at the first byte
 
 ```x
 (do

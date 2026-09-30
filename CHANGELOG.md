@@ -369,6 +369,14 @@ holds it under `"label"`. No alias is kept.
 
 [#884]: https://github.com/jonruttan/x-lang/pull/884
 
+**Bitwise has one generator** ([#886]). The JavaScript copy of `gen.x` -- the
+gallery page, its build and parity scripts, the thirty pictures it rendered,
+the five `bitwise-parity` spec files and the costume fixtures only they read
+-- is removed. `(Bitwise diff a b)` stays. `--all` creates the parents of
+`--out`, so its spec case passes in a checkout with no `build/` yet.
+
+[#886]: https://github.com/jonruttan/x-lang/pull/886
+
 **The linter's depth warning is named `depth`** ([#864]). A definition at
 least 12 deep and 500 nodes large was reported as `shape`; a lint run now
 prints `depth:` for it. The lang kit's `--strict` matches the new name, so a

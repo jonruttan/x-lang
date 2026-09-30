@@ -25,8 +25,7 @@
 ;
 ; EVERY QUANTITY IS AN INTEGER.  Geometry is carried in micro-units (%U per
 ; user unit) and formatted with %fmt, half-up, so the picture is a function
-; of the name alone and the browser twin (gallery/bitwise.js) computes the
-; identical bytes with the same integer arithmetic.
+; of the name alone.
 ;
 ; One class, one public global (tools/check/percent-globals.sh): every helper
 ; is a %-static on Bitwise, and the per-cell work stays inside one method's
@@ -170,7 +169,7 @@
     ; n x n booleans for parameter set p.  Each op maps a shifted cell
     ; coordinate pair to an integer; bit k of the result decides whether the
     ; cell is lit.  a, b are small odd multipliers, s a per-name salt.  Masked
-    ; to 32 bits so the twin agrees.  The op is a local fn: per cell, no
+    ; to 32 bits; the pictures depend on it.  The op is a local fn: per cell, no
     ; dispatch.
     (method %field (self p n)
       (def op (p get 'op))

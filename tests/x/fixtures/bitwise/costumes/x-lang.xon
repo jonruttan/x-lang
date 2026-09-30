@@ -1,4 +1,4 @@
-; x-lang's bitwise.xon, frozen: the parity specs must not depend on a
+; x-lang's bitwise.xon, frozen: the specs must not depend on a
 ; sibling checkout being present, or on its costume staying still.
 
 (costume "x-lang"
