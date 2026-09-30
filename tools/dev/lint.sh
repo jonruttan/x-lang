@@ -70,13 +70,23 @@ done
 # FILE's top-level (import ...) forms on one line, comments dropped.  A form
 # may run over several lines, so it is read to its closing paren; an
 # import's parts are symbols, so counting parens finds it.
+# Each import is followed by a collect.  The engine never collects on its
+# own, so a preload's footprint was the SUM of its imports' load garbage:
+# lib/x/num/tower.x's six (bigint 4.7M objects, float 28.9M, rational 8.8M,
+# complex 10.5M, decimal 35.5M, generic 9.9M) put that child at a 9.4 GB
+# footprint before the linter ran.  A module must not collect -- it cannot
+# know what its importer holds (the note at the end of
+# lib/x/boot/tower-compiled.x) -- but these forms are the TOP LEVEL of the
+# stream the engine is fed, where an entry collects (lib/xe.x): the import
+# has returned and nothing is in flight.  A load's own nested imports still
+# pile up; the peak is the heaviest single import.
 _import_forms() {
   sed 's/;.*$//' "$1" | awk '
     !open && /^\(import / { open = 1; form = ""; depth = 0 }
     open {
       form = form " " $0
       depth += gsub(/\(/, "(") - gsub(/\)/, ")")
-      if (depth <= 0) { printf "%s ", form; open = 0 }
+      if (depth <= 0) { printf "%s ((prim-ref (lit heap) (lit collect))) ", form; open = 0 }
     }'
 }
 
