@@ -24,6 +24,20 @@ builds it, since the pin declares no linux arm64 artifact.
 
 [#892]: https://github.com/jonruttan/x-lang/pull/892
 
+**Http streams a response's body** ([#894]). `(Http open method url
+headers body)` reads the head and answers a stream -- `(s status)`,
+`(s headers)`, `(s head)` -- whose body `(Http read s n)` hands out a piece
+of at most n bytes at a time, framing removed, until nil; `(Http close s)`
+ends it. A body of any size needs one piece's memory where `request` holds
+all of it. The options are `(redirects . N)` and `(insecure)`, which skips
+https certificate verification. The stream is the one response reader:
+`request`, `%parse-response` and `%dechunk` all drain it. `Tls connect`
+no longer raises `new: init key without a value` after a good handshake,
+which had broken every https exchange, and the Host header carries the
+port when it is not the scheme's own (RFC 9110 7.2).
+
+[#894]: https://github.com/jonruttan/x-lang/pull/894
+
 **The linter collects between a preload's imports** ([#890]). Each
 top-level import in a lint child's preload is followed by a collect, so the
 preload costs its heaviest import rather than the sum of them.
