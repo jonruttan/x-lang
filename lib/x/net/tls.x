@@ -106,7 +106,9 @@
           (if (= vres 0)
             (Err raise (lit io) "Tls: handshake failed" cr)
             (Err raise (lit io) "Tls: certificate verification failed (X509 code in the payload)" vres))))
-      (new TlsSession ssl ctx fd))
+      ; keyword form: positionally, locals named after the fields read as
+      ; a keyword tail (ssl = ctx, then fd with no value)
+      (new TlsSession ssl ssl ctx ctx fd fd))
 
     (method send (self (param session OBJECT "A (Tls connect) session (TlsSession record)")
                        (param s STRING "Bytes to send"))
