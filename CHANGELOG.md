@@ -17,6 +17,16 @@ measure fd)` answers the window's size as the terminal reports it, or nil
 when it reports none; `window` falls back from it as before.
 
 [#897]: https://github.com/jonruttan/x-lang/pull/897
+**The engine is x-engine-c v0.2.19** ([#898]). A call through the base's
+slot vector skips the test for a base and a vector where both are always
+present, and a call form whose head is a primitive goes straight to the
+callable-call slot (x-engine-c#83); the engine measures the slot vector's
+cost over v0.2.17 at 1.6% on a helium boot and on a call-heavy loop, down
+from 2.7% and 3.3%. `(signal catch N)` and `(signal take N)` record and
+read back the arrival of any signal (x-engine-c#84). The library needs no
+change.
+
+[#898]: https://github.com/jonruttan/x-lang/pull/898
 
 **The engine is x-engine-c v0.2.18** ([#891]). The engine's base has two
 units, the tree first and a slot vector second: the evaluator, environment
