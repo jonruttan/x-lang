@@ -58,6 +58,7 @@
   (needs "lib/x/boot/module.x" isa/syscall)
   (needs "lib/x/boot/tower-compiled.x" isa/ffi-call)
   (needs "lib/x/codec/zlib.x" isa/ffi-call)
+  (needs "lib/x/net/http.x" isa/ffi-call)  ; memcpy for its runs
   (needs "lib/x/net/tls.x" isa/ffi-call)
   (needs "lib/x/num/float.x" isa/ffi-call)
   ; syscall-door makes the call for whoever holds the door; sys/file.x reaches

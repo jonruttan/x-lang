@@ -79,6 +79,14 @@
       (def insecure? (not (null? (Assoc entry (lit insecure) o))))
       (def ctx (%call (Tls %sym "SSL_CTX_new") (%call (Tls %sym "TLS_client_method"))))
       (when (= ctx 0) (Err raise (lit io) "Tls: SSL_CTX_new failed" ()))
+      ; OpenSSL 3 reports a peer that closes without close_notify as an
+      ; error (SSL_ERROR_SSL) where earlier versions and LibreSSL report an
+      ; end of input; SSL_OP_IGNORE_UNEXPECTED_EOF (1 << 7) asks for the
+      ; latter. A truncated body is still caught by its http framing. LibreSSL
+      ; exports no SSL_CTX_set_options, and needs none.
+      (let ((set-options (Tls %sym "SSL_CTX_set_options")))
+        (unless (if (null? set-options) #t (eq? set-options 0))
+          (%call set-options ctx 128)))
       (unless insecure?
         (do (%call (Tls %sym "SSL_CTX_set_verify") ctx 1 0)   ; SSL_VERIFY_PEER
             (%call (Tls %sym "SSL_CTX_set_default_verify_paths") ctx)
@@ -106,7 +114,9 @@
           (if (= vres 0)
             (Err raise (lit io) "Tls: handshake failed" cr)
             (Err raise (lit io) "Tls: certificate verification failed (X509 code in the payload)" vres))))
-      (new TlsSession ssl ctx fd))
+      ; keyword form: positionally, locals named after the fields read as
+      ; a keyword tail (ssl = ctx, then fd with no value)
+      (new TlsSession ssl ssl ctx ctx fd fd))
 
     (method send (self (param session OBJECT "A (Tls connect) session (TlsSession record)")
                        (param s STRING "Bytes to send"))
@@ -136,6 +146,24 @@
         (#t
           ; 0/ZERO_RETURN(6) = orderly close; SYSCALL(5) with a clean EOF
           ; is how peers that skip close_notify look -- treat as EOF too
+          (let ((code (%call (Tls %sym "SSL_get_error") (session ssl) n)))
+            (match
+              ((= code 6) ())
+              ((= code 5) ())
+              (#t (Err raise (lit io) "Tls: read failed (SSL_get_error in the payload)" code)))))))
+
+    (method recv-run (self (param session OBJECT "A (Tls connect) session (TlsSession record)")
+                           (param maxlen INTEGER "Maximum bytes to receive"))
+      (doc "Receive up to maxlen bytes as a RUN: (STRING . COUNT), the bytes in a string buffer and their count, NUL bytes included -- recv-bytes' bytes with no list built. nil at an orderly TLS close; raises a label 'io on transport failure."
+        (returns ANY "(STRING . COUNT), or nil at orderly close"))
+      (def %call (prim-ref (lit ptr) (lit call)))
+      (def %make-str (prim-ref (lit str) (lit make)))
+      (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+      (def region (%make-str maxlen))
+      (def n (Tls %fold (%call (Tls %sym "SSL_read") (session ssl) (%str->ptr region) maxlen)))
+      (match
+        ((> n 0) (pair region n))
+        (#t
           (let ((code (%call (Tls %sym "SSL_get_error") (session ssl) n)))
             (match
               ((= code 6) ())

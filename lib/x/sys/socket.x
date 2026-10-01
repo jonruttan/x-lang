@@ -236,6 +236,18 @@
       (%sk-ptr-call %c-free buf)
       (if (= n 0) () out))
 
+    (method recv-run (self (param fd INTEGER "Connected file descriptor")
+                          (param maxlen INTEGER "Maximum bytes to receive"))
+      (doc "Receive up to maxlen bytes as a RUN: (STRING . COUNT), the bytes in a string buffer and how many there are, NUL bytes included. No list is built, so a read costs a few objects whatever its size, where recv-bytes builds one pair a byte. Write a run with (File write fd (first r) (rest r)). nil at orderly EOF; raises on failure."
+        (returns ANY "(STRING . COUNT), or nil at EOF")
+        (sample "(Socket recv-run fd 65536)" "(\"HTTP/1.1 200 OK...\" . 1460)"))
+      (def %make-str (prim-ref (lit str) (lit make)))
+      (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+      (def region (%make-str maxlen))
+      (def n (%sk-fold (%sk-ptr-call %c-recv fd (%str->ptr region) maxlen 0)))
+      (when (< n 0) (error (Err from-errno (Err errno-of n) 'recv fd)))
+      (if (= n 0) () (pair region n)))
+
     (method close (self (param fd INTEGER "File descriptor to close"))
       (doc "Close a socket file descriptor."
         (returns ANY "nil"))
