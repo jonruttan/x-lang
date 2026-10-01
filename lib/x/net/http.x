@@ -38,12 +38,16 @@
 (import x/type/record)
 
 ; A response being read: its transport (a Tls session, a socket fd, or a
-; list of byte-list pieces read in turn), the bytes read but not yet handed
-; out, and the body's framing state -- mode is none, eof, length (left
-; bytes to go), or a chunked step: size, data (left bytes to go), tail,
-; trailer. head, status and headers are filled from the response's head.
-(def-record HttpStream (tls ()) (fd ()) (pieces ()) (buf ()) (mode ()) (left 0)
-                       (head ()) (status 0) (headers ()))
+; list of runs read in turn), the bytes read but not yet handed out -- buf's
+; bytes from off to end -- and the body's framing state: mode is none, eof,
+; length (left bytes to go), or a chunked step: size, data (left bytes to
+; go), tail, trailer. head, status and headers are filled from the head.
+;
+; Bytes travel as RUNS, (STRING . COUNT): a string buffer and how many of its
+; bytes count, NUL bytes included. A run costs a few objects whatever its
+; size, where a byte list costs a pair a byte and every walk of it more.
+(def-record HttpStream (tls ()) (fd ()) (pieces ()) (buf ()) (off 0) (end 0)
+                       (mode ()) (left 0) (head ()) (status 0) (headers ()))
 
 (def-class Http ()
   (doc "An http/1.1 client over Socket, https over Tls: (Http get url), (Http post url body), (Http request method url headers body) -> ((status . INT) (headers . ALIST) (body . BYTE-LIST)); (Http open method url headers body) -> a stream whose body (Http read s n) hands out a piece at a time. Header names come back lowercased."
@@ -109,92 +113,131 @@
         (#t -1)))
 
     ; --- the response stream: one reader for every framing ---
-    ; A stream pulls bytes off its transport into buf and hands the body
-    ; out a piece at a time, removing the framing as it goes. Every
-    ; response this class reads goes through it: open/read on the wire,
-    ; request draining it, %parse-response and %dechunk over a byte list.
+    ; A stream reads runs off its transport and hands the body out a run at
+    ; a time, removing the framing as it goes. Every response this class
+    ; reads goes through it: open/read on the wire, request draining it,
+    ; %parse-response and %dechunk over a byte list.
+    (method %run-join (self (param a STRING "The first buffer")
+                            (param off INTEGER "Where its bytes start")
+                            (param n INTEGER "How many of them")
+                            (param b STRING "The second buffer, or nil")
+                            (param m INTEGER "How many of its bytes, from its start"))
+      (doc "A new run of a's n bytes from off followed by b's first m, copied by libc's memcpy: NUL bytes and all, a few objects whatever the size."
+        (returns PAIR "(STRING . n+m)"))
+      (def %call (prim-ref (lit ptr) (lit call)))
+      (def %make-str (prim-ref (lit str) (lit make)))
+      (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+      (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+      (def %int->ptr (prim-ref (lit int) (lit ->ptr)))
+      (def memcpy ((prim-ref (lit ffi) (lit dlsym)) ((prim-ref (lit ffi) (lit dlopen)) () 1) "memcpy"))
+      (def out (%make-str (if (< (+ n m) 1) 1 (+ n m))))
+      (def at (%ptr->int (%str->ptr out)))
+      (when (> n 0)
+        (%call memcpy (%int->ptr at) (%int->ptr (+ (%ptr->int (%str->ptr a)) off)) n))
+      (when (> m 0)
+        (%call memcpy (%int->ptr (+ at n)) (%str->ptr b) m))
+      (pair out (+ n m)))
+
+    (method %run-copy (self (param buf STRING "A run's buffer")
+                            (param off INTEGER "First byte to copy")
+                            (param n INTEGER "How many bytes"))
+      (doc "A new run of buf's n bytes from off."
+        (returns PAIR "(STRING . n)"))
+      (Http %run-join buf off n () 0))
+
+    (method %run->bytes (self (param r PAIR "A run, (STRING . COUNT)"))
+      (doc "A run's bytes as a byte list, the carrier request and %parse-response answer with."
+        (returns LIST "The bytes, 0-255 each"))
+      (def %bref (prim-ref (lit str) (lit byte-ref)))
+      (def %c->i (prim-ref (lit char) (lit ->int)))
+      (let go ((i (- (rest r) 1)) (acc ()))
+        (if (< i 0) acc (go (- i 1) (pair (& (%c->i (%bref (first r) i)) 255) acc)))))
+
     (method %recv (self (param s OBJECT "An HttpStream"))
-      (doc "One read off the stream's transport: the Tls session, the socket, or the next of its byte-list pieces."
-        (returns ANY "Byte list, or nil at end of input"))
+      (doc "One read off the stream's transport: the Tls session, the socket, or the next of its pieces."
+        (returns ANY "A run, or nil at end of input"))
       (match
-        ((not (null? (s tls))) (Tls recv-bytes (s tls) 65536))
-        ((not (null? (s fd))) (Socket recv-bytes (s fd) 65536))
+        ((not (null? (s tls))) (Tls recv-run (s tls) 65536))
+        ((not (null? (s fd))) (Socket recv-run (s fd) 65536))
         ((null? (s pieces)) ())
         (#t (let ((p (first (s pieces))))
               (do (s pieces (rest (s pieces))) p)))))
 
     (method %fill (self (param s OBJECT "An HttpStream"))
-      (doc "Append one transport read to the stream's buffer."
+      (doc "Read once more from the transport onto the buffer: the read becomes the buffer when the buffer is used up, and is joined to what is left of it otherwise."
         (returns BOOL "#f at end of input"))
       (def got (Http %recv s))
+      (def have (- (s end) (s off)))
       (match
         ((null? got) #f)
-        ((null? (s buf)) (do (s buf got) #t))
-        (#t (do (s buf (List append (s buf) got)) #t))))
-
-    (method %crlf-at (self (param l LIST "Bytes"))
-      (doc "The index of the first CR LF pair in l."
-        (returns ANY "INTEGER, or nil when there is none"))
-      (let go ((l l) (i 0))
-        (match
-          ((null? l) ())
-          ((null? (rest l)) ())
-          ((if (= (first l) 13) (= (first (rest l)) 10) #f) i)
-          (#t (go (rest l) (+ i 1))))))
+        ((= have 0) (do (s buf (first got)) (s off 0) (s end (rest got)) #t))
+        (#t
+          (let ((joined (Http %run-join (s buf) (s off) have (first got) (rest got))))
+            (do (s buf (first joined)) (s off 0) (s end (rest joined)) #t)))))
 
     (method %line (self (param s OBJECT "An HttpStream"))
-      (doc "The next CRLF-terminated line's bytes, consumed through the CRLF. An empty line answers (); input that ends before a CRLF answers #f and leaves the partial line buffered."
-        (returns ANY "Byte list, or #f at end of input"))
-      (let scan ()
-        (def cut (Http %crlf-at (s buf)))
+      (doc "The next CRLF-terminated line as a string, consumed through the CRLF. An empty line answers \"\"; input that ends before a CRLF answers #f and leaves the partial line buffered."
+        (returns ANY "STRING, or #f at end of input"))
+      (def %bref (prim-ref (lit str) (lit byte-ref)))
+      (def %c->i (prim-ref (lit char) (lit ->int)))
+      (let scan ((i (s off)))
         (match
-          ((not (null? cut))
-            (let ((line (List take cut (s buf))))
-              (do (s buf (List drop (+ cut 2) (s buf))) line)))
-          ((Http %fill s) (scan))
-          (#t #f))))
+          ((>= (+ i 1) (s end))
+            (if (Http %fill s) (scan (s off)) #f))
+          ((if (= (%c->i (%bref (s buf) i)) 13) (= (%c->i (%bref (s buf) (+ i 1))) 10) #f)
+            ; a line is short and read as text: a string of its own
+            (let ((line (bytes->str (Http %run->bytes (Http %run-copy (s buf) (s off) (- i (s off)))))))
+              (do (s off (+ i 2)) line)))
+          (#t (scan (+ i 1))))))
 
     (method %take (self (param s OBJECT "An HttpStream")
                         (param n INTEGER "Most bytes wanted"))
-      (doc "Up to n buffered bytes, after one transport read when the buffer is empty."
-        (returns ANY "Byte list, or nil at end of input"))
-      (when (null? (s buf)) (Http %fill s))
-      (def b (s buf))
+      (doc "Up to n buffered bytes as a run, after one transport read when the buffer is used up. A whole buffer is handed over as it is; part of one is copied."
+        (returns ANY "A run, or nil at end of input"))
+      (when (= (s off) (s end)) (Http %fill s))
+      (def have (- (s end) (s off)))
+      (def k (if (< n have) n have))
       (match
-        ((null? b) ())
-        ((<= (List length b) n) (do (s buf ()) b))
-        (#t (do (s buf (List drop n b)) (List take n b)))))
+        ((= have 0) ())
+        ((if (= (s off) 0) (= k have) #f)
+          (do (s off (s end)) (pair (s buf) k)))
+        (#t
+          (let ((r (Http %run-copy (s buf) (s off) k)))
+            (do (s off (+ (s off) k)) r)))))
 
     (method %bad-chunk (self (param what STRING "What was wrong"))
       (doc "Raise a label 'value for malformed chunked framing.")
       (Err raise (lit value) (Str8 append "Http: bad chunked framing: " what) ()))
 
-    (method %chunk-size (self (param line LIST "A chunk-size line's bytes, without its CRLF"))
+    (method %chunk-size (self (param line STRING "A chunk-size line, without its CRLF"))
       (doc "The hex size that opens the line; a chunk extension (\";...\") after it is ignored. A line with no leading hex digit raises a label 'value."
         (returns INTEGER "The chunk's size"))
-      (let go ((l line) (n 0) (any #f))
-        (def v (if (null? l) -1 (Http %hex-nibble (first l))))
+      (def %bref (prim-ref (lit str) (lit byte-ref)))
+      (def %c->i (prim-ref (lit char) (lit ->int)))
+      (def len (Str8 length line))
+      (let go ((i 0) (n 0) (any #f))
+        (def v (if (>= i len) -1 (Http %hex-nibble (%c->i (%bref line i)))))
         (match
-          ((>= v 0) (go (rest l) (+ (* 16 n) v) #t))
+          ((>= v 0) (go (+ i 1) (+ (* 16 n) v) #t))
           (any n)
           (#t (Http %bad-chunk "missing size")))))
 
     (method %read-counted (self (param s OBJECT "An HttpStream framed by Content-Length")
                                 (param n INTEGER "Most bytes wanted"))
-      (doc "The next piece of a Content-Length body; the count runs down to nil. Input that ends early ends the body there."
-        (returns ANY "Byte list, or nil at the end of the body"))
+      (doc "The next run of a Content-Length body; the count runs down to nil. Input that ends early ends the body there."
+        (returns ANY "A run, or nil at the end of the body"))
       (match
         ((= (s left) 0) (do (s mode (lit none)) ()))
         (#t
-          (let ((b (Http %take s (if (< n (s left)) n (s left)))))
+          (let ((r (Http %take s (if (< n (s left)) n (s left)))))
             (match
-              ((null? b) (do (s mode (lit none)) ()))
-              (#t (do (s left (- (s left) (List length b))) b)))))))
+              ((null? r) (do (s mode (lit none)) ()))
+              (#t (do (s left (- (s left) (rest r))) r)))))))
 
     (method %read-chunked (self (param s OBJECT "An HttpStream framed by Transfer-Encoding: chunked")
                                 (param n INTEGER "Most bytes wanted"))
-      (doc "The next piece of a chunked body. The stream's mode walks size (a hex size line), data (that many bytes), tail (the CRLF after them), and trailer (header lines to an empty one) after the zero chunk. Malformed framing raises a label 'value."
-        (returns ANY "Byte list, or nil at the end of the body"))
+      (doc "The next run of a chunked body. The stream's mode walks size (a hex size line), data (that many bytes), tail (the CRLF after them), and trailer (header lines to an empty one) after the zero chunk. Malformed framing raises a label 'value."
+        (returns ANY "A run, or nil at the end of the body"))
       (let step ()
         (def m (s mode))
         (match
@@ -206,28 +249,28 @@
                       (do (s left size) (s mode (lit data)))))
                   (step))))
           ((eq? m (lit data))
-            (let ((b (Http %take s (if (< n (s left)) n (s left)))))
-              (do (when (null? b) (Http %bad-chunk "truncated chunk"))
-                  (s left (- (s left) (List length b)))
+            (let ((r (Http %take s (if (< n (s left)) n (s left)))))
+              (do (when (null? r) (Http %bad-chunk "truncated chunk"))
+                  (s left (- (s left) (rest r)))
                   (when (= (s left) 0) (s mode (lit tail)))
-                  b)))
+                  r)))
           ((eq? m (lit tail))
             (let ((line (Http %line s)))
-              (do (when (if (eq? line #f) #t (not (null? line)))
+              (do (when (if (eq? line #f) #t (not (str=? line "")))
                     (Http %bad-chunk "chunk not CRLF-terminated"))
                   (s mode (lit size))
                   (step))))
           (#t
             (let ((line (Http %line s)))
-              (if (if (eq? line #f) #t (null? line))
+              (if (if (eq? line #f) #t (str=? line ""))
                 (do (s mode (lit none)) ())
                 (step)))))))
 
     (method read (self (param s OBJECT "An (Http open) stream")
                        (param n INTEGER "Most bytes wanted"))
-      (doc "The body's next piece, at most n bytes, with the framing removed: Content-Length counted down, chunked decoded. Pieces come as the peer sends them, so a body of any size needs one piece's memory: read until nil, writing each piece away. A peer that closes early ends the body early -- compare the bytes read with the content-length header where that matters. Malformed chunked framing raises a label 'value."
-        (returns ANY "Byte list, or nil once the body is done")
-        (sample "(let ((s (Http open \"GET\" \"http://127.0.0.1:8080/f\" () ()))) (Http read s 4096))" "the body's first piece"))
+      (doc "The body's next piece as a RUN, (STRING . COUNT) -- at most n bytes in a string buffer, NUL bytes included -- with the framing removed: Content-Length counted down, chunked decoded. Pieces come as the peer sends them and cost a few objects each, so a body of any size needs one piece's memory: read until nil, writing each away with (File write fd (first r) (rest r)). A peer that closes early ends the body early -- compare the bytes read with the content-length header where that matters. Malformed chunked framing raises a label 'value."
+        (returns ANY "(STRING . COUNT), or nil once the body is done")
+        (sample "(let ((s (Http open \"GET\" \"http://127.0.0.1:8080/f\" () ()))) (Http read s 4096))" "(\"...\" . 4096)"))
       (match
         ((eq? (s mode) (lit none)) ())
         ((eq? (s mode) (lit eof)) (Http %take s n))
@@ -238,9 +281,9 @@
       (doc "Read the rest of the body into one byte list."
         (returns LIST "The body's bytes"))
       (let go ((acc ()))
-        (let ((b (Http read s 65536)))
-          (if (null? b) (List flat-map (fn (_ c) c) (%reverse acc))
-            (go (pair b acc))))))
+        (let ((r (Http read s 65536)))
+          (if (null? r) (List flat-map (fn (_ c) c) (%reverse acc))
+            (go (pair (Http %run->bytes r) acc))))))
 
     (method %start (self (param s OBJECT "An HttpStream at the start of a response")
                          (param no-body BOOL "#t for a HEAD response"))
@@ -253,8 +296,8 @@
           (let ((line (Http %line s)))
             (match
               ((eq? line #f) (%bad "no header terminator"))
-              ((null? line) (%reverse acc))
-              (#t (go (pair (bytes->str line) acc)))))))
+              ((str=? line "") (%reverse acc))
+              (#t (go (pair line acc)))))))
       (when (null? lines) (%bad "empty head"))
       ; "HTTP/1.x NNN reason"
       (def code
@@ -287,14 +330,20 @@
 
     (method %over (self (param pieces LIST "Byte lists, one answered per transport read")
                         (param no-body BOOL "#t for a HEAD response"))
-      (doc "A stream over byte-list pieces instead of a connection, its head read: the wire's shape, a piece per recv, with no socket."
+      (doc "A stream over byte-list pieces instead of a connection, its head read: the wire's shape, a piece per read, with no socket."
         (returns OBJECT "An HttpStream positioned at the body"))
-      (Http %start (new HttpStream pieces pieces) no-body))
+      (def runs (List map (fn (_ b) (pair (bytes->str b) (List length b))) pieces))
+      (Http %start (Http %over-runs runs) no-body))
+
+    (method %over-runs (self (param pieces LIST "Runs, one answered per transport read"))
+      (doc "A fresh stream whose transport is a list of runs."
+        (returns OBJECT "An HttpStream"))
+      (new HttpStream pieces pieces))
 
     (method %dechunk (self (param bytes LIST "Chunked-framing body bytes"))
       (doc "Decode Transfer-Encoding: chunked framing: hex-size line, that many bytes, CRLF, repeated to the zero chunk. Malformed framing raises a label 'value."
         (returns LIST "The unframed body bytes"))
-      (def pieces (list bytes))
+      (def pieces (list (pair (bytes->str bytes) (List length bytes))))
       (def mode (lit size))
       (Http %drain (new HttpStream pieces pieces mode mode)))
 

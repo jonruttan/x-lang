@@ -196,7 +196,7 @@ anywhere -- in a size line, between CR and LF, inside a chunk.
   (def s (Http %over (List map (fn (_ c) (list c))
                        (%s->b "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nX-A: 1\r\n\r\n4\r\nWiki\r\n5;ext\r\npedia\r\n0\r\nX-T: t\r\n\r\n"))
                      #f))
-  (def got (let go ((acc ())) (let ((b (Http read s 3))) (if (null? b) (List reverse acc) (go (pair b acc))))))
+  (def got (let go ((acc ())) (let ((b (Http read s 3))) (if (null? b) (List reverse acc) (go (pair (Http %run->bytes b) acc))))))
   (list (s status) (s head) (bytes->str (List flat-map (fn (_ c) c) got)) (Http read s 3)))
 ```
 ---
@@ -209,7 +209,7 @@ anywhere -- in a size line, between CR and LF, inside a chunk.
   (def %s->b (fn (_ s) (let go ((i (- (Str8 length s) 1)) (acc ()))
                          (if (< i 0) acc (go (- i 1) (pair (Char ->int (Str8 ref i s)) acc))))))
   (def s (Http %over (list (%s->b "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n")) #f))
-  (let go ((acc ())) (let ((b (Http read s 3))) (if (null? b) (List reverse acc) (go (pair (List length b) acc))))))
+  (let go ((acc ())) (let ((b (Http read s 3))) (if (null? b) (List reverse acc) (go (pair (rest b) acc))))))
 ```
 ---
     (3 1 3 2)
@@ -220,13 +220,26 @@ anywhere -- in a size line, between CR and LF, inside a chunk.
 (do (import x/net/http)
   (def %s->b (fn (_ s) (let go ((i (- (Str8 length s) 1)) (acc ()))
                          (if (< i 0) acc (go (- i 1) (pair (Char ->int (Str8 ref i s)) acc))))))
-  (def %all (fn (_ s) (let go ((acc ())) (let ((b (Http read s 2))) (if (null? b) (bytes->str (List flat-map (fn (_ c) c) (List reverse acc))) (go (pair b acc)))))))
+  (def %all (fn (_ s) (let go ((acc ())) (let ((b (Http read s 2))) (if (null? b) (bytes->str (List flat-map (fn (_ c) c) (List reverse acc))) (go (pair (Http %run->bytes b) acc)))))))
   (list (%all (Http %over (list (%s->b "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhe") (%s->b "lloJUNK")) #f))
         (%all (Http %over (list (%s->b "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nabc")) #f))
         (%all (Http %over (list (%s->b "HTTP/1.0 200 OK\r\n\r\nto ") (%s->b "the end")) #f))))
 ```
 ---
     ("hello" "abc" "to the end")
+
+### a read is a run: its count says how many bytes, NUL bytes among them
+
+```x
+(do (import x/net/http)
+  (def s (Http %over (list (list 72 84 84 80 47 49 46 49 32 50 48 48 32 79 75 13 10
+                                 67 111 110 116 101 110 116 45 76 101 110 103 116 104 58 32 51 13 10 13 10
+                                 97 0 98)) #f))
+  (def r (Http read s 10))
+  (list (rest r) (Http %run->bytes r) (Http read s 10)))
+```
+---
+    (3 (97 0 98) ())
 
 ### a chunk cut short, and a chunk with no CRLF after it, raise 'value
 
@@ -248,13 +261,13 @@ A forked child serves canned responses on an ephemeral port while the
 spec reads them through Http; the child never returns to the runner --
 it execs a shell that exits, whatever happened.
 
-### a body read 4096 bytes at a time arrives in pieces, every byte counted
+### a megabyte arrives in runs, every byte counted
 
 ```x
 (do (import x/net/http) (import x/sys/posix)
   (def %hw-lfd (Socket tcp-listen 0))
   (def %hw-port (Socket local-port %hw-lfd))
-  (def %hw-body (Str8 repeat 1638 "0123456789"))
+  (def %hw-body (Str8 repeat 104858 "0123456789"))
   (def %hw-pid (Sys fork))
   (when (= %hw-pid 0)
     (do (guard (e ())
@@ -270,8 +283,8 @@ it execs a shell that exits, whatever happened.
     (guard (e e)
       (let ((s (Http open "GET" (Str8 append "http://127.0.0.1:" (%number->str %hw-port) "/f") () ())))
         (let ((got (let go ((total 0) (reads 0))
-                     (let ((b (Http read s 4096)))
-                       (if (null? b) (list total reads) (go (+ total (List length b)) (+ reads 1)))))))
+                     (let ((b (Http read s 65536)))
+                       (if (null? b) (list total reads) (go (+ total (rest b)) (+ reads 1)))))))
           (do (Http close s)
               (list (s status) (first got) (> (first (rest got)) 1)))))))
   (Sys kill %hw-pid 9)
@@ -279,7 +292,7 @@ it execs a shell that exits, whatever happened.
   %hw-result)
 ```
 ---
-    (200 16380 #t)
+    (200 1048580 #t)
 
 ### open follows a redirect, request drains the final body, (redirects . 0) stops at the 3xx
 
