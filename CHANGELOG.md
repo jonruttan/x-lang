@@ -75,6 +75,14 @@ for `File stat` under a guard.
 
 [#893]: https://github.com/jonruttan/x-lang/pull/893
 
+**`str->number` reads one to fifteen decimal digits in one walk** ([#896]).
+Text of plain decimal digits, with no radix passed, is read on the integer
+doors; any other text is read by the parser as before. Reading `"3"` costs
+6 µs where the parser costs about 390, and `convert` from a string to an
+integer rides on it.
+
+[#896]: https://github.com/jonruttan/x-lang/pull/896
+
 **The linter sweeps within a file** ([#889]). A lint child sweeps between
 top-level forms, between a class's methods and between the forms it reads
 once more than 20M objects are allocated, where it swept only between files.

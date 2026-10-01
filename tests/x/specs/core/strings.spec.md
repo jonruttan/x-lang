@@ -352,6 +352,37 @@ keeps the JSON `\u` parser (`(%str->number %t 16)`) byte-exact.
 ---
     (255 #t 5)
 
+## str->number decimal digits
+
+One to fifteen decimal digits, with no radix passed, are read in one walk on
+the integer doors; any other text reads as it did, by the full parser.
+
+### digits read as decimal, leading zeros included, at every length up to the walk's
+
+```x
+(list (%str->number "0") (%str->number "007") (%str->number "010")
+      (%str->number "123456789012345") (%str->number "1234567890123456")
+      (%str->number "12a") (%str->number "") (%str->number "-5") (%str->number "+5"))
+```
+---
+    (0 7 10 123456789012345 1234567890123456 () () -5 5)
+
+### the walk costs fewer objects than the full parser
+
+```x
+(do
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 10)
+      (- (Heap count) c0)))
+  (< (* 10 (%cost (fn (_) (%str->number "4096"))))
+     (%cost (fn (_) (%str->number "+4096")))))
+```
+---
+    #t
+
 ## str->number overflow raises (#52 ruled)
 
 Accumulation is negative-domain (the %n2s lesson: |INT_MIN| has no positive

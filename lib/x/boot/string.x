@@ -151,8 +151,30 @@
 ; JSON \u parser stays byte-exact, and a prefix under an explicit radix
 ; would be ambiguous ("0x" as digits-of-16 is a miss, and stays one).
 ; The sign parses first, so "-0xff" -> -255 like a negated reader literal.
+;
+; One to fifteen decimal digits and nothing else, with no radix passed, is
+; the usual text -- a count, a descriptor, a field of a record -- and is read
+; in one walk on the integer doors: fifteen digits stay inside a machine
+; word, so nothing can wrap.  Any other text is read by READ, the parser
+; below, which builds its digit reader and walks the tower.  The doors and
+; the walk are bound once, here, rather than as names of the file.
 (def %str->number
-  (fn (_ s . rest)
+  ((fn (_ read int+ int* int< zero nine)
+     (def walk
+       (fn (self s i len acc)
+         (match
+           ((eq? i len) acc)
+           ((eq? i 15) (read s ()))
+           ((int< (%str-byte-ref s i) zero) (read s ()))
+           ((int< nine (%str-byte-ref s i)) (read s ()))
+           (#t (self s (int+ i 1) len
+                     (int+ (int* acc 10) (%n2s-int- (%str-byte-ref s i) zero)))))))
+     (fn (_ s . rest)
+       (match
+         ((not (eq? rest ())) (read s rest))
+         ((eq? (%str-byte-len s) 0) ())
+         (#t (walk s 0 (%str-byte-len s) 0)))))
+   (fn (_ s rest)
     (def radix (match ((eq? rest ()) 10) (#t (first rest))))
     (def len (%str-byte-len s))
     (match
@@ -232,4 +254,6 @@
                           (let ((posv (- 0 result)))
                             (match
                               ((< posv 0) (error "str->number: integer overflow"))
-                              (#t posv))))))))))))))))
+                              (#t posv)))))))))))))))
+   (prim-ref (lit int) (lit +)) (prim-ref (lit int) (lit *)) (prim-ref (lit int) (lit <))
+   (%char->integer #\0) (%char->integer #\9)))
