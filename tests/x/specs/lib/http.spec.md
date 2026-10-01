@@ -33,7 +33,17 @@ and `openssl s_server` serves https.
         (list (pair "X-A" "1")) "hi"))
 ```
 ---
-    "POST /p HTTP/1.1\r\nHost: h\r\nConnection: close\r\nContent-Length: 2\r\nX-A: 1\r\n\r\nhi"
+    "POST /p HTTP/1.1\r\nHost: h:9\r\nConnection: close\r\nContent-Length: 2\r\nX-A: 1\r\n\r\nhi"
+
+### Host carries the port only when it is not the scheme's own
+
+```x
+(do (import x/net/http)
+  (List map (fn (_ url) (Str8 sub 0 (Str8 index-of "\r\nConnection" (Http %build-request "GET" (Http %parse-url url) () ())) (Http %build-request "GET" (Http %parse-url url) () ())))
+    (list "http://h:80/" "http://h/" "https://h/" "https://h:80/" "http://h:443/")))
+```
+---
+    ("GET / HTTP/1.1\r\nHost: h" "GET / HTTP/1.1\r\nHost: h" "GET / HTTP/1.1\r\nHost: h" "GET / HTTP/1.1\r\nHost: h:80" "GET / HTTP/1.1\r\nHost: h:443")
 
 ## responses
 

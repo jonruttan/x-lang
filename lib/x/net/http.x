@@ -79,11 +79,15 @@
                                  (param u ALIST "%parse-url's result")
                                  (param headers ALIST "(name . value) strings, appended verbatim")
                                  (param body ANY "Body string, or nil"))
-      (doc "Render the request: verb + path, Host, Connection: close, Content-Length when a body rides, the caller's headers, CRLF framing."
+      (doc "Render the request: verb + path, Host (with the port when it is not the scheme's own, RFC 9110 7.2), Connection: close, Content-Length when a body rides, the caller's headers, CRLF framing."
         (returns STRING "The full request text"))
+      (def port (rest (Assoc find (lit port) u)))
       (def head
         (Str8 append method " " (rest (Assoc find (lit path) u)) " HTTP/1.1\r\n"
-                     "Host: " (rest (Assoc find (lit host) u)) "\r\n"
+                     "Host: " (rest (Assoc find (lit host) u))
+                     (if (= port (if (rest (Assoc find (lit tls) u)) 443 80)) ""
+                       (Str8 append ":" (%number->str port)))
+                     "\r\n"
                      "Connection: close\r\n"))
       (def with-len
         (if (null? body) head
