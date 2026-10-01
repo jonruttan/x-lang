@@ -23,6 +23,15 @@ level of the stream the engine is fed, where nothing is in flight.
 
 [#890]: https://github.com/jonruttan/x-lang/pull/890
 
+**`(File type path)` and `(File ltype path)` answer a path's file type alone** ([#893]).
+Each answers the file type `File stat` or `File lstat` gives under
+`file-type`, or nil when nothing is there, and never raises: it reads the
+mode alone, and a miss builds no Err. A file that is there costs 32 µs
+against `File stat`'s 97, and a path that is not there 16 µs against 355
+for `File stat` under a guard.
+
+[#893]: https://github.com/jonruttan/x-lang/pull/893
+
 **The linter sweeps within a file** ([#889]). A lint child sweeps between
 top-level forms, between a class's methods and between the forms it reads
 once more than 20M objects are allocated, where it swept only between files.
