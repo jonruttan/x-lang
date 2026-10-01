@@ -121,11 +121,16 @@ kill alone; the take is what shows the catch took.
 
 ### a caught SIGTSTP stops nothing
 
+Sent only once the catch has taken: uncaught, SIGTSTP would stop the run
+itself.
+
 ```x
 (do
-  (Sys catch-signal (Sys sigtstp))
-  (Sys kill (Sys getpid) (Sys sigtstp))
-  (def %cs-tstp (Sys take-signal (Sys sigtstp)))
+  (def %cs-tstp
+    (if (= (Sys catch-signal (Sys sigtstp)) 0)
+      (do (Sys kill (Sys getpid) (Sys sigtstp))
+          (Sys take-signal (Sys sigtstp)))
+      #f))
   (Sys signal (Sys sigtstp) (Sys sig-dfl))
   %cs-tstp)
 ```
