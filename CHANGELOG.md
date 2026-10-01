@@ -15,6 +15,13 @@ carry the slot vector, which is process state. The engine costs about 5%
 more user time than v0.2.17 on a helium boot and on a call-heavy loop.
 
 [#891]: https://github.com/jonruttan/x-lang/pull/891
+**A bundle's CI runs its suite on arm64 Linux too** ([#892]). The bundle
+workflow's specs matrix gains `ubuntu-24.04-arm`, against the declared release
+and against main, as ci.yml's specs matrix has it. The leg reports and does
+not gate, as ci.yml's does; its `make engine` clones the pinned engine and
+builds it, since the pin declares no linux arm64 artifact.
+
+[#892]: https://github.com/jonruttan/x-lang/pull/892
 
 **The linter collects between a preload's imports** ([#890]). Each
 top-level import in a lint child's preload is followed by a collect, so the

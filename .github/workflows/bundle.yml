@@ -13,9 +13,10 @@ name: bundle
 # leg reports that the platform has moved and is allowed to fail.  The release
 # is read from lang.xon, so it is named in one place.
 #
-# The operating systems here and in ci.yml's gating legs are the same list and
-# change together.  ci.yml's arm64 Linux leg reports without gating and has no
-# counterpart here until it gates.
+# The operating systems here and in ci.yml's specs legs are the same list and
+# change together.  The arm64 Linux leg reports and does not gate, as ci.yml's
+# does; the engine pin declares no linux arm64 artifact, so its `make engine`
+# clones the pinned release and builds it.
 
 on:
   workflow_call:
@@ -54,11 +55,11 @@ jobs:
     name: specs (${{ matrix.os }}, x-lang ${{ matrix.x-lang }})
     needs: release
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.x-lang == 'main' }}
+    continue-on-error: ${{ matrix.x-lang == 'main' || matrix.os == 'ubuntu-24.04-arm' }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-24.04]
+        os: [macos-14, ubuntu-24.04, ubuntu-24.04-arm]
         x-lang: [declared, main]
     steps:
       - uses: actions/checkout@v4
@@ -70,7 +71,8 @@ jobs:
           ref: ${{ matrix.x-lang == 'main' && 'main' || needs.release.outputs.version }}
           path: .x-lang
 
-      # The engine is acquired, not built: x-lang pins one and fetches it.
+      # The engine is acquired: x-lang pins one and fetches it, or on arm64
+      # Linux clones the pinned release and builds it.
       - name: Build the platform
         working-directory: .x-lang
         run: |
