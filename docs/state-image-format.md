@@ -12,12 +12,13 @@ from.
 
 ## 1. What the engine holds, and where
 
-**All state is on the base.** A base is one atom (`x_base_make`, `x-base.c`)
-whose data word points at a tree of pairs and atoms. Every leaf is a *field
-cell*, `(value . saved-values)`, and everything the evaluator, the type
-system, the reader, the printer, the collector and the allocator know is a
-node of that tree. There is no table anywhere that is not reachable from the
-base object.
+**All state is on the base.** x-expr's base is one atom (`x_base_make`,
+`x-base.c`) whose data word points at a tree of pairs and atoms; the
+engine's (`x_eval_make`, `x-eval.c`) has a second unit, its slot vector.
+Every leaf is a *field cell*, `(value . saved-values)`, and everything the
+evaluator, the type system, the reader, the printer, the collector and the
+allocator know is a node of that tree. There is no table anywhere that is
+not reachable from the base object.
 
 The tree's layout is the contract `engine/tools/contract/base-layout.x`, and
 its labels already say which parts belong to whom:
@@ -45,10 +46,12 @@ generated `x-eval-layout.h`):
 
 Process state, which the loader keeps: `files` (descriptors, write-buf, and
 the read buffer — a BUFFER over a C array on `main`'s stack, `x-cli.c`),
-the four `hooks` and the heap fields' mark/free hooks (static atoms holding
-C function pointers), `mark-hooks`, `free-hooks`, `mark-roots`, the
-`root-chain` (off-chain stack objects pushed by frames, marked never swept,
-`x-base.h`), `obj-meta-extra`, and the `alloc` fields.
+the slot vector (the engine's routines, C function pointers, in the base's
+second unit and outside the tree), the four `hooks` and the heap fields'
+mark/free hooks (static atoms holding C function pointers), `mark-hooks`,
+`free-hooks`, `mark-roots`, the `root-chain` (off-chain stack objects pushed
+by frames, marked never swept, `x-base.h`), `obj-meta-extra`, and the
+`alloc` fields.
 
 Two more facts about where things live:
 
