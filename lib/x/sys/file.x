@@ -81,6 +81,26 @@
 ; not for building the plan.
 (def %stat-read (Struct reader %stat-fields))
 
+; The mode alone, cut the same way, for (File type) and (File ltype).
+(def %stat-mode-fields
+  (let go ((rows stat-layout) (gap 0))
+    (match
+      ((eq? (first (first rows)) 'mode)
+        (if (> gap 0) (list (list 'pad gap) (first rows)) (list (first rows))))
+      (#t (go (rest rows) (+ gap (Struct length (list (first rows)))))))))
+
+(def %stat-mode-read (Struct reader %stat-mode-fields))
+
+; The file type a stat or lstat CALL finds at PATH, or nil when it finds
+; nothing there.
+(def %stat-type
+  (fn (_ call path)
+    (def buf (%make-str 160))
+    (match
+      ((= (call path buf) 0)
+        (%mode-file-type (%stat-field 'mode (%stat-mode-read buf 0))))
+      (#t ()))))
+
 ; --- The flag tables (surfaced via the methods below) ---
 ; Static value fields can't carry help text, so the tables live as data and
 ; the (File file-modes)/(File stat-flags) methods expose + document them.
@@ -353,6 +373,26 @@
       (match
         ((str? path) (= (%sys-stat path (%make-str 160)) 0))
         (#t #f)))
+
+    (method type (self (param path ANY "Path to look at, symlinks followed"))
+      (doc "The file type of what path names: 'file 'dir 'link 'char 'block 'fifo 'socket, as (File stat) gives it under file-type -- or nil when nothing is there or path is not a string. Never raises."
+        (returns ANY "A file-type symbol, or nil")
+        (note "(File stat) decodes the whole record and raises a label 'io Err for a path that is not there; this reads the mode alone and answers nil, for the callers that ask only what kind of thing a path is -- a shell's test -e, -f and -d.")
+        (sample "(File type \"lib\")" "dir")
+        (sample "(File type \"no/such/path\")" "()"))
+      (match
+        ((str? path) (%stat-type %sys-stat path))
+        (#t ())))
+
+    (method ltype (self (param path ANY "Path to look at, symlinks NOT followed"))
+      (doc "The file type of path itself, as (File type) answers it, but a symbolic link reports 'link instead of its target's type -- nil when nothing is there or path is not a string. Never raises."
+        (returns ANY "A file-type symbol, or nil")
+        (note "(File type) is to (File stat) what this is to (File lstat): a shell's test -L and -h.")
+        (sample "(File ltype \"some-symlink\")" "link")
+        (sample "(File ltype \"no/such/path\")" "()"))
+      (match
+        ((str? path) (%stat-type %sys-lstat path))
+        (#t ())))
 
     (method read-all (self (param path STRING "File to read"))
       (doc "The whole file as one string (stat for the size, one read). Raises a label 'io Err on open/read failure."
