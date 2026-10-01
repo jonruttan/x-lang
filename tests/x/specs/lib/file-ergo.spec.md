@@ -109,6 +109,60 @@ around an empty thunk is subtracted.
 ---
     (#t #t #t)
 
+## type and ltype
+
+### type answers what stat calls the file type, and nil where nothing is
+
+```x
+(do (import x/sys/posix) (import x/sys/file)
+  (list (File type "/tmp") (File type "/tmp/x-spec22-definitely-not") (File type 42)
+        (File ltype "/tmp/x-spec22-definitely-not") (File ltype 42)))
+```
+---
+    ('dir () () () ())
+
+### ltype reports a symlink as itself; type follows it
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/sys/proc)
+  (def tmp (File temp "/tmp/x-type-lnk-target-"))
+  (File close (first tmp))
+  (def p (rest tmp))
+  (def l (Str8 append p "-lnk"))
+  (Proc run! (list "/bin/ln" "-s" p l))
+  (def types (list (File type p) (File ltype p) (File type l) (File ltype l)
+                   (Assoc get 'file-type (File stat l))
+                   (Assoc get 'file-type (File lstat l))))
+  (File unlink l)
+  (File unlink p)
+  types)
+```
+---
+    ('file 'file 'file 'link 'file 'link)
+
+### type costs less than stat, and a miss builds no Err
+
+It reads the mode alone, and tests the call's result as exists? does.  The
+loop around an empty thunk is subtracted.
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/sys/gc)
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 10)
+      (- (Heap count) c0)))
+  (def %nop (%cost (fn (_) ())))
+  (def %miss "/tmp/x-spec22-definitely-not")
+  (list (< (%cost (fn (_) (File type "/tmp"))) (%cost (fn (_) (File stat "/tmp"))))
+        (< (%cost (fn (_) (File type %miss)))
+           (%cost (fn (_) (guard (e ()) (File stat %miss)))))
+        (< (- (%cost (fn (_) (File type %miss))) %nop) (* 1000 10))))
+```
+---
+    (#t #t #t)
+
 ## read-lines
 
 ### splits on newline, no phantom empty last line
