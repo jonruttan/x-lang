@@ -83,6 +83,60 @@ happened, 128+N for death by signal N.
 ---
     alive
 
+### a caught signal is recorded, taken once, and does not kill
+
+SIGWINCH's default is to ignore it, so the case would pass vacuously on the
+kill alone; the take is what shows the catch took.
+
+```x
+(do
+  (def %cs-caught (Sys catch-signal (Sys sigwinch)))
+  (def %cs-before (Sys take-signal (Sys sigwinch)))
+  (Sys kill (Sys getpid) (Sys sigwinch))
+  (Sys kill (Sys getpid) (Sys sigwinch))
+  (def %cs-first (Sys take-signal (Sys sigwinch)))
+  (def %cs-second (Sys take-signal (Sys sigwinch)))
+  (Sys signal (Sys sigwinch) (Sys sig-dfl))
+  (list %cs-caught %cs-before %cs-first %cs-second))
+```
+---
+    (0 #f #t #f)
+
+### a signal no handler can catch is refused
+
+```x
+(list (Sys catch-signal (Sys sigstop)) (Sys catch-signal 0) (Sys take-signal 0))
+```
+---
+    (-1 -1 #f)
+
+### the engine's signal catch and signal take, under Sys's two methods
+
+```x
+(list ((prim-ref (lit signal) (lit catch)) 0)
+      ((prim-ref (lit signal) (lit take)) 0))
+```
+---
+    (-1 0)
+
+### a caught SIGTSTP stops nothing
+
+Sent only once the catch has taken: uncaught, SIGTSTP would stop the run
+itself.
+
+```x
+(do
+  (def %cs-tstp
+    (if (= (Sys catch-signal (Sys sigtstp)) 0)
+      (do (Sys kill (Sys getpid) (Sys sigtstp))
+          (Sys take-signal (Sys sigtstp)))
+      #f))
+  (Sys signal (Sys sigtstp) (Sys sig-dfl))
+  %cs-tstp)
+```
+---
+    #t
+
 ## run-with! / capture-with (#364)
 
 ### env overrides reach the child

@@ -5,6 +5,26 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A program can catch a signal and read its arrival** ([#897]). `(Sys
+catch-signal N)` has the engine record signal N's arrival and do nothing
+more (x-engine-c#84); `(Sys take-signal N)` answers whether it arrived since
+the last take and clears the record. A read or poll waiting when it arrives
+is interrupted, so the program sees it at once. `Sys` names `sigwinch`,
+`sigttou`, `sigtstp` and `sigstop`, the last two for the system they run
+on. `(Term raw-with-signals! fd)` makes the terminal raw with its signal
+keys still signalling, as an editor that catches them wants, and `(Term
+measure fd)` answers the window's size as the terminal reports it, or nil
+when it reports none; `window` falls back from it as before.
+
+[#897]: https://github.com/jonruttan/x-lang/pull/897
+
+**The engine is x-engine-c v0.2.19** ([#897]). It carries the signal catch
+and take above (x-engine-c#84). A call through the base's slot vector skips
+the test for a base and a vector where both are always present, and a call
+form whose head is a primitive goes straight to the callable-call slot
+(x-engine-c#83); the engine measures the slot vector's cost over v0.2.17 at
+1.6% on a helium boot and on a call-heavy loop, down from 2.7% and 3.3%.
+
 **The engine is x-engine-c v0.2.18** ([#891]). The engine's base has two
 units, the tree first and a slot vector second: the evaluator, environment
 lookup, the reader, calling, allocation and the collector's phases are each

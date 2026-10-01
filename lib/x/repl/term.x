@@ -36,7 +36,7 @@
   (doc "The terminal a REPL line is read on: raw mode, window size, and byte-to-key decoding. Every method takes the descriptor explicitly -- this class holds no ambient tty."
     (note "raw! returns a saved-state token to hand back to restore!; the pair is meant to bracket one line read, so evaluated code runs in a cooked terminal.")
     (note "key decodes one keystroke from a byte-reading function, so it is testable against a canned byte source with no terminal present.")
-    (see raw!) (see restore!) (see key) (see window))
+    (see raw!) (see raw-with-signals!) (see restore!) (see key) (see window) (see measure))
 
   (static
     ; --- libc, resolved once ------------------------------------------------
@@ -97,6 +97,30 @@
         (returns ANY "A saved-state token for restore!, or nil")
         (note "cfmakeraw also clears OPOST, so a newline no longer implies a carriage return: everything written while raw must spell \\r\\n itself.")
         (sample "(Term raw! 0)" "a token, or nil when stdin is a pipe"))
+      (Term %raw! fd #f))
+
+    (method raw-with-signals! (self (param fd INTEGER "Descriptor to put into raw mode"))
+      (doc "Raw mode as raw! makes it, but with the terminal's signal keys still signalling: ^C sends SIGINT, ^Z SIGTSTP and ^\\ SIGQUIT, as an editor that catches them wants. Returns raw!'s token, or nil."
+        (returns ANY "A saved-state token for restore!, or nil")
+        (sample "(Term raw-with-signals! 0)" "a token, or nil when stdin is a pipe"))
+      (Term %raw! fd #t))
+
+    ; ISIG in c_lflag, the fourth tcflag_t: 8 bytes wide on Darwin and 4 on
+    ; Linux, so it sits at byte 24 or byte 12.  Its low four bytes are read and
+    ; written either way; both are little-endian here.
+    (method %isig-on! (self (param p POINTER "A struct termios"))
+      (doc "Turn ISIG on in the termios at p." (returns NIL "Nothing"))
+      (let ((pref (prim-ref (lit ptr) (lit ref)))
+            (pset (prim-ref (lit ptr) (lit set!)))
+            (at (if os-darwin? 24 12))
+            (isig (if os-darwin? 128 1)))
+        (pset p at (| (pref p at 4) isig) 4)
+        ()))
+
+    (method %raw! (self (param fd INTEGER "Descriptor to put into raw mode")
+                        (param signals? BOOL "Whether the signal keys still signal"))
+      (doc "raw! and raw-with-signals!: the terminal's settings saved, then made raw."
+        (returns ANY "A saved-state token for restore!, or nil"))
       (if (not (Term tty? fd)) ()
         (let ((call (prim-ref (lit ptr) (lit call)))
               (mkstr (prim-ref (lit str) (lit make)))
@@ -115,6 +139,7 @@
                   ; freedom from the struct's size and padding.
                   (call (Term c-tcget) fd rp)
                   (call (Term c-cfraw) rp)
+                  (if signals? (Term %isig-on! rp) ())
                   (if (< (Sys %sign-fold (call (Term c-tcset) fd (Term tcsadrain) rp)) 0) ()
                     saved))))))))
 
@@ -136,8 +161,17 @@
         (returns PAIR "(columns . rows)")
         (note "Reached as a SYSCALL, not through the FFI: ioctl is variadic, and on Apple arm64 a variadic argument goes on the stack where a fixed one goes in a register -- through the fixed-signature ffi door the winsize pointer never reached the kernel and every terminal measured 80x24.")
         (sample "(Term window 0)" "(120 . 40)"))
-      (let ((call (prim-ref (lit ptr) (lit call)))
-            (mkstr (prim-ref (lit str) (lit make)))
+      (let ((m (Term measure fd)))
+        (let ((cols (if (null? m) 0 (first m)))
+              (rows (if (null? m) 0 (rest m))))
+          (pair (if (> cols 0) cols (Term %env-int "COLUMNS" 80))
+                (if (> rows 0) rows (Term %env-int "LINES" 24))))))
+
+    (method measure (self (param fd INTEGER "Descriptor to measure"))
+      (doc "The terminal window's (columns . rows) as TIOCGWINSZ reports them, or nil when it reports nothing: the ioctl failed, or answered zero rows, as a serial console does. A caller that can ask the terminal itself does so on nil; window falls back instead."
+        (returns ANY "(columns . rows), or nil")
+        (sample "(Term measure 0)" "(120 . 40), or nil when stdin is no terminal"))
+      (let ((mkstr (prim-ref (lit str) (lit make)))
             (toptr (prim-ref (lit str) (lit ->ptr)))
             (pref (prim-ref (lit ptr) (lit ref))))
         ; struct winsize is four unsigned shorts: rows, cols, then two pixel
@@ -146,10 +180,9 @@
           (let ((p (toptr w)))
             (let ((r (if (< (Term ioctl-id) 0) -1
                        (Sys %sign-fold (syscall (Term ioctl-id) fd (Term tiocgwinsz) w)))))
-              (let ((cols (if (< r 0) 0 (pref p 2 2)))
-                    (rows (if (< r 0) 0 (pref p 0 2))))
-                (pair (if (> cols 0) cols (Term %env-int "COLUMNS" 80))
-                      (if (> rows 0) rows (Term %env-int "LINES" 24)))))))))
+              (if (< r 0) ()
+                (let ((rows (pref p 0 2)))
+                  (if (> rows 0) (pair (pref p 2 2) rows) ()))))))))
 
     (method %env-int (self (param name STRING "Environment variable")
                            (param dflt INTEGER "Value when unset or unparseable"))

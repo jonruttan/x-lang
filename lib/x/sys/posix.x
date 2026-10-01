@@ -168,6 +168,26 @@
       ; signal(2) returns a POINTER (the old handler) -- never %sys-fold
       ; a pointer return (see the fold's comment above).
       (%ptr-call (%resolve "signal") sig disposition))
+    (sigwinch 28 "SIGWINCH: the terminal's window changed size (28 on Darwin and Linux)")
+    (sigttou 22 "SIGTTOU: a background process set or wrote to its terminal (22 on Darwin and Linux)")
+    (method sigtstp (self)
+      (doc "SIGTSTP, the terminal's stop key (^Z): 18 on Darwin, 20 on Linux."
+        (returns INTEGER "The signal number"))
+      (if os-darwin? 18 20))
+    (method sigstop (self)
+      (doc "SIGSTOP, the stop no handler can catch: 17 on Darwin, 19 on Linux."
+        (returns INTEGER "The signal number"))
+      (if os-darwin? 17 19))
+    (method catch-signal (self (param sig INTEGER "Signal number"))
+      (doc "Catch a signal: from now on its arrival is recorded for take-signal, and nothing else happens -- what it means is the caller's to decide. A read or poll waiting when it arrives is interrupted."
+        (returns INTEGER "0, or -1 when sig cannot be caught or this engine records no signals"))
+      (let ((catch (prim-ref (lit signal) (lit catch))))
+        (if (null? catch) -1 (catch sig))))
+    (method take-signal (self (param sig INTEGER "Signal number"))
+      (doc "Whether a caught signal arrived since the last take, clearing the record; two arrivals between takes are one."
+        (returns BOOL "True when it arrived"))
+      (let ((take (prim-ref (lit signal) (lit take))))
+        (if (null? take) #f (= (take sig) 1))))
     ; --- File descriptors ---
     (method close (self (param fd INTEGER "File descriptor to close"))
       (doc "Close a file descriptor." (returns INTEGER "0 on success, -1 on error"))

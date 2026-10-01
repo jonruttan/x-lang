@@ -177,6 +177,43 @@ fall back when there is nothing to bracket.
 ---
     (#f #t #f)
 
+### raw-with-signals! declines a pipe the same way
+
+```x
+(do (import x/repl/term)
+    (null? (Term raw-with-signals! 0)))
+```
+---
+    #t
+
+### the signal keys are ISIG alone, set in c_lflag and nothing else moved
+
+A fresh string is space-filled, so every byte but ISIG's reads 32 after.
+
+```x
+(do (import x/repl/term)
+    (let ((s ((prim-ref (lit str) (lit make)) 64)))
+      (let ((p ((prim-ref (lit str) (lit ->ptr)) s))
+            (pref (prim-ref (lit ptr) (lit ref)))
+            (at (if os-darwin? 24 12))
+            (isig (if os-darwin? 128 1)))
+        (Term %isig-on! p)
+        (list (= (pref p at 4) (| 538976288 isig))
+              (= (pref p 0 4) 538976288)
+              (= (pref p (+ at 4) 4) 538976288)))))
+```
+---
+    (#t #t #t)
+
+### measure is nil where there is no window to measure
+
+```x
+(do (import x/repl/term)
+    (null? (Term measure 0)))
+```
+---
+    #t
+
 ### window always answers, falling back rather than failing
 
 ```x
