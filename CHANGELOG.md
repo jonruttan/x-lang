@@ -37,6 +37,18 @@ builds it, since the pin declares no linux arm64 artifact.
 
 [#892]: https://github.com/jonruttan/x-lang/pull/892
 
+**`Host` (x/sys/host) reports the machine the same way on Linux and Darwin** ([#895]).
+`(Host boot-time)`, `load`, `memory`, `cpu`, `processes`, `process`, `args`
+and `users` answer alists with unix-second times, nanosecond CPU times and
+byte sizes, so a program such as uptime, free, ps or top formats them
+without asking which kernel answered. Linux reads what BusyBox reads:
+sysinfo(2), /proc/meminfo, /proc/stat and /proc/PID/stat. Darwin reads
+sysctl, the Mach host statistics and proc_pidinfo over the dlopen FFI. Both
+read utmpx through libc. A field the kernel does not report is nil; Darwin
+gives another user's process memory, CPU time and run state only to root.
+
+[#895]: https://github.com/jonruttan/x-lang/pull/895
+
 **Http streams a response's body** ([#894]). `(Http open method url
 headers body)` reads the head and answers a stream -- `(s status)`,
 `(s headers)`, `(s head)` -- whose body `(Http read s n)` hands out a piece
