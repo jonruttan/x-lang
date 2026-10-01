@@ -408,6 +408,110 @@ uses any of them.
 
 [#855]: https://github.com/jonruttan/x-lang/pull/855
 
+**The type word is a label, and `(obj relabel!)` writes it** ([#860]). The
+word in an object's header that says which type it is was called the type
+tag. `(obj relabel!)` was `(obj retag!)`, and its refusal reads
+`relabel!: unknown type handle`. `Type cast!`'s doc strings and the
+library's comments say type label. No alias is kept, and no bundle uses
+the old name.
+
+[#860]: https://github.com/jonruttan/x-lang/pull/860
+
+**What `Paint classify` answers is a label** ([#862]). `(Paint labels)` lists
+the nine symbols `classify` can answer; it was `(Paint classes)`. `classify`
+keeps its name, and `'class` stays among the nine, the label of an atom that
+names a class. No alias is kept, and no bundle uses the old name.
+
+[#862]: https://github.com/jonruttan/x-lang/pull/862
+
+**The library's private names and comments take the glossary's words**
+([#866]). Names that said kind or tag for the value that says which variant
+something is say label, `%apply-label`, `%field-label` and `%asm-cache-label-`
+among them, and a type's named leaves are fields, as in `%type-proc-fields`.
+Two instance fields follow: `Random`'s `kind` and `Indent`'s `mode` are
+`label`. Two raised messages read `Float: no such stub label` and
+`x86_64: unsupported 3-address arrangement (dst==src2)`. No alias is kept,
+and no bundle uses any of them.
+
+[#866]: https://github.com/jonruttan/x-lang/pull/866
+
+**The library's last loose uses of kind, shape, family and tag are reworded**
+([#871]). On arm64 Linux the call made in a name's place is a stand-in:
+`linux-generic-syscall-stand-ins` was `linux-generic-syscall-shapes`, and the
+two private door builders follow. Comments that said "two kinds of", "the
+same shape", "the scalar double family" and "tagged" name what they mean.
+No alias is kept, and no bundle uses the names.
+
+[#871]: https://github.com/jonruttan/x-lang/pull/871
+
+**The specs, the runner and the tools take the glossary's words** ([#874]).
+Comments, spec prose and spec headings under `tests/` and `tools/` say
+label for a discriminant, and pattern, layout, structure or case where
+they said shape. A spec with an arch in its file name is arch-labelled.
+Nothing a program calls is renamed.
+
+[#874]: https://github.com/jonruttan/x-lang/pull/874
+
+**The engine-contract gate calls an ISA row's justification its label**
+([#879]). Its failure lines read `TOTAL: COORD (label X)` and `claimed both by
+label X`; they said tag. `features.x` and the two generators follow, and an
+engine's `x-engine.xon` comes out as before.
+
+[#879]: https://github.com/jonruttan/x-lang/pull/879
+
+**The documentation takes the glossary's words** ([#880]). A discriminant is
+a label, a tier is a profile, a layer, a pin or visibility, and shape is a
+block form's and nothing else. `docs/type-system.md`'s flags table loses the
+six simple-type codes, which are x-expr's. Prose only: nothing a program
+calls is renamed.
+
+[#880]: https://github.com/jonruttan/x-lang/pull/880
+
+**The seam gate calls a row's `always`, `installed` or `bundle` its label**
+([#878]). It refuses an unknown one with `seam: unknown label(s) in FILE: NAME`;
+the line said `class(es)`. `tools/contract/seam.x` gives a row as
+`(seam LABEL NAME "what it is")`. The rows and the three values are unchanged.
+
+[#878]: https://github.com/jonruttan/x-lang/pull/878
+
+**Catalogue, in every file** ([#882]). The glossary's word is catalogue, and
+the tree's comments, doc strings, specs and docs spell it so.
+`image-foreign-catalogue` was `image-foreign-catalog`, and the conformance
+spec is `core/catalogue-ops.spec.md`. No alias is kept.
+
+[#882]: https://github.com/jonruttan/x-lang/pull/882
+
+**A project's label comes from its `bitwise.xon`** ([#887]). The line above
+a project's name on a banner is the costume's `(label "...")`, read by
+`(Bitwise render ...)` when the caller passes none, instead of a table in
+`cli.x` keyed by directory; a costume without one draws "an x project".
+Every project's file carries the text the table gave it.
+
+[#887]: https://github.com/jonruttan/x-lang/pull/887
+
+**Bitwise's `--kind` is `--label`** ([#884]). The text Bitwise draws above a
+project's name on a banner says which sort of project it is, so it is the
+project's label. The option is `--label TEXT`, and the index the app writes
+holds it under `"label"`. No alias is kept.
+
+[#884]: https://github.com/jonruttan/x-lang/pull/884
+
+**The linter's depth warning is named `depth`** ([#864]). A definition at
+least 12 deep and 500 nodes large was reported as `shape`; a lint run now
+prints `depth:` for it. The lang kit's `--strict` matches the new name, so a
+bundle's strict lint fails on the same findings as before.
+
+[#864]: https://github.com/jonruttan/x-lang/pull/864
+
+**The image tools say label and unit labels** ([#869]). `image-unit-label`
+and `image-type-label` were `image-unit-kind` and `image-type-kind`, and
+`image-unit-labels-count`, `-mask`, `-desc` and `-static?` were
+`image-shape-count`, `-mask`, `-desc` and `-static?`. A foreign table
+entry's 1 to 8 is its label, and the reader prints `unresolved label` for
+one it cannot place. No alias is kept, and no bundle uses any of them.
+
+[#869]: https://github.com/jonruttan/x-lang/pull/869
+
 **A stat record holds a file's type under `file-type`** ([#823]).
 `(File stat p)` and `(File lstat p)` answer
 `((size . N) (mode . M) (file-type . K) (mtime . T))`; the third key was

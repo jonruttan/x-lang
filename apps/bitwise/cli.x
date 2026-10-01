@@ -17,9 +17,9 @@
 ;
 ; --all discovers x-expr, x-lang, engines/* and languages/* under --root
 ; (default: the parent of the working directory, the x workspace), reads
-; each tagline off the first paragraph of its README, and writes every
-; format for every project plus index.json.  --png shells out to
-; rsvg-convert when it is on PATH.
+; each tagline off the first paragraph of its README and each label off its
+; bitwise.xon, and writes every format for every project plus index.json.
+; --png shells out to rsvg-convert when it is on PATH.
 ;
 ; A COSTUME BELONGS TO ITS PROJECT: each repository carries `bitwise.xon` at
 ; its root, and this is what finds it -- discovery hands every one it meets
@@ -35,8 +35,8 @@
   (doc "The command line over Bitwise: (BitwiseCli main args) draws one project or every project under a workspace root.")
   (static
     (%widths (list (list "mark" 512) (list "avatar" 512) (list "banner" 1280)))
-    (%labels (list (list "x-expr" "a C library") (list "x-lang" "the language")))
-    (%subdirs (list (list "engines" "an x-lang engine") (list "languages" "a language on x-lang")))
+    (%roots (list "x-expr" "x-lang"))
+    (%subdirs (list "engines" "languages"))
 
     (method %width (self fmt)
       (first (rest (%find (fn (_ e) (str=? (first e) fmt)) (BitwiseCli %widths)))))
@@ -100,19 +100,19 @@
       (def found ())
       (List for-each
         (fn (_ e)
-          (let ((d (%path-join root (first e))))
+          (let ((d (%path-join root e)))
             (when (File exists? (%path-join d "README.md"))
-              (set! found (pair (list (first e) d (first (rest e))) found)))))
-        (BitwiseCli %labels))
+              (set! found (pair (list e d) found)))))
+        (BitwiseCli %roots))
       (List for-each
         (fn (_ sub)
-          (let ((base (%path-join root (first sub))))
+          (let ((base (%path-join root sub)))
             (when (File exists? base)
               (List for-each
                 (fn (_ e)
                   (let ((d (%path-join base e)))
                     (when (if (Str8 starts? "." e) #f (File exists? (%path-join d "README.md")))
-                      (set! found (pair (list e d (first (rest sub))) found)))))
+                      (set! found (pair (list e d) found)))))
                 (BitwiseCli %sort (File list-dir base))))))
         (BitwiseCli %subdirs))
       (%reverse found))
@@ -212,11 +212,11 @@
       (def index
         (List map
           (fn (_ proj)
-            (let ((name (first proj)) (dir (first (rest proj))) (label (first (rest (rest proj)))))
+            (let ((name (first proj)) (dir (first (rest proj))))
               (let ((tag (BitwiseCli %tagline (%path-join dir "README.md"))))
                 (let ((p (let go ((fs (list "mark" "avatar" "banner")) (last #f))
                            (if (null? fs) last
-                             (let ((r (Bitwise render name (first fs) tag label "o")))
+                             (let ((r (Bitwise render name (first fs) tag "" "o")))
                                (let ((path (%path-join outdir (%str-concat (list name "-" (first fs) ".svg")))))
                                  (File write-all path (first r))
                                  (when (o get 'png) (BitwiseCli %png! path (first fs)))
@@ -226,7 +226,7 @@
                                               "  hue " (Str8 pad-left 5 #\space (Bitwise %hue-str (p get 'hue10)))
                                               "  " (Str8 pad-right 24 #\space (p get 'costume)) " " (p get 'reference) "\n")))
                   (let ((d (Dict make)))
-                    (d set! "name" name) (d set! "label" label) (d set! "tagline" tag)
+                    (d set! "name" name) (d set! "label" (p get 'label)) (d set! "tagline" tag)
                     (d set! "opname" (p get 'opname)) (d set! "formula" (p get 'formula))
                     (d set! "bit" (p get 'bit)) (d set! "n" (p get 'n)) (d set! "hue10" (p get 'hue10))
                     (d set! "lit" (p get 'lit)) (d set! "costume" (p get 'costume)) (d set! "reference" (p get 'reference))

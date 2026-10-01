@@ -114,7 +114,8 @@ A fixture for x-lang's owl, the second tool of the self-hosting arc
 
 Both fixture projects carry their own `bitwise.xon`, so the costume column
 and the gathered `costumes.xon` are this case's own doing, not a leftover
-from an earlier one.
+from an earlier one. x-lang's carries a label and x-fixture's does not, so
+the index shows both a label read from the file and the empty one.
 
 ```x
 (do
@@ -135,7 +136,7 @@ from an earlier one.
 ```output
 x-lang          xor    bit 3  n=32  hue 261.6                           (def owl "{O,O}")
 x-fixture       xor    bit 3  n=24  hue  90.9  the fixture              (fixture)
-((x-lang the language The language, as a fixture) (x-fixture a language on x-lang A fixture for x-lang's owl, the second tool of the self-hosting arc))
+((x-lang the language The language, as a fixture) (x-fixture  A fixture for x-lang's owl, the second tool of the self-hosting arc))
 (#t #t #t #t)
 #t
 ```
