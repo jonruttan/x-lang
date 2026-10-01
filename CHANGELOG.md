@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The linter collects between a preload's imports** ([#890]). Each
+top-level import in a lint child's preload is followed by a collect, so the
+preload costs its heaviest import rather than the sum of them.
+`lib/x/num/tower.x`, which imports the whole numeric tower, measured a 9.4 GB
+footprint before and 3.4 GB after; `lint-x` reports the same findings with
+the same CPU. A module still never collects: these collects run at the top
+level of the stream the engine is fed, where nothing is in flight.
+
+[#890]: https://github.com/jonruttan/x-lang/pull/890
+
 **The linter sweeps within a file** ([#889]). A lint child sweeps between
 top-level forms, between a class's methods and between the forms it reads
 once more than 20M objects are allocated, where it swept only between files.
