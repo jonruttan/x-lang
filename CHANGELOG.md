@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The engine is x-engine-c v0.2.18** ([#891]). The engine's base has two
+units, the tree first and a slot vector second: the evaluator, environment
+lookup, the reader, calling, allocation and the collector's phases are each
+a function pointer at a fixed position, and storing another function in a
+slot replaces that routine in that base alone (x-engine-c#82). The library
+reads the base through its routes and needs no change; an image does not
+carry the slot vector, which is process state. The engine costs about 5%
+more user time than v0.2.17 on a helium boot and on a call-heavy loop.
+
+[#891]: https://github.com/jonruttan/x-lang/pull/891
+
 **The linter collects between a preload's imports** ([#890]). Each
 top-level import in a lint child's preload is followed by a collect, so the
 preload costs its heaviest import rather than the sum of them.
