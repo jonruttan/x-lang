@@ -110,6 +110,15 @@ kill alone; the take is what shows the catch took.
 ---
     (-1 -1 #f)
 
+### the engine's signal catch and signal take, under Sys's two methods
+
+```x
+(list ((prim-ref (lit signal) (lit catch)) 0)
+      ((prim-ref (lit signal) (lit take)) 0))
+```
+---
+    (-1 0)
+
 ### a caught SIGTSTP stops nothing
 
 ```x
