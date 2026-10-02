@@ -78,7 +78,7 @@
   (needs "lib/x/repl/term.x" isa/ffi-call isa/syscall)
   (needs "lib/x/sys/gc.x" isa/gc)
   (needs "lib/x/sys/host.x" isa/ffi-call)
-  (needs "lib/x/sys/posix.x" isa/ffi-call isa/sys)
+  (needs "lib/x/sys/posix.x" isa/ffi-call isa/sys isa/syscall)
   (needs "lib/x/sys/socket.x" isa/ffi-call)
   (needs "lib/x/tool/asm-cache.x" isa/ffi-call)
   (needs "lib/x/tool/asm-compile.x" isa/ffi-call)

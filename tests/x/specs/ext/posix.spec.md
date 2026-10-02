@@ -414,3 +414,71 @@ regular file is ENOTDIR for everyone, root included.
 ```
 ---
     #t
+
+## waiting on descriptors
+
+### poll answers what is ready, nil when nothing is before the timeout
+
+A pipe with nothing in it is ready to write and not to read; a byte
+written makes its read end ready; a zero timeout does not wait.
+
+```scheme
+(do (import x/sys/posix)
+  (def fds (Sys pipe))
+  (def r (first fds))
+  (def w (rest fds))
+  (def before (Sys poll (list (pair r (list 'in))) 0))
+  (def out (Sys poll (list (pair r (list 'in)) (pair w (list 'out))) 0))
+  (Sys fd-write w "x")
+  (def after (Sys poll (list (pair r (list 'in)) (pair w (list 'in))) 0))
+  (Sys close r) (Sys close w)
+  (list before (List map (fn (_ e) (rest e)) out) (List map (fn (_ e) (rest e)) after) (= (first (first out)) w) (= (first (first after)) r)))
+```
+---
+    (() (('out)) (('in)) #t #t)
+
+### poll waits out its timeout, and a closed writer wakes a reader
+
+```scheme
+(do (import x/sys/posix)
+  (def %pl-ms (fn (_) (let ((t (Sys time-of-day))) (+ (* 1000 (first t)) (/ (- (rest t) (% (rest t) 1000)) 1000)))))
+  (def fds (Sys pipe))
+  (def t0 (%pl-ms))
+  (def waited (Sys poll (list (pair (first fds) (list 'in))) 120))
+  (def took (- (%pl-ms) t0))
+  (Sys close (rest fds))
+  (def woke (Sys poll (list (pair (first fds) (list 'in))) 1000))
+  (Sys close (first fds))
+  (list waited (>= took 100) (not (null? woke))))
+```
+---
+    (() #t #t)
+
+### a descriptor that is not open answers nval
+
+```scheme
+(do (import x/sys/posix)
+  (def fds (Sys pipe))
+  (Sys close (first fds)) (Sys close (rest fds))
+  (List map (fn (_ e) (rest e)) (Sys poll (list (pair (first fds) (list 'in))) 0)))
+```
+---
+    (('nval))
+
+### nonblock! makes an empty read answer at once; #f makes it wait again
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (def fds (Sys pipe))
+  (def r (first fds))
+  (Sys nonblock! r)
+  (def buf ((prim-ref 'str 'make) 8))
+  (def got (File read r buf 1))
+  (Sys nonblock! r #f)
+  (Sys fd-write (rest fds) "y")
+  (def again (File read r buf 1))
+  (Sys close r) (Sys close (rest fds))
+  (list (< got 0) again))
+```
+---
+    (#t 1)

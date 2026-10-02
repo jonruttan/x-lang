@@ -12,7 +12,7 @@
 
 (import x/type/class)
 (import x/core/alist)
-(import x/platform/syscall file-modes)
+(import x/platform/syscall file-modes syscall-id)
 
 ; O_* open flags from the platform table (file-modes, x/platform/syscall) --
 ; the single source of platform truth, shared with sys/file.x.  Formerly
@@ -370,6 +370,73 @@
         (returns BOOL "True if fd refers to a terminal")
         (sample "(Sys isatty 1)" "#t"))
       (= 1 (%sys-fold (%ptr-call %c-isatty fd))))
+
+    ; --- Waiting on several descriptors ---
+    ; struct pollfd is an int fd then two shorts, events and revents, eight
+    ; bytes; the bits are the same on Darwin and Linux: POLLIN 1, POLLPRI 2,
+    ; POLLOUT 4, POLLERR 8, POLLHUP 16, POLLNVAL 32.
+    (method poll (self (param fds LIST "((FD . EVENTS) ...): each descriptor and what to wait for, a list of in and out")
+                       (param timeout INTEGER "Milliseconds to wait: -1 waits without end, 0 does not wait"))
+      (doc "Wait until a descriptor is ready, through poll(2). Answers each one that is, with what it is ready for -- among in, out, hup (the other end closed), err and nval (not an open descriptor) -- or nil when the timeout passes first. A signal that interrupts the wait answers nil as well, so a caller's loop asks again; any other failure raises an io Err."
+        (returns LIST "((FD . EVENTS) ...) for the ready descriptors, or nil")
+        (sample "(Sys poll (list (pair 0 (list 'in)) (pair sock (list 'in))) 1000)" "((5 in)) -- the socket has bytes to read"))
+      (def pset (prim-ref (lit ptr) (lit set!)))
+      (def n (%length fds))
+      (def region (%make-str (* 8 (if (= n 0) 1 n))))
+      (def p (%str->ptr region))
+      (let put ((l fds) (off 0))
+        (unless (null? l)
+          (do (pset p off (first (first l)) 4)
+              (pset p (+ off 4) (Sys %poll-bits (rest (first l))) 2)
+              (pset p (+ off 6) 0 2)
+              (put (rest l) (+ off 8)))))
+      (def r (%sys-fold (%ptr-call (%resolve "poll") p n timeout)))
+      (match
+        ((> r 0)
+          (let walk ((l fds) (off 0) (acc ()))
+            (if (null? l) (%reverse acc)
+              (let ((rev (%ptr-ref p (+ off 6) 2)))
+                (walk (rest l) (+ off 8)
+                      (if (= rev 0) acc
+                        (pair (pair (first (first l)) (Sys %poll-events rev)) acc)))))))
+        ((= r 0) ())
+        ((= (Err errno-of r) 4) ())             ; EINTR, the same number on both
+        (#t (error (Err from-errno (Err errno-of r) (lit poll) ())))))
+
+    (method %poll-bits (self (param events LIST "Symbols: in, out"))
+      (doc "The pollfd events bits for a list of in and out."
+        (returns INTEGER "POLLIN | POLLOUT as asked"))
+      (let go ((l events) (bits 0))
+        (match
+          ((null? l) bits)
+          ((eq? (first l) (lit in)) (go (rest l) (if (= (& bits 1) 0) (+ bits 1) bits)))
+          ((eq? (first l) (lit out)) (go (rest l) (if (= (& bits 4) 0) (+ bits 4) bits)))
+          (#t (Err raise (lit value) "Sys poll: an event is in or out" (first l))))))
+
+    (method %poll-events (self (param rev INTEGER "A pollfd's revents"))
+      (doc "The symbols for a revents word: in (POLLIN or POLLPRI), out, err, hup, nval."
+        (returns LIST "The events, in that order"))
+      (def bit (fn (_ mask name rest) (if (= (& rev mask) 0) rest (pair name rest))))
+      (bit 3 (lit in) (bit 4 (lit out) (bit 8 (lit err) (bit 16 (lit hup) (bit 32 (lit nval) ()))))))
+
+    (method nonblock! (self (param fd INTEGER "Descriptor")
+                            . (param on BOOL "#f makes it wait again; the default is #t"))
+      (doc "Make reads and writes on fd answer at once rather than wait -- O_NONBLOCK through fcntl(2) -- or, given #f, wait again. A read with nothing to read then fails with EAGAIN, and a connect that cannot finish at once with EINPROGRESS, for poll to wait on. Raises an io Err when fcntl fails."
+        (returns BOOL "#t")
+        (note "Reached as a SYSCALL, as Term's ioctl is: fcntl is variadic, and on Apple arm64 a variadic argument goes on the stack, where the fixed-signature ffi door never puts it.")
+        (sample "(Sys nonblock! sock)" "#t"))
+      (def id (syscall-id (lit fcntl)))
+      (def nb (first (%assoc-get (lit nonblock) file-modes)))
+      (def flags (%sys-fold (syscall id fd 3 0)))          ; F_GETFL
+      (when (< flags 0) (error (Err from-errno (Err errno-of flags) (lit fcntl) fd)))
+      (def has (not (= (& flags nb) 0)))
+      (def want
+        (match
+          ((if (null? on) #t (first on)) (if has flags (+ flags nb)))
+          (#t (if has (- flags nb) flags))))
+      (def r (%sys-fold (syscall id fd 4 want)))           ; F_SETFL
+      (when (< r 0) (error (Err from-errno (Err errno-of r) (lit fcntl) fd)))
+      #t)
     ; clock was previously reached via the catalogue auto-class (ns sys); authored
     ; here as the catalogue bridge retires (R4). Cold path -> inline prim-ref.
     (method clock (self)
