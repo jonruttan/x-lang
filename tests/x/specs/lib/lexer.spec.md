@@ -305,3 +305,156 @@ it is open; the count is reported, the tokens are the contract.
 ```
 ---
     'refused
+
+## what a read handler makes stays out of the child
+
+A read handler runs inside the tokenizer base, and an object made there
+registers its built-in type on that base, with the type's s-expression
+analyser.  The Lexer makes every token in the base that made it, so a
+number's integer label does not teach the child to read `+1` as an integer.
+
+### a number label does not make the child read a signed integer
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer number 'num ())
+    (Lexer table 'op (list "+" "-")))))
+  (write (%lx-l read-str "2+1 2-1 2 +1"))
+  (newline))
+```
+---
+    (('num "2" 1) ('op "+") ('num "1" 1) ('num "2" 1) ('op "-") ('num "1" 1) ('num "2" 1) ('op "+") ('num "1" 1))
+
+## a dropped span outranks the operator that opens it
+
+### a block comment is dropped although `/` and `*` are operators
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer until () "/*" "*/")
+    (Lexer until () "//" "\n")
+    (Lexer run 'id "abx" "abx")
+    (Lexer table 'op (list "/" "*" "/=")))))
+  (write (%lx-l read-str "a /* x */ b / x // c\n"))
+  (newline))
+```
+---
+    (('id "a") ('id "b") ('op "/") ('id "x"))
+
+## a table of any size
+
+### C's punctuators in one table
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer table 'op (list "[" "]" "(" ")" "{" "}" "." "->" "++" "--" "&" "*" "+" "-" "~" "!" "/" "%" "<<" ">>" "<" ">" "<=" ">=" "==" "!=" "^" "|" "&&" "||" "?" ":" ";" "..." "=" "*=" "/=" "%=" "+=" "-=" "<<=" ">>=" "&=" "^=" "|=" "," "#" "##" "@" "$" "`")))))
+  (write (%lx-l read-str "-> ... <<= ## || [ ]"))
+  (newline))
+```
+---
+    (('op "->") ('op "...") ('op "<<=") ('op "##") ('op "||") ('op "[") ('op "]"))
+
+## a byte no rule reads
+
+### without a fallback the read stops at the first stray byte, silently
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer run 'w "abc" "abc"))))
+  (write (%lx-l read-str "a @ b"))
+  (newline))
+```
+---
+    (('w "a"))
+
+### an any rule listed last takes the stray byte as a token of its own
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer run 'w "abc" "abc")
+    (Lexer table 'op (list "@@"))
+    (Lexer any 'bad))))
+  (write (%lx-l read-str "a @ b @@ c"))
+  (newline))
+```
+---
+    (('w "a") ('bad "@") ('w "b") ('op "@@") ('w "c"))
+
+### an any rule leaves the end text alone
+
+The end text is appended so the last token meets a delimiter; at the
+buffer's end only a state that accepts on its own byte can win, so the any
+rule refuses the end text's bytes as it refuses a skip rule's.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer run 'sp " \t" " \t")
+    (Lexer table 'nl (list "\n"))
+    (Lexer run 'id "abc" "abc")
+    (Lexer any 'bad)) "\n"))
+  (write (%lx-l read-str "a\nb @"))
+  (newline))
+```
+---
+    (('id "a") ('nl "\n") ('id "b") ('sp " ") ('bad "@"))
+
+### a dropped span registers nothing in the child either
+
+A positive match is read by the engine, and with no handler its default
+read would make an object in the child and register that object's type
+there.  The dropped span's handler answers a marker instead, so a second
+read after a comment still reads `-1` as an operator and a number.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer until () "/*" "*/")
+    (Lexer run 'id "abx" "abx")
+    (Lexer number 'num ())
+    (Lexer table 'op (list "(" ")" "*" "/" "-")))))
+  (write (list (%lx-l read-str "a /* x */ b") (%lx-l read-str "(-1)")))
+  (newline))
+```
+---
+    ((('id "a") ('id "b")) (('op "(") ('op "-") ('num "1" 1) ('op ")")))
+
+### the states' handoff cells survive a collect
+
+A quoted literal's escape and a two-byte closer hand to the body through a
+cell the compiled code reaches by address; the lexer holds the cell, so a
+collect between reads does not free it under the states.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer until () "/*" "*/")
+    (Lexer quoted 'str 34 34 92)
+    (Lexer run 'id "ab" "ab"))))
+  (def %lx-before (%lx-l read-str "a \"x\\ny\" /* c */ b"))
+  (Heap collect)
+  (write (list %lx-before (%lx-l read-str "a \"x\\ny\" /* c */ b")))
+  (newline))
+```
+---
+    ((('id "a") ('str "\"x\\ny\"") ('id "b")) (('id "a") ('str "\"x\\ny\"") ('id "b")))

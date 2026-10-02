@@ -426,7 +426,7 @@ contesting type — and the platform can compile them:
   through `Str8 ref`; a base with interpreted analysers costs 62; the same
   states compiled cost 0.2, the engine's own reader's speed.  The Lexer
   (section 4) emits the compiled form from a rule, so a bundle gets the
-  last tier without writing a state: 0.3 µs a byte on words, 1.2 on
+  last tier without writing a state: 0.8 µs a byte on words, 2.0 on
   C-like text with fifty-one compiled states.
 - **Adopt with sha256.x's pattern**: lazy, threshold-triggered, the whole
   attempt in a guard that pins `failed` and carries on pure-x.  Compiling
