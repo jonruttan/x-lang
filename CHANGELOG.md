@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A command's options and its help text are one declaration** ([#905]).
+`(Opts declare NAME SYNOPSIS SUMMARY ROWS)` takes rows built by `flag`,
+`arg`, `hidden` and `text`, and the rows are both what `parse` accepts and
+what `usage` prints, so an option cannot be accepted and undocumented, nor
+documented and refused. `parse` and `parse-leading` take a declaration in
+place of the two lists, and a row's spellings are one option: `on?` and
+`value` answer for whichever was given. `help?` asks busybox's question,
+`--help` as the first argument, unless the declaration turns help off as
+test, true, false and echo do. `usage` lays the text out as busybox does,
+the description column the first tab stop past the widest option unless
+`(column . N)` sets it; 108 of busybox's 121 option tables follow that
+rule. The caller chooses the stream and the status.
+
+[#905]: https://github.com/jonruttan/x-lang/pull/905
+
 ## [0.21.0] - 2026-10-02
 
 **The Lexer's child base registers nothing, and every state is compiled and
