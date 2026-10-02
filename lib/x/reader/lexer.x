@@ -35,7 +35,7 @@
 (import x/tool/compile compile-asm)
 
 (def-class Lexer ()
-  (doc "A tokenizer base built from data rules, its analyser states compiled to native code when the assembler lane is open and interpreted otherwise. Make one with (Lexer make rules), where each rule is made by run, skip, table, quoted, until or number; read with (l read-str s). A token is (tag text) or, from a number rule, (tag text label)."
+  (doc "A tokenizer base built from data rules, its analyser states compiled to native code when the assembler lane is open and interpreted otherwise. Make one with (Lexer make rules), where each rule is made by run, skip, table, quoted, until, number or any; read with (l read-str s). A token is (tag text) or, from a number rule, (tag text label)."
     (note "The first rule in the list wins an equal-length tie; a longer match wins regardless. List a keyword table before the identifier run that would also read it.")
     (note "A character class is a list of byte codes, (lo . hi) pairs and strings (each byte a member), or one bare string; a character literal counts as its code.")
     (note "The base and its states are dropped before a state image is written and made again after a load: a consumer holds the Lexer, never its raw base.")
@@ -44,13 +44,18 @@
   (doc (raw ()) "The raw tokenizer base, or nil between an image write and its load")
   (doc (states ()) "Every state installed on the base -- the compiled ones as native code, the rest as closures; held so the collector keeps them")
   (doc (compiled 0) "How many states the assembler lane compiled in the last make; 0 when the lane is closed")
-  (doc (end " ") "Text appended to every read, so the last token meets a delimiter: a token is only read once a character ends it, and the engine drops an unterminated tail. One space by default; a C lexer wants a newline, which also ends a last line comment")
+  (doc (end " ") "Text appended to every read, so the last token meets a delimiter: a token is only read once a character ends it, and the engine drops an unterminated tail. One space unless make was given another; a C lexer wants a newline, which also ends a last line comment. An any rule is built to refuse its bytes, so setting it after make wants a remake!")
 
   (method read-str (self (param s STRING "Text to tokenize"))
     (doc "The tokens of s, in order, each (tag text) or (tag text label); dropped tokens (skip, an until rule with no tag) do not appear. The end text (a space unless set) is appended first, so the last token is seen."
       (returns LIST "The token list, nil for empty input")
       (example "(let ((l (Lexer make (list (Lexer skip \" \") (Lexer run 'word \"ab\" \"ab\"))))) (l read-str \"a b\"))" "(('word \"a\") ('word \"b\"))"))
-    ((Lexer %read-str) (self %base) (Str8 append s (self end))))
+    ; A dropped span's handler answers the marker; it is filtered out here.
+    (def dropped (Lexer %dropped))
+    ((fn (self l acc)
+       (if (null? l) (List reverse acc)
+         (self (rest l) (if (eq? (first l) dropped) acc (pair (first l) acc)))))
+     ((Lexer %read-str) (self %base) (Str8 append s (self end))) ()))
 
   (method %base (self)
     (if (null? (self raw)) (self remake!) (self raw)))
@@ -71,6 +76,7 @@
     (%transient! (prim-ref (lit image) (lit transient!)))
     (%recache-hook! (prim-ref (lit image) (lit recache-hook!)))
     (%char->int (prim-ref (lit char) (lit ->int)))
+    (%base-eval (prim-ref (lit base) (lit eval)))
     (%byte-ref (prim-ref (lit str) (lit byte-ref)))
     (%byte-len (prim-ref (lit str) (lit byte-len)))
     ; Is the assembler lane open?  Probed by one state in the form every state
@@ -78,12 +84,16 @@
     ; addresses back.
     (%jit-cell (pair () ()))
     (%skip-count (pair 0 ()))
+    ; what a dropped span's read handler answers; read-str leaves it out
+    (%dropped (pair (lit dropped) ()))
 
-    (method make (self (param rules LIST "Rules in priority order, each from run, skip, table, quoted, until or number"))
+    (method make (self (param rules LIST "Rules in priority order, each from run, skip, table, quoted, until, number or any")
+                       . (param more ANY "Optionally the end text, a space when left out: see the end field"))
       (doc "A lexer over rules: a tokenizer base with one type a rule, its states compiled where the lane allows."
         (returns Lexer "The lexer")
-        (sample "(Lexer make (list (Lexer skip \" \\n\") (Lexer number 'num ()) (Lexer run 'id \"abc\" \"abc\")))" "a lexer of numbers and words"))
-      (let ((raw ()) (states ()) (compiled 0) (end " "))
+        (sample "(Lexer make (list (Lexer skip \" \\n\") (Lexer number 'num ()) (Lexer run 'id \"abc\" \"abc\")))" "a lexer of numbers and words")
+        (sample "(Lexer make c-rules \"\\n\")" "a lexer whose last line comment ends"))
+      (let ((raw ()) (states ()) (compiled 0) (end (if (null? more) " " (first more))))
         (def l (new Lexer rules rules raw raw states states compiled compiled end end))
         (l remake!)
         ((Lexer %transient!) (fn (_) (l raw ()) (l states ())))
@@ -150,6 +160,12 @@
         (returns LIST "The rule")
         (sample "(Lexer number 'num \"uUlL\")" "C integer and floating literals"))
       (list (lit number) (Str8 str tag) tag suffix))
+
+    (method any (self (param tag SYMBOL "The token's tag"))
+      (doc "A rule for one byte that no other rule reads. The engine stops a read at the first byte no type claims, silently; listed last, this rule claims that byte as a one-byte token, so a reader can refuse it by name. It loses every tie, so it never takes a byte another rule reads."
+        (returns LIST "The rule")
+        (sample "(Lexer any 'bad)" "every stray byte becomes (bad \"@\")"))
+      (list (lit any) (Str8 str tag) tag))
 
     ; --- forms --------------------------------------------------------------
     ; The lane's dialect.  A class test is an or of ranges and codes; accept
@@ -250,6 +266,25 @@
               (lit (%seq (%score-set score -1 buffer) body)) ()))
           (list (pair (lit body) body)))))
 
+    ; One byte, whatever it is, taken -- except a byte a skip rule drops, and
+    ; the end text's: the engine lets a positive score beat a negative one
+    ; whatever the order, so the skip classes are refused here rather than
+    ; contested; and at the buffer's end only a state that accepts on its own
+    ; byte can win, which would hand the appended end text to this rule.
+    (method %any-states (self l)
+      (def refused
+        ((fn (self rs acc)
+           (if (null? rs) acc
+             (self (rest rs)
+               (if (eq? (first (first rs)) (lit skip))
+                 (pair (Lexer %class-form (first (rest (rest (rest (first rs)))))) acc)
+                 acc))))
+         (l rules) (list (Lexer %class-form (l end)))))
+      (Lexer %state l
+        (Lexer %state-form
+          (list (lit if) (pair (lit or) refused) () (Lexer %take)))
+        ()))
+
     ; A trie node is (terminal? . kids), kids an alist of (code . node); a
     ; node's state dispatches on the next byte to a child's, and a terminal
     ; with no child for the byte accepts.  Children are the state's free
@@ -267,7 +302,14 @@
              (rest node) ()))
           (pair (first node) (pair (pair c sub) without)))))
 
-    (%fvar-names (lit (a b c d e f g h i j k l m n o p q r s t u v w x y z)))
+    ; A node's children are its state's free variables, one name each: k0,
+    ; k1, ... as many as the node has (a C operator table's root has more
+    ; than an alphabet's worth).
+    (method %fvar-names (self n)
+      ((fn (self i acc)
+         (if (< i 0) acc
+           (self (- i 1) (pair (Str8 ->sym (Str8 append "k" (%number->str i))) acc))))
+       (- n 1) ()))
 
     (method %trie-state (self l node)
       (def kids
@@ -275,6 +317,7 @@
            (if (null? ks) acc
              (self (rest ks) (pair (pair (first (first ks)) (Lexer %trie-state l (rest (first ks)))) acc))))
          (rest node) ()))
+      (def names (Lexer %fvar-names (List length kids)))
       (def dispatch
         (fn (self ks names tail)
           (if (null? ks) tail
@@ -286,8 +329,8 @@
             (self (rest ks) (rest names) (pair (pair (first names) (rest (first ks))) acc)))))
       (Lexer %state l
         (Lexer %state-form
-          (dispatch kids (Lexer %fvar-names) (if (first node) (Lexer %accept) ())))
-        (fvars kids (Lexer %fvar-names) ())))
+          (dispatch kids names (if (first node) (Lexer %accept) ())))
+        (fvars kids names ())))
 
     (method %table-states (self l strings)
       (def root
@@ -306,17 +349,24 @@
             (Lexer %state-form
               (list (lit if) (list (lit =) (lit chr) (Lexer %code close)) (Lexer %take) (lit me)))
             ())
-          ; The escape state needs the body and the body the escape state.
-          ; The escape is interpreted and rare: it takes its byte and answers
-          ; the body through a cell filled below, as x-python's does.
-          (let ((after (fn (_ buffer score chr) (first body-cell))))
-            (l states (pair after (l states)))
+          ; The escape state needs the body and the body the escape state, so
+          ; the escape reads the body out of a cell when it runs -- (first
+          ; cell), the lane's door for states that hand to each other -- and
+          ; the cell is filled below.  Compiled like every other state: an
+          ; interpreted state's one comparison registers the engine's INTEGER
+          ; type on the child, with its s-expression analyser.
+          (let ((after (Lexer %state l
+                         (Lexer %state-form (lit (first cell)))
+                         (list (pair (lit cell) body-cell)))))
             (Lexer %state l
               (Lexer %state-form
                 (list (lit if) (list (lit =) (lit chr) (Lexer %code close)) (Lexer %take)
                   (list (lit if) (list (lit =) (lit chr) (Lexer %code esc)) (lit esc) (lit me))))
               (list (pair (lit esc) after))))))
       (%set-first! body-cell body)
+      ; the cell is reached only through the compiled states' baked address, so
+      ; the lexer holds it, or a collect frees it under them
+      (l states (pair body-cell (l states)))
       (Lexer %state l
         (Lexer %state-form
           (list (lit if) (list (lit =) (lit chr) (Lexer %code open)) (lit body) ()))
@@ -325,35 +375,38 @@
     ; A span from open to close.  Open is matched byte by byte through a
     ; chain of states; the body loops until the close's first byte, and a
     ; two-byte close confirms its second byte before taking the token.
+    ; A dropped span scores POSITIVE all the same: the engine lets a
+    ; negative score lose to any positive one, so a comment scored -1 would
+    ; lose to the `/` operator that opens it.  Its read handler answers the
+    ; dropped marker, which %handlers arranges for a rule with no tag.
     (method %until-states (self l tag open close)
       (def c0 ((Lexer %char->int) ((Lexer %byte-ref) close 0)))
       (def two? (> ((Lexer %byte-len) close) 1))
-      (def end-unread (if (null? tag) (Lexer %drop) (Lexer %accept)))
       (def body-cell (pair () ()))
       (def body
         (if two?
           (let ((c1 ((Lexer %char->int) ((Lexer %byte-ref) close 1))))
             ; The state after the close's first byte needs the body back on a
-            ; miss, and the body needs it: interpreted and rare, it answers
-            ; the body through the cell, as the escape state above does.
+            ; miss, and the body needs it: it reads the body out of the cell,
+            ; as the escape state above does.
             (def second
-              (if (null? tag)
-                (fn (me buffer score chr)
-                  (if (= chr c1) (%score-set score -1 buffer)
-                    (if (= chr c0) me (first body-cell))))
-                (fn (me buffer score chr)
-                  (if (= chr c1) (%score-set score 1 buffer)
-                    (if (= chr c0) me (first body-cell))))))
-            (l states (pair second (l states)))
+              (Lexer %state l
+                (Lexer %state-form
+                  (list (lit if) (list (lit =) (lit chr) c1) (Lexer %take)
+                    (list (lit if) (list (lit =) (lit chr) c0) (lit me) (lit (first cell)))))
+                (list (pair (lit cell) body-cell))))
             (Lexer %state l
               (Lexer %state-form
                 (list (lit if) (list (lit =) (lit chr) c0) (lit second) (lit me)))
               (list (pair (lit second) second))))
           (Lexer %state l
             (Lexer %state-form
-              (list (lit if) (list (lit =) (lit chr) c0) end-unread (lit me)))
+              (list (lit if) (list (lit =) (lit chr) c0) (Lexer %accept) (lit me)))
             ())))
       (%set-first! body-cell body)
+      ; the cell is reached only through the compiled states' baked address, so
+      ; the lexer holds it, or a collect frees it under them
+      (l states (pair body-cell (l states)))
       ; the open chain, last byte first
       ((fn (self i next)
          (if (< i 0) next
@@ -453,13 +506,23 @@
     ; The read handler of a tagged rule: (tag text), with the label when one
     ; was declared.  A rule with no tag has no read handler, and its tokens
     ; are dropped.
-    ; The door is captured outside the closure: a static read is a class
-    ; dispatch, and this runs once a token.
+    ; THE TOKEN IS MADE IN THE PARENT BASE.  The engine calls a read handler
+    ; inside the tokenizer base, and an object made there registers its
+    ; built-in type on that base -- with the type's s-expression analyser,
+    ; so one integer label would have the child read `+1` as an integer from
+    ; then on.  So the handler evaluates the token's construction in the
+    ; base that made the lexer, through base-eval, whose allocations are the
+    ; target's: the text, the label and the list are all parent objects, and
+    ; the child registers nothing.  The doors are captured outside the
+    ; closure: a static read is a class dispatch, and this runs once a token.
     (method %reader (self tag labelled?)
-      (let ((tok (Lexer %buffer-token)))
-        (if labelled?
-          (fn (_ . args) (list tag (tok (first args)) (%read-label args)))
-          (fn (_ . args) (list tag (tok (first args)))))))
+      (let ((tok (Lexer %buffer-token)) (ev (Lexer %base-eval)) (parent (%base)))
+        (def mk
+          (if labelled?
+            (fn (_ args) (list tag (tok (first args)) (%read-label args)))
+            (fn (_ args) (list tag (tok (first args))))))
+        (fn (_ . args)
+          (ev parent (list (list (lit lit) mk) (list (lit lit) args))))))
 
     (method %handlers (self l rule)
       (def kind (first rule))
@@ -473,9 +536,18 @@
           ((eq? kind (lit quoted)) (Lexer %quoted-states l (first args) (first (rest args)) (first (rest (rest args)))))
           ((eq? kind (lit until)) (Lexer %until-states l tag (first args) (first (rest args))))
           ((eq? kind (lit number)) (Lexer %number-states l (first args)))
+          ((eq? kind (lit any)) (Lexer %any-states l))
           (#t (Err raise (lit lexer) "Lexer: unknown rule kind" kind))))
+      ; A rule with no tag is a skip, scored negative, which the engine never
+      ; reads, or a dropped span, scored positive so that it beats the
+      ; operator that opens it: the engine reads a positive match, and with
+      ; no handler its default read would allocate in the child, so the
+      ; handler answers the marker read-str filters out and allocates nothing.
       (if (null? tag)
-        (list (pair (lit analyse) entry))
+        (if (eq? kind (lit skip))
+          (list (pair (lit analyse) entry))
+          (list (pair (lit analyse) entry)
+                (pair (lit read) (let ((m (Lexer %dropped))) (fn (_ . args) m)))))
         (list (pair (lit analyse) entry)
               (pair (lit read) (Lexer %reader tag (eq? kind (lit number)))))))
 
@@ -487,6 +559,7 @@
           (Lexer %install! l (rest rules)))))))
 
 (doc (provide x/reader/lexer Lexer)
-  (note "Rules are data: run, skip, table, quoted, until, number. (Lexer make rules) builds the base; (l read-str s) reads.")
+  (note "Rules are data: run, skip, table, quoted, until, number, any. (Lexer make rules) builds the base; (l read-str s) reads.")
   (note "Every analyser state is one form, compiled through compile-asm when the lane is open and evaluated as the interpreted twin otherwise; the base is remade after an image load.")
+  (note "With the lane closed the twins run inside the child base, and their first comparison registers the engine's INTEGER type there with its s-expression analyser: a signed digit run such as +1 then reads as an integer wherever it outranks a one-byte rule. Compiled states register nothing.")
   "Tokenizer bases from data rules, with compiled analysers.")
