@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The Lexer's child base registers nothing, and every state is compiled and
+rooted** ([#903]). Tokens are built in the base that made the lexer, through
+base-eval: an integer label made in the tokenizer base registered INTEGER
+there with its s-expression analyser, and the child then read `+1` as an
+integer. The two states that were interpreted, a quoted literal's escape
+and a two-byte closer's second byte, hand back through `(first cell)` and
+compile, and the lexer holds those cells, which a collect had freed under
+the compiled code. A dropped `until` span scores positive, so a comment
+beats the `/` that opens it, and answers a marker `read-str` filters out. A
+table of any size compiles; the trie's names stopped at 26. `(Lexer any
+TAG)`, listed last, takes a byte no rule reads as a one-byte token; it
+refuses the skip rules' bytes and the end text's, which is now `make`'s
+optional second argument. Building tokens in the parent costs about 2.5 µs
+a token: 0.8 µs a byte on words, 2.0 on C-like text.
+
+[#903]: https://github.com/jonruttan/x-lang/pull/903
+
 ## [0.20.0] - 2026-10-02
 
 **A tokenizer base is built from data rules, its analysers compiled** ([#901]).
