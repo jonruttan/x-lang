@@ -1,6 +1,7 @@
 ; date.x -- Date: civil dates over unix time (#21). Pure integer math
-; (Howard Hinnant's days/civil algorithms), UTC only -- no timezone
-; database, no locale. A date is an ALIST:
+; (Howard Hinnant's days/civil algorithms) in UTC; local time is the same
+; calendar moved by the C library's zone offset (Sys zone), so there is no
+; timezone database here and no locale. A date is an ALIST:
 ;   ((year . 2026) (month . 7) (day . 18)
 ;    (hour . 21) (minute . 30) (second . 0) (wday . 6))
 ; month 1-12, day 1-31, wday 0-6 with 0 = Sunday.
@@ -56,8 +57,8 @@
 (def %pad2 (fn (_ n) (Str8 pad-left 2 #\0 (%number->str n))))
 
 (def-class Date ()
-  (doc "Civil dates over unix time: pure integer math, proleptic Gregorian, UTC only."
-    (note "A date is an alist ((year . Y) (month . M) (day . D) (hour . H) (minute . MIN) (second . S) (wday . W)); month 1-12, wday 0-6 with 0 = Sunday. No timezones, no locale -- boundary code converts at the edge.")
+  (doc "Civil dates over unix time: pure integer math, proleptic Gregorian, UTC; local is UTC moved by the zone the C library reports."
+    (note "A date is an alist ((year . Y) (month . M) (day . D) (hour . H) (minute . MIN) (second . S) (wday . W)); month 1-12, wday 0-6 with 0 = Sunday. (Date local secs) adds offset and zone. No timezone database, no locale.")
     (example "(Assoc get 'year (Date from-unix 0))" "1970")
     (example "(Date ->iso (Date from-unix 0))" "\"1970-01-01T00:00:00Z\""))
   (static
@@ -96,6 +97,15 @@
         (returns ALIST "Date alist for now")
         (sample "(Date now)" "((year . 2026) (month . 7) (day . 18) ...)"))
       (Date from-unix (Sys now)))
+
+    (method local (self (param secs INTEGER "Seconds since the unix epoch"))
+      (doc "Split unix seconds into a civil date-time alist in local time: from-unix's fields for secs moved by the zone's offset, plus offset (seconds east of UTC) and zone (its abbreviation). The zone is the C library's, through (Sys zone); the calendar is this class's."
+        (returns ALIST "((year . Y) (month . M) (day . D) (hour . H) (minute . MIN) (second . S) (wday . W) (offset . SECONDS-EAST) (zone . NAME))")
+        (sample "(Assoc get 'hour (Date local (Sys now)))" "21"))
+      (def z (Sys zone secs))
+      (def off (Assoc get 'offset z))
+      (List append (Date from-unix (+ secs off))
+              (list (pair 'offset off) (pair 'zone (Assoc get 'name z)))))
 
     (method ->iso (self (param date ALIST "Date alist"))
       (doc "Format a date alist as an ISO-8601 UTC timestamp."
