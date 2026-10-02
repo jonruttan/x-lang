@@ -107,6 +107,14 @@
       (List append (Date from-unix (+ secs off))
               (list (pair 'offset off) (pair 'zone (Assoc get 'name z)))))
 
+    (method local->unix (self (param date ALIST "Date alist in local time; hour/minute/second default to 0 when absent"))
+      (doc "Civil date-time alist in local time back to unix seconds -- the inverse of local, as to-unix is of from-unix. The C library resolves it, through (Sys local->unix): a time a daylight change skips or repeats lands where mktime puts it."
+        (returns INTEGER "Seconds since the unix epoch")
+        (sample "(Date local->unix (Date local 1790000000))" "1790000000"))
+      (Sys local->unix (Assoc get 'year date) (Assoc get 'month date) (Assoc get 'day date)
+                       (Assoc get-or 0 'hour date) (Assoc get-or 0 'minute date)
+                       (Assoc get-or 0 'second date)))
+
     (method ->iso (self (param date ALIST "Date alist"))
       (doc "Format a date alist as an ISO-8601 UTC timestamp."
         (returns STRING "\"YYYY-MM-DDTHH:MM:SSZ\"")
