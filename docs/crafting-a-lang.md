@@ -117,6 +117,42 @@ it in a sequencing form that returns nil and you have written a reject.  And
 state builders that close over the current character must copy it
 (`(+ chr 0)`), never capture the callback's own binding.
 
+### Rules instead of states: the Lexer
+
+Most bundles want the same half-dozen token shapes, and `lib/x/reader/lexer.x`
+builds the base from them.  Each rule is data — a run of characters, a run
+to drop, a table of literals matched longest-first, a quoted literal with an
+escape byte, a span from one literal to another, a number with its label —
+and `(Lexer make rules)` registers one type a rule on a `(Base make-tok)`
+child, in list order, so the first rule wins an equal-length tie:
+
+```x
+(import x/reader/lexer)
+(def c-lexer
+  (Lexer make (list
+    (Lexer skip " \t\n")
+    (Lexer until () "/*" "*/")
+    (Lexer table 'kw (list "int" "return" "if"))
+    (Lexer run 'id (list (pair 97 122) (pair 65 90) 95) (list (pair 97 122) (pair 65 90) (pair 48 57) 95))
+    (Lexer number 'num "uUlL")
+    (Lexer quoted 'str 34 34 92)
+    (Lexer table 'op (list "(" ")" "{" "}" ";" "=" "==" "+" "+=")))))
+(c-lexer read-str "int x = 0x10;")
+; => ((kw "int") (id "x") (op "=") (num "0x10" 3) (op ";"))
+```
+
+Every state is one `(fn (me buffer score chr) …)` form in the assembler
+lane's dialect: it is compiled through `compile-asm` when the lane is open,
+and the same form is evaluated as the interpreted twin when it is not, so
+the token stream is the contract and the realization is reported
+(`(l compiled)`).  The base and its states are process state — they are
+dropped before a state image is written and made again after a load — so a
+bundle holds the Lexer and nothing else.  `(l end "\n")` sets the text
+appended before every read, which is how the last token meets a delimiter;
+a space unless set.  `tests/x/specs/lib/lexer.spec.md` is the executable
+reference, and a rule the Lexer cannot express is still written by hand on
+the protocol above.
+
 ### Nesting is free: regions and blocks
 
 `(prim-ref 'tok 'read)` reads the next expression *from the same buffer*, and
@@ -385,6 +421,13 @@ contesting type — and the platform can compile them:
 - `%score-set`'s sign folds `(- 0 1)` and raises loudly on other
   non-literals; any other non-trivial constant belongs in an fvar.
   `%score-label!`'s label is a literal integer the same way.
+- **Measure the tiers before writing a byte walk.**  On 20 KB of words a
+  byte walk in x costs 39 µs a byte through the raw string prims and 130
+  through `Str8 ref`; a base with interpreted analysers costs 62; the same
+  states compiled cost 0.2, the engine's own reader's speed.  The Lexer
+  (section 4) emits the compiled form from a rule, so a bundle gets the
+  last tier without writing a state: 0.3 µs a byte on words, 1.2 on
+  C-like text with fifty-one compiled states.
 - **Adopt with sha256.x's pattern**: lazy, threshold-triggered, the whole
   attempt in a guard that pins `failed` and carries on pure-x.  Compiling
   costs seconds once; never per-call, and never unconditionally at load.

@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A tokenizer base is built from data rules, its analysers compiled** ([#901]).
+`(Lexer make rules)` (lib/x/reader/lexer.x) registers one tokenizer type a
+rule on a `(Base make-tok)` child, in list order, so the first rule wins an
+equal-length tie. A rule is `run`, `skip`, `table` (longest match), `quoted`
+(an escape byte; the text is kept raw), `until` (a span, kept or dropped) or
+`number` (labels 1 integer, 2 fraction or exponent, 3 hex, and a suffix
+class). Every analyser state is one form in the assembler lane's dialect,
+compiled through `compile-asm` when the lane is open and evaluated as the
+interpreted twin otherwise; the base and its states are dropped before a
+state image is written and made again after a load. On 20 KB of words a
+byte walk in x costs 39 µs a byte through the raw string prims and 130
+through `Str8 ref`, a base with interpreted analysers 62, and the Lexer's
+compiled states 0.29, the engine's own reader's speed; C-like text with
+fifty-one compiled states reads at 1.2 µs a byte. docs/crafting-a-lang.md
+carries the Lexer and the tier numbers.
+
+[#901]: https://github.com/jonruttan/x-lang/pull/901
 **Sys waits on several descriptors** ([#900]). `(Sys poll fds timeout)`
 is poll(2): it answers each ready descriptor with what it is ready for --
 `in`, `out`, `hup`, `err`, `nval` -- or nil once the timeout passes, and a
