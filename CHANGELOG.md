@@ -5,6 +5,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-02
+
 **A tokenizer base is built from data rules, its analysers compiled** ([#901]).
 `(Lexer make rules)` (lib/x/reader/lexer.x) registers one tokenizer type a
 rule on a `(Base make-tok)` child, in list order, so the first rule wins an
