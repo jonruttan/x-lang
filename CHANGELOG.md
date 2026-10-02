@@ -22,6 +22,18 @@ fifty-one compiled states reads at 1.2 µs a byte. docs/crafting-a-lang.md
 carries the Lexer and the tier numbers.
 
 [#901]: https://github.com/jonruttan/x-lang/pull/901
+**Sys waits on several descriptors** ([#900]). `(Sys poll fds timeout)`
+is poll(2): it answers each ready descriptor with what it is ready for --
+`in`, `out`, `hup`, `err`, `nval` -- or nil once the timeout passes, and a
+signal that interrupts the wait answers nil too. `(Sys nonblock! fd)` sets
+`O_NONBLOCK` and `(Sys nonblock! fd #f)` clears it, through fcntl reached as
+a syscall, since fcntl is variadic and Apple arm64 passes a variadic
+argument on the stack; Darwin's syscall table gains fcntl (#92). `(Socket
+shutdown fd)` closes the write side of a connection, the peer then reading
+end of input while its replies still arrive, and `(Socket peer fd)` names
+the other end as `(QUAD . PORT)`.
+
+[#900]: https://github.com/jonruttan/x-lang/pull/900
 **`(Sys zone secs)` and `(Date local secs)` give local time** ([#899]).
 `Sys zone` answers the zone in force at a unix second, from the C library's
 `localtime_r` after `tzset`: its offset in seconds east of UTC, its

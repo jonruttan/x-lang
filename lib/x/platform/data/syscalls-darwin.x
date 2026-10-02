@@ -23,6 +23,8 @@
     ; measured 80x24.  The syscall door has no variadic convention to get
     ; wrong.  (The Linux tables already carry ioctl, at 16.)
     (list (lit ioctl)  54)
+    ; fcntl (#92), variadic like ioctl and reached the same way: Sys nonblock!.
+    (list (lit fcntl)  92)
     (list (lit mkdir)  136) (list (lit rmdir) 137)
     (list (lit stat)   188) (list (lit fstat) 189) (list (lit lstat) 190)
     (list (lit lseek)  199) (list (lit ftruncate) 201)
