@@ -482,7 +482,30 @@
       (doc "Wall-clock time as unix seconds (UTC) -- the noun reading; (Sys time thunk) is the verb. CPU time is (Sys clock); civil dates are the Date class (x/sys/date)."
         (returns INTEGER "Seconds since the unix epoch")
         (sample "(Sys now)" "1752861000"))
-      (first (Sys time-of-day)))))
+      (first (Sys time-of-day)))
+
+    ; --- Time zone ---
+    ; libc's localtime_r into a GC-owned struct tm, after tzset so a TZ set
+    ; since the last call is read.  Glibc's and Darwin's struct tm share the
+    ; fields read here: tm_isdst an int at 32, tm_gmtoff a long at 40 (an
+    ; offset within a day, so its low 32 bits, sign-folded), tm_zone a char*
+    ; at 48.  Those are 64-bit offsets, and the low half of tm_gmtoff is read
+    ; as an int: the word-size and endian constraints time-of-day declares
+    ; for this file hold here too.
+    (method zone (self (param secs INTEGER "Unix seconds: the instant whose zone to read"))
+      (doc "The local time zone in force at unix second secs, from the C library's localtime_r: its offset from UTC in seconds east, its abbreviation, and whether it is daylight time. TZ in the environment chooses the zone, as it does for every C program; with none set, the system's."
+        (returns ALIST "((offset . SECONDS-EAST) (name . STRING) (dst . BOOL))")
+        (note "Civil fields in local time are (Date local secs).")
+        (sample "(Sys zone (Sys now))" "((offset . -14400) (name . \"EDT\") (dst . #t))"))
+      (let ((t (%make-str 8)) (tm (%make-str 64)))
+        (%ptr-set-word! (%str->ptr t) 0 secs)
+        (%ptr-call (%resolve "tzset"))
+        (when (= 0 (%ptr-call (%resolve "localtime_r") (%str->ptr t) (%str->ptr tm)))
+          (Err raise (lit value) "Sys zone: localtime_r cannot convert the time" secs))
+        (let ((p (%str->ptr tm)))
+          (list (pair (lit offset) (%sys-fold (%ptr-ref p 40 4)))
+                (pair (lit name) (%cvt (%cvt (%ptr-ref p 48 8) %ptr) %string))
+                (pair (lit dst) (> (%ptr-ref p 32 4) 0))))))))
 
 (doc (provide x/sys/posix Sys)
   (note "POSIX via the Sys class: (Sys fork), (Sys exec name args), (Sys pipe),")

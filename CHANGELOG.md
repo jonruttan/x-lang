@@ -17,6 +17,14 @@ end of input while its replies still arrive, and `(Socket peer fd)` names
 the other end as `(QUAD . PORT)`.
 
 [#900]: https://github.com/jonruttan/x-lang/pull/900
+**`(Sys zone secs)` and `(Date local secs)` give local time** ([#899]).
+`Sys zone` answers the zone in force at a unix second, from the C library's
+`localtime_r` after `tzset`: its offset in seconds east of UTC, its
+abbreviation and whether it is daylight time. `Date local` is `from-unix`
+moved by that offset, with `offset` and `zone` added; the calendar is still
+`Date`'s own. `TZ` chooses the zone, as it does for every C program.
+
+[#899]: https://github.com/jonruttan/x-lang/pull/899
 
 ## [0.19.0] - 2026-10-01
 
