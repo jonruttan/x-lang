@@ -2,8 +2,9 @@
 
 # @weight 7
 Pure integer math (Hinnant's civil algorithms), proleptic Gregorian,
-UTC only. A date is an alist; wday 0 = Sunday. (Sys now) wall-clock
-pins live in ext/posix coverage: here everything is deterministic.
+UTC, and local time under a TZ each case sets. A date is an alist; wday 0 =
+Sunday. (Sys now) wall-clock pins live in ext/posix coverage: here
+everything is deterministic.
 
 ## known instants
 
@@ -127,3 +128,53 @@ time-of-day and both sides of the epoch.
 ```
 ---
     ('value 'value 'value 'value)
+
+## local time
+
+Each case sets TZ to a POSIX rule string, which glibc and Darwin read alike
+with no zone database, and puts the TZ it found back before it answers.
+The expectations are the system date's: `TZ=... date -r SECS`.
+
+### Sys zone: the offset, name and daylight flag a TZ rule gives at an instant
+
+```x
+(do (import x/sys/date)
+  (def tz-was (Sys getenv "TZ"))
+  (def tz-at (fn (_ tz secs) (do (Sys setenv "TZ" tz) (Sys zone secs))))
+  (def tz-r (list (tz-at "UTC0" 1790000000)
+                  (tz-at "EST5EDT,M3.2.0,M11.1.0" 1790000000)
+                  (tz-at "EST5EDT,M3.2.0,M11.1.0" 1767225600)
+                  (tz-at "<+0530>-5:30" 1790000000)))
+  (if (null? tz-was) (Sys unsetenv "TZ") (Sys setenv "TZ" tz-was))
+  tz-r)
+```
+---
+    ((('offset . 0) ('name . "UTC") ('dst . #f)) (('offset . -14400) ('name . "EDT") ('dst . #t)) (('offset . -18000) ('name . "EST") ('dst . #f)) (('offset . 19800) ('name . "+0530") ('dst . #f)))
+
+### Date local: the civil fields in the zone, across midnight and the year, with its offset and name
+
+```x
+(do (import x/sys/date)
+  (def tz-was (Sys getenv "TZ"))
+  (def tz-at (fn (_ tz secs) (do (Sys setenv "TZ" tz) (Date local secs))))
+  (def tz-r (list (tz-at "EST5EDT,M3.2.0,M11.1.0" 1790000000)
+                  (tz-at "EST5EDT,M3.2.0,M11.1.0" 1767225600)
+                  (tz-at "<+0530>-5:30" 1767225600)))
+  (if (null? tz-was) (Sys unsetenv "TZ") (Sys setenv "TZ" tz-was))
+  tz-r)
+```
+---
+    ((('year . 2026) ('month . 9) ('day . 21) ('hour . 10) ('minute . 13) ('second . 20) ('wday . 1) ('offset . -14400) ('zone . "EDT")) (('year . 2025) ('month . 12) ('day . 31) ('hour . 19) ('minute . 0) ('second . 0) ('wday . 3) ('offset . -18000) ('zone . "EST")) (('year . 2026) ('month . 1) ('day . 1) ('hour . 5) ('minute . 30) ('second . 0) ('wday . 4) ('offset . 19800) ('zone . "+0530")))
+
+### Date local under UTC is from-unix with a zero offset
+
+```x
+(do (import x/sys/date)
+  (def tz-was (Sys getenv "TZ"))
+  (Sys setenv "TZ" "UTC0")
+  (def tz-l (Date local 1234567890))
+  (if (null? tz-was) (Sys unsetenv "TZ") (Sys setenv "TZ" tz-was))
+  (list (equal? (List take 7 tz-l) (Date from-unix 1234567890)) (Assoc get 'offset tz-l)))
+```
+---
+    (#t 0)
