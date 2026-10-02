@@ -20,6 +20,14 @@ rule. The caller chooses the stream and the status.
 
 [#905]: https://github.com/jonruttan/x-lang/pull/905
 
+**`(Sys local->unix ...)` and `(Date local->unix date)` turn a local time into unix seconds** ([#906]).
+The inverse of `Sys zone` and `Date local`: the C library's `mktime` over the
+local fields, with daylight time left to it, after `tzset`. `TZ` chooses the
+zone, and a time a daylight change skips or repeats lands where `mktime` puts
+it.
+
+[#906]: https://github.com/jonruttan/x-lang/pull/906
+
 ## [0.21.0] - 2026-10-02
 
 **The Lexer's child base registers nothing, and every state is compiled and
