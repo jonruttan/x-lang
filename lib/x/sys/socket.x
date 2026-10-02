@@ -282,6 +282,43 @@
       (%free-both)
       port)
 
+    (method shutdown (self (param fd INTEGER "Connected file descriptor")
+                           . (param how SYMBOL "write (the default), read, or both"))
+      (doc "Close one direction of a connection, through shutdown(2): after write, the peer reads end of input while what it sends still arrives -- how a client says it has sent everything and waits for the answer. The descriptor stays open; close it after."
+        (returns ANY "nil")
+        (sample "(Socket shutdown fd)" "nil -- the peer's next read answers EOF"))
+      (def h (if (null? how) (lit write) (first how)))
+      (def n (match ((eq? h (lit read)) 0) ((eq? h (lit write)) 1) ((eq? h (lit both)) 2)
+                    (#t (Err raise (lit value) "Socket shutdown: read, write or both" h))))
+      (def r (%sk-fold (%sk-ptr-call (%sk "shutdown") fd n)))
+      (when (< r 0) (error (Err from-errno (Err errno-of r) 'shutdown fd)))
+      ())
+
+    (method peer (self (param fd INTEGER "A connected file descriptor"))
+      (doc "The address at the other end of a connection, through getpeername(2): its dotted quad and port. What a server that accepted the connection says it came from."
+        (returns PAIR "(QUAD . PORT)")
+        (sample "(Socket peer (Socket accept lfd))" "(\"127.0.0.1\" . 52341)"))
+      (def addr (%sk-int->ptr (%sk-ptr-call %c-malloc 16)))
+      (def alen (%sk-int->ptr (%sk-ptr-call %c-malloc 4)))
+      (%sk-ptr-call %c-memset addr 0 16)
+      (%sk-set1! alen 0 16)
+      (%sk-set1! alen 1 0) (%sk-set1! alen 2 0) (%sk-set1! alen 3 0)
+      (def %free-both (fn (_)
+        (%sk-ptr-call %c-free addr)
+        (%sk-ptr-call %c-free alen)))
+      (def r (%sk-fold (%sk-ptr-call (%sk "getpeername") fd addr alen)))
+      (when (< r 0)
+        (let ((en (Err errno-of r)))
+          (%free-both)
+          (error (Err from-errno en 'getpeername fd))))
+      (def %u8at (prim-ref (lit ptr) (lit ref)))
+      (def b (fn (_ i) (& (%u8at addr i 1) 255)))
+      (def port (+ (* 256 (b 2)) (b 3)))
+      (def quad (Str8 append (%number->str (b 4)) "." (%number->str (b 5)) "."
+                             (%number->str (b 6)) "." (%number->str (b 7))))
+      (%free-both)
+      (pair quad port))
+
     ; --- UDP (#364). SOCK_DGRAM = 2 on both OSes. Cold paths resolve
     ; sendto/recvfrom per call ((%sk ...)), keeping the module's %-globals
     ; budget flat.
