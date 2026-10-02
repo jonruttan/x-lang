@@ -5,6 +5,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-02
+
 **The Lexer's child base registers nothing, and every state is compiled and
 rooted** ([#903]). Tokens are built in the base that made the lexer, through
 base-eval: an integer label made in the tokenizer base registered INTEGER
