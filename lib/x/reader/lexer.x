@@ -39,7 +39,7 @@
     (note "The first rule in the list wins an equal-length tie; a longer match wins regardless. List a keyword table before the identifier run that would also read it.")
     (note "A character class is a list of byte codes, (lo . hi) pairs and strings (each byte a member), or one bare string; a character literal counts as its code.")
     (note "The base and its states are dropped before a state image is written and made again after a load: a consumer holds the Lexer, never its raw base.")
-    (example "(let ((l (Lexer make (list (Lexer skip \" \") (Lexer run 'word (list (pair 97 122)) (list (pair 97 122))))))) (l read-str \"ab c\"))" "((word \"ab\") (word \"c\"))"))
+    (example "(let ((l (Lexer make (list (Lexer skip \" \") (Lexer run 'word (list (pair 97 122)) (list (pair 97 122))))))) (l read-str \"ab c\"))" "(('word \"ab\") ('word \"c\"))"))
   (doc (rules ()) "The rules the base is built from, in priority order")
   (doc (raw ()) "The raw tokenizer base, or nil between an image write and its load")
   (doc (states ()) "Every state installed on the base -- the compiled ones as native code, the rest as closures; held so the collector keeps them")
@@ -49,7 +49,7 @@
   (method read-str (self (param s STRING "Text to tokenize"))
     (doc "The tokens of s, in order, each (tag text) or (tag text label); dropped tokens (skip, an until rule with no tag) do not appear. The end text (a space unless set) is appended first, so the last token is seen."
       (returns LIST "The token list, nil for empty input")
-      (example "(l read-str \"a b\")" "((word \"a\") (word \"b\"))"))
+      (example "(let ((l (Lexer make (list (Lexer skip \" \") (Lexer run 'word \"ab\" \"ab\"))))) (l read-str \"a b\"))" "(('word \"a\") ('word \"b\"))"))
     ((Lexer %read-str) (self %base) (Str8 append s (self end))))
 
   (method %base (self)
@@ -82,7 +82,7 @@
     (method make (self (param rules LIST "Rules in priority order, each from run, skip, table, quoted, until or number"))
       (doc "A lexer over rules: a tokenizer base with one type a rule, its states compiled where the lane allows."
         (returns Lexer "The lexer")
-        (example "(Lexer make (list (Lexer skip \" \\n\") (Lexer number 'num ()) (Lexer run 'id \"abc\" \"abc\")))" "a lexer of numbers and words"))
+        (sample "(Lexer make (list (Lexer skip \" \\n\") (Lexer number 'num ()) (Lexer run 'id \"abc\" \"abc\")))" "a lexer of numbers and words"))
       (let ((raw ()) (states ()) (compiled 0) (end " "))
         (def l (new Lexer rules rules raw raw states states compiled compiled end end))
         (l remake!)
@@ -110,13 +110,13 @@
                       (param rest LIST "Class of every following character"))
       (doc "A rule for a run of characters: one of first, then any number of rest. Identifiers, words."
         (returns LIST "The rule")
-        (example "(Lexer run 'id (list (pair 97 122) 95) (list (pair 97 122) (pair 48 57) 95))" "C-style identifiers"))
+        (sample "(Lexer run 'id (list (pair 97 122) 95) (list (pair 97 122) (pair 48 57) 95))" "C-style identifiers"))
       (list (lit run) (Str8 str tag) tag first rest))
 
     (method skip (self (param class LIST "Class of the characters to drop"))
       (doc "A rule that drops a run of characters: whitespace."
         (returns LIST "The rule")
-        (example "(Lexer skip \" \\t\\n\")" "drop blanks and newlines"))
+        (sample "(Lexer skip \" \\t\\n\")" "drop blanks and newlines"))
       (%set-first! (Lexer %skip-count) (+ 1 (first (Lexer %skip-count))))
       (list (lit skip) (Str8 append "SKIP-" (%number->str (first (Lexer %skip-count)))) () class))
 
@@ -124,7 +124,7 @@
                         (param strings LIST "The literal strings to match"))
       (doc "A rule for a table of literals, longest match: operators, keywords."
         (returns LIST "The rule")
-        (example "(Lexer table 'op (list \"<\" \"<<\" \"<<=\"))" "three operators, the longest present wins"))
+        (sample "(Lexer table 'op (list \"<\" \"<<\" \"<<=\"))" "three operators, the longest present wins"))
       (list (lit table) (Str8 str tag) tag strings))
 
     (method quoted (self (param tag SYMBOL "The token's tag")
@@ -133,7 +133,7 @@
                          (param esc ANY "The escape byte, or nil for none"))
       (doc "A rule for a quoted literal: open, a body in which esc takes the next byte literally, close. The token's text is the raw literal with its quotes; decoding escapes is the reader's work, done once per token rather than per character."
         (returns LIST "The rule")
-        (example "(Lexer quoted 'str 34 34 92)" "a C string literal"))
+        (sample "(Lexer quoted 'str 34 34 92)" "a C string literal"))
       (list (lit quoted) (Str8 str tag) tag open close esc))
 
     (method until (self (param tag ANY "The token's tag, or nil to drop the token")
@@ -141,14 +141,14 @@
                         (param close STRING "The closing literal, one or two bytes"))
       (doc "A rule for a span from open to close: comments. A one-byte close is left for the next token (a newline ends a line comment and is then read on its own); a two-byte close is taken."
         (returns LIST "The rule")
-        (example "(Lexer until () \"/*\" \"*/\")" "drop block comments"))
+        (sample "(Lexer until () \"/*\" \"*/\")" "drop block comments"))
       (list (lit until) (if (null? tag) "UNTIL" (Str8 str tag)) tag open close))
 
     (method number (self (param tag SYMBOL "The token's tag")
                          (param suffix LIST "Class of suffix bytes taken after the digits, or nil"))
       (doc "A rule for a number: decimal digits, an optional fraction and exponent, or 0x and hex digits; then any bytes of suffix. The token carries a label: 1 integer, 2 fraction or exponent, 3 hex."
         (returns LIST "The rule")
-        (example "(Lexer number 'num \"uUlL\")" "C integer and floating literals"))
+        (sample "(Lexer number 'num \"uUlL\")" "C integer and floating literals"))
       (list (lit number) (Str8 str tag) tag suffix))
 
     ; --- forms --------------------------------------------------------------
