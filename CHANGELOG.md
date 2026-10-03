@@ -15,6 +15,7 @@ context is one compiled state and contexts nest 63 deep. `(Lexer escape TAG
 BYTE)` reads a byte and the byte after it as one token.
 
 [#914]: https://github.com/jonruttan/x-lang/pull/914
+
 **A lexer starts in half the time** ([#913]). The Lexer imports only the
 compile cache's door, not compile.x and its C lane, so importing it costs
 130 ms instead of 630 ms. The arm64 relocator works through the integer

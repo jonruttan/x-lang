@@ -256,8 +256,8 @@
             (Lexer %compile form fvars))
           ()))
       ; TWIN, when given, binds names differently in the interpreted twin
-      ; than FVARS does in the compiled form: the nested rule's stack is an
-      ; address there and a list of cells here.
+      ; than FVARS does in the compiled form: the nested rule's stack is a
+      ; scratch string there and a list of cells here.
       (def st
         (if (null? made)
           (eval (Lexer %subst form (if (null? twin) fvars (List append (first twin) fvars)))
