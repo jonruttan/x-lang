@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The Lexer reads nested spans and escapes** ([#914]). `(Lexer nested TAG OPEN
+START CONTEXTS)` reads a span whose body holds spans of its own: each context
+names its closing byte, its escape byte and the literals that enter other
+contexts, and a context's close returns to the one it was entered from, so a
+shell's `"..."` holding `$(...)` holding `"..."` again reads as one token. The
+return stack is a scratch buffer through the lane's `%mem-*` forms, so each
+context is one compiled state and contexts nest 63 deep. `(Lexer escape TAG
+BYTE)` reads a byte and the byte after it as one token.
+
+[#914]: https://github.com/jonruttan/x-lang/pull/914
+
 ## [0.23.0] - 2026-10-03
 
 **Socket sends and receives binary datagrams** ([#910]). `(Socket
