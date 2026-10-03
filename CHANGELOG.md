@@ -14,6 +14,15 @@ when misspelt; rules without them read as before.
 
 [#920]: https://github.com/jonruttan/x-lang/pull/920
 
+**A short Lexer read costs a fifth of what it did** ([#919]). `remake!` builds
+the read once, as a closure over the tokenizing door, the raw base, the end
+text and the dropped marker, and `read-str` calls it: ten bytes read in
+182 us instead of 1,049 us, of which the engine's tokenizing was 61 us. Only
+a rule list with a dropped span filters, and a nested or word rule's depth
+reset runs inside the same closure.
+
+[#919]: https://github.com/jonruttan/x-lang/pull/919
+
 ## [0.24.0] - 2026-10-03
 
 **`Csv parse` reads Lexer tokens instead of walking bytes** ([#918]). A lexer
