@@ -267,7 +267,9 @@
   (fn (_ nm) (if (null? nm) "" (if (str? nm) nm (symbol->str nm)))))
 
 ; The fixed part, built with ptr-set! -- four native stores for the header and
-; two per record, none of them a loop over bytes.
+; two per record, none of them a loop over bytes.  RELOCS are in the file's
+; layout, (offset label name) with the label an integer and the name a string:
+; a store converts asm.x's records once, and a group writes what it holds.
 (def %asm-cache-head-buf
   (fn (_ size relocs nrel)
     (def bytes (+ %asm-cache-head-bytes (* %asm-cache-rec-bytes nrel)))
@@ -280,8 +282,7 @@
        (unless (null? rs)
          (do (def at (+ %asm-cache-head-bytes (* %asm-cache-rec-bytes i)))
              (%asm-cache-ptr-set! hb at (first (first rs)) 4)
-             (%asm-cache-ptr-set! hb (+ at 4)
-               (%asm-cache-label-int (first (rest (first rs)))) 4)
+             (%asm-cache-ptr-set! hb (+ at 4) (first (rest (first rs))) 4)
              (self (rest rs) (+ i 1)))))
       relocs 0)
     (pair hb bytes)))
@@ -295,8 +296,7 @@
     (def ok
       ((fn (self rs)
          (if (null? rs) #t
-           (if (not (%asm-cache-put-str fd
-                      (%asm-cache-name-str (first (rest (rest (first rs)))))))
+           (if (not (%asm-cache-put-str fd (first (rest (rest (first rs))))))
              #f
              (self (rest rs)))))
         relocs))
@@ -340,13 +340,19 @@
     (def fd (%asm-cache-creat path))
     (if (< fd 0) #f
       (do
-        (def nrel (%length relocs))
-        (def hp (%asm-cache-head-buf size relocs nrel))
-        (def ok (%asm-cache-put fd (first hp) (rest hp)))
-        (%asm-cache-pcall %asm-libc-free (first hp))
-        (def all (if ok (%asm-cache-put-blob fd relocs text) #f))
+        (def ok (%asm-cache-put-rec fd text (%asm-cache-file-recs relocs) size))
         (%asm-cache-pcall %asm-libc-close fd)
-        all))))
+        ok))))
+
+; One entry's record part -- header, records, names and key text -- written to
+; FD from records in the file's layout.  A single entry's .asm file is exactly
+; this; a group file is a run of these, each followed by its code.
+(def %asm-cache-put-rec
+  (fn (_ fd text recs size)
+    (def hp (%asm-cache-head-buf size recs (%length recs)))
+    (def ok (%asm-cache-put fd (first hp) (rest hp)))
+    (%asm-cache-pcall %asm-libc-free (first hp))
+    (if ok (%asm-cache-put-blob fd recs text) #f)))
 
 ; --- load -------------------------------------------------------------------
 ; A miss, spelled once.  A miss is never an error: the caller compiles instead,
@@ -418,7 +424,9 @@
 
 ; Walk the fixed-stride records and the blob together: two ptr-refs and one
 ; ptr->str per record, no loop over bytes anywhere.  Answers
-; (records . key-text), records as (offset label name) oldest first.
+; (records key-text . end), records as (offset label name) oldest first and
+; END the offset just past the key text's NUL, where a group file's code for
+; the entry begins.
 (def %asm-cache-parse
   (fn (_ buf nrel blob end)
     (def r
@@ -437,7 +445,7 @@
         0 blob ()))
     (if (null? r) ()
       (do (def kt (%asm-cache-blob-at buf (rest r) end))
-          (if (null? kt) () (pair (%asm-cache-rev (first r) ()) (first kt)))))))
+          (if (null? kt) () (pair (%asm-cache-rev (first r) ()) kt))))))
 
 (def %asm-cache-rev
   (fn (self xs acc) (if (null? xs) acc (self (rest xs) (pair (first xs) acc)))))
@@ -527,7 +535,7 @@
         ; function compiled from different source, for a different fvar arrangement,
         ; or by a different engine -- the exact failure #590 was.
         (if (null? pr) ()
-          (if (not (str=? text (rest pr))) ()
+          (if (not (str=? text (first (rest pr)))) ()
             (pair (%asm-cache-ptr-ref buf 4 4) (first pr))))))))
 
 ; Pour the bytes into a fresh buffer, re-encode every baked address for THIS
@@ -660,17 +668,173 @@
   (fn (_ text size relocs buf)
     (if (null? %asm-cache-code-type) ()
       (if (not (null? (%asm-cache-held-find text %asm-cache-held))) ()
-        (guard (_ ())
+        (%asm-cache-hold-recs! text size (%asm-cache-file-recs relocs) buf)))))
+
+; The same, from records already in the file's layout -- what a group file
+; carries.  Nothing here checks whether TEXT is held: the callers do.
+(def %asm-cache-hold-recs!
+  (fn (_ text size recs buf)
+    (if (null? %asm-cache-code-type) ()
+      (guard (_ ())
+        (do
+          (def words (%asm-cache-int/ (+ size (- %word-size 1)) %word-size))
+          (def code (%asm-cache-obj-make %asm-cache-code-type (+ words 1)))
+          (%obj-set! code 0 words)
+          (%asm-cache-ptr-set-word! (%asm-cache-obj->ptr code) (%data-word-off words) 0)
+          (%asm-cache-copy! (%asm-cache-code-at code) buf size)
+          (set! %asm-cache-held
+            (pair (list text size code recs) %asm-cache-held))
+          ())))))
+
+; --- groups: many entries in one file ----------------------------------------
+; A caller that compiles the same set of functions in every process -- a
+; lexer's states, made from one rule list -- pays the per-entry cost of a hit
+; once per function: print and hash the key, open, read and parse two files.
+; That is ~6 ms of a ~11 ms hit, and a lexer has a score of states.  A GROUP
+; names the set: (compile asm-cache-group) runs a thunk with every compile in
+; it noted, and keeps the entries it noted in ONE file, keyed by the caller's
+; key.  The next process loads that file before the thunk runs, in one read,
+; into the entries held in the heap, so each compile in the thunk hits the
+; heap: no hash of its key, no file.
+;
+; The file is a run of entries, each the record part of an .asm file followed
+; by its code.  It is a SUPERSET of nothing and trusted for nothing: every
+; entry is still matched to a compile by its whole key text, as a held entry
+; always is, so a group file from older rules, an older compiler or another
+; engine loads entries no compile asks for, and the compiles miss to the
+; per-entry files as before.  When any compile in the thunk was not among
+; the entries the file held, the file is written again from what the heap
+; holds now.
+(def %asm-cache-group-magic 826753368)   ; "XAG1" little-endian
+
+; () when no group is open, else (texts) -- the key texts noted, newest first.
+(def %asm-cache-group-open (pair () ()))
+
+(def %asm-cache-group-note!
+  (fn (_ text)
+    (def g (first %asm-cache-group-open))
+    (unless (null? g)
+      (unless (%asm-cache-member? text (first g))
+        (%set-first! g (pair text (first g)))))))
+
+(def %asm-cache-member?
+  (fn (self s l)
+    (if (null? l) #f (if (str=? s (first l)) #t (self s (rest l))))))
+
+(def %asm-cache-group-path
+  (fn (_ key)
+    (Str append (%asm-cache-dir) "/x-asmg-"
+      (%asm-cache-wts (Hash fnv-1a (Str append %asm-cache-identity key))))))
+
+; Hold every entry of the group file at PATH that is not held already.
+; Answers the key texts the file carried, or () when there is no usable file.
+(def %asm-cache-group-load!
+  (fn (_ path)
+    (guard (_ ())
+      (do
+        (def sl (%asm-cache-slurp path))
+        (if (null? sl) ()
           (do
-            (def words (%asm-cache-int/ (+ size (- %word-size 1)) %word-size))
-            (def code (%asm-cache-obj-make %asm-cache-code-type (+ words 1)))
-            (%obj-set! code 0 words)
-            (%asm-cache-ptr-set-word! (%asm-cache-obj->ptr code) (%data-word-off words) 0)
-            (%asm-cache-copy! (%asm-cache-code-at code) buf size)
-            (set! %asm-cache-held
-              (pair (list text size code (%asm-cache-file-recs relocs))
-                    %asm-cache-held))
-            ()))))))
+            (def buf (first sl))
+            (def got (rest sl))
+            (def base (%asm-cache-ptr->int buf))
+            (def texts
+              (if (not (= (%asm-cache-ptr-ref buf 0 4) %asm-cache-group-magic)) ()
+                ((fn (self i n at acc)
+                   (if (>= i n) acc
+                     (do
+                       (def eb (%asm-cache-int->ptr (+ base at)))
+                       (def room (- got at))
+                       (if (if (< room %asm-cache-head-bytes) #t
+                             (not (%asm-cache-header-sane? eb room)))
+                         acc
+                         (do
+                           (def size (%asm-cache-ptr-ref eb 4 4))
+                           (def pr (%asm-cache-parse eb (%asm-cache-ptr-ref eb 8 4)
+                                     (%asm-cache-ptr-ref eb 12 4) room))
+                           (if (null? pr) acc
+                             (do
+                               (def text (first (rest pr)))
+                               (def end (rest (rest pr)))
+                               (if (> (+ end size) room) acc
+                                 (do
+                                   (when (null? (%asm-cache-held-find text %asm-cache-held))
+                                     (%asm-cache-hold-recs! text size (first pr)
+                                       (%asm-cache-int->ptr (+ base (+ at end)))))
+                                   (self (+ i 1) n (+ at (+ end size))
+                                         (pair text acc)))))))))))
+                  0 (%asm-cache-ptr-ref buf 4 4) 8 ())))
+            (%asm-cache-pcall %asm-libc-free buf)
+            texts))))))
+
+; Write the held entries for TEXTS (oldest first) to PATH as a group file,
+; through a pid-unique temp and a rename.  A text with no held entry is left
+; out; quiet on any failure, as a store is.
+(def %asm-cache-group-store!
+  (fn (_ path texts)
+    (guard (_ ())
+      (do
+        (def es
+          ((fn (self ts acc)
+             (if (null? ts) (%asm-cache-rev acc ())
+               (self (rest ts)
+                 ((fn (_ e) (if (null? e) acc (pair e acc)))
+                  (%asm-cache-held-find (first ts) %asm-cache-held)))))
+            texts ()))
+        (unless (null? es)
+          (do
+            (def tmp (Str append path "." (%asm-cache-wts (%asm-cache-pcall %asm-libc-getpid)) ".tmp"))
+            (def fd (%asm-cache-creat tmp))
+            (unless (< fd 0)
+              (do
+                (def hb (%asm-cache-int->ptr (%asm-cache-pcall %asm-libc-malloc 8)))
+                (%asm-cache-ptr-set! hb 0 %asm-cache-group-magic 4)
+                (%asm-cache-ptr-set! hb 4 (%length es) 4)
+                (def ok0 (%asm-cache-put fd hb 8))
+                (%asm-cache-pcall %asm-libc-free hb)
+                (def ok
+                  ((fn (self l)
+                     (if (null? l) #t
+                       (do
+                         (def e (first l))
+                         (def size (first (rest e)))
+                         (if (if (%asm-cache-put-rec fd (first e) (first (rest (rest (rest e)))) size)
+                               (%asm-cache-put fd (%asm-cache-code-at (first (rest (rest e)))) size)
+                               #f)
+                           (self (rest l))
+                           #f))))
+                    (if ok0 es ())))
+                (%asm-cache-pcall %asm-libc-close fd)
+                (if (if ok0 ok #f)
+                  (%asm-cache-pcall %asm-libc-rename tmp path)
+                  (%asm-cache-pcall %asm-libc-unlink tmp))))))))))
+
+; Run THUNK with its compiles grouped under KEY, and answer what it answers.
+; Groups do not nest: a group opened inside another runs its thunk in the
+; outer one.  An engine whose heap cannot hold an entry has no groups either:
+; the thunk runs and its compiles take the per-entry path.
+(def asm-cache-group
+  (fn (_ key thunk)
+    (if (if (null? %asm-cache-code-type) #t
+          (if (%asm-cache-stand-aside?) #t
+            (not (null? (first %asm-cache-group-open)))))
+      (thunk)
+      (do
+        (def path (%asm-cache-group-path key))
+        (def had (%asm-cache-group-load! path))
+        (def g (pair () ()))
+        (%set-first! %asm-cache-group-open g)
+        (def out
+          (guard (e (do (%set-first! %asm-cache-group-open ()) (error e)))
+            (thunk)))
+        (%set-first! %asm-cache-group-open ())
+        (def noted (first g))
+        (unless (if (= (%length noted) (%length had))
+                  ((fn (self l) (if (null? l) #t (if (%asm-cache-member? (first l) had) (self (rest l)) #f)))
+                   noted)
+                  #f)
+          (%asm-cache-group-store! path (%asm-cache-rev noted ())))
+        out))))
 
 ; The callable for TEXT from the entry held for it, or () on any miss.
 (def %asm-cache-held-load
@@ -737,6 +901,7 @@
         ; down: hashing the same text again for the store, or for the sibling
         ; file, would cost as much as hashing it did the first time.
         (def text (%asm-cache-text expr fvars analyser?))
+        (%asm-cache-group-note! text)
         ; The entry this process holds comes first: it costs no file, and in
         ; a process booted from a state image it is the entry the image
         ; carried.
@@ -778,7 +943,17 @@
 ; loads this one on first use and cannot name a function of a module it has
 ; not loaded, so it fetches the entry after the import.
 (prim-reg! (lit compile) (lit asm-cached) asm-compile-cached)
+(prim-reg! (lit compile) (lit asm-cache-group) asm-cache-group)
 
-(doc (provide x/tool/asm-cache asm-compile-cached)
+(doc asm-cache-group
+  (returns ANY "What THUNK answers")
+  "Run THUNK, a (fn (_)), with every compile-asm in it grouped under KEY, a
+   string naming the set: the same key in a later process loads every entry
+   the group kept from one file into the heap before THUNK runs, so each of
+   its compiles hits without hashing its key or opening a file.  Every entry
+   is still matched by its whole key text, so a stale group costs misses, never
+   a wrong function.  Groups do not nest.")
+
+(doc (provide x/tool/asm-cache asm-compile-cached asm-cache-group)
   "The cache behind the compile-asm door: persistent emitted native code, over
    the JIT compiler it falls back to.")

@@ -549,12 +549,25 @@
 ; The destination register is READ BACK from the existing MOVZ (its low five
 ; bits) rather than passed in: the site already encodes which register it
 ; loads, and re-deriving it keeps a relocation record down to an offset.
+;
+; The bit work goes through the integer primitives, not the generic operators:
+; a cache hit runs this once per relocation site, and a lexer state has around
+; thirty.  The generic & | << >> + dispatch on their operands' types; every
+; operand here is a machine integer.  Thirty sites cost 3.3 ms generic and
+; 0.57 ms through the primitives, the same bytes either way.
 (def %arm64-reloc
-  (fn (_ buf-ptr offset val)
-    (def rd (& (%ptr-ref buf-ptr offset 4) 31))
-    (%ptr-set! buf-ptr offset        (| 3531603968 (| (<< (& val 65535) 5) rd)) 4)
-    (%ptr-set! buf-ptr (+ offset 4)  (| 4070572032 (| (<< (& (>> val 16) 65535) 5) rd)) 4)
-    (%ptr-set! buf-ptr (+ offset 8)  (| 4072669184 (| (<< (& (>> val 32) 65535) 5) rd)) 4)
-    (%ptr-set! buf-ptr (+ offset 12) (| 4074766336 (| (<< (& (>> val 48) 65535) 5) rd)) 4)))
+  ((fn (_ band bor bshl bshr iadd)
+     (fn (_ buf-ptr offset val)
+       (def rd (band (%ptr-ref buf-ptr offset 4) 31))
+       (%ptr-set! buf-ptr offset
+         (bor 3531603968 (bor (bshl (band val 65535) 5) rd)) 4)
+       (%ptr-set! buf-ptr (iadd offset 4)
+         (bor 4070572032 (bor (bshl (band (bshr val 16) 65535) 5) rd)) 4)
+       (%ptr-set! buf-ptr (iadd offset 8)
+         (bor 4072669184 (bor (bshl (band (bshr val 32) 65535) 5) rd)) 4)
+       (%ptr-set! buf-ptr (iadd offset 12)
+         (bor 4074766336 (bor (bshl (band (bshr val 48) 65535) 5) rd)) 4)))
+   (prim-ref 'int '&) (prim-ref 'int '|) (prim-ref 'int '<<)
+   (prim-ref 'int '>>) (prim-ref 'int '+)))
 
 (set! %arch (list %arm64-table %arm64-dispatch %arm64-patch %arm64-reloc))
