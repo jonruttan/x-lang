@@ -42,6 +42,16 @@ instructions imports `x/tool/asm` itself: the cache no longer brings it.
 
 [#915]: https://github.com/jonruttan/x-lang/pull/915
 
+**`Csv parse` reads Lexer tokens instead of walking bytes** ([#918]). A lexer
+made on the first parse splits the text into separators, newlines (CR and LF
+apart), quoted fields, plain runs and stray quotes; the parser joins doubled
+quotes and refuses the same malformed quoting it always did. On 16 KB of rows
+a parse falls from 359 ms to 137 ms under helium and from 560 ms to 142 ms
+under xenon; the first parse in a process makes the lexer, about 80 ms with
+the byte cache warm.
+
+[#918]: https://github.com/jonruttan/x-lang/pull/918
+
 **A Darwin `Host` process record costs thousands of objects, not hundreds of thousands** ([#912]).
 A record read each field through a class call and re-resolved its libc
 symbols per call: 187K objects a record, and a table of ~820 processes
