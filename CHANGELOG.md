@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`(Callback make f nargs)` is a C function pointer that calls an x function** ([#909]).
+`x/sys/callback` writes a native stub a C library calls like any other --
+qsort's comparator, atexit's handler -- with up to four integer or pointer
+arguments; `f` gets each as an integer and its integer answer is the C
+result. `(cb address)` is the pointer to hand the library; the Callback
+keeps `f` alive while it is held, and the stub is freed before a state image
+is written and written again after a load.
+
+[#909]: https://github.com/jonruttan/x-lang/pull/909
+
 ## [0.22.0] - 2026-10-02
 
 **A command's options and its help text are one declaration** ([#905]).
