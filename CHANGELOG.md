@@ -7,6 +7,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.24.0] - 2026-10-03
 
+**`Csv parse` reads Lexer tokens instead of walking bytes** ([#918]). A lexer
+made on the first parse splits the text into separators, newlines (CR and LF
+apart), quoted fields, plain runs and stray quotes; the parser joins doubled
+quotes and refuses the same malformed quoting it always did. On 16 KB of rows
+a parse falls from 359 ms to 137 ms under helium and from 560 ms to 142 ms
+under xenon; the first parse in a process makes the lexer, about 80 ms with
+the byte cache warm.
+
+[#918]: https://github.com/jonruttan/x-lang/pull/918
+
 **The Lexer reads a word whose bytes hold spans** ([#917]). `(Lexer word TAG
 START CONTEXTS STOP)` is a nested span with no opening literal: its first byte
 is read in its start context, and it ends before a byte of `STOP` met at depth
@@ -53,27 +63,6 @@ from about 1,100 ms to about 570 ms under helium and from about 270 ms to
 about 220 ms under xenon.
 
 [#913]: https://github.com/jonruttan/x-lang/pull/913
-
-**A compile that hits the byte cache loads the code buffers, not the
-assembler** ([#915]). lib/x/tool/asm-code.x holds what a function's bytes
-need once they exist -- the mapping and protection, the relocation records,
-the relocators, finalize and free -- and the cache imports it alone. asm.x
-and the backend's opcode table now load with the compiler, on a miss, or
-with anything that emits. Under helium, importing the cache door falls from
-290 ms to 210 ms; a hit still never loads the compiler. Code that emits
-instructions imports `x/tool/asm` itself: the cache no longer brings it.
-
-[#915]: https://github.com/jonruttan/x-lang/pull/915
-
-**`Csv parse` reads Lexer tokens instead of walking bytes** ([#918]). A lexer
-made on the first parse splits the text into separators, newlines (CR and LF
-apart), quoted fields, plain runs and stray quotes; the parser joins doubled
-quotes and refuses the same malformed quoting it always did. On 16 KB of rows
-a parse falls from 359 ms to 137 ms under helium and from 560 ms to 142 ms
-under xenon; the first parse in a process makes the lexer, about 80 ms with
-the byte cache warm.
-
-[#918]: https://github.com/jonruttan/x-lang/pull/918
 
 **A Darwin `Host` process record costs thousands of objects, not hundreds of thousands** ([#912]).
 A record read each field through a class call and re-resolved its libc
