@@ -171,11 +171,19 @@
 
     (method until (self (param tag ANY "The token's tag, or nil to drop the token")
                         (param open STRING "The opening literal")
-                        (param close STRING "The closing literal, one or two bytes"))
-      (doc "A rule for a span from open to close: comments. A one-byte close is left for the next token (a newline ends a line comment and is then read on its own); a two-byte close is taken."
+                        (param close STRING "The closing literal, one or two bytes")
+                        . (param flags LIST "Optionally take, to-end, or both"))
+      (doc "A rule for a span from open to close: comments, delimited patterns. A one-byte close is left for the next token (a newline ends a line comment and is then read on its own) unless the flag take is given, which makes it part of the token; a two-byte close is always taken. With the flag to-end a span that meets no close runs to the end of the text and is a token all the same, the end text not part of it; without it, such a span is not a token."
         (returns LIST "The rule")
-        (sample "(Lexer until () \"/*\" \"*/\")" "drop block comments"))
-      (list (lit until) (if (null? tag) "UNTIL" (Str8 str tag)) tag open close))
+        (sample "(Lexer until () \"/*\" \"*/\")" "drop block comments")
+        (sample "(Lexer until 'pat \"/\" \"/\" 'take 'to-end)" "an ex-style /pattern/, whose closing / may be missing"))
+      ((fn (self fs)
+         (unless (null? fs)
+           (do (unless (if (eq? (first fs) (lit take)) #t (eq? (first fs) (lit to-end)))
+                 (Err raise (lit lexer) "Lexer until: a flag is take or to-end" (first fs)))
+               (self (rest fs)))))
+       flags)
+      (list (lit until) (if (null? tag) "UNTIL" (Str8 str tag)) tag open close flags))
 
     (method number (self (param tag SYMBOL "The token's tag")
                          (param suffix LIST "Class of suffix bytes taken after the digits, or nil"))
@@ -432,7 +440,12 @@
     ; negative score lose to any positive one, so a comment scored -1 would
     ; lose to the `/` operator that opens it.  Its read handler answers the
     ; dropped marker, which %handlers arranges for a rule with no tag.
-    (method %until-states (self l tag open close)
+    ;
+    ; TAKE makes a one-byte close part of the token.  TO-END scores the span
+    ; once its opener has matched, so that the engine, which accepts at the end
+    ; of the text whatever has a score, takes a span the close never ended; the
+    ; read handler then cuts the end text off it (%reader).
+    (method %until-states (self l tag open close take? to-end?)
       (def c0 ((Lexer %char->int) ((Lexer %byte-ref) close 0)))
       (def two? (> ((Lexer %byte-len) close) 1))
       (def body-cell (pair () ()))
@@ -454,21 +467,27 @@
               (list (pair (lit second) second))))
           (Lexer %state l
             (Lexer %state-form
-              (list (lit if) (list (lit =) (lit chr) c0) (Lexer %accept) (lit me)))
+              (list (lit if) (list (lit =) (lit chr) c0) (if take? (Lexer %take) (Lexer %accept)) (lit me)))
             ())))
       (%set-first! body-cell body)
       ; the cell is reached only through the compiled states' baked address, so
       ; the lexer holds it, or a collect frees it under them
       (l states (pair body-cell (l states)))
-      ; the open chain, last byte first
+      ; the open chain, last byte first; the last byte of the opener hands to
+      ; the body, scoring the span first when it may run to the end
+      (def last (- ((Lexer %byte-len) open) 1))
       ((fn (self i next)
          (if (< i 0) next
            (self (- i 1)
              (Lexer %state l
                (Lexer %state-form
-                 (list (lit if) (list (lit =) (lit chr) ((Lexer %char->int) ((Lexer %byte-ref) open i))) (lit next) ()))
+                 (list (lit if) (list (lit =) (lit chr) ((Lexer %char->int) ((Lexer %byte-ref) open i)))
+                   (if (if to-end? (= i last) #f)
+                     (lit (%seq (%score-set score 1 buffer) next))
+                     (lit next))
+                   ()))
                (list (pair (lit next) next))))))
-       (- ((Lexer %byte-len) open) 1) body))
+       last body))
 
     ; Numbers: digits, then a fraction or an exponent, or 0x then hex digits;
     ; then any suffix bytes.  Each accepting state declares its label.
@@ -785,17 +804,44 @@
         (fn (_ . args)
           (ev parent (list (list (lit lit) mk) (list (lit lit) args))))))
 
+    ; The read handler of an until span that may run to the end: a span the
+    ; engine took at the end of the text holds the end text read-str appended,
+    ; and the token is cut back by its length.  A span is at the end exactly
+    ; when the buffer's read cursor has met its write cursor -- the first and
+    ; second words of the buffer's inner object.  Whether its close was in the
+    ; end text or nothing closed it, the end text is the token's last bytes.
+    (method %reader-to-end (self tag end-len)
+      (let ((tok (Lexer %buffer-token)) (ev (Lexer %base-eval)) (parent (%base))
+            (sub (prim-ref (lit str) (lit byte-sub))) (len (Lexer %byte-len))
+            (write-at (%data-word-off 1)))
+        (def mk
+          (fn (_ args)
+            (def text (tok (first args)))
+            (def inner (rest (first args)))
+            (if (= (%cell-int inner) (%ptr-ref-word (%obj->ptr inner) write-at))
+              (list tag (sub text 0 (- (len text) end-len)))
+              (list tag text))))
+        (fn (_ . args)
+          (ev parent (list (list (lit lit) mk) (list (lit lit) args))))))
+
     (method %handlers (self l rule)
       (def kind (first rule))
       (def tag (first (rest (rest rule))))
       (def args (rest (rest (rest rule))))
+      ; an until rule's flags are its third argument, a list
+      (def %until-flag?
+        (fn (_ as f)
+          ((fn (self fs) (if (null? fs) #f (if (eq? (first fs) f) #t (self (rest fs)))))
+           (first (rest (rest as))))))
       (def entry
         (match
           ((eq? kind (lit run)) (Lexer %run-states l (first args) (first (rest args))))
           ((eq? kind (lit skip)) (Lexer %skip-states l (first args)))
           ((eq? kind (lit table)) (Lexer %table-states l (first args)))
           ((eq? kind (lit quoted)) (Lexer %quoted-states l (first args) (first (rest args)) (first (rest (rest args)))))
-          ((eq? kind (lit until)) (Lexer %until-states l tag (first args) (first (rest args))))
+          ((eq? kind (lit until))
+            (Lexer %until-states l tag (first args) (first (rest args))
+              (%until-flag? args (lit take)) (%until-flag? args (lit to-end))))
           ((eq? kind (lit number)) (Lexer %number-states l (first args)))
           ((eq? kind (lit any)) (Lexer %any-states l))
           ((eq? kind (lit nested))
@@ -815,7 +861,10 @@
           (list (pair (lit analyse) entry)
                 (pair (lit read) (let ((m (Lexer %dropped))) (fn (_ . args) m)))))
         (list (pair (lit analyse) entry)
-              (pair (lit read) (Lexer %reader tag (eq? kind (lit number)))))))
+              (pair (lit read)
+                (if (if (eq? kind (lit until)) (%until-flag? args (lit to-end)) #f)
+                  (Lexer %reader-to-end tag ((Lexer %byte-len) (l end)))
+                  (Lexer %reader tag (eq? kind (lit number))))))))
 
     ; Register in list order: the type registered first wins a tie.
     (method %install! (self l rules)
