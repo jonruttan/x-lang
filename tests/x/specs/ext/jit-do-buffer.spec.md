@@ -122,6 +122,7 @@ moved the position by NOTHING: a torn instruction would leave it past
 
 ```x
 (do
+  (import x/tool/asm)
   (def %probe (asm-new 64))
   (asm-emit! %probe 'mov x0 x0)
   (def %size (asm-pos %probe))

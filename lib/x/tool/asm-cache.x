@@ -55,7 +55,9 @@
 (module x/tool/asm-cache)
 
 (import x/type/hash)
-(import x/tool/asm)
+; The code buffers and the relocator, not the assembler: a hit pours bytes it
+; already has, so the encoder and its opcode table load only with the compiler.
+(import x/tool/asm-code)
 
 ; "XAC3" little-endian, read back as one 4-byte ptr-ref.  Bump it and every
 ; existing entry misses -- the format's own version, and the reason a format
@@ -855,7 +857,7 @@
 ; compiler costs 2.5M evals before it emits a single instruction -- a third
 ; again of what the eleven compiles in a xenon boot cost to run.  Probing first
 ; means a warm process never pays it: compile.x's lazy stub imports THIS
-; module, this module imports asm.x (which the loader needs), and
+; module, this module imports asm-code.x (which the loader needs), and
 ; x/tool/asm-compile is imported only on the line below that actually needs a
 ; compiler, and reached through the %asm-compiler slot it fills in -- a slot,
 ; not a lazily-bound name, so that no load order can leave this file holding a

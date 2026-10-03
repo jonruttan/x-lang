@@ -1,65 +1,17 @@
 ; asm.x -- Data-driven assembler: JIT machine code generation
 (import x/core/list)
-; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
-(def %make-obj (prim-ref 'obj 'make))
-(def %obj-ref (prim-ref 'obj 'ref))
-(def %obj-set! (prim-ref 'obj 'set!))
-(def %make-type (prim-ref 'type 'make))
+; The buffers, the relocation records and the relocator, the facts about the
+; function produced last, and the slots the compiler fills: what a function's
+; bytes need once they exist.  The byte cache loads that file alone; this one,
+; the operands, the emitters and the backend's opcode table, comes with the
+; compiler.
+(import x/tool/asm-code)
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str-append (prim-ref 'str 'append))
 (def %str->symbol (prim-ref 'str '->sym))
 
 (import x/type/str)
-; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
-(def %ptr-call (prim-ref 'ptr 'call))
-(def %ptr->int (prim-ref 'ptr '->int))
-(def %ptr-set! (prim-ref 'ptr 'set!))
-(def %ptr-ref  (prim-ref 'ptr 'ref))
-(def %dlopen (prim-ref 'ffi 'dlopen))
-(def %dlsym (prim-ref 'ffi 'dlsym))
-
-
-(import x/platform/syscall)
-
-; --- Platform detection ---
-; Read from the platform layer, not sniffed from x-machine here.  This module
-; used to parse the triple itself, and it was the only one of three readers that
-; knew Darwin spells A64 "arm64" while GNU triplets spell it "aarch64" -- so the
-; knowledge lived in whichever file happened to need it most recently.  One
-; parse, in lib/x/platform/syscall.x; tools/check/platform-seam.sh holds it there.
-(def %asm-darwin? os-darwin?)
-(def %asm-arm64? arch-arm64?)
-
-
-; --- mmap flags ---
-(def %MAP-FLAGS
-  (if %asm-darwin?
-    (| 2 4096)    ; MAP_PRIVATE|MAP_ANON
-    (| 2 32)))    ; MAP_PRIVATE|MAP_ANON (Linux)
-
-; --- Memory management via C library (more portable than raw syscalls) ---
-(def %libc (%dlopen () 1))
-(def %c-mmap     (%dlsym %libc "mmap"))
-(def %c-mprotect (%dlsym %libc "mprotect"))
-(def %c-munmap   (%dlsym %libc "munmap"))
-(def %c-icache   (%dlsym %libc "sys_icache_invalidate"))
-
-(def %asm-mmap
-  (fn (_ size)
-    (%ptr-call %c-mmap 0 size 3 %MAP-FLAGS -1 0)))  ; PROT_READ|PROT_WRITE=3
-
-(def %asm-mprotect-rx!
-  (fn (_ ptr size)
-    ; Flush icache on ARM (no-op if unavailable)
-    (when (not (null? %c-icache))
-      (%ptr-call %c-icache (%ptr->int ptr) size))
-    ; Switch to read+execute
-    (%ptr-call %c-mprotect (%ptr->int ptr) size 5)))  ; PROT_READ|PROT_EXEC=5
-
-(def %asm-munmap
-  (fn (_ ptr size)
-    (%ptr-call %c-munmap (%ptr->int ptr) size)))
 
 ; --- Operand constructors ---
 (def reg   (fn (_ n)        (list 'reg n)))
@@ -188,84 +140,6 @@
     (%emit-u32-le! asm (& val 4294967295))
     (%emit-u32-le! asm (>> val 32))))
 
-; --- Assembler type ---
-; 6 slots: buf-addr buf-pos buf-cap labels patches arch
-(def %asm-type
-  (%make-type "ASM"
-    (list
-      (pair 'write
-        (fn (_ self)
-          (display "<asm pos=" (%obj-ref self 1) ">")))
-      (pair 'call
-        (fn (_ self . args)
-          (apply asm-emit! (pair self args)))))))
-
-; GC: ASM objects are 7 fixed slots (labels/patches/relocs alists are heap
-; pairs); without units the mark hook never traced them (same class as
-; the vector-payload gap).
-;
-; THIS NUMBER MUST MATCH asm-new's %make-obj, and it did not.  It said 6 while
-; asm-new made 7, from the commit that added the relocations slot (#598) -- so
-; slot 6, the relocation records, was the one thing on a live builder the
-; collector could not see.  One (Heap collect) with three records held turned
-; them into a single nil: not a leak, a use-after-free, waiting for a
-; collection to land between recording a site and reading it back.
-((prim-ref 'type 'set-units!) ((prim-ref 'type 'by-atom) %asm-type) 7)
-
-; --- Architecture loading ---
-; Each arch module sets %arch to (table . encoder)
-(def %arch ())
-
-; The JIT runtime helpers asm-compile.x could not resolve.  It RECORDS them
-; while it loads and refuses at the entry point rather than mid-import (#201);
-; the name lives here so the entry point -- compile-asm, in asm-cache.x -- can
-; consult it without loading the compiler to find out.  Empty is the honest
-; answer before that file loads: nothing has tried to resolve anything yet,
-; and a genuinely missing helper makes every cached trampoline fail to
-; re-resolve, so the load misses and reaches the compiler's refusal anyway.
-(def %jit-missing ())
-
-; The fresh compiler, registered by asm-compile.x when it loads -- the same
-; pattern as %arch above, and for the same reason: the seam has to be nameable
-; by a file that does not import the one filling it in.  asm-cache.x is the
-; compile-asm door and reaches the compiler only when the byte cache misses,
-; so it imports asm-compile.x on that line and calls whatever landed HERE.
-; A slot rather than a lazily-bound name because a name would have to be
-; forward-declared, and a forward declaration loaded in the wrong order would
-; overwrite the real definition with nil -- which in x does not raise: calling
-; nil silently answers the form as data.
-(def %asm-compiler ())
-
-; --- The facts about the most recently produced native function -----------
-; Set by whichever path produced it: asm-compile.x after it emits, asm-cache.x
-; after it loads.  They live HERE, not in asm-compile.x where they started,
-; because a warm cache never loads asm-compile.x -- and a reader of these
-; (the relocation specs, a byte cache) must not have to care which path ran.
-; The assembler object itself does not outlive either path, so these are the
-; only way out for what it knew.  Read them immediately after a compile or not
-; at all.
-(def %asm-last-relocs ())
-(def %asm-last-size 0)
-; The code buffer itself, not a copy: the cache stores the bytes with one
-; write(2) straight out of it.
-(def %asm-last-buf ())
-
-; --- Public API ---
-
-(def asm-new
-  (fn (_ . rest)
-    (def cap (if (null? rest) 4096 (first rest)))
-    (def ptr (%asm-mmap cap))
-    (if (null? ptr) (Err raise 'io "asm-new: mmap failed" ()))
-    (def a (%make-obj %asm-type 7))
-    (%obj-set! a 0 ptr)      ; buf-ptr (from ptr-call, PTR type)
-    (%obj-set! a 1 0)        ; buf-pos
-    (%obj-set! a 2 cap)      ; buf-cap
-    (%obj-set! a 3 ())       ; labels
-    (%obj-set! a 4 ())       ; patches
-    (%obj-set! a 5 %arch)    ; (table . encoder)
-    (%obj-set! a 6 ())       ; relocs: (offset label name), newest first
-    a))
 
 (def asm-emit!
   (fn (_ asm mnemonic . args)
@@ -280,6 +154,9 @@
     ; arch is (table encoder); the encoder is its second element.
     ((first (rest arch)) asm (rest variant) args)))
 
+; Calling an assembler emits through it (see %asm-emit in asm-code.x).
+(set! %asm-emit asm-emit!)
+
 (def asm-label!
   (fn (_ asm name)
     (%obj-set! asm 3 (pair (pair name (%obj-ref asm 1)) (%obj-ref asm 3)))))
@@ -293,88 +170,6 @@
 (def asm-pos
   (fn (_ asm) (%obj-ref asm 1)))
 
-; --- Relocations: the per-process addresses baked into the code ----------
-;
-; A 64-bit immediate is how this assembler names anything outside the code
-; it is emitting: a jit_* trampoline resolved by dlsym, an fvar's object
-; pointer, the self-call trampoline cell.  Every one of those is an address
-; valid only in the process that compiled -- which is exactly what stops the
-; emitted bytes from being reusable.  Recording each site as
-; (offset label name) is what makes them reusable: a loader can pour the same
-; bytes into a fresh buffer and re-encode each immediate for the process it
-; is loading into.  Nothing here changes what is emitted; it only writes down
-; where the addresses went.
-;
-; LABEL is `trampoline` (NAME is the dlsym symbol), `fvar` (NAME is the free
-; variable's symbol) or `self-cell` (NAME is nil -- there is one per compile).
-(def asm-reloc!
-  (fn (_ asm offset label name)
-    (%obj-set! asm 6 (pair (list offset label name) (%obj-ref asm 6)))))
-
-; Oldest-first, which is the order a loader wants to walk them.
-(def asm-relocs
-  (fn (_ asm)
-    ((fn (self xs acc) (if (null? xs) acc (self (rest xs) (pair (first xs) acc))))
-      (%obj-ref asm 6) ())))
-
-; Re-encode the 64-bit immediate at OFFSET to VAL, in place.  The encoding is
-; the backend's business (ARM64 spreads it across MOVZ+3xMOVK, x86-64 stores
-; it flat after the opcode), so this dispatches to the arch's relocator --
-; slot 3 of %arch, beside the label patcher in slot 2.  MUST run while the
-; buffer is still writable: asm-finalize! mprotects it R+X, and a write after
-; that is a segfault, not an error.
-; The backend's relocator, or () when it has none.  Fetched apart from the
-; call because FINDING it costs a %length and a List ref -- a class dispatch --
-; which is nothing for one site and is not nothing for the scores of them a
-; cached function re-encodes on load.  A loader hoists this out of its loop and
-; calls the answer directly; asm-reloc-apply! below is the one-shot form.
-(def asm-relocator
-  (fn (_ asm)
-    (def arch (%obj-ref asm 5))
-    (when (> (%length arch) 3) (List ref 3 arch))))
-
-(def asm-reloc-apply!
-  (fn (_ asm offset val)
-    (def f (asm-relocator asm))
-    (if (null? f)
-      (Err raise 'state "asm: this backend cannot relocate a 64-bit immediate" ())
-      (f (%obj-ref asm 0) offset val))))
-
-(def asm-finalize!
-  (fn (_ asm)
-    (def labels (%obj-ref asm 3))
-    (def patches (%obj-ref asm 4))
-    (def buf-ptr (%obj-ref asm 0))
-    ; Resolve patches (arch-specific resolver in slot 2 of arch)
-    (def arch (%obj-ref asm 5))
-    (def resolver (when (> (%length arch) 2) (List ref 2 arch)))
-    (%for-each
-      (fn (_ patch)
-        (def offset (List ref 0 patch))
-        (def width  (List ref 1 patch))
-        (def ptype  (List ref 2 patch))
-        (def lname  (List ref 3 patch))
-        (def target-entry (Assoc entry lname labels))
-        (if (null? target-entry)
-          (Err raise 'value (Str append "asm: unresolved label: " (symbol->str lname)) ()))
-        (def target (rest target-entry))
-        (if (not (null? resolver))
-          (resolver buf-ptr offset width ptype target)
-          ; Generic fallback: relative offset
-          (let ((val (if (eq? ptype 'rel)
-                       (- target (+ offset width))
-                       target)))
-            (%ptr-set! buf-ptr offset val width))))
-      patches)
-    ; Make executable (includes icache flush on ARM)
-    (%asm-mprotect-rx! buf-ptr (%obj-ref asm 2))
-    ; Return the pointer (callable via ptr-call)
-    buf-ptr))
-
-(def asm-free!
-  (fn (_ asm)
-    (%asm-munmap (%obj-ref asm 0) (%obj-ref asm 2))
-    ()))
 
 ; --- Load architecture ---
 ; import, not a path literal: resolves through the import roots so the
@@ -384,6 +179,6 @@
   (import x/tool/asm/x86_64))
 
 (doc (provide x/asm
-  asm-new asm-emit! asm-label! asm-patch! asm-pos asm-finalize! asm-free!
+  asm-emit! asm-label! asm-patch! asm-pos
   reg imm mem label)
-  "Data-driven assembler with JIT execution via mmap.")
+  "Data-driven assembler with JIT execution via mmap; the buffers it emits into are x/tool/asm-code's.")

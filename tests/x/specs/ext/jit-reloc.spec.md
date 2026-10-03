@@ -61,6 +61,7 @@ error, so a loader must pour, relocate, then protect.
 
 ```scheme
 (do
+  (import x/tool/asm)
   (def %a (asm-new 256))
   (def %site (asm-pos %a))
   (asm-load-imm64! %a x0 3735928559)
@@ -81,6 +82,7 @@ it only meant to rewrite in place.
 
 ```scheme
 (do
+  (import x/tool/asm)
   (def %a (asm-new 256))
   (def %site (asm-pos %a))
   (asm-load-imm64! %a x0 1311768467463790320)
