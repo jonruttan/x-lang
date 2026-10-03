@@ -76,6 +76,8 @@
   ; repl/line.x need neither: they are string and list work over what this
   ; file hands them.
   (needs "lib/x/repl/term.x" isa/ffi-call isa/syscall)
+  ; A callback's stub calls the engine's JIT doors, found by dlsym.
+  (needs "lib/x/sys/callback.x" isa/ffi-call)
   (needs "lib/x/sys/gc.x" isa/gc)
   (needs "lib/x/sys/host.x" isa/ffi-call)
   (needs "lib/x/sys/posix.x" isa/ffi-call isa/sys isa/syscall)
