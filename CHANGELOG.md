@@ -7,6 +7,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.24.0] - 2026-10-03
 
+**The Lexer reads a word whose bytes hold spans** ([#917]). `(Lexer word TAG
+START CONTEXTS STOP)` is a nested span with no opening literal: its first byte
+is read in its start context, and it ends before a byte of `STOP` met at depth
+0, which is left for the next token. Spans opened inside it read as `nested`
+reads them, so a shell word with its escapes, quotes and command
+substitutions is one token. Every nested and word rule puts its return stack
+back at depth 0 before each read and when an opener goes past its depth.
+
+[#917]: https://github.com/jonruttan/x-lang/pull/917
+
 **A compile that hits the byte cache loads the code buffers, not the
 assembler** ([#915]). lib/x/tool/asm-code.x holds what a function's bytes
 need once they exist -- the mapping and protection, the relocation records,
@@ -28,16 +38,6 @@ context is one compiled state and contexts nest 63 deep. `(Lexer escape TAG
 BYTE)` reads a byte and the byte after it as one token.
 
 [#914]: https://github.com/jonruttan/x-lang/pull/914
-
-**The Lexer reads a word whose bytes hold spans** ([#917]). `(Lexer word TAG
-START CONTEXTS STOP)` is a nested span with no opening literal: its first byte
-is read in its start context, and it ends before a byte of `STOP` met at depth
-0, which is left for the next token. Spans opened inside it read as `nested`
-reads them, so a shell word with its escapes, quotes and command
-substitutions is one token. Every nested and word rule puts its return stack
-back at depth 0 before each read and when an opener goes past its depth.
-
-[#917]: https://github.com/jonruttan/x-lang/pull/917
 
 **A lexer starts in half the time** ([#913]). The Lexer imports only the
 compile cache's door, not compile.x and its C lane, so importing it costs
