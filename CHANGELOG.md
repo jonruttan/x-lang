@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`Zlib` streams deflate and inflate buffers in place** ([#921]). `(Zlib
+deflater LEVEL FORMAT)` and `(Zlib inflater FORMAT)` make a stream for zlib's
+wrapper, gzip's, or raw deflate; `(Zlib step S IN OFF N OUT AT ROOM FINISH)`
+runs one call over a stretch of each buffer and answers how much it used and
+made and whether the stream has ended; `(Zlib end S)` frees it, and `(Zlib
+crc32 CRC BUF N)` is gzip's CRC. A file goes through a block at a time, never
+read whole. Needs an engine whose `ptr call` passes eight arguments
+(x-engine-c#86).
+
+[#921]: https://github.com/jonruttan/x-lang/pull/921
+
 ## [0.24.0] - 2026-10-03
 
 **`Csv parse` reads Lexer tokens instead of walking bytes** ([#918]). A lexer
