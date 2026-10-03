@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A Darwin `Host` process record costs thousands of objects, not hundreds of thousands** ([#912]).
+A record read each field through a class call and re-resolved its libc
+symbols per call: 187K objects a record, and a table of ~820 processes
+passed 3.5 GB. It now reads off primitives and symbols resolved once a
+process, cleared by the image recache hook: 14.5K a record, 11.8M the
+table. `Host args` asks for `kern.procargs2`'s size instead of taking
+`kern.argmax`'s 1 MB, 89.5K a call to 24K; reading a C string, 73K to 9K.
+
+[#912]: https://github.com/jonruttan/x-lang/pull/912
+
 ## [0.23.0] - 2026-10-03
 
 **Socket sends and receives binary datagrams** ([#910]). `(Socket
