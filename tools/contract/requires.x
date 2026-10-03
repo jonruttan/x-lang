@@ -84,7 +84,7 @@
   (needs "lib/x/sys/socket.x" isa/ffi-call)
   (needs "lib/x/tool/asm-cache.x" isa/ffi-call)
   (needs "lib/x/tool/asm-compile.x" isa/ffi-call)
-  (needs "lib/x/tool/asm.x" isa/ffi-call)
+  (needs "lib/x/tool/asm-code.x" isa/ffi-call)
   (needs "lib/x/tool/compile.x" isa/ffi-call)
   ; The pipeline resolves x_fvar_table in the loaded object with its own
   ; dlsym fetch, to patch it after a load.

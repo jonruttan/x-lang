@@ -189,20 +189,26 @@
 (shared "lib/x/doc/doc.x" %c-error "a colour code, empty until repl/ansi.x sets it")
 (shared "lib/x/doc/doc.x" %c-module "a colour code, empty until repl/ansi.x sets it")
 
-; --- tool/asm.x: what a backend emits through, and the slots the JIT fills ----
-(shared "lib/x/tool/asm.x" %arch "the architecture's table and encoder; the backend sets it at load")
+; --- tool/asm-code.x: the buffers, the relocator, and the slots the JIT fills ---
+(shared "lib/x/tool/asm-code.x" %arch "the architecture's table and encoder; the backend sets it at load")
+(shared "lib/x/tool/asm-code.x" %asm-reloc "the host's relocator; the backend lists it in its table")
+(shared "lib/x/tool/asm-code.x" %asm-arm64? "whether the host is A64, which picks the backend")
+(shared "lib/x/tool/asm-code.x" %ptr-set! "the catalogue's ptr set!, fetched once")
+(shared "lib/x/tool/asm-code.x" %asm-compiler "the compiler, once asm-compile.x has loaded and filed it")
+(shared "lib/x/tool/asm-code.x" %asm-emit "the emitter, once asm.x has loaded and filed it")
+(shared "lib/x/tool/asm-code.x" %jit-missing "the runtime helpers the compiler could not resolve")
+(shared "lib/x/tool/asm-code.x" %asm-last-relocs "the relocations of the function produced last")
+(shared "lib/x/tool/asm-code.x" %asm-last-size "the size of the function produced last")
+(shared "lib/x/tool/asm-code.x" %asm-last-buf "the code buffer of the function produced last")
+(shared "lib/x/tool/asm-code.x" %obj-ref "the catalogue's obj ref, fetched once")
+
+; --- tool/asm.x: what a backend emits through ---------------------------------
 (shared "lib/x/tool/asm.x" %op-type "an operand's type")
 (shared "lib/x/tool/asm.x" %op-value "an operand's value")
 (shared "lib/x/tool/asm.x" %emit-u8! "emits one byte")
 (shared "lib/x/tool/asm.x" %emit-bytes! "emits a list of bytes")
 (shared "lib/x/tool/asm.x" %emit-u32-le! "emits a 32-bit word, low byte first")
 (shared "lib/x/tool/asm.x" %emit-u64-le! "emits a 64-bit word, low byte first")
-(shared "lib/x/tool/asm.x" %asm-compiler "the compiler, once asm-compile.x has loaded and filed it")
-(shared "lib/x/tool/asm.x" %jit-missing "the runtime helpers the compiler could not resolve")
-(shared "lib/x/tool/asm.x" %asm-last-relocs "the relocations of the function produced last")
-(shared "lib/x/tool/asm.x" %asm-last-size "the size of the function produced last")
-(shared "lib/x/tool/asm.x" %asm-last-buf "the code buffer of the function produced last")
-(shared "lib/x/tool/asm.x" %obj-ref "the catalogue's obj ref, fetched once")
 
 ; --- tool/lint.x: the hooks and analysers its driver sets and routes to -------
 (shared "lib/x/tool/lint.x" %lint-binds? "a hook: whether a form binds a name; the driver sets it")

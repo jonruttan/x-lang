@@ -280,17 +280,26 @@
 ; asm-compile.x, which is the wrong home once there are TWO producers: a hit in
 ; the byte cache never loads that file, and nothing reading these should have
 ; to know which path ran.
-(file "lib/x/tool/asm.x" 43)
+; asm.x fell 43 to 15 when the buffers, the relocator and the slots the JIT
+; fills moved to asm-code.x, which the byte cache loads without the encoder.
+(file "lib/x/tool/asm.x" 15)
+; asm-code.x is asm.x's buffer half: the 28 names that moved from it, the two
+; relocators that moved from the backends, and %asm-reloc, the host's
+; relocator, which a buffer poured from the cache reads without the backend;
+; and %asm-emit, the slot asm.x fills so that calling an assembler emits.
+(file "lib/x/tool/asm-code.x" 32)
 ; arm64.x rose 8 to 9 for %arm64-reloc: re-encoding a 64-bit immediate is
 ; per-backend work (MOVZ + 3x MOVK, sixteen bits to a word).
-(file "lib/x/tool/asm/arm64.x" 9)
+; arm64.x fell 9 to 8 when %arm64-reloc moved to asm-code.x.
+(file "lib/x/tool/asm/arm64.x" 8)
 ; x86_64.x rose 23 to 24 for %x86_64-reloc: the same operation, one flat
 ; 8-byte store after the two opcode bytes.
 ; x86_64.x rose 24 to 25 for %x86-float: the scalar double instructions (SSE2),
 ; which float.x's stubs emit now that the engine does no floating point.
 ; One lowering for the ten forms, its helpers bound inside it; arm64 needs
 ; no row, its forms being table words and one dispatch clause.
-(file "lib/x/tool/asm/x86_64.x" 25)
+; x86_64.x fell 25 to 24 when %x86_64-reloc moved to asm-code.x.
+(file "lib/x/tool/asm/x86_64.x" 24)
 ; compile.x rose 25 to 26 for %compile-cache-identity: the engine-and-machine
 ; half of the cache key, held apart from the expression so the pairing can be
 ; named and asserted (#590 -- a key without engine identity served
