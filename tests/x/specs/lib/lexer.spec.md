@@ -619,3 +619,90 @@ substitutions are spans inside the word, and blanks and operators end it.
 ```
 ---
     ('refused 'refused 'made)
+
+## until: a close that is taken, a span that runs to the end
+
+### take makes a one-byte close part of the token
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer until 'pat "/" "/" 'take)
+    (Lexer run 'w "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz"))))
+  (write (%lx-l read-str "/ab/ c /d/"))
+  (newline))
+```
+---
+    (('pat "/ab/") ('w "c") ('pat "/d/"))
+
+### to-end takes a span no close ended, and the end text is not part of it
+
+The end text is a space here, and a space inside the span stays: only the
+bytes read-str appended are cut.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer until 'pat "/" "/" 'take 'to-end)
+    (Lexer run 'w "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz"))))
+  (write (list (%lx-l read-str "s/a/b/g") (%lx-l read-str "/a b") (%lx-l read-str "/a/")))
+  (newline))
+```
+---
+    ((('w "s") ('pat "/a/") ('w "b") ('pat "/g")) (('pat "/a b")) (('pat "/a/")))
+
+### without to-end a span no close ended is not a token
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer until 'pat "/" "/" 'take)
+    (Lexer run 'w "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz")
+    (Lexer any 'bad))))
+  (write (%lx-l read-str "a /b"))
+  (newline))
+```
+---
+    (('w "a") ('bad "/") ('w "b"))
+
+### to-end with a close left for the next token, and a close the input supplies
+
+A line comment that the text's own newline ends is the comment up to it; one
+the text ends without a newline is the comment to the end.  With a newline as
+the end text and take, a close the input supplies stays in the token.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer table 'nl (list "\n"))
+    (Lexer until 'c "#" "\n" 'to-end)
+    (Lexer run 'w "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz"))))
+  (def %lx-t (Lexer make (list
+    (Lexer until 'c "//" "\n" 'take 'to-end)
+    (Lexer run 'w "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz"))
+    "\n"))
+  (write (list (%lx-l read-str "a # c") (%lx-l read-str "a # c\nb")
+               (%lx-t read-str "// x") (%lx-t read-str "// x\n")))
+  (newline))
+```
+---
+    ((('w "a") ('c "# c")) (('w "a") ('c "# c") ('nl "\n") ('w "b")) (('c "// x")) (('c "// x\n")))
+
+### an unknown flag is refused
+
+```x
+(do
+  (import x/reader/lexer)
+  (write (guard (e (lit refused)) (Lexer until 'c "#" "\n" 'greedy)))
+  (newline))
+```
+---
+    'refused

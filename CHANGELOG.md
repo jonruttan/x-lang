@@ -16,6 +16,15 @@ read whole. Needs an engine whose `ptr call` passes eight arguments
 
 [#921]: https://github.com/jonruttan/x-lang/pull/921
 
+**`until` takes its close, or runs to the end of the text** ([#920]).
+`(Lexer until TAG OPEN CLOSE 'take 'to-end)`: `take` makes a one-byte close
+part of the token, so `/ab/` is one token; `to-end` makes a span no close
+ended a token running to the end of the text, the end text cut off it, so
+ex's `/pat` with no closing `/` is read whole. Both are optional and refused
+when misspelt; rules without them read as before.
+
+[#920]: https://github.com/jonruttan/x-lang/pull/920
+
 **A short Lexer read costs a fifth of what it did** ([#919]). `remake!` builds
 the read once, as a closure over the tokenizing door, the raw base, the end
 text and the dropped marker, and `read-str` calls it: ten bytes read in
