@@ -62,6 +62,15 @@ the byte cache warm.
 
 [#918]: https://github.com/jonruttan/x-lang/pull/918
 
+**A short Lexer read costs a fifth of what it did** ([#919]). `remake!` builds
+the read once, as a closure over the tokenizing door, the raw base, the end
+text and the dropped marker, and `read-str` calls it: ten bytes read in
+182 us instead of 1,049 us, of which the engine's tokenizing was 61 us. Only
+a rule list with a dropped span filters, and a nested or word rule's depth
+reset runs inside the same closure.
+
+[#919]: https://github.com/jonruttan/x-lang/pull/919
+
 **A Darwin `Host` process record costs thousands of objects, not hundreds of thousands** ([#912]).
 A record read each field through a class call and re-resolved its libc
 symbols per call: 187K objects a record, and a table of ~820 processes
