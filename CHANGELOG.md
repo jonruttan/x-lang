@@ -5,6 +5,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-02
+
 **A command's options and its help text are one declaration** ([#905]).
 `(Opts declare NAME SYNOPSIS SUMMARY ROWS)` takes rows built by `flag`,
 `arg`, `hidden` and `text`, and the rows are both what `parse` accepts and

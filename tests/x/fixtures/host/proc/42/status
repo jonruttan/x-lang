@@ -1,0 +1,5 @@
+Name:	sh
+Umask:	0022
+State:	R (running)
+Uid:	1000	1001	1001	1001
+Gid:	100	101	101	101
