@@ -41,6 +41,8 @@
   (static
     (source    ()      "'linux or 'darwin: which reader answers; nil means this kernel's")
     (proc-root "/proc" "The /proc tree the Linux reader opens")
+    (types     ()      "The STRING, POINTER and INTEGER type handles, once %types has looked them up")
+    (ctx       ()      "What %darwin-ctx resolves, once it has; cleared when an image is loaded")
 
     ; --- plumbing -------------------------------------------------------------
 
@@ -83,19 +85,29 @@
       (def top (<< 1 (- (* 8 n) 1)))
       (if (< v top) v (- v (* 2 top))))
 
+    (method %types (self)
+      (doc "The STRING, POINTER and INTEGER type handles, looked up once: a (Type named) lookup costs tens of thousands of objects, and a C string is read for every argument of every process."
+        (returns LIST "(STRING POINTER INTEGER)"))
+      (when (null? (Host types))
+        (Host types (list (Type named STRING) (Type named POINTER) (Type named INTEGER))))
+      (Host types))
+
     (method %cstr-at (self (param buf STRING "A region") (param off INTEGER "Byte offset")
                            (param n INTEGER "Most bytes to read"))
-      (doc "The NUL-terminated string at off, at most n bytes. Read through its address: a region's own length stops at its first NUL, so Str8 sub cannot reach past one."
+      (doc "The NUL-terminated string at off, at most n bytes. Read through its address: a region's own length stops at its first NUL, so a substring of it cannot reach past one."
         (returns STRING "The string"))
       (def cvt (prim-ref (lit convert) (lit to)))
-      (def s (Host %cstr-ptr (cvt (+ (cvt (Host %ptr buf) (Type named INTEGER)) off) (Type named POINTER))))
-      (if (> (Str8 length s) n) (Str8 sub 0 n s) s))
+      (def t (Host %types))
+      (def at (cvt (+ (cvt ((prim-ref (lit str) (lit ->ptr)) buf) (first (rest (rest t)))) off) (first (rest t))))
+      (def s (cvt at (first t)))
+      ; the primitives, not Str8: s is a C string, so its byte length is its
+      ; length, and a Str8 call on it costs a hundred thousand objects
+      (if (> ((prim-ref (lit str) (lit byte-len)) s) n) ((prim-ref (lit str) (lit byte-sub)) s 0 n) s))
 
     (method %cstr-ptr (self (param p POINTER "Address of a NUL-terminated string"))
       (doc "The C string at an address."
         (returns STRING "The string"))
-      ((prim-ref (lit convert) (lit to)) p (Type named STRING)))
-
+      ((prim-ref (lit convert) (lit to)) p (first (Host %types))))
     (method %int (self (param s STRING "Decimal digits, optionally signed"))
       (doc "The integer a decimal field spells; nil when it spells none."
         (returns ANY "INTEGER, or nil"))
@@ -319,7 +331,7 @@
         (sample "(Assoc get 'comm (Host process 1))" "\"launchd\""))
       (if (eq? (Host %backend) (lit darwin))
         (let ((b (Host %sysctl-mib (list 1 14 1 pid) 648)))
-          (if (null? b) () (Host %darwin-record (first b) 0)))
+          (if (null? b) () (Host %darwin-record (first b) 0 (Host %darwin-ctx))))
         (Host %linux-record (Host %linux-btime) (Str8 str pid))))
 
     (method args (self (param pid INTEGER "Process ID"))
@@ -432,19 +444,27 @@
               (self (+ i (Str8 length piece) 1) (+ k 1) (pair piece acc))))))
       (go from 0 ()))
 
-    (method %sysctl-mib (self (param mib LIST "The name as integers") (param n INTEGER "Buffer size"))
-      (doc "A sysctl value by numeric name, as (region . length), or nil when the kernel refuses or answers nothing (no such process)."
+    (method %sysctl-mib (self (param mib LIST "The name as integers") (param n ANY "Buffer size, or nil to ask the kernel how much the value needs"))
+      (doc "A sysctl value by numeric name, as (region . length), or nil when the kernel refuses or answers nothing (no such process). With no size, the kernel is asked first, so the region is as large as the value and no larger."
         (returns ANY "PAIR (region . length), or nil"))
       (def set (prim-ref (lit ptr) (lit set!)))
-      (def name (Host %buf (* 4 (List length mib))))
-      (List for-each
-        (fn (_ i) (set (Host %ptr name) (* 4 i) (List ref i mib) 4))
-        (List range 0 (List length mib)))
-      (def b (Host %buf n))
+      (def set-word (prim-ref (lit ptr) (lit set-word!)))
+      (def words ((fn (self l n) (if (null? l) n (self (rest l) (+ n 1)))) mib 0))
+      (def name (Host %buf (* 4 words)))
+      ; the name a word at a time, by hand: a List method costs a call tens of
+      ; thousands of objects to enter
+      (def put (fn (self ns off) (if (null? ns) () (do (set (Host %ptr name) off (first ns) 4) (self (rest ns) (+ off 4))))))
+      (put mib 0)
       (def len (Host %buf 8))
-      ((prim-ref (lit ptr) (lit set-word!)) (Host %ptr len) 0 n)
-      (if (< (Host %call "sysctl" (Host %ptr name) (List length mib) (Host %ptr b) (Host %ptr len) 0 0) 0) ()
-        (let ((got (Host %int-at len 0 8))) (if (= 0 got) () (pair b got)))))
+      (def ask
+        (fn (_ b size)
+          (set-word (Host %ptr len) 0 size)
+          (Host %call "sysctl" (Host %ptr name) words (if (null? b) 0 (Host %ptr b)) (Host %ptr len) 0 0)))
+      (def size (if (null? n) (if (< (ask () 0) 0) 0 (Host %int-at len 0 8)) n))
+      (if (= size 0) ()
+        (let ((b (Host %buf size)))
+          (if (< (ask b size) 0) ()
+            (let ((got (Host %int-at len 0 8))) (if (= 0 got) () (pair b got)))))))
 
     (method %darwin-processes (self)
       (doc "processes, from kern.proc.all and proc_pidinfo. The table is asked for its size first and given room for a few more processes, since it can grow between the two calls."
@@ -454,53 +474,121 @@
       (def b (Host %buf need))
       ((prim-ref (lit ptr) (lit set-word!)) (Host %ptr len) 0 need)
       (if (< (Host %call "sysctlbyname" "kern.proc.all" (Host %ptr b) (Host %ptr len) 0 0) 0) ()
-        (List map (fn (_ i) (Host %darwin-record b (* i 648)))
-          (List range 0 (/ (Host %int-at len 0 8) 648)))))
+        (let ((ctx (Host %darwin-ctx)) (n (/ (Host %int-at len 0 8) 648)))
+          (def go (fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (Host %darwin-record b (* i 648) ctx) acc)))))
+          (go (- n 1) ()))))
 
-    (method %darwin-record (self (param b STRING "kinfo_proc rows") (param o INTEGER "This row's offset"))
+    (method %darwin-ctx (self)
+      (doc "What reading Darwin's process records needs, fetched once a process rather than once a field: the pointer and conversion primitives, the type handles, proc_pidinfo, getsid and sysctl resolved, and the Mach timebase. Cached in ctx; the image recache hook clears it, since a resolved symbol is a fact of the process that resolved it."
+        (returns LIST "(ref call make ->ptr proc_pidinfo getsid numer denom sysctl set! cvt string-type pointer-type integer-type byte-len byte-ref)"))
+      (when (null? (Host ctx))
+        (let ((ref (prim-ref (lit ptr) (lit ref)))
+              (call (prim-ref (lit ptr) (lit call)))
+              (make (prim-ref (lit str) (lit make)))
+              (->ptr (prim-ref (lit str) (lit ->ptr)))
+              (t (Host %types)))
+          (def tb (make 8))
+          (call (Host %sym "mach_timebase_info") (->ptr tb))
+          (Host ctx
+            (list ref call make ->ptr (Host %sym "proc_pidinfo") (Host %sym "getsid")
+                  (ref (->ptr tb) 0 4) (ref (->ptr tb) 4 4)
+                  (Host %sym "sysctl") (prim-ref (lit ptr) (lit set!))
+                  (prim-ref (lit convert) (lit to))
+                  (first t) (first (rest t)) (first (rest (rest t)))
+                  (prim-ref (lit str) (lit byte-len)) (prim-ref (lit str) (lit byte-ref))))))
+      (Host ctx))
+
+    (method %darwin-record (self (param b STRING "kinfo_proc rows") (param o INTEGER "This row's offset")
+                                 (param ctx LIST "What %darwin-ctx answers"))
       (doc "One process's record from its kinfo_proc row, with proc_pidinfo's task info where the kernel gives it. state is Z or T from p_stat (SZOMB, SSTOP); otherwise p_stat reads SRUN for nearly every process, so R or S comes from the task info's running-thread count, as Darwin's ps decides it, and is nil where the task info is refused."
         (returns ALIST "A process record"))
-      (def pid (Host %int-at b (+ o 40) 4))
-      (def stat (Host %int-at b (+ o 36) 1))
-      (def tdev (Host %signed-at b (+ o 572) 4))
-      (def ti (Host %buf 96))
-      (def ok (= 96 (Host %call "proc_pidinfo" pid 4 0 (Host %ptr ti) 96)))
-      (def task (fn (_ off n) (if ok (Host %int-at ti off n) ())))
-      (def sid (Host %call "getsid" pid))
+      ; every field a ptr ref at its offset: a class call a field cost a
+      ; record hundreds of thousands of objects
+      (def ref (first ctx))
+      (def call (first (rest ctx)))
+      (def make (first (rest (rest ctx))))
+      (def ->ptr (first (rest (rest (rest ctx)))))
+      (def more (rest (rest (rest (rest ctx)))))
+      (def p (->ptr b))
+      (def at (fn (_ off n) (ref p (+ o off) n)))
+      (def signed (fn (_ v top) (if (< v top) v (- v (* 2 top)))))
+      (def pid (at 40 4))
+      (def stat (at 36 1))
+      (def tdev (signed (at 572 4) 2147483648))
+      (def ti (make 96))
+      (def tp (->ptr ti))
+      (def ok (= 96 (Sys %sign-fold (call (first more) pid 4 0 tp 96))))
+      (def task (fn (_ off n) (if ok (ref tp off n) ())))
+      (def numer (first (rest (rest more))))
+      (def denom (first (rest (rest (rest more)))))
+      (def ns (fn (_ t) (if ok (/ (* t numer) denom) ())))
+      (def sid (Sys %sign-fold (call (first (rest more)) pid)))
       (list (pair (lit pid) pid)
-            (pair (lit ppid) (Host %int-at b (+ o 560) 4))
-            (pair (lit pgid) (Host %int-at b (+ o 564) 4))
+            (pair (lit ppid) (at 560 4))
+            (pair (lit pgid) (at 564 4))
             (pair (lit sid) (if (< sid 0) () sid))
             ; e_ucred's uid and first group are the effective ids; e_pcred
             ; holds the real ones
-            (pair (lit uid) (Host %int-at b (+ o 420) 4))
-            (pair (lit gid) (Host %int-at b (+ o 428) 4))
-            (pair (lit ruid) (Host %int-at b (+ o 392) 4))
-            (pair (lit rgid) (Host %int-at b (+ o 400) 4))
+            (pair (lit uid) (at 420 4))
+            (pair (lit gid) (at 428 4))
+            (pair (lit ruid) (at 392 4))
+            (pair (lit rgid) (at 400 4))
             (pair (lit state) (match ((= stat 5) "Z") ((= stat 4) "T") ((not ok) ()) ((> (task 88 4) 0) "R") (#t "S")))
             (pair (lit comm) (Host %cstr-at b (+ o 243) 17))
             (pair (lit tty) (if (= tdev -1) () tdev))
             ; dev_t: the major in the top 8 bits, the minor in the low 24
             (pair (lit tty-major) (if (= tdev -1) () (& (>> tdev 24) 255)))
             (pair (lit tty-minor) (if (= tdev -1) () (& tdev 16777215)))
-            (pair (lit nice) (Host %signed-at b (+ o 242) 1))
-            (pair (lit start) (Host %int-at b o 8))
+            (pair (lit nice) (signed (at 242 1) 128))
+            (pair (lit start) (at 0 8))
             (pair (lit threads) (task 84 4))
             (pair (lit vsz) (task 0 8))
             (pair (lit rss) (task 8 8))
-            (pair (lit utime) (if ok (Host %mach-ns (task 16 8)) ()))
-            (pair (lit stime) (if ok (Host %mach-ns (task 24 8)) ()))))
+            (pair (lit utime) (ns (task 16 8)))
+            (pair (lit stime) (ns (task 24 8)))))
 
     (method %darwin-args (self (param pid INTEGER "Process ID"))
       (doc "args, from kern.procargs2: argc, the executable's path, padding NULs, then the argc strings."
         (returns ANY "LIST of strings, or nil"))
-      (def max (Host %int-at (Host %sysctl "kern.argmax" 4) 0 4))
-      (def got (Host %sysctl-mib (list 1 49 pid) max))
-      (if (null? got) ()
-        (let ((b (first got)) (end (rest got)) (at (prim-ref (lit str) (lit byte-ref))))
-          (def skip-path (fn (self i) (if (if (< i end) (> (at b i) 0) #f) (self (+ i 1)) i)))
-          (def skip-nuls (fn (self i) (if (if (< i end) (= (at b i) 0) #f) (self (+ i 1)) i)))
-          (Host %nul-split b (skip-nuls (skip-path 4)) end (Host %int-at b 0 4)))))
+      ; straight off the context's primitives: ps reads this for every
+      ; process, and a class call a step cost each read tens of thousands
+      ; of objects
+      (def c (Host %darwin-ctx))
+      (def ref (first c))
+      (def call (first (rest c)))
+      (def make (first (rest (rest c))))
+      (def ->ptr (first (rest (rest (rest c)))))
+      (def more (rest (rest (rest (rest (rest (rest (rest (rest c)))))))))
+      (def sysctl (first more))
+      (def set (first (rest more)))
+      (def cvt (first (rest (rest more))))
+      (def string-type (first (rest (rest (rest more)))))
+      (def pointer-type (first (rest (rest (rest (rest more))))))
+      (def integer-type (first (rest (rest (rest (rest (rest more)))))))
+      (def byte-len (first (rest (rest (rest (rest (rest (rest more))))))))
+      (def byte-at (first (rest (rest (rest (rest (rest (rest (rest more)))))))))
+      (def name (make 12))
+      (set (->ptr name) 0 1 4) (set (->ptr name) 4 49 4) (set (->ptr name) 8 pid 4)
+      (def len (make 8))
+      (def ask
+        (fn (_ b size)
+          ((prim-ref (lit ptr) (lit set-word!)) (->ptr len) 0 size)
+          (Sys %sign-fold (call sysctl (->ptr name) 3 (if (null? b) 0 (->ptr b)) (->ptr len) 0 0))))
+      (def size (if (< (ask () 0) 0) 0 (ref (->ptr len) 0 8)))
+      (def b (if (= size 0) () (make size)))
+      (if (if (null? b) #t (< (ask b size) 0)) ()
+        (let ((end (ref (->ptr len) 0 8)) (base (cvt (->ptr b) integer-type)))
+          ; the path is a C string: its length is one byte-len, not a walk
+          (def skip-path (fn (_ i) (+ i (byte-len (cvt (cvt (+ base i) pointer-type) string-type)))))
+          (def skip-nuls (fn (self i) (if (if (< i end) (= (byte-at b i) 0) #f) (self (+ i 1)) i)))
+          ; each argument a C string at its address; its byte length is
+          ; its length, and the next starts one past its NUL
+          (def go
+            (fn (self i k acc)
+              (if (if (>= i end) #t (= k 0)) (List reverse acc)
+                (let ((s (cvt (cvt (+ base i) pointer-type) string-type)))
+                  (self (+ i (byte-len s) 1) (- k 1) (pair s acc))))))
+          (go (skip-nuls (skip-path 4)) (ref (->ptr b) 0 4) ()))))
 
     ; --- users ----------------------------------------------------------------
 
@@ -516,7 +604,8 @@
       (def row (fn (_ k) (rest (Assoc entry k lay))))
       ; getutxent answers its record's address as an integer, 0 at the end
       (def cvt (prim-ref (lit convert) (lit to)))
-      (def ->ptr (fn (_ a) (cvt a (Type named POINTER))))
+      (def pointer-type (first (rest (Host %types))))
+      (def ->ptr (fn (_ a) (cvt a pointer-type)))
       (def int-at (fn (_ p k) (def r (row k)) ((prim-ref (lit ptr) (lit ref)) (->ptr p) (first r) (first (rest r)))))
       (def str-at (fn (_ p k)
         (def r (row k))
@@ -539,6 +628,10 @@
       (def all (go ()))
       (Host %call "endutxent")
       all)))
+
+; A resolved symbol is a fact of the process that resolved it: a process
+; restored from an image resolves its own the first time it asks.
+(set! %image-recache-hooks (pair (fn (_) (Host ctx ())) %image-recache-hooks))
 
 (doc (provide x/sys/host Host)
   (note "Linux reads sysinfo(2) and /proc; Darwin reads sysctl, the Mach host statistics and proc_pidinfo over the dlopen FFI; both read utmpx through libc.")
