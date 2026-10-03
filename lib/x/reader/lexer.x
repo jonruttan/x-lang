@@ -12,7 +12,7 @@
 ; state is spelled as a (fn (me buffer score chr) ...) FORM in the assembler
 ; lane's dialect -- nested if, and, or, %seq, the %buffer-* and %score-*
 ; doors, `me` for the self loop, other states as free variables -- so one
-; form serves both realizations: compile-asm lowers it, and the twin is the
+; form serves both realizations: the assembler lane lowers it, and the twin is the
 ; same form evaluated with its free variables substituted.
 ;
 ; The token loop hands a tie to the type registered first, so the first
@@ -32,7 +32,6 @@
 (import x/type/base)
 (import x/type/buf)
 (import x/protocol/str/str8)
-(import x/tool/compile compile-asm)
 
 (def-class Lexer ()
   (doc "A tokenizer base built from data rules, its analyser states compiled to native code when the assembler lane is open and interpreted otherwise. Make one with (Lexer make rules), where each rule is made by run, skip, table, quoted, until, number, nested, escape or any; read with (l read-str s). A token is (tag text) or, from a number rule, (tag text label)."
@@ -66,7 +65,15 @@
     (self states ())
     (self compiled 0)
     (self raw (Base raw-of (Base make-tok)))
-    (Lexer %install! self (self rules))
+    ; One rule list makes the same states in every process, so their compiles
+    ; run as one cache group keyed by the rules and the end text: a later
+    ; process loads all of them in one read instead of hashing and reading
+    ; each state's entry.
+    (if (Lexer %jit?)
+      ((prim-ref (lit compile) (lit asm-cache-group))
+        (Str8 append "lexer:" ((prim-ref (lit io) (lit write-to-str)) (pair (self end) (self rules))))
+        (fn (_) (Lexer %install! self (self rules))))
+      (Lexer %install! self (self rules)))
     (self raw))
 
   (static
@@ -101,11 +108,22 @@
         ((Lexer %recache-hook!) (fn (_) (Lexer %jit-probe!) (l remake!)))
         l))
 
+    ; The assembler lane's door is the byte cache (x/tool/asm-cache), which
+    ; registers itself in the catalogue as (compile asm-cached) and loads the
+    ; compiler only on a miss.  compile.x's compile-asm is a stub over the same
+    ; door, but importing compile.x also loads the C lane -- posix, proc, file,
+    ; the emitter and the pipeline -- which a lexer never uses: 490 ms against
+    ; 290 ms for the cache door alone.  Imported on first use, so a module that
+    ; imports the Lexer and never makes one pays neither.
+    (method %compile (self form fvars)
+      (import x/tool/asm-cache)
+      ((prim-ref (lit compile) (lit asm-cached)) form fvars #t))
+
     (method %jit-probe! (self)
       (%set-first! (Lexer %jit-cell)
         (guard (_ #f)
-          (do (compile-asm (lit (fn (me buffer score chr) (if (= chr 32) me k)))
-                           (list (pair (lit k) 1)) #t)
+          (do (Lexer %compile (lit (fn (me buffer score chr) (if (= chr 32) me k)))
+                              (list (pair (lit k) 1)))
               #t))))
 
     (method %jit? (self)
@@ -235,7 +253,7 @@
       (def made
         (if (Lexer %jit?)
           (guard (_ ())
-            (compile-asm form fvars #t))
+            (Lexer %compile form fvars))
           ()))
       ; TWIN, when given, binds names differently in the interpreted twin
       ; than FVARS does in the compiled form: the nested rule's stack is an
