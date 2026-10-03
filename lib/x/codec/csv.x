@@ -6,7 +6,7 @@
 ; back one alist per data row, string-keyed -- (Assoc find), the
 ; equal?-keyed entry door, is the lookup that matches.
 ;
-; Parsing is a single byte-level pass (the json.x pattern): quoted fields
+; Parsing reads the tokens of x/reader/lexer (the json.x pattern): quoted fields
 ; may hold commas, quotes ("" escapes), and newlines; rows end at LF,
 ; CRLF, or lone CR; a trailing newline yields no phantom row; an interior
 ; empty line is one empty field. Strict per #61 -- no silent repair:
@@ -28,6 +28,7 @@
 (import x/type/class)
 (import x/core/list)
 (import x/type/assoc)
+(import x/reader/lexer)
 
 (def-class Csv ()
   (doc "RFC 4180 csv: (Csv parse text) -> rows of field strings; (Csv emit rows) -> text; (Csv records text) / (Csv emit-records headers records) ride the header row as string-keyed alists."
@@ -35,59 +36,73 @@
     (example "(Csv emit (list (list \"a\" \"b,c\")))" "\"a,\\\"b,c\\\"\\n\"")
     (see parse) (see records))
   (static
+    ; The lexer, made on the first parse and kept.  A plain field is a run of
+    ; every byte but , " CR and LF (high bytes either way the engine hands
+    ; them over); CR and LF are each a newline; a quoted field is quote to
+    ; quote, no escape byte, so a doubled quote arrives as two quoted tokens
+    ; side by side; a quote no closing quote follows is a stray byte.  The end
+    ; text is a newline: it ends the last row, and is never a row of its own.
+    (%lexer-cell (pair () ()))
+    (method %lexer (self)
+      (if (null? (first (Csv %lexer-cell)))
+        ((fn (_ plain)
+           (%set-first! (Csv %lexer-cell)
+             (Lexer make (list
+               (Lexer table (lit sep) (list ","))
+               (Lexer table (lit nl) (list "\n" "\r"))
+               (Lexer quoted (lit q) 34 34 ())
+               (Lexer run (lit f) plain plain)
+               (Lexer any (lit bad)))
+               "\n")))
+         (list (pair 0 9) 11 12 (pair 14 33) (pair 35 43) (pair 45 127)
+               (pair 128 255) (pair -128 -1))))
+      (first (Csv %lexer-cell)))
+
     (method parse (self (param text STRING "csv text"))
       (doc "Parse csv text into a list of rows, each a list of field strings. Quoted fields carry commas, doubled quotes, and newlines; rows end at LF/CRLF/CR; a trailing newline adds no row. Raises a label 'value on an unclosed quote, a quote inside an unquoted field, or bytes after a closing quote (#61: no silent repair)."
         (returns LIST "Rows of field strings")
         (example "(Csv parse \"a,\\\"b\\\"\\\"c\\\",d\")" "((\"a\" \"b\\\"c\" \"d\"))"))
       (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
+      (def %bsub (prim-ref (lit str) (lit byte-sub)))
       (def %bad (fn (_ what)
         (Err raise (lit value) (Str8 append "Csv parse: " what) text)))
-      (def n (%blen text))
-      (def %b (fn (_ i) (%c->i (%bref text i))))
-      (def %fin (fn (_ facc) (bytes->str (%reverse facc))))
-      ; state: start (at a field boundary), plain, quoted, closed (just
-      ; past a closing quote). Bytes: , 44  " 34  LF 10  CR 13.
-      (let go ((i 0) (facc ()) (row ()) (rows ()) (state (lit start)))
-        (match
-          ((= i n)
+      ; A quoted token's text without its quotes.
+      (def %inner (fn (_ q) (%bsub q 1 (- (%blen q) 2))))
+      ; KIND is what the field in hand has been made of: none yet, a plain
+      ; run, or quoted pieces, which a doubled quote joins.  A quote touching a
+      ; plain run, bytes after a closing quote, and a quote no closing quote
+      ; follows (the lexer's stray byte) are each refused by name.
+      (let go ((ts ((Csv %lexer) read-str text)) (field "") (kind (lit none))
+               (row ()) (rows ()))
+        (if (null? ts)
+          (if (if (eq? kind (lit none)) (null? row) #f)
+            (%reverse rows)
+            (%reverse (pair (%reverse (pair field row)) rows)))
+          (let ((tag (first (first ts))) (tx (first (rest (first ts)))))
             (match
-              ((eq? state (lit quoted)) (%bad "unclosed quote at end of input"))
-              ; nothing pending after the last row terminator: done
-              ((if (eq? state (lit start)) (null? row) #f) (%reverse rows))
-              (#t (%reverse (pair (%reverse (pair (%fin facc) row)) rows)))))
-          (#t
-            (let ((c (%b i)))
-              (match
-                ; --- quoted field body ---
-                ((eq? state (lit quoted))
-                  (match
-                    ((= c 34)
-                      (if (if (< (+ i 1) n) (= (%b (+ i 1)) 34) #f)
-                        (go (+ i 2) (pair 34 facc) row rows (lit quoted))
-                        (go (+ i 1) facc row rows (lit closed))))
-                    (#t (go (+ i 1) (pair c facc) row rows (lit quoted)))))
-                ; --- separators (start / plain / closed all agree) ---
-                ((= c 44)
-                  (go (+ i 1) () (pair (%fin facc) row) rows (lit start)))
-                ((if (= c 13) (if (< (+ i 1) n) (= (%b (+ i 1)) 10) #f) #f)
-                  (go (+ i 2) () ()
-                      (pair (%reverse (pair (%fin facc) row)) rows) (lit start)))
-                ((if (= c 10) #t (= c 13))
-                  (go (+ i 1) () ()
-                      (pair (%reverse (pair (%fin facc) row)) rows) (lit start)))
-                ; --- past a closing quote: only separators are legal ---
-                ((eq? state (lit closed))
-                  (%bad "bytes after a closing quote"))
-                ; --- field start ---
-                ((eq? state (lit start))
-                  (if (= c 34)
-                    (go (+ i 1) facc row rows (lit quoted))
-                    (go (+ i 1) (pair c facc) row rows (lit plain))))
-                ; --- unquoted field body ---
-                ((= c 34) (%bad "quote inside an unquoted field"))
-                (#t (go (+ i 1) (pair c facc) row rows (lit plain)))))))))
+              ((eq? tag (lit sep))
+                (go (rest ts) "" (lit none) (pair field row) rows))
+              ; CR and LF are separate tokens, so that the appended LF never
+              ; joins a trailing CR into one it cannot end; a CR with an LF
+              ; straight after it is one row end.
+              ((eq? tag (lit nl))
+                (go (if (if (str=? tx "\r") (if (null? (rest ts)) #f
+                          (if (eq? (first (first (rest ts))) (lit nl))
+                            (str=? (first (rest (first (rest ts)))) "\n") #f)) #f)
+                      (rest (rest ts)) (rest ts))
+                    "" (lit none) ()
+                    (pair (%reverse (pair field row)) rows)))
+              ((eq? tag (lit q))
+                (match
+                  ((eq? kind (lit plain)) (%bad "quote inside an unquoted field"))
+                  ((eq? kind (lit quoted))
+                    (go (rest ts) (Str8 append field "\"" (%inner tx)) kind row rows))
+                  (#t (go (rest ts) (%inner tx) (lit quoted) row rows))))
+              ((eq? tag (lit f))
+                (if (eq? kind (lit quoted)) (%bad "bytes after a closing quote")
+                  (go (rest ts) tx (lit plain) row rows)))
+              ((eq? kind (lit plain)) (%bad "quote inside an unquoted field"))
+              (#t (%bad "unclosed quote at end of input")))))))
 
     (method emit (self (param rows LIST "Rows of field strings"))
       (doc "Render rows as csv text: fields holding a comma, quote, CR, or LF are quoted with doubled quotes; rows join with LF and the text ends with one."

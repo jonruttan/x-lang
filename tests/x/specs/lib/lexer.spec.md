@@ -551,3 +551,71 @@ quotes.
 ```
 ---
     ('refused 'refused 'refused 'made)
+
+## words
+
+A word rule is a nested span with no opening literal: its first byte is read
+in its start context, and it ends before a stop byte met at depth 0.  These
+are a POSIX shell's words: a backslash escapes, quotes and command
+substitutions are spans inside the word, and blanks and operators end it.
+
+### quotes, escapes and substitutions are inside one word, which a stop byte ends
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxw-ctx
+    (list (list 'w () 92 (list (pair "\"" 'dq) (pair "'" 'sq) (pair "$(" 'cmd)))
+          (list 'dq 34 92 (list (pair "$(" 'cmd)))
+          (list 'sq 39 () ())
+          (list 'cmd 41 92 (list (pair "(" 'cmd) (pair "\"" 'dq) (pair "'" 'sq)))))
+  (def %lxw-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer table 'op (list ";" "|" "&&"))
+    (Lexer word 'word 'w %lxw-ctx " \n;|&"))))
+  (write (list (%lxw-l read-str "a\\ b\"c d\"$(e f) g;h|i")
+               (%lxw-l read-str "\"a;b\" $(x; y)'|' &&z")))
+  (newline))
+```
+---
+    ((('word "a\\ b\"c d\"$(e f)") ('word "g") ('op ";") ('word "h") ('op "|") ('word "i")) (('word "\"a;b\"") ('word "$(x; y)'|'") ('op "&&") ('word "z")))
+
+### a read left inside an open span, and an opener past the stack's depth, leave the next word whole
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxw-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer word 'word 'w (list (list 'w () () (list (pair "$(" 'cmd)))
+                               (list 'cmd 41 () (list (pair "$(" 'cmd))))
+                " ")
+    (Lexer any 'bad))))
+  (def %lxw-deep
+    (fn (_ n)
+      ((fn (self k pre post) (if (= k 0) (Str8 append pre "x" post) (self (- k 1) (Str8 append pre "$(") (Str8 append post ")"))))
+       n "" "")))
+  (write (list (%lxw-l read-str "a$(b")
+               (%lxw-l read-str "c d")
+               (List length (%lxw-l read-str (Str8 append (%lxw-deep 70) " y")))
+               (List last (%lxw-l read-str (Str8 append (%lxw-deep 70) " y")))))
+  (newline))
+```
+---
+    ((('bad "a") ('bad "$") ('bad "(") ('bad "b")) (('word "c") ('word "d")) 15 ('word "y"))
+
+### a word with no stop class, or a span with no close, is refused at make
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxw-try
+    (fn (_ rule)
+      (guard (e 'refused) (Lexer make (list rule)) 'made)))
+  (write (list (%lxw-try (Lexer word 'w 'a (list (list 'a () () ())) ()))
+               (%lxw-try (Lexer word 'w 'a (list (list 'a () () (list (pair "(" 'b))) (list 'b () () ())) " "))
+               (%lxw-try (Lexer word 'w 'a (list (list 'a () () (list (pair "(" 'b))) (list 'b 41 () ())) " "))))
+  (newline))
+```
+---
+    ('refused 'refused 'made)

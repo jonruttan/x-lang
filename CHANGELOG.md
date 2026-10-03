@@ -16,6 +16,16 @@ BYTE)` reads a byte and the byte after it as one token.
 
 [#914]: https://github.com/jonruttan/x-lang/pull/914
 
+**The Lexer reads a word whose bytes hold spans** ([#917]). `(Lexer word TAG
+START CONTEXTS STOP)` is a nested span with no opening literal: its first byte
+is read in its start context, and it ends before a byte of `STOP` met at depth
+0, which is left for the next token. Spans opened inside it read as `nested`
+reads them, so a shell word with its escapes, quotes and command
+substitutions is one token. Every nested and word rule puts its return stack
+back at depth 0 before each read and when an opener goes past its depth.
+
+[#917]: https://github.com/jonruttan/x-lang/pull/917
+
 **A lexer starts in half the time** ([#913]). The Lexer imports only the
 compile cache's door, not compile.x and its C lane, so importing it costs
 130 ms instead of 630 ms. The arm64 relocator works through the integer
@@ -41,6 +51,16 @@ with anything that emits. Under helium, importing the cache door falls from
 instructions imports `x/tool/asm` itself: the cache no longer brings it.
 
 [#915]: https://github.com/jonruttan/x-lang/pull/915
+
+**`Csv parse` reads Lexer tokens instead of walking bytes** ([#918]). A lexer
+made on the first parse splits the text into separators, newlines (CR and LF
+apart), quoted fields, plain runs and stray quotes; the parser joins doubled
+quotes and refuses the same malformed quoting it always did. On 16 KB of rows
+a parse falls from 359 ms to 137 ms under helium and from 560 ms to 142 ms
+under xenon; the first parse in a process makes the lexer, about 80 ms with
+the byte cache warm.
+
+[#918]: https://github.com/jonruttan/x-lang/pull/918
 
 **A Darwin `Host` process record costs thousands of objects, not hundreds of thousands** ([#912]).
 A record read each field through a class call and re-resolved its libc
