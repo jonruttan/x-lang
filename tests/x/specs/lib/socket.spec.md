@@ -235,3 +235,26 @@ listener's backlog, and accept takes it after.
 ```
 ---
     'value
+
+## binary datagrams
+
+### send-to-run and recv-from-run carry NUL bytes, and the sender to answer
+
+```x
+(do (import x/sys/socket)
+  (def srv (Socket udp-bind 0))
+  (def cli (Socket udp-bind 0))
+  (def sp (Socket local-port srv))
+  (def packet (bytes->str (list 18 52 0 1 0 0 104 105)))
+  (Socket send-to-run cli (pair packet 8) "127.0.0.1" sp)
+  (def got (Socket recv-from-run srv 512))
+  (def bytes (let go ((i (- (rest (first got)) 1)) (acc ()))
+               (if (< i 0) acc (go (- i 1) (pair (& (Char ->int ((prim-ref (lit str) (lit byte-ref)) (first (first got)) i)) 255) acc)))))
+  (Socket send-to-run srv (pair (bytes->str (list 0 7 0)) 3) (first (rest got)) (rest (rest got)))
+  (def back (Socket recv-from-run cli 512))
+  (def r (list bytes (= (rest (rest got)) (Socket local-port cli)) (rest (first back)) (rest (rest back))))
+  (Socket close srv) (Socket close cli)
+  (list (first r) (first (rest r)) (first (rest (rest r))) (= (first (rest (rest (rest r)))) sp)))
+```
+---
+    ((18 52 0 1 0 0 104 105) #t 3 #t)
