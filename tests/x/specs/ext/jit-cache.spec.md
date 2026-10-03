@@ -385,3 +385,101 @@ after it.
 ```
 ---
     (#t #t #t)
+
+## groups: many entries in one file
+
+A caller that compiles the same set of functions in every process groups them
+under a key: `(compile asm-cache-group)` runs a thunk with its compiles noted
+and keeps their entries in one file, which a later process loads into the heap
+before the thunk runs. These cases use a directory of their own and bodies
+carrying this process's id.
+
+### a group keeps the entries it noted in one file, and a later run is served from it
+
+The heap's entries are dropped and the per-entry files deleted, which is what
+a fresh process with only the group file sees. Both compiles then answer from
+the entries the group file loaded: neither is compiled or stored again, so the
+per-entry files stay gone.
+
+```x
+(do
+  (def %grp-door (prim-ref 'compile 'asm-cache-group))
+  (def %grp-pcall (%ac (lit %asm-cache-pcall)))
+  (def %grp-sym (fn (_ name) ((%ac (lit %asm-cache-dlsym)) (%ac (lit %asm-cache-lib)) name)))
+  (def %grp-pid (Sys getpid))
+  (def %grp-path (Str append "/tmp/jit-cache-group-" ((%ac (lit %asm-cache-wts)) %grp-pid)))
+  (%grp-pcall (%grp-sym "mkdir") %grp-path 448)
+  (Sys setenv "X_ASM_CACHE_DIR" %grp-path)
+  (def %grp-a (list 'fn '(_ x) (list '+ 'x %grp-pid)))
+  (def %grp-b (list 'fn '(_ x) (list '* 'x %grp-pid)))
+  (def %grp-key (Str append "spec-" ((%ac (lit %asm-cache-wts)) %grp-pid)))
+  (def %grp-run (fn (_) (%grp-door %grp-key (fn (_) (list (compile-asm %grp-a) (compile-asm %grp-b))))))
+  (%grp-run)
+  (def %grp-file (Str append %grp-path "/" "x-asmg-"))
+  (def %grp-gpath ((%ac (lit %asm-cache-group-path)) %grp-key))
+  (def %grp-unlink-entry (fn (_ e)
+    (def at (%asm-cache-path (%asm-cache-text e () #f)))
+    (%grp-pcall (%grp-sym "unlink") (Str append at ".bin"))
+    (%grp-pcall (%grp-sym "unlink") (Str append at ".asm"))))
+  (%grp-unlink-entry %grp-a)
+  (%grp-unlink-entry %grp-b)
+  (eval '(set! %asm-cache-held ()) (module x/tool/asm-cache))
+  (def %grp-fs (%grp-run))
+  (def %grp-a-file (%asm-cache-load (%asm-cache-text %grp-a () #f) (%asm-cache-path (%asm-cache-text %grp-a () #f)) ()))
+  (Sys unsetenv "X_ASM_CACHE_DIR")
+  (write (list (= ((first %grp-fs) 2) (+ 2 %grp-pid)) (= ((first (rest %grp-fs)) 2) (* 2 %grp-pid))
+               (Str8 match-at? %grp-file 0 %grp-gpath)
+               %grp-a-file))
+  (newline))
+```
+---
+    (#t #t #t ())
+
+### a group file from other entries misses, and is written again
+
+A group file whose entries no compile asks for is loaded, held and passed
+over: the compile misses, is compiled and stored, and the group is rewritten
+with the entry it did note.
+
+```x
+(do
+  (Sys setenv "X_ASM_CACHE_DIR" %grp-path)
+  (def %grp-c (list 'fn '(_ x) (list '- 'x %grp-pid)))
+  (def %grp-f (%grp-door %grp-key (fn (_) (compile-asm %grp-c))))
+  (eval '(set! %asm-cache-held ()) (module x/tool/asm-cache))
+  (def %grp-texts ((%ac (lit %asm-cache-group-load!)) %grp-gpath))
+  (def %grp-c-at (%asm-cache-path (%asm-cache-text %grp-c () #f)))
+  (%grp-pcall (%grp-sym "unlink") (Str append %grp-c-at ".bin"))
+  (%grp-pcall (%grp-sym "unlink") (Str append %grp-c-at ".asm"))
+  (%grp-pcall (%grp-sym "unlink") %grp-gpath)
+  (def %grp-rmdir (%grp-pcall (%grp-sym "rmdir") %grp-path))
+  (Sys unsetenv "X_ASM_CACHE_DIR")
+  (write (list (%grp-f %grp-pid) (List length %grp-texts)
+               (str=? (first %grp-texts) (%asm-cache-text %grp-c () #f)) %grp-rmdir))
+  (newline))
+```
+---
+    (0 1 #t 0)
+
+### a raise inside the thunk closes the group and reaches the caller
+
+```x
+(do
+  (def %grp-r (guard (e (lit raised)) (%grp-door "spec-raise" (fn (_) (Err raise 'value "inside" ())))))
+  (write (list %grp-r (first (%ac (lit %asm-cache-group-open)))))
+  (newline))
+```
+---
+    ('raised ())
+
+### groups do not nest: an inner group runs in the outer one
+
+```x
+(do
+  (def %grp-n (%grp-door "spec-outer" (fn (_) (%grp-door "spec-inner" (fn (_) (lit inner))))))
+  (%grp-pcall (%grp-sym "unlink") ((%ac (lit %asm-cache-group-path)) "spec-outer"))
+  (write %grp-n)
+  (newline))
+```
+---
+    'inner

@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A lexer starts in half the time** ([#913]). The Lexer imports only the
+compile cache's door, not compile.x and its C lane, so importing it costs
+130 ms instead of 630 ms. The arm64 relocator works through the integer
+primitives, so a cache hit re-encodes thirty baked addresses in 0.57 ms
+instead of 3.3 ms; every cached compile gains. `(compile asm-cache-group)`
+keeps a set of compiled functions in one file under a caller's key, and a
+later process loads them into the heap in one read, so each compile hits
+without hashing its key or opening a file; every entry is still matched by
+its whole key text. The Lexer groups its states under its rules and end
+text. Making the JSON lexer in a fresh process, imports included, falls
+from about 1,100 ms to about 570 ms under helium and from about 270 ms to
+about 220 ms under xenon.
+
+[#913]: https://github.com/jonruttan/x-lang/pull/913
+
 **A Darwin `Host` process record costs thousands of objects, not hundreds of thousands** ([#912]).
 A record read each field through a class call and re-resolved its libc
 symbols per call: 187K objects a record, and a table of ~820 processes
