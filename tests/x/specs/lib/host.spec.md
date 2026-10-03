@@ -61,7 +61,19 @@ before it ends, so a later case in the same batch reads the real machine.
         (< 1 (List length (Host processes)))))
 ```
 ---
-    (('pid 'ppid 'uid 'state 'comm 'tty 'nice 'start 'threads 'vsz 'rss 'utime 'stime) #t #t #t #t #t)
+    (('pid 'ppid 'pgid 'sid 'uid 'gid 'ruid 'rgid 'state 'comm 'tty 'tty-major 'tty-minor 'nice 'start 'threads 'vsz 'rss 'utime 'stime) #t #t #t #t #t)
+
+### this process's ids: real and effective user and group, its process group and session
+
+```x
+(do (import x/sys/host)
+  (def one (Host process (Sys getpid)))
+  (list (= (Assoc get 'ruid one) (Sys getuid)) (= (Assoc get 'rgid one) (Sys getgid))
+        (= (Assoc get 'gid one) (Sys getegid))
+        (< 0 (Assoc get 'pgid one)) (< 0 (Assoc get 'sid one))))
+```
+---
+    (#t #t #t #t #t)
 
 ### this process's arguments are strings; a pid that does not exist has no record
 
@@ -108,13 +120,13 @@ before it ends, so a later case in the same batch reads the real machine.
   (def p (Host process 42))
   (def i (Host process 1))
   (Host source ()) (Host proc-root "/proc")
-  (list (List map (fn (_ k) (Assoc get k p)) '(ppid tty nice start threads vsz utime stime))
-        (Assoc get 'tty i)
+  (list (List map (fn (_ k) (Assoc get k p)) '(ppid pgid sid tty tty-major tty-minor nice start threads vsz utime stime ruid rgid))
+        (List map (fn (_ k) (Assoc get k i)) '(tty tty-major tty-minor ruid rgid))
         (= (Assoc get 'uid p) (Sys geteuid))
         (< 0 (Assoc get 'rss i))))
 ```
 ---
-    ((1 34816 -5 1790000010 3 4096 70000000 30000000) () #t #t)
+    ((1 42 42 34816 136 0 -5 1790000010 3 4096 70000000 30000000 1000 100) (() () () () ()) #t #t)
 
 ### args splits cmdline on NUL; an empty cmdline is a kernel thread's
 

@@ -5,6 +5,40 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-03
+
+**Socket sends and receives binary datagrams** ([#910]). `(Socket
+send-to-run fd run host port)` sends a run's COUNT bytes as one datagram,
+and `(Socket recv-from-run fd n)` answers `((STRING . COUNT) . (host .
+port))`, the payload with its NUL bytes and the sender to answer. A DNS or
+TFTP packet could not cross `send-to` and `recv-from`, whose strings end at
+the first NUL.
+
+[#910]: https://github.com/jonruttan/x-lang/pull/910
+
+**`(Callback make f nargs)` is a C function pointer that calls an x function** ([#909]).
+`x/sys/callback` writes a native stub a C library calls like any other --
+qsort's comparator, atexit's handler -- with up to four integer or pointer
+arguments; `f` gets each as an integer and its integer answer is the C
+result. `(cb address)` is the pointer to hand the library; the Callback
+keeps `f` alive while it is held, and the stub is freed before a state image
+is written and written again after a load.
+
+[#909]: https://github.com/jonruttan/x-lang/pull/909
+
+**A process record carries its group, session, real ids and tty halves** ([#908]).
+`Host`'s process record gains `pgid`, `sid`, `gid` (effective), `ruid`,
+`rgid`, `tty-major` and `tty-minor`, the fields busybox's `ps -o` prints that
+it lacked. Linux reads them as busybox does, from `/proc/PID/stat`, the
+`/proc/PID` directory's group and `/proc/PID/status`; Darwin reads
+`kinfo_proc` and asks `getsid(2)` for the session, which `kinfo_proc` does
+not carry. `tty` stays the device number; its halves are separate fields
+because each kernel packs them differently.
+
+[#908]: https://github.com/jonruttan/x-lang/pull/908
+
+## [0.22.0] - 2026-10-02
+
 **A command's options and its help text are one declaration** ([#905]).
 `(Opts declare NAME SYNOPSIS SUMMARY ROWS)` takes rows built by `flag`,
 `arg`, `hidden` and `text`, and the rows are both what `parse` accepts and
