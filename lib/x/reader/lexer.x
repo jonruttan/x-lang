@@ -43,21 +43,17 @@
   (doc (raw ()) "The raw tokenizer base, or nil between an image write and its load")
   (doc (states ()) "Every state installed on the base -- the compiled ones as native code, the rest as closures; held so the collector keeps them")
   (doc (compiled 0) "How many states the assembler lane compiled in the last make; 0 when the lane is closed")
+  (doc (reader ()) "The closure read-str calls: the tokenizing door, the raw base and the end text bound once, so a read costs no class dispatch. Made with the base, and nil while the base is")
   (doc (end " ") "Text appended to every read, so the last token meets a delimiter: a token is only read once a character ends it, and the engine drops an unterminated tail. One space unless make was given another; a C lexer wants a newline, which also ends a last line comment. An any rule is built to refuse its bytes, so setting it after make wants a remake!")
 
   (method read-str (self (param s STRING "Text to tokenize"))
     (doc "The tokens of s, in order, each (tag text) or (tag text label); dropped tokens (skip, an until rule with no tag) do not appear. The end text (a space unless set) is appended first, so the last token is seen."
       (returns LIST "The token list, nil for empty input")
       (example "(let ((l (Lexer make (list (Lexer skip \" \") (Lexer run 'word \"ab\" \"ab\"))))) (l read-str \"a b\"))" "(('word \"a\") ('word \"b\"))"))
-    ; A dropped span's handler answers the marker; it is filtered out here.
-    (def dropped (Lexer %dropped))
-    ((fn (self l acc)
-       (if (null? l) (List reverse acc)
-         (self (rest l) (if (eq? (first l) dropped) acc (pair (first l) acc)))))
-     ((Lexer %read-str) (self %base) (Str8 append s (self end))) ()))
-
-  (method %base (self)
-    (if (null? (self raw)) (self remake!) (self raw)))
+    ; One field read and a call: the reader closes over everything a read
+    ; needs, so a short read pays for the tokens, not for class dispatch.
+    (def r (self reader))
+    (if (null? r) (do (self remake!) ((self reader) s)) (r s)))
 
   (method remake! (self)
     (doc "Make the base and its states again from the rules -- what the recache hook does after an image load; a consumer never needs to call it."
@@ -74,6 +70,7 @@
         (Str8 append "lexer:" ((prim-ref (lit io) (lit write-to-str)) (pair (self end) (self rules))))
         (fn (_) (Lexer %install! self (self rules))))
       (Lexer %install! self (self rules)))
+    (self reader (Lexer %reader-for self))
     (self raw))
 
   (static
@@ -101,10 +98,10 @@
         (returns Lexer "The lexer")
         (sample "(Lexer make (list (Lexer skip \" \\n\") (Lexer number 'num ()) (Lexer run 'id \"abc\" \"abc\")))" "a lexer of numbers and words")
         (sample "(Lexer make c-rules \"\\n\")" "a lexer whose last line comment ends"))
-      (let ((raw ()) (states ()) (compiled 0) (end (if (null? more) " " (first more))))
-        (def l (new Lexer rules rules raw raw states states compiled compiled end end))
+      (let ((raw ()) (states ()) (compiled 0) (reader ()) (end (if (null? more) " " (first more))))
+        (def l (new Lexer rules rules raw raw states states compiled compiled reader reader end end))
         (l remake!)
-        ((Lexer %transient!) (fn (_) (l raw ()) (l states ())))
+        ((Lexer %transient!) (fn (_) (l raw ()) (l states ()) (l reader ())))
         ((Lexer %recache-hook!) (fn (_) (Lexer %jit-probe!) (l remake!)))
         l))
 
@@ -118,6 +115,30 @@
     (method %compile (self form fvars)
       (import x/tool/asm-cache)
       ((prim-ref (lit compile) (lit asm-cached)) form fvars #t))
+
+    ; The read for lexer L, made when its base is: the tokenizing door, the raw
+    ; base, the end text and the string append bound here rather than fetched
+    ; per read.  Fetching them per read was nine tenths of a short read --
+    ; 1,049 us for ten bytes, the engine's own share 61 us.  A dropped span's
+    ; handler answers the dropped marker, so only a rule list with one filters,
+    ; and with a local loop: List's reverse is a class call per read.
+    (method %reader-for (self l)
+      (def drops?
+        ((fn (self rs)
+           (if (null? rs) #f
+             (if (if (eq? (first (first rs)) (lit until)) (null? (first (rest (rest (first rs))))) #f)
+               #t (self (rest rs)))))
+         (l rules)))
+      ((fn (_ read base end append dropped)
+         (if drops?
+           (fn (_ s)
+             ((fn (self ts acc)
+                (if (null? ts)
+                  ((fn (self xs out) (if (null? xs) out (self (rest xs) (pair (first xs) out)))) acc ())
+                  (self (rest ts) (if (eq? (first ts) dropped) acc (pair (first ts) acc)))))
+              (read base (append s end)) ()))
+           (fn (_ s) (read base (append s end)))))
+       (Lexer %read-str) (l raw) (l end) (prim-ref (lit str) (lit append)) (Lexer %dropped)))
 
     (method %jit-probe! (self)
       (%set-first! (Lexer %jit-cell)
