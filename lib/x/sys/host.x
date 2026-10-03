@@ -308,7 +308,7 @@
     ; --- processes ------------------------------------------------------------
 
     (method processes (self)
-      (doc "Every process, one record each: pid ppid uid state comm tty nice start threads vsz rss utime stime. state is a Linux state letter (R S D T Z); start is unix seconds; vsz and rss are bytes; utime and stime are nanoseconds; tty is the terminal's device number, nil for none. Darwin answers state (unless zombie or stopped), threads, vsz, rss, utime and stime only for this user's processes unless running as root."
+      (doc "Every process, one record each: pid ppid pgid sid uid gid ruid rgid state comm tty tty-major tty-minor nice start threads vsz rss utime stime. uid and gid are the effective ids, ruid and rgid the real ones. state is a Linux state letter (R S D T Z); start is unix seconds; vsz and rss are bytes; utime and stime are nanoseconds; tty is the terminal's device number, nil for none, and tty-major and tty-minor its two halves as this kernel packs them. Darwin answers state (unless zombie or stopped), threads, vsz, rss, utime and stime only for this user's processes unless running as root."
         (returns LIST "Process records")
         (sample "(List length (Host processes))" "772"))
       (if (eq? (Host %backend) (lit darwin)) (Host %darwin-processes) (Host %linux-processes)))
@@ -351,12 +351,22 @@
           (def f (Host %fields (Str8 sub (+ close 2) (Str8 length s) s)))
           (def at (fn (_ i) (Host %int (List ref i f))))
           (def tty (at 4))
+          (def owner (Host %owner dir))
+          (def real (Host %real-ids dir))
           (list (pair (lit pid) (Host %int name))
                 (pair (lit ppid) (at 1))
-                (pair (lit uid) (Host %owner dir))
+                (pair (lit pgid) (at 2))
+                (pair (lit sid) (at 3))
+                (pair (lit uid) (if (null? owner) () (first owner)))
+                (pair (lit gid) (if (null? owner) () (rest owner)))
+                (pair (lit ruid) (if (null? real) () (first real)))
+                (pair (lit rgid) (if (null? real) () (rest real)))
                 (pair (lit state) (Str8 sub 0 1 (first f)))
                 (pair (lit comm) (Str8 sub (+ open 1) (- close (+ open 1)) s))
                 (pair (lit tty) (if (= tty 0) () tty))
+                ; tty_nr: the major in bits 8-19, the minor in 0-7 and 20-31
+                (pair (lit tty-major) (if (= tty 0) () (& (>> tty 8) 4095)))
+                (pair (lit tty-minor) (if (= tty 0) () (| (& tty 255) (& (>> tty 12) 1048320))))
                 (pair (lit nice) (at 16))
                 (pair (lit start) (+ btime (/ (at 19) (Host %hz))))
                 (pair (lit threads) (at 17))
@@ -366,11 +376,25 @@
                 (pair (lit stime) (Host %ticks->ns (at 12)))))))
 
     (method %owner (self (param path STRING "A /proc/PID directory"))
-      (doc "The uid owning a path, as BusyBox's ps reads a process's user."
-        (returns ANY "INTEGER, or nil"))
+      (doc "The uid and gid owning a path, as BusyBox's ps reads a process's user and group."
+        (returns ANY "PAIR (uid . gid), or nil"))
       (def b (Host %buf 160))
       (if (< ((syscall-door (if os-darwin? (lit stat64) (lit stat))) path b) 0) ()
-        (Assoc get (lit uid) (Struct unpack stat-layout b))))
+        (let ((st (Struct unpack stat-layout b)))
+          (pair (Assoc get (lit uid) st) (Assoc get (lit gid) st)))))
+
+    (method %real-ids (self (param dir STRING "A /proc/PID directory"))
+      (doc "The real uid and gid, the first number of /proc/PID/status's Uid: and Gid: lines, as BusyBox's ps reads ruser and rgroup."
+        (returns ANY "PAIR (ruid . rgid), or nil"))
+      (def s (Host %read (Str8 append dir "/status")))
+      (def first-of
+        (fn (_ key)
+          (def hit (List find (fn (_ l) (Str8 starts? key l)) (Str8 split "\n" s)))
+          (if (null? hit) ()
+            (Host %int (Str8 trim (Str8 sub (Str8 length key) (Str8 length hit) hit))))))
+      (if (null? s) ()
+        (let ((u (first-of "Uid:")) (g (first-of "Gid:")))
+          (if (if (null? u) #t (null? g)) () (pair u g)))))
 
     (method %linux-args (self (param pid INTEGER "Process ID"))
       (doc "args, from /proc/PID/cmdline: the strings between its NUL bytes, split as each read lands, since a string holding a NUL cannot be carried whole."
@@ -442,12 +466,23 @@
       (def ti (Host %buf 96))
       (def ok (= 96 (Host %call "proc_pidinfo" pid 4 0 (Host %ptr ti) 96)))
       (def task (fn (_ off n) (if ok (Host %int-at ti off n) ())))
+      (def sid (Host %call "getsid" pid))
       (list (pair (lit pid) pid)
             (pair (lit ppid) (Host %int-at b (+ o 560) 4))
+            (pair (lit pgid) (Host %int-at b (+ o 564) 4))
+            (pair (lit sid) (if (< sid 0) () sid))
+            ; e_ucred's uid and first group are the effective ids; e_pcred
+            ; holds the real ones
             (pair (lit uid) (Host %int-at b (+ o 420) 4))
+            (pair (lit gid) (Host %int-at b (+ o 428) 4))
+            (pair (lit ruid) (Host %int-at b (+ o 392) 4))
+            (pair (lit rgid) (Host %int-at b (+ o 400) 4))
             (pair (lit state) (match ((= stat 5) "Z") ((= stat 4) "T") ((not ok) ()) ((> (task 88 4) 0) "R") (#t "S")))
             (pair (lit comm) (Host %cstr-at b (+ o 243) 17))
             (pair (lit tty) (if (= tdev -1) () tdev))
+            ; dev_t: the major in the top 8 bits, the minor in the low 24
+            (pair (lit tty-major) (if (= tdev -1) () (& (>> tdev 24) 255)))
+            (pair (lit tty-minor) (if (= tdev -1) () (& tdev 16777215)))
             (pair (lit nice) (Host %signed-at b (+ o 242) 1))
             (pair (lit start) (Host %int-at b o 8))
             (pair (lit threads) (task 84 4))
