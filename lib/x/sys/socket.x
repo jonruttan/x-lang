@@ -391,6 +391,50 @@
       (%free-all)
       (pair payload sender))
 
+    (method send-to-run (self (param fd INTEGER "Datagram file descriptor")
+                              (param run PAIR "The datagram: (STRING . COUNT), NUL bytes included")
+                              (param host STRING "Dotted-quad IPv4 destination")
+                              (param port INTEGER "Destination port"))
+      (doc "Send one datagram of a run's COUNT bytes to host:port -- send-to for binary protocols, DNS and TFTP among them, whose packets carry NUL bytes a string's length stops at."
+        (returns INTEGER "Bytes sent")
+        (sample "(Socket send-to-run fd (pair packet 33) \"127.0.0.1\" 53)" "33"))
+      (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+      (def addr (%make-sockaddr-in port host))
+      (def r (%sk-fold (%sk-ptr-call (%sk "sendto") fd (%str->ptr (first run)) (rest run) 0 addr 16)))
+      (when (< r 0) (%sk-fail r 'sendto (list host port) addr))
+      (%sk-ptr-call %c-free addr)
+      r)
+
+    (method recv-from-run (self (param fd INTEGER "Bound datagram file descriptor")
+                                (param maxlen INTEGER "Maximum bytes to receive"))
+      (doc "Block for one datagram; return it as a run, (STRING . COUNT), NUL bytes included, WITH the sender's identity -- recv-from for binary protocols. A reply goes back with (Socket send-to-run fd run host port)."
+        (returns PAIR "((STRING . COUNT) . (host . port))")
+        (sample "(Socket recv-from-run fd 512)" "((\"...\" . 33) . (\"127.0.0.1\" . 51234))"))
+      (def %make-str (prim-ref (lit str) (lit make)))
+      (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+      (def region (%make-str (if (< maxlen 1) 1 maxlen)))
+      (def addr (%sk-int->ptr (%sk-ptr-call %c-malloc 16)))
+      (def alen (%sk-int->ptr (%sk-ptr-call %c-malloc 4)))
+      (%sk-ptr-call %c-memset addr 0 16)
+      (%sk-set1! alen 0 16)
+      (%sk-set1! alen 1 0) (%sk-set1! alen 2 0) (%sk-set1! alen 3 0)
+      (def %free-both (fn (_)
+        (%sk-ptr-call %c-free addr)
+        (%sk-ptr-call %c-free alen)))
+      (def n (%sk-fold (%sk-ptr-call (%sk "recvfrom") fd (%str->ptr region) maxlen 0 addr alen)))
+      (when (< n 0)
+        (let ((en (Err errno-of n)))
+          (%free-both)
+          (error (Err from-errno en 'recvfrom fd))))
+      (def %u8at (prim-ref (lit ptr) (lit ref)))
+      (def %oct (fn (_ i) (& (%u8at addr i 1) 255)))
+      (def sender
+        (pair (Str8 append (%number->str (%oct 4)) "." (%number->str (%oct 5)) "."
+                           (%number->str (%oct 6)) "." (%number->str (%oct 7)))
+              (+ (* 256 (%oct 2)) (%oct 3))))
+      (%free-both)
+      (pair (pair region n) sender))
+
     ; --- Unix-domain stream sockets (#364). AF_UNIX = 1 on both OSes;
     ; sockaddr_un = family header + NUL-terminated path (Darwin leads
     ; with a length byte, like sockaddr_in). accept/send/recv/close are

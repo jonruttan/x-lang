@@ -40,6 +40,15 @@ it.
 
 [#906]: https://github.com/jonruttan/x-lang/pull/906
 
+**Socket sends and receives binary datagrams** ([#910]). `(Socket
+send-to-run fd run host port)` sends a run's COUNT bytes as one datagram,
+and `(Socket recv-from-run fd n)` answers `((STRING . COUNT) . (host .
+port))`, the payload with its NUL bytes and the sender to answer. A DNS or
+TFTP packet could not cross `send-to` and `recv-from`, whose strings end at
+the first NUL.
+
+[#910]: https://github.com/jonruttan/x-lang/pull/910
+
 ## [0.21.0] - 2026-10-02
 
 **The Lexer's child base registers nothing, and every state is compiled and
