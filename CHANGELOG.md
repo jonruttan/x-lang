@@ -15,6 +15,7 @@ context is one compiled state and contexts nest 63 deep. `(Lexer escape TAG
 BYTE)` reads a byte and the byte after it as one token.
 
 [#914]: https://github.com/jonruttan/x-lang/pull/914
+
 **A Darwin `Host` process record costs thousands of objects, not hundreds of thousands** ([#912]).
 A record read each field through a class call and re-resolved its libc
 symbols per call: 187K objects a record, and a table of ~820 processes
