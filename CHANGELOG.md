@@ -5,16 +5,26 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**The Lexer reads nested spans and escapes** ([#914]). `(Lexer nested TAG OPEN
-START CONTEXTS)` reads a span whose body holds spans of its own: each context
-names its closing byte, its escape byte and the literals that enter other
-contexts, and a context's close returns to the one it was entered from, so a
-shell's `"..."` holding `$(...)` holding `"..."` again reads as one token. The
-return stack is a scratch buffer through the lane's `%mem-*` forms, so each
-context is one compiled state and contexts nest 63 deep. `(Lexer escape TAG
-BYTE)` reads a byte and the byte after it as one token.
+**A short Lexer read costs a fifth of what it did** ([#919]). `remake!` builds
+the read once, as a closure over the tokenizing door, the raw base, the end
+text and the dropped marker, and `read-str` calls it: ten bytes read in
+182 us instead of 1,049 us, of which the engine's tokenizing was 61 us. Only
+a rule list with a dropped span filters, and a nested or word rule's depth
+reset runs inside the same closure.
 
-[#914]: https://github.com/jonruttan/x-lang/pull/914
+[#919]: https://github.com/jonruttan/x-lang/pull/919
+
+## [0.24.0] - 2026-10-03
+
+**`Csv parse` reads Lexer tokens instead of walking bytes** ([#918]). A lexer
+made on the first parse splits the text into separators, newlines (CR and LF
+apart), quoted fields, plain runs and stray quotes; the parser joins doubled
+quotes and refuses the same malformed quoting it always did. On 16 KB of rows
+a parse falls from 359 ms to 137 ms under helium and from 560 ms to 142 ms
+under xenon; the first parse in a process makes the lexer, about 80 ms with
+the byte cache warm.
+
+[#918]: https://github.com/jonruttan/x-lang/pull/918
 
 **The Lexer reads a word whose bytes hold spans** ([#917]). `(Lexer word TAG
 START CONTEXTS STOP)` is a nested span with no opening literal: its first byte
@@ -25,6 +35,28 @@ substitutions is one token. Every nested and word rule puts its return stack
 back at depth 0 before each read and when an opener goes past its depth.
 
 [#917]: https://github.com/jonruttan/x-lang/pull/917
+
+**A compile that hits the byte cache loads the code buffers, not the
+assembler** ([#915]). lib/x/tool/asm-code.x holds what a function's bytes
+need once they exist -- the mapping and protection, the relocation records,
+the relocators, finalize and free -- and the cache imports it alone. asm.x
+and the backend's opcode table now load with the compiler, on a miss, or
+with anything that emits. Under helium, importing the cache door falls from
+290 ms to 210 ms; a hit still never loads the compiler. Code that emits
+instructions imports `x/tool/asm` itself: the cache no longer brings it.
+
+[#915]: https://github.com/jonruttan/x-lang/pull/915
+
+**The Lexer reads nested spans and escapes** ([#914]). `(Lexer nested TAG OPEN
+START CONTEXTS)` reads a span whose body holds spans of its own: each context
+names its closing byte, its escape byte and the literals that enter other
+contexts, and a context's close returns to the one it was entered from, so a
+shell's `"..."` holding `$(...)` holding `"..."` again reads as one token. The
+return stack is a scratch buffer through the lane's `%mem-*` forms, so each
+context is one compiled state and contexts nest 63 deep. `(Lexer escape TAG
+BYTE)` reads a byte and the byte after it as one token.
+
+[#914]: https://github.com/jonruttan/x-lang/pull/914
 
 **A lexer starts in half the time** ([#913]). The Lexer imports only the
 compile cache's door, not compile.x and its C lane, so importing it costs
@@ -40,36 +72,6 @@ from about 1,100 ms to about 570 ms under helium and from about 270 ms to
 about 220 ms under xenon.
 
 [#913]: https://github.com/jonruttan/x-lang/pull/913
-
-**A compile that hits the byte cache loads the code buffers, not the
-assembler** ([#915]). lib/x/tool/asm-code.x holds what a function's bytes
-need once they exist -- the mapping and protection, the relocation records,
-the relocators, finalize and free -- and the cache imports it alone. asm.x
-and the backend's opcode table now load with the compiler, on a miss, or
-with anything that emits. Under helium, importing the cache door falls from
-290 ms to 210 ms; a hit still never loads the compiler. Code that emits
-instructions imports `x/tool/asm` itself: the cache no longer brings it.
-
-[#915]: https://github.com/jonruttan/x-lang/pull/915
-
-**`Csv parse` reads Lexer tokens instead of walking bytes** ([#918]). A lexer
-made on the first parse splits the text into separators, newlines (CR and LF
-apart), quoted fields, plain runs and stray quotes; the parser joins doubled
-quotes and refuses the same malformed quoting it always did. On 16 KB of rows
-a parse falls from 359 ms to 137 ms under helium and from 560 ms to 142 ms
-under xenon; the first parse in a process makes the lexer, about 80 ms with
-the byte cache warm.
-
-[#918]: https://github.com/jonruttan/x-lang/pull/918
-
-**A short Lexer read costs a fifth of what it did** ([#919]). `remake!` builds
-the read once, as a closure over the tokenizing door, the raw base, the end
-text and the dropped marker, and `read-str` calls it: ten bytes read in
-182 us instead of 1,049 us, of which the engine's tokenizing was 61 us. Only
-a rule list with a dropped span filters, and a nested or word rule's depth
-reset runs inside the same closure.
-
-[#919]: https://github.com/jonruttan/x-lang/pull/919
 
 **A Darwin `Host` process record costs thousands of objects, not hundreds of thousands** ([#912]).
 A record read each field through a class call and re-resolved its libc
