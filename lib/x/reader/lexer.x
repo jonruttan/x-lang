@@ -35,7 +35,7 @@
 (import x/tool/compile compile-asm)
 
 (def-class Lexer ()
-  (doc "A tokenizer base built from data rules, its analyser states compiled to native code when the assembler lane is open and interpreted otherwise. Make one with (Lexer make rules), where each rule is made by run, skip, table, quoted, until, number or any; read with (l read-str s). A token is (tag text) or, from a number rule, (tag text label)."
+  (doc "A tokenizer base built from data rules, its analyser states compiled to native code when the assembler lane is open and interpreted otherwise. Make one with (Lexer make rules), where each rule is made by run, skip, table, quoted, until, number, nested, escape or any; read with (l read-str s). A token is (tag text) or, from a number rule, (tag text label)."
     (note "The first rule in the list wins an equal-length tie; a longer match wins regardless. List a keyword table before the identifier run that would also read it.")
     (note "A character class is a list of byte codes, (lo . hi) pairs and strings (each byte a member), or one bare string; a character literal counts as its code.")
     (note "The base and its states are dropped before a state image is written and made again after a load: a consumer holds the Lexer, never its raw base.")
@@ -79,6 +79,7 @@
     (%base-eval (prim-ref (lit base) (lit eval)))
     (%byte-ref (prim-ref (lit str) (lit byte-ref)))
     (%byte-len (prim-ref (lit str) (lit byte-len)))
+    (%make-str (prim-ref (lit str) (lit make)))
     ; Is the assembler lane open?  Probed by one state in the form every state
     ; takes; probed again after an image load, when the compiler has its
     ; addresses back.
@@ -87,7 +88,7 @@
     ; what a dropped span's read handler answers; read-str leaves it out
     (%dropped (pair (lit dropped) ()))
 
-    (method make (self (param rules LIST "Rules in priority order, each from run, skip, table, quoted, until, number or any")
+    (method make (self (param rules LIST "Rules in priority order, each from run, skip, table, quoted, until, number, nested, escape or any")
                        . (param more ANY "Optionally the end text, a space when left out: see the end field"))
       (doc "A lexer over rules: a tokenizer base with one type a rule, its states compiled where the lane allows."
         (returns Lexer "The lexer")
@@ -167,6 +168,23 @@
         (sample "(Lexer any 'bad)" "every stray byte becomes (bad \"@\")"))
       (list (lit any) (Str8 str tag) tag))
 
+    (method nested (self (param tag SYMBOL "The token's tag")
+                         (param open STRING "The opening literal")
+                         (param start SYMBOL "The context the body after open is read in")
+                         (param contexts LIST "Each (NAME CLOSE ESC OPENS): see the doc"))
+      (doc "A rule for a span whose body holds spans of its own: open, then a body read in the context start, to the byte that closes start. A context is (NAME CLOSE ESC OPENS): CLOSE the byte that ends it, ESC the byte that takes the next byte literally (nil for none), OPENS a list of (LITERAL . CONTEXT), each literal entering that context, whose close returns to the one it was entered from. The token's text is the whole span, raw; contexts nest up to 63 deep, and a deeper one ends the match there."
+        (returns LIST "The rule")
+        (note "Within a context no opening literal may be a prefix of another, and none may start with the context's close or escape byte; make refuses such a rule.")
+        (sample "(Lexer nested 'dq \"\\\"\" 'dq (list (list 'dq 34 92 (list (pair \"$(\" 'cmd))) (list 'cmd 41 92 (list (pair \"(\" 'cmd) (pair \"\\\"\" 'dq) (pair \"'\" 'sq))) (list 'sq 39 () ())))" "a shell double-quoted string, $(...) inside it read whole, quotes in that included"))
+      (list (lit nested) (Str8 str tag) tag open start contexts))
+
+    (method escape (self (param tag SYMBOL "The token's tag")
+                         (param byte ANY "The escaping byte, a code or a character"))
+      (doc "A rule for an escape: byte, then whichever byte follows it, as one two-byte token."
+        (returns LIST "The rule")
+        (sample "(Lexer escape 'esc 92)" "a backslash and the byte it escapes"))
+      (list (lit escape) (Str8 str tag) tag byte))
+
     ; --- forms --------------------------------------------------------------
     ; The lane's dialect.  A class test is an or of ranges and codes; accept
     ; unreads the character that ended the token and scores; take keeps it.
@@ -213,15 +231,19 @@
     ; form itself is what runs either way.  Every state goes on the lexer's
     ; list: a compiled state is not seen by the collector through the base.
 
-    (method %state (self l form fvars)
+    (method %state (self l form fvars . twin)
       (def made
         (if (Lexer %jit?)
           (guard (_ ())
             (compile-asm form fvars #t))
           ()))
+      ; TWIN, when given, binds names differently in the interpreted twin
+      ; than FVARS does in the compiled form: the nested rule's stack is an
+      ; address there and a list of cells here.
       (def st
         (if (null? made)
-          (eval (Lexer %subst form fvars) (Lexer %env))
+          (eval (Lexer %subst form (if (null? twin) fvars (List append (first twin) fvars)))
+                (Lexer %env))
           (do (l compiled (+ 1 (l compiled))) made)))
       (l states (pair st (l states)))
       st)
@@ -502,6 +524,188 @@
               (list (lit if) (lit (= chr 46)) (lit dot) ()))))
         (list (pair (lit zero) zero) (pair (lit body) int-digits) (pair (lit dot) frac-first))))
 
+    ; An escape: its byte, then any byte, taken.
+    (method %escape-states (self l byte)
+      (let ((after (Lexer %state l (Lexer %state-form (Lexer %take)) ())))
+        (Lexer %state l
+          (Lexer %state-form
+            (list (lit if) (list (lit =) (lit chr) (Lexer %code byte)) (lit next) ()))
+          (list (pair (lit next) after)))))
+
+    ; A nested span.  Every context has a body state, an escape state when it
+    ; has an escape byte, and a state for each byte inside an opening literal
+    ; longer than one byte.  The states reach one another through cells --
+    ; (first SLOT), each slot an fvar holding a cell set once every state
+    ; exists -- so contexts may enter one another in any order.
+    ;
+    ; The return stack is a scratch buffer of 64 words, through the lane's
+    ; %mem-* forms: word 0 the depth, word D the body to go back to when the
+    ; context entered at depth D closes.  Opening a literal pushes the body
+    ; it was read in and goes to its context's body; a close pops, or at
+    ; depth 0 takes the byte and ends the token.  The interpreted twin keeps
+    ; the same stack in a list of cells, its %mem-* forms bound to closures.
+    (method %nested-states (self l open start contexts)
+      (Lexer %nested-check open start contexts)
+      (def slots (pair () ()))
+      (def count (pair 0 ()))
+      (def slot!
+        (fn (_)
+          (%set-first! count (+ 1 (first count)))
+          (def name (Str8 ->sym (Str8 append "s" (%number->str (first count)))))
+          (%set-first! slots (pair (pair name (pair () ())) (first slots)))
+          name))
+      (def forms (pair () ()))
+      ; The cells, the forms still to compile and the stacks are held on the
+      ; lexer from the start: the compiler collects as it goes, and what only
+      ; this frame holds is freed under it (and every cell is reached by the
+      ; finished states only through baked addresses).
+      (l states (pair slots (pair forms (l states))))
+      (def emit! (fn (_ slot body) (%set-first! forms (pair (pair slot (Lexer %state-form body)) (first forms)))))
+      (def ref (fn (_ slot) (list (lit first) slot)))
+      (def bodies (List map (fn (_ c) (pair (first c) (slot!))) contexts))
+      (def body-of (fn (_ name) (rest (Lexer %assoc name bodies))))
+      (def push-form
+        (fn (_ from to)
+          (list (lit if) (lit (>= (%mem-ref (first stk) 0) 63)) ()
+            (list (lit %seq) (lit (%mem-set! (first stk) 0 (+ (%mem-ref (first stk) 0) 1)))
+              (list (lit %seq) (list (lit %mem-set-at!) (lit (first stk)) (lit (%mem-ref (first stk) 0)) (ref (body-of from)))
+                (ref (body-of to)))))))
+      (def close-form
+        (lit (if (= (%mem-ref (first stk) 0) 0) (%score-set score 1 buffer)
+               (%seq (%mem-set! (first stk) 0 (- (%mem-ref (first stk) 0) 1))
+                     (%mem-ref-at (first stk) (+ (%mem-ref (first stk) 0) 1))))))
+      ; OPENS grouped by their byte at I, in order: ((code . opens) ...)
+      (def groups
+        (fn (_ opens i)
+          ((fn (self os acc)
+             (if (null? os) (List reverse acc)
+               (let ((c ((Lexer %char->int) ((Lexer %byte-ref) (first (first os)) i))))
+                 (def hit (Lexer %assoc c acc))
+                 (self (rest os)
+                   (if (null? hit) (pair (pair c (list (first os))) acc)
+                     (List map (fn (_ g) (if (eq? g hit) (pair c (List append (rest g) (list (first os)))) g)) acc))))))
+           opens ())))
+      ; the tests on chr for the groups of OPENS at byte I, OTHER when none
+      ; matches: a literal ending at I pushes, a longer one goes to the state
+      ; for its next byte, whose own miss reads chr as the context's body would
+      (def dispatch ())
+      ; a literal's next-byte state is made once, found again by its context,
+      ; its byte and the literals it reads: the miss of every such state
+      ; reads chr through the context's dispatch, which names the same states
+      (def made (pair () ()))
+      (def key
+        (fn (_ name opens i)
+          (Str8 append (Str8 str name) ":" (%number->str i) ":"
+            ((fn (self os acc) (if (null? os) acc (self (rest os) (Str8 append acc " " (first (first os))))))
+             opens ""))))
+      (def next-state
+        (fn (_ tests name opens i)
+          (def k (key name opens i))
+          (def hit ((fn (self ms) (if (null? ms) () (if (Str8 =? (first (first ms)) k) (first ms) (self (rest ms))))) (first made)))
+          (if (null? hit)
+            (let ((s (slot!)))
+              (%set-first! made (pair (pair k s) (first made)))
+              (emit! s (tests name opens i (dispatch name (ref (body-of name)))))
+              s)
+            (rest hit))))
+      (def opens-tests
+        (fn (self name opens i other)
+          ((fn (walk gs)
+             (if (null? gs) other
+               (let ((g (first gs)))
+                 (list (lit if) (list (lit =) (lit chr) (first g))
+                   (if (if (null? (rest (rest g))) (= ((Lexer %byte-len) (first (first (rest g)))) (+ i 1)) #f)
+                     (push-form name (rest (first (rest g))))
+                     (ref (next-state self name (rest g) (+ i 1))))
+                   (walk (rest gs))))))
+           (groups opens i))))
+      (def escs
+        (List map (fn (_ c) (pair (first c) (if (null? (first (rest (rest c)))) () (slot!)))) contexts))
+      (set! dispatch
+        (fn (_ name other)
+          (def c (Lexer %assoc name contexts))
+          (def esc (rest (Lexer %assoc name escs)))
+          (def tests (opens-tests name (Lexer %nested-opens c) 0 other))
+          (list (lit if) (list (lit =) (lit chr) (Lexer %code (first (rest c)))) close-form
+            (if (null? esc) tests
+              (list (lit if) (list (lit =) (lit chr) (Lexer %code (first (rest (rest c))))) (ref esc) tests)))))
+      (List map
+        (fn (_ c)
+          (emit! (body-of (first c)) (dispatch (first c) (lit me)))
+          (def esc (rest (Lexer %assoc (first c) escs)))
+          (if (null? esc) () (emit! esc (ref (body-of (first c))))))
+        contexts)
+      ; the stack, and the twin's
+      (def buf ((Lexer %make-str) 512))
+      (def tstack ((fn (self k acc) (if (= k 0) acc (self (- k 1) (pair (pair 0 ()) acc)))) 64 ()))
+      (def tcell (fn (self s i) (if (= i 0) (first s) (self (rest s) (- i 1)))))
+      (def tref (fn (_ s i) (first (tcell s i))))
+      (def tset (fn (_ s i v) (%set-first! (tcell s i) v) v))
+      (def twin (list (pair (lit stk) (pair tstack ())) (pair (lit %mem-ref) tref) (pair (lit %mem-ref-at) tref)
+                      (pair (lit %mem-set!) tset) (pair (lit %mem-set-at!) tset)))
+      (def fvars (pair (pair (lit stk) buf) (first slots)))
+      (l states (pair buf (pair twin (pair fvars (l states)))))
+      (List map
+        (fn (_ f) (%set-first! (rest (Lexer %assoc (first f) (first slots))) (Lexer %state l (rest f) fvars twin)))
+        (first forms))
+      ; the forms are compiled; the cells stay held through slots
+      (%set-first! forms ())
+      ; the open chain, last byte first; its last byte starts the stack
+      (def first-body (body-of start))
+      ((fn (self i next)
+         (if (< i 0) next
+           (self (- i 1)
+             (Lexer %state l
+               (Lexer %state-form
+                 (list (lit if) (list (lit =) (lit chr) ((Lexer %char->int) ((Lexer %byte-ref) open i)))
+                   (if (null? next)
+                     (list (lit %seq) (lit (%mem-set! (first stk) 0 0)) (ref first-body))
+                     (lit next))
+                   ()))
+               (if (null? next) fvars (pair (pair (lit next) next) fvars))
+               twin))))
+       (- ((Lexer %byte-len) open) 1) ()))
+
+    ; A context's opening literals, as (literal . context) pairs
+    (method %nested-opens (self c) (first (rest (rest (rest c)))))
+
+    ; Refuse a nested rule its states could not read: an unknown context, a
+    ; literal that is a prefix of another in its context, or one that starts
+    ; with the context's close or escape byte.
+    (method %nested-check (self open start contexts)
+      (def known? (fn (_ n) (not (null? (Lexer %assoc n contexts)))))
+      (def bad (fn (_ why what) (Err raise (lit lexer) (Str8 append "Lexer nested: " why) what)))
+      (if (not (known? start)) (bad "no context named start" start) ())
+      (if (< ((Lexer %byte-len) open) 1) (bad "an empty opening literal" open) ())
+      (List map
+        (fn (_ c)
+          (def close (Lexer %code (first (rest c))))
+          (def esc (first (rest (rest c))))
+          (List map
+            (fn (_ o)
+              (def b ((Lexer %char->int) ((Lexer %byte-ref) (first o) 0)))
+              (if (not (known? (rest o))) (bad "no context named" (rest o)) ())
+              (if (= b close) (bad "a literal starts with its context's close" (first o)) ())
+              (if (if (null? esc) #f (= b (Lexer %code esc))) (bad "a literal starts with its context's escape" (first o)) ())
+              (List map
+                (fn (_ p)
+                  (if (if (eq? p o) #f (Lexer %prefix? (first o) (first p)))
+                    (bad "a literal is a prefix of another" (first o)) ()))
+                (Lexer %nested-opens c)))
+            (Lexer %nested-opens c)))
+        contexts)
+      ())
+
+    ; Is A a prefix of B?
+    (method %prefix? (self a b)
+      (def n ((Lexer %byte-len) a))
+      (if (> n ((Lexer %byte-len) b)) #f
+        ((fn (self i)
+           (if (= i n) #t
+             (if (= ((Lexer %char->int) ((Lexer %byte-ref) a i)) ((Lexer %char->int) ((Lexer %byte-ref) b i)))
+               (self (+ i 1)) #f)))
+         0)))
+
     ; --- installing ---------------------------------------------------------
     ; The read handler of a tagged rule: (tag text), with the label when one
     ; was declared.  A rule with no tag has no read handler, and its tokens
@@ -537,6 +741,9 @@
           ((eq? kind (lit until)) (Lexer %until-states l tag (first args) (first (rest args))))
           ((eq? kind (lit number)) (Lexer %number-states l (first args)))
           ((eq? kind (lit any)) (Lexer %any-states l))
+          ((eq? kind (lit nested))
+            (Lexer %nested-states l (first args) (first (rest args)) (first (rest (rest args)))))
+          ((eq? kind (lit escape)) (Lexer %escape-states l (first args)))
           (#t (Err raise (lit lexer) "Lexer: unknown rule kind" kind))))
       ; A rule with no tag is a skip, scored negative, which the engine never
       ; reads, or a dropped span, scored positive so that it beats the
@@ -559,7 +766,7 @@
           (Lexer %install! l (rest rules)))))))
 
 (doc (provide x/reader/lexer Lexer)
-  (note "Rules are data: run, skip, table, quoted, until, number, any. (Lexer make rules) builds the base; (l read-str s) reads.")
+  (note "Rules are data: run, skip, table, quoted, until, number, nested, escape, any. (Lexer make rules) builds the base; (l read-str s) reads.")
   (note "Every analyser state is one form, compiled through compile-asm when the lane is open and evaluated as the interpreted twin otherwise; the base is remade after an image load.")
   (note "With the lane closed the twins run inside the child base, and their first comparison registers the engine's INTEGER type there with its s-expression analyser: a signed digit run such as +1 then reads as an integer wherever it outranks a one-byte rule. Compiled states register nothing.")
   "Tokenizer bases from data rules, with compiled analysers.")

@@ -458,3 +458,96 @@ collect between reads does not free it under the states.
 ```
 ---
     ((('id "a") ('str "\"x\\ny\"") ('id "b")) (('id "a") ('str "\"x\\ny\"") ('id "b")))
+
+## nested spans
+
+A nested rule reads a span whose body holds spans of its own, each context
+closing back to the one it was entered from; an escape rule reads a byte and
+the one after it.  The contexts below are a POSIX shell's: a double-quoted
+string, a command substitution, a parameter expansion, backquotes and single
+quotes.
+
+### quotes inside a command substitution inside a string do not end either
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxn-ctx
+    (list (list 'dq 34 92 (list (pair "$(" 'cmd) (pair "${" 'brace) (pair "`" 'bq)))
+          (list 'cmd 41 92 (list (pair "(" 'cmd) (pair "\"" 'dq) (pair "'" 'sq) (pair "${" 'brace)))
+          (list 'brace 125 92 (list (pair "\"" 'dq) (pair "${" 'brace)))
+          (list 'bq 96 92 (list (pair "'" 'sq) (pair "\"" 'dq)))
+          (list 'sq 39 () ())))
+  (def %lxn-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer escape 'esc 92)
+    (Lexer nested 'dq "\"" 'dq %lxn-ctx)
+    (Lexer nested 'cmd "$(" 'cmd %lxn-ctx)
+    (Lexer run 'word "abcdefghijklmnopqrstuvwxyz$=" "abcdefghijklmnopqrstuvwxyz$=")
+    (Lexer any 'bad))))
+  (write (list (%lxn-l read-str "\"a $(echo \"b)\" ) c\" x")
+               (%lxn-l read-str "$(a (b) 'c)' \"$(d)\") e")
+               (%lxn-l read-str "\\) \"x\\\"y\" \"${v:-\"q\"}\" \"`e '`'`\"")))
+  (newline))
+```
+---
+    ((('dq "\"a $(echo \"b)\" ) c\"") ('word "x")) (('cmd "$(a (b) 'c)' \"$(d)\")") ('word "e")) (('esc "\\)") ('dq "\"x\\\"y\"") ('dq "\"${v:-\"q\"}\"") ('dq "\"`e '`'`\"")))
+
+### a span left open is not a token, and the next read starts at depth 0
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxn-ctx
+    (list (list 'cmd 41 () (list (pair "(" 'cmd)))))
+  (def %lxn-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer nested 'cmd "$(" 'cmd %lxn-ctx)
+    (Lexer run 'word "abc$" "abc$")
+    (Lexer any 'bad))))
+  (write (list (%lxn-l read-str "$(a (b")
+               (%lxn-l read-str "$(a) $(b)")))
+  (newline))
+```
+---
+    ((('word "$") ('bad "(") ('word "a") ('bad "(") ('word "b")) (('cmd "$(a)") ('cmd "$(b)")))
+
+### contexts nest 63 deep, and an opener past that ends the match
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxn-l (Lexer make (list
+    (Lexer nested 'cmd "$(" 'cmd (list (list 'cmd 41 () (list (pair "$(" 'cmd)))))
+    (Lexer run 'word "x$" "x$")
+    (Lexer any 'bad))))
+  (def %lxn-deep
+    (fn (_ n)
+      ((fn (self k pre post) (if (= k 0) (Str8 append pre "x" post) (self (- k 1) (Str8 append pre "$(") (Str8 append post ")"))))
+       n "" "")))
+  (write (list (first (first (%lxn-l read-str (%lxn-deep 63))))
+               (first (first (%lxn-l read-str (%lxn-deep 70))))
+               (first (first (%lxn-l read-str (%lxn-deep 2))))))
+  (newline))
+```
+---
+    ('cmd 'word 'cmd)
+
+### a rule its states could not read is refused at make
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxn-try
+    (fn (_ ctx)
+      (guard (e 'refused)
+        (Lexer make (list (Lexer nested 'n "(" 'a ctx)))
+        'made)))
+  (write (list (%lxn-try (list (list 'a 41 () (list (pair "(" 'b)))))
+               (%lxn-try (list (list 'a 41 () (list (pair "$" 'a) (pair "$(" 'a)))))
+               (%lxn-try (list (list 'a 41 () (list (pair ")" 'a)))))
+               (%lxn-try (list (list 'a 41 () (list (pair "(" 'a)))))))
+  (newline))
+```
+---
+    ('refused 'refused 'refused 'made)
