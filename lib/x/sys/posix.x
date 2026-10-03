@@ -505,7 +505,33 @@
         (let ((p (%str->ptr tm)))
           (list (pair (lit offset) (%sys-fold (%ptr-ref p 40 4)))
                 (pair (lit name) (%cvt (%cvt (%ptr-ref p 48 8) %ptr) %string))
-                (pair (lit dst) (> (%ptr-ref p 32 4) 0))))))))
+                (pair (lit dst) (> (%ptr-ref p 32 4) 0))))))
+
+    ; zone's inverse: libc's mktime over a struct tm of local fields, with
+    ; tm_isdst -1 so the C library decides whether daylight time is in
+    ; force -- and so resolves a time a change skips or repeats as it does
+    ; for every C program.  The fields are ints at 0 to 20 and tm_isdst at
+    ; 32, as zone reads them; the rest of the struct is zeroed first.
+    (method local->unix (self (param year INTEGER "Year")
+                              (param month INTEGER "Month, 1-12")
+                              (param day INTEGER "Day of the month")
+                              (param hour INTEGER "Hour, 0-23")
+                              (param minute INTEGER "Minute")
+                              (param second INTEGER "Second"))
+      (doc "Unix seconds for a civil time in the local zone, from the C library's mktime: the zone TZ chooses, daylight time decided by the C library. Fields past their range carry into the next, as mktime's do."
+        (returns INTEGER "Seconds since the unix epoch")
+        (note "The inverse of the clock fields (Date local) reads; (Date local->unix date) takes a date alist.")
+        (sample "(Sys local->unix 2026 9 21 10 13 20)" "1790000000, under TZ=EST5EDT,M3.2.0,M11.1.0"))
+      (let ((tm (%make-str 64)) (set (prim-ref (lit ptr) (lit set!))))
+        (let ((p (%str->ptr tm)))
+          (%ptr-set-word! p 0 0) (%ptr-set-word! p 8 0) (%ptr-set-word! p 16 0)
+          (%ptr-set-word! p 24 0) (%ptr-set-word! p 32 0) (%ptr-set-word! p 40 0)
+          (%ptr-set-word! p 48 0) (%ptr-set-word! p 56 0)
+          (set p 0 second 4) (set p 4 minute 4) (set p 8 hour 4)
+          (set p 12 day 4) (set p 16 (- month 1) 4) (set p 20 (- year 1900) 4)
+          (set p 32 -1 4)
+          (%ptr-call (%resolve "tzset"))
+          (%ptr-call (%resolve "mktime") p))))))))
 
 (doc (provide x/sys/posix Sys)
   (note "POSIX via the Sys class: (Sys fork), (Sys exec name args), (Sys pipe),")

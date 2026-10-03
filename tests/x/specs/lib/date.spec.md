@@ -178,3 +178,34 @@ The expectations are the system date's: `TZ=... date -r SECS`.
 ```
 ---
     (#t 0)
+
+### Sys local->unix: mktime's seconds for a local time, after 1970 and before it
+
+The system date's: `TZ=... date -j -f '%Y-%m-%d %H:%M:%S' TIME +%s`.
+
+```x
+(do (import x/sys/date)
+  (def tz-was (Sys getenv "TZ"))
+  (def tz-at (fn (_ tz) (do (Sys setenv "TZ" tz)
+                          (list (Sys local->unix 2026 9 21 10 13 20)
+                                (Sys local->unix 1969 12 31 23 0 0)))))
+  (def tz-r (List map tz-at (list "UTC0" "EST5EDT,M3.2.0,M11.1.0" "<+0530>-5:30")))
+  (if (null? tz-was) (Sys unsetenv "TZ") (Sys setenv "TZ" tz-was))
+  tz-r)
+```
+---
+    ((1789985600 -3600) (1790000000 14400) (1789965800 -23400))
+
+### Date local->unix undoes Date local, in and out of daylight time and across the year
+
+```x
+(do (import x/sys/date)
+  (def tz-was (Sys getenv "TZ"))
+  (Sys setenv "TZ" "EST5EDT,M3.2.0,M11.1.0")
+  (def tz-r (List map (fn (_ s) (= s (Date local->unix (Date local s))))
+              (list 1790000000 1767225600 0 1234567890 -86400)))
+  (if (null? tz-was) (Sys unsetenv "TZ") (Sys setenv "TZ" tz-was))
+  tz-r)
+```
+---
+    (#t #t #t #t #t)
