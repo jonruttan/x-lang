@@ -722,3 +722,45 @@ the end text and take, a close the input supplies stays in the token.
 ```
 ---
     'refused
+
+## nested and word: a span still open at the end
+
+### to-end makes a word or a nested span left open at the end a token, the end text cut
+
+The end text is a newline, and a blank inside the open span stays; spans that
+close read as they do without the flag.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxe-ctx
+    (list (list 'w () 92 (list (pair "\"" 'dq) (pair "'" 'sq) (pair "$(" 'cmd) (pair "${" 'brace)))
+          (list 'dq 34 92 (list (pair "$(" 'cmd) (pair "${" 'brace)))
+          (list 'sq 39 () ())
+          (list 'cmd 41 92 (list (pair "(" 'cmd) (pair "\"" 'dq) (pair "'" 'sq)))
+          (list 'brace 125 92 (list (pair "\"" 'dq) (pair "'" 'sq)))))
+  (def %lxe-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer table 'nl (list "\n"))
+    (Lexer nested 'dq "\"" 'dq (rest %lxe-ctx) 'to-end)
+    (Lexer word 'word 'w %lxe-ctx " \n" 'to-end))
+    "\n"))
+  (write (list (%lxe-l read-str "a ${X") (%lxe-l read-str "'a'\"b") (%lxe-l read-str "x $(echo a")
+               (%lxe-l read-str "\"a $(b") (%lxe-l read-str "\"a\" b${c}\n")))
+  (newline))
+```
+---
+    ((('word "a") ('word "${X")) (('word "'a'\"b")) (('word "x") ('word "$(echo a")) (('dq "\"a $(b")) (('dq "\"a\"") ('word "b${c}") ('nl "\n")))
+
+### a nested or word flag other than to-end is refused
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxe-c (list (list 'w () () ()) (list 'q 34 () ())))
+  (write (list (guard (e (lit refused)) (Lexer nested 'q "\"" 'q %lxe-c 'take))
+               (guard (e (lit refused)) (Lexer word 'w 'w %lxe-c " " 'greedy))))
+  (newline))
+```
+---
+    ('refused 'refused)

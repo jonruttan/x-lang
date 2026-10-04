@@ -233,21 +233,32 @@
     (method nested (self (param tag SYMBOL "The token's tag")
                          (param open STRING "The opening literal")
                          (param start SYMBOL "The context the body after open is read in")
-                         (param contexts LIST "Each (NAME CLOSE ESC OPENS): see the doc"))
-      (doc "A rule for a span whose body holds spans of its own: open, then a body read in the context start, to the byte that closes start. A context is (NAME CLOSE ESC OPENS): CLOSE the byte that ends it, ESC the byte that takes the next byte literally (nil for none), OPENS a list of (LITERAL . CONTEXT), each literal entering that context, whose close returns to the one it was entered from. The token's text is the whole span, raw; contexts nest up to 63 deep, and a deeper one ends the match there."
+                         (param contexts LIST "Each (NAME CLOSE ESC OPENS): see the doc")
+                         . (param flags LIST "Optionally to-end"))
+      (doc "A rule for a span whose body holds spans of its own: open, then a body read in the context start, to the byte that closes start. A context is (NAME CLOSE ESC OPENS): CLOSE the byte that ends it, ESC the byte that takes the next byte literally (nil for none), OPENS a list of (LITERAL . CONTEXT), each literal entering that context, whose close returns to the one it was entered from. The token's text is the whole span, raw; contexts nest up to 63 deep, and a deeper one ends the match there. With the flag to-end a span still open at the end of the text is a token all the same, the end text not part of it; without it, such a span is not a token."
         (returns LIST "The rule")
         (note "Within a context no opening literal may be a prefix of another, and none may start with the context's close or escape byte; make refuses such a rule.")
         (sample "(Lexer nested 'dq \"\\\"\" 'dq (list (list 'dq 34 92 (list (pair \"$(\" 'cmd))) (list 'cmd 41 92 (list (pair \"(\" 'cmd) (pair \"\\\"\" 'dq) (pair \"'\" 'sq))) (list 'sq 39 () ())))" "a shell double-quoted string, $(...) inside it read whole, quotes in that included"))
-      (list (lit nested) (Str8 str tag) tag open start contexts))
+      (Lexer %to-end-only "Lexer nested: a flag is to-end" flags)
+      (list (lit nested) (Str8 str tag) tag open start contexts flags))
 
     (method word (self (param tag SYMBOL "The token's tag")
                        (param start SYMBOL "The context the word is read in")
                        (param contexts LIST "Each (NAME CLOSE ESC OPENS), as nested takes them; start's CLOSE may be nil")
-                       (param stop LIST "Class of the bytes that end the word, at depth 0"))
-      (doc "A rule for a word whose bytes may hold spans: a nested span with no opening literal, read in the context start from its first byte, and ending before a byte of stop met at depth 0 -- that byte is left for the next token. A first byte in stop is no word. Spans opened inside it read as nested reads them, a stop byte inside one being an ordinary byte."
+                       (param stop LIST "Class of the bytes that end the word, at depth 0")
+                       . (param flags LIST "Optionally to-end"))
+      (doc "A rule for a word whose bytes may hold spans: a nested span with no opening literal, read in the context start from its first byte, and ending before a byte of stop met at depth 0 -- that byte is left for the next token. A first byte in stop is no word. Spans opened inside it read as nested reads them, a stop byte inside one being an ordinary byte. With the flag to-end a word whose span is still open at the end of the text is a token all the same, the end text not part of it; without it, such a word is not a token."
         (returns LIST "The rule")
-        (sample "(Lexer word 'word 'w (list (list 'w () 92 (list (pair \"\\\"\" 'dq) (pair \"$(\" 'cmd))) (list 'dq 34 92 (list (pair \"$(\" 'cmd))) (list 'cmd 41 92 (list (pair \"(\" 'cmd) (pair \"\\\"\" 'dq)))) \" \\t\\n;&|<>()\")" "a shell word: a\\ b\"c d\"$(e f) is one token"))
-      (list (lit word) (Str8 str tag) tag start contexts stop))
+        (sample "(Lexer word 'word 'w (list (list 'w () 92 (list (pair \"\\\"\" 'dq) (pair \"$(\" 'cmd))) (list 'dq 34 92 (list (pair \"$(\" 'cmd))) (list 'cmd 41 92 (list (pair \"(\" 'cmd) (pair \"\\\"\" 'dq)))) \" \\t\\n;&|<>()\")" "a shell word: a\\ b\"c d\"$(e f) is one token")
+        (sample "(Lexer word 'word 'w contexts \" \\t\\n\" 'to-end)" "an unclosed ${x at the end is the word ${x"))
+      (Lexer %to-end-only "Lexer word: a flag is to-end" flags)
+      (list (lit word) (Str8 str tag) tag start contexts stop flags))
+
+    ; Refuse a flag other than to-end, naming the rule in WHY.
+    (method %to-end-only (self why flags)
+      (unless (null? flags)
+        (do (unless (eq? (first flags) (lit to-end)) (Err raise (lit lexer) why (first flags)))
+            (Lexer %to-end-only why (rest flags)))))
 
     (method escape (self (param tag SYMBOL "The token's tag")
                          (param byte ANY "The escaping byte, a code or a character"))
@@ -631,8 +642,16 @@
     ; it was read in and goes to its context's body; a close pops, or at
     ; depth 0 takes the byte and ends the token.  The interpreted twin keeps
     ; the same stack in a list of cells, its %mem-* forms bound to closures.
+    ; MORE is (STOP TO-END?): a word's stop class, and whether a span still
+    ; open at the end of the text is a token.  TO-END scores the span once it
+    ; is committed -- a word at its first byte, a nested span at its opener's
+    ; last -- so that the engine, which accepts at the end of the text
+    ; whatever has a score, takes one the close never ended; its read handler
+    ; then cuts the end text off it, as an until span's does.
     (method %nested-states (self l open start contexts . more)
       (def stop (if (null? more) () (first more)))
+      (def to-end? (if (null? more) #f (if (null? (rest more)) #f (first (rest more)))))
+      (def scored (fn (_ form) (if to-end? (list (lit %seq) (lit (%score-set score 1 buffer)) form) form)))
       (Lexer %nested-check open start contexts stop)
       (def slots (pair () ()))
       (def count (pair 0 ()))
@@ -759,7 +778,7 @@
       ; last byte starts the stack.
       (if (null? open)
         (Lexer %state l
-          (Lexer %state-form (list (lit if) stop-form () (dispatch start (ref first-body))))
+          (Lexer %state-form (list (lit if) stop-form () (scored (dispatch start (ref first-body)))))
           fvars twin)
       ((fn (self i next)
          (if (< i 0) next
@@ -768,7 +787,7 @@
                (Lexer %state-form
                  (list (lit if) (list (lit =) (lit chr) ((Lexer %char->int) ((Lexer %byte-ref) open i)))
                    (if (null? next)
-                     (list (lit %seq) (lit (%mem-set! (first stk) 0 0)) (ref first-body))
+                     (scored (list (lit %seq) (lit (%mem-set! (first stk) 0 0)) (ref first-body)))
                      (lit next))
                    ()))
                (if (null? next) fvars (pair (pair (lit next) next) fvars))
@@ -841,7 +860,8 @@
         (fn (_ . args)
           (ev parent (list (list (lit lit) mk) (list (lit lit) args))))))
 
-    ; The read handler of an until span that may run to the end: a span the
+    ; The read handler of an until, nested or word span that may run to the
+    ; end, whichever rule read it: a span the
     ; engine took at the end of the text holds the end text read-str appended,
     ; and the token is cut back by its length.  A span is at the end exactly
     ; when the buffer's read cursor has met its write cursor -- the first and
@@ -870,6 +890,15 @@
         (fn (_ as f)
           ((fn (self fs) (if (null? fs) #f (if (eq? (first fs) f) #t (self (rest fs)))))
            (first (rest (rest as))))))
+      ; whether a span may run to the end: an until rule's flags are its third
+      ; argument, a nested or word rule's its fourth
+      (def %to-end?
+        (fn (_ k as)
+          (match
+            ((eq? k (lit until)) (%until-flag? as (lit to-end)))
+            ((if (eq? k (lit nested)) #t (eq? k (lit word)))
+              (not (null? (first (rest (rest (rest as)))))))
+            (#t #f))))
       (def entry
         (match
           ((eq? kind (lit run)) (Lexer %run-states l (first args) (first (rest args)) (first (rest (rest args)))))
@@ -882,10 +911,12 @@
           ((eq? kind (lit number)) (Lexer %number-states l (first args)))
           ((eq? kind (lit any)) (Lexer %any-states l))
           ((eq? kind (lit nested))
-            (Lexer %nested-states l (first args) (first (rest args)) (first (rest (rest args)))))
+            (Lexer %nested-states l (first args) (first (rest args)) (first (rest (rest args)))
+              () (%to-end? kind args)))
           ((eq? kind (lit escape)) (Lexer %escape-states l (first args)))
           ((eq? kind (lit word))
-            (Lexer %nested-states l () (first args) (first (rest args)) (first (rest (rest args)))))
+            (Lexer %nested-states l () (first args) (first (rest args)) (first (rest (rest args)))
+              (%to-end? kind args)))
           (#t (Err raise (lit lexer) "Lexer: unknown rule kind" kind))))
       ; A rule with no tag is a skip, scored negative, which the engine never
       ; reads, or a dropped span, scored positive so that it beats the
@@ -899,7 +930,7 @@
                 (pair (lit read) (let ((m (Lexer %dropped))) (fn (_ . args) m)))))
         (list (pair (lit analyse) entry)
               (pair (lit read)
-                (if (if (eq? kind (lit until)) (%until-flag? args (lit to-end)) #f)
+                (if (%to-end? kind args)
                   (Lexer %reader-to-end tag ((Lexer %byte-len) (l end)))
                   (Lexer %reader tag (eq? kind (lit number))))))))
 
