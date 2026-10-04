@@ -286,6 +286,9 @@
 ;   "i->f"                    int -> single bits (rounded once)
 ;   "d->d" "dd->d"            a libm function NAME: FLOAT(s) -> FLOAT
 ;   "s0->d"                   a libm function NAME, called (s, NULL): STRING -> bits
+;   "ii->d"                   a C function NAME of two integer or pointer
+;                             arguments, answering a double: strtod(s, &end) --
+;                             INTEGER, INTEGER -> bits
 ;   "ptr"                     no stub: the dlsym'd pointer itself
 ; A NAME that does not resolve gets no stub: the cell holds nil, and a call
 ; through it raises in (ptr call), catchably.
@@ -321,6 +324,8 @@
       ((str=? label "d->d") (do (asm-emit! a 'fmov/d d0 x0) (%stub-call! a addr) (%stub-ret! a)))
       ((str=? label "dd->d") (do (%stub-args2! a) (%stub-call! a addr) (%stub-ret! a)))
       ((str=? label "s0->d") (do (asm-emit! a 'mov x1 (imm 0)) (%stub-call! a addr) (%stub-ret! a)))
+      ; the arguments are in the integer registers already
+      ((str=? label "ii->d") (do (%stub-call! a addr) (%stub-ret! a)))
       (#t (Err raise 'value "Float: no such stub label" label)))))
 
 ; Room for the longest stub: a frame, a 64-bit immediate, a call and three
