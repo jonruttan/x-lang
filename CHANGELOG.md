@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-10-03
+
+**`run` takes an optional follow class** ([#925]).
+`(Lexer run TAG FIRST REST FOLLOW)` is a token only when the byte after the
+run is in `FOLLOW`, that byte left for the next token: the digits of a shell
+descriptor such as `13>`, which alone would be a word. Rules without it read
+as before.
+
+[#925]: https://github.com/jonruttan/x-lang/pull/925
+
+**`libm-fn`'s `"ii->d"` stubs a C function of two integers or pointers answering a double** ([#924]).
+`strtod(s, &end)` is the case: the arguments travel in the integer
+registers and the answer comes back as the double's bits, as `"s0->d"`'s
+does.
+
+[#924]: https://github.com/jonruttan/x-lang/pull/924
+
 **`Zlib` streams deflate and inflate buffers in place** ([#921]). `(Zlib
 deflater LEVEL FORMAT)` and `(Zlib inflater FORMAT)` make a stream for zlib's
 wrapper, gzip's, or raw deflate; `(Zlib step S IN OFF N OUT AT ROOM FINISH)`
