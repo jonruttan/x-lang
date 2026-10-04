@@ -12,6 +12,14 @@ ignored. The library needs no change.
 
 [#922]: https://github.com/jonruttan/x-lang/pull/922
 
+**`run` takes an optional follow class** ([#925]).
+`(Lexer run TAG FIRST REST FOLLOW)` is a token only when the byte after the
+run is in `FOLLOW`, that byte left for the next token: the digits of a shell
+descriptor such as `13>`, which alone would be a word. Rules without it read
+as before.
+
+[#925]: https://github.com/jonruttan/x-lang/pull/925
+
 **`until` takes its close, or runs to the end of the text** ([#920]).
 `(Lexer until TAG OPEN CLOSE 'take 'to-end)`: `take` makes a one-byte close
 part of the token, so `/ab/` is one token; `to-end` makes a span no close
