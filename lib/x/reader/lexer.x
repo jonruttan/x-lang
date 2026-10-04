@@ -170,11 +170,13 @@
 
     (method run (self (param tag SYMBOL "The token's tag")
                       (param first LIST "Class of the first character")
-                      (param rest LIST "Class of every following character"))
-      (doc "A rule for a run of characters: one of first, then any number of rest. Identifiers, words."
+                      (param rest LIST "Class of every following character")
+                      . (param follow LIST "Optionally the class of the byte that must come next"))
+      (doc "A rule for a run of characters: one of first, then any number of rest. Identifiers, words. Given follow, the run is a token only when the byte after it is in follow; that byte is left for the next token."
         (returns LIST "The rule")
-        (sample "(Lexer run 'id (list (pair 97 122) 95) (list (pair 97 122) (pair 48 57) 95))" "C-style identifiers"))
-      (list (lit run) (Str8 str tag) tag first rest))
+        (sample "(Lexer run 'id (list (pair 97 122) 95) (list (pair 97 122) (pair 48 57) 95))" "C-style identifiers")
+        (sample "(Lexer run 'io (list (pair 48 57)) (list (pair 48 57)) \"<>\")" "a shell descriptor: the digits of 2>, not of 2 alone"))
+      (list (lit run) (Str8 str tag) tag first rest follow))
 
     (method skip (self (param class LIST "Class of the characters to drop"))
       (doc "A rule that drops a run of characters: whitespace."
@@ -335,10 +337,15 @@
     ; Each builder answers the entry state; the entry runs at every token
     ; start and hands the body back for the rest.
 
-    (method %run-states (self l first rest)
+    ; With a follow class the body refuses a byte in neither class, so the run
+    ; is no token there.  FOLLOW is the rule's optional tail, a one-member
+    ; class list when given -- a class already.
+    (method %run-states (self l first rest follow)
       (let ((body (Lexer %state l
                     (Lexer %state-form
-                      (list (lit if) (Lexer %class-form rest) (lit me) (Lexer %accept)))
+                      (list (lit if) (Lexer %class-form rest) (lit me)
+                        (if (null? follow) (Lexer %accept)
+                          (list (lit if) (Lexer %class-form follow) (Lexer %accept) ()))))
                     ())))
         (Lexer %state l
           (Lexer %state-form
@@ -865,7 +872,7 @@
            (first (rest (rest as))))))
       (def entry
         (match
-          ((eq? kind (lit run)) (Lexer %run-states l (first args) (first (rest args))))
+          ((eq? kind (lit run)) (Lexer %run-states l (first args) (first (rest args)) (first (rest (rest args)))))
           ((eq? kind (lit skip)) (Lexer %skip-states l (first args)))
           ((eq? kind (lit table)) (Lexer %table-states l (first args)))
           ((eq? kind (lit quoted)) (Lexer %quoted-states l (first args) (first (rest args)) (first (rest (rest args)))))
