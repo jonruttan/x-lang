@@ -6,6 +6,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased]
 
 ## [0.25.0] - 2026-10-03
+
 **`Zlib` streams deflate and inflate buffers in place** ([#921]). `(Zlib
 deflater LEVEL FORMAT)` and `(Zlib inflater FORMAT)` make a stream for zlib's
 wrapper, gzip's, or raw deflate; `(Zlib step S IN OFF N OUT AT ROOM FINISH)`
