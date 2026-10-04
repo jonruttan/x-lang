@@ -178,6 +178,26 @@
       (doc "SIGSTOP, the stop no handler can catch: 17 on Darwin, 19 on Linux."
         (returns INTEGER "The signal number"))
       (if os-darwin? 17 19))
+    ; The numbers past the POSIX-fixed few are the kernel's own: Darwin
+    ; numbers BUS, SYS, USR1 and USR2 and the job-control signals apart from
+    ; Linux, and has EMT, IO and INFO where Linux has STKFLT, POLL and PWR.
+    ; The names are those busybox's kill and pkill print, without SIG.
+    (method signals (self)
+      (doc "This kernel's signals 1 to 31, each (NAME . NUMBER) in number order, NAME without its SIG -- what kill -l and pkill -l list and a -SIGNAL names."
+        (returns LIST "((\"HUP\" . 1) (\"INT\" . 2) ...)")
+        (sample "(Sys signals)" "((\"HUP\" . 1) (\"INT\" . 2) (\"QUIT\" . 3) ...)"))
+      (def names
+        (if os-darwin?
+          (list "HUP" "INT" "QUIT" "ILL" "TRAP" "ABRT" "EMT" "FPE" "KILL" "BUS"
+                "SEGV" "SYS" "PIPE" "ALRM" "TERM" "URG" "STOP" "TSTP" "CONT" "CHLD"
+                "TTIN" "TTOU" "IO" "XCPU" "XFSZ" "VTALRM" "PROF" "WINCH" "INFO"
+                "USR1" "USR2")
+          (list "HUP" "INT" "QUIT" "ILL" "TRAP" "ABRT" "BUS" "FPE" "KILL" "USR1"
+                "SEGV" "USR2" "PIPE" "ALRM" "TERM" "STKFLT" "CHLD" "CONT" "STOP"
+                "TSTP" "TTIN" "TTOU" "URG" "XCPU" "XFSZ" "VTALRM" "PROF" "WINCH"
+                "POLL" "PWR" "SYS")))
+      (def number (fn (self ns k) (if (null? ns) () (pair (pair (first ns) k) (self (rest ns) (+ k 1))))))
+      (number names 1))
     (method catch-signal (self (param sig INTEGER "Signal number"))
       (doc "Catch a signal: from now on its arrival is recorded for take-signal, and nothing else happens -- what it means is the caller's to decide. A read or poll waiting when it arrives is interrupted."
         (returns INTEGER "0, or -1 when sig cannot be caught or this engine records no signals"))

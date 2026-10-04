@@ -37,7 +37,7 @@
 (def-class Host ()
   (doc "The machine as the kernel reports it: boot time, load, memory, CPU time, processes and logged-in users, the same records on Linux and Darwin."
     (note "A field the kernel does not report is nil. Darwin reports another user's process memory and CPU time only to root.")
-    (see boot-time) (see load) (see memory) (see cpu) (see processes) (see process) (see args) (see users))
+    (see boot-time) (see load) (see memory) (see cpu) (see processes) (see process) (see args) (see exe) (see users))
   (static
     (source    ()      "'linux or 'darwin: which reader answers; nil means this kernel's")
     (proc-root "/proc" "The /proc tree the Linux reader opens")
@@ -339,6 +339,16 @@
         (returns ANY "LIST of strings, or nil")
         (sample "(Host args (Sys getpid))" "(\"x-bin\" \"--batch\")"))
       (if (eq? (Host %backend) (lit darwin)) (Host %darwin-args pid) (Host %linux-args pid)))
+
+    (method exe (self (param pid INTEGER "Process ID"))
+      (doc "The process's executable, as an absolute path, or nil when the kernel will not give it. Linux reads the /proc/PID/exe link, which only the process's owner or root may read; Darwin asks proc_pidpath, which answers for any process."
+        (returns ANY "STRING, or nil")
+        (sample "(Host exe 1)" "\"/sbin/launchd\""))
+      (if (eq? (Host %backend) (lit darwin))
+        (let ((b (Host %buf 4096)))
+          (def n (Host %call "proc_pidpath" pid (Host %ptr b) 4096))
+          (if (<= n 0) () (Host %cstr-at b 0 n)))
+        (guard (e ()) (File readlink (Str8 append (Host proc-root) "/" (Str8 str pid) "/exe")))))
 
     (method %linux-btime (self)
       (doc "The boot time /proc/stat records, the base of a process's start time."

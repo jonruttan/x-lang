@@ -137,6 +137,25 @@ itself.
 ---
     #t
 
+### the signal table: 31 names in number order, the fixed ones where POSIX puts them
+
+The numbers past POSIX's are the kernel's own, so the table agrees with
+the two Sys methods that already name one per kernel.
+
+```x
+(do
+  (import x/sys/proc)
+  (def sg (Sys signals))
+  (def num (fn (_ n) (rest (List find (fn (_ e) (str=? (first e) n)) sg))))
+  (list (List length sg)
+        (List all? (fn (_ k) (= (rest (List ref k sg)) (+ k 1))) (List range 0 31))
+        (List map num (list "HUP" "INT" "QUIT" "ABRT" "KILL" "ALRM" "TERM"))
+        (= (num "TSTP") (Sys sigtstp)) (= (num "STOP") (Sys sigstop))
+        (= (num "WINCH") (Sys sigwinch)) (= (num "TTOU") (Sys sigttou))))
+```
+---
+    (31 #t (1 2 3 6 9 14 15) #t #t #t #t)
+
 ## run-with! / capture-with (#364)
 
 ### env overrides reach the child

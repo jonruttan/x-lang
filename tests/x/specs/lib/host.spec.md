@@ -75,6 +75,16 @@ before it ends, so a later case in the same batch reads the real machine.
 ---
     (#t #t #t #t #t)
 
+### this process's executable is an absolute path to the engine
+
+```x
+(do (import x/sys/host)
+  (def e (Host exe (Sys getpid)))
+  (list (Str8 starts? "/" e) (Str8 ends? "x-bin" e)))
+```
+---
+    (#t #t)
+
 ### this process's arguments are strings; a pid that does not exist has no record
 
 ```x
@@ -127,6 +137,19 @@ before it ends, so a later case in the same batch reads the real machine.
 ```
 ---
     ((1 42 42 34816 136 0 -5 1790000010 3 4096 70000000 30000000 1000 100) (() () () () ()) #t #t)
+
+### exe reads the /proc/PID/exe link, and a process with none has no exe
+
+```x
+(do (import x/sys/host)
+  (Host source 'linux)
+  (Host proc-root "tests/x/fixtures/host/proc")
+  (def r (list (Host exe 42) (Host exe 1)))
+  (Host source ()) (Host proc-root "/proc")
+  r)
+```
+---
+    ("/bin/sh" ())
 
 ### args splits cmdline on NUL; an empty cmdline is a kernel thread's
 
