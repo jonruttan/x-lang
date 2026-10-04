@@ -54,6 +54,22 @@ contract, the realization is not.
 ---
     (('w "xy!") ('w "zz"))
 
+### a run with a follow class is a token only before a byte of it
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer run 'io (list (pair 48 57)) (list (pair 48 57)) "<>")
+    (Lexer table 'op (list "<" ">" ">>"))
+    (Lexer run 'w (list (pair 97 122) (pair 48 57)) (list (pair 97 122) (pair 48 57))))))
+  (write (%lx-l read-str "13>a 22 b 2>>c 9"))
+  (newline))
+```
+---
+    (('io "13") ('op ">") ('w "a") ('w "22") ('w "b") ('io "2") ('op ">>") ('w "c") ('w "9"))
+
 ### a one-character token accepts through the same states
 
 ```x
