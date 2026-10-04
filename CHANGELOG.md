@@ -5,6 +5,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-10-03
+
 **The engine is x-engine-c v0.2.20** ([#922]). `ptr call` passes up to
 eight arguments (x-engine-c#86), so a C function that takes eight, such as
 zlib's `deflateInit2_`, can be called through it; more than eight are still
