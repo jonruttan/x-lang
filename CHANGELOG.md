@@ -5,6 +5,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`libm-fn`'s `"ii->d"` stubs a C function of two integers or pointers answering a double** ([#924]).
+`strtod(s, &end)` is the case: the arguments travel in the integer
+registers and the answer comes back as the double's bits, as `"s0->d"`'s
+does.
+
+[#924]: https://github.com/jonruttan/x-lang/pull/924
+
 **The engine is x-engine-c v0.2.20** ([#922]). `ptr call` passes up to
 eight arguments (x-engine-c#86), so a C function that takes eight, such as
 zlib's `deflateInit2_`, can be called through it; more than eight are still
