@@ -11,9 +11,15 @@
 ;                                      hint or 4x the input
 ;   (Zlib gz-read-all path)         -> byte list from a .gz file
 ;   (Zlib gz-write-all path bytes [level]) -> byte count written to a .gz
+;   (Zlib deflater level format)    -> a deflate stream; format zlib, gzip
+;   (Zlib inflater format)             or raw (no wrapper)
+;   (Zlib step s in off n out at room finish) -> (USED MADE STATUS)
+;   (Zlib end s)                    -> frees the stream's zlib state
+;   (Zlib crc32 crc buf n)          -> the CRC-32 gzip carries
 ;
-; Payloads ride BYTE LISTS both ways (the lossless carrier, #362):
-; compressed data is binary and strings truncate observably at NUL. The
+; The one-shots' payloads ride BYTE LISTS both ways (the lossless carrier,
+; #362): compressed data is binary and strings truncate observably at NUL. A
+; stream reads and fills strings in place, every count explicit. The
 ; FFI buffers are (str make N) regions -- NUL-blind through byte-ref/ptr
 ; access with every length EXPLICIT, so the string profile's limits never
 ; touch the data.
@@ -28,9 +34,9 @@
 (import x/core/list)
 
 (def-class Zlib ()
-  (doc "Compression via the system zlib over the dlopen FFI: compress/decompress (zlib format, byte lists both ways) and the gzip file doors gz-read-all/gz-write-all."
+  (doc "Compression via the system zlib over the dlopen FFI: compress/decompress (zlib format, byte lists both ways), the gzip file doors gz-read-all/gz-write-all, and streams (deflater, inflater, step, end) that deflate and inflate buffers in place, with crc32."
     (example "(Zlib decompress (Zlib compress (list 104 105)))" "(104 105)")
-    (see compress) (see gz-read-all))
+    (see compress) (see gz-read-all) (see step))
   (static
     ; Resolve one libz symbol, per call (cold; dlopen caches the handle).
     (method %sym (self (param name STRING "libz function name"))
@@ -135,6 +141,134 @@
                 ; Z_BUF_ERROR (-5): the guess was small -- double and retry
                 ((= r -5) (attempt (* 2 cap)))
                 (#t (Err raise (lit value) "Zlib decompress: zlib error" r))))))))
+
+    ; --- streams: deflate and inflate a buffer at a time ---------------------
+    ; A stream is (KIND . REGION): KIND 'deflate or 'inflate, REGION a
+    ; (str make) block holding zlib's z_stream (112 bytes on LP64; zlib's own
+    ; state hangs off it, malloc'd, until end). The block never moves. Fields
+    ; written and read: next_in 0, avail_in 8 (u32), next_out 24, avail_out 32
+    ; (u32), msg 48.
+
+    ; windowBits for a format: zlib's header, gzip's, or none
+    (method %window (self (param format SYMBOL "zlib, gzip or raw"))
+      (doc "zlib's windowBits for a stream format."
+        (returns INTEGER "15, 31 or -15"))
+      (match
+        ((eq? format (lit zlib)) 15)
+        ((eq? format (lit gzip)) 31)
+        ((eq? format (lit raw)) -15)
+        (#t (Err raise (lit value) "Zlib: the format is zlib, gzip or raw" format))))
+
+    ; an int return, its u32 top half folded back to negative
+    (method %int (self (param raw INTEGER "A zero-extended int return"))
+      (doc "Fold a zero-extended C int return to its signed value."
+        (returns INTEGER "The signed value"))
+      (if (> raw 2147483647) (- raw 4294967296) raw))
+
+    (method %stream (self (param kind SYMBOL "deflate or inflate")
+                          (param init STRING "deflateInit2_ or inflateInit2_")
+                          (param args LIST "The init call's arguments after the stream"))
+      (doc "A fresh z_stream block, initialised by the named libz call."
+        (returns PAIR "(KIND . REGION)"))
+      (def %call (prim-ref (lit ptr) (lit call)))
+      (def %make-str (prim-ref (lit str) (lit make)))
+      (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+      (def %pset-word (prim-ref (lit ptr) (lit set-word!)))
+      (def region (%make-str 112))
+      (def p (%str->ptr region))
+      ; zalloc, zfree and opaque nil: zlib's malloc and free
+      (let clear ((off 0))
+        (when (< off 112) (do (%pset-word p off 0) (clear (+ off 8)))))
+      (def version (%call (Zlib %sym "zlibVersion")))
+      (def r (Zlib %int (match
+                          ((= (List length args) 1)
+                            (%call (Zlib %sym init) p (first args) version 112))
+                          (#t
+                            (%call (Zlib %sym init) p (first args) 8 (first (rest args)) 8 0
+                              version 112)))))
+      (when (not (= r 0))
+        (Err raise (lit value) "Zlib: the stream could not be made" r))
+      (pair kind region))
+
+    (method deflater (self (param level INTEGER "zlib level 0-9, or -1 for zlib's default")
+                           (param format SYMBOL "zlib, gzip or raw"))
+      (doc "A deflate stream: feed it with step, finish it with step's FINISH, free it with end. FORMAT is the wrapper written round the data: zlib's (RFC 1950), gzip's (RFC 1952, as zlib writes it) or none (RFC 1951)."
+        (returns PAIR "The stream")
+        (example "(Zlib %kind (Zlib deflater 6 (lit raw)))" "'deflate"))
+      (Zlib %stream (lit deflate) "deflateInit2_" (list level (Zlib %window format))))
+
+    (method inflater (self (param format SYMBOL "zlib, gzip or raw"))
+      (doc "An inflate stream for data in FORMAT: zlib's wrapper, gzip's, or none. Free it with end."
+        (returns PAIR "The stream")
+        (example "(Zlib %kind (Zlib inflater (lit raw)))" "'inflate"))
+      (Zlib %stream (lit inflate) "inflateInit2_" (list (Zlib %window format))))
+
+    (method %kind (self (param s PAIR "A stream"))
+      (doc "A stream's kind."
+        (returns SYMBOL "deflate or inflate"))
+      (first s))
+
+    (method step (self (param s PAIR "A stream from deflater or inflater")
+                       (param in STRING "Input buffer")
+                       (param off INTEGER "Where the input starts in it")
+                       (param n INTEGER "Input byte count")
+                       (param out STRING "Output buffer")
+                       (param at INTEGER "Where the output goes in it")
+                       (param room INTEGER "How many bytes may go there")
+                       (param finish BOOL "No more input follows (deflate)"))
+      (doc "One deflate or inflate call: up to N bytes from IN at OFF, up to ROOM bytes into OUT at AT. Answers how much was used and made, and 'end when the stream is complete, 'stuck when no progress was possible (more input or more room is needed), else 'ok. Call again, OFF and AT moved on, until the input is used and a call leaves room unused; with FINISH, until 'end. Bad data raises a label 'value with zlib's code and message."
+        (returns LIST "(USED MADE STATUS)")
+        (example "(let ((s (Zlib deflater 6 (lit raw))) (o ((prim-ref (lit str) (lit make)) 64))) (first (rest (rest (Zlib step s \"hi\" 0 2 o 0 64 #t)))))" "'end"))
+      (def %call (prim-ref (lit ptr) (lit call)))
+      (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+      (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+      (def %int->ptr (prim-ref (lit int) (lit ->ptr)))
+      (def %pset (prim-ref (lit ptr) (lit set!)))
+      (def %pset-word (prim-ref (lit ptr) (lit set-word!)))
+      (def %pref (prim-ref (lit ptr) (lit ref)))
+      (def %pref-word (prim-ref (lit ptr) (lit ref-word)))
+      (def %ptr->str (prim-ref (lit ptr) (lit ->str)))
+      (def p (%str->ptr (rest s)))
+      (def deflate? (eq? (first s) (lit deflate)))
+      (%pset-word p 0 (+ (%ptr->int (%str->ptr in)) off))
+      (%pset p 8 n 4)
+      (%pset-word p 24 (+ (%ptr->int (%str->ptr out)) at))
+      (%pset p 32 room 4)
+      ; Z_FINISH 4, else Z_NO_FLUSH 0
+      (def r (Zlib %int (%call (Zlib %sym (if deflate? "deflate" "inflate")) p
+                          (if (if deflate? finish #f) 4 0))))
+      (def used (- n (& (%pref p 8 4) 4294967295)))
+      (def made (- room (& (%pref p 32 4) 4294967295)))
+      (match
+        ((= r 0) (list used made (lit ok)))
+        ((= r 1) (list used made (lit end)))
+        ; Z_BUF_ERROR: nothing could be done with what was given
+        ((= r -5) (list used made (lit stuck)))
+        (#t
+          (let ((msg (%pref-word p 48)))
+            (Err raise (lit value)
+              (if (= msg 0) "Zlib: zlib error"
+                (Str8 append "Zlib: " (%ptr->str (%int->ptr msg))))
+              r)))))
+
+    (method end (self (param s PAIR "A stream"))
+      (doc "Free a stream's zlib state. The stream is not used again."
+        (returns ANY "nil"))
+      (def %call (prim-ref (lit ptr) (lit call)))
+      (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+      (%call (Zlib %sym (if (eq? (first s) (lit deflate)) "deflateEnd" "inflateEnd"))
+        (%str->ptr (rest s)))
+      ())
+
+    (method crc32 (self (param crc INTEGER "The CRC so far; 0 to start")
+                        (param buf STRING "Bytes")
+                        (param n INTEGER "How many, from its start"))
+      (doc "The CRC-32 (ISO 3309, as gzip and zip carry it) of CRC's data followed by N bytes of BUF."
+        (returns INTEGER "The CRC, 0 to 4294967295")
+        (example "(Zlib crc32 0 \"123456789\" 9)" "3421780262"))
+      (def %call (prim-ref (lit ptr) (lit call)))
+      (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+      (& (%call (Zlib %sym "crc32") crc (%str->ptr buf) n) 4294967295))
 
     (method gz-read-all (self (param path STRING "A .gz file to read"))
       (doc "The whole decompressed content of a gzip file, as a byte list (gzopen/gzread in 64KB slabs). Raises a label 'io when the file cannot be opened; corrupt content raises a label 'value."
