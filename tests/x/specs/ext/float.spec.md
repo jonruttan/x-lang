@@ -915,6 +915,21 @@ is unchanged.
 ---
     (0.0 -2.0)
 
+### "ii->d" calls a function of two integers or pointers answering a double: strtod, its end pointer written
+
+```x
+((fn (_)
+   (import x/num/float libm-fn)
+   (def spec-strtod (libm-fn (lit spec-strtod) "ii->d" "strtod"))
+   (def spec-end ((prim-ref (lit ptr) (lit alloc)) 8))
+   (def spec-bits (spec-strtod "2.5e3xyz" spec-end))
+   (list (= spec-bits (first 2500.0))
+         ((prim-ref (lit ptr) (lit ref))
+           (Ptr from-int ((prim-ref (lit ptr) (lit ref-word)) spec-end 0)) 0 1))))
+```
+---
+    (#t 120)
+
 ### with no name, a stub by its label: 0.1 to a single and back, and 16777217 to one
 
 ```x

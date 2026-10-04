@@ -5,6 +5,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`libm-fn`'s `"ii->d"` stubs a C function of two integers or pointers answering a double** ([#924]).
+`strtod(s, &end)` is the case: the arguments travel in the integer
+registers and the answer comes back as the double's bits, as `"s0->d"`'s
+does.
+
+[#924]: https://github.com/jonruttan/x-lang/pull/924
+
 **`Zlib` streams deflate and inflate buffers in place** ([#921]). `(Zlib
 deflater LEVEL FORMAT)` and `(Zlib inflater FORMAT)` make a stream for zlib's
 wrapper, gzip's, or raw deflate; `(Zlib step S IN OFF N OUT AT ROOM FINISH)`
