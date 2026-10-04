@@ -5,6 +5,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The engine is x-engine-c v0.2.20** ([#922]). `ptr call` passes up to
+eight arguments (x-engine-c#86), so a C function that takes eight, such as
+zlib's `deflateInit2_`, can be called through it; more than eight are still
+ignored. The library needs no change.
+
+[#922]: https://github.com/jonruttan/x-lang/pull/922
+
 **`until` takes its close, or runs to the end of the text** ([#920]).
 `(Lexer until TAG OPEN CLOSE 'take 'to-end)`: `take` makes a one-byte close
 part of the token, so `/ab/` is one token; `to-end` makes a span no close
