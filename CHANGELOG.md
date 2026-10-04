@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`(Host exe pid)` and `(Sys signals)`: a process's executable, and this kernel's signal table** ([#926]).
+`Host exe` answers the executable's absolute path, or nil: Linux reads
+`/proc/PID/exe`, Darwin asks `proc_pidpath`, which answers for any process.
+`Sys signals` answers signals 1 to 31 as `(NAME . NUMBER)` in number order,
+named as busybox's `kill` prints them; Darwin numbers BUS, SYS, USR1, USR2
+and the job-control signals apart from Linux.
+
+[#926]: https://github.com/jonruttan/x-lang/pull/926
+
 ## [0.25.0] - 2026-10-03
 
 **`run` takes an optional follow class** ([#925]).
