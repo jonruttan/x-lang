@@ -34,7 +34,7 @@
 (import x/protocol/str/str8)
 
 (def-class Lexer ()
-  (doc "A tokenizer base built from data rules, its analyser states compiled to native code when the assembler lane is open and interpreted otherwise. Make one with (Lexer make rules), where each rule is made by run, skip, table, quoted, until, number, nested, word, escape, any or record; read text with (l read-str s), a span of bytes with (l read-span s start len). A token is (tag text); from a number rule (tag text label), from a record rule (tag bytes length)."
+  (doc "A tokenizer base built from data rules, its analyser states compiled to native code when the assembler lane is open and interpreted otherwise. Make one with (Lexer make rules), where each rule is made by run, skip, table, quoted, until, number, nested, word, escape, pattern, any or record; read text with (l read-str s), a span of bytes with (l read-span s start len). A token is (tag text); from a number rule (tag text label), from a record rule (tag bytes length)."
     (note "The first rule in the list wins an equal-length tie; a longer match wins regardless. List a keyword table before the identifier run that would also read it.")
     (note "A character class is a list of byte codes, (lo . hi) pairs and strings (each byte a member), or one bare string; a character literal counts as its code.")
     (note "The base and its states are dropped before a state image is written and made again after a load: a consumer holds the Lexer, never its raw base.")
@@ -109,7 +109,7 @@
     ; what a dropped span's read handler answers; read-str leaves it out
     (%dropped (pair (lit dropped) ()))
 
-    (method make (self (param rules LIST "Rules in priority order, each from run, skip, table, quoted, until, number, nested, word, escape, any or record")
+    (method make (self (param rules LIST "Rules in priority order, each from run, skip, table, quoted, until, number, nested, word, escape, pattern, any or record")
                        . (param more ANY "Optionally the end text, a space when left out: see the end field"))
       (doc "A lexer over rules: a tokenizer base with one type a rule, its states compiled where the lane allows."
         (returns Lexer "The lexer")
@@ -335,6 +335,32 @@
         shapes)
       ())
 
+    (method pattern (self (param tag SYMBOL "The token's tag")
+                          (param steps LIST "Each (CLASS FEWEST MOST): a class, the fewest bytes of it, and the most, or nil for no bound; #t as a class is every byte"))
+      (doc "A rule for a pattern: the steps in order, each a class and how many bytes of it, as many as there are. A step whose fewest is 0 may be absent. The token ends after the last step, the byte that completes a bounded last step taken: printf directives, numeric escapes."
+        (returns LIST "The rule")
+        (note "A step reads as many bytes of its class as there are and never gives one back, so a step's class should not run into the next step's; a pattern whose every step may be absent is refused, since it would read an empty token.")
+        (sample "(Lexer pattern 'dir (list (list \"%\" 1 1) (list \"-+ #0123456789.\" 0 ()) (list #t 1 1)))" "a printf directive: %, flags, width and precision, the conversion byte")
+        (sample "(Lexer pattern 'esc (list (list \"\\\\\" 1 1) (list \"01234567\" 1 3)))" "an octal escape, three digits at most"))
+      (def step?
+        (fn (_ s)
+          (if (if (pair? s) (= (List length s) 3) #f)
+            (let ((fewest (first (rest s))) (most (first (rest (rest s)))))
+              (if (if (number? fewest) (>= fewest 0) #f)
+                (if (null? most) #t
+                  (if (number? most) (if (>= most 1) (>= most fewest) #f) #f))
+                #f))
+            #f)))
+      ((fn (self ss)
+         (unless (null? ss)
+           (do (unless (step? (first ss))
+                 (Err raise (lit lexer) "Lexer pattern: a step is (CLASS FEWEST MOST)" (first ss)))
+               (self (rest ss)))))
+       steps)
+      (unless ((fn (self ss) (if (null? ss) #f (if (> (first (rest (first ss))) 0) #t (self (rest ss))))) steps)
+        (Err raise (lit lexer) "Lexer pattern: a step must have a fewest of 1 or more" steps))
+      (list (lit pattern) (Str8 str tag) tag steps))
+
     ; --- forms --------------------------------------------------------------
     ; The lane's dialect.  A class test is an or of ranges and codes; accept
     ; unreads the character that ended the token and scores; take keeps it.
@@ -359,10 +385,13 @@
               (if (str? (first l))
                 (bytes (first l) (- ((Lexer %byte-len) (first l)) 1) acc)
                 (pair (one (first l)) acc))))))
-      ; a bare string is the class of its bytes
-      (let ((ts (tests (if (str? class) (list class) class) ())))
-        (if (null? ts) (lit (= chr -1))
-          (if (null? (rest ts)) (first ts) (pair (lit or) ts)))))
+      ; a bare string is the class of its bytes; #t is every byte, whichever
+      ; way the engine hands a high one over
+      (if (eq? class #t)
+        (lit (and (>= chr -128) (<= chr 255)))
+        (let ((ts (tests (if (str? class) (list class) class) ())))
+          (if (null? ts) (lit (= chr -1))
+            (if (null? (rest ts)) (first ts) (pair (lit or) ts))))))
 
     (%accept (lit (%seq (%buffer-unread buffer) (%score-set score 1 buffer))))
     (%take (lit (%score-set score 1 buffer)))
@@ -697,6 +726,64 @@
           (Lexer %state-form
             (list (lit if) (list (lit =) (lit chr) (Lexer %code byte)) (lit next) ()))
           (list (pair (lit next) after)))))
+
+    ; A pattern: the steps in order, each a class with the fewest and the
+    ; most bytes of it.  A state is a step and how many of its bytes are
+    ; read: a byte of the class reads on, and another byte, once the step has
+    ; its fewest, is decided for the next step there and then -- the next
+    ; step's opening decision is written into the state -- so each byte costs
+    ; one state.  The byte that completes the last step is taken; a byte no
+    ; remaining step reads, when every one of them may be absent, ends the
+    ; token before it.  A bounded step has a state a byte; an unbounded one
+    ; has a state a byte up to its fewest, and the last loops.  The states
+    ; are named pI-K and made from the last back, each referring to later
+    ; ones by name, so the alist of those made is every state's free
+    ; variables.
+    (method %pattern-states (self l steps)
+      (def n (List length steps))
+      (def nth (fn (self l i) (if (= i 0) (first l) (self (rest l) (- i 1)))))
+      (def class (fn (_ s) (first s)))
+      (def fewest (fn (_ s) (first (rest s))))
+      (def most (fn (_ s) (first (rest (rest s)))))
+      (def name
+        (fn (_ i k)
+          (Str8 ->sym (Str8 append "p" (Str8 append (%number->str i) (Str8 append "-" (%number->str k)))))))
+      (def made (pair () ()))
+      ; what a byte of step I, read with K of it already read, leads to
+      (def target
+        (fn (_ i k)
+          (def s (nth steps i))
+          (match
+            ((null? (most s)) (if (< k (fewest s)) (name i (+ k 1)) (lit me)))
+            ((< (+ k 1) (most s)) (name i (+ k 1)))
+            ((= i (- n 1)) (Lexer %take))
+            (#t (name (+ i 1) 0)))))
+      ; the decision for step J on a byte no step before it read
+      (def open
+        (fn (self j)
+          (if (= j n) (Lexer %accept)
+            (let ((s (nth steps j)))
+              (list (lit if) (Lexer %class-form (class s)) (target j 0)
+                (if (= (fewest s) 0) (self (+ j 1)) ()))))))
+      (def form
+        (fn (_ i k)
+          (def s (nth steps i))
+          (Lexer %state-form
+            (list (lit if) (Lexer %class-form (class s)) (target i k)
+              (if (>= k (fewest s)) (open (+ i 1)) ())))))
+      (def make-step
+        (fn (self i k)
+          (unless (< k 0)
+            (do (%set-first! made
+                  (pair (pair (name i k) (Lexer %state l (form i k) (first made))) (first made)))
+                (self i (- k 1))))))
+      ((fn (self i)
+         (unless (< i 0)
+           (let ((s (nth steps i)))
+             (do (make-step i (if (null? (most s)) (fewest s) (- (most s) 1)))
+                 (self (- i 1))))))
+       (- n 1))
+      (rest (first (first made))))
 
     ; A nested span.  Every context has a body state, an escape state when it
     ; has an escape byte, and a state for each byte inside an opening literal
@@ -1043,33 +1130,29 @@
     ; target's: the text, the label and the list are all parent objects, and
     ; the child registers nothing.  The doors are captured outside the
     ; closure: a static read is a class dispatch, and this runs once a token.
-    (method %reader (self tag labelled?)
-      (let ((tok (Lexer %buffer-token)) (ev (Lexer %base-eval)) (parent (%base)))
-        (def mk
-          (if labelled?
-            (fn (_ args) (list tag (tok (first args)) (%read-label args)))
-            (fn (_ args) (list tag (tok (first args))))))
-        (fn (_ . args)
-          (ev parent (list (list (lit lit) mk) (list (lit lit) args))))))
-
-    ; The read handler of an until, nested or word span that may run to the
-    ; end, whichever rule read it: a span the
-    ; engine took at the end of the text holds the end text read-str appended,
-    ; and the token is cut back by its length.  A span is at the end exactly
-    ; when the buffer's read cursor has met its write cursor -- the first and
-    ; second words of the buffer's inner object.  Whether its close was in the
-    ; end text or nothing closed it, the end text is the token's last bytes.
-    (method %reader-to-end (self tag end-len)
+    ;
+    ; THE END TEXT IS NEVER PART OF A TOKEN.  A token the engine took at the
+    ; end of the buffer -- a span that ran to the end, an escape or a pattern
+    ; whose last byte was the end text's, a directive `%` with nothing after
+    ; it -- holds bytes read-str appended, and is cut back by as many as it
+    ; holds: the bytes the read cursor has gone past the point the end text
+    ; starts at, the write cursor less the end text's length.  The cursors
+    ; are the first and second words of the buffer's inner object.  A token
+    ; that stopped before the end text costs one comparison here.
+    (method %reader (self tag labelled? end-len)
       (let ((tok (Lexer %buffer-token)) (ev (Lexer %base-eval)) (parent (%base))
             (sub (prim-ref (lit str) (lit byte-sub))) (len (Lexer %byte-len))
             (write-at (%data-word-off 1)))
-        (def mk
+        (def text-of
           (fn (_ args)
             (def text (tok (first args)))
             (def inner (rest (first args)))
-            (if (= (%cell-int inner) (%ptr-ref-word (%obj->ptr inner) write-at))
-              (list tag (sub text 0 (- (len text) end-len)))
-              (list tag text))))
+            (def over (- (%cell-int inner) (- (%ptr-ref-word (%obj->ptr inner) write-at) end-len)))
+            (if (> over 0) (sub text 0 (- (len text) over)) text)))
+        (def mk
+          (if labelled?
+            (fn (_ args) (list tag (text-of args) (%read-label args)))
+            (fn (_ args) (list tag (text-of args)))))
         (fn (_ . args)
           (ev parent (list (list (lit lit) mk) (list (lit lit) args))))))
 
@@ -1120,6 +1203,7 @@
             (Lexer %nested-states l (first args) (first (rest args)) (first (rest (rest args)))
               () (%to-end? kind args)))
           ((eq? kind (lit escape)) (Lexer %escape-states l (first args)))
+          ((eq? kind (lit pattern)) (Lexer %pattern-states l (first args)))
           ((eq? kind (lit record)) (Lexer %record-states l (first args)))
           ((eq? kind (lit word))
             (Lexer %nested-states l () (first args) (first (rest args)) (first (rest (rest args)))
@@ -1137,10 +1221,9 @@
                 (pair (lit read) (let ((m (Lexer %dropped))) (fn (_ . args) m)))))
         (list (pair (lit analyse) entry)
               (pair (lit read)
-                (match
-                  ((%to-end? kind args) (Lexer %reader-to-end tag ((Lexer %byte-len) (l end))))
-                  ((eq? kind (lit record)) (Lexer %reader-record tag))
-                  (#t (Lexer %reader tag (eq? kind (lit number)))))))))
+                (if (eq? kind (lit record))
+                  (Lexer %reader-record tag)
+                  (Lexer %reader tag (eq? kind (lit number)) ((Lexer %byte-len) (l end))))))))
 
     ; Register in list order: the type registered first wins a tie.
     (method %install! (self l rules)
@@ -1150,7 +1233,7 @@
           (Lexer %install! l (rest rules)))))))
 
 (doc (provide x/reader/lexer Lexer)
-  (note "Rules are data: run, skip, table, quoted, until, number, nested, word, escape, any, record. (Lexer make rules) builds the base; (l read-str s) reads text, (l read-span s start len) a span of bytes.")
+  (note "Rules are data: run, skip, table, quoted, until, number, nested, word, escape, pattern, any, record. (Lexer make rules) builds the base; (l read-str s) reads text, (l read-span s start len) a span of bytes.")
   (note "Every analyser state is one form, compiled through compile-asm when the lane is open and evaluated as the interpreted twin otherwise; the base is remade after an image load.")
   (note "With the lane closed the twins run inside the child base, and their first comparison registers the engine's INTEGER type there with its s-expression analyser: a signed digit run such as +1 then reads as an integer wherever it outranks a one-byte rule. Compiled states register nothing.")
   "Tokenizer bases from data rules, with compiled analysers.")

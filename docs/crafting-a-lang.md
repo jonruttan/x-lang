@@ -122,8 +122,9 @@ state builders that close over the current character must copy it
 Most bundles want the same half-dozen token shapes, and `lib/x/reader/lexer.x`
 builds the base from them.  Each rule is data — a run of characters, a run
 to drop, a table of literals matched longest-first, a quoted literal with an
-escape byte, a span from one literal to another, a number with its label —
-and `(Lexer make rules)` registers one type a rule on a `(Base make-tok)`
+escape byte, a span from one literal to another, a number with its label, a
+pattern of steps each a class and how many bytes of it (a printf directive, a
+numeric escape) — and `(Lexer make rules)` registers one type a rule on a `(Base make-tok)`
 child, in list order, so the first rule wins an equal-length tie:
 
 ```x
