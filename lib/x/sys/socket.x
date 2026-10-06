@@ -112,6 +112,16 @@
       (doc "Create a TCP server socket: socket + SO_REUSEADDR + bind(INADDR_ANY, port) + listen."
         (returns INTEGER "The listening file descriptor")
         (sample "(Socket tcp-listen 8080)" "a listening fd"))
+      (if (null? backlog) (Socket tcp-listen-on () port) (Socket tcp-listen-on () port (first backlog))))
+
+    (method tcp-listen-on (self (param host STRING "Dotted-quad IPv4 address of a local interface; nil for every interface")
+                                (param port INTEGER "Port to bind")
+                                . (param backlog INTEGER "Listen backlog; default 16"))
+      (doc "Create a TCP server socket bound to one local address: what tcp-listen does, with bind(host, port) in place of INADDR_ANY, so only connections to that address reach it."
+        (returns INTEGER "The listening file descriptor")
+        (note "An address no interface holds is a label 'io Err from bind (eaddrnotavail); a host that is not a dotted quad raises 'value before any syscall.")
+        (sample "(Socket tcp-listen-on \"127.0.0.1\" 8080)" "a listening fd on the loopback only"))
+      (unless (null? host) (%parse-quad host))
       (def fd (%sk-fold (%sk-ptr-call %c-socket %AF-INET %SOCK-STREAM 0)))
       (when (< fd 0) (%sk-fail fd 'socket port ()))
       ; SO_REUSEADDR: an int 1 (4 LE bytes) so quick restarts do not
@@ -121,7 +131,7 @@
       (%sk-set1! optval 0 1)
       (%sk-ptr-call %c-setsockopt fd %SOL-SOCKET %SO-REUSEADDR optval 4)
       (%sk-ptr-call %c-free optval)
-      (def addr (%make-sockaddr-in port ()))
+      (def addr (%make-sockaddr-in port host))
       (def r (%sk-fold (%sk-ptr-call %c-bind fd addr 16)))
       (when (< r 0) (do (%sk-ptr-call %c-close fd) (%sk-fail r 'bind port addr)))
       (%sk-ptr-call %c-free addr)

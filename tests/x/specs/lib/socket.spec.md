@@ -63,6 +63,43 @@ kernel choose, and reads the choice back with local-port.
 ---
     (#t #t)
 
+### tcp-listen-on the loopback takes a connection to it
+
+```x
+(do (import x/sys/socket)
+  (def lfd (Socket tcp-listen-on "127.0.0.1" 0))
+  (def port (Socket local-port lfd))
+  (def c (Socket tcp-connect "127.0.0.1" port))
+  (def s (Socket accept lfd))
+  (Socket send c "hi")
+  (def got (Socket recv s 16))
+  (Socket close c) (Socket close s) (Socket close lfd)
+  (list (> port 0) got))
+```
+---
+    (#t "hi")
+
+### tcp-listen-on an address no interface holds is a structured bind failure
+
+192.0.2.1 is TEST-NET-1 (RFC 5737): assigned to no host.
+
+```x
+(do (import x/sys/socket)
+  (guard (e (list (Err label e) (Assoc get 'sym (e data)) (Assoc get 'op (e data))))
+    (Socket tcp-listen-on "192.0.2.1" 0)))
+```
+---
+    ('io 'eaddrnotavail 'bind)
+
+### tcp-listen-on a host that is not a dotted quad raises 'value
+
+```x
+(do (import x/sys/socket)
+  (guard (e (Err label e)) (Socket tcp-listen-on "localhost" 0)))
+```
+---
+    'value
+
 ### local-port answers the kernel's choice for a listener and a datagram socket alike
 
 ```x
