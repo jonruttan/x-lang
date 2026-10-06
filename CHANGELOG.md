@@ -7,9 +7,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.26.0] - 2026-10-06
 
-**The engine pin is x-engine-c v0.2.21: a NUL is an ordinary byte in the tokenizer.**
-A zero byte in a buffer the engine reads is a byte like any other, not the end
-of the text.
+**The engine is x-engine-c v0.2.21** ([#930]). A NUL is an ordinary byte in
+the tokenizer: a zero byte in a buffer the engine reads is a byte like any
+other, not the end of the text, and `tok read-str` takes a span.
 
 **`nested` and `word` take `to-end`** ([#927]). `(Lexer nested TAG OPEN
 START CONTEXTS 'to-end)` and `(Lexer word TAG START CONTEXTS STOP 'to-end)`
