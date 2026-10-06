@@ -34,7 +34,7 @@
 (import x/protocol/str/str8)
 
 (def-class Lexer ()
-  (doc "A tokenizer base built from data rules, its analyser states compiled to native code when the assembler lane is open and interpreted otherwise. Make one with (Lexer make rules), where each rule is made by run, skip, table, quoted, until, number, nested, word, escape, pattern or any; read with (l read-str s). A token is (tag text) or, from a number rule, (tag text label)."
+  (doc "A tokenizer base built from data rules, its analyser states compiled to native code when the assembler lane is open and interpreted otherwise. Make one with (Lexer make rules), where each rule is made by run, skip, table, quoted, until, number, nested, word, escape, pattern, any or record; read text with (l read-str s), a span of bytes with (l read-span s start len). A token is (tag text); from a number rule (tag text label), from a record rule (tag bytes length)."
     (note "The first rule in the list wins an equal-length tie; a longer match wins regardless. List a keyword table before the identifier run that would also read it.")
     (note "A character class is a list of byte codes, (lo . hi) pairs and strings (each byte a member), or one bare string; a character literal counts as its code.")
     (note "The base and its states are dropped before a state image is written and made again after a load: a consumer holds the Lexer, never its raw base.")
@@ -55,6 +55,21 @@
     ; needs, so a short read pays for the tokens, not for class dispatch.
     (def r (self reader))
     (if (null? r) (do (self remake!) ((self reader) s)) (r s)))
+
+  (method read-span (self (param s STRING "Bytes, NULs included: a (str make) region, a file read whole")
+                          (param start INTEGER "Byte offset of the span")
+                          (param len INTEGER "Its length in bytes"))
+    (doc "The tokens of the len bytes of s at start, in order. Nothing is appended: a record ends on its own last byte, so a span of them needs no end text, and the read stops at the first byte no rule claims -- the end of the records. Needs an engine whose tok read-str takes a span (x-engine-c after v0.2.20); raises a label 'lexer Err on one that does not."
+      (returns LIST "The token list, nil when the span starts with no token")
+      (sample "(l read-span story pc 64)" "the instructions at pc, up to the first byte that starts none"))
+    (Lexer %span-check)
+    (if (null? (self raw)) (self remake!) ())
+    ((fn (self rs) (if (null? rs) () (do ((first rs) () () () 0) (self (rest rs))))) (self resets))
+    ((fn (self ts acc)
+       (if (null? ts)
+         ((fn (self xs out) (if (null? xs) out (self (rest xs) (pair (first xs) out)))) acc ())
+         (self (rest ts) (if (eq? (first ts) (Lexer %dropped)) acc (pair (first ts) acc)))))
+     ((Lexer %read-str) (self raw) s start len) ()))
 
   (method remake! (self)
     (doc "Make the base and its states again from the rules -- what the recache hook does after an image load; a consumer never needs to call it."
@@ -94,7 +109,7 @@
     ; what a dropped span's read handler answers; read-str leaves it out
     (%dropped (pair (lit dropped) ()))
 
-    (method make (self (param rules LIST "Rules in priority order, each from run, skip, table, quoted, until, number, nested, word, escape, pattern or any")
+    (method make (self (param rules LIST "Rules in priority order, each from run, skip, table, quoted, until, number, nested, word, escape, pattern, any or record")
                        . (param more ANY "Optionally the end text, a space when left out: see the end field"))
       (doc "A lexer over rules: a tokenizer base with one type a rule, its states compiled where the lane allows."
         (returns Lexer "The lexer")
@@ -159,6 +174,20 @@
           (do (Lexer %compile (lit (fn (me buffer score chr) (if (= chr 32) me k)))
                               (list (pair (lit k) 1)))
               #t))))
+
+    ; Does the engine read a span?  One that does not ignores read-str's
+    ; start and length and reads the whole string, which would hand a caller
+    ; the wrong tokens without a word; so the first read-span asks: from
+    ; "ab", the one byte at 1 is one token, the whole string two.
+    (%span-cell (pair () ()))
+    (method %span-check (self)
+      (if (null? (first (Lexer %span-cell)))
+        (let ((probe (Lexer make (list (Lexer any (lit b))))))
+          (%set-first! (Lexer %span-cell)
+            (if (= (List length ((Lexer %read-str) (probe raw) "ab" 1 1)) 1) (lit yes) (lit no))))
+        ())
+      (if (eq? (first (Lexer %span-cell)) (lit yes)) ()
+        (Err raise (lit lexer) "Lexer read-span: this engine's tok read-str does not take a span" ())))
 
     (method %jit? (self)
       (if (null? (first (Lexer %jit-cell)))
@@ -266,6 +295,45 @@
         (returns LIST "The rule")
         (sample "(Lexer escape 'esc 92)" "a backslash and the byte it escapes"))
       (list (lit escape) (Str8 str tag) tag byte))
+
+    (method record (self (param tag SYMBOL "The token's tag")
+                         (param shapes LIST "Each (CLASS . STEPS): a first byte in CLASS starts a record whose following bytes STEPS count"))
+      (doc "A rule for a binary record whose length is read from its own bytes: a machine instruction, a tagged field. Its first byte picks the first shape whose CLASS holds it, and that shape's steps count the bytes after it, in order: (bytes N), N more; (fields K SIZES), K bytes each read as four 2-bit fields from the high end, a field of value i adding (SIZES i) bytes and a field whose size is stop ending the fields (the K bytes are read all the same); (flag MASK N), one byte, then N more when it has no bit of MASK set; (units W BIT), W-byte units until one whose first byte has a bit of BIT set, that unit included. The record ends on its own last byte, so it needs nothing after it -- read-span reads a run of them -- and a first byte in no CLASS is no record. Its token is (tag bytes length): the bytes may hold a NUL, where a string's own length stops."
+        (returns LIST "The rule")
+        (note "A step is a plain list, as (lit (bytes 2)) or (list (lit fields) 1 (lit (2 1 1 stop)))) spells it.")
+        (sample "(Lexer record 'insn (list (pair (list (pair 0 127)) (lit ((bytes 2)))) (pair (list (pair 192 255)) (lit ((fields 1 (2 1 1 stop)))))))" "a long-form instruction is two operand bytes; a variable-form one's operand-type byte says how many")
+        (example "(let ((l (Lexer make (list (Lexer record 'rec (list (pair \"ab\" (lit ((bytes 1)))) (pair \"z\" (lit ((units 1 32)))))))))) (l read-str \"a1b2zDq\"))" "(('rec \"a1\" 2) ('rec \"b2\" 2) ('rec \"zDq\" 3))"))
+      (Lexer %record-check shapes)
+      (list (lit record) (Str8 str tag) tag shapes))
+
+    ; Refuse a record rule whose steps its states could not count.
+    (method %record-check (self shapes)
+      (def bad (fn (_ why what) (Err raise (lit lexer) (Str8 append "Lexer record: " why) what)))
+      (def n? (fn (_ x lo) (if (number? x) (>= x lo) #f)))
+      (def mask? (fn (_ x) (if (number? x) (if (>= x 1) (<= x 255) #f) #f)))
+      (def size? (fn (_ x) (if (eq? x (lit stop)) #t (n? x 0))))
+      (def step
+        (fn (_ s)
+          (def kind (if (pair? s) (first s) ()))
+          (def a (if (pair? s) (rest s) ()))
+          (match
+            ((eq? kind (lit bytes))
+              (if (n? (first a) 0) () (bad "(bytes N) wants a count" s)))
+            ((eq? kind (lit fields))
+              (if (if (n? (first a) 1) (if (= (List length (first (rest a))) 4)
+                    (List all? size? (first (rest a))) #f) #f)
+                () (bad "(fields K SIZES) wants a count and four sizes" s)))
+            ((eq? kind (lit flag))
+              (if (if (mask? (first a)) (n? (first (rest a)) 0) #f) () (bad "(flag MASK N) wants a byte mask and a count" s)))
+            ((eq? kind (lit units))
+              (if (if (n? (first a) 1) (mask? (first (rest a))) #f) () (bad "(units W BIT) wants a width and a byte mask" s)))
+            (#t (bad "a step is bytes, fields, flag or units" s)))))
+      (List map
+        (fn (_ shape)
+          (if (pair? shape) () (bad "a shape is (CLASS . STEPS)" shape))
+          (List map step (rest shape)))
+        shapes)
+      ())
 
     (method pattern (self (param tag SYMBOL "The token's tag")
                           (param steps LIST "Each (CLASS FEWEST MOST): a class, the fewest bytes of it, and the most, or nil for no bound; #t as a class is every byte"))
@@ -881,6 +949,130 @@
                twin))))
        (- ((Lexer %byte-len) open) 1) ())))
 
+    ; A record.  The entry state reads the first byte and picks its shape; the
+    ; shape's steps are a chain of states, built from the last step back.  A
+    ; continuation is (FORM . FVARS): what the state that reads a step's last
+    ; byte does next -- take the token, or answer the next step's first state
+    ; -- and the states FORM names.  A fields step keeps its running count in
+    ; a two-word scratch buffer (word 0 the bytes still owed, word 1 set once a
+    ; field said stop), through the lane's %mem-* forms; a units step loops
+    ; back through a cell.  The twin keeps the two words in cells, as the
+    ; nested rule's twin keeps its stack.  Bytes reach an analyser signed, so a
+    ; class test reads (& chr 255).
+    (method %record-states (self l shapes)
+      (def cnt ((Lexer %make-str) 16))
+      (def tw (list (pair 0 ()) (pair 0 ())))
+      (def tref (fn (_ s i) (first (if (= i 0) (first s) (first (rest s))))))
+      (def tset (fn (_ s i v) (%set-first! (if (= i 0) (first s) (first (rest s))) v) v))
+      (def twin (list (pair (lit cnt) (pair tw ())) (pair (lit %mem-ref) tref) (pair (lit %mem-set!) tset)))
+      (def held (pair () ()))
+      (l states (pair cnt (pair twin (pair held (l states)))))
+      (def count (pair 0 ()))
+      (def fresh
+        (fn (_)
+          (%set-first! count (+ 1 (first count)))
+          (Str8 ->sym (Str8 append "r" (%number->str (first count))))))
+      (def mk
+        (fn (_ body fvars)
+          (Lexer %state l (Lexer %state-form body) (pair (pair (lit cnt) cnt) fvars) twin)))
+      (def take (pair (Lexer %take) ()))
+      (def to (fn (_ st) (def nm (fresh)) (pair nm (list (pair nm st)))))
+      ; N more bytes, then K
+      (def bytes
+        (fn (_ n k)
+          (if (= n 0) k
+            ((fn (self i st)
+               (if (= i 1) (to st)
+                 (self (- i 1) (mk (lit next) (list (pair (lit next) st))))))
+             n (mk (first k) (rest k))))))
+      (def owed (lit (%mem-ref (first cnt) 0)))
+      ; one field of a fields byte: the field at SHIFT adds its size, unless
+      ; a field before it said stop
+      (def field
+        (fn (_ shift sizes)
+          (def f (list (lit &) (list (lit >>) (lit chr) shift) 3))
+          (def add
+            (fn (_ s)
+              (if (eq? s (lit stop)) (lit (%mem-set! (first cnt) 1 1))
+                (if (= s 0) () (list (lit %mem-set!) (lit (first cnt)) 0 (list (lit +) owed s))))))
+          (list (lit if) (lit (= (%mem-ref (first cnt) 1) 0))
+            (list (lit if) (list (lit =) f 0) (add (first sizes))
+              (list (lit if) (list (lit =) f 1) (add (first (rest sizes)))
+                (list (lit if) (list (lit =) f 2) (add (first (rest (rest sizes))))
+                  (add (first (rest (rest (rest sizes))))))))
+            ())))
+      (def fields-form
+        (fn (_ sizes then)
+          (list (lit %seq) (field 6 sizes)
+            (list (lit %seq) (field 4 sizes)
+              (list (lit %seq) (field 2 sizes)
+                (list (lit %seq) (field 0 sizes) then))))))
+      (def fields
+        (fn (_ n sizes k)
+          ; owed bytes, one a call, then K
+          (def skip
+            (mk (list (lit if) (lit (= (%mem-ref (first cnt) 0) 1)) (first k)
+                  (lit (%seq (%mem-set! (first cnt) 0 (- (%mem-ref (first cnt) 0) 1)) me)))
+                (rest k)))
+          (def sk (fresh))
+          (def last
+            (mk (fields-form sizes (list (lit if) (lit (= (%mem-ref (first cnt) 0) 0)) (first k) sk))
+                (pair (pair sk skip) (rest k))))
+          ; the field bytes between the first and the last
+          (def middle
+            ((fn (self i st)
+               (if (< i 2) st
+                 (self (- i 1) (mk (fields-form sizes (lit next)) (list (pair (lit next) st))))))
+             (- n 1) last))
+          ; the first fields byte starts the count
+          (to (mk (list (lit %seq) (lit (%mem-set! (first cnt) 0 0))
+                    (list (lit %seq) (lit (%mem-set! (first cnt) 1 0))
+                      (fields-form sizes (if (= n 1) (list (lit if) (lit (= (%mem-ref (first cnt) 0) 0)) (first k) sk) (lit next)))))
+                  (if (= n 1) (pair (pair sk skip) (rest k)) (list (pair (lit next) middle)))))))
+      (def flag
+        (fn (_ m n k)
+          (def more (bytes n k))
+          (to (mk (list (lit if) (list (lit =) (list (lit &) (lit chr) m) 0) (first more) (first k))
+                  (List append (rest more) (rest k))))))
+      (def units
+        (fn (_ w b k)
+          (def cell (pair () ()))
+          (%set-first! held (pair cell (first held)))
+          (def nm (fresh))
+          (def again (bytes (- w 1) (pair (list (lit first) nm) (list (pair nm cell)))))
+          (def done (bytes (- w 1) k))
+          (def u (mk (list (lit if) (list (lit =) (list (lit &) (lit chr) b) 0) (first again) (first done))
+                     (List append (rest again) (rest done))))
+          (%set-first! cell u)
+          (to u)))
+      (def chain
+        (fn (self steps k)
+          (if (null? steps) k
+            (do
+              (def s (first steps))
+              (def after (self (rest steps) k))
+              (def a (rest s))
+              (match
+                ((eq? (first s) (lit bytes)) (bytes (first a) after))
+                ((eq? (first s) (lit fields)) (fields (first a) (first (rest a)) after))
+                ((eq? (first s) (lit flag)) (flag (first a) (first (rest a)) after))
+                (#t (units (first a) (first (rest a)) after)))))))
+      ; the entry: each shape's class, tested on the byte as unsigned
+      (def unsigned
+        (fn (self f)
+          (if (pair? f) (pair (self (first f)) (self (rest f)))
+            (if (eq? f (lit chr)) (lit (& chr 255)) f))))
+      (def entry
+        (fn (self ss)
+          (if (null? ss) (pair () ())
+            (do
+              (def k (chain (rest (first ss)) take))
+              (def others (self (rest ss)))
+              (pair (list (lit if) (unsigned (Lexer %class-form (first (first ss)))) (first k) (first others))
+                    (List append (rest k) (rest others)))))))
+      (def e (entry shapes))
+      (mk (first e) (rest e)))
+
     ; A context's opening literals, as (literal . context) pairs
     (method %nested-opens (self c) (first (rest (rest (rest c)))))
 
@@ -964,6 +1156,20 @@
         (fn (_ . args)
           (ev parent (list (list (lit lit) mk) (list (lit lit) args))))))
 
+    ; The read handler of a record rule: (tag text length).  A record's bytes
+    ; may hold a NUL, and a string's length is counted to its first, so the
+    ; length comes from the buffer: its read cursor (the inner object's first
+    ; word) less its start (the buffer's own first), the token being the
+    ; bytes between them.
+    (method %reader-record (self tag)
+      (let ((tok (Lexer %buffer-token)) (ev (Lexer %base-eval)) (parent (%base)))
+        (def mk
+          (fn (_ args)
+            (def b (first args))
+            (list tag (tok b) (- (%cell-int (rest b)) (%cell-int b)))))
+        (fn (_ . args)
+          (ev parent (list (list (lit lit) mk) (list (lit lit) args))))))
+
     (method %handlers (self l rule)
       (def kind (first rule))
       (def tag (first (rest (rest rule))))
@@ -998,6 +1204,7 @@
               () (%to-end? kind args)))
           ((eq? kind (lit escape)) (Lexer %escape-states l (first args)))
           ((eq? kind (lit pattern)) (Lexer %pattern-states l (first args)))
+          ((eq? kind (lit record)) (Lexer %record-states l (first args)))
           ((eq? kind (lit word))
             (Lexer %nested-states l () (first args) (first (rest args)) (first (rest (rest args)))
               (%to-end? kind args)))
@@ -1014,7 +1221,9 @@
                 (pair (lit read) (let ((m (Lexer %dropped))) (fn (_ . args) m)))))
         (list (pair (lit analyse) entry)
               (pair (lit read)
-                (Lexer %reader tag (eq? kind (lit number)) ((Lexer %byte-len) (l end)))))))
+                (if (eq? kind (lit record))
+                  (Lexer %reader-record tag)
+                  (Lexer %reader tag (eq? kind (lit number)) ((Lexer %byte-len) (l end))))))))
 
     ; Register in list order: the type registered first wins a tie.
     (method %install! (self l rules)
@@ -1024,7 +1233,7 @@
           (Lexer %install! l (rest rules)))))))
 
 (doc (provide x/reader/lexer Lexer)
-  (note "Rules are data: run, skip, table, quoted, until, number, nested, word, escape, pattern, any. (Lexer make rules) builds the base; (l read-str s) reads.")
+  (note "Rules are data: run, skip, table, quoted, until, number, nested, word, escape, pattern, any, record. (Lexer make rules) builds the base; (l read-str s) reads text, (l read-span s start len) a span of bytes.")
   (note "Every analyser state is one form, compiled through compile-asm when the lane is open and evaluated as the interpreted twin otherwise; the base is remade after an image load.")
   (note "With the lane closed the twins run inside the child base, and their first comparison registers the engine's INTEGER type there with its s-expression analyser: a signed digit run such as +1 then reads as an integer wherever it outranks a one-byte rule. Compiled states register nothing.")
   "Tokenizer bases from data rules, with compiled analysers.")
