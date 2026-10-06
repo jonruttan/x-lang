@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`(Socket tcp-listen-on host port)`: a TCP listener bound to one local address** ([#928]).
+What `tcp-listen` does, with `bind(host, port)` in place of `INADDR_ANY`, so only
+connections to that address reach it -- busybox's `httpd -p IP:PORT`.  An address
+no interface holds is a label `'io` Err from `bind` (`eaddrnotavail`); a host that
+is not a dotted quad raises `'value` before any syscall.  `tcp-listen` is
+`tcp-listen-on` with every interface.
+
+[#928]: https://github.com/jonruttan/x-lang/pull/928
+
 **`(Host exe pid)` and `(Sys signals)`: a process's executable, and this kernel's signal table** ([#926]).
 `Host exe` answers the executable's absolute path, or nil: Linux reads
 `/proc/PID/exe`, Darwin asks `proc_pidpath`, which answers for any process.
