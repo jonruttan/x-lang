@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-06
+
+**The engine pin is x-engine-c v0.2.21: a NUL is an ordinary byte in the tokenizer.**
+A zero byte in a buffer the engine reads is a byte like any other, not the end
+of the text.
+
+**`nested` and `word` take `to-end`** ([#927]). `(Lexer nested TAG OPEN
+START CONTEXTS 'to-end)` and `(Lexer word TAG START CONTEXTS STOP 'to-end)`
+make a span still open at the end of the text a token, the end text cut off
+it, as `until`'s `to-end` does: a shell's `${X` or `'a'"b` left open at the
+end is the word to the end. Rules without the flag read as before.
+
+[#927]: https://github.com/jonruttan/x-lang/pull/927
+
 **`(Lexer pattern tag steps)`: a rule of steps, and the end text is never part of a token** ([#929]).
 A pattern is steps in order, each `(CLASS FEWEST MOST)` -- a class, the fewest
 bytes of it and the most, nil for no bound, `#t` for every byte -- and reads as
@@ -52,14 +66,6 @@ registers and the answer comes back as the double's bits, as `"s0->d"`'s
 does.
 
 [#924]: https://github.com/jonruttan/x-lang/pull/924
-
-**`nested` and `word` take `to-end`** ([#927]). `(Lexer nested TAG OPEN
-START CONTEXTS 'to-end)` and `(Lexer word TAG START CONTEXTS STOP 'to-end)`
-make a span still open at the end of the text a token, the end text cut off
-it, as `until`'s `to-end` does: a shell's `${X` or `'a'"b` left open at the
-end is the word to the end. Rules without the flag read as before.
-
-[#927]: https://github.com/jonruttan/x-lang/pull/927
 
 **`Zlib` streams deflate and inflate buffers in place** ([#921]). `(Zlib
 deflater LEVEL FORMAT)` and `(Zlib inflater FORMAT)` make a stream for zlib's
