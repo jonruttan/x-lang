@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`(Lexer record TAG SHAPES)` and `(l read-span s start len)`: self-sized binary records** ([#930]).
+A record's first byte picks a shape, and the shape's steps read its length from its
+own bytes: `(bytes N)`, `(fields K SIZES)` (2-bit fields, `stop` ending them),
+`(flag MASK N)` and `(units W BIT)`; its token is `(tag bytes length)`, the length
+taken from the buffer, since the bytes may hold a NUL.  `read-span` reads a span of
+bytes, NULs included, with nothing appended; it needs an engine whose `tok
+read-str` takes a span (x-engine-c#88) and raises a label `'lexer` Err on one that
+does not.
+
+[#930]: https://github.com/jonruttan/x-lang/pull/930
+
 **`(Socket tcp-listen-on host port)`: a TCP listener bound to one local address** ([#928]).
 What `tcp-listen` does, with `bind(host, port)` in place of `INADDR_ANY`, so only
 connections to that address reach it -- busybox's `httpd -p IP:PORT`.  An address
