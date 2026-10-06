@@ -764,3 +764,106 @@ close read as they do without the flag.
 ```
 ---
     ('refused 'refused)
+
+## patterns
+
+A pattern rule is steps in order, each a class with the fewest and the most
+bytes of it, nil for no bound; `#t` as a class is every byte.
+
+### a printf directive: %, flags, width and precision, then the conversion byte
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer pattern 'dir (list (list "%" 1 1) (list "-+ #0123456789." 0 ()) (list #t 1 1)))
+    (Lexer run 'lit (list (pair 0 36) (pair 38 255)) (list (pair 0 36) (pair 38 255))))))
+  (write (%lx-l read-str "a%-05.2fb%%c%s"))
+  (newline))
+```
+---
+    (('lit "a") ('dir "%-05.2f") ('lit "b") ('dir "%%") ('lit "c") ('dir "%s"))
+
+### a bounded step stops at its most, and a step's fewest unmet is no token
+
+An octal escape takes three digits at most, so a fourth is literal; `\x`
+wants a hex digit, so `\xg` falls to the two-byte escape rule after it.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer pattern 'oct (list (list "\\" 1 1) (list "01234567" 1 3)))
+    (Lexer pattern 'hex (list (list "\\" 1 1) (list "x" 1 1) (list "0123456789abcdefABCDEF" 1 2)))
+    (Lexer escape 'esc 92)
+    (Lexer run 'lit "abcdefg0123456789" "abcdefg0123456789"))))
+  (write (%lx-l read-str "\\1234\\x4g\\xg\\7"))
+  (newline))
+```
+---
+    (('oct "\\123") ('lit "4") ('hex "\\x4") ('lit "g") ('esc "\\x") ('lit "g") ('oct "\\7"))
+
+### a step that may be absent is skipped on a byte of the step after it
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer pattern 'num (list (list "-" 0 1) (list "0123456789" 1 ()) (list "." 0 1) (list "0123456789" 0 ()))))))
+  (write (%lx-l read-str "-12.5 7 3. -4"))
+  (newline))
+```
+---
+    (('num "-12.5") ('num "7") ('num "3.") ('num "-4"))
+
+### a malformed step, and a pattern whose every step may be absent, are refused
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxp-try (fn (_ steps) (guard (e 'refused) (Lexer pattern 'p steps) 'made)))
+  (write (list (%lxp-try (list (list "a" 2 1)))
+               (%lxp-try (list (list "a" 0 ()) (list "b" 0 1)))
+               (%lxp-try (list "a" 1 1))
+               (%lxp-try (list (list "a" 0 ()) (list "b" 1 ())))))
+  (newline))
+```
+---
+    ('refused 'refused 'refused 'made)
+
+## the end text is never part of a token
+
+read-str appends the end text so the last token meets a delimiter.  A rule
+that takes its last byte -- an escape, a pattern's final step -- takes the
+end text's byte when nothing else follows, and the token is cut back to
+what the text held.
+
+### a trailing backslash is the escape token by itself, and a trailing % the directive
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer pattern 'dir (list (list "%" 1 1) (list "0123456789" 0 ()) (list #t 1 1)))
+    (Lexer escape 'esc 92)
+    (Lexer run 'lit "abc" "abc"))))
+  (write (list (%lx-l read-str "a\\") (%lx-l read-str "a%") (%lx-l read-str "a%5") (%lx-l read-str "a% ")))
+  (newline))
+```
+---
+    ((('lit "a") ('esc "\\")) (('lit "a") ('dir "%")) (('lit "a") ('dir "%5")) (('lit "a") ('dir "% ")))
+
+### a two-byte end text is cut back by as many of its bytes as the token took
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer escape 'esc 92)
+    (Lexer run 'lit "abc" "abc")) "\n\n"))
+  (write (list (%lx-l read-str "ab\\") (%lx-l read-str "\\")))
+  (newline))
+```
+---
+    ((('lit "ab") ('esc "\\")) (('esc "\\")))

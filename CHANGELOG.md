@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`(Lexer pattern tag steps)`: a rule of steps, and the end text is never part of a token** ([#929]).
+A pattern is steps in order, each `(CLASS FEWEST MOST)` -- a class, the fewest
+bytes of it and the most, nil for no bound, `#t` for every byte -- and reads as
+many of each as there are: a printf directive is `%`, any flags, width and
+precision, then one conversion byte; an octal escape is `\` and one to three
+digits.  Each byte costs one compiled state, the next step's opening decision
+written into the one before it.  And every token the engine took at the end
+of the text is cut back by the end text `read-str` appended, not only a span
+that ran to the end: a trailing `\` reads as the escape `\`, a trailing `%` as
+the directive `%`, what the text held.
+
+[#929]: https://github.com/jonruttan/x-lang/pull/929
+
 **`(Socket tcp-listen-on host port)`: a TCP listener bound to one local address** ([#928]).
 What `tcp-listen` does, with `bind(host, port)` in place of `INADDR_ANY`, so only
 connections to that address reach it -- busybox's `httpd -p IP:PORT`.  An address
