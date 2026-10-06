@@ -867,3 +867,120 @@ what the text held.
 ```
 ---
     ((('lit "ab") ('esc "\\")) (('esc "\\")))
+
+## record: a binary record that says its own length
+
+### bytes and units steps: a fixed tail, and units until a marked one
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxr-l (Lexer make (list
+    (Lexer record 'rec (list (pair "ab" (lit ((bytes 1))))
+                             (pair "z" (lit ((units 1 32))))
+                             (pair "y" (lit ((units 2 32))))
+                             (pair "." ()))))))
+  (write (%lxr-l read-str "a1b2zDq.yABcd."))
+  (newline))
+```
+---
+    (('rec "a1" 2) ('rec "b2" 2) ('rec "zDq" 3) ('rec "." 1) ('rec "yABcd" 5) ('rec "." 1))
+
+### a fields step: four 2-bit fields a byte, sizes by value, stop ends them
+
+`U` is 01 01 01 01 -- four fields of one byte each -- and `?` is 00 11 11 11:
+a field of two bytes, then stop.  With two field bytes the record is the
+opcode, both field bytes, then six operand bytes; with one, `_` (01 01 11
+11) owes two.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxr-f (Lexer make (list
+    (Lexer record 'v (list (pair "w" (list (list (lit fields) 2 (lit (2 1 1 stop)))))
+                           (pair "v" (list (list (lit fields) 1 (lit (2 1 1 stop))))))))))
+  (write (%lxr-f read-str "wU?abcdefv_xyv?pq"))
+  (newline))
+```
+---
+    (('v "wU?abcdef" 9) ('v "v_xy" 4) ('v "v?pq" 4))
+
+### a flag step: more bytes only when the mask's bits are clear; steps chain
+
+`@` has bit 64 set, `!` does not.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxr-g (Lexer make (list
+    (Lexer record 'br (list (pair "f" (lit ((flag 64 1))))
+                            (pair "g" (lit ((bytes 1) (flag 64 1) (units 1 32)))))))))
+  (write (%lxr-g read-str "f@f!xg1@Hig2!!q"))
+  (newline))
+```
+---
+    (('br "f@" 2) ('br "f!x" 3) ('br "g1@Hi" 5) ('br "g2!!q" 5))
+
+### a first byte in no class ends the read
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxr-h (Lexer make (list (Lexer record 'r (list (pair "a" (lit ((bytes 1)))))))))
+  (write (%lxr-h read-str "a1a2#a3"))
+  (newline))
+```
+---
+    (('r "a1" 2) ('r "a2" 2))
+
+### a step its states could not count is refused
+
+```x
+(do
+  (import x/reader/lexer)
+  (write (list (guard (e (lit refused)) (Lexer record 'r (list (pair "a" (lit ((bytes -1)))))))
+               (guard (e (lit refused)) (Lexer record 'r (list (pair "a" (lit ((fields 1 (1 2))))))))
+               (guard (e (lit refused)) (Lexer record 'r (list (pair "a" (lit ((flag 0 1)))))))
+               (guard (e (lit refused)) (Lexer record 'r (list (pair "a" (lit ((units 0 128)))))))
+               (guard (e (lit refused)) (Lexer record 'r (list (pair "a" (lit ((skip 2)))))))))
+  (newline))
+```
+---
+    ('refused 'refused 'refused 'refused 'refused)
+
+## read-span: a span of bytes, NULs included
+
+### records in a binary buffer, read from an offset, NULs and high bytes as bytes
+
+The buffer is 00 03 41 00 C1 10 20 05 01 02 03 04 05 FF 7F: from offset 1, a
+record led by
+03 owes two bytes, one led by C1 a fields byte (10 = 00 01 00 00: two, one,
+two, two) and seven operand bytes; FF starts a record the span ends before it
+is whole, which is no token.  The tokens' text holds
+the NUL bytes, so each is shown as its byte list, as long as the length the
+token carries: a string's own length stops at its first NUL.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxs-mk (prim-ref (lit str) (lit make)))
+  (def %lxs-p (prim-ref (lit str) (lit ->ptr)))
+  (def %lxs-set (prim-ref (lit ptr) (lit set!)))
+  (def %lxs-ref (prim-ref (lit str) (lit byte-ref)))
+  (def %lxs-b (%lxs-mk 16))
+  (def %lxs-bytes (list 0 3 65 0 193 16 32 5 1 2 3 4 5 255 127))
+  ((fn (self bs i) (if (null? bs) () (do (%lxs-set (%lxs-p %lxs-b) i (first bs) 1) (self (rest bs) (+ i 1)))))
+   %lxs-bytes 0)
+  (def %lxs-l (Lexer make (list
+    (Lexer record 'op (list (pair (list 3) (lit ((bytes 2))))
+                            (pair (list (pair 192 255)) (list (list (lit fields) 1 (lit (2 1 2 stop))))))))))
+  (def %lxs-codes
+    (fn (_ t)
+      (def s (first (rest t)))
+      ((fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (& ((prim-ref (lit char) (lit ->int)) (%lxs-ref s i)) 255) acc))))
+       (- (first (rest (rest t))) 1) ())))
+  (write (List map %lxs-codes (%lxs-l read-span %lxs-b 1 14)))
+  (newline))
+```
+---
+    ((3 65 0) (193 16 32 5 1 2 3 4 5))

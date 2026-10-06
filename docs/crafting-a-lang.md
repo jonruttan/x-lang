@@ -150,7 +150,12 @@ the token stream is the contract and the realization is reported
 dropped before a state image is written and made again after a load — so a
 bundle holds the Lexer and nothing else.  `(l end "\n")` sets the text
 appended before every read, which is how the last token meets a delimiter;
-a space unless set.  `tests/x/specs/lib/lexer.spec.md` is the executable
+a space unless set.  Binary input has a rule of its own: `(Lexer record
+tag shapes)` reads a record whose first byte picks a shape and whose length
+the shape's steps read from its own bytes -- a machine instruction, a tagged
+field -- and `(l read-span s start len)` reads a span of bytes, NULs
+included, with nothing appended, since a record ends on its own last byte.
+`tests/x/specs/lib/lexer.spec.md` is the executable
 reference, and a rule the Lexer cannot express is still written by hand on
 the protocol above.
 
