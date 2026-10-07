@@ -117,6 +117,37 @@
     (method exit (self (param status INTEGER "Exit status code"))
       (doc "Terminate the process with the given exit status.")
       (%ptr-call %c-exit status))
+    ; --- Arguments ---
+    ; A launcher starts the engine as `x-bin OPTION... -- ARG...`: its own
+    ; options, then "--", then the program's arguments, so neither can be
+    ; taken for the other.  The engine binds the whole list as `args`.
+    (method args (self . (param which LIST "'program: leave out the launcher's options"))
+      (doc "The process's arguments as the engine was given them: the engine's path, then everything after it. With 'program, the launcher's own options are left out: the engine's path, then what follows the first \"--\", which a launcher writes between its options and the program's arguments. An engine started with no \"--\" has nothing left out."
+        (returns LIST "Argument strings")
+        (sample "(Sys args 'program)" "(\"/usr/local/libexec/x/x-bin\" \"status\" \"-s\") for x -l git -- status -s"))
+      (match
+        ((null? which) args)
+        ((eq? (first which) (lit program)) (self %program-args))
+        (#t (Err raise (lit value) "Sys args: the one option is 'program" which))))
+    ; The engine's path, then what follows the first "--"; all of args when
+    ; there is none.
+    (method %program-args (self)
+      (if (null? args) ()
+        (let go ((xs (rest args)))
+          (match
+            ((null? xs) args)
+            ((str=? (first xs) "--") (pair (first args) (rest xs)))
+            (#t (go (rest xs)))))))
+    ; The launcher's options: what comes after the engine's path and before
+    ; the first "--"; everything after the path when there is none.  For the
+    ; library's own readers (repl/banner, repl/ansi), never a program's.
+    (method %launch-options (self)
+      (if (null? args) ()
+        (let go ((xs (rest args)) (acc ()))
+          (match
+            ((null? xs) (%reverse acc))
+            ((str=? (first xs) "--") (%reverse acc))
+            (#t (go (rest xs) (pair (first xs) acc)))))))
     (method wait (self (param pid INTEGER "Process ID to wait for"))
       (doc "Wait for a child and return how it ended."
         (returns INTEGER "Exit status 0-255 for a normal exit; 128+N when signal N killed the child (the shell convention)")
