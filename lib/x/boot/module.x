@@ -289,7 +289,7 @@
 ; reader can walk it.  The owner cell
 ; keeps ((SYM . NAME) ...): every name `provide` binds in the root has one
 ; owner, and a second module providing the same name is refused, naming
-; both -- the one-owner rule of docs/namespaces.md.
+; both -- the one-owner rule of docs/modules.md.
 (%set-rest! (rest %module-loaded-cell) (pair () ()))
 (def %module-env-cell (rest (rest %module-loaded-cell)))
 (%set-rest! %module-env-cell (pair () ()))
@@ -508,7 +508,7 @@
 ; Export one name.  The value is read in the provider's own environment
 ; `e`: a scoped module's, or the root.  An export is recorded in the
 ; registry, which is where a selective `import` finds it; the registry entry
-; is the module's namespace (docs/namespaces.md, "provide is the export").
+; is the module's namespace (docs/modules.md, "Module scope").
 ;
 ; Only some exports are also bound in the root.  In an unscoped module every
 ; definition is there already.  A scoped module binds there a class -- a

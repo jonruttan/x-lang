@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**Module scope's rules live with the module system** ([#933]).
+`docs/namespaces.md`, the proposal for module scope with the record of
+building it appended, is gone. What a developer needs from it is in
+`docs/modules.md` under "Module scope": how a module's names are reached
+from outside, the rule for each name conflict, the files that are not
+scoped with the reason and the measured cost for each, and the gates. The
+counts from before the design, the sequence, the alternatives and the
+measurement narratives went with the file. Every reference points at
+`docs/modules.md`.
+
+[#933]: https://github.com/jonruttan/x-lang/pull/933
+
 ## [0.26.0] - 2026-10-06
 
 **The engine is x-engine-c v0.2.21** ([#930]). A NUL is an ordinary byte in

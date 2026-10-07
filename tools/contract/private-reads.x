@@ -18,7 +18,7 @@
 ;
 ; A name that tools/contract/shared-privates.x lists is not counted, and
 ; neither is a % name of the seam (tools/contract/seam.x): those are read
-; across files by decision (2026-09-24 and 2026-09-27, docs/namespaces.md).
+; across files by decision (2026-09-24 and 2026-09-27, docs/modules.md).
 ; By the count before that the rows came to 673 reads in 121 files.  What
 ; is counted since is the reads that still want a door: 183, in 40 files.
 ; A selector in a send, (self %walk ...), stopped counting as a read on
