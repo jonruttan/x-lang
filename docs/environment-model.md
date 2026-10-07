@@ -6,7 +6,7 @@ This is a design proposal for the engine's environment model. Nothing in it
 is implemented. It sits beside [The Engine Contract](engine-contract.md)
 because it changes the base-layout contract, and the language owns the
 terms an engine is judged by. The language-level design it serves is
-[Namespaces](namespaces.md).
+module scope, in [Modules](modules.md#module-scope).
 
 ## Why
 
@@ -103,8 +103,8 @@ operative, `doc`, `def-class`, `def-record`, `def-generic`, a lang's
 ## What it gives the language
 
 An environment is a value the language can make, hand around, and evaluate
-in. That is the mechanism [Namespaces](namespaces.md) needs, and it is
-smaller than what that note proposed:
+in. That is the mechanism module scope ([Modules](modules.md#module-scope))
+needs, and it is smaller than what was first proposed:
 
 - A module is an environment whose parent is the root. The loader makes
   one, evaluates the file's forms in it, and the module's private names

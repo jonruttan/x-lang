@@ -24,7 +24,7 @@
 ; design -- so only genuinely mixed pairs pay generic dispatch. Complex
 ; registers no ordering (unordered) and keeps its own loud % refusal.
 ; The number modules are modules of their own; this dispatcher stays in the
-; root (a hot path, see docs/namespaces.md) and takes their operations by
+; root (a hot path, see docs/modules.md) and takes their operations by
 ; import, so the names it wires below are the root's copies of each module's
 ; exports.
 (import x/num/bigint ensure-big big-add big-sub big-mul big-div big-mod big-eq big-lt bigint-type)

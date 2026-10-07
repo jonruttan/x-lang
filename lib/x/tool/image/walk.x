@@ -23,7 +23,7 @@
 ;
 ; Plain defs in the root, with no module header: the walk runs once per
 ; object, and a module's frame would sit in front of every root lookup made
-; from inside it (docs/namespaces.md, "What to measure first").  The object
+; from inside it (docs/modules.md, "What is not scoped, and why").  The object
 ; layout the offsets below are computed from -- %obj-slot-heap and its
 ; neighbours -- is the engine's contract, loaded by lib/x/boot/engine.x.
 ;

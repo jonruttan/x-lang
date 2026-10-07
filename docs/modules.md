@@ -228,8 +228,7 @@ and a plain `include` inside it is refused. A selective import,
 splice marks the module loaded, so at boot the line loads nothing and binds
 the names. So each form carries the file and its line, an error
 while the module loads names both, and a form can read the forms after it.
-A header naming a different module is refused. The rules for every variant
-of name conflict the doors can meet are in [Namespaces](namespaces.md).
+A header naming a different module is refused.
 
 Two extensions to the rule:
 
@@ -239,6 +238,114 @@ Two extensions to the rule:
 - **Relative includes** — an `include-once`/`import` path starting with `./`
   or `../` resolves against the *including file's* directory, not the working
   directory. Raw `include` paths stay verbatim.
+
+### Reaching a module's names
+
+| from | how |
+|---|---|
+| anywhere, a class or a `(global NAME)` export | by name: `provide` binds both in the root |
+| an importer, any other export | `(import x/type/str append)` copies it into the importer's own environment |
+| hot code in the root, a module's exports | the same selective import; an unscoped importer's environment is the root, so the copy is a root binding, as `num/tower.x` takes the number modules' operations |
+| code that wants the whole module | `(def S (module x/type/str))` then `(S append a b)`, a dispatch per call |
+| a spec, or a tool that drives the module's internals | `(eval (lit NAME) (module M))`; the module grows no public surface for either |
+| a lang bundle, a type's handle | `(Type named INTEGER)`, a lookup by registered name, nil for a name nothing carries |
+
+A root name that other files extend in place with `set!`, as the number
+modules widen `number?` and `real?` as they load, is defined in the root and
+never in a module: a module's own binding is what its code reads, and a
+`set!` in the root never reaches it.
+
+### Name conflicts
+
+Each conflict the doors can meet has one rule, and every refusal names both
+sides and the name.
+
+- **Private against private.** Two modules define the same private name.
+  Not a conflict: each binding is the module's own.
+- **Private against global.** A module defines a name that also exists in
+  the root. The module's binding wins inside that module and nowhere else.
+  Lint warns when the name is in the sanctioned bare set, since that is
+  usually a mistake; a lang bundle does it on purpose.
+- **Export against export.** One owner per name bound in the root.
+  `provide` of a name another module exports to the root is refused:
+
+      provide: x/foo exports map, owned by x/core/list
+
+  The same module providing again is a reload and rebinds. A re-export of
+  the very object the owner bound binds nothing new.
+- **Import against import.** One binding per name per environment. An
+  import of a name the importer already binds to a different object is
+  refused, whether the earlier binding came from another module or its own
+  definition:
+
+      import: map from x/type/vector is already bound here by x/core/list
+
+  The same import repeated is a no-op. An alias resolves a wanted
+  collision: `(import x/type/str (append str-append))`.
+- **Early against late binding.** A selective import copies the value, so
+  a later rebinding of the global cannot retarget it: that is how a
+  container keeps `equal?` whatever a lang binds over it
+  (`(import x/core/logic equal?)`). A bare `(import M)` leaves a reference
+  late-bound through the root, which is what a seam needs: `repl`, the
+  `%repl-print` functions a lang installs. The choice is made per reference,
+  by the author. Two consequences: `set!` on an imported name changes the
+  importer's copy and not the module's, so shared state is a cell or a
+  class; and a re-provide leaves copies stale.
+
+Qualified symbols are not resolved by the evaluator: a slash is a symbol
+character, `List/map` names a symbol, and the JIT resolves a free name to
+an object at compile time. Qualified use is `(Class method ...)`, a module
+value, or a selective import.
+
+### What is not scoped, and why
+
+Of the library's 145 files, 83 are scoped modules. The rest keep their
+names in the root, each for one of these reasons. The cost figures are
+environment comparisons, counted with a profile build of the engine, with
+a header on the file and its names copied back to the root for its readers;
+evaluations and allocations were the same either way.
+
+| files | why they stay in the root |
+|---|---|
+| `boot/engine.x`, `registry.x`, `operatives.x`, `data.x`, `reflect.x`, `printer.x`, `string.x` | load before `boot/module.x` defines the `module` form; `module.x` is the loader itself |
+| `boot/helium.x`, `xenon.x`, `radon.x`, `tower-compiled.x` | load sequences: a plain `include` has no place in a scoped file, and `tower-compiled.x` has six between its compiles |
+| `repl/loop.x`, `repl/banner.x`, `reader/intrinsics.x` | own the `%` names a lang is promised (`tools/contract/seam.x`, [Crafting a Lang](crafting-a-lang.md)) |
+| `core/boolean.x`, `control.x`, `syntax.x`, `predicates.x`, `logic.x`, `sys/pact.x`, `num/tower.x` | hot paths looked up from everywhere: scoping `boolean` and `control` alone added 34% to an x-core boot |
+| `core/arithmetic.x` | +3.6% to an x-core boot, 4.3 times on a loop of `=`, `-`, `+` |
+| `core/list.x`, `core/alist.x` | the walkers under the `List` and `Assoc` classes, read at the root by some forty files for speed |
+| `type/class.x` | 3.8 times the comparisons of an x-core boot; a static call 10.5 times, an instance call 5.8 times |
+| `doc/doc.x` | +0.98% to an x-core boot; a `doc` form 5.8 times |
+| `tool/lint.x` | +33% to lint an 87-line file |
+| `tool/asm.x`, `tool/asm-code.x` | 2.0 times per instruction emitted; `asm-code.x` is the buffer half split from it, and stays with it |
+| `codec/sha256.x` | +37% on a digest of 1 KB |
+| `tool/asm/arm64.x`, `tool/asm/x86_64.x` | one interface with two implementations, chosen by `asm.x` at load; a reader cannot import from a module chosen at run time |
+| `type/unit-label-rows.x` | data the img dialect includes on a bare base, where there is no module system |
+| `tool/image/walk.x`, `tool/image/name.x` | the walk runs once per object of a heap; not measured with a header |
+| `x/xe.x`, `x/rn.x` | dialect toolboxes, whose names are the dialect's root |
+| twenty-six more | one private name or none: nothing to hide |
+
+The line a measurement is held to: a header goes on when it adds under 0.1%
+to the comparisons of an x-core boot and under 10% to the file's own work.
+`type/convert.x` passed it (0.02%, 9%). `core/fn.x` did not (0.01%, a call
+through the library's `apply` 351 where it was 190) and is scoped by
+decision, since the library's own callers keep the engine's `apply`.
+
+### The gates
+
+- `check-bare-globals`: the root binds only the names
+  `tools/contract/bare-globals.x` sanctions, and a scoped module's
+  `(global NAME)` marks match it both ways.
+- `check-provide-names`: no `provide` list names a `%` name.
+- `check-percent-globals`: a per-file budget of `%` globals for the files
+  that stay in the root, which may only shrink.
+- `check-private-reads`: a file that reads another file's `%` name fails,
+  naming the read. The names read across files by decision are listed in
+  `tools/contract/shared-privates.x`, each with what it is, and the `%`
+  names of the seam are read from `tools/contract/seam.x`. A file under
+  `tools/` is a reader and never an owner, and a file of `lib/` or `apps/`
+  that loads one is refused.
+- `check-dup-defs`: no two files that load into one root define the same
+  name.
 
 ## Pinning
 
