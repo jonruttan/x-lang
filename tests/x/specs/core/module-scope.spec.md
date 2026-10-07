@@ -9,7 +9,7 @@ root; any other export is reached with a selective import. The cases share
 one session, so each selective import below is made inside a `fn`, whose
 frame it binds, and never at the top, which is the root. The rules for every
 name conflict the doors can meet are in
-[docs/namespaces.md](../../../../docs/namespaces.md). The fixtures live
+[docs/modules.md](../../../../docs/modules.md#module-scope). The fixtures live
 under `tests/x/fixtures/modscope`.
 
 ## a scoped module keeps its private names
