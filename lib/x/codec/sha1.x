@@ -136,8 +136,12 @@
 ; As sha256.x's: an entry of Compiled's, made the first time a build is
 ; asked for, interpreted by the pure-x digest above, and built only for an
 ; input of %jit-threshold bytes or more or on (Sha1 jit!).
+;
+; THE BAR IS THE MEASURED BREAKEVEN, 2026-10-07, arm64, asm cache warm:
+; pure-x digests at 3.8KB/s (4KB in 1.07s), the build is 2.2s, and the
+; engine 470KB/s (64KB in 139ms), so the two cost the same at ~8.6KB.
 (def %entry ())
-(def %jit-threshold 12288)
+(def %jit-threshold 8192)
 
 (def %jit-try!
   (fn (_)
@@ -182,9 +186,9 @@
         (example "(Sha1 hex-n \"abc\" 0)" "\"da39a3ee5e6b4b0d3255bfef95601890afd80709\""))
       (%hex (%words s n)))
     (method jit! (self)
-      (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x digest. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. hex also builds it on its own for any single input of 12KB or more."
+      (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x digest. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. hex also builds it on its own for any single input of 8KB or more."
         (returns BOOL "#t when the compiled engine is active"))
       (%jit-try!))))
 
 (doc (provide x/codec/sha1 Sha1)
-  "SHA-1 (FIPS 180-4): (Sha1 hex s) digests a byte string. Pure x-lang, with an optional differentially-verified JIT engine ((Sha1 jit!), or built on its own for an input of 12KB or more).")
+  "SHA-1 (FIPS 180-4): (Sha1 hex s) digests a byte string. Pure x-lang, with an optional differentially-verified JIT engine ((Sha1 jit!), or built on its own for an input of 8KB or more).")
