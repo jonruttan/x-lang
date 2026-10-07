@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`(Sys args)`, and the launcher writes `--` between its options and the program's** ([#934]).
+x.sh starts the engine as `x-bin OPTION... -- ARG...`.  `(Sys args)` answers
+the arguments as the engine was given them, and `(Sys args 'program)` the
+engine's path and what follows the first `--`, so a program no longer drops
+words it takes for the launcher's, nor loses its own: `--no-color` given to a
+program reaches the program and leaves the REPL's colour alone.  `--batch`,
+`--quiet` and `--no-color` are read from the launcher's side of the `--`
+alone.  With no `--` nothing is left out of either side.
+
+[#934]: https://github.com/jonruttan/x-lang/pull/934
+
 ## [0.26.0] - 2026-10-06
 
 **The engine is x-engine-c v0.2.21** ([#930]). A NUL is an ordinary byte in
