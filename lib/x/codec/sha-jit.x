@@ -1,28 +1,36 @@
-; sha256-jit.x -- the compiled SHA-256 engine behind (Sha256 jit!).
+; sha-jit.x -- the compiled SHA engines behind (Sha256 jit!) and (Sha1 jit!).
 ;
-; Loaded LAZILY by x/codec/sha256 (never at boot, never on import of the
-; codec): this module pulls the JIT assembler toolchain, and the codec
-; must stay loadable -- and correct -- on hosts with no JIT at all.  The
-; pure-x digest in sha256.x remains the reference implementation and the
-; fallback; this engine is only ever an accelerator, and it is adopted
-; only after it AGREES with the pure-x digest on the FIPS vectors plus a
-; multi-block padding case (sha-jit-make runs that differential check
-; itself and raises on any disagreement -- the caller's guard turns any
-; raise, including "wrong architecture", into "stay pure-x").
+; Loaded LAZILY by x/codec/sha256 and x/codec/sha1 (never at boot, never
+; on import of a codec): this module pulls the JIT assembler toolchain,
+; and the codecs must stay loadable -- and correct -- on hosts with no
+; JIT at all.  Each codec's pure-x digest remains the reference
+; implementation and the fallback; an engine is only ever an
+; accelerator, and it is adopted only after it AGREES with the pure-x
+; digest on the standard's vectors plus multi-block padding cases
+; (%sj-make runs that differential check itself and raises on any
+; disagreement -- the caller's guard turns any raise, including "wrong
+; architecture", into "stay pure-x").
+;
+; SHA-1 and SHA-256 share everything but the rounds: 64-byte blocks of
+; sixteen big-endian 32-bit words, the same padding, and an H vector
+; summed into after each block.  So one fill, one driver and one check
+; serve both, and each digest brings only its round schedule, its
+; initial H and its constants.
 ;
 ; The engine is the measured fold+fill configuration from
-; tools/dev/bench-sha256.x (#198/#199): the 64 rounds, the working-state
+; tools/dev/bench-sha256.x (#198/#199): the rounds, the working-state
 ; load and H-accumulate shuffles, AND the message-word fill -- padding
 ; included -- are ONE compiled function pair driven per block, entered
 ; through a t=-1 sentinel.  25KB in ~71ms against ~10.9s pure-x on the
-; measuring machine; compiling costs seconds ONCE, which is why adoption
-; is explicit (jit!) or by the input's length, never per-call.
+; measuring machine (SHA-256); compiling costs seconds ONCE, which is
+; why adoption is explicit (jit!) or by the input's length, never
+; per-call.
 ;
 ; x/tool/compile, not x/tool/asm-compile: the assembler backend is not
 ; standalone (its fvar plumbing lives in compile/emit.x), and compile.x
 ; is the module that loads the toolchain in the right order -- its
 ; compile-asm stub pulls the assembler lazily on first use.
-(module x/codec/sha256-jit)
+(module x/codec/sha-jit)
 
 (import x/tool/compile compile-asm)
 
@@ -35,8 +43,10 @@
 (def %sj-M 4294967295)
 
 ; scratch layout, one 1024-byte buffer (words):
-;   0..15 W | 16..23 a..h | 24 t1 25 t2 | 26 base 27 len 28 total
-;   | 32..95 K | 96..103 H
+;   0..15 W | 16..23 working state | 24 t1 25 t2 | 26 base 27 len
+;   28 total | 32..95 K | 96..103 H
+; SHA-256 uses a..h in 16..23 and K; SHA-1 uses a..e in 16..20, its
+; temp in 24 and H in 96..100, its four constants inline.
 (def %sj-KB 32)
 (def %sj-HB 96)
 
@@ -78,17 +88,55 @@
 
 ; the H shuffles, folded (#198): load a..h from H on the t=-1 entry,
 ; masked H accumulate on the t=64 exit -- one native call per block.
-(def %sj-seq8
-  (fn (_ f) (pair 'do ((fn (self i) (if (= i 8) () (pair (f i) (self (+ i 1))))) 0))))
-(def %sj-load-h (%sj-seq8 (fn (_ i) (%sj-setC (+ 16 i) (%sj-C (+ %sj-HB i))))))
+(def %sj-seq
+  (fn (_ n f) (pair 'do ((fn (self i) (if (= i n) () (pair (f i) (self (+ i 1))))) 0))))
+(def %sj-load-h (%sj-seq 8 (fn (_ i) (%sj-setC (+ 16 i) (%sj-C (+ %sj-HB i))))))
 (def %sj-store-h
-  (%sj-seq8 (fn (_ i) (%sj-setC (+ %sj-HB i)
+  (%sj-seq 8 (fn (_ i) (%sj-setC (+ %sj-HB i)
                         (%sj-m32 (list '+ (%sj-C (+ %sj-HB i)) (%sj-C (+ 16 i))))))))
 (def %sj-rounds-expr
   (list 'fn '(self a t)
     (list 'if (list '< 't 0)
       (list 'do %sj-load-h (list 'self 'a 0))
       (list 'if (list '= 't 64) %sj-store-h %sj-round-body))))
+
+; --- SHA-1 (FIPS 180-4 6.1): eighty rounds over a sixteen-word ring ---
+;
+; W[t] for t >= 16 is computed in place in the ring, as the standard's
+; alternative method (6.1.3) does: W[t & 15] = rotl1 of the xor of the
+; words 3, 8, 14 and 16 back.  f and K change every twenty rounds.
+(def %sj-rotl (fn (_ x n) (list '& (list '| (list '<< x n) (list '>> x (- 32 n))) %sj-M)))
+(def %sj-par (fn (_ x y z) (list '^ x (list '^ y z))))
+(def %sj1-f
+  (fn (_ b c d)
+    (list 'if (list '< 't 20) (%sj-ch b c d)
+      (list 'if (list '< 't 40) (%sj-par b c d)
+        (list 'if (list '< 't 60) (%sj-maj b c d) (%sj-par b c d))))))
+; 5a827999 6ed9eba1 8f1bbcdc ca62c1d6
+(def %sj1-k
+  (list 'if (list '< 't 20) 1518500249
+    (list 'if (list '< 't 40) 1859775393
+      (list 'if (list '< 't 60) 2400959708 3395469782))))
+(def %sj1-schedule
+  (%sj-setAT (list '& 't 15)
+    (%sj-rotl (list '^ (%sj-w 3) (list '^ (%sj-w 8) (list '^ (%sj-w 14) (%sj-w 16)))) 1)))
+(def %sj1-round-body
+  (list 'do
+    (list 'if (list '< 't 16) 0 %sj1-schedule)
+    (%sj-setC 24 (%sj-m32 (list '+ (list '+ (%sj-rotl %sj-A 5) (%sj1-f %sj-B %sj-Cc %sj-D))
+                              (list '+ (list '+ %sj-E %sj1-k) (%sj-AT (list '& 't 15))))))
+    (%sj-setC 20 %sj-D) (%sj-setC 19 %sj-Cc) (%sj-setC 18 (%sj-rotl %sj-B 30))
+    (%sj-setC 17 %sj-A) (%sj-setC 16 (%sj-C 24))
+    (list 'self 'a (list '+ 't 1))))
+(def %sj1-rounds-expr
+  (list 'fn '(self a t)
+    (list 'if (list '< 't 0)
+      (list 'do (%sj-seq 5 (fn (_ i) (%sj-setC (+ 16 i) (%sj-C (+ %sj-HB i)))))
+                (list 'self 'a 0))
+      (list 'if (list '= 't 80)
+        (%sj-seq 5 (fn (_ i) (%sj-setC (+ %sj-HB i)
+                               (%sj-m32 (list '+ (%sj-C (+ %sj-HB i)) (%sj-C (+ 16 i)))))))
+        %sj1-round-body))))
 
 ; the W fill, compiled (#199): sixteen words from four padded byte reads
 ; each, against the message's raw address; the FIPS padding is compiled
@@ -118,19 +166,21 @@
 
 ; --- build: compile, wire a driver, and PROVE it against the reference ---
 ;
-; k-vec: the FIPS K vector (slot t+1 = K[t], sha256.x's layout).
-; ih:    the eight initial-H words as a list.
-; ref:   the pure-x digest, (fn (_ s) -> 8-word list) -- the oracle.
+; label:   the digest's name, for the raise.
+; rounds:  the round schedule's expression (%sj-rounds-expr, %sj1-rounds-expr).
+; preload: ((SLOT . WORD) ...) written into the scratch once (SHA-256's K).
+; ih:      the initial-H words as a list; its length is the digest's.
+; ref:     the pure-x digest, (fn (_ s [n]) -> H-word list) -- the oracle.
 ;
-; Returns (fn (_ s) -> 8-word list) driving the compiled pair, or raises
-; -- on a host whose architecture has no assembler backend (unknown
+; Returns (fn (_ s [n]) -> H-word list) driving the compiled pair, or
+; raises -- on a host whose architecture has no assembler backend (unknown
 ; mnemonic), on any toolchain error, or on DISAGREEMENT with the
 ; reference.  The caller guards; a raise means "stay pure-x", never a
 ; wrong digest.  Both current backends (ARM64, x86-64) compile the same
 ; vocabulary, so this module is arch-blind.
-(def sha-jit-make
-  (fn (_ k-vec ih ref)
-    (def %rounds (compile-asm %sj-rounds-expr))
+(def %sj-make
+  (fn (_ label rounds preload ih ref)
+    (def %rounds (compile-asm rounds))
     (def %fill (compile-asm %sj-fill-expr))
     ; drop the whole build's remaining garbage before the digest phase
     ; (the compiler also collects periodically DURING the build)
@@ -140,10 +190,9 @@
     (def %addr (%sj-ptr->int %ptr))
     (def %poke (fn (_ i v) (%sj-pset %ptr (* i 8) v)))
     (def %peek (fn (_ i) (%sj-pref %ptr (* i 8))))
-    ; K into slots 32..95, once
-    ((fn (self i)
-       (unless (= i 64)
-         (do (%poke (+ %sj-KB i) (%sj-oref k-vec (+ i 1))) (self (+ i 1))))) 0)
+    (List for-each (fn (_ sw) (%poke (first sw) (rest sw))) preload)
+    (def %last (- (List length ih) 1))
+    (def %disagrees (Str8 append label "-jit: engine disagrees with the pure-x digest"))
     ; The optional LENGTH mirrors the pure-x path's.  The compiled code needs
     ; nothing: its contract is already (pointer, length) -- maddr below and the
     ; len word in scratch slot 27 -- and it never asks a string how long it is.
@@ -175,7 +224,7 @@
                (self (+ b 64))))) 0)
         ((fn (self i acc)
            (if (< i 0) acc
-             (self (- i 1) (pair (%peek (+ %sj-HB i)) acc)))) 7 ())))
+             (self (- i 1) (pair (%peek (+ %sj-HB i)) acc)))) %last ())))
     ; the differential check: FIPS vectors + a 3-block input that lands
     ; padding in a block of its own.  Any disagreement is a raise; an
     ; engine that cannot prove itself is not an engine.
@@ -188,14 +237,14 @@
     (def %check
       (fn (_ s)
         (unless (%same (%digest s) (ref s))
-          (Err raise 'state "sha256-jit: engine disagrees with the pure-x digest" ()))))
+          (Err raise 'state %disagrees ()))))
     ; The length-explicit door gets its own check, and on BINARY: the whole
     ; reason it exists is input Str8 length cannot measure, so proving the two
     ; engines agree on text would prove nothing about the case it was added for.
     (def %check-n
       (fn (_ s n)
         (unless (%same (%digest s n) (ref s n))
-          (Err raise 'state "sha256-jit: engine disagrees with the pure-x digest (explicit length)" ()))))
+          (Err raise 'state (Str8 append %disagrees " (explicit length)") ()))))
     (%check "")
     (%check "abc")
     (%check "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")
@@ -223,10 +272,25 @@
     (%check-n %sj-bin2 200)
     %digest))
 
-; The codec reaches the maker through the catalogue: it loads this module inside
-; the function that builds the engine, and a name imported there is one the
-; linter cannot see.
-(prim-reg! (lit sha256) (lit jit-make) sha-jit-make)
+; SHA-256: k-vec is sha256.x's K vector (slot t+1 = K[t]), into 32..95.
+(def sha-jit-make
+  (fn (_ k-vec ih ref)
+    (%sj-make "sha256" %sj-rounds-expr
+      ((fn (self i acc)
+         (if (< i 0) acc
+           (self (- i 1) (pair (pair (+ %sj-KB i) (%sj-oref k-vec (+ i 1))) acc))))
+       63 ())
+      ih ref)))
 
-(doc (provide x/codec/sha256-jit sha-jit-make)
-  "The compiled SHA-256 engine (JIT, ARM64 and x86-64 backends); built and adopted only via (Sha256 jit!) after proving agreement with the pure-x digest.")
+; SHA-1: its constants are in the rounds, so nothing is preloaded.
+(def sha1-jit-make
+  (fn (_ ih ref) (%sj-make "sha1" %sj1-rounds-expr () ih ref)))
+
+; The codecs reach the makers through the catalogue: each loads this module
+; inside the function that builds its engine, and a name imported there is
+; one the linter cannot see.
+(prim-reg! (lit sha256) (lit jit-make) sha-jit-make)
+(prim-reg! (lit sha1) (lit jit-make) sha1-jit-make)
+
+(doc (provide x/codec/sha-jit sha-jit-make sha1-jit-make)
+  "The compiled SHA-256 and SHA-1 engines (JIT, ARM64 and x86-64 backends); each built and adopted only via its codec's jit! after proving agreement with the pure-x digest.")
