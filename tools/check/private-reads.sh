@@ -24,7 +24,7 @@
 #
 # What does not count: a name tools/contract/shared-privates.x lists, and a
 # % name tools/contract/seam.x promises to a lang.  Those are read across
-# files by decision (docs/namespaces.md), so the count is of the reads that
+# files by decision (docs/modules.md), so the count is of the reads that
 # still want a door.  The same manifest names the boot files, which cannot
 # take a module header.  A read of a boot file's % name that has no row is
 # refused whatever the reader's budget, so what the boot layer shares grows
