@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`(Paint lexer l colours)`: a painter made from a Lexer** ([#935]). It
+answers a `%repl-paint` painter that colours a line by the tokens of a Lexer
+whose rules read every byte, each token in the style its tag names: an Ansi
+style name, an escape string, or a function of the token's text. A lang whose
+syntax a Lexer reads colours its lines with no span scan of its own.
+
+[#935]: https://github.com/jonruttan/x-lang/pull/935
+
 ## [0.26.0] - 2026-10-06
 
 **The engine is x-engine-c v0.2.21** ([#930]). A NUL is an ordinary byte in
