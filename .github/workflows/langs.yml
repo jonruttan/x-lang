@@ -98,17 +98,12 @@ jobs:
       # with no bundles beside it; here the bundle was checked out, so a skip
       # means it was not run, and that is a failure.
       #
-      # The runner settings are the ones the bundles' own CI uses: each spec
-      # file in a process of its own, and one heavy file at a time.  Several
-      # files in one process share its heap, and a batch the runner has to
-      # kill counts every one of its tests as failed.
+      # No runner knobs are set here.  Each bundle's tests/spec-runner.sh
+      # carries the settings its suite needs on a hosted runner, and the
+      # bundles differ: one batches one file per process, one shards, most
+      # run the defaults.  One bundle's settings applied to every job ended
+      # another bundle's runner.
       - name: Run the suite
-        env:
-          SPEC_BATCH: 1
-          PARALLEL: 1
-          PARALLEL_JOBS: 3
-          SPEC_HEAVY_JOBS: 1
-          SPEC_HEAVY_MIN: 4
         run: |
           set +e
           LANGS="${{ matrix.lang.name }}" LANGS_LOG_DIR=langs-logs \
