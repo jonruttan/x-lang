@@ -5,15 +5,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**`(Lexer state form fvars)`: an analyser state for a type built by hand** ([#947]).
-The Lexer realizes one state from a form in the assembler lane's dialect, as
-its rules do -- compiled to native code when the lane is open, the interpreted
-twin otherwise -- and answers `(STATE . COMPILED?)`.  For a tokenizer base the
-rules cannot express: typed instances, a live stream, a read that recurses
-(x-logo's).  The caller holds its states and makes them again after an image
-load.
-
-[#947]: https://github.com/jonruttan/x-lang/pull/947
 **The library reference is generated, and the prose says where it is**
 ([#940]). `docs/standard-library.md` wrote 144 entries by hand, 129 of
 them a second copy of the `(doc …)` form the API reference is generated
