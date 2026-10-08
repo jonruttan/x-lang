@@ -37,7 +37,7 @@
   (%fold
     (fn (_ acc a) (or acc (str=? a "--no-color")))
     ()
-    args))
+    (Sys %launch-options)))
 
 (def %ansi?
   (and (Sys isatty 1)
@@ -124,7 +124,7 @@
         (set! %no-color-env (Sys getenv "NO_COLOR"))
         (set! %term-env (Sys getenv "TERM"))
         (set! %no-color-arg
-          (%fold (fn (_ acc a) (or acc (str=? a "--no-color"))) () args))
+          (%fold (fn (_ acc a) (or acc (str=? a "--no-color"))) () (Sys %launch-options)))
         (set! %ansi?
           (and (Sys isatty 1)
                (null? %no-color-env)

@@ -30,7 +30,7 @@
 ; A row is not a promise to a lang.  It says that files in this tree read
 ; the name, and that a rename has those readers to move.
 ;
-; Decisions, in docs/namespaces.md: the walkers on 2026-09-24; the boot
+; Decisions, in docs/modules.md: the walkers on 2026-09-24; the boot
 ; names, the seams and the reader protocol on 2026-09-27; the names of the
 ; files that stay unscoped on 2026-09-28.
 
@@ -146,7 +146,7 @@
 (promised "lib/x/reader/intrinsics.x" %read-label "docs/crafting-a-lang.md" "the label, as the type's reader recovers it")
 
 ; --- the files that stay unscoped by decision or by measurement ---------------
-; These keep their names in the root (docs/namespaces.md), so a door in front
+; These keep their names in the root (docs/modules.md), so a door in front
 ; of one would hide nothing and cost a dispatch.  The rows are the names
 ; other files read today.  The files are not boot files: a read of another
 ; of their % names is counted against its reader.  Decision of 2026-09-28.

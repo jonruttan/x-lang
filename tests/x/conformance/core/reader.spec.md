@@ -345,3 +345,119 @@ unclaimable input would read two.
 ```
 ---
     *** ERROR: ok
+
+## A NUL is a byte
+
+A buffer's write mark is its end. The tokenizer reads every byte up to it,
+0x00 included, so a binary buffer can be read through a tokenizer base. With
+a span, `(tok read-str TB text start len)` reads the `len` bytes at offset
+`start`. Without one, the input is the string's text, which ends at its first
+NUL, because a str is a C string by ruling (`core/strings.spec.md`).
+
+### a span is read past a NUL, every byte of it
+
+covers: tok/read-str buf/last-char
+
+BYTE claims any one byte, scoring on that byte, and reads its code. Over the
+three bytes 0x00 'A' 0x00 the span yields three tokens. An engine that treated
+the NUL as the end of input would yield none.
+
+```x
+(include "tools/contract/obj-layout.x")
+(def %o2p (%coord (lit obj) (lit ->ptr)))
+(def %refw (%coord (lit ptr) (lit ref-word)))
+(def %setw (%coord (lit ptr) (lit set-word!)))
+(def %doff (* %param-word-size %obj-meta-len))
+(def %cellint (fn (_ x) (%refw (%o2p x) %doff)))
+(def %setcell (fn (_ p v) (%setw (%o2p p) %doff v) p))
+(def %buflen (fn (_ b) (- (%cellint (rest b)) (%cellint b))))
+(def %scoreset (fn (_ s sign b) (%setcell s (* sign (%buflen b)))))
+(def %an-b (fn (_ buffer score chr) (%scoreset score 1 buffer)))
+(def %mktok (%coord (lit base) (lit make-tok)))
+(def %mktype (%coord (lit base) (lit make-type)))
+(def %readstr (%coord (lit tok) (lit read-str)))
+(def %blast (%coord (lit buf) (lit last-char)))
+(def %c2i (%coord (lit char) (lit ->int)))
+(def %b2s (%coord (lit bytes) (lit ->str)))
+(def %readfn (fn (_ . args) (%c2i (%blast (first args)))))
+(def tb (%mktok))
+(%mktype tb "BYTE" (pair (pair (lit analyse) %an-b) (pair (pair (lit read) %readfn) ())))
+(def s (%b2s (pair 0 (pair 65 (pair 0 ())))))
+(def %r (%readstr tb s 0 3))
+(%ok (match ((eq? %r ()) ())
+            ((= (first %r) 0)
+             (match ((eq? (rest %r) ()) ())
+                    ((= (first (rest %r)) 65)
+                     (match ((eq? (rest (rest %r)) ()) ())
+                            ((= (first (rest (rest %r))) 0) (eq? (rest (rest (rest %r))) ()))
+                            (#t ())))
+                    (#t ())))
+            (#t ())))
+```
+---
+    *** ERROR: ok
+
+### without a span the text ends at its first NUL
+
+covers: tok/read-str
+
+The same string read as text is empty: its first byte is a NUL.
+
+```x
+(include "tools/contract/obj-layout.x")
+(def %o2p (%coord (lit obj) (lit ->ptr)))
+(def %refw (%coord (lit ptr) (lit ref-word)))
+(def %setw (%coord (lit ptr) (lit set-word!)))
+(def %doff (* %param-word-size %obj-meta-len))
+(def %cellint (fn (_ x) (%refw (%o2p x) %doff)))
+(def %setcell (fn (_ p v) (%setw (%o2p p) %doff v) p))
+(def %buflen (fn (_ b) (- (%cellint (rest b)) (%cellint b))))
+(def %scoreset (fn (_ s sign b) (%setcell s (* sign (%buflen b)))))
+(def %an-b (fn (_ buffer score chr) (%scoreset score 1 buffer)))
+(def %mktok (%coord (lit base) (lit make-tok)))
+(def %mktype (%coord (lit base) (lit make-type)))
+(def %readstr (%coord (lit tok) (lit read-str)))
+(def %b2s (%coord (lit bytes) (lit ->str)))
+(def %readfn (fn (_ . args) 1))
+(def tb (%mktok))
+(%mktype tb "BYTE" (pair (pair (lit analyse) %an-b) (pair (pair (lit read) %readfn) ())))
+(%ok (eq? (%readstr tb (%b2s (pair 0 (pair 65 (pair 0 ()))))) ()))
+```
+---
+    *** ERROR: ok
+
+### tok carries the bytes past a NUL
+
+covers: buf/tok
+
+PAIR claims two bytes, scoring on the second. Over 0x00 'B' its token's text
+is empty, because the NUL ends it, but the byte after the NUL is still in the
+token's storage, where `byte-ref` reaches it.
+
+```x
+(include "tools/contract/obj-layout.x")
+(def %o2p (%coord (lit obj) (lit ->ptr)))
+(def %refw (%coord (lit ptr) (lit ref-word)))
+(def %setw (%coord (lit ptr) (lit set-word!)))
+(def %doff (* %param-word-size %obj-meta-len))
+(def %cellint (fn (_ x) (%refw (%o2p x) %doff)))
+(def %setcell (fn (_ p v) (%setw (%o2p p) %doff v) p))
+(def %buflen (fn (_ b) (- (%cellint (rest b)) (%cellint b))))
+(def %scoreset (fn (_ s sign b) (%setcell s (* sign (%buflen b)))))
+(def %second (fn (_ buffer score chr) (%scoreset score 1 buffer)))
+(def %an-p (fn (_ buffer score chr) %second))
+(def %mktok (%coord (lit base) (lit make-tok)))
+(def %mktype (%coord (lit base) (lit make-type)))
+(def %readstr (%coord (lit tok) (lit read-str)))
+(def %btok (%coord (lit buf) (lit tok)))
+(def %bref (%coord (lit str) (lit byte-ref)))
+(def %c2i (%coord (lit char) (lit ->int)))
+(def %b2s (%coord (lit bytes) (lit ->str)))
+(def %readfn (fn (_ . args) (%c2i (%bref (%btok (first args)) 1))))
+(def tb (%mktok))
+(%mktype tb "PAIR" (pair (pair (lit analyse) %an-p) (pair (pair (lit read) %readfn) ())))
+(def %r (%readstr tb (%b2s (pair 0 (pair 66 ()))) 0 2))
+(%ok (match ((eq? %r ()) ()) (#t (= (first %r) 66))))
+```
+---
+    *** ERROR: ok
