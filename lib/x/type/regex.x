@@ -459,8 +459,11 @@
                       ((= esc #\w) (self (+ i 2) (pair 95 (pair (pair 97 122) (pair (pair 65 90) (pair (pair 48 57) acc))))))
                       ((= esc #\s) (self (+ i 2) (pair 13 (pair 10 (pair 9 (pair 32 acc))))))
                       (#t (self (+ i 2) (pair esc acc)))))))
-              ; Range: a-z
-              ((and (< (+ i 2) end) (= (%char->integer (%str-ref s (+ i 1))) #\-))
+              ; Range: a-z.  A - just before the closing ] is a literal
+              ; (POSIX), so [+-] is the two characters, not + to ].
+              ((and (< (+ i 2) end)
+                    (and (= (%char->integer (%str-ref s (+ i 1))) #\-)
+                         (not (= (%char->integer (%str-ref s (+ i 2))) #\]))))
                 (let ((hi (%char->integer (%str-ref s (+ i 2)))))
                   (self (+ i 3) (pair (pair ch hi) acc))))
               (#t (self (+ i 1) (pair ch acc))))))))
