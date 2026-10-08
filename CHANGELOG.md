@@ -5,19 +5,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**A lookup by name is a class, and `docs/code-quality.md` carries no
-measurements** ([#948]). Rule 1.2 said a chain of fifteen or more string
-comparisons becomes a `Dict` of functions built at load; that is a dispatch
-table written by hand. A chain that selects a function by name is a
-dispatch, and the class system is the dispatcher: the names become static
-methods of a class and the call is the lookup, at three names or thirty. The
-linter's warning for a string-keyed chain is `dispatch`, with no size
-threshold, and the kit's strict mode fails on it as it did on `ladder-dict`.
-The document keeps its rules and loses the timing tables, the lists of worst
-cases and the dated baseline behind them.
-
-[#948]: https://github.com/jonruttan/x-lang/pull/948
-
 **`(Paint lexer l colours)`: a painter made from a Lexer** ([#935]). It
 answers a `%repl-paint` painter that colours a line by the tokens of a Lexer
 whose rules read every byte, each token in the style its tag names: an Ansi
