@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The library reference is generated, and the prose says where it is**
+([#940]). `docs/standard-library.md` wrote 144 entries by hand, 129 of
+them a second copy of the `(doc …)` form the API reference is generated
+from, under a version line that said 0.12.0. It is a page of 79 lines now:
+how the library is laid out, the shape of a call, how to find a name, and
+how the reference is written. The booted forms in `docs/primitives.md`, the
+third of its three parts, were the same kind of copy and are a paragraph
+that says where they live; the C instruction set and the coordinates stay,
+held to the engine's manifest as before.
+
+[#940]: https://github.com/jonruttan/x-lang/pull/940
+
 **`(Sys args)`, and the launcher writes `--` between its options and the program's** ([#934]).
 x.sh starts the engine as `x-bin OPTION... -- ARG...`.  `(Sys args)` answers
 the arguments as the engine was given them, and `(Sys args 'program)` the
