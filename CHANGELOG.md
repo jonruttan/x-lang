@@ -13,6 +13,7 @@ relocation record use the integer doors. vi's 21-state address lexer: a warm
 `(Lexer make)` 123-128 -> 104-110 ms, a remake in the same heap 86-91 ms.
 
 [#939]: https://github.com/jonruttan/x-lang/pull/939
+
 **`(Paint lexer l colours)`: a painter made from a Lexer** ([#935]). It
 answers a `%repl-paint` painter that colours a line by the tokens of a Lexer
 whose rules read every byte, each token in the style its tag names: an Ansi
