@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The environment model is the tenth engine law** ([#946]).
+`docs/environment-model.md` opened with "Nothing in it is implemented"; the
+model, an environment as one pair `(bindings . parent)`, shipped in
+x-engine-c v0.2.10 and the conformance suite tests it. Its rules are
+behaviour the language requires of an engine that the manifest cannot
+express, so they are law 10 in `docs/engine-laws.md`, and the file with its
+history, costs, sequence and open questions is gone. `docs/lang-scale.md`'s
+status line says which of its rulings are built, three of five, and that the
+two that are not are still asked for; the one built ruling the lang contract
+did not record, the release-refs gate, has its paragraph there.
+
+[#946]: https://github.com/jonruttan/x-lang/pull/946
+
 **`(Paint lexer l colours)`: a painter made from a Lexer** ([#935]). It
 answers a `%repl-paint` painter that colours a line by the tokens of a Lexer
 whose rules read every byte, each token in the style its tag names: an Ansi
