@@ -28,6 +28,15 @@ measurement narratives went with the file. Every reference points at
 
 [#933]: https://github.com/jonruttan/x-lang/pull/933
 
+**`Sha1`: SHA-1 in pure x, with a compiled engine sharing SHA-256's driver** ([#936]).
+`(Sha1 hex s)`, `(Sha1 hex-n s n)` and `(Sha1 jit!)`, as `Sha256` has them, for
+naming content as git does; SHA-1 is not for trust.  `x/codec/sha256-jit` is
+`x/codec/sha-jit` now: one fill, driver and differential check serve both
+digests.  The engine builds on its own for an input of 8KB or more, SHA-1's
+measured breakeven: pure-x 3.8KB/s, the build 2.2s, the engine 470KB/s.
+
+[#936]: https://github.com/jonruttan/x-lang/pull/936
+
 ## [0.26.0] - 2026-10-06
 
 **The engine is x-engine-c v0.2.21** ([#930]). A NUL is an ordinary byte in
