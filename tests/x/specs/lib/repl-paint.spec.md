@@ -308,3 +308,46 @@ nothing open. A character literal such as `#\"` opens nothing.
 ```
 ---
     #t
+
+## a painter made from a Lexer
+
+`(Paint lexer l colours)` colours a line by the tokens of a Lexer whose rules
+read every byte. Colour is forced on here and the styles are marker strings,
+since the harness's Ansi codes are empty; the reset code is empty for the same
+reason.
+
+### each token takes its tag's style, a function picks one by text, and a byte no rule reads ends it plain
+
+```x
+(do (import x/repl/paint) (import x/reader/lexer)
+    (let ((was (Ansi enabled?))
+          (l (Lexer make (list (Lexer run 'blank " " " ")
+                               (Lexer until 'c "#" "\n" 'to-end)
+                               (Lexer quoted 'str 34 34 92)
+                               (Lexer run 'w "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz")))))
+      (eval (lit (set! %ansi? #t)) (module x/repl/ansi))
+      (let ((p (Paint lexer l (list (pair 'c "<c>") (pair 'str "<s>")
+                                    (pair 'w (fn (_ t) (if (Str8 =? t "if") "<k>" ())))))))
+        (let ((r (list (p "if x \"a b\" # z" () ())
+                       (p "x \"a" () ())
+                       (p "b\" y" () "x \"a")
+                       (p "a @b" () ()))))
+          (eval (list (lit set!) (lit %ansi?) was) (module x/repl/ansi))
+          r))))
+```
+---
+    ("<k>if x <s>\"a b\" <c># z" "x \"a" "<s>b\" y" "a @b")
+
+### with colour off it answers the window unchanged
+
+```x
+(do (import x/repl/paint) (import x/reader/lexer)
+    (let ((was (Ansi enabled?))
+          (l (Lexer make (list (Lexer run 'w "ab" "ab")))))
+      (eval (lit (set! %ansi? #f)) (module x/repl/ansi))
+      (let ((r ((Paint lexer l (list (pair 'w "<w>"))) "ab ba" () ())))
+        (eval (list (lit set!) (lit %ansi?) was) (module x/repl/ansi))
+        r)))
+```
+---
+    "ab ba"
