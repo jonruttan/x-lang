@@ -1,0 +1,200 @@
+00400000-00452000 r-xp 00000000 08:02 173521                     /usr/bin/sh
+Size:               4 kB
+Rss:                4 kB
+Shared_Clean:      300 kB
+Shared_Dirty:        0 kB
+Private_Clean:       8 kB
+Private_Dirty:       0 kB
+Swap:               0 kB
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+VmFlags: rd ex mr mw me dw
+00651000-00652000 rw-p 00051000 08:02 173521                     /usr/bin/sh
+Size:               4 kB
+Rss:                4 kB
+Shared_Clean:        0 kB
+Shared_Dirty:        0 kB
+Private_Clean:       0 kB
+Private_Dirty:       4 kB
+Swap:               0 kB
+7f0000000000-7f0000001000 ---p 00000000 00:00 0
+Size:               4 kB
+Rss:                4 kB
+Shared_Clean:        0 kB
+Shared_Dirty:        0 kB
+Private_Clean:       0 kB
+Private_Dirty:       0 kB
+Swap:               0 kB
+7f0000001000-7f0000002000 rw-s 00000000 00:05 9                          /dev/fb0
+Size:               4 kB
+Rss:                4 kB
+Shared_Clean:        0 kB
+Shared_Dirty:        4 kB
+Private_Clean:       0 kB
+Private_Dirty:       0 kB
+Swap:               0 kB
+7ffd00000000-7ffd00021000 rw-p 00000000 00:00 0                          [stack]
+Size:               4 kB
+Rss:                4 kB
+Shared_Clean:        0 kB
+Shared_Dirty:        0 kB
+Private_Clean:       0 kB
+Private_Dirty:      12 kB
+Swap:               0 kB

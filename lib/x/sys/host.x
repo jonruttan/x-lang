@@ -7,11 +7,12 @@
 ;
 ; Linux reads what BusyBox reads: sysinfo(2) for uptime, load and the
 ; memory totals; /proc/meminfo for cached, reclaimable and available;
-; /proc/stat for CPU time and the boot time; /proc/PID/stat for a process.
-; Darwin reads sysctl (kern.boottime, vm.loadavg, hw.memsize,
-; vm.swapusage, kern.proc.all, kern.procargs2), the Mach host statistics
-; and proc_pidinfo, all through the dlopen FFI.  Both read the users
-; through libc's getutxent, as BusyBox does.
+; /proc/stat for CPU time and the boot time; /proc/loadavg for the run
+; queue; /proc/PID/stat for a process, /proc/PID/task for its threads and
+; /proc/PID/smaps for its mappings.  Darwin reads sysctl (kern.boottime,
+; vm.loadavg, hw.memsize, vm.swapusage, kern.proc.all, kern.procargs2), the
+; Mach host and processor statistics and proc_pidinfo, all through the
+; dlopen FFI.  Both read utmpx through libc's getutxent, as BusyBox does.
 ;
 ; A record is an alist keyed by symbols.  A field the kernel does not
 ; report, or will not report to this user, is nil: Darwin refuses another
@@ -37,7 +38,7 @@
 (def-class Host ()
   (doc "The machine as the kernel reports it: boot time, load, memory, CPU time, processes and logged-in users, the same records on Linux and Darwin."
     (note "A field the kernel does not report is nil. Darwin reports another user's process memory and CPU time only to root.")
-    (see boot-time) (see load) (see memory) (see cpu) (see processes) (see process) (see args) (see exe) (see users))
+    (see boot-time) (see load) (see tasks) (see memory) (see cpu) (see cpus) (see processes) (see process) (see args) (see exe) (see threads) (see maps) (see utmp) (see users))
   (static
     (source    ()      "'linux or 'darwin: which reader answers; nil means this kernel's")
     (proc-root "/proc" "The /proc tree the Linux reader opens")
@@ -127,6 +128,47 @@
           (let ((v (go start 0))) (if neg (- 0 v) v))
           ())))
 
+    (method %hex (self (param s STRING "Hexadecimal digits"))
+      (doc "The integer a run of hex digits spells, read up to the first byte that is not one; 0 for none."
+        (returns INTEGER "The value"))
+      (def at (prim-ref (lit str) (lit byte-ref)))
+      (def n ((prim-ref (lit str) (lit byte-len)) s))
+      (def digit
+        (fn (_ b)
+          (match
+            ((if (>= b 48) (<= b 57) #f) (- b 48))
+            ((if (>= b 97) (<= b 102) #f) (- b 87))
+            ((if (>= b 65) (<= b 70) #f) (- b 55))
+            (#t ()))))
+      (def go
+        (fn (self i acc)
+          (if (>= i n) acc
+            (let ((d (digit (at s i))))
+              (if (null? d) acc (self (+ i 1) (+ (* acc 16) d)))))))
+      (go 0 0))
+
+    (method %fold-lines (self (param path STRING "A file") (param f CALLABLE "(f line acc) answers the next acc; line has no newline")
+                              (param init ANY "The first acc"))
+      (doc "Fold f over a file's lines, read a piece at a time, so a long /proc file is never held whole."
+        (returns ANY "The last acc, or nil when the file cannot be opened"))
+      (def fd (File open path (lit rdonly)))
+      (if (< fd 0) ()
+        (let ((buf (Host %buf 4096)))
+          ; the lines of one piece, all but its last, which the next piece may finish
+          (def most
+            (fn (me ps acc) (if (null? (rest ps)) (pair (first ps) acc) (me (rest ps) (f (first ps) acc)))))
+          ; carry is the start of a line the last piece cut off
+          (def go
+            (fn (self carry acc)
+              (def n (File read fd buf 4096))
+              (if (<= n 0)
+                (if (str=? carry "") acc (f carry acc))
+                (let ((r (most (Str8 split "\n" (Str8 append carry (Str8 sub 0 n buf))) acc)))
+                  (self (first r) (rest r))))))
+          (def r (go "" init))
+          (File close fd)
+          r)))
+
     (method %read (self (param path STRING "A file under /proc"))
       (doc "The whole of a /proc file, or nil when it cannot be opened. /proc files stat as empty, so this reads to end of file rather than sizing by stat. Text only: a NUL ends the string."
         (returns ANY "STRING, or nil"))
@@ -214,7 +256,8 @@
         (returns INTEGER "Nanoseconds"))
       (def tb (Host %buf 8))
       (Host %call "mach_timebase_info" (Host %ptr tb))
-      (/ (* t (Host %int-at tb 0 4)) (Host %int-at tb 4 4)))
+      ; the int door: the tower's / would answer a fraction for a timebase like 125/3
+      ((prim-ref (lit int) (lit /)) (* t (Host %int-at tb 0 4)) (Host %int-at tb 4 4)))
 
     ; --- boot time and load ---------------------------------------------------
 
@@ -243,6 +286,22 @@
       (list (Float / (Host %int-at b 0 4) scale)
             (Float / (Host %int-at b 4 4) scale)
             (Float / (Host %int-at b 8 4) scale)))
+
+    (method tasks (self)
+      (doc "The scheduler's counts: running (entities runnable now), total (entities that exist) and last-pid (the pid most recently handed out). Linux reads /proc/loadavg's fourth and fifth fields, which top prints after the load averages; Darwin reports none of them."
+        (returns ALIST "((running . N) (total . N) (last-pid . N)); a field not reported is nil")
+        (sample "(Assoc get 'running (Host tasks))" "2"))
+      (def record
+        (fn (_ running total last)
+          (list (pair (lit running) running) (pair (lit total) total) (pair (lit last-pid) last))))
+      (def s (if (eq? (Host %backend) (lit darwin)) ()
+               (Host %read (Str8 append (Host proc-root) "/loadavg"))))
+      (def f (if (null? s) () (Host %fields (first (Str8 split "\n" s)))))
+      (if (< (List length f) 5) (record () () ())
+        (let ((rt (Str8 split "/" (List ref 3 f))))
+          (record (Host %int (first rt))
+                  (if (null? (rest rt)) () (Host %int (first (rest rt))))
+                  (Host %int (List ref 4 f))))))
 
     ; --- memory ---------------------------------------------------------------
 
@@ -293,19 +352,57 @@
       (doc "CPU time since boot across all processors, in nanoseconds: user nice system idle iowait irq softirq steal. Linux reads /proc/stat's cpu line; Darwin reads HOST_CPU_LOAD_INFO, which reports the first four. Differences between two readings give the percentages top shows."
         (returns ALIST "((user . NS) (nice . NS) ... (steal . NS)); a field not reported is nil")
         (sample "(Assoc get 'idle (Host cpu))" "1566821170000000"))
-      (def keys (list (lit user) (lit nice) (lit system) (lit idle)
-                      (lit iowait) (lit irq) (lit softirq) (lit steal)))
-      (def ticks
+      (Host %cpu-record
         (if (eq? (Host %backend) (lit darwin))
           (Host %darwin-ticks)
           (let ((hit (List find (fn (_ l) (Str8 starts? "cpu " l)) (Host %lines "stat"))))
-            (if (null? hit) () (List map (fn (_ f) (Host %int f)) (rest (Host %fields hit)))))))
+            (if (null? hit) () (List map (fn (_ f) (Host %int f)) (rest (Host %fields hit))))))))
+
+    (method cpus (self)
+      (doc "CPU time since boot for each processor, one record each in the kernel's order, with cpu's fields. Linux reads /proc/stat's cpuN lines; Darwin reads host_processor_info's PROCESSOR_CPU_LOAD_INFO, which reports user, nice, system and idle."
+        (returns LIST "One cpu record a processor")
+        (sample "(List length (Host cpus))" "12"))
+      (if (eq? (Host %backend) (lit darwin))
+        (List map (fn (_ t) (Host %cpu-record t)) (Host %darwin-cpu-ticks))
+        (List map (fn (_ l) (Host %cpu-record (List map (fn (_ f) (Host %int f)) (rest (Host %fields l)))))
+          (List filter (fn (_ l) (if (Str8 starts? "cpu" l) (not (Str8 starts? "cpu " l)) #f))
+            (Host %lines "stat")))))
+
+    (method %cpu-record (self (param ticks LIST "Tick counts in /proc/stat's order; fewer than eight leave the rest nil"))
+      (doc "A cpu record from clock ticks: user nice system idle iowait irq softirq steal, in nanoseconds."
+        (returns ALIST "The cpu record"))
       (def go
         (fn (self ks ts)
           (if (null? ks) ()
             (pair (pair (first ks) (if (null? ts) () (Host %ticks->ns (first ts))))
                   (self (rest ks) (if (null? ts) () (rest ts)))))))
-      (go keys ticks))
+      (go (list (lit user) (lit nice) (lit system) (lit idle)
+                (lit iowait) (lit irq) (lit softirq) (lit steal))
+          ticks))
+
+    (method %darwin-cpu-ticks (self)
+      (doc "host_processor_info's PROCESSOR_CPU_LOAD_INFO ticks for each processor, in cpu's order: user, nice, system, idle. The kernel hands back an array it allocated, which is returned to it with vm_deallocate."
+        (returns LIST "Four tick counts a processor"))
+      (def ref (prim-ref (lit ptr) (lit ref)))
+      (def cvt (prim-ref (lit convert) (lit to)))
+      (def pointer-type (first (rest (Host %types))))
+      (def count (Host %buf 8))
+      (def info (Host %buf 8))
+      (def info-count (Host %buf 8))
+      (if (not (= 0 (Host %call "host_processor_info" (Host %call "mach_host_self") 2
+                      (Host %ptr count) (Host %ptr info) (Host %ptr info-count))))
+        ()
+        (let ((n (Host %int-at count 0 4)) (at (Host %int-at info 0 8)))
+          (def p (cvt at pointer-type))
+          ; [CPU_STATE_MAX] natural_t a processor: USER, SYSTEM, IDLE, NICE
+          (def one (fn (_ i) (def o (* i 16))
+                     (list (ref p o 4) (ref p (+ o 12) 4) (ref p (+ o 4) 4) (ref p (+ o 8) 4))))
+          (def go (fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (one i) acc)))))
+          (def r (go (- n 1) ()))
+          ; mach_task_self() is the value of the mach_task_self_ port variable
+          (Host %call "vm_deallocate" (ref (Host %sym "mach_task_self_") 0 4) at
+            (* 4 (Host %int-at info-count 0 4)))
+          r)))
 
     (method %darwin-ticks (self)
       (doc "HOST_CPU_LOAD_INFO's ticks, in cpu's order: user, nice, system, idle."
@@ -320,7 +417,7 @@
     ; --- processes ------------------------------------------------------------
 
     (method processes (self)
-      (doc "Every process, one record each: pid ppid pgid sid uid gid ruid rgid state comm tty tty-major tty-minor nice start threads vsz rss utime stime. uid and gid are the effective ids, ruid and rgid the real ones. state is a Linux state letter (R S D T Z); start is unix seconds; vsz and rss are bytes; utime and stime are nanoseconds; tty is the terminal's device number, nil for none, and tty-major and tty-minor its two halves as this kernel packs them. Darwin answers state (unless zombie or stopped), threads, vsz, rss, utime and stime only for this user's processes unless running as root."
+      (doc "Every process, one record each: pid ppid pgid sid uid gid ruid rgid state comm tty tty-major tty-minor nice start threads vsz rss utime stime processor. uid and gid are the effective ids, ruid and rgid the real ones. state is a Linux state letter (R S D T Z); start is unix seconds; vsz and rss are bytes; utime and stime are nanoseconds; tty is the terminal's device number, nil for none, and tty-major and tty-minor its two halves as this kernel packs them; processor is the CPU it last ran on. Darwin answers state (unless zombie or stopped), threads, vsz, rss, utime and stime only for this user's processes unless running as root, and reports no processor."
         (returns LIST "Process records")
         (sample "(List length (Host processes))" "772"))
       (if (eq? (Host %backend) (lit darwin)) (Host %darwin-processes) (Host %linux-processes)))
@@ -350,6 +447,133 @@
           (if (<= n 0) () (Host %cstr-at b 0 n)))
         (guard (e ()) (File readlink (Str8 append (Host proc-root) "/" (Str8 str pid) "/exe")))))
 
+    (method threads (self (param pid INTEGER "Process ID"))
+      (doc "The process's threads, one record each with the process record's fields, pid the thread's id and comm its name. Linux reads /proc/PID/task/TID/stat, so each thread's state, CPU time and processor are its own; Darwin lists the threads with proc_pidinfo and reads each one's state, name and CPU time, the other fields being the process's, and answers only for this user's processes unless running as root. nil when the process is gone or the kernel will not say."
+        (returns ANY "LIST of thread records, or nil")
+        (sample "(List length (Host threads (Sys getpid)))" "1"))
+      (if (eq? (Host %backend) (lit darwin))
+        (Host %darwin-threads pid)
+        (let ((dir (Str8 append (Host proc-root) "/" (Str8 str pid) "/task"))
+              (btime (Host %linux-btime)))
+          (def tids (guard (e ()) (List filter (fn (_ n) (not (null? (Host %int n)))) (File list-dir dir))))
+          (if (null? tids) ()
+            (List sort-by (fn (_ r) (Assoc get (lit pid) r))
+              (List reject null?
+                (List map (fn (_ n) (Host %linux-record-at btime (Str8 append dir "/" n) (Host %int n))) tids)))))))
+
+    (method %darwin-threads (self (param pid INTEGER "Process ID"))
+      (doc "threads, from proc_pidinfo: PROC_PIDLISTTHREADIDS for the ids, then PROC_PIDTHREADID64INFO for each thread's struct proc_threadinfo."
+        (returns ANY "LIST of thread records, or nil"))
+      (def proc (Host process pid))
+      (def n (if (null? proc) () (Assoc get (lit threads) proc)))
+      (if (null? n) ()
+        (let ((ids (Host %buf (* 8 (+ n 16)))))
+          (def got (Host %call "proc_pidinfo" pid 28 0 (Host %ptr ids) (* 8 (+ n 16))))
+          (def ti (Host %buf 112))
+          (def states (lit ((1 . "R") (2 . "T") (3 . "S") (4 . "D") (5 . "Z"))))
+          (def one
+            (fn (_ tid)
+              (if (not (= 112 (Host %call "proc_pidinfo" pid 15 tid (Host %ptr ti) 112))) ()
+                ; pth_user_time, pth_system_time (ns), pth_run_state, pth_name
+                (let ((name (Host %cstr-at ti 48 64)))
+                  (List map
+                    (fn (_ e)
+                      (def k (first e))
+                      (match
+                        ((eq? k (lit pid)) (pair k tid))
+                        ((eq? k (lit state)) (pair k (Assoc get (Host %int-at ti 24 4) states)))
+                        ((eq? k (lit comm)) (pair k (if (str=? name "") (rest e) name)))
+                        ((eq? k (lit utime)) (pair k (Host %int-at ti 0 8)))
+                        ((eq? k (lit stime)) (pair k (Host %int-at ti 8 8)))
+                        (#t e)))
+                    proc)))))
+          (def go
+            (fn (self i acc)
+              (if (< i 0) acc
+                (self (- i 1) (let ((r (one (Host %int-at ids (* 8 i) 8)))) (if (null? r) acc (pair r acc)))))))
+          (if (<= got 0) () (go (- (/ got 8) 1) ())))))
+
+    (method maps (self (param pid INTEGER "Process ID"))
+      (doc "The process's memory mappings, summed as BusyBox's top -m sums /proc/PID/smaps, in bytes: mapped-rw and mapped-ro, the size of the writable mappings and of the readable or executable rest (a device mapping other than /dev/zero, and a ---p guard gap, counted in neither); stack, the [stack] mapping's size; and the resident shared-clean, shared-dirty, private-clean and private-dirty. Darwin walks the regions with proc_pidinfo's PROC_PIDREGIONINFO, takes protection, the stack tag and the private and shared resident pages from the kernel, and counts a region's dirtied pages as private for a private or copy-on-write region and shared otherwise; it answers only for this user's processes unless running as root. nil when the process is gone or the kernel will not say."
+        (returns ANY "((mapped-ro . B) (mapped-rw . B) (stack . B) (shared-clean . B) (shared-dirty . B) (private-clean . B) (private-dirty . B)), or nil")
+        (sample "(< 0 (Assoc get 'mapped-ro (Host maps (Sys getpid))))" "#t"))
+      (if (eq? (Host %backend) (lit darwin)) (Host %darwin-maps pid) (Host %linux-maps pid)))
+
+    (method %maps-record (self (param v LIST "mapped-ro mapped-rw stack shared-clean shared-dirty private-clean private-dirty, bytes"))
+      (doc "The maps record for seven sums in its order."
+        (returns ALIST "The maps record"))
+      (def go (fn (self ks vs) (if (null? ks) () (pair (pair (first ks) (first vs)) (self (rest ks) (rest vs))))))
+      (go (lit (mapped-ro mapped-rw stack shared-clean shared-dirty private-clean private-dirty)) v))
+
+    (method %linux-maps (self (param pid INTEGER "Process ID"))
+      (doc "maps, from /proc/PID/smaps, read a line at a time, BusyBox's procps_read_smaps over the same lines."
+        (returns ANY "The maps record, or nil"))
+      ; the byte primitives: a Str8 call on each of thousands of lines would
+      ; cost hundreds of thousands of objects
+      (def len (prim-ref (lit str) (lit byte-len)))
+      (def sub (prim-ref (lit str) (lit byte-sub)))
+      (def at (prim-ref (lit str) (lit byte-ref)))
+      (def starts? (fn (_ p l) (if (<= (len p) (len l)) (str=? (sub l 0 (len p)) p) #f)))
+      ; the sums, in %maps-record's order; ADD answers them with one grown by n
+      (def add
+        (fn (self i n v)
+          (if (= i 0) (pair (+ n (first v)) (rest v)) (pair (first v) (self (- i 1) n (rest v))))))
+      (def kb (fn (_ l key) (* 1024 (Host %int (Str8 trim (sub l (len key) (- (len l) (len key))))))))
+      (def dash
+        (fn (self l i) (match ((>= i (len l)) ()) ((= (at l i) #\-) i) (#t (self l (+ i 1))))))
+      (def line
+        (fn (_ l v)
+          (match
+            ((starts? "Private_Dirty:" l) (add 6 (kb l "Private_Dirty:") v))
+            ((starts? "Private_Clean:" l) (add 5 (kb l "Private_Clean:") v))
+            ((starts? "Shared_Dirty:" l) (add 4 (kb l "Shared_Dirty:") v))
+            ((starts? "Shared_Clean:" l) (add 3 (kb l "Shared_Clean:") v))
+            ((null? (dash l 0)) v)
+            ; a mapping's header: START-END PERMS OFFSET DEV INODE [PATH]
+            (#t (let ((f (Host %fields l)) (d (dash l 0)))
+                  (def size (- (Host %hex (sub l (+ d 1) (- (len l) (+ d 1)))) (Host %hex l)))
+                  (def perms (List ref 1 f))
+                  (def path (if (> (List length f) 5) (Str8 join " " (List drop 5 f)) ""))
+                  (def device? (if (starts? "/dev/" path) (not (str=? path "/dev/zero")) #f))
+                  (def v2
+                    (match
+                      (device? v)
+                      ((= (at perms 1) #\w) (add 1 size v))
+                      ((if (= (at perms 0) #\r) #t (= (at perms 2) #\x)) (add 0 size v))
+                      (#t v)))
+                  (if (str=? path "[stack]") (add 2 size v2) v2))))))
+      (def sums (Host %fold-lines (Str8 append (Host proc-root) "/" (Str8 str pid) "/smaps") line
+                  (list 0 0 0 0 0 0 0)))
+      (if (null? sums) () (Host %maps-record sums)))
+
+    (method %darwin-maps (self (param pid INTEGER "Process ID"))
+      (doc "maps, from proc_pidinfo's PROC_PIDREGIONINFO, one struct proc_regioninfo a region from address 0 up."
+        (returns ANY "The maps record, or nil"))
+      (def page (Host %page-size))
+      (def ri (Host %buf 96))
+      (def at (fn (_ off n) (Host %int-at ri off n)))
+      (def go
+        (fn (self addr ro rw stack sc sd pc pd seen)
+          (if (not (= 96 (Host %call "proc_pidinfo" pid 7 addr (Host %ptr ri) 96)))
+            (if seen (Host %maps-record (list ro rw stack sc sd pc pd)) ())
+            (let ((prot (at 0 4)) (size (at 88 8)) (mode (at 60 4)))
+              (def priv-res (* page (at 64 4)))
+              (def shared-res (* page (at 68 4)))
+              (def dirty (* page (at 48 4)))
+              ; SM_COW 1, SM_PRIVATE 2, SM_EMPTY 3, SM_PRIVATE_ALIASED 6: the region's own pages
+              (def private? (if (= mode 1) #t (if (= mode 2) #t (if (= mode 3) #t (= mode 6)))))
+              (def pdirty (if private? (if (< dirty priv-res) dirty priv-res) 0))
+              (def sdirty (if private? 0 (if (< dirty shared-res) dirty shared-res)))
+              (self (+ (at 80 8) size)
+                (if (if (= 0 (& prot 2)) (not (= 0 (& prot 5))) #f) (+ ro size) ro)
+                (if (= 0 (& prot 2)) rw (+ rw size))
+                ; VM_MEMORY_STACK
+                (if (= 30 (at 32 4)) (+ stack size) stack)
+                (+ sc (- shared-res sdirty)) (+ sd sdirty)
+                (+ pc (- priv-res pdirty)) (+ pd pdirty)
+                #t)))))
+      (go 0 0 0 0 0 0 0 0 #f))
+
     (method %linux-btime (self)
       (doc "The boot time /proc/stat records, the base of a process's start time."
         (returns INTEGER "Unix seconds"))
@@ -364,9 +588,14 @@
       (List reject null? (List map (fn (_ name) (Host %linux-record btime name)) pids)))
 
     (method %linux-record (self (param btime INTEGER "Boot time, unix seconds") (param name STRING "The pid, as its /proc directory is named"))
-      (doc "One process's record from /proc/PID/stat, or nil when it is gone. comm is read between the first ( and the last ), since a name may hold either."
+      (doc "One process's record from /proc/PID/stat, or nil when it is gone."
         (returns ANY "A process record, or nil"))
-      (def dir (Str8 append (Host proc-root) "/" name))
+      (Host %linux-record-at btime (Str8 append (Host proc-root) "/" name) (Host %int name)))
+
+    (method %linux-record-at (self (param btime INTEGER "Boot time, unix seconds") (param dir STRING "A /proc/PID or /proc/PID/task/TID directory")
+                                   (param id INTEGER "The pid or thread id the directory is named for"))
+      (doc "A record from a directory's stat file, or nil when it is gone. comm is read between the first ( and the last ), since a name may hold either."
+        (returns ANY "A process record, or nil"))
       (def s (Host %read (Str8 append dir "/stat")))
       (if (null? s) ()
         (let ((open (Str8 index-of "(" s)) (close (Str8 last-index-of ")" s)))
@@ -375,7 +604,7 @@
           (def tty (at 4))
           (def owner (Host %owner dir))
           (def real (Host %real-ids dir))
-          (list (pair (lit pid) (Host %int name))
+          (list (pair (lit pid) id)
                 (pair (lit ppid) (at 1))
                 (pair (lit pgid) (at 2))
                 (pair (lit sid) (at 3))
@@ -395,7 +624,9 @@
                 (pair (lit vsz) (at 20))
                 (pair (lit rss) (* (at 21) (Host %page-size)))
                 (pair (lit utime) (Host %ticks->ns (at 11)))
-                (pair (lit stime) (Host %ticks->ns (at 12)))))))
+                (pair (lit stime) (Host %ticks->ns (at 12)))
+                ; field 39, past rss and fourteen more, as BusyBox's top reads it
+                (pair (lit processor) (at 36))))))
 
     (method %owner (self (param path STRING "A /proc/PID directory"))
       (doc "The uid and gid owning a path, as BusyBox's ps reads a process's user and group."
@@ -531,7 +762,8 @@
       (def task (fn (_ off n) (if ok (ref tp off n) ())))
       (def numer (first (rest (rest more))))
       (def denom (first (rest (rest (rest more)))))
-      (def ns (fn (_ t) (if ok (/ (* t numer) denom) ())))
+      ; whole nanoseconds, by the int door: with the tower loaded / answers a fraction
+      (def ns (fn (_ t) (if ok ((prim-ref (lit int) (lit /)) (* t numer) denom) ())))
       (def sid (Sys %sign-fold (call (first (rest more)) pid)))
       (list (pair (lit pid) pid)
             (pair (lit ppid) (at 560 4))
@@ -555,7 +787,8 @@
             (pair (lit vsz) (task 0 8))
             (pair (lit rss) (task 8 8))
             (pair (lit utime) (ns (task 16 8)))
-            (pair (lit stime) (ns (task 24 8)))))
+            (pair (lit stime) (ns (task 24 8)))
+            (pair (lit processor) ())))
 
     (method %darwin-args (self (param pid INTEGER "Process ID"))
       (doc "args, from kern.procargs2: argc, the executable's path, padding NULs, then the argc strings."
@@ -603,14 +836,29 @@
     ; --- users ----------------------------------------------------------------
 
     (method users (self)
-      (doc "The logged-in sessions, from libc's utmpx database (setutxent/getutxent, as BusyBox reads it): user tty host time pid, for each USER_PROCESS entry with a user name. time is the login, in unix seconds."
+      (doc "The logged-in sessions: utmp's user-process entries, as BusyBox's who and uptime count them: user tty host time pid. time is the login, in unix seconds."
         (returns LIST "Session records")
         (sample "(List map (fn (_ u) (Assoc get 'tty u)) (Host users))" "(\"console\" \"ttys000\")"))
+      (List map (fn (_ e) (List reject (fn (_ f) (eq? (first f) (lit type))) e))
+        (List filter (fn (_ e) (eq? (Assoc get (lit type) e) (lit user-process))) (Host utmp))))
+
+    (method utmp (self)
+      (doc "Every entry in libc's utmpx database with a user name (setutxent/getutxent, as BusyBox's who -a reads it): user tty host time pid type. type is the entry's kind: run-level, boot-time, new-time, old-time, init-process, login-process, user-process, dead-process, accounting, signature or shutdown-time (the last two Darwin's), or nil for one this table does not know. time is unix seconds."
+        (returns LIST "Entry records")
+        (sample "(List map (fn (_ e) (Assoc get 'type e)) (Host utmp))" "(user-process user-process)"))
       ; struct utmpx, (field offset width): Darwin's and glibc's differ
       (def lay
         (if os-darwin?
           (lit ((type 296 2) (pid 292 4) (line 260 32) (user 0 256) (host 320 256) (sec 304 8)))
           (lit ((type 0 2) (pid 4 4) (line 8 32) (user 44 32) (host 76 256) (sec 340 4)))))
+      ; ut_type's numbers: the two libcs swap OLD_TIME and NEW_TIME
+      (def types
+        (if os-darwin?
+          (lit ((1 . run-level) (2 . boot-time) (3 . old-time) (4 . new-time) (5 . init-process)
+                (6 . login-process) (7 . user-process) (8 . dead-process) (9 . accounting)
+                (10 . signature) (11 . shutdown-time)))
+          (lit ((1 . run-level) (2 . boot-time) (3 . new-time) (4 . old-time) (5 . init-process)
+                (6 . login-process) (7 . user-process) (8 . dead-process) (9 . accounting)))))
       (def row (fn (_ k) (rest (Assoc entry k lay))))
       ; getutxent answers its record's address as an integer, 0 at the end
       (def cvt (prim-ref (lit convert) (lit to)))
@@ -627,14 +875,14 @@
           (def p ((prim-ref (lit ptr) (lit call)) (Host %sym "getutxent")))
           (if (= 0 p) (List reverse acc)
             (self
-              (if (if (= 7 (int-at p (lit type))) (not (str=? "" (str-at p (lit user)))) #f)
+              (if (str=? "" (str-at p (lit user))) acc
                 (pair (list (pair (lit user) (str-at p (lit user)))
                             (pair (lit tty) (str-at p (lit line)))
                             (pair (lit host) (str-at p (lit host)))
                             (pair (lit time) (int-at p (lit sec)))
-                            (pair (lit pid) (int-at p (lit pid))))
-                      acc)
-                acc)))))
+                            (pair (lit pid) (int-at p (lit pid)))
+                            (pair (lit type) (Assoc get (int-at p (lit type)) types)))
+                      acc))))))
       (def all (go ()))
       (Host %call "endutxent")
       all)))
