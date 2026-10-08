@@ -131,7 +131,9 @@ group() {
 
 # Walk the first parent, newest first: a pull request's merge is a group of
 # the commits it brought; consecutive commits made straight on the branch are
-# one group, their newest the head.
+# one group, their newest the head.  Any other merge -- a branch taking
+# main in -- brings commits that are main's, grouped by their own merges, and
+# is passed over: the branch's commits on either side of it stay one group.
 bad=0
 run=""
 run_head=""
@@ -147,12 +149,14 @@ flush_run() {
 for h in $(git log --first-parent --format=%H "$from..$to"); do
 	parents=$(git log -1 --format=%P "$h")
 	set -- $parents
-	if [ $# -ge 2 ]; then
+	n=$(git log -1 --format=%s "$h" | sed -n 's/^Merge pull request #\([0-9][0-9]*\) .*/\1/p')
+	if [ $# -ge 2 ] && [ -n "$n" ]; then
 		flush_run
-		n=$(git log -1 --format=%s "$h" | sed -n 's/^Merge pull request #\([0-9][0-9]*\) .*/\1/p')
 		if ! git log --no-merges --format=%H "$1..$2" | group "$n" "$h"; then
 			bad=1
 		fi
+	elif [ $# -ge 2 ]; then
+		:
 	else
 		if [ -z "$run" ]; then
 			run_head=$h
