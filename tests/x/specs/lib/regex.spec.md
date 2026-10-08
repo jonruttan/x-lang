@@ -96,3 +96,24 @@
 ```
 ---
     "[yes]"
+
+## character classes
+
+### a - just before the closing ] is a literal, not a range to ]
+
+```x
+(list (Regex match "-" (Regex compile "[+-]"))
+      (Regex match "12" (Regex compile "[+-]?([0-9]+)"))
+      (Regex match "x 1" (Regex compile "[+-]?([0-9]+)")))
+```
+---
+    (#t #t #f)
+
+### a - between two characters is still a range
+
+```x
+(list (Regex match "m" (Regex compile "[a-z]"))
+      (Regex match "-" (Regex compile "[a-z]")))
+```
+---
+    (#t #f)
