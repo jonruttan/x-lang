@@ -299,36 +299,32 @@ value, or a selective import.
 
 ### What is not scoped, and why
 
-Of the library's 145 files, 83 are scoped modules. The rest keep their
-names in the root, each for one of these reasons. The cost figures are
-environment comparisons, counted with a profile build of the engine, with
-a header on the file and its names copied back to the root for its readers;
-evaluations and allocations were the same either way.
+Most of the library's files are scoped modules. The rest keep their names
+in the root, each for one of these reasons.
 
 | files | why they stay in the root |
 |---|---|
 | `boot/engine.x`, `registry.x`, `operatives.x`, `data.x`, `reflect.x`, `printer.x`, `string.x` | load before `boot/module.x` defines the `module` form; `module.x` is the loader itself |
 | `boot/helium.x`, `xenon.x`, `radon.x`, `tower-compiled.x` | load sequences: a plain `include` has no place in a scoped file, and `tower-compiled.x` has six between its compiles |
 | `repl/loop.x`, `repl/banner.x`, `reader/intrinsics.x` | own the `%` names a lang is promised (`tools/contract/seam.x`, [Crafting a Lang](crafting-a-lang.md)) |
-| `core/boolean.x`, `control.x`, `syntax.x`, `predicates.x`, `logic.x`, `sys/pact.x`, `num/tower.x` | hot paths looked up from everywhere: scoping `boolean` and `control` alone added 34% to an x-core boot |
-| `core/arithmetic.x` | +3.6% to an x-core boot, 4.3 times on a loop of `=`, `-`, `+` |
+| `core/boolean.x`, `control.x`, `syntax.x`, `predicates.x`, `logic.x`, `sys/pact.x`, `num/tower.x` | hot paths looked up from everywhere: a header is paid on every lookup of `if`, `when`, `unless` and their kin |
+| `core/arithmetic.x` | the operators every loop calls |
 | `core/list.x`, `core/alist.x` | the walkers under the `List` and `Assoc` classes, read at the root by some forty files for speed |
-| `type/class.x` | 3.8 times the comparisons of an x-core boot; a static call 10.5 times, an instance call 5.8 times |
-| `doc/doc.x` | +0.98% to an x-core boot; a `doc` form 5.8 times |
-| `tool/lint.x` | +33% to lint an 87-line file |
-| `tool/asm.x`, `tool/asm-code.x` | 2.0 times per instruction emitted; `asm-code.x` is the buffer half split from it, and stays with it |
-| `codec/sha256.x` | +37% on a digest of 1 KB |
+| `type/class.x` | every static and instance call goes through it |
+| `doc/doc.x` | every `doc` form at boot |
+| `tool/lint.x` | the linter's work is per node of the file it reads |
+| `tool/asm.x`, `tool/asm-code.x` | per instruction emitted; `asm-code.x` is the buffer half split from it, and stays with it |
+| `codec/sha256.x` | per block digested |
 | `tool/asm/arm64.x`, `tool/asm/x86_64.x` | one interface with two implementations, chosen by `asm.x` at load; a reader cannot import from a module chosen at run time |
 | `type/unit-label-rows.x` | data the img dialect includes on a bare base, where there is no module system |
-| `tool/image/walk.x`, `tool/image/name.x` | the walk runs once per object of a heap; not measured with a header |
+| `tool/image/walk.x`, `tool/image/name.x` | the walk runs once per object of a heap |
 | `x/xe.x`, `x/rn.x` | dialect toolboxes, whose names are the dialect's root |
 | twenty-six more | one private name or none: nothing to hide |
 
-The line a measurement is held to: a header goes on when it adds under 0.1%
-to the comparisons of an x-core boot and under 10% to the file's own work.
-`type/convert.x` passed it (0.02%, 9%). `core/fn.x` did not (0.01%, a call
-through the library's `apply` 351 where it was 190) and is scoped by
-decision, since the library's own callers keep the engine's `apply`.
+The line a file is held to: a header goes on when it adds under 0.1% to
+the comparisons of an x-core boot and under 10% to the file's own work.
+`type/convert.x` passed it. `core/fn.x` did not and is scoped by decision,
+since the library's own callers keep the engine's `apply`.
 
 ### The gates
 

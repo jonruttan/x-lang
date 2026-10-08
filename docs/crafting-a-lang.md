@@ -5,8 +5,7 @@ declarations, what the platform ships and what a bundle must never vendor.
 This document says how you actually **build** one, distilled from building
 x-python: a Python 3 surface taken from a stub that answered
 `#<python: not implemented>` to everything, to a language with containers,
-classes, exceptions, comprehensions, slicing, and a working REPL — 426 specs
-green — in the space of a few days.
+classes, exceptions, comprehensions, slicing, and a working REPL.
 
 Almost every rule below was learned by getting it wrong first.  Where that
 happened, the mistake is stated with its mechanism, because the mistakes are
@@ -43,7 +42,7 @@ Two rules from the contract bear repeating because they bite in practice:
 
 ## 2. Build against a scoreboard, construct against specs
 
-Before x-python had a tokenizer it had a conformance suite: 657 upstream
+Before x-python had a tokenizer it had a conformance suite: the upstream
 MicroPython test programs, each pinned by commit and sha256, each with its
 expected output taken from a real CPython run on the same machine.  A stub
 that answers everything the same way scores 0 — and 0 against a suite that
@@ -59,11 +58,11 @@ forbids partial credit by design.  So:
   never a progress meter.
 - Construction happens against **hand-written specs**, added with each
   feature, each one a `.spec.md` case with prose saying *why* the behavior is
-  what it is.  x-python's suite grew from 0 to 426 cases this way, and the
-  spec prose is now the best documentation the bundle has.
+  what it is.  x-python's suite grew this way, and the spec prose is the
+  best documentation the bundle has.
 - When choosing what to build next, **count the corpus** instead of trusting
-  the per-section scores: "Python's `type` appears in 28 of 112 files"
-  chooses better than "the class section is at 0%".
+  the per-section scores: how many corpus files use Python's `type` chooses
+  better than the class section's percentage.
 
 ## 3. Where the seams go
 
@@ -179,8 +178,7 @@ contents by recursing through the engine's reader:
   can close several blocks, so the surplus lives in an "owed" counter that
   each enclosing block loop collects.
 
-After this conversion, x-python's line-structure pass went from 134 lines to
-a name, four closing-bracket scanners were deleted rather than moved, and
+After this conversion, x-python's line-structure pass became a name, four closing-bracket scanners were deleted rather than moved, and
 comma-splitting needed no depth count — an inner region is a single token.
 
 ### What the reader cannot do
@@ -220,7 +218,7 @@ Two prims, and the difference decided a failed design:
 | `make-type` | the base it is called in | the lang's VALUE types |
 
 x-python first tried a child base per lang (`Base make` + `base-make-type` +
-`Base eval`) and reached 190/232 specs before discovering that a child base
+`Base eval`) and had most of its specs green before discovering that a child base
 has no numeric tower — float and bigint are library types registered on
 whichever base loaded them.  The wrong conclusion ("this design cannot work")
 was written into a doc and survived a day; the capability it asked for
@@ -307,8 +305,8 @@ which is what makes everything unreachable there genuinely dead.
 **Whole-file paren balance can lie.**  Two miscounted closers in different
 functions cancel to a clean total.  Check each edited definition closes at
 depth zero, not the file sum.  And bound a text replacement by the text being
-replaced, never by "up to the next definition" — that once deleted 200 lines
-of a parser.
+replaced, never by "up to the next definition" — that once deleted most of
+a parser.
 
 ## 7. Interactive is a different loop, not a different prompt
 
@@ -371,11 +369,11 @@ What the loop must know:
 ## 8. Making it fast
 
 Boot cost decomposes before it optimizes.  Measure with `(quit)` piped
-through each dialect: x-python's 28s turned out to be ~15s of xenon tower
-amalgam boot (every tower dialect pays it; plain `x` boots in 1.3s) plus the
-bundle loading under xenon's heavier reader — the bundle's own code was 3s
-under a light dialect.  Know whose cost you are looking at before "fixing"
-your share of it.
+through each dialect: most of x-python's boot turned out to be the xenon
+tower amalgam, which every tower dialect pays, plus the bundle loading under
+xenon's heavier reader; the bundle's own code was a small share under a
+light dialect.  Know whose cost you are looking at before "fixing" your
+share of it.
 
 Interpreted analysers are the hot path — one call per character per
 contesting type — and the platform can compile them:
@@ -427,13 +425,12 @@ contesting type — and the platform can compile them:
 - `%score-set`'s sign folds `(- 0 1)` and raises loudly on other
   non-literals; any other non-trivial constant belongs in an fvar.
   `%score-label!`'s label is a literal integer the same way.
-- **Measure the tiers before writing a byte walk.**  On 20 KB of words a
-  byte walk in x costs 39 µs a byte through the raw string prims and 130
-  through `Str8 ref`; a base with interpreted analysers costs 62; the same
-  states compiled cost 0.2, the engine's own reader's speed.  The Lexer
-  (section 4) emits the compiled form from a rule, so a bundle gets the
-  last tier without writing a state: 0.8 µs a byte on words, 2.0 on
-  C-like text with fifty-one compiled states.
+- **Measure the tiers before writing a byte walk.**  A byte walk in x
+  through the raw string prims is slow and through `Str8 ref` slower; a
+  base with interpreted analysers sits between them; the same states
+  compiled run at the engine's own reader's speed.  The Lexer (section 4)
+  emits the compiled form from a rule, so a bundle gets the last tier
+  without writing a state.
 - **Adopt with sha256.x's pattern**: lazy, threshold-triggered, the whole
   attempt in a guard that pins `failed` and carries on pure-x.  Compiling
   costs seconds once; never per-call, and never unconditionally at load.
@@ -465,9 +462,9 @@ contesting type — and the platform can compile them:
   the biggest.**  With the per-snippet collect off (`SPEC_SEAM_COLLECT=0`,
   the accumulate-then-exit regime x-ash ran in until x-engine-c v0.2.7) a
   spec job accumulates a whole file's garbage, so the `alloc-limit!` guard is
-  bounding a *sum*.  The platform default is 300M
-  objects, ~14 GB, calibrated for a dev box: on a 16 GB CI runner a process
-  approaching it exhausts the machine *before* the guard trips, and the job
+  bounding a *sum*.  The platform default is calibrated for a dev box: on a
+  smaller CI runner a process approaching it exhausts the machine *before*
+  the guard trips, and the job
   dies with `spec-gate: killed by SIGTERM` and no output at all to say why.
   Lower it until the guard fires first — a failed spec is legible, a killed
   job is not.  Measure on the small machine; a workstation that passes proves

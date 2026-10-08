@@ -23,10 +23,9 @@
 - [Dialects](dialects.md) — the helium, xenon, and radon dialect layers
 - [The Lang Contract](lang-contract.md) — what a lang may rely on, and how one is acquired as a pinned bundle
 - [Crafting a Lang](crafting-a-lang.md) — how one is actually built: the reader's machinery, the type-system mapping, the rules that bite, distilled from building x-python
-- [Scaling to Many Langs](lang-scale.md) — what has to be true for there to be twenty of them; measurements shipped, some rulings still proposals
+- [Scaling to Many Langs](lang-scale.md) — what has to be true for there to be twenty of them: five rulings, three built
 - [Modules](modules.md) — `provide`, `import` and `include`; a scope per module and the rule for each name conflict; pinning a project's libraries (pin.xon)
-- [First-Class Environments](environment-model.md) — proposal: an environment as one pair of bindings and parent, and the six engine mechanisms it retires
-- [State Images](state-images.md) — saving and loading a live base as a binary image: what is already reflective, what is measured, and the declarations still proposed
+- [State Images](state-images.md) — why the state image writer, loader and format are shaped as they are; the format itself is [State image format](state-image-format.md)
 
 ## Reference
 

@@ -419,6 +419,15 @@ declared waiver (`allow-release-skew`, as the boot pin already spells it), so
 that running a bundle against an untested x-lang is a decision someone made
 rather than something that happened.
 
+`lang.xon` is also the one place a version is written. A bundle's CI matrix
+derives the release from `(requires-release …)`, and the kit's
+`release-refs.sh` holds every other file to the manifest: a version within 24
+characters of the name it belongs to, `x-lang` or a required lang, must be
+the one declared, and a line that names an old release on purpose says
+`release-ref: history`. Four bundles carry the gate today (x-coreutils,
+x-logo, x-r5rs, x-r7rs); the rest still write the release in more than one
+place, which is what [Scaling to Many Langs](lang-scale.md) measured.
+
 ### Why the last generation rotted
 
 Five langs sit unbuilt outside this repository — `x-ash`, `x-krn`,
@@ -576,9 +585,8 @@ Four things that are not obvious, each of which costs an afternoon:
   file from the image when `X_IMG_DIR` names its directory. A helium harness
   images; a xenon or radon one is refused (the compiled tower's JIT entry
   points are unnameable) and boots from source. x-awk's
-  runner is the worked example -- twelve lines, `IMG=0` as the from-source
-  control -- and its suite went from 38s to 16s. The writer is a checkout
-  tool; an installed tree boots from source. See
+  runner is the worked example, with `IMG=0` as the from-source control.
+  The writer is a checkout tool; an installed tree boots from source. See
   [state-images.md](state-images.md).
 
   ```sh
@@ -609,10 +617,10 @@ Four things that are not obvious, each of which costs an afternoon:
   A platform without the writer boots from source, which is what the
   `|| true` is for. `x -l NAME` then loads the image while it is current
   (the key covers the bundle's modules, so a reinstall rewrites it).
-  Until the JIT lane stops leaking its temporaries into globals
-  ([state-images.md](state-images.md), "Compiled code"), a harness that
-  compiles anything -- a xenon or radon one, or a bundle with compiled
-  analysers -- is refused and boots from source.
+  A harness that compiles anything images only if its compiled entries
+  are registered with `lib/x/tool/compiled.x`
+  ([state-images.md](state-images.md), "Compiled code"); otherwise the
+  writer refuses it and the suite boots from source.
 - **`# @lib` resolves against `LANG_LIB`'s directory**, not the spec's. A
   harness beside the specs is named bare — `# @lib harness.gen.x` — and a path
   that looks right relative to the spec silently produces an empty library,
