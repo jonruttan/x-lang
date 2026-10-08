@@ -487,6 +487,66 @@
                   (set! %paint-last-out out)
                   out)))))))
 
+    (method lexer (self (param l ANY "A Lexer whose rules read every byte: blanks a run rather than a skip, comments tagged rather than dropped")
+                        (param colours LIST "Each (TAG . STYLE): STYLE an Ansi style name such as 'green, an escape string used as it is, or a function of the token's text answering either or nil"))
+      (doc "A painter for %repl-paint that colours a line by its Lexer tokens. Each token's text is the bytes it read, so the line is drawn byte for byte, each token in the style its tag names; a tag with no entry, or a function answering nil, leaves the token plain. Bytes after the point where the lexer stops are drawn plain. The text before the window is read with it, so a string or comment opened there colours the window's start. Answers the window unchanged when colour is off."
+        (returns CALLABLE "A painter: (fn (_ window marks before))")
+        (note "A lexer with a skip rule, or an until rule with no tag, drops bytes, and the tokens no longer cover the line: give blanks a run and comments a tag.")
+        (sample "(set! %repl-paint (Paint lexer l (list (pair 'comment 'dim) (pair 'str 'green))))" "comments dim and strings green, everything else plain"))
+      (Paint %lexer-painter l colours))
+
+    ; The painter's state lives in its closure: the last window it painted and
+    ; the codes its style names resolved to, which an image load forgets since
+    ; the codes depend on the terminal.  Tokens are walked as offsets into
+    ; before + window; only the part inside the window is drawn.
+    (method %lexer-painter (self l colours)
+      (let ((codes (pair () ())) (last (pair () ())))
+        (set! %image-recache-hooks
+          (pair (fn (_) (%set-first! codes ()) (%set-first! last ())) %image-recache-hooks))
+        (def code
+          (fn (_ style)
+            (if (null? style) ""
+              (if (str? style) style
+              (let ((hit ((fn (self cs) (if (null? cs) () (if (eq? (first (first cs)) style) (first cs) (self (rest cs)))))
+                          (first codes))))
+                (if (null? hit)
+                  (let ((c (guard (_ "") (eval (list (lit Ansi) style)))))
+                    (%set-first! codes (pair (pair style c) (first codes)))
+                    c)
+                  (rest hit)))))))
+        (def style-of
+          (fn (_ tag text)
+            ((fn (self cs)
+               (if (null? cs) ()
+                 (if (eq? (first (first cs)) tag)
+                   (let ((s (rest (first cs)))) (if (if (symbol? s) #t (str? s)) s (s text)))
+                   (self (rest cs)))))
+             colours)))
+        (def walk
+          (fn (self toks at from acc)
+            (if (null? toks) (pair at acc)
+              (let ((text (first (rest (first toks)))))
+                (let ((end (+ at (%pt-blen text))))
+                  (self (rest toks) end from
+                    (if (<= end from) acc
+                      (%paint-seg acc (code (style-of (first (first toks)) text))
+                        (if (< at from) (%pt-bsub text (- from at) (- end from)) text)))))))))
+        (fn (_ window marks before)
+          (if (not (Ansi enabled?)) window
+            (let ((b (if (null? before) "" before)))
+              (if (if (null? (first last)) #f
+                    (if (%pt-same? window (first (first last))) (%pt-same? b (rest (first last))) #f))
+                (rest last)
+                (let ((from (%pt-blen b)) (s (if (null? before) window (%pt-append b window))))
+                  (let ((r (walk (l read-str s) 0 from ())) (n (%pt-blen s)))
+                    (let ((stop (if (< (first r) from) from (first r))))
+                      (let ((out (Str8 join ""
+                                   (List reverse
+                                     (if (< stop n) (pair (%pt-bsub s stop (- n stop)) (rest r)) (rest r))))))
+                        (%set-first! last (pair window b))
+                        (%set-rest! last out)
+                        out))))))))))
+
     (method marks (self (param s STRING "The text: a line, or a whole multi-line entry") (param at INTEGER "The cursor, as a byte offset"))
       (doc "A mark for every paren in the line, as (offset depth focused): depth is the nesting level from 0, shared by both halves of a pair so they colour alike, and -1 for a close paren with nothing to close; focused is true on the two halves of the pair the cursor is beside, a close just before the cursor first, then an open under it. A cursor outside the line, -1 say, is beside nothing, which is how a settled line keeps its colours and loses its focus. Strings, comments and character literals are stepped over, so #\\( is not an open paren and a paren inside a string is not counted."
         (returns LIST "((offset depth focused) ...) in source order")
@@ -564,7 +624,7 @@
 
 (doc (provide x/repl/paint Paint)
   (note "An atom's label comes from the base: the bytes are read and the value's type decides, so a colour cannot disagree with the evaluator.")
-  (note "Token SPANS are scanned here because the base offers none -- its reader is recursive and yields values. A primitive exposing the tokenizer's per-type scoring (span plus winning type) would move this last scanned piece onto the base too.")
+  (note "x-lang's own token SPANS are scanned here because its base's reader is recursive and yields values. A lang whose syntax a Lexer reads gets its spans from the Lexer instead: (Paint lexer l colours) colours each token by its tag, with no scan of its own.")
   (note "The scan is %-private over cached prims and the palette is built once, not per render: class dispatch on a per-keystroke path costs more than the scanning between the doors.")
   (note "marks gives every paren its nesting depth with the scan's own rules for strings, comments and character literals; line colours them by depth when handed the result. The editor threads the two together on every redraw.")
   "Paint: ANSI syntax colouring for a REPL line that is still being typed.")
