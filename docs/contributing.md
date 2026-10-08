@@ -429,9 +429,35 @@ This project follows [AngularJS commit conventions](../CONVENTIONS.md):
 <type>(<scope>): <subject>
 ```
 
-Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`
 
-Only `feat` and `fix` appear in changelogs.
+### The changelog
+
+A `feat`, `fix` or `perf` commit carries its changelog entry in its own
+message, after a line reading `Changelog:`, written as it will appear in
+CHANGELOG.md: a bold sentence stating the new behaviour, then a paragraph
+with the measured numbers.  The entry runs to the message's trailers.
+
+```
+perf(asm-cache): a held group reads no file
+
+Why and how, for the reader of the history.
+
+Changelog:
+**A held asm-cache group reads no file.** A group met again while its
+entries are held is served without reading its file.  vi's 21-state
+lexer: a warm `(Lexer make)` 123-128 -> 104-110 ms.
+
+Co-Authored-By: ...
+```
+
+No commit edits CHANGELOG.md.  The file is written at release, from the
+commits since the last tag: `make changelog-collect` prints the entries,
+newest first, each followed by a link line for every pull request it names;
+an entry that names no pull request has `([#N])` put after its lead
+sentence, N from the merge commit.  The release commit puts them under the
+new `## [N]` heading.  `make check-changelog-commits`, one of the gates,
+fails on a `feat`, `fix` or `perf` commit since the tag with no entry.
 
 ## Documentation
 

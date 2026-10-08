@@ -424,7 +424,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-lang-kit-harness check-lang-kit-lint check-pin check-release-manifest check-bootstrap check-package check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
+gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-lang-kit-harness check-lang-kit-lint check-pin check-release-manifest check-bootstrap check-package check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
 .PHONY: gates
 
 .PHONY: check-spec-weights
@@ -455,7 +455,7 @@ check-spec-globals: ## No spec rebinds a name the engine or library owns
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-lang-kit-harness check-lang-kit-lint check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
+gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-lang-kit-harness check-lang-kit-lint check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast check-asan-boot test-c test-x ## Pre-push gate: fast gates, the ASan boot, both spec suites (CI runs full `make test`)
@@ -803,6 +803,19 @@ check-langs: $(EXECUTABLE) ## Run every lang bundle's suite against this tree
 check-release-version: ## Assert the tag, x-lib-version and the CHANGELOG agree
 	sh tools/check/release-version.sh
 .PHONY: check-release-version
+
+# THE CHANGELOG IS WRITTEN AT RELEASE, FROM THE COMMITS.  Every change used to
+# add its entry at the head of CHANGELOG.md, so every merge put every other
+# open pull request in conflict on that line, and each one then cost a merge
+# and a full CI run.  A feat, fix or perf commit now carries its entry in its
+# message, after a line reading `Changelog:`, and the release collects them.
+check-changelog-commits: ## Every feat, fix or perf commit since the tag carries its changelog entry
+	sh tools/check/changelog-commits.sh
+.PHONY: check-changelog-commits
+
+changelog-collect: ## Print the changelog entries the commits since the tag carry, newest first
+	sh tools/release/changelog-collect.sh
+.PHONY: changelog-collect
 
 # The dialect coverage ratchet (#70): every lib/*.x entry point needs an
 # end-to-end smoke group, so a new dialect cannot ship untested the way the
