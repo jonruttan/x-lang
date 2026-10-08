@@ -168,6 +168,15 @@
       (when (< r 0) (%sk-fail r 'send fd ()))
       r)
 
+    (method send-run (self (param fd INTEGER "Connected file descriptor")
+                           (param s STRING "The bytes, NULs included")
+                           (param n INTEGER "How many bytes of s to send"))
+      (doc "Send the first n BYTES of s -- the lossless door, as recv-run is: send measures its string to the first NUL, and a binary packet has NULs inside. THE COUNT IS YOUR CLAIM AND IS NOT CHECKED. Raises on failure."
+        (returns INTEGER "Bytes sent"))
+      (def r (%sk-fold (%sk-ptr-call %c-send fd s n 0)))
+      (when (< r 0) (%sk-fail r 'send fd ()))
+      r)
+
     (method recv (self (param fd INTEGER "Connected file descriptor")
                        (param maxlen INTEGER "Maximum bytes to receive"))
       (doc "Receive up to maxlen bytes as a string; nil at orderly EOF (the peer closed); raises on failure."
