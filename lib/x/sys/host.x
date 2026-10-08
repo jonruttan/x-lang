@@ -679,13 +679,14 @@
 
     (method %linux-record-at (self (param btime INTEGER "Boot time, unix seconds") (param dir STRING "A /proc/PID or /proc/PID/task/TID directory")
                                    (param id INTEGER "The pid or thread id the directory is named for"))
-      (doc "A record from a directory's stat file, or nil when it is gone. comm is read between the first ( and the last ), since a name may hold either."
+      (doc "A record from a directory's stat file, or nil when it is gone. comm is read between the first ( and the last ), since a name may hold either. A field past the end of a short line is nil."
         (returns ANY "A process record, or nil"))
       (def s (Host %read (Str8 append dir "/stat")))
       (if (null? s) ()
         (let ((open (Str8 index-of "(" s)) (close (Str8 last-index-of ")" s)))
           (def f (Host %fields (Str8 sub (+ close 2) (Str8 length s) s)))
-          (def at (fn (_ i) (Host %int (List ref i f))))
+          (def n (List length f))
+          (def at (fn (_ i) (if (< i n) (Host %int (List ref i f)) ())))
           (def tty (at 4))
           (def owner (Host %owner dir))
           (def real (Host %real-ids dir))
