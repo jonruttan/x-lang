@@ -583,11 +583,23 @@
       (%ln-sweep-if-due!)
       ; A key handed back by a search that it ended is handled here as if
       ; just read.
-      (let ((k (if (null? pending) (Term key read-byte) (first pending))))
+      (let ((k (if (null? pending) (Line %key fd read-byte) (first pending))))
         (match
           ; The descriptor ended under us: the same answer as ctrl-d.
           ((null? k) (lit eof))
+          ; read-until's idle time passed with no key: its function says
+          ; whether to stop, or what the prompt is now that it has printed.
+          ((eq? k (lit idle))
+            (let ((r ((rest (Line %idle)))))
+              (match
+                ((eq? r #t) (pair (lit stopped) (ed text)))
+                ((str? r) (self fd r ed read-byte))
+                (#t (self fd prompt ed read-byte)))))
           ((str? k) (do (ed insert! k) (self fd prompt ed read-byte)))
+          ; A key read-until was given ends the line ahead of anything it
+          ; would otherwise do.
+          ((and (not (eq? (Line %ends) #f)) (List includes? k (Line %ends)))
+            (do (%ln-redraw fd prompt ed cols #t) (pair k (ed text))))
           ; The line is kept: draw it once more with no cursor focus, since
           ; this frame is what the transcript keeps.
           ((eq? k (lit enter)) (do (%ln-redraw fd prompt ed cols #t) (ed text)))
@@ -646,6 +658,18 @@
 
   (static
     (last-search "" "The query of the last history search, which ctrl-r on an empty query repeats")
+    (%ends #f "The keys besides Enter that end the line in progress, from read-until; #f between reads")
+    (%idle #f "(tenths . fn) for the line in progress, from read-until, fn already wrapped to run with the terminal restored; #f between reads")
+
+    (method %key (self (param fd INTEGER "The descriptor being read")
+                       (param read-byte CALLABLE "Byte reader"))
+      (doc "The next key, as Term key decodes it, or 'idle when the read's idle time passes first."
+        (returns ANY "A key, nil at the end of input, or 'idle"))
+      (let ((idle (Line %idle)))
+        (if (or (eq? idle #f)
+                (not (null? (Sys poll (list (pair fd (list (lit in)))) (* (first idle) 100)))))
+          (Term key read-byte)
+          (lit idle))))
     (method available? (self)
       (doc "Whether a line can be edited here: a terminal on the read descriptor, and a build whose termios calls resolved. False means the caller should fall back to plain line-at-a-time reading."
         (returns BOOL "True when the editor can run"))
@@ -680,6 +704,26 @@
         (sample "(Line history-path)" "\"/home/you/.local/state/x/history\""))
       (%ln-history-path))
 
+    (method read-until (self (param prompt STRING "The prompt to show")
+                             (param ends LIST "Keys besides Enter that end the line, as Term key names them: 'f1, 'up, 'kp5")
+                             . (param idle PAIR "Optional: (tenths . fn), fn called with no arguments each time tenths of a second pass with no key"))
+      (doc "Read one edited line as read does, which a key in ends can also end and an idle function can stop. Answers what read answers, or (key . text) when a key in ends ended the line, or ('stopped . text) when the idle function answered true."
+        (returns ANY "A STRING, (key . text), ('stopped . text), 'eof, or 'cancel")
+        (note "A key in ends is taken before the editor's own use of it: 'up there ends the line rather than browsing the history.")
+        (note "fn runs with the terminal restored, so what it prints prints as it would anywhere, and the line is drawn again after it. An fn that answers a string makes that the prompt from then on, for one whose printing has changed the row the prompt is on.")
+        (note "A line ended by a key in ends, or stopped, is not kept in the history.")
+        (sample "(Line read-until \"> \" (list 'f1 'f2) (pair 10 tick))" "('f1 . \"look\") -- F1 ended the line"))
+      (Line %ends (if (null? ends) #f ends))
+      (Line %idle (if (null? idle) #f (first idle)))
+      (let ((r (guard (err
+                  (do (Line %ends #f)
+                      (Line %idle #f)
+                      (Err raise (lit io) "Line read-until: interrupted" err)))
+                (Line read prompt))))
+        (Line %ends #f)
+        (Line %idle #f)
+        r))
+
     (method read (self (param prompt STRING "The prompt to show")
                        . (param context STRING "Optional: the lines already entered for this entry, joined by newlines"))
       (doc "Read one edited line. Returns the line as a string, 'eof for ctrl-d on an empty line, or 'cancel for ctrl-c. The terminal is restored before this returns, whichever way it ends."
@@ -693,6 +737,18 @@
                   (read-byte (fn (_) (let ((b (Sys fd-read fd 1)))
                                        (if (null? b) () (first b))))))
               (ed clear!)
+              ; read-until's idle function prints, so it runs in the cooked
+              ; terminal everything else expects; the line is raw again
+              ; before its next key.
+              (let ((idle (Line %idle)))
+                (unless (eq? idle #f)
+                  (Line %idle
+                    (pair (first idle)
+                          (fn (_)
+                            (Term restore! fd saved)
+                            (let ((r ((rest idle))))
+                              (Term raw! fd)
+                              r))))))
               (set! %ln-context
                 (if (null? context) ""
                   (if (= 0 (%ln-blen (first context))) ""

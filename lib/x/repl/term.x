@@ -211,6 +211,8 @@
     ;                'enter 'backspace 'tab 'interrupt 'eof 'clear 'kill-eol
     ;                'kill-bol 'kill-word 'yank 'word-left 'word-right 'escape
     ;                'complete 'quoted-insert 'search-back 'search-forward 'abort
+    ;                'f1 to 'f12, and 'kp0 to 'kp9 from a keypad in
+    ;                application mode
     ;   nil       -- the descriptor ended (EOF on the read itself)
     ;
     ; read-byte is a function of no arguments returning a byte value or nil.
@@ -291,7 +293,7 @@
           (#t (lit escape)))))
 
     (method %ss3 (self (param read-byte CALLABLE "Byte reader"))
-      (doc "Decode an SS3 sequence (ESC O x) -- what a terminal in application-cursor mode sends for the arrows."
+      (doc "Decode an SS3 sequence (ESC O x) -- what a terminal in application-cursor mode sends for the arrows, what most send for F1 to F4, and what a keypad in application mode sends for its digits."
         (returns ANY "A key symbol"))
       (let ((b (read-byte)))
         (match
@@ -302,7 +304,21 @@
           ((= b 68) (lit left))
           ((= b 72) (lit home))
           ((= b 70) (lit end))
+          ((= b 80) (lit f1))
+          ((= b 81) (lit f2))
+          ((= b 82) (lit f3))
+          ((= b 83) (lit f4))
+          ; ESC O p to ESC O y: keypad 0 to 9
+          ((and (>= b 112) (<= b 121)) (Term %keypad (- b 112)))
           (#t (lit unbound)))))
+
+    (method %keypad (self (param n INTEGER "The keypad digit, 0 to 9"))
+      (doc "The key symbol for keypad digit n."
+        (returns SYMBOL "'kp0 to 'kp9"))
+      (match
+        ((= n 0) (lit kp0)) ((= n 1) (lit kp1)) ((= n 2) (lit kp2)) ((= n 3) (lit kp3))
+        ((= n 4) (lit kp4)) ((= n 5) (lit kp5)) ((= n 6) (lit kp6)) ((= n 7) (lit kp7))
+        ((= n 8) (lit kp8)) (#t (lit kp9))))
 
     (method %csi (self (param read-byte CALLABLE "Byte reader"))
       (doc "Decode a CSI sequence (ESC [ ...): the arrows, Home/End, Delete, and the modified arrows terminals spell ESC [ 1 ; 5 C."
@@ -333,16 +349,35 @@
           ((= final 68) (if ctrl? (lit word-left) (lit left)))
           ((= final 72) (lit home))
           ((= final 70) (lit end))
-          ((= final 126)
-            ; ESC [ N ~ -- N is the first parameter byte run.
-            (match
-              ((List includes? 51 params) (lit delete))   ; 3~
-              ((List includes? 49 params) (lit home))     ; 1~
-              ((List includes? 55 params) (lit home))     ; 7~
-              ((List includes? 52 params) (lit end))      ; 4~
-              ((List includes? 56 params) (lit end))      ; 8~
-              (#t (lit unbound))))
-          (#t (lit unbound))))))
+          ; F1 to F4 with a modifier: ESC [ 1 ; m P to S
+          ((= final 80) (lit f1))
+          ((= final 81) (lit f2))
+          ((= final 82) (lit f3))
+          ((= final 83) (lit f4))
+          ((= final 126) (Term %tilde (Term %csi-number params)))
+          (#t (lit unbound)))))
+
+    (method %csi-number (self (param params LIST "The parameter bytes, in order"))
+      (doc "A CSI sequence's first parameter as a number: its digits up to the first ';', 0 when there are none."
+        (returns INTEGER "The number"))
+      (let ((go (fn (self ps n)
+                  (if (or (null? ps) (or (< (first ps) 48) (> (first ps) 57))) n
+                    (self (rest ps) (+ (* n 10) (- (first ps) 48)))))))
+        (go params 0)))
+
+    (method %tilde (self (param n INTEGER "The first parameter of ESC [ N ~"))
+      (doc "Name the key ESC [ N ~ stands for: Home, End and Delete, and the function keys, whose numbers skip 16 and 22."
+        (returns ANY "A key symbol"))
+      ; The number is read whole: 15~ is F5, which a test for the byte '1'
+      ; among the parameters would take for Home.
+      (match
+        ((= n 1) (lit home)) ((= n 7) (lit home))
+        ((= n 4) (lit end)) ((= n 8) (lit end))
+        ((= n 3) (lit delete))
+        ((= n 11) (lit f1)) ((= n 12) (lit f2)) ((= n 13) (lit f3)) ((= n 14) (lit f4))
+        ((= n 15) (lit f5)) ((= n 17) (lit f6)) ((= n 18) (lit f7)) ((= n 19) (lit f8))
+        ((= n 20) (lit f9)) ((= n 21) (lit f10)) ((= n 23) (lit f11)) ((= n 24) (lit f12))
+        (#t (lit unbound)))))
 
   )
 

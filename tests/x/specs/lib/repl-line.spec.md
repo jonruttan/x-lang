@@ -424,3 +424,51 @@ holding "e".
 ```
 ---
     ("(reverse-i-search)`ls': " "(i-search)`ls': " "(failed reverse-i-search)`zz': ")
+
+## keys that end a line, and an idle function
+
+read-until hands its keys and its idle function to the key loop through
+`%ends` and `%idle`; these cases set them directly and drive the loop on
+canned bytes, as the history search cases do.  F1 is `ESC O P`.
+
+### a key in ends ends the line, with what was typed
+
+```x
+(do (import x/repl/line) (import x/sys/file)
+    (let ((loop (eval (lit %ln-loop) (module x/repl/line)))
+          (fd (File open "/dev/null" 'wronly)))
+      (let ((run (fn (_ bytes)
+                   (let ((bs bytes))
+                     (loop fd "> " (Edit make ())
+                           (fn (_) (if (null? bs) () (let ((b (first bs))) (set! bs (rest bs)) b))))))))
+        (Line %ends (list 'f1 'up))
+        (let ((a (run (list 108 111 27 79 80))))
+          (let ((b (run (list 27 91 65))))
+            (Line %ends #f)
+            (let ((c (run (list 97 27 79 80 98 13))))
+              (File close fd)
+              (list a b c)))))))
+```
+---
+    (('f1 . "lo") ('up . "") "ab")
+
+### the idle function runs each time the wait passes, and true stops the read
+
+The loop draws to the write end of a pipe, which never has a key to read,
+so every wait passes.  The function answers a new prompt the first time
+and true the second.
+
+```x
+(do (import x/repl/line) (import x/sys/posix)
+    (let ((loop (eval (lit %ln-loop) (module x/repl/line)))
+          (p (Sys pipe))
+          (calls 0))
+      (Line %idle (pair 1 (fn (_) (set! calls (+ calls 1)) (if (= calls 1) "p> " #t))))
+      (let ((r (loop (rest p) "> " (Edit make ()) (fn (_) ()))))
+        (Line %idle #f)
+        (Sys close (first p))
+        (Sys close (rest p))
+        (list r calls))))
+```
+---
+    (('stopped . "") 2)

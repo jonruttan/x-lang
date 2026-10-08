@@ -128,6 +128,34 @@ in x/repl/line reads that key.
 ---
     ('home 'end 'home 'end 'delete)
 
+### the function keys in the spellings terminals send them
+
+F1 to F4 as SS3 (`ESC O P` to `S`) and, with a modifier, as CSI with a
+final `P` to `S`; every function key as `ESC [ N ~`, whose numbers skip 16
+and 22.  N is read whole: `15~` is F5, not the Home that `1~` is.
+
+```x
+(do (import x/repl/term)
+    (List map
+      (fn (_ bs) (Term key (fn (_) (if (null? bs) () (let ((b (first bs))) (set! bs (rest bs)) b)))))
+      (list (list 27 79 80) (list 27 79 83) (list 27 91 49 59 50 81)
+            (list 27 91 49 53 126) (list 27 91 49 55 126) (list 27 91 50 52 126)
+            (list 27 91 49 53 59 50 126) (list 27 91 49 126))))
+```
+---
+    ('f1 'f4 'f2 'f5 'f6 'f12 'f5 'home)
+
+### keypad digits from a keypad in application mode
+
+```x
+(do (import x/repl/term)
+    (List map
+      (fn (_ bs) (Term key (fn (_) (if (null? bs) () (let ((b (first bs))) (set! bs (rest bs)) b)))))
+      (list (list 27 79 112) (list 27 79 117) (list 27 79 121))))
+```
+---
+    ('kp0 'kp5 'kp9)
+
 ### a ctrl-modified arrow is word motion
 
 The modifier arrives as `;5` among the parameter bytes, which is why the
