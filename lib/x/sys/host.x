@@ -306,7 +306,7 @@
     ; --- memory ---------------------------------------------------------------
 
     (method memory (self)
-      (doc "Memory and swap in bytes: total free shared buffers cached reclaimable available swap-total swap-free. Linux takes the totals from sysinfo and cached (Cached), reclaimable (SReclaimable) and available (MemAvailable) from /proc/meminfo, as BusyBox's free does. Darwin takes total from hw.memsize, free and cached (file-backed pages) from the Mach VM statistics and swap from vm.swapusage; it reports no shared, buffers, reclaimable or available."
+      (doc "Memory and swap in bytes: total free shared buffers cached reclaimable available swap-total swap-free anon mapped slab dirty writeback. Linux takes the totals from sysinfo and cached (Cached), reclaimable (SReclaimable), available (MemAvailable), anon (AnonPages), mapped (Mapped), slab (Slab), dirty (Dirty) and writeback (Writeback) from /proc/meminfo, as BusyBox's free and top -m do. Darwin takes total from hw.memsize, free, cached (file-backed pages) and anon (anonymous pages) from the Mach VM statistics and swap from vm.swapusage; it reports no shared, buffers, reclaimable, available, mapped, slab, dirty or writeback."
         (returns ALIST "((total . N) (free . N) ... (swap-free . N)); a field not reported is nil")
         (sample "(Assoc get 'total (Host memory))" "17179869184"))
       (if (eq? (Host %backend) (lit darwin)) (Host %darwin-memory) (Host %linux-memory)))
@@ -326,7 +326,12 @@
             (pair (lit reclaimable) (kb "SReclaimable:"))
             (pair (lit available) (kb "MemAvailable:"))
             (pair (lit swap-total) (* u (Assoc get (lit totalswap) si)))
-            (pair (lit swap-free) (* u (Assoc get (lit freeswap) si)))))
+            (pair (lit swap-free) (* u (Assoc get (lit freeswap) si)))
+            (pair (lit anon) (kb "AnonPages:"))
+            (pair (lit mapped) (kb "Mapped:"))
+            (pair (lit slab) (kb "Slab:"))
+            (pair (lit dirty) (kb "Dirty:"))
+            (pair (lit writeback) (kb "Writeback:"))))
 
     (method %darwin-memory (self)
       (doc "memory, from sysctl and host_statistics64 (HOST_VM_INFO64)."
@@ -344,7 +349,10 @@
             (pair (lit cached) (if ok (* page (Host %int-at vm 136 4)) ()))
             (pair (lit reclaimable) ()) (pair (lit available) ())
             (pair (lit swap-total) (if (null? swap) () (Host %int-at swap 0 8)))
-            (pair (lit swap-free) (if (null? swap) () (Host %int-at swap 8 8)))))
+            (pair (lit swap-free) (if (null? swap) () (Host %int-at swap 8 8)))
+            ; internal_page_count, the anonymous pages
+            (pair (lit anon) (if ok (* page (Host %int-at vm 140 4)) ()))
+            (pair (lit mapped) ()) (pair (lit slab) ()) (pair (lit dirty) ()) (pair (lit writeback) ())))
 
     ; --- CPU time -------------------------------------------------------------
 
@@ -464,34 +472,61 @@
     (method %darwin-threads (self (param pid INTEGER "Process ID"))
       (doc "threads, from proc_pidinfo: PROC_PIDLISTTHREADIDS for the ids, then PROC_PIDTHREADID64INFO for each thread's struct proc_threadinfo."
         (returns ANY "LIST of thread records, or nil"))
+      ; the context's primitives and the int doors, as %darwin-maps reads: a
+      ; class call a field cost a thread hundreds of thousands of objects
+      (def c (Host %darwin-ctx))
+      (def ref (first c))
+      (def call (first (rest c)))
+      (def make (first (rest (rest c))))
+      (def ->ptr (first (rest (rest (rest c)))))
+      (def pidinfo (first (rest (rest (rest (rest c))))))
+      (def more (rest (rest (rest (rest (rest (rest (rest (rest (rest (rest c))))))))))) ; from cvt on
+      (def cvt (first more))
+      (def string-type (first (rest more)))
+      (def pointer-type (first (rest (rest more))))
+      (def integer-type (first (rest (rest (rest more)))))
+      (def byte-len (first (rest (rest (rest (rest more))))))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i- (prim-ref (lit int) (lit -)))
+      (def i* (prim-ref (lit int) (lit *)))
+      (def i< (prim-ref (lit int) (lit <)))
+      (def i= (prim-ref (lit int) (lit =)))
       (def proc (Host process pid))
       (def n (if (null? proc) () (Assoc get (lit threads) proc)))
       (if (null? n) ()
-        (let ((ids (Host %buf (* 8 (+ n 16)))))
-          (def got (Host %call "proc_pidinfo" pid 28 0 (Host %ptr ids) (* 8 (+ n 16))))
-          (def ti (Host %buf 112))
+        (let ((ids (make (i* 8 (i+ n 16)))) (ti (make 112)))
+          (def ip (->ptr ids))
+          (def tp (->ptr ti))
+          (def got (call pidinfo pid 28 0 ip (i* 8 (i+ n 16))))
           (def states (lit ((1 . "R") (2 . "T") (3 . "S") (4 . "D") (5 . "Z"))))
+          ; pth_name: a C string of at most 64 bytes, read through its address
+          (def name
+            (fn (_)
+              (def s (cvt (cvt (i+ (cvt tp integer-type) 48) pointer-type) string-type))
+              (if (i< 64 (byte-len s)) ((prim-ref (lit str) (lit byte-sub)) s 0 64) s)))
+          ; the process record with the thread's own fields in its place
+          (def thread
+            (fn (self es tid nm)
+              (if (null? es) ()
+                (let ((k (first (first es))))
+                  (pair (match
+                          ((eq? k (lit pid)) (pair k tid))
+                          ((eq? k (lit state)) (pair k (Assoc get (ref tp 24 4) states)))
+                          ((eq? k (lit comm)) (if (str=? nm "") (first es) (pair k nm)))
+                          ((eq? k (lit utime)) (pair k (ref tp 0 8)))
+                          ((eq? k (lit stime)) (pair k (ref tp 8 8)))
+                          (#t (first es)))
+                        (self (rest es) tid nm))))))
+          ; pth_user_time, pth_system_time (ns), pth_run_state at 24, pth_name at 48
           (def one
             (fn (_ tid)
-              (if (not (= 112 (Host %call "proc_pidinfo" pid 15 tid (Host %ptr ti) 112))) ()
-                ; pth_user_time, pth_system_time (ns), pth_run_state, pth_name
-                (let ((name (Host %cstr-at ti 48 64)))
-                  (List map
-                    (fn (_ e)
-                      (def k (first e))
-                      (match
-                        ((eq? k (lit pid)) (pair k tid))
-                        ((eq? k (lit state)) (pair k (Assoc get (Host %int-at ti 24 4) states)))
-                        ((eq? k (lit comm)) (pair k (if (str=? name "") (rest e) name)))
-                        ((eq? k (lit utime)) (pair k (Host %int-at ti 0 8)))
-                        ((eq? k (lit stime)) (pair k (Host %int-at ti 8 8)))
-                        (#t e)))
-                    proc)))))
+              (if (i= 112 (call pidinfo pid 15 tid tp 112)) (thread proc tid (name)) ())))
           (def go
             (fn (self i acc)
-              (if (< i 0) acc
-                (self (- i 1) (let ((r (one (Host %int-at ids (* 8 i) 8)))) (if (null? r) acc (pair r acc)))))))
-          (if (<= got 0) () (go (- (/ got 8) 1) ())))))
+              (if (i< i 0) acc
+                (self (i- i 1) (let ((r (one (ref ip (i* 8 i) 8)))) (if (null? r) acc (pair r acc)))))))
+          ; got is the bytes PROC_PIDLISTTHREADIDS wrote, a uint64 an id
+          (if (if (i< 0 got) (i< got 1000000000) #f) (go (i- ((prim-ref (lit int) (lit /)) got 8) 1) ()) ()))))
 
     (method maps (self (param pid INTEGER "Process ID"))
       (doc "The process's memory mappings, summed as BusyBox's top -m sums /proc/PID/smaps, in bytes: mapped-rw and mapped-ro, the size of the writable mappings and of the readable or executable rest (a device mapping other than /dev/zero, and a ---p guard gap, counted in neither); stack, the [stack] mapping's size; and the resident shared-clean, shared-dirty, private-clean and private-dirty. Darwin walks the regions with proc_pidinfo's PROC_PIDREGIONINFO, takes protection, the stack tag and the private and shared resident pages from the kernel, and counts a region's dirtied pages as private for a private or copy-on-write region and shared otherwise; it answers only for this user's processes unless running as root. nil when the process is gone or the kernel will not say."
@@ -508,19 +543,57 @@
     (method %linux-maps (self (param pid INTEGER "Process ID"))
       (doc "maps, from /proc/PID/smaps, read a line at a time, BusyBox's procps_read_smaps over the same lines."
         (returns ANY "The maps record, or nil"))
-      ; the byte primitives: a Str8 call on each of thousands of lines would
-      ; cost hundreds of thousands of objects
+      ; the byte primitives and the int doors: a Str8 or class call on each of
+      ; thousands of lines cost a process millions of objects
       (def len (prim-ref (lit str) (lit byte-len)))
       (def sub (prim-ref (lit str) (lit byte-sub)))
       (def at (prim-ref (lit str) (lit byte-ref)))
-      (def starts? (fn (_ p l) (if (<= (len p) (len l)) (str=? (sub l 0 (len p)) p) #f)))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i- (prim-ref (lit int) (lit -)))
+      (def i* (prim-ref (lit int) (lit *)))
+      (def i< (prim-ref (lit int) (lit <)))
+      (def i= (prim-ref (lit int) (lit =)))
+      ; L begins with P, compared a byte at a time
+      (def starts?
+        (fn (_ p l)
+          (def n (len p))
+          (def go (fn (self i) (if (i< i n) (if (i= (at p i) (at l i)) (self (i+ i 1)) #f) #t)))
+          (if (i< (len l) n) #f (go 0))))
+      ; the first byte at or after I that is (or, with SPACE? #f, is not) a space
+      (def skip
+        (fn (self l i space?)
+          (if (i< i (len l)) (if (eq? (i= (at l i) 32) space?) (self l (i+ i 1) space?) i) i)))
+      ; the decimal at I's first digit, past the spaces
+      (def num
+        (fn (self l i acc)
+          (if (i< i (len l))
+            (let ((b (at l i)))
+              (if (if (i< b 48) #t (i< 57 b)) acc (self l (i+ i 1) (i+ (i* acc 10) (i- b 48)))))
+            acc)))
+      (def kb (fn (_ l key) (i* 1024 (num l (skip l (len key) #t) 0))))
       ; the sums, in %maps-record's order; ADD answers them with one grown by n
       (def add
         (fn (self i n v)
-          (if (= i 0) (pair (+ n (first v)) (rest v)) (pair (first v) (self (- i 1) n (rest v))))))
-      (def kb (fn (_ l key) (* 1024 (Host %int (Str8 trim (sub l (len key) (- (len l) (len key))))))))
+          (if (i= i 0) (pair (i+ n (first v)) (rest v)) (pair (first v) (self (i- i 1) n (rest v))))))
       (def dash
-        (fn (self l i) (match ((>= i (len l)) ()) ((= (at l i) #\-) i) (#t (self l (+ i 1))))))
+        (fn (self l i) (if (i< i (len l)) (if (i= (at l i) 45) i (self l (i+ i 1))) ())))
+      ; a mapping's header: START-END PERMS OFFSET DEV INODE [PATH]
+      (def header
+        (fn (_ l d v)
+          (def size (i- (Host %hex (sub l (i+ d 1) (i- (len l) (i+ d 1)))) (Host %hex l)))
+          (def perms (skip l (skip l 0 #f) #t))
+          ; past PERMS, OFFSET, DEV and INODE and the spaces after each
+          (def field (fn (self i k) (if (i= k 0) i (self (skip l (skip l i #f) #t) (i- k 1)))))
+          (def from (field perms 4))
+          (def path (sub l from (i- (len l) from)))
+          (def device? (if (starts? "/dev/" path) (not (str=? path "/dev/zero")) #f))
+          (def v2
+            (match
+              (device? v)
+              ((i= (at l (i+ perms 1)) 119) (add 1 size v))
+              ((if (i= (at l perms) 114) #t (i= (at l (i+ perms 2)) 120)) (add 0 size v))
+              (#t v)))
+          (if (str=? path "[stack]") (add 2 size v2) v2)))
       (def line
         (fn (_ l v)
           (match
@@ -528,20 +601,7 @@
             ((starts? "Private_Clean:" l) (add 5 (kb l "Private_Clean:") v))
             ((starts? "Shared_Dirty:" l) (add 4 (kb l "Shared_Dirty:") v))
             ((starts? "Shared_Clean:" l) (add 3 (kb l "Shared_Clean:") v))
-            ((null? (dash l 0)) v)
-            ; a mapping's header: START-END PERMS OFFSET DEV INODE [PATH]
-            (#t (let ((f (Host %fields l)) (d (dash l 0)))
-                  (def size (- (Host %hex (sub l (+ d 1) (- (len l) (+ d 1)))) (Host %hex l)))
-                  (def perms (List ref 1 f))
-                  (def path (if (> (List length f) 5) (Str8 join " " (List drop 5 f)) ""))
-                  (def device? (if (starts? "/dev/" path) (not (str=? path "/dev/zero")) #f))
-                  (def v2
-                    (match
-                      (device? v)
-                      ((= (at perms 1) #\w) (add 1 size v))
-                      ((if (= (at perms 0) #\r) #t (= (at perms 2) #\x)) (add 0 size v))
-                      (#t v)))
-                  (if (str=? path "[stack]") (add 2 size v2) v2))))))
+            (#t (let ((d (dash l 0))) (if (null? d) v (header l d v)))))))
       (def sums (Host %fold-lines (Str8 append (Host proc-root) "/" (Str8 str pid) "/smaps") line
                   (list 0 0 0 0 0 0 0)))
       (if (null? sums) () (Host %maps-record sums)))
@@ -549,29 +609,54 @@
     (method %darwin-maps (self (param pid INTEGER "Process ID"))
       (doc "maps, from proc_pidinfo's PROC_PIDREGIONINFO, one struct proc_regioninfo a region from address 0 up."
         (returns ANY "The maps record, or nil"))
+      ; straight off the context's primitives and the int doors: a class call
+      ; a field cost a region thousands of objects, and a process has hundreds
+      ; of regions
+      (def c (Host %darwin-ctx))
+      (def ref (first c))
+      (def call (first (rest c)))
+      (def pidinfo (first (rest (rest (rest (rest c))))))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i- (prim-ref (lit int) (lit -)))
+      (def i* (prim-ref (lit int) (lit *)))
+      (def i< (prim-ref (lit int) (lit <)))
+      (def i= (prim-ref (lit int) (lit =)))
+      (def i& (prim-ref (lit int) (lit &)))
       (def page (Host %page-size))
-      (def ri (Host %buf 96))
-      (def at (fn (_ off n) (Host %int-at ri off n)))
+      (def ri ((first (rest (rest c))) 96))
+      (def p ((first (rest (rest (rest c)))) ri))
+      (def at (fn (_ off n) (ref p off n)))
+      (def least (fn (_ a b) (if (i< a b) a b)))
+      ; one region onto the sums; then the next, from the end of this one
+      (def region
+        (fn (_ next ro rw stack sc sd pc pd)
+          (def prot (at 0 4))
+          (def size (at 88 8))
+          (def mode (at 60 4))
+          (def priv-res (i* page (at 64 4)))
+          (def shared-res (i* page (at 68 4)))
+          (def dirty (i* page (at 48 4)))
+          ; SM_COW 1, SM_PRIVATE 2, SM_EMPTY 3, SM_PRIVATE_ALIASED 6: the region's own pages
+          (def private? (if (i= mode 1) #t (if (i= mode 2) #t (if (i= mode 3) #t (i= mode 6)))))
+          (def pdirty (if private? (least dirty priv-res) 0))
+          (def sdirty (if private? 0 (least dirty shared-res)))
+          (def writable? (not (i= 0 (i& prot 2))))
+          (next (i+ (at 80 8) size)
+            (if writable? ro (if (i= 0 (i& prot 5)) ro (i+ ro size)))
+            (if writable? (i+ rw size) rw)
+            ; VM_MEMORY_STACK
+            (if (i= 30 (at 32 4)) (i+ stack size) stack)
+            (i+ sc (i- shared-res sdirty)) (i+ sd sdirty)
+            (i+ pc (i- priv-res pdirty)) (i+ pd pdirty)
+            #t)))
       (def go
         (fn (self addr ro rw stack sc sd pc pd seen)
-          (if (not (= 96 (Host %call "proc_pidinfo" pid 7 addr (Host %ptr ri) 96)))
-            (if seen (Host %maps-record (list ro rw stack sc sd pc pd)) ())
-            (let ((prot (at 0 4)) (size (at 88 8)) (mode (at 60 4)))
-              (def priv-res (* page (at 64 4)))
-              (def shared-res (* page (at 68 4)))
-              (def dirty (* page (at 48 4)))
-              ; SM_COW 1, SM_PRIVATE 2, SM_EMPTY 3, SM_PRIVATE_ALIASED 6: the region's own pages
-              (def private? (if (= mode 1) #t (if (= mode 2) #t (if (= mode 3) #t (= mode 6)))))
-              (def pdirty (if private? (if (< dirty priv-res) dirty priv-res) 0))
-              (def sdirty (if private? 0 (if (< dirty shared-res) dirty shared-res)))
-              (self (+ (at 80 8) size)
-                (if (if (= 0 (& prot 2)) (not (= 0 (& prot 5))) #f) (+ ro size) ro)
-                (if (= 0 (& prot 2)) rw (+ rw size))
-                ; VM_MEMORY_STACK
-                (if (= 30 (at 32 4)) (+ stack size) stack)
-                (+ sc (- shared-res sdirty)) (+ sd sdirty)
-                (+ pc (- priv-res pdirty)) (+ pd pdirty)
-                #t)))))
+          ; proc_pidinfo answers the bytes it wrote: a whole struct, or
+          ; nothing; the walk ends there, or at a region that does not end
+          ; past the address asked for, which would ask for it again
+          (if (if (i= 96 (call pidinfo pid 7 addr p 96)) (i< addr (i+ (at 80 8) (at 88 8))) #f)
+            (region self ro rw stack sc sd pc pd)
+            (if seen (Host %maps-record (list ro rw stack sc sd pc pd)) ()))))
       (go 0 0 0 0 0 0 0 0 #f))
 
     (method %linux-btime (self)

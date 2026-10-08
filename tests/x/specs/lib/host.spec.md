@@ -35,7 +35,7 @@ clear it), so a later case in the same batch reads the real machine.
         (<= (get 'swap-free) (get 'swap-total))))
 ```
 ---
-    (('total 'free 'shared 'buffers 'cached 'reclaimable 'available 'swap-total 'swap-free) #t #t #t)
+    (('total 'free 'shared 'buffers 'cached 'reclaimable 'available 'swap-total 'swap-free 'anon 'mapped 'slab 'dirty 'writeback) #t #t #t)
 
 ### cpu: eight fields, idle and user counted
 
