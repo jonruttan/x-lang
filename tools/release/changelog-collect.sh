@@ -167,5 +167,22 @@ if [ "$check" = 1 ]; then
 		echo "changelog-commits: FAIL -- a feat, fix or perf commit carries its entry after a 'Changelog:' line in its message" >&2
 		exit 1
 	fi
-	echo "changelog-commits: ok (every feat, fix and perf since $from carries its entry)"
+	# A branch must not ADD to CHANGELOG.md either: the file is written at
+	# release, and a pull request that adds its paragraph puts every other
+	# open one in conflict the moment it merges.  What a merge would add is
+	# the net difference from the merge base with origin/main -- a commit
+	# that added and a later one that took back leave nothing -- and a
+	# release branch, which carries a `release:` commit, is the one that may.
+	# Without origin/main in reach there is nothing to compare against.
+	if git rev-parse -q --verify origin/main >/dev/null 2>&1; then
+		mb=$(git merge-base "$to" origin/main 2>/dev/null || true)
+		if [ -n "$mb" ] && [ "$mb" != "$(git rev-parse "$to")" ]; then
+			net=$(git diff --numstat "$mb" "$to" -- CHANGELOG.md 2>/dev/null | awk '{ n += $1 } END { print n + 0 }')
+			if [ "$net" -gt 0 ] && ! git log --format=%s "$mb..$to" | grep -q '^release: '; then
+				echo "changelog-commits: FAIL -- this branch adds $net lines to CHANGELOG.md; the file is written at release, and an entry goes after a 'Changelog:' line in the commit" >&2
+				exit 1
+			fi
+		fi
+	fi
+	echo "changelog-commits: ok (every feat, fix and perf since $from carries its entry, and nothing adds to CHANGELOG.md)"
 fi

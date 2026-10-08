@@ -457,7 +457,12 @@ newest first, each followed by a link line for every pull request it names;
 an entry that names no pull request has `([#N])` put after its lead
 sentence, N from the merge commit.  The release commit puts them under the
 new `## [N]` heading.  `make check-changelog-commits`, one of the gates,
-fails on a `feat`, `fix` or `perf` commit since the tag with no entry.
+fails on a `feat`, `fix` or `perf` commit since the tag with no entry, and on
+a branch that adds lines to CHANGELOG.md -- its net difference from the
+merge base with `origin/main`, so a commit that added and a later one that
+took the lines back pass together; a release branch, which carries a
+`release:` commit, is the one that may add.  The pre-push hook runs the
+gate, so such a branch is refused before it leaves the machine.
 
 ## Documentation
 
