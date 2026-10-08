@@ -5,14 +5,76 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**A held asm-cache group reads no file** ([#939]). A group met again while its
-entries are held -- the same rules remade, or a process booted from an image
-the group was made in -- is served without reading its file, and its path is
-hashed only when the file is read or written. The loops that run once per
-relocation record use the integer doors. vi's 21-state address lexer: a warm
-`(Lexer make)` 123-128 -> 104-110 ms, a remake in the same heap 86-91 ms.
+**`(Paint lexer l colours)`: a painter made from a Lexer** ([#935]). It
+answers a `%repl-paint` painter that colours a line by the tokens of a Lexer
+whose rules read every byte, each token in the style its tag names: an Ansi
+style name, an escape string, or a function of the token's text. A lang whose
+syntax a Lexer reads colours its lines with no span scan of its own.
 
-[#939]: https://github.com/jonruttan/x-lang/pull/939
+[#935]: https://github.com/jonruttan/x-lang/pull/935
+
+**`(Sys args)`, and the launcher writes `--` between its options and the program's** ([#934]).
+x.sh starts the engine as `x-bin OPTION... -- ARG...`.  `(Sys args)` answers
+the arguments as the engine was given them, and `(Sys args 'program)` the
+engine's path and what follows the first `--`, so a program no longer drops
+words it takes for the launcher's, nor loses its own: `--no-color` given to a
+program reaches the program and leaves the REPL's colour alone.  `--batch`,
+`--quiet` and `--no-color` are read from the launcher's side of the `--`
+alone.  With no `--` nothing is left out of either side.
+
+[#934]: https://github.com/jonruttan/x-lang/pull/934
+
+**A paste into the line editor no longer slows with each byte, or dies**
+([#938]). The redraw measured the line a byte at a time through class calls,
+three walks a keystroke; it now walks it over the cached prims and the
+integer doors, and the loop sweeps within a line once the heap has grown a
+set amount, where it swept only between lines. An 85-byte paste under
+x-ash's painter: 15.6 s to 2.6 s; a 340-byte one that hit the allocation
+ceiling finishes.
+
+[#938]: https://github.com/jonruttan/x-lang/pull/938
+
+**Module scope's rules live with the module system** ([#933]).
+`docs/namespaces.md`, the proposal for module scope with the record of
+building it appended, is gone. What a developer needs from it is in
+`docs/modules.md` under "Module scope": how a module's names are reached
+from outside, the rule for each name conflict, the files that are not
+scoped with the reason and the measured cost for each, and the gates. The
+counts from before the design, the sequence, the alternatives and the
+measurement narratives went with the file. Every reference points at
+`docs/modules.md`.
+
+[#933]: https://github.com/jonruttan/x-lang/pull/933
+
+**`Sha1`: SHA-1 in pure x, with a compiled engine sharing SHA-256's driver** ([#936]).
+`(Sha1 hex s)`, `(Sha1 hex-n s n)` and `(Sha1 jit!)`, as `Sha256` has them, for
+naming content as git does; SHA-1 is not for trust.  `x/codec/sha256-jit` is
+`x/codec/sha-jit` now: one fill, driver and differential check serve both
+digests.  The engine builds on its own for an input of 8KB or more, SHA-1's
+measured breakeven: pure-x 3.8KB/s, the build 2.2s, the engine 470KB/s.
+
+[#936]: https://github.com/jonruttan/x-lang/pull/936
+
+**`Inflate`: DEFLATE and zlib streams in pure x** ([#937]).
+`(Inflate raw s [start len])` and `(Inflate zlib s [start len])` answer `(OUT N
+USED)`, USED the input the stream took, so a reader of streams laid end to end,
+as a git pack lays them, goes on from there; `(Inflate adler32 s n)` is the
+checksum alone.  The decoder is puff.c's: stored, fixed and dynamic blocks,
+codes read a bit at a time, ~7.6KB/s of output on arm64.  It is the reference
+a compiled engine will be checked against.
+
+[#937]: https://github.com/jonruttan/x-lang/pull/937
+
+**`Inflate` has a compiled engine: the codes loop and the Adler-32** ([#943]).
+`x/codec/inflate-jit` compiles a step that decodes one symbol or copies
+eight bytes of a back-reference, and one that sums sixteen bytes of the
+checksum; the driver in x grows the output between calls.  Built for an
+input of 4KB or more or on `(Inflate jit!)`, adopted only after decoding and
+summing two embedded streams exactly as the pure-x decoder does.  The zlib
+path: 16KB of output in 97ms through the engine, 2.22s in pure x; 64KB in
+135ms.
+
+[#943]: https://github.com/jonruttan/x-lang/pull/943
 
 ## [0.26.0] - 2026-10-06
 

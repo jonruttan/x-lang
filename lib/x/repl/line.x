@@ -50,6 +50,58 @@
 (def %ln-cint (prim-ref (lit char) (lit ->int)))
 (def %ln-byte (fn (_ s i) (%ln-cint (%ln-bref s i))))
 
+; x has no automatic collect, and the turn sweep runs between lines; every key
+; of a line allocates -- the redraw, and the painter more -- so a long paste
+; ran the heap up to its ceiling within one line.  The loop sweeps once the
+; objects allocated have grown %ln-heap-room past what the last sweep left.  A
+; sweep walks every live object, the session's whole heap, so it is paid every
+; few dozen keys rather than every key.  The count is the engine's, read
+; without a walk.
+(def %ln-heap-room 4194304)
+(def %ln-heap-floor 0)
+(def %ln-allocated
+  (fn (_) (%cell-int (first (%reflect-base-cell (lit alloc-count))))))
+(def %ln-sweep-if-due!
+  (fn (_)
+    (if (< (+ %ln-heap-floor %ln-heap-room) (%ln-allocated))
+      (do (%ln-collect) (set! %ln-heap-floor (%ln-allocated)))
+      ())))
+
+; The integer doors, which allocate nothing: the generic arithmetic allocates
+; per call, and the measuring below runs it a byte at a time.
+(def %ln+ (prim-ref (lit int) (lit +)))
+(def %ln- (prim-ref (lit int) (lit -)))
+(def %ln< (prim-ref (lit int) (lit <)))
+(def %ln= (prim-ref (lit int) (lit =)))
+(def %ln& (prim-ref (lit int) (lit &)))
+
+; UTF-8 motion over the cached prims.  Edit's next-start and prev-start answer
+; the same, but each is a class call and next-start makes two more inside, and
+; the redraw measures the line with them a byte at a time, three walks a
+; keystroke: a line's every byte cost a keystroke milliseconds, so a long paste
+; slowed with each byte it added.  A lead byte's width is x/codec/utf8's: below
+; 192 one byte (a stray continuation byte too), then two, three, four.
+(def %ln-next-start
+  (fn (_ s i)
+    (def n (%ln-blen s))
+    (if (%ln< i n)
+      (do
+        (def b (%ln-byte s i))
+        (def e (%ln+ i (if (%ln< b 192) 1 (if (%ln< b 224) 2 (if (%ln< b 240) 3 4)))))
+        (if (%ln< n e) n e))
+      n)))
+
+(def %ln-prev-start
+  (fn (_ s i)
+    (let ((go (fn (self j)
+                (if (%ln< 0 j)
+                  ; A continuation byte is 10xxxxxx: keep walking.
+                  (do
+                    (def p (%ln- j 1))
+                    (if (%ln= 128 (%ln& (%ln-byte s p) 192)) (self p) p))
+                  0))))
+      (go (if (%ln< (%ln-blen s) i) (%ln-blen s) i)))))
+
 ; The session's buffer: one Edit, so history survives from line to line.
 (def %ln-buffer ())
 ; The descriptor the session reads from.  Zero -- but x.sh parks the user's
@@ -90,13 +142,13 @@
 ; The column after the character at byte i of s, drawn from column col.
 (def %ln-advance
   (fn (_ s i col)
-    (if (= 9 (%ln-byte s i)) (%ln-indent-advance col 9 %ln-tab-stop) (+ col 1))))
+    (if (%ln= 9 (%ln-byte s i)) (%ln-indent-advance col 9 %ln-tab-stop) (%ln+ col 1))))
 
 ; The column reached by drawing s[from, to) from column col.
 (def %ln-columns
   (fn (_ s from to col)
     (let ((go (fn (self i c)
-                (if (>= i to) c (self (Edit next-start s i) (%ln-advance s i c))))))
+                (if (%ln< i to) (self (%ln-next-start s i) (%ln-advance s i c)) c))))
       (go from col))))
 
 ; The byte offset to start drawing from so that s[start, i) fits in k columns.
@@ -107,20 +159,24 @@
 (def %ln-back-columns
   (fn (_ s i k)
     (let ((go (fn (self j c)
-                (if (<= j 0) 0
-                  (let ((p (Edit prev-start s j)))
-                    (let ((w (if (= 9 (%ln-byte s p)) %ln-tab-stop 1)))
-                      (if (> w c) j (self p (- c w)))))))))
+                (if (%ln< 0 j)
+                  (do
+                    (def p (%ln-prev-start s j))
+                    (def w (if (%ln= 9 (%ln-byte s p)) %ln-tab-stop 1))
+                    (if (%ln< c w) j (self p (%ln- c w))))
+                  0))))
       (go i k))))
 
 ; The byte offset at most k columns forward from i, drawing from column col.
 (def %ln-forward-columns
   (fn (_ s i k col)
-    (let ((n (%ln-blen s)) (limit (+ col k)))
+    (let ((n (%ln-blen s)) (limit (%ln+ col k)))
       (let ((go (fn (self j c)
-                  (if (>= j n) n
-                    (let ((c2 (%ln-advance s j c)))
-                      (if (> c2 limit) j (self (Edit next-start s j) c2)))))))
+                  (if (%ln< j n)
+                    (do
+                      (def c2 (%ln-advance s j c))
+                      (if (%ln< limit c2) j (self (%ln-next-start s j) c2)))
+                    n))))
         (go i col)))))
 
 ; Guarded: a painter that raises must not lose the keystroke.  The line is
@@ -524,6 +580,7 @@
     ; width on the next key, with no SIGWINCH handler to install.
     (let ((cols (first (Term window fd))))
       (%ln-redraw fd prompt ed cols)
+      (%ln-sweep-if-due!)
       ; A key handed back by a search that it ended is handled here as if
       ; just read.
       (let ((k (if (null? pending) (Term key read-byte) (first pending))))
@@ -771,6 +828,7 @@
       (do
         ; The turn sweep, at the top of the iteration where the seat is quiet.
         (%ln-collect)
+        (set! %ln-heap-floor (%ln-allocated))
         (%set-cell-int! %sigint-flag 0)
         (%ln-turn)
         (%ln-repl)))))

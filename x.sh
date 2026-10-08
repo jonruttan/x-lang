@@ -681,7 +681,7 @@ do
 			require_engine
 			{ root_form; cat "${ENTRY_DIR}${X_LIB}${X_EXT}"; \
 				printf '(display %%lang-name)(display " ")(display x-lib-version)(display " (engine release ")(display x-release)(display ", expr ")(display x-version)(display ")")(newline)\n'; } \
-				| "$X_BIN" "--batch"
+				| "$X_BIN" "--batch" "--"
 			if [ -n "$INSTALL_ROOT" ] && [ -f "$INSTALL_ROOT/contract/release" ]; then
 				echo "library release $(cat "$INSTALL_ROOT/contract/release") -- what a pinned boot is checked against"
 			fi
@@ -755,7 +755,7 @@ do
 			{ root_form; param_forms; cat "${ENTRY_DIR}${X_LIB}${X_EXT}"; \
 			  printf '(import x/tool/pin)\n'; \
 			  printf '(Pin install "%s")\n' "$(printf '%s' "$2" | sed 's/[\\"]/\\&/g')"; } \
-				| "$X_BIN" "--batch"
+				| "$X_BIN" "--batch" "--"
 			exit $?
 			;;
 		--engine-path)
@@ -784,6 +784,10 @@ do
 	esac
 done
 
+# The program's arguments.  The engine is started as `x-bin OPTION... --
+# ARG...`: this wrapper's options, then "--", then these, so a program's
+# argument is never read as one of the wrapper's.  (Sys args 'program)
+# answers the engine's path and what follows the "--".
 args=
 while [ $# -gt 0 ]
 do
@@ -1601,9 +1605,9 @@ if [ -n "$IMAGE" ]; then
 		fi
 	fi
 	[ "$verbose" ] && echo "x.sh: booting from state image $IMAGE" >&2
-	CMD="{ img_loader; ${_ipost}${TAIL}} | $(shquote "$X_BIN")$xflags$args"
+	CMD="{ img_loader; ${_ipost}${TAIL}} | $(shquote "$X_BIN")$xflags --$args"
 else
-	CMD="{ root_form; param_forms; pin_form; cat $(shquote "$ENTRY"); pin_arm; bundle_form; ${TAIL}} | $(shquote "$X_BIN")$xflags$args"
+	CMD="{ root_form; param_forms; pin_form; cat $(shquote "$ENTRY"); pin_arm; bundle_form; ${TAIL}} | $(shquote "$X_BIN")$xflags --$args"
 fi
 
 if [ "$verbose" ]; then
