@@ -11,17 +11,14 @@
 ; codec's own loader and packer.  It is adopted only after it agrees
 ; with the reference on the RFC's vectors.
 ;
-; The multiply is ref10's fe_mul straight-line: row k collects the
-; products f_i g_j with i + j = k, and those with i + j = k + 10 folded
-; by 19, an odd-odd pair doubled; the rows land in a row area and the
-; rounding carries run there, so the result may alias an operand.  The
-; carries' shifts are arithmetic, which is what signed limbs need and
-; what the lane emits.  Nothing here collects: the per-call garbage is
-; the caller's to sweep.
+; The operations are x/codec/fe25519-jit's, shared with Ed25519's engine;
+; the scratch here keeps its elements clear of that module's row area
+; and swap slot.  Nothing here collects: the per-call garbage is the
+; caller's to sweep.
 (module x/codec/x25519-jit)
 
 (import x/type/vector)
-(import x/tool/compile compile-asm)
+(import x/codec/fe25519-jit fe-jit-compile)
 
 (def %xj-make-str (prim-ref (lit str) (lit make)))
 (def %xj-str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -39,86 +36,6 @@
 (def %X1 0) (def %X2 10) (def %Z2 20) (def %X3 30) (def %Z3 40)
 (def %T0 50) (def %T1 60)
 (def %I0 70) (def %I1 80) (def %I2 90) (def %I3 100) (def %I4 110)
-(def %ROWS 120)
-(def %SWAP 130)
-
-; --- expression builders (generation time) ---
-; An operand's limb i: the offset is a parameter, so it is a runtime add.
-(def %xj-at (fn (_ off i) (list '%mem-ref-at 'a (list '+ off i))))
-(def %xj-set (fn (_ off i v) (list '%mem-set-at! 'a (list '+ off i) v)))
-(def %xj-row (fn (_ i) (list '%mem-ref 'a (+ %ROWS i))))
-(def %xj-row-set (fn (_ i v) (list '%mem-set! 'a (+ %ROWS i) v)))
-(def %xj-seq
-  (fn (_ n f) (pair 'do ((fn (self i) (if (= i n) () (pair (f i) (self (+ i 1))))) 0))))
-(def %xj-width (fn (_ i) (if (= (& i 1) 0) 26 25)))
-
-; The rounding carry from row i into row i+1 (row 9's into row 0, times
-; 19): c = (h_i + 2^(w-1)) >> w; h_i -= c << w; h_next += c.  The carry
-; is spelled twice rather than kept, the lane having no locals.
-(def %xj-carry
-  (fn (_ i)
-    (def w (%xj-width i))
-    (def c (list '>> (list '+ (%xj-row i) (<< 1 (- w 1))) w))
-    (def next (if (= i 9) 0 (+ i 1)))
-    (list 'do
-      (%xj-row-set next (list '+ (%xj-row next) (if (= i 9) (list '* c 19) c)))
-      (%xj-row-set i (list '- (%xj-row i) (list '<< c w))))))
-
-(def %xj-mul-order (list 0 4 1 5 2 6 3 7 4 8 9 0))
-(def %xj-load-order (list 9 1 3 5 7 0 2 4 6 8))
-
-(def %xj-carries
-  (fn (_ order) (pair 'do (List map %xj-carry order))))
-
-; Row k of the product: every f_i g_j with i + j = k, or = k + 10 folded
-; by 19; odd-odd pairs doubled.
-(def %xj-mul-row
-  (fn (_ k)
-    (def term
-      (fn (_ i j)
-        (list '* (list '* (%xj-at 'f i) (%xj-at 'g j))
-              (* (if (= (& (& i j) 1) 1) 2 1) (if (>= (+ i j) 10) 19 1)))))
-    ; one pair an i: j = k - i, or k - i + 10 for the fold
-    (def terms
-      ((fn (self i acc)
-         (if (< i 0) acc
-           (self (- i 1) (pair (term i (if (>= (- k i) 0) (- k i) (+ (- k i) 10))) acc))))
-       9 ()))
-    (%xj-row-set k
-      ((fn (self ts) (if (null? (rest ts)) (first ts) (list '+ (first ts) (self (rest ts))))) terms))))
-
-(def %xj-copy-rows
-  (fn (_ off) (%xj-seq 10 (fn (_ i) (%xj-set off i (%xj-row i))))))
-
-; h = f * g
-(def %xj-mul-expr
-  (list 'fn '(_ a h f g)
-    (list 'do (%xj-seq 10 %xj-mul-row) (%xj-carries %xj-mul-order) (%xj-copy-rows 'h))))
-
-; h = f + g, h = f - g: limb by limb, no carry (the multiply's absorb it)
-(def %xj-add-expr
-  (list 'fn '(_ a h f g)
-    (%xj-seq 10 (fn (_ i) (%xj-set 'h i (list '+ (%xj-at 'f i) (%xj-at 'g i)))))))
-(def %xj-sub-expr
-  (list 'fn '(_ a h f g)
-    (%xj-seq 10 (fn (_ i) (%xj-set 'h i (list '- (%xj-at 'f i) (%xj-at 'g i)))))))
-
-; h = f * 121666, the ladder's constant
-(def %xj-m121666-expr
-  (list 'fn '(_ a h f)
-    (list 'do (%xj-seq 10 (fn (_ i) (%xj-row-set i (list '* (%xj-at 'f i) 121666))))
-              (%xj-carries %xj-load-order)
-              (%xj-copy-rows 'h))))
-
-; f and g exchanged when b is 1
-(def %xj-cswap-expr
-  (list 'fn '(_ a f g b)
-    (list 'if (list '= 'b 1)
-      (%xj-seq 10 (fn (_ i)
-                    (list 'do (list '%mem-set! 'a %SWAP (%xj-at 'f i))
-                              (%xj-set 'f i (%xj-at 'g i))
-                              (%xj-set 'g i (list '%mem-ref 'a %SWAP)))))
-      0)))
 
 ; --- build: compile, wire the ladder, and PROVE it against the reference ---
 ;
@@ -131,11 +48,12 @@
 ; toolchain error, or on DISAGREEMENT with the reference.
 (def x25519-jit-make
   (fn (_ ref frombytes tobytes)
-    (def %mul (compile-asm %xj-mul-expr))
-    (def %add (compile-asm %xj-add-expr))
-    (def %sub (compile-asm %xj-sub-expr))
-    (def %m121666 (compile-asm %xj-m121666-expr))
-    (def %cswap (compile-asm %xj-cswap-expr))
+    (def %ops (fe-jit-compile))
+    (def %mul (List ref 0 %ops))
+    (def %add (List ref 1 %ops))
+    (def %sub (List ref 2 %ops))
+    (def %m121666 (List ref 3 %ops))
+    (def %cswap (List ref 4 %ops))
     ; the build's garbage goes before the engine runs; a collect here has
     ; nothing of the caller's live (the maker is called once, to build)
     (Heap collect)
