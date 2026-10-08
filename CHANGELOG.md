@@ -45,6 +45,16 @@ measured breakeven: pure-x 3.8KB/s, the build 2.2s, the engine 470KB/s.
 
 [#936]: https://github.com/jonruttan/x-lang/pull/936
 
+**`Inflate`: DEFLATE and zlib streams in pure x** ([#937]).
+`(Inflate raw s [start len])` and `(Inflate zlib s [start len])` answer `(OUT N
+USED)`, USED the input the stream took, so a reader of streams laid end to end,
+as a git pack lays them, goes on from there; `(Inflate adler32 s n)` is the
+checksum alone.  The decoder is puff.c's: stored, fixed and dynamic blocks,
+codes read a bit at a time, ~7.6KB/s of output on arm64.  It is the reference
+a compiled engine will be checked against.
+
+[#937]: https://github.com/jonruttan/x-lang/pull/937
+
 ## [0.26.0] - 2026-10-06
 
 **The engine is x-engine-c v0.2.21** ([#930]). A NUL is an ordinary byte in
