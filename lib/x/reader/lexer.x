@@ -411,21 +411,36 @@
     ; list: a compiled state is not seen by the collector through the base.
 
     (method %state (self l form fvars . twin)
+      ; TWIN, when given, binds names differently in the interpreted twin
+      ; than FVARS does in the compiled form: the nested rule's stack is a
+      ; scratch string there and a list of cells here.
+      (def r (Lexer %realize form fvars (if (null? twin) fvars (List append (first twin) fvars))))
+      (if (rest r) (l compiled (+ 1 (l compiled))) ())
+      (l states (pair (first r) (l states)))
+      (first r))
+
+    ; FORM realized: (STATE . COMPILED?), the compiled state when the lane
+    ; is open and the compile succeeds, the interpreted twin bound by
+    ; TWIN-FVARS otherwise.
+    (method %realize (self form fvars twin-fvars)
       (def made
         (if (Lexer %jit?)
           (guard (_ ())
             (Lexer %compile form fvars))
           ()))
-      ; TWIN, when given, binds names differently in the interpreted twin
-      ; than FVARS does in the compiled form: the nested rule's stack is a
-      ; scratch string there and a list of cells here.
-      (def st
-        (if (null? made)
-          (eval (Lexer %subst form (if (null? twin) fvars (List append (first twin) fvars)))
-                (Lexer %env))
-          (do (l compiled (+ 1 (l compiled))) made)))
-      (l states (pair st (l states)))
-      st)
+      (if (null? made)
+        (pair (eval (Lexer %subst form twin-fvars) (Lexer %env)) #f)
+        (pair made #t)))
+
+    (method state (self (param form LIST "A state, as a (fn (me buffer score chr) ...) form in the assembler lane's dialect")
+                        (param fvars LIST "Alist of (SYMBOL . STATE): the states the form's free variables name"))
+      (doc "An analyser state for a type built by hand on a tokenizer base -- one the rules cannot express: typed instances, a live stream, a read that recurses. The form is compiled to native code when the assembler lane is open and the compile succeeds, and is its own interpreted twin otherwise, the free variables substituted, so one form serves either way. Answers (STATE . COMPILED?)."
+        (returns PAIR "The state and whether it was compiled")
+        (note "The caller holds every state it makes: a compiled state is not seen by the collector through the base, and a collect frees it under the type. A state is process state, like a base: make it again after an image load.")
+        (note "Only the lane's dialect: nested if, and, or, =, <, <=, >, >=, %seq, me for the self loop, the %buffer-* and %score-* doors, a free variable for another state; never match, a literal #f, or a call into x.")
+        (sample "(Lexer state '(fn (me buffer score chr) (if (= chr 97) me (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))) ())" "a run of a, accepted before the byte that ends it")
+        (sample "(Lexer state '(fn (me buffer score chr) (if (= chr 34) body ())) (list (pair 'body (first string-body))))" "an opening quote handing to the body state made before it"))
+      (Lexer %realize form fvars fvars))
 
     (%env ((op () e e)))
 

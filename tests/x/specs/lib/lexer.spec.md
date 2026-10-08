@@ -984,3 +984,42 @@ token carries: a string's own length stops at its first NUL.
 ```
 ---
     ((3 65 0) (193 16 32 5 1 2 3 4 5))
+
+## a state for a type built by hand
+
+A base whose types the rules cannot express -- typed instances, a read
+that recurses -- is still built by hand on the protocol; `(Lexer state form
+fvars)` realizes each of its analyser states from the same forms the rules
+use, compiled when the lane is open and the interpreted twin otherwise.
+
+### a hand-built word type reads through states the Lexer realized; a last space has no byte to accept on
+
+```x
+(do
+  (import x/reader/lexer)
+  (import x/type/base)
+  (def %lxs-rest (Lexer state '(fn (me buffer score chr) (if (and (>= chr 97) (<= chr 122)) me (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))) ()))
+  (def %lxs-first (Lexer state '(fn (me buffer score chr) (if (and (>= chr 97) (<= chr 122)) more ())) (list (pair 'more (first %lxs-rest)))))
+  (def %lxs-acc (Lexer state '(fn (me buffer score chr) (%seq (%buffer-unread buffer) (%score-set score 1 buffer))) ()))
+  (def %lxs-sp (Lexer state '(fn (me buffer score chr) (if (= chr 32) acc ())) (list (pair 'acc (first %lxs-acc)))))
+  (def %lxs-tok (prim-ref 'buf 'tok))
+  (def %lxs-b (Base raw-of (Base make-tok)))
+  (Base make-type %lxs-b "W" (list (pair 'analyse (first %lxs-first)) (pair 'read (fn (_ . args) (%lxs-tok (first args))))))
+  (Base make-type %lxs-b "SP" (list (pair 'analyse (first %lxs-sp)) (pair 'read (fn (_ . args) 'sp))))
+  (write ((prim-ref 'tok 'read-str) %lxs-b "ab cd "))
+  (newline))
+```
+---
+    ("ab" 'sp "cd")
+
+### a form outside the lane's dialect is still a state, the interpreted twin
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxs-s (Lexer state '(fn (me buffer score chr) (if (eq? chr 'never) me (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))) ()))
+  (write (list (rest %lxs-s) (not (null? (first %lxs-s)))))
+  (newline))
+```
+---
+    (#f #t)

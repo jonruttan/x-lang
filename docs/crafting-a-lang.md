@@ -155,8 +155,10 @@ the shape's steps read from its own bytes -- a machine instruction, a tagged
 field -- and `(l read-span s start len)` reads a span of bytes, NULs
 included, with nothing appended, since a record ends on its own last byte.
 `tests/x/specs/lib/lexer.spec.md` is the executable
-reference, and a rule the Lexer cannot express is still written by hand on
-the protocol above.
+reference, and a type the rules cannot express -- typed instances, a read
+that recurses, a live stream -- is still written by hand on the protocol
+above, each of its analyser states realized from the same kind of form
+through `(Lexer state form fvars)`, so it compiles all the same.
 
 ### Nesting is free: regions and blocks
 
