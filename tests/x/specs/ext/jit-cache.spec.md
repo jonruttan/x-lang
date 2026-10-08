@@ -461,6 +461,41 @@ with the entry it did note.
 ---
     (0 1 #t 0)
 
+### a group met again while its entries are held reads no file
+
+The same group run twice in one heap: the second run finds its entries still
+held and neither reads nor writes the group file, so a file deleted between
+the runs stays deleted.  With the held entries dropped, as in a fresh process,
+the group is read from its file again -- there is none -- and written anew.
+
+```x
+(do
+  (Sys setenv "X_ASM_CACHE_DIR" %grp-path)
+  (%grp-pcall (%grp-sym "mkdir") %grp-path 448)
+  (def %grp-d (list 'fn '(_ x) (list '+ 'x (+ 1 %grp-pid))))
+  (def %grp-again (fn (_) (%grp-door "spec-again" (fn (_) (compile-asm %grp-d)))))
+  (def %grp-apath ((%ac (lit %asm-cache-group-path)) "spec-again"))
+  (def %grp-there? (fn (_) (= 0 (%grp-pcall (%grp-sym "access") %grp-apath 0))))
+  (%grp-again)
+  (def %grp-made (%grp-there?))
+  (%grp-pcall (%grp-sym "unlink") %grp-apath)
+  (def %grp-f2 (%grp-again))
+  (def %grp-held-run (%grp-there?))
+  (eval '(set! %asm-cache-held ()) (module x/tool/asm-cache))
+  (%grp-again)
+  (def %grp-fresh-run (%grp-there?))
+  (def %grp-d-at (%asm-cache-path (%asm-cache-text %grp-d () #f)))
+  (%grp-pcall (%grp-sym "unlink") (Str append %grp-d-at ".bin"))
+  (%grp-pcall (%grp-sym "unlink") (Str append %grp-d-at ".asm"))
+  (%grp-pcall (%grp-sym "unlink") %grp-apath)
+  (def %grp-rmdir2 (%grp-pcall (%grp-sym "rmdir") %grp-path))
+  (Sys unsetenv "X_ASM_CACHE_DIR")
+  (write (list %grp-made (= (%grp-f2 2) (+ 3 %grp-pid)) %grp-held-run %grp-fresh-run %grp-rmdir2))
+  (newline))
+```
+---
+    (#t #t #f #t 0)
+
 ### a raise inside the thunk closes the group and reaches the caller
 
 ```x
