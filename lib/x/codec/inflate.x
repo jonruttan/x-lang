@@ -36,6 +36,17 @@
 (def %mem-copy (prim-ref (lit mem) (lit copy)))
 (def %str-byte-len (prim-ref (lit str) (lit byte-len)))
 
+; The comparisons and bit operations of the hot paths go through the int
+; doors: the generic ones dispatch through the tower and cost a hundred
+; objects or more a call, these none.  Every operand on those paths is an
+; int.  There is no int > or >=: a > b is written (%lt b a).
+(def %lt (prim-ref (lit int) (lit <)))
+(def %eq (prim-ref (lit int) (lit =)))
+(def %and (prim-ref (lit int) (lit &)))
+(def %or (prim-ref (lit int) (lit |)))
+(def %shl (prim-ref (lit int) (lit <<)))
+(def %shr (prim-ref (lit int) (lit >>)))
+
 ; A stream's state, in the slots of one vector (slot k holds field k): the
 ; input's address, its length and how much of it is read; the bits read
 ; ahead and how many; the output region, its address, its size and how much
@@ -56,43 +67,92 @@
 
 (def %at (fn (_ p off) (%int->ptr (%add (%ptr->int p) off))))
 
+; The paths below run once a bit, a symbol or a byte, so they are written
+; in primitives alone: def in a body, if, do and self-calls of top-level
+; functions.  A let, a named let, a when or an inner closure costs a frame
+; or a pair each time through, and the decoder spent most of its objects
+; on them (2026-10-08: a 136-byte loose git commit cost 2.1M objects).
+
+; Bytes read ahead into the bit buffer until it holds `need` bits.
+(def %fill!
+  (fn (self s need)
+    (def cnt (%oref s %BITCNT))
+    (if (%lt cnt need)
+      (do (def i (%oref s %INCNT))
+          (if (%eq i (%oref s %INLEN)) (%fail "the input ends inside the stream") ())
+          (%oset! s %INCNT (%add i 1))
+          (%oset! s %BITBUF (%or (%oref s %BITBUF) (%shl (%and (%pref (%oref s %IN) i 1) 255) cnt)))
+          (%oset! s %BITCNT (%add cnt 8))
+          (self s need))
+      ())))
+
 ; The next `need` bits, least significant first (3.1.1).
 (def %bits
   (fn (_ s need)
-    (let go ((val (%oref s %BITBUF)) (cnt (%oref s %BITCNT)))
-      (if (< cnt need)
-        (let ((i (%oref s %INCNT)))
-          (do (when (= i (%oref s %INLEN)) (%fail "the input ends inside the stream"))
-              (%oset! s %INCNT (%add i 1))
-              (go (| val (<< (& (%pref (%oref s %IN) i 1) 255) cnt)) (%add cnt 8))))
-        (do (%oset! s %BITBUF (>> val need))
-            (%oset! s %BITCNT (%sub cnt need))
-            (& val (%sub (<< 1 need) 1)))))))
+    (%fill! s need)
+    (def val (%oref s %BITBUF))
+    (%oset! s %BITBUF (%shr val need))
+    (%oset! s %BITCNT (%sub (%oref s %BITCNT) need))
+    (%and val (%sub (%shl 1 need) 1))))
 
-; Room for n more output bytes: the region doubles until they fit.
+; Bytes read ahead until the buffer holds `need` bits, or the input is
+; used up: a look at the bits to come, which the end of the input does
+; not refuse.  What is short reads as zeros; see %decode.
+(def %fill-upto!
+  (fn (self s need)
+    (def cnt (%oref s %BITCNT))
+    (if (%lt cnt need)
+      (do (def i (%oref s %INCNT))
+          (if (%eq i (%oref s %INLEN)) ()
+            (do (%oset! s %INCNT (%add i 1))
+                (%oset! s %BITBUF (%or (%oref s %BITBUF) (%shl (%and (%pref (%oref s %IN) i 1) 255) cnt)))
+                (%oset! s %BITCNT (%add cnt 8))
+                (self s need))))
+      ())))
+
+; The whole bytes a look read ahead given back to the input: the count of
+; input used steps back over them.  What stays in the buffer is the rest
+; of the byte in hand, and that is what the end of a block discards.
+(def %unread-bytes!
+  (fn (_ s)
+    (def back (%shr (%oref s %BITCNT) 3))
+    (if (%lt 0 back)
+      (do (%oset! s %INCNT (%sub (%oref s %INCNT) back))
+          (%oset! s %BITCNT (%sub (%oref s %BITCNT) (%shl back 3)))
+          (%oset! s %BITBUF (%and (%oref s %BITBUF) (%sub (%shl 1 (%oref s %BITCNT)) 1))))
+      ())))
+
+; The output region doubled from ncap until `need` bytes fit.
+(def %grow!
+  (fn (self s need ncap)
+    (if (%lt ncap need) (self s need (%shl ncap 1))
+      (do (def r (%make-str ncap))
+          (def cnt (%oref s %OUTCNT))
+          (if (%lt 0 cnt) (%mem-copy (%str->ptr r) (%oref s %OUTP) cnt) ())
+          (%oset! s %OUT r)
+          (%oset! s %OUTP (%str->ptr r))
+          (%oset! s %OUTCAP ncap)))))
+
+; Room for n more output bytes.
 (def %room!
   (fn (_ s n)
-    (let ((cnt (%oref s %OUTCNT)) (cap (%oref s %OUTCAP)))
-      (when (> (%add cnt n) cap)
-        (let ((ncap (let grow ((c (<< cap 1))) (if (< c (%add cnt n)) (grow (<< c 1)) c))))
-          (let ((r (%make-str ncap)))
-            (do (when (> cnt 0) (%mem-copy (%str->ptr r) (%oref s %OUTP) cnt))
-                (%oset! s %OUT r)
-                (%oset! s %OUTP (%str->ptr r))
-                (%oset! s %OUTCAP ncap))))))))
+    (def need (%add (%oref s %OUTCNT) n))
+    (def cap (%oref s %OUTCAP))
+    (if (%lt cap need) (%grow! s need (%shl cap 1)) ())))
 
 (def %put-byte!
   (fn (_ s b)
-    (do (%room! s 1)
-        (let ((cnt (%oref s %OUTCNT)))
-          (do (%pset! (%oref s %OUTP) cnt b 1)
-              (%oset! s %OUTCNT (%add cnt 1)))))))
+    (%room! s 1)
+    (def cnt (%oref s %OUTCNT))
+    (%pset! (%oref s %OUTP) cnt b 1)
+    (%oset! s %OUTCNT (%add cnt 1))))
 
 ; A stored block (3.2.4): to the byte boundary, LEN and its complement, then
 ; LEN bytes as they are.
 (def %stored
   (fn (_ s)
-    (do (%oset! s %BITBUF 0)
+    (do (%unread-bytes! s)
+        (%oset! s %BITBUF 0)
         (%oset! s %BITCNT 0)
         (let ((i (%oref s %INCNT)) (in (%oref s %IN)))
           (do (when (> (%add i 4) (%oref s %INLEN)) (%fail "the input ends inside a stored block"))
@@ -106,63 +166,173 @@
                     (%oset! s %INCNT (%add (%add i 4) len)))))))))
 
 ; A canonical Huffman code (3.2.2) from the code lengths of n symbols, read
-; from slot off+1 of lengths on: (COUNTS SYMBOLS LEFT), COUNTS the number of
-; codes of each length, SYMBOLS the symbols in code order, LEFT the codes
-; left unused -- negative when the lengths ask for more codes than exist.
+; from slot off+1 of lengths on: (COUNTS SYMBOLS LEFT TABLE), COUNTS the
+; number of codes of each length, SYMBOLS the symbols in code order, LEFT
+; the codes left unused -- negative when the lengths ask for more codes
+; than exist, and then no TABLE (below) follows.
+; COUNTS tallied: counts[len] the number of symbols from sym on of length len.
+(def %count-lengths!
+  (fn (self lengths off n sym counts)
+    (if (%lt sym n)
+      (do (def k (%add (%oref lengths (%add (%add off sym) 1)) 1))
+          (%oset! counts k (%add (%oref counts k) 1))
+          (self lengths off n (%add sym 1) counts))
+      ())))
+
+; The codes left unused after lengths 1..15 take theirs, from `left` at
+; length len: negative as soon as the lengths over-subscribe.
+(def %codes-left
+  (fn (self counts len left)
+    (if (%lt 15 len) left
+      (if (%lt left 0) left
+        (self counts (%add len 1) (%sub (%shl left 1) (%oref counts (%add len 1))))))))
+
 (def %construct
   (fn (_ lengths off n)
     (def counts (Vector make 16 0))
     (def symbols (Vector make n 0))
-    (def len-of (fn (_ sym) (%oref lengths (%add (%add off sym) 1))))
-    ((fn (self sym)
-       (when (< sym n)
-         (do (let ((k (%add (len-of sym) 1))) (%oset! counts k (%add (%oref counts k) 1)))
-             (self (%add sym 1)))))
-     0)
-    (def left
-      ((fn (self len left)
-         (if (or (> len 15) (< left 0)) left
-           (self (%add len 1) (%sub (<< left 1) (%oref counts (%add len 1))))))
-       1 1))
+    (%count-lengths! lengths off n 0 counts)
+    (def left (%codes-left counts 1 1))
     ; Over-subscribed: no table to build, and the offsets below would run
     ; past SYMBOLS.
     (if (< left 0) (list counts symbols left) (%fill-symbols lengths off n counts symbols left))))
 
-; SYMBOLS in code order: each length's codes from offs[len] on.
+; offs[len] from length len on: the index in SYMBOLS of the first code of
+; each length.
+(def %offsets!
+  (fn (self counts offs len)
+    (if (%lt len 15)
+      (do (%oset! offs (%add len 2) (%add (%oref offs (%add len 1)) (%oref counts (%add len 1))))
+          (self counts offs (%add len 1)))
+      ())))
+
+; Each symbol from sym on of a nonzero length placed at its length's offset.
+(def %place-symbols!
+  (fn (self lengths off n sym offs symbols)
+    (if (%lt sym n)
+      (do (def len (%oref lengths (%add (%add off sym) 1)))
+          (if (%eq len 0) ()
+            (do (def at (%oref offs (%add len 1)))
+                (%oset! symbols (%add at 1) sym)
+                (%oset! offs (%add len 1) (%add at 1))))
+          (self lengths off n (%add sym 1) offs symbols))
+      ())))
+
+; --- The lookup table ---
+;
+; A code's TABLE answers the next symbol from the next BITS bits of input
+; at once, where puff.c walks the code a bit at a time against the counts.
+; BITS is the code's longest length up to %TBITS.  Slot b+1 holds, for the
+; BITS bits b as they sit in the buffer (the code's first bit lowest), the
+; symbol and its code length as SYM<<4|LEN: 0 where no code begins so,
+; %WALK where a code longer than BITS does, which the walk then reads from
+; its first bit.  A code of LEN bits fills every slot whose low LEN bits
+; are its own, reversed.
+
+(def %TBITS 9)
+(def %WALK 15)
+
+; The 9-bit reversal, once: slot i+1 holds the bits of i in the other
+; order, each entry from the one below it.
+(def %rev9 (Vector make 512 0))
+((fn (self i)
+   (if (%lt i 512)
+     (do (%oset! %rev9 (%add i 1) (%or (%shr (%oref %rev9 (%add (%shr i 1) 1)) 1) (%shl (%and i 1) 8)))
+         (self (%add i 1)))
+     ()))
+ 1)
+
+; The low len bits of code (len up to 9), reversed.
+(def %reverse-bits
+  (fn (_ code len) (%shr (%oref %rev9 (%add code 1)) (%sub %TBITS len))))
+
+; Slots at, at+step, ... of table, up to size, set to entry.
+(def %fill-entries!
+  (fn (self table size at step entry)
+    (if (%lt at size)
+      (do (%oset! table (%add at 1) entry)
+          (self table size (%add at step) step entry))
+      ())))
+
+; The `count` codes of length len from `code` on, their symbols from slot
+; index+1 of symbols on, entered in a table of bits bits.
+(def %fill-codes!
+  (fn (self table bits symbols len code index count)
+    (if (%lt 0 count)
+      (do (if (%lt bits len)
+            (%fill-entries! table (%shl 1 bits) (%reverse-bits (%shr code (%sub len bits)) bits) (%shl 1 bits) %WALK)
+            (%fill-entries! table (%shl 1 bits) (%reverse-bits code len) (%shl 1 len)
+              (%or (%shl (%oref symbols (%add index 1)) 4) len)))
+          (self table bits symbols len (%add code 1) (%add index 1) (%sub count 1)))
+      ())))
+
+; Every length's codes entered, from length len, whose first code is
+; `code` and whose first symbol sits at index: the canonical code (3.2.2),
+; each length's first code the one past the length before's last, doubled.
+(def %fill-table!
+  (fn (self table bits counts symbols len code index)
+    (if (%lt 15 len) ()
+      (do (def count (%oref counts (%add len 1)))
+          (%fill-codes! table bits symbols len code index count)
+          (self table bits counts symbols (%add len 1) (%shl (%add code count) 1) (%add index count))))))
+
+; The longest length up to %TBITS that counts has a code of, from len down.
+(def %table-bits
+  (fn (self counts len)
+    (if (%eq len 0) 0
+      (if (%lt 0 (%oref counts (%add len 1))) len (self counts (%sub len 1))))))
+
+; SYMBOLS in code order: each length's codes from offs[len] on; then the
+; table over both.
 (def %fill-symbols
   (fn (_ lengths off n counts symbols left)
-    (def len-of (fn (_ sym) (%oref lengths (%add (%add off sym) 1))))
-    ; offs[len], the index in SYMBOLS of the first code of that length
     (def offs (Vector make 16 0))
-    ((fn (self len)
-       (when (< len 15)
-         (do (%oset! offs (%add len 2) (%add (%oref offs (%add len 1)) (%oref counts (%add len 1))))
-             (self (%add len 1)))))
-     1)
-    ((fn (self sym)
-       (when (< sym n)
-         (do (let ((len (len-of sym)))
-               (unless (= len 0)
-                 (let ((at (%oref offs (%add len 1))))
-                   (do (%oset! symbols (%add at 1) sym)
-                       (%oset! offs (%add len 1) (%add at 1))))))
-             (self (%add sym 1)))))
-     0)
-    (list counts symbols (if (= (%oref counts 1) n) 0 left))))
+    (%offsets! counts offs 1)
+    (%place-symbols! lengths off n 0 offs symbols)
+    (def bits (%table-bits counts %TBITS))
+    (def table (Vector make (%shl 1 bits) 0))
+    (%fill-table! table bits counts symbols 1 0 0)
+    (list counts symbols (if (= (%oref counts 1) n) 0 left) table (%sub (%shl 1 bits) 1))))
 
-; The next symbol in code h, a bit at a time: a code of length len is one
-; of the counts[len] codes from fst on.
+; The TABLE of a code h, (COUNTS SYMBOLS LEFT TABLE MASK), and the MASK
+; that picks its slot from the bits in hand.
+(def %table (fn (_ h) (first (rest (rest (rest h))))))
+(def %table-mask (fn (_ h) (first (rest (rest (rest (rest h)))))))
+
+; The symbol whose code begins with `code`, read on from length len: a code
+; of length len is one of the counts[len] codes from fst on.
+(def %decode-from
+  (fn (self s counts symbols len code fst index)
+    (if (%lt 15 len) (%fail "a code no table holds")
+      (do (def c (%or code (%bits s 1)))
+          (def count (%oref counts (%add len 1)))
+          (if (%lt (%sub c count) fst)
+            (%oref symbols (%add (%add index (%sub c fst)) 1))
+            (self s counts symbols (%add len 1) (%shl c 1) (%shl (%add fst count) 1) (%add index count)))))))
+
+; The next symbol in code h through its table: the next %TBITS bits looked
+; at, not yet read, name the entry; the symbol's own bits are then read.
+; A code longer than the table is walked from its first bit, which is
+; still unread.  Short of the stream's end the look pads with zeros, and
+; the entry those pick is right or refused: a code of LEN bits that the
+; bits in hand begin is the one code they begin, whatever follows; one
+; longer than the bits in hand ends inside the stream.
+(def %decode-with
+  (fn (_ s h table mask)
+    (%fill-upto! s %TBITS)
+    (def e (%oref table (%add (%and (%oref s %BITBUF) mask) 1)))
+    (def len (%and e 15))
+    (match
+      ((%eq len 0) (%fail "a code no table holds"))
+      ((%eq len %WALK) (%decode-from s (first h) (first (rest h)) 1 0 0 0))
+      ((%lt (%oref s %BITCNT) len) (%fail "the input ends inside the stream"))
+      (#t (do (%oset! s %BITBUF (%shr (%oref s %BITBUF) len))
+              (%oset! s %BITCNT (%sub (%oref s %BITCNT) len))
+              (%shr e 4))))))
+
+; The next symbol in code h.
 (def %decode
-  (fn (_ s h)
-    (def counts (first h))
-    (def symbols (first (rest h)))
-    ((fn (self len code fst index)
-       (if (> len 15) (%fail "a code no table holds")
-         (let ((c (| code (%bits s 1))) (count (%oref counts (%add len 1))))
-           (if (< (%sub c count) fst)
-             (%oref symbols (%add (%add index (%sub c fst)) 1))
-             (self (%add len 1) (<< c 1) (<< (%add fst count) 1) (%add index count))))))
-     1 0 0 0)))
+  (fn (_ s h) (%decode-with s h (%table h) (%table-mask h))))
 
 ; Base lengths and distances, and their extra bits (3.2.5).
 (def %lbase (Vector from-list (list 3 4 5 6 7 8 9 10 11 13 15 17 19 23 27 31 35 43 51 59 67 83 99 115 131 163 195 227 258)))
@@ -172,50 +342,67 @@
 
 ; Copy len bytes from dist back, a byte at a time: the two may overlap,
 ; and a run repeats what it has just written.
+(def %copy-bytes!
+  (fn (self p at dist k len)
+    (if (%lt k len)
+      (do (%pset! p (%add at k) (%and (%pref p (%sub (%add at k) dist) 1) 255) 1)
+          (self p at dist (%add k 1) len))
+      ())))
+
 (def %copy!
   (fn (_ s dist len)
-    (do (%room! s len)
-        (let ((p (%oref s %OUTP)) (cnt (%oref s %OUTCNT)))
-          (do ((fn (self k)
-                 (when (< k len)
-                   (do (%pset! p (%add cnt k) (& (%pref p (%sub (%add cnt k) dist) 1) 255) 1)
-                       (self (%add k 1)))))
-               0)
-              (%oset! s %OUTCNT (%add cnt len)))))))
+    (%room! s len)
+    (def cnt (%oref s %OUTCNT))
+    (%copy-bytes! (%oref s %OUTP) cnt dist 0 len)
+    (%oset! s %OUTCNT (%add cnt len))))
+
+; A length/distance pair from length symbol sym (257..285): the copy done.
+(def %copy-coded!
+  (fn (_ s sym distcode)
+    (def k (%add (%sub sym 257) 1))
+    (def len (%add (%oref %lbase k) (%bits s (%oref %lext k))))
+    (def dsym (%decode s distcode))
+    (if (%lt 29 dsym) (%fail "a distance code out of range") ())
+    (def dist (%add (%oref %dbase (%add dsym 1)) (%bits s (%oref %dext (%add dsym 1)))))
+    (if (%lt (%oref s %OUTCNT) dist) (%fail "a distance too far back") ())
+    (%copy! s dist len)))
+
+; The codes loop proper, the literal/length table in hand.
+(def %codes-loop
+  (fn (self s lencode distcode ltable lmask)
+    (def sym (%decode-with s lencode ltable lmask))
+    (match
+      ((%lt sym 256) (do (%put-byte! s sym) (self s lencode distcode ltable lmask)))
+      ((%eq sym 256) ())
+      ((%lt 285 sym) (%fail "a length code out of range"))
+      (#t (do (%copy-coded! s sym distcode) (self s lencode distcode ltable lmask))))))
 
 ; A block's literals, lengths and distances, to its end code (256).
 (def %codes-x
   (fn (_ s lencode distcode)
-    ((fn (self)
-       (let ((sym (%decode s lencode)))
-         (match
-           ((< sym 256) (do (%put-byte! s sym) (self)))
-           ((= sym 256) ())
-           ((> sym 285) (%fail "a length code out of range"))
-           (#t
-             (let ((k (%add (%sub sym 257) 1)))
-               (let ((len (%add (%oref %lbase k) (%bits s (%oref %lext k))))
-                     (dsym (%decode s distcode)))
-                 (do (when (> dsym 29) (%fail "a distance code out of range"))
-                     (let ((dist (%add (%oref %dbase (%add dsym 1)) (%bits s (%oref %dext (%add dsym 1))))))
-                       (do (when (> dist (%oref s %OUTCNT)) (%fail "a distance too far back"))
-                           (%copy! s dist len)
-                           (self)))))))))))))
+    (%codes-loop s lencode distcode (%table lencode) (%table-mask lencode))))
 
 ; The fixed codes (3.2.6), made once, when first wanted.
 (def %fixed-codes ())
+
+; The literal/length code lengths from sym on: 8 to 143, 9 to 255, 7 to
+; 279, 8 to 287.
+(def %fixed-lengths!
+  (fn (self lengths sym)
+    (if (%lt sym 288)
+      (do (%oset! lengths (%add sym 1)
+            (if (%lt sym 144) 8 (if (%lt sym 256) 9 (if (%lt sym 280) 7 8))))
+          (self lengths (%add sym 1)))
+      ())))
+
 (def %fixed
   (fn (_ s)
-    (do (when (null? %fixed-codes)
-          (let ((lengths (Vector make 288 0)) (dists (Vector make 30 5)))
-            (do ((fn (self sym)
-                   (when (< sym 288)
-                     (do (%oset! lengths (%add sym 1)
-                           (match ((< sym 144) 8) ((< sym 256) 9) ((< sym 280) 7) (#t 8)))
-                         (self (%add sym 1)))))
-                 0)
-                (set! %fixed-codes (pair (%construct lengths 0 288) (%construct dists 0 30))))))
-        ((%oref s %CODES) s (first %fixed-codes) (rest %fixed-codes)))))
+    (if (null? %fixed-codes)
+      (do (def lengths (Vector make 288 0))
+          (%fixed-lengths! lengths 0)
+          (set! %fixed-codes (pair (%construct lengths 0 288) (%construct (Vector make 30 5) 0 30))))
+      ())
+    ((%oref s %CODES) s (first %fixed-codes) (rest %fixed-codes))))
 
 ; The order the code-length code's lengths come in (3.2.7).
 (def %order (list 16 17 18 0 8 7 9 6 10 5 11 4 12 3 13 2 14 1 15))
@@ -224,6 +411,36 @@
 ; a single symbol (a distance code of one length, say).
 (def %usable?
   (fn (_ h n) (or (= (first (rest (rest h))) 0) (= (%sub n (%oref (first h) 1)) 1))))
+
+; Slots index+1 .. index+times of lengths set to len.
+(def %repeat!
+  (fn (self lengths index len k times)
+    (if (%lt k times)
+      (do (%oset! lengths (%add (%add index k) 1) len)
+          (self lengths index len (%add k 1) times))
+      ())))
+
+; The code lengths of a dynamic block's two codes, read from `index` to
+; `total` through the code-length code: a length as itself (0..15), or a
+; repeat of the one before (16), or a run of zeros (17, 18).
+(def %read-lengths!
+  (fn (self s lencode lengths index total)
+    (if (%lt index total)
+      (do (def sym (%decode s lencode))
+          (if (%lt sym 16)
+            (do (%oset! lengths (%add index 1) sym)
+                (self s lencode lengths (%add index 1) total))
+            (do (def len (if (%eq sym 16)
+                           (if (%eq index 0) (%fail "a repeat with nothing before it")
+                             (%oref lengths index))
+                           0))
+                (def times (match ((%eq sym 16) (%add 3 (%bits s 2)))
+                                  ((%eq sym 17) (%add 3 (%bits s 3)))
+                                  (#t (%add 11 (%bits s 7)))))
+                (if (%lt total (%add index times)) (%fail "lengths past the code's end") ())
+                (%repeat! lengths index len 0 times)
+                (self s lencode lengths (%add index times) total))))
+      ())))
 
 ; A dynamic block (3.2.7): its codes first, coded themselves.
 (def %dynamic
@@ -240,26 +457,7 @@
      0 %order)
     (def lencode (%construct lengths 0 19))
     (unless (= (first (rest (rest lencode))) 0) (%fail "an incomplete code-length code"))
-    (def total (%add nlen ndist))
-    ((fn (self index)
-       (when (< index total)
-         (let ((sym (%decode s lencode)))
-           (if (< sym 16)
-             (do (%oset! lengths (%add index 1) sym) (self (%add index 1)))
-             (let ((len (if (= sym 16)
-                          (if (= index 0) (%fail "a repeat with nothing before it")
-                            (%oref lengths index))
-                          0))
-                   (times (match ((= sym 16) (%add 3 (%bits s 2)))
-                                 ((= sym 17) (%add 3 (%bits s 3)))
-                                 (#t (%add 11 (%bits s 7))))))
-               (do (when (> (%add index times) total) (%fail "lengths past the code's end"))
-                   ((fn (fill k)
-                      (when (< k times)
-                        (do (%oset! lengths (%add (%add index k) 1) len) (fill (%add k 1)))))
-                    0)
-                   (self (%add index times))))))))
-     0)
+    (%read-lengths! s lencode lengths 0 (%add nlen ndist))
     (when (= (%oref lengths 257) 0) (%fail "no end-of-block code"))
     (def lcode (%construct lengths 0 nlen))
     (unless (and (>= (first (rest (rest lcode))) 0) (%usable? lcode nlen))
@@ -290,19 +488,21 @@
                ((= type 2) (%dynamic s))
                (#t (%fail "a block of type 3")))
              (when (= last 0) (self))))))
+    (%unread-bytes! s)
     (list (%oref s %OUT) (%oref s %OUTCNT) (%oref s %INCNT))))
 
 ; Adler-32 (RFC 1950 8) of n bytes at p: each sum stays under 65521 by one
 ; subtraction a byte, since neither can pass twice that.
+(def %adler-sum
+  (fn (self p n i a b)
+    (if (%eq i n) (%or (%shl b 16) a)
+      (do (def a1 (%add a (%and (%pref p i 1) 255)))
+          (def a2 (if (%lt a1 65521) a1 (%sub a1 65521)))
+          (def b1 (%add b a2))
+          (self p n (%add i 1) a2 (if (%lt b1 65521) b1 (%sub b1 65521)))))))
+
 (def %adler32-x
-  (fn (_ p n)
-    ((fn (self i a b)
-       (if (= i n) (| (<< b 16) a)
-         (let ((a1 (%add a (& (%pref p i 1) 255))))
-           (let ((a2 (if (>= a1 65521) (%sub a1 65521) a1)))
-             (let ((b1 (%add b a2)))
-               (self (%add i 1) a2 (if (>= b1 65521) (%sub b1 65521) b1)))))))
-     0 1 0)))
+  (fn (_ p n) (%adler-sum p n 0 1 0)))
 
 ; --- The compiled engine (JIT), adopted only when it proves out ------
 ;
