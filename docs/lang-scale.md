@@ -5,43 +5,40 @@ what has to be true for there to be twenty of them, and it exists because the
 answers are different: nothing in the contract is wrong at six bundles, and
 three things in it are O(N) by hand.
 
-> **Status: Ruling 2 is shipped in two bundles; the rest is proposal.** The
-> measurements are real and reproducible; the unshipped rulings are arguments.
-> Each section says where it stands.
+> **Status.** Rulings 1, 2 and 5 are built: the lang kit under
+> `tools/lang-kit/`, the release-refs gate in four bundles (x-coreutils,
+> x-logo, x-r5rs, x-r7rs), and `requires-lang`. Rulings 3 and 4, the
+> pre-release bundle run and the pins in the registry, are not, and are still
+> asked for.
 
-## The problem, measured
+## The problem
 
-Six langs are published — `x-ash`, `x-krn`, `x-python`, `x-r5rs`, `x-r7rs`,
-`x-sweet`. The cost of the seventh is not in the language. It is in everything
-around it:
+Six langs were published when this was written. The cost of the seventh is
+not in the language. It is in everything around it:
 
-**The scaffolding is a copy.** `tools/bundle.sh` is 103 lines in all six
-bundles and differs between any two of them by exactly **12 lines — every one
-of them the lang's name or its release URL**. `tests/spec-gate.sh` is 100 lines
-in the three that have it and differs by **two comment lines**. `ci.yml`,
-`release.yml`, `Makefile` and `tests/spec-runner.sh` are the same story at
-61–148 lines each.
+**The scaffolding is a copy.** `tools/bundle.sh`, `tests/spec-gate.sh`,
+`ci.yml`, `release.yml`, the `Makefile` and `tests/spec-runner.sh` are the
+same files in every bundle, differing by the lang's name and its release
+URL, and the hashes already show drift. Adding a lang means copying them.
+Fixing a bug in one means a pull request per bundle, and the bug stays fixed
+only in the ones that got it.
 
-That is 450–550 lines per bundle, ~90% of it identical, and the hashes
-already show drift. Adding a lang means copying it. Fixing a bug in it means
-six pull requests, and the bug stays fixed only in the ones that got the PR.
-
-**One fact is written in eighteen places.** `v0.7.0` appears in about three
-files per bundle — `lang.xon`, `README.md`, `.github/workflows/ci.yml`. A
-platform release is therefore 18 hand edits across 6 repositories today and 60
-across 20 tomorrow. This is the cost that is already being felt.
+**One fact is written in many places.** The platform release a bundle
+requires appears in `lang.xon`, `README.md` and `.github/workflows/ci.yml`.
+A platform release is a hand edit in each of them, in every bundle, and the
+count grows with the catalogue.
 
 **The cross-repo gate runs every suite in sequence.** `check-langs` is the
-right idea and it rides gates, not gates-fast, but `tools/contract/langs.x` documents
-what running six suites back to back does to the measurement: one unchanged
-x-r7rs tree reported 49, 58 and 247 failures under that load, with batches
-dying mid-run. The gate that exists to detect regression is at the mercy of the
-machine it runs on, and the effect grows with N.
+right idea and it rides gates, not gates-fast, but `tools/contract/langs.x`
+records what running the suites back to back does to the count: one
+unchanged tree reported different failure counts on successive runs under
+that load, with batches dying mid-run. The gate that exists to detect
+regression is at the mercy of the machine it runs on, and the effect grows
+with N.
 
-**Half the bundles cannot report debt.** `x-ash`, `x-r5rs` and `x-r7rs` carry
-`tests/contract/known-failures.txt`; `x-krn`, `x-python` and `x-sweet` do not.
-Their debt can grow silently, which is the condition the ratchet was built to
-end.
+**Not every bundle can report debt.** A bundle without
+`tests/contract/known-failures.txt` lets its debt grow silently, which is
+the condition the ratchet was built to end.
 
 ## What already scales
 
@@ -50,16 +47,16 @@ replace it:
 
 | | catches | cost |
 |---|---|---|
-| `check-seam` | a rename in the platform breaking every lang | ~8s, gates-fast |
+| `check-seam` | a rename in the platform breaking every lang | gates-fast |
 | `check-langs` | a behaviour change the platform cannot see | six suites, gates |
 | per-bundle CI | the bundle's own correctness, on a release matrix | per bundle |
 | `requires-release` | running against an untested platform | a string compare |
 | `requires-lang` | a lang's dependency on another lang | a string compare |
 
 Four of the five ways the last generation rotted are closed by these. The
-measurement in `langs.x` shows the fifth being caught in the act: six bundles
-carried 175 failures between them with x-lang green at 2590/0, and pinning
-x-engine-c v0.1.3 took that to 69 without a line changing in any bundle.
+record in `langs.x` shows the fifth being caught in the act: the bundles
+carried failures between them while x-lang was green, and pinning a newer
+engine removed most of them without a line changing in any bundle.
 
 ## Ruling 1: the scaffolding is a pinned artifact, not a copy
 
@@ -94,51 +91,28 @@ it.
 The enforcement already exists in another form: `check-path-literals` asserts
 that a path is not nailed into a file that has no business knowing it. The same
 rule applied to version literals — no release string outside the manifest —
-turns a platform release from 18 edits into one line per bundle, which is small
+turns a platform release into one line per bundle, which is small
 enough for a bot to open as a pull request and a human to merge without
 reading twice.
 
 ### What shipping Ruling 2 taught
 
-The split turned out to be sharper than "derive it": there are two cases, and
-they want different answers.
+The split is sharper than "derive it": there are two cases, and they want
+different answers.
 
 **Derive, where something can read the manifest.** A `prepare` job reads
-`(requires-release …)` and emits the CI matrix; in x-r7rs it also supplies the
-`x-r5rs` checkout ref. Both bundles' release workflows do the same. This does
-not guard a copy, it *removes* one — and with it the drift checks that existed
-to catch the copies disagreeing.
+`(requires-release …)` and emits the CI matrix; in x-r7rs it also supplies
+the `x-r5rs` checkout ref. The release workflows do the same. This does not
+guard a copy, it removes one, and with it the drift checks that existed to
+catch the copies disagreeing.
 
 **Gate, where nothing can.** A README is prose. `tools/check/release-refs.sh`
-asserts that a version preceded by the name it belongs to is the declared one.
-
-Three bugs, and where they came from is the useful part:
-
-- Matching any version on a line naming x-lang fired on a line carrying
-  `x-lang#527` and an **engine** version. An issue reference is not a release.
-- Two versions on one line broke the regex outright: POSIX has no lazy
-  quantifier, so a greedy window steps over the near version to pair a name
-  with the far one. This is what forced the scan into awk.
-- **CI caught the third on the gate's own header.** A flat look-back still
-  spans a neighbouring pair. The README saying the same phrase *passed*,
-  because its markdown padding pushed the name out of the window — it was
-  right by luck. A name owns a version only when none stands between them.
-
-**A workflow may not pin a version literally**, which covers what the scan
-structurally cannot: `ref:` sits on its own line, so no per-line proximity test
-can pair it with its name. Forbidding it was smaller than teaching the
-scan about YAML.
-
-**The cost is now visible.** The same file exists twice, and the second copy
-needed all three fixes backported the day it was written. That is Ruling 1's
-argument in miniature, which is why the other four bundles are deliberately
-still waiting.
-
-**Found in passing:** these workflows fire `push` only on `main`, so a
-feature-branch commit is tested only if the `pull_request` event lands. One
-did not, and the PR showed passing checks belonging to an earlier commit.
-Green against the wrong revision is its own small version of the failure this
-document is about.
+asserts that a version preceded by the name it belongs to is the declared
+one. Three rules keep the scan honest: an issue reference such as
+`x-lang#527` is not a release; a name owns a version only when no other name
+or version stands between them, which is why the scan is in awk rather than
+a regex; and a workflow may not pin a version literally, because `ref:` sits
+on its own line, where no proximity test can pair it with its name.
 
 ## Ruling 3: arrange the checks by cadence, not by repository
 
@@ -147,7 +121,7 @@ where is a question about **when the answer can still change the outcome**:
 
 | cadence | where | what |
 |---|---|---|
-| per commit | x-lang | `check-seam` — the rename, in seconds |
+| per commit | x-lang | `check-seam` — the rename |
 | per commit | x-lang | a load smoke per lang: does it boot and name itself? |
 | **pre-release** | x-lang | the full bundle matrix, before the tag exists |
 | per commit | bundle | its own suite and its ratchet |
@@ -159,8 +133,8 @@ downstreams — which is the same ruling the release workflows already follow
 when they run a suite before rolling a tarball.
 
 The load smoke is the cheap half of `check-langs`: a lang that no longer loads
-is the catastrophic case, it is detectable in a second per bundle, and it does
-not need a quiet machine to be true.
+is the catastrophic case, it is cheap to detect, and it does not need a
+quiet machine to be true.
 
 ## Ruling 4: the registry carries pins, not just directories
 
@@ -203,8 +177,8 @@ free.
 
 **A quiet machine is still a requirement for a trustworthy count.** Moving the
 sweep so it no longer runs on every commit reduces how often that matters; it does not make
-the measurement robust. The 49/58/247 spread stands as a warning about any
-number produced under load.
+the count robust. A count produced under load says more about the load than
+about the bundle.
 
 **Nothing here retires a bundle.** A catalogue that only grows eventually
 contains langs nobody runs, and the honest end state for one of those is a

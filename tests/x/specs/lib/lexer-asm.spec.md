@@ -34,3 +34,16 @@ compiler does.
 ```
 ---
     ((('id "a") ('str "\"x\\ny\"") ('id "b")) (('id "a") ('str "\"x\\ny\"") ('id "b")))
+
+## a hand-built state compiles
+
+### Lexer state answers a compiled state when the lane is open
+
+```x
+(do
+  (import x/reader/lexer)
+  (write (rest (Lexer state '(fn (me buffer score chr) (if (= chr 97) me (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))) ())))
+  (newline))
+```
+---
+    #t
