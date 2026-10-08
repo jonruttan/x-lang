@@ -718,6 +718,10 @@
 ; the entries the file held, the file is written again from what the heap
 ; holds now.
 (def %asm-cache-group-magic 826753368)   ; "XAG1" little-endian
+; After the entries a group file may carry the caller's EXTRA: this magic, its
+; length, and its text with a NUL.  A loader that predates it stops after the
+; count of entries and never reads it.
+(def %asm-cache-group-extra-magic 1481130328)   ; "XAGX" little-endian
 
 ; () when no group is open, else (texts) -- the key texts noted, newest first.
 (def %asm-cache-group-open (pair () ()))
@@ -741,49 +745,67 @@
 ; Hold every entry of the group file at PATH that is not held already.
 ; Answers the key texts the file carried, or () when there is no usable file.
 (def %asm-cache-group-load!
+  (fn (_ path) (first (%asm-cache-group-read! path))))
+
+; The same, answering (TEXTS . EXTRA): the key texts, newest first, and the
+; extra the file carried after its entries, or () for none.  A file cut short
+; or damaged among its entries carries no extra.
+(def %asm-cache-group-read!
   (fn (_ path)
-    (guard (_ ())
+    (guard (_ (pair () ()))
       (do
         (def sl (%asm-cache-slurp path))
-        (if (null? sl) ()
+        (if (null? sl) (pair () ())
           (do
             (def buf (first sl))
             (def got (rest sl))
             (def base (%asm-cache-ptr->int buf))
-            (def texts
-              (if (not (= (%asm-cache-ptr-ref buf 0 4) %asm-cache-group-magic)) ()
+            ; (texts . at) when every entry was read, AT just past the last;
+            ; (texts) when the walk stopped short
+            (def walked
+              (if (not (%asm-cache-i= (%asm-cache-ptr-ref buf 0 4) %asm-cache-group-magic)) (pair () ())
                 ((fn (self i n at acc)
-                   (if (>= i n) acc
+                   (if (not (%asm-cache-i< i n)) (pair acc at)
                      (do
-                       (def eb (%asm-cache-int->ptr (+ base at)))
+                       (def eb (%asm-cache-int->ptr (%asm-cache-i+ base at)))
                        (def room (- got at))
-                       (if (if (< room %asm-cache-head-bytes) #t
+                       (if (if (%asm-cache-i< room %asm-cache-head-bytes) #t
                              (not (%asm-cache-header-sane? eb room)))
-                         acc
+                         (pair acc ())
                          (do
                            (def size (%asm-cache-ptr-ref eb 4 4))
                            (def pr (%asm-cache-parse eb (%asm-cache-ptr-ref eb 8 4)
                                      (%asm-cache-ptr-ref eb 12 4) room))
-                           (if (null? pr) acc
+                           (if (null? pr) (pair acc ())
                              (do
                                (def text (first (rest pr)))
                                (def end (rest (rest pr)))
-                               (if (> (+ end size) room) acc
+                               (if (%asm-cache-i< room (%asm-cache-i+ end size)) (pair acc ())
                                  (do
                                    (when (null? (%asm-cache-held-find text %asm-cache-held))
                                      (%asm-cache-hold-recs! text size (first pr)
-                                       (%asm-cache-int->ptr (+ base (+ at end)))))
-                                   (self (+ i 1) n (+ at (+ end size))
+                                       (%asm-cache-int->ptr (%asm-cache-i+ base (%asm-cache-i+ at end)))))
+                                   (self (%asm-cache-i+ i 1) n (%asm-cache-i+ at (%asm-cache-i+ end size))
                                          (pair text acc)))))))))))
                   0 (%asm-cache-ptr-ref buf 4 4) 8 ())))
+            (def at (rest walked))
+            (def extra
+              (if (null? at) ()
+                (if (%asm-cache-i< (- got at) 9) ()
+                  (if (%asm-cache-i= (%asm-cache-ptr-ref (%asm-cache-int->ptr (%asm-cache-i+ base at)) 0 4)
+                        %asm-cache-group-extra-magic)
+                    (%asm-cache-ptr->str (%asm-cache-int->ptr (%asm-cache-i+ base (%asm-cache-i+ at 8))))
+                    ()))))
             (%asm-cache-pcall %asm-libc-free buf)
-            texts))))))
+            (pair (first walked) extra)))))))
 
 ; Write the held entries for TEXTS (oldest first) to PATH as a group file,
-; through a pid-unique temp and a rename.  A text with no held entry is left
-; out; quiet on any failure, as a store is.
+; through a pid-unique temp and a rename, and EXTRA after them when it is a
+; string.  A text with no held entry is left out; quiet on any failure, as a
+; store is.
 (def %asm-cache-group-store!
-  (fn (_ path texts)
+  (fn (_ path texts . more)
+    (def extra (if (null? more) () (first more)))
     (guard (_ ())
       (do
         (def es
@@ -816,27 +838,38 @@
                            (self (rest l))
                            #f))))
                     (if ok0 es ())))
+                (def ok-extra
+                  (if (if ok (str? extra) #f)
+                    (do
+                      (def xb (%asm-cache-int->ptr (%asm-cache-pcall %asm-libc-malloc 8)))
+                      (%asm-cache-ptr-set! xb 0 %asm-cache-group-extra-magic 4)
+                      (%asm-cache-ptr-set! xb 4 (%asm-cache-byte-len extra) 4)
+                      (def okx (%asm-cache-put fd xb 8))
+                      (%asm-cache-pcall %asm-libc-free xb)
+                      (if okx (%asm-cache-put-str fd extra) #f))
+                    #t))
                 (%asm-cache-pcall %asm-libc-close fd)
-                (if (if ok0 ok #f)
+                (if (if ok0 (if ok ok-extra #f) #f)
                   (%asm-cache-pcall %asm-libc-rename tmp path)
                   (%asm-cache-pcall %asm-libc-unlink tmp))))))))))
 
-; Each group this heap has loaded or written, (key texts . held) with the texts
-; newest first, as a load answers them, and HELD the list of held entries just
-; after.  A group met again -- the same rules remade, or a process booted from
-; a state image the group was made in -- needs no file while its entries are
-; still held: entries are only ever consed onto the front of the held list, so
-; they are while that list still ends in HELD.  A held list set back to nil, as
-; a spec does to stand for a fresh process, ends in nothing of the kind, and
-; the file is read as before.
+; Each group this heap has loaded or written, (key texts held extra) with the
+; texts newest first, as a load answers them, HELD the list of held entries
+; just after, and EXTRA the group's extra or ().  A group met again -- the same
+; rules remade, or a process booted from a state image the group was made in --
+; needs no file while its entries are still held: entries are only ever consed
+; onto the front of the held list, so they are while that list still ends in
+; HELD.  A held list set back to nil, as a spec does to stand for a fresh
+; process, ends in nothing of the kind, and the file is read as before.
 (def %asm-cache-groups ())
 
+; (TEXTS . EXTRA) for KEY when this heap holds its entries, else ().
 (def %asm-cache-group-known
   (fn (self key l)
     (if (null? l) ()
       (if (str=? key (first (first l)))
-        (if (%asm-cache-tail? %asm-cache-held (rest (rest (first l))))
-          (first (rest (first l)))
+        (if (%asm-cache-tail? %asm-cache-held (first (rest (rest (first l)))))
+          (pair (first (rest (first l))) (first (rest (rest (rest (first l))))))
           ())
         (self key (rest l))))))
 
@@ -846,9 +879,9 @@
     (if (eq? l tail) #t (if (null? l) #f (self (rest l) tail)))))
 
 (def %asm-cache-group-remember!
-  (fn (_ key texts)
+  (fn (_ key texts extra)
     (set! %asm-cache-groups
-      (pair (pair key (pair texts %asm-cache-held))
+      (pair (list key texts %asm-cache-held extra)
         ((fn (self l)
            (if (null? l) ()
              (if (str=? key (first (first l))) (rest l)
@@ -872,6 +905,12 @@
 ; Groups do not nest: a group opened inside another runs its thunk in the
 ; outer one.  An engine whose heap cannot hold an entry has no groups either:
 ; the thunk runs and its compiles take the per-entry path.
+;
+; The open group is (NOTED HAD EXTRA OUT): the texts noted so far, newest
+; first; the texts the group already held, oldest first, the order they were
+; compiled in; the extra it carried; and a cell for an extra the thunk sets.
+; The file is written again when the texts noted differ from those held, or
+; the thunk set an extra other than the one carried.
 (def asm-cache-group
   (fn (_ key thunk)
     (if (if (null? %asm-cache-code-type) #t
@@ -882,19 +921,55 @@
         ; A group this heap already holds is not read again; its file's path
         ; -- a hash of the key -- is wanted only to read or write the file.
         (def known (%asm-cache-group-known key %asm-cache-groups))
-        (def had
-          (if (null? known) (%asm-cache-group-load! (%asm-cache-group-path key)) known))
-        (def g (pair () ()))
+        (def got (if (null? known) (%asm-cache-group-read! (%asm-cache-group-path key)) known))
+        (def had (first got))
+        (def g (list () (%asm-cache-rev had ()) (rest got) (pair () ())))
         (%set-first! %asm-cache-group-open g)
         (def out
           (guard (e (do (%set-first! %asm-cache-group-open ()) (error e)))
             (thunk)))
         (%set-first! %asm-cache-group-open ())
         (def noted (first g))
-        (unless (%asm-cache-same-texts? noted had)
-          (%asm-cache-group-store! (%asm-cache-group-path key) (%asm-cache-rev noted ())))
-        (%asm-cache-group-remember! key noted)
+        (def set-extra (first (first (rest (rest (rest g))))))
+        (def extra (if (null? set-extra) (rest got) set-extra))
+        (unless (if (%asm-cache-same-texts? noted had)
+                  (if (null? set-extra) #t (if (str? (rest got)) (str=? set-extra (rest got)) #f))
+                  #f)
+          (%asm-cache-group-store! (%asm-cache-group-path key) (%asm-cache-rev noted ()) extra))
+        ; a thunk that compiled nothing says nothing about the group
+        (unless (null? noted)
+          (%asm-cache-group-remember! key noted extra))
         out))))
+
+; (TEXTS . EXTRA) of the open group: the texts it already held, oldest first,
+; and the extra it carried -- or () when no group is open.
+(def asm-cache-group-held
+  (fn (_)
+    (def g (first %asm-cache-group-open))
+    (if (null? g) () (pair (first (rest g)) (first (rest (rest g)))))))
+
+; Set the open group's extra, a string, which the group writes with its
+; entries.  Answers #f when no group is open.
+(def asm-cache-group-extra!
+  (fn (_ extra)
+    (def g (first %asm-cache-group-open))
+    (if (null? g) #f
+      (do (%set-first! (first (rest (rest (rest g)))) extra) #t))))
+
+; The key text of the last compile through the door, or nil once one stood
+; aside: a caller that will load the same entry again by key -- a Lexer
+; recording the plan it replays -- reads it after each compile.
+(def %asm-cache-last-text (pair () ()))
+
+(def asm-cache-last-text (fn (_) (first %asm-cache-last-text)))
+
+; The callable for the held entry whose key text is TEXT, poured with FVARS,
+; or () when none is held: a load by key with no expression to print.  The
+; text is noted in the open group, as a compile's is.
+(def asm-cache-held-pour
+  (fn (_ text fvars)
+    (%asm-cache-group-note! text)
+    (%asm-cache-held-load text fvars)))
 
 ; The callable for TEXT from the entry held for it, or () on any miss.
 (def %asm-cache-held-load
@@ -955,12 +1030,14 @@
     ; anything: on that path this module gets out of the way entirely and the
     ; expression takes the route it took before there was a cache.
     (if (%asm-cache-stand-aside?)
-      (%asm-cache-uncached expr fvars analyser?)
+      (do (%set-first! %asm-cache-last-text ())
+          (%asm-cache-uncached expr fvars analyser?))
       (do
         ; The key text and the path hashed from it are computed ONCE and handed
         ; down: hashing the same text again for the store, or for the sibling
         ; file, would cost as much as hashing it did the first time.
         (def text (%asm-cache-text expr fvars analyser?))
+        (%set-first! %asm-cache-last-text text)
         (%asm-cache-group-note! text)
         ; The entry this process holds comes first: it costs no file, and in
         ; a process booted from a state image it is the entry the image
@@ -1004,6 +1081,10 @@
 ; not loaded, so it fetches the entry after the import.
 (prim-reg! (lit compile) (lit asm-cached) asm-compile-cached)
 (prim-reg! (lit compile) (lit asm-cache-group) asm-cache-group)
+(prim-reg! (lit compile) (lit asm-cache-group-held) asm-cache-group-held)
+(prim-reg! (lit compile) (lit asm-cache-group-extra!) asm-cache-group-extra!)
+(prim-reg! (lit compile) (lit asm-cache-held-pour) asm-cache-held-pour)
+(prim-reg! (lit compile) (lit asm-cache-last-text) asm-cache-last-text)
 
 (doc asm-cache-group
   (returns ANY "What THUNK answers")
@@ -1014,6 +1095,29 @@
    is still matched by its whole key text, so a stale group costs misses, never
    a wrong function.  Groups do not nest.")
 
-(doc (provide x/tool/asm-cache asm-compile-cached asm-cache-group)
+(doc asm-cache-group-held
+  (returns ANY "(TEXTS . EXTRA), or nil outside a group")
+  "Inside a group's thunk, the key texts the group already held, oldest first
+   -- the order they were compiled in -- and the extra the group carried, a
+   string or nil.")
+
+(doc asm-cache-group-extra!
+  (returns BOOL "#f outside a group")
+  "Inside a group's thunk, set the string the group writes after its entries,
+   which a later process reads back through asm-cache-group-held.")
+
+(doc asm-cache-held-pour
+  (returns ANY "X-lang callable prim, or nil")
+  "The held entry whose key text is TEXT, poured with FVARS: a load by key, with
+   no expression printed or hashed.  Nil when no entry is held for the text.
+   The text is noted in the open group, as a compile's is.")
+
+(doc asm-cache-last-text
+  (returns ANY "A string, or nil")
+  "The key text of the last compile-asm through the cache, which
+   asm-cache-held-pour takes to load the same entry again; nil when that
+   compile stood aside from the cache.")
+
+(doc (provide x/tool/asm-cache asm-compile-cached asm-cache-group asm-cache-group-held asm-cache-group-extra! asm-cache-held-pour asm-cache-last-text)
   "The cache behind the compile-asm door: persistent emitted native code, over
    the JIT compiler it falls back to.")

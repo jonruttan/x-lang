@@ -38,11 +38,14 @@
     (note "The first rule in the list wins an equal-length tie; a longer match wins regardless. List a keyword table before the identifier run that would also read it.")
     (note "A character class is a list of byte codes, (lo . hi) pairs and strings (each byte a member), or one bare string; a character literal counts as its code.")
     (note "The base and its states are dropped before a state image is written and made again after a load: a consumer holds the Lexer, never its raw base.")
+    (note "A make with every state compiled records a plan in its cache group, and a later make of the same rules -- in this heap, or in a process that reads the group file -- rebuilds the states from it with no form made, printed or checked; the replayed field says which make ran.")
+    (note "The first make in a process imports x/tool/asm-cache. A bundle that writes a state image and makes its lexer outside it reads that module from source at the first make, which under a lang whose reader analysers make every later read dear (the numeric tower) costs seconds: import x/tool/asm-cache where the image is written.")
     (example "(let ((l (Lexer make (list (Lexer skip \" \") (Lexer run 'word (list (pair 97 122)) (list (pair 97 122))))))) (l read-str \"ab c\"))" "(('word \"ab\") ('word \"c\"))"))
   (doc (rules ()) "The rules the base is built from, in priority order")
   (doc (raw ()) "The raw tokenizer base, or nil between an image write and its load")
   (doc (states ()) "Every state installed on the base -- the compiled ones as native code, the rest as closures; held so the collector keeps them")
   (doc (compiled 0) "How many states the assembler lane compiled in the last make; 0 when the lane is closed")
+  (doc (replayed #f) "Whether the last make rebuilt the states from the plan its cache group holds, with no form made, rather than making them")
   (doc (reader ()) "The closure read-str calls: the tokenizing door, the raw base and the end text bound once, so a read costs no class dispatch. Made with the base, and nil while the base is")
   (doc (resets ()) "A state for each nested and word rule that puts its return stack at depth 0, called before every read: a read that ended inside an open span leaves the depth where it stopped")
   (doc (end " ") "Text appended to every read, so the last token meets a delimiter: a token is only read once a character ends it, and the engine drops an unterminated tail. One space unless make was given another; a C lexer wants a newline, which also ends a last line comment. An any rule is built to refuse its bytes, so setting it after make wants a remake!")
@@ -76,16 +79,24 @@
       (returns ANY "The raw base"))
     (self states ())
     (self compiled 0)
+    (self replayed #f)
     (self resets ())
     (self raw (Base raw-of (Base make-tok)))
     ; One rule list makes the same states in every process, so their compiles
     ; run as one cache group keyed by the rules and the end text: a later
     ; process loads all of them in one read instead of hashing and reading
-    ; each state's entry.
+    ; each state's entry.  A make with every state compiled also records a
+    ; plan in the group -- each state's entry and what its free variables
+    ; are -- and a later make whose group holds every entry rebuilds the
+    ; states from it, with no form made, printed or checked.
     (if (Lexer %jit?)
       ((prim-ref (lit compile) (lit asm-cache-group))
-        (Str8 append "lexer:" ((prim-ref (lit io) (lit write-to-str)) (pair (self end) (self rules))))
-        (fn (_) (Lexer %install! self (self rules))))
+        (Str8 append "lexer:" (%number->str (Lexer %plan-version)) ":"
+          ((prim-ref (lit io) (lit write-to-str)) (pair (self end) (self rules))))
+        (fn (_)
+          (if (Lexer %replay! self)
+            (self replayed #t)
+            (Lexer %install-recording! self))))
       (Lexer %install! self (self rules)))
     (self reader (Lexer %reader-for self))
     (self raw))
@@ -101,6 +112,10 @@
     (%byte-ref (prim-ref (lit str) (lit byte-ref)))
     (%byte-len (prim-ref (lit str) (lit byte-len)))
     (%make-str (prim-ref (lit str) (lit make)))
+    (%i+ (prim-ref (lit int) (lit +)))
+    (%i- (prim-ref (lit int) (lit -)))
+    (%i= (prim-ref (lit int) (lit =)))
+    (%i< (prim-ref (lit int) (lit <)))
     ; Is the assembler lane open?  Probed by one state in the form every state
     ; takes; probed again after an image load, when the compiler has its
     ; addresses back.
@@ -108,6 +123,19 @@
     (%skip-count (pair 0 ()))
     ; what a dropped span's read handler answers; read-str leaves it out
     (%dropped (pair (lit dropped) ()))
+    ; The version of the states a rule list makes.  It is part of every group
+    ; key and every plan, so a change to how states are made -- a form, an
+    ; fvar's name or value, a state added or dropped -- MUST bump it: a plan
+    ; recorded by the old code would otherwise be replayed as the new.  The
+    ; digest case in tests/x/specs/lib/lexer-plan.spec.md fails on any such
+    ; change until both it and this number are updated.
+    (%plan-version 1)
+    ; The recorder a full make runs under: on, then the states made, newest
+    ; first, as (state text fvars) -- TEXT the cache key, nil for a twin -- and
+    ; the rules' first states, newest first.
+    (%rec-on (pair #f ()))
+    (%rec-states (pair () ()))
+    (%rec-entries (pair () ()))
 
     (method make (self (param rules LIST "Rules in priority order, each from run, skip, table, quoted, until, number, nested, word, escape, pattern, any or record")
                        . (param more ANY "Optionally the end text, a space when left out: see the end field"))
@@ -115,8 +143,8 @@
         (returns Lexer "The lexer")
         (sample "(Lexer make (list (Lexer skip \" \\n\") (Lexer number 'num ()) (Lexer run 'id \"abc\" \"abc\")))" "a lexer of numbers and words")
         (sample "(Lexer make c-rules \"\\n\")" "a lexer whose last line comment ends"))
-      (let ((raw ()) (states ()) (compiled 0) (reader ()) (resets ()) (end (if (null? more) " " (first more))))
-        (def l (new Lexer rules rules raw raw states states compiled compiled reader reader resets resets end end))
+      (let ((raw ()) (states ()) (compiled 0) (replayed #f) (reader ()) (resets ()) (end (if (null? more) " " (first more))))
+        (def l (new Lexer rules rules raw raw states states compiled compiled replayed replayed reader reader resets resets end end))
         (l remake!)
         ((Lexer %transient!) (fn (_) (l raw ()) (l states ()) (l reader ())))
         ((Lexer %recache-hook!) (fn (_) (Lexer %jit-probe!) (l remake!)))
@@ -417,6 +445,9 @@
       (def r (Lexer %realize form fvars (if (null? twin) fvars (List append (first twin) fvars))))
       (if (rest r) (l compiled (+ 1 (l compiled))) ())
       (l states (pair (first r) (l states)))
+      (Lexer %rec-state! (first r)
+        (if (rest r) ((prim-ref (lit compile) (lit asm-cache-last-text))) ())
+        fvars)
       (first r))
 
     ; FORM realized: (STATE . COMPILED?), the compiled state when the lane
@@ -1224,6 +1255,14 @@
             (Lexer %nested-states l () (first args) (first (rest args)) (first (rest (rest args)))
               (%to-end? kind args)))
           (#t (Err raise (lit lexer) "Lexer: unknown rule kind" kind))))
+      (Lexer %rec-entry! entry)
+      (Lexer %handlers-for l rule entry))
+
+    ; The handlers of RULE's type around ENTRY, its first state: the analyser,
+    ; and the read handler its kind and tag call for.
+    (method %handlers-for (self l rule entry)
+      (def kind (first rule))
+      (def tag (first (rest (rest rule))))
       ; A rule with no tag is a skip, scored negative, which the engine never
       ; reads, or a dropped span, scored positive so that it beats the
       ; operator that opens it: the engine reads a positive match, and with
@@ -1245,7 +1284,210 @@
       (if (null? rules) ()
         (do
           (Base make-type (l raw) (first (rest (first rules))) (Lexer %handlers l (first rules)))
-          (Lexer %install! l (rest rules)))))))
+          (Lexer %install! l (rest rules)))))
+
+    ; --- the plan -----------------------------------------------------------
+    ; A make with the lane open runs under the recorder, and when every state
+    ; it made was compiled it leaves the group a PLAN: for each state, oldest
+    ; first, the place of its cache key among the group's texts and what each
+    ; of its free variables is -- an earlier state, a cell the make fills, a
+    ; scratch buffer of a size, or an integer -- then what each cell holds,
+    ; each rule's first state, and the reset states.  A later make whose group
+    ; holds every entry pours the states from it in the same order, so each
+    ; free variable is the object it was, and no form is made, printed or
+    ; checked.  Anything the plan cannot name means no plan, and the next make
+    ; is a full one again.
+
+    (method %rec-state! (self st text fvars)
+      (when (first (Lexer %rec-on))
+        (%set-first! (Lexer %rec-states) (pair (list st text fvars) (first (Lexer %rec-states))))))
+
+    (method %rec-entry! (self st)
+      (when (first (Lexer %rec-on))
+        (%set-first! (Lexer %rec-entries) (pair st (first (Lexer %rec-entries))))))
+
+    (method %install-recording! (self l)
+      (%set-first! (Lexer %rec-states) ())
+      (%set-first! (Lexer %rec-entries) ())
+      (%set-first! (Lexer %rec-on) #t)
+      (guard (e (do (%set-first! (Lexer %rec-on) #f) (error e)))
+        (Lexer %install! l (l rules)))
+      (%set-first! (Lexer %rec-on) #f)
+      (def plan
+        (guard (_ ())
+          (Lexer %plan l (Lexer %rev (first (Lexer %rec-states)) ())
+                         (Lexer %rev (first (Lexer %rec-entries)) ()))))
+      (%set-first! (Lexer %rec-states) ())
+      (%set-first! (Lexer %rec-entries) ())
+      (unless (null? plan)
+        ((prim-ref (lit compile) (lit asm-cache-group-extra!))
+          ((prim-ref (lit io) (lit write-to-str)) plan))))
+
+    (method %rev (self l acc)
+      (if (null? l) acc (Lexer %rev (rest l) (pair (first l) acc))))
+
+    ; The list helpers the plan and the replay share, over the integer doors,
+    ; as one closure each: the plan and the replay walk a list a state, and
+    ; a class call or a generic operator a step would cost more than the
+    ; forms they save.  Answers (nth pos map1 len rev append2).
+    (method %kit (self)
+      (def i+ (Lexer %i+))
+      (def i- (Lexer %i-))
+      (def i= (Lexer %i=))
+      (list
+        (fn (self l i) (if (i= i 0) (first l) (self (rest l) (i- i 1))))
+        (fn (_ x l same?)
+          ((fn (self l i) (if (null? l) -1 (if (same? x (first l)) i (self (rest l) (i+ i 1)))))
+           l 0))
+        (fn (self f l) (if (null? l) () (pair (f (first l)) (self f (rest l)))))
+        (fn (_ l) ((fn (self l n) (if (null? l) n (self (rest l) (i+ n 1)))) l 0))
+        (fn (self l acc) (if (null? l) acc (self (rest l) (pair (first l) acc))))
+        (fn (self a b) (if (null? a) b (pair (first a) (self (rest a) b))))))
+
+    ; The plan for RECS, the states made oldest first as (state text fvars),
+    ; and ENTRIES, each rule's first state; raises when a state is a twin or a
+    ; free variable is a thing a plan cannot name.  A free variable is written
+    ; (NAME KIND N) -- NAME its symbol's text, KIND 0 for the N-th state, 1 for
+    ; the N-th cell, 2 for the N-th buffer, 3 for the integer N -- so the plan
+    ; is strings and integers only, which print and read back as themselves.
+    (method %plan (self l recs entries)
+      (def kit (Lexer %kit))
+      (def pos (first (rest kit)))
+      (def map1 (first (rest (rest kit))))
+      (def len (first (rest (rest (rest kit)))))
+      (def rev (first (rest (rest (rest (rest kit))))))
+      (def i+ (Lexer %i+))
+      (def i- (Lexer %i-))
+      (def i< (Lexer %i<))
+      (def no (fn (_ why) (Err raise (lit lexer) why ())))
+      (def eq (fn (_ a b) (eq? a b)))
+      (def texts
+        (rev ((fn (self rs acc)
+                (if (null? rs) acc
+                  (do (def t (first (rest (first rs))))
+                      (if (null? t) (no "a twin state") ())
+                      (self (rest rs)
+                        (if (i< (pos t acc str=?) 0) (pair t acc) acc)))))
+              recs ())
+             ()))
+      (def sts (map1 (fn (_ r) (first r)) recs))
+      ; cells and buffers met, newest first, with how many: a thing's number
+      ; is how many were met before it
+      (def cells (pair () 0))
+      (def bufs (pair () 0))
+      (def number!
+        (fn (_ seen x)
+          (def at (pos x (first seen) eq))
+          (if (i< at 0)
+            (do (def n (rest seen))
+                (%set-first! seen (pair x (first seen)))
+                (%set-rest! seen (i+ n 1))
+                n)
+            (i- (i- (rest seen) 1) at))))
+      (def recipe
+        (fn (_ fv)
+          (def v (rest fv))
+          (def k (pos v sts eq))
+          (def name (symbol->str (first fv)))
+          (match
+            ((not (i< k 0)) (list name 0 k))
+            ((pair? v) (list name 1 (number! cells v)))
+            ((str? v) (list name 2 (number! bufs v)))
+            ((number? v) (list name 3 v))
+            (#t (no "a free variable a plan cannot name")))))
+      (def states
+        (map1 (fn (_ r) (pair (pos (first (rest r)) texts str=?) (map1 recipe (first (rest (rest r))))))
+              recs))
+      (def state-at
+        (fn (_ s)
+          (def k (pos s sts eq))
+          (if (i< k 0) (no "a state the make did not record") k)))
+      (list (Lexer %plan-version) (len texts) states
+            (map1 (fn (_ c) (if (null? (first c)) () (state-at (first c)))) (rev (first cells) ()))
+            (map1 (fn (_ b) ((Lexer %byte-len) b)) (rev (first bufs) ()))
+            (map1 state-at entries)
+            (map1 state-at (l resets))))
+
+    ; Rebuild L's states from the open group's plan; #f, with L as it was,
+    ; when there is none or it does not fit.
+    (method %replay! (self l)
+      (def held ((prim-ref (lit compile) (lit asm-cache-group-held))))
+      (def extra (if (null? held) () (rest held)))
+      (def plan
+        (if (str? extra)
+          (guard (_ ()) (first ((prim-ref (lit tok) (lit read-str)) (%base) extra)))
+          ()))
+      (def kit (Lexer %kit))
+      (def nth (first kit))
+      (def map1 (first (rest (rest kit))))
+      (def len (first (rest (rest (rest kit)))))
+      (def rev (first (rest (rest (rest (rest kit))))))
+      (def append2 (first (rest (rest (rest (rest (rest kit)))))))
+      (def i+ (Lexer %i+))
+      (def i- (Lexer %i-))
+      (def i= (Lexer %i=))
+      (def texts (if (null? held) () (first held)))
+      (def fits?
+        (if (pair? plan)
+          (if (i= (first plan) (Lexer %plan-version))
+            (if (i= (nth plan 1) (len texts))
+              (i= (len (nth plan 5)) (len (l rules)))
+              #f)
+            #f)
+          #f))
+      (if (not fits?) #f
+        (do
+          (def cells (map1 (fn (_ c) (pair () ())) (nth plan 3)))
+          (def bufs (map1 (fn (_ n) ((Lexer %make-str) n)) (nth plan 4)))
+          (def pour (prim-ref (lit compile) (lit asm-cache-held-pour)))
+          (def sym (prim-ref (lit str) (lit ->sym)))
+          ; the states poured so far, newest first, and how many; () when a
+          ; pour misses
+          (def made
+            ((fn (self ss acc n)
+               (if (null? ss) acc
+                 (do
+                   (def r (first ss))
+                   (def fvars
+                     (map1
+                       (fn (_ fv)
+                         (def how (first (rest fv)))
+                         (def at (first (rest (rest fv))))
+                         (pair (sym (first fv))
+                           (match
+                             ((i= how 0) (nth acc (i- (i- n 1) at)))
+                             ((i= how 1) (nth cells at))
+                             ((i= how 2) (nth bufs at))
+                             (#t at))))
+                       (rest r)))
+                   (def st (pour (nth texts (first r)) fvars))
+                   (if (null? st) ()
+                     (self (rest ss) (pair st acc) (i+ n 1))))))
+             (nth plan 2) () 0))
+          (if (not (i= (len made) (len (nth plan 2)))) #f
+            (do
+              (def sts (rev made ()))
+              ((fn (self cs ks)
+                 (unless (null? cs)
+                   (do (unless (null? (first ks)) (%set-first! (first cs) (nth sts (first ks))))
+                       (self (rest cs) (rest ks)))))
+               cells (nth plan 3))
+              (l states (append2 sts (append2 cells bufs)))
+              (l compiled (len sts))
+              (l resets (map1 (fn (_ k) (nth sts k)) (nth plan 6)))
+              ; A type registered and then a raise would leave the base half
+              ; made: on any raise here the base is made again, empty, for
+              ; the full make that follows.
+              (guard (_ (do (l raw (Base raw-of (Base make-tok))) (l states ())
+                            (l compiled 0) (l resets ()) #f))
+                (do
+                  ((fn (self rs ks)
+                     (unless (null? rs)
+                       (do (Base make-type (l raw) (first (rest (first rs)))
+                             (Lexer %handlers-for l (first rs) (nth sts (first ks))))
+                           (self (rest rs) (rest ks)))))
+                   (l rules) (nth plan 5))
+                  #t)))))))))
 
 (doc (provide x/reader/lexer Lexer)
   (note "Rules are data: run, skip, table, quoted, until, number, nested, word, escape, pattern, any, record. (Lexer make rules) builds the base; (l read-str s) reads text, (l read-span s start len) a span of bytes.")
