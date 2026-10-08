@@ -129,7 +129,7 @@
     ; recorded by the old code would otherwise be replayed as the new.  The
     ; digest case in tests/x/specs/lib/lexer-plan.spec.md fails on any such
     ; change until both it and this number are updated.
-    (%plan-version 1)
+    (%plan-version 2)
     ; The recorder a full make runs under: on, then the states made, newest
     ; first, as (state text fvars) -- TEXT the cache key, nil for a twin -- and
     ; the rules' first states, newest first.
@@ -1320,8 +1320,7 @@
       (%set-first! (Lexer %rec-states) ())
       (%set-first! (Lexer %rec-entries) ())
       (unless (null? plan)
-        ((prim-ref (lit compile) (lit asm-cache-group-extra!))
-          ((prim-ref (lit io) (lit write-to-str)) plan))))
+        ((prim-ref (lit compile) (lit asm-cache-group-extra!)) (Lexer %plan-text plan))))
 
     (method %rev (self l acc)
       (if (null? l) acc (Lexer %rev (rest l) (pair (first l) acc))))
@@ -1408,15 +1407,105 @@
             (map1 state-at entries)
             (map1 state-at (l resets))))
 
+    ; The plan as the group keeps it: its integers and names as words between
+    ; spaces, each list led by its length, a cell that holds nothing as `-`.
+    ; Read back by one walk over the bytes, where the s-expression reader cost
+    ; a make 42 us a byte of the plan -- half of a replayed make.  A name is a
+    ; free variable's symbol text, which holds no space.
+    (method %plan-text (self plan)
+      (def kit (Lexer %kit))
+      (def nth (first kit))
+      (def len (first (rest (rest (rest kit)))))
+      (def rev (first (rest (rest (rest (rest kit))))))
+      (def out (pair () ()))
+      (def put (fn (_ t) (%set-first! out (pair t (first out)))))
+      (def int (fn (_ n) (put (%number->str n))))
+      (def each (fn (_ l f) (int (len l)) ((fn (self l) (unless (null? l) (do (f (first l)) (self (rest l))))) l)))
+      (int (nth plan 0))
+      (int (nth plan 1))
+      (each (nth plan 2)
+        (fn (_ s)
+          (int (first s))
+          (each (rest s) (fn (_ fv) (put (first fv)) (int (nth fv 1)) (int (nth fv 2))))))
+      (each (nth plan 3) (fn (_ c) (if (null? c) (put "-") (int c))))
+      (each (nth plan 4) int)
+      (each (nth plan 5) int)
+      (each (nth plan 6) int)
+      (Str8 join " " (rev (first out) ())))
+
+    ; The plan %plan-text wrote, or () when S is not one: its words in one walk,
+    ; an integer read as it is walked, then the lists rebuilt from their
+    ; lengths.
+    (method %plan-read (self s)
+      (def rev (first (rest (rest (rest (rest (Lexer %kit)))))))
+      (def i+ (Lexer %i+))
+      (def i- (Lexer %i-))
+      (def i< (Lexer %i<))
+      (def i= (Lexer %i=))
+      (def i* (prim-ref (lit int) (lit *)))
+      (def n ((Lexer %byte-len) s))
+      (def bref (Lexer %byte-ref))
+      (def cint (Lexer %char->int))
+      (def byte (fn (_ i) (cint (bref s i))))
+      (def sub (prim-ref (lit str) (lit byte-sub)))
+      ; The end of the word at J, and its value while every byte is a digit:
+      ; (end . value), value () once a byte is not one.
+      (def scan
+        (fn (self j v)
+          (if (if (i< j n) (not (i= (byte j) 32)) #f)
+            (do
+              (def b (byte j))
+              (self (i+ j 1)
+                (if (null? v) ()
+                  (if (if (i< b 48) #t (i< 57 b)) () (i+ (i* v 10) (i- b 48))))))
+            (pair j v))))
+      ; the words, newest first: an integer, a name, or () for `-`
+      (def words
+        ((fn (self i acc)
+           (if (i< i n)
+             (if (i= (byte i) 32) (self (i+ i 1) acc)
+               (do
+                 (def neg? (i= (byte i) 45))
+                 (def from (if neg? (i+ i 1) i))
+                 (def r (scan from 0))
+                 (def end (first r))
+                 (self end
+                   (pair
+                     (match
+                       ((if (null? (rest r)) #f (i< from end)) (if neg? (i- 0 (rest r)) (rest r)))
+                       ((i= end from) ())
+                       (#t (sub s i (i- end i))))
+                     acc))))
+             acc))
+         0 ()))
+      (def at (pair (rev words ()) ()))
+      (def take
+        (fn (_)
+          (if (null? (first at)) (Err raise (lit lexer) "plan: it ends early" ()) ())
+          (def w (first (first at)))
+          (%set-first! at (rest (first at)))
+          w))
+      (def int (fn (_) (def w (take)) (if (number? w) w (Err raise (lit lexer) "plan: an integer" w))))
+      (def many (fn (_ f) ((fn (self k acc) (if (i= k 0) (rev acc ()) (self (i- k 1) (pair (f) acc)))) (int) ())))
+      (guard (_ ())
+        (do
+          (def version (int))
+          (def ntexts (int))
+          (def states (many (fn (_) (pair (int) (many (fn (_) (def name (take)) (list name (int) (int))))))))
+          (def cells (many (fn (_) (def w (take)) (if (null? w) () (if (number? w) w (Err raise (lit lexer) "plan: a cell" w))))))
+          (def bufs (many int))
+          (def entries (many int))
+          (def resets (many int))
+          (if (null? (first at))
+            (list version ntexts states cells bufs entries resets)
+            ()))))
+
     ; Rebuild L's states from the open group's plan; #f, with L as it was,
     ; when there is none or it does not fit.
     (method %replay! (self l)
       (def held ((prim-ref (lit compile) (lit asm-cache-group-held))))
       (def extra (if (null? held) () (rest held)))
-      (def plan
-        (if (str? extra)
-          (guard (_ ()) (first ((prim-ref (lit tok) (lit read-str)) (%base) extra)))
-          ()))
+      (def plan (if (str? extra) (Lexer %plan-read extra) ()))
       (def kit (Lexer %kit))
       (def nth (first kit))
       (def map1 (first (rest (rest kit))))

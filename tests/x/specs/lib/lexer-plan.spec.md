@@ -123,4 +123,24 @@ prefix off) and the plan, for the first rule list: when it changes, bump
   (newline))
 ```
 ---
-    (40 #t 7395823705887467377)
+    (40 #t 6559654134466246748)
+
+### the plan's text reads back as the plan, and text that is not one is no plan
+
+The group keeps the plan as words: integers, free variables' names, and `-`
+for a cell that holds nothing, each list led by its length.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lp-plan (list 2 3 (list (pair 0 ()) (pair 2 (list (list "body" 0 0) (list "k" 3 -1) (list "cell" 1 0))))
+                      (list () 1) (list 512) (list 1 0) (list 1)))
+  (def %lp-text (Lexer %plan-text %lp-plan))
+  (write (list %lp-text
+               (equal? (Lexer %plan-read %lp-text) %lp-plan)
+               (Lexer %plan-read "2 3 4")
+               (Lexer %plan-read "(2 3)")))
+  (newline))
+```
+---
+    ("2 3 2 0 0 2 3 body 0 0 k 3 -1 cell 1 0 2 - 1 1 512 2 1 0 1 1" #t () ())
