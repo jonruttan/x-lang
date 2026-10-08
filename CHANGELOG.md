@@ -55,6 +55,17 @@ a compiled engine will be checked against.
 
 [#937]: https://github.com/jonruttan/x-lang/pull/937
 
+**`Inflate` has a compiled engine: the codes loop and the Adler-32** ([#943]).
+`x/codec/inflate-jit` compiles a step that decodes one symbol or copies
+eight bytes of a back-reference, and one that sums sixteen bytes of the
+checksum; the driver in x grows the output between calls.  Built for an
+input of 4KB or more or on `(Inflate jit!)`, adopted only after decoding and
+summing two embedded streams exactly as the pure-x decoder does.  The zlib
+path: 16KB of output in 97ms through the engine, 2.22s in pure x; 64KB in
+135ms.
+
+[#943]: https://github.com/jonruttan/x-lang/pull/943
+
 ## [0.26.0] - 2026-10-06
 
 **The engine is x-engine-c v0.2.21** ([#930]). A NUL is an ordinary byte in
