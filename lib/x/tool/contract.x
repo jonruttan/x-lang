@@ -81,16 +81,9 @@
         (#t (go as (rest bs) acc)))))
 
   (method argv (self)
-    (doc "The tool's own arguments: `args` minus the engine path and the engine flags x.sh -f prepends (--batch/--quiet/--no-color).  Tool flags after x.sh's `--` survive untouched."
+    (doc "The tool's own arguments: (Sys args 'program) without the engine's path -- what follows the \"--\" x.sh writes after its own options."
       (returns LIST "Argument strings"))
-    (let go ((xs (rest args)))
-      (match
-        ((null? xs) ())
-        ((or (str=? (first xs) "--batch")
-             (str=? (first xs) "--quiet")
-             (str=? (first xs) "--no-color"))
-          (go (rest xs)))
-        (#t xs))))
+    (let ((a (Sys args (lit program)))) (if (null? a) () (rest a))))
 
   (method alloc-guard! (self)
     (doc "Arm alloc-limit! from X_ALLOC_LIMIT_OBJS -- default 300000000, non-numeric values fall OPEN to the default: the same contract as the spec harness and the shell gates it replaces.")

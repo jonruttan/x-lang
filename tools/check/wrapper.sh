@@ -57,6 +57,17 @@ want "-f evaluates a file" '"from-file"' "$got"
 got=$(sh x.sh -q -F "$TMP/p.x" -c '(write "then-eval")' 2>/dev/null || true)
 want "-F runs before -c" '"from-file""then-eval"' "$got"
 
+# The engine is started as `x-bin OPTION... -- ARG...`, so the program's
+# arguments and the wrapper's options never mix: an argument spelled like one
+# of the wrapper's options reaches the program as written, and the wrapper's
+# options are read from their side of the "--" alone.
+got=$(sh x.sh -q -c '(write (rest (Sys args (lit program))))' -- a --no-color --batch 2>/dev/null || true)
+want "the program's arguments arrive as written" '("a" "--no-color" "--batch")' "$got"
+got=$(sh x.sh -q -c '(write (Sys %launch-options))' -- --no-color 2>/dev/null || true)
+want "a program's argument is not the wrapper's option" '("--quiet" "--batch")' "$got"
+got=$(sh x.sh -q --no-color -c '(write (rest (Sys args (lit program))))' 2>/dev/null || true)
+want "the wrapper's option is not the program's argument" '()' "$got"
+
 # The status half of the rule.  A raise must reach the shell as a failure and
 # the message must reach stderr, or a script cannot tell a broken run from an
 # empty one -- which is exactly what the silent no-op looked like.

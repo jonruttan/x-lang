@@ -97,11 +97,15 @@
       (%child-str! (lit x-version) x-version)
       (%child-str! (lit x-release) x-release)
       ; The child is a BATCH: a dialect entry ends in (unless %batch? (do
-      ; (%banner) (repl))), and repl/banner.x derives %batch? from args
-      ; holding "--batch".  Without it the child's REPL reads this writer's
-      ; own stdin and the image is never written.  One string, the child's.
+      ; (%banner) (repl))), and repl/banner.x derives %batch? from the
+      ; launcher's options, which follow the engine's path and end at "--"
+      ; (Sys args).  Without it the child's REPL reads this writer's own
+      ; stdin and the image is never written.  The child's own strings: its
+      ; path, "--batch" and the "--" a launcher writes.
       (%child-def! (lit args)
-        (list (lit pair) (list (prim-ref (lit str) (lit append)) "" "--batch") (list (lit lit) ())))
+        (list (lit pair) (list (prim-ref (lit str) (lit append)) "" "x-bin")
+          (list (lit pair) (list (prim-ref (lit str) (lit append)) "" "--batch")
+            (list (lit pair) (list (prim-ref (lit str) (lit append)) "" "--") (list (lit lit) ())))))
       ; The child is told it is being imaged.  An entry that reads stdin at
       ; load -- logo's and ash's dispatch on %batch? -- would otherwise read
       ; this script, since the engine's program and the child's stdin are one

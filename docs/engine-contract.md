@@ -212,10 +212,13 @@ The engine owes exactly three things:
 2. **It binds every argument-vector element** as a list named `args`.
 3. **It writes diagnostics to standard error**, prefixed `*** ERROR: `.
 
-That is all. In particular the engine **parses no flags**. `--batch`, `--quiet`
-and `--no-color` are read by x-lang code (`lib/x/repl/banner.x`,
-`lib/x/tool/contract.x`), and the reclaiming of terminal input from file
-descriptor 3 is `lib/x/repl/loop.x` calling `dup2` through the syscall door. Those
+That is all. In particular the engine **parses no flags**. The wrapper starts it
+as `x-bin OPTION... -- ARG...`, its own options before the `--` and the
+program's arguments after, and x-lang code reads each side: `--batch`,
+`--quiet` and `--no-color` from before the `--` (`lib/x/repl/banner.x`,
+`lib/x/repl/ansi.x`), and a program its own arguments with
+`(Sys args 'program)` (`lib/x/sys/posix.x`). The reclaiming of terminal input
+from file descriptor 3 is `lib/x/repl/loop.x` calling `dup2` through the syscall door. Those
 are conventions between the wrapper and the library; an engine that binds `args`
 and offers the syscall door supports them without knowing they exist.
 
