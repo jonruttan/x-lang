@@ -419,6 +419,15 @@ declared waiver (`allow-release-skew`, as the boot pin already spells it), so
 that running a bundle against an untested x-lang is a decision someone made
 rather than something that happened.
 
+`lang.xon` is also the one place a version is written. A bundle's CI matrix
+derives the release from `(requires-release …)`, and the kit's
+`release-refs.sh` holds every other file to the manifest: a version within 24
+characters of the name it belongs to, `x-lang` or a required lang, must be
+the one declared, and a line that names an old release on purpose says
+`release-ref: history`. Four bundles carry the gate today (x-coreutils,
+x-logo, x-r5rs, x-r7rs); the rest still write the release in more than one
+place, which is what [Scaling to Many Langs](lang-scale.md) measured.
+
 ### Why the last generation rotted
 
 Five langs sit unbuilt outside this repository — `x-ash`, `x-krn`,
