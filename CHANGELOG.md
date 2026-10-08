@@ -16,6 +16,7 @@ that says where they live; the C instruction set and the coordinates stay,
 held to the engine's manifest as before.
 
 [#940]: https://github.com/jonruttan/x-lang/pull/940
+
 **`(Paint lexer l colours)`: a painter made from a Lexer** ([#935]). It
 answers a `%repl-paint` painter that colours a line by the tokens of a Lexer
 whose rules read every byte, each token in the style its tag names: an Ansi
@@ -90,6 +91,7 @@ read-str` takes a span (x-engine-c#88) and raises a label `'lexer` Err on one th
 does not.
 
 [#930]: https://github.com/jonruttan/x-lang/pull/930
+
 **`(Lexer pattern tag steps)`: a rule of steps, and the end text is never part of a token** ([#929]).
 A pattern is steps in order, each `(CLASS FEWEST MOST)` -- a class, the fewest
 bytes of it and the most, nil for no bound, `#t` for every byte -- and reads as
@@ -337,6 +339,7 @@ fifty-one compiled states reads at 1.2 µs a byte. docs/crafting-a-lang.md
 carries the Lexer and the tier numbers.
 
 [#901]: https://github.com/jonruttan/x-lang/pull/901
+
 **Sys waits on several descriptors** ([#900]). `(Sys poll fds timeout)`
 is poll(2): it answers each ready descriptor with what it is ready for --
 `in`, `out`, `hup`, `err`, `nval` -- or nil once the timeout passes, and a
@@ -349,6 +352,7 @@ end of input while its replies still arrive, and `(Socket peer fd)` names
 the other end as `(QUAD . PORT)`.
 
 [#900]: https://github.com/jonruttan/x-lang/pull/900
+
 **`(Sys zone secs)` and `(Date local secs)` give local time** ([#899]).
 `Sys zone` answers the zone in force at a unix second, from the C library's
 `localtime_r` after `tzset`: its offset in seconds east of UTC, its
