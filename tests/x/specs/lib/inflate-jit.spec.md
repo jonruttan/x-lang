@@ -85,3 +85,23 @@ a list, so a 40000-element list left live overruns the C stack.
 ```
 ---
     "Inflate: the input ends inside the stream"
+
+## the compiled Adler-32
+
+### it agrees with the pure-x sum across many steps
+
+70000 bytes: past 65521, so both sums wrap many times, and past one call's
+budget of steps, so the driver runs the step again.
+
+```x
+(do (import x/codec/inflate)
+  (Inflate jit!)
+  (def %ij-pure (eval (lit %adler32-x) (module x/codec/inflate)))
+  (def %ij-r ((prim-ref (lit str) (lit make)) 70000))
+  (def %ij-p ((prim-ref (lit str) (lit ->ptr)) %ij-r))
+  ((fn (self i) (when (< i 70000) (do ((prim-ref (lit ptr) (lit set!)) %ij-p i (& (* i 151) 255) 1) (self (+ i 1))))) 0)
+  (write (list (= (Inflate adler32 %ij-r 70000) (%ij-pure %ij-p 70000))
+               (Inflate adler32 "Wikipedia" 9))))
+```
+---
+    (#t 300286872)

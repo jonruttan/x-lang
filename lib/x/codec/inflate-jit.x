@@ -190,6 +190,38 @@
 ; Steps a call may take before it returns: each one is a frame.
 (def %ij-budget 256)
 
+; --- Adler-32 (RFC 1950 8): sixteen bytes a step, both sums reduced
+; once a step, on a scratch of its own (words): the bytes' address, their
+; count, how many are summed, the two sums, the steps taken and allowed.
+(def %AP 0)
+(def %AN 1)
+(def %AI 2)
+(def %AA 3)
+(def %AB 4)
+(def %ASTEPS 5)
+(def %ABUDGET 6)
+(def %ij-adler-expr
+  (list 'fn '(self a)
+    (pair 'do
+      (List append
+        ((fn (self j)
+           (if (= j 16) ()
+             (pair
+               (list 'if (list '< (%M %AI) (%M %AN))
+                 (list 'do
+                   (%S %AA (list '+ (%M %AA) (list '%mem-byte-ref-at (%M %AP) (%M %AI))))
+                   (%S %AB (list '+ (%M %AB) (%M %AA)))
+                   (%S %AI (list '+ (%M %AI) 1)))
+                 0)
+               (self (+ j 1)))))
+         0)
+        (list
+          (%S %AA (list '% (%M %AA) 65521))
+          (%S %AB (list '% (%M %AB) 65521))
+          (list 'if (list '>= (%M %AI) (%M %AN)) 0
+            (list 'if (list '>= (%M %ASTEPS) (%M %ABUDGET)) 0
+              (list 'do (%S %ASTEPS (list '+ (%M %ASTEPS) 1)) (list 'self 'a)))))))))
+
 (def %ij-length-tables
   (list (list %LB 3 4 5 6 7 8 9 10 11 13 15 17 19 23 27 31 35 43 51 59 67 83 99 115 131 163 195 227 258)
         (list %LE 0 0 0 0 0 0 0 0 1 1 1 1 2 2 2 2 3 3 3 3 4 4 4 4 5 5 5 5 0)
@@ -201,15 +233,38 @@
 ; state: inflate.x's slot numbers for its stream state, as an alist
 ;        (in inlen incnt bitbuf bitcnt out outp outcap outcnt).
 ; room:  inflate.x's (fn (_ s n)), room for n more output bytes.
-; check: (fn (_ codes) -> #t) -- runs the reference's test streams through a
-;        candidate codes function and answers whether every output agreed.
+; check: (fn (_ engine) -> #t) -- runs the reference's test streams through a
+;        candidate (CODES . ADLER) and answers whether every output and
+;        every checksum agreed with the reference's own.
 ;
-; Answers (fn (_ s lencode distcode)), a drop-in for inflate.x's %codes, or
-; raises: on a host with no assembler backend, a toolchain error, or any
-; disagreement.  The caller guards; a raise means "stay pure-x".
+; Answers (CODES . ADLER): (fn (_ s lencode distcode)), a drop-in for
+; inflate.x's %codes-x, and (fn (_ p n)), the Adler-32 of n bytes at p, a
+; drop-in for its %adler32-x.  Or raises: on a host with no assembler
+; backend, a toolchain error, or any disagreement.  The caller guards; a
+; raise means "stay pure-x".
 (def inflate-jit-make
   (fn (_ state room check)
     (def %step (compile-asm %ij-step-expr))
+    (def %adler-step (compile-asm %ij-adler-expr))
+    (def %abuf (%ij-make-str 64))
+    (def %aptr (%ij-str->ptr %abuf))
+    (def %aaddr (%ij-ptr->int %aptr))
+    (def %apoke (fn (_ i v) (%ij-pset %aptr (* i 8) v)))
+    (def %apeek (fn (_ i) (%ij-pref %aptr (* i 8))))
+    (def %adler
+      (fn (_ p n)
+        (%apoke %AP (%ij-ptr->int p))
+        (%apoke %AN n)
+        (%apoke %AI 0)
+        (%apoke %AA 1)
+        (%apoke %AB 0)
+        ((fn (self)
+           (when (< (%apeek %AI) n)
+             (do (%apoke %ASTEPS 0)
+                 (%apoke %ABUDGET %ij-budget)
+                 (%adler-step %aaddr)
+                 (self)))))
+        (| (<< (%apeek %AB) 16) (%apeek %AA))))
     (Heap collect)
     (def %buf (%ij-make-str 4096))
     (def %ptr (%ij-str->ptr %buf))
@@ -260,9 +315,9 @@
         (%ij-oset! s (%slot (lit bitbuf)) (%peek %BB))
         (%ij-oset! s (%slot (lit bitcnt)) (%peek %BC))
         ()))
-    (unless (check %codes)
+    (unless (check (pair %codes %adler))
       (Err raise (lit state) "inflate-jit: engine disagrees with the pure-x decoder" ()))
-    %codes))
+    (pair %codes %adler)))
 
 ; The codec reaches the maker through the catalogue: it loads this module
 ; inside the function that builds the engine, where an import is one the
