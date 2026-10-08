@@ -98,7 +98,8 @@
 ;
 ; As chacha20.x's: an entry of Compiled's, made the first time a build is
 ; asked for, interpreted by %scalarmult above, and built on (X25519 jit!)
-; -- never on its own, since one exchange costs about what the build does.
+; -- never on its own, so the pure-x function stays what a host without
+; the JIT runs and what the specs prove.
 (def %entry ())
 
 (def %jit-try!
@@ -108,7 +109,7 @@
         (Compiled make-on-demand (lit x25519) %scalarmult
           (fn (_)
             (import x/codec/x25519-jit)
-            ((prim-ref (lit x25519) (lit jit-make)) %scalarmult fe-frombytes fe-tobytes))
+            ((prim-ref (lit x25519) (lit jit-make)) fe-frombytes fe-tobytes))
           (fn (_ v) ()))))
     ((fn (_ entry)
        (when (eq? (entry state) (lit interpreted)) (entry compile!))
@@ -135,7 +136,7 @@
         (returns STRING "32 bytes"))
       (%run k (%nine)))
     (method jit! (self)
-      (doc "Build and adopt the compiled field engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x function. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. scalarmult never builds it on its own: one exchange costs about what the build does, so a process that exchanges keys more than once asks for it."
+      (doc "Build and adopt the compiled ladder (JIT; ARM64 and x86-64 backends) now, if it answers RFC 7748's exchange and the field operations under it agree with the pure-x field. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. scalarmult never builds it on its own, so the pure-x function stays what a host without the JIT runs and what the specs prove; the build costs less than one pure-x exchange, so a process that exchanges keys asks for it."
         (returns BOOL "#t when the compiled engine is active"))
       (%jit-try!))))
 

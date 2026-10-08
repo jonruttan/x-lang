@@ -10,11 +10,11 @@
 ; coordinates (X Y Z T, with the cached form a sum wants), doubled and
 ; added as ref10 does, and a scalar times a point is a plain
 ; double-and-add from the top bit -- variable time, like everything an
-; interpreter does, and the doc says so.  Scalars mod L live on 16-bit
-; limbs with a bit-by-bit reduction: slow and short, and done three times
-; a signature.  SHA-512 is x/codec/sha512's.  A compiled engine in
-; x/codec/ed25519-jit takes the field operations and is adopted only
-; after it agrees with this module.
+; interpreter does, and the doc says so.  Scalars mod L are reduced as
+; ref10's sc_reduce does, on 21-bit limbs.  SHA-512 is x/codec/sha512's.
+; A compiled engine in x/codec/ed25519-jit takes the scalar
+; multiplication, the inverse and the square root's power, and is
+; adopted only after it answers RFC 8032's test 1.
 (module x/codec/ed25519)
 
 (import x/type/vector)
@@ -152,7 +152,7 @@
 ; A point's encoding (ref10 ge_p3_tobytes): y, with x's sign in the top bit.
 (def %encode
   (fn (_ p)
-    (def recip (fe-invert (%pz p)))
+    (def recip (%invert (%pz p)))
     (def x (fe-mul (%px p) recip))
     (def y (fe-mul (%py p) recip))
     (def s (fe-tobytes y))
@@ -171,7 +171,7 @@
     (def u (fe-sub yy %one))
     (def v (fe-add (fe-mul yy %d) %one))
     (def v3 (fe-mul (fe-sq v) v))
-    (def x0 (fe-mul (fe-mul u v3) (fe-pow22523 (fe-mul (fe-mul (fe-sq v3) v) u))))
+    (def x0 (fe-mul (fe-mul u v3) (%pow22523 (fe-mul (fe-mul (fe-sq v3) v) u))))
     (def vxx (fe-mul (fe-sq x0) v))
     (def x1 (if (fe-nonzero? (fe-sub vxx u))
               (if (fe-nonzero? (fe-add vxx u)) () (fe-mul x0 %sqrtm1))
@@ -182,15 +182,15 @@
 
 (def %negate (fn (_ p) (list (fe-neg (%px p)) (%py p) (%pz p) (fe-neg (%pt p)))))
 
-; The base point: y = 4/5, x positive.
-(def %base (%decode (%le-of-hex "6666666666666666666666666666666666666666666666666666666666666658")))
-
 ; --- scalars mod L ------------------------------------------------------
 ;
-; L = 2^252 + 27742317777372353535851937790883648493, on 16-bit limbs in
-; vectors (limb i in slot i+1).  A reduction walks the value's bits from
-; the top, doubling and subtracting L whenever the running remainder
-; reaches it; a product is schoolbook.  Everything fits the int easily.
+; L = 2^252 + 27742317777372353535851937790883648493.  A reduction is
+; ref10's sc_reduce: the 512-bit value on twenty-four 21-bit limbs, the
+; limbs above 2^252 folded down by L's low part (2^252 = -27742... mod
+; L, spelled as six 21-bit constants), the limbs carried between folds,
+; and the twelve that are left packed as 32 bytes.  Every product is a
+; 21-bit limb times a 20-bit constant, so it all fits the int.  A
+; product a·b + c is schoolbook on 16-bit limbs (limb i in slot i+1).
 
 (def %L-bytes (%le-of-hex "1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed"))
 
@@ -204,51 +204,84 @@
 
 (def %L (%limbs %L-bytes 32))
 
-; r >= L, r having 17 limbs (the top one the doubling's overflow).
-(def %at-least-L?
-  (fn (_ r)
-    (if (> (%oref r 17) 0) #t
-      ((fn (self i)
-         (match ((< i 1) #t)
-                ((> (%oref r i) (%oref %L i)) #t)
-                ((< (%oref r i) (%oref %L i)) #f)
-                (#t (self (%sub i 1)))))
-       16))))
+(def %ld3 (fn (_ s i) (| (%byte s i) (| (<< (%byte s (%add i 1)) 8) (<< (%byte s (%add i 2)) 16)))))
+(def %ld4 (fn (_ s i) (| (%ld3 s i) (<< (%byte s (%add i 3)) 24))))
 
-(def %sub-L!
-  (fn (_ r)
-    ((fn (self i borrow)
-       (unless (= i 18)
-         (do (def d (%sub (%sub (%oref r i) (if (< i 17) (%oref %L i) 0)) borrow))
-             (%oset! r i (& d 65535))
-             (self (%add i 1) (if (< d 0) 1 0)))))
-     1 0)))
+; limb i of the reduction's vector, in slot i+1
+(def %s (fn (_ v i) (%oref v (%add i 1))))
+(def %s! (fn (_ v i x) (%oset! v (%add i 1) x)))
 
-; r = 2r + bit, in place.
-(def %double-in!
-  (fn (_ r bit)
-    ((fn (self i carry)
-       (unless (= i 18)
-         (do (def d (%add (%add (%oref r i) (%oref r i)) carry))
-             (%oset! r i (& d 65535))
-             (self (%add i 1) (>> d 16)))))
-     1 bit)))
+; limb k folded into limbs k-12..k-7: 2^252 is -(L - 2^252) mod L
+(def %fold!
+  (fn (_ v k)
+    (def c (%s v k))
+    (%s! v (%sub k 12) (%add (%s v (%sub k 12)) (%mul c 666643)))
+    (%s! v (%sub k 11) (%add (%s v (%sub k 11)) (%mul c 470296)))
+    (%s! v (%sub k 10) (%add (%s v (%sub k 10)) (%mul c 654183)))
+    (%s! v (%sub k 9) (%sub (%s v (%sub k 9)) (%mul c 997805)))
+    (%s! v (%sub k 8) (%add (%s v (%sub k 8)) (%mul c 136657)))
+    (%s! v (%sub k 7) (%sub (%s v (%sub k 7)) (%mul c 683901)))
+    (%s! v k 0)))
 
-; v mod L, v having n limbs: a 16-limb vector.
-(def %reduce
-  (fn (_ v n)
-    (def r (Vector make 17 0))
-    ((fn (self bit)
-       (unless (< bit 0)
-         (do (%double-in! r (& (>> (%oref v (%add (>> bit 4) 1)) (& bit 15)) 1))
-             (when (%at-least-L? r) (%sub-L! r))
-             (self (%sub bit 1)))))
-     (%sub (%mul n 16) 1))
-    (def out (Vector make 16 0))
-    ((fn (self i) (unless (= i 17) (do (%oset! out i (%oref r i)) (self (%add i 1))))) 1)
+; limb i's carry into limb i+1: rounded (to [-2^20, 2^20)) or plain
+(def %carry-round!
+  (fn (_ v i)
+    (def c (>> (%add (%s v i) 1048576) 21))
+    (%s! v (%add i 1) (%add (%s v (%add i 1)) c))
+    (%s! v i (%sub (%s v i) (<< c 21)))))
+
+(def %carry!
+  (fn (_ v i)
+    (def c (>> (%s v i) 21))
+    (%s! v (%add i 1) (%add (%s v (%add i 1)) c))
+    (%s! v i (%sub (%s v i) (<< c 21)))))
+
+(def %each (fn (self f v is) (unless (null? is) (do (f v (first is)) (self f v (rest is))))))
+
+; The 64 bytes of s from byte 0, mod L, as 32 bytes.
+(def %sc-reduce
+  (fn (_ s)
+    (def v (Vector make 24 0))
+    ; limb i is bits 21i..21i+20: a 3- or 4-byte load from byte 21i/8,
+    ; shifted by 21i mod 8; the last takes everything left, 29 bits from
+    ; byte 60
+    ((fn (self i)
+       (unless (= i 24)
+         (do (def bit (%mul i 21))
+             (def at (>> bit 3))
+             (def sh (& bit 7))
+             (def raw (if (if (= i 23) #t (> (%add sh 21) 24)) (%ld4 s at) (%ld3 s at)))
+             (%s! v i (if (= i 23) (>> raw sh) (& (>> raw sh) 2097151)))
+             (self (%add i 1))))) 0)
+    (%each %fold! v (list 23 22 21 20 19 18))
+    (%each %carry-round! v (list 6 8 10 12 14 16 7 9 11 13 15))
+    (%each %fold! v (list 17 16 15 14 13 12))
+    (%each %carry-round! v (list 0 2 4 6 8 10 1 3 5 7 9 11))
+    (%fold! v 12)
+    (%each %carry! v (list 0 1 2 3 4 5 6 7 8 9 10 11))
+    (%fold! v 12)
+    (%each %carry! v (list 0 1 2 3 4 5 6 7 8 9 10))
+    ; byte k is bits 8k..8k+7 of the twelve limbs, each at bit 21i
+    (def out (%make-str 32))
+    (def p (%str->ptr out))
+    ((fn (self k)
+       (unless (= k 32)
+         (do (def lo (%mul k 8))
+             (%pset1 p k
+               (& ((fn (self i acc)
+                     (if (= i 12) acc
+                       (do (def at (%mul i 21))
+                           (self (%add i 1)
+                             (if (if (< at (%add lo 8)) (> (%add at 21) lo) #f)
+                               (| acc (if (>= at lo) (<< (%s v i) (%sub at lo)) (>> (%s v i) (%sub lo at))))
+                               acc)))))
+                   0 0)
+                  255)
+               1)
+             (self (%add k 1))))) 0)
     out))
 
-; a·b + c on 16-limb vectors, as 32 limbs.
+; a·b + c on 16-limb vectors, as 64 bytes.
 (def %muladd
   (fn (_ a b c)
     (def p (Vector make 32 0))
@@ -273,16 +306,12 @@
              (%oset! p i (& t 65535))
              (self (%add i 1) (>> t 16)))))
      1 0)
-    p))
-
-(def %sc-bytes
-  (fn (_ v)
-    (def out (%make-str 32))
-    (def p (%str->ptr out))
+    (def out (%make-str 64))
+    (def q (%str->ptr out))
     ((fn (self i)
-       (unless (= i 16)
-         (do (%pset1 p (%mul i 2) (& (%oref v (%add i 1)) 255) 1)
-             (%pset1 p (%add (%mul i 2) 1) (>> (%oref v (%add i 1)) 8) 1)
+       (unless (= i 32)
+         (do (%pset1 q (%mul i 2) (& (%oref p (%add i 1)) 255) 1)
+             (%pset1 q (%add (%mul i 2) 1) (>> (%oref p (%add i 1)) 8) 1)
              (self (%add i 1))))) 0)
     out))
 
@@ -300,32 +329,43 @@
 ; --- The compiled engine (JIT), adopted only when it proves out ------
 ;
 ; As x25519.x's: an entry of Compiled's, made the first time a build is
-; asked for, interpreted by %scalarmult above, and built on (Ed25519
-; jit!) -- never on its own, since one signature costs about what the
-; build does.
+; asked for, and built on (Ed25519 jit!) -- never on its own, so the
+; pure-x functions stay what a host without the JIT runs and what the
+; specs prove.  Its value is the field
+; work a signature leans on, (SCALARMULT INVERT POW22523): interpreted,
+; the pure-x three; compiled, the engine's.
 (def %entry ())
+(def %interpreted (list %scalarmult fe-invert fe-pow22523))
 
 (def %jit-try!
   (fn (_)
     (when (null? %entry)
       (set! %entry
-        (Compiled make-on-demand (lit ed25519) %scalarmult
+        (Compiled make-on-demand (lit ed25519) %interpreted
           (fn (_)
             (import x/codec/ed25519-jit)
-            ((prim-ref (lit ed25519) (lit jit-make)) %scalarmult %d2 fe-tobytes %base))
+            ((prim-ref (lit ed25519) (lit jit-make)) %d2 %base))
           (fn (_ v) ()))))
     ((fn (_ entry)
        (when (eq? (entry state) (lit interpreted)) (entry compile!))
        (eq? (entry state) (lit compiled)))
      %entry)))
 
-(def %run
-  (fn (_ k p)
+; The three, compiled when the engine is.
+(def %work
+  (fn (_)
     ((fn (_ entry)
        (if (if (null? entry) #f (eq? (entry state) (lit compiled)))
-         ((entry compiled) k p)
-         (%scalarmult k p)))
+         (entry compiled)
+         %interpreted))
      %entry)))
+
+(def %run (fn (_ k p) ((first (%work)) k p)))
+(def %invert (fn (_ z) ((first (rest (%work))) z)))
+(def %pow22523 (fn (_ z) ((first (rest (rest (%work)))) z)))
+
+; The base point: y = 4/5, x positive.
+(def %base (%decode (%le-of-hex "6666666666666666666666666666666666666666666666666666666666666658")))
 
 ; --- the RFC's three functions (5.1.5, 5.1.6, 5.1.7) --------------------
 
@@ -345,13 +385,11 @@
 (def %sign
   (fn (_ seed m start len)
     (def h (%expand seed))
-    (def a (%limbs h 32))
     (def pub (%encode (%run h %base)))
-    (def r (%reduce (%limbs (%sha512 (list (list h 32 32) (list m start len))) 64) 32))
-    (def rb (%sc-bytes r))
+    (def rb (%sc-reduce (%sha512 (list (list h 32 32) (list m start len)))))
     (def R (%encode (%run rb %base)))
-    (def k (%reduce (%limbs (%sha512 (list (list R 0 32) (list pub 0 32) (list m start len))) 64) 32))
-    (def S (%sc-bytes (%reduce (%muladd k a r) 32)))
+    (def kb (%sc-reduce (%sha512 (list (list R 0 32) (list pub 0 32) (list m start len)))))
+    (def S (%sc-reduce (%muladd (%limbs kb 32) (%limbs h 32) (%limbs rb 32))))
     (%join (list (list R 0 32) (list S 0 32)))))
 
 (def %verify
@@ -359,7 +397,7 @@
     (def A (%decode pub))
     (if (null? A) #f
       (if (not (%canonical? (%join (list (list sig 32 32))))) #f
-        (do (def k (%sc-bytes (%reduce (%limbs (%sha512 (list (list sig 0 32) (list pub 0 32) (list m start len))) 64) 32)))
+        (do (def k (%sc-reduce (%sha512 (list (list sig 0 32) (list pub 0 32) (list m start len)))))
             (def S (%join (list (list sig 32 32))))
             ; [S]B - [k]A must encode as R
             (def R (%encode (%point-sub (%run S %base) (%run k A))))
@@ -392,7 +430,7 @@
       (def r (%region m span))
       (%verify pub sig m (first r) (first (rest r))))
     (method jit! (self)
-      (doc "Build and adopt the compiled scalar multiplication (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x function. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. sign and verify never build it on their own: one signature costs about what the build does, so a process that signs or checks more than once asks for it."
+      (doc "Build and adopt the compiled scalar multiplication, inverse and square root's power (JIT; ARM64 and x86-64 backends) now, if they answer RFC 8032's test 1 and the field operations under them agree with the pure-x field. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. sign and verify never build it on their own, so the pure-x functions stay what a host without the JIT runs and what the specs prove; the build costs less than one pure-x signature, so a process that signs or checks asks for it."
         (returns BOOL "#t when the compiled engine is active"))
       (%jit-try!))))
 
