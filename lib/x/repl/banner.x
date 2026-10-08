@@ -14,7 +14,7 @@
   (%fold
     (fn (_ acc a) (or acc (str=? a "--batch")))
     ()
-    args))
+    (Sys %launch-options)))
 (def %banner
   (fn (_ )
     (def %quiet
@@ -22,7 +22,7 @@
         (fn (_ acc a)
           (or acc (str=? a "--quiet") (str=? a "-q")))
         ()
-        args))
+        (Sys %launch-options)))
     (unless %quiet
       (unless (null? %lang-name)
         (do
