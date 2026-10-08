@@ -12,6 +12,7 @@ style name, an escape string, or a function of the token's text. A lang whose
 syntax a Lexer reads colours its lines with no span scan of its own.
 
 [#935]: https://github.com/jonruttan/x-lang/pull/935
+
 **`(Sys args)`, and the launcher writes `--` between its options and the program's** ([#934]).
 x.sh starts the engine as `x-bin OPTION... -- ARG...`.  `(Sys args)` answers
 the arguments as the engine was given them, and `(Sys args 'program)` the
