@@ -24,6 +24,16 @@ alone.  With no `--` nothing is left out of either side.
 
 [#934]: https://github.com/jonruttan/x-lang/pull/934
 
+**A paste into the line editor no longer slows with each byte, or dies**
+([#938]). The redraw measured the line a byte at a time through class calls,
+three walks a keystroke; it now walks it over the cached prims and the
+integer doors, and the loop sweeps within a line once the heap has grown a
+set amount, where it swept only between lines. An 85-byte paste under
+x-ash's painter: 15.6 s to 2.6 s; a 340-byte one that hit the allocation
+ceiling finishes.
+
+[#938]: https://github.com/jonruttan/x-lang/pull/938
+
 **Module scope's rules live with the module system** ([#933]).
 `docs/namespaces.md`, the proposal for module scope with the record of
 building it appended, is gone. What a developer needs from it is in
