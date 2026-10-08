@@ -246,6 +246,28 @@ listener's backlog, and accept takes it after.
 ---
     ('in "hi" () "back")
 
+### send-run carries NULs across, as recv-run does
+
+send measures its string to the first NUL; a binary packet has NULs
+inside, and send-run takes the count instead.
+
+```x
+(do (import x/sys/socket)
+  (def lfd (Socket tcp-listen 0))
+  (def c (Socket tcp-connect "127.0.0.1" (Socket local-port lfd)))
+  (def s (Socket accept lfd))
+  (def %sr-set (prim-ref (lit ptr) (lit set!)))
+  (def %sr-m ((prim-ref (lit str) (lit make)) 3))
+  (def %sr-p ((prim-ref (lit str) (lit ->ptr)) %sr-m))
+  (%sr-set %sr-p 0 65 1) (%sr-set %sr-p 1 0 1) (%sr-set %sr-p 2 66 1)
+  (def sent (Socket send-run c %sr-m 3))
+  (def got (Socket recv-bytes s 16))
+  (Socket close c) (Socket close s) (Socket close lfd)
+  (list sent got))
+```
+---
+    (3 (65 0 66))
+
 ### peer names the other end, from either side
 
 ```x
