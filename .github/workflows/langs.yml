@@ -10,7 +10,9 @@ name: Langs
 # check can be required on main without holding anything else up.
 #
 # The bundles are the rows of tools/contract/langs.x, each in the repository
-# jonruttan/DIR at its default branch.  A bundle that requires another lang
+# jonruttan/DIR at its default branch, run once on every operating system its
+# lang.xon names in (os ...), or on darwin and linux when it names none
+# (docs/lang-contract.md, "The declaration").  A bundle that requires another lang
 # gets that lang's repository beside it, at the version its lang.xon
 # declares.  The verdict is tools/check/langs.sh's for that one bundle:
 # failures over the budget langs.x records fail the job.  One bundle runs per
@@ -46,19 +48,38 @@ jobs:
       - id: read
         name: Read the bundles from tools/contract/langs.x
         run: |
-          langs=$(sed -n 's/^(lang "\([^"]*\)"  *"\([^"]*\)" .*/{"name":"\1","dir":"\2"}/p' \
-                    tools/contract/langs.x | paste -sd, -)
-          if [ -z "$langs" ]; then
+          # One entry per bundle per system: the runner a system runs on.
+          runner() {
+            case "$1" in
+              darwin) echo macos-14 ;;
+              linux)  echo ubuntu-24.04 ;;
+              *) echo "no runner for os '$1'" >&2; return 1 ;;
+            esac
+          }
+          rows=$(sed -n 's/^(lang "\([^"]*\)"  *"\([^"]*\)" .*/\1 \2/p' tools/contract/langs.x)
+          if [ -z "$rows" ]; then
             echo "tools/contract/langs.x lists no bundles" >&2
             exit 1
           fi
+          langs=""
+          while read -r name dir; do
+            xon=$(curl -fsSL "https://raw.githubusercontent.com/jonruttan/$dir/HEAD/lang.xon") || {
+              echo "$dir: no lang.xon" >&2; exit 1; }
+            oses=$(printf '%s\n' "$xon" | sed -n 's/^(os \([^)]*\)).*/\1/p' | head -1)
+            for os in ${oses:-darwin linux}; do
+              r=$(runner "$os") || { echo "$dir declares (os ... $os ...)" >&2; exit 1; }
+              langs="$langs${langs:+,}{\"name\":\"$name\",\"dir\":\"$dir\",\"os\":\"$os\",\"runner\":\"$r\"}"
+            done
+          done <<EOF
+          $rows
+          EOF
           echo "langs=[$langs]" >> "$GITHUB_OUTPUT"
           echo "[$langs]"
 
   suite:
-    name: ${{ matrix.lang.name }}
+    name: ${{ matrix.lang.name }} (${{ matrix.lang.os }})
     needs: list
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.lang.runner }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -130,7 +151,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: langs-${{ matrix.lang.name }}
+          name: langs-${{ matrix.lang.name }}-${{ matrix.lang.os }}
           path: langs-logs/
           if-no-files-found: ignore
           retention-days: 7

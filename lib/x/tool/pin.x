@@ -769,6 +769,21 @@
                     ((str? (first (rest (first forms))))
                       (self (rest forms) name dialect req (first (rest (first forms)))))
                     (#t (Pin %pin-bad "entry needs a file string"))))
+                ; (requires-lang "NAME" ["VERSION"]) -- a lang loaded from
+                ; beside this one; the wrapper resolves it, acquisition only
+                ; checks its shape.
+                ((eq? (first (first forms)) 'requires-lang)
+                  (match
+                    ((str? (first (rest (first forms)))) (self (rest forms) name dialect req entry))
+                    (#t (Pin %pin-bad "requires-lang needs a lang name string"))))
+                ; (os darwin linux) -- the systems the bundle's suite is held to
+                ; (docs/lang-contract.md, "The declaration"); read by CI, checked
+                ; for shape here.
+                ((eq? (first (first forms)) 'os)
+                  (match
+                    ((and (pair? (rest (first forms))) (List all? symbol? (rest (first forms))))
+                      (self (rest forms) name dialect req entry))
+                    (#t (Pin %pin-bad "os needs one or more system names -- darwin, linux"))))
                 (#t (Pin %pin-bad (Str8 append "unknown form in lang.xon: "
                                     (symbol->str (first (first forms)))))))))
       (%go forms () () () ()))

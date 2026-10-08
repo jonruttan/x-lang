@@ -180,11 +180,21 @@ every other manifest here:
 (dialect he)                  ; which dialect the wrapper boots for it
 (requires-release "v0.5.2")   ; the x-lang the bundle was built against
 (entry "run.x")               ; loaded after the dialect, not instead of it
+(os darwin linux)             ; the systems its suite is held to
 ```
 
 `(dialect …)` is a **requirement**, not a preference: a lang that calls
 `x/sys/socket` needs radon, and declaring helium means it dies at boot on a
 missing import rather than at acquisition on a legible refusal.
+
+`(os …)` names the operating systems the bundle's suite passes on, in the
+engine's own words for them (`darwin`, `linux`; the `os` parameter of
+`tools/contract/features.x`). A bundle that declares none is held to both.
+The pre-release bundle matrix runs the suite once on each system named,
+and the bundle's own CI reads the same row, so the list is written once.
+A bundle whose tools answer as one system's tools do, as coreutils's
+answer as macOS's, declares that system alone until its suite passes on
+the other.
 
 ## The pin
 

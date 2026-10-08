@@ -77,7 +77,7 @@
 ; its own anchored matcher, od, the scripting set, and the nineteen
 ; applets that ride v0.11.0's doors (chmod ln readlink realpath df
 ; uname id ...).  Absent for want of a door: who stty hostid mknod.
-(lang "coreutils" "x-coreutils" 103 0)
+(lang "coreutils" "x-coreutils" 2213 0)
 ; cc comes last in the arc: the full C front end, a cell-machine
 ; evaluator (`run` -- every spec an oracle row against /usr/bin/cc),
 ; and `build` -- eligible integer functions lower through the engine's
