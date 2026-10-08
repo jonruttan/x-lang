@@ -108,6 +108,14 @@
 ; The engine's integer division: `/` is the tower's once the tower has loaded,
 ; and answers a rational.
 (def %asm-cache-int/ (prim-ref 'int '/))
+; The integer doors, for the loops that run once per relocation record -- a
+; parse, a pour and a group load each walk every site, and a lexer state has a
+; dozen.  The generic + < = dispatch on their operands' types and allocate per
+; call; every operand in those loops is a machine integer.
+(def %asm-cache-i+ (prim-ref 'int '+))
+(def %asm-cache-i* (prim-ref 'int '*))
+(def %asm-cache-i< (prim-ref 'int '<))
+(def %asm-cache-i= (prim-ref 'int '=))
 
 (def %asm-libc-creat  (%asm-cache-dlsym %asm-cache-lib "creat"))
 (def %asm-libc-open   (%asm-cache-dlsym %asm-cache-lib "open"))
@@ -418,11 +426,12 @@
 ; Answers (string . next-offset).
 (def %asm-cache-blob-at
   (fn (_ buf at end)
-    (if (>= at end) ()
+    (if (%asm-cache-i< at end)
       (do
         (def s (%asm-cache-ptr->str
-                 (%asm-cache-int->ptr (+ (%asm-cache-ptr->int buf) at))))
-        (pair s (+ at (+ (%asm-cache-byte-len s) 1)))))))
+                 (%asm-cache-int->ptr (%asm-cache-i+ (%asm-cache-ptr->int buf) at))))
+        (pair s (%asm-cache-i+ at (%asm-cache-i+ (%asm-cache-byte-len s) 1))))
+      ())))
 
 ; Walk the fixed-stride records and the blob together: two ptr-refs and one
 ; ptr->str per record, no loop over bytes anywhere.  Answers
@@ -434,16 +443,17 @@
     (def r
       ((fn (self i at acc)
          (if (null? at) ()
-           (if (>= i nrel) (pair acc at)
+           (if (%asm-cache-i< i nrel)
              (do
-               (def rec (+ %asm-cache-head-bytes (* %asm-cache-rec-bytes i)))
+               (def rec (%asm-cache-i+ %asm-cache-head-bytes (%asm-cache-i* %asm-cache-rec-bytes i)))
                (def sn (%asm-cache-blob-at buf at end))
                (if (null? sn) ()
-                 (self (+ i 1) (rest sn)
+                 (self (%asm-cache-i+ i 1) (rest sn)
                    (pair (list (%asm-cache-ptr-ref buf rec 4)
-                               (%asm-cache-ptr-ref buf (+ rec 4) 4)
+                               (%asm-cache-ptr-ref buf (%asm-cache-i+ rec 4) 4)
                                (first sn))
-                     acc)))))))
+                     acc))))
+             (pair acc at))))
         0 blob ()))
     (if (null? r) ()
       (do (def kt (%asm-cache-blob-at buf (rest r) end))
@@ -475,10 +485,10 @@
 (def %asm-cache-value
   (fn (_ label nm table cell)
     (match
-      ((= label %asm-cache-label-trampoline)
+      ((%asm-cache-i= label %asm-cache-label-trampoline)
         (do (def p (%asm-cache-dlsym %asm-cache-lib nm))
             (if (null? p) () (%asm-cache-ptr->int p))))
-      ((= label %asm-cache-label-fvar)
+      ((%asm-cache-i= label %asm-cache-label-fvar)
         (do (def hit (%asm-cache-fvar nm table))
             (if (null? hit) () (%asm-cache-ptr->int (%asm-cache-obj->ptr (rest hit))))))
       ((null? cell) ())
@@ -811,6 +821,53 @@
                   (%asm-cache-pcall %asm-libc-rename tmp path)
                   (%asm-cache-pcall %asm-libc-unlink tmp))))))))))
 
+; Each group this heap has loaded or written, (key texts . held) with the texts
+; newest first, as a load answers them, and HELD the list of held entries just
+; after.  A group met again -- the same rules remade, or a process booted from
+; a state image the group was made in -- needs no file while its entries are
+; still held: entries are only ever consed onto the front of the held list, so
+; they are while that list still ends in HELD.  A held list set back to nil, as
+; a spec does to stand for a fresh process, ends in nothing of the kind, and
+; the file is read as before.
+(def %asm-cache-groups ())
+
+(def %asm-cache-group-known
+  (fn (self key l)
+    (if (null? l) ()
+      (if (str=? key (first (first l)))
+        (if (%asm-cache-tail? %asm-cache-held (rest (rest (first l))))
+          (first (rest (first l)))
+          ())
+        (self key (rest l))))))
+
+; Whether list L ends in list TAIL, by identity.
+(def %asm-cache-tail?
+  (fn (self l tail)
+    (if (eq? l tail) #t (if (null? l) #f (self (rest l) tail)))))
+
+(def %asm-cache-group-remember!
+  (fn (_ key texts)
+    (set! %asm-cache-groups
+      (pair (pair key (pair texts %asm-cache-held))
+        ((fn (self l)
+           (if (null? l) ()
+             (if (str=? key (first (first l))) (rest l)
+               (pair (first l) (self (rest l))))))
+         %asm-cache-groups)))))
+
+; Whether NOTED and HAD name the same entries.  A remake compiles in the order
+; the group was written, so the two lists usually match pair by pair, which
+; costs one string compare an entry; any other order falls back to membership.
+(def %asm-cache-same-texts?
+  (fn (_ noted had)
+    (if (not (%asm-cache-i= (%length noted) (%length had))) #f
+      (if ((fn (self a b)
+             (if (null? a) #t (if (str=? (first a) (first b)) (self (rest a) (rest b)) #f)))
+           noted had)
+        #t
+        ((fn (self l) (if (null? l) #t (if (%asm-cache-member? (first l) had) (self (rest l)) #f)))
+         noted)))))
+
 ; Run THUNK with its compiles grouped under KEY, and answer what it answers.
 ; Groups do not nest: a group opened inside another runs its thunk in the
 ; outer one.  An engine whose heap cannot hold an entry has no groups either:
@@ -822,8 +879,11 @@
             (not (null? (first %asm-cache-group-open)))))
       (thunk)
       (do
-        (def path (%asm-cache-group-path key))
-        (def had (%asm-cache-group-load! path))
+        ; A group this heap already holds is not read again; its file's path
+        ; -- a hash of the key -- is wanted only to read or write the file.
+        (def known (%asm-cache-group-known key %asm-cache-groups))
+        (def had
+          (if (null? known) (%asm-cache-group-load! (%asm-cache-group-path key)) known))
         (def g (pair () ()))
         (%set-first! %asm-cache-group-open g)
         (def out
@@ -831,11 +891,9 @@
             (thunk)))
         (%set-first! %asm-cache-group-open ())
         (def noted (first g))
-        (unless (if (= (%length noted) (%length had))
-                  ((fn (self l) (if (null? l) #t (if (%asm-cache-member? (first l) had) (self (rest l)) #f)))
-                   noted)
-                  #f)
-          (%asm-cache-group-store! path (%asm-cache-rev noted ())))
+        (unless (%asm-cache-same-texts? noted had)
+          (%asm-cache-group-store! (%asm-cache-group-path key) (%asm-cache-rev noted ())))
+        (%asm-cache-group-remember! key noted)
         out))))
 
 ; The callable for TEXT from the entry held for it, or () on any miss.

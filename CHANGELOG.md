@@ -17,6 +17,17 @@ two that are not are still asked for; the one built ruling the lang contract
 did not record, the release-refs gate, has its paragraph there.
 
 [#946]: https://github.com/jonruttan/x-lang/pull/946
+**The library reference is generated, and the prose says where it is**
+([#940]). `docs/standard-library.md` wrote 144 entries by hand, 129 of
+them a second copy of the `(doc …)` form the API reference is generated
+from, under a version line that said 0.12.0. It is a page of 79 lines now:
+how the library is laid out, the shape of a call, how to find a name, and
+how the reference is written. The booted forms in `docs/primitives.md`, the
+third of its three parts, were the same kind of copy and are a paragraph
+that says where they live; the C instruction set and the coordinates stay,
+held to the engine's manifest as before.
+
+[#940]: https://github.com/jonruttan/x-lang/pull/940
 
 **`(Paint lexer l colours)`: a painter made from a Lexer** ([#935]). It
 answers a `%repl-paint` painter that colours a line by the tokens of a Lexer
@@ -36,6 +47,16 @@ program reaches the program and leaves the REPL's colour alone.  `--batch`,
 alone.  With no `--` nothing is left out of either side.
 
 [#934]: https://github.com/jonruttan/x-lang/pull/934
+
+**A paste into the line editor no longer slows with each byte, or dies**
+([#938]). The redraw measured the line a byte at a time through class calls,
+three walks a keystroke; it now walks it over the cached prims and the
+integer doors, and the loop sweeps within a line once the heap has grown a
+set amount, where it swept only between lines. An 85-byte paste under
+x-ash's painter: 15.6 s to 2.6 s; a 340-byte one that hit the allocation
+ceiling finishes.
+
+[#938]: https://github.com/jonruttan/x-lang/pull/938
 
 **Module scope's rules live with the module system** ([#933]).
 `docs/namespaces.md`, the proposal for module scope with the record of
@@ -68,6 +89,17 @@ a compiled engine will be checked against.
 
 [#937]: https://github.com/jonruttan/x-lang/pull/937
 
+**`Inflate` has a compiled engine: the codes loop and the Adler-32** ([#943]).
+`x/codec/inflate-jit` compiles a step that decodes one symbol or copies
+eight bytes of a back-reference, and one that sums sixteen bytes of the
+checksum; the driver in x grows the output between calls.  Built for an
+input of 4KB or more or on `(Inflate jit!)`, adopted only after decoding and
+summing two embedded streams exactly as the pure-x decoder does.  The zlib
+path: 16KB of output in 97ms through the engine, 2.22s in pure x; 64KB in
+135ms.
+
+[#943]: https://github.com/jonruttan/x-lang/pull/943
+
 ## [0.26.0] - 2026-10-06
 
 **The engine is x-engine-c v0.2.21** ([#930]). A NUL is an ordinary byte in
@@ -92,6 +124,7 @@ read-str` takes a span (x-engine-c#88) and raises a label `'lexer` Err on one th
 does not.
 
 [#930]: https://github.com/jonruttan/x-lang/pull/930
+
 **`(Lexer pattern tag steps)`: a rule of steps, and the end text is never part of a token** ([#929]).
 A pattern is steps in order, each `(CLASS FEWEST MOST)` -- a class, the fewest
 bytes of it and the most, nil for no bound, `#t` for every byte -- and reads as
@@ -339,6 +372,7 @@ fifty-one compiled states reads at 1.2 µs a byte. docs/crafting-a-lang.md
 carries the Lexer and the tier numbers.
 
 [#901]: https://github.com/jonruttan/x-lang/pull/901
+
 **Sys waits on several descriptors** ([#900]). `(Sys poll fds timeout)`
 is poll(2): it answers each ready descriptor with what it is ready for --
 `in`, `out`, `hup`, `err`, `nval` -- or nil once the timeout passes, and a
@@ -351,6 +385,7 @@ end of input while its replies still arrive, and `(Socket peer fd)` names
 the other end as `(QUAD . PORT)`.
 
 [#900]: https://github.com/jonruttan/x-lang/pull/900
+
 **`(Sys zone secs)` and `(Date local secs)` give local time** ([#899]).
 `Sys zone` answers the zone in force at a unix second, from the C library's
 `localtime_r` after `tzset`: its offset in seconds east of UTC, its

@@ -20,6 +20,8 @@
 (module x/codec/inflate)
 
 (import x/type/vector)
+; The compiled engine is on Compiled's list.
+(import x/tool/compiled)
 
 (def %add (prim-ref 'int '+))
 (def %sub (prim-ref 'int '-))
@@ -37,7 +39,8 @@
 ; A stream's state, in the slots of one vector (slot k holds field k): the
 ; input's address, its length and how much of it is read; the bits read
 ; ahead and how many; the output region, its address, its size and how much
-; of it is written.
+; of it is written; and the function that decodes a block's codes, this
+; file's or the compiled engine's.
 (def %IN 1)
 (def %INLEN 2)
 (def %INCNT 3)
@@ -47,6 +50,7 @@
 (def %OUTP 7)
 (def %OUTCAP 8)
 (def %OUTCNT 9)
+(def %CODES 10)
 
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "Inflate: " what) ())))
 
@@ -180,7 +184,7 @@
               (%oset! s %OUTCNT (%add cnt len)))))))
 
 ; A block's literals, lengths and distances, to its end code (256).
-(def %codes
+(def %codes-x
   (fn (_ s lencode distcode)
     ((fn (self)
        (let ((sym (%decode s lencode)))
@@ -211,7 +215,7 @@
                          (self (%add sym 1)))))
                  0)
                 (set! %fixed-codes (pair (%construct lengths 0 288) (%construct dists 0 30))))))
-        (%codes s (first %fixed-codes) (rest %fixed-codes)))))
+        ((%oref s %CODES) s (first %fixed-codes) (rest %fixed-codes)))))
 
 ; The order the code-length code's lengths come in (3.2.7).
 (def %order (list 16 17 18 0 8 7 9 6 10 5 11 4 12 3 13 2 14 1 15))
@@ -263,12 +267,14 @@
     (def dcode (%construct lengths nlen ndist))
     (unless (and (>= (first (rest (rest dcode))) 0) (%usable? dcode ndist))
       (%fail "an incomplete distance code"))
-    (%codes s lcode dcode)))
+    ((%oref s %CODES) s lcode dcode)))
 
-; The whole of a raw stream from byte `start` of in: (OUT N USED).
+; The whole of a raw stream from byte `start` of in: (OUT N USED), each
+; block's codes decoded by codes.
 (def %raw
-  (fn (_ in start inlen)
-    (def s (Vector make 9 0))
+  (fn (_ in start inlen codes)
+    (def s (Vector make 10 0))
+    (%oset! s %CODES codes)
     (%oset! s %IN (%at (%str->ptr in) start))
     (%oset! s %INLEN inlen)
     (def cap (if (< inlen 256) 1024 (<< inlen 2)))
@@ -288,7 +294,7 @@
 
 ; Adler-32 (RFC 1950 8) of n bytes at p: each sum stays under 65521 by one
 ; subtraction a byte, since neither can pass twice that.
-(def %adler32
+(def %adler32-x
   (fn (_ p n)
     ((fn (self i a b)
        (if (= i n) (| (<< b 16) a)
@@ -297,6 +303,92 @@
              (let ((b1 (%add b a2)))
                (self (%add i 1) a2 (if (>= b1 65521) (%sub b1 65521) b1)))))))
      0 1 0)))
+
+; --- The compiled engine (JIT), adopted only when it proves out ------
+;
+; x/codec/inflate-jit compiles the codes loop and the Adler-32; the rest
+; stays here.  As the digests' engines are, it is an entry of Compiled's
+; made on demand, built for an input of %jit-threshold bytes or more or on
+; (Inflate jit!), and adopted only after decoding and summing the streams
+; below exactly as %codes-x and %adler32-x do.  The entry's value is a pair,
+; (CODES . ADLER): this file's two, or the engine's.
+
+; Raw streams written by gzip -9: a fixed-code block of 26 bytes, and a
+; dynamic-code block of 3000 (every length and distance class the codes
+; loop branches on).
+(def %check-streams
+  (list "cb48cdc9c9d751c840a214caf38b7252b800"
+        (Str8 append
+          "edce8b0100110800d05943447e4567fd5ba437c183804de2c43b1b515b96379e"
+          "4e9890c62d4a4f06f7a9500fbdcd5488059a71bcb29658eaafc733b9f575d380"
+          "59e0aa5ea01d57fe64cda5af6cd4969e19209fac359a8a5ae44b364a0c21d1fc"
+          "ea3732d8b550e663d85c100b4b1c61d704e0410f7ad0831ef4a0073de8410f7a"
+          "f007")))
+
+(def %region
+  (fn (_ bytes)
+    (let ((r (%make-str (List length bytes))))
+      (do ((fn (self i l) (unless (null? l) (do (%pset! (%str->ptr r) i (first l) 1) (self (%add i 1) (rest l)))))
+           0 bytes)
+          r))))
+
+; Does an engine (CODES . ADLER) decode every check stream as %codes-x
+; does, byte for byte, and sum each output as %adler32-x does?
+(def %agrees?
+  (fn (_ engine)
+    (import x/codec/hex)
+    (List all?
+      (fn (_ hex)
+        (let ((bytes (Hex decode-bytes hex)))
+          (let ((in (%region bytes)) (n (List length bytes)))
+            (let ((want (%raw in 0 n %codes-x)) (got (%raw in 0 n (first engine))))
+              (and (= (first (rest want)) (first (rest got)))
+                   (= (first (rest (rest want))) (first (rest (rest got))))
+                   (= 0 (%mem-cmp (%str->ptr (first want)) (%str->ptr (first got)) (first (rest want))))
+                   (= (%adler32-x (%str->ptr (first want)) (first (rest want)))
+                      ((rest engine) (%str->ptr (first got)) (first (rest got)))))))))
+      %check-streams)))
+
+(def %mem-cmp (prim-ref (lit mem) (lit cmp)))
+
+; THE BAR, measured 2026-10-08, arm64: the zlib path decodes and sums 7.4KB
+; of output a second in pure x (16KB in 2.22s) and ~485KB/s through the
+; engine (64KB in 135ms); the build is ~2.8s with the asm cache warm, 7.2s
+; cold, so it repays itself past ~20KB of output.  The bar is on the input,
+; which is all a caller knows beforehand: at text's ~3:1, 4KB of input.
+(def %entry ())
+(def %jit-threshold 4096)
+
+(def %jit-try!
+  (fn (_)
+    (when (null? %entry)
+      (set! %entry
+        (Compiled make-on-demand (lit inflate) (pair %codes-x %adler32-x)
+          (fn (_)
+            (import x/codec/inflate-jit)
+            ((prim-ref (lit inflate) (lit jit-make))
+             (list (pair (lit in) %IN) (pair (lit inlen) %INLEN) (pair (lit incnt) %INCNT)
+                   (pair (lit bitbuf) %BITBUF) (pair (lit bitcnt) %BITCNT)
+                   (pair (lit outp) %OUTP) (pair (lit outcap) %OUTCAP) (pair (lit outcnt) %OUTCNT))
+             %room! %agrees?))
+          (fn (_ v) ()))))
+    ((fn (_ entry)
+       (when (eq? (entry state) (lit interpreted)) (entry compile!))
+       (eq? (entry state) (lit compiled)))
+     %entry)))
+
+; (CODES . ADLER) for n bytes of input: the engine's when it is built, or
+; when n is past the bar and a build succeeds; else this file's.
+(def %engine-for
+  (fn (_ n)
+    (do (when (and (>= n %jit-threshold)
+                   ((fn (_ entry) (if (null? entry) #t (eq? (entry state) (lit interpreted)))) %entry))
+          (%jit-try!))
+        ((fn (_ entry)
+           (if (if (null? entry) #f (eq? (entry state) (lit compiled)))
+             (entry compiled)
+             (pair %codes-x %adler32-x)))
+         %entry))))
 
 (def %int-mod (prim-ref (lit int) (lit %)))
 
@@ -312,14 +404,15 @@
     (when (> (>> cmf 4) 7) (%fail "a window larger than 32K"))
     (unless (= (%int-mod (| (<< cmf 8) flg) 31) 0) (%fail "the zlib header's check fails"))
     (unless (= (& flg 32) 0) (%fail "a preset dictionary, which this does not take"))
-    (def r (%raw in (%add start 2) (%sub inlen 2)))
+    (def engine (%engine-for inlen))
+    (def r (%raw in (%add start 2) (%sub inlen 2) (first engine)))
     (def at (%add 2 (first (rest (rest r)))))
     (when (> (%add at 4) inlen) (%fail "the input ends before the Adler-32"))
     (def want (| (<< (& (%pref p at 1) 255) 24)
                  (| (<< (& (%pref p (%add at 1) 1) 255) 16)
                     (| (<< (& (%pref p (%add at 2) 1) 255) 8)
                        (& (%pref p (%add at 3) 1) 255)))))
-    (unless (= want (%adler32 (%str->ptr (first r)) (first (rest r))))
+    (unless (= want ((rest engine) (%str->ptr (first r)) (first (rest r))))
       (%fail "the Adler-32 does not match"))
     (list (first r) (first (rest r)) (%add at 4))))
 
@@ -339,7 +432,7 @@
       (doc "Decompress a raw DEFLATE stream (RFC 1951). Raises a label 'value naming what is wrong with a malformed one. Give LENGTH for binary input: s's own length is measured to its first NUL."
         (returns LIST "(OUT N USED): the output region, its byte count, and the input bytes the stream used"))
       (def sp (%span s span))
-      (%raw s (first sp) (first (rest sp))))
+      (%raw s (first sp) (first (rest sp)) (first (%engine-for (first (rest sp))))))
     (method zlib (self (param s STRING "Bytes holding a zlib stream")
                        . (param span LIST "START, then LENGTH, as for raw"))
       (doc "Decompress a zlib stream (RFC 1950): its header checked, then a raw stream, then its Adler-32 checked against what came out. Raises a label 'value on any of them failing."
@@ -350,7 +443,11 @@
       (doc "The Adler-32 checksum (RFC 1950) of the first n bytes of s."
         (returns INTEGER "The checksum")
         (example "(Inflate adler32 \"Wikipedia\" 9)" "300286872"))
-      (%adler32 (%str->ptr s) n))))
+      ((rest (%engine-for n)) (%str->ptr s) n))
+    (method jit! (self)
+      (doc "Build and adopt the compiled codes loop and Adler-32 (JIT; ARM64 and x86-64 backends) now, if they decode and sum the check streams exactly as the pure-x ones do. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x decoder carries on, with the same output. raw and zlib build it on their own for an input of 4KB or more."
+        (returns BOOL "#t when the compiled engine is active"))
+      (%jit-try!))))
 
 (doc (provide x/codec/inflate Inflate)
-  "DEFLATE decompression (RFC 1951) and the zlib wrapper (RFC 1950) in pure x-lang: (Inflate zlib s) answers (OUT N USED).")
+  "DEFLATE decompression (RFC 1951) and the zlib wrapper (RFC 1950) in pure x-lang, with a differentially-verified compiled engine for the codes loop: (Inflate zlib s) answers (OUT N USED).")

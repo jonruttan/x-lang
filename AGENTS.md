@@ -206,7 +206,7 @@ Start at [docs/index.md](docs/index.md). When you need one specific thing:
 | How do types/dispatch work? | [type-system.md](docs/type-system.md) |
 | How do classes work? | [object-system.md](docs/object-system.md) |
 | What can I write? | [syntax.md](docs/syntax.md), [primitives.md](docs/primitives.md) |
-| What's in the library? | [standard-library.md](docs/standard-library.md), or `apropos` |
+| What's in the library? | `apropos`, `(help Name/method)`, or [the generated reference](https://jonruttan.github.io/x-lang/docs/ref/x/index.html); [standard-library.md](docs/standard-library.md) is the map |
 | How do modules/pinning work? | [modules.md](docs/modules.md) |
 | What must an engine provide? | [engine-contract.md](docs/engine-contract.md) |
 | How do I build a surface language? | [crafting-a-lang.md](docs/crafting-a-lang.md) |

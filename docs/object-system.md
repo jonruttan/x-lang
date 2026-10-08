@@ -742,5 +742,5 @@ too.
 
 Every form is in the REPL help system — `(help def-class)`, `(help new)`, … — and
 `(help x/type/class)` prints the module overview. See also the
-[Type System](type-system.md) for the underlying `make-type` mechanism, and the
-[Standard Library](standard-library.md) reference.
+[Type System](type-system.md) for the underlying `make-type` mechanism, and
+[Standard Library](standard-library.md) for how the library is laid out.
