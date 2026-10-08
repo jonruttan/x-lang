@@ -271,6 +271,19 @@ clear it), so a later case in the same batch reads the real machine.
 ---
     (((600000000 2500000000) (400000000 1500000000)) (3 0))
 
+### a stat line that ends at rss reads, and the fields past its end are nil
+
+```x
+(do (import x/sys/host)
+  (Host source 'linux)
+  (Host proc-root "tests/x/fixtures/host/short")
+  (def p (Host process 9))
+  (Host source (if os-darwin? (lit darwin) (lit linux))) (Host proc-root "/proc")
+  (List map (fn (_ k) (Assoc get k p)) '(pid ppid comm vsz processor)))
+```
+---
+    (9 1 "sleep" 4096 ())
+
 ### threads reads /proc/PID/task: each thread's own name, state, CPU time and processor
 
 ```x
