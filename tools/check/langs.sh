@@ -84,10 +84,12 @@ sed -n 's/^(lang "\([^"]*\)"  *"\([^"]*\)"  *\([0-9]*\)  *\([0-9]*\)).*/\1 \2 \3
 	# the coloured summary line never anchors.  And a greedy .* before a digit
 	# class eats all but the last digit: "74 tests" captures 4 and "80 failed"
 	# captures 0, so a bundle 80 specs in the red reads as green.
+	# The suite runs inside the bundle's directory, so the log directory is
+	# made absolute here, where it was named.
 	log=/dev/null
 	if [ -n "${LANGS_LOG_DIR:-}" ]; then
 		mkdir -p "$LANGS_LOG_DIR"
-		log="$LANGS_LOG_DIR/$name.log"
+		log="$(cd "$LANGS_LOG_DIR" && pwd)/$name.log"
 	fi
 	line="$(cd "$D" && X="$X_UNDER_TEST" sh tests/spec-runner.sh 2>&1 \
 		| tee "$log" \

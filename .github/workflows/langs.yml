@@ -115,16 +115,30 @@ jobs:
             sh tools/check/langs.sh > langs.out 2>&1
           rc=$?
           cat langs.out
-          if [ "$rc" != 0 ] && [ -f "langs-logs/${{ matrix.lang.name }}.log" ]; then
+          log="langs-logs/${{ matrix.lang.name }}.log"
+          if [ "$rc" != 0 ] && [ -f "$log" ]; then
             echo
             echo "the suite's failing tests:"
-            sed 's/\x1b\[[0-9;]*m//g' "langs-logs/${{ matrix.lang.name }}.log" | grep -A3 '^FAIL'
+            sed 's/\x1b\[[0-9;]*m//g' "$log" | grep -A3 '^FAIL'
+            echo
+            echo "the suite's last lines:"
+            sed 's/\x1b\[[0-9;]*m//g' "$log" | tail -80
           fi
           if grep -q SKIPPED langs.out; then
             echo "${{ matrix.lang.name }}: the suite was not run" >&2
             exit 1
           fi
           exit $rc
+
+      # The whole suite output, for a failure the summary does not explain.
+      - name: Keep the suite's output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: langs-${{ matrix.lang.name }}
+          path: langs-logs/
+          if-no-files-found: ignore
+          retention-days: 7
 
   # The one check to require: green when every bundle is, and when the
   # matrix did not run because this is not a release pull request.
