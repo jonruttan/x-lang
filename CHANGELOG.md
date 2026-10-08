@@ -5,6 +5,174 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-08
+
+**`Host maps` and `Host threads` cost a process a small fraction of what they did, and `Host memory` reports anon, mapped, slab, dirty and writeback.** ([#961]) A process's maps fell from 5.1M objects to 174K on Darwin (its threads from 217K to 63K), each region and thread read through the resolved `proc_pidinfo` and the int doors rather than a class call a field; Linux's smaps figures are scanned as bytes rather than trimmed and measured as strings. The new memory fields are /proc/meminfo's AnonPages, Mapped, Slab, Dirty and Writeback, which BusyBox's `top -m` prints; Darwin reports anon (its anonymous pages) and nil for the rest.
+
+[#961]: https://github.com/jonruttan/x-lang/pull/961
+
+**`(Socket send-run fd s n)`: the first n bytes of s sent, NULs
+included** ([#960]) -- the lossless door beside `recv-run`'s, since `send`
+measures its string to the first NUL and a binary packet has them
+inside.  What x-ssh sends its packets through.
+
+[#960]: https://github.com/jonruttan/x-lang/pull/960
+
+**`Ed25519`: signatures (RFC 8032) in pure x, with a
+differentially-verified compiled engine, and the field GF(2^255 - 19)
+as a module of its own** ([#959]).  `(Ed25519 public seed)`, `(Ed25519 sign seed
+m [start len])` and `(Ed25519 verify pub sig m [start len])`, over
+x/codec/sha512 and the new x/codec/fe25519 -- the ten-limb field X25519
+now imports too, with x/codec/fe25519-jit its compiled operations for
+both engines.  `(Ed25519 jit!)` builds the scalar multiplication --
+a signature in 2.4s and a check in 2.3s, the hashes, the inverse and the scalars mod L still pure-x, the build 7.9s of which six are the one reference multiplication its check runs -- against 14s a signature and 27s a check pure-x.  The
+host and user keys of x-ssh.
+
+[#959]: https://github.com/jonruttan/x-lang/pull/959
+
+**`Sha512`: the SHA-512 digest (FIPS 180-4) in pure x, with a
+differentially-verified compiled engine** ([#958]).  `(Sha512 hex s)` and
+`(Sha512 hex-n s n)` as Sha1's; pure-x on 32-bit halves so the
+arithmetic fits the engine's int, and `(Sha512 jit!)` builds the engine
+on the lane's 64-bit words -- 64KB in 83ms against 520us a byte pure-x, a 1.4s build on a warm asm cache -- which `hex` also builds
+for an input of 4KB or more.  What Ed25519 hashes with, for x-ssh.
+
+[#958]: https://github.com/jonruttan/x-lang/pull/958
+
+**`X25519`: Diffie-Hellman on Curve25519 (RFC 7748) in pure x, with a
+differentially-verified compiled engine** ([#957]).  `(X25519 scalarmult k u)`
+and `(X25519 base k)` answer 32 bytes, on ref10's ten-limb field so the
+arithmetic fits the engine's int; `(X25519 jit!)` builds the engine --
+the multiply, add, subtract, times-121666 and swap each a compiled
+function, the ladder in x over them -- an exchange in 135ms against 5.0s pure-x, the build 7s of which five are the one reference exchange its check runs.  The key
+exchange of curve25519-sha256, for x-ssh.
+
+[#957]: https://github.com/jonruttan/x-lang/pull/957
+
+**`Term key` names the function and keypad keys, and `Line read-until` ends a line on a key or stops it from an idle function.** ([#956]) `Term key` answers `'f1` to `'f12` for the function keys in their SS3, modified-CSI and `ESC [ N ~` spellings, and `'kp0` to `'kp9` for a keypad in application mode; `ESC [ N ~` is now read by its number, where a byte test had read F5 to F8 as Home. `(Line read-until prompt ends . idle)` reads a line as `read` does, answers `(key . text)` when a key in `ends` ends it, and with `idle` as `(tenths . fn)` calls `fn` in the cooked terminal each time that long passes with no key: true stops the read as `('stopped . text)`, a string becomes the prompt.
+
+[#956]: https://github.com/jonruttan/x-lang/pull/956
+
+**`Poly1305`: the one-time authenticator (RFC 8439 2.5) in pure x, with
+a differentially-verified compiled engine** ([#955]).  `(Poly1305 mac key s
+[start len])` is the 16-byte tag of a byte region under a one-time key,
+on 26-bit limbs so the arithmetic fits the engine's int; `(Poly1305
+jit!)` builds the engine -- the block loop as one compiled function, a
+block a call -- which `mac` also builds for a region of 48KB or more:
+64KB in 12ms against 24us a byte pure-x, a 1.1s build on a warm asm
+cache.  The MAC of chacha20-poly1305@openssh.com, for x-ssh.
+
+[#955]: https://github.com/jonruttan/x-lang/pull/955
+
+**`make check-changelog-commits` reads a branch that merged main as one
+change.** ([#954]) A fix commit after a merge of main is judged with the entry the
+branch already carries, not as a change of its own.
+
+[#954]: https://github.com/jonruttan/x-lang/pull/954
+
+**`ChaCha20`: the stream cipher (RFC 8439) in pure x, with a
+differentially-verified compiled engine** ([#953]).  `(ChaCha20 xor key iv s
+[start len])` encrypts or decrypts a byte region and `(ChaCha20 block
+key iv)` is a keystream block; the iv is state words 12..15, so RFC
+8439's and openssh's nonce shapes are one cipher.  `(ChaCha20 jit!)`
+builds the engine -- one compiled function a block, a double round a
+call, whole blocks XORed as eight 64-bit words -- which `xor` also
+builds for a region of 8KB or more: 64KB in 49ms against 280us a byte
+pure-x, a 2.3s build on a warm asm cache.  The first codec for x-ssh.
+
+[#953]: https://github.com/jonruttan/x-lang/pull/953
+
+**A Lexer make replays the plan its cache group holds.** ([#951]) A make with every
+state compiled records, in the group beside the code, which entry each
+state is and what its free variables are; a later make of the same rules
+pours the states from that plan with no form made, printed or checked, in
+the same heap or in a process that reads the group file. vi's 21-state
+address lexer: a warm `(Lexer make)` 104-110 -> 58-88 ms in a fresh
+process, a remake in the same heap 86-91 -> 40 ms; x-ash's 73-state
+tokenizer and x-awk's record lexers replay the same way. The `replayed`
+field says which make ran.
+
+[#951]: https://github.com/jonruttan/x-lang/pull/951
+
+**The environment model is the tenth engine law** ([#946]).
+`docs/environment-model.md` opened with "Nothing in it is implemented"; the
+model, an environment as one pair `(bindings . parent)`, shipped in
+x-engine-c v0.2.10 and the conformance suite tests it. Its rules are
+behaviour the language requires of an engine that the manifest cannot
+express, so they are law 10 in `docs/engine-laws.md`, and the file with its
+history, costs, sequence and open questions is gone. `docs/lang-scale.md`'s
+status line says which of its rulings are built, three of five, and that the
+two that are not are still asked for; the one built ruling the lang contract
+did not record, the release-refs gate, has its paragraph there.
+
+[#946]: https://github.com/jonruttan/x-lang/pull/946
+
+**Host reports what top needs: `tasks`, `cpus`, `threads`, `maps`, `utmp` and a `processor` field.** ([#952]) `(Host tasks)` answers /proc/loadavg's running and total counts and last pid (nil on Darwin, which keeps none); `(Host cpus)` a cpu record for each processor, from /proc/stat's cpuN lines or host_processor_info; `(Host threads pid)` a record a thread, from /proc/PID/task or proc_pidinfo's thread info; `(Host maps pid)` the mapping sums BusyBox's top -m prints, from /proc/PID/smaps (read a piece at a time) or a proc_pidinfo region walk; `(Host utmp)` every utmpx entry with a user name and its type, of which `(Host users)` is now the user-process ones; and each process record gains `processor`, the CPU it last ran on (nil on Darwin). Darwin's process CPU times are whole nanoseconds again under `-l xe`, where a 125/3 timebase made them fractions.
+
+[#952]: https://github.com/jonruttan/x-lang/pull/952
+
+**A lookup by name is a class, and `docs/code-quality.md` carries no
+measurements** ([#948]). Rule 1.2 said a chain of fifteen or more string
+comparisons becomes a `Dict` of functions built at load; that is a dispatch
+table written by hand. A chain that selects a function by name is a
+dispatch, and the class system is the dispatcher: the names become static
+methods of a class and the call is the lookup, at three names or thirty. The
+linter's warning for a string-keyed chain is `dispatch`, with no size
+threshold, and the kit's strict mode fails on it as it did on `ladder-dict`.
+The document keeps its rules and loses the timing tables, the lists of worst
+cases and the dated baseline behind them.
+
+[#948]: https://github.com/jonruttan/x-lang/pull/948
+
+**`make check-changelog-commits` refuses a branch that adds to CHANGELOG.md** ([#947]).
+The gate already required every `feat`, `fix` or `perf` commit since the tag
+to carry its entry after a `Changelog:` line; now it also fails a branch whose
+net difference from the merge base with `origin/main` adds lines to
+CHANGELOG.md, since the file is written at release and a pull request that
+adds its paragraph puts every other open one in conflict.  A release branch,
+carrying a `release:` commit, is the one that may add.
+
+**`(Lexer state form fvars)`: an analyser state for a type built by hand** ([#947]).
+The Lexer realizes one state from a form in the assembler lane's dialect, as
+its rules do -- compiled to native code when the lane is open, the interpreted
+twin otherwise -- and answers `(STATE . COMPILED?)`.  For a tokenizer base the
+rules cannot express: typed instances, a live stream, a read that recurses
+(x-logo's).  The caller holds its states and makes them again after an image
+load.
+
+[#947]: https://github.com/jonruttan/x-lang/pull/947
+
+**`docs/state-images.md` is the design's reasoning, and the developer
+documents carry no measurements** ([#950]). The state-images document said
+the image format, the writer and the reader were still design; all three
+shipped, and the document now says why each is shaped as it is, with the
+measurements, probe scripts and accounts of abandoned approaches gone. The
+format document owns the layout. `docs/lang-scale.md`, `docs/modules.md`,
+`docs/crafting-a-lang.md` and `docs/lang-contract.md` lose their timings, counts and bug accounts the same
+way and keep their rules; `lang-contract.md`'s compiled-harness sentence
+names the registration rule (`lib/x/tool/compiled.x`) instead of an engine
+defect that is fixed.
+
+[#950]: https://github.com/jonruttan/x-lang/pull/950
+
+**`Deflate`: DEFLATE streams written in pure x, stored blocks first** ([#949]).
+`(Deflate stored s [start len])` writes a raw stream (RFC 1951) of stored
+blocks and `(Deflate zlib-stored s [start len])` the same in zlib's wrapper
+(RFC 1950), each answering `(OUT N)`; the spec reads them back through
+`Inflate` and through the system libz.  What git writes a loose object as
+when nothing compresses it; a compressing writer is next.
+
+[#949]: https://github.com/jonruttan/x-lang/pull/949
+
+**A held asm-cache group reads no file** ([#939]). A group met again while its
+entries are held -- the same rules remade, or a process booted from an image
+the group was made in -- is served without reading its file, and its path is
+hashed only when the file is read or written. The loops that run once per
+relocation record use the integer doors. vi's 21-state address lexer: a warm
+`(Lexer make)` 123-128 -> 104-110 ms, a remake in the same heap 86-91 ms.
+
+[#939]: https://github.com/jonruttan/x-lang/pull/939
+
 **The library reference is generated, and the prose says where it is**
 ([#940]). `docs/standard-library.md` wrote 144 entries by hand, 129 of
 them a second copy of the `(doc …)` form the API reference is generated
