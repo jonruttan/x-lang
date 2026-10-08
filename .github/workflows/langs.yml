@@ -25,6 +25,12 @@ on:
 permissions:
   contents: read
 
+# Opening a pull request with the label on it is two events; the later run
+# replaces the earlier one.
+concurrency:
+  group: langs-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   list:
     name: bundle list
@@ -91,12 +97,29 @@ jobs:
       # langs.sh skips an absent bundle and passes, which suits a checkout
       # with no bundles beside it; here the bundle was checked out, so a skip
       # means it was not run, and that is a failure.
+      #
+      # The runner settings are the ones the bundles' own CI uses: each spec
+      # file in a process of its own, and one heavy file at a time.  Several
+      # files in one process share its heap, and a batch the runner has to
+      # kill counts every one of its tests as failed.
       - name: Run the suite
+        env:
+          SPEC_BATCH: 1
+          PARALLEL: 1
+          PARALLEL_JOBS: 3
+          SPEC_HEAVY_JOBS: 1
+          SPEC_HEAVY_MIN: 4
         run: |
           set +e
-          LANGS="${{ matrix.lang.name }}" sh tools/check/langs.sh > langs.out 2>&1
+          LANGS="${{ matrix.lang.name }}" LANGS_LOG_DIR=langs-logs \
+            sh tools/check/langs.sh > langs.out 2>&1
           rc=$?
           cat langs.out
+          if [ "$rc" != 0 ] && [ -f "langs-logs/${{ matrix.lang.name }}.log" ]; then
+            echo
+            echo "the suite's failing tests:"
+            sed 's/\x1b\[[0-9;]*m//g' "langs-logs/${{ matrix.lang.name }}.log" | grep -A3 '^FAIL'
+          fi
           if grep -q SKIPPED langs.out; then
             echo "${{ matrix.lang.name }}: the suite was not run" >&2
             exit 1
