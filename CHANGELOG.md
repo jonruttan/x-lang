@@ -5,15 +5,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**A held asm-cache group reads no file** ([#939]). A group met again while its
-entries are held -- the same rules remade, or a process booted from an image
-the group was made in -- is served without reading its file, and its path is
-hashed only when the file is read or written. The loops that run once per
-relocation record use the integer doors. vi's 21-state address lexer: a warm
-`(Lexer make)` 123-128 -> 104-110 ms, a remake in the same heap 86-91 ms.
-
-[#939]: https://github.com/jonruttan/x-lang/pull/939
-
 **`(Paint lexer l colours)`: a painter made from a Lexer** ([#935]). It
 answers a `%repl-paint` painter that colours a line by the tokens of a Lexer
 whose rules read every byte, each token in the style its tag names: an Ansi
