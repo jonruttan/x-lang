@@ -364,6 +364,13 @@ GitHub Actions (`.github/workflows/ci.yml`) hard-gates every push and pull reque
 
 ### Releases
 
+A release is cut on a `release/X.Y.Z` branch and merged through a pull
+request. On that pull request `.github/workflows/langs.yml` runs the suite
+of every lang bundle `tools/contract/langs.x` lists against the release, and
+its `bundles` check fails when a bundle has more failures than its row
+records. Tag only once it is green. Labelling any other pull request `langs`
+runs the same matrix on it.
+
 Pushing a version tag (`v*`) runs `.github/workflows/release.yml`: the
 full gate first (a tag on a red tree publishes nothing), then `make
 boot` and `tools/release/release-manifest.sh`, publishing a GitHub Release

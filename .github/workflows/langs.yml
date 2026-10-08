@@ -1,0 +1,121 @@
+name: Langs
+
+# Every lang bundle's suite, run against this tree before a release is
+# tagged (docs/lang-scale.md, ruling 3).  A matrix run after the tag reports
+# history; run on the release pull request, a red bundle stops the release.
+#
+# It runs on a pull request whose branch is release/X.Y.Z, on one labelled
+# `langs` (a change that may move the bundles, or to this workflow), and by
+# hand.  On any other pull request every job is skipped, so the `bundles`
+# check can be required on main without holding anything else up.
+#
+# The bundles are the rows of tools/contract/langs.x, each in the repository
+# jonruttan/DIR at its default branch.  A bundle that requires another lang
+# gets that lang's repository beside it, at the version its lang.xon
+# declares.  The verdict is tools/check/langs.sh's for that one bundle:
+# failures over the budget langs.x records fail the job.  One bundle runs per
+# job, because several of them need most of a runner's memory alone.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  list:
+    name: bundle list
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.head_ref, 'release/')
+      || contains(github.event.pull_request.labels.*.name, 'langs')
+    runs-on: ubuntu-24.04
+    outputs:
+      langs: ${{ steps.read.outputs.langs }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        name: Read the bundles from tools/contract/langs.x
+        run: |
+          langs=$(sed -n 's/^(lang "\([^"]*\)"  *"\([^"]*\)" .*/{"name":"\1","dir":"\2"}/p' \
+                    tools/contract/langs.x | paste -sd, -)
+          if [ -z "$langs" ]; then
+            echo "tools/contract/langs.x lists no bundles" >&2
+            exit 1
+          fi
+          echo "langs=[$langs]" >> "$GITHUB_OUTPUT"
+          echo "[$langs]"
+
+  suite:
+    name: ${{ matrix.lang.name }}
+    needs: list
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: ${{ fromJSON(needs.list.outputs.langs) }}
+    env:
+      X_LANGS_DIR: ${{ github.workspace }}/.languages
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the bundle
+        uses: actions/checkout@v4
+        with:
+          repository: jonruttan/${{ matrix.lang.dir }}
+          path: .languages/${{ matrix.lang.dir }}
+
+      # (requires-lang "NAME" ["VERSION"]) names a lang the bundle loads from
+      # beside itself.  It is checked out at the declared version, as `x -l`
+      # acquires it for a user, or at its default branch when none is declared.
+      - name: Check out the langs it requires
+        run: |
+          sed -n 's/^(requires-lang "\([^"]*\)"\(  *"\([^"]*\)"\)\{0,1\}).*/\1 \3/p' \
+            ".languages/${{ matrix.lang.dir }}/lang.xon" |
+          while read -r name version; do
+            echo "requires $name ${version:-at its default branch}"
+            git clone -q --depth 1 ${version:+--branch "$version"} \
+              "https://github.com/jonruttan/x-$name.git" ".languages/x-$name"
+          done
+
+      - name: Build the platform
+        run: |
+          make engine
+          make
+          make boot
+
+      # langs.sh skips an absent bundle and passes, which suits a checkout
+      # with no bundles beside it; here the bundle was checked out, so a skip
+      # means it was not run, and that is a failure.
+      - name: Run the suite
+        run: |
+          set +e
+          LANGS="${{ matrix.lang.name }}" sh tools/check/langs.sh > langs.out 2>&1
+          rc=$?
+          cat langs.out
+          if grep -q SKIPPED langs.out; then
+            echo "${{ matrix.lang.name }}: the suite was not run" >&2
+            exit 1
+          fi
+          exit $rc
+
+  # The one check to require: green when every bundle is, and when the
+  # matrix did not run because this is not a release pull request.
+  bundles:
+    name: bundles
+    needs: [list, suite]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verdict
+        run: |
+          case "${{ needs.list.result }}/${{ needs.suite.result }}" in
+            skipped/skipped) echo "not a release pull request and not labelled langs: no bundles run" ;;
+            success/success) echo "every bundle is within its budget" ;;
+            *) echo "bundle list: ${{ needs.list.result }}, suites: ${{ needs.suite.result }}" >&2
+               exit 1 ;;
+          esac

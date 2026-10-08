@@ -7,9 +7,10 @@ three things in it are O(N) by hand.
 
 > **Status.** Rulings 1, 2 and 5 are built: the lang kit under
 > `tools/lang-kit/`, the release-refs gate in four bundles (x-coreutils,
-> x-logo, x-r5rs, x-r7rs), and `requires-lang`. Rulings 3 and 4, the
-> pre-release bundle run and the pins in the registry, are not, and are still
-> asked for.
+> x-logo, x-r5rs, x-r7rs), and `requires-lang`. Ruling 3's pre-release
+> bundle run is built (`.github/workflows/langs.yml`); its per-commit load
+> smoke and the bundles' scheduled runs are not yet. Ruling 4, the pins in
+> the registry, is not built.
 
 ## The problem
 
@@ -127,8 +128,11 @@ where is a question about **when the answer can still change the outcome**:
 | per commit | bundle | its own suite and its ratchet |
 | scheduled | bundle | against x-lang `main`, so drift is a red build |
 
-The move that matters is **pre-release**. A bundle matrix run after tagging
-reports history; run before, it can stop a release that would break six
+The move that matters is **pre-release**, and it is
+`.github/workflows/langs.yml`: on a `release/X.Y.Z` pull request it runs every
+bundle `tools/contract/langs.x` lists, one per job, and fails the `bundles`
+check when one is over its budget. A bundle matrix run after tagging
+reports history; run before, it can stop a release that would break its
 downstreams — which is the same ruling the release workflows already follow
 when they run a suite before rolling a tarball.
 
