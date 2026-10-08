@@ -5,9 +5,11 @@ what has to be true for there to be twenty of them, and it exists because the
 answers are different: nothing in the contract is wrong at six bundles, and
 three things in it are O(N) by hand.
 
-> **Status: Ruling 2 is shipped in two bundles; the rest is proposal.** The
-> measurements are real and reproducible; the unshipped rulings are arguments.
-> Each section says where it stands.
+> **Status.** Rulings 1, 2 and 5 are built: the lang kit under
+> `tools/lang-kit/`, the release-refs gate in four bundles (x-coreutils,
+> x-logo, x-r5rs, x-r7rs), and `requires-lang`. Rulings 3 and 4, the
+> pre-release bundle run and the pins in the registry, are not, and are still
+> asked for. The measurements are from 2026-08-29, at six bundles.
 
 ## The problem, measured
 

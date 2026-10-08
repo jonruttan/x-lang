@@ -22,6 +22,7 @@ collection.
 | 7 | a pointer into the engine's heap crosses the foreign door as a REAL address | `(Proc run! (list "/bin/sh" "-c" "exit 3"))` is `3` | a constant status, whatever the child did |
 | 8 | `str byte-sub` ADDRESSES bytes; it does not slice the NUL-bounded value | a byte past an embedded NUL | every dirent name reads empty |
 | 9 | evaluation and application are TYPE HANDLERS | replacing a made type's `eval` handler changes what `(eval i)` answers | registration writes a row the evaluator never reads |
+| 10 | an environment is ONE PAIR, `(bindings . parent)`, and `def` binds in the current one | `(eval (list (lit def) n v) e)` from an operative binds in `e`, and the binding is there after the operative returns | an operative cannot define for its caller; every lang's `define` is a tail-position trick |
 
 ### 1 — `eq?` compares the operand word
 
@@ -88,6 +89,47 @@ A `type make` type with an `eval` handler decides what evaluating its
 instances means; with a `call` handler its instances are callable; with
 neither, an instance is itself and a form headed by one is data. Checked by
 `tests/x/conformance/core/handlers.spec.md`.
+
+### 10 — an environment is one pair
+
+An environment is `(bindings . parent)`: `bindings` a chain of
+`(name . value)` cells, or the root's tree; `parent` the enclosing
+environment, or nil at the root. It is a pair tree like everything else in
+the base, so `first` and `rest` walk it and the collector marks it with no
+special case. Shipped in x-engine-c v0.2.10, which retired the frame marks,
+the local boundary, the shadow list and `def-global` that stood in for it.
+
+The rules:
+
+- **Lookup** searches `bindings`, then the parent's, up to the root. The
+  root's bindings may be a tree; that is one environment's detail.
+- **`def`** binds in the current environment: it updates the name's cell
+  there if one exists, otherwise adds one. Never the parent.
+- **`set!`** finds the name by lookup and updates the cell where it is found.
+  An unbound name is an error.
+- **A procedure call** makes a child of the closure's environment, binds the
+  parameters in it, and evaluates the body with it current. Every call makes
+  a child, a parameterless one too, so a body's definitions are private to
+  the activation.
+- **An operative call** makes a child of the operative's static environment,
+  binds the formals to the unevaluated arguments and the env parameter to
+  the caller's environment, and evaluates the body with it current.
+- **`eval` with an environment** makes it current, evaluates, and restores
+  the previous one. A `def` inside binds in the given environment and stays
+  bound. `(eval (list (lit def) n v) e)` is the definer every lang wanted.
+- **`eval!`** evaluates in the root, as the loader evaluates a file's forms.
+- **A closure or an operative** captures the current environment object, and
+  nothing else.
+- **A child base** has its own root. A closure made in the parent and handed
+  to the child reaches the parent's root through its own parent chain.
+
+What the language builds on it: a module is an environment whose parent is
+the root ([Modules](modules.md#module-scope)); a lang chooses its paradigm
+with two operations, make a child and evaluate in an environment, so
+Kernel's `$define!` is `def` in a named environment and Scheme's internal
+defines get `letrec` semantics because a body's definitions live in the
+body's own environment. None of it is decided in C. Checked by
+`tests/x/conformance/core/evaluation.spec.md` and `spine.spec.md`.
 
 ## Open contract question
 
