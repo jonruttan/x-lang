@@ -436,24 +436,21 @@
 
 ; --- Multi-way ladder check (docs/code-quality.md 1.1 / 1.2) ---
 ;
-; A nested `if` chain is a multi-way conditional written as a tower. The
+; A nested `if` chain is a multi-way conditional written as a tower.  The
 ; tests do not have to compare one variable: three ifs nested through their
-; else branches are four arms of one decision however they are spelled, and
-; the rule used to miss every chain whose arms tested different things.  `match` is an engine primitive
-; -- `if` itself is derived from it -- and it measures FASTER than the chain
-; it replaces (605ms vs 897ms; 40 arms, 10k lookups, xenon) as well as flat.
-; A win on both axes, so there is NO hot-path exemption: hot code converts
-; first, not last.
+; else branches are four arms of one decision however they are spelled.
+; `match` is an engine primitive -- `if` itself is derived from it -- and
+; costs less than the chain it replaces as well as being flat, so there is no
+; hot-path exemption: hot code converts first, not last.
 ;
-; The key type changes the advice, so it rides the warning.  With >=15 STRING
-; arms a Dict beats both forms (2.75s vs 6.90s; 25 arms, 4k lookups) because
-; each arm costs a string compare rather than a free C `=`.  Below that bar
-; the same Dict is 5x SLOWER than match on integer keys, and #344 already
-; adjudicated Dict-vs-alist the other way for the linter's own small tables.
-; So: "ladder" means rewrite as match, "ladder-dict" means build a table.
+; The key type changes the advice, so it rides the warning.  A chain whose
+; arms compare one STRING against one name after another is not a
+; conditional but a dispatch, and the class system is the dispatcher: the
+; names become static methods of a class and the call is the lookup.  So
+; "ladder" means rewrite as match, "dispatch" means home the names on a
+; class.  Neither has a size: a dispatch is a dispatch at three names.
 
 (def %ladder-min 3)        ; nested ifs before a chain is worth reporting
-(def %ladder-dict-min 15)  ; string arms before a Dict beats match
 
 ; (first ()) is UNDEFINED behaviour -- docs/spec.md: "Calling (first ()) is
 ; undefined" -- and in practice it segfaults.  This walk meets arbitrary
@@ -643,9 +640,7 @@
     (unless (null? b)
       (when (>= (first b) %ladder-min)
         (%warn!
-          (if (str=? (rest b) "str")
-            (if (>= (first b) %ladder-dict-min) "ladder-dict" "ladder")
-            "ladder")
+          (if (str=? (rest b) "str") "dispatch" "ladder")
           (Str8 append (Str8 append name "/") (%cvt (first b) %lint-string-type))))))))
 
 (def %lint-quasi (fn (self form)
@@ -1174,7 +1169,7 @@
   (param forms LIST "List of top-level forms to analyze")
   (param defs LIST "Accumulator for defined symbol NAMES")
   (param uses LIST "Accumulator for used symbol NAMES")
-  (returns LIST "(defs uses issues leaks warnings) -- defs/uses/issues/leaks are NAME STRINGS; warnings are (label . name) pairs for arity / call-nonfn / display-chain / dup-def / ladder / ladder-dict / malformed / match-multi / shadow / unused; ladder names carry the arm count as NAME/ARMS")
+  (returns LIST "(defs uses issues leaks warnings) -- defs/uses/issues/leaks are NAME STRINGS; warnings are (label . name) pairs for arity / call-nonfn / display-chain / dup-def / ladder / dispatch / malformed / match-multi / shadow / unused; ladder names carry the arm count as NAME/ARMS")
   "Walk top-level forms via the write stacks, collecting def/use names, first/rest issues, tail-position def leaks, and pedantic warnings (arity, non-callable calls, duplicate defs, malformed forms, lexical shadows, and unused locals).")
 
 (doc (def lint-undefined (fn (_ defs uses)

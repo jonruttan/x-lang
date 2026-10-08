@@ -543,14 +543,19 @@ the way down.
 ---
     #t
 
-### the subject-last method spelling is recognised
+### a chain of string compares is a dispatch, and the subject-last spelling is recognised
+
+A chain that compares one string against one name after another selects a
+function by name.  That is a dispatch, and the advice is a class with the
+names as its static methods (docs/code-quality.md 1.2), so the warning is
+`dispatch`, at any size.
 
 ```x
 (do
   (def %r (lint-forms (list '(def k (fn (_ n)
              (if (Str8 =? n "a") 1 (if (Str8 =? n "b") 2
              (if (Str8 =? n "c") 3 (if (Str8 =? n "d") 4 0))))))) () ()))
-  (display (lint-has? "k/4" (lint-warnings-of "ladder" %r))))
+  (display (lint-has? "k/4" (lint-warnings-of "dispatch" %r))))
 ```
 ---
     #t
@@ -601,9 +606,9 @@ so the run continues through it.  Five arms, the middle one compound.
 
 ### a compound over two different variables does not end the chain
 
-It ends the KEYED chain, which is what decides the Dict advice -- a table
-cannot replace arms that are not keys. The chain itself is still three
-ifs deep.
+It ends the KEYED chain, which is what decides whether the advice is a
+class -- a dispatch needs every arm to be a name. The chain itself is still
+three ifs deep.
 
 ```x
 (do

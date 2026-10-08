@@ -312,7 +312,7 @@
 ; their exports are bare names.  Both are unscoped, the walk being per object.
 (file "lib/x/tool/image/name.x" 14)
 (file "lib/x/tool/image/walk.x" 17)
-(file "lib/x/tool/lint.x" 88)
+(file "lib/x/tool/lint.x" 87)
 ; class.x fell 91 to 89: its two exported hooks, class-call-handler and
 ; bind-call-over!, are bare names now (x-lang#719, the last %-named exports).
 (file "lib/x/type/class.x" 89)   ; +1 %apply: the dispatcher applies resolved methods and displaced C handler atoms through the engine's apply
