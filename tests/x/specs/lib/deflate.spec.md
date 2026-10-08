@@ -1,9 +1,15 @@
 # Deflate: stored streams
-# @weight 2
+# @weight 15
+# @timeout-scale 4
 
 What `Deflate` writes is read back two ways: by `Inflate`, and by the
 system zlib through `Zlib decompress` (libz), the reader git and
 everything else use.  `%df-bytes` reads a region back as a byte list.
+
+The weight and the timeout scale are the 70000-byte case's: its input
+is past `Inflate`'s bar, so reading it back builds the compiled engine
+-- a one-off compile that a cold runner pays in seconds -- as
+inflate-jit.spec.md declares for the same reason.
 
 ## stored blocks
 
