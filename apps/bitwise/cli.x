@@ -41,16 +41,7 @@
     (method %width (self fmt)
       (first (rest (%find (fn (_ e) (str=? (first e) fmt)) (BitwiseCli %widths)))))
 
-    ; The engine's own flags reach the program too; drop them, and a leading --.
-    (method %engine-flag? (self s)
-      (match
-        ((str=? s "--quiet") #t)
-        ((str=? s "--batch") #t)
-        ((str=? s "--no-color") #t)
-        (#t (str=? s "--verbose"))))
-    (method %argv (self raw)
-      (def ops (List filter (fn (_ a) (not (BitwiseCli %engine-flag? a))) (if (pair? raw) (rest raw) ())))
-      (if (if (pair? ops) (str=? (first ops) "--") #f) (rest ops) ops))
+    (method %argv (self raw) (if (null? raw) () (rest raw)))
 
     ; index-of answers nil for absent; -1 is easier to compare.
     (method %idx (self sub s) (let ((i (Str8 index-of sub s))) (if (null? i) -1 i)))
@@ -248,10 +239,10 @@
               (when (o get 'png) (display (%str-concat (list (self %png! (o get 'out) (o get 'fmt)) "\n")))))
           (display (%str-concat (list (first r) "\n"))))))
 
-    (method main (self (param raw LIST "The program's arguments, argv[0] first, engine flags and a leading -- tolerated"))
+    (method main (self (param raw LIST "The program's arguments, argv[0] first: (Sys args 'program)"))
       (doc "Run the command line: one project to stdout or a file, or --all under a workspace root."
         (returns ANY "nil")
-        (example "(BitwiseCli main (list \"x\" \"--\" \"x-lang\" \"--json\"))" "..."))
+        (example "(BitwiseCli main (list \"x\" \"x-lang\" \"--json\"))" "..."))
       (def o (self %opts (self %argv raw)))
       (if (o get 'all) (self %run-all o)
         (if (o get 'name) (self %run-one o)

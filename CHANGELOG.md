@@ -13,6 +13,37 @@ relocation record use the integer doors. vi's 21-state address lexer: a warm
 `(Lexer make)` 123-128 -> 104-110 ms, a remake in the same heap 86-91 ms.
 
 [#939]: https://github.com/jonruttan/x-lang/pull/939
+**`(Sys args)`, and the launcher writes `--` between its options and the program's** ([#934]).
+x.sh starts the engine as `x-bin OPTION... -- ARG...`.  `(Sys args)` answers
+the arguments as the engine was given them, and `(Sys args 'program)` the
+engine's path and what follows the first `--`, so a program no longer drops
+words it takes for the launcher's, nor loses its own: `--no-color` given to a
+program reaches the program and leaves the REPL's colour alone.  `--batch`,
+`--quiet` and `--no-color` are read from the launcher's side of the `--`
+alone.  With no `--` nothing is left out of either side.
+
+[#934]: https://github.com/jonruttan/x-lang/pull/934
+
+**Module scope's rules live with the module system** ([#933]).
+`docs/namespaces.md`, the proposal for module scope with the record of
+building it appended, is gone. What a developer needs from it is in
+`docs/modules.md` under "Module scope": how a module's names are reached
+from outside, the rule for each name conflict, the files that are not
+scoped with the reason and the measured cost for each, and the gates. The
+counts from before the design, the sequence, the alternatives and the
+measurement narratives went with the file. Every reference points at
+`docs/modules.md`.
+
+[#933]: https://github.com/jonruttan/x-lang/pull/933
+
+**`Sha1`: SHA-1 in pure x, with a compiled engine sharing SHA-256's driver** ([#936]).
+`(Sha1 hex s)`, `(Sha1 hex-n s n)` and `(Sha1 jit!)`, as `Sha256` has them, for
+naming content as git does; SHA-1 is not for trust.  `x/codec/sha256-jit` is
+`x/codec/sha-jit` now: one fill, driver and differential check serve both
+digests.  The engine builds on its own for an input of 8KB or more, SHA-1's
+measured breakeven: pure-x 3.8KB/s, the build 2.2s, the engine 470KB/s.
+
+[#936]: https://github.com/jonruttan/x-lang/pull/936
 
 ## [0.26.0] - 2026-10-06
 

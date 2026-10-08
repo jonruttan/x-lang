@@ -482,3 +482,78 @@ written makes its read end ready; a zero timeout does not wait.
 ```
 ---
     (#t 1)
+
+## args
+
+A launcher starts the engine as `x-bin OPTION... -- ARG...`.  These cases
+rebind `args` to a list of that shape and put the process's own back.
+
+### with no option, the arguments as the engine was given them
+
+```x
+(do (def %sa-saved args)
+    (set! args (list "x-bin" "--batch" "--" "status" "--no-color"))
+    (def r (Sys args))
+    (set! args %sa-saved)
+    (write r))
+```
+---
+    ("x-bin" "--batch" "--" "status" "--no-color")
+
+### 'program leaves out the launcher's options, up to the first --
+
+```x
+(do (def %sa-saved args)
+    (set! args (list "x-bin" "--quiet" "--batch" "--" "log" "--" "file" "--batch"))
+    (def r (Sys args (lit program)))
+    (set! args %sa-saved)
+    (write r))
+```
+---
+    ("x-bin" "log" "--" "file" "--batch")
+
+### the launcher's options are what precedes the first --
+
+```x
+(do (def %sa-saved args)
+    (set! args (list "x-bin" "--quiet" "--batch" "--" "--no-color"))
+    (def r (Sys %launch-options))
+    (set! args %sa-saved)
+    (write r))
+```
+---
+    ("--quiet" "--batch")
+
+### with no --, nothing is left out of either
+
+An engine started by a launcher that writes no separator.
+
+```x
+(do (def %sa-saved args)
+    (set! args (list "x-bin" "--batch" "status"))
+    (def r (list (Sys args (lit program)) (Sys %launch-options)))
+    (set! args %sa-saved)
+    (write r))
+```
+---
+    (("x-bin" "--batch" "status") ("--batch" "status"))
+
+### a -- with nothing after it leaves the program no arguments
+
+```x
+(do (def %sa-saved args)
+    (set! args (list "x-bin" "--batch" "--"))
+    (def r (Sys args (lit program)))
+    (set! args %sa-saved)
+    (write r))
+```
+---
+    ("x-bin")
+
+### any other option is refused
+
+```x
+(guard (e (Err label e)) (Sys args (lit launcher)))
+```
+---
+    'value

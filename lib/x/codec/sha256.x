@@ -251,7 +251,7 @@
 ; first time a build is asked for.  Its interpreted version is the pure-x
 ; digest above, which stays the reference: the engine must agree with it on
 ; the FIPS vectors and a multi-block padding case before it is adopted (the
-; differential check lives in sha-jit-make and raises on any disagreement),
+; differential check lives in x/codec/sha-jit and raises on any disagreement),
 ; so the failure mode of a bad JIT is "slower", never "wrong hash".  A build
 ; that raises -- no assembler backend for the host, a toolchain error, a
 ; failed check -- leaves the entry failed, with the raise's text, and
@@ -293,7 +293,7 @@
       (set! %sha-entry
         (Compiled make-on-demand (lit sha256) %sha-digest-words
           (fn (_)
-            (import x/codec/sha256-jit)
+            (import x/codec/sha-jit)
             ((prim-ref (lit sha256) (lit jit-make)) %sha-k %sha-ih %sha-digest-words))
           (fn (_ v) ()))))
     ; The entry is sent to through a parameter: the linter reads a send to a

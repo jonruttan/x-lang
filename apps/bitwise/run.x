@@ -18,4 +18,4 @@
 (import-path! (guard (_ "apps") (%path-join %install-root "apps")))
 (import bitwise/cli)
 (Bitwise root! (guard (_ "apps/bitwise") (%path-join %install-root "apps/bitwise")))
-(BitwiseCli main args)
+(BitwiseCli main (Sys args (lit program)))
