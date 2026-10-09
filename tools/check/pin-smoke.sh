@@ -985,6 +985,13 @@ XEOF
 _lpers="$_TMP/lpers"
 mkdir -p "$_lpers"
 cp -R "$_TMP/bdeps/x-smoke-v1" "$_lpers/x-smoke-v1"
+# The bundle declares (requires-lang "r5rs" "v0.2.4"), and the wrapper refuses
+# a missing requirement before anything boots.  A stub stands in for it: a
+# lang.xon and the version stamp an install writes, which is all the
+# resolution reads.
+mkdir -p "$_lpers/r5rs"
+printf '(lang "r5rs")\n(dialect he)\n' > "$_lpers/r5rs/lang.xon"
+printf 'v0.2.4\n' > "$_lpers/r5rs/version"
 printf '(display (g))(display "|")(display %%lang-name)(newline)\n' > "$_TMP/load.x"
 X_LANG_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-smoke -f "$_TMP/load.x" \
   >"$_TMP/out" 2>"$_TMP/err"
@@ -998,7 +1005,7 @@ grep -q "^ok|x-smoke$" "$_TMP/out" \
 X_LANG_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l nosuchsurface -f /dev/null \
   >"$_TMP/out" 2>"$_TMP/err"
 [ $? -ne 0 ] || fail "load: an unknown -l name exited clean" "$_TMP/out" "$_TMP/err"
-grep -q "langs: x-smoke" "$_TMP/err" \
+grep -q "langs:.* x-smoke" "$_TMP/err" \
   || fail "load: the inventory did not list the acquired lang" "$_TMP/err"
 
 # Two bundles claiming one name is a misconfiguration, not a race won by
