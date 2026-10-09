@@ -21,6 +21,8 @@
 
 (import x/type/vector)
 (import x/type/list)
+; The compiled engine is on Compiled's list.
+(import x/tool/compiled)
 
 (def %add (prim-ref (lit int) (lit +)))
 (def %sub (prim-ref (lit int) (lit -)))
@@ -213,12 +215,13 @@
                       (%and (%pref p (%add i 2) 1) 255)))
           %HMASK)))
 
-; The tables are byte regions of 4-byte slots, not vectors: a Vector of
-; 32768 slots costs 12.7M objects to make (its fill is a loop), a region
-; one allocation and a memset.  A position is kept plus one, so a zeroed
-; slot reads as none.
-(def %tref (fn (_ t i) (%pref t (%shl i 2) 4)))
-(def %tset! (fn (_ t i v) (%pset! t (%shl i 2) v 4)))
+; The tables are byte regions, not vectors: a Vector of 32768 slots costs
+; 12.7M objects to make (its fill is a loop), a region one allocation and
+; a memset.  The hash and chain tables hold 4-byte slots, a position kept
+; plus one so a zeroed slot reads as none; the token tables hold 8-byte
+; words, which the compiled writer reads as words.
+(def %tref (fn (_ t i) (%pref t (%shl i 3) 8)))
+(def %tset! (fn (_ t i v) (%pset! t (%shl i 3) v 8)))
 
 (def %table
   (fn (_ slots)
@@ -352,23 +355,36 @@
 ; alike.  Fewer than two symbols are made two, as zlib does: a code must
 ; have a bit to send, and a reader takes an incomplete code only as the
 ; one code of one symbol.
+;
+; freqs is read, never written: the block's costs are reckoned from it
+; after.  A halving is made on a copy.
 (def %code-lengths
   (fn (self freqs n limit)
-    (if (%eq (%oref freqs 1) 0) (if (%lt 1 (%symbols-used freqs 0 n 0)) () (%oset! freqs 1 1)) ())
-    (if (%eq (%oref freqs 2) 0) (if (%lt 1 (%symbols-used freqs 0 n 0)) () (%oset! freqs 2 1)) ())
+    (def used (%symbols-used freqs 0 n 0))
+    (def pads
+      (match
+        ((%eq used 0) (list (list 1 0) (list 1 1)))
+        ((%eq used 1) (list (list 1 (if (%eq (%oref freqs 1) 0) 0 1))))
+        (#t ())))
     (def leaves
       (List sort (fn (_ a b) (%lt (first a) (first b)))
         ((fn (collect i acc)
            (if (%lt i n)
              (collect (%add i 1) (if (%lt 0 (%oref freqs (%add i 1))) (pair (list (%oref freqs (%add i 1)) i) acc) acc))
              acc))
-         0 ())))
+         0 pads)))
     (def lengths (Vector make n 0))
     (%depths! (%merge-tree leaves () ()) 0 lengths)
     (if (%lt limit (%max-length lengths 0 n 0))
-      (do ((fn (halve i) (if (%lt i n) (do (if (%lt 1 (%oref freqs (%add i 1))) (%oset! freqs (%add i 1) (%shr (%oref freqs (%add i 1)) 1)) ()) (halve (%add i 1))) ()))
+      (do (def halved (Vector make n 0))
+          ((fn (halve i)
+             (if (%lt i n)
+               (do (def f (%oref freqs (%add i 1)))
+                   (%oset! halved (%add i 1) (if (%lt 1 f) (%shr f 1) f))
+                   (halve (%add i 1)))
+               ()))
            0)
-          (self freqs n limit))
+          (self halved n limit))
       lengths)))
 
 ; How many of n symbols have a frequency.
@@ -414,9 +430,11 @@
 ; --- A block ---
 
 ; The frequencies of a block's tokens t0 below t1: literal/length symbols
-; into lfreq (with the end code once), distance codes into dfreq.
+; into lfreq, distance codes into dfreq.  Answers the bytes they cover,
+; counted on from b.  The one pass a block makes over its tokens in x: what
+; the block costs is reckoned from the frequencies.
 (def %count!
-  (fn (self lens vals t t1 lfreq dfreq)
+  (fn (self lens vals t t1 lfreq dfreq b)
     (if (%lt t t1)
       (do (def len (%tref lens t))
           (if (%eq len 0)
@@ -425,21 +443,21 @@
                 (%oset! lfreq s (%add (%oref lfreq s) 1))
                 (def d (%add (%dcode (%tref vals t)) 1))
                 (%oset! dfreq d (%add (%oref dfreq d) 1))))
-          (self lens vals (%add t 1) t1 lfreq dfreq))
-      ())))
+          (self lens vals (%add t 1) t1 lfreq dfreq (%add b (if (%eq len 0) 1 len))))
+      b)))
 
-; The bits the tokens take under lengths llen and dlen, extras included.
-(def %cost
-  (fn (self lens vals t t1 llen dlen bits)
-    (if (%lt t t1)
-      (do (def len (%tref lens t))
-          (self lens vals (%add t 1) t1 llen dlen
-            (if (%eq len 0)
-              (%add bits (%oref llen (%add (%tref vals t) 1)))
-              (do (def lc (%oref %length-code (%add len 1)))
-                  (def dc (%dcode (%tref vals t)))
-                  (%add bits (%add (%add (%oref llen (%add (%add 257 lc) 1)) (%oref %lext (%add lc 1)))
-                                   (%add (%oref dlen (%add dc 1)) (%oref %dext (%add dc 1)))))))))
+; The bits n symbols take: each one's count times its code's length.
+(def %freq-cost
+  (fn (self freqs lengths i n bits)
+    (if (%lt i n)
+      (self freqs lengths (%add i 1) n (%add bits (%mul (%oref freqs (%add i 1)) (%oref lengths (%add i 1)))))
+      bits)))
+
+; The extra bits of the block's lengths and distances, whatever the codes.
+(def %extra-bits
+  (fn (self freqs ext base i n bits)
+    (if (%lt i n)
+      (self freqs ext base (%add i 1) n (%add bits (%mul (%oref freqs (%add (%add base i) 1)) (%oref ext (%add i 1)))))
       bits)))
 
 ; A code's symbol written: its reversed code, its length bits.
@@ -552,13 +570,10 @@
 (def %BLOCK-TOKENS 16384)
 
 ; The tokens t0 below t1, which cover bytes b0 below b1 of src, written
-; as one block: stored, fixed or dynamic, whichever is fewest bits.
+; as one block: stored, fixed or dynamic, whichever is fewest bits.  put
+; writes the tokens and the end code: %put-tokens!, or the engine's.
 (def %block!
-  (fn (_ w src lens vals t0 t1 b0 b1 final?)
-    (def lfreq (Vector make 286 0))
-    (def dfreq (Vector make 30 0))
-    (%oset! lfreq 257 1)
-    (%count! lens vals t0 t1 lfreq dfreq)
+  (fn (_ w src lens vals t0 t1 b0 b1 final? put lfreq dfreq)
     (def llen (%code-lengths lfreq 286 15))
     (def dlen (%code-lengths dfreq 30 15))
     (def hlit (%used llen 285 257))
@@ -568,8 +583,10 @@
     (def nitems (%run-length llen hlit dlen (%add hlit hdist) 0 items 0 clfreq))
     (def cllen (%code-lengths clfreq 19 7))
     (def hclen (%hclen cllen 18))
-    (def dynamic (%add (%header-cost cllen hclen items 0 nitems 0) (%cost lens vals t0 t1 llen dlen 0)))
-    (def fixed (%cost lens vals t0 t1 %fixed-lit-lengths %fixed-dist-lengths 0))
+    (def extra (%add (%extra-bits lfreq %lext 257 0 29 0) (%extra-bits dfreq %dext 0 0 30 0)))
+    (def dynamic (%add (%add (%header-cost cllen hclen items 0 nitems 0) extra)
+                       (%add (%freq-cost lfreq llen 0 286 0) (%freq-cost dfreq dlen 0 30 0))))
+    (def fixed (%add extra (%add (%freq-cost lfreq %fixed-lit-lengths 0 286 0) (%freq-cost dfreq %fixed-dist-lengths 0 30 0))))
     (def stored (%add (%mul 8 (%add (%sub b1 b0) 5)) (%mul 40 (%shr (%sub b1 b0) 16))))
     (match
       ((if (%lt stored dynamic) (%lt stored fixed) #f)
@@ -577,7 +594,7 @@
       ((%lt fixed dynamic)
         (do (%put-bits! w (if final? 1 0) 1)
             (%put-bits! w 1 2)
-            (%put-tokens! w lens vals t0 t1 %fixed-lit-codes %fixed-lit-lengths %fixed-dist-codes %fixed-dist-lengths)))
+            (put w lens vals t0 t1 %fixed-lit-codes %fixed-lit-lengths %fixed-dist-codes %fixed-dist-lengths)))
       (#t
         (do (def lcodes (Vector make 286 0))
             (def dcodes (Vector make 30 0))
@@ -588,37 +605,123 @@
             (%put-bits! w (if final? 1 0) 1)
             (%put-bits! w 2 2)
             (%put-header! w hlit hdist cllen clcodes hclen items nitems)
-            (%put-tokens! w lens vals t0 t1 lcodes llen dcodes dlen))))))
-
-; The bytes a run of tokens covers, from byte b.
-(def %bytes-of
-  (fn (self lens vals t t1 b)
-    (if (%lt t t1)
-      (self lens vals (%add t 1) t1 (%add b (if (%eq (%tref lens t) 0) 1 (%tref lens t))))
-      b)))
+            (put w lens vals t0 t1 lcodes llen dcodes dlen))))))
 
 ; All the tokens in blocks of %BLOCK-TOKENS at most, the last one final.
 (def %blocks!
-  (fn (self w src lens vals t ntok b)
+  (fn (self w src lens vals t ntok b put)
     (def t1 (if (%lt %BLOCK-TOKENS (%sub ntok t)) (%add t %BLOCK-TOKENS) ntok))
-    (def b1 (%bytes-of lens vals t t1 b))
-    (%block! w src lens vals t t1 b b1 (%eq t1 ntok))
-    (if (%eq t1 ntok) () (self w src lens vals t1 ntok b1))))
+    (def lfreq (Vector make 286 0))
+    (def dfreq (Vector make 30 0))
+    (%oset! lfreq 257 1)
+    (def b1 (%count! lens vals t t1 lfreq dfreq b))
+    (%block! w src lens vals t t1 b b1 (%eq t1 ntok) put lfreq dfreq)
+    (if (%eq t1 ntok) () (self w src lens vals t1 ntok b1 put))))
 
-; A raw stream of n bytes at src, compressed.  An empty input is one empty
-; final block of fixed codes: the end code alone.
-(def %compress!
-  (fn (_ w src n)
+; A raw stream of n bytes at src, compressed, its tokens written by put.
+; An empty input is one empty final block of fixed codes: the end code
+; alone.
+(def %compress-with!
+  (fn (_ w src n put)
     ; The regions are held here so the pointers into them stay good.
     (def head (%table %HSIZE))
     (def prev (%table %WSIZE))
-    (def lens (%make-str (%shl (%add n 1) 2)))
-    (def vals (%make-str (%shl (%add n 1) 2)))
+    (def lens (%make-str (%shl (%add n 1) 3)))
+    (def vals (%make-str (%shl (%add n 1) 3)))
     (def ntok (%tokenize! src 0 n (rest head) (rest prev) (%str->ptr lens) (%str->ptr vals) 0))
     (if (%eq ntok 0)
       (do (%put-bits! w 1 1) (%put-bits! w 1 2) (%put-code! w %fixed-lit-codes %fixed-lit-lengths 256))
-      (%blocks! w src (%str->ptr lens) (%str->ptr vals) 0 ntok 0))
+      (%blocks! w src (%str->ptr lens) (%str->ptr vals) 0 ntok 0 put))
     (%align! w)))
+
+(def %compress!
+  (fn (_ w src n) (%compress-with! w src n (%tokens-for n))))
+
+; --- The compiled engine (JIT), adopted only when it proves out ------
+;
+; x/codec/deflate-jit compiles the token writer, the encoder's hot part:
+; on input that does not repeat it was four fifths of the cost (10 KB:
+; 10M objects writing blocks against 2.3M finding matches).  As inflate's
+; engine is, it is an entry of Compiled's made on demand, built for an
+; input of %jit-threshold bytes or more or on (Deflate jit!), and adopted
+; only after the streams it writes for the check inputs below are byte for
+; byte the ones %put-tokens! writes.
+
+; The check inputs: a short repeat (fixed codes), varied text with repeats
+; at many distances (dynamic codes, every length and distance class), and
+; six-bit symbols from a generator (literals under dynamic codes).
+(def %check-input
+  (fn (_ which n)
+    (def r (%make-str n))
+    (def p (%str->ptr r))
+    ((fn (self i s)
+       (if (%lt i n)
+         (do (%pset! p i
+               (match
+                 ((%eq which 0) (%add 97 (%int-mod i 3)))
+                 ((%eq which 1) (%add 97 (%int-mod (%add (%mul i i) (%int-div i 7)) 23)))
+                 (#t (%add 32 (%and s 63))))
+               1)
+             (self (%add i 1) (%int-mod (%mul s 75) 65537)))
+         ()))
+     0 1)
+    r))
+
+(def %int-mod (prim-ref (lit int) (lit %)))
+(def %int-div (prim-ref (lit int) (lit /)))
+(def %mem-cmp (prim-ref (lit mem) (lit cmp)))
+
+; Does a token writer write what %put-tokens! writes, on every check input?
+(def %agrees?
+  (fn (_ put)
+    (List all?
+      (fn (_ c)
+        (def r (%check-input (first c) (rest c)))
+        (def want (%writer 64))
+        (%compress-with! want (%str->ptr r) (rest c) %put-tokens!)
+        (def got (%writer 64))
+        (%compress-with! got (%str->ptr r) (rest c) put)
+        (and (%eq (%oref want %OUTCNT) (%oref got %OUTCNT))
+             (%eq 0 (%mem-cmp (%oref want %OUTP) (%oref got %OUTP) (%oref want %OUTCNT)))))
+      (list (pair 0 30) (pair 1 3000) (pair 2 2000)))))
+
+; THE BAR: the engine's build is seconds of compiling, worth it past some
+; tens of thousands of tokens; below the bar the pure-x writer serves.
+(def %jit-threshold 32768)
+(def %entry ())
+
+(def %jit-try!
+  (fn (_)
+    (if (null? %entry)
+      (set! %entry
+        (Compiled make-on-demand (lit deflate) %put-tokens!
+          (fn (_)
+            (import x/codec/deflate-jit)
+            ((prim-ref (lit deflate) (lit jit-make))
+             (list (pair (lit outp) %OUTP) (pair (lit outcap) %OUTCAP) (pair (lit outcnt) %OUTCNT)
+                   (pair (lit bitbuf) %BITBUF) (pair (lit bitcnt) %BITCNT))
+             (list %length-code %lbase %lext %distance-code %dbase %dext)
+             %room! %put-code! %agrees?))
+          (fn (_ v) ())))
+      ())
+    ((fn (_ entry)
+       (if (eq? (entry state) (lit interpreted)) (entry compile!) ())
+       (eq? (entry state) (lit compiled)))
+     %entry)))
+
+; The token writer for an input of n bytes: the engine's when it is built,
+; or when n is past the bar and a build succeeds; else %put-tokens!.
+(def %tokens-for
+  (fn (_ n)
+    (if (if (%lt n %jit-threshold) #f
+          ((fn (_ entry) (if (null? entry) #t (eq? (entry state) (lit interpreted)))) %entry))
+      (%jit-try!)
+      ())
+    ((fn (_ entry)
+       (if (if (null? entry) #f (eq? (entry state) (lit compiled)))
+         (entry compiled)
+         %put-tokens!))
+     %entry)))
 
 ; Adler-32 (RFC 1950 8) of n bytes at p, as inflate.x sums it.
 (def %adler32
@@ -694,7 +797,11 @@
       (doc "A zlib stream (RFC 1950) of stored blocks: the header with FLEVEL 0 (0x78 0x01), the stored blocks, the Adler-32."
         (returns LIST "(OUT N): the stream's region and its byte count")
         (example "(first (rest (Deflate zlib-stored \"abc\")))" "14"))
-      (%run s span %stored-body 1))))
+      (%run s span %stored-body 1))
+    (method jit! (self)
+      (doc "Build and adopt the compiled token writer (JIT; ARM64 and x86-64 backends) now, if the streams it writes for the check inputs are byte for byte the pure-x writer's. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x writer carries on, with the same output. raw and zlib build it on their own for an input of 32KB or more."
+        (returns BOOL "#t when the compiled engine is active"))
+      (%jit-try!))))
 
 (doc (provide x/codec/deflate Deflate)
   "DEFLATE streams written in pure x-lang: (Deflate raw s) and (Deflate zlib s) compressed, (Deflate stored s) and (Deflate zlib-stored s) the bytes as they are; each answers (OUT N).")
