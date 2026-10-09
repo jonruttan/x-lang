@@ -1,7 +1,9 @@
 ; module.x -- Include-once and module system (bootstrap)
-; lint-known: dirent-names
+; lint-known: dirent-names %image-writing
 ; (x/platform/dirent, imported at CALL time in %module-list-dir --
 ;  the same lazy-import pattern as the syscall table)
+; (%image-writing: bound by tools/dev/image-write.x in its child base alone,
+;  read through a guard by include below)
 ;
 ; Provides include-once, require-once, provide, import.
 ; Last bootstrap file — after this, normal modules can use provide/import.
