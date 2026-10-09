@@ -1,21 +1,24 @@
-; ed25519-jit.x -- the compiled scalar multiplication behind (Ed25519 jit!).
+; ed25519-jit.x -- the compiled field work behind (Ed25519 jit!).
 ;
 ; Loaded lazily by x/codec/ed25519, as x/codec/x25519-jit is by its
 ; codec: this module pulls the JIT toolchain, and the codec must stay
-; loadable and correct on a host with no JIT.  The pure-x %scalarmult
-; in ed25519.x is the reference and the fallback; this engine replaces
-; it -- a point in extended coordinates kept as four field elements in
-; a scratch of 64-bit words, doubled and added by x/codec/fe25519-jit's
-; compiled operations, the double-and-add driven from x -- and is
-; adopted only after its answer agrees with the reference's on the base
-; point.  Decoding, encoding, the hashes and the scalars mod L stay in x
-; on both paths: they are done once a signature, the multiplication
-; thousands of times.  Nothing here collects: the per-call garbage is
-; the caller's to sweep.
+; loadable and correct on a host with no JIT.  The pure-x %scalarmult,
+; fe-invert and fe-pow22523 the codec uses are the reference and the
+; fallback; this engine replaces all three.  The scalar multiplication
+; keeps a point in extended coordinates as four field elements in a
+; scratch of 64-bit words, doubled and added by x/codec/fe25519-jit's
+; compiled operations, the double-and-add driven from x; the inverse
+; and the square root's power are that module's chains.  It is adopted
+; only after it answers RFC 8032's test 1: the field operations are
+; proven against the pure-x field where they are built, and running the
+; reference multiplication here would cost six seconds a build.  The
+; hashes and the scalars mod L stay in x on both paths.  Nothing here
+; collects: the per-call garbage is the caller's to sweep.
 (module x/codec/ed25519-jit)
 
 (import x/type/vector)
-(import x/codec/fe25519-jit fe-jit-compile)
+(import x/codec/fe25519 fe-tobytes fe-mul)
+(import x/codec/fe25519-jit fe-jit-compile fe-jit-chains)
 
 (def %ej-make-str (prim-ref (lit str) (lit make)))
 (def %ej-str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -42,16 +45,15 @@
 
 ; --- build: compile, wire the double-and-add, and PROVE it ---------------
 ;
-; ref:     the pure-x scalar multiplication, (fn (_ k p) -> point) -- the oracle.
-; d2:      the field element 2d, as the codec holds it.
-; tobytes: the codec's packer, a ten-limb vector -> 32 bytes.
-; base:    the base point, for the check.
+; d2:   the field element 2d, as the codec holds it.
+; base: the base point, for the check.
 ;
-; Returns a function of ref's shape, or raises -- on a host whose
-; architecture has no assembler backend, on any toolchain error, or on
-; DISAGREEMENT with the reference.
+; Returns (SCALARMULT INVERT POW22523): (fn (_ k p) -> point), and the
+; field's two chains as (fn (_ z) -> element); or raises -- on a host
+; whose architecture has no assembler backend, on any toolchain error,
+; or on DISAGREEMENT with the RFC's bytes.
 (def ed25519-jit-make
-  (fn (_ ref d2 tobytes base)
+  (fn (_ d2 base)
     (def %ops (fe-jit-compile))
     (def %mul (List ref 0 %ops))
     (def %add (List ref 1 %ops))
@@ -112,24 +114,45 @@
                  (self (- bit 1)))))
          255)
         (list (%store %X) (%store %Y) (%store %Z) (%store %T))))
-    ; the differential check: the base point times a scalar of every
-    ; byte value, coordinate by coordinate against the reference
+    ; The field operations were proven against the pure-x field when they
+    ; were built; what is left to prove is the double-and-add over them,
+    ; and RFC 8032's test 1 proves it: its seed's clamped scalar times the
+    ; base point encodes as its public key, the bytes the pure-x
+    ; function's spec holds it to.  The encoding's inverse is the field
+    ; engine's chain, itself checked where it is built.
+    (def %invert (first (fe-jit-chains)))
+    (def %pow22523 (first (rest (fe-jit-chains))))
+    (def %pset1 (prim-ref (lit ptr) (lit set!)))
+    (def %encode
+      (fn (_ p)
+        (def recip (%invert (List ref 2 p)))
+        (def xb (fe-tobytes (fe-mul (first p) recip)))
+        (def s (fe-tobytes (fe-mul (first (rest p)) recip)))
+        (when (= (& (%ej-char->int (%ej-byte-ref xb 0)) 1) 1)
+          (%pset1 (%ej-str->ptr s) 31 (| (%ej-char->int (%ej-byte-ref s 31)) 128) 1))
+        s))
+    (def %hex-bytes
+      (fn (_ hex)
+        (def n (>> (Str8 length hex) 1))
+        (def s (%ej-make-str n))
+        (def p (%ej-str->ptr s))
+        (def %digit (fn (_ c) (if (< c 58) (- c 48) (- c 87))))
+        ((fn (self i)
+           (unless (= i n)
+             (do (%pset1 p i (| (<< (%digit (%ej-char->int (%ej-byte-ref hex (* 2 i)))) 4)
+                                (%digit (%ej-char->int (%ej-byte-ref hex (+ (* 2 i) 1))))) 1)
+                 (self (+ i 1))))) 0)
+        s))
     (def %same
       (fn (self x y i)
         (if (= i 32) #t
           (if (= (%ej-char->int (%ej-byte-ref x i)) (%ej-char->int (%ej-byte-ref y i)))
             (self x y (+ i 1))
             #f))))
-    (def %same-point
-      (fn (self ps qs)
-        (if (null? ps) #t
-          (if (%same (tobytes (first ps)) (tobytes (first qs)) 0) (self (rest ps) (rest qs)) #f))))
-    (def %k (%ej-make-str 32))
-    (def %pset1 (prim-ref (lit ptr) (lit set!)))
-    ((fn (self i) (unless (= i 32) (do (%pset1 (%ej-str->ptr %k) i (+ 64 (* i 5)) 1) (self (+ i 1))))) 0)
-    (unless (%same-point (%engine %k base) (ref %k base))
-      (Err raise 'state "ed25519-jit: engine disagrees with the pure-x scalar multiplication" ()))
-    %engine))
+    (unless (%same (%encode (%engine (%hex-bytes "307c83864f2833cb427a2ef1c00a013cfdff2768d980c0a3a520f006904de94f") base))
+                   (%hex-bytes "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a") 0)
+      (Err raise 'state "ed25519-jit: engine disagrees with RFC 8032" ()))
+    (list %engine %invert %pow22523)))
 
 ; The codec reaches the maker through the catalogue: it loads this module
 ; inside the function that builds its engine, and a name imported there is
@@ -137,4 +160,4 @@
 (prim-reg! (lit ed25519) (lit jit-make) ed25519-jit-make)
 
 (doc (provide x/codec/ed25519-jit ed25519-jit-make)
-  "The compiled Ed25519 scalar multiplication (JIT, ARM64 and x86-64 backends) over x/codec/fe25519-jit's operations; built and adopted only via (Ed25519 jit!) after proving agreement with the pure-x reference.")
+  "The compiled Ed25519 scalar multiplication, inverse and square root's power (JIT, ARM64 and x86-64 backends) over x/codec/fe25519-jit's checked operations; built and adopted only via (Ed25519 jit!) after answering RFC 8032's test 1.")

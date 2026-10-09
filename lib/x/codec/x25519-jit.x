@@ -8,8 +8,10 @@
 ; 121666 and the swap, each one compiled function over a scratch of
 ; 64-bit words, a field element ten words at an offset -- and drives
 ; the RFC's ladder over them from x, the bytes in and out through the
-; codec's own loader and packer.  It is adopted only after it agrees
-; with the reference on the RFC's vectors.
+; codec's own loader and packer.  It is adopted only after it answers
+; the RFC's exchange, the bytes the reference's spec holds it to: the
+; operations are proven against the pure-x field where they are built,
+; and running the reference here would cost five seconds a build.
 ;
 ; The operations are x/codec/fe25519-jit's, shared with Ed25519's engine;
 ; the scratch here keeps its elements clear of that module's row area
@@ -37,17 +39,16 @@
 (def %T0 50) (def %T1 60)
 (def %I0 70) (def %I1 80) (def %I2 90) (def %I3 100) (def %I4 110)
 
-; --- build: compile, wire the ladder, and PROVE it against the reference ---
+; --- build: compile, wire the ladder, and PROVE it against the RFC -----------
 ;
-; ref:       the pure-x function, (fn (_ k u) -> 32 bytes) -- the oracle.
 ; frombytes: the codec's loader, 32 bytes -> a ten-limb vector.
 ; tobytes:   the codec's packer, a ten-limb vector -> 32 bytes.
 ;
-; Returns a function of ref's shape driving the compiled operations, or
+; Returns (fn (_ k u) -> 32 bytes) driving the compiled operations, or
 ; raises -- on a host whose architecture has no assembler backend, on any
-; toolchain error, or on DISAGREEMENT with the reference.
+; toolchain error, or on DISAGREEMENT with the RFC's bytes.
 (def x25519-jit-make
-  (fn (_ ref frombytes tobytes)
+  (fn (_ frombytes tobytes)
     (def %ops (fe-jit-compile))
     (def %mul (List ref 0 %ops))
     (def %add (List ref 1 %ops))
@@ -150,18 +151,19 @@
                                 (%digit (%xj-char->int (%xj-byte-ref hex (+ (* 2 i) 1))))) 1)
                  (self (+ i 1))))) 0)
         s))
-    ; One exchange against the reference, whose five seconds are most of
-    ; the build, and the other against the RFC's own bytes, which the
-    ; reference's spec proves it answers; the two cover both directions.
+    ; The field operations were proven against the pure-x field when they
+    ; were built; what is left to prove is the ladder over them, and the
+    ; RFC's own bytes prove it -- the bytes the pure-x function's spec
+    ; holds it to -- in both directions of the exchange.
     (def %check
       (fn (_ k u expect)
-        (unless (%same (%engine k u) (if (null? expect) (ref k u) expect) 0)
-          (Err raise 'state "x25519-jit: engine disagrees with the pure-x function" ()))))
+        (unless (%same (%engine k u) expect 0)
+          (Err raise 'state "x25519-jit: engine disagrees with RFC 7748" ()))))
     (def %a (%hex-bytes "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"))
     (def %b (%hex-bytes "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb"))
     (def %apub (%hex-bytes "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a"))
     (def %nine (%hex-bytes "0900000000000000000000000000000000000000000000000000000000000000"))
-    (%check %a %nine ())
+    (%check %a %nine %apub)
     (%check %b %apub (%hex-bytes "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742"))
     %engine))
 
@@ -171,4 +173,4 @@
 (prim-reg! (lit x25519) (lit jit-make) x25519-jit-make)
 
 (doc (provide x/codec/x25519-jit x25519-jit-make)
-  "The compiled X25519 field engine (JIT, ARM64 and x86-64 backends); built and adopted only via (X25519 jit!) after proving agreement with the pure-x function.")
+  "The compiled X25519 ladder (JIT, ARM64 and x86-64 backends) over x/codec/fe25519-jit's checked field operations; built and adopted only via (X25519 jit!) after answering RFC 7748's exchange in both directions.")
