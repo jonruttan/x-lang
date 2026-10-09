@@ -25,7 +25,8 @@
 # worse is fatal.
 #
 # X_LANGS_DIR overrides where bundles are looked for.  LANGS='krn sweet' runs a
-# subset.
+# subset.  LANGS_LOG_DIR keeps each suite's whole output as NAME.log there, so
+# the failing tests can be named after the run.
 #
 # PARALLEL is not forced, and the runners default to serial here.  Several
 # bundles are many spec files each booting a full tower, and the shared
@@ -83,7 +84,15 @@ sed -n 's/^(lang "\([^"]*\)"  *"\([^"]*\)"  *\([0-9]*\)  *\([0-9]*\)).*/\1 \2 \3
 	# the coloured summary line never anchors.  And a greedy .* before a digit
 	# class eats all but the last digit: "74 tests" captures 4 and "80 failed"
 	# captures 0, so a bundle 80 specs in the red reads as green.
+	# The suite runs inside the bundle's directory, so the log directory is
+	# made absolute here, where it was named.
+	log=/dev/null
+	if [ -n "${LANGS_LOG_DIR:-}" ]; then
+		mkdir -p "$LANGS_LOG_DIR"
+		log="$(cd "$LANGS_LOG_DIR" && pwd)/$name.log"
+	fi
 	line="$(cd "$D" && X="$X_UNDER_TEST" sh tests/spec-runner.sh 2>&1 \
+		| tee "$log" \
 		| awk '{
 			gsub(/\033\[[0-9;]*m/, "")
 			if ($0 ~ /^[0-9]+ tests, [0-9]+ failed/) print $1 " " $3

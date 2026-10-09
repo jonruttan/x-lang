@@ -329,3 +329,31 @@ so the fact is optional and reads back as nil.
 ```
 ---
     127
+
+## pin: a bundle's lang.xon
+
+A bundle's declaration is read when it is acquired and held against the pin
+that asked for it.  Like every manifest here it is a closed vocabulary: a
+form the reader does not know is refused, so every form a bundle may write
+is named here (docs/lang-contract.md, "The declaration").
+
+### a declaration with every form reads, and answers its lang
+
+```x
+(do
+  (import x/tool/pin)
+  (display (%assoc-get 'lang (Pin %pin-lang-parse (Pin %pin-forms
+    "(lang \"r7rs\") (dialect he) (requires-release \"v0.26.0\") (requires-lang \"r5rs\" \"v0.2.4\") (requires-lang \"grep\") (entry \"run.x\")")))))
+```
+---
+    r7rs
+
+### an unknown lang.xon form is still a loud error
+
+```x
+(do
+  (import x/tool/pin)
+  (display (throws? (fn (_) (Pin %pin-lang-parse (Pin %pin-forms "(lang \"x\") (evil 1)"))))))
+```
+---
+    #t
