@@ -231,31 +231,35 @@
 
 (def asm-finalize!
   (fn (_ asm)
-    (def labels (%obj-ref asm 3))
     (def patches (%obj-ref asm 4))
     (def buf-ptr (%obj-ref asm 0))
     ; Resolve patches (arch-specific resolver in slot 2 of arch).  A buffer
-    ; poured from the cache has none, so its arch may be () here.
-    (def arch (%obj-ref asm 5))
-    (def resolver (when (> (%length arch) 2) (List ref 2 arch)))
-    (%for-each
-      (fn (_ patch)
-        (def offset (List ref 0 patch))
-        (def width  (List ref 1 patch))
-        (def ptype  (List ref 2 patch))
-        (def lname  (List ref 3 patch))
-        (def target-entry (Assoc entry lname labels))
-        (if (null? target-entry)
-          (Err raise 'value (Str append "asm: unresolved label: " (symbol->str lname)) ()))
-        (def target (rest target-entry))
-        (if (not (null? resolver))
-          (resolver buf-ptr offset width ptype target)
-          ; Generic fallback: relative offset
-          (let ((val (if (eq? ptype 'rel)
-                       (- target (+ offset width))
-                       target)))
-            (%ptr-set! buf-ptr offset val width))))
-      patches)
+    ; poured from the cache has none, and its arch may be (): the walk is
+    ; skipped, since entering it costs a poured lexer state more than the
+    ; mprotect does.
+    (unless (null? patches)
+      (do
+        (def labels (%obj-ref asm 3))
+        (def arch (%obj-ref asm 5))
+        (def resolver (when (> (%length arch) 2) (List ref 2 arch)))
+        (%for-each
+          (fn (_ patch)
+            (def offset (List ref 0 patch))
+            (def width  (List ref 1 patch))
+            (def ptype  (List ref 2 patch))
+            (def lname  (List ref 3 patch))
+            (def target-entry (Assoc entry lname labels))
+            (if (null? target-entry)
+              (Err raise 'value (Str append "asm: unresolved label: " (symbol->str lname)) ()))
+            (def target (rest target-entry))
+            (if (not (null? resolver))
+              (resolver buf-ptr offset width ptype target)
+              ; Generic fallback: relative offset
+              (let ((val (if (eq? ptype 'rel)
+                           (- target (+ offset width))
+                           target)))
+                (%ptr-set! buf-ptr offset val width))))
+          patches)))
     ; Make executable (includes icache flush on ARM)
     (%asm-mprotect-rx! buf-ptr (%obj-ref asm 2))
     ; Return the pointer (callable via ptr-call)

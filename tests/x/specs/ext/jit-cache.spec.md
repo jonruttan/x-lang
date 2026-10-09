@@ -336,7 +336,7 @@ process's id, so no other process has stored an entry for it.
 ## an entry is held in the heap
 
 Every entry a process stores or loads is kept in the heap as well: the code
-in an object whose payload is words, and the relocation records as a list.
+in an object whose payload is words, and its relocation sites as a table.
 Nothing in a held entry is an address, so a state image carries it, and a
 process booted from that image pours from what it holds.
 
@@ -385,6 +385,30 @@ after it.
 ```
 ---
     (#t #t #t)
+
+### a load patches its sites with the compiled patcher, or the x walk, the same
+
+A compile leaves the process holding the compiled patcher, adopted only after
+it agreed with the x walk. A load through it and a load through the walk
+answer alike.
+
+```x
+(do
+  (def %pt-e '(fn (_ x) (* x 5)))
+  (def %pt-f (compile-asm %pt-e ()))
+  (def %pt-t (%asm-cache-text %pt-e ()))
+  (def %pt-cell (%ac (lit %asm-cache-patcher-cell)))
+  (def %pt-native (first %pt-cell))
+  (def %pt-g (%asm-cache-load %pt-t (%asm-cache-path %pt-t) ()))
+  (%set-first! %pt-cell #f)
+  (def %pt-h (%asm-cache-load %pt-t (%asm-cache-path %pt-t) ()))
+  (%set-first! %pt-cell %pt-native)
+  (write (list (if (null? %pt-native) 'none (if (eq? %pt-native #f) 'none 'compiled))
+               (%pt-f 7) (%pt-g 7) (%pt-h 7)))
+  (newline))
+```
+---
+    ('compiled 35 35 35)
 
 ## groups: many entries in one file
 
