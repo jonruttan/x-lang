@@ -120,7 +120,6 @@
     ; takes; probed again after an image load, when the compiler has its
     ; addresses back.
     (%jit-cell (pair () ()))
-    (%skip-count (pair 0 ()))
     ; what a dropped span's read handler answers; read-str leaves it out
     (%dropped (pair (lit dropped) ()))
     ; The version of the states a rule list makes.  It is part of every group
@@ -136,6 +135,11 @@
     (%rec-on (pair #f ()))
     (%rec-states (pair () ()))
     (%rec-entries (pair () ()))
+    ; The plans read so far, as (text . plan), newest first.  A group this heap
+    ; already holds hands back the same text each time it is opened -- a remake,
+    ; or a make in a process booted from an image the group was made in -- and
+    ; its plan is not read again.
+    (%plans (pair () ()))
 
     (method make (self (param rules LIST "Rules in priority order, each from run, skip, table, quoted, until, number, nested, word, escape, pattern, any or record")
                        . (param more ANY "Optionally the end text, a space when left out: see the end field"))
@@ -239,8 +243,7 @@
       (doc "A rule that drops a run of characters: whitespace."
         (returns LIST "The rule")
         (sample "(Lexer skip \" \\t\\n\")" "drop blanks and newlines"))
-      (%set-first! (Lexer %skip-count) (+ 1 (first (Lexer %skip-count))))
-      (list (lit skip) (Str8 append "SKIP-" (%number->str (first (Lexer %skip-count)))) () class))
+      (list (lit skip) "SKIP" () class))
 
     (method table (self (param tag SYMBOL "The token's tag")
                         (param strings LIST "The literal strings to match"))
@@ -1500,12 +1503,26 @@
             (list version ntexts states cells bufs entries resets)
             ()))))
 
+    ; The plan in the group text S: the one read from this very text before,
+    ; else read now and kept.
+    (method %held-plan (self s)
+      (def hit
+        ((fn (self l) (if (null? l) () (if (eq? (first (first l)) s) (first l) (self (rest l)))))
+         (first (Lexer %plans))))
+      (if (null? hit)
+        (do
+          (def plan (Lexer %plan-read s))
+          (unless (null? plan)
+            (%set-first! (Lexer %plans) (pair (pair s plan) (first (Lexer %plans)))))
+          plan)
+        (rest hit)))
+
     ; Rebuild L's states from the open group's plan; #f, with L as it was,
     ; when there is none or it does not fit.
     (method %replay! (self l)
       (def held ((prim-ref (lit compile) (lit asm-cache-group-held))))
       (def extra (if (null? held) () (rest held)))
-      (def plan (if (str? extra) (Lexer %plan-read extra) ()))
+      (def plan (if (str? extra) (Lexer %held-plan extra) ()))
       (def kit (Lexer %kit))
       (def nth (first kit))
       (def map1 (first (rest (rest kit))))
