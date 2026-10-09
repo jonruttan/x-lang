@@ -25,6 +25,8 @@
 (def %make-str (prim-ref (lit str) (lit make)))
 (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
 (def %pset1 (prim-ref (lit ptr) (lit set!)))
+(def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
 
 (def %byte (fn (_ s i) (%char->int (%byte-ref s i))))
 
@@ -36,15 +38,26 @@
 ; still names a buffer.
 (def %fresh (fn (_ n) (%make-str (if (> n 0) n 1))))
 
-; dst[at..] = the region's bytes.
+; dst[at..] = the region's bytes, by libc's memcpy: a few objects whatever
+; the length, where a loop in x leaves garbage for every byte and x sweeps
+; only when asked.  The symbol is looked up per copy, as Http's runs do,
+; so no handle outlives the process that found it (a state image keeps
+; none); an engine with no foreign door copies byte by byte.
 (def %copy-into!
   (fn (_ p at r)
     (def s (%r-buf r))
     (def start (%r-start r))
     (def len (%r-len r))
-    ((fn (self i)
-       (unless (= i len)
-         (do (%pset1 p (%add at i) (%byte s (%add start i)) 1) (self (%add i 1))))) 0)))
+    (def memcpy (guard (e ()) ((prim-ref (lit ffi) (lit dlsym)) ((prim-ref (lit ffi) (lit dlopen)) () 1) "memcpy")))
+    (if (null? memcpy)
+      ((fn (self i)
+         (unless (= i len)
+           (do (%pset1 p (%add at i) (%byte s (%add start i)) 1) (self (%add i 1))))) 0)
+      (when (> len 0)
+        ((prim-ref (lit ptr) (lit call)) memcpy
+          (%int->ptr (%add (%ptr->int p) at))
+          (%int->ptr (%add (%ptr->int (%str->ptr s)) start))
+          len)))))
 
 ; --- writers: a vector of (BUF LEN CAP) ------------------------------
 

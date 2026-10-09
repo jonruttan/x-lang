@@ -57,6 +57,7 @@
   (needs "lib/x-core.x" isa/gc)      ; collects between its own includes (the boot rule)
   (needs "lib/x/boot/module.x" isa/gc isa/syscall)
   (needs "lib/x/boot/tower-compiled.x" isa/ffi-call)
+  (needs "lib/x/codec/bytes.x" isa/ffi-call)  ; memcpy for its copies
   (needs "lib/x/codec/zlib.x" isa/ffi-call)
   (needs "lib/x/net/http.x" isa/ffi-call)  ; memcpy for its runs
   (needs "lib/x/net/tls.x" isa/ffi-call)
