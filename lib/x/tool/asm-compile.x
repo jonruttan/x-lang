@@ -269,6 +269,59 @@
     (if (null? xs) #f (if (eq? x (first xs)) #t (self x (rest xs))))))
 (def %asm-label-counter 0)
 
+; --- Parameter slots and the tail self-call ---
+;
+; An integer function evaluates each parameter ONCE, on entry, and pushes
+; the raw word into a stack slot; x22 marks the slots' base.  A parameter
+; read is then one load, where it was a walk of the argument list, an
+; evaluation and an unbox at every use.  And a self-call in TAIL position
+; is a jump: the new arguments are evaluated, stored over the slots, and
+; control goes back to the top of the body -- no argument list, no boxed
+; integers, no C frame.  A compiled loop is a loop: it runs as long as it
+; needs, in constant stack and with no allocation.  A self-call that is not
+; in tail position is a call, as before, and its callee gets slots of its
+; own.
+;
+; Slot k of N sits at x22 + 16*(N-1-k): the slots are pushed in order, so
+; the first is highest.  Temporaries pushed by the body sit below x22 and
+; are balanced at every point a jump or a return happens.
+;
+; Analyser mode keeps the argument list: its parameters are objects the
+; tokenizer protocol hands over as they are.  So does a function that
+; CALLS one of its parameters ((%call p ...)): a callee must stay the
+; object it arrived as, and a slot holds a raw word.
+
+; Is the expression about to be compiled in tail position?  Read and
+; cleared by %asm-compile-expr; set by the forms that pass tail position on.
+(def %asm-tail #f)
+; Tail position of the CALL form being compiled, for the handlers that
+; %asm-compile-call dispatches to: do, match (and if) and the self-call.
+(def %asm-in-tail #f)
+; The parameters held in slots, in slot order, or () when the function
+; reads them from its argument list.
+(def %asm-slots ())
+; The label at the top of the body, where a tail self-call jumps.
+(def %asm-loop-label ())
+
+; The byte offset of a slotted parameter from x22, or () if name is none.
+(def %asm-slot-offset
+  (fn (_ name)
+    (def n (%length %asm-slots))
+    ((fn (self ps k)
+       (if (null? ps) ()
+         (if (eq? name (first ps)) (* 16 (- (- n 1) k)) (self (rest ps) (+ k 1)))))
+     %asm-slots 0)))
+
+; Does expr call one of params through (%call p ...)?
+(def %asm-calls-param?
+  (fn (self e params)
+    (if (not (pair? e)) #f
+      (if (if (eq? (first e) '%call) (if (pair? (rest e)) (%asm-memq (first (rest e)) params) #f) #f)
+        #t
+        ((fn (any es)
+           (if (pair? es) (if (self (first es) params) #t (any (rest es))) #f))
+         e)))))
+
 ; Generate unique label names (for nested if/else)
 (def %asm-genlabel
   (fn (_ prefix)
@@ -300,6 +353,10 @@
     (when (and (= 0 (%asm-int% (first %asm-gc-tick) %asm-gc-window))
                (eq? (first %include-dir-cell) ()))
       (Heap collect))
+    ; Tail position is this expression's alone: nothing it compiles inside
+    ; itself inherits it unless a form passes it on.
+    (def tail %asm-tail)
+    (set! %asm-tail #f)
     (match
       ((null? expr) (asm-emit! asm 'mov x0 (imm 0)))   ; nil = NULL = 0
       ((number? expr)
@@ -312,7 +369,7 @@
           (asm-emit! asm 'mov x0 (imm expr))
           (asm-load-imm64! asm x0 expr)))
       ((symbol? expr) (%asm-compile-param asm expr params))
-      ((pair? expr) (%asm-compile-call asm expr params))
+      ((pair? expr) (do (set! %asm-in-tail tail) (%asm-compile-call asm expr params)))
       (#t (Err raise 'value (Str append "asm-compile: unsupported: " (%write-to-str expr)) ())))))
 
 ; Compile parameter access from x-lang args list
@@ -354,6 +411,13 @@
     (do
     ; Check fvars first (before params, since fvar symbols may shadow)
     (def fv-entry (compile-fvar-lookup name))
+    (def slot (if (null? fv-entry) (%asm-slot-offset name) ()))
+    (if (not (null? slot))
+      ; A slotted parameter: its raw word, loaded.  Never an object: a
+      ; function whose parameter must stay one is not slotted.
+      (if unbox
+        (asm-emit! asm (lit ldr) x0 (mem x22 slot))
+        (Err raise 'state (Str append "asm-compile: slotted parameter used as an object: " (symbol->str name)) ()))
     (if (not (null? fv-entry))
       ; Load fvar pointer as raw 64-bit immediate
       (let ((val (rest fv-entry)))
@@ -393,7 +457,7 @@
             (asm-emit! asm 'mov x1 x0)
             (asm-emit! asm 'mov x0 x19)
             (%emit-eval-arg! asm)
-            (when unbox (%emit-atomint! asm))))))))))
+            (when unbox (%emit-atomint! asm)))))))))))
 
 ; Compile (or a b ...): short-circuit, returns first truthy value
 (def %asm-compile-or
@@ -584,12 +648,15 @@
 ; in order, result is the last.  Any number of forms; none yields nil.
 (def %asm-compile-do
   (fn (_ asm args params)
+    ; The last form is in the tail position the do is in.
+    (def tail %asm-in-tail)
     (if (null? args)
       (asm-emit! asm 'mov x0 (imm 0))
       (let ()
         (def %go
           (fn (self as)
             (do
+              (if (null? (rest as)) (set! %asm-tail tail) ())
               (%asm-compile-expr asm (first as) params)
               (unless (null? (rest as)) (self (rest as))))))
         (%go args)))))
@@ -908,6 +975,9 @@
 ; after it is emitted.
 (set! %asm-compile-match
   (fn (_ asm arms params)
+    ; Each arm's value is in the tail position the match is in; a test is
+    ; never.
+    (def tail %asm-in-tail)
     (def lbl-end (%asm-genlabel "%mend"))
 
     (def %cmp-branch
@@ -947,10 +1017,12 @@
         (match
           ((null? as) (asm-emit! asm 'mov x0 (imm 0)))   ; no arm taken: nil
           ((eq? (first (first as)) #t)
-            (%asm-compile-expr asm (first (rest (first as))) params))
+            (do (set! %asm-tail tail)
+                (%asm-compile-expr asm (first (rest (first as))) params)))
           (#t
             (let ((lbl-next (%asm-genlabel "%arm")))
               (%branch-unless (first (first as)) lbl-next)
+              (set! %asm-tail tail)
               (%asm-compile-expr asm (first (rest (first as))) params)
               (asm-emit! asm 'b (label lbl-end))
               (asm-label! asm lbl-next)
@@ -1051,6 +1123,35 @@
 ; The trampoline cell holds the prim's address. Save/restore x19/x20
 ; across the call since the callee uses them too.
 (def %asm-compile-self-call
+  (fn (_ asm args params)
+    (if (if %asm-in-tail (not (null? %asm-slots)) #f)
+      (%asm-compile-tail-jump asm args params)
+      (%asm-compile-self-frame asm args params))))
+
+; A self-call in tail position: every new argument evaluated first and
+; held on the stack, since each may read the parameters it replaces; then
+; stored over the slots, last first; then back to the top of the body.
+(def %asm-compile-tail-jump
+  (fn (_ asm args params)
+    (if (not (= (%length args) (%length %asm-slots)))
+      (Err raise 'value "asm-compile: a self-call passes as many arguments as the function takes" ()))
+    ((fn (self as)
+       (if (null? as) ()
+         (do (%asm-compile-expr asm (first as) params)
+             (asm-push! asm x0)
+             (self (rest as)))))
+     args)
+    ; The last parameter's value is on top: the walk emits on its way back.
+    ((fn (self ps)
+       (if (null? ps) ()
+         (do (self (rest ps))
+             (asm-pop! asm x0)
+             (asm-emit! asm (lit str) x0 (mem x22 (%asm-slot-offset (first ps)))))))
+     %asm-slots)
+    (asm-emit! asm 'b (label %asm-loop-label))))
+
+; A self-call that returns here: a call through the trampoline cell.
+(def %asm-compile-self-frame
   (fn (_ asm args params)
     (if (> (%length args) 4)
       (Err raise 'value "asm-compile: max 4 args for recursive calls" ()))
@@ -1209,6 +1310,28 @@
     (asm-emit! asm 'mov x19 x0)    ; p_base
     (asm-emit! asm 'mov x20 x1)    ; p_args
 
+    ; The parameter slots: each parameter read once from the argument list
+    ; and pushed, x22 at their base, the body's top labelled for the tail
+    ; self-call.  See "Parameter slots" above for who is not slotted.
+    (set! %asm-slots ())
+    (set! %asm-tail #f)
+    (def slotted
+      (if %asm-analyser? #f
+        (if (null? params) #f (not (%asm-calls-param? fn-body params)))))
+    (if slotted
+      (do ((fn (self ps)
+             (if (null? ps) ()
+               (do (%asm-compile-param asm (first ps) params)
+                   (asm-push! asm x0)
+                   (self (rest ps)))))
+           params)
+          (asm-frame-base! asm)
+          (set! %asm-slots params)
+          (set! %asm-loop-label (%asm-genlabel "%top"))
+          (asm-label! asm %asm-loop-label)
+          (set! %asm-tail #t))
+      ())
+
     ; Compile body
     (%asm-compile-expr asm fn-body params)
 
@@ -1217,6 +1340,12 @@
     ; atom whose value happens to be a pointer.
     (unless %asm-analyser?
       (%emit-mkint! asm))
+
+    ; The slots popped, so the epilogue finds the stack as the prologue
+    ; left it.
+    ((fn (self ps) (if (null? ps) () (do (asm-pop! asm x2) (self (rest ps))))) %asm-slots)
+    (set! %asm-slots ())
+    (set! %asm-loop-label ())
 
     ; Epilogue
     (asm-epilogue! asm)

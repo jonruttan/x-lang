@@ -154,7 +154,7 @@
 ; format.  It is a literal rather than a name of its own because a name here is
 ; another top-level %-global (tools/contract/percent-globals.x).
 (def %asm-cache-identity
-  (Str append x-machine x-release x-lib-version "g2"))
+  (Str append x-machine x-release x-lib-version "g3"))
 
 ; The emitted code is not a function of the source alone, so the fvar table's
 ; ARRANGEMENT is part of the key.  Inside analyser mode a name absent from the table

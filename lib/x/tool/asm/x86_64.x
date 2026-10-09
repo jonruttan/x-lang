@@ -671,6 +671,12 @@
             65 86             ; push r14
             72 137 248))))    ; mov rax, rdi
 
+; asm-frame-base!: x22 (r14) = sp, the base of the parameter slots a
+; function pushes after its prologue.
+(def asm-frame-base!
+  (fn (_ asm)
+    (%emit-bytes! asm (list 73 137 230))))  ; mov r14, rsp
+
 (def asm-epilogue!
   (fn (_ asm)
     (%emit-bytes! asm
