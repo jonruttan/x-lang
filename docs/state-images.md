@@ -215,6 +215,16 @@ it is imaging.
   walk may collect periodically and stays bounded. While a frame holds a
   cursor into the child's chain, the writer's own base must not collect
   (format §4.1).
+- **The child sweeps as it loads.** The engine never collects on its own,
+  so a load holds every file's garbage until something asks. The loader's
+  `include` collects after each file while `%image-writing` is true,
+  which it is in the writer's child alone: nothing runs there but the load,
+  the includers' state is rooted while a file loads (x-engine-c 0.2.6),
+  and so is the form under evaluation. Without it x-coreutils, 1.2MB of
+  source read on helium, made some 370M objects before the writer's first
+  collect, a footprint past 12GB for a heap of 371K objects; with it the
+  write peaks at 1.25GB. Outside the writer the loader does not collect,
+  since an import can come from code holding anything.
 - **Bare primitives in the loop.** The library's guarded operators and
   reflective accessors are x, and each costs allocations per call; over
   every object of a heap that ends the process. This is
