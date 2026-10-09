@@ -1,0 +1,5 @@
+           CPU0       CPU2       
+  0:         44          1   IO-APIC   2-edge      timer
+  8:          0          0   IO-APIC   8-edge      rtc0
+NMI:          5          6   Non-maskable interrupts
+ERR:          0

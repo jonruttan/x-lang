@@ -1,0 +1,7 @@
+nr_free_pages 1000
+pgpgin 2048
+pgpgout 512
+pswpin 7
+pswpout 9
+pgfault 123456
+pgmajfault 321
