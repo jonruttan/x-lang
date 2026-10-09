@@ -1,18 +1,22 @@
 ; host.x -- Host: what the running kernel reports about the machine
 ;
-; Boot time, load, memory, CPU time, the process table and the logged-in
-; users, as records that read the same on Linux and Darwin.  Programs such
-; as uptime, free, ps and top format these and never ask which kernel
-; answered.
+; Boot time, load, memory, CPU time, the system-wide counters, disk,
+; network and interrupt totals, the process table and the logged-in users,
+; as records that read the same on Linux and Darwin.  Programs such as
+; uptime, free, ps, top, vmstat and iostat format these and never ask which
+; kernel answered.
 ;
 ; Linux reads what BusyBox reads: sysinfo(2) for uptime, load and the
 ; memory totals; /proc/meminfo for cached, reclaimable and available;
-; /proc/stat for CPU time and the boot time; /proc/loadavg for the run
-; queue; /proc/PID/stat for a process, /proc/PID/task for its threads and
+; /proc/stat for CPU time, the boot time and the event counts; /proc/vmstat
+; for paging; /proc/loadavg for the run queue; /proc/diskstats,
+; /proc/net/dev, /proc/interrupts and /proc/softirqs for the devices;
+; /proc/PID/stat for a process, /proc/PID/task for its threads and
 ; /proc/PID/smaps for its mappings.  Darwin reads sysctl (kern.boottime,
-; vm.loadavg, hw.memsize, vm.swapusage, kern.proc.all, kern.procargs2), the
-; Mach host and processor statistics and proc_pidinfo, all through the
-; dlopen FFI.  Both read utmpx through libc's getutxent, as BusyBox does.
+; vm.loadavg, hw.memsize, vm.swapusage, kern.proc.all, kern.procargs2,
+; NET_RT_IFLIST2), the Mach host and processor statistics, IOKit's block
+; storage statistics and proc_pidinfo, all through the dlopen FFI.  Both
+; read utmpx through libc's getutxent, as BusyBox does.
 ;
 ; A record is an alist keyed by symbols.  A field the kernel does not
 ; report, or will not report to this user, is nil: Darwin refuses another
@@ -36,9 +40,9 @@
 (import x/platform/syscall stat-layout)
 
 (def-class Host ()
-  (doc "The machine as the kernel reports it: boot time, load, memory, CPU time, processes and logged-in users, the same records on Linux and Darwin."
+  (doc "The machine as the kernel reports it: boot time, load, memory, CPU time, system-wide counters, disk, network and interrupt totals, processes and logged-in users, the same records on Linux and Darwin."
     (note "A field the kernel does not report is nil. Darwin reports another user's process memory and CPU time only to root.")
-    (see boot-time) (see load) (see tasks) (see memory) (see cpu) (see cpus) (see processes) (see process) (see args) (see exe) (see threads) (see maps) (see utmp) (see users))
+    (see boot-time) (see load) (see tasks) (see memory) (see cpu) (see cpus) (see counters) (see disks) (see interfaces) (see interrupts) (see processes) (see process) (see args) (see exe) (see threads) (see maps) (see utmp) (see users))
   (static
     (source    ()      "'linux or 'darwin: which reader answers; nil means this kernel's")
     (proc-root "/proc" "The /proc tree the Linux reader opens")
@@ -337,11 +341,8 @@
       (doc "memory, from sysctl and host_statistics64 (HOST_VM_INFO64)."
         (returns ALIST "The memory record"))
       (def page (Host %page-size))
-      (def vm (Host %buf 416))
-      (def count (Host %buf 8))
-      ((prim-ref (lit ptr) (lit set-word!)) (Host %ptr count) 0 104)
-      (def ok (= 0 (Host %call "host_statistics64" (Host %call "mach_host_self") 4
-                     (Host %ptr vm) (Host %ptr count))))
+      (def vm (Host %darwin-vm))
+      (def ok (not (null? vm)))
       (def swap (Host %sysctl "vm.swapusage" 32))
       (list (pair (lit total) (Host %int-at (Host %sysctl "hw.memsize" 8) 0 8))
             (pair (lit free) (if ok (* page (Host %int-at vm 0 4)) ()))
@@ -354,11 +355,286 @@
             (pair (lit anon) (if ok (* page (Host %int-at vm 140 4)) ()))
             (pair (lit mapped) ()) (pair (lit slab) ()) (pair (lit dirty) ()) (pair (lit writeback) ())))
 
+    (method %darwin-vm (self)
+      (doc "host_statistics64's HOST_VM_INFO64, a struct vm_statistics64, or nil when the kernel refuses."
+        (returns ANY "STRING region, or nil"))
+      (def vm (Host %buf 416))
+      (def count (Host %buf 8))
+      ((prim-ref (lit ptr) (lit set-word!)) (Host %ptr count) 0 104)
+      (if (= 0 (Host %call "host_statistics64" (Host %call "mach_host_self") 4
+                 (Host %ptr vm) (Host %ptr count)))
+        vm ()))
+
+    ; --- system-wide counters -------------------------------------------------
+
+    (method counters (self)
+      (doc "The kernel's running totals since boot: context-switches interrupts softirqs forks running blocked paged-in paged-out swap-ins swap-outs faults major-faults open-files max-files. running and blocked are the processes runnable now and waiting on I/O now (the running count includes the reader); paged-in and paged-out are bytes; swap-ins and swap-outs are pages; open-files is the file handles in use and max-files the kernel's limit. Linux reads /proc/stat (ctxt intr softirq processes procs_running procs_blocked), /proc/vmstat (pgpgin pgpgout pswpin pswpout pgfault pgmajfault) and /proc/sys/fs/file-nr, as BusyBox's vmstat and nmeter do. Darwin reads the Mach VM statistics (pageins pageouts swapins swapouts faults) and kern.num_files and kern.maxfiles; it reports no context switches, interrupts, softirqs, forks, run queue or major faults. Differences between two readings give the rates vmstat shows."
+        (returns ALIST "((context-switches . N) (interrupts . N) ... (max-files . N)); a field not reported is nil")
+        (sample "(< 0 (Assoc get 'faults (Host counters)))" "#t"))
+      (if (eq? (Host %backend) (lit darwin)) (Host %darwin-counters) (Host %linux-counters)))
+
+    (method %linux-counters (self)
+      (doc "counters, from /proc/stat, /proc/vmstat and /proc/sys/fs/file-nr."
+        (returns ALIST "The counters record"))
+      (def st (Host %lines "stat"))
+      (def vm (Host %lines "vmstat"))
+      (def from-vm (fn (_ k) (Host %line-value vm k)))
+      ; pgpgin and pgpgout count KiB
+      (def kb (fn (_ k) (let ((v (from-vm k))) (if (null? v) () (* v 1024)))))
+      ; file-nr: allocated, allocated but unused, the maximum; tab-separated
+      (def nr (let ((s (Host %read (Str8 append (Host proc-root) "/sys/fs/file-nr"))))
+                (if (null? s) () (List map (fn (_ f) (Host %int f)) (Host %fields (Str8 join " " (Str8 split "\t" (Str8 trim s))))))))
+      (def files (if (< (List length nr) 3) () nr))
+      (list (pair (lit context-switches) (Host %line-value st "ctxt"))
+            (pair (lit interrupts) (Host %line-value st "intr"))
+            (pair (lit softirqs) (Host %line-value st "softirq"))
+            (pair (lit forks) (Host %line-value st "processes"))
+            (pair (lit running) (Host %line-value st "procs_running"))
+            (pair (lit blocked) (Host %line-value st "procs_blocked"))
+            (pair (lit paged-in) (kb "pgpgin"))
+            (pair (lit paged-out) (kb "pgpgout"))
+            (pair (lit swap-ins) (from-vm "pswpin"))
+            (pair (lit swap-outs) (from-vm "pswpout"))
+            (pair (lit faults) (from-vm "pgfault"))
+            (pair (lit major-faults) (from-vm "pgmajfault"))
+            (pair (lit open-files) (if (null? files) () (- (first files) (first (rest files)))))
+            (pair (lit max-files) (if (null? files) () (first (rest (rest files)))))))
+
+    (method %darwin-counters (self)
+      (doc "counters, from host_statistics64's HOST_VM_INFO64 and sysctl."
+        (returns ALIST "The counters record"))
+      (def page (Host %page-size))
+      (def vm (Host %darwin-vm))
+      ; struct vm_statistics64: pageins at 32, pageouts 40, faults 48, swapins
+      ; 112, swapouts 120, each a 64-bit count of pages
+      (def at (fn (_ off) (if (null? vm) () (Host %int-at vm off 8))))
+      (def bytes (fn (_ off) (if (null? vm) () (* page (at off)))))
+      (def int (fn (_ name) (let ((b (Host %sysctl name 4))) (if (null? b) () (Host %int-at b 0 4)))))
+      (list (pair (lit context-switches) ()) (pair (lit interrupts) ()) (pair (lit softirqs) ())
+            (pair (lit forks) ()) (pair (lit running) ()) (pair (lit blocked) ())
+            (pair (lit paged-in) (bytes 32))
+            (pair (lit paged-out) (bytes 40))
+            (pair (lit swap-ins) (at 112))
+            (pair (lit swap-outs) (at 120))
+            (pair (lit faults) (at 48))
+            (pair (lit major-faults) ())
+            (pair (lit open-files) (int "kern.num_files"))
+            (pair (lit max-files) (int "kern.maxfiles"))))
+
+    (method interrupts (self)
+      (doc "The interrupt counts since boot, one record a source: name counts total description soft?. name is the kernel's label (an IRQ number, or NMI, LOC, TIMER and the like); counts pairs each processor's number with its count, nil for a source the kernel counts only once; total is their sum; description is the rest of the line (controller, trigger, devices), nil when there is none; soft? is #t for a softirq. Linux reads /proc/interrupts and then /proc/softirqs, as BusyBox's mpstat -I does. Darwin reports none, and answers nil."
+        (returns ANY "LIST of interrupt records, or nil")
+        (sample "(Assoc get 'name (first (Host interrupts)))" "\"0\""))
+      (if (eq? (Host %backend) (lit darwin)) ()
+        (List append (Host %irq-table "interrupts" #f) (Host %irq-table "softirqs" #t))))
+
+    (method %irq-table (self (param name STRING "interrupts or softirqs, under the /proc root")
+                             (param soft BOOL "Whether its sources are softirqs"))
+      (doc "The records of one /proc interrupt table: a header naming the processors (CPU0 CPU1 ...), then a line a source, NAME: then a count a processor."
+        (returns LIST "Interrupt records"))
+      (def ls (Host %lines name))
+      (if (null? ls) ()
+        (let ((columns (List map (fn (_ f) (Host %int (Str8 sub 3 (- (Str8 length f) 3) f)))
+                      (Host %fields (first ls)))))
+          (def n (List length columns))
+          ; the leading counts of a line's fields, at most n: (counts . rest)
+          (def take
+            (fn (self fs k acc)
+              (if (if (null? fs) #t (if (>= k n) #t (not (Host %digits? (first fs)))))
+                (pair (List reverse acc) fs)
+                (self (rest fs) (+ k 1) (pair (Host %int (first fs)) acc)))))
+          (def one
+            (fn (_ l)
+              (def colon (Str8 index-of ":" l))
+              (if (null? colon) ()
+                (let ((r (take (Host %fields (Str8 sub (+ colon 1) (- (Str8 length l) (+ colon 1)) l)) 0 ())))
+                  (def counts (first r))
+                  (list (pair (lit name) (Str8 trim (Str8 sub 0 colon l)))
+                        (pair (lit counts) (if (= (List length counts) n) (List zip columns counts) ()))
+                        (pair (lit total) (List fold + 0 counts))
+                        (pair (lit description) (if (null? (rest r)) () (Str8 join " " (rest r))))
+                        (pair (lit soft?) soft))))))
+          (List reject null? (List map one (rest ls))))))
+
+    (method %digits? (self (param s STRING "A field"))
+      (doc "Whether a field is all decimal digits, and at least one."
+        (returns BOOL "#t or #f"))
+      (def at (prim-ref (lit str) (lit byte-ref)))
+      (def n ((prim-ref (lit str) (lit byte-len)) s))
+      (def go (fn (self i) (if (>= i n) #t (if (if (>= (at s i) 48) (<= (at s i) 57) #f) (self (+ i 1)) #f))))
+      (if (= n 0) #f (go 0)))
+
+    (method disks (self)
+      (doc "The block devices' I/O totals since boot, one record a device: name major minor reads reads-merged read-bytes read-time writes writes-merged write-bytes write-time in-flight io-time queue-time. Times are nanoseconds: read-time and write-time the time spent on each, io-time the time the device was busy, queue-time the busy time weighted by the requests in flight. Linux reads /proc/diskstats, as BusyBox's iostat and nmeter do, every device and partition it lists (a sector there is 512 bytes); an old kernel's four-figure partition line gives only reads, read-bytes, writes and write-bytes. Darwin reads each IOBlockStorageDriver's Statistics through IOKit, named by its media's BSD name, and reports no merges, in-flight, io-time or queue-time."
+        (returns LIST "Disk records")
+        (sample "(Assoc get 'name (first (Host disks)))" "\"disk0\""))
+      (if (eq? (Host %backend) (lit darwin)) (Host %darwin-disks) (Host %linux-disks)))
+
+    (method %disk-record (self (param name STRING "Device name") (param v LIST "major minor and the twelve totals, in disks' order"))
+      (doc "The disk record for a name and its figures."
+        (returns ALIST "The disk record"))
+      (def go (fn (self ks vs) (if (null? ks) () (pair (pair (first ks) (if (null? vs) () (first vs))) (self (rest ks) (if (null? vs) () (rest vs)))))))
+      (pair (pair (lit name) name)
+        (go (lit (major minor reads reads-merged read-bytes read-time writes writes-merged write-bytes
+                  write-time in-flight io-time queue-time))
+            v)))
+
+    (method %linux-disks (self)
+      (doc "disks, from /proc/diskstats: major minor name, then reads merged sectors ms, writes merged sectors ms, in-flight, io ms and weighted ms."
+        (returns LIST "Disk records"))
+      (def sectors (fn (_ v) (if (null? v) () (* v 512))))
+      (def ms (fn (_ v) (if (null? v) () (* v 1000000))))
+      (def one
+        (fn (_ l)
+          (def f (Host %fields l))
+          (def n (List length f))
+          (def at (fn (_ i) (if (< i n) (Host %int (List ref i f)) ())))
+          (match
+            ((< n 7) ())
+            ((< n 14)
+              (Host %disk-record (List ref 2 f)
+                (list (at 0) (at 1) (at 3) () (sectors (at 4)) () (at 5) () (sectors (at 6)))))
+            (#t
+              (Host %disk-record (List ref 2 f)
+                (list (at 0) (at 1) (at 3) (at 4) (sectors (at 5)) (ms (at 6))
+                      (at 7) (at 8) (sectors (at 9)) (ms (at 10))
+                      (at 11) (ms (at 12)) (ms (at 13))))))))
+      (List reject null? (List map one (Host %lines "diskstats"))))
+
+    (method %darwin-disks (self)
+      (doc "disks, from IOKit: each IOBlockStorageDriver's Statistics dictionary (Operations, Bytes and Total Time, read and write, the times in nanoseconds), and the BSD Name, Major and Minor of the media under it. A driver with no media, an empty reader, is left out. nil when IOKit will not load."
+        (returns LIST "Disk records"))
+      (def h ((prim-ref (lit ffi) (lit dlopen)) "/System/Library/Frameworks/IOKit.framework/IOKit" 1))
+      (if (not h) ()
+        (let ((call (prim-ref (lit ptr) (lit call))) (dlsym (prim-ref (lit ffi) (lit dlsym))))
+          ; a CoreFoundation or IOKit function, by name: dlsym on IOKit's
+          ; handle also searches the frameworks it loads
+          (def c (fn (_ name args) (apply call (pair (dlsym h name) args))))
+          ; mach ports and kern_return_t are 32 bits wide
+          (def u32 (fn (_ v) (& v 4294967295)))
+          (def release (fn (_ p) (if (= p 0) () (c "CFRelease" (list p)))))
+          ; a CFString of an ASCII name (kCFStringEncodingUTF8)
+          (def cfstr (fn (_ s) (c "CFStringCreateWithCString" (list 0 s 134217984))))
+          (def prop
+            (fn (_ e key)
+              (def k (cfstr key))
+              (def v (c "IORegistryEntryCreateCFProperty" (list e k 0 0)))
+              (release k)
+              v))
+          ; a CFNumber as a 64-bit integer (kCFNumberSInt64Type)
+          (def number
+            (fn (_ v)
+              (def b (Host %buf 8))
+              (if (= v 0) () (if (= 0 (& 255 (c "CFNumberGetValue" (list v 4 (Host %ptr b))))) () (Host %int-at b 0 8)))))
+          (def owned-number (fn (_ v) (def r (number v)) (release v) r))
+          (def stat
+            (fn (_ d key)
+              (if (= d 0) ()
+                (let ((k (cfstr key)))
+                  (def v (c "CFDictionaryGetValue" (list d k)))
+                  (release k)
+                  (number v)))))
+          (def bsd-name
+            (fn (_ m)
+              (def s (prop m "BSD Name"))
+              (def b (Host %buf 64))
+              (def ok (if (= s 0) #f (not (= 0 (& 255 (c "CFStringGetCString" (list s (Host %ptr b) 64 134217984)))))))
+              (release s)
+              (if ok (Host %cstr-at b 0 64) ())))
+          (def one
+            (fn (_ d)
+              (def mb (Host %buf 8))
+              (def media (if (= 0 (u32 (c "IORegistryEntryGetChildEntry" (list d "IOService" (Host %ptr mb)))))
+                           (Host %int-at mb 0 4) 0))
+              (def name (if (= media 0) () (bsd-name media)))
+              (def r
+                (if (null? name) ()
+                  (let ((st (prop d "Statistics")))
+                    (def v (list (owned-number (prop media "BSD Major")) (owned-number (prop media "BSD Minor"))
+                                 (stat st "Operations (Read)") () (stat st "Bytes (Read)") (stat st "Total Time (Read)")
+                                 (stat st "Operations (Write)") () (stat st "Bytes (Write)") (stat st "Total Time (Write)")))
+                    (release st)
+                    (Host %disk-record name v))))
+              (if (= media 0) () (c "IOObjectRelease" (list media)))
+              r))
+          (def itb (Host %buf 8))
+          (if (not (= 0 (u32 (c "IOServiceGetMatchingServices"
+                               (list 0 (c "IOServiceMatching" (list "IOBlockStorageDriver")) (Host %ptr itb))))))
+            ()
+            (let ((it (Host %int-at itb 0 4)))
+              (def go
+                (fn (self acc)
+                  (def d (u32 (c "IOIteratorNext" (list it))))
+                  (if (= d 0) (List reverse acc)
+                    (let ((r (one d)))
+                      (c "IOObjectRelease" (list d))
+                      (self (if (null? r) acc (pair r acc)))))))
+              (def all (go ()))
+              (c "IOObjectRelease" (list it))
+              all)))))
+
+    (method interfaces (self)
+      (doc "The network interfaces' traffic totals since boot, one record an interface: name rx-bytes rx-packets rx-errors rx-dropped rx-fifo rx-frame rx-compressed rx-multicast tx-bytes tx-packets tx-errors tx-dropped tx-fifo tx-collisions tx-carrier tx-compressed. rx counts what arrived, tx what was sent. Linux reads /proc/net/dev, as BusyBox's nmeter and ifconfig do. Darwin reads each interface's ifmibdata sysctl, as netstat -i does, with tx-dropped its send queue's drops; it reports no fifo, frame, compressed or carrier counts."
+        (returns LIST "Interface records")
+        (sample "(Assoc get 'name (first (Host interfaces)))" "\"lo0\""))
+      (if (eq? (Host %backend) (lit darwin)) (Host %darwin-interfaces) (Host %linux-interfaces)))
+
+    (method %interface-record (self (param name STRING "Interface name") (param v LIST "The sixteen totals, in interfaces' order"))
+      (doc "The interface record for a name and its totals."
+        (returns ALIST "The interface record"))
+      (def go (fn (self ks vs) (if (null? ks) () (pair (pair (first ks) (if (null? vs) () (first vs))) (self (rest ks) (if (null? vs) () (rest vs)))))))
+      (pair (pair (lit name) name)
+        (go (lit (rx-bytes rx-packets rx-errors rx-dropped rx-fifo rx-frame rx-compressed rx-multicast
+                  tx-bytes tx-packets tx-errors tx-dropped tx-fifo tx-collisions tx-carrier tx-compressed))
+            v)))
+
+    (method %linux-interfaces (self)
+      (doc "interfaces, from /proc/net/dev: two header lines, then NAME: and sixteen totals, received then sent. The first total may follow the colon with no space."
+        (returns LIST "Interface records"))
+      (def one
+        (fn (_ l)
+          (def colon (Str8 index-of ":" l))
+          (if (null? colon) ()
+            (Host %interface-record (Str8 trim (Str8 sub 0 colon l))
+              (List map (fn (_ f) (Host %int f))
+                (Host %fields (Str8 sub (+ colon 1) (- (Str8 length l) (+ colon 1)) l)))))))
+      (def ls (Host %lines "net/dev"))
+      (List reject null? (List map one (if (< (List length ls) 2) () (rest (rest ls))))))
+
+    (method %darwin-interfaces (self)
+      (doc "interfaces, as netstat -i reads them: the indexes from the RTM_IFINFO2 messages of sysctl CTL_NET PF_ROUTE 0 0 NET_RT_IFLIST2 0, then each interface's struct ifmibdata from CTL_NET PF_LINK NETLINK_GENERIC IFMIB_IFDATA INDEX IFDATA_GENERAL. The routing messages' own if_data64 counts bytes in 32 bits for a user without privileges; the ifmibdata's counts are whole."
+        (returns LIST "Interface records"))
+      (def r (Host %sysctl-mib (list 4 17 0 0 6 0) ()))
+      ; ifmibdata: the name at 0, snd_drops at 32, if_data64 at 52; in that,
+      ; the 64-bit counts from ipackets at 24
+      (def one
+        (fn (_ i)
+          (def m (Host %sysctl-mib (list 4 18 0 2 i 1) 180))
+          (if (null? m) ()
+            (let ((b (first m)))
+              (def at (fn (_ off) (Host %int-at b (+ 52 off) 8)))
+              (Host %interface-record (Host %cstr-at b 0 16)
+                (list (at 64) (at 24) (at 32) (at 96) () () () (at 80)
+                      (at 72) (at 40) (at 48) (Host %int-at b 32 4) () (at 56) () ()))))))
+      (if (null? r) ()
+        (let ((b (first r)) (end (rest r)))
+          ; if_msghdr2: msglen at 0, type at 3 (RTM_IFINFO2 is 18), index at 12
+          (def go
+            (fn (self o acc)
+              (if (>= o end) (List reverse acc)
+                (let ((len (Host %int-at b o 2)))
+                  (if (= len 0) (List reverse acc)
+                    (self (+ o len)
+                      (if (= 18 (Host %int-at b (+ o 3) 1))
+                        (let ((rec (one (Host %int-at b (+ o 12) 2)))) (if (null? rec) acc (pair rec acc)))
+                        acc)))))))
+          (go 0 ()))))
+
     ; --- CPU time -------------------------------------------------------------
 
     (method cpu (self)
-      (doc "CPU time since boot across all processors, in nanoseconds: user nice system idle iowait irq softirq steal. Linux reads /proc/stat's cpu line; Darwin reads HOST_CPU_LOAD_INFO, which reports the first four. Differences between two readings give the percentages top shows."
-        (returns ALIST "((user . NS) (nice . NS) ... (steal . NS)); a field not reported is nil")
+      (doc "CPU time since boot across all processors, in nanoseconds: user nice system idle iowait irq softirq steal guest guest-nice. Linux reads /proc/stat's cpu line; Darwin reads HOST_CPU_LOAD_INFO, which reports the first four. Differences between two readings give the percentages top shows."
+        (returns ALIST "((user . NS) (nice . NS) ... (guest-nice . NS)); a field not reported is nil")
         (sample "(Assoc get 'idle (Host cpu))" "1566821170000000"))
       (Host %cpu-record
         (if (eq? (Host %backend) (lit darwin))
@@ -376,8 +652,8 @@
           (List filter (fn (_ l) (if (Str8 starts? "cpu" l) (not (Str8 starts? "cpu " l)) #f))
             (Host %lines "stat")))))
 
-    (method %cpu-record (self (param ticks LIST "Tick counts in /proc/stat's order; fewer than eight leave the rest nil"))
-      (doc "A cpu record from clock ticks: user nice system idle iowait irq softirq steal, in nanoseconds."
+    (method %cpu-record (self (param ticks LIST "Tick counts in /proc/stat's order; fewer than ten leave the rest nil"))
+      (doc "A cpu record from clock ticks: user nice system idle iowait irq softirq steal guest guest-nice, in nanoseconds. guest and guest-nice are also counted in user and nice, as the kernel counts them."
         (returns ALIST "The cpu record"))
       (def go
         (fn (self ks ts)
@@ -385,7 +661,7 @@
             (pair (pair (first ks) (if (null? ts) () (Host %ticks->ns (first ts))))
                   (self (rest ks) (if (null? ts) () (rest ts)))))))
       (go (list (lit user) (lit nice) (lit system) (lit idle)
-                (lit iowait) (lit irq) (lit softirq) (lit steal))
+                (lit iowait) (lit irq) (lit softirq) (lit steal) (lit guest) (lit guest-nice))
           ticks))
 
     (method %darwin-cpu-ticks (self)
@@ -978,6 +1254,6 @@
 (set! %image-recache-hooks (pair (fn (_) (Host ctx ())) %image-recache-hooks))
 
 (doc (provide x/sys/host Host)
-  (note "Linux reads sysinfo(2) and /proc; Darwin reads sysctl, the Mach host statistics and proc_pidinfo over the dlopen FFI; both read utmpx through libc.")
+  (note "Linux reads sysinfo(2) and /proc; Darwin reads sysctl, the Mach host statistics, IOKit and proc_pidinfo over the dlopen FFI; both read utmpx through libc.")
   (sample "(Host load)" "(3.85 4.5 6.27)")
-  "Host: boot time, load, memory, CPU time, processes and users, the same records on Linux and Darwin.")
+  "Host: boot time, load, memory, CPU time, counters, disks, interfaces, interrupts, processes and users, the same records on Linux and Darwin.")

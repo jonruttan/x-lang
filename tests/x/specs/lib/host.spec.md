@@ -37,7 +37,7 @@ clear it), so a later case in the same batch reads the real machine.
 ---
     (('total 'free 'shared 'buffers 'cached 'reclaimable 'available 'swap-total 'swap-free 'anon 'mapped 'slab 'dirty 'writeback) #t #t #t)
 
-### cpu: eight fields, idle and user counted
+### cpu: ten fields, idle and user counted
 
 ```x
 (do (import x/sys/host)
@@ -45,7 +45,7 @@ clear it), so a later case in the same batch reads the real machine.
   (list (Assoc keys c) (< 0 (Assoc get 'idle c)) (< 0 (Assoc get 'user c))))
 ```
 ---
-    (('user 'nice 'system 'idle 'iowait 'irq 'softirq 'steal) #t #t)
+    (('user 'nice 'system 'idle 'iowait 'irq 'softirq 'steal 'guest 'guest-nice) #t #t)
 
 ### this process is in the table, owned by this user, with memory and CPU time
 
@@ -173,6 +173,59 @@ clear it), so a later case in the same batch reads the real machine.
 ---
     (#t #t)
 
+### counters: faults and open files counted; Darwin reports no context switches
+
+```x
+(do (import x/sys/host)
+  (def c (Host counters))
+  (def get (fn (_ k) (Assoc get k c)))
+  (list (Assoc keys c)
+        (< 0 (get 'faults)) (< 0 (get 'paged-in))
+        (< 0 (get 'open-files)) (<= (get 'open-files) (get 'max-files))
+        (if os-darwin? (null? (get 'context-switches)) (< 0 (get 'context-switches)))))
+```
+---
+    (('context-switches 'interrupts 'softirqs 'forks 'running 'blocked 'paged-in 'paged-out 'swap-ins 'swap-outs 'faults 'major-faults 'open-files 'max-files) #t #t #t #t #t)
+
+### disks: each has a name and read and write totals, and one has been read
+
+```x
+(do (import x/sys/host)
+  (def ds (Host disks))
+  (list (< 0 (List length ds))
+        (List all? (fn (_ d) (and (str? (Assoc get 'name d)) (number? (Assoc get 'reads d))
+                                  (number? (Assoc get 'write-bytes d))))
+          ds)
+        (List any? (fn (_ d) (< 0 (Assoc get 'read-bytes d))) ds)))
+```
+---
+    (#t #t #t)
+
+### interfaces: each has a name and traffic totals, and a loopback is among them
+
+```x
+(do (import x/sys/host)
+  (def is (Host interfaces))
+  (list (List all? (fn (_ i) (and (str? (Assoc get 'name i)) (number? (Assoc get 'rx-bytes i))
+                                  (number? (Assoc get 'tx-packets i))))
+          is)
+        (List any? (fn (_ i) (Str8 starts? "lo" (Assoc get 'name i))) is)))
+```
+---
+    (#t #t)
+
+### interrupts: Linux counts each source per processor, softirqs too; Darwin reports none
+
+```x
+(do (import x/sys/host)
+  (def rs (Host interrupts))
+  (if os-darwin? (null? rs)
+    (and (List any? (fn (_ r) (Assoc get 'soft? r)) rs)
+         (List all? (fn (_ r) (and (str? (Assoc get 'name r)) (number? (Assoc get 'total r)))) rs))))
+```
+---
+    #t
+
 ## a fixture /proc
 
 ### processes skips a directory that is not a pid and reads both rows
@@ -242,7 +295,7 @@ clear it), so a later case in the same batch reads the real machine.
   (Assoc vals c))
 ```
 ---
-    (1000000000 20000000 300000000 4000000000 50000000 60000000 70000000 80000000)
+    (1000000000 20000000 300000000 4000000000 50000000 60000000 70000000 80000000 90000000 10000000)
 
 ### tasks reads /proc/loadavg's run queue and last pid
 
@@ -311,3 +364,55 @@ clear it), so a later case in the same batch reads the real machine.
 ```
 ---
     ((335872 139264 135168 307200 4096 8192 16384) ())
+
+### counters reads /proc/stat, /proc/vmstat and file-nr: KiB paged to bytes, open files in use
+
+```x
+(do (import x/sys/host)
+  (Host source 'linux)
+  (Host proc-root "tests/x/fixtures/host/proc")
+  (def c (Host counters))
+  (Host source (if os-darwin? (lit darwin) (lit linux))) (Host proc-root "/proc")
+  (Assoc vals c))
+```
+---
+    (77777 5000 6000 99 3 1 2097152 524288 7 9 123456 321 2000 9223372036854775807)
+
+### interrupts reads both tables; a source counted once has no per-processor counts
+
+```x
+(do (import x/sys/host)
+  (Host source 'linux)
+  (Host proc-root "tests/x/fixtures/host/proc")
+  (def r (List map (fn (_ i) (Assoc vals i)) (Host interrupts)))
+  (Host source (if os-darwin? (lit darwin) (lit linux))) (Host proc-root "/proc")
+  r)
+```
+---
+    (("0" ((0 . 44) (2 . 1)) 45 "IO-APIC 2-edge timer" #f) ("8" ((0 . 0) (2 . 0)) 0 "IO-APIC 8-edge rtc0" #f) ("NMI" ((0 . 5) (2 . 6)) 11 "Non-maskable interrupts" #f) ("ERR" () 0 () #f) ("HI" ((0 . 1) (2 . 2)) 3 () #t) ("TIMER" ((0 . 300) (2 . 400)) 700 () #t))
+
+### disks reads /proc/diskstats: sectors to bytes, milliseconds to nanoseconds, an old partition line's four figures
+
+```x
+(do (import x/sys/host)
+  (Host source 'linux)
+  (Host proc-root "tests/x/fixtures/host/proc")
+  (def r (List map (fn (_ d) (Assoc vals d)) (Host disks)))
+  (Host source (if os-darwin? (lit darwin) (lit linux))) (Host proc-root "/proc")
+  r)
+```
+---
+    (("sda" 8 0 100 5 1024000 30000000 50 6 512000 40000000 0 60000000 70000000) ("sda1" 8 1 90 4 921600 25000000 45 5 460800 35000000 0 55000000 60000000) ("hda1" 3 1 11 () 11264 () 33 () 22528 () () () ()))
+
+### interfaces reads /proc/net/dev past its two header lines, a total right after the colon too
+
+```x
+(do (import x/sys/host)
+  (Host source 'linux)
+  (Host proc-root "tests/x/fixtures/host/proc")
+  (def r (List map (fn (_ i) (Assoc vals i)) (Host interfaces)))
+  (Host source (if os-darwin? (lit darwin) (lit linux))) (Host proc-root "/proc")
+  r)
+```
+---
+    (("lo" 1000 10 0 0 0 0 0 0 1000 10 0 0 0 0 0 0) ("eth0" 123456789 4321 1 2 3 4 5 6 98765 432 7 8 9 10 11 12))
