@@ -7,7 +7,10 @@
 ; traffic secret gives a record key and IV (7.3), and a Finished message is
 ; an HMAC under a key from the handshake traffic secret (4.4.4).  These are
 ; pure functions over regions (BUF START LEN), as x/codec/bytes has them,
-; so RFC 8448's traces check them byte for byte without a network.
+; so RFC 8448's traces check them byte for byte without a network
+; (tests/x/specs/lib/tls-keys.spec.md).  The steps that chain several
+; HMACs show samples rather than examples: pure x they cost the doctest
+; batch seconds, and the spec checks every one against the RFC.
 (module x/net/tls-keys)
 
 (import x/codec/bytes)
@@ -50,7 +53,7 @@
                                 (param th LIST "The transcript hash, a region"))
       (doc "Derive-Secret (RFC 8446 7.1): Expand-Label with the transcript hash as context, the hash's size of bytes."
         (returns LIST "(BUF 0 HashLen)")
-        (example "(Bytes length (TlsKeys derive-secret (lit sha256) (Bytes of-hex \"00\") \"derived\" (TlsKeys empty-hash (lit sha256))))" "32"))
+        (sample "(Bytes length (TlsKeys derive-secret (lit sha256) (Bytes of-hex \"00\") \"derived\" (TlsKeys empty-hash (lit sha256))))" "32"))
       (TlsKeys expand-label hash secret label th (Hmac size hash)))
     (method empty-hash (self (param hash SYMBOL "The suite's hash"))
       (doc "The hash of no bytes, the context Derive-Secret's \"derived\" steps take."
@@ -73,14 +76,14 @@
                                    (param shared LIST "The key exchange's shared secret, a region"))
       (doc "The handshake secret: HKDF-Extract of the shared secret under Derive-Secret(early secret, \"derived\", \"\")."
         (returns LIST "(BUF 0 HashLen)")
-        (example "(Bytes length (TlsKeys handshake-secret (lit sha256) (Bytes of-list (List repeat 32 1))))" "32"))
+        (sample "(Bytes length (TlsKeys handshake-secret (lit sha256) (Bytes of-list (List repeat 32 1))))" "32"))
       (def salt (TlsKeys derive-secret hash (TlsKeys early-secret hash) "derived" (TlsKeys empty-hash hash)))
       (%cut (Hkdf extract hash salt shared) (Hmac size hash)))
     (method master-secret (self (param hash SYMBOL "The suite's hash")
                                 (param hs LIST "The handshake secret, a region"))
       (doc "The master secret: HKDF-Extract of HashLen zeros under Derive-Secret(handshake secret, \"derived\", \"\")."
         (returns LIST "(BUF 0 HashLen)")
-        (example "(Bytes length (TlsKeys master-secret (lit sha256) (Bytes of-list (List repeat 32 1))))" "32"))
+        (sample "(Bytes length (TlsKeys master-secret (lit sha256) (Bytes of-list (List repeat 32 1))))" "32"))
       (def salt (TlsKeys derive-secret hash hs "derived" (TlsKeys empty-hash hash)))
       (def zeros (Bytes of-list (List repeat (Hmac size hash) 0)))
       (%cut (Hkdf extract hash salt zeros) (Hmac size hash)))
@@ -97,14 +100,14 @@
                            (param th LIST "The transcript hash the Finished covers, a region"))
       (doc "The Finished verify_data (RFC 8446 4.4.4): HMAC of the transcript hash under Expand-Label(secret, \"finished\", \"\", HashLen)."
         (returns LIST "(BUF 0 HashLen)")
-        (example "(Bytes length (TlsKeys finished (lit sha256) (Bytes of-list (List repeat 32 1)) (TlsKeys empty-hash (lit sha256))))" "32"))
+        (sample "(Bytes length (TlsKeys finished (lit sha256) (Bytes of-list (List repeat 32 1)) (TlsKeys empty-hash (lit sha256))))" "32"))
       (def key (TlsKeys expand-label hash ts "finished" %no-bytes (Hmac size hash)))
       (%cut (Hmac mac hash key th) (Hmac size hash)))
     (method next-traffic-secret (self (param hash SYMBOL "The suite's hash")
                                       (param secret LIST "The current application traffic secret, a region"))
       (doc "The application traffic secret after a KeyUpdate (RFC 8446 7.2): Expand-Label(secret, \"traffic upd\", \"\", HashLen)."
         (returns LIST "(BUF 0 HashLen)")
-        (example "(Bytes length (TlsKeys next-traffic-secret (lit sha256) (Bytes of-list (List repeat 32 1))))" "32"))
+        (sample "(Bytes length (TlsKeys next-traffic-secret (lit sha256) (Bytes of-list (List repeat 32 1))))" "32"))
       (TlsKeys expand-label hash secret "traffic upd" %no-bytes (Hmac size hash)))))
 
 (doc (provide x/net/tls-keys TlsKeys)
