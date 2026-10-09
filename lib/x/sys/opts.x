@@ -53,7 +53,7 @@
   (static
     (method parse (self (param decl ANY "A declaration from (Opts declare), or the list of options that stand alone, as \"-r\" or \"--verbose\"")
                    . (param more LIST "After a declaration, the arguments; after a list of flags, the options that take an argument and then the arguments"))
-      (doc "Parse argv against the declaration. Options may appear before or after operands (as getopt permutes); a caller whose operands can look like flags -- echo(1) -- wants parse-leading instead. The first undeclared option is remembered rather than raised, so the caller chooses the wording and the exit status. Given a declaration, a row's spellings are one option: whichever was given, on? and value answer for all of them."
+      (doc "Parse argv against the declaration. Options may appear before or after operands (as getopt permutes); a caller whose operands can look like flags -- echo(1) -- wants parse-leading instead. The flags given are listed in the order given, a cluster's letters left to right, so a caller where the later of two flags wins can read it. The first undeclared option is remembered rather than raised, so the caller chooses the wording and the exit status. Given a declaration, a row's spellings are one option: whichever was given, on? and value answer for all of them."
         (returns ALIST "((on . LIST) (values . ALIST) (operands . LIST) (unknown . ANY))")
         (example "(Opts value (Opts parse () (list \"-k\") (list \"-k2\")) \"-k\")" "\"2\"")
         (example "(Opts unknown (Opts parse (list \"-a\") () (list \"-z\")))" "\"-z\"")
@@ -364,8 +364,10 @@
                   ; has an empty flag list and is not a refusal (-k2)
                   (if (null? r)
                     (go (rest as) on vals ops (if (null? bad) a bad) done)
+                    ; ON is built backwards, so the cluster's flags go on
+                    ; backwards too: -bt lists -b before -t
                     (go (List ref 3 r)
-                        (%append2 (first r) on)
+                        (%append2 (%reverse (first r)) on)
                         (%append2 (List ref 1 r) vals)
                         ops bad done)))))))))
 

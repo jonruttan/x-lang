@@ -19,6 +19,21 @@ what three silent defects in x-coreutils came down to.
 ---
     (#t #f #t)
 
+### the flags given are listed in the order given, a cluster's letters too
+
+A caller where the later of two flags wins -- busybox md5sum's -b and -t
+-- reads this list, so `-bt` must list -b first.
+
+```x
+(do (import x/sys/opts)
+  (def f (list "-a" "-b" "-t"))
+  (def given (fn (_ argv) (rest (Assoc entry (lit on) (Opts parse f () argv)))))
+  (list (given (list "-bt")) (given (list "-tb"))
+        (given (list "-a" "-tb")) (given (list "-tb" "-a"))))
+```
+---
+    (("-b" "-t") ("-t" "-b") ("-a" "-t" "-b") ("-t" "-b" "-a"))
+
 ### a value comes attached or separated, and either way reads the same
 
 ```x
