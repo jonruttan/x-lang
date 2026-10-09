@@ -485,6 +485,12 @@
     (%emit-u32-le! asm 2847890421)    ; stp x21, x22, [sp, #-16]!
     (%emit-u32-le! asm 2432697341)))  ; mov x29, sp
 
+; asm-frame-base!: x22 = sp, the base of the parameter slots a function
+; pushes after its prologue.  ADD x22, sp, #0 = 0x910003F6.
+(def asm-frame-base!
+  (fn (_ asm)
+    (%emit-u32-le! asm 2432697334)))  ; add x22, sp, #0
+
 ; asm-epilogue!: restore callee-saved regs and return
 (def asm-epilogue!
   (fn (_ asm)
