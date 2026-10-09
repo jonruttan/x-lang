@@ -150,7 +150,10 @@
       (let ((raw ()) (states ()) (compiled 0) (replayed #f) (reader ()) (resets ()) (end (if (null? more) " " (first more))))
         (def l (new Lexer rules rules raw raw states states compiled compiled replayed replayed reader reader resets resets end end))
         (l remake!)
-        ((Lexer %transient!) (fn (_) (l raw ()) (l states ()) (l reader ())))
+        ; Everything that holds a compiled state is dropped before an image is
+        ; written -- native code cannot be written into one -- and remake!
+        ; makes it again after the load.
+        ((Lexer %transient!) (fn (_) (l raw ()) (l states ()) (l reader ()) (l resets ())))
         ((Lexer %recache-hook!) (fn (_) (Lexer %jit-probe!) (l remake!)))
         l))
 

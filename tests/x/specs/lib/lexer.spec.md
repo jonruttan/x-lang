@@ -311,6 +311,31 @@ it is open; the count is reported, the tokens are the contract.
 ---
     (('w "a") ('w "bc"))
 
+### an image write drops every compiled state, resets included, and the load remakes them
+
+The transients an image write runs leave the lexer holding no state -- a
+compiled state is native code, which no image can hold -- and the recache
+hooks a load runs make them again.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer word 'w 'w (list (list 'w () () (list (pair "(" 'p))) (list 'p 41 () ())) " "))))
+  (def %lx-before (list (null? (%lx-l resets)) (%lx-l read-str "a (b c) d")))
+  ((fn (loop l)
+     (if (null? l) ()
+       (do (if (symbol? (first l)) () ((first l))) (loop (rest l)))))
+   %image-transients)
+  (def %lx-dropped (list (null? (%lx-l raw)) (null? (%lx-l states)) (null? (%lx-l reader)) (null? (%lx-l resets))))
+  (%image-recache!)
+  (write (list %lx-before %lx-dropped (%lx-l read-str "a (b c) d")))
+  (newline))
+```
+---
+    ((#f (('w "a") ('w "(b c)") ('w "d"))) (#t #t #t #t) (('w "a") ('w "(b c)") ('w "d")))
+
 ### an unknown rule kind is refused
 
 ```x
