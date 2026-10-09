@@ -50,14 +50,33 @@ environment.
   (import x/codec/sha512)
   (Sha512 jit!)
   (def %s5-ref (eval (lit %digest-words) (module x/codec/sha512)))
+  (def %s5-ih (eval (lit %ih) (module x/codec/sha512)))
   (def %s5-hex (eval (lit %hex) (module x/codec/sha512)))
   (def %s5-mk (fn (_ n) (Str8 pad-right n #\q "z")))
   (def %s5-agree
-    (fn (_ n) (str=? (Sha512 hex (%s5-mk n)) (%s5-hex (%s5-ref (%s5-mk n))))))
+    (fn (_ n) (str=? (Sha512 hex (%s5-mk n)) (%s5-hex (%s5-ref %s5-ih (%s5-mk n))))))
   (display (list (%s5-agree 111) (%s5-agree 113) (%s5-agree 128) (%s5-agree 300))))
 ```
 ---
     (#t #t #t #t)
+
+### SHA-384 rides the same engine, from its own initial words
+
+```x
+(do
+  (import x/codec/sha384)
+  (display (list (Sha384 jit!) ((Compiled named (lit sha512)) state)))
+  (newline)
+  (display (Sha384 hex "abc"))
+  (newline)
+  (display (Sha384 hex (Str8 pad-right 300 #\q "z"))))
+```
+---
+```output
+(#t compiled)
+cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7
+ce18e8713e167e3c1b2b99e204943573b1152d09cb83b7088f1ae121ac211aec6695d8c4b5a59dd62bbf664e0cbb8c3d
+```
 
 ### binary input through the engine, past NULs
 

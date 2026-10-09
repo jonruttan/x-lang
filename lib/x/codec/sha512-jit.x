@@ -119,15 +119,16 @@
 ; --- build: compile, wire a driver, and PROVE it against the reference ---
 ;
 ; k:   the codec's K vector, 160 halves, hi then lo (slots 2t+1, 2t+2).
-; ih:  the initial H as sixteen halves, hi then lo.
-; ref: the pure-x digest, (fn (_ s [n]) -> sixteen halves) -- the oracle.
+; ihs: the initial hashes it will be asked for (SHA-512's, SHA-384's),
+;      each sixteen halves, hi then lo; it is proven on every one.
+; ref: the pure-x digest, (fn (_ ih s [n]) -> sixteen halves) -- the oracle.
 ;
-; Returns (fn (_ s [n]) -> sixteen halves) driving the compiled pair, or
-; raises -- on a host whose architecture has no assembler backend, on any
-; toolchain error, or on DISAGREEMENT with the reference.  The caller
+; Returns (fn (_ ih s [n]) -> sixteen halves) driving the compiled pair,
+; or raises -- on a host whose architecture has no assembler backend, on
+; any toolchain error, or on DISAGREEMENT with the reference.  The caller
 ; guards; a raise means "stay pure-x", never a wrong digest.
 (def sha512-jit-make
-  (fn (_ k ih ref)
+  (fn (_ k ihs ref)
     (def %rounds (compile-asm %s5-rounds-expr))
     (def %fill (compile-asm %s5-fill-expr))
     ; drop the whole build's remaining garbage before the digest phase
@@ -146,7 +147,7 @@
              (self (+ t 1))))) 0)
     (def %disagrees "sha512-jit: engine disagrees with the pure-x digest")
     (def %digest
-      (fn (_ s . n)
+      (fn (_ ih s . n)
         (def len (match ((null? n) (Str8 length s)) (#t (first n))))
         (def total (<< (+ (>> (+ len 16) 7) 1) 7))
         (def maddr (%s5-ptr->int (%s5-str->ptr s)))
@@ -179,12 +180,18 @@
                (#t #f))))
     (def %check
       (fn (_ s)
-        (unless (%same (%digest s) (ref s))
-          (Err raise 'state %disagrees ()))))
+        ((fn (self l)
+           (unless (null? l)
+             (do (unless (%same (%digest (first l) s) (ref (first l) s))
+                   (Err raise 'state %disagrees ()))
+                 (self (rest l))))) ihs)))
     (def %check-n
       (fn (_ s n)
-        (unless (%same (%digest s n) (ref s n))
-          (Err raise 'state (Str8 append %disagrees " (explicit length)") ()))))
+        ((fn (self l)
+           (unless (null? l)
+             (do (unless (%same (%digest (first l) s n) (ref (first l) s n))
+                   (Err raise 'state (Str8 append %disagrees " (explicit length)") ()))
+                 (self (rest l))))) ihs)))
     (%check "")
     (%check "abc")
     (%check "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu")
