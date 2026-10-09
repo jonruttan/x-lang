@@ -1,12 +1,13 @@
 # TlsKeys
-# @weight 4
+# @weight 13
 
 The TLS 1.3 key schedule against RFC 8448's "Simple 1-RTT Handshake"
 (section 3): the client's X25519 private key and the messages of the
 trace go in, and every secret, key and Finished value the RFC prints
 must come out.  The trace's suite is TLS_AES_128_GCM_SHA256, so its keys
 are 16 bytes; the schedule is the same SHA-256 one TLS_CHACHA20_POLY1305
-uses with 32.
+uses with 32.  The X25519 multiplication and the hashes run pure x, about
+thirteen seconds for the file.
 
 ## RFC 8448 section 3
 

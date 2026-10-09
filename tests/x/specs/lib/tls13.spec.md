@@ -1,11 +1,14 @@
 # Tls13
-# @weight 8
+# @weight 15
+# @timeout-scale 4
 
 The TLS 1.3 client written in x, against `openssl s_server` on a
 certificate made for the run: the handshake, application data both ways,
 and the server's close.  The server's certificate is not checked yet, so
 every connection asks for ('insecure); without it connect refuses before
-it connects.
+it connects.  connect builds the X25519, SHA-256, ChaCha20 and Poly1305
+engines before it dials, so the file carries the weight and the timeout
+of four engine builds.
 
 ## connecting
 
