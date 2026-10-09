@@ -74,6 +74,14 @@
   "510e527f" "ade682d1"  "9b05688c" "2b3e6c1f"  "1f83d9ab" "fb41bd6b"  "5be0cd19" "137e2179"
 ))))
 
+; SHA-384's (5.3.4): the same compression from these words, the digest
+; the first six of the eight.  x/codec/sha384 reads them here so the
+; compiled engine proves itself on both.
+(def %ih384 (%words (lit (
+  "cbbb9d5d" "c1059ed8"  "629a292a" "367cd507"  "9159015a" "3070dd17"  "152fecd8" "f70e5939"
+  "67332667" "ffc00b31"  "8eb44a87" "68581511"  "db0c2e0d" "64f98fa7"  "47b5481d" "befa4fa4"
+))))
+
 ; --- 64-bit words as (hi, lo) halves --------------------------------
 ;
 ; A rotation by n < 32 moves bits across the halves; by n >= 32 it is
@@ -187,14 +195,14 @@
                   (List ref 8 hs) (List ref 9 hs) (List ref 10 hs) (List ref 11 hs)
                   (List ref 12 hs) (List ref 13 hs) (List ref 14 hs) (List ref 15 hs)))))))))
 
-; The pure-x digest: bytes -> the eight H words as sixteen halves, hi
-; then lo.  The compiled engine answers the same list, so it is a drop-in
-; for this function.  The optional length is the caller's claim, as Sha1
-; hex-n's is.
+; The pure-x digest: the initial hash and bytes -> the eight H words as
+; sixteen halves, hi then lo.  The compiled engine answers the same list,
+; so it is a drop-in for this function.  The optional length is the
+; caller's claim, as Sha1 hex-n's is.
 (def %digest-words
-  (fn (_ s . n)
+  (fn (_ ih s . n)
     (def len (match ((null? n) (Str8 length s)) (#t (first n))))
-    (%blocks s len (<< (%add (>> (%add len 16) 7) 1) 7) 0 (Vector make 80 0) (Vector make 80 0) %ih)))
+    (%blocks s len (<< (%add (>> (%add len 16) 7) 1) 7) 0 (Vector make 80 0) (Vector make 80 0) ih)))
 
 (def %hex8 (fn (_ wd) (Str pad-left 8 #\0 (%cvt wd %string-type 16))))
 
@@ -220,7 +228,7 @@
         (Compiled make-on-demand (lit sha512) %digest-words
           (fn (_)
             (import x/codec/sha512-jit)
-            ((prim-ref (lit sha512) (lit jit-make)) %k %ih %digest-words))
+            ((prim-ref (lit sha512) (lit jit-make)) %k (list %ih %ih384) %digest-words))
           (fn (_ v) ()))))
     ((fn (_ entry)
        (when (eq? (entry state) (lit interpreted)) (entry compile!))
@@ -228,7 +236,7 @@
      %entry)))
 
 (def %words-of
-  (fn (_ s . n)
+  (fn (_ ih s . n)
     (def len (match ((null? n) (Str8 length s)) (#t (first n))))
     (when (and (>= len %jit-threshold)
                ((fn (_ entry) (if (null? entry) #t (eq? (entry state) (lit interpreted))))
@@ -236,9 +244,14 @@
       (%jit-try!))
     ((fn (_ entry)
        (if (if (null? entry) #f (eq? (entry state) (lit compiled)))
-         ((entry compiled) s len)
-         (%digest-words s len)))
+         ((entry compiled) ih s len)
+         (%digest-words ih s len)))
      %entry)))
+
+; SHA-384's door: its initial hash's words, through the same digest and
+; the same engine.
+(def sha384-words (fn (_ s n) (%words-of %ih384 s n)))
+(def sha512-jit-try! (fn (_) (%jit-try!)))
 
 (def-class Sha512 ()
   (static
@@ -246,17 +259,17 @@
       (doc "SHA-512 digest of s, as a 128-character lowercase hex string (FIPS 180-4). Computed pure-x, or by the differentially-verified compiled engine once (jit!) has built it -- identical output either way."
         (returns STRING "128 hex characters")
         (example "(Sha512 hex \"abc\")" "\"ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f\""))
-      (%hex (%words-of s)))
+      (%hex (%words-of %ih s)))
     (method hex-n (self (param s STRING "Byte region to digest")
                         (param n INTEGER "How many bytes of s to digest"))
       (doc "SHA-512 of the FIRST n BYTES of s, for binary input hex cannot measure (Str8 length stops at the first NUL). THE LENGTH IS YOUR CLAIM AND IS NOT CHECKED: n past the region's allocation reads past the allocation."
         (returns STRING "128 hex characters")
         (example "(Sha512 hex-n \"abc\" 0)" "\"cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e\""))
-      (%hex (%words-of s n)))
+      (%hex (%words-of %ih s n)))
     (method jit! (self)
       (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x digest. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. hex also builds it on its own for any single input of 4KB or more."
         (returns BOOL "#t when the compiled engine is active"))
       (%jit-try!))))
 
-(doc (provide x/codec/sha512 Sha512)
+(doc (provide x/codec/sha512 Sha512 sha384-words sha512-jit-try!)
   "SHA-512 (FIPS 180-4): (Sha512 hex s) digests a byte string. Pure x-lang, with an optional differentially-verified JIT engine ((Sha512 jit!), or built on its own for an input of 4KB or more).")
