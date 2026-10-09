@@ -1,7 +1,9 @@
 ; module.x -- Include-once and module system (bootstrap)
-; lint-known: dirent-names
+; lint-known: dirent-names %image-writing
 ; (x/platform/dirent, imported at CALL time in %module-list-dir --
 ;  the same lazy-import pattern as the syscall table)
+; (%image-writing: bound by tools/dev/image-write.x in its child base alone,
+;  read through a guard by include below)
 ;
 ; Provides include-once, require-once, provide, import.
 ; Last bootstrap file — after this, normal modules can use provide/import.
@@ -193,6 +195,17 @@
           (def %result (%raw-include %io-path))
           (%set-first! %module-expected-cell ())
           (%include-dir-pop!)
+          ; In a base the image writer is loading, each file's garbage is
+          ; swept as the file ends.  Nowhere else: a module must not collect
+          ; (the note at the end of x/boot/tower-compiled), and neither may
+          ; the loader under an importer it cannot see -- a codec loads its
+          ; JIT engine lazily with its caller's lists live.  The writer's
+          ; child runs nothing but the load, and %image-writing is true
+          ; there alone.  docs/state-images.md, "The child sweeps as it
+          ; loads".
+          (match
+            ((guard (_ #f) %image-writing) ((prim-ref (lit heap) (lit collect))))
+            (#t ()))
           %result))))
   (#t ()))
 
