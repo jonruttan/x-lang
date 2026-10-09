@@ -893,7 +893,7 @@ grep -q '(release "v9.9.9")' "$_TMP/proj9/deps.lock.xon" || fail "lock-root: upg
 # bytes nothing has vouched for.
 _bsrc="$_TMP/bsrc"
 mkdir -p "$_bsrc/demo"
-printf '(lang "x-smoke")\n(dialect he)\n(entry "run.x")\n' > "$_bsrc/lang.xon"
+printf '(lang "x-smoke")\n(dialect he)\n(requires-release "v0.0.0")\n(requires-lang "r5rs" "v0.2.4")\n(entry "run.x")\n' > "$_bsrc/lang.xon"
 printf '(provide demo/g g)\n(def g (fn (_) "ok"))\n' > "$_bsrc/demo/g.x"
 printf '; entry\n' > "$_bsrc/run.x"
 # A non-.x file on purpose: a lang may ship data (the Logo viewer
