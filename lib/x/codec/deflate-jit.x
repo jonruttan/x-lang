@@ -1,18 +1,20 @@
-; deflate-jit.x -- the compiled token writer behind Deflate.
+; deflate-jit.x -- the compiled matcher and token writer behind Deflate.
 ;
 ; Loaded lazily by x/codec/deflate, as x/codec/inflate-jit is by Inflate:
 ; this module pulls the JIT toolchain, and the codec must stay loadable and
-; correct on a host with no JIT.  The pure-x writer in deflate.x is the
-; reference and the fallback; this engine replaces only its hot part --
-; a block's tokens written under its codes -- and is adopted only after the
-; streams it writes for the codec's check inputs are byte for byte the
-; reference's.  Matching, the codes, the headers and stored blocks stay in x.
+; correct on a host with no JIT.  The pure-x encoder in deflate.x is the
+; reference and the fallback; this engine replaces its two hot parts --
+; finding the matches, and writing a block's tokens under its codes -- and
+; is adopted only after the streams it writes for the codec's check inputs
+; are byte for byte the reference's.  The codes, the headers and stored
+; blocks stay in x.
 ;
-; The engine is one compiled step over a scratch holding the writer's bit
+; The matcher is one compiled loop over the whole input: every loop in it
+; is a self-call in tail position, which the compiler makes a jump.  The
+; writer is one compiled step over a scratch holding the writer's bit
 ; state and the block's tables.  A step writes one token -- a literal, or a
 ; length and a distance with their extra bits -- whole bytes out as they
-; fill, then calls itself.  The lane's self-call is a real call, not a jump,
-; so a run is bounded: the step returns after %dj-budget tokens, and the
+; fill, then calls itself; it returns after %dj-budget tokens, and the
 ; driver here grows the output and runs it again.  A token is at most 48
 ; bits, so a run writes at most %dj-budget * 6 bytes, which the driver makes
 ; room for before each run: the step never checks its room.
@@ -114,6 +116,148 @@
 ; Tokens a call may write before it returns: each one is a frame.
 (def %dj-budget 256)
 
+; --- The matcher: one compiled loop over the input ---
+;
+; deflate.x's %tokenize! step for step -- the three-byte hash, the chain
+; walked up to 32 candidates, a candidate tried only when its byte at the
+; best length so far agrees, the longest match taken, the positions inside
+; a match of up to 16 bytes entered -- so the tokens are the same ones.
+; Every loop is a self-call in tail position, which compiles as a jump: the
+; whole input is one call.  PH says where the loop is:
+;
+;   0  at position I: a literal near the end, or hash, enter and walk
+;   1  the walk at candidate C
+;   2  comparing candidate C with position I, K bytes agreed
+;   3  the walk done: the token
+;   4  entering the positions inside a match, I up to the match's end
+;
+; Its scratch (words): the input's address and length, the hash and chain
+; tables' addresses (words holding a position plus one, 0 for none), the
+; token tables' addresses and the token count, then the walk's best length
+; and distance, the candidates left, the longest match possible here, the
+; match's end, and two temporaries.  Answers the token count.
+(def %MP 0) (def %MN 1) (def %MHEAD 2) (def %MPREV 3) (def %MLENS 4) (def %MVALS 5)
+(def %MT 6) (def %MBLEN 7) (def %MBDIST 8) (def %MSTEPS 9) (def %MLIMIT 10)
+(def %ME 11) (def %MH 12) (def %MOLD 13) (def %MWORDS 14)
+
+(def %dm-byte (fn (_ at) (list '%mem-byte-ref-at (%M %MP) at)))
+
+; The hash of the three bytes at position e, as deflate.x's %hash.
+(def %dm-hash
+  (fn (_ e)
+    (list '& (list '+ (list '* (%dm-byte e) 1089)
+                      (list '+ (list '* (%dm-byte (list '+ e 1)) 33) (%dm-byte (list '+ e 2))))
+          32767)))
+
+; Position e entered: its chain link is what the hash headed.
+(def %dm-insert
+  (fn (_ e)
+    (list 'do
+      (%S %MH (%dm-hash e))
+      (list '%mem-set-at! (%M %MPREV) (list '& e 32767) (list '%mem-ref-at (%M %MHEAD) (%M %MH)))
+      (list '%mem-set-at! (%M %MHEAD) (%M %MH) (list '+ e 1)))))
+
+; A token: length len (0 for a literal) and val.
+(def %dm-token
+  (fn (_ len val)
+    (list 'do
+      (list '%mem-set-at! (%M %MLENS) (%M %MT) len)
+      (list '%mem-set-at! (%M %MVALS) (%M %MT) val)
+      (%S %MT (list '+ (%M %MT) 1)))))
+
+; The next candidate on C's chain, and one fewer left.
+(def %dm-next
+  (list 'do
+    (%S %MSTEPS (list '- (%M %MSTEPS) 1))
+    (list 'self 'a 1 'i (list '- (list '%mem-ref-at (%M %MPREV) (list '& 'c 32767)) 1) 0)))
+
+(def %dm-expr
+  (list 'fn '(self a ph i c k)
+    (list 'if (list '= 'ph 0)
+      (list 'if (list '>= 'i (%M %MN)) (%M %MT)
+        (list 'if (list '< (list '- (%M %MN) 'i) 3)
+          (list 'do (%dm-token 0 (%dm-byte 'i)) (list 'self 'a 0 (list '+ 'i 1) 0 0))
+          (list 'do
+            (%S %MH (%dm-hash 'i))
+            (%S %MOLD (list '%mem-ref-at (%M %MHEAD) (%M %MH)))
+            (list '%mem-set-at! (%M %MPREV) (list '& 'i 32767) (%M %MOLD))
+            (list '%mem-set-at! (%M %MHEAD) (%M %MH) (list '+ 'i 1))
+            (%S %MBLEN 2)
+            (%S %MBDIST 0)
+            (%S %MSTEPS 32)
+            (%S %MLIMIT (list 'if (list '< (list '- (%M %MN) 'i) 258) (list '- (%M %MN) 'i) 258))
+            (list 'self 'a 1 'i (list '- (%M %MOLD) 1) 0))))
+    (list 'if (list '= 'ph 1)
+      (list 'if (list 'or (list '< 'c 0) (list '> (list '- 'i 'c) 32768) (list '= (%M %MSTEPS) 0)
+                          (list '> (%M %MBLEN) 128) (list '>= (%M %MBLEN) (%M %MLIMIT)))
+        (list 'self 'a 3 'i 0 0)
+        (list 'if (list '= (%dm-byte (list '+ 'c (%M %MBLEN))) (%dm-byte (list '+ 'i (%M %MBLEN))))
+          (list 'self 'a 2 'i 'c 0)
+          %dm-next))
+    (list 'if (list '= 'ph 2)
+      (list 'if (list 'if (list '< 'k (%M %MLIMIT)) (list '= (%dm-byte (list '+ 'c 'k)) (%dm-byte (list '+ 'i 'k))) 0)
+        (list 'self 'a 2 'i 'c (list '+ 'k 1))
+        (list 'do
+          (list 'if (list '> 'k (%M %MBLEN))
+            (list 'do (%S %MBLEN 'k) (%S %MBDIST (list '- 'i 'c)))
+            0)
+          %dm-next))
+    (list 'if (list '= 'ph 3)
+      (list 'if (list '< (%M %MBLEN) 3)
+        (list 'do (%dm-token 0 (%dm-byte 'i)) (list 'self 'a 0 (list '+ 'i 1) 0 0))
+        (list 'do
+          (%dm-token (%M %MBLEN) (%M %MBDIST))
+          (%S %ME (list '+ 'i (%M %MBLEN)))
+          (list 'if (list '> (%M %MBLEN) 16)
+            (list 'self 'a 0 (%M %ME) 0 0)
+            (list 'self 'a 4 (list '+ 'i 1) 0 0))))
+      (list 'if (list '< 'i (%M %ME))
+        (list 'do
+          (list 'if (list '>= (list '- (%M %MN) 'i) 3) (%dm-insert 'i) 0)
+          (list 'self 'a 4 (list '+ 'i 1) 0 0))
+        (list 'self 'a 0 (%M %ME) 0 0))))))))
+
+(def %dj-mem-set (prim-ref (lit mem) (lit set)))
+
+; --- The counter: a block's frequencies, one compiled loop ---
+;
+; deflate.x's %count!: each token's literal/length symbol and distance code
+; tallied, the bytes it covers added to b.  Its scratch (words): the token
+; tables' addresses and the block's end, two temporaries, then the length
+; and distance code tables (as the writer's) and the two tallies.
+(def %CLENS 0) (def %CVALS 1) (def %CT1 2) (def %CLEN 3) (def %CVAL 4)
+(def %CLCODE 8) (def %CDCODE 267) (def %CLF 779) (def %CDF 1065) (def %CWORDS 1095)
+
+(def %dc-bump (fn (_ at) (list '%mem-set-at! 'a at (list '+ (%MA at) 1))))
+
+; --- Adler-32 (RFC 1950 8): one compiled loop, the two sums its arguments,
+; each reduced a byte at a time.  Its scratch (words): the bytes' address
+; and their count.
+(def %AP 0) (def %AN 1)
+(def %da-x1 (list '% (list '+ 'x (list '%mem-byte-ref-at (%M %AP) 'i)) 65521))
+(def %da-expr
+  (list 'fn '(self a i x y)
+    (list 'if (list '>= 'i (%M %AN)) (list '| (list '<< 'y 16) 'x)
+      (list 'self 'a (list '+ 'i 1) %da-x1 (list '% (list '+ 'y %da-x1) 65521)))))
+
+(def %dc-expr
+  (list 'fn '(self a t b)
+    (list 'if (list '>= 't (%M %CT1)) 'b
+      (list 'do
+        (%S %CLEN (list '%mem-ref-at (%M %CLENS) 't))
+        (%S %CVAL (list '%mem-ref-at (%M %CVALS) 't))
+        (list 'if (list '= (%M %CLEN) 0)
+          (list 'do
+            (%dc-bump (list '+ %CLF (%M %CVAL)))
+            (list 'self 'a (list '+ 't 1) (list '+ 'b 1)))
+          (list 'do
+            (%dc-bump (list '+ %CLF (list '+ 257 (%MA (list '+ %CLCODE (%M %CLEN))))))
+            (%dc-bump (list '+ %CDF
+                        (list 'if (list '<= (%M %CVAL) 256)
+                          (%MA (list '+ %CDCODE (list '- (%M %CVAL) 1)))
+                          (%MA (list '+ %CDCODE (list '+ 256 (list '>> (list '- (%M %CVAL) 1) 7)))))))
+            (list 'self 'a (list '+ 't 1) (list '+ 'b (%M %CLEN)))))))))
+
 ; --- build: compile, wire a driver, and PROVE it against the reference ---
 ;
 ; state:    deflate.x's slot numbers for its writer, as an alist
@@ -122,16 +266,42 @@
 ;           dext), slot k holding entry k-1.
 ; room:     deflate.x's (fn (_ w n)), room for n more output bytes.
 ; put-code: deflate.x's (fn (_ w codes lengths sym)), for the end code.
-; check:    (fn (_ put) -> #t) -- whether a token writer writes what the
-;           reference writes on the check inputs.
+; check:    (fn (_ eng) -> #t) -- whether an engine (MATCH PUT COUNT ADLER)
+;           writes and sums what the reference does on the check inputs.
 ;
-; Answers (fn (_ w lens vals t t1 lcodes llen dcodes dlen)), a drop-in for
-; deflate.x's %put-tokens!.  Or raises: on a host with no assembler
-; backend, a toolchain error, or any disagreement.  The caller guards; a
-; raise means "stay pure-x".
+; Answers (MATCH PUT COUNT ADLER), drop-ins for deflate.x's four:
+; (fn (_ src n lens vals)) for %match-x, (fn (_ w lens vals t t1 lcodes llen
+; dcodes dlen)) for %put-tokens!, (fn (_ lens vals t t1 lfreq dfreq b)) for
+; %count!, and (fn (_ p n)) for %adler-x.  Or raises: on a host with no
+; assembler backend, a toolchain error, or any disagreement.  The caller
+; guards; a raise means "stay pure-x".
 (def deflate-jit-make
   (fn (_ state tables room put-code check)
     (def %step (compile-asm %dj-step-expr))
+    (def %matcher (compile-asm %dm-expr))
+    (def %mbuf (%dj-make-str (* %MWORDS 8)))
+    (def %mptr (%dj-str->ptr %mbuf))
+    (def %maddr (%dj-ptr->int %mptr))
+    (def %mpoke (fn (_ i v) (%dj-pset %mptr (* i 8) v)))
+    ; A zeroed table of n words, held by the caller for as long as its
+    ; address is in use.
+    (def %words
+      (fn (_ n)
+        (def r (%dj-make-str (* n 8)))
+        (%dj-mem-set (%dj-str->ptr r) 0 (* n 8))
+        r))
+    (def %match
+      (fn (_ src n lens vals)
+        (def head (%words 32768))
+        (def prev (%words 32768))
+        (%mpoke %MP (%dj-ptr->int src))
+        (%mpoke %MN n)
+        (%mpoke %MHEAD (%dj-ptr->int (%dj-str->ptr head)))
+        (%mpoke %MPREV (%dj-ptr->int (%dj-str->ptr prev)))
+        (%mpoke %MLENS (%dj-ptr->int lens))
+        (%mpoke %MVALS (%dj-ptr->int vals))
+        (%mpoke %MT 0)
+        (%matcher %maddr 0 0 0 0)))
     (def %buf (%dj-make-str (* %WORDS 8)))
     (def %ptr (%dj-str->ptr %buf))
     (def %addr (%dj-ptr->int %ptr))
@@ -171,9 +341,51 @@
         (%dj-oset! w (%slot (lit bitbuf)) (%peek %BB))
         (%dj-oset! w (%slot (lit bitcnt)) (%peek %BC))
         (put-code w lcodes llen 256)))
-    (if (check %put) ()
-      (Err raise (lit state) "deflate-jit: engine disagrees with the pure-x writer" ()))
-    %put))
+    (def %counter (compile-asm %dc-expr))
+    (def %cbuf (%dj-make-str (* %CWORDS 8)))
+    (def %cptr (%dj-str->ptr %cbuf))
+    (def %caddr (%dj-ptr->int %cptr))
+    (def %cpoke (fn (_ i v) (%dj-pset %cptr (* i 8) v)))
+    (def %cpeek (fn (_ i) (%dj-pref %cptr (* i 8))))
+    ((fn (self k) (if (> k 259) () (do (%cpoke (+ %CLCODE (- k 1)) (%dj-oref (first tables) k)) (self (+ k 1))))) 1)
+    (def %dcode-table (first (rest (rest (rest tables)))))
+    ((fn (self k) (if (> k 512) () (do (%cpoke (+ %CDCODE (- k 1)) (%dj-oref %dcode-table k)) (self (+ k 1))))) 1)
+    (def %count
+      (fn (_ lens vals t t1 lfreq dfreq b)
+        ((fn (self i) (if (< i 316) (do (%cpoke (+ %CLF i) 0) (self (+ i 1))) ())) 0)
+        (%cpoke %CLENS (%dj-ptr->int lens))
+        (%cpoke %CVALS (%dj-ptr->int vals))
+        (%cpoke %CT1 t1)
+        (def b1 (%counter %caddr t b))
+        ; The tallies added to the caller's, which hold the end code's.
+        ((fn (self i)
+           (if (< i 286)
+             (do (if (= (%cpeek (+ %CLF i)) 0) ()
+                   (%dj-oset! lfreq (+ i 1) (+ (%dj-oref lfreq (+ i 1)) (%cpeek (+ %CLF i)))))
+                 (self (+ i 1)))
+             ()))
+         0)
+        ((fn (self i)
+           (if (< i 30)
+             (do (if (= (%cpeek (+ %CDF i)) 0) ()
+                   (%dj-oset! dfreq (+ i 1) (+ (%dj-oref dfreq (+ i 1)) (%cpeek (+ %CDF i)))))
+                 (self (+ i 1)))
+             ()))
+         0)
+        b1))
+    (def %summer (compile-asm %da-expr))
+    (def %abuf (%dj-make-str 16))
+    (def %aptr (%dj-str->ptr %abuf))
+    (def %aaddr (%dj-ptr->int %aptr))
+    (def %adler
+      (fn (_ p n)
+        (%dj-pset %aptr (* %AP 8) (%dj-ptr->int p))
+        (%dj-pset %aptr (* %AN 8) n)
+        (%summer %aaddr 0 1 0)))
+    (def %engine (list %match %put %count %adler))
+    (if (check %engine) ()
+      (Err raise (lit state) "deflate-jit: engine disagrees with the pure-x encoder" ()))
+    %engine))
 
 ; The codec reaches the maker through the catalogue: it loads this module
 ; inside the function that builds the engine, where an import is one the
@@ -181,4 +393,4 @@
 (prim-reg! (lit deflate) (lit jit-make) deflate-jit-make)
 
 (doc (provide x/codec/deflate-jit deflate-jit-make)
-  "The compiled token writer behind Deflate (JIT, ARM64 and x86-64 backends); built and adopted only after writing what the pure-x writer writes.")
+  "The compiled matcher and token writer behind Deflate (JIT, ARM64 and x86-64 backends); built and adopted only after writing what the pure-x encoder writes.")

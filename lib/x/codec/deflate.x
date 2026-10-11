@@ -609,47 +609,55 @@
 
 ; All the tokens in blocks of %BLOCK-TOKENS at most, the last one final.
 (def %blocks!
-  (fn (self w src lens vals t ntok b put)
+  (fn (self w src lens vals t ntok b eng)
     (def t1 (if (%lt %BLOCK-TOKENS (%sub ntok t)) (%add t %BLOCK-TOKENS) ntok))
     (def lfreq (Vector make 286 0))
     (def dfreq (Vector make 30 0))
     (%oset! lfreq 257 1)
-    (def b1 (%count! lens vals t t1 lfreq dfreq b))
-    (%block! w src lens vals t t1 b b1 (%eq t1 ntok) put lfreq dfreq)
-    (if (%eq t1 ntok) () (self w src lens vals t1 ntok b1 put))))
+    (def b1 ((first (rest (rest eng))) lens vals t t1 lfreq dfreq b))
+    (%block! w src lens vals t t1 b b1 (%eq t1 ntok) (first (rest eng)) lfreq dfreq)
+    (if (%eq t1 ntok) () (self w src lens vals t1 ntok b1 eng))))
 
-; A raw stream of n bytes at src, compressed, its tokens written by put.
-; An empty input is one empty final block of fixed codes: the end code
-; alone.
-(def %compress-with!
-  (fn (_ w src n put)
+; The tokens of n bytes at src into the token tables at lens and vals;
+; answers their count.  The pure-x matcher, with its hash and chain tables.
+(def %match-x
+  (fn (_ src n lens vals)
     ; The regions are held here so the pointers into them stay good.
     (def head (%table %HSIZE))
     (def prev (%table %WSIZE))
+    (%tokenize! src 0 n (rest head) (rest prev) lens vals 0)))
+
+; A raw stream of n bytes at src, compressed by eng, a list (MATCH PUT COUNT
+; ADLER): the matcher, the writer of a block's tokens, its counter and the
+; Adler-32.  An empty input is one empty final block of fixed codes: the
+; end code alone.
+(def %compress-with!
+  (fn (_ w src n eng)
     (def lens (%make-str (%shl (%add n 1) 3)))
     (def vals (%make-str (%shl (%add n 1) 3)))
-    (def ntok (%tokenize! src 0 n (rest head) (rest prev) (%str->ptr lens) (%str->ptr vals) 0))
+    (def ntok ((first eng) src n (%str->ptr lens) (%str->ptr vals)))
     (if (%eq ntok 0)
       (do (%put-bits! w 1 1) (%put-bits! w 1 2) (%put-code! w %fixed-lit-codes %fixed-lit-lengths 256))
-      (%blocks! w src (%str->ptr lens) (%str->ptr vals) 0 ntok 0 put))
+      (%blocks! w src (%str->ptr lens) (%str->ptr vals) 0 ntok 0 eng))
     (%align! w)))
 
 (def %compress!
-  (fn (_ w src n) (%compress-with! w src n (%tokens-for n))))
+  (fn (_ w src n) (%compress-with! w src n (%engine-for n))))
 
 ; --- The compiled engine (JIT), adopted only when it proves out ------
 ;
-; x/codec/deflate-jit compiles the token writer, the encoder's hot part:
-; on input that does not repeat it was four fifths of the cost (10 KB:
-; 10M objects writing blocks against 2.3M finding matches).  As inflate's
+; x/codec/deflate-jit compiles the encoder's hot parts: the matcher,
+; one compiled loop over the input, the token writer, the counter and the Adler-32.  As inflate's
 ; engine is, it is an entry of Compiled's made on demand, built for an
 ; input of %jit-threshold bytes or more or on (Deflate jit!), and adopted
 ; only after the streams it writes for the check inputs below are byte for
-; byte the ones %put-tokens! writes.
+; byte the ones this file's four write.  The entry's value is a
+; list, (MATCH PUT COUNT ADLER): this file's four, or the engine's.
 
-; The check inputs: a short repeat (fixed codes), varied text with repeats
-; at many distances (dynamic codes, every length and distance class), and
-; six-bit symbols from a generator (literals under dynamic codes).
+; The check inputs: a short repeat and a long one (fixed codes, matches
+; past 16 bytes and up to 258), varied text with repeats at many
+; distances (dynamic codes, every length and distance class), and six-bit
+; symbols from a generator (literals under dynamic codes).
 (def %check-input
   (fn (_ which n)
     (def r (%make-str n))
@@ -671,19 +679,26 @@
 (def %int-div (prim-ref (lit int) (lit /)))
 (def %mem-cmp (prim-ref (lit mem) (lit cmp)))
 
-; Does a token writer write what %put-tokens! writes, on every check input?
+; The Adler-32 of n bytes at p, the fourth part.
+(def %adler-x (fn (_ p n) (%adler32 p n 0 1 0)))
+
+(def %engine-x (list %match-x %put-tokens! %count! %adler-x))
+
+; Does an engine (MATCH PUT COUNT ADLER) write what this file's four write,
+; and sum what they sum, on every check input?
 (def %agrees?
-  (fn (_ put)
+  (fn (_ eng)
     (List all?
       (fn (_ c)
         (def r (%check-input (first c) (rest c)))
         (def want (%writer 64))
-        (%compress-with! want (%str->ptr r) (rest c) %put-tokens!)
+        (%compress-with! want (%str->ptr r) (rest c) %engine-x)
         (def got (%writer 64))
-        (%compress-with! got (%str->ptr r) (rest c) put)
+        (%compress-with! got (%str->ptr r) (rest c) eng)
         (and (%eq (%oref want %OUTCNT) (%oref got %OUTCNT))
-             (%eq 0 (%mem-cmp (%oref want %OUTP) (%oref got %OUTP) (%oref want %OUTCNT)))))
-      (list (pair 0 30) (pair 1 3000) (pair 2 2000)))))
+             (%eq 0 (%mem-cmp (%oref want %OUTP) (%oref got %OUTP) (%oref want %OUTCNT)))
+             (%eq (%adler-x (%str->ptr r) (rest c)) ((first (rest (rest (rest eng)))) (%str->ptr r) (rest c)))))
+      (list (pair 0 30) (pair 0 1200) (pair 1 3000) (pair 2 2000)))))
 
 ; THE BAR: the engine's build is seconds of compiling, worth it past some
 ; tens of thousands of tokens; below the bar the pure-x writer serves.
@@ -694,7 +709,7 @@
   (fn (_)
     (if (null? %entry)
       (set! %entry
-        (Compiled make-on-demand (lit deflate) %put-tokens!
+        (Compiled make-on-demand (lit deflate) %engine-x
           (fn (_)
             (import x/codec/deflate-jit)
             ((prim-ref (lit deflate) (lit jit-make))
@@ -709,9 +724,9 @@
        (eq? (entry state) (lit compiled)))
      %entry)))
 
-; The token writer for an input of n bytes: the engine's when it is built,
-; or when n is past the bar and a build succeeds; else %put-tokens!.
-(def %tokens-for
+; (MATCH PUT COUNT ADLER) for an input of n bytes: the engine's when it is
+; built, or when n is past the bar and a build succeeds; else this file's.
+(def %engine-for
   (fn (_ n)
     (if (if (%lt n %jit-threshold) #f
           ((fn (_ entry) (if (null? entry) #t (eq? (entry state) (lit interpreted)))) %entry))
@@ -720,7 +735,7 @@
     ((fn (_ entry)
        (if (if (null? entry) #f (eq? (entry state) (lit compiled)))
          (entry compiled)
-         %put-tokens!))
+         %engine-x))
      %entry)))
 
 ; Adler-32 (RFC 1950 8) of n bytes at p, as inflate.x sums it.
@@ -739,7 +754,7 @@
     (%emit! w 120)
     (%emit! w header)
     (body w src n)
-    (def sum (%adler32 src n 0 1 0))
+    (def sum ((first (rest (rest (rest (%engine-for n))))) src n))
     (%emit! w (%and (%shr sum 24) 255))
     (%emit! w (%and (%shr sum 16) 255))
     (%emit! w (%and (%shr sum 8) 255))
@@ -799,7 +814,7 @@
         (example "(first (rest (Deflate zlib-stored \"abc\")))" "14"))
       (%run s span %stored-body 1))
     (method jit! (self)
-      (doc "Build and adopt the compiled token writer (JIT; ARM64 and x86-64 backends) now, if the streams it writes for the check inputs are byte for byte the pure-x writer's. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x writer carries on, with the same output. raw and zlib build it on their own for an input of 32KB or more."
+      (doc "Build and adopt the compiled matcher and token writer (JIT; ARM64 and x86-64 backends) now, if the streams they write for the check inputs are byte for byte the pure-x encoder's. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x encoder carries on, with the same output. raw and zlib build it on their own for an input of 32KB or more."
         (returns BOOL "#t when the compiled engine is active"))
       (%jit-try!))))
 
