@@ -2,7 +2,12 @@
 <!-- A child tokenizer base, like core/sandbox.spec.md: objects reachable only
      through it are invisible to the parent's mark, so this file runs with no
      seam collects. -->
-# @weight 1
+# @weight 35
+# @timeout-scale 4
+<!-- The cases realize ~520 analyser states, and with a cold asm byte cache,
+     as on CI, each is compiled: 35s on an M-series Mac against 10s warm,
+     spread evenly over the sections.  A slow x86-64 runner took the file past
+     the 60s unit budget, so the weight and the scale are the cold numbers. -->
 
 Lexer (`lib/x/reader/lexer.x`): a tokenizer base built from data rules.  Each
 rule becomes one type on a `(Base make-tok)` child; every analyser state is a
