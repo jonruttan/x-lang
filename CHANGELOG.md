@@ -5,6 +5,151 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-10-10
+
+**A Lexer with a nested or word rule no longer keeps a boot image from being
+written.** ([#984]) Its image transient drops the reset states with the rest of its
+compiled states, and the load remakes them. A process that made such a
+lexer before its image was written booted from source every time.
+
+[#984]: https://github.com/jonruttan/x-lang/pull/984
+
+**`Host` reads the kernel's system-wide totals: `counters`, `disks`, `interfaces` and `interrupts`.** ([#982]) Context switches, paging, faults and open files; per-disk I/O; per-interface traffic; per-source interrupt counts on each processor. Linux reads /proc, Darwin sysctl, the Mach VM statistics and IOKit; a field the kernel does not report is nil. `cpu` and `cpus` also report guest and guest-nice time.
+
+[#982]: https://github.com/jonruttan/x-lang/pull/982
+
+**`make check-pin` is green again.** ([#981]) The smoke's bundle declares
+`(requires-lang ...)` since #977, and its load case now supplies the lang it
+names instead of failing on the wrapper's missing-requirement refusal.
+
+[#981]: https://github.com/jonruttan/x-lang/pull/981
+
+**A compiled function loops: a self-call in tail position is a jump.** ([#980]) `compile-asm` gives an integer function stack slots for its parameters, read once on entry, and compiles a self-call in tail position -- the body, a `do`'s last form, an `if` or `match` arm -- as a store over the slots and a branch to the top: constant stack and no allocation per turn (a million turns in 4 ms). A self-call whose value is used is still a call. A parameter is now evaluated once, on entry, where it was evaluated at every read.
+
+[#980]: https://github.com/jonruttan/x-lang/pull/980
+
+**`Tls13`: a TLS 1.3 client written in x.** ([#979]) `(Tls13 connect quad port
+opts)`, `send`, `recv-run`, `recv-bytes` and `close`, as `Tls` has them,
+over X25519, ChaCha20-Poly1305 and SHA-256, with `x/net/tls-keys` the key
+schedule checked against RFC 8448. The server's certificate is not yet
+checked, so `('insecure)` is required. `Bytes` copies through memcpy, a
+few objects a copy whatever its length.
+
+[#979]: https://github.com/jonruttan/x-lang/pull/979
+
+**`Deflate` writes its tokens through a compiled engine, and reckons a block's costs from its frequencies.** ([#978]) The token writer is compiled (JIT, ARM64 and x86-64) and adopted on `(Deflate jit!)` or for 32KB of input or more, only after writing byte for byte what the pure-x writer writes: 15 times fewer objects and 7 times less CPU writing a block. A block's costs come from its frequency tables rather than two more passes over its tokens, so the pure path is cheaper too.
+
+[#978]: https://github.com/jonruttan/x-lang/pull/978
+
+**`x --install-lang` installs a bundle that requires another lang.** ([#977]) The
+pin reader refused `(requires-lang ...)` in a bundle's `lang.xon`, so
+x-r7rs and x-sed could not be installed through it. `make check-langs`
+also keeps each bundle's suite output when `LANGS_LOG_DIR` is set.
+
+[#977]: https://github.com/jonruttan/x-lang/pull/977
+
+**`Opts parse` lists a cluster's flags in the order given.** ([#973]) `-bt` was
+listed as -t then -b, so a caller where the later of two flags wins --
+busybox md5sum's -b and -t, cp's -H/-L/-P, chmod's -c/-v -- read the
+wrong one; `Opts on?` asks only membership and is unchanged.
+
+[#973]: https://github.com/jonruttan/x-lang/pull/973
+
+**`Bytes` and `ChaCha20Poly1305`.** ([#974]) `x/codec/bytes` carries binary data
+as regions `(BUF START LEN)`, with a growable writer, a bounds-checked
+reader, constant-time comparison and `(Bytes random n)` from
+/dev/urandom, since a string's own length stops at its first NUL.
+`(ChaCha20Poly1305 seal key nonce aad pt)` and `open` are RFC 8439's
+AEAD, the record protection of a TLS 1.3 client written in x.
+
+[#974]: https://github.com/jonruttan/x-lang/pull/974
+
+**A replayed Lexer make patches its states in one compiled call.** ([#975]) A cached
+entry keeps its relocation sites as a table of distinct addresses and site
+offsets, patched by a compiled patcher where the pour walked each site in x,
+and a group file carries the table as bytes. (Lexer skip) names its type
+SKIP, so one rule list is one group key and a make met again in a heap reads
+no file and no plan. x-ash's tokenizer, 73 rules: a fresh process's make
+0.44 s to 0.26 s, a make whose group is held 0.40 s to 0.12 s.
+
+[#975]: https://github.com/jonruttan/x-lang/pull/975
+
+**The image writer's child sweeps each file's load garbage, so x-coreutils's
+boot image writes at last.** ([#976]) The loader's `include` collects after each file
+while `%image-writing` is true, in the writer's child alone; outside the
+writer the loader still never collects.  x-coreutils's write went from past
+12GB (killed, no image) to 1.25GB, a 20.8MB image applets boot from in 0.57s;
+x-logo's from 1.60GB to 1.13GB.
+
+[#976]: https://github.com/jonruttan/x-lang/pull/976
+
+**`Hmac`, `Hkdf` and `Sha384`.** ([#972]) `(Hmac mac 'sha256 key msg)` answers
+the RFC 2104 tag over SHA-256, SHA-384 or SHA-512, `(Hkdf extract ...)`
+and `(Hkdf expand ...)` are RFC 5869, and `(Sha384 hex s)` is FIPS
+180-4's SHA-384 on SHA-512's digest and compiled engine. Binary inputs
+are regions `(STRING START LEN)`; answers are buffers of exactly the
+digest's bytes. They are the key schedule of a TLS 1.3 client written in
+x.
+
+[#972]: https://github.com/jonruttan/x-lang/pull/972
+
+**`Deflate raw` and `Deflate zlib` compress.** ([#971]) LZ77 over a 32K window through a hash chain and Huffman codes a block -- its own, the fixed ones or stored, whichever is fewest bits -- written in pure x and read back by libz byte for byte. What git writes a loose object as, and what gzip wants.
+
+[#971]: https://github.com/jonruttan/x-lang/pull/971
+
+**A replayed Lexer make reads its plan in one walk.** ([#970]) The plan a cache
+group keeps is words, each list led by its length, read back by one walk
+over its bytes where the s-expression reader took 42 us a byte. x-ash's
+tokenizer, 73 states: a make booted from x-ash's image, 0.60 s to 0.40 s.
+
+[#970]: https://github.com/jonruttan/x-lang/pull/970
+
+**`Crypt des`: crypt(3)'s traditional DES password hash.** ([#969]) `(Crypt des
+KEY SALT)` gives the thirteen-character hash, salt first, that
+`/etc/passwd` and busybox's `cryptpw` use. Pure x-lang, 166ms a hash;
+every spec vector is busybox's.
+
+[#969]: https://github.com/jonruttan/x-lang/pull/969
+
+**`Sha3`: SHA-3, with a compiled engine.** ([#968]) `(Sha3 hex WIDTH s)` and
+`(Sha3 hex-n WIDTH s n)` give the FIPS 202 digest at 224, 256, 384 or 512
+bits, or another multiple of 8 below 800. A compiled Keccak engine is
+adopted after it agrees with the pure-x digest; `(Sha3 jit!)` builds it,
+and so does an input of 4KB or more: 64KB in 0.3s, against 47s pure-x.
+
+[#968]: https://github.com/jonruttan/x-lang/pull/968
+
+**The X25519 and Ed25519 engines build in about 2 s together and take a
+signature's field work** ([#967]): x/codec/fe25519-jit builds the field's
+operations once a process, proven against the pure-x field directly
+rather than through a whole pure-x exchange, and adds the inverse and
+the square root's power as compiled chains; each curve's engine checks
+the rest against its RFC's bytes.  `(Ed25519 jit!)` now also covers a
+point's encoding and decoding, and Ed25519's scalars are reduced as
+ref10's sc_reduce does.  Measured, arm64: X25519's build 7.3 s to 2.0 s,
+Ed25519's 6.7 s to 0.25 s; a signature 2.4 s to 0.73 s, a check 1.6 s
+to 0.47 s; a reduction mod L 314 ms to 18 ms.
+
+[#967]: https://github.com/jonruttan/x-lang/pull/967
+
+**`Inflate` decodes 3-11x cheaper in pure x.** ([#966]) The hot paths -- the bit reader, the decoder, the table builder, the codes loop, the copy, the dynamic header's code lengths and the Adler-32 -- are primitives alone (def in a body, if, do, self-calls of top-level functions, the int doors), and a code is decoded through a lookup table over its next bits, sized to its longest length up to nine, falling back to puff.c's bit-at-a-time walk for a longer one. 200 bytes of text cost 2.04M objects and 215 ms, now 603K and 82 ms; 2000 bytes of dynamic codes 4.6M and 448 ms, now 807K and 113 ms; the Adler-32 of 300 stored bytes 370K, now 34K. The compiled engine agrees with the rewritten reference on every check stream.
+
+[#966]: https://github.com/jonruttan/x-lang/pull/966
+
+**A `-` before a character class's closing `]` is a literal** ([#964]). `[+-]`
+was read as a range from `+` to `]`, so the class swallowed the rest of the
+pattern up to the next `]`: `[+-]?([0-9]+)` never matched `12`. Found running
+the AWK book's number regexes through x-awk.
+
+[#964]: https://github.com/jonruttan/x-lang/pull/964
+
+**A /proc stat line shorter than a kernel's reads; the fields past its end are nil.** ([#963])
+The Linux reader's `processor` (stat field 39) indexed past the end of a
+line that stops sooner, and the read raised; `(Host process pid)` on such a
+line now answers the record with `processor` nil.
+
+[#963]: https://github.com/jonruttan/x-lang/pull/963
+
 ## [0.27.0] - 2026-10-08
 
 **`Host maps` and `Host threads` cost a process a small fraction of what they did, and `Host memory` reports anon, mapped, slab, dirty and writeback.** ([#961]) A process's maps fell from 5.1M objects to 174K on Darwin (its threads from 217K to 63K), each region and thread read through the resolved `proc_pidinfo` and the int doors rather than a class call a field; Linux's smaps figures are scanned as bytes rather than trimmed and measured as strings. The new memory fields are /proc/meminfo's AnonPages, Mapped, Slab, Dirty and Writeback, which BusyBox's `top -m` prints; Darwin reports anon (its anonymous pages) and nil for the rest.
