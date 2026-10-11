@@ -467,14 +467,17 @@
 ; fvars arrive as (symbol . value) and the records name them as text, so the
 ; symbols are spelled ONCE per load rather than once per relocation site: an
 ; analyser has a handful of fvars and scores of sites, and symbol->str
-; allocates a fresh string every time it is asked.
+; allocates a fresh string every time it is asked.  fvars named by strings --
+; a Lexer replaying its plan, which keeps the names as text -- are the table
+; already.
 (def %asm-cache-fvar-table
   (fn (_ fvars)
-    ((fn (self fs acc)
-       (if (null? fs) acc
-         (self (rest fs)
-           (pair (pair (symbol->str (first (first fs))) (rest (first fs))) acc))))
-      fvars ())))
+    (if (if (null? fvars) #f (str? (first (first fvars)))) fvars
+      ((fn (self fs acc)
+         (if (null? fs) acc
+           (self (rest fs)
+             (pair (pair (symbol->str (first (first fs))) (rest (first fs))) acc))))
+        fvars ()))))
 
 (def %asm-cache-fvar
   (fn (self nm table)
@@ -1250,6 +1253,19 @@
     (%asm-cache-group-note! text)
     (%asm-cache-held-load text fvars #f)))
 
+; The names of the free variables the held entry for TEXT patches into its code,
+; as text, or #f when no entry is held for it: what a pour of that entry needs
+; of the fvars it is given.
+(def asm-cache-held-fvar-names
+  (fn (_ text)
+    (def e (%asm-cache-held-find text %asm-cache-held))
+    (if (null? e) #f
+      ((fn (self ss acc)
+         (if (null? ss) acc
+           (self (rest ss)
+             (if (%asm-cache-i= (first (first ss)) %asm-cache-label-fvar) (pair (rest (first ss)) acc) acc))))
+       (first (first (rest (rest (rest e))))) ()))))
+
 ; The callable for TEXT from the entry held for it, or () on any miss; PUBLISH?
 ; as %asm-cache-pour takes it.
 (def %asm-cache-held-load
@@ -1365,6 +1381,7 @@
 (prim-reg! (lit compile) (lit asm-cache-group-held) asm-cache-group-held)
 (prim-reg! (lit compile) (lit asm-cache-group-extra!) asm-cache-group-extra!)
 (prim-reg! (lit compile) (lit asm-cache-held-pour) asm-cache-held-pour)
+(prim-reg! (lit compile) (lit asm-cache-held-fvar-names) asm-cache-held-fvar-names)
 (prim-reg! (lit compile) (lit asm-cache-last-text) asm-cache-last-text)
 
 (doc asm-cache-group
@@ -1391,7 +1408,8 @@
   (returns ANY "X-lang callable prim, or nil")
   "The held entry whose key text is TEXT, poured with FVARS: a load by key, with
    no expression printed or hashed.  Nil when no entry is held for the text.
-   The text is noted in the open group, as a compile's is.")
+   The text is noted in the open group, as a compile's is.  FVARS are
+   (NAME . VALUE) with every NAME a symbol, or every NAME the symbol's text.")
 
 (doc asm-cache-last-text
   (returns ANY "A string, or nil")
@@ -1399,6 +1417,12 @@
    asm-cache-held-pour takes to load the same entry again; nil when that
    compile stood aside from the cache.")
 
-(doc (provide x/tool/asm-cache asm-compile-cached asm-cache-group asm-cache-group-held asm-cache-group-extra! asm-cache-held-pour asm-cache-last-text)
+(doc asm-cache-held-fvar-names
+  (returns ANY "A list of strings, or #f")
+  "The names, as text, of the free variables the held entry whose key text is
+   TEXT patches into its code: what a pour of it needs of the FVARS it is
+   given.  #f when no entry is held for the text.")
+
+(doc (provide x/tool/asm-cache asm-compile-cached asm-cache-group asm-cache-group-held asm-cache-group-extra! asm-cache-held-pour asm-cache-held-fvar-names asm-cache-last-text)
   "The cache behind the compile-asm door: persistent emitted native code, over
    the JIT compiler it falls back to.")

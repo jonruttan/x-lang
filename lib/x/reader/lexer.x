@@ -91,8 +91,7 @@
     ; states from it, with no form made, printed or checked.
     (if (Lexer %jit?)
       ((prim-ref (lit compile) (lit asm-cache-group))
-        (Str8 append "lexer:" (%number->str (Lexer %plan-version)) ":"
-          ((prim-ref (lit io) (lit write-to-str)) (pair (self end) (self rules))))
+        (Lexer %group-key (self rules) (self end))
         (fn (_)
           (if (Lexer %replay! self)
             (self replayed #t)
@@ -128,7 +127,12 @@
     ; recorded by the old code would otherwise be replayed as the new.  The
     ; digest case in tests/x/specs/lib/lexer-plan.spec.md fails on any such
     ; change until both it and this number are updated.
-    (%plan-version 2)
+    (%plan-version 3)
+    ; Group keys made, as ((RULES END . KEY) ...): a key is the rules and the
+    ; end text printed, which costs a make more than its replay's types do, and
+    ; a remake -- the recache hook after every image load -- asks again for
+    ; the same rule list, the same object.
+    (%keys (pair () ()))
     ; The recorder a full make runs under: on, then the states made, newest
     ; first, as (state text fvars) -- TEXT the cache key, nil for a twin -- and
     ; the rules' first states, newest first.
@@ -1400,8 +1404,24 @@
             ((str? v) (list name 2 (number! bufs v)))
             ((number? v) (list name 3 v))
             (#t (no "a free variable a plan cannot name")))))
+      ; A state is given every free variable its rule has, and its code patches
+      ; in a few of them; the plan keeps those, so a replay builds and a pour
+      ; searches a handful a state rather than the rule's every one.
+      (def used (prim-ref (lit compile) (lit asm-cache-held-fvar-names)))
+      (def keep
+        (fn (_ text fvs)
+          (def names (used text))
+          (if (eq? names #f) (no "a state whose entry is not held") ())
+          ((fn (self fs)
+             (if (null? fs) ()
+               (if (i< (pos (symbol->str (first (first fs))) names str=?) 0)
+                 (self (rest fs))
+                 (pair (first fs) (self (rest fs))))))
+           fvs)))
       (def states
-        (map1 (fn (_ r) (pair (pos (first (rest r)) texts str=?) (map1 recipe (first (rest (rest r))))))
+        (map1 (fn (_ r)
+                (pair (pos (first (rest r)) texts str=?)
+                      (map1 recipe (keep (first (rest r)) (first (rest (rest r)))))))
               recs))
       (def state-at
         (fn (_ s)
@@ -1508,6 +1528,22 @@
 
     ; The plan in the group text S: the one read from this very text before,
     ; else read now and kept.
+    ; The cache group key for RULES and END: printed once for a rule list and
+    ; an end text, found again by identity.
+    (method %group-key (self rules end)
+      (def hit
+        ((fn (self l)
+           (if (null? l) ()
+             (if (if (eq? (first (first l)) rules) (eq? (first (rest (first l))) end) #f) (first l) (self (rest l)))))
+         (first (Lexer %keys))))
+      (if (null? hit)
+        (do
+          (def key (Str8 append "lexer:" (%number->str (Lexer %plan-version)) ":"
+                     ((prim-ref (lit io) (lit write-to-str)) (pair end rules))))
+          (%set-first! (Lexer %keys) (pair (pair rules (pair end key)) (first (Lexer %keys))))
+          key)
+        (rest (rest hit))))
+
     (method %held-plan (self s)
       (def hit
         ((fn (self l) (if (null? l) () (if (eq? (first (first l)) s) (first l) (self (rest l)))))
@@ -1549,9 +1585,9 @@
           (def cells (map1 (fn (_ c) (pair () ())) (nth plan 3)))
           (def bufs (map1 (fn (_ n) ((Lexer %make-str) n)) (nth plan 4)))
           (def pour (prim-ref (lit compile) (lit asm-cache-held-pour)))
-          (def sym (prim-ref (lit str) (lit ->sym)))
           ; the states poured so far, newest first, and how many; () when a
-          ; pour misses
+          ; pour misses.  Each free variable is named by the plan's text for
+          ; it, which the pour matches as it is: no symbol is interned.
           (def made
             ((fn (self ss acc n)
                (if (null? ss) acc
@@ -1562,7 +1598,7 @@
                        (fn (_ fv)
                          (def how (first (rest fv)))
                          (def at (first (rest (rest fv))))
-                         (pair (sym (first fv))
+                         (pair (first fv)
                            (match
                              ((i= how 0) (nth acc (i- (i- n 1) at)))
                              ((i= how 1) (nth cells at))
