@@ -120,3 +120,20 @@ them: at the start, in the middle and at the end.
 ```
 ---
     (65536 258 "ffee00" 0)
+
+## searching
+
+### find answers the first offset of the bytes, NULs included, or nil
+
+```x
+(do
+  (import x/codec/bytes)
+  (def %bf-hay (Bytes of-hex "00aa0011220011223300"))
+  (write (list (Bytes find %bf-hay (Bytes of-hex "001122"))
+               (Bytes find %bf-hay (Bytes of-hex "112233"))
+               (Bytes find (Bytes sub %bf-hay 4 6) (Bytes of-hex "0011"))
+               (Bytes find %bf-hay (Bytes of-hex "3344"))
+               (Bytes find "hello, world" "world"))))
+```
+---
+    (2 6 1 () 7)

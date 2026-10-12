@@ -4,27 +4,20 @@
 
 The TLS 1.3 client written in x, against `openssl s_server` on a
 certificate made for the run: the handshake, application data both ways,
-and the server's close.  The server's certificate is not checked yet, so
-every connection asks for ('insecure); without it connect refuses before
-it connects.  connect builds the X25519, SHA-256, ChaCha20 and Poly1305
-engines before it dials, so the file carries the weight and the timeout
-of four engine builds.
+and the server's close.  The server's certificate is self-signed RSA, so
+the exchanges ask for ('insecure), and one without it is refused: the
+server signs its CertificateVerify with RSA-PSS (scheme 2052), which
+this client cannot check yet.  connect builds the X25519, SHA-256,
+ChaCha20 and Poly1305 engines before it dials, so the file carries the
+weight and the timeout of four engine builds.
 
 ## connecting
-
-### without ('insecure), connect refuses and opens nothing
-
-```x
-(do (import x/net/tls13)
-  (write (guard (e (list (Err label e) (e msg))) (Tls13 connect "127.0.0.1" 9 ()))))
-```
----
-    ('value "Tls13: the server's certificate cannot be checked yet; pass ('insecure) to connect without checking it")
 
 ### a GET over TLS 1.3, the reply read to the server's close
 
 `s_server -www` answers a GET with a page about the session, which names
-the protocol and the cipher suite it agreed.
+the protocol and the cipher suite it agreed; a second connection without
+('insecure) is refused by the certificate check.
 
 ```x
 (do (import x/net/tls13) (import x/sys/socket) (import x/sys/posix) (import x/sys/proc)
@@ -50,12 +43,14 @@ the protocol and the cipher suite it agreed.
             (list (Str8 starts? "HTTP/1.0 200" page)
                   (Str8 includes? "TLSv1.3" page)
                   (Str8 includes? "CHACHA20" page)
-                  (List length (Tls13 certificates s)))))))
+                  (List length (Tls13 certificates s))
+                  (guard (e (list (Err label e) (e msg)))
+                    (Tls13 connect "127.0.0.1" %t13-port (list (pair 'host "localhost")))))))))
   (Proc run! (list "/bin/sh" "-c" (Str8 append "kill $(cat " %t13-dir "/pid) 2>/dev/null; rm -rf " %t13-dir)))
   (write %t13-result))
 ```
 ---
-    (#t #t #t 1)
+    (#t #t #t 1 ('io "Tls13: the server signs with a scheme this client cannot check yet (2052); RSA is not written"))
 
 ### a reply of many records, NULs and all, every byte in order
 

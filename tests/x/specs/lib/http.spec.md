@@ -331,8 +331,8 @@ it execs a shell that exits, whatever happened.
 
 ### https: (insecure) reads from a self-signed server; verification refuses it
 
-`openssl s_server` with a certificate made for the run; the session
-the handshake makes is the TlsSession record, built by keyword.
+`openssl s_server` with a self-signed certificate made for the run: (insecure)
+reads from it, and the certificate check refuses it without.
 
 ```x
 (do (import x/net/http) (import x/sys/posix) (import x/sys/proc)

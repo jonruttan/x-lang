@@ -175,11 +175,13 @@
         (first pool)
         (self cur (rest pool))))))
 
+; roots is a list of parsed roots, or a function from a name's DER bytes
+; to the roots with that subject (x/net/roots' Roots find).
 (def %walk
   (fn (_ leaf pool roots now)
     ((fn (self cur below)
        (when (> below 8) (%fail "a chain longer than eight certificates"))
-       (def root (%find-issuer cur roots))
+       (def root (%find-issuer cur (if (procedure? roots) (roots (%issuer cur)) roots)))
        (if (not (null? root))
          (do (unless (%in-date? root now) (%fail "the trusted root is out of date")) #t)
          (do (def up (%find-issuer cur pool))
@@ -243,7 +245,7 @@
     (method verify-chain (self (param certs LIST "The server's certificates, leaf first, each a region of DER bytes")
                                (param host STRING "The name the client asked for")
                                (param now INTEGER "Unix seconds")
-                               (param roots LIST "The trusted roots, parsed"))
+                               (param roots ANY "The trusted roots: a list of parsed certificates, or a function from a name's DER bytes to the roots with that subject, as (fn (_ name) (Roots find name))"))
       (doc "Check a server's chain: the leaf names host and is in date, each certificate is signed by one above it -- a CA in date whose path length allows it -- and the walk reaches a certificate a trusted root signed. #t when it holds; raises a label 'value naming the first thing that fails."
         (returns BOOL "#t")
         (sample "(X509 verify-chain (Tls13 certificates s) \"github.com\" (Sys now) roots)" "#t"))
