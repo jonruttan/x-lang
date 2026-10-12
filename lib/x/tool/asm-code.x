@@ -137,6 +137,11 @@
 ; The code buffer itself, not a copy: the cache stores the bytes with one
 ; write(2) straight out of it.
 (def %asm-last-buf ())
+; The buffer is native code, which no image can hold, and the facts are read
+; straight after a compile and never across a load: an image write drops them.
+(set! %image-transients
+  (pair (fn (_) (do (set! %asm-last-buf ()) (set! %asm-last-relocs ()) (set! %asm-last-size 0)))
+        %image-transients))
 
 ; --- Buffers ---
 (def asm-new
