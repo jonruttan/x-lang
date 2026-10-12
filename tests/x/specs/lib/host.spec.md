@@ -52,14 +52,15 @@ clear it), so a later case in the same batch reads the real machine.
 ```x
 (do (import x/sys/host)
   (def me (Sys getpid))
-  (def row (List find (fn (_ r) (= me (Assoc get 'pid r))) (Host processes)))
+  (def procs (Host processes))
+  (def row (List find (fn (_ r) (= me (Assoc get 'pid r))) procs))
   (def one (Host process me))
   (list (Assoc keys row)
         (= (Assoc get 'uid row) (Sys geteuid))
         (and (< 0 (Str8 length (Assoc get 'comm row))) (str=? (Assoc get 'comm row) (Assoc get 'comm one)))
         (< 0 (Assoc get 'rss one))
         (< 0 (Assoc get 'utime one))
-        (< 1 (List length (Host processes)))))
+        (< 1 (List length procs))))
 ```
 ---
     (('pid 'ppid 'pgid 'sid 'uid 'gid 'ruid 'rgid 'state 'comm 'tty 'tty-major 'tty-minor 'nice 'start 'threads 'vsz 'rss 'utime 'stime 'processor) #t #t #t #t #t)
