@@ -116,21 +116,27 @@
     (method %int (self (param s STRING "Decimal digits, optionally signed"))
       (doc "The integer a decimal field spells; nil when it spells none."
         (returns ANY "INTEGER, or nil"))
+      ; the int doors throughout: a record parses a dozen of these, and the
+      ; tower's comparisons and arithmetic allocate on every digit
       (def at (prim-ref (lit str) (lit byte-ref)))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i- (prim-ref (lit int) (lit -)))
+      (def i* (prim-ref (lit int) (lit *)))
+      (def i< (prim-ref (lit int) (lit <)))
+      (def i= (prim-ref (lit int) (lit =)))
+      (def digit? (fn (_ b) (if (i< 47 b) (i< b 58) #f)))
       (def n (Str8 length s))
-      (def neg (if (> n 0) (= (at s 0) 45) #f))
+      (def neg (if (i< 0 n) (i= (at s 0) 45) #f))
       (def go
         (fn (self i acc)
           (match
-            ((>= i n) acc)
-            ((if (>= (at s i) 48) (<= (at s i) 57) #f)
-              (self (+ i 1) (+ (* acc 10) (- (at s i) 48))))
+            ((if (i< i n) #f #t) acc)
+            ((digit? (at s i)) (self (i+ i 1) (i+ (i* acc 10) (i- (at s i) 48))))
             (#t acc))))
       (def start (if neg 1 0))
-      (if (>= start n) ()
-        (if (if (>= (at s start) 48) (<= (at s start) 57) #f)
-          (let ((v (go start 0))) (if neg (- 0 v) v))
-          ())))
+      (if (if (i< start n) (digit? (at s start)) #f)
+        (let ((v (go start 0))) (if neg (i- 0 v) v))
+        ()))
 
     (method %hex (self (param s STRING "Hexadecimal digits"))
       (doc "The integer a run of hex digits spells, read up to the first byte that is not one; 0 for none."
@@ -1002,13 +1008,25 @@
       (doc "The real uid and gid, the first number of /proc/PID/status's Uid: and Gid: lines, as BusyBox's ps reads ruser and rgroup."
         (returns ANY "PAIR (ruid . rgid), or nil"))
       (def s (Host %read (Str8 append dir "/status")))
+      ; found in place, not by splitting the file into lines: Uid: and Gid:
+      ; are never the first line, and a record is read for every process
+      (def at (prim-ref (lit str) (lit byte-ref)))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i- (prim-ref (lit int) (lit -)))
+      (def i< (prim-ref (lit int) (lit <)))
+      (def i= (prim-ref (lit int) (lit =)))
       (def first-of
         (fn (_ key)
-          (def hit (List find (fn (_ l) (Str8 starts? key l)) (Str8 split "\n" s)))
-          (if (null? hit) ()
-            (Host %int (Str8 trim (Str8 sub (Str8 length key) (Str8 length hit) hit))))))
+          (def k (Str8 index-of key s))
+          (if (null? k) ()
+            (let ((n (Str8 length s)))
+              (def skip
+                (fn (self i)
+                  (if (if (i< i n) (if (i= (at s i) 9) #t (i= (at s i) 32)) #f) (self (i+ i 1)) i)))
+              (def from (skip (i+ k (Str8 length key))))
+              (Host %int (Str8 sub from (if (i< (i+ from 20) n) 20 (i- n from)) s))))))
       (if (null? s) ()
-        (let ((u (first-of "Uid:")) (g (first-of "Gid:")))
+        (let ((u (first-of "\nUid:")) (g (first-of "\nGid:")))
           (if (if (null? u) #t (null? g)) () (pair u g)))))
 
     (method %linux-args (self (param pid INTEGER "Process ID"))
