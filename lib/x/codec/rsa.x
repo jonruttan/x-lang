@@ -14,8 +14,8 @@
 
 (import x/codec/bytes)
 (import x/codec/hmac)
-(import x/codec/mont mont-modulus mont-number mont-bytes-of)
-(import x/codec/mont-jit mont-jit-engine mont-jit-load! mont-jit-store mont-jit-to! mont-jit-from! mont-jit-pow!)
+(import x/codec/mont mont-modulus)
+(import x/codec/mont-jit mont-jit-engine mont-jit-load-bytes! mont-jit-store-bytes mont-jit-to! mont-jit-from! mont-jit-pow!)
 
 (def %find (fn (self k l) (if (null? l) () (if (eq? (first (first l)) k) (first l) (self k (rest l))))))
 
@@ -58,11 +58,11 @@
       (do (def m (mont-modulus (first nr) (first (rest nr)) len))
           (if (not (%below? sr nr len)) ()
             (do (def eng (mont-jit-engine m))
-                (mont-jit-load! eng 0 (mont-number m (first sr) (first (rest sr)) len))
+                (mont-jit-load-bytes! eng 0 (first sr) (first (rest sr)) len)
                 (mont-jit-to! eng 0 0)
                 (mont-jit-pow! eng 1 0 (first er) (first (rest er)) (Bytes length er))
                 (mont-jit-from! eng 1 1)
-                (list (mont-bytes-of m (mont-jit-store eng 1)) 0 len)))))))
+                (list (mont-jit-store-bytes eng 1) 0 len)))))))
 
 ; --- PKCS#1 v1.5 ------------------------------------------------------------
 

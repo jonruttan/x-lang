@@ -15,8 +15,9 @@
 ;
 ; A modulus too long to unroll -- an RSA modulus is 79 or 158 limbs, and
 ; a row of its multiply alone is thousands of forms -- gets the LOOPING
-; engine instead: six functions generic over the modulus, whose steps are
-; tail self-calls, which the lane makes jumps.  The same six serve every
+; engine instead: eight functions generic over the modulus -- the six
+; operations and the byte conversions in and out -- whose steps are tail
+; self-calls, which the lane makes jumps.  The same eight serve every
 ; such modulus, so they are built once a machine.
 (module x/codec/mont-jit)
 
@@ -25,7 +26,7 @@
 (import x/type/vector)
 ; A pure engine's inverse collects at fixed points, as mont-pow does.
 (import x/sys/gc)
-(import x/codec/mont mont-n mont-mul mont-add mont-sub mont-to mont-number mont-bytes mont-minus-two mont-r2 mont-r2-set? mont-set-r2!)
+(import x/codec/mont mont-n mont-mul mont-add mont-sub mont-to mont-number mont-bytes mont-bytes-of mont-region mont-limbs mont-minus-two mont-r2 mont-r2-set? mont-set-r2!)
 
 (def %mj-make-str (prim-ref (lit str) (lit make)))
 (def %mj-str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -297,27 +298,79 @@
             (list (lit |) (lit acc) (list (lit ^) (%ml-at (lit f) (lit i)) (%ml-at (lit g) (lit i)))))
       (lit acc))))
 
-; The six, compiled once a process and poured from the cache after the
+; Big-endian bytes at address src, len of them, into the n limbs at h:
+; mont.x's %from-be as a loop.  Phase 0 clears the limbs; then byte j
+; from the end lands at bit 8j, in limb limb at bit off and, when it
+; straddles, the next.  The byte rides the header's sum word.
+(def %ml-byte (list (lit %mem-ref) (lit a) %ml-S))
+(def %ml-from-be-expr
+  (list (lit fn) (lit (self a h src len ph j limb off))
+    (list (lit if) (list (lit =) (lit ph) 0)
+      (list (lit if) (list (lit <) (lit j) %ml-N)
+        (list (lit do) (%ml-set (lit h) (lit j) 0) (list (lit self) (lit a) (lit h) (lit src) (lit len) 0 (list (lit +) (lit j) 1) 0 0))
+        (list (lit self) (lit a) (lit h) (lit src) (lit len) 1 0 0 0))
+      (list (lit if) (list (lit <) (lit j) (lit len))
+        (list (lit do)
+          (%ml-sum! (list (lit %mem-byte-ref-at) (lit src) (list (lit -) (list (lit -) (lit len) 1) (lit j))))
+          (list (lit if) (list (lit <) (lit limb) %ml-N)
+            (%ml-set (lit h) (lit limb) (list (lit |) (%ml-at (lit h) (lit limb)) (list (lit &) (list (lit <<) %ml-byte (lit off)) %M)))
+            0)
+          (list (lit if) (list (lit if) (list (lit >) (lit off) 18) (list (lit <) (list (lit +) (lit limb) 1) %ml-N) 0)
+            (%ml-set (lit h) (list (lit +) (lit limb) 1)
+                     (list (lit |) (%ml-at (lit h) (list (lit +) (lit limb) 1)) (list (lit >>) %ml-byte (list (lit -) 26 (lit off)))))
+            0)
+          (list (lit if) (list (lit >=) (list (lit +) (lit off) 8) 26)
+            (list (lit self) (lit a) (lit h) (lit src) (lit len) 1 (list (lit +) (lit j) 1) (list (lit +) (lit limb) 1) (list (lit -) (list (lit +) (lit off) 8) 26))
+            (list (lit self) (lit a) (lit h) (lit src) (lit len) 1 (list (lit +) (lit j) 1) (lit limb) (list (lit +) (lit off) 8))))
+        0))))
+
+; The n limbs at f as len big-endian bytes at address dst: mont.x's %to-be
+; as a loop.  Each byte gathers from the limb holding its low bit and,
+; when it straddles, the next.
+(def %ml-to-be-expr
+  (list (lit fn) (lit (self a f dst len j limb off))
+    (list (lit if) (list (lit <) (lit j) (lit len))
+      (list (lit do)
+        (list (lit %mem-byte-set-at!) (lit dst) (list (lit -) (list (lit -) (lit len) 1) (lit j))
+          (list (lit &)
+            (list (lit |)
+              (list (lit if) (list (lit <) (lit limb) %ml-N) (list (lit >>) (%ml-at (lit f) (lit limb)) (lit off)) 0)
+              (list (lit if) (list (lit if) (list (lit >) (lit off) 18) (list (lit <) (list (lit +) (lit limb) 1) %ml-N) 0)
+                (list (lit <<) (%ml-at (lit f) (list (lit +) (lit limb) 1)) (list (lit -) 26 (lit off)))
+                0))
+            255))
+        (list (lit if) (list (lit >=) (list (lit +) (lit off) 8) 26)
+          (list (lit self) (lit a) (lit f) (lit dst) (lit len) (list (lit +) (lit j) 1) (list (lit +) (lit limb) 1) (list (lit -) (list (lit +) (lit off) 8) 26))
+          (list (lit self) (lit a) (lit f) (lit dst) (lit len) (list (lit +) (lit j) 1) (lit limb) (list (lit +) (lit off) 8))))
+      0)))
+
+; The eight, compiled once a process and poured from the cache after the
 ; first machine that built them: (FNS . REPLAYED?), or () until asked.
+; The key counts them: a poured group is whatever was stored under its
+; key, so a group that grows must change its name.
 (def %ml-fns (pair () ()))
 (def %ml-compiled
   (fn (_)
     (when (null? (first %ml-fns))
-      (jit-group "mont-jit-loop"
-        (fn (_) (list %ml-mul-expr %ml-add-expr %ml-sub-expr %ml-copy-expr %ml-or-expr %ml-xor-or-expr))
+      (jit-group "mont-jit-loop:8"
+        (fn (_) (list %ml-mul-expr %ml-add-expr %ml-sub-expr %ml-copy-expr %ml-or-expr %ml-xor-or-expr %ml-from-be-expr %ml-to-be-expr))
         (fn (_ fns replayed?) (%set-first! %ml-fns (pair fns replayed?)))))
     (first %ml-fns)))
 
+; The address of byte start of string s.
+(def %ml-address (fn (_ s start) (+ (%mj-ptr->int (%mj-str->ptr s)) start)))
+
 ; --- the engine -----------------------------------------------------------
 ;
-; A vector of (STORE PTR ADDR N MUL ADD SUB KIND M COPY OR XOR-OR BASE).  A
-; COMPILED engine's numbers are slots of n words in its scratch STORE
-; from word BASE, and MUL, ADD and SUB are the compiled functions -- or,
-; in a looping engine, closures handing them their state's first values;
-; a PURE engine's are limb vectors in a vector STORE, and its operations
-; mont.x's.  Callers name slots 0..%mj-free - 1; the slots above hold
-; R^2, a plain one and R mod m for entering and leaving the form, and a
-; power's working values.
+; A vector of (STORE PTR ADDR N MUL ADD SUB KIND M COPY OR XOR-OR BASE
+; FROM-BE TO-BE).  A COMPILED engine's numbers are slots of n words in
+; its scratch STORE from word BASE, and MUL, ADD and SUB are the compiled
+; functions -- or, in a looping engine, closures handing them their
+; state's first values, with FROM-BE and TO-BE the byte conversions,
+; which only it has; a PURE engine's are limb vectors in a vector STORE,
+; and its operations mont.x's.  Callers name slots 0..%mj-free - 1; the
+; slots above hold R^2, a plain one and R mod m for entering and leaving
+; the form, and a power's working values.
 
 (def %mj-slots 48)
 (def mont-jit-free 42)
@@ -352,6 +405,26 @@
       (do (def v (Vector make n 0))
           ((fn (self i) (unless (= i n) (do (%mj-oset! v (+ i 1) (%mj-word-ref e k i)) (self (+ i 1))))) 0)
           v))))
+
+; Slot k from big-endian bytes, a number below m out of the form, and a
+; slot as the modulus's length of big-endian bytes: compiled in a looping
+; engine, where a limb vector in between is tens of thousands of objects;
+; through mont.x's conversions elsewhere.
+(def mont-jit-load-bytes!
+  (fn (_ e k s start len)
+    (if (null? (%mj-oref e 14))
+      (mont-jit-load! e k (mont-number (%mj-m e) s start len))
+      ((%mj-oref e 14) (%mj-oref e 3) (%mj-off e k) (%ml-address s start) len))))
+
+(def mont-jit-store-bytes
+  (fn (_ e k)
+    (def m (%mj-m e))
+    (if (null? (%mj-oref e 15))
+      (mont-bytes-of m (mont-jit-store e k))
+      (do (def len (mont-bytes m))
+          (def out (%mj-make-str (if (> len 0) len 1)))
+          ((%mj-oref e 15) (%mj-oref e 3) (%mj-off e k) (%ml-address out 0) len)
+          out))))
 
 ; Copy, the zero test and equality: compiled in a compiled engine, since a
 ; word at a time through x is thousands of objects a call where the
@@ -454,23 +527,46 @@
     (%try "add" mont-jit-add mont-add top top)
     (%try "sub" mont-jit-sub mont-sub x y)
     (%try "sub" mont-jit-sub mont-sub y x)
-    (%try "sub" mont-jit-sub mont-sub x x)))
+    (%try "sub" mont-jit-sub mont-sub x x)
+    ; the byte conversions, where the engine has them: in from the bytes
+    ; of a number below m, out to the modulus's length of bytes
+    (unless (null? (%mj-oref e 14))
+      (do (def bytes (mont-bytes-of m x))
+          (mont-jit-load-bytes! e 0 bytes 0 len)
+          (unless (%mj-same? (mont-jit-store e 0) x n)
+            (Err raise 'state "mont-jit: the byte reader disagrees with the pure-x conversion" ()))
+          (mont-jit-load! e 1 top)
+          (unless (%mj-same-bytes? (mont-jit-store-bytes e 1) (mont-bytes-of m top) len)
+            (Err raise 'state "mont-jit: the byte writer disagrees with the pure-x conversion" ()))))))
+
+(def %mj-same-bytes?
+  (fn (_ a b len)
+    ((fn (self i) (if (= i len) #t (if (= (%mj-char->int (%mj-byte-ref a i)) (%mj-char->int (%mj-byte-ref b i))) (self (+ i 1)) #f))) 0)))
 
 ; The slots for entering and leaving the form: a plain one, R^2 mod m,
 ; and R mod m, which is the one times R^2 through the engine's own
-; multiply.
+; multiply.  A compiled engine makes R^2 itself (%mj-r2!) and its one by
+; clearing a slot (a number less itself) and setting a word; a pure one
+; loads limb vectors, R^2 mont.x's.
 (def %mj-reserve!
   (fn (_ e m)
-    (def n (mont-n m))
-    (def one (Vector make n 0))
-    (%mj-oset! one 1 1)
-    (mont-jit-load! e %mj-plain-one one)
-    (mont-jit-load! e %mj-r2 (mont-r2 m))
+    (if (%mj-pure? e)
+      (do (def one (Vector make (mont-n m) 0))
+          (%mj-oset! one 1 1)
+          (mont-jit-load! e %mj-plain-one one)
+          (mont-jit-load! e %mj-r2 (mont-r2 m)))
+      (do (mont-jit-sub e %mj-plain-one %mj-plain-one %mj-plain-one)
+          (%mj-word-set! e %mj-plain-one 0 1)
+          (%mj-r2! e m)
+          ; mont.x's side takes the engine's R^2 rather than doubling its
+          ; way there: the check needs it, and a pure engine on an RSA
+          ; modulus would be minutes without it
+          (unless (mont-r2-set? m) (mont-set-r2! m (mont-jit-store e %mj-r2)))))
     (mont-jit-mul e %mj-r %mj-plain-one %mj-r2)))
 
 (def %mj-engine
   (fn (_ m)
-    (def e (Vector make 14 ()))
+    (def e (Vector make 16 ()))
     (%mj-oset! e 4 (mont-n m))
     (%mj-oset! e 9 m)
     (%mj-oset! e 13 0)
@@ -514,7 +610,8 @@
 (def %mj-make-unrolled
   (fn (_ m)
     (def n (mont-n m))
-    (def ps ((fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (%mj-oref (%mj-oref m 2) (+ i 1)) acc)))) (- n 1) ()))
+    (def limbs (mont-limbs m))
+    (def ps ((fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (%mj-oref limbs (+ i 1)) acc)))) (- n 1) ()))
     (def inv (%mj-oref m 3))
     (def w (* %mj-slots n))
     (def lay (%mj-layout n w))
@@ -530,13 +627,12 @@
               (%mj-copy-expr n) (%mj-or-expr n) (%mj-xor-or-expr n)))
       (fn (_ fns replayed?)
         (%mj-wire! e (List ref 0 fns) (List ref 1 fns) (List ref 2 fns) (List ref 3 fns) (List ref 4 fns) (List ref 5 fns))
-        (%mj-r2! e m)
-        (unless replayed? (%mj-check e m))
         (%mj-reserve! e m)
+        (unless replayed? (%mj-check e m))
         e))))
 
 ; The looping engine: the header, then the slots, the row, the difference
-; and the modulus's limbs, and the six generic functions behind closures
+; and the modulus's limbs, and the eight generic functions behind closures
 ; that start each loop's state.  The check runs once a process, on the
 ; first modulus that builds the functions rather than pouring them.
 (def %mj-make-looping
@@ -551,12 +647,12 @@
     (def ptr (%mj-oref e 2))
     (def word! (fn (_ i v) (%mj-pset ptr (* i 8) v)))
     (word! 0 n) (word! 1 T) (word! 2 D) (word! 3 P) (word! 4 (%mj-oref m 3))
-    ((fn (self i) (unless (= i n) (do (word! (+ P i) (%mj-oref (%mj-oref m 2) (+ i 1))) (self (+ i 1))))) 0)
     (def fresh (null? (first %ml-fns)))
     (def built (%ml-compiled))
     (def fns (first built))
     (def mul (List ref 0 fns)) (def add (List ref 1 fns)) (def sub (List ref 2 fns))
     (def copy (List ref 3 fns)) (def any (List ref 4 fns)) (def differ (List ref 5 fns))
+    (def from-be (List ref 6 fns)) (def to-be (List ref 7 fns))
     (%mj-wire! e
       (fn (_ a h f g) (mul a h f g 0 0 0 0 0))
       (fn (_ a h f g) (add a h f g 0 0 0 0 0))
@@ -564,40 +660,41 @@
       (fn (_ a h f) (copy a h f 0))
       (fn (_ a f) (any a f 0 0))
       (fn (_ a f g) (differ a f g 0 0)))
-    (%mj-r2! e m)
-    (when (and fresh (not (rest built))) (%mj-check e m))
+    (%mj-oset! e 14 (fn (_ a h src len) (from-be a h src len 0 0 0 0)))
+    (%mj-oset! e 15 (fn (_ a f dst len) (to-be a f dst len 0 0 0)))
+    ; the modulus's limbs, read from its bytes by the engine itself
+    (def r (mont-region m))
+    ((%mj-oref e 14) (%mj-oref e 3) P (%ml-address (first r) (first (rest r))) (first (rest (rest r))))
     (%mj-reserve! e m)
+    (when (and fresh (not (rest built))) (%mj-check e m))
     e))
 
-; R^2 mod m into the modulus by the engine, when nothing has set it.
-; 2^(26(n-2)) is below m (m's top byte is nonzero, and 26n is within 26
-; of its bit length), so 52 doublings of it reach R mod m, the form's
-; one; then with t_k = 2^(26n + k) mod m, the engine's multiply takes t_a
-; and t_b to t_(a+b), and a square-and-multiply ladder over 26n itself
-; climbs from t_0 and t_1 to t_26n = R^2 in some fifty multiplies.
-; mont.x's own pure-x doubling loop is two hundred milliseconds for
-; P-256's prime and minutes for an RSA modulus.
+; R^2 mod m into its slot, by the engine.  2^(26(n-2)) is below m (m's
+; top byte is nonzero, and 26n is within 26 of its bit length), so 52
+; doublings of it reach R mod m, the form's one; then with t_k = 2^(26n +
+; k) mod m, the engine's multiply takes t_a and t_b to t_(a+b), and a
+; square-and-multiply ladder over 26n itself climbs from t_0 and t_1 to
+; t_26n = R^2 in some fifty multiplies.  mont.x's own pure-x doubling
+; loop is two hundred milliseconds for P-256's prime and minutes for an
+; RSA modulus.  The slot is cleared as a number less itself.
 (def %mj-r2!
   (fn (_ e m)
-    (unless (mont-r2-set? m)
-      (do (def n (mont-n m))
-          (def k0 (if (> n 2) (- n 2) 0))
-          (def start (Vector make n 0))
-          (%mj-oset! start (+ k0 1) 1)
-          (mont-jit-load! e %mj-acc start)
-          ((fn (self k)
-             (unless (= k 0)
-               (do (mont-jit-add e %mj-acc %mj-acc %mj-acc) (self (- k 1)))))
-           (* 26 (- n k0)))
-          (mont-jit-add e %mj-base %mj-acc %mj-acc)
-          (def s (* 26 n))
-          ((fn (self k)
-             (unless (< k 0)
-               (do (mont-jit-mul e %mj-acc %mj-acc %mj-acc)
-                   (when (= (& (>> s k) 1) 1) (mont-jit-mul e %mj-acc %mj-acc %mj-base))
-                   (self (- k 1)))))
-           ((fn (self k) (if (= (>> s (+ k 1)) 0) k (self (+ k 1)))) 0))
-          (mont-set-r2! m (mont-jit-store e %mj-acc))))))
+    (def n (mont-n m))
+    (def k0 (if (> n 2) (- n 2) 0))
+    (mont-jit-sub e %mj-r2 %mj-r2 %mj-r2)
+    (%mj-word-set! e %mj-r2 k0 1)
+    ((fn (self k)
+       (unless (= k 0)
+         (do (mont-jit-add e %mj-r2 %mj-r2 %mj-r2) (self (- k 1)))))
+     (* 26 (- n k0)))
+    (mont-jit-add e %mj-base %mj-r2 %mj-r2)
+    (def s (* 26 n))
+    ((fn (self k)
+       (unless (< k 0)
+         (do (mont-jit-mul e %mj-r2 %mj-r2 %mj-r2)
+             (when (= (& (>> s k) 1) 1) (mont-jit-mul e %mj-r2 %mj-r2 %mj-base))
+             (self (- k 1)))))
+     ((fn (self k) (if (= (>> s (+ k 1)) 0) k (self (+ k 1)))) 0))))
 
 ; The compiled engine when the lane builds it and it proves out, the pure
 ; one when not: the same answers either way, the pure one slower.
@@ -646,6 +743,7 @@
 
 (doc (provide x/codec/mont-jit mont-jit-engine mont-jit-make mont-jit-pure mont-jit-compiled? mont-jit-free mont-jit-n
               mont-jit-load! mont-jit-store mont-jit-copy! mont-jit-zero? mont-jit-eq?
+              mont-jit-load-bytes! mont-jit-store-bytes
               mont-jit-mul mont-jit-add mont-jit-sub mont-jit-to! mont-jit-from! mont-jit-one! mont-jit-pow! mont-jit-inv!
               mont-jit-program mont-jit-run!)
   "Montgomery arithmetic for one modulus over named slots: (mont-jit-engine m) builds multiply, add and subtract compiled (JIT, ARM64 and x86-64 backends), unrolled for a curve's modulus and as loops generic over the modulus for RSA's, checked against x/codec/mont's pure-x operations, or falls back to those; slots 0..mont-jit-free - 1 are the caller's.")
