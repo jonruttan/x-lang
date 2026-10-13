@@ -125,3 +125,26 @@ wrong moment.
 ```
 ---
     ((0 'trampoline "jit_mkint") (16 'fvar 'y) (32 'self-cell ()))
+
+### an image write drops the last compile's code and records
+
+The facts about the last function are read straight after a compile, and the
+code buffer is native code, which no image can hold: the transients an image
+write runs drop all three, and the function compiled stays callable through a
+load's recache hooks.
+
+```scheme
+(do
+  (def %f (compile-asm '(fn (_ x) (+ x 1)) ()))
+  (def %before (list (null? %asm-last-buf) (null? %asm-last-relocs)))
+  ((fn (loop l)
+     (if (null? l) ()
+       (do (if (symbol? (first l)) () ((first l))) (loop (rest l)))))
+   %image-transients)
+  (def %after (list (null? %asm-last-buf) (null? %asm-last-relocs) %asm-last-size))
+  (%image-recache!)
+  (write (list %before %after (%f 41)))
+  (newline))
+```
+---
+    ((#f #f) (#t #t 0) 42)
