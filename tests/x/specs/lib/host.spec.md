@@ -184,6 +184,18 @@ clear it), so a later case in the same batch reads the real machine.
 ---
     (('use 'fd 'dev 'ino 'type 'name 'id) 'file #t #t #t 1 #t #t (0 1 2) ())
 
+### holders: this process holds its working directory, and its file system; a path that will not stat has none
+
+```x
+(do (import x/sys/host)
+  (def me (Sys getpid))
+  (def hs (Host holders "."))
+  (list (List includes? me hs) (List includes? me (Host holders "." #t))
+        (equal? hs (List sort < hs)) (Host holders "/no/such/path")))
+```
+---
+    (#t #t #t ())
+
 ### utmp: every entry has a user and a type, and users is its user-process entries
 
 ```x
@@ -413,6 +425,20 @@ packed as this platform's stat(2) packs a device.
 ```
 ---
     ((('cwd () 'file "/tmp" () () () ()) ('root () 'file "/" () () () ()) ('exe () 'file "/bin/sh" () () () ()) ('fd 0 'file "/dev/null" () () () ()) ('fd 1 'socket "socket:[12345]" 12345 'tcp 4 8080) ('fd 2 'pipe "pipe:[678]" 678 () () ()) ('fd 3 'file "/tmp/gone (deleted)" () () () ()) ('fd 4 'anon_inode "anon_inode:inotify" () () () ()) ('fd 10 'anon_inode "anon_inode:[eventfd]" () () () ()) ('map () 'file "/bin/busybox" () () () ()) ('map () 'file "/lib/ld-musl-x86_64.so.1" () () () ()) ('map () 'file "/dev/zero (deleted)" () () () ())) #t #t () ("/tmp" "/bin/busybox" "/lib/ld-musl-x86_64.so.1" "/dev/zero (deleted)") ())
+
+### holders reads each process's files: a descriptor, an executable, a whole file system, and a path no process holds
+
+```x
+(do (import x/sys/host)
+  (Host source 'linux)
+  (Host proc-root "tests/x/fixtures/host/proc")
+  (def r (list (Host holders "/dev/null") (Host holders "/bin/sh") (Host holders "/dev/null" #t)
+               (Host holders "tests/x/specs/lib/host.spec.md")))
+  (Host source (if os-darwin? (lit darwin) (lit linux))) (Host proc-root "/proc")
+  r)
+```
+---
+    ((42) (42) (42) ())
 
 ### counters reads /proc/stat, /proc/vmstat and file-nr: KiB paged to bytes, open files in use
 

@@ -43,7 +43,7 @@
 (def-class Host ()
   (doc "The machine as the kernel reports it: boot time, load, memory, CPU time, system-wide counters, disk, network and interrupt totals, processes and logged-in users, the same records on Linux and Darwin."
     (note "A field the kernel does not report is nil. Darwin reports another user's process memory and CPU time only to root.")
-    (see boot-time) (see load) (see tasks) (see memory) (see cpu) (see cpus) (see counters) (see disks) (see interfaces) (see interrupts) (see processes) (see process) (see args) (see exe) (see threads) (see maps) (see files) (see utmp) (see users))
+    (see boot-time) (see load) (see tasks) (see memory) (see cpu) (see cpus) (see counters) (see disks) (see interfaces) (see interrupts) (see processes) (see process) (see args) (see exe) (see threads) (see maps) (see files) (see holders) (see utmp) (see users))
   (static
     (source    ()      "'linux or 'darwin: which reader answers; nil means this kernel's")
     (proc-root "/proc" "The /proc tree the Linux reader opens")
@@ -1193,6 +1193,43 @@
             (List reverse (go 0 () ())))
           ()))
       (List append dirs exe fds maps))
+
+    (method holders (self (param path STRING "A path, followed through links") . (param mount? LIST "#t to ask for its whole file system instead"))
+      (doc "The processes that hold a path: as their working directory, root or executable, through a descriptor or a mapping, in pid order; with mount? #t, those that hold anything on the path's file system. Darwin asks the kernel, with proc_listpidspath (PROC_LISTPIDSPATH_PATH_IS_VOLUME for the file system); Linux reads each process's files records and compares the device and inode. A process whose files this user may not read is not among them. nil when the path will not stat."
+        (returns ANY "LIST of pids, or nil")
+        (sample "(List includes? (Sys getpid) (Host holders \".\"))" "#t"))
+      (def whole (if (null? mount?) #f (first mount?)))
+      (if (null? (Host %dev-ino path)) ()
+        (if (eq? (Host %backend) (lit darwin)) (Host %darwin-holders path whole) (Host %linux-holders path whole))))
+
+    (method %darwin-holders (self (param path STRING "A path that stats") (param whole BOOLEAN "Its file system rather than the path"))
+      (doc "holders, from proc_listpidspath over PROC_ALL_PIDS: the kernel walks each process's descriptors, directories, text and mappings. The buffer has room for the process table proc_listpids reports, and a few hundred more."
+        (returns LIST "Pids"))
+      (def ref (prim-ref (lit ptr) (lit ref)))
+      (def want (Host %call "proc_listpids" 1 0 0 0))
+      (def size (+ (if (< want 0) 0 want) 1024))
+      (def b (Host %buf size))
+      (def p (Host %ptr b))
+      (def got (Host %call "proc_listpidspath" 1 0 path (if whole 1 0) p size))
+      (def go (fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (ref p (* 4 i) 4) acc)))))
+      (if (<= got 0) () (List sort < (go (- (/ got 4) 1) ()))))
+
+    (method %linux-holders (self (param path STRING "A path that stats") (param whole BOOLEAN "Its file system rather than the path"))
+      (doc "holders, from each process's files records: one whose dev (and, for the path itself, ino) matches the path's stat. Its links and descriptors are read first, and its mappings only when they do not settle it."
+        (returns LIST "Pids"))
+      (def id (Host %dev-ino path))
+      ; = reads only integers, and a record may have no dev or ino
+      (def same? (fn (_ a b) (if (null? a) #f (if (null? b) #f (= a b)))))
+      (def hit?
+        (fn (_ r)
+          (if (same? (Assoc get (lit dev) r) (first id))
+            (if whole #t (same? (Assoc get (lit ino) r) (rest id)))
+            #f)))
+      (def holds?
+        (fn (_ pid)
+          (if (List any? hit? (Host files pid (lit cwd) (lit root) (lit exe) (lit fd))) #t
+            (List any? hit? (Host files pid (lit map))))))
+      (List filter holds? (List sort < (List map (fn (_ r) (Assoc get (lit pid) r)) (Host processes)))))
 
     (method %linux-btime (self)
       (doc "The boot time /proc/stat records, the base of a process's start time."
