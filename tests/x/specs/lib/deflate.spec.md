@@ -98,13 +98,23 @@ ever repeat three in a row, so nearly every byte is a literal token: past
 
 ```x
 (do (import x/codec/deflate) (import x/codec/inflate) (import x/codec/zlib)
+  ; every prim bound once, and the int doors, outside the 20000-step loops:
+  ; a prim-ref walks the catalogue and the tower allocates, on every step
+  (def %df-i< (prim-ref (lit int) (lit <)))
+  (def %df-i+ (prim-ref (lit int) (lit +)))
+  (def %df-i- (prim-ref (lit int) (lit -)))
+  (def %df-i& (prim-ref (lit int) (lit &)))
+  (def %df-i* (prim-ref (lit int) (lit *)))
+  (def %df-i% (prim-ref (lit int) (lit %)))
+  (def %df-ref (prim-ref (lit ptr) (lit ref)))
+  (def %df-set! (prim-ref (lit ptr) (lit set!)))
   (def %df-bytes (fn (_ r n) (let ((p ((prim-ref (lit str) (lit ->ptr)) r)))
-    ((fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (& ((prim-ref (lit ptr) (lit ref)) p i 1) 255) acc)))) (- n 1) ()))))
+    ((fn (self i acc) (if (%df-i< i 0) acc (self (%df-i- i 1) (pair (%df-i& (%df-ref p i 1) 255) acc)))) (%df-i- n 1) ()))))
   (write
     ((fn (_)
        (def in ((prim-ref (lit str) (lit make)) 20000))
        (def p ((prim-ref (lit str) (lit ->ptr)) in))
-       ((fn (self i s) (when (< i 20000) (do ((prim-ref (lit ptr) (lit set!)) p i (+ 32 (& s 63)) 1) (self (+ i 1) (% (* s 75) 65537))))) 0 1)
+       ((fn (self i s) (when (%df-i< i 20000) (do (%df-set! p i (%df-i+ 32 (%df-i& s 63)) 1) (self (%df-i+ i 1) (%df-i% (%df-i* s 75) 65537))))) 0 1)
        (def z (Deflate zlib in 0 20000))
        (def back (Inflate zlib (first z) 0 (first (rest z))))
        (def same? (= 0 ((prim-ref (lit mem) (lit cmp)) p ((prim-ref (lit str) (lit ->ptr)) (first back)) 20000)))
@@ -168,13 +178,21 @@ carries the length, never a string's own.
 
 ```x
 (do (import x/codec/deflate) (import x/codec/inflate) (import x/codec/zlib)
+  ; every prim bound once outside the 70000-step loops, as in the 20000-byte case
+  (def %df-i< (prim-ref (lit int) (lit <)))
+  (def %df-i+ (prim-ref (lit int) (lit +)))
+  (def %df-i- (prim-ref (lit int) (lit -)))
+  (def %df-i& (prim-ref (lit int) (lit &)))
+  (def %df-i* (prim-ref (lit int) (lit *)))
+  (def %df-ref (prim-ref (lit ptr) (lit ref)))
+  (def %df-set! (prim-ref (lit ptr) (lit set!)))
   (def %df-bytes (fn (_ r n) (let ((p ((prim-ref (lit str) (lit ->ptr)) r)))
-    ((fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (& ((prim-ref (lit ptr) (lit ref)) p i 1) 255) acc)))) (- n 1) ()))))
+    ((fn (self i acc) (if (%df-i< i 0) acc (self (%df-i- i 1) (pair (%df-i& (%df-ref p i 1) 255) acc)))) (%df-i- n 1) ()))))
   (write
     ((fn (_)
        (def in ((prim-ref (lit str) (lit make)) 70000))
        (def p ((prim-ref (lit str) (lit ->ptr)) in))
-       ((fn (self i) (when (< i 70000) (do ((prim-ref (lit ptr) (lit set!)) p i (& (* i 7) 255) 1) (self (+ i 1))))) 0)
+       ((fn (self i) (when (%df-i< i 70000) (do (%df-set! p i (%df-i& (%df-i* i 7) 255) 1) (self (%df-i+ i 1))))) 0)
        (def z (Deflate zlib-stored in 0 70000))
        (def back (Inflate zlib (first z) 0 (first (rest z))))
        (def same? (= 0 ((prim-ref (lit mem) (lit cmp)) p ((prim-ref (lit str) (lit ->ptr)) (first back)) 70000)))
