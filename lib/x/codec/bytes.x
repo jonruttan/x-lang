@@ -27,6 +27,11 @@
 (def %pset1 (prim-ref (lit ptr) (lit set!)))
 (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
 (def %int->ptr (prim-ref (lit int) (lit ->ptr)))
+; The foreign door, bound once: a prim-ref walks the catalogue, thousands of
+; objects a call.  The C symbols themselves are looked up per call (below).
+(def %dlopen (prim-ref (lit ffi) (lit dlopen)))
+(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+(def %ptr-call (prim-ref (lit ptr) (lit call)))
 
 (def %byte (fn (_ s i) (%char->int (%byte-ref s i))))
 
@@ -48,13 +53,13 @@
     (def s (%r-buf r))
     (def start (%r-start r))
     (def len (%r-len r))
-    (def memcpy (guard (e ()) ((prim-ref (lit ffi) (lit dlsym)) ((prim-ref (lit ffi) (lit dlopen)) () 1) "memcpy")))
+    (def memcpy (guard (e ()) (%dlsym (%dlopen () 1) "memcpy")))
     (if (null? memcpy)
       ((fn (self i)
          (unless (= i len)
            (do (%pset1 p (%add at i) (%byte s (%add start i)) 1) (self (%add i 1))))) 0)
       (when (> len 0)
-        ((prim-ref (lit ptr) (lit call)) memcpy
+        (%ptr-call memcpy
           (%int->ptr (%add (%ptr->int p) at))
           (%int->ptr (%add (%ptr->int (%str->ptr s)) start))
           len)))))
@@ -168,14 +173,14 @@
         (example "(Bytes find (Bytes of-hex \"00112233\") (Bytes of-hex \"2233\"))" "2"))
       (def h (%as-region hay))
       (def n (%as-region needle))
-      (def memmem (guard (e ()) ((prim-ref (lit ffi) (lit dlsym)) ((prim-ref (lit ffi) (lit dlopen)) () 1) "memmem")))
+      (def memmem (guard (e ()) (%dlsym (%dlopen () 1) "memmem")))
       (if (null? memmem)
         ((fn (self i)
            (if (> (+ i (%r-len n)) (%r-len h)) ()
              (if (Bytes same? (list (%r-buf h) (+ (%r-start h) i) (%r-len n)) n) i (self (+ i 1)))))
          0)
         (do (def base (%add (%ptr->int (%str->ptr (%r-buf h))) (%r-start h)))
-            (def at ((prim-ref (lit ptr) (lit call)) memmem (%int->ptr base) (%r-len h)
+            (def at (%ptr-call memmem (%int->ptr base) (%r-len h)
                       (%int->ptr (%add (%ptr->int (%str->ptr (%r-buf n))) (%r-start n))) (%r-len n)))
             (def p at)
             (if (= p 0) () (%sub p base)))))

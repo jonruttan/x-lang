@@ -15,10 +15,11 @@
 (module x/codec/mont-jit)
 
 (import x/tool/compile compile-asm)
+(import x/tool/jit-group jit-group)
 (import x/type/vector)
 ; A pure engine's inverse collects at fixed points, as mont-pow does.
 (import x/sys/gc)
-(import x/codec/mont mont-n mont-mul mont-add mont-sub mont-to mont-number mont-bytes mont-minus-two mont-r2)
+(import x/codec/mont mont-n mont-mul mont-add mont-sub mont-to mont-number mont-bytes mont-minus-two mont-r2 mont-r2-set? mont-set-r2!)
 
 (def %mj-make-str (prim-ref (lit str) (lit make)))
 (def %mj-str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -333,17 +334,42 @@
     (%mj-oset! e 2 ptr)
     (%mj-oset! e 3 (%mj-ptr->int ptr))
     (%mj-oset! e 4 n)
-    (%mj-oset! e 5 (compile-asm (%mj-mul-expr n ps inv T D S C Q)))
-    (%mj-oset! e 6 (compile-asm (%mj-add-expr n ps T D S C)))
-    (%mj-oset! e 7 (compile-asm (%mj-sub-expr n ps T D S C)))
-    (%mj-oset! e 10 (compile-asm (%mj-copy-expr n)))
-    (%mj-oset! e 11 (compile-asm (%mj-or-expr n)))
-    (%mj-oset! e 12 (compile-asm (%mj-xor-or-expr n)))
-    (%mj-oset! e 8 (lit compiled))
-    (%mj-oset! e 9 m)
-    (%mj-check e m)
-    (%mj-reserve! e m)
-    e))
+    ; the six functions as one cache group, keyed by the modulus's limbs:
+    ; a later process pours them with no expression generated or printed,
+    ; and skips the check, which passed on these bytes when they were stored
+    (jit-group (Str8 append "mont-jit:" (Str8 join "." (List map (fn (_ p) (Str8 str p)) ps)))
+      (fn (_)
+        (list (%mj-mul-expr n ps inv T D S C Q) (%mj-add-expr n ps T D S C) (%mj-sub-expr n ps T D S C)
+              (%mj-copy-expr n) (%mj-or-expr n) (%mj-xor-or-expr n)))
+      (fn (_ fns replayed?)
+        (%mj-oset! e 5 (List ref 0 fns))
+        (%mj-oset! e 6 (List ref 1 fns))
+        (%mj-oset! e 7 (List ref 2 fns))
+        (%mj-oset! e 10 (List ref 3 fns))
+        (%mj-oset! e 11 (List ref 4 fns))
+        (%mj-oset! e 12 (List ref 5 fns))
+        (%mj-oset! e 8 (lit compiled))
+        (%mj-oset! e 9 m)
+        (%mj-r2! e m)
+        (unless replayed? (%mj-check e m))
+        (%mj-reserve! e m)
+        e))))
+
+; R^2 mod m into the modulus by the compiled add, when nothing has set it:
+; 2^(52n) mod m is one doubled 52n times, each a compiled add mod m, where
+; mont.x's own pure-x loop is two hundred milliseconds for P-256's prime.
+(def %mj-r2!
+  (fn (_ e m)
+    (unless (mont-r2-set? m)
+      (do (def n (mont-n m))
+          (def one (Vector make n 0))
+          (%mj-oset! one 1 1)
+          (mont-jit-load! e %mj-acc one)
+          ((fn (self k)
+             (unless (= k 0)
+               (do (mont-jit-add e %mj-acc %mj-acc %mj-acc) (self (- k 1)))))
+           (* 52 n))
+          (mont-set-r2! m (mont-jit-store e %mj-acc))))))
 
 ; The compiled engine when the lane builds it and it proves out, the pure
 ; one when not: the same answers either way, the pure one slower.

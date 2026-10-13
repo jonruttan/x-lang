@@ -18,7 +18,7 @@
 
 (import x/type/vector)
 (import x/codec/fe25519 fe-tobytes fe-mul)
-(import x/codec/fe25519-jit fe-jit-compile fe-jit-chains)
+(import x/codec/fe25519-jit fe-jit-compile fe-jit-replayed? fe-jit-chains)
 
 (def %ej-make-str (prim-ref (lit str) (lit make)))
 (def %ej-str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -59,8 +59,10 @@
     (def %add (List ref 1 %ops))
     (def %sub (List ref 2 %ops))
     ; the build's garbage goes before the engine runs; a collect here has
-    ; nothing of the caller's live (the maker is called once, to build)
-    (Heap collect)
+    ; nothing of the caller's live (the maker is called once, to build) --
+    ; and replayed operations compiled nothing, so the collect, which marks
+    ; the whole live heap, is skipped
+    (unless (fe-jit-replayed?) (Heap collect))
     (def %buf (%ej-make-str 2048))
     (def %ptr (%ej-str->ptr %buf))
     (def %addr (%ej-ptr->int %ptr))
