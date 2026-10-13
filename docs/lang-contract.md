@@ -170,6 +170,35 @@ A bundle that obeys this relocates. A bundle that does not is nailed to the
 directory it was written in — which is not a hypothetical failure, it is
 precisely how the previous generation died.
 
+### Modules, names and classes
+
+A bundle's files are library files, and the library's three rules hold in
+a bundle:
+
+- **Every file but the entry is a scoped module.** Its first form is
+  `(module NAME)`, with NAME under the bundle's own prefix (`cc/parse`,
+  `python/tokens`), and only what `provide` lists leaves it. A `%` name is
+  the module's own and is never provided. The entry is the one file in the
+  root: it imports the modules and registers the lang.
+- **A name chosen at run time is a class.** An applet table, a builtin
+  table, a command keyed by what the user typed: the names are static
+  methods of a class, and `(Class name args)` is the lookup. Not an assoc
+  list of `(name . function)`, not a `Dict` of functions, not a chain of
+  string compares ([code-quality.md](code-quality.md), rule 1.2). A class
+  spread over many files is filled in with `(Class def-static! 'name fn)`
+  from each.
+- **A prefix is not a namespace.** `%cu-…` and `%py-…` in the root are
+  what module scope replaced. A private helper lives in the module whose
+  public name uses it; a helper two modules share is provided by one and
+  imported by the other.
+
+The lang's *values* stay on the type system
+([crafting-a-lang.md](crafting-a-lang.md), section 5): their
+representation, printing, iteration and operators. That section says where
+a value goes. It does not say a bundle has no classes: the bundle's own
+machinery, its tables of applets, builtins and options, is a class wherever
+a name picks a function, and a module otherwise.
+
 ### The declaration
 
 `lang.xon` — xon, read with the ordinary reader and never evaluated, like

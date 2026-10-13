@@ -7,9 +7,9 @@ three things in it are O(N) by hand.
 
 > **Status.** Rulings 1, 2 and 5 are built: the lang kit under
 > `tools/lang-kit/`, the release-refs gate in four bundles (x-coreutils,
-> x-logo, x-r5rs, x-r7rs), and `requires-lang`. Rulings 3 and 4, the
-> pre-release bundle run and the pins in the registry, are not, and are still
-> asked for.
+> x-logo, x-r5rs, x-r7rs), and `requires-lang`. Ruling 3 is settled by
+> pinning, and its checks are each bundle's own. Ruling 4, the pins in the
+> registry, is not built.
 
 ## The problem
 
@@ -116,25 +116,23 @@ on its own line, where no proximity test can pair it with its name.
 
 ## Ruling 3: arrange the checks by cadence, not by repository
 
-The sequential six-suite sweep does not belong on every commit. What belongs
-where is a question about **when the answer can still change the outcome**:
+The sequential six-suite sweep does not belong on every commit, and a run
+of every bundle does not belong in front of a release either. What belongs
+where follows from one fact: **a bundle pins the x-lang release it runs
+on.** A new release cannot break a bundle until the bundle moves its pin,
+and when it does, the bundle's own CI tests the new pairing, in the
+repository that can fix it.
 
 | cadence | where | what |
 |---|---|---|
 | per commit | x-lang | `check-seam` — the rename |
-| per commit | x-lang | a load smoke per lang: does it boot and name itself? |
-| **pre-release** | x-lang | the full bundle matrix, before the tag exists |
 | per commit | bundle | its own suite and its ratchet |
-| scheduled | bundle | against x-lang `main`, so drift is a red build |
+| on a pin bump | bundle | its suite against the release it now declares |
+| scheduled | bundle | against x-lang `main`, so drift is a red build and not a surprise at the bump |
 
-The move that matters is **pre-release**. A bundle matrix run after tagging
-reports history; run before, it can stop a release that would break six
-downstreams — which is the same ruling the release workflows already follow
-when they run a suite before rolling a tarball.
-
-The load smoke is the cheap half of `check-langs`: a lang that no longer loads
-is the catastrophic case, it is cheap to detect, and it does not need a
-quiet machine to be true.
+A pre-release run of every bundle against the unreleased platform tests a
+pairing no user runs, and holds a release until bundles are fixed against a
+release that does not exist yet. Pinning makes it unnecessary.
 
 ## Ruling 4: the registry carries pins, not just directories
 
