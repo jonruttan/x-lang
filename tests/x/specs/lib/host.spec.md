@@ -184,6 +184,18 @@ clear it), so a later case in the same batch reads the real machine.
 ---
     (('use 'fd 'dev 'ino 'type 'name 'id) 'file #t #t #t 1 #t #t (0 1 2) ())
 
+### holders: this process holds its working directory, and its file system; a path that will not stat has none
+
+```x
+(do (import x/sys/host)
+  (def me (Sys getpid))
+  (def hs (Host holders "."))
+  (list (List includes? me hs) (List includes? me (Host holders "." #t))
+        (equal? hs (List sort < hs)) (Host holders "/no/such/path")))
+```
+---
+    (#t #t #t ())
+
 ### utmp: every entry has a user and a type, and users is its user-process entries
 
 ```x
@@ -413,6 +425,42 @@ packed as this platform's stat(2) packs a device.
 ```
 ---
     ((('cwd () 'file "/tmp" () () () ()) ('root () 'file "/" () () () ()) ('exe () 'file "/bin/sh" () () () ()) ('fd 0 'file "/dev/null" () () () ()) ('fd 1 'socket "socket:[12345]" 12345 'tcp 4 8080) ('fd 2 'pipe "pipe:[678]" 678 () () ()) ('fd 3 'file "/tmp/gone (deleted)" () () () ()) ('fd 4 'anon_inode "anon_inode:inotify" () () () ()) ('fd 10 'anon_inode "anon_inode:[eventfd]" () () () ()) ('map () 'file "/bin/busybox" () () () ()) ('map () 'file "/lib/ld-musl-x86_64.so.1" () () () ()) ('map () 'file "/dev/zero (deleted)" () () () ())) #t #t () ("/tmp" "/bin/busybox" "/lib/ld-musl-x86_64.so.1" "/dev/zero (deleted)") ())
+
+### holders reads each process's links and descriptors: a descriptor, an executable, a whole file system, a path no process holds; a maps device prints as the kernel prints it
+
+```x
+(do (import x/sys/host)
+  (Host source 'linux)
+  (Host proc-root "tests/x/fixtures/host/proc")
+  (def r (list (Host holders "/dev/null") (Host holders "/bin/sh") (Host holders "/dev/null" #t)
+               (Host holders "tests/x/specs/lib/host.spec.md")
+               (List map (fn (_ s) (Host %maps-dev (Host %linux-dev s))) (list "08:01" "103:2a" "00:2f"))))
+  (Host source (if os-darwin? (lit darwin) (lit linux))) (Host proc-root "/proc")
+  r)
+```
+---
+    ((42) (42) (42) () ("08:01" "103:2a" "00:2f"))
+
+### holders finds a file a process only maps, by the maps line's device and inode, and its file system with mount?
+
+```x
+(do (import x/sys/host)
+  (def f "tests/x/specs/lib/host.spec.md")
+  (def id (Host %dev-ino f))
+  (def root "/tmp/x-host-holders")
+  (File mkdir root) (File mkdir (Str8 append root "/9")) (File mkdir (Str8 append root "/9/fd"))
+  (File write-all (Str8 append root "/9/maps")
+    (Str8 append "7f0000000000-7f0000001000 r--p 00000000 " (Host %maps-dev (first id)) " " (Str8 str (rest id))
+                 "                    /x/host.spec.md\n7f0000001000-7f0000002000 rw-p 00000000 00:00 0 \n"))
+  (Host source 'linux)
+  (Host proc-root root)
+  (def r (list (Host holders f) (Host holders f #t) (Host holders "/dev/null")))
+  (Host source (if os-darwin? (lit darwin) (lit linux))) (Host proc-root "/proc")
+  (File unlink (Str8 append root "/9/maps")) (File rmdir (Str8 append root "/9/fd")) (File rmdir (Str8 append root "/9")) (File rmdir root)
+  r)
+```
+---
+    ((9) (9) ())
 
 ### counters reads /proc/stat, /proc/vmstat and file-nr: KiB paged to bytes, open files in use
 

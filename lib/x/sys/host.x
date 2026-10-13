@@ -43,7 +43,7 @@
 (def-class Host ()
   (doc "The machine as the kernel reports it: boot time, load, memory, CPU time, system-wide counters, disk, network and interrupt totals, processes and logged-in users, the same records on Linux and Darwin."
     (note "A field the kernel does not report is nil. Darwin reports another user's process memory and CPU time only to root.")
-    (see boot-time) (see load) (see tasks) (see memory) (see cpu) (see cpus) (see counters) (see disks) (see interfaces) (see interrupts) (see processes) (see process) (see args) (see exe) (see threads) (see maps) (see files) (see utmp) (see users))
+    (see boot-time) (see load) (see tasks) (see memory) (see cpu) (see cpus) (see counters) (see disks) (see interfaces) (see interrupts) (see processes) (see process) (see args) (see exe) (see threads) (see maps) (see files) (see holders) (see utmp) (see users))
   (static
     (source    ()      "'linux or 'darwin: which reader answers; nil means this kernel's")
     (proc-root "/proc" "The /proc tree the Linux reader opens")
@@ -1193,6 +1193,60 @@
             (List reverse (go 0 () ())))
           ()))
       (List append dirs exe fds maps))
+
+    (method holders (self (param path STRING "A path, followed through links") . (param mount? LIST "#t to ask for its whole file system instead"))
+      (doc "The processes that hold a path: as their working directory, root or executable, through a descriptor or a mapping, in pid order; with mount? #t, those that hold anything on the path's file system. Darwin asks the kernel, with proc_listpidspath (PROC_LISTPIDSPATH_PATH_IS_VOLUME for the file system); Linux reads each process's files records and compares the device and inode. A process whose files this user may not read is not among them. nil when the path will not stat."
+        (returns ANY "LIST of pids, or nil")
+        (sample "(List includes? (Sys getpid) (Host holders \".\"))" "#t"))
+      (def whole (if (null? mount?) #f (first mount?)))
+      (if (null? (Host %dev-ino path)) ()
+        (if (eq? (Host %backend) (lit darwin)) (Host %darwin-holders path whole) (Host %linux-holders path whole))))
+
+    (method %darwin-holders (self (param path STRING "A path that stats") (param whole BOOL "Its file system rather than the path"))
+      (doc "holders, from proc_listpidspath over PROC_ALL_PIDS: the kernel walks each process's descriptors, directories, text and mappings. The buffer has room for the process table proc_listpids reports, and a few hundred more."
+        (returns LIST "Pids"))
+      (def ref (prim-ref (lit ptr) (lit ref)))
+      (def want (Host %call "proc_listpids" 1 0 0 0))
+      (def size (+ (if (< want 0) 0 want) 1024))
+      (def b (Host %buf size))
+      (def p (Host %ptr b))
+      (def got (Host %call "proc_listpidspath" 1 0 path (if whole 1 0) p size))
+      (def go (fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (ref p (* 4 i) 4) acc)))))
+      (if (<= got 0) () (List sort < (go (- (/ got 4) 1) ()))))
+
+    (method %linux-holders (self (param path STRING "A path that stats") (param whole BOOL "Its file system rather than the path"))
+      (doc "holders, from each /proc/PID: the cwd, root and exe links and the fd links stat'd, then the maps text searched for the path's ` MAJ:MIN INODE ` (or with whole, ` MAJ:MIN `) as the kernel prints it, one strstr over the file. A process is read only as far as its first match."
+        (returns LIST "Pids"))
+      (def id (Host %dev-ino path))
+      (def root (Host proc-root))
+      (def hit?
+        (fn (_ p)
+          (def di (Host %dev-ino p))
+          (if (null? di) #f (if (= (first di) (first id)) (if whole #t (= (rest di) (rest id))) #f))))
+      (def key (Str8 append " " (Host %maps-dev (first id)) (if whole " " (Str8 append " " (Str8 str (rest id)) " "))))
+      (def holds?
+        (fn (_ pid)
+          (def dir (Str8 append root "/" pid))
+          (def fds (guard (e ()) (File list-dir (Str8 append dir "/fd"))))
+          (match
+            ((List any? (fn (_ n) (hit? (Str8 append dir "/" n))) (lit ("cwd" "root" "exe"))) #t)
+            ((List any? (fn (_ n) (hit? (Str8 append dir "/fd/" n))) fds) #t)
+            (#t (let ((text (Host %read (Str8 append dir "/maps"))))
+                  (if (null? text) #f (not (= 0 (Host %call "strstr" text key)))))))))
+      (def pids (List filter (fn (_ n) (not (null? (Host %int n)))) (guard (e ()) (File list-dir root))))
+      (List sort < (List map (fn (_ n) (Host %int n)) (List filter holds? pids))))
+
+    (method %maps-dev (self (param dev INTEGER "A device number, as stat(2) reports it"))
+      (doc "The device as /proc/PID/maps prints it, MAJ:MIN in lower-case hexadecimal, two digits at least: %linux-dev read backwards, in this platform's encoding."
+        (returns STRING "MAJ:MIN"))
+      (def maj (if os-darwin? (/ dev 16777216) (+ (& (/ dev 256) 4095) (- (/ dev 4294967296) (& (/ dev 4294967296) 4095)))))
+      (def min (if os-darwin? (& dev 16777215) (+ (& dev 255) (- (/ dev 4096) (& (/ dev 4096) 255)))))
+      (def digits "0123456789abcdef")
+      (def hex
+        (fn (self n acc)
+          (def s (Str8 append (Str8 sub (& n 15) 1 digits) acc))
+          (if (< n 16) (if (< (Str8 length s) 2) (Str8 append "0" s) s) (self (/ n 16) s))))
+      (Str8 append (hex maj "") ":" (hex min "")))
 
     (method %linux-btime (self)
       (doc "The boot time /proc/stat records, the base of a process's start time."
