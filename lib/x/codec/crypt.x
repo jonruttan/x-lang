@@ -213,10 +213,11 @@
       (if (<= n (rest region)) (list (pair (first region) n))
         (pair region (self region (%sub n (rest region))))))))
 
-; a hash: the digest of joined regions, its size, and its compiled engine
-(def %md5 (list (fn (_ r) (Md5 bytes-n (first r) (rest r))) 16 (fn (_) (Md5 jit!))))
-(def %sha256 (list (fn (_ r) (Sha256 bytes-n (first r) (rest r))) 32 (fn (_) (Sha256 jit!))))
-(def %sha512 (list (fn (_ r) (Sha512 bytes-n (first r) (rest r))) 64 (fn (_) (Sha512 jit!))))
+; a hash: the digest of joined regions, its size, its compiled engine, and
+; its digest of a region into a buffer, asked for once the engine is built
+(def %md5 (list (fn (_ r) (Md5 bytes-n (first r) (rest r))) 16 (fn (_) (Md5 jit!)) (fn (_) (Md5 bytes-writer))))
+(def %sha256 (list (fn (_ r) (Sha256 bytes-n (first r) (rest r))) 32 (fn (_) (Sha256 jit!)) (fn (_) (Sha256 bytes-writer))))
+(def %sha512 (list (fn (_ r) (Sha512 bytes-n (first r) (rest r))) 64 (fn (_) (Sha512 jit!)) (fn (_) (Sha512 bytes-writer))))
 (def %digest (fn (_ h regions) (pair ((first h) (%join regions)) (first (rest h)))))
 
 ; V's N low six-bit groups, low first, as crypt's base-64
@@ -248,18 +249,37 @@
 
 ; the thousand rounds both families share: odd rounds start with the key,
 ; every third adds the salt, every seventh the key, and the last digest
-; comes first on even rounds, last on odd
+; comes first on even rounds, last on odd.  Each round's message is copied
+; into one buffer and digested into another, which the next round copies
+; from: no list and no buffer a round, so collects can be rare.
 (def %rounds
-  (fn (self h n i d key salt)
-    (if (= i n) (do (Heap collect) d)
-      (do (when (= (& i 31) 31) (Heap collect))
-          (self h n (%add i 1)
-            (%digest h (List append
-                        (list (if (= (& i 1) 1) key d))
-                        (if (= (% i 3) 0) () (list salt))
-                        (if (= (% i 7) 0) () (list key))
-                        (list (if (= (& i 1) 1) d key))))
-            key salt)))))
+  (fn (_ h n d key salt)
+    (def size (first (rest h)))
+    (def into ((first (rest (rest (rest h))))))
+    (def kp (%str->ptr (first key)))
+    (def kn (rest key))
+    (def sp (%str->ptr (first salt)))
+    (def sn (rest salt))
+    (def dbuf (%make-str (%add size 1)))
+    (def dp (%str->ptr dbuf))
+    (%mem-copy dp (%str->ptr (first d)) size)
+    (def msg (%make-str (%add (%add (<< kn 1) sn) (%add (<< size 1) 1))))
+    (def mp (%ptr->int (%str->ptr msg)))
+    ; N bytes from SRC at AT in the message, and the offset after them
+    (def put
+      (fn (_ at src n)
+        (do (when (> n 0) (%mem-copy (%int->ptr (%add mp at)) src n))
+            (%add at n))))
+    ((fn (self i)
+       (if (= i n) (do (Heap collect) (pair dbuf size))
+         (do (when (= (& i 255) 255) (Heap collect))
+             (def odd (= (& i 1) 1))
+             (def a0 (put 0 (if odd kp dp) (if odd kn size)))
+             (def a1 (if (= (% i 3) 0) a0 (put a0 sp sn)))
+             (def a2 (if (= (% i 7) 0) a1 (put a1 kp kn)))
+             (into msg (put a2 (if odd dp kp) (if odd size kn)) dbuf)
+             (self (%add i 1)))))
+     0)))
 
 ; MD5-crypt: (DIGEST . SALT)
 (def %md5-crypt
@@ -275,7 +295,7 @@
            (if (= i 0) (List reverse acc)
              (self (>> i 1) (pair (if (= (& i 1) 1) (pair %nul 1) (pair key 1)) acc))))
          (rest k) ())))
-    (%rounds %md5 1000 0 (%digest %md5 ctx) k s)))
+    (%rounds %md5 1000 (%digest %md5 ctx) k s)))
 
 ; SHA-crypt with hash H: the final digest
 (def %sha-crypt
@@ -296,7 +316,7 @@
     (def p (%join (%cycle dp (rest k))))
     (def ds (%digest h (%cycle s (%mul (%add 16 (%b (first a) 0)) (rest s)))))
     (def ss (%join (%cycle ds (rest s))))
-    (%rounds h rounds 0 a p ss)))
+    (%rounds h rounds a p ss)))
 
 ; a SHA-crypt salt as busybox reads one: (ROUNDS GIVEN? . SALT), the rounds
 ; from a leading rounds=N$ held to 1000..999999999

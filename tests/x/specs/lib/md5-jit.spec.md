@@ -72,3 +72,27 @@ The two share one module and one driver; each keeps its own scratch and H.
 ```
 ---
     (900150983cd24fb0d6963f7d28e17f72 a9993e364706816aba3e25717850c26c9cd0d89d)
+
+### bytes-into writes the engine's digest into a buffer it is handed, again and again
+
+```x
+(do
+  (import x/codec/md5)
+  (import x/codec/hex)
+  (Md5 jit!)
+  (def %bi-ref (prim-ref (lit str) (lit byte-ref)))
+  (def %bi-int (prim-ref (lit char) (lit ->int)))
+  (def %bi-out ((prim-ref (lit str) (lit make)) 16))
+  (def %bi-hex
+    (fn (_ s)
+      (do (Md5 bytes-into s (Str8 length s) %bi-out)
+          (Hex encode-bytes
+            (List map (fn (_ i) (%bi-int (%bi-ref %bi-out i)))
+                      (List range 0 16))))))
+  (def %bi-long (Str8 pad-right 300 #\q "z"))
+  (write (list (str=? (%bi-hex "abc") (Md5 hex "abc"))
+               (str=? (%bi-hex %bi-long) (Md5 hex %bi-long))
+               (str=? (%bi-hex "") (Md5 hex "")))))
+```
+---
+    (#t #t #t)

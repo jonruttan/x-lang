@@ -60,6 +60,30 @@ environment.
 ---
     (#t #t #t #t)
 
+### bytes-into writes the engine's digest into a buffer it is handed, again and again
+
+```x
+(do
+  (import x/codec/sha512)
+  (import x/codec/hex)
+  (Sha512 jit!)
+  (def %bi-ref (prim-ref (lit str) (lit byte-ref)))
+  (def %bi-int (prim-ref (lit char) (lit ->int)))
+  (def %bi-out ((prim-ref (lit str) (lit make)) 64))
+  (def %bi-hex
+    (fn (_ s)
+      (do (Sha512 bytes-into s (Str8 length s) %bi-out)
+          (Hex encode-bytes
+            (List map (fn (_ i) (%bi-int (%bi-ref %bi-out i)))
+                      (List range 0 64))))))
+  (def %bi-long (Str8 pad-right 300 #\q "z"))
+  (write (list (str=? (%bi-hex "abc") (Sha512 hex "abc"))
+               (str=? (%bi-hex %bi-long) (Sha512 hex %bi-long))
+               (str=? (%bi-hex "") (Sha512 hex "")))))
+```
+---
+    (#t #t #t)
+
 ### SHA-384 rides the same engine, from its own initial words
 
 ```x
