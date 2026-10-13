@@ -11,12 +11,13 @@
 ; /proc/stat for CPU time, the boot time and the event counts; /proc/vmstat
 ; for paging; /proc/loadavg for the run queue; /proc/diskstats,
 ; /proc/net/dev, /proc/interrupts and /proc/softirqs for the devices;
-; /proc/PID/stat for a process, /proc/PID/task for its threads and
-; /proc/PID/smaps for its mappings.  Darwin reads sysctl (kern.boottime,
-; vm.loadavg, hw.memsize, vm.swapusage, kern.proc.all, kern.procargs2,
-; NET_RT_IFLIST2), the Mach host and processor statistics, IOKit's block
-; storage statistics and proc_pidinfo, all through the dlopen FFI.  Both
-; read utmpx through libc's getutxent, as BusyBox does.
+; /proc/PID/stat for a process, /proc/PID/task for its threads,
+; /proc/PID/smaps for its mappings and /proc/PID/fd for its open files.
+; Darwin reads sysctl (kern.boottime, vm.loadavg, hw.memsize, vm.swapusage,
+; kern.proc.all, kern.procargs2, NET_RT_IFLIST2), the Mach host and
+; processor statistics, IOKit's block storage statistics, proc_pidinfo and
+; proc_pidfdinfo, all through the dlopen FFI.  Both read utmpx through
+; libc's getutxent, as BusyBox does.
 ;
 ; A record is an alist keyed by symbols.  A field the kernel does not
 ; report, or will not report to this user, is nil: Darwin refuses another
@@ -42,7 +43,7 @@
 (def-class Host ()
   (doc "The machine as the kernel reports it: boot time, load, memory, CPU time, system-wide counters, disk, network and interrupt totals, processes and logged-in users, the same records on Linux and Darwin."
     (note "A field the kernel does not report is nil. Darwin reports another user's process memory and CPU time only to root.")
-    (see boot-time) (see load) (see tasks) (see memory) (see cpu) (see cpus) (see counters) (see disks) (see interfaces) (see interrupts) (see processes) (see process) (see args) (see exe) (see threads) (see maps) (see utmp) (see users))
+    (see boot-time) (see load) (see tasks) (see memory) (see cpu) (see cpus) (see counters) (see disks) (see interfaces) (see interrupts) (see processes) (see process) (see args) (see exe) (see threads) (see maps) (see files) (see utmp) (see users))
   (static
     (source    ()      "'linux or 'darwin: which reader answers; nil means this kernel's")
     (proc-root "/proc" "The /proc tree the Linux reader opens")
@@ -940,6 +941,258 @@
             (region self ro rw stack sc sd pc pd)
             (if seen (Host %maps-record (list ro rw stack sc sd pc pd)) ()))))
       (go 0 0 0 0 0 0 0 0 #f))
+
+    (method files (self (param pid INTEGER "Process ID") . (param uses LIST "The uses to read, of 'cwd 'root 'exe 'fd 'map; every one when none is named"))
+      (doc "What the process has open, one record each: its current directory, its root, its executable, each file descriptor in descriptor order, and each file it maps. use is 'cwd, 'root, 'exe, 'fd or 'map; fd is the descriptor's number, nil for the others; dev and ino are the device and inode of what it holds; type is 'file for a path and otherwise the kernel's own word ('socket 'pipe 'anon_inode on Linux; 'socket 'pipe 'kqueue 'pshm 'psem 'fsevents 'netpolicy 'channel 'nexus on Darwin); name is the kernel's name for it; id is the kernel's number for a socket or pipe. An internet socket adds proto ('tcp 'udp 'raw or 'icmp), family (4 or 6) and port, its local port. Linux reads the /proc/PID cwd, root, exe and fd links and the maps lines, so a descriptor's name is its link's text whatever the type (socket:[INODE], anon_inode:[eventfd]), and joins a socket to /proc/net by its inode; Darwin asks proc_pidinfo and proc_pidfdinfo, names only a file, by its path, gives a socket its kernel handle as both id and ino, and reports a root only for a chrooted process. Only the process's owner or root may read them. nil when the process is gone or the kernel will not say."
+        (returns ANY "LIST of file records, or nil")
+        (sample "(Assoc get 'fd (first (Host files (Sys getpid) 'fd)))" "0")
+        (sample "(Assoc get 'name (first (Host files (Sys getpid) 'cwd)))" "\"/Users/me/src\""))
+      (def want (if (null? uses) (lit (cwd root exe fd map)) uses))
+      (if (eq? (Host %backend) (lit darwin)) (Host %darwin-files pid want) (Host %linux-files pid want)))
+
+    (method %file-record (self (param use SYMBOL "cwd root exe fd or map") (param fd ANY "Descriptor, or nil")
+                               (param dev ANY "INTEGER, or nil") (param ino ANY "INTEGER, or nil")
+                               (param type ANY "SYMBOL, or nil") (param name ANY "STRING, or nil")
+                               (param id ANY "INTEGER, or nil") (param inet LIST "proto family port fields, or nil"))
+      (doc "The files record for one thing a process has open."
+        (returns ALIST "The record"))
+      (pair (pair (lit use) use)
+        (pair (pair (lit fd) fd)
+          (pair (pair (lit dev) dev)
+            (pair (pair (lit ino) ino)
+              (pair (pair (lit type) type)
+                (pair (pair (lit name) name) (pair (pair (lit id) id) inet))))))))
+
+    (method %dev-ino (self (param path STRING "A path, followed through links"))
+      (doc "The device and inode stat(2) reports for path, or nil when it cannot be stat'd. The inode is at 8 in every platform's struct; the device is the word before it, 4 bytes on Darwin and 8 on Linux."
+        (returns ANY "PAIR (dev . ino), or nil"))
+      (def b (Host %buf 160))
+      (if (< ((syscall-door (if os-darwin? (lit stat64) (lit stat))) path b) 0) ()
+        (pair (Host %int-at b 0 (if os-darwin? 4 8)) (Host %int-at b 8 8))))
+
+    (method %linux-dev (self (param s STRING "MAJ:MIN in hexadecimal, as /proc/PID/maps writes it"))
+      (doc "The device number this platform's makedev packs from a major and minor, so a maps line compares equal to stat(2)'s dev for the same file: glibc's on Linux, major << 24 | minor on Darwin, where a spec runs the Linux reader over a fixture."
+        (returns INTEGER "The device"))
+      (def colon (Str8 index-of ":" s))
+      (def maj (Host %hex s))
+      (def min (Host %hex (Str8 sub (+ colon 1) (Str8 length s) s)))
+      (if os-darwin? (+ (* maj 16777216) min)
+        (+ (* (& maj 4095) 256) (* (- maj (& maj 4095)) 4294967296)
+           (& min 255) (* (- min (& min 255)) 4096))))
+
+    (method %linux-sockets (self)
+      (doc "The internet sockets /proc/net lists, by inode: an alist from each inode to its proto, family and local port, from tcp, udp, raw and icmp and their 6 twins. A table the kernel does not have is skipped."
+        (returns ALIST "inode -> (proto family port) fields"))
+      ; sl local_address rem_address st queues tr tm->when retrnsmt uid timeout inode
+      (def table
+        (fn (_ name proto family acc)
+          (def r (Host %fold-lines (Str8 append (Host proc-root) "/net/" name)
+                   (fn (_ line acc)
+                     (def f (Host %fields line))
+                     (if (if (null? f) #t (str=? (first f) "sl")) acc
+                       (let ((local (List ref 1 f)) (ino (Host %int (List ref 9 f))))
+                         (if (null? ino) acc
+                           (pair (pair ino (list (pair (lit proto) proto) (pair (lit family) family)
+                                                 (pair (lit port) (Host %hex (Str8 sub (+ (Str8 index-of ":" local) 1) 4 local)))))
+                                 acc)))))
+                   acc))
+          (if (null? r) acc r)))
+      ((fn (self ts acc)
+         (if (null? ts) acc
+           (let ((t (first ts))) (self (rest ts) (table (first t) (first (rest t)) (first (rest (rest t))) acc)))))
+       (lit (("tcp" tcp 4) ("tcp6" tcp 6) ("udp" udp 4) ("udp6" udp 6) ("raw" raw 4) ("raw6" raw 6) ("icmp" icmp 4) ("icmp6" icmp 6)))
+       ()))
+
+    (method %linux-files (self (param pid INTEGER "Process ID") (param uses LIST "The uses to read"))
+      (doc "files, from the /proc/PID cwd, root, exe and fd links and the maps lines: a link to a path is a file; any other spells its type before a colon and, for a socket or pipe, its inode between brackets. dev and ino are stat(2)'s through the link."
+        (returns ANY "LIST of file records, or nil"))
+      (def dir (Str8 append (Host proc-root) "/" (Str8 str pid)))
+      (def on? (fn (_ u) (List includes? u uses)))
+      ; a link's record; socks is the /proc/net table, read once a process
+      ; and only when one of its descriptors is a socket
+      (def linked
+        (fn (_ use fd path link socks)
+          (def colon (if (null? link) () (Str8 index-of ":" link)))
+          (def di (if (null? link) () (Host %dev-ino path)))
+          (def at (fn (_ f) (if (null? di) () (f di))))
+          (match
+            ((null? link) ())
+            ((Str8 starts? "/" link) (Host %file-record use fd (at first) (at rest) (lit file) link () ()))
+            ((null? colon) (Host %file-record use fd (at first) (at rest) () link () ()))
+            (#t (let ((type (Str8 ->sym (Str8 sub 0 colon link)))
+                      (id (if (Str8 starts? "[" (Str8 sub (+ colon 1) 1 link))
+                            (Host %int (Str8 sub (+ colon 2) (Str8 length link) link)) ())))
+                  (Host %file-record use fd (at first) (at rest) type link id
+                    (if (if (eq? type (lit socket)) (not (null? id)) #f) (Assoc get id socks) ())))))))
+      (def read-link (fn (_ path) (guard (e ()) (File readlink path))))
+      (def one
+        (fn (_ use name)
+          (def path (Str8 append dir "/" name))
+          (if (on? use) (let ((r (linked use () path (read-link path) ()))) (if (null? r) () (list r))) ())))
+      (def fds
+        (if (on? (lit fd))
+          (let ((fd-dir (Str8 append dir "/fd")))
+            ; (fd path link) for each descriptor the kernel lists
+            (def links
+              (List reject null?
+                (List map (fn (_ n)
+                            (let ((fd (Host %int n)) (path (Str8 append fd-dir "/" n)))
+                              (if (null? fd) () (list fd path (read-link path)))))
+                  (guard (e ()) (File list-dir fd-dir)))))
+            (def socks
+              (if (List any? (fn (_ l) (let ((t (first (rest (rest l))))) (if (null? t) #f (Str8 starts? "socket:" t)))) links)
+                (Host %linux-sockets) ()))
+            (List sort-by (fn (_ r) (Assoc get (lit fd) r))
+              (List reject null?
+                (List map (fn (_ l) (linked (lit fd) (first l) (first (rest l)) (first (rest (rest l))) socks)) links))))
+          ()))
+      ; addr perms offset MAJ:MIN inode path: a file mapped more than once is one record
+      (def maps
+        (if (on? (lit map))
+          (let ((r (Host %fold-lines (Str8 append dir "/maps")
+                     (fn (_ line acc)
+                       (def f (Host %fields line))
+                       (def ino (if (< (List length f) 6) () (Host %int (List ref 4 f))))
+                       (def slash (Str8 index-of "/" line))
+                       (if (if (null? ino) #t (if (= ino 0) #t (null? slash))) acc
+                         (let ((name (Str8 sub slash (Str8 length line) line)))
+                           (if (List any? (fn (_ r) (str=? name (Assoc get (lit name) r))) acc) acc
+                             (pair (Host %file-record (lit map) () (Host %linux-dev (List ref 3 f)) ino (lit file) name () ()) acc)))))
+                     ())))
+            (List reverse r))
+          ()))
+      (List append (one (lit cwd) "cwd") (one (lit root) "root") (one (lit exe) "exe") fds maps))
+
+    (method %darwin-files (self (param pid INTEGER "Process ID") (param uses LIST "The uses to read"))
+      (doc "files: proc_pidinfo's PROC_PIDVNODEPATHINFO for the current and root directories, proc_pidpath for the executable, PROC_PIDLISTFDS for the descriptors, a struct proc_fdinfo (fd, type) each, then proc_pidfdinfo for a file's struct vnode_fdinfowithpath or a socket's struct socket_fdinfo or a pipe's struct pipe_fdinfo, and PROC_PIDREGIONPATHINFO's regions from address 0 up for the mapped files."
+        (returns ANY "LIST of file records, or nil"))
+      ; straight off the context's primitives and the int doors, with no class
+      ; call a record and a path read only for a file not already seen: a
+      ; process can hold thousands of descriptors and map a few hundred files
+      ; across thousands of regions
+      (def c (Host %darwin-ctx))
+      (def ref (first c))
+      (def call (first (rest c)))
+      (def make (first (rest (rest c))))
+      (def ->ptr (first (rest (rest (rest c)))))
+      (def pidinfo (first (rest (rest (rest (rest c))))))
+      (def more (rest (rest (rest (rest (rest (rest (rest (rest (rest (rest c))))))))))) ; from cvt on
+      (def cvt (first more))
+      (def string-type (first (rest more)))
+      (def pointer-type (first (rest (rest more))))
+      (def integer-type (first (rest (rest (rest more)))))
+      (def byte-len (first (rest (rest (rest (rest more))))))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i- (prim-ref (lit int) (lit -)))
+      (def i* (prim-ref (lit int) (lit *)))
+      (def i< (prim-ref (lit int) (lit <)))
+      (def i= (prim-ref (lit int) (lit =)))
+      (def i& (prim-ref (lit int) (lit &)))
+      (def i>> (prim-ref (lit int) (lit >>)))
+      (def on? (fn (self u l) (if (null? l) #f (if (eq? u (first l)) #t (self u (rest l))))))
+      (def rec
+        (fn (_ use fd dev ino type name id inet)
+          (pair (pair (lit use) use) (pair (pair (lit fd) fd) (pair (pair (lit dev) dev) (pair (pair (lit ino) ino)
+            (pair (pair (lit type) type) (pair (pair (lit name) name) (pair (pair (lit id) id) inet)))))))))
+      (def info (make 2352))
+      (def ip (->ptr info))
+      (def base (cvt ip integer-type))
+      ; the C string in info at off, nil when empty
+      (def path-at
+        (fn (_ off)
+          (def s (cvt (cvt (i+ base off) pointer-type) string-type))
+          (if (i= 0 (byte-len s)) () s)))
+      ; struct proc_vnodepathinfo: the current directory's vnode_info_path, then
+      ; the root's, 1176 bytes each, its stat's dev at 0 and ino at 8, the path at 152
+      (def dir
+        (fn (_ use off)
+          (def p (if (on? use uses) (path-at (i+ off 152)) ()))
+          (if (null? p) () (list (rec use () (ref ip off 4) (ref ip (i+ off 8) 8) (lit file) p () ())))))
+      (def dirs
+        (if (if (if (on? (lit cwd) uses) #t (on? (lit root) uses)) (i= 2352 (call pidinfo pid 9 0 ip 2352)) #f)
+          (let ((cwd (dir (lit cwd) 0))) (if (null? cwd) (dir (lit root) 1176) (pair (first cwd) (dir (lit root) 1176))))
+          ()))
+      (def exe
+        (let ((p (if (on? (lit exe) uses) (Host exe pid) ())))
+          (if (null? p) ()
+            (let ((di (Host %dev-ino p)))
+              (list (rec (lit exe) () (if (null? di) () (first di)) (if (null? di) () (rest di)) (lit file) p () ()))))))
+      ; PROX_FDTYPE_*
+      (def types (lit ((0 . atalk) (1 . file) (2 . socket) (3 . pshm) (4 . psem) (5 . kqueue)
+                       (6 . pipe) (7 . fsevents) (9 . netpolicy) (10 . channel) (11 . nexus))))
+      (def fdinfo (if (on? (lit fd) uses) (Host %sym "proc_pidfdinfo") ()))
+      ; struct vnode_fdinfowithpath is 1200 bytes: its stat's dev at 24 and
+      ; ino at 32, the path at 176
+      (def file
+        (fn (_ fd)
+          (if (i= 1200 (call fdinfo pid fd 2 ip 1200))
+            (rec (lit fd) fd (ref ip 24 4) (ref ip 32 8) (lit file) (path-at 176) () ())
+            (rec (lit fd) fd () () (lit file) () () ()))))
+      ; struct socket_fdinfo is 792 bytes: soi_so at 160, soi_type 176,
+      ; soi_protocol 180, soi_family 184, soi_kind 256; an internet socket's
+      ; in_sockinfo at 264, its local port at 268 in network order.  A
+      ; SOCK_RAW socket is raw whatever its protocol, as Linux lists every
+      ; one in /proc/net/raw, and only a datagram ICMP socket is icmp
+      (def socket
+        (fn (_ fd)
+          (if (i= 792 (call fdinfo pid fd 3 ip 792))
+            (let ((so (ref ip 160 8)) (proto (ref ip 180 4)) (family (ref ip 184 4)) (kind (ref ip 256 4)))
+              (def port (ref ip 268 2))
+              (rec (lit fd) fd () so (lit socket) () so
+                (if (if (if (i= kind 1) #t (i= kind 2)) (if (i= family 2) #t (i= family 30)) #f)
+                  (list (pair (lit proto)
+                              (match ((i= 3 (ref ip 176 4)) (lit raw))
+                                     ((i= proto 6) (lit tcp)) ((i= proto 17) (lit udp))
+                                     ((if (i= proto 1) #t (i= proto 58)) (lit icmp)) (#t (lit raw))))
+                        (pair (lit family) (if (i= family 2) 4 6))
+                        (pair (lit port) (i+ (i* 256 (i& port 255)) (i>> port 8))))
+                  ())))
+            (rec (lit fd) fd () () (lit socket) () () ()))))
+      ; struct pipe_fdinfo is 184 bytes, pipe_handle at 160
+      (def pipe
+        (fn (_ fd)
+          (rec (lit fd) fd () () (lit pipe) () (if (i= 184 (call fdinfo pid fd 6 ip 184)) (ref ip 160 8) ()) ())))
+      (def one
+        (fn (_ fd t)
+          (match
+            ((i= t 1) (file fd))
+            ((i= t 2) (socket fd))
+            ((i= t 6) (pipe fd))
+            (#t (rec (lit fd) fd () () (Assoc get t types) () () ())))))
+      ; with no buffer the kernel answers the table's size; room for a few
+      ; more, since descriptors can open between the two calls
+      (def want (if (null? fdinfo) 0 (call pidinfo pid 1 0 0 0)))
+      (def fds
+        (if (if (i< 0 want) (i< want 100000000) #f)
+          (let ((b (make (i+ want 128))))
+            (def bp (->ptr b))
+            (def got (call pidinfo pid 1 0 bp (i+ want 128)))
+            (def go
+              (fn (self i acc)
+                (if (i< i 0) acc
+                  (self (i- i 1) (pair (one (ref bp (i* 8 i) 4) (ref bp (i+ (i* 8 i) 4) 4)) acc)))))
+            ; got is the bytes PROC_PIDLISTFDS wrote, a struct proc_fdinfo of 8 a descriptor
+            (if (if (i< 0 got) (i< got (i+ want 129)) #f) (go (i- ((prim-ref (lit int) (lit /)) got 8) 1) ()) ()))
+          ()))
+      ; struct proc_regionwithpathinfo is 1272 bytes: pri_address at 80 and
+      ; pri_size at 88, then the vnode_info_path at 96, its stat's dev at 96
+      ; and ino at 104, the path at 248.  A file is one record however many
+      ; regions map it: its inode is looked for among those seen, most recent
+      ; first, before its path is read; a region with no file has inode 0
+      (def known? (fn (self dev ino rs) (if (null? rs) #f (if (if (i= ino (first (first rs))) (i= dev (rest (first rs))) #f) #t (self dev ino (rest rs))))))
+      (def maps
+        (if (on? (lit map) uses)
+          (let ((go (fn (self addr inos acc)
+                      (if (if (i= 1272 (call pidinfo pid 8 addr ip 1272)) (i< addr (i+ (ref ip 80 8) (ref ip 88 8))) #f)
+                        (let ((next (i+ (ref ip 80 8) (ref ip 88 8))) (dev (ref ip 96 4)) (ino (ref ip 104 8)))
+                          (if (if (i= ino 0) #t (known? dev ino inos)) (self next inos acc)
+                            (let ((p (path-at 248)))
+                              (if (null? p) (self next inos acc)
+                                (self next (pair (pair ino dev) inos) (pair (rec (lit map) () dev ino (lit file) p () ()) acc))))))
+                        acc))))
+            (List reverse (go 0 () ())))
+          ()))
+      (List append dirs exe fds maps))
 
     (method %linux-btime (self)
       (doc "The boot time /proc/stat records, the base of a process's start time."
