@@ -62,9 +62,8 @@ objects a call.
 
 ### the data-word formula runs on the integer doors
 
-`(obj ref)` and `(obj set!)` address data word i through `%data-word-off` on
-every call: its frame and two integer operations, fewer than 16 objects a call
-over one integer add.
+`%data-word-off` is the byte offset of data word i: its frame and two integer
+operations, fewer than 16 objects a call over one integer add.
 
 ```x
 (def %cost
@@ -79,6 +78,42 @@ over one integer add.
 ```
 ---
     (#t #t)
+
+### the slot accessors address a word through its view
+
+`(obj ref)` and `(obj set!)` reach data word i through its view, the object's
+address plus i words: the word `%data-word-off` names, read by `first` and
+written at the first-word offset.  What `(obj set!)` writes, `(obj ref)` and a
+raw word read at `%data-word-off` both find, in every word; and the read costs
+fewer than 16 objects a call over one integer add.
+
+```x
+(def %cost
+  (fn (_ f)
+    (f)
+    (def c0 (Heap count))
+    ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 100)
+    (- (Heap count) c0)))
+(def %add (prim-ref (lit int) (lit +)))
+(def %ref (prim-ref (lit obj) (lit ref)))
+(def %set (prim-ref (lit obj) (lit set!)))
+(def %v (Vector make 4 0))
+(def %xs (list (pair 1 2) "two" 3 (lit four)))
+(def %put (fn (self i xs) (if (null? xs) () (do (%set %v (+ i 1) (first xs)) (self (+ i 1) (rest xs))))))
+(%put 0 %xs)
+(def %raw (fn (_ i) (%ptr->obj (%int->ptr (%ptr-ref-word (%obj->ptr %v) (%data-word-off i))))))
+(def %all
+  (fn (self i xs)
+    (if (null? xs) #t
+      (if (if (eq? (%ref %v (+ i 1)) (first xs)) (eq? (%raw (+ i 1)) (first xs)) #f)
+        (self (+ i 1) (rest xs))
+        #f))))
+(list (%all 0 %xs)
+      (eq? (%ref %v 0) (%raw 0))
+      (< (- (%cost (fn (_) (%ref %v 2))) (%cost (fn (_) (%add 1 2)))) (* 16 100)))
+```
+---
+    (#t #t #t)
 
 ## header words
 

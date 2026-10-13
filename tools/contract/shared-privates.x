@@ -61,6 +61,8 @@
 (shared "lib/x/boot/data.x" %set-cell-int! "writes the machine integer in an object's first data word")
 (shared "lib/x/boot/data.x" %data-off-0 "the byte offset of data word 0")
 (shared "lib/x/boot/data.x" %data-word-off "the byte offset of data word i")
+(shared "lib/x/boot/data.x" %data-int+ "the engine's integer +, fetched once; the slot accessors' view")
+(shared "lib/x/boot/data.x" %data-int* "the engine's integer *, fetched once; the slot accessors' view")
 (shared "lib/x/boot/data.x" %int->ptr "the catalogue's int ->ptr, fetched once")
 (shared "lib/x/boot/data.x" %obj->ptr "the catalogue's obj ->ptr, fetched once")
 (shared "lib/x/boot/data.x" %ptr->int "the catalogue's ptr ->int, fetched once")
