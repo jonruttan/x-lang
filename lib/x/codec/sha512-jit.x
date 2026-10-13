@@ -20,6 +20,7 @@
 (module x/codec/sha512-jit)
 
 (import x/tool/compile compile-asm)
+(import x/tool/jit-group jit-group)
 
 (def %s5-make-str (prim-ref (lit str) (lit make)))
 (def %s5-str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -129,10 +130,16 @@
 ; guards; a raise means "stay pure-x", never a wrong digest.
 (def sha512-jit-make
   (fn (_ k ihs ref)
-    (def %rounds (compile-asm %s5-rounds-expr))
-    (def %fill (compile-asm %s5-fill-expr))
-    ; drop the whole build's remaining garbage before the digest phase
-    (Heap collect)
+    (jit-group "sha512-jit" (fn (_) (list %s5-rounds-expr %s5-fill-expr))
+      (fn (_ fns replayed?) (%s5-wire k ihs ref (first fns) (first (rest fns)) replayed?)))))
+
+; The digest over the compiled pair, proven against ref unless the pair
+; was replayed from the cache group, where it was proven when stored.
+(def %s5-wire
+  (fn (_ k ihs ref %rounds %fill replayed?)
+    ; drop the whole build's remaining garbage before the digest phase; a
+    ; replay compiled nothing and skips the collect, which marks the whole heap
+    (unless replayed? (Heap collect))
     (def %buf (%s5-make-str 1024))
     (def %ptr (%s5-str->ptr %buf))
     (def %addr (%s5-ptr->int %ptr))
@@ -192,27 +199,29 @@
              (do (unless (%same (%digest (first l) s n) (ref (first l) s n))
                    (Err raise 'state (Str8 append %disagrees " (explicit length)") ()))
                  (self (rest l))))) ihs)))
-    (%check "")
-    (%check "abc")
-    (%check "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu")
-    (%check (Str8 pad-right 300 #\y "x"))
-    ; "A\0B\0C" through the pointer door, and a binary block that crosses
-    ; the 128-byte boundary, so the fill and the padding path see NULs too
-    (def %s5-bin
-      (let ((r (%s5-make-str 5)))
-        (let ((p (%s5-str->ptr r)))
-          (do (%s5-pset p 0 65 1) (%s5-pset p 1 0 1) (%s5-pset p 2 66 1)
-              (%s5-pset p 3 0 1)  (%s5-pset p 4 67 1)
-              r))))
-    (%check-n %s5-bin 5)
-    (def %s5-bin2
-      (let ((r (%s5-make-str 300)))
-        (let ((p (%s5-str->ptr r)))
-          (do ((fn (self i)
-                 (unless (= i 300)
-                   (do (%s5-pset p i (& i 255) 1) (self (+ i 1))))) 0)
-              r))))
-    (%check-n %s5-bin2 300)
+    (unless replayed?
+      (do
+        (%check "")
+        (%check "abc")
+        (%check "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu")
+        (%check (Str8 pad-right 300 #\y "x"))
+        ; "A\0B\0C" through the pointer door, and a binary block that crosses
+        ; the 128-byte boundary, so the fill and the padding path see NULs too
+        (def %s5-bin
+          (let ((r (%s5-make-str 5)))
+            (let ((p (%s5-str->ptr r)))
+              (do (%s5-pset p 0 65 1) (%s5-pset p 1 0 1) (%s5-pset p 2 66 1)
+                  (%s5-pset p 3 0 1)  (%s5-pset p 4 67 1)
+                  r))))
+        (%check-n %s5-bin 5)
+        (def %s5-bin2
+          (let ((r (%s5-make-str 300)))
+            (let ((p (%s5-str->ptr r)))
+              (do ((fn (self i)
+                     (unless (= i 300)
+                       (do (%s5-pset p i (& i 255) 1) (self (+ i 1))))) 0)
+                  r))))
+        (%check-n %s5-bin2 300)))
     %digest))
 
 ; The codec reaches the maker through the catalogue: it loads this module

@@ -20,7 +20,7 @@
 (module x/codec/x25519-jit)
 
 (import x/type/vector)
-(import x/codec/fe25519-jit fe-jit-compile)
+(import x/codec/fe25519-jit fe-jit-compile fe-jit-replayed?)
 
 (def %xj-make-str (prim-ref (lit str) (lit make)))
 (def %xj-str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -56,8 +56,10 @@
     (def %m121666 (List ref 3 %ops))
     (def %cswap (List ref 4 %ops))
     ; the build's garbage goes before the engine runs; a collect here has
-    ; nothing of the caller's live (the maker is called once, to build)
-    (Heap collect)
+    ; nothing of the caller's live (the maker is called once, to build) --
+    ; and replayed operations compiled nothing, so the collect, which marks
+    ; the whole live heap, is skipped
+    (unless (fe-jit-replayed?) (Heap collect))
     (def %buf (%xj-make-str 2048))
     (def %ptr (%xj-str->ptr %buf))
     (def %addr (%xj-ptr->int %ptr))
@@ -159,12 +161,17 @@
       (fn (_ k u expect)
         (unless (%same (%engine k u) expect 0)
           (Err raise 'state "x25519-jit: engine disagrees with RFC 7748" ()))))
-    (def %a (%hex-bytes "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"))
-    (def %b (%hex-bytes "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb"))
-    (def %apub (%hex-bytes "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a"))
-    (def %nine (%hex-bytes "0900000000000000000000000000000000000000000000000000000000000000"))
-    (%check %a %nine %apub)
-    (%check %b %apub (%hex-bytes "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742"))
+    ; Operations replayed from the cache group passed this very check in
+    ; the process that stored them; the ladder over them is this file's
+    ; own source, the same in every process.
+    (unless (fe-jit-replayed?)
+      (do
+        (def %a (%hex-bytes "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"))
+        (def %b (%hex-bytes "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb"))
+        (def %apub (%hex-bytes "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a"))
+        (def %nine (%hex-bytes "0900000000000000000000000000000000000000000000000000000000000000"))
+        (%check %a %nine %apub)
+        (%check %b %apub (%hex-bytes "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742"))))
     %engine))
 
 ; The codec reaches the maker through the catalogue: it loads this module

@@ -33,6 +33,7 @@
 (module x/codec/sha-jit)
 
 (import x/tool/compile compile-asm)
+(import x/tool/jit-group jit-group)
 
 (def %sj-make-str (prim-ref (lit str) (lit make)))
 (def %sj-str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -243,11 +244,17 @@
 ; vocabulary, so this module is arch-blind.
 (def %sj-make
   (fn (_ label rounds fill preload ih ref)
-    (def %rounds (compile-asm rounds))
-    (def %fill (compile-asm fill))
+    (jit-group (Str8 append "sha-jit:" label) (fn (_) (list rounds fill))
+      (fn (_ fns replayed?) (%sj-wire label preload ih ref (first fns) (first (rest fns)) replayed?)))))
+
+; The digest over the compiled pair, proven against ref unless the pair
+; was replayed from the cache group, where it was proven when stored.
+(def %sj-wire
+  (fn (_ label preload ih ref %rounds %fill replayed?)
     ; drop the whole build's remaining garbage before the digest phase
-    ; (the compiler also collects periodically DURING the build)
-    (Heap collect)
+    ; (the compiler also collects periodically DURING the build); a replay
+    ; compiled nothing and skips the collect, which marks the whole heap
+    (unless replayed? (Heap collect))
     (def %buf (%sj-make-str 1024))
     (def %ptr (%sj-str->ptr %buf))
     (def %addr (%sj-ptr->int %ptr))
@@ -308,31 +315,33 @@
       (fn (_ s n)
         (unless (%same (%digest s n) (ref s n))
           (Err raise 'state (Str8 append %disagrees " (explicit length)") ()))))
-    (%check "")
-    (%check "abc")
-    (%check "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")
-    (%check (Str8 pad-right 150 #\y "x"))
-    ; "A\0B\0C" -- NULs INSIDE, so Str8 length reports 1 and the region is 5.
-    ; Built through the pointer door because every string constructor that takes
-    ; text stops at the NUL too.
-    (def %sj-pset1 (prim-ref (lit ptr) (lit set!)))
-    (def %sj-bin
-      (let ((r (%sj-make-str 5)))
-        (let ((p (%sj-str->ptr r)))
-          (do (%sj-pset1 p 0 65 1) (%sj-pset1 p 1 0 1) (%sj-pset1 p 2 66 1)
-              (%sj-pset1 p 3 0 1)  (%sj-pset1 p 4 67 1)
-              r))))
-    (%check-n %sj-bin 5)
-    ; A binary block that crosses the 64-byte boundary, so the fill and the
-    ; padding path see NULs too, not just the single-block case.
-    (def %sj-bin2
-      (let ((r (%sj-make-str 200)))
-        (let ((p (%sj-str->ptr r)))
-          (do ((fn (self i)
-                 (unless (= i 200)
-                   (do (%sj-pset1 p i (& i 255) 1) (self (+ i 1))))) 0)
-              r))))
-    (%check-n %sj-bin2 200)
+    (unless replayed?
+      (do
+        (%check "")
+        (%check "abc")
+        (%check "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")
+        (%check (Str8 pad-right 150 #\y "x"))
+        ; "A\0B\0C" -- NULs INSIDE, so Str8 length reports 1 and the region is 5.
+        ; Built through the pointer door because every string constructor that
+        ; takes text stops at the NUL too.
+        (def %sj-pset1 (prim-ref (lit ptr) (lit set!)))
+        (def %sj-bin
+          (let ((r (%sj-make-str 5)))
+            (let ((p (%sj-str->ptr r)))
+              (do (%sj-pset1 p 0 65 1) (%sj-pset1 p 1 0 1) (%sj-pset1 p 2 66 1)
+                  (%sj-pset1 p 3 0 1)  (%sj-pset1 p 4 67 1)
+                  r))))
+        (%check-n %sj-bin 5)
+        ; A binary block that crosses the 64-byte boundary, so the fill and the
+        ; padding path see NULs too, not just the single-block case.
+        (def %sj-bin2
+          (let ((r (%sj-make-str 200)))
+            (let ((p (%sj-str->ptr r)))
+              (do ((fn (self i)
+                     (unless (= i 200)
+                       (do (%sj-pset1 p i (& i 255) 1) (self (+ i 1))))) 0)
+                  r))))
+        (%check-n %sj-bin2 200)))
     %digest))
 
 ; SHA-256: k-vec is sha256.x's K vector (slot t+1 = K[t]), into 32..95.
