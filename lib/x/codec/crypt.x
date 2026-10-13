@@ -1,4 +1,4 @@
-; crypt.x -- Crypt: crypt(3)'s traditional DES password hash, in pure x-lang.
+; crypt.x -- Crypt: crypt(3)'s password hashes, DES, $1$, $5$ and $6$, in pure x-lang.
 ;
 ; The hash an /etc/passwd or /etc/shadow line has carried since V7, and the
 ; default of busybox's cryptpw: the password's first eight bytes, each
@@ -161,6 +161,173 @@
                   (char (if (= g 10) (<< (& block 15) 2) (& (>> block (%sub 58 (%mul 6 g))) 63))))
                 (List range 0 11)))))
 
+; --- $1$, $5$ and $6$: the hashes built on a digest ------------------------
+;
+; MD5-crypt (Poul-Henning Kamp's, FreeBSD's) and SHA-crypt (Ulrich
+; Drepper's, glibc's), as busybox's pw_encrypt_md5.c and pw_encrypt_sha.c
+; make them.  Each round digests a few binary pieces -- the password, the
+; salt and the last digest, NULs and all -- so the pieces are (BUFFER .
+; COUNT) regions joined by memcpy into one buffer, and each digest comes
+; back from the codec's bytes-n with its compiled engine adopted first:
+; a $1$ hash is about a thousand digests and a $6$ hash five thousand.
+
+(import x/codec/md5)
+(import x/codec/sha256)
+(import x/codec/sha512)
+; Collection is explicit-trigger-only; the rounds collect as the codecs' block
+; loops do.
+(import x/sys/gc)
+
+(def %make-str (prim-ref (lit str) (lit make)))
+(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+(def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
+(def %mem-copy (prim-ref (lit mem) (lit copy)))
+(def %byte-len (prim-ref (lit str) (lit byte-len)))
+
+(def %b (fn (_ s i) (%char->int (%byte-ref s i))))
+
+(def %pset1 (prim-ref (lit ptr) (lit set!)))
+
+; a buffer holding one zero byte, for MD5-crypt's zeroed digest
+(def %nul (let ((s (%make-str 1))) (do (%pset1 (%str->ptr s) 0 0 1) s)))
+
+; the regions copied end to end into one fresh buffer: (BUFFER . COUNT)
+(def %join
+  (fn (_ regions)
+    (def total ((fn (self rs n) (if (null? rs) n (self (rest rs) (%add n (rest (first rs)))))) regions 0))
+    (def out (%make-str (%add total 1)))
+    (def base (%ptr->int (%str->ptr out)))
+    ((fn (self rs at)
+       (unless (null? rs)
+         (do (when (> (rest (first rs)) 0)
+               (%mem-copy (%int->ptr (%add base at)) (%str->ptr (first (first rs))) (rest (first rs))))
+             (self (rest rs) (%add at (rest (first rs)))))))
+     regions 0)
+    (pair out total)))
+
+; N bytes of REGION repeated end to end, as a list of regions
+(def %cycle
+  (fn (self region n)
+    (if (<= n 0) ()
+      (if (<= n (rest region)) (list (pair (first region) n))
+        (pair region (self region (%sub n (rest region))))))))
+
+; a hash: the digest of joined regions, its size, and its compiled engine
+(def %md5 (list (fn (_ r) (Md5 bytes-n (first r) (rest r))) 16 (fn (_) (Md5 jit!))))
+(def %sha256 (list (fn (_ r) (Sha256 bytes-n (first r) (rest r))) 32 (fn (_) (Sha256 jit!))))
+(def %sha512 (list (fn (_ r) (Sha512 bytes-n (first r) (rest r))) 64 (fn (_) (Sha512 jit!))))
+(def %digest (fn (_ h regions) (pair ((first h) (%join regions)) (first (rest h)))))
+
+; V's N low six-bit groups, low first, as crypt's base-64
+(def %to64
+  (fn (_ v n)
+    (Str8 join ""
+      (List map (fn (_ i) (Str8 sub (& (>> v (%mul 6 i)) 63) 1 %crypt64)) (List range 0 n)))))
+
+; a digest's bytes, as triples (A B C) each written as A<<16 | B<<8 | C in
+; four characters -- a lone (A) last in two, or (0 B C) in three
+(def %encode
+  (fn (_ d groups)
+    (Str8 join ""
+      (List map (fn (_ g)
+                  (match
+                    ((null? (rest g)) (%to64 (%b d (first g)) 2))
+                    ((null? (first g)) (%to64 (| (<< (%b d (first (rest g))) 8) (%b d (first (rest (rest g))))) 3))
+                    (#t (%to64 (| (<< (%b d (first g)) 16) (| (<< (%b d (first (rest g))) 8) (%b d (first (rest (rest g))))))
+                               4))))
+                groups))))
+
+; S up to its first $, at most N characters
+(def %salt-part
+  (fn (_ s n)
+    (def end ((fn (self i) (if (if (< i (Str8 length s)) (if (< i n) (not (= (%b s i) 36)) #f) #f) (self (%add i 1)) i)) 0))
+    (Str8 sub 0 end s)))
+
+(def %region-of (fn (_ s) (pair s (%byte-len s))))
+
+; the thousand rounds both families share: odd rounds start with the key,
+; every third adds the salt, every seventh the key, and the last digest
+; comes first on even rounds, last on odd
+(def %rounds
+  (fn (self h n i d key salt)
+    (if (= i n) (do (Heap collect) d)
+      (do (when (= (& i 31) 31) (Heap collect))
+          (self h n (%add i 1)
+            (%digest h (List append
+                        (list (if (= (& i 1) 1) key d))
+                        (if (= (% i 3) 0) () (list salt))
+                        (if (= (% i 7) 0) () (list key))
+                        (list (if (= (& i 1) 1) d key))))
+            key salt)))))
+
+; MD5-crypt: (DIGEST . SALT)
+(def %md5-crypt
+  (fn (_ key salt)
+    (def k (%region-of key))
+    (def s (%region-of salt))
+    (def alt (%digest %md5 (list k s k)))
+    (def ctx
+      (List append
+        (list k (%region-of "$1$") s)
+        (%cycle alt (rest k))
+        ((fn (self i acc)
+           (if (= i 0) (List reverse acc)
+             (self (>> i 1) (pair (if (= (& i 1) 1) (pair %nul 1) (pair key 1)) acc))))
+         (rest k) ())))
+    (%rounds %md5 1000 0 (%digest %md5 ctx) k s)))
+
+; SHA-crypt with hash H: the final digest
+(def %sha-crypt
+  (fn (_ h key salt rounds)
+    (def k (%region-of key))
+    (def s (%region-of salt))
+    (def b (%digest h (list k s k)))
+    (def a
+      (%digest h
+        (List append
+          (list k s)
+          (%cycle b (rest k))
+          ((fn (self i acc)
+             (if (= i 0) (List reverse acc)
+               (self (>> i 1) (pair (if (= (& i 1) 1) b k) acc))))
+           (rest k) ()))))
+    (def dp (%digest h (%cycle k (%mul (rest k) (rest k)))))
+    (def p (%join (%cycle dp (rest k))))
+    (def ds (%digest h (%cycle s (%mul (%add 16 (%b (first a) 0)) (rest s)))))
+    (def ss (%join (%cycle ds (rest s))))
+    (%rounds h rounds 0 a p ss)))
+
+; a SHA-crypt salt as busybox reads one: (ROUNDS GIVEN? . SALT), the rounds
+; from a leading rounds=N$ held to 1000..999999999
+(def %sha-salt
+  (fn (_ s)
+    (def digits ((fn (self i) (if (if (< i (Str8 length s)) (if (>= (%b s i) 48) (<= (%b s i) 57) #f) #f) (self (%add i 1)) i)) 7))
+    (if (if (>= (Str8 length s) 7) (if (Str8 starts? "rounds=" s) (if (< digits (Str8 length s)) (= (%b s digits) 36) #f) #f) #f)
+      (let ((n ((fn (self i v) (if (= i digits) v (self (%add i 1) (+ (* v 10) (%sub (%b s i) 48))))) 7 0)))
+        (list (if (< n 1000) 1000 (if (> n 999999999) 999999999 n)) #t
+              (%salt-part (Str8 sub (%add digits 1) (%sub (Str8 length s) (%add digits 1)) s) 16)))
+      (list 5000 #f (%salt-part s 16)))))
+
+(def %sha-hash
+  (fn (_ h tag groups key salt)
+    (def parts (%sha-salt salt))
+    ((first (rest (rest h))))
+    (Str8 join ""
+      (list "$" tag "$"
+            (if (first (rest parts)) (Str8 join "" (list "rounds=" (Str8 str (first parts)) "$")) "")
+            (first (rest (rest parts))) "$"
+            (%encode (first (%sha-crypt h key (first (rest (rest parts))) (first parts))) groups)))))
+
+(def %md5-groups (lit ((0 6 12) (1 7 13) (2 8 14) (3 9 15) (4 10 5) (11))))
+(def %sha256-groups
+  (lit ((0 10 20) (21 1 11) (12 22 2) (3 13 23) (24 4 14) (15 25 5) (6 16 26) (27 7 17)
+        (18 28 8) (9 19 29) (() 31 30))))
+(def %sha512-groups
+  (lit ((0 21 42) (22 43 1) (44 2 23) (3 24 45) (25 46 4) (47 5 26) (6 27 48) (28 49 7)
+        (50 8 29) (9 30 51) (31 52 10) (53 11 32) (12 33 54) (34 55 13) (56 14 35) (15 36 57)
+        (37 58 16) (59 17 38) (18 39 60) (40 61 19) (62 20 41) (63))))
+
 (def-class Crypt ()
   (static
     (method des (self (param key STRING "The password; its first eight bytes are used")
@@ -171,7 +338,27 @@
       (when (< (Str8 length salt) 2)
         (Err raise 'value "Crypt des: the salt is two characters" salt))
       (Str8 append (Str8 sub 0 2 salt)
-        (%des key (%char->int (%byte-ref salt 0)) (%char->int (%byte-ref salt 1)))))))
+        (%des key (%char->int (%byte-ref salt 0)) (%char->int (%byte-ref salt 1)))))
+    (method md5 (self (param key STRING "The password")
+                      (param salt STRING "The salt: up to its first $, at most eight characters, are used"))
+      (doc "crypt(3)'s $1$ hash of KEY with SALT -- MD5-crypt, as FreeBSD and busybox make it: $1$, the salt, $, and twenty-two characters of crypt's base-64 from a thousand rounds of MD5. MD5's compiled engine is adopted first."
+        (returns STRING "$1$SALT$ and 22 characters")
+        (sample "(Crypt md5 \"pw\" \"saltsalt\")" "\"$1$saltsalt$6SNdNaZLKst2LlSm7oPPL1\""))
+      (Md5 jit!)
+      (def s (%salt-part salt 8))
+      (Str8 join "" (list "$1$" s "$" (%encode (first (%md5-crypt key s)) %md5-groups))))
+    (method sha256 (self (param key STRING "The password")
+                         (param salt STRING "The salt: an optional rounds=N$, then up to its first $, at most sixteen characters"))
+      (doc "crypt(3)'s $5$ hash of KEY with SALT -- SHA-crypt over SHA-256, as glibc and busybox make it: $5$, rounds=N$ where the salt gave one (held to 1000..999999999; 5000 otherwise), the salt, $, and forty-three characters of crypt's base-64. SHA-256's compiled engine is adopted first."
+        (returns STRING "$5$[rounds=N$]SALT$ and 43 characters")
+        (sample "(Crypt sha256 \"pw\" \"saltsalt\")" "\"$5$saltsalt$0rl.MZtoLLPP3X0Rdl8riRnphIcAXJY27/aOAyK2hB5\""))
+      (%sha-hash %sha256 "5" %sha256-groups key salt))
+    (method sha512 (self (param key STRING "The password")
+                         (param salt STRING "The salt: an optional rounds=N$, then up to its first $, at most sixteen characters"))
+      (doc "crypt(3)'s $6$ hash of KEY with SALT -- SHA-crypt over SHA-512, as $5$ is over SHA-256: $6$, the rounds where given, the salt, $, and eighty-six characters of crypt's base-64. SHA-512's compiled engine is adopted first."
+        (returns STRING "$6$[rounds=N$]SALT$ and 86 characters")
+        (sample "(Crypt sha512 \"pw\" \"saltsalt\")" "\"$6$saltsalt$pauPrmdmG4BTE9h2HPmywiw152IFch6BJCEsaY6D.PLTfpV8sqvXwWdyfsgVgozkYH9B80bAip/08R2BPH2xk/\""))
+      (%sha-hash %sha512 "6" %sha512-groups key salt))))
 
 (doc (provide x/codec/crypt Crypt)
-  "crypt(3)'s password hashes: (Crypt des key salt), the traditional DES one. Pure x-lang.")
+  "crypt(3)'s password hashes: (Crypt des key salt), the traditional DES one; (Crypt md5 key salt), $1$; (Crypt sha256 key salt) and (Crypt sha512 key salt), $5$ and $6$. Pure x-lang, the digest-built ones on their codecs' compiled engines.")
