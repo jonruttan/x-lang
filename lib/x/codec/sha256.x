@@ -212,6 +212,25 @@
       ((null? hs) "")
       (#t (Str8 append (%sha-hex8 (first hs)) (self (rest hs)))))))
 
+(def %sha-make-str (prim-ref (lit str) (lit make)))
+(def %sha-str->ptr (prim-ref (lit str) (lit ->ptr)))
+(def %sha-pset1 (prim-ref (lit ptr) (lit set!)))
+
+; the H words as the digest's bytes, each word big-endian: a fresh buffer
+(def %sha-bytes
+  (fn (_ hs)
+    (def out (%sha-make-str (%sha+ (<< (List length hs) 2) 1)))
+    (def p (%sha-str->ptr out))
+    (def put
+      (fn (self ws i)
+        (unless (null? ws)
+          (do (%sha-pset1 p i (& (>> (first ws) 24) 255) 1)
+              (%sha-pset1 p (%sha+ i 1) (& (>> (first ws) 16) 255) 1)
+              (%sha-pset1 p (%sha+ i 2) (& (>> (first ws) 8) 255) 1)
+              (%sha-pset1 p (%sha+ i 3) (& (first ws) 255) 1)
+              (self (rest ws) (%sha+ i 4))))))
+    (do (put hs 0) out)))
+
 ; The pure-x digest as a function: bytes -> the eight H words.  Both
 ; paths end here equivalently -- the compiled engine returns the same
 ; 8-word list -- so the hex formatting is shared and the engine is a
@@ -339,6 +358,11 @@
         (example "(Sha256 hex-n \"abc\" 3)" "\"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\"")
         (example "(Sha256 hex-n \"abc\" 0)" "\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\""))
       (%sha-hex-list (%sha-hash-words s n)))
+    (method bytes-n (self (param s STRING "Byte region to digest")
+                          (param n INTEGER "How many bytes of s to digest"))
+      (doc "SHA-256 of the FIRST n BYTES of s, as a fresh buffer of the digest's 32 bytes -- binary, so read it by count, not as a string: a NUL among the bytes ends its string length. The same engines as hex-n, without the hex. THE LENGTH IS YOUR CLAIM AND IS NOT CHECKED, as hex-n's is."
+        (returns STRING "A 32-byte buffer"))
+      (%sha-bytes (%sha-hash-words s n)))
     (method jit! (self)
       (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself: the engine is adopted only after agreeing with the pure-x digest on the FIPS vectors plus a multi-block padding case. Idempotent; seconds of compile on first success. Returns #t when the engine is active, #f when unavailable (no assembler backend for this host, no JIT toolchain, or a failed check -- pure-x carries on and results are identical either way). hex also builds it on its own for any single input of 12KB or more -- the measured size at which the build repays itself within the call -- so calling this is an optimization, not a requirement."
         (returns BOOL "#t when the compiled engine is active"))

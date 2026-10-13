@@ -208,6 +208,25 @@
 
 (def %hex (fn (_ hs) (Str8 join "" (List map %hex8 hs))))
 
+(def %make-str (prim-ref (lit str) (lit make)))
+(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+(def %pset1 (prim-ref (lit ptr) (lit set!)))
+
+; the halves as the digest's bytes, each big-endian: a fresh buffer
+(def %bytes
+  (fn (_ hs)
+    (def out (%make-str (%add (<< (List length hs) 2) 1)))
+    (def p (%str->ptr out))
+    (def put
+      (fn (self ws i)
+        (unless (null? ws)
+          (do (%pset1 p i (& (>> (first ws) 24) 255) 1)
+              (%pset1 p (%add i 1) (& (>> (first ws) 16) 255) 1)
+              (%pset1 p (%add i 2) (& (>> (first ws) 8) 255) 1)
+              (%pset1 p (%add i 3) (& (first ws) 255) 1)
+              (self (rest ws) (%add i 4))))))
+    (do (put hs 0) out)))
+
 ; --- The compiled engine (JIT), adopted only when it proves out ------
 ;
 ; As sha1.x's: an entry of Compiled's, made the first time a build is
@@ -266,6 +285,11 @@
         (returns STRING "128 hex characters")
         (example "(Sha512 hex-n \"abc\" 0)" "\"cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e\""))
       (%hex (%words-of %ih s n)))
+    (method bytes-n (self (param s STRING "Byte region to digest")
+                          (param n INTEGER "How many bytes of s to digest"))
+      (doc "SHA-512 of the FIRST n BYTES of s, as a fresh buffer of the digest's 64 bytes -- binary, so read it by count, not as a string: a NUL among the bytes ends its string length. The same engines as hex-n, without the hex. THE LENGTH IS YOUR CLAIM AND IS NOT CHECKED, as hex-n's is."
+        (returns STRING "A 64-byte buffer"))
+      (%bytes (%words-of %ih s n)))
     (method jit! (self)
       (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x digest. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. hex also builds it on its own for any single input of 4KB or more."
         (returns BOOL "#t when the compiled engine is active"))
