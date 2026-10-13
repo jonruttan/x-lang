@@ -161,6 +161,29 @@ clear it), so a later case in the same batch reads the real machine.
 ---
     (('mapped-ro 'mapped-rw 'stack 'shared-clean 'shared-dirty 'private-clean 'private-dirty) #t #t #t ())
 
+### files: this process's directory, executable, a file it opens by path and inode, and the libraries it maps
+
+```x
+(do (import x/sys/host)
+  (def path "tests/x/fixtures/host/proc/stat")
+  (def fd (File open path 'rdonly))
+  (def fs (Host files (Sys getpid)))
+  (def fds (Host files (Sys getpid) 'fd))
+  (File close fd)
+  (def r (List find (fn (_ f) (= fd (Assoc get 'fd f))) fs))
+  (def used (fn (_ u) (List filter (fn (_ f) (eq? u (Assoc get 'use f))) fs)))
+  (def cwd (first (used 'cwd)))
+  (list (Assoc keys r) (Assoc get 'type r) (Str8 ends? "/tests/x/fixtures/host/proc/stat" (Assoc get 'name r))
+        (equal? (Host %dev-ino path) (pair (Assoc get 'dev r) (Assoc get 'ino r)))
+        (equal? (Host %dev-ino ".") (pair (Assoc get 'dev cwd) (Assoc get 'ino cwd)))
+        (List length (used 'exe)) (< 0 (List length (used 'map)))
+        (List all? (fn (_ f) (eq? 'fd (Assoc get 'use f))) fds)
+        (List map (fn (_ f) (Assoc get 'fd f)) (List take 3 fds))
+        (Host files 999999999)))
+```
+---
+    (('use 'fd 'dev 'ino 'type 'name 'id) 'file #t #t #t 1 #t #t (0 1 2) ())
+
 ### utmp: every entry has a user and a type, and users is its user-process entries
 
 ```x
@@ -366,6 +389,30 @@ clear it), so a later case in the same batch reads the real machine.
 ```
 ---
     ((335872 139264 135168 307200 4096 8192 16384) ())
+
+### files reads the /proc/PID links, the fds in order, a socket joined to /proc/net by inode, and each mapped file once
+
+The links' devices and inodes are this machine's: /dev/null's is read, the
+fixture's socket has none to stat.  A maps line spells its own MAJ:MIN,
+packed as this platform's stat(2) packs a device.
+
+```x
+(do (import x/sys/host)
+  (Host source 'linux)
+  (Host proc-root "tests/x/fixtures/host/proc")
+  (def fs (Host files 42))
+  (def r (list (List map (fn (_ f) (List map (fn (_ k) (Assoc get k f)) '(use fd type name id proto family port))) fs)
+               (equal? (List map (fn (_ f) (list (Assoc get 'dev f) (Assoc get 'ino f))) (List filter (fn (_ f) (eq? 'map (Assoc get 'use f))) fs))
+                       (if os-darwin? (lit ((134217729 1234) (4345298946 98765) (5 4242))) (lit ((2049 1234) (66306 98765) (5 4242)))))
+               (number? (Assoc get 'ino (List find (fn (_ f) (equal? 0 (Assoc get 'fd f))) fs)))
+               (Assoc get 'ino (List find (fn (_ f) (equal? 1 (Assoc get 'fd f))) fs))
+               (List map (fn (_ f) (Assoc get 'name f)) (Host files 42 'cwd 'map))
+               (Host files 1)))
+  (Host source (if os-darwin? (lit darwin) (lit linux))) (Host proc-root "/proc")
+  r)
+```
+---
+    ((('cwd () 'file "/tmp" () () () ()) ('root () 'file "/" () () () ()) ('exe () 'file "/bin/sh" () () () ()) ('fd 0 'file "/dev/null" () () () ()) ('fd 1 'socket "socket:[12345]" 12345 'tcp 4 8080) ('fd 2 'pipe "pipe:[678]" 678 () () ()) ('fd 3 'file "/tmp/gone (deleted)" () () () ()) ('fd 4 'anon_inode "anon_inode:inotify" () () () ()) ('fd 10 'anon_inode "anon_inode:[eventfd]" () () () ()) ('map () 'file "/bin/busybox" () () () ()) ('map () 'file "/lib/ld-musl-x86_64.so.1" () () () ()) ('map () 'file "/dev/zero (deleted)" () () () ())) #t #t () ("/tmp" "/bin/busybox" "/lib/ld-musl-x86_64.so.1" "/dev/zero (deleted)") ())
 
 ### counters reads /proc/stat, /proc/vmstat and file-nr: KiB paged to bytes, open files in use
 
