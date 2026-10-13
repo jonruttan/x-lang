@@ -963,6 +963,36 @@
               (pair (pair (lit type) type)
                 (pair (pair (lit name) name) (pair (pair (lit id) id) inet))))))))
 
+    (method %file-set (self)
+      (doc "A set of files by device and inode, for a walk that meets the same file many times: answers (seen? dev ino), #t when the pair was already given and #f the first time, when it is added. The pairs sit in one zeroed region of 16-byte slots, opened by address: a list scanned per region made a walk over Firefox's 7,000 regions and 2,000 files quadratic. A table holding 16,384 files answers #f for any more."
+        (returns CALLABLE "(seen? dev ino)"))
+      (def slots 16384)
+      (def b (Host %buf (* 16 slots)))
+      (Host %call "memset" (Host %ptr b) 0 (* 16 slots))
+      (def ->ptr (prim-ref (lit str) (lit ->ptr)))
+      (def ref (prim-ref (lit ptr) (lit ref)))
+      (def set (prim-ref (lit ptr) (lit set!)))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i- (prim-ref (lit int) (lit -)))
+      (def i* (prim-ref (lit int) (lit *)))
+      (def i= (prim-ref (lit int) (lit =)))
+      (def i& (prim-ref (lit int) (lit &)))
+      (def i>> (prim-ref (lit int) (lit >>)))
+      (def mask (i- slots 1))
+      ; a slot is (ino dev); ino 0 marks it empty, and a walk gives no file inode 0
+      (fn (_ dev ino)
+        (def p (->ptr b))
+        (def probe
+          (fn (self i left)
+            (def at (i* 16 i))
+            (def k (ref p at 8))
+            (match
+              ((i= left 0) #f)
+              ((i= k 0) (do (set p at ino 8) (set p (i+ at 8) dev 8) #f))
+              ((if (i= k ino) (i= dev (ref p (i+ at 8) 8)) #f) #t)
+              (#t (self (i& (i+ i 1) mask) (i- left 1))))))
+        (probe (i& (i+ ino (i>> ino 14)) mask) slots)))
+
     (method %dev-ino (self (param path STRING "A path, followed through links"))
       (doc "The device and inode stat(2) reports for path, or nil when it cannot be stat'd. The inode is at 8 in every platform's struct; the device is the word before it, 4 bytes on Darwin and 8 on Linux."
         (returns ANY "PAIR (dev . ino), or nil"))
@@ -1049,16 +1079,17 @@
       ; addr perms offset MAJ:MIN inode path: a file mapped more than once is one record
       (def maps
         (if (on? (lit map))
-          (let ((r (Host %fold-lines (Str8 append dir "/maps")
+          (let ((seen? (Host %file-set)))
+            (def r (Host %fold-lines (Str8 append dir "/maps")
                      (fn (_ line acc)
                        (def f (Host %fields line))
                        (def ino (if (< (List length f) 6) () (Host %int (List ref 4 f))))
                        (def slash (Str8 index-of "/" line))
                        (if (if (null? ino) #t (if (= ino 0) #t (null? slash))) acc
-                         (let ((name (Str8 sub slash (Str8 length line) line)))
-                           (if (List any? (fn (_ r) (str=? name (Assoc get (lit name) r))) acc) acc
-                             (pair (Host %file-record (lit map) () (Host %linux-dev (List ref 3 f)) ino (lit file) name () ()) acc)))))
-                     ())))
+                         (let ((dev (Host %linux-dev (List ref 3 f))))
+                           (if (seen? dev ino) acc
+                             (pair (Host %file-record (lit map) () dev ino (lit file) (Str8 sub slash (Str8 length line) line) () ()) acc)))))
+                     ()))
             (List reverse r))
           ()))
       (List append (one (lit cwd) "cwd") (one (lit root) "root") (one (lit exe) "exe") fds maps))
@@ -1177,20 +1208,20 @@
       ; struct proc_regionwithpathinfo is 1272 bytes: pri_address at 80 and
       ; pri_size at 88, then the vnode_info_path at 96, its stat's dev at 96
       ; and ino at 104, the path at 248.  A file is one record however many
-      ; regions map it: its inode is looked for among those seen, most recent
-      ; first, before its path is read; a region with no file has inode 0
-      (def known? (fn (self dev ino rs) (if (null? rs) #f (if (if (i= ino (first (first rs))) (i= dev (rest (first rs))) #f) #t (self dev ino (rest rs))))))
+      ; regions map it, its path read the first time; a region with no file
+      ; has inode 0
       (def maps
         (if (on? (lit map) uses)
-          (let ((go (fn (self addr inos acc)
-                      (if (if (i= 1272 (call pidinfo pid 8 addr ip 1272)) (i< addr (i+ (ref ip 80 8) (ref ip 88 8))) #f)
-                        (let ((next (i+ (ref ip 80 8) (ref ip 88 8))) (dev (ref ip 96 4)) (ino (ref ip 104 8)))
-                          (if (if (i= ino 0) #t (known? dev ino inos)) (self next inos acc)
-                            (let ((p (path-at 248)))
-                              (if (null? p) (self next inos acc)
-                                (self next (pair (pair ino dev) inos) (pair (rec (lit map) () dev ino (lit file) p () ()) acc))))))
-                        acc))))
-            (List reverse (go 0 () ())))
+          (let ((seen? (Host %file-set)))
+            (def go
+              (fn (self addr acc)
+                (if (if (i= 1272 (call pidinfo pid 8 addr ip 1272)) (i< addr (i+ (ref ip 80 8) (ref ip 88 8))) #f)
+                  (let ((next (i+ (ref ip 80 8) (ref ip 88 8))) (dev (ref ip 96 4)) (ino (ref ip 104 8)))
+                    (if (if (i= ino 0) #t (seen? dev ino)) (self next acc)
+                      (let ((p (path-at 248)))
+                        (self next (if (null? p) acc (pair (rec (lit map) () dev ino (lit file) p () ()) acc))))))
+                  acc)))
+            (List reverse (go 0 ())))
           ()))
       (List append dirs exe fds maps))
 
