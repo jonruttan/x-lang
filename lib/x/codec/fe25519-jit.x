@@ -15,6 +15,7 @@
 (module x/codec/fe25519-jit)
 
 (import x/tool/compile compile-asm)
+(import x/tool/jit-group jit-group)
 (import x/codec/fe25519 fe-zero fe-limbs fe-frombytes fe-tobytes fe-add fe-sub fe-mul fe-sq fe-sq-n fe-mul121666)
 
 (def fe-jit-rows 120)
@@ -135,6 +136,10 @@
     ((fn (self i) (if (= i 11) #t (if (= (%fj-oref x i) (%fj-oref y i)) (self (+ i 1)) #f))) 1)))
 
 (def %fj-built ())
+; Whether the operations were replayed from the cache group rather than
+; built: a curve's engine over them, whose own check ran when they were
+; stored, reads this (fe-jit-replayed?) to skip it.
+(def %fj-replayed #f)
 
 ; The differential check: each operation against the pure-x field's, limb
 ; for limb (the two are the same algorithm, ref10's, carried in the same
@@ -174,11 +179,17 @@
 (def fe-jit-compile
   (fn (_)
     (when (null? %fj-built)
-      (do (def ops (list (compile-asm %fj-mul-expr) (compile-asm %fj-add-expr) (compile-asm %fj-sub-expr)
-                         (compile-asm %fj-m121666-expr) (compile-asm %fj-cswap-expr)))
-          (%fj-check ops)
-          (set! %fj-built ops)))
+      (set! %fj-built
+        (jit-group "fe25519-jit"
+          (fn (_) (list %fj-mul-expr %fj-add-expr %fj-sub-expr %fj-m121666-expr %fj-cswap-expr))
+          ; replayed operations were checked when the group stored them
+          (fn (_ ops replayed?)
+            (set! %fj-replayed replayed?)
+            (unless replayed? (%fj-check ops))
+            ops))))
     %fj-built))
+
+(def fe-jit-replayed? (fn (_) %fj-replayed))
 
 ; --- the inverse and the square root's power, on field vectors -----------
 ;
@@ -252,5 +263,5 @@
     (when (null? %fj-chains) (set! %fj-chains (%fj-make-chains (fe-jit-compile))))
     %fj-chains))
 
-(doc (provide x/codec/fe25519-jit fe-jit-compile fe-jit-chains fe-jit-rows fe-jit-swap)
+(doc (provide x/codec/fe25519-jit fe-jit-compile fe-jit-replayed? fe-jit-chains fe-jit-rows fe-jit-swap)
   "The GF(2^255 - 19) operations as compiled functions over a scratch of limbs (JIT, ARM64 and x86-64 backends): (fe-jit-compile) builds multiply, add, subtract, times-121666 and swap once a process, each checked against the pure-x field; (fe-jit-chains) the inverse and the square root's power on field elements over them.")

@@ -21,6 +21,7 @@
 
 (import x/type/vector)
 (import x/tool/compile compile-asm)
+(import x/tool/jit-group jit-group)
 
 (def %pj-make-str (prim-ref (lit str) (lit make)))
 (def %pj-str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -116,10 +117,18 @@
 ; toolchain error, or on DISAGREEMENT with the reference.
 (def poly1305-jit-make
   (fn (_ ref rv)
-    (def %step (compile-asm %pj-step-expr))
+    (jit-group "poly1305-jit" (fn (_) (list %pj-step-expr))
+      (fn (_ fns replayed?) (%pj-wire ref rv (first fns) replayed?)))))
+
+; The engine over the compiled step, proven against ref unless the step
+; was replayed from the cache group, where it was proven when stored.
+(def %pj-wire
+  (fn (_ ref rv %step replayed?)
     ; the build's garbage goes before the engine runs; a collect here has
-    ; nothing of the caller's live (the maker is called once, to build)
-    (Heap collect)
+    ; nothing of the caller's live (the maker is called once, to build) --
+    ; and a replay compiled nothing, so it has no garbage to drop and skips
+    ; the collect, which marks the whole live heap
+    (unless replayed? (Heap collect))
     (def %buf (%pj-make-str 256))
     (def %ptr (%pj-str->ptr %buf))
     (def %addr (%pj-ptr->int %ptr))
@@ -164,12 +173,13 @@
         (ref hy rv s i end hibit)
         (unless (%same hx hy 1)
           (Err raise 'state "poly1305-jit: engine disagrees with the pure-x block loop" ()))))
-    (def %in (%ramp 4096))
-    (%check %in 0 16 16777216)
-    (%check %in 0 16 0)
-    (%check %in 16 272 16777216)
-    (%check %in 0 4096 16777216)
-    (%check %in 0 0 16777216)
+    (unless replayed?
+      (do (def %in (%ramp 4096))
+          (%check %in 0 16 16777216)
+          (%check %in 0 16 0)
+          (%check %in 16 272 16777216)
+          (%check %in 0 4096 16777216)
+          (%check %in 0 0 16777216)))
     %engine))
 
 ; The codec reaches the maker through the catalogue: it loads this module
