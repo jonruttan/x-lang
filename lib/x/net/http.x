@@ -7,9 +7,9 @@
 ; Connection: close on every request; no keep-alive. Redirects
 ; auto-follow (cap 10, RFC method rules, (redirects . 0) opts out).
 ;
-; https rides the Tls class (#412's amendment to the #374 ruling:
-; libssl binds over the dlopen FFI -- the variadic blocker was libcurl's;
-; verification + SNI + hostname checks on by default). Hostnames resolve
+; https rides the Tls class: TLS 1.3 written in x (x/net/tls13), the
+; server's certificate checked against Mozilla's roots for the host by
+; default, ('insecure) the explicit override. Hostnames resolve
 ; through (Socket resolve) at request time; the Host header carries the
 ; NAME (virtual hosting), the connect takes the quad.
 ;

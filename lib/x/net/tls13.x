@@ -8,10 +8,16 @@
 ; application data both ways.  The interface is x/net/tls's: connect,
 ; send, recv-run, recv-bytes, close, so Http can take either.
 ;
-; THE SERVER IS NOT YET AUTHENTICATED.  Checking the certificate chain and
-; the CertificateVerify signature needs ECDSA, RSA and X.509, which are
-; still to be written, so connect refuses unless asked for ('insecure); the
-; certificates and the signature are kept on the session for that check.
+; The server is authenticated before connect returns: its CertificateVerify
+; signature (RFC 8446 4.4.3) by the leaf certificate's key over the
+; transcript, and its chain to one of Mozilla's roots for the host asked
+; for (x/net/x509, x/net/roots).  The check runs after the client's
+; Finished and before any application data is sent: the first check on a
+; curve builds its compiled engines, a few seconds a process, and a
+; server waits that long for a request where it may not for a handshake.
+; Signatures are ECDSA over P-256 and P-384; a server signing with RSA is
+; refused until RSA is written.  ('insecure) skips the check, for a
+; self-signed development endpoint.
 ;
 ; Bytes are regions (BUF START LEN), as x/codec/bytes has them.  The
 ; session is a vector of slots, written as the handshake and the records
@@ -28,6 +34,10 @@
 (import x/codec/chacha20)
 (import x/codec/poly1305)
 (import x/net/tls-keys)
+(import x/net/x509)
+(import x/net/roots)
+(import x/codec/ecdsa)
+(import x/sys/posix)
 
 (def %add (prim-ref 'int '+))
 (def %sub (prim-ref 'int '-))
@@ -430,18 +440,56 @@
                   ((= type %ct-alert) (%alert! s (first (rest opened))))
                   (#t (self s)))))))))
 
+; --- authenticating the server -------------------------------------------
+
+; CertificateVerify's schemes this client checks (4.2.3): the curve and the
+; hash, an ECDSA signature over P-256 or P-384.
+(def %schemes
+  (list (list 1027 (lit p256) (lit sha256))
+        (list 1283 (lit p384) (lit sha384))))
+
+; What CertificateVerify signs (4.4.3): sixty-four spaces, the context
+; string, a zero byte, and the transcript hash before it.
+(def %verify-content
+  (fn (_ th)
+    (Bytes join (Bytes of-list (List repeat 64 32)) "TLS 1.3, server CertificateVerify"
+                (Bytes of-list (list 0)) th)))
+
+; The server's certificate and its CertificateVerify, checked: raises a
+; label 'io naming what failed.
+(def %authenticate!
+  (fn (_ s)
+    (def host (%get s %host))
+    (when (null? host) (%fail "no host name to check the certificate against" ()))
+    (def certs (%get s %certs))
+    (when (null? certs) (%fail "the server sent no certificate" ()))
+    (def v (%get s %verify))
+    (when (null? v) (%fail "the server sent no CertificateVerify" ()))
+    (def scheme ((fn (self l) (if (null? l) () (if (= (first (first l)) (first v)) (first l) (self (rest l))))) %schemes))
+    (when (null? scheme)
+      (%fail (Str8 append "the server signs with a scheme this client cannot check yet (" (Str8 str (first v)) "); RSA is not written") (first v)))
+    (def leaf (guard (e (%fail (Str8 append "the server's certificate does not parse: " (e msg)) ())) (X509 parse (first certs))))
+    (def key (X509 public-key leaf))
+    (unless (eq? (first key) (first (rest scheme)))
+      (%fail "the CertificateVerify scheme does not match the certificate's key" (first v)))
+    (def hash (first (rest (rest scheme))))
+    (def digest (list (Hmac digest hash (%verify-content (first (rest (rest v))))) 0 (Hmac size hash)))
+    (unless (Ecdsa verify-der (first key) (first (rest key)) digest (first (rest v)))
+      (%fail "the server's CertificateVerify signature does not hold" ()))
+    (guard (e (%fail (e msg) ()))
+      (X509 verify-chain certs host (Sys now) (fn (_ name) (Roots find name))))))
+
 (def-class Tls13 ()
   (static
     (method connect (self (param quad STRING "Dotted-quad IPv4 address (resolve names via (Socket resolve))")
                           (param port INTEGER "Port, usually 443")
-                          . (param opts ALIST "Options: (host . NAME) for the server name sent (SNI); ('insecure), REQUIRED until certificates are checked"))
-      (doc "Open a TLS 1.3 session: TCP connect, then the handshake (X25519, ChaCha20-Poly1305), the server's Finished checked. The server's certificate is NOT yet checked, so ('insecure) must be given; without it connect raises a label 'value and connects to nothing. A failed handshake raises a label 'io naming what failed."
+                          . (param opts ALIST "Options: (host . NAME), the server's name, sent (SNI) and checked against its certificate; ('insecure) to skip the check"))
+      (doc "Open a TLS 1.3 session: TCP connect, the handshake (X25519, ChaCha20-Poly1305) with the server's Finished checked, then the server authenticated -- its CertificateVerify signature and its chain to one of Mozilla's roots for NAME. ('insecure) skips the authentication, for a self-signed development endpoint. A failure raises a label 'io naming it; the connection is closed."
         (returns OBJECT "The session")
-        (sample "(Tls13 connect \"127.0.0.1\" 4433 (list (pair 'host \"localhost\") (list 'insecure)))" "a session"))
+        (sample "(Tls13 connect \"140.82.114.3\" 443 (list (pair 'host \"github.com\")))" "a verified session"))
       (def o (if (null? opts) () (first opts)))
       (def host (let ((e (Assoc entry (lit host) o))) (if (null? e) () (rest e))))
-      (when (null? (Assoc entry (lit insecure) o))
-        (Err raise (lit value) "Tls13: the server's certificate cannot be checked yet; pass ('insecure) to connect without checking it" ()))
+      (def insecure? (not (null? (Assoc entry (lit insecure) o))))
       ; Everything slow happens before the server is dialled: pure x, an
       ; X25519 multiplication is about five seconds and a server gives up
       ; on a handshake that takes ten.  The compiled engines are built and
@@ -465,7 +513,8 @@
       (%set! s %closed #f)
       (%set! s %host host)
       (guard (e (do (Socket close (%get s %fd)) (Err raise (Err label e) (e msg) ())))
-        (%handshake! s priv public))
+        (do (%handshake! s priv public)
+            (unless insecure? (%authenticate! s))))
       s)
     (method send (self (param session OBJECT "A (Tls13 connect) session")
                        (param data ANY "The bytes: a region (BUF START LEN), or a STRING up to its first NUL"))
