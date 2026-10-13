@@ -11,6 +11,8 @@
 
 (import x/type/vector)
 (import x/sys/gc)
+; The compiled engine is on Compiled's list.
+(import x/tool/compiled)
 
 (def %add (prim-ref 'int '+))
 (def %sub (prim-ref 'int '-))
@@ -116,6 +118,42 @@
     (def len (match ((null? n) (Str8 length s)) (#t (first n))))
     (%blocks s len (<< (%add (>> (%add len 8) 6) 1) 6) 0 (Vector make 16 0) %ih)))
 
+; --- The compiled engine (JIT), adopted only when it proves out ------
+;
+; As sha1.x's: an entry of Compiled's, made the first time a build is
+; asked for, interpreted by the pure-x digest above, and built only for an
+; input of %jit-threshold bytes or more or on (Md5 jit!).  The digests
+; built on MD5 -- crypt's $1$, a thousand of them a hash -- ask for it.
+(def %entry ())
+(def %jit-threshold 8192)
+
+(def %jit-try!
+  (fn (_)
+    (when (null? %entry)
+      (set! %entry
+        (Compiled make-on-demand (lit md5) %digest-words
+          (fn (_)
+            (import x/codec/sha-jit)
+            ((prim-ref (lit md5) (lit jit-make)) %k %r %ih %digest-words))
+          (fn (_ v) ()))))
+    ((fn (_ entry)
+       (when (eq? (entry state) (lit interpreted)) (entry compile!))
+       (eq? (entry state) (lit compiled)))
+     %entry)))
+
+(def %words
+  (fn (_ s . n)
+    (def len (match ((null? n) (Str8 length s)) (#t (first n))))
+    (when (and (>= len %jit-threshold)
+               ((fn (_ entry) (if (null? entry) #t (eq? (entry state) (lit interpreted))))
+                %entry))
+      (%jit-try!))
+    ((fn (_ entry)
+       (if (if (null? entry) #f (eq? (entry state) (lit compiled)))
+         ((entry compiled) s len)
+         (%digest-words s len)))
+     %entry)))
+
 ; a state word's four bytes, low first, as hex
 (def %hex-word
   (fn (_ wd)
@@ -151,19 +189,23 @@
         (returns STRING "32 hex characters")
         (example "(Md5 hex \"\")" "\"d41d8cd98f00b204e9800998ecf8427e\"")
         (example "(Md5 hex \"abc\")" "\"900150983cd24fb0d6963f7d28e17f72\""))
-      (%hex (%digest-words s)))
+      (%hex (%words s)))
     (method hex-n (self (param s STRING "Byte region to digest")
                         (param n INTEGER "How many bytes of s to digest"))
       (doc "MD5 of the FIRST n BYTES of s, for binary input hex cannot measure (Str8 length stops at the first NUL). THE LENGTH IS YOUR CLAIM AND IS NOT CHECKED: n past the region's allocation reads past the allocation."
         (returns STRING "32 hex characters")
         (example "(Md5 hex-n \"abc\" 3)" "\"900150983cd24fb0d6963f7d28e17f72\"")
         (example "(Md5 hex-n \"abc\" 0)" "\"d41d8cd98f00b204e9800998ecf8427e\""))
-      (%hex (%digest-words s n)))
+      (%hex (%words s n)))
     (method bytes-n (self (param s STRING "Byte region to digest")
                           (param n INTEGER "How many bytes of s to digest"))
       (doc "MD5 of the FIRST n BYTES of s, as a fresh buffer of the digest's 16 bytes -- binary, so read it by count, not as a string: a NUL among the bytes ends its string length. THE LENGTH IS YOUR CLAIM AND IS NOT CHECKED, as hex-n's is."
         (returns STRING "A 16-byte buffer"))
-      (%bytes (%digest-words s n)))))
+      (%bytes (%words s n)))
+    (method jit! (self)
+      (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x digest. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. hex also builds it on its own for any single input of 8KB or more."
+        (returns BOOL "#t when the compiled engine is active"))
+      (%jit-try!))))
 
 (doc (provide x/codec/md5 Md5)
-  "MD5 (RFC 1321): (Md5 hex s) digests a byte string, (Md5 hex-n s n) its first n bytes. Pure x-lang.")
+  "MD5 (RFC 1321): (Md5 hex s) digests a byte string, (Md5 hex-n s n) and (Md5 bytes-n s n) its first n bytes. Pure x-lang, with an optional differentially-verified JIT engine ((Md5 jit!), or built on its own for an input of 8KB or more).")

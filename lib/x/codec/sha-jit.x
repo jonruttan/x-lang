@@ -1,6 +1,6 @@
-; sha-jit.x -- the compiled SHA engines behind (Sha256 jit!) and (Sha1 jit!).
+; sha-jit.x -- the compiled SHA and MD5 engines behind (Sha256 jit!), (Sha1 jit!) and (Md5 jit!).
 ;
-; Loaded LAZILY by x/codec/sha256 and x/codec/sha1 (never at boot, never
+; Loaded LAZILY by x/codec/sha256, x/codec/sha1 and x/codec/md5 (never at boot, never
 ; on import of a codec): this module pulls the JIT assembler toolchain,
 ; and the codecs must stay loadable -- and correct -- on hosts with no
 ; JIT at all.  Each codec's pure-x digest remains the reference
@@ -164,10 +164,73 @@
   (list 'fn '(_ a m)
     (pair 'do ((fn (self t) (if (= t 16) () (pair (%sj-fill-word t) (self (+ t 1))))) 0))))
 
+
+; --- MD5 (RFC 1321 3.4): sixty-four steps over a sixteen-word block ---
+;
+; Little-endian where SHA is big-endian: the fill reads each word low byte
+; first and the length lands low byte first.  The sixty-four T constants
+; preload into K's slots 32..95, and the step's rotation into 104..119,
+; four to a round; a..d sit in 16..19, the sum in 24, H in 96..99.
+(def %sj5-RB 104)
+(def %sj5-f
+  (fn (_ b c d)
+    (list 'if (list '< 't 16) (%sj-ch b c d)
+      (list 'if (list '< 't 32) (list '| (list '& b d) (list '& c (list '& (list '~ d) %sj-M)))
+        (list 'if (list '< 't 48) (%sj-par b c d)
+          (list '^ c (list '| b (list '& (list '~ d) %sj-M))))))))
+(def %sj5-g
+  (list 'if (list '< 't 16) 't
+    (list 'if (list '< 't 32) (list '& (list '+ (list '* 5 't) 1) 15)
+      (list 'if (list '< 't 48) (list '& (list '+ (list '* 3 't) 5) 15)
+        (list '& (list '* 7 't) 15)))))
+(def %sj5-r (%sj-AT (list '+ %sj5-RB (list '+ (list '<< (list '>> 't 4) 2) (list '& 't 3)))))
+(def %sj5-rotl
+  (fn (_ x n) (list '& (list '| (list '<< x n) (list '>> x (list '- 32 n))) %sj-M)))
+(def %sj5-round-body
+  (list 'do
+    (%sj-setC 24 (%sj-m32 (list '+ (list '+ %sj-A (%sj5-f %sj-B %sj-Cc %sj-D))
+                              (list '+ (%sj-AT (list '+ %sj-KB 't)) (%sj-AT %sj5-g)))))
+    (%sj-setC 16 %sj-D) (%sj-setC 19 %sj-Cc) (%sj-setC 18 %sj-B)
+    (%sj-setC 17 (%sj-m32 (list '+ %sj-B (%sj5-rotl (%sj-C 24) %sj5-r))))
+    (list 'self 'a (list '+ 't 1))))
+(def %sj5-rounds-expr
+  (list 'fn '(self a t)
+    (list 'if (list '< 't 0)
+      (list 'do (%sj-seq 4 (fn (_ i) (%sj-setC (+ 16 i) (%sj-C (+ %sj-HB i)))))
+                (list 'self 'a 0))
+      (list 'if (list '= 't 64)
+        (%sj-seq 4 (fn (_ i) (%sj-setC (+ %sj-HB i)
+                               (%sj-m32 (list '+ (%sj-C (+ %sj-HB i)) (%sj-C (+ 16 i)))))))
+        %sj5-round-body))))
+
+; the fill, little-endian: the length's bytes low first in the last eight
+(def %sj5-pad-byte
+  (fn (_ k)
+    (def i (if (= k 0) (%sj-C 26) (list '+ (%sj-C 26) k)))
+    (def L (%sj-C 27))
+    (def T (%sj-C 28))
+    (list 'if (list '< i L)
+      (list '%mem-byte-ref-at 'm i)
+      (list 'if (list '= i L) 128
+        (list 'if (list '< i (list '- T 8)) 0
+          (list '& (list '>> (list '<< L 3)
+                         (list '<< (list '- i (list '- T 8)) 3)) 255))))))
+(def %sj5-fill-word
+  (fn (_ t)
+    (%sj-setC t
+      (list '| (%sj5-pad-byte (* t 4))
+        (list '| (list '<< (%sj5-pad-byte (+ (* t 4) 1)) 8)
+          (list '| (list '<< (%sj5-pad-byte (+ (* t 4) 2)) 16)
+            (list '<< (%sj5-pad-byte (+ (* t 4) 3)) 24)))))))
+(def %sj5-fill-expr
+  (list 'fn '(_ a m)
+    (pair 'do ((fn (self t) (if (= t 16) () (pair (%sj5-fill-word t) (self (+ t 1))))) 0))))
+
 ; --- build: compile, wire a driver, and PROVE it against the reference ---
 ;
 ; label:   the digest's name, for the raise.
-; rounds:  the round schedule's expression (%sj-rounds-expr, %sj1-rounds-expr).
+; rounds:  the round schedule's expression (%sj-rounds-expr, %sj1-rounds-expr, %sj5-rounds-expr).
+; fill:    the message-word fill's expression (%sj-fill-expr; MD5's %sj5-fill-expr).
 ; preload: ((SLOT . WORD) ...) written into the scratch once (SHA-256's K).
 ; ih:      the initial-H words as a list; its length is the digest's.
 ; ref:     the pure-x digest, (fn (_ s [n]) -> H-word list) -- the oracle.
@@ -179,9 +242,9 @@
 ; wrong digest.  Both current backends (ARM64, x86-64) compile the same
 ; vocabulary, so this module is arch-blind.
 (def %sj-make
-  (fn (_ label rounds preload ih ref)
+  (fn (_ label rounds fill preload ih ref)
     (def %rounds (compile-asm rounds))
-    (def %fill (compile-asm %sj-fill-expr))
+    (def %fill (compile-asm fill))
     ; drop the whole build's remaining garbage before the digest phase
     ; (the compiler also collects periodically DURING the build)
     (Heap collect)
@@ -275,7 +338,7 @@
 ; SHA-256: k-vec is sha256.x's K vector (slot t+1 = K[t]), into 32..95.
 (def sha-jit-make
   (fn (_ k-vec ih ref)
-    (%sj-make "sha256" %sj-rounds-expr
+    (%sj-make "sha256" %sj-rounds-expr %sj-fill-expr
       ((fn (self i acc)
          (if (< i 0) acc
            (self (- i 1) (pair (pair (+ %sj-KB i) (%sj-oref k-vec (+ i 1))) acc))))
@@ -284,13 +347,30 @@
 
 ; SHA-1: its constants are in the rounds, so nothing is preloaded.
 (def sha1-jit-make
-  (fn (_ ih ref) (%sj-make "sha1" %sj1-rounds-expr () ih ref)))
+  (fn (_ ih ref) (%sj-make "sha1" %sj1-rounds-expr %sj-fill-expr () ih ref)))
+
+; MD5: k-vec is md5.x's T vector (slot t+1 = T[t]) into 32..95, and the
+; sixteen rotations into 104..119.
+(def md5-jit-make
+  (fn (_ k-vec r-vec ih ref)
+    (%sj-make "md5" %sj5-rounds-expr %sj5-fill-expr
+      (List append
+        ((fn (self i acc)
+           (if (< i 0) acc
+             (self (- i 1) (pair (pair (+ %sj-KB i) (%sj-oref k-vec (+ i 1))) acc))))
+         63 ())
+        ((fn (self i acc)
+           (if (< i 0) acc
+             (self (- i 1) (pair (pair (+ %sj5-RB i) (%sj-oref r-vec (+ i 1))) acc))))
+         15 ()))
+      ih ref)))
 
 ; The codecs reach the makers through the catalogue: each loads this module
 ; inside the function that builds its engine, and a name imported there is
 ; one the linter cannot see.
 (prim-reg! (lit sha256) (lit jit-make) sha-jit-make)
 (prim-reg! (lit sha1) (lit jit-make) sha1-jit-make)
+(prim-reg! (lit md5) (lit jit-make) md5-jit-make)
 
-(doc (provide x/codec/sha-jit sha-jit-make sha1-jit-make)
-  "The compiled SHA-256 and SHA-1 engines (JIT, ARM64 and x86-64 backends); each built and adopted only via its codec's jit! after proving agreement with the pure-x digest.")
+(doc (provide x/codec/sha-jit sha-jit-make sha1-jit-make md5-jit-make)
+  "The compiled SHA-256, SHA-1 and MD5 engines (JIT, ARM64 and x86-64 backends); each built and adopted only via its codec's jit! after proving agreement with the pure-x digest.")
