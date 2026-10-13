@@ -5,11 +5,12 @@
 The TLS 1.3 client written in x, against `openssl s_server` on a
 certificate made for the run: the handshake, application data both ways,
 and the server's close.  The server's certificate is self-signed RSA, so
-the exchanges ask for ('insecure), and one without it is refused: the
-server signs its CertificateVerify with RSA-PSS (scheme 2052), which
-this client cannot check yet.  connect builds the X25519, SHA-256,
-ChaCha20 and Poly1305 engines before it dials, so the file carries the
-weight and the timeout of four engine builds.
+the exchanges ask for ('insecure), and one without it is refused: its
+CertificateVerify, RSA-PSS (scheme 2052), holds, and then the
+certificate, made with a common name alone, names no host.  connect
+builds the X25519, SHA-256, SHA-512, ChaCha20 and Poly1305 engines
+before it dials, so the file carries the weight and the timeout of
+engine builds.
 
 ## connecting
 
@@ -50,7 +51,7 @@ the protocol and the cipher suite it agreed; a second connection without
   (write %t13-result))
 ```
 ---
-    (#t #t #t 1 ('io "Tls13: the server signs with a scheme this client cannot check yet (2052); RSA is not written"))
+    (#t #t #t 1 ('io "Tls13: X509: the server's certificate does not name localhost"))
 
 ### a reply of many records, NULs and all, every byte in order
 

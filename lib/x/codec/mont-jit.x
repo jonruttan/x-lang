@@ -12,6 +12,12 @@
 ; lane's arithmetic shift, masks which of the two results is written.
 ; The engine is adopted only after it agrees with mont.x's pure-x
 ; operations, limb for limb.
+;
+; A modulus too long to unroll -- an RSA modulus is 79 or 158 limbs, and
+; a row of its multiply alone is thousands of forms -- gets the LOOPING
+; engine instead: six functions generic over the modulus, whose steps are
+; tail self-calls, which the lane makes jumps.  The same six serve every
+; such modulus, so they are built once a machine.
 (module x/codec/mont-jit)
 
 (import x/tool/compile compile-asm)
@@ -154,14 +160,164 @@
          (if (= i (- n 1)) x (list (lit |) x (self (+ i 1)))))
        0))))
 
+; --- the looping engine's functions ---------------------------------------
+;
+; Above %mj-unroll limbs the operations are loops, generic over the
+; modulus.  The scratch opens with a HEADER of eight words -- n, the
+; offsets of the row t, the trial difference d and the modulus's limbs p,
+; then n', and two work words, a sum and the quotient digit -- and the
+; slots follow it.  A loop's state rides its parameters: ph the phase, i
+; the row, j the limb, c the carry and q the quotient digit; every step
+; is a tail self-call.  The multiply is mont.x's CIOS in five phases:
+; clear the row, add f_i g, add q m and shift, the trial subtraction, and
+; the masked choice between the row and the difference, the last two
+; shared with the add.  The lane has no locals, so a row's sum goes
+; through the header's sum word on its way to the carry.
+
+(def %mj-unroll 24)
+(def %mj-hdr 8)
+(def %ml-N (list (lit %mem-ref) (lit a) 0))
+(def %ml-T (list (lit %mem-ref) (lit a) 1))
+(def %ml-D (list (lit %mem-ref) (lit a) 2))
+(def %ml-P (list (lit %mem-ref) (lit a) 3))
+(def %ml-INV (list (lit %mem-ref) (lit a) 4))
+(def %ml-S 5)
+(def %ml-Q 6)
+(def %ml-at (fn (_ base i) (list (lit %mem-ref-at) (lit a) (list (lit +) base i))))
+(def %ml-set (fn (_ base i v) (list (lit %mem-set-at!) (lit a) (list (lit +) base i) v)))
+(def %ml-sum (list (lit %mem-ref) (lit a) %ml-S))
+(def %ml-sum! (fn (_ v) (list (lit %mem-set!) (lit a) %ml-S v)))
+(def %ml-low (list (lit &) %ml-sum %M))
+(def %ml-carry (list (lit >>) %ml-sum 26))
+(def %ml-self (fn (_ ph i j c q) (list (lit self) (lit a) (lit h) (lit f) (lit g) ph i j c q)))
+
+; Phases 3 and 4, from a row whose carry out of limb n-1 is in t[n]: d :=
+; t - m, then h := t when that borrowed and t[n] is clear, else d.  The
+; mask is the borrow, 0 or -1, plus t[n], carried in c through phase 4.
+(def %ml-reduce
+  (list (lit if) (list (lit =) (lit ph) 3)
+    (list (lit if) (list (lit <) (lit j) %ml-N)
+      (list (lit do)
+        (%ml-sum! (list (lit +) (list (lit -) (%ml-at %ml-T (lit j)) (%ml-at %ml-P (lit j))) (lit c)))
+        (%ml-set %ml-D (lit j) %ml-low)
+        (%ml-self 3 0 (list (lit +) (lit j) 1) %ml-carry 0))
+      (%ml-self 4 0 0 (list (lit +) (lit c) (%ml-at %ml-T %ml-N)) 0))
+    (list (lit if) (list (lit <) (lit j) %ml-N)
+      (list (lit do)
+        (%ml-set (lit h) (lit j)
+                 (list (lit ^) (%ml-at %ml-D (lit j))
+                       (list (lit &) (list (lit ^) (%ml-at %ml-D (lit j)) (%ml-at %ml-T (lit j))) (lit c))))
+        (%ml-self 4 0 (list (lit +) (lit j) 1) (lit c) 0))
+      0)))
+
+(def %ml-mul-expr
+  (list (lit fn) (lit (self a h f g ph i j c q))
+    (list (lit if) (list (lit =) (lit ph) 0)
+      (list (lit if) (list (lit <) (lit j) (list (lit +) %ml-N 2))
+        (list (lit do) (%ml-set %ml-T (lit j) 0) (%ml-self 0 0 (list (lit +) (lit j) 1) 0 0))
+        (%ml-self 1 0 0 0 0))
+    (list (lit if) (list (lit =) (lit ph) 1)
+      ; t += f_i g
+      (list (lit if) (list (lit <) (lit j) %ml-N)
+        (list (lit do)
+          (%ml-sum! (list (lit +) (list (lit +) (%ml-at %ml-T (lit j)) (list (lit *) (%ml-at (lit f) (lit i)) (%ml-at (lit g) (lit j)))) (lit c)))
+          (%ml-set %ml-T (lit j) %ml-low)
+          (%ml-self 1 (lit i) (list (lit +) (lit j) 1) %ml-carry 0))
+        (list (lit do)
+          (%ml-sum! (list (lit +) (%ml-at %ml-T %ml-N) (lit c)))
+          (%ml-set %ml-T %ml-N %ml-low)
+          (%ml-set %ml-T (list (lit +) %ml-N 1) %ml-carry)
+          ; q clears the bottom limb
+          (list (lit %mem-set!) (lit a) %ml-Q (list (lit &) (list (lit *) (%ml-at %ml-T 0) %ml-INV) %M))
+          (%ml-self 2 (lit i) 1
+                    (list (lit >>) (list (lit +) (%ml-at %ml-T 0) (list (lit *) (list (lit %mem-ref) (lit a) %ml-Q) (%ml-at %ml-P 0))) 26)
+                    (list (lit %mem-ref) (lit a) %ml-Q))))
+    (list (lit if) (list (lit =) (lit ph) 2)
+      ; t = (t + q m) / 2^26
+      (list (lit if) (list (lit <) (lit j) %ml-N)
+        (list (lit do)
+          (%ml-sum! (list (lit +) (list (lit +) (%ml-at %ml-T (lit j)) (list (lit *) (lit q) (%ml-at %ml-P (lit j)))) (lit c)))
+          (%ml-set %ml-T (list (lit -) (lit j) 1) %ml-low)
+          (%ml-self 2 (lit i) (list (lit +) (lit j) 1) %ml-carry (lit q)))
+        (list (lit do)
+          (%ml-sum! (list (lit +) (%ml-at %ml-T %ml-N) (lit c)))
+          (%ml-set %ml-T (list (lit -) %ml-N 1) %ml-low)
+          (%ml-set %ml-T %ml-N (list (lit +) (%ml-at %ml-T (list (lit +) %ml-N 1)) %ml-carry))
+          (list (lit if) (list (lit <) (list (lit +) (lit i) 1) %ml-N)
+            (%ml-self 1 (list (lit +) (lit i) 1) 0 0 0)
+            (%ml-self 3 0 0 0 0))))
+    %ml-reduce)))))
+
+(def %ml-add-expr
+  (list (lit fn) (lit (self a h f g ph i j c q))
+    (list (lit if) (list (lit =) (lit ph) 0)
+      (list (lit if) (list (lit <) (lit j) %ml-N)
+        (list (lit do)
+          (%ml-sum! (list (lit +) (list (lit +) (%ml-at (lit f) (lit j)) (%ml-at (lit g) (lit j))) (lit c)))
+          (%ml-set %ml-T (lit j) %ml-low)
+          (%ml-self 0 0 (list (lit +) (lit j) 1) %ml-carry 0))
+        (list (lit do) (%ml-set %ml-T %ml-N (lit c)) (%ml-self 3 0 0 0 0)))
+    %ml-reduce)))
+
+; f - g, and m added back when that borrowed: the borrow, 0 or -1, rides
+; i through the second phase and masks m in.
+(def %ml-sub-expr
+  (list (lit fn) (lit (self a h f g ph i j c q))
+    (list (lit if) (list (lit =) (lit ph) 0)
+      (list (lit if) (list (lit <) (lit j) %ml-N)
+        (list (lit do)
+          (%ml-sum! (list (lit +) (list (lit -) (%ml-at (lit f) (lit j)) (%ml-at (lit g) (lit j))) (lit c)))
+          (%ml-set %ml-T (lit j) %ml-low)
+          (%ml-self 0 0 (list (lit +) (lit j) 1) %ml-carry 0))
+        (%ml-self 1 (lit c) 0 0 0))
+      (list (lit if) (list (lit <) (lit j) %ml-N)
+        (list (lit do)
+          (%ml-sum! (list (lit +) (list (lit +) (%ml-at %ml-T (lit j)) (list (lit &) (%ml-at %ml-P (lit j)) (lit i))) (lit c)))
+          (%ml-set (lit h) (lit j) %ml-low)
+          (%ml-self 1 (lit i) (list (lit +) (lit j) 1) %ml-carry 0))
+        0))))
+
+(def %ml-copy-expr
+  (list (lit fn) (lit (self a h f i))
+    (list (lit if) (list (lit <) (lit i) %ml-N)
+      (list (lit do) (%ml-set (lit h) (lit i) (%ml-at (lit f) (lit i)))
+                     (list (lit self) (lit a) (lit h) (lit f) (list (lit +) (lit i) 1)))
+      0)))
+
+(def %ml-or-expr
+  (list (lit fn) (lit (self a f i acc))
+    (list (lit if) (list (lit <) (lit i) %ml-N)
+      (list (lit self) (lit a) (lit f) (list (lit +) (lit i) 1) (list (lit |) (lit acc) (%ml-at (lit f) (lit i))))
+      (lit acc))))
+
+(def %ml-xor-or-expr
+  (list (lit fn) (lit (self a f g i acc))
+    (list (lit if) (list (lit <) (lit i) %ml-N)
+      (list (lit self) (lit a) (lit f) (lit g) (list (lit +) (lit i) 1)
+            (list (lit |) (lit acc) (list (lit ^) (%ml-at (lit f) (lit i)) (%ml-at (lit g) (lit i)))))
+      (lit acc))))
+
+; The six, compiled once a process and poured from the cache after the
+; first machine that built them: (FNS . REPLAYED?), or () until asked.
+(def %ml-fns (pair () ()))
+(def %ml-compiled
+  (fn (_)
+    (when (null? (first %ml-fns))
+      (jit-group "mont-jit-loop"
+        (fn (_) (list %ml-mul-expr %ml-add-expr %ml-sub-expr %ml-copy-expr %ml-or-expr %ml-xor-or-expr))
+        (fn (_ fns replayed?) (%set-first! %ml-fns (pair fns replayed?)))))
+    (first %ml-fns)))
+
 ; --- the engine -----------------------------------------------------------
 ;
-; A vector of (STORE PTR ADDR N MUL ADD SUB KIND M).  A COMPILED engine's
-; numbers are slots of n words in its scratch STORE, and MUL, ADD and SUB
-; are the compiled functions; a PURE engine's are limb vectors in a vector
-; STORE, and its operations mont.x's.  Callers name slots 0..%mj-free - 1;
-; the slots above hold R^2, a plain one and R mod m for entering and
-; leaving the form, and a power's working values.
+; A vector of (STORE PTR ADDR N MUL ADD SUB KIND M COPY OR XOR-OR BASE).  A
+; COMPILED engine's numbers are slots of n words in its scratch STORE
+; from word BASE, and MUL, ADD and SUB are the compiled functions -- or,
+; in a looping engine, closures handing them their state's first values;
+; a PURE engine's are limb vectors in a vector STORE, and its operations
+; mont.x's.  Callers name slots 0..%mj-free - 1; the slots above hold
+; R^2, a plain one and R mod m for entering and leaving the form, and a
+; power's working values.
 
 (def %mj-slots 48)
 (def mont-jit-free 42)
@@ -176,7 +332,7 @@
 (def %mj-m (fn (_ e) (%mj-oref e 9)))
 
 ; Slot k's word offset, in a compiled engine.
-(def %mj-off (fn (_ e k) (* k (mont-jit-n e))))
+(def %mj-off (fn (_ e k) (+ (%mj-oref e 13) (* k (mont-jit-n e)))))
 
 (def %mj-word-ref (fn (_ e k i) (%mj-pref (%mj-oref e 2) (* (+ (%mj-off e k) i) 8))))
 (def %mj-word-set! (fn (_ e k i v) (%mj-pset (%mj-oref e 2) (* (+ (%mj-off e k) i) 8) v)))
@@ -238,20 +394,18 @@
 (def mont-jit-from! (fn (_ e h f) (mont-jit-mul e h f %mj-plain-one)))
 (def mont-jit-one! (fn (_ e h) (mont-jit-copy! e h %mj-r)))
 
-; h = f^-1 in the form, m prime: f^(m-2), square and multiply from the top
-; bit of the exponent down, on the engine's own working slots.
-(def mont-jit-inv!
-  (fn (_ e h f)
-    (def m (%mj-m e))
-    (def ex (mont-minus-two m))
-    (def len (mont-bytes m))
+; h = f^x in the form, x the big-endian bytes at s[start, start + len):
+; square and multiply from the top bit down, on the engine's own working
+; slots.
+(def mont-jit-pow!
+  (fn (_ e h f s start len)
     (mont-jit-copy! e %mj-base f)
     (mont-jit-copy! e %mj-acc %mj-r)
     ((fn (self j)
        (unless (= j len)
          (do ; a pure engine's multiplies leave thousands of objects each
              (when (and (%mj-pure? e) (= (& j 3) 0)) (Heap collect))
-             (def b (%mj-char->int (%mj-byte-ref ex j)))
+             (def b (%mj-char->int (%mj-byte-ref s (+ start j))))
              ((fn (self k)
                 (unless (< k 0)
                   (do (mont-jit-mul e %mj-acc %mj-acc %mj-acc)
@@ -261,6 +415,12 @@
              (self (+ j 1)))))
      0)
     (mont-jit-copy! e h %mj-acc)))
+
+; h = f^-1 in the form, m prime: f^(m-2) (Fermat).
+(def mont-jit-inv!
+  (fn (_ e h f)
+    (def m (%mj-m e))
+    (mont-jit-pow! e h f (mont-minus-two m) 0 (mont-bytes m))))
 
 (def %mj-same?
   (fn (_ x y n) ((fn (self i) (if (> i n) #t (if (= (%mj-oref x i) (%mj-oref y i)) (self (+ i 1)) #f))) 1)))
@@ -296,6 +456,9 @@
     (%try "sub" mont-jit-sub mont-sub y x)
     (%try "sub" mont-jit-sub mont-sub x x)))
 
+; The slots for entering and leaving the form: a plain one, R^2 mod m,
+; and R mod m, which is the one times R^2 through the engine's own
+; multiply.
 (def %mj-reserve!
   (fn (_ e m)
     (def n (mont-n m))
@@ -303,23 +466,52 @@
     (%mj-oset! one 1 1)
     (mont-jit-load! e %mj-plain-one one)
     (mont-jit-load! e %mj-r2 (mont-r2 m))
-    (mont-jit-load! e %mj-r (mont-to m one))))
+    (mont-jit-mul e %mj-r %mj-plain-one %mj-r2)))
+
+(def %mj-engine
+  (fn (_ m)
+    (def e (Vector make 14 ()))
+    (%mj-oset! e 4 (mont-n m))
+    (%mj-oset! e 9 m)
+    (%mj-oset! e 13 0)
+    e))
 
 ; A pure engine: the same slots and calls, mont.x's arithmetic beneath.
 (def mont-jit-pure
   (fn (_ m)
-    (def e (Vector make 12 ()))
+    (def e (%mj-engine m))
     (%mj-oset! e 1 (Vector make %mj-slots ()))
-    (%mj-oset! e 4 (mont-n m))
     (%mj-oset! e 8 (lit pure))
-    (%mj-oset! e 9 m)
     (%mj-reserve! e m)
     e))
+
+; The scratch of WORDS 64-bit words, the engine pointed at it.
+(def %mj-scratch!
+  (fn (_ e words)
+    (def buf (%mj-make-str (* words 8)))
+    (def ptr (%mj-str->ptr buf))
+    (%mj-oset! e 1 buf)
+    (%mj-oset! e 2 ptr)
+    (%mj-oset! e 3 (%mj-ptr->int ptr))))
+
+(def %mj-wire!
+  (fn (_ e mul add sub copy any differ)
+    (%mj-oset! e 5 mul)
+    (%mj-oset! e 6 add)
+    (%mj-oset! e 7 sub)
+    (%mj-oset! e 10 copy)
+    (%mj-oset! e 11 any)
+    (%mj-oset! e 12 differ)
+    (%mj-oset! e 8 (lit compiled))))
 
 ; The compiled engine for modulus m: its scratch of %mj-slots numbers and
 ; the three compiled operations, built and checked against mont.x.  Raises
 ; when the lane cannot build them or they disagree.
 (def mont-jit-make
+  (fn (_ m)
+    (if (> (mont-n m) %mj-unroll) (%mj-make-looping m) (%mj-make-unrolled m))))
+
+(def %mj-make-unrolled
   (fn (_ m)
     (def n (mont-n m))
     (def ps ((fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (%mj-oref (%mj-oref m 2) (+ i 1)) acc)))) (- n 1) ()))
@@ -327,13 +519,8 @@
     (def w (* %mj-slots n))
     (def lay (%mj-layout n w))
     (def T (List ref 0 lay)) (def D (List ref 1 lay)) (def S (List ref 2 lay)) (def C (List ref 3 lay)) (def Q (List ref 4 lay))
-    (def buf (%mj-make-str (* (+ Q 1) 8)))
-    (def ptr (%mj-str->ptr buf))
-    (def e (Vector make 12 ()))
-    (%mj-oset! e 1 buf)
-    (%mj-oset! e 2 ptr)
-    (%mj-oset! e 3 (%mj-ptr->int ptr))
-    (%mj-oset! e 4 n)
+    (def e (%mj-engine m))
+    (%mj-scratch! e (+ Q 1))
     ; the six functions as one cache group, keyed by the modulus's limbs:
     ; a later process pours them with no expression generated or printed,
     ; and skips the check, which passed on these bytes when they were stored
@@ -342,33 +529,74 @@
         (list (%mj-mul-expr n ps inv T D S C Q) (%mj-add-expr n ps T D S C) (%mj-sub-expr n ps T D S C)
               (%mj-copy-expr n) (%mj-or-expr n) (%mj-xor-or-expr n)))
       (fn (_ fns replayed?)
-        (%mj-oset! e 5 (List ref 0 fns))
-        (%mj-oset! e 6 (List ref 1 fns))
-        (%mj-oset! e 7 (List ref 2 fns))
-        (%mj-oset! e 10 (List ref 3 fns))
-        (%mj-oset! e 11 (List ref 4 fns))
-        (%mj-oset! e 12 (List ref 5 fns))
-        (%mj-oset! e 8 (lit compiled))
-        (%mj-oset! e 9 m)
+        (%mj-wire! e (List ref 0 fns) (List ref 1 fns) (List ref 2 fns) (List ref 3 fns) (List ref 4 fns) (List ref 5 fns))
         (%mj-r2! e m)
         (unless replayed? (%mj-check e m))
         (%mj-reserve! e m)
         e))))
 
-; R^2 mod m into the modulus by the compiled add, when nothing has set it:
-; 2^(52n) mod m is one doubled 52n times, each a compiled add mod m, where
-; mont.x's own pure-x loop is two hundred milliseconds for P-256's prime.
+; The looping engine: the header, then the slots, the row, the difference
+; and the modulus's limbs, and the six generic functions behind closures
+; that start each loop's state.  The check runs once a process, on the
+; first modulus that builds the functions rather than pouring them.
+(def %mj-make-looping
+  (fn (_ m)
+    (def n (mont-n m))
+    (def e (%mj-engine m))
+    (%mj-oset! e 13 %mj-hdr)
+    (def T (+ %mj-hdr (* %mj-slots n)))
+    (def D (+ T n 2))
+    (def P (+ D n))
+    (%mj-scratch! e (+ P n))
+    (def ptr (%mj-oref e 2))
+    (def word! (fn (_ i v) (%mj-pset ptr (* i 8) v)))
+    (word! 0 n) (word! 1 T) (word! 2 D) (word! 3 P) (word! 4 (%mj-oref m 3))
+    ((fn (self i) (unless (= i n) (do (word! (+ P i) (%mj-oref (%mj-oref m 2) (+ i 1))) (self (+ i 1))))) 0)
+    (def fresh (null? (first %ml-fns)))
+    (def built (%ml-compiled))
+    (def fns (first built))
+    (def mul (List ref 0 fns)) (def add (List ref 1 fns)) (def sub (List ref 2 fns))
+    (def copy (List ref 3 fns)) (def any (List ref 4 fns)) (def differ (List ref 5 fns))
+    (%mj-wire! e
+      (fn (_ a h f g) (mul a h f g 0 0 0 0 0))
+      (fn (_ a h f g) (add a h f g 0 0 0 0 0))
+      (fn (_ a h f g) (sub a h f g 0 0 0 0 0))
+      (fn (_ a h f) (copy a h f 0))
+      (fn (_ a f) (any a f 0 0))
+      (fn (_ a f g) (differ a f g 0 0)))
+    (%mj-r2! e m)
+    (when (and fresh (not (rest built))) (%mj-check e m))
+    (%mj-reserve! e m)
+    e))
+
+; R^2 mod m into the modulus by the engine, when nothing has set it.
+; 2^(26(n-2)) is below m (m's top byte is nonzero, and 26n is within 26
+; of its bit length), so 52 doublings of it reach R mod m, the form's
+; one; then with t_k = 2^(26n + k) mod m, the engine's multiply takes t_a
+; and t_b to t_(a+b), and a square-and-multiply ladder over 26n itself
+; climbs from t_0 and t_1 to t_26n = R^2 in some fifty multiplies.
+; mont.x's own pure-x doubling loop is two hundred milliseconds for
+; P-256's prime and minutes for an RSA modulus.
 (def %mj-r2!
   (fn (_ e m)
     (unless (mont-r2-set? m)
       (do (def n (mont-n m))
-          (def one (Vector make n 0))
-          (%mj-oset! one 1 1)
-          (mont-jit-load! e %mj-acc one)
+          (def k0 (if (> n 2) (- n 2) 0))
+          (def start (Vector make n 0))
+          (%mj-oset! start (+ k0 1) 1)
+          (mont-jit-load! e %mj-acc start)
           ((fn (self k)
              (unless (= k 0)
                (do (mont-jit-add e %mj-acc %mj-acc %mj-acc) (self (- k 1)))))
-           (* 52 n))
+           (* 26 (- n k0)))
+          (mont-jit-add e %mj-base %mj-acc %mj-acc)
+          (def s (* 26 n))
+          ((fn (self k)
+             (unless (< k 0)
+               (do (mont-jit-mul e %mj-acc %mj-acc %mj-acc)
+                   (when (= (& (>> s k) 1) 1) (mont-jit-mul e %mj-acc %mj-acc %mj-base))
+                   (self (- k 1)))))
+           ((fn (self k) (if (= (>> s (+ k 1)) 0) k (self (+ k 1)))) 0))
           (mont-set-r2! m (mont-jit-store e %mj-acc))))))
 
 ; The compiled engine when the lane builds it and it proves out, the pure
@@ -418,6 +646,6 @@
 
 (doc (provide x/codec/mont-jit mont-jit-engine mont-jit-make mont-jit-pure mont-jit-compiled? mont-jit-free mont-jit-n
               mont-jit-load! mont-jit-store mont-jit-copy! mont-jit-zero? mont-jit-eq?
-              mont-jit-mul mont-jit-add mont-jit-sub mont-jit-to! mont-jit-from! mont-jit-one! mont-jit-inv!
+              mont-jit-mul mont-jit-add mont-jit-sub mont-jit-to! mont-jit-from! mont-jit-one! mont-jit-pow! mont-jit-inv!
               mont-jit-program mont-jit-run!)
-  "Montgomery arithmetic for one modulus over named slots: (mont-jit-engine m) builds multiply, add and subtract compiled (JIT, ARM64 and x86-64 backends), checked against x/codec/mont's pure-x operations, or falls back to those; slots 0..mont-jit-free - 1 are the caller's.")
+  "Montgomery arithmetic for one modulus over named slots: (mont-jit-engine m) builds multiply, add and subtract compiled (JIT, ARM64 and x86-64 backends), unrolled for a curve's modulus and as loops generic over the modulus for RSA's, checked against x/codec/mont's pure-x operations, or falls back to those; slots 0..mont-jit-free - 1 are the caller's.")

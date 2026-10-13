@@ -15,9 +15,9 @@
 ; Finished and before any application data is sent: the first check on a
 ; curve builds its compiled engines, a few seconds a process, and a
 ; server waits that long for a request where it may not for a handshake.
-; Signatures are ECDSA over P-256 and P-384; a server signing with RSA is
-; refused until RSA is written.  ('insecure) skips the check, for a
-; self-signed development endpoint.
+; Signatures are ECDSA over P-256 and P-384 and RSA (PSS on the
+; CertificateVerify, PKCS#1 v1.5 on certificates).  ('insecure) skips the
+; check, for a self-signed development endpoint.
 ;
 ; Bytes are regions (BUF START LEN), as x/codec/bytes has them.  The
 ; session is a vector of slots, written as the handshake and the records
@@ -31,12 +31,14 @@
 (import x/codec/x25519)
 (import x/codec/chacha20-poly1305)
 (import x/codec/sha256)
+(import x/codec/sha512)
 (import x/codec/chacha20)
 (import x/codec/poly1305)
 (import x/net/tls-keys)
 (import x/net/x509)
 (import x/net/roots)
 (import x/codec/ecdsa)
+(import x/codec/rsa)
 (import x/sys/posix)
 
 (def %add (prim-ref 'int '+))
@@ -442,11 +444,15 @@
 
 ; --- authenticating the server -------------------------------------------
 
-; CertificateVerify's schemes this client checks (4.2.3): the curve and the
-; hash, an ECDSA signature over P-256 or P-384.
+; CertificateVerify's schemes this client checks (4.2.3): the key's kind
+; and the hash -- an ECDSA signature over P-256 or P-384, or RSA-PSS
+; under an rsaEncryption key.
 (def %schemes
   (list (list 1027 (lit p256) (lit sha256))
-        (list 1283 (lit p384) (lit sha384))))
+        (list 1283 (lit p384) (lit sha384))
+        (list 2052 (lit rsa) (lit sha256))
+        (list 2053 (lit rsa) (lit sha384))
+        (list 2054 (lit rsa) (lit sha512))))
 
 ; What CertificateVerify signs (4.4.3): sixty-four spaces, the context
 ; string, a zero byte, and the transcript hash before it.
@@ -467,14 +473,16 @@
     (when (null? v) (%fail "the server sent no CertificateVerify" ()))
     (def scheme ((fn (self l) (if (null? l) () (if (= (first (first l)) (first v)) (first l) (self (rest l))))) %schemes))
     (when (null? scheme)
-      (%fail (Str8 append "the server signs with a scheme this client cannot check yet (" (Str8 str (first v)) "); RSA is not written") (first v)))
+      (%fail (Str8 append "the server signs with a scheme this client does not check (" (Str8 str (first v)) ")") (first v)))
     (def leaf (guard (e (%fail (Str8 append "the server's certificate does not parse: " (e msg)) ())) (X509 parse (first certs))))
     (def key (X509 public-key leaf))
     (unless (eq? (first key) (first (rest scheme)))
       (%fail "the CertificateVerify scheme does not match the certificate's key" (first v)))
     (def hash (first (rest (rest scheme))))
     (def digest (list (Hmac digest hash (%verify-content (first (rest (rest v))))) 0 (Hmac size hash)))
-    (unless (Ecdsa verify-der (first key) (first (rest key)) digest (first (rest v)))
+    (unless (if (eq? (first key) (lit rsa))
+              (Rsa verify-pss (first (first (rest key))) (first (rest (first (rest key)))) hash digest (first (rest v)))
+              (Ecdsa verify-der (first key) (first (rest key)) digest (first (rest v))))
       (%fail "the server's CertificateVerify signature does not hold" ()))
     (guard (e (%fail (e msg) ()))
       (X509 verify-chain certs host (Sys now) (fn (_ name) (Roots find name))))))
@@ -501,6 +509,10 @@
       (Sha256 jit!)
       (ChaCha20 jit!)
       (Poly1305 jit!)
+      ; SHA-512's engine serves SHA-384, which signs most intermediates: a
+      ; certificate is under the size that builds it on its own, and pure
+      ; x digests one in 0.6 s
+      (Sha512 jit!)
       (def priv (Bytes random 32))
       (def public (list (X25519 base (first priv)) 0 32))
       (def s (Vector make %slots ()))
