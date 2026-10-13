@@ -1,0 +1,66 @@
+# Rsa
+# @weight 15
+# @timeout-scale 4
+
+RSA signature verification (RFC 8017), PKCS#1 v1.5 and PSS over SHA-256,
+under keys of 2048 and 4096 bits.  Every key and signature here is
+OpenSSL's: a key made with `openssl genrsa`, the message "x-lang
+verifies RSA" signed with `openssl dgst -sha256 -sign`, once plain and
+once with `-sigopt rsa_padding_mode:pss`, and each signature verified by
+`openssl dgst -verify` before it was written down.  Each case then
+breaks one thing -- the padding mode, a digest bit, a signature bit, the
+hash, the length -- and must answer #f.  The first verification builds
+the looping Montgomery engine (x/codec/mont-jit) and checks it against
+the pure-x arithmetic, so the file carries an engine's weight.
+
+## OpenSSL's signatures
+
+### a 2048-bit key, PKCS#1 v1.5 and PSS, and what breaks them
+
+```x
+(do
+  (import x/codec/rsa)
+  (import x/codec/bytes)
+  (def %rs-n (Bytes of-hex "aa54ba0b4cb8044c63065f6d657dd178ccc247acff7c095803e784b5fd8fee2eb0fd26f5cfbf5c072a8662b5fa2d53f1fa9d266060c6b4b4d461ed0af452390c9a36ef6e7df3b47644118c906216f5bd091549f8683e00112847c7e15a4e815695002deb15c1569984970865fa99c30743c6f8303e24834d4cc91713f5c16fbb0c84029dbcebcd6e95f175eb997f413185a0a681643e0b6646ca4711a21f59e6b87d157ed56866c70aff35908b234f66dc2aee57e6ef0f9e4b85363323d32bbf37b77f85feaf9bcefe0ba3bad005c7beea5949169d0b161cb65e777d9ec6ade3b0cb382b4c8b847b9ec4df0d991cfc69c189f43e5f9f0bf9a6345e772ee37331"))
+  (def %rs-e (Bytes of-hex "010001"))
+  (def %rs-h (Bytes of-hex "647b29271b96d1c1183c25f88b2b6a4667576d6872fcff0bff65b7bece3e9288"))
+  (def %rs-v15 (Bytes of-hex "764a0551fc1dadeef3cc06a50f5461ddd390f5d3921938cf602d7352d43b4866a159a111f0bef93b6e74e8723001546e3b18cb44af1e01ac67ad9e66f981cebdd75574b61b5f691a60b0a71300febcef599ef88b08f167f63841f0b4a6010f31109ab10acf512aabf70376f8e6ff9468d5855fe0928efb942a89bf2b094215bfea28feb1751cd0752f56954421adf069a600736a2f0226acc7b5f2dc91444cc38e0737f605c646c05413cefba7f652758aa6fe5e3e1652488fddc0ea033730580c5e05f74dfbfe86c0bfdd4c58ffdbc0bf6d88f635dd4add9ffa3df2f512a418824951f9ac141a47586fa3a2d1fdf30da28e1474be78317604cd10d52e4d514d"))
+  (def %rs-pss (Bytes of-hex "09fd04244680c0b5e0f2bd097087c38f8ffb59a47851c8eb2c44923955e6144b0257a8e442c5b1a9c45b91e952fbdf062b290fb10bf981763dd4a4e3707969fddefda16857a47c835a6a66744ba76296cadb876f0a29092b286c2a80f0a828569fce71710caac8feb926bea4f54d339be9d7d2968bbdff9165146c41f381ce776627f929d2d33a8d94ee245e202db78f3f0853d8546edbe47f820a8c5108724b178a4038b39b7fd8838558dd010e771a4997c30c0ba64274386f9a4cc5f33feac4e8386602f00d7d1725b521f6e10aa63c774c0b1bb6036ef946d5e5a469d7555e091ee0a90003e6ef6d9a5f42a7b65847085f1c9e4d0b73ff35d0420c9221c8"))
+  ; a copy of r with the low bit of byte i flipped
+  (def %rs-flip
+    (fn (_ r i)
+      (Bytes of-list ((fn (self k acc) (if (< k 0) acc (self (- k 1) (pair (if (= k i) (^ (Bytes ref r k) 1) (Bytes ref r k)) acc))))
+                      (- (Bytes length r) 1) ()))))
+  (write (list (Rsa verify-pkcs1 %rs-n %rs-e (lit sha256) %rs-h %rs-v15)
+               (Rsa verify-pss %rs-n %rs-e (lit sha256) %rs-h %rs-pss)
+               (Rsa verify-pkcs1 %rs-n %rs-e (lit sha256) %rs-h %rs-pss)
+               (Rsa verify-pss %rs-n %rs-e (lit sha256) %rs-h %rs-v15)
+               (Rsa verify-pkcs1 %rs-n %rs-e (lit sha256) (%rs-flip %rs-h 31) %rs-v15)
+               (Rsa verify-pss %rs-n %rs-e (lit sha256) (%rs-flip %rs-h 0) %rs-pss)
+               (Rsa verify-pkcs1 %rs-n %rs-e (lit sha256) %rs-h (%rs-flip %rs-v15 100))
+               (Rsa verify-pss %rs-n %rs-e (lit sha256) %rs-h (%rs-flip %rs-pss 255))
+               (Rsa verify-pkcs1 %rs-n %rs-e (lit sha384) %rs-h %rs-v15)
+               (Rsa verify-pkcs1 %rs-n %rs-e (lit sha256) %rs-h (Bytes sub %rs-v15 1 255))
+               (Rsa verify-pkcs1 %rs-n %rs-e (lit sha256) %rs-h %rs-n)
+               (Rsa verify-pkcs1 (Bytes of-hex "00ff00") %rs-e (lit sha256) %rs-h (Bytes of-hex "0102")))))
+```
+---
+    (#t #t #f #f #f #f #f #f #f #f #f #f)
+
+### a 4096-bit key
+
+```x
+(do
+  (import x/codec/rsa)
+  (import x/codec/bytes)
+  (def %rs4-n (Bytes of-hex "e73abd38e09acca82795b15a53590cc1e50ccba2776830958298f5da60c0153ff3d1106f44eb52a7755617c5a2074cec3a763273b1d26ab2ea1b9668ee942cee2f6f18d08ebb65b739734853c0de90c79f1408baf18b2b3c106d5e3caaf4fd85432b02fc8e69ecdc5e3da563c6fad1974f2ed3501d79c78388287bde6f9c31953bf5e434f1becec9396ab3208df5cd4ef29c3a859fe38fc45f15c51ca1d1af2875e0ae82e9923f7080e98fa4704c226d7b011058309588d47e623c6325bdba59b39befbb7ca5f8524ef550fde6cc1f8b2dd59ee284bc475c5be395e623d25363d82983b2a53988226a1854e2c7f1f783e15e67f879af656bb93d3b0ef75972e50de81c59cdd7461042cadedbcc3ce2c56d5315b71c30fcdf7eabec6f25602ab9cac50da3d465b569171f435e8410c1e5e0237f8bd232637e2035bc9bfb545e3d1c8d1016c7a8c369c1392a60db6f5041d1d89621f4283b01e1507ed12d987081e64cde87e3afb2326e8ac79a04f8d7c1be7286ac251e29ed20aaf9a18ff681a5bb654e571acbc51e5d01b6135daa3b0caba32a6654cd0d7129f8e60d8651c230d8c92607ceb913d60b10d4c7f109fc8ef1a214236a47361ed8c7f5f7f4830cfbd4a27dbe310ecb7a3164b2963359ea9b88acab86822c4c0fc5d0ea05241dfa0243106bf3533e8bbf7b0f83bec5d189f587b69eb917f47ffc2c8d02c3c5e1a6d9"))
+  (def %rs4-e (Bytes of-hex "010001"))
+  (def %rs4-h (Bytes of-hex "647b29271b96d1c1183c25f88b2b6a4667576d6872fcff0bff65b7bece3e9288"))
+  (def %rs4-v15 (Bytes of-hex "bea165e0bc9b789f78d2d9d9d18603385ac07224a8e63c3ba7631468ffec64d5e0c0d33212f52e0650a685a50d1d858617c50a0d5e6abaf6b659a9eafdded4fc3ef71c8c80126e350a515c2ff302200f2936ec70df2581c5f7de81f0943509a62eb9da1bf42147b8e18c1da5a275acb4a90bca604d8204a6d5d32cab7c7c6429ebd7f56901ea02a65a9183a4de4328eca2504595c40a641f8cf01e7ffe676c22ccb13290d51e27f3e78bf4e794846f711519e9ce05e130fcc908c48f86431e8905b73cb09944007e7ab239c83ae48547e4c6f5ae790103aa3b5a6d9b5010e1f1fed16bbafe2dcb6455439f66c671529e081820bb79bfcfb38c211dfeae5dff36a73e26bef0fd6532b4b3f5ff8f616383dc777f0d3c3e99cdb78b805708a6b5dc3ac5afd8d131e24039b46157fc7e0c9902685f98e4071bc0bc1b37dedcebdaed4b2a4cb898ecf5c31eccfdcdd480a3c1081738e53ab1d1db6f6e03cea8c1d68defd99269a926976128247281b4dbb7d56584e5e0ad0f1f76b9ceeb3191cef5b408dc31aea2506a5cec306837566e6fa64ffd6558f8d9a29021bbbe0f4d610bd182f41504376b8b415f56da83ec543211a067d93ff4daabfc957fd34426a69999b25ea2d5a46ff51ea8a90f984e2ab90261352a29f8797ab3359de6bdd1e52ee795e1201abebb6490e09f90654f5d5788e031779e5522324c5357beae7220f83a"))
+  (def %rs4-pss (Bytes of-hex "1b78d9d528eb1b86a67d1b406940c7846fb7a807d6608c3a3c91dca675d4156e7e7f820b011becf8f40e7fb736e5bf3dc2fb1999c2f08d9779048ea684cb5683f1a6c079935242777a9eb4a4f4a8155126c0fa36c3b3ad2d1022b3796eff3c96e47caad163d45f3768b41cb97363f957ce3fe3ec1c81b689999e4f10707855b1f19d7a2faaf8f77f8d9dba6765bc64b96a423d9538398dd923a7dc5c6c2995752bb2f60b5b72b1db9754c9b68597427f6db3ccf17d15e13ffed7fa4df05f1c4a6e49efb36210861b5c0083c616116593f1e2274bdb9b943c9b17b8f1b9f98f2714fbb62f378c573a2b52191726ce1ffea0cd6f63796eb70e57130dba1e19237cac3aa56bbcb36cc4aad5e052f9835fa38ca0d05f6dc14dbe301031d63e8062533aa2450ac81d8c827b4e443af79a307eec6d12baf409a2f959283c460ee67bf14520fc1dd8ea3c1020a29e469b1e00b0701e98ae735942761b75d991ba5c930ce10c9451473edeb9e9fbb4fa533729ed129603b1e0e24b20fefbbd16318ee251fb903f932b579ad7ee2d96bf0a9cd30b50a1dd471fe90607867cc30601db1c424246253eff0579c7e28d004efdfe710989de3d7f48f2a210a9be0e26380bdac2985ca1751ef4440cb706ef6b8c2935e978445692903efc1b412ad18a4a35663dd273a245d069a97808e87f2ab8acd6841bbcf11b4d9c0962185cc306265e983e"))
+  (write (list (Rsa verify-pkcs1 %rs4-n %rs4-e (lit sha256) %rs4-h %rs4-v15)
+               (Rsa verify-pss %rs4-n %rs4-e (lit sha256) %rs4-h %rs4-pss)
+               (Rsa verify-pss %rs4-n %rs4-e (lit sha256) %rs4-h %rs4-v15))))
+```
+---
+    (#t #t #f)
