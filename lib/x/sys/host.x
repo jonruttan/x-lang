@@ -1202,7 +1202,7 @@
       (if (null? (Host %dev-ino path)) ()
         (if (eq? (Host %backend) (lit darwin)) (Host %darwin-holders path whole) (Host %linux-holders path whole))))
 
-    (method %darwin-holders (self (param path STRING "A path that stats") (param whole BOOLEAN "Its file system rather than the path"))
+    (method %darwin-holders (self (param path STRING "A path that stats") (param whole BOOL "Its file system rather than the path"))
       (doc "holders, from proc_listpidspath over PROC_ALL_PIDS: the kernel walks each process's descriptors, directories, text and mappings. The buffer has room for the process table proc_listpids reports, and a few hundred more."
         (returns LIST "Pids"))
       (def ref (prim-ref (lit ptr) (lit ref)))
@@ -1214,22 +1214,39 @@
       (def go (fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (ref p (* 4 i) 4) acc)))))
       (if (<= got 0) () (List sort < (go (- (/ got 4) 1) ()))))
 
-    (method %linux-holders (self (param path STRING "A path that stats") (param whole BOOLEAN "Its file system rather than the path"))
-      (doc "holders, from each process's files records: one whose dev (and, for the path itself, ino) matches the path's stat. Its links and descriptors are read first, and its mappings only when they do not settle it."
+    (method %linux-holders (self (param path STRING "A path that stats") (param whole BOOL "Its file system rather than the path"))
+      (doc "holders, from each /proc/PID: the cwd, root and exe links and the fd links stat'd, then the maps text searched for the path's ` MAJ:MIN INODE ` (or with whole, ` MAJ:MIN `) as the kernel prints it, one strstr over the file. A process is read only as far as its first match."
         (returns LIST "Pids"))
       (def id (Host %dev-ino path))
-      ; = reads only integers, and a record may have no dev or ino
-      (def same? (fn (_ a b) (if (null? a) #f (if (null? b) #f (= a b)))))
+      (def root (Host proc-root))
       (def hit?
-        (fn (_ r)
-          (if (same? (Assoc get (lit dev) r) (first id))
-            (if whole #t (same? (Assoc get (lit ino) r) (rest id)))
-            #f)))
+        (fn (_ p)
+          (def di (Host %dev-ino p))
+          (if (null? di) #f (if (= (first di) (first id)) (if whole #t (= (rest di) (rest id))) #f))))
+      (def key (Str8 append " " (Host %maps-dev (first id)) (if whole " " (Str8 append " " (Str8 str (rest id)) " "))))
       (def holds?
         (fn (_ pid)
-          (if (List any? hit? (Host files pid (lit cwd) (lit root) (lit exe) (lit fd))) #t
-            (List any? hit? (Host files pid (lit map))))))
-      (List filter holds? (List sort < (List map (fn (_ r) (Assoc get (lit pid) r)) (Host processes)))))
+          (def dir (Str8 append root "/" pid))
+          (def fds (guard (e ()) (File list-dir (Str8 append dir "/fd"))))
+          (match
+            ((List any? (fn (_ n) (hit? (Str8 append dir "/" n))) (lit ("cwd" "root" "exe"))) #t)
+            ((List any? (fn (_ n) (hit? (Str8 append dir "/fd/" n))) fds) #t)
+            (#t (let ((text (Host %read (Str8 append dir "/maps"))))
+                  (if (null? text) #f (not (= 0 (Host %call "strstr" text key)))))))))
+      (def pids (List filter (fn (_ n) (not (null? (Host %int n)))) (guard (e ()) (File list-dir root))))
+      (List sort < (List map (fn (_ n) (Host %int n)) (List filter holds? pids))))
+
+    (method %maps-dev (self (param dev INTEGER "A device number, as stat(2) reports it"))
+      (doc "The device as /proc/PID/maps prints it, MAJ:MIN in lower-case hexadecimal, two digits at least: %linux-dev read backwards, in this platform's encoding."
+        (returns STRING "MAJ:MIN"))
+      (def maj (if os-darwin? (/ dev 16777216) (+ (& (/ dev 256) 4095) (- (/ dev 4294967296) (& (/ dev 4294967296) 4095)))))
+      (def min (if os-darwin? (& dev 16777215) (+ (& dev 255) (- (/ dev 4096) (& (/ dev 4096) 255)))))
+      (def digits "0123456789abcdef")
+      (def hex
+        (fn (self n acc)
+          (def s (Str8 append (Str8 sub (& n 15) 1 digits) acc))
+          (if (< n 16) (if (< (Str8 length s) 2) (Str8 append "0" s) s) (self (/ n 16) s))))
+      (Str8 append (hex maj "") ":" (hex min "")))
 
     (method %linux-btime (self)
       (doc "The boot time /proc/stat records, the base of a process's start time."
