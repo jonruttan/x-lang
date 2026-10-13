@@ -350,13 +350,20 @@ jobs:
   # on 64-bit and segfaults on 32-bit/Pi. See test-asan in the Makefile for
   # the pinned ASAN_OPTIONS rationale.
   asan:
-    name: make test-asan
+    name: make ${{ matrix.target }}
     # Deep tier only: the sanitizer multiplies the whole suite 5-10x,
     # which is most of what made every PR round-trip cost tens of
     # minutes.  Merges to main still cannot land without it.
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    # Two runners: the crypto and compiled codec specs (ASAN_CRYPTO_SPECS in
+    # the Makefile) were 36 of the suite's 78 minutes under the sanitizer on
+    # one runner, which runs one heavy spec at a time to stay inside 16 GB.
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [test-asan, test-asan-crypto]
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       # THE SANITIZER ENGINE IS BUILT FROM THE PINNED SOURCES, and a tag is
@@ -383,6 +390,6 @@ jobs:
       - name: Acquire the engine (sources)
         run: make engine-source
       - name: Run suites under AddressSanitizer
-        run: make test-asan
+        run: make ${{ matrix.target }}
         env:
           PARALLEL: "1"
