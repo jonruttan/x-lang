@@ -14,8 +14,9 @@
 ; being a CA in date whose path length allows what is below it; and the
 ; walk ends at a certificate signed by a trusted root.  It ends at the
 ; FIRST such certificate, so a cross-signature the server sends past it
-; is never read.  Signatures are ECDSA over P-256 and P-384 (x/codec/ecdsa);
-; an RSA signature is reported as one this code cannot check yet.
+; is never read.  Signatures are ECDSA over P-256 and P-384 (x/codec/ecdsa)
+; and RSA PKCS#1 v1.5 (x/codec/rsa); an RSASSA-PSS signature on a
+; certificate is one this code does not check.
 (module x/net/x509)
 
 (import x/codec/bytes)
@@ -23,6 +24,7 @@
 (import x/codec/hmac)
 (import x/codec/der)
 (import x/codec/ecdsa)
+(import x/codec/rsa)
 
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "X509: " what) ())))
 
@@ -32,6 +34,7 @@
 
 ; OIDs
 (def %oid-ec-public-key "1.2.840.10045.2.1")
+(def %oid-rsa "1.2.840.113549.1.1.1")
 (def %oid-p256 "1.2.840.10045.3.1.7")
 (def %oid-p384 "1.3.132.0.34")
 (def %sig-algs
@@ -92,12 +95,22 @@
     (def spki (Der items (%body (List ref 5 f))))
     (def alg (Der items (%body (first spki))))
     (def key-oid (Der oid (%body (first alg))))
-    (def curve
-      (if (and (str=? key-oid %oid-ec-public-key) (= (List length alg) 2) (= (%tag (first (rest alg))) 6))
-        (do (def c (Der oid (%body (first (rest alg)))))
-            (match ((str=? c %oid-p256) (lit p256)) ((str=? c %oid-p384) (lit p384)) (#t ())))
-        ()))
-    (def key (Der bits (%body (first (rest spki)))))
+    ; the key's kind: its curve, rsa, or nil for one this code does not use
+    (def kind
+      (match ((and (str=? key-oid %oid-ec-public-key) (= (List length alg) 2) (= (%tag (first (rest alg))) 6))
+              (do (def c (Der oid (%body (first (rest alg)))))
+                  (match ((str=? c %oid-p256) (lit p256)) ((str=? c %oid-p384) (lit p384)) (#t ()))))
+             ((str=? key-oid %oid-rsa) (lit rsa))
+             (#t ())))
+    (def bits (Der bits (%body (first (rest spki)))))
+    ; an RSA key's bits hold SEQUENCE { INTEGER n, INTEGER e }
+    (def key
+      (if (eq? kind (lit rsa))
+        (do (def ints (Der items (%body (Der read bits))))
+            (unless (and (= (List length ints) 2) (= (%tag (first ints)) 2) (= (%tag (first (rest ints))) 2))
+              (%fail "an RSA key that is not two INTEGERs"))
+            (list (%body (first ints)) (%body (first (rest ints)))))
+        bits))
     (def exts (%extensions f))
     ((fn (self l)
        (unless (null? l)
@@ -120,7 +133,7 @@
       (if (null? san) ()
         (List map (fn (_ e) (Str8 downcase (first (Bytes copy (%body e)))))
                   (List filter (fn (_ e) (= (%tag e) 130)) (Der items (%body (Der read (List ref 2 san))))))))
-    (list (%whole tbs) sig-alg sig issuer subject not-before not-after curve key ca pathlen cert-sign dns)))
+    (list (%whole tbs) sig-alg sig issuer subject not-before not-after kind key ca pathlen cert-sign dns)))
 
 (def %tbs (fn (_ c) (%c c 0)))
 (def %sig-alg (fn (_ c) (%c c 1)))
@@ -129,7 +142,7 @@
 (def %subject (fn (_ c) (%c c 4)))
 (def %not-before (fn (_ c) (%c c 5)))
 (def %not-after (fn (_ c) (%c c 6)))
-(def %curve (fn (_ c) (%c c 7)))
+(def %kind (fn (_ c) (%c c 7)))
 (def %key (fn (_ c) (%c c 8)))
 (def %ca? (fn (_ c) (%c c 9)))
 (def %pathlen (fn (_ c) (%c c 10)))
@@ -138,15 +151,19 @@
 
 ; Did parent sign child?  #f for a signature this code cannot check (RSA,
 ; or a key on another curve) as well as for a wrong one.
+; Did parent's key sign child?  The signature algorithm's kind must be
+; the key's: ECDSA under a curve's key, PKCS#1 v1.5 under an RSA key.
 (def %signed-by?
   (fn (_ child parent)
     (def alg (%lookup (%sig-alg child) %sig-algs))
-    (and (not (null? alg))
-         (eq? (first (rest alg)) (lit ecdsa))
-         (not (null? (%curve parent)))
-         (do (def h (Hmac digest (first (rest (rest alg))) (%tbs child)))
-             (Ecdsa verify-der (%curve parent) (%key parent)
-                               (list h 0 (Hmac size (first (rest (rest alg))))) (%sig child))))))
+    (if (or (null? alg) (null? (%kind parent))) #f
+      (do (def hash (first (rest (rest alg))))
+          (def digest (fn (_) (list (Hmac digest hash (%tbs child)) 0 (Hmac size hash))))
+          (match ((and (eq? (first (rest alg)) (lit ecdsa)) (not (eq? (%kind parent) (lit rsa))))
+                  (Ecdsa verify-der (%kind parent) (%key parent) (digest) (%sig child)))
+                 ((and (eq? (first (rest alg)) (lit rsa)) (eq? (%kind parent) (lit rsa)))
+                  (Rsa verify-pkcs1 (first (%key parent)) (first (rest (%key parent))) hash (digest) (%sig child)))
+                 (#t #f))))))
 
 (def %in-date? (fn (_ c now) (and (>= now (%not-before c)) (<= now (%not-after c)))))
 
@@ -188,7 +205,7 @@
              (when (null? up)
                (%fail (if (null? (%lookup (%sig-alg cur) %sig-algs))
                         "a signature algorithm this code does not know"
-                        "no path to a trusted root (an RSA signature on the way is not checked yet)")))
+                        "no path to a trusted root")))
              (unless (%ca? up) (%fail "an intermediate that is not a CA"))
              (unless (%cert-sign? up) (%fail "an intermediate whose key may not sign certificates"))
              (unless (%in-date? up now) (%fail "an intermediate out of date"))
@@ -234,12 +251,12 @@
         (returns LIST "Strings"))
       (%dns cert))
     (method public-key (self (param cert LIST "A parsed certificate"))
-      (doc "(CURVE KEY): the curve, p256 or p384, nil for a key of another kind, and the key's bytes as SEC 1 encodes them."
-        (returns LIST "(SYMBOL region)"))
-      (list (%curve cert) (%key cert)))
+      (doc "(KIND KEY): p256 or p384 and the key's bytes as SEC 1 encodes them; rsa and (N E), the modulus and exponent as the big-endian regions DER holds; or nil and the key's bytes for a kind this code does not use."
+        (returns LIST "(SYMBOL region) or (rsa (region region))"))
+      (list (%kind cert) (%key cert)))
     (method signed-by? (self (param child LIST "A parsed certificate")
                              (param parent LIST "The certificate that may have signed it"))
-      (doc "#t when parent's key signed child (ECDSA over P-256 or P-384). An RSA signature answers #f: it is not checked yet."
+      (doc "#t when parent's key signed child: ECDSA over P-256 or P-384, or RSA PKCS#1 v1.5 with SHA-256, SHA-384 or SHA-512. An RSASSA-PSS signature answers #f: it is not checked."
         (returns BOOL "#t when the signature holds"))
       (%signed-by? child parent))
     (method verify-chain (self (param certs LIST "The server's certificates, leaf first, each a region of DER bytes")
@@ -259,4 +276,4 @@
       (%walk leaf (rest parsed) roots now))))
 
 (doc (provide x/net/x509 X509)
-  "X.509 certificates (RFC 5280): parse, from-pem, and verify-chain -- a TLS server's chain checked for its host, dates, CA constraints and signatures (ECDSA) up to a trusted root.")
+  "X.509 certificates (RFC 5280): parse, from-pem, and verify-chain -- a TLS server's chain checked for its host, dates, CA constraints and signatures (ECDSA and RSA) up to a trusted root.")
