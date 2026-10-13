@@ -343,7 +343,7 @@
                       (param salt STRING "The salt: up to its first $, at most eight characters, are used"))
       (doc "crypt(3)'s $1$ hash of KEY with SALT -- MD5-crypt, as FreeBSD and busybox make it: $1$, the salt, $, and twenty-two characters of crypt's base-64 from a thousand rounds of MD5. MD5's compiled engine is adopted first."
         (returns STRING "$1$SALT$ and 22 characters")
-        (example "(Crypt md5 \"pw\" \"saltsalt\")" "\"$1$saltsalt$6SNdNaZLKst2LlSm7oPPL1\""))
+        (sample "(Crypt md5 \"pw\" \"saltsalt\")" "\"$1$saltsalt$6SNdNaZLKst2LlSm7oPPL1\""))
       (Md5 jit!)
       (def s (%salt-part salt 8))
       (Str8 join "" (list "$1$" s "$" (%encode (first (%md5-crypt key s)) %md5-groups))))
@@ -351,13 +351,13 @@
                          (param salt STRING "The salt: an optional rounds=N$, then up to its first $, at most sixteen characters"))
       (doc "crypt(3)'s $5$ hash of KEY with SALT -- SHA-crypt over SHA-256, as glibc and busybox make it: $5$, rounds=N$ where the salt gave one (held to 1000..999999999; 5000 otherwise), the salt, $, and forty-three characters of crypt's base-64. SHA-256's compiled engine is adopted first."
         (returns STRING "$5$[rounds=N$]SALT$ and 43 characters")
-        (example "(Crypt sha256 \"pw\" \"saltsalt\")" "\"$5$saltsalt$0rl.MZtoLLPP3X0Rdl8riRnphIcAXJY27/aOAyK2hB5\""))
+        (sample "(Crypt sha256 \"pw\" \"saltsalt\")" "\"$5$saltsalt$0rl.MZtoLLPP3X0Rdl8riRnphIcAXJY27/aOAyK2hB5\""))
       (%sha-hash %sha256 "5" %sha256-groups key salt))
     (method sha512 (self (param key STRING "The password")
                          (param salt STRING "The salt: an optional rounds=N$, then up to its first $, at most sixteen characters"))
       (doc "crypt(3)'s $6$ hash of KEY with SALT -- SHA-crypt over SHA-512, as $5$ is over SHA-256: $6$, the rounds where given, the salt, $, and eighty-six characters of crypt's base-64. SHA-512's compiled engine is adopted first."
         (returns STRING "$6$[rounds=N$]SALT$ and 86 characters")
-        (example "(Crypt sha512 \"pw\" \"saltsalt\")" "\"$6$saltsalt$pauPrmdmG4BTE9h2HPmywiw152IFch6BJCEsaY6D.PLTfpV8sqvXwWdyfsgVgozkYH9B80bAip/08R2BPH2xk/\""))
+        (sample "(Crypt sha512 \"pw\" \"saltsalt\")" "\"$6$saltsalt$pauPrmdmG4BTE9h2HPmywiw152IFch6BJCEsaY6D.PLTfpV8sqvXwWdyfsgVgozkYH9B80bAip/08R2BPH2xk/\""))
       (%sha-hash %sha512 "6" %sha512-groups key salt))))
 
 (doc (provide x/codec/crypt Crypt)
