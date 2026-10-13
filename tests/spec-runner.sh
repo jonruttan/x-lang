@@ -504,6 +504,19 @@ else
   set -- "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md
 fi
 
+# _matches FILE PATTERNS: true when FILE matches any of the space-separated
+# glob PATTERNS.  Pathname expansion is off while they are split, or '*list*'
+# would expand against the current directory instead of being a pattern.
+_matches() {
+  _m=1
+  set -f
+  for _pat in $2; do
+    case "$1" in $_pat) _m=0; break ;; esac
+  done
+  set +f
+  return $_m
+}
+
 # Walk the target list, applying the filters; glob mode collects the
 # survivors for bucketing, args mode spawns each file directly.
 _LIST="$_TMPDIR/files.lst"
@@ -568,8 +581,13 @@ for _spec in "$@"; do
       continue
     fi
   fi
-  # SPECS (a glob pattern, e.g. '*list*') narrows the run for fast iteration; unset = all.
-  [ -n "$SPECS" ] && { case "$_spec" in $SPECS) : ;; *) continue ;; esac; }
+  # SPECS narrows the run to the files matching any of its glob patterns
+  # (e.g. '*list*', or '*/sha1.spec.md */sha256.spec.md'); unset = all.
+  # SPECS_SKIP leaves out the files matching any of its patterns, which is
+  # how `make test-asan` and `make test-asan-crypto` split one suite between
+  # two runners from one list.
+  if [ -n "$SPECS" ]; then _matches "$_spec" "$SPECS" || continue; fi
+  if [ -n "$SPECS_SKIP" ]; then _matches "$_spec" "$SPECS_SKIP" && continue; fi
   if [ "$_args_mode" = 1 ]; then
     # NAMED FILES ARE CLASSIFIED TOO.  This passed a hard 0, so a file given on
     # the command line was admitted as light whatever it declared -- and the

@@ -66,6 +66,14 @@ trap 'cleanup; echo "spec-gate: killed by SIGTERM -- the suite did not finish" >
 # `set -e` would otherwise kill us before we could read the output.
 status=0
 sh "$BUNDLE/tests/spec-runner.sh" > "$work/out" 2>&1 || status=$?
+
+# The suite's output is bytes, not text: a failing case may print a raw 0xff.
+# Under a UTF-8 locale macOS sed stops at it with "RE error: illegal byte
+# sequence", `set -e` ends the gate, and the log names no failing spec.  From
+# here on every tool reads bytes; the C locale also gives sort and comm the
+# one collation.  The runner above keeps the caller's locale.
+LC_ALL=C
+export LC_ALL
 sed 's/\x1b\[[0-9;]*m//g' "$work/out" > "$work/clean"
 cat "$work/clean"
 
