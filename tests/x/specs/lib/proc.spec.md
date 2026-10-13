@@ -102,6 +102,36 @@ kill alone; the take is what shows the catch took.
 ---
     (0 #f #t #f)
 
+### Sys wait waits on through a caught signal, and reaps the child
+
+A second child sends the caught SIGWINCH while the first still runs; the
+wait answers the first child's own status, and the child is gone after it.
+
+```x
+(do
+  (Sys catch-signal (Sys sigwinch))
+  (def %sw-me (Sys getpid))
+  (def %sw-child (Sys fork))
+  (when (= %sw-child 0) (Sys usleep 400000) (Sys exit 7))
+  (def %sw-poker (Sys fork))
+  (when (= %sw-poker 0) (Sys usleep 100000) (Sys kill %sw-me (Sys sigwinch)) (Sys exit 0))
+  (def %sw-status (Sys wait %sw-child))
+  (Sys wait %sw-poker)
+  (def %sw-taken (Sys take-signal (Sys sigwinch)))
+  (Sys signal (Sys sigwinch) (Sys sig-dfl))
+  (list %sw-status %sw-taken (guard (e (Assoc get 'sym (e data))) (Sys wait %sw-child))))
+```
+---
+    (7 #t 'echild)
+
+### Sys wait on a pid that is no child raises the io Err
+
+```x
+(guard (e (list (Err label e) (Assoc get 'sym (e data)) (Assoc get 'op (e data)) (Assoc get 'detail (e data)))) (Sys wait 1))
+```
+---
+    ('io 'echild 'waitpid 1)
+
 ### a signal no handler can catch is refused
 
 ```x
