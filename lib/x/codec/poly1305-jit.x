@@ -20,7 +20,6 @@
 (module x/codec/poly1305-jit)
 
 (import x/type/vector)
-(import x/tool/compile compile-asm)
 (import x/tool/jit-group jit-group)
 
 (def %pj-make-str (prim-ref (lit str) (lit make)))

@@ -14,7 +14,6 @@
 ; area and the swap temporary, which are the scratch's slots 120..130.
 (module x/codec/fe25519-jit)
 
-(import x/tool/compile compile-asm)
 (import x/tool/jit-group jit-group)
 (import x/codec/fe25519 fe-zero fe-limbs fe-frombytes fe-tobytes fe-add fe-sub fe-mul fe-sq fe-sq-n fe-mul121666)
 

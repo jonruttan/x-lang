@@ -21,7 +21,6 @@
 ; is the caller's to sweep.
 (module x/codec/chacha20-jit)
 
-(import x/tool/compile compile-asm)
 (import x/tool/jit-group jit-group)
 
 (def %cj-make-str (prim-ref (lit str) (lit make)))

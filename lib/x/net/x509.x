@@ -35,6 +35,8 @@
 ; OIDs
 (def %oid-ec-public-key "1.2.840.10045.2.1")
 (def %oid-rsa "1.2.840.113549.1.1.1")
+(def %pem-begin "-----BEGIN CERTIFICATE-----")
+(def %pem-end "-----END CERTIFICATE-----")
 (def %oid-p256 "1.2.840.10045.3.1.7")
 (def %oid-p384 "1.3.132.0.34")
 (def %sig-algs
@@ -220,20 +222,21 @@
         (returns LIST "The certificate, for the other methods")
         (sample "(X509 parse der)" "a certificate"))
       (%parse (Bytes of der)))
-    (method from-pem (self (param text STRING "PEM text: one or more BEGIN CERTIFICATE blocks"))
-      (doc "The certificates' DER bytes from PEM text, in order, each a region."
+    (method from-pem (self (param text ANY "PEM text: one or more BEGIN CERTIFICATE blocks, a region or a STRING up to its first NUL"))
+      (doc "The certificates' DER bytes from PEM text, in order, each a region: each block's text between its BEGIN and END lines decoded, line breaks and all."
         (returns LIST "Regions")
         (sample "(X509 from-pem (File read-all \"/etc/ssl/cert.pem\"))" "the bundle's certificates"))
-      ((fn (self lines inside acc out)
-         (if (null? lines) (List reverse out)
-           (do (def l (Str8 trim (first lines)))
-               (match
-                 ((str=? l "-----BEGIN CERTIFICATE-----") (self (rest lines) #t () out))
-                 ((str=? l "-----END CERTIFICATE-----")
-                   (self (rest lines) #f () (pair (Bytes of-list (Base64 decode-bytes (Str8 join "" (List reverse acc)))) out)))
-                 (inside (self (rest lines) #t (pair l acc) out))
-                 (#t (self (rest lines) #f acc out))))))
-       (Str8 split "\n" text) #f () ()))
+      (def r (Bytes of text))
+      ((fn (self at out)
+         (def left (Bytes sub r at (- (Bytes length r) at)))
+         (def b (Bytes find left %pem-begin))
+         (if (null? b) (List reverse out)
+           (do (def body (+ b (Str8 length %pem-begin)))
+               (def e (Bytes find (Bytes sub left body (- (Bytes length left) body)) %pem-end))
+               (when (null? e) (%fail "a PEM block with no end"))
+               (self (+ at body e (Str8 length %pem-end))
+                     (pair (Base64 decode-region (Bytes sub left body e)) out)))))
+       0 ()))
     (method subject (self (param cert LIST "A parsed certificate"))
       (doc "The subject's name, as its DER bytes."
         (returns LIST "A region"))

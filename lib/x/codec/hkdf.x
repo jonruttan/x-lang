@@ -10,6 +10,7 @@
 (module x/codec/hkdf)
 
 (import x/codec/hmac)
+(import x/codec/bytes)
 
 (def %add (prim-ref 'int '+))
 (def %sub (prim-ref 'int '-))
@@ -48,22 +49,13 @@
      1 () 0)
     out))
 
-; T(i-1) | info | i as one region, for the HMAC's message.
+; T(i-1) | info | i as one region, for the HMAC's message: Bytes join
+; copies by memcpy, where a loop in x is a few objects a byte.
 (def %join
   (fn (_ prev info ctr)
-    (def regions (if (null? prev) (list (%region info) (list ctr 0 1)) (list prev (%region info) (list ctr 0 1))))
-    (def total ((fn (self rs n) (if (null? rs) n (self (rest rs) (%add n (first (rest (rest (first rs)))))))) regions 0))
-    (def out (%make-str total))
-    (def p (%str->ptr out))
-    ((fn (self rs at)
-       (unless (null? rs)
-         (do (def r (first rs))
-             (def l (first (rest (rest r))))
-             ((fn (self i)
-                (unless (= i l)
-                  (do (%pset1 p (%add at i) (%byte (first r) (%add (first (rest r)) i)) 1) (self (%add i 1))))) 0)
-             (self (rest rs) (%add at l))))) regions 0)
-    (list out 0 total)))
+    (if (null? prev)
+      (Bytes join (%region info) (list ctr 0 1))
+      (Bytes join prev (%region info) (list ctr 0 1)))))
 
 (def-class Hkdf ()
   (static

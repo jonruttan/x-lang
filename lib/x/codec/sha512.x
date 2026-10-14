@@ -317,5 +317,8 @@
         (returns BOOL "#t when the compiled engine is active"))
       (%jit-try!))))
 
-(doc (provide x/codec/sha512 Sha512 sha384-words sha512-jit-try!)
+; The words as bytes in a fresh buffer, for SHA-384's shorter digest.
+(def sha512-bytes (fn (_ hs) (%bytes-into hs (%make-str (%add (<< (List length hs) 2) 1)))))
+
+(doc (provide x/codec/sha512 Sha512 sha384-words sha512-bytes sha512-jit-try!)
   "SHA-512 (FIPS 180-4): (Sha512 hex s) digests a byte string. Pure x-lang, with an optional differentially-verified JIT engine ((Sha512 jit!), or built on its own for an input of 4KB or more).")

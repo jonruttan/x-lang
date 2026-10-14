@@ -17,26 +17,48 @@
 
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "Der: " what) ())))
 
+; Bytes read through the prims: a certificate is read a byte at a time,
+; and a class call a byte is hundreds of objects where a prim is one.
+(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
+(def %char->int (prim-ref (lit char) (lit ->int)))
+(def %at (fn (_ r i) (%char->int (%byte-ref (first r) (+ (first (rest r)) i)))))
+(def %len (fn (_ r) (first (rest (rest r)))))
+
+; A cursor over a region: (BUF POS END), POS moving.
+(def %rd (fn (_ r) (list (first r) (first (rest r)) (+ (first (rest r)) (%len r)))))
+(def %rd-pos (fn (_ rd) (first (rest rd))))
+(def %rd-left (fn (_ rd) (- (first (rest (rest rd))) (first (rest rd)))))
+(def %rd-u8
+  (fn (_ rd)
+    (def p (first (rest rd)))
+    (when (>= p (first (rest (rest rd)))) (%fail "an element cut short"))
+    (%set-first! (rest rd) (+ p 1))
+    (%char->int (%byte-ref (first rd) p))))
+(def %rd-take
+  (fn (_ rd n)
+    (def p (first (rest rd)))
+    (%set-first! (rest rd) (+ p n))
+    (list (first rd) p n)))
+
 (def %length
   (fn (_ rd)
-    (def b (Bytes get-u8 rd))
+    (def b (%rd-u8 rd))
     (match
       ((< b 128) b)
       ((= b 128) (%fail "an indefinite length"))
       ((> b 132) (%fail "a length of more than four bytes"))
-      (#t ((fn (self k acc) (if (= k 0) acc (self (- k 1) (| (<< acc 8) (Bytes get-u8 rd))))) (- b 128) 0)))))
+      (#t ((fn (self k acc) (if (= k 0) acc (self (- k 1) (| (<< acc 8) (%rd-u8 rd))))) (- b 128) 0)))))
 
-; The next element of a reader, as (TAG CONTENTS WHOLE).
+; The next element at a cursor, as (TAG CONTENTS WHOLE).
 (def %next
   (fn (_ rd)
-    (def start (Bytes left rd))
-    (def tag (Bytes get-u8 rd))
+    (def start (%rd-pos rd))
+    (def tag (%rd-u8 rd))
     (when (= (& tag 31) 31) (%fail "a multi-byte tag"))
     (def len (%length rd))
-    (when (> len (Bytes left rd)) (%fail "an element longer than what holds it"))
-    (def contents (Bytes get rd len))
-    (list tag contents
-          (list (first contents) (- (first (rest contents)) (- start (+ (Bytes left rd) len))) (+ len (- start (+ (Bytes left rd) len)))))))
+    (when (> len (%rd-left rd)) (%fail "an element longer than what holds it"))
+    (def contents (%rd-take rd len))
+    (list tag contents (list (first rd) start (- (%rd-pos rd) start)))))
 
 ; Days since 1970-01-01 of a civil date (Hinnant's days_from_civil).
 (def %days
@@ -52,7 +74,7 @@
   (fn (_ r at n)
     ((fn (self i acc)
        (if (= i n) acc
-         (do (def c (Bytes ref r (+ at i)))
+         (do (def c (%at r (+ at i)))
              (unless (and (>= c 48) (<= c 57)) (%fail "a time with a non-digit"))
              (self (+ i 1) (+ (* acc 10) (- c 48))))))
      0 0)))
@@ -63,28 +85,28 @@
       (doc "The one element a region holds, as (TAG CONTENTS WHOLE): CONTENTS and WHOLE are regions of the input. Raises a label 'value when the region holds anything more or less."
         (returns LIST "(TAG CONTENTS WHOLE)")
         (example "(first (Der read (Bytes of-hex \"020101\")))" "2"))
-      (def rd (Bytes reader (Bytes of r)))
+      (def rd (%rd (Bytes of r)))
       (def e (%next rd))
-      (unless (= (Bytes left rd) 0) (%fail "bytes after the element"))
+      (unless (= (%rd-left rd) 0) (%fail "bytes after the element"))
       e)
     (method items (self (param contents LIST "A constructed element's contents, a region"))
       (doc "The elements a SEQUENCE's or SET's contents hold, in order, each (TAG CONTENTS WHOLE)."
         (returns LIST "A list of elements")
         (example "(List length (Der items (first (rest (Der read (Bytes of-hex \"3006020101020102\"))))))" "2"))
-      (def rd (Bytes reader contents))
-      ((fn (self acc) (if (= (Bytes left rd) 0) (List reverse acc) (self (pair (%next rd) acc)))) ()))
+      (def rd (%rd contents))
+      ((fn (self acc) (if (= (%rd-left rd) 0) (List reverse acc) (self (pair (%next rd) acc)))) ()))
     (method oid (self (param contents LIST "An OBJECT IDENTIFIER's contents, a region"))
       (doc "The OID in dotted form."
         (returns STRING "Its dotted form")
         (example "(Der oid (first (rest (Der read (Bytes of-hex \"06082a8648ce3d040302\")))))" "\"1.2.840.10045.4.3.2\""))
-      (def n (Bytes length contents))
+      (def n (%len contents))
       (when (= n 0) (%fail "an empty OID"))
-      (def b0 (Bytes ref contents 0))
+      (def b0 (%at contents 0))
       (def head (if (< b0 80) (list (%div b0 40) (- b0 (* 40 (%div b0 40)))) (list 2 (- b0 80))))
       (def arcs
         ((fn (self i acc v)
            (if (= i n) (if (= v 0) (List reverse acc) (%fail "an OID cut short"))
-             (do (def b (Bytes ref contents i))
+             (do (def b (%at contents i))
                  (def v2 (| (<< v 7) (& b 127)))
                  (if (>= b 128) (self (+ i 1) acc v2) (self (+ i 1) (pair v2 acc) 0)))))
          1 () 0))
@@ -95,8 +117,8 @@
         (returns INTEGER "Seconds since 1970-01-01T00:00:00Z")
         (example "(Der time 23 (Bytes of \"700101000000Z\"))" "0"))
       (def long (= tag 24))
-      (def n (Bytes length contents))
-      (unless (and (= n (if long 15 13)) (= (Bytes ref contents (- n 1)) 90)) (%fail "a time not in DER's form"))
+      (def n (%len contents))
+      (unless (and (= n (if long 15 13)) (= (%at contents (- n 1)) 90)) (%fail "a time not in DER's form"))
       (def yy (if long (%digits contents 0 4) (%digits contents 0 2)))
       (def y (if long yy (if (< yy 50) (+ 2000 yy) (+ 1900 yy))))
       (def at (if long 4 2))
@@ -108,14 +130,14 @@
       (doc "A BIT STRING's bytes, its unused-bits count checked to be zero, as keys and signatures are."
         (returns LIST "A region of the bits")
         (example "(Bytes hex (Der bits (first (rest (Der read (Bytes of-hex \"030300abcd\"))))))" "\"abcd\""))
-      (when (or (= (Bytes length contents) 0) (not (= (Bytes ref contents 0) 0))) (%fail "a BIT STRING with unused bits"))
-      (Bytes sub contents 1 (- (Bytes length contents) 1)))
+      (when (or (= (%len contents) 0) (not (= (%at contents 0) 0))) (%fail "a BIT STRING with unused bits"))
+      (list (first contents) (+ (first (rest contents)) 1) (- (%len contents) 1)))
     (method small (self (param contents LIST "An INTEGER's contents, a region, small and non-negative"))
       (doc "A small non-negative INTEGER's value, as a version or a path length is."
         (returns INTEGER "The value")
         (example "(Der small (first (rest (Der read (Bytes of-hex \"020102\")))))" "2"))
-      (when (or (= (Bytes length contents) 0) (> (Bytes length contents) 4) (>= (Bytes ref contents 0) 128)) (%fail "not a small INTEGER"))
-      ((fn (self i acc) (if (= i (Bytes length contents)) acc (self (+ i 1) (| (<< acc 8) (Bytes ref contents i))))) 0 0))))
+      (when (or (= (%len contents) 0) (> (%len contents) 4) (>= (%at contents 0) 128)) (%fail "not a small INTEGER"))
+      ((fn (self i acc) (if (= i (%len contents)) acc (self (+ i 1) (| (<< acc 8) (%at contents i))))) 0 0))))
 
 (doc (provide x/codec/der Der)
   "DER (X.690) over regions: (Der read r) answers an element (TAG CONTENTS WHOLE); items, oid, time, bits and small read what is inside one.")

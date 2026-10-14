@@ -14,6 +14,7 @@
 (import x/codec/sha384)
 (import x/codec/sha512)
 (import x/codec/hex)
+(import x/codec/bytes)
 
 (def %add (prim-ref 'int '+))
 (def %sub (prim-ref 'int '-))
@@ -29,9 +30,9 @@
 ; A hash: its block size, its output size, and its digest of a byte
 ; region as hex.
 (def %hashes
-  (list (list (lit sha256) 64 32 (fn (_ s n) (Sha256 hex-n s n)))
-        (list (lit sha384) 128 48 (fn (_ s n) (Sha384 hex-n s n)))
-        (list (lit sha512) 128 64 (fn (_ s n) (Sha512 hex-n s n)))))
+  (list (list (lit sha256) 64 32 (fn (_ s n) (Sha256 bytes-n s n)))
+        (list (lit sha384) 128 48 (fn (_ s n) (Sha384 bytes-n s n)))
+        (list (lit sha512) 128 64 (fn (_ s n) (Sha512 bytes-n s n)))))
 
 (def %hash
   (fn (self name l)
@@ -41,7 +42,7 @@
 
 (def %block-size (fn (_ h) (first (rest h))))
 (def %out-size (fn (_ h) (first (rest (rest h)))))
-(def %digest-hex (fn (_ h) (first (rest (rest (rest h))))))
+(def %digest-bytes (fn (_ h) (first (rest (rest (rest h))))))
 
 ; An argument as a region: a STRING is its bytes to the first NUL.
 (def %region
@@ -50,32 +51,22 @@
 
 (def %region-len (fn (_ r) (first (rest (rest r)))))
 
-; Regions copied end to end into one fresh buffer: the region of it.
+; Regions copied end to end into one fresh buffer: the region of it.  Two
+; at a time through Bytes join, which copies by memcpy; a caller hands
+; over one to three regions.
 (def %join
   (fn (_ regions)
-    (def total ((fn (self rs n) (if (null? rs) n (self (rest rs) (%add n (%region-len (first rs)))))) regions 0))
-    (def out (%make-str (if (= total 0) 1 total)))
-    (def p (%str->ptr out))
-    ((fn (self rs at)
-       (unless (null? rs)
-         (do (def s (first (first rs)))
-             (def start (first (rest (first rs))))
-             (def len (%region-len (first rs)))
-             ((fn (self i)
-                (unless (= i len)
-                  (do (%pset1 p (%add at i) (%byte s (%add start i)) 1) (self (%add i 1))))) 0)
-             (self (rest rs) (%add at len))))) regions 0)
-    (list out 0 total)))
+    (match ((null? (rest regions)) (Bytes join (first regions)))
+           ((null? (rest (rest regions))) (Bytes join (first regions) (first (rest regions))))
+           (#t ((fn (self rs acc) (if (null? rs) acc (self (rest rs) (Bytes join acc (first rs)))))
+                (rest regions) (Bytes join (first regions)))))))
 
-; The digest of joined regions: a fresh buffer of its bytes.
+; The digest of joined regions: a fresh buffer of its bytes, straight from
+; the hash's words.
 (def %digest
   (fn (_ h regions)
     (def m (%join regions))
-    (def bytes (Hex decode-bytes ((%digest-hex h) (first m) (%region-len m))))
-    (def out (%make-str (%out-size h)))
-    (def p (%str->ptr out))
-    ((fn (self i bs) (unless (null? bs) (do (%pset1 p i (first bs) 1) (self (%add i 1) (rest bs))))) 0 bytes)
-    out))
+    ((%digest-bytes h) (first m) (%region-len m))))
 
 ; The key padded to the block with zeros (hashed first when longer), each
 ; byte XORed with pad: the region of a fresh buffer.
