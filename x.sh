@@ -107,6 +107,24 @@ EXTRA_LIBS=
 EXTRA_DIRS=
 EXTRA_ENTRIES=
 
+# _n set to the name the first `(lang "NAME")` line of the lang.xon $1
+# declares, or empty: what `sed -n 's/^(lang "\([^"]*\)").*/\1/p' | head -1`
+# answers, read by the shell itself.  Every launch reads every bundle's
+# lang.xon, so two processes a bundle were most of a bundle launch's shell
+# time.
+xon_lang_name() {
+	_n=
+	while IFS= read -r _l || [ -n "$_l" ]; do
+		case $_l in
+		'(lang "'*)
+			_v=${_l#'(lang "'}
+			_v=${_v%%\"*}
+			case ${_l#'(lang "'"$_v"} in '")'*) _n=$_v; return 0 ;; esac
+			;;
+		esac
+	done < "$1"
+}
+
 # The directory of the bundle calling itself $1, or empty.  Factored out
 # because dependency resolution needs exactly the same lookup, including the
 # duplicate-name refusal: a bundle reached as a dependency is no more allowed
@@ -115,7 +133,7 @@ bundle_dir_of() {
 	_found=
 	for _d in "$LANGS_PATH"*/; do
 		[ -f "$_d/lang.xon" ] || continue
-		_n=$(sed -n 's/^(lang "\([^"]*\)").*/\1/p' "$_d/lang.xon" | head -1)
+		xon_lang_name "$_d/lang.xon"
 		[ "$_n" = "$1" ] || continue
 		# TWO BUNDLES CLAIMING ONE NAME IS A MISCONFIGURATION, not a race to
 		# be won by directory order: a project pins ONE release, and picking
@@ -504,7 +522,10 @@ require_engine() {
 # the manifest is documented as inert (docs/modules.md "Pinning"), and
 # `eval` on an unquoted (boot "FILE") string made it executable.
 shquote() {
-	printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+	case $1 in
+	*\'*) printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")" ;;
+	*) printf "'%s'" "$1" ;;
+	esac
 }
 
 # Pipe carries only library content — the REPL reclaims terminal
