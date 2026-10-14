@@ -5,6 +5,161 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-10-14
+
+**RSA verification is the compiled power and little else.** ([#1009]) x/codec/mont-jit's looping engine reads big-endian bytes into a slot and writes a slot out as bytes in compiled loops (`mont-jit-load-bytes!`, `mont-jit-store-bytes`), reads the modulus's limbs the same way, and sets up R^2 and its one in the scratch, so a 2048-bit verification is tens of milliseconds where it was a quarter second of limb conversion. x/codec/mont makes a modulus's limbs when first asked.
+
+[#1009]: https://github.com/jonruttan/x-lang/pull/1009
+
+**`(obj ref)` and `(obj set!)` are 1.64x and 1.16x faster.** ([#1008]) The slot accessors address data word i through its view -- the object's address plus i words, read by `first` and written at the first-word offset -- so no `(int ->ptr)` or `(ptr ->int)` cast and no `%data-word-off` frame sits between: a read is 2,742 -> 1,669 ns and 21 -> 12 objects, a write 2,951 -> 2,538 ns and 24 -> 16 objects, with no new primitive.
+
+[#1008]: https://github.com/jonruttan/x-lang/pull/1008
+
+**`make check-boot-order` no longer runs past 12 GB on a cold run.** ([#1007]) The
+lint read all of `lib/` and kept every file's reader garbage until it
+finished; it now sweeps the heap after each file it reads, and a run with
+no cached verdict peaks at 3.6 GB of footprint.
+
+**A bundle reached through a symbolic link gets a new state image when
+its source changes.** ([#1007]) `tools/dev/image-build.sh` walked a key path with
+`find`, which on BSD lists a link to a directory and nothing under it, so
+a linked bundle's edits never changed its image's key and the old image
+was loaded on every run.  It walks with `find -H` now.
+
+[#1007]: https://github.com/jonruttan/x-lang/pull/1007
+
+**`Sys wait` waits on through a caught signal, and raises when it cannot wait.** ([#1006]) A signal caught without SA_RESTART -- the engine's SIGINT, any `catch-signal` -- interrupted waitpid, and `Sys wait` answered a status read from a buffer waitpid never filled (160) and left the child a zombie; it now waits again on EINTR. Any other failure raises the io Err from errno (`'echild` for a pid that is no child of this process) instead of answering a made-up status.
+
+[#1006]: https://github.com/jonruttan/x-lang/pull/1006
+
+**`Host files` reads a process's mapped files in time linear in its regions.** ([#1002]) A process mapping thousands of files, Firefox among them, passed 5 GB and did not return; it now takes under a second.
+
+[#1002]: https://github.com/jonruttan/x-lang/pull/1002
+
+**Host holders: the processes that hold a path, or anything on its file
+system.** ([#1005]) `(Host holders PATH [mount?])` answers the pids, ascending, that
+hold a path as their working directory, root or executable, through a
+descriptor or a mapping. Darwin asks the kernel with proc_listpidspath
+(0.1-0.3 s where walking every process's files took about 70 s on a Mac with
+773 processes); Linux compares each process's files records' device and
+inode. Busybox's fuser reads it for each FILE operand.
+
+[#1005]: https://github.com/jonruttan/x-lang/pull/1005
+
+**`File set-times` stamps a path's access and modification times with given seconds.** ([#1004]) `(File set-times path atime mtime)` packs a pair of timevals, a word of seconds then a zero word each, and calls utimes; the zero fraction makes the same bytes a pair of timespecs where utimensat stands in for utimes, which the Linux stand-in table now says. `File utimes` keeps stamping the clock. Coreutils' touch -d and cp -p, and x-ssh's scp -p sink, have a door for a given time.
+
+[#1004]: https://github.com/jonruttan/x-lang/pull/1004
+
+**`Crypt md5`, `Crypt sha256`, `Crypt sha512`: crypt(3)'s `$1$`, `$5$`
+and `$6$` hashes.** ([#1000]) `(Crypt md5 KEY SALT)` and `(Crypt sha256|sha512 KEY
+SALT)` give the hashes busybox's `cryptpw -m md5|sha256|sha512` makes,
+`rounds=N$` included; every spec vector is busybox's.
+
+[#1000]: https://github.com/jonruttan/x-lang/pull/1000
+
+**RSA signatures verify, so TLS reaches servers with RSA chains.** ([#1003]) `(Rsa verify-pkcs1 n e hash digest sig)` and `(Rsa verify-pss ...)` (x/codec/rsa) check RSASSA-PKCS1-v1_5 and RSASSA-PSS signatures (RFC 8017) under 2048- and 4096-bit keys; `X509 verify-chain` follows sha256/384/512WithRSAEncryption signatures and `Tls13 connect` checks an rsa_pss_rsae CertificateVerify, so www.debian.org and every other Let's Encrypt RSA chain authenticates against Mozilla's roots. Beneath them x/codec/mont-jit gains a looping Montgomery engine generic over the modulus, one cache group for every RSA key, and `mont-jit-pow!` for any exponent.
+
+[#1003]: https://github.com/jonruttan/x-lang/pull/1003
+
+**`Md5 jit!`: MD5's compiled engine.** ([#998]) `(Md5 jit!)` builds and adopts a
+compiled MD5 digest (ARM64 and x86-64), verified against the pure-x one;
+an input of 8KB or more builds it on its own. About 60 times the pure-x
+speed on a short input.
+
+[#998]: https://github.com/jonruttan/x-lang/pull/998
+
+**`Host files` reports what a process has open.** ([#1001]) `(Host files pid)` answers a record each for its current and root directories, its executable, its file descriptors and its mapped files: use, fd, dev, ino, type, name and id, and for an internet socket its protocol, family and local port. Name uses to read only those: `(Host files pid 'fd)`. Linux reads the /proc/PID links and maps and /proc/net; Darwin proc_pidinfo and proc_pidfdinfo.
+
+[#1001]: https://github.com/jonruttan/x-lang/pull/1001
+
+**Compiled engines replay from the cache with nothing printed or
+proven.** ([#999]) `x/tool/jit-group` builds an engine's functions as one cache
+group and records a plan a later process pours them by, so the six
+engines a TLS connection needs no longer regenerate, print, re-prove or
+collect after their expressions in every process, and a Montgomery
+modulus no longer computes R^2 in pure x: a process's first https
+connection drops from 17 s to about 8 s on arm64.
+
+[#999]: https://github.com/jonruttan/x-lang/pull/999
+
+**`Md5`, and `bytes-n` on `Md5`, `Sha256` and `Sha512`.** ([#997]) `(Md5 hex s)`
+is the MD5 digest (RFC 1321) in pure x-lang; `(Md5 hex-n s n)` digests a
+byte region.  `(Sha256 bytes-n s n)`, `(Sha512 bytes-n s n)` and
+`(Md5 bytes-n s n)` give a digest as a buffer of its raw bytes.
+
+[#997]: https://github.com/jonruttan/x-lang/pull/997
+
+- **The lang kit's spec gate judges a suite whose output holds raw bytes.** ([#995])
+  tools/lang-kit/spec-gate.sh stripped colour codes and read the tally and
+  `FAIL:` lines with sed under the caller's locale; on macOS under UTF-8 a
+  failing case that printed a raw 0xff made sed exit with "illegal byte
+  sequence", and the gate exited 1 without printing the run or naming the
+  failure.  Its text processing now runs under `LC_ALL=C`; the runner itself
+  keeps the caller's locale.  `make check-lang-kit-spec-gate`, in `gates` and
+  `gates-fast`, holds it on a fixture suite that prints 0xff beside a failure.
+
+[#995]: https://github.com/jonruttan/x-lang/pull/995
+
+**`Crc32`: the CRC-32 of ISO 3309 in pure x.** ([#994]) `(Crc32 of s)` and `(Crc32 update crc s)`, the sum gzip, zip and git's pack indexes carry, checked against libz's; for a system that has no libz.
+
+[#994]: https://github.com/jonruttan/x-lang/pull/994
+
+**`Tls` is TLS 1.3 written in x, the server checked against Mozilla's
+roots.** ([#993]) `(Tls connect quad port (list (pair 'host NAME)))` now runs
+`Tls13`, which checks the server's CertificateVerify and its certificate
+chain for NAME against Mozilla's roots (`lib/x/net/mozilla-roots.pem`,
+regenerated by `tools/roots/update.sh`); `('insecure)` skips the check.
+No C library is opened, so https works where there is none. Servers
+must offer TLS 1.3 with ChaCha20-Poly1305 and sign with ECDSA; RSA is
+not written yet. `(Bytes find hay needle)` searches binary data.
+
+[#993]: https://github.com/jonruttan/x-lang/pull/993
+
+**A Linux process record costs half the objects it did.** ([#992]) `Host processes`,
+`process` and `threads` parse each field through the integer primitives,
+and the real uid and gid are found in /proc/PID/status in place: a record
+with a full status file fell from 643K objects to 324K.
+
+[#992]: https://github.com/jonruttan/x-lang/pull/992
+
+**`X509` and `Der`: certificate chains checked to a trusted root.** ([#991])
+`(X509 verify-chain certs host now roots)` checks a TLS server's chain --
+the host against the leaf's names, dates, CA constraints and ECDSA
+signatures up to a trusted root -- and raises naming the first thing that
+fails; `parse` and `from-pem` read certificates. `x/codec/der` reads DER
+over regions.
+
+[#991]: https://github.com/jonruttan/x-lang/pull/991
+
+**An image written after a compile is no longer refused.** ([#990]) The last
+compile's code buffer and relocation records, native code and its facts,
+are dropped before an image is written. A process that compiled before its
+image was written -- a Lexer made from an empty compile cache -- left two
+unnameable primitives, and the image was refused.
+
+[#990]: https://github.com/jonruttan/x-lang/pull/990
+
+**`Ecdsa`: P-256 and P-384 signature verification.** ([#989]) `(Ecdsa verify
+curve public hash r s)` and `verify-der` check SEC 1 ECDSA signatures,
+0.25 s for P-256 and 0.40 s for P-384 once the curve's engines are built.
+Beneath it, `x/codec/mont` is Montgomery arithmetic modulo any odd
+number in pure x, and `x/codec/mont-jit` compiles it per modulus,
+checked against the pure arithmetic before it is adopted.
+
+[#989]: https://github.com/jonruttan/x-lang/pull/989
+
+**A replayed Lexer make pours each state with only the free variables its
+code uses.** ([#988]) The plan keeps those, named as the text the pour matches, and
+the cache group key is printed once per rule list. x-ash's tokenizer lexer,
+73 states, remade after an image load: 1.11M objects and ~100 ms, to 0.74M
+and 65-69 ms.
+
+[#988]: https://github.com/jonruttan/x-lang/pull/988
+
+**`Deflate`'s engine compiles its matcher, counter and Adler-32 as loops.** ([#987]) With compiled tail self-calls, the matcher runs over the whole input in one call, and a block's counting and the zlib wrapper's Adler-32 are compiled loops too; the engine (built on `(Deflate jit!)` or for 32KB of input or more) is adopted only after compressing four check inputs to the pure-x encoder's bytes. 10 KB of near-random input compresses in 0.14 s where pure x takes 1.24 s; 100 KB of text in 0.13 s where it takes 0.98 s.
+
+[#987]: https://github.com/jonruttan/x-lang/pull/987
+
 ## [0.28.0] - 2026-10-10
 
 **A Lexer with a nested or word rule no longer keeps a boot image from being
