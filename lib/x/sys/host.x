@@ -1270,13 +1270,19 @@
     (method %maps-dev (self (param dev INTEGER "A device number, as stat(2) reports it"))
       (doc "The device as /proc/PID/maps prints it, MAJ:MIN in lower-case hexadecimal, two digits at least: %linux-dev read backwards, in this platform's encoding."
         (returns STRING "MAJ:MIN"))
-      (def maj (if os-darwin? (/ dev 16777216) (+ (& (/ dev 256) 4095) (- (/ dev 4294967296) (& (/ dev 4294967296) 4095)))))
-      (def min (if os-darwin? (& dev 16777215) (+ (& dev 255) (- (/ dev 4096) (& (/ dev 4096) 255)))))
+      ; the int doors: a caller's dialect may read / as the tower's division
+      (def i/ (prim-ref (lit int) (lit /)))
+      (def i& (prim-ref (lit int) (lit &)))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i- (prim-ref (lit int) (lit -)))
+      (def i< (prim-ref (lit int) (lit <)))
+      (def maj (if os-darwin? (i/ dev 16777216) (i+ (i& (i/ dev 256) 4095) (i- (i/ dev 4294967296) (i& (i/ dev 4294967296) 4095)))))
+      (def min (if os-darwin? (i& dev 16777215) (i+ (i& dev 255) (i- (i/ dev 4096) (i& (i/ dev 4096) 255)))))
       (def digits "0123456789abcdef")
       (def hex
         (fn (self n acc)
-          (def s (Str8 append (Str8 sub (& n 15) 1 digits) acc))
-          (if (< n 16) (if (< (Str8 length s) 2) (Str8 append "0" s) s) (self (/ n 16) s))))
+          (def s (Str8 append (Str8 sub (i& n 15) 1 digits) acc))
+          (if (i< n 16) (if (i< (Str8 length s) 2) (Str8 append "0" s) s) (self (i/ n 16) s))))
       (Str8 append (hex maj "") ":" (hex min "")))
 
     (method %linux-btime (self)
