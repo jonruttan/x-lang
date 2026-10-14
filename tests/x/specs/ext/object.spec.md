@@ -1474,3 +1474,46 @@ naming convention, and introspection/(help) still lists everything.
 ```
 ---
     9
+
+## what a send costs
+
+Dispatch binds with `def` in its own activation, never `let`: a `let`
+builds and enters a closure on every evaluation.  A method body is led by
+defs binding `%this-class` (and, on an instance method, `field` and
+`set-field!`), not wrapped in a `let`; the static send's walk names its
+selector, table and entry with defs.
+
+### an empty method answers nil, and the class binding stays inside it
+
+```x
+(do
+  (def-class E () (method nothing (self)) (static (method none (self))))
+  (list ((new E) nothing) (E none) %this-class))
+```
+---
+    (() () ())
+
+### a static send and a method body cost a few objects
+
+A static send costs fewer than 300 objects over calling its resolved
+handle, and a trivial method body, called through the handle, fewer than
+60 over a plain closure.
+
+```x
+(do
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (eq? i 0) () (do (f) (loop (- i 1))))) 100)
+      (- (Heap count) c0)))
+  (def-class Cheap () (static (method one (self x) x)))
+  (def %h (%class-method-of Cheap (lit one)))
+  (def %plain (fn (_ s x) x))
+  (def %by-handle (%cost (fn (_) (%h Cheap 1))))
+  (list (< (- (%cost (fn (_) (Cheap one 1))) %by-handle) (* 300 100))
+        (< (- %by-handle (%cost (fn (_) (%plain Cheap 1)))) (* 60 100))
+        (Cheap one 7)))
+```
+---
+    (#t #t 7)
