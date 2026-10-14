@@ -1270,3 +1270,31 @@ it with the bare `first`/`rest` accessors, as `%type-by-atom` does.
 ```
 ---
     Error: #<err:type Iter new: not iterable>
+
+## what the walkers cost
+
+The methods share their walkers, from-seq and fold, as module functions
+rather than sends back into List, test the end of a list with `eq?`
+against nil, and count on the integer doors.
+
+### length, reverse, sum and take on ten elements cost a few hundred objects
+
+Each of these makes fewer than 1,000 objects on a ten-element list.
+
+```x
+(do
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (eq? i 0) () (do (f) (loop (- i 1))))) 20)
+      (- (Heap count) c0)))
+  (def %ten (list 1 2 3 4 5 6 7 8 9 10))
+  (list (< (%cost (fn (_) (List length %ten))) (* 1000 20))
+        (< (%cost (fn (_) (List reverse %ten))) (* 1000 20))
+        (< (%cost (fn (_) (List sum %ten))) (* 1000 20))
+        (< (%cost (fn (_) (List take 5 %ten))) (* 1000 20))
+        (list (List length %ten) (List take 3 %ten) (List drop 8 %ten) (List sum %ten))))
+```
+---
+    (#t #t #t #t (10 (1 2 3) (9 10) 55))
