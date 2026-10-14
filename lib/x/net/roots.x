@@ -29,8 +29,7 @@
     (def rest (Bytes sub text at (- (Bytes length text) at)))
     (def end (Bytes find rest "-----END CERTIFICATE-----"))
     (when (null? end) (Err raise (lit value) "Roots: a block with no end" at))
-    (def pem (first (Bytes copy (Bytes sub rest 0 (+ end 25)))))
-    (first (X509 from-pem pem))))
+    (first (X509 from-pem (Bytes sub rest 0 (+ end 25))))))
 
 (def-class Roots ()
   (static

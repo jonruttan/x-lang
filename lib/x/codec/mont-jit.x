@@ -21,7 +21,6 @@
 ; such modulus, so they are built once a machine.
 (module x/codec/mont-jit)
 
-(import x/tool/compile compile-asm)
 (import x/tool/jit-group jit-group)
 (import x/type/vector)
 ; A pure engine's inverse collects at fixed points, as mont-pow does.

@@ -33,7 +33,9 @@
 ; compiled as they always were and USE runs with replayed? #f.
 (module x/tool/jit-group)
 
-(import x/tool/compile compile-asm)
+; x/tool/compile is imported where a compile happens, not here: a replay
+; pours and never compiles, and that module's load is a third of a second
+; a process.
 (import x/tool/asm-cache asm-cache-group asm-cache-group-held asm-cache-group-extra! asm-cache-held-pour asm-cache-last-text)
 
 ; The plan: the key texts, one a line.  An expression's text has no
@@ -61,6 +63,7 @@
 ; Compile each expression, noting its key text after each: ((fn . text) ...).
 (def %jg-compile-all
   (fn (_ exprs)
+    (import x/tool/compile compile-asm)
     (%jg-map (fn (_ e) (do (def f (compile-asm e)) (pair f (asm-cache-last-text)))) exprs)))
 
 (def %jg-plan-text
@@ -74,7 +77,8 @@
   (fn (_ key gen use)
     (if (not (null? (asm-cache-group-held)))
       ; a group is open already: compile plainly, outside it
-      (use (%jg-map compile-asm (gen)) #f)
+      (do (import x/tool/compile compile-asm)
+          (use (%jg-map compile-asm (gen)) #f))
       (asm-cache-group key
         (fn (_)
           (def poured (%jg-replay))

@@ -19,7 +19,6 @@
 ; the driver on 32-bit values the way the codec is.
 (module x/codec/sha512-jit)
 
-(import x/tool/compile compile-asm)
 (import x/tool/jit-group jit-group)
 
 (def %s5-make-str (prim-ref (lit str) (lit make)))

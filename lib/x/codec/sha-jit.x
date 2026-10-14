@@ -26,13 +26,10 @@
 ; why adoption is explicit (jit!) or by the input's length, never
 ; per-call.
 ;
-; x/tool/compile, not x/tool/asm-compile: the assembler backend is not
-; standalone (its fvar plumbing lives in compile/emit.x), and compile.x
-; is the module that loads the toolchain in the right order -- its
-; compile-asm stub pulls the assembler lazily on first use.
+; The toolchain is x/tool/jit-group's to load, and only on a cache miss:
+; a replay pours the stored code and compiles nothing.
 (module x/codec/sha-jit)
 
-(import x/tool/compile compile-asm)
 (import x/tool/jit-group jit-group)
 
 (def %sj-make-str (prim-ref (lit str) (lit make)))

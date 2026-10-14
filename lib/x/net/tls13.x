@@ -39,6 +39,14 @@
 (import x/net/roots)
 (import x/codec/ecdsa)
 (import x/codec/rsa)
+; The engines connect builds, imported here rather than left to their
+; codecs' first use: a state image that holds this module then holds
+; them, and a process that pours them loads no source at all.
+(import x/codec/x25519-jit)
+(import x/codec/sha-jit)
+(import x/codec/sha512-jit)
+(import x/codec/chacha20-jit)
+(import x/codec/poly1305-jit)
 (import x/sys/posix)
 
 (def %add (prim-ref 'int '+))
