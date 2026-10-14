@@ -33,10 +33,13 @@
 ; compiled as they always were and USE runs with replayed? #f.
 (module x/tool/jit-group)
 
-; x/tool/compile is imported where a compile happens, not here: a replay
-; pours and never compiles, and that module's load is a third of a second
-; a process.
 (import x/tool/asm-cache asm-cache-group asm-cache-group-held asm-cache-group-extra! asm-cache-held-pour asm-cache-last-text)
+
+; The compile through the cache, as x/tool/compile's compile-asm reaches
+; it: the catalogue entry asm-cache registers.  Not x/tool/compile itself,
+; whose load -- the C pipeline with it -- is a third of a second a process,
+; where a replay pours and never compiles.
+(def %jg-compile-asm (prim-ref (lit compile) (lit asm-cached)))
 
 ; The plan: the key texts, one a line.  An expression's text has no
 ; newline in it (write-to-str prints a form on one line), and a plan whose
@@ -63,8 +66,7 @@
 ; Compile each expression, noting its key text after each: ((fn . text) ...).
 (def %jg-compile-all
   (fn (_ exprs)
-    (import x/tool/compile compile-asm)
-    (%jg-map (fn (_ e) (do (def f (compile-asm e)) (pair f (asm-cache-last-text)))) exprs)))
+    (%jg-map (fn (_ e) (do (def f (%jg-compile-asm e)) (pair f (asm-cache-last-text)))) exprs)))
 
 (def %jg-plan-text
   (fn (_ made)
@@ -77,8 +79,7 @@
   (fn (_ key gen use)
     (if (not (null? (asm-cache-group-held)))
       ; a group is open already: compile plainly, outside it
-      (do (import x/tool/compile compile-asm)
-          (use (%jg-map compile-asm (gen)) #f))
+      (use (%jg-map %jg-compile-asm (gen)) #f)
       (asm-cache-group key
         (fn (_)
           (def poured (%jg-replay))
