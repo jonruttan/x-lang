@@ -105,11 +105,15 @@
           (#t (%inventory-list form file))))
       (#t ()))))
 
+; A sweep after each file: nothing collects on its own, and the reader's
+; garbage from all of lib, kept to the end, passed 12 GB.  What a file
+; leaves live is its forms, in the cache.
 (def %inventory-files
   (fn (self paths)
     (match
       ((pair? paths)
         (do (%inventory-list (%read-forms (first paths)) (first paths))
+            ((prim-ref (lit heap) (lit collect)))
             (self (rest paths))))
       (#t ()))))
 
