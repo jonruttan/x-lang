@@ -196,6 +196,21 @@ clear it), so a later case in the same batch reads the real machine.
 ---
     (#t #t #t ())
 
+### regions: this process's regions run up in address order, each with a mode, and some map a file
+
+```x
+(do (import x/sys/host)
+  (def rs (Host regions (Sys getpid)))
+  (def get (fn (_ k r) (Assoc get k r)))
+  (def up? (fn (self rs) (if (null? (rest rs)) #t (if (< (get 'start (first rs)) (get 'start (first (rest rs)))) (self (rest rs)) #f))))
+  (list (Assoc keys (first rs)) (up? rs)
+        (List all? (fn (_ r) (if (= 4 (Str8 length (get 'mode r))) (< 0 (get 'size r)) #f)) rs)
+        (List any? (fn (_ r) (not (null? (get 'name r)))) rs)
+        (Host regions 999999999)))
+```
+---
+    (('start 'size 'mode 'name 'pss 'private-dirty 'swap) #t #t #t ())
+
 ### utmp: every entry has a user and a type, and users is its user-process entries
 
 ```x
@@ -461,6 +476,19 @@ packed as this platform's stat(2) packs a device.
 ```
 ---
     ((9) (9) ())
+
+### regions reads /proc/PID/smaps a region at a time: an anonymous region has no name
+
+```x
+(do (import x/sys/host)
+  (Host source 'linux)
+  (Host proc-root "tests/x/fixtures/host/proc")
+  (def r (list (List map (fn (_ g) (Assoc vals g)) (Host regions 42)) (Host regions 1)))
+  (Host source (if os-darwin? (lit darwin) (lit linux))) (Host proc-root "/proc")
+  r)
+```
+---
+    (((4194304 335872 "r-xp" "/usr/bin/sh" 2048 0 0) (6623232 4096 "rw-p" "/usr/bin/sh" 0 4096 0) (139637976727552 4096 "---p" () 0 0 0) (139637976731648 4096 "rw-s" "/dev/fb0" 0 0 0) (140724603453440 135168 "rw-p" "[stack]" 6144 12288 8192)) ())
 
 ### counters reads /proc/stat, /proc/vmstat and file-nr: KiB paged to bytes, open files in use
 
