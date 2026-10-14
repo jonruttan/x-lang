@@ -140,10 +140,12 @@
         ()))
 
     (method %hex (self (param s STRING "Hexadecimal digits"))
-      (doc "The integer a run of hex digits spells, read up to the first byte that is not one; 0 for none."
+      (doc "The integer a run of hex digits spells, read up to the first byte that is not one; 0 for none. Sixteen digits are its 64 bits, through the int doors whether or not the tower is loaded, so a value past the signed range, such as an address in the top half of the address space, is negative."
         (returns INTEGER "The value"))
       (def at (prim-ref (lit str) (lit byte-ref)))
       (def n ((prim-ref (lit str) (lit byte-len)) s))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i* (prim-ref (lit int) (lit *)))
       (def digit
         (fn (_ b)
           (match
@@ -155,7 +157,7 @@
         (fn (self i acc)
           (if (>= i n) acc
             (let ((d (digit (at s i))))
-              (if (null? d) acc (self (+ i 1) (+ (* acc 16) d)))))))
+              (if (null? d) acc (self (+ i 1) (i+ (i* acc 16) d)))))))
       (go 0 0))
 
     (method %fold-lines (self (param path STRING "A file") (param f CALLABLE "(f line acc) answers the next acc; line has no newline")
@@ -1286,7 +1288,7 @@
       (Str8 append (hex maj "") ":" (hex min "")))
 
     (method regions (self (param pid INTEGER "Process ID"))
-      (doc "The process's memory mappings one record a region, in address order, as BusyBox's pmap reads /proc/PID/smaps: start, the region's address; size, its length in bytes; mode, four characters of permissions (r, w, x or a dash, then p for private or s for shared); name, the mapped file's path or the kernel's name for the region, nil for an anonymous one; and pss, private-dirty and swap in bytes. Darwin walks the regions with proc_pidinfo's PROC_PIDREGIONPATHINFO, takes the path of the file a region maps, counts a region's dirtied pages as private for a private or copy-on-write region, and reports no pss; it answers only for this user's processes unless running as root. nil when the process is gone or the kernel will not say."
+      (doc "The process's memory mappings one record a region, in address order, as BusyBox's pmap reads /proc/PID/smaps: start, the region's address, its 64 bits as a signed integer (negative in the top half of the address space, as Linux's [vsyscall] is); size, its length in bytes; mode, four characters of permissions (r, w, x or a dash, then p for private or s for shared); name, the mapped file's path or the kernel's name for the region, nil for an anonymous one; and pss, private-dirty and swap in bytes. Darwin walks the regions with proc_pidinfo's PROC_PIDREGIONPATHINFO, takes the path of the file a region maps, counts a region's dirtied pages as private for a private or copy-on-write region, and reports no pss; it answers only for this user's processes unless running as root. nil when the process is gone or the kernel will not say."
         (returns ANY "LIST of ((start . ADDR) (size . B) (mode . STRING) (name . STRING) (pss . B) (private-dirty . B) (swap . B)), or nil")
         (sample "(< 0 (List length (Host regions (Sys getpid))))" "#t"))
       (if (eq? (Host %backend) (lit darwin)) (Host %darwin-regions pid) (Host %linux-regions pid)))

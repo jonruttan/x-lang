@@ -202,7 +202,9 @@ clear it), so a later case in the same batch reads the real machine.
 (do (import x/sys/host)
   (def rs (Host regions (Sys getpid)))
   (def get (fn (_ k r) (Assoc get k r)))
-  (def up? (fn (self rs) (if (null? (rest rs)) #t (if (< (get 'start (first rs)) (get 'start (first (rest rs)))) (self (rest rs)) #f))))
+  ; unsigned: a top-half address (x86-64 Linux's [vsyscall]) reads negative
+  (def below? (fn (_ a b) (if (< a 0) (if (< b 0) (< a b) #f) (if (< b 0) #t (< a b)))))
+  (def up? (fn (self rs) (if (null? (rest rs)) #t (if (below? (get 'start (first rs)) (get 'start (first (rest rs)))) (self (rest rs)) #f))))
   (list (Assoc keys (first rs)) (up? rs)
         (List all? (fn (_ r) (if (= 4 (Str8 length (get 'mode r))) (< 0 (get 'size r)) #f)) rs)
         (List any? (fn (_ r) (not (null? (get 'name r)))) rs)
@@ -415,7 +417,7 @@ clear it), so a later case in the same batch reads the real machine.
   r)
 ```
 ---
-    ((335872 139264 135168 307200 4096 8192 16384) ())
+    ((339968 139264 135168 307200 4096 8192 16384) ())
 
 ### files reads the /proc/PID links, the fds in order, a socket joined to /proc/net by inode, and each mapped file once
 
@@ -477,7 +479,7 @@ packed as this platform's stat(2) packs a device.
 ---
     ((9) (9) ())
 
-### regions reads /proc/PID/smaps a region at a time: an anonymous region has no name
+### regions reads /proc/PID/smaps a region at a time: an anonymous region has no name, a top-half address is negative
 
 ```x
 (do (import x/sys/host)
@@ -488,7 +490,7 @@ packed as this platform's stat(2) packs a device.
   r)
 ```
 ---
-    (((4194304 335872 "r-xp" "/usr/bin/sh" 2048 0 0) (6623232 4096 "rw-p" "/usr/bin/sh" 0 4096 0) (139637976727552 4096 "---p" () 0 0 0) (139637976731648 4096 "rw-s" "/dev/fb0" 0 0 0) (140724603453440 135168 "rw-p" "[stack]" 6144 12288 8192)) ())
+    (((4194304 335872 "r-xp" "/usr/bin/sh" 2048 0 0) (6623232 4096 "rw-p" "/usr/bin/sh" 0 4096 0) (139637976727552 4096 "---p" () 0 0 0) (139637976731648 4096 "rw-s" "/dev/fb0" 0 0 0) (140724603453440 135168 "rw-p" "[stack]" 6144 12288 8192) (-10485760 4096 "--xp" "[vsyscall]" 0 0 0)) ())
 
 ### counters reads /proc/stat, /proc/vmstat and file-nr: KiB paged to bytes, open files in use
 
