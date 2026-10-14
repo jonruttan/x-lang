@@ -46,6 +46,9 @@
 (def %SOCK-STREAM 1)
 (def %SOL-SOCKET (if os-darwin? 65535 1))
 (def %SO-REUSEADDR (if os-darwin? 4 2))
+; send(2)'s flag for a peer that has closed: EPIPE, not SIGPIPE, which would
+; kill the process before any guard could see it
+(def %MSG-NOSIGNAL (if os-darwin? 524288 16384))
 
 (def %sk-set1! (fn (_ p off v) (%sk-ptr-set! p off v 1)))
 
@@ -162,18 +165,18 @@
 
     (method send (self (param fd INTEGER "Connected file descriptor")
                        (param s STRING "Bytes to send"))
-      (doc "Send the whole string; raises on failure."
+      (doc "Send the whole string; raises on failure, a peer that has closed among them (epipe), where libc would otherwise end the process with SIGPIPE."
         (returns INTEGER "Bytes sent"))
-      (def r (%sk-fold (%sk-ptr-call %c-send fd s (Str8 length s) 0)))
+      (def r (%sk-fold (%sk-ptr-call %c-send fd s (Str8 length s) %MSG-NOSIGNAL)))
       (when (< r 0) (%sk-fail r 'send fd ()))
       r)
 
     (method send-run (self (param fd INTEGER "Connected file descriptor")
                            (param s STRING "The bytes, NULs included")
                            (param n INTEGER "How many bytes of s to send"))
-      (doc "Send the first n BYTES of s -- the lossless door, as recv-run is: send measures its string to the first NUL, and a binary packet has NULs inside. THE COUNT IS YOUR CLAIM AND IS NOT CHECKED. Raises on failure."
+      (doc "Send the first n BYTES of s -- the lossless door, as recv-run is: send measures its string to the first NUL, and a binary packet has NULs inside. THE COUNT IS YOUR CLAIM AND IS NOT CHECKED. Raises on failure, a peer that has closed among them (epipe), as send does."
         (returns INTEGER "Bytes sent"))
-      (def r (%sk-fold (%sk-ptr-call %c-send fd s n 0)))
+      (def r (%sk-fold (%sk-ptr-call %c-send fd s n %MSG-NOSIGNAL)))
       (when (< r 0) (%sk-fail r 'send fd ()))
       r)
 

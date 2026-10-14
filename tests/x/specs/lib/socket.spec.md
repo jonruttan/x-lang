@@ -268,6 +268,35 @@ inside, and send-run takes the count instead.
 ---
     (3 (65 0 66))
 
+### a send to a peer that has closed raises a structured io failure; the process lives
+
+Without MSG_NOSIGNAL the kernel answers such a send with SIGPIPE, which
+ends the process before any guard sees it; a TLS close_notify to a server
+that hung up first was one.  The first send after the close can still
+succeed (the peer's reset is on its way); a later one fails with epipe, or
+econnreset on Linux once the reset has arrived.
+
+```x
+(do (import x/sys/socket) (import x/sys/posix)
+  (def lfd (Socket tcp-listen 0))
+  (def c (Socket tcp-connect "127.0.0.1" (Socket local-port lfd)))
+  (def s (Socket accept lfd))
+  (Socket close s)
+  (Sys usleep 100000)
+  (def tries
+    (fn (self n)
+      (if (= n 0) 'never
+        (guard (e (list (Err label e) (List includes? (Assoc get 'sym (e data)) '(epipe econnreset)) (Assoc get 'op (e data))))
+          (Socket send c "hello")
+          (Sys usleep 50000)
+          (self (- n 1))))))
+  (def r (tries 20))
+  (Socket close c) (Socket close lfd)
+  r)
+```
+---
+    ('io #t 'send)
+
 ### peer names the other end, from either side
 
 ```x
