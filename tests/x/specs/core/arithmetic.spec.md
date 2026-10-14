@@ -658,3 +658,31 @@ is simply correct -- inline type tests in the wrappers, nil included.
 ```
 ---
     ('R 'R 'R 'R)
+
+## the comparisons' guards cost a few objects
+
+The nil and arity guards on `<`, `>`, `<=` and `>=` test with `eq?` against
+nil and `if`, not `null?` and `or`: `or` is an operative that evaluates its
+arms, and the comparisons sit under every loop bound and every sort.  `<`
+makes fewer than 50 objects a call over the integer door, the derived three
+fewer than 120.
+
+### a comparison's cost over the integer door
+
+```x
+(def %cost
+  (fn (_ f)
+    (f)
+    (def c0 (Heap count))
+    ((fn (loop i) (if (eq? i 0) () (do (f) (loop (- i 1))))) 100)
+    (- (Heap count) c0)))
+(def %door (prim-ref (lit int) (lit <)))
+(def %door-cost (%cost (fn (_) (%door 4 0))))
+(list (< (- (%cost (fn (_) (< 4 0))) %door-cost) (* 50 100))
+      (< (- (%cost (fn (_) (> 4 0))) %door-cost) (* 120 100))
+      (< (- (%cost (fn (_) (<= 4 0))) %door-cost) (* 120 100))
+      (< (- (%cost (fn (_) (>= 4 0))) %door-cost) (* 120 100))
+      (list (< 1 2) (> 1 2) (<= 2 2) (>= 1 2)))
+```
+---
+    (#t #t #t #t (#t #f #t #f))

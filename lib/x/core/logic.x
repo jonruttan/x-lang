@@ -61,20 +61,20 @@
 ; checks are not what keeps the process alive -- they are what makes the
 ; message name the operator the user actually typed. Without them (> 1)
 ; reports "<: operands must not be nil", naming a primitive the caller never
-; wrote. The cost is two null? tests on a path that already pays for the
+; wrote. The cost is two eq? tests on a path that already pays for the
 ; guard inside <.
 (doc (def > (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
-    (if (or (null? a) (null? b)) (error ">: needs two arguments") (< b a))))
+    (if (if (eq? a ()) #t (eq? b ())) (error ">: needs two arguments") (< b a))))
   (returns BOOL "True if a is greater than b")
   "Test whether a is greater than b.")
 
 (doc (def <= (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
-    (if (or (null? a) (null? b)) (error "<=: needs two arguments") (or (< a b) (= a b)))))
+    (if (if (eq? a ()) #t (eq? b ())) (error "<=: needs two arguments") (if (< a b) #t (= a b)))))
   (returns BOOL "True if a is less than or equal to b")
   "Test whether a is less than or equal to b.")
 
 (doc (def >= (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
-    (if (or (null? a) (null? b)) (error ">=: needs two arguments") (or (< b a) (= a b)))))
+    (if (if (eq? a ()) #t (eq? b ())) (error ">=: needs two arguments") (if (< b a) #t (= a b)))))
   (returns BOOL "True if a is greater than or equal to b")
   "Test whether a is greater than or equal to b.")
 

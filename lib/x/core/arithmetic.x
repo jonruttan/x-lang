@@ -126,13 +126,13 @@
       (fn (_ . args)
         (match
           ((eq? args ()) (error (%str-append name ": needs one argument")))
-          ((null? (first args)) (error (%str-append name ": operand is nil")))
+          ((eq? (first args) ()) (error (%str-append name ": operand is nil")))
           (#t (prim (first args)))))
       (fn (_ . args)
         (match
           ((eq? args ()) (error (%str-append name ": needs two arguments")))
           ((eq? (rest args) ()) (error (%str-append name ": needs two arguments")))
-          ((or (null? (first args)) (null? (first (rest args))))
+          ((if (eq? (first args) ()) #t (eq? (first (rest args)) ()))
             (error (%str-append name ": operands must not be nil")))
           (#t (prim (first args) (first (rest args)))))))))
 
