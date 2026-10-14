@@ -109,10 +109,14 @@
 (def XV (mkn (%i+ XCOUNT 1)))
 (def %lib0 (%dlopen () 1))
 (def fnptr-of (fn (_ v) (%ptr-ref-word (%obj->ptr v) (%data-word-off 0))))
+; The type-name row is looked up in %base-paths once, not once a type:
+; %type-name searches the rows on every call, and a struct external walks
+; every type, so 66 of them cost coreutils 191 ms of a 0.37 s load.
+(def TYPE-NAME-STEPS (%img-row %base-paths (lit type-name)))
 (def %struct-named
   (fn (self al nm)
     (if (null? al) ()
-      (if (str=? (%type-name (rest (first al))) nm) (rest (first al)) (self (rest al) nm)))))
+      (if (str=? (%img-walk (rest (first al)) TYPE-NAME-STEPS) nm) (rest (first al)) (self (rest al) nm)))))
 (def %probe-units
   ((fn (_ h) (first (%type-units-cell (rest (first (first %reflect-type-alist-cell))))))
    ((prim! (lit type) (lit make)) "%img-probe" ())))
