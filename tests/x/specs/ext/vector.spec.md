@@ -395,3 +395,41 @@ guards before it reads. `(Vector length v)` is the length door.
 ```
 ---
     (1 3 'index)
+
+## the slot arithmetic runs on the integer doors
+
+An index is INT once converted and a length is slot 0's INT, so the bounds
+checks, the negative-index normalisation and every slot loop add and
+compare on the integer doors, not the generic operators.  `make` and
+`build` convert their length once, as `ref` converts its index.
+
+### a length converts like an index
+
+```x
+(list (Vector length (Vector make 3 0)) (Vector build 2 (fn (_ i) i))
+      (guard (e (lit refused)) (Vector make () 0)))
+```
+---
+    (3 #(0 1) 'refused)
+
+### a slot read and a slot of make cost a few objects
+
+`(Vector ref i v)` costs fewer than 1,000 objects over the raw slot read, and
+`(Vector make 100 0)` fewer than 100 objects a slot.
+
+```x
+(do
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (eq? i 0) () (do (f) (loop (- i 1))))) 20)
+      (- (Heap count) c0)))
+  (def %v (Vector make 10 0))
+  (def %raw (prim-ref (lit obj) (lit ref)))
+  (list (< (- (%cost (fn (_) (Vector ref 4 %v))) (%cost (fn (_) (%raw %v 5)))) (* 1000 20))
+        (< (%cost (fn (_) (Vector make 100 0))) (* 100 100 20))
+        (Vector ref -1 (Vector of 1 2 3))))
+```
+---
+    (#t #t 3)
