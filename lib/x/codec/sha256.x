@@ -305,9 +305,13 @@
 
 ; Renamed from %sha-words (lint dup-def): the hex-constant parser above
 ; shares nothing with this but load-order luck made the overload work.
+; The H words of S's first N bytes (its length where N is not given), or,
+; given OUT after N, the digest's bytes written there and OUT answered: the
+; compiled engine writes them itself, pure-x through (Sha256 %bytes).
 (def %sha-hash-words
-  (fn (_ s . n)
-    (def %len (match ((null? n) (Str8 length s)) (#t (first n))))
+  (fn (_ s . more)
+    (def %len (match ((null? more) (Str8 length s)) (#t (first more))))
+    (def out (match ((null? more) ()) ((null? (rest more)) ()) (#t (first (rest more)))))
     (do
       ; A build is wanted when none was tried, or when the entry is
       ; interpreted, as it is after a state image loads.  A failed entry is
@@ -317,23 +321,23 @@
                     (if (null? entry) #t (eq? (entry state) (lit interpreted))))
                   %sha-entry))
         (%sha-jit-try!))
-      ((fn (_ entry)
+      ; one send: an entry's compiled version is nil unless it is compiled
+      ((fn (_ c)
          (match
-           ((null? entry) (%sha-digest-words s %len))
-           ((eq? (entry state) (lit compiled)) ((entry compiled) s %len))
-           (#t (%sha-digest-words s %len))))
-       %sha-entry))))
+           ((null? c) (if (null? out) (%sha-digest-words s %len) (Sha256 %bytes (%sha-digest-words s %len) out)))
+           ((null? out) (c s %len))
+           (#t (c s %len out))))
+       ((fn (_ entry) (if (null? entry) () (entry compiled))) %sha-entry)))))
 
 (def-class Sha256 ()
   (static
     ; the buffer bytes-n answers, homed here as statics rather than
     ; top-level %-globals: the prims it writes through, and the words as
-    ; the digest's bytes, each word big-endian, in a fresh buffer
+    ; the digest's bytes, each word big-endian, written into OUT
     (%make-str (prim-ref (lit str) (lit make)))
     (%str->ptr (prim-ref (lit str) (lit ->ptr)))
     (%pset1 (prim-ref (lit ptr) (lit set!)))
-    (method %bytes (self hs)
-      (def out ((Sha256 %make-str) (%sha+ (<< (List length hs) 2) 1)))
+    (method %bytes (self hs out)
       (def p ((Sha256 %str->ptr) out))
       (def set (Sha256 %pset1))
       (def put
@@ -362,7 +366,18 @@
                           (param n INTEGER "How many bytes of s to digest"))
       (doc "SHA-256 of the FIRST n BYTES of s, as a fresh buffer of the digest's 32 bytes -- binary, so read it by count, not as a string: a NUL among the bytes ends its string length. The same engines as hex-n, without the hex. THE LENGTH IS YOUR CLAIM AND IS NOT CHECKED, as hex-n's is."
         (returns STRING "A 32-byte buffer"))
-      (Sha256 %bytes (%sha-hash-words s n)))
+      (%sha-hash-words s n ((Sha256 %make-str) 33)))
+    (method bytes-into (self (param s STRING "Byte region to digest")
+                             (param n INTEGER "How many bytes of s to digest")
+                             (param out STRING "A buffer of 32 bytes or more, written from its start"))
+      (doc "SHA-256 of the FIRST n BYTES of s, its 32 bytes written into out, which is returned: bytes-n into a buffer you own, so a loop of digests makes none. The compiled engine writes the bytes itself, with no list between. THE LENGTHS ARE YOUR CLAIM AND ARE NOT CHECKED: out shorter than 32 bytes is written past."
+        (returns STRING "out"))
+      (%sha-hash-words s n out))
+    (method bytes-writer (self)
+      (doc "A function (s n out) doing what bytes-into does, for a loop of digests: the compiled engine itself once it is adopted, so each call pays no dispatch, or bytes-into's own path while it is not. It does not build the engine; call jit! first. Ask again after a state image loads: one held across it is the engine of the session that wrote it."
+        (returns CALLABLE "(fn (_ s n out)) answering out"))
+      ((fn (_ c) (if (null? c) (fn (_ s n out) (%sha-hash-words s n out)) c))
+       (if (null? %sha-entry) () ((fn (_ entry) (entry compiled)) %sha-entry))))
     (method jit! (self)
       (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself: the engine is adopted only after agreeing with the pure-x digest on the FIPS vectors plus a multi-block padding case. Idempotent; seconds of compile on first success. Returns #t when the engine is active, #f when unavailable (no assembler backend for this host, no JIT toolchain, or a failed check -- pure-x carries on and results are identical either way). hex also builds it on its own for any single input of 12KB or more -- the measured size at which the build repays itself within the call -- so calling this is an optimization, not a requirement."
         (returns BOOL "#t when the compiled engine is active"))

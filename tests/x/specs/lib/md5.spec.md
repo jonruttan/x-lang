@@ -52,3 +52,26 @@ hash reads.
 ```
 ---
     ("60b460ba736af736293fafe8130d72a3" #t)
+
+### bytes-into writes the pure-x digest into a buffer it is handed, again and again
+
+```x
+(do
+  (import x/codec/md5)
+  (import x/codec/hex)
+  (def %bi-ref (prim-ref (lit str) (lit byte-ref)))
+  (def %bi-int (prim-ref (lit char) (lit ->int)))
+  (def %bi-out ((prim-ref (lit str) (lit make)) 16))
+  (def %bi-hex
+    (fn (_ s)
+      (do (Md5 bytes-into s (Str8 length s) %bi-out)
+          (Hex encode-bytes
+            (List map (fn (_ i) (%bi-int (%bi-ref %bi-out i)))
+                      (List range 0 16))))))
+  (def %bi-long (Str8 pad-right 300 #\q "z"))
+  (write (list (str=? (%bi-hex "abc") (Md5 hex "abc"))
+               (str=? (%bi-hex %bi-long) (Md5 hex %bi-long))
+               (str=? (%bi-hex "") (Md5 hex "")))))
+```
+---
+    (#t #t #t)

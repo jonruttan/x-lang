@@ -141,18 +141,24 @@
        (eq? (entry state) (lit compiled)))
      %entry)))
 
+; the state words of S's first N bytes (its length where N is not given),
+; or, given OUT after N, the digest's bytes written there and OUT answered:
+; the compiled engine writes them itself, pure-x through %bytes
 (def %words
-  (fn (_ s . n)
-    (def len (match ((null? n) (Str8 length s)) (#t (first n))))
+  (fn (_ s . more)
+    (def len (match ((null? more) (Str8 length s)) (#t (first more))))
+    (def out (match ((null? more) ()) ((null? (rest more)) ()) (#t (first (rest more)))))
     (when (and (>= len %jit-threshold)
                ((fn (_ entry) (if (null? entry) #t (eq? (entry state) (lit interpreted))))
                 %entry))
       (%jit-try!))
-    ((fn (_ entry)
-       (if (if (null? entry) #f (eq? (entry state) (lit compiled)))
-         ((entry compiled) s len)
-         (%digest-words s len)))
-     %entry)))
+    ; one send: an entry's compiled version is nil unless it is compiled
+    ((fn (_ c)
+       (match
+         ((null? c) (if (null? out) (%digest-words s len) (%bytes (%digest-words s len) out)))
+         ((null? out) (c s len))
+         (#t (c s len out))))
+     ((fn (_ entry) (if (null? entry) () (entry compiled))) %entry))))
 
 ; a state word's four bytes, low first, as hex
 (def %hex-word
@@ -167,10 +173,10 @@
 (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
 (def %pset1 (prim-ref (lit ptr) (lit set!)))
 
-; the state words as the digest's sixteen bytes, low byte of each word first
+; the state words as the digest's sixteen bytes, low byte of each word
+; first, written into OUT
 (def %bytes
-  (fn (_ hs)
-    (def out (%make-str 17))
+  (fn (_ hs out)
     (def p (%str->ptr out))
     (def put
       (fn (self ws i)
@@ -201,7 +207,18 @@
                           (param n INTEGER "How many bytes of s to digest"))
       (doc "MD5 of the FIRST n BYTES of s, as a fresh buffer of the digest's 16 bytes -- binary, so read it by count, not as a string: a NUL among the bytes ends its string length. THE LENGTH IS YOUR CLAIM AND IS NOT CHECKED, as hex-n's is."
         (returns STRING "A 16-byte buffer"))
-      (%bytes (%words s n)))
+      (%words s n (%make-str 17)))
+    (method bytes-into (self (param s STRING "Byte region to digest")
+                             (param n INTEGER "How many bytes of s to digest")
+                             (param out STRING "A buffer of 16 bytes or more, written from its start"))
+      (doc "MD5 of the FIRST n BYTES of s, its 16 bytes written into out, which is returned: bytes-n into a buffer you own, so a loop of digests makes none. The compiled engine writes the bytes itself, with no list between. THE LENGTHS ARE YOUR CLAIM AND ARE NOT CHECKED: out shorter than 16 bytes is written past."
+        (returns STRING "out"))
+      (%words s n out))
+    (method bytes-writer (self)
+      (doc "A function (s n out) doing what bytes-into does, for a loop of digests: the compiled engine itself once it is adopted, so each call pays no dispatch, or bytes-into's own path while it is not. It does not build the engine; call jit! first. Ask again after a state image loads: one held across it is the engine of the session that wrote it."
+        (returns CALLABLE "(fn (_ s n out)) answering out"))
+      ((fn (_ c) (if (null? c) (fn (_ s n out) (%words s n out)) c))
+       (if (null? %entry) () ((fn (_ entry) (entry compiled)) %entry))))
     (method jit! (self)
       (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x digest. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. hex also builds it on its own for any single input of 8KB or more."
         (returns BOOL "#t when the compiled engine is active"))

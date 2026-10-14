@@ -40,16 +40,19 @@
 (def %sj-ptr->int (prim-ref (lit ptr) (lit ->int)))
 (def %sj-pset (prim-ref (lit ptr) (lit set-word!)))
 (def %sj-pref (prim-ref (lit ptr) (lit ref-word)))
+(def %sj-int->ptr (prim-ref (lit int) (lit ->ptr)))
+(def %sj-mem-copy (prim-ref (lit mem) (lit copy)))
 (def %sj-oref (prim-ref (lit obj) (lit ref)))
 (def %sj-M 4294967295)
 
 ; scratch layout, one 1024-byte buffer (words):
 ;   0..15 W | 16..23 working state | 24 t1 25 t2 | 26 base 27 len
-;   28 total | 32..95 K | 96..103 H
+;   28 total | 32..95 K | 96..103 H | 120..127 the initial H, preset
 ; SHA-256 uses a..h in 16..23 and K; SHA-1 uses a..e in 16..20, its
 ; temp in 24 and H in 96..100, its four constants inline.
 (def %sj-KB 32)
 (def %sj-HB 96)
+(def %sj-IB 120)
 
 ; --- expression builders (generation time) ---
 (def %sj-C  (fn (_ i) (list '%mem-ref 'a i)))
@@ -227,30 +230,51 @@
   (list 'fn '(_ a m)
     (pair 'do ((fn (self t) (if (= t 16) () (pair (%sj5-fill-word t) (self (+ t 1))))) 0))))
 
+; the digest written out: H's first N words as 4N bytes at the output's
+; raw address, each word big-endian or, for MD5, little-endian -- a word
+; a call, stepping as the fill does
+(def %sj-emit-expr
+  (fn (_ n big?)
+    (list 'fn '(self a o w)
+      (list 'if (list '= 'w n) 0
+        (pair 'do
+          (List append
+            ((fn (self j acc)
+               (if (< j 0) acc
+                 (self (- j 1)
+                   (pair (list '%mem-byte-set-at! 'o (list '+ (list '<< 'w 2) j)
+                               (list '& (list '>> (%sj-AT (list '+ %sj-HB 'w)) (* 8 (if big? (- 3 j) j))) 255))
+                         acc))))
+             3 ())
+            (list (list 'self 'a 'o (list '+ 'w 1)))))))))
+
 ; --- build: compile, wire a driver, and PROVE it against the reference ---
 ;
 ; label:   the digest's name, for the raise.
 ; rounds:  the round schedule's expression (%sj-rounds-expr, %sj1-rounds-expr, %sj5-rounds-expr).
 ; fill:    the message-word fill's expression (%sj-fill-expr; MD5's %sj5-fill-expr).
 ; preload: ((SLOT . WORD) ...) written into the scratch once (SHA-256's K).
+; big?:    #t where each H word's bytes are written high first (SHA), #f low first (MD5).
 ; ih:      the initial-H words as a list; its length is the digest's.
 ; ref:     the pure-x digest, (fn (_ s [n]) -> H-word list) -- the oracle.
 ;
-; Returns (fn (_ s [n]) -> H-word list) driving the compiled pair, or
-; raises -- on a host whose architecture has no assembler backend (unknown
-; mnemonic), on any toolchain error, or on DISAGREEMENT with the
-; reference.  The caller guards; a raise means "stay pure-x", never a
-; wrong digest.  Both current backends (ARM64, x86-64) compile the same
-; vocabulary, so this module is arch-blind.
+; Returns (fn (_ s [n [out]]) -> H-word list, or out) driving the compiled
+; functions, or raises -- on a host whose architecture has no assembler
+; backend (unknown mnemonic), on any toolchain error, or on DISAGREEMENT
+; with the reference.  The caller guards; a raise means "stay pure-x",
+; never a wrong digest.  Both current backends (ARM64, x86-64) compile the
+; same vocabulary, so this module is arch-blind.
 (def %sj-make
-  (fn (_ label rounds fill preload ih ref)
-    (jit-group (Str8 append "sha-jit:" label) (fn (_) (list rounds fill))
-      (fn (_ fns replayed?) (%sj-wire label preload ih ref (first fns) (first (rest fns)) replayed?)))))
+  (fn (_ label rounds fill big? preload ih ref)
+    (jit-group (Str8 append "sha-jit:" label ":emit")
+      (fn (_) (list rounds fill (%sj-emit-expr (List length ih) big?)))
+      (fn (_ fns replayed?)
+        (%sj-wire label big? preload ih ref (first fns) (first (rest fns)) (first (rest (rest fns))) replayed?)))))
 
-; The digest over the compiled pair, proven against ref unless the pair
-; was replayed from the cache group, where it was proven when stored.
+; The digest over the compiled functions, proven against ref unless they
+; were replayed from the cache group, where they were proven when stored.
 (def %sj-wire
-  (fn (_ label preload ih ref %rounds %fill replayed?)
+  (fn (_ label big? preload ih ref %rounds %fill %emit replayed?)
     ; drop the whole build's remaining garbage before the digest phase
     ; (the compiler also collects periodically DURING the build); a replay
     ; compiled nothing and skips the collect, which marks the whole heap
@@ -261,22 +285,32 @@
     (def %poke (fn (_ i v) (%sj-pset %ptr (* i 8) v)))
     (def %peek (fn (_ i) (%sj-pref %ptr (* i 8))))
     (List for-each (fn (_ sw) (%poke (first sw) (rest sw))) preload)
+    ; the initial H preset once at slot %sj-IB, so a digest starts H with
+    ; one copy rather than a poke a word
+    ((fn (self i hs)
+       (unless (null? hs)
+         (do (%poke (+ %sj-IB i) (first hs)) (self (+ i 1) (rest hs))))) 0 ih)
+    (def %h-ptr (%sj-int->ptr (+ %addr (* 8 %sj-HB))))
+    (def %ih-ptr (%sj-int->ptr (+ %addr (* 8 %sj-IB))))
+    (def %ih-bytes (* 8 (List length ih)))
     (def %last (- (List length ih) 1))
     (def %disagrees (Str8 append label "-jit: engine disagrees with the pure-x digest"))
     ; The optional LENGTH mirrors the pure-x path's.  The compiled code needs
     ; nothing: its contract is already (pointer, length) -- maddr below and the
     ; len word in scratch slot 27 -- and it never asks a string how long it is.
-    ; Only this derivation was narrow.
+    ; Only this derivation was narrow.  Given OUT after the length, the
+    ; digest's bytes are written there and OUT answered: the door a hash
+    ; built on a digest loops through, with no list made and no byte
+    ; written from x.
     (def %digest
-      (fn (_ s . n)
-        (def len (match ((null? n) (Str8 length s)) (#t (first n))))
+      (fn (_ s . more)
+        (def len (match ((null? more) (Str8 length s)) (#t (first more))))
+        (def out (match ((null? more) ()) ((null? (rest more)) ()) (#t (first (rest more)))))
         (def total (<< (+ (>> (+ len 8) 6) 1) 6))
         (def maddr (%sj-ptr->int (%sj-str->ptr s)))
         (%poke 27 len)
         (%poke 28 total)
-        ((fn (self i hs)
-           (unless (null? hs)
-             (do (%poke (+ %sj-HB i) (first hs)) (self (+ i 1) (rest hs))))) 0 ih)
+        (%sj-mem-copy %h-ptr %ih-ptr %ih-bytes)
         ((fn (self b)
            (unless (= b total)
              (do
@@ -292,9 +326,11 @@
                (%fill %addr maddr)
                (%rounds %addr -1)
                (self (+ b 64))))) 0)
-        ((fn (self i acc)
-           (if (< i 0) acc
-             (self (- i 1) (pair (%peek (+ %sj-HB i)) acc)))) %last ())))
+        (if (null? out)
+          ((fn (self i acc)
+             (if (< i 0) acc
+               (self (- i 1) (pair (%peek (+ %sj-HB i)) acc)))) %last ())
+          (do (%emit %addr (%sj-ptr->int (%sj-str->ptr out)) 0) out))))
     ; the differential check: FIPS vectors + a 3-block input that lands
     ; padding in a block of its own.  Any disagreement is a raise; an
     ; engine that cannot prove itself is not an engine.
@@ -341,13 +377,28 @@
                      (unless (= i 200)
                        (do (%sj-pset1 p i (& i 255) 1) (self (+ i 1))))) 0)
                   r))))
-        (%check-n %sj-bin2 200)))
+        (%check-n %sj-bin2 200)
+        ; the door that writes the bytes: the same digest, byte for byte,
+        ; each four read back as the host's little-endian word
+        (def %sj-pref4 (prim-ref (lit ptr) (lit ref)))
+        (def %sj-out (%sj-make-str 65))
+        (%digest %sj-bin2 200 %sj-out)
+        ((fn (self i ws)
+           (unless (null? ws)
+             (do (unless (= (%sj-pref4 (%sj-str->ptr %sj-out) i 4)
+                            (if big?
+                              (| (| (<< (& (first ws) 255) 24) (<< (& (>> (first ws) 8) 255) 16))
+                                 (| (<< (& (>> (first ws) 16) 255) 8) (& (>> (first ws) 24) 255)))
+                              (first ws)))
+                   (Err raise 'state (Str8 append %disagrees " (bytes)") ()))
+                 (self (+ i 4) (rest ws)))))
+         0 (ref %sj-bin2 200))))
     %digest))
 
 ; SHA-256: k-vec is sha256.x's K vector (slot t+1 = K[t]), into 32..95.
 (def sha-jit-make
   (fn (_ k-vec ih ref)
-    (%sj-make "sha256" %sj-rounds-expr %sj-fill-expr
+    (%sj-make "sha256" %sj-rounds-expr %sj-fill-expr #t
       ((fn (self i acc)
          (if (< i 0) acc
            (self (- i 1) (pair (pair (+ %sj-KB i) (%sj-oref k-vec (+ i 1))) acc))))
@@ -356,13 +407,13 @@
 
 ; SHA-1: its constants are in the rounds, so nothing is preloaded.
 (def sha1-jit-make
-  (fn (_ ih ref) (%sj-make "sha1" %sj1-rounds-expr %sj-fill-expr () ih ref)))
+  (fn (_ ih ref) (%sj-make "sha1" %sj1-rounds-expr %sj-fill-expr #t () ih ref)))
 
 ; MD5: k-vec is md5.x's T vector (slot t+1 = T[t]) into 32..95, and the
 ; sixteen rotations into 104..119.
 (def md5-jit-make
   (fn (_ k-vec r-vec ih ref)
-    (%sj-make "md5" %sj5-rounds-expr %sj5-fill-expr
+    (%sj-make "md5" %sj5-rounds-expr %sj5-fill-expr #f
       (List append
         ((fn (self i acc)
            (if (< i 0) acc

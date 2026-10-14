@@ -30,10 +30,12 @@
 (def %s5-oref (prim-ref (lit obj) (lit ref)))
 (def %s5-byte-ref (prim-ref (lit str) (lit byte-ref)))
 (def %s5-char->int (prim-ref (lit char) (lit ->int)))
+(def %s5-int->ptr (prim-ref (lit int) (lit ->ptr)))
+(def %s5-mem-copy (prim-ref (lit mem) (lit copy)))
 
-; scratch layout, one 1024-byte buffer (64-bit words):
+; scratch layout, one 2048-byte buffer (64-bit words):
 ;   0..15 W ring | 16..23 working state | 24 t1 25 t2 | 26 base 27 len
-;   28 total | 32..111 K | 112..119 H
+;   28 total | 32..111 K | 112..119 H | 128.. each initial hash, eight a hash
 (def %s5-KB 32)
 (def %s5-HB 112)
 
@@ -117,6 +119,23 @@
       (list 'do (%s5-setAT 't %s5-fill-word)
                 (list 'self 'a 'm (list '+ 't 1))))))
 
+; the digest written out: H's eight words as sixty-four bytes, each word
+; big-endian, at the output's raw address -- a word a call, stepping as the
+; fill does
+(def %s5-emit-expr
+  (list 'fn '(self a o w)
+    (list 'if (list '= 'w 8) 0
+      (pair 'do
+        (List append
+          ((fn (self j acc)
+             (if (< j 0) acc
+               (self (- j 1)
+                 (pair (list '%mem-byte-set-at! 'o (list '+ (list '<< 'w 3) j)
+                             (list '& (list '>> (%s5-AT (list '+ %s5-HB 'w)) (* 8 (- 7 j))) 255))
+                       acc))))
+           7 ())
+          (list (list 'self 'a 'o (list '+ 'w 1))))))))
+
 ; --- build: compile, wire a driver, and PROVE it against the reference ---
 ;
 ; k:   the codec's K vector, 160 halves, hi then lo (slots 2t+1, 2t+2).
@@ -130,17 +149,18 @@
 ; guards; a raise means "stay pure-x", never a wrong digest.
 (def sha512-jit-make
   (fn (_ k ihs ref)
-    (jit-group "sha512-jit" (fn (_) (list %s5-rounds-expr %s5-fill-expr))
-      (fn (_ fns replayed?) (%s5-wire k ihs ref (first fns) (first (rest fns)) replayed?)))))
+    (jit-group "sha512-jit:emit" (fn (_) (list %s5-rounds-expr %s5-fill-expr %s5-emit-expr))
+      (fn (_ fns replayed?)
+        (%s5-wire k ihs ref (first fns) (first (rest fns)) (first (rest (rest fns))) replayed?)))))
 
 ; The digest over the compiled pair, proven against ref unless the pair
 ; was replayed from the cache group, where it was proven when stored.
 (def %s5-wire
-  (fn (_ k ihs ref %rounds %fill replayed?)
+  (fn (_ k ihs ref %rounds %fill %emit replayed?)
     ; drop the whole build's remaining garbage before the digest phase; a
     ; replay compiled nothing and skips the collect, which marks the whole heap
     (unless replayed? (Heap collect))
-    (def %buf (%s5-make-str 1024))
+    (def %buf (%s5-make-str 2048))
     (def %ptr (%s5-str->ptr %buf))
     (def %addr (%s5-ptr->int %ptr))
     ; a 64-bit slot as its two halves: lo at the slot's first four bytes
@@ -153,17 +173,42 @@
          (do (%poke-halves (+ %s5-KB t) (%s5-oref k (+ (* t 2) 1)) (%s5-oref k (+ (* t 2) 2)))
              (self (+ t 1))))) 0)
     (def %disagrees "sha512-jit: engine disagrees with the pure-x digest")
+    ; each initial hash's eight words preset at slot 128 + 8k, so a digest
+    ; starts H with one copy of 64 bytes rather than sixteen pokes
+    (def %preset
+      (fn (self l k acc)
+        (if (null? l) acc
+          (let ((at (+ 128 (* 8 k))))
+            (do ((fn (self i hs)
+                   (unless (null? hs)
+                     (do (%poke-halves (+ at i) (first hs) (first (rest hs)))
+                         (self (+ i 1) (rest (rest hs)))))) 0 (first l))
+                (self (rest l) (+ k 1) (pair (pair (first l) at) acc)))))))
+    (def %presets (%preset ihs 0 ()))
+    (def %h-at (+ %addr (* 8 %s5-HB)))
+    ; H from IH: its preset copied in, or poked where it is not one of ihs
+    (def %load-h!
+      (fn (_ ih)
+        (def p ((fn (self ps) (match ((null? ps) ()) ((eq? (first (first ps)) ih) (rest (first ps))) (#t (self (rest ps))))) %presets))
+        (if (null? p)
+          ((fn (self i hs)
+             (unless (null? hs)
+               (do (%poke-halves (+ %s5-HB i) (first hs) (first (rest hs)))
+                   (self (+ i 1) (rest (rest hs)))))) 0 ih)
+          (%s5-mem-copy (%s5-int->ptr %h-at) (%s5-int->ptr (+ %addr (* 8 p))) 64))))
+    ; The digest of S's first N bytes (its length where N is not given):
+    ; sixteen halves, or, given OUT, its sixty-four bytes written there and
+    ; OUT answered -- the second the door the hashes built on a digest use,
+    ; with no list made and no byte written from x.
     (def %digest
-      (fn (_ ih s . n)
-        (def len (match ((null? n) (Str8 length s)) (#t (first n))))
+      (fn (_ ih s . more)
+        (def len (match ((null? more) (Str8 length s)) (#t (first more))))
+        (def out (match ((null? more) ()) ((null? (rest more)) ()) (#t (first (rest more)))))
         (def total (<< (+ (>> (+ len 16) 7) 1) 7))
         (def maddr (%s5-ptr->int (%s5-str->ptr s)))
         (%poke 27 len)
         (%poke 28 total)
-        ((fn (self i hs)
-           (unless (null? hs)
-             (do (%poke-halves (+ %s5-HB i) (first hs) (first (rest hs)))
-                 (self (+ i 1) (rest (rest hs)))))) 0 ih)
+        (%load-h! ih)
         ; one native call pair a block; the per-block garbage is the
         ; caller's to sweep (a collect here could overrun the collector's
         ; mark with a caller's long list live)
@@ -173,10 +218,12 @@
                  (%fill %addr maddr 0)
                  (%rounds %addr -1)
                  (self (+ b 128))))) 0)
-        ((fn (self i acc)
-           (if (< i 0) acc
-             (self (- i 1) (pair (%peek-hi (+ %s5-HB i)) (pair (%peek-lo (+ %s5-HB i)) acc)))))
-         7 ())))
+        (if (null? out)
+          ((fn (self i acc)
+             (if (< i 0) acc
+               (self (- i 1) (pair (%peek-hi (+ %s5-HB i)) (pair (%peek-lo (+ %s5-HB i)) acc)))))
+           7 ())
+          (do (%emit %addr (%s5-ptr->int (%s5-str->ptr out)) 0) out))))
     ; the differential check: FIPS vectors, a two-block input, and an
     ; input that lands the padding in a block of its own
     (def %same
@@ -221,7 +268,21 @@
                      (unless (= i 300)
                        (do (%s5-pset p i (& i 255) 1) (self (+ i 1))))) 0)
                   r))))
-        (%check-n %s5-bin2 300)))
+        (%check-n %s5-bin2 300)
+        ; the door that writes the bytes: the same digest, byte for byte
+        (def %s5-out (%s5-make-str 65))
+        ((fn (self l)
+           (unless (null? l)
+             (do (%digest (first l) %s5-bin2 300 %s5-out)
+                 ((fn (self i hs)
+                    (unless (null? hs)
+                      (do (unless (= (%s5-pref (%s5-str->ptr %s5-out) i 4)
+                                     (| (| (<< (& (first hs) 255) 24) (<< (& (>> (first hs) 8) 255) 16))
+                                        (| (<< (& (>> (first hs) 16) 255) 8) (& (>> (first hs) 24) 255))))
+                            (Err raise 'state (Str8 append %disagrees " (bytes)") ()))
+                          (self (+ i 4) (rest hs)))))
+                  0 (%digest (first l) %s5-bin2 300))
+                 (self (rest l))))) ihs)))
     %digest))
 
 ; The codec reaches the maker through the catalogue: it loads this module
