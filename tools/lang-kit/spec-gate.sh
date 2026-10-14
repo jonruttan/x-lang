@@ -46,6 +46,16 @@ CONTRACT="${KNOWN_FAILURES:-$BUNDLE/tests/contract/known-failures.txt}"
 	exit 2
 }
 
+# Before the suite, the sources: two files defining one global name
+# differently pass every spec that runs each applet in a process of its own,
+# and break the image that loads both.  dup-defs.sh says which.  It reads
+# text, so it costs under a second.  The shim that sources this sets KIT; run
+# directly, this file sits beside the scanner.
+BUNDLE="$BUNDLE" sh "${KIT:-$(dirname "$0")}/dup-defs.sh" || {
+	echo "spec-gate: FAIL -- a global name has two meanings; see above" >&2
+	exit 1
+}
+
 work=$(mktemp -d)
 
 # A signal handler must not fall through: cleanup removes the work directory,

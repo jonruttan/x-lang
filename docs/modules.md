@@ -341,7 +341,9 @@ since the library's own callers keep the engine's `apply`.
   `tools/` is a reader and never an owner, and a file of `lib/` or `apps/`
   that loads one is refused.
 - `check-dup-defs`: no two files that load into one root define the same
-  name.
+  name.  The scanner is `tools/lang-kit/dup-defs.sh`, and a bundle's spec
+  gate runs it over the bundle's own files before the suite; a bundle
+  without the spec gate runs it from its root.
 
 ## Pinning
 
