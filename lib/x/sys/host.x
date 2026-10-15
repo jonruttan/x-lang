@@ -43,7 +43,7 @@
 (def-class Host ()
   (doc "The machine as the kernel reports it: boot time, load, memory, CPU time, system-wide counters, disk, network and interrupt totals, processes and logged-in users, the same records on Linux and Darwin."
     (note "A field the kernel does not report is nil. Darwin reports another user's process memory and CPU time only to root.")
-    (see boot-time) (see load) (see tasks) (see memory) (see cpu) (see cpus) (see counters) (see disks) (see interfaces) (see interrupts) (see processes) (see process) (see args) (see exe) (see threads) (see maps) (see files) (see holders) (see utmp) (see users))
+    (see boot-time) (see load) (see tasks) (see memory) (see cpu) (see cpus) (see counters) (see disks) (see interfaces) (see interrupts) (see processes) (see process) (see args) (see exe) (see threads) (see maps) (see regions) (see files) (see holders) (see utmp) (see users))
   (static
     (source    ()      "'linux or 'darwin: which reader answers; nil means this kernel's")
     (proc-root "/proc" "The /proc tree the Linux reader opens")
@@ -140,10 +140,12 @@
         ()))
 
     (method %hex (self (param s STRING "Hexadecimal digits"))
-      (doc "The integer a run of hex digits spells, read up to the first byte that is not one; 0 for none."
+      (doc "The integer a run of hex digits spells, read up to the first byte that is not one; 0 for none. Sixteen digits are its 64 bits, through the int doors whether or not the tower is loaded, so a value past the signed range, such as an address in the top half of the address space, is negative."
         (returns INTEGER "The value"))
       (def at (prim-ref (lit str) (lit byte-ref)))
       (def n ((prim-ref (lit str) (lit byte-len)) s))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i* (prim-ref (lit int) (lit *)))
       (def digit
         (fn (_ b)
           (match
@@ -155,7 +157,7 @@
         (fn (self i acc)
           (if (>= i n) acc
             (let ((d (digit (at s i))))
-              (if (null? d) acc (self (+ i 1) (+ (* acc 16) d)))))))
+              (if (null? d) acc (self (+ i 1) (i+ (i* acc 16) d)))))))
       (go 0 0))
 
     (method %fold-lines (self (param path STRING "A file") (param f CALLABLE "(f line acc) answers the next acc; line has no newline")
@@ -1284,6 +1286,121 @@
           (def s (Str8 append (Str8 sub (i& n 15) 1 digits) acc))
           (if (i< n 16) (if (i< (Str8 length s) 2) (Str8 append "0" s) s) (self (i/ n 16) s))))
       (Str8 append (hex maj "") ":" (hex min "")))
+
+    (method regions (self (param pid INTEGER "Process ID"))
+      (doc "The process's memory mappings one record a region, in address order, as BusyBox's pmap reads /proc/PID/smaps: start, the region's address, its 64 bits as a signed integer (negative in the top half of the address space, as Linux's [vsyscall] is); size, its length in bytes; mode, four characters of permissions (r, w, x or a dash, then p for private or s for shared); name, the mapped file's path or the kernel's name for the region, nil for an anonymous one; and pss, private-dirty and swap in bytes. Darwin walks the regions with proc_pidinfo's PROC_PIDREGIONPATHINFO, takes the path of the file a region maps, counts a region's dirtied pages as private for a private or copy-on-write region, and reports no pss; it answers only for this user's processes unless running as root. nil when the process is gone or the kernel will not say."
+        (returns ANY "LIST of ((start . ADDR) (size . B) (mode . STRING) (name . STRING) (pss . B) (private-dirty . B) (swap . B)), or nil")
+        (sample "(< 0 (List length (Host regions (Sys getpid))))" "#t"))
+      (if (eq? (Host %backend) (lit darwin)) (Host %darwin-regions pid) (Host %linux-regions pid)))
+
+    (method %region-record (self (param v LIST "start size mode name pss private-dirty swap"))
+      (doc "The region record for seven fields in its order."
+        (returns ALIST "The region record"))
+      (def go (fn (self ks vs) (if (null? ks) () (pair (pair (first ks) (first vs)) (self (rest ks) (rest vs))))))
+      (go (lit (start size mode name pss private-dirty swap)) v))
+
+    (method %linux-regions (self (param pid INTEGER "Process ID"))
+      (doc "regions, from /proc/PID/smaps, read a line at a time, BusyBox's pmap over the same lines."
+        (returns ANY "LIST of region records, or nil"))
+      ; the byte primitives and the int doors, as %linux-maps reads
+      (def len (prim-ref (lit str) (lit byte-len)))
+      (def sub (prim-ref (lit str) (lit byte-sub)))
+      (def at (prim-ref (lit str) (lit byte-ref)))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i- (prim-ref (lit int) (lit -)))
+      (def i* (prim-ref (lit int) (lit *)))
+      (def i< (prim-ref (lit int) (lit <)))
+      (def i= (prim-ref (lit int) (lit =)))
+      (def starts?
+        (fn (_ p l)
+          (def n (len p))
+          (def go (fn (self i) (if (i< i n) (if (i= (at p i) (at l i)) (self (i+ i 1)) #f) #t)))
+          (if (i< (len l) n) #f (go 0))))
+      (def skip
+        (fn (self l i space?)
+          (if (i< i (len l)) (if (eq? (i= (at l i) 32) space?) (self l (i+ i 1) space?) i) i)))
+      (def num
+        (fn (self l i acc)
+          (if (i< i (len l))
+            (let ((b (at l i)))
+              (if (if (i< b 48) #t (i< 57 b)) acc (self l (i+ i 1) (i+ (i* acc 10) (i- b 48)))))
+            acc)))
+      (def kb (fn (_ l key) (i* 1024 (num l (skip l (len key) #t) 0))))
+      ; the region being read heads ACC, as its seven fields; SET answers
+      ; ACC with field I of that region replaced
+      (def put
+        (fn (self i n v) (if (i= i 0) (pair n (rest v)) (pair (first v) (self (i- i 1) n (rest v))))))
+      (def set (fn (_ i n acc) (if (null? acc) acc (pair (put i n (first acc)) (rest acc)))))
+      (def dash
+        (fn (self l i) (if (i< i (len l)) (if (i= (at l i) 45) i (self l (i+ i 1))) ())))
+      ; a region's header: START-END PERMS OFFSET DEV INODE [PATH]
+      (def header
+        (fn (_ l d acc)
+          (def start (Host %hex l))
+          (def perms (skip l (skip l 0 #f) #t))
+          (def field (fn (self i k) (if (i= k 0) i (self (skip l (skip l i #f) #t) (i- k 1)))))
+          (def from (field perms 4))
+          (pair (list start (i- (Host %hex (sub l (i+ d 1) (i- (len l) (i+ d 1)))) start)
+                      (sub l perms 4) (if (i< from (len l)) (sub l from (i- (len l) from)) ())
+                      0 0 0)
+                acc)))
+      (def line
+        (fn (_ l acc)
+          (match
+            ((starts? "Pss:" l) (set 4 (kb l "Pss:") acc))
+            ((starts? "Private_Dirty:" l) (set 5 (kb l "Private_Dirty:") acc))
+            ((starts? "Swap:" l) (set 6 (kb l "Swap:") acc))
+            (#t (let ((d (dash l 0))) (if (null? d) acc (header l d acc)))))))
+      (def rs (Host %fold-lines (Str8 append (Host proc-root) "/" (Str8 str pid) "/smaps") line ()))
+      (def go (fn (self rs acc) (if (null? rs) acc (self (rest rs) (pair (Host %region-record (first rs)) acc)))))
+      (go rs ()))
+
+    (method %darwin-regions (self (param pid INTEGER "Process ID"))
+      (doc "regions, from proc_pidinfo's PROC_PIDREGIONPATHINFO, one struct proc_regionwithpathinfo a region from address 0 up."
+        (returns ANY "LIST of region records, or nil"))
+      ; the context's primitives and the int doors, as %darwin-maps reads
+      (def c (Host %darwin-ctx))
+      (def ref (first c))
+      (def call (first (rest c)))
+      (def pidinfo (first (rest (rest (rest (rest c))))))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i* (prim-ref (lit int) (lit *)))
+      (def i< (prim-ref (lit int) (lit <)))
+      (def i= (prim-ref (lit int) (lit =)))
+      (def i& (prim-ref (lit int) (lit &)))
+      (def page (Host %page-size))
+      (def ri ((first (rest (rest c))) 1272))
+      (def p ((first (rest (rest (rest c)))) ri))
+      (def at (fn (_ off n) (ref p off n)))
+      (def least (fn (_ a b) (if (i< a b) a b)))
+      (def bit (fn (_ prot b ch) (if (i= 0 (i& prot b)) "-" ch)))
+      ; one region's record: struct proc_regioninfo, then vip_path at 248
+      (def region
+        (fn (_)
+          (def prot (at 0 4))
+          (def mode (at 60 4))
+          ; SM_COW 1, SM_PRIVATE 2, SM_EMPTY 3, SM_PRIVATE_ALIASED 6: the region's own pages
+          (def private? (if (i= mode 1) #t (if (i= mode 2) #t (if (i= mode 3) #t (i= mode 6)))))
+          ; SM_SHARED 4, SM_TRUESHARED 5, SM_SHARED_ALIASED 7
+          (def shared? (if (i= mode 4) #t (if (i= mode 5) #t (i= mode 7))))
+          (def path (Host %cstr-at ri 248 1024))
+          (Host %region-record
+            (list (at 80 8) (at 88 8)
+                  (Str8 append (bit prot 1 "r") (bit prot 2 "w") (bit prot 4 "x") (if shared? "s" "p"))
+                  (if (str=? path "") () path)
+                  ()
+                  (if private? (least (i* page (at 48 4)) (i* page (at 64 4))) 0)
+                  (i* page (at 44 4))))))
+      ; the walk ends where proc_pidinfo writes no whole struct, or at a
+      ; region that does not end past the address asked for
+      (def go
+        (fn (self addr acc)
+          (if (if (i= 1272 (call pidinfo pid 8 addr p 1272)) (i< addr (i+ (at 80 8) (at 88 8))) #f)
+            (let ((r (region))) (self (i+ (at 80 8) (at 88 8)) (pair r acc)))
+            acc)))
+      (def rs (go 0 ()))
+      (def rev (fn (self rs acc) (if (null? rs) acc (self (rest rs) (pair (first rs) acc)))))
+      (if (null? rs) () (rev rs ())))
 
     (method %linux-btime (self)
       (doc "The boot time /proc/stat records, the base of a process's start time."
