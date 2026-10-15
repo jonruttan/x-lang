@@ -10,7 +10,8 @@
 #   - two scoped modules sharing a private name are green;
 #   - two scripts under tools/ sharing a name are green, and a script
 #     redefining a module's name is red;
-#   - the generated harness, tests/lib/, is not read;
+#   - the generated harness, tests/lib/, is not read, nor a checkout in a
+#     dot-directory (.x-lang, as bundle CI makes one);
 #   - the spec gate stops on a clash before the suite runs.
 #
 # No x boots.
@@ -89,6 +90,10 @@ _red "a script redefining a module's name" "%n" "a/one.x" "tools/p.x"
 
 _case a/one.x '(def %n 1)' tests/lib/harness.gen.x '(def %n 2)'
 _green "the generated harness left out"
+
+# CI checks the platform out inside the bundle; its files are not the bundle's.
+_case a/one.x '(def %n 1)' .x-lang/lib/a.x '(def %n 2)' .x-lang/lib/b.x '(def %m 1)' .x-r5rs/r/c.x '(def %m 2)'
+_green "a checkout in a dot-directory left out"
 
 # The gate: a clash stops it, and the suite never starts.
 _case a/one.x '(def %v 1)' a/two.x '(def %v 2)'
