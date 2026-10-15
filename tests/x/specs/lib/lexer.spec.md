@@ -243,6 +243,24 @@ contract, the realization is not.
 ---
     (('num "10u" 1) ('num "10UL" 1) ('num "1.5f" 2) ('num "0xffUL" 3))
 
+### a hex fraction or a p exponent makes a hex number a floating one, labelled 2
+
+C99's hexadecimal floating constants and Python's `float.fromhex` text: the
+exponent is decimal digits, signed or not, and a suffix follows it.  A hex
+integer, `e` among its digits, stays 3.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer number 'num "uUlLfF"))))
+  (write (%lx-l read-str "0x1.8p3 0x.8p-1 0X1P+4 0x1.p2 0x1.8 0x1e 0x1p4f 0xAp0L"))
+  (newline))
+```
+---
+    (('num "0x1.8p3" 2) ('num "0x.8p-1" 2) ('num "0X1P+4" 2) ('num "0x1.p2" 2) ('num "0x1.8" 2) ('num "0x1e" 3) ('num "0x1p4f" 2) ('num "0xAp0L" 2))
+
 ### a dot with no digits after it still ends a fraction, as C and Python read it
 
 A number is read forward only: an exponent marker with no digits after it

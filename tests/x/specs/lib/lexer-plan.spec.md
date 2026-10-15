@@ -123,7 +123,7 @@ prefix off) and the plan, for the first rule list: when it changes, bump
   (newline))
 ```
 ---
-    (40 #t -2691242188977066873)
+    (42 #t 6030273634432191203)
 
 ### the plan's text reads back as the plan, and text that is not one is no plan
 
