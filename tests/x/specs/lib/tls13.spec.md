@@ -8,9 +8,8 @@ and the server's close.  The server's certificate is self-signed RSA, so
 the exchanges ask for ('insecure), and one without it is refused: its
 CertificateVerify, RSA-PSS (scheme 2052), holds, and then the
 certificate, made with a common name alone, names no host.  connect
-builds the X25519, SHA-256, SHA-512, ChaCha20 and Poly1305 engines
-before it dials, so the file carries the weight and the timeout of
-engine builds.
+builds every engine it uses before it dials (ready!), so the file
+carries the weight and the timeout of engine builds.
 
 ## connecting
 
@@ -94,3 +93,14 @@ checked; the reader collects between records, as a caller of Tls13 does.
 ```
 ---
     (100000 "db8f1d69251d95e2c88268d3c540533cc5182e0e33065a6f3f322f606a574489")
+
+## the engines
+
+### ready! builds every engine a connect uses, and is idempotent
+
+```x
+(do (import x/net/tls13)
+  (write (list (Tls13 ready!) (Tls13 ready!))))
+```
+---
+    (#t #t)
