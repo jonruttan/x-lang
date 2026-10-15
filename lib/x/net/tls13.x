@@ -47,6 +47,9 @@
 (import x/codec/sha512-jit)
 (import x/codec/chacha20-jit)
 (import x/codec/poly1305-jit)
+(import x/codec/base64)
+(import x/codec/base64-jit)
+(import x/codec/mont-jit mont-jit-ready!)
 (import x/sys/posix)
 
 (def %add (prim-ref 'int '+))
@@ -521,6 +524,12 @@
       ; certificate is under the size that builds it on its own, and pure
       ; x digests one in 0.6 s
       (Sha512 jit!)
+      ; a trusted root is found as a PEM block: a third of a second of x to
+      ; decode, microseconds compiled
+      (Base64 jit!)
+      ; the signatures' arithmetic: compiled here, not after the handshake,
+      ; where a cold cache would keep the server waiting through the build
+      (mont-jit-ready!)
       (def priv (Bytes random 32))
       (def public (list (X25519 base (first priv)) 0 32))
       (def s (Vector make %slots ()))
