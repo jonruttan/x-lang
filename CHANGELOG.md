@@ -5,6 +5,86 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-10-14
+
+**Processes that load floats start about 50 ms sooner.** ([#1027]) After a state
+image loaded, `x/num/float` assembled all thirty of its libm and arithmetic
+stubs whether or not the process did any float arithmetic.  Each is now
+made at its first call; a stub handed out by `libm-fn` or exported is still made at the
+load.  Xenon starts in 0.32 s of CPU instead of 0.38 s, and a coreutils
+applet in 0.30 s instead of 0.34 s.
+
+[#1027]: https://github.com/jonruttan/x-lang/pull/1027
+
+**Curve engines build in milliseconds and point formulas run in one call.** ([#1025]) x/codec/mont-jit is one looping engine for every modulus now, with a compiled runner that executes a whole program of modular operations from a table in the scratch: `mont-jit-program` writes the steps once, `mont-jit-run!` is one call. Five functions serve every curve and RSA key, poured once a process, where each curve built and poured twelve of its own: a P-256 engine builds in 5 ms where it took 300, and an ECDSA verification is 40% faster.
+
+[#1025]: https://github.com/jonruttan/x-lang/pull/1025
+
+**List and Str8 methods shed their internal sends.** ([#1024]) List's methods call their shared walkers, from-seq and fold, as module functions rather than sends back into the class, test a list's end with `eq?` and count on the integer doors, and Str8's trims walk bytes on the doors: on ten elements `List length` is 3,783 -> 539 objects (325 -> 40 us), `reverse` 2,650 -> 539, `sum` 2,432 -> 516, `take` 1,451 -> 825; `(Str8 trim s)` on 25 bytes 9,197 -> 684 objects (857 -> 58 us) and `(Str8 split " " s)` 3,981 -> 2,121.
+
+[#1024]: https://github.com/jonruttan/x-lang/pull/1024
+
+**A bundle's spec gate no longer reads the x-lang checkout its CI makes inside the bundle.** ([#1023]) `tools/lang-kit/dup-defs.sh` leaves out directories whose names start with a dot, so `.x-lang` and `.x-r5rs` beside a bundle's sources are not scanned as the bundle's own files.
+
+[#1023]: https://github.com/jonruttan/x-lang/pull/1023
+
+**`Host regions`: a process's memory one record a region, for pmap.** ([#1022])
+`(Host regions pid)` answers the process's mappings in address order, each
+`((start . ADDR) (size . B) (mode . "r-xp") (name . PATH) (pss . B)
+(private-dirty . B) (swap . B))`, name nil for an anonymous region. Linux
+reads /proc/PID/smaps as BusyBox's pmap does; Darwin walks proc_pidinfo's
+PROC_PIDREGIONPATHINFO and reports no pss. `Host maps` keeps its sums.
+
+[#1022]: https://github.com/jonruttan/x-lang/pull/1022
+
+**TLS connects in half the time.** ([#1019]) Hmac digests answer bytes straight from the hash's words, Der reads on the prims, X509 from-pem decodes PEM blocks by memmem and a streaming `Base64 decode-region` (new, the lossless door into a buffer), and the compiled engines no longer load the C compiler to replay cached code: a verified handshake is 1.6 s of CPU where it was 3.1, and every process that pours a cached engine starts a third of a second sooner.
+
+[#1019]: https://github.com/jonruttan/x-lang/pull/1019
+
+**A bundle's spec gate fails when two of its files define one global name differently.** ([#1021]) `tools/lang-kit/dup-defs.sh`, the scanner `check-dup-defs` holds the platform to, ships with the kit, and `tools/lang-kit/spec-gate.sh` runs it over the bundle's own sources before the suite. Each applet ran in a process of its own, so x-coreutils passed every spec with `%ts-verbose` meaning a tar accessor in one file and tcpsvd's counter in another; the gate names both files. Fetches of one catalogue entry, the same definition written twice and private names in scoped modules pass, as on the platform.
+
+[#1021]: https://github.com/jonruttan/x-lang/pull/1021
+
+**A socket send to a peer that has closed raises an `'io` failure instead of ending the process.** ([#1020]) `Socket send` and `send-run` pass MSG_NOSIGNAL, so the kernel answers EPIPE rather than SIGPIPE. A `Tls close` to a server that hung up first, as wget's https reads met, no longer kills the program.
+
+[#1020]: https://github.com/jonruttan/x-lang/pull/1020
+
+**Starting a bundle costs fewer processes.** ([#1018]) `x.sh` read each installed
+bundle's `lang.xon` name with `sed | head`, two processes a bundle on every
+launch; it reads them with the shell's own `read` now, and quotes a value
+with `sed` only when it holds a single quote.  With sixteen bundles
+installed a coreutils applet starts in 0.50 s of CPU instead of 0.56 s.
+
+[#1018]: https://github.com/jonruttan/x-lang/pull/1018
+
+**Vectors index, build and fold several times faster.** ([#1017]) Index and length arithmetic in `x/type/vector` runs on the integer doors -- an index is INT once converted, a length is slot 0's INT -- so `(Vector make 100 0)` is 3.15 -> 0.40 ms and 39,397 -> 4,419 objects, a 100-element `(Vector fold ...)` 1.76 -> 0.41 ms, `(Vector ref i v)` 100.6 -> 70.5 us and `(v i)` 69.7 -> 39.6 us; `make` and `build` convert their length once, as `ref` converts its index.
+
+[#1017]: https://github.com/jonruttan/x-lang/pull/1017
+
+**Every process started from a state image starts about 0.15 s sooner.** ([#1016])
+The image loader found each struct a stored object names by walking the
+type list and, for every type, searching the base's path table for the
+type-name row; it looks that row up once now.  Helium starts in 0.21 s
+of CPU instead of 0.36 s, and a coreutils applet in 0.41 s instead of
+0.56 s.
+
+[#1016]: https://github.com/jonruttan/x-lang/pull/1016
+
+**Method sends cost a third of what they did.** ([#1014]) Class dispatch and every method body bind with `def` in their own activation rather than the `let` operative, which entered a fresh closure each time: a static send's own cost falls from about 46 us and 561 objects to 15 us and 169, every method call sheds about 11 us and 118 objects, and `(Vector ref i v)` falls 100.6 -> 60.7 us.
+
+[#1014]: https://github.com/jonruttan/x-lang/pull/1014
+
+**Host holders reads maps devices from any dialect.** ([#1013]) `%maps-dev`, which
+prints a device as `/proc/PID/maps` does for `(Host holders ...)`'s Linux
+walk, divides on the int doors; from a bundle whose `/` is the tower's
+division it raised "&: operands must be integers".
+
+[#1013]: https://github.com/jonruttan/x-lang/pull/1013
+
+**`<`, `>`, `<=` and `>=` are three times faster.** ([#1012]) Their nil and arity guards test with `eq?` against nil and `if` rather than `null?` and the `or` operative, so `(< a b)` is 10.2 -> 3.3 us and 122 -> 24 objects a call, `>` 20.3 -> 6.8 us (264 -> 68), `<=` 28.7 -> 8.3 us (365 -> 85) and `>=` 26.5 -> 7.7 us (337 -> 78), with the same answers and messages; `(Vector ref i v)` falls 100.6 -> 82.3 us with it.
+
+[#1012]: https://github.com/jonruttan/x-lang/pull/1012
+
 ## [0.29.0] - 2026-10-14
 
 **RSA verification is the compiled power and little else.** ([#1009]) x/codec/mont-jit's looping engine reads big-endian bytes into a slot and writes a slot out as bytes in compiled loops (`mont-jit-load-bytes!`, `mont-jit-store-bytes`), reads the modulus's limbs the same way, and sets up R^2 and its one in the scratch, so a 2048-bit verification is tens of milliseconds where it was a quarter second of limb conversion. x/codec/mont makes a modulus's limbs when first asked.
