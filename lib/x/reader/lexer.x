@@ -127,7 +127,7 @@
     ; recorded by the old code would otherwise be replayed as the new.  The
     ; digest case in tests/x/specs/lib/lexer-plan.spec.md fails on any such
     ; change until both it and this number are updated.
-    (%plan-version 3)
+    (%plan-version 4)
     ; Group keys made, as ((RULES END . KEY) ...): a key is the rules and the
     ; end text printed, which costs a make more than its replay's types do, and
     ; a remake -- the recache hook after every image load -- asks again for
@@ -286,7 +286,7 @@
 
     (method number (self (param tag SYMBOL "The token's tag")
                          (param suffix LIST "Class of suffix bytes taken after the digits, or nil"))
-      (doc "A rule for a number: decimal digits, an optional fraction and exponent, or 0x and hex digits; then any bytes of suffix. The token carries a label: 1 integer, 2 fraction or exponent, 3 hex."
+      (doc "A rule for a number: decimal digits, an optional fraction and exponent, or 0x and hex digits, with an optional hex fraction and p exponent (0x1.8p3); then any bytes of suffix. The token carries a label: 1 integer, 2 fraction or exponent (hex ones too), 3 hex integer."
         (returns LIST "The rule")
         (sample "(Lexer number 'num \"uUlL\")" "C integer and floating literals"))
       (list (lit number) (Str8 str tag) tag suffix))
@@ -715,14 +715,6 @@
       (def e2 (ender 2))
       (def e3 (ender 3))
       (def fv (fn (_ e more) (if (null? e) more (pair e more))))
-      (def hex-digits
-        (Lexer %state l
-          (Lexer %state-form (list (lit if) xdigit (lit me) (end-form 3 e3)))
-          (fv e3 ())))
-      (def hex-first
-        (Lexer %state l
-          (Lexer %state-form (list (lit if) xdigit (lit k) ()))
-          (list (pair (lit k) hex-digits))))
       (def exp-digits
         (Lexer %state l
           (Lexer %state-form (list (lit if) digit (lit me) (end-form 2 e2)))
@@ -737,6 +729,31 @@
             (list (lit if) digit (lit k)
               (list (lit if) (lit (or (= chr 43) (= chr 45))) (lit f) ())))
           (list (pair (lit k) exp-digits) (pair (lit f) exp-first))))
+      ; 0x and hex digits, an integer; a hex fraction (0x1.8, 0x.8) or a p
+      ; exponent of decimal digits (0x1p4) makes it a floating literal, C99's
+      ; and Python's float.fromhex text, labelled as a fraction
+      (def p? (lit (or (= chr 112) (= chr 80))))
+      (def hex-frac-digits
+        (Lexer %state l
+          (Lexer %state-form
+            (list (lit if) xdigit (lit me) (list (lit if) p? (lit es) (end-form 2 e2))))
+          (fv e2 (list (pair (lit es) exp-sign)))))
+      (def hex-frac-first
+        (Lexer %state l
+          (Lexer %state-form (list (lit if) xdigit (lit k) ()))
+          (list (pair (lit k) hex-frac-digits))))
+      (def hex-digits
+        (Lexer %state l
+          (Lexer %state-form
+            (list (lit if) xdigit (lit me)
+              (list (lit if) (lit (= chr 46)) (lit frac)
+                (list (lit if) p? (lit es) (end-form 3 e3)))))
+          (fv e3 (list (pair (lit frac) hex-frac-digits) (pair (lit es) exp-sign)))))
+      (def hex-first
+        (Lexer %state l
+          (Lexer %state-form
+            (list (lit if) xdigit (lit k) (list (lit if) (lit (= chr 46)) (lit dot) ())))
+          (list (pair (lit k) hex-digits) (pair (lit dot) hex-frac-first))))
       (def frac-digits
         (Lexer %state l
           (Lexer %state-form
