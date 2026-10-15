@@ -11,6 +11,8 @@
 #   - two scripts under tools/ sharing a name are green, and a script
 #     redefining a module's name is red;
 #   - the generated harness, tests/lib/, is not read;
+#   - a dot directory is not read: the platform the bundle CI checks out at
+#     .x-lang/ defines every name the platform has;
 #   - the spec gate stops on a clash before the suite runs.
 #
 # No x boots.
@@ -89,6 +91,9 @@ _red "a script redefining a module's name" "%n" "a/one.x" "tools/p.x"
 
 _case a/one.x '(def %n 1)' tests/lib/harness.gen.x '(def %n 2)'
 _green "the generated harness left out"
+
+_case a/one.x '(def %n 1)' .x-lang/lib/x/n.x '(def %n 2)' .git/hooks/n.x '(def %n 3)'
+_green "a dot directory left out"
 
 # The gate: a clash stops it, and the suite never starts.
 _case a/one.x '(def %v 1)' a/two.x '(def %v 2)'

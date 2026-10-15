@@ -52,7 +52,9 @@
 #
 # Usage: dup-defs.sh [FILE...], run from the tree the FILEs are relative to.
 # With no FILEs it runs from BUNDLE (default: the current directory) over
-# every .x there but the generated harness (tests/lib/) and .git.
+# every .x there but the generated harness (tests/lib/) and dot directories:
+# .git, and the platform the bundle CI checks out at .x-lang/, whose own
+# sources are not the bundle's.
 #
 #   BUNDLE              the tree to scan when no FILEs are given
 #   DUP_DEFS_ALLOW      names allowed several distinct definitions, space
@@ -71,7 +73,7 @@ DUP_DEFS_SCRIPTS="${DUP_DEFS_SCRIPTS-tools/}"
 if [ $# -eq 0 ]; then
 	cd "${BUNDLE:-.}" || exit 2
 	# shellcheck disable=SC2046
-	set -- $(find . -name '*.x' -not -path './tests/lib/*' -not -path './.git/*' \
+	set -- $(find . -name '.?*' -prune -o -name '*.x' -not -path './tests/lib/*' -print \
 		| sed 's|^\./||' | sort)
 fi
 
