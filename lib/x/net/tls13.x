@@ -500,6 +500,11 @@
 
 (def-class Tls13 ()
   (static
+    (method ready! (self)
+      (doc "Build every compiled engine a connect uses, now: X25519, SHA-256, ChaCha20, Poly1305, SHA-512 (it serves the SHA-384 that signs most intermediates), the base64 decoder (a trusted root is found as a PEM block) and the Montgomery runner (the signatures' arithmetic). Poured from the cache when they are there, built and proven when not; connect calls it before dialling, so nothing compiles while a server waits, and an image build calls it to fill the cache it ships with. Answers #t when every engine is compiled."
+        (returns BOOL "#t when every engine is compiled"))
+      ((fn (self l) (if (null? l) #t (if (first l) (self (rest l)) #f)))
+       (list (X25519 jit!) (Sha256 jit!) (ChaCha20 jit!) (Poly1305 jit!) (Sha512 jit!) (Base64 jit!) (mont-jit-ready!))))
     (method connect (self (param quad STRING "Dotted-quad IPv4 address (resolve names via (Socket resolve))")
                           (param port INTEGER "Port, usually 443")
                           . (param opts ALIST "Options: (host . NAME), the server's name, sent (SNI) and checked against its certificate; ('insecure) to skip the check"))
@@ -512,24 +517,11 @@
       ; Everything slow happens before the server is dialled: pure x, an
       ; X25519 multiplication is about five seconds and a server gives up
       ; on a handshake that takes ten.  The compiled engines are built and
-      ; proven once a process (about five seconds together, measured
-      ; 2026-10-09 on arm64), and the key pair is made with them; after that
-      ; the handshake's work is milliseconds.  An engine that cannot be
-      ; built leaves its codec pure x, correct and slow.
-      (X25519 jit!)
-      (Sha256 jit!)
-      (ChaCha20 jit!)
-      (Poly1305 jit!)
-      ; SHA-512's engine serves SHA-384, which signs most intermediates: a
-      ; certificate is under the size that builds it on its own, and pure
-      ; x digests one in 0.6 s
-      (Sha512 jit!)
-      ; a trusted root is found as a PEM block: a third of a second of x to
-      ; decode, microseconds compiled
-      (Base64 jit!)
-      ; the signatures' arithmetic: compiled here, not after the handshake,
-      ; where a cold cache would keep the server waiting through the build
-      (mont-jit-ready!)
+      ; proven once a process, poured from the cache after the first, and
+      ; the key pair is made with them; after that the handshake's work is
+      ; milliseconds.  An engine that cannot be built leaves its codec pure
+      ; x, correct and slow.
+      (Tls13 ready!)
       (def priv (Bytes random 32))
       (def public (list (X25519 base (first priv)) 0 32))
       (def s (Vector make %slots ()))
