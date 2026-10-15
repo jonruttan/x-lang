@@ -5,6 +5,24 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-10-15
+
+**Deflate and Inflate take a stream a piece at a time, and the CRC-32 is compiled.** ([#1035]) `(Deflate stream)` and `(Deflate feed w s start n final)` write a raw DEFLATE stream from pieces; `(Inflate stream)`, `feed`, `done?` and `rest` read one back, a block at a time as the input completes it, so gzip and unzip need no libz and never hold a file whole. `(Crc32 jit!)` compiles the CRC-32's byte loop (past 4KB on its own), and Deflate builds its engine past 16KB rather than 32KB.
+
+[#1035]: https://github.com/jonruttan/x-lang/pull/1035
+
+**A method send costs half what it did.** ([#1034]) Class and instance dispatch skip the quote unwrap for a symbol selector, read a built hot record in place and sort the table entry with one `eq?`, one `pair?` and one nil test before calling the method: a static send is 14.7 -> 8.2 us and 180 -> 91 objects.
+
+[#1034]: https://github.com/jonruttan/x-lang/pull/1034
+
+**The Lexer's number rule reads hexadecimal floating constants.** ([#1033]) `0x1.8p3`, `0x.8p-1` and `0X1P+4` -- a hex fraction or a `p` exponent after `0x` and hex digits -- are one token labelled 2, as a decimal fraction is, any suffix after it taken as before; a hex integer stays labelled 3, and `%plan-version` is 4.  C's hexadecimal floating constants read whole for x-cc, and Python's `float.fromhex` text for a reader that wants it.
+
+[#1033]: https://github.com/jonruttan/x-lang/pull/1033
+
+**`(Tls13 ready!)` builds every engine a connect uses.** ([#1032]) One call, poured from the cache when they are there, answering #t when all seven are compiled: what connect does before dialling, now available to a build that warms a cache with no server in sight.
+
+[#1032]: https://github.com/jonruttan/x-lang/pull/1032
+
 ## [0.30.0] - 2026-10-14
 
 **Processes that load floats start about 50 ms sooner.** ([#1027]) After a state
