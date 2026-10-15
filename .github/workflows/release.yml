@@ -15,24 +15,9 @@ name: Release
 # tarball's install tree, and package.sh fails the job if its stamp
 # disagrees with the repo this manifest was computed from -- which is what
 # keeps the two jobs' artifacts describing one release.
-#
-# TWO EVENTS, NO WAITING.  A tag usually lands on a merge whose ci.yml run
-# has not finished, or has not started: main runs one at a time, and a
-# main run queues behind every pull request's for the account's runners.
-# A gate that waited for that verdict inside a 45-minute job ran out of
-# time instead (v0.28.0, v0.29.0).  So the release starts from whichever
-# comes second: the tag push, when ci.yml has already judged the commit,
-# or ci.yml's run completing on main, when the commit carries a v* tag.
-# `resolve` decides which, and nothing waits.  A workflow_run event reads
-# this file from main, not from the tag, so every later job checks the tag
-# itself out.
 on:
   push:
     tags: ['v*']
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
 
 permissions:
   contents: write
@@ -40,79 +25,12 @@ permissions:
   actions: read
 
 jobs:
-  resolve:
-    name: release to publish
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      tag: ${{ steps.r.outputs.tag }}
-      mode: ${{ steps.r.outputs.mode }}
-    steps:
-      # mode: `judged` publishes on ci.yml's green verdict; `full` runs the
-      # suite here, for a tag on a commit ci.yml never ran; empty publishes
-      # nothing.  The verdict is read JOB BY JOB over every job but the
-      # test-asan ones: see the artifacts job's gate comment.
-      - id: r
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          EVENT: ${{ github.event_name }}
-          PUSH_TAG: ${{ github.ref_name }}
-          PUSH_SHA: ${{ github.sha }}
-          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
-          RUN_EVENT: ${{ github.event.workflow_run.event }}
-        run: |
-          set -e
-          judge() {
-            gh run view "$1" --json status,jobs --jq '
-              [.jobs[] | select((.name | startswith("make test-asan") | not) and .conclusion != "skipped")] as $req
-              | if ($req | any(.status != "completed"))
-                   or ($req == [] and .status != "completed") then "pending"
-                elif $req != [] and ($req | all(.conclusion == "success")) then "success"
-                else "failure" end'
-          }
-          verdicts() {
-            for id in $(gh run list --workflow=ci.yml --event push --commit "$1" \
-                          --json databaseId --jq '.[].databaseId'); do
-              judge "$id"
-            done | tr "\n" " "
-          }
-          if [ "$EVENT" = push ]; then
-            tag=$PUSH_TAG sha=$PUSH_SHA
-          else
-            # only a push to main is a merge a tag can sit on
-            [ "$RUN_EVENT" = push ] || { echo "resolve: ci.yml ran on $RUN_EVENT -- nothing to release"; exit 0; }
-            sha=$RUN_SHA
-            tag=$(gh api "repos/$GH_REPO/git/matching-refs/tags/v" \
-                    --jq ".[] | select(.object.sha == \"$sha\") | .ref" | sed 's#refs/tags/##' | head -1)
-            [ -n "$tag" ] || { echo "resolve: no v* tag on $sha -- nothing to release"; exit 0; }
-          fi
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "resolve: $tag is already published"; exit 0
-          fi
-          v=$(verdicts "$sha")
-          case "$v" in
-            *success*) mode=judged ;;
-            *pending*) echo "resolve: ci.yml is still judging $sha -- $tag publishes when that run completes"; exit 0 ;;
-            '') mode=full ;;
-            *) echo "resolve: ci.yml failed $sha ($v) -- $tag publishes nothing" >&2; exit 1 ;;
-          esac
-          echo "resolve: $tag at $sha, $mode"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "mode=$mode" >> "$GITHUB_OUTPUT"
-
   artifacts:
     name: publish amalgams + manifest
-    needs: resolve
-    if: needs.resolve.outputs.mode != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    env:
-      TAG: ${{ needs.resolve.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: refs/tags/${{ needs.resolve.outputs.tag }}
       - name: Acquire the engine
         run: make engine
       - name: Build
@@ -129,16 +47,20 @@ jobs:
       # suite itself only when there is none -- a tag on a commit CI never
       # saw still pays in full.  The one target ci.yml cannot run is run
       # here regardless: check-release-version fires only AT a tag.
-      # `resolve` reads the verdict JOB BY JOB, not off the run: a main run
-      # also carries the test-asan jobs, CI's own extra, which are no part
-      # of `make test` and the run's slowest.  So the set is EVERY job of
-      # the run except those (and a skipped one), which is the `make test`
-      # coverage set without a second copy of ci.yml's job list to keep in
-      # step.  Any green run for the commit counts: a cancelled or
-      # superseded run beside a passing one is still a judged commit.
-      # When the suite does run here, test-x writes its state images
-      # uncached, about two minutes: a release run is rare and a second
-      # copy of ci.yml's cache key is a fact nobody would keep in step.
+      # The verdict is read JOB BY JOB, not off the run: a main run also
+      # carries `make test-asan`, CI's own extra, which is no part of
+      # `make test` and takes ~32 minutes (2026-09-05: 23:06 -> 23:38)
+      # where every job that does cover the suite is done in ~12.  Judged
+      # by the run, the gate waited on the slowest job -- and when the run
+      # had queued behind another main push first (ci.yml runs main one at
+      # a time), the wait cap tripped and the gate fell back to the very
+      # half hour it exists to skip; the v0.11.0 retag came within minutes
+      # of that.  So the set is EVERY job of the run except test-asan (and
+      # a skipped one), which is the `make test` coverage set without a
+      # second copy of ci.yml's job list to keep in step.  When the suite
+      # does run here, test-x writes its state images uncached, about two
+      # minutes: a release run is rare and a second copy of ci.yml's cache
+      # key is a fact nobody would keep in step.
       - name: Gate
         env:
           GH_TOKEN: ${{ github.token }}
@@ -157,16 +79,49 @@ jobs:
         run: |
           set -e
           make check-release-version
-          # resolve read ci.yml's verdict: `judged` means a run passed this
-          # commit, `full` that none ran it.
-          case "${{ needs.resolve.outputs.mode }}" in
-            judged) echo "gate: ci.yml passed $TAG -- not running the suite twice" ;;
-            *) echo "gate: no ci.yml run for $TAG -- running the full gate here"; make test ;;
+          # ci.yml's runs for THIS sha -- the push to main the tag sits on.
+          runs() {
+            gh run list --workflow=ci.yml --event push --commit "$GITHUB_SHA" \
+              --json databaseId --jq '.[].databaseId'
+          }
+          # One run's verdict over the jobs that cover `make test`: pending
+          # while any of them is still queued or running, success once all
+          # are green, failure otherwise.  A run queued behind another main
+          # push has NO jobs yet -- that is pending too, not an empty pass.
+          # The test-asan jobs (test-asan and test-asan-crypto) are not in the
+          # set (see above); an in-flight job's conclusion is the empty
+          # string, which no test here mistakes.
+          judge() {
+            gh run view "$1" --json status,jobs --jq '
+              [.jobs[] | select((.name | startswith("make test-asan") | not) and .conclusion != "skipped")] as $req
+              | if ($req | any(.status != "completed"))
+                   or ($req == [] and .status != "completed") then "pending"
+                elif $req != [] and ($req | all(.conclusion == "success")) then "success"
+                else "failure" end'
+          }
+          # ANY green run for the sha counts: a cancelled or superseded run
+          # beside a passing one is still a judged commit.  Wait only while
+          # none is green and one is still judging.
+          waited=0
+          while :; do
+            verdicts=$(for id in $(runs); do judge "$id"; done | tr "\n" " ")
+            case "$verdicts" in *success*) break ;; esac
+            case "$verdicts" in *pending*) ;; *) break ;; esac
+            [ "$waited" -lt 2400 ] || break
+            echo "gate: ci.yml is still judging $GITHUB_SHA -- waiting (${waited}s)"
+            sleep 60; waited=$((waited + 60))
+          done
+          case "$verdicts" in
+            *success*)
+              echo "gate: ci.yml already passed $GITHUB_SHA -- not running the suite twice" ;;
+            *)
+              echo "gate: no green ci.yml run for $GITHUB_SHA (got '${verdicts:-none}') -- running the full gate here"
+              make test ;;
           esac
       - name: Amalgams + manifest
         run: |
           make boot
-          sh tools/release/release-manifest.sh "$TAG"
+          sh tools/release/release-manifest.sh "$GITHUB_REF_NAME"
       # Dogfood cross-check: the pure-x Sha256 (x/codec/sha256 -- the
       # consumer-side verify anchor) must agree with coreutils on the ISA
       # fingerprint consumers will check against.  isa.x is ~10KB (~15s
@@ -188,7 +143,7 @@ jobs:
         # A hyphenated tag (v0.4.0-rc1) is a prerelease by convention --
         # it must not surface as the repo's "Latest release".
         run: |
-          case "$TAG" in
+          case "$GITHUB_REF_NAME" in
             *-*) PRERELEASE=--prerelease ;;
             *)   PRERELEASE= ;;
           esac
@@ -227,8 +182,8 @@ jobs:
           to boot an amalgam from one release on another release's engine.
           NOTES
           )"
-          gh release create "$TAG" $PRERELEASE \
-            --title "$TAG" \
+          gh release create "$GITHUB_REF_NAME" $PRERELEASE \
+            --title "$GITHUB_REF_NAME" \
             --notes "$notes" \
             build/boot/*.x build/release/SHASUMS build/release/pin.release.xon
 
@@ -240,19 +195,15 @@ jobs:
   # the job instead of shipping.
   binaries:
     name: binary tarball (${{ matrix.os }})
-    needs: [resolve, artifacts]
+    needs: artifacts
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
-    env:
-      TAG: ${{ needs.resolve.outputs.tag }}
     strategy:
       fail-fast: false
       matrix:
         os: [macos-14, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: refs/tags/${{ needs.resolve.outputs.tag }}
       - name: Acquire the engine
         run: make engine
       # macOS notarization (opt-in via secrets): import the Developer ID
@@ -305,12 +256,12 @@ jobs:
           MACOS_NOTARY_KEY_PATH: ${{ env.MACOS_NOTARY_KEY_PATH }}
           MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
           MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
-        run: sh tools/release/package.sh "$TAG" build/dist
+        run: sh tools/release/package.sh "$GITHUB_REF_NAME" build/dist
       - name: Upload to the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "$TAG" \
+          gh release upload "$GITHUB_REF_NAME" \
             build/dist/*.tar.gz build/dist/*.tar.gz.sha256 --clobber
       # Always tear down the signing material, success or fail.
       - name: Clean up signing material (macOS)
