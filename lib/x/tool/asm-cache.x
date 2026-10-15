@@ -120,6 +120,12 @@
 (def %asm-cache-i< (prim-ref 'int '<))
 (def %asm-cache-i= (prim-ref 'int '=))
 
+; N plus how many items list L holds, counted on the integer doors: the boot
+; layer's %length folds with the generic +, which costs a list of a dozen
+; sites near a thousand objects, and a pour counts one every time.
+(def %asm-cache-count
+  (fn (self l n) (if (null? l) n (self (rest l) (%asm-cache-i+ n 1)))))
+
 (def %asm-libc-creat  (%asm-cache-dlsym %asm-cache-lib "creat"))
 (def %asm-libc-open   (%asm-cache-dlsym %asm-cache-lib "open"))
 (def %asm-libc-read   (%asm-cache-dlsym %asm-cache-lib "read"))
@@ -361,7 +367,7 @@
 ; FD from records in the file's layout: a single entry's .asm file.
 (def %asm-cache-put-rec
   (fn (_ fd text recs size)
-    (def hp (%asm-cache-head-buf size recs (%length recs)))
+    (def hp (%asm-cache-head-buf size recs (%asm-cache-count recs 0)))
     (def ok (%asm-cache-put fd (first hp) (rest hp)))
     (%asm-cache-pcall %asm-libc-free (first hp))
     (if ok (%asm-cache-put-blob fd recs text) #f)))
@@ -581,7 +587,7 @@
 
 (def %asm-cache-sites
   (fn (_ recs)
-    (def n (%length recs))
+    (def n (%asm-cache-count recs 0))
     (def sites (%asm-cache-words n))
     (def sp (%asm-cache-words-at sites))
     ; (label name k) newest first, and how many
@@ -788,14 +794,14 @@
 ; more per site than the relocation.
 (def %asm-cache-pour
   (fn (_ fill size st fvars publish?)
-    (def a (asm-new (+ size 256)))
+    (def a (asm-new (%asm-cache-i+ size 256)))
     (if (not (fill (%obj-ref a 0) size)) (%asm-cache-miss-mapped a)
       (do
         (%obj-set! a 1 size)
         (def cell (%asm-cache-self-cell))
         (def table (%asm-cache-fvar-table fvars))
         ; one word a slot; a slot that will not resolve is a miss
-        (def vals (%asm-cache-make-str (%asm-cache-i* 8 (%asm-cache-i+ (%length (first st)) 1))))
+        (def vals (%asm-cache-make-str (%asm-cache-i* 8 (%asm-cache-count (first st) 1))))
         (def vp (%asm-cache-str->ptr vals))
         (def ok
           ((fn (self ss at)
@@ -1064,7 +1070,7 @@
     (def st (first (rest (rest (rest e)))))
     (def slots (first st))
     (def n (first (rest (rest st))))
-    (def nslots (%length slots))
+    (def nslots (%asm-cache-count slots 0))
     (def hbytes (%asm-cache-i+ %asm-cache-head-bytes (%asm-cache-i* 4 nslots)))
     (def hb (%asm-cache-int->ptr (%asm-cache-pcall %asm-libc-malloc hbytes)))
     (%asm-cache-ptr-set! hb 0 %asm-cache-group-entry-magic 4)
@@ -1111,7 +1117,7 @@
               (do
                 (def hb (%asm-cache-int->ptr (%asm-cache-pcall %asm-libc-malloc 8)))
                 (%asm-cache-ptr-set! hb 0 %asm-cache-group-magic 4)
-                (%asm-cache-ptr-set! hb 4 (%length es) 4)
+                (%asm-cache-ptr-set! hb 4 (%asm-cache-count es 0) 4)
                 (def ok0 (%asm-cache-put fd hb 8))
                 (%asm-cache-pcall %asm-libc-free hb)
                 (def ok
@@ -1174,7 +1180,7 @@
 ; costs one string compare an entry; any other order falls back to membership.
 (def %asm-cache-same-texts?
   (fn (_ noted had)
-    (if (not (%asm-cache-i= (%length noted) (%length had))) #f
+    (if (not (%asm-cache-i= (%asm-cache-count noted 0) (%asm-cache-count had 0))) #f
       (if ((fn (self a b)
              (if (null? a) #t (if (str=? (first a) (first b)) (self (rest a) (rest b)) #f)))
            noted had)
