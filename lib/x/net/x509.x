@@ -37,6 +37,30 @@
 (def %oid-rsa "1.2.840.113549.1.1.1")
 (def %pem-begin "-----BEGIN CERTIFICATE-----")
 (def %pem-end "-----END CERTIFICATE-----")
+
+; A name's bytes as lowercase ASCII text in a fresh buffer: what a DNS name
+; in a certificate is, and Str8 downcase's generic walk is tens of
+; thousands of objects for twenty characters.
+(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
+(def %char->int (prim-ref (lit char) (lit ->int)))
+(def %make-str (prim-ref (lit str) (lit make)))
+(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+(def %pset (prim-ref (lit ptr) (lit set!)))
+(def %ascii-lower
+  (fn (_ r)
+    (def s (first r))
+    (def start (first (rest r)))
+    (def n (first (rest (rest r))))
+    (def out (%make-str (+ n 1)))
+    (def p (%str->ptr out))
+    ((fn (self i)
+       (unless (= i n)
+         (do (def c (%char->int (%byte-ref s (+ start i))))
+             (%pset p i (if (and (>= c 65) (<= c 90)) (+ c 32) c) 1)
+             (self (+ i 1)))))
+     0)
+    (%pset p n 0 1)
+    out))
 (def %oid-p256 "1.2.840.10045.3.1.7")
 (def %oid-p384 "1.3.132.0.34")
 (def %sig-algs
@@ -133,7 +157,7 @@
     (def san (%lookup %ext-san exts))
     (def dns
       (if (null? san) ()
-        (List map (fn (_ e) (Str8 downcase (first (Bytes copy (%body e)))))
+        (List map (fn (_ e) (%ascii-lower (%body e)))
                   (List filter (fn (_ e) (= (%tag e) 130)) (Der items (%body (Der read (List ref 2 san))))))))
     (list (%whole tbs) sig-alg sig issuer subject not-before not-after kind key ca pathlen cert-sign dns)))
 
@@ -273,7 +297,7 @@
       (def parsed (List map %parse certs))
       (def leaf (first parsed))
       (unless (%in-date? leaf now) (%fail "the server's certificate is out of date"))
-      (def h (Str8 downcase host))
+      (def h (%ascii-lower (Bytes of host)))
       (unless ((fn (self l) (if (null? l) #f (if (%name-matches? h (first l)) #t (self (rest l))))) (%dns leaf))
         (%fail (Str8 append "the server's certificate does not name " host)))
       (%walk leaf (rest parsed) roots now))))

@@ -64,40 +64,85 @@
                 (mont-jit-from! eng 1 1)
                 (list (mont-jit-store-bytes eng 1) 0 len)))))))
 
+; --- byte access on the prims ------------------------------------------------
+;
+; The padding checks walk a modulus's length of bytes, 256 or 512: a Bytes
+; class call a byte is a hundred objects where a prim is one.
+
+(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
+(def %char->int (prim-ref (lit char) (lit ->int)))
+(def %make-str (prim-ref (lit str) (lit make)))
+(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+(def %pset (prim-ref (lit ptr) (lit set!)))
+(def %pref (prim-ref (lit ptr) (lit ref)))
+(def %add (prim-ref 'int '+))
+(def %sub (prim-ref 'int '-))
+(def %len (fn (_ r) (first (rest (rest r)))))
+(def %at (fn (_ r i) (%char->int (%byte-ref (first r) (%add (first (rest r)) i)))))
+
+; Are the n bytes of r from i all v?
+(def %run-of?
+  (fn (_ r i n v)
+    ((fn (self j) (if (= j n) #t (if (= (%at r (%add i j)) v) (self (%add j 1)) #f))) 0)))
+
 ; --- PKCS#1 v1.5 ------------------------------------------------------------
 
 ; DigestInfo's DER before the digest: SEQUENCE { SEQUENCE { OID, NULL }, OCTET STRING }.
 (def %digest-info
-  (list (list (lit sha256) "3031300d060960864801650304020105000420")
-        (list (lit sha384) "3041300d060960864801650304020205000430")
-        (list (lit sha512) "3051300d060960864801650304020305000440")))
+  (list (list (lit sha256) (Bytes of-hex "3031300d060960864801650304020105000420"))
+        (list (lit sha384) (Bytes of-hex "3041300d060960864801650304020205000430"))
+        (list (lit sha512) (Bytes of-hex "3051300d060960864801650304020305000440"))))
 
 ; EM is 00 01, at least eight FF bytes, 00, and DigestInfo of the digest.
 (def %v15-holds?
   (fn (_ em hash digest)
     (def info (%find hash %digest-info))
     (if (null? info) #f
-      (do (def t (Bytes join (Bytes of-hex (first (rest info))) digest))
-          (def pad (- (Bytes length em) 3 (Bytes length t)))
+      (do (def t (Bytes join (first (rest info)) digest))
+          (def tl (%len t))
+          (def pad (%sub (%sub (%len em) 3) tl))
           (and (>= pad 8)
-               (Bytes same? em (Bytes join (Bytes of-list (list 0 1)) (Bytes of-list (List repeat pad 255))
-                                           (Bytes of-list (list 0)) t)))))))
+               (= (%at em 0) 0)
+               (= (%at em 1) 1)
+               (%run-of? em 2 pad 255)
+               (= (%at em (%add 2 pad)) 0)
+               (Bytes same? (Bytes sub em (%add 3 pad) tl) t))))))
 
 ; --- PSS ----------------------------------------------------------------------
+
+; Eight zero bytes, PSS's M' prefix.
+(def %zero8 ((fn (_ z) (%pset (%str->ptr z) 0 0 4) (%pset (%str->ptr z) 4 0 4) (list z 0 8)) (%make-str 8)))
 
 ; MGF1 (B.2.1): the hashes of seed and a counter, 0 up, cut to len bytes.
 (def %mgf1
   (fn (_ hash seed len)
     (def h (Hmac size hash))
+    (def ctr (%make-str 4))
+    (def cp (%str->ptr ctr))
     ((fn (self c acc)
-       (if (>= (Bytes length acc) len) (Bytes sub acc 0 len)
-         (self (+ c 1)
-               (Bytes join acc (list (Hmac digest hash seed (Bytes of-list (list (>> c 24) (& (>> c 16) 255) (& (>> c 8) 255) (& c 255)))) 0 h)))))
-     0 (Bytes of-list ()))))
+       (if (>= (%len acc) len) (Bytes sub acc 0 len)
+         (do (%pset cp 0 (>> c 24) 1) (%pset cp 1 (& (>> c 16) 255) 1)
+             (%pset cp 2 (& (>> c 8) 255) 1) (%pset cp 3 (& c 255) 1)
+             (self (%add c 1) (Bytes join acc (list (Hmac digest hash seed (list ctr 0 4)) 0 h))))))
+     0 (list ctr 0 0))))
 
-(def %zero-run?
-  (fn (_ r start len)
-    ((fn (self i) (if (= i len) #t (if (= (Bytes ref r (+ start i)) 0) (self (+ i 1)) #f))) 0)))
+; masked XOR mask into a fresh buffer, four bytes a step and the odd ones
+; singly, the top byte then cut to keep's bits: PSS's data block.
+(def %unmask
+  (fn (_ masked mask keep)
+    (def n (%len masked))
+    (def out (Bytes copy masked))
+    (def p (%str->ptr (first out)))
+    (def mp (%str->ptr (first mask)))
+    (def m0 (first (rest mask)))
+    ((fn (self i)
+       (if (<= (%add i 4) n)
+         (do (%pset p i (^ (%pref p i 4) (%pref mp (%add m0 i) 4)) 4) (self (%add i 4)))
+         (unless (= i n)
+           (do (%pset p i (^ (%pref p i 1) (%pref mp (%add m0 i) 1)) 1) (self (%add i 1))))))
+     0)
+    (%pset p 0 (& (%pref p 0 1) keep) 1)
+    out))
 
 ; EMSA-PSS-VERIFY (9.1.2) on the power's bytes, emBits = BITS - 1 and the
 ; salt as long as the hash: the last emLen bytes are EM, anything before
@@ -109,24 +154,19 @@
     (def h (Hmac size hash))
     (def em-bits (- bits 1))
     (def em-len (>> (+ em-bits 7) 3))
-    (def k (Bytes length full))
-    (if (or (> em-len k) (< em-len (+ h h 2)) (not (%zero-run? full 0 (- k em-len)))) #f
+    (def k (%len full))
+    (if (or (> em-len k) (< em-len (+ h h 2)) (not (%run-of? full 0 (- k em-len) 0))) #f
       (do (def em (Bytes sub full (- k em-len) em-len))
           (def db-len (- em-len h 1))
           (def masked (Bytes sub em 0 db-len))
           (def hh (Bytes sub em db-len h))
           (def keep (>> 255 (- (* 8 em-len) em-bits)))
-          (if (or (not (= (Bytes ref em (- em-len 1)) 188)) (not (= (& (Bytes ref masked 0) (- 255 keep)) 0))) #f
-            (do (def mask (%mgf1 hash hh db-len))
-                (def db (Bytes of-list
-                          ((fn (self i acc)
-                             (if (< i 0) acc
-                               (self (- i 1) (pair (& (^ (Bytes ref masked i) (Bytes ref mask i)) (if (= i 0) keep 255)) acc))))
-                           (- db-len 1) ())))
+          (if (or (not (= (%at em (- em-len 1)) 188)) (not (= (& (%at masked 0) (- 255 keep)) 0))) #f
+            (do (def db (%unmask masked (%mgf1 hash hh db-len) keep))
                 (def salt-at (- db-len h))
-                (and (%zero-run? db 0 (- salt-at 1))
-                     (= (Bytes ref db (- salt-at 1)) 1)
-                     (Bytes same? hh (list (Hmac digest hash (Bytes of-list (List repeat 8 0)) digest (Bytes sub db salt-at h)) 0 h)))))))))
+                (and (%run-of? db 0 (- salt-at 1) 0)
+                     (= (%at db (- salt-at 1)) 1)
+                     (Bytes same? hh (list (Hmac digest hash %zero8 digest (Bytes sub db salt-at h)) 0 h)))))))))
 
 (def-class Rsa ()
   (static

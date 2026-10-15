@@ -16,17 +16,28 @@
 (def %add (prim-ref 'int '+))
 (def %sub (prim-ref 'int '-))
 
+(def %make-str (prim-ref (lit str) (lit make)))
+(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+(def %pset1 (prim-ref (lit ptr) (lit set!)))
+(def %len (fn (_ r) (first (rest (rest r)))))
+
+; n zero bytes in a fresh buffer: at load, for the pads and the counters.
+(def %zeroed
+  (fn (_ n)
+    (def z (%make-str n))
+    ((fn (self i) (unless (= i n) (do (%pset1 (%str->ptr z) i 0 1) (self (%add i 1))))) 0)
+    z))
+
+; Sixteen zero bytes, the most a pad is.
+(def %zeros (%zeroed 16))
+
 ; ChaCha20's 16-byte IV: a 32-bit little-endian block counter, then the
-; 96-bit nonce.
+; 96-bit nonce.  The counter is 0 or 1, so its four bytes are made once.
+(def %counter0 (%zeroed 4))
+(def %counter1 ((fn (_ c) (%pset1 (%str->ptr c) 0 1 1) c) (%zeroed 4)))
 (def %iv
   (fn (_ counter nonce)
-    (def w (Bytes writer))
-    (Bytes put-u8 w counter)
-    (Bytes put-u8 w 0)
-    (Bytes put-u8 w 0)
-    (Bytes put-u8 w 0)
-    (Bytes put w nonce)
-    (first (Bytes written w))))
+    (first (Bytes join (list (if (= counter 0) %counter0 %counter1) 0 4) nonce))))
 
 ; A region as a buffer of its own, starting at 0, for the ciphers' key and
 ; IV arguments, which read from a buffer's first byte.
@@ -35,29 +46,30 @@
 
 (def %pad16 (fn (_ n) (& (%sub 16 (& n 15)) 15)))
 
-(def %put-le64
-  (fn (self w n k)
-    (unless (= k 8)
-      (do (Bytes put-u8 w (& (>> n (<< k 3)) 255))
-          (self w n (%add k 1))))))
+; The two lengths as 64-bit little-endian numbers, sixteen bytes.
+(def %lengths
+  (fn (_ a c)
+    (def b (%zeroed 16))
+    (def p (%str->ptr b))
+    ((fn (self k) (unless (= k 8)
+                    (do (%pset1 p k (& (>> a (<< k 3)) 255) 1)
+                        (%pset1 p (%add k 8) (& (>> c (<< k 3)) 255) 1)
+                        (self (%add k 1)))))
+     0)
+    (list b 0 16)))
 
+; The MAC's input in one buffer, its pieces copied in by memcpy.
 (def %tag
   (fn (_ key nonce aad ct)
     (def otk (ChaCha20 block key (%iv 0 nonce)))
-    (def w (Bytes writer))
-    (def zeros (Bytes of-list (list 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)))
-    (Bytes put w aad)
-    (Bytes put w (Bytes sub zeros 0 (%pad16 (Bytes length aad))))
-    (Bytes put w ct)
-    (Bytes put w (Bytes sub zeros 0 (%pad16 (Bytes length ct))))
-    (%put-le64 w (Bytes length aad) 0)
-    (%put-le64 w (Bytes length ct) 0)
-    (def m (Bytes written w))
-    (list (Poly1305 mac otk (first m) 0 (Bytes length m)) 0 16)))
+    (def la (%len aad))
+    (def lc (%len ct))
+    (def m (Bytes join aad (list %zeros 0 (%pad16 la)) ct (list %zeros 0 (%pad16 lc)) (%lengths la lc)))
+    (list (Poly1305 mac otk (first m) 0 (%len m)) 0 16)))
 
 (def %xor
   (fn (_ key nonce r)
-    (list (ChaCha20 xor key (%iv 1 nonce) (first r) (first (rest r)) (Bytes length r)) 0 (Bytes length r))))
+    (list (ChaCha20 xor key (%iv 1 nonce) (first r) (first (rest r)) (%len r)) 0 (%len r))))
 
 (def %check-sizes
   (fn (_ key nonce)
