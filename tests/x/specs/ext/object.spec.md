@@ -1495,7 +1495,7 @@ selector, table and entry with defs.
 
 ### a static send and a method body cost a few objects
 
-A static send costs fewer than 300 objects over calling its resolved
+A static send costs fewer than 150 objects over calling its resolved
 handle, and a trivial method body, called through the handle, fewer than
 60 over a plain closure.
 
@@ -1511,7 +1511,7 @@ handle, and a trivial method body, called through the handle, fewer than
   (def %h (%class-method-of Cheap (lit one)))
   (def %plain (fn (_ s x) x))
   (def %by-handle (%cost (fn (_) (%h Cheap 1))))
-  (list (< (- (%cost (fn (_) (Cheap one 1))) %by-handle) (* 300 100))
+  (list (< (- (%cost (fn (_) (Cheap one 1))) %by-handle) (* 150 100))
         (< (- %by-handle (%cost (fn (_) (%plain Cheap 1)))) (* 60 100))
         (Cheap one 7)))
 ```
