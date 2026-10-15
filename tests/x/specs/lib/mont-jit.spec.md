@@ -7,7 +7,8 @@ P-384's order: built, checked against x/codec/mont when it is made, and
 here run beside the pure engine -- the same slots and calls over mont.x's
 arithmetic -- on the same numbers.  Multiply, add, subtract, copy, the
 zero and equality tests, a program and the inverse must all agree.  The
-file builds two engines, so it carries an engine's weight.
+first engine compiles the five functions every engine shares, so the file
+carries an engine's weight.
 
 ## agreement with the pure engine
 
@@ -52,14 +53,13 @@ file builds two engines, so it carries an engine's weight.
 ---
     ((#t #t (#t #f #t #f)) (#t #t (#t #f #t #f)))
 
-## the looping engine
+## an RSA modulus
 
 ### a 2048-bit modulus: every operation but the inverse, against the pure engine
 
-An RSA modulus is past unrolling, so its engine is the eight loops generic
-over the modulus, built once a machine, the byte doors among them.  The
-inverse is left out: the pure engine's would take two thousand of its
-multiplies.
+The same five functions serve seventy-nine limbs, the byte doors among
+them.  The inverse is left out: the pure engine's would take two thousand
+of its multiplies.
 
 ```x
 (do
