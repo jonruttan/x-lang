@@ -1213,13 +1213,21 @@
         (def noted (first g))
         (def set-extra (first (first (rest (rest (rest g))))))
         (def extra (if (null? set-extra) (rest got) set-extra))
-        (unless (if (%asm-cache-same-texts? noted had)
-                  (if (null? set-extra) #t (if (str? (rest got)) (str=? set-extra (rest got)) #f))
-                  #f)
-          (%asm-cache-group-store! (%asm-cache-group-path key) (%asm-cache-rev noted ()) extra))
-        ; a thunk that compiled nothing says nothing about the group
-        (unless (null? noted)
-          (%asm-cache-group-remember! key noted extra))
+        ; A thunk that noted nothing and set no extra leaves the group as it
+        ; was: a replay pours by entry (asm-cache-entry-pour), which notes
+        ; nothing, and a thunk that compiled nothing says nothing about it.
+        ; A group read from its file is then remembered with the texts it held.
+        (def untouched (if (null? noted) (null? set-extra) #f))
+        (if untouched
+          (when (if (null? known) (not (null? had)) #f)
+            (%asm-cache-group-remember! key had extra))
+          (do
+            (unless (if (%asm-cache-same-texts? noted had)
+                      (if (null? set-extra) #t (if (str? (rest got)) (str=? set-extra (rest got)) #f))
+                      #f)
+              (%asm-cache-group-store! (%asm-cache-group-path key) (%asm-cache-rev noted ()) extra))
+            (unless (null? noted)
+              (%asm-cache-group-remember! key noted extra))))
         out))))
 
 ; (TEXTS . EXTRA) of the open group: the texts it already held, oldest first,
@@ -1266,6 +1274,25 @@
              (if (%asm-cache-i= (first (first ss)) %asm-cache-label-fvar) (pair (rest (first ss)) acc) acc))))
        (first (first (rest (rest (rest e))))) ()))))
 
+; The entry held for TEXT, or () when none is: what asm-cache-entry-pour
+; pours.  A caller that pours the same entries in every process finds them
+; once and keeps them -- an image carries an entry as it carries the held list.
+(def asm-cache-held-entry
+  (fn (_ text) (%asm-cache-held-find text %asm-cache-held)))
+
+; The callable for the held entry E, poured with FVARS, or () on any miss: a
+; pour with no text matched and nothing noted in the open group.
+(def asm-cache-entry-pour
+  (fn (_ e fvars) (guard (_ ()) (%asm-cache-entry-pour e fvars #f))))
+
+(def %asm-cache-entry-pour
+  (fn (_ e fvars publish?)
+    (%asm-cache-pour
+      (fn (_ dst size)
+        (%asm-cache-copy! dst (%asm-cache-code-at (first (rest (rest e)))) size)
+        #t)
+      (first (rest e)) (first (rest (rest (rest e)))) fvars publish?)))
+
 ; The callable for TEXT from the entry held for it, or () on any miss; PUBLISH?
 ; as %asm-cache-pour takes it.
 (def %asm-cache-held-load
@@ -1273,12 +1300,7 @@
     (guard (_ ())
       (do
         (def e (%asm-cache-held-find text %asm-cache-held))
-        (if (null? e) (%asm-cache-miss)
-          (%asm-cache-pour
-            (fn (_ dst size)
-              (%asm-cache-copy! dst (%asm-cache-code-at (first (rest (rest e)))) size)
-              #t)
-            (first (rest e)) (first (rest (rest (rest e)))) fvars publish?))))))
+        (if (null? e) (%asm-cache-miss) (%asm-cache-entry-pour e fvars publish?))))))
 
 ; --- the public door --------------------------------------------------------
 ; THE CACHE IS THE DOOR AND THE COMPILER IS WHAT IT FALLS BACK TO, which is the
@@ -1382,6 +1404,8 @@
 (prim-reg! (lit compile) (lit asm-cache-group-extra!) asm-cache-group-extra!)
 (prim-reg! (lit compile) (lit asm-cache-held-pour) asm-cache-held-pour)
 (prim-reg! (lit compile) (lit asm-cache-held-fvar-names) asm-cache-held-fvar-names)
+(prim-reg! (lit compile) (lit asm-cache-held-entry) asm-cache-held-entry)
+(prim-reg! (lit compile) (lit asm-cache-entry-pour) asm-cache-entry-pour)
 (prim-reg! (lit compile) (lit asm-cache-last-text) asm-cache-last-text)
 
 (doc asm-cache-group
@@ -1423,6 +1447,19 @@
    TEXT patches into its code: what a pour of it needs of the FVARS it is
    given.  #f when no entry is held for the text.")
 
-(doc (provide x/tool/asm-cache asm-compile-cached asm-cache-group asm-cache-group-held asm-cache-group-extra! asm-cache-held-pour asm-cache-held-fvar-names asm-cache-last-text)
+(doc asm-cache-held-entry
+  (returns ANY "An entry, or nil")
+  "The entry held for the key text TEXT, which asm-cache-entry-pour pours:
+   found once, it is poured again with no text matched.  Nil when no entry is
+   held for the text.  An image carries it with the held entries.")
+
+(doc asm-cache-entry-pour
+  (returns ANY "X-lang callable prim, or nil")
+  "The entry E from asm-cache-held-entry, poured with FVARS as
+   asm-cache-held-pour pours: nil on a miss.  Nothing is noted in the open
+   group, and a group whose thunk noted nothing and set no extra keeps its
+   file as it is.")
+
+(doc (provide x/tool/asm-cache asm-compile-cached asm-cache-group asm-cache-group-held asm-cache-group-extra! asm-cache-held-pour asm-cache-held-fvar-names asm-cache-held-entry asm-cache-entry-pour asm-cache-last-text)
   "The cache behind the compile-asm door: persistent emitted native code, over
    the JIT compiler it falls back to.")

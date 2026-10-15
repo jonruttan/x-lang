@@ -520,6 +520,38 @@ the group is read from its file again -- there is none -- and written anew.
 ---
     (#t #t #f #t 0)
 
+### an entry found once pours with no text matched, and a group that notes nothing writes nothing
+
+`asm-cache-held-entry` finds the entry held for a key text and
+`asm-cache-entry-pour` pours it, noting nothing in the open group: a group
+whose thunk only pours by entry, and sets no extra, leaves its file as it
+was -- here, deleted.  A text no entry is held for has no entry.
+
+```x
+(do
+  (Sys setenv "X_ASM_CACHE_DIR" %grp-path)
+  (%grp-pcall (%grp-sym "mkdir") %grp-path 448)
+  (def %grp-e (list 'fn '(_ x) (list '+ 'x (+ 5 %grp-pid))))
+  (def %grp-epath ((%ac (lit %asm-cache-group-path)) "spec-entry"))
+  (def %grp-there2? (fn (_) (= 0 (%grp-pcall (%grp-sym "access") %grp-epath 0))))
+  (%grp-door "spec-entry" (fn (_) (compile-asm %grp-e)))
+  (def %grp-written (%grp-there2?))
+  (def %grp-entry ((prim-ref 'compile 'asm-cache-held-entry) (%asm-cache-text %grp-e () #f)))
+  (%grp-pcall (%grp-sym "unlink") %grp-epath)
+  (def %grp-g (%grp-door "spec-entry" (fn (_) ((prim-ref 'compile 'asm-cache-entry-pour) %grp-entry ()))))
+  (def %grp-after (%grp-there2?))
+  (def %grp-none ((prim-ref 'compile 'asm-cache-held-entry) "no entry is held for this"))
+  (def %grp-e-at (%asm-cache-path (%asm-cache-text %grp-e () #f)))
+  (%grp-pcall (%grp-sym "unlink") (Str append %grp-e-at ".bin"))
+  (%grp-pcall (%grp-sym "unlink") (Str append %grp-e-at ".asm"))
+  (def %grp-rmdir3 (%grp-pcall (%grp-sym "rmdir") %grp-path))
+  (Sys unsetenv "X_ASM_CACHE_DIR")
+  (write (list %grp-written (= (%grp-g 2) (+ 7 %grp-pid)) %grp-after %grp-none %grp-rmdir3))
+  (newline))
+```
+---
+    (#t #t #f () 0)
+
 ### a raise inside the thunk closes the group and reaches the caller
 
 ```x
