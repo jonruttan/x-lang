@@ -22,6 +22,8 @@
 (import x/type/class)
 (import x/core/list)
 (import x/codec/bytes)
+; The compiled decoder is on Compiled's list.
+(import x/tool/compiled)
 
 ; The region decoder's prims: a byte in, a byte out, no list between.
 (def %b64-byte-ref (prim-ref (lit str) (lit byte-ref)))
@@ -75,6 +77,40 @@
                            (self (+ i 1) (& acc2 (- (<< 1 (- nbits2 8)) 1)) (- nbits2 8) (+ n 1) (+ chars 1) pads))
                        (self (+ i 1) acc2 nbits2 n (+ chars 1) pads))))))))
      start 0 0 0 0 0)))
+
+; --- the compiled decoder, adopted only when it proves out ------------------
+;
+; An entry of Compiled's (lib/x/tool/compiled.x), made the first time
+; (Base64 jit!) asks: x/codec/base64-jit is imported then, never on this
+; module's import, and its decoder replaces the pure one above only
+; after agreeing with it on bytes and refusals.  decode-region asks the
+; entry which to call; a state image reloads with the entry interpreted.
+
+(def %b64-entry ())
+(def %b64-jit-try!
+  (fn (_)
+    (when (null? %b64-entry)
+      (set! %b64-entry
+        (Compiled make-on-demand (lit base64) %b64-decode-region
+          (fn (_)
+            (import x/codec/base64-jit)
+            ((prim-ref (lit base64) (lit jit-make)) %b64-decode-region))
+          (fn (_ v) ()))))
+    ; the entry is sent to through a parameter: the linter reads a send to a
+    ; global as a call with names for arguments
+    ((fn (_ entry)
+       (when (eq? (entry state) (lit interpreted)) (entry compile!))
+       (eq? (entry state) (lit compiled)))
+     %b64-entry)))
+
+; The decoder to call: the compiled one while the entry holds it.
+(def %b64-decode
+  (fn (_)
+    ((fn (_ entry)
+       (if (if (null? entry) #f (eq? (entry state) (lit compiled)))
+         (entry compiled)
+         %b64-decode-region))
+     %b64-entry)))
 
 (def-class Base64 ()
   (doc "RFC 4648 base64 (standard alphabet, = padding). encode/decode carry strings; encode-bytes/decode-bytes carry byte lists -- the lossless door for payloads that may contain NUL."
@@ -199,10 +235,14 @@
                             (pair (| (<< v0 2) (>> v1 4)) acc)))))))))))))
 
     (method decode-region (self (param text ANY "Base64 text: a region (BUF START LEN), or a STRING up to its first NUL"))
-      (doc "Decode to a fresh buffer, the bytes as a region (BUF 0 LEN): the lossless door for binary, with no list in between. Whitespace is skipped; any other character outside the alphabet, misplaced =, or a short final group raises a label 'value Err."
+      (doc "Decode to a fresh buffer, the bytes as a region (BUF 0 LEN): the lossless door for binary, with no list in between. Whitespace is skipped; any other character outside the alphabet, misplaced =, or a short final group raises a label 'value Err. Pure x, or the compiled decoder once (Base64 jit!) has adopted it."
         (returns LIST "(BUF 0 LEN)")
         (example "(Bytes hex (Base64 decode-region \"aGk=\"))" "\"6869\""))
-      (%b64-decode-region (Bytes of text)))
+      ((%b64-decode) (Bytes of text)))
+    (method jit! (self)
+      (doc "Build and adopt the compiled decoder (JIT; ARM64 and x86-64 backends) now, if it proves itself against the pure-x decode-region. Idempotent; answers whether the compiled decoder is active."
+        (returns BOOL "#t when the compiled decoder is active"))
+      (%b64-jit-try!))
     (method decode (self (param b64 STRING "Base64 text to decode"))
       (doc "Decode base64 text to a string. A decoded payload containing a 0 byte is only fully observable through decode-bytes (str values are C strings); same strictness as decode-bytes."
         (returns STRING "The decoded bytes as a string")

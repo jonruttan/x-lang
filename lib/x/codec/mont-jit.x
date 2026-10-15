@@ -272,6 +272,11 @@
         (fn (_ fns replayed?) (%set-first! %ml-fns (pair fns replayed?)))))
     (first %ml-fns)))
 
+; The five built or poured now, for a caller that would rather not compile
+; mid-connection: #t when they are compiled.
+(def mont-jit-ready!
+  (fn (_) (not (null? (guard (e ()) (%ml-compiled))))))
+
 ; The address of byte start of string s.
 (def %ml-address (fn (_ s start) (+ (%mj-ptr->int (%mj-str->ptr s)) start)))
 
@@ -631,7 +636,7 @@
        prog)
       ((%mj-oref e 5) (%mj-oref e 3) prog 9 0 0 0 0 0 0 0))))
 
-(doc (provide x/codec/mont-jit mont-jit-engine mont-jit-make mont-jit-pure mont-jit-compiled? mont-jit-free mont-jit-n
+(doc (provide x/codec/mont-jit mont-jit-engine mont-jit-make mont-jit-pure mont-jit-compiled? mont-jit-ready! mont-jit-free mont-jit-n
               mont-jit-load! mont-jit-store mont-jit-copy! mont-jit-zero? mont-jit-eq?
               mont-jit-load-bytes! mont-jit-store-bytes
               mont-jit-mul mont-jit-add mont-jit-sub mont-jit-to! mont-jit-from! mont-jit-one! mont-jit-pow! mont-jit-inv!
