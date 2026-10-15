@@ -95,6 +95,52 @@
 ; via < below: (>= a b) = (if (< a b) #f #t), (> a b) = (< b a).
 ; +/-/< and the mem/ptr doors reuse boot's cached set (#333).
 
+; Trimming walks bytes on the doors: whitespace is ASCII -- space, tab,
+; newline, CR, FF, as Char whitespace? has it -- and each byte of the
+; string is one element, so no send per byte is needed.
+; Linear byte search from a byte offset: first-byte skip, block-compare
+; confirm.  Answers the BYTE index or nil.  Sound for StrUtf8 inputs too: a
+; valid UTF-8 needle can never match starting mid-sequence, so a byte hit is
+; always a code-point-aligned hit.  A module function, so this file's own
+; searches (split, index-of, includes?) make no send for it; the class's
+; %find-bytes, which StrUtf8 sends, is this.
+(def %str8-find-bytes
+  (fn (_ sub from s)
+    (def m (%str-byte-len sub))
+    (def n (%str-byte-len s))
+    (if (eq? m 0) (if (%int< n from) () from)
+      (do
+        (def c0 (%char->integer (%str-byte-ref sub 0)))
+        (def last (%int- n m))
+        (def subp (%str->ptr sub))
+        (def sbase (%ptr->int (%str->ptr s)))
+        (def go
+          (fn (go i)
+            (if (%int< last i) ()
+              (if (eq? (%char->integer (%str-byte-ref s i)) c0)
+                (if (eq? 0 (%mem-cmp (%int->ptr (%int+ sbase i)) subp m))
+                  i
+                  (go (%int+ i 1)))
+                (go (%int+ i 1))))))
+        (go from)))))
+
+(def %str8-space?
+  (fn (_ s i)
+    (def b (%char->integer (%str-byte-ref s i)))
+    (if (eq? b 32) #t (if (eq? b 9) #t (if (eq? b 10) #t (if (eq? b 13) #t (eq? b 12)))))))
+
+; The first non-whitespace byte at or after i, or n.
+(def %str8-ink-from
+  (fn (self s i n)
+    (if (eq? i n) n
+      (if (%str8-space? s i) (self s (%int+ i 1) n) i))))
+
+; One past the last non-whitespace byte before end, or lo.
+(def %str8-ink-to
+  (fn (self s end lo)
+    (if (eq? end lo) lo
+      (if (%str8-space? s (%int- end 1)) (self s (%int- end 1) lo) end))))
+
 (def-class Str8 (extends Seq)
   (static
     ; The string check, for StrUtf8's own paths: v, or a type error naming
@@ -194,26 +240,9 @@
         (if (%int< (%str-byte-len s) (%int+ bpos m)) #f
           (eq? 0 (%mem-cmp (%int->ptr (%int+ (%ptr->int (%str->ptr s)) bpos))
                            (%str->ptr sub) m)))))
-    ; Linear byte search from a byte offset: first-byte skip, block-
-    ; compare confirm.  Returns the BYTE index or nil.  Sound for
-    ; StrUtf8 inputs too: a valid UTF-8 needle can never match starting
-    ; mid-sequence, so a byte hit is always a code-point-aligned hit.
+    ; The byte search; see %str8-find-bytes.
     (method %find-bytes (self sub from s)
-      (def m (%str-byte-len sub))
-      (def n (%str-byte-len s))
-      (if (eq? m 0) (if (%int< n from) () from)
-        (do
-          (def c0 (%char->integer (%str-byte-ref sub 0)))
-          (def last (%int- n m))
-          (def subp (%str->ptr sub))
-          (def sbase (%ptr->int (%str->ptr s)))
-          (let go ((i from))
-            (if (%int< last i) ()
-              (if (eq? (%char->integer (%str-byte-ref s i)) c0)
-                (if (eq? 0 (%mem-cmp (%int->ptr (%int+ sbase i)) subp m))
-                  i
-                  (go (%int+ i 1)))
-                (go (%int+ i 1))))))))
+      (%str8-find-bytes sub from s))
     ; Backward twin of %find-bytes.
     (method %rfind-bytes (self sub s)
       (def m (%str-byte-len sub))
@@ -410,7 +439,7 @@
       ; an interpreted compare per position.
       (do (%str8-check sub "Str8 includes?: not a string")
           (%str8-check s "Str8 includes?: not a string")
-          (not (null? (self %find-bytes sub 0 s)))))
+          (not (null? (%str8-find-bytes sub 0 s)))))
     (method index-of (self (param sub STRING "Substring to search for") (param s STRING "String to search in"))
       (doc "The element position of sub's first occurrence in s, or nil on a miss (absence is nil, like every other index-search miss). An empty sub matches at 0."
         (returns ANY "Position, or nil")
@@ -421,7 +450,7 @@
       ; code-point index (#332).
       (do (%str8-check sub "Str8 index-of: not a string")
           (%str8-check s "Str8 index-of: not a string")
-          (self %find-bytes sub 0 s)))
+          (%str8-find-bytes sub 0 s)))
     (method last-index-of (self (param sub STRING "Substring to search for") (param s STRING "String to search in"))
       (doc "The element position of sub's LAST occurrence in s, or nil on a miss. An empty sub matches at the end."
         (returns ANY "Position, or nil")
@@ -594,25 +623,22 @@
       (doc "Remove leading whitespace from s."
         (returns STRING "s with leading whitespace removed")
         (example "(Str8 trim-left \"  hi\")" "\"hi\""))
-      (let go ((i 0) (n (self length s)))
-        (if (= i n) ""
-          (if (Char whitespace? (self ref i s))
-            (go (+ i 1) n)
-            (self sub i (- n i) s)))))
+      (def n (self length s))
+      (def lo (%str8-ink-from s 0 n))
+      (%str-byte-sub s lo (%int- n lo)))
     (method trim-right (self (param s STRING "String to trim"))
       (doc "Remove trailing whitespace from s."
         (returns STRING "s with trailing whitespace removed")
         (example "(Str8 trim-right \"hi  \")" "\"hi\""))
-      (let go ((i (- (self length s) 1)))
-        (if (< i 0) ""
-          (if (Char whitespace? (self ref i s))
-            (go (- i 1))
-            (self sub 0 (+ i 1) s)))))
+      (def n (self length s))
+      (%str-byte-sub s 0 (%str8-ink-to s n 0)))
     (method trim (self (param s STRING "String to trim"))
       (doc "Remove both leading and trailing whitespace from s."
         (returns STRING "s with surrounding whitespace removed")
         (example "(Str8 trim \"  hi  \")" "\"hi\""))
-      (self trim-left (self trim-right s)))
+      (def n (self length s))
+      (def lo (%str8-ink-from s 0 n))
+      (%str-byte-sub s lo (%int- (%str8-ink-to s n lo) lo)))
 
     ; --- splitting (empty sep -> per element; else element search) ---
     (method wrap (self (param width INTEGER "Column limit, in bytes")
@@ -659,12 +685,15 @@
       (def s-len (%str-byte-len s))
       (if (eq? sep-len 0)
         (%map (fn (_ c) (self ->str (list c))) (self ->list s))
-        (let go ((start 0) (acc ()))
-          (let ((hit (self %find-bytes sep start s)))
-            (if (null? hit)
-              (%reverse (pair (%str-byte-sub s start (%int- s-len start)) acc))
-              (go (%int+ hit sep-len)
-                  (pair (%str-byte-sub s start (%int- hit start)) acc)))))))))
+        (do
+          (def go
+            (fn (go start acc)
+              (def hit (%str8-find-bytes sep start s))
+              (if (eq? hit ())
+                (%reverse (pair (%str-byte-sub s start (%int- s-len start)) acc))
+                (go (%int+ hit sep-len)
+                    (pair (%str-byte-sub s start (%int- hit start)) acc)))))
+          (go 0 ()))))))
 
 (doc (provide x/protocol/str/str8 Str8)
   (note "The 8-bit byte view. Use (Str8 length s), (Str8 upcase s), etc.; (help Str8) lists every method, (help Str8 method) shows one.")

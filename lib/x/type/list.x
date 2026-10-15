@@ -23,7 +23,7 @@
 (def %list-type-of (prim-ref (lit type) (lit of)))
 (def %list-int-type (%list-type-of 0))
 (def %list-cvt (prim-ref (lit convert) (lit to)))
-(def %list-int? (fn (_ n) (if (null? n) #f (eq? (%list-type-of n) %list-int-type))))
+(def %list-int? (fn (_ n) (if (eq? n ()) #f (eq? (%list-type-of n) %list-int-type))))
 (def %list->int (fn (_ n what)
   (if (%list-int? n) n
     (let ((k (%list-cvt n %list-int-type)))
@@ -74,6 +74,36 @@
       ((eq? (rest lst) ()) lst)
       (#t (%sort-halves self cmp (%sort-split lst lst ()))))))
 
+; The two walkers the methods share, as module functions.  A method that
+; called another through (List ...) paid a class send for it, and length ->
+; fold -> from-seq, three selectors sent in turn, walked deep into the
+; method table on every call.  The methods below call these directly; the
+; class's from-seq and fold are these.
+;
+; from-seq: lists and nil pass through; anything else goes through Iter.
+(def %list-from-seq
+  (fn (_ x) (if (eq? x ()) x (if (pair? x) x (Iter ->list (Iter new x))))))
+
+; fold: first/rest are unchecked C prims, so an improper tail walks off the
+; end of the list into UB -- (pair 1 2) is ordinary data, not hostile input.
+; The pair? test comes first in the walk and an improper tail raises rather
+; than crashes; every walker built on fold (length, reverse, sum, ...) is
+; covered by it.
+(def %list-fold
+  (fn (_ f init lst)
+    (def go
+      (fn (self acc xs)
+        (match
+          ((pair? xs) (self (f acc (first xs)) (rest xs)))
+          ((eq? xs ()) acc)
+          (#t (Err raise (lit type) "List fold: improper list" ())))))
+    (go init (%list-from-seq lst))))
+
+; The integer doors, for counts.
+(def %list-int+ (prim-ref (lit int) (lit +)))
+(def %list-int- (prim-ref (lit int) (lit -)))
+(def %list-int< (prim-ref (lit int) (lit <)))
+
 (def-class List ()
   (static
     (method of (self . (param args ANY "Elements, in order"))
@@ -84,47 +114,33 @@
     ; --- Folds ---
     (method from-seq (self x)
       (doc "Build a list from any iterable -- the from-X conversion verb (Gen from-seq is its lazy twin; the boot layer normalizes through its private %as-list plumbing). Lists and nil pass through unchanged; anything else goes through (Iter new), which raises `type` on a value it cannot iterate." (param x ANY "A list, nil, or iterable (e.g. vector)") (returns LIST "The input as a proper list"))
-      (if (or (null? x) (pair? x)) x (Iter ->list (Iter new x))))
+      (%list-from-seq x))
     (method iter (self (param lst LIST "List to iterate"))
       (doc "An iterator over the list's elements." (returns ITER "Iterator"))
       (Iter new lst))
     (method fold (self f init lst)
       (doc "Fold a function over a list from the left." (param f CALLABLE "Binary function: (accumulator, element) -> new accumulator") (param init ANY "Initial accumulator value") (param lst LIST "List or iterable to fold over") (returns ANY "Final accumulated value") (example "(List fold + 0 '(1 2 3))" "6"))
-      ; first/rest are unchecked C prims, so an improper tail walks off the end
-      ; of the list into UB -- (pair 1 2) is ordinary data, not hostile input.
-      ; Same discipline as `ref`'s walk below: the pair? guard makes the overrun
-      ; an error rather than a crash. fold is the walker every other basic goes
-      ; through (length, map, reverse, ...), so guarding here covers them all.
-      ; The walk lives in an inner `go` so the loop never re-probes: `recur`
-      ; would re-enter the method and re-run from-seq on the TAIL, which for an
-      ; improper list is an atom -- and from-seq hands a non-list to Iter, which
-      ; is where the crash actually was.
-      (let ((lst (List from-seq lst)))
-        (def go (fn (self acc xs)
-          (match
-            ((null? xs) acc)
-            ((not (pair? xs)) (Err raise (lit type) "List fold: improper list" ()))
-            (#t (self (f acc (first xs)) (rest xs))))))
-        (go init lst)))
+      (%list-fold f init lst))
     (method reduce (self f lst)
       (doc "Fold without an initial value; uses the first element." (param f CALLABLE "Binary function") (param lst LIST "Non-empty list or iterable"))
-      (let ((lst (List from-seq lst))) (List fold f (first lst) (rest lst))))
+      (def xs (%list-from-seq lst))
+      (%list-fold f (first xs) (rest xs)))
     (method scan (self f init lst)
       (doc "Like fold, but returns a list of all intermediate values." (param f CALLABLE "Binary function") (param init ANY "Initial accumulator value") (param lst LIST "List or iterable"))
       (def go (fn (self xs a acc)
-        (if (null? xs) (%reverse (pair a acc))
+        (if (eq? xs ()) (%reverse (pair a acc))
           (self (rest xs) (f a (first xs)) (pair a acc)))))
-      (go (List from-seq lst) init ()))
+      (go (%list-from-seq lst) init ()))
     (method fold-right (self f init lst)
       (doc "Fold from the right: elements combine last-to-first, callback (f acc element) like fold." (param f CALLABLE "Binary function: (accumulator, element) -> new accumulator") (param init ANY "Initial accumulator value") (param lst LIST "List or iterable") (returns ANY "Final accumulated value") (example "(List fold-right (fn (_ acc x) (pair x acc)) () (list 1 2 3))" "(1 2 3)"))
       ; Right fold = left fold over the reversal; iterative (#336).
       (def go (fn (self xs a)
-        (if (null? xs) a (self (rest xs) (f a (first xs))))))
-      (go (%reverse (List from-seq lst)) init))
+        (if (eq? xs ()) a (self (rest xs) (f a (first xs))))))
+      (go (%reverse (%list-from-seq lst)) init))
     ; --- Basics ---
     (method length (self lst)
       (doc "Return the number of elements." (param lst LIST "List or iterable"))
-      (List fold (fn (_ acc _) (+ acc 1)) 0 lst))
+      (%list-fold (fn (_ acc _) (%list-int+ acc 1)) 0 lst))
     (method ref (self n lst)
       (doc "Return the element at index n (zero-based; negative counts from the end; coerced to INT); errors when n is unconvertible or out of range." (param n INTEGER "Zero-based index (negative counts from the end)") (param lst LIST "List"))
       ; first/rest are unchecked C prims (UB on a non-pair -- segfaults on
@@ -144,7 +160,7 @@
         (go i lst)))
     (method last (self lst)
       (doc "Return the last element of a list." (param lst LIST "Non-empty list"))
-      (if (null? (rest lst)) (first lst) (recur self (rest lst))))
+      (if (eq? (rest lst) ()) (first lst) (recur self (rest lst))))
     ; The rest of #336's fixes (#300 caught the stragglers): every
     ; (pair x (recur ...)) walk below was NON-TAIL -- C-stack depth =
     ; list length, a segfault at ~10^4 elements (List range 10000 died
@@ -153,38 +169,38 @@
     (method init (self lst)
       (doc "Return all elements except the last." (param lst LIST "Non-empty list"))
       (def go (fn (self xs acc)
-        (if (null? (rest xs)) (%reverse acc)
+        (if (eq? (rest xs) ()) (%reverse acc)
           (self (rest xs) (pair (first xs) acc)))))
       (go lst ()))
     (method append (self . args)
       (doc "Concatenate zero or more lists.")
-      (List fold %append2 () args))
+      (%list-fold %append2 () args))
     (method prepend (self x lst)
       (doc "Add an element to the front of a list." (param x ANY "Element to prepend") (param lst LIST "List"))
       (pair x lst))
     (method reverse (self lst)
       (doc "Reverse a list." (param lst LIST "List or iterable"))
-      (List fold (fn (_ acc x) (pair x acc)) () lst))
+      (%list-fold (fn (_ acc x) (pair x acc)) () lst))
     (method flatten (self lst)
       (doc "Recursively flatten nested lists into a single list." (param lst LIST "Nested list"))
       ; Reverse-flatten onto acc: spine calls are tail; only structural
       ; NESTING recurses (depth = nesting, not length).
       (def go (fn (self x acc)
         (match
-          ((null? x) acc)
+          ((eq? x ()) acc)
           ((pair? (first x)) (self (rest x) (self (first x) acc)))
           (#t (self (rest x) (pair (first x) acc))))))
       (%reverse (go lst ())))
     ; --- Iteration ---
     (method map (self f . lsts)
       (doc "Apply a function to each element. Supports multiple lists." (param f CALLABLE "Function to apply") (param lsts LIST "One or more lists") (returns LIST "New list"))
-      (let ((lsts (%map1 (fn (_ x) (List from-seq x)) lsts)))
-        (if (null? (rest lsts))
-          (%map1 f (first lsts))
-          ((fn (self ls acc)
-             (if (%any-null? ls) (%reverse acc)
-               (self (%map1 rest ls) (pair (apply f (%map1 first ls)) acc))))
-           lsts ()))))
+      (def ls (%map1 %list-from-seq lsts))
+      (if (eq? (rest ls) ())
+        (%map1 f (first ls))
+        ((fn (self ls acc)
+           (if (%any-null? ls) (%reverse acc)
+             (self (%map1 rest ls) (pair (apply f (%map1 first ls)) acc))))
+         ls ())))
     ; Inner go loops (#336), the fold precedent: `recur` re-entered the
     ; method and re-ran the from-seq normalization dispatch on EVERY
     ; tail; the accumulate-and-reverse pattern also makes the walks
@@ -195,51 +211,51 @@
       (doc "Return elements that satisfy a predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable") (returns LIST "Filtered list"))
       (def go (fn (self xs acc)
         (match
-          ((null? xs) (%reverse acc))
+          ((eq? xs ()) (%reverse acc))
           ((pred (first xs)) (self (rest xs) (pair (first xs) acc)))
           (#t (self (rest xs) acc)))))
-      (go (List from-seq lst) ()))
+      (go (%list-from-seq lst) ()))
     (method for-each (self f . lsts)
       (doc "Apply a function to each element for side effects." (param f CALLABLE "Function to apply") (param lsts LIST "One or more lists"))
-      (let ((lsts (%map1 (fn (_ x) (List from-seq x)) lsts)))
-        (if (null? (rest lsts))
-          (%for-each1 f (first lsts))
-          ((fn (self ls)
-             (if (%any-null? ls) ()
-               (do (apply f (%map1 first ls)) (self (%map1 rest ls)))))
-           lsts))))
+      (def ls (%map1 %list-from-seq lsts))
+      (if (eq? (rest ls) ())
+        (%for-each1 f (first ls))
+        ((fn (self ls)
+           (if (%any-null? ls) ()
+             (do (apply f (%map1 first ls)) (self (%map1 rest ls)))))
+         ls)))
     (method flat-map (self f lst)
       (doc "Map then flatten one level." (param f CALLABLE "Function returning a list") (param lst LIST "List or iterable"))
       ; Helper first: a closure only sees sibling defs made BEFORE it.
       (def %rev-onto (fn (self l acc)
-        (match ((null? l) acc) (#t (self (rest l) (pair (first l) acc))))))
+        (match ((eq? l ()) acc) (#t (self (rest l) (pair (first l) acc))))))
       (def go (fn (self xs acc)
-        (if (null? xs) (%reverse acc)
+        (if (eq? xs ()) (%reverse acc)
           (self (rest xs) (%rev-onto (f (first xs)) acc)))))
-      (go (List from-seq lst) ()))
+      (go (%list-from-seq lst) ()))
     ; --- Predicates ---
     (method any? (self pred lst)
       (doc "Return #t if any element satisfies the predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable"))
       (def go (fn (self xs)
         (match
-          ((null? xs) #f)
+          ((eq? xs ()) #f)
           ((pred (first xs)) #t)
           (#t (self (rest xs))))))
-      (go (List from-seq lst)))
+      (go (%list-from-seq lst)))
     (method all? (self pred lst)
       (doc "Return #t if all elements satisfy the predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable"))
       (def go (fn (self xs)
         (match
-          ((null? xs) #t)
+          ((eq? xs ()) #t)
           ((not (pred (first xs))) #f)
           (#t (self (rest xs))))))
-      (go (List from-seq lst)))
+      (go (%list-from-seq lst)))
     (method none? (self pred lst)
       (doc "Return #t if no element satisfies the predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable"))
       (not (List any? pred lst)))
     (method empty? (self lst)
       (doc "Return #t if the list is empty." (param lst LIST "List"))
-      (null? lst))
+      (eq? lst ()))
     ; --- Combinators ---
     ; Function combinators (complement/partial/juxt/both/either/all-pass/
     ; any-pass) moved to the Fn class -- that is what Fn is for.
@@ -249,37 +265,36 @@
     ; concat was byte-identical to append -- one name, one operation.
     (method min (self lst)
       (doc "The smallest element (by <); errors on an empty list." (param lst LIST "Non-empty list") (returns ANY "Smallest element") (example "(List min (list 3 1 2))" "1"))
-      (if (null? lst) (Err raise (lit value) "List min: empty list" ())
-        (List fold (fn (_ m x) (if (< x m) x m)) (first lst) (rest lst))))
+      (if (eq? lst ()) (Err raise (lit value) "List min: empty list" ())
+        (%list-fold (fn (_ m x) (if (< x m) x m)) (first lst) (rest lst))))
     (method max (self lst)
       (doc "The largest element (by <); errors on an empty list." (param lst LIST "Non-empty list") (returns ANY "Largest element") (example "(List max (list 3 1 2))" "3"))
-      (if (null? lst) (Err raise (lit value) "List max: empty list" ())
-        (List fold (fn (_ m x) (if (< m x) x m)) (first lst) (rest lst))))
+      (if (eq? lst ()) (Err raise (lit value) "List max: empty list" ())
+        (%list-fold (fn (_ m x) (if (< m x) x m)) (first lst) (rest lst))))
     (method sum (self lst)
       (doc "Sum all elements of a list." (param lst LIST "List of numbers") (returns INTEGER "Sum"))
-      (List fold + 0 lst))
+      (%list-fold + 0 lst))
     (method product (self lst)
       (doc "Multiply all elements of a list." (param lst LIST "List of numbers") (returns INTEGER "Product"))
-      (List fold * 1 lst))
+      (%list-fold * 1 lst))
     ; --- Search ---
     (method find (self pred lst)
       (doc "Return the first element satisfying a predicate, or nil." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable"))
       (def go (fn (self xs)
         (match
-          ((null? xs) ())
+          ((eq? xs ()) ())
           ((pred (first xs)) (first xs))
           (#t (self (rest xs))))))
-      (go (List from-seq lst)))
+      (go (%list-from-seq lst)))
     (method find-index (self pred lst)
       (doc "Return the index of the first element satisfying a predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable") (returns ANY "Zero-based index, or nil if not found"))
-      (let ((lst (List from-seq lst)))
-        (def go
-          (fn (self i xs)
-            (match
-              ((null? xs) ())
-              ((pred (first xs)) i)
-              (#t (self (+ i 1) (rest xs))))))
-        (go 0 lst)))
+      (def go
+        (fn (self i xs)
+          (match
+            ((eq? xs ()) ())
+            ((pred (first xs)) i)
+            (#t (self (%list-int+ i 1) (rest xs))))))
+      (go 0 (%list-from-seq lst)))
     (method index-of (self x lst)
       (doc "Return the index of the first occurrence of a value." (param x ANY "Value to find") (param lst LIST "List") (returns ANY "Zero-based index, or nil if not found"))
       (List find-index (fn (_ el) (equal? el x)) lst))
@@ -287,13 +302,13 @@
       (doc "Test if a list contains a value." (param x ANY "Value to search for") (param lst LIST "List or iterable") (returns BOOL "t if found"))
       (def go (fn (self xs)
         (match
-          ((null? xs) #f)
+          ((eq? xs ()) #f)
           ((equal? x (first xs)) #t)
           (#t (self (rest xs))))))
-      (go (List from-seq lst)))
+      (go (%list-from-seq lst)))
     (method count-if (self pred lst)
       (doc "Count elements satisfying a predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable") (returns INTEGER "Count of matching elements"))
-      (List fold (fn (_ acc x) (if (pred x) (+ acc 1) acc)) 0 lst))
+      (%list-fold (fn (_ acc x) (if (pred x) (%list-int+ acc 1) acc)) 0 lst))
     ; --- Slicing ---
     (method take (self n lst)
       (doc "Take the first n elements of a list (n coerced to INT)." (param n INTEGER "Number of elements") (param lst LIST "List"))
@@ -301,32 +316,32 @@
       (def go (fn (self j xs acc)
         ; Nested if, NOT and/or (#343): per element, operatives
         ; expand per evaluation.
-        (if (if (<= j 0) #t (null? xs)) (%reverse acc)
-          (self (- j 1) (rest xs) (pair (first xs) acc)))))
+        (if (if (%list-int< 0 j) (eq? xs ()) #t) (%reverse acc)
+          (self (%list-int- j 1) (rest xs) (pair (first xs) acc)))))
       (go k lst ()))
     (method chunk (self n lst)
       (doc "Split a list into successive n-element sublists; the last may be shorter." (param n INTEGER "Chunk size (must be > 0)") (param lst LIST "List") (returns LIST "List of chunks") (example "(List chunk 2 (list 1 2 3 4 5))" "((1 2) (3 4) (5))"))
       (def k (%list->int n "List chunk: size not convertible to INT"))
       (def go (fn (self xs acc)
-        (if (null? xs) (%reverse acc)
+        (if (eq? xs ()) (%reverse acc)
           (self (List drop k xs) (pair (List take k xs) acc)))))
       (if (<= k 0) (Err raise (lit value) "List chunk: size must be positive" ()) (go lst ())))
     (method drop (self n lst)
       (doc "Drop the first n elements of a list (n coerced to INT)." (param n INTEGER "Number of elements to skip") (param lst LIST "List"))
       (def k (%list->int n "List drop: count not convertible to INT"))
       (def go (fn (self j xs)
-        (if (if (<= j 0) #t (null? xs)) xs (self (- j 1) (rest xs)))))
+        (if (if (%list-int< 0 j) (eq? xs ()) #t) xs (self (%list-int- j 1) (rest xs)))))
       (go k lst))
     (method take-while (self pred lst)
       (doc "Take elements from the front while predicate holds." (param pred CALLABLE "Predicate function") (param lst LIST "List"))
       (def go (fn (self xs acc)
-        (if (if (null? xs) #t (not (pred (first xs)))) (%reverse acc)
+        (if (if (eq? xs ()) #t (not (pred (first xs)))) (%reverse acc)
           (self (rest xs) (pair (first xs) acc)))))
       (go lst ()))
     (method drop-while (self pred lst)
       (doc "Drop elements from the front while predicate holds." (param pred CALLABLE "Predicate function") (param lst LIST "List"))
       (match
-        ((null? lst) ())
+        ((eq? lst ()) ())
         ((pred (first lst)) (recur self pred (rest lst)))
         (#t lst)))
     (method split-at (self n lst)
@@ -373,13 +388,13 @@
     (method zip (self a b)
       (doc "Pair up corresponding elements from two lists as assocs -- the result is an alist, so it feeds Dict from-alist and the Assoc API directly." (param a LIST "First elements (keys)") (param b LIST "Second elements (values)") (returns LIST "Alist of (a . b) assocs") (example "(List zip (list 1 2) (list 7 8))" "((1 . 7) (2 . 8))"))
       (def go (fn (self a b acc)
-        (if (if (null? a) #t (null? b)) (%reverse acc)
+        (if (if (eq? a ()) #t (eq? b ())) (%reverse acc)
           (self (rest a) (rest b) (pair (pair (first a) (first b)) acc)))))
       (go a b ()))
     (method zip-with (self f a b)
       (doc "Combine corresponding elements from two lists using a function." (param f CALLABLE "Combining function") (param a LIST "First list") (param b LIST "Second list") (returns LIST "Combined list"))
       (def go (fn (self a b acc)
-        (if (if (null? a) #t (null? b)) (%reverse acc)
+        (if (if (eq? a ()) #t (eq? b ())) (%reverse acc)
           (self (rest a) (rest b) (pair (f (first a) (first b)) acc)))))
       (go a b ()))
     (method unzip (self alist)
@@ -389,7 +404,7 @@
     (method interleave (self a b)
       (doc "Alternate elements from two lists, stopping at the shorter." (param a LIST "First list") (param b LIST "Second list") (returns LIST "(a1 b1 a2 b2 ...)") (example "(List interleave (list 1 3) (list 2 4))" "(1 2 3 4)"))
       (def go (fn (self a b acc)
-        (if (if (null? a) #t (null? b)) (%reverse acc)
+        (if (if (eq? a ()) #t (eq? b ())) (%reverse acc)
           (self (rest a) (rest b) (pair (first b) (pair (first a) acc))))))
       (go a b ()))
     ; --- Transformation ---
@@ -398,7 +413,7 @@
       (def go
         (fn (self xs yes no)
           (match
-            ((null? xs) (list (List reverse yes) (List reverse no)))
+            ((eq? xs ()) (list (List reverse yes) (List reverse no)))
             ((pred (first xs)) (self (rest xs) (pair (first xs) yes) no))
             (#t (self (rest xs) yes (pair (first xs) no))))))
       (go lst () ()))
@@ -409,45 +424,45 @@
       (def add-to-group
         (fn (_ alist key val)
           (def %rev-onto (fn (self l tail)
-            (match ((null? l) tail) (#t (self (rest l) (pair (first l) tail))))))
+            (match ((eq? l ()) tail) (#t (self (rest l) (pair (first l) tail))))))
           (def go (fn (self pre xs)
             (match
-              ((null? xs) (%rev-onto pre (list (pair key (list val)))))
+              ((eq? xs ()) (%rev-onto pre (list (pair key (list val)))))
               ((eq? (first (first xs)) key)
                 (%rev-onto pre
                   (pair (pair key (pair val (rest (first xs)))) (rest xs))))
               (#t (self (pair (first xs) pre) (rest xs))))))
           (go () alist)))
       (List map (fn (_ g) (pair (first g) (%reverse (rest g))))
-        (List fold (fn (_ acc x) (add-to-group acc (f x) x)) () lst)))
+        (%list-fold (fn (_ acc x) (add-to-group acc (f x) x)) () lst)))
     (method sort (self cmp lst)
       (doc "Stable merge sort using a comparison function: equal-key elements keep their input order." (param cmp CALLABLE "Comparison: (a b) -> #t if a comes strictly first") (param lst LIST "List or iterable"))
-      (%sort cmp (List from-seq lst)))
+      (%sort cmp (%list-from-seq lst)))
     (method sort-by (self f lst)
       (doc "Sort by a key function (ascending)." (param f CALLABLE "Key function: element -> comparable value") (param lst LIST "List"))
-      (%sort (fn (_ a b) (< (f a) (f b))) (List from-seq lst)))
+      (%sort (fn (_ a b) (< (f a) (f b))) (%list-from-seq lst)))
     (method distinct (self lst)
       (doc "Remove ALL duplicates (equal?), keeping each element's first occurrence -- unlike uniq, no sorting needed." (param lst LIST "List") (returns LIST "lst without later duplicates") (example "(List distinct (list 1 2 1 3 2))" "(1 2 3)")
         (note "O(n^2) via equal?, so it works for every element type; hashable elements (symbols/strings/ints/chars) can dedupe O(n) through x/type/set instead."))
       (let go ((xs lst) (seen ()) (acc ()))
         (match
-          ((null? xs) (%reverse acc))
+          ((eq? xs ()) (%reverse acc))
           ((List includes? (first xs) seen) (go (rest xs) seen acc))
           (#t (go (rest xs) (pair (first xs) seen) (pair (first xs) acc))))))
     (method uniq (self lst)
       (doc "Remove consecutive duplicates from a sorted list." (param lst LIST "Sorted list"))
       (def go (fn (self xs acc)
         (match
-          ((null? xs) (%reverse acc))
-          ((null? (rest xs)) (%reverse (pair (first xs) acc)))
+          ((eq? xs ()) (%reverse acc))
+          ((eq? (rest xs) ()) (%reverse (pair (first xs) acc)))
           ((equal? (first xs) (first (rest xs))) (self (rest xs) acc))
           (#t (self (rest xs) (pair (first xs) acc))))))
       (go lst ()))
     (method uniq-by (self f lst)
       (doc "Remove consecutive duplicates by key function." (param f CALLABLE "Key function") (param lst LIST "Sorted list"))
       (match
-        ((null? lst) ())
-        ((null? (rest lst)) lst)
+        ((eq? lst ()) ())
+        ((eq? (rest lst) ()) lst)
         ; Drop the SECOND of a duplicate pair, not the first: de-duplication
         ; keeps the earliest element of each run (Unix uniq's reading, and the
         ; one the docs always claimed). Recurring on (rest lst) kept the LAST
@@ -455,8 +470,8 @@
         (#t
           ((fn (self xs acc)
              (match
-               ((null? xs) (%reverse acc))
-               ((null? (rest xs)) (%reverse (pair (first xs) acc)))
+               ((eq? xs ()) (%reverse acc))
+               ((eq? (rest xs) ()) (%reverse (pair (first xs) acc)))
                ((equal? (f (first xs)) (f (first (rest xs))))
                  (self (pair (first xs) (rest (rest xs))) acc))
                (#t (self (rest xs) (pair (first xs) acc)))))
@@ -464,26 +479,26 @@
     (method intersperse (self sep lst)
       (doc "Insert a separator between each element." (param sep ANY "Separator element") (param lst LIST "List"))
       (def go (fn (self xs acc)
-        (if (null? (rest xs)) (%reverse (pair (first xs) acc))
+        (if (eq? (rest xs) ()) (%reverse (pair (first xs) acc))
           (self (rest xs) (pair sep (pair (first xs) acc))))))
       (match
-        ((null? lst) ())
-        ((null? (rest lst)) lst)
+        ((eq? lst ()) ())
+        ((eq? (rest lst) ()) lst)
         (#t (go lst ()))))
     (method transpose (self lsts)
       (doc "Transpose rows and columns of a list of lists." (param lsts LIST "List of lists") (returns LIST "Transposed list of lists"))
       (def go (fn (self ls acc)
-        (if (if (null? ls) #t (List any? null? ls)) (%reverse acc)
+        (if (if (eq? ls ()) #t (List any? null? ls)) (%reverse acc)
           (self (List map rest ls) (pair (List map first ls) acc)))))
       (go lsts ()))
     (method update (self n val lst)
       (doc "Replace the element at index n (coerced to INT)." (param n INTEGER "Index to update") (param val ANY "New value") (param lst LIST "List"))
       (def k (%list->int n "List update: index not convertible to INT"))
       (def %rev-onto (fn (self l tail)
-        (match ((null? l) tail) (#t (self (rest l) (pair (first l) tail))))))
+        (match ((eq? l ()) tail) (#t (self (rest l) (pair (first l) tail))))))
       (def go (fn (self j xs pre)
         (match
-          ((null? xs) ())
+          ((eq? xs ()) ())
           ((= j 0) (%rev-onto pre (pair val (rest xs))))
           (#t (self (- j 1) (rest xs) (pair (first xs) pre))))))
       (go k lst ()))
@@ -491,13 +506,13 @@
       (doc "Insert a value at index n (coerced to INT; clamped: n<=0 prepends, n>=length appends)." (param n INTEGER "Insertion index") (param val ANY "Value to insert") (param lst LIST "List"))
       (def k (%list->int n "List insert: index not convertible to INT"))
       (def %rev-onto (fn (self l tail)
-        (match ((null? l) tail) (#t (self (rest l) (pair (first l) tail))))))
+        (match ((eq? l ()) tail) (#t (self (rest l) (pair (first l) tail))))))
       (def go (fn (self j xs pre)
         (match
           ((<= j 0) (%rev-onto pre (pair val xs)))
           ; past the end: clamp to append -- without this guard the recursion
           ; reaches (first ()) (unchecked car, UB)
-          ((null? xs) (%rev-onto pre (pair val ())))
+          ((eq? xs ()) (%rev-onto pre (pair val ())))
           (#t (self (- j 1) (rest xs) (pair (first xs) pre))))))
       (go k lst ()))
     (method remove (self start n lst)
@@ -505,10 +520,10 @@
       (def s0 (%list->int start "List remove: start not convertible to INT"))
       (def k (%list->int n "List remove: count not convertible to INT"))
       (def %rev-onto (fn (self l tail)
-        (match ((null? l) tail) (#t (self (rest l) (pair (first l) tail))))))
+        (match ((eq? l ()) tail) (#t (self (rest l) (pair (first l) tail))))))
       (def go (fn (self i j xs pre)
         (match
-          ((null? xs) ())
+          ((eq? xs ()) ())
           ((> i 0) (self (- i 1) j (rest xs) (pair (first xs) pre)))
           ((> j 0) (self 0 (- j 1) (rest xs) pre))
           (#t (%rev-onto pre xs)))))
@@ -517,17 +532,17 @@
       (doc "Apply a function to the element at index n (coerced to INT)." (param n INTEGER "Index to adjust") (param f CALLABLE "Transformation function") (param lst LIST "List"))
       (def k (%list->int n "List adjust: index not convertible to INT"))
       (def %rev-onto (fn (self l tail)
-        (match ((null? l) tail) (#t (self (rest l) (pair (first l) tail))))))
+        (match ((eq? l ()) tail) (#t (self (rest l) (pair (first l) tail))))))
       (def go (fn (self j xs pre)
         (match
-          ((null? xs) ())
+          ((eq? xs ()) ())
           ((= j 0) (%rev-onto pre (pair (f (first xs)) (rest xs))))
           (#t (self (- j 1) (rest xs) (pair (first xs) pre))))))
       (go k lst ()))
     ; --- Type predicate / Membership / Association ---
     (method list? (self x)
       (doc "Test if a value is a proper list." (param x ANY "Value to test") (returns BOOL "t if proper list"))
-      (if (null? x) #t (if (pair? x) (recur self (rest x)) #f)))
+      (if (eq? x ()) #t (if (pair? x) (recur self (rest x)) #f)))
     (method second (self x)
       (doc "Return the second element of a list." (param x LIST "A list with at least two elements") (returns ANY "The second element"))
       (first (rest x)))

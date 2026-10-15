@@ -649,3 +649,30 @@ so the guard fires at `start` rather than in Str8's byte-length seat.
 ```
 ---
     (("a" "verylongword" "b") () "")
+
+## what trimming and splitting cost
+
+Trimming walks bytes on the integer doors, and the byte search split and
+index-of share is a module function, not a send.
+
+### trim and split on a short string cost a few hundred objects
+
+`(Str8 trim s)` makes fewer than 2,000 objects on a 25-byte string, and
+`(Str8 split " " s)` into five words fewer than 3,000.
+
+```x
+(do
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (eq? i 0) () (do (f) (loop (- i 1))))) 20)
+      (- (Heap count) c0)))
+  (def %s "  the quick brown fox  ")
+  (list (< (%cost (fn (_) (Str8 trim %s))) (* 2000 20))
+        (< (%cost (fn (_) (Str8 split " " "the quick brown fox jumps"))) (* 3000 20))
+        (list (Str8 trim %s) (Str8 trim-left %s) (Str8 trim-right %s) (Str8 trim "   ")
+              (Str8 split " " "a b c"))))
+```
+---
+    (#t #t ("the quick brown fox" "the quick brown fox  " "  the quick brown fox" "" ("a" "b" "c")))
