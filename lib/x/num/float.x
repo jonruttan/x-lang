@@ -394,17 +394,32 @@
         (fn (_ x) (%ptr-call (first cell) x)))
       ((str=? label "ptr") (first cell))  ; the pointer itself
       (#t (fn (_ a b) (%ptr-call (first cell) a b))))))
+; A row is (GLOBAL LABEL NAME CELL HELD?): HELD? when the closure has gone to
+; a caller who keeps it (libm-fn), so its cell must be filled at a load.
 (def %stub-fn
-  (fn (_ global label name)
+  (fn (_ global label name . held)
     (let ((cell (pair (%stub-address label name) ())))
-      (do (set! %stub-rows (pair (list global label name cell) %stub-rows))
+      (do (set! %stub-rows (pair (list global label name cell (not (null? held))) %stub-rows))
           (%stub-make label cell)))))
+;  A STUB OF THIS FILE'S OWN IS MADE AT ITS FIRST CALL AFTER A LOAD.  Encoding
+; thirty stubs cost every process that loads this module 55 ms, and most do no
+; float arithmetic.  This file calls its stubs by name, never keeping one, so
+; the hook binds each name to this closure instead: the first call makes the
+; stub, binds the name to it and calls it, and every later call is the stub's
+; own.  A closure handed out by libm-fn is kept by its caller, which only the
+; cell reaches, so those are made at the load as before.
+(def %stub-lazy
+  (fn (_ global label name cell)
+    (fn (_ . args)
+      (do (if (null? (first cell)) (%set-first! cell (%stub-address label name)) ())
+          ((fn (_ made) (do (eval (list (lit set!) global (list (lit lit) made))) (apply made args)))
+           (%stub-make label cell))))))
 ; The same door, exported, for a module or a bundle that binds a libm function
 ; this file does not -- erf, the hyperbolics -- with the labels "d->d",
 ; "dd->d" and "ptr", or wants a stub this file makes none of, by any label
 ; above with NAME nil.  Its rows are rows here: the thunk below clears them
 ; and the recache hook remakes them, and libm is opened once, by this file.
-(def libm-fn %stub-fn)
+(def libm-fn (fn (_ global label name) (%stub-fn global label name #t)))
 ;  A THUNK, NOT SYMBOLS.  boot/reflect.x states the rule: a symbol among the
 ; transients is cleared in the child's root, a thunk is run.  The handle and
 ; the rows' names live in this module's frame, which a symbol in the list
@@ -429,12 +444,15 @@
               ((fn (self l)
                  (if (null? l) ()
                    (do (self (rest l))
-                       (%set-first! (first (rest (rest (rest (first l)))))
-                                    (%stub-address (first (rest (first l)))
-                                                   (first (rest (rest (first l))))))
-                       (eval (list (lit set!) (first (first l))
-                                   (list %stub-make (first (rest (first l)))
-                                         (first (rest (rest (rest (first l)))))))))))
+                       ((fn (_ global label name cell held?)
+                          (eval (list (lit set!) global
+                                      (list (lit lit)
+                                            (if (if held? #t (str=? label "ptr"))
+                                              (do (%set-first! cell (%stub-address label name))
+                                                  (%stub-make label cell))
+                                              (%stub-lazy global label name cell))))))
+                        (first (first l)) (first (rest (first l))) (first (rest (rest (first l))))
+                        (first (rest (rest (rest (first l))))) (first (rest (rest (rest (rest (first l))))))))))
                %stub-rows)))
         %image-recache-hooks))
 
@@ -536,7 +554,7 @@
     (%make-instance float (%d/d (first a) (first b)))))
 
 ; fmod is libm's, through a "dd->d" stub like every other math function.
-(def f-mod (%stub-fn (lit f-mod) "dd->d" "fmod"))
+(def f-mod (%stub-fn (lit f-mod) "dd->d" "fmod" #t))
 
 (note "Comparisons")
 
@@ -562,13 +580,13 @@
 ; Each keeps its stub in a cell; the row it registers (%stub-fn above) is
 ; how an image gets it back.
 
-(def fsin (%stub-fn (lit fsin) "d->d" "sin"))
+(def fsin (%stub-fn (lit fsin) "d->d" "sin" #t))
 
-(def fcos (%stub-fn (lit fcos) "d->d" "cos"))
+(def fcos (%stub-fn (lit fcos) "d->d" "cos" #t))
 
 (def %ftan (%stub-fn (lit %ftan) "d->d" "tan"))
 
-(def fsqrt (%stub-fn (lit fsqrt) "d->d" "sqrt"))
+(def fsqrt (%stub-fn (lit fsqrt) "d->d" "sqrt" #t))
 
 (def %fexp (%stub-fn (lit %fexp) "d->d" "exp"))
 
@@ -594,7 +612,7 @@
 
 (def %fpow (%stub-fn (lit %fpow) "dd->d" "pow"))
 
-(def fatan2 (%stub-fn (lit fatan2) "dd->d" "atan2"))
+(def fatan2 (%stub-fn (lit fatan2) "dd->d" "atan2" #t))
 
 (def %flog2 (%stub-fn (lit %flog2) "d->d" "log2"))
 
