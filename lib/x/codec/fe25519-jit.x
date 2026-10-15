@@ -190,6 +190,12 @@
 
 (def fe-jit-replayed? (fn (_) %fj-replayed))
 
+; The five operations' expressions, mul add sub mul121666 cswap, for an
+; engine that compiles a sequence of them into one function with its own
+; offsets in place of the parameters.
+(def fe-jit-exprs
+  (fn (_) (list %fj-mul-expr %fj-add-expr %fj-sub-expr %fj-m121666-expr %fj-cswap-expr)))
+
 ; --- the inverse and the square root's power, on field vectors -----------
 ;
 ; ref10's two chains, the same as x/codec/fe25519's fe-invert and
@@ -262,5 +268,5 @@
     (when (null? %fj-chains) (set! %fj-chains (%fj-make-chains (fe-jit-compile))))
     %fj-chains))
 
-(doc (provide x/codec/fe25519-jit fe-jit-compile fe-jit-replayed? fe-jit-chains fe-jit-rows fe-jit-swap)
+(doc (provide x/codec/fe25519-jit fe-jit-compile fe-jit-replayed? fe-jit-exprs fe-jit-chains fe-jit-rows fe-jit-swap)
   "The GF(2^255 - 19) operations as compiled functions over a scratch of limbs (JIT, ARM64 and x86-64 backends): (fe-jit-compile) builds multiply, add, subtract, times-121666 and swap once a process, each checked against the pure-x field; (fe-jit-chains) the inverse and the square root's power on field elements over them.")
