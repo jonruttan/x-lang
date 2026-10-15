@@ -144,6 +144,10 @@
     ; or a make in a process booted from an image the group was made in -- and
     ; its plan is not read again.
     (%plans (pair () ()))
+    ; Each plan's states' held entries, in its states' order, as
+    ; ((PLAN . ENTRIES) ...): found by text once in a heap, which an image
+    ; carries, and poured with no text matched by every replay after.
+    (%entries (pair () ()))
 
     (method make (self (param rules LIST "Rules in priority order, each from run, skip, table, quoted, until, number, nested, word, escape, pattern, any or record")
                        . (param more ANY "Optionally the end text, a space when left out: see the end field"))
@@ -1573,6 +1577,26 @@
           plan)
         (rest hit)))
 
+    ; The held entry of each of PLAN's states, in their order, TEXTS the
+    ; group's: the ones found for this very plan before, else found now and
+    ; kept; () when one is not held.
+    (method %plan-entries (self plan texts)
+      (def hit
+        ((fn (self l) (if (null? l) () (if (eq? (first (first l)) plan) (first l) (self (rest l)))))
+         (first (Lexer %entries))))
+      (if (null? hit)
+        (do
+          (def kit (Lexer %kit))
+          (def nth (first kit))
+          (def map1 (first (rest (rest kit))))
+          (def entry (prim-ref (lit compile) (lit asm-cache-held-entry)))
+          (def es (map1 (fn (_ r) (entry (nth texts (first r)))) (nth plan 2)))
+          (if ((fn (self l) (if (null? l) #f (if (null? (first l)) #t (self (rest l))))) es)
+            ()
+            (do (%set-first! (Lexer %entries) (pair (pair plan es) (first (Lexer %entries))))
+                es)))
+        (rest hit)))
+
     ; Rebuild L's states from the open group's plan; #f, with L as it was,
     ; when there is none or it does not fit.
     (method %replay! (self l)
@@ -1597,16 +1621,18 @@
               #f)
             #f)
           #f))
-      (if (not fits?) #f
+      (def entries (if fits? (Lexer %plan-entries plan texts) ()))
+      (if (null? entries) #f
         (do
           (def cells (map1 (fn (_ c) (pair () ())) (nth plan 3)))
           (def bufs (map1 (fn (_ n) ((Lexer %make-str) n)) (nth plan 4)))
-          (def pour (prim-ref (lit compile) (lit asm-cache-held-pour)))
+          (def pour (prim-ref (lit compile) (lit asm-cache-entry-pour)))
           ; the states poured so far, newest first, and how many; () when a
-          ; pour misses.  Each free variable is named by the plan's text for
-          ; it, which the pour matches as it is: no symbol is interned.
+          ; pour misses.  Each state is poured from its entry, walked beside
+          ; it, and each free variable is named by the plan's text for it,
+          ; which the pour matches as it is: no symbol is interned.
           (def made
-            ((fn (self ss acc n)
+            ((fn (self ss es acc n)
                (if (null? ss) acc
                  (do
                    (def r (first ss))
@@ -1622,10 +1648,10 @@
                              ((i= how 2) (nth bufs at))
                              (#t at))))
                        (rest r)))
-                   (def st (pour (nth texts (first r)) fvars))
+                   (def st (pour (first es) fvars))
                    (if (null? st) ()
-                     (self (rest ss) (pair st acc) (i+ n 1))))))
-             (nth plan 2) () 0))
+                     (self (rest ss) (rest es) (pair st acc) (i+ n 1))))))
+             (nth plan 2) entries () 0))
           (if (not (i= (len made) (len (nth plan 2)))) #f
             (do
               (def sts (rev made ()))
