@@ -12,7 +12,8 @@
 ; other; output is a (str make) region that doubles as it fills, the window the
 ; back-references copy from.  Each call answers how many input bytes the stream
 ; used: git's packs hold one stream after another, and the reader goes on from
-; where the last ended.
+; where the last ended.  A raw stream can also be fed a piece at a time, a
+; block decoded as soon as the input holds it whole: see the stream below.
 ;
 ; Pure INT on the C bit ops, every addition through the cached int prims, as
 ; sha256.x's arithmetic is, so the decoder is tower-proof.  A malformed stream
@@ -65,6 +66,11 @@
 
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "Inflate: " what) ())))
 
+; The input used up before the stream is: a value error like the rest, its
+; data (short . #t), so a stream fed a piece at a time knows to wait for
+; the next
+(def %short (fn (_ what) (Err raise (lit value) (Str8 append "Inflate: " what) (list (pair (lit short) #t)))))
+
 (def %at (fn (_ p off) (%int->ptr (%add (%ptr->int p) off))))
 
 ; The paths below run once a bit, a symbol or a byte, so they are written
@@ -79,7 +85,7 @@
     (def cnt (%oref s %BITCNT))
     (if (%lt cnt need)
       (do (def i (%oref s %INCNT))
-          (if (%eq i (%oref s %INLEN)) (%fail "the input ends inside the stream") ())
+          (if (%eq i (%oref s %INLEN)) (%short "the input ends inside the stream") ())
           (%oset! s %INCNT (%add i 1))
           (%oset! s %BITBUF (%or (%oref s %BITBUF) (%shl (%and (%pref (%oref s %IN) i 1) 255) cnt)))
           (%oset! s %BITCNT (%add cnt 8))
@@ -155,11 +161,11 @@
         (%oset! s %BITBUF 0)
         (%oset! s %BITCNT 0)
         (let ((i (%oref s %INCNT)) (in (%oref s %IN)))
-          (do (when (> (%add i 4) (%oref s %INLEN)) (%fail "the input ends inside a stored block"))
+          (do (when (> (%add i 4) (%oref s %INLEN)) (%short "the input ends inside a stored block"))
               (let ((len (| (& (%pref in i 1) 255) (<< (& (%pref in (%add i 1) 1) 255) 8)))
                     (nlen (| (& (%pref in (%add i 2) 1) 255) (<< (& (%pref in (%add i 3) 1) 255) 8))))
                 (do (unless (= len (& (~ nlen) 65535)) (%fail "a stored block's length and its complement disagree"))
-                    (when (> (%add (%add i 4) len) (%oref s %INLEN)) (%fail "the input ends inside a stored block"))
+                    (when (> (%add (%add i 4) len) (%oref s %INLEN)) (%short "the input ends inside a stored block"))
                     (%room! s len)
                     (%mem-copy (%at (%oref s %OUTP) (%oref s %OUTCNT)) (%at in (%add i 4)) len)
                     (%oset! s %OUTCNT (%add (%oref s %OUTCNT) len))
@@ -325,7 +331,7 @@
     (match
       ((%eq len 0) (%fail "a code no table holds"))
       ((%eq len %WALK) (%decode-from s (first h) (first (rest h)) 1 0 0 0))
-      ((%lt (%oref s %BITCNT) len) (%fail "the input ends inside the stream"))
+      ((%lt (%oref s %BITCNT) len) (%short "the input ends inside the stream"))
       (#t (do (%oset! s %BITBUF (%shr (%oref s %BITBUF) len))
               (%oset! s %BITCNT (%sub (%oref s %BITCNT) len))
               (%shr e 4))))))
@@ -624,8 +630,170 @@
       ((null? (rest span)) (list (first span) (%sub (%str-byte-len s) (first span))))
       (#t (list (first span) (first (rest span)))))))
 
+; --- A stream fed a piece at a time ---
+;
+; gzip and its kin read a file in pieces and must not hold it whole; a
+; stream is decoded a block at a time as the pieces come.  Its state, in
+; the slots of one vector: the input not yet used, in a region kept from
+; feed to feed, its count and its size; the output region, whose first
+; bytes are the last 32K of output -- the window a back-reference reaches
+; into -- its size and that window's count; a second region the same, which
+; the window is moved to after each feed (the two take turns, so the move
+; never overlaps itself); the bits read ahead past the last whole block, and
+; how many; whether the final block is done.  The regions are made again
+; only to grow.  A block the input runs out inside is undone -- the input,
+; the bits and the output put back as they were where it began -- and tried
+; again whole when the next piece comes: a short read is the decoder's
+; 'value error whose data is (short . #t).
+
+(def %ZIN 1)
+(def %ZINCNT 2)
+(def %ZINCAP 3)
+(def %ZOUT 4)
+(def %ZOUTCAP 5)
+(def %ZWINCNT 6)
+(def %ZSPARE 7)
+(def %ZSPARECAP 8)
+(def %ZBITBUF 9)
+(def %ZBITCNT 10)
+(def %ZDONE 11)
+(def %WINDOW 32768)
+
+(def %short?
+  (fn (_ e)
+    (if (Err err? e)
+      (if (eq? (Err label e) (lit value))
+        ((fn (self d) (if (null? d) #f (if (eq? (first (first d)) (lit short)) #t (self (rest d))))) (e data))
+        #f)
+      #f)))
+
+; A region of n bytes, never of none: a (str make) of 0 is no buffer.
+(def %region-of (fn (_ n) (%make-str (if (%lt n 1) 1 n))))
+
+(def %empty (%region-of 0))
+
+(def %stream-new
+  (fn (_)
+    (def z (Vector make 11 0))
+    (%oset! z %ZIN (%region-of 1024))
+    (%oset! z %ZINCAP 1024)
+    (%oset! z %ZOUT (%region-of 4096))
+    (%oset! z %ZOUTCAP 4096)
+    (%oset! z %ZSPARE (%region-of 4096))
+    (%oset! z %ZSPARECAP 4096)
+    (%oset! z %ZDONE #f)
+    z))
+
+; Whole blocks decoded while the input holds them: #t once the final one is.
+(def %stream-blocks!
+  (fn (self s)
+    (def at (%oref s %INCNT))
+    (def bb (%oref s %BITBUF))
+    (def bc (%oref s %BITCNT))
+    (def oc (%oref s %OUTCNT))
+    (def last
+      (guard (e (if (%short? e)
+                  (do (%oset! s %INCNT at) (%oset! s %BITBUF bb) (%oset! s %BITCNT bc) (%oset! s %OUTCNT oc) ())
+                  (error e)))
+        (do (def l (%bits s 1))
+            (def type (%bits s 2))
+            (match
+              ((= type 0) (%stored s))
+              ((= type 1) (%fixed s))
+              ((= type 2) (%dynamic s))
+              (#t (%fail "a block of type 3")))
+            l)))
+    (match ((null? last) #f)
+           ((= last 1) #t)
+           (#t (self s)))))
+
+; The unused input and the n new bytes of buf from start, end to end in the
+; input region; its count answered.
+(def %stream-take-input!
+  (fn (_ z buf start n)
+    (def have (%oref z %ZINCNT))
+    (def total (%add have n))
+    (if (%lt (%oref z %ZINCAP) total)
+      (do (def cap (if (%lt (%shl (%oref z %ZINCAP) 1) total) total (%shl (%oref z %ZINCAP) 1)))
+          (def r (%region-of cap))
+          (if (%lt 0 have) (%mem-copy (%str->ptr r) (%str->ptr (%oref z %ZIN)) have) ())
+          (%oset! z %ZIN r)
+          (%oset! z %ZINCAP cap))
+      ())
+    (if (%lt 0 n) (%mem-copy (%at (%str->ptr (%oref z %ZIN)) have) (%at (%str->ptr buf) start) n) ())
+    total))
+
+; n bytes of buf from start given to stream z: (OUT N), the bytes the
+; blocks they complete decode to.
+(def %stream-feed
+  (fn (_ z buf start n)
+    (def total (%stream-take-input! z buf start n))
+    (if (%oref z %ZDONE)
+      (do (%oset! z %ZINCNT total) (list %empty 0))
+      (%stream-decode z total))))
+
+(def %stream-decode
+  (fn (_ z total)
+    (def s (Vector make 10 0))
+    (%oset! s %CODES (first (%engine-for total)))
+    (%oset! s %IN (%str->ptr (%oref z %ZIN)))
+    (%oset! s %INLEN total)
+    (%oset! s %BITBUF (%oref z %ZBITBUF))
+    (%oset! s %BITCNT (%oref z %ZBITCNT))
+    (def wn (%oref z %ZWINCNT))
+    (%oset! s %OUT (%oref z %ZOUT))
+    (%oset! s %OUTP (%str->ptr (%oref z %ZOUT)))
+    (%oset! s %OUTCAP (%oref z %ZOUTCAP))
+    (%oset! s %OUTCNT wn)
+    (if (%stream-blocks! s)
+      ; the stream's end: the whole bytes read ahead are the input's again,
+      ; the rest of the last byte is padding
+      (do (%unread-bytes! s)
+          (%oset! s %BITBUF 0)
+          (%oset! s %BITCNT 0)
+          (%oset! z %ZDONE #t))
+      ())
+    ; the decoder grows the output region as it fills
+    (%oset! z %ZOUT (%oref s %OUT))
+    (%oset! z %ZOUTCAP (%oref s %OUTCAP))
+    (def cnt (%oref s %OUTCNT))
+    (def made (%sub cnt wn))
+    (def out (if (%lt 0 made) (%region-of made) %empty))
+    (if (%lt 0 made) (%mem-copy (%str->ptr out) (%at (%oref s %OUTP) wn) made) ())
+    (%stream-keep-window! z cnt)
+    ; the input from where the last whole block ended moved to the front
+    (def used (%oref s %INCNT))
+    (def left (%sub total used))
+    (if (if (%lt 0 used) (%lt 0 left) #f)
+      (do (def r (%region-of (%oref z %ZINCAP)))
+          (%mem-copy (%str->ptr r) (%at (%str->ptr (%oref z %ZIN)) used) left)
+          (%oset! z %ZIN r))
+      ())
+    (%oset! z %ZINCNT left)
+    (%oset! z %ZBITBUF (%oref s %BITBUF))
+    (%oset! z %ZBITCNT (%oref s %BITCNT))
+    (list out made)))
+
+; The last 32K of the cnt bytes of output at the front of the spare region,
+; and the two regions swapped.
+(def %stream-keep-window!
+  (fn (_ z cnt)
+    (def keep (if (%lt %WINDOW cnt) %WINDOW cnt))
+    (if (%lt (%oref z %ZSPARECAP) (%oref z %ZOUTCAP))
+      (do (%oset! z %ZSPARE (%region-of (%oref z %ZOUTCAP)))
+          (%oset! z %ZSPARECAP (%oref z %ZOUTCAP)))
+      ())
+    (if (%lt 0 keep) (%mem-copy (%str->ptr (%oref z %ZSPARE)) (%at (%str->ptr (%oref z %ZOUT)) (%sub cnt keep)) keep) ())
+    (def r (%oref z %ZOUT))
+    (def cap (%oref z %ZOUTCAP))
+    (%oset! z %ZOUT (%oref z %ZSPARE))
+    (%oset! z %ZOUTCAP (%oref z %ZSPARECAP))
+    (%oset! z %ZSPARE r)
+    (%oset! z %ZSPARECAP cap)
+    (%oset! z %ZWINCNT keep)))
+
 (def-class Inflate ()
-  (doc "DEFLATE decompression in pure x-lang: raw streams (RFC 1951) and zlib streams (RFC 1950). Each answers (OUT N USED): OUT a byte region holding the N bytes decompressed, USED how many input bytes the stream took, so a reader of streams laid end to end goes on from there.")
+  (doc "DEFLATE decompression in pure x-lang: raw streams (RFC 1951) and zlib streams (RFC 1950). Each answers (OUT N USED): OUT a byte region holding the N bytes decompressed, USED how many input bytes the stream took, so a reader of streams laid end to end goes on from there. A raw stream can also be fed a piece at a time: stream, feed, done?, rest.")
   (static
     (method raw (self (param s STRING "Bytes holding a raw DEFLATE stream")
                       . (param span LIST "START, then LENGTH: where the stream starts in s and how many bytes of s it may use; default all of s"))
@@ -639,6 +807,26 @@
         (returns LIST "(OUT N USED), as for raw; USED includes the header and the Adler-32"))
       (def sp (%span s span))
       (%zlib s (first sp) (first (rest sp))))
+    (method stream (self)
+      (doc "A raw DEFLATE stream (RFC 1951) to be fed a piece at a time with (Inflate feed): what gunzip wants of a file it must not read whole. Each feed decodes the blocks the input so far completes; a block cut off waits for the next piece, and the input it holds is at most a block's."
+        (returns OBJECT "The stream")
+        (example "(let ((z (Inflate stream))) (Inflate done? z))" "#f"))
+      (%stream-new))
+    (method feed (self (param z OBJECT "An (Inflate stream)")
+                       (param s STRING "Bytes holding the next piece")
+                       (param start INTEGER "Where the piece starts in s")
+                       (param n INTEGER "How many bytes it is"))
+      (doc "Give the stream n more bytes. Answers what the blocks they complete decode to; once the final block is done, more bytes are kept for (Inflate rest) and answer none. Raises a label 'value on a malformed stream, as raw does."
+        (returns LIST "(OUT N): a region and how many of its bytes came out"))
+      (%stream-feed z s start n))
+    (method done? (self (param z OBJECT "An (Inflate stream)"))
+      (doc "Has the stream's final block been decoded?"
+        (returns BOOL "#t once it has"))
+      (%oref z %ZDONE))
+    (method rest (self (param z OBJECT "An (Inflate stream)"))
+      (doc "The input not used: once the stream is done, the bytes fed after its end -- a gzip member's trailer, say; before, the part of a block still waiting for more."
+        (returns LIST "(BUF N): a region and how many bytes of it"))
+      (list (%oref z %ZIN) (%oref z %ZINCNT)))
     (method adler32 (self (param s STRING "Bytes") (param n INTEGER "How many of them"))
       (doc "The Adler-32 checksum (RFC 1950) of the first n bytes of s."
         (returns INTEGER "The checksum")

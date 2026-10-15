@@ -11,7 +11,8 @@
 ; walked a bounded number of steps, and the longest match wins.
 ;
 ; Input is a byte region and a count, so a NUL is a byte like any other;
-; the output is a region and its count, as Inflate answers.
+; the output is a region and its count, as Inflate answers.  A raw stream
+; can also be written a piece at a time: see the stream below.
 ;
 ; The paths run once a byte, a match or a symbol are written in primitives
 ; alone -- def in a body, if, do, self-calls of top-level functions, the
@@ -607,16 +608,17 @@
             (%put-header! w hlit hdist cllen clcodes hclen items nitems)
             (put w lens vals t0 t1 lcodes llen dcodes dlen))))))
 
-; All the tokens in blocks of %BLOCK-TOKENS at most, the last one final.
+; All the tokens in blocks of %BLOCK-TOKENS at most, the last one final
+; when final? is.
 (def %blocks!
-  (fn (self w src lens vals t ntok b eng)
+  (fn (self w src lens vals t ntok b eng final?)
     (def t1 (if (%lt %BLOCK-TOKENS (%sub ntok t)) (%add t %BLOCK-TOKENS) ntok))
     (def lfreq (Vector make 286 0))
     (def dfreq (Vector make 30 0))
     (%oset! lfreq 257 1)
     (def b1 ((first (rest (rest eng))) lens vals t t1 lfreq dfreq b))
-    (%block! w src lens vals t t1 b b1 (%eq t1 ntok) (first (rest eng)) lfreq dfreq)
-    (if (%eq t1 ntok) () (self w src lens vals t1 ntok b1 eng))))
+    (%block! w src lens vals t t1 b b1 (if (%eq t1 ntok) final? #f) (first (rest eng)) lfreq dfreq)
+    (if (%eq t1 ntok) () (self w src lens vals t1 ntok b1 eng final?))))
 
 ; The tokens of n bytes at src into the token tables at lens and vals;
 ; answers their count.  The pure-x matcher, with its hash and chain tables.
@@ -633,13 +635,41 @@
 ; end code alone.
 (def %compress-with!
   (fn (_ w src n eng)
+    (%piece! w src n eng #t)
+    (%align! w)))
+
+; n bytes at src as blocks; the last final when final? is, and when there
+; are no bytes and it is, the one empty final block.  A piece's matches
+; reach back only inside the piece: each is tokenized with tables of its
+; own.
+(def %piece!
+  (fn (_ w src n eng final?)
     (def lens (%make-str (%shl (%add n 1) 3)))
     (def vals (%make-str (%shl (%add n 1) 3)))
-    (def ntok ((first eng) src n (%str->ptr lens) (%str->ptr vals)))
+    (def ntok (if (%eq n 0) 0 ((first eng) src n (%str->ptr lens) (%str->ptr vals))))
     (if (%eq ntok 0)
-      (do (%put-bits! w 1 1) (%put-bits! w 1 2) (%put-code! w %fixed-lit-codes %fixed-lit-lengths 256))
-      (%blocks! w src (%str->ptr lens) (%str->ptr vals) 0 ntok 0 eng))
-    (%align! w)))
+      (if final? (do (%put-bits! w 1 1) (%put-bits! w 1 2) (%put-code! w %fixed-lit-codes %fixed-lit-lengths 256)) ())
+      (%blocks! w src (%str->ptr lens) (%str->ptr vals) 0 ntok 0 eng final?))))
+
+; --- A stream written a piece at a time ---
+;
+; gzip and its kin read a file in pieces and must not hold it whole.  A
+; stream is a writer kept from piece to piece: each piece is written as
+; blocks, none final until the last, and what they make in whole bytes is
+; handed back as it is made; the bits short of a byte wait in the writer
+; for the next piece.
+
+; n bytes of buf from start written to stream w, the last of them when
+; final? is: (OUT N), the whole bytes the stream gained.
+(def %stream-feed
+  (fn (_ w buf start n final?)
+    (%oset! w %OUTCNT 0)
+    (%piece! w (%at (%str->ptr buf) start) n (%engine-for n) final?)
+    (if final? (%align! w) ())
+    (def cnt (%oref w %OUTCNT))
+    (def r (%make-str (if (%lt cnt 1) 1 cnt)))
+    (if (%lt 0 cnt) (%mem-copy (%str->ptr r) (%oref w %OUTP) cnt) ())
+    (list r cnt)))
 
 (def %compress!
   (fn (_ w src n) (%compress-with! w src n (%engine-for n))))
@@ -700,9 +730,11 @@
              (%eq (%adler-x (%str->ptr r) (rest c)) ((first (rest (rest (rest eng)))) (%str->ptr r) (rest c)))))
       (list (pair 0 30) (pair 0 1200) (pair 1 3000) (pair 2 2000)))))
 
-; THE BAR: the engine's build is seconds of compiling, worth it past some
-; tens of thousands of tokens; below the bar the pure-x writer serves.
-(def %jit-threshold 32768)
+; THE BAR, measured 2026-10-15 on arm64: the pure-x writer costs about 770
+; objects a byte (3.1M for 4KB of text), the engine's build about 9.8M once,
+; so the build repays itself past some 13KB; below the bar the pure-x writer
+; serves.
+(def %jit-threshold 16384)
 (def %entry ())
 
 (def %jit-try!
@@ -787,7 +819,7 @@
     (%answer w)))
 
 (def-class Deflate ()
-  (doc "DEFLATE streams written in pure x-lang: stored, or compressed with LZ77 and Huffman codes as zlib's deflate does at its default level. Each writer answers (OUT N): a byte region and how many of its bytes the stream is.")
+  (doc "DEFLATE streams written in pure x-lang: stored, or compressed with LZ77 and Huffman codes as zlib's deflate does at its default level. Each writer answers (OUT N): a byte region and how many of its bytes the stream is. A raw stream can also be written a piece at a time: stream, feed.")
   (static
     (method raw (self (param s STRING "The bytes to compress")
                       . (param span LIST "START, then LENGTH: which bytes of s; default all of s"))
@@ -813,8 +845,22 @@
         (returns LIST "(OUT N): the stream's region and its byte count")
         (example "(first (rest (Deflate zlib-stored \"abc\")))" "14"))
       (%run s span %stored-body 1))
+    (method stream (self)
+      (doc "A raw DEFLATE stream (RFC 1951) written a piece at a time with (Deflate feed): what gzip wants of a file it must not read whole. Each piece is compressed as raw's input is, matches reaching back only inside it."
+        (returns OBJECT "The stream")
+        (example "(first (rest (Deflate feed (Deflate stream) \"\" 0 0 #t)))" "2"))
+      (%writer 64))
+    (method feed (self (param w OBJECT "A (Deflate stream)")
+                       (param s STRING "Bytes holding the next piece")
+                       (param start INTEGER "Where the piece starts in s")
+                       (param n INTEGER "How many bytes it is")
+                       (param final BOOL "Is this the last piece? Its last block is then final and the stream padded to a byte"))
+      (doc "Compress n more bytes into the stream. Answers the whole bytes of stream they made; the bits short of a byte wait for the next piece, and the last piece (final) writes them out."
+        (returns LIST "(OUT N): a region and how many of its bytes the stream gained")
+        (example "(< (first (rest (Deflate feed (Deflate stream) \"abcabcabcabcabcabc\" 0 18 #t))) 18)" "#t"))
+      (%stream-feed w s start n final))
     (method jit! (self)
-      (doc "Build and adopt the compiled matcher and token writer (JIT; ARM64 and x86-64 backends) now, if the streams they write for the check inputs are byte for byte the pure-x encoder's. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x encoder carries on, with the same output. raw and zlib build it on their own for an input of 32KB or more."
+      (doc "Build and adopt the compiled matcher and token writer (JIT; ARM64 and x86-64 backends) now, if the streams they write for the check inputs are byte for byte the pure-x encoder's. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x encoder carries on, with the same output. raw, zlib and feed build it on their own for an input of 16KB or more."
         (returns BOOL "#t when the compiled engine is active"))
       (%jit-try!))))
 

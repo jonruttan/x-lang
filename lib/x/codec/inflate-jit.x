@@ -309,8 +309,10 @@
                (match
                  ((= (%peek %ST) 2) (self))
                  ((= (%peek %ST) 1) ())
+                 ; the input used up is a short read, as inflate.x marks it
                  (#t (Err raise (lit value)
-                       (Str8 append "Inflate: " (%ij-error (%peek %ST))) ()))))))
+                       (Str8 append "Inflate: " (%ij-error (%peek %ST)))
+                       (if (= (%peek %ST) -1) (list (pair (lit short) #t)) ())))))))
         (%ij-oset! s (%slot (lit incnt)) (%peek %INCNT))
         (%ij-oset! s (%slot (lit bitbuf)) (%peek %BB))
         (%ij-oset! s (%slot (lit bitcnt)) (%peek %BC))
