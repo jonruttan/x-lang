@@ -19,16 +19,25 @@
 
 ; HkdfLabel (7.1): the output length as u16, then "tls13 " and the label,
 ; then the context, each with a one-byte length in front.
+(def %add (prim-ref 'int '+))
+(def %make-str (prim-ref (lit str) (lit make)))
+(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+(def %pset1 (prim-ref (lit ptr) (lit set!)))
+(def %byte-len (prim-ref (lit str) (lit byte-len)))
+
+; The label's four length bytes in two small buffers, and the pieces joined
+; by memcpy: a writer is a class call a byte.
 (def %hkdf-label
   (fn (_ label context len)
-    (def full (Str8 append "tls13 " label))
-    (def w (Bytes writer))
-    (Bytes put-u16 w len)
-    (Bytes put-u8 w (Str8 length full))
-    (Bytes put w full)
-    (Bytes put-u8 w (Bytes length context))
-    (Bytes put w context)
-    (Bytes written w)))
+    (def ll (%add 6 (%byte-len label)))
+    (def head (%make-str 3))
+    (def hp (%str->ptr head))
+    (%pset1 hp 0 (>> len 8) 1)
+    (%pset1 hp 1 (& len 255) 1)
+    (%pset1 hp 2 ll 1)
+    (def mid (%make-str 1))
+    (%pset1 (%str->ptr mid) 0 (first (rest (rest context))) 1)
+    (Bytes join (list head 0 3) "tls13 " label (list mid 0 1) context)))
 
 ; A fresh buffer the HKDF and HMAC codecs answer, as the region of its first
 ; len bytes.

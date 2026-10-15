@@ -24,6 +24,21 @@
 (def %at (fn (_ r i) (%char->int (%byte-ref (first r) (+ (first (rest r)) i)))))
 (def %len (fn (_ r) (first (rest (rest r)))))
 
+(def %make-str (prim-ref (lit str) (lit make)))
+(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+(def %pset (prim-ref (lit ptr) (lit set!)))
+
+; n's decimal digits written at p + at: answers the offset past them.
+(def %put-dec
+  (fn (_ p at n)
+    (def len ((fn (self m k) (if (< m 10) k (self (%div m 10) (+ k 1)))) n 1))
+    ((fn (self i m)
+       (unless (< i 0)
+         (do (%pset p (+ at i) (+ 48 (- m (* 10 (%div m 10)))) 1)
+             (self (- i 1) (%div m 10)))))
+     (- len 1) n)
+    (+ at len)))
+
 ; A cursor over a region: (BUF POS END), POS moving.
 (def %rd (fn (_ r) (list (first r) (first (rest r)) (+ (first (rest r)) (%len r)))))
 (def %rd-pos (fn (_ rd) (first (rest rd))))
@@ -102,15 +117,21 @@
       (def n (%len contents))
       (when (= n 0) (%fail "an empty OID"))
       (def b0 (%at contents 0))
-      (def head (if (< b0 80) (list (%div b0 40) (- b0 (* 40 (%div b0 40)))) (list 2 (- b0 80))))
-      (def arcs
-        ((fn (self i acc v)
-           (if (= i n) (if (= v 0) (List reverse acc) (%fail "an OID cut short"))
-             (do (def b (%at contents i))
-                 (def v2 (| (<< v 7) (& b 127)))
-                 (if (>= b 128) (self (+ i 1) acc v2) (self (+ i 1) (pair v2 acc) 0)))))
-         1 () 0))
-      (Str8 join "." (List map (fn (_ a) (Str8 str a)) (List append head arcs))))
+      ; the dotted text written into a buffer as the arcs are read: at most
+      ; twenty digits and a dot an arc, and an arc a byte at most
+      (def out (%make-str (+ 1 (* 21 (+ n 2)))))
+      (def p (%str->ptr out))
+      (def at1 (%put-dec p 0 (if (< b0 80) (%div b0 40) 2)))
+      (%pset p at1 46 1)
+      (def at (%put-dec p (+ at1 1) (if (< b0 80) (- b0 (* 40 (%div b0 40))) (- b0 80))))
+      ((fn (self i at v)
+         (if (= i n)
+           (if (= v 0) (do (%pset p at 0 1) out) (%fail "an OID cut short"))
+           (do (def b (%at contents i))
+               (def v2 (| (<< v 7) (& b 127)))
+               (if (>= b 128) (self (+ i 1) at v2)
+                 (do (%pset p at 46 1) (self (+ i 1) (%put-dec p (+ at 1) v2) 0))))))
+       1 at 0))
     (method time (self (param tag INTEGER "23 for UTCTime, 24 for GeneralizedTime")
                        (param contents LIST "The time's contents, a region"))
       (doc "A UTCTime (YYMMDDHHMMSSZ, years 1950-2049 as RFC 5280 says) or GeneralizedTime (YYYYMMDDHHMMSSZ) as seconds since the Unix epoch."
