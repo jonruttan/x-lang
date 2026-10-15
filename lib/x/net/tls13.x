@@ -496,7 +496,8 @@
               (Ecdsa verify-der (first key) (first (rest key)) digest (first (rest v))))
       (%fail "the server's CertificateVerify signature does not hold" ()))
     (guard (e (%fail (e msg) ()))
-      (X509 verify-chain certs host (Sys now) (fn (_ name) (Roots find name))))))
+      ; the leaf as parsed above, not read a second time
+      (X509 verify-chain (pair leaf (rest certs)) host (Sys now) (fn (_ name) (Roots find name))))))
 
 (def-class Tls13 ()
   (static
