@@ -616,23 +616,26 @@
 ; list guard exactly as it always did.
 (def %object-dispatch
   (op (self sel-raw . args) e
-    (def selector (%selector sel-raw))
-    (def itab (first (%class-hot (%obj-class self))))
+    (def selector (if (pair? sel-raw) (%selector sel-raw) sel-raw))
+    (def cls (%obj-class self))
+    (def hot (rest cls))
+    (def itab (first (if (eq? hot ()) (%class-hot cls) hot)))
     (def entry (%tab-find! itab itab selector))
     (match
       ((eq? entry %field-label)
         (match
           ((null? args) (%assoc-get selector (%obj-fields self)))
           (#t (%box-put! (%obj-box self) selector (eval (first args) e)))))
-      ((if (eq? entry ()) #f #t)
-        (if (pair? entry)                          ; privacy wrapper
-          (%priv-entry self (%obj-class self) entry selector args e #f)
-          (tail-eval (pair entry (pair self args)) e)))
-      ((%assoc-has? selector (%obj-fields self))   ; ad-hoc instance key
+      ((pair? entry)                                 ; privacy wrapper
+        (%priv-entry self cls entry selector args e #f))
+      ((eq? entry ())
         (match
-          ((null? args) (%assoc-get selector (%obj-fields self)))
-          (#t (%box-put! (%obj-box self) selector (eval (first args) e)))))
-      (#t (%dispatch-miss self (%obj-class self) selector args e #f)))))
+          ((%assoc-has? selector (%obj-fields self)) ; ad-hoc instance key
+            (match
+              ((null? args) (%assoc-get selector (%obj-fields self)))
+              (#t (%box-put! (%obj-box self) selector (eval (first args) e)))))
+          (#t (%dispatch-miss self cls selector args e #f))))
+      (#t (tail-eval (pair entry (pair self args)) e)))))
 
 ; The de-dispatch door (#332): resolve a method ONCE and call it inside
 ; a hot loop with self as argument 0.  A stored method is a plain fn
@@ -669,50 +672,57 @@
 ; dispatch. A static METHOD named new is in the table and shadows the
 ; builtin (as always); a static FIELD named new was dropped at flatten,
 ; so the builtin still wins there (as always).
+;
+; The walk is shaped for the common send: a symbol selector skips the
+; quote unwrap, a built hot record is read in place, and the entry is
+; sorted by one eq?, one pair? and one nil test before the method runs.
 (def %class-dispatch
   (op (self sel-raw . args) e
-    (def selector (%selector sel-raw))
-    (def stab (first (rest (%class-hot self))))
+    (def selector (if (pair? sel-raw) (%selector sel-raw) sel-raw))
+    (def hot (rest self))
+    (def stab (first (rest (if (eq? hot ()) (%class-hot self) hot))))
     (def entry (%tab-find! stab stab selector))
     (match
       ((eq? entry %field-label)                     ; own static field
         (match
           ((null? args) (%assoc-get selector (%class-statics self)))
           (#t (%box-put! (%class-statics-box self) selector (eval (first args) e)))))
-      ((if (pair? entry) (eq? (first entry) %field-label) #f)
-        ; inherited static field: reads go to the owning ancestor's box
-        ; (nearest wins, matching help's display); a write SHADOWS into
+      ((pair? entry)
+        ; inherited static field (%field-label . OWNER), or a privacy
+        ; wrapper.  An inherited field's reads go to the owning ancestor's
+        ; box (nearest wins, matching help's display); a write SHADOWS into
         ; our own box -- the parent's value is never mutated through a
         ; child; spell a deliberate parent write (Parent name v). The
         ; shadow invalidates every hot table: descendants' markers may
         ; point past this class.
+        (if (eq? (first entry) %field-label)
+          (match
+            ((null? args) (%assoc-get selector (%class-statics (rest entry))))
+            (#t
+              (let ((v (eval (first args) e)))
+                (%box-put! (%class-statics-box self) selector v)
+                (%classes-invalidate!)
+                v)))
+          (%priv-entry self self entry selector args e #t)))
+      ((eq? entry ())
+        ; no member of that name: the builtins, then the miss
         (match
-          ((null? args) (%assoc-get selector (%class-statics (rest entry))))
-          (#t
-            (let ((v (eval (first args) e)))
-              (%box-put! (%class-statics-box self) selector v)
-              (%classes-invalidate!)
-              v))))
-      ((if (eq? entry ()) #f #t)
-        (if (pair? entry)                              ; privacy wrapper
-          (%priv-entry self self entry selector args e #t)
-          (tail-eval (pair entry (pair self args)) e)))
-      ((eq? selector (lit new))                   ; (Class new k v ...): values are code
-        (%instantiate self args e #t))
-      ; Runtime method addition -- the open-class doors. Built-ins like
-      ; `new`: a static method of the same name shadows them (checked
-      ; above via the table). sel and fn are ordinary evaluated args, so
-      ; selectors can be computed (a runtime-defined command language
-      ; needs exactly that). The fn is stored AS-IS -- no super/field
-      ; injection; it receives (self . args) and uses (self f) access.
-      ; The cold alist is mutated (single source of truth: help and
-      ; introspection see the addition immediately) and every hot table
-      ; clears -- descendants must refold to see it.
-      ((eq? selector (lit def-method!))
-        (%class-add! self (lit methods) (eval (first args) e) (eval (first (rest args)) e)))
-      ((eq? selector (lit def-static!))
-        (%class-add! self (lit s-methods) (eval (first args) e) (eval (first (rest args)) e)))
-      (#t (%dispatch-miss self self selector args e #t)))))
+          ((eq? selector (lit new)) (%instantiate self args e #t))   ; values are code
+          ; Runtime method addition -- the open-class doors. Built-ins like
+          ; `new`: a static method of the same name shadows them (checked
+          ; above via the table). sel and fn are ordinary evaluated args, so
+          ; selectors can be computed (a runtime-defined command language
+          ; needs exactly that). The fn is stored AS-IS -- no super/field
+          ; injection; it receives (self . args) and uses (self f) access.
+          ; The cold alist is mutated (single source of truth: help and
+          ; introspection see the addition immediately) and every hot table
+          ; clears -- descendants must refold to see it.
+          ((eq? selector (lit def-method!))
+            (%class-add! self (lit methods) (eval (first args) e) (eval (first (rest args)) e)))
+          ((eq? selector (lit def-static!))
+            (%class-add! self (lit s-methods) (eval (first args) e) (eval (first (rest args)) e)))
+          (#t (%dispatch-miss self self selector args e #t))))
+      (#t (tail-eval (pair entry (pair self args)) e)))))
 
 ; --- Value-to-class call dispatch ---
 ; Build a TYPE call handler so an instance, called as (inst method . args),
