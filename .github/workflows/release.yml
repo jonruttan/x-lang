@@ -28,7 +28,7 @@ jobs:
   artifacts:
     name: publish amalgams + manifest
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
       - name: Acquire the engine
@@ -101,13 +101,18 @@ jobs:
           }
           # ANY green run for the sha counts: a cancelled or superseded run
           # beside a passing one is still a judged commit.  Wait only while
-          # none is green and one is still judging.
+          # none is green and one is still judging.  The wait outlasts the
+          # queue: main's ci.yml runs one at a time and keeps one waiting,
+          # so a tag's run sits behind at most one full run (~45 minutes,
+          # its ASan jobs) before its own covering jobs (~15) report.  A
+          # 40-minute cap died in that queue twice (v0.28.0, v0.29.0), and
+          # each release then needed a re-run by hand.
           waited=0
           while :; do
             verdicts=$(for id in $(runs); do judge "$id"; done | tr "\n" " ")
             case "$verdicts" in *success*) break ;; esac
             case "$verdicts" in *pending*) ;; *) break ;; esac
-            [ "$waited" -lt 2400 ] || break
+            [ "$waited" -lt 5400 ] || break
             echo "gate: ci.yml is still judging $GITHUB_SHA -- waiting (${waited}s)"
             sleep 60; waited=$((waited + 60))
           done
