@@ -21,23 +21,18 @@
 (def %pset1 (prim-ref (lit ptr) (lit set!)))
 (def %len (fn (_ r) (first (rest (rest r)))))
 
-; n zero bytes in a fresh buffer: at load, for the pads and the counters.
-(def %zeroed
-  (fn (_ n)
-    (def z (%make-str n))
-    ((fn (self i) (unless (= i n) (do (%pset1 (%str->ptr z) i 0 1) (self (%add i 1))))) 0)
-    z))
+; The buffers below are made a call at a time, never at load: a state image
+; keeps a string's bytes up to its first zero, so a zeroed buffer held by the
+; module comes back from one empty.
 
-; Sixteen zero bytes, the most a pad is.
-(def %zeros (%zeroed 16))
-
-; ChaCha20's 16-byte IV: a 32-bit little-endian block counter, then the
-; 96-bit nonce.  The counter is 0 or 1, so its four bytes are made once.
-(def %counter0 (%zeroed 4))
-(def %counter1 ((fn (_ c) (%pset1 (%str->ptr c) 0 1 1) c) (%zeroed 4)))
+; ChaCha20's 16-byte IV: a 32-bit little-endian block counter, 0 or 1, then
+; the 96-bit nonce.
 (def %iv
   (fn (_ counter nonce)
-    (first (Bytes join (list (if (= counter 0) %counter0 %counter1) 0 4) nonce))))
+    (def c (%make-str 4))
+    (%pset1 (%str->ptr c) 0 0 4)
+    (%pset1 (%str->ptr c) 0 counter 1)
+    (first (Bytes join (list c 0 4) nonce))))
 
 ; A region as a buffer of its own, starting at 0, for the ciphers' key and
 ; IV arguments, which read from a buffer's first byte.
@@ -46,17 +41,19 @@
 
 (def %pad16 (fn (_ n) (& (%sub 16 (& n 15)) 15)))
 
-; The two lengths as 64-bit little-endian numbers, sixteen bytes.
-(def %lengths
+; Sixteen zero bytes for the pads, then the two lengths as 64-bit
+; little-endian numbers: thirty-two bytes.
+(def %tail
   (fn (_ a c)
-    (def b (%zeroed 16))
+    (def b (%make-str 32))
     (def p (%str->ptr b))
+    ((fn (self k) (unless (= k 16) (do (%pset1 p k 0 4) (self (%add k 4))))) 0)
     ((fn (self k) (unless (= k 8)
-                    (do (%pset1 p k (& (>> a (<< k 3)) 255) 1)
-                        (%pset1 p (%add k 8) (& (>> c (<< k 3)) 255) 1)
+                    (do (%pset1 p (%add k 16) (& (>> a (<< k 3)) 255) 1)
+                        (%pset1 p (%add k 24) (& (>> c (<< k 3)) 255) 1)
                         (self (%add k 1)))))
      0)
-    (list b 0 16)))
+    b))
 
 ; The MAC's input in one buffer, its pieces copied in by memcpy.
 (def %tag
@@ -64,7 +61,8 @@
     (def otk (ChaCha20 block key (%iv 0 nonce)))
     (def la (%len aad))
     (def lc (%len ct))
-    (def m (Bytes join aad (list %zeros 0 (%pad16 la)) ct (list %zeros 0 (%pad16 lc)) (%lengths la lc)))
+    (def t (%tail la lc))
+    (def m (Bytes join aad (list t 0 (%pad16 la)) ct (list t 0 (%pad16 lc)) (list t 16 16)))
     (list (Poly1305 mac otk (first m) 0 (%len m)) 0 16)))
 
 (def %xor
