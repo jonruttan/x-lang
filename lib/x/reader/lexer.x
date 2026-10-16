@@ -127,7 +127,7 @@
     ; recorded by the old code would otherwise be replayed as the new.  The
     ; digest case in tests/x/specs/lib/lexer-plan.spec.md fails on any such
     ; change until both it and this number are updated.
-    (%plan-version 4)
+    (%plan-version 5)
     ; Group keys made, as ((RULES END . KEY) ...): a key is the rules and the
     ; end text printed, which costs a make more than its replay's types do, and
     ; a remake -- the recache hook after every image load -- asks again for
@@ -1426,19 +1426,23 @@
             ((number? v) (list name 3 v))
             (#t (no "a free variable a plan cannot name")))))
       ; A state is given every free variable its rule has, and its code patches
-      ; in a few of them; the plan keeps those, so a replay builds and a pour
-      ; searches a handful a state rather than the rule's every one.
+      ; in a few of them; the plan keeps those, in the order of the entry's
+      ; slots, so a replay builds a handful of values a state and the pour
+      ; takes them as they come, with no name matched.
       (def used (prim-ref (lit compile) (lit asm-cache-held-fvar-names)))
       (def keep
         (fn (_ text fvs)
           (def names (used text))
           (if (eq? names #f) (no "a state whose entry is not held") ())
-          ((fn (self fs)
-             (if (null? fs) ()
-               (if (i< (pos (symbol->str (first (first fs))) names str=?) 0)
-                 (self (rest fs))
-                 (pair (first fs) (self (rest fs))))))
-           fvs)))
+          (map1
+            (fn (_ nm)
+              (def hit
+                ((fn (self fs)
+                   (if (null? fs) ()
+                     (if (str=? (symbol->str (first (first fs))) nm) (first fs) (self (rest fs)))))
+                 fvs))
+              (if (null? hit) (no "a slot no free variable of the state names") hit))
+            names)))
       (def states
         (map1 (fn (_ r)
                 (pair (pos (first (rest r)) texts str=?)
@@ -1629,26 +1633,25 @@
           (def pour (prim-ref (lit compile) (lit asm-cache-entry-pour)))
           ; the states poured so far, newest first, and how many; () when a
           ; pour misses.  Each state is poured from its entry, walked beside
-          ; it, and each free variable is named by the plan's text for it,
-          ; which the pour matches as it is: no symbol is interned.
+          ; it, and given its free variables' values in the order of the
+          ; entry's slots, which the plan keeps: no name is matched.
           (def made
             ((fn (self ss es acc n)
                (if (null? ss) acc
                  (do
                    (def r (first ss))
-                   (def fvars
+                   (def fvals
                      (map1
                        (fn (_ fv)
                          (def how (first (rest fv)))
                          (def at (first (rest (rest fv))))
-                         (pair (first fv)
-                           (match
-                             ((i= how 0) (nth acc (i- (i- n 1) at)))
-                             ((i= how 1) (nth cells at))
-                             ((i= how 2) (nth bufs at))
-                             (#t at))))
+                         (match
+                           ((i= how 0) (nth acc (i- (i- n 1) at)))
+                           ((i= how 1) (nth cells at))
+                           ((i= how 2) (nth bufs at))
+                           (#t at)))
                        (rest r)))
-                   (def st (pour (first es) fvars))
+                   (def st (pour (first es) fvals))
                    (if (null? st) ()
                      (self (rest ss) (rest es) (pair st acc) (i+ n 1))))))
              (nth plan 2) entries () 0))
