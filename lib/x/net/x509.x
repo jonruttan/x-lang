@@ -286,7 +286,7 @@
       (doc "#t when parent's key signed child: ECDSA over P-256 or P-384, or RSA PKCS#1 v1.5 with SHA-256, SHA-384 or SHA-512. An RSASSA-PSS signature answers #f: it is not checked."
         (returns BOOL "#t when the signature holds"))
       (%signed-by? child parent))
-    (method verify-chain (self (param certs LIST "The server's certificates, leaf first, each a region of DER bytes")
+    (method verify-chain (self (param certs LIST "The server's certificates, leaf first, each a region of DER bytes or a certificate X509 parse already read")
                                (param host STRING "The name the client asked for")
                                (param now INTEGER "Unix seconds")
                                (param roots ANY "The trusted roots: a list of parsed certificates, or a function from a name's DER bytes to the roots with that subject, as (fn (_ name) (Roots find name))"))
@@ -294,7 +294,9 @@
         (returns BOOL "#t")
         (sample "(X509 verify-chain (Tls13 certificates s) \"github.com\" (Sys now) roots)" "#t"))
       (when (null? certs) (%fail "no certificate"))
-      (def parsed (List map %parse certs))
+      ; a region's first element is its buffer; a parsed certificate's is
+      ; the region of its signed part
+      (def parsed (List map (fn (_ c) (if (str? (first c)) (%parse c) c)) certs))
       (def leaf (first parsed))
       (unless (%in-date? leaf now) (%fail "the server's certificate is out of date"))
       (def h (%ascii-lower (Bytes of host)))
