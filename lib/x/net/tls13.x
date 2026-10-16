@@ -1,6 +1,7 @@
 ; net/tls13.x -- Tls13: a TLS 1.3 client written in x (RFC 8446).
 ;
-; The handshake and the record layer, over Socket: a ClientHello offering
+; The handshake and the record layer, over a socket connect dials or a pair
+; of descriptors over is handed (a pipe to a program): a ClientHello offering
 ; TLS 1.3 alone, TLS_CHACHA20_POLY1305_SHA256 and an X25519 key share; the
 ; ServerHello's share; the key schedule (x/net/tls-keys); the server's
 ; encrypted flight -- EncryptedExtensions, Certificate, CertificateVerify,
@@ -26,6 +27,7 @@
 
 (import x/type/vector)
 (import x/sys/socket)
+(import x/sys/file)
 (import x/codec/bytes)
 (import x/codec/hmac)
 (import x/codec/x25519)
@@ -88,7 +90,7 @@
 
 ; --- the session's slots --------------------------------------------------
 
-(def %fd 1)
+(def %fd 1)                     ; read from
 (def %in-buf 2)
 (def %in-pos 3)
 (def %in-end 4)
@@ -106,7 +108,9 @@
 (def %certs 16)
 (def %verify 17)
 (def %host 18)
-(def %slots 18)
+(def %out 19)                   ; written to: %fd itself when connect dialled
+(def %dialled 20)               ; #t when the session owns its socket
+(def %slots 20)
 
 (def %get (fn (_ s i) (%oref s i)))
 (def %set! (fn (_ s i v) (%oset! s i v)))
@@ -115,13 +119,16 @@
 
 ; --- reading the wire -----------------------------------------------------
 
-; More bytes from the socket after what is unread; #f at the peer's close.
+; More bytes read after what is unread -- read(), a socket's or a pipe's;
+; #f at the peer's close.
 (def %recv-more!
   (fn (_ s)
-    (def run (Socket recv-run (%get s %fd) 65536))
-    (if (null? run) #f
+    (def buf ((prim-ref (lit str) (lit make)) 65536))
+    (def n (File read (%get s %fd) buf 65536))
+    (when (< n 0) (error (Err from-errno (Err errno-of n) 'read (%get s %fd))))
+    (if (= n 0) #f
       (do (def left (list (%get s %in-buf) (%get s %in-pos) (%sub (%get s %in-end) (%get s %in-pos))))
-          (def joined (Bytes join left (list (first run) 0 (rest run))))
+          (def joined (Bytes join left (list buf 0 n)))
           (%set! s %in-buf (first joined))
           (%set! s %in-pos 0)
           (%set! s %in-end (Bytes length joined))
@@ -187,10 +194,21 @@
 
 ; --- writing the wire -----------------------------------------------------
 
+; The bytes of region R written out: a dialled socket's send (a peer that
+; has closed raises rather than signalling), otherwise write() until all
+; of them are taken
 (def %send-region
   (fn (_ s r)
     (def flat (Bytes copy r))
-    (Socket send-run (%get s %fd) (first flat) (Bytes length flat))))
+    (if (%get s %dialled)
+      (Socket send-run (%get s %out) (first flat) (Bytes length flat))
+      ((fn (self at)
+         (if (>= at (Bytes length flat)) at
+           (do (def part (Bytes copy (Bytes sub flat at (%sub (Bytes length flat) at))))
+               (def n (File write (%get s %out) (first part) (Bytes length part)))
+               (when (< n 0) (error (Err from-errno (Err errno-of n) 'write (%get s %out))))
+               (self (%add at n)))))
+       0))))
 
 (def %plain-record
   (fn (_ type legacy body)
@@ -512,6 +530,39 @@
       ; the leaf as parsed above, not read a second time
       (X509 verify-chain (pair leaf (rest certs)) host (Sys now) (fn (_ name) (Roots find name))))))
 
+; The engines and the key pair, (PRIV . PUBLIC), made before any server
+; waits on them: pure x, an X25519 multiplication is about five seconds and
+; a server gives up on a handshake that takes ten.  The compiled engines are
+; built and proven once a process, poured from the cache after the first,
+; and the key pair is made with them; after that the handshake's work is
+; milliseconds.  An engine that cannot be built leaves its codec pure x,
+; correct and slow.
+(def %prepare
+  (fn (_)
+    (Tls13 ready!)
+    (def priv (Bytes random 32))
+    (pair priv (list (X25519 base (first priv)) 0 32))))
+
+; A session reading IN and writing OUT -- DIALLED? when it owns them -- through
+; the handshake and, unless OPTS ask ('insecure), the server's authentication
+(def %start
+  (fn (_ in out dialled? o keys)
+    (def host (let ((e (Assoc entry (lit host) o))) (if (null? e) () (rest e))))
+    (def s (Vector make %slots ()))
+    (%set! s %fd in)
+    (%set! s %out out)
+    (%set! s %dialled dialled?)
+    (%set! s %in-buf (first (Bytes of-list ())))
+    (%set! s %in-pos 0)
+    (%set! s %in-end 0)
+    (%set! s %hs-pending (Bytes of-list ()))
+    (%set! s %app-pending (Bytes of-list ()))
+    (%set! s %closed #f)
+    (%set! s %host host)
+    (%handshake! s (first keys) (rest keys))
+    (when (null? (Assoc entry (lit insecure) o)) (%authenticate! s))
+    s))
+
 (def-class Tls13 ()
   (static
     (method ready! (self)
@@ -525,32 +576,18 @@
       (doc "Open a TLS 1.3 session: TCP connect, the handshake (X25519, ChaCha20-Poly1305) with the server's Finished checked, then the server authenticated -- its CertificateVerify signature and its chain to one of Mozilla's roots for NAME. ('insecure) skips the authentication, for a self-signed development endpoint. A failure raises a label 'io naming it; the connection is closed."
         (returns OBJECT "The session")
         (sample "(Tls13 connect \"140.82.114.3\" 443 (list (pair 'host \"github.com\")))" "a verified session"))
-      (def o (if (null? opts) () (first opts)))
-      (def host (let ((e (Assoc entry (lit host) o))) (if (null? e) () (rest e))))
-      (def insecure? (not (null? (Assoc entry (lit insecure) o))))
-      ; Everything slow happens before the server is dialled: pure x, an
-      ; X25519 multiplication is about five seconds and a server gives up
-      ; on a handshake that takes ten.  The compiled engines are built and
-      ; proven once a process, poured from the cache after the first, and
-      ; the key pair is made with them; after that the handshake's work is
-      ; milliseconds.  An engine that cannot be built leaves its codec pure
-      ; x, correct and slow.
-      (Tls13 ready!)
-      (def priv (Bytes random 32))
-      (def public (list (X25519 base (first priv)) 0 32))
-      (def s (Vector make %slots ()))
-      (%set! s %fd (Socket tcp-connect quad port))
-      (%set! s %in-buf (first (Bytes of-list ())))
-      (%set! s %in-pos 0)
-      (%set! s %in-end 0)
-      (%set! s %hs-pending (Bytes of-list ()))
-      (%set! s %app-pending (Bytes of-list ()))
-      (%set! s %closed #f)
-      (%set! s %host host)
-      (guard (e (do (Socket close (%get s %fd)) (Err raise (Err label e) (e msg) ())))
-        (do (%handshake! s priv public)
-            (unless insecure? (%authenticate! s))))
-      s)
+      ; everything slow happens before the server is dialled
+      (def keys (%prepare))
+      (def fd (Socket tcp-connect quad port))
+      (guard (e (do (Socket close fd) (Err raise (Err label e) (e msg) ())))
+        (%start fd fd #t (if (null? opts) () (first opts)) keys)))
+    (method over (self (param in INTEGER "Descriptor the server's bytes are read from: a socket, or a pipe from a program")
+                       (param out INTEGER "Descriptor the client's bytes are written to: the same socket, or a pipe to the program")
+                       . (param opts ALIST "As for (Tls13 connect): (host . NAME) and ('insecure)"))
+      (doc "Open a TLS 1.3 session over a pair of descriptors already open -- read() from IN, write() to OUT -- as connect does over the socket it dials: the handshake, then the server authenticated unless ('insecure). The descriptors stay the caller's: close sends close_notify and leaves them open. A failure raises a label 'io naming it."
+        (returns OBJECT "The session")
+        (sample "(Tls13 over 0 1 (list 'insecure))" "a session over stdin and stdout"))
+      (%start in out #f (if (null? opts) () (first opts)) (%prepare)))
     (method send (self (param session OBJECT "A (Tls13 connect) session")
                        (param data ANY "The bytes: a region (BUF START LEN), or a STRING up to its first NUL"))
       (doc "Send the bytes as application data, in records of at most 16384 bytes each."
@@ -583,12 +620,12 @@
         ((fn (self i acc) (if (< i 0) acc (self (%sub i 1) (pair (Bytes ref (list (first run) 0 (rest run)) i) acc))))
          (%sub (rest run) 1) ())))
     (method close (self (param session OBJECT "A (Tls13 connect) session"))
-      (doc "Send close_notify, unless the server closed first, and close the socket."
+      (doc "Send close_notify, unless the server closed first, and close the socket connect dialled; a session over a caller's descriptors leaves them open."
         (returns ANY "nil"))
       (unless (%get session %closed)
         (guard (e ()) (%send-sealed session %ct-alert (Bytes of-list (list 1 0)))))
       (%set! session %closed #t)
-      (Socket close (%get session %fd))
+      (when (%get session %dialled) (Socket close (%get session %fd)))
       ())
     (method certificates (self (param session OBJECT "A (Tls13 connect) session"))
       (doc "The server's certificates as it sent them, leaf first, each a region of DER bytes -- what a chain check reads."
