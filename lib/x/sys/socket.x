@@ -506,6 +506,33 @@
       (def r (%sk-fold (%sk-ptr-call %c-connect fd addr 110)))
       (when (< r 0) (do (%sk-ptr-call %c-close fd) (%sk-fail r 'connect path addr)))
       (%sk-ptr-call %c-free addr)
+      fd)
+
+    ; --- Unix-domain datagram sockets: what /dev/log is.  SOCK_DGRAM = 2,
+    ; the pair udp-bind and udp-connect make for IPv4.
+
+    (method unix-dgram-bind (self (param path STRING "Filesystem socket path to create"))
+      (doc "Create a unix-domain datagram socket bound at path -- the receiving end, as a syslog daemon's /dev/log is. The path must not already exist (bind refuses) -- unlink a stale one first. Read with (Socket recv) or (Socket recv-run): each read takes one datagram."
+        (returns INTEGER "The bound datagram file descriptor")
+        (sample "(Socket unix-dgram-bind \"/tmp/log.sock\")" "a bound fd"))
+      (def fd (%sk-fold (%sk-ptr-call %c-socket 1 2 0)))
+      (when (< fd 0) (%sk-fail fd 'socket path ()))
+      (def addr (Socket %sockaddr-un path))
+      (def r (%sk-fold (%sk-ptr-call %c-bind fd addr 110)))
+      (when (< r 0) (do (%sk-ptr-call %c-close fd) (%sk-fail r 'bind path addr)))
+      (%sk-ptr-call %c-free addr)
+      fd)
+
+    (method unix-dgram-connect (self (param path STRING "Filesystem socket path to send to"))
+      (doc "Create a unix-domain datagram socket CONNECTED to path: (Socket send) or (Socket send-run) then delivers one datagram a call, as syslog(3) writes to /dev/log. Connecting where nothing is bound is a structured failure."
+        (returns INTEGER "The connected datagram file descriptor")
+        (sample "(Socket unix-dgram-connect \"/dev/log\")" "a connected fd"))
+      (def fd (%sk-fold (%sk-ptr-call %c-socket 1 2 0)))
+      (when (< fd 0) (%sk-fail fd 'socket path ()))
+      (def addr (Socket %sockaddr-un path))
+      (def r (%sk-fold (%sk-ptr-call %c-connect fd addr 110)))
+      (when (< r 0) (do (%sk-ptr-call %c-close fd) (%sk-fail r 'connect path addr)))
+      (%sk-ptr-call %c-free addr)
       fd)))
 
 (doc (provide x/sys/socket Socket)
