@@ -54,6 +54,13 @@
 
 (def %add (prim-ref 'int '+))
 (def %sub (prim-ref 'int '-))
+(def %int-and (prim-ref (lit int) (lit &)))
+(def %int-or (prim-ref (lit int) (lit |)))
+(def %int-shl (prim-ref (lit int) (lit <<)))
+(def %int-shr (prim-ref (lit int) (lit >>)))
+(def %int-eq (prim-ref (lit int) (lit =)))
+(def %pref (prim-ref (lit ptr) (lit ref)))
+(def %pset (prim-ref (lit ptr) (lit set!)))
 (def %oref (prim-ref (lit obj) (lit ref)))
 (def %oset! (prim-ref (lit obj) (lit set!)))
 
@@ -148,12 +155,18 @@
 ; XORed into its last eight bytes.
 (def %nonce
   (fn (_ iv seq)
-    (Bytes of-list
-      ((fn (self i acc)
-         (if (< i 0) acc
-           (self (%sub i 1)
-                 (pair (^ (Bytes ref iv i) (if (< i 4) 0 (& (>> seq (<< (%sub 11 i) 3)) 255))) acc))))
-       11 ()))))
+    (def n (Bytes copy iv))
+    (def p ((prim-ref (lit str) (lit ->ptr)) (first n)))
+    ; the sequence number's eight bytes, big-endian, into bytes 4..11,
+    ; through the int doors: a ^ b is (a | b) - (a & b)
+    ((fn (self i)
+       (unless (%int-eq i 12)
+         (do (def a (%pref p i 1))
+             (def b (%int-and (%int-shr seq (%int-shl (%sub 11 i) 3)) 255))
+             (%pset p i (%sub (%int-or a b) (%int-and a b)) 1)
+             (self (%add i 1)))))
+     4)
+    n))
 
 ; A protected record opened: (TYPE CONTENT), the inner type and content
 ; once the zero padding is stripped (5.4).  A plaintext record is itself.
