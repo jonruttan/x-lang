@@ -30,34 +30,46 @@
 (def %make-str (prim-ref (lit str) (lit make)))
 (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
 (def %pset1 (prim-ref (lit ptr) (lit set!)))
+; The bit operations through the int doors: the generic ones dispatch
+; through the numeric tower, about a hundred objects a call, these none.
+; There is no int xor: a ^ b is (a | b) - (a & b).  Every operand is an int.
+(def %and (prim-ref (lit int) (lit &)))
+(def %or (prim-ref (lit int) (lit |)))
+(def %shl (prim-ref (lit int) (lit <<)))
+(def %shr (prim-ref (lit int) (lit >>)))
+(def %eq (prim-ref (lit int) (lit =)))
+(def %lt (prim-ref (lit int) (lit <)))
+(def %xor (fn (_ a b) (%sub (%or a b) (%and a b))))
+
 (def %mask 4294967295)
 
 ; "expand 32-byte k", as four little-endian words (2.3):
 ; 61707865 3320646e 79622d32 6b206574
 (def %sigma (list 1634760805 857760878 2036477234 1797285236))
 
-(def %rotl (fn (_ x n) (& (| (<< x n) (>> x (%sub 32 n))) %mask)))
+(def %rotl (fn (_ x n) (%and (%or (%shl x n) (%shr x (%sub 32 n))) %mask)))
 
 (def %byte (fn (_ s i) (%char->int (%byte-ref s i))))
 
 ; The little-endian word at byte i of s.
 (def %word
   (fn (_ s i)
-    (| (%byte s i)
-       (| (<< (%byte s (%add i 1)) 8)
-          (| (<< (%byte s (%add i 2)) 16)
-             (<< (%byte s (%add i 3)) 24))))))
+    (%or (%byte s i)
+         (%or (%shl (%byte s (%add i 1)) 8)
+              (%or (%shl (%byte s (%add i 2)) 16)
+                   (%shl (%byte s (%add i 3)) 24))))))
 
-; n little-endian words from byte i of s, as a list.
+; n little-endian words from byte i of s, consed onto tail.
 (def %words
-  (fn (self s i n)
-    (if (= n 0) () (pair (%word s i) (self s (%add i 4) (%sub n 1))))))
+  (fn (self s i n tail)
+    (if (%eq n 0) tail (pair (%word s i) (self s (%add i 4) (%sub n 1) tail)))))
 
 ; The sixteen state words (2.3): the constants, the key's eight words,
 ; then the IV's four -- counter and nonce, however the caller lays them.
 (def %state
   (fn (_ key iv)
-    (List append %sigma (%words key 0 8) (%words iv 0 4))))
+    (def tail (%words key 0 8 (%words iv 0 4 ())))
+    (pair 1634760805 (pair 857760878 (pair 2036477234 (pair 1797285236 tail))))))
 
 ; Vectors carry word k in slot k+1 (the length rides slot 0), as sha1.x's
 ; message schedule does.
@@ -68,20 +80,20 @@
 
 (def %copy!
   (fn (self w v i)
-    (unless (= i 17)
+    (unless (%eq i 17)
       (do (%oset! w i (%oref v i)) (self w v (%add i 1))))))
 
 ; The quarter round (2.1) on slots a b c d of w.
 (def %qr!
   (fn (_ w a b c d)
-    (%oset! w a (& (%add (%oref w a) (%oref w b)) %mask))
-    (%oset! w d (%rotl (^ (%oref w d) (%oref w a)) 16))
-    (%oset! w c (& (%add (%oref w c) (%oref w d)) %mask))
-    (%oset! w b (%rotl (^ (%oref w b) (%oref w c)) 12))
-    (%oset! w a (& (%add (%oref w a) (%oref w b)) %mask))
-    (%oset! w d (%rotl (^ (%oref w d) (%oref w a)) 8))
-    (%oset! w c (& (%add (%oref w c) (%oref w d)) %mask))
-    (%oset! w b (%rotl (^ (%oref w b) (%oref w c)) 7))))
+    (%oset! w a (%and (%add (%oref w a) (%oref w b)) %mask))
+    (%oset! w d (%rotl (%xor (%oref w d) (%oref w a)) 16))
+    (%oset! w c (%and (%add (%oref w c) (%oref w d)) %mask))
+    (%oset! w b (%rotl (%xor (%oref w b) (%oref w c)) 12))
+    (%oset! w a (%and (%add (%oref w a) (%oref w b)) %mask))
+    (%oset! w d (%rotl (%xor (%oref w d) (%oref w a)) 8))
+    (%oset! w c (%and (%add (%oref w c) (%oref w d)) %mask))
+    (%oset! w b (%rotl (%xor (%oref w b) (%oref w c)) 7))))
 
 ; A column round then a diagonal round (2.3), in slots.
 (def %double-round!
@@ -91,12 +103,12 @@
 
 (def %rounds!
   (fn (self w n)
-    (unless (= n 0) (do (%double-round! w) (self w (%sub n 1))))))
+    (unless (%eq n 0) (do (%double-round! w) (self w (%sub n 1))))))
 
 (def %sum!
   (fn (self w v i)
-    (unless (= i 17)
-      (do (%oset! w i (& (%add (%oref w i) (%oref v i)) %mask))
+    (unless (%eq i 17)
+      (do (%oset! w i (%and (%add (%oref w i) (%oref v i)) %mask))
           (self w v (%add i 1))))))
 
 ; One block (2.3): the state's twenty rounds summed into the state, left
@@ -110,25 +122,25 @@
 ; The counter: word 12, carried into word 13.
 (def %bump!
   (fn (_ v)
-    (%oset! v 13 (& (%add (%oref v 13) 1) %mask))
-    (when (= (%oref v 13) 0)
-      (%oset! v 14 (& (%add (%oref v 14) 1) %mask)))))
+    (%oset! v 13 (%and (%add (%oref v 13) 1) %mask))
+    (when (%eq (%oref v 13) 0)
+      (%oset! v 14 (%and (%add (%oref v 14) 1) %mask)))))
 
 ; Keystream byte i (0..63) of the block in w, serialized little-endian.
 (def %key-byte
-  (fn (_ w i) (& (>> (%oref w (%add (>> i 2) 1)) (<< (& i 3) 3)) 255)))
+  (fn (_ w i) (%and (%shr (%oref w (%add (%shr i 2) 1)) (%shl (%and i 3) 3)) 255)))
 
 ; Bytes pos.. of the region, up to the block's end or the region's, each
 ; XORed with its keystream byte into out.
 (def %emit!
   (fn (self w s start len out p pos i)
-    (unless (or (= i 64) (= pos len))
-      (do (%pset1 p pos (^ (%byte s (%add start pos)) (%key-byte w i)) 1)
+    (unless (if (%eq i 64) #t (%eq pos len))
+      (do (%pset1 p pos (%xor (%byte s (%add start pos)) (%key-byte w i)) 1)
           (self w s start len out p (%add pos 1) (%add i 1))))))
 
 (def %blocks!
   (fn (self v w s start len out p pos)
-    (unless (>= pos len)
+    (when (%lt pos len)
       (do (%block! v w)
           (%emit! w s start len out p pos 0)
           (%bump! v)
@@ -146,12 +158,16 @@
     (%blocks! v w s start len out (%str->ptr out) 0)
     out))
 
-; Sixty-four zero bytes, so a block is the keystream itself.
+; n zero bytes, so a block is the keystream itself: four at a write, and
+; the odd ones singly.
 (def %zeros
   (fn (_ n)
     (def s (%make-str n))
     (def p (%str->ptr s))
-    ((fn (self i) (unless (= i n) (do (%pset1 p i 0 1) (self (%add i 1))))) 0)
+    ((fn (self i)
+       (if (%lt (%add i 3) n) (do (%pset1 p i 0 4) (self (%add i 4)))
+         (unless (%eq i n) (do (%pset1 p i 0 1) (self (%add i 1))))))
+     0)
     s))
 
 ; --- The compiled engine (JIT), adopted only when it proves out ------
@@ -183,9 +199,9 @@
 
 (def %run
   (fn (_ st s start len)
-    (when (and (>= len %jit-threshold)
-               ((fn (_ entry) (if (null? entry) #t (eq? (entry state) (lit interpreted))))
-                %entry))
+    (when (if (%lt len %jit-threshold) #f
+            ((fn (_ entry) (if (null? entry) #t (eq? (entry state) (lit interpreted))))
+             %entry))
       (%jit-try!))
     ((fn (_ entry)
        (if (if (null? entry) #f (eq? (entry state) (lit compiled)))

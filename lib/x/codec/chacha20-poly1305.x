@@ -15,6 +15,11 @@
 
 (def %add (prim-ref 'int '+))
 (def %sub (prim-ref 'int '-))
+(def %and (prim-ref (lit int) (lit &)))
+(def %shl (prim-ref (lit int) (lit <<)))
+(def %shr (prim-ref (lit int) (lit >>)))
+(def %lt (prim-ref (lit int) (lit <)))
+(def %eq (prim-ref (lit int) (lit =)))
 
 (def %make-str (prim-ref (lit str) (lit make)))
 (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -23,51 +28,60 @@
 
 ; The buffers below are made a call at a time, never at load: a state image
 ; keeps a string's bytes up to its first zero, so a zeroed buffer held by the
-; module comes back from one empty.
+; module comes back from one empty.  The bit operations go through the int
+; doors: the generic ones dispatch through the numeric tower, about a
+; hundred objects a call.
 
-; ChaCha20's 16-byte IV: a 32-bit little-endian block counter, 0 or 1, then
-; the 96-bit nonce.
-(def %iv
-  (fn (_ counter nonce)
-    (def c (%make-str 4))
-    (%pset1 (%str->ptr c) 0 0 4)
-    (%pset1 (%str->ptr c) 0 counter 1)
-    (first (Bytes join (list c 0 4) nonce))))
+; n zero bytes in a fresh buffer, four at a write.
+(def %zeroed
+  (fn (_ n)
+    (def z (%make-str n))
+    (def p (%str->ptr z))
+    ((fn (self k) (when (%lt k n) (do (%pset1 p k 0 4) (self (%add k 4))))) 0)
+    z))
+
+; ChaCha20's 16-byte IV for block 0: a zero counter, then the 96-bit nonce.
+(def %iv0
+  (fn (_ nonce) (first (Bytes join (list (%zeroed 4) 0 4) nonce))))
 
 ; A region as a buffer of its own, starting at 0, for the ciphers' key and
 ; IV arguments, which read from a buffer's first byte.
 (def %buffer
   (fn (_ r) (first (Bytes copy r))))
 
-(def %pad16 (fn (_ n) (& (%sub 16 (& n 15)) 15)))
+(def %pad16 (fn (_ n) (%and (%sub 16 (%and n 15)) 15)))
 
 ; Sixteen zero bytes for the pads, then the two lengths as 64-bit
 ; little-endian numbers: thirty-two bytes.
 (def %tail
   (fn (_ a c)
-    (def b (%make-str 32))
+    (def b (%zeroed 32))
     (def p (%str->ptr b))
-    ((fn (self k) (unless (= k 16) (do (%pset1 p k 0 4) (self (%add k 4))))) 0)
-    ((fn (self k) (unless (= k 8)
-                    (do (%pset1 p (%add k 16) (& (>> a (<< k 3)) 255) 1)
-                        (%pset1 p (%add k 24) (& (>> c (<< k 3)) 255) 1)
+    ((fn (self k) (unless (%eq k 8)
+                    (do (%pset1 p (%add k 16) (%and (%shr a (%shl k 3)) 255) 1)
+                        (%pset1 p (%add k 24) (%and (%shr c (%shl k 3)) 255) 1)
                         (self (%add k 1)))))
      0)
     b))
 
-; The MAC's input in one buffer, its pieces copied in by memcpy.
+; One ChaCha20 pass from block 0 over sixty-four zero bytes and then the
+; data: block 0's keystream is the one-time Poly1305 key's source (2.6) and
+; the data meets block 1 on, as the AEAD has it (2.8).  Answers the output
+; buffer: the key is its first 32 bytes, the data's XOR from byte 64.
+(def %pass
+  (fn (_ key nonce r)
+    (def in (Bytes join (list (%zeroed 64) 0 64) r))
+    (ChaCha20 xor key (%iv0 nonce) (first in) 0 (%len in))))
+
+; The tag over the additional data and the ciphertext, under the one-time
+; key at the front of otk: the MAC's input in one buffer, by memcpy.
 (def %tag
-  (fn (_ key nonce aad ct)
-    (def otk (ChaCha20 block key (%iv 0 nonce)))
+  (fn (_ otk aad ct)
     (def la (%len aad))
     (def lc (%len ct))
     (def t (%tail la lc))
     (def m (Bytes join aad (list t 0 (%pad16 la)) ct (list t 0 (%pad16 lc)) (list t 16 16)))
     (list (Poly1305 mac otk (first m) 0 (%len m)) 0 16)))
-
-(def %xor
-  (fn (_ key nonce r)
-    (list (ChaCha20 xor key (%iv 1 nonce) (first r) (first (rest r)) (%len r)) 0 (%len r))))
 
 (def %check-sizes
   (fn (_ key nonce)
@@ -86,15 +100,14 @@
       (def kr (Bytes of key))
       (def nr (Bytes of nonce))
       (%check-sizes kr nr)
-      (def k (%buffer kr))
-      (def n (list (%buffer nr) 0 12))
-      (def ct (%xor k n (Bytes of pt)))
-      (Bytes join ct (%tag k n (Bytes of aad) ct)))
+      (def out (%pass (%buffer kr) nr (Bytes of pt)))
+      (def ct (list out 64 (%len (Bytes of pt))))
+      (Bytes join ct (%tag out (Bytes of aad) ct)))
     (method open (self (param key ANY "The 32-byte key, a region")
                        (param nonce ANY "The 12-byte nonce, a region")
                        (param aad ANY "The additional data the sealer gave: a region, or a STRING up to its first NUL")
                        (param sealed ANY "The ciphertext and its 16-byte tag, a region"))
-      (doc "Check and decrypt (RFC 8439 2.8): the plaintext in a fresh buffer. The tag is checked first, over every byte in constant time; one that does not match raises a label 'value and nothing is decrypted."
+      (doc "Check and decrypt (RFC 8439 2.8): the plaintext in a fresh buffer. The tag is checked over every byte in constant time; one that does not match raises a label 'value and no plaintext is answered."
         (returns LIST "(BUF 0 LEN-16)")
         (example "((fn (_ k n) (Bytes hex (ChaCha20Poly1305 open k n (Bytes of-hex \"aa\") (ChaCha20Poly1305 seal k n (Bytes of-hex \"aa\") (Bytes of-hex \"0102\"))))) (Bytes of-hex \"0000000000000000000000000000000000000000000000000000000000000000\") (Bytes of-hex \"000000000000000000000000\"))" "\"0102\""))
       (def kr (Bytes of key))
@@ -102,13 +115,14 @@
       (def sr (Bytes of sealed))
       (%check-sizes kr nr)
       (when (< (Bytes length sr) 16) (Err raise (lit value) "ChaCha20Poly1305: shorter than its tag" (Bytes length sr)))
-      (def k (%buffer kr))
-      (def n (list (%buffer nr) 0 12))
       (def ct (Bytes sub sr 0 (%sub (Bytes length sr) 16)))
       (def tag (Bytes sub sr (%sub (Bytes length sr) 16) 16))
-      (unless (Bytes same? tag (%tag k n (Bytes of aad) ct))
+      ; one pass yields the one-time key and the plaintext; the plaintext
+      ; is answered only once the tag over the ciphertext holds
+      (def out (%pass (%buffer kr) nr ct))
+      (unless (Bytes same? tag (%tag out (Bytes of aad) ct))
         (Err raise (lit value) "ChaCha20Poly1305: the tag does not match" ()))
-      (%xor k n ct))))
+      (Bytes copy (list out 64 (%len ct))))))
 
 (doc (provide x/codec/chacha20-poly1305 ChaCha20Poly1305)
   "The ChaCha20-Poly1305 AEAD (RFC 8439 2.8): (ChaCha20Poly1305 seal key nonce aad pt) and (ChaCha20Poly1305 open key nonce aad sealed), over regions.")
