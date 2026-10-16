@@ -10,6 +10,16 @@
 (module x/codec/der)
 
 (import x/codec/bytes)
+; The bit operations through the int doors: the generic ones dispatch
+; through the numeric tower, about a hundred objects a call, these none.
+; There is no int xor: a ^ b is (a | b) - (a & b).
+(def %and (prim-ref (lit int) (lit &)))
+(def %or (prim-ref (lit int) (lit |)))
+(def %shl (prim-ref (lit int) (lit <<)))
+(def %shr (prim-ref (lit int) (lit >>)))
+(def %isub (prim-ref 'int '-))
+(def %xor (fn (_ a b) (%isub (%or a b) (%and a b))))
+
 
 ; Integer division on the int prim: under the numeric tower / is exact, and
 ; 7/2 is a ratio there.
@@ -62,14 +72,14 @@
       ((< b 128) b)
       ((= b 128) (%fail "an indefinite length"))
       ((> b 132) (%fail "a length of more than four bytes"))
-      (#t ((fn (self k acc) (if (= k 0) acc (self (- k 1) (| (<< acc 8) (%rd-u8 rd))))) (- b 128) 0)))))
+      (#t ((fn (self k acc) (if (= k 0) acc (self (- k 1) (%or (%shl acc 8) (%rd-u8 rd))))) (- b 128) 0)))))
 
 ; The next element at a cursor, as (TAG CONTENTS WHOLE).
 (def %next
   (fn (_ rd)
     (def start (%rd-pos rd))
     (def tag (%rd-u8 rd))
-    (when (= (& tag 31) 31) (%fail "a multi-byte tag"))
+    (when (= (%and tag 31) 31) (%fail "a multi-byte tag"))
     (def len (%length rd))
     (when (> len (%rd-left rd)) (%fail "an element longer than what holds it"))
     (def contents (%rd-take rd len))
@@ -128,7 +138,7 @@
          (if (= i n)
            (if (= v 0) (do (%pset p at 0 1) out) (%fail "an OID cut short"))
            (do (def b (%at contents i))
-               (def v2 (| (<< v 7) (& b 127)))
+               (def v2 (%or (%shl v 7) (%and b 127)))
                (if (>= b 128) (self (+ i 1) at v2)
                  (do (%pset p at 46 1) (self (+ i 1) (%put-dec p (+ at 1) v2) 0))))))
        1 at 0))
@@ -158,7 +168,7 @@
         (returns INTEGER "The value")
         (example "(Der small (first (rest (Der read (Bytes of-hex \"020102\")))))" "2"))
       (when (or (= (%len contents) 0) (> (%len contents) 4) (>= (%at contents 0) 128)) (%fail "not a small INTEGER"))
-      ((fn (self i acc) (if (= i (%len contents)) acc (self (+ i 1) (| (<< acc 8) (%at contents i))))) 0 0))))
+      ((fn (self i acc) (if (= i (%len contents)) acc (self (+ i 1) (%or (%shl acc 8) (%at contents i))))) 0 0))))
 
 (doc (provide x/codec/der Der)
   "DER (X.690) over regions: (Der read r) answers an element (TAG CONTENTS WHOLE); items, oid, time, bits and small read what is inside one.")

@@ -16,6 +16,16 @@
 (import x/codec/bytes)
 (import x/codec/hmac)
 (import x/codec/hkdf)
+; The bit operations through the int doors: the generic ones dispatch
+; through the numeric tower, about a hundred objects a call, these none.
+; There is no int xor: a ^ b is (a | b) - (a & b).
+(def %and (prim-ref (lit int) (lit &)))
+(def %or (prim-ref (lit int) (lit |)))
+(def %shl (prim-ref (lit int) (lit <<)))
+(def %shr (prim-ref (lit int) (lit >>)))
+(def %isub (prim-ref 'int '-))
+(def %xor (fn (_ a b) (%isub (%or a b) (%and a b))))
+
 
 ; HkdfLabel (7.1): the output length as u16, then "tls13 " and the label,
 ; then the context, each with a one-byte length in front.
@@ -32,8 +42,8 @@
     (def ll (%add 6 (%byte-len label)))
     (def head (%make-str 3))
     (def hp (%str->ptr head))
-    (%pset1 hp 0 (>> len 8) 1)
-    (%pset1 hp 1 (& len 255) 1)
+    (%pset1 hp 0 (%shr len 8) 1)
+    (%pset1 hp 1 (%and len 255) 1)
     (%pset1 hp 2 ll 1)
     (def mid (%make-str 1))
     (%pset1 (%str->ptr mid) 0 (first (rest (rest context))) 1)

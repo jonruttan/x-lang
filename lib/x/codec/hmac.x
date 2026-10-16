@@ -15,6 +15,16 @@
 (import x/codec/sha512)
 (import x/codec/hex)
 (import x/codec/bytes)
+; The bit operations through the int doors: the generic ones dispatch
+; through the numeric tower, about a hundred objects a call, these none.
+; There is no int xor: a ^ b is (a | b) - (a & b).
+(def %and (prim-ref (lit int) (lit &)))
+(def %or (prim-ref (lit int) (lit |)))
+(def %shl (prim-ref (lit int) (lit <<)))
+(def %shr (prim-ref (lit int) (lit >>)))
+(def %isub (prim-ref 'int '-))
+(def %xor (fn (_ a b) (%isub (%or a b) (%and a b))))
+
 
 (def %add (prim-ref 'int '+))
 (def %sub (prim-ref 'int '-))
@@ -90,7 +100,7 @@
     (def pad4 (* pad 16843009))
     ((fn (self i)
        (unless (= i b)
-         (do (%pset1 p i (^ pad4 (%pref p i 4)) 4)
+         (do (%pset1 p i (%xor pad4 (%pref p i 4)) 4)
              (self (%add i 4))))) 0)
     r))
 
