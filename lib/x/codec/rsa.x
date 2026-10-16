@@ -88,17 +88,19 @@
 ; --- PKCS#1 v1.5 ------------------------------------------------------------
 
 ; DigestInfo's DER before the digest: SEQUENCE { SEQUENCE { OID, NULL }, OCTET STRING }.
+; Held as hex and decoded a call at a time, never at load: a state image keeps
+; a string's bytes up to its first zero, and these have zeros.
 (def %digest-info
-  (list (list (lit sha256) (Bytes of-hex "3031300d060960864801650304020105000420"))
-        (list (lit sha384) (Bytes of-hex "3041300d060960864801650304020205000430"))
-        (list (lit sha512) (Bytes of-hex "3051300d060960864801650304020305000440"))))
+  (list (list (lit sha256) "3031300d060960864801650304020105000420")
+        (list (lit sha384) "3041300d060960864801650304020205000430")
+        (list (lit sha512) "3051300d060960864801650304020305000440")))
 
 ; EM is 00 01, at least eight FF bytes, 00, and DigestInfo of the digest.
 (def %v15-holds?
   (fn (_ em hash digest)
     (def info (%find hash %digest-info))
     (if (null? info) #f
-      (do (def t (Bytes join (first (rest info)) digest))
+      (do (def t (Bytes join (Bytes of-hex (first (rest info))) digest))
           (def tl (%len t))
           (def pad (%sub (%sub (%len em) 3) tl))
           (and (>= pad 8)
@@ -110,8 +112,14 @@
 
 ; --- PSS ----------------------------------------------------------------------
 
-; Eight zero bytes, PSS's M' prefix.
-(def %zero8 ((fn (_ z) (%pset (%str->ptr z) 0 0 4) (%pset (%str->ptr z) 4 0 4) (list z 0 8)) (%make-str 8)))
+; Eight zero bytes, PSS's M' prefix, in a fresh buffer: made at load, an
+; image would bring them back empty.
+(def %zero8
+  (fn (_)
+    (def z (%make-str 8))
+    (%pset (%str->ptr z) 0 0 4)
+    (%pset (%str->ptr z) 4 0 4)
+    (list z 0 8)))
 
 ; MGF1 (B.2.1): the hashes of seed and a counter, 0 up, cut to len bytes.
 (def %mgf1
@@ -166,7 +174,7 @@
                 (def salt-at (- db-len h))
                 (and (%run-of? db 0 (- salt-at 1) 0)
                      (= (%at db (- salt-at 1)) 1)
-                     (Bytes same? hh (list (Hmac digest hash %zero8 digest (Bytes sub db salt-at h)) 0 h)))))))))
+                     (Bytes same? hh (list (Hmac digest hash (%zero8) digest (Bytes sub db salt-at h)) 0 h)))))))))
 
 (def-class Rsa ()
   (static

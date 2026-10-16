@@ -68,23 +68,24 @@
     (def m (%join regions))
     ((%digest-bytes h) (first m) (%region-len m))))
 
-; A block's worth of zero bytes, the most a key is padded with.
-(def %zeros
-  ((fn (_ z)
-     ((fn (self i) (unless (= i 128) (do (%pset1 (%str->ptr z) i 0 1) (self (%add i 1))))) 0)
-     z)
-   (%make-str 128)))
 (def %pref (prim-ref (lit ptr) (lit ref)))
 
 ; The key padded to the block with zeros (hashed first when longer), each
 ; byte XORed with pad: the region of a fresh buffer.  The key and its zeros
-; are copied in by memcpy (Bytes join), and the XOR runs four bytes at a
-; time, a quarter of the steps a byte loop takes in x.
+; are copied in by memcpy (Bytes join), and the zeroing and the XOR run four
+; bytes at a time, a quarter of the steps a byte loop takes in x.  The zeros
+; are made a call at a time, never at load: a state image keeps a string's
+; bytes up to its first zero, so a zeroed buffer held by the module comes
+; back from one empty.
 (def %pad-key
   (fn (_ h key pad)
     (def k (if (> (%region-len key) (%block-size h)) (list (%digest h (list key)) 0 (%out-size h)) key))
     (def b (%block-size h))
-    (def r (Bytes join k (list %zeros 0 (%sub b (%region-len k)))))
+    (def n (%sub b (%region-len k)))
+    (def z (%make-str (%add n 4)))
+    (def zp (%str->ptr z))
+    ((fn (self i) (when (< i n) (do (%pset1 zp i 0 4) (self (%add i 4))))) 0)
+    (def r (Bytes join k (list z 0 n)))
     (def p (%str->ptr (first r)))
     (def pad4 (* pad 16843009))
     ((fn (self i)
