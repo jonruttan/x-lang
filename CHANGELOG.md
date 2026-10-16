@@ -5,6 +5,64 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-10-16
+
+**`Syslog` sends a line to the system log as syslog(3) does, over new unix datagram sockets on `Socket`.** ([#1050]) `(Socket unix-dgram-bind path)` and `(Socket unix-dgram-connect path)` are the unix pair `udp-bind` and `udp-connect` are for IPv4. `(Syslog send ident facility severity text)` builds the RFC 3164 line the C libraries send -- `<PRI>Mmm dd hh:mm:ss IDENT[PID]: TEXT` -- and sends it to `/dev/log` (`/var/run/syslog` on Darwin), answering `#f` where no daemon listens; `(Syslog line ...)` builds it alone.
+
+[#1050]: https://github.com/jonruttan/x-lang/pull/1050
+
+**A static field read walks no list.** ([#1049]) A class's table entry for a static field holds the field's value cell, so a read no longer walks the class's data and its statics for the field: `(Lexer %rec-on)` is 724 -> 285 objects over the send, `(Lexer %i+)` 422 -> 119, and x-ash's held Lexer remake 330K -> 319K objects. A write to an own field sets the same cell; a write through a subclass still shadows into its own box.
+
+[#1049]: https://github.com/jonruttan/x-lang/pull/1049
+
+**The TLS codecs' bit operations use the int doors.** ([#1048]) HMAC, RSA's padding checks, DER, the TLS key schedule, X509 and base64 no longer send their bit work through the numeric tower: a verified TLS connect allocates 2.4% less, and the pure-x base64 decoder much less.
+
+[#1048]: https://github.com/jonruttan/x-lang/pull/1048
+
+**`x/boot/tower-compiled` can be imported from any directory.** ([#1047]) Its includes are relative to its own file, so a bundle that imports it for the compiled numeric analysers boots from source wherever an installed `x` runs, not only from the x root; `tools/release/amalgamate.sh` and the boot-order check resolve `./` and `../` includes against the file that holds them.
+
+[#1047]: https://github.com/jonruttan/x-lang/pull/1047
+
+**`(Tls13 pending? session)` says what the session has read ahead.** ([#1046]) Bytes a smaller `recv-run` left, or a whole record already in its buffer: what `poll()` on the descriptor cannot see, so a loop that polls receives while it holds.
+
+[#1046]: https://github.com/jonruttan/x-lang/pull/1046
+
+**`(Tls13 over in out)` runs a TLS 1.3 session on descriptors already open.** ([#1045]) The handshake and records read one descriptor and write the other -- a socket's, or a pair of pipes to a program, as busybox's `ssl_client -e` has it -- and close leaves them to the caller; `connect` is a TCP connect handed to the same code.
+
+[#1045]: https://github.com/jonruttan/x-lang/pull/1045
+
+**A TLS record costs half what it did.** ([#1044]) ChaCha20-Poly1305 makes one ChaCha20 pass a record for the one-time key and the data together, and ChaCha20 and Poly1305 do their bit work through the int doors rather than the numeric tower: a sealed record allocates 20 K objects where it allocated 41 K, and the pure-x fallbacks are faster for the same reason.
+
+[#1044]: https://github.com/jonruttan/x-lang/pull/1044
+
+**A replayed Lexer state is poured with no free variable matched by name.** ([#1043]) A pour takes the values of its entry's fvar slots in slot order, which the Lexer's plan now keeps; a caller with named fvars has them matched once, as before. x-ash's held Lexer remake is 33.4 -> 30.2 ms and 361K -> 330K objects. `asm-cache-held-fvar-names` lists names in slot order, and `asm-cache-entry-pour` takes values in that order rather than as (name . value) pairs; the Lexer's plan version is 5.
+
+[#1043]: https://github.com/jonruttan/x-lang/pull/1043
+
+**TLS works again from a state image.** ([#1042]) The record cipher, HMAC and RSA no longer hold zero-filled buffers made as their modules load, which an image brought back empty; wget in an x-coreutils bundle image failed every handshake on main.
+
+[#1042]: https://github.com/jonruttan/x-lang/pull/1042
+
+**A cached state pours with fewer objects.** ([#1041]) The asm cache counts its lists on the integer doors rather than with the boot layer's `%length`, a fold over the generic `+`: a pour counts its slots every time, and x-ash's held Lexer remake is 37 -> 33 ms and 412K -> 361K objects.
+
+[#1041]: https://github.com/jonruttan/x-lang/pull/1041
+
+**X25519 runs its whole ladder in one compiled call.** ([#1040]) The 255 ladder steps and the inverse are two compiled functions built from the field engine's own expressions, where each field operation was a call from x: an X25519 multiplication allocates 41 K objects where it allocated 157 K, two of them a TLS handshake.
+
+[#1040]: https://github.com/jonruttan/x-lang/pull/1040
+
+**`X509 verify-chain` accepts certificates already parsed.** ([#1039]) Each may be DER or what `X509 parse` answered, so a caller that read the leaf for its key does not parse it twice; the TLS client now does exactly that, one certificate parse less a connect.
+
+[#1039]: https://github.com/jonruttan/x-lang/pull/1039
+
+**A TLS connect allocates 40% less.** ([#1038]) HMAC, HKDF, the TLS key schedule, ChaCha20-Poly1305, RSA's padding checks, `Der oid` and X509's name handling build their bytes by memcpy and touch them on the prims: a verified connect to an RSA site is 2.75 M objects where it was 4.4 M, a certificate parses in 158 K, and an HMAC is 12 K.
+
+[#1038]: https://github.com/jonruttan/x-lang/pull/1038
+
+**A Lexer remade after an image load is a third cheaper.** ([#1037]) Its replay pours each state from the cache entry it found once for the plan, which the image carries, instead of finding the entry and noting it by its key text every pour: x-ash's held remake is 66 -> 42 ms and 672K -> 412K objects, and its image-booted process starts with 3.08M -> 2.81M objects allocated. The new doors `asm-cache-held-entry` and `asm-cache-entry-pour` find and pour an entry; a cache group whose thunk noted nothing and set no extra keeps its file as it was rather than writing it empty.
+
+[#1037]: https://github.com/jonruttan/x-lang/pull/1037
+
 ## [0.31.0] - 2026-10-15
 
 **Deflate and Inflate take a stream a piece at a time, and the CRC-32 is compiled.** ([#1035]) `(Deflate stream)` and `(Deflate feed w s start n final)` write a raw DEFLATE stream from pieces; `(Inflate stream)`, `feed`, `done?` and `rest` read one back, a block at a time as the input completes it, so gzip and unzip need no libz and never hold a file whole. `(Crc32 jit!)` compiles the CRC-32's byte loop (past 4KB on its own), and Deflate builds its engine past 16KB rather than 32KB.
