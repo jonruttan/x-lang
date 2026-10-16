@@ -52,6 +52,61 @@ the protocol and the cipher suite it agreed; a second connection without
 ---
     (#t #t #t 1 ('io "Tls13: X509: the server's certificate does not name localhost"))
 
+### over: the same session on descriptors the caller opened
+
+`over` runs the handshake on a pair of descriptors already open: here the
+socket a TCP connect made, read and written both, then a pair of pipes to
+`nc`, which carries the bytes to the server -- a program between, as
+busybox's `ssl_client -e` has it.  Each gets the page, and close leaves the
+caller's descriptors open.
+
+```x
+(do (import x/net/tls13) (import x/sys/socket) (import x/sys/posix) (import x/sys/proc)
+  (def %t13o-dir (Str8 append "/tmp/x-lang-tls13o-" (%number->str (Sys getpid))))
+  (def %t13o-probe (Socket tcp-listen 0))
+  (def %t13o-port (Socket local-port %t13o-probe))
+  (Socket close %t13o-probe)
+  (Proc run! (list "/bin/sh" "-c"
+    (Str8 append "mkdir -p " %t13o-dir " && cd " %t13o-dir
+      " && openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 1 -subj /CN=localhost >/dev/null 2>&1"
+      " && { openssl s_server -quiet -www -tls1_3 -accept " (%number->str %t13o-port)
+      " -cert cert.pem -key key.pem >/dev/null 2>&1 & echo $! > pid; } && sleep 1")))
+  (def %t13o-read
+    (fn (self s acc)
+      (let ((r (Tls13 recv-run s 4096)))
+        (if (null? r) acc (self s (Str8 append acc (Str8 slice 0 (rest r) (first r))))))))
+  (def %t13o-page
+    (fn (_ in out)
+      (let ((s (Tls13 over in out (list (pair 'host "localhost") (list 'insecure)))))
+        (do (Tls13 send s "GET / HTTP/1.0\r\n\r\n")
+            (def page (%t13o-read s ""))
+            (Tls13 close s)
+            (list (Str8 starts? "HTTP/1.0 200" page) (Str8 includes? "TLSv1.3" page))))))
+  (def %t13o-socket
+    (guard (e (list 'raised (Err label e) (e msg)))
+      (let ((fd (Socket tcp-connect "127.0.0.1" %t13o-port)))
+        (let ((r (%t13o-page fd fd)))
+          ; still open: close answers 0
+          (list r (Sys close fd))))))
+  (def %t13o-pipes
+    (guard (e (list 'raised (Err label e) (e msg)))
+      (let ((to (Sys pipe)) (from (Sys pipe)))
+        (let ((pid (Sys fork)))
+          (when (= pid 0)
+            (do (Sys close (rest to)) (Sys close (first from))
+                (Sys dup2 (first to) 0) (Sys dup2 (rest from) 1)
+                (Sys exec "/usr/bin/nc" (list "127.0.0.1" (%number->str %t13o-port)))
+                (Sys exit 127)))
+          (Sys close (first to))
+          (Sys close (rest from))
+          (let ((r (%t13o-page (first from) (rest to))))
+            (do (Sys close (rest to)) (Sys close (first from)) (Sys wait pid) r))))))
+  (Proc run! (list "/bin/sh" "-c" (Str8 append "kill $(cat " %t13o-dir "/pid) 2>/dev/null; rm -rf " %t13o-dir)))
+  (write (list %t13o-socket %t13o-pipes)))
+```
+---
+    (((#t #t) 0) (#t #t))
+
 ### a reply of many records, NULs and all, every byte in order
 
 `s_server -WWW` serves a file of 100000 bytes, every value 0-255 in
