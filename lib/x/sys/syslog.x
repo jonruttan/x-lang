@@ -26,7 +26,7 @@
 
 (def-class Syslog ()
   (doc "A line to the system log as syslog(3) sends it: (Syslog send ident facility severity text) builds it and sends it to the log daemon's socket; (Syslog line ...) builds it alone."
-    (example "(Syslog line \"dropbear\" (lit authpriv) (lit info) \"hello\" 0 42)" "a line beginning \"<86>Jan  1 \""))
+    (example "(Syslog priority (lit authpriv) (lit info))" "86"))
 
   (static
     (%facilities (lit ((kern . 0) (user . 1) (mail . 2) (daemon . 3) (auth . 4) (syslog . 5)
