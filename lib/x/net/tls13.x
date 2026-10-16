@@ -563,6 +563,21 @@
     (when (null? (Assoc entry (lit insecure) o)) (%authenticate! s))
     s))
 
+; Application data recv-run would hand out without reading the descriptor:
+; bytes a smaller recv-run left over, or a whole record read ahead into the
+; input buffer.  A record is its five-byte header and the length the header
+; gives.
+(def %pending?
+  (fn (_ s)
+    (def avail (%sub (%get s %in-end) (%get s %in-pos)))
+    (match
+      ((> (Bytes length (%get s %app-pending)) 0) #t)
+      ((< avail 5) #f)
+      (#t (let ((rd (Bytes reader (list (%get s %in-buf) (%get s %in-pos) 5))))
+            (do (Bytes get-u8 rd)
+                (Bytes get-u16 rd)
+                (>= avail (%add 5 (Bytes get-u16 rd)))))))))
+
 (def-class Tls13 ()
   (static
     (method ready! (self)
@@ -619,6 +634,10 @@
       (if (null? run) ()
         ((fn (self i acc) (if (< i 0) acc (self (%sub i 1) (pair (Bytes ref (list (first run) 0 (rest run)) i) acc))))
          (%sub (rest run) 1) ())))
+    (method pending? (self (param session OBJECT "A (Tls13 connect) or (Tls13 over) session"))
+      (doc "Does the session hold application data it has already read -- bytes a smaller recv-run left, or a whole record read ahead? poll() on the descriptor cannot see these, so a loop that polls asks this first and receives while it holds. A whole record that carries no data (a session ticket) is taken by the next recv-run, which then reads on."
+        (returns BOOL "#t when there is something to receive without reading the descriptor"))
+      (%pending? session))
     (method close (self (param session OBJECT "A (Tls13 connect) session"))
       (doc "Send close_notify, unless the server closed first, and close the socket connect dialled; a session over a caller's descriptors leaves them open."
         (returns ANY "nil"))

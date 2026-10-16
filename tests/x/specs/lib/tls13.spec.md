@@ -159,3 +159,38 @@ checked; the reader collects between records, as a caller of Tls13 does.
 ```
 ---
     (#t #t)
+
+### pending?: what the session read ahead, which poll does not see
+
+`s_server -WWW` serves 100000 bytes in records of 16384: a recv-run of 100
+leaves the rest of the first record in the session, so `pending?` holds;
+once the reply is read to the server's close, nothing is.
+
+```x
+(do (import x/net/tls13) (import x/sys/socket) (import x/sys/posix) (import x/sys/proc)
+  (def %t13p-dir (Str8 append "/tmp/x-lang-tls13p-" (%number->str (Sys getpid))))
+  (def %t13p-probe (Socket tcp-listen 0))
+  (def %t13p-port (Socket local-port %t13p-probe))
+  (Socket close %t13p-probe)
+  (Proc run! (list "/bin/sh" "-c"
+    (Str8 append "mkdir -p " %t13p-dir " && cd " %t13p-dir
+      " && openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 1 -subj /CN=localhost >/dev/null 2>&1"
+      " && LC_ALL=C awk 'BEGIN { for (i = 0; i < 100000; i++) printf \"%c\", 97 + i % 26 }' > big"
+      " && { openssl s_server -quiet -WWW -tls1_3 -accept " (%number->str %t13p-port)
+      " -cert cert.pem -key key.pem >/dev/null 2>&1 & echo $! > pid; } && sleep 1")))
+  (def %t13p-result
+    (guard (e (list 'raised (Err label e) (e msg)))
+      (let ((s (Tls13 connect "127.0.0.1" %t13p-port (list (pair 'host "localhost") (list 'insecure)))))
+        (do (Tls13 send s "GET /big HTTP/1.0\r\n\r\n")
+            ; the head may come in a record of its own: read past it into the body
+            ((fn (self got) (when (< got 1000) (let ((r (Tls13 recv-run s 100))) (unless (null? r) (self (+ got (rest r))))))) 0)
+            (def mid (Tls13 pending? s))
+            ((fn (self) (let ((r (Tls13 recv-run s 16384))) (unless (null? r) (do (Heap collect) (self))))))
+            (def after (Tls13 pending? s))
+            (Tls13 close s)
+            (list mid after)))))
+  (Proc run! (list "/bin/sh" "-c" (Str8 append "kill $(cat " %t13p-dir "/pid) 2>/dev/null; rm -rf " %t13p-dir)))
+  (write %t13p-result))
+```
+---
+    (#t #f)
