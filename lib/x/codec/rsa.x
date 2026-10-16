@@ -16,6 +16,16 @@
 (import x/codec/hmac)
 (import x/codec/mont mont-modulus)
 (import x/codec/mont-jit mont-jit-engine mont-jit-load-bytes! mont-jit-store-bytes mont-jit-to! mont-jit-from! mont-jit-pow!)
+; The bit operations through the int doors: the generic ones dispatch
+; through the numeric tower, about a hundred objects a call, these none.
+; There is no int xor: a ^ b is (a | b) - (a & b).
+(def %and (prim-ref (lit int) (lit &)))
+(def %or (prim-ref (lit int) (lit |)))
+(def %shl (prim-ref (lit int) (lit <<)))
+(def %shr (prim-ref (lit int) (lit >>)))
+(def %isub (prim-ref 'int '-))
+(def %xor (fn (_ a b) (%isub (%or a b) (%and a b))))
+
 
 (def %find (fn (self k l) (if (null? l) () (if (eq? (first (first l)) k) (first l) (self k (rest l))))))
 
@@ -31,8 +41,8 @@
     (def nr (%strip (Bytes of n)))
     (def len (Bytes length nr))
     (def top (Bytes ref nr 0))
-    (if (or (= top 0) (= (& (Bytes ref nr (- len 1)) 1) 0)) ()
-      (list nr len (- (* 8 len) ((fn (self b z) (if (= (& b 128) 128) z (self (& (<< b 1) 255) (+ z 1)))) top 0))))))
+    (if (or (= top 0) (= (%and (Bytes ref nr (- len 1)) 1) 0)) ()
+      (list nr len (- (* 8 len) ((fn (self b z) (if (= (%and b 128) 128) z (self (%and (%shl b 1) 255) (+ z 1)))) top 0))))))
 
 ; Is big-endian a below b, the two of one length?  Byte by byte from the
 ; top: cheaper than a pass through limbs, which is most of a verification's
@@ -129,8 +139,8 @@
     (def cp (%str->ptr ctr))
     ((fn (self c acc)
        (if (>= (%len acc) len) (Bytes sub acc 0 len)
-         (do (%pset cp 0 (>> c 24) 1) (%pset cp 1 (& (>> c 16) 255) 1)
-             (%pset cp 2 (& (>> c 8) 255) 1) (%pset cp 3 (& c 255) 1)
+         (do (%pset cp 0 (%shr c 24) 1) (%pset cp 1 (%and (%shr c 16) 255) 1)
+             (%pset cp 2 (%and (%shr c 8) 255) 1) (%pset cp 3 (%and c 255) 1)
              (self (%add c 1) (Bytes join acc (list (Hmac digest hash seed (list ctr 0 4)) 0 h))))))
      0 (list ctr 0 0))))
 
@@ -145,11 +155,11 @@
     (def m0 (first (rest mask)))
     ((fn (self i)
        (if (<= (%add i 4) n)
-         (do (%pset p i (^ (%pref p i 4) (%pref mp (%add m0 i) 4)) 4) (self (%add i 4)))
+         (do (%pset p i (%xor (%pref p i 4) (%pref mp (%add m0 i) 4)) 4) (self (%add i 4)))
          (unless (= i n)
-           (do (%pset p i (^ (%pref p i 1) (%pref mp (%add m0 i) 1)) 1) (self (%add i 1))))))
+           (do (%pset p i (%xor (%pref p i 1) (%pref mp (%add m0 i) 1)) 1) (self (%add i 1))))))
      0)
-    (%pset p 0 (& (%pref p 0 1) keep) 1)
+    (%pset p 0 (%and (%pref p 0 1) keep) 1)
     out))
 
 ; EMSA-PSS-VERIFY (9.1.2) on the power's bytes, emBits = BITS - 1 and the
@@ -161,15 +171,15 @@
   (fn (_ full bits hash digest)
     (def h (Hmac size hash))
     (def em-bits (- bits 1))
-    (def em-len (>> (+ em-bits 7) 3))
+    (def em-len (%shr (+ em-bits 7) 3))
     (def k (%len full))
     (if (or (> em-len k) (< em-len (+ h h 2)) (not (%run-of? full 0 (- k em-len) 0))) #f
       (do (def em (Bytes sub full (- k em-len) em-len))
           (def db-len (- em-len h 1))
           (def masked (Bytes sub em 0 db-len))
           (def hh (Bytes sub em db-len h))
-          (def keep (>> 255 (- (* 8 em-len) em-bits)))
-          (if (or (not (= (%at em (- em-len 1)) 188)) (not (= (& (%at masked 0) (- 255 keep)) 0))) #f
+          (def keep (%shr 255 (- (* 8 em-len) em-bits)))
+          (if (or (not (= (%at em (- em-len 1)) 188)) (not (= (%and (%at masked 0) (- 255 keep)) 0))) #f
             (do (def db (%unmask masked (%mgf1 hash hh db-len) keep))
                 (def salt-at (- db-len h))
                 (and (%run-of? db 0 (- salt-at 1) 0)

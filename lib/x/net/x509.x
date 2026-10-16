@@ -25,6 +25,16 @@
 (import x/codec/der)
 (import x/codec/ecdsa)
 (import x/codec/rsa)
+; The bit operations through the int doors: the generic ones dispatch
+; through the numeric tower, about a hundred objects a call, these none.
+; There is no int xor: a ^ b is (a | b) - (a & b).
+(def %and (prim-ref (lit int) (lit &)))
+(def %or (prim-ref (lit int) (lit |)))
+(def %shl (prim-ref (lit int) (lit <<)))
+(def %shr (prim-ref (lit int) (lit >>)))
+(def %isub (prim-ref 'int '-))
+(def %xor (fn (_ a b) (%isub (%or a b) (%and a b))))
+
 
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "X509: " what) ())))
 
@@ -153,7 +163,7 @@
     (def cert-sign
       (if (null? ku) #t
         (do (def bs (%body (Der read (List ref 2 ku))))
-            (and (>= (Bytes length bs) 2) (not (= (& (Bytes ref bs 1) 4) 0))))))
+            (and (>= (Bytes length bs) 2) (not (= (%and (Bytes ref bs 1) 4) 0))))))
     (def san (%lookup %ext-san exts))
     (def dns
       (if (null? san) ()
