@@ -126,10 +126,12 @@
 ; construction caches, layout
 ;   (itab stab fields ctor-names)
 ; itab holds instance methods + instance-field markers; stab holds static
-; methods + static-field markers, both chain-merged. An OWN static field
-; marks as the bare %field-label; an INHERITED one as (%field-label . OWNER),
-; the nearest ancestor whose box holds it -- reads go to the owner's box,
-; matching what (help) has always displayed. A static field named `new`
+; methods + static-field markers, both chain-merged. A static field marks as
+; (%field-label OWNER . CELL): OWNER the class whose box holds it -- the class
+; itself, or the nearest ancestor, matching what (help) has always displayed
+; -- and CELL the (name . value) pair in that box, which a read takes its
+; value from and an own write sets in place, as %box-put! does for a key it
+; holds.  A static field named `new`
 ; is dropped at every level: it never shadowed the new builtin. fields is
 ; the %all-fields (name . default-thunk) alist and ctor-names the
 ; positional constructor order. Most-derived wins: the chain walk records a
@@ -186,14 +188,14 @@
           (loop (%assoc-get (lit parent) (%class-data c))
             (let ((visal (%svis-of c)))
               (%fold-rows (%filter %not-new? (%class-statics c))
-                (fn (_ row) (%vis-wrap c visal (first row) (pair %field-label c)))
+                (fn (_ row) (%vis-wrap c visal (first row) (pair %field-label (pair c row))))
                 acc))))))
     (let ((fields (%all-fields class)))
       (list (%walk-ifields class (%walk-methods class (lit methods) %ivis-of ()))
             (%walk-statics (%assoc-get (lit parent) (%class-data class))
               (let ((visal (%svis-of class)))
                 (%fold-rows (%filter %not-new? (%class-statics class))
-                  (fn (_ row) (%vis-wrap class visal (first row) %field-label))
+                  (fn (_ row) (%vis-wrap class visal (first row) (pair %field-label (pair class row))))
                   (%walk-methods class (lit s-methods) %svis-of ()))))
             fields
             (%ctor-field-names class)))))
@@ -259,34 +261,45 @@
 ; exactly as the plain branches would. Guarded members are the cold side
 ; by construction, so the method path uses plain apply -- no trampoline
 ; subtleties inside a helper fn.
-(def %priv-entry
-  (fn (_ target class entry selector args e static?)
-    (let ((vis (first (rest entry)))
-          (defining (first (rest (rest entry))))
-          (inner (rest (rest (rest entry)))))
-      (unless (%vis-allowed? vis defining e)
-        (error (%str-append (symbol->str (class-name class))
-          (%str-append ": " (%str-append (symbol->str selector)
-            (%str-append (if (eq? vis (lit private)) " is private to " " is protected to ")
-              (symbol->str (class-name defining))))))))
-      (match
-        ((eq? inner %field-label)
-          (if static?
-            (match
-              ((null? args) (%assoc-get selector (%class-statics class)))
-              (#t (%box-put! (%class-statics-box class) selector (eval (first args) e))))
+; A pair entry of CLASS's tables, sent to through TARGET: a static field or a
+; privacy wrapper.  A static field, (%field-label OWNER . CELL), is read from
+; its cell.  A write to a field CLASS owns sets the cell, which is the pair
+; in its box.  A write to an inherited one SHADOWS into CLASS's own box --
+; the parent's value is never mutated through a child; spell a deliberate
+; parent write (Parent name v) -- and invalidates every hot table:
+; descendants' entries may point past this class.  A privacy wrapper,
+; (%priv-label VIS DEFINING . INNER), is checked and its inner entry run.
+(def %pair-entry
+  (fn (self target class entry selector args e)
+    (if (eq? (first entry) %field-label)
+      (do
+        (def cell (rest (rest entry)))
+        (match
+          ((null? args) (rest cell))
+          ((eq? (first (rest entry)) class)
+            ((fn (_ v) (%set-rest! cell v) v) (eval (first args) e)))
+          (#t
+            ((fn (_ v)
+               (%box-put! (%class-statics-box class) selector v)
+               (%classes-invalidate!)
+               v)
+             (eval (first args) e)))))
+      (let ((vis (first (rest entry)))
+            (defining (first (rest (rest entry))))
+            (inner (rest (rest (rest entry)))))
+        (unless (%vis-allowed? vis defining e)
+          (error (%str-append (symbol->str (class-name class))
+            (%str-append ": " (%str-append (symbol->str selector)
+              (%str-append (if (eq? vis (lit private)) " is private to " " is protected to ")
+                (symbol->str (class-name defining))))))))
+        (match
+          ((eq? inner %field-label)                                 ; instance field
             (match
               ((null? args) (%assoc-get selector (%obj-fields target)))
-              (#t (%box-put! (%obj-box target) selector (eval (first args) e))))))
-        ((if (pair? inner) (eq? (first inner) %field-label) #f)   ; inherited static
-          (match
-            ((null? args) (%assoc-get selector (%class-statics (rest inner))))
-            (#t
-              (let ((v (eval (first args) e)))
-                (%box-put! (%class-statics-box class) selector v)
-                (%classes-invalidate!)
-                v))))
-        (#t (%apply inner (pair target (%map1 (fn (_ a) (eval a e)) args))))))))
+              (#t (%box-put! (%obj-box target) selector (eval (first args) e)))))
+          ((if (pair? inner) (eq? (first inner) %field-label) #f)   ; static field
+            (self target class inner selector args e))
+          (#t (%apply inner (pair target (%map1 (fn (_ a) (eval a e)) args)))))))))
 
 ; Entry discrimination for the cold resolvers (method-of, method-ref, the
 ; value-call handlers): a callable PUBLIC method entry, or nil for a miss,
@@ -627,7 +640,7 @@
           ((null? args) (%assoc-get selector (%obj-fields self)))
           (#t (%box-put! (%obj-box self) selector (eval (first args) e)))))
       ((pair? entry)                                 ; privacy wrapper
-        (%priv-entry self cls entry selector args e #f))
+        (%pair-entry self cls entry selector args e))
       ((eq? entry ())
         (match
           ((%assoc-has? selector (%obj-fields self)) ; ad-hoc instance key
@@ -675,7 +688,8 @@
 ;
 ; The walk is shaped for the common send: a symbol selector skips the
 ; quote unwrap, a built hot record is read in place, and the entry is
-; sorted by one eq?, one pair? and one nil test before the method runs.
+; sorted by one pair? (a static field or a privacy wrapper) and one nil
+; test before the method runs.
 (def %class-dispatch
   (op (self sel-raw . args) e
     (def selector (if (pair? sel-raw) (%selector sel-raw) sel-raw))
@@ -683,27 +697,8 @@
     (def stab (first (rest (if (eq? hot ()) (%class-hot self) hot))))
     (def entry (%tab-find! stab stab selector))
     (match
-      ((eq? entry %field-label)                     ; own static field
-        (match
-          ((null? args) (%assoc-get selector (%class-statics self)))
-          (#t (%box-put! (%class-statics-box self) selector (eval (first args) e)))))
-      ((pair? entry)
-        ; inherited static field (%field-label . OWNER), or a privacy
-        ; wrapper.  An inherited field's reads go to the owning ancestor's
-        ; box (nearest wins, matching help's display); a write SHADOWS into
-        ; our own box -- the parent's value is never mutated through a
-        ; child; spell a deliberate parent write (Parent name v). The
-        ; shadow invalidates every hot table: descendants' markers may
-        ; point past this class.
-        (if (eq? (first entry) %field-label)
-          (match
-            ((null? args) (%assoc-get selector (%class-statics (rest entry))))
-            (#t
-              (let ((v (eval (first args) e)))
-                (%box-put! (%class-statics-box self) selector v)
-                (%classes-invalidate!)
-                v)))
-          (%priv-entry self self entry selector args e #t)))
+      ((pair? entry)                       ; a static field or a privacy wrapper
+        (%pair-entry self self entry selector args e))
       ((eq? entry ())
         ; no member of that name: the builtins, then the miss
         (match

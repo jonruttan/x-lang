@@ -1517,3 +1517,31 @@ handle, and a trivial method body, called through the handle, fewer than
 ```
 ---
     (#t #t 7)
+
+### a static field read costs the same wherever the field stands
+
+A static field's table entry holds its value cell, so reading the fortieth
+of forty fields walks no list a read: once each is at the front of the
+table, it costs what reading the first does, to within a table step.  A
+write reaches the same cell.
+
+```x
+(do
+  (def %wide-cost
+    (fn (_ f)
+      (f) (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (eq? i 0) () (do (f) (loop (- i 1))))) 100)
+      (- (Heap count) c0)))
+  (def-class Wide ()
+    (static (s01 1) (s02 2) (s03 3) (s04 4) (s05 5) (s06 6) (s07 7) (s08 8) (s09 9) (s10 10)
+            (s11 11) (s12 12) (s13 13) (s14 14) (s15 15) (s16 16) (s17 17) (s18 18) (s19 19) (s20 20)
+            (s21 21) (s22 22) (s23 23) (s24 24) (s25 25) (s26 26) (s27 27) (s28 28) (s29 29) (s30 30)
+            (s31 31) (s32 32) (s33 33) (s34 34) (s35 35) (s36 36) (s37 37) (s38 38) (s39 39) (s40 40)))
+  (def %wide-first (%wide-cost (fn (_) (Wide s01))))
+  (def %wide-last (%wide-cost (fn (_) (Wide s40))))
+  (Wide s40 41)
+  (list (< (- %wide-last %wide-first) (* 50 100)) (< (- %wide-first %wide-last) (* 50 100)) (Wide s40) (Wide s01)))
+```
+---
+    (#t #t 41 1)
