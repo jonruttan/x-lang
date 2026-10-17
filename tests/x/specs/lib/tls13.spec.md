@@ -9,7 +9,8 @@ the exchanges ask for ('insecure), and one without it is refused: its
 CertificateVerify, RSA-PSS (scheme 2052), holds, and then the
 certificate, made with a common name alone, names no host.  connect
 builds every engine it uses before it dials (ready!), so the file
-carries the weight and the timeout of engine builds.
+carries the weight and the timeout of engine builds.  Last, accept, the
+server's side, against `openssl s_client` and x's own client.
 
 ## connecting
 
@@ -194,3 +195,77 @@ once the reply is read to the server's close, nothing is.
 ```
 ---
     (#t #f)
+
+## the server's side
+
+### accept: openssl s_client against an RSA key and an Ed25519 key, x's own client, and the hellos it refuses
+
+Each case listens on a free port of 127.0.0.1 and runs the client in a
+child: `openssl s_client -quiet` sends "ping" and prints what comes back;
+the server reads the ping, answers "pong" and closes.  The keys and their
+self-signed certificates are made for the run, each key and certificate
+in one PEM file, as busybox's `ssl_server -f` takes them.  x's own client
+signs nothing and checks RSA-PSS but not Ed25519, so against the Ed25519
+key it is refused; so is s_client offering AES-GCM alone, which would need
+a HelloRetryRequest for a suite this server has.  The report is what the
+server read, or the error it raised, and what the client printed.
+
+```x
+(do (import x/net/tls13) (import x/sys/socket) (import x/sys/posix) (import x/sys/proc) (import x/sys/file)
+  (def %t13a-dir (Str8 append "/tmp/x-lang-tls13a-" (%number->str (Sys getpid))))
+  (Proc run! (list "/bin/sh" "-c"
+    (Str8 append "mkdir -p " %t13a-dir " && cd " %t13a-dir
+      " && openssl req -x509 -newkey rsa:2048 -nodes -keyout rsa.key -out rsa.crt -days 1 -subj /CN=localhost >/dev/null 2>&1"
+      " && cat rsa.key rsa.crt > rsa.pem"
+      " && openssl req -x509 -newkey ed25519 -nodes -keyout ed.key -out ed.crt -days 1 -subj /CN=localhost >/dev/null 2>&1"
+      " && cat ed.key ed.crt > ed.pem")))
+  ; the engines built once, before any child is forked
+  (Tls13 ready!)
+  (def %t13a-pem (fn (_ name) (File read-all (Str8 append %t13a-dir "/" name))))
+  ; one session: CLIENT run in a child with the port, then what the server read and what the client printed
+  (def %t13a-one
+    (fn (_ pem client)
+      (def l (Socket tcp-listen-on "127.0.0.1" 0))
+      (def port (Socket local-port l))
+      (def pid (Sys fork))
+      (when (= pid 0)
+        (do (Socket close l)
+            (Proc run! (list "/bin/sh" "-c" (Str8 append "rm -f " %t13a-dir "/out")))
+            (client port)
+            (Sys exit 0)))
+      (def fd (Socket accept l))
+      (Socket close l)
+      (def read
+        (guard (e (list (Err label e) (e msg)))
+          (let ((s (Tls13 accept fd fd (list (pair 'pem (%t13a-pem pem))))))
+            (do (def got (Tls13 recv-run s 100))
+                (Tls13 send s "pong\n")
+                (Tls13 close s)
+                (Str8 slice 0 (rest got) (first got))))))
+      (Socket close fd)
+      (Sys wait pid)
+      (list read (guard (e "") (%t13a-pem "out")))))
+  (def %t13a-s-client
+    (fn (_ opts)
+      (fn (_ port)
+        (Proc run! (list "/bin/sh" "-c"
+          (Str8 append "cd " %t13a-dir " && printf 'ping\\n' | openssl s_client -quiet -connect 127.0.0.1:" (%number->str port)
+            " " opts " > out 2> err"))))))
+  (def %t13a-x-client
+    (fn (_ port)
+      (let ((s (guard (e ()) (Tls13 connect "127.0.0.1" port (list (pair 'host "localhost") (list 'insecure))))))
+        (unless (null? s)
+          (do (Tls13 send s "ping\n")
+              (def r (Tls13 recv-run s 100))
+              (File write-all (Str8 append %t13a-dir "/out") (Str8 slice 0 (rest r) (first r))))))))
+  (def %t13a-result
+    (list (%t13a-one "rsa.pem" (%t13a-s-client "-tls1_3"))
+          (%t13a-one "ed.pem" (%t13a-s-client "-tls1_3"))
+          (%t13a-one "rsa.pem" %t13a-x-client)
+          (%t13a-one "ed.pem" %t13a-x-client)
+          (%t13a-one "rsa.pem" (%t13a-s-client "-tls1_3 -ciphersuites TLS_AES_128_GCM_SHA256"))))
+  (Proc run! (list "/bin/sh" "-c" (Str8 append "rm -rf " %t13a-dir)))
+  (write %t13a-result))
+```
+---
+    (("ping\n" "pong\n") ("ping\n" "pong\n") ("ping\n" "pong\n") (('io "Tls13: the client does not take the scheme this server's key signs with (2055)") "") (('io "Tls13: the client does not offer TLS_CHACHA20_POLY1305_SHA256") ""))
