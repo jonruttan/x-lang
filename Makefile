@@ -902,7 +902,7 @@ ASAN_RUN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0:quarantine_size_
 #     builds in x), so CI runs them as a second job on a runner of their own.
 #     test-asan leaves them out; test-asan-crypto runs only them.
 ASAN_CRYPTO_SPECS = $(patsubst %,*/lib/%.spec.md,\
-  chacha20 chacha20-jit chacha20-poly1305 crypt der ecdsa ed25519 ed25519-jit \
+  aes bcrypt chacha20 chacha20-jit chacha20-poly1305 crypt der ecdsa ed25519 ed25519-jit \
   hkdf hmac mont mont-jit poly1305 poly1305-jit sha1 sha1-jit sha256 sha256-jit \
   sha3 sha3-jit sha384 sha512 sha512-jit tls-keys tls13 x25519 x25519-jit x509 \
   deflate-jit inflate-jit)
