@@ -17,6 +17,9 @@
 ; is never read.  Signatures are ECDSA over P-256 and P-384 (x/codec/ecdsa)
 ; and RSA PKCS#1 v1.5 (x/codec/rsa); an RSASSA-PSS signature on a
 ; certificate is one this code does not check.
+;
+; private-key reads the key a server signs with from PEM: an RSA key as
+; PKCS#8 or PKCS#1, or an Ed25519 key as PKCS#8.
 (module x/net/x509)
 
 (import x/codec/bytes)
@@ -45,8 +48,49 @@
 ; OIDs
 (def %oid-ec-public-key "1.2.840.10045.2.1")
 (def %oid-rsa "1.2.840.113549.1.1.1")
-(def %pem-begin "-----BEGIN CERTIFICATE-----")
-(def %pem-end "-----END CERTIFICATE-----")
+(def %oid-ed25519 "1.3.101.112")
+
+; The DER bytes of each "-----BEGIN LABEL-----" block in PEM text, in
+; order, each a region: the text between its BEGIN and END lines decoded,
+; line breaks and all.
+(def %pem-blocks
+  (fn (_ text label)
+    (def r (Bytes of text))
+    (def begin (Str8 append "-----BEGIN " label "-----"))
+    (def end (Str8 append "-----END " label "-----"))
+    ((fn (self at out)
+       (def left (Bytes sub r at (- (Bytes length r) at)))
+       (def b (Bytes find left begin))
+       (if (null? b) (List reverse out)
+         (do (def body (+ b (Str8 length begin)))
+             (def e (Bytes find (Bytes sub left body (- (Bytes length left) body)) end))
+             (when (null? e) (%fail "a PEM block with no end"))
+             (self (+ at body e (Str8 length end))
+                   (pair (Base64 decode-region (Bytes sub left body e)) out)))))
+     0 ())))
+
+; PKCS#1's RSAPrivateKey (RFC 8017 A.1.2), version 0: (rsa N E D).
+(def %rsa-private
+  (fn (_ der)
+    (def items (Der items (%body (Der read der))))
+    (when (< (List length items) 4) (%fail "an RSA private key cut short"))
+    (unless (= (Der small (%body (first items))) 0) (%fail "an RSA private key of more than two primes"))
+    (list (lit rsa) (%body (List ref 1 items)) (%body (List ref 2 items)) (%body (List ref 3 items)))))
+
+; PKCS#8's PrivateKeyInfo (RFC 5208, 8410): an RSA key's RSAPrivateKey, or
+; an Ed25519 key's 32-byte seed as (ed25519 SEED).
+(def %pkcs8-private
+  (fn (_ der)
+    (def items (Der items (%body (Der read der))))
+    (when (< (List length items) 3) (%fail "a PKCS#8 key cut short"))
+    (def oid (Der oid (%body (first (Der items (%body (List ref 1 items)))))))
+    (def inner (%body (List ref 2 items)))
+    (match ((str=? oid %oid-rsa) (%rsa-private inner))
+           ((str=? oid %oid-ed25519)
+             (let ((seed (Der read inner)))
+               (do (unless (and (= (%tag seed) 4) (= (Bytes length (%body seed)) 32)) (%fail "an Ed25519 key not 32 bytes"))
+                   (list (lit ed25519) (Bytes copy (%body seed))))))
+           (#t (%fail "a private key of a kind this code does not know")))))
 
 ; A name's bytes as lowercase ASCII text in a fresh buffer: what a DNS name
 ; in a certificate is, and Str8 downcase's generic walk is tens of
@@ -260,17 +304,15 @@
       (doc "The certificates' DER bytes from PEM text, in order, each a region: each block's text between its BEGIN and END lines decoded, line breaks and all."
         (returns LIST "Regions")
         (sample "(X509 from-pem (File read-all \"/etc/ssl/cert.pem\"))" "the bundle's certificates"))
-      (def r (Bytes of text))
-      ((fn (self at out)
-         (def left (Bytes sub r at (- (Bytes length r) at)))
-         (def b (Bytes find left %pem-begin))
-         (if (null? b) (List reverse out)
-           (do (def body (+ b (Str8 length %pem-begin)))
-               (def e (Bytes find (Bytes sub left body (- (Bytes length left) body)) %pem-end))
-               (when (null? e) (%fail "a PEM block with no end"))
-               (self (+ at body e (Str8 length %pem-end))
-                     (pair (Base64 decode-region (Bytes sub left body e)) out)))))
-       0 ()))
+      (%pem-blocks text "CERTIFICATE"))
+    (method private-key (self (param text ANY "PEM text holding a PRIVATE KEY (PKCS#8) or RSA PRIVATE KEY (PKCS#1) block, a region or a STRING up to its first NUL"))
+      (doc "The first private key in PEM text: (rsa N E D), the modulus and the exponents as big-endian regions, or (ed25519 SEED), the 32-byte seed Ed25519 signs with, in a buffer of its own. Raises a label 'value when there is none, or it is a kind this code does not know."
+        (returns LIST "(rsa N E D) or (ed25519 SEED)")
+        (sample "(X509 private-key (File read-all \"key.pem\"))" "(rsa N E D)"))
+      (def p8 (%pem-blocks text "PRIVATE KEY"))
+      (if (not (null? p8)) (%pkcs8-private (first p8))
+        (let ((p1 (%pem-blocks text "RSA PRIVATE KEY")))
+          (if (null? p1) (%fail "no private key") (%rsa-private (first p1))))))
     (method subject (self (param cert LIST "A parsed certificate"))
       (doc "The subject's name, as its DER bytes."
         (returns LIST "A region"))
@@ -315,4 +357,4 @@
       (%walk leaf (rest parsed) roots now))))
 
 (doc (provide x/net/x509 X509)
-  "X.509 certificates (RFC 5280): parse, from-pem, and verify-chain -- a TLS server's chain checked for its host, dates, CA constraints and signatures (ECDSA and RSA) up to a trusted root.")
+  "X.509 certificates (RFC 5280): parse, from-pem, private-key (an RSA or Ed25519 key from PEM), and verify-chain -- a TLS server's chain checked for its host, dates, CA constraints and signatures (ECDSA and RSA) up to a trusted root.")

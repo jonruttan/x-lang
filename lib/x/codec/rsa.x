@@ -9,7 +9,10 @@
 ; being far past unrolling -- with e's bits walked from the top: e is
 ; 65537 in practice, seventeen squarings and a multiply.  Certificates
 ; are signed with v1.5; TLS 1.3's CertificateVerify with PSS, its salt as
-; long as the hash (RFC 8446 4.2.3).  Nothing here signs.
+; long as the hash (RFC 8446 4.2.3).  A PSS signature is made the same
+; way, EM raised to the private exponent d: thousands of steps where a
+; verification takes eighteen, and variable time, which a server that
+; signs a handshake with it accepts.
 (module x/codec/rsa)
 
 (import x/codec/bytes)
@@ -186,6 +189,41 @@
                      (= (%at db (- salt-at 1)) 1)
                      (Bytes same? hh (list (Hmac digest hash (%zero8) digest (Bytes sub db salt-at h)) 0 h)))))))))
 
+; --- signing ------------------------------------------------------------------
+
+; n zero bytes in a fresh buffer, four a step and the odd ones singly.
+(def %zeros
+  (fn (_ n)
+    (def z (%make-str (if (> n 0) n 1)))
+    (def p (%str->ptr z))
+    ((fn (self i)
+       (if (<= (%add i 4) n) (do (%pset p i 0 4) (self (%add i 4)))
+         (unless (>= i n) (do (%pset p i 0 1) (self (%add i 1))))))
+     0)
+    (list z 0 n)))
+
+; EMSA-PSS-ENCODE (9.1.1), emBits = BITS - 1 and a fresh salt as long as the
+; hash, laid out at K bytes: EM, after a zero byte when emLen is one short
+; of K.  The data block is zeros, 01 and the salt, masked by MGF1 of the
+; hash of eight zero bytes, the digest and the salt; EM is it, that hash
+; and BC.  () when the modulus is too short for the hash.
+(def %pss-encode
+  (fn (_ k bits hash digest)
+    (def h (Hmac size hash))
+    (def em-bits (- bits 1))
+    (def em-len (%shr (+ em-bits 7) 3))
+    (if (< em-len (+ h h 2)) ()
+      (do (def salt (Bytes random h))
+          (def hh (list (Hmac digest hash (%zeros 8) digest salt) 0 h))
+          (def db-len (- em-len h 1))
+          (def one (%zeros 1))
+          (%pset (%str->ptr (first one)) 0 1 1)
+          (def bc (%zeros 1))
+          (%pset (%str->ptr (first bc)) 0 188 1)
+          (def db (Bytes join (%zeros (- db-len h 1)) one salt))
+          (def masked (%unmask db (%mgf1 hash hh db-len) (%shr 255 (- (* 8 em-len) em-bits))))
+          (Bytes join (%zeros (- k em-len)) masked hh bc)))))
+
 (def-class Rsa ()
   (static
     (method verify-pkcs1 (self (param n ANY "The modulus, big-endian bytes, a region; DER's leading zero byte may stay")
@@ -211,7 +249,18 @@
       (def mod (%modulus n))
       (if (null? mod) #f
         (do (def em (%power mod e sig))
-            (if (null? em) #f (%pss-holds? em (first (rest (rest mod))) hash (Bytes of digest))))))))
+            (if (null? em) #f (%pss-holds? em (first (rest (rest mod))) hash (Bytes of digest))))))
+    (method sign-pss (self (param n ANY "The modulus, big-endian bytes, a region; DER's leading zero byte may stay")
+                           (param d ANY "The private exponent, big-endian bytes, a region")
+                           (param hash SYMBOL "sha256, sha384 or sha512: the digest's hash, and the mask's")
+                           (param digest ANY "The message's digest under hash, a region"))
+      (doc "RSASSA-PSS signing (RFC 8017 8.1.1) with a fresh salt as long as the hash, as a TLS 1.3 server signs its CertificateVerify: EM raised to d. Variable time, as all of x's arithmetic is. Raises a label 'value for a modulus that is even, zero or too short for the hash."
+        (returns LIST "The signature, n's length of bytes, a region")
+        (sample "(Rsa sign-pss n d (lit sha256) digest)" "a signature verify-pss accepts"))
+      (def mod (%modulus n))
+      (def em (if (null? mod) () (%pss-encode (first (rest mod)) (first (rest (rest mod))) hash (Bytes of digest))))
+      (when (null? em) (Err raise (lit value) "Rsa: no modulus a PSS signature fits" ()))
+      (%power mod d em))))
 
 (doc (provide x/codec/rsa Rsa)
-  "RSA signature verification (RFC 8017): (Rsa verify-pkcs1 n e hash digest sig) for PKCS#1 v1.5, as certificates are signed, and verify-pss for RSASSA-PSS with the salt as long as the hash, as TLS 1.3 signs; the power on x/codec/mont-jit's looping engine.")
+  "RSA signatures (RFC 8017): (Rsa verify-pkcs1 n e hash digest sig) for PKCS#1 v1.5, as certificates are signed, verify-pss for RSASSA-PSS with the salt as long as the hash, as TLS 1.3 signs, and sign-pss to make one; the power on x/codec/mont-jit's looping engine.")
