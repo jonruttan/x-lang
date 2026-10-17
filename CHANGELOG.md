@@ -14,6 +14,10 @@ the C stack. The library needs no change.
 
 [#1053]: https://github.com/jonruttan/x-lang/pull/1053
 
+**`Tls13 accept` is the server's side of a TLS 1.3 session.** ([#1054]) `(Tls13 accept in out (list (pair 'pem text)))` runs the handshake over descriptors already open -- an accepted socket, or standard input and output under `tcpsvd` -- with the key and certificates from PEM text: X25519, ChaCha20-Poly1305, and CertificateVerify signed with an RSA key (RSA-PSS, about 1.3 s for 2048 bits) or an Ed25519 key. A client that offers no X25519 share or no ChaCha20-Poly1305 is refused with a handshake_failure alert: no HelloRetryRequest is sent. `send`, `recv-run`, `pending?` and `close` work as on a client's session.
+
+[#1054]: https://github.com/jonruttan/x-lang/pull/1054
+
 **`Rsa` signs, and `X509` reads a private key.** ([#1052]) `(Rsa sign-pss n d hash digest)` makes an RSASSA-PSS signature (RFC 8017) with a fresh salt as long as the hash, as a TLS 1.3 server signs its CertificateVerify: about 1.3 s for a 2048-bit key, variable time. `(X509 private-key text)` reads the first private key in PEM text: an RSA key as PKCS#8 or PKCS#1, answering `(rsa N E D)`, or an Ed25519 key as PKCS#8, answering `(ed25519 SEED)`.
 
 [#1052]: https://github.com/jonruttan/x-lang/pull/1052
