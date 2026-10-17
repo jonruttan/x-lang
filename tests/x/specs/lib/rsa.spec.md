@@ -11,7 +11,8 @@ once with `-sigopt rsa_padding_mode:pss`, and each signature verified by
 breaks one thing -- the padding mode, a digest bit, a signature bit, the
 hash, the length -- and must answer #f.  The first verification builds
 the looping Montgomery engine (x/codec/mont-jit) and checks it against
-the pure-x arithmetic, so the file carries an engine's weight.
+the pure-x arithmetic, so the file carries an engine's weight.  Last,
+PSS signatures this code makes.
 
 ## OpenSSL's signatures
 
@@ -64,3 +65,35 @@ the pure-x arithmetic, so the file carries an engine's weight.
 ```
 ---
     (#t #t #f)
+
+## signing
+
+### a PSS signature made with a 2048-bit key: it verifies, a broken one does not, and two differ by their salts
+
+The key is OpenSSL's (`openssl genpkey -algorithm RSA`), (n, e) and d as
+its PKCS#1 form holds them; the digest is SHA-256 of "x-lang signs RSA".
+A signature made this way was checked by `openssl pkeyutl -verify` with
+`rsa_padding_mode:pss` and `rsa_pss_saltlen:32`.  Each signature has a
+fresh salt, so two are not the same bytes.  A signature costs about 1.3
+seconds: d is two thousand bits where e is seventeen.
+
+```x
+(do
+  (import x/codec/rsa)
+  (import x/codec/bytes)
+  (def %rss-n (Bytes of-hex "88abf0be8db1b0f6222824bf309319582db9942997f7dfbbe0625b0b42cf038031be79551bf366754d43cebf694cada865cfce8e137e4a000f1a6783be854abb8e4ce1e717ef29e289586a91602ac523067438ce45df7e5534522e1892db6a79adac07b27acf727c56d5dcc7fa71cab54b35d8e16b28d9e2c3c3ba6cc3b1a76bc34df5aebaadd3e28d8fd5bd2641fab5e1c805b1e10023769fcdbb235f1441c20f66dd97063f265b1e2df3510a6dbbb0ca598cb8c67d63e991a0a72ea1d01e9f0f0d5fc6f13ca1e049b9f631adbf87f39e23844984c9bb846df48a4f5e608072b5c6ea9325d47d3cc32a3d40e8510e6410f4a9b78b0f72ba549c24afc37369cb"))
+  (def %rss-e (Bytes of-hex "010001"))
+  (def %rss-d (Bytes of-hex "43913da3f74931c37d7f7b2b4a486eef392bd623fa0d817ed09fcf82f1b486768a2130baf2e69270cb920a54772a81700f657d28a05a7f1b285c5570bc700952503792373d8def971f6fa6bfd85b4cbad426012f793bd4a92b04b5e55035499e7e4dde404e96e072b83b62bb3b05a6c19a3d34cbbcbea579866eed6b78140c40717412a64eba4ea4c85ca3fd5b97df03631d45f482964d600f8e836150ed7a27c07c1203cf0fd3c21d7cbcb8caa15a283f992e3a1a41103140cc582084f20fce3e9c2ce38344877ecec78a2bbd7b045397b0c471217a6576a295863ad130e7332f75f00ff47bf209d06297856719cd8134cff16674c117cbc75950094976cf01"))
+  (def %rss-h (Bytes of-hex "f8195934168616f8a1bee229c8009dc0c69edfc72a405806af7b6af41526ddb0"))
+  (def %rss-a (Rsa sign-pss %rss-n %rss-d (lit sha256) %rss-h))
+  (def %rss-b (Rsa sign-pss %rss-n %rss-d (lit sha256) %rss-h))
+  (write (list (Bytes length %rss-a)
+               (Rsa verify-pss %rss-n %rss-e (lit sha256) %rss-h %rss-a)
+               (Rsa verify-pss %rss-n %rss-e (lit sha256) %rss-h %rss-b)
+               (Bytes same? %rss-a %rss-b)
+               (Rsa verify-pss %rss-n %rss-e (lit sha256) (%rs-flip %rss-h 0) %rss-a)
+               (Rsa verify-pss %rss-n %rss-e (lit sha256) %rss-h (%rs-flip %rss-a 200))
+               (guard (e (Err label e)) (Rsa sign-pss (Bytes of-hex "0f") %rss-d (lit sha256) %rss-h)))))
+```
+---
+    (256 #t #t #f #f #f 'value)
