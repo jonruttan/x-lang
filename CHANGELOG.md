@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-10-16
+
+**The engine is x-engine-c v0.2.22** ([#1053]). A typed list marks without a
+C frame a pair (x-engine-c#90): the collector follows a list's rest instead of
+recursing into it, so a collect with some 35,000 pairs live no longer overflows
+the C stack. The library needs no change.
+
+[#1053]: https://github.com/jonruttan/x-lang/pull/1053
+
 ## [0.32.0] - 2026-10-16
 
 **`Syslog` sends a line to the system log as syslog(3) does, over new unix datagram sockets on `Socket`.** ([#1050]) `(Socket unix-dgram-bind path)` and `(Socket unix-dgram-connect path)` are the unix pair `udp-bind` and `udp-connect` are for IPv4. `(Syslog send ident facility severity text)` builds the RFC 3164 line the C libraries send -- `<PRI>Mmm dd hh:mm:ss IDENT[PID]: TEXT` -- and sends it to `/dev/log` (`/var/run/syslog` on Darwin), answering `#f` where no daemon listens; `(Syslog line ...)` builds it alone.
