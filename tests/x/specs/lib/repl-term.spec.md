@@ -250,3 +250,25 @@ A fresh string is space-filled, so every byte but ISIG's reads 32 after.
 ```
 ---
     #t
+
+### where there is no window to measure, COLUMNS and LINES are the window
+
+```x
+(do (import x/repl/term)
+    (Sys setenv "COLUMNS" "101")
+    (Sys setenv "LINES" "33")
+    (Term window 0))
+```
+---
+    (101 . 33)
+
+### a COLUMNS that is no positive number is passed over
+
+```x
+(do (import x/repl/term)
+    (Sys setenv "COLUMNS" "wide")
+    (Sys setenv "LINES" "0")
+    (Term window 0))
+```
+---
+    (80 . 24)
