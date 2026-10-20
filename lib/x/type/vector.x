@@ -66,6 +66,52 @@
 ; design (see docs/glossary.md "core").
 (def %vec-check (fn (_ v what)
   (if (%type? v %vector) v (Err raise (lit type) what ()))))
+
+; The common index: an INT within the length of a V that is a vector,
+; negative counting from the end, whose slot ref, set! and a vector's
+; call read or write at once; nil for any other -- one to be converted,
+; one out of range, or a V that is no vector -- which takes the checked
+; road, whose errors name the caller.
+(def %vec-slot
+  (fn (_ i v)
+    (if (if (%type? v %vector) (eq? (%vec-type-of i) %vec-int-type) #f)
+      (if (%vec-int< -1 i)
+        (if (%vec-int< i (%obj-ref v 0)) (%vec-int+ i 1) ())
+        (if (%vec-int< -1 (%vec-int+ (%obj-ref v 0) i)) (%vec-int+ (%vec-int+ (%obj-ref v 0) i) 1) ()))
+      ())))
+; V with X stored in slot K, for set!
+(def %vec-put! (fn (_ v k x) (%obj-set! v k x) v))
+
+; The checked roads.  %obj-ref is a raw slot read (arbitrary memory past the
+; object), so the length in slot 0 is the x-lang bounds check.  Negative
+; normalization is the same for all three, so (Vector ref -1 v) == (v -1).
+; The nil guard makes a piped index-search miss fail loudly.
+(def %vec-ref-checked
+  (fn (_ i v)
+    (def i2 (%vec->int i "Vector ref: index not convertible to INT"))
+    (%vec-check v "Vector ref: not a vector")
+    (def len (%obj-ref v 0))
+    (def j (if (%vec-int< i2 0) (%vec-int+ len i2) i2))
+    (if (%vec-int< j 0) (Err raise (lit index) "Vector ref: index out of range" ())
+      (if (%vec-int< j len) (%obj-ref v (%vec-int+ j 1))
+        (Err raise (lit index) "Vector ref: index out of range" ())))))
+(def %vec-set-checked
+  (fn (_ i x v)
+    (def i2 (%vec->int i "Vector set!: index not convertible to INT"))
+    (%vec-check v "Vector set!: not a vector")
+    (def len (%obj-ref v 0))
+    (def j (if (%vec-int< i2 0) (%vec-int+ len i2) i2))
+    (if (%vec-int< j 0) (Err raise (lit index) "Vector set!: index out of range" ())
+      (if (%vec-int< j len) (%vec-put! v (%vec-int+ j 1) x)
+        (Err raise (lit index) "Vector set!: index out of range" ())))))
+(def %vec-call-checked
+  (fn (_ self i0)
+    (def i (%vec->int i0 "vector: index not convertible to INT"))
+    (def len (%obj-ref self 0))
+    (def j (if (%vec-int< i 0) (%vec-int+ len i) i))
+    (if (%vec-int< j 0) (Err raise (lit index) "vector: index out of range" ())
+      (if (%vec-int< j len) (%obj-ref self (%vec-int+ j 1))
+        (Err raise (lit index) "vector: index out of range" ())))))
 (set! %vector
   (%make-type
     "VECTOR"
@@ -82,12 +128,8 @@
             ())
           ; Bounds-checked like (Vector ref ...): %obj-ref past the object is a
           ; raw memory read, so slot 0's length is the guard for bare (v i) too.
-          (def i (%vec->int (first args) "vector: index not convertible to INT"))
-          (def len (%obj-ref self 0))
-          (def j (if (%vec-int< i 0) (%vec-int+ len i) i))
-          (if (%vec-int< j 0) (Err raise (lit index) "vector: index out of range" ())
-            (if (%vec-int< j len) (%obj-ref self (%vec-int+ j 1))
-              (Err raise (lit index) "vector: index out of range" ())))))
+          (def k (%vec-slot (first args) self))
+          (if (null? k) (%vec-call-checked self (first args)) (%obj-ref self k))))
       (pair
         (lit write)
         (fn (_ self)
@@ -212,32 +254,16 @@
     (method ref (self (param i INTEGER "Zero-based index; negative counts from the end") (param v VECTOR "Vector"))
       (doc "Return the element at index i of a vector; negative i counts from the end. Errors when i is out of range."
         (returns ANY "Element at index i"))
-      ; %obj-ref is a raw slot read (arbitrary memory past the object), so the
-      ; length in slot 0 is the x-lang bounds check. Negative normalization
-      ; matches the vector's call slot, so (Vector ref -1 v) == (v -1). The
-      ; nil guard makes a piped index-search miss fail loudly.
-      (def i2 (%vec->int i "Vector ref: index not convertible to INT"))
-      (%vec-check v "Vector ref: not a vector")
-      (def len (%obj-ref v 0))
-      (def j (if (%vec-int< i2 0) (%vec-int+ len i2) i2))
-      (if (%vec-int< j 0) (Err raise (lit index) "Vector ref: index out of range" ())
-        (if (%vec-int< j len) (%obj-ref v (%vec-int+ j 1))
-          (Err raise (lit index) "Vector ref: index out of range" ()))))
+      (def k (%vec-slot i v))
+      (if (null? k) (%vec-ref-checked i v) (%obj-ref v k)))
     (method set! (self (param i INTEGER "Zero-based index; negative counts from the end")
                        (param x ANY "Value to store")
                        (param v VECTOR "Vector"))
       (doc "Store x at index i of a vector (in place); negative i counts from the end. Errors when i is out of range; returns the vector for chaining."
         (returns VECTOR "v")
         (example "(Vector ref 0 (Vector set! 0 99 (Vector of 1 2)))" "99"))
-      ; Same guard discipline as ref: slot-0 length is the x-lang bounds
-      ; check over the raw %obj-set!, and negatives normalize identically.
-      (def i2 (%vec->int i "Vector set!: index not convertible to INT"))
-      (%vec-check v "Vector set!: not a vector")
-      (def len (%obj-ref v 0))
-      (def j (if (%vec-int< i2 0) (%vec-int+ len i2) i2))
-      (if (%vec-int< j 0) (Err raise (lit index) "Vector set!: index out of range" ())
-        (if (%vec-int< j len) (do (%obj-set! v (%vec-int+ j 1) x) v)
-          (Err raise (lit index) "Vector set!: index out of range" ()))))
+      (def k (%vec-slot i v))
+      (if (null? k) (%vec-set-checked i x v) (%vec-put! v k x)))
     (method length (self (param v VECTOR "Vector"))
       (doc "Return the number of elements in a vector." (returns INTEGER "Number of elements"))
       (%vec-check v "Vector length: not a vector")
