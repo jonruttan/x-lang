@@ -54,13 +54,16 @@ engine="${X_BIN:-$root/x-bin}"
 # when they are edited, so this answers "is current" and the suite runs
 # against the library the image holds rather than the one on disk.
 #
-# A KEY-PATH that names a file is hashed as that file.
+# A KEY-PATH that names a file is hashed as that file.  One that is a
+# symbolic link to a directory is walked as the directory: find -H follows
+# the link it is given, where plain find (BSD's) lists the link alone, and
+# every edit under it would leave the key, and the image, as they were.
 _caller_key() {
 	for p in "$@"; do
 		if [ -f "$p" ]; then
 			cat "$p"
 		else
-			{ for e in ${IMG_KEY_EXT:-x}; do find "$p" -name "*.$e"; done; } \
+			{ for e in ${IMG_KEY_EXT:-x}; do find -H "$p" -name "*.$e"; done; } \
 				| LC_ALL=C sort | xargs cat
 		fi
 	done

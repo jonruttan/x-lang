@@ -191,7 +191,7 @@
       (let ((v (Sys getenv name)))
         (if (null? v) dflt
           (guard (_ dflt)
-            (let ((n (Str8 ->int v))) (if (and (not (null? n)) (> n 0)) n dflt))))))
+            (let ((n ((prim-ref (lit convert) (lit to)) v (Type named INTEGER) 10))) (if (and (not (null? n)) (> n 0)) n dflt))))))
 
     ; --- output --------------------------------------------------------------
 

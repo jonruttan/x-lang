@@ -47,14 +47,38 @@
     ((fn (self i) (unless (= i n) (do (%ls! out i (%lr v i)) (self (%add i 1))))) 0)
     out))
 
-; --- the modulus: a vector of (N LIMBS N' R2 ONE LEN) ---------------------
+; --- the modulus: a vector of (N LIMBS N' R2 ONE LEN BYTES) ---------------
 
 (def mont-n (fn (_ m) (%oref m 1)))
-(def %m-limbs (fn (_ m) (%oref m 2)))
+; The limbs are made from the bytes when first asked for: a compiled
+; engine reads the bytes itself and never asks.
+(def %m-limbs
+  (fn (_ m)
+    (when (null? (%oref m 2))
+      (do (def r (%oref m 7))
+          (%oset! m 2 (%from-be (first r) (first (rest r)) (first (rest (rest r))) (mont-n m)))))
+    (%oref m 2)))
 (def %m-inv (fn (_ m) (%oref m 3)))
-(def %m-r2 (fn (_ m) (%oref m 4)))
-(def mont-one (fn (_ m) (%oref m 5)))
+; R^2 mod m and R mod m are made when first asked for: by pure x here --
+; 52n doublings of a limb vector, 200 ms for P-256's prime -- or by a
+; compiled engine's add through mont-set-r2!, which mont-jit does before
+; anything asks, in milliseconds.
+(def %m-r2
+  (fn (_ m)
+    (when (null? (%oref m 4)) (%oset! m 4 (%r2 (%m-limbs m) (mont-n m))))
+    (%oref m 4)))
+(def mont-one
+  (fn (_ m)
+    (when (null? (%oref m 5))
+      (do (def one (%limbs (mont-n m)))
+          (%ls! one 0 1)
+          (%oset! m 5 (mont-mul m one (%m-r2 m)))))
+    (%oref m 5)))
+(def mont-r2-set? (fn (_ m) (not (null? (%oref m 4)))))
+(def mont-set-r2! (fn (_ m v) (%oset! m 4 v) m))
 (def mont-bytes (fn (_ m) (%oref m 6)))
+(def mont-region (fn (_ m) (%oref m 7)))
+(def mont-limbs (fn (_ m) (%m-limbs m)))
 
 ; A big-endian region's bytes as n limbs: byte j from the end lands at bit
 ; 8j, in limb (8j)/26 and, when it straddles, the next.
@@ -243,21 +267,24 @@
 ; The modulus's R^2 mod m, out of the form, for an engine entering it.
 (def mont-r2 (fn (_ m) (%m-r2 m)))
 
-; The modulus from its big-endian bytes (odd, its top byte nonzero).
+; The low limb of a big-endian region: its last four bytes' low 26 bits.
+(def %low-limb
+  (fn (_ s start len)
+    (def b (fn (_ k) (if (< k len) (%byte s (%sub (%add start len) (%add k 1))) 0)))
+    (& (| (| (b 0) (<< (b 1) 8)) (| (<< (b 2) 16) (<< (b 3) 24))) %M)))
+
+; The modulus from its big-endian bytes (odd, its top byte nonzero).  The
+; region is kept, not copied: the caller's buffer must outlive the modulus
+; unchanged.
 (def mont-modulus
   (fn (_ s start len)
     ; the fewest limbs holding 8 len bits with one to spare
     (def n ((fn (self n) (if (> (%mul 26 n) (%mul 8 len)) n (self (%add n 1)))) 1))
-    (def limbs (%from-be s start len n))
-    (def m (Vector make 6 0))
+    (def m (Vector make 7 ()))
     (%oset! m 1 n)
-    (%oset! m 2 limbs)
-    (%oset! m 3 (%neg-inverse (%lr limbs 0)))
-    (%oset! m 4 (%r2 limbs n))
+    (%oset! m 3 (%neg-inverse (%low-limb s start len)))
     (%oset! m 6 len)
-    (def one (%limbs n))
-    (%ls! one 0 1)
-    (%oset! m 5 (mont-mul m one (%m-r2 m)))
+    (%oset! m 7 (list s start len))
     m))
 
 ; A big-endian region as a number below m, out of the form, reduced
@@ -278,6 +305,6 @@
     (def n (mont-n m))
     (not (%ge? (%from-be s start len n) (%m-limbs m) n))))
 
-(doc (provide x/codec/mont mont-modulus mont-n mont-one mont-bytes mont-number mont-bytes-of mont-below?
-  mont-mul mont-add mont-sub mont-to mont-from mont-pow mont-inv mont-minus-two mont-r2 mont-zero? mont-eq?)
+(doc (provide x/codec/mont mont-modulus mont-n mont-one mont-bytes mont-region mont-limbs mont-number mont-bytes-of mont-below?
+  mont-mul mont-add mont-sub mont-to mont-from mont-pow mont-inv mont-minus-two mont-r2 mont-r2-set? mont-set-r2! mont-zero? mont-eq?)
   "Montgomery arithmetic modulo an odd number on 26-bit limbs: a modulus from its big-endian bytes, mont-mul, add, sub, pow and inv in the form, and the doors in and out.")

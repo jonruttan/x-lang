@@ -5,6 +5,334 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-10-16
+
+**The engine is x-engine-c v0.2.22** ([#1053]). A typed list marks without a
+C frame a pair (x-engine-c#90): the collector follows a list's rest instead of
+recursing into it, so a collect with some 35,000 pairs live no longer overflows
+the C stack. The library needs no change.
+
+[#1053]: https://github.com/jonruttan/x-lang/pull/1053
+
+**`Tls13 accept` is the server's side of a TLS 1.3 session.** ([#1054]) `(Tls13 accept in out (list (pair 'pem text)))` runs the handshake over descriptors already open -- an accepted socket, or standard input and output under `tcpsvd` -- with the key and certificates from PEM text: X25519, ChaCha20-Poly1305, and CertificateVerify signed with an RSA key (RSA-PSS, about 1.3 s for 2048 bits) or an Ed25519 key. A client that offers no X25519 share or no ChaCha20-Poly1305 is refused with a handshake_failure alert: no HelloRetryRequest is sent. `send`, `recv-run`, `pending?` and `close` work as on a client's session.
+
+[#1054]: https://github.com/jonruttan/x-lang/pull/1054
+
+**`Rsa` signs, and `X509` reads a private key.** ([#1052]) `(Rsa sign-pss n d hash digest)` makes an RSASSA-PSS signature (RFC 8017) with a fresh salt as long as the hash, as a TLS 1.3 server signs its CertificateVerify: about 1.3 s for a 2048-bit key, variable time. `(X509 private-key text)` reads the first private key in PEM text: an RSA key as PKCS#8 or PKCS#1, answering `(rsa N E D)`, or an Ed25519 key as PKCS#8, answering `(ed25519 SEED)`.
+
+[#1052]: https://github.com/jonruttan/x-lang/pull/1052
+
+## [0.32.0] - 2026-10-16
+
+**`Syslog` sends a line to the system log as syslog(3) does, over new unix datagram sockets on `Socket`.** ([#1050]) `(Socket unix-dgram-bind path)` and `(Socket unix-dgram-connect path)` are the unix pair `udp-bind` and `udp-connect` are for IPv4. `(Syslog send ident facility severity text)` builds the RFC 3164 line the C libraries send -- `<PRI>Mmm dd hh:mm:ss IDENT[PID]: TEXT` -- and sends it to `/dev/log` (`/var/run/syslog` on Darwin), answering `#f` where no daemon listens; `(Syslog line ...)` builds it alone.
+
+[#1050]: https://github.com/jonruttan/x-lang/pull/1050
+
+**A static field read walks no list.** ([#1049]) A class's table entry for a static field holds the field's value cell, so a read no longer walks the class's data and its statics for the field: `(Lexer %rec-on)` is 724 -> 285 objects over the send, `(Lexer %i+)` 422 -> 119, and x-ash's held Lexer remake 330K -> 319K objects. A write to an own field sets the same cell; a write through a subclass still shadows into its own box.
+
+[#1049]: https://github.com/jonruttan/x-lang/pull/1049
+
+**The TLS codecs' bit operations use the int doors.** ([#1048]) HMAC, RSA's padding checks, DER, the TLS key schedule, X509 and base64 no longer send their bit work through the numeric tower: a verified TLS connect allocates 2.4% less, and the pure-x base64 decoder much less.
+
+[#1048]: https://github.com/jonruttan/x-lang/pull/1048
+
+**`x/boot/tower-compiled` can be imported from any directory.** ([#1047]) Its includes are relative to its own file, so a bundle that imports it for the compiled numeric analysers boots from source wherever an installed `x` runs, not only from the x root; `tools/release/amalgamate.sh` and the boot-order check resolve `./` and `../` includes against the file that holds them.
+
+[#1047]: https://github.com/jonruttan/x-lang/pull/1047
+
+**`(Tls13 pending? session)` says what the session has read ahead.** ([#1046]) Bytes a smaller `recv-run` left, or a whole record already in its buffer: what `poll()` on the descriptor cannot see, so a loop that polls receives while it holds.
+
+[#1046]: https://github.com/jonruttan/x-lang/pull/1046
+
+**`(Tls13 over in out)` runs a TLS 1.3 session on descriptors already open.** ([#1045]) The handshake and records read one descriptor and write the other -- a socket's, or a pair of pipes to a program, as busybox's `ssl_client -e` has it -- and close leaves them to the caller; `connect` is a TCP connect handed to the same code.
+
+[#1045]: https://github.com/jonruttan/x-lang/pull/1045
+
+**A TLS record costs half what it did.** ([#1044]) ChaCha20-Poly1305 makes one ChaCha20 pass a record for the one-time key and the data together, and ChaCha20 and Poly1305 do their bit work through the int doors rather than the numeric tower: a sealed record allocates 20 K objects where it allocated 41 K, and the pure-x fallbacks are faster for the same reason.
+
+[#1044]: https://github.com/jonruttan/x-lang/pull/1044
+
+**A replayed Lexer state is poured with no free variable matched by name.** ([#1043]) A pour takes the values of its entry's fvar slots in slot order, which the Lexer's plan now keeps; a caller with named fvars has them matched once, as before. x-ash's held Lexer remake is 33.4 -> 30.2 ms and 361K -> 330K objects. `asm-cache-held-fvar-names` lists names in slot order, and `asm-cache-entry-pour` takes values in that order rather than as (name . value) pairs; the Lexer's plan version is 5.
+
+[#1043]: https://github.com/jonruttan/x-lang/pull/1043
+
+**TLS works again from a state image.** ([#1042]) The record cipher, HMAC and RSA no longer hold zero-filled buffers made as their modules load, which an image brought back empty; wget in an x-coreutils bundle image failed every handshake on main.
+
+[#1042]: https://github.com/jonruttan/x-lang/pull/1042
+
+**A cached state pours with fewer objects.** ([#1041]) The asm cache counts its lists on the integer doors rather than with the boot layer's `%length`, a fold over the generic `+`: a pour counts its slots every time, and x-ash's held Lexer remake is 37 -> 33 ms and 412K -> 361K objects.
+
+[#1041]: https://github.com/jonruttan/x-lang/pull/1041
+
+**X25519 runs its whole ladder in one compiled call.** ([#1040]) The 255 ladder steps and the inverse are two compiled functions built from the field engine's own expressions, where each field operation was a call from x: an X25519 multiplication allocates 41 K objects where it allocated 157 K, two of them a TLS handshake.
+
+[#1040]: https://github.com/jonruttan/x-lang/pull/1040
+
+**`X509 verify-chain` accepts certificates already parsed.** ([#1039]) Each may be DER or what `X509 parse` answered, so a caller that read the leaf for its key does not parse it twice; the TLS client now does exactly that, one certificate parse less a connect.
+
+[#1039]: https://github.com/jonruttan/x-lang/pull/1039
+
+**A TLS connect allocates 40% less.** ([#1038]) HMAC, HKDF, the TLS key schedule, ChaCha20-Poly1305, RSA's padding checks, `Der oid` and X509's name handling build their bytes by memcpy and touch them on the prims: a verified connect to an RSA site is 2.75 M objects where it was 4.4 M, a certificate parses in 158 K, and an HMAC is 12 K.
+
+[#1038]: https://github.com/jonruttan/x-lang/pull/1038
+
+**A Lexer remade after an image load is a third cheaper.** ([#1037]) Its replay pours each state from the cache entry it found once for the plan, which the image carries, instead of finding the entry and noting it by its key text every pour: x-ash's held remake is 66 -> 42 ms and 672K -> 412K objects, and its image-booted process starts with 3.08M -> 2.81M objects allocated. The new doors `asm-cache-held-entry` and `asm-cache-entry-pour` find and pour an entry; a cache group whose thunk noted nothing and set no extra keeps its file as it was rather than writing it empty.
+
+[#1037]: https://github.com/jonruttan/x-lang/pull/1037
+
+## [0.31.0] - 2026-10-15
+
+**Deflate and Inflate take a stream a piece at a time, and the CRC-32 is compiled.** ([#1035]) `(Deflate stream)` and `(Deflate feed w s start n final)` write a raw DEFLATE stream from pieces; `(Inflate stream)`, `feed`, `done?` and `rest` read one back, a block at a time as the input completes it, so gzip and unzip need no libz and never hold a file whole. `(Crc32 jit!)` compiles the CRC-32's byte loop (past 4KB on its own), and Deflate builds its engine past 16KB rather than 32KB.
+
+[#1035]: https://github.com/jonruttan/x-lang/pull/1035
+
+**A method send costs half what it did.** ([#1034]) Class and instance dispatch skip the quote unwrap for a symbol selector, read a built hot record in place and sort the table entry with one `eq?`, one `pair?` and one nil test before calling the method: a static send is 14.7 -> 8.2 us and 180 -> 91 objects.
+
+[#1034]: https://github.com/jonruttan/x-lang/pull/1034
+
+**The Lexer's number rule reads hexadecimal floating constants.** ([#1033]) `0x1.8p3`, `0x.8p-1` and `0X1P+4` -- a hex fraction or a `p` exponent after `0x` and hex digits -- are one token labelled 2, as a decimal fraction is, any suffix after it taken as before; a hex integer stays labelled 3, and `%plan-version` is 4.  C's hexadecimal floating constants read whole for x-cc, and Python's `float.fromhex` text for a reader that wants it.
+
+[#1033]: https://github.com/jonruttan/x-lang/pull/1033
+
+**`(Tls13 ready!)` builds every engine a connect uses.** ([#1032]) One call, poured from the cache when they are there, answering #t when all seven are compiled: what connect does before dialling, now available to a build that warms a cache with no server in sight.
+
+[#1032]: https://github.com/jonruttan/x-lang/pull/1032
+
+## [0.30.0] - 2026-10-14
+
+**Processes that load floats start about 50 ms sooner.** ([#1027]) After a state
+image loaded, `x/num/float` assembled all thirty of its libm and arithmetic
+stubs whether or not the process did any float arithmetic.  Each is now
+made at its first call; a stub handed out by `libm-fn` or exported is still made at the
+load.  Xenon starts in 0.32 s of CPU instead of 0.38 s, and a coreutils
+applet in 0.30 s instead of 0.34 s.
+
+[#1027]: https://github.com/jonruttan/x-lang/pull/1027
+
+**Curve engines build in milliseconds and point formulas run in one call.** ([#1025]) x/codec/mont-jit is one looping engine for every modulus now, with a compiled runner that executes a whole program of modular operations from a table in the scratch: `mont-jit-program` writes the steps once, `mont-jit-run!` is one call. Five functions serve every curve and RSA key, poured once a process, where each curve built and poured twelve of its own: a P-256 engine builds in 5 ms where it took 300, and an ECDSA verification is 40% faster.
+
+[#1025]: https://github.com/jonruttan/x-lang/pull/1025
+
+**List and Str8 methods shed their internal sends.** ([#1024]) List's methods call their shared walkers, from-seq and fold, as module functions rather than sends back into the class, test a list's end with `eq?` and count on the integer doors, and Str8's trims walk bytes on the doors: on ten elements `List length` is 3,783 -> 539 objects (325 -> 40 us), `reverse` 2,650 -> 539, `sum` 2,432 -> 516, `take` 1,451 -> 825; `(Str8 trim s)` on 25 bytes 9,197 -> 684 objects (857 -> 58 us) and `(Str8 split " " s)` 3,981 -> 2,121.
+
+[#1024]: https://github.com/jonruttan/x-lang/pull/1024
+
+**A bundle's spec gate no longer reads the x-lang checkout its CI makes inside the bundle.** ([#1023]) `tools/lang-kit/dup-defs.sh` leaves out directories whose names start with a dot, so `.x-lang` and `.x-r5rs` beside a bundle's sources are not scanned as the bundle's own files.
+
+[#1023]: https://github.com/jonruttan/x-lang/pull/1023
+
+**`Host regions`: a process's memory one record a region, for pmap.** ([#1022])
+`(Host regions pid)` answers the process's mappings in address order, each
+`((start . ADDR) (size . B) (mode . "r-xp") (name . PATH) (pss . B)
+(private-dirty . B) (swap . B))`, name nil for an anonymous region. Linux
+reads /proc/PID/smaps as BusyBox's pmap does; Darwin walks proc_pidinfo's
+PROC_PIDREGIONPATHINFO and reports no pss. `Host maps` keeps its sums.
+
+[#1022]: https://github.com/jonruttan/x-lang/pull/1022
+
+**TLS connects in half the time.** ([#1019]) Hmac digests answer bytes straight from the hash's words, Der reads on the prims, X509 from-pem decodes PEM blocks by memmem and a streaming `Base64 decode-region` (new, the lossless door into a buffer), and the compiled engines no longer load the C compiler to replay cached code: a verified handshake is 1.6 s of CPU where it was 3.1, and every process that pours a cached engine starts a third of a second sooner.
+
+[#1019]: https://github.com/jonruttan/x-lang/pull/1019
+
+**A bundle's spec gate fails when two of its files define one global name differently.** ([#1021]) `tools/lang-kit/dup-defs.sh`, the scanner `check-dup-defs` holds the platform to, ships with the kit, and `tools/lang-kit/spec-gate.sh` runs it over the bundle's own sources before the suite. Each applet ran in a process of its own, so x-coreutils passed every spec with `%ts-verbose` meaning a tar accessor in one file and tcpsvd's counter in another; the gate names both files. Fetches of one catalogue entry, the same definition written twice and private names in scoped modules pass, as on the platform.
+
+[#1021]: https://github.com/jonruttan/x-lang/pull/1021
+
+**A socket send to a peer that has closed raises an `'io` failure instead of ending the process.** ([#1020]) `Socket send` and `send-run` pass MSG_NOSIGNAL, so the kernel answers EPIPE rather than SIGPIPE. A `Tls close` to a server that hung up first, as wget's https reads met, no longer kills the program.
+
+[#1020]: https://github.com/jonruttan/x-lang/pull/1020
+
+**Starting a bundle costs fewer processes.** ([#1018]) `x.sh` read each installed
+bundle's `lang.xon` name with `sed | head`, two processes a bundle on every
+launch; it reads them with the shell's own `read` now, and quotes a value
+with `sed` only when it holds a single quote.  With sixteen bundles
+installed a coreutils applet starts in 0.50 s of CPU instead of 0.56 s.
+
+[#1018]: https://github.com/jonruttan/x-lang/pull/1018
+
+**Vectors index, build and fold several times faster.** ([#1017]) Index and length arithmetic in `x/type/vector` runs on the integer doors -- an index is INT once converted, a length is slot 0's INT -- so `(Vector make 100 0)` is 3.15 -> 0.40 ms and 39,397 -> 4,419 objects, a 100-element `(Vector fold ...)` 1.76 -> 0.41 ms, `(Vector ref i v)` 100.6 -> 70.5 us and `(v i)` 69.7 -> 39.6 us; `make` and `build` convert their length once, as `ref` converts its index.
+
+[#1017]: https://github.com/jonruttan/x-lang/pull/1017
+
+**Every process started from a state image starts about 0.15 s sooner.** ([#1016])
+The image loader found each struct a stored object names by walking the
+type list and, for every type, searching the base's path table for the
+type-name row; it looks that row up once now.  Helium starts in 0.21 s
+of CPU instead of 0.36 s, and a coreutils applet in 0.41 s instead of
+0.56 s.
+
+[#1016]: https://github.com/jonruttan/x-lang/pull/1016
+
+**Method sends cost a third of what they did.** ([#1014]) Class dispatch and every method body bind with `def` in their own activation rather than the `let` operative, which entered a fresh closure each time: a static send's own cost falls from about 46 us and 561 objects to 15 us and 169, every method call sheds about 11 us and 118 objects, and `(Vector ref i v)` falls 100.6 -> 60.7 us.
+
+[#1014]: https://github.com/jonruttan/x-lang/pull/1014
+
+**Host holders reads maps devices from any dialect.** ([#1013]) `%maps-dev`, which
+prints a device as `/proc/PID/maps` does for `(Host holders ...)`'s Linux
+walk, divides on the int doors; from a bundle whose `/` is the tower's
+division it raised "&: operands must be integers".
+
+[#1013]: https://github.com/jonruttan/x-lang/pull/1013
+
+**`<`, `>`, `<=` and `>=` are three times faster.** ([#1012]) Their nil and arity guards test with `eq?` against nil and `if` rather than `null?` and the `or` operative, so `(< a b)` is 10.2 -> 3.3 us and 122 -> 24 objects a call, `>` 20.3 -> 6.8 us (264 -> 68), `<=` 28.7 -> 8.3 us (365 -> 85) and `>=` 26.5 -> 7.7 us (337 -> 78), with the same answers and messages; `(Vector ref i v)` falls 100.6 -> 82.3 us with it.
+
+[#1012]: https://github.com/jonruttan/x-lang/pull/1012
+
+## [0.29.0] - 2026-10-14
+
+**RSA verification is the compiled power and little else.** ([#1009]) x/codec/mont-jit's looping engine reads big-endian bytes into a slot and writes a slot out as bytes in compiled loops (`mont-jit-load-bytes!`, `mont-jit-store-bytes`), reads the modulus's limbs the same way, and sets up R^2 and its one in the scratch, so a 2048-bit verification is tens of milliseconds where it was a quarter second of limb conversion. x/codec/mont makes a modulus's limbs when first asked.
+
+[#1009]: https://github.com/jonruttan/x-lang/pull/1009
+
+**`(obj ref)` and `(obj set!)` are 1.64x and 1.16x faster.** ([#1008]) The slot accessors address data word i through its view -- the object's address plus i words, read by `first` and written at the first-word offset -- so no `(int ->ptr)` or `(ptr ->int)` cast and no `%data-word-off` frame sits between: a read is 2,742 -> 1,669 ns and 21 -> 12 objects, a write 2,951 -> 2,538 ns and 24 -> 16 objects, with no new primitive.
+
+[#1008]: https://github.com/jonruttan/x-lang/pull/1008
+
+**`make check-boot-order` no longer runs past 12 GB on a cold run.** ([#1007]) The
+lint read all of `lib/` and kept every file's reader garbage until it
+finished; it now sweeps the heap after each file it reads, and a run with
+no cached verdict peaks at 3.6 GB of footprint.
+
+**A bundle reached through a symbolic link gets a new state image when
+its source changes.** ([#1007]) `tools/dev/image-build.sh` walked a key path with
+`find`, which on BSD lists a link to a directory and nothing under it, so
+a linked bundle's edits never changed its image's key and the old image
+was loaded on every run.  It walks with `find -H` now.
+
+[#1007]: https://github.com/jonruttan/x-lang/pull/1007
+
+**`Sys wait` waits on through a caught signal, and raises when it cannot wait.** ([#1006]) A signal caught without SA_RESTART -- the engine's SIGINT, any `catch-signal` -- interrupted waitpid, and `Sys wait` answered a status read from a buffer waitpid never filled (160) and left the child a zombie; it now waits again on EINTR. Any other failure raises the io Err from errno (`'echild` for a pid that is no child of this process) instead of answering a made-up status.
+
+[#1006]: https://github.com/jonruttan/x-lang/pull/1006
+
+**`Host files` reads a process's mapped files in time linear in its regions.** ([#1002]) A process mapping thousands of files, Firefox among them, passed 5 GB and did not return; it now takes under a second.
+
+[#1002]: https://github.com/jonruttan/x-lang/pull/1002
+
+**Host holders: the processes that hold a path, or anything on its file
+system.** ([#1005]) `(Host holders PATH [mount?])` answers the pids, ascending, that
+hold a path as their working directory, root or executable, through a
+descriptor or a mapping. Darwin asks the kernel with proc_listpidspath
+(0.1-0.3 s where walking every process's files took about 70 s on a Mac with
+773 processes); Linux compares each process's files records' device and
+inode. Busybox's fuser reads it for each FILE operand.
+
+[#1005]: https://github.com/jonruttan/x-lang/pull/1005
+
+**`File set-times` stamps a path's access and modification times with given seconds.** ([#1004]) `(File set-times path atime mtime)` packs a pair of timevals, a word of seconds then a zero word each, and calls utimes; the zero fraction makes the same bytes a pair of timespecs where utimensat stands in for utimes, which the Linux stand-in table now says. `File utimes` keeps stamping the clock. Coreutils' touch -d and cp -p, and x-ssh's scp -p sink, have a door for a given time.
+
+[#1004]: https://github.com/jonruttan/x-lang/pull/1004
+
+**`Crypt md5`, `Crypt sha256`, `Crypt sha512`: crypt(3)'s `$1$`, `$5$`
+and `$6$` hashes.** ([#1000]) `(Crypt md5 KEY SALT)` and `(Crypt sha256|sha512 KEY
+SALT)` give the hashes busybox's `cryptpw -m md5|sha256|sha512` makes,
+`rounds=N$` included; every spec vector is busybox's.
+
+[#1000]: https://github.com/jonruttan/x-lang/pull/1000
+
+**RSA signatures verify, so TLS reaches servers with RSA chains.** ([#1003]) `(Rsa verify-pkcs1 n e hash digest sig)` and `(Rsa verify-pss ...)` (x/codec/rsa) check RSASSA-PKCS1-v1_5 and RSASSA-PSS signatures (RFC 8017) under 2048- and 4096-bit keys; `X509 verify-chain` follows sha256/384/512WithRSAEncryption signatures and `Tls13 connect` checks an rsa_pss_rsae CertificateVerify, so www.debian.org and every other Let's Encrypt RSA chain authenticates against Mozilla's roots. Beneath them x/codec/mont-jit gains a looping Montgomery engine generic over the modulus, one cache group for every RSA key, and `mont-jit-pow!` for any exponent.
+
+[#1003]: https://github.com/jonruttan/x-lang/pull/1003
+
+**`Md5 jit!`: MD5's compiled engine.** ([#998]) `(Md5 jit!)` builds and adopts a
+compiled MD5 digest (ARM64 and x86-64), verified against the pure-x one;
+an input of 8KB or more builds it on its own. About 60 times the pure-x
+speed on a short input.
+
+[#998]: https://github.com/jonruttan/x-lang/pull/998
+
+**`Host files` reports what a process has open.** ([#1001]) `(Host files pid)` answers a record each for its current and root directories, its executable, its file descriptors and its mapped files: use, fd, dev, ino, type, name and id, and for an internet socket its protocol, family and local port. Name uses to read only those: `(Host files pid 'fd)`. Linux reads the /proc/PID links and maps and /proc/net; Darwin proc_pidinfo and proc_pidfdinfo.
+
+[#1001]: https://github.com/jonruttan/x-lang/pull/1001
+
+**Compiled engines replay from the cache with nothing printed or
+proven.** ([#999]) `x/tool/jit-group` builds an engine's functions as one cache
+group and records a plan a later process pours them by, so the six
+engines a TLS connection needs no longer regenerate, print, re-prove or
+collect after their expressions in every process, and a Montgomery
+modulus no longer computes R^2 in pure x: a process's first https
+connection drops from 17 s to about 8 s on arm64.
+
+[#999]: https://github.com/jonruttan/x-lang/pull/999
+
+**`Md5`, and `bytes-n` on `Md5`, `Sha256` and `Sha512`.** ([#997]) `(Md5 hex s)`
+is the MD5 digest (RFC 1321) in pure x-lang; `(Md5 hex-n s n)` digests a
+byte region.  `(Sha256 bytes-n s n)`, `(Sha512 bytes-n s n)` and
+`(Md5 bytes-n s n)` give a digest as a buffer of its raw bytes.
+
+[#997]: https://github.com/jonruttan/x-lang/pull/997
+
+- **The lang kit's spec gate judges a suite whose output holds raw bytes.** ([#995])
+  tools/lang-kit/spec-gate.sh stripped colour codes and read the tally and
+  `FAIL:` lines with sed under the caller's locale; on macOS under UTF-8 a
+  failing case that printed a raw 0xff made sed exit with "illegal byte
+  sequence", and the gate exited 1 without printing the run or naming the
+  failure.  Its text processing now runs under `LC_ALL=C`; the runner itself
+  keeps the caller's locale.  `make check-lang-kit-spec-gate`, in `gates` and
+  `gates-fast`, holds it on a fixture suite that prints 0xff beside a failure.
+
+[#995]: https://github.com/jonruttan/x-lang/pull/995
+
+**`Crc32`: the CRC-32 of ISO 3309 in pure x.** ([#994]) `(Crc32 of s)` and `(Crc32 update crc s)`, the sum gzip, zip and git's pack indexes carry, checked against libz's; for a system that has no libz.
+
+[#994]: https://github.com/jonruttan/x-lang/pull/994
+
+**`Tls` is TLS 1.3 written in x, the server checked against Mozilla's
+roots.** ([#993]) `(Tls connect quad port (list (pair 'host NAME)))` now runs
+`Tls13`, which checks the server's CertificateVerify and its certificate
+chain for NAME against Mozilla's roots (`lib/x/net/mozilla-roots.pem`,
+regenerated by `tools/roots/update.sh`); `('insecure)` skips the check.
+No C library is opened, so https works where there is none. Servers
+must offer TLS 1.3 with ChaCha20-Poly1305 and sign with ECDSA; RSA is
+not written yet. `(Bytes find hay needle)` searches binary data.
+
+[#993]: https://github.com/jonruttan/x-lang/pull/993
+
+**A Linux process record costs half the objects it did.** ([#992]) `Host processes`,
+`process` and `threads` parse each field through the integer primitives,
+and the real uid and gid are found in /proc/PID/status in place: a record
+with a full status file fell from 643K objects to 324K.
+
+[#992]: https://github.com/jonruttan/x-lang/pull/992
+
+**`X509` and `Der`: certificate chains checked to a trusted root.** ([#991])
+`(X509 verify-chain certs host now roots)` checks a TLS server's chain --
+the host against the leaf's names, dates, CA constraints and ECDSA
+signatures up to a trusted root -- and raises naming the first thing that
+fails; `parse` and `from-pem` read certificates. `x/codec/der` reads DER
+over regions.
+
+[#991]: https://github.com/jonruttan/x-lang/pull/991
+
+**An image written after a compile is no longer refused.** ([#990]) The last
+compile's code buffer and relocation records, native code and its facts,
+are dropped before an image is written. A process that compiled before its
+image was written -- a Lexer made from an empty compile cache -- left two
+unnameable primitives, and the image was refused.
+
+[#990]: https://github.com/jonruttan/x-lang/pull/990
+
+**`Ecdsa`: P-256 and P-384 signature verification.** ([#989]) `(Ecdsa verify
+curve public hash r s)` and `verify-der` check SEC 1 ECDSA signatures,
+0.25 s for P-256 and 0.40 s for P-384 once the curve's engines are built.
+Beneath it, `x/codec/mont` is Montgomery arithmetic modulo any odd
+number in pure x, and `x/codec/mont-jit` compiles it per modulus,
+checked against the pure arithmetic before it is adopted.
+
+[#989]: https://github.com/jonruttan/x-lang/pull/989
+
+**A replayed Lexer make pours each state with only the free variables its
+code uses.** ([#988]) The plan keeps those, named as the text the pour matches, and
+the cache group key is printed once per rule list. x-ash's tokenizer lexer,
+73 states, remade after an image load: 1.11M objects and ~100 ms, to 0.74M
+and 65-69 ms.
+
+[#988]: https://github.com/jonruttan/x-lang/pull/988
+
+**`Deflate`'s engine compiles its matcher, counter and Adler-32 as loops.** ([#987]) With compiled tail self-calls, the matcher runs over the whole input in one call, and a block's counting and the zlib wrapper's Adler-32 are compiled loops too; the engine (built on `(Deflate jit!)` or for 32KB of input or more) is adopted only after compressing four check inputs to the pure-x encoder's bytes. 10 KB of near-random input compresses in 0.14 s where pure x takes 1.24 s; 100 KB of text in 0.13 s where it takes 0.98 s.
+
+[#987]: https://github.com/jonruttan/x-lang/pull/987
+
 ## [0.28.0] - 2026-10-10
 
 **A Lexer with a nested or word rule no longer keeps a boot image from being

@@ -41,13 +41,13 @@
 (def %reflect-flags
   (fn (_ o) (%ptr-ref-word (%obj->ptr o) %reflect-flags-off)))
 
-; Data-slot read: materialize the object whose pointer sits in data word i.
-; Addressing via data.x's %data-word-off -- the ONE formula shared with the
-; write half (%obj-set!), so ref and set! can never target different words.
+; Data-slot read: the object whose pointer sits in data word i, read as the
+; first data word of the word's view -- the object's address plus i words,
+; spelled as data.x's write half (%obj-set!) spells it.  first reads a
+; data word unchecked, as (ptr ->obj) materializes one.
 (def %reflect-obj-ref
   (fn (_ o i)
-    (%ptr->obj (%int->ptr
-      (%ptr-ref-word (%obj->ptr o) (%data-word-off i))))))
+    (first (%ptr->obj (%data-int+ (%obj->ptr o) (%data-int* i %word-size))))))
 
 (def %reflect-meta-ref
   (fn (_ o i)

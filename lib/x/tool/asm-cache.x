@@ -120,6 +120,12 @@
 (def %asm-cache-i< (prim-ref 'int '<))
 (def %asm-cache-i= (prim-ref 'int '=))
 
+; N plus how many items list L holds, counted on the integer doors: the boot
+; layer's %length folds with the generic +, which costs a list of a dozen
+; sites near a thousand objects, and a pour counts one every time.
+(def %asm-cache-count
+  (fn (self l n) (if (null? l) n (self (rest l) (%asm-cache-i+ n 1)))))
+
 (def %asm-libc-creat  (%asm-cache-dlsym %asm-cache-lib "creat"))
 (def %asm-libc-open   (%asm-cache-dlsym %asm-cache-lib "open"))
 (def %asm-libc-read   (%asm-cache-dlsym %asm-cache-lib "read"))
@@ -361,7 +367,7 @@
 ; FD from records in the file's layout: a single entry's .asm file.
 (def %asm-cache-put-rec
   (fn (_ fd text recs size)
-    (def hp (%asm-cache-head-buf size recs (%length recs)))
+    (def hp (%asm-cache-head-buf size recs (%asm-cache-count recs 0)))
     (def ok (%asm-cache-put fd (first hp) (rest hp)))
     (%asm-cache-pcall %asm-libc-free (first hp))
     (if ok (%asm-cache-put-blob fd recs text) #f)))
@@ -485,19 +491,30 @@
       (if (str=? nm (first (first table))) (first table)
         (self nm (rest table))))))
 
-; The address a record names, in THIS process.  () means unresolvable, which
-; makes the whole load a miss.
+; A pour takes the values of its entry's fvar slots in slot order.  FVARS
+; named as (NAME . VALUE) are matched to the slots here, once a load: the
+; values in slot order, or #f when a slot names no fvar given.  A caller that
+; keeps the values in slot order -- a Lexer replaying its plan -- passes them
+; as they are (asm-cache-entry-pour).
+(def %asm-cache-fvar-values
+  (fn (_ st fvars)
+    (def table (%asm-cache-fvar-table fvars))
+    ((fn (self ss acc)
+       (if (null? ss) (%asm-cache-rev acc ())
+         (if (%asm-cache-i= (first (first ss)) %asm-cache-label-fvar)
+           (do (def hit (%asm-cache-fvar (rest (first ss)) table))
+               (if (null? hit) #f (self (rest ss) (pair (rest hit) acc))))
+           (self (rest ss) acc))))
+     (first st) ())))
+
+; The address a trampoline or self-cell record names, in THIS process.  ()
+; means unresolvable, which makes the whole load a miss.
 (def %asm-cache-value
-  (fn (_ label nm table cell)
-    (match
-      ((%asm-cache-i= label %asm-cache-label-trampoline)
-        (do (def p (%asm-cache-dlsym %asm-cache-lib nm))
-            (if (null? p) () (%asm-cache-ptr->int p))))
-      ((%asm-cache-i= label %asm-cache-label-fvar)
-        (do (def hit (%asm-cache-fvar nm table))
-            (if (null? hit) () (%asm-cache-ptr->int (%asm-cache-obj->ptr (rest hit))))))
-      ((null? cell) ())
-      (#t (%asm-cache-ptr->int cell)))))
+  (fn (_ label nm cell)
+    (if (%asm-cache-i= label %asm-cache-label-trampoline)
+      (do (def p (%asm-cache-dlsym %asm-cache-lib nm))
+          (if (null? p) () (%asm-cache-ptr->int p)))
+      (if (null? cell) () (%asm-cache-ptr->int cell)))))
 
 ; A fresh self-call trampoline cell -- one per load, exactly as the compile
 ; path mints one per compile.
@@ -519,7 +536,11 @@
             (def r (%asm-cache-read-entry buf (rest sl) text))
             (%asm-cache-pcall %asm-libc-free buf)
             (if (null? r) (%asm-cache-miss)
-              (%asm-cache-pour (%asm-cache-fill-file base) (first r) (%asm-cache-sites (rest r)) fvars #t))))))))
+              (do
+                (def st (%asm-cache-sites (rest r)))
+                (def fvals (%asm-cache-fvar-values st fvars))
+                (if (eq? fvals #f) (%asm-cache-miss)
+                  (%asm-cache-pour (%asm-cache-fill-file base) (first r) st fvals #t))))))))))
 
 ; The header says where the records end and the blob begins, and every read of
 ; the entry is an OFFSET taken from it.  A file that disagrees with itself --
@@ -581,7 +602,7 @@
 
 (def %asm-cache-sites
   (fn (_ recs)
-    (def n (%length recs))
+    (def n (%asm-cache-count recs 0))
     (def sites (%asm-cache-words n))
     (def sp (%asm-cache-words-at sites))
     ; (label name k) newest first, and how many
@@ -787,24 +808,30 @@
 ; a compile sets them: a load by key asked for no compile, and the facts cost
 ; more per site than the relocation.
 (def %asm-cache-pour
-  (fn (_ fill size st fvars publish?)
-    (def a (asm-new (+ size 256)))
+  (fn (_ fill size st fvals publish?)
+    (def a (asm-new (%asm-cache-i+ size 256)))
     (if (not (fill (%obj-ref a 0) size)) (%asm-cache-miss-mapped a)
       (do
         (%obj-set! a 1 size)
         (def cell (%asm-cache-self-cell))
-        (def table (%asm-cache-fvar-table fvars))
-        ; one word a slot; a slot that will not resolve is a miss
-        (def vals (%asm-cache-make-str (%asm-cache-i* 8 (%asm-cache-i+ (%length (first st)) 1))))
+        ; one word a slot; a slot that will not resolve is a miss.  FVALS
+        ; gives the fvar slots their values in slot order.
+        (def vals (%asm-cache-make-str (%asm-cache-i* 8 (%asm-cache-count (first st) 1))))
         (def vp (%asm-cache-str->ptr vals))
         (def ok
-          ((fn (self ss at)
+          ((fn (self ss fs at)
              (if (null? ss) #t
-               (do (def val (%asm-cache-value (first (first ss)) (rest (first ss)) table cell))
+               (do
+                 (def label (first (first ss)))
+                 (def fvar? (%asm-cache-i= label %asm-cache-label-fvar))
+                 (def val
+                   (if fvar?
+                     (if (null? fs) () (%asm-cache-ptr->int (%asm-cache-obj->ptr (first fs))))
+                     (%asm-cache-value label (rest (first ss)) cell)))
                  (if (null? val) #f
                    (do (%asm-cache-ptr-set-word! vp at val)
-                       (self (rest ss) (%asm-cache-i+ at 8)))))))
-           (first st) 0))
+                       (self (rest ss) (if fvar? (rest fs) fs) (%asm-cache-i+ at 8)))))))
+           (first st) fvals 0))
         (if (not ok) (%asm-cache-miss-mapped a)
           (do
             (%asm-cache-patch! (%obj-ref a 0) st vals)
@@ -1064,7 +1091,7 @@
     (def st (first (rest (rest (rest e)))))
     (def slots (first st))
     (def n (first (rest (rest st))))
-    (def nslots (%length slots))
+    (def nslots (%asm-cache-count slots 0))
     (def hbytes (%asm-cache-i+ %asm-cache-head-bytes (%asm-cache-i* 4 nslots)))
     (def hb (%asm-cache-int->ptr (%asm-cache-pcall %asm-libc-malloc hbytes)))
     (%asm-cache-ptr-set! hb 0 %asm-cache-group-entry-magic 4)
@@ -1111,7 +1138,7 @@
               (do
                 (def hb (%asm-cache-int->ptr (%asm-cache-pcall %asm-libc-malloc 8)))
                 (%asm-cache-ptr-set! hb 0 %asm-cache-group-magic 4)
-                (%asm-cache-ptr-set! hb 4 (%length es) 4)
+                (%asm-cache-ptr-set! hb 4 (%asm-cache-count es 0) 4)
                 (def ok0 (%asm-cache-put fd hb 8))
                 (%asm-cache-pcall %asm-libc-free hb)
                 (def ok
@@ -1174,7 +1201,7 @@
 ; costs one string compare an entry; any other order falls back to membership.
 (def %asm-cache-same-texts?
   (fn (_ noted had)
-    (if (not (%asm-cache-i= (%length noted) (%length had))) #f
+    (if (not (%asm-cache-i= (%asm-cache-count noted 0) (%asm-cache-count had 0))) #f
       (if ((fn (self a b)
              (if (null? a) #t (if (str=? (first a) (first b)) (self (rest a) (rest b)) #f)))
            noted had)
@@ -1213,13 +1240,21 @@
         (def noted (first g))
         (def set-extra (first (first (rest (rest (rest g))))))
         (def extra (if (null? set-extra) (rest got) set-extra))
-        (unless (if (%asm-cache-same-texts? noted had)
-                  (if (null? set-extra) #t (if (str? (rest got)) (str=? set-extra (rest got)) #f))
-                  #f)
-          (%asm-cache-group-store! (%asm-cache-group-path key) (%asm-cache-rev noted ()) extra))
-        ; a thunk that compiled nothing says nothing about the group
-        (unless (null? noted)
-          (%asm-cache-group-remember! key noted extra))
+        ; A thunk that noted nothing and set no extra leaves the group as it
+        ; was: a replay pours by entry (asm-cache-entry-pour), which notes
+        ; nothing, and a thunk that compiled nothing says nothing about it.
+        ; A group read from its file is then remembered with the texts it held.
+        (def untouched (if (null? noted) (null? set-extra) #f))
+        (if untouched
+          (when (if (null? known) (not (null? had)) #f)
+            (%asm-cache-group-remember! key had extra))
+          (do
+            (unless (if (%asm-cache-same-texts? noted had)
+                      (if (null? set-extra) #t (if (str? (rest got)) (str=? set-extra (rest got)) #f))
+                      #f)
+              (%asm-cache-group-store! (%asm-cache-group-path key) (%asm-cache-rev noted ()) extra))
+            (unless (null? noted)
+              (%asm-cache-group-remember! key noted extra))))
         out))))
 
 ; (TEXTS . EXTRA) of the open group: the texts it already held, oldest first,
@@ -1254,17 +1289,38 @@
     (%asm-cache-held-load text fvars #f)))
 
 ; The names of the free variables the held entry for TEXT patches into its code,
-; as text, or #f when no entry is held for it: what a pour of that entry needs
-; of the fvars it is given.
+; as text and in slot order, or #f when no entry is held for it: what a pour of
+; that entry needs of the fvars it is given, and the order
+; asm-cache-entry-pour takes their values in.
 (def asm-cache-held-fvar-names
   (fn (_ text)
     (def e (%asm-cache-held-find text %asm-cache-held))
     (if (null? e) #f
       ((fn (self ss acc)
-         (if (null? ss) acc
+         (if (null? ss) (%asm-cache-rev acc ())
            (self (rest ss)
              (if (%asm-cache-i= (first (first ss)) %asm-cache-label-fvar) (pair (rest (first ss)) acc) acc))))
        (first (first (rest (rest (rest e))))) ()))))
+
+; The entry held for TEXT, or () when none is: what asm-cache-entry-pour
+; pours.  A caller that pours the same entries in every process finds them
+; once and keeps them -- an image carries an entry as it carries the held list.
+(def asm-cache-held-entry
+  (fn (_ text) (%asm-cache-held-find text %asm-cache-held)))
+
+; The callable for the held entry E, its fvar slots given FVALS in slot order
+; (asm-cache-held-fvar-names says which), or () on any miss: a pour with no
+; text or name matched and nothing noted in the open group.
+(def asm-cache-entry-pour
+  (fn (_ e fvals) (guard (_ ()) (%asm-cache-entry-pour e fvals #f))))
+
+(def %asm-cache-entry-pour
+  (fn (_ e fvals publish?)
+    (%asm-cache-pour
+      (fn (_ dst size)
+        (%asm-cache-copy! dst (%asm-cache-code-at (first (rest (rest e)))) size)
+        #t)
+      (first (rest e)) (first (rest (rest (rest e)))) fvals publish?)))
 
 ; The callable for TEXT from the entry held for it, or () on any miss; PUBLISH?
 ; as %asm-cache-pour takes it.
@@ -1274,11 +1330,9 @@
       (do
         (def e (%asm-cache-held-find text %asm-cache-held))
         (if (null? e) (%asm-cache-miss)
-          (%asm-cache-pour
-            (fn (_ dst size)
-              (%asm-cache-copy! dst (%asm-cache-code-at (first (rest (rest e)))) size)
-              #t)
-            (first (rest e)) (first (rest (rest (rest e)))) fvars publish?))))))
+          (do
+            (def fvals (%asm-cache-fvar-values (first (rest (rest (rest e)))) fvars))
+            (if (eq? fvals #f) (%asm-cache-miss) (%asm-cache-entry-pour e fvals publish?))))))))
 
 ; --- the public door --------------------------------------------------------
 ; THE CACHE IS THE DOOR AND THE COMPILER IS WHAT IT FALLS BACK TO, which is the
@@ -1382,6 +1436,8 @@
 (prim-reg! (lit compile) (lit asm-cache-group-extra!) asm-cache-group-extra!)
 (prim-reg! (lit compile) (lit asm-cache-held-pour) asm-cache-held-pour)
 (prim-reg! (lit compile) (lit asm-cache-held-fvar-names) asm-cache-held-fvar-names)
+(prim-reg! (lit compile) (lit asm-cache-held-entry) asm-cache-held-entry)
+(prim-reg! (lit compile) (lit asm-cache-entry-pour) asm-cache-entry-pour)
 (prim-reg! (lit compile) (lit asm-cache-last-text) asm-cache-last-text)
 
 (doc asm-cache-group
@@ -1419,10 +1475,25 @@
 
 (doc asm-cache-held-fvar-names
   (returns ANY "A list of strings, or #f")
-  "The names, as text, of the free variables the held entry whose key text is
-   TEXT patches into its code: what a pour of it needs of the FVARS it is
-   given.  #f when no entry is held for the text.")
+  "The names, as text and in slot order, of the free variables the held entry
+   whose key text is TEXT patches into its code: what a pour of it needs of
+   the FVARS it is given, and the order asm-cache-entry-pour takes their
+   values in.  #f when no entry is held for the text.")
 
-(doc (provide x/tool/asm-cache asm-compile-cached asm-cache-group asm-cache-group-held asm-cache-group-extra! asm-cache-held-pour asm-cache-held-fvar-names asm-cache-last-text)
+(doc asm-cache-held-entry
+  (returns ANY "An entry, or nil")
+  "The entry held for the key text TEXT, which asm-cache-entry-pour pours:
+   found once, it is poured again with no text matched.  Nil when no entry is
+   held for the text.  An image carries it with the held entries.")
+
+(doc asm-cache-entry-pour
+  (returns ANY "X-lang callable prim, or nil")
+  "The entry E from asm-cache-held-entry, poured as asm-cache-held-pour
+   pours, its fvar slots given FVALS: their values, unnamed, in the slot
+   order asm-cache-held-fvar-names lists.  Nil on a miss, a list too short
+   included.  Nothing is noted in the open group, and a group whose thunk
+   noted nothing and set no extra keeps its file as it is.")
+
+(doc (provide x/tool/asm-cache asm-compile-cached asm-cache-group asm-cache-group-held asm-cache-group-extra! asm-cache-held-pour asm-cache-held-fvar-names asm-cache-held-entry asm-cache-entry-pour asm-cache-last-text)
   "The cache behind the compile-asm door: persistent emitted native code, over
    the JIT compiler it falls back to.")

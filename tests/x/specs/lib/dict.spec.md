@@ -479,3 +479,34 @@ sharing the batch's interpreter.
 ```
 ---
     3
+
+## what a walk costs
+
+`->alist`, which keys, vals, for-each and map read, walks the buckets on
+the integer doors and copies each entry with a module function, not a
+`List fold` send per bucket; lookups test with `eq?` and `if`, not `null?`,
+`when` and `unless`.
+
+### keys and for-each over twenty entries cost a few thousand objects
+
+Each makes fewer than 8,000 objects over twenty entries.
+
+```x
+(do
+  (import x/type/dict)
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (eq? i 0) () (do (f) (loop (- i 1))))) 10)
+      (- (Heap count) c0)))
+  (def %d (Dict make))
+  ((fn (fill i) (if (< i 20) (do (%d set! i (* i i)) (fill (+ i 1))))) 0)
+  (list (< (%cost (fn (_) (%d keys))) (* 8000 10))
+        (< (%cost (fn (_) (%d for-each (fn (_ e) e)))) (* 8000 10))
+        (List sort < (%d keys))
+        (List fold + 0 (%d vals))
+        (list (%d get 7) (%d has? 21) (%d length))))
+```
+---
+    (#t #t (0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19) 2470 (49 #f 20))

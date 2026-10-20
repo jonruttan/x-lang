@@ -161,6 +161,58 @@ clear it), so a later case in the same batch reads the real machine.
 ---
     (('mapped-ro 'mapped-rw 'stack 'shared-clean 'shared-dirty 'private-clean 'private-dirty) #t #t #t ())
 
+### files: this process's directory, executable, a file it opens by path and inode, and the libraries it maps
+
+```x
+(do (import x/sys/host)
+  (def path "tests/x/fixtures/host/proc/stat")
+  (def fd (File open path 'rdonly))
+  (def fs (Host files (Sys getpid)))
+  (def fds (Host files (Sys getpid) 'fd))
+  (File close fd)
+  (def r (List find (fn (_ f) (= fd (Assoc get 'fd f))) fs))
+  (def used (fn (_ u) (List filter (fn (_ f) (eq? u (Assoc get 'use f))) fs)))
+  (def cwd (first (used 'cwd)))
+  (list (Assoc keys r) (Assoc get 'type r) (Str8 ends? "/tests/x/fixtures/host/proc/stat" (Assoc get 'name r))
+        (equal? (Host %dev-ino path) (pair (Assoc get 'dev r) (Assoc get 'ino r)))
+        (equal? (Host %dev-ino ".") (pair (Assoc get 'dev cwd) (Assoc get 'ino cwd)))
+        (List length (used 'exe)) (< 0 (List length (used 'map)))
+        (List all? (fn (_ f) (eq? 'fd (Assoc get 'use f))) fds)
+        (List map (fn (_ f) (Assoc get 'fd f)) (List take 3 fds))
+        (Host files 999999999)))
+```
+---
+    (('use 'fd 'dev 'ino 'type 'name 'id) 'file #t #t #t 1 #t #t (0 1 2) ())
+
+### holders: this process holds its working directory, and its file system; a path that will not stat has none
+
+```x
+(do (import x/sys/host)
+  (def me (Sys getpid))
+  (def hs (Host holders "."))
+  (list (List includes? me hs) (List includes? me (Host holders "." #t))
+        (equal? hs (List sort < hs)) (Host holders "/no/such/path")))
+```
+---
+    (#t #t #t ())
+
+### regions: this process's regions run up in address order, each with a mode, and some map a file
+
+```x
+(do (import x/sys/host)
+  (def rs (Host regions (Sys getpid)))
+  (def get (fn (_ k r) (Assoc get k r)))
+  ; unsigned: a top-half address (x86-64 Linux's [vsyscall]) reads negative
+  (def below? (fn (_ a b) (if (< a 0) (if (< b 0) (< a b) #f) (if (< b 0) #t (< a b)))))
+  (def up? (fn (self rs) (if (null? (rest rs)) #t (if (below? (get 'start (first rs)) (get 'start (first (rest rs)))) (self (rest rs)) #f))))
+  (list (Assoc keys (first rs)) (up? rs)
+        (List all? (fn (_ r) (if (= 4 (Str8 length (get 'mode r))) (< 0 (get 'size r)) #f)) rs)
+        (List any? (fn (_ r) (not (null? (get 'name r)))) rs)
+        (Host regions 999999999)))
+```
+---
+    (('start 'size 'mode 'name 'pss 'private-dirty 'swap) #t #t #t ())
+
 ### utmp: every entry has a user and a type, and users is its user-process entries
 
 ```x
@@ -365,7 +417,80 @@ clear it), so a later case in the same batch reads the real machine.
   r)
 ```
 ---
-    ((335872 139264 135168 307200 4096 8192 16384) ())
+    ((339968 139264 135168 307200 4096 8192 16384) ())
+
+### files reads the /proc/PID links, the fds in order, a socket joined to /proc/net by inode, and each mapped file once
+
+The links' devices and inodes are this machine's: /dev/null's is read, the
+fixture's socket has none to stat.  A maps line spells its own MAJ:MIN,
+packed as this platform's stat(2) packs a device.
+
+```x
+(do (import x/sys/host)
+  (Host source 'linux)
+  (Host proc-root "tests/x/fixtures/host/proc")
+  (def fs (Host files 42))
+  (def r (list (List map (fn (_ f) (List map (fn (_ k) (Assoc get k f)) '(use fd type name id proto family port))) fs)
+               (equal? (List map (fn (_ f) (list (Assoc get 'dev f) (Assoc get 'ino f))) (List filter (fn (_ f) (eq? 'map (Assoc get 'use f))) fs))
+                       (if os-darwin? (lit ((134217729 1234) (4345298946 98765) (5 4242))) (lit ((2049 1234) (66306 98765) (5 4242)))))
+               (number? (Assoc get 'ino (List find (fn (_ f) (equal? 0 (Assoc get 'fd f))) fs)))
+               (Assoc get 'ino (List find (fn (_ f) (equal? 1 (Assoc get 'fd f))) fs))
+               (List map (fn (_ f) (Assoc get 'name f)) (Host files 42 'cwd 'map))
+               (Host files 1)))
+  (Host source (if os-darwin? (lit darwin) (lit linux))) (Host proc-root "/proc")
+  r)
+```
+---
+    ((('cwd () 'file "/tmp" () () () ()) ('root () 'file "/" () () () ()) ('exe () 'file "/bin/sh" () () () ()) ('fd 0 'file "/dev/null" () () () ()) ('fd 1 'socket "socket:[12345]" 12345 'tcp 4 8080) ('fd 2 'pipe "pipe:[678]" 678 () () ()) ('fd 3 'file "/tmp/gone (deleted)" () () () ()) ('fd 4 'anon_inode "anon_inode:inotify" () () () ()) ('fd 10 'anon_inode "anon_inode:[eventfd]" () () () ()) ('map () 'file "/bin/busybox" () () () ()) ('map () 'file "/lib/ld-musl-x86_64.so.1" () () () ()) ('map () 'file "/dev/zero (deleted)" () () () ())) #t #t () ("/tmp" "/bin/busybox" "/lib/ld-musl-x86_64.so.1" "/dev/zero (deleted)") ())
+
+### holders reads each process's links and descriptors: a descriptor, an executable, a whole file system, a path no process holds; a maps device prints as the kernel prints it
+
+```x
+(do (import x/sys/host)
+  (Host source 'linux)
+  (Host proc-root "tests/x/fixtures/host/proc")
+  (def r (list (Host holders "/dev/null") (Host holders "/bin/sh") (Host holders "/dev/null" #t)
+               (Host holders "tests/x/specs/lib/host.spec.md")
+               (List map (fn (_ s) (Host %maps-dev (Host %linux-dev s))) (list "08:01" "103:2a" "00:2f"))))
+  (Host source (if os-darwin? (lit darwin) (lit linux))) (Host proc-root "/proc")
+  r)
+```
+---
+    ((42) (42) (42) () ("08:01" "103:2a" "00:2f"))
+
+### holders finds a file a process only maps, by the maps line's device and inode, and its file system with mount?
+
+```x
+(do (import x/sys/host)
+  (def f "tests/x/specs/lib/host.spec.md")
+  (def id (Host %dev-ino f))
+  (def root "/tmp/x-host-holders")
+  (File mkdir root) (File mkdir (Str8 append root "/9")) (File mkdir (Str8 append root "/9/fd"))
+  (File write-all (Str8 append root "/9/maps")
+    (Str8 append "7f0000000000-7f0000001000 r--p 00000000 " (Host %maps-dev (first id)) " " (Str8 str (rest id))
+                 "                    /x/host.spec.md\n7f0000001000-7f0000002000 rw-p 00000000 00:00 0 \n"))
+  (Host source 'linux)
+  (Host proc-root root)
+  (def r (list (Host holders f) (Host holders f #t) (Host holders "/dev/null")))
+  (Host source (if os-darwin? (lit darwin) (lit linux))) (Host proc-root "/proc")
+  (File unlink (Str8 append root "/9/maps")) (File rmdir (Str8 append root "/9/fd")) (File rmdir (Str8 append root "/9")) (File rmdir root)
+  r)
+```
+---
+    ((9) (9) ())
+
+### regions reads /proc/PID/smaps a region at a time: an anonymous region has no name, a top-half address is negative
+
+```x
+(do (import x/sys/host)
+  (Host source 'linux)
+  (Host proc-root "tests/x/fixtures/host/proc")
+  (def r (list (List map (fn (_ g) (Assoc vals g)) (Host regions 42)) (Host regions 1)))
+  (Host source (if os-darwin? (lit darwin) (lit linux))) (Host proc-root "/proc")
+  r)
+```
+---
+    (((4194304 335872 "r-xp" "/usr/bin/sh" 2048 0 0) (6623232 4096 "rw-p" "/usr/bin/sh" 0 4096 0) (139637976727552 4096 "---p" () 0 0 0) (139637976731648 4096 "rw-s" "/dev/fb0" 0 0 0) (140724603453440 135168 "rw-p" "[stack]" 6144 12288 8192) (-10485760 4096 "--xp" "[vsyscall]" 0 0 0)) ())
 
 ### counters reads /proc/stat, /proc/vmstat and file-nr: KiB paged to bytes, open files in use
 

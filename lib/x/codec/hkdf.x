@@ -10,6 +10,7 @@
 (module x/codec/hkdf)
 
 (import x/codec/hmac)
+(import x/codec/bytes)
 
 (def %add (prim-ref 'int '+))
 (def %sub (prim-ref 'int '-))
@@ -34,36 +35,25 @@
     (when (> len (* 255 hl))
       (Err raise (lit value) "Hkdf expand: more than 255 blocks asked for" len))
     (def key (if (str? prk) (list prk 0 hl) prk))
-    (def out (%make-str len))
-    (def p (%str->ptr out))
     (def ctr (%make-str 1))
     (def cp (%str->ptr ctr))
-    ((fn (self i prev at)
-       (unless (>= at len)
+    ; the blocks joined by memcpy, then cut to len: a block of exactly len
+    ; is the answer as it stands
+    ((fn (self i prev acc)
+       (if (>= (first (rest (rest acc))) len)
+         (if (= (first (rest (rest acc))) len) (first acc) (first (Bytes copy (list (first acc) 0 len))))
          (do (%pset1 cp 0 i 1)
-             (def t (Hmac mac hash key (%join prev info ctr)))
-             (def n (if (> hl (%sub len at)) (%sub len at) hl))
-             ((fn (self j) (unless (= j n) (do (%pset1 p (%add at j) (%byte t j) 1) (self (%add j 1))))) 0)
-             (self (%add i 1) (list t 0 hl) (%add at hl)))))
-     1 () 0)
-    out))
+             (def t (list (Hmac mac hash key (%join prev info ctr)) 0 hl))
+             (self (%add i 1) t (if (null? prev) t (Bytes join acc t))))))
+     1 () (list ctr 0 0))))
 
-; T(i-1) | info | i as one region, for the HMAC's message.
+; T(i-1) | info | i as one region, for the HMAC's message: Bytes join
+; copies by memcpy, where a loop in x is a few objects a byte.
 (def %join
   (fn (_ prev info ctr)
-    (def regions (if (null? prev) (list (%region info) (list ctr 0 1)) (list prev (%region info) (list ctr 0 1))))
-    (def total ((fn (self rs n) (if (null? rs) n (self (rest rs) (%add n (first (rest (rest (first rs)))))))) regions 0))
-    (def out (%make-str total))
-    (def p (%str->ptr out))
-    ((fn (self rs at)
-       (unless (null? rs)
-         (do (def r (first rs))
-             (def l (first (rest (rest r))))
-             ((fn (self i)
-                (unless (= i l)
-                  (do (%pset1 p (%add at i) (%byte (first r) (%add (first (rest r)) i)) 1) (self (%add i 1))))) 0)
-             (self (rest rs) (%add at l))))) regions 0)
-    (list out 0 total)))
+    (if (null? prev)
+      (Bytes join (%region info) (list ctr 0 1))
+      (Bytes join prev (%region info) (list ctr 0 1)))))
 
 (def-class Hkdf ()
   (static

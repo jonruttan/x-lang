@@ -46,6 +46,16 @@ CONTRACT="${KNOWN_FAILURES:-$BUNDLE/tests/contract/known-failures.txt}"
 	exit 2
 }
 
+# Before the suite, the sources: two files defining one global name
+# differently pass every spec that runs each applet in a process of its own,
+# and break the image that loads both.  dup-defs.sh says which.  It reads
+# text, so it costs under a second.  The shim that sources this sets KIT; run
+# directly, this file sits beside the scanner.
+BUNDLE="$BUNDLE" sh "${KIT:-$(dirname "$0")}/dup-defs.sh" || {
+	echo "spec-gate: FAIL -- a global name has two meanings; see above" >&2
+	exit 1
+}
+
 work=$(mktemp -d)
 
 # A signal handler must not fall through: cleanup removes the work directory,
@@ -66,6 +76,14 @@ trap 'cleanup; echo "spec-gate: killed by SIGTERM -- the suite did not finish" >
 # `set -e` would otherwise kill us before we could read the output.
 status=0
 sh "$BUNDLE/tests/spec-runner.sh" > "$work/out" 2>&1 || status=$?
+
+# The suite's output is bytes, not text: a failing case may print a raw 0xff.
+# Under a UTF-8 locale macOS sed stops at it with "RE error: illegal byte
+# sequence", `set -e` ends the gate, and the log names no failing spec.  From
+# here on every tool reads bytes; the C locale also gives sort and comm the
+# one collation.  The runner above keeps the caller's locale.
+LC_ALL=C
+export LC_ALL
 sed 's/\x1b\[[0-9;]*m//g' "$work/out" > "$work/clean"
 cat "$work/clean"
 

@@ -424,7 +424,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-lang-kit-harness check-lang-kit-lint check-pin check-release-manifest check-bootstrap check-package check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
+gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-lang-kit-harness check-lang-kit-lint check-lang-kit-spec-gate check-lang-kit-dup-defs check-pin check-release-manifest check-bootstrap check-package check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
 .PHONY: gates
 
 .PHONY: check-spec-weights
@@ -455,7 +455,7 @@ check-spec-globals: ## No spec rebinds a name the engine or library owns
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-lang-kit-harness check-lang-kit-lint check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
+gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-lang-kit-harness check-lang-kit-lint check-lang-kit-spec-gate check-lang-kit-dup-defs check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast check-asan-boot test-c test-x ## Pre-push gate: fast gates, the ASan boot, both spec suites (CI runs full `make test`)
@@ -632,6 +632,14 @@ check-lang-kit-harness: boot ## The lang kit's harness generator boots the diale
 check-lang-kit-lint: boot ## The lang kit's lint takes a scoped module's imports from its siblings as defined
 	sh tools/check/lang-kit-lint.sh
 .PHONY: check-lang-kit-lint
+
+check-lang-kit-spec-gate: ## The lang kit's spec gate names a failure whose output holds a raw 0xff byte
+	sh tools/check/lang-kit-spec-gate.sh
+.PHONY: check-lang-kit-spec-gate
+
+check-lang-kit-dup-defs: ## The lang kit's dup-defs fails a bundle whose files give one global name two meanings
+	sh tools/check/lang-kit-dup-defs.sh
+.PHONY: check-lang-kit-dup-defs
 
 # THE TOP LEVEL IS SACRED (#108): the runtime library may bind only the names
 # tools/contract/bare-globals.x sanctions; the manifest can only shrink.
@@ -889,10 +897,23 @@ ASAN_RUN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0:quarantine_size_
 #     ordering landed (exit 143, no failing test -- the runner dies).
 #     One heavy at a time under ASan; light jobs still fill the
 #     remaining slots.
-test-asan: x-bin-asan ## Run both suites under AddressSanitizer (memory-safety gate)
-	ASAN_OPTIONS=$(ASAN_RUN_OPTIONS) TIMEOUT_UNIT_SECS=180 SPEC_HEAVY_JOBS=1 X_BIN=./x-bin-asan sh tests/x/spec-runner.sh
+#   - ASAN_CRYPTO_SPECS: the crypto and the compiled codec engines are about
+#     half the suite's time under the sanitizer (bignum arithmetic and engine
+#     builds in x), so CI runs them as a second job on a runner of their own.
+#     test-asan leaves them out; test-asan-crypto runs only them.
+ASAN_CRYPTO_SPECS = $(patsubst %,*/lib/%.spec.md,\
+  aes bcrypt chacha20 chacha20-jit chacha20-poly1305 crypt der ecdsa ed25519 ed25519-jit \
+  hkdf hmac mont mont-jit poly1305 poly1305-jit sha1 sha1-jit sha256 sha256-jit \
+  sha3 sha3-jit sha384 sha512 sha512-jit tls-keys tls13 x25519 x25519-jit x509 \
+  deflate-jit inflate-jit)
+test-asan: x-bin-asan ## Run both suites under AddressSanitizer, less the crypto (memory-safety gate)
+	ASAN_OPTIONS=$(ASAN_RUN_OPTIONS) TIMEOUT_UNIT_SECS=180 SPEC_HEAVY_JOBS=1 X_BIN=./x-bin-asan SPECS_SKIP='$(ASAN_CRYPTO_SPECS)' sh tests/x/spec-runner.sh
 	$(ENGINE_MAKE) test-asan
 .PHONY: test-asan
+
+test-asan-crypto: x-bin-asan ## Run the crypto and compiled codec specs under AddressSanitizer
+	ASAN_OPTIONS=$(ASAN_RUN_OPTIONS) TIMEOUT_UNIT_SECS=180 SPEC_HEAVY_JOBS=1 X_BIN=./x-bin-asan SPECS='$(ASAN_CRYPTO_SPECS)' sh tests/x/spec-runner.sh
+.PHONY: test-asan-crypto
 
 # Install the local pre-push gate (first line of defence before the Actions
 # CI gates). Points git at the tracked .githooks/ dir so `make test` runs

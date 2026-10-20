@@ -11,12 +11,13 @@
 ; /proc/stat for CPU time, the boot time and the event counts; /proc/vmstat
 ; for paging; /proc/loadavg for the run queue; /proc/diskstats,
 ; /proc/net/dev, /proc/interrupts and /proc/softirqs for the devices;
-; /proc/PID/stat for a process, /proc/PID/task for its threads and
-; /proc/PID/smaps for its mappings.  Darwin reads sysctl (kern.boottime,
-; vm.loadavg, hw.memsize, vm.swapusage, kern.proc.all, kern.procargs2,
-; NET_RT_IFLIST2), the Mach host and processor statistics, IOKit's block
-; storage statistics and proc_pidinfo, all through the dlopen FFI.  Both
-; read utmpx through libc's getutxent, as BusyBox does.
+; /proc/PID/stat for a process, /proc/PID/task for its threads,
+; /proc/PID/smaps for its mappings and /proc/PID/fd for its open files.
+; Darwin reads sysctl (kern.boottime, vm.loadavg, hw.memsize, vm.swapusage,
+; kern.proc.all, kern.procargs2, NET_RT_IFLIST2), the Mach host and
+; processor statistics, IOKit's block storage statistics, proc_pidinfo and
+; proc_pidfdinfo, all through the dlopen FFI.  Both read utmpx through
+; libc's getutxent, as BusyBox does.
 ;
 ; A record is an alist keyed by symbols.  A field the kernel does not
 ; report, or will not report to this user, is nil: Darwin refuses another
@@ -42,7 +43,7 @@
 (def-class Host ()
   (doc "The machine as the kernel reports it: boot time, load, memory, CPU time, system-wide counters, disk, network and interrupt totals, processes and logged-in users, the same records on Linux and Darwin."
     (note "A field the kernel does not report is nil. Darwin reports another user's process memory and CPU time only to root.")
-    (see boot-time) (see load) (see tasks) (see memory) (see cpu) (see cpus) (see counters) (see disks) (see interfaces) (see interrupts) (see processes) (see process) (see args) (see exe) (see threads) (see maps) (see utmp) (see users))
+    (see boot-time) (see load) (see tasks) (see memory) (see cpu) (see cpus) (see counters) (see disks) (see interfaces) (see interrupts) (see processes) (see process) (see args) (see exe) (see threads) (see maps) (see regions) (see files) (see holders) (see utmp) (see users))
   (static
     (source    ()      "'linux or 'darwin: which reader answers; nil means this kernel's")
     (proc-root "/proc" "The /proc tree the Linux reader opens")
@@ -139,10 +140,12 @@
         ()))
 
     (method %hex (self (param s STRING "Hexadecimal digits"))
-      (doc "The integer a run of hex digits spells, read up to the first byte that is not one; 0 for none."
+      (doc "The integer a run of hex digits spells, read up to the first byte that is not one; 0 for none. Sixteen digits are its 64 bits, through the int doors whether or not the tower is loaded, so a value past the signed range, such as an address in the top half of the address space, is negative."
         (returns INTEGER "The value"))
       (def at (prim-ref (lit str) (lit byte-ref)))
       (def n ((prim-ref (lit str) (lit byte-len)) s))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i* (prim-ref (lit int) (lit *)))
       (def digit
         (fn (_ b)
           (match
@@ -154,7 +157,7 @@
         (fn (self i acc)
           (if (>= i n) acc
             (let ((d (digit (at s i))))
-              (if (null? d) acc (self (+ i 1) (+ (* acc 16) d)))))))
+              (if (null? d) acc (self (+ i 1) (i+ (i* acc 16) d)))))))
       (go 0 0))
 
     (method %fold-lines (self (param path STRING "A file") (param f CALLABLE "(f line acc) answers the next acc; line has no newline")
@@ -940,6 +943,464 @@
             (region self ro rw stack sc sd pc pd)
             (if seen (Host %maps-record (list ro rw stack sc sd pc pd)) ()))))
       (go 0 0 0 0 0 0 0 0 #f))
+
+    (method files (self (param pid INTEGER "Process ID") . (param uses LIST "The uses to read, of 'cwd 'root 'exe 'fd 'map; every one when none is named"))
+      (doc "What the process has open, one record each: its current directory, its root, its executable, each file descriptor in descriptor order, and each file it maps. use is 'cwd, 'root, 'exe, 'fd or 'map; fd is the descriptor's number, nil for the others; dev and ino are the device and inode of what it holds; type is 'file for a path and otherwise the kernel's own word ('socket 'pipe 'anon_inode on Linux; 'socket 'pipe 'kqueue 'pshm 'psem 'fsevents 'netpolicy 'channel 'nexus on Darwin); name is the kernel's name for it; id is the kernel's number for a socket or pipe. An internet socket adds proto ('tcp 'udp 'raw or 'icmp), family (4 or 6) and port, its local port. Linux reads the /proc/PID cwd, root, exe and fd links and the maps lines, so a descriptor's name is its link's text whatever the type (socket:[INODE], anon_inode:[eventfd]), and joins a socket to /proc/net by its inode; Darwin asks proc_pidinfo and proc_pidfdinfo, names only a file, by its path, gives a socket its kernel handle as both id and ino, and reports a root only for a chrooted process. Only the process's owner or root may read them. nil when the process is gone or the kernel will not say."
+        (returns ANY "LIST of file records, or nil")
+        (sample "(Assoc get 'fd (first (Host files (Sys getpid) 'fd)))" "0")
+        (sample "(Assoc get 'name (first (Host files (Sys getpid) 'cwd)))" "\"/Users/me/src\""))
+      (def want (if (null? uses) (lit (cwd root exe fd map)) uses))
+      (if (eq? (Host %backend) (lit darwin)) (Host %darwin-files pid want) (Host %linux-files pid want)))
+
+    (method %file-record (self (param use SYMBOL "cwd root exe fd or map") (param fd ANY "Descriptor, or nil")
+                               (param dev ANY "INTEGER, or nil") (param ino ANY "INTEGER, or nil")
+                               (param type ANY "SYMBOL, or nil") (param name ANY "STRING, or nil")
+                               (param id ANY "INTEGER, or nil") (param inet LIST "proto family port fields, or nil"))
+      (doc "The files record for one thing a process has open."
+        (returns ALIST "The record"))
+      (pair (pair (lit use) use)
+        (pair (pair (lit fd) fd)
+          (pair (pair (lit dev) dev)
+            (pair (pair (lit ino) ino)
+              (pair (pair (lit type) type)
+                (pair (pair (lit name) name) (pair (pair (lit id) id) inet))))))))
+
+    (method %file-set (self)
+      (doc "A set of files by device and inode, for a walk that meets the same file many times: answers (seen? dev ino), #t when the pair was already given and #f the first time, when it is added. The pairs sit in one zeroed region of 16-byte slots, opened by address: a list scanned per region made a walk over Firefox's 7,000 regions and 2,000 files quadratic. A table holding 16,384 files answers #f for any more."
+        (returns CALLABLE "(seen? dev ino)"))
+      (def slots 16384)
+      (def b (Host %buf (* 16 slots)))
+      (Host %call "memset" (Host %ptr b) 0 (* 16 slots))
+      (def ->ptr (prim-ref (lit str) (lit ->ptr)))
+      (def ref (prim-ref (lit ptr) (lit ref)))
+      (def set (prim-ref (lit ptr) (lit set!)))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i- (prim-ref (lit int) (lit -)))
+      (def i* (prim-ref (lit int) (lit *)))
+      (def i= (prim-ref (lit int) (lit =)))
+      (def i& (prim-ref (lit int) (lit &)))
+      (def i>> (prim-ref (lit int) (lit >>)))
+      (def mask (i- slots 1))
+      ; a slot is (ino dev); ino 0 marks it empty, and a walk gives no file inode 0
+      (fn (_ dev ino)
+        (def p (->ptr b))
+        (def probe
+          (fn (self i left)
+            (def at (i* 16 i))
+            (def k (ref p at 8))
+            (match
+              ((i= left 0) #f)
+              ((i= k 0) (do (set p at ino 8) (set p (i+ at 8) dev 8) #f))
+              ((if (i= k ino) (i= dev (ref p (i+ at 8) 8)) #f) #t)
+              (#t (self (i& (i+ i 1) mask) (i- left 1))))))
+        (probe (i& (i+ ino (i>> ino 14)) mask) slots)))
+
+    (method %dev-ino (self (param path STRING "A path, followed through links"))
+      (doc "The device and inode stat(2) reports for path, or nil when it cannot be stat'd. The inode is at 8 in every platform's struct; the device is the word before it, 4 bytes on Darwin and 8 on Linux."
+        (returns ANY "PAIR (dev . ino), or nil"))
+      (def b (Host %buf 160))
+      (if (< ((syscall-door (if os-darwin? (lit stat64) (lit stat))) path b) 0) ()
+        (pair (Host %int-at b 0 (if os-darwin? 4 8)) (Host %int-at b 8 8))))
+
+    (method %linux-dev (self (param s STRING "MAJ:MIN in hexadecimal, as /proc/PID/maps writes it"))
+      (doc "The device number this platform's makedev packs from a major and minor, so a maps line compares equal to stat(2)'s dev for the same file: glibc's on Linux, major << 24 | minor on Darwin, where a spec runs the Linux reader over a fixture."
+        (returns INTEGER "The device"))
+      (def colon (Str8 index-of ":" s))
+      (def maj (Host %hex s))
+      (def min (Host %hex (Str8 sub (+ colon 1) (Str8 length s) s)))
+      (if os-darwin? (+ (* maj 16777216) min)
+        (+ (* (& maj 4095) 256) (* (- maj (& maj 4095)) 4294967296)
+           (& min 255) (* (- min (& min 255)) 4096))))
+
+    (method %linux-sockets (self)
+      (doc "The internet sockets /proc/net lists, by inode: an alist from each inode to its proto, family and local port, from tcp, udp, raw and icmp and their 6 twins. A table the kernel does not have is skipped."
+        (returns ALIST "inode -> (proto family port) fields"))
+      ; sl local_address rem_address st queues tr tm->when retrnsmt uid timeout inode
+      (def table
+        (fn (_ name proto family acc)
+          (def r (Host %fold-lines (Str8 append (Host proc-root) "/net/" name)
+                   (fn (_ line acc)
+                     (def f (Host %fields line))
+                     (if (if (null? f) #t (str=? (first f) "sl")) acc
+                       (let ((local (List ref 1 f)) (ino (Host %int (List ref 9 f))))
+                         (if (null? ino) acc
+                           (pair (pair ino (list (pair (lit proto) proto) (pair (lit family) family)
+                                                 (pair (lit port) (Host %hex (Str8 sub (+ (Str8 index-of ":" local) 1) 4 local)))))
+                                 acc)))))
+                   acc))
+          (if (null? r) acc r)))
+      ((fn (self ts acc)
+         (if (null? ts) acc
+           (let ((t (first ts))) (self (rest ts) (table (first t) (first (rest t)) (first (rest (rest t))) acc)))))
+       (lit (("tcp" tcp 4) ("tcp6" tcp 6) ("udp" udp 4) ("udp6" udp 6) ("raw" raw 4) ("raw6" raw 6) ("icmp" icmp 4) ("icmp6" icmp 6)))
+       ()))
+
+    (method %linux-files (self (param pid INTEGER "Process ID") (param uses LIST "The uses to read"))
+      (doc "files, from the /proc/PID cwd, root, exe and fd links and the maps lines: a link to a path is a file; any other spells its type before a colon and, for a socket or pipe, its inode between brackets. dev and ino are stat(2)'s through the link."
+        (returns ANY "LIST of file records, or nil"))
+      (def dir (Str8 append (Host proc-root) "/" (Str8 str pid)))
+      (def on? (fn (_ u) (List includes? u uses)))
+      ; a link's record; socks is the /proc/net table, read once a process
+      ; and only when one of its descriptors is a socket
+      (def linked
+        (fn (_ use fd path link socks)
+          (def colon (if (null? link) () (Str8 index-of ":" link)))
+          (def di (if (null? link) () (Host %dev-ino path)))
+          (def at (fn (_ f) (if (null? di) () (f di))))
+          (match
+            ((null? link) ())
+            ((Str8 starts? "/" link) (Host %file-record use fd (at first) (at rest) (lit file) link () ()))
+            ((null? colon) (Host %file-record use fd (at first) (at rest) () link () ()))
+            (#t (let ((type (Str8 ->sym (Str8 sub 0 colon link)))
+                      (id (if (Str8 starts? "[" (Str8 sub (+ colon 1) 1 link))
+                            (Host %int (Str8 sub (+ colon 2) (Str8 length link) link)) ())))
+                  (Host %file-record use fd (at first) (at rest) type link id
+                    (if (if (eq? type (lit socket)) (not (null? id)) #f) (Assoc get id socks) ())))))))
+      (def read-link (fn (_ path) (guard (e ()) (File readlink path))))
+      (def one
+        (fn (_ use name)
+          (def path (Str8 append dir "/" name))
+          (if (on? use) (let ((r (linked use () path (read-link path) ()))) (if (null? r) () (list r))) ())))
+      (def fds
+        (if (on? (lit fd))
+          (let ((fd-dir (Str8 append dir "/fd")))
+            ; (fd path link) for each descriptor the kernel lists
+            (def links
+              (List reject null?
+                (List map (fn (_ n)
+                            (let ((fd (Host %int n)) (path (Str8 append fd-dir "/" n)))
+                              (if (null? fd) () (list fd path (read-link path)))))
+                  (guard (e ()) (File list-dir fd-dir)))))
+            (def socks
+              (if (List any? (fn (_ l) (let ((t (first (rest (rest l))))) (if (null? t) #f (Str8 starts? "socket:" t)))) links)
+                (Host %linux-sockets) ()))
+            (List sort-by (fn (_ r) (Assoc get (lit fd) r))
+              (List reject null?
+                (List map (fn (_ l) (linked (lit fd) (first l) (first (rest l)) (first (rest (rest l))) socks)) links))))
+          ()))
+      ; addr perms offset MAJ:MIN inode path: a file mapped more than once is one record
+      (def maps
+        (if (on? (lit map))
+          (let ((seen? (Host %file-set)))
+            (def r (Host %fold-lines (Str8 append dir "/maps")
+                     (fn (_ line acc)
+                       (def f (Host %fields line))
+                       (def ino (if (< (List length f) 6) () (Host %int (List ref 4 f))))
+                       (def slash (Str8 index-of "/" line))
+                       (if (if (null? ino) #t (if (= ino 0) #t (null? slash))) acc
+                         (let ((dev (Host %linux-dev (List ref 3 f))))
+                           (if (seen? dev ino) acc
+                             (pair (Host %file-record (lit map) () dev ino (lit file) (Str8 sub slash (Str8 length line) line) () ()) acc)))))
+                     ()))
+            (List reverse r))
+          ()))
+      (List append (one (lit cwd) "cwd") (one (lit root) "root") (one (lit exe) "exe") fds maps))
+
+    (method %darwin-files (self (param pid INTEGER "Process ID") (param uses LIST "The uses to read"))
+      (doc "files: proc_pidinfo's PROC_PIDVNODEPATHINFO for the current and root directories, proc_pidpath for the executable, PROC_PIDLISTFDS for the descriptors, a struct proc_fdinfo (fd, type) each, then proc_pidfdinfo for a file's struct vnode_fdinfowithpath or a socket's struct socket_fdinfo or a pipe's struct pipe_fdinfo, and PROC_PIDREGIONPATHINFO's regions from address 0 up for the mapped files."
+        (returns ANY "LIST of file records, or nil"))
+      ; straight off the context's primitives and the int doors, with no class
+      ; call a record and a path read only for a file not already seen: a
+      ; process can hold thousands of descriptors and map a few hundred files
+      ; across thousands of regions
+      (def c (Host %darwin-ctx))
+      (def ref (first c))
+      (def call (first (rest c)))
+      (def make (first (rest (rest c))))
+      (def ->ptr (first (rest (rest (rest c)))))
+      (def pidinfo (first (rest (rest (rest (rest c))))))
+      (def more (rest (rest (rest (rest (rest (rest (rest (rest (rest (rest c))))))))))) ; from cvt on
+      (def cvt (first more))
+      (def string-type (first (rest more)))
+      (def pointer-type (first (rest (rest more))))
+      (def integer-type (first (rest (rest (rest more)))))
+      (def byte-len (first (rest (rest (rest (rest more))))))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i- (prim-ref (lit int) (lit -)))
+      (def i* (prim-ref (lit int) (lit *)))
+      (def i< (prim-ref (lit int) (lit <)))
+      (def i= (prim-ref (lit int) (lit =)))
+      (def i& (prim-ref (lit int) (lit &)))
+      (def i>> (prim-ref (lit int) (lit >>)))
+      (def on? (fn (self u l) (if (null? l) #f (if (eq? u (first l)) #t (self u (rest l))))))
+      (def rec
+        (fn (_ use fd dev ino type name id inet)
+          (pair (pair (lit use) use) (pair (pair (lit fd) fd) (pair (pair (lit dev) dev) (pair (pair (lit ino) ino)
+            (pair (pair (lit type) type) (pair (pair (lit name) name) (pair (pair (lit id) id) inet)))))))))
+      (def info (make 2352))
+      (def ip (->ptr info))
+      (def base (cvt ip integer-type))
+      ; the C string in info at off, nil when empty
+      (def path-at
+        (fn (_ off)
+          (def s (cvt (cvt (i+ base off) pointer-type) string-type))
+          (if (i= 0 (byte-len s)) () s)))
+      ; struct proc_vnodepathinfo: the current directory's vnode_info_path, then
+      ; the root's, 1176 bytes each, its stat's dev at 0 and ino at 8, the path at 152
+      (def dir
+        (fn (_ use off)
+          (def p (if (on? use uses) (path-at (i+ off 152)) ()))
+          (if (null? p) () (list (rec use () (ref ip off 4) (ref ip (i+ off 8) 8) (lit file) p () ())))))
+      (def dirs
+        (if (if (if (on? (lit cwd) uses) #t (on? (lit root) uses)) (i= 2352 (call pidinfo pid 9 0 ip 2352)) #f)
+          (let ((cwd (dir (lit cwd) 0))) (if (null? cwd) (dir (lit root) 1176) (pair (first cwd) (dir (lit root) 1176))))
+          ()))
+      (def exe
+        (let ((p (if (on? (lit exe) uses) (Host exe pid) ())))
+          (if (null? p) ()
+            (let ((di (Host %dev-ino p)))
+              (list (rec (lit exe) () (if (null? di) () (first di)) (if (null? di) () (rest di)) (lit file) p () ()))))))
+      ; PROX_FDTYPE_*
+      (def types (lit ((0 . atalk) (1 . file) (2 . socket) (3 . pshm) (4 . psem) (5 . kqueue)
+                       (6 . pipe) (7 . fsevents) (9 . netpolicy) (10 . channel) (11 . nexus))))
+      (def fdinfo (if (on? (lit fd) uses) (Host %sym "proc_pidfdinfo") ()))
+      ; struct vnode_fdinfowithpath is 1200 bytes: its stat's dev at 24 and
+      ; ino at 32, the path at 176
+      (def file
+        (fn (_ fd)
+          (if (i= 1200 (call fdinfo pid fd 2 ip 1200))
+            (rec (lit fd) fd (ref ip 24 4) (ref ip 32 8) (lit file) (path-at 176) () ())
+            (rec (lit fd) fd () () (lit file) () () ()))))
+      ; struct socket_fdinfo is 792 bytes: soi_so at 160, soi_type 176,
+      ; soi_protocol 180, soi_family 184, soi_kind 256; an internet socket's
+      ; in_sockinfo at 264, its local port at 268 in network order.  A
+      ; SOCK_RAW socket is raw whatever its protocol, as Linux lists every
+      ; one in /proc/net/raw, and only a datagram ICMP socket is icmp
+      (def socket
+        (fn (_ fd)
+          (if (i= 792 (call fdinfo pid fd 3 ip 792))
+            (let ((so (ref ip 160 8)) (proto (ref ip 180 4)) (family (ref ip 184 4)) (kind (ref ip 256 4)))
+              (def port (ref ip 268 2))
+              (rec (lit fd) fd () so (lit socket) () so
+                (if (if (if (i= kind 1) #t (i= kind 2)) (if (i= family 2) #t (i= family 30)) #f)
+                  (list (pair (lit proto)
+                              (match ((i= 3 (ref ip 176 4)) (lit raw))
+                                     ((i= proto 6) (lit tcp)) ((i= proto 17) (lit udp))
+                                     ((if (i= proto 1) #t (i= proto 58)) (lit icmp)) (#t (lit raw))))
+                        (pair (lit family) (if (i= family 2) 4 6))
+                        (pair (lit port) (i+ (i* 256 (i& port 255)) (i>> port 8))))
+                  ())))
+            (rec (lit fd) fd () () (lit socket) () () ()))))
+      ; struct pipe_fdinfo is 184 bytes, pipe_handle at 160
+      (def pipe
+        (fn (_ fd)
+          (rec (lit fd) fd () () (lit pipe) () (if (i= 184 (call fdinfo pid fd 6 ip 184)) (ref ip 160 8) ()) ())))
+      (def one
+        (fn (_ fd t)
+          (match
+            ((i= t 1) (file fd))
+            ((i= t 2) (socket fd))
+            ((i= t 6) (pipe fd))
+            (#t (rec (lit fd) fd () () (Assoc get t types) () () ())))))
+      ; with no buffer the kernel answers the table's size; room for a few
+      ; more, since descriptors can open between the two calls
+      (def want (if (null? fdinfo) 0 (call pidinfo pid 1 0 0 0)))
+      (def fds
+        (if (if (i< 0 want) (i< want 100000000) #f)
+          (let ((b (make (i+ want 128))))
+            (def bp (->ptr b))
+            (def got (call pidinfo pid 1 0 bp (i+ want 128)))
+            (def go
+              (fn (self i acc)
+                (if (i< i 0) acc
+                  (self (i- i 1) (pair (one (ref bp (i* 8 i) 4) (ref bp (i+ (i* 8 i) 4) 4)) acc)))))
+            ; got is the bytes PROC_PIDLISTFDS wrote, a struct proc_fdinfo of 8 a descriptor
+            (if (if (i< 0 got) (i< got (i+ want 129)) #f) (go (i- ((prim-ref (lit int) (lit /)) got 8) 1) ()) ()))
+          ()))
+      ; struct proc_regionwithpathinfo is 1272 bytes: pri_address at 80 and
+      ; pri_size at 88, then the vnode_info_path at 96, its stat's dev at 96
+      ; and ino at 104, the path at 248.  A file is one record however many
+      ; regions map it, its path read the first time; a region with no file
+      ; has inode 0
+      (def maps
+        (if (on? (lit map) uses)
+          (let ((seen? (Host %file-set)))
+            (def go
+              (fn (self addr acc)
+                (if (if (i= 1272 (call pidinfo pid 8 addr ip 1272)) (i< addr (i+ (ref ip 80 8) (ref ip 88 8))) #f)
+                  (let ((next (i+ (ref ip 80 8) (ref ip 88 8))) (dev (ref ip 96 4)) (ino (ref ip 104 8)))
+                    (if (if (i= ino 0) #t (seen? dev ino)) (self next acc)
+                      (let ((p (path-at 248)))
+                        (self next (if (null? p) acc (pair (rec (lit map) () dev ino (lit file) p () ()) acc))))))
+                  acc)))
+            (List reverse (go 0 ())))
+          ()))
+      (List append dirs exe fds maps))
+
+    (method holders (self (param path STRING "A path, followed through links") . (param mount? LIST "#t to ask for its whole file system instead"))
+      (doc "The processes that hold a path: as their working directory, root or executable, through a descriptor or a mapping, in pid order; with mount? #t, those that hold anything on the path's file system. Darwin asks the kernel, with proc_listpidspath (PROC_LISTPIDSPATH_PATH_IS_VOLUME for the file system); Linux reads each process's files records and compares the device and inode. A process whose files this user may not read is not among them. nil when the path will not stat."
+        (returns ANY "LIST of pids, or nil")
+        (sample "(List includes? (Sys getpid) (Host holders \".\"))" "#t"))
+      (def whole (if (null? mount?) #f (first mount?)))
+      (if (null? (Host %dev-ino path)) ()
+        (if (eq? (Host %backend) (lit darwin)) (Host %darwin-holders path whole) (Host %linux-holders path whole))))
+
+    (method %darwin-holders (self (param path STRING "A path that stats") (param whole BOOL "Its file system rather than the path"))
+      (doc "holders, from proc_listpidspath over PROC_ALL_PIDS: the kernel walks each process's descriptors, directories, text and mappings. The buffer has room for the process table proc_listpids reports, and a few hundred more."
+        (returns LIST "Pids"))
+      (def ref (prim-ref (lit ptr) (lit ref)))
+      (def want (Host %call "proc_listpids" 1 0 0 0))
+      (def size (+ (if (< want 0) 0 want) 1024))
+      (def b (Host %buf size))
+      (def p (Host %ptr b))
+      (def got (Host %call "proc_listpidspath" 1 0 path (if whole 1 0) p size))
+      (def go (fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (ref p (* 4 i) 4) acc)))))
+      (if (<= got 0) () (List sort < (go (- (/ got 4) 1) ()))))
+
+    (method %linux-holders (self (param path STRING "A path that stats") (param whole BOOL "Its file system rather than the path"))
+      (doc "holders, from each /proc/PID: the cwd, root and exe links and the fd links stat'd, then the maps text searched for the path's ` MAJ:MIN INODE ` (or with whole, ` MAJ:MIN `) as the kernel prints it, one strstr over the file. A process is read only as far as its first match."
+        (returns LIST "Pids"))
+      (def id (Host %dev-ino path))
+      (def root (Host proc-root))
+      (def hit?
+        (fn (_ p)
+          (def di (Host %dev-ino p))
+          (if (null? di) #f (if (= (first di) (first id)) (if whole #t (= (rest di) (rest id))) #f))))
+      (def key (Str8 append " " (Host %maps-dev (first id)) (if whole " " (Str8 append " " (Str8 str (rest id)) " "))))
+      (def holds?
+        (fn (_ pid)
+          (def dir (Str8 append root "/" pid))
+          (def fds (guard (e ()) (File list-dir (Str8 append dir "/fd"))))
+          (match
+            ((List any? (fn (_ n) (hit? (Str8 append dir "/" n))) (lit ("cwd" "root" "exe"))) #t)
+            ((List any? (fn (_ n) (hit? (Str8 append dir "/fd/" n))) fds) #t)
+            (#t (let ((text (Host %read (Str8 append dir "/maps"))))
+                  (if (null? text) #f (not (= 0 (Host %call "strstr" text key)))))))))
+      (def pids (List filter (fn (_ n) (not (null? (Host %int n)))) (guard (e ()) (File list-dir root))))
+      (List sort < (List map (fn (_ n) (Host %int n)) (List filter holds? pids))))
+
+    (method %maps-dev (self (param dev INTEGER "A device number, as stat(2) reports it"))
+      (doc "The device as /proc/PID/maps prints it, MAJ:MIN in lower-case hexadecimal, two digits at least: %linux-dev read backwards, in this platform's encoding."
+        (returns STRING "MAJ:MIN"))
+      ; the int doors: a caller's dialect may read / as the tower's division
+      (def i/ (prim-ref (lit int) (lit /)))
+      (def i& (prim-ref (lit int) (lit &)))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i- (prim-ref (lit int) (lit -)))
+      (def i< (prim-ref (lit int) (lit <)))
+      (def maj (if os-darwin? (i/ dev 16777216) (i+ (i& (i/ dev 256) 4095) (i- (i/ dev 4294967296) (i& (i/ dev 4294967296) 4095)))))
+      (def min (if os-darwin? (i& dev 16777215) (i+ (i& dev 255) (i- (i/ dev 4096) (i& (i/ dev 4096) 255)))))
+      (def digits "0123456789abcdef")
+      (def hex
+        (fn (self n acc)
+          (def s (Str8 append (Str8 sub (i& n 15) 1 digits) acc))
+          (if (i< n 16) (if (i< (Str8 length s) 2) (Str8 append "0" s) s) (self (i/ n 16) s))))
+      (Str8 append (hex maj "") ":" (hex min "")))
+
+    (method regions (self (param pid INTEGER "Process ID"))
+      (doc "The process's memory mappings one record a region, in address order, as BusyBox's pmap reads /proc/PID/smaps: start, the region's address, its 64 bits as a signed integer (negative in the top half of the address space, as Linux's [vsyscall] is); size, its length in bytes; mode, four characters of permissions (r, w, x or a dash, then p for private or s for shared); name, the mapped file's path or the kernel's name for the region, nil for an anonymous one; and pss, private-dirty and swap in bytes. Darwin walks the regions with proc_pidinfo's PROC_PIDREGIONPATHINFO, takes the path of the file a region maps, counts a region's dirtied pages as private for a private or copy-on-write region, and reports no pss; it answers only for this user's processes unless running as root. nil when the process is gone or the kernel will not say."
+        (returns ANY "LIST of ((start . ADDR) (size . B) (mode . STRING) (name . STRING) (pss . B) (private-dirty . B) (swap . B)), or nil")
+        (sample "(< 0 (List length (Host regions (Sys getpid))))" "#t"))
+      (if (eq? (Host %backend) (lit darwin)) (Host %darwin-regions pid) (Host %linux-regions pid)))
+
+    (method %region-record (self (param v LIST "start size mode name pss private-dirty swap"))
+      (doc "The region record for seven fields in its order."
+        (returns ALIST "The region record"))
+      (def go (fn (self ks vs) (if (null? ks) () (pair (pair (first ks) (first vs)) (self (rest ks) (rest vs))))))
+      (go (lit (start size mode name pss private-dirty swap)) v))
+
+    (method %linux-regions (self (param pid INTEGER "Process ID"))
+      (doc "regions, from /proc/PID/smaps, read a line at a time, BusyBox's pmap over the same lines."
+        (returns ANY "LIST of region records, or nil"))
+      ; the byte primitives and the int doors, as %linux-maps reads
+      (def len (prim-ref (lit str) (lit byte-len)))
+      (def sub (prim-ref (lit str) (lit byte-sub)))
+      (def at (prim-ref (lit str) (lit byte-ref)))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i- (prim-ref (lit int) (lit -)))
+      (def i* (prim-ref (lit int) (lit *)))
+      (def i< (prim-ref (lit int) (lit <)))
+      (def i= (prim-ref (lit int) (lit =)))
+      (def starts?
+        (fn (_ p l)
+          (def n (len p))
+          (def go (fn (self i) (if (i< i n) (if (i= (at p i) (at l i)) (self (i+ i 1)) #f) #t)))
+          (if (i< (len l) n) #f (go 0))))
+      (def skip
+        (fn (self l i space?)
+          (if (i< i (len l)) (if (eq? (i= (at l i) 32) space?) (self l (i+ i 1) space?) i) i)))
+      (def num
+        (fn (self l i acc)
+          (if (i< i (len l))
+            (let ((b (at l i)))
+              (if (if (i< b 48) #t (i< 57 b)) acc (self l (i+ i 1) (i+ (i* acc 10) (i- b 48)))))
+            acc)))
+      (def kb (fn (_ l key) (i* 1024 (num l (skip l (len key) #t) 0))))
+      ; the region being read heads ACC, as its seven fields; SET answers
+      ; ACC with field I of that region replaced
+      (def put
+        (fn (self i n v) (if (i= i 0) (pair n (rest v)) (pair (first v) (self (i- i 1) n (rest v))))))
+      (def set (fn (_ i n acc) (if (null? acc) acc (pair (put i n (first acc)) (rest acc)))))
+      (def dash
+        (fn (self l i) (if (i< i (len l)) (if (i= (at l i) 45) i (self l (i+ i 1))) ())))
+      ; a region's header: START-END PERMS OFFSET DEV INODE [PATH]
+      (def header
+        (fn (_ l d acc)
+          (def start (Host %hex l))
+          (def perms (skip l (skip l 0 #f) #t))
+          (def field (fn (self i k) (if (i= k 0) i (self (skip l (skip l i #f) #t) (i- k 1)))))
+          (def from (field perms 4))
+          (pair (list start (i- (Host %hex (sub l (i+ d 1) (i- (len l) (i+ d 1)))) start)
+                      (sub l perms 4) (if (i< from (len l)) (sub l from (i- (len l) from)) ())
+                      0 0 0)
+                acc)))
+      (def line
+        (fn (_ l acc)
+          (match
+            ((starts? "Pss:" l) (set 4 (kb l "Pss:") acc))
+            ((starts? "Private_Dirty:" l) (set 5 (kb l "Private_Dirty:") acc))
+            ((starts? "Swap:" l) (set 6 (kb l "Swap:") acc))
+            (#t (let ((d (dash l 0))) (if (null? d) acc (header l d acc)))))))
+      (def rs (Host %fold-lines (Str8 append (Host proc-root) "/" (Str8 str pid) "/smaps") line ()))
+      (def go (fn (self rs acc) (if (null? rs) acc (self (rest rs) (pair (Host %region-record (first rs)) acc)))))
+      (go rs ()))
+
+    (method %darwin-regions (self (param pid INTEGER "Process ID"))
+      (doc "regions, from proc_pidinfo's PROC_PIDREGIONPATHINFO, one struct proc_regionwithpathinfo a region from address 0 up."
+        (returns ANY "LIST of region records, or nil"))
+      ; the context's primitives and the int doors, as %darwin-maps reads
+      (def c (Host %darwin-ctx))
+      (def ref (first c))
+      (def call (first (rest c)))
+      (def pidinfo (first (rest (rest (rest (rest c))))))
+      (def i+ (prim-ref (lit int) (lit +)))
+      (def i* (prim-ref (lit int) (lit *)))
+      (def i< (prim-ref (lit int) (lit <)))
+      (def i= (prim-ref (lit int) (lit =)))
+      (def i& (prim-ref (lit int) (lit &)))
+      (def page (Host %page-size))
+      (def ri ((first (rest (rest c))) 1272))
+      (def p ((first (rest (rest (rest c)))) ri))
+      (def at (fn (_ off n) (ref p off n)))
+      (def least (fn (_ a b) (if (i< a b) a b)))
+      (def bit (fn (_ prot b ch) (if (i= 0 (i& prot b)) "-" ch)))
+      ; one region's record: struct proc_regioninfo, then vip_path at 248
+      (def region
+        (fn (_)
+          (def prot (at 0 4))
+          (def mode (at 60 4))
+          ; SM_COW 1, SM_PRIVATE 2, SM_EMPTY 3, SM_PRIVATE_ALIASED 6: the region's own pages
+          (def private? (if (i= mode 1) #t (if (i= mode 2) #t (if (i= mode 3) #t (i= mode 6)))))
+          ; SM_SHARED 4, SM_TRUESHARED 5, SM_SHARED_ALIASED 7
+          (def shared? (if (i= mode 4) #t (if (i= mode 5) #t (i= mode 7))))
+          (def path (Host %cstr-at ri 248 1024))
+          (Host %region-record
+            (list (at 80 8) (at 88 8)
+                  (Str8 append (bit prot 1 "r") (bit prot 2 "w") (bit prot 4 "x") (if shared? "s" "p"))
+                  (if (str=? path "") () path)
+                  ()
+                  (if private? (least (i* page (at 48 4)) (i* page (at 64 4))) 0)
+                  (i* page (at 44 4))))))
+      ; the walk ends where proc_pidinfo writes no whole struct, or at a
+      ; region that does not end past the address asked for
+      (def go
+        (fn (self addr acc)
+          (if (if (i= 1272 (call pidinfo pid 8 addr p 1272)) (i< addr (i+ (at 80 8) (at 88 8))) #f)
+            (let ((r (region))) (self (i+ (at 80 8) (at 88 8)) (pair r acc)))
+            acc)))
+      (def rs (go 0 ()))
+      (def rev (fn (self rs acc) (if (null? rs) acc (self (rest rs) (pair (first rs) acc)))))
+      (if (null? rs) () (rev rs ())))
 
     (method %linux-btime (self)
       (doc "The boot time /proc/stat records, the base of a process's start time."

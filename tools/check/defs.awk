@@ -14,9 +14,8 @@
 #
 # Consumers: tools/check/percent-globals.sh (counts %-names per file) and
 # tools/check/spec-globals.sh (the %-names a spec may not rebind).
-# dup-defs.sh still carries its own copy of this scan; migrating it onto this
-# file is tracked in #304 -- it is a working gate with adjudicated allowlists,
-# so it moves on its own change, not as a side effect of this one.
+# tools/lang-kit/dup-defs.sh carries its own copy of this scan, because the
+# kit ships to installs and tools/check does not.
 
 # Split the children of a top-level (do ...) body into kids[1..n], tracking
 # strings and #\X char literals so their parens do not count.  Only

@@ -28,9 +28,7 @@
 (def %data-int+ (prim-ref (lit int) (lit +)))
 (def %data-int* (prim-ref (lit int) (lit *)))
 
-; THE data-word addressing formula -- the byte offset of data word i.  One
-; definition: reflect.x's read half (%reflect-obj-ref) and the write half
-; below must always address the same word, or set!/ref silently diverge.
+; THE data-word addressing formula -- the byte offset of data word i.
 (def %data-word-off
   (fn (_ i) (%data-int+ %data-offset (%data-int* i %word-size))))
 
@@ -40,13 +38,24 @@
 (def %data-off-0 (%data-word-off 0))
 (def %data-off-1 (%data-word-off 1))
 
+; The slot accessors, (obj ref) and (obj set!), run on every vector and
+; record access, so they address data word i through its VIEW: the object's
+; address plus i words, the place an object would start whose first data
+; word is word i -- the same word %data-word-off names, with the header
+; offset left to the first-word access.  An integer, a pointer and an
+; object reference are each data unit 0 of their cell, so the view's integer
+; goes to the pointer doors and to (ptr ->obj) as it is, and a value's
+; (obj ->ptr) is stored as it is: no (int ->ptr) or (ptr ->int) between.
+; The read half is reflect.x's %reflect-obj-ref, (first view); both halves
+; spell the view the same way, or set!/ref silently diverge.
+;
 ; Data-slot write, pure reflection: the stored word is the value's object
 ; pointer.  Formerly the C (obj set!) prim -- boot/reflect.x files this
 ; same fn back into the catalogue under that name.  Returns v (C contract).
 (def %obj-set!
   (fn (_ o i v)
-    (%ptr-set-word! (%obj->ptr o) (%data-word-off i)
-      (%ptr->int (%obj->ptr v)))
+    (%ptr-set-word! (%data-int+ (%obj->ptr o) (%data-int* i %word-size)) %data-off-0
+      (%obj->ptr v))
     v))
 
 (def %set-first!

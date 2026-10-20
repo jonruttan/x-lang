@@ -151,16 +151,23 @@
     (method wait (self (param pid INTEGER "Process ID to wait for"))
       (doc "Wait for a child and return how it ended."
         (returns INTEGER "Exit status 0-255 for a normal exit; 128+N when signal N killed the child (the shell convention)")
-        (note "The old contract returned WEXITSTATUS unconditionally, so a signal-killed child reported 0 -- success (#226)."))
+        (note "The old contract returned WEXITSTATUS unconditionally, so a signal-killed child reported 0 -- success (#226).")
+        (note "A caught signal -- the engine's SIGINT, any catch-signal -- interrupts waitpid, which then waits again; any other failure, such as a pid that is no child of this process, raises the io Err."))
       ; Status word lands in a GC-owned (str make) region (see pipe).
       ; Low 7 bits = the killing signal, 0 for a normal exit; the exit
       ; code rides bits 8-15.
       (let ((s (%make-str 4)))
         (let ((buf (%str->ptr s)))
-          (%ptr-call %c-waitpid pid buf 0)
-          (let ((raw (%ptr-ref buf 0 4)))
-            (let ((sig (% raw 128)))
-              (if (= sig 0) (/ (% raw 65536) 256) (+ 128 sig)))))))
+          (let again ()
+            (let ((r (%sys-fold (%ptr-call %c-waitpid pid buf 0))))
+              (if (>= r 0)
+                (let ((raw (%ptr-ref buf 0 4)))
+                  (let ((sig (% raw 128)))
+                    (if (= sig 0) (/ (% raw 65536) 256) (+ 128 sig))))
+                (let ((errno (Err errno-of r)))
+                  (if (= errno 4)                 ; EINTR, the same number on both
+                    (again)
+                    (error (Err from-errno errno (lit waitpid) pid))))))))))
     (method exec (self (param name STRING "Program name") (param args LIST "List of argument strings"))
       (doc "Replace the current process with the named program. Does not return on success.")
       (let ((all (pair name args)))

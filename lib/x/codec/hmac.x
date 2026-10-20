@@ -14,6 +14,17 @@
 (import x/codec/sha384)
 (import x/codec/sha512)
 (import x/codec/hex)
+(import x/codec/bytes)
+; The bit operations through the int doors: the generic ones dispatch
+; through the numeric tower, about a hundred objects a call, these none.
+; There is no int xor: a ^ b is (a | b) - (a & b).
+(def %and (prim-ref (lit int) (lit &)))
+(def %or (prim-ref (lit int) (lit |)))
+(def %shl (prim-ref (lit int) (lit <<)))
+(def %shr (prim-ref (lit int) (lit >>)))
+(def %isub (prim-ref 'int '-))
+(def %xor (fn (_ a b) (%isub (%or a b) (%and a b))))
+
 
 (def %add (prim-ref 'int '+))
 (def %sub (prim-ref 'int '-))
@@ -29,9 +40,9 @@
 ; A hash: its block size, its output size, and its digest of a byte
 ; region as hex.
 (def %hashes
-  (list (list (lit sha256) 64 32 (fn (_ s n) (Sha256 hex-n s n)))
-        (list (lit sha384) 128 48 (fn (_ s n) (Sha384 hex-n s n)))
-        (list (lit sha512) 128 64 (fn (_ s n) (Sha512 hex-n s n)))))
+  (list (list (lit sha256) 64 32 (fn (_ s n) (Sha256 bytes-n s n)))
+        (list (lit sha384) 128 48 (fn (_ s n) (Sha384 bytes-n s n)))
+        (list (lit sha512) 128 64 (fn (_ s n) (Sha512 bytes-n s n)))))
 
 (def %hash
   (fn (self name l)
@@ -41,7 +52,7 @@
 
 (def %block-size (fn (_ h) (first (rest h))))
 (def %out-size (fn (_ h) (first (rest (rest h)))))
-(def %digest-hex (fn (_ h) (first (rest (rest (rest h))))))
+(def %digest-bytes (fn (_ h) (first (rest (rest (rest h))))))
 
 ; An argument as a region: a STRING is its bytes to the first NUL.
 (def %region
@@ -50,49 +61,48 @@
 
 (def %region-len (fn (_ r) (first (rest (rest r)))))
 
-; Regions copied end to end into one fresh buffer: the region of it.
+; Regions copied end to end into one fresh buffer: the region of it.  Two
+; at a time through Bytes join, which copies by memcpy; a caller hands
+; over one to three regions.
 (def %join
   (fn (_ regions)
-    (def total ((fn (self rs n) (if (null? rs) n (self (rest rs) (%add n (%region-len (first rs)))))) regions 0))
-    (def out (%make-str (if (= total 0) 1 total)))
-    (def p (%str->ptr out))
-    ((fn (self rs at)
-       (unless (null? rs)
-         (do (def s (first (first rs)))
-             (def start (first (rest (first rs))))
-             (def len (%region-len (first rs)))
-             ((fn (self i)
-                (unless (= i len)
-                  (do (%pset1 p (%add at i) (%byte s (%add start i)) 1) (self (%add i 1))))) 0)
-             (self (rest rs) (%add at len))))) regions 0)
-    (list out 0 total)))
+    (match ((null? (rest regions)) (Bytes join (first regions)))
+           ((null? (rest (rest regions))) (Bytes join (first regions) (first (rest regions))))
+           (#t ((fn (self rs acc) (if (null? rs) acc (self (rest rs) (Bytes join acc (first rs)))))
+                (rest regions) (Bytes join (first regions)))))))
 
-; The digest of joined regions: a fresh buffer of its bytes.
+; The digest of joined regions: a fresh buffer of its bytes, straight from
+; the hash's words.
 (def %digest
   (fn (_ h regions)
     (def m (%join regions))
-    (def bytes (Hex decode-bytes ((%digest-hex h) (first m) (%region-len m))))
-    (def out (%make-str (%out-size h)))
-    (def p (%str->ptr out))
-    ((fn (self i bs) (unless (null? bs) (do (%pset1 p i (first bs) 1) (self (%add i 1) (rest bs))))) 0 bytes)
-    out))
+    ((%digest-bytes h) (first m) (%region-len m))))
+
+(def %pref (prim-ref (lit ptr) (lit ref)))
 
 ; The key padded to the block with zeros (hashed first when longer), each
-; byte XORed with pad: the region of a fresh buffer.
+; byte XORed with pad: the region of a fresh buffer.  The key and its zeros
+; are copied in by memcpy (Bytes join), and the zeroing and the XOR run four
+; bytes at a time, a quarter of the steps a byte loop takes in x.  The zeros
+; are made a call at a time, never at load: a state image keeps a string's
+; bytes up to its first zero, so a zeroed buffer held by the module comes
+; back from one empty.
 (def %pad-key
   (fn (_ h key pad)
     (def k (if (> (%region-len key) (%block-size h)) (list (%digest h (list key)) 0 (%out-size h)) key))
     (def b (%block-size h))
-    (def out (%make-str b))
-    (def p (%str->ptr out))
-    (def s (first k))
-    (def start (first (rest k)))
-    (def klen (%region-len k))
+    (def n (%sub b (%region-len k)))
+    (def z (%make-str (%add n 4)))
+    (def zp (%str->ptr z))
+    ((fn (self i) (when (< i n) (do (%pset1 zp i 0 4) (self (%add i 4))))) 0)
+    (def r (Bytes join k (list z 0 n)))
+    (def p (%str->ptr (first r)))
+    (def pad4 (* pad 16843009))
     ((fn (self i)
        (unless (= i b)
-         (do (%pset1 p i (^ pad (if (< i klen) (%byte s (%add start i)) 0)) 1)
-             (self (%add i 1))))) 0)
-    (list out 0 b)))
+         (do (%pset1 p i (%xor pad4 (%pref p i 4)) 4)
+             (self (%add i 4))))) 0)
+    r))
 
 (def %mac
   (fn (_ name key msg)

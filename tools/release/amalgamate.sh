@@ -11,9 +11,10 @@
 # under live includes, in the same effective order.
 #
 # Strict convention, machine-enforced here: a boot-closure raw include sits
-# alone on its own line at column 0.  Any other root-relative include anywhere
-# in the closure is a build error, not a silent skip.  (Runtime modules contain
-# none at all -- tools/check/path-literals.sh.)
+# alone on its own line at column 0, and names a root-relative path or a ./
+# or ../ path relative to the file it is in.  Any other such include anywhere
+# in the closure is a build error, not a silent skip.  (Runtime modules
+# contain no root-relative one at all -- tools/check/path-literals.sh.)
 #
 # The roots include ext/ and engine/.  A root the pattern does not list matches
 # neither branch, falls through to `print line`, and travels into the amalgam
@@ -41,6 +42,25 @@ function resolve(mod,  f) {
 	if ((getline junk < f) >= 0) { close(f); return f }
 	close(f)
 	return ""
+}
+# The root-relative path an include names.  A ./ or ../ path resolves
+# against the directory of the file that holds it, as lib/x/boot/module.x
+# resolves it at run time, and is normalised so that `seen` keys one file
+# by one spelling.
+function inc_path(from, inc,  dir, n, i, k, parts, out) {
+	if (inc !~ /^\.\.?\//) return inc
+	dir = from
+	sub(/\/[^\/]*$/, "", dir)
+	n = split(dir "/" inc, parts, "/")
+	k = 0
+	for (i = 1; i <= n; i++) {
+		if (parts[i] == "" || parts[i] == ".") continue
+		if (parts[i] == ".." && k > 0 && out[k] != "..") { k--; continue }
+		out[++k] = parts[i]
+	}
+	inc = ""
+	for (i = 1; i <= k; i++) inc = inc (i > 1 ? "/" : "") out[i]
+	return inc
 }
 # The module a file is headed with, or "": its first line that is neither
 # blank nor a comment, when that line is (module NAME).
@@ -93,10 +113,11 @@ function hoist(path,  line, inc, mod, file) {
 	}
 	hoisting[path] = 1
 	while ((getline line < path) > 0) {
-		if (line ~ /^\(include-once[[:space:]]+"(lib|tools|apps|ext|engine)\/[^"]*"\)[[:space:]]*(;.*)?$/) {
+		if (line ~ /^\(include-once[[:space:]]+"((lib|tools|apps|ext|engine)|\.\.?)\/[^"]*"\)[[:space:]]*(;.*)?$/) {
 			inc = line
 			sub(/^\(include-once[[:space:]]+"/, "", inc)
 			sub(/".*$/, "", inc)
+			inc = inc_path(path, inc)
 			if (!(inc in seen) && (getline junk < inc) >= 0) {
 				close(inc)
 				splice(inc)
@@ -147,10 +168,11 @@ function splice(path,  line, n, mod, file, name) {
 		# already has the text, so it becomes a comment.  The one-shot
 		# semantics survive either way: splicing is textual, and `seen`
 		# guarantees a file lands once.
-		if (line ~ /^\((include|include-once)[[:space:]]+"(lib|tools|apps|ext|engine)\/[^"]*"\)[[:space:]]*(;.*)?$/) {
+		if (line ~ /^\((include|include-once)[[:space:]]+"((lib|tools|apps|ext|engine)|\.\.?)\/[^"]*"\)[[:space:]]*(;.*)?$/) {
 			once = (line ~ /^\(include-once/)
 			sub(/^\((include|include-once)[[:space:]]+"/, "", line)
 			sub(/".*$/, "", line)
+			line = inc_path(path, line)
 			if ((getline junk < line) < 0) {
 				printf "amalgamate: %s:%d: cannot open %s\n", path, n, line > "/dev/stderr"
 				bad = 1; exit 1
@@ -190,8 +212,8 @@ function splice(path,  line, n, mod, file, name) {
 				splice(file)
 				if (import_selective(line)) print line
 			}
-		} else if (line ~ /\((include|include-once|require-once)[[:space:]]+"(lib|tools|apps|ext|engine)\//) {
-			printf "amalgamate: %s:%d: root-relative include not alone at column 0\n", path, n > "/dev/stderr"
+		} else if (line ~ /\((include|include-once|require-once)[[:space:]]+"((lib|tools|apps|ext|engine)|\.\.?)\//) {
+			printf "amalgamate: %s:%d: include not alone at column 0\n", path, n > "/dev/stderr"
 			bad = 1; exit 1
 		} else print line
 	}

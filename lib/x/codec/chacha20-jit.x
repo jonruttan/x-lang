@@ -21,7 +21,7 @@
 ; is the caller's to sweep.
 (module x/codec/chacha20-jit)
 
-(import x/tool/compile compile-asm)
+(import x/tool/jit-group jit-group)
 
 (def %cj-make-str (prim-ref (lit str) (lit make)))
 (def %cj-str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -152,10 +152,18 @@
 ; toolchain error, or on DISAGREEMENT with the reference.
 (def chacha20-jit-make
   (fn (_ ref)
-    (def %block (compile-asm %cj-block-expr))
+    (jit-group "chacha20-jit" (fn (_) (list %cj-block-expr))
+      (fn (_ fns replayed?) (%cj-wire ref (first fns) replayed?)))))
+
+; The engine over the compiled block, proven against ref unless the block
+; was replayed from the cache group, where it was proven when stored.
+(def %cj-wire
+  (fn (_ ref %block replayed?)
     ; the build's garbage goes before the engine runs; a collect here has
-    ; nothing of the caller's live (the maker is called once, to build)
-    (Heap collect)
+    ; nothing of the caller's live (the maker is called once, to build) --
+    ; and a replay compiled nothing, so it has no garbage to drop and skips
+    ; the collect, which marks the whole live heap
+    (unless replayed? (Heap collect))
     (def %buf (%cj-make-str 512))
     (def %ptr (%cj-str->ptr %buf))
     (def %addr (%cj-ptr->int %ptr))
@@ -200,13 +208,14 @@
                                                  50462976 117835012 185207048 252579084
                                                  319951120 387323156 454695192 522067228)
                                            (list counter 150994944 1241513984 0))))
-    (def %in (%ramp 200))
-    (%check (%st 1) %in 0 64)
-    (%check (%st 1) %in 0 1)
-    (%check (%st 1) %in 0 63)
-    (%check (%st 1) %in 0 65)
-    (%check (%st 4294967295) %in 7 150)
-    (%check (%st 0) %in 0 0)
+    (unless replayed?
+      (do (def %in (%ramp 200))
+          (%check (%st 1) %in 0 64)
+          (%check (%st 1) %in 0 1)
+          (%check (%st 1) %in 0 63)
+          (%check (%st 1) %in 0 65)
+          (%check (%st 4294967295) %in 7 150)
+          (%check (%st 0) %in 0 0)))
     %engine))
 
 ; The codec reaches the maker through the catalogue: it loads this module

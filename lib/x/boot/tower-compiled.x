@@ -16,7 +16,8 @@
 ;
 ; Loads via raw `include` from the dialect entries -- registered in the
 ; pre-seed below (with the tower modules) per the pre-seed invariant that
-; make check-boot-order enforces.
+; make check-boot-order enforces.  Its own includes are ../-relative, so it
+; loads from any directory: an installed tree's importer runs anywhere.
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 (def %type-by-atom (prim-ref 'type 'by-atom))
@@ -40,8 +41,8 @@
 
 ; Load compiler infrastructure FIRST (before numeric tower)
 ; (posix.x already loaded by x-core.x)
-(include "lib/x/type/hash.x")
-(include "lib/x/tool/compile.x")
+(include "../type/hash.x")
+(include "../tool/compile.x")
 (import x/tool/compile compile compile-asm compile-hosted?)
 ; The assembler, loaded here rather than on the first compile-asm.  The
 ; tower's analyser compiles below load it at run time through asm-cache, and
@@ -319,7 +320,7 @@
 ; --- Load numeric tower with immediate analyser compilation ---
 
 ; 1. Bigint + int-capped
-(include "lib/x/num/bigint.x")
+(include "../num/bigint.x")
 (import x/num/bigint big-digits big-sign-state int-capped-base int-capped-digits int-capped-sign)
 ; These two PUSH a new analyser rather than swapping one, so there is no
 ; interpreted twin already installed to fall back to -- the twin is written
@@ -380,10 +381,10 @@
     %int-analyse-interp)
 
 ; 2. Regex (C analyser, no compile needed)
-(include "lib/x/type/regex.x")
+(include "../type/regex.x")
 
 ; 3. Float
-(include "lib/x/num/float.x")
+(include "../num/float.x")
 ; bigint's states above are imported: the tower reads them and never rebinds
 ; them, so the root's copies stay exact.  The float states are rebound by the
 ; compiles below, in the module's own frame, and a copy would keep the
@@ -471,7 +472,7 @@
     %float-analyse-interp)
 
 ; 4. Rational
-(include "lib/x/num/rational.x")
+(include "../num/rational.x")
 ; %rat-sign is rational.x's module-level def, like every other stage's sign
 ; state. It used to be an anonymous closure built right here, which the
 ; compiled analyser captured and nothing rooted once the fvar list was
@@ -514,7 +515,7 @@
     %rat-analyse-interp)
 
 ; 5. Complex
-(include "lib/x/num/complex.x")
+(include "../num/complex.x")
 (def %cx-env (module x/num/complex))
 (%tower-jit-global! cx-imag-frac #t
     (lit (fn (me buffer score chr)
@@ -583,7 +584,7 @@
 ; already exist; and its analyser only scores a run that ENDS in `d`, which
 ; is a longer claim than float's on the same digits -- 1.5d beats 1.5 by the
 ; suffix, and a token without one is never contested.
-(include "lib/x/num/decimal.x")
+(include "../num/decimal.x")
 (def %dec-env (module x/num/decimal))
 (%tower-jit-global! dec-exp-digits #t
     (lit (fn (me buffer score chr)

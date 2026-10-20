@@ -31,6 +31,10 @@
 (def %i-step   (prim-ref (lit iter) (lit step)))
 (def %i-empty? (prim-ref (lit iter) (lit empty?)))
 (def %i-new    (prim-ref (lit iter) (lit new)))
+; The integer doors and the raw slot read, for the index iterator.
+(def %iter-int+ (prim-ref (lit int) (lit +)))
+(def %iter-int< (prim-ref (lit int) (lit <)))
+(def %iter-obj-ref (prim-ref (lit obj) (lit ref)))
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %type-of (prim-ref (lit type) (lit of)))
 (def %type? (prim-ref (lit type) (lit ?)))
@@ -51,7 +55,7 @@
 ; Steps never mutate -- the C driver owns the box write-back.
 (def %list-iter-step
   (fn (self st)
-    (if (null? st) () (pair (first st) (rest st)))))
+    (if (eq? st ()) () (pair (first st) (rest st)))))
 
 (def-class Iter ()
   (static
@@ -149,16 +153,24 @@
 ; Index-based (vectors etc.): state is (seq . index); the PURE step yields
 ; (element . next-state), with a nil successor once index reaches len so
 ; (Iter empty?) turns true.
+; The index is INT and below len by construction, so the step counts on the
+; integer doors.
 (def %index-iter
   (fn (_ seq len ref)
     (Iter make
       (fn (self st)
-        (if (null? st) ()
-          (pair (ref (first st) (rest st))
-            (if (< (+ (rest st) 1) len) (pair (first st) (+ (rest st) 1)) ()))))
+        (if (eq? st ()) ()
+          (do
+            (def next (%iter-int+ (rest st) 1))
+            (pair (ref (first st) (rest st))
+              (if (%iter-int< next len) (pair (first st) next) ())))))
       (if (eq? len 0) () (pair seq 0)))))
 
-(def %vector-iter (fn (_ v) (%index-iter v (Vector length v) (fn (_ vv ii) (Vector ref ii vv)))))
+; A vector's element i is its data slot i + 1, read with the raw slot door:
+; the index is in range by construction, where (Vector ref ...) was a class
+; send and a bounds check per element.
+(def %vector-iter
+  (fn (_ v) (%index-iter v (Vector length v) (fn (_ vv ii) (%iter-obj-ref vv (%iter-int+ ii 1))))))
 ; A string iterates its code points: (str ->list), which x/type/str-utf8
 ; publishes, decodes them.
 (def %str-iter

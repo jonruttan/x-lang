@@ -46,6 +46,9 @@
 (def %SOCK-STREAM 1)
 (def %SOL-SOCKET (if os-darwin? 65535 1))
 (def %SO-REUSEADDR (if os-darwin? 4 2))
+; send(2)'s flag for a peer that has closed: EPIPE, not SIGPIPE, which would
+; kill the process before any guard could see it
+(def %MSG-NOSIGNAL (if os-darwin? 524288 16384))
 
 (def %sk-set1! (fn (_ p off v) (%sk-ptr-set! p off v 1)))
 
@@ -162,18 +165,18 @@
 
     (method send (self (param fd INTEGER "Connected file descriptor")
                        (param s STRING "Bytes to send"))
-      (doc "Send the whole string; raises on failure."
+      (doc "Send the whole string; raises on failure, a peer that has closed among them (epipe), where libc would otherwise end the process with SIGPIPE."
         (returns INTEGER "Bytes sent"))
-      (def r (%sk-fold (%sk-ptr-call %c-send fd s (Str8 length s) 0)))
+      (def r (%sk-fold (%sk-ptr-call %c-send fd s (Str8 length s) %MSG-NOSIGNAL)))
       (when (< r 0) (%sk-fail r 'send fd ()))
       r)
 
     (method send-run (self (param fd INTEGER "Connected file descriptor")
                            (param s STRING "The bytes, NULs included")
                            (param n INTEGER "How many bytes of s to send"))
-      (doc "Send the first n BYTES of s -- the lossless door, as recv-run is: send measures its string to the first NUL, and a binary packet has NULs inside. THE COUNT IS YOUR CLAIM AND IS NOT CHECKED. Raises on failure."
+      (doc "Send the first n BYTES of s -- the lossless door, as recv-run is: send measures its string to the first NUL, and a binary packet has NULs inside. THE COUNT IS YOUR CLAIM AND IS NOT CHECKED. Raises on failure, a peer that has closed among them (epipe), as send does."
         (returns INTEGER "Bytes sent"))
-      (def r (%sk-fold (%sk-ptr-call %c-send fd s n 0)))
+      (def r (%sk-fold (%sk-ptr-call %c-send fd s n %MSG-NOSIGNAL)))
       (when (< r 0) (%sk-fail r 'send fd ()))
       r)
 
@@ -498,6 +501,33 @@
         (returns INTEGER "The connected file descriptor")
         (sample "(Socket unix-connect \"/tmp/app.sock\")" "a connected fd"))
       (def fd (%sk-fold (%sk-ptr-call %c-socket 1 %SOCK-STREAM 0)))
+      (when (< fd 0) (%sk-fail fd 'socket path ()))
+      (def addr (Socket %sockaddr-un path))
+      (def r (%sk-fold (%sk-ptr-call %c-connect fd addr 110)))
+      (when (< r 0) (do (%sk-ptr-call %c-close fd) (%sk-fail r 'connect path addr)))
+      (%sk-ptr-call %c-free addr)
+      fd)
+
+    ; --- Unix-domain datagram sockets: what /dev/log is.  SOCK_DGRAM = 2,
+    ; the pair udp-bind and udp-connect make for IPv4.
+
+    (method unix-dgram-bind (self (param path STRING "Filesystem socket path to create"))
+      (doc "Create a unix-domain datagram socket bound at path -- the receiving end, as a syslog daemon's /dev/log is. The path must not already exist (bind refuses) -- unlink a stale one first. Read with (Socket recv) or (Socket recv-run): each read takes one datagram."
+        (returns INTEGER "The bound datagram file descriptor")
+        (sample "(Socket unix-dgram-bind \"/tmp/log.sock\")" "a bound fd"))
+      (def fd (%sk-fold (%sk-ptr-call %c-socket 1 2 0)))
+      (when (< fd 0) (%sk-fail fd 'socket path ()))
+      (def addr (Socket %sockaddr-un path))
+      (def r (%sk-fold (%sk-ptr-call %c-bind fd addr 110)))
+      (when (< r 0) (do (%sk-ptr-call %c-close fd) (%sk-fail r 'bind path addr)))
+      (%sk-ptr-call %c-free addr)
+      fd)
+
+    (method unix-dgram-connect (self (param path STRING "Filesystem socket path to send to"))
+      (doc "Create a unix-domain datagram socket CONNECTED to path: (Socket send) or (Socket send-run) then delivers one datagram a call, as syslog(3) writes to /dev/log. Connecting where nothing is bound is a structured failure."
+        (returns INTEGER "The connected datagram file descriptor")
+        (sample "(Socket unix-dgram-connect \"/dev/log\")" "a connected fd"))
+      (def fd (%sk-fold (%sk-ptr-call %c-socket 1 2 0)))
       (when (< fd 0) (%sk-fail fd 'socket path ()))
       (def addr (Socket %sockaddr-un path))
       (def r (%sk-fold (%sk-ptr-call %c-connect fd addr 110)))

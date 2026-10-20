@@ -67,10 +67,11 @@
 ; `self`), so a method can bypass a same-named override to reach a field's
 ; storage -- the "private data" pattern. Method-local only.
 ;   (field 'name) / (set-field! 'name v)
-(def %method-raw-bindings
+; Head-of-body defs, so they bind in the method's own activation.
+(def %method-raw-defs
   (lit
-    ((field      (fn (_ n) (%assoc-get n (%obj-fields self))))
-     (set-field! (fn (_ n v) (%box-put! (%obj-box self) n v))))))
+    ((def field      (fn (_ n) (%assoc-get n (%obj-fields self))))
+     (def set-field! (fn (_ n v) (%box-put! (%obj-box self) n v))))))
 
 (note "Flat dispatch tables (the hot path)")
 
@@ -125,10 +126,12 @@
 ; construction caches, layout
 ;   (itab stab fields ctor-names)
 ; itab holds instance methods + instance-field markers; stab holds static
-; methods + static-field markers, both chain-merged. An OWN static field
-; marks as the bare %field-label; an INHERITED one as (%field-label . OWNER),
-; the nearest ancestor whose box holds it -- reads go to the owner's box,
-; matching what (help) has always displayed. A static field named `new`
+; methods + static-field markers, both chain-merged. A static field marks as
+; (%field-label OWNER . CELL): OWNER the class whose box holds it -- the class
+; itself, or the nearest ancestor, matching what (help) has always displayed
+; -- and CELL the (name . value) pair in that box, which a read takes its
+; value from and an own write sets in place, as %box-put! does for a key it
+; holds.  A static field named `new`
 ; is dropped at every level: it never shadowed the new builtin. fields is
 ; the %all-fields (name . default-thunk) alist and ctor-names the
 ; positional constructor order. Most-derived wins: the chain walk records a
@@ -185,14 +188,14 @@
           (loop (%assoc-get (lit parent) (%class-data c))
             (let ((visal (%svis-of c)))
               (%fold-rows (%filter %not-new? (%class-statics c))
-                (fn (_ row) (%vis-wrap c visal (first row) (pair %field-label c)))
+                (fn (_ row) (%vis-wrap c visal (first row) (pair %field-label (pair c row))))
                 acc))))))
     (let ((fields (%all-fields class)))
       (list (%walk-ifields class (%walk-methods class (lit methods) %ivis-of ()))
             (%walk-statics (%assoc-get (lit parent) (%class-data class))
               (let ((visal (%svis-of class)))
                 (%fold-rows (%filter %not-new? (%class-statics class))
-                  (fn (_ row) (%vis-wrap class visal (first row) %field-label))
+                  (fn (_ row) (%vis-wrap class visal (first row) (pair %field-label (pair class row))))
                   (%walk-methods class (lit s-methods) %svis-of ()))))
             fields
             (%ctor-field-names class)))))
@@ -258,34 +261,45 @@
 ; exactly as the plain branches would. Guarded members are the cold side
 ; by construction, so the method path uses plain apply -- no trampoline
 ; subtleties inside a helper fn.
-(def %priv-entry
-  (fn (_ target class entry selector args e static?)
-    (let ((vis (first (rest entry)))
-          (defining (first (rest (rest entry))))
-          (inner (rest (rest (rest entry)))))
-      (unless (%vis-allowed? vis defining e)
-        (error (%str-append (symbol->str (class-name class))
-          (%str-append ": " (%str-append (symbol->str selector)
-            (%str-append (if (eq? vis (lit private)) " is private to " " is protected to ")
-              (symbol->str (class-name defining))))))))
-      (match
-        ((eq? inner %field-label)
-          (if static?
-            (match
-              ((null? args) (%assoc-get selector (%class-statics class)))
-              (#t (%box-put! (%class-statics-box class) selector (eval (first args) e))))
+; A pair entry of CLASS's tables, sent to through TARGET: a static field or a
+; privacy wrapper.  A static field, (%field-label OWNER . CELL), is read from
+; its cell.  A write to a field CLASS owns sets the cell, which is the pair
+; in its box.  A write to an inherited one SHADOWS into CLASS's own box --
+; the parent's value is never mutated through a child; spell a deliberate
+; parent write (Parent name v) -- and invalidates every hot table:
+; descendants' entries may point past this class.  A privacy wrapper,
+; (%priv-label VIS DEFINING . INNER), is checked and its inner entry run.
+(def %pair-entry
+  (fn (self target class entry selector args e)
+    (if (eq? (first entry) %field-label)
+      (do
+        (def cell (rest (rest entry)))
+        (match
+          ((null? args) (rest cell))
+          ((eq? (first (rest entry)) class)
+            ((fn (_ v) (%set-rest! cell v) v) (eval (first args) e)))
+          (#t
+            ((fn (_ v)
+               (%box-put! (%class-statics-box class) selector v)
+               (%classes-invalidate!)
+               v)
+             (eval (first args) e)))))
+      (let ((vis (first (rest entry)))
+            (defining (first (rest (rest entry))))
+            (inner (rest (rest (rest entry)))))
+        (unless (%vis-allowed? vis defining e)
+          (error (%str-append (symbol->str (class-name class))
+            (%str-append ": " (%str-append (symbol->str selector)
+              (%str-append (if (eq? vis (lit private)) " is private to " " is protected to ")
+                (symbol->str (class-name defining))))))))
+        (match
+          ((eq? inner %field-label)                                 ; instance field
             (match
               ((null? args) (%assoc-get selector (%obj-fields target)))
-              (#t (%box-put! (%obj-box target) selector (eval (first args) e))))))
-        ((if (pair? inner) (eq? (first inner) %field-label) #f)   ; inherited static
-          (match
-            ((null? args) (%assoc-get selector (%class-statics (rest inner))))
-            (#t
-              (let ((v (eval (first args) e)))
-                (%box-put! (%class-statics-box class) selector v)
-                (%classes-invalidate!)
-                v))))
-        (#t (%apply inner (pair target (%map1 (fn (_ a) (eval a e)) args))))))))
+              (#t (%box-put! (%obj-box target) selector (eval (first args) e)))))
+          ((if (pair? inner) (eq? (first inner) %field-label) #f)   ; static field
+            (self target class inner selector args e))
+          (#t (%apply inner (pair target (%map1 (fn (_ a) (eval a e)) args)))))))))
 
 ; Entry discrimination for the cold resolvers (method-of, method-ref, the
 ; value-call handlers): a callable PUBLIC method entry, or nil for a miss,
@@ -327,12 +341,13 @@
 ; tax every dispatch with a generation compare.
 (def %class-hot
   (fn (_ class)
-    (let ((hot (rest class)))
-      (if (null? hot)
-        (let ((fresh (%flatten-class class)))
-          (%set-rest! class fresh)
-          fresh)
-        hot))))
+    (def hot (rest class))
+    (if (eq? hot ())
+      (do
+        (def fresh (%flatten-class class))
+        (%set-rest! class fresh)
+        fresh)
+      hot)))
 
 (note "Did-you-mean: near-match selectors for a failed dispatch")
 
@@ -614,23 +629,26 @@
 ; list guard exactly as it always did.
 (def %object-dispatch
   (op (self sel-raw . args) e
-    (let ((selector (%selector sel-raw))
-          (itab (first (%class-hot (%obj-class self)))))
-      (let ((entry (%tab-find! itab itab selector)))
+    (def selector (if (pair? sel-raw) (%selector sel-raw) sel-raw))
+    (def cls (%obj-class self))
+    (def hot (rest cls))
+    (def itab (first (if (eq? hot ()) (%class-hot cls) hot)))
+    (def entry (%tab-find! itab itab selector))
+    (match
+      ((eq? entry %field-label)
         (match
-          ((eq? entry %field-label)
+          ((null? args) (%assoc-get selector (%obj-fields self)))
+          (#t (%box-put! (%obj-box self) selector (eval (first args) e)))))
+      ((pair? entry)                                 ; privacy wrapper
+        (%pair-entry self cls entry selector args e))
+      ((eq? entry ())
+        (match
+          ((%assoc-has? selector (%obj-fields self)) ; ad-hoc instance key
             (match
               ((null? args) (%assoc-get selector (%obj-fields self)))
               (#t (%box-put! (%obj-box self) selector (eval (first args) e)))))
-          ((not (null? entry))
-            (if (pair? entry)                          ; privacy wrapper
-              (%priv-entry self (%obj-class self) entry selector args e #f)
-              (tail-eval (pair entry (pair self args)) e)))
-          ((%assoc-has? selector (%obj-fields self))   ; ad-hoc instance key
-            (match
-              ((null? args) (%assoc-get selector (%obj-fields self)))
-              (#t (%box-put! (%obj-box self) selector (eval (first args) e)))))
-          (#t (%dispatch-miss self (%obj-class self) selector args e #f)))))))
+          (#t (%dispatch-miss self cls selector args e #f))))
+      (#t (tail-eval (pair entry (pair self args)) e)))))
 
 ; The de-dispatch door (#332): resolve a method ONCE and call it inside
 ; a hot loop with self as argument 0.  A stored method is a plain fn
@@ -647,8 +665,8 @@
 (doc (def method-of
   (fn (_ (param class CLASS "Class to resolve against")
        (param sel SYMBOL "Static-method selector"))
-    (let ((stab (first (rest (%class-hot class)))))
-      (%entry-method (%tab-find! stab stab sel)))))
+    (def stab (first (rest (%class-hot class))))
+    (%entry-method (%tab-find! stab stab sel))))
   (returns CALLABLE "The resolved static method closure, or nil")
   (note "The sanctioned de-dispatch door: resolve once, call directly in the hot")
   (note "loop with the class as argument 0 -- ((method-of C 'step) C cur v).")
@@ -667,36 +685,24 @@
 ; dispatch. A static METHOD named new is in the table and shadows the
 ; builtin (as always); a static FIELD named new was dropped at flatten,
 ; so the builtin still wins there (as always).
+;
+; The walk is shaped for the common send: a symbol selector skips the
+; quote unwrap, a built hot record is read in place, and the entry is
+; sorted by one pair? (a static field or a privacy wrapper) and one nil
+; test before the method runs.
 (def %class-dispatch
   (op (self sel-raw . args) e
-    (let ((selector (%selector sel-raw))
-          (stab (first (rest (%class-hot self)))))
-      (let ((entry (%tab-find! stab stab selector)))
+    (def selector (if (pair? sel-raw) (%selector sel-raw) sel-raw))
+    (def hot (rest self))
+    (def stab (first (rest (if (eq? hot ()) (%class-hot self) hot))))
+    (def entry (%tab-find! stab stab selector))
+    (match
+      ((pair? entry)                       ; a static field or a privacy wrapper
+        (%pair-entry self self entry selector args e))
+      ((eq? entry ())
+        ; no member of that name: the builtins, then the miss
         (match
-          ((eq? entry %field-label)                     ; own static field
-            (match
-              ((null? args) (%assoc-get selector (%class-statics self)))
-              (#t (%box-put! (%class-statics-box self) selector (eval (first args) e)))))
-          ((if (pair? entry) (eq? (first entry) %field-label) #f)
-            ; inherited static field: reads go to the owning ancestor's box
-            ; (nearest wins, matching help's display); a write SHADOWS into
-            ; our own box -- the parent's value is never mutated through a
-            ; child; spell a deliberate parent write (Parent name v). The
-            ; shadow invalidates every hot table: descendants' markers may
-            ; point past this class.
-            (match
-              ((null? args) (%assoc-get selector (%class-statics (rest entry))))
-              (#t
-                (let ((v (eval (first args) e)))
-                  (%box-put! (%class-statics-box self) selector v)
-                  (%classes-invalidate!)
-                  v))))
-          ((not (null? entry))
-            (if (pair? entry)                              ; privacy wrapper
-              (%priv-entry self self entry selector args e #t)
-              (tail-eval (pair entry (pair self args)) e)))
-          ((eq? selector (lit new))                   ; (Class new k v ...): values are code
-            (%instantiate self args e #t))
+          ((eq? selector (lit new)) (%instantiate self args e #t))   ; values are code
           ; Runtime method addition -- the open-class doors. Built-ins like
           ; `new`: a static method of the same name shadows them (checked
           ; above via the table). sel and fn are ordinary evaluated args, so
@@ -710,7 +716,8 @@
             (%class-add! self (lit methods) (eval (first args) e) (eval (first (rest args)) e)))
           ((eq? selector (lit def-static!))
             (%class-add! self (lit s-methods) (eval (first args) e) (eval (first (rest args)) e)))
-          (#t (%dispatch-miss self self selector args e #t)))))))
+          (#t (%dispatch-miss self self selector args e #t))))
+      (#t (tail-eval (pair entry (pair self args)) e)))))
 
 ; --- Value-to-class call dispatch ---
 ; Build a TYPE call handler so an instance, called as (inst method . args),
@@ -754,21 +761,22 @@
         (list obj)
         (if (not (pair? args))
           (pair obj (eval args e))
-          (let ((sel (%selector (first args))))
+          (do (def sel (%selector (first args)))
             (if (symbol? sel)
               ; Static-method resolve via the flat table; a static-field
               ; marker is not callable here (same miss as before). The call
               ; is re-driven through tail-eval: raw arg forms evaluate once
               ; in the caller's env, and the receiver rides LAST, spliced as
               ; (lit obj) so a list-valued subject is data, never a call.
-              (let ((stab (first (rest (%class-hot class)))))
-                (let ((m (%entry-method (%tab-find! stab stab sel))))
-                  (if (null? m)
-                    (error (%str-append "object: no such method "
-                      (%str-append (symbol->str sel) (%sug-hint stab sel))))
-                    (tail-eval
-                      (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
-                      e))))
+              (do
+                (def stab (first (rest (%class-hot class))))
+                (def m (%entry-method (%tab-find! stab stab sel)))
+                (if (eq? m ())
+                  (error (%str-append "object: no such method "
+                    (%str-append (symbol->str sel) (%sug-hint stab sel))))
+                  (tail-eval
+                    (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
+                    e)))
               (pair obj (%data-echo (fn (_ a) (eval a e)) args)))))))))
 
 ; Variant for types that ALREADY have a call handler (indexing/matching): a
@@ -788,21 +796,22 @@
         (%apply prior (list obj))
         (if (not (pair? args))
           (pair obj (eval args e))
-          (let ((sel (%selector (first args))))
+          (do (def sel (%selector (first args)))
             (if (symbol? sel)
               ; Static-method resolve via the flat table; a static-field
               ; marker is not callable here (same miss as before). The call
               ; is re-driven through tail-eval: raw arg forms evaluate once
               ; in the caller's env, and the receiver rides LAST, spliced as
               ; (lit obj) so a list-valued subject is data, never a call.
-              (let ((stab (first (rest (%class-hot class)))))
-                (let ((m (%entry-method (%tab-find! stab stab sel))))
-                  (if (null? m)
-                    (error (%str-append "object: no such method "
-                      (%str-append (symbol->str sel) (%sug-hint stab sel))))
-                    (tail-eval
-                      (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
-                      e))))
+              (do
+                (def stab (first (rest (%class-hot class))))
+                (def m (%entry-method (%tab-find! stab stab sel)))
+                (if (eq? m ())
+                  (error (%str-append "object: no such method "
+                    (%str-append (symbol->str sel) (%sug-hint stab sel))))
+                  (tail-eval
+                    (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
+                    e)))
               (%apply prior (pair obj (%data-echo (fn (_ a) (eval a e)) args))))))))))
 
 ; Install value-to-class method dispatch OVER a type's existing call handler:
@@ -1193,29 +1202,33 @@
         sig))))   ; dotted-rest tail passes through
 
 ; Build a method closure from (NAME (self . params) body...). The body is
-; wrapped in a let binding %this-class -- a one-cell box def-class fills
-; with the class value once it exists (methods are built BEFORE the class;
-; the box breaks the cycle). super reads the defining class's parent from
-; it; the privacy check reads the caller's class from it. For instance
-; methods (raw? true) the raw field/set-field! accessors ride the same
-; let. A leading (doc ...) body form and inline (param ...) signature
-; annotations are stripped here (their registration happens in
-; %collect-methods). The box is spliced as (lit BOX): a raw pair in value
-; position would evaluate as a form.
+; led by a def binding %this-class -- a one-cell box def-class fills with
+; the class value once it exists (methods are built BEFORE the class; the
+; box breaks the cycle). super reads the defining class's parent from it;
+; the privacy check reads the caller's class from it. For instance methods
+; (raw? true) the raw field/set-field! accessors are defs beside it. Defs
+; at the head of the body bind in the method's own activation, where a let
+; around the body built and entered a closure on every call. A leading
+; (doc ...) body form and inline (param ...) signature annotations are
+; stripped here (their registration happens in %collect-methods). The box
+; is spliced as (lit BOX): a raw pair in value position would evaluate as
+; a form.
 (def %make-method
   (fn (_ form raw? tbox e)
-    (let ((sig  (%strip-sig-params (first (rest (rest form)))))
-          (body (if (%method-has-doc? form)
-                  (rest (rest (rest (rest form))))     ; drop leading (doc ...)
-                  (rest (rest (rest form))))))
-      (eval
-        (list (lit fn)
-          (pair (lit recur) sig)                       ; (recur . user-params)
-          (pair (lit let)
-            (pair (pair (list (lit %this-class) (list (lit lit) tbox))
-                    (when raw? %method-raw-bindings))
-                  body)))
-        e))))
+    (def sig (%strip-sig-params (first (rest (rest form)))))
+    (def given
+      (if (%method-has-doc? form)
+        (rest (rest (rest (rest form))))               ; drop leading (doc ...)
+        (rest (rest (rest form)))))
+    ; an empty body answers nil, as it did inside a let, and no def is the
+    ; body's tail
+    (def body (if (eq? given ()) (list ()) given))
+    (eval
+      (pair (lit fn)
+        (pair (pair (lit recur) sig)                   ; (recur . user-params)
+          (pair (list (lit def) (lit %this-class) (list (lit lit) tbox))
+            (if raw? (%append %method-raw-defs body) body))))
+      e)))
 
 ; Collect the (method ...) forms in `forms` into a methods alist. raw? injects the
 ; raw accessors (instance methods); parent is the defining class's parent (for

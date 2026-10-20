@@ -1,6 +1,7 @@
-; net/tls13.x -- Tls13: a TLS 1.3 client written in x (RFC 8446).
+; net/tls13.x -- Tls13: TLS 1.3 written in x (RFC 8446), the client and the server.
 ;
-; The handshake and the record layer, over Socket: a ClientHello offering
+; The handshake and the record layer, over a socket connect dials or a pair
+; of descriptors over is handed (a pipe to a program): a ClientHello offering
 ; TLS 1.3 alone, TLS_CHACHA20_POLY1305_SHA256 and an X25519 key share; the
 ; ServerHello's share; the key schedule (x/net/tls-keys); the server's
 ; encrypted flight -- EncryptedExtensions, Certificate, CertificateVerify,
@@ -15,9 +16,16 @@
 ; Finished and before any application data is sent: the first check on a
 ; curve builds its compiled engines, a few seconds a process, and a
 ; server waits that long for a request where it may not for a handshake.
-; Signatures are ECDSA over P-256 and P-384; a server signing with RSA is
-; refused until RSA is written.  ('insecure) skips the check, for a
-; self-signed development endpoint.
+; Signatures are ECDSA over P-256 and P-384 and RSA (PSS on the
+; CertificateVerify, PKCS#1 v1.5 on certificates).  ('insecure) skips the
+; check, for a self-signed development endpoint.
+;
+; accept is the server's side over descriptors already open: the client's
+; hello taken when it offers TLS 1.3, ChaCha20-Poly1305 and an X25519
+; share (no HelloRetryRequest is sent), then ServerHello, the encrypted
+; flight -- EncryptedExtensions, Certificate, CertificateVerify signed with
+; an RSA key (PSS) or an Ed25519 key, Finished -- and the client's Finished
+; checked.  The client is not asked for a certificate.
 ;
 ; Bytes are regions (BUF START LEN), as x/codec/bytes has them.  The
 ; session is a vector of slots, written as the handshake and the records
@@ -26,21 +34,43 @@
 
 (import x/type/vector)
 (import x/sys/socket)
+(import x/sys/file)
 (import x/codec/bytes)
 (import x/codec/hmac)
 (import x/codec/x25519)
 (import x/codec/chacha20-poly1305)
 (import x/codec/sha256)
+(import x/codec/sha512)
 (import x/codec/chacha20)
 (import x/codec/poly1305)
 (import x/net/tls-keys)
 (import x/net/x509)
 (import x/net/roots)
 (import x/codec/ecdsa)
+(import x/codec/rsa)
+(import x/codec/ed25519)
+; The engines connect builds, imported here rather than left to their
+; codecs' first use: a state image that holds this module then holds
+; them, and a process that pours them loads no source at all.
+(import x/codec/x25519-jit)
+(import x/codec/sha-jit)
+(import x/codec/sha512-jit)
+(import x/codec/chacha20-jit)
+(import x/codec/poly1305-jit)
+(import x/codec/base64)
+(import x/codec/base64-jit)
+(import x/codec/mont-jit mont-jit-ready!)
 (import x/sys/posix)
 
 (def %add (prim-ref 'int '+))
 (def %sub (prim-ref 'int '-))
+(def %int-and (prim-ref (lit int) (lit &)))
+(def %int-or (prim-ref (lit int) (lit |)))
+(def %int-shl (prim-ref (lit int) (lit <<)))
+(def %int-shr (prim-ref (lit int) (lit >>)))
+(def %int-eq (prim-ref (lit int) (lit =)))
+(def %pref (prim-ref (lit ptr) (lit ref)))
+(def %pset (prim-ref (lit ptr) (lit set!)))
 (def %oref (prim-ref (lit obj) (lit ref)))
 (def %oset! (prim-ref (lit obj) (lit set!)))
 
@@ -68,7 +98,7 @@
 
 ; --- the session's slots --------------------------------------------------
 
-(def %fd 1)
+(def %fd 1)                     ; read from
 (def %in-buf 2)
 (def %in-pos 3)
 (def %in-end 4)
@@ -86,7 +116,10 @@
 (def %certs 16)
 (def %verify 17)
 (def %host 18)
-(def %slots 18)
+(def %out 19)                   ; written to: %fd itself when connect dialled
+(def %dialled 20)               ; #t when the session owns its socket
+(def %serving 21)               ; #t on accept's side of the handshake
+(def %slots 21)
 
 (def %get (fn (_ s i) (%oref s i)))
 (def %set! (fn (_ s i v) (%oset! s i v)))
@@ -95,13 +128,16 @@
 
 ; --- reading the wire -----------------------------------------------------
 
-; More bytes from the socket after what is unread; #f at the peer's close.
+; More bytes read after what is unread -- read(), a socket's or a pipe's;
+; #f at the peer's close.
 (def %recv-more!
   (fn (_ s)
-    (def run (Socket recv-run (%get s %fd) 65536))
-    (if (null? run) #f
+    (def buf ((prim-ref (lit str) (lit make)) 65536))
+    (def n (File read (%get s %fd) buf 65536))
+    (when (< n 0) (error (Err from-errno (Err errno-of n) 'read (%get s %fd))))
+    (if (= n 0) #f
       (do (def left (list (%get s %in-buf) (%get s %in-pos) (%sub (%get s %in-end) (%get s %in-pos))))
-          (def joined (Bytes join left (list (first run) 0 (rest run))))
+          (def joined (Bytes join left (list buf 0 n)))
           (%set! s %in-buf (first joined))
           (%set! s %in-pos 0)
           (%set! s %in-end (Bytes length joined))
@@ -135,12 +171,18 @@
 ; XORed into its last eight bytes.
 (def %nonce
   (fn (_ iv seq)
-    (Bytes of-list
-      ((fn (self i acc)
-         (if (< i 0) acc
-           (self (%sub i 1)
-                 (pair (^ (Bytes ref iv i) (if (< i 4) 0 (& (>> seq (<< (%sub 11 i) 3)) 255))) acc))))
-       11 ()))))
+    (def n (Bytes copy iv))
+    (def p ((prim-ref (lit str) (lit ->ptr)) (first n)))
+    ; the sequence number's eight bytes, big-endian, into bytes 4..11,
+    ; through the int doors: a ^ b is (a | b) - (a & b)
+    ((fn (self i)
+       (unless (%int-eq i 12)
+         (do (def a (%pref p i 1))
+             (def b (%int-and (%int-shr seq (%int-shl (%sub 11 i) 3)) 255))
+             (%pset p i (%sub (%int-or a b) (%int-and a b)) 1)
+             (self (%add i 1)))))
+     4)
+    n))
 
 ; A protected record opened: (TYPE CONTENT), the inner type and content
 ; once the zero padding is stripped (5.4).  A plaintext record is itself.
@@ -161,10 +203,21 @@
 
 ; --- writing the wire -----------------------------------------------------
 
+; The bytes of region R written out: a dialled socket's send (a peer that
+; has closed raises rather than signalling), otherwise write() until all
+; of them are taken
 (def %send-region
   (fn (_ s r)
     (def flat (Bytes copy r))
-    (Socket send-run (%get s %fd) (first flat) (Bytes length flat))))
+    (if (%get s %dialled)
+      (Socket send-run (%get s %out) (first flat) (Bytes length flat))
+      ((fn (self at)
+         (if (>= at (Bytes length flat)) at
+           (do (def part (Bytes copy (Bytes sub flat at (%sub (Bytes length flat) at))))
+               (def n (File write (%get s %out) (first part) (Bytes length part)))
+               (when (< n 0) (error (Err from-errno (Err errno-of n) 'write (%get s %out))))
+               (self (%add at n)))))
+       0))))
 
 (def %plain-record
   (fn (_ type legacy body)
@@ -225,7 +278,7 @@
     (def desc (if (>= (Bytes length body) 2) (Bytes ref body 1) -1))
     (if (= desc 0)
       (do (%set! s %closed #t) ())
-      (%fail (Str8 append "the server sent alert " (Str8 str desc)) desc))))
+      (%fail (Str8 append (if (%get s %serving) "the client" "the server") " sent alert " (Str8 str desc)) desc))))
 
 (def %handshake-message
   (fn (_ type body)
@@ -442,11 +495,15 @@
 
 ; --- authenticating the server -------------------------------------------
 
-; CertificateVerify's schemes this client checks (4.2.3): the curve and the
-; hash, an ECDSA signature over P-256 or P-384.
+; CertificateVerify's schemes this client checks (4.2.3): the key's kind
+; and the hash -- an ECDSA signature over P-256 or P-384, or RSA-PSS
+; under an rsaEncryption key.
 (def %schemes
   (list (list 1027 (lit p256) (lit sha256))
-        (list 1283 (lit p384) (lit sha384))))
+        (list 1283 (lit p384) (lit sha384))
+        (list 2052 (lit rsa) (lit sha256))
+        (list 2053 (lit rsa) (lit sha384))
+        (list 2054 (lit rsa) (lit sha512))))
 
 ; What CertificateVerify signs (4.4.3): sixty-four spaces, the context
 ; string, a zero byte, and the transcript hash before it.
@@ -467,54 +524,263 @@
     (when (null? v) (%fail "the server sent no CertificateVerify" ()))
     (def scheme ((fn (self l) (if (null? l) () (if (= (first (first l)) (first v)) (first l) (self (rest l))))) %schemes))
     (when (null? scheme)
-      (%fail (Str8 append "the server signs with a scheme this client cannot check yet (" (Str8 str (first v)) "); RSA is not written") (first v)))
+      (%fail (Str8 append "the server signs with a scheme this client does not check (" (Str8 str (first v)) ")") (first v)))
     (def leaf (guard (e (%fail (Str8 append "the server's certificate does not parse: " (e msg)) ())) (X509 parse (first certs))))
     (def key (X509 public-key leaf))
     (unless (eq? (first key) (first (rest scheme)))
       (%fail "the CertificateVerify scheme does not match the certificate's key" (first v)))
     (def hash (first (rest (rest scheme))))
     (def digest (list (Hmac digest hash (%verify-content (first (rest (rest v))))) 0 (Hmac size hash)))
-    (unless (Ecdsa verify-der (first key) (first (rest key)) digest (first (rest v)))
+    (unless (if (eq? (first key) (lit rsa))
+              (Rsa verify-pss (first (first (rest key))) (first (rest (first (rest key)))) hash digest (first (rest v)))
+              (Ecdsa verify-der (first key) (first (rest key)) digest (first (rest v))))
       (%fail "the server's CertificateVerify signature does not hold" ()))
     (guard (e (%fail (e msg) ()))
-      (X509 verify-chain certs host (Sys now) (fn (_ name) (Roots find name))))))
+      ; the leaf as parsed above, not read a second time
+      (X509 verify-chain (pair leaf (rest certs)) host (Sys now) (fn (_ name) (Roots find name))))))
+
+; --- the server's side ----------------------------------------------------
+
+; A handshake_failure alert (6), in the clear, and the handshake ended: what
+; a server answers a hello it cannot take.
+(def %refuse!
+  (fn (_ s what)
+    (guard (e ()) (%send-region s (%plain-record %ct-alert 771 (Bytes of-list (list 2 40)))))
+    (%fail what ())))
+
+(def %u16s
+  (fn (_ rd)
+    ((fn (self acc) (if (< (Bytes left rd) 2) (List reverse acc) (self (pair (Bytes get-u16 rd) acc)))) ())))
+
+; key_share's client_shares: the X25519 share's 32 bytes, or nil.
+(def %x25519-share
+  (fn (self rd)
+    (if (< (Bytes left rd) 4) ()
+      (do (def group (Bytes get-u16 rd))
+          (def key (Bytes get rd (Bytes get-u16 rd)))
+          (if (and (= group 29) (= (Bytes length key) 32)) (Bytes copy key) (self rd))))))
+
+; A ClientHello's offer, as (SESSION-ID SHARE SCHEMES): the legacy session
+; id to echo, the X25519 share, and the signature schemes the client takes.
+; A hello this server cannot answer without a HelloRetryRequest -- not TLS
+; 1.3, no ChaCha20-Poly1305, no X25519 share -- is refused.
+(def %client-offer
+  (fn (_ s body)
+    (def rd (Bytes reader body))
+    (Bytes get-u16 rd)
+    (Bytes get rd 32)
+    (def sid (Bytes copy (Bytes get rd (Bytes get-u8 rd))))
+    (def suites (%u16s (Bytes reader (Bytes get rd (Bytes get-u16 rd)))))
+    (Bytes get rd (Bytes get-u8 rd))
+    (def ext (Bytes reader (if (< (Bytes left rd) 2) (Bytes of-list ()) (Bytes get rd (Bytes get-u16 rd)))))
+    ((fn (self v13 share schemes)
+       (if (< (Bytes left ext) 4)
+         (match ((not v13) (%refuse! s "the client does not offer TLS 1.3"))
+                ((not (List any? (fn (_ c) (= c 4867)) suites)) (%refuse! s "the client does not offer TLS_CHACHA20_POLY1305_SHA256"))
+                ((null? share) (%refuse! s "the client sent no X25519 key share, and this server does not ask again (HelloRetryRequest)"))
+                (#t (list sid share schemes)))
+         (do (def type (Bytes get-u16 ext))
+             (def data (Bytes reader (Bytes get ext (Bytes get-u16 ext))))
+             (match
+               ((= type 43) (self (List any? (fn (_ v) (= v 772)) (%u16s (Bytes reader (Bytes get data (Bytes get-u8 data))))) share schemes))
+               ((= type 51) (self v13 (%x25519-share (Bytes reader (Bytes get data (Bytes get-u16 data)))) schemes))
+               ((= type 13) (self v13 share (%u16s (Bytes reader (Bytes get data (Bytes get-u16 data))))))
+               (#t (self v13 share schemes))))))
+     #f () ())))
+
+(def %server-hello
+  (fn (_ sid public)
+    (def w (Bytes writer))
+    (Bytes put-u16 w 771)
+    (Bytes put w (Bytes random 32))
+    (Bytes put-u8 w (Bytes length sid))
+    (Bytes put w sid)
+    (Bytes put-u16 w 4867)
+    (Bytes put-u8 w 0)
+    (def ext (Bytes writer))
+    ; supported_versions: TLS 1.3; key_share: the server's X25519 share
+    (%put-extension ext 43 (%extension-data (fn (_ e) (Bytes put-u16 e 772))))
+    (%put-extension ext 51 (%extension-data (fn (_ e) (Bytes put-u16 e 29) (Bytes put-u16 e 32) (Bytes put e public))))
+    (Bytes put-u16 w (Bytes size ext))
+    (Bytes put w (Bytes written ext))
+    (%handshake-message %hs-server-hello (Bytes written w))))
+
+; The Certificate message (4.4.2): no context, each certificate with no
+; extensions.
+(def %certificate-message
+  (fn (_ certs)
+    (def l (Bytes writer))
+    ((fn (self c)
+       (unless (null? c)
+         (do (Bytes put-u24 l (Bytes length (first c)))
+             (Bytes put l (first c))
+             (Bytes put-u16 l 0)
+             (self (rest c)))))
+     certs)
+    (def w (Bytes writer))
+    (Bytes put-u8 w 0)
+    (Bytes put-u24 w (Bytes size l))
+    (Bytes put w (Bytes written l))
+    (%handshake-message %hs-certificate (Bytes written w))))
+
+; The scheme a key signs CertificateVerify with: rsa_pss_rsae_sha256 or ed25519.
+(def %key-scheme (fn (_ key) (if (eq? (first key) (lit rsa)) 2052 2055)))
+
+; CertificateVerify (4.4.3): the key's signature over the context string
+; and the transcript hash so far.
+(def %certificate-verify
+  (fn (_ key th)
+    (def content (%verify-content th))
+    (def sig (if (eq? (first key) (lit rsa))
+               (Rsa sign-pss (List ref 1 key) (List ref 3 key) (lit sha256) (list (Hmac digest (lit sha256) content) 0 32))
+               (list (Ed25519 sign (first (List ref 1 key)) (first content) (first (rest content)) (Bytes length content)) 0 64)))
+    (def w (Bytes writer))
+    (Bytes put-u16 w (%key-scheme key))
+    (Bytes put-u16 w (Bytes length sig))
+    (Bytes put w sig)
+    (%handshake-message %hs-certificate-verify (Bytes written w))))
+
+; The server's handshake, from the client's hello to application keys both
+; ways: ServerHello in the clear, then EncryptedExtensions, Certificate,
+; CertificateVerify and Finished under the handshake keys, and the
+; client's Finished checked.
+(def %accept!
+  (fn (_ s priv public key certs)
+    (def ch (%next-handshake s))
+    (unless (= (first ch) %hs-client-hello) (%refuse! s "the client did not open with a ClientHello"))
+    (def offer (%client-offer s (first (rest ch))))
+    (unless (List any? (fn (_ a) (= a (%key-scheme key))) (List ref 2 offer))
+      (%refuse! s (Str8 append "the client does not take the scheme this server's key signs with (" (Str8 str (%key-scheme key)) ")")))
+    (def tw (Bytes writer))
+    (Bytes put tw (first (rest (rest ch))))
+    (def sh (%server-hello (first offer) public))
+    (%send-region s (%plain-record %ct-handshake 771 sh))
+    (Bytes put tw sh)
+    (def shared (list (X25519 scalarmult (first priv) (first (List ref 1 offer))) 0 32))
+    (when (Bytes same? shared (Bytes of-list (List repeat 32 0)))
+      (%fail "the X25519 shared secret is zero" ()))
+    (def hs (TlsKeys handshake-secret %hash shared))
+    (def hello-hash (%transcript-hash tw))
+    (def c-hs (TlsKeys derive-secret %hash hs "c hs traffic" hello-hash))
+    (def s-hs (TlsKeys derive-secret %hash hs "s hs traffic" hello-hash))
+    ; a ChangeCipherSpec for middleboxes (D.4), then the encrypted flight
+    (%send-region s (%plain-record %ct-ccs 771 (Bytes of-list (list 1))))
+    (%set-keys! s %write-key %write-iv %write-seq s-hs)
+    (%set-keys! s %read-key %read-iv %read-seq c-hs)
+    (def flight (fn (_ m) (%send-sealed s %ct-handshake m) (Bytes put tw m)))
+    (flight (%handshake-message %hs-encrypted-extensions (Bytes of-list (list 0 0))))
+    (flight (%certificate-message certs))
+    (flight (%certificate-verify key (%transcript-hash tw)))
+    (flight (%handshake-message %hs-finished (TlsKeys finished %hash s-hs (%transcript-hash tw))))
+    (def to-server-finished (%transcript-hash tw))
+    (def master (TlsKeys master-secret %hash hs))
+    (def c-ap (TlsKeys derive-secret %hash master "c ap traffic" to-server-finished))
+    (def s-ap (TlsKeys derive-secret %hash master "s ap traffic" to-server-finished))
+    (def fin (%next-handshake s))
+    (unless (= (first fin) %hs-finished) (%fail "the client did not answer with its Finished" (first fin)))
+    (unless (Bytes same? (TlsKeys finished %hash c-hs to-server-finished) (first (rest fin)))
+      (%fail "the client's Finished does not match the handshake" ()))
+    (%set! s %read-secret c-ap)
+    (%set! s %write-secret s-ap)
+    (%set-keys! s %read-key %read-iv %read-seq c-ap)
+    (%set-keys! s %write-key %write-iv %write-seq s-ap)))
+
+; The engines and the key pair, (PRIV . PUBLIC), made before any server
+; waits on them: pure x, an X25519 multiplication is about five seconds and
+; a server gives up on a handshake that takes ten.  The compiled engines are
+; built and proven once a process, poured from the cache after the first,
+; and the key pair is made with them; after that the handshake's work is
+; milliseconds.  An engine that cannot be built leaves its codec pure x,
+; correct and slow.
+(def %prepare
+  (fn (_)
+    (Tls13 ready!)
+    (def priv (Bytes random 32))
+    (pair priv (list (X25519 base (first priv)) 0 32))))
+
+; A session reading IN and writing OUT -- DIALLED? when it owns them -- through
+; the handshake and, unless OPTS ask ('insecure), the server's authentication
+(def %session
+  (fn (_ in out dialled?)
+    (def s (Vector make %slots ()))
+    (%set! s %fd in)
+    (%set! s %out out)
+    (%set! s %dialled dialled?)
+    (%set! s %in-buf (first (Bytes of-list ())))
+    (%set! s %in-pos 0)
+    (%set! s %in-end 0)
+    (%set! s %hs-pending (Bytes of-list ()))
+    (%set! s %app-pending (Bytes of-list ()))
+    (%set! s %closed #f)
+    (%set! s %serving #f)
+    s))
+
+(def %start
+  (fn (_ in out dialled? o keys)
+    (def s (%session in out dialled?))
+    (%set! s %host (let ((e (Assoc entry (lit host) o))) (if (null? e) () (rest e))))
+    (%handshake! s (first keys) (rest keys))
+    (when (null? (Assoc entry (lit insecure) o)) (%authenticate! s))
+    s))
+
+; Application data recv-run would hand out without reading the descriptor:
+; bytes a smaller recv-run left over, or a whole record read ahead into the
+; input buffer.  A record is its five-byte header and the length the header
+; gives.
+(def %pending?
+  (fn (_ s)
+    (def avail (%sub (%get s %in-end) (%get s %in-pos)))
+    (match
+      ((> (Bytes length (%get s %app-pending)) 0) #t)
+      ((< avail 5) #f)
+      (#t (let ((rd (Bytes reader (list (%get s %in-buf) (%get s %in-pos) 5))))
+            (do (Bytes get-u8 rd)
+                (Bytes get-u16 rd)
+                (>= avail (%add 5 (Bytes get-u16 rd)))))))))
 
 (def-class Tls13 ()
   (static
+    (method ready! (self)
+      (doc "Build every compiled engine a connect uses, now: X25519, SHA-256, ChaCha20, Poly1305, SHA-512 (it serves the SHA-384 that signs most intermediates), the base64 decoder (a trusted root is found as a PEM block) and the Montgomery runner (the signatures' arithmetic). Poured from the cache when they are there, built and proven when not; connect calls it before dialling, so nothing compiles while a server waits, and an image build calls it to fill the cache it ships with. Answers #t when every engine is compiled."
+        (returns BOOL "#t when every engine is compiled"))
+      ((fn (self l) (if (null? l) #t (if (first l) (self (rest l)) #f)))
+       (list (X25519 jit!) (Sha256 jit!) (ChaCha20 jit!) (Poly1305 jit!) (Sha512 jit!) (Base64 jit!) (mont-jit-ready!))))
     (method connect (self (param quad STRING "Dotted-quad IPv4 address (resolve names via (Socket resolve))")
                           (param port INTEGER "Port, usually 443")
                           . (param opts ALIST "Options: (host . NAME), the server's name, sent (SNI) and checked against its certificate; ('insecure) to skip the check"))
       (doc "Open a TLS 1.3 session: TCP connect, the handshake (X25519, ChaCha20-Poly1305) with the server's Finished checked, then the server authenticated -- its CertificateVerify signature and its chain to one of Mozilla's roots for NAME. ('insecure) skips the authentication, for a self-signed development endpoint. A failure raises a label 'io naming it; the connection is closed."
         (returns OBJECT "The session")
         (sample "(Tls13 connect \"140.82.114.3\" 443 (list (pair 'host \"github.com\")))" "a verified session"))
+      ; everything slow happens before the server is dialled
+      (def keys (%prepare))
+      (def fd (Socket tcp-connect quad port))
+      (guard (e (do (Socket close fd) (Err raise (Err label e) (e msg) ())))
+        (%start fd fd #t (if (null? opts) () (first opts)) keys)))
+    (method over (self (param in INTEGER "Descriptor the server's bytes are read from: a socket, or a pipe from a program")
+                       (param out INTEGER "Descriptor the client's bytes are written to: the same socket, or a pipe to the program")
+                       . (param opts ALIST "As for (Tls13 connect): (host . NAME) and ('insecure)"))
+      (doc "Open a TLS 1.3 session over a pair of descriptors already open -- read() from IN, write() to OUT -- as connect does over the socket it dials: the handshake, then the server authenticated unless ('insecure). The descriptors stay the caller's: close sends close_notify and leaves them open. A failure raises a label 'io naming it."
+        (returns OBJECT "The session")
+        (sample "(Tls13 over 0 1 (list 'insecure))" "a session over stdin and stdout"))
+      (%start in out #f (if (null? opts) () (first opts)) (%prepare)))
+    (method accept (self (param in INTEGER "Descriptor the client's bytes are read from: an accepted socket, or standard input under inetd or tcpsvd")
+                         (param out INTEGER "Descriptor the server's bytes are written to: the same socket, or standard output")
+                         . (param opts ALIST "(pem . TEXT): PEM text holding the private key -- RSA or Ed25519 -- and the certificates, leaf first"))
+      (doc "The server's side of a TLS 1.3 session over a pair of descriptors already open: the client's hello read, X25519 and ChaCha20-Poly1305 agreed, the certificates sent and the handshake signed with the key -- RSA-PSS with SHA-256, or Ed25519 -- and the client's Finished checked. A hello that would need a HelloRetryRequest (no X25519 share, no ChaCha20-Poly1305) is answered with a handshake_failure alert. The client is not asked for a certificate. Signing is variable time, as all of x's arithmetic is. send, recv-run, pending? and close then work as on a client's session; close leaves the descriptors open. A failure raises a label 'io naming it."
+        (returns OBJECT "The session")
+        (sample "(Tls13 accept 0 1 (list (pair 'pem (File read-all \"server.pem\"))))" "a session over an accepted socket"))
       (def o (if (null? opts) () (first opts)))
-      (def host (let ((e (Assoc entry (lit host) o))) (if (null? e) () (rest e))))
-      (def insecure? (not (null? (Assoc entry (lit insecure) o))))
-      ; Everything slow happens before the server is dialled: pure x, an
-      ; X25519 multiplication is about five seconds and a server gives up
-      ; on a handshake that takes ten.  The compiled engines are built and
-      ; proven once a process (about five seconds together, measured
-      ; 2026-10-09 on arm64), and the key pair is made with them; after that
-      ; the handshake's work is milliseconds.  An engine that cannot be
-      ; built leaves its codec pure x, correct and slow.
-      (X25519 jit!)
-      (Sha256 jit!)
-      (ChaCha20 jit!)
-      (Poly1305 jit!)
-      (def priv (Bytes random 32))
-      (def public (list (X25519 base (first priv)) 0 32))
-      (def s (Vector make %slots ()))
-      (%set! s %fd (Socket tcp-connect quad port))
-      (%set! s %in-buf (first (Bytes of-list ())))
-      (%set! s %in-pos 0)
-      (%set! s %in-end 0)
-      (%set! s %hs-pending (Bytes of-list ()))
-      (%set! s %app-pending (Bytes of-list ()))
-      (%set! s %closed #f)
-      (%set! s %host host)
-      (guard (e (do (Socket close (%get s %fd)) (Err raise (Err label e) (e msg) ())))
-        (do (%handshake! s priv public)
-            (unless insecure? (%authenticate! s))))
+      (def pem (Assoc entry (lit pem) o))
+      (when (null? pem) (%fail "accept needs (pem . TEXT): the private key and its certificates" ()))
+      (def key (guard (e (%fail (e msg) ())) (X509 private-key (rest pem))))
+      (def certs (X509 from-pem (rest pem)))
+      (when (null? certs) (%fail "the PEM text holds no certificate" ()))
+      ; everything slow happens before the client's hello is read
+      (when (eq? (first key) (lit ed25519)) (Ed25519 jit!))
+      (def keys (%prepare))
+      (def s (%session in out #f))
+      (%set! s %serving #t)
+      (%accept! s (first keys) (rest keys) key certs)
       s)
     (method send (self (param session OBJECT "A (Tls13 connect) session")
                        (param data ANY "The bytes: a region (BUF START LEN), or a STRING up to its first NUL"))
@@ -547,13 +813,17 @@
       (if (null? run) ()
         ((fn (self i acc) (if (< i 0) acc (self (%sub i 1) (pair (Bytes ref (list (first run) 0 (rest run)) i) acc))))
          (%sub (rest run) 1) ())))
+    (method pending? (self (param session OBJECT "A (Tls13 connect) or (Tls13 over) session"))
+      (doc "Does the session hold application data it has already read -- bytes a smaller recv-run left, or a whole record read ahead? poll() on the descriptor cannot see these, so a loop that polls asks this first and receives while it holds. A whole record that carries no data (a session ticket) is taken by the next recv-run, which then reads on."
+        (returns BOOL "#t when there is something to receive without reading the descriptor"))
+      (%pending? session))
     (method close (self (param session OBJECT "A (Tls13 connect) session"))
-      (doc "Send close_notify, unless the server closed first, and close the socket."
+      (doc "Send close_notify, unless the server closed first, and close the socket connect dialled; a session over a caller's descriptors leaves them open."
         (returns ANY "nil"))
       (unless (%get session %closed)
         (guard (e ()) (%send-sealed session %ct-alert (Bytes of-list (list 1 0)))))
       (%set! session %closed #t)
-      (Socket close (%get session %fd))
+      (when (%get session %dialled) (Socket close (%get session %fd)))
       ())
     (method certificates (self (param session OBJECT "A (Tls13 connect) session"))
       (doc "The server's certificates as it sent them, leaf first, each a region of DER bytes -- what a chain check reads."
@@ -566,4 +836,4 @@
 
 (doc (provide x/net/tls13 Tls13)
   (note "TLS 1.3 written in x: X25519, ChaCha20-Poly1305, SHA-256. The server's certificate is not yet checked; ('insecure) is required until it is.")
-  "A TLS 1.3 client in x (RFC 8446): connect, send, recv-run, recv-bytes, close, as x/net/tls has them.")
+  "TLS 1.3 in x (RFC 8446): a client -- connect, or over descriptors already open -- with send, recv-run, recv-bytes and close as x/net/tls has them, and accept, the server's side.")

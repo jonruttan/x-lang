@@ -325,8 +325,9 @@
 ; AT_REMOVEDIR).
 ;
 ; utimes is the one row whose argument changes meaning: utimes reads a pair of
-; timevals and utimensat a pair of timespecs, so only a nil a1 -- stamp with the
-; current clock -- means the same to both.
+; timevals and utimensat a pair of timespecs, so a1 means the same to both only
+; as nil -- stamp with the current clock -- or as a pair whose fraction words
+; are zero, which is how File set-times packs whole seconds.
 (def linux-generic-syscall-stand-ins
   (lit (
     (open     openat     (cwd a0 a1 a2))

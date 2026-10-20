@@ -105,11 +105,15 @@
           (#t (%inventory-list form file))))
       (#t ()))))
 
+; A sweep after each file: nothing collects on its own, and the reader's
+; garbage from all of lib, kept to the end, passed 12 GB.  What a file
+; leaves live is its forms, in the cache.
 (def %inventory-files
   (fn (self paths)
     (match
       ((pair? paths)
         (do (%inventory-list (%read-forms (first paths)) (first paths))
+            ((prim-ref (lit heap) (lit collect)))
             (self (rest paths))))
       (#t ()))))
 
@@ -207,19 +211,22 @@
 ; include: verbatim, loads unconditionally and does NOT register.
 ; include-once/require-once: no-op iff REGISTERED (pre-seed or a prior
 ; once/import) -- a raw include does not register, so a later once/import of
-; that path reloads it in reality.  A non-literal or relative path can't be
-; simulated -- report it rather than skip silently.
+; that path reloads it in reality.  A ./ or ../ path resolves against the
+; including file, as module.x resolves it, and is simulated as the
+; root-relative path it names.  A non-literal path can't be simulated --
+; report it rather than skip silently.
 (def %do-include
   (fn (_ form file force)
-    (let ((arg (first (rest form))))
+    (let ((arg (let ((a (first (rest form))))
+                 (match
+                   ((not (str? a)) a)
+                   ((str=? a "") a)
+                   ((eq? (Str8 ref 0 a) 46) (Path norm (Path join (Path dirname file) a)))
+                   (#t a)))))
       (match
         ((not (str? arg))
           (%cell-push! %findings-cell (list file () () form)))
         ((str=? arg "")
-          (%cell-push! %findings-cell (list file () () form)))
-        ; a ./ or ../ path resolves against the including file (module.x);
-        ; nothing in the boot closure uses one -- report, don't mis-simulate
-        ((eq? (Str8 ref 0 arg) 46)
           (%cell-push! %findings-cell (list file () () form)))
         (force
           (do (match

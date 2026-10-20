@@ -488,6 +488,23 @@ through the REPL error path -- jon hit corrupted error bytes).
 ---
     (384 420)
 
+### set-times stamps given seconds that stat reads back; utimes moves them to now
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (def tmp (File temp "/tmp/x-doors-times-"))
+  (File close (first tmp))
+  (def p (rest tmp))
+  (File set-times p 1700000000 1600000000)
+  (def set (Assoc get 'mtime (File stat p)))
+  (File utimes p)
+  (def now (Assoc get 'mtime (File stat p)))
+  (File unlink p)
+  (list set (> now 1700000000)))
+```
+---
+    (1600000000 #t)
+
 ### symlink writes a target readlink reads back, verbatim
 
 ```scheme

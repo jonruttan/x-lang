@@ -67,6 +67,28 @@ process that reads the group file sees.
 ---
     (#t #t #t)
 
+### a replay keeps its plan's entries, and the next pours from them
+
+Each state's held entry is found by its text once for a plan, and kept with
+it: a later replay of the plan pours the same entries, in the states' order,
+with no text matched.
+
+```x
+(do
+  (def %lp-kept (fn (_) (List length (first (Lexer %entries)))))
+  (def %lp-d (Lexer make %lp-rules))
+  (def %lp-n (%lp-kept))
+  (def %lp-es (rest (first (first (Lexer %entries)))))
+  (def %lp-e (Lexer make %lp-rules))
+  (write (list (%lp-d replayed) (%lp-e replayed) (= %lp-n (%lp-kept))
+               (eq? %lp-es (rest (first (first (Lexer %entries)))))
+               (= (List length %lp-es) (%lp-e compiled))
+               (equal? (%lp-a read-str %lp-text) (%lp-e read-str %lp-text))))
+  (newline))
+```
+---
+    (#t #t #t #t #t #t)
+
 ### nested, word, pattern and record rules replay, their cells and buffers remade
 
 ```x
@@ -123,7 +145,7 @@ prefix off) and the plan, for the first rule list: when it changes, bump
   (newline))
 ```
 ---
-    (40 #t -2691242188977066873)
+    (42 #t 1191472533822010750)
 
 ### the plan's text reads back as the plan, and text that is not one is no plan
 

@@ -14,8 +14,12 @@
 ; being a CA in date whose path length allows what is below it; and the
 ; walk ends at a certificate signed by a trusted root.  It ends at the
 ; FIRST such certificate, so a cross-signature the server sends past it
-; is never read.  Signatures are ECDSA over P-256 and P-384 (x/codec/ecdsa);
-; an RSA signature is reported as one this code cannot check yet.
+; is never read.  Signatures are ECDSA over P-256 and P-384 (x/codec/ecdsa)
+; and RSA PKCS#1 v1.5 (x/codec/rsa); an RSASSA-PSS signature on a
+; certificate is one this code does not check.
+;
+; private-key reads the key a server signs with from PEM: an RSA key as
+; PKCS#8 or PKCS#1, or an Ed25519 key as PKCS#8.
 (module x/net/x509)
 
 (import x/codec/bytes)
@@ -23,6 +27,17 @@
 (import x/codec/hmac)
 (import x/codec/der)
 (import x/codec/ecdsa)
+(import x/codec/rsa)
+; The bit operations through the int doors: the generic ones dispatch
+; through the numeric tower, about a hundred objects a call, these none.
+; There is no int xor: a ^ b is (a | b) - (a & b).
+(def %and (prim-ref (lit int) (lit &)))
+(def %or (prim-ref (lit int) (lit |)))
+(def %shl (prim-ref (lit int) (lit <<)))
+(def %shr (prim-ref (lit int) (lit >>)))
+(def %isub (prim-ref 'int '-))
+(def %xor (fn (_ a b) (%isub (%or a b) (%and a b))))
+
 
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "X509: " what) ())))
 
@@ -32,6 +47,74 @@
 
 ; OIDs
 (def %oid-ec-public-key "1.2.840.10045.2.1")
+(def %oid-rsa "1.2.840.113549.1.1.1")
+(def %oid-ed25519 "1.3.101.112")
+
+; The DER bytes of each "-----BEGIN LABEL-----" block in PEM text, in
+; order, each a region: the text between its BEGIN and END lines decoded,
+; line breaks and all.
+(def %pem-blocks
+  (fn (_ text label)
+    (def r (Bytes of text))
+    (def begin (Str8 append "-----BEGIN " label "-----"))
+    (def end (Str8 append "-----END " label "-----"))
+    ((fn (self at out)
+       (def left (Bytes sub r at (- (Bytes length r) at)))
+       (def b (Bytes find left begin))
+       (if (null? b) (List reverse out)
+         (do (def body (+ b (Str8 length begin)))
+             (def e (Bytes find (Bytes sub left body (- (Bytes length left) body)) end))
+             (when (null? e) (%fail "a PEM block with no end"))
+             (self (+ at body e (Str8 length end))
+                   (pair (Base64 decode-region (Bytes sub left body e)) out)))))
+     0 ())))
+
+; PKCS#1's RSAPrivateKey (RFC 8017 A.1.2), version 0: (rsa N E D).
+(def %rsa-private
+  (fn (_ der)
+    (def items (Der items (%body (Der read der))))
+    (when (< (List length items) 4) (%fail "an RSA private key cut short"))
+    (unless (= (Der small (%body (first items))) 0) (%fail "an RSA private key of more than two primes"))
+    (list (lit rsa) (%body (List ref 1 items)) (%body (List ref 2 items)) (%body (List ref 3 items)))))
+
+; PKCS#8's PrivateKeyInfo (RFC 5208, 8410): an RSA key's RSAPrivateKey, or
+; an Ed25519 key's 32-byte seed as (ed25519 SEED).
+(def %pkcs8-private
+  (fn (_ der)
+    (def items (Der items (%body (Der read der))))
+    (when (< (List length items) 3) (%fail "a PKCS#8 key cut short"))
+    (def oid (Der oid (%body (first (Der items (%body (List ref 1 items)))))))
+    (def inner (%body (List ref 2 items)))
+    (match ((str=? oid %oid-rsa) (%rsa-private inner))
+           ((str=? oid %oid-ed25519)
+             (let ((seed (Der read inner)))
+               (do (unless (and (= (%tag seed) 4) (= (Bytes length (%body seed)) 32)) (%fail "an Ed25519 key not 32 bytes"))
+                   (list (lit ed25519) (Bytes copy (%body seed))))))
+           (#t (%fail "a private key of a kind this code does not know")))))
+
+; A name's bytes as lowercase ASCII text in a fresh buffer: what a DNS name
+; in a certificate is, and Str8 downcase's generic walk is tens of
+; thousands of objects for twenty characters.
+(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
+(def %char->int (prim-ref (lit char) (lit ->int)))
+(def %make-str (prim-ref (lit str) (lit make)))
+(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+(def %pset (prim-ref (lit ptr) (lit set!)))
+(def %ascii-lower
+  (fn (_ r)
+    (def s (first r))
+    (def start (first (rest r)))
+    (def n (first (rest (rest r))))
+    (def out (%make-str (+ n 1)))
+    (def p (%str->ptr out))
+    ((fn (self i)
+       (unless (= i n)
+         (do (def c (%char->int (%byte-ref s (+ start i))))
+             (%pset p i (if (and (>= c 65) (<= c 90)) (+ c 32) c) 1)
+             (self (+ i 1)))))
+     0)
+    (%pset p n 0 1)
+    out))
 (def %oid-p256 "1.2.840.10045.3.1.7")
 (def %oid-p384 "1.3.132.0.34")
 (def %sig-algs
@@ -92,12 +175,22 @@
     (def spki (Der items (%body (List ref 5 f))))
     (def alg (Der items (%body (first spki))))
     (def key-oid (Der oid (%body (first alg))))
-    (def curve
-      (if (and (str=? key-oid %oid-ec-public-key) (= (List length alg) 2) (= (%tag (first (rest alg))) 6))
-        (do (def c (Der oid (%body (first (rest alg)))))
-            (match ((str=? c %oid-p256) (lit p256)) ((str=? c %oid-p384) (lit p384)) (#t ())))
-        ()))
-    (def key (Der bits (%body (first (rest spki)))))
+    ; the key's kind: its curve, rsa, or nil for one this code does not use
+    (def kind
+      (match ((and (str=? key-oid %oid-ec-public-key) (= (List length alg) 2) (= (%tag (first (rest alg))) 6))
+              (do (def c (Der oid (%body (first (rest alg)))))
+                  (match ((str=? c %oid-p256) (lit p256)) ((str=? c %oid-p384) (lit p384)) (#t ()))))
+             ((str=? key-oid %oid-rsa) (lit rsa))
+             (#t ())))
+    (def bits (Der bits (%body (first (rest spki)))))
+    ; an RSA key's bits hold SEQUENCE { INTEGER n, INTEGER e }
+    (def key
+      (if (eq? kind (lit rsa))
+        (do (def ints (Der items (%body (Der read bits))))
+            (unless (and (= (List length ints) 2) (= (%tag (first ints)) 2) (= (%tag (first (rest ints))) 2))
+              (%fail "an RSA key that is not two INTEGERs"))
+            (list (%body (first ints)) (%body (first (rest ints)))))
+        bits))
     (def exts (%extensions f))
     ((fn (self l)
        (unless (null? l)
@@ -114,13 +207,13 @@
     (def cert-sign
       (if (null? ku) #t
         (do (def bs (%body (Der read (List ref 2 ku))))
-            (and (>= (Bytes length bs) 2) (not (= (& (Bytes ref bs 1) 4) 0))))))
+            (and (>= (Bytes length bs) 2) (not (= (%and (Bytes ref bs 1) 4) 0))))))
     (def san (%lookup %ext-san exts))
     (def dns
       (if (null? san) ()
-        (List map (fn (_ e) (Str8 downcase (first (Bytes copy (%body e)))))
+        (List map (fn (_ e) (%ascii-lower (%body e)))
                   (List filter (fn (_ e) (= (%tag e) 130)) (Der items (%body (Der read (List ref 2 san))))))))
-    (list (%whole tbs) sig-alg sig issuer subject not-before not-after curve key ca pathlen cert-sign dns)))
+    (list (%whole tbs) sig-alg sig issuer subject not-before not-after kind key ca pathlen cert-sign dns)))
 
 (def %tbs (fn (_ c) (%c c 0)))
 (def %sig-alg (fn (_ c) (%c c 1)))
@@ -129,7 +222,7 @@
 (def %subject (fn (_ c) (%c c 4)))
 (def %not-before (fn (_ c) (%c c 5)))
 (def %not-after (fn (_ c) (%c c 6)))
-(def %curve (fn (_ c) (%c c 7)))
+(def %kind (fn (_ c) (%c c 7)))
 (def %key (fn (_ c) (%c c 8)))
 (def %ca? (fn (_ c) (%c c 9)))
 (def %pathlen (fn (_ c) (%c c 10)))
@@ -138,15 +231,19 @@
 
 ; Did parent sign child?  #f for a signature this code cannot check (RSA,
 ; or a key on another curve) as well as for a wrong one.
+; Did parent's key sign child?  The signature algorithm's kind must be
+; the key's: ECDSA under a curve's key, PKCS#1 v1.5 under an RSA key.
 (def %signed-by?
   (fn (_ child parent)
     (def alg (%lookup (%sig-alg child) %sig-algs))
-    (and (not (null? alg))
-         (eq? (first (rest alg)) (lit ecdsa))
-         (not (null? (%curve parent)))
-         (do (def h (Hmac digest (first (rest (rest alg))) (%tbs child)))
-             (Ecdsa verify-der (%curve parent) (%key parent)
-                               (list h 0 (Hmac size (first (rest (rest alg))))) (%sig child))))))
+    (if (or (null? alg) (null? (%kind parent))) #f
+      (do (def hash (first (rest (rest alg))))
+          (def digest (fn (_) (list (Hmac digest hash (%tbs child)) 0 (Hmac size hash))))
+          (match ((and (eq? (first (rest alg)) (lit ecdsa)) (not (eq? (%kind parent) (lit rsa))))
+                  (Ecdsa verify-der (%kind parent) (%key parent) (digest) (%sig child)))
+                 ((and (eq? (first (rest alg)) (lit rsa)) (eq? (%kind parent) (lit rsa)))
+                  (Rsa verify-pkcs1 (first (%key parent)) (first (rest (%key parent))) hash (digest) (%sig child)))
+                 (#t #f))))))
 
 (def %in-date? (fn (_ c now) (and (>= now (%not-before c)) (<= now (%not-after c)))))
 
@@ -188,7 +285,7 @@
              (when (null? up)
                (%fail (if (null? (%lookup (%sig-alg cur) %sig-algs))
                         "a signature algorithm this code does not know"
-                        "no path to a trusted root (an RSA signature on the way is not checked yet)")))
+                        "no path to a trusted root")))
              (unless (%ca? up) (%fail "an intermediate that is not a CA"))
              (unless (%cert-sign? up) (%fail "an intermediate whose key may not sign certificates"))
              (unless (%in-date? up now) (%fail "an intermediate out of date"))
@@ -203,20 +300,19 @@
         (returns LIST "The certificate, for the other methods")
         (sample "(X509 parse der)" "a certificate"))
       (%parse (Bytes of der)))
-    (method from-pem (self (param text STRING "PEM text: one or more BEGIN CERTIFICATE blocks"))
-      (doc "The certificates' DER bytes from PEM text, in order, each a region."
+    (method from-pem (self (param text ANY "PEM text: one or more BEGIN CERTIFICATE blocks, a region or a STRING up to its first NUL"))
+      (doc "The certificates' DER bytes from PEM text, in order, each a region: each block's text between its BEGIN and END lines decoded, line breaks and all."
         (returns LIST "Regions")
         (sample "(X509 from-pem (File read-all \"/etc/ssl/cert.pem\"))" "the bundle's certificates"))
-      ((fn (self lines inside acc out)
-         (if (null? lines) (List reverse out)
-           (do (def l (Str8 trim (first lines)))
-               (match
-                 ((str=? l "-----BEGIN CERTIFICATE-----") (self (rest lines) #t () out))
-                 ((str=? l "-----END CERTIFICATE-----")
-                   (self (rest lines) #f () (pair (Bytes of-list (Base64 decode-bytes (Str8 join "" (List reverse acc)))) out)))
-                 (inside (self (rest lines) #t (pair l acc) out))
-                 (#t (self (rest lines) #f acc out))))))
-       (Str8 split "\n" text) #f () ()))
+      (%pem-blocks text "CERTIFICATE"))
+    (method private-key (self (param text ANY "PEM text holding a PRIVATE KEY (PKCS#8) or RSA PRIVATE KEY (PKCS#1) block, a region or a STRING up to its first NUL"))
+      (doc "The first private key in PEM text: (rsa N E D), the modulus and the exponents as big-endian regions, or (ed25519 SEED), the 32-byte seed Ed25519 signs with, in a buffer of its own. Raises a label 'value when there is none, or it is a kind this code does not know."
+        (returns LIST "(rsa N E D) or (ed25519 SEED)")
+        (sample "(X509 private-key (File read-all \"key.pem\"))" "(rsa N E D)"))
+      (def p8 (%pem-blocks text "PRIVATE KEY"))
+      (if (not (null? p8)) (%pkcs8-private (first p8))
+        (let ((p1 (%pem-blocks text "RSA PRIVATE KEY")))
+          (if (null? p1) (%fail "no private key") (%rsa-private (first p1))))))
     (method subject (self (param cert LIST "A parsed certificate"))
       (doc "The subject's name, as its DER bytes."
         (returns LIST "A region"))
@@ -234,15 +330,15 @@
         (returns LIST "Strings"))
       (%dns cert))
     (method public-key (self (param cert LIST "A parsed certificate"))
-      (doc "(CURVE KEY): the curve, p256 or p384, nil for a key of another kind, and the key's bytes as SEC 1 encodes them."
-        (returns LIST "(SYMBOL region)"))
-      (list (%curve cert) (%key cert)))
+      (doc "(KIND KEY): p256 or p384 and the key's bytes as SEC 1 encodes them; rsa and (N E), the modulus and exponent as the big-endian regions DER holds; or nil and the key's bytes for a kind this code does not use."
+        (returns LIST "(SYMBOL region) or (rsa (region region))"))
+      (list (%kind cert) (%key cert)))
     (method signed-by? (self (param child LIST "A parsed certificate")
                              (param parent LIST "The certificate that may have signed it"))
-      (doc "#t when parent's key signed child (ECDSA over P-256 or P-384). An RSA signature answers #f: it is not checked yet."
+      (doc "#t when parent's key signed child: ECDSA over P-256 or P-384, or RSA PKCS#1 v1.5 with SHA-256, SHA-384 or SHA-512. An RSASSA-PSS signature answers #f: it is not checked."
         (returns BOOL "#t when the signature holds"))
       (%signed-by? child parent))
-    (method verify-chain (self (param certs LIST "The server's certificates, leaf first, each a region of DER bytes")
+    (method verify-chain (self (param certs LIST "The server's certificates, leaf first, each a region of DER bytes or a certificate X509 parse already read")
                                (param host STRING "The name the client asked for")
                                (param now INTEGER "Unix seconds")
                                (param roots ANY "The trusted roots: a list of parsed certificates, or a function from a name's DER bytes to the roots with that subject, as (fn (_ name) (Roots find name))"))
@@ -250,13 +346,15 @@
         (returns BOOL "#t")
         (sample "(X509 verify-chain (Tls13 certificates s) \"github.com\" (Sys now) roots)" "#t"))
       (when (null? certs) (%fail "no certificate"))
-      (def parsed (List map %parse certs))
+      ; a region's first element is its buffer; a parsed certificate's is
+      ; the region of its signed part
+      (def parsed (List map (fn (_ c) (if (str? (first c)) (%parse c) c)) certs))
       (def leaf (first parsed))
       (unless (%in-date? leaf now) (%fail "the server's certificate is out of date"))
-      (def h (Str8 downcase host))
+      (def h (%ascii-lower (Bytes of host)))
       (unless ((fn (self l) (if (null? l) #f (if (%name-matches? h (first l)) #t (self (rest l))))) (%dns leaf))
         (%fail (Str8 append "the server's certificate does not name " host)))
       (%walk leaf (rest parsed) roots now))))
 
 (doc (provide x/net/x509 X509)
-  "X.509 certificates (RFC 5280): parse, from-pem, and verify-chain -- a TLS server's chain checked for its host, dates, CA constraints and signatures (ECDSA) up to a trusted root.")
+  "X.509 certificates (RFC 5280): parse, from-pem, private-key (an RSA or Ed25519 key from PEM), and verify-chain -- a TLS server's chain checked for its host, dates, CA constraints and signatures (ECDSA and RSA) up to a trusted root.")

@@ -127,7 +127,7 @@
     ; recorded by the old code would otherwise be replayed as the new.  The
     ; digest case in tests/x/specs/lib/lexer-plan.spec.md fails on any such
     ; change until both it and this number are updated.
-    (%plan-version 3)
+    (%plan-version 5)
     ; Group keys made, as ((RULES END . KEY) ...): a key is the rules and the
     ; end text printed, which costs a make more than its replay's types do, and
     ; a remake -- the recache hook after every image load -- asks again for
@@ -144,6 +144,10 @@
     ; or a make in a process booted from an image the group was made in -- and
     ; its plan is not read again.
     (%plans (pair () ()))
+    ; Each plan's states' held entries, in its states' order, as
+    ; ((PLAN . ENTRIES) ...): found by text once in a heap, which an image
+    ; carries, and poured with no text matched by every replay after.
+    (%entries (pair () ()))
 
     (method make (self (param rules LIST "Rules in priority order, each from run, skip, table, quoted, until, number, nested, word, escape, pattern, any or record")
                        . (param more ANY "Optionally the end text, a space when left out: see the end field"))
@@ -286,7 +290,7 @@
 
     (method number (self (param tag SYMBOL "The token's tag")
                          (param suffix LIST "Class of suffix bytes taken after the digits, or nil"))
-      (doc "A rule for a number: decimal digits, an optional fraction and exponent, or 0x and hex digits; then any bytes of suffix. The token carries a label: 1 integer, 2 fraction or exponent, 3 hex."
+      (doc "A rule for a number: decimal digits, an optional fraction and exponent, or 0x and hex digits, with an optional hex fraction and p exponent (0x1.8p3); then any bytes of suffix. The token carries a label: 1 integer, 2 fraction or exponent (hex ones too), 3 hex integer."
         (returns LIST "The rule")
         (sample "(Lexer number 'num \"uUlL\")" "C integer and floating literals"))
       (list (lit number) (Str8 str tag) tag suffix))
@@ -715,14 +719,6 @@
       (def e2 (ender 2))
       (def e3 (ender 3))
       (def fv (fn (_ e more) (if (null? e) more (pair e more))))
-      (def hex-digits
-        (Lexer %state l
-          (Lexer %state-form (list (lit if) xdigit (lit me) (end-form 3 e3)))
-          (fv e3 ())))
-      (def hex-first
-        (Lexer %state l
-          (Lexer %state-form (list (lit if) xdigit (lit k) ()))
-          (list (pair (lit k) hex-digits))))
       (def exp-digits
         (Lexer %state l
           (Lexer %state-form (list (lit if) digit (lit me) (end-form 2 e2)))
@@ -737,6 +733,31 @@
             (list (lit if) digit (lit k)
               (list (lit if) (lit (or (= chr 43) (= chr 45))) (lit f) ())))
           (list (pair (lit k) exp-digits) (pair (lit f) exp-first))))
+      ; 0x and hex digits, an integer; a hex fraction (0x1.8, 0x.8) or a p
+      ; exponent of decimal digits (0x1p4) makes it a floating literal, C99's
+      ; and Python's float.fromhex text, labelled as a fraction
+      (def p? (lit (or (= chr 112) (= chr 80))))
+      (def hex-frac-digits
+        (Lexer %state l
+          (Lexer %state-form
+            (list (lit if) xdigit (lit me) (list (lit if) p? (lit es) (end-form 2 e2))))
+          (fv e2 (list (pair (lit es) exp-sign)))))
+      (def hex-frac-first
+        (Lexer %state l
+          (Lexer %state-form (list (lit if) xdigit (lit k) ()))
+          (list (pair (lit k) hex-frac-digits))))
+      (def hex-digits
+        (Lexer %state l
+          (Lexer %state-form
+            (list (lit if) xdigit (lit me)
+              (list (lit if) (lit (= chr 46)) (lit frac)
+                (list (lit if) p? (lit es) (end-form 3 e3)))))
+          (fv e3 (list (pair (lit frac) hex-frac-digits) (pair (lit es) exp-sign)))))
+      (def hex-first
+        (Lexer %state l
+          (Lexer %state-form
+            (list (lit if) xdigit (lit k) (list (lit if) (lit (= chr 46)) (lit dot) ())))
+          (list (pair (lit k) hex-digits) (pair (lit dot) hex-frac-first))))
       (def frac-digits
         (Lexer %state l
           (Lexer %state-form
@@ -1405,19 +1426,23 @@
             ((number? v) (list name 3 v))
             (#t (no "a free variable a plan cannot name")))))
       ; A state is given every free variable its rule has, and its code patches
-      ; in a few of them; the plan keeps those, so a replay builds and a pour
-      ; searches a handful a state rather than the rule's every one.
+      ; in a few of them; the plan keeps those, in the order of the entry's
+      ; slots, so a replay builds a handful of values a state and the pour
+      ; takes them as they come, with no name matched.
       (def used (prim-ref (lit compile) (lit asm-cache-held-fvar-names)))
       (def keep
         (fn (_ text fvs)
           (def names (used text))
           (if (eq? names #f) (no "a state whose entry is not held") ())
-          ((fn (self fs)
-             (if (null? fs) ()
-               (if (i< (pos (symbol->str (first (first fs))) names str=?) 0)
-                 (self (rest fs))
-                 (pair (first fs) (self (rest fs))))))
-           fvs)))
+          (map1
+            (fn (_ nm)
+              (def hit
+                ((fn (self fs)
+                   (if (null? fs) ()
+                     (if (str=? (symbol->str (first (first fs))) nm) (first fs) (self (rest fs)))))
+                 fvs))
+              (if (null? hit) (no "a slot no free variable of the state names") hit))
+            names)))
       (def states
         (map1 (fn (_ r)
                 (pair (pos (first (rest r)) texts str=?)
@@ -1556,6 +1581,26 @@
           plan)
         (rest hit)))
 
+    ; The held entry of each of PLAN's states, in their order, TEXTS the
+    ; group's: the ones found for this very plan before, else found now and
+    ; kept; () when one is not held.
+    (method %plan-entries (self plan texts)
+      (def hit
+        ((fn (self l) (if (null? l) () (if (eq? (first (first l)) plan) (first l) (self (rest l)))))
+         (first (Lexer %entries))))
+      (if (null? hit)
+        (do
+          (def kit (Lexer %kit))
+          (def nth (first kit))
+          (def map1 (first (rest (rest kit))))
+          (def entry (prim-ref (lit compile) (lit asm-cache-held-entry)))
+          (def es (map1 (fn (_ r) (entry (nth texts (first r)))) (nth plan 2)))
+          (if ((fn (self l) (if (null? l) #f (if (null? (first l)) #t (self (rest l))))) es)
+            ()
+            (do (%set-first! (Lexer %entries) (pair (pair plan es) (first (Lexer %entries))))
+                es)))
+        (rest hit)))
+
     ; Rebuild L's states from the open group's plan; #f, with L as it was,
     ; when there is none or it does not fit.
     (method %replay! (self l)
@@ -1580,35 +1625,36 @@
               #f)
             #f)
           #f))
-      (if (not fits?) #f
+      (def entries (if fits? (Lexer %plan-entries plan texts) ()))
+      (if (null? entries) #f
         (do
           (def cells (map1 (fn (_ c) (pair () ())) (nth plan 3)))
           (def bufs (map1 (fn (_ n) ((Lexer %make-str) n)) (nth plan 4)))
-          (def pour (prim-ref (lit compile) (lit asm-cache-held-pour)))
+          (def pour (prim-ref (lit compile) (lit asm-cache-entry-pour)))
           ; the states poured so far, newest first, and how many; () when a
-          ; pour misses.  Each free variable is named by the plan's text for
-          ; it, which the pour matches as it is: no symbol is interned.
+          ; pour misses.  Each state is poured from its entry, walked beside
+          ; it, and given its free variables' values in the order of the
+          ; entry's slots, which the plan keeps: no name is matched.
           (def made
-            ((fn (self ss acc n)
+            ((fn (self ss es acc n)
                (if (null? ss) acc
                  (do
                    (def r (first ss))
-                   (def fvars
+                   (def fvals
                      (map1
                        (fn (_ fv)
                          (def how (first (rest fv)))
                          (def at (first (rest (rest fv))))
-                         (pair (first fv)
-                           (match
-                             ((i= how 0) (nth acc (i- (i- n 1) at)))
-                             ((i= how 1) (nth cells at))
-                             ((i= how 2) (nth bufs at))
-                             (#t at))))
+                         (match
+                           ((i= how 0) (nth acc (i- (i- n 1) at)))
+                           ((i= how 1) (nth cells at))
+                           ((i= how 2) (nth bufs at))
+                           (#t at)))
                        (rest r)))
-                   (def st (pour (nth texts (first r)) fvars))
+                   (def st (pour (first es) fvals))
                    (if (null? st) ()
-                     (self (rest ss) (pair st acc) (i+ n 1))))))
-             (nth plan 2) () 0))
+                     (self (rest ss) (rest es) (pair st acc) (i+ n 1))))))
+             (nth plan 2) entries () 0))
           (if (not (i= (len made) (len (nth plan 2)))) #f
             (do
               (def sts (rev made ()))

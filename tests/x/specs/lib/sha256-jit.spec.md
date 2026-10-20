@@ -149,3 +149,27 @@ called directly — the reference, bypassing the engine dispatch.
 ```
 ---
     (#t #t #t #t)
+
+### bytes-into writes the engine's digest into a buffer it is handed, again and again
+
+```x
+(do
+  (import x/codec/sha256)
+  (import x/codec/hex)
+  (Sha256 jit!)
+  (def %bi-ref (prim-ref (lit str) (lit byte-ref)))
+  (def %bi-int (prim-ref (lit char) (lit ->int)))
+  (def %bi-out ((prim-ref (lit str) (lit make)) 32))
+  (def %bi-hex
+    (fn (_ s)
+      (do (Sha256 bytes-into s (Str8 length s) %bi-out)
+          (Hex encode-bytes
+            (List map (fn (_ i) (%bi-int (%bi-ref %bi-out i)))
+                      (List range 0 32))))))
+  (def %bi-long (Str8 pad-right 300 #\q "z"))
+  (write (list (str=? (%bi-hex "abc") (Sha256 hex "abc"))
+               (str=? (%bi-hex %bi-long) (Sha256 hex %bi-long))
+               (str=? (%bi-hex "") (Sha256 hex "")))))
+```
+---
+    (#t #t #t)

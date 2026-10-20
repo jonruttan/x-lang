@@ -32,9 +32,19 @@
 (def %dict-int- (prim-ref 'int '-))
 (def %dict-int* (prim-ref 'int '*))
 (def %dict-int% (prim-ref 'int '%))
+(def %dict-int< (prim-ref 'int '<))
+(def %dict-int& (prim-ref 'int '&))
+(def %dict-int>> (prim-ref 'int '>>))
 ; Fetch the address casts (ffi.c) for instance identity keys.
 (def %dict-obj->ptr (prim-ref 'obj '->ptr))
 (def %dict-ptr->int (prim-ref 'ptr '->int))
+
+; A bucket's entries, each copied, onto acc: a snapshot must not alias the
+; live (key . val) pairs, which set! mutates.
+(def %dict-copy-onto
+  (fn (self es acc)
+    (if (eq? es ()) acc
+      (self (rest es) (pair (pair (first (first es)) (rest (first es))) acc)))))
 
 (def %dict-mask31 2147483647)  ; FNV-1a is 64-bit SIGNED -- mask before %
 
@@ -43,7 +53,7 @@
 ; a float is a number but `&` on a boxed float is not an operation.
 (def %dict-type-of (prim-ref (lit type) (lit of)))
 (def %dict-int-type (%dict-type-of 0))
-(def %dict-int? (fn (_ n) (if (null? n) #f (eq? (%dict-type-of n) %dict-int-type))))
+(def %dict-int? (fn (_ n) (if (eq? n ()) #f (eq? (%dict-type-of n) %dict-int-type))))
 
 ; Content hash per supported key type; instances hash by address (identity).
 ; The address is stable: mark-sweep frees in place, and a keyed instance is
@@ -54,11 +64,11 @@
 (def %dict-hash
   (fn (_ k)
     (match
-      ((symbol? k) (& (Hash fnv-1a (symbol->str k)) %dict-mask31))
-      ((str? k) (& (Hash fnv-1a k) %dict-mask31))
-      ((%dict-int? k) (& k %dict-mask31))
+      ((symbol? k) (%dict-int& (Hash fnv-1a (symbol->str k)) %dict-mask31))
+      ((str? k) (%dict-int& (Hash fnv-1a k) %dict-mask31))
+      ((%dict-int? k) (%dict-int& k %dict-mask31))
       ((char? k) (%dict-char->int k))
-      ((object? k) (& (>> (%dict-ptr->int (%dict-obj->ptr k)) 4) %dict-mask31))
+      ((object? k) (%dict-int& (%dict-int>> (%dict-ptr->int (%dict-obj->ptr k)) 4) %dict-mask31))
       (#t (Err raise 'type "Dict: unhashable key -- use a symbol, string, integer, char, or class instance" ())))))
 
 ; Bucket slot index (1-based; slot 0 is the capacity) on a PASSED cap:
@@ -92,14 +102,14 @@
 (def %dict-find
   (fn (self k bucket)
     (match
-      ((null? bucket) ())
+      ((eq? bucket ()) ())
       ((%dict-key= k (first (first bucket))) (first bucket))
       (#t (self k (rest bucket))))))
 
 (def %dict-remove
   (fn (self k bucket)
     (match
-      ((null? bucket) ())
+      ((eq? bucket ()) ())
       ((%dict-key= k (first (first bucket))) (rest bucket))
       (#t (pair (first bucket) (self k (rest bucket)))))))
 
@@ -175,15 +185,19 @@
     (def new (Vector make newcap ()))
     (set-field! 'store new)
     (set-field! 'cap newcap)
-    (let go ((i 1))
-      (unless (> i oldcap)
-        (do (List for-each
-              (fn (_ e)
-                (let ((j (%dict-slot newcap (first e))))
-                  (%dict-obj-set! new j
-                    (pair e (%dict-obj-ref new j)))))
-              (%dict-obj-ref old i))
-            (go (%dict-int+ i 1))))))
+    ; each entry of a bucket into its new bucket
+    (def move
+      (fn (move es)
+        (if (eq? es ()) ()
+          (do
+            (def j (%dict-slot newcap (first (first es))))
+            (%dict-obj-set! new j (pair (first es) (%dict-obj-ref new j)))
+            (move (rest es))))))
+    (def go
+      (fn (go i)
+        (if (%dict-int< oldcap i) ()
+          (do (move (%dict-obj-ref old i)) (go (%dict-int+ i 1))))))
+    (go 1))
 
   ; --- lookup -------------------------------------------------------------
   (method get (self k)
@@ -192,9 +206,9 @@
       (returns ANY "Stored value, or nil")
       (example "(let ((d (Dict make))) (d set! 'a 1) (d get 'a))" "1"))
     (def %cap (field 'cap))
-    (when (null? %cap) (%dict-uninit!))
-    (let ((hit (%dict-find k (%dict-obj-ref (field 'store) (%dict-slot %cap k)))))
-      (unless (null? hit) (rest hit))))
+    (if (eq? %cap ()) (%dict-uninit!))
+    (def hit (%dict-find k (%dict-obj-ref (field 'store) (%dict-slot %cap k))))
+    (if (eq? hit ()) () (rest hit)))
 
   (method get-or (self d k)
     (doc "The value stored under a key, or a default only when the key is ABSENT."
@@ -202,9 +216,9 @@
       (param k ANY "Key to look up")
       (returns ANY "Stored value (a stored nil included), or the default"))
     (def %cap (field 'cap))
-    (when (null? %cap) (%dict-uninit!))
-    (let ((hit (%dict-find k (%dict-obj-ref (field 'store) (%dict-slot %cap k)))))
-      (if (null? hit) d (rest hit))))
+    (if (eq? %cap ()) (%dict-uninit!))
+    (def hit (%dict-find k (%dict-obj-ref (field 'store) (%dict-slot %cap k))))
+    (if (eq? hit ()) d (rest hit)))
 
   (method get-or-else (self thunk k)
     (doc "The value stored under a key, or (thunk) only when the key is ABSENT -- get-or's lazy twin (mirrors Assoc opt-get-or-else)."
@@ -212,16 +226,16 @@
       (param k ANY "Key to look up")
       (returns ANY "Stored value (a stored nil included), or (thunk)"))
     (def %cap (field 'cap))
-    (when (null? %cap) (%dict-uninit!))
-    (let ((hit (%dict-find k (%dict-obj-ref (field 'store) (%dict-slot %cap k)))))
-      (if (null? hit) (thunk) (rest hit))))
+    (if (eq? %cap ()) (%dict-uninit!))
+    (def hit (%dict-find k (%dict-obj-ref (field 'store) (%dict-slot %cap k))))
+    (if (eq? hit ()) (thunk) (rest hit)))
 
   (method has? (self k)
     (doc "Test whether a key is present."
       (param k ANY "Key to test")
       (returns BOOL "#t when the key is stored"))
     (def %cap (field 'cap))
-    (when (null? %cap) (%dict-uninit!))
+    (if (eq? %cap ()) (%dict-uninit!))
     (pair? (%dict-find k (%dict-obj-ref (field 'store) (%dict-slot %cap k)))))
 
   ; --- mutation -----------------------------------------------------------
@@ -233,15 +247,15 @@
       (example "(((Dict make) set! 'a 1) get 'a)" "1"))
     (def %store (field 'store))
     (def %cap (field 'cap))
-    (when (null? %cap) (%dict-uninit!))
+    (if (eq? %cap ()) (%dict-uninit!))
     (def i (%dict-slot %cap k))
     (def bucket (%dict-obj-ref %store i))
     (def hit (%dict-find k bucket))
-    (if (null? hit)
+    (if (eq? hit ())
       (do (%dict-obj-set! %store i (pair (pair k v) bucket))
           (def %n (%dict-int+ (field 'n) 1))
           (set-field! 'n %n)
-          (when (> (%dict-int* 4 %n) (%dict-int* 3 %cap))
+          (if (%dict-int< (%dict-int* 3 %cap) (%dict-int* 4 %n))
             (self %grow!)))
       (%set-rest! hit v))
     self)
@@ -252,10 +266,10 @@
       (returns Dict "self"))
     (def %store (field 'store))
     (def %cap (field 'cap))
-    (when (null? %cap) (%dict-uninit!))
+    (if (eq? %cap ()) (%dict-uninit!))
     (def i (%dict-slot %cap k))
     (def bucket (%dict-obj-ref %store i))
-    (when (pair? (%dict-find k bucket))
+    (if (pair? (%dict-find k bucket))
       (do (%dict-obj-set! %store i (%dict-remove k bucket))
           (set-field! 'n (%dict-int- (field 'n) 1))))
     self)
@@ -277,12 +291,12 @@
     ; snapshot must not alias them
     (def %store (field 'store))
     (def %cap (field 'cap))
-    (when (null? %cap) (%dict-uninit!))
-    (let go ((i 1) (acc ()))
-      (if (> i %cap) acc
-        (go (%dict-int+ i 1)
-            (List fold (fn (_ a e) (pair (pair (first e) (rest e)) a))
-              acc (%dict-obj-ref %store i))))))
+    (if (eq? %cap ()) (%dict-uninit!))
+    (def go
+      (fn (go i acc)
+        (if (%dict-int< %cap i) acc
+          (go (%dict-int+ i 1) (%dict-copy-onto (%dict-obj-ref %store i) acc)))))
+    (go 1 ()))
 
   (method ->plist (self)
     (doc "The entries as a flat (k v k v ...) plist snapshot (unordered)."

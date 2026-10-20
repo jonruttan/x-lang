@@ -264,3 +264,29 @@ iterator once on the way in and raises `type` instead.
 ```
 ---
     (#t #t)
+
+## what a vector costs to iterate
+
+A vector's iterator reads each element with the raw slot door and counts
+on the integer doors -- the index is in range by construction -- where it
+sent `(Vector ref ...)` per element.
+
+### draining ten slots costs a few thousand objects
+
+Draining a ten-slot vector makes fewer than 5,000 objects.
+
+```x
+(do
+  (def %cost
+    (fn (_ f)
+      (f)
+      (def c0 (Heap count))
+      ((fn (loop i) (if (eq? i 0) () (do (f) (loop (- i 1))))) 10)
+      (- (Heap count) c0)))
+  (def %v (Vector of 1 2 3 4 5 6 7 8 9 10))
+  (list (< (%cost (fn (_) (Iter ->list (Iter new %v)))) (* 5000 10))
+        (Iter ->list (Iter new %v))
+        (Iter ->list (Iter new (Vector make 0 0)))))
+```
+---
+    (#t (1 2 3 4 5 6 7 8 9 10) ())

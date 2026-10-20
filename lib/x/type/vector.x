@@ -21,6 +21,13 @@
     (let ((k (%vec-cvt n %vec-int-type)))
       (if (if (null? k) #f (eq? (%vec-type-of k) %vec-int-type)) k (error what))))))
 (def %obj-set! (prim-ref (lit obj) (lit set!)))
+; The integer doors, for index and length arithmetic: an index is INT once
+; %vec->int has seen it and a length is slot 0's INT, so neither needs the
+; tower's dispatch or the operators' nil guards.
+(def %vec-int< (prim-ref (lit int) (lit <)))
+(def %vec-int= (prim-ref (lit int) (lit =)))
+(def %vec-int+ (prim-ref (lit int) (lit +)))
+(def %vec-int- (prim-ref (lit int) (lit -)))
 
 (import x/type/class)
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
@@ -40,11 +47,11 @@
 (def %vector-from-list
   (fn (_ type lst)
     (def len (%length lst))
-    (def v (%make-obj type (+ len 1)))
+    (def v (%make-obj type (%vec-int+ len 1)))
     (%obj-set! v 0 len)
     (def go (fn (self l i)
       (if (not (null? l))
-        (do (%obj-set! v (+ i 1) (first l)) (self (rest l) (+ i 1))))))
+        (do (%obj-set! v (%vec-int+ i 1) (first l)) (self (rest l) (%vec-int+ i 1))))))
     (go lst 0)
     v))
 
@@ -77,9 +84,9 @@
           ; raw memory read, so slot 0's length is the guard for bare (v i) too.
           (def i (%vec->int (first args) "vector: index not convertible to INT"))
           (def len (%obj-ref self 0))
-          (def j (if (< i 0) (+ len i) i))
-          (if (< j 0) (Err raise (lit index) "vector: index out of range" ())
-            (if (< j len) (%obj-ref self (+ j 1))
+          (def j (if (%vec-int< i 0) (%vec-int+ len i) i))
+          (if (%vec-int< j 0) (Err raise (lit index) "vector: index out of range" ())
+            (if (%vec-int< j len) (%obj-ref self (%vec-int+ j 1))
               (Err raise (lit index) "vector: index out of range" ())))))
       (pair
         (lit write)
@@ -88,11 +95,11 @@
           (def len (%obj-ref self 0))
           (def write-vec
             (fn (recur i sep)
-              (if (< i len)
+              (if (%vec-int< i len)
                 (do
                   (if sep (display " "))
-                  (write (%obj-ref self (+ i 1)))
-                  (recur (+ i 1) #t)))))
+                  (write (%obj-ref self (%vec-int+ i 1)))
+                  (recur (%vec-int+ i 1) #t)))))
           (write-vec 0 #f)
           (display ")")))
       (pair
@@ -122,18 +129,19 @@
               (def len (%obj-ref v 0))
               (def build
                 (fn (self i acc)
-                  (if (< i 0) acc
-                    (self (- i 1) (pair (%obj-ref v (+ i 1)) acc)))))
-              (build (- len 1) ())))))
+                  (if (%vec-int< i 0) acc
+                    (self (%vec-int- i 1) (pair (%obj-ref v (%vec-int+ i 1)) acc)))))
+              (build (%vec-int- len 1) ())))))
       (pair
         (lit iter)
         (fn (_ self)
           (def len (%obj-ref self 0))
           (def i 0)
           (fn (_ )
-            (if (< i len)
-              (let ((val (%obj-ref self (+ i 1))))
-                (set! i (+ i 1))
+            (if (%vec-int< i len)
+              (do
+                (def val (%obj-ref self (%vec-int+ i 1)))
+                (set! i (%vec-int+ i 1))
                 val)
               ())))))))
 
@@ -167,16 +175,19 @@
                        (param fill ANY "Value to fill each slot with"))
       (doc "Create a vector of length n, with every element set to fill."
         (returns VECTOR "New vector of length n filled with fill"))
+      ; n is converted to INT once, as an index is, so the length and every
+      ; count below run on the integer doors.
+      (def k (%vec->int n "Vector make: length not convertible to INT"))
       ; A negative n built a vector REPORTING length n (#52): every later
       ; bounds check compared against it, so the container lied its whole
       ; life. Cold constructor seat -- the guard is one compare.
-      (if (< n 0) (Err raise (lit value) "Vector make: negative length" ()) ())
-      (def v (%make-obj %vector (+ n 1)))
-      (%obj-set! v 0 n)
+      (if (%vec-int< k 0) (Err raise (lit value) "Vector make: negative length" ()) ())
+      (def v (%make-obj %vector (%vec-int+ k 1)))
+      (%obj-set! v 0 k)
       (def loop
         (fn (self i)
-          (if (<= i n)
-            (do (%obj-set! v i fill) (self (+ i 1))))))
+          (if (%vec-int< i (%vec-int+ k 1))
+            (do (%obj-set! v i fill) (self (%vec-int+ i 1))))))
       (loop 1)
       v)
     (method build (self (param n INTEGER "Number of elements")
@@ -184,12 +195,13 @@
       (doc "Create a vector of length n where element i is (f i). Built in place -- no intermediate list."
         (returns VECTOR "New vector of length n, element i = (f i)")
         (example "(Vector build 3 (fn (_ i) (* i i)))" "#(0 1 4)"))
-      (def v (%make-obj %vector (+ n 1)))
-      (%obj-set! v 0 n)
+      (def k (%vec->int n "Vector build: length not convertible to INT"))
+      (def v (%make-obj %vector (%vec-int+ k 1)))
+      (%obj-set! v 0 k)
       (def loop
         (fn (self i)
-          (if (< i n)
-            (do (%obj-set! v (+ i 1) (f i)) (self (+ i 1))))))
+          (if (%vec-int< i k)
+            (do (%obj-set! v (%vec-int+ i 1) (f i)) (self (%vec-int+ i 1))))))
       (loop 0)
       v)
     ; --- Predicate ---
@@ -207,9 +219,9 @@
       (def i2 (%vec->int i "Vector ref: index not convertible to INT"))
       (%vec-check v "Vector ref: not a vector")
       (def len (%obj-ref v 0))
-      (def j (if (< i2 0) (+ len i2) i2))
-      (if (< j 0) (Err raise (lit index) "Vector ref: index out of range" ())
-        (if (< j len) (%obj-ref v (+ j 1))
+      (def j (if (%vec-int< i2 0) (%vec-int+ len i2) i2))
+      (if (%vec-int< j 0) (Err raise (lit index) "Vector ref: index out of range" ())
+        (if (%vec-int< j len) (%obj-ref v (%vec-int+ j 1))
           (Err raise (lit index) "Vector ref: index out of range" ()))))
     (method set! (self (param i INTEGER "Zero-based index; negative counts from the end")
                        (param x ANY "Value to store")
@@ -222,9 +234,9 @@
       (def i2 (%vec->int i "Vector set!: index not convertible to INT"))
       (%vec-check v "Vector set!: not a vector")
       (def len (%obj-ref v 0))
-      (def j (if (< i2 0) (+ len i2) i2))
-      (if (< j 0) (Err raise (lit index) "Vector set!: index out of range" ())
-        (if (< j len) (do (%obj-set! v (+ j 1) x) v)
+      (def j (if (%vec-int< i2 0) (%vec-int+ len i2) i2))
+      (if (%vec-int< j 0) (Err raise (lit index) "Vector set!: index out of range" ())
+        (if (%vec-int< j len) (do (%obj-set! v (%vec-int+ j 1) x) v)
           (Err raise (lit index) "Vector set!: index out of range" ()))))
     (method length (self (param v VECTOR "Vector"))
       (doc "Return the number of elements in a vector." (returns INTEGER "Number of elements"))
@@ -237,9 +249,9 @@
       (def len (%obj-ref v 0))
       (def build
         (fn (self i acc)
-          (if (< i 0) acc
-            (self (- i 1) (pair (%obj-ref v (+ i 1)) acc)))))
-      (build (- len 1) ()))
+          (if (%vec-int< i 0) acc
+            (self (%vec-int- i 1) (pair (%obj-ref v (%vec-int+ i 1)) acc)))))
+      (build (%vec-int- len 1) ()))
     (method from-list (self (param lst LIST "List to convert"))
       (doc "Convert a list to a vector." (returns VECTOR "New vector containing the list's elements"))
       (%vector-from-list %vector lst))
@@ -262,7 +274,7 @@
       (def len (%obj-ref v 0))
       (def go
         (fn (go i)
-          (if (< i len) (do (f (%obj-ref v (+ i 1))) (go (+ i 1))))))
+          (if (%vec-int< i len) (do (f (%obj-ref v (%vec-int+ i 1))) (go (%vec-int+ i 1))))))
       (go 0))
     (method map (self (param f CALLABLE "Applied to each element")
                       (param v VECTOR "Vector to map over"))
@@ -270,7 +282,7 @@
         (returns VECTOR "New vector of the same length")
         (example "(Vector map (fn (_ x) (* x 2)) (Vector of 1 2 3))" "#(2 4 6)"))
       (%vec-check v "Vector map: not a vector")
-      (self build (%obj-ref v 0) (fn (_ i) (f (%obj-ref v (+ i 1))))))
+      (self build (%obj-ref v 0) (fn (_ i) (f (%obj-ref v (%vec-int+ i 1))))))
     (method filter (self (param pred CALLABLE "Kept when it answers truthy")
                          (param v VECTOR "Vector to filter"))
       (doc "A new vector of the elements satisfying pred, in order."
@@ -281,10 +293,11 @@
       ; no reverse.
       (def go
         (fn (go i acc)
-          (if (< i 0) acc
-            (let ((x (%obj-ref v (+ i 1))))
-              (go (- i 1) (if (pred x) (pair x acc) acc))))))
-      (self from-list (go (- (%obj-ref v 0) 1) ())))
+          (if (%vec-int< i 0) acc
+            (do
+              (def x (%obj-ref v (%vec-int+ i 1)))
+              (go (%vec-int- i 1) (if (pred x) (pair x acc) acc))))))
+      (self from-list (go (%vec-int- (%obj-ref v 0) 1) ())))
     (method fold (self (param f CALLABLE "Combiner, called (f acc element)")
                        (param acc ANY "Initial accumulator")
                        (param v VECTOR "Vector to fold over"))
@@ -295,7 +308,7 @@
       (def len (%obj-ref v 0))
       (def go
         (fn (go i a)
-          (if (< i len) (go (+ i 1) (f a (%obj-ref v (+ i 1)))) a)))
+          (if (%vec-int< i len) (go (%vec-int+ i 1) (f a (%obj-ref v (%vec-int+ i 1)))) a)))
       (go 0 acc))))
 
 ; Value dispatch over the existing index call handler. A symbol selector
@@ -313,11 +326,11 @@
 (def %vector-equal
   (fn (_ eq a b)
     (def len (%obj-ref a 0))
-    (if (= len (%obj-ref b 0))
+    (if (%vec-int= len (%obj-ref b 0))
       (let go ((i 0))
-        (if (= i len) #t
-          (if (eq (%obj-ref a (+ i 1)) (%obj-ref b (+ i 1)))
-            (go (+ i 1)) #f)))
+        (if (%vec-int= i len) #t
+          (if (eq (%obj-ref a (%vec-int+ i 1)) (%obj-ref b (%vec-int+ i 1)))
+            (go (%vec-int+ i 1)) #f)))
       #f)))
 (def %equal-others (prim-ref (lit logic) (lit equal-others)))
 (%set-first! %equal-others
