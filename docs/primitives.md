@@ -44,6 +44,9 @@ twelve of the sixteen with tower-aware generics. So `+` and `<` reach x-lang
 code that dispatches over the numeric tower, while `=`, `eq?`, `same?` and
 `call/cc` reach the C primitive directly. The entries below describe the C
 behaviour; where a tower generic shadows one, the tower's rules apply first.
+A continuation that outlives the frames that captured it -- a generator, a
+coroutine -- is captured through `(Cont capture f)` (x/sys/cont), which marks
+what those frames hold while it waits; bare `call/cc` serves an escape.
 
 ### Quoting
 
