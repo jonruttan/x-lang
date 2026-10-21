@@ -751,7 +751,8 @@ List all registered modules at the REPL:
 > (modules)
 ```
 
-This returns the module registry — an association list of `(name . exports)` pairs.
+This prints every registered module, with a `[loaded]` mark beside those the
+running session has.
 
 Look up documentation for a specific function:
 

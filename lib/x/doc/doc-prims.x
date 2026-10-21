@@ -422,10 +422,12 @@
   (param text STRING "Section description"))
 
 (doc help "Look up documentation in the REPL."
-  (note "(help) shows overview. (help name) shows function or module docs. (help modules) lists all modules."))
+  (note "(help) shows overview. (help name) shows function, class or module docs; (help Class member) shows one member. (help modules) lists all modules.")
+  (note "A name is a bare symbol as written, or an expression that evaluates to one, such as 'name. Anything else answers \"No documentation\". A class listing leaves out members whose names begin with %; (help Class %member) still answers for one by name."))
 
-(doc apropos "Search documentation by name substring."
-  (param str STRING "Substring to search for"))
+(doc apropos "Search documentation by name substring, printing each match with its description."
+  (param str STRING "Substring to search for: a string, a bare symbol, or an expression that evaluates to one")
+  (returns LIST "The matching names, as symbols, sorted by name; () when nothing matches"))
 
 (doc modules "List all known modules with load status and descriptions.")
 
