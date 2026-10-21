@@ -199,6 +199,12 @@ a value goes. It does not say a bundle has no classes: the bundle's own
 machinery, its tables of applets, builtins and options, is a class wherever
 a name picks a function, and a module otherwise.
 
+`tools/lang-kit/lint.sh --strict` holds a bundle to the first rule and to
+a `%` name staying unprovided, beside the linter's own structural findings.
+A file under the bundle's `tests/`, `tools/` or `docs/` is the suite's
+harness, a script or data, not a module the entry loads, and is not held to
+the module rule.
+
 ### The declaration
 
 `lang.xon` — xon, read with the ordinary reader and never evaluated, like
