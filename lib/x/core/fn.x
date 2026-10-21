@@ -188,9 +188,69 @@
       (fn (_ x) (List all? (fn (_ p) (p x)) preds)))
     (method any-pass (self (param preds LIST "List of predicates"))
       (doc "Return a predicate that passes when any predicate passes." (returns CALLABLE "Combined predicate"))
-      (fn (_ x) (List any? (fn (_ p) (p x)) preds)))))
+      (fn (_ x) (List any? (fn (_ p) (p x)) preds)))
+
+    ; --- reflection: what a callable is made of ---
+    ;
+    ; A callable's state is its slot 1.  A closure's is (params body . env)
+    ; and an operative's is (params envname body . env): the environment is
+    ; the tail after the body, one pair (bindings . parent), the one the
+    ; closure or operative was made in.  A wrapped combiner is a procedure
+    ; whose state holds the combiner where the environment would be and
+    ; nothing else, so it answers nil here and unwrap answers for it; a
+    ; primitive has no state, and its slot 1 is not read.  The slot is read
+    ; through the catalogue's obj ref, and the callable is told by the same
+    ; type tests the apply door uses, with a primitive told apart first:
+    ; the door's own label answers fn for one, which is right for applying
+    ; it and wrong for describing it.
+    (method label (self (param f ANY "Any value"))
+      (doc "Which callable f is: 'fn for a closure made by fn, 'op for an operative made by op, 'wrap for a wrapped combiner made by wrap, 'prim for an engine primitive, and () for anything else, including a value that is callable only through its type's call handler."
+        (returns SYMBOL "'fn, 'op, 'wrap or 'prim, or () for a value that is none of them")
+        (example "(Fn label (fn (_ x) x))" "'fn")
+        (example "(Fn label (op (x) e x))" "'op")
+        (example "(Fn label (wrap (op (x) e x)))" "'wrap")
+        (example "(Fn label first)" "'prim")
+        (example "(null? (Fn label 42))" "#t"))
+      (if ((prim-ref (lit type) (lit ?)) f (%apply-type-of eq?))
+        (lit prim)
+        (%apply-label f)))
+    (method %state (self f)
+      (doc "The state of a closure or an operative, slot 1, or () for any other value.")
+      (def k (Fn label f))
+      (if (if (eq? k (lit fn)) #t (eq? k (lit op)))
+        ((prim-ref (lit obj) (lit ref)) f 1)
+        ()))
+    (method params (self (param f CALLABLE "A closure made by fn or an operative made by op"))
+      (doc "The parameter list of f as written: a closure's formals, self first, or an operative's; a single symbol for a variadic closure. () for a wrapped combiner, a primitive, or a value that is not a callable."
+        (returns ANY "The parameter list as written, a symbol, or ()")
+        (example "(Fn params (fn (self a b) (+ a b)))" "('self 'a 'b)")
+        (example "(Fn params (fn args args))" "'args")
+        (example "(Fn params (op (x) e x))" "('x)"))
+      (def s (Fn %state f))
+      (if (null? s) () (first s)))
+    (method body (self (param f CALLABLE "A closure made by fn or an operative made by op"))
+      (doc "The body forms of f as written, in order. () for a wrapped combiner, a primitive, or a value that is not a callable."
+        (returns LIST "The body forms, or ()")
+        (example "(Fn body (fn (_ n) (+ n 1) (* n 2)))" "(('+ 'n 1) ('* 'n 2))")
+        (example "(Fn body (op (x) e (eval x e)))" "(('eval 'x 'e))"))
+      (def s (Fn %state f))
+      (match
+        ((null? s) ())
+        ((eq? (Fn label f) (lit op)) (first (rest (rest s))))
+        (#t (first (rest s)))))
+    (method env (self (param f CALLABLE "A closure made by fn or an operative made by op"))
+      (doc "The environment f was made in and resolves its free names through: one pair (bindings . parent), where a frame's bindings are an alist of (name . value) and the root's are a tree. () for a wrapped combiner, a primitive, or a value that is not a callable. A closure made at the top level answers the root, which write prints whole."
+        (returns ANY "An environment, or ()")
+        (example "(eval 'k (Fn env ((fn (_ k) (fn (_) k)) 7)))" "7"))
+      (def s (Fn %state f))
+      (match
+        ((null? s) ())
+        ((eq? (Fn label f) (lit op)) (rest (rest (rest s))))
+        (#t (rest (rest s)))))))
 
 (doc (provide x/core/fn (global apply) Fn)
   (note "Function combinators as static methods: (Fn compose f g), (Fn flip f), (Fn tap f).")
+  (note "Reflection on a callable: (Fn label f) says which callable it is, (Fn params f), (Fn body f) and (Fn env f) read what a closure or an operative is made of.")
   (example "((Fn compose (method-ref Num inc) (method-ref Num inc)) 1)" "3")
-  "Higher-order function combinators, homed on the Fn class.")
+  (example "(Fn params (fn (self a b) (+ a b)))" "('self 'a 'b)")
+  "Higher-order function combinators and callable reflection, homed on the Fn class.")
