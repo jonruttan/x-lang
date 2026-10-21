@@ -210,7 +210,7 @@
         (example "(Fn label (op (x) e x))" "'op")
         (example "(Fn label (wrap (op (x) e x)))" "'wrap")
         (example "(Fn label first)" "'prim")
-        (example "(Fn label 42)" "()"))
+        (example "(null? (Fn label 42))" "#t"))
       (if ((prim-ref (lit type) (lit ?)) f (%apply-type-of eq?))
         (lit prim)
         (%apply-label f)))
