@@ -22,9 +22,12 @@
 # the run on them instead, for a bundle that wants them gated.
 #
 # --strict fails on the structural rules only -- ladder, dispatch and
-# depth, which say a definition is built wrong.  Not `unused`, which an applet
-# protocol trips by design (every applet takes stdin-thunk and most never read
-# it), and not `shadow` or `display-chain`, which are style.
+# depth, which say a definition is built wrong, and the two rules of the
+# lang contract's "Modules, names and classes" this shim checks itself: a
+# file the lang loads is a scoped module, and a provide list names no
+# %-private.  Not `unused`, which an applet protocol trips by design (every
+# applet takes stdin-thunk and most never read it), and not `shadow` or
+# `display-chain`, which are style.
 #
 # Set BUNDLE to the bundle root and X to the x to lint with; both are
 # what the bundle's shim passes.
@@ -102,10 +105,52 @@ done
 
 [ "$_STATUS" -eq 0 ] || { echo "lang-kit lint: FAILED" >&2; exit 1; }
 
+# The lang contract's rules on a bundle's files (docs/lang-contract.md,
+# "Modules, names and classes"), read textually the way the manifests are.
+#
+# Every file the lang loads is a scoped module: its first form is
+# (module NAME).  The entry lang.xon names is the one file in the root and
+# is exempt; so are tests/, tools/ and docs/, which hold the suite's
+# harness, a bundle's own scripts and data files, none of them loaded by
+# the entry.  A provide list names no %-private; the scan is the kit's own
+# provide-names.sh.  Both are findings like the linter's, indented under a
+# heading, counted into the strict verdict.
+_ENTRY=$(sed -n 's/^(entry "\([^"]*\)")$/\1/p' "$BUNDLE/lang.xon" 2>/dev/null | head -1)
+_ENTRY="$BUNDLE/${_ENTRY:-run.x}"
+_MODS=""
+for _t in "$@"; do
+	case "$_t" in
+		"$_ENTRY"|"$BUNDLE"/tests/*|"$BUNDLE"/tools/*|"$BUNDLE"/docs/*) ;;
+		*) _MODS="$_MODS $_t" ;;
+	esac
+done
+_BUNDLE_OUT=""
+for _t in $_MODS; do
+	# The first form: the first line that is not blank and not a comment.
+	_first=$(awk '/^[[:space:]]*$/ { next } /^[[:space:]]*;/ { next } { print; exit }' "$_t")
+	case "$_first" in
+		"(module "*) ;;
+		*) _BUNDLE_OUT="$_BUNDLE_OUT
+      module: ${_t#"$BUNDLE"/} has no (module ...) header" ;;
+	esac
+done
+if [ -n "$_MODS" ]; then
+	# shellcheck disable=SC2086
+	_PROV=$(sh "$(dirname "$0")/provide-names.sh" $_MODS 2>&1 \
+		| sed -n "s|^provide-names: $BUNDLE/\(.*\) -- .*|      provide: \1|p")
+	[ -z "$_PROV" ] || _BUNDLE_OUT="$_BUNDLE_OUT
+$_PROV"
+fi
+if [ -n "$_BUNDLE_OUT" ]; then
+	printf '%s (the bundle)%s\n' "$BUNDLE" "$_BUNDLE_OUT"
+	_N=$(printf '%s\n' "$_BUNDLE_OUT" | grep -cE '^      (module|provide):')
+	_WARNINGS=$((_WARNINGS + _N))
+fi
+
 # A warning line is indented under the file it belongs to; the verdict
 # lines are not.  Strict mode fails when any appears.
 if [ "$STRICT" -eq 1 ] && [ "$_WARNINGS" -gt 0 ]; then
-	echo "lang-kit lint: $_WARNINGS structural finding(s) -- ladder/depth -- and --strict was asked" >&2
+	echo "lang-kit lint: $_WARNINGS structural finding(s) -- ladder/dispatch/depth/module/provide -- and --strict was asked" >&2
 	exit 1
 fi
 echo "lang-kit lint: ok"
