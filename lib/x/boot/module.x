@@ -341,6 +341,12 @@
       ((eq? %o ()) ())
       (#t (rest %o)))))
 
+; The catalogue doors to the owner table and the module environments, for
+; the Module class (x/type/module): it loads after the object system and
+; reads the two tables through these, so this file's privates stay its own.
+(prim-reg! (lit module) (lit owner) %module-owner-of)
+(prim-reg! (lit module) (lit env) %module-env-of)
+
 (def %module-register!
   (fn (_ name exports)
     (%set-first! %module-registry-cell

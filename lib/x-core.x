@@ -132,6 +132,8 @@
   (pair (lit x/type/str)
   (pair (lit x/type/iter)
   (pair (lit x/type/base)
+  (pair (lit x/type/env)
+  (pair (lit x/type/module)
   (pair (lit x/type/list)
   (pair (lit x/type/gen)
   (pair (lit x/reader/analyser)
@@ -145,7 +147,7 @@
   (pair (lit x/repl/lang)
   (pair (lit x/repl/ansi)
   (pair (lit x/repl/banner)
-    (first %module-loaded-cell)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+    (first %module-loaded-cell)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 ; --- Standard modules ---
 (include-once "lib/x/core/predicates.x")
@@ -265,6 +267,10 @@
 (include-once "lib/x/type/iter.x")
 ; Base: execution-context objects via the Base class.
 (include-once "lib/x/type/base.x")
+; Env: environments as values, read by name (the Env class).
+(include-once "lib/x/type/env.x")
+; Module: the module registry as data (the Module class).
+(include-once "lib/x/type/module.x")
 ; List: list/sequence operations as the List class (core/list.x holds the
 ; low-level impl + %-helpers; functions migrate onto this class over time).
 (include-once "lib/x/type/list.x")
