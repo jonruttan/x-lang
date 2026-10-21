@@ -126,6 +126,7 @@
   (pair (lit x/type/promise)
   (pair (lit x/type/class)
   (pair (lit x/type/record)
+  (pair (lit x/doc/registry)
   (pair (lit x/protocol/seq)
   (pair (lit x/protocol/str/str8)
   (pair (lit x/protocol/str/utf8)
@@ -147,7 +148,7 @@
   (pair (lit x/repl/lang)
   (pair (lit x/repl/ansi)
   (pair (lit x/repl/banner)
-    (first %module-loaded-cell)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+    (first %module-loaded-cell))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 ; --- Standard modules ---
 (include-once "lib/x/core/predicates.x")
@@ -198,6 +199,8 @@
 (include-once "lib/x/type/class.x")
 ; Records: def-record, lightweight named-field data types over def-class.
 (include-once "lib/x/type/record.x")
+; Doc: the documentation registry as data (the Doc class).
+(include-once "lib/x/doc/registry.x")
 ((prim-ref (lit heap) (lit collect)))
 ; Convert: the conversion dispatcher (registered in the catalogue as
 ; (convert . to)) + the Convert class with the no-match policy field.
