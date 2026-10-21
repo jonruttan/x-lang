@@ -37,6 +37,9 @@
 (def %str-lt (fn (_ a b) (%str<? a b 0)))
 ; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
+; The display rendering of any value as a string, for naming a help argument
+; that is not a name in the "No documentation" line.
+(def %display-to-str (prim-ref (lit io) (lit display-to-str)))
 
 
 (def %doc-reverse
@@ -550,11 +553,23 @@
                (%str-append class-str (%str-append "/" (symbol->str name)))))))
       (if (null? e) "" (%doc-entry-desc e)))))
 
-; Make (name . desc) for each name in `names` not already in `seen`.
+; A member whose name begins with `%` is a protocol hook or a private
+; member, not reference material: a class listing leaves it out, as the
+; generated reference does.  (help Class %name) still answers for one by
+; name.
+(def %doc-private-name?
+  (fn (_ name)
+    (def %s (symbol->str name))
+    (if (< (%str-length %s) 1) #f
+      (str=? (%substring %s 0 1) "%"))))
+
+; Make (name . desc) for each name in `names` not already in `seen`, leaving
+; out the private ones.
 (def %section-here
   (fn (loop cstr seen names)
     (if (null? names) ()
-      (if (%member-sym? (first names) seen)
+      (if (if (%member-sym? (first names) seen) #t
+            (%doc-private-name? (first names)))
         (loop cstr seen (rest names))
         (pair (pair (first names) (%doc-desc-for cstr (first names)))
               (loop cstr seen (rest names)))))))
@@ -617,6 +632,23 @@
     (if (class? v) v
       (if (object? v) (class-of v) ()))))
 
+; The name a help argument denotes: a bare symbol as written, or an
+; expression that evaluates to one -- a quoted symbol, a variable holding
+; one.  Nil for anything else.  help is an operative, so its arguments
+; arrive as written, and the lookups below hand a name to symbol->str,
+; which reads whatever it is given as a string pointer: (help 42) walked
+; off the integer and took the process down.  The names are checked here,
+; once, and a non-name answers "no documentation" like any other miss.
+(def %help-name
+  (fn (_ arg e)
+    (if (symbol? arg) arg
+      (let ((v (guard (_ ()) (eval arg e))))
+        (if (symbol? v) v ())))))
+
+(def %display-no-doc
+  (fn (_ what)
+    (display %c-error "No documentation for " what %c-reset "\n")))
+
 ; help: multi-dispatch
 ;   (help)       -> overview
 ;   (help name)  -> module listing OR individual doc OR a class/instance's docs
@@ -629,21 +661,28 @@
         ; (help Class method) -> walk Class's chain for the method doc, so an
         ; inherited method (keyed under the ancestor that defines it) is found.
         (let ()
-          (def %cls-arg (first args))
-          (def %meth-str (symbol->str (first (rest args))))
-          (def %maybe-cls (%resolve-class (guard (_ ()) (eval %cls-arg e))))
-          (def %me
-            (if (if (null? %maybe-cls) #f (class? %maybe-cls))
-              (%find-method-doc %maybe-cls %meth-str)
-              (%doc-lookup (%str->symbol
-                (%str-append (symbol->str %cls-arg)
-                  (%str-append "/" %meth-str))))))
-          (if (null? %me)
-            (do (display %c-error "No documentation for " %cls-arg " "
-                         (first (rest args)) %c-reset "\n"))
-            (%display-doc %me)))
+          (def %cls-arg (%help-name (first args) e))
+          (def %meth-arg (%help-name (first (rest args)) e))
+          (if (if (null? %cls-arg) #t (null? %meth-arg))
+            (%display-no-doc (%str-append (%display-to-str (first args))
+                               (%str-append " " (%display-to-str (first (rest args))))))
+            (let ()
+              (def %meth-str (symbol->str %meth-arg))
+              (def %maybe-cls (%resolve-class (guard (_ ()) (eval %cls-arg e))))
+              (def %me
+                (if (if (null? %maybe-cls) #f (class? %maybe-cls))
+                  (%find-method-doc %maybe-cls %meth-str)
+                  (%doc-lookup (%str->symbol
+                    (%str-append (symbol->str %cls-arg)
+                      (%str-append "/" %meth-str))))))
+              (if (null? %me)
+                (%display-no-doc (%str-append (symbol->str %cls-arg)
+                                   (%str-append " " %meth-str)))
+                (%display-doc %me)))))
       (let ()
-        (def %h-name (first args))
+        (def %h-name (%help-name (first args) e))
+        (if (null? %h-name)
+          (%display-no-doc (%display-to-str (first args)))
         (if (eq? %h-name (lit modules))
           (modules)
           (let ()
@@ -672,11 +711,10 @@
                         ; those rather than a bare "no documentation".
                         (def %hits (%apropos-matches (symbol->str %h-name)))
                         (if (null? %hits)
-                          (do (display %c-error "No documentation for "
-                                       %h-name %c-reset "\n"))
+                          (%display-no-doc %h-name)
                           (do (display "No top-level doc for " %h-name
                                        "; documented methods matching it:\n")
-                              (%apropos-show %hits))))))))))))))))
+                              (%apropos-show %hits)))))))))))))))))
 
 ; Doc-registry entries whose name CONTAINS pat (a string), sorted by name.
 ; Shared by apropos and help's name-not-found fallback.
@@ -702,13 +740,17 @@
 
 ; apropos: search the doc registry by name substring. The pattern may be a
 ; bare symbol ((apropos upcase)), a string ((apropos "upcase")), or any
-; expression that evaluates to one ((apropos (lit upcase))).
+; expression that evaluates to one ((apropos (lit upcase))).  Prints each
+; match with its description and answers the matching names, sorted, so a
+; program can search the registry as well as a reader.
 (def apropos
   (op (pattern) e
     (%doc-commit!)
     (def %raw (if (symbol? pattern) pattern (eval pattern e)))
     (def %pat (if (symbol? %raw) (symbol->str %raw) %raw))
-    (%apropos-show (%apropos-matches %pat))))
+    (def %hits (%apropos-matches %pat))
+    (%apropos-show %hits)
+    (List map first %hits)))
 
 ; --- Module discovery ---
 

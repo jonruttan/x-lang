@@ -40,6 +40,22 @@ SYMBOL"), not the exact rendered doc text. The class case pins the headings
 ---
     #t
 
+### answers the matching names, sorted
+
+```x
+(apropos "gcd")
+```
+---
+    ('Num/gcd)
+
+### answers () when nothing matches
+
+```x
+(null? (apropos "zzzznotamethod"))
+```
+---
+    #t
+
 ## help
 
 ### a bare method name resolves to matching methods rather than erroring
@@ -58,12 +74,69 @@ SYMBOL"), not the exact rendered doc text. The class case pins the headings
 ---
     #t
 
+### a value that is not a name answers rather than crashing
+
+`help` is an operative, so its argument arrives as written; a number or a
+list used to be handed to `symbol->str` and walked as a string pointer.
+
+```x
+(do (help 42) (help (list 1 2)) (help "gcd") (help Num 42) (help 42 gcd) #t)
+```
+---
+    #t
+
+### a quoted symbol finds the same entry as the bare one
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/sys/stream)
+  (def doc-help-capture
+    (fn (_ thunk)
+      (let ((tmp (File temp "/tmp/x-doc-help-")))
+        (File close (first tmp))
+        (Stream with-file (rest tmp) thunk)
+        (let ((text (File read-all (rest tmp))))
+          (File unlink (rest tmp))
+          text))))
+  (list
+    (str=? (doc-help-capture (fn (_) (help 'gcd)))
+           (doc-help-capture (fn (_) (help gcd))))
+    (str=? (doc-help-capture (fn (_) (help 'Num 'gcd)))
+           (doc-help-capture (fn (_) (help Num gcd))))
+    (Str8 starts? "Num/gcd:" (doc-help-capture (fn (_) (help Num gcd))))))
+```
+---
+    (#t #t #t)
+
 ## help on a class
 
 A class's own data is its static fields and an instance's data its fields, so
 both are headed `fields:`, the static ones under `static:`. The output goes to
 a file and only the heading lines are kept: a name is coloured when
 `x/repl/ansi` is loaded, a heading never is.
+
+### leaves members named with % out of the listing
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/sys/stream)
+  (def-class DocHelpHooks ()
+    (static (method %make-hook (self) 1)
+            (method make (self) (new DocHelpHooks)))
+    (method %repr (self) "#<hooks>")
+    (method bump (self) 1))
+  (def doc-help-tmp (File temp "/tmp/x-doc-help-"))
+  (File close (first doc-help-tmp))
+  (Stream with-file (rest doc-help-tmp) (fn (_) (help DocHelpHooks)))
+  (def doc-help-text (File read-all (rest doc-help-tmp)))
+  (Stream with-file (rest doc-help-tmp) (fn (_) (help DocHelpHooks %repr)))
+  (def doc-help-member (File read-all (rest doc-help-tmp)))
+  (File unlink (rest doc-help-tmp))
+  (list (Str8 includes? "%" doc-help-text)
+        (Str8 includes? "bump" doc-help-text)
+        (Str8 includes? "make" doc-help-text)
+        (Str8 includes? "%repr" doc-help-member)))
+```
+---
+    (#f #t #t #t)
 
 ### heads a class's data fields, static and instance
 
