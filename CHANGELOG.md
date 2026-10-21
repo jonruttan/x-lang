@@ -7,6 +7,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.34.0] - 2026-10-20
 
+**`(Cont capture f)` is `call/cc` for a continuation that waits** ([#1058]). A generator or coroutine captured through it keeps what its suspended frames hold across a collect; with bare `call/cc` those objects were swept and the resumed frame read freed memory (#283). The marker beside the continuation walks the saved root chain in the stack copy, through the engine's closure mark handlers (x-engine-c#93).
+
+[#1058]: https://github.com/jonruttan/x-lang/pull/1058
+
+**The engine is x-engine-c v0.2.23** ([#1061]). A type made with `type make` may give its `mark` handler as a closure, and `call/cc`'s state list carries `stack-lo`, `stack-size` and `stack-copy`; both for `x/sys/cont`.
+
+[#1061]: https://github.com/jonruttan/x-lang/pull/1061
+
+**Vector ref and set! read an in-range index at once.** ([#1060]) An INT within a vector's length, either sign, is read or written after one check, where conversion, the receiver check and negative normalization each took a call: `(Vector ref 5 v)` 236 -> 198 objects, `(Vector set! 5 x v)` 243 -> 218, `(v 5)` 352 -> 334. Every other index takes the checked road it took before, with the same errors.
+
+[#1060]: https://github.com/jonruttan/x-lang/pull/1060
+
 **`Term window` falls back to `COLUMNS` and `LINES`.** ([#1057]) Where `TIOCGWINSZ` reports no window -- standard input a pipe or a file -- the window is `COLUMNS` and `LINES` from the environment, as documented, and 80x24 only when they are unset or not positive numbers; before, it was always 80x24.
 
 [#1057]: https://github.com/jonruttan/x-lang/pull/1057
