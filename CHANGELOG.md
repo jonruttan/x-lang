@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-10-20
+
+**`Term window` falls back to `COLUMNS` and `LINES`.** ([#1057]) Where `TIOCGWINSZ` reports no window -- standard input a pipe or a file -- the window is `COLUMNS` and `LINES` from the environment, as documented, and 80x24 only when they are unset or not positive numbers; before, it was always 80x24.
+
+[#1057]: https://github.com/jonruttan/x-lang/pull/1057
+
+**`Aes` and `Bcrypt` open what OpenSSH seals a key file with.** ([#1056]) `(Aes ctr key size iv s [start len])` is AES in counter mode for 16-, 24- and 32-byte keys, the 128-bit big-endian counter OpenSSH's aes-ctr and OpenSSL use, and `(Aes encrypt-block key size block)` one block. `(Bcrypt pbkdf password password-len salt salt-len rounds key-len)` is OpenBSD's bcrypt-pbkdf, what OpenSSH derives a key file's cipher key and IV from; its Blowfish key schedule runs on a compiled engine built on first use and adopted only after it answers Go's bcrypt_hash vector, about 0.1 s a round. Regions are read by their lengths, so salts and keys with NUL bytes are whole.
+
+[#1056]: https://github.com/jonruttan/x-lang/pull/1056
+
 ## [0.33.0] - 2026-10-16
 
 **The engine is x-engine-c v0.2.22** ([#1053]). A typed list marks without a
