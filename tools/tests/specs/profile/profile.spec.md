@@ -1,3 +1,10 @@
+# @timeout-scale 2
+<!-- The profiling engine counts every evaluation, and each reading here
+     walks the whole heap, so the file runs close to the unit budget on a
+     hosted runner and a slow one has killed it mid-batch.  The scale buys
+     the instrumented engine its time, as the AddressSanitizer gate's raised
+     unit does for its engine; no case here is slow by itself. -->
+
 # The profiling engine's eval count, read by x/tool/profile
 
 An engine built with `X_PROFILE` counts, in each object's flags word, how
