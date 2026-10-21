@@ -211,6 +211,9 @@ lang's values are built at run time and follow the lang's own rules — one
 level lower is the level that fits.  The door is the **two-argument**
 `make-type` (catalogue `type`/`make`), which registers on **the base it is
 called in** — the running base, where the numeric tower already lives.
+This is about the lang's values. The bundle's own tables are classes, and
+its files are modules ([lang-contract.md](lang-contract.md), "Modules,
+names and classes").
 
 Two prims, and the difference decided a failed design:
 
