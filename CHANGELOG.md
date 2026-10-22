@@ -5,6 +5,32 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-10-21
+
+**`Env` reads an environment by name, and `Module` reads the module registry as data.** ([#1069]) `(Env bindings e)`, `(Env names e)`, `(Env parent e)` and `(Env has? e 'name)` read any environment, `(Env current)` answers the one a form is evaluated in and `(Env root)` the running base's root. `(Module names)`, `(Module loaded? 'm)`, `(Module exports 'm)`, `(Module owner 'sym)` and `(Module env 'm)` answer what `(modules)` and `(help x/some/module)` print.
+
+[#1069]: https://github.com/jonruttan/x-lang/pull/1069
+
+**`Fn label`, `Fn params`, `Fn body` and `Fn env` read what a callable is made of.** ([#1068]) `(Fn label f)` answers `'fn`, `'op`, `'wrap` or `'prim`, and `()` for anything else. `(Fn params f)` is the parameter list as written, `(Fn body f)` the body forms, and `(Fn env f)` the environment a closure or an operative was made in, one pair `(bindings . parent)` that `eval` accepts. A wrapped combiner and a primitive answer `()` from the three readers; `unwrap` answers for the one and the other has no state.
+
+[#1068]: https://github.com/jonruttan/x-lang/pull/1068
+
+**`help` answers a value that is not a name instead of crashing, leaves `%` members out of a class listing, and `apropos` returns the matching names.** ([#1067]) `(help 42)` segfaulted; it now prints "No documentation for 42", and `(help 'name)` finds what `(help name)` finds. A class listing omits members named with a leading `%`, which `(help Class %member)` still answers. `(apropos "gcd")` answers `('Num/gcd)` after printing its listing, and `()` when nothing matches.
+
+[#1067]: https://github.com/jonruttan/x-lang/pull/1067
+
+**The engine is x-engine-c v0.2.24** ([#1066]). A guard's error record holds no raw word, so a continuation captured inside a guard survives the collect after the raise; `call/cc` specs the case.
+
+[#1066]: https://github.com/jonruttan/x-lang/pull/1066
+
+**The lang kit's strict lint holds a bundle to its module headers and bare provides.** ([#1065]) `tools/lang-kit/lint.sh --strict` reports a file the lang loads whose first form is not `(module ...)`, and a provide list naming a `%`-private, beside the linter's structural findings; the entry and the bundle's `tests/`, `tools/` and `docs/` are exempt from the module rule. The provide scan ships with the kit, and `make check-provide-names` runs the same one over `lib/`.
+
+[#1065]: https://github.com/jonruttan/x-lang/pull/1065
+
+**A bundle's files are scoped modules and its name tables are classes.** ([#1063]) The lang contract states the three rules for a bundle: every file but the entry is a `(module ...)`, a name chosen at run time is a class rather than a `Dict`, an assoc list or a chain of string compares, and a prefix is not a namespace. Ruling 3 of `docs/lang-scale.md` is settled by pinning rather than by a pre-release run of every bundle.
+
+[#1063]: https://github.com/jonruttan/x-lang/pull/1063
+
 ## [0.34.0] - 2026-10-20
 
 **`(Cont capture f)` is `call/cc` for a continuation that waits** ([#1058]). A generator or coroutine captured through it keeps what its suspended frames hold across a collect; with bare `call/cc` those objects were swept and the resumed frame read freed memory (#283). The marker beside the continuation walks the saved root chain in the stack copy, through the engine's closure mark handlers (x-engine-c#93).
