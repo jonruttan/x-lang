@@ -20,7 +20,7 @@ the same facts; these cases read them.
 ```x
 (let ((n (Module names)))
   (list (Str8 <? (symbol->str (first n)) (symbol->str (first (rest n))))
-        (= (List length n) (List length (List distinct n)))))
+        (null? (List filter (fn (_ p) (eq? (first p) (rest p))) (List zip n (rest n))))))
 ```
 ---
     (#t #t)

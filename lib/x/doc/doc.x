@@ -342,6 +342,12 @@
         ; are registered first (mirrors load order).
         (%go (%doc-reverse %pending))))))
 
+; The catalogue door to the commit, for the Doc class (x/doc/registry):
+; the registry fills lazily, so every reader commits before it reads, and
+; the class loads after the object system and reaches the commit through
+; this door rather than through this file's private.
+(prim-reg! (lit doc) (lit commit!) %doc-commit!)
+
 ; note: (note text...) -> no-op, returns nil (standalone section marker)
 (def note (op %note-args _ ()))
 
