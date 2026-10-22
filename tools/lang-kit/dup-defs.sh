@@ -31,6 +31,11 @@
 #   - several distinct non-fetch definitions fail, unless the name is in
 #     DUP_DEFS_ALLOW or every definition lives under DUP_DEFS_ONE_LOADS.
 #
+# Within one file the rule is the same, and it covers every top-level def,
+# a scoped module's private ones included: the later def wins silently.
+# x-ssh's ssh/session.x carried (def %ASKED 4) and (def %ASKED 7); the
+# later one won and a Vector write ran past its end.
+#
 # A scoped module, whose first form is (module NAME), is checked only for the
 # names it binds in the root (x-lang#719).  Its other top-level defs bind in
 # the module's own environment, so two scoped modules may use the same
@@ -44,7 +49,8 @@
 # ones, a (def-class NAME ...) and a (def NAME Class) alias count as classes.
 #
 # Extraction is a form scanner (paren depth outside strings, char literals and
-# ; comments), not a line grep.  Recognized definers: (def NAME ...),
+# ; comments), not a line grep: a form ends where its paren closes, mid-line
+# or not, and a stray closer at depth 0 is dropped.  Recognized definers: (def NAME ...),
 # (def-class NAME ...) and their (doc ...) wrappers.  A top-level (do ...) is
 # descended into, because do evaluates its forms in the caller's env, so
 # defs directly inside it bind globally.  (let ...) is not descended: its
@@ -164,6 +170,15 @@ function handle(f,    tmp, name, body, key, kids, nk, j, isclass) {
     sub(/[ \t)].*$/, "", name)
     body = tmp
     sub(/^[^ \t]+[ \t]*/, "", body)
+    # One file, one meaning: checked before the scoped filter, so the private
+    # names of a scoped module are held to it too.
+    key = FILENAME SUBSEP name
+    if (!(key in file_body)) file_body[key] = body
+    else if (file_body[key] != body && !(name in allow) && !(key in file_diverge)) {
+      file_diverge[key] = 1
+      printf "dup-def: %s -- distinct definitions within %s (the later one wins)\n", name, FILENAME
+      bad = 1
+    }
     # A scoped module keeps what it does not bind in the root (see the
     # header): a marked export, or an exported class or class alias, is kept.
     if (FILENAME in scoped) {
@@ -199,6 +214,14 @@ function handle(f,    tmp, name, body, key, kids, nk, j, isclass) {
       }
     }
   }
+}
+
+# Append a stretch of one line, whitespace folded, to the form being read.
+function take(s) {
+  gsub(/[ \t]+/, " ", s)
+  sub(/^ /, "", s)
+  sub(/ $/, "", s)
+  if (s != "") form = (form == "" ? s : form " " s)
 }
 
 function flush_form(    tmp) {
@@ -244,21 +267,24 @@ FNR == 1 { depth = 0; instr = 0; form = "" }
     } else if (c == "#" && substr(line, i, 2) == "#\\") {
       out = out substr(line, i, 3)
       i += 2
+    } else if (c == ")" && depth == 0) {
+      # A stray closer ends nothing; counting it would read the defs
+      # inside every later form as top-level ones.
     } else {
       out = out c
       if (c == "\"") instr = 1
       else if (c == "(") depth++
-      else if (c == ")") depth--
+      else if (c == ")" && --depth == 0) {
+        # A form closed mid-line: (def %A 1) (def %B 2) is two defs.
+        take(out)
+        out = ""
+        flush_form()
+      }
     }
     i++
   }
-  if (out != "") {
-    gsub(/[ \t]+/, " ", out)
-    sub(/^ /, "", out)
-    sub(/ $/, "", out)
-    if (out != "") form = (form == "" ? out : form " " out)
-  }
-  if (depth == 0 && form != "") flush_form()
+  take(out)
+  if (depth == 0) flush_form()
 }
 
 END {

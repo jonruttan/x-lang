@@ -7,7 +7,9 @@
 #   - the same definition, text for text, in two files is green;
 #   - two fetches of one catalogue entry are green, whichever quote spelling,
 #     and two fetches of different entries are red;
-#   - two scoped modules sharing a private name are green;
+#   - two scoped modules sharing a private name are green, and one scoped
+#     module defining a private name two ways is red, beside another def
+#     on its line or not;
 #   - two scripts under tools/ sharing a name are green, and a script
 #     redefining a module's name is red;
 #   - the generated harness, tests/lib/, is not read, nor a checkout in a
@@ -81,6 +83,18 @@ _case a/one.x '(module a/one)
 (def %step 2)
 (provide a/two)'
 _green "one private name in two scoped modules"
+
+_case a/one.x '(module a/one)
+(def %sent 1) (def %asked 4)
+(def %remotes 6) (def %asked 7)
+(provide a/one)'
+_red "one private name defined twice in a scoped module" "%asked" "within a/one.x"
+
+_case a/one.x '(module a/one)
+(def %asked 4)
+(def %asked 4)
+(provide a/one)'
+_green "one private definition written twice in a scoped module"
 
 _case a/one.x '(def %n 1)' tools/p.x '(def %say 1)' tools/q.x '(def %say 2)'
 _green "one name in two scripts"
