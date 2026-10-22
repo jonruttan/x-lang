@@ -234,41 +234,90 @@
   (fn (_ asm offset val)
     (%asm-reloc (%obj-ref asm 0) offset val)))
 
+; Each patch names its label.  A list of labels is walked for it, which a
+; program of tens of thousands of each never finishes, so at 32
+; labels or more they are indexed first.  A symbol is one
+; object and a label is found by eq?, so a symbol is bucketed by its
+; address: a vector of lists, a power of two at least as many as the
+; labels, each patch looking in one short list.  A name that is no symbol
+; -- an integer is eq? by value -- goes on a list of its own, walked as
+; before.  The index is built where finalize starts, in the process that
+; resolves, so no address outlives it; a vector keeps its length in slot 0,
+; its elements after.  Each bucket is newest first, so a name placed twice
+; finds its last place, as the walk of the list does.  The doors and
+; helpers are bound once, when this file loads.
 (def asm-finalize!
-  (fn (_ asm)
-    (def patches (%obj-ref asm 4))
-    (def buf-ptr (%obj-ref asm 0))
-    ; Resolve patches (arch-specific resolver in slot 2 of arch).  A buffer
-    ; poured from the cache has none, and its arch may be (): the walk is
-    ; skipped, since entering it costs a poured lexer state more than the
-    ; mprotect does.
-    (unless (null? patches)
-      (do
-        (def labels (%obj-ref asm 3))
-        (def arch (%obj-ref asm 5))
-        (def resolver (when (> (%length arch) 2) (List ref 2 arch)))
-        (%for-each
-          (fn (_ patch)
-            (def offset (List ref 0 patch))
-            (def width  (List ref 1 patch))
-            (def ptype  (List ref 2 patch))
-            (def lname  (List ref 3 patch))
-            (def target-entry (Assoc entry lname labels))
-            (if (null? target-entry)
-              (Err raise 'value (Str append "asm: unresolved label: " (symbol->str lname)) ()))
-            (def target (rest target-entry))
-            (if (not (null? resolver))
-              (resolver buf-ptr offset width ptype target)
-              ; Generic fallback: relative offset
-              (let ((val (if (eq? ptype 'rel)
-                           (- target (+ offset width))
-                           target)))
-                (%ptr-set! buf-ptr offset val width))))
-          patches)))
-    ; Make executable (includes icache flush on ARM)
-    (%asm-mprotect-rx! buf-ptr (%obj-ref asm 2))
-    ; Return the pointer (callable via ptr-call)
-    buf-ptr))
+  ((fn (_ o->p type-of i& i>> i< i+ i-)
+     (def symbol-type (type-of 'asm))
+     ; the entry KEY names in ES, by eq?, or nil
+     (def entry
+       (fn (self key es)
+         (if (null? es) () (if (eq? key (first (first es))) (first es) (self key (rest es))))))
+     ; the slot, in a vector of SIZE buckets, a symbol's address picks
+     (def slot
+       (fn (_ sym size) (i+ (i& (i>> (%ptr->int (o->p sym)) 4) (i- size 1)) 1)))
+     (def pow2 (fn (self p n) (if (i< p n) (self (i+ p p) n) p)))
+     ; LABELS, newest first, as (VECTOR SIZE . OTHERS)
+     (def index
+       (fn (_ labels)
+         (def size (pow2 64 (%length labels)))
+         (def v (Vector make size ()))
+         ; ES, oldest first, into the buckets; OTHERS gathered, newest first
+         (def put
+           (fn (self es others)
+             (if (null? es) others
+               (self (rest es)
+                 (if (eq? (type-of (first (first es))) symbol-type)
+                   (do (%obj-set! v (slot (first (first es)) size)
+                         (pair (first es) (%obj-ref v (slot (first (first es)) size))))
+                       others)
+                   (pair (first es) others))))))
+         (pair v (pair size (put (%reverse labels) ())))))
+     ; the entry of the label NAME: from IX when there is one, else LABELS
+     (def find
+       (fn (_ ix labels name)
+         (if (null? ix) (entry name labels)
+           (if (eq? (type-of name) symbol-type)
+             (entry name (%obj-ref (first ix) (slot name (first (rest ix)))))
+             (entry name (rest (rest ix)))))))
+     (fn (_ asm)
+       (def patches (%obj-ref asm 4))
+       (def buf-ptr (%obj-ref asm 0))
+       ; Resolve patches (arch-specific resolver in slot 2 of arch).  A buffer
+       ; poured from the cache has none, and its arch may be (): the walk is
+       ; skipped, since entering it costs a poured lexer state more than the
+       ; mprotect does.
+       (unless (null? patches)
+         (do
+           (def labels (%obj-ref asm 3))
+           (def ix (if (i< (%length labels) 32) () (index labels)))
+           (def arch (%obj-ref asm 5))
+           (def resolver (when (> (%length arch) 2) (List ref 2 arch)))
+           (%for-each
+             (fn (_ patch)
+               ; a patch is (OFFSET WIDTH TYPE LABEL), read by its pairs
+               (def offset (first patch))
+               (def width  (first (rest patch)))
+               (def ptype  (first (rest (rest patch))))
+               (def lname  (first (rest (rest (rest patch)))))
+               (def target-entry (find ix labels lname))
+               (if (null? target-entry)
+                 (Err raise 'value (Str append "asm: unresolved label: " (symbol->str lname)) ()))
+               (def target (rest target-entry))
+               (if (not (null? resolver))
+                 (resolver buf-ptr offset width ptype target)
+                 ; Generic fallback: relative offset
+                 (let ((val (if (eq? ptype 'rel)
+                              (- target (+ offset width))
+                              target)))
+                   (%ptr-set! buf-ptr offset val width))))
+             patches)))
+       ; Make executable (includes icache flush on ARM)
+       (%asm-mprotect-rx! buf-ptr (%obj-ref asm 2))
+       ; Return the pointer (callable via ptr-call)
+       buf-ptr))
+   (prim-ref 'obj '->ptr) (prim-ref 'type 'of) (prim-ref 'int '&) (prim-ref 'int '>>)
+   (prim-ref 'int '<) (prim-ref 'int '+) (prim-ref 'int '-)))
 
 (def asm-free!
   (fn (_ asm)

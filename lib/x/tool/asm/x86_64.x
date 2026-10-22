@@ -697,10 +697,13 @@
     (%emit-u64-le! asm val)))
 
 ; --- Patch resolver: x86_64 rel32 ---
+; every value here is an INT, so the offset is worked out on the integer
+; doors, bound once
 (def %x86_64-patch
-  (fn (_ buf-ptr offset width ptype target)
-    (def val (- target (+ offset width)))
-    (%ptr-set! buf-ptr offset val width)))
+  ((fn (_ i+ i-)
+     (fn (_ buf-ptr offset width ptype target)
+       (%ptr-set! buf-ptr offset (i- target (i+ offset width)) width)))
+   (prim-ref 'int '+) (prim-ref 'int '-)))
 
 ; --- Export architecture ---
 (set! %arch (list %x86_64-table %x86_64-dispatch %x86_64-patch %asm-reloc))
