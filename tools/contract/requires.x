@@ -82,6 +82,9 @@
   (needs "lib/x/sys/gc.x" isa/gc)
   (needs "lib/x/sys/host.x" isa/ffi-call)
   (needs "lib/x/sys/posix.x" isa/ffi-call isa/sys isa/syscall)
+  ; posix_openpt and the rest through the ffi door; TIOCSWINSZ and TIOCSCTTY
+  ; through the syscall door, for term.x's reason: ioctl is variadic.
+  (needs "lib/x/sys/pty.x" isa/ffi-call isa/syscall)
   (needs "lib/x/sys/socket.x" isa/ffi-call)
   (needs "lib/x/tool/asm-cache.x" isa/ffi-call)
   (needs "lib/x/tool/asm-compile.x" isa/ffi-call)
