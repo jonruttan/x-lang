@@ -262,17 +262,17 @@
        (fn (_ labels)
          (def size (pow2 64 (%length labels)))
          (def v (Vector make size ()))
-         (def others (pair () ()))
+         ; ES, oldest first, into the buckets; OTHERS gathered, newest first
          (def put
-           (fn (self es)
-             (if (null? es) ()
-               (do (if (eq? (type-of (first (first es))) symbol-type)
-                     (%obj-set! v (slot (first (first es)) size)
-                       (pair (first es) (%obj-ref v (slot (first (first es)) size))))
-                     (set-first! others (pair (first es) (first others))))
-                   (self (rest es))))))
-         (put (%reverse labels))
-         (pair v (pair size (first others)))))
+           (fn (self es others)
+             (if (null? es) others
+               (self (rest es)
+                 (if (eq? (type-of (first (first es))) symbol-type)
+                   (do (%obj-set! v (slot (first (first es)) size)
+                         (pair (first es) (%obj-ref v (slot (first (first es)) size))))
+                       others)
+                   (pair (first es) others))))))
+         (pair v (pair size (put (%reverse labels) ())))))
      ; the entry of the label NAME: from IX when there is one, else LABELS
      (def find
        (fn (_ ix labels name)
