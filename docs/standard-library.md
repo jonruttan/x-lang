@@ -20,7 +20,7 @@ in it; it does not repeat the reference.
 | `lib/x/type/` | the classes: `List`, `Str`, `Char`, `Vector`, `Array`, `Dict`, `Hash`, `Assoc`, `Deque`, `Path`, `Promise`, `Regex`, `Iter`, the object system, records, traits, generics |
 | `lib/x/protocol/` | the sequence and string protocols a class implements to join those families |
 | `lib/x/num/` | the numeric tower: bigint, float, rational, complex, decimal, and the mixed-type policy in `x/num/tower` |
-| `lib/x/sys/` | POSIX, files, streams, processes, sockets, the collector, dates, command-line options |
+| `lib/x/sys/` | POSIX, files, streams, processes, pseudo-terminals, sockets, the collector, dates, command-line options |
 | `lib/x/codec/` | JSON, XON, CSV, base64, hex, UTF-8, SHA-1 and SHA-256, zlib, structs |
 | `lib/x/reader/` | the tokenizer's intrinsics, the lexer, the analyser, and the literal, quasiquote and indentation readers |
 | `lib/x/repl/` | the line editor, colour, the banner and the loop a lang hands its session to |
