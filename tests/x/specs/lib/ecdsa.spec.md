@@ -78,10 +78,10 @@ engines (x/codec/mont-jit), so the file carries an engine's weight.
   (def %ec-h0 (Bytes of-hex "0000000000000000000000000000000000000000000000000000000000000001"))
   (write (list (Ecdsa verify-der (lit p256) %ec-g %ec-h0 (Bytes of-hex "3003020101"))
                (Ecdsa verify (lit p256) %ec-g %ec-h0 (Bytes of-hex "00") (Bytes of-hex "01"))
-               (guard (e (e msg)) (Ecdsa verify (lit p521) %ec-g %ec-h0 (Bytes of-hex "01") (Bytes of-hex "01"))))))
+               (guard (e (e msg)) (Ecdsa verify (lit p192) %ec-g %ec-h0 (Bytes of-hex "01") (Bytes of-hex "01"))))))
 ```
 ---
-    (#f #f "Ecdsa: no curve named p521")
+    (#f #f "Ecdsa: no curve named p192")
 
 ## Signing
 
@@ -128,3 +128,27 @@ what sign answers.
 ```
 ---
     "Ecdsa: a private key outside 1..n-1"
+
+## P-521
+
+A key `openssl ecparam -name secp521r1 -genkey` made, and the signature
+`openssl dgst -sha512 -sign -sigopt nonce-type:1` made with it over
+"abc": RFC 6979's nonce over SHA-512, its 521 bits taken from 528.
+
+### public is openssl's point, sign is openssl's signature, verify takes it and not over another hash
+
+```x
+(do (import x/codec/bytes)
+    (import x/codec/ecdsa)
+    (def %e5-d (Bytes of-hex "010e674bb69718f7ec62e0894709cb6df3ca7657918b36ea0139ead56b825a8e336e79f3e87165a394276af578f0e49fc98e55ef57d9f7c3c2765b00355600f65168"))
+    (def %e5-h (Bytes of-hex "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"))
+    (def %e5-q (Ecdsa public (lit p521) %e5-d))
+    (def %e5-s (Ecdsa sign (lit p521) %e5-d %e5-h))
+    (list (str=? (Bytes hex %e5-q) "040011c6eb098b146186e13716d2a5802a580e2d405807489142c887937bc76140919d165b634c9861671a4cc295cf52403d37c5f828c89e5cd1e1da0075f868c4cb9800d6047da0e4dde0bf9479922e91b823429d4c485d2756009e9fb15d6f92f7293067d5a6ca897b3c3696c83639f42a26bee2fe4991636f5a7cf2ac9e5aa23cddb290")
+          (str=? (Bytes hex (first %e5-s)) "00125eef3fc81a329f1a51e9f4c43337f0dcc760392dbb32d338fad3d8100badf89bb99fffae0fc6e6b7035017e82ae7996096e67f1b2437b81e44df337bc6521979")
+          (str=? (Bytes hex (first (rest %e5-s))) "0002ae9bab718ab8ae082f7f165a009340b5511ebbcbec9a509695eaa05add5e8368d42a6003d68e9516e24933d682dca18c7e766dafddefa06600b4f68ddf5c7adc")
+          (Ecdsa verify (lit p521) %e5-q %e5-h (first %e5-s) (first (rest %e5-s)))
+          (Ecdsa verify (lit p521) %e5-q (Bytes of-hex "0daf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f") (first %e5-s) (first (rest %e5-s)))))
+```
+---
+    (#t #t #t #t #f)
