@@ -51,6 +51,22 @@ for _b in "$PROJECT_DIR/boot/x-base.x" "$PROJECT_DIR/build/boot/x-base.x"; do
 done
 CONSTRUCTS="$PROJECT_DIR/lib/x/constructs.x"
 
+# The constructs the linter reads: the platform's, then a lang's own when one
+# is given.  A lang bundle's constructs.x declares the lang's binding forms --
+# Kernel's $lambda and $define!, Scheme's define -- so the linter reads a
+# parameter they bind as bound; the lang kit's shim names it through
+# X_LINT_CONSTRUCTS.  Both lint paths, per file and --group, read the same
+# input from here.
+_constructs_input() {
+  if [ -n "${X_LINT_CONSTRUCTS:-}" ] && [ -f "$X_LINT_CONSTRUCTS" ]; then
+    printf '%s %s' "$(cat "$CONSTRUCTS")" "$(cat "$X_LINT_CONSTRUCTS")"
+  elif [ -n "${1:-}" ] && [ -f "$1" ]; then
+    printf '%s %s' "$(cat "$CONSTRUCTS")" "$(cat "$1")"
+  else
+    printf '%s ()' "$(cat "$CONSTRUCTS")"
+  fi
+}
+
 LIB_MODE=0
 LANG=""
 SHOW_WARNINGS=0
@@ -108,12 +124,19 @@ _import_forms() {
 # every such name reads Undefined.  Taking every file's imports, rather
 # than the target's alone, also keeps the preload the same whichever file
 # of the directory --group computes it from.
+# The roots of the langs a bundle requires, as import-path! forms: a module
+# that imports from a required lang (sed's from grep's) resolves it there.
+# The lang kit's shim names them in X_LINT_MODULE_DEPS, space-separated.
+_dep_paths() {
+  for _d in ${X_LINT_MODULE_DEPS:-}; do printf ' (import-path! "%s")' "$_d"; done
+}
+
 _preload_siblings() {
   _MOD_DIR="$(cd "$(dirname "$1")" && pwd)"
   _ROOT="$(dirname "$_MOD_DIR")"
   _NS="$(basename "$_MOD_DIR")"
   _ABS_F="$_MOD_DIR/$(basename "$1")"
-  _PRELOAD="(import-path! \"$_ROOT\")"
+  _PRELOAD="(import-path! \"$_ROOT\")$(_dep_paths)"
   for _m in "$_MOD_DIR"/*.x; do
     _PRELOAD="$_PRELOAD $(_import_forms "$_m")"
   done
@@ -191,7 +214,7 @@ _preload_for() {
               # loads ALONGSIDE itself (`x -l NAME -f tool.x`).  Either
               # way its environment is the whole bundle, so every module
               # the bundle provides is imported ahead of it.
-              _PRELOAD="(import-path! \"$X_LINT_MODULE_ROOT\")"
+              _PRELOAD="(import-path! \"$X_LINT_MODULE_ROOT\")$(_dep_paths)"
               for _m in "$X_LINT_MODULE_ROOT"/*/*.x; do
                 [ -e "$_m" ] || continue
                 grep -q '(provide ' "$_m" || continue
@@ -229,7 +252,7 @@ if [ -n "${GROUP_LIST:-}" ]; then
   while IFS= read -r _gf; do
     [ "$_gf" = "$_FIRST" ] || _lint_known_from "$_gf"
   done < "$GROUP_LIST"
-  _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") ()"
+  _CONSTRUCTS_INPUT="$(_constructs_input)"
   _OUT=$({
       printf '%s\n' "$_CONSTRUCTS_INPUT"
       [ "$LIB_MODE" -eq 1 ] && printf '%%lint-lib\n'
@@ -403,16 +426,11 @@ for f in "$@"; do
     esac
   fi
 
-  # Build constructs input: base + lang (or ())
+  # Build constructs input: the platform's, then the lang's (see
+  # _constructs_input).
   _LANG_CONSTRUCTS=""
-  if [ -n "$_LANG" ] && [ -f "$PROJECT_DIR/lang/$_LANG/lib/constructs.x" ]; then
-    _LANG_CONSTRUCTS="$PROJECT_DIR/lang/$_LANG/lib/constructs.x"
-  fi
-  if [ -n "$_LANG_CONSTRUCTS" ]; then
-    _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") $(cat "$_LANG_CONSTRUCTS")"
-  else
-    _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") ()"
-  fi
+  [ -z "$_LANG" ] || _LANG_CONSTRUCTS="$PROJECT_DIR/lang/$_LANG/lib/constructs.x"
+  _CONSTRUCTS_INPUT="$(_constructs_input "$_LANG_CONSTRUCTS")"
 
   # Preload: factored into _preload_for (#323) -- the batch grouper
   # keys on the same text this loop executes.

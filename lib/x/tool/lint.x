@@ -347,7 +347,11 @@
           (%scope-add! vn))
         (self (rest bindings))))))
 
-(def %lint-let (fn (_ form)
+; A letrec (the rest argument, from a construct declared (scope . letrec):
+; Kernel's $letrec, Scheme's letrec; no platform form) puts every binding's
+; name in scope before any init is read, so a helper may call itself or a
+; sibling.
+(def %lint-let (fn (_ form . rec)
   (def saved (first %lint-scope))
   (def a (first (rest form)))
   (if (symbol? a)
@@ -355,7 +359,20 @@
         (%lint-let-bindings (first (rest (rest form))))
         (%lint-seq (rest (rest (rest form))))
         (%lint-leak-scan (%last (rest (rest (rest form))))))  ; let body has its own tail
-    (do (%lint-let-bindings a)                         ; regular let
+    (do (if (null? rec)
+          (%lint-let-bindings a)                       ; regular let
+          (do ((fn (self bs)                           ; letrec: the names first
+                 (unless (null? bs)
+                   (do (let ((vn (%cvt (first (first bs)) %lint-string-type)))
+                         (%shadow-check! vn (first %lint-scope))
+                         (%scope-add! vn))
+                       (self (rest bs)))))
+               a)
+              ((fn (self bs)                           ; then every init
+                 (unless (null? bs)
+                   (do (%lint-form (first (rest (first bs))))
+                       (self (rest bs)))))
+               a)))
         (%lint-seq (rest (rest form)))
         (%lint-leak-scan (%last (rest (rest form))))))
   (%frame-unused! saved)                               ; flag let-bindings never referenced
