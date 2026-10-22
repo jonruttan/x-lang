@@ -201,9 +201,9 @@ a name picks a function, and a module otherwise.
 
 `tools/lang-kit/lint.sh --strict` holds a bundle to the first rule and to
 a `%` name staying unprovided, beside the linter's own structural findings.
-A file under the bundle's `tests/`, `tools/` or `docs/` is the suite's
-harness, a script or data, not a module the entry loads, and is not held to
-the module rule.
+A file nothing loads, a data file a tool reads or a script, is not held to
+the module rule: the rule is for the files the entry reaches by import or
+include.
 
 ### The declaration
 

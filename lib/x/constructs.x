@@ -15,6 +15,8 @@
 ;            params  = first arg is parameter list (fn)
 ;            params-env = first + second args are params + env (op)
 ;            let     = first arg is binding pairs list (let)
+;            letrec  = binding pairs whose names are in scope for every
+;                      init (a lang's letrec; no platform form)
 ;            guard   = first arg is (var handler) clause (guard)
 ;            quasi   = body is quasiquoted (quasi)
 ;            none    = no scope effect (if, do, match)

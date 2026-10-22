@@ -12,7 +12,7 @@
 #     fail;
 #   - the lang contract's rules on a bundle's files hold under --strict: a
 #     file with no (module ...) header and a provide list naming a %-private
-#     are each named, the entry and tools/ are exempt, and without --strict
+#     are each named, the entry and a file nothing loads are exempt, and without --strict
 #     both are advisory.
 #
 # The fixture boots this tree's x, once per case.
@@ -58,15 +58,19 @@ case "$st:$out" in
 esac
 
 # The lang contract's rules on a bundle's files.  A fresh bundle: an entry
-# named by lang.xon, one scoped module, one file with no header, one module
-# whose provide list names a %-private, and a script under tools/.
+# named by lang.xon, one scoped module whose constructs.x declares a
+# letrec-scoped form the linter must read (a self-call in an init is not
+# undefined), one imported file that provides but has no header,
+# one module whose provide list names a %-private, a data file nothing
+# loads, and a script under tools/ nothing loads.
 mkdir -p "$TMP/c/m" "$TMP/c/tools"
 printf '(lang "c")\n(dialect he)\n(entry "run.x")\n' > "$TMP/c/lang.xon"
-printf '(import m/one\n  half)\n(def c-main (fn (_) (half 4)))\n' > "$TMP/c/run.x"
-printf '(module m/one)\n(def half (fn (_ n) (/ n 2)))\n(provide m/one half)\n' > "$TMP/c/m/one.x"
-printf '(def loose (fn (_ n) (+ n 1)))\n' > "$TMP/c/m/loose.x"
+printf '(import m/one\n  half)\n(import m/loose loose)\n(def c-main (fn (_) (half (loose 4))))\n' > "$TMP/c/run.x"
+printf '(module m/one)\n(def my-letrec let)\n(def half (fn (_ n) (my-letrec ((go (fn (self k) (if (= k 0) 0 (go (- k 1)))))) (go n))))\n(provide m/one half)\n' > "$TMP/c/m/one.x"
+printf '(def loose (fn (_ n) (+ n 1)))\n(provide m/loose loose)\n' > "$TMP/c/m/loose.x"
 printf '(module m/leaky)\n(def %%secret 1)\n(provide m/leaky %%secret)\n' > "$TMP/c/m/leaky.x"
 printf '(def tool-main (fn (_) 1))\n' > "$TMP/c/tools/script.x"
+printf '(\n  (my-letrec (fmt . head-1) (scope . letrec) (branch . none))\n)\n' > "$TMP/c/m/constructs.x"
 out=$(BUNDLE="$TMP/c" X="$X" sh tools/lang-kit/lint.sh --strict 2>&1) && st=0 || st=$?
 case "$st" in
 	0) printf 'lang-kit-lint: a file with no module header and a %%-private export passed --strict\n' >&2; fails=$((fails + 1)) ;;
@@ -75,8 +79,8 @@ case "$st" in
 			*) printf 'lang-kit-lint: the file with no header was not named:\n%s\n' "$out" >&2; fails=$((fails + 1)) ;; esac
 		case "$out" in *"provide: m/leaky.x exports %secret"*) printf '  a provide list naming a %%-private is a strict finding: ok\n' ;;
 			*) printf 'lang-kit-lint: the %%-private export was not named:\n%s\n' "$out" >&2; fails=$((fails + 1)) ;; esac
-		case "$out" in *"module: run.x"*|*"module: tools/script.x"*) printf 'lang-kit-lint: the entry or a tools/ script was held to the module rule:\n%s\n' "$out" >&2; fails=$((fails + 1)) ;;
-			*) printf '  the entry and tools/ are exempt from the module rule: ok\n' ;; esac ;;
+		case "$out" in *"module: run.x"*|*"module: tools/script.x"*|*"module: m/constructs.x"*) printf 'lang-kit-lint: the entry or a file nothing loads was held to the module rule:\n%s\n' "$out" >&2; fails=$((fails + 1)) ;;
+			*) printf '  the entry and files nothing loads are exempt from the module rule: ok\n' ;; esac ;;
 esac
 # Without --strict the same bundle passes: the findings are advisory.
 if BUNDLE="$TMP/c" X="$X" sh tools/lang-kit/lint.sh >/dev/null 2>&1; then
