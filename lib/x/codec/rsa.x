@@ -123,6 +123,17 @@
                (= (%at em (%add 2 pad)) 0)
                (Bytes same? (Bytes sub em (%add 3 pad) tl) t))))))
 
+; EMSA-PKCS1-v1_5-ENCODE (9.2) at k bytes: 00 01, FF bytes, 00, DigestInfo
+; of the digest; () when k leaves fewer than eight FF bytes.
+(def %v15-encode
+  (fn (_ k hash digest)
+    (def info (%find hash %digest-info))
+    (if (null? info) ()
+      (do (def t (Bytes join (Bytes of-hex (first (rest info))) digest))
+          (def pad (%sub (%sub k 3) (%len t)))
+          (if (< pad 8) ()
+            (Bytes join (Bytes of-list (list 0 1)) (Bytes of-list (List repeat pad 255)) (Bytes of-list (list 0)) t))))))
+
 ; --- PSS ----------------------------------------------------------------------
 
 ; Eight zero bytes, PSS's M' prefix, in a fresh buffer: made at load, an
@@ -260,7 +271,18 @@
       (def mod (%modulus n))
       (def em (if (null? mod) () (%pss-encode (first (rest mod)) (first (rest (rest mod))) hash (Bytes of digest))))
       (when (null? em) (Err raise (lit value) "Rsa: no modulus a PSS signature fits" ()))
+      (%power mod d em))
+    (method sign-pkcs1 (self (param n ANY "The modulus, big-endian bytes, a region; DER's leading zero byte may stay")
+                             (param d ANY "The private exponent, big-endian bytes, a region")
+                             (param hash SYMBOL "sha256, sha384 or sha512")
+                             (param digest ANY "The message's digest under hash, a region"))
+      (doc "RSASSA-PKCS1-v1_5 signing (RFC 8017 8.2.1): DigestInfo of the digest, padded with FF bytes to n's length, raised to d -- as SSH's rsa-sha2-256 and rsa-sha2-512 sign, and certificates are signed. Deterministic: the same key and digest give the same signature, as OpenSSL's does. Variable time, as all of x's arithmetic is. Raises a label 'value for a modulus that is even, zero or too short for the hash."
+        (returns LIST "The signature, n's length of bytes, a region")
+        (sample "(Rsa sign-pkcs1 n d (lit sha256) digest)" "a signature verify-pkcs1 accepts"))
+      (def mod (%modulus n))
+      (def em (if (null? mod) () (%v15-encode (first (rest mod)) hash (Bytes of digest))))
+      (when (null? em) (Err raise (lit value) "Rsa: no modulus a PKCS#1 v1.5 signature fits" ()))
       (%power mod d em))))
 
 (doc (provide x/codec/rsa Rsa)
-  "RSA signatures (RFC 8017): (Rsa verify-pkcs1 n e hash digest sig) for PKCS#1 v1.5, as certificates are signed, verify-pss for RSASSA-PSS with the salt as long as the hash, as TLS 1.3 signs, and sign-pss to make one; the power on x/codec/mont-jit's looping engine.")
+  "RSA signatures (RFC 8017): (Rsa verify-pkcs1 n e hash digest sig) and sign-pkcs1 for PKCS#1 v1.5, as certificates and SSH's rsa-sha2-* are signed, verify-pss for RSASSA-PSS with the salt as long as the hash, as TLS 1.3 signs, and sign-pss to make one; the power on x/codec/mont-jit's looping engine.")
