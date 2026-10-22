@@ -1,10 +1,11 @@
-; ecdsa.x -- Ecdsa: ECDSA signature verification over P-256 and P-384.
+; ecdsa.x -- Ecdsa: ECDSA signatures over P-256, P-384 and P-521.
 ;
 ; Every certificate in the chains TLS servers send today is signed with
 ; ECDSA over P-256 or P-384 (SEC 1 4.1.4, FIPS 186-5), and so is their
 ; CertificateVerify.  Verification is: e from the message's hash, w =
 ; s^-1 mod n, u1 = e w, u2 = r w, R = u1 G + u2 Q, and the signature holds
-; when R's x is r mod n.
+; when R's x is r mod n.  SSH keys are on all three curves, P-521's
+; signed over SHA-512.
 ;
 ; The arithmetic is Montgomery's (x/codec/mont), modulo the curve's prime
 ; for points and its order for scalars, each on an engine of named slots
@@ -41,7 +42,13 @@
       "ffffffffffffffffffffffffffffffffffffffffffffffffc7634d81f4372ddf581a0db248b0a77aecec196accc52973"
       "b3312fa7e23ee7e4988e056be3f82d19181d9c6efe8141120314088f5013875ac656398d8a2ed19d2a85c8edd3ec2aef"
       "aa87ca22be8b05378eb1c71ef320ad746e1d3b628ba79b9859f741e082542a385502f25dbf55296c3a545e3872760ab7"
-      "3617de4a96262c6f5d9e98bf9292dc29f8f41dbd289a147ce9da3113b5f0b8c00a60b1ce1d7e819d7a431d7c90ea0e5f")))
+      "3617de4a96262c6f5d9e98bf9292dc29f8f41dbd289a147ce9da3113b5f0b8c00a60b1ce1d7e819d7a431d7c90ea0e5f")
+    (list (lit p521) 66
+      "01ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      "01fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa51868783bf2f966b7fcc0148f709a5d03bb5c9b8899c47aebb6fb71e91386409"
+      "0051953eb9618e1c9a1f929a21a0b68540eea2da725b99b315f3b8b489918ef109e156193951ec7e937b1652c0bd3bb1bf073573df883d2c34f1ef451fd46b503f00"
+      "00c6858e06b70404e9cd9e3ecb662395b4429c648139053fb521f828af606b4d3dbaa14b5e77efe75928fe1dc127a2ffa8de3348b3c1856a429bf97e7e31c2e5bd66"
+      "011839296a789a3bc0045c8a5fb42c7d1bd998f54449579b446817afbd17273e662c97ee72995ef42640c550b9013fad0761353c7086a272c24088be94769fd16650")))
 
 ; The prime engine's slots.  A point is three slots (X Y Z); the
 ; accumulator, G, Q, G + Q, an addition's result and the temporaries.
@@ -337,7 +344,8 @@
         (do (mont-jit-load! ne %SR (mont-number nm rb 0 len))
             (mont-jit-load! ne %SS (mont-number nm sb 0 len))
             (if (or (mont-jit-zero? ne %SR) (mont-jit-zero? ne %SS)) #f
-              (do ; e: the hash's leftmost bits, as many as n has (whole bytes here)
+              (do ; e: the hash's leftmost bits, as many as n has: whole bytes on P-256
+                  ; and P-384, and on P-521 every one of SHA-512's 512, fewer than n's
                   (def h (Bytes of hash))
                   (def hfix (%fixed (if (> (Bytes length h) len) (Bytes sub h 0 len) h) len))
                   (mont-jit-load! ne %SE (mont-number nm hfix 0 len))
@@ -416,12 +424,29 @@
     db))
 
 ; The curves' hashes: what RFC 6979's HMAC runs on, the one the curve is
-; signed over in SSH and TLS.
-(def %curve-hash (fn (_ name) (if (eq? name (lit p384)) (lit sha384) (lit sha256))))
+; signed over in SSH and TLS: SHA-256, SHA-384 and SHA-512.
+(def %curve-hash (fn (_ name) (match ((eq? name (lit p384)) (lit sha384)) ((eq? name (lit p521)) (lit sha512)) (#t (lit sha256)))))
+
+; How many bits the curve's length of bytes has past its order's: 7 on
+; P-521, whose n is 521 bits in 66 bytes, none on the others.
+(def %excess (fn (_ c) (if (eq? (first c) (lit p521)) 7 0)))
+
+; A buffer of len bytes shifted right by s bits, s under 8, in place.
+(def %shift-right!
+  (fn (_ buf len s)
+    (def p ((prim-ref (lit str) (lit ->ptr)) buf))
+    (def put (prim-ref (lit ptr) (lit set!)))
+    ((fn (self i)
+       (unless (< i 0)
+         (do (def hi (if (> i 0) (%byte-at buf (- i 1)) 0))
+             (put p i (& (| (>> (%byte-at buf i) s) (<< hi (- 8 s))) 255) 1)
+             (self (- i 1)))))
+     (- len 1))
+    buf))
 
 ; A hash's leftmost bytes as an integer below n, the curve's length of
-; them: RFC 6979's bits2int, then bits2octets' reduction.  (The curves'
-; orders are whole bytes, so bits are bytes here.)
+; them: RFC 6979's bits2int, then bits2octets' reduction.  (On P-256 and
+; P-384 the orders are whole bytes; on P-521 SHA-512 is shorter than n.)
 (def %hash-number
   (fn (_ c hash)
     (def len (%c-len c))
@@ -480,7 +505,8 @@
        (def tv ((fn (self v acc) (if (>= (Bytes length acc) len) (pair v acc) ((fn (_ v2) (self v2 (Bytes join acc v2))) (mac key (list v)))))
                 v (Bytes of "")))
        (def v3 (first tv))
-       (def k (first (Bytes copy (Bytes sub (rest tv) 0 len))))
+       ; bits2int: T's leftmost bits, as many as n has
+       (def k (%shift-right! (first (Bytes copy (Bytes sub (rest tv) 0 len))) len (%excess c)))
        (def sig (if (if (mont-below? (%c-nm c) k 0 len) (not (%zero? k len)) #f)
                   (%sign-with c db eb k)
                   ()))
@@ -531,7 +557,7 @@
 
 (def-class Ecdsa ()
   (static
-    (method verify (self (param curve SYMBOL "p256 or p384")
+    (method verify (self (param curve SYMBOL "p256, p384 or p521")
                          (param public ANY "The public key: SEC 1 uncompressed, 04 X Y, a region")
                          (param hash ANY "The message's hash, a region; cut to the curve's size when longer")
                          (param r ANY "r, a big-endian region")
@@ -540,7 +566,7 @@
         (returns BOOL "#t when the signature holds")
         (sample "(Ecdsa verify (lit p256) pub hash r s)" "#t"))
       (%verify curve public hash r s))
-    (method verify-der (self (param curve SYMBOL "p256 or p384")
+    (method verify-der (self (param curve SYMBOL "p256, p384 or p521")
                              (param public ANY "The public key: SEC 1 uncompressed, 04 X Y, a region")
                              (param hash ANY "The message's hash, a region")
                              (param sig ANY "The DER ECDSA-Sig-Value, SEQUENCE { r, s }, a region"))
@@ -549,14 +575,14 @@
         (sample "(Ecdsa verify-der (lit p256) pub hash der)" "#t"))
       (def rs (%der-sig (Bytes of sig)))
       (if (null? rs) #f (%verify curve public hash (first rs) (first (rest rs)))))
-    (method sign (self (param curve SYMBOL "p256 or p384")
+    (method sign (self (param curve SYMBOL "p256, p384 or p521")
                        (param private ANY "The private key d, big-endian, a region; 1 <= d < n")
                        (param hash ANY "The message's hash, a region; cut to the curve's size when longer"))
-      (doc "An ECDSA signature by private over hash (SEC 1 4.1.3), its nonce RFC 6979's -- HMAC-DRBG with SHA-256 on P-256 and SHA-384 on P-384, keyed with the private key and the hash -- so the same key and hash give the same signature, as OpenSSL's nonce-type:1 does. Variable time, as all of x's arithmetic is. Raises a label 'value for a private key outside 1..n-1."
+      (doc "An ECDSA signature by private over hash (SEC 1 4.1.3), its nonce RFC 6979's -- HMAC-DRBG with SHA-256 on P-256, SHA-384 on P-384 and SHA-512 on P-521, keyed with the private key and the hash -- so the same key and hash give the same signature, as OpenSSL's nonce-type:1 does. Variable time, as all of x's arithmetic is. Raises a label 'value for a private key outside 1..n-1."
         (returns LIST "(R S): big-endian regions of the curve's length")
         (sample "(Ecdsa sign (lit p256) d hash)" "(R S), which verify accepts under (Ecdsa public (lit p256) d)"))
       (%sign curve private hash))
-    (method public (self (param curve SYMBOL "p256 or p384")
+    (method public (self (param curve SYMBOL "p256, p384 or p521")
                          (param private ANY "The private key d, big-endian, a region; 1 <= d < n"))
       (doc "The public key of a private one: d G, SEC 1 uncompressed. Raises a label 'value for a private key outside 1..n-1."
         (returns LIST "04 X Y, a region")
@@ -564,4 +590,4 @@
       (%public curve private))))
 
 (doc (provide x/codec/ecdsa Ecdsa)
-  "ECDSA over P-256 and P-384: (Ecdsa verify curve public hash r s) (SEC 1 4.1.4), verify-der for a DER signature, sign with RFC 6979's deterministic nonce (4.1.3), and public, a private key's point; on x/codec/mont-jit's engines.")
+  "ECDSA over P-256, P-384 and P-521: (Ecdsa verify curve public hash r s) (SEC 1 4.1.4), verify-der for a DER signature, sign with RFC 6979's deterministic nonce (4.1.3), and public, a private key's point; on x/codec/mont-jit's engines.")

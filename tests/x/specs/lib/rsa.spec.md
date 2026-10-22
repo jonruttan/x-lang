@@ -120,3 +120,22 @@ PKCS#1 v1.5 has no randomness, so they are byte for byte the same.
 ```
 ---
     (#t #t #t)
+
+## Making a key
+
+### generate makes a key of the size asked: its primes p q, d inverting e, iqmp inverting q, and it signs
+
+```x
+(do (import x/codec/bytes)
+    (import x/codec/rsa)
+    (def %rg (Rsa generate 1024))
+    (def %rg-n (first %rg)) (def %rg-e (List ref 1 %rg)) (def %rg-d (List ref 2 %rg))
+    (def %rg-h (Bytes of-hex "af2bdbe1aa9b6ec1e2ade1d694f41fc71a831d0268e9891562113d8a62add1bf"))
+    (def %rg-sig (Rsa sign-pkcs1 %rg-n %rg-d (lit sha256) %rg-h))
+    (list (Bytes length %rg-n) (>= (Bytes ref %rg-n 0) 128) (Bytes hex %rg-e)
+          (List map (fn (_ r) (Bytes length r)) (List drop 3 %rg))
+          (Rsa verify-pkcs1 %rg-n %rg-e (lit sha256) %rg-h %rg-sig)
+          (guard (e (e msg)) (Rsa generate 512))))
+```
+---
+    (128 #t "010001" (64 64 64) #t "Rsa generate: a size outside 1024..16384")
