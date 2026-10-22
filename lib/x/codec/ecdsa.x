@@ -20,6 +20,7 @@
 (module x/codec/ecdsa)
 
 (import x/codec/bytes)
+(import x/codec/hmac)
 (import x/codec/mont mont-modulus mont-number mont-bytes-of mont-below?)
 (import x/codec/mont-jit mont-jit-engine mont-jit-load! mont-jit-store mont-jit-copy! mont-jit-zero? mont-jit-eq?
         mont-jit-mul mont-jit-add mont-jit-sub mont-jit-to! mont-jit-from! mont-jit-one! mont-jit-inv!
@@ -371,6 +372,131 @@
                                          (mont-jit-mul pe %RZ %X1 zz)
                                          (mont-jit-eq? pe big-r %RZ)))))))))))))))
 
+; --- signing ----------------------------------------------------------------
+;
+; Only the private scalar and the nonce are secrets here, and the arithmetic
+; is x's variable-time arithmetic: a signer that a timing attacker can
+; watch at length should know it.
+
+; k G into the accumulator, k a big-endian buffer of the curve's length:
+; the ladder with no Q, Q set to G so that G + Q is only a doubling.
+(def %times-g!
+  (fn (_ c k)
+    (def len (%c-len c))
+    (def pe (%c-pe c))
+    (%copy-point! pe %Q %G)
+    (%shamir! pe (%c-progs c) len k (first (Bytes of-list (List repeat len 0))))))
+
+; The accumulator's affine coordinates, as big-endian buffers of the
+; curve's length: x = X / Z^2, y = Y / Z^3.
+(def %affine
+  (fn (_ c)
+    (def pm (%c-pm c))
+    (def pe (%c-pe c))
+    (def zi (%t 0)) (def zi2 (%t 1)) (def zi3 (%t 2)) (def x (%t 3)) (def y (%t 4))
+    (mont-jit-inv! pe zi (+ %ACC 2))
+    (mont-jit-mul pe zi2 zi zi)
+    (mont-jit-mul pe zi3 zi2 zi)
+    (mont-jit-mul pe x %ACC zi2)
+    (mont-jit-mul pe y (+ %ACC 1) zi3)
+    (mont-jit-from! pe x x)
+    (mont-jit-from! pe y y)
+    (list (mont-bytes-of pm (mont-jit-store pe x)) (mont-bytes-of pm (mont-jit-store pe y)))))
+
+; Are the len bytes of buf all zero?
+(def %zero? (fn (_ buf len) ((fn (self i) (if (= i len) #t (if (= (%byte-at buf i) 0) (self (+ i 1)) #f))) 0)))
+
+; d as the curve's length of bytes, checked to be a private key: 1 <= d < n.
+(def %private
+  (fn (_ c d)
+    (def len (%c-len c))
+    (def db (%fixed (Bytes of d) len))
+    (when (or (null? db) (not (mont-below? (%c-nm c) db 0 len)) (%zero? db len))
+      (Err raise (lit value) "Ecdsa: a private key outside 1..n-1" ()))
+    db))
+
+; The curves' hashes: what RFC 6979's HMAC runs on, the one the curve is
+; signed over in SSH and TLS.
+(def %curve-hash (fn (_ name) (if (eq? name (lit p384)) (lit sha384) (lit sha256))))
+
+; A hash's leftmost bytes as an integer below n, the curve's length of
+; them: RFC 6979's bits2int, then bits2octets' reduction.  (The curves'
+; orders are whole bytes, so bits are bytes here.)
+(def %hash-number
+  (fn (_ c hash)
+    (def len (%c-len c))
+    (def h (Bytes of hash))
+    (def hfix (%fixed (if (> (Bytes length h) len) (Bytes sub h 0 len) h) len))
+    (mont-bytes-of (%c-nm c) (mont-number (%c-nm c) hfix 0 len))))
+
+; One signature with nonce k: (R S) as big-endian regions, or () when r or
+; s comes out zero and RFC 6979 wants the next k.
+(def %sign-with
+  (fn (_ c db eb k)
+    (def len (%c-len c))
+    (def nm (%c-nm c))
+    (def ne (%c-ne c))
+    (if (not (%times-g! c k)) ()
+      (do (def x (first (%affine c)))
+          (def r (mont-bytes-of nm (mont-number nm x 0 len)))
+          (mont-jit-load! ne %SR (mont-number nm r 0 len))
+          (if (mont-jit-zero? ne %SR) ()
+            (do (mont-jit-load! ne %SE (mont-number nm eb 0 len))
+                (mont-jit-load! ne %SW (mont-number nm db 0 len))
+                (mont-jit-load! ne %SU (mont-number nm k 0 len))
+                (mont-jit-to! ne %SE %SE) (mont-jit-to! ne %SR %SR)
+                (mont-jit-to! ne %SW %SW) (mont-jit-to! ne %SU %SU)
+                ; s = k^-1 (e + r d)
+                (mont-jit-mul ne %SS %SR %SW)
+                (mont-jit-add ne %SS %SS %SE)
+                (mont-jit-inv! ne %SW %SU)
+                (mont-jit-mul ne %SS %SS %SW)
+                (mont-jit-from! ne %SS %SS)
+                (if (mont-jit-zero? ne %SS) ()
+                  (list (list r 0 len) (list (mont-bytes-of nm (mont-jit-store ne %SS)) 0 len)))))))))
+
+; The signature, k from RFC 6979 (3.2): HMAC_DRBG keyed with the private
+; key and the hash's number, each candidate tried in turn.
+(def %sign
+  (fn (_ name d hash)
+    (def c (%curve name))
+    (def len (%c-len c))
+    (def hsym (%curve-hash name))
+    (def hlen (Hmac size hsym))
+    (def db (%private c d))
+    (def eb (%hash-number c hash))
+    (def mac (fn (_ key parts) (list (Hmac mac hsym key (List fold (fn (_ acc p) (Bytes join acc p)) (Bytes of "") parts)) 0 hlen)))
+    (def one (fn (_ b) (Bytes of-list (list b))))
+    (def x (list db 0 len))
+    (def h2 (list eb 0 len))
+    (def v0 (Bytes of-list (List repeat hlen 1)))
+    (def k0 (Bytes of-list (List repeat hlen 0)))
+    (def k1 (mac k0 (list v0 (one 0) x h2)))
+    (def v1 (mac k1 (list v0)))
+    (def k2 (mac k1 (list v1 (one 1) x h2)))
+    (def v2 (mac k2 (list v1)))
+    ((fn (self key v)
+       ; T: V's in turn to the curve's length, then its leftmost bytes
+       (def tv ((fn (self v acc) (if (>= (Bytes length acc) len) (pair v acc) ((fn (_ v2) (self v2 (Bytes join acc v2))) (mac key (list v)))))
+                v (Bytes of "")))
+       (def v3 (first tv))
+       (def k (first (Bytes copy (Bytes sub (rest tv) 0 len))))
+       (def sig (if (if (mont-below? (%c-nm c) k 0 len) (not (%zero? k len)) #f)
+                  (%sign-with c db eb k)
+                  ()))
+       (if (not (null? sig)) sig
+         ((fn (_ key2) (self key2 (mac key2 (list v3)))) (mac key (list v3 (one 0))))))
+     k2 v2)))
+
+; The public key of a private one: d G, SEC 1 uncompressed, 04 X Y.
+(def %public
+  (fn (_ name d)
+    (def c (%curve name))
+    (def db (%private c d))
+    (%times-g! c db)
+    (def xy (%affine c))
+    (Bytes join (Bytes of-list (list 4)) (list (first xy) 0 (%c-len c)) (list (first (rest xy)) 0 (%c-len c)))))
+
 ; A DER ECDSA-Sig-Value, SEQUENCE { INTEGER r, INTEGER s }, as (R S)
 ; regions; nil when it is not one.
 (def %der-sig
@@ -422,7 +548,20 @@
         (returns BOOL "#t when the signature holds")
         (sample "(Ecdsa verify-der (lit p256) pub hash der)" "#t"))
       (def rs (%der-sig (Bytes of sig)))
-      (if (null? rs) #f (%verify curve public hash (first rs) (first (rest rs)))))))
+      (if (null? rs) #f (%verify curve public hash (first rs) (first (rest rs)))))
+    (method sign (self (param curve SYMBOL "p256 or p384")
+                       (param private ANY "The private key d, big-endian, a region; 1 <= d < n")
+                       (param hash ANY "The message's hash, a region; cut to the curve's size when longer"))
+      (doc "An ECDSA signature by private over hash (SEC 1 4.1.3), its nonce RFC 6979's -- HMAC-DRBG with SHA-256 on P-256 and SHA-384 on P-384, keyed with the private key and the hash -- so the same key and hash give the same signature, as OpenSSL's nonce-type:1 does. Variable time, as all of x's arithmetic is. Raises a label 'value for a private key outside 1..n-1."
+        (returns LIST "(R S): big-endian regions of the curve's length")
+        (sample "(Ecdsa sign (lit p256) d hash)" "(R S), which verify accepts under (Ecdsa public (lit p256) d)"))
+      (%sign curve private hash))
+    (method public (self (param curve SYMBOL "p256 or p384")
+                         (param private ANY "The private key d, big-endian, a region; 1 <= d < n"))
+      (doc "The public key of a private one: d G, SEC 1 uncompressed. Raises a label 'value for a private key outside 1..n-1."
+        (returns LIST "04 X Y, a region")
+        (sample "(Ecdsa public (lit p256) d)" "the 65 bytes of the key's point"))
+      (%public curve private))))
 
 (doc (provide x/codec/ecdsa Ecdsa)
-  "ECDSA verification over P-256 and P-384 (SEC 1 4.1.4): (Ecdsa verify curve public hash r s), and verify-der for a DER signature, on x/codec/mont-jit's engines.")
+  "ECDSA over P-256 and P-384: (Ecdsa verify curve public hash r s) (SEC 1 4.1.4), verify-der for a DER signature, sign with RFC 6979's deterministic nonce (4.1.3), and public, a private key's point; on x/codec/mont-jit's engines.")
