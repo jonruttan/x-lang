@@ -46,8 +46,13 @@
         (returns LIST "Symbols, sorted by name")
         (example "(List includes? 'Str8/split (Doc names))" "#t"))
       ((prim-ref (lit doc) (lit commit!)))
-      (List sort (fn (_ a b) (Str8 <? (symbol->str a) (symbol->str b)))
-        (List distinct
+      ; Sorted first, then the duplicates dropped in one pass: a name
+      ; documented twice sits beside itself once sorted.  (List distinct)
+      ; walks the whole list for each element, through equal?, and over the
+      ; registry's hundreds of names that is tens of millions of
+      ; allocations in one call.
+      (List uniq
+        (List sort (fn (_ a b) (Str8 <? (symbol->str a) (symbol->str b)))
           (List map (fn (_ e) (first e)) (first %doc-registry-cell)))))))
 
 (doc (provide x/doc/registry Doc)

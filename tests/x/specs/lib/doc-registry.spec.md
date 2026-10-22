@@ -85,7 +85,7 @@ entries; these cases read them as records.
   (list (List includes? 'Str8/split n)
         (List includes? 'x/core/math n)
         (Str8 <? (symbol->str (first n)) (symbol->str (first (rest n))))
-        (= (List length n) (List length (List distinct n)))
+        (null? (List filter (fn (_ p) (eq? (first p) (rest p))) (List zip n (rest n))))
         (< 500 (List length n))))
 ```
 ---

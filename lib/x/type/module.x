@@ -24,8 +24,10 @@
       (doc "Every module name the session knows, sorted: the boot modules registered at boot and every module imported since, loaded or not."
         (returns LIST "Symbols, sorted by name")
         (example "(List includes? 'x/core/fn (Module names))" "#t"))
-      (List sort (fn (_ a b) (Str8 <? (symbol->str a) (symbol->str b)))
-        (List distinct
+      ; Sorted first, then the duplicates dropped in one pass, as Doc names
+      ; does: (List distinct) walks the whole list for each element.
+      (List uniq
+        (List sort (fn (_ a b) (Str8 <? (symbol->str a) (symbol->str b)))
           (List map (fn (_ e) (if (pair? e) (first e) e))
                     (first %module-loaded-cell)))))
     (method loaded? (self (param name SYMBOL "A module name, such as 'x/core/fn"))
