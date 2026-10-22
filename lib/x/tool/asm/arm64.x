@@ -525,29 +525,33 @@
 
 ; --- Patch resolver: ARM64 PC-relative branches and addresses ---
 ; For B/BL: imm26 = (target - offset) >> 2, OR'd into low 26 bits
+; The branches are most of a program's patches, so their fields are put
+; with the integer doors, bound once: every value here is an INT, a word or
+; an offset.  67108863 is imm26's mask, (1 << 26) - 1, and -67108864 its
+; complement; 524287 is imm19's, and -16777185 the complement of it << 5.
 (def %arm64-patch
-  (fn (_ buf-ptr offset width ptype target)
-    (def word (%ptr-ref buf-ptr offset 4))
-    (def rel (>> (- target offset) 2))
-    (match
-      ; B/BL: imm26 at [25:0]
-      ((eq? ptype 'arm64-rel)
-        (let ((mask (- (<< 1 26) 1)))
-          (%ptr-set! buf-ptr offset (| (& word (~ mask)) (& rel mask)) 4)))
-      ; CBZ/CBNZ/B.cond: imm19 at [23:5]
-      ((eq? ptype 'arm64-rel19)
-        (let ((mask (<< (- (<< 1 19) 1) 5)))
-          (%ptr-set! buf-ptr offset (| (& word (~ mask)) (& (<< (& rel (- (<< 1 19) 1)) 5) mask)) 4)))
-      ; ADR: the byte offset, not the word offset, in 21 bits either way
-      ((eq? ptype 'arm64-adr)
-        (let ((bytes (- target offset)))
-          (if (or (< bytes (- 0 1048576)) (>= bytes 1048576))
-            (Err raise 'value "asm: adr to a label a megabyte or more away" ()))
-          ; 0x9F00001F keeps the opcode bits and Rd
-          (%ptr-set! buf-ptr offset
-            (| (& word 2667577375) (| (<< (& bytes 3) 29) (<< (& (>> bytes 2) 524287) 5))) 4)))
-      ; Generic fallback
-      (#t (%ptr-set! buf-ptr offset (- target (+ offset width)) width)))))
+  ((fn (_ i- i& i| i<< i>>)
+     (fn (_ buf-ptr offset width ptype target)
+       (def word (%ptr-ref buf-ptr offset 4))
+       (def rel (i>> (i- target offset) 2))
+       (match
+         ; B/BL: imm26 at [25:0]
+         ((eq? ptype 'arm64-rel)
+           (%ptr-set! buf-ptr offset (i| (i& word -67108864) (i& rel 67108863)) 4))
+         ; CBZ/CBNZ/B.cond: imm19 at [23:5]
+         ((eq? ptype 'arm64-rel19)
+           (%ptr-set! buf-ptr offset (i| (i& word -16777185) (i<< (i& rel 524287) 5)) 4))
+         ; ADR: the byte offset, not the word offset, in 21 bits either way
+         ((eq? ptype 'arm64-adr)
+           (let ((bytes (- target offset)))
+             (if (or (< bytes (- 0 1048576)) (>= bytes 1048576))
+               (Err raise 'value "asm: adr to a label a megabyte or more away" ()))
+             ; 0x9F00001F keeps the opcode bits and Rd
+             (%ptr-set! buf-ptr offset
+               (| (& word 2667577375) (| (<< (& bytes 3) 29) (<< (& (>> bytes 2) 524287) 5))) 4)))
+         ; Generic fallback
+         (#t (%ptr-set! buf-ptr offset (- target (+ offset width)) width)))))
+   (prim-ref 'int '-) (prim-ref 'int '&) (prim-ref 'int '|) (prim-ref 'int '<<) (prim-ref 'int '>>)))
 
 ; --- Export architecture: (table encoder patcher relocator) ---
 ; The relocator is asm-code.x's: a buffer poured from the byte cache needs it
