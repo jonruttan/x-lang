@@ -102,6 +102,8 @@
         (let ((st (if (null? props) ""
                     (let ((s (%get-prop "scope" props))) (if (null? s) "" s)))))
           (match
+            ; a local in scope named after a construct is the local, called
+            ((%scope-has-name? h (first %lint-scope)) (%lint-call form))
             ((str=? st "bind")       (%lint-def form))
             ((str=? st "bind-set")   (%lint-set form))
             ((str=? st "params")     (%lint-fn form))

@@ -785,12 +785,16 @@
     (%cvt (if (pair? np) (first np) np) %lint-string-type))))
 
 ; Hardcoded special forms (by name); everything else is a function call.
+; A head that names a local in scope -- a parameter called op, a let
+; variable called first -- is the local, and the form is a call: the
+; construct reader would take its arguments for a parameter list.
 (set! %lint-dispatch (fn (_ form)
   (def head (first form))
   (if (not (symbol? head))
     (if (Lint %lint-block-form? form) (Lint %lint-block-form! form) (%lint-seq form))
     (let ((h (%cvt head %lint-string-type)))
       (match
+        ((%scope-has-name? h (first %lint-scope)) (%lint-call form))
         ((str=? h "fn")    (%lint-fn form))
         ((str=? h "op")    (%lint-op form))
         ((str=? h "let")   (%lint-let form))
@@ -888,7 +892,8 @@
 
 (def %lint-check-malformed (fn (_ form)
   (let ((h (first %lint-head-cell)))
-    (unless (null? h)
+    ; a local named after a construct is the local, called: no shape to hold
+    (unless (if (null? h) #t (%scope-has-name? h (first %lint-scope)))
       (let ((mn (%lint-min-len h)))
         (when (if (= mn 0) #f (< (%length form) mn))
           (%warn! "malformed" h)))))))

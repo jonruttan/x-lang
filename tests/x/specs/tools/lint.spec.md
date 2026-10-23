@@ -241,6 +241,32 @@
 ---
     #t
 
+## lint: a local named after a construct
+
+### a parameter named op that is called is a call, not the op construct
+
+```x
+(do
+  (def %forms (list (lit (def f (fn (_ op v) (op v))))))
+  (def %result (lint-forms %forms () ()))
+  (def %undef (lint-undefined (first %result) (first (rest %result))))
+  (display (if (null? %undef) (null? (lint-warnings-of "malformed" %result)) #f)))
+```
+---
+    #t
+
+### a let variable named first that is called is a call
+
+```x
+(do
+  (def %forms (list (lit (def g (fn (_ v) (let ((first (fn (_ x) x))) (first v)))))))
+  (def %result (lint-forms %forms () ()))
+  (def %undef (lint-undefined (first %result) (first (rest %result))))
+  (display (null? %undef)))
+```
+---
+    #t
+
 ## lint: pedantic checks (match clause body)
 
 A match clause evaluates ONE body expression; anything after it is dead code
