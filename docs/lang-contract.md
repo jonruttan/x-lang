@@ -179,7 +179,11 @@ a bundle:
   `(module NAME)`, with NAME under the bundle's own prefix (`cc/parse`,
   `python/tokens`), and only what `provide` lists leaves it. A `%` name is
   the module's own and is never provided. The entry is the one file in the
-  root: it imports the modules and registers the lang.
+  root: it imports the modules and registers the lang. A module too large
+  for one file is written in several: its own file includes the others,
+  each headed with the module's name, and they share its names
+  ([modules.md](modules.md#a-module-in-several-files)); such a file
+  provides nothing.
 - **A name chosen at run time is a class.** An applet table, a builtin
   table, a command keyed by what the user typed: the names are static
   methods of a class, and `(Class name args)` is the lookup. Not an assoc

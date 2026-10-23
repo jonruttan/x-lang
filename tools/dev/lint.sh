@@ -168,10 +168,15 @@ _preload_siblings() {
     grep -q '(provide ' "$_m" || continue
     _ASM="$_ASM $_m"
   done
+  # A file headed with the name of another module is one of that module's
+  # files, which the module's own file includes; an import of it is refused,
+  # so it is left to the module.
   for _m in "$_MOD_DIR"/*.x; do
     [ "$_m" = "$_ABS_F" ] && continue
     grep -q '(provide ' "$_m" || continue
     case " $_ASM " in *" $_m "*) continue ;; esac
+    _h=$(sed -n 's/^(module \([^ )]*\)).*/\1/p' "$_m" | head -1)
+    [ -z "$_h" ] || [ "$_h" = "$_NS/$(basename "$_m" .x)" ] || continue
     _PRELOAD="$_PRELOAD (import $_NS/$(basename "$_m" .x))"
   done
   for _m in $_ASM; do
@@ -219,6 +224,8 @@ _preload_for() {
                 [ -e "$_m" ] || continue
                 grep -q '(provide ' "$_m" || continue
                 _MD="$(basename "$(dirname "$_m")")"
+                _h=$(sed -n 's/^(module \([^ )]*\)).*/\1/p' "$_m" | head -1)
+                [ -z "$_h" ] || [ "$_h" = "$_MD/$(basename "$_m" .x)" ] || continue
                 _PRELOAD="$_PRELOAD (import $_MD/$(basename "$_m" .x))"
               done
               _PRELOAD="$_PRELOAD $(_import_forms "$1")"

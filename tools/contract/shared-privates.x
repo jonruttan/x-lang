@@ -85,6 +85,7 @@
 (shared "lib/x/boot/reflect.x" %reflect-type-name "the name of a value's type, as a string")
 (shared "lib/x/boot/reflect.x" %reflect-type-name-atom "the name atom of a type")
 (shared "lib/x/boot/reflect.x" %reflect-type-word "an object's type slot, as an integer")
+(shared "lib/x/boot/reflect.x" %reflect-meta-set! "writes meta word i of an object that carries meta words")
 
 ; --- boot/string.x: the byte-level string layer ------------------------------
 (shared "lib/x/boot/string.x" %char->integer "the catalogue's char ->int, fetched once")

@@ -61,14 +61,19 @@ esac
 # named by lang.xon, one scoped module whose constructs.x declares a
 # letrec-scoped form the linter must read (a self-call in an init is not
 # undefined), one imported file that provides but has no header,
-# one module whose provide list names a %-private, a data file nothing
-# loads, and a script under tools/ nothing loads.
+# one module whose provide list names a %-private, one module written in two
+# files, one file headed with a module's name that the module's file does
+# not include and that provides, a data file nothing loads, and a script
+# under tools/ nothing loads.
 mkdir -p "$TMP/c/m" "$TMP/c/tools"
 printf '(lang "c")\n(dialect he)\n(entry "run.x")\n' > "$TMP/c/lang.xon"
-printf '(import m/one\n  half)\n(import m/loose loose)\n(def c-main (fn (_) (half (loose 4))))\n' > "$TMP/c/run.x"
+printf '(import m/one\n  half)\n(import m/loose loose)\n(import m/two step!)\n(def c-main (fn (_) (half (loose (step!)))))\n' > "$TMP/c/run.x"
+printf '(module m/two)\n(def %%count 0)\n(include-once "./two-step.x")\n(provide m/two step!)\n' > "$TMP/c/m/two.x"
+printf '(module m/two)\n(def step! (fn (_) (set! %%count (+ %%count 1)) %%count))\n' > "$TMP/c/m/two-step.x"
+printf '(module m/one)\n(def stray 1)\n(provide m/one stray)\n' > "$TMP/c/m/stray.x"
 printf '(module m/one)\n(def my-letrec let)\n(def half (fn (_ n) (my-letrec ((go (fn (self k) (if (= k 0) 0 (go (- k 1)))))) (go n))))\n(provide m/one half)\n' > "$TMP/c/m/one.x"
 printf '(def loose (fn (_ n) (+ n 1)))\n(provide m/loose loose)\n' > "$TMP/c/m/loose.x"
-printf '(module m/leaky)\n(def %%secret 1)\n(provide m/leaky %%secret)\n' > "$TMP/c/m/leaky.x"
+printf '(module m/leaky)\n(def %%secret 1)\n(include-once "./stray.x")\n(provide m/leaky %%secret)\n' > "$TMP/c/m/leaky.x"
 printf '(def tool-main (fn (_) 1))\n' > "$TMP/c/tools/script.x"
 printf '(\n  (my-letrec (fmt . head-1) (scope . letrec) (branch . none))\n)\n' > "$TMP/c/m/constructs.x"
 out=$(BUNDLE="$TMP/c" X="$X" sh tools/lang-kit/lint.sh --strict 2>&1) && st=0 || st=$?
@@ -80,7 +85,13 @@ case "$st" in
 		case "$out" in *"provide: m/leaky.x exports %secret"*) printf '  a provide list naming a %%-private is a strict finding: ok\n' ;;
 			*) printf 'lang-kit-lint: the %%-private export was not named:\n%s\n' "$out" >&2; fails=$((fails + 1)) ;; esac
 		case "$out" in *"module: run.x"*|*"module: tools/script.x"*|*"module: m/constructs.x"*) printf 'lang-kit-lint: the entry or a file nothing loads was held to the module rule:\n%s\n' "$out" >&2; fails=$((fails + 1)) ;;
-			*) printf '  the entry and files nothing loads are exempt from the module rule: ok\n' ;; esac ;;
+			*) printf '  the entry and files nothing loads are exempt from the module rule: ok\n' ;; esac
+		case "$out" in *"module: m/two-step.x"*|*"provide: m/two-step.x"*|*"      %count"*) printf 'lang-kit-lint: a file of a module was faulted, or its names read as undefined:\n%s\n' "$out" >&2; fails=$((fails + 1)) ;;
+			*) printf '  a file headed with its module'"'"'s name, included from the module'"'"'s file, is a file of the module: ok\n' ;; esac
+		case "$out" in *"module: m/stray.x is headed (module m/one), and m/one.x does not include it"*) printf '  a file headed with a module'"'"'s name that the module does not include is a strict finding: ok\n' ;;
+			*) printf 'lang-kit-lint: the stray file was not named:\n%s\n' "$out" >&2; fails=$((fails + 1)) ;; esac
+		case "$out" in *"provide: m/stray.x provides, and it is a file of m/one"*) printf '  a provide in a file of a module is a strict finding: ok\n' ;;
+			*) printf 'lang-kit-lint: the provide in a file of a module was not named:\n%s\n' "$out" >&2; fails=$((fails + 1)) ;; esac ;;
 esac
 # Without --strict the same bundle passes: the findings are advisory.
 if BUNDLE="$TMP/c" X="$X" sh tools/lang-kit/lint.sh >/dev/null 2>&1; then

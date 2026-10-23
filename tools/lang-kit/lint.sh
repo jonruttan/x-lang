@@ -129,8 +129,10 @@ done
 # module some file imports, or a file some file includes by a ./-relative
 # path; a file nothing loads -- a data file a tool reads, a script -- is not
 # held to the rule, and the entry is the one loaded file exempt from it.  A
+# file headed with a module's name that is not the module's own file is one
+# of its files: the module's file includes it, and it provides nothing.  A
 # provide list names no %-private; the scan is the kit's own
-# provide-names.sh.  Both are findings like the linter's, indented under a
+# provide-names.sh.  All are findings like the linter's, indented under a
 # heading, counted into the strict verdict.
 _ENTRY=$(sed -n 's/^(entry "\([^"]*\)")$/\1/p' "$BUNDLE/lang.xon" 2>/dev/null | head -1)
 _ENTRY="$BUNDLE/${_ENTRY:-run.x}"
@@ -156,8 +158,21 @@ for _t in $_MODS; do
 	case "$_first" in
 		"(module "*) ;;
 		*) _BUNDLE_OUT="$_BUNDLE_OUT
-      module: ${_t#"$BUNDLE"/} has no (module ...) header" ;;
+      module: ${_t#"$BUNDLE"/} has no (module ...) header"; continue ;;
 	esac
+	_name=${_first#"(module "}; _name=${_name%%[ )]*}
+	_own="$BUNDLE/$_name.x"
+	[ "$_t" = "$_own" ] && continue
+	_included=0
+	if [ -f "$_own" ]; then
+		for _i in $(sed -n 's/^[[:space:]]*(include\(-once\)\{0,1\} "\.\/\([^"]*\)".*/\2/p' "$_own"); do
+			[ "$(dirname "$_own")/$_i" = "$_t" ] && _included=1
+		done
+	fi
+	[ "$_included" = 1 ] || _BUNDLE_OUT="$_BUNDLE_OUT
+      module: ${_t#"$BUNDLE"/} is headed (module $_name), and ${_own#"$BUNDLE"/} does not include it"
+	grep -q '^[[:space:]]*(provide ' "$_t" && _BUNDLE_OUT="$_BUNDLE_OUT
+      provide: ${_t#"$BUNDLE"/} provides, and it is a file of $_name"
 done
 # Every file's provide list, loaded or not: a provide is a claim on a name.
 _PROV=$(sh "$(dirname "$0")/provide-names.sh" "$@" 2>&1 \
