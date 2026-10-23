@@ -5,6 +5,42 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-10-22
+
+**The linter reads a call through a local named after a construct as a call.** ([#1078]) A parameter or let variable called `op`, `first` or any other construct name, applied in its scope, is a call of that local; before, the dispatcher parsed it as the construct and the engine died on the shape, with no verdict for the file. x-awk's `awk/eval.x` lints now.
+
+[#1078]: https://github.com/jonruttan/x-lang/pull/1078
+
+**`Pty` runs a program on a pseudo-terminal.** ([#1077]) `(Pty open)` gives a master and its slave's path, `(Pty window! fd cols rows)` sets the window, `(Pty attach! path cols rows)` makes the slave a forked child's controlling terminal, `(Pty fork cols rows)` does the three as `forkpty(3)` does, and `(Pty spawn program args cols rows)` runs a program on a new terminal, answering `(PID . MASTER)`.
+
+[#1077]: https://github.com/jonruttan/x-lang/pull/1077
+
+**`Rsa generate` makes an RSA key, and ECDSA runs over P-521.** ([#1076]) `(Rsa generate bits)` answers a key's `(N E D IQMP P Q)`. `Ecdsa verify`, `verify-der`, `sign` and `public` take `p521`.
+
+[#1076]: https://github.com/jonruttan/x-lang/pull/1076
+
+**The lang kit's dup-defs refuses one name defined two ways in one file, a scoped module's private names included.** ([#1075]) A later top-level def silently replaces an earlier one; x-ssh's `ssh/session.x` carried `(def %ASKED 4)` and `(def %ASKED 7)` and wrote a Vector past its end.  The scanner also now ends a form where its paren closes, mid-line or not, so `(def %A 1) (def %B 2)` is read as two defs, and drops a stray `)` at depth 0.
+
+[#1075]: https://github.com/jonruttan/x-lang/pull/1075
+
+**`Rsa sign-pkcs1`, `Ecdsa sign` and `Ecdsa public` make the signatures x-lang already checked.** ([#1074]) `(Rsa sign-pkcs1 n d hash digest)` is RSASSA-PKCS1-v1_5, as SSH's rsa-sha2-256 and rsa-sha2-512 and certificates are signed. `(Ecdsa sign curve d hash)` answers `(R S)` on P-256 or P-384 with RFC 6979's deterministic nonce -- the same signature OpenSSL's `nonce-type:1` makes -- and `(Ecdsa public curve d)` the key's point, `04 X Y`. Both are variable time.
+
+[#1074]: https://github.com/jonruttan/x-lang/pull/1074
+
+**Assembling a large program resolves its labels in linear time.** ([#1072]) `asm-finalize!` indexes 32 or more labels by symbol before resolving its patches, where it walked the whole label list for each one: 2,000 labels and branches resolve in 0.16 s at 652 objects a patch, where they passed 8 GB. A patch is read by its pairs, and the arm64 and x86_64 resolvers work on the integer doors.
+
+[#1072]: https://github.com/jonruttan/x-lang/pull/1072
+
+**The lang kit's lint reads a bundle's constructs and its required langs, and holds the module rule to the files the entry loads.** ([#1073]) A lang's `constructs.x` declares its binding forms to the linter, including a new `letrec` scope; a module's import from a required lang resolves; and a file nothing loads is not held to the module rule.
+
+[#1073]: https://github.com/jonruttan/x-lang/pull/1073
+
+**`Doc names` and `Module names` drop duplicates after sorting.** ([#1071]) The quadratic `List distinct` walk is gone from both: over the 701 documented names of a helium session, `(Doc names)` allocates 2.4 million objects where `List distinct` alone ran past 34 million; the lazy doc commit it triggers costs 1.1 million.
+
+**`Doc` reads the documentation registry as data.** ([#1071]) `(Doc entry 'name)` answers a record with `name`, `desc`, `returns`, `params`, `examples`, `sees`, `notes` and `samples`, as the `doc` form wrote them, or `()` for a name nothing is documented under; `(Doc names)` lists every documented name, sorted.
+
+[#1071]: https://github.com/jonruttan/x-lang/pull/1071
+
 ## [0.35.0] - 2026-10-21
 
 **`Env` reads an environment by name, and `Module` reads the module registry as data.** ([#1069]) `(Env bindings e)`, `(Env names e)`, `(Env parent e)` and `(Env has? e 'name)` read any environment, `(Env current)` answers the one a form is evaluated in and `(Env root)` the running base's root. `(Module names)`, `(Module loaded? 'm)`, `(Module exports 'm)`, `(Module owner 'sym)` and `(Module env 'm)` answer what `(modules)` and `(help x/some/module)` print.
