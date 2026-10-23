@@ -100,12 +100,15 @@ function import_mod(line,  mod) {
 function import_selective(line) {
 	return line ~ /^\(import[[:space:]]+[^[:space:]()]+[[:space:]]+[^[:space:])]/
 }
-# The files a scoped file includes once or imports at top level, spliced
-# ahead of it in the order they appear.  The header of a scoped module reads
-# every form after it into the module, so a file spliced in place would load
-# into the module instead of the root.  Spliced first, each is loaded by the
-# time the module runs, and its line inside the module becomes the comment a
-# repeat already becomes.
+# The modules a scoped file imports at top level, spliced ahead of it in
+# the order they appear, as are those of the files it includes: a module
+# loads into the root wherever it is imported from, and the header of a
+# scoped module reads every form after it into the module, so an import
+# spliced in place would load into the module instead.  Spliced first, each
+# is loaded by the time the module runs, and its line inside the module
+# becomes the comment a repeat already becomes.  An included file itself is
+# spliced where the include stands, since that is where the loader
+# evaluates it; only its imports are hoisted.
 function hoist(path,  line, inc, mod, file) {
 	if (path in hoisting) {
 		printf "amalgamate: %s imports itself, directly or through another file\n", path > "/dev/stderr"
@@ -113,14 +116,14 @@ function hoist(path,  line, inc, mod, file) {
 	}
 	hoisting[path] = 1
 	while ((getline line < path) > 0) {
-		if (line ~ /^\(include-once[[:space:]]+"((lib|tools|apps|ext|engine)|\.\.?)\/[^"]*"\)[[:space:]]*(;.*)?$/) {
+		if (line ~ /^\((include|include-once)[[:space:]]+"((lib|tools|apps|ext|engine)|\.\.?)\/[^"]*"\)[[:space:]]*(;.*)?$/) {
 			inc = line
-			sub(/^\(include-once[[:space:]]+"/, "", inc)
+			sub(/^\((include|include-once)[[:space:]]+"/, "", inc)
 			sub(/".*$/, "", inc)
 			inc = inc_path(path, inc)
 			if (!(inc in seen) && (getline junk < inc) >= 0) {
 				close(inc)
-				splice(inc)
+				hoist(inc)
 			}
 		} else if ((mod = import_mod(line)) != "") {
 			file = resolve(mod)
@@ -133,14 +136,15 @@ function hoist(path,  line, inc, mod, file) {
 	close(path)
 	delete hoisting[path]
 }
-function splice(path,  line, n, mod, file, name) {
-	# The includes and imports of a scoped file are hoisted ahead of it, so
-	# the only splice that can reach here from inside one is a plain include,
-	# which has no place to go: its text would load into the module.
-	if (scoped != "") {
-		printf "amalgamate: %s includes %s, which would splice it inside the scoped module; include it once or import it, and it is spliced ahead of the module\n", scoped, path > "/dev/stderr"
-		bad = 1; exit 1
-	}
+# A file spliced inside a scoped module -- one the module includes -- is
+# read by the header of the module into the module, as the loader reads it.
+# A header on it that carries the name of that same module does nothing
+# there and is copied as text; the markers are written only around a file
+# headed with the name of another module, where the header makes or joins
+# that module and reads to the end marker, after which the enclosing module
+# goes on reading.  `scoped` names the file being read into a module, and
+# `scoped_name` its module; both are restored when a nested splice ends.
+function splice(path,  line, n, mod, file, name, marked, outer, outer_name) {
 	if (path in seen) {
 		printf "amalgamate: %s spliced twice\n", path > "/dev/stderr"
 		bad = 1; exit 1
@@ -148,11 +152,11 @@ function splice(path,  line, n, mod, file, name) {
 	name = header_of(path)
 	if (name != "") hoist(path)
 	seen[path] = 1
+	outer = scoped; outer_name = scoped_name
+	marked = (name != "" && name != scoped_name)
 	printf "; ---- begin %s ----\n", path
-	if (name != "") {
-		printf "(%%module-expecting! (lit %s))\n", name
-		scoped = path
-	}
+	if (marked) printf "(%%module-expecting! (lit %s))\n", name
+	if (name != "") { scoped = path; scoped_name = name }
 	n = 0
 	while ((getline line < path) > 0) {
 		n++
@@ -218,10 +222,8 @@ function splice(path,  line, n, mod, file, name) {
 		} else print line
 	}
 	close(path)
-	if (name != "") {
-		printf "(%%module-end)\n"
-		scoped = ""
-	}
+	if (marked) printf "(%%module-end)\n"
+	scoped = outer; scoped_name = outer_name
 	printf "; ---- end %s ----\n", path
 }
 BEGIN {

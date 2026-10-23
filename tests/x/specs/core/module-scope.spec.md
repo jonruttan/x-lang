@@ -283,6 +283,69 @@ file loads by path is whatever module it names, which is how
 ---
     "module: not loaded: scoped/nowhere"
 
+## a module in several files
+
+An included file's forms are evaluated where the include stands. From a
+scoped module's file that is the module, so a module may be written in
+several files: its own file includes the others, each headed with the
+module's name or with none, and they share its private names. A file headed
+with a loaded module's name joins it from wherever it is loaded, and a
+module's file loaded again by path reloads it in place.
+
+### a file the module includes is the module's, headed with its name or not
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (import scoped/whole)
+    ((fn (_) (import scoped/whole whole-step! whole-read whole-plain)
+       (list (whole-step!) (whole-step!) (whole-read) (whole-plain)
+             (eval (lit %step-by) (module scoped/whole))
+             (guard (_ 'hidden) %count) (guard (_ 'hidden) %step-by) (guard (_ 'hidden) %plain-secret)))))
+```
+---
+    (1 2 2 7 1 'hidden 'hidden 'hidden)
+
+### a file headed with a loaded module's name joins it from wherever it is loaded
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (import scoped/whole)
+    (include-once "tests/x/fixtures/modscope/scoped/whole-more.x")
+    (list ((eval (lit whole-more) (module scoped/whole))) (guard (_ 'unbound) (whole-more))))
+```
+---
+    (20 'unbound)
+
+### a module's other file is not a module: an import of it is refused, naming both
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (guard (e e) (import scoped/whole-step)))
+```
+---
+    "import: scoped/whole-step is headed (module scoped/whole)"
+
+### a module's file loaded again by path reloads it in place
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (import scoped/whole)
+    (def %before (module scoped/whole))
+    (include "tests/x/fixtures/modscope/scoped/whole.x")
+    (list (same? %before (module scoped/whole)) ((eval (lit whole-read) (module scoped/whole)))))
+```
+---
+    (#t 0)
+
+### an include inside a function is evaluated in its frame
+
+```x
+(do (def %f (fn (_) (include "tests/x/fixtures/modscope/scoped/whole-plain.x") (guard (_ 'none) whole-plain)))
+    (list (null? (%f)) (guard (_ 'unbound) whole-plain)))
+```
+---
+    (#f 'unbound)
+
 ## a selective import copies an export into the importer's environment
 
 ### the import binds the name where it is evaluated

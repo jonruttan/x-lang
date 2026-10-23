@@ -210,25 +210,58 @@ As an expression, `(module NAME)` denotes the module's environment — a
 `(bindings . parent)` pair whose parent is the root — so a tool can walk a
 module's names. A module that is not loaded is an error.
 
-Scoping is **opt-in and per file**. A file with no `(module NAME)` header
-loads through `include`, in the root, exactly as before — which is every
-module in the boot floor. The header is the file's first form, after its
-comment banner. `import` loads every file with `include` and names the
-module it is loading; a header that names that module makes the module's
-environment and reads the rest of the file into it itself, one form at a
-time, with the reader. `include` and `include-once` name no module, so a
-header under either takes the module it names, which is how boot files
-loaded by path can be scoped. In an amalgam a scoped boot file is spliced in place,
-so the generator writes a form naming the module before it and an end
-marker after it, where the header stops reading. Nothing may be spliced
-inside a scoped file, since it would load into the module: a file the scoped
-file includes once or imports at top level is spliced ahead of it instead,
-and a plain `include` inside it is refused. A selective import,
-`(import NAME sym ...)`, is spliced the same way and its line is kept: the
-splice marks the module loaded, so at boot the line loads nothing and binds
-the names. So each form carries the file and its line, an error
-while the module loads names both, and a form can read the forms after it.
-A header naming a different module is refused.
+Scoping is **opt-in and per file**. A module's file with no `(module NAME)`
+header loads in the root, exactly as before — which is every module in the
+boot floor. The header is the file's first form, after its comment banner.
+`import` loads a module's file into the root and names the module it is
+loading; a header that names that module makes the module's environment and
+reads the rest of the file into it itself, one form at a time, with the
+reader. `include` and `include-once` name no module, so a header under
+either takes the module it names, which is how boot files loaded by path can
+be scoped. An included file's forms are evaluated **where the include
+stands**: in the root from an unscoped file, in the module from a scoped
+one, in a function's frame from inside the function. The loader that does
+this is written in x-lang over the base's input stack (`lib/x/boot/module.x`);
+the engine's own `include`, which evaluates a file at the top level, serves
+the root case. So each form carries the file and its line, an error while
+the module loads names both, and a form can read the forms after it. A
+header naming a different module than an import asked for is refused.
+
+In an amalgam a scoped boot file is spliced in place, so the generator
+writes a form naming the module before it and an end marker after it, where
+the header stops reading. A file the scoped file includes is spliced where
+the include stands, as the loader evaluates it; a file it imports at top
+level is spliced ahead of it, since a module loads into the root wherever it
+is imported from. A selective import, `(import NAME sym ...)`, is spliced
+the same way and its line is kept: the splice marks the module loaded, so at
+boot the line loads nothing and binds the names.
+
+### A module in several files
+
+A module's own file may include others. An included file's forms are the
+module's, so the files share its private names, read and `set!` them as one
+file would, and the module's `provide`, after the includes, names what they
+define. Each such file is headed with the module's name — the statement of
+fact `lint` checks — or with none. A file headed with a loaded module's name
+joins the module from wherever it is loaded; an import of it is refused,
+since it is not a module; and a module's file loaded again by path reloads
+the module in place, in the same environment.
+
+```x
+(module x/example/editor)
+(def %dot 0)                       ; the module's state, private
+(include-once "./editor-move.x")
+(def where (fn (_) %dot))
+(provide x/example/editor where forward!)
+```
+
+```x
+(module x/example/editor)          ; editor-move.x: a file of the module
+(def forward! (fn (_ n) (set! %dot (+ %dot n)) %dot))
+```
+
+Two modules that share state are still two modules, and share it through a
+cell, a class, or a function of the one that owns it.
 
 Two extensions to the rule:
 

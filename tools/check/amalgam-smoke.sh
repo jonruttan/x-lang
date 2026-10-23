@@ -58,28 +58,33 @@ smoke xenon "$TOWER_EXPECT" '(display (/ 1 3))(newline)'
 smoke radon "$TOWER_EXPECT" '(display (/ 1 3))(newline)'
 
 # A scoped module's header reads every form after it into the module, up to
-# the end marker the generator writes, so nothing may be spliced inside a
-# scoped file.  A file it includes once or imports is spliced ahead of it
-# instead; a plain include inside it is refused.  A throwaway tree holds the
-# generator, an empty x-core.x (it reads the boot entry's pre-seeded names),
-# a scoped file that includes another once, and one that includes another
-# plainly.  A selective import, (import NAME sym ...), loads and binds: the
-# module is spliced as for a bare import, ahead of a scoped importer or in
-# place in an unscoped one, and the line itself is kept, since binding the
-# names is its other half and the load is a no-op once the splice has marked
-# the module loaded.
+# the end marker the generator writes.  A file the module includes is
+# spliced where the include stands, since that is where the loader
+# evaluates it: with no markers when it has no header or is headed with the
+# module's own name, and between markers of its own when it is headed with
+# another's.  A module it imports is spliced ahead of it, since a module
+# loads into the root.  A throwaway tree holds the generator, an empty
+# x-core.x (it reads the boot entry's pre-seeded names), a scoped file that
+# includes an unheaded file once, a file headed with its own name, and a
+# file headed with another module's name, plainly.  A selective import,
+# (import NAME sym ...), loads and binds: the module is spliced as for a
+# bare import, ahead of a scoped importer or in place in an unscoped one,
+# and the line itself is kept, since binding the names is its other half
+# and the load is a no-op once the splice has marked the module loaded.
 nest_tree=$(mktemp -d "${TMPDIR:-/tmp}/amalgam-nest.XXXXXX") || exit 1
 mkdir -p "$nest_tree/tools/release" "$nest_tree/lib/nest"
 cp tools/release/amalgamate.sh "$nest_tree/tools/release/"
 : > "$nest_tree/lib/x-core.x"
 printf '(include-once "lib/nest/outer.x")\n' > "$nest_tree/lib/nest-entry.x"
-printf '; outer.x -- scoped, and it includes another file once.\n(module nest/outer)\n(include-once "lib/nest/inner.x")\n' > "$nest_tree/lib/nest/outer.x"
+printf '; outer.x -- scoped, and it includes another file once.\n(module nest/outer)\n(include-once "lib/nest/inner.x")\n(def nest-after 2)\n' > "$nest_tree/lib/nest/outer.x"
 printf '(def nest-inner 1)\n' > "$nest_tree/lib/nest/inner.x"
 printf '(include-once "lib/nest/plain.x")\n' > "$nest_tree/lib/plain-entry.x"
-printf '; plain.x -- scoped, and it includes another file plainly.\n(module nest/plain)\n(include "lib/nest/inner.x")\n' > "$nest_tree/lib/nest/plain.x"
+printf '; plain.x -- scoped: it includes a file of its own and one of another module.\n(module nest/plain)\n(include "lib/nest/own.x")\n(include "lib/nest/other.x")\n(def plain-after 3)\n' > "$nest_tree/lib/nest/plain.x"
+printf '(module nest/plain)\n(def nest-own 1)\n' > "$nest_tree/lib/nest/own.x"
+printf '(module nest/other)\n(def nest-other 1)\n' > "$nest_tree/lib/nest/other.x"
 _hoist_out=$(sh "$nest_tree/tools/release/amalgamate.sh" lib/nest-entry.x 2>&1)
 _hoist_rc=$?
-_plain_err=$(sh "$nest_tree/tools/release/amalgamate.sh" lib/plain-entry.x 2>&1 >/dev/null)
+_plain_out=$(sh "$nest_tree/tools/release/amalgamate.sh" lib/plain-entry.x 2>&1)
 _plain_rc=$?
 printf '(module nest/sel-inner)\n(def sel-name 1)\n(provide nest/sel-inner sel-name)\n' > "$nest_tree/lib/nest/sel-inner.x"
 printf '; sel-outer.x -- scoped, and it imports a name.\n(module nest/sel-outer)\n(import nest/sel-inner sel-name)\n' > "$nest_tree/lib/nest/sel-outer.x"
@@ -90,26 +95,37 @@ _sel_rc=$?
 _sel2_out=$(sh "$nest_tree/tools/release/amalgamate.sh" lib/sel2-entry.x 2>&1)
 _sel2_rc=$?
 rm -rf "$nest_tree"
-_inner_at=$(printf '%s\n' "$_hoist_out" | grep -n '^; ---- begin lib/nest/inner.x ----' | cut -d: -f1)
 _outer_at=$(printf '%s\n' "$_hoist_out" | grep -n '^; ---- begin lib/nest/outer.x ----' | cut -d: -f1)
-if [ "$_hoist_rc" = 0 ] && [ -n "$_inner_at" ] && [ -n "$_outer_at" ] && [ "$_inner_at" -lt "$_outer_at" ] \
-	&& printf '%s\n' "$_hoist_out" | grep -q '^; (include-once lib/nest/inner.x) -- inlined above$'; then
-	echo "amalgam-smoke: a file a scoped module includes once is spliced ahead of it ok"
+_inner_at=$(printf '%s\n' "$_hoist_out" | grep -n '^; ---- begin lib/nest/inner.x ----' | cut -d: -f1)
+_after_at=$(printf '%s\n' "$_hoist_out" | grep -n '^(def nest-after 2)$' | cut -d: -f1)
+_end_at=$(printf '%s\n' "$_hoist_out" | grep -n '^(%module-end)$' | cut -d: -f1)
+if [ "$_hoist_rc" = 0 ] && [ -n "$_outer_at" ] && [ -n "$_inner_at" ] && [ -n "$_after_at" ] && [ -n "$_end_at" ] \
+	&& [ "$_outer_at" -lt "$_inner_at" ] && [ "$_inner_at" -lt "$_after_at" ] && [ "$_after_at" -lt "$_end_at" ] \
+	&& [ "$(printf '%s\n' "$_hoist_out" | grep -c '^(%module-expecting! ')" = 1 ]; then
+	echo "amalgam-smoke: a file a scoped module includes once is spliced where the include stands, inside the module ok"
 else
 	STATUS=1
-	echo "amalgam-smoke: FAIL -- a file a scoped module includes once was not spliced ahead of it" >&2
+	echo "amalgam-smoke: FAIL -- a file a scoped module includes once was not spliced in place inside it" >&2
 	printf '%s\n' "$_hoist_out" >&2
 fi
-case "$_plain_rc:$_plain_err" in
-	0:*)
-		STATUS=1
-		echo "amalgam-smoke: FAIL -- a plain include inside a scoped module was accepted" >&2 ;;
-	*"lib/nest/plain.x includes lib/nest/inner.x, which would splice it inside the scoped module"*)
-		echo "amalgam-smoke: a plain include inside a scoped module is refused ok" ;;
-	*)
-		STATUS=1
-		echo "amalgam-smoke: FAIL -- a plain include inside a scoped module failed for another reason: $_plain_err" >&2 ;;
-esac
+# Plain includes inside a scoped module: a file headed with its own name is
+# text between its markers, a file headed with another's gets markers of
+# its own, and the module's forms after both are still inside its markers.
+_own_at=$(printf '%s\n' "$_plain_out" | grep -n '^(module nest/plain)$' | sed -n 2p | cut -d: -f1)
+_other_exp_at=$(printf '%s\n' "$_plain_out" | grep -n '^(%module-expecting! (lit nest/other))$' | cut -d: -f1)
+_other_end_at=$(printf '%s\n' "$_plain_out" | grep -n '^(%module-end)$' | sed -n 1p | cut -d: -f1)
+_pafter_at=$(printf '%s\n' "$_plain_out" | grep -n '^(def plain-after 3)$' | cut -d: -f1)
+_pend_at=$(printf '%s\n' "$_plain_out" | grep -n '^(%module-end)$' | sed -n 2p | cut -d: -f1)
+if [ "$_plain_rc" = 0 ] && [ -n "$_own_at" ] && [ -n "$_other_exp_at" ] && [ -n "$_other_end_at" ] && [ -n "$_pafter_at" ] && [ -n "$_pend_at" ] \
+	&& [ "$_own_at" -lt "$_other_exp_at" ] && [ "$_other_exp_at" -lt "$_other_end_at" ] \
+	&& [ "$_other_end_at" -lt "$_pafter_at" ] && [ "$_pafter_at" -lt "$_pend_at" ] \
+	&& [ "$(printf '%s\n' "$_plain_out" | grep -c '^(%module-expecting! ')" = 2 ]; then
+	echo "amalgam-smoke: files included inside a scoped module are spliced in place, markers only around another module's ok"
+else
+	STATUS=1
+	echo "amalgam-smoke: FAIL -- the files a scoped module includes plainly were not spliced in place with the right markers" >&2
+	printf '%s\n' "$_plain_out" >&2
+fi
 
 # A scoped importer: the module ahead of it, marked loaded, the line kept.
 _sin_at=$(printf '%s\n' "$_sel_out" | grep -n '^; ---- begin lib/nest/sel-inner.x ----' | cut -d: -f1)

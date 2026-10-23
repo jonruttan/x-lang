@@ -145,68 +145,131 @@
       ((eq? (first %include-dir-cell) ()) ())
       (#t (%set-first! %include-dir-cell (rest (first %include-dir-cell)))))))
 
-; --- Relative-aware include (the C primitive is untouched) -----------------
-; Make the bare `include` resolve ./ and ../ against the file currently loading
-; WITHOUT changing the C primitive: capture it as %raw-include, then set! -- NOT
-; def! -- the `include` binding to a wrapper. set! MUTATES the existing binding
-; slot, so every resolution path sees the wrapper: the boot C-loop AND the
-; REPL's eval!. A plain (def include ...) instead creates a shadowing variable
-; that the REPL's operator lookup ignores in favour of the C callable, so the
-; redefinition is bypassed at the prompt -- the one case that matters.
-; A fn (not an op): applicative like the primitive it fronts, and it carries its
-; own save-stack frame, so it does NOT add a no-save op layer that would corrupt
-; provide/import's variadic bind. Only early-boot forms here (def/match, no
-; `let`) -- this runs for every include from here on, before `let` is defined.
-; x_eval_load still binds each loaded file's defs globally. Plain/absolute paths
-; are unchanged, so no existing call-site moves.
-; The wrapper must be installed ONCE.  A second load used to make
-; %raw-include capture the WRAPPER, so `include` called itself forever -- and
-; with no depth limit on non-tail calls (#56) that is a bare SIGSEGV.
-; The flag is a PLAIN PAIR, deliberately.  Stashing the raw C `include` in the
-; catalogue also works and reads better, but the catalogue is the C surface the ISA
-; manifest describes -- tools/contract/isa.x -- and putting a C prim there under
-; a second name makes the manifest claim a C function that does not exist.
-; tests/x/specs/meta/isa.spec.md catches it, correctly.  An x-side value in the
-; catalogue is ignored by that check, which is why `convert to` and `token accept`
-; already live there.
+; --- Loading a file into an environment --------------------------------------
+; An included file's forms are evaluated where the include stands, as if
+; written there: in the root from an unscoped file, in the module from a
+; scoped one.  The engine's `include` evaluates every form of a file at the
+; top level, in the root, whatever environment called it -- which is the
+; loader a module's own file needs, since `import` loads a module into the
+; root and a header makes the module's environment itself.  A file included
+; from inside a scoped module is loaded here instead, by the steps the engine
+; takes, through the base cells the contract names (tools/contract/
+; base-paths.x): open the file, push it onto the input, line and buffer
+; stacks, register its id so an error can name it, read each form with the
+; reader -- which stamps it with the file and line -- and evaluate it in the
+; including environment, then pop and close.  A failure mid-file needs none
+; of this undone: `guard` restores the three stacks and closes the file, as
+; it does for the engine's own include.  The frames pushed are pairs and
+; atoms the engine reads through the same slots as its own; the engine's EOF
+; latch writes into the atom, so each is fresh.  Every door is in isa.x and
+; base-paths.x; nothing here is a primitive.
 ;
-; On a re-load the flag is set, so this whole form is skipped -- and because it
-; is skipped, %raw-include KEEPS the binding it got on the first load.  That is
-; the point: a `def` that never runs cannot clobber anything.
+; `include` resolves ./ and ../ against the file loading, marks the module
+; the file may be headed with -- the name `import` asks for, or %module-any
+; by path -- for the header to read, and loads into the caller's
+; environment.  It is set! over the engine's binding, not shadowed: set!
+; mutates the slot every resolution path reads, the boot loop's and the
+; REPL's.  Installed ONCE: a second load of this file would capture the
+; wrapper as the engine's include and loop; on a reload the flag is set and
+; the whole form is skipped.  The flag is a plain pair, not a catalogue
+; entry: the catalogue is the C surface isa.x describes.  Only early-boot
+; forms here -- def, match, fn, op -- since `let` is not defined yet, and
+; integer doors through the catalogue, since the operators are not either.
 (match
   ((eq? (prim-ref (lit module) (lit include-wrapped)) ())
     (do
       (prim-reg! (lit module) (lit include-wrapped) (pair () ()))
+      ; The engine's include, kept under the name the ISA manifest records
+      ; for it (isa.x, %isa-aliases): the image writer binds it into its
+      ; child and names its code.
       (def %raw-include include)
-      ; A second argument names the module the file must be headed with, which
-      ; is what `import` asks for.  Called with a path alone, the file is
+      (def %include-into
+        ((fn (_)
+           (def %open (prim-ref (lit sys) (lit open)))
+           (def %close (prim-ref (lit sys) (lit close)))
+           (def %buf-make (prim-ref (lit buf) (lit make)))
+           (def %str-make (prim-ref (lit str) (lit make)))
+           (def %obj-make (prim-ref (lit obj) (lit make)))
+           (def %int+ (prim-ref (lit int) (lit +)))
+           (def %int< (prim-ref (lit int) (lit <)))
+           (def %atom-type ((prim-ref (lit type) (lit of)) 0))
+           ; The node whose FIRST slot holds a stack: the path's parent, its
+           ; last step `f`.  A stack is pushed by replacing that slot, as the
+           ; engine replaces the field.
+           (def %holder
+             (fn (_ name)
+               (def %steps (%reflect-path name %base-paths))
+               (def %last (fn (self l) (match ((eq? (rest l) ()) (first l)) (#t (self (rest l))))))
+               (match
+                 ((eq? (%last %steps) (lit f)) (%reflect-step (%base) (%reflect-path-parent %steps)))
+                 (#t (error (pair (lit include-stack-not-a-first-slot) name))))))
+           (def %atom (fn (_ n) (%set-cell-int! (%obj-make %atom-type 1) n)))
+           (def %push! (fn (_ node v) (%set-first! node (pair v (first node)))))
+           (def %pop! (fn (_ node) (%set-first! node (rest (first node)))))
+           (def %load
+             (fn (_ env path)
+               (def %fd (%open path 0))
+               (match
+                 ((%int< %fd 0) (error (%str-append "include: cannot open " path)))
+                 (#t ()))
+               (def %line (%holder (lit line)))
+               (def %filein (%holder (lit filein)))
+               (def %buffer (%holder (lit buffer)))
+               (def %registry (%reflect-base-cell (lit file-registry)))
+               (def %buf (%buf-make (%str-make 65536) %obj-flag-meta))
+               ; ids grow monotonically; the head entry carries the highest
+               (def %id
+                 (match
+                   ((eq? (first %registry) ()) 1)
+                   (#t (%int+ (%cell-int (first (first (first %registry)))) 1))))
+               (%set-first! %registry (pair (pair (%atom %id) path) (first %registry)))
+               ; lines from 1, and the file id, for the reader's stamps
+               (%reflect-meta-set! %buf 0 1)
+               (%reflect-meta-set! %buf 1 %id)
+               (%push! %line (%atom 1))
+               (%push! %filein (%atom %fd))
+               (%push! %buffer %buf)
+               (def %result (%module-load-into env))
+               (%pop! %filein)
+               (%pop! %buffer)
+               (%close %fd)
+               (%pop! %line)
+               %result))
+           (fn (_ env path expected)
+             (def %io-path (%resolve-include-path path (%include-curdir)))
+             (%include-dir-push! (%path-dir %io-path))
+             ; The mark is for THIS file, and reading it is the header's first
+             ; act, so a file this one loads in turn sets its own: by then a
+             ; header here has already read this one, and a file with no
+             ; header never will.  An import's name must not reach the files
+             ; its file loads -- x/boot/tower-compiled includes x/type/hash by
+             ; path.
+             (%set-first! %module-expected-cell expected)
+             (def %result
+               (match
+                 ((%module-same? env (%module-root-env)) (%raw-include %io-path))
+                 (#t (%load env %io-path))))
+             (%set-first! %module-expected-cell ())
+             (%include-dir-pop!)
+             ; In a base the image writer is loading, each file's garbage is
+             ; swept as the file ends.  Nowhere else: a module must not
+             ; collect (the note at the end of x/boot/tower-compiled), and
+             ; neither may the loader under an importer it cannot see -- a
+             ; codec loads its JIT engine lazily with its caller's lists
+             ; live.  The writer's child runs nothing but the load, and
+             ; %image-writing is true there alone.  docs/state-images.md,
+             ; "The child sweeps as it loads".
+             (match
+               ((guard (_ #f) %image-writing) ((prim-ref (lit heap) (lit collect))))
+               (#t ()))
+             %result))))
+      ; A second argument names the module the file must be headed with,
+      ; which is what `import` asks for.  With a path alone, the file is
       ; whatever module its header names, or none.
       (set! include
-        (fn (_ path . expected)
-          (def %io-path (%resolve-include-path path (%include-curdir)))
-          (%include-dir-push! (%path-dir %io-path))
-          ; The mark is for THIS file, and reading it is the header's first
-          ; act, so a file this one loads in turn sets its own: by then a
-          ; header here has already read this one, and a file with no header
-          ; never will.  An import's name must not reach the files its file
-          ; loads -- x/boot/tower-compiled includes x/type/hash by path.
-          (%set-first! %module-expected-cell
-            (match ((eq? expected ()) %module-any) (#t (first expected))))
-          (def %result (%raw-include %io-path))
-          (%set-first! %module-expected-cell ())
-          (%include-dir-pop!)
-          ; In a base the image writer is loading, each file's garbage is
-          ; swept as the file ends.  Nowhere else: a module must not collect
-          ; (the note at the end of x/boot/tower-compiled), and neither may
-          ; the loader under an importer it cannot see -- a codec loads its
-          ; JIT engine lazily with its caller's lists live.  The writer's
-          ; child runs nothing but the load, and %image-writing is true
-          ; there alone.  docs/state-images.md, "The child sweeps as it
-          ; loads".
-          (match
-            ((guard (_ #f) %image-writing) ((prim-ref (lit heap) (lit collect))))
-            (#t ()))
-          %result))))
+        (op (path . expected) e
+          (%include-into e (eval path e)
+            (match ((eq? expected ()) %module-any) (#t (eval (first expected) e))))))))
   (#t ()))
 
 ; --- Include-once / require-once ---
@@ -222,7 +285,7 @@
 (def include-once
   (op (path) e
     ; Resolve ./ and ../ for the dedup key; the load itself -- and the dir-stack
-    ; push/pop -- is handled by the relative-aware `include` above.
+    ; push/pop -- is the loader's above, into the including environment.
     (def %io-path (%resolve-include-path (eval path e) (%include-curdir)))
     (match
       ((%include-list-has? %io-path) ())
@@ -230,7 +293,7 @@
         (do
           (%set-first! %include-list-cell
             (pair %io-path (first %include-list-cell)))
-          (include %io-path))))))
+          (%include-into e %io-path %module-any))))))
 (def require-once include-once)
 
 ; --- Module registry ---
@@ -633,61 +696,75 @@
   (fn (_ name) (%set-first! %module-expected-cell name)))
 (def %module-end
   (fn (_) (%set-first! %module-expected-cell ())))
-; The reader, one form from the head of the input: while `include` loads a
-; file, that file.  At end of input it answers the EOF sentinel, %token-eof,
-; so a () in the file is read as the form it is.
-(def %module-read (prim-ref (lit io) (lit read)))
-(def %module-load-rest
-  ; The rest of a scoped file, read by its header: a fresh child of the
-  ; root, recorded before any form runs so the module can name its own
-  ; environment, then every remaining form read and evaluated in it, one at
-  ; a time, until end of input or an amalgam's (%module-end).  The reader
-  ; stamps each form with the file's id and line, and reads it after the
-  ; forms before it have run.  Answers the environment, which is what
-  ; `include` then returns.
-  (fn (_ name)
-    (def %env (pair () (%module-root-env)))
-    (%set-first! %module-expected-cell ())
-    (%set-first! %module-env-cell
-      (pair (pair name %env) (first %module-env-cell)))
+(def %module-load-into
+  ; The rest of the input into ENV: every remaining form read and evaluated
+  ; there, one at a time, until end of input or an amalgam's (%module-end).
+  ; The reader reads one form from the head of the input -- while a file
+  ; loads, that file -- stamps it with the file's id and line, and reads it
+  ; after the forms before it have run; at end of input it answers the EOF
+  ; sentinel, %token-eof, so a () in the file is read as the form it is.
+  ; Answers ENV, which is what `include` then returns.  The loader above
+  ; reads a whole file this way, and a header the rest of its file.
+  (fn (_ env)
+    (def %read (prim-ref (lit io) (lit read)))
     (def %go
       (fn (self)
-        (def %form (%module-read))
+        (def %form (%read))
         (match
-          ((%module-same? %form %token-eof) %env)
-          ((match ((pair? %form) (eq? (first %form) (lit %module-end))) (#t #f)) %env)
-          (#t (do (eval %form %env) (self))))))
+          ((%module-same? %form %token-eof) env)
+          ((match ((pair? %form) (eq? (first %form) (lit %module-end))) (#t #f)) env)
+          (#t (do (eval %form env) (self))))))
     (%go)))
 
 ; The form that names a scoped module, and denotes it everywhere else.
 ;
 ; As the first form of a file that `import`, `include` or `include-once` is
-; loading, after the file's comment banner, it is the header, and it loads
-; the rest of the file into an environment of the module's own (above).
-; Under `import` it must name the module being imported: a header naming
-; another is refused, naming both, since the file is not the module the
-; import asked for.  Under `include` or `include-once` it names the module
-; the file is, which is how the boot files, loaded by path, are scoped.
+; loading, after the file's comment banner, it is the header: the rest of
+; the file is the module's.  A module not yet loaded gets an environment of
+; its own, a child of the root, recorded before any form runs so the module
+; can name itself; a module already loaded is joined, the rest of the file
+; read into its environment -- so a module may be written in several files,
+; its own file including the others, each headed with its name, and a file
+; loaded again by path reloads in place.  A file already being read into
+; its module, which is what its own file's include makes it, needs nothing
+; of the header, and it does nothing.  Under `import` the header must name
+; the module being imported: a header naming another is refused, naming
+; both, since the file is not the module the import asked for.  Under
+; `include` or `include-once` it names the module the file is, which is how
+; the boot files, loaded by path, are scoped.
 ;
 ; As an expression anywhere else, inside code or at the prompt, it answers
 ; the named module's environment, so a reader can walk a module's names.  A
 ; module that is not loaded is an error.
 (def module
-  (op (name) _
+  (op (name) e
     (def %expected (first %module-expected-cell))
     (def %entry (%module-assoc name (first %module-env-cell)))
     (match
-      ((eq? %expected name) (%module-load-rest name))
-      ((%module-same? %expected %module-any) (%module-load-rest name))
-      ((match ((eq? %expected ()) #f) (#t (eq? %entry ())))
+      ((eq? %expected ())
+        (match
+          ((eq? %entry ()) (error (%str-append "module: not loaded: " (symbol->str name))))
+          (#t (rest %entry))))
+      ((match ((%module-same? %expected %module-any) #f) ((eq? %expected name) #f) (#t #t))
         (do
           (%set-first! %module-expected-cell ())
           (error (%str-append "import: "
             (%str-append (symbol->str %expected)
               (%str-append " is headed (module "
                 (%str-append (symbol->str name) ")")))))))
-      ((eq? %entry ()) (error (%str-append "module: not loaded: " (symbol->str name))))
-      (#t (rest %entry)))))
+      ((eq? %entry ())
+        (do
+          (def %env (pair () (%module-root-env)))
+          (%set-first! %module-expected-cell ())
+          (%set-first! %module-env-cell
+            (pair (pair name %env) (first %module-env-cell)))
+          (%module-load-into %env)))
+      ((%module-same? e (rest %entry))
+        (do (%set-first! %module-expected-cell ()) ()))
+      (#t
+        (do
+          (%set-first! %module-expected-cell ())
+          (%module-load-into (rest %entry)))))))
 
 ; Look up a module entry in the registry by name
 (def %module-find
@@ -788,8 +865,9 @@
           ; register BEFORE loading -- cycle safety, mirrors include-once
           (%module-loaded! name)
           (def %path (%module-resolve name))
-          ; Name the module for its file's header, if it has one.
-          (include %path name))))
+          ; A module loads into the root, whoever imports it; its file's
+          ; header, if it has one, makes the module's own environment.
+          (%include-into (%module-root-env) %path name))))
     (match
       ((eq? syms ()) ())
       (#t (%module-import-names! name syms e)))))
@@ -1009,7 +1087,7 @@
           ; register BEFORE loading -- cycle safety, mirrors import
           (%module-loaded-at! name (first %hit))
           (%set-first! %loading (pair (pair name (first %hit)) (first %loading)))
-          (include (rest %hit))
+          (%include-into (%module-root-env) (rest %hit) %module-any)
           (%set-first! %loading (rest (first %loading)))))
       ((eq? %have (lit bare)) (%module-version-conflict! name %have text))
       ((%module-version-ok? %spec %have) ())
@@ -1023,7 +1101,13 @@
           (def %hit (%module-resolve-version (lit import-version-once) name %spec text))
           (match
             ((< (%module-version-cmp (first %hit) %have) 0)
-              (include-once (rest %hit)))
+              (match
+                ((%include-list-has? (rest %hit)) ())
+                (#t
+                  (do
+                    (%set-first! %include-list-cell
+                      (pair (rest %hit) (first %include-list-cell)))
+                    (%include-into (%module-root-env) (rest %hit) %module-any)))))
             (#t (%module-version-conflict! name %have text)))))
       (#t (%module-version-conflict! name %have text)))
     (match
@@ -1045,7 +1129,7 @@
     (def %loading (rest %module-loaded-cell))
     (%module-loaded-at! name (first %hit))
     (%set-first! %loading (pair (pair name (first %hit)) (first %loading)))
-    (include (rest %hit))
+    (%include-into (%module-root-env) (rest %hit) %module-any)
     (%set-first! %loading (rest (first %loading)))
     (match
       ((eq? syms ()) ())
