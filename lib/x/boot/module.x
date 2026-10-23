@@ -638,18 +638,22 @@
 ; so a () in the file is read as the form it is.
 (def %module-read (prim-ref (lit io) (lit read)))
 (def %module-load-rest
-  ; The rest of a scoped file, read by its header: a fresh child of the
-  ; root, recorded before any form runs so the module can name its own
-  ; environment, then every remaining form read and evaluated in it, one at
-  ; a time, until end of input or an amalgam's (%module-end).  The reader
+  ; The rest of a scoped file, read by its header, into ENV: a part's
+  ; module's environment, or, when ENV is nil, a fresh child of the root,
+  ; recorded before any form runs so the module can name its own
+  ; environment.  Every remaining form is read and evaluated in it, one at a
+  ; time, until end of input or an amalgam's (%module-end).  The reader
   ; stamps each form with the file's id and line, and reads it after the
   ; forms before it have run.  Answers the environment, which is what
   ; `include` then returns.
-  (fn (_ name)
-    (def %env (pair () (%module-root-env)))
+  (fn (_ name env)
+    (def %env (match ((eq? env ()) (pair () (%module-root-env))) (#t env)))
     (%set-first! %module-expected-cell ())
-    (%set-first! %module-env-cell
-      (pair (pair name %env) (first %module-env-cell)))
+    (match
+      ((eq? env ())
+        (%set-first! %module-env-cell
+          (pair (pair name %env) (first %module-env-cell))))
+      (#t ()))
     (def %go
       (fn (self)
         (def %form (%module-read))
@@ -677,8 +681,8 @@
     (def %expected (first %module-expected-cell))
     (def %entry (%module-assoc name (first %module-env-cell)))
     (match
-      ((eq? %expected name) (%module-load-rest name))
-      ((%module-same? %expected %module-any) (%module-load-rest name))
+      ((eq? %expected name) (%module-load-rest name ()))
+      ((%module-same? %expected %module-any) (%module-load-rest name ()))
       ((match ((eq? %expected ()) #f) (#t (eq? %entry ())))
         (do
           (%set-first! %module-expected-cell ())
@@ -688,6 +692,39 @@
                 (%str-append (symbol->str name) ")")))))))
       ((eq? %entry ()) (error (%str-append "module: not loaded: " (symbol->str name))))
       (#t (rest %entry)))))
+
+; A part of a scoped module: the header of a file that loads into another
+; module's environment rather than one of its own, so one module can span
+; several files that share its private names, and set! them.  The module is
+; loading or loaded when its part is: the module's own file includes the
+; part, by path, with `include` or `include-once`.  A part provides nothing;
+; the module's provide, after the part is included, names what the part
+; defines.
+;
+; A part is never imported: it is not a module, and an import that finds
+; one is refused, naming both.  In an amalgam a part is spliced inside its
+; module, where its header is evaluated in the module's environment already
+; and does nothing.
+(def module-part
+  (op (name) e
+    (def %expected (first %module-expected-cell))
+    (def %entry (%module-assoc name (first %module-env-cell)))
+    (match
+      ((match ((eq? %expected ()) #f) (#t (not (%module-same? %expected %module-any))))
+        (do
+          (%set-first! %module-expected-cell ())
+          (error (%str-append "import: "
+            (%str-append (symbol->str %expected)
+              (%str-append " is headed (module-part "
+                (%str-append (symbol->str name) "), a part its module includes")))))))
+      ((eq? %entry ())
+        (do
+          (%set-first! %module-expected-cell ())
+          (error (%str-append "module-part: not loaded: " (symbol->str name)))))
+      ((%module-same? %expected %module-any) (%module-load-rest name (rest %entry)))
+      ((%module-same? e (rest %entry)) ())
+      (#t (error (%str-append "module-part: "
+            (%str-append (symbol->str name) ": a header, the first form of a file its module includes")))))))
 
 ; Look up a module entry in the registry by name
 (def %module-find

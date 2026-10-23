@@ -283,6 +283,54 @@ file loads by path is whatever module it names, which is how
 ---
     "module: not loaded: scoped/nowhere"
 
+## a module in several files
+
+A file headed `(module-part NAME)` loads into NAME's environment rather than
+one of its own. NAME's file includes it, so the part's definitions are the
+module's: they read and `set!` its private names, and its provide names what
+they define.
+
+### a part's definitions are the module's, and set its private names
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (import scoped/whole)
+    ((fn (_) (import scoped/whole whole-step! whole-read)
+       (list (whole-step!) (whole-step!) (whole-read)
+             (eval (lit %step-by) (module scoped/whole))
+             (guard (_ 'hidden) %count) (guard (_ 'hidden) %step-by)))))
+```
+---
+    (1 2 2 1 'hidden 'hidden)
+
+### a part of a module that is not loaded is refused
+
+```x
+(guard (e e) (include "tests/x/fixtures/modscope/scoped/stray.x"))
+```
+---
+    "module-part: not loaded: scoped/nowhere"
+
+### a part is not a module: an import of one is refused, naming both
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (import scoped/whole)
+    (guard (e e) (import scoped/partonly)))
+```
+---
+    "import: scoped/partonly is headed (module-part scoped/whole), a part its module includes"
+
+### the header anywhere else is refused
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (import scoped/whole)
+    (guard (e e) (module-part scoped/whole)))
+```
+---
+    "module-part: scoped/whole: a header, the first form of a file its module includes"
+
 ## a selective import copies an export into the importer's environment
 
 ### the import binds the name where it is evaluated

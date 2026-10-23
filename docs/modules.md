@@ -220,10 +220,10 @@ time, with the reader. `include` and `include-once` name no module, so a
 header under either takes the module it names, which is how boot files
 loaded by path can be scoped. In an amalgam a scoped boot file is spliced in place,
 so the generator writes a form naming the module before it and an end
-marker after it, where the header stops reading. Nothing may be spliced
-inside a scoped file, since it would load into the module: a file the scoped
-file includes once or imports at top level is spliced ahead of it instead,
-and a plain `include` inside it is refused. A selective import,
+marker after it, where the header stops reading. Nothing but a part of the
+module may be spliced inside a scoped file, since it would load into the
+module: a file the scoped file includes once or imports at top level is
+spliced ahead of it instead, and a plain `include` inside it is refused. A selective import,
 `(import NAME sym ...)`, is spliced the same way and its line is kept: the
 splice marks the module loaded, so at boot the line loads nothing and binds
 the names. So each form carries the file and its line, an error
@@ -238,6 +238,41 @@ Two extensions to the rule:
 - **Relative includes** — an `include-once`/`import` path starting with `./`
   or `../` resolves against the *including file's* directory, not the working
   directory. Raw `include` paths stay verbatim.
+
+### A module in several files
+
+A file whose first form is `(module-part NAME)` is a *part* of the module
+NAME: it loads into NAME's environment rather than one of its own. NAME's
+file includes its parts by path, with `include-once` or `include`, so the
+module is loading when each part is read. A part's definitions are the
+module's: the module and its parts read and `set!` each other's private
+names as one file would, and the module's `provide`, after its parts are
+included, names what they define.
+
+```x
+(module x/example/editor)
+(def %dot 0)                       ; the module's state, private
+(include-once "./editor-move.x")
+(def where (fn (_) %dot))
+(provide x/example/editor where forward!)
+```
+
+```x
+(module-part x/example/editor)
+(def forward! (fn (_ n) (set! %dot (+ %dot n)) %dot))
+```
+
+A part provides nothing and is never imported: an `import` that finds a
+part is refused, naming both, and a part of a module that is not loaded is
+an error. Outside a file's first form, `(module-part NAME)` is refused. In
+an amalgam a part is spliced inside its module, where its header is already
+in the module's environment and does nothing; what the part includes or
+imports is spliced ahead of the module, as the module's own includes are.
+
+A part keeps one module's state in one environment when the module's code
+is too large for one file. Two modules that share state are still two
+modules, and share it through a cell, a class, or a function of the one
+that owns it.
 
 ### Reaching a module's names
 

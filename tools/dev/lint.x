@@ -153,8 +153,24 @@
     (def %defs (first %result))
     (def %uses (first (rest %result)))
 
-    ; Undefined: used but not in env-alist and not in file defs
-    (def %undefined (lint-undefined %defs %uses))
+    ; The file's module environment, when its first form is (module NAME) or
+    ; (module-part NAME) and the preload has loaded NAME; nil otherwise.  A
+    ; module may span files -- a head and its parts -- whose definitions bind
+    ; in the one environment, so a name one file defines is defined for the
+    ; others.
+    (def %head (if (pair? forms) (first forms) ()))
+    (def %kw (if (pair? %head) (if (symbol? (first %head)) (%lint-cvt (first %head) %lint-string-type) "") ""))
+    (def %menv
+      (if (if (str=? %kw "module") #t (str=? %kw "module-part"))
+        (guard (_ ()) (eval (list 'module (first (rest %head)))))
+        ()))
+
+    ; Undefined: used but not in env-alist, not in file defs, and not bound
+    ; in the file's module
+    (def %undefined
+      (if (null? %menv) (lint-undefined %defs %uses)
+        (%filter (fn (_ s) (guard (_ #t) (do (eval (Str8 ->sym s) %menv) #f)))
+                 (lint-undefined %defs %uses))))
 
     ; Unused: defined but not used (skip %-prefixed internals)
     (def %unused (lint-unused %defs %uses %lib-mode))

@@ -51,6 +51,7 @@
   (include-once)
   (provide)
   (module)              ; x-lang#719: names a scoped module and denotes its environment, alongside provide/import
+  (module-part)         ; heads a file that loads into its module's environment, one module across several files
   (require-once)
   ; --- registry protocol (keep-list) ---
   (prim-domain)

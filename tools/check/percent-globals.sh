@@ -46,7 +46,7 @@ MANIFEST=tools/contract/percent-globals.x
 
 {
   find lib apps tools -name '*.x' 2>/dev/null | sort \
-    | xargs grep -L '^(module ' \
+    | xargs grep -L -e '^(module ' -e '^(module-part ' \
     | xargs awk -f tools/check/defs.awk \
     | awk -F'\t' '$2 ~ /^%/ { c[$1]++ } END { for (f in c) print "C", f, c[f] }'
   sed -n 's/^(file "\(.*\)" \([0-9][0-9]*\)).*/B \1 \2/p' "$MANIFEST"

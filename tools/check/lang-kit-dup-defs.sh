@@ -88,7 +88,23 @@ _case a/one.x '(module a/one)
 (def %sent 1) (def %asked 4)
 (def %remotes 6) (def %asked 7)
 (provide a/one)'
-_red "one private name defined twice in a scoped module" "%asked" "within a/one.x"
+_red "one private name defined twice in a scoped module" "%asked" "within module a/one"
+
+_case a/one.x '(module a/one)
+(def %count 0)
+(include-once "./step.x")
+(provide a/one step!)' a/step.x '(module-part a/one)
+(def %count 1)
+(def step! (fn (_) (set! %count (+ %count 1))))' a/two.x '(def step! 0)'
+_red "one private name defined differently in a module and its part" "%count" "within module a/one"
+
+_case a/one.x '(module a/one)
+(def %count 0)
+(include-once "./step.x")
+(provide a/one step!)' a/step.x '(module-part a/one)
+(def %by 1)
+(def step! (fn (_) (set! %count (+ %count %by))))' a/two.x '(def %by 2) (def step! 0)'
+_green "a part keeps its private names, and its plain exports, as its module does"
 
 _case a/one.x '(module a/one)
 (def %asked 4)

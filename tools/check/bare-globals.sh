@@ -50,7 +50,7 @@ done)
 live=$(printf '%s\n' "$exports" | awk '
   FILENAME == "-" { if ($2 ~ /^@/) marked[$1 SUBSEP substr($2, 2)] = 1; next }
   FNR == 1 { scoped = 0 }
-  /^\(module / { scoped = 1 }
+  /^\(module(-part)? / { scoped = 1 }
   /^ {0,2}\((doc \()?\(?def [a-z#]/ {
     line = $0
     sub(/^ */, "", line)

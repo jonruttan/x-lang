@@ -86,7 +86,7 @@ for _f in $(_rows | sed -n 's/^K //p'); do
     echo "private-reads: $SHARED names $_f as a boot file, and there is no such file" >&2
     exit 2
   fi
-  if grep -q '^(module ' "$_f"; then
+  if grep -q -e '^(module ' -e '^(module-part ' "$_f"; then
     echo "private-reads: $SHARED names $_f as a boot file, and it has a module header -- delete its rows" >&2
     exit 2
   fi
@@ -121,7 +121,7 @@ fi
 _owners() {
   for _f in $_FILES; do
     case "$_f" in tools/*) continue ;; esac
-    grep -q '^(module ' "$_f" && continue
+    grep -q -e '^(module ' -e '^(module-part ' "$_f" && continue
     awk -f tools/check/defs.awk "$_f"
   done | awk -F'\t' '$2 ~ /^%/ { print "O", $2, $1 }' | sort -u
 }

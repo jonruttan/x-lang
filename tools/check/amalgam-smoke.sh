@@ -89,7 +89,38 @@ _sel_out=$(sh "$nest_tree/tools/release/amalgamate.sh" lib/sel-entry.x 2>&1)
 _sel_rc=$?
 _sel2_out=$(sh "$nest_tree/tools/release/amalgamate.sh" lib/sel2-entry.x 2>&1)
 _sel2_rc=$?
+# A part, (module-part NAME), is spliced inside its module, and what it
+# includes is hoisted ahead of the module; a part reached from anywhere else
+# is refused.
+printf '; whole.x -- scoped, in two files.\n(module nest/whole)\n(include-once "./part.x")\n' > "$nest_tree/lib/nest/whole.x"
+printf '; part.x -- a part of nest/whole, and it includes another file once.\n(module-part nest/whole)\n(include-once "./inner.x")\n(def nest-part 1)\n' > "$nest_tree/lib/nest/part.x"
+printf '(include-once "lib/nest/whole.x")\n' > "$nest_tree/lib/whole-entry.x"
+printf '(include-once "lib/nest/part.x")\n' > "$nest_tree/lib/part-entry.x"
+_part_out=$(sh "$nest_tree/tools/release/amalgamate.sh" lib/whole-entry.x 2>&1)
+_part_rc=$?
+_stray_err=$(sh "$nest_tree/tools/release/amalgamate.sh" lib/part-entry.x 2>&1 >/dev/null)
+_stray_rc=$?
 rm -rf "$nest_tree"
+_pin_at=$(printf '%s\n' "$_part_out" | grep -n '^; ---- begin lib/nest/inner.x ----' | cut -d: -f1)
+_pwhole_at=$(printf '%s\n' "$_part_out" | grep -n '^; ---- begin lib/nest/whole.x ----' | cut -d: -f1)
+_ppart_at=$(printf '%s\n' "$_part_out" | grep -n '^; ---- begin lib/nest/part.x ----' | cut -d: -f1)
+_pend_at=$(printf '%s\n' "$_part_out" | grep -n '^(%module-end)$' | cut -d: -f1)
+if [ "$_part_rc" = 0 ] && [ -n "$_pin_at" ] && [ -n "$_pwhole_at" ] && [ -n "$_ppart_at" ] && [ -n "$_pend_at" ] \
+	&& [ "$_pin_at" -lt "$_pwhole_at" ] && [ "$_pwhole_at" -lt "$_ppart_at" ] && [ "$_ppart_at" -lt "$_pend_at" ] \
+	&& printf '%s\n' "$_part_out" | grep -q '^(module-part nest/whole)$'; then
+	echo "amalgam-smoke: a part is spliced inside its module, and what it includes ahead of the module ok"
+else
+	STATUS=1
+	echo "amalgam-smoke: FAIL -- a part was not spliced inside its module with its include ahead" >&2
+	printf '%s\n' "$_part_out" >&2
+fi
+case "$_stray_rc:$_stray_err" in
+	*"lib/nest/part.x is a part of nest/whole, and is spliced only inside it"*)
+		echo "amalgam-smoke: a part outside its module is refused ok" ;;
+	*)
+		STATUS=1
+		echo "amalgam-smoke: FAIL -- a part outside its module was not refused: $_stray_rc $_stray_err" >&2 ;;
+esac
 _inner_at=$(printf '%s\n' "$_hoist_out" | grep -n '^; ---- begin lib/nest/inner.x ----' | cut -d: -f1)
 _outer_at=$(printf '%s\n' "$_hoist_out" | grep -n '^; ---- begin lib/nest/outer.x ----' | cut -d: -f1)
 if [ "$_hoist_rc" = 0 ] && [ -n "$_inner_at" ] && [ -n "$_outer_at" ] && [ "$_inner_at" -lt "$_outer_at" ] \

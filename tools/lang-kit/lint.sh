@@ -125,13 +125,14 @@ done
 # "Modules, names and classes"), read textually the way the manifests are.
 #
 # Every file the lang loads is a scoped module: its first form is
-# (module NAME).  A file is loaded when it is the entry lang.xon names, a
-# module some file imports, or a file some file includes by a ./-relative
-# path; a file nothing loads -- a data file a tool reads, a script -- is not
-# held to the rule, and the entry is the one loaded file exempt from it.  A
-# provide list names no %-private; the scan is the kit's own
-# provide-names.sh.  Both are findings like the linter's, indented under a
-# heading, counted into the strict verdict.
+# (module NAME), or (module-part NAME) in a file of a module that spans
+# several.  A file is loaded when it is the entry lang.xon names, a module
+# some file imports, or a file some file includes by a ./-relative path; a
+# file nothing loads -- a data file a tool reads, a script -- is not held to
+# the rule, and the entry is the one loaded file exempt from it.  A provide
+# list names no %-private; the scan is the kit's own provide-names.sh.  Both
+# are findings like the linter's, indented under a heading, counted into the
+# strict verdict.
 _ENTRY=$(sed -n 's/^(entry "\([^"]*\)")$/\1/p' "$BUNDLE/lang.xon" 2>/dev/null | head -1)
 _ENTRY="$BUNDLE/${_ENTRY:-run.x}"
 _LOADED=" $_ENTRY "
@@ -154,7 +155,7 @@ for _t in $_MODS; do
 	# The first form: the first line that is not blank and not a comment.
 	_first=$(awk '/^[[:space:]]*$/ { next } /^[[:space:]]*;/ { next } { print; exit }' "$_t")
 	case "$_first" in
-		"(module "*) ;;
+		"(module "*|"(module-part "*) ;;
 		*) _BUNDLE_OUT="$_BUNDLE_OUT
       module: ${_t#"$BUNDLE"/} has no (module ...) header" ;;
 	esac

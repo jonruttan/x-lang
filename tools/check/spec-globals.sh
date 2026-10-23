@@ -63,7 +63,7 @@ trap 'exit 143' TERM
 
 # The library's root %-definitions.  An empty list means the scan broke, not
 # that the library has none.
-find lib -name '*.x' | sort | xargs grep -L '^(module ' |
+find lib -name '*.x' | sort | xargs grep -L -e '^(module ' -e '^(module-part ' |
 	xargs awk -f tools/check/defs.awk |
 	awk -F'\t' '$2 ~ /^%/ { print $2 }' > "$W/library"
 [ -s "$W/library" ] || { echo "spec-globals: no library root definitions found" >&2; exit 2; }

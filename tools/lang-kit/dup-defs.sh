@@ -44,6 +44,9 @@
 # exports that are classes (lib/x/boot/module.x); there a plain def of the
 # same name in an unscoped file is exactly the collision this check is for.
 # Any other export stays the module's own, reached with a selective import.
+# A part of a module, whose first form is (module-part NAME), loads into the
+# module's environment, so the module and its parts are one unit: a private
+# name defined differently in two of them is a collision, as it is in one.
 # A pre-pass over the scoped files' provide lists, fed in as the first input,
 # says which exports are marked (G) and which are plain (E); of the plain
 # ones, a (def-class NAME ...) and a (def NAME Class) alias count as classes.
@@ -97,18 +100,26 @@ _FILES="$_FILES $_SCRIPTS"
 
 [ -n "${_FILES# }" ] || { echo "dup-defs: ok (no .x files)"; exit 0; }
 
-# One S line per scoped file, then a G line per export it marks (global NAME)
-# and an E line per plain export.  The marks are folded to @NAME first, so a
-# provide list runs to its first `)`; comments are stripped a line at a time.
+# One S line per scoped file and one P line per part of one, (module-part
+# NAME), each naming the file's module: a module and its parts are one
+# environment, so they are one unit here.  Then a G line per export a scoped
+# file marks (global NAME) and an E line per plain export, by module.  The
+# marks are folded to @NAME first, so a provide list runs to its first `)`;
+# comments are stripped a line at a time.
 _scoped_provides() {
 	# shellcheck disable=SC2086
+	for _f in $(grep -l '^(module-part ' $_FILES /dev/null); do
+		printf 'P\t%s\t%s\n' "$_f" "$(sed -n 's/^(module-part \([^ )]*\)).*/\1/p' "$_f" | head -1)"
+	done
+	# shellcheck disable=SC2086
 	for _f in $(grep -l '^(module ' $_FILES /dev/null); do
-		printf 'S\t%s\n' "$_f"
+		_m=$(sed -n 's/^(module \([^ )]*\)).*/\1/p' "$_f" | head -1)
+		printf 'S\t%s\t%s\n' "$_f" "$_m"
 		sed 's/;.*$//' "$_f" | tr '\n' ' ' | sed 's/(global \([^()]*\))/@\1/g' \
 			| grep -o '(provide [^)]*' \
-			| awk -v f="$_f" '{ for (i = 3; i <= NF; i++)
-				if ($i ~ /^@/) printf "G\t%s\t%s\n", f, substr($i, 2)
-				else printf "E\t%s\t%s\n", f, $i }'
+			| awk -v m="$_m" '{ for (i = 3; i <= NF; i++)
+				if ($i ~ /^@/) printf "G\t%s\t%s\n", m, substr($i, 2)
+				else printf "E\t%s\t%s\n", m, $i }'
 	done
 }
 
@@ -171,18 +182,19 @@ function handle(f,    tmp, name, body, key, kids, nk, j, isclass) {
     body = tmp
     sub(/^[^ \t]+[ \t]*/, "", body)
     # One file, one meaning: checked before the scoped filter, so the private
-    # names of a scoped module are held to it too.
-    key = FILENAME SUBSEP name
+    # names of a scoped module are held to it too, across its parts.
+    where = (FILENAME in unit) ? "module " unit[FILENAME] : FILENAME
+    key = where SUBSEP name
     if (!(key in file_body)) file_body[key] = body
     else if (file_body[key] != body && !(name in allow) && !(key in file_diverge)) {
       file_diverge[key] = 1
-      printf "dup-def: %s -- distinct definitions within %s (the later one wins)\n", name, FILENAME
+      printf "dup-def: %s -- distinct definitions within %s (the later one wins)\n", name, where
       bad = 1
     }
     # A scoped module keeps what it does not bind in the root (see the
     # header): a marked export, or an exported class or class alias, is kept.
     if (FILENAME in scoped) {
-      key = FILENAME SUBSEP name
+      key = unit[FILENAME] SUBSEP name
       if (!((key in marked) || ((key in exported) && (isclass || body ~ /^[A-Z][^ \t()]*\)?$/)))) name = ""
     }
     if (name != "") {
@@ -243,7 +255,7 @@ function flush_form(    tmp) {
 # each of them provides.
 FILENAME == "-" {
   split($0, pp, "\t")
-  if (pp[1] == "S") scoped[pp[2]] = 1
+  if (pp[1] == "S" || pp[1] == "P") { scoped[pp[2]] = 1; unit[pp[2]] = pp[3] }
   else if (pp[1] == "G") marked[pp[2] SUBSEP pp[3]] = 1
   else if (pp[1] == "E") exported[pp[2] SUBSEP pp[3]] = 1
   next

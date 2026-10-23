@@ -61,11 +61,14 @@ esac
 # named by lang.xon, one scoped module whose constructs.x declares a
 # letrec-scoped form the linter must read (a self-call in an init is not
 # undefined), one imported file that provides but has no header,
-# one module whose provide list names a %-private, a data file nothing
+# one module whose provide list names a %-private, one module in two files,
+# a data file nothing
 # loads, and a script under tools/ nothing loads.
 mkdir -p "$TMP/c/m" "$TMP/c/tools"
 printf '(lang "c")\n(dialect he)\n(entry "run.x")\n' > "$TMP/c/lang.xon"
-printf '(import m/one\n  half)\n(import m/loose loose)\n(def c-main (fn (_) (half (loose 4))))\n' > "$TMP/c/run.x"
+printf '(import m/one\n  half)\n(import m/loose loose)\n(import m/two step!)\n(def c-main (fn (_) (half (loose (step!)))))\n' > "$TMP/c/run.x"
+printf '(module m/two)\n(def %%count 0)\n(include-once "./two-step.x")\n(provide m/two step!)\n' > "$TMP/c/m/two.x"
+printf '(module-part m/two)\n(def step! (fn (_) (set! %%count (+ %%count 1)) %%count))\n' > "$TMP/c/m/two-step.x"
 printf '(module m/one)\n(def my-letrec let)\n(def half (fn (_ n) (my-letrec ((go (fn (self k) (if (= k 0) 0 (go (- k 1)))))) (go n))))\n(provide m/one half)\n' > "$TMP/c/m/one.x"
 printf '(def loose (fn (_ n) (+ n 1)))\n(provide m/loose loose)\n' > "$TMP/c/m/loose.x"
 printf '(module m/leaky)\n(def %%secret 1)\n(provide m/leaky %%secret)\n' > "$TMP/c/m/leaky.x"
@@ -80,7 +83,9 @@ case "$st" in
 		case "$out" in *"provide: m/leaky.x exports %secret"*) printf '  a provide list naming a %%-private is a strict finding: ok\n' ;;
 			*) printf 'lang-kit-lint: the %%-private export was not named:\n%s\n' "$out" >&2; fails=$((fails + 1)) ;; esac
 		case "$out" in *"module: run.x"*|*"module: tools/script.x"*|*"module: m/constructs.x"*) printf 'lang-kit-lint: the entry or a file nothing loads was held to the module rule:\n%s\n' "$out" >&2; fails=$((fails + 1)) ;;
-			*) printf '  the entry and files nothing loads are exempt from the module rule: ok\n' ;; esac ;;
+			*) printf '  the entry and files nothing loads are exempt from the module rule: ok\n' ;; esac
+		case "$out" in *"module: m/two-step.x"*|*"      %count"*) printf 'lang-kit-lint: a part of a module was held to the module rule, or its names read as undefined:\n%s\n' "$out" >&2; fails=$((fails + 1)) ;;
+			*) printf '  a (module-part ...) header heads a part of a module: ok\n' ;; esac ;;
 esac
 # Without --strict the same bundle passes: the findings are advisory.
 if BUNDLE="$TMP/c" X="$X" sh tools/lang-kit/lint.sh >/dev/null 2>&1; then

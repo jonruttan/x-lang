@@ -78,6 +78,22 @@ function header_of(path,  line, name) {
 	close(path)
 	return name
 }
+# The module a part belongs to, or "": its first form, read as header_of
+# reads it, when that is (module-part NAME).
+function part_of(path,  line, name) {
+	name = ""
+	while ((getline line < path) > 0) {
+		if (line ~ /^[ \t]*$/ || line ~ /^[ \t]*;/) continue
+		if (match(line, /^\(module-part[ \t]+[^ \t()]+\)/)) {
+			name = substr(line, RSTART, RLENGTH)
+			sub(/^\(module-part[ \t]+/, "", name)
+			sub(/\)$/, "", name)
+		}
+		break
+	}
+	close(path)
+	return name
+}
 # The module a top-level import names, or "" when the line is not one.  An
 # import is bare, (import NAME), or selective, (import NAME sym (sym alias)
 # ...), and sits on one line at column 0 either way.
@@ -105,7 +121,9 @@ function import_selective(line) {
 # every form after it into the module, so a file spliced in place would load
 # into the module instead of the root.  Spliced first, each is loaded by the
 # time the module runs, and its line inside the module becomes the comment a
-# repeat already becomes.
+# repeat already becomes.  A part of the module is the exception: it belongs
+# inside, so it stays where it is, and what it includes or imports is
+# hoisted ahead of the module in its stead.
 function hoist(path,  line, inc, mod, file) {
 	if (path in hoisting) {
 		printf "amalgamate: %s imports itself, directly or through another file\n", path > "/dev/stderr"
@@ -120,7 +138,8 @@ function hoist(path,  line, inc, mod, file) {
 			inc = inc_path(path, inc)
 			if (!(inc in seen) && (getline junk < inc) >= 0) {
 				close(inc)
-				splice(inc)
+				if (part_of(inc) != "") hoist(inc)
+				else splice(inc)
 			}
 		} else if ((mod = import_mod(line)) != "") {
 			file = resolve(mod)
@@ -133,11 +152,18 @@ function hoist(path,  line, inc, mod, file) {
 	close(path)
 	delete hoisting[path]
 }
-function splice(path,  line, n, mod, file, name) {
+function splice(path,  line, n, mod, file, name, part) {
 	# The includes and imports of a scoped file are hoisted ahead of it, so
-	# the only splice that can reach here from inside one is a plain include,
-	# which has no place to go: its text would load into the module.
-	if (scoped != "") {
+	# the only splice that can reach here from inside one is a part of the
+	# module, which is spliced in place, its header a no-op in the environment
+	# of the module, or a plain include, which has no place to go: its text
+	# would load into the module.
+	part = part_of(path)
+	if (part != "" && part != scoped_name) {
+		printf "amalgamate: %s is a part of %s, and is spliced only inside it\n", path, part > "/dev/stderr"
+		bad = 1; exit 1
+	}
+	if (scoped != "" && part == "") {
 		printf "amalgamate: %s includes %s, which would splice it inside the scoped module; include it once or import it, and it is spliced ahead of the module\n", scoped, path > "/dev/stderr"
 		bad = 1; exit 1
 	}
@@ -151,7 +177,7 @@ function splice(path,  line, n, mod, file, name) {
 	printf "; ---- begin %s ----\n", path
 	if (name != "") {
 		printf "(%%module-expecting! (lit %s))\n", name
-		scoped = path
+		scoped = path; scoped_name = name
 	}
 	n = 0
 	while ((getline line < path) > 0) {
@@ -220,7 +246,7 @@ function splice(path,  line, n, mod, file, name) {
 	close(path)
 	if (name != "") {
 		printf "(%%module-end)\n"
-		scoped = ""
+		scoped = ""; scoped_name = ""
 	}
 	printf "; ---- end %s ----\n", path
 }
