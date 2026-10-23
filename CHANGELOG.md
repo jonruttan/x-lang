@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-10-23
+
+**An included file is evaluated where the include stands, so a module may be written in several files.** ([#1081]) `include` and `include-once` evaluate a file's forms in the including environment -- the root from an unscoped file, the module from a scoped one -- through a loader written in x-lang over the base's input stack, with the engine's own include serving the root. A module's own file includes its other files, each headed with the module's name, and they share its private names; a file headed with a loaded module's name joins it, and a module's file loaded again by path reloads it in place. The amalgamator splices an included file where the include stands, and no longer refuses a plain include inside a scoped module. docs/modules.md, "A module in several files".
+
+[#1081]: https://github.com/jonruttan/x-lang/pull/1081
+
 ## [0.36.0] - 2026-10-22
 
 **The linter reads a call through a local named after a construct as a call.** ([#1078]) A parameter or let variable called `op`, `first` or any other construct name, applied in its scope, is a call of that local; before, the dispatcher parsed it as the construct and the engine died on the shape, with no verdict for the file. x-awk's `awk/eval.x` lints now.
