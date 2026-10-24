@@ -92,6 +92,19 @@
 ; per-call bindings.
 (def %this-class ())
 
+; The base's error-handler cell, resolved once: the cell is part of the base
+; spine and only its content changes.  It holds the live handler chain, which
+; is this process's alone (a guard's C context), so a state image carries a
+; spare cell in its place and the loader's recache resolves the real one
+; again.  A move made before then sets aside and restores the spare, which
+; costs nothing and keeps the move free of a nil test.
+(def %tab-handler-cell (%reflect-base-cell (lit error-handler)))
+(set! %image-transients
+  (pair (fn (_) (set! %tab-handler-cell (list ()))) %image-transients))
+(set! %image-recache-hooks
+  (pair (fn (_) (set! %tab-handler-cell (%reflect-base-cell (lit error-handler))))
+        %image-recache-hooks))
+
 ; Find `sel` in a flat table and self-organize: a hit DEEPER THAN POSITION
 ; TWO moves its (sel . entry) pair to the head, the head's pair to second
 ; place and the second's to the hit's cell, so a hot selector is a front hit
@@ -105,6 +118,17 @@
 ; Returns the entry (a method closure or %field-label) or nil. `head` is the
 ; table's first spine cell; callers pass the table twice.  The walk is a
 ; plain loop: it runs on every dispatch, a cell at a time.
+;
+; The three writes run with the base's error handler set aside.  Between two
+; of them a pair is held only in `p`, and ctrl-c raises STOP at the next
+; evaluation step while a handler is set (docs/engine-laws.md 6): a STOP
+; there dropped the pair, and since the table is never rebuilt the member
+; was gone for the rest of the process.  With no handler the flag waits, and
+; STOP is raised at the first step after the handler is back.  The move
+; allocates nothing and brings nothing into the table from outside it, which
+; is what lets a type's mark handler dispatch during a collect (Cont's does):
+; an object allocated while the collector marks is born unmarked (engine law
+; 4), and one linked into an already marked table would be swept.
 (def %tab-find!
   (fn (loop cell head sel)
     (match
@@ -113,13 +137,15 @@
         (match
           ((eq? cell head) (rest (first cell)))
           ((eq? cell (rest head)) (rest (first cell)))
-          ; p is bound before the writes that move it
-          (#t ((fn (_ p)
+          ; p and the handler are bound before the writes
+          (#t ((fn (_ p h)
+                 (%set-first! %tab-handler-cell ())
                  (%set-first! cell (first (rest head)))
                  (%set-first! (rest head) (first head))
                  (%set-first! head p)
+                 (%set-first! %tab-handler-cell h)
                  (rest p))
-               (first cell)))))
+               (first cell) (first %tab-handler-cell)))))
       (#t (loop (rest cell) head sel)))))
 
 ; Build a class's hot record: flat, chain-merged dispatch tables plus the

@@ -315,7 +315,11 @@
 (file "lib/x/tool/lint.x" 87)
 ; class.x fell 91 to 89: its two exported hooks, class-call-handler and
 ; bind-call-over!, are bare names now (x-lang#719, the last %-named exports).
-(file "lib/x/type/class.x" 89)   ; +1 %apply: the dispatcher applies resolved methods and displaced C handler atoms through the engine's apply
+; class.x grew by one, 89 -> 90, for %tab-handler-cell: the base's
+; error-handler cell, which %tab-find! empties around its three writes so that
+; a STOP cannot fall between them; resolved once rather than walked to on
+; every move.
+(file "lib/x/type/class.x" 90)   ; +1 %apply: the dispatcher applies resolved methods and displaced C handler atoms through the engine's apply
 (file "lib/x/type/unit-label-rows.x" 2)
 (file "tools/check/boot-order.x" 33)
 (file "tools/check/dialect-cover.x" 9)
