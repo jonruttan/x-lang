@@ -930,6 +930,22 @@ is unchanged.
 ---
     (#t 120)
 
+### "di->d" and "dp->d" call a function of a double and an integer or pointer: ldexp, and frexp with its exponent written
+
+```x
+((fn (_)
+   (import x/num/float libm-fn)
+   (def spec-ldexp (libm-fn (lit spec-ldexp) "di->d" "ldexp"))
+   (def spec-frexp (libm-fn (lit spec-frexp) "dp->d" "frexp"))
+   (def spec-exp ((prim-ref (lit ptr) (lit alloc)) 8))
+   (list (= (spec-ldexp (first 0.625) 2) (first 2.5))
+         (= (spec-ldexp (first 3.0) -1) (first 1.5))
+         (= (spec-frexp (first 2.5) spec-exp) (first 0.625))
+         ((prim-ref (lit ptr) (lit ref)) spec-exp 0 4))))
+```
+---
+    (#t #t #t 2)
+
 ### with no name, a stub by its label: 0.1 to a single and back, and 16777217 to one
 
 ```x
