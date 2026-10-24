@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.37.1] - 2026-10-23
+
+**A state image of a library that loads a file into a module writes clean.** ([#1083]) The loader `include` and `include-once` use inside a module claimed meta words on its read buffer that a fresh base -- the image writer's child -- does not give, and wrote past them; writing the image crashed with a bus error, so a bundle with a module in several files (x-coreutils's vi) could not image its harness. The buffer now takes what its base gives, as the engine's include does. A harness importing a two-file module is imaged by every suite run.
+
+[#1083]: https://github.com/jonruttan/x-lang/pull/1083
+
 ## [0.37.0] - 2026-10-23
 
 **An included file is evaluated where the include stands, so a module may be written in several files.** ([#1081]) `include` and `include-once` evaluate a file's forms in the including environment -- the root from an unscoped file, the module from a scoped one -- through a loader written in x-lang over the base's input stack, with the engine's own include serving the root. A module's own file includes its other files, each headed with the module's name, and they share its private names; a file headed with a loaded module's name joins it, and a module's file loaded again by path reloads it in place. The amalgamator splices an included file where the include stands, and no longer refuses a plain include inside a scoped module. docs/modules.md, "A module in several files".
