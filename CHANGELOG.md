@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.37.2] - 2026-10-24
+
+**ctrl-c during a method dispatch no longer loses a class member.** ([#1085]) Moving a member found deep in a class's dispatch table to the front takes three writes, and a ctrl-c between two of them dropped the member from the table for the rest of the process, which then reported "no such static member" for a method that exists (x-logo's tty test t02, `Base raw-of`). The move now runs with the error handler set aside, so the interrupt is raised once the move is whole. Objects allocated, helium: 500 calls that each move a member 95,822 -> 110,293; 500 hits in the first two cells and 100 full-table walks unchanged (56,031 and 41,120).
+
+[#1085]: https://github.com/jonruttan/x-lang/pull/1085
+
 ## [0.37.1] - 2026-10-23
 
 **A state image of a library that loads a file into a module writes clean.** ([#1083]) The loader `include` and `include-once` use inside a module claimed meta words on its read buffer that a fresh base -- the image writer's child -- does not give, and wrote past them; writing the image crashed with a bus error, so a bundle with a module in several files (x-coreutils's vi) could not image its harness. The buffer now takes what its base gives, as the engine's include does. A harness importing a two-file module is imaged by every suite run.
