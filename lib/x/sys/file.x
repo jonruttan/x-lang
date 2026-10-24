@@ -72,12 +72,14 @@
         (let ((row (first rows)))
           (match
             ((or (eq? (first row) 'mode) (eq? (first row) 'size)
-                 (eq? (first row) 'mtime))
+                 (eq? (first row) 'mtime) (eq? (first row) 'atime)
+                 (eq? (first row) 'uid) (eq? (first row) 'gid)
+                 (eq? (first row) 'nlink))
               (go (rest rows) 0
                   (pair row (if (> gap 0) (pair (list 'pad gap) acc) acc))))
             (#t (go (rest rows) (+ gap (Struct length (list row))) acc))))))))
 
-; The fields' reader, compiled once: a stat pays for reading three fields,
+; The fields' reader, compiled once: a stat pays for reading seven fields,
 ; not for building the plan.
 (def %stat-read (Struct reader %stat-fields))
 
@@ -224,7 +226,7 @@
 
 ; A stat64/stat buffer as the public metadata alist.  The stat struct's
 ; layout is the platform's (stat-layout, in x/platform/syscall);
-; %stat-fields is the three fields of it this decode reads, through the
+; %stat-fields is the seven fields of it this decode reads, through the
 ; Struct codec (#371).  Every layout there is a 64-bit one and nothing
 ; branches on the width, so a 32-bit build decodes neighbouring fields.
 ; constraint: word-size = 8 -- stat/stat64 field offsets are 64-bit
@@ -235,7 +237,11 @@
     (list (pair 'size (%stat-field 'size d))
           (pair 'mode mode)
           (pair 'file-type (%mode-file-type mode))
-          (pair 'mtime (%stat-field 'mtime d)))))
+          (pair 'mtime (%stat-field 'mtime d))
+          (pair 'atime (%stat-field 'atime d))
+          (pair 'uid (%stat-field 'uid d))
+          (pair 'gid (%stat-field 'gid d))
+          (pair 'nlink (%stat-field 'nlink d)))))
 
 
 
@@ -355,9 +361,9 @@
     ; ======================================================================
 
     (method stat (self (param path STRING "Path to stat"))
-      (doc "File metadata as an alist: ((size . BYTES) (mode . RAW) (file-type . SYM) (mtime . UNIX-SECONDS)). file-type is one of 'file 'dir 'link 'char 'block 'fifo 'socket (from the S_IFMT bits). Raises a label 'io Err on failure."
-        (returns ALIST "((size . N) (mode . M) (file-type . K) (mtime . T))")
-        (sample "(File stat \"lib/x.x\")" "((size . 461) (mode . 33188) (file-type . file) (mtime . 1752861000))"))
+      (doc "File metadata as an alist: ((size . BYTES) (mode . RAW) (file-type . SYM) (mtime . UNIX-SECONDS) (atime . UNIX-SECONDS) (uid . N) (gid . N) (nlink . N)). file-type is one of 'file 'dir 'link 'char 'block 'fifo 'socket (from the S_IFMT bits). Raises a label 'io Err on failure."
+        (returns ALIST "((size . N) (mode . M) (file-type . K) (mtime . T) (atime . T) (uid . U) (gid . G) (nlink . L))")
+        (sample "(File stat \"lib/x.x\")" "((size . 461) (mode . 33188) (file-type . file) (mtime . 1752861000) (atime . 1752861000) (uid . 501) (gid . 20) (nlink . 1))"))
       (%fs-path path "File stat")
       (def buf (%make-str 160))
       (def r (%sys-stat path buf))
@@ -616,8 +622,8 @@
 
     (method lstat (self (param path STRING "Path to stat, symlinks NOT followed"))
       (doc "File metadata like (File stat), but a symbolic link reports itself (file-type 'link) instead of its target -- the door (File walk) uses to avoid following link cycles. Raises a label 'io Err on failure."
-        (returns ALIST "((size . N) (mode . M) (file-type . K) (mtime . T))")
-        (sample "(File lstat \"some-symlink\")" "((size . 11) (mode . 41453) (file-type . link) (mtime . ...))"))
+        (returns ALIST "((size . N) (mode . M) (file-type . K) (mtime . T) (atime . T) (uid . U) (gid . G) (nlink . L))")
+        (sample "(File lstat \"some-symlink\")" "((size . 11) (mode . 41453) (file-type . link) (mtime . ...) (atime . ...) (uid . ...) (gid . ...) (nlink . 1))"))
       (%fs-path path "File lstat")
       (def buf (%make-str 160))
       (def r (%sys-lstat path buf))

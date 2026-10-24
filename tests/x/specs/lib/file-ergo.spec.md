@@ -59,6 +59,31 @@ keep their raw contract -- see ext/file.spec.md.
 ---
     (5 'file #t)
 
+### stat reports the owner, the access time and the link count
+
+A file made here is the user's.  Its group is the directory's on BSD and
+the process's on Linux, so only its presence is asked.  A second link is
+counted.
+
+```x
+(do (import x/sys/posix) (import x/sys/file)
+  (def tmp (File temp "/tmp/x-spec22-o-"))
+  (File close (first tmp))
+  (def p (rest tmp))
+  (def q (Str8 append p "-2"))
+  (File set-times p 1700000000 1700000100)
+  (def one (File stat p))
+  (File link p q)
+  (def two (File lstat q))
+  (File unlink q)
+  (File unlink p)
+  (list (= (Assoc get 'uid one) (Sys getuid)) (>= (Assoc get 'gid one) 0)
+        (Assoc get 'atime one) (Assoc get 'mtime one)
+        (Assoc get 'nlink one) (Assoc get 'nlink two)))
+```
+---
+    (#t #t 1700000000 1700000100 1 2)
+
 ### a directory stats as file type 'dir
 
 ```x
