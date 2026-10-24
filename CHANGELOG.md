@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-10-24
+
+**Http request bodies may be runs.** ([#1091]) `Http open`, `Http request` and the verbs on them take a body as a run, `(STRING . COUNT)`, as well as a string, so a binary body with NUL bytes in it goes out whole, over http or https. Content-Length is the run's count.
+
+[#1091]: https://github.com/jonruttan/x-lang/pull/1091
+
+**`Source` reads where a form was read.** ([#1090]) `(Source line form)` and `(Source file form)` read the reader's stamp on a form, `(Source path id)` and `(Source files)` the registry of included files, and `(Source here)` the reader's live position as `(path . line)`. A form built at run time answers `()`. The `help` entry for `current-line`, which no module bound, is gone.
+
+[#1090]: https://github.com/jonruttan/x-lang/pull/1090
+
 ## [0.38.0] - 2026-10-24
 
 **`libm-fn` makes stubs for a double and an integer or pointer.** ([#1088]) The labels `"di->d"` and `"dp->d"` call a libm function such as `ldexp(x, n)` or `frexp(x, &e)`: a double's bits and an INTEGER in, a double's bits out.
