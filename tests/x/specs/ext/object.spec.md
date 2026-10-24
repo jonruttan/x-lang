@@ -419,6 +419,59 @@ selector from the caller's form, so `(p)` binds nil, and rendering nil with
 ---
     0
 
+## the dispatch table under an interrupt
+
+A lookup that finds a member deep in the class's dispatch table moves it to
+the front, in place, with several writes. ctrl-c raises STOP at the next
+evaluation step, which can fall between two of them, and the table is never
+rebuilt. Here `%set-first!` and `%set-rest!` are wrapped to raise the flag
+after the Nth write, for each N across the first two moves, and every member
+is then asked for. The wrapping is done in a forked child, so that nothing
+it rebinds outlives it; the child exits with the first N that lost a member,
+or 0.
+
+### a STOP between the writes of a move loses no member
+
+```x
+(def-class TabMove ()
+  (static
+    (method a (self) 1) (method b (self) 2) (method c (self) 3)
+    (method d (self) 4) (method e (self) 5)))
+(TabMove a)
+(def %tabmove-set-first! %set-first!)
+(def %tabmove-set-rest! %set-rest!)
+(def %tabmove-left (list 0))
+(def %tabmove-count
+  (fn (_)
+    (unless (= (first %tabmove-left) 0)
+      (do (%tabmove-set-first! %tabmove-left (- (first %tabmove-left) 1))
+          (when (= (first %tabmove-left) 0) (%set-cell-int! %sigint-flag 1))))))
+(def %tabmove-intact?
+  (fn (_ n)
+    (guard (_ ())
+      (do (%tabmove-set-first! %tabmove-left n)
+          (TabMove a) (TabMove b) (TabMove c) (TabMove d) (TabMove e)
+          (TabMove a) (TabMove b) (TabMove c) (TabMove d) (TabMove e)))
+    (%tabmove-set-first! %tabmove-left 0)
+    (%set-cell-int! %sigint-flag 0)
+    (guard (_ #f)
+      (do (TabMove a) (TabMove b) (TabMove c) (TabMove d) (TabMove e) #t))))
+(def %tabmove-first-loss
+  (fn (loop n)
+    (match
+      ((> n 8) 0)
+      ((%tabmove-intact? n) (loop (+ n 1)))
+      (#t n))))
+(def %tabmove-pid (Sys fork))
+(when (= %tabmove-pid 0)
+  (def %set-first! (fn (_ p v) (%tabmove-set-first! p v) (%tabmove-count) p))
+  (def %set-rest! (fn (_ p v) (%tabmove-set-rest! p v) (%tabmove-count) p))
+  (Sys exit (%tabmove-first-loss 1)))
+(Sys wait %tabmove-pid)
+```
+---
+    0
+
 ## deeper inheritance
 
 ### method lookup and instance-of? span a three-level chain

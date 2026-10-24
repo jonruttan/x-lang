@@ -369,7 +369,7 @@
 
     (method %imethod-of (self class sel)
       (let ((itab (first (%class-hot class))))
-        (%entry-method (%tab-find! itab itab sel))))
+        (%entry-method (%tab-find! itab sel))))
 
     (method method! (self (param class CLASS "Class owning the method")
                           (param sel SYMBOL "Selector to give a block form")
