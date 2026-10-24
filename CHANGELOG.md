@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-10-24
+
+**`libm-fn` makes stubs for a double and an integer or pointer.** ([#1088]) The labels `"di->d"` and `"dp->d"` call a libm function such as `ldexp(x, n)` or `frexp(x, &e)`: a double's bits and an INTEGER in, a double's bits out.
+
+[#1088]: https://github.com/jonruttan/x-lang/pull/1088
+
+**`File stat` and `File lstat` answer the owner, the access time and the link count.** ([#1086]) The alist adds `uid`, `gid`, `atime` and `nlink` to `size`, `mode`, `file-type` and `mtime`.
+
+[#1086]: https://github.com/jonruttan/x-lang/pull/1086
+
 ## [0.37.2] - 2026-10-24
 
 **ctrl-c during a method dispatch no longer loses a class member.** ([#1085]) Moving a member found deep in a class's dispatch table to the front takes three writes, and a ctrl-c between two of them dropped the member from the table for the rest of the process, which then reported "no such static member" for a method that exists (x-logo's tty test t02, `Base raw-of`). The move now runs with the error handler set aside, so the interrupt is raised once the move is whole. Objects allocated, helium: 500 calls that each move a member 95,822 -> 110,293; 500 hits in the first two cells and 100 full-table walks unchanged (56,031 and 41,120).
