@@ -18,8 +18,9 @@
 ;
 ; Bodies ride BYTE LISTS (the lossless carrier: recv's string door
 ; truncates at NUL; this client reads through Socket recv-bytes) --
-; (bytes->str body) for textual responses. Request bodies are strings
-; (text protocols; NUL-free by the string profile's nature).
+; (bytes->str body) for textual responses. A request body is a string,
+; for text, or a RUN, (STRING . COUNT), for bytes -- NULs among them, as
+; a git pack or an upload carries them -- sent after the head as it is.
 ;
 ; One reader parses every response: an HttpStream reads the head, then
 ; hands the body out a piece at a time as the transport delivers it.
@@ -78,13 +79,13 @@
       (list (pair (lit host) host) (pair (lit port) port) (pair (lit path) path)
             (pair (lit tls) tls?)))
 
-    ; --- request text (string; the send side is textual by nature) ---
+    ; --- request text: the head, and a string body after it ---
     (method %build-request (self (param method STRING "Verb, e.g. \"GET\"")
                                  (param u ALIST "%parse-url's result")
                                  (param headers ALIST "(name . value) strings, appended verbatim")
-                                 (param body ANY "Body string, or nil"))
-      (doc "Render the request: verb + path, Host (with the port when it is not the scheme's own, RFC 9110 7.2), Connection: close, Content-Length when a body rides, the caller's headers, CRLF framing."
-        (returns STRING "The full request text"))
+                                 (param body ANY "Body string, a run (STRING . COUNT), or nil"))
+      (doc "Render the request: verb + path, Host (with the port when it is not the scheme's own, RFC 9110 7.2), Connection: close, Content-Length when a body rides, the caller's headers, CRLF framing. A string body follows the head in the text; a run's bytes are not text, so the text ends at the head and the run is sent after it."
+        (returns STRING "The request text"))
       (def port (rest (Assoc find (lit port) u)))
       (def head
         (Str8 append method " " (rest (Assoc find (lit path) u)) " HTTP/1.1\r\n"
@@ -95,11 +96,23 @@
                      "Connection: close\r\n"))
       (def with-len
         (if (null? body) head
-          (Str8 append head "Content-Length: " (%number->str (Str8 length body)) "\r\n")))
+          (Str8 append head "Content-Length: "
+                       (%number->str (if (pair? body) (rest body) (Str8 length body))) "\r\n")))
       (def with-user
         (List fold (fn (_ acc h) (Str8 append acc (first h) ": " (rest h) "\r\n"))
           with-len headers))
-      (Str8 append with-user "\r\n" (if (null? body) "" body)))
+      (Str8 append with-user "\r\n" (if (str? body) body "")))
+
+    (method %send-run (self (param fd INTEGER "A connected socket")
+                            (param buf STRING "The run's buffer")
+                            (param n INTEGER "How many of its bytes"))
+      (doc "All n bytes of buf sent on fd: Socket send-run sends what the socket takes at once, so what is left is sent again until none is."
+        (returns INTEGER "n"))
+      (def w (Socket send-run fd buf n))
+      (when (< w n)
+        (let ((r (Http %run-copy buf w (- n w))))
+          (Http %send-run fd (first r) (rest r))))
+      n)
 
     ; --- response parsing (byte-level; spec-testable without a socket) ---
     ; hex chunk-size parse over bytes; -1 marks a non-hex byte
@@ -446,7 +459,7 @@
     (method %open-once (self (param method STRING "Verb")
                              (param url STRING "http(s)://HOST[:PORT][/PATH]")
                              (param headers ALIST "(name . value) strings; () for none")
-                             (param body ANY "Body string, or nil")
+                             (param body ANY "Body: a string, a run (STRING . COUNT) for bytes, or nil")
                              (param o ALIST "open's options"))
       (doc "One exchange, redirects NOT followed -- the wire step open loops over: connect, send the request, read the head."
         (returns OBJECT "An HttpStream positioned at the body"))
@@ -466,12 +479,16 @@
             (new HttpStream fd fd))))
       (guard (e (do (Http close s) (error e)))
         (do (if (null? (s tls)) (Socket send (s fd) req) (Tls send (s tls) req))
+            (when (pair? body)
+              (if (null? (s tls))
+                (Http %send-run (s fd) (first body) (rest body))
+                (Tls send (s tls) (list (first body) 0 (rest body)))))
             (Http %start s (str=? method "HEAD")))))
 
     (method open (self (param method STRING "Verb: \"GET\", \"POST\", ...")
                        (param url STRING "http(s)://HOST[:PORT][/PATH]")
                        (param headers ALIST "(name . value) strings; () for none")
-                       (param body ANY "Body string, or nil")
+                       (param body ANY "Body: a string, a run (STRING . COUNT) for bytes, or nil")
                        . (param opts ALIST "Options: (redirects . N) hop cap -- default 10, 0 disables following; (insecure) skips https certificate verification"))
       (doc "Start an http exchange and stop at the body: the stream answers (s status) INTEGER, (s headers) the lowercased alist, (s head) the head's lines as sent (status line first); (Http read s n) takes the body a piece at a time, (Http close s) ends it. Redirects follow as request's do, each 3xx closed before the next hop. Exceeding the cap raises a label 'io."
         (returns OBJECT "An HttpStream positioned at the body of the FINAL response")
@@ -551,7 +568,7 @@
     (method request (self (param method STRING "Verb: \"GET\", \"POST\", ...")
                           (param url STRING "http(s)://HOST[:PORT][/PATH]")
                           (param headers ALIST "(name . value) strings; () for none")
-                          (param body ANY "Body string, or nil")
+                          (param body ANY "Body: a string, a run (STRING . COUNT) for bytes, or nil")
                           . (param opts ALIST "Options: (redirects . N) hop cap -- default 10, 0 disables following; (insecure) skips https certificate verification"))
       (doc "An http exchange that FOLLOWS redirects (cap 10, (redirects . 0) opts out): 3xx responses with a location header re-request per RFC -- 303 as GET, 301/302 as GET when the verb was POST, 307/308 preserving method and body; relative locations resolve against the current url; cross-scheme hops (http -> https) follow. Exceeding the cap raises a label 'io. The whole body is read into memory: (Http open) reads it a piece at a time."
         (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST)) -- the FINAL response")
@@ -571,7 +588,7 @@
       (Http request "GET" url (if (null? headers) () (first headers)) ()))
 
     (method post (self (param url STRING "http://HOST[:PORT][/PATH]")
-                       (param body STRING "Request body (Content-Length is set for you)")
+                       (param body ANY "Request body, a string or a run (STRING . COUNT); Content-Length is set for you")
                        . (param headers ALIST "Optional (name . value) header strings"))
       (doc "POST body to the url: (Http request \"POST\" url headers body). Set a content-type header when the peer cares."
         (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))")
@@ -579,14 +596,14 @@
       (Http request "POST" url (if (null? headers) () (first headers)) body))
 
     (method put (self (param url STRING "Target url")
-                      (param body STRING "Request body")
+                      (param body ANY "Request body, a string or a run (STRING . COUNT)")
                       . (param headers ALIST "Optional (name . value) header strings"))
       (doc "PUT body to the url."
         (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))"))
       (Http request "PUT" url (if (null? headers) () (first headers)) body))
 
     (method patch (self (param url STRING "Target url")
-                        (param body STRING "Request body")
+                        (param body ANY "Request body, a string or a run (STRING . COUNT)")
                         . (param headers ALIST "Optional (name . value) header strings"))
       (doc "PATCH the url with body."
         (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))"))

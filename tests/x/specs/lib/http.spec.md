@@ -35,6 +35,17 @@ and `openssl s_server` serves https.
 ---
     "POST /p HTTP/1.1\r\nHost: h:9\r\nConnection: close\r\nContent-Length: 2\r\nX-A: 1\r\n\r\nhi"
 
+### a run body: Content-Length is its count, and the text ends at the head
+
+```x
+(do (import x/net/http)
+  (def r (Bytes of-hex "00ff0041"))
+  (Http %build-request "POST" (Http %parse-url "http://h:9/p") ()
+        (pair (first r) (Bytes length r))))
+```
+---
+    "POST /p HTTP/1.1\r\nHost: h:9\r\nConnection: close\r\nContent-Length: 4\r\n\r\n"
+
 ### Host carries the port only when it is not the scheme's own
 
 ```x
@@ -359,3 +370,43 @@ reads from it, and the certificate check refuses it without.
 ```
 ---
     (200 #t 'io)
+
+### a run body goes out whole, NULs and all: the child sends back what it read
+
+```x
+(do (import x/net/http) (import x/sys/posix)
+  (def %hb-lfd (Socket tcp-listen 0))
+  (def %hb-port (Socket local-port %hb-lfd))
+  (def url (Str8 append "http://127.0.0.1:" (%number->str %hb-port) "/in"))
+  (def %hb-r (Bytes of-hex (Str8 repeat 20000 "00ff41")))
+  (def %hb-run (pair (first %hb-r) (Bytes length %hb-r)))
+  ; the request's whole size: its head, then the run's 60000 bytes
+  (def %hb-total (+ (Str8 length (Http %build-request "POST" (Http %parse-url url) () %hb-run)) 60000))
+  (def %hb-pid (Sys fork))
+  (when (= %hb-pid 0)
+    (do (guard (e ())
+          (let ((c (Socket accept %hb-lfd)))
+            (let ((runs (let go ((got 0) (acc ()))
+                          (if (>= got %hb-total) (List reverse acc)
+                            (let ((r (Socket recv-run c 65536)))
+                              (if (null? r) (List reverse acc) (go (+ got (rest r)) (pair r acc))))))))
+              (do (Socket send c (Str8 append "HTTP/1.1 200 OK\r\nContent-Length: "
+                                   (%number->str %hb-total) "\r\n\r\n"))
+                  (List for-each (fn (_ r) (Socket send-run c (first r) (rest r))) runs)
+                  (Socket close c)))))
+        (Sys exec "/bin/sh" (list "-c" "exit 0"))))
+  (Socket close %hb-lfd)
+  ; the child is stopped whatever the exchange does
+  (def %hb-result
+    (guard (e e)
+      (let ((b (rest (Assoc find 'body (Http request "POST" url () %hb-run)))))
+        (list (= (List length b) %hb-total)
+              (Str8 includes? "Content-Length: 60000\r\n" (bytes->str b))
+              (List fold (fn (_ n x) (if (= x 0) (+ n 1) n)) 0 b)
+              (List fold (fn (_ n x) (if (= x 255) (+ n 1) n)) 0 b)))))
+  (Sys kill %hb-pid 9)
+  (Sys wait %hb-pid)
+  %hb-result)
+```
+---
+    (#t #t 20000 20000)

@@ -30,8 +30,8 @@
         (sample "(Tls connect \"140.82.114.3\" 443 (list (pair 'host \"github.com\")))" "a verified session"))
       (Tls13 connect quad port (if (null? opts) () (first opts))))
     (method send (self (param session OBJECT "A (Tls connect) session")
-                       (param s STRING "Bytes to send"))
-      (doc "Send the whole string through the session; raises a label 'io on failure."
+                       (param s ANY "The bytes: a region (BUF START LEN), or a STRING up to its first NUL"))
+      (doc "Send all the bytes through the session; raises a label 'io on failure."
         (returns INTEGER "Bytes written"))
       (Tls13 send session s))
     (method recv-bytes (self (param session OBJECT "A (Tls connect) session")
