@@ -92,47 +92,61 @@
 ; per-call bindings.
 (def %this-class ())
 
-; Find `sel` in a flat table and self-organize: a hit DEEPER THAN POSITION
-; TWO moves its (sel . entry) pair to the head, and every pair above the
-; hit's old place moves down one, so a hot selector is a front hit from its
-; second call on. The top-2 exemption matters: a method that reads a field
-; alternates two hot selectors, and unconditional move-to-front made them
-; ping-pong the head slot -- writes on every call, measured slower than no
-; table at all. With the exemption an alternating pair settles into the top
-; two and never moves again, because the pair a hit displaces lands second.
-; Returns the entry (a method closure or %field-label) or nil. `head` is the
-; table's first spine cell. The first two cells are asked here, with no
-; loop; deeper, %tab-walk! goes on a cell at a time.
-(def %tab-find!
-  (fn (_ head sel)
-    (match
-      ((eq? head ()) ())
-      ((eq? (first (first head)) sel) (rest (first head)))
-      ((eq? (rest head) ()) ())
-      ((eq? (first (first (rest head))) sel) (rest (first (rest head))))
-      (#t (%tab-walk! (rest (rest head)) head sel (rest head))))))
+; The base's error-handler cell, resolved once: the cell is part of the base
+; spine and only its content changes.  It holds the live handler chain, which
+; is this process's alone (a guard's C context), so a state image carries a
+; spare cell in its place and the loader's recache resolves the real one
+; again.  A move made before then sets aside and restores the spare, which
+; costs nothing and keeps the move free of a nil test.
+(def %tab-handler-cell (%reflect-base-cell (lit error-handler)))
+(set! %image-transients
+  (pair (fn (_) (set! %tab-handler-cell (list ()))) %image-transients))
+(set! %image-recache-hooks
+  (pair (fn (_) (set! %tab-handler-cell (%reflect-base-cell (lit error-handler))))
+        %image-recache-hooks))
 
-; The walk below the first two cells, carrying `prev`, the cell before
-; `cell`, to unlink a hit's old place with. The move must survive a raise
-; between any two of its writes: ctrl-c raises STOP at the next evaluation
-; step, and the table is never rebuilt, so a pair dropped there is a member
-; gone for the rest of the process. So the writes run in an order where
-; every pair is always in the table: a new cell after the head takes the
-; head's pair, the head takes the hit's pair, and only then is the hit's
-; old cell unlinked. Stopped part way, the table holds one pair twice,
-; which costs a cell and changes no answer: the first copy is the one found.
-(def %tab-walk!
-  (fn (loop cell head sel prev)
+; Find `sel` in a flat table and self-organize: a hit DEEPER THAN POSITION
+; TWO moves its (sel . entry) pair to the head, the head's pair to second
+; place and the second's to the hit's cell, so a hot selector is a front hit
+; from its second call on. The top-2 exemption matters: a method that reads
+; a field alternates two hot selectors, and unconditional move-to-front made
+; them ping-pong the head slot -- writes on every call, measured slower than
+; no table at all. With the exemption an alternating pair settles into the
+; top two and never moves again, because the pair a hit displaces lands
+; second: put back in the hit's cell instead, the two would trade places at
+; the hit's depth, and each would walk the table that far on every call.
+; Returns the entry (a method closure or %field-label) or nil. `head` is the
+; table's first spine cell; callers pass the table twice.  The walk is a
+; plain loop: it runs on every dispatch, a cell at a time.
+;
+; The three writes run with the base's error handler set aside.  Between two
+; of them a pair is held only in `p`, and ctrl-c raises STOP at the next
+; evaluation step while a handler is set (docs/engine-laws.md 6): a STOP
+; there dropped the pair, and since the table is never rebuilt the member
+; was gone for the rest of the process.  With no handler the flag waits, and
+; STOP is raised at the first step after the handler is back.  The move
+; allocates nothing and brings nothing into the table from outside it, which
+; is what lets a type's mark handler dispatch during a collect (Cont's does):
+; an object allocated while the collector marks is born unmarked (engine law
+; 4), and one linked into an already marked table would be swept.
+(def %tab-find!
+  (fn (loop cell head sel)
     (match
       ((eq? cell ()) ())
       ((eq? (first (first cell)) sel)
-        ((fn (_ p)
-           (%set-rest! head (pair (first head) (rest head)))
-           (%set-first! head p)
-           (%set-rest! prev (rest cell))
-           (rest p))
-         (first cell)))
-      (#t (loop (rest cell) head sel cell)))))
+        (match
+          ((eq? cell head) (rest (first cell)))
+          ((eq? cell (rest head)) (rest (first cell)))
+          ; p and the handler are bound before the writes
+          (#t ((fn (_ p h)
+                 (%set-first! %tab-handler-cell ())
+                 (%set-first! cell (first (rest head)))
+                 (%set-first! (rest head) (first head))
+                 (%set-first! head p)
+                 (%set-first! %tab-handler-cell h)
+                 (rest p))
+               (first cell) (first %tab-handler-cell)))))
+      (#t (loop (rest cell) head sel)))))
 
 ; Build a class's hot record: flat, chain-merged dispatch tables plus the
 ; construction caches, layout
@@ -335,10 +349,10 @@
     (let ((entry
             (if (object? target)
               (let ((itab (first (%class-hot (%obj-class target)))))
-                (%entry-method (%tab-find! itab sel)))
+                (%entry-method (%tab-find! itab itab sel)))
               (if (class? target)
                 (let ((stab (first (rest (%class-hot target)))))
-                  (%entry-method (%tab-find! stab sel)))
+                  (%entry-method (%tab-find! stab stab sel)))
                 ()))))
       (if (null? entry)
         (error (%str-append "delegates: no such method " (symbol->str sel)))
@@ -455,7 +469,7 @@
     (let ((tab (if static?
                  (first (rest (%class-hot class)))
                  (first (%class-hot class)))))
-      (let ((m (%entry-method (%entry-inner (%tab-find! tab (lit %missing))))))
+      (let ((m (%entry-method (%entry-inner (%tab-find! tab tab (lit %missing))))))
         (if (null? m)
           ; The selector is NOT guaranteed to be a symbol: dispatch binds it
           ; from the caller's form, so a send naming nothing -- (obj), or
@@ -616,7 +630,7 @@
     ; field values. Resolved through the flat table, so a child's override
     ; wins and (super self %init) chains as usual. Fires on every
     ; construction door (new, class-dispatch new, new-from).
-    (def m (%entry-inner (%tab-find! (first hot) (lit %init))))
+    (def m (%entry-inner (%tab-find! (first hot) (first hot) (lit %init))))
     (match
       ((null? m) ())
       ((eq? m %field-label) ())
@@ -645,7 +659,7 @@
     (def cls (%obj-class self))
     (def hot (rest cls))
     (def itab (first (if (eq? hot ()) (%class-hot cls) hot)))
-    (def entry (%tab-find! itab selector))
+    (def entry (%tab-find! itab itab selector))
     (match
       ((eq? entry %field-label)
         (match
@@ -678,7 +692,7 @@
   (fn (_ (param class CLASS "Class to resolve against")
        (param sel SYMBOL "Static-method selector"))
     (def stab (first (rest (%class-hot class))))
-    (%entry-method (%tab-find! stab sel))))
+    (%entry-method (%tab-find! stab stab sel))))
   (returns CALLABLE "The resolved static method closure, or nil")
   (note "The sanctioned de-dispatch door: resolve once, call directly in the hot")
   (note "loop with the class as argument 0 -- ((method-of C 'step) C cur v).")
@@ -707,7 +721,7 @@
     (def selector (if (pair? sel-raw) (%selector sel-raw) sel-raw))
     (def hot (rest self))
     (def stab (first (rest (if (eq? hot ()) (%class-hot self) hot))))
-    (def entry (%tab-find! stab selector))
+    (def entry (%tab-find! stab stab selector))
     (match
       ((pair? entry)                       ; a static field or a privacy wrapper
         (%pair-entry self self entry selector args e))
@@ -782,7 +796,7 @@
               ; (lit obj) so a list-valued subject is data, never a call.
               (do
                 (def stab (first (rest (%class-hot class))))
-                (def m (%entry-method (%tab-find! stab sel)))
+                (def m (%entry-method (%tab-find! stab stab sel)))
                 (if (eq? m ())
                   (error (%str-append "object: no such method "
                     (%str-append (symbol->str sel) (%sug-hint stab sel))))
@@ -817,7 +831,7 @@
               ; (lit obj) so a list-valued subject is data, never a call.
               (do
                 (def stab (first (rest (%class-hot class))))
-                (def m (%entry-method (%tab-find! stab sel)))
+                (def m (%entry-method (%tab-find! stab stab sel)))
                 (if (eq? m ())
                   (error (%str-append "object: no such method "
                     (%str-append (symbol->str sel) (%sug-hint stab sel))))
@@ -906,7 +920,7 @@
                     (if (null? b) () (class-parent (first b))))))
           (let ((method (if (null? sc) ()
                           (let ((itab (first (%class-hot sc))))
-                            (%tab-find! itab selector)))))
+                            (%tab-find! itab itab selector)))))
             (if (if (null? method) #t (eq? method %field-label))
               (error "object: super has no parent method")
               (tail-eval (pair method (pair inst args)) e))))))))
@@ -941,10 +955,10 @@
                 (%entry-method
                   (if (class? target)
                     (let ((stab (first (rest (%class-hot target)))))
-                      (%tab-find! stab sel))
+                      (%tab-find! stab stab sel))
                     (if (object? target)
                       (let ((itab (first (%class-hot (%obj-class target)))))
-                        (%tab-find! itab sel))
+                        (%tab-find! itab itab sel))
                       ())))))
           (if (null? entry)
             (eval
