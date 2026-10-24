@@ -409,9 +409,6 @@
 (doc peek-char "Return the next character from stdin without consuming it."
   (returns CHARACTER "The next character, or () at EOF"))
 
-(doc current-line "Return the current source line number."
-  (returns INTEGER "Line number in the current input"))
-
 ; === Documentation system (x/doc/doc) ===
 
 (doc doc "Attach documentation metadata to a definition, provide, or bare symbol."
