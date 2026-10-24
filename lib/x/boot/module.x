@@ -189,10 +189,8 @@
            (def %close (prim-ref (lit sys) (lit close)))
            (def %buf-make (prim-ref (lit buf) (lit make)))
            (def %str-make (prim-ref (lit str) (lit make)))
-           (def %obj-make (prim-ref (lit obj) (lit make)))
            (def %int+ (prim-ref (lit int) (lit +)))
            (def %int< (prim-ref (lit int) (lit <)))
-           (def %atom-type ((prim-ref (lit type) (lit of)) 0))
            ; The node whose FIRST slot holds a stack: the path's parent, its
            ; last step `f`.  A stack is pushed by replacing that slot, as the
            ; engine replaces the field.
@@ -203,7 +201,11 @@
                (match
                  ((eq? (%last %steps) (lit f)) (%reflect-step (%base) (%reflect-path-parent %steps)))
                  (#t (error (pair (lit include-stack-not-a-first-slot) name))))))
-           (def %atom (fn (_ n) (%set-cell-int! (%obj-make %atom-type 1) n)))
+           ; A fresh integer: a frame the engine writes through -- the line
+           ; counter it advances, the input cell its EOF latch rewrites --
+           ; must be no other value's.  Integer arithmetic makes one, an
+           ; INTEGER like every number, which a state image saves as one.
+           (def %atom (fn (_ n) (%int+ n 0)))
            (def %push! (fn (_ node v) (%set-first! node (pair v (first node)))))
            (def %pop! (fn (_ node) (%set-first! node (rest (first node)))))
            (def %load
@@ -216,16 +218,27 @@
                (def %filein (%holder (lit filein)))
                (def %buffer (%holder (lit buffer)))
                (def %registry (%reflect-base-cell (lit file-registry)))
-               (def %buf (%buf-make (%str-make 65536) %obj-flag-meta))
+               ; The buffer views its string's bytes and does not keep the
+               ; string alive (buf make), so the string is bound here, where
+               ; it lives as long as the load.  Its meta words are the base's
+               ; to give: a base that keeps none (a fresh one, as the image
+               ; writer's child is) gives an object none, and the stamps are
+               ; skipped as the engine's include skips them.
+               (def %bytes (%str-make 65536))
+               (def %buf (%buf-make %bytes))
                ; ids grow monotonically; the head entry carries the highest
                (def %id
                  (match
                    ((eq? (first %registry) ()) 1)
                    (#t (%int+ (%cell-int (first (first (first %registry)))) 1))))
                (%set-first! %registry (pair (pair (%atom %id) path) (first %registry)))
-               ; lines from 1, and the file id, for the reader's stamps
+               ; lines from 1, and the file id, for the reader's stamps: a
+               ; word the buffer carries, as the base's count of meta words
+               ; says (%reflect-meta-set! does nothing to an object without)
                (%reflect-meta-set! %buf 0 1)
-               (%reflect-meta-set! %buf 1 %id)
+               (match
+                 ((%int< 1 (%cell-int (first %reflect-meta-extra-cell))) (%reflect-meta-set! %buf 1 %id))
+                 (#t ()))
                (%push! %line (%atom 1))
                (%push! %filein (%atom %fd))
                (%push! %buffer %buf)
