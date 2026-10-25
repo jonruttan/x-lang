@@ -303,25 +303,16 @@
 
 ; --- completion --------------------------------------------------------------
 ;
-; The library documents itself, so completion is a prefix search of the doc
-; registry -- the same entries (apropos) reports.  No separate list of names
-; to keep in step, and a module that documents a new export completes the
-; moment it loads.
+; The library documents itself, so completion is a prefix search of the
+; documented names -- the same names (apropos) searches, listed by (Doc
+; names) sorted and each once.  No separate list of names to keep in step,
+; and a module that documents a new export completes the moment it loads:
+; Doc commits the lazily filled registry before it lists.
 (def %ln-completions
   (fn (_ prefix)
-    ; The registry is filled lazily -- docs accumulate as modules load and
-    ; are committed on demand -- so completion commits first, exactly as
-    ; apropos and modules do.  Without this the first Tab of a session
-    ; completes against an empty registry and silently offers nothing.
-    (%doc-commit!)
     (if (= 0 (%ln-blen prefix)) ()
-      (let ((go (fn (self entries acc)
-                  (if (null? entries) acc
-                    (let ((name (symbol->str (first (first entries)))))
-                      (self (rest entries)
-                        (if (Str8 starts? prefix name) (pair name acc) acc)))))))
-        (List sort (fn (_ a b) (Str8 <? a b))
-              (List distinct (go (first %doc-registry-cell) ())))))))
+      (List filter (fn (_ name) (Str8 starts? prefix name))
+        (List map symbol->str (Doc names))))))
 
 ; The word before the point: what a completion is a completion OF.
 (def %ln-word-before
