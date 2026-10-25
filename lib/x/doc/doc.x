@@ -446,19 +446,22 @@
             (self (rest mods))))))
     (%search (first %module-registry-cell))))
 
+; entry is a Doc record (x/doc/registry).  help, apropos and modules read
+; the registry through Doc, which commits the lazy stash before each read;
+; Doc loads after this file, and these readers run only once the boot is
+; done, as their calls on the class system do.
 (def %display-doc
   (fn (_ entry)
-    (display %c-name (%doc-entry-name entry) %c-reset ": "
-             (%doc-entry-desc entry) "\n")
-    (def %mod (%module-for-sym (%doc-entry-name entry)))
+    (display %c-name (entry name) %c-reset ": " (entry desc) "\n")
+    (def %mod (%module-for-sym (entry name)))
     (if (not (null? %mod))
       (do (display "  module: " %c-module %mod %c-reset "\n")))
-    (%display-notes (%doc-entry-notes entry))
-    (%display-params (%doc-entry-params entry))
-    (%display-returns (%doc-entry-returns entry))
-    (%display-examples (%doc-entry-examples entry))
-    (%display-examples (%doc-entry-samples entry))
-    (%display-sees (%doc-entry-sees entry))))
+    (%display-notes (entry notes))
+    (%display-params (entry params))
+    (%display-returns (entry returns))
+    (%display-examples (entry examples))
+    (%display-examples (entry samples))
+    (%display-sees (entry sees))))
 
 ; --- Module display (uses %module-registry-cell from x-core.x) ---
 
@@ -467,20 +470,20 @@
 (def %display-module
   (fn (_ entry e)
     (def %mod-name (first entry))
-    (def %mod-doc (%doc-lookup %mod-name))
+    (def %mod-doc (Doc entry %mod-name))
     (%display-entry-line "" %mod-name
-      (if (null? %mod-doc) "" (%doc-entry-desc %mod-doc)))
+      (if (null? %mod-doc) "" (%mod-doc desc)))
     (if (not (null? %mod-doc))
       (do
-        (%display-notes (%doc-entry-notes %mod-doc))
-        (%display-examples (%doc-entry-examples %mod-doc))
-        (%display-examples (%doc-entry-samples %mod-doc))
+        (%display-notes (%mod-doc notes))
+        (%display-examples (%mod-doc examples))
+        (%display-examples (%mod-doc samples))
         (newline)))
     (%doc-for-each
       (fn (_ sym)
-        (def %e (%doc-lookup sym))
+        (def %e (Doc entry sym))
         (%display-entry-line "  " sym
-          (if (null? %e) "" (%doc-entry-desc %e)))
+          (if (null? %e) "" (%e desc)))
         ; if sym names a class, expand its documented methods underneath.
         ; Only expand under the class's CANONICAL name, so aliases (e.g. Str,
         ; Str -> StrUtf8) stay collapsed instead of repeating the whole list.
@@ -505,9 +508,9 @@
              "Modules:" %c-reset "\n")
     (%doc-for-each
       (fn (_ m)
-        (def %md (%doc-lookup (first m)))
+        (def %md (Doc entry (first m)))
         (%display-entry-line "  " (first m)
-          (if (null? %md) "" (%doc-entry-desc %md))))
+          (if (null? %md) "" (%md desc))))
       ; alphabetical by module name (sort is a List method now)
       (List sort
         (fn (_ a b) (%str-lt (symbol->str (first a)) (symbol->str (first b))))
@@ -522,7 +525,7 @@
         (def %k (%str->symbol
                   (%str-append (symbol->str (class-name c))
                     (%str-append "/" method-str))))
-        (def %e (%doc-lookup %k))
+        (def %e (Doc entry %k))
         (if (null? %e) (self (class-parent c) method-str) %e)))))
 
 ; --- Class help: fields/methods grouped static vs instance, sorted, merged ---
@@ -552,9 +555,9 @@
 ; Description registered under "<class-str>/name", or "" if undocumented.
 (def %doc-desc-for
   (fn (_ class-str name)
-    (let ((e (%doc-lookup (%str->symbol
+    (let ((e (Doc entry (%str->symbol
                (%str-append class-str (%str-append "/" (symbol->str name)))))))
-      (if (null? e) "" (%doc-entry-desc e)))))
+      (if (null? e) "" (e desc)))))
 
 ; Make (name . desc) for each name in `names` not already in `seen`, leaving
 ; out the private ones: a member whose name begins with `%` is a protocol
@@ -638,7 +641,6 @@
 ;   (help name)  -> module listing OR individual doc OR a class/instance's docs
 (def help
   (op args e
-    (%doc-commit!)
     ; The name an argument denotes: a bare symbol as written, or an
     ; expression that evaluates to one -- a quoted symbol, a variable holding
     ; one.  Nil for anything else.  help is an operative, so its arguments
@@ -673,7 +675,7 @@
               (def %me
                 (if (if (null? %maybe-cls) #f (class? %maybe-cls))
                   (%find-method-doc %maybe-cls %meth-str)
-                  (%doc-lookup (%str->symbol
+                  (Doc entry (%str->symbol
                     (%str-append (symbol->str %cls-arg)
                       (%str-append "/" %meth-str))))))
               (if (null? %me)
@@ -697,15 +699,15 @@
                 (def %cls (%resolve-class (guard (_ ()) (eval %h-name e))))
                 (if (if (null? %cls) #f (class? %cls))
                   (let ()
-                    (def %cdoc (%doc-lookup (class-name %cls)))
+                    (def %cdoc (Doc entry (class-name %cls)))
                     (if (null? %cdoc)
                       (do (display %c-name (class-name %cls) %c-reset "\n"))
                       (%display-doc %cdoc))
                     (%display-class-sections %cls "  "))
                   (let ()
-                    (def %doc-entry (%doc-lookup %h-name))
-                    (if (not (null? %doc-entry))
-                      (%display-doc %doc-entry)
+                    (def %entry (Doc entry %h-name))
+                    (if (not (null? %entry))
+                      (%display-doc %entry)
                       (let ()
                         ; Not a binding/module/doc/class. It may still be a METHOD
                         ; name on some class (e.g. upcase on Char/Str8) -- surface
@@ -717,27 +719,21 @@
                                        "; documented methods matching it:\n")
                               (%apropos-show %hits)))))))))))))))))
 
-; Doc-registry entries whose name CONTAINS pat (a string), sorted by name.
-; Shared by apropos and help's name-not-found fallback.
+; Documented names that CONTAIN pat (a string), sorted, each once: the
+; sorted names Doc lists, filtered.  Shared by apropos and help's
+; name-not-found fallback.
 (def %apropos-matches
   (fn (_ pat)
-    (def %go
-      (fn (self entries acc)
-        (if (null? entries) acc
-          (self (rest entries)
-            (if (%doc-str-contains? pat (symbol->str (first (first entries))))
-              (pair (first entries) acc)
-              acc)))))
-    (List sort (fn (_ a b) (%str-lt (symbol->str (first a)) (symbol->str (first b))))
-          (%go (first %doc-registry-cell) ()))))
+    (List filter (fn (_ name) (%doc-str-contains? pat (symbol->str name)))
+      (Doc names))))
 
-; Display matching (name . doc) entries one per line.
+; Display each matching name with its description, one per line.
 (def %apropos-show
-  (fn (self entries)
-    (if (null? entries) ()
+  (fn (self names)
+    (if (null? names) ()
       (do
-        (%display-entry-line "  " (first (first entries)) (first (rest (first entries))))
-        (self (rest entries))))))
+        (%display-entry-line "  " (first names) ((Doc entry (first names)) desc))
+        (self (rest names))))))
 
 ; apropos: search the doc registry by name substring. The pattern may be a
 ; bare symbol ((apropos upcase)), a string ((apropos "upcase")), or any
@@ -746,12 +742,11 @@
 ; program can search the registry as well as a reader.
 (def apropos
   (op (pattern) e
-    (%doc-commit!)
     (def %raw (if (symbol? pattern) pattern (eval pattern e)))
     (def %pat (if (symbol? %raw) (symbol->str %raw) %raw))
     (def %hits (%apropos-matches %pat))
     (%apropos-show %hits)
-    (List map first %hits)))
+    %hits))
 
 ; --- Module discovery ---
 
@@ -772,7 +767,6 @@
 ; modules: list all known modules with load status
 (def modules
   (fn (_ )
-    (%doc-commit!)
     (display %c-bold "Modules:" %c-reset "\n")
     (def %show
       (fn (self names)
@@ -785,10 +779,10 @@
                 (if (%module-is-loaded? %name)
                   (let ()
                     (display "  [loaded]")
-                    (def %md (%doc-lookup %name))
+                    (def %md (Doc entry %name))
                     (if (not (null? %md))
-                      (if (not (str=? (%doc-entry-desc %md) ""))
-                        (do (display " -- " (%doc-entry-desc %md))))))
+                      (if (not (str=? (%md desc) ""))
+                        (do (display " -- " (%md desc))))))
                   (display "  [available]"))
                 (newline)))
             (self (rest names))))))

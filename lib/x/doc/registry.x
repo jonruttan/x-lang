@@ -2,9 +2,10 @@
 ;
 ; Every (doc ...) form files one entry in the registry doc.x keeps, a list
 ; (name desc returns params examples sees notes samples) in the order
-; %doc-register! takes them.  help, apropos, Tab completion, the doctest
-; checker and the reference generator read those entries; this class hands
-; one back as a record with a field per part, and lists the names.
+; %doc-register! takes them.  This class hands one back as a record with a
+; field per part, and lists the names; help, apropos, modules and Tab
+; completion read the registry through it.  The doctest checker and the
+; reference generator walk the entries themselves.
 ;
 ; The registry fills lazily: a doc form is stashed at load and committed on
 ; the first read, so every reader commits first, through the catalogue door
