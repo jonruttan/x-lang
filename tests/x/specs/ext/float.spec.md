@@ -1016,3 +1016,20 @@ kept on an integral value so it reads back as a float.
 ```
 ---
     (#f #f #f #f)
+
+## a libm closure held by a scoped module
+
+The harness imports `scoped/held` (tests/x/fixtures/libm), which binds erf
+through `libm-fn` under a private name of its own module. From a state image
+the row's cell was emptied by the writer and refilled by the recache hook;
+the module's name was left alone both times, since float's module cannot
+reach it.
+
+### the held closure answers after the boot
+
+```x
+(do (import scoped/held held-erf)
+    (list (> (held-erf 1.0) 0.84) (< (held-erf 1.0) 0.85) (= (held-erf 0.0) 0.0)))
+```
+---
+    (#t #t #t)

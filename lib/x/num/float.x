@@ -440,7 +440,15 @@
               ((fn (self l)
                  (if (null? l) ()
                    (do (self (rest l))
-                       (eval (list (lit set!) (first (first l)) ()))
+                       ; A held row's closure went to a caller, who holds it by a
+                       ; name of its own, in a frame this one may not reach: its
+                       ; cell is what is emptied, and the name is left alone.  A
+                       ; "ptr" row's caller holds the pointer itself, so its name
+                       ; is set, as every row's was.
+                       (if (if (first (rest (rest (rest (rest (first l))))))
+                             (not (str=? (first (rest (first l))) "ptr")) #f)
+                         ()
+                         (eval (list (lit set!) (first (first l)) ())))
                        (%set-first! (first (rest (rest (rest (first l))))) ()))))
                %stub-rows)))
         %image-transients))
@@ -451,12 +459,18 @@
                  (if (null? l) ()
                    (do (self (rest l))
                        ((fn (_ global label name cell held?)
-                          (eval (list (lit set!) global
-                                      (list (lit lit)
-                                            (if (if held? #t (str=? label "ptr"))
-                                              (do (%set-first! cell (%stub-address label name))
-                                                  (%stub-make label cell))
-                                              (%stub-lazy global label name cell))))))
+                          ; A held closure reads its cell, so refilling the cell is
+                          ; the whole of remaking it; the caller's name is not
+                          ; touched, since it may be a module's.  A "ptr" row and
+                          ; a lazy row are rebound, as before.
+                          (if (if held? (not (str=? label "ptr")) #f)
+                            (%set-first! cell (%stub-address label name))
+                            (eval (list (lit set!) global
+                                        (list (lit lit)
+                                              (if (if held? #t (str=? label "ptr"))
+                                                (do (%set-first! cell (%stub-address label name))
+                                                    (%stub-make label cell))
+                                                (%stub-lazy global label name cell)))))))
                         (first (first l)) (first (rest (first l))) (first (rest (rest (first l))))
                         (first (rest (rest (rest (first l))))) (first (rest (rest (rest (rest (first l))))))))))
                %stub-rows)))
