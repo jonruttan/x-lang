@@ -99,3 +99,27 @@ entries; these cases read them as records.
 ```
 ---
     #t
+
+### the same list is answered while nothing new is documented
+
+```x
+(let ((a (Doc names)))
+  (same? a (Doc names)))
+```
+---
+    #t
+
+### a name documented after a call is listed by the next
+
+```x
+(let ((a (Doc names)))
+  (doc (def doc-registry-late 1) "Documented after the names were listed.")
+  (let ((b (Doc names)))
+    (list (same? a b)
+          (List includes? 'doc-registry-late a)
+          (List includes? 'doc-registry-late b)
+          (- (List length b) (List length a))
+          (apropos "doc-registry-late"))))
+```
+---
+    (#f #f #t 1 ('doc-registry-late))
