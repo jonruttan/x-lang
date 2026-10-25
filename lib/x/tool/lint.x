@@ -58,8 +58,11 @@
 ; repo-mode session, and every use is guarded.  Known by contract, not env.
 
 
-; --- Analysis state (boxes; all values are NAME STRINGS) ---
-(def %lint-scope  (list ()))    ; names in lexical scope
+; --- Analysis state (boxes; the values are NAME STRINGS, but for the rest of %lint-scope) ---
+; first: names in lexical scope.  rest: the environment the file's heads
+; resolve in -- its module's when the file is headed (module NAME), else
+; the root (lint-forms sets it; see Lint %lint-module-of).
+(def %lint-scope  (pair () (Env root)))
 (def %lint-uses   (list ()))    ; names referenced (unique, in first-seen order)
 ; ADJUDICATED BY BENCHMARK (#344): membership stays %member-str? and
 ; the tables stay alists.  A Dict variant was built and measured SLOWER
@@ -676,7 +679,10 @@
 ; reference.  Recording it as a use made every method spelling (`append`,
 ; `close`, ...) read "Undefined" in class-call-heavy code (the apps).
 ; Heads that are locals or unbound keep plain call analysis -- their values
-; are unknown statically, so nothing can be assumed about element 2.
+; are unknown statically, so nothing can be assumed about element 2.  A
+; head resolves in the file's module environment when the file is a scoped
+; module (the rest of %lint-scope), so a module-private value is a subject
+; too.
 ; --- def-class ---
 ; Class names def-class'd in the FILE: a value call through one
 ; dispatches its selector as a message name (x/type/class.x), so the
@@ -714,7 +720,7 @@
     ((%member-str? (%cvt head %lint-string-type) (first %lint-class-names)) #t)
     ((%scope-has-name? (%cvt head %lint-string-type) (first %lint-scope)) #f)
     (#t (guard (_ #f)
-      (let ((v (eval! (%str->symbol (%cvt head %lint-string-type)))))
+      (let ((v (eval (%str->symbol (%cvt head %lint-string-type)) (rest %lint-scope))))
         (match
           ((null? v) #f)
           ((procedure? v) #f)
@@ -757,7 +763,7 @@
           ; STRING) -- so they are not references; the class says whether
           ; the selector names an operative.  Anything unresolvable walks the arguments.
           (if (guard (_ #f)
-                (let ((subject (eval! (%str->symbol (%cvt (first form) %lint-string-type)))))
+                (let ((subject (eval (%str->symbol (%cvt (first form) %lint-string-type)) (rest %lint-scope))))
                   (if (class? subject)
                     (operative? (class-static-ref subject (%str->symbol (%cvt (first (rest form)) %lint-string-type))))
                     #f)))
@@ -969,6 +975,22 @@
         ((prim-ref (lit heap) (lit collect)))
         ()))
     (%lint-class-siblings (list ()) "Sibling method names of the class being walked")
+    ; The environment a file's heads resolve in.  A file headed (module
+    ; NAME) is evaluated in NAME's environment, where its private names
+    ; bind and the root does not see them; resolving there reads a send on
+    ; a module-private value, (%lexer read-str s), as the send it is.  The
+    ; module is loaded ahead of the walk (the driver's preload imports it);
+    ; any other first form, or a header naming a module that is not
+    ; loaded, answers the root.
+    (method %lint-module-of (self forms)
+      (let ((h (if (pair? forms) (first forms) ())))
+        (match
+          ((not (pair? h)) (Env root))
+          ((not (symbol? (first h))) (Env root))
+          ((not (str=? (%cvt (first h) %lint-string-type) "module")) (Env root))
+          ((not (pair? (rest h))) (Env root))
+          ((not (symbol? (first (rest h)))) (Env root))
+          (#t (guard (_ (Env root)) (eval (list 'module (first (rest h)))))))))
     (%lint-embedder-known (list "%install-root" "%pin-file") "Embedder-contract names, announced before any file runs")
     (%lint-block-selectors
       (list "map" "filter" "for-each" "find" "flat-map" "sort-by" "take-while"
@@ -1181,6 +1203,7 @@
   (%set-first! %lint-scope ())
   (%set-first! %lint-class-names ())
   (%set-first! (Lint %lint-class-siblings) ())
+  (%set-rest! %lint-scope (Lint %lint-module-of forms))   ; where the file's heads resolve
   (%arity-collect forms)                             ; pre-pass: file-local fn arities
   (Lint %lint-class-prepass forms)                        ; pre-pass: class names (order independence)
   (%lint-push)
@@ -1192,7 +1215,7 @@
   (param defs LIST "Accumulator for defined symbol NAMES")
   (param uses LIST "Accumulator for used symbol NAMES")
   (returns LIST "(defs uses issues leaks warnings) -- defs/uses/issues/leaks are NAME STRINGS; warnings are (label . name) pairs for arity / call-nonfn / display-chain / dup-def / ladder / dispatch / malformed / match-multi / shadow / unused; ladder names carry the arm count as NAME/ARMS")
-  "Walk top-level forms via the write stacks, collecting def/use names, first/rest issues, tail-position def leaks, and pedantic warnings (arity, non-callable calls, duplicate defs, malformed forms, lexical shadows, and unused locals).")
+  "Walk top-level forms via the write stacks, collecting def/use names, first/rest issues, tail-position def leaks, and pedantic warnings (arity, non-callable calls, duplicate defs, malformed forms, lexical shadows, and unused locals).  A first form (module NAME) names a loaded module whose environment resolves the file's heads.")
 
 (doc (def lint-undefined (fn (_ defs uses)
   (%filter (fn (_ name)
