@@ -276,13 +276,37 @@
                ((guard (_ #f) %image-writing) ((prim-ref (lit heap) (lit collect))))
                (#t ()))
              %result))))
+      ; `import`, `include-once` and `import-version` load a file by calling
+      ; the `include` binding, not the loader beneath it, so a lang that
+      ; wraps `include` sees every file the module system loads.  Sweet
+      ; does: its reader types fire on every buffer, and it suspends them
+      ; while a library file loads.  A wrapper is called with the path alone,
+      ; and may be a plain `fn`, whose frame is not where the file belongs.
+      ; So the environment the file loads into, and the module its header
+      ; must name, travel in a cell instead of as arguments: %include-through
+      ; sets the cell, `include` reads and clears it on entry -- so a file
+      ; the load includes in turn is placed by its own caller -- and
+      ; %include-through clears it again when the call returns, for a
+      ; wrapper that answered without calling through.
+      (def %include-target-cell (pair () ()))
+      (def %include-through
+        (fn (_ env path expected)
+          (%set-first! %include-target-cell (pair env expected))
+          (def %result (include path))
+          (%set-first! %include-target-cell ())
+          %result))
       ; A second argument names the module the file must be headed with,
       ; which is what `import` asks for.  With a path alone, the file is
       ; whatever module its header names, or none.
       (set! include
         (op (path . expected) e
-          (%include-into e (eval path e)
-            (match ((eq? expected ()) %module-any) (#t (eval (first expected) e))))))))
+          (def %target (first %include-target-cell))
+          (%set-first! %include-target-cell ())
+          (match
+            ((eq? %target ())
+              (%include-into e (eval path e)
+                (match ((eq? expected ()) %module-any) (#t (eval (first expected) e)))))
+            (#t (%include-into (first %target) (eval path e) (rest %target))))))))
   (#t ()))
 
 ; --- Include-once / require-once ---
@@ -306,7 +330,7 @@
         (do
           (%set-first! %include-list-cell
             (pair %io-path (first %include-list-cell)))
-          (%include-into e %io-path %module-any))))))
+          (%include-through e %io-path %module-any))))))
 (def require-once include-once)
 
 ; --- Module registry ---
@@ -880,7 +904,7 @@
           (def %path (%module-resolve name))
           ; A module loads into the root, whoever imports it; its file's
           ; header, if it has one, makes the module's own environment.
-          (%include-into (%module-root-env) %path name))))
+          (%include-through (%module-root-env) %path name))))
     (match
       ((eq? syms ()) ())
       (#t (%module-import-names! name syms e)))))
@@ -1100,7 +1124,7 @@
           ; register BEFORE loading -- cycle safety, mirrors import
           (%module-loaded-at! name (first %hit))
           (%set-first! %loading (pair (pair name (first %hit)) (first %loading)))
-          (%include-into (%module-root-env) (rest %hit) %module-any)
+          (%include-through (%module-root-env) (rest %hit) %module-any)
           (%set-first! %loading (rest (first %loading)))))
       ((eq? %have (lit bare)) (%module-version-conflict! name %have text))
       ((%module-version-ok? %spec %have) ())
@@ -1120,7 +1144,7 @@
                   (do
                     (%set-first! %include-list-cell
                       (pair (rest %hit) (first %include-list-cell)))
-                    (%include-into (%module-root-env) (rest %hit) %module-any)))))
+                    (%include-through (%module-root-env) (rest %hit) %module-any)))))
             (#t (%module-version-conflict! name %have text)))))
       (#t (%module-version-conflict! name %have text)))
     (match
@@ -1142,7 +1166,7 @@
     (def %loading (rest %module-loaded-cell))
     (%module-loaded-at! name (first %hit))
     (%set-first! %loading (pair (pair name (first %hit)) (first %loading)))
-    (%include-into (%module-root-env) (rest %hit) %module-any)
+    (%include-through (%module-root-env) (rest %hit) %module-any)
     (%set-first! %loading (rest (first %loading)))
     (match
       ((eq? syms ()) ())

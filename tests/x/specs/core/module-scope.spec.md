@@ -346,6 +346,54 @@ module's file loaded again by path reloads it in place.
 ---
     (#f 'unbound)
 
+## a lang may wrap include
+
+`import`, `include-once` and `import-version` load each file through the
+`include` binding, so a wrapper a lang sets on it sees every load. The
+wrapper is called with the path alone; where the file loads, and the module
+its header must name, reach the loader without it.
+
+### an import goes through a wrapper on include, and each file loads where it belongs
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (def %seen ())
+    (def %include-before-count include)
+    (set! include (fn (_ path) (set! %seen (pair path %seen)) (%include-before-count path)))
+    (def %loaded (guard (e e) (import scoped/wrapped wrapped-four)))
+    (set! include %include-before-count)
+    (list (pair? (rest %seen)) (null? (rest (rest %seen)))
+          (wrapped-four) (guard (_ 'hidden) %wrapped-secret)))
+```
+---
+    (#t #t 4 'hidden)
+
+### the module an import names reaches the header through a one-argument wrapper
+
+```x
+(do (import-path! "tests/x/fixtures/modscope")
+    (def %include-before-header include)
+    (set! include (fn (_ path) (%include-before-header path)))
+    (def %refused (guard (e e) (import scoped/wrapped-other)))
+    (set! include %include-before-header)
+    %refused)
+```
+---
+    "import: scoped/wrapped-other is headed (module scoped/wrapped)"
+
+### a wrapper that answers without calling through leaves no target behind
+
+```x
+(do (def %include-before-skip include)
+    (set! include (fn (_ path) ()))
+    (include-once "tests/x/fixtures/modscope/scoped/../scoped/whole-plain.x")
+    (set! include %include-before-skip)
+    (def %f (fn (_) (include "tests/x/fixtures/modscope/scoped/whole-plain.x") (guard (_ 'none) whole-plain)))
+    (list (null? (%f)) (guard (_ 'unbound) whole-plain)))
+```
+---
+    (#f 'unbound)
+
 ## a selective import copies an export into the importer's environment
 
 ### the import binds the name where it is evaluated

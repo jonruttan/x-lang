@@ -155,6 +155,13 @@ A file loaded by path alone is whatever module its header names, or none;
 this is how `import` asks for the module it resolved. The name applies to
 that one file, not to the files it loads in turn.
 
+`import`, `include-once` and `import-version` load each file by calling
+the `include` binding, so a lang that must change how library files are
+read while they load wraps `include` with `set!` and sees every load. The
+wrapper is called with the path alone and calls the binding it replaced;
+where the file loads, and the module its header must name, reach the loader
+without passing through the wrapper.
+
 ### `include-once`
 
 Like `include`, but tracks which paths have been loaded and skips duplicates:
