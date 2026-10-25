@@ -226,7 +226,7 @@
 (shared "lib/x/tool/lint.x" %lint-let "the analyser of a let")
 (shared "lib/x/tool/lint.x" %lint-guard "the analyser of a guard")
 (shared "lib/x/tool/lint.x" %lint-quasi "the analyser of a quasiquoted form")
-(shared "lib/x/tool/lint.x" %lint-scope "the lexical scope in hand; its first is the alist of locals")
+(shared "lib/x/tool/lint.x" %lint-scope "the scope in hand; its first is the alist of locals, its rest the environment the file's names resolve in")
 (shared "lib/x/tool/lint.x" %scope-has-name? "whether a name is bound as a local in a scope")
 (shared "lib/x/tool/lint.x" %lint-first-rest "the analyser of first and rest")
 (shared "lib/x/tool/lint.x" %lint-match "the analyser of a match")

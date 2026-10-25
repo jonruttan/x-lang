@@ -799,3 +799,47 @@ still an ordinary send, and its arguments lint as calls.
 ```
 ---
     (#t #t)
+
+## lint: a scoped module's private names resolve as subjects
+
+A file headed `(module NAME)` is evaluated in NAME's environment, where its
+private names bind. The walk resolves the file's heads there, so a send on
+a module-private value is read as a send and its selector is not a
+reference. The module is loaded ahead of the walk, as the lint driver's
+preload loads it; the fixture is `tests/x/fixtures/modscope/scoped/alpha.x`,
+whose private `%state` holds a number.
+
+### a selector sent to a module-private value is not a use
+
+```x
+(do
+  (import-path! "tests/x/fixtures/modscope")
+  (import scoped/alpha)
+  (def %r (lint-forms (list '(module scoped/alpha) '(def f (fn (_ s) (%state read-str s)))) () ()))
+  (display (not (lint-has? "read-str" (first (rest %r))))))
+```
+---
+    #t
+
+### without the header the same send is a call, and the module does not linger
+
+```x
+(do
+  (import-path! "tests/x/fixtures/modscope")
+  (import scoped/alpha)
+  (lint-forms (list '(module scoped/alpha)) () ())
+  (def %r (lint-forms (list '(def f (fn (_ s) (%state read-str s)))) () ()))
+  (display (lint-has? "read-str" (first (rest %r)))))
+```
+---
+    #t
+
+### a header naming a module that is not loaded resolves heads in the root
+
+```x
+(do
+  (def %r (lint-forms (list '(module scoped/nowhere) '(def f (fn (_ s) (%state read-str s)))) () ()))
+  (display (lint-has? "read-str" (first (rest %r)))))
+```
+---
+    #t
