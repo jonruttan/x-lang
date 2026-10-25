@@ -16,6 +16,14 @@
 
 (import x/type/class)
 
+; The sorted names (Doc names) last answered, beside the registry list they
+; were built from: (head . names).  %doc-register! files an entry by putting
+; it at the front of the list, so the list's first pair changes exactly when
+; a name is documented, and while it stays the same the names stand.  The
+; pairs are told apart by same?, object identity: eq? compares value words,
+; and two pairs with the same first element answer #t to it.
+(def %names-kept (pair () ()))
+
 (def-class Doc ()
   (doc "A documentation entry as data: what one (doc ...) form filed, a field per part. (Doc entry 'name) answers one; (Doc names) lists every documented name. The params are (name TYPE desc) triples, the examples and samples (expr . result) pairs of strings, the sees symbols and the notes strings, as the doc form wrote them."
     (example "((Doc entry 'Str8/split) name)" "'Str8/split")
@@ -50,33 +58,40 @@
             (first e) (first r1) (first r2) (first r3)
             (first r4) (first r5) (first r6) (first r7)))))
     (method names (self)
-      (doc "Every documented name, sorted, each once: the names apropos searches and Tab completes."
+      (doc "Every documented name, sorted, each once: the names apropos searches and Tab completes. The list is built once and answered again until another name is documented, so it is shared: read it, do not change it."
         (returns LIST "Symbols, sorted by name")
         (example "(List includes? 'Str8/split (Doc names))" "#t"))
       ((prim-ref (lit doc) (lit commit!)))
-      ; The order is Str8 <?'s, one block compare of the common prefix and
-      ; then the shorter first, taken on the engine's instructions directly:
-      ; a sort of the whole registry makes thousands of comparisons, and a
-      ; class call costs each one several times what the compare does.
-      (def %mem-cmp (prim-ref (lit mem) (lit cmp)))
-      (def %byte-len (prim-ref (lit str) (lit byte-len)))
-      (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-      (def %name<?
-        (fn (_ a b)
-          (def sa (symbol->str a))
-          (def sb (symbol->str b))
-          (def la (%byte-len sa))
-          (def lb (%byte-len sb))
-          (def c (%mem-cmp (%str->ptr sa) (%str->ptr sb) (if (< lb la) lb la)))
-          (if (eq? c 0) (< la lb) (eq? c -1))))
-      ; Sorted first, then the duplicates dropped in one pass: a name
-      ; documented twice sits beside itself once sorted.  (List distinct)
-      ; walks the whole list for each element, through equal?, and over the
-      ; registry's hundreds of names that is tens of millions of
-      ; allocations in one call.
-      (List uniq
-        (List sort %name<?
-          (List map (fn (_ e) (first e)) (first %doc-registry-cell)))))))
+      (def head (first %doc-registry-cell))
+      (if (same? head (first %names-kept)) (rest %names-kept)
+        (let ()
+          ; The order is Str8 <?'s, one block compare of the common prefix and
+          ; then the shorter first, taken on the engine's instructions directly:
+          ; a sort of the whole registry makes thousands of comparisons, and a
+          ; class call costs each one several times what the compare does.
+          (def %mem-cmp (prim-ref (lit mem) (lit cmp)))
+          (def %byte-len (prim-ref (lit str) (lit byte-len)))
+          (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+          (def %name<?
+            (fn (_ a b)
+              (def sa (symbol->str a))
+              (def sb (symbol->str b))
+              (def la (%byte-len sa))
+              (def lb (%byte-len sb))
+              (def c (%mem-cmp (%str->ptr sa) (%str->ptr sb) (if (< lb la) lb la)))
+              (if (eq? c 0) (< la lb) (eq? c -1))))
+          ; Sorted first, then the duplicates dropped in one pass: a name
+          ; documented twice sits beside itself once sorted.  (List distinct)
+          ; walks the whole list for each element, through equal?, and over the
+          ; registry's hundreds of names that is tens of millions of
+          ; allocations in one call.
+          (def names
+            (List uniq
+              (List sort %name<?
+                (List map (fn (_ e) (first e)) head))))
+          (%set-first! %names-kept head)
+          (%set-rest! %names-kept names)
+          names)))))
 
 (doc (provide x/doc/registry Doc)
   (note "The registry as data: (Doc entry 'name) answers a record with name, desc, returns, params, examples, sees, notes and samples; (Doc names) lists every documented name.")
