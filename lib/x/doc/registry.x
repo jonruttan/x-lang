@@ -37,22 +37,44 @@
       ((prim-ref (lit doc) (lit commit!)))
       (def key (if (str? name) (Str8 ->sym name) name))
       (def e (%doc-lookup key))
+      ; The parts are read in one walk down the entry: help reads a record
+      ; for every member of a class, and a class call per part costs more
+      ; than the record itself.
       (if (null? e) ()
-        (new Doc
-          (List ref 0 e) (List ref 1 e) (List ref 2 e) (List ref 3 e)
-          (List ref 4 e) (List ref 5 e) (List ref 6 e) (List ref 7 e))))
+        (let ()
+          (def r1 (rest e)) (def r2 (rest r1)) (def r3 (rest r2))
+          (def r4 (rest r3)) (def r5 (rest r4)) (def r6 (rest r5))
+          (def r7 (rest r6))
+          (new Doc
+            (first e) (first r1) (first r2) (first r3)
+            (first r4) (first r5) (first r6) (first r7)))))
     (method names (self)
       (doc "Every documented name, sorted, each once: the names apropos searches and Tab completes."
         (returns LIST "Symbols, sorted by name")
         (example "(List includes? 'Str8/split (Doc names))" "#t"))
       ((prim-ref (lit doc) (lit commit!)))
+      ; The order is Str8 <?'s, one block compare of the common prefix and
+      ; then the shorter first, taken on the engine's instructions directly:
+      ; a sort of the whole registry makes thousands of comparisons, and a
+      ; class call costs each one several times what the compare does.
+      (def %mem-cmp (prim-ref (lit mem) (lit cmp)))
+      (def %byte-len (prim-ref (lit str) (lit byte-len)))
+      (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+      (def %name<?
+        (fn (_ a b)
+          (def sa (symbol->str a))
+          (def sb (symbol->str b))
+          (def la (%byte-len sa))
+          (def lb (%byte-len sb))
+          (def c (%mem-cmp (%str->ptr sa) (%str->ptr sb) (if (< lb la) lb la)))
+          (if (eq? c 0) (< la lb) (eq? c -1))))
       ; Sorted first, then the duplicates dropped in one pass: a name
       ; documented twice sits beside itself once sorted.  (List distinct)
       ; walks the whole list for each element, through equal?, and over the
       ; registry's hundreds of names that is tens of millions of
       ; allocations in one call.
       (List uniq
-        (List sort (fn (_ a b) (Str8 <? (symbol->str a) (symbol->str b)))
+        (List sort %name<?
           (List map (fn (_ e) (first e)) (first %doc-registry-cell)))))))
 
 (doc (provide x/doc/registry Doc)
