@@ -117,6 +117,10 @@ whole documentation set is published there, both generated references
 included. Offline, `make doc-x` writes it to `docs/ref/x/` (it is generated
 in CI, not committed, so a fresh clone will not have it until you build it).
 
+**To look inside a running system** rather than its documentation, the
+doors by level, from a value's type to a closure's parts to an
+environment's bindings, are mapped in [docs/reflection.md](docs/reflection.md).
+
 ## Dialects: pick the right one or things will be "missing"
 
 The library composes into three dialects, and **helium is the default**.
