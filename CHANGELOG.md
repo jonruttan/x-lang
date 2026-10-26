@@ -5,6 +5,26 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-10-26
+
+**`Ansi highlight` colours code with x/tool/syntax.** ([#1100]) The example is shown byte for byte as written (`'rdonly` stays `'rdonly`) in the same classes as the REPL painter, where it re-rendered the parsed form with a keyword list of its own.
+
+**x/tool/syntax: lexical grammars, their spans, and renderers for a terminal, a web page and a screen editor.** ([#1100]) A grammar is a Lexer whose rules read every byte and a table from each token's tag to a class in one vocabulary (comment string char number keyword constant class private name punct operator escape error).  `spans` answers `(offset length class)` for a stretch of text, reading from a line the grammar's sync test passes, so a string opened above the stretch colours its start; `Syntax ansi`, `html` and `cells` draw spans as SGR sequences, Rouge span markup, or a class byte a text byte for an editor that lays out its own rows.  `(Syntax x)` is x-lang's grammar, its atoms classed by what the reader reads them as; `register!`, `named` and `for-file` find a grammar.  x/repl/paint and x/tool/highlight draw `(Syntax x)`'s spans in place of their own scanners, and `Paint lexer` reads through `(Syntax over l colours)`: `Paint classify` answers the shared classes (`'keyword`, `'name` and `'constant` where it answered `'construct`, `'symbol` and `'bool`), `Highlight source`, `spans` and `transcript` take no keyword list, and `Highlight keywords` is gone.  A line paints as before, a bold colour now one SGR sequence (`1;35`) where it was two, and costs the same (~11 ms a 60-byte line); the documentation's 395 highlighted blocks still strip back to their bytes.  The REPL pays for the Lexer: loading the line editor 1.01 -> 1.39 s, and the first painted line of a session ~0.5 s (the asm-cache import and the grammar's Lexer make).
+
+[#1100]: https://github.com/jonruttan/x-lang/pull/1100
+
+**x/tui: a styled-cell screen, Markdown pages, windows and tabs.** ([#1103]) `Screen` holds rows of styled cells and renders only what changed since the last frame.  `Page` lays out a Markdown document at a width with bold, italic, code and links styled; `Window` scrolls a page and selects its links; `Tabs` holds windows with a bar listing them.  `Width` and `Style` give a code point's columns and a style's escape sequence.
+
+[#1103]: https://github.com/jonruttan/x-lang/pull/1103
+
+**let costs half what it did.** ([#1102]) A plain let is built as the fn application it stands for, ((fn (_ a b) body) 1 2), as the named form already was, and tail-evaluated, instead of evaluating a fn into a closure and applying it to a list of values.  One binding costs 58 objects a run instead of 120, three 96 instead of 192; named let 134 instead of 144.  str->number on a signed decimal costs a third less. There is one let, in x/core/control.
+
+[#1102]: https://github.com/jonruttan/x-lang/pull/1102
+
+**Markdown: a CommonMark parser with HTML out.** ([#1101]) `(Markdown parse text)` answers the document as blocks led by their CommonMark names (`heading`, `paragraph`, `code-block`, `block-quote`, `list`, `thematic-break`, `html-block`) with inlines as strings and `emph`, `strong`, `code`, `link`, `image`, `html-inline`, `softbreak` and `hardbreak` lists; `(Markdown html blocks)` renders them as the CommonMark reference does. 574 of 595 cases agree with pandoc's CommonMark reader, the rest being pandoc's own choices and two gaps (named entities beyond the common ones; Unicode case folding of reference labels).  A 10 KB document parses in ~350 ms.
+
+[#1101]: https://github.com/jonruttan/x-lang/pull/1101
+
 ## [0.39.1] - 2026-10-25
 
 **import, include-once and import-version load through the `include` binding again.** ([#1098]) A lang that wraps `include` with `set!` sees every file the module system loads, as it did before v0.37.0; the wrapper is called with the path alone, and the file still loads into the module it belongs to.
