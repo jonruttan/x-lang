@@ -1,31 +1,12 @@
 ; repl/paint.x -- Paint: colouring a line that is still being typed.
 ;
-; What decides a colour here is the reader, not this file.  An atom's label is
-; settled by handing its bytes to the base and taking the type of the value
-; that comes back, which is the verdict the evaluator reaches on the same
-; bytes.  There is no second set of rules here for what counts as a number, so
-; 3.14, 1/2, 0xff and a literal syntax a lang adds all classify without this
-; file knowing about them.  The cost is one call per distinct atom; answers are
-; memoised, and a line being typed asks about few new atoms.
-;
-; What is still scanned here is where tokens begin and end.  The base's reader
-; is recursive: (tok read) on `(def x 42)` consumes the whole form and answers
-; with a list, leaving (buf tok) empty, so it yields values and never spans.
-; The per-type analyser scoring that does know spans lives inside x_token_read
-; and has no primitive over it.  A painter must keep the author's own bytes,
-; spacing included, or the cursor column stops matching the buffer, so it needs
-; spans and splits the line itself into whitespace, parens, comments, strings
-; and atoms.  That is a smaller surface than classification, and it is the
-; piece an engine primitive could take over later (see the provide note).
-;
-; The hot path does not dispatch, the rule reader/analyser.x and type/buf.x
-; state: class doors allocate, and a redraw runs on every keystroke.  A class
-; door costs 0.3-1.0ms here, which dwarfs the byte scanning between them.  So
-; the scan is %-private functions over cached prims, the palette is built once
-; rather than per render, and the memo is reached through instance-bound
-; method-refs.  A 70-byte line renders in 19ms, and a redraw whose text has not
-; changed in 0.24ms.  The Paint class is the cold-call API over them, as
-; Analyser is over its builders.
+; The colours are x/tool/syntax's: a line is coloured by the spans of x-lang's
+; grammar, (Syntax x), whose atoms are classed by what the reader reads them
+; as, so a colour cannot disagree with the evaluator.  What this file adds is
+; what a line editor needs over that: the text before the window painted as
+; its start, each paren coloured by its nesting depth with the pair beside the
+; cursor inverse, and the last line's paint kept, since moving the cursor or
+; holding an arrow key asks for the same bytes again.
 ;
 ; The palette is repl/ansi.x's, so NO_COLOR, TERM=dumb and --no-color reach
 ; this for free, and a colourless terminal short-circuits the whole walk.
@@ -33,43 +14,30 @@
 (module x/repl/paint)
 (import x/type/class)
 (import x/type/str)
-(import x/type/dict)
 (import x/type/list)
 (import x/repl/ansi)
-(import x/sys/file)
-(import x/sys/stream)
+(import x/tool/syntax)
 
-; --- cached prims (the scan runs per byte; none of these may be a door) ---
+; --- cached prims (the walks run per span; none of these may be a door) ---
 (def %pt-bref   (prim-ref (lit str)  (lit byte-ref)))
 (def %pt-blen   (prim-ref (lit str)  (lit byte-len)))
-(def %pt-bsub   (prim-ref (lit str)  (lit byte-sub)))
 (def %pt-append (prim-ref (lit str)  (lit append)))
 (def %pt-cint   (prim-ref (lit char) (lit ->int)))
 (def %pt+       (prim-ref (lit int)  (lit +)))
 (def %pt-       (prim-ref (lit int)  (lit -)))
 (def %pt-mod    (prim-ref (lit int)  (lit %)))
-(def %pt-read-str (prim-ref (lit tok) (lit read-str)))
 (def %pt-same?  (prim-ref (lit obj)  (lit same?)))
 
 ; --- state, all of it rebuilt by %paint-install! -------------------------
-(def %paint-kw ())        ; Dict: construct name -> #t
-(def %paint-memo ())      ; Dict: atom text -> label symbol
-(def %paint-memo-get ())  ; instance-bound (method-ref memo get-or)
-(def %paint-memo-set ())  ; instance-bound (method-ref memo set!)
-(def %paint-pal ())       ; the nine codes, in %paint-labels order
-(def %paint-rst "")       ; the reset code
-(def %paint-c-comment "") ; hoisted: the two codes the scan needs without a classify
-(def %paint-c-string "")
-(def %paint-c-depth ())   ; hoisted: the codes parens cycle through by nesting depth
+(def %paint-c-depth ())   ; the codes parens cycle through by nesting depth
 (def %paint-c-depth-n 0)  ; and how many there are, so the cycle costs a mod and no door
-(def %paint-c-lone "")    ; and the code for a close paren with nothing to close
-(def %paint-c-focus "")   ; and the code added to the pair the cursor is beside
+(def %paint-c-lone "")    ; the code for a close paren with nothing to close
+(def %paint-c-focus "")   ; the code added to the pair the cursor is beside
 ; The last line painted, and what it painted to.  A redraw repaints only
 ; because the TEXT changed: moving the cursor, walking history onto a line
-; already seen, and a resize all ask for the same bytes again, and holding an
-; arrow key down asks thirty times a second.  Identity, not equality -- the
-; buffer builds a new string whenever it edits and keeps the old one
-; whenever it does not, which is exactly the question being asked.
+; already seen, and a resize all ask for the same bytes again.  Identity, not
+; equality -- the buffer builds a new string whenever it edits and keeps the
+; old one whenever it does not, which is exactly the question being asked.
 (def %paint-last-in ())
 (def %paint-last-out ())
 (def %paint-last-marks ())
@@ -88,95 +56,6 @@
             (self (rest a) (rest b))
             #f))))))
 
-(def %paint-labels
-  (list (lit symbol) (lit construct) (lit number) (lit string) (lit char)
-        (lit bool) (lit private) (lit class) (lit comment)))
-
-; --- the construct vocabulary --------------------------------------------
-; The same list the formatter, the linter, the coverage tool and the
-; documentation renderer read, so a construct added there colours here
-; without this file being touched.
-;
-; An unreadable file yields an empty set: losing a colour is not worth
-; refusing to start a session over, and this runs from %paint-install!, which
-; the image-recache hook calls.  The cause is reported rather than dropped,
-; because an empty vocabulary looks the same as a session in which nothing
-; happens to be a construct -- a line with no colour on it, either way.  One
-; line to stderr, naming what could not be read.
-(def %paint-load-keywords
-  (fn (_)
-    (guard (e (do (Stream with-fd 2
-                    (fn (_)
-                      (display "x/repl/paint: construct vocabulary unreadable ("
-                               e ") -- constructs will not colour\n")))
-                  (Dict make)))
-      (let ((path (%module-resolve-file "x/constructs.x"))
-            (d (Dict make)))
-        (List for-each
-          (fn (_ entry) (d set! (Str8 str (first entry)) #t))
-          (first (%pt-read-str (%base) (File read-all path))))
-        d))))
-
-; --- classification, on the base ------------------------------------------
-
-; Which LABEL of NAME an atom is, by the conventions the library itself
-; follows: a leading % marks a private, a leading capital marks a class.
-(def %paint-name-label
-  (fn (_ text)
-    (let ((b0 (if (= 0 (%pt-blen text)) 0 (%pt-cint (%pt-bref text 0)))))
-      (match
-        ((= b0 37) (lit private))
-        ((and (>= b0 65) (<= b0 90)) (lit class))
-        (#t (lit symbol))))))
-
-; Ask the reader what an atom is.  The trailing space is the terminator:
-; without it a final token is dropped as unfinished (#161), and every atom
-; reaching here is by definition the tail of something still being typed.
-; Guarded, because half a literal is not a reader error here -- it is
-; Tuesday, and it colours as a plain name until it finishes.
-(def %paint-ask
-  (fn (_ text)
-    (if ((first %paint-kw) get-or #f text) (lit construct)
-      (let ((v (guard (_ (lit %unreadable))
-                 (first (%pt-read-str (%base) (%pt-append text " "))))))
-        (match
-          ((eq? v (lit %unreadable)) (lit symbol))
-          ((number? v) (lit number))
-          ((str? v)    (lit string))
-          ((char? v)   (lit char))
-          ((eq? v #t)  (lit bool))
-          ((eq? v #f)  (lit bool))
-          ((null? v)   (lit bool))
-          (#t (%paint-name-label text)))))))
-
-; The memo holds both answers.  An entry is (label . code): the label is what
-; `classify` is asked for and what a spec can check without a terminal, the
-; code is what the scan actually writes.  Keeping only the label meant the
-; scan walked the palette list per atom to turn one into the other -- nine
-; eq? tests a token, and closure calls are the unit of cost here, so that
-; walk alone was a fifth of a render.
-(def %paint-entry
-  (fn (_ text)
-    (let ((hit (%paint-memo-get () text)))
-      (if (null? hit)
-        (let ((e (let ((cls (%paint-ask text))) (pair cls (%paint-code cls)))))
-          (%paint-memo-set text e)
-          e)
-        hit))))
-
-(def %paint-classify (fn (_ text) (first (%paint-entry text))))
-
-; The code for a label: a walk down two lists in step.  Nine eq? tests at
-; worst, no allocation, no dispatch.
-(def %paint-code
-  (fn (_ cls)
-    (let ((go (fn (self names codes)
-                (match
-                  ((null? names) "")
-                  ((eq? cls (first names)) (first codes))
-                  (#t (self (rest names) (rest codes)))))))
-      (go %paint-labels %paint-pal))))
-
 ; The code for a paren: its depth's colour, cycling through the palette, with
 ; the focus code added on the pair the cursor is beside; -1 is a close with
 ; nothing to close.
@@ -189,64 +68,19 @@
                     (go (%pt-mod depth %paint-c-depth-n) %paint-c-depth)))))
       (if focused (%pt-append base %paint-c-focus) base))))
 
-; --- the span scan ---------------------------------------------------------
-;
-; The two loops below run per byte, so their comparisons are spelled in
-; place rather than behind a predicate: a helper per test reads better and
-; costs a closure call for every character of every line.
-
-(def %paint-to-eol
-  (fn (self s i n)
-    (if (>= i n) i (if (= 10 (%pt-cint (%pt-bref s i))) i (self s (%pt+ i 1) n)))))
-
-; To the closing quote, honouring backslash escapes.  An unterminated string
-; runs to the end of the line rather than erroring: a half-typed line can
-; only be coloured optimistically.
-(def %paint-str-end
-  (fn (self s i n)
-    (if (>= i n) n
-      (let ((b (%pt-cint (%pt-bref s i))))
-        (if (= 92 b) (self s (%pt+ i 2) n)
-          (if (= 34 b) (%pt+ i 1) (self s (%pt+ i 1) n)))))))
-
-; To the end of a run of bytes that carry no colour: parens and whitespace.
-; Emitting one segment per byte instead cost a substring and two list cells
-; each -- 87 segments for a 70-byte line, and the join at the end walks all
-; of them.
-(def %paint-plain-end
-  (fn (self s i n)
-    (if (>= i n) i
-      (let ((b (%pt-cint (%pt-bref s i))))
-        (if (if (<= b 32) #t (if (= b 40) #t (= b 41)))
-          (self s (%pt+ i 1) n) i)))))
-
-; To the end of an atom: the first whitespace, paren or semicolon.  This is
-; where a line spends most of its bytes.
-(def %paint-atom-end
-  (fn (self s i n)
-    (if (>= i n) i
-      (let ((b (%pt-cint (%pt-bref s i))))
-        (match
-          ((<= b 32) i)
-          ((= b 40) i)
-          ((= b 41) i)
-          ((= b 59) i)
-          (#t (self s (%pt+ i 1) n)))))))
-
 ; --- bracket depths -----------------------------------------------------------
 ;
 ; A mark for every paren in the line: (offset depth focused).  Depth is the
 ; nesting level, 0 at the top, and open and close share it, so a pair colours
 ; alike; a close paren with nothing to close is -1.  `focused` is true on the
 ; two halves of the pair the cursor is beside: a close just before the cursor
-; is preferred, then an open under it, then the other two.  One forward walk
-; that steps over strings, comments and character literals the same way the
-; scan does; `open` is the stack of (offset . depth) for parens not yet
+; is preferred, then an open under it, then the other two.  The parens are the
+; grammar's punct spans, so one inside a string, a comment or a character
+; literal is none; `open` is the stack of (offset . depth) for parens not yet
 ; closed.  Marks come back in source order.
 (def %paint-depths
   (fn (_ s at)
     (let ((n (%pt-blen s)))
-      ; The paren the cursor is beside, if any, by offset.
       (let ((before (if (> at 0) (%pt-cint (%pt-bref s (%pt- at 1))) 0))
             ; A cursor outside the line -- the editor passes -1 for a frame
             ; that is to keep no focus -- is beside nothing.
@@ -264,171 +98,49 @@
                           (if (= (first (first ms)) off)
                             (pair (list off (first (rest (first ms))) #t) (rest ms))
                             (pair (first ms) (self (rest ms) off)))))))
-            (let ((go (fn (self i open depth acc)
-                        (if (>= i n) (%reverse acc)
-                          (let ((b (%pt-cint (%pt-bref s i))))
-                            (match
-                              ((= b 59) (self (%paint-to-eol s i n) open depth acc))
-                              ((= b 34) (self (%paint-str-end s (%pt+ i 1) n) open depth acc))
-                              ((and (= b 35) (and (< (%pt+ i 1) n) (= 34 (%pt-cint (%pt-bref s (%pt+ i 1))))))
-                                (self (%paint-str-end s (%pt+ i 2) n) open depth acc))
-                              ((and (= b 35) (and (< (%pt+ i 1) n) (= 92 (%pt-cint (%pt-bref s (%pt+ i 1))))))
-                                (self (%paint-atom-end s (if (> (%pt+ i 3) n) n (%pt+ i 3)) n) open depth acc))
-                              ((= b 40)
-                                (self (%pt+ i 1) (pair (pair i depth) open) (%pt+ depth 1)
-                                      (pair (list i depth #f) acc)))
-                              ((= b 41)
-                                (if (null? open)
-                                  (self (%pt+ i 1) () 0 (pair (list i -1 (= i target)) acc))
-                                  (let ((o (first (first open))) (d (rest (first open))))
-                                    (let ((hit (if (= i target) #t (= o target))))
-                                      (self (%pt+ i 1) (rest open) d
-                                            (pair (list i d hit)
-                                                  (if hit (flag acc o) acc)))))))
-                              (#t (self (%pt+ i 1) open depth acc))))))))
-              (go 0 () 0 ()))))))))
+            (let ((go (fn (self sps open depth acc)
+                        (if (null? sps) (%reverse acc)
+                          (let ((i (first (first sps))))
+                            (let ((b (if (eq? (first (rest (rest (first sps)))) (lit punct))
+                                       (%pt-cint (%pt-bref s i)) 0)))
+                              (match
+                                ((= b 40)
+                                  (self (rest sps) (pair (pair i depth) open) (%pt+ depth 1)
+                                        (pair (list i depth #f) acc)))
+                                ((= b 41)
+                                  (if (null? open)
+                                    (self (rest sps) () 0 (pair (list i -1 (= i target)) acc))
+                                    (let ((o (first (first open))) (d (rest (first open))))
+                                      (let ((hit (if (= i target) #t (= o target))))
+                                        (self (rest sps) (rest open) d
+                                              (pair (list i d hit)
+                                                    (if hit (flag acc o) acc)))))))
+                                (#t (self (rest sps) open depth acc)))))))))
+              (go ((Syntax x) spans s) () 0 ()))))))))
 
-; The marks not yet passed: those at or beyond i.  Marks arrive in source
-; order and the scan moves forward, so the ones behind it are dropped as it
-; goes and the head of what remains is the only candidate for a cut, which
-; keeps the cost per run at the head rather than a walk of the whole list.
-(def %paint-marks-from
-  (fn (self marks i)
-    (if (null? marks) ()
-      (if (< (first (first marks)) i) (self (rest marks) i) marks))))
-
-; One coloured token onto the reversed segment list.  An empty code -- a
-; label with no colour, or colour switched off -- pushes bare text, so
-; nothing emits a stray reset.
-(def %paint-seg
-  (fn (_ segs code text)
-    (if (= 0 (%pt-blen code)) (pair text segs)
-      (pair %paint-rst (pair text (pair code segs))))))
-
-; What the text ends inside, by the scan's rules for strings, comments and
-; character literals: 'string when a string literal is still open at its end,
-; 'comment when a comment is, and nil when neither is.  The painter asks it of
-; the text that comes before the part it paints, so the earlier lines of a
-; multi-line entry, or the part of a line scrolled out of view, decide how the
-; painted part begins.  Its cost is one pass over that text, paid only when the
-; painted text or its marks change.
-(def %paint-open-at-end
-  (fn (_ s)
-    (if (null? s) ()
-      (let ((n (%pt-blen s)))
-        ; Past the quote that closes a string whose body starts at i, or nil
-        ; when the text ends first.
-        (let ((close (fn (self i)
-                       (if (>= i n) ()
-                         (let ((b (%pt-cint (%pt-bref s i))))
-                           (if (= 92 b) (self (%pt+ i 2))
-                             (if (= 34 b) (%pt+ i 1) (self (%pt+ i 1)))))))))
-          (let ((go (fn (self i)
-                      (if (>= i n) ()
-                        (let ((b (%pt-cint (%pt-bref s i))))
-                          (match
-                            ((= b 59)
-                              (let ((e (%paint-to-eol s i n)))
-                                (if (>= e n) (lit comment) (self e))))
-                            ((= b 34)
-                              (let ((e (close (%pt+ i 1))))
-                                (if (null? e) (lit string) (self e))))
-                            ((and (= b 35) (and (< (%pt+ i 1) n) (= 34 (%pt-cint (%pt-bref s (%pt+ i 1))))))
-                              (let ((e (close (%pt+ i 2))))
-                                (if (null? e) (lit string) (self e))))
-                            ((and (= b 35) (and (< (%pt+ i 1) n) (= 92 (%pt-cint (%pt-bref s (%pt+ i 1))))))
-                              (self (%paint-atom-end s (if (> (%pt+ i 3) n) n (%pt+ i 3)) n)))
-                            (#t (self (%pt+ i 1)))))))))
-            (go 0)))))))
-
-(def %paint-scan
-  (fn (self s i n segs marks)
-    (if (>= i n) segs
-      (let ((b (%pt-cint (%pt-bref s i))))
-        (match
-          ; a comment, to the end of the line
-          ((= b 59)
-            (let ((e (%paint-to-eol s i n)))
-              (self s e n (%paint-seg segs %paint-c-comment
-                                      (%pt-bsub s i (%pt- e i)))
-                    marks)))
-          ; a string, and the #"..." interpolating form: one colour, because
-          ; the holes are part of the literal and colouring them apart would
-          ; suggest they escape it, which they do not
-          ((= b 34)
-            (let ((e (%paint-str-end s (%pt+ i 1) n)))
-              (self s e n (%paint-seg segs %paint-c-string
-                                      (%pt-bsub s i (%pt- e i)))
-                    marks)))
-          ((and (= b 35) (and (< (%pt+ i 1) n) (= 34 (%pt-cint (%pt-bref s (%pt+ i 1))))))
-            (let ((e (%paint-str-end s (%pt+ i 2) n)))
-              (self s e n (%paint-seg segs %paint-c-string
-                                      (%pt-bsub s i (%pt- e i)))
-                    marks)))
-          ; a character literal: #\ and the glyph after it, plus any name
-          ; behind that, so #\( does not read as an open paren
-          ((and (= b 35) (and (< (%pt+ i 1) n) (= 92 (%pt-cint (%pt-bref s (%pt+ i 1))))))
-            (let ((e (%paint-atom-end s (if (> (%pt+ i 3) n) n (%pt+ i 3)) n)))
-              (self s e n (%paint-seg segs (%paint-code (lit char))
-                                      (%pt-bsub s i (%pt- e i)))
-                    marks)))
-          ; parens and whitespace carry no colour of their own, and go out as
-          ; one run rather than one segment per byte -- unless a mark falls
-          ; inside the run, in which case the run is cut there, the marked
-          ; paren goes out in its depth's colour, and the scan resumes after
-          ; it
-          ((if (<= b 32) #t (if (= b 40) #t (= b 41)))
-            (let ((e (%paint-plain-end s (%pt+ i 1) n))
-                  (ms (%paint-marks-from marks i)))
-              (if (if (null? ms) #t (>= (first (first ms)) e))
-                (self s e n (pair (%pt-bsub s i (%pt- e i)) segs) ms)
-                (let ((m (first ms)))
-                  (let ((c (first m)))
-                    (self s (%pt+ c 1) n
-                      (%paint-seg (if (> c i) (pair (%pt-bsub s i (%pt- c i)) segs) segs)
-                                  (%paint-depth-code (first (rest m)) (first (rest (rest m))))
-                                  (%pt-bsub s c 1))
-                      (rest ms)))))))
-          ; everything else is an atom: its bytes go to the reader, and the
-          ; answer picks the colour
-          (#t
-            (let ((e (%paint-atom-end s (%pt+ i 1) n)))
-              (let ((text (%pt-bsub s i (%pt- e i))))
-                (self s e n (%paint-seg segs (rest (%paint-entry text)) text)
-                      marks)))))))))
+; The depth code of the paren at offset off, or nil when no mark is there.
+; Spans arrive in source order, so the cell holding the marks not yet passed
+; drops the ones behind each ask and the head is the only candidate.
+(def %paint-mark-code
+  (fn (_ cell off)
+    (let ((ms ((fn (self ms) (if (null? ms) () (if (< (first (first ms)) off) (self (rest ms)) ms)))
+               (first cell))))
+      (%set-first! cell ms)
+      (if (if (null? ms) #t (not (= (first (first ms)) off))) ()
+        (%paint-depth-code (first (rest (first ms))) (first (rest (rest (first ms)))))))))
 
 ; --- installation ----------------------------------------------------------
 ;
 ; Whether there is a terminal is a fact of the process, and so is what the
 ; colours are: repl/ansi.x recomputes its statics when a state image is
-; loaded into a process that has a tty, and the palette baked here has to be
-; rebuilt on the same beat.  The memo goes with it -- a lang that registers
-; new literal syntax changes what the reader answers -- so one function
-; rebuilds the lot and everything that can invalidate it calls this.
+; loaded into a process that has a tty, and the paren palette baked here has
+; to be rebuilt on the same beat, with the last paint.
 (def %paint-install!
   (fn (_)
-    (set! %paint-kw (list (%paint-load-keywords)))
-    (set! %paint-memo (Dict make))
-    (set! %paint-memo-get (method-ref %paint-memo get-or))
-    (set! %paint-memo-set (method-ref %paint-memo set!))
-    (set! %paint-rst (Ansi reset))
-    (set! %paint-pal
-      (list (Ansi blue)                             ; symbol
-            (%pt-append (Ansi bold) (Ansi magenta)) ; construct
-            (Ansi yellow)                           ; number
-            (Ansi green)                            ; string
-            (Ansi magenta)                          ; char
-            (Ansi bold-red)                         ; bool
-            (Ansi dim)                              ; private
-            (Ansi bold-cyan)                        ; class
-            (Ansi dim)))                            ; comment
-    (set! %paint-c-comment (%paint-code (lit comment)))
-    (set! %paint-c-string  (%paint-code (lit string)))
-    ; Parens cycle through three colours by nesting depth, the way editors
-    ; colour bracket pairs, so open and close share a colour and the eye can
-    ; pair them at a glance; a close with nothing to close is bold red, the
-    ; palette's colour for a wrong answer; the pair beside the cursor is
-    ; drawn inverse on top of its colour.
+    ; Parens cycle through three colours by nesting depth, so open and close
+    ; share a colour and the eye can pair them at a glance; a close with
+    ; nothing to close is bold red, the palette's colour for a wrong answer;
+    ; the pair beside the cursor is drawn inverse on top of its colour.
     (set! %paint-c-depth (list (Ansi yellow) (Ansi magenta) (Ansi cyan)))
     (set! %paint-c-depth-n 3)
     (set! %paint-c-lone (Ansi bold-red))
@@ -442,10 +154,9 @@
 ; --- the class: the cold-call API -----------------------------------------
 
 (def-class Paint ()
-  (doc "Syntax colouring for a line of x-lang that may still be half-typed. An atom's label comes from the READER -- the base is asked what the bytes read as -- so numbers, characters, strings and any literal a lang added all colour correctly without this class knowing their syntax."
+  (doc "Syntax colouring for a line of x-lang that may still be half-typed, by the spans of (Syntax x): an atom's class comes from the READER, so numbers, characters, strings and any literal a lang added colour correctly without this class knowing their syntax."
     (note "Lexical at the span level: an unterminated string or an unclosed form colours optimistically rather than failing, which is the normal state of a line being typed.")
     (note "Returns a string rather than writing one, so the caller composes prompt and line and issues a single write; a redraw never tears.")
-    (note "The scan itself is %-private over cached prims -- the hot-path rule reader/analyser.x states -- and this class is the cold-call surface over it.")
     (example "(Paint classify \"1/2\")" "'number")
     (see line) (see classify) (see forget!))
 
@@ -464,43 +175,32 @@
                 (if (%paint-same-marks? ms %paint-last-marks) (%pt-same? before %paint-last-before) #f)
                 #f)
             %paint-last-out
-            (let ((n (%pt-blen s))
-                  (open (%paint-open-at-end before)))
-              ; A string or comment left open before s runs on into it, up to
-              ; its closing quote or the end of the line, and the scan takes
-              ; over from there.
-              (let ((head (match
-                            ((eq? open (lit string)) (%paint-str-end s 0 n))
-                            ((eq? open (lit comment)) (%paint-to-eol s 0 n))
-                            (#t 0))))
-                (let ((out (Str8 join ""
-                             (List reverse
-                               (%paint-scan s head n
-                                 (if (= head 0) ()
-                                   (%paint-seg ()
-                                     (if (eq? open (lit string)) %paint-c-string %paint-c-comment)
-                                     (%pt-bsub s 0 head)))
-                                 ms)))))
-                  (set! %paint-last-in s)
-                  (set! %paint-last-marks ms)
-                  (set! %paint-last-before before)
-                  (set! %paint-last-out out)
-                  out)))))))
+            (let ((from (if (null? before) 0 (%pt-blen before)))
+                  (full (if (null? before) s (%pt-append before s)))
+                  (n (%pt-blen s))
+                  (cell (pair ms ())))
+              (let ((out (Syntax ansi full ((Syntax x) spans full from n) from n
+                           (fn (_ sp) (%paint-mark-code cell (%pt- (first sp) from))))))
+                (set! %paint-last-in s)
+                (set! %paint-last-marks ms)
+                (set! %paint-last-before before)
+                (set! %paint-last-out out)
+                out))))))
 
     (method lexer (self (param l ANY "A Lexer whose rules read every byte: blanks a run rather than a skip, comments tagged rather than dropped")
                         (param colours LIST "Each (TAG . STYLE): STYLE an Ansi style name such as 'green, an escape string used as it is, or a function of the token's text answering either or nil"))
       (doc "A painter for %repl-paint that colours a line by its Lexer tokens. Each token's text is the bytes it read, so the line is drawn byte for byte, each token in the style its tag names; a tag with no entry, or a function answering nil, leaves the token plain. Bytes after the point where the lexer stops are drawn plain. The text before the window is read with it, so a string or comment opened there colours the window's start. Answers the window unchanged when colour is off."
         (returns CALLABLE "A painter: (fn (_ window marks before))")
         (note "A lexer with a skip rule, or an until rule with no tag, drops bytes, and the tokens no longer cover the line: give blanks a run and comments a tag.")
+        (note "The painter reads through (Syntax over l colours): the colours table is a grammar's, its classes styles.")
         (sample "(set! %repl-paint (Paint lexer l (list (pair 'comment 'dim) (pair 'str 'green))))" "comments dim and strings green, everything else plain"))
       (Paint %lexer-painter l colours))
 
     ; The painter's state lives in its closure: the last window it painted and
     ; the codes its style names resolved to, which an image load forgets since
-    ; the codes depend on the terminal.  Tokens are walked as offsets into
-    ; before + window; only the part inside the window is drawn.
+    ; the codes depend on the terminal.
     (method %lexer-painter (self l colours)
-      (let ((codes (pair () ())) (last (pair () ())))
+      (let ((codes (pair () ())) (last (pair () ())) (g (Syntax over l colours)))
         (set! %image-recache-hooks
           (pair (fn (_) (%set-first! codes ()) (%set-first! last ())) %image-recache-hooks))
         (def code
@@ -514,38 +214,19 @@
                     (%set-first! codes (pair (pair style c) (first codes)))
                     c)
                   (rest hit)))))))
-        (def style-of
-          (fn (_ tag text)
-            ((fn (self cs)
-               (if (null? cs) ()
-                 (if (eq? (first (first cs)) tag)
-                   (let ((s (rest (first cs)))) (if (if (symbol? s) #t (str? s)) s (s text)))
-                   (self (rest cs)))))
-             colours)))
-        (def walk
-          (fn (self toks at from acc)
-            (if (null? toks) (pair at acc)
-              (let ((text (first (rest (first toks)))))
-                (let ((end (+ at (%pt-blen text))))
-                  (self (rest toks) end from
-                    (if (<= end from) acc
-                      (%paint-seg acc (code (style-of (first (first toks)) text))
-                        (if (< at from) (%pt-bsub text (- from at) (- end from)) text)))))))))
         (fn (_ window marks before)
           (if (not (Ansi enabled?)) window
             (let ((b (if (null? before) "" before)))
               (if (if (null? (first last)) #f
                     (if (%pt-same? window (first (first last))) (%pt-same? b (rest (first last))) #f))
                 (rest last)
-                (let ((from (%pt-blen b)) (s (if (null? before) window (%pt-append b window))))
-                  (let ((r (walk (l read-str s) 0 from ())) (n (%pt-blen s)))
-                    (let ((stop (if (< (first r) from) from (first r))))
-                      (let ((out (Str8 join ""
-                                   (List reverse
-                                     (if (< stop n) (pair (%pt-bsub s stop (- n stop)) (rest r)) (rest r))))))
-                        (%set-first! last (pair window b))
-                        (%set-rest! last out)
-                        out))))))))))
+                (let ((from (%pt-blen b)) (s (if (null? before) window (%pt-append b window)))
+                      (n (%pt-blen window)))
+                  (let ((out (Syntax ansi s (g spans s from n) from n
+                               (fn (_ sp) (code (first (rest (rest sp))))))))
+                    (%set-first! last (pair window b))
+                    (%set-rest! last out)
+                    out))))))))
 
     (method marks (self (param s STRING "The text: a line, or a whole multi-line entry") (param at INTEGER "The cursor, as a byte offset"))
       (doc "A mark for every paren in the line, as (offset depth focused): depth is the nesting level from 0, shared by both halves of a pair so they colour alike, and -1 for a close paren with nothing to close; focused is true on the two halves of the pair the cursor is beside, a close just before the cursor first, then an open under it. A cursor outside the line, -1 say, is beside nothing, which is how a settled line keeps its colours and loses its focus. Strings, comments and character literals are stepped over, so #\\( is not an open paren and a paren inside a string is not counted."
@@ -556,27 +237,27 @@
       (%paint-depths s at))
 
     (method classify (self (param text STRING "One atom's bytes"))
-      (doc "What an atom is, as a symbol: 'construct 'number 'string 'char 'bool 'private 'class or 'symbol. Constructs come from lib/x/constructs.x; everything else is decided by READING the bytes on the base and taking the type of the value, so the reader and the colour cannot disagree."
-        (returns SYMBOL "The atom's label")
-        (example "(list (Paint classify \"def\") (Paint classify \"3.14\") (Paint classify \"-\"))" "('construct 'number 'symbol)")
+      (doc "What an atom is, as one of (Syntax classes): 'keyword for a construct of lib/x/constructs.x, else what READING the bytes on the base answers -- 'number 'string 'char 'constant -- or for a name 'private, 'class or 'name, so the reader and the colour cannot disagree."
+        (returns SYMBOL "The atom's class")
+        (example "(list (Paint classify \"def\") (Paint classify \"3.14\") (Paint classify \"-\"))" "('keyword 'number 'name)")
         (note "Memoised per distinct atom; forget! drops the memo."))
-      (%paint-classify text))
+      (Syntax classify text))
 
-    (method colour (self (param cls SYMBOL "A label from classify"))
-      (doc "The SGR code a label is painted with -- the LSP semantic token mapping repl/ansi.x already uses for printed values, so a name looks the same being typed as it does coming back."
+    (method colour (self (param cls SYMBOL "A class from classify"))
+      (doc "The SGR code a class is painted with, (Syntax code cls)."
         (returns STRING "An SGR code, empty when colour is off")
         (example "(Str8 =? (Paint colour 'number) (Ansi yellow))" "#t"))
-      (%paint-code cls))
+      (Syntax code cls))
 
     (method labels (self)
-      (doc "Every label `classify` can answer, in palette order."
-        (returns LIST "Label symbols"))
-      %paint-labels)
+      (doc "Every class `classify` and the spans can answer, (Syntax classes)."
+        (returns LIST "Class symbols"))
+      (Syntax classes))
 
     (method keywords (self)
       (doc "The construct set, as a Dict used as a set."
         (returns Dict "Construct name -> #t"))
-      (first %paint-kw))
+      (Syntax keywords))
 
     (method enabled? (self)
       (doc "Whether painting will do anything -- false when colour is off, in which case `line` returns its argument unchanged."
@@ -586,6 +267,7 @@
     (method forget! (self)
       (doc "Rebuild the construct set, the memo and the palette. A lang that registers new literal syntax changes what the reader answers, and a state image loaded into a different process changes what the colours are; this is how a session says so."
         (returns NIL "Nothing; the caches are rebuilt"))
+      (Syntax forget!)
       (%paint-install!))))
 
 ; --- the painter this file installs ------------------------------------------
@@ -623,9 +305,8 @@
   (pair (fn (_) (do (%paint-install!) (%paint-install-hook!))) %image-recache-hooks))
 
 (doc (provide x/repl/paint Paint)
-  (note "An atom's label comes from the base: the bytes are read and the value's type decides, so a colour cannot disagree with the evaluator.")
-  (note "x-lang's own token SPANS are scanned here because its base's reader is recursive and yields values. A lang whose syntax a Lexer reads gets its spans from the Lexer instead: (Paint lexer l colours) colours each token by its tag, with no scan of its own.")
-  (note "The scan is %-private over cached prims and the palette is built once, not per render: class dispatch on a per-keystroke path costs more than the scanning between the doors.")
-  (note "marks gives every paren its nesting depth with the scan's own rules for strings, comments and character literals; line colours them by depth when handed the result. The editor threads the two together on every redraw.")
+  (note "The spans are (Syntax x)'s: x/tool/syntax reads the line and classes each token, and this file draws them, adding the paren depths and the pair beside the cursor.")
+  (note "A lang whose syntax a Lexer reads colours its line with (Paint lexer l colours), each token by its tag, through the same span walk.")
+  (note "marks gives every paren its nesting depth; line colours them by depth when handed the result. The editor threads the two together on every redraw.")
   "Paint: ANSI syntax colouring for a REPL line that is still being typed.")
 (provide x/repl/paint Paint)

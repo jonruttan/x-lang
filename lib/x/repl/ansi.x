@@ -1,4 +1,7 @@
 ; ansi.x -- Ansi: terminal color support, homed on the Ansi class.
+; lint-known: Syntax ansi x
+; (Syntax and its ansi and x, from x/tool/syntax, imported at CALL time in
+;  Ansi highlight -- this file is boot-included)
 ;
 ; Detects terminal capabilities; the color codes live as Ansi static FIELDS
 ; (computed once at class definition -- empty strings when color is off, so
@@ -17,8 +20,6 @@
 (module x/repl/ansi)
 
 (import x/sys/posix)
-; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(def %token-read-string (prim-ref 'tok 'read-str))
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 (def %str-append (prim-ref 'str 'append))
@@ -81,25 +82,14 @@
         (returns STRING "Text wrapped in ANSI codes, or plain text if colors disabled"))
       (%str-append style (%str-append text (Ansi reset))))
     (method highlight (self (param code STRING "Source code string to highlight"))
-      (doc "Syntax-highlight a code string and display it. Keywords in bold magenta, symbols in blue, numbers in yellow, strings in green."
+      (doc "Display a code string coloured by the spans of (Syntax x), byte for byte as written."
         (returns ANY "Displays highlighted code to stdout")
+        (note "x/tool/syntax is imported on the first coloured call: this file is boot-included and cannot import it at load.")
         (example "(Ansi highlight \"(def x 42)\")" "(def x 42)"))
       (if (not %ansi?)
         (display code)
-        ; Terminated read, local on purpose: this file is boot-included,
-        ; so it cannot import the shared door (x/codec/xon).  Without the
-        ; appended space, read-str drops an unterminated final token
-        ; (#161) -- and highlight routinely sees mid-edit text whose last
-        ; token IS unterminated.
-        (let ((%toks (%token-read-string (%base) (Str8 append code " ")))
-              (%go
-                (fn (self toks first?)
-                  (unless (null? toks)
-                    (do
-                      (unless first? (display " "))
-                      (%ansi-write-code (first toks))
-                      (self (rest toks) ()))))))
-          (%go %toks #t))))
+        (do (import x/tool/syntax)
+            (display (Syntax ansi code ((Syntax x) spans code) 0 (Str8 length code))))))
     (method enable-repl (self)
       (doc "Enable syntax-highlighted REPL output using LSP semantic token colors.")
       (unless (not %ansi?)
@@ -155,7 +145,6 @@
         (set! %c-nil-val  (Ansi dim))
         (set! %c-function (Ansi cyan))
         (set! %c-rst      (Ansi reset))
-        (set! %c-keyword  (%str-append (%sgr "1") (%sgr "35")))
         ; doc.x's stubs (it defines them as "" and this file owns their value).
         (set! %c-reset   (Ansi reset))
         (set! %c-bold    (Ansi bold))
@@ -235,81 +224,6 @@
       ((char? obj) (do (display %c-char) (write obj) (display %c-rst)))
       ((procedure? obj) (do (display %c-function) (write obj) (display %c-rst)))
       ; regex, custom types and the rest: written without colour
-      (#t (write obj)))))
-
-; --- Source code syntax highlighting ---
-;
-; Tokenizes a code string on the current base, then walks the token
-; tree with keyword-aware coloring. Keywords (special forms) get bold
-; magenta; regular symbols get blue; numbers/strings/chars/bools get
-; their LSP semantic token colors.
-
-(def %c-keyword  (%str-append (%sgr "1") (%sgr "35")))
-
-; Keyword set — x-lang special forms and core operatives
-(def %keywords
-  (list 'def 'fn 'op 'if 'let 'do
-        'match 'guard 'set! 'lit 'quasi
-        'import 'include 'provide
-        'and 'or 'not
-        'apply 'eval 'begin
-        'when 'unless 'letrec
-        'cond 'case 'doc 'note))
-
-(def %keyword?
-  (fn (_ sym) (%memq? sym %keywords)))
-
-; Forward declaration for mutual recursion
-(def %ansi-write-code ())
-
-(def %ansi-write-code-list
-  (fn (self obj)
-    (if (null? (first obj))
-      (do (display %c-nil-val "()" %c-rst))
-      (%ansi-write-code (first obj)))
-    (unless (null? (rest obj))
-      (if (not (pair? (rest obj)))
-        (do (display " . ") (%ansi-write-code (rest obj)))
-        (do (display " ") (self (rest obj)))))))
-
-; Quote-and-quasiquote shorthand: the tokenizer expands 'x to (lit x) (and `,
-; ,@ likewise), so re-rendering parsed code must fold them back or help
-; samples written as 'rdonly display as (lit rdonly) -- the R1/R8 echo
-; regression jon caught in (help File).
-(def %code-sugar
-  (fn (_ obj)
-    (if (pair? obj)
-      (if (pair? (rest obj))
-        (if (null? (rest (rest obj)))
-          (match
-            ((eq? (first obj) 'lit) "'")
-            ((eq? (first obj) 'quasi) "`")
-            ((eq? (first obj) 'unquote) ",")
-            ((eq? (first obj) 'unquote-splicing) ",@")
-            (#t ()))
-          ())
-        ())
-      ())))
-
-(set! %ansi-write-code
-  (fn (self obj)
-    (match
-      ((null? obj) (display %c-nil-val "()" %c-rst))
-      ((eq? obj #t) (display %c-bool "#t" %c-rst))
-      ((eq? obj #f) (display %c-bool "#f" %c-rst))
-      ((pair? obj)
-        (let ((sugar (%code-sugar obj)))
-          (if (null? sugar)
-            (do (display "(") (%ansi-write-code-list obj) (display ")"))
-            (do (display %c-keyword sugar %c-rst)
-                (%ansi-write-code (first (rest obj)))))))
-      ((number? obj) (do (display %c-number) (write obj) (display %c-rst)))
-      ((str? obj) (do (display %c-string) (write obj) (display %c-rst)))
-      ((symbol? obj)
-        (if (%keyword? obj)
-          (display %c-keyword obj %c-rst)
-          (display %c-symbol obj %c-rst)))
-      ((char? obj) (do (display %c-char) (write obj) (display %c-rst)))
       (#t (write obj)))))
 
 ; --- REPL integration ---

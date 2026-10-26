@@ -22,7 +22,7 @@ that way).
 
 ```x
 (do (import x/tool/highlight)
-    (Highlight transcript "> (match\n    (#t 1))\n1" (list "match")))
+    (Highlight transcript "> (match\n    (#t 1))\n1"))
 ```
 ---
 ```output
@@ -37,7 +37,7 @@ One line, balanced, so what follows is output rather than more code.
 
 ```x
 (do (import x/tool/highlight)
-    (Highlight transcript "> (+ 1 2)\n3" (list)))
+    (Highlight transcript "> (+ 1 2)\n3"))
 ```
 ---
 ```output
@@ -52,7 +52,7 @@ a string's bracket cannot swallow the result line behind it.
 
 ```x
 (do (import x/tool/highlight)
-    (Highlight transcript "> (id \"(\")\n\"(\"" (list)))
+    (Highlight transcript "> (id \"(\")\n\"(\""))
 ```
 ---
 ```output
