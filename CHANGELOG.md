@@ -5,6 +5,28 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.39.1] - 2026-10-25
+
+**import, include-once and import-version load through the `include` binding again.** ([#1098]) A lang that wraps `include` with `set!` sees every file the module system loads, as it did before v0.37.0; the wrapper is called with the path alone, and the file still loads into the module it belongs to.
+
+[#1098]: https://github.com/jonruttan/x-lang/pull/1098
+
+**(Doc names) builds its list once until a name is documented.** ([#1097]) The sorted names are kept beside the registry list they came from and answered again while it is unchanged, so apropos and Tab completion no longer sort every documented name on each call. Helium, after the first call: a Tab completion on "S" 2.11M -> 315K objects; (apropos "split") 2.75M -> 0.96M.
+
+[#1097]: https://github.com/jonruttan/x-lang/pull/1097
+
+**(Doc names) and (Doc entry) allocate less.** ([#1096]) Doc names compares names on the engine's instructions instead of through a class call per comparison, and Doc entry reads an entry's parts in one walk. Over the 732 names a helium boot documents: (Doc names) 2.31M -> 1.39M objects; (Doc entry 'Str8/split) 19.7K -> 17.1K, most of what remains being the registry lookup.
+
+[#1096]: https://github.com/jonruttan/x-lang/pull/1096
+
+**A libm closure held by a scoped module survives an image write.** ([#1095]) `libm-fn`'s held rows are remade through their cells alone; the caller's name, which may be a module's, is no longer set in float's frame. A scoped module binding a libm function (x-python's core) wrote no state image before this.
+
+[#1095]: https://github.com/jonruttan/x-lang/pull/1095
+
+**The linter resolves a scoped module's heads in the module's environment.** ([#1093]) A send on a module-private value, `(%lexer read-str s)` in a file headed `(module NAME)`, is read as a send, so its selector is no longer reported undefined; before, the head was evaluated in the root, which does not see a module's private names. The driver's undefined-name filter reads the same environment.
+
+[#1093]: https://github.com/jonruttan/x-lang/pull/1093
+
 ## [0.39.0] - 2026-10-24
 
 **Http request bodies may be runs.** ([#1091]) `Http open`, `Http request` and the verbs on them take a body as a run, `(STRING . COUNT)`, as well as a string, so a binary body with NUL bytes in it goes out whole, over http or https. Content-Length is the run's count.
