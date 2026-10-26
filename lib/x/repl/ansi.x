@@ -1,4 +1,7 @@
 ; ansi.x -- Ansi: terminal color support, homed on the Ansi class.
+; lint-known: Syntax ansi x
+; (Syntax and its ansi and x, from x/tool/syntax, imported at CALL time in
+;  Ansi highlight -- this file is boot-included)
 ;
 ; Detects terminal capabilities; the color codes live as Ansi static FIELDS
 ; (computed once at class definition -- empty strings when color is off, so
