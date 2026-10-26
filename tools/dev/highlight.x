@@ -34,11 +34,6 @@
     (do (Stream with-fd 2 (fn (_) (display "Usage: x.sh --no-pin -q -f tools/dev/highlight.x -- FILE...\n")))
         (Sys exit 1)))
 
-  ; The keyword set comes from the construct declarations, so a construct
-  ; added there highlights without this tool changing.
-  (def %hl-keywords
-    (Highlight keywords (first (Xon parse (File read-all "lib/x/constructs.x")))))
-
   ; --- One file: walk lines, swapping tagged fences for their markup ---
   ;
   ; Line-oriented on purpose. A markdown file is not an s-expression, and the
@@ -65,8 +60,8 @@
   (def %hl-emit-block
     (fn (_ tag text)
       (if (str=? tag "x-repl")
-        (Highlight transcript text %hl-keywords)
-        (Highlight source text %hl-keywords))))
+        (Highlight transcript text)
+        (Highlight source text))))
 
   ; Newlines are SEPARATORS here, not terminators, which is the difference
   ; between a filter and a filter that grows a file.  "a\nb\n" splits to

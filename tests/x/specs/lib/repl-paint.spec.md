@@ -34,7 +34,7 @@ The rule a hand-written painter gets wrong first.
     (list (Paint classify "-") (Paint classify "+") (Paint classify "1+")))
 ```
 ---
-    ('symbol 'symbol 'number)
+    ('name 'name 'number)
 
 ### strings, characters and booleans
 
@@ -44,7 +44,7 @@ The rule a hand-written painter gets wrong first.
           (list "\"hi\"" "#\\a" "#t" "#f")))
 ```
 ---
-    ('string 'char 'bool 'bool)
+    ('string 'char 'constant 'constant)
 
 ### a construct is a construct, from lib/x/constructs.x
 
@@ -54,7 +54,7 @@ The rule a hand-written painter gets wrong first.
           (list "def" "fn" "if" "match" "guard")))
 ```
 ---
-    ('construct 'construct 'construct 'construct 'construct)
+    ('keyword 'keyword 'keyword 'keyword 'keyword)
 
 ### the construct set is the one the rest of the toolchain reads
 
@@ -73,7 +73,7 @@ The rule a hand-written painter gets wrong first.
           (list "foo" "%private" "Str8" "foo-bar?")))
 ```
 ---
-    ('symbol 'private 'class 'symbol)
+    ('name 'private 'class 'name)
 
 ### an atom the reader cannot make sense of is a plain name, not an error
 
@@ -84,7 +84,7 @@ A line being typed is unreadable most of the time; that is not a failure.
     (Paint classify "\"unterminated"))
 ```
 ---
-    'symbol
+    'name
 
 ## Colour off is a passthrough
 
@@ -144,7 +144,7 @@ rebinding. The first element checks that the rebinding is live.
       got)))
 ```
 ---
-    (#f 'construct)
+    (#f 'keyword)
 
 ### and the session's own `equal?` is back afterwards
 
@@ -280,24 +280,24 @@ open paren it closes.
 ---
     ((0 0 #t) (9 0 #t))
 
-### the painter asks what the text before it leaves open
+### the text before decides how the painted text begins
 
-A string still open at the end of that text runs on into what is painted; a
-comment runs to the end of its line, so one that a newline ends leaves
-nothing open. A character literal such as `#\"` opens nothing.
+The painter reads the text before and the window as one, so a string still
+open at the end of that text runs on into the window; a comment runs to the
+end of its line, so one that a newline ends leaves nothing open. A character
+literal such as `#\"` opens nothing. Each answer is the class of the window's
+first byte, the window here being `x)`.
 
 ```x
 (do (import x/repl/paint)
-    (let ((open (eval (lit %paint-open-at-end) (module x/repl/paint))))
-      (list (open "(display \"hel\n")
-            (open "(f) ; note")
-            (open "(f) ; note\n")
-            (open "(f \"a\" #\\\" x")
-            (open "#\"a {x")
-            (open ()))))
+    (List map
+      (fn (_ before)
+        (let ((s (Str8 append before "x)")) (from (Str8 length before)))
+          (Syntax cell-class (Str8 ref 0 (Syntax cells ((Syntax x) spans s from 2) from 2)))))
+      (list "(display \"hel\n" "(f) ; note" "(f) ; note\n" "(f \"a\" #\\\" x" "#\"a {x" "")))
 ```
 ---
-    ('string 'comment () () 'string ())
+    ('string 'comment 'name 'name 'string 'name)
 
 ### with colour off, the text before changes nothing
 
@@ -313,8 +313,8 @@ nothing open. A character literal such as `#\"` opens nothing.
 
 `(Paint lexer l colours)` colours a line by the tokens of a Lexer whose rules
 read every byte. Colour is forced on here and the styles are marker strings,
-since the harness's Ansi codes are empty; the reset code is empty for the same
-reason.
+since the harness's Ansi codes are empty; each styled token is followed by the
+reset sequence.
 
 ### each token takes its tag's style, a function picks one by text, and a byte no rule reads ends it plain
 
@@ -336,7 +336,7 @@ reason.
           r))))
 ```
 ---
-    ("<k>if x <s>\"a b\" <c># z" "x \"a" "<s>b\" y" "a @b")
+    ("<k>if\x1b[0m x <s>\"a b\"\x1b[0m <c># z\x1b[0m" "x \"a" "<s>b\"\x1b[0m y" "a @b")
 
 ### with colour off it answers the window unchanged
 

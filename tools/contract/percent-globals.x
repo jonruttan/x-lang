@@ -336,7 +336,7 @@
 (file "tools/dev/doc-index.x" 10)
 (file "tools/dev/doc.x" 4)
 (file "tools/dev/fmt.x" 13)
-(file "tools/dev/highlight.x" 8)
+(file "tools/dev/highlight.x" 7)
 (file "tools/dev/image-foreign.x" 7)
 (file "tools/dev/image-read.x" 57)
 (file "tools/dev/image-write.x" 97)
