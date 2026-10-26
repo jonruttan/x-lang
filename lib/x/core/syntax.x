@@ -46,38 +46,6 @@
             body)))
       e)))
 
-; --- Named let: (let name ((var init) ...) body...) ---
-
-(def %let let)
-; Named let compiles DIRECTLY to a self-passing fn application: fn's
-; arg 0 IS the closure, so (let go ((i 0)) body) is exactly
-; ((fn (go i) body) 0) -- no letrec/set! source-construction cascade
-; (the old path built letrec -> let -> %let forms per EVALUATION,
-; ~2,650 objects; the 2026-07-16 disease probes).  Init expressions
-; still evaluate in the OUTER env, as application arguments.
-(def %named-let-params
-  (fn (self bindings)
-    (match
-      ((eq? bindings ()) ())
-      (#t (pair (first (first bindings)) (self (rest bindings)))))))
-(def %named-let-inits
-  (fn (self bindings)
-    (match
-      ((eq? bindings ()) ())
-      (#t (pair (first (rest (first bindings))) (self (rest bindings)))))))
-(def let
-  (op (first-arg . rest-args)
-    e
-    (if (symbol? first-arg)
-      (tail-eval
-        (pair
-          (pair (lit fn)
-            (pair (pair first-arg (%named-let-params (first rest-args)))
-              (rest rest-args)))
-          (%named-let-inits (first rest-args)))
-        e)
-      (tail-eval (pair (lit %let) (pair first-arg rest-args)) e))))
-
 ; --- cond (multi-expression clause bodies + else + => syntax) ---
 
 (doc cond "Multi-way conditional: evaluates clauses in order, returning the body of the first true test. Supports else and => syntax."

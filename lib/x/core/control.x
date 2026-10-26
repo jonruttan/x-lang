@@ -4,14 +4,6 @@
 
 (import x/core/predicates)
 
-; The engine's apply, kept under a fixed name.  lib/x/core/fn.x binds the
-; library's apply over the bare one -- a value applies through its type's
-; call handler there -- and let, a derived form over fn, applies the closure
-; it just built: it has nothing for that door to look at, and a lang that
-; binds apply over the library's, as the library binds it over the engine's,
-; must not retarget every let.
-(def %apply apply)
-
 (def if
   (op (test then . else)
     e
@@ -20,30 +12,42 @@
       ((null? else) ())
       (#t (tail-eval (first else) e)))))
 
+; let is the application of the fn it names, built once a run and handed to
+; tail-eval: (let ((a 1) (b 2)) body) is ((fn (_ a b) body) 1 2), and the
+; named form (let go ((i 0)) body) is ((fn (go i) body) 0) -- fn's arg 0 IS
+; the closure, so go recurses with no letrec.  Inits evaluate in the OUTER
+; env, as application arguments.  One binding costs 58 objects a run, three
+; 96; the fn it builds costs 10 and 16 called in place, and the rest is the
+; two walks below.  (The plain form used to go through a second operative
+; that evaluated the fn into a closure and applied it to a list of values:
+; 120 and 192.)
 (def %let-params
   (fn (self bindings)
     (match
-      ((null? bindings) ())
-      (#t
-        (pair
-          (first (first bindings))
-          (self (rest bindings)))))))
-
-(def %let-vals
-  (fn (self bindings e)
+      ((eq? bindings ()) ())
+      (#t (pair (first (first bindings)) (self (rest bindings)))))))
+(def %let-inits
+  (fn (self bindings)
     (match
-      ((null? bindings) ())
-      (#t
-        (pair
-          (eval (first (rest (first bindings))) e)
-          (self (rest bindings) e))))))
-
+      ((eq? bindings ()) ())
+      (#t (pair (first (rest (first bindings))) (self (rest bindings)))))))
 (def let
-  (op (bindings . body)
+  (op (first-arg . rest-args)
     e
-    (%apply
-      (eval (pair (lit fn) (pair (pair (lit _) (%let-params bindings)) body)) e)
-      (%let-vals bindings e))))
+    (match
+      ((symbol? first-arg)
+        (tail-eval
+          (pair
+            (pair (lit fn)
+              (pair (pair first-arg (%let-params (first rest-args))) (rest rest-args)))
+            (%let-inits (first rest-args)))
+          e))
+      (#t
+        (tail-eval
+          (pair
+            (pair (lit fn) (pair (pair (lit _) (%let-params first-arg)) rest-args))
+            (%let-inits first-arg))
+          e)))))
 
 ; NOTE: this module loads before the doc system (x/doc/doc.x), so it cannot
 ; wrap its provide in (doc ...). Its module description is registered
