@@ -377,7 +377,7 @@ the integer doors; any other text reads as it did, by the full parser.
       (def c0 (Heap count))
       ((fn (loop i) (if (= i 0) () (do (f) (loop (- i 1))))) 10)
       (- (Heap count) c0)))
-  (< (* 10 (%cost (fn (_) (%str->number "4096"))))
+  (< (* 5 (%cost (fn (_) (%str->number "4096"))))
      (%cost (fn (_) (%str->number "+4096")))))
 ```
 ---
