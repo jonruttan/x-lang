@@ -284,12 +284,13 @@ Grep the bundle before defining a name.  The platform's
 rejects your new globals, the intended fix is fewer names, not a bigger
 budget.
 
-**`def` decides global-vs-local by save-stack depth.**  In a called function
-body, under TCO, a `def` can bind globally — clobbering a module name on
-every call — or locally inside a guard handler's frame — vanishing with it.
-Use `let` for function locals (binds in-frame unconditionally).  Use the
-`base/def-global` door when something evaluated at depth (a REPL loop, a
-guard handler) must define for the session.
+**`def` binds in the current environment.**  A call makes a child
+environment, so a `def` in a function body, or in a guard handler's frame,
+is private to that activation and goes with it; `(eval (list (lit def) name
+value) e)` binds in `e`, and `eval!` evaluates in the root (engine law 10).
+Use `let` for function locals.  When something evaluated at depth (a REPL
+loop, a guard handler) must define for the session, evaluate the `def` with
+`eval!`, the value under `lit` so `def` does not evaluate it a second time.
 
 **A raise skips your restore.**  Any save/restore around a parse or eval
 leaks when the body raises — x-python's lexical-class cell leaked out of a
