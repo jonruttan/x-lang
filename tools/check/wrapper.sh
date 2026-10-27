@@ -89,6 +89,17 @@ case "$err" in
 		;;
 esac
 
+# The location half: a raise in a -f file names the file and the line, in
+# the library's wording (lib/x/repl/batch.x), and the file's forms before
+# it ran.  A -c expression has no file, so its report starts bare.
+printf '(write "one")\n\n(no-such-binding)\n(write "never")\n' > "$TMP/e.x"
+got=$(sh x.sh -q -f "$TMP/e.x" 2>/dev/null || true)
+want "-f runs up to the raise" '"one"' "$got"
+err=$(sh x.sh -q -f "$TMP/e.x" 2>&1 >/dev/null || true)
+want "a raise in -f names the file and line" "Error [$TMP/e.x:3]: Unbound SYMBOL 'no-such-binding'" "$err"
+err=$(sh x.sh -q -c '(no-such-binding)' 2>&1 >/dev/null || true)
+want "a raise in -c is reported bare" "Error: Unbound SYMBOL 'no-such-binding'" "$err"
+
 # The dialect flag still selects: helium has no tower, xenon does.  One case,
 # because a wrong dialect is the other way a route silently answers wrong.
 got=$(sh x.sh -q -l xe -c '(write (+ 1/3 1/6))' 2>/dev/null || true)
