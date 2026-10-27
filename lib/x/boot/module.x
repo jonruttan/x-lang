@@ -899,9 +899,33 @@
       ((%module-loaded? name) ())
       (#t
         (do
+          (def %path (%module-resolve name))
+          ; A name no root holds is refused here, by name and with the roots
+          ; searched: the engine's include would say only "cannot open".
+          ; Probed through the open prim, as %include-into does: this runs
+          ; at boot, before Sys exists.
+          (def %open (prim-ref (lit sys) (lit open)))
+          (def %close (prim-ref (lit sys) (lit close)))
+          (def %int< (prim-ref (lit int) (lit <)))
+          (def %roots-str
+            (fn (self roots)
+              (match
+                ((eq? roots ()) "")
+                ((eq? (rest roots) ()) (first roots))
+                (#t (%str-append (first roots)
+                      (%str-append " " (self (rest roots))))))))
+          (def %fd (%open %path 0))
+          (match
+            ((%int< %fd 0) ())
+            (#t (%close %fd)))
+          (match
+            ((not (%int< %fd 0)) ())
+            (#t (error (%str-append "import: no module "
+                  (%str-append (symbol->str name)
+                    (%str-append " -- searched "
+                      (%roots-str (first %import-roots-cell))))))))
           ; register BEFORE loading -- cycle safety, mirrors include-once
           (%module-loaded! name)
-          (def %path (%module-resolve name))
           ; A module loads into the root, whoever imports it; its file's
           ; header, if it has one, makes the module's own environment.
           (%include-through (%module-root-env) %path name))))

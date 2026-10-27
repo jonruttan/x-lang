@@ -36,3 +36,11 @@
 (import x/core/predicates null? pair? atom?)
 ```
 ---
+
+### a module no root holds is refused by name, with the roots searched
+
+```x
+(guard (e e) (import x/nope/missing))
+```
+---
+    "import: no module x/nope/missing -- searched lib"
