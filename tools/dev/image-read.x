@@ -275,12 +275,17 @@
 ; the writer's child's (an engine path, "--batch", "--").  A lang booted from
 ; an image reads its operands from `args`, so the install is followed --
 ; inside the same form, since nothing this loader named survives it -- by a
-; def-global of this process's list: atomic (a C prim) evaluates the writes,
-; then the rebind, and the name is interned after the install, in the image's
-; table.  atomic leaves the environment as its forms leave it, which is the
-; image's.
+; def of this process's list, evaluated with eval! in the root: atomic (a C
+; prim) evaluates the writes, then the rebind.  The name is interned after
+; the install, in the image's table, so the def form is built after it too,
+; by the pair primitive resolved before; the list goes under lit, so def
+; binds it as it is.  atomic leaves the environment as its forms leave it,
+; which is the image's.
 (eval (list (eval (lit atomic)) %INSTALL
-        (list (prim! (lit base) (lit def-global)) (list %->sym (list (lit lit) "args")) (list (lit lit) args))))
+        (list (eval (lit eval!))
+              (list (eval (lit pair)) (list (lit lit) (lit def))
+                    (list (eval (lit pair)) (list %->sym (list (lit lit) "args"))
+                          (list (eval (lit pair)) (list (lit lit) (list (lit lit) args)) ()))))))
 
 ;  The library recomputes what it cached by address (spec 5.5).  Resolved
 ; in the image, as every form from here on is.

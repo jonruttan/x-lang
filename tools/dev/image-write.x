@@ -43,11 +43,16 @@
 ; pointers, the strings copied there, args as the child's own empty list.
 ;  The NAME is interned by the child -- (str ->sym) evaluated inside it --
 ; not this base's symbol handed over as a literal, which would key the
-; child's binding by an object on this base's chain.
+; child's binding by an object on this base's chain.  So the def form is
+; built inside the child too, from pair, and evaluated with eval!, which
+; binds in the child's root whatever environment is current there.  The
+; value form goes under lit: def evaluates it once, in the child.
 (def %child-def!
   (fn (_ nm form)
-    (%B eval (list (prim-ref (lit base) (lit def-global))
-                   (list (prim-ref (lit str) (lit ->sym)) (symbol->str nm)) form))))
+    (%B eval (list (lit eval!)
+                   (list (lit pair) (list (lit lit) (lit def))
+                         (list (lit pair) (list (prim-ref (lit str) (lit ->sym)) (symbol->str nm))
+                               (list (lit pair) (list (lit lit) form) ())))))))
 (def %child-prim!
   (fn (_ nm fnobj)
     (%child-def! nm (list (prim-ref (lit obj) (lit make-callable))

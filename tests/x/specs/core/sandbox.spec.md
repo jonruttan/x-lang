@@ -559,18 +559,19 @@ restores both env and boundary.
 ---
     77
 
-## base def-global
+## a def evaluated with eval! binds in the root
 
-`def` decides global-versus-local by save-stack depth, so a `def` inside an
-operative binds in that operative's own frame and the binding goes with it.
-`(base def-global)` takes the global path unconditionally, which is what a
-surface language's `define` needs: Scheme's and Kernel's are both operatives.
+`def` binds in the current environment, so a `def` inside an operative binds
+in that operative's own frame and the binding goes with it.  `eval!`
+evaluates its form in the root (engine law 10), so a `def` evaluated with it
+binds there whatever the frame depth, which is what a surface language's
+`define` needs: Scheme's and Kernel's are both operatives.  The value goes
+under `lit` so `def` does not evaluate it a second time.
 
 ### binds from inside an operative frame, where def does not
 
 ```x
-(do (def %dg (prim-ref 'base 'def-global))
-    (def %setter (op () e (%dg (lit %dg-probe) 7)))
+(do (def %setter (op () e (eval! (list (lit def) (lit %dg-probe) (list (lit lit) 7)))))
     (%setter)
     %dg-probe)
 ```
@@ -580,11 +581,11 @@ surface language's `define` needs: Scheme's and Kernel's are both operatives.
 ### and survives a frame interposed above it
 
 The failure mode this exists for: one extra wrapper frame is enough to lose a
-binding made the old way, and shadowing a name interposes exactly one.
+binding made in the current environment, and shadowing a name interposes
+exactly one.
 
 ```x
-(do (def %dg2 (prim-ref 'base 'def-global))
-    (def %inner (op () e (%dg2 (lit %dg-deep) 9)))
+(do (def %inner (op () e (eval! (list (lit def) (lit %dg-deep) (list (lit lit) 9)))))
     (def %outer (op () e (%inner)))
     (%outer)
     %dg-deep)
@@ -595,10 +596,28 @@ binding made the old way, and shadowing a name interposes exactly one.
 ### redefinition updates in place rather than shadowing
 
 ```x
-(do (def %dg3 (prim-ref 'base 'def-global))
-    (%dg3 (lit %dg-twice) 1)
-    (%dg3 (lit %dg-twice) 2)
+(do (def %dg-root (fn (_ n v) (eval! (list (lit def) n (list (lit lit) v)))))
+    (%dg-root (lit %dg-twice) 1)
+    (%dg-root (lit %dg-twice) 2)
     %dg-twice)
 ```
 ---
     2
+
+### the value under lit is bound as it is, not evaluated again
+
+```x
+(do (def %dg-root2 (fn (_ n v) (eval! (list (lit def) n (list (lit lit) v)))))
+    (%dg-root2 (lit %dg-list) (list 1 2))
+    %dg-list)
+```
+---
+    (1 2)
+
+## base def-global -- deliberately not specced here
+
+The primitive is retired: a `def` evaluated with `eval!` is the same
+operation (above), the lang bundles have moved to it, and the engine drops
+it in its next release.  The pinned engine still declares it, so this
+section stands until the pin moves to an engine without the row, and goes
+with that pin bump, as does the engine-min fixture's row.
