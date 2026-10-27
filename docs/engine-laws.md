@@ -97,7 +97,8 @@ An environment is `(bindings . parent)`: `bindings` a chain of
 environment, or nil at the root. It is a pair tree like everything else in
 the base, so `first` and `rest` walk it and the collector marks it with no
 special case. Shipped in x-engine-c v0.2.10, which retired the frame marks,
-the local boundary, the shadow list and `def-global` that stood in for it.
+the local boundary and the shadow list. `(base def-global)` stood in for it
+and is retired too: a `def` evaluated with `eval!` binds in the root.
 
 The rules:
 

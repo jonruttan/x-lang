@@ -390,8 +390,8 @@ test, not the unit test.
    (the intern table came with the image).
 6. A raised `Err` is caught as an object; `(Err label e)` answers; a C
    primitive's type error is the resident ERR.
-7. Collect safety: two collects, a top-level def, a `def-global` from
-   inside a call, printing, then lookups of each — ASan-clean.
+7. Collect safety: two collects, a top-level def, a def evaluated with
+   `eval!` from inside a call, printing, then lookups of each — ASan-clean.
 8. `#t` after load is `same?` as the loader's `x_true_obj`; the SYMBOL
    type's C reader is the same static as in a fresh base.
 9. Unresolved externals: 0.

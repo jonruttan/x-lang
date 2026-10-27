@@ -187,12 +187,13 @@
 ; Measured at x-r5rs e1d261e on x-lang v0.15.0: 667/0.
 (lang "r5rs"  "x-r5rs"  667  0)
 ; r7rs moved 43 -> 27 on x-engine-c v0.1.5, and the sixteen are all of `error`,
-; `error objects` and `guard`.  (base def-global) lets an operative define for
-; its caller, which is what this bundle's `guard` needed: R7RS guard and x's
-; guard are different forms sharing a name, so providing one means shadowing
-; the other, and shadowing interposes exactly the frame that broke the eval!
-; workaround.  The bundle changed nothing -- it already preferred the primitive
-; and fell back when it was absent.
+; `error objects` and `guard`.  An operative defining for its caller is what
+; this bundle's `guard` needed: R7RS guard and x's guard are different forms
+; sharing a name, so providing one means shadowing the other, and shadowing
+; interposes exactly the frame that broke the eval! workaround of the day.
+; The bundle changed nothing -- it preferred (base def-global) and fell back
+; when it was absent.  Since engine law 10, eval! evaluates in the root, so
+; a def evaluated with it is the definer and the primitive is retired.
 ;
 ; 43, not 58, and the correction is about measurement.  58 is what this suite
 ; reports when something else is running: an orphaned engine holding a core has
