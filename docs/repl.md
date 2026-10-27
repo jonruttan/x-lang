@@ -132,6 +132,27 @@ Colour follows the same switches everything else does: `NO_COLOR`,
 `TERM=dumb`, or `--no-color` turn it off, and with it off the painter is an
 identity function and costs nothing.
 
+**The colours are a theme.** Those colours are the default theme, and a theme
+file changes them for the REPL, the documentation and any editor that draws
+with `x/tool/syntax`. The file is `$X_THEME`, else
+`$XDG_CONFIG_HOME/x/theme.x`, else `~/.config/x/theme.x`; it is data, read and
+never evaluated:
+
+```
+; ~/.config/x/theme.x
+(theme default (comment (italic) 8 ()))        ; only comments change
+(theme warm (keyword (bold) 1 ()) (name () 3 ()))
+(use warm)
+```
+
+A row is `(CLASS ATTRIBUTES FOREGROUND BACKGROUND)`: the classes are
+`(Syntax classes)`, the attributes bold, dim, italic, underline, reverse and
+strike, and a colour 0-255 or `()` for the terminal's own. Each theme lies
+over the one of its name already known, else over the default, so it names
+only the classes it changes; `(use NAME)` picks the one drawn with. A file
+that does not read is one line on stderr and the default theme. Set
+`X_THEME` to the empty string to read none.
+
 ## Brackets
 
 Parens are coloured by nesting depth, cycling yellow, magenta, cyan from the

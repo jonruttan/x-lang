@@ -102,6 +102,7 @@ The grammar reads from the line that opens the top-level form.
 
 ```x
 (do (import x/tool/syntax)
+    (Theme use! (Theme default))
     (list (Syntax sgr 'string) (Syntax sgr 'punct) (Syntax code 'string)))
 ```
 ---
@@ -168,3 +169,148 @@ The grammar reads from the line that opens the top-level form.
 ```
 ---
     ('x ())
+
+## Themes
+
+### the default theme draws every class as the table before themes did
+
+```x
+(do (import x/tool/syntax)
+    (List map (fn (_ c) ((Theme default) sgr c)) (Syntax classes)))
+```
+---
+    ("\x1b[2m" "\x1b[32m" "\x1b[35m" "\x1b[33m" "\x1b[1;35m" "\x1b[1;31m" "\x1b[1;36m" "\x1b[2m" "\x1b[34m" "" "" "\x1b[35m" "\x1b[1;31m")
+
+### with puts rows over a theme: the classes they name change, the rest stay
+
+```x
+(do (import x/tool/syntax)
+    (let ((t ((Theme default) with '((number (bold underline) 3 ()) (string () () 4)))))
+      (list (t name) (t sgr 'number) (t sgr 'string) (t sgr 'keyword)
+            (((Theme default) with '() 'copy) name))))
+```
+---
+    ('default "\x1b[1;4;33m" "\x1b[44m" "\x1b[1;35m" 'copy)
+
+### make draws only the classes it is given; an unknown class or attribute is refused
+
+```x
+(do (import x/tool/syntax)
+    (let ((t (Theme make 'mono '((keyword (bold) () ()) (number () 196 ())))))
+      (list (t sgr 'keyword) (t sgr 'number) (t sgr 'string) (t style 'string)
+            (guard (e (Err label e)) (Theme make 'bad '((nope () 1 ()))))
+            (guard (e (Err label e)) (Theme make 'bad '((name (shiny) () ())))))))
+```
+---
+    ("\x1b[1m" "\x1b[38;5;196m" "" 0 'value 'value)
+
+### the theme in use is what sgr and ansi draw with
+
+```x
+(do (import x/tool/syntax)
+    (let ((was (Theme current))
+          (t (Theme make 'k '((keyword (reverse) () ())))))
+      (Theme use! t)
+      (def seen (list (Syntax sgr 'keyword) (Syntax sgr 'name)
+                      (Syntax ansi "(def x)" ((Syntax x) spans "(def x)") 1 3
+                        (fn (_ sp) (if (eq? (first (rest (rest sp))) 'keyword) (Syntax sgr 'keyword) ())))))
+      (Theme use! was)
+      (list seen (eq? (Theme current) was))))
+```
+---
+    (("\x1b[7m" "" "\x1b[7mdef\x1b[0m") #t)
+
+### registered themes are named; default is always there
+
+```x
+(do (import x/tool/syntax)
+    (Theme register! (Theme make 'spec-dark '((comment (italic) 8 ()))))
+    (list ((Theme named 'spec-dark) sgr 'comment) (Theme named 'spec-none)
+          (eq? (Theme named 'default) (Theme default))
+          (List includes? 'spec-dark (Theme names)) (List last (Theme names))))
+```
+---
+    ("\x1b[3;90m" () #t #t 'default)
+
+### a theme file's themes lie over the ones known, and its use is the theme in use
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/tool/syntax)
+  (def tmp (File temp "/tmp/x-spec-theme-"))
+  (File close (first tmp))
+  (def p (rest tmp))
+  (File write-all p
+    "; mine\n(theme default (comment (italic) () ()))\n(theme warm (keyword (bold) 1 ()))\n(use warm)\n")
+  (def was (Theme current))
+  (def themes (Theme load! p))
+  (def seen
+    (list (List map (fn (_ t) (t name)) themes)
+          ((Theme current) name)
+          ((Theme current) sgr 'keyword)
+          ((Theme current) sgr 'number)
+          ((Theme named 'default) sgr 'comment)
+          ((Theme named 'default) sgr 'number)
+          ((Theme default) sgr 'comment)))
+  (File unlink p)
+  (Theme forget!)
+  (Theme use! was)
+  seen)
+```
+---
+    (('default 'warm) 'warm "\x1b[1;31m" "\x1b[33m" "\x1b[3m" "\x1b[33m" "\x1b[2m")
+
+### a theme file that does not read changes nothing
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/tool/syntax)
+  (def tmp (File temp "/tmp/x-spec-theme-"))
+  (File close (first tmp))
+  (def p (rest tmp))
+  (def was (Theme current))
+  (File write-all p "(theme warm (keyword (bold) 1 ()))\n(use cold)\n")
+  (def a (guard (e (Err label e)) (Theme load! p)))
+  (File write-all p "(colour keyword red)\n")
+  (def b (guard (e (Err label e)) (Theme load! p)))
+  (File unlink p)
+  (list a b (Theme named 'warm) (eq? (Theme current) was)))
+```
+---
+    ('value 'value () #t)
+
+### the theme file is X_THEME, and an empty X_THEME reads none
+
+```x
+(do (import x/sys/posix) (import x/tool/syntax)
+  (def was (Sys getenv "X_THEME"))
+  (Sys setenv "X_THEME" "/tmp/x-spec-theme-file")
+  (def a (Theme file))
+  (Sys setenv "X_THEME" "")
+  (def b (Theme file))
+  (Sys setenv "X_THEME" (if (null? was) "" was))
+  (list a b))
+```
+---
+    ("/tmp/x-spec-theme-file" ())
+
+### the user's theme file is read on first use; one that does not read leaves the default
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/tool/syntax)
+  (def tmp (File temp "/tmp/x-spec-theme-"))
+  (File close (first tmp))
+  (def p (rest tmp))
+  (def was (Sys getenv "X_THEME"))
+  (Sys setenv "X_THEME" p)
+  (File write-all p "(theme warm (keyword (bold) 1 ()))\n(use warm)\n")
+  (Theme forget!)
+  (def a ((Theme current) name))
+  (File write-all p "(theme warm (keyword (shiny) 1 ()))\n(use warm)\n")
+  (Theme forget!)
+  (def b ((Theme current) name))
+  (File unlink p)
+  (Theme forget!)
+  (Sys setenv "X_THEME" (if (null? was) "" was))
+  (list a b (Theme named 'warm)))
+```
+---
+    ('warm 'default ())

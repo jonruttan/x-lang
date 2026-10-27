@@ -19,6 +19,11 @@
 ; classifies without this file knowing its syntax.  The constructs are
 ; lib/x/constructs.x, the list the formatter, the linter and the
 ; documentation read.
+;
+; How a terminal draws each class is a theme: a Style (x/tui/style) a class,
+; data apart from any grammar.  The theme in use is the default unless the
+; user's theme file names another; the file is read on first use, so a
+; process that never colours does not open it.
 
 (module x/tool/syntax)
 (import x/type/class)
@@ -27,8 +32,10 @@
 (import x/type/list)
 (import x/reader/lexer)
 (import x/repl/ansi)
+(import x/sys/posix)
 (import x/sys/file)
 (import x/sys/stream)
+(import x/tui/style)
 
 ; The walks run per token and per byte, so they ride cached prims: a class
 ; door costs a dispatch and allocates.
@@ -45,23 +52,38 @@
 
 ; --- the classes --------------------------------------------------------------
 
-; Each class, its Rouge token class and its SGR parameters.  A class's index
-; is its place here from 1, the byte a cell row holds being 64 plus it; a
-; byte of no class is a space.
+; Each class and its Rouge token class.  A class's index is its place here
+; from 1, the byte a cell row holds being 64 plus it; a byte of no class is a
+; space.
 (def %sx-table
-  (list (list (lit comment)  "c1"  "2")
-        (list (lit string)   "s"   "32")
-        (list (lit char)     "sc"  "35")
-        (list (lit number)   "m"   "33")
-        (list (lit keyword)  "k"   "1;35")
-        (list (lit constant) "kc"  "1;31")
-        (list (lit class)    "nc"  "1;36")
-        (list (lit private)  "nv"  "2")
-        (list (lit name)     "n"   "34")
-        (list (lit punct)    "p"   "")
-        (list (lit operator) "o"   "")
-        (list (lit escape)   "se"  "35")
-        (list (lit error)    "err" "1;31")))
+  (list (list (lit comment)  "c1")
+        (list (lit string)   "s")
+        (list (lit char)     "sc")
+        (list (lit number)   "m")
+        (list (lit keyword)  "k")
+        (list (lit constant) "kc")
+        (list (lit class)    "nc")
+        (list (lit private)  "nv")
+        (list (lit name)     "n")
+        (list (lit punct)    "p")
+        (list (lit operator) "o")
+        (list (lit escape)   "se")
+        (list (lit error)    "err")))
+
+; The default theme, each row (CLASS ATTRIBUTES FOREGROUND BACKGROUND) as
+; Style make takes them; punct and operator are drawn plain.
+(def %sx-default-rows
+  (list (list (lit comment)  (lit (dim))  () ())
+        (list (lit string)   ()           2  ())
+        (list (lit char)     ()           5  ())
+        (list (lit number)   ()           3  ())
+        (list (lit keyword)  (lit (bold)) 5  ())
+        (list (lit constant) (lit (bold)) 1  ())
+        (list (lit class)    (lit (bold)) 6  ())
+        (list (lit private)  (lit (dim))  () ())
+        (list (lit name)     ()           4  ())
+        (list (lit escape)   ()           5  ())
+        (list (lit error)    (lit (bold)) 1  ())))
 
 (def %sx-row
   (fn (self cls rows)
@@ -77,16 +99,95 @@
       ((eq? cls (first (first rows))) i)
       (#t (self cls (rest rows) (%sx+ i 1))))))
 
-(def %sx-escape (fn (_ params) (%sx-append "\x1b[" (%sx-append params "m"))))
 (def %sx-reset "\x1b[0m")
 
-; The SGR sequence of a class, whether or not the terminal takes colour;
-; empty for a class drawn plain.
+; --- themes -------------------------------------------------------------------
+
+; A class's sequence sets its style over the plain one: every renderer resets
+; after a span, so the reset Style's sequence starts with is left off, and a
+; plain style has no sequence.
+(def %sx-code
+  (fn (_ style)
+    (if (= style 0) ""
+      (let ((s (Style sgr style)))
+        (%sx-append "\x1b[" (%sx-bsub s 4 (%sx- (%sx-blen s) 4)))))))
+
+; Each (CLASS . STYLE) of rows (CLASS ATTRIBUTES FOREGROUND BACKGROUND).
+(def %sx-styles
+  (fn (_ rows)
+    (List map
+      (fn (_ row)
+        (if (= (%sx-index (first row) %sx-table 1) 0)
+          (Err raise (lit value) "Theme: no such class" (first row))
+          (pair (first row)
+                (Style make (first (rest row)) (first (rest (rest row)))
+                            (first (rest (rest (rest row))))))))
+      rows)))
+
+; Styles over base's: a class in over replaces base's.
+(def %sx-over
+  (fn (_ base over)
+    (List append over (List filter (fn (_ p) (null? (%sx-row (first p) over))) base))))
+
+; The SGR sequence of a class in the codes a theme holds, empty for a class
+; drawn plain.
 (def %sx-sgr
-  (fn (_ cls)
-    (def row (%sx-row cls %sx-table))
-    (def params (if (null? row) "" (first (rest (rest row)))))
-    (if (= (%sx-blen params) 0) "" (%sx-escape params))))
+  (fn (_ codes cls)
+    (let ((row (%sx-row cls codes))) (if (null? row) "" (rest row)))))
+
+(def %sx-theme (pair () ()))
+(def %sx-default (pair () ()))
+; Themes register! added, kept in an image; and the user's file's, read on
+; first use and dropped by forget!, as (THEMES) once read.
+(def %sx-themes (pair () ()))
+(def %sx-user (pair () ()))
+
+; $X_THEME, else $XDG_CONFIG_HOME/x/theme.x, else ~/.config/x/theme.x; nil
+; for an empty X_THEME or no home.
+(def %sx-theme-file
+  (fn (_)
+    (let ((o (Sys getenv "X_THEME")))
+      (if (not (null? o)) (if (= (%sx-blen o) 0) () o)
+        (let ((c (Sys getenv "XDG_CONFIG_HOME")) (h (Sys getenv "HOME")))
+          (if (not (null? c)) (%sx-append c "/x/theme.x")
+            (if (null? h) () (%sx-append h "/.config/x/theme.x"))))))))
+
+; The user's file, read once.  No file is no themes; one that does not read
+; is one line on stderr and the default, as an unreadable construct list is.
+(def %sx-read-user!
+  (fn (_)
+    (if (null? (first %sx-user))
+      (let ((path (%sx-theme-file)))
+        (%set-first! %sx-user (list ()))
+        (if (if (null? path) #f (File exists? path))
+          (guard (e (Stream with-fd 2
+                      (fn (_)
+                        (display "x/tool/syntax: theme file " path " unreadable (" e
+                                 ") -- the default theme is used\n"))))
+            (Theme load! path))
+          ()))
+      ())))
+
+; The themes and the theme to use a theme file's forms name, (THEMES . USE),
+; nothing registered yet: each (theme NAME ROW ...) is ROWS over the theme of
+; that name the file or the registry already has, else over the default, and
+; (use NAME) the theme to use.
+(def %sx-theme-forms
+  (fn (self forms themes use)
+    (if (null? forms) (pair themes use)
+      (let ((f (first forms)))
+        (match
+          ((if (pair? f) (eq? (first f) (lit theme)) #f)
+            (let ((name (first (rest f))))
+              (def base (let ((t (List find (fn (_ t) (eq? (t name) name)) themes)))
+                          (if (null? t) (Theme named name) t)))
+              (self (rest forms)
+                    (pair ((if (null? base) (Theme default) base) with (rest (rest f)) name)
+                          themes)
+                    use)))
+          ((if (pair? f) (eq? (first f) (lit use)) #f)
+            (self (rest forms) themes (first (rest f))))
+          (#t (Err raise (lit value) "Theme: a theme file holds (theme NAME ROW ...) and (use NAME)" f)))))))
 
 ; --- reading ------------------------------------------------------------------
 
@@ -283,6 +384,127 @@
 (def %sx-x (pair () ()))
 (def %sx-registry (pair () ()))
 
+; --- the Theme class ------------------------------------------------------------
+
+(def-class Theme ()
+  (doc "How a terminal draws each class: a Style (x/tui/style) a class, a class the theme leaves out drawn plain. The theme in use, (Theme current), is what Syntax ansi, sgr and code draw with."
+    (note "The user's theme file is $X_THEME, else $XDG_CONFIG_HOME/x/theme.x, else ~/.config/x/theme.x, and an empty X_THEME reads none. It is data, read and never evaluated: each (theme NAME ROW ...) is a theme, its rows over the theme of that name already known, else over the default, and (use NAME) the theme to use. A row is (CLASS ATTRIBUTES FOREGROUND BACKGROUND) as Style make takes them, so (theme default (comment (italic) 8 ())) changes only comments.")
+    (note "The file is read on the first use of a theme, and again after forget!; one that does not read is one line on stderr and the default theme.")
+    (example "((Theme default) style 'keyword)" "1537")
+    (example "((Theme default) sgr 'number)" "\"\\x1b[33m\""))
+  (doc (name ()) "The theme's name, a symbol")
+  (doc (styles ()) "Each (CLASS . STYLE): STYLE a Style integer")
+  (doc (codes ()) "Each (CLASS . SEQUENCE): the SGR sequence that draws the class, as sgr answers it")
+
+  (method style (self (param cls SYMBOL "A class"))
+    (doc "The Style the theme draws a class with, 0 (plain) for one it leaves out."
+      (returns INTEGER "A Style")
+      (example "((Theme default) style 'punct)" "0"))
+    (let ((row (%sx-row cls (self styles)))) (if (null? row) 0 (rest row))))
+
+  (method sgr (self (param cls SYMBOL "A class"))
+    (doc "The SGR sequence that draws a class over the plain style, empty for a class drawn plain. A renderer resets after each span, so the sequence does not reset first."
+      (returns STRING "The escape sequence")
+      (example "((Theme default) sgr 'keyword)" "\"\\x1b[1;35m\""))
+    (%sx-sgr (self codes) cls))
+
+  (method with (self (param rows LIST "Rows (CLASS ATTRIBUTES FOREGROUND BACKGROUND), as make takes them")
+                     . (param name LIST "Optionally the new theme's name; the same name if left out"))
+    (doc "A theme with the rows over this one's: a class in rows is drawn as they say, every other as before."
+      (returns Theme "The theme")
+      (example "(((Theme default) with '((number (bold) 3 ()))) sgr 'number)" "\"\\x1b[1;33m\""))
+    (let ((styles (%sx-over (self styles) (%sx-styles rows)))
+          (called (if (null? name) (self name) (first name))))
+      (def codes (List map (fn (_ p) (pair (first p) (%sx-code (rest p)))) styles))
+      (new Theme name called styles styles codes codes)))
+
+  (static
+    (method make (self (param name SYMBOL "The theme's name")
+                       (param rows LIST "Rows (CLASS ATTRIBUTES FOREGROUND BACKGROUND), ATTRIBUTES, FOREGROUND and BACKGROUND as Style make takes them"))
+      (doc "A theme drawing each class in rows as it says, and every other plain. Register it to have named and the theme file find it."
+        (returns Theme "The theme")
+        (example "((Theme make 'mono '((keyword (bold) () ()))) sgr 'string)" "\"\""))
+      (let ((styles ()) (codes ())) ((new Theme name name styles styles codes codes) with rows)))
+
+    (method default (self)
+      (doc "The default theme: comments and privates dim; strings green, numbers yellow, names blue, characters and escapes magenta; keywords, constants and classes bold in magenta, red and cyan; errors bold red; punctuation and operators plain."
+        (returns Theme "The theme"))
+      (if (null? (first %sx-default))
+        (%set-first! %sx-default (Theme make (lit default) %sx-default-rows))
+        ())
+      (first %sx-default))
+
+    (method register! (self (param t Theme "A theme"))
+      (doc "Add a theme to the ones named finds; one of the same name is replaced. A theme file's themes are found before registered ones."
+        (returns Theme "The theme"))
+      (%set-first! %sx-themes
+        (pair t (List filter (fn (_ h) (not (eq? (h name) (t name)))) (first %sx-themes))))
+      t)
+
+    (method named (self (param name SYMBOL "A theme's name"))
+      (doc "The theme of that name: the user's theme file's, else a registered one, else the default for default; nil for none."
+        (returns Theme "The theme, or nil")
+        (example "(eq? (Theme named 'default) (Theme default))" "#t"))
+      (%sx-read-user!)
+      (let ((t (List find (fn (_ t) (eq? (t name) name))
+                 (List append (first (first %sx-user)) (first %sx-themes)))))
+        (match ((not (null? t)) t) ((eq? name (lit default)) (Theme default)) (#t ()))))
+
+    (method names (self)
+      (doc "The names named answers a theme for, the default's last."
+        (returns LIST "Theme names")
+        (example "(List last (Theme names))" "'default"))
+      (%sx-read-user!)
+      (List distinct
+        (List append (List map (fn (_ t) (t name)) (List append (first (first %sx-user)) (first %sx-themes)))
+                     (list (lit default)))))
+
+    (method current (self)
+      (doc "The theme in use: the one use! set, else the one the user's theme file names with (use NAME), else the default."
+        (returns Theme "The theme"))
+      (%sx-read-user!)
+      (if (null? (first %sx-theme)) (%set-first! %sx-theme (Theme default)) ())
+      (first %sx-theme))
+
+    (method use! (self (param t Theme "A theme"))
+      (doc "Draw with a theme from now on."
+        (returns Theme "The theme"))
+      (%sx-read-user!)
+      (%set-first! %sx-theme t)
+      t)
+
+    (method file (self)
+      (doc "The user's theme file: $X_THEME, else $XDG_CONFIG_HOME/x/theme.x, else ~/.config/x/theme.x; nil for an empty X_THEME or no home. The file need not exist."
+        (returns STRING "The path, or nil"))
+      (%sx-theme-file))
+
+    (method load! (self (param path STRING "A theme file"))
+      (doc "Read a theme file: its themes join the ones named finds, ahead of any of the same name, and its (use NAME) becomes the theme in use. Nothing changes when the file does not read."
+        (returns LIST "The file's themes")
+        (sample "(Theme load! \"/home/me/.config/x/theme.x\")" "its themes"))
+      (let ((r (%sx-theme-forms (%sx-read (%base) (File read-all path)) () ())))
+        (def themes (List reverse (first r)))
+        (def use (if (null? (rest r)) ()
+                   (let ((t (List find (fn (_ t) (eq? (t name) (rest r))) themes)))
+                     (if (null? t) (Theme named (rest r)) t))))
+        (if (if (null? use) (not (null? (rest r))) #f)
+          (Err raise (lit value) "Theme: use names no theme" (rest r))
+          ())
+        (def known (if (null? (first %sx-user)) () (first (first %sx-user))))
+        (%set-first! %sx-user
+          (list (List append themes
+                  (List filter (fn (_ h) (null? (List find (fn (_ t) (eq? (t name) (h name))) themes)))
+                    known))))
+        (if (null? use) () (%set-first! %sx-theme use))
+        themes))
+
+    (method forget! (self)
+      (doc "Drop the theme in use and the theme file's themes, read again on next use; registered themes stay."
+        (returns NIL "Nothing"))
+      (%set-first! %sx-theme ())
+      (%set-first! %sx-user ())
+      ())))
+
 ; --- the Syntax class: the API -------------------------------------------------
 
 (def-class Syntax ()
@@ -393,33 +615,34 @@
       (let ((row (%sx-row cls %sx-table))) (if (null? row) () (first (rest row)))))
 
     (method sgr (self (param cls SYMBOL "A class"))
-      (doc "The SGR sequence a class is drawn with, whether or not standard output takes colour: for a screen editor that writes to its own terminal. Empty for a class drawn plain."
+      (doc "The SGR sequence a class is drawn with in the theme in use, whether or not standard output takes colour: for a screen editor that writes to its own terminal. Empty for a class drawn plain."
         (returns STRING "The escape sequence")
-        (example "(Syntax sgr 'number)" "\"\\x1b[33m\""))
-      (%sx-sgr cls))
+        (sample "(Syntax sgr 'number)" "\"\\x1b[33m\" in the default theme"))
+      ((Theme current) sgr cls))
 
     (method code (self (param cls SYMBOL "A class"))
-      (doc "The SGR sequence a class is drawn with when standard output takes colour (Ansi enabled?), else empty."
+      (doc "The SGR sequence a class is drawn with in the theme in use when standard output takes colour (Ansi enabled?), else empty."
         (returns STRING "The escape sequence, or empty"))
-      (if (Ansi enabled?) (%sx-sgr cls) ""))
+      (if (Ansi enabled?) ((Theme current) sgr cls) ""))
 
     (method ansi (self (param text STRING "The text the spans index")
                        (param spans LIST "Spans, as spans answers them")
                        (param start INTEGER "The first byte to draw")
                        (param len INTEGER "How many bytes")
                        . (param code-of LIST "Optionally (fn (_ span)) answering a span's escape sequence, or nil for its class's"))
-      (doc "The bytes of text from start, each span's wrapped in its class's sequence and a reset, the rest plain. The sequences are code's, empty when colour is off, unless code-of answers one."
+      (doc "The bytes of text from start, each span's wrapped in its class's sequence and a reset, the rest plain. The sequences are code's, the theme in use's and empty when colour is off, unless code-of answers one."
         (returns STRING "The text with escape sequences inserted")
         (sample "(Syntax ansi s ((Syntax x) spans s) 0 (Str8 length s))" "s coloured as x-lang"))
       (def own (if (null? code-of) () (first code-of)))
       (def on? (Ansi enabled?))
+      (def codes ((Theme current) codes))
       (Str8 join ""
         (%sx-render spans start (%sx+ start len)
           (fn (_ a n) (%sx-bsub text a n))
           (fn (_ sp a n)
             (def t (%sx-bsub text a n))
             (let ((c (let ((o (if (null? own) () (own sp))))
-                       (if (null? o) (if on? (%sx-sgr (first (rest (rest sp)))) "") o))))
+                       (if (null? o) (if on? (%sx-sgr codes (first (rest (rest sp)))) "") o))))
               (if (= (%sx-blen c) 0) t (%sx-append c (%sx-append t %sx-reset)))))
           ())))
 
@@ -478,10 +701,13 @@
       ())))
 
 ; A run string holds no state an image cannot carry, but what the reader
-; answers can change across a load, so the memo goes with it.
-(set! %image-recache-hooks (pair (fn (_) (Syntax forget!)) %image-recache-hooks))
+; answers can change across a load, so the memo goes with it.  The theme in
+; use goes too: the theme file an image is made under is not its user's.
+(set! %image-recache-hooks
+  (pair (fn (_) (do (Syntax forget!) (Theme forget!))) %image-recache-hooks))
 
-(doc (provide x/tool/syntax Syntax)
+(doc (provide x/tool/syntax Syntax Theme)
   (note "One vocabulary of classes, one span shape, three renderers: a grammar never writes markup, and a renderer never reads text.")
+  (note "Theme says how a terminal draws each class; the user's theme file chooses one.")
   (note "x/repl/paint colours the REPL line and x/tool/highlight the documentation from (Syntax x).")
   "Syntax: lexical grammars and the renderers that draw their spans.")
