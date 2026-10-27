@@ -661,11 +661,12 @@ is simply correct -- inline type tests in the wrappers, nil included.
 
 ## the comparisons' guards cost a few objects
 
-The nil and arity guards on `<`, `>`, `<=` and `>=` test with `eq?` against
-nil and `if`, not `null?` and `or`: `or` is an operative that evaluates its
-arms, and the comparisons sit under every loop bound and every sort.  `<`
-makes fewer than 50 objects a call over the integer door, the derived three
-fewer than 120.
+The nil guards on `<`, `>`, `<=` and `>=` are `match` clauses testing with
+`eq?` against nil, not `if`, `null?` or `or`: an `if` costs ~17 objects an
+evaluation and a `match` none, `or` is an operative that evaluates its arms,
+and the comparisons sit under every loop bound and every sort.  `<` makes
+fewer than 20 objects a call over the integer door (10 measured: the closure
+call), the derived three fewer than 40 (20 measured: their call, and `<`'s).
 
 ### a comparison's cost over the integer door
 
@@ -678,10 +679,10 @@ fewer than 120.
     (- (Heap count) c0)))
 (def %door (prim-ref (lit int) (lit <)))
 (def %door-cost (%cost (fn (_) (%door 4 0))))
-(list (< (- (%cost (fn (_) (< 4 0))) %door-cost) (* 50 100))
-      (< (- (%cost (fn (_) (> 4 0))) %door-cost) (* 120 100))
-      (< (- (%cost (fn (_) (<= 4 0))) %door-cost) (* 120 100))
-      (< (- (%cost (fn (_) (>= 4 0))) %door-cost) (* 120 100))
+(list (< (- (%cost (fn (_) (< 4 0))) %door-cost) (* 20 100))
+      (< (- (%cost (fn (_) (> 4 0))) %door-cost) (* 40 100))
+      (< (- (%cost (fn (_) (<= 4 0))) %door-cost) (* 40 100))
+      (< (- (%cost (fn (_) (>= 4 0))) %door-cost) (* 40 100))
       (list (< 1 2) (> 1 2) (<= 2 2) (>= 1 2)))
 ```
 ---

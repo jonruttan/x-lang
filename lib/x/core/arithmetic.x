@@ -109,32 +109,32 @@
 ; The arity test runs ONCE, at wrap time, picking the unary or binary closure;
 ; the returned wrapper only does the checks the operator actually needs.
 ;
-; COUNTING ARGUMENTS IS NOT ENOUGH. A nil operand reaches the prim and is
-; dereferenced exactly like a missing one: x_prim_lt reads x_intval(NULL)
-; (src/x-prim/pred.c) where x_prim_eq is explicitly nil-safe. The arity case
-; alone therefore left (< 1 ()) live, and with it every derived comparison in
-; core/logic.x -- (> 1) binds b to nil and calls (< nil 1), which passes an
-; arity test with two arguments and then dies. Reject nil here, once, rather
-; than at each caller.
+; The wrapper takes its operands POSITIONALLY, not as a rest list.  A
+; missing operand binds nil, which is also what an explicit () arrives as,
+; and either one reaches the prim and is dereferenced: x_prim_lt reads
+; x_intval(NULL) (src/x-prim/pred.c) where x_prim_eq is explicitly
+; nil-safe, so (< 1) and (< 1 ()) were both live crashes.  One nil test
+; covers both.  The tests are `match` clauses, not `if`: an `if` costs ~17
+; objects an evaluation and a `match` none, and these wrappers sit under
+; every loop bound and every sort (a `<` was 25 objects over the door's 0
+; as a rest-list `match` holding an `if`; the same shape x-lang#807 found
+; in the syscall door).
 ;
-; The operator NAME is passed rather than a finished message: two faults now
-; need wording, and %str-append (boot/string.x, loaded well before this file)
-; builds both without duplicating a literal per operator.
+; The operator NAME is passed rather than a finished message, so %str-append
+; (boot/string.x, loaded well before this file) builds it without
+; duplicating a literal per operator.
 (def %arith-guard
   (fn (_ n name prim)
     (if (eq? n 1)
-      (fn (_ . args)
+      (fn (_ a)
         (match
-          ((eq? args ()) (error (%str-append name ": needs one argument")))
-          ((eq? (first args) ()) (error (%str-append name ": operand is nil")))
-          (#t (prim (first args)))))
-      (fn (_ . args)
+          ((eq? a ()) (error (%str-append name ": needs one operand, not nil")))
+          (#t (prim a))))
+      (fn (_ a b)
         (match
-          ((eq? args ()) (error (%str-append name ": needs two arguments")))
-          ((eq? (rest args) ()) (error (%str-append name ": needs two arguments")))
-          ((if (eq? (first args) ()) #t (eq? (first (rest args)) ()))
-            (error (%str-append name ": operands must not be nil")))
-          (#t (prim (first args) (first (rest args)))))))))
+          ((eq? a ()) (error (%str-append name ": needs two operands, neither nil")))
+          ((eq? b ()) (error (%str-append name ": needs two operands, neither nil")))
+          (#t (prim a b)))))))
 
 ; Strict-INT variant for bitwise operators (#52 ruled): these have no tower
 ; semantics -- there is no float `&` and never will be -- so unlike `<`
@@ -149,26 +149,30 @@
 ; utf8 decode masks those bytes with & directly) -- the char/int pun is
 ; contract here, matching op-guard's exemption.
 (def %arith-char-t (%arith-type-of #\A))
-(def %arith-int-ok?
-  (fn (_ t) (match ((eq? t %arith-int-t) #t) (#t (eq? t %arith-char-t)))))
 (def %arith-int-guard
   (fn (_ n name prim)
     (if (eq? n 1)
-      (fn (_ . args)
+      (fn (_ a)
+        (def t (%arith-type-of a))
         (match
-          ((eq? args ()) (error (%str-append name ": needs one argument")))
-          ((not (%arith-int-ok? (%arith-type-of (first args))))
-            (error (%str-append name ": operand must be an integer")))
-          (#t (prim (first args)))))
-      (fn (_ . args)
+          ((eq? t %arith-int-t) (prim a))
+          ((eq? t %arith-char-t) (prim a))
+          (#t (error (%str-append name ": operand must be an integer")))))
+      (fn (_ a b)
+        (def ta (%arith-type-of a))
+        (def tb (%arith-type-of b))
         (match
-          ((eq? args ()) (error (%str-append name ": needs two arguments")))
-          ((eq? (rest args) ()) (error (%str-append name ": needs two arguments")))
-          ((not (%arith-int-ok? (%arith-type-of (first args))))
-            (error (%str-append name ": operands must be integers")))
-          ((not (%arith-int-ok? (%arith-type-of (first (rest args)))))
-            (error (%str-append name ": operands must be integers")))
-          (#t (prim (first args) (first (rest args)))))))))
+          ((eq? ta %arith-int-t)
+            (match
+              ((eq? tb %arith-int-t) (prim a b))
+              ((eq? tb %arith-char-t) (prim a b))
+              (#t (error (%str-append name ": operands must be integers")))))
+          ((eq? ta %arith-char-t)
+            (match
+              ((eq? tb %arith-int-t) (prim a b))
+              ((eq? tb %arith-char-t) (prim a b))
+              (#t (error (%str-append name ": operands must be integers")))))
+          (#t (error (%str-append name ": operands must be integers"))))))))
 
 (set! &  (%arith-int-guard 2 "&"  &))
 (set! |  (%arith-int-guard 2 "|"  |))
