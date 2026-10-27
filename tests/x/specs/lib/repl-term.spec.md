@@ -285,3 +285,65 @@ A fresh string is space-filled, so every byte but ISIG's reads 32 after.
 ```
 ---
     (80 . 24)
+
+## Modes by name, on a pseudo-terminal
+
+A pseudo-terminal's slave is a terminal no one is typing at, so its modes
+are the system's defaults and can be set and read back.
+
+### a new terminal's modes: canonical, echoing, signalling, ^C its interrupt
+
+```x
+(do (import x/repl/term) (import x/sys/pty) (import x/sys/file)
+    (def p (Pty open))
+    (def s (File open (rest p) (list 'rdwr 'noctty)))
+    (def m (Term modes s))
+    (def r (List map (fn (_ k) (Assoc get k m)) (list 'icanon 'echo 'isig 'vintr 'cs8 'cs7)))
+    (File close s) (File close (first p))
+    (list r (> (Assoc get 'ospeed m) 0)))
+```
+---
+    ((#t #t #t 3 #t #f) #t)
+
+### modes set by name read back, in order, a name this OS lacks passed over
+
+```x
+(do (import x/repl/term) (import x/sys/pty) (import x/sys/file)
+    (def p (Pty open))
+    (def s (File open (rest p) (list 'rdwr 'noctty)))
+    (def ok (Term modes! s (list (pair 'echo #f) (pair 'icrnl #f) (pair 'vintr 7) (pair 'verase ())
+                                 (pair 'opost #f) (pair 'ispeed 19200) (pair 'ospeed 19200) (pair 'no-such-mode #t))))
+    (def m (Term modes s))
+    (def r (List map (fn (_ k) (Assoc get k m)) (list 'echo 'icrnl 'icanon 'vintr 'verase 'opost 'ispeed 'ospeed)))
+    (File close s) (File close (first p))
+    (list ok r))
+```
+---
+    (#t (#f #f #t 7 () #f 19200 19200))
+
+### cs7 then cs8, as an 8-bit terminal's request may carry both, ends at 8
+
+```x
+(do (import x/repl/term) (import x/sys/pty) (import x/sys/file)
+    (def p (Pty open))
+    (def s (File open (rest p) (list 'rdwr 'noctty)))
+    (Term modes! s (list (pair 'cs7 #t) (pair 'cs8 #t)))
+    (def m (Term modes s))
+    (def r (list (Assoc get 'cs7 m) (Assoc get 'cs8 m)))
+    (File close s) (File close (first p))
+    r)
+```
+---
+    (#f #t)
+
+### a pipe has no modes: modes is nil and modes! declines
+
+```x
+(do (import x/repl/term)
+    (def fds (Sys pipe))
+    (def r (list (Term modes (first fds)) (Term modes! (first fds) (list (pair 'echo #f)))))
+    (Sys close (first fds)) (Sys close (rest fds))
+    r)
+```
+---
+    (() #f)

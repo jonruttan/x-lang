@@ -46,6 +46,11 @@
     (c-tcget   ()  "tcgetattr")
     (c-tcset   ()  "tcsetattr")
     (c-cfraw   ()  "cfmakeraw")
+    (c-igetsp  ()  "cfgetispeed")
+    (c-ogetsp  ()  "cfgetospeed")
+    (c-isetsp  ()  "cfsetispeed")
+    (c-osetsp  ()  "cfsetospeed")
+    (mode-rows ()  "The named modes this OS has, as (NAME WHERE VALUE): WHERE a flag word 0-3 and VALUE its bit, 'cc and VALUE the character's index, or 'size and VALUE a CSIZE setting")
 
     ; TCSADRAIN: apply the change once pending output has drained, and keep
     ; input that has arrived but not been read.  1 on both Linux and Darwin.
@@ -77,7 +82,12 @@
           (Term libc L)
           (Term c-tcget (dlsym L "tcgetattr"))
           (Term c-tcset (dlsym L "tcsetattr"))
-          (Term c-cfraw (dlsym L "cfmakeraw"))))
+          (Term c-cfraw (dlsym L "cfmakeraw"))
+          (Term c-igetsp (dlsym L "cfgetispeed"))
+          (Term c-ogetsp (dlsym L "cfgetospeed"))
+          (Term c-isetsp (dlsym L "cfsetispeed"))
+          (Term c-osetsp (dlsym L "cfsetospeed"))))
+      (Term mode-rows (Term %mode-rows))
       (Term tiocgwinsz (if os-darwin? 1074295912 21523))
       ; -1 when this platform's table has no ioctl, which `size` reads as
       ; "ask the environment instead".
@@ -151,6 +161,172 @@
         (let ((call (prim-ref (lit ptr) (lit call)))
               (toptr (prim-ref (lit str) (lit ->ptr))))
           (>= (Sys %sign-fold (call (Term c-tcset) fd (Term tcsadrain) (toptr saved))) 0))))
+
+    ; --- modes ----------------------------------------------------------------
+    ;
+    ; The one place this file knows struct termios's layout, because a mode
+    ; by name is a field: the four flag words are tcflag_t, 8 bytes on Darwin
+    ; and 4 on Linux, and c_cc follows them, after Linux's one-byte c_line.
+    ; Only a flag word's low four bytes are read and written; every bit named
+    ; here sits in them, and both OSes are little-endian here.  The speeds go
+    ; through cfgetispeed and its kin, which answer a baud on Darwin and a
+    ; B-code on Linux.  The names are those RFC 4254 gives the modes a
+    ; pseudo-terminal request carries, lower-cased, that this OS has.
+
+    (method %mode-rows (self)
+      (doc "This OS's named modes, as (NAME WHERE VALUE): WHERE a flag word, 0 c_iflag to 3 c_lflag, and VALUE its bit; 'cc and VALUE the character's index in c_cc; or 'size and VALUE the CSIZE setting the name stands for."
+        (returns LIST "The rows, cs7 before cs8"))
+      (if os-darwin?
+        (list (list (lit vintr) (lit cc) 8) (list (lit vquit) (lit cc) 9) (list (lit verase) (lit cc) 3)
+              (list (lit vkill) (lit cc) 5) (list (lit veof) (lit cc) 0) (list (lit veol) (lit cc) 1)
+              (list (lit veol2) (lit cc) 2) (list (lit vstart) (lit cc) 12) (list (lit vstop) (lit cc) 13)
+              (list (lit vsusp) (lit cc) 10) (list (lit vdsusp) (lit cc) 11) (list (lit vreprint) (lit cc) 6)
+              (list (lit vwerase) (lit cc) 4) (list (lit vlnext) (lit cc) 14) (list (lit vdiscard) (lit cc) 15)
+              (list (lit vstatus) (lit cc) 18)
+              (list (lit ignpar) 0 4) (list (lit parmrk) 0 8) (list (lit inpck) 0 16) (list (lit istrip) 0 32)
+              (list (lit inlcr) 0 64) (list (lit igncr) 0 128) (list (lit icrnl) 0 256) (list (lit ixon) 0 512)
+              (list (lit ixany) 0 2048) (list (lit ixoff) 0 1024) (list (lit imaxbel) 0 8192) (list (lit iutf8) 0 16384)
+              (list (lit isig) 3 128) (list (lit icanon) 3 256) (list (lit echo) 3 8) (list (lit echoe) 3 2)
+              (list (lit echok) 3 4) (list (lit echonl) 3 16) (list (lit noflsh) 3 2147483648) (list (lit tostop) 3 4194304)
+              (list (lit iexten) 3 1024) (list (lit echoctl) 3 64) (list (lit echoke) 3 1) (list (lit pendin) 3 536870912)
+              (list (lit opost) 1 1) (list (lit onlcr) 1 2) (list (lit ocrnl) 1 16) (list (lit onocr) 1 32)
+              (list (lit onlret) 1 64)
+              (list (lit cs7) (lit size) 512) (list (lit cs8) (lit size) 768) (list (lit parenb) 2 4096) (list (lit parodd) 2 8192))
+        (list (list (lit vintr) (lit cc) 0) (list (lit vquit) (lit cc) 1) (list (lit verase) (lit cc) 2)
+              (list (lit vkill) (lit cc) 3) (list (lit veof) (lit cc) 4) (list (lit veol) (lit cc) 11)
+              (list (lit veol2) (lit cc) 16) (list (lit vstart) (lit cc) 8) (list (lit vstop) (lit cc) 9)
+              (list (lit vsusp) (lit cc) 10) (list (lit vreprint) (lit cc) 12) (list (lit vwerase) (lit cc) 14)
+              (list (lit vlnext) (lit cc) 15) (list (lit vdiscard) (lit cc) 13) (list (lit vswtch) (lit cc) 7)
+              (list (lit ignpar) 0 4) (list (lit parmrk) 0 8) (list (lit inpck) 0 16) (list (lit istrip) 0 32)
+              (list (lit inlcr) 0 64) (list (lit igncr) 0 128) (list (lit icrnl) 0 256) (list (lit iuclc) 0 512)
+              (list (lit ixon) 0 1024) (list (lit ixany) 0 2048) (list (lit ixoff) 0 4096) (list (lit imaxbel) 0 8192)
+              (list (lit iutf8) 0 16384)
+              (list (lit isig) 3 1) (list (lit icanon) 3 2) (list (lit xcase) 3 4) (list (lit echo) 3 8)
+              (list (lit echoe) 3 16) (list (lit echok) 3 32) (list (lit echonl) 3 64) (list (lit noflsh) 3 128)
+              (list (lit tostop) 3 256) (list (lit iexten) 3 32768) (list (lit echoctl) 3 512) (list (lit echoke) 3 2048)
+              (list (lit pendin) 3 16384)
+              (list (lit opost) 1 1) (list (lit olcuc) 1 2) (list (lit onlcr) 1 4) (list (lit ocrnl) 1 8)
+              (list (lit onocr) 1 16) (list (lit onlret) 1 32)
+              (list (lit cs7) (lit size) 32) (list (lit cs8) (lit size) 48) (list (lit parenb) 2 256) (list (lit parodd) 2 512))))
+
+    (method %flag-at (self (param word INTEGER "A flag word, 0 c_iflag to 3 c_lflag"))
+      (doc "The byte offset of a flag word in struct termios." (returns INTEGER "The offset"))
+      (* word (if os-darwin? 8 4)))
+
+    (method %cc-at (self (param index INTEGER "An index in c_cc"))
+      (doc "The byte offset of a control character in struct termios." (returns INTEGER "The offset"))
+      (+ index (if os-darwin? 32 17)))
+
+    (method %csize (self)
+      (doc "CSIZE: the character-size bits of c_cflag." (returns INTEGER "The mask"))
+      (if os-darwin? 768 48))
+
+    (method %vdisable (self)
+      (doc "_POSIX_VDISABLE: the c_cc value that turns a character off." (returns INTEGER "The value"))
+      (if os-darwin? 255 0))
+
+    (method %bauds (self)
+      (doc "Linux's speed codes as (BAUD . CODE); Darwin's speed is the baud itself." (returns LIST "The table"))
+      (list (pair 0 0) (pair 50 1) (pair 75 2) (pair 110 3) (pair 134 4) (pair 150 5) (pair 200 6)
+            (pair 300 7) (pair 600 8) (pair 1200 9) (pair 1800 10) (pair 2400 11) (pair 4800 12)
+            (pair 9600 13) (pair 19200 14) (pair 38400 15) (pair 57600 4097) (pair 115200 4098)
+            (pair 230400 4099) (pair 460800 4100) (pair 500000 4101) (pair 576000 4102)
+            (pair 921600 4103) (pair 1000000 4104) (pair 1152000 4105) (pair 1500000 4106)
+            (pair 2000000 4107) (pair 2500000 4108) (pair 3000000 4109) (pair 3500000 4110)
+            (pair 4000000 4111)))
+
+    (method %baud (self (param speed INTEGER "What cfgetospeed answered"))
+      (doc "A speed as a baud: Darwin's as it is, Linux's B-code looked up; nil for a code with no baud."
+        (returns ANY "The baud, or nil"))
+      (if os-darwin? speed
+        (let ((code (& speed 4294967295)))
+          (let ((row (List find (fn (_ r) (= (rest r) code)) (Term %bauds))))
+            (if (null? row) () (first row))))))
+
+    (method %speed (self (param baud INTEGER "A baud"))
+      (doc "The speed cfsetospeed takes for a baud: Darwin's the baud, Linux's its B-code; nil for a baud Linux has no code for."
+        (returns ANY "The speed, or nil"))
+      (if os-darwin? baud
+        (let ((row (List find (fn (_ r) (= (first r) baud)) (Term %bauds))))
+          (if (null? row) () (rest row)))))
+
+    (method %mode (self (param p POINTER "A struct termios")
+                        (param row LIST "A mode row"))
+      (doc "A mode's value in the termios at p: a flag's BOOL, a character's code, nil when it is turned off, or whether the size is the row's."
+        (returns ANY "The value"))
+      (let ((pref (prim-ref (lit ptr) (lit ref)))
+            (where (List ref 1 row)) (v (List ref 2 row)))
+        (match
+          ((eq? where (lit cc))
+            (let ((c (pref p (Term %cc-at v) 1))) (if (= c (Term %vdisable)) () c)))
+          ((eq? where (lit size)) (= (& (pref p (Term %flag-at 2) 4) (Term %csize)) v))
+          (#t (not (= (& (pref p (Term %flag-at where) 4) v) 0))))))
+
+    (method %mode! (self (param p POINTER "A struct termios")
+                         (param row LIST "A mode row")
+                         (param value ANY "A flag's BOOL, a character's code or nil"))
+      (doc "Set a mode in the termios at p. A size set #f is left as it is: it says what the size is not, not what it is."
+        (returns NIL "Nothing"))
+      (let ((pref (prim-ref (lit ptr) (lit ref)))
+            (pset (prim-ref (lit ptr) (lit set!)))
+            (where (List ref 1 row)) (v (List ref 2 row)))
+        (match
+          ((eq? where (lit cc))
+            (pset p (Term %cc-at v) (if (null? value) (Term %vdisable) (& value 255)) 1))
+          ((eq? where (lit size))
+            (if value
+              (let ((at (Term %flag-at 2)))
+                (let ((f (pref p at 4)))
+                  (pset p at (+ (- f (& f (Term %csize))) v) 4)))
+              ()))
+          (#t
+            (let ((at (Term %flag-at where)))
+              (let ((f (pref p at 4)))
+                (pset p at (if value (| f v) (- f (& f v))) 4)))))
+        ()))
+
+    (method modes (self (param fd INTEGER "A terminal's descriptor"))
+      (doc "The terminal's modes by name, as (NAME . VALUE): each control character's code, nil when it is turned off; each flag's BOOL; cs7 and cs8, whether the character size is that; and ispeed and ospeed in baud. Only the modes this OS has are named. Answers nil when fd is not a terminal."
+        (returns ANY "The modes, or nil")
+        (note "The names are RFC 4254's, lower-cased: vintr, icrnl, echo, opost, cs8 and the rest.")
+        (see modes!)
+        (sample "(Assoc get 'vintr (Term modes 0))" "3, at a terminal"))
+      (if (not (Term tty? fd)) ()
+        (let ((call (prim-ref (lit ptr) (lit call)))
+              (buf ((prim-ref (lit str) (lit make)) 128)))
+          (let ((p ((prim-ref (lit str) (lit ->ptr)) buf)))
+            (if (< (Sys %sign-fold (call (Term c-tcget) fd p)) 0) ()
+              (List append
+                (List map (fn (_ row) (pair (first row) (Term %mode p row))) (Term mode-rows))
+                (list (pair (lit ispeed) (Term %baud (call (Term c-igetsp) p)))
+                      (pair (lit ospeed) (Term %baud (call (Term c-ogetsp) p))))))))))
+
+    (method modes! (self (param fd INTEGER "A terminal's descriptor")
+                         (param modes LIST "(NAME . VALUE) pairs, as modes answers them"))
+      (doc "Set the terminal's modes by name, in order, and apply them once pending output has drained. A name this OS does not have is passed over, as is a speed it has no code for. Answers #f when fd is not a terminal or the change is refused."
+        (returns BOOL "Whether the modes were applied")
+        (note "A flag takes a BOOL, a character its code or nil to turn it off, cs7 or cs8 #t to set that size, ispeed and ospeed a baud.")
+        (note "The terminal may keep its own: a Linux pseudo-terminal is CS8 without parity whatever is asked.")
+        (see modes)
+        (sample "(Term modes! 0 (list (pair 'echo #f) (pair 'vintr 7)))" "#t, at a terminal"))
+      (if (not (Term tty? fd)) #f
+        (let ((call (prim-ref (lit ptr) (lit call)))
+              (buf ((prim-ref (lit str) (lit make)) 128)))
+          (let ((p ((prim-ref (lit str) (lit ->ptr)) buf)))
+            (if (< (Sys %sign-fold (call (Term c-tcget) fd p)) 0) #f
+              (do
+                (List for-each
+                  (fn (_ m)
+                    (let ((row (List find (fn (_ r) (eq? (first r) (first m))) (Term mode-rows))))
+                      (match
+                        ((not (null? row)) (Term %mode! p row (rest m)))
+                        ((eq? (first m) (lit ispeed))
+                          (let ((s (Term %speed (rest m)))) (if (null? s) () (call (Term c-isetsp) p s))))
+                        ((eq? (first m) (lit ospeed))
+                          (let ((s (Term %speed (rest m)))) (if (null? s) () (call (Term c-osetsp) p s))))
+                        (#t ()))))
+                  modes)
+                (>= (Sys %sign-fold (call (Term c-tcset) fd (Term tcsadrain) p)) 0)))))))
 
     ; --- geometry -----------------------------------------------------------
     ; Named `window`, not `size`: `size` is a retired spelling in this tree,
