@@ -208,7 +208,7 @@
     ;
     ;   a STRING  -- literal text to insert (one whole character, UTF-8 included)
     ;   a SYMBOL  -- a named key: 'up 'down 'left 'right 'home 'end 'delete
-    ;                'enter 'backspace 'tab 'interrupt 'eof 'clear 'kill-eol
+    ;                'page-up 'page-down 'enter 'backspace 'tab 'interrupt 'eof 'clear 'kill-eol
     ;                'kill-bol 'kill-word 'yank 'word-left 'word-right 'escape
     ;                'complete 'quoted-insert 'search-back 'search-forward 'abort
     ;                'f1 to 'f12, and 'kp0 to 'kp9 from a keypad in
@@ -366,7 +366,7 @@
         (go params 0)))
 
     (method %tilde (self (param n INTEGER "The first parameter of ESC [ N ~"))
-      (doc "Name the key ESC [ N ~ stands for: Home, End and Delete, and the function keys, whose numbers skip 16 and 22."
+      (doc "Name the key ESC [ N ~ stands for: Home, End, Delete, Page Up and Page Down, and the function keys, whose numbers skip 16 and 22."
         (returns ANY "A key symbol"))
       ; The number is read whole: 15~ is F5, which a test for the byte '1'
       ; among the parameters would take for Home.
@@ -374,6 +374,7 @@
         ((= n 1) (lit home)) ((= n 7) (lit home))
         ((= n 4) (lit end)) ((= n 8) (lit end))
         ((= n 3) (lit delete))
+        ((= n 5) (lit page-up)) ((= n 6) (lit page-down))
         ((= n 11) (lit f1)) ((= n 12) (lit f2)) ((= n 13) (lit f3)) ((= n 14) (lit f4))
         ((= n 15) (lit f5)) ((= n 17) (lit f6)) ((= n 18) (lit f7)) ((= n 19) (lit f8))
         ((= n 20) (lit f9)) ((= n 21) (lit f10)) ((= n 23) (lit f11)) ((= n 24) (lit f12))
