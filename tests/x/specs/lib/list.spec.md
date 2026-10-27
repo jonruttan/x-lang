@@ -135,7 +135,7 @@
 (List ref 5 (list 1 2))
 ```
 ---
-    Error: #<err:index List ref: index out of range>
+    Error: index: List ref: index out of range
 
 ### negative index counts from the end
 
@@ -151,7 +151,7 @@
 (List ref -3 (list 1 2))
 ```
 ---
-    Error: #<err:index List ref: index out of range>
+    Error: index: List ref: index out of range
 
 ### a piped index-search miss (nil) is unconvertible and fails loudly
 
@@ -1150,7 +1150,7 @@ first or the last element of each run survives. Assert the value.
 (List chunk 0 (list 1))
 ```
 ---
-    Error: #<err:value List chunk: size must be positive>
+    Error: value: List chunk: size must be positive
 
 ## unzip
 
@@ -1206,7 +1206,7 @@ first or the last element of each run survives. Assert the value.
 (List min ())
 ```
 ---
-    Error: #<err:value List min: empty list>
+    Error: value: List min: empty list
 
 ### fold rejects an improper list
 
@@ -1214,7 +1214,7 @@ first or the last element of each run survives. Assert the value.
 (List fold (fn (_ a x) a) 0 (pair 1 2))
 ```
 ---
-    Error: #<err:type List fold: improper list>
+    Error: type: List fold: improper list
 
 ### length rejects an improper list
 
@@ -1222,7 +1222,7 @@ first or the last element of each run survives. Assert the value.
 (List length (pair 1 2))
 ```
 ---
-    Error: #<err:type List fold: improper list>
+    Error: type: List fold: improper list
 
 ### reverse rejects an improper list
 
@@ -1230,7 +1230,7 @@ first or the last element of each run survives. Assert the value.
 (List reverse (pair 1 2))
 ```
 ---
-    Error: #<err:type List fold: improper list>
+    Error: type: List fold: improper list
 
 ### map rejects an improper list
 
@@ -1238,7 +1238,7 @@ first or the last element of each run survives. Assert the value.
 (List map (fn (_ x) x) (pair 1 2))
 ```
 ---
-    Error: #<err:type map: improper list>
+    Error: type: map: improper list
 
 ## non-iterable input
 
@@ -1253,7 +1253,7 @@ it with the bare `first`/`rest` accessors, as `%type-by-atom` does.
 (List length 5)
 ```
 ---
-    Error: #<err:type Iter new: not iterable>
+    Error: type: Iter new: not iterable
 
 ### map rejects a fn
 
@@ -1261,7 +1261,7 @@ it with the bare `first`/`rest` accessors, as `%type-by-atom` does.
 (List map (fn (_ x) x) (fn (_) 1))
 ```
 ---
-    Error: #<err:type Iter new: not iterable>
+    Error: type: Iter new: not iterable
 
 ### from-seq rejects the reader's type alist
 
@@ -1269,7 +1269,7 @@ it with the bare `first`/`rest` accessors, as `%type-by-atom` does.
 (List from-seq ((prim-ref (lit type) (lit alist))))
 ```
 ---
-    Error: #<err:type Iter new: not iterable>
+    Error: type: Iter new: not iterable
 
 ## what the walkers cost
 

@@ -38,7 +38,7 @@ in the help listing, the guard sits at the point of harm.
   ((new-from Dict ()) get 'a))
 ```
 ---
-    Error: #<err:state Dict: uninitialized instance (use Dict make / from-*)>
+    Error: state: Dict: uninitialized instance (use Dict make / from-*)
 
 ### from-plist is the simplest literal representation
 
@@ -56,7 +56,7 @@ in the help listing, the guard sits at the point of harm.
   (Dict from-plist (list 'a 1 'b)))
 ```
 ---
-    Error: #<err:value Dict from-plist: odd-length plist>
+    Error: value: Dict from-plist: odd-length plist
 
 ### from-bindings takes bindings as let writes them
 
@@ -178,7 +178,7 @@ in the help listing, the guard sits at the point of harm.
   ((Dict make) set! (list 1 2) "v"))
 ```
 ---
-    Error: #<err:type Dict: unhashable key -- use a symbol, string, integer, char, or class instance>
+    Error: type: Dict: unhashable key -- use a symbol, string, integer, char, or class instance
 
 ## get-or (presence-based)
 

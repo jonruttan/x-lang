@@ -313,7 +313,7 @@ column 2 when 0 and 4 are open matches no level; what that means is policy.
 (newline)
 ```
 ---
-    Error: #<err:indent unindent does not match any outer indentation level>
+    Error: indent: unindent does not match any outer indentation level
 
 ### 'open opens a level at the odd column, which is Logo's answer
 

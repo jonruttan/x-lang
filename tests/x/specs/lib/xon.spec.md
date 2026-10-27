@@ -98,7 +98,7 @@ reader parses back to the same value.
   (Xon emit (list (list "nothead" "a"))))
 ```
 ---
-    Error: #<err:type Xon emit: form head is a symbol>
+    Error: type: Xon emit: form head is a symbol
 
 ## xon: walk
 

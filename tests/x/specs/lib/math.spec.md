@@ -351,7 +351,7 @@ each even step until it exhausted memory.
 (Num expt 2 -1)
 ```
 ---
-    Error: #<err:value Num expt: negative exponent>
+    Error: value: Num expt: negative exponent
 
 ## quotient / remainder / modulo / divmod
 
@@ -465,7 +465,7 @@ the sum cannot leave the range.  ((a % b) + b) % b wrapped here.
 (Num isqrt -1)
 ```
 ---
-    Error: #<err:value Num isqrt: negative input>
+    Error: value: Num isqrt: negative input
 
 ## int?
 

@@ -1100,4 +1100,4 @@ pins that the whole run of a's plus the b matched.
 (Regex split "a,b" (Regex parse ","))
 ```
 ---
-    Error: #<err:type Regex: expected a compiled regex -- use #/.../ or (Regex compile pattern)>
+    Error: type: Regex: expected a compiled regex -- use #/.../ or (Regex compile pattern)

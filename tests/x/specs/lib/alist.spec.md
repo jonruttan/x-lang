@@ -245,7 +245,7 @@ Value, not length: omitting the WRONG key also counts 2.
 (Assoc from-plist (list 'a 1 'b))
 ```
 ---
-    Error: #<err:value Assoc from-plist: odd-length plist>
+    Error: value: Assoc from-plist: odd-length plist
 
 ## ->bindings
 
