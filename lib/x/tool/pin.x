@@ -779,14 +779,6 @@
                 (#t (Pin %pin-bad (Str8 append "unknown form in lang.xon: "
                                     (symbol->str (first (first forms)))))))))
       (%go forms () () () ()))
-    ; Unpack via tar through Proc run!, the pattern %pin-download-tmp! uses for
-    ; curl: 127 = tar absent, anything else nonzero = the archive is bad.
-    (method %pin-untar! (self archive dest)
-      (let ((status (Proc run! (list "tar" "-xzf" archive "-C" dest))))
-        (match
-          ((= status 0) dest)
-          ((= status 127) (Pin %pin-bad "tar not found -- cannot unpack the bundle"))
-          (#t (Pin %pin-bad (Str8 append "bundle did not unpack: " archive))))))
     ; two lists, a ++ b
     (method %pin-concat (self a b)
       (def %rec (fn (self a b)

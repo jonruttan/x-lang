@@ -9,17 +9,29 @@
 (doc when "Evaluate body forms when test is true."
   (param test ANY "Expression to evaluate as a boolean")
   (param body ANY "One or more body expressions"))
+; `match`, not `if`: an `if` costs ~17 objects an evaluation and a `match`
+; none, and these two run everywhere in lib.  A one-form body, nearly every
+; one, is evaluated as it stands rather than wrapped in (do FORM).
 (def when
   (op (test . body)
     e
-    (if (eval test e) (tail-eval (pair (lit do) body) e))))
+    (match
+      ((eval test e)
+        (match
+          ((eq? body ()) ())
+          ((eq? (rest body) ()) (tail-eval (first body) e))
+          (#t (tail-eval (pair (lit do) body) e)))))))
 (doc unless "Evaluate body forms when test is false."
   (param test ANY "Expression to evaluate as a boolean")
   (param body ANY "One or more body expressions"))
 (def unless
   (op (test . body)
     e
-    (if (not (eval test e)) (tail-eval (pair (lit do) body) e))))
+    (match
+      ((eval test e) ())
+      ((eq? body ()) ())
+      ((eq? (rest body) ()) (tail-eval (first body) e))
+      (#t (tail-eval (pair (lit do) body) e)))))
 
 
 ; let* was RETIRED (#45 R6, 2026-07-18): six historical uses migrated to

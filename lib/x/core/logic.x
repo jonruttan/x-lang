@@ -60,21 +60,33 @@
 ; < already makes a missing operand raise instead of segfaulting, so these
 ; checks are not what keeps the process alive -- they are what makes the
 ; message name the operator the user actually typed. Without them (> 1)
-; reports "<: operands must not be nil", naming a primitive the caller never
-; wrote. The cost is two eq? tests on a path that already pays for the
-; guard inside <.
+; reports "<: needs two operands, neither nil", naming a primitive the
+; caller never wrote. The tests are `match` clauses: an `if` costs ~17
+; objects an evaluation and a `match` none, and these sit under every loop
+; bound and every sort.
 (doc (def > (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
-    (if (if (eq? a ()) #t (eq? b ())) (error ">: needs two arguments") (< b a))))
+    (match
+      ((eq? a ()) (error ">: needs two arguments"))
+      ((eq? b ()) (error ">: needs two arguments"))
+      (#t (< b a)))))
   (returns BOOL "True if a is greater than b")
   "Test whether a is greater than b.")
 
 (doc (def <= (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
-    (if (if (eq? a ()) #t (eq? b ())) (error "<=: needs two arguments") (if (< a b) #t (= a b)))))
+    (match
+      ((eq? a ()) (error "<=: needs two arguments"))
+      ((eq? b ()) (error "<=: needs two arguments"))
+      ((< a b) #t)
+      (#t (= a b)))))
   (returns BOOL "True if a is less than or equal to b")
   "Test whether a is less than or equal to b.")
 
 (doc (def >= (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
-    (if (if (eq? a ()) #t (eq? b ())) (error ">=: needs two arguments") (if (< b a) #t (= a b)))))
+    (match
+      ((eq? a ()) (error ">=: needs two arguments"))
+      ((eq? b ()) (error ">=: needs two arguments"))
+      ((< b a) #t)
+      (#t (= a b)))))
   (returns BOOL "True if a is greater than or equal to b")
   "Test whether a is greater than or equal to b.")
 

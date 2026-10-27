@@ -186,7 +186,7 @@
 ; the plain x dialect nothing else binds it (x-lang#719, step 4).
 (file "lib/x/codec/sha256.x" 33)
 (file "lib/x/core/alist.x" 12)
-(file "lib/x/core/arithmetic.x" 17)
+(file "lib/x/core/arithmetic.x" 16)
 (file "lib/x/core/boolean.x" 3)
 (file "lib/x/core/control.x" 2)
 (file "lib/x/core/list.x" 23)
