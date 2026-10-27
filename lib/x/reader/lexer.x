@@ -127,7 +127,7 @@
     ; recorded by the old code would otherwise be replayed as the new.  The
     ; digest case in tests/x/specs/lib/lexer-plan.spec.md fails on any such
     ; change until both it and this number are updated.
-    (%plan-version 5)
+    (%plan-version 6)
     ; Group keys made, as ((RULES END . KEY) ...): a key is the rules and the
     ; end text printed, which costs a make more than its replay's types do, and
     ; a remake -- the recache hook after every image load -- asks again for
@@ -274,11 +274,12 @@
 
     (method until (self (param tag ANY "The token's tag, or nil to drop the token")
                         (param open STRING "The opening literal")
-                        (param close STRING "The closing literal, one or two bytes")
+                        (param close STRING "The closing literal")
                         . (param flags LIST "Optionally take, to-end, or both"))
-      (doc "A rule for a span from open to close: comments, delimited patterns. A one-byte close is left for the next token (a newline ends a line comment and is then read on its own) unless the flag take is given, which makes it part of the token; a two-byte close is always taken. With the flag to-end a span that meets no close runs to the end of the text and is a token all the same, the end text not part of it; without it, such a span is not a token."
+      (doc "A rule for a span from open to close: comments, delimited patterns. A one-byte close is left for the next token (a newline ends a line comment and is then read on its own) unless the flag take is given, which makes it part of the token; a longer close is always taken, and ends the span at its first whole occurrence, so a `\"\"\"` span holds `\"\"` followed by another byte. With the flag to-end a span that meets no close runs to the end of the text and is a token all the same, the end text not part of it; without it, such a span is not a token."
         (returns LIST "The rule")
         (sample "(Lexer until () \"/*\" \"*/\")" "drop block comments")
+        (sample "(Lexer until 'str \"\\\"\\\"\\\"\" \"\\\"\\\"\\\"\" 'to-end)" "a Python triple-quoted string, open to the end of the text while unclosed")
         (sample "(Lexer until 'pat \"/\" \"/\" 'take 'to-end)" "an ex-style /pattern/, whose closing / may be missing"))
       ((fn (self fs)
          (unless (null? fs)
@@ -639,45 +640,78 @@
         (list (pair (lit body) body))))
 
     ; A span from open to close.  Open is matched byte by byte through a
-    ; chain of states; the body loops until the close's first byte, and a
-    ; two-byte close confirms its second byte before taking the token.
+    ; chain of states, and so is close: the state after k bytes of it reads
+    ; the next, and on any other byte goes to the state after the longest
+    ; start of the close that ends the bytes read, so inside a `"""` span
+    ; `""` then `a` is body and `""` then `"` is the close.  The body is
+    ; the state after none of it.
     ; A dropped span scores POSITIVE all the same: the engine lets a
     ; negative score lose to any positive one, so a comment scored -1 would
     ; lose to the `/` operator that opens it.  Its read handler answers the
     ; dropped marker, which %handlers arranges for a rule with no tag.
     ;
-    ; TAKE makes a one-byte close part of the token.  TO-END scores the span
-    ; once its opener has matched, so that the engine, which accepts at the end
-    ; of the text whatever has a score, takes a span the close never ended; the
-    ; read handler then cuts the end text off it (%reader).
+    ; TAKE makes a one-byte close part of the token; a longer close always
+    ; is.  TO-END scores the span once its opener has matched, so that the
+    ; engine, which accepts at the end of the text whatever has a score,
+    ; takes a span the close never ended; the read handler then cuts the end
+    ; text off it (%reader).
     (method %until-states (self l tag open close take? to-end?)
-      (def c0 ((Lexer %char->int) ((Lexer %byte-ref) close 0)))
-      (def two? (> ((Lexer %byte-len) close) 1))
-      (def body-cell (pair () ()))
-      (def body
-        (if two?
-          (let ((c1 ((Lexer %char->int) ((Lexer %byte-ref) close 1))))
-            ; The state after the close's first byte needs the body back on a
-            ; miss, and the body needs it: it reads the body out of the cell,
-            ; as the escape state above does.
-            (def second
-              (Lexer %state l
-                (Lexer %state-form
-                  (list (lit if) (list (lit =) (lit chr) c1) (Lexer %take)
-                    (list (lit if) (list (lit =) (lit chr) c0) (lit me) (lit (first cell)))))
-                (list (pair (lit cell) body-cell))))
-            (Lexer %state l
-              (Lexer %state-form
-                (list (lit if) (list (lit =) (lit chr) c0) (lit second) (lit me)))
-              (list (pair (lit second) second))))
-          (Lexer %state l
-            (Lexer %state-form
-              (list (lit if) (list (lit =) (lit chr) c0) (if take? (Lexer %take) (Lexer %accept)) (lit me)))
-            ())))
-      (%set-first! body-cell body)
-      ; the cell is reached only through the compiled states' baked address, so
-      ; the lexer holds it, or a collect frees it under them
-      (l states (pair body-cell (l states)))
+      (def n ((Lexer %byte-len) close))
+      (def at (fn (_ i) ((Lexer %char->int) ((Lexer %byte-ref) close i))))
+      ; Whether the first j bytes of the close end k bytes of it followed by b.
+      (def ends?
+        (fn (_ j k b)
+          (if (not (= (at (- j 1)) b)) #f
+            ((fn (self i)
+               (if (>= i (- j 1)) #t
+                 (if (= (at i) (at (+ (- (+ k 1) j) i))) (self (+ i 1)) #f)))
+             0))))
+      ; How many bytes of the close are matched after k of them and then b.
+      (def after
+        (fn (self j k b) (if (= j 0) 0 (if (ends? j k b) j (self (- j 1) k b)))))
+      ; The distinct bytes of the close.
+      (def has? (fn (self b bs) (if (null? bs) #f (if (= b (first bs)) #t (self b (rest bs))))))
+      (def bytes
+        ((fn (self i acc)
+           (if (< i 0) acc (self (- i 1) (if (has? (at i) acc) acc (pair (at i) acc)))))
+         (- n 1) ()))
+      ; A cell a state, the states handing to each other through (first
+      ; cell), as the escape state above does, whichever is made first.
+      (def cells
+        ((fn (self k acc) (if (< k 0) acc (self (- k 1) (pair (pair () ()) acc)))) (- n 1) ()))
+      (def cell-of (fn (self k cs) (if (= k 0) (first cs) (self (- k 1) (rest cs)))))
+      (def name-of (fn (_ k) (Str8 ->sym (Str8 append "s" (%number->str k)))))
+      (def fvars
+        ((fn (self k acc) (if (< k 0) acc (self (- k 1) (pair (pair (name-of k) (cell-of k cells)) acc))))
+         (- n 1) ()))
+      (def ref (fn (_ k) (list (lit first) (name-of k))))
+      ; The state after k bytes of the close: a test for each byte of the
+      ; close that keeps some of it matched, else back to the body; the body
+      ; itself loops.
+      (def form-of
+        (fn (_ k)
+          (Lexer %state-form
+            ((fn (self bs)
+               (if (null? bs) (if (= k 0) (lit me) (ref 0))
+                 (let ((j (after (+ k 1) k (first bs))))
+                   (if (= j 0) (self (rest bs))
+                     (list (lit if) (list (lit =) (lit chr) (first bs))
+                       (match
+                         ((= j n) (if (if (= n 1) (not take?) #f) (Lexer %accept) (Lexer %take)))
+                         ((= j k) (lit me))
+                         (#t (ref j)))
+                       (self (rest bs)))))))
+             bytes))))
+      ((fn (self k)
+         (if (< k 0) ()
+           (do (%set-first! (cell-of k cells) (Lexer %state l (form-of k) fvars))
+               (self (- k 1)))))
+       (- n 1))
+      (def body (first (cell-of 0 cells)))
+      ; the cells are reached only through the compiled states' baked
+      ; addresses, so the lexer holds them, or a collect frees them under
+      ; the states
+      (l states (pair cells (l states)))
       ; the open chain, last byte first; the last byte of the opener hands to
       ; the body, scoring the span first when it may run to the end
       (def last (- ((Lexer %byte-len) open) 1))

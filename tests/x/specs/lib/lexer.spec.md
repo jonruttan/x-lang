@@ -760,6 +760,60 @@ the end text and take, a close the input supplies stays in the token.
 ---
     ((('w "a") ('c "# c")) (('w "a") ('c "# c") ('nl "\n") ('w "b")) (('c "// x")) (('c "// x\n")))
 
+### a close of three bytes ends the span at its first whole occurrence
+
+Python's triple-quoted string: two quotes followed by anything else stay in
+the body, and a span still open at the end runs to it.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer until 'str "\"\"\"" "\"\"\"" 'to-end)
+    (Lexer run 'w "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz"))))
+  (write (list (%lx-l read-str "\"\"\"a\"b\"\"\" c")
+               (%lx-l read-str "\"\"\"a\"\"b\"\"\" c")
+               (%lx-l read-str "\"\"\"\"\"\" c")
+               (%lx-l read-str "\"\"\"x\"\" c")))
+  (newline))
+```
+---
+    ((('str "\"\"\"a\"b\"\"\"") ('w "c")) (('str "\"\"\"a\"\"b\"\"\"") ('w "c")) (('str "\"\"\"\"\"\"") ('w "c")) (('str "\"\"\"x\"\" c")))
+
+### a close whose start repeats keeps as much of it as the bytes read match
+
+After `aa` of the close `aab`, another `a` is still two bytes of it, so
+`<aaab` closes on its last byte; a byte that matches none of it is body.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer until 'x "<" "aab")
+    (Lexer run 'w "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz"))))
+  (write (list (%lx-l read-str "<aaab c") (%lx-l read-str "<abaab c") (%lx-l read-str "<aacaab c")))
+  (newline))
+```
+---
+    ((('x "<aaab") ('w "c")) (('x "<abaab") ('w "c")) (('x "<aacaab") ('w "c")))
+
+### a close that starts like the open is read in the body all the same
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer until 'x "ab" "abc")
+    (Lexer run 'w "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz"))))
+  (write (list (%lx-l read-str "abxabc c") (%lx-l read-str "ababc c") (%lx-l read-str "abab c")))
+  (newline))
+```
+---
+    ((('x "abxabc") ('w "c")) (('x "ababc") ('w "c")) (('w "abab") ('w "c")))
+
 ### an unknown flag is refused
 
 ```x
