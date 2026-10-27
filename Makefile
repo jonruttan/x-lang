@@ -35,7 +35,14 @@ PREFIX?=/usr/local
 # so an amalgam from one release booted on another's engine passed the
 # pairing guard and segfaulted.  The tag is the one key that cannot silently
 # under-approximate, so the engine now carries it.
-X_RELEASE?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+#
+# READ BY THE SHELL AT THE RECIPE, not by make at parse time.  A parse-time
+# shell result is a reading only GNU make has (`$(shell ...)`), and the `!=`
+# assignment that replaces it is GNU 4 and BSD, which leaves out the GNU 3.81
+# macOS ships.  Every use sits inside double quotes, where the substitution
+# runs; a value given on the command line is a plain string and passes
+# through untouched.
+X_RELEASE?=`git describe --tags --always --dirty 2>/dev/null || echo dev`
 
 # ---------------------------------------------------------------------------
 # The engine is a SEPARATE PROJECT, not a subdirectory of this one.  It was
@@ -91,7 +98,12 @@ X_RELEASE?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 #
 #    A DANGLING link falls back rather than failing: whatever it named is
 #    gone, so it is not a choice any more.
-ENGINE_SRC?=$(if $(X_ENGINE_DIR),$(X_ENGINE_DIR),$(shell if [ -L $(ENGINE_DIR) ] && [ -e $(ENGINE_DIR) ]; then readlink $(ENGINE_DIR); fi))
+#
+#    DECIDED IN THE SHELL, at the recipe, for the reason X_RELEASE is: the
+#    choice between an override and a link read needs a conditional and a
+#    shell result, and both are GNU make's own.  Every use is inside double
+#    quotes, where the substitution runs.
+ENGINE_SRC?=`if [ -n '$(X_ENGINE_DIR)' ]; then echo '$(X_ENGINE_DIR)'; elif [ -L $(ENGINE_DIR) ] && [ -e $(ENGINE_DIR) ]; then readlink $(ENGINE_DIR); fi`
 ENGINE_DIR=engine
 
 # Fail with a sentence instead of a screenful of missing-file errors: a clone
@@ -106,8 +118,9 @@ ENGINE_DIR=engine
 #
 # Re-pointing here is a no-op in the normal case: ENGINE_SRC defaults to
 # whatever the link already names, so this only does work when the link is
-# missing or someone passed X_ENGINE_DIR.
-ENGINE_ENSURE=if [ ! -e "$(ENGINE_SRC)" ]; then \
+# missing or someone passed X_ENGINE_DIR.  The source is read once into a
+# shell variable; the three uses below are in the same shell.
+ENGINE_ENSURE=engine_src="$(ENGINE_SRC)"; if [ ! -e "$$engine_src" ]; then \
 		echo "No engine. This repository is the LANGUAGE; the engine is a" >&2; \
 		echo "separate project, acquired rather than carried:" >&2; \
 		echo "" >&2; \
@@ -115,13 +128,19 @@ ENGINE_ENSURE=if [ ! -e "$(ENGINE_SRC)" ]; then \
 		echo "  make engine-source  clone that release and build it here" >&2; \
 		echo "  make X_ENGINE_DIR=DIR   use an engine you already have" >&2; \
 		exit 1; \
-	fi; sh tools/engine/pin-match.sh "$(ENGINE_SRC)" || exit 1; \
-	ln -sfn "$(ENGINE_SRC)" $(ENGINE_DIR)
+	fi; sh tools/engine/pin-match.sh "$$engine_src" || exit 1; \
+	ln -sfn "$$engine_src" $(ENGINE_DIR)
 
 # TWO WAYS TO HAVE NO SOURCES, and they want different advice.  A release
 # artifact ships a working engine and no Makefile ON PURPOSE -- telling its user
 # to initialise a submodule sends them after a problem they do not have.  An
 # empty directory is the fresh-clone case and does.
+#
+# The recursion is `cd engine && make TARGET`, which every make reads alike;
+# `-C` and `--no-print-directory` are GNU make's.  The target follows the
+# macro at each call site, so the macro ends at the inner make and the cd is
+# the last thing in its shell: a command that must run back in this tree
+# goes on its own recipe line.
 ENGINE_MAKE=@$(ENGINE_ENSURE); if [ ! -f $(ENGINE_DIR)/Makefile ]; then \
 		if [ -x $(ENGINE_DIR)/$(EXECUTABLE) ]; then \
 			echo "$(ENGINE_DIR) -> $(ENGINE_SRC) is a released engine: it ships a" >&2; \
@@ -133,7 +152,7 @@ ENGINE_MAKE=@$(ENGINE_ENSURE); if [ ! -f $(ENGINE_DIR)/Makefile ]; then \
 			echo "  make X_ENGINE_DIR=DIR   use a checkout you already have" >&2; \
 		fi; \
 		exit 1; \
-	fi; $(MAKE) --no-print-directory -C $(ENGINE_DIR)
+	fi; cd $(ENGINE_DIR) && $(MAKE)
 
 # NAME is the PROJECT name: the wrapper's installed command (bin/x) and the
 # install-tree dirs (share/x, libexec/x) -- x.sh's X_SHARE/X_ENGINE and the
@@ -195,7 +214,7 @@ all: $(EXECUTABLE) ## Build all
 # actually being asked, and leave the mtime alone when they do not so nothing
 # downstream rebuilds for nothing.
 $(EXECUTABLE): $(ENGINE_DIR)/$(EXECUTABLE) FORCE
-	@cmp -s $< $@ || cp $< $@
+	@cmp -s $(ENGINE_DIR)/$(EXECUTABLE) $@ || cp $(ENGINE_DIR)/$(EXECUTABLE) $@
 	# The build's param declaration travels WITH the binary, so `dirname $$X_BIN`
 	# finds it in repo mode exactly as it does in an install tree.  Without this
 	# the wrapper would need two ways to locate the same fact.
@@ -218,7 +237,7 @@ $(EXECUTABLE): $(ENGINE_DIR)/$(EXECUTABLE) FORCE
 # the C: the sanitizer and coverage builds, and hacking on the engine itself.
 # Those ask for sources rather than discovering they have none.
 engine-source: ## Acquire the engine's SOURCES (clone the pinned release) and link them
-	@$(MAKE) --no-print-directory engine-link \
+	@$(MAKE) engine-link \
 		X_ENGINE_DIR="$$(FROM_SOURCE=1 PIN="$(PIN)" sh tools/engine/fetch.sh)"
 	@echo "engine -> $$(readlink $(ENGINE_DIR))"
 .PHONY: engine-source
@@ -226,9 +245,9 @@ engine-source: ## Acquire the engine's SOURCES (clone the pinned release) and li
 engine: ## Acquire the engine tools/engine/engine.pin.xon names (release, or source)
 	@if [ -n "$(X_ENGINE_DIR)" ]; then \
 		echo "engine: X_ENGINE_DIR names $(X_ENGINE_DIR) -- linking that, not acquiring" >&2; \
-		$(MAKE) --no-print-directory engine-link; \
+		$(MAKE) engine-link; \
 	else \
-		$(MAKE) --no-print-directory engine-link \
+		$(MAKE) engine-link \
 			X_ENGINE_DIR="$$(PIN="$(PIN)" sh tools/engine/fetch.sh)"; \
 	fi
 	@echo "engine -> $$(readlink $(ENGINE_DIR))"
@@ -262,7 +281,7 @@ engine-link:
 $(ENGINE_DIR)/$(EXECUTABLE): engine-link FORCE
 	@$(ENGINE_ENSURE)
 	@if [ -f $(ENGINE_DIR)/Makefile ]; then \
-		$(MAKE) --no-print-directory -C $(ENGINE_DIR); \
+		cd $(ENGINE_DIR) && $(MAKE); \
 	elif [ ! -x $(ENGINE_DIR)/$(EXECUTABLE) ]; then \
 		echo "$(ENGINE_DIR) -> $(ENGINE_SRC) has neither sources to build nor an engine to use." >&2; \
 		echo "For the bundled engine: git submodule update --init --recursive" >&2; \
@@ -272,11 +291,28 @@ $(ENGINE_DIR)/$(EXECUTABLE): engine-link FORCE
 
 # The variants, same pattern.  Each is PHONY-free for the same reason as the
 # plain engine: the copy must compare timestamps, not run unconditionally.
-x-bin-asan x-bin-cov x-bin-profile x-bin-debug: %: $(ENGINE_DIR)/%
-	cp $< $@
+# One rule a variant, written out: a static pattern rule over the four, and
+# the `$<` and `$*` it would use in an explicit rule, are GNU make's own.
+x-bin-asan: $(ENGINE_DIR)/x-bin-asan
+	cp $(ENGINE_DIR)/x-bin-asan $@
 
-$(ENGINE_DIR)/x-bin-asan $(ENGINE_DIR)/x-bin-cov $(ENGINE_DIR)/x-bin-debug: $(ENGINE_DIR)/%: FORCE
-	$(ENGINE_MAKE) $*
+x-bin-cov: $(ENGINE_DIR)/x-bin-cov
+	cp $(ENGINE_DIR)/x-bin-cov $@
+
+x-bin-profile: $(ENGINE_DIR)/x-bin-profile
+	cp $(ENGINE_DIR)/x-bin-profile $@
+
+x-bin-debug: $(ENGINE_DIR)/x-bin-debug
+	cp $(ENGINE_DIR)/x-bin-debug $@
+
+$(ENGINE_DIR)/x-bin-asan: FORCE
+	$(ENGINE_MAKE) x-bin-asan
+
+$(ENGINE_DIR)/x-bin-cov: FORCE
+	$(ENGINE_MAKE) x-bin-cov
+
+$(ENGINE_DIR)/x-bin-debug: FORCE
+	$(ENGINE_MAKE) x-bin-debug
 
 # The profiling engine ships in a release beside the plain one, from
 # x-engine-c v0.2.15 on, so it takes the plain engine's rule: a checkout
@@ -284,7 +320,7 @@ $(ENGINE_DIR)/x-bin-asan $(ENGINE_DIR)/x-bin-cov $(ENGINE_DIR)/x-bin-debug: $(EN
 $(ENGINE_DIR)/x-bin-profile: engine-link FORCE
 	@$(ENGINE_ENSURE)
 	@if [ -f $(ENGINE_DIR)/Makefile ]; then \
-		$(MAKE) --no-print-directory -C $(ENGINE_DIR) x-bin-profile; \
+		cd $(ENGINE_DIR) && $(MAKE) x-bin-profile; \
 	elif [ ! -x $(ENGINE_DIR)/x-bin-profile ]; then \
 		echo "$(ENGINE_DIR) -> $(ENGINE_SRC) has neither sources to build nor a profiling engine to use." >&2; \
 		echo "A release ships x-bin-profile from x-engine-c v0.2.15 on." >&2; \
@@ -296,7 +332,7 @@ $(ENGINE_DIR)/x-bin-profile: engine-link FORCE
 # the local door to it, so `make test` here can still be the whole verdict.
 test-c: ## Run the engine's C unit tests (delegates to the engine)
 	@$(ENGINE_ENSURE); if [ -f $(ENGINE_DIR)/Makefile ]; then \
-		$(MAKE) --no-print-directory -C $(ENGINE_DIR) test-c; \
+		cd $(ENGINE_DIR) && $(MAKE) test-c; \
 	else \
 		echo "test-c: SKIPPED -- $(ENGINE_DIR) is a released engine and ships no C suite."; \
 		echo "  A release is published only from a green run of it; this tree tests"; \
@@ -313,7 +349,7 @@ doc-c: ## Generate C reference documentation (delegates to the submodule)
 
 install-man-c uninstall-man-c: ## The C reference man pages (delegates to the engine)
 	@$(ENGINE_ENSURE); if [ -f $(ENGINE_DIR)/Makefile ]; then \
-		$(MAKE) --no-print-directory -C $(ENGINE_DIR) $@ DESTDIR="$(DESTDIR)" MANDIR="$(MANDIR)"; \
+		cd $(ENGINE_DIR) && $(MAKE) $@ DESTDIR="$(DESTDIR)" MANDIR="$(MANDIR)"; \
 	else \
 		echo "$@: SKIPPED -- the C reference is Doxygen over the engine's sources,"; \
 		echo "  and $(ENGINE_DIR) is a release that ships none.  The engine publishes"; \
@@ -371,13 +407,20 @@ images: $(EXECUTABLE) ## Write the state images the suite boots from, in paralle
 	@sh tools/dev/images.sh $(IMG_DIR) $(IMG_JOBS)
 .PHONY: images
 
-ifeq ($(IMG),0)
-test-x: $(EXECUTABLE)
-	sh tests/x/spec-runner.sh
-else
-test-x: images ## Run x-lang tests, each job booted from a state image (IMG=0 boots from source)
-	SPEC_RUNNER_DIR="$(CURDIR)/tests" X_IMG_DIR="$(abspath $(IMG_DIR))" X_IMAGE_SPECS=1 sh tests/x/spec-runner.sh
-endif
+# ONE RULE, TWO READINGS, picked by a computed name: IMG=0 selects the _SRC
+# pair, any other value the plain one, exactly what a conditional on IMG
+# chose before -- and a conditional is a reading only GNU make has.  The
+# runner's directory and the image directory are read by the shell at the
+# recipe (`images` has made the directory by then), since make's own
+# absolute-path functions are GNU's too.
+IMG_MODE_0 = _SRC
+TEST_X_MODE = $(IMG_MODE_$(IMG))
+TEST_X_DEPS = images
+TEST_X_RUN = SPEC_RUNNER_DIR="$$(pwd)/tests" X_IMG_DIR="$$(cd $(IMG_DIR) && pwd)" X_IMAGE_SPECS=1 sh tests/x/spec-runner.sh
+TEST_X_DEPS_SRC = $(EXECUTABLE)
+TEST_X_RUN_SRC = sh tests/x/spec-runner.sh
+test-x: $(TEST_X_DEPS$(TEST_X_MODE)) ## Run x-lang tests, each job booted from a state image (IMG=0 boots from source)
+	$(TEST_X_RUN$(TEST_X_MODE))
 .PHONY: test-x
 
 # The applicative stress lane rides test-x only when STRESS=1 (CI's
@@ -402,7 +445,7 @@ test-tools: $(EXECUTABLE) x-bin-profile ## Run the tool suite's specs (tools/tes
 	sh tools/tests/spec-runner.sh
 	sh tools/tests/profile-spec-runner.sh
 	@$(ENGINE_ENSURE); if [ -f $(ENGINE_DIR)/Makefile ]; then \
-		$(MAKE) --no-print-directory x-bin-cov && sh tools/tests/cov-spec-runner.sh; \
+		$(MAKE) x-bin-cov && sh tools/tests/cov-spec-runner.sh; \
 	else \
 		echo "test-tools: cov specs SKIPPED -- the coverage engine is a BUILD of the"; \
 		echo "  engine (-DX_COV), and $(ENGINE_DIR) is a release that ships no C."; \
@@ -535,7 +578,7 @@ check-examples: $(EXECUTABLE) ## Run every example under its documented dialect
 # the vacuous-pass failure this project has now met five times.
 check-isa check-obj-layout check-base-paths: ## Engine contract ratchets (delegated)
 	@$(ENGINE_ENSURE); if [ -f $(ENGINE_DIR)/Makefile ]; then \
-		$(MAKE) --no-print-directory -C $(ENGINE_DIR) $@; \
+		cd $(ENGINE_DIR) && $(MAKE) $@; \
 	else \
 		echo "$@: SKIPPED -- $(ENGINE_DIR) is a released engine and ships no C."; \
 		echo "  Its own repository ratchets this on every build; check-compliance"; \
@@ -900,12 +943,18 @@ ASAN_RUN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0:quarantine_size_
 #   - ASAN_CRYPTO_SPECS: the crypto and the compiled codec engines are about
 #     half the suite's time under the sanitizer (bignum arithmetic and engine
 #     builds in x), so CI runs them as a second job on a runner of their own.
-#     test-asan leaves them out; test-asan-crypto runs only them.
-ASAN_CRYPTO_SPECS = $(patsubst %,*/lib/%.spec.md,\
-  aes bcrypt chacha20 chacha20-jit chacha20-poly1305 crypt der ecdsa ed25519 ed25519-jit \
-  hkdf hmac mont mont-jit poly1305 poly1305-jit sha1 sha1-jit sha256 sha256-jit \
-  sha3 sha3-jit sha384 sha512 sha512-jit tls-keys tls13 x25519 x25519-jit x509 \
-  bunzip2 bunzip2-jit deflate-jit inflate-jit)
+#     test-asan leaves them out; test-asan-crypto runs only them.  One glob
+#     a spec, written out: a pattern substitution over the names is GNU
+#     make's own.
+ASAN_CRYPTO_SPECS = */lib/aes.spec.md */lib/bcrypt.spec.md */lib/chacha20.spec.md \
+  */lib/chacha20-jit.spec.md */lib/chacha20-poly1305.spec.md */lib/crypt.spec.md \
+  */lib/der.spec.md */lib/ecdsa.spec.md */lib/ed25519.spec.md */lib/ed25519-jit.spec.md \
+  */lib/hkdf.spec.md */lib/hmac.spec.md */lib/mont.spec.md */lib/mont-jit.spec.md \
+  */lib/poly1305.spec.md */lib/poly1305-jit.spec.md */lib/sha1.spec.md */lib/sha1-jit.spec.md \
+  */lib/sha256.spec.md */lib/sha256-jit.spec.md */lib/sha3.spec.md */lib/sha3-jit.spec.md \
+  */lib/sha384.spec.md */lib/sha512.spec.md */lib/sha512-jit.spec.md */lib/tls-keys.spec.md \
+  */lib/tls13.spec.md */lib/x25519.spec.md */lib/x25519-jit.spec.md */lib/x509.spec.md \
+  */lib/bunzip2.spec.md */lib/bunzip2-jit.spec.md */lib/deflate-jit.spec.md */lib/inflate-jit.spec.md
 test-asan: x-bin-asan ## Run both suites under AddressSanitizer, less the crypto (memory-safety gate)
 	ASAN_OPTIONS=$(ASAN_RUN_OPTIONS) TIMEOUT_UNIT_SECS=180 SPEC_HEAVY_JOBS=1 X_BIN=./x-bin-asan SPECS_SKIP='$(ASAN_CRYPTO_SPECS)' sh tests/x/spec-runner.sh
 	$(ENGINE_MAKE) test-asan
@@ -931,7 +980,8 @@ install-hooks: ## Install the pre-push test gate (core.hooksPath=.githooks)
 
 test-x-cov: cov-clean $(EXECUTABLE) ## x-lang tests with coverage
 	$(MAKE) clean
-	$(ENGINE_MAKE) x-bin-cov && cp $(ENGINE_DIR)/x-bin-cov $(EXECUTABLE)
+	$(ENGINE_MAKE) x-bin-cov
+	cp $(ENGINE_DIR)/x-bin-cov $(EXECUTABLE)
 	sh tests/x/spec-runner.sh
 	mkdir -p $(COVERAGE_DIR)
 	gcovr -r . --filter 'src/' --print-summary --html-details $(COVERAGE_DIR)/index.html
@@ -939,7 +989,8 @@ test-x-cov: cov-clean $(EXECUTABLE) ## x-lang tests with coverage
 
 test-cov: cov-clean ## All tests with coverage
 	$(MAKE) clean
-	$(ENGINE_MAKE) x-bin-cov && cp $(ENGINE_DIR)/x-bin-cov $(EXECUTABLE)
+	$(ENGINE_MAKE) x-bin-cov
+	cp $(ENGINE_DIR)/x-bin-cov $(EXECUTABLE)
 	sh tests/x/spec-runner.sh
 	$(ENGINE_MAKE) test-c-cov
 	mkdir -p $(COVERAGE_DIR)
@@ -961,10 +1012,13 @@ bench: x-bin-profile ## Run benchmarks
 cov-x: x-bin-profile ## x-lang library coverage report
 	sh tools/dev/cov-lib.sh
 
-# FILE is the program to profile; LIB and ROWS are profile.sh's -l and -n.
+# FILE is the program to profile; LIB and ROWS are profile.sh's -l and -n,
+# each passed only when given: the shell builds the argument list, since a
+# conditional expansion is GNU make's own.
 profile-x: x-bin-profile ## Which functions a program's evaluation goes to (FILE=program.x)
 	@[ -n "$(FILE)" ] || { echo "profile-x: name the program, make profile-x FILE=program.x" >&2; exit 2; }
-	sh tools/dev/profile.sh $(if $(LIB),-l $(LIB)) $(if $(ROWS),-n $(ROWS)) $(FILE)
+	set --; [ -z "$(LIB)" ] || set -- "$$@" -l "$(LIB)"; [ -z "$(ROWS)" ] || set -- "$$@" -n "$(ROWS)"; \
+	sh tools/dev/profile.sh "$$@" $(FILE)
 .PHONY: bench cov-x profile-x
 
 # ============================================================================
@@ -1203,7 +1257,7 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	#                     same value the release manifest records -- written
 	#                     AFTER the copies above so it describes the
 	#                     installed bytes, not the repo's
-	printf '%s\n' '$(X_RELEASE)' > $(DESTDIR)$(LIBDIR)/contract/release
+	printf '%s\n' "$(X_RELEASE)" > $(DESTDIR)$(LIBDIR)/contract/release
 	sh tools/release/payload-digest.sh $(DESTDIR)$(LIBDIR) > $(DESTDIR)$(LIBDIR)/contract/payload.sha256
 .PHONY: install
 
@@ -1291,12 +1345,12 @@ uninstall-man: uninstall-man-c uninstall-man-x ## Remove both man references fro
 
 clean: cov-clean ## Clean build artifacts
 	rm -f $(EXECUTABLE) x-bin-debug x-bin-profile x-bin-asan x-bin-cov *.out *.core core
-	@if [ -f $(ENGINE_DIR)/Makefile ]; then $(MAKE) --no-print-directory -C $(ENGINE_DIR) clean; fi
+	@if [ -f $(ENGINE_DIR)/Makefile ]; then cd $(ENGINE_DIR) && $(MAKE) clean; fi
 	@# Pre-rename binary names (engine was `x` until the x-bin rename): a
 	@# checkout that built before the rename has stale copies at the root.
 	rm -f x x-debug x-profile x-asan x-cov
 .PHONY: clean
 
 help: ## Show targets
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "\033[32m%-38s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "\033[32m%-38s\033[0m %s\n", $$1, $$2}' Makefile
 .PHONY: help
