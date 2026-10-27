@@ -143,13 +143,14 @@
   (pair (lit x/reader/quasi-reader)
   (pair (lit x/reader/lit-reader)
   (pair (lit x/repl/loop)
+  (pair (lit x/repl/batch)
   (pair (lit x/type/bool)
   (pair (lit x/core/op-guard)
   (pair (lit x/type/err)
   (pair (lit x/repl/lang)
   (pair (lit x/repl/ansi)
   (pair (lit x/repl/banner)
-    (first %module-loaded-cell)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+    (first %module-loaded-cell))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 ; --- Standard modules ---
 (include-once "lib/x/core/predicates.x")
@@ -297,6 +298,9 @@
 
 ; REPL
 (include-once "lib/x/repl/loop.x")
+; The batch loop (-f, -c, piped stdin): after loop.x, whose read, location
+; prefix and printer it uses.
+(include-once "lib/x/repl/batch.x")
 
 ; Structured errors (#20): the Err class + errno translation.  Loaded
 ; after lit-reader (the file speaks 'x) and after platform/syscall's

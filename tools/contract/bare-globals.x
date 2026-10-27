@@ -113,6 +113,9 @@
   ; --- repl verbs ---
   (quit)
   (repl)
+  ; batch is the loop behind -f, -c and a piped stdin (x/repl/batch): x.sh
+  ; emits (batch) at the head of the program, so it is bare as repl is.
+  (batch)
   ; lang switches the session to a registered language (x/repl/lang) -- a
   ; verb typed at the prompt beside quit and repl, and a seam a lang's own
   ; spelling of the switch calls, which is why it is bare.

@@ -532,6 +532,15 @@ shquote() {
 # stdin from fd 3 (saved below) before its first read
 file=""
 file1=""
+# The two halves of $file, kept apart because the pipe treats them
+# differently: a bundle's entries are cat'd as they always were, and the
+# user's -f/-F files are emitted as (include "FILE") forms, so a raise in
+# one reports the file and line (lib/x/repl/batch.x).  $file still holds
+# both for every test that asks whether a file was supplied.  user_files
+# is newline-separated and path_form_safe'd at parse time, since it is
+# written into an x-lang string literal.
+entry_files=""
+user_files=""
 # -c/--eval expressions, accumulated in order and emitted onto the pipe
 # after the library (see eval_form).  Kept separate from $file because
 # they are TEXT, not a path: nothing to shquote into a `cat`.
@@ -604,13 +613,18 @@ do
 			shift 2
 			;;
 		-f | --file)
+			path_form_safe "$2" "program file"
 			file="$(shquote "$2")"
+			user_files="$2"
 			[ -z "$file1" ] && file1="$2"
 			post=""
 			shift 2
 			;;
 		-F | --load)
+			path_form_safe "$2" "program file"
 			file="$(shquote "$2") $file"
+			user_files="$2${user_files:+
+$user_files}"
 			[ -z "$file1" ] && file1="$2"
 			post="$(shquote "${LIB_PATH}${X_LAUNCH}")"
 			shift 2
@@ -965,6 +979,7 @@ if [ ! -e "$ENTRY" ]; then
 		# written in it is read.  file1 is the USER's file, so an untouched
 		# file1 is how we know to hand back a prompt rather than exit.
 		file="$(shquote "$BUNDLE_DIR/$BUNDLE_ENTRY") $file"
+		entry_files="$(shquote "$BUNDLE_DIR/$BUNDLE_ENTRY") $entry_files"
 		[ -n "$file1" ] || post="$(shquote "${LIB_PATH}${X_LAUNCH}")"
 	fi
 fi
@@ -978,6 +993,7 @@ if [ -n "$EXTRA_LIBS" ]; then
 		extra_resolve "$_n"
 	done
 	file="${EXTRA_ENTRIES# } $file"
+	entry_files="${EXTRA_ENTRIES# } $entry_files"
 	[ -n "$file1" ] || post="$(shquote "${LIB_PATH}${X_LAUNCH}")"
 fi
 
@@ -1417,11 +1433,36 @@ fi
 # then -c expressions, and the launcher LAST -- it hands over the session,
 # so anything emitted after it is never reached.  Fold the four into one
 # `cat` and that ordering stops being visible; keep them separate.
+#
+# A program -- a file, a pipe or -c -- is read by the batch loop
+# (lib/x/repl/batch.x) rather than the engine's own: (batch) is emitted
+# first and reads every form after it under a guard, so a raise is
+# reported in the library's wording with the raise site's file and line,
+# and the run ends with status 1 as before.  The bundle entries are cat'd
+# as they always were; the user's files become (include "FILE") forms,
+# which is what gives their forms a file and a line.
+#
+# Guarded, because not every library has the loop: lib/img.x and
+# lib/x-base.x stop short of it, and a pinned amalgam may predate it.  There
+# the name is unbound, the guard answers nil, and the engine's own loop
+# reads the program as it always did.
+batch_form() {
+	printf '(guard (_ ()) (batch))\n'
+}
+user_files_form() {
+	printf '%s\n' "$user_files" | while IFS= read -r _p; do
+		printf '(include "%s")\n' "$_p"
+	done
+}
 TAIL=
-[ -n "$file" ]       && TAIL="cat ${file}; "
-[ -n "$stdin_prog" ] && TAIL="${TAIL}cat; "
-[ -n "$have_eval" ]  && TAIL="${TAIL}eval_form; "
-[ -n "$post" ]       && TAIL="${TAIL}cat ${post}; "
+if [ -n "$file" ] || [ -n "$stdin_prog" ] || [ -n "$have_eval" ]; then
+	TAIL="batch_form; "
+fi
+[ -n "$entry_files" ] && TAIL="${TAIL}cat ${entry_files}; "
+[ -n "$user_files" ]  && TAIL="${TAIL}user_files_form; "
+[ -n "$stdin_prog" ]  && TAIL="${TAIL}cat; "
+[ -n "$have_eval" ]   && TAIL="${TAIL}eval_form; "
+[ -n "$post" ]        && TAIL="${TAIL}cat ${post}; "
 
 # --- STATE IMAGES: the boot, saved once and loaded after -------------------
 # Everything the pipe below feeds ahead of the user's program -- the root and
