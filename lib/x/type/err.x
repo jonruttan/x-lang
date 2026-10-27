@@ -142,6 +142,14 @@
     (doc "Inspection form: #<err:LABEL MESSAGE>."
       (returns STRING "The repr string"))
     (Str8 append "#<err:" (symbol->str (self label)) " " (self msg) ">"))
+  ; display's form, the sentence a raise site wrote: what the engine prints
+  ; for the same error uncaught, and what the REPL and the batch loop show.
+  ; The static %str below is a different thing, an ERR slot's lift.
+  (method %str (self)
+    (doc "Display form: LABEL: MESSAGE, the sentence (Err raise ...) wrote."
+      (returns STRING "The label, a colon and the message")
+      (example "(Str8 str (Err make 'io \"boom\" ()))" "\"io: boom\""))
+    (Str8 append (symbol->str (self label)) ": " (self msg)))
   (static
     ; --- engine errors ---------------------------------------------------
     ; The ERR type handle, resolved once from the base's own ERR -- the

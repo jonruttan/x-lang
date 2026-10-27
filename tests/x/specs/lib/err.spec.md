@@ -235,3 +235,11 @@ derived forms, so what from-errno costs beyond its (Err make) is small.
 ```
 ---
     ("stat: No such file or directory" #t)
+
+### display shows the sentence the raise wrote; write keeps the inspection form
+
+```x
+(do (display (Err make 'io "boom" ())) (display " / ") (write (Err make 'io "boom" ())))
+```
+---
+    io: boom / #<err:io boom>

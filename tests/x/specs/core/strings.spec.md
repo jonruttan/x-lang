@@ -63,7 +63,7 @@ the seat that renders non-strings.
 (Str8 append "a" ())
 ```
 ---
-    Error: #<err:type Str8 append: not a string>
+    Error: type: Str8 append: not a string
 
 ### a non-string argument raises wherever it sits
 
@@ -71,7 +71,7 @@ the seat that renders non-strings.
 (Str8 append "a" 5 "b")
 ```
 ---
-    Error: #<err:type Str8 append: not a string>
+    Error: type: Str8 append: not a string
 
 ## substring
 

@@ -821,7 +821,7 @@ is unchanged.
 (Float from (list 1))
 ```
 ---
-    Error: #<err:type Float from: not convertible to FLOAT>
+    Error: type: Float from: not convertible to FLOAT
 
 ### a mixed op with an unconvertible operand raises type, not a crash
 
@@ -829,7 +829,7 @@ is unchanged.
 (Float + 1.0 (list 1))
 ```
 ---
-    Error: #<err:type Float: operand not convertible to FLOAT>
+    Error: type: Float: operand not convertible to FLOAT
 
 ### ->int on a non-number raises type
 
@@ -837,7 +837,7 @@ is unchanged.
 (Float ->int (list 1))
 ```
 ---
-    Error: #<err:type Float ->int: not a float>
+    Error: type: Float ->int: not a float
 
 ### ->int int passthrough keeps exact identity
 

@@ -45,7 +45,6 @@
 (def %ln-bsub (prim-ref (lit str) (lit byte-sub)))
 (def %ln-append (prim-ref (lit str) (lit append)))
 (def %ln-bref (prim-ref (lit str) (lit byte-ref)))
-(def %ln-write-to-str (prim-ref (lit io) (lit write-to-str)))
 (def %ln-collect (prim-ref (lit heap) (lit collect)))
 (def %ln-cint (prim-ref (lit char) (lit ->int)))
 (def %ln-byte (fn (_ s i) (%ln-cint (%ln-bref s i))))
@@ -841,7 +840,7 @@
                 (Stream with-fd 2
                   (fn (_)
                     (display (%str-append (%error-loc-prefix)
-                               (if (str? err) err (%ln-write-to-str err)))
+                               (if (str? err) err (Str8 str err)))
                              "\n")))))
             (%repl-eval-line line)))))))
 

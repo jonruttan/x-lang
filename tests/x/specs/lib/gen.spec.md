@@ -31,7 +31,7 @@ intermediate list is built between stages.
 ((Gen range-by 0 10 0) ->list)
 ```
 ---
-    Error: #<err:value Gen range-by: step must be non-zero>
+    Error: value: Gen range-by: step must be non-zero
 
 ### count-from is infinite -- take bounds it
 
@@ -187,7 +187,7 @@ intermediate list is built between stages.
 ((Gen range 0 3) ref 9)
 ```
 ---
-    Error: #<err:index Gen ref: index out of range>
+    Error: index: Gen ref: index out of range
 
 ### ref errors on a negative index
 
@@ -195,7 +195,7 @@ intermediate list is built between stages.
 ((Gen range 0 3) ref -1)
 ```
 ---
-    Error: #<err:index Gen ref: index out of range>
+    Error: index: Gen ref: index out of range
 
 ### first errors on an empty generator; empty? is the presence door
 
@@ -203,7 +203,7 @@ intermediate list is built between stages.
 ((Gen of) first)
 ```
 ---
-    Error: #<err:value Gen first: empty generator>
+    Error: value: Gen first: empty generator
 
 ### reduce errors on an empty generator
 
@@ -211,7 +211,7 @@ intermediate list is built between stages.
 ((Gen of) reduce +)
 ```
 ---
-    Error: #<err:value Gen reduce: empty generator>
+    Error: value: Gen reduce: empty generator
 
 ### empty? peeks without consuming (a Gen is persistent)
 

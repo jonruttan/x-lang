@@ -181,7 +181,7 @@
             ; boot metadata for an error raised from the C reader (no
             ; form was being evaluated), so a file:line here would lie.
             (do
-              (%stderr #"Error: {(if (str? err) err (%repl-write-to-str err))}\n")
+              (%stderr #"Error: {(if (str? err) err (Str8 str err))}\n")
               (Sys exit 1))))
         (%repl-read)))
     (if (%repl-same? %r %token-eof)
@@ -207,7 +207,7 @@
                     ; memory as a symbol name -- jon's REPL printed garbage
                     ; bytes (or strings from other subsystems) for every
                     ; structured error (#46).
-                    (if (str? err) err (%repl-write-to-str err))))
+                    (if (str? err) err (Str8 str err))))
                 (%stderr "\n"))))
           (%repl-print (eval! %r)))
         (repl))))))

@@ -182,7 +182,7 @@ iterator once on the way in and raises `type` instead.
 (Iter new 5)
 ```
 ---
-    Error: #<err:type Iter new: not iterable>
+    Error: type: Iter new: not iterable
 
 ### new refuses a fn
 
@@ -190,7 +190,7 @@ iterator once on the way in and raises `type` instead.
 (Iter new (fn (_) 1))
 ```
 ---
-    Error: #<err:type Iter new: not iterable>
+    Error: type: Iter new: not iterable
 
 ### new refuses the reader's type alist
 
@@ -198,7 +198,7 @@ iterator once on the way in and raises `type` instead.
 (Iter new ((prim-ref (lit type) (lit alist))))
 ```
 ---
-    Error: #<err:type Iter new: not iterable>
+    Error: type: Iter new: not iterable
 
 ### the bare accessors still walk the type alist
 
@@ -215,7 +215,7 @@ iterator once on the way in and raises `type` instead.
 (Iter ->list ())
 ```
 ---
-    Error: #<err:type Iter ->list: not an iterator>
+    Error: type: Iter ->list: not an iterator
 
 ### next refuses nil
 
@@ -223,7 +223,7 @@ iterator once on the way in and raises `type` instead.
 (Iter next ())
 ```
 ---
-    Error: #<err:type Iter next: not an iterator>
+    Error: type: Iter next: not an iterator
 
 ### step refuses nil
 
@@ -231,7 +231,7 @@ iterator once on the way in and raises `type` instead.
 (Iter step ())
 ```
 ---
-    Error: #<err:type Iter step: not an iterator>
+    Error: type: Iter step: not an iterator
 
 ### empty? refuses nil
 
@@ -239,7 +239,7 @@ iterator once on the way in and raises `type` instead.
 (Iter empty? ())
 ```
 ---
-    Error: #<err:type Iter empty?: not an iterator>
+    Error: type: Iter empty?: not an iterator
 
 ### fold refuses nil
 
@@ -247,7 +247,7 @@ iterator once on the way in and raises `type` instead.
 (Iter fold + 0 ())
 ```
 ---
-    Error: #<err:type Iter fold: not an iterator>
+    Error: type: Iter fold: not an iterator
 
 ### for-each refuses nil
 
@@ -255,7 +255,7 @@ iterator once on the way in and raises `type` instead.
 (Iter for-each (fn (_ x) x) ())
 ```
 ---
-    Error: #<err:type Iter for-each: not an iterator>
+    Error: type: Iter for-each: not an iterator
 
 ### an empty sequence is still an iterator, not nil
 

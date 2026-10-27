@@ -32,7 +32,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 (Str8 ref 10 "ab")
 ```
 ---
-    Error: #<err:index Str8 ref: index out of range>
+    Error: index: Str8 ref: index out of range
 
 ### Str8 ref takes a negative index from the end
 
@@ -48,7 +48,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 (Str8 ref -3 "ab")
 ```
 ---
-    Error: #<err:index Str8 ref: index out of range>
+    Error: index: Str8 ref: index out of range
 
 ### StrUtf8 ref takes a negative index from the end (code points)
 
@@ -72,7 +72,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 (StrUtf8 ref 3 "$¢€")
 ```
 ---
-    Error: #<err:index Str ref: index out of range>
+    Error: index: Str ref: index out of range
 
 ### pad-right is pad-left's twin (elements, not columns)
 
@@ -199,7 +199,7 @@ belongs to the str make prim; this pins the teaching error.
 (Str8 make 8 (Char from-int 0))
 ```
 ---
-    Error: #<err:value Str8 make: fill encodes to NUL; for a raw read buffer use the str make prim (make-str)>
+    Error: value: Str8 make: fill encodes to NUL; for a raw read buffer use the str make prim (make-str)
 
 ### upcase at 16K elements (crash regression)
 
@@ -447,7 +447,7 @@ were sliced at the wrong boundaries.
 ("hi" 5)
 ```
 ---
-    Error: #<err:index str: index out of range>
+    Error: index: str: index out of range
 
 ### the bare (s a n) slice clamps at the end
 
@@ -591,7 +591,7 @@ evaluates -- the tower parse-before-eval trap, begin-flavored.
 (Str upcase 42)
 ```
 ---
-    Error: #<err:type Str8: not a string>
+    Error: type: Str8: not a string
 
 ### length rejects a non-string
 
@@ -602,7 +602,7 @@ so the guard fires at `start` rather than in Str8's byte-length seat.
 (Str length 42)
 ```
 ---
-    Error: #<err:type Str8: not a string>
+    Error: type: Str8: not a string
 
 ### length on a pair no longer returns a byte count
 
@@ -610,7 +610,7 @@ so the guard fires at `start` rather than in Str8's byte-length seat.
 (Str length (list 1 2))
 ```
 ---
-    Error: #<err:type Str8: not a string>
+    Error: type: Str8: not a string
 
 ### join rejects non-string elements
 
@@ -618,7 +618,7 @@ so the guard fires at `start` rather than in Str8's byte-length seat.
 (Str join ", " (list 1 2 3))
 ```
 ---
-    Error: #<err:type Str8 join: element not a string>
+    Error: type: Str8 join: element not a string
 
 ### sub rejects a non-string
 
@@ -626,7 +626,7 @@ so the guard fires at `start` rather than in Str8's byte-length seat.
 (Str sub 0 2 42)
 ```
 ---
-    Error: #<err:type Str sub: not a string>
+    Error: type: Str sub: not a string
 
 
 ## wrap and fill (#375)

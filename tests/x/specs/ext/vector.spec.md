@@ -117,7 +117,7 @@
 (Vector ref 5 (Vector of 10 20 30))
 ```
 ---
-    Error: #<err:index Vector ref: index out of range>
+    Error: index: Vector ref: index out of range
 
 ### errors past the front on a negative index
 
@@ -125,7 +125,7 @@
 (Vector ref -4 (Vector of 10 20 30))
 ```
 ---
-    Error: #<err:index Vector ref: index out of range>
+    Error: index: Vector ref: index out of range
 
 ### the bare call slot is bounds-checked too
 
@@ -133,7 +133,7 @@
 ((Vector of 10 20 30) 5)
 ```
 ---
-    Error: #<err:index vector: index out of range>
+    Error: index: vector: index out of range
 
 ## vector-length
 
@@ -250,7 +250,7 @@
 (Vector set! 5 9 (Vector of 1 2))
 ```
 ---
-    Error: #<err:index Vector set!: index out of range>
+    Error: index: Vector set!: index out of range
 
 ### rejects a non-vector receiver
 
@@ -258,7 +258,7 @@
 (Vector length 7)
 ```
 ---
-    Error: #<err:type Vector length: not a vector>
+    Error: type: Vector length: not a vector
 
 ### ref rejects a non-vector receiver
 
@@ -266,7 +266,7 @@
 (Vector ref 0 42)
 ```
 ---
-    Error: #<err:type Vector ref: not a vector>
+    Error: type: Vector ref: not a vector
 
 ### ref on a list no longer returns pair internals
 
@@ -274,7 +274,7 @@
 (Vector ref 0 (list 1 2 3))
 ```
 ---
-    Error: #<err:type Vector ref: not a vector>
+    Error: type: Vector ref: not a vector
 
 ### set! rejects a non-vector receiver
 
@@ -282,7 +282,7 @@
 (Vector set! 0 9 42)
 ```
 ---
-    Error: #<err:type Vector set!: not a vector>
+    Error: type: Vector set!: not a vector
 
 ### ->list rejects a non-vector receiver
 
@@ -290,7 +290,7 @@
 (Vector ->list 7)
 ```
 ---
-    Error: #<err:type Vector ->list: not a vector>
+    Error: type: Vector ->list: not a vector
 
 ### make rejects a negative length (#52)
 

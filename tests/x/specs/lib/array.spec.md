@@ -65,7 +65,7 @@
 (do (import x/type/array) ((Array from-list (list 1)) ref 5))
 ```
 ---
-    Error: #<err:index Array ref: index out of range>
+    Error: index: Array ref: index out of range
 
 ## pop!
 
@@ -85,7 +85,7 @@
 (do (import x/type/array) ((Array make) pop!))
 ```
 ---
-    Error: #<err:value Array pop!: empty>
+    Error: value: Array pop!: empty
 
 ## uninitialized instances fail loudly (constructor adjudication)
 
