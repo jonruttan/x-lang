@@ -3,7 +3,8 @@
 #
 # A feat, fix or perf commit carries its changelog entry in its own message:
 # a line reading `Changelog:`, then the entry as it appears in CHANGELOG.md,
-# up to the message's trailers.  No commit edits CHANGELOG.md, so two pull
+# up to the message's trailers; an entry may start on the `Changelog:` line
+# itself.  No commit edits CHANGELOG.md, so two pull
 # requests never edit the same line of it, and merging one leaves the others
 # mergeable.  The file is written once, at release, from this script.
 #
@@ -48,14 +49,16 @@ if [ -z "$from" ]; then
 	exit 0
 fi
 
-# The entry a commit's message carries: the lines after `Changelog:`, the
-# trailers and blank lines at the end dropped.  Prints nothing for none.
+# The entry a commit's message carries: the lines after `Changelog:`, led by
+# the rest of that line when the entry starts on it, the trailers and blank
+# lines at the end dropped.  Prints nothing for none.
 entry_of() {
 	git log -1 --format=%B "$1" | awk '
 		/^Changelog:$/ { on = 1; next }
+		/^Changelog: / { on = 1; sub(/^Changelog: */, ""); line[++n] = $0; keep = 1; next }
 		on { line[++n] = $0 }
 		END {
-			while (n > 0 && (line[n] ~ /^$/ || line[n] ~ /^[A-Za-z][A-Za-z-]*: /)) {
+			while (n > keep && (line[n] ~ /^$/ || line[n] ~ /^[A-Za-z][A-Za-z-]*: /)) {
 				n--
 			}
 			for (i = 1; i <= n; i++) {
