@@ -128,6 +128,19 @@ in x/repl/line reads that key.
 ---
     ('home 'end 'home 'end 'delete)
 
+### Page Up and Page Down
+
+`ESC [ 5 ~` and `ESC [ 6 ~`, with or without a modifier after the number.
+
+```x
+(do (import x/repl/term)
+    (List map
+      (fn (_ bs) (Term key (fn (_) (if (null? bs) () (let ((b (first bs))) (set! bs (rest bs)) b)))))
+      (list (list 27 91 53 126) (list 27 91 54 126) (list 27 91 53 59 53 126))))
+```
+---
+    ('page-up 'page-down 'page-up)
+
 ### the function keys in the spellings terminals send them
 
 F1 to F4 as SS3 (`ESC O P` to `S`) and, with a modifier, as CSI with a
