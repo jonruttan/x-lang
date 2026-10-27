@@ -103,12 +103,12 @@ Returns the rest element (cdr) of pair `p`.
 
 `(eq? a b) -> #t | #f`
 
-Tests scalar-value identity of evaluated `a` and `b`: the same object, or two scalars (integers, characters) carrying the same value, compare `#t`. Use `same?` for strict object identity.
+Tests whether evaluated `a` and `b` hold the same value word, whatever their types: an integer, a character or a symbol by its value, any other object by its first data word. Two distinct pairs whose first elements are the same object are `eq?`; `same?` is object identity. The rule is normative in [the Specification](spec.md#eq).
 
 ```x-repl
 (eq? 'x 'x) -> #t
-(eq? 1 1) -> #t
 (eq? "a" "a") -> #f
+(eq? (pair 'x 1) (pair 'x 9)) -> #t
 ```
 
 ### `=`
