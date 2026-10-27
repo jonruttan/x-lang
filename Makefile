@@ -905,7 +905,7 @@ ASAN_CRYPTO_SPECS = $(patsubst %,*/lib/%.spec.md,\
   aes bcrypt chacha20 chacha20-jit chacha20-poly1305 crypt der ecdsa ed25519 ed25519-jit \
   hkdf hmac mont mont-jit poly1305 poly1305-jit sha1 sha1-jit sha256 sha256-jit \
   sha3 sha3-jit sha384 sha512 sha512-jit tls-keys tls13 x25519 x25519-jit x509 \
-  deflate-jit inflate-jit)
+  bunzip2 bunzip2-jit deflate-jit inflate-jit)
 test-asan: x-bin-asan ## Run both suites under AddressSanitizer, less the crypto (memory-safety gate)
 	ASAN_OPTIONS=$(ASAN_RUN_OPTIONS) TIMEOUT_UNIT_SECS=180 SPEC_HEAVY_JOBS=1 X_BIN=./x-bin-asan SPECS_SKIP='$(ASAN_CRYPTO_SPECS)' sh tests/x/spec-runner.sh
 	$(ENGINE_MAKE) test-asan
