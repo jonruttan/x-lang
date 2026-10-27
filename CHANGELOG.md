@@ -5,6 +5,32 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-10-27
+
+**`docs/crafting-a-lang.md` no longer sends a lang author to the `base/def-global` door.** ([#1110]) The passage on `def` at depth described the save-stack rule x-engine-c v0.2.10 retired; it now states engine law 10 (`def` binds in the current environment, `eval!` evaluates in the root) and names `eval!`, with the value under `lit`, for a definition made at depth that must bind for the session.
+
+[#1110]: https://github.com/jonruttan/x-lang/pull/1110
+
+**`Lexer until` takes a close of any length.** ([#1109]) The close is matched through a chain of states, each falling back to the longest start of the close the bytes read still match, so `"""` and ` ``` ` close a span where only one or two bytes could before; a close of two bytes or more is always part of the span. Specs cover a three-byte close, a close whose start repeats, and a close that starts like the open.
+
+[#1109]: https://github.com/jonruttan/x-lang/pull/1109
+
+**Syntax highlighting colours are a theme, and a theme file changes them.** ([#1108]) `x/tool/syntax` gains `Theme`: each class's `Style` as data, `(Theme current)` the one `Syntax ansi`, `sgr` and `code` draw with. The default theme is the old table, byte for byte. `$X_THEME`, else `$XDG_CONFIG_HOME/x/theme.x`, else `~/.config/x/theme.x`, holds `(theme NAME (CLASS ATTRIBUTES FG BG) ...)` forms, each over the theme of that name or the default, and `(use NAME)`; it is read on first use and never evaluated. The REPL, the documentation highlighter and vi all follow it.
+
+[#1108]: https://github.com/jonruttan/x-lang/pull/1108
+
+**Cksum and Sum: the checksums of cksum and sum(1).** ([#1107]) `(Cksum of s)` is POSIX cksum's CRC, the length folded in; `(Sum bsd s)` and `(Sum sysv s)` are sum's BSD and System V checksums.  Each reads by count, so a NUL is a byte like any other, takes an optional START and LENGTH, and builds a compiled engine (JIT) for 4 KB or more as Crc32 does.  Over 1 MB the three sums cost 0.044 s once their engines are built, which costs about 0.5 s each a process.
+
+[#1107]: https://github.com/jonruttan/x-lang/pull/1107
+
+**The operator guards, `when` and `unless` test with `match`, not `if`.** ([#1106]) The guards on `<`, `&`, `|`, `^`, `<<`, `>>` and `~`, the derived `>`, `<=` and `>=`, and `when` and `unless` are `match` clauses: `<` costs 10 objects a call over the door (was 25), `>`, `<=` and `>=` 20 (was 69-86), and `when` and `unless` 8 (was 19 and 26). A missing operand and a nil one raise one message, `<: needs two operands, neither nil`.
+
+[#1106]: https://github.com/jonruttan/x-lang/pull/1106
+
+**Term key names Page Up and Page Down.** ([#1105]) `Term key` answers `'page-up` and `'page-down` for `ESC [ 5 ~` and `ESC [ 6 ~`.
+
+[#1105]: https://github.com/jonruttan/x-lang/pull/1105
+
 ## [0.40.0] - 2026-10-26
 
 **`Ansi highlight` colours code with x/tool/syntax.** ([#1100]) The example is shown byte for byte as written (`'rdonly` stays `'rdonly`) in the same classes as the REPL painter, where it re-rendered the parsed form with a keyword list of its own.
