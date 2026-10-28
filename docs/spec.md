@@ -669,14 +669,20 @@ Right shift (arithmetic).
 
 `(eq? a b) -> #t | #f`
 
-Scalar-value identity: the same object, or two scalars (integers,
-characters) carrying the same value. Symbols with the same name are
-interned and thus `eq?`. Use `same?` for strict object identity.
+Value-word equality: `#t` when `a` and `b` hold the same value word,
+whatever their types. An integer or a character compares by its value,
+and symbols with the same name are interned, so they compare equal. Any
+other object compares by its first data word: two distinct pairs whose
+first elements are the same object are `eq?`, and so are an integer and
+the character with that code. Two strings with the same text are not,
+since each holds its own bytes. Use `same?` for object identity.
 
 ```x-repl
 (eq? 'x 'x) -> #t
 (eq? 1 1) -> #t
 (eq? "a" "a") -> #f
+(eq? (pair 'x 1) (pair 'x 9)) -> #t
+(same? (pair 'x 1) (pair 'x 9)) -> #f
 ```
 
 ### `=`

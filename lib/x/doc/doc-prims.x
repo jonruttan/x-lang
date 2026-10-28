@@ -190,10 +190,24 @@
 
 (note "Predicates")
 
-(doc eq? "Test identity equality (pointer equality for objects, value for atoms)."
+(doc eq? "Compare the value words of a and b: #t when the two hold the same word. An integer, a character or a symbol compares by its value; any other object by its first data word, so two distinct pairs whose first elements are the same object answer #t, as do an integer and the character with that code. Use same? for object identity."
   (param a ANY "First value")
   (param b ANY "Second value")
-  (returns BOOL "t if identical"))
+  (returns BOOL "#t when the value words are the same")
+  (example "(eq? 'x 'x)" "#t")
+  (example "(eq? (pair 'x 1) (pair 'x 9))" "#t")
+  (example "(same? (pair 'x 1) (pair 'x 9))" "#f")
+  (see same?))
+
+(doc same? "Test object identity: #t when a and b are the same object. Values that are equal but made separately are not: two integer literals with one value, or two strings with one text, answer #f. nil, #t and #f are each a single object."
+  (param a ANY "First value")
+  (param b ANY "Second value")
+  (returns BOOL "#t when a and b are the same object")
+  (example "(let ((p (pair 'x 1))) (same? p p))" "#t")
+  (example "(same? (pair 'x 1) (pair 'x 9))" "#f")
+  (example "(same? 7 7)" "#f")
+  (example "(same? () ())" "#t")
+  (see eq?))
 
 (doc = "Test numeric equality."
   (param a INTEGER "First number")
