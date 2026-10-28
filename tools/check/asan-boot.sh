@@ -64,8 +64,9 @@ else
 		# A tag is immutable, so the build never goes stale and is never
 		# rebuilt -- which also keeps clear of GNU make 3.81's one-second
 		# mtime granularity, the thing that makes an incremental rebuild
-		# after a quick edit silently reuse the old object.
-		make -C "$SRC" -s x-bin-asan >&2 || {
+		# after a quick edit silently reuse the old object.  `cd` rather than
+		# `make -C`, which is GNU make's own.
+		(cd "$SRC" && make -s x-bin-asan) >&2 || {
 			echo "asan-boot: x-bin-asan failed to build in $SRC" >&2; exit 2; }
 	fi
 fi

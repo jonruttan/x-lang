@@ -53,7 +53,7 @@ rather than carried, and `tools/engine/engine.pin.xon` names a prebuilt
 artifact for both platforms CI runs (darwin arm64, linux x86-64). The build
 rule takes the source branch only when the engine directory has a Makefile:
 
-    if [ -f $(ENGINE_DIR)/Makefile ]; then $(MAKE) -C $(ENGINE_DIR); ...
+    if [ -f $(ENGINE_DIR)/Makefile ]; then cd $(ENGINE_DIR) && $(MAKE); ...
 
 With a prebuilt artifact linked, it does not, and **`make` compiles nothing**.
 Measured: zero invocations of cc, clang, ld, as, strip or codesign across the
@@ -138,8 +138,11 @@ failed); install 27 / 441.
   which matters more than the old count suggested: 315 invocations, not 22.
 - **shell (sh)**: x-ash; every make recipe line, and the count is a floor
   (see caveats).
-- **make**: x-make. Recursion via $(MAKE); the GNU subset actually used is
-  $(shell), $(wildcard), $(findstring), $(if), ifeq/ifdef, 2 pattern rules.
+- **make**: x-make. Both Makefiles, this one and the engine's, need no
+  reading only GNU make has (x-lang#1120, x-engine-c#111): recursion is
+  `cd DIR && $(MAKE)`, a shell value is computed at the recipe, and a
+  conditional is a computed macro name.  Beyond the core, the engine's uses
+  `-include` and `+=`, both POSIX 2024, and x-make reads both.
 - **crypto**: 330 calls for manifest and ISA pinning, still the system pair
   at every call site. x has a byte-identical sha256sum, but only three sites
   can take it: `Makefile:1076` and `Makefile:1087`, under an `install` target

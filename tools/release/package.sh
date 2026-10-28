@@ -57,7 +57,7 @@ fail() { echo "package: FAIL: $1" >&2; exit 1; }
 # shallow clone, or a tag it never fetched -- and a tarball whose engine
 # disagrees with its own release is exactly the confusion the stamp exists
 # to end.
-make --no-print-directory install PREFIX="/x-$TAG" DESTDIR="$STAGE" X_RELEASE="$TAG" >/dev/null \
+make install PREFIX="/x-$TAG" DESTDIR="$STAGE" X_RELEASE="$TAG" >/dev/null \
 	|| fail "make install failed"
 [ -x "$STAGE/x-$TAG/bin/x" ]       || fail "no wrapper staged"
 [ -x "$STAGE/x-$TAG/libexec/x/x-bin" ] || fail "no engine staged"
