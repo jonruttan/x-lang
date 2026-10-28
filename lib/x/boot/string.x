@@ -73,34 +73,52 @@
 ; unconditional fold OOM-pressured at ~2GB copied for what is now one
 ; 300KB pass.  Both arms produce identical bytes; the threshold only
 ; trades constants.
+;
+; Every piece is type-checked in the length walk, which visits each one
+; before any raw read: %str-byte-len and %str-append take a string on
+; trust, so a non-string piece read arbitrary memory and (%str-concat
+; (list "a" 5)) killed the engine.  One (type ?) prim call a piece, nil
+; included (the prim answers #f for nil); the prim and the STRING handle
+; are bound once, in the closure around the fn rather than as globals,
+; because the file's %-budget (tools/contract/percent-globals.x) is
+; full.  Err resolves at call time, as in core/list.x.  Measured over
+; 20,000 four-piece calls: no heap objects added (197 a call before and
+; after -- a prim call allocates nothing) and about 3% CPU on the bare
+; call; a caller's own check walk ahead of the call cost 188 objects
+; more a call.
 (def %str-concat
-  (fn (_ pieces)
-    (do
-      (def %sc-total
-        ((fn (self ps n)
-           (match
-             ((null? ps) n)
-             (#t (self (rest ps) (%sc-int+ n (%str-byte-len (first ps)))))))
-         pieces 0))
-      (match
-        ((%sc-int< %sc-total 262144)
-          ((fn (self ps acc)
-             (match
-               ((null? ps) acc)
-               (#t (self (rest ps) (%str-append acc (first ps))))))
-           pieces ""))
-        (#t
-          (do
-            (def %out (%str-make %sc-total))
-            (def %sc-base (%ptr->int (%str->ptr %out)))
-            ((fn (self ps off)
-               (match
-                 ((null? ps) %out)
-                 (#t (do
-                       (def %sc-n (%str-byte-len (first ps)))
-                       (%mem-copy (%int->ptr (%sc-int+ %sc-base off)) (%str->ptr (first ps)) %sc-n)
-                       (self (rest ps) (%sc-int+ off %sc-n))))))
-             pieces 0)))))))
+  ((fn (_ %sc-str? %sc-str-type)
+     (fn (_ pieces)
+       (do
+         (def %sc-total
+           ((fn (self ps n)
+              (match
+                ((null? ps) n)
+                ((%sc-str? (first ps) %sc-str-type)
+                  (self (rest ps) (%sc-int+ n (%str-byte-len (first ps)))))
+                (#t (Err raise (lit type) "%str-concat: not a string" ()))))
+            pieces 0))
+         (match
+           ((%sc-int< %sc-total 262144)
+             ((fn (self ps acc)
+                (match
+                  ((null? ps) acc)
+                  (#t (self (rest ps) (%str-append acc (first ps))))))
+              pieces ""))
+           (#t
+             (do
+               (def %out (%str-make %sc-total))
+               (def %sc-base (%ptr->int (%str->ptr %out)))
+               ((fn (self ps off)
+                  (match
+                    ((null? ps) %out)
+                    (#t (do
+                          (def %sc-n (%str-byte-len (first ps)))
+                          (%mem-copy (%int->ptr (%sc-int+ %sc-base off)) (%str->ptr (first ps)) %sc-n)
+                          (self (rest ps) (%sc-int+ off %sc-n))))))
+                pieces 0)))))))
+   (prim-ref (lit type) (lit ?))
+   ((prim-ref (lit type) (lit of)) "")))
 
 ; number->str: (number->str n [radix]) -> string
 (def %n2s/ /)

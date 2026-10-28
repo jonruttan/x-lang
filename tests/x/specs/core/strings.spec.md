@@ -73,6 +73,44 @@ the seat that renders non-strings.
 ---
     Error: type: Str8 append: not a string
 
+## %str-concat
+
+The one allocation every multi-piece builder funnels through.  Each piece is
+type-checked in the length walk, before any raw byte read: a non-string piece
+used to kill the engine.
+
+### joins a list of strings
+
+```x
+(%str-concat (list "a" "b" "c"))
+```
+---
+    "abc"
+
+### an empty list is the empty string
+
+```x
+(%str-concat ())
+```
+---
+    ""
+
+### a non-string piece raises a type error
+
+```x
+(%str-concat (list "a" 5))
+```
+---
+    Error: type: %str-concat: not a string
+
+### nil is not a string either
+
+```x
+(%str-concat (list "a" () "b"))
+```
+---
+    Error: type: %str-concat: not a string
+
 ## substring
 
 ### extracts substring
