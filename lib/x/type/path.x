@@ -27,6 +27,71 @@
           ((Char =? (Str8 ref (- e 1) s) #\/) (go (- e 1)))
           (#t (Str8 sub 0 e s)))))))
 
+; The join seam on the byte doors (0-1 objects a call each; the tower
+; operators and a Str8 send cost ~100 and ~170).  A directory walker
+; pays a seam for every entry, so this is the hot step of du, find and
+; ls -R: the old fold of str=?, (Str8 ref) and (Char =?) sends cost
+; ~6,300 objects a two-part join, a bare concat ~1.
+(def %path-byte-len (prim-ref (lit str) (lit byte-len)))
+(def %path-byte-ref (prim-ref (lit str) (lit byte-ref)))
+(def %path-byte-sub (prim-ref (lit str) (lit byte-sub)))
+(def %path-cat (prim-ref (lit str) (lit append)))
+(def %path-code (prim-ref (lit char) (lit ->int)))
+(def %path-int+ (prim-ref (lit int) (lit +)))
+(def %path-int- (prim-ref (lit int) (lit -)))
+(def %path-type-of (prim-ref (lit type) (lit of)))
+(def %path-str-type (%path-type-of ""))
+(def %path-slash (%path-code (%path-byte-ref "/" 0)))
+
+; The byte doors read unchecked, so a non-string part is refused here, as
+; Str8 append refuses one, instead of reading memory.
+(def %path-part
+  (fn (_ v)
+    (match
+      ((if (eq? v ()) #f (eq? (%path-type-of v) %path-str-type)) v)
+      (#t (Err raise (lit type) "Path join: not a string" ())))))
+
+; End of s without its trailing slashes: the index of the last byte that
+; is not '/', plus one; 0 when s is empty or all slashes.
+(def %path-trim-end
+  (fn (self s e)
+    (match
+      ((eq? e 0) 0)
+      ((eq? (%path-code (%path-byte-ref s (%path-int- e 1))) %path-slash)
+        (self s (%path-int- e 1)))
+      (#t e))))
+
+; Start of s past its leading slashes; n when s is all slashes.
+(def %path-trim-start
+  (fn (self s i n)
+    (match
+      ((eq? i n) n)
+      ((eq? (%path-code (%path-byte-ref s i)) %path-slash)
+        (self s (%path-int+ i 1) n))
+      (#t i))))
+
+; acc and part around one '/': acc's trailing and part's leading slashes
+; collapse into it.  Two concats; the slices only when a slash is cut.
+(def %path-seam
+  (fn (_ acc part)
+    (def alen (%path-byte-len acc))
+    (def e (%path-trim-end acc alen))
+    (def plen (%path-byte-len part))
+    (def i (%path-trim-start part 0 plen))
+    (%path-cat
+      (%path-cat (match ((eq? e alen) acc) (#t (%path-byte-sub acc 0 e))) "/")
+      (match ((eq? i 0) part) (#t (%path-byte-sub part i (%path-int- plen i)))))))
+
+; The join loop: an empty part vanishes, the first part stands as given
+; (its own leading slashes are the root), every later one is a seam.
+(def %path-join-go
+  (fn (self acc parts)
+    (match
+      ((eq? parts ()) acc)
+      ((eq? (%path-byte-len (%path-part (first parts))) 0) (self acc (rest parts)))
+      ((eq? (%path-byte-len acc) 0) (self (first parts) (rest parts)))
+      (#t (self (%path-seam acc (first parts)) (rest parts))))))
+
 (def-class Path ()
   (doc "Pure-string pathname manipulation: join, dirname, basename, ext, split, absolute?."
     (note "No filesystem access -- every method is a total string function; pair with the File class for stat/exists?.")
@@ -39,16 +104,9 @@
         (example "(Path join \"a\" \"b/c\")" "\"a/b/c\"")
         (example "(Path join \"a/\" \"/b\")" "\"a/b\"")
         (example "(Path join \"/root\" \"etc\")" "\"/root/etc\"")
+        (example "(Path join \"/\" \"etc\")" "\"/etc\"")
         (example "(Path join \"a\" \"\" \"b\")" "\"a/b\""))
-      (%fold
-        (fn (_ acc part)
-          (match
-            ((str=? part "") acc)
-            ((str=? acc "") part)
-            (#t (Str8 append (%path-strip-trailing acc)
-                  (if (Char =? (Str8 ref 0 part) #\/) part
-                    (Str8 append "/" part))))))
-        "" parts))
+      (%path-join-go "" parts))
 
     (method dirname (self (param p STRING "Path"))
       (doc "The directory part: everything before the last '/' (after trailing slashes are stripped). No slash at all answers \".\"; a root-level entry answers \"/\"."
