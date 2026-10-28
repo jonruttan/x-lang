@@ -23,6 +23,24 @@ No filesystem access -- every method is a total string function.
 ---
     ("a/b" "/root/etc" "rel")
 
+### the root and doubled slashes collapse into the seam
+
+```x
+(do (import x/type/path)
+  (list (Path join "/" "etc") (Path join "a//" "//b") (Path join "/" "/") (Path join "a" "/" "b") (Path join "a/" "")))
+```
+---
+    ("/etc" "a/b" "/" "a/b" "a/")
+
+### a non-string component raises 'type
+
+```x
+(do (import x/type/path)
+  (list (guard (e (Err label e)) (Path join "a" ())) (guard (e (Err label e)) (Path join "a" 1))))
+```
+---
+    ('type 'type)
+
 ## dirname / basename
 
 ### the usual splits
