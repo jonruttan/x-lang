@@ -5,6 +5,74 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-10-28
+
+**The engine is x-engine-c v0.2.25** ([#1126]). `(base def-global)` is gone from the engine; a root definition is `(eval! (list (lit def) n (list (lit lit) v)))`, and the engine-min fixture and the sandbox spec no longer mention the primitive.
+
+[#1126]: https://github.com/jonruttan/x-lang/pull/1126
+
+**The release packager and the ASan boot gate call make with no GNU-only flag.** ([#1127]) `tools/release/package.sh` drops `--no-print-directory`, and `tools/check/asan-boot.sh` builds the sanitizer engine with `cd DIR && make` in place of `make -C DIR`, so both run under BSD make and x-make as they do under GNU make.
+
+[#1127]: https://github.com/jonruttan/x-lang/pull/1127
+
+**`%str-concat` raises a type `Err` on a non-string piece instead of reading raw memory.** ([#1125]) Each piece is type-checked in the length walk that already visits it, with one `(type ?)` call: no heap objects added (197 a call over 20,000 four-piece calls, before and after), about 3% CPU on the bare call, and `Str8 join`/`append`/`str`, `Json emit`, `Xon emit` and `Markdown html` unchanged within noise. A bundle that walked its own check before calling it (188 objects a call) can drop the walk.
+
+[#1125]: https://github.com/jonruttan/x-lang/pull/1125
+
+**`Path join` costs 257 heap objects a two-part call, down from 6,275.** ([#1124]) The seams run on the str, char and int doors (two byte scans, slices only when a slash is cut, two concats) instead of a fold of `str=?`, `Str8 ref` and `Char =?` sends; 551 -> 24 us a call under the tower, under `Str8 append`'s 810 objects.  The root seam now holds the documented contract: `(Path join "/" "etc")` is `"/etc"` (was `"//etc"`) and doubled slashes collapse to one; a non-string part raises `'type`.
+
+[#1124]: https://github.com/jonruttan/x-lang/pull/1124
+
+**The Makefile needs no reading only GNU make has.** ([#1120]) Every GNU-only idiom is replaced by the form GNU make, BSD make and POSIX 2024 read alike, and every target keeps its commands:
+- `$(shell git describe ...)` for X_RELEASE is a backquoted command the shell runs at the recipe; every use sits inside double quotes, where it runs, and a value given on the command line passes through as a string.  (`!=` would be GNU 4 and BSD only; macOS ships GNU 3.81.)
+- `$(if $(X_ENGINE_DIR),...,$(shell readlink ...))` for ENGINE_SRC is the same, an if/elif in a backquoted command; ENGINE_ENSURE reads it once into a shell variable.
+- `$(MAKE) --no-print-directory -C engine TARGET`, seven places, is `cd engine && $(MAKE) TARGET`; the two coverage targets put their copy on a recipe line of its own, since the cd is the last thing in the macro's shell.  The flag is dropped from the four recursions into this tree.
+- The two static pattern rules over the variant engines, with `$<` and `$*`, are one explicit rule a variant; `$<` in the x-bin copy rule is the prerequisite's path written out, since POSIX and BSD make define it only in inference rules.
+- `ifeq ($(IMG),0)` around test-x is one rule whose prerequisites and recipe come from a computed name: `IMG=0` selects the `_SRC` pair and any other value the image pair, as the conditional did.
+- `$(CURDIR)` and `$(abspath $(IMG_DIR))` are `$(pwd)` and `$(cd DIR && pwd)` read at the recipe; `images` has made the directory by then.
+- `$(patsubst %,*/lib/%.spec.md,...)` for ASAN_CRYPTO_SPECS is the 34 globs written out.
+- `$(if $(LIB),-l $(LIB)) $(if $(ROWS),-n $(ROWS))` in profile-x is the argument list built by the shell with `set --`.
+- `$(MAKEFILE_LIST)` in help is `Makefile`.
+The install stamp `printf '%s\n' '$(X_RELEASE)'` is double-quoted so the command runs there too.
+
+[#1120]: https://github.com/jonruttan/x-lang/pull/1120
+
+**A lang's `-f` file is text for its reader, not an include form.** ([#1121]) #1117 emitted every `-f` file as an include form, which handed a Logo or Python program to the x reader: `x -l logo -f prog.logo` printed nothing. With a lang leading the file is cat'd whole again; with a dialect leading the include form stays, and a raise in a program with no file reads bare `Error: ...` rather than a line relative to the form just read.
+
+[#1121]: https://github.com/jonruttan/x-lang/pull/1121
+
+**Html parses a page into Markdown's blocks, and Entity reads character references.** ([#1122]) `(Html parse text)` answers the blocks `(Markdown parse)` answers (headings, paragraphs, pre, blockquote, nested lists, hr, a table as a paragraph a row) with a, b/strong, i/em, code, br and an img's alt text as inlines, tolerant of unclosed p, li, td and th and of attributes in either quote or none; head, script, style and comments are dropped and white space collapsed. `(Html title text)` answers the `<title>`. `x/codec/entity` holds HTML 4's named references and every numeric form for both codecs; Markdown now decodes all 252 names, not 62.
+
+[#1122]: https://github.com/jonruttan/x-lang/pull/1122
+
+**x-lang's own tree no longer calls `(base def-global)`.** ([#1114]) The image writer, the image loader and the specs bind in the root with a `def` evaluated by `eval!` (engine law 10), the value under `lit`; the engine primitive is retired now that the lang bundles have moved (x-krn#26, x-r5rs#35, x-sweet#33, x-r7rs#35).
+
+[#1114]: https://github.com/jonruttan/x-lang/pull/1114
+
+**A raised Err displays as the sentence it was raised with.** ([#1118]) The REPL showed a library-raised error as `Error: #<err:type no + for STRING>`, the inspection form; it now shows `Error: type: no + for STRING`, the sentence `(Err raise ...)` wrote and what the engine printed for the same error uncaught. `Err` gains `%str` (display) beside `%repr` (write), and `(display err)` or `(Str8 str err)` answers the sentence anywhere.
+
+[#1118]: https://github.com/jonruttan/x-lang/pull/1118
+
+**A program's raise is reported with its file and line.** ([#1117]) A raise in `-f`, `-c` or a piped program printed `*** ERROR: Unbound SYMBOL 'frob` from the engine's own loop and exited. `lib/x/repl/batch.x` reads a program the way the interactive session does, one form under a guard, so the same raise reads `Error [prog.x:3]: Unbound SYMBOL 'frob'`, in the library's wording; the run still ends with status 1. `x.sh` emits `(batch)` ahead of the program and the user's `-f`/`-F` files as `(include ...)` forms, which is what gives their forms a file and a line; bundle entries are cat'd as before.
+
+[#1117]: https://github.com/jonruttan/x-lang/pull/1117
+
+**An import of a module no root holds is refused by name.** ([#1116]) `(import x/nope/missing)` reached the engine's include and raised `include: cannot open`, with no module name, path or roots. `import` probes the resolved path first and refuses with `import: no module x/nope/missing -- searched lib`, the roots in search order; the loaded mark is set after the probe, so the name can be imported once it exists.
+
+[#1116]: https://github.com/jonruttan/x-lang/pull/1116
+
+**Term reads and sets a terminal's modes by name.** ([#1115]) `(Term modes fd)` answers `(NAME . VALUE)` for each mode RFC 4254 names that this OS has -- a control character's code (nil when turned off), a flag's BOOL, whether the size is cs7 or cs8, and ispeed and ospeed in baud -- or nil when fd is no terminal; `(Term modes! fd modes)` sets them in order, passing over a name the OS lacks, and answers whether tcsetattr took them.
+
+[#1115]: https://github.com/jonruttan/x-lang/pull/1115
+
+**An entry may start on the `Changelog:` line.** ([#1113]) The collector reads the rest of that line as the entry's first line, so a commit written that way is collected and passes the gate rather than refusing every later push.
+
+[#1113]: https://github.com/jonruttan/x-lang/pull/1113
+
+**Bunzip2 decompresses bzip2 in x, with no libbz2.** ([#1112]) `(Bunzip2 decode s start n)` answers `(OUT N USED)` for one stream; `(Bunzip2 stream)`, `feed`, `finish`, `done?`, `ok?` and `rest` decode one a block at a time as the input completes it.  A malformed stream raises a label `'value` whose data holds `(bunzip . KIND)`.  The symbol, link and walk loops are compiled (`(Bunzip2 jit!)`, past 4KB on its own) and adopted only after agreeing with the pure-x ones.
+
+[#1112]: https://github.com/jonruttan/x-lang/pull/1112
+
 ## [0.41.0] - 2026-10-27
 
 **`docs/crafting-a-lang.md` no longer sends a lang author to the `base/def-global` door.** ([#1110]) The passage on `def` at depth described the save-stack rule x-engine-c v0.2.10 retired; it now states engine law 10 (`def` binds in the current environment, `eval!` evaluates in the root) and names `eval!`, with the value under `lit`, for a definition made at depth that must bind for the session.
