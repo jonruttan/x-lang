@@ -52,7 +52,6 @@
 
 (def %isa-catalogue (lit (
   (  base bind spine           )
-  (  base def-global spine)
   (  base eval spine)
   (  base make spine)
   (  base make-tok spine)
