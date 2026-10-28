@@ -42,9 +42,9 @@
 ; The two platforms x-engine-c publishes for.  Digests are the release's own
 ; .sha256 sidecars, not something computed here: a pin that hashes what it
 ; downloaded would agree with itself no matter what arrived.
-(release "v0.2.24")
-(artifact darwin arm64  "sha256:036e4b64013dd4d837771857a7955e54cdd53f1992f6dc93296afb19e0266d92" "https://github.com/jonruttan/x-engine-c/releases/download/v0.2.24/x-engine-c-v0.2.24-darwin-arm64.tar.gz")
-(artifact linux  x86-64 "sha256:c441ee8ff56b971bd455173c93fb3db89ca93be6892c62317517f0722b1b04e6" "https://github.com/jonruttan/x-engine-c/releases/download/v0.2.24/x-engine-c-v0.2.24-linux-x86-64.tar.gz")
+(release "v0.2.25")
+(artifact darwin arm64  "sha256:d1c3b5abb27d54a62784e02ca9c3a086231c8145c6efb6dd9569df4d4682a6ca" "https://github.com/jonruttan/x-engine-c/releases/download/v0.2.25/x-engine-c-v0.2.25-darwin-arm64.tar.gz")
+(artifact linux  x86-64 "sha256:b8d79ea250f5b67948cd35c3b8d80707d22245b6402352506c0e2c25f3ab2562" "https://github.com/jonruttan/x-engine-c/releases/download/v0.2.25/x-engine-c-v0.2.25-linux-x86-64.tar.gz")
 
 ; EVERY OTHER PLATFORM BUILDS FROM SOURCE, and that is a decision rather than
 ; an omission.  The Pi and any 32-bit target have no published engine and will

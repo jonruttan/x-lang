@@ -613,11 +613,3 @@ exactly one.
 ```
 ---
     (1 2)
-
-## base def-global -- deliberately not specced here
-
-The primitive is retired: a `def` evaluated with `eval!` is the same
-operation (above), the lang bundles have moved to it, and the engine drops
-it in its next release.  The pinned engine still declares it, so this
-section stands until the pin moves to an engine without the row, and goes
-with that pin bump, as does the engine-min fixture's row.

@@ -7,7 +7,7 @@
 ; binary at install time, not properties of this source tree.
 (engine-name "engine-min")
 (binary "x-bin")
-(isa "sha256:d74a3d9f573408d6531fecb4a5fb6c28f1b5ce0689a884ed18bc6d6a9c5bb6af")
+(isa "sha256:9400fab84ef7b539afe1a6a85612164f76c9e87234ebaa55ce426f60c4800f35")
 (profile core)
 (provides err/stderr-prefix)
 (provides invoke/argv)
@@ -21,6 +21,8 @@
 (provides isa/spine)
 (provides isa/tok)
 (provides isa/types)
+(provides meta/identity)
+(provides meta/platform)
 (provides reflect/layout-data)
 (provides reflect/ptr-casts)
 (provides reflect/word-probe)
