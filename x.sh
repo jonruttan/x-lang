@@ -533,12 +533,13 @@ shquote() {
 file=""
 file1=""
 # The two halves of $file, kept apart because the pipe treats them
-# differently: a bundle's entries are cat'd as they always were, and the
-# user's -f/-F files are emitted as (include "FILE") forms, so a raise in
-# one reports the file and line (lib/x/repl/batch.x).  $file still holds
-# both for every test that asks whether a file was supplied.  user_files
-# is newline-separated and path_form_safe'd at parse time, since it is
-# written into an x-lang string literal.
+# differently when a dialect leads: the entries are cat'd as they always
+# were, and the user's -f/-F files are emitted as (include "FILE") forms,
+# so a raise in one reports the file and line (lib/x/repl/batch.x).  With
+# a lang leading, $file is cat'd whole (see the TAIL below).  $file still
+# holds both for every test that asks whether a file was supplied.
+# user_files is newline-separated and path_form_safe'd at parse time,
+# since it is written into an x-lang string literal.
 entry_files=""
 user_files=""
 # -c/--eval expressions, accumulated in order and emitted onto the pipe
@@ -1439,8 +1440,12 @@ fi
 # first and reads every form after it under a guard, so a raise is
 # reported in the library's wording with the raise site's file and line,
 # and the run ends with status 1 as before.  The bundle entries are cat'd
-# as they always were; the user's files become (include "FILE") forms,
-# which is what gives their forms a file and a line.
+# as they always were; with a dialect leading, the user's files become
+# (include "FILE") forms, which is what gives their forms a file and a
+# line.  With a lang leading the user's file is cat'd whole, as it always
+# was: the lang's own reader takes the program from stdin as text in its
+# syntax (x-logo's batch reader, x-python's loop), and an include form
+# would hand it to the x reader instead.
 #
 # Guarded, because not every library has the loop: lib/img.x and
 # lib/x-base.x stop short of it, and a pinned amalgam may predate it.  There
@@ -1458,8 +1463,12 @@ TAIL=
 if [ -n "$file" ] || [ -n "$stdin_prog" ] || [ -n "$have_eval" ]; then
 	TAIL="batch_form; "
 fi
-[ -n "$entry_files" ] && TAIL="${TAIL}cat ${entry_files}; "
-[ -n "$user_files" ]  && TAIL="${TAIL}user_files_form; "
+if [ -n "$BUNDLE_DIR" ]; then
+	[ -n "$file" ] && TAIL="${TAIL}cat ${file}; "
+else
+	[ -n "$entry_files" ] && TAIL="${TAIL}cat ${entry_files}; "
+	[ -n "$user_files" ]  && TAIL="${TAIL}user_files_form; "
+fi
 [ -n "$stdin_prog" ]  && TAIL="${TAIL}cat; "
 [ -n "$have_eval" ]   && TAIL="${TAIL}eval_form; "
 [ -n "$post" ]        && TAIL="${TAIL}cat ${post}; "

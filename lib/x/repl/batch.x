@@ -14,6 +14,15 @@
 (module x/repl/batch)
 
 (def %batch-same? (prim-ref (lit obj) (lit same?)))
+(def %batch-error-file (prim-ref (lit io) (lit error-file)))
+
+; The prefix for a raise while a form evaluates: the file and line when the
+; raise site is in a file, else bare.  repl's [line N] for a one-liner read
+; from stdin is relative to the form just read, which locates nothing in a
+; program; a file is the only location worth printing here.
+(def %batch-prefix
+  (fn (_)
+    (if (str=? (%batch-error-file) "") "Error: " (%error-loc-prefix))))
 
 (def %batch-report
   (fn (_ prefix err)
@@ -32,7 +41,7 @@
       (if (%batch-same? form %token-eof)
         ()
         (do
-          (guard (err (%batch-report (%error-loc-prefix) err)) (eval! form))
+          (guard (err (%batch-report (%batch-prefix) err)) (eval! form))
           (batch))))))
   (note "Evaluates through eval!, as repl does, so definitions persist across forms.")
   (note "Ends the run at the first raise, with status 1, as the engine's loop did.")

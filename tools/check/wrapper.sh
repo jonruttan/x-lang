@@ -100,6 +100,13 @@ want "a raise in -f names the file and line" "Error [$TMP/e.x:3]: Unbound SYMBOL
 err=$(sh x.sh -q -c '(no-such-binding)' 2>&1 >/dev/null || true)
 want "a raise in -c is reported bare" "Error: Unbound SYMBOL 'no-such-binding'" "$err"
 
+# With a lang leading, the -f file reaches the lang's own reader as text on
+# stdin (x-logo's batch reader, x-python's loop), so it is cat'd whole and
+# not wrapped in an include form: a raise in it carries no file and line,
+# which is the visible half of that.  seamprobe stands in for a lang.
+err=$(X_LANG_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l seamprobe -f "$TMP/e.x" 2>&1 >/dev/null || true)
+want "a lang's -f file is text for its reader, not an include form" "Error: Unbound SYMBOL 'no-such-binding'" "$err"
+
 # The dialect flag still selects: helium has no tower, xenon does.  One case,
 # because a wrong dialect is the other way a route silently answers wrong.
 got=$(sh x.sh -q -l xe -c '(write (+ 1/3 1/6))' 2>/dev/null || true)
