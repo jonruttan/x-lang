@@ -20,10 +20,9 @@
 ;
 ; The parse is commonmark.js's: a line at a time against the stack of open
 ; blocks (continue each, start new ones, then add the rest as text), then each
-; paragraph and heading's text through the delimiter and bracket stacks.  Not
-; yet here: the full table of named entities (the common ones and every numeric
-; form are), and Unicode case folding and punctuation (labels fold ASCII;
-; flanking sees ASCII punctuation).
+; paragraph and heading's text through the delimiter and bracket stacks.
+; Character references are x/codec/entity's.  Not yet here: Unicode case
+; folding and punctuation (labels fold ASCII; flanking sees ASCII punctuation).
 ;
 ; The scan runs per byte, so it is module functions over primitives bound once,
 ; and nodes are raw vectors read by slot: a class call costs a few hundred
@@ -33,7 +32,7 @@
 (import x/type/class)
 (import x/core/list)
 (import x/type/vector)
-(import x/codec/utf8 utf8-encode)
+(import x/codec/entity entity-at)
 
 (def %md-blen (prim-ref (lit str) (lit byte-len)))
 (def %md-bref (prim-ref (lit str) (lit byte-ref)))
@@ -143,62 +142,6 @@
            (#t (self c set (%md+ k 1))))))
 (def %md-one-of? (fn (_ c set) (%md-in? c set 0)))
 
-; --- entities and escapes --------------------------------------------------
-(def %md-entities
-  (list (pair "amp" 38) (pair "lt" 60) (pair "gt" 62) (pair "quot" 34)
-        (pair "apos" 39) (pair "nbsp" 160) (pair "copy" 169) (pair "reg" 174)
-        (pair "trade" 8482) (pair "hellip" 8230) (pair "mdash" 8212)
-        (pair "ndash" 8211) (pair "lsquo" 8216) (pair "rsquo" 8217)
-        (pair "ldquo" 8220) (pair "rdquo" 8221) (pair "bull" 8226)
-        (pair "middot" 183) (pair "deg" 176) (pair "plusmn" 177)
-        (pair "times" 215) (pair "divide" 247) (pair "laquo" 171)
-        (pair "raquo" 187) (pair "para" 182) (pair "sect" 167)
-        (pair "euro" 8364) (pair "pound" 163) (pair "yen" 165)
-        (pair "cent" 162) (pair "larr" 8592) (pair "rarr" 8594)
-        (pair "uarr" 8593) (pair "darr" 8595) (pair "harr" 8596)
-        (pair "auml" 228) (pair "ouml" 246) (pair "uuml" 252)
-        (pair "Auml" 196) (pair "Ouml" 214) (pair "Uuml" 220)
-        (pair "szlig" 223) (pair "eacute" 233) (pair "egrave" 232)
-        (pair "aacute" 225) (pair "agrave" 224) (pair "ccedil" 231)
-        (pair "frac12" 189) (pair "frac14" 188) (pair "frac34" 190)
-        (pair "ne" 8800) (pair "le" 8804) (pair "ge" 8805)
-        (pair "infin" 8734) (pair "shy" 173) (pair "zwj" 8205)
-        (pair "zwnj" 8204) (pair "ensp" 8194) (pair "emsp" 8195)
-        (pair "thinsp" 8201) (pair "dagger" 8224) (pair "Dagger" 8225)))
-(def %md-char
-  (fn (_ cp)
-    (bytes->str (utf8-encode (if (if (= cp 0) #t (if (< 55295 cp) (< cp 57344) #f)) 65533 cp)))))
-; The digits of a numeric entity from J of S, at most MORE in RADIX, then ;:
-; (TEXT . END), or nil.
-(def %md-numeric
-  (fn (self s j k v radix more)
-    (def c (%md-at s k))
-    (def d (match ((%md-digit? c) (- c #\0))
-                  ((= radix 10) -1)
-                  ((if (%md< c #\a) #f (%md< c #\g)) (+ 10 (- c #\a)))
-                  ((if (%md< c #\A) #f (%md< c #\G)) (+ 10 (- c #\A)))
-                  (#t -1)))
-    (match
-      ((< -1 d) (if (< (- k j) more) (self s j (+ k 1) (+ (* v radix) d) radix more) ()))
-      ((if (= c #\;) (< j k) #f) (pair (%md-char (if (< 1114111 v) 65533 v)) (+ k 1)))
-      (#t ()))))
-; The entity at I of S (& through ;) as (TEXT . END), or nil.
-(def %md-entity
-  (fn (_ s i)
-    (match
-      ((not (= (%md-at s i) #\&)) ())
-      ((= (%md-at s (+ i 1)) #\#)
-        ((fn (_ c) (if (if (= c #\x) #t (= c #\X))
-                     (%md-numeric s (+ i 3) (+ i 3) 0 16 6)
-                     (%md-numeric s (+ i 2) (+ i 2) 0 10 7)))
-         (%md-at s (+ i 2))))
-      (#t
-        ((fn (_ j)
-           (if (if (= (%md-at s j) #\;) (< (+ i 1) j) #f)
-             ((fn (_ hit) (if (null? hit) () (pair (%md-char (rest hit)) (+ j 1))))
-              (%md-assoc (%md-sub s (+ i 1) j) %md-entities))
-             ()))
-         (%md-skip %md-alnum? s (+ i 1)))))))
 ; S with its backslash escapes and entities decoded.
 (def %md-unescape-from
   (fn (self s i from out)
@@ -211,7 +154,7 @@
         ((fn (_ e)
            (match ((eq? e ()) (self s (%md+ i 1) from out))
                   (#t (self s (rest e) (rest e) (pair (first e) (pair (%md-sub s from i) out))))))
-         (%md-entity s i)))
+         (entity-at s i)))
       (#t (self s (%md+ i 1) from out)))))
 (def %md-unescape (fn (_ s) (%md-unescape-from s 0 0 ())))
 
@@ -1095,7 +1038,7 @@
              (%md-html-end subj pos))))))
     (def entity! (fn (_)
       ((fn (_ e) (if (null? e) (take! pos (+ pos 1)) (do (text! (first e)) (set! pos (rest e)))))
-       (%md-entity subj pos))))
+       (entity-at subj pos))))
     ((fn (go)
        (def c (at pos))
        (unless (= c -1)
