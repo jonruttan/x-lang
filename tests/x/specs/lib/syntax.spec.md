@@ -314,3 +314,103 @@ The grammar reads from the line that opens the top-level form.
 ```
 ---
     ('warm 'default ())
+
+## The catalogue
+
+Each case makes a langs directory holding one bundle, `fx`, whose lang.xon
+declares a grammar and whose `fx/syntax.x` registers it, and points
+`X_LANG_DIR` at it.
+
+### a bundle's grammar is in the catalogue, its module loaded when named
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/tool/syntax)
+  (def tmp (File temp "/tmp/x-spec-langs-"))
+  (File close (first tmp))
+  (def d (rest tmp))
+  (File unlink d)
+  (List for-each (fn (_ s) (File mkdir (Str8 append d s))) (list "" "/fx" "/fx/fx"))
+  (File write-all (Str8 append d "/fx/lang.xon")
+    "(lang \"fx\")\n(grammar fx (module fx/syntax) (files \".fx\") (names \"Fxfile\") (interpreters \"fx\"))\n")
+  (File write-all (Str8 append d "/fx/fx/syntax.x")
+    "(import x/tool/syntax)\n(Syntax register! (Syntax make 'fx (list (Lexer run 'word \"abc\" \"abc\") (Lexer any 'other)) (list (pair 'word 'keyword))))\n")
+  (def was (Sys getenv "X_LANG_DIR"))
+  (Sys setenv "X_LANG_DIR" d)
+  (Syntax forget!)
+  (def row (fn (_) (List find (fn (_ r) (eq? (first r) 'fx)) (Syntax catalogue))))
+  (def before (List ref 1 (row)))
+  (def g (Syntax named 'fx))
+  (def seen (list before (g name) (List ref 1 (row)) (g files) (g interpreters) (g spans "ab c")))
+  (List for-each (fn (_ s) (File unlink (Str8 append d s))) (list "/fx/fx/syntax.x" "/fx/lang.xon"))
+  (List for-each (fn (_ s) (File rmdir (Str8 append d s))) (list "/fx/fx" "/fx" ""))
+  (Sys setenv "X_LANG_DIR" (if (null? was) "" was))
+  (Syntax forget!)
+  seen)
+```
+---
+    ('fx/syntax 'fx () (".fx") ("fx") ((0 2 'keyword)))
+
+### a file's grammar: modeline, then #! interpreter, then suffix or name
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/tool/syntax)
+  (def tmp (File temp "/tmp/x-spec-langs-"))
+  (File close (first tmp))
+  (def d (rest tmp))
+  (File unlink d)
+  (List for-each (fn (_ s) (File mkdir (Str8 append d s))) (list "" "/fx" "/fx/fx"))
+  (File write-all (Str8 append d "/fx/lang.xon")
+    "(lang \"fx\")\n(grammar fx (module fx/syntax) (files \".fx\") (names \"Fxfile\") (interpreters \"fx\"))\n")
+  (File write-all (Str8 append d "/fx/fx/syntax.x")
+    "(import x/tool/syntax)\n(Syntax register! (Syntax make 'fx (list (Lexer any 'other)) ()))\n")
+  (def was (Sys getenv "X_LANG_DIR"))
+  (Sys setenv "X_LANG_DIR" d)
+  (Syntax forget!)
+  (def name (fn (_ path . text)
+    (let ((g (apply Syntax (pair 'for-file (pair path text))))) (if (null? g) () (g name)))))
+  (def seen
+    (list (name "a.fx") (name "src/Fxfile") (name "Fxfile.bak")
+          (name "run" "#!/usr/bin/env -S fx2.1 -q\nabc\n")
+          (name "run" "#! /opt/bin/fx\n")
+          (name "a.x" "; vi: set ts=4 ft=fx:\n(x)\n")
+          (name "a.fx" "1\n2\n3\n4\n5\n6\n7\n; vim: syntax=x\n")
+          (name "a.fx" "#!/bin/x\n")
+          (name "run" "#!/bin/sh\n")))
+  (List for-each (fn (_ s) (File unlink (Str8 append d s))) (list "/fx/fx/syntax.x" "/fx/lang.xon"))
+  (List for-each (fn (_ s) (File rmdir (Str8 append d s))) (list "/fx/fx" "/fx" ""))
+  (Sys setenv "X_LANG_DIR" (if (null? was) "" was))
+  (Syntax forget!)
+  seen)
+```
+---
+    ('fx 'fx () 'fx 'fx 'fx 'x 'x ())
+
+### a lang.xon that does not read, or a module that registers nothing, is no grammar
+
+A bundle row is one with a module; the registered grammars have none.
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/tool/syntax)
+  (def tmp (File temp "/tmp/x-spec-langs-"))
+  (File close (first tmp))
+  (def d (rest tmp))
+  (File unlink d)
+  (List for-each (fn (_ s) (File mkdir (Str8 append d s))) (list "" "/fy" "/fy/fy" "/bad"))
+  (File write-all (Str8 append d "/fy/lang.xon")
+    "(lang \"fy\")\n(grammar fy (module fy/syntax) (files \".fy\"))\n")
+  (File write-all (Str8 append d "/fy/fy/syntax.x") "(def fy-loaded #t)\n")
+  (File write-all (Str8 append d "/bad/lang.xon") "(lang \"bad\")\n(grammar (module bad/syntax))\n")
+  (def was (Sys getenv "X_LANG_DIR"))
+  (Sys setenv "X_LANG_DIR" d)
+  (Syntax forget!)
+  (def names (fn (_) (List map first (List filter (fn (_ r) (not (null? (List ref 1 r)))) (Syntax catalogue)))))
+  (def seen (list (names) (Syntax named 'fy) (Syntax for-file "a.fy") (names)))
+  (List for-each (fn (_ s) (File unlink (Str8 append d s)))
+    (list "/fy/fy/syntax.x" "/fy/lang.xon" "/bad/lang.xon"))
+  (List for-each (fn (_ s) (File rmdir (Str8 append d s))) (list "/fy/fy" "/fy" "/bad" ""))
+  (Sys setenv "X_LANG_DIR" (if (null? was) "" was))
+  (Syntax forget!)
+  seen)
+```
+---
+    (('fy) () () ())
