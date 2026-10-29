@@ -225,6 +225,24 @@ every other manifest here:
 `x/sys/socket` needs radon, and declaring helium means it dies at boot on a
 missing import rather than at acquisition on a legible refusal.
 
+A bundle that knows how to highlight its own language says so with a
+`(grammar …)` form, one for each grammar:
+
+```x
+(grammar sh (module ash/syntax)
+  (files ".sh") (names ".profile")
+  (interpreters "sh" "ash" "dash"))
+```
+
+These forms are the catalogue `x/tool/syntax` reads. It imports the
+module the first time a file needs that grammar, with the bundle's root
+on the import path, and the module calls `(Syntax register! g)` as it
+loads. A grammar module imports only x-lang libraries. It never imports
+the bundle's entry, because the process loading it may belong to another
+lang. A file's grammar is the one its modeline names (`vi: ft=sh`), else
+the one claiming its `#!` interpreter, else the one claiming its suffix
+in `files` or its whole name in `names`.
+
 ## The pin
 
 A project names the langs it uses in `lang.pin.xon`, mirroring

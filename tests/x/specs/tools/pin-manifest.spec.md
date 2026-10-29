@@ -357,3 +357,24 @@ is named here (docs/lang-contract.md, "The declaration").
 ```
 ---
     #t
+
+### a grammar form is the highlighter's, passed over
+
+```x
+(do
+  (import x/tool/pin)
+  (display (%assoc-get 'entry (Pin %pin-lang-parse (Pin %pin-forms
+    "(lang \"x\") (grammar sh (module ash/syntax) (files \".sh\")) (entry \"run.x\")")))))
+```
+---
+    run.x
+
+### a grammar form with no name is a loud error
+
+```x
+(do
+  (import x/tool/pin)
+  (display (throws? (fn (_) (Pin %pin-lang-parse (Pin %pin-forms "(lang \"x\") (grammar \"sh\")"))))))
+```
+---
+    #t

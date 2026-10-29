@@ -20,6 +20,11 @@
 ; lib/x/constructs.x, the list the formatter, the linter and the
 ; documentation read.
 ;
+; Other languages' grammars come from their bundles: a lang.xon's
+; (grammar ...) forms are the catalogue, and a grammar's module is imported
+; the first time a file needs it.  A file's grammar is the one its modeline
+; names, else its #! line's interpreter's, else its name's.
+;
 ; How a terminal draws each class is a theme: a Style (x/tui/style) a class,
 ; data apart from any grammar.  The theme in use is the default unless the
 ; user's theme file names another; the file is read on first use, so a
@@ -384,6 +389,213 @@
 (def %sx-x (pair () ()))
 (def %sx-registry (pair () ()))
 
+; --- the catalogue --------------------------------------------------------------
+
+; A grammar a lang bundle declares in its lang.xon, as
+; (grammar NAME (module MODULE) (files SUFFIX ...) (names NAME ...)
+;               (interpreters INTERPRETER ...)),
+; is a row (NAME MODULE ROOT FILES NAMES INTERPRETERS): ROOT the bundle's
+; directory, and MODULE imported from it the first time a file needs the
+; grammar.  A registered grammar is a row with no module.  The bundles are
+; read once, on the first lookup.
+(def %sx-bundle-rows (pair () ()))
+
+(def %sx-warn
+  (fn (_ parts)
+    (Stream with-fd 2
+      (fn (_) (display (Str8 join "" (pair "x/tool/syntax: " (List map (fn (_ p) (Str8 str p)) parts))) "\n")))))
+
+; The langs directory, as x.sh finds it: $X_LANG_DIR, else the install's
+; langs, else deps/langs in a checkout.
+(def %sx-langs-dir
+  (fn (_)
+    (let ((d (Sys getenv "X_LANG_DIR")))
+      (if (if (null? d) #f (< 0 (%sx-blen d))) d
+        (guard (_ "deps/langs") (%path-join %install-root "langs"))))))
+
+(def %sx-grammar-keys (list (lit module) (lit files) (lit names) (lit interpreters)))
+
+; The row of a (grammar ...) form from the bundle at ROOT.
+(def %sx-grammar-row
+  (fn (_ form root)
+    (def bad (fn (_ why) (Err raise (lit value) (%sx-append "Syntax: a grammar form " why) form)))
+    (if (if (pair? (rest form)) (symbol? (first (rest form))) #f) () (bad "needs a name"))
+    (List for-each
+      (fn (_ c)
+        (if (if (pair? c) (List includes? (first c) %sx-grammar-keys) #f) ()
+          (bad "holds (module M), (files ...), (names ...) and (interpreters ...)")))
+      (rest (rest form)))
+    (def clause
+      (fn (_ key)
+        (let ((c (List find (fn (_ c) (eq? (first c) key)) (rest (rest form)))))
+          (if (null? c) () (rest c)))))
+    (def module (clause (lit module)))
+    (if (if (pair? module) (symbol? (first module)) #f) () (bad "needs (module NAME)"))
+    (list (first (rest form)) (first module) root
+          (clause (lit files)) (clause (lit names)) (clause (lit interpreters)))))
+
+; Every bundle's rows; a lang.xon that does not read is one line on stderr
+; and its grammars left out.
+(def %sx-read-bundles
+  (fn (_)
+    (def dir (%sx-langs-dir))
+    (List flat-map
+      (fn (_ k)
+        (let ((root (%path-join dir k)))
+          (def manifest (%path-join root "lang.xon"))
+          (if (not (File exists? manifest)) ()
+            (guard (e (do (%sx-warn (list manifest " unreadable (" e ") -- its grammars are left out"))
+                          ()))
+              (List map (fn (_ f) (%sx-grammar-row f root))
+                (List filter (fn (_ f) (if (pair? f) (eq? (first f) (lit grammar)) #f))
+                  (%sx-read (%base) (File read-all manifest))))))))
+      (guard (_ ()) (File list-dir dir)))))
+
+(def %sx-bundles
+  (fn (_)
+    (if (null? (first %sx-bundle-rows)) (%set-first! %sx-bundle-rows (list (%sx-read-bundles))) ())
+    (first (first %sx-bundle-rows))))
+
+(def %sx-registered
+  (fn (_ name) (List find (fn (_ g) (eq? (g name) name)) (first %sx-registry))))
+
+; Every row: the registered grammars', then the bundles' not registered.
+(def %sx-rows
+  (fn (_)
+    (def own (List map (fn (_ g) (list (g name) () () (g files) (g names) (g interpreters)))
+               (first %sx-registry)))
+    (List append own
+      (List filter (fn (_ r) (null? (%sx-row (first r) own))) (%sx-bundles)))))
+
+; A bundle row's grammar: its root made an import root and its module
+; imported, which registers the grammar.  The lang.xon's files, names and
+; interpreters are the grammar's where it sets none.  One that does not load
+; is one line on stderr, and the row is dropped so it is not tried again.
+(def %sx-load
+  (fn (_ row)
+    (def root (first (rest (rest row))))
+    (guard (e (do (%sx-warn (list "grammar " (first row) " did not load (" e ")"))
+                  (%set-first! %sx-bundle-rows
+                    (list (List filter (fn (_ r) (not (eq? r row))) (%sx-bundles))))
+                  ()))
+      (if (List includes? root (first %import-roots-cell)) () (import-path! root))
+      (eval (list (lit import) (first (rest row))))
+      (let ((g (%sx-registered (first row))))
+        (if (null? g)
+          (Err raise (lit value) "Syntax: the module registers no grammar of that name"
+                     (first (rest row)))
+          (do (if (null? (g files)) (g files (List ref 3 row)) ())
+              (if (null? (g names)) (g names (List ref 4 row)) ())
+              (if (null? (g interpreters)) (g interpreters (List ref 5 row)) ())
+              g))))))
+
+; --- what a file is: modeline, interpreter, name ----------------------------------
+
+; The offset past the Nth newline from the start, or the text's end.
+(def %sx-head-end
+  (fn (self s i n)
+    (match ((= n 0) i)
+           ((>= i (%sx-blen s)) i)
+           ((= (%sx-byte s i) 10) (self s (%sx+ i 1) (%sx- n 1)))
+           (#t (self s (%sx+ i 1) n)))))
+
+; The offset of the start of the Nth line from the end.
+(def %sx-tail-start
+  (fn (self s i n)
+    (match ((<= i 0) 0)
+           ((= (%sx-byte s (%sx- i 1)) 10)
+             (if (= n 1) i (self s (%sx- i 1) (%sx- n 1))))
+           (#t (self s (%sx- i 1) n)))))
+
+; The words of a line, split at blanks and colons.
+(def %sx-words
+  (fn (_ line)
+    (List filter (fn (_ w) (< 0 (%sx-blen w)))
+      (List flat-map (fn (_ a) (List flat-map (fn (_ b) (Str8 split "\t" b)) (Str8 split ":" a)))
+        (Str8 split " " line)))))
+
+(def %sx-modeline-marks (list "vi" "vim" "ex"))
+(def %sx-modeline-keys (list "ft=" "filetype=" "syn=" "syntax="))
+
+; The grammar name a modeline in LINE gives: after vi:, vim: or ex:, the
+; value of ft, filetype, syn or syntax; nil for none.
+(def %sx-modeline-in
+  (fn (_ line)
+    (def after
+      (fn (self ws)
+        (match ((null? ws) ())
+               ((List includes? (first ws) %sx-modeline-marks) (rest ws))
+               (#t (self (rest ws))))))
+    (def value
+      (fn (self ws)
+        (if (null? ws) ()
+          (let ((k (List find (fn (_ k) (Str8 starts? k (first ws))) %sx-modeline-keys)))
+            (if (null? k) (self (rest ws))
+              (Str8 ->sym (%sx-bsub (first ws) (%sx-blen k) (%sx- (%sx-blen (first ws)) (%sx-blen k)))))))))
+    (value (after (%sx-words line)))))
+
+; The modeline's grammar name in the first or last five lines, as vi reads
+; them; nil for none.
+(def %sx-modeline
+  (fn (_ text)
+    (def n (%sx-blen text))
+    (def head (%sx-bsub text 0 (%sx-head-end text 0 5)))
+    (def from (%sx-tail-start text n 5))
+    (def lines (List append (Str8 split "\n" head)
+                            (Str8 split "\n" (%sx-bsub text from (%sx- n from)))))
+    (def hit (List find (fn (_ l) (not (null? (%sx-modeline-in l)))) lines))
+    (if (null? hit) () (%sx-modeline-in hit))))
+
+(def %sx-base-name
+  (fn (_ path)
+    (let ((i (Str8 last-index-of "/" path)))
+      (if (null? i) path (%sx-bsub path (%sx+ i 1) (%sx- (%sx-blen path) (%sx+ i 1)))))))
+
+; The interpreter a #! line names: the program's name, or for env the first
+; word after it that is not an option; nil for no #! line.
+(def %sx-interpreter
+  (fn (_ text)
+    (if (if (< 1 (%sx-blen text)) (Str8 starts? "#!" text) #f)
+      (let ((ws (%sx-words (Str8 trim (%sx-bsub text 2 (%sx- (%sx-head-end text 0 1) 2))))))
+        (if (null? ws) ()
+          (let ((prog (%sx-base-name (first ws))))
+            (if (not (str=? prog "env")) prog
+              (let ((w (List find (fn (_ w) (not (= (%sx-byte w 0) 45))) (rest ws))))
+                (if (null? w) () (%sx-base-name w)))))))
+      ())))
+
+; An interpreter's name without a trailing version: python3.12 is python.
+(def %sx-unversioned
+  (fn (self s)
+    (let ((n (%sx-blen s)))
+      (if (if (< 0 n) (let ((c (%sx-byte s (%sx- n 1)))) (if (= c 46) #t (if (< 47 c) (< c 58) #f))) #f)
+        (self (%sx-bsub s 0 (%sx- n 1)))
+        s))))
+
+; The row for a file: a modeline's name, else the #! line's interpreter,
+; else the name's ending or the whole base name.
+(def %sx-row-for
+  (fn (_ rows path text)
+    (def mode (if (null? text) () (%sx-modeline text)))
+    (def by-mode (if (null? mode) () (List find (fn (_ r) (eq? (first r) mode)) rows)))
+    (def interp (if (null? text) () (%sx-interpreter text)))
+    (def by-interp
+      (if (null? interp) ()
+        (let ((plain (%sx-unversioned interp)))
+          (List find
+            (fn (_ r) (List any? (fn (_ i) (if (str=? i interp) #t (str=? i plain)))
+                        (first (rest (rest (rest (rest (rest r))))))))
+            rows))))
+    (def base (%sx-base-name path))
+    (match
+      ((not (null? by-mode)) by-mode)
+      ((not (null? by-interp)) by-interp)
+      (#t (List find
+            (fn (_ r)
+              (if (List any? (fn (_ suffix) (Str8 ends? suffix path)) (first (rest (rest (rest r))))) #t
+                (List any? (fn (_ nm) (str=? nm base)) (first (rest (rest (rest (rest r))))))))
+            rows)))))
+
 ; --- the Theme class ------------------------------------------------------------
 
 (def-class Theme ()
@@ -519,6 +731,8 @@
   (doc (sync ()) "A test (fn (_ text offset)) of a line start, true where the lexer can start outside any string or comment; nil to read from the text's start")
   (doc (lines 100) "How many lines spans walks back looking for a line the sync test passes")
   (doc (files ()) "The file name endings the grammar is for, as \".x\"")
+  (doc (names ()) "The whole file names the grammar is for, as \"Makefile\"")
+  (doc (interpreters ()) "The programs a #! line names for the grammar's files, as \"sh\"; a version after the name is ignored, so \"python\" is for python3.12")
   (doc (lexer ()) "The Lexer, made from the rules on the first read")
 
   (method spans (self (param text STRING "The text")
@@ -550,8 +764,9 @@
       (doc "A grammar. Set sync, lines and files on it after, and register! it to have for-file find it."
         (returns Syntax "The grammar")
         (sample "(Syntax make 'ini (list (Lexer until 'comment \";\" \"\\n\" 'to-end) (Lexer run 'blank \" \\t\\n\" \" \\t\\n\") (Lexer any 'text)) (list (pair 'comment 'comment)))" "comments coloured, everything else plain"))
-      (let ((lexer ()) (sync ()) (lines 100) (files ()) (end " "))
-        (new Syntax name name rules rules end end classes classes sync sync lines lines files files lexer lexer)))
+      (let ((lexer ()) (sync ()) (lines 100) (files ()) (names ()) (interpreters ()) (end " "))
+        (new Syntax name name rules rules end end classes classes sync sync lines lines files files
+                    names names interpreters interpreters lexer lexer)))
 
     (method over (self (param l Lexer "A Lexer whose rules read every byte")
                        (param classes LIST "Each (TAG . CLASS), as the classes field takes them"))
@@ -570,32 +785,44 @@
                          (pair (lit atom) %sx-atom-class) (pair (lit bad) (lit error))))))
           (g sync %sx-x-sync)
           (g files (list ".x" ".xon"))
+          (g interpreters (list "x"))
           (%set-first! %sx-x g)
           (Syntax register! g))
         (first %sx-x)))
 
     (method register! (self (param g Syntax "A grammar"))
-      (doc "Add a grammar to the ones named and for-file finds; one of the same name is replaced."
+      (doc "Add a grammar to the ones named and for-file finds; one of the same name is replaced. A grammar module a bundle's lang.xon names registers its grammar this way when it loads."
         (returns Syntax "The grammar"))
       (%set-first! %sx-registry
         (pair g (List filter (fn (_ h) (not (eq? (h name) (g name)))) (first %sx-registry))))
       g)
 
     (method named (self (param name SYMBOL "A grammar's name"))
-      (doc "The registered grammar of that name, or nil."
+      (doc "The grammar of that name: a registered one, else one a bundle's lang.xon declares, its module loaded now; nil for none."
         (returns Syntax "The grammar, or nil")
         (example "(eq? (Syntax named 'x) (Syntax x))" "#t"))
       (Syntax x)
-      (List find (fn (_ g) (eq? (g name) name)) (first %sx-registry)))
+      (let ((g (%sx-registered name)))
+        (if (not (null? g)) g
+          (let ((row (List find (fn (_ r) (eq? (first r) name)) (%sx-bundles))))
+            (if (null? row) () (%sx-load row))))))
 
-    (method for-file (self (param path STRING "A file name"))
-      (doc "The registered grammar whose files the name ends with, or nil."
+    (method for-file (self (param path STRING "A file name")
+                           . (param text LIST "Optionally the file's text"))
+      (doc "The grammar for a file: with its text, the one a modeline in the first or last five lines names (vi: set ft=NAME, or filetype, syn or syntax), else the one whose interpreters hold the program the #! line runs; else the one whose files the name ends with or whose names hold its base name. Registered grammars are asked before bundles' and loaded as named loads them; nil for none."
         (returns Syntax "The grammar, or nil")
-        (example "((Syntax for-file \"lib/x/tool/syntax.x\") name)" "'x"))
+        (example "((Syntax for-file \"lib/x/tool/syntax.x\") name)" "'x")
+        (example "((Syntax for-file \"build\" \"#!/usr/bin/env x\\n\") name)" "'x"))
       (Syntax x)
-      (List find
-        (fn (_ g) (List any? (fn (_ suffix) (Str8 ends? suffix path)) (g files)))
-        (first %sx-registry)))
+      (let ((row (%sx-row-for (%sx-rows) path (if (null? text) () (first text)))))
+        (if (null? row) () (Syntax named (first row)))))
+
+    (method catalogue (self)
+      (doc "Every grammar named and for-file can find, as (NAME MODULE ROOT FILES NAMES INTERPRETERS): the registered ones with no module or root, then each bundle's (grammar ...) forms in its lang.xon, read once."
+        (returns LIST "The rows")
+        (example "(first (Syntax catalogue))" "('x () () (\".x\" \".xon\") () (\"x\"))"))
+      (Syntax x)
+      (%sx-rows))
 
     (method classes (self)
       (doc "Every class a grammar's table may answer, in index order."
@@ -694,10 +921,11 @@
       (%sx-keywords))
 
     (method forget! (self)
-      (doc "Drop the construct set and the memo of atom classes, read again on next use: a lang that registers literal syntax changes what the reader answers."
+      (doc "Drop the construct set, the memo of atom classes and the bundles' catalogue rows, read again on next use: a lang that registers literal syntax changes what the reader answers, and an image runs where other bundles are installed."
         (returns NIL "Nothing"))
       (%set-first! %sx-kw ())
       (%set-first! %sx-memo ())
+      (%set-first! %sx-bundle-rows ())
       ())))
 
 ; A run string holds no state an image cannot carry, but what the reader

@@ -776,6 +776,13 @@
                   (match
                     ((str? (first (rest (first forms)))) (self (rest forms) name dialect req entry))
                     (#t (Pin %pin-bad "requires-lang needs a lang name string"))))
+                ; (grammar NAME (module M) ...) -- a highlighting grammar the
+                ; bundle provides; x/tool/syntax reads the rest.
+                ((eq? (first (first forms)) 'grammar)
+                  (match
+                    ((if (pair? (rest (first forms))) (symbol? (first (rest (first forms)))) #f)
+                      (self (rest forms) name dialect req entry))
+                    (#t (Pin %pin-bad "grammar needs a name symbol"))))
                 (#t (Pin %pin-bad (Str8 append "unknown form in lang.xon: "
                                     (symbol->str (first (first forms)))))))))
       (%go forms () () () ()))
