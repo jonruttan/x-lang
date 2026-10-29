@@ -127,8 +127,10 @@ engine law 10 in [Engine Laws](engine-laws.md).
   stays bound. `(module NAME)` as an expression answers a loaded module's
   environment, a child of the root for a scoped module.
 
-Printing an environment prints its bindings, and the root's bindings are
-the whole library; `(Env names e)` is the question to ask of the root.
+An environment is not for `write`: its chain ends at the root, which binds
+closures whose environment is the root again, so printing never finishes.
+`(Env names e)` is the question to ask of one, and `(Env parent e)` the
+step to the frame outside it.
 `Env` is the evaluator's environment, not the process's, which
 `Sys environ` and `Sys getenv` read. Module scope, and what leaves a module
 and how, is in [Modules](modules.md#module-scope).

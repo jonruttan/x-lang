@@ -239,7 +239,7 @@
         ((eq? (Fn label f) (lit op)) (first (rest (rest s))))
         (#t (first (rest s)))))
     (method env (self (param f CALLABLE "A closure made by fn or an operative made by op"))
-      (doc "The environment f was made in and resolves its free names through: one pair (bindings . parent), where a frame's bindings are an alist of (name . value) and the root's are a tree. () for a wrapped combiner, a primitive, or a value that is not a callable. A closure made at the top level answers the root, which write prints whole."
+      (doc "The environment f was made in and resolves its free names through: one pair (bindings . parent), where a frame's bindings are an alist of (name . value) and the root's are a tree. () for a wrapped combiner, a primitive, or a value that is not a callable. Do not write the result: every environment's chain ends at the root, which binds closures whose environment is the root again, so write never finishes. Ask Env names of it, and Env parent for the frame outside it."
         (returns ANY "An environment, or ()")
         (example "(eval 'k (Fn env ((fn (_ k) (fn (_) k)) 7)))" "7"))
       (def s (Fn %state f))

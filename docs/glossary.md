@@ -168,7 +168,7 @@ this tree.
   and runs it. The C stores a function pointer; Rust stores an
   instruction index.
 - **state** — slot 1 of a callable: what its entry uses.
-  `(params body env . bst)` for a closure, `(params envname body . env)`
+  `(params body . env)` for a closure, `(params envname body . env)`
   for an operative, the combiner for a wrap.
 - **instruction** — one row of the ISA: a bare name and/or a catalogue
   coordinate, and one function behind it. Arguments arrive as written;
