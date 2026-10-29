@@ -128,10 +128,17 @@
       (Lang %lang-vocabulary))
 
     (method symbols-bare! (self)
-      (doc "Write symbols bare from here on: a token list renders as ((word \"a\")), where x's own writer quotes each symbol so the echo pastes back. For a lang whose values are token lists and whose specs read them bare. A write handler is pushed onto the symbol type, so write-to-str follows; (Type pop-write ((Type wrap (Type of 'q)) raw)) takes it off again."
+      (doc "Write symbols bare from here on: a token list renders as ((word \"a\")), where x's own writer quotes each symbol so the echo pastes back. For a lang whose values are token lists and whose specs read them bare. A write handler is pushed onto the symbol type, so write-to-str follows; symbols-quoted! takes it off again."
         (returns NIL "Nothing")
-        (example "(do (Lang symbols-bare!) (write (list 'word \"a\")))" "(word \"a\")"))
+        (example "(let ((s (do (Lang symbols-bare!) (Io write-to-str (list 'word \"a\"))))) (Lang symbols-quoted!) s)" "\"(word \\\"a\\\")\""))
       ((Type wrap (Type of (lit q))) push-write (fn (_ o) (display (symbol->str o))))
+      ())
+
+    (method symbols-quoted! (self)
+      (doc "Undo symbols-bare!: the handler it pushed comes off the symbol type, and symbols write with the quote again."
+        (returns NIL "Nothing")
+        (example "(do (Lang symbols-bare!) (Lang symbols-quoted!) (Io write-to-str 'word))" "\"'word\""))
+      (Type pop-write ((Type wrap (Type of (lit q))) raw))
       ())))
 
 ; What boot knows of x-lang's own prompt.  The rest of "x" arrives as the

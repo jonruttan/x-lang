@@ -221,3 +221,20 @@ a child, whose stdout is the spec's.
 ```
 ---
     ((word "a") b 1)
+
+### symbols-quoted! puts the quote back
+
+```x
+(do
+  (def %q-child (Sys fork))
+  (when (= %q-child 0)
+    (Lang symbols-bare!)
+    (Lang symbols-quoted!)
+    (write (list 'word "a"))
+    (newline)
+    (Sys exit 0))
+  (Sys wait %q-child)
+  ())
+```
+---
+    ('word "a")
