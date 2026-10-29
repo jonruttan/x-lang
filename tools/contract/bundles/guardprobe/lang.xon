@@ -1,0 +1,13 @@
+; guardprobe -- a FIXTURE, not a lang.
+;
+; tools/check/wrapper.sh starts an interactive session with this bundle on a
+; pty and asks whether its entry ran with no guard around it.  A lang's REPL
+; relies on that: the engine raises STOP on a ctrl-c only while a guard is
+; active, so a lang's own handler for an interrupted read runs with the flag
+; still set, and a guard outside the session would take that STOP and end it.
+;
+; helium: the cheapest dialect that boots.
+
+(lang "guardprobe")
+(dialect he)
+(entry "run.x")
