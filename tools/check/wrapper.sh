@@ -107,6 +107,32 @@ want "a raise in -c is reported bare" "Error: Unbound SYMBOL 'no-such-binding'" 
 err=$(X_LANG_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l seamprobe -f "$TMP/e.x" 2>&1 >/dev/null || true)
 want "a lang's -f file is text for its reader, not an include form" "Error: Unbound SYMBOL 'no-such-binding'" "$err"
 
+# An interactive session is no program, so its lang's entry runs with no guard
+# around it, as the session it hands over to does.  A lang's REPL depends on
+# that: the engine raises STOP on a ctrl-c only while a guard is active, so the
+# lang's own handler for an interrupted read runs with the flag still set, and
+# a batch loop's guard outside it would take the STOP and end the session.
+# guardprobe's entry sets the flag and takes one step; a pty makes the session
+# interactive, and the session reads back whether the entry got past it.
+cat > "$TMP/session.x" <<'EOF'
+(import x/sys/pty)
+(import x/sys/file)
+(def %drain
+  (fn (_ fd)
+    (def buf ((prim-ref 'str 'make) 256))
+    (let go ((acc ""))
+      (let ((n (File read fd buf 256)))
+        (if (<= n 0) acc (go (Str8 append acc (Str8 sub 0 n buf))))))))
+(def %line "(write (guard (_ 'unbound) guardprobe-unguarded)) (Sys exit 0)\n")
+(def c (Pty spawn "/bin/sh" (list "-c" "X_LANG_DIR=tools/contract/bundles/ exec sh x.sh --no-pin -q -l guardprobe") 80 24))
+(File write (rest c) %line (Str8 length %line))
+(def out (%drain (rest c)))
+(File close (rest c))
+(write (list (Sys wait (first c)) (Str8 ends? "#t\r\n" out)))
+EOF
+got=$(sh x.sh -q -f "$TMP/session.x" 2>/dev/null || true)
+want "an interactive lang session runs with no guard around it" '(0 #t)' "$got"
+
 # The dialect flag still selects: helium has no tower, xenon does.  One case,
 # because a wrong dialect is the other way a route silently answers wrong.
 got=$(sh x.sh -q -l xe -c '(write (+ 1/3 1/6))' 2>/dev/null || true)

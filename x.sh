@@ -1447,6 +1447,12 @@ fi
 # syntax (x-logo's batch reader, x-python's loop), and an include form
 # would hand it to the x reader instead.
 #
+# A bundle's entry alone is no program, so the test is $user_files and not
+# $file, which holds the entries too.  An interactive session must run with
+# no guard around it: the engine raises STOP on a ctrl-c only while a guard
+# is active, and a lang's own handler for an interrupted read runs with the
+# flag still set, so a guard here would take that STOP and end the session.
+#
 # Guarded, because not every library has the loop: lib/img.x and
 # lib/x-base.x stop short of it, and a pinned amalgam may predate it.  There
 # the name is unbound, the guard answers nil, and the engine's own loop
@@ -1460,7 +1466,7 @@ user_files_form() {
 	done
 }
 TAIL=
-if [ -n "$file" ] || [ -n "$stdin_prog" ] || [ -n "$have_eval" ]; then
+if [ -n "$user_files" ] || [ -n "$stdin_prog" ] || [ -n "$have_eval" ]; then
 	TAIL="batch_form; "
 fi
 if [ -n "$BUNDLE_DIR" ]; then
