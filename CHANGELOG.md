@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-10-28
+
+**Highlighting grammars come from the bundles.** ([#1129]) A lang.xon's `(grammar NAME (module M) (files ...) (names ...) (interpreters ...))` forms are a catalogue `x/tool/syntax` reads, importing a grammar's module the first time a file needs it. `Syntax for-file` takes the file's text too and picks the grammar a vi modeline names, else the one for the `#!` line's interpreter, else the one for the file's name; `Syntax catalogue` lists them.
+
+[#1129]: https://github.com/jonruttan/x-lang/pull/1129
+
 ## [0.42.0] - 2026-10-28
 
 **The engine is x-engine-c v0.2.25** ([#1126]). `(base def-global)` is gone from the engine; a root definition is `(eval! (list (lit def) n (list (lit lit) v)))`, and the engine-min fixture and the sandbox spec no longer mention the primitive.
