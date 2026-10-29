@@ -95,12 +95,14 @@
   (param p PAIR "A pair")
   (returns ANY "The first element")
   (example "(first '(1 2 3))" "1")
+  (sample "(first ())" "raises first: () has no first")
   (see rest) (see pair))
 
 (doc rest "Return the second element (tail) of a pair."
   (param p PAIR "A pair")
   (returns ANY "The second element")
   (example "(rest '(1 2 3))" "(2 3)")
+  (sample "(rest ())" "raises rest: () has no rest")
   (see first) (see pair))
 
 (doc set-first! "Mutate the first element of a pair."

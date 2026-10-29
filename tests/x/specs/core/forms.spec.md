@@ -87,6 +87,33 @@
 ---
     ('b 'c)
 
+### first of nil raises instead of reading through it
+
+The engine's prim is unchecked; the global is the library's compiled guard
+(lib/x/core/first-rest.x), and the raise is what a guard catches.
+
+```x
+(guard (e (Str8 str e)) (first ()))
+```
+---
+    "first: () has no first"
+
+### rest of nil raises the same way
+
+```x
+(guard (e (Str8 str e)) (rest ()))
+```
+---
+    "rest: () has no rest"
+
+### the guarded first is a prim a list walk passes around
+
+```x
+(List map first (list (list 1 2) (list 3 4)))
+```
+---
+    (1 3)
+
 ## list
 
 ### creates a list

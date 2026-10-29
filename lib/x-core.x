@@ -144,13 +144,14 @@
   (pair (lit x/reader/lit-reader)
   (pair (lit x/repl/loop)
   (pair (lit x/repl/batch)
+  (pair (lit x/core/first-rest)
   (pair (lit x/type/bool)
   (pair (lit x/core/op-guard)
   (pair (lit x/type/err)
   (pair (lit x/repl/lang)
   (pair (lit x/repl/ansi)
   (pair (lit x/repl/banner)
-    (first %module-loaded-cell))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+    (first %module-loaded-cell)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 ; --- Standard modules ---
 (include-once "lib/x/core/predicates.x")
@@ -335,6 +336,11 @@
 
 ; Banner
 (include-once "lib/x/repl/banner.x")
+
+; first and rest guarded against nil, compiled: last, so every list the
+; boot walked went through the raw prims and every list a program walks
+; goes through the guards.
+(include-once "lib/x/core/first-rest.x")
 ((prim-ref (lit heap) (lit collect)))
 
 ; Install the SIGINT handler so ctrl-c breaks loops.  On builds without
