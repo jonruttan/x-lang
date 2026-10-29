@@ -125,7 +125,14 @@
       (doc "The seams a lang may set: the closed vocabulary `register!` checks against."
         (returns LIST "Symbols")
         (example "(first (Lang keys))" "'%repl-prompt"))
-      (Lang %lang-vocabulary))))
+      (Lang %lang-vocabulary))
+
+    (method symbols-bare! (self)
+      (doc "Write symbols bare from here on: a token list renders as ((word \"a\")), where x's own writer quotes each symbol so the echo pastes back. For a lang whose values are token lists and whose specs read them bare. A write handler is pushed onto the symbol type, so write-to-str follows; (Type pop-write ((Type wrap (Type of 'q)) raw)) takes it off again."
+        (returns NIL "Nothing")
+        (example "(do (Lang symbols-bare!) (write (list 'word \"a\")))" "(word \"a\")"))
+      ((Type wrap (Type of (lit q))) push-write (fn (_ o) (display (symbol->str o))))
+      ())))
 
 ; What boot knows of x-lang's own prompt.  The rest of "x" arrives as the
 ; files that own it load; see the module note.
