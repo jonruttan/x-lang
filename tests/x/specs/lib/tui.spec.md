@@ -65,6 +65,19 @@ A wide character over half of another blanks the half left behind.
 ---
     (("Title here" "" "Some emph and strong" "text with code and a" "link to x that wraps" "around." "" "│ quoted line that is" "│ long enough to wrap" "" "• one" "• two" "  1. sub" "  2. subtwo" "" "code    block" "" "────────────────────────" "" "An [alt] and" "averyveryverylongwordtha" "tmustbreak.") (("/x" "t" ((4 0 9))) ("/i.png" () ((19 3 5)))) (("Some" 0 ()) (" " 0 ()) ("emph" 4 ()) (" " 0 ()) ("and" 0 ()) (" " 0 ()) ("strong" 1 ())))
 
+### a form's fields are drawn as lynx draws them, each in one piece, numbered with the links; a hidden field is not drawn; a button with an empty value is Submit
+
+```x
+(do (import x/codec/html) (import x/tui/page) (import x/tui/window)
+  (def p (Page markdown (Html parse "<form action=/s><p>Name: <input name=n value=\"Ann Lee\"> <input type=password name=p value=abc><br><input type=checkbox name=c checked> yes <input type=radio name=r> no <select name=s><option value=1>One<option value=2 selected>Two</select> <input type=hidden name=h value=1><button name=b value=1>Go now</button> <a href=/u>u</a> <input type=submit value=\"\"></p></form>") 30))
+  (def w (Window make "f" p))
+  (list (List map (fn (_ i) (Page line-text p i)) (List range 0 (Page count p)))
+        (List map (fn (_ l) (list (if (str? (first l)) (first l) (List ref 2 (first l))) (List ref 2 l))) (Page links p))
+        (Window next-link w 5) (Window next-link w 5) (first (first (Window link w))) (Window prev-link w 5)))
+```
+---
+    (("Name: Ann Lee_____________" "***_________________" "[X] yes ( ) no [Two] [Go now]" "u [Submit]") (("n" ((0 6 20))) ("p" ((1 0 20))) ("c" ((2 0 3))) ("r" ((2 8 3))) ("s" ((2 15 5))) ("b" ((2 21 8))) ("/u" ((3 0 1))) (() ((3 2 8)))) 0 1 'field 0)
+
 ### plain text keeps its spaces and expands tabs
 
 ```x

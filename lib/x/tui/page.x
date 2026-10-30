@@ -12,10 +12,19 @@
 ; alternative text in brackets, linked to the image; raw HTML in a
 ; paragraph is dropped, an HTML block shown as it is, dim.
 ;
-; Links are numbered from 0 in the order they appear, and each is kept as
-; (DESTINATION TITLE SPANS), SPANS the (LINE COLUMN WIDTH) places its text
-; takes, found from the laid-out lines.  (Page draw) puts lines on a screen
-; (x/tui/screen), one link shown selected.
+; A form's field, (field TYPE NAME VALUE ON OPTIONS FORM) as (Html parse)
+; answers one, is drawn as lynx draws it, in one piece that never breaks
+; across lines: a text field as its value padded with underscores to
+; twenty columns (a password's as asterisks), a checkbox as [ ] or [X], a
+; radio button as ( ) or (*), a select as its chosen option's label in
+; brackets, a submit button as its label (its text, or its value, or
+; Submit with neither) in brackets; a hidden field is not drawn.
+;
+; Links and fields are numbered together from 0 in the order they appear,
+; and each is kept as (DESTINATION TITLE SPANS): a link's destination and
+; title, or a field's (field ...) inline and nil; SPANS the (LINE COLUMN
+; WIDTH) places its text takes, found from the laid-out lines.  (Page
+; draw) puts lines on a screen (x/tui/screen), one link shown selected.
 
 (module x/tui/page)
 (import x/type/class)
@@ -47,6 +56,7 @@
 (def %pg-strong (Style make (lit (bold)) () ()))
 (def %pg-code (Style make () 6 ()))
 (def %pg-link (Style make (lit (underline)) 12 ()))
+(def %pg-field (Style make (lit (bold)) 12 ()))
 (def %pg-dim (Style make (lit (dim)) () ()))
 (def %pg-reverse (Style make (lit (reverse)) () ()))
 (def %pg-attr-bits 63)
@@ -64,6 +74,7 @@
 (def %pg-3rd (fn (_ l) (first (rest (rest l)))))
 (def %pg-4th (fn (_ l) (first (rest (rest (rest l))))))
 (def %pg-5th (fn (_ l) (first (rest (rest (rest (rest l)))))))
+(def %pg-6th (fn (_ l) (first (rest (rest (rest (rest (rest l))))))))
 (def %pg-map (fn (self f l) (match ((eq? l ()) ()) (#t (pair (f (first l)) (self f (rest l)))))))
 (def %pg-each (fn (self f l) (match ((eq? l ()) ()) (#t (do (f (first l)) (self f (rest l)))))))
 (def %pg-len (fn (self l) (match ((eq? l ()) 0) (#t (%pg+ 1 (self (rest l)))))))
@@ -102,6 +113,29 @@
   (fn (_ links dest title)
     (%set-first! links (pair (list dest title) (first links)))
     (%pg+ (%pg-len (first links)) -1)))
+; The field F drawn: its text, or nil for a hidden field.
+(def %pg-field-width 20)
+(def %pg-field-text
+  (fn (_ f)
+    (def type (%pg-2nd f))
+    (def value (%pg-4th f))
+    (def padded (fn (_ s) (%str-concat (list s (%pg-repeat "_" (%pg+ %pg-field-width (- 0 (text-width s))))))))
+    ; The label of the option that is the value: a select's chosen one, a
+    ; button's text; the value itself with none.
+    (def label
+      (fn (go opts)
+        (match ((eq? opts ()) value)
+               ((str=? (first (first opts)) value) (rest (first opts)))
+               (#t (go (rest opts))))))
+    (match
+      ((eq? type (lit hidden)) ())
+      ((eq? type (lit checkbox)) (match ((%pg-5th f) "[X]") (#t "[ ]")))
+      ((eq? type (lit radio)) (match ((%pg-5th f) "(*)") (#t "( )")))
+      ((eq? type (lit select)) (%str-concat (list "[" (label (%pg-6th f)) "]")))
+      ((eq? type (lit submit))
+        ((fn (_ l) (%str-concat (list "[" (match ((str=? l "") "Submit") (#t l)) "]"))) (label (%pg-6th f))))
+      ((eq? type (lit password)) (padded (%pg-repeat "*" (text-width value))))
+      (#t (padded (Str8 replace "\n" " " value))))))
 (def %pg-pieces
   (fn (self inl style link links out)
     (match
@@ -127,13 +161,20 @@
                              (%pg-plain (%pg-4th x))))
                           ((eq? t (lit softbreak)) (pair (list " " style link) out))
                           ((eq? t (lit hardbreak)) (pair (lit br) out))
+                          ((eq? t (lit field))
+                            ((fn (_ shown)
+                               (match ((eq? shown ()) out)
+                                      (#t (pair (list shown (%pg-merge style %pg-field) (%pg-file-link! links x ()) (lit whole))
+                                                out))))
+                             (%pg-field-text x)))
                           (#t out)))
                       (first x))))))
            (first inl))))))
 
 ; --- pieces to tokens ------------------------------------------------------
 ; Tokens: (w FRAGMENTS) a word, its pieces in order; (s STYLE LINK) the
-; space between two words; (lit br).  OUT last first.
+; space between two words; (lit br).  OUT last first.  A piece ending in
+; (lit whole), a field's, is one fragment whatever it holds.
 (def %pg-space
   (fn (_ style link out)
     (match ((match ((eq? out ()) #t) ((eq? (first out) (lit br)) #f) (#t (eq? (first (first out)) (lit s)))) out)
@@ -156,9 +197,12 @@
     (match
       ((eq? pieces ()) (%pg-rev (%pg-word frags out)))
       ((eq? (first pieces) (lit br)) (self (rest pieces) () (pair (lit br) (%pg-word frags out))))
-      (#t ((fn (_ p)
-             ((fn (_ done) (self (rest pieces) (first done) (rest done)))
-              (%pg-split (first p) (%pg-2nd p) (%pg-3rd p) 0 0 frags out)))
+      ((eq? (rest (rest (rest (first pieces)))) ())
+        ((fn (_ p)
+           ((fn (_ done) (self (rest pieces) (first done) (rest done)))
+            (%pg-split (first p) (%pg-2nd p) (%pg-3rd p) 0 0 frags out)))
+         (first pieces)))
+      (#t ((fn (_ p) (self (rest pieces) (pair (list (first p) (%pg-2nd p) (%pg-3rd p)) frags) out))
            (first pieces))))))
 
 ; --- tokens to lines -------------------------------------------------------
@@ -370,15 +414,16 @@
      0)))
 
 (def-class Page ()
-  (doc "A document laid out for a terminal: lines of styled runs no wider than the page, its links numbered with the places they take, drawn onto a screen."
+  (doc "A document laid out for a terminal: lines of styled runs no wider than the page, its links and form fields numbered together with the places they take, drawn onto a screen."
     (example "(Page line-text (Page markdown (Markdown parse \"# Hi\\n\\nthere\") 20) 2)" "\"there\"")
     (see markdown) (see text) (see draw))
   (static
     (method markdown (self (param blocks LIST "Blocks, as (Markdown parse) answers them")
                            (param width INTEGER "Columns"))
-      (doc "Lay BLOCKS out WIDTH wide: paragraphs and headings wrapped, code kept as it is, quotes barred, list items marked, a blank line between blocks (none in a tight list)."
+      (doc "Lay BLOCKS out WIDTH wide: paragraphs and headings wrapped, code kept as it is, quotes barred, list items marked, a blank line between blocks (none in a tight list).  A form's field, as (Html parse) answers one, is drawn as lynx draws it: a text field as its value padded with underscores, a checkbox as [ ] or [X], a radio button as ( ) or (*), a select as its chosen option in brackets, a submit button as its label in brackets."
         (returns VECTOR "The page")
-        (example "(Page count (Page markdown (Markdown parse \"a\\n\\n- b\\n- c\") 20))" "4"))
+        (example "(Page count (Page markdown (Markdown parse \"a\\n\\n- b\\n- c\") 20))" "4")
+        (example "(Page line-text (Page markdown (list (list 'paragraph (list \"Q: \" (list 'field 'text \"q\" \"hi\" #f () ()) \" \" (list 'field 'checkbox \"c\" \"on\" #t () ())))) 40) 0)" "\"Q: hi__________________ [X]\""))
       (def links (pair () ()))
       (def lines (%pg-blocks blocks width 0 #f links))
       (%pg-make lines (%pg-rev (first links)) width))
@@ -405,8 +450,8 @@
         (example "(Page line-text (Page text \"a b\" 9) 0)" "\"a b\""))
       (%pg-line-text page i))
     (method links (self (param page VECTOR "A page"))
-      (doc "PAGE's links in order: (DESTINATION TITLE SPANS) each, SPANS the (LINE COLUMN WIDTH) places the link's text takes."
-        (returns LIST "Links")
+      (doc "PAGE's links and form fields in order: (DESTINATION TITLE SPANS) each, a field's DESTINATION its (field ...) inline and its TITLE nil, SPANS the (LINE COLUMN WIDTH) places its text takes."
+        (returns LIST "Links and fields")
         (example "(Page links (Page markdown (Markdown parse \"see [x](/u)\") 20))" "((\"/u\" () ((0 4 1))))"))
       ((fn (go k out) (match ((%pg< k 0) out) (#t (go (%pg+ k -1) (pair (%pg-at (%pg-links page) k) out)))))
        (%pg+ (%pg-count (%pg-links page)) -1) ()))
