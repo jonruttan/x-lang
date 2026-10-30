@@ -17,12 +17,29 @@
 ;
 ; and inlines: a (link HREF TITLE INLINES), b and strong (strong INLINES),
 ; i, em, cite, dfn and var (emph INLINES), code, kbd, samp and tt (code
-; TEXT), br (hardbreak), img its alt text.  Any other element is its
+; TEXT), br (hardbreak), img its alt text.  A form's fields are inlines
+; too, each (field TYPE NAME VALUE ON OPTIONS FORM):
+;
+;   input                     TYPE text, search, password, email, url,
+;                             number, hidden, checkbox, radio or submit
+;                             (an unknown type is text; a button, reset,
+;                             image or file input is nothing), VALUE its
+;                             value ("on" for a box, "Submit" for a button)
+;   textarea                  TYPE textarea, VALUE its text
+;   select                    TYPE select, OPTIONS its options, each
+;                             (VALUE . LABEL), VALUE the selected one's
+;   button                    TYPE submit, VALUE its value or its text,
+;                             OPTIONS its one (VALUE . TEXT) (a button or
+;                             reset button is nothing)
+;
+; NAME is the name attribute or nil, ON whether a checkbox or radio is
+; checked, and FORM the form the field is in, (INDEX ACTION METHOD): the
+; form's number among the page's forms from 0, its action ("" with none)
+; and get or post; nil for a field in no form.  Any other element is its
 ; content: div and the other sectioning elements part blocks, span and the
-; other phrasing elements join inlines.  head, script, style, template,
-; iframe, select and textarea are dropped, as comments, doctypes and
-; processing instructions are.  (Html title TEXT) answers the <title>'s
-; text, or nil.
+; other phrasing elements join inlines.  head, script, style, template and
+; iframe are dropped, as comments, doctypes and processing instructions
+; are.  (Html title TEXT) answers the <title>'s text, or nil.
 ;
 ; The parse is as tolerant as a browser's: tag and attribute names in any
 ; case, attribute values in either quote or none, p, li, dt, dd, tr, td and
@@ -118,7 +135,7 @@
 (def %ht-raw (list "script" "style" "textarea" "title" "iframe" "xmp"))
 ; Elements, and their content, that no block or inline comes from.
 (def %ht-dropped
-  (list "head" "script" "style" "template" "iframe" "select" "textarea" "title" "xmp" "object" "datalist" "noframes"))
+  (list "head" "script" "style" "template" "iframe" "title" "xmp" "object" "datalist" "noframes"))
 ; What may open inside head; anything else closes it.
 (def %ht-head (list "base" "link" "meta" "noscript" "script" "style" "template" "title"))
 ; Start tags that close an open p, and the elements a p is looked for below.
@@ -140,12 +157,14 @@
                                        "colgroup" "noscript" "legend" "option" "optgroup"))))))
 
 ; An element is a vector: 0 its name, 1 its attributes ((NAME . VALUE) ...),
-; 2 its children, last first, each a string or an element, 3 its parent.
-; (eq? compares a vector by its value word, its length: identity is same?.)
+; 2 its children, last first, each a string or an element, 3 its parent, 4
+; a form's (INDEX ACTION METHOD), nil on any other element.  (eq? compares
+; a vector by its value word, its length: identity is same?.)
 (def %ht-node
   (fn (_ name attrs parent)
-    (def v (obj-make %ht-vector 5))
-    (obj-set! v 0 4) (obj-set! v 1 name) (obj-set! v 2 attrs) (obj-set! v 3 ()) (obj-set! v 4 parent)
+    (def v (obj-make %ht-vector 6))
+    (obj-set! v 0 5) (obj-set! v 1 name) (obj-set! v 2 attrs) (obj-set! v 3 ()) (obj-set! v 4 parent)
+    (obj-set! v 5 ())
     v))
 (def %ht-name (fn (_ nd) (obj-ref nd 1)))
 (def %ht-kids (fn (_ nd) (%reverse (obj-ref nd 3))))
@@ -233,6 +252,9 @@
     (match ((null? (%ht-parent cur)) ())
            ((str=? (%ht-name cur) name) cur)
            (#t (go (%ht-parent cur) name)))))
+; The form ND is in, (INDEX ACTION METHOD), or nil.
+(def %ht-form
+  (fn (_ nd) ((fn (_ f) (match ((null? f) ()) (#t (obj-ref f 5)))) (%ht-nearest nd "form"))))
 ; CUR with the outermost open element named in NAMES closed, when one is
 ; open below an element named in STOP.
 (def %ht-closed
@@ -273,12 +295,18 @@
   (fn (_ s)
     (def root (%ht-node "" () ()))
     (def cur root)
+    (def forms 0)
     (def text! (fn (_ i j) (unless (= i j) (%ht-add! cur (entity-decode (%ht-sub s i j))))))
     (def raw! (fn (_ nd name i j)
       (unless (match ((str=? name "script") #t) (#t (str=? name "style")))
         (%ht-add! nd (entity-decode (%ht-sub s i j))))))
     (def open! (fn (_ name attrs end)
       (def nd (%ht-opened cur name attrs))
+      (when (str=? name "form")
+        (do (obj-set! nd 5
+              (list forms (%ht-attr-or nd "action" "")
+                    (match ((str=? (%ht-lower (%ht-attr-or nd "method" "")) "post") (lit post)) (#t (lit get)))))
+            (set! forms (int+ forms 1))))
       (set! cur (%ht-parent nd))
       (match
         ((%ht-member? name %ht-void) end)
@@ -362,6 +390,80 @@
                          ((%ht-member? (%ht-name x) %ht-dropped) "")
                          (#t (self x))))
                (%ht-kids nd)))))
+; --- fields ----------------------------------------------------------------
+; A field inline, (field TYPE NAME VALUE ON OPTIONS FORM), for the element X.
+(def %ht-field
+  (fn (_ type x value on options)
+    (list (lit field) type (%ht-attr x "name") value on options (%ht-form x))))
+; ND's text collapsed to one line, none at either end.
+(def %ht-label (fn (_ nd) (%ht-rtrim (first (%ht-collapse (%ht-text nd) #t)))))
+(def %ht-input-types
+  (list (pair "text" (lit text)) (pair "search" (lit search)) (pair "password" (lit password))
+        (pair "email" (lit email)) (pair "url" (lit url)) (pair "number" (lit number))
+        (pair "hidden" (lit hidden)) (pair "checkbox" (lit checkbox)) (pair "radio" (lit radio))
+        (pair "submit" (lit submit))))
+; An input's field: an unknown type is text; a button, reset, image or file
+; input is nil.
+(def %ht-input
+  (fn (_ x)
+    (def kind (%ht-lower (%ht-attr-or x "type" "text")))
+    (def hit (%ht-assoc kind %ht-input-types))
+    (def type
+      (match ((not (null? hit)) (rest hit))
+             ((%ht-member? kind (list "button" "reset" "image" "file")) ())
+             (#t (lit text))))
+    (match
+      ((null? type) ())
+      ((match ((eq? type (lit checkbox)) #t) (#t (eq? type (lit radio))))
+        (%ht-field type x (%ht-attr-or x "value" "on") (not (null? (%ht-attr x "checked"))) ()))
+      ((eq? type (lit submit)) (%ht-field type x (%ht-attr-or x "value" "Submit") #f ()))
+      (#t (%ht-field type x (%ht-attr-or x "value" "") #f ())))))
+; A textarea's field: its text as written, one line end after the tag left off.
+(def %ht-textarea
+  (fn (_ x)
+    (def t (Str8 replace "\r" "" (%ht-text x)))
+    (%ht-field (lit textarea) x (match ((= (%ht-at t 0) #\newline) (%ht-sub t 1 (str-byte-len t))) (#t t)) #f ())))
+; A select's field: its options, in order, each (VALUE . LABEL), VALUE the
+; value attribute or the label; the value selected, else the first's.
+(def %ht-select
+  (fn (_ x)
+    (def chosen ())
+    (def options
+      ((fn (walk kids out)
+         (match
+           ((null? kids) out)
+           ((str? (first kids)) (walk (rest kids) out))
+           ((%ht-named? (first kids) "optgroup") (walk (rest kids) (walk (%ht-kids (first kids)) out)))
+           ((%ht-named? (first kids) "option")
+             ((fn (_ o label)
+                ((fn (_ value)
+                   (when (match ((null? chosen) #t) (#t (not (null? (%ht-attr o "selected")))))
+                     (set! chosen value))
+                   (walk (rest kids) (pair (pair value label) out)))
+                 (%ht-attr-or o "value" label)))
+              (first kids) (%ht-label (first kids))))
+           (#t (walk (rest kids) out))))
+       (%ht-kids x) ()))
+    (%ht-field (lit select) x (match ((null? chosen) "") (#t chosen)) #f (%reverse options))))
+; A button's field: a submit button's value, else its text, with its text
+; as the one option's label, since the two differ; a button or reset
+; button is nil.
+(def %ht-button
+  (fn (_ x)
+    (def kind (%ht-lower (%ht-attr-or x "type" "submit")))
+    (match
+      ((not (str=? kind "submit")) ())
+      (#t ((fn (_ label)
+             ((fn (_ value) (%ht-field (lit submit) x value #f (list (pair value label))))
+              (%ht-attr-or x "value" label)))
+           ((fn (_ t) (match ((str=? t "") "Submit") (#t t))) (%ht-label x)))))))
+; The field F (or nil) onto OUT; after one that is drawn a space is a space.
+(def %ht-field-onto
+  (fn (_ f sp out)
+    (match ((null? f) out)
+           (#t (do (unless (eq? (%ht-nth 1 f) (lit hidden)) (%set-first! sp #f))
+                   (pair f out))))))
+
 ; KIDS, in order, as inlines onto OUT, last first; SP a cell holding whether
 ; a space is pending.
 (def %ht-inlines
@@ -378,6 +480,10 @@
                           ((%ht-member? name %ht-dropped) out)
                           ((str=? name "br") (do (%set-first! sp #t) (pair (list (lit hardbreak)) (%ht-trim-end out))))
                           ((str=? name "img") (%ht-text-onto (collapsed! (%ht-attr-or x "alt" "")) out))
+                          ((str=? name "input") (%ht-field-onto (%ht-input x) sp out))
+                          ((str=? name "textarea") (%ht-field-onto (%ht-textarea x) sp out))
+                          ((str=? name "select") (%ht-field-onto (%ht-select x) sp out))
+                          ((str=? name "button") (%ht-field-onto (%ht-button x) sp out))
                           ((str=? name "a")
                             ((fn (_ href inner)
                                (match ((null? href) (%ht-splice inner out))
@@ -546,10 +652,11 @@
     (see parse) (see title))
   (static
     (method parse (self (param text STRING "HTML text"))
-      (doc "Parse HTML into a list of blocks as (Markdown parse) answers them: (heading LEVEL INLINES), (paragraph INLINES), (code-block INFO TEXT), (block-quote BLOCKS), (list ORDERED? START TIGHT? ITEMS) with each item a list of blocks, (thematic-break); a table a paragraph a row.  Inlines are strings and (emph INLINES), (strong INLINES), (code TEXT), (link HREF TITLE INLINES), (hardbreak).  Tolerant of unclosed p, li, td and th, attributes in either quote or none, and names in any case; head, script, style and comments are dropped, entities decoded, white space collapsed."
+      (doc "Parse HTML into a list of blocks as (Markdown parse) answers them: (heading LEVEL INLINES), (paragraph INLINES), (code-block INFO TEXT), (block-quote BLOCKS), (list ORDERED? START TIGHT? ITEMS) with each item a list of blocks, (thematic-break); a table a paragraph a row.  Inlines are strings and (emph INLINES), (strong INLINES), (code TEXT), (link HREF TITLE INLINES), (hardbreak), and a form's fields, (field TYPE NAME VALUE ON OPTIONS FORM): TYPE text, search, password, email, url, number, hidden, textarea, checkbox, radio, select or submit, ON whether a box is checked, OPTIONS a select's (VALUE . LABEL) options or a button element's one, FORM the form's (INDEX ACTION METHOD) or nil.  Tolerant of unclosed p, li, td and th, attributes in either quote or none, and names in any case; head, script, style and comments are dropped, entities decoded, white space collapsed."
         (returns LIST "The page's blocks")
         (example "(Html parse \"<UL><li>one<li><a href=/u title='t'>two</a></UL>\")" "(('list #f () #t ((('paragraph (\"one\"))) (('paragraph (('link \"/u\" \"t\" (\"two\"))))))))")
-        (example "(Html parse \"<pre>\\nx &lt; y\\n</pre><hr><blockquote>q</blockquote>\")" "(('code-block \"\" \"x < y\\n\") ('thematic-break) ('block-quote (('paragraph (\"q\")))))"))
+        (example "(Html parse \"<pre>\\nx &lt; y\\n</pre><hr><blockquote>q</blockquote>\")" "(('code-block \"\" \"x < y\\n\") ('thematic-break) ('block-quote (('paragraph (\"q\")))))")
+        (example "(Html parse \"<form action=/s><input name=q> <input type=submit value=Go></form>\")" "(('paragraph (('field 'text \"q\" \"\" #f () (0 \"/s\" 'get)) \" \" ('field 'submit () \"Go\" #f () (0 \"/s\" 'get)))))"))
       (%ht-flow (%ht-kids (%ht-tree text))))
     (method title (self (param text STRING "HTML text"))
       (doc "The text of the page's <title>, its white space collapsed, or nil when it has none."

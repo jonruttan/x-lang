@@ -157,13 +157,13 @@
 ; compiled in the OTHER world -- the wrong body, handed back as a hit, which
 ; is the one thing a cache must never do.
 (def %asm-cache-mode
-  (fn (_ fvars analyser?)
+  (fn (_ fvars mode)
     ((fn (self fs acc)
        (if (null? fs) acc
          (self (rest fs)
            (Str append acc "|" (symbol->str (first (first fs)))
              (if (null? (rest (first fs))) "=" ":")))))
-      fvars (if analyser? "!a" "!i"))))
+      fvars (if (eq? mode (lit object)) "!o" (if mode "!a" "!i")))))
 
 ; The full text a hit must match.  It is both hashed into the filename and
 ; STORED IN THE ENTRY, so a 64-bit collision costs a miss rather than handing
@@ -1349,13 +1349,19 @@
     (def analyser?
       (match
         ((null? %asm-rest) #f)
-        ((pair? (rest %asm-rest)) (first (rest %asm-rest)))
+        ((pair? (rest %asm-rest))
+          (let ((m (first (rest %asm-rest))))
+            (if (or (eq? m #t) (eq? m #f) (eq? m (lit object))) m
+              (Err raise 'value
+                (Str append "compile-asm: the third argument names the calling "
+                  "world: #t for an analyse callback, #f for an integer "
+                  "function, or the symbol object for an object function.") ()))))
         ((null? fvars) #f)
         (#t (Err raise 'value
               (Str append "compile-asm: fvars passed without declaring the calling "
                 "world.  Pass #t as compile-asm's third argument for an analyse "
-                "callback the tokenizer calls, or #f for an integer function "
-                "called from x.") ()))))
+                "callback the tokenizer calls, #f for an integer function "
+                "called from x, or the symbol object for an object function.") ()))))
     ; Whether to stand aside is decided FIRST, before the printer is asked for
     ; anything: on that path this module gets out of the way entirely and the
     ; expression takes the route it took before there was a cache.
@@ -1395,11 +1401,15 @@
    every call here.  Accepts an optional fvar alist for free variable
    support, and a third argument declaring the calling mode: #f for an
    integer function called from x, #t for an analyse callback the tokenizer
-   calls.  A compile with fvars must declare it and refuses without it; one
-   with neither fvars nor a declaration is an integer function.  In analyser
-   mode nothing evaluates the arguments and the result is not boxed, and
+   calls, or the symbol object for an object function called from x.  A
+   compile with fvars must declare it and refuses without it; one with
+   neither fvars nor a declaration is an integer function.  In analyser mode
+   nothing evaluates the arguments and the result is not boxed, and
    arithmetic or an ordered comparison on a leading param refuses rather than
-   answering.
+   answering.  In object mode the arguments evaluate and stay the objects
+   they evaluate to, the result is returned as one, and every param is an
+   object param: (= p 0) is the nil test, (first p) reads through the
+   trampoline, and arithmetic on a param refuses.
    An fvar holding a prim may be called by name; (%call HEAD arg ...) calls a
    prim the code computes, and refuses at run time if the head is not one.
    The compiled function works with map, fold, closures, etc.

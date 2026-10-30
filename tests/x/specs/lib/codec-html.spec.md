@@ -83,14 +83,34 @@ decode) and (Entity at) read character references for both codecs.
 ---
     (('paragraph ("one")) ('paragraph ("two")) ('paragraph ("a | b")) ('paragraph (('link "/x" () ("in a link")))))
 
-### select, textarea and iframe are dropped; a page with no html, head or body
+### iframe is dropped, parting blocks; a select and a textarea outside any form are fields in none; a page with no html, head or body
 
 ```x
 (do (import x/codec/html)
   (Html parse "<select><option>a<option>b</select><textarea>t</textarea><iframe>f</iframe>just <b>text</b>"))
 ```
 ---
-    (('paragraph ("just " ('strong ("text")))))
+    (('paragraph (('field 'select () "a" #f (("a" . "a") ("b" . "b")) ()) ('field 'textarea () "t" #f () ()))) ('paragraph ("just " ('strong ("text")))))
+
+## forms
+
+### a form's fields are inlines, each with its form: inputs by type, a textarea, a select with its options and the one selected, boxes, buttons; reset and button inputs are nothing
+
+```x
+(do (import x/codec/html)
+  (Html parse "<form action=\"/s\" method=POST><p>Q: <input name=q value=\"a b\"> <input type=hidden name=h value=1><input type=checkbox name=c checked> <input type=radio name=r value=x> <select name=s><option>One<optgroup><option value=2 selected>Two</optgroup></select> <textarea name=t>\nline</textarea> <button name=b>Go</button> <input type=submit value=Send> <input type=reset value=Clear></p></form><form><input type=search name=z><button type=button>No</button></form><input type=password name=p>"))
+```
+---
+    (('paragraph ("Q: " ('field 'text "q" "a b" #f () (0 "/s" 'post)) " " ('field 'hidden "h" "1" #f () (0 "/s" 'post)) ('field 'checkbox "c" "on" #t () (0 "/s" 'post)) " " ('field 'radio "r" "x" #f () (0 "/s" 'post)) " " ('field 'select "s" "2" #f (("One" . "One") ("2" . "Two")) (0 "/s" 'post)) " " ('field 'textarea "t" "line" #f () (0 "/s" 'post)) " " ('field 'submit "b" "Go" #f (("Go" . "Go")) (0 "/s" 'post)) " " ('field 'submit () "Send" #f () (0 "/s" 'post)))) ('paragraph (('field 'search "z" "" #f () (1 "" 'get)))) ('paragraph (('field 'password "p" "" #f () ()))))
+
+### a field keeps its place among the text: a label, a list item, a table cell; an unknown input type is text; a button's value and its text are both kept, a button with no text is Submit
+
+```x
+(do (import x/codec/html)
+  (Html parse "<form><label>Name <input type=tel name=n></label><ul><li><input type=checkbox name=a> a</ul><table><tr><td>k<td><input name=v value=1></table><button name=b value=1>Send</button><button></button></form>"))
+```
+---
+    (('paragraph ("Name " ('field 'text "n" "" #f () (0 "" 'get)))) ('list #f () #t ((('paragraph (('field 'checkbox "a" "on" #f () (0 "" 'get)) " a"))))) ('paragraph ("k | " ('field 'text "v" "1" #f () (0 "" 'get)))) ('paragraph (('field 'submit "b" "1" #f (("1" . "Send")) (0 "" 'get)) ('field 'submit () "Submit" #f (("Submit" . "Submit")) (0 "" 'get)))))
 
 ## title
 

@@ -224,3 +224,38 @@ guard turns it into a hard exit 125.
 ```
 ---
     125
+
+## quiet!, setsid: a daemon's leaving of the terminal
+
+### quiet! puts the standard descriptors on /dev/null
+
+The child writes to stdout after quiet!; nothing of it reaches the spec's
+output, and the parent sees its status.
+
+```x
+(do
+  (import x/sys/proc)
+  (def %q-child (Sys fork))
+  (when (= %q-child 0)
+    (def ok (Proc quiet!))
+    (display "leaked\n")
+    (Sys exit (if ok 0 1)))
+  (Sys wait %q-child))
+```
+---
+    0
+
+### setsid makes the child a session leader
+
+A forked child is not a group leader, so setsid answers its new session's
+id, its own pid; the parent, which may lead one, is not asked.
+
+```x
+(do
+  (def %s-child (Sys fork))
+  (when (= %s-child 0)
+    (Sys exit (if (= (Sys setsid) (Sys getpid)) 0 1)))
+  (Sys wait %s-child))
+```
+---
+    0

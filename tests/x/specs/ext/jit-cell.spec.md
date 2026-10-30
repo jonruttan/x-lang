@@ -171,7 +171,7 @@ rebound, and a collect leaves it where the first state finds it.
   (compile-asm '(fn (_ x) (first c)) (list (pair 'c (pair 1 2))) #f))
 ```
 ---
-    asm-compile: first reads an object, and this compile is an integer function, whose result is a number.  Pass #t as compile-asm's third argument for an analyser.
+    asm-compile: first reads an object, and this compile is an integer function, whose result is a number.  Pass #t as compile-asm's third argument for an analyser, or the symbol object for an object function.
 
 ### an operand that is a number
 

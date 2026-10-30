@@ -41,7 +41,8 @@
 
 ; Load compiler infrastructure FIRST (before numeric tower)
 ; (posix.x already loaded by x-core.x)
-(include "../type/hash.x")
+; hash.x is not included here: x-core.x ends by loading x/core/first-rest,
+; whose cache door imports x/type/hash, so it is already in.
 (include "../tool/compile.x")
 (import x/tool/compile compile compile-asm compile-hosted?)
 ; The assembler, loaded here rather than on the first compile-asm.  The

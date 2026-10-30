@@ -140,7 +140,7 @@ if grep -q "DERIVED:" "$W/out"; then
 	echo "  DERIVED: judging a candidate perturbed the requires derivation --"
 	echo "    what the library needs is a property of the library, not of the"
 	echo "    engine being judged."
-	sed -n '/DERIVED:/,+4p' "$W/out" | sed 's/^/    /'
+	awk '/DERIVED:/ { n = 5 } n-- > 0 { print "    " $0 }' "$W/out"
 	fail=1
 fi
 

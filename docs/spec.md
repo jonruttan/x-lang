@@ -166,27 +166,30 @@ Constructs a pair from evaluated `a` and `b`.
 
 `(first p) -> obj`
 
-Returns the first element of pair `p`. Calling `(first ())` is undefined — in
-practice it dereferences nil and takes the process down. Importing
-`x/tool/safe-access` shadows `first` and `rest` with guarded closures so both
-raise instead; it is opt-in because the library walks its own lists through
-the same globals and the guard costs 1.4x–1.7x.
+Returns the first element of pair `p`. `(first ())` raises `first: () has no
+first`. The engine's primitive is unchecked, by design; the global the
+library binds is a compiled guard (`x/core/first-rest`, an object function
+in the assembler lane: a nil test and the read), so a list walk costs what
+the primitive does. Where the lane is absent the global stays the primitive
+and `(first ())` is undefined.
 
 ```x-repl
 (first (pair 1 2)) -> 1
 (first (list 10 20 30)) -> 10
+(guard (e e) (first ())) -> "first: () has no first"
 ```
 
 ### `rest`
 
 `(rest p) -> obj`
 
-Returns the rest element of pair `p`. Calling `(rest ())` is undefined; see
-[`first`](#first) for the opt-in guard.
+Returns the rest element of pair `p`. `(rest ())` raises `rest: () has no
+rest`, under the same guard as [`first`](#first).
 
 ```x-repl
 (rest (pair 1 2)) -> 2
 (rest (list 10 20 30)) -> (20 30)
+(guard (e e) (rest ())) -> "rest: () has no rest"
 ```
 
 ### `list`

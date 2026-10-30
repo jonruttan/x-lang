@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.43.1] - 2026-10-29
+
+**An interactive lang session runs with no guard around it again.** ([#1132]) In v0.42.0 and v0.43.0, `x -l LANG` with no program ran the lang's session under the batch loop's guard, so a ctrl-c partway through an entry could end the session with `Error [...]: STOP` where it should have discarded the entry.  The batch loop now wraps only a program: a `-f` or `-F` file, a piped stdin or `-c`.
+
+[#1132]: https://github.com/jonruttan/x-lang/pull/1132
+
 ## [0.43.0] - 2026-10-28
 
 **Highlighting grammars come from the bundles.** ([#1129]) A lang.xon's `(grammar NAME (module M) (files ...) (names ...) (interpreters ...))` forms are a catalogue `x/tool/syntax` reads, importing a grammar's module the first time a file needs it. `Syntax for-file` takes the file's text too and picks the grammar a vi modeline names, else the one for the `#!` line's interpreter, else the one for the file's name; `Syntax catalogue` lists them.

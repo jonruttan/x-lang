@@ -48,8 +48,9 @@
 ; Bytes travel as RUNS, (STRING . COUNT): a string buffer and how many of its
 ; bytes count, NUL bytes included. A run costs a few objects whatever its
 ; size, where a byte list costs a pair a byte and every walk of it more.
+; url is the url the response came from: after redirects, the last hop's.
 (def-record HttpStream (tls ()) (fd ()) (pieces ()) (buf ()) (off 0) (end 0)
-                       (mode ()) (left 0) (head ()) (status 0) (headers ()))
+                       (mode ()) (left 0) (head ()) (status 0) (headers ()) (url ()))
 
 (def-class Http ()
   (doc "An http/1.1 client over Socket, https over Tls: (Http get url), (Http post url body), (Http request method url headers body) -> ((status . INT) (headers . ALIST) (body . BYTE-LIST)); (Http open method url headers body) -> a stream whose body (Http read s n) hands out a piece at a time. Header names come back lowercased."
@@ -461,6 +462,7 @@
             (new HttpStream tls tls))
           (let ((fd (Socket tcp-connect quad port)))
             (new HttpStream fd fd))))
+      (s url url)
       (guard (e (do (Http close s) (error e)))
         (do (if (null? (s tls)) (Socket send (s fd) req) (Tls send (s tls) req))
             (when (pair? body)
@@ -474,7 +476,7 @@
                        (param headers ALIST "(name . value) strings; () for none")
                        (param body ANY "Body: a string, a run (STRING . COUNT) for bytes, or nil")
                        . (param opts ALIST "Options: (redirects . N) hop cap -- default 10, 0 disables following; (insecure) skips https certificate verification"))
-      (doc "Start an http exchange and stop at the body: the stream answers (s status) INTEGER, (s headers) the lowercased alist, (s head) the head's lines as sent (status line first); (Http read s n) takes the body a piece at a time, (Http close s) ends it. Redirects follow as request's do, each 3xx closed before the next hop. Exceeding the cap raises a label 'io."
+      (doc "Start an http exchange and stop at the body: the stream answers (s status) INTEGER, (s headers) the lowercased alist, (s head) the head's lines as sent (status line first), (s url) the url the response came from, the last hop's after redirects; (Http read s n) takes the body a piece at a time, (Http close s) ends it. Redirects follow as request's do, each 3xx closed before the next hop. Exceeding the cap raises a label 'io."
         (returns OBJECT "An HttpStream positioned at the body of the FINAL response")
         (sample "(let ((s (Http open \"GET\" \"http://127.0.0.1:8080/f\" () ()))) (s status))" "200"))
       (def o (if (null? opts) () (first opts)))
@@ -554,15 +556,16 @@
                           (param headers ALIST "(name . value) strings; () for none")
                           (param body ANY "Body: a string, a run (STRING . COUNT) for bytes, or nil")
                           . (param opts ALIST "Options: (redirects . N) hop cap -- default 10, 0 disables following; (insecure) skips https certificate verification"))
-      (doc "An http exchange that FOLLOWS redirects (cap 10, (redirects . 0) opts out): 3xx responses with a location header re-request per RFC -- 303 as GET, 301/302 as GET when the verb was POST, 307/308 preserving method and body; relative locations resolve against the current url; cross-scheme hops (http -> https) follow. Exceeding the cap raises a label 'io. The whole body is read into memory: (Http open) reads it a piece at a time."
-        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST)) -- the FINAL response")
+      (doc "An http exchange that FOLLOWS redirects (cap 10, (redirects . 0) opts out): 3xx responses with a location header re-request per RFC -- 303 as GET, 301/302 as GET when the verb was POST, 307/308 preserving method and body; relative locations resolve against the current url; cross-scheme hops (http -> https) follow. Exceeding the cap raises a label 'io. The whole body is read into memory: (Http open) reads it a piece at a time. The url entry is where the final response came from: the url asked for, or the last redirect's."
+        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST) (url . STRING)) -- the FINAL response")
         (sample "(rest (Assoc find 'status (Http get \"http://github.com/\")))" "200 -- the 301 to https was followed"))
       (def s (Http open method url headers body (if (null? opts) () (first opts))))
       (def b (guard (e (do (Http close s) (error e))) (Http %drain s)))
       (Http close s)
       (list (pair (lit status) (s status))
             (pair (lit headers) (s headers))
-            (pair (lit body) b)))
+            (pair (lit body) b)
+            (pair (lit url) (s url))))
 
     (method get (self (param url STRING "http://HOST[:PORT][/PATH]")
                       . (param headers ALIST "Optional (name . value) header strings"))
