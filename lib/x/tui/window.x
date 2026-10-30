@@ -113,7 +113,7 @@
         (example "(Window selected (Window make \"t\" (Page text \"a\" 9)))" ""))
       (%wn-get window 3))
     (method link (self (param window VECTOR "A window"))
-      (doc "The selected link, (DESTINATION TITLE SPANS), or nil." (returns ANY "A link or nil")
+      (doc "The selected link, (DESTINATION TITLE SPANS), or nil; a form field's DESTINATION is its (field ...) inline." (returns ANY "A link or nil")
         (example "(Window link (Window make \"t\" (Page text \"a\" 9)))" ""))
       (match ((eq? (%wn-get window 3) ()) ())
              (#t (%wn-nth (%wn-get window 3) (Page links (%wn-get window 1))))))
