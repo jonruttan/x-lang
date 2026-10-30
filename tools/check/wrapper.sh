@@ -155,6 +155,31 @@ else
 	printf '  a further -l must name a bundle: ok\n'
 fi
 
+# --help lists every option the parser accepts.  The labels are read off the
+# option loop's case arms, so an option added there without a help line fails
+# here rather than staying undocumented, which is how --install-lang,
+# --share-dir and --engine-path went unlisted.
+help=$(sh x.sh --help 2>/dev/null || true)
+case "$help" in
+	*"Usage: "*"[OPTION]... [-- ARG...]"*) printf '  --help names the program arguments: ok\n' ;;
+	*)
+		printf 'wrapper: --help usage line lacks [-- ARG...]\n' >&2
+		fails=$((fails + 1))
+		;;
+esac
+for opt in $(sed -n 's/^[[:space:]]*\(-[a-zA-Z] | \)\{0,1\}\(--[a-zA-Z-]*\)\( | --[a-zA-Z-]*\)*)$/\2/p' x.sh | sort -u); do
+	case "$help" in
+		*"$opt"*) ;;
+		*)
+			printf 'wrapper: --help does not list %s\n' "$opt" >&2
+			fails=$((fails + 1))
+			;;
+	esac
+done
+if [ -n "$help" ]; then
+	printf '  --help lists every option the parser accepts: ok\n'
+fi
+
 if [ "$fails" -gt 0 ]; then
 	printf 'wrapper: %d failure(s).\n' "$fails" >&2
 	exit 1

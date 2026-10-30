@@ -573,18 +573,22 @@ for _arg in "$@"; do
 done
 
 display_help() {
-	echo "Usage: $0 [OPTION]... "
+	echo "Usage: $0 [OPTION]... [-- ARG...]"
 	echo
-	echo "Computational Expressions in C."
+	echo "x-lang: evaluate a file, expressions or piped stdin, or start a session."
+	echo "With no file, expressions or pipe, and a terminal, it is a session."
+	echo "ARG... reach the program as (Sys args 'program), never as options here."
 	echo
 	echo "Options"
 	echo "  -h, --help      display this help and exit"
-	echo "  -c, --eval EXPR evaluate EXPR and exit (repeatable)"
+	echo "  -c, --eval EXPR evaluate EXPR and exit (repeatable, in order)"
 	echo "  -e, --ext EXT   file extension (default: \"$X_EXT\")"
 	echo "  -f, --file FILE evaluate file and exit"
 	echo "  -F, --load FILE evaluate file then continue"
-	echo "  -l, --lib NAME  library name (default: \"$X_LIB\"); a further -l names"
-	echo "                  a lang bundle to load beside the first"
+	echo "  -l, --lib NAME  what to boot (default: \"$X_LIB\"): a dialect (he, xe, rn),"
+	echo "                  a library or app of this tree, or an installed lang"
+	echo "                  (python, ash, ...); a further -l names a lang bundle"
+	echo "                  to load beside the first"
 	echo "      --boot FILE boot from FILE (a pinned amalgam) instead of -l's entry"
 	echo "      --image     write the state image -l's boot loads from, and exit"
 	echo "      --no-image  boot from source even when a state image is current"
@@ -597,8 +601,13 @@ display_help() {
 	echo "                  differs from this engine's (it may crash)"
 	echo "      --fetch-release  fetch the release a pinned project names"
 	echo "                  into the per-user cache without asking first"
+	echo "      --install-lang URL  install the lang a published lang.pin.xon"
+	echo "                  names, verified, under the langs directory, and exit"
+	echo "      --share-dir print the directory this x reads its tree from, and exit"
+	echo "      --engine-path  print the engine this x would run, and exit"
 	echo "  -v, --verbose   display extra output"
 	echo "  -V, --version   display version and exit"
+	echo "      --          end of options; what follows is the program's"
 }
 
 while :
