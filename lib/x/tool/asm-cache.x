@@ -89,55 +89,35 @@
 
 ; --- doors ------------------------------------------------------------------
 (def %asm-cache-lib ((prim-ref 'ffi 'dlopen) () 1))
-(def %asm-cache-dlsym (prim-ref 'ffi 'dlsym))
-(def %asm-cache-pcall (prim-ref 'ptr 'call))
-(def %asm-cache-ptr->int (prim-ref 'ptr '->int))
-(def %asm-cache-int->ptr (prim-ref 'int '->ptr))
-(def %asm-cache-ptr->str (prim-ref 'ptr '->str))
-(def %asm-cache-obj->ptr (prim-ref 'obj '->ptr))
-(def %asm-cache-ptr-ref (prim-ref 'ptr 'ref))
-(def %asm-cache-ptr-set! (prim-ref 'ptr 'set!))
-(def %asm-cache-ptr-set-word! (prim-ref 'ptr 'set-word!))
+(import x/core/doors ffi-dlsym int* int+ int->ptr int/ int< int= io-write-to-str obj->ptr obj-make obj-ref obj-set! ptr->int ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str->sym str-byte-len str-make)
 (def %asm-cache-make-callable (prim-ref 'obj 'make-callable))
 ; write-to-str, not the converter: this is the cheap way to spell an integer.
-(def %asm-cache-wts (prim-ref 'io 'write-to-str))
-(def %asm-cache-byte-len (prim-ref 'str 'byte-len))
-(def %asm-cache-str->sym (prim-ref 'str '->sym))
-(def %asm-cache-obj-make (prim-ref 'obj 'make))
 (def %asm-cache-copy! (prim-ref 'ptr 'copy!))
-(def %asm-cache-make-str (prim-ref 'str 'make))
-(def %asm-cache-str->ptr (prim-ref 'str '->ptr))
-(def %asm-cache-ptr-ref-word (prim-ref 'ptr 'ref-word))
 ; The engine's integer division: `/` is the tower's once the tower has loaded,
 ; and answers a rational.
-(def %asm-cache-int/ (prim-ref 'int '/))
 ; The integer doors, for the loops that run once per relocation record -- a
 ; parse, a pour and a group load each walk every site, and a lexer state has a
 ; dozen.  The generic + < = dispatch on their operands' types and allocate per
 ; call; every operand in those loops is a machine integer.
-(def %asm-cache-i+ (prim-ref 'int '+))
-(def %asm-cache-i* (prim-ref 'int '*))
-(def %asm-cache-i< (prim-ref 'int '<))
-(def %asm-cache-i= (prim-ref 'int '=))
 
 ; N plus how many items list L holds, counted on the integer doors: the boot
 ; layer's %length folds with the generic +, which costs a list of a dozen
 ; sites near a thousand objects, and a pour counts one every time.
 (def %asm-cache-count
-  (fn (self l n) (if (null? l) n (self (rest l) (%asm-cache-i+ n 1)))))
+  (fn (self l n) (if (null? l) n (self (rest l) (int+ n 1)))))
 
-(def %asm-libc-creat  (%asm-cache-dlsym %asm-cache-lib "creat"))
-(def %asm-libc-open   (%asm-cache-dlsym %asm-cache-lib "open"))
-(def %asm-libc-read   (%asm-cache-dlsym %asm-cache-lib "read"))
-(def %asm-libc-write  (%asm-cache-dlsym %asm-cache-lib "write"))
-(def %asm-libc-close  (%asm-cache-dlsym %asm-cache-lib "close"))
-(def %asm-libc-rename (%asm-cache-dlsym %asm-cache-lib "rename"))
-(def %asm-libc-unlink (%asm-cache-dlsym %asm-cache-lib "unlink"))
-(def %asm-libc-malloc (%asm-cache-dlsym %asm-cache-lib "malloc"))
-(def %asm-libc-realloc (%asm-cache-dlsym %asm-cache-lib "realloc"))
-(def %asm-libc-free   (%asm-cache-dlsym %asm-cache-lib "free"))
-(def %asm-libc-getpid (%asm-cache-dlsym %asm-cache-lib "getpid"))
-(def %asm-libc-getenv (%asm-cache-dlsym %asm-cache-lib "getenv"))
+(def %asm-libc-creat  (ffi-dlsym %asm-cache-lib "creat"))
+(def %asm-libc-open   (ffi-dlsym %asm-cache-lib "open"))
+(def %asm-libc-read   (ffi-dlsym %asm-cache-lib "read"))
+(def %asm-libc-write  (ffi-dlsym %asm-cache-lib "write"))
+(def %asm-libc-close  (ffi-dlsym %asm-cache-lib "close"))
+(def %asm-libc-rename (ffi-dlsym %asm-cache-lib "rename"))
+(def %asm-libc-unlink (ffi-dlsym %asm-cache-lib "unlink"))
+(def %asm-libc-malloc (ffi-dlsym %asm-cache-lib "malloc"))
+(def %asm-libc-realloc (ffi-dlsym %asm-cache-lib "realloc"))
+(def %asm-libc-free   (ffi-dlsym %asm-cache-lib "free"))
+(def %asm-libc-getpid (ffi-dlsym %asm-cache-lib "getpid"))
+(def %asm-libc-getenv (ffi-dlsym %asm-cache-lib "getenv"))
 
 ; --- the key ----------------------------------------------------------------
 ; These are native bytes against one engine's ABI on one machine, so the key
@@ -191,7 +171,7 @@
 (def %asm-cache-text
   (fn (_ expr fvars analyser?)
     (Str append %asm-cache-identity (%asm-cache-mode fvars analyser?)
-                (%asm-cache-wts expr))))
+                (io-write-to-str expr))))
 
 ; The directory the entries live in: X_ASM_CACHE_DIR when it is set and not
 ; empty, else /tmp, which every engine on the machine shares.  A process that
@@ -202,9 +182,9 @@
 ; wrote it.
 (def %asm-cache-dir
   (fn (_)
-    (def p (%asm-cache-pcall %asm-libc-getenv "X_ASM_CACHE_DIR"))
-    (def d (if (= p 0) "" (%asm-cache-ptr->str (%asm-cache-int->ptr p))))
-    (if (= (%asm-cache-byte-len d) 0) "/tmp" d)))
+    (def p (ptr-call %asm-libc-getenv "X_ASM_CACHE_DIR"))
+    (def d (if (= p 0) "" (ptr->str (int->ptr p))))
+    (if (= (str-byte-len d) 0) "/tmp" d)))
 
 ; Decimal, through write-to-str -- one native call.  The hex spelling the cc
 ; cache uses costs ~180,000 evals per key here (Str pad-left over the number
@@ -214,7 +194,7 @@
 ; text again for the sibling file would cost as much as hashing it did.
 (def %asm-cache-path
   (fn (_ text)
-    (Str append (%asm-cache-dir) "/x-asm-" (%asm-cache-wts (Hash fnv-1a text)))))
+    (Str append (%asm-cache-dir) "/x-asm-" (io-write-to-str (Hash fnv-1a text)))))
 
 ; --- what is worth keying: everything ----------------------------------------
 ; A key has to name the expression, and the only exact name available is its
@@ -223,7 +203,7 @@
 ; string append per step, 8.9K evals a node at 400 nodes -- and a generated
 ; body (sha256-jit's round schedule) exhausted the interpreter mid-batch just
 ; being printed.  But the key text is spelled by `io write-to-str` (the C
-; door, %asm-cache-wts) and hashed by FNV over its bytes, and both are linear:
+; door, io-write-to-str) and hashed by FNV over its bytes, and both are linear:
 ; measured 2026-09-12, sha256-jit's fill body -- 12,241 nodes, 22KB of text --
 ; prints in 0.6s and hashes in 0.1s, against a 9-second compile.  The probe is
 ; a fixed small fraction of a compile at ANY size, so there is no size at
@@ -262,16 +242,16 @@
 ; a mode handed to it in a register is garbage, and the file's permissions
 ; would be whatever happened to be lying there.
 (def %asm-cache-creat
-  (fn (_ path) (%asm-cache-pcall %asm-libc-creat path 420)))
+  (fn (_ path) (ptr-call %asm-libc-creat path 420)))
 
 ; BYTES is a str or a raw pointer; ptr-call passes either as the pointer
 ; write(2) wants, which is the entire point of this module -- the code never
 ; passes through x.  A string is written with its own NUL when N includes it.
 (def %asm-cache-put
-  (fn (_ fd bytes n) (= (%asm-cache-pcall %asm-libc-write fd bytes n) n)))
+  (fn (_ fd bytes n) (= (ptr-call %asm-libc-write fd bytes n) n)))
 
 (def %asm-cache-put-str
-  (fn (_ fd s) (%asm-cache-put fd s (+ (%asm-cache-byte-len s) 1))))
+  (fn (_ fd s) (%asm-cache-put fd s (+ (str-byte-len s) 1))))
 
 ; --- store ------------------------------------------------------------------
 (def %asm-cache-label-int
@@ -292,16 +272,16 @@
 (def %asm-cache-head-buf
   (fn (_ size relocs nrel)
     (def bytes (+ %asm-cache-head-bytes (* %asm-cache-rec-bytes nrel)))
-    (def hb (%asm-cache-int->ptr (%asm-cache-pcall %asm-libc-malloc bytes)))
-    (%asm-cache-ptr-set! hb 0 %asm-cache-magic 4)
-    (%asm-cache-ptr-set! hb 4 size 4)
-    (%asm-cache-ptr-set! hb 8 nrel 4)
-    (%asm-cache-ptr-set! hb 12 bytes 4)
+    (def hb (int->ptr (ptr-call %asm-libc-malloc bytes)))
+    (ptr-set! hb 0 %asm-cache-magic 4)
+    (ptr-set! hb 4 size 4)
+    (ptr-set! hb 8 nrel 4)
+    (ptr-set! hb 12 bytes 4)
     ((fn (self rs i)
        (unless (null? rs)
          (do (def at (+ %asm-cache-head-bytes (* %asm-cache-rec-bytes i)))
-             (%asm-cache-ptr-set! hb at (first (first rs)) 4)
-             (%asm-cache-ptr-set! hb (+ at 4) (first (rest (first rs))) 4)
+             (ptr-set! hb at (first (first rs)) 4)
+             (ptr-set! hb (+ at 4) (first (rest (first rs))) 4)
              (self (rest rs) (+ i 1)))))
       relocs 0)
     (pair hb bytes)))
@@ -331,19 +311,19 @@
       (do
         (def bin (Str append base ".bin"))
         (def rec (Str append base ".asm"))
-        (def uniq (Str append "." (%asm-cache-wts (%asm-cache-pcall %asm-libc-getpid)) ".tmp"))
+        (def uniq (Str append "." (io-write-to-str (ptr-call %asm-libc-getpid)) ".tmp"))
         (def bin-tmp (Str append bin uniq))
         (def rec-tmp (Str append rec uniq))
         (if (not (%asm-cache-store-bin! bin-tmp buf size))
-          (do (%asm-cache-pcall %asm-libc-unlink bin-tmp) #f)
+          (do (ptr-call %asm-libc-unlink bin-tmp) #f)
           (if (not (%asm-cache-store-rec! rec-tmp text relocs size))
-            (do (%asm-cache-pcall %asm-libc-unlink bin-tmp)
-                (%asm-cache-pcall %asm-libc-unlink rec-tmp) #f)
+            (do (ptr-call %asm-libc-unlink bin-tmp)
+                (ptr-call %asm-libc-unlink rec-tmp) #f)
             (do
               ; Code first, record second: the record is the probe, so once it
               ; is in place the bytes it names are already whole.
-              (%asm-cache-pcall %asm-libc-rename bin-tmp bin)
-              (%asm-cache-pcall %asm-libc-rename rec-tmp rec)
+              (ptr-call %asm-libc-rename bin-tmp bin)
+              (ptr-call %asm-libc-rename rec-tmp rec)
               #t)))))))
 
 (def %asm-cache-store-bin!
@@ -351,7 +331,7 @@
     (def fd (%asm-cache-creat path))
     (if (< fd 0) #f
       (do (def ok (%asm-cache-put fd buf size))
-          (%asm-cache-pcall %asm-libc-close fd)
+          (ptr-call %asm-libc-close fd)
           ok))))
 
 (def %asm-cache-store-rec!
@@ -360,7 +340,7 @@
     (if (< fd 0) #f
       (do
         (def ok (%asm-cache-put-rec fd text (%asm-cache-file-recs relocs) size))
-        (%asm-cache-pcall %asm-libc-close fd)
+        (ptr-call %asm-libc-close fd)
         ok))))
 
 ; One entry's record part -- header, records, names and key text -- written to
@@ -369,7 +349,7 @@
   (fn (_ fd text recs size)
     (def hp (%asm-cache-head-buf size recs (%asm-cache-count recs 0)))
     (def ok (%asm-cache-put fd (first hp) (rest hp)))
-    (%asm-cache-pcall %asm-libc-free (first hp))
+    (ptr-call %asm-libc-free (first hp))
     (if ok (%asm-cache-put-blob fd recs text) #f)))
 
 ; --- load -------------------------------------------------------------------
@@ -394,51 +374,51 @@
 ; (ptr . length), or ().
 (def %asm-cache-slurp
   (fn (_ path)
-    (def fd (%asm-cache-pcall %asm-libc-open path 0))
+    (def fd (ptr-call %asm-libc-open path 0))
     (if (< fd 0) ()
       (do
         (def r
           ((fn (self buf room got)
              (def want (- room got))
-             (def n (%asm-cache-pcall %asm-libc-read fd
-                      (%asm-cache-int->ptr (+ (%asm-cache-ptr->int buf) got)) want))
-             (if (< n 0) (do (%asm-cache-pcall %asm-libc-free buf) ())
+             (def n (ptr-call %asm-libc-read fd
+                      (int->ptr (+ (ptr->int buf) got)) want))
+             (if (< n 0) (do (ptr-call %asm-libc-free buf) ())
                (if (< n want) (pair buf (+ got n))
                  ; Full: a byte of room past the chunk stays for the NUL
                  ; backstop below, whatever the final size.
                  (do
-                   (def nb (%asm-cache-pcall %asm-libc-realloc buf
+                   (def nb (ptr-call %asm-libc-realloc buf
                              (+ (+ room %asm-cache-slurp-chunk) 1)))
-                   (if (= nb 0) (do (%asm-cache-pcall %asm-libc-free buf) ())
-                     (self (%asm-cache-int->ptr nb) (+ room %asm-cache-slurp-chunk) (+ got n)))))))
-           (%asm-cache-int->ptr
-             (%asm-cache-pcall %asm-libc-malloc (+ %asm-cache-slurp-chunk 1)))
+                   (if (= nb 0) (do (ptr-call %asm-libc-free buf) ())
+                     (self (int->ptr nb) (+ room %asm-cache-slurp-chunk) (+ got n)))))))
+           (int->ptr
+             (ptr-call %asm-libc-malloc (+ %asm-cache-slurp-chunk 1)))
            %asm-cache-slurp-chunk 0))
-        (%asm-cache-pcall %asm-libc-close fd)
+        (ptr-call %asm-libc-close fd)
         (if (null? r) ()
           (do
             (def buf (first r))
             (def got (rest r))
             (if (< got %asm-cache-head-bytes)
-              (do (%asm-cache-pcall %asm-libc-free buf) ())
+              (do (ptr-call %asm-libc-free buf) ())
               ; The buffer is a byte longer than what was read for exactly
               ; this: a NUL after the last byte, so that ptr->str on a corrupt
               ; blob stops at the end of the file rather than walking into
               ; whatever malloc handed back.  The offsets are checked below as
               ; well; this is the backstop, because reading past the end here
               ; is a segfault, not an error.
-              (do (%asm-cache-ptr-set! buf got 0 1) (pair buf got)))))))))
+              (do (ptr-set! buf got 0 1) (pair buf got)))))))))
 
 ; The i-th NUL-terminated string in the blob, lifted whole by ptr->str -- which
 ; strndups, so what comes back is ours and the buffer stays the file's.
 ; Answers (string . next-offset).
 (def %asm-cache-blob-at
   (fn (_ buf at end)
-    (if (%asm-cache-i< at end)
+    (if (int< at end)
       (do
-        (def s (%asm-cache-ptr->str
-                 (%asm-cache-int->ptr (%asm-cache-i+ (%asm-cache-ptr->int buf) at))))
-        (pair s (%asm-cache-i+ at (%asm-cache-i+ (%asm-cache-byte-len s) 1))))
+        (def s (ptr->str
+                 (int->ptr (int+ (ptr->int buf) at))))
+        (pair s (int+ at (int+ (str-byte-len s) 1))))
       ())))
 
 ; Walk the fixed-stride records and the blob together: two ptr-refs and one
@@ -451,14 +431,14 @@
     (def r
       ((fn (self i at acc)
          (if (null? at) ()
-           (if (%asm-cache-i< i nrel)
+           (if (int< i nrel)
              (do
-               (def rec (%asm-cache-i+ %asm-cache-head-bytes (%asm-cache-i* %asm-cache-rec-bytes i)))
+               (def rec (int+ %asm-cache-head-bytes (int* %asm-cache-rec-bytes i)))
                (def sn (%asm-cache-blob-at buf at end))
                (if (null? sn) ()
-                 (self (%asm-cache-i+ i 1) (rest sn)
-                   (pair (list (%asm-cache-ptr-ref buf rec 4)
-                               (%asm-cache-ptr-ref buf (%asm-cache-i+ rec 4) 4)
+                 (self (int+ i 1) (rest sn)
+                   (pair (list (ptr-ref buf rec 4)
+                               (ptr-ref buf (int+ rec 4) 4)
                                (first sn))
                      acc))))
              (pair acc at))))
@@ -501,7 +481,7 @@
     (def table (%asm-cache-fvar-table fvars))
     ((fn (self ss acc)
        (if (null? ss) (%asm-cache-rev acc ())
-         (if (%asm-cache-i= (first (first ss)) %asm-cache-label-fvar)
+         (if (int= (first (first ss)) %asm-cache-label-fvar)
            (do (def hit (%asm-cache-fvar (rest (first ss)) table))
                (if (null? hit) #f (self (rest ss) (pair (rest hit) acc))))
            (self (rest ss) acc))))
@@ -511,17 +491,17 @@
 ; means unresolvable, which makes the whole load a miss.
 (def %asm-cache-value
   (fn (_ label nm cell)
-    (if (%asm-cache-i= label %asm-cache-label-trampoline)
-      (do (def p (%asm-cache-dlsym %asm-cache-lib nm))
-          (if (null? p) () (%asm-cache-ptr->int p)))
-      (if (null? cell) () (%asm-cache-ptr->int cell)))))
+    (if (int= label %asm-cache-label-trampoline)
+      (do (def p (ffi-dlsym %asm-cache-lib nm))
+          (if (null? p) () (ptr->int p)))
+      (if (null? cell) () (ptr->int cell)))))
 
 ; A fresh self-call trampoline cell -- one per load, exactly as the compile
 ; path mints one per compile.
 (def %asm-cache-self-cell
   (fn (_)
     (guard (_ ())
-      (%asm-cache-int->ptr (%asm-cache-pcall %asm-libc-malloc 8)))))
+      (int->ptr (ptr-call %asm-libc-malloc 8)))))
 
 ; TEXT is the key text and BASE the path prefix the caller already hashed.
 ; Answers the callable, or () on any miss.
@@ -534,7 +514,7 @@
           (do
             (def buf (first sl))
             (def r (%asm-cache-read-entry buf (rest sl) text))
-            (%asm-cache-pcall %asm-libc-free buf)
+            (ptr-call %asm-libc-free buf)
             (if (null? r) (%asm-cache-miss)
               (do
                 (def st (%asm-cache-sites (rest r)))
@@ -550,12 +530,12 @@
 ; of the buffer would be a segfault rather than an error.
 (def %asm-cache-header-sane?
   (fn (_ buf got)
-    (def blob (%asm-cache-ptr-ref buf 12 4))
+    (def blob (ptr-ref buf 12 4))
     (match
-      ((not (= (%asm-cache-ptr-ref buf 0 4) %asm-cache-magic)) #f)
-      ((< (%asm-cache-ptr-ref buf 4 4) 1) #f)
+      ((not (= (ptr-ref buf 0 4) %asm-cache-magic)) #f)
+      ((< (ptr-ref buf 4 4) 1) #f)
       ((not (= blob (+ %asm-cache-head-bytes
-                            (* %asm-cache-rec-bytes (%asm-cache-ptr-ref buf 8 4)))))
+                            (* %asm-cache-rec-bytes (ptr-ref buf 8 4)))))
         #f)
       (#t (<= blob got)))))
 
@@ -565,8 +545,8 @@
   (fn (_ buf got text)
     (if (not (%asm-cache-header-sane? buf got)) ()
       (do
-        (def pr (%asm-cache-parse buf (%asm-cache-ptr-ref buf 8 4)
-                                      (%asm-cache-ptr-ref buf 12 4) got))
+        (def pr (%asm-cache-parse buf (ptr-ref buf 8 4)
+                                      (ptr-ref buf 12 4) got))
         ; The key text is stored whole and compared whole.  The filename is a
         ; 64-bit hash, and a hash is an invitation to collide; this is what
         ; makes a collision cost a recompile instead of handing back a
@@ -574,7 +554,7 @@
         ; or by a different engine -- the exact failure #590 was.
         (if (null? pr) ()
           (if (not (str=? text (first (rest pr)))) ()
-            (pair (%asm-cache-ptr-ref buf 4 4) (first pr))))))))
+            (pair (ptr-ref buf 4 4) (first pr))))))))
 
 ; --- sites ------------------------------------------------------------------
 ; An entry names a handful of addresses at scores of sites: a lexer state's
@@ -592,13 +572,13 @@
 ; string serves the one pour.
 (def %asm-cache-words
   (fn (_ n)
-    (if (null? %asm-cache-code-type) (%asm-cache-make-str (%asm-cache-i* 8 (if (%asm-cache-i= n 0) 1 n)))
-      (do (def b (%asm-cache-obj-make %asm-cache-code-type (%asm-cache-i+ n 1)))
-          (%obj-set! b 0 n)
+    (if (null? %asm-cache-code-type) (str-make (int* 8 (if (int= n 0) 1 n)))
+      (do (def b (obj-make %asm-cache-code-type (int+ n 1)))
+          (obj-set! b 0 n)
           b))))
 
 (def %asm-cache-words-at
-  (fn (_ b) (if (str? b) (%asm-cache-str->ptr b) (%asm-cache-code-at b))))
+  (fn (_ b) (if (str? b) (str->ptr b) (%asm-cache-code-at b))))
 
 (def %asm-cache-sites
   (fn (_ recs)
@@ -612,40 +592,40 @@
         (def hit
           ((fn (self l)
              (if (null? l) ()
-               (if (if (%asm-cache-i= (first (first l)) label) (str=? (first (rest (first l))) nm) #f)
+               (if (if (int= (first (first l)) label) (str=? (first (rest (first l))) nm) #f)
                  (first l) (self (rest l)))))
            (first slots)))
         (if (null? hit)
           (do (def k (rest slots))
               (%set-first! slots (pair (list label nm k) (first slots)))
-              (%set-rest! slots (%asm-cache-i+ k 1))
+              (%set-rest! slots (int+ k 1))
               k)
           (first (rest (rest hit))))))
     ((fn (self rs at)
        (unless (null? rs)
          (do (def r (first rs))
-             (%asm-cache-ptr-set! sp at (first r) 4)
-             (%asm-cache-ptr-set! sp (%asm-cache-i+ at 4) (slot! (first (rest r)) (first (rest (rest r)))) 4)
-             (self (rest rs) (%asm-cache-i+ at 8)))))
+             (ptr-set! sp at (first r) 4)
+             (ptr-set! sp (int+ at 4) (slot! (first (rest r)) (first (rest (rest r)))) 4)
+             (self (rest rs) (int+ at 8)))))
      recs 0)
     (list ((fn (self l acc) (if (null? l) acc (self (rest l) (pair (pair (first (first l)) (first (rest (first l)))) acc))))
            (first slots) ())
           sites n)))
 
 (def %asm-cache-nth
-  (fn (self l i) (if (%asm-cache-i= i 0) (first l) (self (rest l) (%asm-cache-i+ i -1)))))
+  (fn (self l i) (if (int= i 0) (first l) (self (rest l) (int+ i -1)))))
 
 ; The records of a site table, in the file's layout and site order.
 (def %asm-cache-site-recs
   (fn (_ st)
     (def slots (first st))
     (def sp (%asm-cache-words-at (first (rest st))))
-    (def end (%asm-cache-i* 8 (first (rest (rest st)))))
+    (def end (int* 8 (first (rest (rest st)))))
     ((fn (self at acc)
-       (if (%asm-cache-i= at end) (%asm-cache-rev acc ())
-         (do (def s (%asm-cache-nth slots (%asm-cache-ptr-ref sp (%asm-cache-i+ at 4) 4)))
-             (self (%asm-cache-i+ at 8)
-               (pair (list (%asm-cache-ptr-ref sp at 4) (first s) (rest s)) acc)))))
+       (if (int= at end) (%asm-cache-rev acc ())
+         (do (def s (%asm-cache-nth slots (ptr-ref sp (int+ at 4) 4)))
+             (self (int+ at 8)
+               (pair (list (ptr-ref sp at 4) (first s) (rest s)) acc)))))
      0 ())))
 
 ; Every site of table ST patched in the code at CODE-BUF from VALS, a string of
@@ -654,11 +634,11 @@
 (def %asm-cache-patch-x
   (fn (_ code-buf sp vp n)
     ((fn (self at end)
-       (unless (%asm-cache-i= at end)
-         (do (%asm-reloc code-buf (%asm-cache-ptr-ref sp at 4)
-               (%asm-cache-ptr-ref-word vp (%asm-cache-i* 8 (%asm-cache-ptr-ref sp (%asm-cache-i+ at 4) 4))))
-             (self (%asm-cache-i+ at 8) end))))
-     0 (%asm-cache-i* 8 n))))
+       (unless (int= at end)
+         (do (%asm-reloc code-buf (ptr-ref sp at 4)
+               (ptr-ref-word vp (int* 8 (ptr-ref sp (int+ at 4) 4))))
+             (self (int+ at 8) end))))
+     0 (int* 8 n))))
 
 ; The patcher's self-call is a real call, so a run is cut to this many sites.
 (def %asm-cache-patch-run 64)
@@ -666,17 +646,17 @@
 (def %asm-cache-patch!
   (fn (_ code-buf st vals)
     (def sp (%asm-cache-words-at (first (rest st))))
-    (def vp (%asm-cache-str->ptr vals))
+    (def vp (str->ptr vals))
     (def n (first (rest (rest st))))
     (def native (%asm-cache-patcher))
     (if (null? native) (%asm-cache-patch-x code-buf sp vp n)
       ((fn (self code sites vals k)
-         (unless (%asm-cache-i= k 0)
+         (unless (int= k 0)
            (do
-             (def run (if (%asm-cache-i< k %asm-cache-patch-run) k %asm-cache-patch-run))
+             (def run (if (int< k %asm-cache-patch-run) k %asm-cache-patch-run))
              (native code sites vals run)
-             (self code (%asm-cache-i+ sites (%asm-cache-i* 8 run)) vals (%asm-cache-i+ k (%asm-cache-i* -1 run))))))
-       (%asm-cache-ptr->int code-buf) (%asm-cache-ptr->int sp) (%asm-cache-ptr->int vp) n))))
+             (self code (int+ sites (int* 8 run)) vals (int+ k (int* -1 run))))))
+       (ptr->int code-buf) (ptr->int sp) (ptr->int vp) n))))
 
 ; --- the compiled patcher ----------------------------------------------------
 ; (fn (self code sites vals n)): the N sites at address SITES, last first, each
@@ -771,29 +751,29 @@
       (guard (_ ())
         (do
           (def st (%asm-cache-sites (list (list 0 0 "a") (list 16 1 "b"))))
-          (def vals (%asm-cache-make-str 16))
-          (def vp (%asm-cache-str->ptr vals))
-          (%asm-cache-ptr-set-word! vp 0 1311768467463790320)
-          (%asm-cache-ptr-set-word! vp 8 9141386507638288912)
+          (def vals (str-make 16))
+          (def vp (str->ptr vals))
+          (ptr-set-word! vp 0 1311768467463790320)
+          (ptr-set-word! vp 8 9141386507638288912)
           (def scratch
             (fn (_)
-              (def s (%asm-cache-make-str 32))
-              (def p (%asm-cache-str->ptr s))
-              (%asm-cache-ptr-set! p 0 3531603971 4)
-              (%asm-cache-ptr-set! p 16 3531603985 4)
+              (def s (str-make 32))
+              (def p (str->ptr s))
+              (ptr-set! p 0 3531603971 4)
+              (ptr-set! p 16 3531603985 4)
               s))
           (def a (scratch))
           (def b (scratch))
           (def sp (%asm-cache-words-at (first (rest st))))
-          (%asm-cache-patch-x (%asm-cache-str->ptr a) sp vp 2)
-          (f (%asm-cache-ptr->int (%asm-cache-str->ptr b)) (%asm-cache-ptr->int sp)
-             (%asm-cache-ptr->int vp) 2)
-          (def pa (%asm-cache-str->ptr a))
-          (def pb (%asm-cache-str->ptr b))
+          (%asm-cache-patch-x (str->ptr a) sp vp 2)
+          (f (ptr->int (str->ptr b)) (ptr->int sp)
+             (ptr->int vp) 2)
+          (def pa (str->ptr a))
+          (def pb (str->ptr b))
           (when ((fn (self at)
-                   (if (%asm-cache-i= at 32) #t
-                     (if (%asm-cache-i= (%asm-cache-ptr-ref-word pa at) (%asm-cache-ptr-ref-word pb at))
-                       (self (%asm-cache-i+ at 8)) #f)))
+                   (if (int= at 32) #t
+                     (if (int= (ptr-ref-word pa at) (ptr-ref-word pb at))
+                       (self (int+ at 8)) #f)))
                  0)
             (%set-first! %asm-cache-patcher-cell f)))))))
 
@@ -809,35 +789,35 @@
 ; more per site than the relocation.
 (def %asm-cache-pour
   (fn (_ fill size st fvals publish?)
-    (def a (asm-new (%asm-cache-i+ size 256)))
-    (if (not (fill (%obj-ref a 0) size)) (%asm-cache-miss-mapped a)
+    (def a (asm-new (int+ size 256)))
+    (if (not (fill (obj-ref a 0) size)) (%asm-cache-miss-mapped a)
       (do
-        (%obj-set! a 1 size)
+        (obj-set! a 1 size)
         (def cell (%asm-cache-self-cell))
         ; one word a slot; a slot that will not resolve is a miss.  FVALS
         ; gives the fvar slots their values in slot order.
-        (def vals (%asm-cache-make-str (%asm-cache-i* 8 (%asm-cache-count (first st) 1))))
-        (def vp (%asm-cache-str->ptr vals))
+        (def vals (str-make (int* 8 (%asm-cache-count (first st) 1))))
+        (def vp (str->ptr vals))
         (def ok
           ((fn (self ss fs at)
              (if (null? ss) #t
                (do
                  (def label (first (first ss)))
-                 (def fvar? (%asm-cache-i= label %asm-cache-label-fvar))
+                 (def fvar? (int= label %asm-cache-label-fvar))
                  (def val
                    (if fvar?
-                     (if (null? fs) () (%asm-cache-ptr->int (%asm-cache-obj->ptr (first fs))))
+                     (if (null? fs) () (ptr->int (obj->ptr (first fs))))
                      (%asm-cache-value label (rest (first ss)) cell)))
                  (if (null? val) #f
-                   (do (%asm-cache-ptr-set-word! vp at val)
-                       (self (rest ss) (if fvar? (rest fs) fs) (%asm-cache-i+ at 8)))))))
+                   (do (ptr-set-word! vp at val)
+                       (self (rest ss) (if fvar? (rest fs) fs) (int+ at 8)))))))
            (first st) fvals 0))
         (if (not ok) (%asm-cache-miss-mapped a)
           (do
-            (%asm-cache-patch! (%obj-ref a 0) st vals)
+            (%asm-cache-patch! (obj-ref a 0) st vals)
             (def code (asm-finalize! a))
             (unless (null? cell)
-              (%asm-cache-ptr-set-word! cell 0 (%asm-cache-ptr->int code)))
+              (ptr-set-word! cell 0 (ptr->int code)))
             (when publish? (%asm-cache-publish! (%asm-cache-site-recs st) size code))
             (%asm-cache-make-callable code)))))))
 
@@ -847,11 +827,11 @@
 (def %asm-cache-fill-file
   (fn (_ base)
     (fn (_ dst size)
-      (def fd (%asm-cache-pcall %asm-libc-open (Str append base ".bin") 0))
+      (def fd (ptr-call %asm-libc-open (Str append base ".bin") 0))
       (if (< fd 0) #f
         (do
-          (def got (%asm-cache-pcall %asm-libc-read fd dst size))
-          (%asm-cache-pcall %asm-libc-close fd)
+          (def got (ptr-call %asm-libc-read fd dst size))
+          (ptr-call %asm-libc-close fd)
           (= got size))))))
 
 ; Records in the layout asm.x hands them out -- label as a SYMBOL, a self-cell's
@@ -878,7 +858,7 @@
                (self (rest rs)
                  (pair (list (first r) (%asm-cache-label-sym k)
                          (if (= k %asm-cache-label-self) ()
-                           (if (= k %asm-cache-label-fvar) (%asm-cache-str->sym nm) nm)))
+                           (if (= k %asm-cache-label-fvar) (str->sym nm) nm)))
                    acc)))))
           recs ())
         ()))))
@@ -909,8 +889,8 @@
 ; Where a code object's bytes begin: its second unit.
 (def %asm-cache-code-at
   (fn (_ code)
-    (%asm-cache-int->ptr
-      (+ (%asm-cache-ptr->int (%asm-cache-obj->ptr code)) (%data-word-off 1)))))
+    (int->ptr
+      (+ (ptr->int (obj->ptr code)) (%data-word-off 1)))))
 
 ; Records as asm.x hands them out, in the file's layout.
 (def %asm-cache-file-recs
@@ -940,10 +920,10 @@
     (if (null? %asm-cache-code-type) ()
       (guard (_ ())
         (do
-          (def words (%asm-cache-int/ (+ size (- %word-size 1)) %word-size))
-          (def code (%asm-cache-obj-make %asm-cache-code-type (+ words 1)))
-          (%obj-set! code 0 words)
-          (%asm-cache-ptr-set-word! (%asm-cache-obj->ptr code) (%data-word-off words) 0)
+          (def words (int/ (+ size (- %word-size 1)) %word-size))
+          (def code (obj-make %asm-cache-code-type (+ words 1)))
+          (obj-set! code 0 words)
+          (ptr-set-word! (obj->ptr code) (%data-word-off words) 0)
           (%asm-cache-copy! (%asm-cache-code-at code) buf size)
           (set! %asm-cache-held
             (pair (list text size code st) %asm-cache-held))
@@ -995,7 +975,7 @@
 (def %asm-cache-group-path
   (fn (_ key)
     (Str append (%asm-cache-dir) "/x-asmg-"
-      (%asm-cache-wts (Hash fnv-1a (Str append %asm-cache-identity key))))))
+      (io-write-to-str (Hash fnv-1a (Str append %asm-cache-identity key))))))
 
 ; Hold every entry of the group file at PATH that is not held already.
 ; Answers the key texts the file carried, or () when there is no usable file.
@@ -1007,28 +987,28 @@
 ; is checked against ROOM before it is read, as the per-entry header is.
 (def %asm-cache-group-entry!
   (fn (_ eb room)
-    (if (if (%asm-cache-i< room %asm-cache-head-bytes) #t
-          (not (%asm-cache-i= (%asm-cache-ptr-ref eb 0 4) %asm-cache-group-entry-magic)))
+    (if (if (int< room %asm-cache-head-bytes) #t
+          (not (int= (ptr-ref eb 0 4) %asm-cache-group-entry-magic)))
       ()
       (do
-        (def size (%asm-cache-ptr-ref eb 4 4))
-        (def nslots (%asm-cache-ptr-ref eb 8 4))
-        (def n (%asm-cache-ptr-ref eb 12 4))
-        (def at-sites (%asm-cache-i+ %asm-cache-head-bytes (%asm-cache-i* 4 nslots)))
-        (def at-blob (%asm-cache-i+ at-sites (%asm-cache-i* 8 n)))
-        (if (%asm-cache-i< room at-blob) ()
+        (def size (ptr-ref eb 4 4))
+        (def nslots (ptr-ref eb 8 4))
+        (def n (ptr-ref eb 12 4))
+        (def at-sites (int+ %asm-cache-head-bytes (int* 4 nslots)))
+        (def at-blob (int+ at-sites (int* 8 n)))
+        (if (int< room at-blob) ()
           (do
             ; the slots, newest first, then the key text; () when the blob ends
             ; short
             (def named
               ((fn (self k at acc)
-                 (if (%asm-cache-i= k nslots)
+                 (if (int= k nslots)
                    (do (def kt (%asm-cache-blob-at eb at room))
                        (if (null? kt) () (list acc (first kt) (rest kt))))
                    (do (def sn (%asm-cache-blob-at eb at room))
                        (if (null? sn) ()
-                         (self (%asm-cache-i+ k 1) (rest sn)
-                           (pair (pair (%asm-cache-ptr-ref eb (%asm-cache-i+ %asm-cache-head-bytes (%asm-cache-i* 4 k)) 4)
+                         (self (int+ k 1) (rest sn)
+                           (pair (pair (ptr-ref eb (int+ %asm-cache-head-bytes (int* 4 k)) 4)
                                        (first sn))
                                  acc))))))
                0 at-blob ()))
@@ -1036,18 +1016,18 @@
               (do
                 (def text (first (rest named)))
                 (def end (first (rest (rest named))))
-                (if (%asm-cache-i< room (%asm-cache-i+ end size)) ()
+                (if (int< room (int+ end size)) ()
                   (do
                     (when (null? (%asm-cache-held-find text %asm-cache-held))
                       (do
                         (def sites (%asm-cache-words n))
                         (%asm-cache-copy! (%asm-cache-words-at sites)
-                          (%asm-cache-int->ptr (%asm-cache-i+ (%asm-cache-ptr->int eb) at-sites))
-                          (%asm-cache-i* 8 n))
+                          (int->ptr (int+ (ptr->int eb) at-sites))
+                          (int* 8 n))
                         (%asm-cache-hold-sites! text size
                           (list (%asm-cache-rev (first named) ()) sites n)
-                          (%asm-cache-int->ptr (%asm-cache-i+ (%asm-cache-ptr->int eb) end)))))
-                    (pair text (%asm-cache-i+ end size))))))))))))
+                          (int->ptr (int+ (ptr->int eb) end)))))
+                    (pair text (int+ end size))))))))))))
 
 ; The same, answering (TEXTS . EXTRA): the key texts, newest first, and the
 ; extra the file carried after its entries, or () for none.  A file cut short
@@ -1061,27 +1041,27 @@
           (do
             (def buf (first sl))
             (def got (rest sl))
-            (def base (%asm-cache-ptr->int buf))
+            (def base (ptr->int buf))
             ; (texts . at) when every entry was read, AT just past the last;
             ; (texts) when the walk stopped short
             (def walked
-              (if (not (%asm-cache-i= (%asm-cache-ptr-ref buf 0 4) %asm-cache-group-magic)) (pair () ())
+              (if (not (int= (ptr-ref buf 0 4) %asm-cache-group-magic)) (pair () ())
                 ((fn (self i n at acc)
-                   (if (not (%asm-cache-i< i n)) (pair acc at)
+                   (if (not (int< i n)) (pair acc at)
                      (do
-                       (def r (%asm-cache-group-entry! (%asm-cache-int->ptr (%asm-cache-i+ base at)) (- got at)))
+                       (def r (%asm-cache-group-entry! (int->ptr (int+ base at)) (- got at)))
                        (if (null? r) (pair acc ())
-                         (self (%asm-cache-i+ i 1) n (%asm-cache-i+ at (rest r)) (pair (first r) acc))))))
-                  0 (%asm-cache-ptr-ref buf 4 4) 8 ())))
+                         (self (int+ i 1) n (int+ at (rest r)) (pair (first r) acc))))))
+                  0 (ptr-ref buf 4 4) 8 ())))
             (def at (rest walked))
             (def extra
               (if (null? at) ()
-                (if (%asm-cache-i< (- got at) 9) ()
-                  (if (%asm-cache-i= (%asm-cache-ptr-ref (%asm-cache-int->ptr (%asm-cache-i+ base at)) 0 4)
+                (if (int< (- got at) 9) ()
+                  (if (int= (ptr-ref (int->ptr (int+ base at)) 0 4)
                         %asm-cache-group-extra-magic)
-                    (%asm-cache-ptr->str (%asm-cache-int->ptr (%asm-cache-i+ base (%asm-cache-i+ at 8))))
+                    (ptr->str (int->ptr (int+ base (int+ at 8))))
                     ()))))
-            (%asm-cache-pcall %asm-libc-free buf)
+            (ptr-call %asm-libc-free buf)
             (pair (first walked) extra)))))))
 
 ; Held entry E to FD, as a group file carries it.
@@ -1092,21 +1072,21 @@
     (def slots (first st))
     (def n (first (rest (rest st))))
     (def nslots (%asm-cache-count slots 0))
-    (def hbytes (%asm-cache-i+ %asm-cache-head-bytes (%asm-cache-i* 4 nslots)))
-    (def hb (%asm-cache-int->ptr (%asm-cache-pcall %asm-libc-malloc hbytes)))
-    (%asm-cache-ptr-set! hb 0 %asm-cache-group-entry-magic 4)
-    (%asm-cache-ptr-set! hb 4 size 4)
-    (%asm-cache-ptr-set! hb 8 nslots 4)
-    (%asm-cache-ptr-set! hb 12 n 4)
+    (def hbytes (int+ %asm-cache-head-bytes (int* 4 nslots)))
+    (def hb (int->ptr (ptr-call %asm-libc-malloc hbytes)))
+    (ptr-set! hb 0 %asm-cache-group-entry-magic 4)
+    (ptr-set! hb 4 size 4)
+    (ptr-set! hb 8 nslots 4)
+    (ptr-set! hb 12 n 4)
     ((fn (self ss at)
        (unless (null? ss)
-         (do (%asm-cache-ptr-set! hb at (first (first ss)) 4)
-             (self (rest ss) (%asm-cache-i+ at 4)))))
+         (do (ptr-set! hb at (first (first ss)) 4)
+             (self (rest ss) (int+ at 4)))))
      slots %asm-cache-head-bytes)
     (def ok (%asm-cache-put fd hb hbytes))
-    (%asm-cache-pcall %asm-libc-free hb)
+    (ptr-call %asm-libc-free hb)
     (if (not ok) #f
-      (if (not (if (%asm-cache-i= n 0) #t (%asm-cache-put fd (%asm-cache-words-at (first (rest st))) (%asm-cache-i* 8 n)))) #f
+      (if (not (if (int= n 0) #t (%asm-cache-put fd (%asm-cache-words-at (first (rest st))) (int* 8 n)))) #f
         (if (not ((fn (self ss) (if (null? ss) #t (if (%asm-cache-put-str fd (rest (first ss))) (self (rest ss)) #f)))
                   slots))
           #f
@@ -1132,15 +1112,15 @@
             texts ()))
         (unless (null? es)
           (do
-            (def tmp (Str append path "." (%asm-cache-wts (%asm-cache-pcall %asm-libc-getpid)) ".tmp"))
+            (def tmp (Str append path "." (io-write-to-str (ptr-call %asm-libc-getpid)) ".tmp"))
             (def fd (%asm-cache-creat tmp))
             (unless (< fd 0)
               (do
-                (def hb (%asm-cache-int->ptr (%asm-cache-pcall %asm-libc-malloc 8)))
-                (%asm-cache-ptr-set! hb 0 %asm-cache-group-magic 4)
-                (%asm-cache-ptr-set! hb 4 (%asm-cache-count es 0) 4)
+                (def hb (int->ptr (ptr-call %asm-libc-malloc 8)))
+                (ptr-set! hb 0 %asm-cache-group-magic 4)
+                (ptr-set! hb 4 (%asm-cache-count es 0) 4)
                 (def ok0 (%asm-cache-put fd hb 8))
-                (%asm-cache-pcall %asm-libc-free hb)
+                (ptr-call %asm-libc-free hb)
                 (def ok
                   ((fn (self l)
                      (if (null? l) #t
@@ -1149,17 +1129,17 @@
                 (def ok-extra
                   (if (if ok (str? extra) #f)
                     (do
-                      (def xb (%asm-cache-int->ptr (%asm-cache-pcall %asm-libc-malloc 8)))
-                      (%asm-cache-ptr-set! xb 0 %asm-cache-group-extra-magic 4)
-                      (%asm-cache-ptr-set! xb 4 (%asm-cache-byte-len extra) 4)
+                      (def xb (int->ptr (ptr-call %asm-libc-malloc 8)))
+                      (ptr-set! xb 0 %asm-cache-group-extra-magic 4)
+                      (ptr-set! xb 4 (str-byte-len extra) 4)
                       (def okx (%asm-cache-put fd xb 8))
-                      (%asm-cache-pcall %asm-libc-free xb)
+                      (ptr-call %asm-libc-free xb)
                       (if okx (%asm-cache-put-str fd extra) #f))
                     #t))
-                (%asm-cache-pcall %asm-libc-close fd)
+                (ptr-call %asm-libc-close fd)
                 (if (if ok0 (if ok ok-extra #f) #f)
-                  (%asm-cache-pcall %asm-libc-rename tmp path)
-                  (%asm-cache-pcall %asm-libc-unlink tmp))))))))))
+                  (ptr-call %asm-libc-rename tmp path)
+                  (ptr-call %asm-libc-unlink tmp))))))))))
 
 ; Each group this heap has loaded or written, (key texts held extra) with the
 ; texts newest first, as a load answers them, HELD the list of held entries
@@ -1201,7 +1181,7 @@
 ; costs one string compare an entry; any other order falls back to membership.
 (def %asm-cache-same-texts?
   (fn (_ noted had)
-    (if (not (%asm-cache-i= (%asm-cache-count noted 0) (%asm-cache-count had 0))) #f
+    (if (not (int= (%asm-cache-count noted 0) (%asm-cache-count had 0))) #f
       (if ((fn (self a b)
              (if (null? a) #t (if (str=? (first a) (first b)) (self (rest a) (rest b)) #f)))
            noted had)
@@ -1299,7 +1279,7 @@
       ((fn (self ss acc)
          (if (null? ss) (%asm-cache-rev acc ())
            (self (rest ss)
-             (if (%asm-cache-i= (first (first ss)) %asm-cache-label-fvar) (pair (rest (first ss)) acc) acc))))
+             (if (int= (first (first ss)) %asm-cache-label-fvar) (pair (rest (first ss)) acc) acc))))
        (first (first (rest (rest (rest e))))) ()))))
 
 ; The entry held for TEXT, or () when none is: what asm-cache-entry-pour

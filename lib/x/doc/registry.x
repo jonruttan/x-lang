@@ -15,6 +15,7 @@
 (module x/doc/registry)
 
 (import x/type/class)
+(import x/core/doors mem-cmp str->ptr str-byte-len)
 
 ; The sorted names (Doc names) last answered, beside the registry list they
 ; were built from: (head . names).  %doc-register! files an entry by putting
@@ -69,16 +70,13 @@
           ; then the shorter first, taken on the engine's instructions directly:
           ; a sort of the whole registry makes thousands of comparisons, and a
           ; class call costs each one several times what the compare does.
-          (def %mem-cmp (prim-ref (lit mem) (lit cmp)))
-          (def %byte-len (prim-ref (lit str) (lit byte-len)))
-          (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
           (def %name<?
             (fn (_ a b)
               (def sa (symbol->str a))
               (def sb (symbol->str b))
-              (def la (%byte-len sa))
-              (def lb (%byte-len sb))
-              (def c (%mem-cmp (%str->ptr sa) (%str->ptr sb) (if (< lb la) lb la)))
+              (def la (str-byte-len sa))
+              (def lb (str-byte-len sb))
+              (def c (mem-cmp (str->ptr sa) (str->ptr sb) (if (< lb la) lb la)))
               (if (eq? c 0) (< la lb) (eq? c -1))))
           ; Sorted first, then the duplicates dropped in one pass: a name
           ; documented twice sits beside itself once sorted.  (List distinct)

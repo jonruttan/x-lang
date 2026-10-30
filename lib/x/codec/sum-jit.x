@@ -14,11 +14,7 @@
 
 (import x/tool/compile compile-asm)
 
-(def %sj-make-str (prim-ref (lit str) (lit make)))
-(def %sj-str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %sj-ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %sj-pset (prim-ref (lit ptr) (lit set-word!)))
-(def %sj-pref (prim-ref (lit ptr) (lit ref-word)))
+(import x/core/doors ptr->int ptr-ref-word ptr-set-word! str->ptr str-make)
 
 ; scratch layout (words)
 (def %JP 0)        ; input address
@@ -73,16 +69,16 @@
 (def sum-jit-make
   (fn (_ which check)
     (def step (compile-asm (%sj-expr (if (eq? which (lit bsd)) %sj-bsd %sj-sysv))))
-    (def buf (%sj-make-str (* 8 %JWORDS)))
-    (def ptr (%sj-str->ptr buf))
-    (def addr (%sj-ptr->int ptr))
-    (def poke (fn (_ i v) (%sj-pset ptr (* i 8) v)))
-    (def peek (fn (_ i) (%sj-pref ptr (* i 8))))
+    (def buf (str-make (* 8 %JWORDS)))
+    (def ptr (str->ptr buf))
+    (def addr (ptr->int ptr))
+    (def poke (fn (_ i v) (ptr-set-word! ptr (* i 8) v)))
+    (def peek (fn (_ i) (ptr-ref-word ptr (* i 8))))
     (def fold
       (fn (_ p n s)
         ; the scratch region is held here, so the address stays good
         (do buf
-            (poke %JP (%sj-ptr->int p))
+            (poke %JP (ptr->int p))
             (poke %JN n)
             (poke %JI 0)
             (poke %JS s)

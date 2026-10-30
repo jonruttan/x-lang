@@ -10,34 +10,18 @@
 
 (import x/core/list)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(def %buffer-token (prim-ref 'buf 'tok))
+(import x/core/doors buf-tok char->int int% int* int+ int- int/ int< int= str-append type-by-atom type-from-cell type-make type-make-instance type-of type-push-analyse type-push-call type-push-op type?)
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(def %str-append (prim-ref 'str 'append))
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
-(def %type-by-atom (prim-ref 'type 'by-atom))
-(def %type-push-analyse (prim-ref 'type 'push-analyse))
-(def %type-push-op (prim-ref 'type 'push-op))
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
-(def %make-instance (prim-ref 'type 'make-instance))
-(def %make-type (prim-ref 'type 'make))
-(def %type-of (prim-ref 'type 'of))
-(def %type? (prim-ref 'type '?))
 ; The binary integer primitives, fetched from the catalogue: the C operators as
 ; they were before core/arithmetic.x wrapped the bare names.
-(def %int+ (prim-ref (lit int) (lit +)))
-(def %int- (prim-ref (lit int) (lit -)))
-(def %int* (prim-ref (lit int) (lit *)))
-(def %int/ (prim-ref (lit int) (lit /)))
-(def %int% (prim-ref (lit int) (lit %)))
-(def %int< (prim-ref (lit int) (lit <)))
-(def %int= (prim-ref (lit int) (lit =)))
 ; The machine-INT test, as predicates.x's number? was before float widened it.
-(def %int-t (%type-of 0))
-(def %int-number? (fn (_ x) (%type? x %int-t)))
+(def %int-t (type-of 0))
+(def %int-number? (fn (_ x) (type? x %int-t)))
 ; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
-(def %char->integer (prim-ref 'char '->int))
 
 
 
@@ -49,19 +33,19 @@
   (do
     (def %bm
       (fn (self bits acc)
-        (if (%int= bits 0) acc
-          (self (%int- bits 1) (%int+ (%int* acc 2) 1)))))
-    (%bm (%int- (%int* %word-size 8) 1) 0)))
+        (if (int= bits 0) acc
+          (self (int- bits 1) (int+ (int* acc 2) 1)))))
+    (%bm (int- (int* %word-size 8) 1) 0)))
 
 ; Min signed integer, spelled as -MAX - 1 in two steps that are each in range.
 ; It has no positive counterpart, so it cannot be reached through its own
-; magnitude: (%int- 0 %long-min) is %long-min again.  The overflow predicates
+; magnitude: (int- 0 %long-min) is %long-min again.  The overflow predicates
 ; and the promotion below all test for this one integer, and named once it
 ; stays the same value in each of them.
-(def %long-min (%int- (%int- 0 %long-max) 1))
+(def %long-min (int- (int- 0 %long-max) 1))
 
 ; Safe max decimal digits for native integer (conservative: 2 per byte)
-(def %int-max-digits (%int* %word-size 2))
+(def %int-max-digits (int* %word-size 2))
 
 ; Find largest power of 10 whose square fits in native integer
 ; This gives us the bigint base and digits-per-limb
@@ -72,19 +56,19 @@
   (do
     (def %fb
       (fn (self d b)
-        (def next (%int* b 10))
+        (def next (int* b 10))
         ; Safe check: LONG_MAX / next >= next means next^2 fits
-        (if (%int< (%int/ %long-max next) next)
+        (if (int< (int/ %long-max next) next)
           d
-          (self (%int+ d 1) next))))
+          (self (int+ d 1) next))))
     (%fb 1 10)))
 
 (def bigint-base
   (do
     (def %pb
       (fn (self d acc)
-        (if (%int= d 0) acc
-          (self (%int- d 1) (%int* acc 10)))))
+        (if (int= d 0) acc
+          (self (int- d 1) (int* acc 10)))))
     (%pb bigint-digits-per-limb 1)))
 
 ; --- Limb list utilities ---
@@ -96,7 +80,7 @@
     (def %strip
       (fn (self lst)
         (if (null? (rest lst)) lst
-          (if (%int= (first lst) 0)
+          (if (int= (first lst) 0)
             (self (rest lst))
             lst))))
     (%reverse (%strip %rev))))
@@ -106,16 +90,16 @@
   (fn (_ a b)
     (def la (%length a))
     (def lb (%length b))
-    (if (%int< la lb) -1
-      (if (%int< lb la) 1
+    (if (int< la lb) -1
+      (if (int< lb la) 1
         ; Same length: compare from MSB
         (let ()  ; scoped: def in tail position would leak to global
           (def %cmp-rev
             (fn (self ra rb)
               (match
                 ((null? ra) 0)
-                ((%int< (first ra) (first rb)) -1)
-                ((%int< (first rb) (first ra)) 1)
+                ((int< (first ra) (first rb)) -1)
+                ((int< (first rb) (first ra)) 1)
                 (#t (self (rest ra) (rest rb))))))
           (%cmp-rev (%reverse a) (%reverse b)))))))
 
@@ -124,25 +108,25 @@
 ; Add two limb lists with carry
 (def %limb-add
   (fn (self a b carry)
-    (if (if (null? a) (if (null? b) (%int= carry 0) #f) #f)
+    (if (if (null? a) (if (null? b) (int= carry 0) #f) #f)
       ()
       (let ()
-        (def s (%int+ (%int+ (if (null? a) 0 (first a))
+        (def s (int+ (int+ (if (null? a) 0 (first a))
                               (if (null? b) 0 (first b)))
                        carry))
-        (pair (%int% s bigint-base)
+        (pair (int% s bigint-base)
               (self (if (null? a) () (rest a))
                          (if (null? b) () (rest b))
-                         (%int/ s bigint-base)))))))
+                         (int/ s bigint-base)))))))
 
 ; Subtract b from a (assumes a >= b), with borrow
 (def %limb-sub
   (fn (self a b borrow)
     (if (null? a) ()
       (let ()
-        (def d (%int- (%int- (first a) (if (null? b) 0 (first b))) borrow))
-        (if (%int< d 0)
-          (pair (%int+ d bigint-base)
+        (def d (int- (int- (first a) (if (null? b) 0 (first b))) borrow))
+        (if (int< d 0)
+          (pair (int+ d bigint-base)
                 (self (rest a) (if (null? b) () (rest b)) 1))
           (pair d
                 (self (rest a) (if (null? b) () (rest b)) 0)))))))
@@ -151,11 +135,11 @@
 (def %limb-mul1
   (fn (self b limb carry)
     (if (null? b)
-      (if (%int= carry 0) () (list carry))
+      (if (int= carry 0) () (list carry))
       (let ()
-        (def p (%int+ (%int* (first b) limb) carry))
-        (pair (%int% p bigint-base)
-              (self (rest b) limb (%int/ p bigint-base)))))))
+        (def p (int+ (int* (first b) limb) carry))
+        (pair (int% p bigint-base)
+              (self (rest b) limb (int/ p bigint-base)))))))
 
 ; Schoolbook multiply: a * b.  The walk is over a's limbs: each step scales b
 ; by one limb, shifts the partial product by the step count and adds it into
@@ -181,9 +165,9 @@
       (fn (self ra rem qacc)
         (if (null? ra) (pair qacc rem)
           (let ()
-            (def cur (%int+ (%int* rem bigint-base) (first ra)))
-            (self (rest ra) (%int% cur divisor)
-                     (pair (%int/ cur divisor) qacc))))))
+            (def cur (int+ (int* rem bigint-base) (first ra)))
+            (self (rest ra) (int% cur divisor)
+                     (pair (int/ cur divisor) qacc))))))
     (%div-go (%reverse a) 0 ())))
 
 ; General division: a / b, return (quotient-limbs . remainder-limbs)
@@ -191,12 +175,12 @@
 (def %limb-divmod
   (fn (_ a b)
     ; Single-limb divisor: fast path.  A zero limb is the zero divisor, and
-    ; %limb-divmod1 would hand it to the plain C division under %int/ (x86
+    ; %limb-divmod1 would hand it to the plain C division under int/ (x86
     ; traps, arm64 answers 0), so it raises first.  Every bigint quotient and
     ; remainder comes through here, whichever door the division came in by.
     (if (null? (rest b))
       (match
-        ((%int= (first b) 0) (error "division by zero"))
+        ((int= (first b) 0) (error "division by zero"))
         (#t (let ()
               (def r (%limb-divmod1 a (first b)))
               (pair (first r) (list (rest r))))))
@@ -221,13 +205,13 @@
           (fn (self ra rb2)
             (match
               ((null? ra) 0)
-              ((%int< (first ra) (first rb2)) -1)
-              ((%int< (first rb2) (first ra)) 1)
+              ((int< (first ra) (first rb2)) -1)
+              ((int< (first rb2) (first ra)) 1)
               (#t (self (rest ra) (rest rb2))))))
         (def %cmp-len
           (fn (_ la ra lb2 rb2)
-            (if (%int< la lb2) -1
-              (if (%int< lb2 la) 1
+            (if (int< la lb2) -1
+              (if (int< lb2 la) 1
                 (%cmp-msb ra rb2)))))
         ; One quotient digit: accumulate d until rem < b.  The estimate
         ; keys on rem's length: at rlen == blen ONE top limb over
@@ -237,33 +221,33 @@
         ; defensive decrement guards the floor-truncation edge anyway.
         (def %digit-loop
           (fn (self rem rrem rlen d)
-            (if (%int< (%cmp-len rlen rrem blen rb) 0) (pair d rem)
+            (if (int< (%cmp-len rlen rrem blen rb) 0) (pair d rem)
               (let ()
                 (def rtop (first rrem))
                 (def est
-                  (if (%int= rlen blen) (%int/ rtop (%int+ btop 1))
-                    (%int/ (%int+ (%int* rtop bigint-base)
+                  (if (int= rlen blen) (int/ rtop (int+ btop 1))
+                    (int/ (int+ (int* rtop bigint-base)
                                   (first (rest rrem)))
-                           (%int+ btop 1))))
-                (if (%int= est 0) (set! est 1) ())
+                           (int+ btop 1))))
+                (if (int= est 0) (set! est 1) ())
                 (def product (%limb-mul1 b est 0))
-                (if (%int< (%cmp-len rlen rrem
+                (if (int< (%cmp-len rlen rrem
                                      (%length product) (%reverse product))
                            0)
                   (do
-                    (set! est (%int- est 1))
+                    (set! est (int- est 1))
                     (set! product (%limb-mul1 b est 0))
                     ())
                   ())
                 (def new-rem (%bigint-normalize (%limb-sub rem product 0)))
                 (self new-rem (%reverse new-rem) (%length new-rem)
-                      (%int+ d est))))))
+                      (int+ d est))))))
         ; A zero rem threads as () between positions: prepending onto
         ; the normalized-zero (0) would leave a HIGH zero limb, and
         ; %limb-cmp compares lengths first.
         (def %rem-thread
           (fn (_ r)
-            (if (null? (rest r)) (if (%int= (first r) 0) () r) r)))
+            (if (null? (rest r)) (if (int= (first r) 0) () r) r)))
         ; Walk dividend limbs MSB-first; LSB-first rem means
         ; rem*base + limb is ONE prepend.  Digits prepend to qacc, so
         ; qacc ends LSB-first -- already the storage order.
@@ -280,15 +264,15 @@
         ; prepend-accumulate reverses the prefix, which IS the LSB order.
         (def %take-rev
           (fn (self n xs acc)
-            (if (%int= n 0) (pair acc xs)
-              (self (%int- n 1) (rest xs) (pair (first xs) acc)))))
+            (if (int= n 0) (pair acc xs)
+              (self (int- n 1) (rest xs) (pair (first xs) acc)))))
         ; Seed rem with the dividend's top blen limbs in ONE step (their
         ; value is < base^blen <= base*b, so the digit bound holds) and
         ; walk only the remaining alen - blen positions: the quotient
         ; has alen - blen + 1 digits, and an equal-length divide is one
         ; digit-loop pass -- not a walk over every dividend limb.
         (def alen (%length a))
-        (if (%int< alen blen) (pair (list 0) a)
+        (if (int< alen blen) (pair (list 0) a)
           (let ((sr (%take-rev blen (%reverse a) ())))
             (let ((dr0 (%digit-loop (first sr) (%reverse (first sr))
                                     blen 0)))
@@ -300,42 +284,42 @@
 ; Pad a number string to n digits with leading zeros
 (def %bigint-pad
   (fn (self s n)
-    (if (not (%int< (%str-length s) n)) s
-      (self (%str-append "0" s) n))))
+    (if (not (int< (%str-length s) n)) s
+      (self (str-append "0" s) n))))
 
 ; Limb list to decimal string
 (def %bigint-to-string
   (fn (_ sign limbs)
     (def %rev (%reverse limbs))
-    (def prefix (if (%int= sign -1) "-" ""))
+    (def prefix (if (int= sign -1) "-" ""))
     (def head-str (%number->str (first %rev)))
     (def %tail
       (fn (self lst)
         (if (null? lst) ""
-          (%str-append
+          (str-append
             (%bigint-pad (%number->str (first lst)) bigint-digits-per-limb)
             (self (rest lst))))))
-    (%str-append prefix (%str-append head-str (%tail (rest %rev))))))
+    (str-append prefix (str-append head-str (%tail (rest %rev))))))
 
 ; Parse decimal string to (sign . normalized-limb-list)
 (def %bigint-parse-digits
   (fn (_ s)
     (def len (%str-length s))
-    (def neg (if (%int< 0 len)
-               (if (%int= (%char->integer (%str-ref s 0)) 45) #t #f) #f))
+    (def neg (if (int< 0 len)
+               (if (int= (char->int (%str-ref s 0)) 45) #t #f) #f))
     (def start (if neg 1
-                 (if (if (%int< 0 len)
-                       (%int= (%char->integer (%str-ref s 0)) 43) #f) 1 0)))
+                 (if (if (int< 0 len)
+                       (int= (char->int (%str-ref s 0)) 43) #f) 1 0)))
     (def sign (if neg -1 1))
-    (def digit-str (if (%int= start 0) s (%substring s start len)))
+    (def digit-str (if (int= start 0) s (%substring s start len)))
     (def dlen (%str-length digit-str))
     (def %go
       (fn (self pos acc)
-        (if (not (%int< 0 pos))
+        (if (not (int< 0 pos))
           acc
           (let ()
-            (def cs (if (%int< (%int- pos bigint-digits-per-limb) 0)
-                      0 (%int- pos bigint-digits-per-limb)))
+            (def cs (if (int< (int- pos bigint-digits-per-limb) 0)
+                      0 (int- pos bigint-digits-per-limb)))
             (def lm (%str->number (%substring digit-str cs pos)))
             (self cs (pair lm acc))))))
     (pair sign (%bigint-normalize (%reverse (%go dlen ()))))))
@@ -357,27 +341,27 @@
     (def %go
       (fn (self lst mult acc)
         (if (null? lst) acc
-          (self (rest lst) (%int* mult bigint-base)
-               (%int+ acc (%int* (first lst) mult))))))
-    (%int* sign (%go limbs 1 0))))
+          (self (rest lst) (int* mult bigint-base)
+               (int+ acc (int* (first lst) mult))))))
+    (int* sign (%go limbs 1 0))))
 
 ; The limbs come off n ITSELF, not off a magnitude, and each one is negated on
 ; its way into the list.  A limb is always smaller than the base, so negating
-; one is always in range -- which taking (%int- 0 n) first is not: MIN has no
+; one is always in range -- which taking (int- 0 n) first is not: MIN has no
 ; magnitude to take, and the loop then divided a negative m, whose remainders
 ; are negative too.  Every limb came out carrying the sign, and the bigint
 ; built from them was wrong in both directions at once: it printed as
 ; -9-223372036-854775808, and arithmetic on it gave answers to match.
 (def %bigint-from-int
   (fn (_ n)
-    (def sign (if (%int< n 0) -1 1))
+    (def sign (if (int< n 0) -1 1))
     (def %go
       (fn (self m acc)
-        (if (%int= m 0) (if (null? acc) (list 0) acc)
+        (if (int= m 0) (if (null? acc) (list 0) acc)
           (let ()
-            (def limb (%int% m bigint-base))
-            (self (%int/ m bigint-base)
-                 (pair (if (%int< limb 0) (%int- 0 limb) limb) acc))))))
+            (def limb (int% m bigint-base))
+            (self (int/ m bigint-base)
+                 (pair (if (int< limb 0) (int- 0 limb) limb) acc))))))
     (pair sign (%reverse (%go n ())))))
 
 ; Forward declare bigint and reader
@@ -388,7 +372,7 @@
   (fn (_ sign limbs)
     (def nl (%bigint-normalize limbs))
     ; Zero check
-    (if (if (null? (rest nl)) (%int= (first nl) 0) #f)
+    (if (if (null? (rest nl)) (int= (first nl) 0) #f)
       0
       ; If few enough limbs to possibly fit in native int, try demotion.
       ; The window is every length whose value COULD fit -- one limb past
@@ -397,23 +381,23 @@
       ; The old guard (length*digits <= budget) only ever demoted single
       ; limbs, so any result >= the limb base stayed bigint forever --
       ; printing like an int but failing eq? and raw slot ops.
-      (if (not (%int< (%int* %word-size 2) (%int* (%int- (%length nl) 2) bigint-digits-per-limb)))
+      (if (not (int< (int* %word-size 2) (int* (int- (%length nl) 2) bigint-digits-per-limb)))
         (let ()
           (def val (%bigint-to-int sign nl))
           ; Verify it round-trips (didn't overflow)
           (def rt (%bigint-from-int val))
-          (if (if (%int= sign (first rt))
-                (%int= 0 (%limb-cmp nl (rest rt))) #f)
+          (if (if (int= sign (first rt))
+                (int= 0 (%limb-cmp nl (rest rt))) #f)
             val
-            (%make-instance bigint (pair sign nl))))
-        (%make-instance bigint (pair sign nl))))))
+            (type-make-instance bigint (pair sign nl))))
+        (type-make-instance bigint (pair sign nl))))))
 
 ; --- Signed operations ---
 
 (note "Predicates")
 
 ; Private predicate; the public API is (Bigint bigint? x).
-(def bigint? (fn (_ x) (%type? x bigint)))
+(def bigint? (fn (_ x) (type? x bigint)))
 
 (def %big-sign (fn (_ x) (first (first x))))
 (def big-limbs (fn (_ x) (rest (first x))))
@@ -423,7 +407,7 @@
     (if (bigint? x) x
       (let ()
         (def r (%bigint-from-int x))
-        (%make-instance bigint r)))))
+        (type-make-instance bigint r)))))
 
 (note "Arithmetic")
 
@@ -433,22 +417,22 @@
     (def sb (%big-sign b))
     (def la (big-limbs a))
     (def lb (big-limbs b))
-    (if (%int= sa sb)
+    (if (int= sa sb)
       ; Same sign: add magnitudes
       (%make-bigint sa (%limb-add la lb 0))
       ; Different signs: subtract smaller from larger
       (let ()
         (def c (%limb-cmp la lb))
-        (if (%int= c 0) 0
-          (if (%int< 0 c)
+        (if (int= c 0) 0
+          (if (int< 0 c)
             (%make-bigint sa (%limb-sub la lb 0))
             (%make-bigint sb (%limb-sub lb la 0))))))))
 
 (def big-sub
   (fn (_ a b)
     ; Negate b's sign and add
-    (def sb (%int* -1 (%big-sign b)))
-    (def nb (%make-instance bigint (pair sb (big-limbs b))))
+    (def sb (int* -1 (%big-sign b)))
+    (def nb (type-make-instance bigint (pair sb (big-limbs b))))
     (big-add a nb)))
 
 ; The product does not depend on the order of the limb lists, and the cost of
@@ -460,7 +444,7 @@
   (fn (_ a b)
     (def sa (%big-sign a))
     (def sb (%big-sign b))
-    (def sign (%int* sa sb))
+    (def sign (int* sa sb))
     (def la (big-limbs a))
     (def lb (big-limbs b))
     (def %shorter?
@@ -474,7 +458,7 @@
   (fn (_ a b)
     (def sa (%big-sign a))
     (def sb (%big-sign b))
-    (def sign (%int* sa sb))
+    (def sign (int* sa sb))
     (def r (%limb-divmod (big-limbs a) (big-limbs b)))
     (%make-bigint sign (first r))))
 
@@ -489,19 +473,19 @@
   (fn (_ a b)
     (def sa (%big-sign a))
     (def sb (%big-sign b))
-    (if (%int< sa sb) #t
-      (if (%int< sb sa) #f
+    (if (int< sa sb) #t
+      (if (int< sb sa) #f
         ; Same sign
         (let ()
           (def c (%limb-cmp (big-limbs a) (big-limbs b)))
-          (if (%int= sa 1)
-            (%int< c 0)
-            (%int< 0 c)))))))
+          (if (int= sa 1)
+            (int< c 0)
+            (int< 0 c)))))))
 
 (def big-eq
   (fn (_ a b)
-    (if (not (%int= (%big-sign a) (%big-sign b))) #f
-      (%int= 0 (%limb-cmp (big-limbs a) (big-limbs b))))))
+    (if (not (int= (%big-sign a) (%big-sign b))) #f
+      (int= 0 (%limb-cmp (big-limbs a) (big-limbs b))))))
 
 ; --- Overflow detection for integer operations ---
 
@@ -514,21 +498,21 @@
 ; leaving bigints that print like ints but fail eq? and raw slot ops.)
 (def %would-overflow-add?
   (fn (_ a b)
-    (if (%int< 0 b)
-      (%int< (%int- %long-max b) a)
-      (if (%int< b 0)
-        (%int< a (%int- %long-min b))
+    (if (int< 0 b)
+      (int< (int- %long-max b) a)
+      (if (int< b 0)
+        (int< a (int- %long-min b))
         #f))))
 
 ; a-b overflows iff (b<0 and a > MAX+b) or (b>0 and a < MIN+b).  A direct
-; predicate, not add?-of-negation: (%int- 0 b) wraps for b = MIN, and this
+; predicate, not add?-of-negation: (int- 0 b) wraps for b = MIN, and this
 ; form also answers that edge exactly (MAX+MIN = -1, so a >= 0 promotes).
 (def %would-overflow-sub?
   (fn (_ a b)
-    (if (%int< b 0)
-      (%int< (%int+ %long-max b) a)
-      (if (%int< 0 b)
-        (%int< a (%int+ %long-min b))
+    (if (int< b 0)
+      (int< (int+ %long-max b) a)
+      (if (int< 0 b)
+        (int< a (int+ %long-min b))
         #f))))
 
 ; a*b overflows iff the product leaves the range, tested by dividing the bound
@@ -545,18 +529,18 @@
 ; and wrapped to 0.)
 (def %would-overflow-mul?
   (fn (_ a b)
-    (if (%int= a 0) #f
-      (if (%int= b 0) #f
-        (if (%int= a -1) (%int= b %long-min)
-          (if (%int= b -1) (%int= a %long-min)
-            (if (%int< 0 a)
-              (%int< (%int/ (if (%int< 0 b) %long-max %long-min) b) a)
-              (%int< a (%int/ (if (%int< 0 b) %long-min %long-max) b)))))))))
+    (if (int= a 0) #f
+      (if (int= b 0) #f
+        (if (int= a -1) (int= b %long-min)
+          (if (int= b -1) (int= a %long-min)
+            (if (int< 0 a)
+              (int< (int/ (if (int< 0 b) %long-max %long-min) b) a)
+              (int< a (int/ (if (int< 0 b) %long-min %long-max) b)))))))))
 
 (note "Operator Overrides")
 
 ; ONE variadic layer per dialect, folded over the DISPATCHING C binaries
-; (%int+ etc. are x_prim_sum & co., whose typed-operand path routes bigint --
+; (int+ etc. are x_prim_sum & co., whose typed-operand path routes bigint --
 ; and later float/complex -- through the type ops registered below). The only
 ; semantics the binary dispatch cannot see is INT OVERFLOW PROMOTION: both
 ; operands are plain ints, so these folds check %would-overflow-* and promote.
@@ -575,7 +559,6 @@
 ; read through the type catalogue: one lattice, one authority (the same
 ; cells x_type_op_try walks).
 
-(def %type-from-cell (prim-ref 'type 'from-cell))
 (def %type-ops-cell (prim-ref 'type 'ops-cell))
 
 (def %big-mixed-check
@@ -587,8 +570,8 @@
       ((%int-number? b) ())
       (#t
         (do
-          (def ha (%type-of a))
-          (def hb (%type-of b))
+          (def ha (type-of a))
+          (def hb (type-of b))
           (def %hit
             (fn (self alist key)
               (if (null? alist) #f
@@ -596,17 +579,17 @@
                   (self (rest alist) key)))))
           (if (same? ha hb) ()
             (do
-              (def ta (%type-by-atom ha))
-              (def tb (%type-by-atom hb))
+              (def ta (type-by-atom ha))
+              (def tb (type-by-atom hb))
               (match
-                ((%hit (first (%type-from-cell ta)) hb) ())
-                ((%hit (first (%type-from-cell tb)) ha) ())
+                ((%hit (first (type-from-cell ta)) hb) ())
+                ((%hit (first (type-from-cell tb)) ha) ())
                 ((%hit (first (%type-ops-cell ta)) op)
                   (if (%hit (first (%type-ops-cell tb)) op)
-                    (error (%str-append "int op: no declared promotion ("
-                      (%str-append ((prim-ref 'type 'name) ha)
-                        (%str-append " x "
-                          (%str-append ((prim-ref 'type 'name) hb)
+                    (error (str-append "int op: no declared promotion ("
+                      (str-append ((prim-ref 'type 'name) ha)
+                        (str-append " x "
+                          (str-append ((prim-ref 'type 'name) hb)
                             ") -- declare the cvt relation (#584)")))))
                     ()))
                 (#t ())))))))))
@@ -619,25 +602,25 @@
     (if (if (%int-number? acc) (%int-number? x) #f)
       (if (%would-overflow-add? acc x)
         (big-add (ensure-big acc) (ensure-big x))
-        (%int+ acc x))
+        (int+ acc x))
       (do (%big-mixed-check (lit +) acc x)
-        (%int+ acc x)))))
+        (int+ acc x)))))
 (def %big-sub2
   (fn (_ acc x)
     (if (if (%int-number? acc) (%int-number? x) #f)
       (if (%would-overflow-sub? acc x)
         (big-sub (ensure-big acc) (ensure-big x))
-        (%int- acc x))
+        (int- acc x))
       (do (%big-mixed-check (lit -) acc x)
-        (%int- acc x)))))
+        (int- acc x)))))
 (def %big-mul2
   (fn (_ acc x)
     (if (if (%int-number? acc) (%int-number? x) #f)
       (if (%would-overflow-mul? acc x)
         (big-mul (ensure-big acc) (ensure-big x))
-        (%int* acc x))
+        (int* acc x))
       (do (%big-mixed-check (lit *) acc x)
-        (%int* acc x)))))
+        (int* acc x)))))
 
 (doc + "Add numbers, promoting to bigint on overflow."
   (param args INTEGER|BIGINT "Numbers to add")
@@ -689,21 +672,21 @@
       ((eq? args ()) 1)
       ((eq? (rest args) ()) (first args))
       ((eq? (rest (rest args)) ())
-        ; The prim under %int/ evaluates a plain `a / b`, which x86 traps on
+        ; The prim under int/ evaluates a plain `a / b`, which x86 traps on
         ; for a zero divisor and for LONG_MIN / -1, where arm64 answers.  A
         ; zero divisor raises, as core/arithmetic.x's / did before this one
         ; replaced it.  LONG_MIN / -1 is the one integer division whose
         ; quotient leaves the range; it promotes like any other overflow.  The
         ; MIN test is one compare on a value already known to be a plain int,
-        ; so every other division reaches %int/ as before, dispatch included.
+        ; so every other division reaches int/ as before, dispatch included.
         (let ()
           (def a (first args))
           (def b (first (rest args)))
           (match
             ((if (%int-number? b) (eq? b 0) #f) (error "/: division by zero"))
-            ((if (%int-number? a) (%int= a %long-min) #f)
-              (if (%int= b -1) (%big-sub2 0 a) (%int/ a b)))
-            (#t (%int/ a b)))))
+            ((if (%int-number? a) (int= a %long-min) #f)
+              (if (int= b -1) (%big-sub2 0 a) (int/ a b)))
+            (#t (int/ a b)))))
       (#t
         (%fold (fn (_ acc x) (/ acc x))
           (first args) (rest args))))))
@@ -718,7 +701,7 @@
       big-digits
       (do (%buffer-unread buffer)
           ; Only score if digit count exceeds native integer range
-          (if (%int< %int-max-digits (%buffer-len buffer))
+          (if (int< %int-max-digits (%buffer-len buffer))
             (%score-set score 1 buffer)
             ())))))
 
@@ -737,7 +720,7 @@
         ()))))
 
 (set! bigint
-  (%make-type "BIGINT"
+  (type-make "BIGINT"
     (list
       (pair 'write
         (fn (_ self) (display (%bigint-to-string (first (first self)) (rest (first self))))))
@@ -745,17 +728,17 @@
       (pair 'read (fn (_ . args) (%bigint-read (first args))))
       (pair 'from
         (list
-          (pair (%type-of 42)
+          (pair (type-of 42)
             (fn (_ value)
               (def r (%bigint-from-int value))
-              (%make-instance bigint r)))
-          (pair (%type-of "")
+              (type-make-instance bigint r)))
+          (pair (type-of "")
             (fn (_ value) (%bigint-from-string value)))))
       (pair 'to
         (list
-          (pair (%type-of 42)
+          (pair (type-of 42)
             (fn (_ self) (%bigint-to-int (first (first self)) (rest (first self)))))
-          (pair (%type-of "")
+          (pair (type-of "")
             (fn (_ self) (%bigint-to-string (first (first self)) (rest (first self))))))))))
 
 ; --- Reader (set after make-type so closure captures the real bigint) ---
@@ -764,7 +747,7 @@
 ; fits the native int must come out native, not as a stealth bigint.
 (set! %bigint-read
   (fn (_ . args)
-    (let ((parsed (%bigint-parse-digits (%buffer-token (first args)))))
+    (let ((parsed (%bigint-parse-digits (buf-tok (first args)))))
       (%make-bigint (first parsed) (rest parsed)))))
 
 ; --- Cap the integer analyser ---
@@ -772,7 +755,7 @@
 ; that rejects numbers with too many digits for native int
 
 ; Type struct navigation via type.x (available from x-core.x boot)
-(def %int-type (%type-by-atom (%type-of 0)))
+(def %int-type (type-by-atom (type-of 0)))
 
 (def int-capped-digits ())
 (set! int-capped-digits
@@ -780,7 +763,7 @@
     (if (if (>= chr 48) (<= chr 57) #f)
       int-capped-digits
       (do (%buffer-unread buffer)
-          (if (not (%int< %int-max-digits (%buffer-len buffer)))
+          (if (not (int< %int-max-digits (%buffer-len buffer)))
             (%score-set score 1 buffer)
             ())))))
 
@@ -798,7 +781,7 @@
       ((if (>= chr #\a) (<= chr #\f) #f) %int-capped-xdigits)
       ((if (>= chr #\A) (<= chr #\F) #f) %int-capped-xdigits)
       (#t (do (%buffer-unread buffer)
-              (if (not (%int< 18 (%buffer-len buffer)))
+              (if (not (int< 18 (%buffer-len buffer)))
                 (%score-set score 1 buffer)
                 ()))))))
 
@@ -832,21 +815,21 @@
       ((if (= chr #\-) #t (= chr #\+)) int-capped-sign)
       (#t ()))))
 
-(%type-push-analyse %int-type %int-capped-analyse)
+(type-push-analyse %int-type %int-capped-analyse)
 
 ; --- Type ops: the generic operators dispatch here for bigint operands ---
 ; Handlers receive raw operands; the non-bigint side is always an int (a wider
 ; type would have absorbed the bigint via its from-declaration), so ensure-big
 ; covers the promotion.
 
-(def bigint-type (%type-by-atom bigint))
-(%type-push-op bigint-type '+ (fn (_ a b) (big-add (ensure-big a) (ensure-big b))))
-(%type-push-op bigint-type '- (fn (_ a b) (big-sub (ensure-big a) (ensure-big b))))
-(%type-push-op bigint-type '* (fn (_ a b) (big-mul (ensure-big a) (ensure-big b))))
-(%type-push-op bigint-type '/ (fn (_ a b) (big-div (ensure-big a) (ensure-big b))))
-(%type-push-op bigint-type '% (fn (_ a b) (big-mod (ensure-big a) (ensure-big b))))
-(%type-push-op bigint-type '< (fn (_ a b) (big-lt (ensure-big a) (ensure-big b))))
-(%type-push-op bigint-type '= (fn (_ a b) (big-eq (ensure-big a) (ensure-big b))))
+(def bigint-type (type-by-atom bigint))
+(type-push-op bigint-type '+ (fn (_ a b) (big-add (ensure-big a) (ensure-big b))))
+(type-push-op bigint-type '- (fn (_ a b) (big-sub (ensure-big a) (ensure-big b))))
+(type-push-op bigint-type '* (fn (_ a b) (big-mul (ensure-big a) (ensure-big b))))
+(type-push-op bigint-type '/ (fn (_ a b) (big-div (ensure-big a) (ensure-big b))))
+(type-push-op bigint-type '% (fn (_ a b) (big-mod (ensure-big a) (ensure-big b))))
+(type-push-op bigint-type '< (fn (_ a b) (big-lt (ensure-big a) (ensure-big b))))
+(type-push-op bigint-type '= (fn (_ a b) (big-eq (ensure-big a) (ensure-big b))))
 
 (import x/type/class)
 
@@ -892,8 +875,7 @@
       (%would-overflow-mul? a b))))
 
 ; Value dispatch (subject-last): (big bigint?) -> (Bigint bigint? big).
-(def %type-push-call (prim-ref 'type 'push-call))
-(%type-push-call (%type-by-atom bigint) (class-call-handler Bigint))
+(type-push-call (type-by-atom bigint) (class-call-handler Bigint))
 
 ; Join the pact last, once the module is fully usable: this fires any
 ; pairwise registration waiting on bigint (e.g. float's bigint->float

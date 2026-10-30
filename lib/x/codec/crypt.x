@@ -18,16 +18,11 @@
 
 (import x/type/vector)
 
-(def %add (prim-ref 'int '+))
-(def %sub (prim-ref 'int '-))
-(def %mul (prim-ref 'int '*))
-(def %oref (prim-ref (lit obj) (lit ref)))
-(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %char->int (prim-ref (lit char) (lit ->int)))
+(import x/core/doors char->int int* int+ int- int->ptr mem-copy obj-ref ptr->int ptr-set! str->ptr str-byte-len str-byte-ref str-make)
 (def %m32 4294967295)
 
 ; vector slot I of V (slot 0 of a Vector's object holds its length)
-(def %v (fn (_ v i) (%oref v (%add i 1))))
+(def %v (fn (_ v i) (obj-ref v (int+ i 1))))
 
 ; the tables (FIPS 46), positions counted from 1, bit 1 the most significant
 (def %ip (Vector from-list (lit (58 50 42 34 26 18 10 2 60 52 44 36 28 20 12 4 62 54 46 38 30 22 14 6
@@ -59,14 +54,14 @@
   7 11 4 1 9 12 14 2 0 6 10 13 15 3 5 8 2 1 14 7 4 10 8 13 15 12 9 0 3 5 6 11))))
 
 ; bit I (from 1, the most significant) of the W-bit word X
-(def %bit (fn (_ x w i) (& (>> x (%sub w i)) 1)))
+(def %bit (fn (_ x w i) (& (>> x (int- w i)) 1)))
 
 ; the W-bit word X permuted by TABLE (positions in X), N bits out
 (def %perm
   (fn (_ x w table n)
     ((fn (self i acc)
        (if (= i n) acc
-         (self (%add i 1) (| (<< acc 1) (%bit x w (%v table i))))))
+         (self (int+ i 1) (| (<< acc 1) (%bit x w (%v table i))))))
      0 0)))
 
 ; P applied to box B's output VAL, the four bits at the box's own place
@@ -74,14 +69,14 @@
   (fn (_ b v)
     (def row (| (<< (& (>> v 5) 1) 1) (& v 1)))
     (def col (& (>> v 1) 15))
-    (def val (%v %s (%add (%mul b 64) (%add (%mul row 16) col))))
-    (%perm (<< val (%sub 28 (%mul b 4))) 32 %p 32)))
+    (def val (%v %s (int+ (int* b 64) (int+ (int* row 16) col))))
+    (%perm (<< val (int- 28 (int* b 4))) 32 %p 32)))
 
 ; the eight boxes' tables, box B's at 64B
 (def %sp
   (Vector from-list
     ((fn (self k)
-       (if (= k 512) () (pair (%sp-entry (>> k 6) (& k 63)) (self (%add k 1))))) 0)))
+       (if (= k 512) () (pair (%sp-entry (>> k 6) (& k 63)) (self (int+ k 1))))) 0)))
 
 ; the sixteen round keys from the 64-bit key as (HI . LO), each key's 48
 ; bits as two 24-bit halves (LEFT . RIGHT), the E box's halves' order
@@ -89,7 +84,7 @@
   (fn (_ hi lo)
     (def key (| (<< hi 32) lo))
     (def cd (%perm key 64 %pc1 56))
-    (def rot28 (fn (_ x n) (& (| (<< x n) (>> x (%sub 28 n))) 268435455)))
+    (def rot28 (fn (_ x n) (& (| (<< x n) (>> x (int- 28 n))) 268435455)))
     ((fn (self ss c d acc)
        (if (null? ss) (Vector from-list (List reverse acc))
          (let ((c2 (rot28 c (first ss))) (d2 (rot28 d (first ss))))
@@ -103,25 +98,25 @@
   (fn (_ r k salt)
     (def rr (| (>> r 1) (<< (& r 1) 31)))
     (def dd (| (<< rr 32) rr))
-    (def group (fn (_ b) (& (>> dd (%sub 58 (%mul 4 b))) 63)))
+    (def group (fn (_ b) (& (>> dd (int- 58 (int* 4 b))) 63)))
     (def el (| (<< (group 0) 18) (| (<< (group 1) 12) (| (<< (group 2) 6) (group 3)))))
     (def er (| (<< (group 4) 18) (| (<< (group 5) 12) (| (<< (group 6) 6) (group 7)))))
     (def sw (& (^ el er) salt))
     (def xl (^ (^ el sw) (first k)))
     (def xr (^ (^ er sw) (rest k)))
-    (^ (^ (^ (%v %sp (& (>> xl 18) 63)) (%v %sp (%add 64 (& (>> xl 12) 63))))
-          (^ (%v %sp (%add 128 (& (>> xl 6) 63))) (%v %sp (%add 192 (& xl 63)))))
-       (^ (^ (%v %sp (%add 256 (& (>> xr 18) 63))) (%v %sp (%add 320 (& (>> xr 12) 63))))
-          (^ (%v %sp (%add 384 (& (>> xr 6) 63))) (%v %sp (%add 448 (& xr 63))))))))
+    (^ (^ (^ (%v %sp (& (>> xl 18) 63)) (%v %sp (int+ 64 (& (>> xl 12) 63))))
+          (^ (%v %sp (int+ 128 (& (>> xl 6) 63))) (%v %sp (int+ 192 (& xl 63)))))
+       (^ (^ (%v %sp (int+ 256 (& (>> xr 18) 63))) (%v %sp (int+ 320 (& (>> xr 12) 63))))
+          (^ (%v %sp (int+ 384 (& (>> xr 6) 63))) (%v %sp (int+ 448 (& xr 63))))))))
 
 ; a salt character's value in crypt's base-64, as busybox's ascii_to_bin
 ; reads one: . / 0-9 A-Z a-z are 0 to 63, any other 0
 (def %a64
   (fn (_ c)
     (match
-      ((> c 122) 0) ((>= c 97) (%sub c 59))
-      ((> c 90) 0) ((>= c 65) (%sub c 53))
-      ((> c 57) 0) ((>= c 46) (%sub c 46))
+      ((> c 122) 0) ((>= c 97) (int- c 59))
+      ((> c 90) 0) ((>= c 65) (int- c 53))
+      ((> c 57) 0) ((>= c 46) (int- c 46))
       (#t 0))))
 
 (def %crypt64 "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
@@ -134,12 +129,12 @@
     (def bits (| (%a64 s0) (<< (%a64 s1) 6)))
     ((fn (self i acc)
        (if (= i 12) acc
-         (self (%add i 1) (if (= (& (>> bits i) 1) 1) (| acc (<< 1 (%sub 23 i))) acc))))
+         (self (int+ i 1) (if (= (& (>> bits i) 1) 1) (| acc (<< 1 (int- 23 i))) acc))))
      0 0)))
 
 (def %des
   (fn (_ key s0 s1)
-    (def kb (fn (_ i) (if (< i (Str8 length key)) (& (<< (%char->int (%byte-ref key i)) 1) 255) 0)))
+    (def kb (fn (_ i) (if (< i (Str8 length key)) (& (<< (char->int (str-byte-ref key i)) 1) 255) 0)))
     (def hi (| (<< (kb 0) 24) (| (<< (kb 1) 16) (| (<< (kb 2) 8) (kb 3)))))
     (def lo (| (<< (kb 4) 24) (| (<< (kb 5) 16) (| (<< (kb 6) 8) (kb 7)))))
     (def ks (%subkeys hi lo))
@@ -148,17 +143,17 @@
     (def rounds
       (fn (self i l r)
         (if (= i 16) (pair r l)
-          (self (%add i 1) r (& (^ l (%f r (%v ks i) salt)) %m32)))))
+          (self (int+ i 1) r (& (^ l (%f r (%v ks i) salt)) %m32)))))
     (def lr
       ((fn (self n h)
-         (if (= n 25) h (self (%add n 1) (rounds 0 (first h) (rest h)))))
+         (if (= n 25) h (self (int+ n 1) (rounds 0 (first h) (rest h)))))
        0 (pair 0 0)))
     (def block (%perm (| (<< (first lr) 32) (rest lr)) 64 %fp 64))
     (def char (fn (_ v) (Str8 sub v 1 %crypt64)))
     ; eleven characters, six bits each from the top, two zero bits after
     (Str8 join ""
       (List map (fn (_ g)
-                  (char (if (= g 10) (<< (& block 15) 2) (& (>> block (%sub 58 (%mul 6 g))) 63))))
+                  (char (if (= g 10) (<< (& block 15) 2) (& (>> block (int- 58 (int* 6 g))) 63))))
                 (List range 0 11)))))
 
 ; --- $1$, $5$ and $6$: the hashes built on a digest ------------------------
@@ -178,31 +173,24 @@
 ; loops do.
 (import x/sys/gc)
 
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
-(def %mem-copy (prim-ref (lit mem) (lit copy)))
-(def %byte-len (prim-ref (lit str) (lit byte-len)))
 
-(def %b (fn (_ s i) (%char->int (%byte-ref s i))))
+(def %b (fn (_ s i) (char->int (str-byte-ref s i))))
 
-(def %pset1 (prim-ref (lit ptr) (lit set!)))
 
 ; a buffer holding one zero byte, for MD5-crypt's zeroed digest
-(def %nul (let ((s (%make-str 1))) (do (%pset1 (%str->ptr s) 0 0 1) s)))
+(def %nul (let ((s (str-make 1))) (do (ptr-set! (str->ptr s) 0 0 1) s)))
 
 ; the regions copied end to end into one fresh buffer: (BUFFER . COUNT)
 (def %join
   (fn (_ regions)
-    (def total ((fn (self rs n) (if (null? rs) n (self (rest rs) (%add n (rest (first rs)))))) regions 0))
-    (def out (%make-str (%add total 1)))
-    (def base (%ptr->int (%str->ptr out)))
+    (def total ((fn (self rs n) (if (null? rs) n (self (rest rs) (int+ n (rest (first rs)))))) regions 0))
+    (def out (str-make (int+ total 1)))
+    (def base (ptr->int (str->ptr out)))
     ((fn (self rs at)
        (unless (null? rs)
          (do (when (> (rest (first rs)) 0)
-               (%mem-copy (%int->ptr (%add base at)) (%str->ptr (first (first rs))) (rest (first rs))))
-             (self (rest rs) (%add at (rest (first rs)))))))
+               (mem-copy (int->ptr (int+ base at)) (str->ptr (first (first rs))) (rest (first rs))))
+             (self (rest rs) (int+ at (rest (first rs)))))))
      regions 0)
     (pair out total)))
 
@@ -211,7 +199,7 @@
   (fn (self region n)
     (if (<= n 0) ()
       (if (<= n (rest region)) (list (pair (first region) n))
-        (pair region (self region (%sub n (rest region))))))))
+        (pair region (self region (int- n (rest region))))))))
 
 ; a hash: the digest of joined regions, its size, its compiled engine, and
 ; its digest of a region into a buffer, asked for once the engine is built
@@ -224,7 +212,7 @@
 (def %to64
   (fn (_ v n)
     (Str8 join ""
-      (List map (fn (_ i) (Str8 sub (& (>> v (%mul 6 i)) 63) 1 %crypt64)) (List range 0 n)))))
+      (List map (fn (_ i) (Str8 sub (& (>> v (int* 6 i)) 63) 1 %crypt64)) (List range 0 n)))))
 
 ; a digest's bytes, as triples (A B C) each written as A<<16 | B<<8 | C in
 ; four characters -- a lone (A) last in two, or (0 B C) in three
@@ -242,10 +230,10 @@
 ; S up to its first $, at most N characters
 (def %salt-part
   (fn (_ s n)
-    (def end ((fn (self i) (if (if (< i (Str8 length s)) (if (< i n) (not (= (%b s i) 36)) #f) #f) (self (%add i 1)) i)) 0))
+    (def end ((fn (self i) (if (if (< i (Str8 length s)) (if (< i n) (not (= (%b s i) 36)) #f) #f) (self (int+ i 1)) i)) 0))
     (Str8 sub 0 end s)))
 
-(def %region-of (fn (_ s) (pair s (%byte-len s))))
+(def %region-of (fn (_ s) (pair s (str-byte-len s))))
 
 ; the thousand rounds both families share: odd rounds start with the key,
 ; every third adds the salt, every seventh the key, and the last digest
@@ -256,20 +244,20 @@
   (fn (_ h n d key salt)
     (def size (first (rest h)))
     (def into ((first (rest (rest (rest h))))))
-    (def kp (%str->ptr (first key)))
+    (def kp (str->ptr (first key)))
     (def kn (rest key))
-    (def sp (%str->ptr (first salt)))
+    (def sp (str->ptr (first salt)))
     (def sn (rest salt))
-    (def dbuf (%make-str (%add size 1)))
-    (def dp (%str->ptr dbuf))
-    (%mem-copy dp (%str->ptr (first d)) size)
-    (def msg (%make-str (%add (%add (<< kn 1) sn) (%add (<< size 1) 1))))
-    (def mp (%ptr->int (%str->ptr msg)))
+    (def dbuf (str-make (int+ size 1)))
+    (def dp (str->ptr dbuf))
+    (mem-copy dp (str->ptr (first d)) size)
+    (def msg (str-make (int+ (int+ (<< kn 1) sn) (int+ (<< size 1) 1))))
+    (def mp (ptr->int (str->ptr msg)))
     ; N bytes from SRC at AT in the message, and the offset after them
     (def put
       (fn (_ at src n)
-        (do (when (> n 0) (%mem-copy (%int->ptr (%add mp at)) src n))
-            (%add at n))))
+        (do (when (> n 0) (mem-copy (int->ptr (int+ mp at)) src n))
+            (int+ at n))))
     ((fn (self i)
        (if (= i n) (do (Heap collect) (pair dbuf size))
          (do (when (= (& i 255) 255) (Heap collect))
@@ -278,7 +266,7 @@
              (def a1 (if (= (% i 3) 0) a0 (put a0 sp sn)))
              (def a2 (if (= (% i 7) 0) a1 (put a1 kp kn)))
              (into msg (put a2 (if odd dp kp) (if odd size kn)) dbuf)
-             (self (%add i 1)))))
+             (self (int+ i 1)))))
      0)))
 
 ; MD5-crypt: (DIGEST . SALT)
@@ -312,9 +300,9 @@
              (if (= i 0) (List reverse acc)
                (self (>> i 1) (pair (if (= (& i 1) 1) b k) acc))))
            (rest k) ()))))
-    (def dp (%digest h (%cycle k (%mul (rest k) (rest k)))))
+    (def dp (%digest h (%cycle k (int* (rest k) (rest k)))))
     (def p (%join (%cycle dp (rest k))))
-    (def ds (%digest h (%cycle s (%mul (%add 16 (%b (first a) 0)) (rest s)))))
+    (def ds (%digest h (%cycle s (int* (int+ 16 (%b (first a) 0)) (rest s)))))
     (def ss (%join (%cycle ds (rest s))))
     (%rounds h rounds a p ss)))
 
@@ -322,11 +310,11 @@
 ; from a leading rounds=N$ held to 1000..999999999
 (def %sha-salt
   (fn (_ s)
-    (def digits ((fn (self i) (if (if (< i (Str8 length s)) (if (>= (%b s i) 48) (<= (%b s i) 57) #f) #f) (self (%add i 1)) i)) 7))
+    (def digits ((fn (self i) (if (if (< i (Str8 length s)) (if (>= (%b s i) 48) (<= (%b s i) 57) #f) #f) (self (int+ i 1)) i)) 7))
     (if (if (>= (Str8 length s) 7) (if (Str8 starts? "rounds=" s) (if (< digits (Str8 length s)) (= (%b s digits) 36) #f) #f) #f)
-      (let ((n ((fn (self i v) (if (= i digits) v (self (%add i 1) (+ (* v 10) (%sub (%b s i) 48))))) 7 0)))
+      (let ((n ((fn (self i v) (if (= i digits) v (self (int+ i 1) (+ (* v 10) (int- (%b s i) 48))))) 7 0)))
         (list (if (< n 1000) 1000 (if (> n 999999999) 999999999 n)) #t
-              (%salt-part (Str8 sub (%add digits 1) (%sub (Str8 length s) (%add digits 1)) s) 16)))
+              (%salt-part (Str8 sub (int+ digits 1) (int- (Str8 length s) (int+ digits 1)) s) 16)))
       (list 5000 #f (%salt-part s 16)))))
 
 (def %sha-hash
@@ -358,7 +346,7 @@
       (when (< (Str8 length salt) 2)
         (Err raise 'value "Crypt des: the salt is two characters" salt))
       (Str8 append (Str8 sub 0 2 salt)
-        (%des key (%char->int (%byte-ref salt 0)) (%char->int (%byte-ref salt 1)))))
+        (%des key (char->int (str-byte-ref salt 0)) (char->int (str-byte-ref salt 1)))))
     (method md5 (self (param key STRING "The password")
                       (param salt STRING "The salt: up to its first $, at most eight characters, are used"))
       (doc "crypt(3)'s $1$ hash of KEY with SALT -- MD5-crypt, as FreeBSD and busybox make it: $1$, the salt, $, and twenty-two characters of crypt's base-64 from a thousand rounds of MD5. MD5's compiled engine is adopted first."

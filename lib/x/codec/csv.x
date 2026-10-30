@@ -29,6 +29,7 @@
 (import x/core/list)
 (import x/type/assoc)
 (import x/reader/lexer)
+(import x/core/doors char->int str-byte-len str-byte-ref str-byte-sub)
 
 (def-class Csv ()
   (doc "RFC 4180 csv: (Csv parse text) -> rows of field strings; (Csv emit rows) -> text; (Csv records text) / (Csv emit-records headers records) ride the header row as string-keyed alists."
@@ -62,12 +63,10 @@
       (doc "Parse csv text into a list of rows, each a list of field strings. Quoted fields carry commas, doubled quotes, and newlines; rows end at LF/CRLF/CR; a trailing newline adds no row. Raises a label 'value on an unclosed quote, a quote inside an unquoted field, or bytes after a closing quote (#61: no silent repair)."
         (returns LIST "Rows of field strings")
         (example "(Csv parse \"a,\\\"b\\\"\\\"c\\\",d\")" "((\"a\" \"b\\\"c\" \"d\"))"))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bsub (prim-ref (lit str) (lit byte-sub)))
       (def %bad (fn (_ what)
         (Err raise (lit value) (Str8 append "Csv parse: " what) text)))
       ; A quoted token's text without its quotes.
-      (def %inner (fn (_ q) (%bsub q 1 (- (%blen q) 2))))
+      (def %inner (fn (_ q) (str-byte-sub q 1 (- (str-byte-len q) 2))))
       ; KIND is what the field in hand has been made of: none yet, a plain
       ; run, or quoted pieces, which a doubled quote joins.  A quote touching a
       ; plain run, bytes after a closing quote, and a quote no closing quote
@@ -108,16 +107,13 @@
       (doc "Render rows as csv text: fields holding a comma, quote, CR, or LF are quoted with doubled quotes; rows join with LF and the text ends with one."
         (returns STRING "csv text, LF row endings, trailing LF")
         (example "(Csv emit (list (list \"a\" \"b\") (list \"1,5\" \"x\\\"y\\\"\")))" "\"a,b\\n\\\"1,5\\\",\\\"x\\\"\\\"y\\\"\\\"\\\"\\n\""))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
       (def %field (fn (_ s)
-        (def m (%blen s))
+        (def m (str-byte-len s))
         (def needs?
           (let scan ((i 0))
             (match
               ((= i m) #f)
-              ((let ((c (%c->i (%bref s i))))
+              ((let ((c (char->int (str-byte-ref s i))))
                  (or (= c 44) (or (= c 34) (or (= c 10) (= c 13))))) #t)
               (#t (scan (+ i 1))))))
         (if (not needs?) s
@@ -128,7 +124,7 @@
                   (match
                     ((= i m) (pair 34 acc))
                     (#t
-                      (let ((c (%c->i (%bref s i))))
+                      (let ((c (char->int (str-byte-ref s i))))
                         (esc (+ i 1)
                              (if (= c 34) (pair 34 (pair 34 acc))
                                (pair c acc)))))))))))))

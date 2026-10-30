@@ -12,13 +12,11 @@
 (import x/type/vector)
 (import x/type/list)
 ; The fast index check: an INT passes without a call.
-(def %arr-type-of (prim-ref (lit type) (lit of)))
-(def %arr-int-type (%arr-type-of 0))
+(import x/core/doors obj-ref obj-set! type-of)
+(def %arr-int-type (type-of 0))
 
 ; Fetch the raw slot prims (ns `obj` is de-registered, R5). Slot 0 of the
 ; backing vector is its capacity; elements live in slots 1..len.
-(def %arr-obj-ref (prim-ref 'obj 'ref))
-(def %arr-obj-set! (prim-ref 'obj 'set!))
 
 (def-class Array ()
   (doc "A growable container: amortized O(1) push!, O(1) ref/set!, backed by a doubling VECTOR."
@@ -63,7 +61,7 @@
   ; dynamic message, and the class call, are only paid on the slow path.
   (method %index (self i what)
     (self %live)
-    (def i2 (if (if (null? i) #f (eq? (%arr-type-of i) %arr-int-type)) i
+    (def i2 (if (if (null? i) #f (eq? (type-of i) %arr-int-type)) i
       (Convert to-int i (Str8 append what ": index not convertible to INT"))))
     (def j (if (< i2 0) (+ (field 'len) i2) i2))
     (if (< j 0) (Err raise 'index (Str8 append what ": index out of range") ())
@@ -76,14 +74,14 @@
       (returns Array "self"))
     (self %live)
     (def n (field 'len))
-    (when (= n (%arr-obj-ref (field 'store) 0))
-      (let ((bigger (Vector make (* 2 (%arr-obj-ref (field 'store) 0)) ())))
+    (when (= n (obj-ref (field 'store) 0))
+      (let ((bigger (Vector make (* 2 (obj-ref (field 'store) 0)) ())))
         (do (let go ((i 1))
               (unless (> i n)
-                (do (%arr-obj-set! bigger i (%arr-obj-ref (field 'store) i))
+                (do (obj-set! bigger i (obj-ref (field 'store) i))
                     (go (+ i 1)))))
             (set-field! 'store bigger))))
-    (%arr-obj-set! (field 'store) (+ n 1) x)
+    (obj-set! (field 'store) (+ n 1) x)
     (set-field! 'len (+ n 1))
     self)
 
@@ -93,8 +91,8 @@
     (self %live)
     (def n (field 'len))
     (if (= n 0) (Err raise 'value "Array pop!: empty" ())
-      (let ((x (%arr-obj-ref (field 'store) n)))
-        (do (%arr-obj-set! (field 'store) n ())   ; drop the reference
+      (let ((x (obj-ref (field 'store) n)))
+        (do (obj-set! (field 'store) n ())   ; drop the reference
             (set-field! 'len (- n 1))
             x))))
 
@@ -102,14 +100,14 @@
     (doc "The element at index i (negative counts from the end); errors out of range."
       (param i INTEGER "Zero-based index")
       (returns ANY "Element at i"))
-    (%arr-obj-ref (field 'store) (+ 1 (self %index i "Array ref"))))
+    (obj-ref (field 'store) (+ 1 (self %index i "Array ref"))))
 
   (method set! (self i x)
     (doc "Store x at index i (in place; negative counts from the end); errors out of range; returns the array for chaining."
       (param i INTEGER "Zero-based index")
       (param x ANY "Value to store")
       (returns Array "self"))
-    (%arr-obj-set! (field 'store) (+ 1 (self %index i "Array set!")) x)
+    (obj-set! (field 'store) (+ 1 (self %index i "Array set!")) x)
     self)
 
   (method length (self)
@@ -127,7 +125,7 @@
     (self %live)
     (let go ((i (field 'len)) (acc ()))
       (if (= i 0) acc
-        (go (- i 1) (pair (%arr-obj-ref (field 'store) i) acc))))))
+        (go (- i 1) (pair (obj-ref (field 'store) i) acc))))))
 
 (doc (provide x/type/array Array)
   (note "Backing VECTOR doubles on overflow; slot 0 of the backing store is its capacity.")

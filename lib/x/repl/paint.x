@@ -19,14 +19,7 @@
 (import x/tool/syntax)
 
 ; --- cached prims (the walks run per span; none of these may be a door) ---
-(def %pt-bref   (prim-ref (lit str)  (lit byte-ref)))
-(def %pt-blen   (prim-ref (lit str)  (lit byte-len)))
-(def %pt-append (prim-ref (lit str)  (lit append)))
-(def %pt-cint   (prim-ref (lit char) (lit ->int)))
-(def %pt+       (prim-ref (lit int)  (lit +)))
-(def %pt-       (prim-ref (lit int)  (lit -)))
-(def %pt-mod    (prim-ref (lit int)  (lit %)))
-(def %pt-same?  (prim-ref (lit obj)  (lit same?)))
+(import x/core/doors char->int int% int+ int- obj-same? str-append str-byte-len str-byte-ref)
 
 ; --- state, all of it rebuilt by %paint-install! -------------------------
 (def %paint-c-depth ())   ; the codes parens cycle through by nesting depth
@@ -64,9 +57,9 @@
     (let ((base (if (< depth 0) %paint-c-lone
                   (let ((go (fn (self k codes)
                               (if (null? codes) ""
-                                (if (= k 0) (first codes) (self (%pt- k 1) (rest codes)))))))
-                    (go (%pt-mod depth %paint-c-depth-n) %paint-c-depth)))))
-      (if focused (%pt-append base %paint-c-focus) base))))
+                                (if (= k 0) (first codes) (self (int- k 1) (rest codes)))))))
+                    (go (int% depth %paint-c-depth-n) %paint-c-depth)))))
+      (if focused (str-append base %paint-c-focus) base))))
 
 ; --- bracket depths -----------------------------------------------------------
 ;
@@ -80,16 +73,16 @@
 ; closed.  Marks come back in source order.
 (def %paint-depths
   (fn (_ s at)
-    (let ((n (%pt-blen s)))
-      (let ((before (if (> at 0) (%pt-cint (%pt-bref s (%pt- at 1))) 0))
+    (let ((n (str-byte-len s)))
+      (let ((before (if (> at 0) (char->int (str-byte-ref s (int- at 1))) 0))
             ; A cursor outside the line -- the editor passes -1 for a frame
             ; that is to keep no focus -- is beside nothing.
-            (here (if (if (>= at 0) (< at n) #f) (%pt-cint (%pt-bref s at)) 0)))
+            (here (if (if (>= at 0) (< at n) #f) (char->int (str-byte-ref s at)) 0)))
         (let ((target (match
-                        ((= before 41) (%pt- at 1))
+                        ((= before 41) (int- at 1))
                         ((= here 40) at)
                         ((= here 41) at)
-                        ((= before 40) (%pt- at 1))
+                        ((= before 40) (int- at 1))
                         (#t -1))))
           ; The walk builds the marks reversed, then flips them once; a
           ; matched pair whose half is the target is flagged on both halves.
@@ -102,10 +95,10 @@
                         (if (null? sps) (%reverse acc)
                           (let ((i (first (first sps))))
                             (let ((b (if (eq? (first (rest (rest (first sps)))) (lit punct))
-                                       (%pt-cint (%pt-bref s i)) 0)))
+                                       (char->int (str-byte-ref s i)) 0)))
                               (match
                                 ((= b 40)
-                                  (self (rest sps) (pair (pair i depth) open) (%pt+ depth 1)
+                                  (self (rest sps) (pair (pair i depth) open) (int+ depth 1)
                                         (pair (list i depth #f) acc)))
                                 ((= b 41)
                                   (if (null? open)
@@ -171,16 +164,16 @@
       (if (not (Ansi enabled?)) s
         (let ((ms (if (null? more) () (first more)))
               (before (if (if (null? more) #t (null? (rest more))) () (first (rest more)))))
-          (if (if (%pt-same? s %paint-last-in)
-                (if (%paint-same-marks? ms %paint-last-marks) (%pt-same? before %paint-last-before) #f)
+          (if (if (obj-same? s %paint-last-in)
+                (if (%paint-same-marks? ms %paint-last-marks) (obj-same? before %paint-last-before) #f)
                 #f)
             %paint-last-out
-            (let ((from (if (null? before) 0 (%pt-blen before)))
-                  (full (if (null? before) s (%pt-append before s)))
-                  (n (%pt-blen s))
+            (let ((from (if (null? before) 0 (str-byte-len before)))
+                  (full (if (null? before) s (str-append before s)))
+                  (n (str-byte-len s))
                   (cell (pair ms ())))
               (let ((out (Syntax ansi full ((Syntax x) spans full from n) from n
-                           (fn (_ sp) (%paint-mark-code cell (%pt- (first sp) from))))))
+                           (fn (_ sp) (%paint-mark-code cell (int- (first sp) from))))))
                 (set! %paint-last-in s)
                 (set! %paint-last-marks ms)
                 (set! %paint-last-before before)
@@ -218,10 +211,10 @@
           (if (not (Ansi enabled?)) window
             (let ((b (if (null? before) "" before)))
               (if (if (null? (first last)) #f
-                    (if (%pt-same? window (first (first last))) (%pt-same? b (rest (first last))) #f))
+                    (if (obj-same? window (first (first last))) (obj-same? b (rest (first last))) #f))
                 (rest last)
-                (let ((from (%pt-blen b)) (s (if (null? before) window (%pt-append b window)))
-                      (n (%pt-blen window)))
+                (let ((from (str-byte-len b)) (s (if (null? before) window (str-append b window)))
+                      (n (str-byte-len window)))
                   (let ((out (Syntax ansi s (g spans s from n) from n
                                (fn (_ sp) (code (first (rest (rest sp))))))))
                     (%set-first! last (pair window b))
@@ -290,10 +283,10 @@
                      (Paint line s (if (null? more) () (first more))
                                    (if (if (null? more) #t (null? (rest more))) () (first (rest more))))))
           (marker (fn (_ s at) (%paint-depths s at))))
-      (when (or (null? %repl-paint) (%pt-same? %repl-paint %paint-own))
+      (when (or (null? %repl-paint) (obj-same? %repl-paint %paint-own))
         (set! %repl-paint painter))
       (set! %paint-own painter)
-      (when (or (null? %repl-marks) (%pt-same? %repl-marks %paint-own-marks))
+      (when (or (null? %repl-marks) (obj-same? %repl-marks %paint-own-marks))
         (set! %repl-marks marker))
       (set! %paint-own-marks marker)
       (Lang register! "x" (list (pair (lit %repl-paint) painter)

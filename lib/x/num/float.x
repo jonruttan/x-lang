@@ -3,41 +3,20 @@
 
 (import x/type/class)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(def %buffer-token (prim-ref 'buf 'tok))
+(import x/core/doors buf-tok char->int ffi-dlopen ffi-dlsym int% int* int+ int/ int= io-display-to-str ptr->int ptr-call str-byte-len str-byte-ref str-byte-sub type-by-atom type-from-cell type-make type-make-instance type-of type-push-call type-push-op type?)
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
-(def %type-by-atom (prim-ref 'type 'by-atom))
-(def %type-from-cell (prim-ref 'type 'from-cell))
-(def %type-push-op (prim-ref 'type 'push-op))
 
 ; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
 (def %cvt (prim-ref 'convert 'to))
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
-(def %make-instance (prim-ref 'type 'make-instance))
-(def %make-type (prim-ref 'type 'make))
-(def %type-of (prim-ref 'type 'of))
-(def %type? (prim-ref 'type '?))
 ; The binary integer primitives, fetched from the catalogue: the C operators as
 ; they were before core/arithmetic.x wrapped the bare names.
-(def %int= (prim-ref (lit int) (lit =)))
-(def %int+ (prim-ref (lit int) (lit +)))
-(def %int* (prim-ref (lit int) (lit *)))
-(def %int/ (prim-ref (lit int) (lit /)))
-(def %int% (prim-ref (lit int) (lit %)))
 ; The machine-INT test, as predicates.x's number? was before float widened it.
-(def %int-t (%type-of 0))
-(def %int-number? (fn (_ x) (%type? x %int-t)))
+(def %int-t (type-of 0))
+(def %int-number? (fn (_ x) (type? x %int-t)))
 ; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
-(def %dlopen (prim-ref 'ffi 'dlopen))
-(def %dlsym (prim-ref 'ffi 'dlsym))
-(def %ptr-call (prim-ref 'ptr 'call))
-(def %ptr->int (prim-ref 'ptr '->int))
 ; The string prims the printer below reads digits with.
-(def %str-byte-len (prim-ref 'str 'byte-len))
-(def %str-byte-ref (prim-ref 'str 'byte-ref))
-(def %char->int (prim-ref 'char '->int))
-(def %str-byte-sub (prim-ref 'str 'byte-sub))
-(def %display-to-str (prim-ref 'io 'display-to-str))
 
 ; The engine does no floating point.  The double operations are machine
 ; code this module emits with the assembler (the stubs below), called
@@ -69,7 +48,7 @@
 
 ; The byte at I of S, as an INT (byte-ref answers a CHAR).
 (def %byte-at
-  (fn (_ s i) (%char->int (%str-byte-ref s i))))
+  (fn (_ s i) (char->int (str-byte-ref s i))))
 
 ; The limb base, and the largest factor each pass multiplies by:
 ; a limb times a factor, plus the carry, stays under 2^63.
@@ -84,8 +63,8 @@
 ; N (positive) as limbs, least significant first, with no zero top limb.
 (def %int->limbs
   (fn (self n)
-    (if (%int= n 0) ()
-      (pair (%int% n %limb-base) (self (%int/ n %limb-base))))))
+    (if (int= n 0) ()
+      (pair (int% n %limb-base) (self (int/ n %limb-base))))))
 
 ; LIMBS * S, S small.
 (def %limbs*
@@ -93,8 +72,8 @@
     ((fn (self ls carry)
        (if (null? ls)
          (%int->limbs carry)
-         (let ((v (%int+ (%int* (first ls) s) carry)))
-           (pair (%int% v %limb-base) (self (rest ls) (%int/ v %limb-base))))))
+         (let ((v (int+ (int* (first ls) s) carry)))
+           (pair (int% v %limb-base) (self (rest ls) (int/ v %limb-base))))))
      limbs 0)))
 
 ; LIMBS * B^K, K passes of B^STEP and one of the rest.
@@ -105,15 +84,15 @@
       (%limbs* limbs (%int-pow b k)))))
 
 (def %int-pow
-  (fn (self b k) (if (%int= k 0) 1 (%int* b (self b (- k 1))))))
+  (fn (self b k) (if (int= k 0) 1 (int* b (self b (- k 1))))))
 
 ; The decimal digits of LIMBS, the top limb bare and the rest padded to nine.
 (def %limbs->str
   (fn (self limbs)
-    (if (null? (rest limbs)) (%display-to-str (first limbs))
+    (if (null? (rest limbs)) (io-display-to-str (first limbs))
       (Str8 append (self (rest limbs))
-        (let ((d (%display-to-str (first limbs))))
-          (Str8 append (%zeros (- %limb-digits (%str-byte-len d))) d))))))
+        (let ((d (io-display-to-str (first limbs))))
+          (Str8 append (%zeros (- %limb-digits (str-byte-len d))) d))))))
 
 ; A string of N copies of "0".
 (def %zeros
@@ -123,16 +102,16 @@
 (def %strip-zeros
   (fn (_ ds)
     ((fn (self n)
-       (if (and (> n 1) (%int= (%byte-at ds (- n 1)) 48))
+       (if (and (> n 1) (int= (%byte-at ds (- n 1)) 48))
          (self (- n 1))
-         (%str-byte-sub ds 0 n)))
-     (%str-byte-len ds))))
+         (str-byte-sub ds 0 n)))
+     (str-byte-len ds))))
 
 ; Is any digit of DS from I on non-zero?
 (def %any-nonzero?
   (fn (self ds i)
-    (if (>= i (%str-byte-len ds)) #f
-      (if (%int= (%byte-at ds i) 48) (self ds (+ i 1)) #t))))
+    (if (>= i (str-byte-len ds)) #f
+      (if (int= (%byte-at ds i) 48) (self ds (+ i 1)) #t))))
 
 ; The machine int the first N digits of DS spell (N <= 15, so it fits).
 (def %digits->int
@@ -147,8 +126,8 @@
 ; (digits . X), X moving up one when the rounding carries out.
 (def %round-digits
   (fn (_ ds x p)
-    (if (<= (%str-byte-len ds) p) (pair ds x)
-      (let ((kept (%str-byte-sub ds 0 p))
+    (if (<= (str-byte-len ds) p) (pair ds x)
+      (let ((kept (str-byte-sub ds 0 p))
             (next (- (%byte-at ds p) 48)))
         (def k (%digits->int ds p))
         (def up
@@ -156,30 +135,30 @@
             ((> next 5) #t)
             ((< next 5) #f)
             ((%any-nonzero? ds (+ p 1)) #t)
-            (#t (%int= (& k 1) 1))))
+            (#t (int= (& k 1) 1))))
         (if (not up) (pair kept x)
-          (let ((s (%display-to-str (+ k 1))))
-            (if (> (%str-byte-len s) p)
-              (pair (%str-byte-sub s 0 p) (+ x 1))
+          (let ((s (io-display-to-str (+ k 1))))
+            (if (> (str-byte-len s) p)
+              (pair (str-byte-sub s 0 p) (+ x 1))
               (pair s x))))))))
 
 ; The %g layout of significant digits DS (no trailing zeros) at decimal
 ; exponent X: plain notation for -4 <= X < P, else d.ddde+XX.
 (def %g-layout
   (fn (_ ds x p)
-    (def n (%str-byte-len ds))
+    (def n (str-byte-len ds))
     (match
       ((or (< x -4) (>= x p))
         (Str8 append
-          (%str-byte-sub ds 0 1)
-          (if (> n 1) (Str8 append "." (%str-byte-sub ds 1 (- n 1))) "")
+          (str-byte-sub ds 0 1)
+          (if (> n 1) (Str8 append "." (str-byte-sub ds 1 (- n 1))) "")
           (if (< x 0) "e-" "e+")
-          (let ((xs (%display-to-str (if (< x 0) (- 0 x) x))))
-            (if (< (%str-byte-len xs) 2) (Str8 append "0" xs) xs))))
+          (let ((xs (io-display-to-str (if (< x 0) (- 0 x) x))))
+            (if (< (str-byte-len xs) 2) (Str8 append "0" xs) xs))))
       ((< x 0)
         (Str8 append "0." (%zeros (- (- 0 x) 1)) ds))
       ((< (+ x 1) n)
-        (Str8 append (%str-byte-sub ds 0 (+ x 1)) "." (%str-byte-sub ds (+ x 1) (- n (+ x 1)))))
+        (Str8 append (str-byte-sub ds 0 (+ x 1)) "." (str-byte-sub ds (+ x 1) (- n (+ x 1)))))
       (#t (Str8 append ds (%zeros (- (+ x 1) n)))))))
 
 (def %bits->g
@@ -189,18 +168,18 @@
     (def ex (& (>> bits 52) 2047))
     (def frac (& bits (- (<< 1 52) 1)))
     (match
-      ((%int= ex 2047)
-        (if (%int= frac 0) (Str8 append sign "inf") "nan"))
-      ((and (%int= ex 0) (%int= frac 0))
+      ((int= ex 2047)
+        (if (int= frac 0) (Str8 append sign "inf") "nan"))
+      ((and (int= ex 0) (int= frac 0))
         (Str8 append sign "0"))
       (#t
-        (let ((m (if (%int= ex 0) frac (| frac (<< 1 52))))
-              (e (if (%int= ex 0) -1074 (- ex 1075))))
+        (let ((m (if (int= ex 0) frac (| frac (<< 1 52))))
+              (e (if (int= ex 0) -1074 (- ex 1075))))
           (def ds (%limbs->str
                     (if (< e 0)
                       (%limbs*pow (%int->limbs m) 5 %pow5-step (- 0 e))
                       (%limbs*pow (%int->limbs m) 2 %pow2-step e))))
-          (def x (+ (- (%str-byte-len ds) 1) (if (< e 0) e 0)))
+          (def x (+ (- (str-byte-len ds) 1) (if (< e 0) e 0)))
           (def r (%round-digits ds x %float-precision))
           (Str8 append sign
             (%g-layout (%strip-zeros (first r)) (rest r) %float-precision)))))))
@@ -261,11 +240,11 @@
 
 (def %libm-open
   (fn (_)
-    (let ((h (%dlopen "libm.so.6" 1)))
+    (let ((h (ffi-dlopen "libm.so.6" 1)))
       (if h h
-        (let ((h2 (%dlopen "libm.dylib" 1)))
+        (let ((h2 (ffi-dlopen "libm.dylib" 1)))
           (if h2 h2
-            (%dlopen () 1)))))))
+            (ffi-dlopen () 1)))))))
 (def %libm (%libm-open))
 
 ; --- The stubs: the double operations as machine code -------------------------
@@ -344,18 +323,18 @@
 ; first argument into x0, and it keeps the stack aligned for the libm call.
 (def %stub-emit
   (fn (_ label name)
-    (let ((addr (if (null? name) () (%dlsym %libm name))))
+    (let ((addr (if (null? name) () (ffi-dlsym %libm name))))
       (if (and (not (null? name)) (null? addr)) ()
         (let ((a (asm-new %stub-capacity)))
           (do (asm-prologue! a)
-              (%stub-body! a label (if (null? addr) 0 (%ptr->int addr)))
+              (%stub-body! a label (if (null? addr) 0 (ptr->int addr)))
               (asm-epilogue! a)
               (asm-finalize! a)))))))
 
 ; What a row's cell holds: the stub, or for "ptr" the pointer itself.
 (def %stub-address
   (fn (_ label name)
-    (if (str=? label "ptr") (%dlsym %libm name) (%stub-emit label name))))
+    (if (str=? label "ptr") (ffi-dlsym %libm name) (%stub-emit label name))))
 
 ; --- What the stubs are is this process's alone --------------------------------
 ; The handle, every pointer resolved through it, and every stub (an address
@@ -390,16 +369,16 @@
   (fn (_ label cell)
     (match
       ((str=? label "d->d")
-        (fn (_ x) (%make-instance float (%ptr-call (first cell) (first x)))))
+        (fn (_ x) (type-make-instance float (ptr-call (first cell) (first x)))))
       ((str=? label "dd->d")
-        (fn (_ a b) (%make-instance float (%ptr-call (first cell) (first a) (first b)))))
+        (fn (_ a b) (type-make-instance float (ptr-call (first cell) (first a) (first b)))))
       ((or (str=? label "d<d") (str=? label "d=d"))
-        (fn (_ a b) (%int= (%ptr-call (first cell) a b) 1)))
+        (fn (_ a b) (int= (ptr-call (first cell) a b) 1)))
       ((or (str=? label "i->d") (str=? label "d->i") (str=? label "s0->d")
            (str=? label "d->f") (str=? label "f->d") (str=? label "i->f"))
-        (fn (_ x) (%ptr-call (first cell) x)))
+        (fn (_ x) (ptr-call (first cell) x)))
       ((str=? label "ptr") (first cell))  ; the pointer itself
-      (#t (fn (_ a b) (%ptr-call (first cell) a b))))))
+      (#t (fn (_ a b) (ptr-call (first cell) a b))))))
 ; A row is (GLOBAL LABEL NAME CELL HELD?): HELD? when the closure has gone to
 ; a caller who keeps it (libm-fn), so its cell must be filled at a load.
 (def %stub-fn
@@ -496,7 +475,7 @@
 
 (def float ())
 (set! float
-  (%make-type
+  (type-make
     "FLOAT"
     (list
       (pair
@@ -515,25 +494,25 @@
         'from
         (list
           (pair
-            (%type-of 42)
-            (fn (_ value) (%make-instance float (int->float value))))
+            (type-of 42)
+            (fn (_ value) (type-make-instance float (int->float value))))
           (pair
-            (%type-of "")
-            (fn (_ value) (%make-instance float (str->float value))))
+            (type-of "")
+            (fn (_ value) (type-make-instance float (str->float value))))
 ))
       (pair
         'to
         (list
-          (pair (%type-of 42) (fn (_ self) (%float->int (first self))))
+          (pair (type-of 42) (fn (_ self) (%float->int (first self))))
           (pair
-            (%type-of "")
+            (type-of "")
             (fn (_ self) (%float->str (first self)))))))))
 
 (note "Predicates")
 
 ; --- Predicates and constructors ---
 
-(def float? (fn (_ x) (%type? x float)))
+(def float? (fn (_ x) (type? x float)))
 
 ; Door: promote to float through the catalogue; a miss is a raise, never nil
 ; into (first)/d+d (the C core is unchecked -- guards live in x-lang).
@@ -559,19 +538,19 @@
 
 (def f-add
   (fn (_ a b)
-    (%make-instance float (%d+d (first a) (first b)))))
+    (type-make-instance float (%d+d (first a) (first b)))))
 
 (def f-sub
   (fn (_ a b)
-    (%make-instance float (%d-d (first a) (first b)))))
+    (type-make-instance float (%d-d (first a) (first b)))))
 
 (def f-mul
   (fn (_ a b)
-    (%make-instance float (%d*d (first a) (first b)))))
+    (type-make-instance float (%d*d (first a) (first b)))))
 
 (def f-div
   (fn (_ a b)
-    (%make-instance float (%d/d (first a) (first b)))))
+    (type-make-instance float (%d/d (first a) (first b)))))
 
 ; fmod is libm's, through a "dd->d" stub like every other math function.
 (def f-mod (%stub-fn (lit f-mod) "dd->d" "fmod" #t))
@@ -587,13 +566,13 @@
   (fn (_ a b) (%d=d (first a) (first b))))
 
 ; Reader: called by tokenizer after successful analyse
-; Uses %buffer-token to extract consumed text, then strtod to parse
+; Uses buf-tok to extract consumed text, then strtod to parse
 
 (set! %float-read
   (fn (_ . args)
-    (%make-instance
+    (type-make-instance
       float
-      (%strtod (%buffer-token (first args))))))
+      (%strtod (buf-tok (first args))))))
 
 (note "Math Functions")
 
@@ -655,17 +634,17 @@
 ; is gone: bigint owns the + - * int-overflow policy, rational owns /, and the
 ; binary C operators dispatch everything typed.
 
-(def float-type (%type-by-atom float))
-(%type-push-op float-type '+ (fn (_ a b) (f-add (ensure-float a) (ensure-float b))))
-(%type-push-op float-type '- (fn (_ a b) (f-sub (ensure-float a) (ensure-float b))))
-(%type-push-op float-type '* (fn (_ a b) (f-mul (ensure-float a) (ensure-float b))))
-(%type-push-op float-type '/ (fn (_ a b) (f-div (ensure-float a) (ensure-float b))))
+(def float-type (type-by-atom float))
+(type-push-op float-type '+ (fn (_ a b) (f-add (ensure-float a) (ensure-float b))))
+(type-push-op float-type '- (fn (_ a b) (f-sub (ensure-float a) (ensure-float b))))
+(type-push-op float-type '* (fn (_ a b) (f-mul (ensure-float a) (ensure-float b))))
+(type-push-op float-type '/ (fn (_ a b) (f-div (ensure-float a) (ensure-float b))))
 ; Without this op, (% 1.2 1.4) fell through to x_prim_mod's integer
 ; fallback -- value-word % value-word on two float PAYLOAD POINTERS --
 ; and returned garbage ((gcd 1.2 1.4) famously yielded 8).
-(%type-push-op float-type '% (fn (_ a b) (f-mod (ensure-float a) (ensure-float b))))
-(%type-push-op float-type '< (fn (_ a b) (f-lt (ensure-float a) (ensure-float b))))
-(%type-push-op float-type '= (fn (_ a b) (f-eq (ensure-float a) (ensure-float b))))
+(type-push-op float-type '% (fn (_ a b) (f-mod (ensure-float a) (ensure-float b))))
+(type-push-op float-type '< (fn (_ a b) (f-lt (ensure-float a) (ensure-float b))))
+(type-push-op float-type '= (fn (_ a b) (f-eq (ensure-float a) (ensure-float b))))
 
 (note "R7RS Predicates")
 
@@ -695,7 +674,7 @@
   (fn (_ big)
     ; %bigint-base and `reverse` (x/core/list) are bigint.x's load-time
     ; bindings; the pact guarantees bigint fully loaded before this fires.
-    (let ((from-cell (%type-from-cell (%type-by-atom float))))
+    (let ((from-cell (type-from-cell (type-by-atom float))))
       (%set-first! from-cell
         (pair
           (pair big
@@ -710,7 +689,7 @@
                   (if (null? ls) acc
                     (self (rest ls) (f-add (f-mul acc fbase) (float-of (first ls)))))))
               (def mag (%go limbs fzero))
-              (if (%int= sign -1) (f-sub fzero mag) mag)))
+              (if (int= sign -1) (f-sub fzero mag) mag)))
           (first from-cell))))))
 
 (import x/type/class)
@@ -902,8 +881,7 @@
         (#t #f)))))
 
 ; Value dispatch (subject-last): (3.14 float?) -> (Float float? 3.14).
-(def %type-push-call (prim-ref 'type 'push-call))
-(%type-push-call (%type-by-atom float) (class-call-handler Float))
+(type-push-call (type-by-atom float) (class-call-handler Float))
 
 ; Join the pact last, once the module is fully usable: any registration
 ; waiting on float fires against the finished class and type ops.

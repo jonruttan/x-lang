@@ -21,7 +21,7 @@
 ;
 ; Dependencies: this module imports x/platform/syscall for `syscall-door` (a
 ; call resolved by name for this platform). Read buffers come from (str make n) -- a GC-owned
-; n-byte string region (fetched below as %make-str) -- so File runs under
+; n-byte string region (fetched below as str-make) -- so File runs under
 ; plain x-core; no extra dialect is needed.
 (module x/sys/file)
 
@@ -34,7 +34,7 @@
 
 ; GC-owned read buffers: (str make n) allocates an n-byte string region the
 ; collector owns (no free needed). Fetched once here; getc allocates per call.
-(def %make-str (prim-ref 'str 'make))
+(import x/core/doors char->int int& int< str-byte-len str-byte-ref str-make)
 
 ; The calls this module makes, each resolved once through the platform's door:
 ; a number on its own does not say how a call is made, and on arm64 Linux the
@@ -97,7 +97,7 @@
 ; nothing there.
 (def %stat-type
   (fn (_ call path)
-    (def buf (%make-str 160))
+    (def buf (str-make 160))
     (match
       ((= (call path buf) 0)
         (%mode-file-type (%stat-field 'mode (%stat-mode-read buf 0))))
@@ -161,8 +161,6 @@
 ; The descriptor, byte counts and name lengths a listing compares are never
 ; nil, so the integer primitive serves where the tower's `<` would check and
 ; dispatch on every call.
-(def %int< (prim-ref (lit int) (lit <)))
-(def %byte-len (prim-ref (lit str) (lit byte-len)))
 (def %o-rdonly (%mode->int 'rdonly))
 
 ; A read error mid-listing: errno is taken before the close clobbers it.
@@ -180,7 +178,7 @@
     (def n (%sys-dirents fd buf 4096 basep))
     (match
       ((= n 0) acc)
-      ((%int< n 0) (%dir-fail fd n path))
+      ((int< n 0) (%dir-fail fd n path))
       (#t (loop fd buf basep path (dirent-names buf n acc))))))
 
 ; names without "." and "..", in the order given: kept names cons onto acc,
@@ -190,7 +188,7 @@
   (fn (loop names acc)
     (match
       ((eq? names ()) (%reverse acc))
-      ((%int< 2 (%byte-len (first names)))
+      ((int< 2 (str-byte-len (first names)))
         (loop (rest names) (pair (first names) acc)))
       ((str=? (first names) ".") (loop (rest names) acc))
       ((str=? (first names) "..") (loop (rest names) acc))
@@ -198,11 +196,9 @@
 
 ; --- Struct decoding helpers (#22: stat + dirent are per-OS byte layouts) ---
 ; Little-endian byte peeks over a (str make N) buffer filled by a syscall.
-(def %fs-byte-ref (prim-ref 'str 'byte-ref))   ; temp's suffix bytes
 
 ; File type from the S_IFMT bits of a stat mode.  A decoded mode is never
 ; nil, so the integer primitive masks it.
-(def %int& (prim-ref (lit int) (lit &)))
 (def %fmt-file-type
   (fn (_ fmt)
     (match
@@ -214,7 +210,7 @@
       ((= fmt 4096)  'fifo)
       ((= fmt 49152) 'socket)
       (#t 'unknown))))
-(def %mode-file-type (fn (_ mode) (%fmt-file-type (%int& mode 61440))))
+(def %mode-file-type (fn (_ mode) (%fmt-file-type (int& mode 61440))))
 
 ; The value a decoded stat record holds for name.
 (def %stat-field
@@ -308,7 +304,7 @@
       (doc "Read a single character from a file descriptor."
         (returns CHARACTER "Character read, or -1 at EOF")
         (sample "(File getc fd)" "the next byte as a char, or -1 at EOF"))
-      (let ((buffer (%make-str 1)))
+      (let ((buffer (str-make 1)))
         (let ((bytes-read (File read fd buffer 1)))
           (if (<= bytes-read 0)
             -1
@@ -365,7 +361,7 @@
         (returns ALIST "((size . N) (mode . M) (file-type . K) (mtime . T) (atime . T) (uid . U) (gid . G) (nlink . L))")
         (sample "(File stat \"lib/x.x\")" "((size . 461) (mode . 33188) (file-type . file) (mtime . 1752861000) (atime . 1752861000) (uid . 501) (gid . 20) (nlink . 1))"))
       (%fs-path path "File stat")
-      (def buf (%make-str 160))
+      (def buf (str-make 160))
       (def r (%sys-stat path buf))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'stat path)))
       (%stat-decode buf))
@@ -377,7 +373,7 @@
         (sample "(File exists? \"lib/x.x\")" "#t"))
       ; stat(2) answers 0 on success; a miss needs no Err built and caught
       (match
-        ((str? path) (= (%sys-stat path (%make-str 160)) 0))
+        ((str? path) (= (%sys-stat path (str-make 160)) 0))
         (#t #f)))
 
     (method type (self (param path ANY "Path to look at, symlinks followed"))
@@ -408,7 +404,7 @@
       (def size (Assoc get 'size (File stat path)))
       (def fd (File open path 'rdonly))
       (when (< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
-      (def buf (%make-str size))
+      (def buf (str-make size))
       (def n (File read fd buf size))
       (def en (if (< n 0) (%fs-errno n) ()))  ; before close clobbers errno
       (File close fd)
@@ -449,9 +445,9 @@
       (%fs-path path "File list-dir")
       (def fd (%sys-open path %o-rdonly 420))
       (match
-        ((%int< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
+        ((int< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
         (#t ()))
-      (def names (%dir-batches fd (%make-str 4096) (%make-str 8) path ()))
+      (def names (%dir-batches fd (str-make 4096) (str-make 8) path ()))
       (%sys-close fd)
       (%drop-dots names ()))
 
@@ -550,7 +546,7 @@
         (returns STRING "The link's target")
         (sample "(File readlink \"here.x\")" "\"../lib/x.x\""))
       (%fs-path path "File readlink")
-      (def buf (%make-str 4096))
+      (def buf (str-make 4096))
       (def n (%sys-readlink path buf 4096))
       (when (< n 0) (error (Err from-errno (%fs-errno n) 'readlink path)))
       ; readlink does NOT terminate what it writes; the length is the answer
@@ -574,7 +570,7 @@
         (note "Each time is a word of seconds then a zero word: a timeval's microseconds, or a timespec's nanoseconds where the platform stands utimensat in for utimes, which is why whole seconds are the door.")
         (sample "(File set-times \"out.txt\" 1700000000 1700000000)" "stamps both to 2023-11-14T22:13:20Z"))
       (%fs-path path "File set-times")
-      (def times (%make-str 32))
+      (def times (str-make 32))
       (def p ((prim-ref 'str '->ptr) times))
       (def set-word (prim-ref 'ptr 'set-word!))
       (set-word p 0 atime) (set-word p 8 0)
@@ -601,7 +597,7 @@
         (sample "(File statfs \"/\")" "((bsize . 4096) (blocks . 242837545) ...)"))
       (%fs-path path "File statfs")
       ; Darwin's struct carries two 1024-byte mount names after the counts
-      (def buf (%make-str 2304))
+      (def buf (str-make 2304))
       (def r (%sys-statfs path buf))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'statfs path)))
       ; The field spec per OS: Darwin's f_bsize is a u32 leading the
@@ -625,7 +621,7 @@
         (returns ALIST "((size . N) (mode . M) (file-type . K) (mtime . T) (atime . T) (uid . U) (gid . G) (nlink . L))")
         (sample "(File lstat \"some-symlink\")" "((size . 11) (mode . 41453) (file-type . link) (mtime . ...) (atime . ...) (uid . ...) (gid . ...) (nlink . 1))"))
       (%fs-path path "File lstat")
-      (def buf (%make-str 160))
+      (def buf (str-make 160))
       (def r (%sys-lstat path buf))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'lstat path)))
       (%stat-decode buf))
@@ -643,7 +639,7 @@
         (let ((en (%fs-errno out)))
           (File close in)
           (error (Err from-errno en 'open to))))
-      (def buf (%make-str 65536))
+      (def buf (str-make 65536))
       (def %die (fn (_ r op path)
         (let ((en (%fs-errno r)))
           (File close in)
@@ -676,14 +672,13 @@
         ; 8 suffix chars from /dev/urandom, mapped into [a-z0-9]
         (def rfd (File open "/dev/urandom" 'rdonly))
         (when (< rfd 0) (error (Err from-errno (%fs-errno rfd) 'open "/dev/urandom")))
-        (def rbuf (%make-str 8))
+        (def rbuf (str-make 8))
         (def got (File read rfd rbuf 8))
         (File close rfd)
         (when (< got 8) (error (Err from-errno -5 'read "/dev/urandom")))
-        (def %fs-c->i (prim-ref (lit char) (lit ->int)))
         (let go ((i 0) (acc ()))
           (if (= i 8) (bytes->str (%reverse acc))
-            (let ((v (% (%fs-c->i (%fs-byte-ref rbuf i)) 36)))
+            (let ((v (% (char->int (str-byte-ref rbuf i)) 36)))
               (go (+ i 1) (pair (if (< v 26) (+ 97 v) (+ 22 v)) acc)))))))
       (let attempt ((left 16))
         (when (= left 0)

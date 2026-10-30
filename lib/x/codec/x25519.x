@@ -22,18 +22,9 @@
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
 
-(def %add (prim-ref 'int '+))
-(def %sub (prim-ref 'int '-))
-(def %mul (prim-ref 'int '*))
-(def %oref (prim-ref (lit obj) (lit ref)))
-(def %oset! (prim-ref (lit obj) (lit set!)))
-(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %char->int (prim-ref (lit char) (lit ->int)))
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %pset1 (prim-ref (lit ptr) (lit set!)))
+(import x/core/doors char->int int* int+ int- obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
 
-(def %byte (fn (_ s i) (%char->int (%byte-ref s i))))
+(def %byte (fn (_ s i) (char->int (str-byte-ref s i))))
 
 (import x/codec/fe25519 fe-zero fe-limbs fe-frombytes fe-tobytes fe-add fe-sub fe-mul fe-sq fe-mul121666 fe-invert)
 
@@ -77,7 +68,7 @@
     (def zz2e (fe-mul tmp1c tmp0c))
     (if (= pos 0)
       (if (= b 1) (list xx3b zz3c) (list xx2b zz2e))
-      (self k x1 xx2b zz2e xx3b zz3c b (%sub pos 1)))))
+      (self k x1 xx2b zz2e xx3b zz3c b (int- pos 1)))))
 
 ; The pure-x function: k and u as 32-byte strings -> 32 bytes.  The
 ; compiled engine answers the same bytes, so it is a drop-in.
@@ -89,9 +80,9 @@
 
 (def %nine
   (fn (_)
-    (def s (%make-str 32))
-    (def p (%str->ptr s))
-    ((fn (self i) (unless (= i 32) (do (%pset1 p i (if (= i 0) 9 0) 1) (self (%add i 1))))) 0)
+    (def s (str-make 32))
+    (def p (str->ptr s))
+    ((fn (self i) (unless (= i 32) (do (ptr-set! p i (if (= i 0) 9 0) 1) (self (int+ i 1))))) 0)
     s))
 
 ; --- The compiled engine (JIT), adopted only when it proves out ------

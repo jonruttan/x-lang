@@ -23,15 +23,7 @@
 (import x/codec/fe25519-jit fe-jit-compile fe-jit-replayed? fe-jit-exprs)
 (import x/tool/jit-group jit-group)
 
-(def %xj-make-str (prim-ref (lit str) (lit make)))
-(def %xj-str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %xj-ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %xj-pset (prim-ref (lit ptr) (lit set-word!)))
-(def %xj-pref (prim-ref (lit ptr) (lit ref-word)))
-(def %xj-oref (prim-ref (lit obj) (lit ref)))
-(def %xj-oset! (prim-ref (lit obj) (lit set!)))
-(def %xj-byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %xj-char->int (prim-ref (lit char) (lit ->int)))
+(import x/core/doors char->int obj-ref obj-set! ptr->int ptr-ref-word ptr-set! ptr-set-word! str->ptr str-byte-ref str-make)
 
 ; scratch layout, one 4096-byte buffer (words), ten a field element:
 ;   0 x1 | 10 x2 | 20 z2 | 30 x3 | 40 z3 | 50 tmp0 | 60 tmp1
@@ -136,18 +128,18 @@
     ; and replayed operations compiled nothing, so the collect, which marks
     ; the whole live heap, is skipped
     (unless (fe-jit-replayed?) (Heap collect))
-    (def %buf (%xj-make-str 4096))
-    (def %ptr (%xj-str->ptr %buf))
-    (def %addr (%xj-ptr->int %ptr))
-    (def %poke (fn (_ i v) (%xj-pset %ptr (* i 8) v)))
-    (def %peek (fn (_ i) (%xj-pref %ptr (* i 8))))
+    (def %buf (str-make 4096))
+    (def %ptr (str->ptr %buf))
+    (def %addr (ptr->int %ptr))
+    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i 8) v)))
+    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i 8))))
     (def %load!
       (fn (_ off v)
-        ((fn (self i) (unless (= i 10) (do (%poke (+ off i) (%xj-oref v (+ i 1))) (self (+ i 1))))) 0)))
+        ((fn (self i) (unless (= i 10) (do (%poke (+ off i) (obj-ref v (+ i 1))) (self (+ i 1))))) 0)))
     (def %store
       (fn (_ off)
         (def v (Vector make 10 0))
-        ((fn (self i) (unless (= i 10) (do (%xj-oset! v (+ i 1) (%peek (+ off i))) (self (+ i 1))))) 0)
+        ((fn (self i) (unless (= i 10) (do (obj-set! v (+ i 1) (%peek (+ off i))) (self (+ i 1))))) 0)
         v))
     (def %one (fn (_ off) (%poke off 1) ((fn (self i) (unless (= i 10) (do (%poke (+ off i) 0) (self (+ i 1))))) 1)))
     (def %zero (fn (_ off) ((fn (self i) (unless (= i 10) (do (%poke (+ off i) 0) (self (+ i 1))))) 0)))
@@ -161,7 +153,7 @@
         ; the clamped scalar a byte a word, then the 255 steps in one call
         ((fn (self i)
            (unless (= i 32)
-             (do (def b (%xj-char->int (%xj-byte-ref k i)))
+             (do (def b (char->int (str-byte-ref k i)))
                  (%poke (+ %KB i) (match ((= i 0) (& b 248)) ((= i 31) (| (& b 127) 64)) (#t b)))
                  (self (+ i 1)))))
          0)
@@ -173,20 +165,19 @@
     (def %same
       (fn (self x y i)
         (if (= i 32) #t
-          (if (= (%xj-char->int (%xj-byte-ref x i)) (%xj-char->int (%xj-byte-ref y i)))
+          (if (= (char->int (str-byte-ref x i)) (char->int (str-byte-ref y i)))
             (self x y (+ i 1))
             #f))))
     (def %hex-bytes
       (fn (_ hex)
         (def n (>> (Str8 length hex) 1))
-        (def s (%xj-make-str n))
-        (def p (%xj-str->ptr s))
-        (def %pset1 (prim-ref (lit ptr) (lit set!)))
+        (def s (str-make n))
+        (def p (str->ptr s))
         (def %digit (fn (_ c) (if (< c 58) (- c 48) (- c 87))))
         ((fn (self i)
            (unless (= i n)
-             (do (%pset1 p i (| (<< (%digit (%xj-char->int (%xj-byte-ref hex (* 2 i)))) 4)
-                                (%digit (%xj-char->int (%xj-byte-ref hex (+ (* 2 i) 1))))) 1)
+             (do (ptr-set! p i (| (<< (%digit (char->int (str-byte-ref hex (* 2 i)))) 4)
+                                (%digit (char->int (str-byte-ref hex (+ (* 2 i) 1))))) 1)
                  (self (+ i 1))))) 0)
         s))
     ; The field operations were proven against the pure-x field when they

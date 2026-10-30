@@ -56,6 +56,7 @@
 (do
   (import x/tool/compile)
   (import x/codec/sha256)
+  (import x/core/doors int+ obj-ref)
   (import x/tool/contract)
   (import x/sys/stream)
 
@@ -219,7 +220,7 @@
   ; --- x-lang side: K table, H init, block driver ---
   ((fn (self i)
      (match ((= i 64) ())
-       (#t (do (%poke (+ %KB i) (%sha-oref %sha-k (+ i 1))) (self (+ i 1)))))) 0)
+       (#t (do (%poke (+ %KB i) (obj-ref %sha-k (+ i 1))) (self (+ i 1)))))) 0)
   (def %init-h
     (fn (_)
       ((fn (self i hs)
@@ -229,15 +230,15 @@
     (fn (_ s len total base)
       ((fn (self t)
          (match ((= t 16) ())
-           (#t (do (%poke t (%sha-word s len total (%sha+ base (<< t 2))))
-                   (self (%sha+ t 1)))))) 0)))
+           (#t (do (%poke t (%sha-word s len total (int+ base (<< t 2))))
+                   (self (int+ t 1)))))) 0)))
   (def %load-h
     (fn (_) ((fn (self i)
       (match ((= i 8) ()) (#t (do (%poke (+ 16 i) (%peek (+ %HB i))) (self (+ i 1)))))) 0)))
   (def %store-h
     (fn (_) ((fn (self i)
       (match ((= i 8) ())
-        (#t (do (%poke (+ %HB i) (& (%sha+ (%peek (+ %HB i)) (%peek (+ 16 i))) %M))
+        (#t (do (%poke (+ %HB i) (& (int+ (%peek (+ %HB i)) (%peek (+ 16 i))) %M))
                 (self (+ i 1)))))) 0)))
   ; Folded, the compiled function does the shuffles itself and is entered
   ; at the -1 sentinel; unfolded, the interpreted loops bracket it.
@@ -262,7 +263,7 @@
         (%load-h)
         (%rounds %addr 0)
         (%store-h))))
-  (def %blocks-of (fn (_ len) (<< (%sha+ (>> (%sha+ len 8) 6) 1) 6)))
+  (def %blocks-of (fn (_ len) (<< (int+ (>> (int+ len 8) 6) 1) 6)))
   (def %digest
     (fn (_ s)
       (def len (Str8 length s))
@@ -271,7 +272,7 @@
       (when %fill? (do (%poke 27 len) (%poke 28 total)))
       (%init-h)
       ((fn (self b)
-         (match ((= b total) ()) (#t (do (%block s maddr len total b) (self (%sha+ b 64)))))) 0)
+         (match ((= b total) ()) (#t (do (%block s maddr len total b) (self (int+ b 64)))))) 0)
       ((fn (self i acc)
          (match ((= i 8) acc)
            (#t (self (+ i 1)

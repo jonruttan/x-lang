@@ -18,15 +18,9 @@
 (import x/sys/proc)
 (import x/type/hash)
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
-(def %type-of (prim-ref 'type 'of))
+(import x/core/doors ffi-dlopen ffi-dlsym io-write-to-str ptr-call ptr-ref-word ptr-set-word! type-of)
 ; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
-(def %ptr-call (prim-ref 'ptr 'call))
-(def %ptr-ref-word (prim-ref 'ptr 'ref-word))
-(def %ptr-set-word! (prim-ref 'ptr 'set-word!))
-(def %dlopen (prim-ref 'ffi 'dlopen))
-(def %dlsym (prim-ref 'ffi 'dlsym))
 ; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
-(def %write-to-str (prim-ref 'io 'write-to-str))
 
 
 
@@ -204,23 +198,23 @@
     (unless (null? fns)
       (let ()
         (def %prim-sym (Str append (first (first fns)) "_prim"))
-        (def %prim-ptr (%dlsym lib %prim-sym))
+        (def %prim-ptr (ffi-dlsym lib %prim-sym))
         (def %type-offset (prim-ref 'type 'offset))
         (if (not (null? %prim-ptr))
-          (%ptr-set-word! %prim-ptr %type-offset prim-type-val))
+          (ptr-set-word! %prim-ptr %type-offset prim-type-val))
         (self lib (rest fns) prim-type-val)))))
 
 (def %compile-cache-load
   (fn (_ cache-path fns-holder)
     (unless (not (Sys file-exists? cache-path))
-      (let ((lib (%dlopen cache-path 1)))
+      (let ((lib (ffi-dlopen cache-path 1)))
         (unless (null? lib)
-          (let ((fn-ptr (%dlsym lib "fn_0")))
+          (let ((fn-ptr (ffi-dlsym lib "fn_0")))
             (unless (null? fn-ptr)
               (let ()
                 (%type-cast! fn-ptr first)
                 (def %type-offset (prim-ref 'type 'offset))
-                (def %prim-type-val (%ptr-ref-word (%cvt first %ptr) %type-offset))
+                (def %prim-type-val (ptr-ref-word (%cvt first %ptr) %type-offset))
                 (%patch-nested-prims lib (first fns-holder) %prim-type-val)
                 fn-ptr))))))))
 
@@ -258,9 +252,9 @@
 
 (def compile-load
   (fn (_ lib-path)
-    (def %lib (%dlopen lib-path 1))
+    (def %lib (ffi-dlopen lib-path 1))
     (if (null? %lib) (Err raise 'io (%compile-load-failure "compile-load" lib-path) ()))
-    (def %fn (%dlsym %lib "fn_0"))
+    (def %fn (ffi-dlsym %lib "fn_0"))
     (if (null? %fn) (Err raise 'io "compile-load: dlsym failed for fn_0" ()))
     (%type-cast! %fn first)
     %fn))
@@ -287,7 +281,7 @@
     (compile-fvars-set! fvars)
 
     ; Cache lookup: hash the expression to get a stable filename
-    (def %expr-key (%write-to-str expr))
+    (def %expr-key (io-write-to-str expr))
     (def %cache-hash (%compile-cache-key %expr-key))
     (def %cache-path (Str append %compile-cache-dir %cache-hash compile-ext))
 
@@ -297,7 +291,7 @@
       (do
         ; Patch fvar table with current runtime pointers
         (if (not (null? fvars))
-          (let ((lib (%dlopen %cache-path 1)))
+          (let ((lib (ffi-dlopen %cache-path 1)))
             (compile-patch-fvars lib fvars)))
         %cached)
 
@@ -311,13 +305,13 @@
         (compile-cc %src-path %cache-path)
         (guard (_ ()) (File unlink %src-path))
 
-        (def %lib (%dlopen %cache-path 1))
+        (def %lib (ffi-dlopen %cache-path 1))
         (if (null? %lib) (Err raise 'io (%compile-load-failure "compile" %cache-path) ()))
-        (def %fn (%dlsym %lib "fn_0"))
+        (def %fn (ffi-dlsym %lib "fn_0"))
         (if (null? %fn) (Err raise 'io "compile: dlsym failed for fn_0" ()))
         (%type-cast! %fn first)
         (def %type-offset (prim-ref 'type 'offset))
-        (def %prim-type-val (%ptr-ref-word (%cvt first %ptr) %type-offset))
+        (def %prim-type-val (ptr-ref-word (%cvt first %ptr) %type-offset))
         (%patch-nested-prims %lib (first (list (list))) %prim-type-val)
         ; Patch fvar table
         (if (not (null? fvars))
@@ -383,20 +377,20 @@
       (fn (self lib i n acc)
         (if (= i n) (%rev-onto acc ())
           (let ((name (Str append "batch_" (%cvt i %string))))
-            (def %fn (%dlsym lib name))
+            (def %fn (ffi-dlsym lib name))
             (if (null? %fn)
               (Err raise 'io (Str append "compile-batch: dlsym failed for " name) ()))
             (%type-cast! %fn first)
             (self lib (+ i 1) n (pair %fn acc))))))
 
     ; Cache lookup
-    (def %batch-key (%write-to-str exprs))
+    (def %batch-key (io-write-to-str exprs))
     (def %batch-hash (%compile-cache-key %batch-key))
     (def %cache-path (Str append %compile-cache-dir %batch-hash compile-ext))
 
     (if (Sys file-exists? %cache-path)
       ; Cache hit: load and patch fvar table
-      (let ((lib (%dlopen %cache-path 1)))
+      (let ((lib (ffi-dlopen %cache-path 1)))
         (when (not (null? lib))
           (do
             (if (not (null? (compile-fvars)))
@@ -442,7 +436,7 @@
         (compile-cc %src-path %cache-path)
         (guard (_ ()) (File unlink %src-path))
 
-        (def %lib (%dlopen %cache-path 1))
+        (def %lib (ffi-dlopen %cache-path 1))
         (if (null? %lib) (Err raise 'io (%compile-load-failure "compile-batch" %cache-path) ()))
 
         ; Patch fvar table with current runtime pointers

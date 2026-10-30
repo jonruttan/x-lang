@@ -23,19 +23,13 @@
 
 (import x/type/char)
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(def %str-byte-len (prim-ref (lit str) (lit byte-len)))
+(import x/core/doors char->int int->char str-byte-len str-byte-sub type-by-atom type-of type-push-call)
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
-(def %type-of (prim-ref (lit type) (lit of)))
 
-(def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
 ; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
-(def %char->integer (prim-ref (lit char) (lit ->int)))
-(def %integer->char (prim-ref (lit int) (lit ->char)))
 
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
-(def %type-push-call (prim-ref (lit type) (lit push-call)))
 
 (import x/core/list)
 (import x/codec/utf8 utf8-decode utf8-encode utf8-width utf8-cp-at)
@@ -56,9 +50,9 @@
       (def %rev-onto (fn (self l acc)
         (match ((null? l) acc) (#t (self (rest l) (pair (first l) acc))))))
       (bytes->str
-        (%map %integer->char
+        (%map int->char
           (%reverse
-            (%fold (fn (_ acc ch) (%rev-onto (utf8-encode (%char->integer ch)) acc))
+            (%fold (fn (_ acc ch) (%rev-onto (utf8-encode (char->int ch)) acc))
                   () chars)))))))
   (param chars LIST "List of CHARACTERs (Unicode code points)")
   (returns STRING "UTF-8 string encoding each code point")
@@ -71,7 +65,7 @@
       (if (>= i len)
         (%reverse acc)
         (let ((d (utf8-decode s i)))
-          (go (rest d) (pair (%integer->char (first d)) acc)))))))
+          (go (rest d) (pair (int->char (first d)) acc)))))))
   (param s STRING "String to decode")
   (returns LIST "List of CHARACTERs, one per Unicode code point")
   "Decode a UTF-8 string into a list of code-point characters. Inverse of list->str.")
@@ -84,7 +78,7 @@
 ; conses a pair) -- and plain integer recursion, so it allocates no more than
 ; the one result object the byte path already made.
 
-(def %str-type (%type-by-atom (%type-of "x")))
+(def %str-type (type-by-atom (type-of "x")))
 
 ; Byte offset of code-point index k: advance k whole sequences from byte `from`.
 ; Clamps at byte length `len` instead of walking past the end (utf8-width is
@@ -112,11 +106,11 @@
 ; (Str8/StrUtf8 ref) are the coercing doors.
 (def %cp-ref
   (fn (_ s i)
-    (def len (%str-byte-len s))
+    (def len (str-byte-len s))
     (def k (if (null? i) -1 (if (< i 0) (+ i (%cp-count s len 0 0)) i)))
     (def b (if (< k 0) len (%cp-byte-offset s len k 0)))
     (if (< b len)
-      (%integer->char (utf8-cp-at s b))
+      (int->char (utf8-cp-at s b))
       (Err raise (lit index) "str: index out of range" ()))))
 
 ; Clamped like StrUtf8 sub: offsets past the end yield the empty/short slice.
@@ -124,10 +118,10 @@
 ; so a negative k would otherwise clamp at the end and take the whole tail.
 (def %cp-substring
   (fn (_ s start len)
-    (def blen (%str-byte-len s))
+    (def blen (str-byte-len s))
     (def b0 (%cp-byte-offset s blen start 0))
     (def b1 (if (< len 0) b0 (%cp-byte-offset s blen len b0)))
-    (%str-byte-sub s b0 (- b1 b0))))
+    (str-byte-sub s b0 (- b1 b0))))
 
 ; --- push the code-point call handler over the byte default ---
 ; (fn (_ s . vals)): s is the string, vals the (already-evaluated) index args.
@@ -136,7 +130,7 @@
 ; but printer.x loads long before this file and cannot name %cp-count; the
 ; catalogue is the seam it resolves through (it falls back to bytes when this
 ; entry is absent).
-(prim-reg! (lit str) (lit cp-len) (fn (_ s) (%cp-count s (%str-byte-len s) 0 0)))
+(prim-reg! (lit str) (lit cp-len) (fn (_ s) (%cp-count s (str-byte-len s) 0 0)))
 
 ; The two list conversions, published the same way for the files that need
 ; them: char-io, convert and iter.  This file loads before the object system,
@@ -156,7 +150,7 @@
 ; (#\a) reproduce themselves as data -- and a callable head is exactly the case
 ; that has to name what to do.  (Str length s) is the length door, and it says
 ; so; (Str8 length s) is the byte count.
-(%type-push-call %str-type
+(type-push-call %str-type
   (fn (_ s . vals)
     (if (null? vals)
       (error "string: call with no index -- (Str length s) is the length")

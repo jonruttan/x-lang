@@ -3,20 +3,16 @@
 (module x/protocol/str/utf8)
 (import x/protocol/str/str8)
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
-(def %str-byte-len (prim-ref (lit str) (lit byte-len)))
+(import x/core/doors char->int int->char str-byte-len str-byte-sub type-of)
 
 (import x/codec/utf8 utf8-decode utf8-encode utf8-width utf8-seq-len utf8-cp-at)
 ; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
-(def %char->integer (prim-ref (lit char) (lit ->int)))
-(def %integer->char (prim-ref (lit int) (lit ->char)))
 ; The fast index check: an INT passes without a call; (Convert to-int) is
 ; the slow path.
-(def %u8-type-of (prim-ref (lit type) (lit of)))
-(def %u8-int-type (%u8-type-of 0))
+(def %u8-int-type (type-of 0))
 (def %u8->int
   (fn (_ n what)
-    (if (if (null? n) #f (eq? (%u8-type-of n) %u8-int-type)) n (Convert to-int n what))))
+    (if (if (null? n) #f (eq? (type-of n) %u8-int-type)) n (Convert to-int n what))))
 
 
 ; StrUtf8 reinterprets the SAME bytes as Str8, but one whole UTF-8 sequence per
@@ -39,7 +35,7 @@
 (def %u8-byte-offset
   (fn (self s k from)
     (if (= k 0) from
-      (if (< from (%str-byte-len s))
+      (if (< from (str-byte-len s))
         (self s (- k 1) (rest (utf8-decode s from)))
         from))))
 
@@ -64,8 +60,8 @@
         (let ((k (+ j (self count v))))
           (if (< k 0) (Err raise (lit index) "Str ref: index out of range" ()) (self ref k v)))
         (let ((b (%u8-byte-offset v j 0)))
-          (if (< b (%str-byte-len v))
-            (%integer->char (first (utf8-decode v b)))
+          (if (< b (str-byte-len v))
+            (int->char (first (utf8-decode v b)))
             (Err raise (lit index) "Str ref: index out of range" ())))))
 
     (method sub (self (param start INTEGER "Start code-point offset (0-based)") (param len INTEGER "Number of code points") (param v STRING "Source string"))
@@ -79,14 +75,14 @@
       (Str8 %check v "Str sub: not a string")
       (def b0 (%u8-byte-offset v st2 0))
       (def b1 (%u8-byte-offset v len2 b0))
-      (%str-byte-sub v b0 (- b1 b0)))
+      (str-byte-sub v b0 (- b1 b0)))
 
     (method step (self (param cur INTEGER "Current byte offset of the cursor") (param v STRING "String being traversed"))
       (doc "Cursor step: decode one UTF-8 sequence at byte offset cur, yielding (CODE-POINT . next-byte-offset)."
         (returns PAIR "Pair of the decoded code point (CHARACTER) and the next byte offset")
         (example "(StrUtf8 step 1 \"$¢\")" "(#\\¢ . 3)"))
       (let ((d (utf8-decode v cur)))
-        (pair (%integer->char (first d)) (rest d))))
+        (pair (int->char (first d)) (rest d))))
 
     ; encode: a code point -> its UTF-8 bytes (inverse of step)
     ; --- search translations (#332): the byte doors inherited from
@@ -98,7 +94,7 @@
         (if (>= b bpos) i
           (go (+ b (self width s b)) (+ i 1)))))
     (method %cp->byte (self k s)
-      (def n (%str-byte-len s))
+      (def n (str-byte-len s))
       (let go ((i 0) (b 0))
         (if (>= i k) b
           (if (>= b n) b
@@ -116,7 +112,7 @@
       (doc "Encode one CODE POINT to its 1-4 UTF-8 bytes (inverse of step)."
         (returns LIST "List of the UTF-8 byte values (integers) for el")
         (example "(StrUtf8 char->bytes (Char from-int 162))" "(194 162)"))
-      (utf8-encode (%char->integer el)))
+      (utf8-encode (char->int el)))
 
     ; --- The byte <-> code-point codec (x/codec/utf8 surfaces here) ---
     (method seq-len (self (param b INTEGER "Lead byte value (0-255)"))

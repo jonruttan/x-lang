@@ -13,7 +13,7 @@
 ; from one form to the next.
 (module x/repl/batch)
 
-(def %batch-same? (prim-ref (lit obj) (lit same?)))
+(import x/core/doors obj-same? str-append)
 (def %batch-error-file (prim-ref (lit io) (lit error-file)))
 
 ; The prefix for a raise while a form evaluates: the file and line when the
@@ -26,7 +26,7 @@
 
 (def %batch-report
   (fn (_ prefix err)
-    (%stderr (%str-append prefix
+    (%stderr (str-append prefix
       (if (str? err) err (Str8 str err))))
     (%stderr "\n")
     (Sys exit 1)))
@@ -38,7 +38,7 @@
     ; no form was being evaluated, so the location cells hold whatever the
     ; last evaluation left and a file:line here would lie, as repl notes.
     (let ((form (guard (err (%batch-report "Error: " err)) (%repl-read))))
-      (if (%batch-same? form %token-eof)
+      (if (obj-same? form %token-eof)
         ()
         (do
           (guard (err (%batch-report (%batch-prefix) err)) (eval! form))

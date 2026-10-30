@@ -22,9 +22,9 @@ whatever an earlier run left in /tmp.
   (import x/tool/asm-cache)
   (import x/type/hash)
   (def %lp-ac (fn (_ name) (eval name (module x/tool/asm-cache))))
-  (def %lp-pcall (%lp-ac (lit %asm-cache-pcall)))
-  (def %lp-sym (fn (_ name) ((%lp-ac (lit %asm-cache-dlsym)) (%lp-ac (lit %asm-cache-lib)) name)))
-  (def %lp-dir (Str append "/tmp/lexer-plan-" ((%lp-ac (lit %asm-cache-wts)) (Sys getpid))))
+  (def %lp-pcall (%lp-ac (lit ptr-call)))
+  (def %lp-sym (fn (_ name) ((%lp-ac (lit ffi-dlsym)) (%lp-ac (lit %asm-cache-lib)) name)))
+  (def %lp-dir (Str append "/tmp/lexer-plan-" ((%lp-ac (lit io-write-to-str)) (Sys getpid))))
   (%lp-pcall (%lp-sym "mkdir") %lp-dir 448)
   (Sys setenv "X_ASM_CACHE_DIR" %lp-dir)
   (def %lp-rules

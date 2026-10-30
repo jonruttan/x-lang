@@ -32,14 +32,7 @@
 
 (import x/tool/jit-group jit-group)
 
-(def %sj-make-str (prim-ref (lit str) (lit make)))
-(def %sj-str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %sj-ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %sj-pset (prim-ref (lit ptr) (lit set-word!)))
-(def %sj-pref (prim-ref (lit ptr) (lit ref-word)))
-(def %sj-int->ptr (prim-ref (lit int) (lit ->ptr)))
-(def %sj-mem-copy (prim-ref (lit mem) (lit copy)))
-(def %sj-oref (prim-ref (lit obj) (lit ref)))
+(import x/core/doors int->ptr mem-copy obj-ref ptr->int ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make)
 (def %sj-M 4294967295)
 
 ; scratch layout, one 1024-byte buffer (words):
@@ -276,19 +269,19 @@
     ; (the compiler also collects periodically DURING the build); a replay
     ; compiled nothing and skips the collect, which marks the whole heap
     (unless replayed? (Heap collect))
-    (def %buf (%sj-make-str 1024))
-    (def %ptr (%sj-str->ptr %buf))
-    (def %addr (%sj-ptr->int %ptr))
-    (def %poke (fn (_ i v) (%sj-pset %ptr (* i 8) v)))
-    (def %peek (fn (_ i) (%sj-pref %ptr (* i 8))))
+    (def %buf (str-make 1024))
+    (def %ptr (str->ptr %buf))
+    (def %addr (ptr->int %ptr))
+    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i 8) v)))
+    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i 8))))
     (List for-each (fn (_ sw) (%poke (first sw) (rest sw))) preload)
     ; the initial H preset once at slot %sj-IB, so a digest starts H with
     ; one copy rather than a poke a word
     ((fn (self i hs)
        (unless (null? hs)
          (do (%poke (+ %sj-IB i) (first hs)) (self (+ i 1) (rest hs))))) 0 ih)
-    (def %h-ptr (%sj-int->ptr (+ %addr (* 8 %sj-HB))))
-    (def %ih-ptr (%sj-int->ptr (+ %addr (* 8 %sj-IB))))
+    (def %h-ptr (int->ptr (+ %addr (* 8 %sj-HB))))
+    (def %ih-ptr (int->ptr (+ %addr (* 8 %sj-IB))))
     (def %ih-bytes (* 8 (List length ih)))
     (def %last (- (List length ih) 1))
     (def %disagrees (Str8 append label "-jit: engine disagrees with the pure-x digest"))
@@ -304,10 +297,10 @@
         (def len (match ((null? more) (Str8 length s)) (#t (first more))))
         (def out (match ((null? more) ()) ((null? (rest more)) ()) (#t (first (rest more)))))
         (def total (<< (+ (>> (+ len 8) 6) 1) 6))
-        (def maddr (%sj-ptr->int (%sj-str->ptr s)))
+        (def maddr (ptr->int (str->ptr s)))
         (%poke 27 len)
         (%poke 28 total)
-        (%sj-mem-copy %h-ptr %ih-ptr %ih-bytes)
+        (mem-copy %h-ptr %ih-ptr %ih-bytes)
         ((fn (self b)
            (unless (= b total)
              (do
@@ -327,7 +320,7 @@
           ((fn (self i acc)
              (if (< i 0) acc
                (self (- i 1) (pair (%peek (+ %sj-HB i)) acc)))) %last ())
-          (do (%emit %addr (%sj-ptr->int (%sj-str->ptr out)) 0) out))))
+          (do (%emit %addr (ptr->int (str->ptr out)) 0) out))))
     ; the differential check: FIPS vectors + a 3-block input that lands
     ; padding in a block of its own.  Any disagreement is a raise; an
     ; engine that cannot prove itself is not an engine.
@@ -357,32 +350,30 @@
         ; "A\0B\0C" -- NULs INSIDE, so Str8 length reports 1 and the region is 5.
         ; Built through the pointer door because every string constructor that
         ; takes text stops at the NUL too.
-        (def %sj-pset1 (prim-ref (lit ptr) (lit set!)))
         (def %sj-bin
-          (let ((r (%sj-make-str 5)))
-            (let ((p (%sj-str->ptr r)))
-              (do (%sj-pset1 p 0 65 1) (%sj-pset1 p 1 0 1) (%sj-pset1 p 2 66 1)
-                  (%sj-pset1 p 3 0 1)  (%sj-pset1 p 4 67 1)
+          (let ((r (str-make 5)))
+            (let ((p (str->ptr r)))
+              (do (ptr-set! p 0 65 1) (ptr-set! p 1 0 1) (ptr-set! p 2 66 1)
+                  (ptr-set! p 3 0 1)  (ptr-set! p 4 67 1)
                   r))))
         (%check-n %sj-bin 5)
         ; A binary block that crosses the 64-byte boundary, so the fill and the
         ; padding path see NULs too, not just the single-block case.
         (def %sj-bin2
-          (let ((r (%sj-make-str 200)))
-            (let ((p (%sj-str->ptr r)))
+          (let ((r (str-make 200)))
+            (let ((p (str->ptr r)))
               (do ((fn (self i)
                      (unless (= i 200)
-                       (do (%sj-pset1 p i (& i 255) 1) (self (+ i 1))))) 0)
+                       (do (ptr-set! p i (& i 255) 1) (self (+ i 1))))) 0)
                   r))))
         (%check-n %sj-bin2 200)
         ; the door that writes the bytes: the same digest, byte for byte,
         ; each four read back as the host's little-endian word
-        (def %sj-pref4 (prim-ref (lit ptr) (lit ref)))
-        (def %sj-out (%sj-make-str 65))
+        (def %sj-out (str-make 65))
         (%digest %sj-bin2 200 %sj-out)
         ((fn (self i ws)
            (unless (null? ws)
-             (do (unless (= (%sj-pref4 (%sj-str->ptr %sj-out) i 4)
+             (do (unless (= (ptr-ref (str->ptr %sj-out) i 4)
                             (if big?
                               (| (| (<< (& (first ws) 255) 24) (<< (& (>> (first ws) 8) 255) 16))
                                  (| (<< (& (>> (first ws) 16) 255) 8) (& (>> (first ws) 24) 255)))
@@ -398,7 +389,7 @@
     (%sj-make "sha256" %sj-rounds-expr %sj-fill-expr #t
       ((fn (self i acc)
          (if (< i 0) acc
-           (self (- i 1) (pair (pair (+ %sj-KB i) (%sj-oref k-vec (+ i 1))) acc))))
+           (self (- i 1) (pair (pair (+ %sj-KB i) (obj-ref k-vec (+ i 1))) acc))))
        63 ())
       ih ref)))
 
@@ -414,11 +405,11 @@
       (List append
         ((fn (self i acc)
            (if (< i 0) acc
-             (self (- i 1) (pair (pair (+ %sj-KB i) (%sj-oref k-vec (+ i 1))) acc))))
+             (self (- i 1) (pair (pair (+ %sj-KB i) (obj-ref k-vec (+ i 1))) acc))))
          63 ())
         ((fn (self i acc)
            (if (< i 0) acc
-             (self (- i 1) (pair (pair (+ %sj5-RB i) (%sj-oref r-vec (+ i 1))) acc))))
+             (self (- i 1) (pair (pair (+ %sj5-RB i) (obj-ref r-vec (+ i 1))) acc))))
          15 ()))
       ih ref)))
 

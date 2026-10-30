@@ -15,32 +15,18 @@
 
 (import x/type/vector)
 
-(def %add (prim-ref (lit int) (lit +)))
-(def %sub (prim-ref (lit int) (lit -)))
-(def %oref (prim-ref (lit obj) (lit ref)))
-(def %oset! (prim-ref (lit obj) (lit set!)))
-(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %char->int (prim-ref (lit char) (lit ->int)))
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %pset1 (prim-ref (lit ptr) (lit set!)))
+(import x/core/doors char->int int& int+ int- int< int<< int= int>> int| obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
 ; The bit operations through the int doors, as chacha20.x's: there is no
 ; int xor, so a ^ b is (a | b) - (a & b).
-(def %and (prim-ref (lit int) (lit &)))
-(def %or (prim-ref (lit int) (lit |)))
-(def %shl (prim-ref (lit int) (lit <<)))
-(def %shr (prim-ref (lit int) (lit >>)))
-(def %eq (prim-ref (lit int) (lit =)))
-(def %lt (prim-ref (lit int) (lit <)))
-(def %xor (fn (_ a b) (%sub (%or a b) (%and a b))))
+(def %xor (fn (_ a b) (int- (int| a b) (int& a b))))
 
-(def %byte (fn (_ s i) (%char->int (%byte-ref s i))))
+(def %byte (fn (_ s i) (char->int (str-byte-ref s i))))
 
 ; The S-box (FIPS 197 5.1.1), byte k in slot k+1.
 (def %sbox
   ((fn (_ bs)
      (def v (Vector make 256 0))
-     ((fn (self i bs) (unless (null? bs) (do (%oset! v i (first bs)) (self (%add i 1) (rest bs))))) 1 bs)
+     ((fn (self i bs) (unless (null? bs) (do (obj-set! v i (first bs)) (self (int+ i 1) (rest bs))))) 1 bs)
      v)
    (list
      99 124 119 123 242 107 111 197 48 1 103 43 254 215 171 118
@@ -60,40 +46,40 @@
      225 248 152 17 105 217 142 148 155 30 135 233 206 85 40 223
      140 161 137 13 191 230 66 104 65 153 45 15 176 84 187 22)))
 
-(def %sub-byte (fn (_ b) (%oref %sbox (%add b 1))))
+(def %sub-byte (fn (_ b) (obj-ref %sbox (int+ b 1))))
 
 ; Multiplication by x in GF(2^8), the field's polynomial 0x11b.
-(def %xtime (fn (_ a) (%xor (%and (%shl a 1) 255) (if (%eq (%and a 128) 0) 0 27))))
+(def %xtime (fn (_ a) (%xor (int& (int<< a 1) 255) (if (int= (int& a 128) 0) 0 27))))
 
 ; The key schedule (5.2) as round-key bytes: 16 a round, Nr+1 rounds, byte
 ; k in slot k+1.  Nk is the key's words, 4, 6 or 8; Nr is Nk+6.  Word i
 ; is bytes 4i..4i+3, and k is i's place among each Nk words.
 (def %schedule
   (fn (_ key size)
-    (def nk (if (%eq size 16) 4 (if (%eq size 24) 6 8)))
-    (def total (%shl (%add nk 7) 4))
+    (def nk (if (int= size 16) 4 (if (int= size 24) 6 8)))
+    (def total (int<< (int+ nk 7) 4))
     (def w (Vector make total 0))
-    ((fn (self i) (unless (%eq i size) (do (%oset! w (%add i 1) (%byte key i)) (self (%add i 1))))) 0)
+    ((fn (self i) (unless (int= i size) (do (obj-set! w (int+ i 1) (%byte key i)) (self (int+ i 1))))) 0)
     ; temp's four bytes for word i: word i-1, rotated, substituted and
     ; given Rcon at the start of each Nk words, substituted alone at the
     ; fourth word of an AES-256 key's eight
     ((fn (self i k rcon)
-       (unless (%eq (%shl i 2) total)
-         (do (def at (fn (_ j) (%oref w (%add (%shl (%sub i 1) 2) (%add j 1)))))
+       (unless (int= (int<< i 2) total)
+         (do (def at (fn (_ j) (obj-ref w (int+ (int<< (int- i 1) 2) (int+ j 1)))))
              (def t
                (match
-                 ((%eq k 0) (list (%xor (%sub-byte (at 1)) rcon) (%sub-byte (at 2)) (%sub-byte (at 3)) (%sub-byte (at 0))))
-                 ((if (%eq nk 8) (%eq k 4) #f) (list (%sub-byte (at 0)) (%sub-byte (at 1)) (%sub-byte (at 2)) (%sub-byte (at 3))))
+                 ((int= k 0) (list (%xor (%sub-byte (at 1)) rcon) (%sub-byte (at 2)) (%sub-byte (at 3)) (%sub-byte (at 0))))
+                 ((if (int= nk 8) (int= k 4) #f) (list (%sub-byte (at 0)) (%sub-byte (at 1)) (%sub-byte (at 2)) (%sub-byte (at 3))))
                  (#t (list (at 0) (at 1) (at 2) (at 3)))))
              ((fn (self j t)
                 (unless (null? t)
-                  (do (%oset! w (%add (%shl i 2) (%add j 1))
-                        (%xor (%oref w (%add (%shl (%sub i nk) 2) (%add j 1))) (first t)))
-                      (self (%add j 1) (rest t)))))
+                  (do (obj-set! w (int+ (int<< i 2) (int+ j 1))
+                        (%xor (obj-ref w (int+ (int<< (int- i nk) 2) (int+ j 1))) (first t)))
+                      (self (int+ j 1) (rest t)))))
               0 t)
-             (self (%add i 1) (if (%eq (%add k 1) nk) 0 (%add k 1)) (if (%eq k 0) (%xtime rcon) rcon)))))
+             (self (int+ i 1) (if (int= (int+ k 1) nk) 0 (int+ k 1)) (if (int= k 0) (%xtime rcon) rcon)))))
      nk 0 1)
-    (pair w (%add nk 6))))
+    (pair w (int+ nk 6))))
 
 ; One block (5.1): the 16 bytes at s[start..] encrypted under the schedule
 ; into slots 1..16 of st, column-major as the input lays them.
@@ -103,60 +89,60 @@
     (def nr (rest ks))
     (def add-key!
       (fn (self round i)
-        (unless (%eq i 16)
-          (do (%oset! st (%add i 1) (%xor (%oref st (%add i 1)) (%oref w (%add (%shl round 4) (%add i 1)))))
-              (self round (%add i 1))))))
+        (unless (int= i 16)
+          (do (obj-set! st (int+ i 1) (%xor (obj-ref st (int+ i 1)) (obj-ref w (int+ (int<< round 4) (int+ i 1)))))
+              (self round (int+ i 1))))))
     ; SubBytes and ShiftRows: row r of column c from column c+r
     (def sub-shift!
       (fn (self i)
-        (if (%eq i 16)
-          ((fn (self i) (unless (%eq i 17) (do (%oset! st i (%oref t i)) (self (%add i 1))))) 1)
-          (do (def r (%and i 3))
-              (def c (%and (%add (%shr i 2) r) 3))
-              (%oset! t (%add i 1) (%sub-byte (%oref st (%add r (%add (%shl c 2) 1)))))
-              (self (%add i 1))))))
+        (if (int= i 16)
+          ((fn (self i) (unless (int= i 17) (do (obj-set! st i (obj-ref t i)) (self (int+ i 1))))) 1)
+          (do (def r (int& i 3))
+              (def c (int& (int+ (int>> i 2) r) 3))
+              (obj-set! t (int+ i 1) (%sub-byte (obj-ref st (int+ r (int+ (int<< c 2) 1)))))
+              (self (int+ i 1))))))
     (def mix!
       (fn (self c)
-        (unless (%eq c 4)
-          (do (def at (%add (%shl c 2) 1))
-              (def a0 (%oref st at)) (def a1 (%oref st (%add at 1)))
-              (def a2 (%oref st (%add at 2))) (def a3 (%oref st (%add at 3)))
+        (unless (int= c 4)
+          (do (def at (int+ (int<< c 2) 1))
+              (def a0 (obj-ref st at)) (def a1 (obj-ref st (int+ at 1)))
+              (def a2 (obj-ref st (int+ at 2))) (def a3 (obj-ref st (int+ at 3)))
               (def all (%xor (%xor a0 a1) (%xor a2 a3)))
               ; b_i = a_i ^ all ^ xtime(a_i ^ a_(i+1))
-              (%oset! st at (%xor (%xor a0 all) (%xtime (%xor a0 a1))))
-              (%oset! st (%add at 1) (%xor (%xor a1 all) (%xtime (%xor a1 a2))))
-              (%oset! st (%add at 2) (%xor (%xor a2 all) (%xtime (%xor a2 a3))))
-              (%oset! st (%add at 3) (%xor (%xor a3 all) (%xtime (%xor a3 a0))))
-              (self (%add c 1))))))
-    ((fn (self i) (unless (%eq i 16) (do (%oset! st (%add i 1) (%byte s (%add start i))) (self (%add i 1))))) 0)
+              (obj-set! st at (%xor (%xor a0 all) (%xtime (%xor a0 a1))))
+              (obj-set! st (int+ at 1) (%xor (%xor a1 all) (%xtime (%xor a1 a2))))
+              (obj-set! st (int+ at 2) (%xor (%xor a2 all) (%xtime (%xor a2 a3))))
+              (obj-set! st (int+ at 3) (%xor (%xor a3 all) (%xtime (%xor a3 a0))))
+              (self (int+ c 1))))))
+    ((fn (self i) (unless (int= i 16) (do (obj-set! st (int+ i 1) (%byte s (int+ start i))) (self (int+ i 1))))) 0)
     (add-key! 0 0)
     ((fn (self round)
-       (if (%eq round nr)
+       (if (int= round nr)
          (do (sub-shift! 0) (add-key! round 0))
-         (do (sub-shift! 0) (mix! 0) (add-key! round 0) (self (%add round 1)))))
+         (do (sub-shift! 0) (mix! 0) (add-key! round 0) (self (int+ round 1)))))
      1)))
 
 ; The 16 slots as a fresh string.
 (def %block-string
   (fn (_ st)
-    (def out (%make-str 16))
-    (def p (%str->ptr out))
-    ((fn (self i) (unless (%eq i 16) (do (%pset1 p i (%oref st (%add i 1)) 1) (self (%add i 1))))) 0)
+    (def out (str-make 16))
+    (def p (str->ptr out))
+    ((fn (self i) (unless (int= i 16) (do (ptr-set! p i (obj-ref st (int+ i 1)) 1) (self (int+ i 1))))) 0)
     out))
 
 ; The counter block plus one, big-endian across all 16 bytes, in place.
 (def %bump!
   (fn (_ ctr p)
     ((fn (self i)
-       (unless (%lt i 0)
-         (do (def b (%and (%add (%byte ctr i) 1) 255))
-             (%pset1 p i b 1)
-             (when (%eq b 0) (self (%sub i 1))))))
+       (unless (int< i 0)
+         (do (def b (int& (int+ (%byte ctr i) 1) 255))
+             (ptr-set! p i b 1)
+             (when (int= b 0) (self (int- i 1))))))
      15)))
 
 (def %check-size
   (fn (_ size)
-    (unless (if (%eq size 16) #t (if (%eq size 24) #t (%eq size 32)))
+    (unless (if (int= size 16) #t (if (int= size 24) #t (int= size 32)))
       (Err raise 'value "Aes: the key must be 16, 24 or 32 bytes" size))))
 
 ; The optional region: all of s, measured to its first NUL, when absent.
@@ -190,21 +176,21 @@
       (def ks (%schedule key size))
       (def st (Vector make 16 0))
       (def t (Vector make 16 0))
-      (def ctr (%make-str 16))
-      (def cp (%str->ptr ctr))
-      ((fn (self i) (unless (%eq i 16) (do (%pset1 cp i (%byte iv i) 1) (self (%add i 1))))) 0)
-      (def out (%make-str len))
-      (def p (%str->ptr out))
+      (def ctr (str-make 16))
+      (def cp (str->ptr ctr))
+      ((fn (self i) (unless (int= i 16) (do (ptr-set! cp i (%byte iv i) 1) (self (int+ i 1))))) 0)
+      (def out (str-make len))
+      (def p (str->ptr out))
       ((fn (self pos)
-         (when (%lt pos len)
+         (when (int< pos len)
            (do (%encrypt! ks st t ctr 0)
                ((fn (self i)
-                  (unless (if (%eq i 16) #t (%eq (%add pos i) len))
-                    (do (%pset1 p (%add pos i) (%xor (%byte s (%add start (%add pos i))) (%oref st (%add i 1))) 1)
-                        (self (%add i 1)))))
+                  (unless (if (int= i 16) #t (int= (int+ pos i) len))
+                    (do (ptr-set! p (int+ pos i) (%xor (%byte s (int+ start (int+ pos i))) (obj-ref st (int+ i 1))) 1)
+                        (self (int+ i 1)))))
                 0)
                (%bump! ctr cp)
-               (self (%add pos 16)))))
+               (self (int+ pos 16)))))
        0)
       out)))
 

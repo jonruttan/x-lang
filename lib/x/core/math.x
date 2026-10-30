@@ -8,10 +8,7 @@
 
 ; The binary integer primitives, fetched from the catalogue: the C operators as
 ; they were before core/arithmetic.x wrapped the bare names.
-(def %int+ (prim-ref (lit int) (lit +)))
-(def %int/ (prim-ref (lit int) (lit /)))
-(def %int% (prim-ref (lit int) (lit %)))
-(def %int< (prim-ref (lit int) (lit <)))
+(import x/core/doors int% int+ int/ int< type-by-atom type-of type-push-call)
 (import x/type/class)
 
 ; The floored modulo from r, the truncated remainder by b.  r already has the
@@ -22,13 +19,12 @@
   (fn (_ r b)
     (match
       ((eq? r 0) r)
-      ((eq? (%int< r 0) (%int< b 0)) r)
-      (#t (%int+ r b)))))
+      ((eq? (int< r 0) (int< b 0)) r)
+      (#t (int+ r b)))))
 
 ; The machine-INT type handle, for (Num int?) and the N5 count/index guards.
 ; Type handles are C-static atoms, so the eq? compare is pointer-stable.
-(def %num-type-of (prim-ref (lit type) (lit of)))
-(def %num-int-type (%num-type-of 0))
+(def %num-int-type (type-of 0))
 
 (def-class Num ()
   (static
@@ -36,7 +32,7 @@
       (doc "Test whether x is a machine INT -- the base integer type. Floats, rationals, bigints, booleans, and nil are not (N5: counts and indexes are machine INTs)."
         (returns BOOL "#t only for machine integers")
         (example "(list (Num int? 3) (Num int? ()))" "(#t #f)"))
-      (if (null? x) #f (eq? (%num-type-of x) %num-int-type)))
+      (if (null? x) #f (eq? (type-of x) %num-int-type)))
     ; --- Arithmetic ---
     (method inc (self (param n NUMBER "Number to increment"))
       (doc "Add one to a number." (returns NUMBER "n + 1"))
@@ -64,7 +60,7 @@
         (if (null? (rest more))
           (if (> (first more) a) (first more) a)   ; binary fast path
           (%fold (fn (_ m x) (if (> x m) x m)) a more))))
-    ; The C prims under %int/ and %int% test nothing: x86-64 traps on a zero
+    ; The C prims under int/ and int% test nothing: x86-64 traps on a zero
     ; divisor and on LONG_MIN / -1, where arm64 answers both.  So a zero
     ; divisor raises here, and -1 never reaches them.  The quotient is the
     ; public negation, which promotes LONG_MIN under the tower and wraps it
@@ -76,35 +72,35 @@
       (match
         ((eq? b 0) (Err raise (lit value) "Num quotient: division by zero" b))
         ((eq? b -1) (- 0 a))
-        (#t (%int/ a b))))
+        (#t (int/ a b))))
     (method remainder (self (param a INTEGER "Dividend") (param b INTEGER "Divisor"))
       (doc "Truncating remainder (the dividend's sign) -- the pair of quotient; identical to % on integers.  A zero divisor raises." (returns INTEGER "a - b*trunc(a/b)")
         (example "(Num remainder -7 2)" "-1"))
       (match
         ((eq? b 0) (Err raise (lit value) "Num remainder: division by zero" b))
-        ((eq? b -1) (%int% a 1))
-        (#t (%int% a b))))
+        ((eq? b -1) (int% a 1))
+        (#t (int% a b))))
     (method modulo (self (param a INTEGER "Dividend") (param b INTEGER "Divisor"))
       (doc "Floored modulo: the result takes the DIVISOR's sign -- (Num modulo -7 3) is 2 where % gives -1.  A zero divisor raises." (returns INTEGER "a - b*floor(a/b)")
         (example "(Num modulo -7 3)" "2"))
       (match
         ((eq? b 0) (Err raise (lit value) "Num modulo: division by zero" b))
-        ((eq? b -1) (%num-floor-mod (%int% a 1) b))
-        (#t (%num-floor-mod (%int% a b) b))))
+        ((eq? b -1) (%num-floor-mod (int% a 1) b))
+        (#t (%num-floor-mod (int% a b) b))))
     (method divmod (self (param a INTEGER "Dividend") (param b INTEGER "Divisor"))
       (doc "Truncating quotient and remainder together.  A zero divisor raises." (returns LIST "(quotient remainder)")
         (example "(Num divmod 7 2)" "(3 1)"))
       (match
         ((eq? b 0) (Err raise (lit value) "Num divmod: division by zero" b))
-        ((eq? b -1) (list (- 0 a) (%int% a 1)))
-        (#t (list (%int/ a b) (%int% a b)))))
+        ((eq? b -1) (list (- 0 a) (int% a 1)))
+        (#t (list (int/ a b) (int% a b)))))
     (method isqrt (self (param n INTEGER "Non-negative integer"))
       (doc "Integer square root: the largest k with k*k <= n (Newton's method); errors on a negative input." (returns INTEGER "floor(sqrt(n))")
         (example "(Num isqrt 99)" "9"))
       (if (< n 0) (Err raise (lit value) "Num isqrt: negative input" ())
         (if (< n 2) n
           (let go ((x n))
-            (let ((y (%int/ (%int+ x (%int/ n x)) 2)))
+            (let ((y (int/ (int+ x (int/ n x)) 2)))
               (if (< y x) (go y) x))))))
     (method clamp (self (param lo NUMBER "Lower bound") (param hi NUMBER "Upper bound")
                         (param n NUMBER "Value to clamp"))
@@ -175,10 +171,7 @@
 
 ; Value dispatch (subject-last): an integer calls Num's static methods --
 ; (6 even?) -> (Num even? 6); (12 gcd 8) -> (Num gcd 12 8).
-(def %type-of (prim-ref (lit type) (lit of)))
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
-(def %type-push-call (prim-ref (lit type) (lit push-call)))
-(%type-push-call (%type-by-atom (%type-of 0)) (class-call-handler Num))
+(type-push-call (type-by-atom (type-of 0)) (class-call-handler Num))
 
 (doc (provide x/core/math Num)
   (example "(Num clamp 0 10 15)" "10")

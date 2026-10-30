@@ -37,6 +37,7 @@
 (import x/net/tls)
 (import x/codec/base64)   ; basic-auth's credential encoding (#412)
 (import x/type/record)
+(import x/core/doors char->int int->ptr ptr->int ptr-call str->ptr str-byte-len str-byte-ref str-make)
 
 ; A response being read: its transport (a Tls session, a socket fd, or a
 ; list of runs read in turn), the bytes read but not yet handed out -- buf's
@@ -137,18 +138,13 @@
                             (param m INTEGER "How many of its bytes, from its start"))
       (doc "A new run of a's n bytes from off followed by b's first m, copied by libc's memcpy: NUL bytes and all, a few objects whatever the size."
         (returns PAIR "(STRING . n+m)"))
-      (def %call (prim-ref (lit ptr) (lit call)))
-      (def %make-str (prim-ref (lit str) (lit make)))
-      (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-      (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
-      (def %int->ptr (prim-ref (lit int) (lit ->ptr)))
       (def memcpy ((prim-ref (lit ffi) (lit dlsym)) ((prim-ref (lit ffi) (lit dlopen)) () 1) "memcpy"))
-      (def out (%make-str (if (< (+ n m) 1) 1 (+ n m))))
-      (def at (%ptr->int (%str->ptr out)))
+      (def out (str-make (if (< (+ n m) 1) 1 (+ n m))))
+      (def at (ptr->int (str->ptr out)))
       (when (> n 0)
-        (%call memcpy (%int->ptr at) (%int->ptr (+ (%ptr->int (%str->ptr a)) off)) n))
+        (ptr-call memcpy (int->ptr at) (int->ptr (+ (ptr->int (str->ptr a)) off)) n))
       (when (> m 0)
-        (%call memcpy (%int->ptr (+ at n)) (%str->ptr b) m))
+        (ptr-call memcpy (int->ptr (+ at n)) (str->ptr b) m))
       (pair out (+ n m)))
 
     (method %run-copy (self (param buf STRING "A run's buffer")
@@ -161,10 +157,8 @@
     (method %run->bytes (self (param r PAIR "A run, (STRING . COUNT)"))
       (doc "A run's bytes as a byte list, the carrier request and %parse-response answer with."
         (returns LIST "The bytes, 0-255 each"))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
       (let go ((i (- (rest r) 1)) (acc ()))
-        (if (< i 0) acc (go (- i 1) (pair (& (%c->i (%bref (first r) i)) 255) acc)))))
+        (if (< i 0) acc (go (- i 1) (pair (& (char->int (str-byte-ref (first r) i)) 255) acc)))))
 
     (method %recv (self (param s OBJECT "An HttpStream"))
       (doc "One read off the stream's transport: the Tls session, the socket, or the next of its pieces."
@@ -191,13 +185,11 @@
     (method %line (self (param s OBJECT "An HttpStream"))
       (doc "The next CRLF-terminated line as a string, consumed through the CRLF. An empty line answers \"\"; input that ends before a CRLF answers #f and leaves the partial line buffered."
         (returns ANY "STRING, or #f at end of input"))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
       (let scan ((i (s off)))
         (match
           ((>= (+ i 1) (s end))
             (if (Http %fill s) (scan (s off)) #f))
-          ((if (= (%c->i (%bref (s buf) i)) 13) (= (%c->i (%bref (s buf) (+ i 1))) 10) #f)
+          ((if (= (char->int (str-byte-ref (s buf) i)) 13) (= (char->int (str-byte-ref (s buf) (+ i 1))) 10) #f)
             ; a line is short and read as text: a string of its own
             (let ((line (bytes->str (Http %run->bytes (Http %run-copy (s buf) (s off) (- i (s off)))))))
               (do (s off (+ i 2)) line)))
@@ -225,11 +217,9 @@
     (method %chunk-size (self (param line STRING "A chunk-size line, without its CRLF"))
       (doc "The hex size that opens the line; a chunk extension (\";...\") after it is ignored. A line with no leading hex digit raises a label 'value."
         (returns INTEGER "The chunk's size"))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
       (def len (Str8 length line))
       (let go ((i 0) (n 0) (any #f))
-        (def v (if (>= i len) -1 (Http %hex-nibble (%c->i (%bref line i)))))
+        (def v (if (>= i len) -1 (Http %hex-nibble (char->int (str-byte-ref line i)))))
         (match
           ((>= v 0) (go (+ i 1) (+ (* 16 n) v) #t))
           (any n)
@@ -373,15 +363,12 @@
     (method %quad? (self (param host STRING "Host text"))
       (doc "Is this a dotted quad already (digits and dots only)? Names go through (Socket resolve)."
         (returns BOOL "#t for dotted-quad text"))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
-      (def n (%blen host))
+      (def n (str-byte-len host))
       (let go ((i 0))
         (match
           ((= i n) (> n 0))
           (#t
-            (let ((c (%c->i (%bref host i))))
+            (let ((c (char->int (str-byte-ref host i))))
               (if (or (= c 46) (if (>= c 48) (<= c 57) #f))
                 (go (+ i 1))
                 #f))))))
@@ -390,23 +377,20 @@
       (doc "Percent-encode for urls: unreserved bytes (A-Z a-z 0-9 - _ . ~) pass through, everything else becomes %XX uppercase (#412)."
         (returns STRING "The encoded text")
         (example "(Http url-encode \"a b&c=d\")" "\"a%20b%26c%3Dd\""))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
       (def %hex (fn (_ v) (if (< v 10) (+ 48 v) (+ 55 v))))
       (def %plain? (fn (_ c)
         (or (if (>= c 65) (<= c 90) #f)
             (or (if (>= c 97) (<= c 122) #f)
                 (or (if (>= c 48) (<= c 57) #f)
                     (or (= c 45) (or (= c 95) (or (= c 46) (= c 126)))))))))
-      (def n (%blen s))
+      (def n (str-byte-len s))
       (bytes->str
         (%reverse
           (let go ((i 0) (acc ()))
             (match
               ((= i n) acc)
               (#t
-                (let ((c (%c->i (%bref s i))))
+                (let ((c (char->int (str-byte-ref s i))))
                   (go (+ i 1)
                       (if (%plain? c) (pair c acc)
                         (pair (%hex (& c 15)) (pair (%hex (>> c 4)) (pair 37 acc))))))))))))

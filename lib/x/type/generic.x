@@ -29,14 +29,7 @@
 
 (module x/type/generic)
 (import x/type/class)
-(def %g-str-append (prim-ref (lit str) (lit append)))
-(def %g-display-str (prim-ref (lit io) (lit display-to-str)))
-(def %g-make-type (prim-ref (lit type) (lit make)))
-(def %g-make-instance (prim-ref (lit type) (lit make-instance)))
-(def %g-type? (prim-ref (lit type) (lit ?)))
-(def %g-type-of (prim-ref (lit type) (lit of)))
-(def %g-type-by-atom (prim-ref (lit type) (lit by-atom)))
-(def %g-from-cell (prim-ref (lit type) (lit from-cell)))
+(import x/core/doors io-display-to-str str-append type-by-atom type-from-cell type-make type-make-instance type-of type?)
 
 ; The wildcard's distance: any real match beats it, and two wildcards tie.
 (def %g-wild 999999)
@@ -54,7 +47,7 @@
               ((null? c) ())
               ((same? c key) n)
               (#t (walk (class-parent c) (+ n 1)))))))
-      (#t (when (eq? (%g-type-of arg) key) 0)))))
+      (#t (when (eq? (type-of arg) key) 0)))))
 
 ; Score a method record's signature against the args: the per-position
 ; distance list, or nil when any position misses or the arity differs.
@@ -91,9 +84,9 @@
 (def %g-absorbs?
   (fn (_ k1 k2)
     (when (if (symbol? k1) #f (if (eq? k1 #t) #f (not (class? k1))))
-      (let ((ts (%g-type-by-atom k1)))
+      (let ((ts (type-by-atom k1)))
         (unless (null? ts)
-          (not (null? (%assq k2 (first (%g-from-cell ts))))))))))
+          (not (null? (%assq k2 (first (type-from-cell ts))))))))))
 
 ; m1's keys absorb m2's at every differing position.
 (def %g-sig-absorbs?
@@ -106,7 +99,7 @@
 
 (def %g-sig-str
   (fn (_ keys)
-    (%g-display-str
+    (io-display-to-str
       (%map (fn (_ k)
               (match
                 ((eq? k #t) (lit *))
@@ -144,10 +137,10 @@
               ((%g-sig-absorbs? (first a) (first b)) a)
               ((%g-sig-absorbs? (first b) (first a)) b)
               (#t
-                (error (%g-str-append (symbol->str gname)
-                  (%g-str-append ": ambiguous -- "
-                    (%g-str-append (%g-sig-str (first a))
-                      (%g-str-append " vs " (%g-sig-str (first b)))))))))))))))
+                (error (str-append (symbol->str gname)
+                  (str-append ": ambiguous -- "
+                    (str-append (%g-sig-str (first a))
+                      (str-append " vs " (%g-sig-str (first b)))))))))))))))
 
 ; Apply a generic to evaluated args: score every method, select, run.
 ; A total miss goes to the generic's miss handler (settable -- the numeric
@@ -171,9 +164,9 @@
           (if (null? m)
             (let ((missf (first (first (rest (rest data))))))   ; miss box
               (if (null? missf)
-                (error (%g-str-append (symbol->str gname)
-                  (%g-str-append ": no method "
-                    (%g-display-str (%map (fn (_ a) (%g-type-of a)) args)))))
+                (error (str-append (symbol->str gname)
+                  (str-append ": no method "
+                    (io-display-to-str (%map (fn (_ a) (type-of a)) args)))))
                 (apply missf (pair g (list args)))))
             (apply (rest m) args)))))))
 
@@ -182,7 +175,7 @@
 ; Payload (slot 0): ((name . SYM) methods-box miss-box) -- reads are
 ; positional on this spine; the boxes are one-cell mutables.
 (def %generic
-  (%g-make-type "GENERIC"
+  (type-make "GENERIC"
     (list
       (pair (lit call)
         (op (self . argfs) e
@@ -197,12 +190,12 @@
     (method make (self (param name SYMBOL "The generic's name (for errors and printing)"))
       (doc "Create a generic function value with no methods."
         (returns ANY "The callable generic"))
-      (%g-make-instance %generic
+      (type-make-instance %generic
         (list (pair (lit name) name) (list ()) (list ()))))
     (method generic? (self (param x ANY "Value to test"))
       (doc "Test whether a value is a generic function."
         (returns BOOL "#t for a generic"))
-      (%g-type? x %generic))
+      (type? x %generic))
     (method add! (self (param g ANY "The generic") (param keys LIST "Signature keys: class | type handle | #t wildcard, one per argument") (param f CALLABLE "The method body, (fn (_ args...) ...)"))
       (doc "Register a method on a generic (the computed-signature door; (on ...) is the sugar). The newest registration wins ties with an identical signature."
         (returns ANY "nil"))

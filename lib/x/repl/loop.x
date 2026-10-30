@@ -5,11 +5,10 @@
 ; repl-read resets the source-line counter before reading, so error lines are
 ; relative to the current input rather than the whole boot+session stream.
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(def %str-append (prim-ref 'str 'append))
+(import x/core/doors heap-collect io-write-to-str obj-same? str-append)
 ; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
 (def %error-line (prim-ref 'io 'error-line))
 (def %error-file (prim-ref 'io 'error-file))
-(def %repl-write-to-str (prim-ref 'io 'write-to-str))
 
 ; The "Error [...]: " prefix for a caught error.  Prefer file:line when the
 ; raise site is known to be in a file (error-file is "" for stdin/REPL input);
@@ -20,12 +19,12 @@
 (def %error-loc-prefix
   (fn (_)
     (if (not (str=? (%error-file) ""))
-      (%str-append "Error ["
-        (%str-append (%error-file) (%str-append ":"
-          (%str-append (%number->str (%error-line)) "]: "))))
+      (str-append "Error ["
+        (str-append (%error-file) (str-append ":"
+          (str-append (%number->str (%error-line)) "]: "))))
       (if (> (%error-line) 1)
-        (%str-append "Error [line "
-          (%str-append (%number->str (%error-line)) "]: "))
+        (str-append "Error [line "
+          (str-append (%number->str (%error-line)) "]: "))
         "Error: "))))
 
 
@@ -38,12 +37,10 @@
 ; sweep doubles as the boot sweep (~4.2M dead objects, ~98% of the
 ; boot heap); later sweeps keep a session's heap at its live set, so
 ; long-running interaction never grows past one turn's allocations.
-(def %repl-collect (prim-ref 'heap 'collect))
 ; Ctrl-c cancel plumbing (see the read in `repl` below): identity test
 ; for the clean-EOF sentinel (%token-eof, bound by the C io register;
 ; same? is pointer identity -- eq? compares value words and could
 ; conflate a satom with an integer), and the buffer flush.
-(def %repl-same? (prim-ref 'obj 'same?))
 (def %repl-buf-reset (prim-ref 'buf 'reset))
 ; Private cancel marker: a fresh pair, identity-compared, so it can
 ; never collide with anything a read returns.
@@ -139,7 +136,7 @@
     (when (Sys isatty 3)
       (do (Sys dup2 3 0) (Sys close 3)))
     ; Turn sweep (see the module-top note).
-    (%repl-collect)
+    (heap-collect)
     (%set-cell-int! %sigint-flag 0)
     (display %repl-prompt)
     ; The SIGINT handler stays installed across the read (boot installed
@@ -184,9 +181,9 @@
               (%stderr #"Error: {(if (str? err) err (Str8 str err))}\n")
               (Sys exit 1))))
         (%repl-read)))
-    (if (%repl-same? %r %token-eof)
+    (if (obj-same? %r %token-eof)
       (do (newline) (Sys exit 0))
-      (if (%repl-same? %r %repl-cancel)
+      (if (obj-same? %r %repl-cancel)
         (repl)
       (%seq
         (guard (err
@@ -199,7 +196,7 @@
               ; says "Error: ...".
               (%seq
                 (%stderr
-                  (%str-append
+                  (str-append
                     (%error-loc-prefix)
                     ; A bare-string error reads naturally raw; EVERYTHING
                     ; else renders through the universal writer.  The old

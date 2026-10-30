@@ -15,7 +15,7 @@
 ; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 (module x/codec/utf8)
 
-(def %char->integer (prim-ref (lit char) (lit ->int)))
+(import x/core/doors char->int)
 
 (def utf8-seq-len
   (fn (_ b)
@@ -30,9 +30,9 @@
 ; them losslessly.
 (def utf8-decode
   (fn (_ s i)
-    (def b0 (%char->integer (%str-ref s i)))
+    (def b0 (char->int (%str-ref s i)))
     (def n (utf8-seq-len b0))
-    (def cont (fn (_ k) (& (%char->integer (%str-ref s (+ i k))) 63)))   ; low 6 bits
+    (def cont (fn (_ k) (& (char->int (%str-ref s (+ i k))) 63)))   ; low 6 bits
     (pair
       (match
         ((= n 1) b0)
@@ -50,26 +50,26 @@
 ; just str-ref reads and bitwise ops. Continuation reads are inlined (no helper).
 
 ; Byte width of the sequence at byte index i (1-4). No allocation.
-(def utf8-width (fn (_ s i) (utf8-seq-len (%char->integer (%str-ref s i)))))
+(def utf8-width (fn (_ s i) (utf8-seq-len (char->int (%str-ref s i)))))
 
 ; Code point at byte index i. No allocation (continuation bytes inlined).
 (def utf8-cp-at
   (fn (_ s i)
-    (def b0 (%char->integer (%str-ref s i)))
+    (def b0 (char->int (%str-ref s i)))
     (match
       ((< b0 128) b0)
       ((< b0 224)
         (| (<< (& b0 31) 6)
-           (& (%char->integer (%str-ref s (+ i 1))) 63)))
+           (& (char->int (%str-ref s (+ i 1))) 63)))
       ((< b0 240)
         (| (| (<< (& b0 15) 12)
-              (<< (& (%char->integer (%str-ref s (+ i 1))) 63) 6))
-           (& (%char->integer (%str-ref s (+ i 2))) 63)))
+              (<< (& (char->int (%str-ref s (+ i 1))) 63) 6))
+           (& (char->int (%str-ref s (+ i 2))) 63)))
       (#t
         (| (| (| (<< (& b0 7) 18)
-                 (<< (& (%char->integer (%str-ref s (+ i 1))) 63) 12))
-              (<< (& (%char->integer (%str-ref s (+ i 2))) 63) 6))
-           (& (%char->integer (%str-ref s (+ i 3))) 63))))))
+                 (<< (& (char->int (%str-ref s (+ i 1))) 63) 12))
+              (<< (& (char->int (%str-ref s (+ i 2))) 63) 6))
+           (& (char->int (%str-ref s (+ i 3))) 63))))))
 
 ; Encode code point cp as a list of its 1-4 UTF-8 byte values (0-255). Out-of-
 ; range code points emit U+FFFD (the replacement character), matching the C

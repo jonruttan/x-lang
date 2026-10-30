@@ -263,8 +263,8 @@ nosuchsym
 
 ```x
 (do
-  (def a (%display-to-str (guard (e e) nosuchsym)))
-  (def b (%display-to-str (guard (e e) (list 1 . 5))))
+  (def a (io-display-to-str (guard (e e) nosuchsym)))
+  (def b (io-display-to-str (guard (e e) (list 1 . 5))))
   (list (str=? a b) (Str8 includes? "improper" b)))
 ```
 ---
@@ -303,10 +303,10 @@ A lang reaches the ERR type through the type catalogue, the same doors
 (do
   (def et ((prim-ref (lit type) (lit by-atom))
            ((prim-ref (lit type) (lit of)) (first (%reflect-base-cell (lit err))))))
-  (def before (%display-to-str (guard (e e) nosuchsym)))
+  (def before (io-display-to-str (guard (e e) nosuchsym)))
   ((prim-ref (lit type) (lit push-display)) et
    (fn (_ e) (display (Str8 append "nope: " (Err subject-of e)))))
-  (def after (%display-to-str (guard (e e) nosuchsym)))
+  (def after (io-display-to-str (guard (e e) nosuchsym)))
   (list before after))
 ```
 ---
@@ -323,7 +323,7 @@ A lang reaches the ERR type through the type catalogue, the same doors
 ### other sentinel atoms still render generically
 
 ```x
-(Str8 starts? "#<ATOM:0x" (%display-to-str (Type of 0)))
+(Str8 starts? "#<ATOM:0x" (io-display-to-str (Type of 0)))
 ```
 ---
     #t

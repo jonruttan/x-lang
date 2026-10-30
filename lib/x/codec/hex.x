@@ -19,6 +19,7 @@
 
 (import x/type/class)
 (import x/core/list)
+(import x/core/doors char->int str-byte-len str-byte-ref)
 
 (def-class Hex ()
   (doc "Hexadecimal transcoding: encode/decode carry strings; encode-bytes/decode-bytes carry byte lists -- the lossless door for payloads that may contain NUL. Lowercase out; either case in."
@@ -42,22 +43,16 @@
       (doc "Encode a string's bytes as lowercase hex. A string's observable bytes end at the first NUL (the x-lib ruling) -- binary with NULs takes the encode-bytes door."
         (returns STRING "Hex text, two characters per input byte")
         (example "(Hex encode \"foobar\")" "\"666f6f626172\""))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
-      (def n (%blen s))
+      (def n (str-byte-len s))
       (self encode-bytes
         (let go ((i (- n 1)) (acc ()))
           (if (< i 0) acc
-            (go (- i 1) (pair (%c->i (%bref s i)) acc))))))
+            (go (- i 1) (pair (char->int (str-byte-ref s i)) acc))))))
 
     (method decode-bytes (self (param hex STRING "Hex text to decode"))
       (doc "Decode hex text to a byte list -- the lossless door. Either case decodes; odd length or a character outside [0-9a-fA-F] raises a label 'value Err (#61: no silent repair)."
         (returns LIST "Byte values (0-255)")
         (example "(Hex decode-bytes \"ff0010\")" "(255 0 16)"))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
       (def %bad (fn (_ what)
         (Err raise (lit value) (Str8 append "Hex decode: " what) hex)))
       ; char code -> nibble value; raises on anything else
@@ -67,13 +62,13 @@
           ((if (>= c 97) (<= c 102) #f) (- c 87))
           ((if (>= c 65) (<= c 70) #f) (- c 55))
           (#t (%bad "character outside [0-9a-fA-F]")))))
-      (def n (%blen hex))
+      (def n (str-byte-len hex))
       (when (= (% n 2) 1) (%bad "odd length"))
       (let go ((i (- n 2)) (acc ()))
         (if (< i 0) acc
           (go (- i 2)
-              (pair (| (<< (%v (%c->i (%bref hex i))) 4)
-                       (%v (%c->i (%bref hex (+ i 1)))))
+              (pair (| (<< (%v (char->int (str-byte-ref hex i))) 4)
+                       (%v (char->int (str-byte-ref hex (+ i 1)))))
                 acc)))))
 
     (method decode (self (param hex STRING "Hex text to decode"))

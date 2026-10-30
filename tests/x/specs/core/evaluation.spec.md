@@ -105,7 +105,7 @@ when the value was a bare atom whose bytes were the whole message.
 ### rendering puts them back together, as the engine used to
 
 ```x
-(guard (e (%display-to-str e)) no-such-var)
+(guard (e (io-display-to-str e)) no-such-var)
 ```
 ---
     "Unbound SYMBOL 'no-such-var'"

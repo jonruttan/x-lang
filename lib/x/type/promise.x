@@ -9,13 +9,11 @@
 
 (import x/type/class)
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
-(def %make-type (prim-ref (lit type) (lit make)))
-(def %make-instance (prim-ref (lit type) (lit make-instance)))
-(def %type? (prim-ref (lit type) (lit ?)))
+(import x/core/doors type-by-atom type-make type-make-instance type-push-call type?)
 
 
 (def %promise
-  (%make-type
+  (type-make
     (lit PROMISE)
     (list
       (pair (lit write) (fn (_ _) (display "#<promise>"))))))
@@ -24,7 +22,7 @@
   (op (expr)
     env
     (let ((forced #f) (result #f))
-      (%make-instance
+      (type-make-instance
         %promise
         (fn (_ )
           (if forced
@@ -39,7 +37,7 @@
   (static
     (method promise? (self (param x ANY "Value to test"))
       (doc "Test whether a value is a promise." (returns BOOL "True if x is a promise"))
-      (%type? x %promise))
+      (type? x %promise))
     (method force (self (param p ANY "Promise or value"))
       (doc "Force a promise, returning its cached value. Non-promises pass through."
         (returns ANY "The forced value, or p itself if not a promise")
@@ -48,9 +46,7 @@
 
 ; Value dispatch (subject-last): a promise calls Promise's static methods --
 ; ((delay (+ 1 2)) force) -> (Promise force (delay (+ 1 2))).
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
-(def %type-push-call (prim-ref (lit type) (lit push-call)))
-(%type-push-call (%type-by-atom %promise) (class-call-handler Promise))
+(type-push-call (type-by-atom %promise) (class-call-handler Promise))
 
 (doc (provide x/type/promise Promise (global delay))
   (note "Promises are memoized -- forced only once.")

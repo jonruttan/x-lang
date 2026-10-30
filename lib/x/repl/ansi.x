@@ -15,17 +15,16 @@
 ; Load-time wiring (by design, the module's integration job): fills doc.x's
 ; %c-* color stubs and installs the syntax-highlighted REPL printer.
 ;
-; Requires: posix.x (Sys isatty/getenv), type.x (%type-push-write)
+; Requires: posix.x (Sys isatty/getenv), type.x (type-push-write)
 
 (module x/repl/ansi)
 
 (import x/sys/posix)
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(def %str-append (prim-ref 'str 'append))
+(import x/core/doors str-append type-push-write)
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
-(def %type-push-write (prim-ref 'type 'push-write))
 
 (import x/type/struct)
 (import x/type/class)
@@ -49,7 +48,7 @@
 ; --- Escape sequence builder ---
 
 (def %esc "\x1b")
-(def %sgr (fn (_ code) (if %ansi? (%str-append %esc (%str-append "[" (%str-append code "m"))) "")))
+(def %sgr (fn (_ code) (if %ansi? (str-append %esc (str-append "[" (str-append code "m"))) "")))
 
 ; --- The Ansi class: color fields + operations ---
 ; Fields evaluate once, here, at class definition. Methods referencing the
@@ -67,11 +66,11 @@
     (blue    (%sgr "34") "Blue foreground")
     (magenta (%sgr "35") "Magenta foreground")
     (cyan    (%sgr "36") "Cyan foreground")
-    (bold-cyan   (%str-append (%sgr "1") (%sgr "36")) "Bold cyan foreground")
-    (bold-green  (%str-append (%sgr "1") (%sgr "32")) "Bold green foreground")
-    (bold-yellow (%str-append (%sgr "1") (%sgr "33")) "Bold yellow foreground")
-    (bold-red    (%str-append (%sgr "1") (%sgr "31")) "Bold red foreground")
-    (bold-blue   (%str-append (%sgr "1") (%sgr "34")) "Bold blue foreground")
+    (bold-cyan   (str-append (%sgr "1") (%sgr "36")) "Bold cyan foreground")
+    (bold-green  (str-append (%sgr "1") (%sgr "32")) "Bold green foreground")
+    (bold-yellow (str-append (%sgr "1") (%sgr "33")) "Bold yellow foreground")
+    (bold-red    (str-append (%sgr "1") (%sgr "31")) "Bold red foreground")
+    (bold-blue   (str-append (%sgr "1") (%sgr "34")) "Bold blue foreground")
     (repl-own    ()  "The REPL printer this class installed, or nil -- how install/1 tells its own from a lang's")
     (method enabled? (self)
       (doc "Check whether ANSI color support is active."
@@ -80,7 +79,7 @@
     (method wrap (self (param style STRING "ANSI escape sequence") (param text STRING "Text to wrap"))
       (doc "Wrap text in an ANSI style code with automatic reset."
         (returns STRING "Text wrapped in ANSI codes, or plain text if colors disabled"))
-      (%str-append style (%str-append text (Ansi reset))))
+      (str-append style (str-append text (Ansi reset))))
     (method highlight (self (param code STRING "Source code string to highlight"))
       (doc "Display a code string coloured by the spans of (Syntax x), byte for byte as written."
         (returns ANY "Displays highlighted code to stdout")
@@ -131,11 +130,11 @@
         (Ansi blue        (%sgr "34"))
         (Ansi magenta     (%sgr "35"))
         (Ansi cyan        (%sgr "36"))
-        (Ansi bold-cyan   (%str-append (%sgr "1") (%sgr "36")))
-        (Ansi bold-green  (%str-append (%sgr "1") (%sgr "32")))
-        (Ansi bold-yellow (%str-append (%sgr "1") (%sgr "33")))
-        (Ansi bold-red    (%str-append (%sgr "1") (%sgr "31")))
-        (Ansi bold-blue   (%str-append (%sgr "1") (%sgr "34")))
+        (Ansi bold-cyan   (str-append (%sgr "1") (%sgr "36")))
+        (Ansi bold-green  (str-append (%sgr "1") (%sgr "32")))
+        (Ansi bold-yellow (str-append (%sgr "1") (%sgr "33")))
+        (Ansi bold-red    (str-append (%sgr "1") (%sgr "31")))
+        (Ansi bold-blue   (str-append (%sgr "1") (%sgr "34")))
         ; The printer's own colours.
         (set! %c-number   (Ansi yellow))
         (set! %c-string   (Ansi green))

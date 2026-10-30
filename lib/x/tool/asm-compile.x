@@ -8,19 +8,17 @@
 ; two accessors emit exports.
 (import x/tool/compile/emit compile-fvars-set! compile-fvar-lookup)
 ; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
-(def %obj->ptr (prim-ref 'obj '->ptr))
+(import x/core/doors ffi-dlopen ffi-dlsym int% io-write-to-str obj->ptr ptr->int ptr-call ptr-set-word! str->sym type-of)
 (def %make-callable (prim-ref 'obj 'make-callable))
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(def %str->symbol (prim-ref 'str '->sym))
 
 ; What a PRIMITIVE's type atom is, taken from a prim this file already holds
 ; rather than spelled as a name: the type name is the type system's business,
 ; and comparing atoms is what every other type test in the tree does.  Used to
 ; decide, AT GENERATION, whether a name bound to an fvar names something that
 ; can actually be called (#603).
-(def %asm-type-of (prim-ref 'type 'of))
-(def %asm-prim-type (%asm-type-of %str->symbol))
+(def %asm-prim-type (type-of str->sym))
 
 (import x/tool/asm)
 ; Collection is explicit-trigger-only, and a GENERATED build is the
@@ -32,20 +30,14 @@
 ; not the whole build's; small compiles (under a window) never collect.
 (import x/sys/gc)
 ; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
-(def %ptr-call (prim-ref 'ptr 'call))
-(def %ptr->int (prim-ref 'ptr '->int))
-(def %ptr-set-word! (prim-ref 'ptr 'set-word!))
-(def %dlopen (prim-ref 'ffi 'dlopen))
-(def %dlsym (prim-ref 'ffi 'dlsym))
 ; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
-(def %write-to-str (prim-ref 'io 'write-to-str))
 
 
 
 ; --- Resolve JIT runtime helpers (non-variadic wrappers in jit.c) ---
 ;
 ; EVERY helper must resolve, and an unresolved one must REFUSE, not
-; coast: dlsym answers nil, %ptr->int turns that into 0, and the
+; coast: dlsym answers nil, ptr->int turns that into 0, and the
 ; compiler then happily emits `blr` to address 0 -- machine code that
 ; segfaults on its first call, arbitrarily far from the cause.  That is
 ; exactly what a bare-`strip`ped install did (it drops the exported
@@ -60,12 +52,12 @@
 ; the entry point checks before it emits anything, so the raise happens
 ; in an ordinary call that Sha256's adoption guard turns into "stay
 ; pure-x" -- correct, merely slower.
-(def %jit-lib (%dlopen () 1))
+(def %jit-lib (ffi-dlopen () 1))
 ; %jit-missing itself is defined in asm.x -- see the note there; this file
 ; fills it in.
 (def %jit-sym
   (fn (_ name)
-    (def p (%dlsym %jit-lib name))
+    (def p (ffi-dlsym %jit-lib name))
     (when (null? p) (set! %jit-missing (pair name %jit-missing)))
     p))
 ; OPTIONAL (a true second argument) resolves WITHOUT %jit-sym's missing-symbol
@@ -76,8 +68,8 @@
 ; and falls back, which is what the delimiter's %tower-asm ladder wants.
 (def %jit-addr
   (fn (_ name . optional)
-    (def p (if (null? optional) (%jit-sym name) (%dlsym %jit-lib name)))
-    (if (null? p) 0 (%ptr->int p))))
+    (def p (if (null? optional) (%jit-sym name) (ffi-dlsym %jit-lib name)))
+    (if (null? p) 0 (ptr->int p))))
 ; --- These addresses are THIS PROCESS'S ALONE ---------------------------------
 ; Each is an INTEGER holding a dlsym result, and an integer names nothing: a
 ; state image carries it as it is, and a process that loads the image then
@@ -161,7 +153,7 @@
 ; (rows are newest first), then the name table over the new addresses.
 (set! %image-recache-hooks
   (pair (fn (_)
-          (do (set! %jit-lib (%dlopen () 1))
+          (do (set! %jit-lib (ffi-dlopen () 1))
               (set! %jit-missing ())
               ((fn (self l)
                  (if (null? l) ()
@@ -326,7 +318,7 @@
 (def %asm-genlabel
   (fn (_ prefix)
     (set! %asm-label-counter (+ %asm-label-counter 1))
-    (%str->symbol (Str append prefix (%number->str %asm-label-counter)))))
+    (str->sym (Str append prefix (%number->str %asm-label-counter)))))
 
 ; --- Code generation ---
 ; Convention: result always in x0 as a RAW INTEGER.
@@ -336,7 +328,6 @@
 (def %asm-gc-window 128)
 (def %asm-gc-tick (pair 0 ()))
 ; Cached int prim (#335): the tick check runs per compiled expression.
-(def %asm-int% (prim-ref (lit int) (lit %)))
 
 ; Emit code for an expression
 (set! %asm-compile-expr
@@ -350,7 +341,7 @@
     ; wrapper's own record of what is loading: nil means nothing is, and the
     ; window collect is safe; otherwise the entry's boot collect reclaims the
     ; burst once the include has returned (lib/xe.x).
-    (when (and (= 0 (%asm-int% (first %asm-gc-tick) %asm-gc-window))
+    (when (and (= 0 (int% (first %asm-gc-tick) %asm-gc-window))
                (eq? (first %include-dir-cell) ()))
       (Heap collect))
     ; Tail position is this expression's alone: nothing it compiles inside
@@ -370,7 +361,7 @@
           (asm-load-imm64! asm x0 expr)))
       ((symbol? expr) (%asm-compile-param asm expr params))
       ((pair? expr) (do (set! %asm-in-tail tail) (%asm-compile-call asm expr params)))
-      (#t (Err raise 'value (Str append "asm-compile: unsupported: " (%write-to-str expr)) ())))))
+      (#t (Err raise 'value (Str append "asm-compile: unsupported: " (io-write-to-str expr)) ())))))
 
 ; Compile parameter access from x-lang args list
 ; p_args = (self arg0 arg1 ...) — walk rest N+1 times, first, eval, atomint.
@@ -427,7 +418,7 @@
             ; An fvar is baked as its object's ADDRESS: per-process, and the
             ; name is what identifies it again elsewhere.
             (asm-reloc! asm (asm-pos asm) (lit fvar) name)
-            (asm-load-imm64! asm x0 (%ptr->int (%obj->ptr val))))))
+            (asm-load-imm64! asm x0 (ptr->int (obj->ptr val))))))
       ; Not a fvar: load from params
       (let ((idx (%find params 0)))
         (asm-emit! asm 'mov x0 x20)
@@ -856,7 +847,7 @@
       ((not (%asm-object-operand? operand))
         (Err raise 'value
           (Str append "asm-compile: " (symbol->str op) " cannot take "
-            (if (symbol? operand) (symbol->str operand) (%write-to-str operand))
+            (if (symbol? operand) (symbol->str operand) (io-write-to-str operand))
             " as its operand: it reads an object, which "
             "is an fvar, an object parameter, or another first or rest.") ()))
       ((%asm-nil-fvar? operand)
@@ -1040,7 +1031,7 @@
       (let ((entry (compile-fvar-lookup name)))
         (if (null? entry) #f
           (if (null? (rest entry)) #f
-            (eq? (%asm-type-of (rest entry)) %asm-prim-type)))))))
+            (eq? (type-of (rest entry)) %asm-prim-type)))))))
 
 ; --- Calls ---------------------------------------------------------------
 ;
@@ -1168,7 +1159,7 @@
     ; The self-call trampoline cell is malloc'd per compile -- one per
     ; compiled function, so the record carries no name.
     (asm-reloc! asm (asm-pos asm) (lit self-cell) ())
-    (asm-load-imm64! asm x8 (%ptr->int %asm-self-cell))
+    (asm-load-imm64! asm x8 (ptr->int %asm-self-cell))
     ; (mem BASE off) takes the base as a raw register NUMBER, not a
     ; (reg n) operand -- passing x8 handed the encoder a list to shift,
     ; so every self-recursive call died at GENERATION with ">>: operands
@@ -1231,7 +1222,7 @@
 ; those raises something about the wrong thing.
 (def %asm-form-name
   (fn (_ head)
-    (if (symbol? head) (symbol->str head) (%write-to-str head))))
+    (if (symbol? head) (symbol->str head) (io-write-to-str head))))
 
 ; The dispatch: which of the three ways this head's call compiles.
 (set! %asm-compile-funcall
@@ -1281,9 +1272,9 @@
     (def params (rest fn-params))  ; skip self (_)
 
     ; Allocate trampoline cell for self-recursion
-    (def c-malloc (%dlsym (%dlopen () 1) "malloc"))
-    (def self-cell (%ptr-call c-malloc 8))
-    (%ptr-set-word! self-cell 0 0)
+    (def c-malloc (ffi-dlsym (ffi-dlopen () 1) "malloc"))
+    (def self-cell (ptr-call c-malloc 8))
+    (ptr-set-word! self-cell 0 0)
     (set! %asm-self-cell self-cell)
     (set! %asm-self-name (first fn-params))
     (set! %asm-object-params
@@ -1359,7 +1350,7 @@
     (set! %asm-last-buf raw-fn)
 
     ; Patch trampoline with actual address
-    (%ptr-set-word! self-cell 0 (%ptr->int raw-fn))
+    (ptr-set-word! self-cell 0 (ptr->int raw-fn))
     (set! %asm-self-cell ())
     (set! %asm-self-name ())
     (set! %asm-object-params ())

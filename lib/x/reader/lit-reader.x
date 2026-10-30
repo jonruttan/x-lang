@@ -21,16 +21,13 @@
 ; are seated on the symbol type here, beside quote's.
 (import x/reader/quasi-reader quasi-analyse unquote-analyse quasi-read unquote-read)
 
-(def %buffer-last-char (prim-ref (lit buf) (lit last-char)))
+(import x/core/doors buf-last-char buf-tok str-append tok-read-str type-by-atom type-of type-push-analyse)
 (def %token-read (prim-ref (lit tok) (lit read)))
 
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-analyse-cell (prim-ref (lit type) (lit analyse-cell)))
-(def %type-push-analyse (prim-ref (lit type) (lit push-analyse)))
 (def %type-read-cell (prim-ref (lit type) (lit read-cell)))
 (def %type-push-delimit (prim-ref (lit type) (lit push-delimit)))
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
-(def %type-of (prim-ref (lit type) (lit of)))
 
 (def %type-push-read (prim-ref (lit type) (lit push-read)))
 
@@ -43,7 +40,7 @@
 
 (def lit-read
   (fn (_ buffer . rest)
-    (if (= (%buffer-last-char buffer) #\')
+    (if (= (buf-last-char buffer) #\')
       (pair (lit lit) (pair (%token-read buffer) ()))
       ())))
 
@@ -54,8 +51,8 @@
 ; per-char delimiter path.
 (def macro-delimit
   (fn (_ buffer . rest)
-    (if (if (= (%buffer-last-char buffer) #\') #t
-          (= (%buffer-last-char buffer) #\`))
+    (if (if (= (buf-last-char buffer) #\') #t
+          (= (buf-last-char buffer) #\`))
       (%seq (%buffer-unread buffer) buffer)
       ())))
 
@@ -89,9 +86,6 @@
 ; later interpolation's variable as Unbound.  Parsing at read time sidesteps it
 ; entirely (the env is never touched mid-evaluation).
 ; (display/str themselves live in boot/string.x and the Str8 class respectively.)
-(def %str-append        (prim-ref (lit str)  (lit append)))
-(def %token-read-string (prim-ref (lit tok)  (lit read-str)))
-(def %buffer-token      (prim-ref (lit buf)  (lit tok)))
 
 ; The analyser, in two pieces like the rest of the quote handlers: the per-char
 ; entry test is its own def so the tower can compile it (boot/tower-compiled.x
@@ -245,8 +239,8 @@
     ; the literal), so re-quoting it is safe.
     (set! chunk
       (fn (_ text)
-        (first (%token-read-string (%base)
-          (%str-append "\"" (%str-append text "\" "))))))
+        (first (tok-read-str (%base)
+          (str-append "\"" (str-append text "\" "))))))
     (set! walk
       (fn (self s i len)
         (if (>= i len) ()
@@ -266,8 +260,8 @@
                   ; pad with a trailing space so a bare-symbol hole ({x})
                   ; terminates its token at end-of-buffer (token-read-string
                   ; drops an unterminated tail).
-                  (let ((forms (%token-read-string (%base)
-                                 (%str-append (%substring s (+ p 1) close) " "))))
+                  (let ((forms (tok-read-str (%base)
+                                 (str-append (%substring s (+ p 1) close) " "))))
                     (pair (chunk (%substring s i p))              ; text before {
                       ; An EMPTY hole ({} or whitespace) reads no form at all,
                       ; and `first` is unchecked -- (first ()) is UB, and it
@@ -286,8 +280,8 @@
 ; merely starts with # and ends in a quote is the symbol reader's, not ours.
 (def %interp-read
   (fn (_ buffer . rest)
-    (if (= (%buffer-last-char buffer) #\")
-      (let ((tok (%buffer-token buffer)))
+    (if (= (buf-last-char buffer) #\")
+      (let ((tok (buf-tok buffer)))
         (if (and (> (%str-length tok) 2)
                  (and (= (%str-ref tok 0) #\#) (= (%str-ref tok 1) #\")))
           (let ((s (%substring tok 2 (- (%str-length tok) 1))))
@@ -301,9 +295,9 @@
 ; existing C handler (captured as the list tail), which the tokenizer's
 ; analyse/read loops iterate.
 
-(def %sym-type (%type-by-atom (%type-of "x")))
+(def %sym-type (type-by-atom (type-of "x")))
 
-(%type-push-analyse %sym-type
+(type-push-analyse %sym-type
   (list interp-analyse lit-analyse quasi-analyse unquote-analyse
         (first (first (%type-analyse-cell %sym-type)))))
 

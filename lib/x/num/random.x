@@ -29,7 +29,7 @@
 (def %rand-default-seed 2463534242) ; a nonzero xorshift seed (Marsaglia)
 ; Cached int prim (#335): ambient % routes through the tower's op
 ; dispatch per draw; every operand here is int by construction.
-(def %rand-int% (prim-ref (lit int) (lit %)))
+(import x/core/doors int%)
 
 (def-class Random ()
   (doc "A source of random integers with a pluggable entropy backend."
@@ -106,14 +106,14 @@
       (example "((Random sw 1) int 6)" "3"))
     ; (% bits n) alone is BIASED whenever n does not divide 2^31 (low values
     ; come up once more often); redraw above the largest exact multiple of n.
-    ; An n below 1 has nothing to draw, and 0 would reach %rand-int% as the
+    ; An n below 1 has nothing to draw, and 0 would reach int% as the
     ; divisor: x86 traps, and arm64 answers a limit of 0 that no draw is
     ; under, so the loop never ends.  An empty range, or a between with its
     ; bounds reversed, arrives here as one of these.
     (if (< n 1) (Err raise 'value "Random int: n must be > 0" n)
-      (let ((limit (- %rand-span (%rand-int% %rand-span n))))
+      (let ((limit (- %rand-span (int% %rand-span n))))
         (let go ((b (self %bits)))
-          (if (< b limit) (%rand-int% b n) (go (self %bits)))))))
+          (if (< b limit) (int% b n) (go (self %bits)))))))
 
   (method range (self lo hi)
     (doc "A random integer in [lo, hi) -- exclusive upper bound; `between` is the inclusive twin. The name carries the bound contract."

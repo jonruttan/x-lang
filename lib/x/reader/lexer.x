@@ -32,6 +32,7 @@
 (import x/type/base)
 (import x/type/buf)
 (import x/protocol/str/str8)
+(import x/core/doors buf-tok char->int image-recache-hook! image-transient! int+ int- int< int= obj->ptr ptr-ref-word str-byte-len str-byte-ref str-make tok-read-str)
 
 (def-class Lexer ()
   (doc "A tokenizer base built from data rules, its analyser states compiled to native code when the assembler lane is open and interpreted otherwise. Make one with (Lexer make rules), where each rule is made by run, skip, table, quoted, until, number, nested, word, escape, pattern, any or record; read text with (l read-str s), a span of bytes with (l read-span s start len). A token is (tag text); from a number rule (tag text label), from a record rule (tag bytes length)."
@@ -72,7 +73,7 @@
        (if (null? ts)
          ((fn (self xs out) (if (null? xs) out (self (rest xs) (pair (first xs) out)))) acc ())
          (self (rest ts) (if (eq? (first ts) (Lexer %dropped)) acc (pair (first ts) acc)))))
-     ((Lexer %read-str) (self raw) s start len) ()))
+     (tok-read-str (self raw) s start len) ()))
 
   (method remake! (self)
     (doc "Make the base and its states again from the rules -- what the recache hook does after an image load; a consumer never needs to call it."
@@ -101,20 +102,8 @@
     (self raw))
 
   (static
-    ; --- the catalogue doors, fetched once at load ------------------------------
-    (%read-str (prim-ref (lit tok) (lit read-str)))
-    (%buffer-token (prim-ref (lit buf) (lit tok)))
-    (%transient! (prim-ref (lit image) (lit transient!)))
-    (%recache-hook! (prim-ref (lit image) (lit recache-hook!)))
-    (%char->int (prim-ref (lit char) (lit ->int)))
+    ; --- the one catalogue door x/core/doors does not carry ----------------------
     (%base-eval (prim-ref (lit base) (lit eval)))
-    (%byte-ref (prim-ref (lit str) (lit byte-ref)))
-    (%byte-len (prim-ref (lit str) (lit byte-len)))
-    (%make-str (prim-ref (lit str) (lit make)))
-    (%i+ (prim-ref (lit int) (lit +)))
-    (%i- (prim-ref (lit int) (lit -)))
-    (%i= (prim-ref (lit int) (lit =)))
-    (%i< (prim-ref (lit int) (lit <)))
     ; Is the assembler lane open?  Probed by one state in the form every state
     ; takes; probed again after an image load, when the compiler has its
     ; addresses back.
@@ -161,8 +150,8 @@
         ; Everything that holds a compiled state is dropped before an image is
         ; written -- native code cannot be written into one -- and remake!
         ; makes it again after the load.
-        ((Lexer %transient!) (fn (_) (l raw ()) (l states ()) (l reader ()) (l resets ())))
-        ((Lexer %recache-hook!) (fn (_) (Lexer %jit-probe!) (l remake!)))
+        (image-transient! (fn (_) (l raw ()) (l states ()) (l reader ()) (l resets ())))
+        (image-recache-hook! (fn (_) (Lexer %jit-probe!) (l remake!)))
         l))
 
     ; The assembler lane's door is the byte cache (x/tool/asm-cache), which
@@ -208,7 +197,7 @@
                   (self (rest ts) (if (eq? (first ts) dropped) acc (pair (first ts) acc)))))
               (tokens s) ()))
            tokens))
-       (Lexer %read-str) (l raw) (l end) (prim-ref (lit str) (lit append)) (Lexer %dropped)
+       tok-read-str (l raw) (l end) (prim-ref (lit str) (lit append)) (Lexer %dropped)
        (l resets)))
 
     (method %jit-probe! (self)
@@ -227,7 +216,7 @@
       (if (null? (first (Lexer %span-cell)))
         (let ((probe (Lexer make (list (Lexer any (lit b))))))
           (%set-first! (Lexer %span-cell)
-            (if (= (List length ((Lexer %read-str) (probe raw) "ab" 1 1)) 1) (lit yes) (lit no))))
+            (if (= (List length (tok-read-str (probe raw) "ab" 1 1)) 1) (lit yes) (lit no))))
         ())
       (if (eq? (first (Lexer %span-cell)) (lit yes)) ()
         (Err raise (lit lexer) "Lexer read-span: this engine's tok read-str does not take a span" ())))
@@ -409,7 +398,7 @@
     ; unreads the character that ended the token and scores; take keeps it.
 
     (method %code (self c)
-      (if (char? c) ((Lexer %char->int) c) c))
+      (if (char? c) (char->int c) c))
 
     (method %class-form (self class)
       (def one
@@ -420,13 +409,13 @@
             (list (lit =) (lit chr) (Lexer %code c)))))
       (def bytes
         (fn (self s i acc)
-          (if (< i 0) acc (self s (- i 1) (pair (one ((Lexer %byte-ref) s i)) acc)))))
+          (if (< i 0) acc (self s (- i 1) (pair (one (str-byte-ref s i)) acc)))))
       (def tests
         (fn (self l acc)
           (if (null? l) acc
             (self (rest l)
               (if (str? (first l))
-                (bytes (first l) (- ((Lexer %byte-len) (first l)) 1) acc)
+                (bytes (first l) (- (str-byte-len (first l)) 1) acc)
                 (pair (one (first l)) acc))))))
       ; a bare string is the class of its bytes; #t is every byte, whichever
       ; way the engine hands a high one over
@@ -557,9 +546,9 @@
     ; with no child for the byte accepts.  Children are the state's free
     ; variables, named a, b, c, ... in order.
     (method %trie-add (self node s i)
-      (if (>= i ((Lexer %byte-len) s))
+      (if (>= i (str-byte-len s))
         (pair #t (rest node))
-        (let ((c ((Lexer %char->int) ((Lexer %byte-ref) s i))))
+        (let ((c (char->int (str-byte-ref s i))))
           (def kid (Lexer %assoc c (rest node)))
           (def sub (Lexer %trie-add (if (null? kid) (pair () ()) (rest kid)) s (+ i 1)))
           (def without
@@ -656,8 +645,8 @@
     ; takes a span the close never ended; the read handler then cuts the end
     ; text off it (%reader).
     (method %until-states (self l tag open close take? to-end?)
-      (def n ((Lexer %byte-len) close))
-      (def at (fn (_ i) ((Lexer %char->int) ((Lexer %byte-ref) close i))))
+      (def n (str-byte-len close))
+      (def at (fn (_ i) (char->int (str-byte-ref close i))))
       ; Whether the first j bytes of the close end k bytes of it followed by b.
       (def ends?
         (fn (_ j k b)
@@ -714,13 +703,13 @@
       (l states (pair cells (l states)))
       ; the open chain, last byte first; the last byte of the opener hands to
       ; the body, scoring the span first when it may run to the end
-      (def last (- ((Lexer %byte-len) open) 1))
+      (def last (- (str-byte-len open) 1))
       ((fn (self i next)
          (if (< i 0) next
            (self (- i 1)
              (Lexer %state l
                (Lexer %state-form
-                 (list (lit if) (list (lit =) (lit chr) ((Lexer %char->int) ((Lexer %byte-ref) open i)))
+                 (list (lit if) (list (lit =) (lit chr) (char->int (str-byte-ref open i)))
                    (if (if to-end? (= i last) #f)
                      (lit (%seq (%score-set score 1 buffer) next))
                      (lit next))
@@ -954,7 +943,7 @@
         (fn (_ opens i)
           ((fn (self os acc)
              (if (null? os) (List reverse acc)
-               (let ((c ((Lexer %char->int) ((Lexer %byte-ref) (first (first os)) i))))
+               (let ((c (char->int (str-byte-ref (first (first os)) i))))
                  (def hit (Lexer %assoc c acc))
                  (self (rest os)
                    (if (null? hit) (pair (pair c (list (first os))) acc)
@@ -989,7 +978,7 @@
              (if (null? gs) other
                (let ((g (first gs)))
                  (list (lit if) (list (lit =) (lit chr) (first g))
-                   (if (if (null? (rest (rest g))) (= ((Lexer %byte-len) (first (first (rest g)))) (+ i 1)) #f)
+                   (if (if (null? (rest (rest g))) (= (str-byte-len (first (first (rest g)))) (+ i 1)) #f)
                      (push-form name (rest (first (rest g))))
                      (ref (next-state self name (rest g) (+ i 1))))
                    (walk (rest gs))))))
@@ -1020,7 +1009,7 @@
           (if (null? esc) () (emit! esc (ref (body-of (first c))))))
         contexts)
       ; the stack, and the twin's
-      (def buf ((Lexer %make-str) 512))
+      (def buf (str-make 512))
       (def tstack ((fn (self k acc) (if (= k 0) acc (self (- k 1) (pair (pair 0 ()) acc)))) 64 ()))
       (def tcell (fn (self s i) (if (= i 0) (first s) (self (rest s) (- i 1)))))
       (def tref (fn (_ s i) (first (tcell s i))))
@@ -1051,14 +1040,14 @@
            (self (- i 1)
              (Lexer %state l
                (Lexer %state-form
-                 (list (lit if) (list (lit =) (lit chr) ((Lexer %char->int) ((Lexer %byte-ref) open i)))
+                 (list (lit if) (list (lit =) (lit chr) (char->int (str-byte-ref open i)))
                    (if (null? next)
                      (scored (list (lit %seq) (lit (%mem-set! (first stk) 0 0)) (ref first-body)))
                      (lit next))
                    ()))
                (if (null? next) fvars (pair (pair (lit next) next) fvars))
                twin))))
-       (- ((Lexer %byte-len) open) 1) ())))
+       (- (str-byte-len open) 1) ())))
 
     ; A record.  The entry state reads the first byte and picks its shape; the
     ; shape's steps are a chain of states, built from the last step back.  A
@@ -1071,7 +1060,7 @@
     ; nested rule's twin keeps its stack.  Bytes reach an analyser signed, so a
     ; class test reads (& chr 255).
     (method %record-states (self l shapes)
-      (def cnt ((Lexer %make-str) 16))
+      (def cnt (str-make 16))
       (def tw (list (pair 0 ()) (pair 0 ())))
       (def tref (fn (_ s i) (first (if (= i 0) (first s) (first (rest s))))))
       (def tset (fn (_ s i v) (%set-first! (if (= i 0) (first s) (first (rest s))) v) v))
@@ -1196,7 +1185,7 @@
       (if (not (known? start)) (bad "no context named start" start) ())
       (if (null? open)
         (if (null? stop) (bad "neither an opening literal nor a stop class" start) ())
-        (if (< ((Lexer %byte-len) open) 1) (bad "an empty opening literal" open) ()))
+        (if (< (str-byte-len open) 1) (bad "an empty opening literal" open) ()))
       (List map
         (fn (_ c)
           (def close (if (null? (first (rest c))) -1 (Lexer %code (first (rest c)))))
@@ -1205,7 +1194,7 @@
           (def esc (first (rest (rest c))))
           (List map
             (fn (_ o)
-              (def b ((Lexer %char->int) ((Lexer %byte-ref) (first o) 0)))
+              (def b (char->int (str-byte-ref (first o) 0)))
               (if (not (known? (rest o))) (bad "no context named" (rest o)) ())
               (if (= b close) (bad "a literal starts with its context's close" (first o)) ())
               (if (if (null? esc) #f (= b (Lexer %code esc))) (bad "a literal starts with its context's escape" (first o)) ())
@@ -1220,11 +1209,11 @@
 
     ; Is A a prefix of B?
     (method %prefix? (self a b)
-      (def n ((Lexer %byte-len) a))
-      (if (> n ((Lexer %byte-len) b)) #f
+      (def n (str-byte-len a))
+      (if (> n (str-byte-len b)) #f
         ((fn (self i)
            (if (= i n) #t
-             (if (= ((Lexer %char->int) ((Lexer %byte-ref) a i)) ((Lexer %char->int) ((Lexer %byte-ref) b i)))
+             (if (= (char->int (str-byte-ref a i)) (char->int (str-byte-ref b i)))
                (self (+ i 1)) #f)))
          0)))
 
@@ -1251,14 +1240,14 @@
     ; are the first and second words of the buffer's inner object.  A token
     ; that stopped before the end text costs one comparison here.
     (method %reader (self tag labelled? end-len)
-      (let ((tok (Lexer %buffer-token)) (ev (Lexer %base-eval)) (parent (%base))
-            (sub (prim-ref (lit str) (lit byte-sub))) (len (Lexer %byte-len))
+      (let ((tok buf-tok) (ev (Lexer %base-eval)) (parent (%base))
+            (sub (prim-ref (lit str) (lit byte-sub))) (len str-byte-len)
             (write-at (%data-word-off 1)))
         (def text-of
           (fn (_ args)
             (def text (tok (first args)))
             (def inner (rest (first args)))
-            (def over (- (%cell-int inner) (- (%ptr-ref-word (%obj->ptr inner) write-at) end-len)))
+            (def over (- (%cell-int inner) (- (ptr-ref-word (obj->ptr inner) write-at) end-len)))
             (if (> over 0) (sub text 0 (- (len text) over)) text)))
         (def mk
           (if labelled?
@@ -1273,7 +1262,7 @@
     ; word) less its start (the buffer's own first), the token being the
     ; bytes between them.
     (method %reader-record (self tag)
-      (let ((tok (Lexer %buffer-token)) (ev (Lexer %base-eval)) (parent (%base)))
+      (let ((tok buf-tok) (ev (Lexer %base-eval)) (parent (%base)))
         (def mk
           (fn (_ args)
             (def b (first args))
@@ -1342,7 +1331,7 @@
               (pair (lit read)
                 (if (eq? kind (lit record))
                   (Lexer %reader-record tag)
-                  (Lexer %reader tag (eq? kind (lit number)) ((Lexer %byte-len) (l end))))))))
+                  (Lexer %reader tag (eq? kind (lit number)) (str-byte-len (l end))))))))
 
     ; Register in list order: the type registered first wins a tie.
     (method %install! (self l rules)
@@ -1395,9 +1384,9 @@
     ; a class call or a generic operator a step would cost more than the
     ; forms they save.  Answers (nth pos map1 len rev append2).
     (method %kit (self)
-      (def i+ (Lexer %i+))
-      (def i- (Lexer %i-))
-      (def i= (Lexer %i=))
+      (def i+ int+)
+      (def i- int-)
+      (def i= int=)
       (list
         (fn (self l i) (if (i= i 0) (first l) (self (rest l) (i- i 1))))
         (fn (_ x l same?)
@@ -1420,9 +1409,9 @@
       (def map1 (first (rest (rest kit))))
       (def len (first (rest (rest (rest kit)))))
       (def rev (first (rest (rest (rest (rest kit))))))
-      (def i+ (Lexer %i+))
-      (def i- (Lexer %i-))
-      (def i< (Lexer %i<))
+      (def i+ int+)
+      (def i- int-)
+      (def i< int<)
       (def no (fn (_ why) (Err raise (lit lexer) why ())))
       (def eq (fn (_ a b) (eq? a b)))
       (def texts
@@ -1488,7 +1477,7 @@
           (if (i< k 0) (no "a state the make did not record") k)))
       (list (Lexer %plan-version) (len texts) states
             (map1 (fn (_ c) (if (null? (first c)) () (state-at (first c)))) (rev (first cells) ()))
-            (map1 (fn (_ b) ((Lexer %byte-len) b)) (rev (first bufs) ()))
+            (map1 (fn (_ b) (str-byte-len b)) (rev (first bufs) ()))
             (map1 state-at entries)
             (map1 state-at (l resets))))
 
@@ -1523,14 +1512,14 @@
     ; lengths.
     (method %plan-read (self s)
       (def rev (first (rest (rest (rest (rest (Lexer %kit)))))))
-      (def i+ (Lexer %i+))
-      (def i- (Lexer %i-))
-      (def i< (Lexer %i<))
-      (def i= (Lexer %i=))
+      (def i+ int+)
+      (def i- int-)
+      (def i< int<)
+      (def i= int=)
       (def i* (prim-ref (lit int) (lit *)))
-      (def n ((Lexer %byte-len) s))
-      (def bref (Lexer %byte-ref))
-      (def cint (Lexer %char->int))
+      (def n (str-byte-len s))
+      (def bref str-byte-ref)
+      (def cint char->int)
       (def byte (fn (_ i) (cint (bref s i))))
       (def sub (prim-ref (lit str) (lit byte-sub)))
       ; The end of the word at J, and its value while every byte is a digit:
@@ -1647,9 +1636,9 @@
       (def len (first (rest (rest (rest kit)))))
       (def rev (first (rest (rest (rest (rest kit))))))
       (def append2 (first (rest (rest (rest (rest (rest kit)))))))
-      (def i+ (Lexer %i+))
-      (def i- (Lexer %i-))
-      (def i= (Lexer %i=))
+      (def i+ int+)
+      (def i- int-)
+      (def i= int=)
       (def texts (if (null? held) () (first held)))
       (def fits?
         (if (pair? plan)
@@ -1663,7 +1652,7 @@
       (if (null? entries) #f
         (do
           (def cells (map1 (fn (_ c) (pair () ())) (nth plan 3)))
-          (def bufs (map1 (fn (_ n) ((Lexer %make-str) n)) (nth plan 4)))
+          (def bufs (map1 (fn (_ n) (str-make n)) (nth plan 4)))
           (def pour (prim-ref (lit compile) (lit asm-cache-entry-pour)))
           ; the states poured so far, newest first, and how many; () when a
           ; pour misses.  Each state is poured from its entry, walked beside

@@ -9,12 +9,7 @@
 (module x/tui/style)
 (import x/type/class)
 
-(def %st-and (prim-ref (lit int) (lit &)))
-(def %st-or (prim-ref (lit int) (lit |)))
-(def %st-shr (prim-ref (lit int) (lit >>)))
-(def %st-shl (prim-ref (lit int) (lit <<)))
-(def %st< (prim-ref (lit int) (lit <)))
-(def %st+ (prim-ref (lit int) (lit +)))
+(import x/core/doors int& int+ int< int<< int>> int|)
 (def %st-cvt (prim-ref (lit convert) (lit to)))
 (def %st-string (Type named STRING))
 (def %st-num (fn (_ n) (%st-cvt n %st-string 10)))
@@ -32,22 +27,22 @@
 (def %st-colour
   (fn (_ c)
     (match ((eq? c ()) 0)
-           ((match ((%st< c 0) #t) ((%st< 255 c) #t) (#t #f))
+           ((match ((int< c 0) #t) ((int< 255 c) #t) (#t #f))
              (Err raise (lit value) "Style: a colour is 0 to 255" c))
-           (#t (%st+ c 1)))))
+           (#t (int+ c 1)))))
 ; The SGR parameters for colour field F (colour plus one, 0 for none): BASE
 ; for 0-7, BRIGHT for 8-15, EXTENDED;5;N past them.
 (def %st-colour-codes
   (fn (_ f base bright extended out)
     (match ((= f 0) out)
-           ((%st< f 9) (pair (%st-num (%st+ base (%st+ f -1))) out))
-           ((%st< f 17) (pair (%st-num (%st+ bright (%st+ f -9))) out))
-           (#t (pair (%str-concat (list extended ";5;" (%st-num (%st+ f -1)))) out)))))
+           ((int< f 9) (pair (%st-num (int+ base (int+ f -1))) out))
+           ((int< f 17) (pair (%st-num (int+ bright (int+ f -9))) out))
+           (#t (pair (%str-concat (list extended ";5;" (%st-num (int+ f -1)))) out)))))
 (def %st-attr-codes
   (fn (self bits codes out)
     (match ((eq? codes ()) out)
-           ((= (%st-and bits 1) 1) (self (%st-shr bits 1) (rest codes) (pair (first codes) out)))
-           (#t (self (%st-shr bits 1) (rest codes) out)))))
+           ((= (int& bits 1) 1) (self (int>> bits 1) (rest codes) (pair (first codes) out)))
+           (#t (self (int>> bits 1) (rest codes) out)))))
 ; Each parameter after a ;, then the m.
 (def %st-join
   (fn (self ps)
@@ -56,9 +51,9 @@
 (def style-sgr
   (fn (_ s)
     (def ps (%reverse
-              (%st-colour-codes (%st-and (%st-shr s 17) 511) 40 100 "48"
-                (%st-colour-codes (%st-and (%st-shr s 8) 511) 30 90 "38"
-                  (%st-attr-codes (%st-and s 63) %st-codes ())))))
+              (%st-colour-codes (int& (int>> s 17) 511) 40 100 "48"
+                (%st-colour-codes (int& (int>> s 8) 511) 30 90 "38"
+                  (%st-attr-codes (int& s 63) %st-codes ())))))
     (%str-concat (pair "\x1b[0" (%st-join ps)))))
 
 (def-class Style ()
@@ -73,29 +68,29 @@
         (returns INTEGER "The style")
         (example "(Style make '(italic) () ())" "4")
         (example "(Style make () 1 ())" "512"))
-      (%st-or (%st-or (%fold (fn (_ acc a) (%st-or acc (%st-bit a %st-attrs))) 0 attrs)
-                      (%st-shl (%st-colour fg) 8))
-              (%st-shl (%st-colour bg) 17)))
+      (int| (int| (%fold (fn (_ acc a) (int| acc (%st-bit a %st-attrs))) 0 attrs)
+                      (int<< (%st-colour fg) 8))
+              (int<< (%st-colour bg) 17)))
     (method with (self (param style INTEGER "A style") (param attrs LIST "Attribute names to add"))
       (doc "STYLE with ATTRS set as well."
         (returns INTEGER "The style")
         (example "(Style with (Style make '(bold) () ()) '(reverse))" "17"))
-      (%st-or style (self make attrs () ())))
+      (int| style (self make attrs () ())))
     (method has? (self (param style INTEGER "A style") (param attr SYMBOL "An attribute name"))
       (doc "Whether STYLE has the attribute ATTR."
         (returns BOOL "#t or #f")
         (example "(Style has? 9 'underline)" "#t"))
-      (not (= (%st-and style (%st-bit attr %st-attrs)) 0)))
+      (not (= (int& style (%st-bit attr %st-attrs)) 0)))
     (method fg (self (param style INTEGER "A style"))
       (doc "STYLE's foreground colour, or nil for the terminal's."
         (returns ANY "0-255 or nil")
         (example "(Style fg (Style make () 12 ()))" "12"))
-      ((fn (_ f) (match ((= f 0) ()) (#t (- f 1)))) (%st-and (%st-shr style 8) 511)))
+      ((fn (_ f) (match ((= f 0) ()) (#t (- f 1)))) (int& (int>> style 8) 511)))
     (method bg (self (param style INTEGER "A style"))
       (doc "STYLE's background colour, or nil for the terminal's."
         (returns ANY "0-255 or nil")
         (example "(Style bg (Style make () () 200))" "200"))
-      ((fn (_ f) (match ((= f 0) ()) (#t (- f 1)))) (%st-and (%st-shr style 17) 511)))
+      ((fn (_ f) (match ((= f 0) ()) (#t (- f 1)))) (int& (int>> style 17) 511)))
     (method sgr (self (param style INTEGER "A style"))
       (doc "The escape sequence that sets STYLE: it resets first, so it does not depend on the style before it."
         (returns STRING "ESC [ 0 ; ... m")

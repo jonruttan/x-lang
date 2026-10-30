@@ -197,14 +197,12 @@
 (shared "lib/x/tool/asm-code.x" %arch "the architecture's table and encoder; the backend sets it at load")
 (shared "lib/x/tool/asm-code.x" %asm-reloc "the host's relocator; the backend lists it in its table")
 (shared "lib/x/tool/asm-code.x" %asm-arm64? "whether the host is A64, which picks the backend")
-(shared "lib/x/tool/asm-code.x" %ptr-set! "the catalogue's ptr set!, fetched once")
 (shared "lib/x/tool/asm-code.x" %asm-compiler "the compiler, once asm-compile.x has loaded and filed it")
 (shared "lib/x/tool/asm-code.x" %asm-emit "the emitter, once asm.x has loaded and filed it")
 (shared "lib/x/tool/asm-code.x" %jit-missing "the runtime helpers the compiler could not resolve")
 (shared "lib/x/tool/asm-code.x" %asm-last-relocs "the relocations of the function produced last")
 (shared "lib/x/tool/asm-code.x" %asm-last-size "the size of the function produced last")
 (shared "lib/x/tool/asm-code.x" %asm-last-buf "the code buffer of the function produced last")
-(shared "lib/x/tool/asm-code.x" %obj-ref "the catalogue's obj ref, fetched once")
 
 ; --- tool/asm.x: what a backend emits through ---------------------------------
 (shared "lib/x/tool/asm.x" %op-type "an operand's type")
@@ -238,8 +236,6 @@
 (shared "lib/x/codec/sha256.x" %sha-k "the round constants")
 (shared "lib/x/codec/sha256.x" %sha-ih "the initial hash values")
 (shared "lib/x/codec/sha256.x" %sha-word "one message word, read from the input")
-(shared "lib/x/codec/sha256.x" %sha-oref "the catalogue's obj ref, fetched once")
-(shared "lib/x/codec/sha256.x" %sha+ "the catalogue's int +, fetched once")
 
 ; --- repl/loop.x: beside the seam, what the line editor reads ----------------
 (shared "lib/x/repl/loop.x" %error-loc-prefix "the file and line an error message opens with")

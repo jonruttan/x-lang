@@ -3,16 +3,9 @@
 ; wrapper class -- one name per concept)
 (import x/core/alist)
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(def %str-append (prim-ref (lit str) (lit append)))
-(def %str->symbol (prim-ref (lit str) (lit ->sym)))
-(def %display-to-str (prim-ref (lit io) (lit display-to-str)))  ; render a bad init key in errors
+(import x/core/doors io-display-to-str str->sym str-append str-byte-len str-byte-ref type-by-atom type-make type-make-instance type-push-call type?)
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
-(def %make-type (prim-ref (lit type) (lit make)))
-(def %make-instance (prim-ref (lit type) (lit make-instance)))
-(def %type? (prim-ref (lit type) (lit ?)))
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-call-top (prim-ref (lit type) (lit call-top)))
-(def %type-push-call (prim-ref (lit type) (lit push-call)))
 ; The engine's apply, kept under a fixed name.  The dispatcher applies what
 ; it resolved -- a method closure, or the handler a type's call cell held
 ; before bind-call-over! pushed over it, which for the engine's own types is
@@ -314,9 +307,9 @@
             (defining (first (rest (rest entry))))
             (inner (rest (rest (rest entry)))))
         (unless (%vis-allowed? vis defining e)
-          (error (%str-append (symbol->str (class-name class))
-            (%str-append ": " (%str-append (symbol->str selector)
-              (%str-append (if (eq? vis (lit private)) " is private to " " is protected to ")
+          (error (str-append (symbol->str (class-name class))
+            (str-append ": " (str-append (symbol->str selector)
+              (str-append (if (eq? vis (lit private)) " is private to " " is protected to ")
                 (symbol->str (class-name defining))))))))
         (match
           ((eq? inner %field-label)                                 ; instance field
@@ -355,7 +348,7 @@
                   (%entry-method (%tab-find! stab stab sel)))
                 ()))))
       (if (null? entry)
-        (error (%str-append "delegates: no such method " (symbol->str sel)))
+        (error (str-append "delegates: no such method " (symbol->str sel)))
         (%apply entry (pair target args))))))
 
 ; A class's hot record, built on first dispatch. Lives in the class
@@ -393,8 +386,6 @@
   (fn (_ tab sel)
     ; Byte access, prim-ref'd here for the same reason the top of this
     ; file does it: class.x loads ahead of the string layer.
-    (def %sg-len (prim-ref (lit str) (lit byte-len)))
-    (def %sg-ref (prim-ref (lit str) (lit byte-ref)))
     ; Edit distance <= 1 (substitution, insertion, or deletion), walked as
     ; two cursors with one unit of slack.  One edit is the whole budget on
     ; purpose: it catches the typo that actually happens -- `splt` for
@@ -402,11 +393,11 @@
     ; proposing unrelated short selectors for every miss.
     (def %sg-within1?
       (fn (self a b i j slack)
-        (let ((la (%sg-len a)) (lb (%sg-len b)))
+        (let ((la (str-byte-len a)) (lb (str-byte-len b)))
           (match
             ((>= i la) (<= (- lb j) slack))
             ((>= j lb) (<= (- la i) slack))
-            ((= (%sg-ref a i) (%sg-ref b j)) (self a b (+ i 1) (+ j 1) slack))
+            ((= (str-byte-ref a i) (str-byte-ref b j)) (self a b (+ i 1) (+ j 1) slack))
             ((= slack 0) #f)
             ; The three ways one edit can go, tried in turn as the
             ; slack allows: substitute, drop from a, drop from b.
@@ -417,11 +408,11 @@
     ; `split`), which is two edits away and so invisible to the check above.
     (def %sg-prefix?
       (fn (self a b i)
-        (let ((la (%sg-len a)))
+        (let ((la (str-byte-len a)))
           (match
-            ((>= i la) (< la (%sg-len b)))
-            ((>= i (%sg-len b)) #f)
-            ((= (%sg-ref a i) (%sg-ref b i)) (self a b (+ i 1)))
+            ((>= i la) (< la (str-byte-len b)))
+            ((>= i (str-byte-len b)) #f)
+            ((= (str-byte-ref a i) (str-byte-ref b i)) (self a b (+ i 1)))
             (#t #f)))))
     (def %sg-near?
       (fn (_ miss cand)
@@ -450,12 +441,12 @@
           ""
           (if (null? (rest names))
             (first names)
-            (%str-append (first names)
-              (%str-append " or " (self (rest names))))))))
+            (str-append (first names)
+              (str-append " or " (self (rest names))))))))
     (let ((names (%sg-collect tab (symbol->str sel) () 0)))
       (if (null? names)
         ""
-        (%str-append " -- did you mean " (%str-append (%sg-join names) "?"))))))
+        (str-append " -- did you mean " (str-append (%sg-join names) "?"))))))
 
 ; Total dispatch miss, one seam. The %missing protocol hook fires first
 ; when the chain defines it: (method %missing (self sel args) ...) --
@@ -484,14 +475,14 @@
           ; nothing to suggest -- and the near-name hint is offered only for a
           ; symbol, the only thing that can be a typo for a member name.
           (let ((what (if static? ": no such static member " ": no such member ")))
-            (error (%str-append (symbol->str (class-name class))
+            (error (str-append (symbol->str (class-name class))
               (match
                 ((null? selector)
                   ": call with no selector -- name a field or method")
                 ((symbol? selector)
-                  (%str-append what
-                    (%str-append (symbol->str selector) (%sug-hint tab selector))))
-                (#t (%str-append what (%display-to-str selector)))))))
+                  (str-append what
+                    (str-append (symbol->str selector) (%sug-hint tab selector))))
+                (#t (str-append what (io-display-to-str selector)))))))
           (%apply m (list target selector
                      (%map1 (fn (_ a) (eval a e)) args))))))))
 
@@ -522,8 +513,8 @@
   (fn (_ key fields class)
     (match
       ((%assoc-has? key fields) ())
-      (#t (error (%str-append "new: " (%str-append (%display-to-str key)
-            (%str-append " is not a field of " (%display-to-str (class-name class))))))))))
+      (#t (error (str-append "new: " (str-append (io-display-to-str key)
+            (str-append " is not a field of " (io-display-to-str (class-name class))))))))))
 
 ; Walk an init store (plist `name val ...` OR alist `((name . val) ...)`),
 ; checking every key, before %init-fields uses it. Mirrors %opt-cell's walk and
@@ -603,8 +594,8 @@
       ((null? inits) ())
       ((%keyword-tail? inits fields) inits)              ; keyword tail begins
       ((null? names)
-        (error (%str-append "new: too many positional values for "
-          (%display-to-str (class-name class)))))
+        (error (str-append "new: too many positional values for "
+          (io-display-to-str (class-name class)))))
       (#t (pair (pair (first names) (first inits))
             (loop (rest inits) (rest names) fields class))))))
 
@@ -624,7 +615,7 @@
         (eval? (%positional->store inits (first (rest (rest (rest hot)))) fields class))
         (#t inits)))
     (%check-init-keys store fields class)
-    (def inst (%make-instance %object (list class (%init-fields fields store e eval?))))
+    (def inst (type-make-instance %object (list class (%init-fields fields store e eval?))))
     ; %init protocol hook (the initialize slot): a class's %init method, if
     ; any, runs once the fields are built -- construction logic beyond plain
     ; field values. Resolved through the flat table, so a child's override
@@ -753,7 +744,7 @@
 ; ("a,b,c" split ",") -> (Str8 split "," "a,b,c"), (lst map f) -> (List map f
 ; lst). Commutative ops read naturally ((1/2 + 1/3) -> (Rational + 1/3 1/2) ->
 ; 5/6); non-commutative ones are subject-last too (use the prefix (- a b) form).
-; Install via type-push-call: (%type-push-call (%type-by-atom %rational)
+; Install via type-push-call: (type-push-call (type-by-atom %rational)
 ; (class-call-handler Rational)). An `op` (not fn) so the method selector stays
 ; unevaluated while the remaining args evaluate in the caller's env.
 ; Data-form echo for the non-selector paths below (#69 ruled: a non-callable
@@ -798,8 +789,8 @@
                 (def stab (first (rest (%class-hot class))))
                 (def m (%entry-method (%tab-find! stab stab sel)))
                 (if (eq? m ())
-                  (error (%str-append "object: no such method "
-                    (%str-append (symbol->str sel) (%sug-hint stab sel))))
+                  (error (str-append "object: no such method "
+                    (str-append (symbol->str sel) (%sug-hint stab sel))))
                   (tail-eval
                     (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
                     e)))
@@ -833,8 +824,8 @@
                 (def stab (first (rest (%class-hot class))))
                 (def m (%entry-method (%tab-find! stab stab sel)))
                 (if (eq? m ())
-                  (error (%str-append "object: no such method "
-                    (%str-append (symbol->str sel) (%sug-hint stab sel))))
+                  (error (str-append "object: no such method "
+                    (str-append (symbol->str sel) (%sug-hint stab sel))))
                   (tail-eval
                     (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
                     e)))
@@ -845,8 +836,8 @@
 ; falls through to whatever the type's call slot did before.
 (def bind-call-over!
   (fn (_ type-handle class)
-    (let ((t (%type-by-atom type-handle)))
-      (%type-push-call t (%class-call-handler-over class (%type-call-top t))))))
+    (let ((t (type-by-atom type-handle)))
+      (type-push-call t (%class-call-handler-over class (%type-call-top t))))))
 
 (note "Write handlers")
 
@@ -894,12 +885,12 @@
       (display (self %str)))))
 
 (def %object
-  (%make-type "OBJECT"
+  (type-make "OBJECT"
     (list
       (pair (lit call) %object-dispatch)
       (pair (lit write) %object-write)
       (pair (lit display) %object-display))))
-(def %class  (%make-type "CLASS"  (list (pair (lit call) %class-dispatch)  (pair (lit write) %class-write))))
+(def %class  (type-make "CLASS"  (list (pair (lit call) %class-dispatch)  (pair (lit write) %class-write))))
 
 (note "Inheritance")
 
@@ -974,12 +965,12 @@
 
 (note "Predicates and introspection")
 
-(doc (def object? (fn (_ (param x ANY "Value to test")) (%type? x %object)))
+(doc (def object? (fn (_ (param x ANY "Value to test")) (type? x %object)))
   (returns BOOL "True if x is an object instance")
   (see class?)
   "Test whether a value is an object instance.")
 
-(doc (def class? (fn (_ (param x ANY "Value to test")) (%type? x %class)))
+(doc (def class? (fn (_ (param x ANY "Value to test")) (type? x %class)))
   (returns BOOL "True if x is a class")
   (see object?)
   "Test whether a value is a class.")
@@ -1074,7 +1065,7 @@
 
 (def %make-class
   (fn (_ name fields methods parent s-methods statics interface ivis svis)
-    (%make-instance %class
+    (type-make-instance %class
       (list
         (pair (lit name) name)
         (pair (lit fields) fields)
@@ -1120,8 +1111,8 @@
 ; Compose the doc key symbol: Class/method.
 (def %method-doc-key
   (fn (_ class-name method-name)
-    (%str->symbol (%str-append (symbol->str class-name)
-                   (%str-append "/" (symbol->str method-name))))))
+    (str->sym (str-append (symbol->str class-name)
+                   (str-append "/" (symbol->str method-name))))))
 
 ; Stash a method's (doc "desc" meta...) as a %bare pending entry. The doc clause
 ; is (doc DESC META...); DESC may be absent. Inline (param ...) forms from the
@@ -1395,8 +1386,8 @@
     (unless (null? reqs)
       (do
         (unless (%implements? cls (first reqs))
-          (error (%str-append (symbol->str (class-name cls))
-            (%str-append ": missing interface method " (symbol->str (first reqs))))))
+          (error (str-append (symbol->str (class-name cls))
+            (str-append ": missing interface method " (symbol->str (first reqs))))))
         (loop cls (rest reqs))))))
 
 (def %check-ancestors!
@@ -1476,9 +1467,9 @@
           (unless (null? ms)
             (do
               (when (%member-key? (first (first ms)) (rest ms))
-                (error (%str-append (symbol->str name)
-                  (%str-append ": duplicate field "
-                    (%str-append (symbol->str (first (first ms)))
+                (error (str-append (symbol->str name)
+                  (str-append ": duplicate field "
+                    (str-append (symbol->str (first (first ms)))
                       " -- declared twice in one class body (a (doc NAME ...) form also declares)")))))
               (loop (rest ms))))))
       (let ((dform (%find-doc-form body)))           ; class-level (doc ...) -> doc registry
@@ -1519,9 +1510,9 @@
               (let ((sel (first (first rows))))
                 (unless (%member-key? sel own)
                   (when (%member-key? sel seen)
-                    (error (%str-append (symbol->str name)
-                      (%str-append ": traits collide on "
-                        (%str-append (symbol->str sel) " -- add an own override")))))))
+                    (error (str-append (symbol->str name)
+                      (str-append ": traits collide on "
+                        (str-append (symbol->str sel) " -- add an own override")))))))
               (loop (rest rows) own (pair (first rows) seen))))))
       (def %delegates-methods
         (fn (loop fs acc)

@@ -22,14 +22,7 @@
 
 (import x/tool/jit-group jit-group)
 
-(def %bj-make-str (prim-ref (lit str) (lit make)))
-(def %bj-str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %bj-ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %bj-pset (prim-ref (lit ptr) (lit set-word!)))
-(def %bj-pref (prim-ref (lit ptr) (lit ref-word)))
-(def %bj-pset1 (prim-ref (lit ptr) (lit set!)))
-(def %bj-byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %bj-char->int (prim-ref (lit char) (lit ->int)))
+(import x/core/doors char->int ptr->int ptr-ref-word ptr-set! ptr-set-word! str->ptr str-byte-ref str-make)
 (def %bj-M 4294967295)
 
 ; the buffer, in words:
@@ -139,13 +132,13 @@
 (def %bj-wire
   (fn (_ init %reset %expand %final replayed?)
     (unless replayed? (Heap collect))
-    (def %buf (%bj-make-str (+ (* %bj-words 8) 8)))
-    (def %ptr (%bj-str->ptr %buf))
-    (def %addr (%bj-ptr->int %ptr))
-    (def %poke (fn (_ i v) (%bj-pset %ptr (* i 8) v)))
-    (def %peek (fn (_ i) (%bj-pref %ptr (* i 8))))
+    (def %buf (str-make (+ (* %bj-words 8) 8)))
+    (def %ptr (str->ptr %buf))
+    (def %addr (ptr->int %ptr))
+    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i 8) v)))
+    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i 8))))
     ((fn (self i ws) (unless (null? ws) (do (%poke i (first ws)) (self (+ i 1) (rest ws))))) %bj-INIT init)
-    (def %byte (fn (_ s i) (%bj-char->int (%bj-byte-ref s i))))
+    (def %byte (fn (_ s i) (char->int (str-byte-ref s i))))
     ; big-endian word k of a 64-byte digest, k counted around its 16
     (def %be
       (fn (_ s k)
@@ -161,15 +154,15 @@
         (%expand %addr 2 -1)
         ((fn (self n) (unless (= n 0) (do (%expand %addr 0 -1) (%expand %addr 1 -1) (self (- n 1))))) 64)
         (%final %addr 0)
-        (def out (%bj-make-str 33))
-        (def p (%bj-str->ptr out))
+        (def out (str-make 33))
+        (def p (str->ptr out))
         ((fn (self k)
            (unless (= k 8)
              (do (def w (%peek (+ %bj-C k)))
-                 (%bj-pset1 p (* k 4) (& w 255) 1)
-                 (%bj-pset1 p (+ (* k 4) 1) (& (>> w 8) 255) 1)
-                 (%bj-pset1 p (+ (* k 4) 2) (& (>> w 16) 255) 1)
-                 (%bj-pset1 p (+ (* k 4) 3) (& (>> w 24) 255) 1)
+                 (ptr-set! p (* k 4) (& w 255) 1)
+                 (ptr-set! p (+ (* k 4) 1) (& (>> w 8) 255) 1)
+                 (ptr-set! p (+ (* k 4) 2) (& (>> w 16) 255) 1)
+                 (ptr-set! p (+ (* k 4) 3) (& (>> w 24) 255) 1)
                  (self (+ k 1)))))
          0)
         out))
@@ -177,9 +170,9 @@
     ; and the salt's 64..127
     (def %ramp
       (fn (_ from)
-        (def r (%bj-make-str 65))
-        (def p (%bj-str->ptr r))
-        ((fn (self i) (unless (= i 64) (do (%bj-pset1 p i (+ from i) 1) (self (+ i 1))))) 0)
+        (def r (str-make 65))
+        (def p (str->ptr r))
+        ((fn (self i) (unless (= i 64) (do (ptr-set! p i (+ from i) 1) (self (+ i 1))))) 0)
         r))
     (def %want (list 135 144 72 112 238 249 222 221 248 231 97 26 20 1 6 230
                      170 241 163 99 217 162 197 4 219 53 100 67 114 30 181 85))
