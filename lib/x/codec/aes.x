@@ -1,19 +1,31 @@
-; aes.x -- AES: the block cipher (FIPS 197) and its counter mode, pure x-lang.
+; aes.x -- AES: the block cipher (FIPS 197) and its counter mode.
 ;
 ; What an SSH written in x opens a passphrase-protected key file with:
 ; OpenSSH seals the private section in aes256-ctr under a key bcrypt-pbkdf
-; derives.  A key file is a few hundred bytes, so the cipher is the plain
-; byte-wise one -- SubBytes and ShiftRows together through the S-box,
-; MixColumns by xtime -- with no tables but the S-box and no compiled
-; engine.  Key sizes 16, 24 and 32 bytes give AES-128, -192 and -256.
+; derives, and what its aes-ctr transport runs.  The pure-x cipher is the
+; plain byte-wise one -- SubBytes and ShiftRows together through the
+; S-box, MixColumns by xtime -- the reference; counter mode over a
+; connection's traffic is x/codec/aes-jit's compiled engine, adopted once
+; it agrees with it.  Key sizes 16, 24 and 32 bytes give AES-128, -192
+; and -256.
 ;
 ; Counter mode (SP 800-38A 6.5) runs the block cipher over a 16-byte
 ; counter block, incremented as one big-endian 128-bit integer, and XORs
 ; each output block into the data: OpenSSH's aes-ctr and OpenSSL's
 ; -aes-256-ctr count so.  One operation encrypts and decrypts.
+;
+; GCM (SP 800-38D) is counter mode from the block after J0, the 96-bit IV
+; then 1, and a tag: GHASH of the additional data and the ciphertext,
+; XORed with the cipher of J0 -- OpenSSH's aes128-gcm@openssh.com and
+; aes256-gcm@openssh.com (RFC 5647).  Counting the whole block where GCM
+; counts its last word alone is the same while a message is under 2^32
+; blocks less one, as any one is.
 (module x/codec/aes)
 
 (import x/type/vector)
+; The compiled engine is on Compiled's list.
+(import x/tool/compiled)
+(import x/codec/ghash)
 
 (def %add (prim-ref (lit int) (lit +)))
 (def %sub (prim-ref (lit int) (lit -)))
@@ -164,6 +176,120 @@
   (fn (_ s r)
     (if (null? r) (list 0 (Str8 length s)) (list (first r) (first (rest r))))))
 
+; The pure-x counter mode: a schedule, the initial counter block and a
+; byte region -> a fresh string of len bytes, each XORed with the
+; keystream.  The compiled engine answers the same string, so it is a
+; drop-in for this function.
+(def %ctr-bytes
+  (fn (_ ks iv s start len)
+    (def st (Vector make 16 0))
+    (def t (Vector make 16 0))
+    (def ctr (%make-str 16))
+    (def cp (%str->ptr ctr))
+    ((fn (self i) (unless (%eq i 16) (do (%pset1 cp i (%byte iv i) 1) (self (%add i 1))))) 0)
+    (def out (%make-str len))
+    (def p (%str->ptr out))
+    ((fn (self pos)
+       (when (%lt pos len)
+         (do (%encrypt! ks st t ctr 0)
+             ((fn (self i)
+                (unless (if (%eq i 16) #t (%eq (%add pos i) len))
+                  (do (%pset1 p (%add pos i) (%xor (%byte s (%add start (%add pos i))) (%oref st (%add i 1))) 1)
+                      (self (%add i 1)))))
+              0)
+             (%bump! ctr cp)
+             (self (%add pos 16)))))
+     0)
+    out))
+
+; --- The compiled engine (JIT), adopted only when it proves out ------
+;
+; As chacha20.x's: an entry of Compiled's, made the first time a build is
+; asked for, interpreted by the pure-x cipher above, and built only for a
+; region of %jit-threshold bytes or more or on (Aes jit!).
+(def %entry ())
+(def %jit-threshold 1024)
+
+(def %jit-try!
+  (fn (_)
+    (when (null? %entry)
+      (set! %entry
+        (Compiled make-on-demand (lit aes) %ctr-bytes
+          (fn (_)
+            (import x/codec/aes-jit)
+            ((prim-ref (lit aes) (lit jit-make)) %ctr-bytes %schedule %sub-byte))
+          (fn (_ v) ()))))
+    ((fn (_ entry)
+       (when (eq? (entry state) (lit interpreted)) (entry compile!))
+       (eq? (entry state) (lit compiled)))
+     %entry)))
+
+(def %run
+  (fn (_ ks iv s start len)
+    (when (if (%lt len %jit-threshold) #f
+            ((fn (_ entry) (if (null? entry) #t (eq? (entry state) (lit interpreted))))
+             %entry))
+      (%jit-try!))
+    ((fn (_ entry)
+       (if (if (null? entry) #f (eq? (entry state) (lit compiled)))
+         ((entry compiled) ks iv s start len)
+         (%ctr-bytes ks iv s start len)))
+     %entry)))
+
+; The schedule for the last key asked, kept: slots 1 the key's bytes, 2
+; its size, 3 the schedule.  A connection's every packet is under one key.
+(def %kept (Vector make 3 ()))
+
+(def %same?
+  (fn (_ x y n)
+    ((fn (self i) (if (%eq i n) #t (if (%eq (%byte x i) (%byte y i)) (self (%add i 1)) #f))) 0)))
+
+(def %copy
+  (fn (_ s n)
+    (def out (%make-str n))
+    (def p (%str->ptr out))
+    ((fn (self i) (unless (%eq i n) (do (%pset1 p i (%byte s i) 1) (self (%add i 1))))) 0)
+    out))
+
+(def %schedule-of
+  (fn (_ key size)
+    (if (if (null? (%oref %kept 1)) #f (if (%eq (%oref %kept 2) size) (%same? key (%oref %kept 1) size) #f))
+      (%oref %kept 3)
+      (do (def ks (%schedule key size))
+          (%oset! %kept 1 (%copy key size)) (%oset! %kept 2 size) (%oset! %kept 3 ks)
+          ks))))
+
+; n zero bytes.
+(def %zeros
+  (fn (_ n)
+    (def out (%make-str n))
+    (def p (%str->ptr out))
+    ((fn (self i) (unless (%eq i n) (do (%pset1 p i 0 1) (self (%add i 1))))) 0)
+    out))
+
+; The counter block for a 96-bit IV and a 32-bit count.
+(def %gcm-block
+  (fn (_ iv n)
+    (def out (%zeros 16))
+    (def p (%str->ptr out))
+    ((fn (self i) (unless (%eq i 12) (do (%pset1 p i (%byte iv i) 1) (self (%add i 1))))) 0)
+    (%pset1 p 15 n 1)
+    out))
+
+; GCM's parts for a key, an IV, and the ciphertext's region of s: the tag
+; (16 bytes) of the additional data a-start..a-len and the ciphertext.
+(def %gcm-tag
+  (fn (_ ks iv s a-start a-len c c-start c-len)
+    (def zero (%zeros 16))
+    (def h (%run ks zero zero 0 16))
+    (def s0 (%run ks (%gcm-block iv 1) zero 0 16))
+    (def g (Ghash hash h s a-start a-len c c-start c-len))
+    ((fn (_ out)
+       (def p (%str->ptr out))
+       ((fn (self i) (unless (%eq i 16) (do (%pset1 p i (%xor (%byte g i) (%byte s0 i)) 1) (self (%add i 1))))) 0)
+       out)
+     (%make-str 16))))
+
 (def-class Aes ()
   (static
     (method encrypt-block (self (param key STRING "The key: size bytes are read")
@@ -185,28 +311,42 @@
         (example "(Aes ctr (Str8 pad-right 32 #\\k \"\") 32 (Str8 pad-right 16 #\\i \"\") (Aes ctr (Str8 pad-right 32 #\\k \"\") 32 (Str8 pad-right 16 #\\i \"\") \"abc\") 0 3)" "\"abc\""))
       (%check-size size)
       (def r (%region s span))
-      (def start (first r))
-      (def len (first (rest r)))
-      (def ks (%schedule key size))
-      (def st (Vector make 16 0))
-      (def t (Vector make 16 0))
-      (def ctr (%make-str 16))
-      (def cp (%str->ptr ctr))
-      ((fn (self i) (unless (%eq i 16) (do (%pset1 cp i (%byte iv i) 1) (self (%add i 1))))) 0)
-      (def out (%make-str len))
-      (def p (%str->ptr out))
-      ((fn (self pos)
-         (when (%lt pos len)
-           (do (%encrypt! ks st t ctr 0)
-               ((fn (self i)
-                  (unless (if (%eq i 16) #t (%eq (%add pos i) len))
-                    (do (%pset1 p (%add pos i) (%xor (%byte s (%add start (%add pos i))) (%oref st (%add i 1))) 1)
-                        (self (%add i 1)))))
-                0)
-               (%bump! ctr cp)
-               (self (%add pos 16)))))
-       0)
-      out)))
+      (%run (%schedule-of key size) iv s (first r) (first (rest r))))
+    (method gcm-seal (self (param key STRING "The key: size bytes are read")
+                           (param size INTEGER "The key's length in bytes: 16 or 32 for OpenSSH's, 24 too")
+                           (param iv STRING "The 96-bit IV: 12 bytes are read")
+                           (param s STRING "The bytes: the additional data and the plaintext")
+                           (param a-start INTEGER "Where the additional data starts")
+                           (param a-len INTEGER "Its length")
+                           (param start INTEGER "Where the plaintext starts")
+                           (param len INTEGER "Its length"))
+      (doc "AES-GCM encryption (NIST SP 800-38D): the plaintext region in counter mode from the block after J0, and the 16-byte tag over the additional data and the ciphertext -- OpenSSH's aes128-gcm@openssh.com and aes256-gcm@openssh.com (RFC 5647), where the additional data is the packet length. Answered as (CIPHERTEXT . TAG), fresh strings of len and 16 bytes."
+        (returns PAIR "(CIPHERTEXT . TAG)"))
+      (%check-size size)
+      (def ks (%schedule-of key size))
+      (def c (%run ks (%gcm-block iv 2) s start len))
+      (pair c (%gcm-tag ks iv s a-start a-len c 0 len)))
+    (method gcm-open (self (param key STRING "The key: size bytes are read")
+                           (param size INTEGER "The key's length in bytes")
+                           (param iv STRING "The 96-bit IV: 12 bytes are read")
+                           (param s STRING "The bytes: the additional data and the ciphertext")
+                           (param a-start INTEGER "Where the additional data starts")
+                           (param a-len INTEGER "Its length")
+                           (param start INTEGER "Where the ciphertext starts")
+                           (param len INTEGER "Its length")
+                           (param tag STRING "The 16-byte tag that came with it"))
+      (doc "AES-GCM decryption (NIST SP 800-38D): the tag over the additional data and the ciphertext checked, every byte of it, and only then the ciphertext deciphered. Answers the plaintext, a fresh string of len bytes, or nil when the tag does not match."
+        (returns ANY "The plaintext, or nil"))
+      (%check-size size)
+      (def ks (%schedule-of key size))
+      (def want (%gcm-tag ks iv s a-start a-len s start len))
+      ; every byte compared, so how far a forgery matched is not timed
+      (def diff ((fn (self i acc) (if (%eq i 16) acc (self (%add i 1) (%or acc (%xor (%byte want i) (%byte tag i)))))) 0 0))
+      (if (%eq diff 0) (%run ks (%gcm-block iv 2) s start len) ()))
+    (method jit! (self)
+      (doc "Build and adopt the compiled counter-mode engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x cipher. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. ctr also builds it on its own for any single region of 1KB or more."
+        (returns BOOL "#t when the compiled engine is active"))
+      (%jit-try!))))
 
 (doc (provide x/codec/aes Aes)
-  "AES (FIPS 197): (Aes encrypt-block key size block) is one block, (Aes ctr key size iv s [start len]) counter mode (SP 800-38A), OpenSSH's aes-ctr. Key sizes 16, 24 and 32 bytes. Pure x-lang.")
+  "AES (FIPS 197): (Aes encrypt-block key size block) is one block, (Aes ctr key size iv s [start len]) counter mode (SP 800-38A), OpenSSH's aes-ctr; (Aes gcm-seal ...) and (Aes gcm-open ...) Galois/counter mode (SP 800-38D), OpenSSH's aes-gcm. Key sizes 16, 24 and 32 bytes. Pure x-lang, with an optional differentially-verified JIT engine for counter mode ((Aes jit!), or built on its own for a region of 1KB or more).")
