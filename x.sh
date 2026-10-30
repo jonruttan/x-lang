@@ -63,6 +63,13 @@ if [ ! -e "${LIB_PATH}${X_LIB}${X_EXT}" ]; then
 	ENTRY_DIR="$INSTALL_ROOT/boot/"
 	[ -n "${X_LANG_DIR:-}" ] || LANGS_PATH="$INSTALL_ROOT/langs/"
 fi
+# Every use below appends "*/" or a name to it, so it ends in a slash
+# whatever X_LANG_DIR was given as: `X_LANG_DIR=/path/to/x-ash/..` found
+# nothing, and said only that the lang was not installed.
+case "$LANGS_PATH" in
+	*/) ;;
+	*) LANGS_PATH="$LANGS_PATH/" ;;
+esac
 
 # Both forms below emit a path as an x-lang STRING LITERAL ahead of the
 # boot entry.  A path holding a double quote or a backslash would close
