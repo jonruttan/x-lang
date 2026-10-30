@@ -141,26 +141,26 @@
 ; (where a strict test would break float comparisons dispatched through the
 ; C op registry), rejecting every non-INT operand is simply correct. The
 ; type test is an inline type-of + eq? pair per operand, not a closure call
-; (the #51 cost model), and it subsumes the nil test: (%arith-type-of ())
+; (the #51 cost model), and it subsumes the nil test: (type-of ())
 ; is nil, which is not the INT handle.
-(def %arith-type-of (prim-ref (lit type) (lit of)))
-(def %arith-int-t (%arith-type-of 0))
+(import x/core/doors str-byte-ref type-of)
+(def %arith-int-t (type-of 0))
 ; CHARs pass: they ARE their code points (str-byte-ref returns CHAR and
 ; utf8 decode masks those bytes with & directly) -- the char/int pun is
 ; contract here, matching op-guard's exemption.
-(def %arith-char-t (%arith-type-of #\A))
+(def %arith-char-t (type-of #\A))
 (def %arith-int-guard
   (fn (_ n name prim)
     (if (eq? n 1)
       (fn (_ a)
-        (def t (%arith-type-of a))
+        (def t (type-of a))
         (match
           ((eq? t %arith-int-t) (prim a))
           ((eq? t %arith-char-t) (prim a))
           (#t (error (%str-append name ": operand must be an integer")))))
       (fn (_ a b)
-        (def ta (%arith-type-of a))
-        (def tb (%arith-type-of b))
+        (def ta (type-of a))
+        (def tb (type-of b))
         (match
           ((eq? ta %arith-int-t)
             (match

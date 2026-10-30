@@ -8,19 +8,17 @@
 ; two accessors emit exports.
 (import x/tool/compile/emit compile-fvars-set! compile-fvar-lookup)
 ; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
-(def %obj->ptr (prim-ref 'obj '->ptr))
+(import x/core/doors ffi-dlopen ffi-dlsym int% io-write-to-str obj->ptr ptr->int ptr-call ptr-set-word! str->sym type-of)
 (def %make-callable (prim-ref 'obj 'make-callable))
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(def %str->symbol (prim-ref 'str '->sym))
 
 ; What a PRIMITIVE's type atom is, taken from a prim this file already holds
 ; rather than spelled as a name: the type name is the type system's business,
 ; and comparing atoms is what every other type test in the tree does.  Used to
 ; decide, AT GENERATION, whether a name bound to an fvar names something that
 ; can actually be called (#603).
-(def %asm-type-of (prim-ref 'type 'of))
-(def %asm-prim-type (%asm-type-of %str->symbol))
+(def %asm-prim-type (type-of str->sym))
 
 (import x/tool/asm)
 ; Collection is explicit-trigger-only, and a GENERATED build is the
@@ -32,20 +30,14 @@
 ; not the whole build's; small compiles (under a window) never collect.
 (import x/sys/gc)
 ; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
-(def %ptr-call (prim-ref 'ptr 'call))
-(def %ptr->int (prim-ref 'ptr '->int))
-(def %ptr-set-word! (prim-ref 'ptr 'set-word!))
-(def %dlopen (prim-ref 'ffi 'dlopen))
-(def %dlsym (prim-ref 'ffi 'dlsym))
 ; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
-(def %write-to-str (prim-ref 'io 'write-to-str))
 
 
 
 ; --- Resolve JIT runtime helpers (non-variadic wrappers in jit.c) ---
 ;
 ; EVERY helper must resolve, and an unresolved one must REFUSE, not
-; coast: dlsym answers nil, %ptr->int turns that into 0, and the
+; coast: dlsym answers nil, ptr->int turns that into 0, and the
 ; compiler then happily emits `blr` to address 0 -- machine code that
 ; segfaults on its first call, arbitrarily far from the cause.  That is
 ; exactly what a bare-`strip`ped install did (it drops the exported
@@ -60,12 +52,12 @@
 ; the entry point checks before it emits anything, so the raise happens
 ; in an ordinary call that Sha256's adoption guard turns into "stay
 ; pure-x" -- correct, merely slower.
-(def %jit-lib (%dlopen () 1))
+(def %jit-lib (ffi-dlopen () 1))
 ; %jit-missing itself is defined in asm.x -- see the note there; this file
 ; fills it in.
 (def %jit-sym
   (fn (_ name)
-    (def p (%dlsym %jit-lib name))
+    (def p (ffi-dlsym %jit-lib name))
     (when (null? p) (set! %jit-missing (pair name %jit-missing)))
     p))
 ; OPTIONAL (a true second argument) resolves WITHOUT %jit-sym's missing-symbol
@@ -76,8 +68,8 @@
 ; and falls back, which is what the delimiter's %tower-asm ladder wants.
 (def %jit-addr
   (fn (_ name . optional)
-    (def p (if (null? optional) (%jit-sym name) (%dlsym %jit-lib name)))
-    (if (null? p) 0 (%ptr->int p))))
+    (def p (if (null? optional) (%jit-sym name) (ffi-dlsym %jit-lib name)))
+    (if (null? p) 0 (ptr->int p))))
 ; --- These addresses are THIS PROCESS'S ALONE ---------------------------------
 ; Each is an INTEGER holding a dlsym result, and an integer names nothing: a
 ; state image carries it as it is, and a process that loads the image then
@@ -161,7 +153,7 @@
 ; (rows are newest first), then the name table over the new addresses.
 (set! %image-recache-hooks
   (pair (fn (_)
-          (do (set! %jit-lib (%dlopen () 1))
+          (do (set! %jit-lib (ffi-dlopen () 1))
               (set! %jit-missing ())
               ((fn (self l)
                  (if (null? l) ()
@@ -257,11 +249,19 @@
 ; compile that carries fvars declares it or refuses, and one with neither is
 ; an integer function.
 (def %asm-analyser? #f)
+; The third world: an OBJECT function called from x.  Its params evaluate
+; as an integer function's do and then stay the x_obj_t* they evaluated to,
+; and its result is returned as the object it is -- the shape of a guarded
+; first: a pointer tested against nil and read through a trampoline, never
+; a number.  Arithmetic and the ordered comparisons on a param refuse as
+; they do in analyser mode; `=` against 0 is the nil test.
+(def %asm-object? #f)
 ; In analyser mode the tokenizer protocol fixes the leading params: (self
 ; buffer score chr) -- buffer and score are x_obj_t*, chr is a raw character.
 ; A bare object param must load its POINTER, never unbox it: atomint on a
 ; buffer reads its first word as an integer, and the trampolines then
-; dereference that.  These two names are the object params.
+; dereference that.  These two names are the object params; in an object
+; function every param is.
 (def %asm-object-params ())
 ; The %asm-last-* facts this fills in live in asm.x -- see the note there.
 (def %asm-memq
@@ -326,7 +326,7 @@
 (def %asm-genlabel
   (fn (_ prefix)
     (set! %asm-label-counter (+ %asm-label-counter 1))
-    (%str->symbol (Str append prefix (%number->str %asm-label-counter)))))
+    (str->sym (Str append prefix (%number->str %asm-label-counter)))))
 
 ; --- Code generation ---
 ; Convention: result always in x0 as a RAW INTEGER.
@@ -336,7 +336,6 @@
 (def %asm-gc-window 128)
 (def %asm-gc-tick (pair 0 ()))
 ; Cached int prim (#335): the tick check runs per compiled expression.
-(def %asm-int% (prim-ref (lit int) (lit %)))
 
 ; Emit code for an expression
 (set! %asm-compile-expr
@@ -350,7 +349,7 @@
     ; wrapper's own record of what is loading: nil means nothing is, and the
     ; window collect is safe; otherwise the entry's boot collect reclaims the
     ; burst once the include has returned (lib/xe.x).
-    (when (and (= 0 (%asm-int% (first %asm-gc-tick) %asm-gc-window))
+    (when (and (= 0 (int% (first %asm-gc-tick) %asm-gc-window))
                (eq? (first %include-dir-cell) ()))
       (Heap collect))
     ; Tail position is this expression's alone: nothing it compiles inside
@@ -370,7 +369,7 @@
           (asm-load-imm64! asm x0 expr)))
       ((symbol? expr) (%asm-compile-param asm expr params))
       ((pair? expr) (do (set! %asm-in-tail tail) (%asm-compile-call asm expr params)))
-      (#t (Err raise 'value (Str append "asm-compile: unsupported: " (%write-to-str expr)) ())))))
+      (#t (Err raise 'value (Str append "asm-compile: unsupported: " (io-write-to-str expr)) ())))))
 
 ; Compile parameter access from x-lang args list
 ; p_args = (self arg0 arg1 ...) — walk rest N+1 times, first, eval, atomint.
@@ -413,9 +412,11 @@
     (def fv-entry (compile-fvar-lookup name))
     (def slot (if (null? fv-entry) (%asm-slot-offset name) ()))
     (if (not (null? slot))
-      ; A slotted parameter: its raw word, loaded.  Never an object: a
-      ; function whose parameter must stay one is not slotted.
-      (if unbox
+      ; A slotted parameter: its raw word, loaded.  Never an object in an
+      ; analyser: a function whose parameter must stay one is not slotted.
+      ; An object function's slots hold the pointers its params evaluated
+      ; to, and a read is the same load.
+      (if (or unbox %asm-object?)
         (asm-emit! asm (lit ldr) x0 (mem x22 slot))
         (Err raise 'state (Str append "asm-compile: slotted parameter used as an object: " (symbol->str name)) ()))
     (if (not (null? fv-entry))
@@ -427,7 +428,7 @@
             ; An fvar is baked as its object's ADDRESS: per-process, and the
             ; name is what identifies it again elsewhere.
             (asm-reloc! asm (asm-pos asm) (lit fvar) name)
-            (asm-load-imm64! asm x0 (%ptr->int (%obj->ptr val))))))
+            (asm-load-imm64! asm x0 (ptr->int (obj->ptr val))))))
       ; Not a fvar: load from params
       (let ((idx (%find params 0)))
         (asm-emit! asm 'mov x0 x20)
@@ -437,13 +438,14 @@
               (do (%emit-restobj! asm) (self (- n 1))))))
         (%skip idx)
         (%emit-firstobj! asm)
-        ; TWO CALLING WORLDS, discriminated by the mode the compile declares
-        ; (%asm-analyser?, above) rather than by whether fvars happen to be
-        ; present.
+        ; THE CALLING WORLDS, discriminated by the mode the compile declares
+        ; (%asm-analyser? and %asm-object?, above) rather than by whether
+        ; fvars happen to be present.
         ;
         ; An integer function is called from x, and the prim ABI hands the
         ; callee UNEVALUATED argument expressions -- so its params must
-        ; eval-arg, then unbox.  An analyse callback is invoked from C's
+        ; eval-arg, then unbox.  An object function evaluates the same way
+        ; and keeps the pointer.  An analyse callback is invoked from C's
         ; scoring loop with LIVE VALUES built on the C stack: typeless satoms
         ; and spair chains the evaluator was never meant to see.  Evaluating
         ; one is undefined -- measured as an allocation spin that ends at the
@@ -797,10 +799,11 @@
                (Err raise 'value
                  (Str append "asm-compile: " (symbol->str op)
                    " cannot take the object parameter " (symbol->str (first as))
-                   " as an operand: this compile is in analyser mode, where "
-                   "that parameter arrives as an x_obj_t* and not as a number."
-                   "  Pass #f as compile-asm's third argument for an ordinary "
-                   "integer function.") ()))
+                   " as an operand: this compile is in "
+                   (if %asm-object? "object" "analyser")
+                   " mode, where that parameter is an x_obj_t* and not a "
+                   "number.  Pass #f as compile-asm's third argument for an "
+                   "ordinary integer function.") ()))
              (self (rest as)))))
        args))))
 
@@ -826,7 +829,7 @@
 ;
 ; The operand is an object and nothing else: an fvar, an object parameter, or
 ; another (first ...) or (rest ...).  A number there would be dereferenced, and
-; so would nil, so each refuses at generation.  Analyser mode only, where a
+; so would nil, so each refuses at generation.  Analyser and object mode, where a
 ; result is an object: an integer function would box the pointer as a number.
 (def %asm-object-operand?
   (fn (_ e)
@@ -847,16 +850,16 @@
   (fn (_ asm op args params field)
     (def operand (first args))
     (match
-      ((not %asm-analyser?)
+      ((not (or %asm-analyser? %asm-object?))
         (Err raise 'value
           (Str append "asm-compile: " (symbol->str op)
             " reads an object, and this compile is an integer function, whose "
             "result is a number.  Pass #t as compile-asm's third argument for "
-            "an analyser.") ()))
+            "an analyser, or the symbol object for an object function.") ()))
       ((not (%asm-object-operand? operand))
         (Err raise 'value
           (Str append "asm-compile: " (symbol->str op) " cannot take "
-            (if (symbol? operand) (symbol->str operand) (%write-to-str operand))
+            (if (symbol? operand) (symbol->str operand) (io-write-to-str operand))
             " as its operand: it reads an object, which "
             "is an fvar, an object parameter, or another first or rest.") ()))
       ((%asm-nil-fvar? operand)
@@ -1040,7 +1043,7 @@
       (let ((entry (compile-fvar-lookup name)))
         (if (null? entry) #f
           (if (null? (rest entry)) #f
-            (eq? (%asm-type-of (rest entry)) %asm-prim-type)))))))
+            (eq? (type-of (rest entry)) %asm-prim-type)))))))
 
 ; --- Calls ---------------------------------------------------------------
 ;
@@ -1099,7 +1102,7 @@
             ; would hand the callee an integer atom whose value happens to
             ; be a pointer -- which is what made a self-recursive analyser
             ; (read-ahead) segfault on its first buffer argument.
-            (unless (%asm-arg-is-object? 0 params i)
+            (unless (or %asm-object? (%asm-arg-is-object? 0 params i))
               (%emit-mkint! asm))                ; x0 = atom(raw) via jit_mkint
             (asm-emit! asm 'mov x1 x0)    ; x1 = a (atom)
             (asm-emit! asm 'mov x2 x21)   ; x2 = d (accum)
@@ -1113,11 +1116,12 @@
 ; x0 = the callee's result.  Unbox it ONLY for an integer function.  An
 ; analyser's callee returns an OBJECT -- a state, the score, or nil -- and
 ; atomint would read that object's first word as an integer and hand the
-; tokenizer a garbage pointer to dereference.  This mirrors the epilogue,
-; which boxes the final result under the same condition.
+; tokenizer a garbage pointer to dereference; an object function's callee
+; answers an object too.  This mirrors the epilogue, which boxes the final
+; result under the same condition.
 (def %asm-emit-call-result!
   (fn (_ asm)
-    (unless %asm-analyser? (%emit-atomint! asm))))
+    (unless (or %asm-analyser? %asm-object?) (%emit-atomint! asm))))
 
 ; Self-recursive call via trampoline
 ; The trampoline cell holds the prim's address. Save/restore x19/x20
@@ -1168,7 +1172,7 @@
     ; The self-call trampoline cell is malloc'd per compile -- one per
     ; compiled function, so the record carries no name.
     (asm-reloc! asm (asm-pos asm) (lit self-cell) ())
-    (asm-load-imm64! asm x8 (%ptr->int %asm-self-cell))
+    (asm-load-imm64! asm x8 (ptr->int %asm-self-cell))
     ; (mem BASE off) takes the base as a raw register NUMBER, not a
     ; (reg n) operand -- passing x8 handed the encoder a list to shift,
     ; so every self-recursive call died at GENERATION with ">>: operands
@@ -1231,7 +1235,7 @@
 ; those raises something about the wrong thing.
 (def %asm-form-name
   (fn (_ head)
-    (if (symbol? head) (symbol->str head) (%write-to-str head))))
+    (if (symbol? head) (symbol->str head) (io-write-to-str head))))
 
 ; The dispatch: which of the three ways this head's call compiles.
 (set! %asm-compile-funcall
@@ -1257,7 +1261,7 @@
 ; --- Public API ---
 
 (def asm-compile-fresh
-  (fn (_ expr fvars analyser?)
+  (fn (_ expr fvars mode)
     ; Refuse before emitting anything when the JIT runtime is not
     ; reachable.  An unresolved helper is address 0, and a compiled call
     ; to 0 is a SIGSEGV arbitrarily far from the cause -- which is what a
@@ -1270,24 +1274,27 @@
     (if (not (eq? (first expr) 'fn))
       (Err raise 'type "compile-asm: expression must be (fn (_ params...) body)" ()))
     (compile-fvars-set! fvars)
-    ; ANALYSER? arrives already decided.  The door (compile-asm, in
+    ; MODE arrives already decided: #t an analyser, #f an integer function,
+    ; the symbol object an object function.  The door (compile-asm, in
     ; asm-cache.x) applies the default, because the CACHE KEY has to name
     ; the same answer this compile does -- two modes over one source text
     ; are two different bodies, and a key that could not tell them apart
     ; would hand back the wrong one.
-    (set! %asm-analyser? analyser?)
+    (set! %asm-object? (eq? mode (lit object)))
+    (set! %asm-analyser? (if %asm-object? #f (if mode #t #f)))
     (def fn-params (first (rest expr)))
     (def fn-body (first (rest (rest expr))))
     (def params (rest fn-params))  ; skip self (_)
 
     ; Allocate trampoline cell for self-recursion
-    (def c-malloc (%dlsym (%dlopen () 1) "malloc"))
-    (def self-cell (%ptr-call c-malloc 8))
-    (%ptr-set-word! self-cell 0 0)
+    (def c-malloc (ffi-dlsym (ffi-dlopen () 1) "malloc"))
+    (def self-cell (ptr-call c-malloc 8))
+    (ptr-set-word! self-cell 0 0)
     (set! %asm-self-cell self-cell)
     (set! %asm-self-name (first fn-params))
     (set! %asm-object-params
       (match
+        (%asm-object? params)
         ((not %asm-analyser?) ())
         ((null? params) ())
         ((null? (rest params)) (list (first params)))
@@ -1337,8 +1344,9 @@
 
     ; Box the result only for an integer function.  An analyser returns an
     ; x_obj_t* directly -- boxing one would hand the tokenizer an integer
-    ; atom whose value happens to be a pointer.
-    (unless %asm-analyser?
+    ; atom whose value happens to be a pointer -- and so does an object
+    ; function.
+    (unless (or %asm-analyser? %asm-object?)
       (%emit-mkint! asm))
 
     ; The slots popped, so the epilogue finds the stack as the prologue
@@ -1359,11 +1367,12 @@
     (set! %asm-last-buf raw-fn)
 
     ; Patch trampoline with actual address
-    (%ptr-set-word! self-cell 0 (%ptr->int raw-fn))
+    (ptr-set-word! self-cell 0 (ptr->int raw-fn))
     (set! %asm-self-cell ())
     (set! %asm-self-name ())
     (set! %asm-object-params ())
     (set! %asm-analyser? #f)
+    (set! %asm-object? #f)
     (compile-fvars-set! ())
 
     ; Create proper x-lang prim from the raw function pointer
@@ -1380,7 +1389,10 @@
    asm-cache.x -- calls this only
    when the byte cache misses, which is why this module is imported lazily
    from there: loading it costs 2.5M evals, and a warm cache never needs it.
-   Takes the fvar alist and ANALYSER? already decided by that door.
+   Takes the fvar alist and the MODE already decided by that door: #f an
+   integer function, #t an analyse callback, the symbol object an object
+   function called from x, whose params stay the objects they evaluate to and
+   whose result is returned as one.
    An fvar holding a prim may be CALLED by name; (%call HEAD arg ...) calls
    a prim the code computes, and refuses at run time if the head is not
    one.")

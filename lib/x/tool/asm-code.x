@@ -19,16 +19,7 @@
 
 ; Fetch the raw-object, type and ptr/ffi prims from the catalogue (ns `obj`,
 ; `type`, `ptr` and `ffi` are de-registered, R5).
-(def %make-obj (prim-ref 'obj 'make))
-(def %obj-ref (prim-ref 'obj 'ref))
-(def %obj-set! (prim-ref 'obj 'set!))
-(def %make-type (prim-ref 'type 'make))
-(def %ptr-call (prim-ref 'ptr 'call))
-(def %ptr->int (prim-ref 'ptr '->int))
-(def %ptr-set! (prim-ref 'ptr 'set!))
-(def %ptr-ref  (prim-ref 'ptr 'ref))
-(def %dlopen (prim-ref 'ffi 'dlopen))
-(def %dlsym (prim-ref 'ffi 'dlsym))
+(import x/core/doors ffi-dlopen ffi-dlsym obj-make obj-ref obj-set! ptr->int ptr-call ptr-ref ptr-set! type-make type-of)
 
 ; --- Platform detection ---
 ; Read from the platform layer, not sniffed from x-machine here.  This module
@@ -46,27 +37,27 @@
     (| 2 32)))    ; MAP_PRIVATE|MAP_ANON (Linux)
 
 ; --- Memory management via C library (more portable than raw syscalls) ---
-(def %libc (%dlopen () 1))
-(def %c-mmap     (%dlsym %libc "mmap"))
-(def %c-mprotect (%dlsym %libc "mprotect"))
-(def %c-munmap   (%dlsym %libc "munmap"))
-(def %c-icache   (%dlsym %libc "sys_icache_invalidate"))
+(def %libc (ffi-dlopen () 1))
+(def %c-mmap     (ffi-dlsym %libc "mmap"))
+(def %c-mprotect (ffi-dlsym %libc "mprotect"))
+(def %c-munmap   (ffi-dlsym %libc "munmap"))
+(def %c-icache   (ffi-dlsym %libc "sys_icache_invalidate"))
 
 (def %asm-mmap
   (fn (_ size)
-    (%ptr-call %c-mmap 0 size 3 %MAP-FLAGS -1 0)))  ; PROT_READ|PROT_WRITE=3
+    (ptr-call %c-mmap 0 size 3 %MAP-FLAGS -1 0)))  ; PROT_READ|PROT_WRITE=3
 
 (def %asm-mprotect-rx!
   (fn (_ ptr size)
     ; Flush icache on ARM (no-op if unavailable)
     (when (not (null? %c-icache))
-      (%ptr-call %c-icache (%ptr->int ptr) size))
+      (ptr-call %c-icache (ptr->int ptr) size))
     ; Switch to read+execute
-    (%ptr-call %c-mprotect (%ptr->int ptr) size 5)))  ; PROT_READ|PROT_EXEC=5
+    (ptr-call %c-mprotect (ptr->int ptr) size 5)))  ; PROT_READ|PROT_EXEC=5
 
 (def %asm-munmap
   (fn (_ ptr size)
-    (%ptr-call %c-munmap (%ptr->int ptr) size)))
+    (ptr-call %c-munmap (ptr->int ptr) size)))
 
 ; --- Assembler type ---
 ; 7 slots: buf-addr buf-pos buf-cap labels patches arch relocs.  Calling one
@@ -75,11 +66,11 @@
 ; poured from the cache is made without asm.x, and is never called.
 (def %asm-emit ())
 (def %asm-type
-  (%make-type "ASM"
+  (type-make "ASM"
     (list
       (pair 'write
         (fn (_ self)
-          (display "<asm pos=" (%obj-ref self 1) ">")))
+          (display "<asm pos=" (obj-ref self 1) ">")))
       (pair 'call
         (fn (_ self . args)
           (apply %asm-emit (pair self args)))))))
@@ -88,7 +79,7 @@
 ; pairs); without units the mark hook never traced them (same class as
 ; the vector-payload gap).
 ;
-; THIS NUMBER MUST MATCH asm-new's %make-obj, and it did not.  It said 6 while
+; THIS NUMBER MUST MATCH asm-new's obj-make, and it did not.  It said 6 while
 ; asm-new made 7, from the commit that added the relocations slot (#598) -- so
 ; slot 6, the relocation records, was the one thing on a live builder the
 ; collector could not see.  One (Heap collect) with three records held turned
@@ -149,14 +140,14 @@
     (def cap (if (null? rest) 4096 (first rest)))
     (def ptr (%asm-mmap cap))
     (if (null? ptr) (Err raise 'io "asm-new: mmap failed" ()))
-    (def a (%make-obj %asm-type 7))
-    (%obj-set! a 0 ptr)      ; buf-ptr (from ptr-call, PTR type)
-    (%obj-set! a 1 0)        ; buf-pos
-    (%obj-set! a 2 cap)      ; buf-cap
-    (%obj-set! a 3 ())       ; labels
-    (%obj-set! a 4 ())       ; patches
-    (%obj-set! a 5 %arch)    ; (table encoder patcher relocator), or () before asm.x
-    (%obj-set! a 6 ())       ; relocs: (offset label name), newest first
+    (def a (obj-make %asm-type 7))
+    (obj-set! a 0 ptr)      ; buf-ptr (from ptr-call, PTR type)
+    (obj-set! a 1 0)        ; buf-pos
+    (obj-set! a 2 cap)      ; buf-cap
+    (obj-set! a 3 ())       ; labels
+    (obj-set! a 4 ())       ; patches
+    (obj-set! a 5 %arch)    ; (table encoder patcher relocator), or () before asm.x
+    (obj-set! a 6 ())       ; relocs: (offset label name), newest first
     a))
 
 ; --- Relocations: the per-process addresses baked into the code ----------
@@ -175,13 +166,13 @@
 ; variable's symbol) or `self-cell` (NAME is nil -- there is one per compile).
 (def asm-reloc!
   (fn (_ asm offset label name)
-    (%obj-set! asm 6 (pair (list offset label name) (%obj-ref asm 6)))))
+    (obj-set! asm 6 (pair (list offset label name) (obj-ref asm 6)))))
 
 ; Oldest-first, which is the order a loader wants to walk them.
 (def asm-relocs
   (fn (_ asm)
     ((fn (self xs acc) (if (null? xs) acc (self (rest xs) (pair (first xs) acc))))
-      (%obj-ref asm 6) ())))
+      (obj-ref asm 6) ())))
 
 ; --- Relocate a 64-bit immediate in place: ARM64 (MOVZ + 3x MOVK) ---------
 ; The value is spread 16 bits to a word, so all four words are rewritten.
@@ -197,14 +188,14 @@
 (def %arm64-reloc
   ((fn (_ band bor bshl bshr iadd)
      (fn (_ buf-ptr offset val)
-       (def rd (band (%ptr-ref buf-ptr offset 4) 31))
-       (%ptr-set! buf-ptr offset
+       (def rd (band (ptr-ref buf-ptr offset 4) 31))
+       (ptr-set! buf-ptr offset
          (bor 3531603968 (bor (bshl (band val 65535) 5) rd)) 4)
-       (%ptr-set! buf-ptr (iadd offset 4)
+       (ptr-set! buf-ptr (iadd offset 4)
          (bor 4070572032 (bor (bshl (band (bshr val 16) 65535) 5) rd)) 4)
-       (%ptr-set! buf-ptr (iadd offset 8)
+       (ptr-set! buf-ptr (iadd offset 8)
          (bor 4072669184 (bor (bshl (band (bshr val 32) 65535) 5) rd)) 4)
-       (%ptr-set! buf-ptr (iadd offset 12)
+       (ptr-set! buf-ptr (iadd offset 12)
          (bor 4074766336 (bor (bshl (band (bshr val 48) 65535) 5) rd)) 4)))
    (prim-ref 'int '&) (prim-ref 'int '|) (prim-ref 'int '<<)
    (prim-ref 'int '>>) (prim-ref 'int '+)))
@@ -215,7 +206,7 @@
 ; re-derive, unlike the ARM64 MOVZ/MOVK spread.
 (def %x86_64-reloc
   (fn (_ buf-ptr offset val)
-    (%ptr-set! buf-ptr (+ offset 2) val 8)))
+    (ptr-set! buf-ptr (+ offset 2) val 8)))
 
 ; The host's relocator.  The backend lists it as its fourth part as well, but a
 ; buffer poured from the cache is made before -- and usually without -- the
@@ -232,7 +223,7 @@
 
 (def asm-reloc-apply!
   (fn (_ asm offset val)
-    (%asm-reloc (%obj-ref asm 0) offset val)))
+    (%asm-reloc (obj-ref asm 0) offset val)))
 
 ; Each patch names its label.  A list of labels is walked for it, which a
 ; program of tens of thousands of each never finishes, so at 32
@@ -255,7 +246,7 @@
          (if (null? es) () (if (eq? key (first (first es))) (first es) (self key (rest es))))))
      ; the slot, in a vector of SIZE buckets, a symbol's address picks
      (def slot
-       (fn (_ sym size) (i+ (i& (i>> (%ptr->int (o->p sym)) 4) (i- size 1)) 1)))
+       (fn (_ sym size) (i+ (i& (i>> (ptr->int (o->p sym)) 4) (i- size 1)) 1)))
      (def pow2 (fn (self p n) (if (i< p n) (self (i+ p p) n) p)))
      ; LABELS, newest first, as (VECTOR SIZE . OTHERS)
      (def index
@@ -268,8 +259,8 @@
              (if (null? es) others
                (self (rest es)
                  (if (eq? (type-of (first (first es))) symbol-type)
-                   (do (%obj-set! v (slot (first (first es)) size)
-                         (pair (first es) (%obj-ref v (slot (first (first es)) size))))
+                   (do (obj-set! v (slot (first (first es)) size)
+                         (pair (first es) (obj-ref v (slot (first (first es)) size))))
                        others)
                    (pair (first es) others))))))
          (pair v (pair size (put (%reverse labels) ())))))
@@ -278,20 +269,20 @@
        (fn (_ ix labels name)
          (if (null? ix) (entry name labels)
            (if (eq? (type-of name) symbol-type)
-             (entry name (%obj-ref (first ix) (slot name (first (rest ix)))))
+             (entry name (obj-ref (first ix) (slot name (first (rest ix)))))
              (entry name (rest (rest ix)))))))
      (fn (_ asm)
-       (def patches (%obj-ref asm 4))
-       (def buf-ptr (%obj-ref asm 0))
+       (def patches (obj-ref asm 4))
+       (def buf-ptr (obj-ref asm 0))
        ; Resolve patches (arch-specific resolver in slot 2 of arch).  A buffer
        ; poured from the cache has none, and its arch may be (): the walk is
        ; skipped, since entering it costs a poured lexer state more than the
        ; mprotect does.
        (unless (null? patches)
          (do
-           (def labels (%obj-ref asm 3))
+           (def labels (obj-ref asm 3))
            (def ix (if (i< (%length labels) 32) () (index labels)))
-           (def arch (%obj-ref asm 5))
+           (def arch (obj-ref asm 5))
            (def resolver (when (> (%length arch) 2) (List ref 2 arch)))
            (%for-each
              (fn (_ patch)
@@ -310,10 +301,10 @@
                  (let ((val (if (eq? ptype 'rel)
                               (- target (+ offset width))
                               target)))
-                   (%ptr-set! buf-ptr offset val width))))
+                   (ptr-set! buf-ptr offset val width))))
              patches)))
        ; Make executable (includes icache flush on ARM)
-       (%asm-mprotect-rx! buf-ptr (%obj-ref asm 2))
+       (%asm-mprotect-rx! buf-ptr (obj-ref asm 2))
        ; Return the pointer (callable via ptr-call)
        buf-ptr))
    (prim-ref 'obj '->ptr) (prim-ref 'type 'of) (prim-ref 'int '&) (prim-ref 'int '>>)
@@ -321,7 +312,7 @@
 
 (def asm-free!
   (fn (_ asm)
-    (%asm-munmap (%obj-ref asm 0) (%obj-ref asm 2))
+    (%asm-munmap (obj-ref asm 0) (obj-ref asm 2))
     ()))
 
 (doc (provide x/tool/asm-code

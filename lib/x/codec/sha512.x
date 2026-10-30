@@ -23,13 +23,7 @@
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
 
-(def %add (prim-ref 'int '+))
-(def %sub (prim-ref 'int '-))
-(def %mul (prim-ref 'int '*))
-(def %oref (prim-ref (lit obj) (lit ref)))
-(def %oset! (prim-ref (lit obj) (lit set!)))
-(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %char->int (prim-ref (lit char) (lit ->int)))
+(import x/core/doors char->int int* int+ int- obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
 (def %cvt (prim-ref (lit convert) (lit to)))
 (def %string-type (Type named STRING))
 (def %mask 4294967295)
@@ -87,9 +81,9 @@
 ; A rotation by n < 32 moves bits across the halves; by n >= 32 it is
 ; the halves swapped, then rotated by n - 32.  The callers below spell
 ; the swap by passing the halves the other way round.
-(def %rotr-hi (fn (_ hi lo n) (& (| (>> hi n) (<< lo (%sub 32 n))) %mask)))
-(def %rotr-lo (fn (_ hi lo n) (& (| (>> lo n) (<< hi (%sub 32 n))) %mask)))
-(def %shr-lo (fn (_ hi lo n) (& (| (>> lo n) (<< hi (%sub 32 n))) %mask)))
+(def %rotr-hi (fn (_ hi lo n) (& (| (>> hi n) (<< lo (int- 32 n))) %mask)))
+(def %rotr-lo (fn (_ hi lo n) (& (| (>> lo n) (<< hi (int- 32 n))) %mask)))
+(def %shr-lo (fn (_ hi lo n) (& (| (>> lo n) (<< hi (int- 32 n))) %mask)))
 
 ; Sigma-0 (4.1.3): rotr 28, 34, 39
 (def %bs0-hi (fn (_ hi lo) (^ (%rotr-hi hi lo 28) (^ (%rotr-hi lo hi 2) (%rotr-hi lo hi 7)))))
@@ -112,26 +106,26 @@
 (def %byte
   (fn (_ s len total i)
     (match
-      ((< i len) (%char->int (%byte-ref s i)))
+      ((< i len) (char->int (str-byte-ref s i)))
       ((= i len) 128)
-      ((< i (%sub total 8)) 0)
-      (#t (& (>> (%mul len 8) (<< (%sub (%sub total 1) i) 3)) 255)))))
+      ((< i (int- total 8)) 0)
+      (#t (& (>> (int* len 8) (<< (int- (int- total 1) i) 3)) 255)))))
 
 (def %word
   (fn (_ s len total base)
     (| (<< (%byte s len total base) 24)
-       (| (<< (%byte s len total (%add base 1)) 16)
-          (| (<< (%byte s len total (%add base 2)) 8)
-             (%byte s len total (%add base 3)))))))
+       (| (<< (%byte s len total (int+ base 1)) 16)
+          (| (<< (%byte s len total (int+ base 2)) 8)
+             (%byte s len total (int+ base 3)))))))
 
 ; W[t] in slots t+1 of the hi and lo vectors (the length rides slot 0):
 ; the sixteen message words, each a hi half then a lo half.
 (def %fill!
   (fn (self s len total base wh wl t)
     (unless (= t 16)
-      (do (%oset! wh (%add t 1) (%word s len total (%add base (<< t 3))))
-          (%oset! wl (%add t 1) (%word s len total (%add (%add base (<< t 3)) 4)))
-          (self s len total base wh wl (%add t 1))))))
+      (do (obj-set! wh (int+ t 1) (%word s len total (int+ base (<< t 3))))
+          (obj-set! wl (int+ t 1) (%word s len total (int+ (int+ base (<< t 3)) 4)))
+          (self s len total base wh wl (int+ t 1))))))
 
 ; W[t] = sigma1(W[t-2]) + W[t-7] + sigma0(W[t-15]) + W[t-16], the lo halves
 ; summed first and their carry handed to the hi sum.
@@ -139,13 +133,13 @@
   (fn (self wh wl t)
     (unless (= t 80)
       ; slots fold the +1: W[t-2] is slot t-1, and so on
-      (do (def lo (%add (%add (%ss1-lo (%oref wh (%sub t 1)) (%oref wl (%sub t 1))) (%oref wl (%sub t 6)))
-                        (%add (%ss0-lo (%oref wh (%sub t 14)) (%oref wl (%sub t 14))) (%oref wl (%sub t 15)))))
-          (def hi (%add (%add (%ss1-hi (%oref wh (%sub t 1)) (%oref wl (%sub t 1))) (%oref wh (%sub t 6)))
-                        (%add (%ss0-hi (%oref wh (%sub t 14)) (%oref wl (%sub t 14))) (%oref wh (%sub t 15)))))
-          (%oset! wl (%add t 1) (& lo %mask))
-          (%oset! wh (%add t 1) (& (%add hi (>> lo 32)) %mask))
-          (self wh wl (%add t 1))))))
+      (do (def lo (int+ (int+ (%ss1-lo (obj-ref wh (int- t 1)) (obj-ref wl (int- t 1))) (obj-ref wl (int- t 6)))
+                        (int+ (%ss0-lo (obj-ref wh (int- t 14)) (obj-ref wl (int- t 14))) (obj-ref wl (int- t 15)))))
+          (def hi (int+ (int+ (%ss1-hi (obj-ref wh (int- t 1)) (obj-ref wl (int- t 1))) (obj-ref wh (int- t 6)))
+                        (int+ (%ss0-hi (obj-ref wh (int- t 14)) (obj-ref wl (int- t 14))) (obj-ref wh (int- t 15)))))
+          (obj-set! wl (int+ t 1) (& lo %mask))
+          (obj-set! wh (int+ t 1) (& (int+ hi (>> lo 32)) %mask))
+          (self wh wl (int+ t 1))))))
 
 ; The eighty rounds (6.4.2), the working variables as sixteen halves.
 (def %rounds
@@ -153,28 +147,28 @@
     (if (= t 80) (list ah al bh bl ch cl dh dl eh el fh fl gh gl hh hl)
       (do
         ; T1 = h + Sigma1(e) + Ch(e, f, g) + K[t] + W[t]
-        (def t1l (%add (%add (%add hl (%bs1-lo eh el)) (%add (%ch el fl gl) (%oref %k (%add (%mul t 2) 2))))
-                       (%oref wl (%add t 1))))
-        (def t1h (%add (%add (%add (%add hh (%bs1-hi eh el)) (%add (%ch eh fh gh) (%oref %k (%add (%mul t 2) 1))))
-                             (%oref wh (%add t 1)))
+        (def t1l (int+ (int+ (int+ hl (%bs1-lo eh el)) (int+ (%ch el fl gl) (obj-ref %k (int+ (int* t 2) 2))))
+                       (obj-ref wl (int+ t 1))))
+        (def t1h (int+ (int+ (int+ (int+ hh (%bs1-hi eh el)) (int+ (%ch eh fh gh) (obj-ref %k (int+ (int* t 2) 1))))
+                             (obj-ref wh (int+ t 1)))
                        (>> t1l 32)))
         ; T2 = Sigma0(a) + Maj(a, b, c)
-        (def t2l (%add (%bs0-lo ah al) (%maj al bl cl)))
-        (def t2h (%add (%add (%bs0-hi ah al) (%maj ah bh ch)) (>> t2l 32)))
-        (def el2 (%add dl (& t1l %mask)))
-        (def al2 (%add (& t1l %mask) (& t2l %mask)))
-        (self wh wl (%add t 1)
-          (& (%add (%add t1h t2h) (>> al2 32)) %mask) (& al2 %mask)
+        (def t2l (int+ (%bs0-lo ah al) (%maj al bl cl)))
+        (def t2h (int+ (int+ (%bs0-hi ah al) (%maj ah bh ch)) (>> t2l 32)))
+        (def el2 (int+ dl (& t1l %mask)))
+        (def al2 (int+ (& t1l %mask) (& t2l %mask)))
+        (self wh wl (int+ t 1)
+          (& (int+ (int+ t1h t2h) (>> al2 32)) %mask) (& al2 %mask)
           ah al bh bl ch cl
-          (& (%add (%add dh t1h) (>> el2 32)) %mask) (& el2 %mask)
+          (& (int+ (int+ dh t1h) (>> el2 32)) %mask) (& el2 %mask)
           eh el fh fl gh gl)))))
 
 ; H + the round's result, half by half with carries.
 (def %sum
   (fn (self hs rs)
     (if (null? hs) ()
-      (do (def lo (%add (first (rest hs)) (first (rest rs))))
-          (pair (& (%add (%add (first hs) (first rs)) (>> lo 32)) %mask)
+      (do (def lo (int+ (first (rest hs)) (first (rest rs))))
+          (pair (& (int+ (int+ (first hs) (first rs)) (>> lo 32)) %mask)
                 (pair (& lo %mask) (self (rest (rest hs)) (rest (rest rs)))))))))
 
 (def %blocks
@@ -187,7 +181,7 @@
         (do (when (and (> base 0) (= (& (>> base 7) 7) 0)) (Heap collect))
             (%fill! s len total base wh wl 0)
             (%extend! wh wl 16)
-            (self s len total (%add base 128) wh wl
+            (self s len total (int+ base 128) wh wl
               (%sum hs
                 (%rounds wh wl 0
                   (List ref 0 hs) (List ref 1 hs) (List ref 2 hs) (List ref 3 hs)
@@ -202,15 +196,12 @@
 (def %digest-words
   (fn (_ ih s . n)
     (def len (match ((null? n) (Str8 length s)) (#t (first n))))
-    (%blocks s len (<< (%add (>> (%add len 16) 7) 1) 7) 0 (Vector make 80 0) (Vector make 80 0) ih)))
+    (%blocks s len (<< (int+ (>> (int+ len 16) 7) 1) 7) 0 (Vector make 80 0) (Vector make 80 0) ih)))
 
 (def %hex8 (fn (_ wd) (Str pad-left 8 #\0 (%cvt wd %string-type 16))))
 
 (def %hex (fn (_ hs) (Str8 join "" (List map %hex8 hs))))
 
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %pset1 (prim-ref (lit ptr) (lit set!)))
 
 ; --- The compiled engine (JIT), adopted only when it proves out ------
 ;
@@ -255,15 +246,15 @@
 ; the halves written as the digest's bytes, each big-endian, into OUT
 (def %bytes-into
   (fn (_ hs out)
-    (def p (%str->ptr out))
+    (def p (str->ptr out))
     (def put
       (fn (self ws i)
         (unless (null? ws)
-          (do (%pset1 p i (& (>> (first ws) 24) 255) 1)
-              (%pset1 p (%add i 1) (& (>> (first ws) 16) 255) 1)
-              (%pset1 p (%add i 2) (& (>> (first ws) 8) 255) 1)
-              (%pset1 p (%add i 3) (& (first ws) 255) 1)
-              (self (rest ws) (%add i 4))))))
+          (do (ptr-set! p i (& (>> (first ws) 24) 255) 1)
+              (ptr-set! p (int+ i 1) (& (>> (first ws) 16) 255) 1)
+              (ptr-set! p (int+ i 2) (& (>> (first ws) 8) 255) 1)
+              (ptr-set! p (int+ i 3) (& (first ws) 255) 1)
+              (self (rest ws) (int+ i 4))))))
     (do (put hs 0) out)))
 
 ; the digest of S's first N bytes written into OUT: the compiled engine
@@ -300,7 +291,7 @@
                           (param n INTEGER "How many bytes of s to digest"))
       (doc "SHA-512 of the FIRST n BYTES of s, as a fresh buffer of the digest's 64 bytes -- binary, so read it by count, not as a string: a NUL among the bytes ends its string length. The same engines as hex-n, without the hex. THE LENGTH IS YOUR CLAIM AND IS NOT CHECKED, as hex-n's is."
         (returns STRING "A 64-byte buffer"))
-      (%digest-into %ih s n (%make-str 65)))
+      (%digest-into %ih s n (str-make 65)))
     (method bytes-into (self (param s STRING "Byte region to digest")
                              (param n INTEGER "How many bytes of s to digest")
                              (param out STRING "A buffer of 64 bytes or more, written from its start"))
@@ -318,7 +309,7 @@
       (%jit-try!))))
 
 ; The words as bytes in a fresh buffer, for SHA-384's shorter digest.
-(def sha512-bytes (fn (_ hs) (%bytes-into hs (%make-str (%add (<< (List length hs) 2) 1)))))
+(def sha512-bytes (fn (_ hs) (%bytes-into hs (str-make (int+ (<< (List length hs) 2) 1)))))
 
 (doc (provide x/codec/sha512 Sha512 sha384-words sha512-bytes sha512-jit-try!)
   "SHA-512 (FIPS 180-4): (Sha512 hex s) digests a byte string. Pure x-lang, with an optional differentially-verified JIT engine ((Sha512 jit!), or built on its own for an input of 4KB or more).")

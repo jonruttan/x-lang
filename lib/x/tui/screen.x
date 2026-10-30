@@ -26,59 +26,41 @@
 (import x/tui/width char-width)
 (import x/tui/style style-sgr)
 
-(def %sc-blen (prim-ref (lit str) (lit byte-len)))
-(def %sc-bref (prim-ref (lit str) (lit byte-ref)))
-(def %sc-bsub (prim-ref (lit str) (lit byte-sub)))
-(def %sc-c->i (prim-ref (lit char) (lit ->int)))
-(def %sc-make-str (prim-ref (lit str) (lit make)))
-(def %sc-str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %sc-pref (prim-ref (lit ptr) (lit ref)))
-(def %sc-pset (prim-ref (lit ptr) (lit set!)))
-(def %sc-oref (prim-ref (lit obj) (lit ref)))
-(def %sc-oset! (prim-ref (lit obj) (lit set!)))
-(def %sc-omake (prim-ref (lit obj) (lit make)))
-(def %sc< (prim-ref (lit int) (lit <)))
-(def %sc+ (prim-ref (lit int) (lit +)))
-(def %sc* (prim-ref (lit int) (lit *)))
-(def %sc-quot (prim-ref (lit int) (lit /)))
-(def %sc-mod (prim-ref (lit int) (lit %)))
-(def %sc-and (prim-ref (lit int) (lit &)))
-(def %sc-or (prim-ref (lit int) (lit |)))
-(def %sc-shr (prim-ref (lit int) (lit >>)))
+(import x/core/doors char->int int% int& int* int+ int/ int< int>> int| obj-make obj-ref obj-set! ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-byte-sub str-make)
 (def %sc-vector ((prim-ref (lit type) (lit of)) (Vector make 0 ())))
 
 ; A screen is a vector: 0 rows, 1 columns, 2 the cells, 3 what the terminal
 ; shows, 4 the written rows, 5 whether to draw everything, 6 and 7 the row
 ; and column the cursor is left at, 8 the render buffer, 9 the SGR of each
 ; style rendered so far, an alist.
-(def %sc-get (fn (_ s k) (%sc-oref s (%sc+ k 1))))
-(def %sc-put! (fn (_ s k x) (%sc-oset! s (%sc+ k 1) x)))
-(def %sc-cells (fn (_ s) (%sc-str->ptr (%sc-get s 2))))
-(def %sc-shown (fn (_ s) (%sc-str->ptr (%sc-get s 3))))
-(def %sc-dirty (fn (_ s) (%sc-str->ptr (%sc-get s 4))))
+(def %sc-get (fn (_ s k) (obj-ref s (int+ k 1))))
+(def %sc-put! (fn (_ s k x) (obj-set! s (int+ k 1) x)))
+(def %sc-cells (fn (_ s) (str->ptr (%sc-get s 2))))
+(def %sc-shown (fn (_ s) (str->ptr (%sc-get s 3))))
+(def %sc-dirty (fn (_ s) (str->ptr (%sc-get s 4))))
 
 ; Cell R C's offset in a buffer of COLS columns.
-(def %sc-off (fn (_ cols r c) (%sc* 8 (%sc+ (%sc* r cols) c))))
-(def %sc-cp (fn (_ p o) (%sc-pref p o 4)))
-(def %sc-style (fn (_ p o) (%sc-pref p (%sc+ o 4) 4)))
-(def %sc-set! (fn (_ p o cp style) (%sc-pset p o cp 4) (%sc-pset p (%sc+ o 4) style 4)))
+(def %sc-off (fn (_ cols r c) (int* 8 (int+ (int* r cols) c))))
+(def %sc-cp (fn (_ p o) (ptr-ref p o 4)))
+(def %sc-style (fn (_ p o) (ptr-ref p (int+ o 4) 4)))
+(def %sc-set! (fn (_ p o cp style) (ptr-set! p o cp 4) (ptr-set! p (int+ o 4) style 4)))
 
 ; Every cell from offset O to E blank in STYLE.
 (def %sc-paint!
   (fn (self p o e style)
-    (match ((%sc< o e) (do (%sc-set! p o 32 style) (self p (%sc+ o 8) e style))) (#t ()))))
+    (match ((int< o e) (do (%sc-set! p o 32 style) (self p (int+ o 8) e style))) (#t ()))))
 (def %sc-zero!
-  (fn (self p i n) (match ((%sc< i n) (do (%sc-pset p i 0 1) (self p (%sc+ i 1) n))) (#t ()))))
+  (fn (self p i n) (match ((int< i n) (do (ptr-set! p i 0 1) (self p (int+ i 1) n))) (#t ()))))
 
 ; The longest SGR (every attribute, two 256-colour colours) and a cell's
 ; widest character, a cursor move a row, and the ends.
 (def %sc-alloc!
   (fn (_ s rows cols)
-    (def n (%sc* 8 (%sc* rows cols)))
+    (def n (int* 8 (int* rows cols)))
     (%sc-put! s 0 rows) (%sc-put! s 1 cols)
-    (%sc-put! s 2 (%sc-make-str n)) (%sc-put! s 3 (%sc-make-str n))
-    (%sc-put! s 4 (%sc-make-str rows))
-    (%sc-put! s 8 (%sc-make-str (%sc+ (%sc* (%sc* rows cols) 40) (%sc+ (%sc* rows 16) 48))))
+    (%sc-put! s 2 (str-make n)) (%sc-put! s 3 (str-make n))
+    (%sc-put! s 4 (str-make rows))
+    (%sc-put! s 8 (str-make (int+ (int* (int* rows cols) 40) (int+ (int* rows 16) 48))))
     (%sc-paint! (%sc-cells s) 0 n 0)
     (%sc-paint! (%sc-shown s) 0 n 0)
     (%sc-zero! (%sc-dirty s) 0 rows)
@@ -86,8 +68,8 @@
     s))
 (def %sc-new
   (fn (_ rows cols)
-    (def s (%sc-omake %sc-vector 11))
-    (%sc-oset! s 0 10)
+    (def s (obj-make %sc-vector 11))
+    (obj-set! s 0 10)
     (%sc-put! s 6 0) (%sc-put! s 7 0) (%sc-put! s 9 ())
     (%sc-alloc! s rows cols)))
 
@@ -95,11 +77,11 @@
 ; included), are written: half of a wide character outside them blank.
 (def %sc-split!
   (fn (_ p base cols c e)
-    (match ((match ((%sc< 0 c) (= (%sc-cp p (%sc+ base (%sc* 8 c))) 0)) (#t #f))
-             ((fn (_ o) (%sc-set! p o 32 (%sc-style p o))) (%sc+ base (%sc* 8 (%sc+ c -1)))))
+    (match ((match ((int< 0 c) (= (%sc-cp p (int+ base (int* 8 c))) 0)) (#t #f))
+             ((fn (_ o) (%sc-set! p o 32 (%sc-style p o))) (int+ base (int* 8 (int+ c -1)))))
            (#t ()))
-    (match ((match ((%sc< e cols) (= (%sc-cp p (%sc+ base (%sc* 8 e))) 0)) (#t #f))
-             ((fn (_ o) (%sc-set! p o 32 (%sc-style p o))) (%sc+ base (%sc* 8 e))))
+    (match ((match ((int< e cols) (= (%sc-cp p (int+ base (int* 8 e))) 0)) (#t #f))
+             ((fn (_ o) (%sc-set! p o 32 (%sc-style p o))) (int+ base (int* 8 e))))
            (#t ()))))
 
 ; TEXT from byte I put from column C, at offset O: the column after it.
@@ -108,14 +90,14 @@
 (def %sc-text!
   (fn (self p cols o c text i style)
     (match
-      ((match ((%sc< i (%sc-blen text)) (%sc< c cols)) (#t #f))
+      ((match ((int< i (str-byte-len text)) (int< c cols)) (#t #f))
         ((fn (_ b)
            (match
-             ((%sc< b 128)
-               (%sc-char! self p cols o c text (%sc+ i 1) style b (match ((%sc< b 32) 0) ((= b 127) 0) (#t 1))))
-             (#t ((fn (_ cp) (%sc-char! self p cols o c text (%sc+ i (utf8-width text i)) style cp (char-width cp)))
+             ((int< b 128)
+               (%sc-char! self p cols o c text (int+ i 1) style b (match ((int< b 32) 0) ((= b 127) 0) (#t 1))))
+             (#t ((fn (_ cp) (%sc-char! self p cols o c text (int+ i (utf8-width text i)) style cp (char-width cp)))
                   (utf8-cp-at text i)))))
-         (%sc-c->i (%sc-bref text i))))
+         (char->int (str-byte-ref text i))))
       (#t c))))
 ; Character CP, W cells wide, put at column C, offset O; then the text from
 ; byte I.
@@ -123,58 +105,58 @@
   (fn (_ go p cols o c text i style cp w)
     (match
       ((= w 0) (go p cols o c text i style))
-      ((%sc< cols (%sc+ c w)) (do (%sc-set! p o 32 style) cols))
+      ((int< cols (int+ c w)) (do (%sc-set! p o 32 style) cols))
       (#t (do (%sc-set! p o cp style)
-              (match ((= w 2) (%sc-set! p (%sc+ o 8) 0 style)) (#t ()))
-              (go p cols (%sc+ o (%sc* 8 w)) (%sc+ c w) text i style))))))
+              (match ((= w 2) (%sc-set! p (int+ o 8) 0 style)) (#t ()))
+              (go p cols (int+ o (int* 8 w)) (int+ c w) text i style))))))
 (def %sc-in?
-  (fn (_ s r c) (match ((%sc< r 0) #f) ((%sc< r (%sc-get s 0)) (match ((%sc< c 0) #f) (#t #t))) (#t #f))))
+  (fn (_ s r c) (match ((int< r 0) #f) ((int< r (%sc-get s 0)) (match ((int< c 0) #f) (#t #t))) (#t #f))))
 (def screen-put!
   (fn (_ s r c text style)
     (match
       ((%sc-in? s r c)
         ((fn (_ p cols base)
-           (%sc-pset (%sc-dirty s) r 1 1)
+           (ptr-set! (%sc-dirty s) r 1 1)
            (%sc-split! p base cols c cols)
            ((fn (_ e) (%sc-split! p base cols 0 e) e)
-            (%sc-text! p cols (%sc+ base (%sc* 8 c)) c text 0 style)))
+            (%sc-text! p cols (int+ base (int* 8 c)) c text 0 style)))
          (%sc-cells s) (%sc-get s 1) (%sc-off (%sc-get s 1) r 0)))
       (#t c))))
 (def screen-fill!
   (fn (_ s r c n style)
     (def cols (%sc-get s 1))
-    (def e (match ((%sc< cols (%sc+ c n)) cols) (#t (%sc+ c n))))
+    (def e (match ((int< cols (int+ c n)) cols) (#t (int+ c n))))
     (match
-      ((match ((%sc-in? s r c) (%sc< c e)) (#t #f))
+      ((match ((%sc-in? s r c) (int< c e)) (#t #f))
         ((fn (_ p base)
-           (%sc-pset (%sc-dirty s) r 1 1)
+           (ptr-set! (%sc-dirty s) r 1 1)
            (%sc-split! p base cols c e)
-           (%sc-paint! p (%sc+ base (%sc* 8 c)) (%sc+ base (%sc* 8 e)) style))
+           (%sc-paint! p (int+ base (int* 8 c)) (int+ base (int* 8 e)) style))
          (%sc-cells s) (%sc-off cols r 0)))
       (#t ()))))
 
 ; --- rendering -------------------------------------------------------------
 ; Writers into the render buffer B at I: each answers the I after.
-(def %sc-w! (fn (_ b i x) (%sc-pset b i x 1) (%sc+ i 1)))
+(def %sc-w! (fn (_ b i x) (ptr-set! b i x 1) (int+ i 1)))
 (def %sc-ws!
-  (fn (self b i s k) (match ((%sc< k (%sc-blen s)) (self b (%sc-w! b i (%sc-c->i (%sc-bref s k))) s (%sc+ k 1))) (#t i))))
+  (fn (self b i s k) (match ((int< k (str-byte-len s)) (self b (%sc-w! b i (char->int (str-byte-ref s k))) s (int+ k 1))) (#t i))))
 (def %sc-wnum!
   (fn (self b i n)
-    (match ((%sc< n 10) (%sc-w! b i (%sc+ n 48)))
-           (#t (%sc-w! b (self b i (%sc-quot n 10)) (%sc+ (%sc-mod n 10) 48))))))
-(def %sc-cont (fn (_ cp shift) (%sc-or 128 (%sc-and (%sc-shr cp shift) 63))))
+    (match ((int< n 10) (%sc-w! b i (int+ n 48)))
+           (#t (%sc-w! b (self b i (int/ n 10)) (int+ (int% n 10) 48))))))
+(def %sc-cont (fn (_ cp shift) (int| 128 (int& (int>> cp shift) 63))))
 (def %sc-wcp!
   (fn (_ b i cp)
     (match
-      ((%sc< cp 128) (%sc-w! b i cp))
-      ((%sc< cp 2048) (%sc-w! b (%sc-w! b i (%sc-or 192 (%sc-shr cp 6))) (%sc-cont cp 0)))
-      ((%sc< cp 65536)
-        (%sc-w! b (%sc-w! b (%sc-w! b i (%sc-or 224 (%sc-shr cp 12))) (%sc-cont cp 6)) (%sc-cont cp 0)))
-      (#t (%sc-w! b (%sc-w! b (%sc-w! b (%sc-w! b i (%sc-or 240 (%sc-shr cp 18))) (%sc-cont cp 12)) (%sc-cont cp 6))
+      ((int< cp 128) (%sc-w! b i cp))
+      ((int< cp 2048) (%sc-w! b (%sc-w! b i (int| 192 (int>> cp 6))) (%sc-cont cp 0)))
+      ((int< cp 65536)
+        (%sc-w! b (%sc-w! b (%sc-w! b i (int| 224 (int>> cp 12))) (%sc-cont cp 6)) (%sc-cont cp 0)))
+      (#t (%sc-w! b (%sc-w! b (%sc-w! b (%sc-w! b i (int| 240 (int>> cp 18))) (%sc-cont cp 12)) (%sc-cont cp 6))
                   (%sc-cont cp 0))))))
 (def %sc-wcup!
   (fn (_ b i r c)
-    (%sc-w! b (%sc-wnum! b (%sc-w! b (%sc-wnum! b (%sc-w! b (%sc-w! b i 27) 91) (%sc+ r 1)) 59) (%sc+ c 1)) 72)))
+    (%sc-w! b (%sc-wnum! b (%sc-w! b (%sc-wnum! b (%sc-w! b (%sc-w! b i 27) 91) (int+ r 1)) 59) (int+ c 1)) 72)))
 ; STYLE's SGR, kept on screen S once made.
 (def %sc-sgr
   (fn (_ s style)
@@ -187,12 +169,12 @@
 ; the last, back from E to O.
 (def %sc-first
   (fn (self p q o e)
-    (match ((%sc< e o) -1)
-           ((= (%sc-pref p o 8) (%sc-pref q o 8)) (self p q (%sc+ o 8) e))
+    (match ((int< e o) -1)
+           ((= (ptr-ref p o 8) (ptr-ref q o 8)) (self p q (int+ o 8) e))
            (#t o))))
 (def %sc-last
   (fn (self p q o e)
-    (match ((= (%sc-pref p e 8) (%sc-pref q e 8)) (self p q o (%sc+ e -8)))
+    (match ((= (ptr-ref p e 8) (ptr-ref q e 8)) (self p q o (int+ e -8)))
            (#t e))))
 ; The cells from offset O to E written into B from I, each copied to what
 ; is shown, Q.  STYLE is the style the terminal has: -1 when it is not
@@ -200,45 +182,45 @@
 (def %sc-emit
   (fn (self s p q b o e i style)
     (match
-      ((%sc< e o) (pair i style))
+      ((int< e o) (pair i style))
       (#t (do (def cp (%sc-cp p o))
               (def st (%sc-style p o))
-              (%sc-pset q o (%sc-pref p o 8) 8)
+              (ptr-set! q o (ptr-ref p o 8) 8)
               (match
-                ((= cp 0) (self s p q b (%sc+ o 8) e i style))
-                ((= st style) (self s p q b (%sc+ o 8) e (%sc-wcp! b i cp) style))
-                (#t (self s p q b (%sc+ o 8) e (%sc-wcp! b (%sc-ws! b i (%sc-sgr s st) 0) cp) st))))))))
+                ((= cp 0) (self s p q b (int+ o 8) e i style))
+                ((= st style) (self s p q b (int+ o 8) e (%sc-wcp! b i cp) style))
+                (#t (self s p q b (int+ o 8) e (%sc-wcp! b (%sc-ws! b i (%sc-sgr s st) 0) cp) st))))))))
 (def %sc-render
   (fn (_ s)
     (def rows (%sc-get s 0)) (def cols (%sc-get s 1))
     (def p (%sc-cells s)) (def q (%sc-shown s)) (def d (%sc-dirty s))
-    (def b (%sc-str->ptr (%sc-get s 8)))
+    (def b (str->ptr (%sc-get s 8)))
     (def whole (%sc-get s 5))
-    (def width (%sc* 8 cols))
+    (def width (int* 8 cols))
     ((fn (go r i style)
        (match
          ((= r rows)
            (do (%sc-put! s 5 #f)
                (match ((= i 0) "")
-                      (#t (%sc-bsub (%sc-get s 8) 0
+                      (#t (str-byte-sub (%sc-get s 8) 0
                             (%sc-wcup! b (%sc-ws! b i "\x1b[0m" 0) (%sc-get s 6) (%sc-get s 7)))))))
-         ((match (whole #t) (#t (= (%sc-pref d r 1) 1)))
-           (do (%sc-pset d r 0 1)
+         ((match (whole #t) (#t (= (ptr-ref d r 1) 1)))
+           (do (ptr-set! d r 0 1)
                ((fn (_ base)
                   ((fn (_ a)
                      (match
-                       ((%sc< a 0) (go (%sc+ r 1) i style))
+                       ((int< a 0) (go (int+ r 1) i style))
                        (#t ((fn (_ a e)
-                              ((fn (_ done) (go (%sc+ r 1) (first done) (rest done)))
-                               (%sc-emit s p q b a e (%sc-wcup! b i r (%sc-quot (%sc+ a (- 0 base)) 8)) style)))
-                            (match ((match ((%sc< base a) (= (%sc-cp p a) 0)) (#t #f)) (%sc+ a -8)) (#t a))
-                            ((fn (_ e) (match ((match ((%sc< (%sc+ e 8) (%sc+ base width)) (= (%sc-cp p (%sc+ e 8)) 0)) (#t #f))
-                                                (%sc+ e 8))
+                              ((fn (_ done) (go (int+ r 1) (first done) (rest done)))
+                               (%sc-emit s p q b a e (%sc-wcup! b i r (int/ (int+ a (- 0 base)) 8)) style)))
+                            (match ((match ((int< base a) (= (%sc-cp p a) 0)) (#t #f)) (int+ a -8)) (#t a))
+                            ((fn (_ e) (match ((match ((int< (int+ e 8) (int+ base width)) (= (%sc-cp p (int+ e 8)) 0)) (#t #f))
+                                                (int+ e 8))
                                                (#t e)))
-                             (match (whole (%sc+ base (%sc+ width -8))) (#t (%sc-last p q base (%sc+ base (%sc+ width -8))))))))))
-                   (match (whole base) (#t (%sc-first p q base (%sc+ base (%sc+ width -8)))))))
-                (%sc* r width))))
-         (#t (go (%sc+ r 1) i style))))
+                             (match (whole (int+ base (int+ width -8))) (#t (%sc-last p q base (int+ base (int+ width -8))))))))))
+                   (match (whole base) (#t (%sc-first p q base (int+ base (int+ width -8)))))))
+                (int* r width))))
+         (#t (go (int+ r 1) i style))))
      0 (match (whole (%sc-ws! b 0 "\x1b[0m\x1b[H\x1b[2J" 0)) (#t 0)) (match (whole 0) (#t -1)))))
 ; Row R's characters, as text.
 (def %sc-onto (fn (self l acc) (match ((eq? l ()) acc) (#t (self (rest l) (pair (first l) acc))))))
@@ -248,8 +230,8 @@
     ((fn (go c bytes)
        (match ((= c cols) (bytes->str (%reverse bytes)))
               (#t ((fn (_ cp)
-                     (go (%sc+ c 1)
-                         (match ((= cp 0) bytes) ((%sc< cp 128) (pair cp bytes)) (#t (%sc-onto (utf8-encode cp) bytes)))))
+                     (go (int+ c 1)
+                         (match ((= cp 0) bytes) ((int< cp 128) (pair cp bytes)) (#t (%sc-onto (utf8-encode cp) bytes)))))
                    (%sc-cp p (%sc-off cols r c))))))
      0 ())))
 
@@ -287,7 +269,7 @@
       (doc "Blank every cell of SCREEN, plain."
         (returns ANY "nil")
         (example "(Screen clear (Screen make 2 2))" ""))
-      ((fn (go r) (match ((%sc< r (%sc-get screen 0)) (do (screen-fill! screen r 0 (%sc-get screen 1) 0) (go (%sc+ r 1))))
+      ((fn (go r) (match ((int< r (%sc-get screen 0)) (do (screen-fill! screen r 0 (%sc-get screen 1) 0) (go (int+ r 1))))
                          (#t ())))
        0))
     (method cursor (self (param screen VECTOR "A screen") (param row INTEGER "Row, from 0")

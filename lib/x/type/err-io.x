@@ -14,7 +14,7 @@
 ; to pattern-match English and hope.  Now the default prose lives on a
 ; stack, and a lang pushes its own over it:
 ;
-;   (%type-push-display (%type-by-atom (%type-of e))
+;   (%type-push-display (type-by-atom (type-of e))
 ;     (fn (_ e) (Str8 append "symbole non liee : " (rest e))))
 ;
 ; and pops it again to get this file's wording back.  The same representation
@@ -25,12 +25,8 @@
 ; error raised during boot is exactly when you can least afford that.
 
 (module x/type/err-io)
-(def %err-io-by-atom (prim-ref (lit type) (lit by-atom)))
-(def %err-io-type-of (prim-ref (lit type) (lit of)))
-(def %err-io-push-write (prim-ref (lit type) (lit push-write)))
+(import x/core/doors str-append str-byte-len type-by-atom type-of type-push-write)
 (def %err-io-push-display (prim-ref (lit type) (lit push-display)))
-(def %err-io-append (prim-ref (lit str) (lit append)))
-(def %err-io-byte-len (prim-ref (lit str) (lit byte-len)))
 
 ; The engine's own wording, reproduced EXACTLY: code, then the subject in
 ; single quotes when there is one.  Byte-for-byte what the C path printed
@@ -41,13 +37,13 @@
 (def %err-io-render
   (fn (_ e)
     (let ((subject (rest e)))
-      (if (= 0 (%err-io-byte-len subject))
+      (if (= 0 (str-byte-len subject))
         ; Appending to "" is not a no-op here: the code is a static-string
         ; ATOM, and handing that to display renders #<ATOM:0x..> -- the very
         ; failure this type exists to end.  The lift makes it a real STRING.
-        (%err-io-append "" (first e))
-        (%err-io-append (first e)
-          (%err-io-append " '" (%err-io-append subject "'")))))))
+        (str-append "" (first e))
+        (str-append (first e)
+          (str-append " '" (str-append subject "'")))))))
 
 ; --- install (onto the empty boot stacks) ---
 ;
@@ -56,9 +52,9 @@
 ; route printer.x used to reach the old error atom, and the reason the
 ; `err` cell is named in the base-paths contract at all.
 
-(let ((et (%err-io-by-atom (%err-io-type-of (first (%reflect-base-cell (lit err)))))))
+(let ((et (type-by-atom (type-of (first (%reflect-base-cell (lit err)))))))
   (%err-io-push-display et (fn (_ e) (display (%err-io-render e))))
-  (%err-io-push-write   et (fn (_ e) (display (%err-io-render e)))))
+  (type-push-write   et (fn (_ e) (display (%err-io-render e)))))
 
 (doc (provide x/type/err-io)
   "Write/display handlers for ERR, the engine's raised-error value -- the default wording of an engine error, and the stack a lang pushes its own over.")

@@ -16,24 +16,11 @@
 (import x/codec/hex)
 (import x/sys/file)
 
-(def %add (prim-ref 'int '+))
-(def %sub (prim-ref 'int '-))
-(def %oref (prim-ref (lit obj) (lit ref)))
-(def %oset! (prim-ref (lit obj) (lit set!)))
-(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %char->int (prim-ref (lit char) (lit ->int)))
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %pset1 (prim-ref (lit ptr) (lit set!)))
-(def %ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
+(import x/core/doors char->int ffi-dlopen ffi-dlsym int+ int- int->ptr obj-ref obj-set! ptr->int ptr-call ptr-set! str->ptr str-byte-ref str-make)
 ; The foreign door, bound once: a prim-ref walks the catalogue, thousands of
 ; objects a call.  The C symbols themselves are looked up per call (below).
-(def %dlopen (prim-ref (lit ffi) (lit dlopen)))
-(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
-(def %ptr-call (prim-ref (lit ptr) (lit call)))
 
-(def %byte (fn (_ s i) (%char->int (%byte-ref s i))))
+(def %byte (fn (_ s i) (char->int (str-byte-ref s i))))
 
 (def %r-buf (fn (_ r) (first r)))
 (def %r-start (fn (_ r) (first (rest r))))
@@ -41,7 +28,7 @@
 
 ; A fresh buffer of n bytes; one byte at least, since an empty region
 ; still names a buffer.
-(def %fresh (fn (_ n) (%make-str (if (> n 0) n 1))))
+(def %fresh (fn (_ n) (str-make (if (> n 0) n 1))))
 
 ; dst[at..] = the region's bytes, by libc's memcpy: a few objects whatever
 ; the length, where a loop in x leaves garbage for every byte and x sweeps
@@ -53,62 +40,62 @@
     (def s (%r-buf r))
     (def start (%r-start r))
     (def len (%r-len r))
-    (def memcpy (guard (e ()) (%dlsym (%dlopen () 1) "memcpy")))
+    (def memcpy (guard (e ()) (ffi-dlsym (ffi-dlopen () 1) "memcpy")))
     (if (null? memcpy)
       ((fn (self i)
          (unless (= i len)
-           (do (%pset1 p (%add at i) (%byte s (%add start i)) 1) (self (%add i 1))))) 0)
+           (do (ptr-set! p (int+ at i) (%byte s (int+ start i)) 1) (self (int+ i 1))))) 0)
       (when (> len 0)
-        (%ptr-call memcpy
-          (%int->ptr (%add (%ptr->int p) at))
-          (%int->ptr (%add (%ptr->int (%str->ptr s)) start))
+        (ptr-call memcpy
+          (int->ptr (int+ (ptr->int p) at))
+          (int->ptr (int+ (ptr->int (str->ptr s)) start))
           len)))))
 
 ; --- writers: a vector of (BUF LEN CAP) ------------------------------
 
 (def %room!
   (fn (self w n)
-    (when (> (%add (%oref w 2) n) (%oref w 3))
-      (do (def cap (* (%oref w 3) 2))
-          (def buf (%make-str cap))
-          (%copy-into! (%str->ptr buf) 0 (list (%oref w 1) 0 (%oref w 2)))
-          (%oset! w 1 buf)
-          (%oset! w 3 cap)
+    (when (> (int+ (obj-ref w 2) n) (obj-ref w 3))
+      (do (def cap (* (obj-ref w 3) 2))
+          (def buf (str-make cap))
+          (%copy-into! (str->ptr buf) 0 (list (obj-ref w 1) 0 (obj-ref w 2)))
+          (obj-set! w 1 buf)
+          (obj-set! w 3 cap)
           (self w n)))))
 
 (def %put-byte!
   (fn (_ w b)
     (%room! w 1)
-    (%pset1 (%str->ptr (%oref w 1)) (%oref w 2) (& b 255) 1)
-    (%oset! w 2 (%add (%oref w 2) 1))))
+    (ptr-set! (str->ptr (obj-ref w 1)) (obj-ref w 2) (& b 255) 1)
+    (obj-set! w 2 (int+ (obj-ref w 2) 1))))
 
 ; n's low k bytes, most significant first.
 (def %put-int!
   (fn (self w n k)
     (unless (= k 0)
-      (do (%put-byte! w (>> n (<< (%sub k 1) 3)))
-          (self w n (%sub k 1))))))
+      (do (%put-byte! w (>> n (<< (int- k 1) 3)))
+          (self w n (int- k 1))))))
 
 (def %put-region!
   (fn (_ w r)
     (%room! w (%r-len r))
-    (%copy-into! (%str->ptr (%oref w 1)) (%oref w 2) r)
-    (%oset! w 2 (%add (%oref w 2) (%r-len r)))))
+    (%copy-into! (str->ptr (obj-ref w 1)) (obj-ref w 2) r)
+    (obj-set! w 2 (int+ (obj-ref w 2) (%r-len r)))))
 
 ; --- readers: a vector of (BUF POS END) ------------------------------
 
 (def %need
   (fn (_ rd n)
-    (when (> (%add (%oref rd 2) n) (%oref rd 3))
+    (when (> (int+ (obj-ref rd 2) n) (obj-ref rd 3))
       (Err raise (lit value) "Bytes: a field runs past the end of its message" n))))
 
 (def %get-int
   (fn (_ rd k)
     (%need rd k)
-    (def s (%oref rd 1))
-    (def pos (%oref rd 2))
-    (%oset! rd 2 (%add pos k))
-    ((fn (self i acc) (if (= i k) acc (self (%add i 1) (| (<< acc 8) (%byte s (%add pos i)))))) 0 0)))
+    (def s (obj-ref rd 1))
+    (def pos (obj-ref rd 2))
+    (obj-set! rd 2 (int+ pos k))
+    ((fn (self i acc) (if (= i k) acc (self (int+ i 1) (| (<< acc 8) (%byte s (int+ pos i)))))) 0 0)))
 
 (def %as-region
   (fn (_ x) (if (str? x) (list x 0 (Str8 length x)) x)))
@@ -138,14 +125,14 @@
       (doc "The region's byte at i, 0-255. The index is not checked against the region."
         (returns INTEGER "A byte")
         (example "(Bytes ref (Bytes of-hex \"00ff00\") 1)" "255"))
-      (%byte (%r-buf r) (%add (%r-start r) i)))
+      (%byte (%r-buf r) (int+ (%r-start r) i)))
     (method copy (self (param r ANY "A region (BUF START LEN), or a STRING up to its first NUL"))
       (doc "A fresh buffer holding the region's bytes, as a region of its own starting at 0."
         (returns LIST "(BUF 0 LEN)")
         (example "(Bytes hex (Bytes copy (Bytes region \"abcdef\" 1 3)))" "\"626364\""))
       (def rr (%as-region r))
       (def out (%fresh (%r-len rr)))
-      (%copy-into! (%str->ptr out) 0 rr)
+      (%copy-into! (str->ptr out) 0 rr)
       (list out 0 (%r-len rr)))
     (method sub (self (param r LIST "A region (BUF START LEN)")
                       (param start INTEGER "Where the part starts, from the region's start")
@@ -153,18 +140,18 @@
       (doc "Part of a region, as a region of the same buffer. No copy is made, and the bounds are checked."
         (returns LIST "(BUF START+start len)")
         (example "(Bytes hex (Bytes sub (Bytes of-hex \"00112233\") 1 2))" "\"1122\""))
-      (when (> (%add start len) (%r-len r))
+      (when (> (int+ start len) (%r-len r))
         (Err raise (lit value) "Bytes sub: past the end of the region" (list start len)))
-      (list (%r-buf r) (%add (%r-start r) start) len))
+      (list (%r-buf r) (int+ (%r-start r) start) len))
     (method join (self . (param parts LIST "Regions (BUF START LEN), or STRINGs up to their first NUL"))
       (doc "The parts' bytes end to end, in a fresh buffer."
         (returns LIST "(BUF 0 LEN)")
         (example "(Bytes hex (Bytes join (Bytes of-hex \"00\") \"ab\" (Bytes of-hex \"ff\")))" "\"006162ff\""))
       (def rs (List map %as-region parts))
-      (def total ((fn (self l n) (if (null? l) n (self (rest l) (%add n (%r-len (first l)))))) rs 0))
+      (def total ((fn (self l n) (if (null? l) n (self (rest l) (int+ n (%r-len (first l)))))) rs 0))
       (def out (%fresh total))
-      (def p (%str->ptr out))
-      ((fn (self l at) (unless (null? l) (do (%copy-into! p at (first l)) (self (rest l) (%add at (%r-len (first l))))))) rs 0)
+      (def p (str->ptr out))
+      ((fn (self l at) (unless (null? l) (do (%copy-into! p at (first l)) (self (rest l) (int+ at (%r-len (first l))))))) rs 0)
       (list out 0 total))
     (method find (self (param hay ANY "The region to search, or a STRING up to its first NUL")
                        (param needle ANY "The bytes to find, a region or a STRING"))
@@ -173,17 +160,17 @@
         (example "(Bytes find (Bytes of-hex \"00112233\") (Bytes of-hex \"2233\"))" "2"))
       (def h (%as-region hay))
       (def n (%as-region needle))
-      (def memmem (guard (e ()) (%dlsym (%dlopen () 1) "memmem")))
+      (def memmem (guard (e ()) (ffi-dlsym (ffi-dlopen () 1) "memmem")))
       (if (null? memmem)
         ((fn (self i)
            (if (> (+ i (%r-len n)) (%r-len h)) ()
              (if (Bytes same? (list (%r-buf h) (+ (%r-start h) i) (%r-len n)) n) i (self (+ i 1)))))
          0)
-        (do (def base (%add (%ptr->int (%str->ptr (%r-buf h))) (%r-start h)))
-            (def at (%ptr-call memmem (%int->ptr base) (%r-len h)
-                      (%int->ptr (%add (%ptr->int (%str->ptr (%r-buf n))) (%r-start n))) (%r-len n)))
+        (do (def base (int+ (ptr->int (str->ptr (%r-buf h))) (%r-start h)))
+            (def at (ptr-call memmem (int->ptr base) (%r-len h)
+                      (int->ptr (int+ (ptr->int (str->ptr (%r-buf n))) (%r-start n))) (%r-len n)))
             (def p at)
-            (if (= p 0) () (%sub p base)))))
+            (if (= p 0) () (int- p base)))))
     (method same? (self (param a LIST "A region") (param b LIST "A region"))
       (doc "#t when the regions hold the same bytes. Every byte is compared whatever the first difference, so the time taken does not tell an attacker how much of a tag was right."
         (returns BOOL "#t when equal")
@@ -191,16 +178,16 @@
       (if (= (%r-len a) (%r-len b))
         (= 0 ((fn (self i acc)
                 (if (= i (%r-len a)) acc
-                  (self (%add i 1) (| acc (^ (%byte (%r-buf a) (%add (%r-start a) i))
-                                             (%byte (%r-buf b) (%add (%r-start b) i)))))))
+                  (self (int+ i 1) (| acc (^ (%byte (%r-buf a) (int+ (%r-start a) i))
+                                             (%byte (%r-buf b) (int+ (%r-start b) i)))))))
               0 0))
         #f))
     (method hex (self (param r LIST "A region"))
       (doc "The region's bytes as lowercase hex, two characters a byte, NULs included."
         (returns STRING "Hex text")
         (example "(Bytes hex (Bytes of-hex \"00Ab\"))" "\"00ab\""))
-      (Hex encode-bytes ((fn (self i acc) (if (< i 0) acc (self (%sub i 1) (pair (Bytes ref r i) acc))))
-                         (%sub (%r-len r) 1) ())))
+      (Hex encode-bytes ((fn (self i acc) (if (< i 0) acc (self (int- i 1) (pair (Bytes ref r i) acc))))
+                         (int- (%r-len r) 1) ())))
     (method of-hex (self (param text STRING "Hex text, either case"))
       (doc "The bytes the hex text spells, NULs included, in a fresh buffer. Odd length or a non-hex character raises, as Hex decode-bytes does."
         (returns LIST "(BUF 0 LEN)")
@@ -212,8 +199,8 @@
         (example "(Bytes hex (Bytes of-list (list 0 1 255)))" "\"0001ff\""))
       (def n (List length bs))
       (def out (%fresh n))
-      (def p (%str->ptr out))
-      ((fn (self i l) (unless (null? l) (do (%pset1 p i (& (first l) 255) 1) (self (%add i 1) (rest l))))) 0 bs)
+      (def p (str->ptr out))
+      ((fn (self i l) (unless (null? l) (do (ptr-set! p i (& (first l) 255) 1) (self (int+ i 1) (rest l))))) 0 bs)
       (list out 0 n))
     (method random (self (param n INTEGER "How many bytes"))
       (doc "n bytes from the kernel's CSPRNG, /dev/urandom, in a fresh buffer. Raises a label 'io when the device cannot be read in full."
@@ -233,9 +220,9 @@
         (returns OBJECT "A writer")
         (example "(Bytes hex (Bytes written (Bytes writer)))" "\"\""))
       (def w (Vector make 3 0))
-      (%oset! w 1 (%make-str 256))
-      (%oset! w 2 0)
-      (%oset! w 3 256)
+      (obj-set! w 1 (str-make 256))
+      (obj-set! w 2 0)
+      (obj-set! w 3 256)
       w)
     (method put-u8 (self (param w OBJECT "A writer") (param n INTEGER "The byte, 0-255"))
       (doc "Put one byte."
@@ -266,29 +253,29 @@
       (doc "What has been put so far, as a region of the writer's buffer. Putting more may move the buffer; take the region again after."
         (returns LIST "(BUF 0 LEN)")
         (example "(Bytes length (Bytes written (Bytes writer)))" "0"))
-      (list (%oref w 1) 0 (%oref w 2)))
+      (list (obj-ref w 1) 0 (obj-ref w 2)))
     (method size (self (param w OBJECT "A writer"))
       (doc "How many bytes have been put."
         (returns INTEGER "The count")
         (example "(Bytes size (Bytes writer))" "0"))
-      (%oref w 2))
+      (obj-ref w 2))
     (method patch-u16 (self (param w OBJECT "A writer") (param at INTEGER "Where, a byte already put") (param n INTEGER "The value, below 2^16"))
       (doc "Overwrite two bytes already put with n, big-endian: how a length is filled in once what it measures has been written."
         (returns ANY "nil")
         (example "((fn (_ w) (Bytes put-u16 w 0) (Bytes put w \"abc\") (Bytes patch-u16 w 0 3) (Bytes hex (Bytes written w))) (Bytes writer))" "\"0003616263\""))
-      (when (> (%add at 2) (%oref w 2)) (Err raise (lit value) "Bytes patch: past what was written" at))
-      (def p (%str->ptr (%oref w 1)))
-      (%pset1 p at (& (>> n 8) 255) 1)
-      (%pset1 p (%add at 1) (& n 255) 1))
+      (when (> (int+ at 2) (obj-ref w 2)) (Err raise (lit value) "Bytes patch: past what was written" at))
+      (def p (str->ptr (obj-ref w 1)))
+      (ptr-set! p at (& (>> n 8) 255) 1)
+      (ptr-set! p (int+ at 1) (& n 255) 1))
     (method patch-u24 (self (param w OBJECT "A writer") (param at INTEGER "Where, a byte already put") (param n INTEGER "The value, below 2^24"))
       (doc "Overwrite three bytes already put with n, big-endian."
         (returns ANY "nil")
         (example "((fn (_ w) (Bytes put-u24 w 0) (Bytes patch-u24 w 0 258) (Bytes hex (Bytes written w))) (Bytes writer))" "\"000102\""))
-      (when (> (%add at 3) (%oref w 2)) (Err raise (lit value) "Bytes patch: past what was written" at))
-      (def p (%str->ptr (%oref w 1)))
-      (%pset1 p at (& (>> n 16) 255) 1)
-      (%pset1 p (%add at 1) (& (>> n 8) 255) 1)
-      (%pset1 p (%add at 2) (& n 255) 1))
+      (when (> (int+ at 3) (obj-ref w 2)) (Err raise (lit value) "Bytes patch: past what was written" at))
+      (def p (str->ptr (obj-ref w 1)))
+      (ptr-set! p at (& (>> n 16) 255) 1)
+      (ptr-set! p (int+ at 1) (& (>> n 8) 255) 1)
+      (ptr-set! p (int+ at 2) (& n 255) 1))
 
     ; --- readers
     (method reader (self (param r ANY "A region (BUF START LEN), or a STRING up to its first NUL"))
@@ -297,9 +284,9 @@
         (example "(Bytes get-u16 (Bytes reader (Bytes of-hex \"0304\")))" "772"))
       (def rr (%as-region r))
       (def rd (Vector make 3 0))
-      (%oset! rd 1 (%r-buf rr))
-      (%oset! rd 2 (%r-start rr))
-      (%oset! rd 3 (%add (%r-start rr) (%r-len rr)))
+      (obj-set! rd 1 (%r-buf rr))
+      (obj-set! rd 2 (%r-start rr))
+      (obj-set! rd 3 (int+ (%r-start rr) (%r-len rr)))
       rd)
     (method get-u8 (self (param rd OBJECT "A reader"))
       (doc "Read one byte. Raises a label 'value past the end."
@@ -326,14 +313,14 @@
         (returns LIST "(BUF POS n)")
         (example "(Bytes hex (Bytes get (Bytes reader (Bytes of-hex \"00112233\")) 3))" "\"001122\""))
       (%need rd n)
-      (def pos (%oref rd 2))
-      (%oset! rd 2 (%add pos n))
-      (list (%oref rd 1) pos n))
+      (def pos (obj-ref rd 2))
+      (obj-set! rd 2 (int+ pos n))
+      (list (obj-ref rd 1) pos n))
     (method left (self (param rd OBJECT "A reader"))
       (doc "How many bytes are left to read."
         (returns INTEGER "The count")
         (example "(Bytes left (Bytes reader (Bytes of-hex \"0011\")))" "2"))
-      (%sub (%oref rd 3) (%oref rd 2)))
+      (int- (obj-ref rd 3) (obj-ref rd 2)))
     (method rest (self (param rd OBJECT "A reader"))
       (doc "What is left to read, as a region; the reader is then at its end."
         (returns LIST "(BUF POS LEFT)")

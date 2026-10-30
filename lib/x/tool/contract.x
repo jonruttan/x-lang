@@ -19,18 +19,16 @@
 ; Fetch the byte prims from the catalogue: the walk and the gates' line
 ; matchers are hot loops, and class dispatch costs hundreds of objects per
 ; call (the #123 lesson).
-(def %ct-byte-len (prim-ref 'str 'byte-len))
-(def %ct-byte-ref (prim-ref 'str 'byte-ref))
-(def %ct-mem-cmp (prim-ref 'mem 'cmp))
+(import x/core/doors mem-cmp str-byte-len str-byte-ref)
 
 ; Byte-order string compare on the C memcmp door: (Str8 <?) walks the
 ; bytes in interpreted x through protocol dispatch (~6K heap objects per
 ; comparison, measured -- a 4K-name sort OOMed the 300M guard on it).
 (def %ct-str<?
   (fn (_ a b)
-    (def la (%ct-byte-len a))
-    (def lb (%ct-byte-len b))
-    (def c (%ct-mem-cmp a b (if (< la lb) la lb)))
+    (def la (str-byte-len a))
+    (def lb (str-byte-len b))
+    (def c (mem-cmp a b (if (< la lb) la lb)))
     (if (= c 0) (< la lb) (< c 0))))
 
 (def-class Contract ()
@@ -90,13 +88,13 @@
     (def %digits
       (fn (_ s)
         ; the numeric value, or nil unless s is one or more digit bytes
-        (def len (%ct-byte-len s))
+        (def len (str-byte-len s))
         (if (= len 0) ()
           (let go ((i 0) (n 0))
             (match
               ((>= i len) n)
               (#t
-                (let ((b (%ct-byte-ref s i)))
+                (let ((b (str-byte-ref s i)))
                   (if (and (>= b 48) (<= b 57))
                     (go (+ i 1) (+ (* n 10) (- b 48)))
                     ()))))))))

@@ -32,23 +32,16 @@
 ; pays a seam for every entry, so this is the hot step of du, find and
 ; ls -R: the old fold of str=?, (Str8 ref) and (Char =?) sends cost
 ; ~6,300 objects a two-part join, a bare concat ~1.
-(def %path-byte-len (prim-ref (lit str) (lit byte-len)))
-(def %path-byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %path-byte-sub (prim-ref (lit str) (lit byte-sub)))
-(def %path-cat (prim-ref (lit str) (lit append)))
-(def %path-code (prim-ref (lit char) (lit ->int)))
-(def %path-int+ (prim-ref (lit int) (lit +)))
-(def %path-int- (prim-ref (lit int) (lit -)))
-(def %path-type-of (prim-ref (lit type) (lit of)))
-(def %path-str-type (%path-type-of ""))
-(def %path-slash (%path-code (%path-byte-ref "/" 0)))
+(import x/core/doors char->int int+ int- str-append str-byte-len str-byte-ref str-byte-sub type-of)
+(def %path-str-type (type-of ""))
+(def %path-slash (char->int (str-byte-ref "/" 0)))
 
 ; The byte doors read unchecked, so a non-string part is refused here, as
 ; Str8 append refuses one, instead of reading memory.
 (def %path-part
   (fn (_ v)
     (match
-      ((if (eq? v ()) #f (eq? (%path-type-of v) %path-str-type)) v)
+      ((if (eq? v ()) #f (eq? (type-of v) %path-str-type)) v)
       (#t (Err raise (lit type) "Path join: not a string" ())))))
 
 ; End of s without its trailing slashes: the index of the last byte that
@@ -57,8 +50,8 @@
   (fn (self s e)
     (match
       ((eq? e 0) 0)
-      ((eq? (%path-code (%path-byte-ref s (%path-int- e 1))) %path-slash)
-        (self s (%path-int- e 1)))
+      ((eq? (char->int (str-byte-ref s (int- e 1))) %path-slash)
+        (self s (int- e 1)))
       (#t e))))
 
 ; Start of s past its leading slashes; n when s is all slashes.
@@ -66,21 +59,21 @@
   (fn (self s i n)
     (match
       ((eq? i n) n)
-      ((eq? (%path-code (%path-byte-ref s i)) %path-slash)
-        (self s (%path-int+ i 1) n))
+      ((eq? (char->int (str-byte-ref s i)) %path-slash)
+        (self s (int+ i 1) n))
       (#t i))))
 
 ; acc and part around one '/': acc's trailing and part's leading slashes
 ; collapse into it.  Two concats; the slices only when a slash is cut.
 (def %path-seam
   (fn (_ acc part)
-    (def alen (%path-byte-len acc))
+    (def alen (str-byte-len acc))
     (def e (%path-trim-end acc alen))
-    (def plen (%path-byte-len part))
+    (def plen (str-byte-len part))
     (def i (%path-trim-start part 0 plen))
-    (%path-cat
-      (%path-cat (match ((eq? e alen) acc) (#t (%path-byte-sub acc 0 e))) "/")
-      (match ((eq? i 0) part) (#t (%path-byte-sub part i (%path-int- plen i)))))))
+    (str-append
+      (str-append (match ((eq? e alen) acc) (#t (str-byte-sub acc 0 e))) "/")
+      (match ((eq? i 0) part) (#t (str-byte-sub part i (int- plen i)))))))
 
 ; The join loop: an empty part vanishes, the first part stands as given
 ; (its own leading slashes are the root), every later one is a seam.
@@ -88,8 +81,8 @@
   (fn (self acc parts)
     (match
       ((eq? parts ()) acc)
-      ((eq? (%path-byte-len (%path-part (first parts))) 0) (self acc (rest parts)))
-      ((eq? (%path-byte-len acc) 0) (self (first parts) (rest parts)))
+      ((eq? (str-byte-len (%path-part (first parts))) 0) (self acc (rest parts)))
+      ((eq? (str-byte-len acc) 0) (self (first parts) (rest parts)))
       (#t (self (%path-seam acc (first parts)) (rest parts))))))
 
 (def-class Path ()
@@ -238,22 +231,19 @@
         (example "(Path match? \"lib/*.x\" \"lib/a/b.x\")" "#f")
         (example "(Path match? \"lib/**/*.x\" \"lib/a/b.x\")" "#t")
         (example "(Path match? \"lib/**\" \"lib\")" "#t"))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
       ; one segment against one glob segment, byte-recursive
       (def %seg? (fn (loop pat s pi si)
-        (def pn (%blen pat))
-        (def sn (%blen s))
+        (def pn (str-byte-len pat))
+        (def sn (str-byte-len s))
         (match
           ((= pi pn) (= si sn))
-          ((= (%c->i (%bref pat pi)) 42)                       ; *
+          ((= (char->int (str-byte-ref pat pi)) 42)                       ; *
             (if (loop pat s (+ pi 1) si) #t
               (if (< si sn) (loop pat s pi (+ si 1)) #f)))
           ((= si sn) #f)
-          ((= (%c->i (%bref pat pi)) 63)                       ; ?
+          ((= (char->int (str-byte-ref pat pi)) 63)                       ; ?
             (loop pat s (+ pi 1) (+ si 1)))
-          ((= (%c->i (%bref pat pi)) (%c->i (%bref s si)))
+          ((= (char->int (str-byte-ref pat pi)) (char->int (str-byte-ref s si)))
             (loop pat s (+ pi 1) (+ si 1)))
           (#t #f))))
       (def %segs (fn (_ q)

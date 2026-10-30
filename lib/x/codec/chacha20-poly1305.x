@@ -13,17 +13,8 @@
 (import x/codec/poly1305)
 (import x/codec/bytes)
 
-(def %add (prim-ref 'int '+))
-(def %sub (prim-ref 'int '-))
-(def %and (prim-ref (lit int) (lit &)))
-(def %shl (prim-ref (lit int) (lit <<)))
-(def %shr (prim-ref (lit int) (lit >>)))
-(def %lt (prim-ref (lit int) (lit <)))
-(def %eq (prim-ref (lit int) (lit =)))
+(import x/core/doors int& int+ int- int< int<< int= int>> ptr-set! str->ptr str-make)
 
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %pset1 (prim-ref (lit ptr) (lit set!)))
 (def %len (fn (_ r) (first (rest (rest r)))))
 
 ; The buffers below are made a call at a time, never at load: a state image
@@ -35,9 +26,9 @@
 ; n zero bytes in a fresh buffer, four at a write.
 (def %zeroed
   (fn (_ n)
-    (def z (%make-str n))
-    (def p (%str->ptr z))
-    ((fn (self k) (when (%lt k n) (do (%pset1 p k 0 4) (self (%add k 4))))) 0)
+    (def z (str-make n))
+    (def p (str->ptr z))
+    ((fn (self k) (when (int< k n) (do (ptr-set! p k 0 4) (self (int+ k 4))))) 0)
     z))
 
 ; ChaCha20's 16-byte IV for block 0: a zero counter, then the 96-bit nonce.
@@ -49,18 +40,18 @@
 (def %buffer
   (fn (_ r) (first (Bytes copy r))))
 
-(def %pad16 (fn (_ n) (%and (%sub 16 (%and n 15)) 15)))
+(def %pad16 (fn (_ n) (int& (int- 16 (int& n 15)) 15)))
 
 ; Sixteen zero bytes for the pads, then the two lengths as 64-bit
 ; little-endian numbers: thirty-two bytes.
 (def %tail
   (fn (_ a c)
     (def b (%zeroed 32))
-    (def p (%str->ptr b))
-    ((fn (self k) (unless (%eq k 8)
-                    (do (%pset1 p (%add k 16) (%and (%shr a (%shl k 3)) 255) 1)
-                        (%pset1 p (%add k 24) (%and (%shr c (%shl k 3)) 255) 1)
-                        (self (%add k 1)))))
+    (def p (str->ptr b))
+    ((fn (self k) (unless (int= k 8)
+                    (do (ptr-set! p (int+ k 16) (int& (int>> a (int<< k 3)) 255) 1)
+                        (ptr-set! p (int+ k 24) (int& (int>> c (int<< k 3)) 255) 1)
+                        (self (int+ k 1)))))
      0)
     b))
 
@@ -115,8 +106,8 @@
       (def sr (Bytes of sealed))
       (%check-sizes kr nr)
       (when (< (Bytes length sr) 16) (Err raise (lit value) "ChaCha20Poly1305: shorter than its tag" (Bytes length sr)))
-      (def ct (Bytes sub sr 0 (%sub (Bytes length sr) 16)))
-      (def tag (Bytes sub sr (%sub (Bytes length sr) 16) 16))
+      (def ct (Bytes sub sr 0 (int- (Bytes length sr) 16)))
+      (def tag (Bytes sub sr (int- (Bytes length sr) 16) 16))
       ; one pass yields the one-time key and the plaintext; the plaintext
       ; is answered only once the tag over the ciphertext holds
       (def out (%pass (%buffer kr) nr ct))

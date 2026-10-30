@@ -19,7 +19,7 @@
 ### flag triggers STOP inside guard
 
 ```x
-(guard (e (%display-to-str e))
+(guard (e (io-display-to-str e))
   (%set-cell-int! %sigint-flag 1)
   (+ 1 2))
 ```

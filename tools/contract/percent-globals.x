@@ -184,9 +184,9 @@
 ; codec/sha256.x grew by one, 32 -> 33, for %cvt: the catalogue converter it read
 ; from the root while x/sys/posix bound it there.  posix is scoped, and under
 ; the plain x dialect nothing else binds it (x-lang#719, step 4).
-(file "lib/x/codec/sha256.x" 33)
+(file "lib/x/codec/sha256.x" 26)
 (file "lib/x/core/alist.x" 12)
-(file "lib/x/core/arithmetic.x" 16)
+(file "lib/x/core/arithmetic.x" 15)
 (file "lib/x/core/boolean.x" 3)
 (file "lib/x/core/control.x" 2)
 (file "lib/x/core/list.x" 23)
@@ -194,15 +194,14 @@
 (file "lib/x/core/predicates.x" 12)
 (file "lib/x/core/syntax.x" 2)
 (file "lib/x/doc/doc.x" 73)
-(file "lib/x/num/tower.x" 10)
+(file "lib/x/num/tower.x" 7)
 (file "lib/x/platform/socket.x" 1)
-(file "lib/x/protocol/seq.x" 1)
 ; intrinsics.x rose 5 to 8 for the label channel: %score-label-cell (the raw
 ; door to the cell the engine hangs off the score), %score-label! (the
 ; analyser's end) and %read-label (the reader's end) -- per-token intrinsics on
 ; the analyser protocol, the same grounds as %score-set beside them
 ; (reader/analyser.x: class dispatch allocates mid-reader-callback).
-(file "lib/x/reader/intrinsics.x" 8)
+(file "lib/x/reader/intrinsics.x" 7)
 (file "lib/x/repl/banner.x" 4)
 ; Grew by one for %repl-platform-repl: the identity anchor that lets two
 ; installers over `repl` -- a lang's reader and the line editor -- tell
@@ -220,8 +219,7 @@
 ; helpers, on the grounds %repl-paint's row states, and the last is what lets
 ; a lang keep the line editor instead of replacing the loop.  x/repl/lang
 ; bundles the seven as a named lang.
-(file "lib/x/repl/loop.x" 18)
-(file "lib/x/rn.x" 1)
+(file "lib/x/repl/loop.x" 14)
 (file "lib/x/sys/pact.x" 12)
 ; asm-cache.x is a new file and 60 is nearly all DOORS: ~20 prim-refs and 10
 ; dlsym'd libc entries, fetched once at load because this module may not walk
@@ -282,16 +280,16 @@
 ; to know which path ran.
 ; asm.x fell 43 to 15 when the buffers, the relocator and the slots the JIT
 ; fills moved to asm-code.x, which the byte cache loads without the encoder.
-(file "lib/x/tool/asm.x" 15)
+(file "lib/x/tool/asm.x" 13)
 ; asm-code.x is asm.x's buffer half: the 28 names that moved from it, the two
 ; relocators that moved from the backends, and %asm-reloc, the host's
 ; relocator, which a buffer poured from the cache reads without the backend;
 ; and %asm-emit, the slot asm.x fills so that calling an assembler emits.
-(file "lib/x/tool/asm-code.x" 32)
+(file "lib/x/tool/asm-code.x" 22)
 ; arm64.x rose 8 to 9 for %arm64-reloc: re-encoding a 64-bit immediate is
 ; per-backend work (MOVZ + 3x MOVK, sixteen bits to a word).
 ; arm64.x fell 9 to 8 when %arm64-reloc moved to asm-code.x.
-(file "lib/x/tool/asm/arm64.x" 8)
+(file "lib/x/tool/asm/arm64.x" 6)
 ; x86_64.x rose 23 to 24 for %x86_64-reloc: the same operation, one flat
 ; 8-byte store after the two opcode bytes.
 ; x86_64.x rose 24 to 25 for %x86-float: the scalar double instructions (SSE2),
@@ -299,7 +297,7 @@
 ; One lowering for the ten forms, its helpers bound inside it; arm64 needs
 ; no row, its forms being table words and one dispatch clause.
 ; x86_64.x fell 25 to 24 when %x86_64-reloc moved to asm-code.x.
-(file "lib/x/tool/asm/x86_64.x" 24)
+(file "lib/x/tool/asm/x86_64.x" 23)
 ; compile.x rose 25 to 26 for %compile-cache-identity: the engine-and-machine
 ; half of the cache key, held apart from the expression so the pairing can be
 ; named and asserted (#590 -- a key without engine identity served
@@ -312,14 +310,14 @@
 ; their exports are bare names.  Both are unscoped, the walk being per object.
 (file "lib/x/tool/image/name.x" 14)
 (file "lib/x/tool/image/walk.x" 17)
-(file "lib/x/tool/lint.x" 87)
+(file "lib/x/tool/lint.x" 84)
 ; class.x fell 91 to 89: its two exported hooks, class-call-handler and
 ; bind-call-over!, are bare names now (x-lang#719, the last %-named exports).
 ; class.x grew by one, 89 -> 90, for %tab-handler-cell: the base's
 ; error-handler cell, which %tab-find! empties around its three writes so that
 ; a STOP cannot fall between them; resolved once rather than walked to on
 ; every move.
-(file "lib/x/type/class.x" 90)   ; +1 %apply: the dispatcher applies resolved methods and displaced C handler atoms through the engine's apply
+(file "lib/x/type/class.x" 82)   ; +1 %apply: the dispatcher applies resolved methods and displaced C handler atoms through the engine's apply
 (file "lib/x/type/unit-label-rows.x" 2)
 (file "tools/check/boot-order.x" 33)
 (file "tools/check/dialect-cover.x" 9)

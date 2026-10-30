@@ -24,29 +24,13 @@
 (import x/type/list)
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
+; The length and distance code tables, shared with the decoder.
+(import x/codec/flate-codes lbase lext dbase dext)
 
-(def %add (prim-ref (lit int) (lit +)))
-(def %sub (prim-ref (lit int) (lit -)))
-(def %mul (prim-ref (lit int) (lit *)))
-(def %lt (prim-ref (lit int) (lit <)))
-(def %eq (prim-ref (lit int) (lit =)))
-(def %and (prim-ref (lit int) (lit &)))
-(def %or (prim-ref (lit int) (lit |)))
-(def %shl (prim-ref (lit int) (lit <<)))
-(def %shr (prim-ref (lit int) (lit >>)))
-(def %oref (prim-ref (lit obj) (lit ref)))
-(def %oset! (prim-ref (lit obj) (lit set!)))
-(def %pref (prim-ref (lit ptr) (lit ref)))
-(def %pset! (prim-ref (lit ptr) (lit set!)))
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
-(def %mem-copy (prim-ref (lit mem) (lit copy)))
+(import x/core/doors int% int& int* int+ int- int->ptr int/ int< int<< int= int>> int| mem-cmp mem-copy obj-ref obj-set! ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-make)
 (def %mem-set (prim-ref (lit mem) (lit set)))
-(def %str-byte-len (prim-ref (lit str) (lit byte-len)))
 
-(def %at (fn (_ p off) (%int->ptr (%add (%ptr->int p) off))))
+(def %at (fn (_ p off) (int->ptr (int+ (ptr->int p) off))))
 
 ; --- The output: bytes, and bits into them ---
 ;
@@ -64,60 +48,60 @@
 (def %writer
   (fn (_ cap)
     (def w (Vector make 6 0))
-    (def out (%make-str cap))
-    (%oset! w %OUT out)
-    (%oset! w %OUTP (%str->ptr out))
-    (%oset! w %OUTCAP cap)
+    (def out (str-make cap))
+    (obj-set! w %OUT out)
+    (obj-set! w %OUTP (str->ptr out))
+    (obj-set! w %OUTCAP cap)
     w))
 
 ; The output region doubled from ncap until `need` bytes fit.
 (def %grow!
   (fn (self w need ncap)
-    (if (%lt ncap need) (self w need (%shl ncap 1))
-      (do (def r (%make-str ncap))
-          (def cnt (%oref w %OUTCNT))
-          (if (%lt 0 cnt) (%mem-copy (%str->ptr r) (%oref w %OUTP) cnt) ())
-          (%oset! w %OUT r)
-          (%oset! w %OUTP (%str->ptr r))
-          (%oset! w %OUTCAP ncap)))))
+    (if (int< ncap need) (self w need (int<< ncap 1))
+      (do (def r (str-make ncap))
+          (def cnt (obj-ref w %OUTCNT))
+          (if (int< 0 cnt) (mem-copy (str->ptr r) (obj-ref w %OUTP) cnt) ())
+          (obj-set! w %OUT r)
+          (obj-set! w %OUTP (str->ptr r))
+          (obj-set! w %OUTCAP ncap)))))
 
 (def %room!
   (fn (_ w n)
-    (def need (%add (%oref w %OUTCNT) n))
-    (def cap (%oref w %OUTCAP))
-    (if (%lt cap need) (%grow! w need (%shl cap 1)) ())))
+    (def need (int+ (obj-ref w %OUTCNT) n))
+    (def cap (obj-ref w %OUTCAP))
+    (if (int< cap need) (%grow! w need (int<< cap 1)) ())))
 
 (def %emit!
   (fn (_ w b)
     (%room! w 1)
-    (def at (%oref w %OUTCNT))
-    (%pset! (%oref w %OUTP) at b 1)
-    (%oset! w %OUTCNT (%add at 1))))
+    (def at (obj-ref w %OUTCNT))
+    (ptr-set! (obj-ref w %OUTP) at b 1)
+    (obj-set! w %OUTCNT (int+ at 1))))
 
 ; Whole bytes of the bit buffer out, low byte first (3.1.1).
 (def %emit-whole!
   (fn (self w)
-    (def cnt (%oref w %BITCNT))
-    (if (%lt cnt 8) ()
-      (do (%emit! w (%and (%oref w %BITBUF) 255))
-          (%oset! w %BITBUF (%shr (%oref w %BITBUF) 8))
-          (%oset! w %BITCNT (%sub cnt 8))
+    (def cnt (obj-ref w %BITCNT))
+    (if (int< cnt 8) ()
+      (do (%emit! w (int& (obj-ref w %BITBUF) 255))
+          (obj-set! w %BITBUF (int>> (obj-ref w %BITBUF) 8))
+          (obj-set! w %BITCNT (int- cnt 8))
           (self w)))))
 
 ; The low n bits of value, least significant first.
 (def %put-bits!
   (fn (_ w value n)
-    (%oset! w %BITBUF (%or (%oref w %BITBUF) (%shl value (%oref w %BITCNT))))
-    (%oset! w %BITCNT (%add (%oref w %BITCNT) n))
+    (obj-set! w %BITBUF (int| (obj-ref w %BITBUF) (int<< value (obj-ref w %BITCNT))))
+    (obj-set! w %BITCNT (int+ (obj-ref w %BITCNT) n))
     (%emit-whole! w)))
 
 ; The bits in hand padded to a byte boundary.
 (def %align!
   (fn (_ w)
-    (if (%lt 0 (%oref w %BITCNT))
-      (do (%emit! w (%and (%oref w %BITBUF) 255))
-          (%oset! w %BITBUF 0)
-          (%oset! w %BITCNT 0))
+    (if (int< 0 (obj-ref w %BITCNT))
+      (do (%emit! w (int& (obj-ref w %BITBUF) 255))
+          (obj-set! w %BITBUF 0)
+          (obj-set! w %BITCNT 0))
       ())))
 
 ; --- Stored blocks ---
@@ -127,35 +111,31 @@
 ; input is one empty final block.
 (def %stored!
   (fn (self w src i n final?)
-    (def len (if (%lt 65535 (%sub n i)) 65535 (%sub n i)))
-    (def last? (%eq (%add i len) n))
+    (def len (if (int< 65535 (int- n i)) 65535 (int- n i)))
+    (def last? (int= (int+ i len) n))
     (%put-bits! w (if (if last? final? #f) 1 0) 1)
     (%put-bits! w 0 2)
     (%align! w)
-    (%emit! w (%and len 255))
-    (%emit! w (%shr len 8))
-    (%emit! w (%and (~ len) 255))
-    (%emit! w (%and (%shr (~ len) 8) 255))
+    (%emit! w (int& len 255))
+    (%emit! w (int>> len 8))
+    (%emit! w (int& (~ len) 255))
+    (%emit! w (int& (int>> (~ len) 8) 255))
     (%room! w len)
-    (if (%lt 0 len) (%mem-copy (%at (%oref w %OUTP) (%oref w %OUTCNT)) (%at src i) len) ())
-    (%oset! w %OUTCNT (%add (%oref w %OUTCNT) len))
-    (if last? () (self w src (%add i len) n final?))))
+    (if (int< 0 len) (mem-copy (%at (obj-ref w %OUTP) (obj-ref w %OUTCNT)) (%at src i) len) ())
+    (obj-set! w %OUTCNT (int+ (obj-ref w %OUTCNT) len))
+    (if last? () (self w src (int+ i len) n final?))))
 
 ; --- The tables (3.2.5) ---
 
-(def %lbase (Vector from-list (list 3 4 5 6 7 8 9 10 11 13 15 17 19 23 27 31 35 43 51 59 67 83 99 115 131 163 195 227 258)))
-(def %lext (Vector from-list (list 0 0 0 0 0 0 0 0 1 1 1 1 2 2 2 2 3 3 3 3 4 4 4 4 5 5 5 5 0)))
-(def %dbase (Vector from-list (list 1 2 3 4 5 7 9 13 17 25 33 49 65 97 129 193 257 385 513 769 1025 1537 2049 3073 4097 6145 8193 12289 16385 24577)))
-(def %dext (Vector from-list (list 0 0 0 0 1 1 2 2 3 3 4 4 5 5 6 6 7 7 8 8 9 9 10 10 11 11 12 12 13 13)))
 
 ; Slot len+1 of %length-code holds the length code (0..28) of a match of
 ; len bytes, 3..258.
 (def %length-code (Vector make 259 0))
 ((fn (self code)
-   (if (%lt code 29)
-     (do ((fn (fill k n) (if (%lt k n) (do (%oset! %length-code (%add (%add (%oref %lbase (%add code 1)) k) 1) code) (fill (%add k 1) n)) ()))
-          0 (if (%eq code 28) 1 (%shl 1 (%oref %lext (%add code 1)))))
-         (self (%add code 1)))
+   (if (int< code 29)
+     (do ((fn (fill k n) (if (int< k n) (do (obj-set! %length-code (int+ (int+ (obj-ref lbase (int+ code 1)) k) 1) code) (fill (int+ k 1) n)) ()))
+          0 (if (int= code 28) 1 (int<< 1 (obj-ref lext (int+ code 1)))))
+         (self (int+ code 1)))
      ()))
  0)
 
@@ -163,27 +143,27 @@
 ; 256 + (d-1 >> 7) + 1 past it -- zlib's two-part table.
 (def %distance-code (Vector make 512 0))
 ((fn (self code)
-   (if (%lt code 30)
-     (do (def base (%oref %dbase (%add code 1)))
-         (def span (%shl 1 (%oref %dext (%add code 1))))
-         (if (%lt code 16)
-           ((fn (fill d) (if (%lt d (%add base span)) (do (%oset! %distance-code d code) (fill (%add d 1))) ()))
+   (if (int< code 30)
+     (do (def base (obj-ref dbase (int+ code 1)))
+         (def span (int<< 1 (obj-ref dext (int+ code 1))))
+         (if (int< code 16)
+           ((fn (fill d) (if (int< d (int+ base span)) (do (obj-set! %distance-code d code) (fill (int+ d 1))) ()))
             base)
-           ((fn (fill d) (if (%lt d (%add base span)) (do (%oset! %distance-code (%add 257 (%shr (%sub d 1) 7)) code) (fill (%add d 128))) ()))
+           ((fn (fill d) (if (int< d (int+ base span)) (do (obj-set! %distance-code (int+ 257 (int>> (int- d 1) 7)) code) (fill (int+ d 128))) ()))
             base))
-         (self (%add code 1)))
+         (self (int+ code 1)))
      ()))
  0)
 
 (def %dcode
-  (fn (_ d) (if (%lt d 257) (%oref %distance-code d) (%oref %distance-code (%add 257 (%shr (%sub d 1) 7))))))
+  (fn (_ d) (if (int< d 257) (obj-ref %distance-code d) (obj-ref %distance-code (int+ 257 (int>> (int- d 1) 7))))))
 
 ; The 9-bit reversal, once: slot i+1 holds the bits of i the other way.
 (def %rev9 (Vector make 512 0))
 ((fn (self i)
-   (if (%lt i 512)
-     (do (%oset! %rev9 (%add i 1) (%or (%shr (%oref %rev9 (%add (%shr i 1) 1)) 1) (%shl (%and i 1) 8)))
-         (self (%add i 1)))
+   (if (int< i 512)
+     (do (obj-set! %rev9 (int+ i 1) (int| (int>> (obj-ref %rev9 (int+ (int>> i 1) 1)) 1) (int<< (int& i 1) 8)))
+         (self (int+ i 1)))
      ()))
  1)
 
@@ -191,9 +171,9 @@
 ; written most significant bit first into a stream read least first.
 (def %reverse
   (fn (_ code len)
-    (if (%lt len 10) (%shr (%oref %rev9 (%add code 1)) (%sub 9 len))
-      (%or (%shl (%oref %rev9 (%add (%and code 511) 1)) (%sub len 9))
-           (%shr (%oref %rev9 (%add (%shr code 9) 1)) (%sub 18 len))))))
+    (if (int< len 10) (int>> (obj-ref %rev9 (int+ code 1)) (int- 9 len))
+      (int| (int<< (obj-ref %rev9 (int+ (int& code 511) 1)) (int- len 9))
+           (int>> (obj-ref %rev9 (int+ (int>> code 9) 1)) (int- 18 len))))))
 
 ; --- LZ77 (zlib's deflate_fast, greedy) ---
 
@@ -211,9 +191,9 @@
 ; A hash of the three bytes at i.
 (def %hash
   (fn (_ p i)
-    (%and (%add (%mul (%and (%pref p i 1) 255) 1089)
-                (%add (%mul (%and (%pref p (%add i 1) 1) 255) 33)
-                      (%and (%pref p (%add i 2) 1) 255)))
+    (int& (int+ (int* (int& (ptr-ref p i 1) 255) 1089)
+                (int+ (int* (int& (ptr-ref p (int+ i 1) 1) 255) 33)
+                      (int& (ptr-ref p (int+ i 2) 1) 255)))
           %HMASK)))
 
 ; The tables are byte regions, not vectors: a Vector of 32768 slots costs
@@ -221,37 +201,37 @@
 ; a memset.  The hash and chain tables hold 4-byte slots, a position kept
 ; plus one so a zeroed slot reads as none; the token tables hold 8-byte
 ; words, which the compiled writer reads as words.
-(def %tref (fn (_ t i) (%pref t (%shl i 3) 8)))
-(def %tset! (fn (_ t i v) (%pset! t (%shl i 3) v 8)))
+(def %tref (fn (_ t i) (ptr-ref t (int<< i 3) 8)))
+(def %tset! (fn (_ t i v) (ptr-set! t (int<< i 3) v 8)))
 
 (def %table
   (fn (_ slots)
-    (def r (%make-str (%shl slots 2)))
-    (%mem-set (%str->ptr r) 0 (%shl slots 2))
-    (pair r (%str->ptr r))))
+    (def r (str-make (int<< slots 2)))
+    (%mem-set (str->ptr r) 0 (int<< slots 2))
+    (pair r (str->ptr r))))
 
 ; Position i entered: its chain link is what the hash headed before.
 (def %insert!
   (fn (_ p i head prev)
-    (def h (%shl (%hash p i) 2))
-    (%pset! prev (%shl (%and i %WMASK) 2) (%pref head h 4) 4)
-    (%pset! head h (%add i 1) 4)))
+    (def h (int<< (%hash p i) 2))
+    (ptr-set! prev (int<< (int& i %WMASK) 2) (ptr-ref head h 4) 4)
+    (ptr-set! head h (int+ i 1) 4)))
 
 ; How many bytes from a and b agree, up to limit: eight at a time while
 ; eight are left, then one.
 (def %agree
   (fn (self p a b k limit)
-    (if (%lt (%sub limit k) 8)
+    (if (int< (int- limit k) 8)
       (%agree-bytes p a b k limit)
-      (if (%eq (%pref p (%add a k) 8) (%pref p (%add b k) 8))
-        (self p a b (%add k 8) limit)
+      (if (int= (ptr-ref p (int+ a k) 8) (ptr-ref p (int+ b k) 8))
+        (self p a b (int+ k 8) limit)
         (%agree-bytes p a b k limit)))))
 
 (def %agree-bytes
   (fn (self p a b k limit)
-    (if (%lt k limit)
-      (if (%eq (%pref p (%add a k) 1) (%pref p (%add b k) 1))
-        (self p a b (%add k 1) limit)
+    (if (int< k limit)
+      (if (int= (ptr-ref p (int+ a k) 1) (ptr-ref p (int+ b k) 1))
+        (self p a b (int+ k 1) limit)
         k)
       k)))
 
@@ -263,18 +243,18 @@
 ; as the input allows.
 (def %longest
   (fn (self p i limit cand prev steps blen bdist)
-    (if (if (%lt cand 0) #t
-          (if (%lt %WSIZE (%sub i cand)) #t
-            (if (%eq steps 0) #t
-              (if (%lt %NICE blen) #t (%lt (%sub limit 1) blen)))))
+    (if (if (int< cand 0) #t
+          (if (int< %WSIZE (int- i cand)) #t
+            (if (int= steps 0) #t
+              (if (int< %NICE blen) #t (int< (int- limit 1) blen)))))
       (pair blen bdist)
-      (do (def len (if (%eq (%pref p (%add cand blen) 1) (%pref p (%add i blen) 1))
+      (do (def len (if (int= (ptr-ref p (int+ cand blen) 1) (ptr-ref p (int+ i blen) 1))
                      (%agree p cand i 0 limit)
                      0))
-          (def next (%sub (%pref prev (%shl (%and cand %WMASK) 2) 4) 1))
-          (if (%lt blen len)
-            (self p i limit next prev (%sub steps 1) len (%sub i cand))
-            (self p i limit next prev (%sub steps 1) blen bdist))))))
+          (def next (int- (ptr-ref prev (int<< (int& cand %WMASK) 2) 4) 1))
+          (if (int< blen len)
+            (self p i limit next prev (int- steps 1) len (int- i cand))
+            (self p i limit next prev (int- steps 1) blen bdist))))))
 
 ; The tokens of n bytes at p: slot t+1 of lens holds a match's length, 0
 ; for a literal; of vals its distance, or the literal byte.  Answers the
@@ -284,30 +264,30 @@
 ; already a repeat.
 (def %tokenize!
   (fn (self p i n head prev lens vals t)
-    (if (%lt i n)
-      (do (def m (if (%lt (%sub n i) %MINMATCH) (pair 0 0)
-                   (do (def h (%shl (%hash p i) 2))
-                       (def cand (%sub (%pref head h 4) 1))
-                       (%pset! prev (%shl (%and i %WMASK) 2) (%add cand 1) 4)
-                       (%pset! head h (%add i 1) 4)
-                       (%longest p i (if (%lt (%sub n i) %MAXMATCH) (%sub n i) %MAXMATCH)
-                         cand prev %MAXCHAIN (%sub %MINMATCH 1) 0))))
-          (if (%lt (first m) %MINMATCH)
+    (if (int< i n)
+      (do (def m (if (int< (int- n i) %MINMATCH) (pair 0 0)
+                   (do (def h (int<< (%hash p i) 2))
+                       (def cand (int- (ptr-ref head h 4) 1))
+                       (ptr-set! prev (int<< (int& i %WMASK) 2) (int+ cand 1) 4)
+                       (ptr-set! head h (int+ i 1) 4)
+                       (%longest p i (if (int< (int- n i) %MAXMATCH) (int- n i) %MAXMATCH)
+                         cand prev %MAXCHAIN (int- %MINMATCH 1) 0))))
+          (if (int< (first m) %MINMATCH)
             (do (%tset! lens t 0)
-                (%tset! vals t (%and (%pref p i 1) 255))
-                (self p (%add i 1) n head prev lens vals (%add t 1)))
+                (%tset! vals t (int& (ptr-ref p i 1) 255))
+                (self p (int+ i 1) n head prev lens vals (int+ t 1)))
             (do (%tset! lens t (first m))
                 (%tset! vals t (rest m))
-                (if (%lt %MAXINSERT (first m)) () (%insert-run! p (%add i 1) (%add i (first m)) n head prev))
-                (self p (%add i (first m)) n head prev lens vals (%add t 1)))))
+                (if (int< %MAXINSERT (first m)) () (%insert-run! p (int+ i 1) (int+ i (first m)) n head prev))
+                (self p (int+ i (first m)) n head prev lens vals (int+ t 1)))))
       t)))
 
 ; Positions from i below end entered, while three bytes remain at each.
 (def %insert-run!
   (fn (self p i end n head prev)
-    (if (%lt i end)
-      (do (if (%lt (%sub n i) %MINMATCH) () (%insert! p i head prev))
-          (self p (%add i 1) end n head prev))
+    (if (int< i end)
+      (do (if (int< (int- n i) %MINMATCH) () (%insert! p i head prev))
+          (self p (int+ i 1) end n head prev))
       ())))
 
 ; --- Huffman codes from frequencies (3.2.2) ---
@@ -323,7 +303,7 @@
       ((if (null? front) (not (null? back)) #f) (self leaves (List reverse back) ()))
       ((null? leaves) (list (first front) leaves (rest front) back))
       ((null? front) (list (first leaves) (rest leaves) front back))
-      ((%lt (first (first front)) (first (first leaves))) (list (first front) leaves (rest front) back))
+      ((int< (first (first front)) (first (first leaves))) (list (first front) leaves (rest front) back))
       (#t (list (first leaves) (rest leaves) front back)))))
 
 (def %merge-tree
@@ -332,21 +312,21 @@
      (if (if (null? leaves) (if (null? back) (null? (rest front)) #f) #f) (first front)
       (do (def a (%take-least leaves front back))
           (def b (%take-least (first (rest a)) (first (rest (rest a))) (first (rest (rest (rest a))))))
-          (def node (list (%add (first (first a)) (first (first b))) (first a) (first b)))
+          (def node (list (int+ (first (first a)) (first (first b))) (first a) (first b)))
           (self (first (rest b)) (first (rest (rest b))) (pair node (first (rest (rest (rest b)))))))))))
 
 ; Each leaf's depth into lengths (slot sym+1), from a node at depth d.
 (def %depths!
   (fn (self node d lengths)
     (if (null? (rest (rest node)))
-      (%oset! lengths (%add (first (rest node)) 1) d)
-      (do (self (first (rest node)) (%add d 1) lengths)
-          (self (first (rest (rest node))) (%add d 1) lengths)))))
+      (obj-set! lengths (int+ (first (rest node)) 1) d)
+      (do (self (first (rest node)) (int+ d 1) lengths)
+          (self (first (rest (rest node))) (int+ d 1) lengths)))))
 
 (def %max-length
   (fn (self lengths i n best)
-    (if (%lt i n)
-      (self lengths (%add i 1) n (if (%lt best (%oref lengths (%add i 1))) (%oref lengths (%add i 1)) best))
+    (if (int< i n)
+      (self lengths (int+ i 1) n (if (int< best (obj-ref lengths (int+ i 1))) (obj-ref lengths (int+ i 1)) best))
       best)))
 
 ; The code lengths for n symbols whose frequencies are in freqs (slot
@@ -364,25 +344,25 @@
     (def used (%symbols-used freqs 0 n 0))
     (def pads
       (match
-        ((%eq used 0) (list (list 1 0) (list 1 1)))
-        ((%eq used 1) (list (list 1 (if (%eq (%oref freqs 1) 0) 0 1))))
+        ((int= used 0) (list (list 1 0) (list 1 1)))
+        ((int= used 1) (list (list 1 (if (int= (obj-ref freqs 1) 0) 0 1))))
         (#t ())))
     (def leaves
-      (List sort (fn (_ a b) (%lt (first a) (first b)))
+      (List sort (fn (_ a b) (int< (first a) (first b)))
         ((fn (collect i acc)
-           (if (%lt i n)
-             (collect (%add i 1) (if (%lt 0 (%oref freqs (%add i 1))) (pair (list (%oref freqs (%add i 1)) i) acc) acc))
+           (if (int< i n)
+             (collect (int+ i 1) (if (int< 0 (obj-ref freqs (int+ i 1))) (pair (list (obj-ref freqs (int+ i 1)) i) acc) acc))
              acc))
          0 pads)))
     (def lengths (Vector make n 0))
     (%depths! (%merge-tree leaves () ()) 0 lengths)
-    (if (%lt limit (%max-length lengths 0 n 0))
+    (if (int< limit (%max-length lengths 0 n 0))
       (do (def halved (Vector make n 0))
           ((fn (halve i)
-             (if (%lt i n)
-               (do (def f (%oref freqs (%add i 1)))
-                   (%oset! halved (%add i 1) (if (%lt 1 f) (%shr f 1) f))
-                   (halve (%add i 1)))
+             (if (int< i n)
+               (do (def f (obj-ref freqs (int+ i 1)))
+                   (obj-set! halved (int+ i 1) (if (int< 1 f) (int>> f 1) f))
+                   (halve (int+ i 1)))
                ()))
            0)
           (self halved n limit))
@@ -391,7 +371,7 @@
 ; How many of n symbols have a frequency.
 (def %symbols-used
   (fn (self freqs i n k)
-    (if (%lt i n) (self freqs (%add i 1) n (if (%lt 0 (%oref freqs (%add i 1))) (%add k 1) k)) k)))
+    (if (int< i n) (self freqs (int+ i 1) n (if (int< 0 (obj-ref freqs (int+ i 1))) (int+ k 1) k)) k)))
 
 ; The canonical codes for lengths (slot sym+1), reversed for writing, into
 ; codes: each length's first code is the one past the length before's
@@ -399,29 +379,29 @@
 (def %canonical!
   (fn (_ lengths n codes)
     (def counts (Vector make 16 0))
-    ((fn (count i) (if (%lt i n) (do (def l (%oref lengths (%add i 1))) (if (%eq l 0) () (%oset! counts (%add l 1) (%add (%oref counts (%add l 1)) 1))) (count (%add i 1))) ()))
+    ((fn (count i) (if (int< i n) (do (def l (obj-ref lengths (int+ i 1))) (if (int= l 0) () (obj-set! counts (int+ l 1) (int+ (obj-ref counts (int+ l 1)) 1))) (count (int+ i 1))) ()))
      0)
     (def next (Vector make 16 0))
     ((fn (first-codes len code)
-       (if (%lt len 16)
-         (do (%oset! next (%add len 1) code)
-             (first-codes (%add len 1) (%shl (%add code (%oref counts (%add len 1))) 1)))
+       (if (int< len 16)
+         (do (obj-set! next (int+ len 1) code)
+             (first-codes (int+ len 1) (int<< (int+ code (obj-ref counts (int+ len 1))) 1)))
          ()))
      1 0)
     ((fn (assign i)
-       (if (%lt i n)
-         (do (def l (%oref lengths (%add i 1)))
-             (if (%eq l 0) ()
-               (do (%oset! codes (%add i 1) (%reverse (%oref next (%add l 1)) l))
-                   (%oset! next (%add l 1) (%add (%oref next (%add l 1)) 1))))
-             (assign (%add i 1)))
+       (if (int< i n)
+         (do (def l (obj-ref lengths (int+ i 1)))
+             (if (int= l 0) ()
+               (do (obj-set! codes (int+ i 1) (%reverse (obj-ref next (int+ l 1)) l))
+                   (obj-set! next (int+ l 1) (int+ (obj-ref next (int+ l 1)) 1))))
+             (assign (int+ i 1)))
          ()))
      0)))
 
 ; The fixed codes (3.2.6): literal/length lengths 8 to 143, 9 to 255, 7 to
 ; 279, 8 to 287; every distance 5.
 (def %fixed-lit-lengths (Vector make 288 0))
-((fn (self i) (if (%lt i 288) (do (%oset! %fixed-lit-lengths (%add i 1) (if (%lt i 144) 8 (if (%lt i 256) 9 (if (%lt i 280) 7 8)))) (self (%add i 1))) ())) 0)
+((fn (self i) (if (int< i 288) (do (obj-set! %fixed-lit-lengths (int+ i 1) (if (int< i 144) 8 (if (int< i 256) 9 (if (int< i 280) 7 8)))) (self (int+ i 1))) ())) 0)
 (def %fixed-lit-codes (Vector make 288 0))
 (%canonical! %fixed-lit-lengths 288 %fixed-lit-codes)
 (def %fixed-dist-lengths (Vector make 30 5))
@@ -436,53 +416,53 @@
 ; the block costs is reckoned from the frequencies.
 (def %count!
   (fn (self lens vals t t1 lfreq dfreq b)
-    (if (%lt t t1)
+    (if (int< t t1)
       (do (def len (%tref lens t))
-          (if (%eq len 0)
-            (do (def s (%add (%tref vals t) 1)) (%oset! lfreq s (%add (%oref lfreq s) 1)))
-            (do (def s (%add (%add 257 (%oref %length-code (%add len 1))) 1))
-                (%oset! lfreq s (%add (%oref lfreq s) 1))
-                (def d (%add (%dcode (%tref vals t)) 1))
-                (%oset! dfreq d (%add (%oref dfreq d) 1))))
-          (self lens vals (%add t 1) t1 lfreq dfreq (%add b (if (%eq len 0) 1 len))))
+          (if (int= len 0)
+            (do (def s (int+ (%tref vals t) 1)) (obj-set! lfreq s (int+ (obj-ref lfreq s) 1)))
+            (do (def s (int+ (int+ 257 (obj-ref %length-code (int+ len 1))) 1))
+                (obj-set! lfreq s (int+ (obj-ref lfreq s) 1))
+                (def d (int+ (%dcode (%tref vals t)) 1))
+                (obj-set! dfreq d (int+ (obj-ref dfreq d) 1))))
+          (self lens vals (int+ t 1) t1 lfreq dfreq (int+ b (if (int= len 0) 1 len))))
       b)))
 
 ; The bits n symbols take: each one's count times its code's length.
 (def %freq-cost
   (fn (self freqs lengths i n bits)
-    (if (%lt i n)
-      (self freqs lengths (%add i 1) n (%add bits (%mul (%oref freqs (%add i 1)) (%oref lengths (%add i 1)))))
+    (if (int< i n)
+      (self freqs lengths (int+ i 1) n (int+ bits (int* (obj-ref freqs (int+ i 1)) (obj-ref lengths (int+ i 1)))))
       bits)))
 
 ; The extra bits of the block's lengths and distances, whatever the codes.
 (def %extra-bits
   (fn (self freqs ext base i n bits)
-    (if (%lt i n)
-      (self freqs ext base (%add i 1) n (%add bits (%mul (%oref freqs (%add (%add base i) 1)) (%oref ext (%add i 1)))))
+    (if (int< i n)
+      (self freqs ext base (int+ i 1) n (int+ bits (int* (obj-ref freqs (int+ (int+ base i) 1)) (obj-ref ext (int+ i 1)))))
       bits)))
 
 ; A code's symbol written: its reversed code, its length bits.
 (def %put-code!
   (fn (_ w codes lengths sym)
-    (%put-bits! w (%oref codes (%add sym 1)) (%oref lengths (%add sym 1)))))
+    (%put-bits! w (obj-ref codes (int+ sym 1)) (obj-ref lengths (int+ sym 1)))))
 
 ; The tokens t0 below t1 written under the codes, then the end code.
 (def %put-tokens!
   (fn (self w lens vals t t1 lcodes llen dcodes dlen)
-    (if (%lt t t1)
+    (if (int< t t1)
       (do (def len (%tref lens t))
-          (if (%eq len 0)
+          (if (int= len 0)
             (%put-code! w lcodes llen (%tref vals t))
-            (do (def lc (%oref %length-code (%add len 1)))
-                (%put-code! w lcodes llen (%add 257 lc))
-                (if (%eq (%oref %lext (%add lc 1)) 0) ()
-                  (%put-bits! w (%sub len (%oref %lbase (%add lc 1))) (%oref %lext (%add lc 1))))
+            (do (def lc (obj-ref %length-code (int+ len 1)))
+                (%put-code! w lcodes llen (int+ 257 lc))
+                (if (int= (obj-ref lext (int+ lc 1)) 0) ()
+                  (%put-bits! w (int- len (obj-ref lbase (int+ lc 1))) (obj-ref lext (int+ lc 1))))
                 (def d (%tref vals t))
                 (def dc (%dcode d))
                 (%put-code! w dcodes dlen dc)
-                (if (%eq (%oref %dext (%add dc 1)) 0) ()
-                  (%put-bits! w (%sub d (%oref %dbase (%add dc 1))) (%oref %dext (%add dc 1))))))
-          (self w lens vals (%add t 1) t1 lcodes llen dcodes dlen))
+                (if (int= (obj-ref dext (int+ dc 1)) 0) ()
+                  (%put-bits! w (int- d (obj-ref dbase (int+ dc 1))) (obj-ref dext (int+ dc 1))))))
+          (self w lens vals (int+ t 1) t1 lcodes llen dcodes dlen))
       (%put-code! w lcodes llen 256))))
 
 ; --- The dynamic header (3.2.7) ---
@@ -494,8 +474,8 @@
 ; floor.
 (def %used
   (fn (self lengths i floor)
-    (if (%lt i floor) floor
-      (if (%eq (%oref lengths (%add i 1)) 0) (self lengths (%sub i 1) floor) (%add i 1)))))
+    (if (int< i floor) floor
+      (if (int= (obj-ref lengths (int+ i 1)) 0) (self lengths (int- i 1) floor) (int+ i 1)))))
 
 ; The lit/len lengths then the dist lengths as one sequence, run-length
 ; coded as the code-length alphabet has it: a length as itself; 16, the
@@ -503,33 +483,33 @@
 ; Each item into items as (SYM . EXTRA), their count answered; freqs of
 ; the 19 symbols tallied.
 (def %length-at
-  (fn (_ llen hlit dlen i) (if (%lt i hlit) (%oref llen (%add i 1)) (%oref dlen (%add (%sub i hlit) 1)))))
+  (fn (_ llen hlit dlen i) (if (int< i hlit) (obj-ref llen (int+ i 1)) (obj-ref dlen (int+ (int- i hlit) 1)))))
 
 (def %run-length
   (fn (self llen hlit dlen total i items k freqs)
-    (if (%lt i total)
+    (if (int< i total)
       (do (def cur (%length-at llen hlit dlen i))
-          (def run ((fn (count j) (if (if (%lt j total) (%eq (%length-at llen hlit dlen j) cur) #f) (count (%add j 1)) (%sub j i))) (%add i 1)))
-          (if (%eq cur 0)
-            (if (%lt run 3)
-              (self llen hlit dlen total (%add i 1) items (%item! items k freqs 0 0) freqs)
-              (if (%lt run 11)
-                (self llen hlit dlen total (%add i run) items (%item! items k freqs 17 (%sub run 3)) freqs)
-                (do (def take (if (%lt 138 run) 138 run))
-                    (self llen hlit dlen total (%add i take) items (%item! items k freqs 18 (%sub take 11)) freqs))))
+          (def run ((fn (count j) (if (if (int< j total) (int= (%length-at llen hlit dlen j) cur) #f) (count (int+ j 1)) (int- j i))) (int+ i 1)))
+          (if (int= cur 0)
+            (if (int< run 3)
+              (self llen hlit dlen total (int+ i 1) items (%item! items k freqs 0 0) freqs)
+              (if (int< run 11)
+                (self llen hlit dlen total (int+ i run) items (%item! items k freqs 17 (int- run 3)) freqs)
+                (do (def take (if (int< 138 run) 138 run))
+                    (self llen hlit dlen total (int+ i take) items (%item! items k freqs 18 (int- take 11)) freqs))))
             (do (def k1 (%item! items k freqs cur 0))
-                (def rep (%sub run 1))
-                (if (%lt rep 3)
-                  (self llen hlit dlen total (%add i 1) items k1 freqs)
-                  (do (def take (if (%lt 6 rep) 6 rep))
-                      (self llen hlit dlen total (%add (%add i 1) take) items (%item! items k1 freqs 16 (%sub take 3)) freqs))))))
+                (def rep (int- run 1))
+                (if (int< rep 3)
+                  (self llen hlit dlen total (int+ i 1) items k1 freqs)
+                  (do (def take (if (int< 6 rep) 6 rep))
+                      (self llen hlit dlen total (int+ (int+ i 1) take) items (%item! items k1 freqs 16 (int- take 3)) freqs))))))
       k)))
 
 (def %item!
   (fn (_ items k freqs sym extra)
-    (%oset! items (%add k 1) (pair sym extra))
-    (%oset! freqs (%add sym 1) (%add (%oref freqs (%add sym 1)) 1))
-    (%add k 1)))
+    (obj-set! items (int+ k 1) (pair sym extra))
+    (obj-set! freqs (int+ sym 1) (int+ (obj-ref freqs (int+ sym 1)) 1))
+    (int+ k 1)))
 
 (def %clext (Vector from-list (list 2 3 7)))
 
@@ -538,33 +518,33 @@
 ; cost of the same, in bits, is %header-cost.
 (def %put-header!
   (fn (_ w hlit hdist cllen clcodes hclen items nitems)
-    (%put-bits! w (%sub hlit 257) 5)
-    (%put-bits! w (%sub hdist 1) 5)
-    (%put-bits! w (%sub hclen 4) 4)
-    ((fn (self i) (if (%lt i hclen) (do (%put-bits! w (%oref cllen (%add (%oref %order (%add i 1)) 1)) 3) (self (%add i 1))) ())) 0)
+    (%put-bits! w (int- hlit 257) 5)
+    (%put-bits! w (int- hdist 1) 5)
+    (%put-bits! w (int- hclen 4) 4)
+    ((fn (self i) (if (int< i hclen) (do (%put-bits! w (obj-ref cllen (int+ (obj-ref %order (int+ i 1)) 1)) 3) (self (int+ i 1))) ())) 0)
     ((fn (self k)
-       (if (%lt k nitems)
-         (do (def it (%oref items (%add k 1)))
+       (if (int< k nitems)
+         (do (def it (obj-ref items (int+ k 1)))
              (%put-code! w clcodes cllen (first it))
-             (if (%lt (first it) 16) () (%put-bits! w (rest it) (%oref %clext (%add (%sub (first it) 16) 1))))
-             (self (%add k 1)))
+             (if (int< (first it) 16) () (%put-bits! w (rest it) (obj-ref %clext (int+ (int- (first it) 16) 1))))
+             (self (int+ k 1)))
          ()))
      0)))
 
 (def %header-cost
   (fn (self cllen hclen items k nitems bits)
-    (if (%lt k nitems)
-      (do (def it (%oref items (%add k 1)))
-          (self cllen hclen items (%add k 1) nitems
-            (%add bits (%add (%oref cllen (%add (first it) 1)) (if (%lt (first it) 16) 0 (%oref %clext (%add (%sub (first it) 16) 1)))))))
-      (%add bits (%add 14 (%mul 3 hclen))))))
+    (if (int< k nitems)
+      (do (def it (obj-ref items (int+ k 1)))
+          (self cllen hclen items (int+ k 1) nitems
+            (int+ bits (int+ (obj-ref cllen (int+ (first it) 1)) (if (int< (first it) 16) 0 (obj-ref %clext (int+ (int- (first it) 16) 1)))))))
+      (int+ bits (int+ 14 (int* 3 hclen))))))
 
 ; The order's position of the last code-length code used, plus one; at
 ; least 4.
 (def %hclen
   (fn (self cllen i)
-    (if (%lt i 4) 4
-      (if (%eq (%oref cllen (%add (%oref %order (%add i 1)) 1)) 0) (self cllen (%sub i 1)) (%add i 1)))))
+    (if (int< i 4) 4
+      (if (int= (obj-ref cllen (int+ (obj-ref %order (int+ i 1)) 1)) 0) (self cllen (int- i 1)) (int+ i 1)))))
 
 ; --- Blocks ---
 
@@ -579,20 +559,20 @@
     (def dlen (%code-lengths dfreq 30 15))
     (def hlit (%used llen 285 257))
     (def hdist (%used dlen 29 1))
-    (def items (Vector make (%add hlit hdist) ()))
+    (def items (Vector make (int+ hlit hdist) ()))
     (def clfreq (Vector make 19 0))
-    (def nitems (%run-length llen hlit dlen (%add hlit hdist) 0 items 0 clfreq))
+    (def nitems (%run-length llen hlit dlen (int+ hlit hdist) 0 items 0 clfreq))
     (def cllen (%code-lengths clfreq 19 7))
     (def hclen (%hclen cllen 18))
-    (def extra (%add (%extra-bits lfreq %lext 257 0 29 0) (%extra-bits dfreq %dext 0 0 30 0)))
-    (def dynamic (%add (%add (%header-cost cllen hclen items 0 nitems 0) extra)
-                       (%add (%freq-cost lfreq llen 0 286 0) (%freq-cost dfreq dlen 0 30 0))))
-    (def fixed (%add extra (%add (%freq-cost lfreq %fixed-lit-lengths 0 286 0) (%freq-cost dfreq %fixed-dist-lengths 0 30 0))))
-    (def stored (%add (%mul 8 (%add (%sub b1 b0) 5)) (%mul 40 (%shr (%sub b1 b0) 16))))
+    (def extra (int+ (%extra-bits lfreq lext 257 0 29 0) (%extra-bits dfreq dext 0 0 30 0)))
+    (def dynamic (int+ (int+ (%header-cost cllen hclen items 0 nitems 0) extra)
+                       (int+ (%freq-cost lfreq llen 0 286 0) (%freq-cost dfreq dlen 0 30 0))))
+    (def fixed (int+ extra (int+ (%freq-cost lfreq %fixed-lit-lengths 0 286 0) (%freq-cost dfreq %fixed-dist-lengths 0 30 0))))
+    (def stored (int+ (int* 8 (int+ (int- b1 b0) 5)) (int* 40 (int>> (int- b1 b0) 16))))
     (match
-      ((if (%lt stored dynamic) (%lt stored fixed) #f)
+      ((if (int< stored dynamic) (int< stored fixed) #f)
         (%stored! w src b0 b1 final?))
-      ((%lt fixed dynamic)
+      ((int< fixed dynamic)
         (do (%put-bits! w (if final? 1 0) 1)
             (%put-bits! w 1 2)
             (put w lens vals t0 t1 %fixed-lit-codes %fixed-lit-lengths %fixed-dist-codes %fixed-dist-lengths)))
@@ -612,13 +592,13 @@
 ; when final? is.
 (def %blocks!
   (fn (self w src lens vals t ntok b eng final?)
-    (def t1 (if (%lt %BLOCK-TOKENS (%sub ntok t)) (%add t %BLOCK-TOKENS) ntok))
+    (def t1 (if (int< %BLOCK-TOKENS (int- ntok t)) (int+ t %BLOCK-TOKENS) ntok))
     (def lfreq (Vector make 286 0))
     (def dfreq (Vector make 30 0))
-    (%oset! lfreq 257 1)
+    (obj-set! lfreq 257 1)
     (def b1 ((first (rest (rest eng))) lens vals t t1 lfreq dfreq b))
-    (%block! w src lens vals t t1 b b1 (if (%eq t1 ntok) final? #f) (first (rest eng)) lfreq dfreq)
-    (if (%eq t1 ntok) () (self w src lens vals t1 ntok b1 eng final?))))
+    (%block! w src lens vals t t1 b b1 (if (int= t1 ntok) final? #f) (first (rest eng)) lfreq dfreq)
+    (if (int= t1 ntok) () (self w src lens vals t1 ntok b1 eng final?))))
 
 ; The tokens of n bytes at src into the token tables at lens and vals;
 ; answers their count.  The pure-x matcher, with its hash and chain tables.
@@ -644,12 +624,12 @@
 ; own.
 (def %piece!
   (fn (_ w src n eng final?)
-    (def lens (%make-str (%shl (%add n 1) 3)))
-    (def vals (%make-str (%shl (%add n 1) 3)))
-    (def ntok (if (%eq n 0) 0 ((first eng) src n (%str->ptr lens) (%str->ptr vals))))
-    (if (%eq ntok 0)
+    (def lens (str-make (int<< (int+ n 1) 3)))
+    (def vals (str-make (int<< (int+ n 1) 3)))
+    (def ntok (if (int= n 0) 0 ((first eng) src n (str->ptr lens) (str->ptr vals))))
+    (if (int= ntok 0)
       (if final? (do (%put-bits! w 1 1) (%put-bits! w 1 2) (%put-code! w %fixed-lit-codes %fixed-lit-lengths 256)) ())
-      (%blocks! w src (%str->ptr lens) (%str->ptr vals) 0 ntok 0 eng final?))))
+      (%blocks! w src (str->ptr lens) (str->ptr vals) 0 ntok 0 eng final?))))
 
 ; --- A stream written a piece at a time ---
 ;
@@ -663,12 +643,12 @@
 ; final? is: (OUT N), the whole bytes the stream gained.
 (def %stream-feed
   (fn (_ w buf start n final?)
-    (%oset! w %OUTCNT 0)
-    (%piece! w (%at (%str->ptr buf) start) n (%engine-for n) final?)
+    (obj-set! w %OUTCNT 0)
+    (%piece! w (%at (str->ptr buf) start) n (%engine-for n) final?)
     (if final? (%align! w) ())
-    (def cnt (%oref w %OUTCNT))
-    (def r (%make-str (if (%lt cnt 1) 1 cnt)))
-    (if (%lt 0 cnt) (%mem-copy (%str->ptr r) (%oref w %OUTP) cnt) ())
+    (def cnt (obj-ref w %OUTCNT))
+    (def r (str-make (if (int< cnt 1) 1 cnt)))
+    (if (int< 0 cnt) (mem-copy (str->ptr r) (obj-ref w %OUTP) cnt) ())
     (list r cnt)))
 
 (def %compress!
@@ -690,24 +670,21 @@
 ; symbols from a generator (literals under dynamic codes).
 (def %check-input
   (fn (_ which n)
-    (def r (%make-str n))
-    (def p (%str->ptr r))
+    (def r (str-make n))
+    (def p (str->ptr r))
     ((fn (self i s)
-       (if (%lt i n)
-         (do (%pset! p i
+       (if (int< i n)
+         (do (ptr-set! p i
                (match
-                 ((%eq which 0) (%add 97 (%int-mod i 3)))
-                 ((%eq which 1) (%add 97 (%int-mod (%add (%mul i i) (%int-div i 7)) 23)))
-                 (#t (%add 32 (%and s 63))))
+                 ((int= which 0) (int+ 97 (int% i 3)))
+                 ((int= which 1) (int+ 97 (int% (int+ (int* i i) (int/ i 7)) 23)))
+                 (#t (int+ 32 (int& s 63))))
                1)
-             (self (%add i 1) (%int-mod (%mul s 75) 65537)))
+             (self (int+ i 1) (int% (int* s 75) 65537)))
          ()))
      0 1)
     r))
 
-(def %int-mod (prim-ref (lit int) (lit %)))
-(def %int-div (prim-ref (lit int) (lit /)))
-(def %mem-cmp (prim-ref (lit mem) (lit cmp)))
 
 ; The Adler-32 of n bytes at p, the fourth part.
 (def %adler-x (fn (_ p n) (%adler32 p n 0 1 0)))
@@ -722,12 +699,12 @@
       (fn (_ c)
         (def r (%check-input (first c) (rest c)))
         (def want (%writer 64))
-        (%compress-with! want (%str->ptr r) (rest c) %engine-x)
+        (%compress-with! want (str->ptr r) (rest c) %engine-x)
         (def got (%writer 64))
-        (%compress-with! got (%str->ptr r) (rest c) eng)
-        (and (%eq (%oref want %OUTCNT) (%oref got %OUTCNT))
-             (%eq 0 (%mem-cmp (%oref want %OUTP) (%oref got %OUTP) (%oref want %OUTCNT)))
-             (%eq (%adler-x (%str->ptr r) (rest c)) ((first (rest (rest (rest eng)))) (%str->ptr r) (rest c)))))
+        (%compress-with! got (str->ptr r) (rest c) eng)
+        (and (int= (obj-ref want %OUTCNT) (obj-ref got %OUTCNT))
+             (int= 0 (mem-cmp (obj-ref want %OUTP) (obj-ref got %OUTP) (obj-ref want %OUTCNT)))
+             (int= (%adler-x (str->ptr r) (rest c)) ((first (rest (rest (rest eng)))) (str->ptr r) (rest c)))))
       (list (pair 0 30) (pair 0 1200) (pair 1 3000) (pair 2 2000)))))
 
 ; THE BAR, measured 2026-10-15 on arm64: the pure-x writer costs about 770
@@ -747,7 +724,7 @@
             ((prim-ref (lit deflate) (lit jit-make))
              (list (pair (lit outp) %OUTP) (pair (lit outcap) %OUTCAP) (pair (lit outcnt) %OUTCNT)
                    (pair (lit bitbuf) %BITBUF) (pair (lit bitcnt) %BITCNT))
-             (list %length-code %lbase %lext %distance-code %dbase %dext)
+             (list %length-code lbase lext %distance-code dbase dext)
              %room! %put-code! %agrees?))
           (fn (_ v) ())))
       ())
@@ -760,7 +737,7 @@
 ; built, or when n is past the bar and a build succeeds; else this file's.
 (def %engine-for
   (fn (_ n)
-    (if (if (%lt n %jit-threshold) #f
+    (if (if (int< n %jit-threshold) #f
           ((fn (_ entry) (if (null? entry) #t (eq? (entry state) (lit interpreted)))) %entry))
       (%jit-try!)
       ())
@@ -773,11 +750,11 @@
 ; Adler-32 (RFC 1950 8) of n bytes at p, as inflate.x sums it.
 (def %adler32
   (fn (self p n i a b)
-    (if (%eq i n) (%or (%shl b 16) a)
-      (do (def a1 (%add a (%and (%pref p i 1) 255)))
-          (def a2 (if (%lt a1 65521) a1 (%sub a1 65521)))
-          (def b1 (%add b a2))
-          (self p n (%add i 1) a2 (if (%lt b1 65521) b1 (%sub b1 65521)))))))
+    (if (int= i n) (int| (int<< b 16) a)
+      (do (def a1 (int+ a (int& (ptr-ref p i 1) 255)))
+          (def a2 (if (int< a1 65521) a1 (int- a1 65521)))
+          (def b1 (int+ b a2))
+          (self p n (int+ i 1) a2 (if (int< b1 65521) b1 (int- b1 65521)))))))
 
 ; The zlib wrapper (RFC 1950) around a raw stream written by body: the
 ; two-byte header, then the Adler-32 of the n bytes at src, big-endian.
@@ -787,25 +764,25 @@
     (%emit! w header)
     (body w src n)
     (def sum ((first (rest (rest (rest (%engine-for n))))) src n))
-    (%emit! w (%and (%shr sum 24) 255))
-    (%emit! w (%and (%shr sum 16) 255))
-    (%emit! w (%and (%shr sum 8) 255))
-    (%emit! w (%and sum 255))))
+    (%emit! w (int& (int>> sum 24) 255))
+    (%emit! w (int& (int>> sum 16) 255))
+    (%emit! w (int& (int>> sum 8) 255))
+    (%emit! w (int& sum 255))))
 
 (def %span
   (fn (_ s span)
     (match
-      ((null? span) (list 0 (%str-byte-len s)))
-      ((null? (rest span)) (list (first span) (%sub (%str-byte-len s) (first span))))
+      ((null? span) (list 0 (str-byte-len s)))
+      ((null? (rest span)) (list (first span) (int- (str-byte-len s) (first span))))
       (#t (list (first span) (first (rest span)))))))
 
 ; Room for the stored blocks of n bytes: five a block, and one block at
 ; least; what any writer starts from, as no stream grows past it by more
 ; than the bits round up.
 (def %stored-room
-  (fn (_ n) (%add (%add n (%mul 5 (%add 1 (%shr n 16)))) 16)))
+  (fn (_ n) (int+ (int+ n (int* 5 (int+ 1 (int>> n 16)))) 16)))
 
-(def %answer (fn (_ w) (list (%oref w %OUT) (%oref w %OUTCNT))))
+(def %answer (fn (_ w) (list (obj-ref w %OUT) (obj-ref w %OUTCNT))))
 
 (def %stored-body (fn (_ w src n) (%stored! w src 0 n #t)))
 
@@ -814,7 +791,7 @@
     (def sp (%span s span))
     (def n (first (rest sp)))
     (def w (%writer (%stored-room n)))
-    (def src (%at (%str->ptr s) (first sp)))
+    (def src (%at (str->ptr s) (first sp)))
     (if (null? header) (body w src n) (%zlib! w src n body header))
     (%answer w)))
 

@@ -24,6 +24,7 @@
 (import x/doc/emit)
 (import x/core/list)
 (import x/sys/posix)
+(import x/core/doors char->int str-byte-len str-byte-ref)
 
 (def-class DocMan (extends DocEmit)
   (doc "roff emitter: one man page per module, section 3x, plus .so alias stubs for every documented name."
@@ -35,15 +36,12 @@
       (doc "Escape a string for roff."
         (note "Three rules: a backslash becomes \\e, a hyphen becomes \\- (roff renders a bare - as a typographic hyphen, which is wrong for an identifier and breaks copy-paste), and a leading . or ' is protected with \\& so roff does not read the line as a request.")
         (returns STRING "Text safe to emit in a man page"))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
-      (def %n (%blen s))
+      (def %n (str-byte-len s))
       (bytes->str
         (%reverse
           (let go ((i 0) (acc ()))
             (if (>= i %n) acc
-              (let ((b (%c->i (%bref s i))))
+              (let ((b (char->int (str-byte-ref s i))))
                 (go (+ i 1)
                   (match
                     ((= b 92) (pair 101 (pair 92 acc)))          ; \ -> \e
@@ -58,15 +56,12 @@
       (doc "Flatten a module path into its man page name."
         (returns STRING "The page name, e.g. x-type-base")
         (example "(DocMan page-name \"x/type/base\")" "\"x-type-base\""))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
-      (def %n (%blen mod))
+      (def %n (str-byte-len mod))
       (bytes->str
         (%reverse
           (let go ((i 0) (acc ()))
             (if (>= i %n) acc
-              (let ((b (%c->i (%bref mod i))))
+              (let ((b (char->int (str-byte-ref mod i))))
                 (go (+ i 1) (pair (if (= b 47) 45 b) acc))))))))
 
     (method page-header (self (param mod STRING "Module name, e.g. x/type/base")

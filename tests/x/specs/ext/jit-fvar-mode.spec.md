@@ -47,7 +47,7 @@ prim it calls: the table is the same layout for both, so neither is guessed at.
 ```
 ---
 ```output
-("compile-asm: fvars passed without declaring the calling world.  Pass #t as compile-asm's third argument for an analyse callback the tokenizer calls, or #f for an integer function called from x." 'value)
+("compile-asm: fvars passed without declaring the calling world.  Pass #t as compile-asm's third argument for an analyse callback the tokenizer calls, #f for an integer function called from x, or the symbol object for an object function." 'value)
 ```
 
 ## an object param is not a number
@@ -75,7 +75,7 @@ that, and the unboxed result is argument 2.
 ```
 ---
 ```output
-('value "asm-compile: >= cannot take the object parameter i as an operand: this compile is in analyser mode, where that parameter arrives as an x_obj_t* and not as a number.  Pass #f as compile-asm's third argument for an ordinary integer function.")
+('value "asm-compile: >= cannot take the object parameter i as an operand: this compile is in analyser mode, where that parameter is an x_obj_t* and not a number.  Pass #f as compile-asm's third argument for an ordinary integer function.")
 ```
 
 ### a comparison folded into an if test refuses too
@@ -205,3 +205,40 @@ named to the caller.
 ```output
 ("asm-compile: unsupported form: let" "asm-compile: unbound: #t")
 ```
+
+## the third world: an object function
+
+An **object function** is called from x like an integer function, so its
+arguments evaluate; unlike one, each param stays the `x_obj_t*` it evaluated
+to and the result is returned as the object it is. `(= p 0)` is the nil test
+and `(first p)` reads through the trampoline. It is the shape of the
+library's guarded `first` and `rest` (lib/x/core/first-rest.x), declared with
+the symbol `object` as the third argument.
+
+### params stay the objects they evaluate to, and the result is one
+
+```x
+(do
+  (def %m "nil")
+  (def %f (compile-asm '(fn (_ p) (if (= p 0) (error m) (first p)))
+                       (list (pair 'error error) (pair 'm %m)) 'object))
+  (write (list (%f (list 7 8)) (%f (pair "a" 1)) (guard (e e) (%f ())))))
+```
+---
+    (7 "a" "nil")
+
+### arithmetic on a param refuses, as it does in an analyser
+
+```x
+(guard (e 'refused) (do (compile-asm '(fn (_ p) (+ p 1)) () 'object) 'compiled))
+```
+---
+    'refused
+
+### the declaration is one of three
+
+```x
+(guard (e 'refused) (do (compile-asm '(fn (_ p) p) () 'nonsense) 'compiled))
+```
+---
+    'refused

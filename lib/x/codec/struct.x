@@ -39,6 +39,7 @@
 (import x/type/class)
 (import x/core/list)
 (import x/core/alist)
+(import x/core/doors char->int int+ int- int< int<< str-byte-len str-byte-ref str-byte-sub type-of)
 
 (def-class Struct ()
   (doc "Binary records against a field spec: (Struct unpack spec buf) decodes a syscall-filled string buffer to an alist; (Struct pack spec values) builds the byte list back; (Struct reader spec) compiles the spec once into a zero-dispatch decode closure for hot paths."
@@ -55,13 +56,6 @@
       ; which is what makes an 8-byte read the two's-complement value with
       ; the numeric tower loaded or not (the tower's `*` and `+` would
       ; promote past 2^63 instead).
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
-      (def %bsub (prim-ref (lit str) (lit byte-sub)))
-      (def %int+ (prim-ref (lit int) (lit +)))
-      (def %int- (prim-ref (lit int) (lit -)))
-      (def %int< (prim-ref (lit int) (lit <)))
-      (def %int<< (prim-ref (lit int) (lit <<)))
       (def %bad (fn (_ what f)
         (Err raise (lit value) (Str8 append "Struct: " what) f)))
       ; little-endian unsigned reader over w bytes: the last byte first, each
@@ -69,10 +63,10 @@
       (def %le (fn (_ w)
         (def go (fn (self buf off i acc)
           (match
-            ((%int< i 0) acc)
-            (#t (self buf off (%int- i 1)
-                  (%int+ (%int<< acc 8) (%c->i (%bref buf (%int+ off i)))))))))
-        (fn (_ buf off) (go buf off (%int- w 1) 0))))
+            ((int< i 0) acc)
+            (#t (self buf off (int- i 1)
+                  (int+ (int<< acc 8) (char->int (str-byte-ref buf (int+ off i)))))))))
+        (fn (_ buf off) (go buf off (int- w 1) 0))))
       ; sign-fold a w-byte unsigned value.  The half/span constants are
       ; (<< 1 (- (* 8 w) 1)) -- (<< 1 31) for a 4-byte field, which overflows
       ; a 32-bit fixnum, and the 8-byte case below relies on a 64-bit machine
@@ -84,17 +78,17 @@
       ; (and (<< 1 64) is 1 under hardware shift-count masking -- the
       ; fold there subtracted one, caught by the i64 round-trip smoke).
       (def %signed (fn (_ w rdr)
-        (def half (%int<< 1 (%int- (%int<< w 3) 1)))
-        (def span (%int<< 1 (%int<< w 3)))
-        (def fold (fn (_ v) (match ((%int< v half) v) (#t (%int- v span)))))
+        (def half (int<< 1 (int- (int<< w 3) 1)))
+        (def span (int<< 1 (int<< w 3)))
+        (def fold (fn (_ v) (match ((int< v half) v) (#t (int- v span)))))
         (fn (_ buf off) (fold (rdr buf off)))))
       ; big-endian unsigned reader over w bytes
       (def %be (fn (_ w)
         (def go (fn (self buf off i acc)
           (match
             ((= i w) acc)
-            (#t (self buf off (%int+ i 1)
-                  (%int+ (%int<< acc 8) (%c->i (%bref buf (%int+ off i)))))))))
+            (#t (self buf off (int+ i 1)
+                  (int+ (int<< acc 8) (char->int (str-byte-ref buf (int+ off i)))))))))
         (fn (_ buf off) (go buf off 0 0))))
       (List map
         (fn (_ f)
@@ -122,14 +116,14 @@
                   ; Correct at offset 0, which is why every existing spec passed.
                   ((eq? ty (lit str))
                     (let ((n (first (rest (rest f)))))
-                      (list name n (fn (_ buf off) (%bsub buf off n)))))
+                      (list name n (fn (_ buf off) (str-byte-sub buf off n)))))
                   ((eq? ty (lit cstr))
                     (let ((n (first (rest (rest f)))))
                       (def scan (fn (self buf off i)
                         (match
-                          ((= i n) (%bsub buf off n))
-                          ((= (%c->i (%bref buf (%int+ off i))) 0) (%bsub buf off i))
-                          (#t (self buf off (%int+ i 1))))))
+                          ((= i n) (str-byte-sub buf off n))
+                          ((= (char->int (str-byte-ref buf (int+ off i))) 0) (str-byte-sub buf off i))
+                          (#t (self buf off (int+ i 1))))))
                       (list name n (fn (_ buf off) (scan buf off 0)))))
                   (#t (%bad "unknown field type" f)))))))
         spec))
@@ -171,9 +165,7 @@
         (returns CALLABLE "(fn (buf off) -> ((name . value) ...))")
         (sample "(def %rec (Struct reader SPEC)) ... (%rec buf off)" "one alist per call, no dispatch"))
       (def fields (Struct %fields (Struct %plan spec)))
-      (def %int+ (prim-ref (lit int) (lit +)))
-      (def %type-of (prim-ref (lit type) (lit of)))
-      (def %int-t (%type-of 0))
+      (def %int-t (type-of 0))
       ; one (name . value) per field, consed in reverse spec order
       (def walk
         (fn (self fs buf off acc)
@@ -182,12 +174,12 @@
             (#t (self (rest fs) buf off
                   (pair (pair (first (first fs))
                               ((first (rest (rest (first fs))))
-                                buf (%int+ off (first (rest (first fs))))))
+                                buf (int+ off (first (rest (first fs))))))
                         acc))))))
       ; the offset is the caller's, and the reads add to it unchecked
       (fn (_ buf off)
         (match
-          ((eq? (%type-of off) %int-t) (walk fields buf off ()))
+          ((eq? (type-of off) %int-t) (walk fields buf off ()))
           (#t (Err raise (lit type) "Struct: a record offset must be an integer" off)))))
 
     (method pack (self (param spec LIST "Field spec")
@@ -195,9 +187,6 @@
       (doc "Encode values into a byte LIST (the lossless carrier, #362), fields in spec order: pads emit zeros, str/cstr fields zero-pad to width (cstr reserves the last byte for NUL), and a missing name raises a label 'value."
         (returns LIST "Byte values (0-255)")
         (example "(Struct pack (list (list 'a 'u16) (list 'pad 1)) (list (pair 'a 513)))" "(1 2 0)"))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
       (def %bad (fn (_ what f)
         (Err raise (lit value) (Str8 append "Struct pack: " what) f)))
       ; value for name, presence-checked (a stored nil is not a miss)
@@ -214,11 +203,11 @@
             (go (+ i 1) (>> v 8) (pair (& v 255) acc))))))
       (def %zeros (fn (_ n) (List repeat n 0)))
       (def %str-bytes (fn (_ s cap)
-        (let ((n (%blen s)))
+        (let ((n (str-byte-len s)))
           (let ((take (if (< n cap) n cap)))
             (let go ((i (- take 1)) (acc (%zeros (- cap take))))
               (if (< i 0) acc
-                (go (- i 1) (pair (%c->i (%bref s i)) acc))))))))
+                (go (- i 1) (pair (char->int (str-byte-ref s i)) acc))))))))
       (List flat-map
         (fn (_ f)
           (match

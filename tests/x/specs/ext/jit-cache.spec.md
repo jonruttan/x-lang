@@ -304,10 +304,10 @@ process's id, so no other process has stored an entry for it.
 
 ```x
 (do
-  (def %dir-pcall (%ac (lit %asm-cache-pcall)))
-  (def %dir-sym (fn (_ name) ((%ac (lit %asm-cache-dlsym)) (%ac (lit %asm-cache-lib)) name)))
+  (def %dir-pcall (%ac (lit ptr-call)))
+  (def %dir-sym (fn (_ name) ((%ac (lit ffi-dlsym)) (%ac (lit %asm-cache-lib)) name)))
   (def %dir-pid (Sys getpid))
-  (def %dir-path (Str append "/tmp/jit-cache-spec-" ((%ac (lit %asm-cache-wts)) %dir-pid)))
+  (def %dir-path (Str append "/tmp/jit-cache-spec-" ((%ac (lit io-write-to-str)) %dir-pid)))
   (%dir-pcall (%dir-sym "mkdir") %dir-path 448)
   (def %dir-e (list 'fn '(_ x) (list '+ 'x %dir-pid)))
   (def %dir-t (%asm-cache-text %dir-e () #f))
@@ -348,10 +348,10 @@ after it.
 
 ```x
 (do
-  (def %held-pcall (%ac (lit %asm-cache-pcall)))
-  (def %held-sym (fn (_ name) ((%ac (lit %asm-cache-dlsym)) (%ac (lit %asm-cache-lib)) name)))
+  (def %held-pcall (%ac (lit ptr-call)))
+  (def %held-sym (fn (_ name) ((%ac (lit ffi-dlsym)) (%ac (lit %asm-cache-lib)) name)))
   (def %held-pid (Sys getpid))
-  (def %held-path (Str append "/tmp/jit-cache-held-" ((%ac (lit %asm-cache-wts)) %held-pid)))
+  (def %held-path (Str append "/tmp/jit-cache-held-" ((%ac (lit io-write-to-str)) %held-pid)))
   (%held-pcall (%held-sym "mkdir") %held-path 448)
   (def %held-e (list 'fn '(_ x) (list '- 'x %held-pid)))
   (def %held-t (%asm-cache-text %held-e () #f))
@@ -377,7 +377,7 @@ after it.
 (do
   (def %held-entry ((%ac (lit %asm-cache-held-find)) %held-t (%ac (lit %asm-cache-held))))
   (def %held-size (first (rest %held-entry)))
-  (def %held-words (%obj-ref (first (rest (rest %held-entry))) 0))
+  (def %held-words (obj-ref (first (rest (rest %held-entry))) 0))
   (write (list (= %held-size %asm-last-size)
                (<= %held-size (* %word-size %held-words))
                (< (* %word-size %held-words) (+ %held-size %word-size))))
@@ -428,15 +428,15 @@ per-entry files stay gone.
 ```x
 (do
   (def %grp-door (prim-ref 'compile 'asm-cache-group))
-  (def %grp-pcall (%ac (lit %asm-cache-pcall)))
-  (def %grp-sym (fn (_ name) ((%ac (lit %asm-cache-dlsym)) (%ac (lit %asm-cache-lib)) name)))
+  (def %grp-pcall (%ac (lit ptr-call)))
+  (def %grp-sym (fn (_ name) ((%ac (lit ffi-dlsym)) (%ac (lit %asm-cache-lib)) name)))
   (def %grp-pid (Sys getpid))
-  (def %grp-path (Str append "/tmp/jit-cache-group-" ((%ac (lit %asm-cache-wts)) %grp-pid)))
+  (def %grp-path (Str append "/tmp/jit-cache-group-" ((%ac (lit io-write-to-str)) %grp-pid)))
   (%grp-pcall (%grp-sym "mkdir") %grp-path 448)
   (Sys setenv "X_ASM_CACHE_DIR" %grp-path)
   (def %grp-a (list 'fn '(_ x) (list '+ 'x %grp-pid)))
   (def %grp-b (list 'fn '(_ x) (list '* 'x %grp-pid)))
-  (def %grp-key (Str append "spec-" ((%ac (lit %asm-cache-wts)) %grp-pid)))
+  (def %grp-key (Str append "spec-" ((%ac (lit io-write-to-str)) %grp-pid)))
   (def %grp-run (fn (_) (%grp-door %grp-key (fn (_) (list (compile-asm %grp-a) (compile-asm %grp-b))))))
   (%grp-run)
   (def %grp-file (Str append %grp-path "/" "x-asmg-"))

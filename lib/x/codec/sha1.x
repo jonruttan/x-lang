@@ -19,13 +19,7 @@
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
 
-(def %add (prim-ref 'int '+))
-(def %sub (prim-ref 'int '-))
-(def %mul (prim-ref 'int '*))
-(def %oref (prim-ref (lit obj) (lit ref)))
-(def %oset! (prim-ref (lit obj) (lit set!)))
-(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %char->int (prim-ref (lit char) (lit ->int)))
+(import x/core/doors char->int int* int+ int- obj-ref obj-set! str-byte-ref)
 (def %cvt (prim-ref (lit convert) (lit to)))
 (def %string-type (Type named STRING))
 (def %mask 4294967295)
@@ -33,42 +27,42 @@
 ; 67452301 efcdab89 98badcfe 10325476 c3d2e1f0 (5.3.1)
 (def %ih (list 1732584193 4023233417 2562383102 271733878 3285377520))
 
-(def %rotl (fn (_ x n) (& (| (<< x n) (>> x (%sub 32 n))) %mask)))
+(def %rotl (fn (_ x n) (& (| (<< x n) (>> x (int- 32 n))) %mask)))
 
 ; Byte i of the padded message: the message; then 0x80; then zeros; then
 ; the bit length, big-endian in the last 8 bytes.
 (def %byte
   (fn (_ s len total i)
     (match
-      ((< i len) (%char->int (%byte-ref s i)))
+      ((< i len) (char->int (str-byte-ref s i)))
       ((= i len) 128)
-      ((< i (%sub total 8)) 0)
-      (#t (& (>> (%mul len 8) (<< (%sub (%sub total 1) i) 3)) 255)))))
+      ((< i (int- total 8)) 0)
+      (#t (& (>> (int* len 8) (<< (int- (int- total 1) i) 3)) 255)))))
 
 (def %word
   (fn (_ s len total base)
     (| (<< (%byte s len total base) 24)
-       (| (<< (%byte s len total (%add base 1)) 16)
-          (| (<< (%byte s len total (%add base 2)) 8)
-             (%byte s len total (%add base 3)))))))
+       (| (<< (%byte s len total (int+ base 1)) 16)
+          (| (<< (%byte s len total (int+ base 2)) 8)
+             (%byte s len total (int+ base 3)))))))
 
 ; W[t] in slot t+1 of an 80-slot vector (the length rides slot 0).
 (def %fill!
   (fn (self s len total base w t)
     (unless (= t 16)
-      (do (%oset! w (%add t 1) (%word s len total (%add base (<< t 2))))
-          (self s len total base w (%add t 1))))))
+      (do (obj-set! w (int+ t 1) (%word s len total (int+ base (<< t 2))))
+          (self s len total base w (int+ t 1))))))
 
 (def %extend!
   (fn (self w t)
     (unless (= t 80)
       ; slots fold the +1: W[t-3] is slot t-2, and so on
-      (do (%oset! w (%add t 1)
-            (%rotl (^ (%oref w (%sub t 2))
-                      (^ (%oref w (%sub t 7))
-                         (^ (%oref w (%sub t 13)) (%oref w (%sub t 15)))))
+      (do (obj-set! w (int+ t 1)
+            (%rotl (^ (obj-ref w (int- t 2))
+                      (^ (obj-ref w (int- t 7))
+                         (^ (obj-ref w (int- t 13)) (obj-ref w (int- t 15)))))
                    1))
-          (self w (%add t 1))))))
+          (self w (int+ t 1))))))
 
 ; f and K by the round's twenty (4.1.1, 4.2.1).
 (def %f
@@ -93,16 +87,16 @@
     (match
       ((= t 80) (list a b c d e))
       (#t
-        (self w (%add t 1)
-          (& (%add (%add (%rotl a 5) (%f t b c d))
-                   (%add (%add e (%k t)) (%oref w (%add t 1))))
+        (self w (int+ t 1)
+          (& (int+ (int+ (%rotl a 5) (%f t b c d))
+                   (int+ (int+ e (%k t)) (obj-ref w (int+ t 1))))
              %mask)
           a (%rotl b 30) c d)))))
 
 (def %sum
   (fn (self hs rs)
     (if (null? hs) ()
-      (pair (& (%add (first hs) (first rs)) %mask) (self (rest hs) (rest rs))))))
+      (pair (& (int+ (first hs) (first rs)) %mask) (self (rest hs) (rest rs))))))
 
 (def %blocks
   (fn (self s len total base w hs)
@@ -114,7 +108,7 @@
         (do (when (and (> base 0) (= (& (>> base 6) 7) 0)) (Heap collect))
             (%fill! s len total base w 0)
             (%extend! w 16)
-            (self s len total (%add base 64) w
+            (self s len total (int+ base 64) w
               (%sum hs
                 (%rounds w 0 (first hs) (first (rest hs)) (first (rest (rest hs)))
                   (first (rest (rest (rest hs)))) (first (rest (rest (rest (rest hs)))))))))))))
@@ -125,7 +119,7 @@
 (def %digest-words
   (fn (_ s . n)
     (def len (match ((null? n) (Str8 length s)) (#t (first n))))
-    (%blocks s len (<< (%add (>> (%add len 8) 6) 1) 6) 0 (Vector make 80 0) %ih)))
+    (%blocks s len (<< (int+ (>> (int+ len 8) 6) 1) 6) 0 (Vector make 80 0) %ih)))
 
 (def %hex8 (fn (_ wd) (Str pad-left 8 #\0 (%cvt wd %string-type 16))))
 

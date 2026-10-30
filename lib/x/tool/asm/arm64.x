@@ -4,8 +4,7 @@
 
 ; --- Register aliases ---
 ; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
-(def %ptr-ref (prim-ref 'ptr 'ref))
-(def %ptr-set! (prim-ref 'ptr 'set!))
+(import x/core/doors ptr-ref ptr-set!)
 
 (def x0  (reg 0))  (def x1  (reg 1))  (def x2  (reg 2))  (def x3  (reg 3))
 (def x4  (reg 4))  (def x5  (reg 5))  (def x6  (reg 6))  (def x7  (reg 7))
@@ -532,25 +531,25 @@
 (def %arm64-patch
   ((fn (_ i- i& i| i<< i>>)
      (fn (_ buf-ptr offset width ptype target)
-       (def word (%ptr-ref buf-ptr offset 4))
+       (def word (ptr-ref buf-ptr offset 4))
        (def rel (i>> (i- target offset) 2))
        (match
          ; B/BL: imm26 at [25:0]
          ((eq? ptype 'arm64-rel)
-           (%ptr-set! buf-ptr offset (i| (i& word -67108864) (i& rel 67108863)) 4))
+           (ptr-set! buf-ptr offset (i| (i& word -67108864) (i& rel 67108863)) 4))
          ; CBZ/CBNZ/B.cond: imm19 at [23:5]
          ((eq? ptype 'arm64-rel19)
-           (%ptr-set! buf-ptr offset (i| (i& word -16777185) (i<< (i& rel 524287) 5)) 4))
+           (ptr-set! buf-ptr offset (i| (i& word -16777185) (i<< (i& rel 524287) 5)) 4))
          ; ADR: the byte offset, not the word offset, in 21 bits either way
          ((eq? ptype 'arm64-adr)
            (let ((bytes (- target offset)))
              (if (or (< bytes (- 0 1048576)) (>= bytes 1048576))
                (Err raise 'value "asm: adr to a label a megabyte or more away" ()))
              ; 0x9F00001F keeps the opcode bits and Rd
-             (%ptr-set! buf-ptr offset
+             (ptr-set! buf-ptr offset
                (| (& word 2667577375) (| (<< (& bytes 3) 29) (<< (& (>> bytes 2) 524287) 5))) 4)))
          ; Generic fallback
-         (#t (%ptr-set! buf-ptr offset (- target (+ offset width)) width)))))
+         (#t (ptr-set! buf-ptr offset (- target (+ offset width)) width)))))
    (prim-ref 'int '-) (prim-ref 'int '&) (prim-ref 'int '|) (prim-ref 'int '<<) (prim-ref 'int '>>)))
 
 ; --- Export architecture: (table encoder patcher relocator) ---

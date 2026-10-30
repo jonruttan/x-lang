@@ -6,11 +6,9 @@
 
 (import x/num/float float float? float-of f-add f-mul fsqrt fsin fcos fatan2 pi str->float)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(def %buffer-token (prim-ref 'buf 'tok))
+(import x/core/doors buf-tok int+ int- int= io-write-to-str type-by-atom type-make type-make-instance type-of type-push-call type-push-op type?)
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
-(def %type-by-atom (prim-ref 'type 'by-atom))
-(def %type-push-op (prim-ref 'type 'push-op))
 
 ; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
 (def %cvt (prim-ref 'convert 'to))
@@ -18,20 +16,12 @@
 (import x/num/rational rational rat?)
 (import x/type/class)
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
-(def %make-instance (prim-ref 'type 'make-instance))
-(def %make-type (prim-ref 'type 'make))
-(def %type-of (prim-ref 'type 'of))
-(def %type? (prim-ref 'type '?))
 ; The binary integer primitives, fetched from the catalogue: the C operators as
 ; they were before core/arithmetic.x wrapped the bare names.
-(def %int+ (prim-ref (lit int) (lit +)))
-(def %int- (prim-ref (lit int) (lit -)))
-(def %int= (prim-ref (lit int) (lit =)))
 ; The machine-INT test, as predicates.x's number? was before float widened it.
-(def %int-t (%type-of 0))
-(def %int-number? (fn (_ x) (%type? x %int-t)))
+(def %int-t (type-of 0))
+(def %int-number? (fn (_ x) (type? x %int-t)))
 ; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
-(def %write-to-str (prim-ref 'io 'write-to-str))
 
 
 ;
@@ -46,9 +36,9 @@
 
 (def make-complex
   (fn (_ re im)
-    (if (if (%int-number? im) (%int= im 0) ())
+    (if (if (%int-number? im) (int= im 0) ())
       re
-      (%make-instance %complex (pair re im)))))
+      (type-make-instance %complex (pair re im)))))
 ; --- Save current (real-number-aware) operators ---
 
 (def %real+ +)
@@ -59,7 +49,7 @@
 (def %real< <)
 ; --- Accessors ---
 
-(def %complex? (fn (_ x) (%type? x %complex)))
+(def %complex? (fn (_ x) (type? x %complex)))
 
 (def %complex-re
   (fn (_ x) (if (%complex? x) (first (first x)) x)))
@@ -141,20 +131,20 @@
     (if (>= i len) ()
       (if (= (%cvt (%str-ref s i) %int) ch)
         i
-        (self s (%int+ i 1) len ch)))))
+        (self s (int+ i 1) len ch)))))
 
 (def %cx-parse-num
   (fn (_ s)
     (if (%cx-find-char s 0 (%str-length s) 46)
-      (%make-instance float (str->float s))
+      (type-make-instance float (str->float s))
       (%cvt s %int))))
 
 (set! %cx-read
   (fn (_ . args)
-    (let ((tok (%buffer-token (first args))))
+    (let ((tok (buf-tok (first args))))
       (let ((len (%str-length tok)))
-        (let ((body (%substring tok 0 (%int- len 1))))
-          (let ((blen (%int- len 1)))
+        (let ((body (%substring tok 0 (int- len 1))))
+          (let ((blen (int- len 1)))
             (let ((sign-pos (%cx-find-char body 1 blen 43)))
               (if (null? sign-pos)
                 (set! sign-pos (%cx-find-char body 1 blen 45)))
@@ -167,7 +157,7 @@
 ; --- Type definition ---
 
 (set! %complex
-  (%make-type
+  (type-make
     "COMPLEX"
     (list
       (pair
@@ -187,14 +177,14 @@
       (pair
         'from
         (list
-          (pair (%type-of 42) (fn (_ value) (make-complex value 0)))
+          (pair (type-of 42) (fn (_ value) (make-complex value 0)))
           (pair float (fn (_ value) (make-complex value 0)))
           (pair rational (fn (_ value) (make-complex value 0)))))
       (pair
         'to
         (list
-          (pair (%type-of "")
-            (fn (_ self) (%write-to-str self))))))))
+          (pair (type-of "")
+            (fn (_ self) (io-write-to-str self))))))))
 ; --- Arithmetic ---
 
 (note "Arithmetic")
@@ -265,15 +255,15 @@
 
 (def ensure-complex (fn (_ x) (if (%complex? x) x (make-complex x 0))))
 
-(def complex-type (%type-by-atom %complex))
-(%type-push-op complex-type '+ (fn (_ a b) (cx-add (ensure-complex a) (ensure-complex b))))
-(%type-push-op complex-type '- (fn (_ a b) (cx-sub (ensure-complex a) (ensure-complex b))))
-(%type-push-op complex-type '* (fn (_ a b) (cx-mul (ensure-complex a) (ensure-complex b))))
-(%type-push-op complex-type '/ (fn (_ a b) (cx-div (ensure-complex a) (ensure-complex b))))
-(%type-push-op complex-type '= (fn (_ a b) (cx-eq (ensure-complex a) (ensure-complex b))))
+(def complex-type (type-by-atom %complex))
+(type-push-op complex-type '+ (fn (_ a b) (cx-add (ensure-complex a) (ensure-complex b))))
+(type-push-op complex-type '- (fn (_ a b) (cx-sub (ensure-complex a) (ensure-complex b))))
+(type-push-op complex-type '* (fn (_ a b) (cx-mul (ensure-complex a) (ensure-complex b))))
+(type-push-op complex-type '/ (fn (_ a b) (cx-div (ensure-complex a) (ensure-complex b))))
+(type-push-op complex-type '= (fn (_ a b) (cx-eq (ensure-complex a) (ensure-complex b))))
 ; % is mathematically undefined over C -- refuse loudly instead of falling
 ; through to the generic dispatch's garbage-int path.
-(%type-push-op complex-type '%
+(type-push-op complex-type '%
   (fn (_ a b) (error "complex: % is undefined for complex numbers")))
 
 ; --- Predicates ---
@@ -363,8 +353,7 @@
       (cx-eq (ensure-complex a) (ensure-complex b)))))
 
 ; Value dispatch (subject-last): (1+2i real-part) -> (Complex real-part 1+2i).
-(def %type-push-call (prim-ref 'type 'push-call))
-(%type-push-call (%type-by-atom %complex) (class-call-handler Complex))
+(type-push-call (type-by-atom %complex) (class-call-handler Complex))
 
 ; Join the pact last, once the module is fully usable: tower members
 ; announce themselves so pairwise registrations fire in any load order.

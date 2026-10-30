@@ -14,12 +14,7 @@
 
 (import x/tool/compile compile-asm)
 
-(def %kj-make-str (prim-ref (lit str) (lit make)))
-(def %kj-str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %kj-ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %kj-pset (prim-ref (lit ptr) (lit set-word!)))
-(def %kj-pref (prim-ref (lit ptr) (lit ref-word)))
-(def %kj-oref (prim-ref (lit obj) (lit ref)))
+(import x/core/doors obj-ref ptr->int ptr-ref-word ptr-set-word! str->ptr str-make)
 
 ; scratch layout (words)
 (def %KP 0)        ; input address
@@ -72,18 +67,18 @@
 (def cksum-jit-make
   (fn (_ table check)
     (def step (compile-asm %kj-expr))
-    (def buf (%kj-make-str (* 8 (+ %KT 256))))
-    (def ptr (%kj-str->ptr buf))
-    (def addr (%kj-ptr->int ptr))
-    (def poke (fn (_ i v) (%kj-pset ptr (* i 8) v)))
-    (def peek (fn (_ i) (%kj-pref ptr (* i 8))))
-    ((fn (self i) (when (< i 256) (do (poke (+ %KT i) (%kj-oref table (+ i 1))) (self (+ i 1))))) 0)
+    (def buf (str-make (* 8 (+ %KT 256))))
+    (def ptr (str->ptr buf))
+    (def addr (ptr->int ptr))
+    (def poke (fn (_ i v) (ptr-set-word! ptr (* i 8) v)))
+    (def peek (fn (_ i) (ptr-ref-word ptr (* i 8))))
+    ((fn (self i) (when (< i 256) (do (poke (+ %KT i) (obj-ref table (+ i 1))) (self (+ i 1))))) 0)
     (poke %KMASK 4294967295)
     (def fold
       (fn (_ p n c)
         ; the scratch region is held here, so the address stays good
         (do buf
-            (poke %KP (%kj-ptr->int p))
+            (poke %KP (ptr->int p))
             (poke %KN n)
             (poke %KI 0)
             (poke %KC c)

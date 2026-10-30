@@ -31,12 +31,8 @@
 ; The bit operations through the int doors: the generic ones dispatch
 ; through the numeric tower, about a hundred objects a call, these none.
 ; There is no int xor: a ^ b is (a | b) - (a & b).
-(def %and (prim-ref (lit int) (lit &)))
-(def %or (prim-ref (lit int) (lit |)))
-(def %shl (prim-ref (lit int) (lit <<)))
-(def %shr (prim-ref (lit int) (lit >>)))
-(def %isub (prim-ref 'int '-))
-(def %xor (fn (_ a b) (%isub (%or a b) (%and a b))))
+(import x/core/doors char->int int& int- int<< int>> int| ptr-set! str->ptr str-byte-ref str-make)
+(def %xor (fn (_ a b) (int- (int| a b) (int& a b))))
 
 
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "X509: " what) ())))
@@ -95,25 +91,20 @@
 ; A name's bytes as lowercase ASCII text in a fresh buffer: what a DNS name
 ; in a certificate is, and Str8 downcase's generic walk is tens of
 ; thousands of objects for twenty characters.
-(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %char->int (prim-ref (lit char) (lit ->int)))
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %pset (prim-ref (lit ptr) (lit set!)))
 (def %ascii-lower
   (fn (_ r)
     (def s (first r))
     (def start (first (rest r)))
     (def n (first (rest (rest r))))
-    (def out (%make-str (+ n 1)))
-    (def p (%str->ptr out))
+    (def out (str-make (+ n 1)))
+    (def p (str->ptr out))
     ((fn (self i)
        (unless (= i n)
-         (do (def c (%char->int (%byte-ref s (+ start i))))
-             (%pset p i (if (and (>= c 65) (<= c 90)) (+ c 32) c) 1)
+         (do (def c (char->int (str-byte-ref s (+ start i))))
+             (ptr-set! p i (if (and (>= c 65) (<= c 90)) (+ c 32) c) 1)
              (self (+ i 1)))))
      0)
-    (%pset p n 0 1)
+    (ptr-set! p n 0 1)
     out))
 (def %oid-p256 "1.2.840.10045.3.1.7")
 (def %oid-p384 "1.3.132.0.34")
@@ -207,7 +198,7 @@
     (def cert-sign
       (if (null? ku) #t
         (do (def bs (%body (Der read (List ref 2 ku))))
-            (and (>= (Bytes length bs) 2) (not (= (%and (Bytes ref bs 1) 4) 0))))))
+            (and (>= (Bytes length bs) 2) (not (= (int& (Bytes ref bs 1) 4) 0))))))
     (def san (%lookup %ext-san exts))
     (def dns
       (if (null? san) ()

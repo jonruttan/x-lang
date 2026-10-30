@@ -27,10 +27,10 @@
 ; bases, so the first claim serves every base.
 
 (module x/type/bool)
-(def %bool-make-type (prim-ref (lit type) (lit make)))
+(import x/core/doors type-make)
 (def %bool ())
 (set! %bool
-  (%bool-make-type "BOOL"
+  (type-make "BOOL"
     (list
       (pair (lit write)
         (fn (_ self)

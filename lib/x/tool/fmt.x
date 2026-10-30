@@ -12,11 +12,10 @@
 (import x/type/str)
 (import x/type/class)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(def %token-read-string (prim-ref 'tok 'read-str))
+(import x/core/doors io-write-to-str tok-read-str)
 ; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
 (def %cvt (prim-ref 'convert 'to))
 ; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
-(def %write-to-str (prim-ref 'io 'write-to-str))
 
 ; --- Construct table helpers ---
 
@@ -72,7 +71,7 @@
     ; measure the ('%interp "...") marker and misjudge every wrap around it.
     (if (if (pair? form) (eq? (first form) (lit %interp)) #f)
       (%fmt-cp-len (first (rest form)))
-      (%fmt-cp-len (%write-to-str form))))))
+      (%fmt-cp-len (io-write-to-str form))))))
 
 ; --- Source renderer (#39) ---
 ;

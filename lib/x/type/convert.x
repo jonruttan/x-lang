@@ -29,12 +29,12 @@
 ; spelling is (Type named INTEGER), and so on for any registered name.
 ;
 ; Registered conversions:
-;   INT  <- char (char->integer), string (%str->number), ptr (%ptr->int)
+;   INT  <- char (char->integer), string (%str->number), ptr (ptr->int)
 ;   CHAR <- int (integer->char)
 ;   STR  <- int (%number->str), symbol (symbol->str), list (list->str),
-;           ptr (%ptr->str)
-;   SYM  <- string (%str->symbol)
-;   PTR  <- int (int->ptr), string (%str->ptr), any (%obj->ptr)
+;           ptr (ptr->str)
+;   SYM  <- string (str->sym)
+;   PTR  <- int (int->ptr), string (str->ptr), any (obj->ptr)
 ;
 ; Examples:
 ;   (Convert to 65 (Type named CHARACTER))     -> #\A
@@ -45,28 +45,18 @@
 (module x/type/convert)
 
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
-(def %type-of (prim-ref (lit type) (lit of)))
+(import x/core/doors char->int int->char int->ptr obj->ptr ptr->int ptr->str str->ptr str->sym type-by-atom type-from-cell type-of)
 
 ; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
-(def %char->integer (prim-ref (lit char) (lit ->int)))
-(def %integer->char (prim-ref (lit int) (lit ->char)))
-(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
 
 ; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
-(def %ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %ptr->str (prim-ref (lit ptr) (lit ->str)))
 
 (import x/type/class)
 ; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
-(def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(def %str->symbol (prim-ref (lit str) (lit ->sym)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
-(def %type-from-cell (prim-ref (lit type) (lit from-cell)))
 (def %type-to-cell (prim-ref (lit type) (lit to-cell)))
 
 
@@ -74,37 +64,37 @@
 
 ; Set the from alist on a type
 (def %type-set-from!
-  (fn (_ t alist) (%set-first! (%type-from-cell t) alist)))
+  (fn (_ t alist) (%set-first! (type-from-cell t) alist)))
 
 
 ; --- Type handles ---
-(def %int    (%type-of 0))
-(def %char   (%type-of (%integer->char 0)))
-(def %string (%type-of ""))
-(def %symbol (%type-of (lit x)))
-(def %ptr    (%type-of (%int->ptr 0)))
-(def %pair   (%type-of (list 0)))
+(def %int    (type-of 0))
+(def %char   (type-of (int->char 0)))
+(def %string (type-of ""))
+(def %symbol (type-of (lit x)))
+(def %ptr    (type-of (int->ptr 0)))
+(def %pair   (type-of (list 0)))
 
 ; --- Register from alists (inbound conversions) ---
 
 ; INT: from char, string, ptr
-(%type-set-from! (%type-by-atom %int)
+(%type-set-from! (type-by-atom %int)
   (list
-    (pair %char   (fn (_ v . extra) (%char->integer v)))
+    (pair %char   (fn (_ v . extra) (char->int v)))
     (pair %string (fn (_ v . extra)
                     (if (null? extra)
                       (%str->number v)
                       (%str->number v (first extra)))))
-    (pair %ptr    (fn (_ v . extra) (%ptr->int v)))))
+    (pair %ptr    (fn (_ v . extra) (ptr->int v)))))
 
 ; CHAR: from int
-(%type-set-from! (%type-by-atom %char)
+(%type-set-from! (type-by-atom %char)
   (list
-    (pair %int (fn (_ v . extra) (%integer->char v)))))
+    (pair %int (fn (_ v . extra) (int->char v)))))
 
 ; STRING: from int, symbol, list (nil type-of), ptr (copies the C string,
 ; so FFI results like getenv survive; inverse of PTR <- string below)
-(%type-set-from! (%type-by-atom %string)
+(%type-set-from! (type-by-atom %string)
   (list
     (pair %int    (fn (_ v . extra)
                     (if (null? extra)
@@ -114,21 +104,21 @@
     ; x/type/str-utf8 publishes the list conversion as (str from-list).
     (pair %pair   (let ((from-list (prim-ref (lit str) (lit from-list))))
                     (fn (_ v . extra) (from-list v))))
-    (pair %ptr    (fn (_ v . extra) (%ptr->str v)))))
+    (pair %ptr    (fn (_ v . extra) (ptr->str v)))))
 
 ; SYMBOL: from string
-(%type-set-from! (%type-by-atom %symbol)
+(%type-set-from! (type-by-atom %symbol)
   (list
-    (pair %string (fn (_ v . extra) (%str->symbol v)))))
+    (pair %string (fn (_ v . extra) (str->sym v)))))
 
-; PTR: from int, string, any (%obj->ptr as wildcard -- the totality pattern:
+; PTR: from int, string, any (obj->ptr as wildcard -- the totality pattern:
 ; PTR opts out of the miss policy by accepting every source type)
-(%type-set-from! (%type-by-atom %ptr)
+(%type-set-from! (type-by-atom %ptr)
   (list
-    (pair %int    (fn (_ v . extra) (%int->ptr v)))
-    (pair %string (fn (_ v . extra) (%str->ptr v)))
+    (pair %int    (fn (_ v . extra) (int->ptr v)))
+    (pair %string (fn (_ v . extra) (str->ptr v)))
     (pair %ptr    (fn (_ v . extra) v))
-    (pair #t (fn (_ v . extra) (%obj->ptr v)))))
+    (pair #t (fn (_ v . extra) (obj->ptr v)))))
 
 ; --- The dispatcher ---
 ; Entry lookup is the canonical %assq (core/alist.x, #227): this file
@@ -144,13 +134,13 @@
 (def %convert-to
   (fn (_ val target . extra)
     (if (null? val) ()
-      (if (eq? (%type-of val) target) val
-        (let ((source (%type-of val))
-              (target-type (%type-by-atom target))
+      (if (eq? (type-of val) target) val
+        (let ((source (type-of val))
+              (target-type (type-by-atom target))
               (entry ()))
           ; Exact match: source in target's from-alist
           (if (null? target-type) ()
-            (let ((from-al (first (%type-from-cell target-type))))
+            (let ((from-al (first (type-from-cell target-type))))
               (if (null? from-al) ()
                 (do
                   (if (null? source) ()
@@ -162,7 +152,7 @@
           ; Outbound: target in source's to-alist
           (if (null? entry)
             (if (null? source) ()
-              (let ((source-type (%type-by-atom source)))
+              (let ((source-type (type-by-atom source)))
                 (if (null? source-type) ()
                   (let ((to-al (first (%type-to-cell source-type))))
                     (if (null? to-al) ()
@@ -196,9 +186,9 @@
                          (param what STRING "The error's message when v does not convert"))
       (doc "V as an INT: V itself when it is one, else its registered conversion to INT; raises WHAT when there is none."
         (returns INTEGER "The integer"))
-      (if (if (null? v) #f (eq? (%type-of v) %int)) v
+      (if (if (null? v) #f (eq? (type-of v) %int)) v
         (let ((k (%convert-to v %int)))
-          (if (if (null? k) #f (eq? (%type-of k) %int)) k (error what)))))))
+          (if (if (null? k) #f (eq? (type-of k) %int)) k (error what)))))))
 
 (doc (provide x/type/convert Convert)
   (note "Hot consumers fetch the dispatcher from the catalogue: (prim-ref 'convert 'to). The no-match policy is the (Convert missing) static field.")

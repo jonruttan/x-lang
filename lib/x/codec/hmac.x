@@ -18,24 +18,12 @@
 ; The bit operations through the int doors: the generic ones dispatch
 ; through the numeric tower, about a hundred objects a call, these none.
 ; There is no int xor: a ^ b is (a | b) - (a & b).
-(def %and (prim-ref (lit int) (lit &)))
-(def %or (prim-ref (lit int) (lit |)))
-(def %shl (prim-ref (lit int) (lit <<)))
-(def %shr (prim-ref (lit int) (lit >>)))
-(def %isub (prim-ref 'int '-))
-(def %xor (fn (_ a b) (%isub (%or a b) (%and a b))))
+(import x/core/doors char->int int& int+ int- int<< int>> int| ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-make)
+(def %xor (fn (_ a b) (int- (int| a b) (int& a b))))
 
 
-(def %add (prim-ref 'int '+))
-(def %sub (prim-ref 'int '-))
-(def %byte-len (prim-ref (lit str) (lit byte-len)))
-(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %char->int (prim-ref (lit char) (lit ->int)))
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %pset1 (prim-ref (lit ptr) (lit set!)))
 
-(def %byte (fn (_ s i) (%char->int (%byte-ref s i))))
+(def %byte (fn (_ s i) (char->int (str-byte-ref s i))))
 
 ; A hash: its block size, its output size, and its digest of a byte
 ; region as hex.
@@ -57,7 +45,7 @@
 ; An argument as a region: a STRING is its bytes to the first NUL.
 (def %region
   (fn (_ x)
-    (if (str? x) (list x 0 (%byte-len x)) x)))
+    (if (str? x) (list x 0 (str-byte-len x)) x)))
 
 (def %region-len (fn (_ r) (first (rest (rest r)))))
 
@@ -78,7 +66,6 @@
     (def m (%join regions))
     ((%digest-bytes h) (first m) (%region-len m))))
 
-(def %pref (prim-ref (lit ptr) (lit ref)))
 
 ; The key padded to the block with zeros (hashed first when longer), each
 ; byte XORed with pad: the region of a fresh buffer.  The key and its zeros
@@ -91,17 +78,17 @@
   (fn (_ h key pad)
     (def k (if (> (%region-len key) (%block-size h)) (list (%digest h (list key)) 0 (%out-size h)) key))
     (def b (%block-size h))
-    (def n (%sub b (%region-len k)))
-    (def z (%make-str (%add n 4)))
-    (def zp (%str->ptr z))
-    ((fn (self i) (when (< i n) (do (%pset1 zp i 0 4) (self (%add i 4))))) 0)
+    (def n (int- b (%region-len k)))
+    (def z (str-make (int+ n 4)))
+    (def zp (str->ptr z))
+    ((fn (self i) (when (< i n) (do (ptr-set! zp i 0 4) (self (int+ i 4))))) 0)
     (def r (Bytes join k (list z 0 n)))
-    (def p (%str->ptr (first r)))
+    (def p (str->ptr (first r)))
     (def pad4 (* pad 16843009))
     ((fn (self i)
        (unless (= i b)
-         (do (%pset1 p i (%xor pad4 (%pref p i 4)) 4)
-             (self (%add i 4))))) 0)
+         (do (ptr-set! p i (%xor pad4 (ptr-ref p i 4)) 4)
+             (self (int+ i 4))))) 0)
     r))
 
 (def %mac
@@ -113,7 +100,7 @@
 
 (def %hex-of
   (fn (_ s n)
-    (Hex encode-bytes ((fn (self i acc) (if (< i 0) acc (self (%sub i 1) (pair (%byte s i) acc)))) (%sub n 1) ()))))
+    (Hex encode-bytes ((fn (self i acc) (if (< i 0) acc (self (int- i 1) (pair (%byte s i) acc)))) (int- n 1) ()))))
 
 (def-class Hmac ()
   (static

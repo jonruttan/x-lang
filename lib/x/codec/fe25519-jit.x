@@ -102,37 +102,29 @@
 
 ; --- the build, once a process, proven against the pure-x field ---------
 
-(def %fj-make-str (prim-ref (lit str) (lit make)))
-(def %fj-str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %fj-ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %fj-pset (prim-ref (lit ptr) (lit set-word!)))
-(def %fj-pref (prim-ref (lit ptr) (lit ref-word)))
-(def %fj-oref (prim-ref (lit obj) (lit ref)))
-(def %fj-oset! (prim-ref (lit obj) (lit set!)))
-(def %fj-byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %fj-char->int (prim-ref (lit char) (lit ->int)))
+(import x/core/doors char->int obj-ref obj-set! ptr->int ptr-ref-word ptr-set-word! str->ptr str-byte-ref str-make)
 
 ; A scratch of n words: (BUF PTR ADDR), the string kept so its address
 ; stays live.
 (def %fj-scratch
   (fn (_ n)
-    (def buf (%fj-make-str (* n 8)))
-    (def ptr (%fj-str->ptr buf))
-    (list buf ptr (%fj-ptr->int ptr))))
+    (def buf (str-make (* n 8)))
+    (def ptr (str->ptr buf))
+    (list buf ptr (ptr->int ptr))))
 
 (def %fj-load!
   (fn (_ ptr off v)
-    ((fn (self i) (unless (= i 10) (do (%fj-pset ptr (* (+ off i) 8) (%fj-oref v (+ i 1))) (self (+ i 1))))) 0)))
+    ((fn (self i) (unless (= i 10) (do (ptr-set-word! ptr (* (+ off i) 8) (obj-ref v (+ i 1))) (self (+ i 1))))) 0)))
 
 (def %fj-store
   (fn (_ ptr off)
     (def v (fe-zero))
-    ((fn (self i) (unless (= i 10) (do (%fj-oset! v (+ i 1) (%fj-pref ptr (* (+ off i) 8))) (self (+ i 1))))) 0)
+    ((fn (self i) (unless (= i 10) (do (obj-set! v (+ i 1) (ptr-ref-word ptr (* (+ off i) 8))) (self (+ i 1))))) 0)
     v))
 
 (def %fj-same-limbs?
   (fn (_ x y)
-    ((fn (self i) (if (= i 11) #t (if (= (%fj-oref x i) (%fj-oref y i)) (self (+ i 1)) #f))) 1)))
+    ((fn (self i) (if (= i 11) #t (if (= (obj-ref x i) (obj-ref y i)) (self (+ i 1)) #f))) 1)))
 
 (def %fj-built ())
 ; Whether the operations were replayed from the cache group rather than
@@ -214,7 +206,7 @@
     (def a (first (rest (rest s))))
     (def mul (List ref 0 ops))
     (def %Z 0) (def %A 10) (def %B 20) (def %C 30) (def %D 40) (def %O 50)
-    (def %copy (fn (_ to from) ((fn (self i) (unless (= i 10) (do (%fj-pset ptr (* (+ to i) 8) (%fj-pref ptr (* (+ from i) 8))) (self (+ i 1))))) 0)))
+    (def %copy (fn (_ to from) ((fn (self i) (unless (= i 10) (do (ptr-set-word! ptr (* (+ to i) 8) (ptr-ref-word ptr (* (+ from i) 8))) (self (+ i 1))))) 0)))
     (def %sq (fn (_ h f) (mul a h f f)))
     ; h = f^(2^n), h and f distinct or the same
     (def %sqn (fn (_ h f n) (%copy h f) ((fn (self i) (unless (= i 0) (do (%sq h h) (self (- i 1))))) n)))
@@ -255,7 +247,7 @@
     (def %is-one?
       (fn (_ v)
         (def b (fe-tobytes v))
-        ((fn (self i) (if (= i 32) #t (if (= (%fj-char->int (%fj-byte-ref b i)) (%fj-char->int (%fj-byte-ref one i))) (self (+ i 1)) #f))) 0)))
+        ((fn (self i) (if (= i 32) #t (if (= (char->int (str-byte-ref b i)) (char->int (str-byte-ref one i))) (self (+ i 1)) #f))) 0)))
     (unless (%is-one? (fe-mul z (invert z)))
       (Err raise 'state "fe25519-jit: the inverse chain disagrees with the pure-x field" ()))
     (unless (%is-one? (fe-mul (fe-sq-n (pow22523 z) 3) (fe-sq (fe-sq z))))

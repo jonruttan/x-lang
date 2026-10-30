@@ -14,23 +14,18 @@
 (import x/type/class)
 (import x/codec/utf8 utf8-encode)
 
-(def %en-blen (prim-ref (lit str) (lit byte-len)))
-(def %en-bref (prim-ref (lit str) (lit byte-ref)))
-(def %en-bsub (prim-ref (lit str) (lit byte-sub)))
-(def %en-c->i (prim-ref (lit char) (lit ->int)))
-(def %en< (prim-ref (lit int) (lit <)))
-(def %en+ (prim-ref (lit int) (lit +)))
+(import x/core/doors char->int int+ int< str-byte-len str-byte-ref str-byte-sub)
 
 ; The byte at I of S as an integer, -1 past either end.
 (def %en-at
   (fn (_ s i)
-    (match ((%en< i 0) -1) ((%en< i (%en-blen s)) (%en-c->i (%en-bref s i))) (#t -1))))
-(def %en-sub (fn (_ s i j) (%en-bsub s i (- j i))))
-(def %en-digit? (fn (_ c) (match ((%en< c #\0) #f) ((%en< #\9 c) #f) (#t #t))))
+    (match ((int< i 0) -1) ((int< i (str-byte-len s)) (char->int (str-byte-ref s i))) (#t -1))))
+(def %en-sub (fn (_ s i j) (str-byte-sub s i (- j i))))
+(def %en-digit? (fn (_ c) (match ((int< c #\0) #f) ((int< #\9 c) #f) (#t #t))))
 (def %en-alnum?
   (fn (_ c)
-    (match ((%en< c #\0) #f) ((%en< c #\:) #t) ((%en< c #\A) #f) ((%en< #\z c) #f)
-           ((%en< c #\[) #t) ((%en< c #\a) #f) (#t #t))))
+    (match ((int< c #\0) #f) ((int< c #\:) #t) ((int< c #\A) #f) ((int< #\z c) #f)
+           ((int< c #\[) #t) ((int< c #\a) #f) (#t #t))))
 (def %en-assoc
   (fn (self k al) (match ((eq? al ()) ()) ((str=? k (first (first al))) (first al)) (#t (self k (rest al))))))
 
@@ -111,8 +106,8 @@
     (def c (%en-at s k))
     (def d (match ((%en-digit? c) (- c #\0))
                   ((= radix 10) -1)
-                  ((if (%en< c #\a) #f (%en< c #\g)) (+ 10 (- c #\a)))
-                  ((if (%en< c #\A) #f (%en< c #\G)) (+ 10 (- c #\A)))
+                  ((if (int< c #\a) #f (int< c #\g)) (+ 10 (- c #\a)))
+                  ((if (int< c #\A) #f (int< c #\G)) (+ 10 (- c #\A)))
                   (#t -1)))
     (match
       ((< -1 d) (if (< (- k j) more) (self s j (+ k 1) (+ (* v radix) d) radix more) ()))
@@ -130,7 +125,7 @@
       (#t
         ((fn (go j)
            (match
-             ((%en-alnum? (%en-at s j)) (go (%en+ j 1)))
+             ((%en-alnum? (%en-at s j)) (go (int+ j 1)))
              ((if (= (%en-at s j) #\;) (< (+ i 1) j) #f)
                ((fn (_ hit) (if (null? hit) () (pair (%en-char (rest hit)) (+ j 1))))
                 (%en-assoc (%en-sub s (+ i 1) j) %en-names)))
@@ -143,10 +138,10 @@
       ((= c -1) (match ((= from 0) s) (#t (%str-concat (%reverse (pair (%en-sub s from i) out))))))
       ((= c #\&)
         ((fn (_ e)
-           (match ((eq? e ()) (self s (%en+ i 1) from out))
+           (match ((eq? e ()) (self s (int+ i 1) from out))
                   (#t (self s (rest e) (rest e) (pair (first e) (pair (%en-sub s from i) out))))))
          (entity-at s i)))
-      (#t (self s (%en+ i 1) from out)))))
+      (#t (self s (int+ i 1) from out)))))
 (def entity-decode (fn (_ s) (%en-decode-from s 0 0 ())))
 
 (def-class Entity ()

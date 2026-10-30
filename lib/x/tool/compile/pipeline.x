@@ -12,9 +12,7 @@
 (import x/tool/compile/emit c-param-decls compile-fvars compile-params-set! compile-fns compile-fns-set! compile-push-writers compile-pop-writers)
 ; Fetched from the catalogue into this module's frame.
 (def %cvt (prim-ref 'convert 'to))
-(def %write-to-str (prim-ref 'io 'write-to-str))
-(def %dlsym (prim-ref 'ffi 'dlsym))
-(def %ptr-set-word! (prim-ref 'ptr 'set-word!))
+(import x/core/doors ffi-dlsym io-write-to-str ptr-set-word!)
 
 ; --- Generate C via write-to-str ---
 
@@ -22,7 +20,7 @@
 (def generate-fn-body
   (fn (_ params body)
     (compile-params-set! params)
-    (%write-to-str body)))
+    (io-write-to-str body)))
 
 ; Generate a complete C function
 (def %generate-fn
@@ -127,14 +125,14 @@
 (def compile-patch-fvars
   (fn (_ lib fvars)
     (unless (null? fvars)
-      (let ((tbl (%dlsym lib "x_fvar_table")))
+      (let ((tbl (ffi-dlsym lib "x_fvar_table")))
         (unless (null? tbl)
           (let ()
             (def %patch-go
               (fn (self fvs i)
                 (unless (null? fvs)
                   (do
-                    (%ptr-set-word! tbl (* i %word-size)
+                    (ptr-set-word! tbl (* i %word-size)
                       (if (null? (rest (first fvs))) 0
                         (%cvt (%cvt (rest (first fvs)) %ptr) %int)))
                     (self (rest fvs) (+ i 1))))))

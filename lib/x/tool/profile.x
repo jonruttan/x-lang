@@ -83,7 +83,7 @@
 ; ns `heap` is de-registered (R5): fetch the raw collector from the catalogue.
 ; The instrumented heap-collect / heap-collect-force ops below are this
 ; tool's own exports, defined fresh (nothing bare to shadow anymore).
-(def %heap-collect-prim (prim-ref (lit heap) (lit collect)))
+(import x/core/doors (heap-collect %heap-collect-prim) int& int+ int- int->ptr int< int<< int>> io-write-to-str obj->ptr ptr->obj ptr-ref-word ptr-set-word! str-append)
 (def %hc-last-allocs 0)
 (def %hc-last-surviving 10000)
 
@@ -139,17 +139,6 @@
 ; eq? -- the catalogue primitives, and the functions of this module and of
 ; x/tool/cov, whose rows the report leaves out.  What is computed once, at
 ; load, may use anything.
-(def %profile-int+ (prim-ref (lit int) (lit +)))
-(def %profile-int- (prim-ref (lit int) (lit -)))
-(def %profile-int< (prim-ref (lit int) (lit <)))
-(def %profile-int& (prim-ref (lit int) (lit &)))
-(def %profile-int>> (prim-ref (lit int) (lit >>)))
-(def %profile-int<< (prim-ref (lit int) (lit <<)))
-(def %profile-o->p (prim-ref (lit obj) (lit ->ptr)))
-(def %profile-p->o (prim-ref (lit ptr) (lit ->obj)))
-(def %profile-i->p (prim-ref (lit int) (lit ->ptr)))
-(def %profile-rw (prim-ref (lit ptr) (lit ref-word)))
-(def %profile-sw (prim-ref (lit ptr) (lit set-word!)))
 (def %profile-chain-clear! (prim-ref (lit heap) (lit chain-clear!)))
 
 ; Byte offsets in an object, from the layout contract's word offsets.  The
@@ -165,24 +154,24 @@
 
 ; The type words of a procedure and of an operative, and the cell the loader
 ; files source paths in, which stays where it is for the life of the base.
-(def %profile-proc-tw (%profile-rw (%profile-o->p (fn (_) ())) %profile-type-off))
-(def %profile-op-tw (%profile-rw (%profile-o->p (op () _ ())) %profile-type-off))
+(def %profile-proc-tw (ptr-ref-word (obj->ptr (fn (_) ())) %profile-type-off))
+(def %profile-op-tw (ptr-ref-word (obj->ptr (op () _ ())) %profile-type-off))
 (def %profile-registry (%reflect-base-cell (lit file-registry)))
 
 ; The meta word at off, or 0 when obj carries none.
 (def %profile-meta
   (fn (_ obj off)
-    (match ((eq? (%profile-int& (cov-flags obj) %obj-flag-meta) 0) 0)
-           (#t (%profile-rw (%profile-o->p obj) off)))))
+    (match ((eq? (int& (cov-flags obj) %obj-flag-meta) 0) 0)
+           (#t (ptr-ref-word (obj->ptr obj) off)))))
 
 (doc (def profile-evals-max
-  (fn (_) (%profile-int- (%profile-int<< 1 %obj-evals-bits) 1)))
+  (fn (_) (int- (int<< 1 %obj-evals-bits) 1)))
   (returns INTEGER "The value an eval count stops at")
   "Return the largest eval count an object can hold.")
 
 (doc (def profile-evals
   (fn (_ obj)
-    (%profile-int& (%profile-int>> (cov-flags obj) %obj-evals-shift)
+    (int& (int>> (cov-flags obj) %obj-evals-shift)
                    (profile-evals-max))))
   (param obj ANY "Object to read")
   (returns INTEGER "Times evaluation reached obj, at most (profile-evals-max)")
@@ -193,9 +182,9 @@
 ; is at its maximum, where the sum is a lower bound.
 (def %profile-add
   (fn (_ n max acc)
-    (pair (%profile-int+ (first acc) n)
-      (pair (%profile-int+ (first (rest acc)) 1)
-        (pair (match ((eq? (%profile-int- n max) 0) #t)
+    (pair (int+ (first acc) n)
+      (pair (int+ (first (rest acc)) 1)
+        (pair (match ((eq? (int- n max) 0) #t)
                      (#t (first (rest (rest acc)))))
               ())))))
 
@@ -205,10 +194,10 @@
   (fn (self obj shift max stop acc)
     (match ((cov-cons? obj)
             ((fn (_ flags)
-               (match ((eq? (%profile-int& flags stop) 0)
+               (match ((eq? (int& flags stop) 0)
                        (self (rest obj) shift max stop
                          (self (first obj) shift max stop
-                           (%profile-add (%profile-int& (%profile-int>> flags shift) max)
+                           (%profile-add (int& (int>> flags shift) max)
                                          max acc))))
                       (#t acc)))
              (cov-flags obj)))
@@ -238,7 +227,7 @@
 (def %profile-calls
   (fn (_ body)
     ((fn (_ cell form)
-       (match ((%profile-int< cell form) form)
+       (match ((int< cell form) form)
               (#t cell)))
      (profile-evals body)
      (match ((cov-cons? (first body)) (profile-evals (first body)))
@@ -291,28 +280,28 @@
 ; may free the object that followed it.
 (def %profile-after
   (fn (_ cur n)
-    (match ((eq? (%profile-int& n %profile-collect-mask) 0) (%heap-collect-prim))
+    (match ((eq? (int& n %profile-collect-mask) 0) (%heap-collect-prim))
            (#t ()))
-    (%profile-next-of (%profile-rw (%profile-o->p cur) %profile-heap-off))))
+    (%profile-next-of (ptr-ref-word (obj->ptr cur) %profile-heap-off))))
 (def %profile-next-of
   (fn (_ word)
     (match ((eq? word 0) ())
-           (#t (%profile-p->o (%profile-i->p word))))))
+           (#t (ptr->obj (int->ptr word))))))
 
 (def %profile-each
   (fn (self cur f acc n)
     (match ((eq? cur ()) acc)
-           (#t (self (%profile-after cur n) f (f cur acc) (%profile-int+ n 1))))))
+           (#t (self (%profile-after cur n) f (f cur acc) (int+ n 1))))))
 
 ; body joins acc unless its first cell is already claimed.
 (def %profile-claim
   (fn (_ body acc trace)
     (match ((cov-cons? body)
             ((fn (_ flags)
-               (match ((eq? (%profile-int& flags trace) 0)
+               (match ((eq? (int& flags trace) 0)
                        ((fn (_ written) (pair body acc))
-                        (%profile-sw (%profile-o->p body) %profile-flags-off
-                                     (%profile-int+ flags trace))))
+                        (ptr-set-word! (obj->ptr body) %profile-flags-off
+                                     (int+ flags trace))))
                       (#t acc)))
              (cov-flags body)))
            (#t acc))))
@@ -321,16 +310,16 @@
   (fn (self bodies trace)
     (match ((eq? bodies ()) ())
            (#t ((fn (_ flags)
-                  (%profile-sw (%profile-o->p (first bodies)) %profile-flags-off
-                               (%profile-int- flags (%profile-int& flags trace)))
+                  (ptr-set-word! (obj->ptr (first bodies)) %profile-flags-off
+                               (int- flags (int& flags trace)))
                   (self (rest bodies) trace))
                 (cov-flags (first bodies)))))))
 
 (def %profile-body-of
   (fn (_ obj acc trace word)
-    (match ((eq? (%profile-int- word %profile-proc-tw) 0)
+    (match ((eq? (int- word %profile-proc-tw) 0)
             (%profile-claim (cov-body obj) acc trace))
-           ((eq? (%profile-int- word %profile-op-tw) 0)
+           ((eq? (int- word %profile-op-tw) 0)
             (%profile-claim (cov-body obj) acc trace))
            (#t acc))))
 (def %profile-bodies
@@ -338,7 +327,7 @@
     (%profile-each (pair () ())
       (fn (_ obj acc)
         (%profile-body-of obj acc trace
-                          (%profile-rw (%profile-o->p obj) %profile-type-off)))
+                          (ptr-ref-word (obj->ptr obj) %profile-type-off)))
       () 1)))
 
 ; The path the loader filed a file id under, or nil for an id it never
@@ -348,7 +337,7 @@
   (fn (self id reg)
     (match ((eq? id 0) "")
            ((eq? reg ()) ())
-           ((eq? (%profile-int- (%profile-rw (%profile-o->p (first (first reg)))
+           ((eq? (int- (ptr-ref-word (obj->ptr (first (first reg)))
                                              %profile-data-off)
                                 id)
                  0)
@@ -366,8 +355,8 @@
 (def %profile-stamped?
   (fn (_ obj reg)
     ((fn (_ line)
-       (match ((%profile-int< 0 line)
-               (match ((%profile-int< line %profile-line-limit)
+       (match ((int< 0 line)
+               (match ((int< line %profile-line-limit)
                        (match ((eq? (%profile-file (%profile-meta obj %profile-file-off) reg) ())
                                #f)
                               (#t #t)))
@@ -380,8 +369,8 @@
             (match ((%profile-stamped? obj reg)
                     (pair (%profile-meta obj %profile-file-off)
                           (%profile-meta obj %profile-line-off)))
-                   ((%profile-int< depth %profile-where-depth)
-                    (self (first obj) reg (%profile-int+ depth 1)))
+                   ((int< depth %profile-where-depth)
+                    (self (first obj) reg (int+ depth 1)))
                    (#t (pair 0 0))))
            (#t (pair 0 0)))))
 (def %profile-body-where
@@ -407,8 +396,8 @@
   (fn (_ row own cov)
     (match ((eq? (%profile-row-evals row) 0) #f)
            ((eq? (first row) 0) #t)
-           ((eq? (%profile-int- (first row) own) 0) #f)
-           ((eq? (%profile-int- (first row) cov) 0) #f)
+           ((eq? (int- (first row) own) 0) #f)
+           ((eq? (int- (first row) cov) 0) #f)
            (#t #t))))
 
 (def %profile-gather
@@ -416,15 +405,15 @@
     (match ((eq? bodies ()) acc)
            (#t ((fn (_ row)
                   ((fn (_ walked)
-                     (match ((%profile-int< %profile-collect-mask walked)
+                     (match ((int< %profile-collect-mask walked)
                              (%heap-collect-prim))
                             (#t ()))
                      (self (rest bodies) trace reg own cov
                        (match ((%profile-keep? row own cov) (pair row acc))
                               (#t acc))
-                       (match ((%profile-int< %profile-collect-mask walked) 0)
+                       (match ((int< %profile-collect-mask walked) 0)
                               (#t walked))))
-                   (%profile-int+ walked (%profile-row-nodes row))))
+                   (int+ walked (%profile-row-nodes row))))
                 (%profile-row (first bodies) trace reg))))))
 
 (def %profile-named
@@ -455,7 +444,7 @@
 ; pass, and leaves every other flag bit as it was.
 (doc (def profile-clear!
   (fn (_)
-    (%profile-chain-clear! (%profile-int<< (profile-evals-max) %obj-evals-shift))))
+    (%profile-chain-clear! (int<< (profile-evals-max) %obj-evals-shift))))
   (returns NIL "nil")
   "Set the eval count of every object on the heap to zero, so that what is counted next belongs to what runs next.")
 
@@ -463,14 +452,14 @@
   (fn (self rows n)
     (if (null? rows)
       ()
-      (if (%profile-int< 0 n)
+      (if (int< 0 n)
         ((fn (_ row)
            (display (first (rest (rest (rest row))))
                     (if (first (rest (rest (rest (rest (rest row)))))) "+" "")
                     "\t" (first (rest (rest row)))
                     "\t" (first (rest (rest (rest (rest row)))))
                     "\t" (first row) ":" (first (rest row)) "\n")
-           (self (rest rows) (%profile-int- n 1)))
+           (self (rest rows) (int- n 1)))
          (first rows))
         ()))))
 
@@ -483,7 +472,7 @@
        (%profile-print
          (List sort
            (fn (_ a b)
-             (%profile-int< (first (rest (rest (rest b))))
+             (int< (first (rest (rest (rest b))))
                             (first (rest (rest (rest a))))))
            rows)
          n))
@@ -505,11 +494,9 @@
 ; this file at 4) -- dump runs once, so the defs-at-depth cost is nothing.
 (doc (def profile-dump
   (fn (_ )
-    (def %prof-sa (prim-ref (lit str) (lit append)))
-    (def %prof-w (prim-ref (lit io) (lit write-to-str)))
     (def %prof-kv
       (fn (_ label value rest)
-        (%prof-sa label (%prof-sa (%prof-w value) rest))))
+        (str-append label (str-append (io-write-to-str value) rest))))
     (%stderr
       (%prof-kv "allocs=" (alloc-count)
         (%prof-kv " evals=" (eval-count)

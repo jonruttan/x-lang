@@ -13,13 +13,12 @@
 
 ; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
 ; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
-(def %obj-ref (prim-ref 'obj 'ref))
+(import x/core/doors int->ptr obj->ptr obj-ref ptr->obj ptr-ref-word str-append type-of)
 
 (def %cvt (prim-ref 'convert 'to))
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %type-name (prim-ref 'type 'name))
 ; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
-(def %ptr-ref-word (prim-ref 'ptr 'ref-word))
 
 
 
@@ -42,14 +41,12 @@
 
 ; Object-ADDRESS cast via (obj ->ptr), never the convert catalogue: %cvt
 ; to %ptr on an INT node is a VALUE cast (the #277 ruling) -- it walked
-; garbage for every int in a body.  The prim rides a closure capture,
-; not a new module global (the percent-globals budget stays at 8).
+; garbage for every int in a body.  The door is obj->ptr, imported above.
 (doc (def cov-flags
   ((fn (_)
-     (def %o->p (prim-ref 'obj '->ptr))
      (fn (_ obj)
        (match ((eq? obj ()) 0)
-              (#t (%ptr-ref-word (%o->p obj) %cov-flags-offset)))))
+              (#t (ptr-ref-word (obj->ptr obj) %cov-flags-offset)))))
    ()))
   (param obj ANY "Object to read")
   (returns INTEGER "The object's flags word, or 0 for nil")
@@ -71,19 +68,17 @@
 ; navigation, safe on every object per the type-label-trap rule.
 (doc (def cov-cons?
   ((fn (_)
-     (def %t-of (prim-ref 'type 'of))
-     (def %t-list (%t-of (list 1)))
-     (def %t-pair (%t-of (pair 1 2)))
-     (def %o->p (prim-ref 'obj '->ptr))
-     (def %tw (fn (_ o) (%ptr-ref-word (%o->p o) %cov-word-size)))
-     (def %spair-tw (%tw (%obj-ref (fn (_ x) x) 1)))
+     (def %t-list (type-of (list 1)))
+     (def %t-pair (type-of (pair 1 2)))
+     (def %tw (fn (_ o) (ptr-ref-word (obj->ptr o) %cov-word-size)))
+     (def %spair-tw (%tw (obj-ref (fn (_ x) x) 1)))
      (fn (_ x)
        (match ((eq? x ()) #f)
               (#t ((fn (_ t)
                      (match ((eq? t %t-list) #t)
                             ((eq? t %t-pair) #t)
                             (#t (eq? (%tw x) %spair-tw))))
-                   (%t-of x))))))
+                   (type-of x))))))
    ()))
   (param x ANY "Object to test")
   (returns BOOL "True if x is a pair, a list cell or an engine-built spine cell")
@@ -96,23 +91,20 @@
 ; implements; an operative is told from a procedure by its type word.
 (doc (def cov-body
   ((fn (_)
-     (def %o->p (prim-ref 'obj '->ptr))
-     (def %p->o (prim-ref 'ptr '->obj))
-     (def %i->p (prim-ref 'int '->ptr))
      (def %type-off (* %obj-slot-type %cov-word-size))
      (def %state-off (* (+ %obj-meta-len 1) %cov-word-size))
-     (def %op-tw (%ptr-ref-word (%o->p (op () _ ())) %type-off))
+     (def %op-tw (ptr-ref-word (obj->ptr (op () _ ())) %type-off))
      (fn (_ val)
        ((fn (_ state)
           ((fn (_ tail)
              (match ((cov-cons? tail) (first tail))
                     (#t ())))
            (match ((cov-cons? state)
-                   (match ((eq? (%ptr-ref-word (%o->p val) %type-off) %op-tw)
+                   (match ((eq? (ptr-ref-word (obj->ptr val) %type-off) %op-tw)
                            (rest (rest state)))
                           (#t (rest state))))
                   (#t ()))))
-        (%p->o (%i->p (%ptr-ref-word (%o->p val) %state-off))))))
+        (ptr->obj (int->ptr (ptr-ref-word (obj->ptr val) %state-off))))))
    ()))
   (param val CALLABLE "Procedure or operative made by fn or op")
   (returns LIST "The body forms, or nil when there are none")
@@ -193,13 +185,13 @@
         (if (null? al) acc
           (let ((r (guard (_ ())
                      (cov-check-fn
-                       (%str-append prefix
+                       (str-append prefix
                          (%cvt (first (first al)) %string))
                        (rest (first al)) tsv-mode))))
             (self prefix (rest al)
                   (if (null? r) acc (pair r acc)))))))
     (def data (guard (_ ()) (first c)))
-    (def prefix (%str-append (%cvt cname %string) "/"))
+    (def prefix (str-append (%cvt cname %string) "/"))
     (%row-walk prefix (%asc (lit methods) data)
                (%row-walk prefix (%asc (lit s-methods) data) ()))))
   (param cname SYMBOL "Class name (row prefix)")

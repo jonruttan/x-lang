@@ -23,14 +23,7 @@
 
 (import x/tool/jit-group jit-group)
 
-(def %cj-make-str (prim-ref (lit str) (lit make)))
-(def %cj-str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %cj-ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %cj-pset (prim-ref (lit ptr) (lit set-word!)))
-(def %cj-pref (prim-ref (lit ptr) (lit ref-word)))
-(def %cj-pset1 (prim-ref (lit ptr) (lit set!)))
-(def %cj-byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %cj-char->int (prim-ref (lit char) (lit ->int)))
+(import x/core/doors char->int ptr->int ptr-ref-word ptr-set! ptr-set-word! str->ptr str-byte-ref str-make)
 (def %cj-M 4294967295)
 
 ; scratch layout, one 512-byte buffer (words):
@@ -164,18 +157,18 @@
     ; and a replay compiled nothing, so it has no garbage to drop and skips
     ; the collect, which marks the whole live heap
     (unless replayed? (Heap collect))
-    (def %buf (%cj-make-str 512))
-    (def %ptr (%cj-str->ptr %buf))
-    (def %addr (%cj-ptr->int %ptr))
-    (def %poke (fn (_ i v) (%cj-pset %ptr (* i 8) v)))
-    (def %peek (fn (_ i) (%cj-pref %ptr (* i 8))))
+    (def %buf (str-make 512))
+    (def %ptr (str->ptr %buf))
+    (def %addr (ptr->int %ptr))
+    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i 8) v)))
+    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i 8))))
     (def %engine
       (fn (_ st s start len)
-        (def out (%cj-make-str len))
+        (def out (str-make len))
         ((fn (self i ws)
            (unless (null? ws) (do (%poke i (first ws)) (self (+ i 1) (rest ws))))) 0 st)
-        (%poke %cj-IN (+ (%cj-ptr->int (%cj-str->ptr s)) start))
-        (%poke %cj-OUT (%cj-ptr->int (%cj-str->ptr out)))
+        (%poke %cj-IN (+ (ptr->int (str->ptr s)) start))
+        (%poke %cj-OUT (ptr->int (str->ptr out)))
         (%poke %cj-LEN len)
         ; each entry does up to a run of blocks and leaves pos past them
         ((fn (self pos)
@@ -190,7 +183,7 @@
     (def %same
       (fn (self x y i n)
         (if (= i n) #t
-          (if (= (%cj-char->int (%cj-byte-ref x i)) (%cj-char->int (%cj-byte-ref y i)))
+          (if (= (char->int (str-byte-ref x i)) (char->int (str-byte-ref y i)))
             (self x y (+ i 1) n)
             #f))))
     (def %check
@@ -200,9 +193,9 @@
     ; bytes 0..n-1 of a region, so NULs and every byte value are in play
     (def %ramp
       (fn (_ n)
-        (def r (%cj-make-str n))
-        (def p (%cj-str->ptr r))
-        ((fn (self i) (unless (= i n) (do (%cj-pset1 p i (& i 255) 1) (self (+ i 1))))) 0)
+        (def r (str-make n))
+        (def p (str->ptr r))
+        ((fn (self i) (unless (= i n) (do (ptr-set! p i (& i 255) 1) (self (+ i 1))))) 0)
         r))
     (def %st (fn (_ counter) (List append (list 1634760805 857760878 2036477234 1797285236
                                                  50462976 117835012 185207048 252579084

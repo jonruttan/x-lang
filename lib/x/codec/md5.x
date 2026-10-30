@@ -14,13 +14,7 @@
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
 
-(def %add (prim-ref 'int '+))
-(def %sub (prim-ref 'int '-))
-(def %mul (prim-ref 'int '*))
-(def %oref (prim-ref (lit obj) (lit ref)))
-(def %oset! (prim-ref (lit obj) (lit set!)))
-(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %char->int (prim-ref (lit char) (lit ->int)))
+(import x/core/doors char->int int* int+ int- obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
 (def %cvt (prim-ref (lit convert) (lit to)))
 (def %string-type (Type named STRING))
 (def %mask 4294967295)
@@ -42,32 +36,32 @@
 ; the shift each step rotates by (3.4), four to a round
 (def %r (Vector from-list (lit (7 12 17 22 5 9 14 20 4 11 16 23 6 10 15 21))))
 
-(def %rotl (fn (_ x n) (& (| (<< x n) (>> x (%sub 32 n))) %mask)))
+(def %rotl (fn (_ x n) (& (| (<< x n) (>> x (int- 32 n))) %mask)))
 
 ; Byte i of the padded message: the message; then 0x80; then zeros; then
 ; the bit length, little-endian in the last 8 bytes.
 (def %byte
   (fn (_ s len total i)
     (match
-      ((< i len) (%char->int (%byte-ref s i)))
+      ((< i len) (char->int (str-byte-ref s i)))
       ((= i len) 128)
-      ((< i (%sub total 8)) 0)
-      (#t (& (>> (%mul len 8) (<< (%sub i (%sub total 8)) 3)) 255)))))
+      ((< i (int- total 8)) 0)
+      (#t (& (>> (int* len 8) (<< (int- i (int- total 8)) 3)) 255)))))
 
 ; word j of the block at BASE, little-endian
 (def %word
   (fn (_ s len total base)
     (| (%byte s len total base)
-       (| (<< (%byte s len total (%add base 1)) 8)
-          (| (<< (%byte s len total (%add base 2)) 16)
-             (<< (%byte s len total (%add base 3)) 24))))))
+       (| (<< (%byte s len total (int+ base 1)) 8)
+          (| (<< (%byte s len total (int+ base 2)) 16)
+             (<< (%byte s len total (int+ base 3)) 24))))))
 
 ; X[j] in slot j+1 of a 16-slot vector (the length rides slot 0)
 (def %fill!
   (fn (self s len total base x j)
     (unless (= j 16)
-      (do (%oset! x (%add j 1) (%word s len total (%add base (<< j 2))))
-          (self s len total base x (%add j 1))))))
+      (do (obj-set! x (int+ j 1) (%word s len total (int+ base (<< j 2))))
+          (self s len total base x (int+ j 1))))))
 
 ; step i's function of b c d, and the word it reads (3.4)
 (def %f
@@ -82,24 +76,24 @@
   (fn (_ i)
     (match
       ((< i 16) i)
-      ((< i 32) (& (%add (%mul 5 i) 1) 15))
-      ((< i 48) (& (%add (%mul 3 i) 5) 15))
-      (#t (& (%mul 7 i) 15)))))
+      ((< i 32) (& (int+ (int* 5 i) 1) 15))
+      ((< i 48) (& (int+ (int* 3 i) 5) 15))
+      (#t (& (int* 7 i) 15)))))
 
 (def %rounds
   (fn (self x i a b c d)
     (if (= i 64) (list a b c d)
-      (let ((sum (& (%add (%add a (%f i b c d))
-                          (%add (%oref %k (%add i 1)) (%oref x (%add (%g i) 1))))
+      (let ((sum (& (int+ (int+ a (%f i b c d))
+                          (int+ (obj-ref %k (int+ i 1)) (obj-ref x (int+ (%g i) 1))))
                     %mask)))
-        (self x (%add i 1) d
-              (& (%add b (%rotl sum (%oref %r (%add (<< (>> i 4) 2) (%add (& i 3) 1))))) %mask)
+        (self x (int+ i 1) d
+              (& (int+ b (%rotl sum (obj-ref %r (int+ (<< (>> i 4) 2) (int+ (& i 3) 1))))) %mask)
               b c)))))
 
 (def %sum
   (fn (self hs rs)
     (if (null? hs) ()
-      (pair (& (%add (first hs) (first rs)) %mask) (self (rest hs) (rest rs))))))
+      (pair (& (int+ (first hs) (first rs)) %mask) (self (rest hs) (rest rs))))))
 
 (def %blocks
   (fn (self s len total base x hs)
@@ -108,7 +102,7 @@
       (#t
         (do (when (and (> base 0) (= (& (>> base 6) 7) 0)) (Heap collect))
             (%fill! s len total base x 0)
-            (self s len total (%add base 64) x
+            (self s len total (int+ base 64) x
               (%sum hs (%rounds x 0 (first hs) (first (rest hs)) (first (rest (rest hs)))
                                 (first (rest (rest (rest hs))))))))))))
 
@@ -116,7 +110,7 @@
 (def %digest-words
   (fn (_ s . n)
     (def len (match ((null? n) (Str8 length s)) (#t (first n))))
-    (%blocks s len (<< (%add (>> (%add len 8) 6) 1) 6) 0 (Vector make 16 0) %ih)))
+    (%blocks s len (<< (int+ (>> (int+ len 8) 6) 1) 6) 0 (Vector make 16 0) %ih)))
 
 ; --- The compiled engine (JIT), adopted only when it proves out ------
 ;
@@ -169,23 +163,20 @@
 
 (def %hex (fn (_ hs) (Str8 join "" (List map %hex-word hs))))
 
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %pset1 (prim-ref (lit ptr) (lit set!)))
 
 ; the state words as the digest's sixteen bytes, low byte of each word
 ; first, written into OUT
 (def %bytes
   (fn (_ hs out)
-    (def p (%str->ptr out))
+    (def p (str->ptr out))
     (def put
       (fn (self ws i)
         (unless (null? ws)
-          (do (%pset1 p i (& (first ws) 255) 1)
-              (%pset1 p (%add i 1) (& (>> (first ws) 8) 255) 1)
-              (%pset1 p (%add i 2) (& (>> (first ws) 16) 255) 1)
-              (%pset1 p (%add i 3) (& (>> (first ws) 24) 255) 1)
-              (self (rest ws) (%add i 4))))))
+          (do (ptr-set! p i (& (first ws) 255) 1)
+              (ptr-set! p (int+ i 1) (& (>> (first ws) 8) 255) 1)
+              (ptr-set! p (int+ i 2) (& (>> (first ws) 16) 255) 1)
+              (ptr-set! p (int+ i 3) (& (>> (first ws) 24) 255) 1)
+              (self (rest ws) (int+ i 4))))))
     (do (put hs 0) out)))
 
 (def-class Md5 ()
@@ -207,7 +198,7 @@
                           (param n INTEGER "How many bytes of s to digest"))
       (doc "MD5 of the FIRST n BYTES of s, as a fresh buffer of the digest's 16 bytes -- binary, so read it by count, not as a string: a NUL among the bytes ends its string length. THE LENGTH IS YOUR CLAIM AND IS NOT CHECKED, as hex-n's is."
         (returns STRING "A 16-byte buffer"))
-      (%words s n (%make-str 17)))
+      (%words s n (str-make 17)))
     (method bytes-into (self (param s STRING "Byte region to digest")
                              (param n INTEGER "How many bytes of s to digest")
                              (param out STRING "A buffer of 16 bytes or more, written from its start"))

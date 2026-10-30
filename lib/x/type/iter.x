@@ -17,7 +17,7 @@
 
 (import x/core/list)
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(import x/core/doors int+ int< obj-ref type-by-atom type-of type-push-call type-push-write type?)
 (def %type-push-iter (prim-ref (lit type) (lit push-iter)))
 
 (import x/type/class)
@@ -32,23 +32,16 @@
 (def %i-empty? (prim-ref (lit iter) (lit empty?)))
 (def %i-new    (prim-ref (lit iter) (lit new)))
 ; The integer doors and the raw slot read, for the index iterator.
-(def %iter-int+ (prim-ref (lit int) (lit +)))
-(def %iter-int< (prim-ref (lit int) (lit <)))
-(def %iter-obj-ref (prim-ref (lit obj) (lit ref)))
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
-(def %type-of (prim-ref (lit type) (lit of)))
-(def %type? (prim-ref (lit type) (lit ?)))
 ; The ITER type handle, for iter?: type-of a degenerate iterator.
-(def %iter (%type-of (%i-make () ())))
+(def %iter (type-of (%i-make () ())))
 
 ; The opaque form: ITER registers LAZILY (that %i-make above is the first
 ; iterator ever made), so boot/printer.x's "#<iter>" push no-oped -- the
 ; type didn't exist yet.  The module that registers the type owns its
 ; rendering (char-io's pattern); without this push instances render as the
 ; bounded #<obj:ITER> fallback.
-(def %type-push-write (prim-ref (lit type) (lit push-write)))
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
-(%type-push-write (%type-by-atom %iter) (fn (_ o) (display "#<iter>")))
+(type-push-write (type-by-atom %iter) (fn (_ o) (display "#<iter>")))
 
 
 ; List step (PURE): the state is the remaining list; yields (head . rest).
@@ -71,7 +64,7 @@
     ; calls go through (Iter %check ...).  `Err` resolves at call time, as at
     ; core/list.x's %map1-go.
     (method %check (self it what)
-      (if (%type? it %iter) it (Err raise (lit type) what ())))
+      (if (type? it %iter) it (Err raise (lit type) what ())))
     (method make (self (param step CALLABLE "Pure step: (step state) -> (value . next-state); a NIL next-state ends the iteration after that value, and a nil state must answer ()")
                        (param state ANY "Initial state; nil marks an already-exhausted iterator"))
       (doc "Build an iterator from a pure step function and its starting state -- the from-scratch constructor; (Iter new) is the from-a-sequence door. Exhaustion rides the STATE: the step signals the last element by returning a nil next-state (the list step below is the model)."
@@ -93,7 +86,7 @@
     (method iter? (self (param x ANY "Value to test"))
       (doc "Test whether a value is an iterator."
         (returns BOOL "True if x is an iterator"))
-      (%type? x %iter))
+      (type? x %iter))
     ; nil has no type for the prim to dispatch on, so shadow it to an empty
     ; iterator; everything else uses the prim's per-type slot dispatch.
     ; That dispatch answers nil for a type carrying no iter slot: an INT, a
@@ -143,8 +136,7 @@
 ; Subject-last dispatch (as for Str8/Vector/Num) puts the iterator in the
 ; trailing `it` parameter -- exactly the calling convention every Iter consumer already has,
 ; so (it for-each f) routes to (Iter for-each f it).
-(def %type-push-call (prim-ref (lit type) (lit push-call)))
-(%type-push-call (%type-by-atom %iter) (class-call-handler Iter))
+(type-push-call (type-by-atom %iter) (class-call-handler Iter))
 
 ; --- Per-type iterator constructors (the values pushed onto the iter slot) ---
 
@@ -161,16 +153,16 @@
       (fn (self st)
         (if (eq? st ()) ()
           (do
-            (def next (%iter-int+ (rest st) 1))
+            (def next (int+ (rest st) 1))
             (pair (ref (first st) (rest st))
-              (if (%iter-int< next len) (pair (first st) next) ())))))
+              (if (int< next len) (pair (first st) next) ())))))
       (if (eq? len 0) () (pair seq 0)))))
 
 ; A vector's element i is its data slot i + 1, read with the raw slot door:
 ; the index is in range by construction, where (Vector ref ...) was a class
 ; send and a bounds check per element.
 (def %vector-iter
-  (fn (_ v) (%index-iter v (Vector length v) (fn (_ vv ii) (%iter-obj-ref vv (%iter-int+ ii 1))))))
+  (fn (_ v) (%index-iter v (Vector length v) (fn (_ vv ii) (obj-ref vv (int+ ii 1))))))
 ; A string iterates its code points: (str ->list), which x/type/str-utf8
 ; publishes, decodes them.
 (def %str-iter
@@ -179,13 +171,13 @@
 
 ; --- Wire the iter slot on each sequence type ------------------------------
 
-(%type-push-iter (%type-by-atom (%type-of (list 1))) %list-iter)
-(%type-push-iter (%type-by-atom (%type-of (Vector of 1))) %vector-iter)
-(%type-push-iter (%type-by-atom (%type-of "x")) %str-iter)
+(%type-push-iter (type-by-atom (type-of (list 1))) %list-iter)
+(%type-push-iter (type-by-atom (type-of (Vector of 1))) %vector-iter)
+(%type-push-iter (type-by-atom (type-of "x")) %str-iter)
 ; def-class instances (all share the %object type): iterate the field alist as
 ; (name . value) pairs.  %object / %obj-fields are object.x internals.
 (def %object-iter (fn (_ inst) (%list-iter (%obj-fields inst))))
-(%type-push-iter (%type-by-atom %object) %object-iter)
+(%type-push-iter (type-by-atom %object) %object-iter)
 
 
 ; --- Block forms ------------------------------------------------------------

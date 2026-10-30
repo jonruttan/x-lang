@@ -22,6 +22,7 @@
 ; environment.
 (module x/sys/cont)
 (import x/type/class)
+(import x/core/doors int+ int- int->ptr int< obj->ptr ptr->int ptr->obj ptr-ref-word type-make type-make-instance)
 
 (def-class Cont ()
   (doc "A continuation the collector can see into: call/cc with the captured frames' roots marked while it waits."
@@ -29,17 +30,7 @@
     (example "(Cont capture (fn (_ k) (k 1)))" "1"))
   (static
     (%callcc (prim-ref (lit ctrl) (lit call/cc)))
-    (%make-type (prim-ref (lit type) (lit make)))
-    (%make-instance (prim-ref (lit type) (lit make-instance)))
-    (%obj->ptr (prim-ref (lit obj) (lit ->ptr)))
-    (%ptr->obj (prim-ref (lit ptr) (lit ->obj)))
-    (%int->ptr (prim-ref (lit int) (lit ->ptr)))
-    (%ptr->int (prim-ref (lit ptr) (lit ->int)))
-    (%ref-word (prim-ref (lit ptr) (lit ref-word)))
     (%tree-mark! (prim-ref (lit heap) (lit tree-mark!)))
-    (%int+ (prim-ref (lit int) (lit +)))
-    (%int- (prim-ref (lit int) (lit -)))
-    (%int< (prim-ref (lit int) (lit <)))
     (%heap-off (* %obj-slot-heap %word-size))
     (%type-off (* %obj-slot-type %word-size))
     (%data-off (* %obj-meta-len %word-size))
@@ -57,22 +48,22 @@
     ; head, the segment's low address and size, and the copy.
     (method %marker (self k)
       (let ((st (Cont %state k)))
-        ((Cont %make-instance) (Cont %type)
+        (type-make-instance (Cont %type)
           (pair k (rest (rest (rest (rest st))))))))
 
     ; %cc-state, read from the continuation procedure's environment: a
     ; procedure's first unit is its C call routine, its second the state
     ; (params . (body . env)).
     (method %state (self k)
-      (let ((procstate ((Cont %ptr->obj) ((Cont %int->ptr)
-                          ((Cont %ref-word) ((Cont %obj->ptr) k)
-                            ((Cont %int+) (Cont %data-off) %word-size))))))
+      (let ((procstate (ptr->obj (int->ptr
+                          (ptr-ref-word (obj->ptr k)
+                            (int+ (Cont %data-off) %word-size))))))
         (eval (lit %cc-state) (rest (rest procstate)))))
 
     (method %type (self)
       (if (null? (first (Cont %type-cell)))
         (%set-first! (Cont %type-cell)
-          ((Cont %make-type) "CONTINUATION"
+          (type-make "CONTINUATION"
             (list (pair (lit mark) (fn (_ m flags) (Cont %mark m flags))))))
         ())
       (first (Cont %type-cell)))
@@ -94,11 +85,11 @@
     (method %mark (self m flags)
       ((Cont %tree-mark!) (first m) flags)
       (let ((d (rest (first m)))
-            (ref (Cont %ref-word)) (->ptr (Cont %int->ptr)) (->obj (Cont %ptr->obj))
-            (->int (Cont %ptr->int)) (mark! (Cont %tree-mark!))
-            (i+ (Cont %int+)) (i- (Cont %int-)) (i< (Cont %int<))
+            (ref ptr-ref-word) (->ptr int->ptr) (->obj ptr->obj)
+            (->int ptr->int) (mark! (Cont %tree-mark!))
+            (i+ int+) (i- int-) (i< int<)
             (heap-off (Cont %heap-off)) (type-off (Cont %type-off))
-            (first-off (Cont %data-off)) (rest-off ((Cont %int+) (Cont %data-off) %word-size)))
+            (first-off (Cont %data-off)) (rest-off (int+ (Cont %data-off) %word-size)))
         (let ((lo (->int (first (rest d))))
               (end (i+ (->int (first (rest d))) (first (rest (rest d)))))
               (delta (i- (->int (first (rest (rest (rest d))))) (->int (first (rest d))))))

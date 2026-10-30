@@ -22,14 +22,7 @@
 (import x/type/vector)
 (import x/tool/jit-group jit-group)
 
-(def %pj-make-str (prim-ref (lit str) (lit make)))
-(def %pj-str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %pj-ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %pj-pset (prim-ref (lit ptr) (lit set-word!)))
-(def %pj-pref (prim-ref (lit ptr) (lit ref-word)))
-(def %pj-pset1 (prim-ref (lit ptr) (lit set!)))
-(def %pj-oref (prim-ref (lit obj) (lit ref)))
-(def %pj-oset! (prim-ref (lit obj) (lit set!)))
+(import x/core/doors obj-ref obj-set! ptr->int ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make)
 (def %pj-M 67108863)
 
 ; scratch layout, one 256-byte buffer (words):
@@ -128,18 +121,18 @@
     ; and a replay compiled nothing, so it has no garbage to drop and skips
     ; the collect, which marks the whole live heap
     (unless replayed? (Heap collect))
-    (def %buf (%pj-make-str 256))
-    (def %ptr (%pj-str->ptr %buf))
-    (def %addr (%pj-ptr->int %ptr))
-    (def %poke (fn (_ i v) (%pj-pset %ptr (* i 8) v)))
-    (def %peek (fn (_ i) (%pj-pref %ptr (* i 8))))
+    (def %buf (str-make 256))
+    (def %ptr (str->ptr %buf))
+    (def %addr (ptr->int %ptr))
+    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i 8) v)))
+    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i 8))))
     (def %engine
       (fn (_ h rv s i end hibit)
         ((fn (self k)
-           (unless (= k 5) (do (%poke k (%pj-oref h (+ k 1))) (self (+ k 1))))) 0)
+           (unless (= k 5) (do (%poke k (obj-ref h (+ k 1))) (self (+ k 1))))) 0)
         ((fn (self k)
-           (unless (= k 9) (do (%poke (+ %pj-R k) (%pj-oref rv (+ k 1))) (self (+ k 1))))) 0)
-        (%poke %pj-SRC (%pj-ptr->int (%pj-str->ptr s)))
+           (unless (= k 9) (do (%poke (+ %pj-R k) (obj-ref rv (+ k 1))) (self (+ k 1))))) 0)
+        (%poke %pj-SRC (ptr->int (str->ptr s)))
         (%poke %pj-END end)
         (%poke %pj-HI hibit)
         ; each entry does up to a run of blocks and leaves pos past them
@@ -150,20 +143,20 @@
              (%step %addr 0)
              (self (%peek %pj-POS)))) i)
         ((fn (self k)
-           (unless (= k 5) (do (%pj-oset! h (+ k 1) (%peek k)) (self (+ k 1))))) 0)))
+           (unless (= k 5) (do (obj-set! h (+ k 1) (%peek k)) (self (+ k 1))))) 0)))
     ; the differential check: the accumulator after a run of blocks must
     ; match the reference's, over every byte value, with and without the
     ; high bit, and across more blocks than one entry does
     (def %ramp
       (fn (_ n)
-        (def r (%pj-make-str n))
-        (def p (%pj-str->ptr r))
-        ((fn (self k) (unless (= k n) (do (%pj-pset1 p k (& (* k 7) 255) 1) (self (+ k 1))))) 0)
+        (def r (str-make n))
+        (def p (str->ptr r))
+        ((fn (self k) (unless (= k n) (do (ptr-set! p k (& (* k 7) 255) 1) (self (+ k 1))))) 0)
         r))
     (def %same
       (fn (self x y k)
         (if (= k 6) #t
-          (if (= (%pj-oref x k) (%pj-oref y k)) (self x y (+ k 1)) #f))))
+          (if (= (obj-ref x k) (obj-ref y k)) (self x y (+ k 1)) #f))))
     (def %check
       (fn (_ s i end hibit)
         (def hx (Vector make 5 0))

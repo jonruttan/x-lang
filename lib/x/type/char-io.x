@@ -14,14 +14,10 @@
 (module x/type/char-io)
 (import x/codec/utf8)
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
-(def %type-push-write (prim-ref (lit type) (lit push-write)))
+(import x/core/doors char->int int->char type-by-atom type-of type-push-write)
 (def %type-push-display (prim-ref (lit type) (lit push-display)))
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
-(def %type-of (prim-ref (lit type) (lit of)))
 ; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
-(def %char->integer (prim-ref (lit char) (lit ->int)))
-(def %integer->char (prim-ref (lit int) (lit ->char)))
 
 
 
@@ -59,16 +55,16 @@
 (def %char-write
   (fn (_ ch)
     (display "#\\")
-    (let ((name (%char-name (%char->integer ch))))
+    (let ((name (%char-name (char->int ch))))
       (if (null? name)
         (display (%char->str ch))   ; glyph: the char's UTF-8 bytes
         (display name)))))          ; named: #\newline etc.
 
 ; --- install (onto the empty boot stacks) ---
 
-(let ((ct (%type-by-atom (%type-of (%integer->char 0)))))
+(let ((ct (type-by-atom (type-of (int->char 0)))))
   (%type-push-display ct %char-display)
-  (%type-push-write   ct %char-write))
+  (type-push-write   ct %char-write))
 
 (doc (provide x/type/char-io)
   "UTF-8-aware write/display handlers for CHARACTER values, so a code point renders as its glyph.")

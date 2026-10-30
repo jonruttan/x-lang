@@ -21,16 +21,7 @@
 
 (import x/tool/jit-group jit-group)
 
-(def %s5-make-str (prim-ref (lit str) (lit make)))
-(def %s5-str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %s5-ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %s5-pset (prim-ref (lit ptr) (lit set!)))
-(def %s5-pref (prim-ref (lit ptr) (lit ref)))
-(def %s5-oref (prim-ref (lit obj) (lit ref)))
-(def %s5-byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %s5-char->int (prim-ref (lit char) (lit ->int)))
-(def %s5-int->ptr (prim-ref (lit int) (lit ->ptr)))
-(def %s5-mem-copy (prim-ref (lit mem) (lit copy)))
+(import x/core/doors char->int int->ptr mem-copy obj-ref ptr->int ptr-ref ptr-set! str->ptr str-byte-ref str-make)
 
 ; scratch layout, one 2048-byte buffer (64-bit words):
 ;   0..15 W ring | 16..23 working state | 24 t1 25 t2 | 26 base 27 len
@@ -159,17 +150,17 @@
     ; drop the whole build's remaining garbage before the digest phase; a
     ; replay compiled nothing and skips the collect, which marks the whole heap
     (unless replayed? (Heap collect))
-    (def %buf (%s5-make-str 2048))
-    (def %ptr (%s5-str->ptr %buf))
-    (def %addr (%s5-ptr->int %ptr))
+    (def %buf (str-make 2048))
+    (def %ptr (str->ptr %buf))
+    (def %addr (ptr->int %ptr))
     ; a 64-bit slot as its two halves: lo at the slot's first four bytes
-    (def %poke-halves (fn (_ i hi lo) (%s5-pset %ptr (* i 8) lo 4) (%s5-pset %ptr (+ (* i 8) 4) hi 4)))
-    (def %poke (fn (_ i v) (%s5-pset %ptr (* i 8) v 8)))
-    (def %peek-hi (fn (_ i) (%s5-pref %ptr (+ (* i 8) 4) 4)))
-    (def %peek-lo (fn (_ i) (%s5-pref %ptr (* i 8) 4)))
+    (def %poke-halves (fn (_ i hi lo) (ptr-set! %ptr (* i 8) lo 4) (ptr-set! %ptr (+ (* i 8) 4) hi 4)))
+    (def %poke (fn (_ i v) (ptr-set! %ptr (* i 8) v 8)))
+    (def %peek-hi (fn (_ i) (ptr-ref %ptr (+ (* i 8) 4) 4)))
+    (def %peek-lo (fn (_ i) (ptr-ref %ptr (* i 8) 4)))
     ((fn (self t)
        (unless (= t 80)
-         (do (%poke-halves (+ %s5-KB t) (%s5-oref k (+ (* t 2) 1)) (%s5-oref k (+ (* t 2) 2)))
+         (do (%poke-halves (+ %s5-KB t) (obj-ref k (+ (* t 2) 1)) (obj-ref k (+ (* t 2) 2)))
              (self (+ t 1))))) 0)
     (def %disagrees "sha512-jit: engine disagrees with the pure-x digest")
     ; each initial hash's eight words preset at slot 128 + 8k, so a digest
@@ -194,7 +185,7 @@
              (unless (null? hs)
                (do (%poke-halves (+ %s5-HB i) (first hs) (first (rest hs)))
                    (self (+ i 1) (rest (rest hs)))))) 0 ih)
-          (%s5-mem-copy (%s5-int->ptr %h-at) (%s5-int->ptr (+ %addr (* 8 p))) 64))))
+          (mem-copy (int->ptr %h-at) (int->ptr (+ %addr (* 8 p))) 64))))
     ; The digest of S's first N bytes (its length where N is not given):
     ; sixteen halves, or, given OUT, its sixty-four bytes written there and
     ; OUT answered -- the second the door the hashes built on a digest use,
@@ -204,7 +195,7 @@
         (def len (match ((null? more) (Str8 length s)) (#t (first more))))
         (def out (match ((null? more) ()) ((null? (rest more)) ()) (#t (first (rest more)))))
         (def total (<< (+ (>> (+ len 16) 7) 1) 7))
-        (def maddr (%s5-ptr->int (%s5-str->ptr s)))
+        (def maddr (ptr->int (str->ptr s)))
         (%poke 27 len)
         (%poke 28 total)
         (%load-h! ih)
@@ -222,7 +213,7 @@
              (if (< i 0) acc
                (self (- i 1) (pair (%peek-hi (+ %s5-HB i)) (pair (%peek-lo (+ %s5-HB i)) acc)))))
            7 ())
-          (do (%emit %addr (%s5-ptr->int (%s5-str->ptr out)) 0) out))))
+          (do (%emit %addr (ptr->int (str->ptr out)) 0) out))))
     ; the differential check: FIPS vectors, a two-block input, and an
     ; input that lands the padding in a block of its own
     (def %same
@@ -254,28 +245,28 @@
         ; "A\0B\0C" through the pointer door, and a binary block that crosses
         ; the 128-byte boundary, so the fill and the padding path see NULs too
         (def %s5-bin
-          (let ((r (%s5-make-str 5)))
-            (let ((p (%s5-str->ptr r)))
-              (do (%s5-pset p 0 65 1) (%s5-pset p 1 0 1) (%s5-pset p 2 66 1)
-                  (%s5-pset p 3 0 1)  (%s5-pset p 4 67 1)
+          (let ((r (str-make 5)))
+            (let ((p (str->ptr r)))
+              (do (ptr-set! p 0 65 1) (ptr-set! p 1 0 1) (ptr-set! p 2 66 1)
+                  (ptr-set! p 3 0 1)  (ptr-set! p 4 67 1)
                   r))))
         (%check-n %s5-bin 5)
         (def %s5-bin2
-          (let ((r (%s5-make-str 300)))
-            (let ((p (%s5-str->ptr r)))
+          (let ((r (str-make 300)))
+            (let ((p (str->ptr r)))
               (do ((fn (self i)
                      (unless (= i 300)
-                       (do (%s5-pset p i (& i 255) 1) (self (+ i 1))))) 0)
+                       (do (ptr-set! p i (& i 255) 1) (self (+ i 1))))) 0)
                   r))))
         (%check-n %s5-bin2 300)
         ; the door that writes the bytes: the same digest, byte for byte
-        (def %s5-out (%s5-make-str 65))
+        (def %s5-out (str-make 65))
         ((fn (self l)
            (unless (null? l)
              (do (%digest (first l) %s5-bin2 300 %s5-out)
                  ((fn (self i hs)
                     (unless (null? hs)
-                      (do (unless (= (%s5-pref (%s5-str->ptr %s5-out) i 4)
+                      (do (unless (= (ptr-ref (str->ptr %s5-out) i 4)
                                      (| (| (<< (& (first hs) 255) 24) (<< (& (>> (first hs) 8) 255) 16))
                                         (| (<< (& (>> (first hs) 16) 255) 8) (& (>> (first hs) 24) 255))))
                             (Err raise 'state (Str8 append %disagrees " (bytes)") ()))

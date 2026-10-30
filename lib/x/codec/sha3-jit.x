@@ -20,12 +20,7 @@
 (import x/tool/compile compile-asm)
 (import x/type/vector)
 
-(def %k3-make-str (prim-ref (lit str) (lit make)))
-(def %k3-str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %k3-ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %k3-pset (prim-ref (lit ptr) (lit set!)))
-(def %k3-pref (prim-ref (lit ptr) (lit ref)))
-(def %k3-oref (prim-ref (lit obj) (lit ref)))
+(import x/core/doors obj-ref ptr->int ptr-ref ptr-set! str->ptr str-make)
 
 ; scratch layout, one 1024-byte buffer of 64-bit words:
 ;   0..24 A (the lanes) | 25..49 B | 50..54 C | 55 base 56 len 57 total
@@ -123,19 +118,19 @@
     (def %chi (compile-asm %k3-chi-expr))
     (def %absorb (compile-asm %k3-absorb-expr))
     (Heap collect)
-    (def %buf (%k3-make-str 1024))
-    (def %ptr (%k3-str->ptr %buf))
-    (def %addr (%k3-ptr->int %ptr))
-    (def %poke (fn (_ i v) (%k3-pset %ptr (* i 8) v 8)))
-    (def %peek (fn (_ i) (%k3-pref %ptr (* i 8) 8)))
+    (def %buf (str-make 1024))
+    (def %ptr (str->ptr %buf))
+    (def %addr (ptr->int %ptr))
+    (def %poke (fn (_ i v) (ptr-set! %ptr (* i 8) v 8)))
+    (def %peek (fn (_ i) (ptr-ref %ptr (* i 8) 8)))
     ((fn (self r)
        (unless (= r 24)
-         (do (%poke (+ %k3-RC r) (%k3-oref rc (+ r 1))) (self (+ r 1))))) 0)
+         (do (%poke (+ %k3-RC r) (obj-ref rc (+ r 1))) (self (+ r 1))))) 0)
     (def %digest
       (fn (_ width s n)
         (def rate (- 200 (>> width 2)))
         (def total (* (+ (/ (- n (% n rate)) rate) 1) rate))
-        (def maddr (%k3-ptr->int (%k3-str->ptr s)))
+        (def maddr (ptr->int (str->ptr s)))
         ((fn (self i) (unless (= i 25) (do (%poke i 0) (self (+ i 1))))) 0)
         (%poke 56 n)
         (%poke 57 total)
@@ -167,9 +162,9 @@
     (%check 256 (Str8 pad-right 135 #\z "") 135)
     ; binary bytes across a block boundary, NULs included
     (def %k3-bin
-      (let ((r (%k3-make-str 300)))
-        (let ((p (%k3-str->ptr r)))
-          (do ((fn (self i) (unless (= i 300) (do (%k3-pset p i (& i 255) 1) (self (+ i 1))))) 0)
+      (let ((r (str-make 300)))
+        (let ((p (str->ptr r)))
+          (do ((fn (self i) (unless (= i 300) (do (ptr-set! p i (& i 255) 1) (self (+ i 1))))) 0)
               r))))
     (%check 512 %k3-bin 300)
     %digest))

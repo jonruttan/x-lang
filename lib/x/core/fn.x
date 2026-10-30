@@ -43,8 +43,7 @@
 ; The reflection doors the value path takes.  It dispatches on every call it
 ; serves, so they are fetched once, here, as the modules that wire types fetch
 ; theirs; fetched from the catalogue on each call they cost 1,283 objects.
-(def %apply-type-of (prim-ref (lit type) (lit of)))
-(def %apply-by-atom (prim-ref (lit type) (lit by-atom)))
+(import x/core/doors type-by-atom type-of)
 (def %apply-call-top (prim-ref (lit type) (lit call-top)))
 ; The label of callable f, in one call on the door's fast path: (lit fn)
 ; for a closure or a primitive, which take the values as they are; (lit op)
@@ -55,7 +54,6 @@
 ; reader, so they add no module global.
 (def %apply-label
   ((fn (_ )
-     (def type-of (prim-ref (lit type) (lit of)))
      (def is? (prim-ref (lit type) (lit ?)))
      (def proc-t (type-of (fn (_ ) ())))
      (def prim-t (type-of eq?))
@@ -99,7 +97,7 @@
 ; the primitive; let is derived from apply and builds a form to do it.
 (def %apply-value
   (fn (_ f args)
-    (def t (%apply-by-atom (%apply-type-of f)))
+    (def t (type-by-atom (type-of f)))
     (def h (match
              ((eq? t ()) ())
              (#t (%apply-call-top t))))
@@ -211,7 +209,7 @@
         (example "(Fn label (wrap (op (x) e x)))" "'wrap")
         (example "(Fn label first)" "'prim")
         (example "(null? (Fn label 42))" "#t"))
-      (if ((prim-ref (lit type) (lit ?)) f (%apply-type-of eq?))
+      (if ((prim-ref (lit type) (lit ?)) f (type-of eq?))
         (lit prim)
         (%apply-label f)))
     (method %state (self f)

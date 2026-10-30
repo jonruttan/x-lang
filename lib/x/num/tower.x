@@ -34,10 +34,8 @@
 (import x/num/decimal ensure-dec dec-add dec-sub dec-mul dec-div dec-mod dec-eq dec-lt decimal-type)
 (import x/type/generic)
 
-(def %tw-str-append (prim-ref (lit str) (lit append)))
-(def %tw-type-of (prim-ref (lit type) (lit of)))
+(import x/core/doors str-append type-of type-push-op type?)
 (def %tw-type-name (prim-ref (lit type) (lit name)))
-(def %tw-push-op (prim-ref (lit type) (lit push-op)))
 
 ; A type's HANDLE: the name-stack's current atom (field 0 of the
 ; type, (current . saved) stacked) -- the same atom (Type of v)
@@ -72,21 +70,21 @@
   (fn (_ wtab)                              ; wtab: ((handle . worker) ...) for ONE generic
     (fn (_ g args)
       (let ((a (first args)) (b (first (rest args))))
-        (let ((ha (%tw-type-of a)) (hb (%tw-type-of b)))
+        (let ((ha (type-of a)) (hb (type-of b)))
           (def %run
             (fn (_ h x y)
               (let ((w (%assoc-get h wtab)) (en (%assoc-get h %tw-ensure-of)))
                 (if (null? w)
-                  (error (%tw-str-append "tower: " (%tw-str-append (%tw-type-name h)
+                  (error (str-append "tower: " (str-append (%tw-type-name h)
                     " sits this operator out")))
                   (w (en x) (en y))))))
           (match
             ((%tw-absorb? ha hb) (%run ha a b))
             ((%tw-absorb? hb ha) (%run hb a b))
             (#t
-              (error (%tw-str-append "tower: no method and no declared promotion ("
-                (%tw-str-append (%tw-type-name ha)
-                  (%tw-str-append " x " (%tw-str-append (%tw-type-name hb)
+              (error (str-append "tower: no method and no declared promotion ("
+                (str-append (%tw-type-name ha)
+                  (str-append " x " (str-append (%tw-type-name hb)
                     ") -- declare the cvt relation or write the (on ...) method"))))))))))))
 
 ; Wire one operator across the five types: an exact-pair method per type
@@ -109,9 +107,9 @@
             (unless (null? (first ws))
               (let ((h (%tw-handle (first ts))) (w (first ws)))
                 (Generic add! g (list h h) (fn (_ a b) (w a b)))
-                (%tw-push-op (first ts) opsym
+                (type-push-op (first ts) opsym
                   (fn (_ a b)
-                    (if (eq? (%tw-type-of a) (%tw-type-of b))
+                    (if (eq? (type-of a) (type-of b))
                       (w a b)
                       (g a b))))))
             (loop (rest ts) (rest ws))))))

@@ -16,19 +16,14 @@
 (def %char (Type named CHARACTER))
 (import x/type/class)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(def %buffer-token (prim-ref 'buf 'tok))
+(import x/core/doors buf-tok char->int str-append type-make type-make-instance type?)
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(def %str-append (prim-ref 'str 'append))
 
 ; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
 (def %cvt (prim-ref 'convert 'to))
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
-(def %make-type (prim-ref 'type 'make))
-(def %make-instance (prim-ref 'type 'make-instance))
-(def %type? (prim-ref 'type '?))
 ; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
-(def %char->integer (prim-ref 'char '->int))
 
 
 
@@ -56,7 +51,7 @@
 ; self-recursion re-converted chr on every entry.
 (def %regex-class-match
   (fn (_ entries chr)
-    (def c (%char->integer chr))
+    (def c (char->int chr))
     (def go
       (fn (self es)
         (if (null? es) #f
@@ -260,16 +255,16 @@
             (if (= pos 0) (%regex-exec rest-nodes str pos end caps) ()))
           ((eq? label 'anchor-word-boundary)
             (let ((left-word (if (= pos 0) #f
-                    (%regex-is-word-char (%char->integer (%str-ref str (- pos 1))))))
+                    (%regex-is-word-char (char->int (%str-ref str (- pos 1))))))
                   (right-word (if (= pos end) #f
-                    (%regex-is-word-char (%char->integer (%str-ref str pos))))))
+                    (%regex-is-word-char (char->int (%str-ref str pos))))))
               (if (eq? left-word right-word) ()
                 (%regex-exec rest-nodes str pos end caps))))
           ((eq? label 'anchor-not-word-boundary)
             (let ((left-word (if (= pos 0) #f
-                    (%regex-is-word-char (%char->integer (%str-ref str (- pos 1))))))
+                    (%regex-is-word-char (char->int (%str-ref str (- pos 1))))))
                   (right-word (if (= pos end) #f
-                    (%regex-is-word-char (%char->integer (%str-ref str pos))))))
+                    (%regex-is-word-char (char->int (%str-ref str pos))))))
               (if (eq? left-word right-word)
                 (%regex-exec rest-nodes str pos end caps) ())))
           ((eq? label 'anchor-end)
@@ -446,14 +441,14 @@
     (def %go
       (fn (self i acc)
         (if (>= i end) (pair (pair label (%reverse acc)) i)
-          (let ((ch (%char->integer (%str-ref s i))))
+          (let ((ch (char->int (%str-ref s i))))
             (match
               ((= ch #\])
                 (pair (pair label (%reverse acc)) (+ i 1)))
               ; Escape inside class: \d \w \s etc. expand to ranges/literals
               ((= ch #\\)
                 (if (>= (+ i 1) end) (self (+ i 1) (pair ch acc))
-                  (let ((esc (%char->integer (%str-ref s (+ i 1)))))
+                  (let ((esc (char->int (%str-ref s (+ i 1)))))
                     (match
                       ((= esc #\d) (self (+ i 2) (pair (pair 48 57) acc)))
                       ((= esc #\w) (self (+ i 2) (pair 95 (pair (pair 97 122) (pair (pair 65 90) (pair (pair 48 57) acc))))))
@@ -462,9 +457,9 @@
               ; Range: a-z.  A - just before the closing ] is a literal
               ; (POSIX), so [+-] is the two characters, not + to ].
               ((and (< (+ i 2) end)
-                    (and (= (%char->integer (%str-ref s (+ i 1))) #\-)
-                         (not (= (%char->integer (%str-ref s (+ i 2))) #\]))))
-                (let ((hi (%char->integer (%str-ref s (+ i 2)))))
+                    (and (= (char->int (%str-ref s (+ i 1))) #\-)
+                         (not (= (char->int (%str-ref s (+ i 2))) #\]))))
+                (let ((hi (char->int (%str-ref s (+ i 2)))))
                   (self (+ i 3) (pair (pair ch hi) acc))))
               (#t (self (+ i 1) (pair ch acc))))))))
     (%go start ())))
@@ -603,7 +598,7 @@
 ; --- Type definition ---
 
 (set! %regex
-  (%make-type
+  (type-make
     "REGEX"
     (list
       (pair
@@ -629,13 +624,13 @@
             ())))
       (pair 'read
         (fn (_ . args)
-          (def tok (%buffer-token (first args)))
+          (def tok (buf-tok (first args)))
           ; Strip #/ prefix and / suffix
           (def pattern (%substring tok 2 (- (%str-length tok) 1)))
-          (%make-instance %regex (%regex-parse pattern)))))))
+          (type-make-instance %regex (%regex-parse pattern)))))))
 
 (set! %regex-read
-  (fn (_ . args) (%make-instance %regex (first args))))
+  (fn (_ . args) (type-make-instance %regex (first args))))
 
 ; --- Captures to texts (#23) ---
 ; A winning exec state's caps hold finished (N start end) triples,
@@ -690,17 +685,17 @@
   (fn (_ rep groups)
     (def len (%str-length rep))
     ; Pieces prepend, ONE concat at the end (#333): the per-token
-    ; %str-append re-copied all prior output -- O(n^2) in the expanded
+    ; str-append re-copied all prior output -- O(n^2) in the expanded
     ; length, per replacement, per match.
     (def %go
       (fn (self i acc)
         (if (>= i len) (%str-concat (%reverse acc))
-          (let ((ch (%char->integer (%str-ref rep i))))
+          (let ((ch (char->int (%str-ref rep i))))
             (if (not (= ch 36))                       ; $
               (self (+ i 1) (pair (%substring rep i (+ i 1)) acc))
               (if (>= (+ i 1) len)
                 (%str-concat (%reverse (pair "$" acc)))
-                (let ((nx (%char->integer (%str-ref rep (+ i 1)))))
+                (let ((nx (char->int (%str-ref rep (+ i 1)))))
                   (match
                     ((= nx 36)                        ; $$
                       (self (+ i 2) (pair "$" acc)))
@@ -721,14 +716,14 @@
 ; silently no-op -- (first non-regex) walked garbage that never matched.
 (def %rx-nodes
   (fn (_ rx)
-    (if (%type? rx %regex) (first rx)
+    (if (type? rx %regex) (first rx)
       (Err raise 'type "Regex: expected a compiled regex -- use #/.../ or (Regex compile pattern)" ()))))
 
 (def-class Regex ()
   (static
     (method regex? (self (param x ANY "Value to test"))
       (doc "Test whether a value is a regex." (returns BOOL "True if x is a regex"))
-      (%type? x %regex))
+      (type? x %regex))
     ; Every exec method is subject-LAST (the regex is the final parameter):
     ; the class-call handler appends the dispatched value last, so value-calls
     ; like (#/,/ split "a,b") route to (Regex split "a,b" #/,/).
@@ -806,9 +801,9 @@
       (def m (%regex-find-caps str 0 rx))
       (if (null? m) str
         (let ((groups (first (rest (rest m)))))
-          (%str-append
+          (str-append
             (%substring str 0 (first m))
-            (%str-append
+            (str-append
               (%regex-get-replacement rep (%assoc-get 0 groups) groups)
               (%substring str (first (rest m)) (%str-length str)))))))
     (method replace-all (self (param str STRING "Input string") (param rep ANY "Replacement string or function") (param rx REGEX "Compiled regex"))
@@ -860,7 +855,7 @@
       (doc "Compile a pattern string into a REGEX value -- the programmatic twin of the #/.../ literal, for patterns built at runtime."
         (returns REGEX "Compiled regex, usable with every exec method and as a value-call subject")
         (example "(Regex find \"abc123\" (Regex compile \"[0-9]+\"))" "\"123\""))
-      (%make-instance %regex (%regex-parse pattern)))))
+      (type-make-instance %regex (%regex-parse pattern)))))
 
 ; Value dispatch over the existing match call handler: (rx match s) / (rx find s)
 ; dispatch to Regex methods; (rx "input") still runs the bare match.

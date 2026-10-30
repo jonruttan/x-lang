@@ -27,9 +27,7 @@
 ; The converter is fetched here too: x/sys/posix's %cvt, which this file
 ; used to read from the root, is private to that module.
 (def %cvt (prim-ref (lit convert) (lit to)))
-(def %sha+ (prim-ref 'int '+))
-(def %sha- (prim-ref 'int '-))
-(def %sha* (prim-ref 'int '*))
+(import x/core/doors char->int int* int+ int- obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
 ; Raw slot access for the fixed 64-slot schedule vectors: the class
 ; dispatch behind (Vector ref)/(Vector set!) costs hundreds of heap
 ; objects PER CALL, and this loop makes millions of calls -- it was the
@@ -38,8 +36,6 @@
 ; structurally in range (0..63 against 64-slot vectors, t>=16 for the
 ; backward references), the same trust model as unchecked first/rest;
 ; slot = index + 1, the length rides slot 0.
-(def %sha-oref (prim-ref (lit obj) (lit ref)))
-(def %sha-oset! (prim-ref (lit obj) (lit set!)))
 ; Message bytes come through (str byte-ref) + (char ->int), NOT the
 ; generic converter.  %cvt is a catalogue dispatch: measured at ~142us per
 ; byte against ~11us for the pair below, and filling W is 92% of a
@@ -50,8 +46,6 @@
 ; (str ref) is NOT interchangeable here: char->int on ITS result answers
 ; garbage (51105660208 for a byte whose value is 100).  Only byte-ref
 ; yields the char whose ->int is the byte.
-(def %sha-byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %sha-char->int (prim-ref (lit char) (lit ->int)))
 (def %sha-mask 4294967295)
 
 ; The integer type's handle is fetched once, by name through Type's door,
@@ -112,8 +106,8 @@
 (def %sha-ch  (fn (_ x y z) (^ (& x y) (& (& (~ x) %sha-mask) z))))
 (def %sha-maj (fn (_ x y z) (^ (& x y) (^ (& x z) (& y z)))))
 
-(def %sha+4 (fn (_ a b c d) (%sha+ (%sha+ a b) (%sha+ c d))))
-(def %sha+5 (fn (_ a b c d e) (%sha+ (%sha+4 a b c d) e)))
+(def %sha+4 (fn (_ a b c d) (int+ (int+ a b) (int+ c d))))
+(def %sha+5 (fn (_ a b c d e) (int+ (%sha+4 a b c d) e)))
 
 ; The padded message, addressed virtually -- no padded copy is built.
 ; Byte i is: the message; then 0x80; then zeros; then the bit length,
@@ -121,25 +115,25 @@
 (def %sha-byte
   (fn (_ s len total i)
     (match
-      ((< i len) (%sha-char->int (%sha-byte-ref s i)))
+      ((< i len) (char->int (str-byte-ref s i)))
       ((= i len) 128)
-      ((< i (%sha- total 8)) 0)
-      (#t (& (>> (%sha* len 8) (<< (%sha- (%sha- total 1) i) 3)) 255)))))
+      ((< i (int- total 8)) 0)
+      (#t (& (>> (int* len 8) (<< (int- (int- total 1) i) 3)) 255)))))
 
 (def %sha-word
   (fn (_ s len total base)
     (| (<< (%sha-byte s len total base) 24)
-       (| (<< (%sha-byte s len total (%sha+ base 1)) 16)
-          (| (<< (%sha-byte s len total (%sha+ base 2)) 8)
-             (%sha-byte s len total (%sha+ base 3)))))))
+       (| (<< (%sha-byte s len total (int+ base 1)) 16)
+          (| (<< (%sha-byte s len total (int+ base 2)) 8)
+             (%sha-byte s len total (int+ base 3)))))))
 
 (def %sha-fill-w!
   (fn (self s len total base w t)
     (match
       ((= t 16) ())
       (#t
-        (do (%sha-oset! w (%sha+ t 1) (%sha-word s len total (%sha+ base (<< t 2))))
-            (self s len total base w (%sha+ t 1)))))))
+        (do (obj-set! w (int+ t 1) (%sha-word s len total (int+ base (<< t 2))))
+            (self s len total base w (int+ t 1)))))))
 
 (def %sha-extend-w!
   (fn (self w t)
@@ -147,13 +141,13 @@
       ((= t 64) ())
       (#t
         ; slots fold the +1: (t-2)+1 = t-1, and so on
-        (do (%sha-oset! w (%sha+ t 1)
-              (& (%sha+4 (%sha-ssig1 (%sha-oref w (%sha- t 1)))
-                         (%sha-oref w (%sha- t 6))
-                         (%sha-ssig0 (%sha-oref w (%sha- t 14)))
-                         (%sha-oref w (%sha- t 15)))
+        (do (obj-set! w (int+ t 1)
+              (& (%sha+4 (%sha-ssig1 (obj-ref w (int- t 1)))
+                         (obj-ref w (int- t 6))
+                         (%sha-ssig0 (obj-ref w (int- t 14)))
+                         (obj-ref w (int- t 15)))
                  %sha-mask))
-            (self w (%sha+ t 1)))))))
+            (self w (int+ t 1)))))))
 
 ; The 64-round compression; sums stay below 2^35, masked where stored.
 (def %sha-rounds
@@ -162,11 +156,11 @@
       ((= t 64) (list a b c d e f g h))
       (#t
         (let ((t1 (%sha+5 h (%sha-bsig1 e) (%sha-ch e f g)
-                          (%sha-oref %sha-k (%sha+ t 1)) (%sha-oref w (%sha+ t 1))))
-              (t2 (%sha+ (%sha-bsig0 a) (%sha-maj a b c))))
-          (self w (%sha+ t 1)
-            (& (%sha+ t1 t2) %sha-mask) a b c
-            (& (%sha+ d t1) %sha-mask) e f g))))))
+                          (obj-ref %sha-k (int+ t 1)) (obj-ref w (int+ t 1))))
+              (t2 (int+ (%sha-bsig0 a) (%sha-maj a b c))))
+          (self w (int+ t 1)
+            (& (int+ t1 t2) %sha-mask) a b c
+            (& (int+ d t1) %sha-mask) e f g))))))
 
 (def %sha-blocks
   (fn (self s len total base w h0 h1 h2 h3 h4 h5 h6 h7)
@@ -192,15 +186,15 @@
             (%sha-fill-w! s len total base w 0)
             (%sha-extend-w! w 16)
             (let ((r (%sha-rounds w 0 h0 h1 h2 h3 h4 h5 h6 h7)))
-              (self s len total (%sha+ base 64) w
-                (& (%sha+ h0 (first r)) %sha-mask)
-                (& (%sha+ h1 (first (rest r))) %sha-mask)
-                (& (%sha+ h2 (first (rest (rest r)))) %sha-mask)
-                (& (%sha+ h3 (first (rest (rest (rest r))))) %sha-mask)
-                (& (%sha+ h4 (first (rest (rest (rest (rest r)))))) %sha-mask)
-                (& (%sha+ h5 (first (rest (rest (rest (rest (rest r))))))) %sha-mask)
-                (& (%sha+ h6 (first (rest (rest (rest (rest (rest (rest r)))))))) %sha-mask)
-                (& (%sha+ h7 (first (rest (rest (rest (rest (rest (rest (rest r))))))))) %sha-mask))))))))
+              (self s len total (int+ base 64) w
+                (& (int+ h0 (first r)) %sha-mask)
+                (& (int+ h1 (first (rest r))) %sha-mask)
+                (& (int+ h2 (first (rest (rest r)))) %sha-mask)
+                (& (int+ h3 (first (rest (rest (rest r))))) %sha-mask)
+                (& (int+ h4 (first (rest (rest (rest (rest r)))))) %sha-mask)
+                (& (int+ h5 (first (rest (rest (rest (rest (rest r))))))) %sha-mask)
+                (& (int+ h6 (first (rest (rest (rest (rest (rest (rest r)))))))) %sha-mask)
+                (& (int+ h7 (first (rest (rest (rest (rest (rest (rest (rest r))))))))) %sha-mask))))))))
 
 (def %sha-hex8
   (let ((string-type (Type named STRING)))
@@ -233,7 +227,7 @@
     (def %len (match ((null? n) (Str8 length s)) (#t (first n))))
     ; padded length: L+1+k+8 rounded to a 64-byte block -- via shifts,
     ; no division (the tower / trap has nothing to bite)
-    (def %total (<< (%sha+ (>> (%sha+ %len 8) 6) 1) 6))
+    (def %total (<< (int+ (>> (int+ %len 8) 6) 1) 6))
     (%sha-blocks s %len %total 0 (Vector make 64 0)
       (first %sha-ih)
       (first (rest %sha-ih))
@@ -331,23 +325,17 @@
 
 (def-class Sha256 ()
   (static
-    ; the buffer bytes-n answers, homed here as statics rather than
-    ; top-level %-globals: the prims it writes through, and the words as
-    ; the digest's bytes, each word big-endian, written into OUT
-    (%make-str (prim-ref (lit str) (lit make)))
-    (%str->ptr (prim-ref (lit str) (lit ->ptr)))
-    (%pset1 (prim-ref (lit ptr) (lit set!)))
     (method %bytes (self hs out)
-      (def p ((Sha256 %str->ptr) out))
-      (def set (Sha256 %pset1))
+      (def p (str->ptr out))
+      (def set ptr-set!)
       (def put
         (fn (self ws i)
           (unless (null? ws)
             (do (set p i (& (>> (first ws) 24) 255) 1)
-                (set p (%sha+ i 1) (& (>> (first ws) 16) 255) 1)
-                (set p (%sha+ i 2) (& (>> (first ws) 8) 255) 1)
-                (set p (%sha+ i 3) (& (first ws) 255) 1)
-                (self (rest ws) (%sha+ i 4))))))
+                (set p (int+ i 1) (& (>> (first ws) 16) 255) 1)
+                (set p (int+ i 2) (& (>> (first ws) 8) 255) 1)
+                (set p (int+ i 3) (& (first ws) 255) 1)
+                (self (rest ws) (int+ i 4))))))
       (do (put hs 0) out))
     (method hex (self (param s STRING "Bytes to digest (a byte string)"))
       (doc "SHA-256 digest of s, as a 64-character lowercase hex string (FIPS 180-4). Computed pure-x, or by the differentially-verified compiled engine once (jit!) has built it -- identical output either way; the executable vectors below are the standard's."
@@ -366,7 +354,7 @@
                           (param n INTEGER "How many bytes of s to digest"))
       (doc "SHA-256 of the FIRST n BYTES of s, as a fresh buffer of the digest's 32 bytes -- binary, so read it by count, not as a string: a NUL among the bytes ends its string length. The same engines as hex-n, without the hex. THE LENGTH IS YOUR CLAIM AND IS NOT CHECKED, as hex-n's is."
         (returns STRING "A 32-byte buffer"))
-      (%sha-hash-words s n ((Sha256 %make-str) 33)))
+      (%sha-hash-words s n (str-make 33)))
     (method bytes-into (self (param s STRING "Byte region to digest")
                              (param n INTEGER "How many bytes of s to digest")
                              (param out STRING "A buffer of 32 bytes or more, written from its start"))

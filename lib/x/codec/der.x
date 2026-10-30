@@ -13,39 +13,29 @@
 ; The bit operations through the int doors: the generic ones dispatch
 ; through the numeric tower, about a hundred objects a call, these none.
 ; There is no int xor: a ^ b is (a | b) - (a & b).
-(def %and (prim-ref (lit int) (lit &)))
-(def %or (prim-ref (lit int) (lit |)))
-(def %shl (prim-ref (lit int) (lit <<)))
-(def %shr (prim-ref (lit int) (lit >>)))
-(def %isub (prim-ref 'int '-))
-(def %xor (fn (_ a b) (%isub (%or a b) (%and a b))))
+(import x/core/doors char->int int& int- int/ int<< int>> int| ptr-set! str->ptr str-byte-ref str-make)
+(def %xor (fn (_ a b) (int- (int| a b) (int& a b))))
 
 
 ; Integer division on the int prim: under the numeric tower / is exact, and
 ; 7/2 is a ratio there.
-(def %div (prim-ref (lit int) (lit /)))
 
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "Der: " what) ())))
 
 ; Bytes read through the prims: a certificate is read a byte at a time,
 ; and a class call a byte is hundreds of objects where a prim is one.
-(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %char->int (prim-ref (lit char) (lit ->int)))
-(def %at (fn (_ r i) (%char->int (%byte-ref (first r) (+ (first (rest r)) i)))))
+(def %at (fn (_ r i) (char->int (str-byte-ref (first r) (+ (first (rest r)) i)))))
 (def %len (fn (_ r) (first (rest (rest r)))))
 
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %pset (prim-ref (lit ptr) (lit set!)))
 
 ; n's decimal digits written at p + at: answers the offset past them.
 (def %put-dec
   (fn (_ p at n)
-    (def len ((fn (self m k) (if (< m 10) k (self (%div m 10) (+ k 1)))) n 1))
+    (def len ((fn (self m k) (if (< m 10) k (self (int/ m 10) (+ k 1)))) n 1))
     ((fn (self i m)
        (unless (< i 0)
-         (do (%pset p (+ at i) (+ 48 (- m (* 10 (%div m 10)))) 1)
-             (self (- i 1) (%div m 10)))))
+         (do (ptr-set! p (+ at i) (+ 48 (- m (* 10 (int/ m 10)))) 1)
+             (self (- i 1) (int/ m 10)))))
      (- len 1) n)
     (+ at len)))
 
@@ -58,7 +48,7 @@
     (def p (first (rest rd)))
     (when (>= p (first (rest (rest rd)))) (%fail "an element cut short"))
     (%set-first! (rest rd) (+ p 1))
-    (%char->int (%byte-ref (first rd) p))))
+    (char->int (str-byte-ref (first rd) p))))
 (def %rd-take
   (fn (_ rd n)
     (def p (first (rest rd)))
@@ -72,14 +62,14 @@
       ((< b 128) b)
       ((= b 128) (%fail "an indefinite length"))
       ((> b 132) (%fail "a length of more than four bytes"))
-      (#t ((fn (self k acc) (if (= k 0) acc (self (- k 1) (%or (%shl acc 8) (%rd-u8 rd))))) (- b 128) 0)))))
+      (#t ((fn (self k acc) (if (= k 0) acc (self (- k 1) (int| (int<< acc 8) (%rd-u8 rd))))) (- b 128) 0)))))
 
 ; The next element at a cursor, as (TAG CONTENTS WHOLE).
 (def %next
   (fn (_ rd)
     (def start (%rd-pos rd))
     (def tag (%rd-u8 rd))
-    (when (= (%and tag 31) 31) (%fail "a multi-byte tag"))
+    (when (= (int& tag 31) 31) (%fail "a multi-byte tag"))
     (def len (%length rd))
     (when (> len (%rd-left rd)) (%fail "an element longer than what holds it"))
     (def contents (%rd-take rd len))
@@ -89,10 +79,10 @@
 (def %days
   (fn (_ y m d)
     (def y2 (if (<= m 2) (- y 1) y))
-    (def era (if (>= y2 0) (%div y2 400) (%div (- y2 399) 400)))
+    (def era (if (>= y2 0) (int/ y2 400) (int/ (- y2 399) 400)))
     (def yoe (- y2 (* era 400)))
-    (def doy (+ (%div (+ (* 153 (+ m (if (> m 2) -3 9))) 2) 5) (- d 1)))
-    (def doe (+ (* yoe 365) (%div yoe 4) (- 0 (%div yoe 100)) doy))
+    (def doy (+ (int/ (+ (* 153 (+ m (if (> m 2) -3 9))) 2) 5) (- d 1)))
+    (def doe (+ (* yoe 365) (int/ yoe 4) (- 0 (int/ yoe 100)) doy))
     (+ (* era 146097) doe -719468)))
 
 (def %digits
@@ -129,18 +119,18 @@
       (def b0 (%at contents 0))
       ; the dotted text written into a buffer as the arcs are read: at most
       ; twenty digits and a dot an arc, and an arc a byte at most
-      (def out (%make-str (+ 1 (* 21 (+ n 2)))))
-      (def p (%str->ptr out))
-      (def at1 (%put-dec p 0 (if (< b0 80) (%div b0 40) 2)))
-      (%pset p at1 46 1)
-      (def at (%put-dec p (+ at1 1) (if (< b0 80) (- b0 (* 40 (%div b0 40))) (- b0 80))))
+      (def out (str-make (+ 1 (* 21 (+ n 2)))))
+      (def p (str->ptr out))
+      (def at1 (%put-dec p 0 (if (< b0 80) (int/ b0 40) 2)))
+      (ptr-set! p at1 46 1)
+      (def at (%put-dec p (+ at1 1) (if (< b0 80) (- b0 (* 40 (int/ b0 40))) (- b0 80))))
       ((fn (self i at v)
          (if (= i n)
-           (if (= v 0) (do (%pset p at 0 1) out) (%fail "an OID cut short"))
+           (if (= v 0) (do (ptr-set! p at 0 1) out) (%fail "an OID cut short"))
            (do (def b (%at contents i))
-               (def v2 (%or (%shl v 7) (%and b 127)))
+               (def v2 (int| (int<< v 7) (int& b 127)))
                (if (>= b 128) (self (+ i 1) at v2)
-                 (do (%pset p at 46 1) (self (+ i 1) (%put-dec p (+ at 1) v2) 0))))))
+                 (do (ptr-set! p at 46 1) (self (+ i 1) (%put-dec p (+ at 1) v2) 0))))))
        1 at 0))
     (method time (self (param tag INTEGER "23 for UTCTime, 24 for GeneralizedTime")
                        (param contents LIST "The time's contents, a region"))
@@ -168,7 +158,7 @@
         (returns INTEGER "The value")
         (example "(Der small (first (rest (Der read (Bytes of-hex \"020102\")))))" "2"))
       (when (or (= (%len contents) 0) (> (%len contents) 4) (>= (%at contents 0) 128)) (%fail "not a small INTEGER"))
-      ((fn (self i acc) (if (= i (%len contents)) acc (self (+ i 1) (%or (%shl acc 8) (%at contents i))))) 0 0))))
+      ((fn (self i acc) (if (= i (%len contents)) acc (self (+ i 1) (int| (int<< acc 8) (%at contents i))))) 0 0))))
 
 (doc (provide x/codec/der Der)
   "DER (X.690) over regions: (Der read r) answers an element (TAG CONTENTS WHOLE); items, oid, time, bits and small read what is inside one.")

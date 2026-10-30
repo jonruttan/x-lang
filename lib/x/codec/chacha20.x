@@ -21,25 +21,11 @@
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
 
-(def %add (prim-ref 'int '+))
-(def %sub (prim-ref 'int '-))
-(def %oref (prim-ref (lit obj) (lit ref)))
-(def %oset! (prim-ref (lit obj) (lit set!)))
-(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %char->int (prim-ref (lit char) (lit ->int)))
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %pset1 (prim-ref (lit ptr) (lit set!)))
+(import x/core/doors char->int int& int+ int- int< int<< int= int>> int| obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
 ; The bit operations through the int doors: the generic ones dispatch
 ; through the numeric tower, about a hundred objects a call, these none.
 ; There is no int xor: a ^ b is (a | b) - (a & b).  Every operand is an int.
-(def %and (prim-ref (lit int) (lit &)))
-(def %or (prim-ref (lit int) (lit |)))
-(def %shl (prim-ref (lit int) (lit <<)))
-(def %shr (prim-ref (lit int) (lit >>)))
-(def %eq (prim-ref (lit int) (lit =)))
-(def %lt (prim-ref (lit int) (lit <)))
-(def %xor (fn (_ a b) (%sub (%or a b) (%and a b))))
+(def %xor (fn (_ a b) (int- (int| a b) (int& a b))))
 
 (def %mask 4294967295)
 
@@ -47,22 +33,22 @@
 ; 61707865 3320646e 79622d32 6b206574
 (def %sigma (list 1634760805 857760878 2036477234 1797285236))
 
-(def %rotl (fn (_ x n) (%and (%or (%shl x n) (%shr x (%sub 32 n))) %mask)))
+(def %rotl (fn (_ x n) (int& (int| (int<< x n) (int>> x (int- 32 n))) %mask)))
 
-(def %byte (fn (_ s i) (%char->int (%byte-ref s i))))
+(def %byte (fn (_ s i) (char->int (str-byte-ref s i))))
 
 ; The little-endian word at byte i of s.
 (def %word
   (fn (_ s i)
-    (%or (%byte s i)
-         (%or (%shl (%byte s (%add i 1)) 8)
-              (%or (%shl (%byte s (%add i 2)) 16)
-                   (%shl (%byte s (%add i 3)) 24))))))
+    (int| (%byte s i)
+         (int| (int<< (%byte s (int+ i 1)) 8)
+              (int| (int<< (%byte s (int+ i 2)) 16)
+                   (int<< (%byte s (int+ i 3)) 24))))))
 
 ; n little-endian words from byte i of s, consed onto tail.
 (def %words
   (fn (self s i n tail)
-    (if (%eq n 0) tail (pair (%word s i) (self s (%add i 4) (%sub n 1) tail)))))
+    (if (int= n 0) tail (pair (%word s i) (self s (int+ i 4) (int- n 1) tail)))))
 
 ; The sixteen state words (2.3): the constants, the key's eight words,
 ; then the IV's four -- counter and nonce, however the caller lays them.
@@ -76,24 +62,24 @@
 (def %fill!
   (fn (self v i ws)
     (unless (null? ws)
-      (do (%oset! v i (first ws)) (self v (%add i 1) (rest ws))))))
+      (do (obj-set! v i (first ws)) (self v (int+ i 1) (rest ws))))))
 
 (def %copy!
   (fn (self w v i)
-    (unless (%eq i 17)
-      (do (%oset! w i (%oref v i)) (self w v (%add i 1))))))
+    (unless (int= i 17)
+      (do (obj-set! w i (obj-ref v i)) (self w v (int+ i 1))))))
 
 ; The quarter round (2.1) on slots a b c d of w.
 (def %qr!
   (fn (_ w a b c d)
-    (%oset! w a (%and (%add (%oref w a) (%oref w b)) %mask))
-    (%oset! w d (%rotl (%xor (%oref w d) (%oref w a)) 16))
-    (%oset! w c (%and (%add (%oref w c) (%oref w d)) %mask))
-    (%oset! w b (%rotl (%xor (%oref w b) (%oref w c)) 12))
-    (%oset! w a (%and (%add (%oref w a) (%oref w b)) %mask))
-    (%oset! w d (%rotl (%xor (%oref w d) (%oref w a)) 8))
-    (%oset! w c (%and (%add (%oref w c) (%oref w d)) %mask))
-    (%oset! w b (%rotl (%xor (%oref w b) (%oref w c)) 7))))
+    (obj-set! w a (int& (int+ (obj-ref w a) (obj-ref w b)) %mask))
+    (obj-set! w d (%rotl (%xor (obj-ref w d) (obj-ref w a)) 16))
+    (obj-set! w c (int& (int+ (obj-ref w c) (obj-ref w d)) %mask))
+    (obj-set! w b (%rotl (%xor (obj-ref w b) (obj-ref w c)) 12))
+    (obj-set! w a (int& (int+ (obj-ref w a) (obj-ref w b)) %mask))
+    (obj-set! w d (%rotl (%xor (obj-ref w d) (obj-ref w a)) 8))
+    (obj-set! w c (int& (int+ (obj-ref w c) (obj-ref w d)) %mask))
+    (obj-set! w b (%rotl (%xor (obj-ref w b) (obj-ref w c)) 7))))
 
 ; A column round then a diagonal round (2.3), in slots.
 (def %double-round!
@@ -103,13 +89,13 @@
 
 (def %rounds!
   (fn (self w n)
-    (unless (%eq n 0) (do (%double-round! w) (self w (%sub n 1))))))
+    (unless (int= n 0) (do (%double-round! w) (self w (int- n 1))))))
 
 (def %sum!
   (fn (self w v i)
-    (unless (%eq i 17)
-      (do (%oset! w i (%and (%add (%oref w i) (%oref v i)) %mask))
-          (self w v (%add i 1))))))
+    (unless (int= i 17)
+      (do (obj-set! w i (int& (int+ (obj-ref w i) (obj-ref v i)) %mask))
+          (self w v (int+ i 1))))))
 
 ; One block (2.3): the state's twenty rounds summed into the state, left
 ; in w as the sixteen keystream words.
@@ -122,29 +108,29 @@
 ; The counter: word 12, carried into word 13.
 (def %bump!
   (fn (_ v)
-    (%oset! v 13 (%and (%add (%oref v 13) 1) %mask))
-    (when (%eq (%oref v 13) 0)
-      (%oset! v 14 (%and (%add (%oref v 14) 1) %mask)))))
+    (obj-set! v 13 (int& (int+ (obj-ref v 13) 1) %mask))
+    (when (int= (obj-ref v 13) 0)
+      (obj-set! v 14 (int& (int+ (obj-ref v 14) 1) %mask)))))
 
 ; Keystream byte i (0..63) of the block in w, serialized little-endian.
 (def %key-byte
-  (fn (_ w i) (%and (%shr (%oref w (%add (%shr i 2) 1)) (%shl (%and i 3) 3)) 255)))
+  (fn (_ w i) (int& (int>> (obj-ref w (int+ (int>> i 2) 1)) (int<< (int& i 3) 3)) 255)))
 
 ; Bytes pos.. of the region, up to the block's end or the region's, each
 ; XORed with its keystream byte into out.
 (def %emit!
   (fn (self w s start len out p pos i)
-    (unless (if (%eq i 64) #t (%eq pos len))
-      (do (%pset1 p pos (%xor (%byte s (%add start pos)) (%key-byte w i)) 1)
-          (self w s start len out p (%add pos 1) (%add i 1))))))
+    (unless (if (int= i 64) #t (int= pos len))
+      (do (ptr-set! p pos (%xor (%byte s (int+ start pos)) (%key-byte w i)) 1)
+          (self w s start len out p (int+ pos 1) (int+ i 1))))))
 
 (def %blocks!
   (fn (self v w s start len out p pos)
-    (when (%lt pos len)
+    (when (int< pos len)
       (do (%block! v w)
           (%emit! w s start len out p pos 0)
           (%bump! v)
-          (self v w s start len out p (%add pos 64))))))
+          (self v w s start len out p (int+ pos 64))))))
 
 ; The pure-x cipher: the state words, a byte region -> a fresh string of
 ; len bytes, each XORed with the keystream.  The compiled engine answers
@@ -153,20 +139,20 @@
   (fn (_ st s start len)
     (def v (Vector make 16 0))
     (def w (Vector make 16 0))
-    (def out (%make-str len))
+    (def out (str-make len))
     (%fill! v 1 st)
-    (%blocks! v w s start len out (%str->ptr out) 0)
+    (%blocks! v w s start len out (str->ptr out) 0)
     out))
 
 ; n zero bytes, so a block is the keystream itself: four at a write, and
 ; the odd ones singly.
 (def %zeros
   (fn (_ n)
-    (def s (%make-str n))
-    (def p (%str->ptr s))
+    (def s (str-make n))
+    (def p (str->ptr s))
     ((fn (self i)
-       (if (%lt (%add i 3) n) (do (%pset1 p i 0 4) (self (%add i 4)))
-         (unless (%eq i n) (do (%pset1 p i 0 1) (self (%add i 1))))))
+       (if (int< (int+ i 3) n) (do (ptr-set! p i 0 4) (self (int+ i 4)))
+         (unless (int= i n) (do (ptr-set! p i 0 1) (self (int+ i 1))))))
      0)
     s))
 
@@ -199,7 +185,7 @@
 
 (def %run
   (fn (_ st s start len)
-    (when (if (%lt len %jit-threshold) #f
+    (when (if (int< len %jit-threshold) #f
             ((fn (_ entry) (if (null? entry) #t (eq? (entry state) (lit interpreted))))
              %entry))
       (%jit-try!))

@@ -57,17 +57,16 @@
   (needs "lib/x-core.x" isa/gc)      ; collects between its own includes (the boot rule)
   (needs "lib/x/boot/module.x" isa/gc isa/sys isa/syscall)
   (needs "lib/x/boot/tower-compiled.x" isa/ffi-call)
-  (needs "lib/x/codec/bytes.x" isa/ffi-call)  ; memcpy for its copies, memmem for find
-  (needs "lib/x/codec/zlib.x" isa/ffi-call)
+  ; The doors module fetches the foreign door (dlopen, dlsym, ptr call) and
+  ; the collector once, for every file that imports them: codec/bytes.x,
+  ; codec/zlib.x, num/float.x, sys/socket.x, the asm and compile tools, and
+  ; repl/loop.x and repl/line.x for the collector, name the primitive nowhere
+  ; and have no row of their own.
+  (needs "lib/x/core/doors.x" isa/ffi-call isa/gc)
   (needs "lib/x/net/http.x" isa/ffi-call)  ; memcpy for its runs
-  (needs "lib/x/num/float.x" isa/ffi-call)
   ; syscall-door makes the call for whoever holds the door; sys/file.x reaches
   ; the kernel through it and names the primitive nowhere.
   (needs "lib/x/platform/syscall.x" isa/syscall)
-  (needs "lib/x/repl/loop.x" isa/gc)
-  ; The line editor runs the turn loop itself when it is installed, and
-  ; sweeps at the top of each turn as loop.x does, through its own fetch.
-  (needs "lib/x/repl/line.x" isa/gc)
   ; The line editor's terminal layer: termios through the ffi door
   ; (tcgetattr/tcsetattr/cfmakeraw), and TIOCGWINSZ through the syscall door
   ; -- ioctl is variadic, and a variadic argument does not travel in the
@@ -76,23 +75,14 @@
   ; repl/line.x need neither: they are string and list work over what this
   ; file hands them.
   (needs "lib/x/repl/term.x" isa/ffi-call isa/syscall)
-  ; A callback's stub calls the engine's JIT doors, found by dlsym.
-  (needs "lib/x/sys/callback.x" isa/ffi-call)
   (needs "lib/x/sys/cont.x" isa/gc)
   (needs "lib/x/sys/gc.x" isa/gc)
   (needs "lib/x/sys/host.x" isa/ffi-call)
-  (needs "lib/x/sys/posix.x" isa/ffi-call isa/sys isa/syscall)
+  (needs "lib/x/sys/posix.x" isa/sys isa/syscall)
   ; posix_openpt and the rest through the ffi door; TIOCSWINSZ and TIOCSCTTY
   ; through the syscall door, for term.x's reason: ioctl is variadic.
   (needs "lib/x/sys/pty.x" isa/ffi-call isa/syscall)
-  (needs "lib/x/sys/socket.x" isa/ffi-call)
   (needs "lib/x/tool/asm-cache.x" isa/ffi-call)
-  (needs "lib/x/tool/asm-compile.x" isa/ffi-call)
-  (needs "lib/x/tool/asm-code.x" isa/ffi-call)
-  (needs "lib/x/tool/compile.x" isa/ffi-call)
-  ; The pipeline resolves x_fvar_table in the loaded object with its own
-  ; dlsym fetch, to patch it after a load.
-  (needs "lib/x/tool/compile/pipeline.x" isa/ffi-call)
   ; The image walk collects as it goes, and hands the collector, the mark and
   ; the clear to the image tools.
   (needs "lib/x/tool/image/walk.x" isa/gc)

@@ -62,17 +62,7 @@
 (import x/codec/mont-jit mont-jit-ready!)
 (import x/sys/posix)
 
-(def %add (prim-ref 'int '+))
-(def %sub (prim-ref 'int '-))
-(def %int-and (prim-ref (lit int) (lit &)))
-(def %int-or (prim-ref (lit int) (lit |)))
-(def %int-shl (prim-ref (lit int) (lit <<)))
-(def %int-shr (prim-ref (lit int) (lit >>)))
-(def %int-eq (prim-ref (lit int) (lit =)))
-(def %pref (prim-ref (lit ptr) (lit ref)))
-(def %pset (prim-ref (lit ptr) (lit set!)))
-(def %oref (prim-ref (lit obj) (lit ref)))
-(def %oset! (prim-ref (lit obj) (lit set!)))
+(import x/core/doors int& int+ int- int<< int= int>> int| obj-ref obj-set! ptr-ref ptr-set!)
 
 (def %hash (lit sha256))
 (def %key-len 32)
@@ -121,8 +111,8 @@
 (def %serving 21)               ; #t on accept's side of the handshake
 (def %slots 21)
 
-(def %get (fn (_ s i) (%oref s i)))
-(def %set! (fn (_ s i v) (%oset! s i v)))
+(def %get (fn (_ s i) (obj-ref s i)))
+(def %set! (fn (_ s i v) (obj-set! s i v)))
 
 (def %fail (fn (_ what payload) (Err raise (lit io) (Str8 append "Tls13: " what) payload)))
 
@@ -136,7 +126,7 @@
     (def n (File read (%get s %fd) buf 65536))
     (when (< n 0) (error (Err from-errno (Err errno-of n) 'read (%get s %fd))))
     (if (= n 0) #f
-      (do (def left (list (%get s %in-buf) (%get s %in-pos) (%sub (%get s %in-end) (%get s %in-pos))))
+      (do (def left (list (%get s %in-buf) (%get s %in-pos) (int- (%get s %in-end) (%get s %in-pos))))
           (def joined (Bytes join left (list buf 0 n)))
           (%set! s %in-buf (first joined))
           (%set! s %in-pos 0)
@@ -146,7 +136,7 @@
 ; At least n unread bytes, or #f when the peer closed first.
 (def %have!
   (fn (self s n)
-    (if (>= (%sub (%get s %in-end) (%get s %in-pos)) n) #t
+    (if (>= (int- (%get s %in-end) (%get s %in-pos)) n) #t
       (if (%recv-more! s) (self s n) #f))))
 
 ; The next record as (TYPE HEADER BODY), header and body regions of the
@@ -159,13 +149,13 @@
           (def type (Bytes get-u8 rd))
           (Bytes get-u16 rd)
           (def len (Bytes get-u16 rd))
-          (when (> len (%add %max-plaintext 256)) (%fail "a record longer than the protocol allows" len))
-          (unless (%have! s (%add 5 len)) (%fail "the connection closed inside a record" len))
+          (when (> len (int+ %max-plaintext 256)) (%fail "a record longer than the protocol allows" len))
+          (unless (%have! s (int+ 5 len)) (%fail "the connection closed inside a record" len))
           ; the buffer may have moved
           (def at (%get s %in-pos))
           (def buf (%get s %in-buf))
-          (%set! s %in-pos (%add at (%add 5 len)))
-          (list type (Bytes copy (list buf at 5)) (Bytes copy (list buf (%add at 5) len)))))))
+          (%set! s %in-pos (int+ at (int+ 5 len)))
+          (list type (Bytes copy (list buf at 5)) (Bytes copy (list buf (int+ at 5) len)))))))
 
 ; The per-record nonce (5.3): the IV with the sequence number, big-endian,
 ; XORed into its last eight bytes.
@@ -176,11 +166,11 @@
     ; the sequence number's eight bytes, big-endian, into bytes 4..11,
     ; through the int doors: a ^ b is (a | b) - (a & b)
     ((fn (self i)
-       (unless (%int-eq i 12)
-         (do (def a (%pref p i 1))
-             (def b (%int-and (%int-shr seq (%int-shl (%sub 11 i) 3)) 255))
-             (%pset p i (%sub (%int-or a b) (%int-and a b)) 1)
-             (self (%add i 1)))))
+       (unless (int= i 12)
+         (do (def a (ptr-ref p i 1))
+             (def b (int& (int>> seq (int<< (int- 11 i) 3)) 255))
+             (ptr-set! p i (int- (int| a b) (int& a b)) 1)
+             (self (int+ i 1)))))
      4)
     n))
 
@@ -195,9 +185,9 @@
           (def inner (guard (e (%fail "a record did not authenticate" seq))
                        (ChaCha20Poly1305 open (%get s %read-key) (%nonce (%get s %read-iv) seq)
                                           (first (rest rec)) (first (rest (rest rec))))))
-          (%set! s %read-seq (%add seq 1))
-          (def end ((fn (self i) (if (< i 0) -1 (if (= (Bytes ref inner i) 0) (self (%sub i 1)) i)))
-                    (%sub (Bytes length inner) 1)))
+          (%set! s %read-seq (int+ seq 1))
+          (def end ((fn (self i) (if (< i 0) -1 (if (= (Bytes ref inner i) 0) (self (int- i 1)) i)))
+                    (int- (Bytes length inner) 1)))
           (when (< end 0) (%fail "a record with no content type" ()))
           (list (Bytes ref inner end) (Bytes sub inner 0 end))))))
 
@@ -213,10 +203,10 @@
       (Socket send-run (%get s %out) (first flat) (Bytes length flat))
       ((fn (self at)
          (if (>= at (Bytes length flat)) at
-           (do (def part (Bytes copy (Bytes sub flat at (%sub (Bytes length flat) at))))
+           (do (def part (Bytes copy (Bytes sub flat at (int- (Bytes length flat) at))))
                (def n (File write (%get s %out) (first part) (Bytes length part)))
                (when (< n 0) (error (Err from-errno (Err errno-of n) 'write (%get s %out))))
-               (self (%add at n)))))
+               (self (int+ at n)))))
        0))))
 
 (def %plain-record
@@ -235,11 +225,11 @@
     (def hw (Bytes writer))
     (Bytes put-u8 hw %ct-data)
     (Bytes put-u16 hw 771)
-    (Bytes put-u16 hw (%add (Bytes length inner) 16))
+    (Bytes put-u16 hw (int+ (Bytes length inner) 16))
     (def aad (Bytes written hw))
     (def seq (%get s %write-seq))
     (def sealed (ChaCha20Poly1305 seal (%get s %write-key) (%nonce (%get s %write-iv) seq) aad inner))
-    (%set! s %write-seq (%add seq 1))
+    (%set! s %write-seq (int+ seq 1))
     (%send-region s (Bytes join aad sealed))))
 
 ; --- handshake messages ---------------------------------------------------
@@ -253,9 +243,9 @@
       (do (def rd (Bytes reader pending))
           (def type (Bytes get-u8 rd))
           (def len (Bytes get-u24 rd))
-          (if (>= (Bytes length pending) (%add 4 len))
-            (do (%set! s %hs-pending (Bytes copy (Bytes sub pending (%add 4 len) (%sub (Bytes length pending) (%add 4 len)))))
-                (list type (Bytes copy (Bytes sub pending 4 len)) (Bytes copy (Bytes sub pending 0 (%add 4 len)))))
+          (if (>= (Bytes length pending) (int+ 4 len))
+            (do (%set! s %hs-pending (Bytes copy (Bytes sub pending (int+ 4 len) (int- (Bytes length pending) (int+ 4 len)))))
+                (list type (Bytes copy (Bytes sub pending 4 len)) (Bytes copy (Bytes sub pending 0 (int+ 4 len)))))
             (do (%pull-handshake! s) (self s))))
       (do (%pull-handshake! s) (self s)))))
 
@@ -317,7 +307,7 @@
     (unless (null? host)
       (%put-extension ext 0
         (%extension-data (fn (_ e)
-          (Bytes put-u16 e (%add (Str8 length host) 3))
+          (Bytes put-u16 e (int+ (Str8 length host) 3))
           (Bytes put-u8 e 0)
           (Bytes put-u16 e (Str8 length host))
           (Bytes put e host)))))
@@ -729,14 +719,14 @@
 ; gives.
 (def %pending?
   (fn (_ s)
-    (def avail (%sub (%get s %in-end) (%get s %in-pos)))
+    (def avail (int- (%get s %in-end) (%get s %in-pos)))
     (match
       ((> (Bytes length (%get s %app-pending)) 0) #t)
       ((< avail 5) #f)
       (#t (let ((rd (Bytes reader (list (%get s %in-buf) (%get s %in-pos) 5))))
             (do (Bytes get-u8 rd)
                 (Bytes get-u16 rd)
-                (>= avail (%add 5 (Bytes get-u16 rd)))))))))
+                (>= avail (int+ 5 (Bytes get-u16 rd)))))))))
 
 (def-class Tls13 ()
   (static
@@ -789,9 +779,9 @@
       (def r (Bytes of data))
       ((fn (self at)
          (unless (>= at (Bytes length r))
-           (do (def n (if (> (%sub (Bytes length r) at) %max-plaintext) %max-plaintext (%sub (Bytes length r) at)))
+           (do (def n (if (> (int- (Bytes length r) at) %max-plaintext) %max-plaintext (int- (Bytes length r) at)))
                (%send-sealed session %ct-data (Bytes sub r at n))
-               (self (%add at n)))))
+               (self (int+ at n)))))
        0)
       (Bytes length r))
     (method recv-run (self (param session OBJECT "A (Tls13 connect) session")
@@ -802,7 +792,7 @@
       (def r (if (> (Bytes length pending) 0) pending (%next-data session)))
       (if (null? r) ()
         (do (def n (if (> (Bytes length r) maxlen) maxlen (Bytes length r)))
-            (%set! session %app-pending (Bytes sub r n (%sub (Bytes length r) n)))
+            (%set! session %app-pending (Bytes sub r n (int- (Bytes length r) n)))
             (def out (Bytes copy (Bytes sub r 0 n)))
             (if (= n 0) (Tls13 recv-run session maxlen) (pair (first out) n)))))
     (method recv-bytes (self (param session OBJECT "A (Tls13 connect) session")
@@ -811,8 +801,8 @@
         (returns ANY "Byte list, or nil at close"))
       (def run (Tls13 recv-run session maxlen))
       (if (null? run) ()
-        ((fn (self i acc) (if (< i 0) acc (self (%sub i 1) (pair (Bytes ref (list (first run) 0 (rest run)) i) acc))))
-         (%sub (rest run) 1) ())))
+        ((fn (self i acc) (if (< i 0) acc (self (int- i 1) (pair (Bytes ref (list (first run) 0 (rest run)) i) acc))))
+         (int- (rest run) 1) ())))
     (method pending? (self (param session OBJECT "A (Tls13 connect) or (Tls13 over) session"))
       (doc "Does the session hold application data it has already read -- bytes a smaller recv-run left, or a whole record read ahead? poll() on the descriptor cannot see these, so a loop that polls asks this first and receives while it holds. A whole record that carries no data (a session ticket) is taken by the next recv-run, which then reads on."
         (returns BOOL "#t when there is something to receive without reading the descriptor"))

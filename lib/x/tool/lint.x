@@ -13,10 +13,9 @@
 ; STRINGS; lint-has? tests membership.
 (import x/core/list)
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(def %str->symbol (prim-ref 'str '->sym))
+(import x/core/doors io-write-to-str str->sym str-byte-len str-byte-ref type-push-write)
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
-(def %type-push-write (prim-ref 'type 'push-write))
 (def %type-pop-write (prim-ref 'type 'pop-write))
 
 ; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
@@ -26,7 +25,6 @@
 (import x/core/alist)
 (import x/type/str)
 ; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
-(def %write-to-str (prim-ref 'io 'write-to-str))
 ; The walk writes the form it is analysing, and the handlers attached to the
 ; list and symbol types (%lint-push) collect defs and uses as the write
 ; dispatches to them.  The door comes from the catalogue rather than the global
@@ -432,7 +430,7 @@
 ; There is no legitimate multi-expression clause body, so no allowlist: every
 ; hit wants a do-wrap.  The warning name is the clause test's head symbol --
 ; NOT the test rendered: the walk runs with analysis handlers pushed on the
-; LIST/SYMBOL write stacks, so %write-to-str on a non-atom here would run the
+; LIST/SYMBOL write stacks, so io-write-to-str on a non-atom here would run the
 ; analyser, not the printer.
 (def %lint-match (fn (_ form)
   (def %clause-extra? (fn (_ clause)
@@ -444,7 +442,7 @@
     (match
       ((pair? test) (if (symbol? (first test)) (%cvt (first test) %lint-string-type) "?"))
       ((symbol? test) (%cvt test %lint-string-type))
-      (#t (guard (_ "?") (%write-to-str test))))))
+      (#t (guard (_ "?") (io-write-to-str test))))))
   (def %scan (fn (self clauses)
     (unless (null? clauses)
       (do
@@ -720,7 +718,7 @@
     ((%member-str? (%cvt head %lint-string-type) (first %lint-class-names)) #t)
     ((%scope-has-name? (%cvt head %lint-string-type) (first %lint-scope)) #f)
     (#t (guard (_ #f)
-      (let ((v (eval (%str->symbol (%cvt head %lint-string-type)) (rest %lint-scope))))
+      (let ((v (eval (str->sym (%cvt head %lint-string-type)) (rest %lint-scope))))
         (match
           ((null? v) #f)
           ((procedure? v) #f)
@@ -743,7 +741,7 @@
     ((not (symbol? (first (rest form)))) #f)
     ((%scope-has-name? (%cvt (first (rest form)) %lint-string-type) (first %lint-scope)) #f)
     (#t (guard (_ #t)
-      (do (eval! (%str->symbol (%cvt (first (rest form)) %lint-string-type))) #f))))))
+      (do (eval! (str->sym (%cvt (first (rest form)) %lint-string-type))) #f))))))
 
 ; Computed subject: ((self %d) keys ...) -- a pair-headed call whose
 ; second element is an unresolvable symbol is a value-call send; the
@@ -763,9 +761,9 @@
           ; STRING) -- so they are not references; the class says whether
           ; the selector names an operative.  Anything unresolvable walks the arguments.
           (if (guard (_ #f)
-                (let ((subject (eval (%str->symbol (%cvt (first form) %lint-string-type)) (rest %lint-scope))))
+                (let ((subject (eval (str->sym (%cvt (first form) %lint-string-type)) (rest %lint-scope))))
                   (if (class? subject)
-                    (operative? (class-static-ref subject (%str->symbol (%cvt (first (rest form)) %lint-string-type))))
+                    (operative? (class-static-ref subject (str->sym (%cvt (first (rest form)) %lint-string-type))))
                     #f)))
             ()
             (%lint-seq (rest (rest form))))))   ; selector skipped, args walked
@@ -913,9 +911,9 @@
     ; reference -- the linter reads the file as data, so the macro never
     ; ran.  Two byte compares (#344): the (Str8 starts? ...) spelling
     ; cost ~6 dispatches and a substring per symbol occurrence.
-    (unless (if (< (%str-byte-len name) 2) #f
-              (if (eq? 35 (%char->integer (%str-byte-ref name 0)))
-                  (eq? 47 (%char->integer (%str-byte-ref name 1))) #f))
+    (unless (if (< (str-byte-len name) 2) #f
+              (if (eq? 35 (%char->integer (str-byte-ref name 0)))
+                  (eq? 47 (%char->integer (str-byte-ref name 1))) #f))
       (unless (%scope-mark-used! name (first %lint-scope))   ; local ref -> mark its box used
         (unless (%member-str? name (first %lint-uses))
           (%set-first! %lint-uses (pair name (first %lint-uses)))))))
@@ -937,8 +935,8 @@
   (%lint-dispatch form) ()))
 
 (def %lint-push (fn (_)
-  (%type-push-write %lint-list-type %lint-list-handler)
-  (%type-push-write %lint-symbol-type %lint-symbol-handler)))
+  (type-push-write %lint-list-type %lint-list-handler)
+  (type-push-write %lint-symbol-type %lint-symbol-handler)))
 
 (def %lint-pop (fn (_)
   (%type-pop-write %lint-list-type)
@@ -1094,7 +1092,7 @@
     (method %env-known? (self name)
   (match
     ((%member-str? name (Lint %lint-embedder-known)) #t)
-    (#t (guard (_ #f) (do (eval! (%str->symbol name)) #t)))))
+    (#t (guard (_ #f) (do (eval! (str->sym name)) #t)))))
     (method %lint-doc (self form)
   (match
     ((null? (rest form)) ())
@@ -1174,7 +1172,7 @@
        (if (symbol? (first (rest form)))
          (if (%scope-has-name? (%cvt (first (rest form)) %lint-string-type) (first %lint-scope)) #f
            (guard (_ #t)
-             (do (eval! (%str->symbol (%cvt (first (rest form)) %lint-string-type))) #f)))
+             (do (eval! (str->sym (%cvt (first (rest form)) %lint-string-type))) #f)))
          #f) #f)
       (do (%lint-form (first form))
           (%lint-seq (rest (rest form)))))
@@ -1190,7 +1188,7 @@
           (when (if (null? nm) #f (%member-str? nm defs))
             (%warn! "dup-def" nm))                  ; same top-level name defined twice
           (%set-first! %lint-scope ())
-          (%write-to-str form)                         ; drive the walk (string discarded)
+          (io-write-to-str form)                         ; drive the walk (string discarded)
           (Lint %lint-sweep!)                          ; the form's garbage, past the threshold
           (self (rest forms) (if (null? nm) defs (pair nm defs)))))))))
 

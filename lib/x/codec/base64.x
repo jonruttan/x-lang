@@ -27,21 +27,11 @@
 ; The bit operations through the int doors: the generic ones dispatch
 ; through the numeric tower, about a hundred objects a call, these none.
 ; There is no int xor: a ^ b is (a | b) - (a & b).
-(def %and (prim-ref (lit int) (lit &)))
-(def %or (prim-ref (lit int) (lit |)))
-(def %shl (prim-ref (lit int) (lit <<)))
-(def %shr (prim-ref (lit int) (lit >>)))
-(def %isub (prim-ref 'int '-))
-(def %xor (fn (_ a b) (%isub (%or a b) (%and a b))))
+(import x/core/doors char->int int& int- int/ int<< int>> int| ptr-set! str->ptr str-byte-len str-byte-ref str-make)
+(def %xor (fn (_ a b) (int- (int| a b) (int& a b))))
 
 
 ; The region decoder's prims: a byte in, a byte out, no list between.
-(def %b64-byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %b64-char->int (prim-ref (lit char) (lit ->int)))
-(def %b64-make-str (prim-ref (lit str) (lit make)))
-(def %b64-str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %b64-pset1 (prim-ref (lit ptr) (lit set!)))
-(def %b64-div (prim-ref (lit int) (lit /)))
 
 ; An alphabet byte's six bits; -1 for whitespace, -2 for =, -3 for anything else.
 (def %b64-value
@@ -65,26 +55,26 @@
     (def s (first r))
     (def start (first (rest r)))
     (def end (+ start (first (rest (rest r)))))
-    (def out (%b64-make-str (+ 1 (%b64-div (* 3 (- end start)) 4))))
-    (def p (%b64-str->ptr out))
+    (def out (str-make (+ 1 (int/ (* 3 (- end start)) 4))))
+    (def p (str->ptr out))
     (def %bad (fn (_ what) (Err raise (lit value) (Str8 append "Base64 decode: " what) r)))
     ((fn (self i acc nbits n chars pads)
        (if (= i end)
-         (do (unless (= (%and (+ chars pads) 3) 0) (%bad "length is not a multiple of 4"))
+         (do (unless (= (int& (+ chars pads) 3) 0) (%bad "length is not a multiple of 4"))
              (when (> pads 2) (%bad "misplaced = padding"))
              (list out 0 n))
-         (do (def v (%b64-value (%b64-char->int (%b64-byte-ref s i))))
+         (do (def v (%b64-value (char->int (str-byte-ref s i))))
              (match
                ((= v -1) (self (+ i 1) acc nbits n chars pads))
                ((= v -2) (self (+ i 1) acc nbits n chars (+ pads 1)))
                ((= v -3) (%bad "character outside the alphabet"))
                ((> pads 0) (%bad "= padding before the final group"))
                (#t
-                 (do (def acc2 (%or (%shl acc 6) v))
+                 (do (def acc2 (int| (int<< acc 6) v))
                      (def nbits2 (+ nbits 6))
                      (if (>= nbits2 8)
-                       (do (%b64-pset1 p n (%and (%shr acc2 (- nbits2 8)) 255) 1)
-                           (self (+ i 1) (%and acc2 (- (%shl 1 (- nbits2 8)) 1)) (- nbits2 8) (+ n 1) (+ chars 1) pads))
+                       (do (ptr-set! p n (int& (int>> acc2 (- nbits2 8)) 255) 1)
+                           (self (+ i 1) (int& acc2 (- (int<< 1 (- nbits2 8)) 1)) (- nbits2 8) (+ n 1) (+ chars 1) pads))
                        (self (+ i 1) acc2 nbits2 n (+ chars 1) pads))))))))
      start 0 0 0 0 0)))
 
@@ -148,45 +138,39 @@
            (let ((b0 (first l)))
              (bytes->str (%reverse
                (pair 61 (pair 61
-                 (pair (%e6 (%and (%shl b0 4) 63))
-                   (pair (%e6 (%shr b0 2)) acc))))))))
+                 (pair (%e6 (int& (int<< b0 4) 63))
+                   (pair (%e6 (int>> b0 2)) acc))))))))
           ; two left -> three chars + =
           ((null? (rest (rest l)))
            (let ((b0 (first l)) (b1 (first (rest l))))
              (bytes->str (%reverse
                (pair 61
-                 (pair (%e6 (%and (%shl b1 2) 63))
-                   (pair (%e6 (%and (%or (%shl b0 4) (%shr b1 4)) 63))
-                     (pair (%e6 (%shr b0 2)) acc))))))))
+                 (pair (%e6 (int& (int<< b1 2) 63))
+                   (pair (%e6 (int& (int| (int<< b0 4) (int>> b1 4)) 63))
+                     (pair (%e6 (int>> b0 2)) acc))))))))
           ; full 3-byte group -> four chars
           (#t
            (let ((b0 (first l)) (b1 (first (rest l))) (b2 (first (rest (rest l)))))
              (go (rest (rest (rest l)))
-                 (pair (%e6 (%and b2 63))
-                   (pair (%e6 (%and (%or (%shl b1 2) (%shr b2 6)) 63))
-                     (pair (%e6 (%and (%or (%shl b0 4) (%shr b1 4)) 63))
-                       (pair (%e6 (%shr b0 2)) acc))))))))))
+                 (pair (%e6 (int& b2 63))
+                   (pair (%e6 (int& (int| (int<< b1 2) (int>> b2 6)) 63))
+                     (pair (%e6 (int& (int| (int<< b0 4) (int>> b1 4)) 63))
+                       (pair (%e6 (int>> b0 2)) acc))))))))))
 
     (method encode (self (param s STRING "Bytes to encode"))
       (doc "Encode a string's bytes as base64. A string's observable bytes end at the first NUL (the x-lib ruling) -- binary with NULs takes the encode-bytes door."
         (returns STRING "Base64 text, = padded")
         (example "(Base64 encode \"hi\")" "\"aGk=\""))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
-      (def n (%blen s))
+      (def n (str-byte-len s))
       (self encode-bytes
         (let go ((i (- n 1)) (acc ()))
           (if (< i 0) acc
-            (go (- i 1) (pair (%c->i (%bref s i)) acc))))))
+            (go (- i 1) (pair (char->int (str-byte-ref s i)) acc))))))
 
     (method decode-bytes (self (param b64 STRING "Base64 text to decode"))
       (doc "Decode base64 text to a byte list -- the lossless door. Whitespace (space/tab/CR/LF) is skipped; any other character outside the alphabet, misplaced =, or a short final group raises a label 'value Err (#61: no silent repair)."
         (returns LIST "Byte values (0-255)")
         (example "(Base64 decode-bytes \"Zm9v\")" "(102 111 111)"))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %c->i (prim-ref (lit char) (lit ->int)))
       (def %bad (fn (_ what)
         (Err raise (lit value) (Str8 append "Base64 decode: " what) b64)))
       ; alphabet byte -> 6-bit value; -1 outside the alphabet
@@ -199,12 +183,12 @@
           ((= c 47) 63)
           (#t -1))))
       (def %ws? (fn (_ c) (or (= c 32) (or (= c 9) (or (= c 10) (= c 13))))))
-      (def n (%blen b64))
+      (def n (str-byte-len b64))
       ; strip whitespace up front so groups-of-4 sees only payload + padding
       (def clean
         (let go ((i (- n 1)) (acc ()))
           (if (< i 0) acc
-            (let ((c (%c->i (%bref b64 i))))
+            (let ((c (char->int (str-byte-ref b64 i))))
               (go (- i 1) (if (%ws? c) acc (pair c acc)))))))
       ; MATCH ARMS ARE SINGLE-FORM (adjacent children are not a sequence);
       ; every multi-step arm body rides a let, the file.x pattern.
@@ -225,24 +209,24 @@
                  ((if (= c2 61) (= c3 61) #f)
                   (let ()
                     (unless (null? tail) (%bad "= padding before the final group"))
-                    (go tail (pair (%or (%shl v0 2) (%shr v1 4)) acc))))
+                    (go tail (pair (int| (int<< v0 2) (int>> v1 4)) acc))))
                  ; xxx= -> two bytes; must be the final group
                  ((= c3 61)
                   (let ((v2 (%d6 c2)))
                     (when (< v2 0) (%bad "character outside the alphabet"))
                     (unless (null? tail) (%bad "= padding before the final group"))
                     (go tail
-                        (pair (%or (%shl (%and v1 15) 4) (%shr v2 2))
-                          (pair (%or (%shl v0 2) (%shr v1 4)) acc)))))
+                        (pair (int| (int<< (int& v1 15) 4) (int>> v2 2))
+                          (pair (int| (int<< v0 2) (int>> v1 4)) acc)))))
                  ((= c2 61) (%bad "misplaced = padding"))
                  ; full group -> three bytes
                  (#t
                   (let ((v2 (%d6 c2)) (v3 (%d6 c3)))
                     (when (or (< v2 0) (< v3 0)) (%bad "character outside the alphabet"))
                     (go tail
-                        (pair (%or (%shl (%and v2 3) 6) v3)
-                          (pair (%or (%shl (%and v1 15) 4) (%shr v2 2))
-                            (pair (%or (%shl v0 2) (%shr v1 4)) acc)))))))))))))
+                        (pair (int| (int<< (int& v2 3) 6) v3)
+                          (pair (int| (int<< (int& v1 15) 4) (int>> v2 2))
+                            (pair (int| (int<< v0 2) (int>> v1 4)) acc)))))))))))))
 
     (method decode-region (self (param text ANY "Base64 text: a region (BUF START LEN), or a STRING up to its first NUL"))
       (doc "Decode to a fresh buffer, the bytes as a region (BUF 0 LEN): the lossless door for binary, with no list in between. Whitespace is skipped; any other character outside the alphabet, misplaced =, or a short final group raises a label 'value Err. Pure x, or the compiled decoder once (Base64 jit!) has adopted it."

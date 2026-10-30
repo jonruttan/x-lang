@@ -11,12 +11,9 @@
 
 ; The binary integer primitives, fetched from the catalogue: the C operators as
 ; they were before core/arithmetic.x wrapped the bare names.
-(def %int+ (prim-ref (lit int) (lit +)))
-(def %int* (prim-ref (lit int) (lit *)))
-(def %int= (prim-ref (lit int) (lit =)))
+(import x/core/doors char->int int* int+ int= str-append str-byte-len str-byte-ref)
 (import x/type/class)
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(def %str-append (prim-ref 'str 'append))
 
 ; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
 (def %cvt (prim-ref 'convert 'to))
@@ -28,9 +25,6 @@
 ; its own byte loop at ~142us -> ~11us per byte.  Values are unchanged
 ; -- both spellings yield the byte -- and the ->hex doctest below pins
 ; that.
-(def %hash-byte-len (prim-ref (lit str) (lit byte-len)))
-(def %hash-byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %hash-char->int (prim-ref (lit char) (lit ->int)))
 
 (import x/type/str)
 
@@ -44,19 +38,19 @@
     (method fnv-1a (self (param s STRING "String to hash"))
       (doc "Hash a string to a 64-bit integer using the FNV-1a algorithm."
         (returns INTEGER "64-bit FNV-1a hash value"))
-      (def %len (%hash-byte-len s))
+      (def %len (str-byte-len s))
       (def %go
         (fn (self i h)
-          (if (%int= i %len) h
-            (self (%int+ i 1)
-              (%int* (^ h (%hash-char->int (%hash-byte-ref s i))) %fnv-prime)))))
+          (if (int= i %len) h
+            (self (int+ i 1)
+              (int* (^ h (char->int (str-byte-ref s i))) %fnv-prime)))))
       (%go 0 %fnv-offset))
     (method ->hex (self (param n INTEGER "64-bit signed hash value"))
       (doc "Convert a 64-bit signed integer to a 16-character unsigned hex string."
         (returns STRING "16-character hexadecimal string"))
       (def %lo (& n 4294967295))
       (def %hi (& (>> n 32) 4294967295))
-      (%str-append (Str pad-left 8 #\0 (%cvt %hi %string 16))
+      (str-append (Str pad-left 8 #\0 (%cvt %hi %string 16))
                   (Str pad-left 8 #\0 (%cvt %lo %string 16))))))
 
 (doc (provide x/type/hash Hash)

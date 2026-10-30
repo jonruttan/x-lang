@@ -43,6 +43,7 @@
 ; door is used only for start/done?/step and Char upcase/downcase.
 
 (import x/type/class)
+(import x/core/doors int- int< str-append)
 
 (def-class Block ()
   (doc "Block-form methods: give a higher-order method a block form, (names ...) body ....")
@@ -90,22 +91,20 @@
     ; primitives, with no class dispatch and no derived forms per send.  The
     ; counts are the wrap's own, never nil.
     (method %block-send? (self pos n)
-      (def %int< (prim-ref (lit int) (lit <)))
-      (def %int- (prim-ref (lit int) (lit -)))
       ; at least k forms
       (def long?
         (fn (loop xs k)
           (match
-            ((%int< k 1) #t)
-            ((pair? xs) (loop (rest xs) (%int- k 1)))
+            ((int< k 1) #t)
+            ((pair? xs) (loop (rest xs) (int- k 1)))
             (#t #f))))
       ; the form at i
       (def at
         (fn (loop xs i)
           (match
             ((eq? xs ()) ())
-            ((%int< i 1) (first xs))
-            (#t (loop (rest xs) (%int- i 1))))))
+            ((int< i 1) (first xs))
+            (#t (loop (rest xs) (int- i 1))))))
       ; () or a proper list of symbols
       (def names?
         (fn (loop xs)
@@ -138,7 +137,7 @@
     ; string type's handle comes the same way, by name through Type's door.
     (method %shape-error (self what n)
       (error
-        (%str-append what
+        (str-append what
           ((prim-ref (lit convert) (lit to)) n (Type named STRING)))))
 
     ; element: (x) is the element; (i x) is the 0-based index and THEN the
@@ -289,19 +288,19 @@
     ; The argument list rendered, the seat at `pos` holding the block.
     (method %join-args (self names pos seat i)
       (if (null? names) ""
-        (%str-append (if (eq? i pos) seat (first names))
+        (str-append (if (eq? i pos) seat (first names))
           (if (null? (rest names)) ""
-            (%str-append " " (recur self (rest names) pos seat (+ i 1)))))))
+            (str-append " " (recur self (rest names) pos seat (+ i 1)))))))
 
     (method %block-head (self class sel static? names pos seat)
-      (%str-append "("
-        (%str-append
+      (str-append "("
+        (str-append
           (if static?
-            (%str-append (symbol->str (class-name class))
-              (%str-append " " (symbol->str sel)))
+            (str-append (symbol->str (class-name class))
+              (str-append " " (symbol->str sel)))
             (symbol->str sel))
-          (%str-append (if (null? names) "" " ")
-            (%str-append (self %join-args names pos seat 0) ")")))))
+          (str-append (if (null? names) "" " ")
+            (str-append (self %join-args names pos seat 0) ")")))))
 
     (method %last-cell (self xs)
       (if (null? (rest xs)) xs (recur self (rest xs))))
@@ -342,9 +341,9 @@
             (recur self (rest meta) text)))))
 
     (method %doc-note! (self class sel shape static? pos)
-      (let ((key (%str-append (symbol->str (class-name class))
-                   (%str-append "/" (symbol->str sel))))
-            (seat (%str-append (self %shape-names shape) " body ..."))
+      (let ((key (str-append (symbol->str (class-name class))
+                   (str-append "/" (symbol->str sel))))
+            (seat (str-append (self %shape-names shape) " body ..."))
             (alt (self %shape-alt shape)))
         (let ((pend (self %pending-entry key)))
           (let ((e (if (null? pend) (%doc-lookup ((prim-ref (lit str) (lit ->sym)) key)) ())))
@@ -353,12 +352,12 @@
                            (self %meta-param-names (rest (rest pend))))))
               ; A doc that names no parameter at the callable's seat cannot
               ; place the block, so the note falls back to saying so.
-              (let ((text (%str-append "Block form: "
-                            (%str-append
+              (let ((text (str-append "Block form: "
+                            (str-append
                               (if (self %len>=? names (+ pos 1))
                                 (self %block-head class sel static? names pos seat)
-                                (%str-append seat " in place of the callable"))
-                              (%str-append alt ".")))))
+                                (str-append seat " in place of the callable"))
+                              (str-append alt ".")))))
                 (if (null? pend)
                   (unless (null? e)
                     (let ((cell (self %nth-cell e 6)))          ; the notes slot
@@ -394,7 +393,7 @@
         (if (null? sm)
           (let ((im (self %imethod-of class sel)))
             (when (null? im)
-              (error (%str-append "Block method!: no such method "
+              (error (str-append "Block method!: no such method "
                                   (symbol->str sel))))
             (class def-method! sel
               (self %block-op im shape

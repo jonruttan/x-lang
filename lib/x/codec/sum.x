@@ -11,50 +11,40 @@
 ; The compiled engines are on Compiled's list.
 (import x/tool/compiled)
 
-(def %add (prim-ref (lit int) (lit +)))
-(def %sub (prim-ref (lit int) (lit -)))
-(def %lt (prim-ref (lit int) (lit <)))
-(def %and (prim-ref (lit int) (lit &)))
-(def %shl (prim-ref (lit int) (lit <<)))
-(def %shr (prim-ref (lit int) (lit >>)))
-(def %pref (prim-ref (lit ptr) (lit ref)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %str-byte-len (prim-ref (lit str) (lit byte-len)))
+(import x/core/doors int& int+ int- int->ptr int< int<< int>> ptr->int ptr-ref str->ptr str-byte-len)
 
 ; BSD's register after the bytes from i below n at p.
 (def %fold-bsd
   (fn (self p i n s)
-    (if (%lt i n)
-      (self p (%add i 1) n
-        (%and (%add (%add (%shr s 1) (%shl (%and s 1) 15)) (%and (%pref p i 1) 255)) 65535))
+    (if (int< i n)
+      (self p (int+ i 1) n
+        (int& (int+ (int+ (int>> s 1) (int<< (int& s 1) 15)) (int& (ptr-ref p i 1) 255)) 65535))
       s)))
 
 ; System V's total after the bytes from i below n at p.
 (def %fold-sysv
   (fn (self p i n t)
-    (if (%lt i n)
-      (self p (%add i 1) n (%add t (%and (%pref p i 1) 255)))
+    (if (int< i n)
+      (self p (int+ i 1) n (int+ t (int& (ptr-ref p i 1) 255)))
       t)))
 
 ; The total cut to 32 bits, as sum's unsigned register wraps, and folded
 ; twice into 16.
 (def %sysv-fold
   (fn (_ t)
-    (def w (%and t 4294967295))
-    (def r (%add (%and w 65535) (%shr w 16)))
-    (%and (%add (%and r 65535) (%shr r 16)) 65535)))
+    (def w (int& t 4294967295))
+    (def r (int+ (int& w 65535) (int>> w 16)))
+    (int& (int+ (int& r 65535) (int>> r 16)) 65535)))
 
 ; START and LENGTH from an optional span, defaulting to the whole string.
 (def %span
   (fn (_ s span)
     (match
-      ((null? span) (list 0 (%str-byte-len s)))
-      ((null? (rest span)) (list (first span) (%sub (%str-byte-len s) (first span))))
+      ((null? span) (list 0 (str-byte-len s)))
+      ((null? (rest span)) (list (first span) (int- (str-byte-len s) (first span))))
       (#t (list (first span) (first (rest span)))))))
 
-(def %ptr-at (prim-ref (lit ptr) (lit ->int)))
-(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
-(def %at (fn (_ p off) (%int->ptr (%add (%ptr-at p) off))))
+(def %at (fn (_ p off) (int->ptr (int+ (ptr->int p) off))))
 
 ; --- The compiled engines (JIT), adopted only when they prove out ----
 ;
@@ -72,9 +62,9 @@
   (fn (_ ref)
     (fn (_ eng)
       (def r ((prim-ref (lit str) (lit make)) 3000))
-      (def p (%str->ptr r))
-      ((fn (self i) (when (%lt i 3000) (do ((prim-ref (lit ptr) (lit set!)) p i (%and (%add (%add i 1) (%shr i 3)) 255) 1) (self (%add i 1))))) 0)
-      (and (= (ref (%str->ptr "123456789") 9 0) (eng (%str->ptr "123456789") 9 0))
+      (def p (str->ptr r))
+      ((fn (self i) (when (int< i 3000) (do ((prim-ref (lit ptr) (lit set!)) p i (int& (int+ (int+ i 1) (int>> i 3)) 255) 1) (self (int+ i 1))))) 0)
+      (and (= (ref (str->ptr "123456789") 9 0) (eng (str->ptr "123456789") 9 0))
            (= (ref p 3000 0) (eng p 3000 0))
            (= (ref p 3000 12345) (eng p 3000 12345))))))
 
@@ -119,7 +109,7 @@
   (fn (_ which s span)
     (def sp (%span s span))
     (def n (first (rest sp)))
-    ((%fold-for which n) (%at (%str->ptr s) (first sp)) n 0)))
+    ((%fold-for which n) (%at (str->ptr s) (first sp)) n 0)))
 
 (def-class Sum ()
   (doc "The two checksums of sum(1), BSD's and System V's, in pure x-lang.")

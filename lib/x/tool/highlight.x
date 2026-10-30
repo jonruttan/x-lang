@@ -17,12 +17,7 @@
 (import x/type/class)
 (import x/tool/syntax)
 
-(def %hl-byte-len (prim-ref (lit str) (lit byte-len)))
-(def %hl-byte-sub (prim-ref (lit str) (lit byte-sub)))
-(def %hl-byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %hl-cint (prim-ref (lit char) (lit ->int)))
-(def %hl+ (prim-ref (lit int) (lit +)))
-(def %hl- (prim-ref (lit int) (lit -)))
+(import x/core/doors char->int int+ int- str-byte-len str-byte-ref str-byte-sub)
 
 (def %hl-escape (fn (_ s)
   (Str8 replace ">" "&gt;"
@@ -34,7 +29,7 @@
   (display (%hl-escape text)) (display "</span>")))
 
 (def %hl-write-source (fn (_ text)
-  (let ((n (%hl-byte-len text)))
+  (let ((n (str-byte-len text)))
     (display (Syntax html text ((Syntax x) spans text) 0 n)))))
 
 ; --- Transcripts -------------------------------------------------------------
@@ -46,10 +41,10 @@
 (def %hl-depth (fn (_ s from d)
   ((fn (self sps d)
      (if (null? sps) d
-       (let ((b (%hl-cint (%hl-byte-ref s (first (first sps))))))
-         (self (rest sps) (match ((= b 40) (%hl+ d 1)) ((= b 41) (%hl- d 1)) (#t d))))))
+       (let ((b (char->int (str-byte-ref s (first (first sps))))))
+         (self (rest sps) (match ((= b 40) (int+ d 1)) ((= b 41) (int- d 1)) (#t d))))))
    (List filter (fn (_ sp) (eq? (first (rest (rest sp))) (lit punct)))
-     ((Syntax x) spans s from (%hl- (%hl-byte-len s) from)))
+     ((Syntax x) spans s from (int- (str-byte-len s) from)))
    d)))
 
 (def %hl-prompt? (fn (_ line) (Str8 starts? "> " line)))
@@ -64,20 +59,20 @@
 (def %hl-arrow-split (fn (_ line)
   (let ((at (%hl-arrow-at line)))
     (if (null? at) ()
-      (pair (%hl-byte-sub line 0 at)
-            (%hl-byte-sub line (%hl+ at 4) (%hl- (%hl-byte-len line) (%hl+ at 4))))))))
+      (pair (str-byte-sub line 0 at)
+            (str-byte-sub line (int+ at 4) (int- (str-byte-len line) (int+ at 4))))))))
 
 ; Writes one line and returns the paren depth left open at its end, which the
 ; next line needs: at depth 0 a line is a result, and above it the session is
 ; still reading the same expression.
 (def %hl-write-line (fn (_ line depth)
-  (let ((n (%hl-byte-len line)))
+  (let ((n (str-byte-len line)))
     (let ((parts (%hl-arrow-split line)))
       (match
         ; "> expr": the prompt is Generic.Prompt, the rest is code.
         ((%hl-prompt? line)
-          (do (%hl-write-span "gp" (%hl-byte-sub line 0 2))
-              (%hl-write-source (%hl-byte-sub line 2 (%hl- n 2)))
+          (do (%hl-write-span "gp" (str-byte-sub line 0 2))
+              (%hl-write-source (str-byte-sub line 2 (int- n 2)))
               (%hl-depth line 2 0)))
         ; A continuation: the expression above has not closed, so this is
         ; more of it, not the value it returned.
@@ -87,7 +82,7 @@
         ; "expr => result": both sides are code; only the arrow is not.
         ((not (null? parts))
           (do (%hl-write-source (first parts))
-              (%hl-write-span "o" (%hl-byte-sub line (%hl-arrow-at line) 4))
+              (%hl-write-span "o" (str-byte-sub line (%hl-arrow-at line) 4))
               (%hl-write-source (rest parts))
               0))
         ; Anything else in a transcript is what the session printed back.

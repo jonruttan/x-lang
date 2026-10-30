@@ -30,6 +30,7 @@
 (module x/sys/callback)
 (import x/type/class)
 (import x/tool/asm)
+(import x/core/doors ffi-dlopen ffi-dlsym image-recache-hook! image-transient! obj->ptr ptr->int)
 
 (def-class Callback ()
   (doc "A C function pointer that calls an x function: (Callback make f nargs), then hand (cb address) to a C library that takes a function pointer."
@@ -47,7 +48,7 @@
       (returns INTEGER "The stub's new address"))
     (self free!)
     (self asm (Callback %write (self target) (self nargs)))
-    (self address ((Callback %ptr->int) (asm-finalize! (self asm))))
+    (self address (ptr->int (asm-finalize! (self asm))))
     (self address))
 
   (method free! (self)
@@ -59,13 +60,6 @@
     ())
 
   (static
-    ; --- the catalogue doors, fetched once at load ------------------------------
-    (%dlopen (prim-ref (lit ffi) (lit dlopen)))
-    (%dlsym (prim-ref (lit ffi) (lit dlsym)))
-    (%ptr->int (prim-ref (lit ptr) (lit ->int)))
-    (%obj->ptr (prim-ref (lit obj) (lit ->ptr)))
-    (%transient! (prim-ref (lit image) (lit transient!)))
-    (%recache-hook! (prim-ref (lit image) (lit recache-hook!)))
 
     (method make (self (param f CALLABLE "The x function to call, taking NARGS integers")
                        (param nargs INTEGER "How many arguments the C caller passes, 0 to 4"))
@@ -82,15 +76,15 @@
       (let ((target wrapped) (asm ()) (address 0))
         (def cb (new Callback target target nargs nargs asm asm address address))
         (cb remake!)
-        ((Callback %transient!) (fn (_) (cb free!)))
-        ((Callback %recache-hook!) (fn (_) (cb remake!)))
+        (image-transient! (fn (_) (cb free!)))
+        (image-recache-hook! (fn (_) (cb remake!)))
         cb))
 
     ; the address of the engine's JIT door NAME
     (method %door (self name)
-      (def p ((Callback %dlsym) ((Callback %dlopen) () 1) name))
+      (def p (ffi-dlsym (ffi-dlopen () 1) name))
       (if (null? p) (Err raise (lit state) "Callback: this engine has no JIT door for a stub" ()))
-      ((Callback %ptr->int) p))
+      (ptr->int p))
 
     ; Write a stub calling F with NARGS arguments into a new buffer, not yet
     ; finalized.  The C arguments are kept in x19-x22, which the prologue
@@ -98,13 +92,13 @@
     ; built from the last argument back, its tail on the stack across each
     ; call; then the call is made and its value unboxed into x0.
     (method %write (self f nargs)
-      (def base ((Callback %ptr->int) ((Callback %obj->ptr) (%base))))
-      (def at ((Callback %ptr->int) ((Callback %obj->ptr) f)))
+      (def base (ptr->int (obj->ptr (%base))))
+      (def at (ptr->int (obj->ptr f)))
       (def mkint (Callback %door "jit_mkint"))
       (def mkpair (Callback %door "jit_mkpair"))
       (def call-value (Callback %door "jit_call_value"))
       (def eval-arg (Callback %door "jit_eval_arg"))
-      (def pair-at ((Callback %ptr->int) ((Callback %obj->ptr) pair)))
+      (def pair-at (ptr->int (obj->ptr pair)))
       (def atomint (Callback %door "jit_atomint"))
       ; where the C convention puts the arguments, past the prologue: arm64's
       ; x0-x3; x86-64's rdi (the prologue's x0), rsi (x1), rdx and rcx
