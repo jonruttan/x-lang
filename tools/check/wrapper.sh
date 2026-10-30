@@ -146,6 +146,11 @@ got=$(X_LANG_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l he -l seamprobe 
 want "a further -l loads a bundle beside a dialect" '("he" #t "no root")' "$got"
 got=$(X_LANG_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l seamprobe -c '(write %lang-lead)' 2>/dev/null || true)
 want "the first -l is the lead" '"seamprobe"' "$got"
+# X_LANG_DIR with no trailing slash finds the same bundles: the wrapper
+# appends the slash, since every bundle README spells the checkout form
+# `X_LANG_DIR=/path/to/x-NAME/..`.
+got=$(X_LANG_DIR=tools/contract/bundles sh x.sh --no-pin -q -l seamprobe -c '(write %lang-lead)' 2>/dev/null || true)
+want "X_LANG_DIR without a trailing slash finds a bundle" '"seamprobe"' "$got"
 got=$(sh x.sh --no-pin -q -l he -c '(write (guard (_ "unbound") %lang-lead))' 2>/dev/null || true)
 want "no bundle, no lead" '"unbound"' "$got"
 if X_LANG_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l he -l xe -c '()' >/dev/null 2>&1; then
