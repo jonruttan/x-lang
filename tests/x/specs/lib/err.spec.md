@@ -66,6 +66,33 @@ untyped C error prim (#20). Labels are blessed but open: 'type 'value
 ---
     ('user 'user 'user)
 
+### text is total: an Err answers its message
+
+```x
+(Err text (Err make 'io "boom" ()))
+```
+---
+    "boom"
+
+### text is total: an engine raise answers its code and subject
+
+A raise with no subject answers the code alone, with no trailing colon.
+
+```x
+(list (guard (e (Err text e)) (no-such-binding))
+      (guard (e (Err text e)) (error "STOP")))
+```
+---
+    ("Unbound SYMBOL: no-such-binding" "STOP")
+
+### text is total: a bare string is its own text, anything else an internal error
+
+```x
+(list (Err text "opt store: expected an alist") (Err text 42) (Err text ()))
+```
+---
+    ("opt store: expected an alist" "an internal error" "an internal error")
+
 ## raising and the guard idiom
 
 ### raise throws the constructed Err

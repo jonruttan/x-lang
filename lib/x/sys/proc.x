@@ -12,12 +12,24 @@
 
 (import x/type/class)
 (import x/sys/posix)
+(import x/sys/file)
 
 (def-class Proc ()
-  (doc "Argv-based child processes: run and wait, or run and capture stdout."
+  (doc "Argv-based child processes: run and wait, or run and capture stdout; and quiet!, a daemon's descriptors."
     (note "Status convention: 0-255 = the child's exit code; 125 = the child died before exec (an error between fork and exec -- the child never escapes); 127 = exec never happened (command absent); 128+N = killed by signal N. Callers branch on = 127 for command-absent (the %pin-download! contract).")
-    (see run!) (see capture))
+    (see run!) (see capture) (see quiet!))
   (static
+    (method quiet! (self)
+      (doc "The standard descriptors on /dev/null, as a daemon's are: what a server does once it has written its pid file, with (Sys setsid) and (Sys chdir \"/\") the rest of leaving the terminal."
+        (returns BOOL "#t; #f when /dev/null would not open, the descriptors left as they were"))
+      (def null (File open "/dev/null" (lit rdwr)))
+      (match
+        ((< null 0) #f)
+        (#t (do (Sys dup2 null 0)
+                (Sys dup2 null 1)
+                (Sys dup2 null 2)
+                (when (> null 2) (File close null))
+                #t))))
     (method run! (self (param argv LIST "Command and arguments, e.g. (list \"curl\" \"-fsSL\" url)"))
       (doc "Fork/exec argv; wait; return how the child ended."
         (returns INTEGER "Exit status; 127 = exec failed; 128+N = signal death")

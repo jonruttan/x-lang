@@ -70,6 +70,8 @@
 
 (def %c-fork (%resolve "fork"))
 
+(def %c-setsid (%resolve "setsid"))
+
 (def %c-execvp (%resolve "execvp"))
 
 (def %c-pipe (%resolve "pipe"))
@@ -114,6 +116,10 @@
     (method getpid (self)
       (doc "Return the current process ID." (returns INTEGER "Process ID"))
       (%sys-fold (%ptr-call %c-getpid)))
+    (method setsid (self)
+      (doc "Start a new session with this process as its leader, as a daemon does after its fork: setsid(2), through libc since Darwin's syscall table has no number for it."
+        (returns INTEGER "The new session id; negative when this process already leads a process group"))
+      (%sys-fold (%ptr-call %c-setsid)))
     (method exit (self (param status INTEGER "Exit status code"))
       (doc "Terminate the process with the given exit status.")
       (%ptr-call %c-exit status))

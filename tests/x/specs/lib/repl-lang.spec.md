@@ -200,3 +200,41 @@ current: x  registered: x t1 t3
 ```
 ---
     #t
+
+## symbols bare
+
+### symbols-bare! writes a token list without the quote shorthand
+
+Pushed onto the symbol's write stack for the session, so the case runs in
+a child, whose stdout is the spec's.
+
+```x
+(do
+  (def %b-child (Sys fork))
+  (when (= %b-child 0)
+    (Lang symbols-bare!)
+    (write (list (list 'word "a") 'b 1))
+    (newline)
+    (Sys exit 0))
+  (Sys wait %b-child)
+  ())
+```
+---
+    ((word "a") b 1)
+
+### symbols-quoted! puts the quote back
+
+```x
+(do
+  (def %q-child (Sys fork))
+  (when (= %q-child 0)
+    (Lang symbols-bare!)
+    (Lang symbols-quoted!)
+    (write (list 'word "a"))
+    (newline)
+    (Sys exit 0))
+  (Sys wait %q-child)
+  ())
+```
+---
+    ('word "a")

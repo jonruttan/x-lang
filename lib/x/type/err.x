@@ -201,6 +201,21 @@
         (example "(guard (e (Err label e)) (no-such-binding))" "'engine"))
       (if (Err err? v) (v label) (if (Err engine? v) 'engine 'user)))
 
+    (method text (self (param v ANY "Any error value"))
+      (doc "The message of any error value -- TOTAL, like label: an Err answers its msg, an engine-raised ERR its code and subject joined by \": \" (the code alone when the raise named no subject), a bare string itself, and anything else \"an internal error\"."
+        (returns STRING "The message")
+        (example "(Err text (Err make 'io \"boom\" ()))" "\"boom\"")
+        (example "(guard (e (Err text e)) (no-such-binding))" "\"Unbound SYMBOL: no-such-binding\"")
+        (example "(Err text \"bare string\")" "\"bare string\""))
+      (match
+        ((Err err? v) (v msg))
+        ((Err engine? v)
+          (match
+            ((str=? (self subject-of v) "") (self code-of v))
+            (#t (Str8 append (self code-of v) ": " (self subject-of v)))))
+        ((str? v) v)
+        (#t "an internal error")))
+
     (method engine? (self (param v ANY "Any error value"))
       (doc "Test whether v is an ERR -- the value the ENGINE raises (an unbound symbol, a failed include), as opposed to an Err the library raised or a bare string."
         (returns BOOL "True for engine-raised errors only")
