@@ -109,3 +109,31 @@ A wide character over half of another blanks the half left behind.
 ```
 ---
     ((0 0 1 4 2 8 () "/h" 1 0 8) (" 1 Doc     2 Second " "f                   " "                    " "g h                 ") 1 16 0 1 "Second tab")
+
+### a link that takes no place on the page is passed over, on a page of a few hundred lines
+
+An empty link, and a link whose only text is an image's (the image's link
+takes the place), have no spans: next-link and prev-link pass them over,
+select of one selects none, and the page lays out, scrolls and draws.
+
+```x
+(do (import x/codec/markdown) (import x/tui/page) (import x/tui/window) (import x/tui/screen) (import x/tui/style)
+  (def tui-long (Str8 join "\n\n"
+    (pair "[![logo](/logo.png)](/home)"
+          (List map (fn (_ n) (Str8 append "[](/e" (%number->str n) ") para " (%number->str n)
+                                           " [l" (%number->str n) "](/l" (%number->str n) ")"))
+                    (List range 1 160)))))
+  (def p (Page markdown (Markdown parse tui-long) 30))
+  (def w (Window make "Long" p))
+  (def s (Screen make 5 30))
+  (def moves (list (Window next-link w 5) (Window next-link w 5) (Window prev-link w 5) (Window prev-link w 5)
+                   (Window selected w) (Window select w 0 5) (Window selected w) (Window select w 999 5)
+                   (Window select w 319 5) (Window top w) (Window next-link w 5) (Window prev-link w 5)
+                   (Window top w) (Window go w 0 5) (Window select w () 5) (Window prev-link w 5)))
+  (Window draw w s 0 5)
+  (list (Page count p) (List length (Page links p)) (List ref 0 (Page links p)) moves
+        (List map (fn (_ r) (Str8 trim-right (Screen row-text s r))) (list 0 1 2 3 4))
+        (Style has? (Screen style-at s 4 0) 'reverse) (Style has? (Screen style-at s 4 7) 'reverse)))
+```
+---
+    (319 320 ("/home" () ()) (1 3 1 () 1 () () () 319 314 () 317 314 0 () 5) ("[logo]" "" "para 1 l1" "" "para 2 l2") #f #t)
