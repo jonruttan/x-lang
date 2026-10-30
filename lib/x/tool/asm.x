@@ -8,8 +8,7 @@
 (import x/tool/asm-code)
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(def %str-append (prim-ref 'str 'append))
-(def %str->symbol (prim-ref 'str '->sym))
+(import x/core/doors obj-ref obj-set! ptr-set! str->sym str-append)
 
 (import x/type/str)
 
@@ -71,8 +70,8 @@
 (def %sig-cache ())
 (def %asm-sig-intern
   (fn (_ k args)
-    (def sym (%str->symbol
-      (%fold (fn (_ acc op) (%str-append acc (%op-sig op))) "" args)))
+    (def sym (str->sym
+      (%fold (fn (_ acc op) (str-append acc (%op-sig op))) "" args)))
     (set! %sig-cache (pair (pair k sym) %sig-cache))
     sym))
 (def %args-sig
@@ -84,15 +83,15 @@
 ; --- Buffer byte emitters ---
 (def %emit-u8!
   (fn (_ asm byte)
-    (def pos (%obj-ref asm 1))
+    (def pos (obj-ref asm 1))
     ; The buffer is ONE mmap'd region and nothing checked it: emitting
     ; past the capacity wrote into whatever followed the mapping and
     ; died with a segfault somewhere unrelated.  A function that
     ; outgrows its buffer has to say so instead.
-    (if (>= pos (%obj-ref asm 2))
+    (if (>= pos (obj-ref asm 2))
       (Err raise 'state "asm: code buffer full (raise the asm-new capacity)" ()))
-    (%ptr-set! (%obj-ref asm 0) pos (& byte 255) 1)
-    (%obj-set! asm 1 (+ pos 1))))
+    (ptr-set! (obj-ref asm 0) pos (& byte 255) 1)
+    (obj-set! asm 1 (+ pos 1))))
 
 ; A whole instruction at a time.  Going through %emit-u8! four times
 ; re-read the position, the capacity and the buffer pointer, and wrote
@@ -106,15 +105,15 @@
 ; which could write a partial instruction and then raise.
 (def %emit-u32-le!
   (fn (_ asm val)
-    (def pos (%obj-ref asm 1))
-    (if (>= (+ pos 3) (%obj-ref asm 2))
+    (def pos (obj-ref asm 1))
+    (if (>= (+ pos 3) (obj-ref asm 2))
       (Err raise 'state "asm: code buffer full (raise the asm-new capacity)" ()))
-    (def buf (%obj-ref asm 0))
-    (%ptr-set! buf pos            (& val 255) 1)
-    (%ptr-set! buf (+ pos 1) (& (>> val 8) 255) 1)
-    (%ptr-set! buf (+ pos 2) (& (>> val 16) 255) 1)
-    (%ptr-set! buf (+ pos 3) (& (>> val 24) 255) 1)
-    (%obj-set! asm 1 (+ pos 4))))
+    (def buf (obj-ref asm 0))
+    (ptr-set! buf pos            (& val 255) 1)
+    (ptr-set! buf (+ pos 1) (& (>> val 8) 255) 1)
+    (ptr-set! buf (+ pos 2) (& (>> val 16) 255) 1)
+    (ptr-set! buf (+ pos 3) (& (>> val 24) 255) 1)
+    (obj-set! asm 1 (+ pos 4))))
 
 ; A LIST of bytes in one call: single capacity check against the last
 ; byte, one position update.  The x86-64 backend's variable-length
@@ -125,15 +124,15 @@
 (def %emit-bytes!
   (fn (_ asm bytes)
     (def n ((fn (self k xs) (if (null? xs) k (self (+ k 1) (rest xs)))) 0 bytes))
-    (def pos (%obj-ref asm 1))
-    (if (>= (+ pos (- n 1)) (%obj-ref asm 2))
+    (def pos (obj-ref asm 1))
+    (if (>= (+ pos (- n 1)) (obj-ref asm 2))
       (Err raise 'state "asm: code buffer full (raise the asm-new capacity)" ()))
-    (def buf (%obj-ref asm 0))
+    (def buf (obj-ref asm 0))
     ((fn (self p xs)
        (unless (null? xs)
-         (do (%ptr-set! buf p (& (first xs) 255) 1)
+         (do (ptr-set! buf p (& (first xs) 255) 1)
              (self (+ p 1) (rest xs))))) pos bytes)
-    (%obj-set! asm 1 (+ pos n))))
+    (obj-set! asm 1 (+ pos n))))
 
 (def %emit-u64-le!
   (fn (_ asm val)
@@ -143,7 +142,7 @@
 
 (def asm-emit!
   (fn (_ asm mnemonic . args)
-    (def arch (%obj-ref asm 5))
+    (def arch (obj-ref asm 5))
     (def entry (%asm-assq mnemonic (first arch)))
     (if (null? entry) (Err raise 'value (Str append "asm: unknown mnemonic: " (symbol->str mnemonic)) ()))
     ; Match operand signature
@@ -159,16 +158,16 @@
 
 (def asm-label!
   (fn (_ asm name)
-    (%obj-set! asm 3 (pair (pair name (%obj-ref asm 1)) (%obj-ref asm 3)))))
+    (obj-set! asm 3 (pair (pair name (obj-ref asm 1)) (obj-ref asm 3)))))
 
 (def asm-patch!
   (fn (_ asm width type label-name)
-    (def offset (%obj-ref asm 1))
-    (%obj-set! asm 4
-      (pair (list offset width type label-name) (%obj-ref asm 4)))))
+    (def offset (obj-ref asm 1))
+    (obj-set! asm 4
+      (pair (list offset width type label-name) (obj-ref asm 4)))))
 
 (def asm-pos
-  (fn (_ asm) (%obj-ref asm 1)))
+  (fn (_ asm) (obj-ref asm 1)))
 
 
 ; --- Load architecture ---

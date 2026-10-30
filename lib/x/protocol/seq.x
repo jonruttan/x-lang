@@ -17,7 +17,7 @@
 ; -> Gen.
 (import x/type/class)
 ; Fetch the int->char cast from the catalogue (ns `int` utility member de-registered, R5).
-(def %integer->char (prim-ref (lit int) (lit ->char)))
+(import x/core/doors int->char)
 
 ; A Seq subclass describes how to walk some in-memory value V as a sequence of
 ; elements. A subclass supplies just three cursor primitives (subject-LAST,
@@ -137,7 +137,7 @@
       (def %rev-onto (fn (self l acc)
         (match ((null? l) acc) (#t (self (rest l) (pair (first l) acc))))))
       (bytes->str
-        (%map %integer->char
+        (%map int->char
           (%reverse
             (%fold (fn (_ acc el) (%rev-onto (self char->bytes el) acc))
                   () elements)))))))

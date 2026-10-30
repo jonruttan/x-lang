@@ -44,16 +44,9 @@
 
 ; The walks run per token and per byte, so they ride cached prims: a class
 ; door costs a dispatch and allocates.
-(def %sx-bref   (prim-ref (lit str)  (lit byte-ref)))
-(def %sx-blen   (prim-ref (lit str)  (lit byte-len)))
-(def %sx-bsub   (prim-ref (lit str)  (lit byte-sub)))
-(def %sx-append (prim-ref (lit str)  (lit append)))
-(def %sx-cint   (prim-ref (lit char) (lit ->int)))
-(def %sx+       (prim-ref (lit int)  (lit +)))
-(def %sx-       (prim-ref (lit int)  (lit -)))
-(def %sx-read   (prim-ref (lit tok)  (lit read-str)))
+(import x/core/doors char->int int+ int- str-append str-byte-len str-byte-ref str-byte-sub tok-read-str)
 (def %sx-bytes  (prim-ref (lit str)  (lit from-list)))
-(def %sx-byte (fn (_ s i) (%sx-cint (%sx-bref s i))))
+(def %sx-byte (fn (_ s i) (char->int (str-byte-ref s i))))
 
 ; --- the classes --------------------------------------------------------------
 
@@ -102,7 +95,7 @@
     (match
       ((null? rows) 0)
       ((eq? cls (first (first rows))) i)
-      (#t (self cls (rest rows) (%sx+ i 1))))))
+      (#t (self cls (rest rows) (int+ i 1))))))
 
 (def %sx-reset "\x1b[0m")
 
@@ -115,7 +108,7 @@
   (fn (_ style)
     (if (= style 0) ""
       (let ((s (Style sgr style)))
-        (%sx-append "\x1b[" (%sx-bsub s 4 (%sx- (%sx-blen s) 4)))))))
+        (str-append "\x1b[" (str-byte-sub s 4 (int- (str-byte-len s) 4)))))))
 
 ; Each (CLASS . STYLE) of rows (CLASS ATTRIBUTES FOREGROUND BACKGROUND).
 (def %sx-styles
@@ -152,10 +145,10 @@
 (def %sx-theme-file
   (fn (_)
     (let ((o (Sys getenv "X_THEME")))
-      (if (not (null? o)) (if (= (%sx-blen o) 0) () o)
+      (if (not (null? o)) (if (= (str-byte-len o) 0) () o)
         (let ((c (Sys getenv "XDG_CONFIG_HOME")) (h (Sys getenv "HOME")))
-          (if (not (null? c)) (%sx-append c "/x/theme.x")
-            (if (null? h) () (%sx-append h "/.config/x/theme.x"))))))))
+          (if (not (null? c)) (str-append c "/x/theme.x")
+            (if (null? h) () (str-append h "/.config/x/theme.x"))))))))
 
 ; The user's file, read once.  No file is no themes; one that does not read
 ; is one line on stderr and the default, as an unreadable construct list is.
@@ -201,8 +194,8 @@
   (fn (self s i)
     (match
       ((<= i 0) 0)
-      ((= (%sx-byte s (%sx- i 1)) 10) i)
-      (#t (self s (%sx- i 1))))))
+      ((= (%sx-byte s (int- i 1)) 10) i)
+      (#t (self s (int- i 1))))))
 
 ; One past the end of the line holding byte i, its newline included, and
 ; never past lim.
@@ -210,8 +203,8 @@
   (fn (self s i lim)
     (match
       ((>= i lim) lim)
-      ((= (%sx-byte s i) 10) (%sx+ i 1))
-      (#t (self s (%sx+ i 1) lim)))))
+      ((= (%sx-byte s i) 10) (int+ i 1))
+      (#t (self s (int+ i 1) lim)))))
 
 ; Where to read from to colour byte at: a line start the sync test passes,
 ; at most `lines` lines back, or the line that many back; the text's start
@@ -225,7 +218,7 @@
            ((= ls 0) 0)
            ((ok? s ls) ls)
            ((>= k (g lines)) ls)
-           (#t (self (%sx-line-start s (%sx- ls 1)) (%sx+ k 1)))))
+           (#t (self (%sx-line-start s (int- ls 1)) (int+ k 1)))))
        (%sx-line-start s at) 0))))
 
 ; A token's class from the grammar's table: the entry's class, or a function
@@ -245,21 +238,21 @@
   (fn (self table toks at lo hi acc)
     (if (if (null? toks) #t (>= at hi)) (%reverse acc)
       (let ((tag (first (first toks))) (text (first (rest (first toks)))))
-        (let ((e (%sx+ at (%sx-blen text))))
+        (let ((e (int+ at (str-byte-len text))))
           (if (<= e lo) (self table (rest toks) e lo hi acc)
             (let ((cls (%sx-class-of table tag text)))
               (if (null? cls) (self table (rest toks) e lo hi acc)
                 (let ((s0 (if (< at lo) lo at)) (e0 (if (> e hi) hi e)))
                   (self table (rest toks) e lo hi
-                    (pair (list s0 (%sx- e0 s0) cls) acc)))))))))))
+                    (pair (list s0 (int- e0 s0) cls) acc)))))))))))
 
 (def %sx-spans
   (fn (_ g s start len lim)
     (def from (%sx-sync-from g s start))
-    (def hi (%sx+ start len))
+    (def hi (int+ start len))
     (def to (if (>= hi lim) lim (%sx-line-end s hi lim)))
-    (def whole? (if (= from 0) (= to (%sx-blen s)) #f))
-    (def toks ((g %lexer) read-str (if whole? s (%sx-bsub s from (%sx- to from)))))
+    (def whole? (if (= from 0) (= to (str-byte-len s)) #f))
+    (def toks ((g %lexer) read-str (if whole? s (str-byte-sub s from (int- to from)))))
     (%sx-walk (g classes) toks from start hi ())))
 
 ; --- rendering ----------------------------------------------------------------
@@ -271,16 +264,16 @@
   (fn (self spans pos hi plain styled acc)
     (def sp (if (null? spans) () (first spans)))
     (def o (if (null? sp) hi (first sp)))
-    (def e (if (null? sp) hi (%sx+ o (first (rest sp)))))
+    (def e (if (null? sp) hi (int+ o (first (rest sp)))))
     (match
       ((if (null? sp) #t (>= o hi))
-        (%reverse (if (< pos hi) (pair (plain pos (%sx- hi pos)) acc) acc)))
+        (%reverse (if (< pos hi) (pair (plain pos (int- hi pos)) acc) acc)))
       ((<= e pos) (self (rest spans) pos hi plain styled acc))
       (#t
         (let ((o0 (if (< o pos) pos o)) (e0 (if (> e hi) hi e)))
           (self (rest spans) e0 hi plain styled
-            (pair (styled sp o0 (%sx- e0 o0))
-                  (if (< pos o0) (pair (plain pos (%sx- o0 pos)) acc) acc))))))))
+            (pair (styled sp o0 (int- e0 o0))
+                  (if (< pos o0) (pair (plain pos (int- o0 pos)) acc) acc))))))))
 
 (def %sx-html-escape
   (fn (_ s)
@@ -293,11 +286,11 @@
     (def hit ((fn (self rs) (if (null? rs) () (if (= (first (first rs)) b) (first rs) (self (rest rs)))))
               (first %sx-runs)))
     (def have (if (null? hit) "" (rest hit)))
-    (if (<= n (%sx-blen have)) (%sx-bsub have 0 n)
-      (let ((grown ((fn (self r) (if (< (%sx-blen r) n) (self (%sx-append r r)) r))
-                    (if (= (%sx-blen have) 0) (%sx-bytes (list b)) have))))
+    (if (<= n (str-byte-len have)) (str-byte-sub have 0 n)
+      (let ((grown ((fn (self r) (if (< (str-byte-len r) n) (self (str-append r r)) r))
+                    (if (= (str-byte-len have) 0) (%sx-bytes (list b)) have))))
         (%set-first! %sx-runs (pair (pair b grown) (first %sx-runs)))
-        (%sx-bsub grown 0 n)))))
+        (str-byte-sub grown 0 n)))))
 
 ; --- x-lang's grammar -----------------------------------------------------------
 
@@ -315,7 +308,7 @@
       (let ((path (%module-resolve-file "x/constructs.x")) (d (Dict make)))
         (List for-each
           (fn (_ entry) (d set! (Str8 str (first entry)) #t))
-          (first (%sx-read (%base) (File read-all path))))
+          (first (tok-read-str (%base) (File read-all path))))
         d))))
 
 ; The construct set and the memo of atom classes, made on first use and
@@ -333,7 +326,7 @@
 ; a private, a leading capital a class.
 (def %sx-name-class
   (fn (_ text)
-    (def b0 (if (= 0 (%sx-blen text)) 0 (%sx-byte text 0)))
+    (def b0 (if (= 0 (str-byte-len text)) 0 (%sx-byte text 0)))
     (match
       ((= b0 37) (lit private))
       ((if (>= b0 65) (<= b0 90) #f) (lit class))
@@ -345,7 +338,7 @@
 (def %sx-ask
   (fn (_ text)
     (if ((%sx-keywords) get-or #f text) (lit keyword)
-      (let ((v (guard (_ (lit %unreadable)) (first (%sx-read (%base) (%sx-append text " "))))))
+      (let ((v (guard (_ (lit %unreadable)) (first (tok-read-str (%base) (str-append text " "))))))
         (match
           ((eq? v (lit %unreadable)) (lit name))
           ((number? v) (lit number))
@@ -410,7 +403,7 @@
 (def %sx-langs-dir
   (fn (_)
     (let ((d (Sys getenv "X_LANG_DIR")))
-      (if (if (null? d) #f (< 0 (%sx-blen d))) d
+      (if (if (null? d) #f (< 0 (str-byte-len d))) d
         (guard (_ "deps/langs") (%path-join %install-root "langs"))))))
 
 (def %sx-grammar-keys (list (lit module) (lit files) (lit names) (lit interpreters)))
@@ -418,7 +411,7 @@
 ; The row of a (grammar ...) form from the bundle at ROOT.
 (def %sx-grammar-row
   (fn (_ form root)
-    (def bad (fn (_ why) (Err raise (lit value) (%sx-append "Syntax: a grammar form " why) form)))
+    (def bad (fn (_ why) (Err raise (lit value) (str-append "Syntax: a grammar form " why) form)))
     (if (if (pair? (rest form)) (symbol? (first (rest form))) #f) () (bad "needs a name"))
     (List for-each
       (fn (_ c)
@@ -448,7 +441,7 @@
                           ()))
               (List map (fn (_ f) (%sx-grammar-row f root))
                 (List filter (fn (_ f) (if (pair? f) (eq? (first f) (lit grammar)) #f))
-                  (%sx-read (%base) (File read-all manifest))))))))
+                  (tok-read-str (%base) (File read-all manifest))))))))
       (guard (_ ()) (File list-dir dir)))))
 
 (def %sx-bundles
@@ -495,22 +488,22 @@
 (def %sx-head-end
   (fn (self s i n)
     (match ((= n 0) i)
-           ((>= i (%sx-blen s)) i)
-           ((= (%sx-byte s i) 10) (self s (%sx+ i 1) (%sx- n 1)))
-           (#t (self s (%sx+ i 1) n)))))
+           ((>= i (str-byte-len s)) i)
+           ((= (%sx-byte s i) 10) (self s (int+ i 1) (int- n 1)))
+           (#t (self s (int+ i 1) n)))))
 
 ; The offset of the start of the Nth line from the end.
 (def %sx-tail-start
   (fn (self s i n)
     (match ((<= i 0) 0)
-           ((= (%sx-byte s (%sx- i 1)) 10)
-             (if (= n 1) i (self s (%sx- i 1) (%sx- n 1))))
-           (#t (self s (%sx- i 1) n)))))
+           ((= (%sx-byte s (int- i 1)) 10)
+             (if (= n 1) i (self s (int- i 1) (int- n 1))))
+           (#t (self s (int- i 1) n)))))
 
 ; The words of a line, split at blanks and colons.
 (def %sx-words
   (fn (_ line)
-    (List filter (fn (_ w) (< 0 (%sx-blen w)))
+    (List filter (fn (_ w) (< 0 (str-byte-len w)))
       (List flat-map (fn (_ a) (List flat-map (fn (_ b) (Str8 split "\t" b)) (Str8 split ":" a)))
         (Str8 split " " line)))))
 
@@ -531,32 +524,32 @@
         (if (null? ws) ()
           (let ((k (List find (fn (_ k) (Str8 starts? k (first ws))) %sx-modeline-keys)))
             (if (null? k) (self (rest ws))
-              (Str8 ->sym (%sx-bsub (first ws) (%sx-blen k) (%sx- (%sx-blen (first ws)) (%sx-blen k)))))))))
+              (Str8 ->sym (str-byte-sub (first ws) (str-byte-len k) (int- (str-byte-len (first ws)) (str-byte-len k)))))))))
     (value (after (%sx-words line)))))
 
 ; The modeline's grammar name in the first or last five lines, as vi reads
 ; them; nil for none.
 (def %sx-modeline
   (fn (_ text)
-    (def n (%sx-blen text))
-    (def head (%sx-bsub text 0 (%sx-head-end text 0 5)))
+    (def n (str-byte-len text))
+    (def head (str-byte-sub text 0 (%sx-head-end text 0 5)))
     (def from (%sx-tail-start text n 5))
     (def lines (List append (Str8 split "\n" head)
-                            (Str8 split "\n" (%sx-bsub text from (%sx- n from)))))
+                            (Str8 split "\n" (str-byte-sub text from (int- n from)))))
     (def hit (List find (fn (_ l) (not (null? (%sx-modeline-in l)))) lines))
     (if (null? hit) () (%sx-modeline-in hit))))
 
 (def %sx-base-name
   (fn (_ path)
     (let ((i (Str8 last-index-of "/" path)))
-      (if (null? i) path (%sx-bsub path (%sx+ i 1) (%sx- (%sx-blen path) (%sx+ i 1)))))))
+      (if (null? i) path (str-byte-sub path (int+ i 1) (int- (str-byte-len path) (int+ i 1)))))))
 
 ; The interpreter a #! line names: the program's name, or for env the first
 ; word after it that is not an option; nil for no #! line.
 (def %sx-interpreter
   (fn (_ text)
-    (if (if (< 1 (%sx-blen text)) (Str8 starts? "#!" text) #f)
-      (let ((ws (%sx-words (Str8 trim (%sx-bsub text 2 (%sx- (%sx-head-end text 0 1) 2))))))
+    (if (if (< 1 (str-byte-len text)) (Str8 starts? "#!" text) #f)
+      (let ((ws (%sx-words (Str8 trim (str-byte-sub text 2 (int- (%sx-head-end text 0 1) 2))))))
         (if (null? ws) ()
           (let ((prog (%sx-base-name (first ws))))
             (if (not (str=? prog "env")) prog
@@ -567,9 +560,9 @@
 ; An interpreter's name without a trailing version: python3.12 is python.
 (def %sx-unversioned
   (fn (self s)
-    (let ((n (%sx-blen s)))
-      (if (if (< 0 n) (let ((c (%sx-byte s (%sx- n 1)))) (if (= c 46) #t (if (< 47 c) (< c 58) #f))) #f)
-        (self (%sx-bsub s 0 (%sx- n 1)))
+    (let ((n (str-byte-len s)))
+      (if (if (< 0 n) (let ((c (%sx-byte s (int- n 1)))) (if (= c 46) #t (if (< 47 c) (< c 58) #f))) #f)
+        (self (str-byte-sub s 0 (int- n 1)))
         s))))
 
 ; The row for a file: a modeline's name, else the #! line's interpreter,
@@ -694,7 +687,7 @@
       (doc "Read a theme file: its themes join the ones named finds, ahead of any of the same name, and its (use NAME) becomes the theme in use. Nothing changes when the file does not read."
         (returns LIST "The file's themes")
         (sample "(Theme load! \"/home/me/.config/x/theme.x\")" "its themes"))
-      (let ((r (%sx-theme-forms (%sx-read (%base) (File read-all path)) () ())))
+      (let ((r (%sx-theme-forms (tok-read-str (%base) (File read-all path)) () ())))
         (def themes (List reverse (first r)))
         (def use (if (null? (rest r)) ()
                    (let ((t (List find (fn (_ t) (eq? (t name) (rest r))) themes)))
@@ -740,9 +733,9 @@
     (doc "The spans of text from start for length bytes, each (offset length class) in order, offsets into text and clipped to the range. The lexer reads from a line the sync test passes, so a string or comment opened before start colours the range's start, and to the end of the line the range ends in, never past the end given. Tokens with no class are left out."
       (returns LIST "((offset length class) ...)")
       (example "((Syntax x) spans \"\\\"a b\\\" c\" 3 4)" "((3 2 'string) (6 1 'name))"))
-    (def n (%sx-blen text))
+    (def n (str-byte-len text))
     (def start (if (null? range) 0 (first range)))
-    (def len (if (if (null? range) #t (null? (rest range))) (%sx- n start) (first (rest range))))
+    (def len (if (if (null? range) #t (null? (rest range))) (int- n start) (first (rest range))))
     (def lim (if (if (null? range) #t (if (null? (rest range)) #t (null? (rest (rest range))))) n
                (first (rest (rest range)))))
     (%sx-spans self text start len lim))
@@ -864,13 +857,13 @@
       (def on? (Ansi enabled?))
       (def codes ((Theme current) codes))
       (Str8 join ""
-        (%sx-render spans start (%sx+ start len)
-          (fn (_ a n) (%sx-bsub text a n))
+        (%sx-render spans start (int+ start len)
+          (fn (_ a n) (str-byte-sub text a n))
           (fn (_ sp a n)
-            (def t (%sx-bsub text a n))
+            (def t (str-byte-sub text a n))
             (let ((c (let ((o (if (null? own) () (own sp))))
                        (if (null? o) (if on? (%sx-sgr codes (first (rest (rest sp)))) "") o))))
-              (if (= (%sx-blen c) 0) t (%sx-append c (%sx-append t %sx-reset)))))
+              (if (= (str-byte-len c) 0) t (str-append c (str-append t %sx-reset)))))
           ())))
 
     (method html (self (param text STRING "The text the spans index")
@@ -881,10 +874,10 @@
         (returns STRING "The markup")
         (example "(let ((s \"(f 1)\")) (Syntax html s ((Syntax x) spans s) 0 5))" "\"<span class=\\\"p\\\">(</span><span class=\\\"n\\\">f</span> <span class=\\\"m\\\">1</span><span class=\\\"p\\\">)</span>\""))
       (Str8 join ""
-        (%sx-render spans start (%sx+ start len)
-          (fn (_ a n) (%sx-html-escape (%sx-bsub text a n)))
+        (%sx-render spans start (int+ start len)
+          (fn (_ a n) (%sx-html-escape (str-byte-sub text a n)))
           (fn (_ sp a n)
-            (def t (%sx-bsub text a n))
+            (def t (str-byte-sub text a n))
             (let ((r (Syntax rouge (first (rest (rest sp))))))
               (if (null? r) (%sx-html-escape t)
                 (Str8 append "<span class=\"" r "\">" (%sx-html-escape t) "</span>"))))
@@ -897,17 +890,17 @@
         (returns STRING "len bytes")
         (example "(let ((s \"(f 1)\")) (Syntax cells ((Syntax x) spans s) 0 5))" "\"JI DJ\""))
       (Str8 join ""
-        (%sx-render spans start (%sx+ start len)
+        (%sx-render spans start (int+ start len)
           (fn (_ a n) (%sx-run 32 n))
-          (fn (_ sp a n) (%sx-run (%sx+ 64 (%sx-index (first (rest (rest sp))) %sx-table 1)) n))
+          (fn (_ sp a n) (%sx-run (int+ 64 (%sx-index (first (rest (rest sp))) %sx-table 1)) n))
           ())))
 
     (method cell-class (self (param b ANY "A byte from cells, as a code or a character"))
       (doc "The class a cell byte stands for, nil for a space."
         (returns SYMBOL "The class, or nil")
         (example "(Syntax cell-class 66)" "'string"))
-      ((fn (self rows i) (if (null? rows) () (if (= i 1) (first (first rows)) (self (rest rows) (%sx- i 1)))))
-       %sx-table (%sx- (if (char? b) (%sx-cint b) b) 64)))
+      ((fn (self rows i) (if (null? rows) () (if (= i 1) (first (first rows)) (self (rest rows) (int- i 1)))))
+       %sx-table (int- (if (char? b) (char->int b) b) 64)))
 
     (method classify (self (param text STRING "One atom's bytes"))
       (doc "The class x-lang's grammar gives an atom: the reader's answer for its bytes, a construct a keyword. Memoised per distinct atom; forget! drops the memo."

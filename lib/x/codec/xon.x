@@ -19,9 +19,8 @@
 ; The #"..." literal's entry analyser comes from the quote reader; the type
 ; and buffer prims arm-source! wires with are fetched into this module.
 (import x/reader/lit-reader interp-analyse)
-(def %buffer-last-char (prim-ref (lit buf) (lit last-char)))
+(import x/core/doors buf-last-char type-push-analyse)
 (def %type-analyse-cell (prim-ref (lit type) (lit analyse-cell)))
-(def %type-push-analyse (prim-ref (lit type) (lit push-analyse)))
 (def %type-read-cell (prim-ref (lit type) (lit read-cell)))
 (def %type-push-read (prim-ref (lit type) (lit push-read)))
 
@@ -68,14 +67,14 @@
         (note "For tools that read SOURCE into a scratch base (fmt, doc). The literal survives verbatim instead of shattering."))
       (let ((st (Xon %xon-find-type b "STRING")))
         (unless (null? st)
-          (%type-push-analyse st (pair interp-analyse (first (%type-analyse-cell st))))
+          (type-push-analyse st (pair interp-analyse (first (%type-analyse-cell st))))
           ; The tok prim is fetched ONCE here and closed over (#333):
           ; fetching it inside the callback paid a catalogue walk per
           ; string token of every armed read.
           (%type-push-read st
             (pair (let ((%tokf (prim-ref (lit buf) (lit tok))))
                   (fn (_ buffer . rest)
-                    (if (= (%buffer-last-char buffer) #\")
+                    (if (= (buf-last-char buffer) #\")
                       (let ((tok (%tokf buffer)))
                         (if (and (> (%str-length tok) 2)
                                  (and (= (%str-ref tok 0) #\#) (= (%str-ref tok 1) #\")))

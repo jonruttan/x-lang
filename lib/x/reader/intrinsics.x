@@ -49,10 +49,10 @@
 ; refuses a typeless object.  Guarded: an engine without the cell has a nil
 ; unit there, and a write through nil is a crash where a no-op is the
 ; honest answer.
-(def %score-label-cell (prim-ref (lit obj) (lit ref)))
+(import x/core/doors obj-ref)
 (def %score-label!
   (fn (_ score label)
-    (let ((cell (%score-label-cell score 1)))
+    (let ((cell (obj-ref score 1)))
       (if (null? cell) () (%set-cell-int! cell label)))))
 ; The reader's side of the channel.  A reader is (fn (_ . args) ...) and its
 ; second argument is the label as a RAW CELL -- a cell rather than an int

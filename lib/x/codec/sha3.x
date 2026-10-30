@@ -17,15 +17,7 @@
 (import x/sys/gc)
 (import x/tool/compiled)
 
-(def %add (prim-ref 'int '+))
-(def %sub (prim-ref 'int '-))
-(def %mul (prim-ref 'int '*))
-(def %div (prim-ref (lit int) (lit /)))
-(def %mod (prim-ref (lit int) (lit %)))
-(def %oref (prim-ref (lit obj) (lit ref)))
-(def %oset! (prim-ref (lit obj) (lit set!)))
-(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %char->int (prim-ref (lit char) (lit ->int)))
+(import x/core/doors char->int int% int* int+ int- int/ obj-ref obj-set! str-byte-ref)
 (def %cvt (prim-ref (lit convert) (lit to)))
 
 ; hex halves to the 64-bit words they spell, hi shifted over lo; the %cvt
@@ -54,27 +46,27 @@
 
 ; the mask that makes an arithmetic shift right by N logical: 64-N ones
 (def %lmask
-  (fn (_ n) (if (= n 1) 9223372036854775807 (%sub (<< 1 (%sub 64 n)) 1))))
+  (fn (_ n) (if (= n 1) 9223372036854775807 (int- (<< 1 (int- 64 n)) 1))))
 
 (def %rotl
-  (fn (_ x n) (if (= n 0) x (| (<< x n) (& (>> x (%sub 64 n)) (%lmask (%sub 64 n)))))))
+  (fn (_ x n) (if (= n 0) x (| (<< x n) (& (>> x (int- 64 n)) (%lmask (int- 64 n)))))))
 
 ; vector slot I of V (slot 0 of a Vector's object holds its length)
-(def %v (fn (_ v i) (%oref v (%add i 1))))
-(def %v! (fn (_ v i x) (%oset! v (%add i 1) x)))
+(def %v (fn (_ v i) (obj-ref v (int+ i 1))))
+(def %v! (fn (_ v i x) (obj-set! v (int+ i 1) x)))
 
 ; theta: each column's parity, mixed into the lanes beside it
 (def %theta!
   (fn (_ a c)
     ((fn (self x)
        (unless (= x 5)
-         (do (%v! c x (^ (%v a x) (^ (%v a (%add x 5)) (^ (%v a (%add x 10)) (^ (%v a (%add x 15)) (%v a (%add x 20)))))))
-             (self (%add x 1))))) 0)
+         (do (%v! c x (^ (%v a x) (^ (%v a (int+ x 5)) (^ (%v a (int+ x 10)) (^ (%v a (int+ x 15)) (%v a (int+ x 20)))))))
+             (self (int+ x 1))))) 0)
     ((fn (self i)
        (unless (= i 25)
-         (do (def x (%mod i 5))
-             (%v! a i (^ (%v a i) (^ (%v c (%mod (%add x 4) 5)) (%rotl (%v c (%mod (%add x 1) 5)) 1))))
-             (self (%add i 1))))) 0)))
+         (do (def x (int% i 5))
+             (%v! a i (^ (%v a i) (^ (%v c (int% (int+ x 4) 5)) (%rotl (%v c (int% (int+ x 1) 5)) 1))))
+             (self (int+ i 1))))) 0)))
 
 ; rho and pi into B, then chi back into A, then iota
 (def %rest!
@@ -82,41 +74,41 @@
     ((fn (self i)
        (unless (= i 25)
          (do (%v! b (%v %pi i) (%rotl (%v a i) (%v %rot i)))
-             (self (%add i 1))))) 0)
+             (self (int+ i 1))))) 0)
     ((fn (self i)
        (unless (= i 25)
-         (do (def x (%mod i 5))
-             (def row (%sub i x))
-             (%v! a i (^ (%v b i) (& (~ (%v b (%add row (%mod (%add x 1) 5)))) (%v b (%add row (%mod (%add x 2) 5))))))
-             (self (%add i 1))))) 0)
+         (do (def x (int% i 5))
+             (def row (int- i x))
+             (%v! a i (^ (%v b i) (& (~ (%v b (int+ row (int% (int+ x 1) 5)))) (%v b (int+ row (int% (int+ x 2) 5))))))
+             (self (int+ i 1))))) 0)
     (%v! a 0 (^ (%v a 0) (%v %rc r)))))
 
 (def %permute!
   (fn (self a b c r)
     (unless (= r 24)
-      (do (%theta! a c) (%rest! a b r) (self a b c (%add r 1))))))
+      (do (%theta! a c) (%rest! a b r) (self a b c (int+ r 1))))))
 
 ; byte I of the padded message: the message, SHA-3's 0x06, zeros, and 0x80
 ; on the last byte of the last block -- 0x86 where the two meet
 (def %byte
   (fn (_ s len total i)
     (match
-      ((< i len) (%char->int (%byte-ref s i)))
-      ((= i len) (if (= i (%sub total 1)) 134 6))
-      ((= i (%sub total 1)) 128)
+      ((< i len) (char->int (str-byte-ref s i)))
+      ((= i len) (if (= i (int- total 1)) 134 6))
+      ((= i (int- total 1)) 128)
       (#t 0))))
 
 ; the lane at byte BASE of the padded message, little-endian
 (def %lane
   (fn (self s len total base k acc)
     (if (< k 0) acc
-      (self s len total base (%sub k 1) (| (<< acc 8) (%byte s len total (%add base k)))))))
+      (self s len total base (int- k 1) (| (<< acc 8) (%byte s len total (int+ base k)))))))
 
 (def %absorb!
   (fn (self s len total base a i lanes)
     (unless (= i lanes)
-      (do (%v! a i (^ (%v a i) (%lane s len total (%add base (<< i 3)) 7 0)))
-          (self s len total base a (%add i 1) lanes)))))
+      (do (%v! a i (^ (%v a i) (%lane s len total (int+ base (<< i 3)) 7 0)))
+          (self s len total base a (int+ i 1) lanes)))))
 
 ; one collect at completion returns the digest's net growth to zero, and
 ; one every eighth block keeps a long input's garbage bounded (sha512.x)
@@ -128,14 +120,14 @@
         (do (when (and (> k 0) (= (& k 7) 0)) (Heap collect))
             (%absorb! s len total base a 0 (>> rate 3))
             (%permute! a b c 0)
-            (self s len total rate (%add base rate) (%add k 1) a b c))))))
+            (self s len total rate (int+ base rate) (int+ k 1) a b c))))))
 
 ; the state after the whole message, a Vector of the twenty-five lanes: the
 ; pure-x digest, which the compiled engine stands in for
 (def %digest-state
   (fn (_ width s n)
-    (def rate (%sub 200 (>> width 2)))
-    (def total (%mul (%add (%div n rate) 1) rate))
+    (def rate (int- 200 (>> width 2)))
+    (def total (int* (int+ (int/ n rate) 1) rate))
     (%blocks s n total rate 0 0 (Vector make 25 0) (Vector make 25 0) (Vector make 5 0))))
 
 ; the state's first N bytes as lowercase hex

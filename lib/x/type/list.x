@@ -20,10 +20,10 @@
 ; value errors. Coercion runs ONCE per public entry -- self-recursive
 ; walks move into inner `go` fns so the loop never re-probes. Explicit
 ; control: pre-convert yourself ((Convert to x %int)).
-(def %list-type-of (prim-ref (lit type) (lit of)))
-(def %list-int-type (%list-type-of 0))
+(import x/core/doors int+ int- int< type-of)
+(def %list-int-type (type-of 0))
 (def %list-cvt (prim-ref (lit convert) (lit to)))
-(def %list-int? (fn (_ n) (if (eq? n ()) #f (eq? (%list-type-of n) %list-int-type))))
+(def %list-int? (fn (_ n) (if (eq? n ()) #f (eq? (type-of n) %list-int-type))))
 (def %list->int (fn (_ n what)
   (if (%list-int? n) n
     (let ((k (%list-cvt n %list-int-type)))
@@ -100,9 +100,6 @@
     (go init (%list-from-seq lst))))
 
 ; The integer doors, for counts.
-(def %list-int+ (prim-ref (lit int) (lit +)))
-(def %list-int- (prim-ref (lit int) (lit -)))
-(def %list-int< (prim-ref (lit int) (lit <)))
 
 (def-class List ()
   (static
@@ -140,7 +137,7 @@
     ; --- Basics ---
     (method length (self lst)
       (doc "Return the number of elements." (param lst LIST "List or iterable"))
-      (%list-fold (fn (_ acc _) (%list-int+ acc 1)) 0 lst))
+      (%list-fold (fn (_ acc _) (int+ acc 1)) 0 lst))
     (method ref (self n lst)
       (doc "Return the element at index n (zero-based; negative counts from the end; coerced to INT); errors when n is unconvertible or out of range." (param n INTEGER "Zero-based index (negative counts from the end)") (param lst LIST "List"))
       ; first/rest are unchecked C prims (UB on a non-pair -- segfaults on
@@ -293,7 +290,7 @@
           (match
             ((eq? xs ()) ())
             ((pred (first xs)) i)
-            (#t (self (%list-int+ i 1) (rest xs))))))
+            (#t (self (int+ i 1) (rest xs))))))
       (go 0 (%list-from-seq lst)))
     (method index-of (self x lst)
       (doc "Return the index of the first occurrence of a value." (param x ANY "Value to find") (param lst LIST "List") (returns ANY "Zero-based index, or nil if not found"))
@@ -308,7 +305,7 @@
       (go (%list-from-seq lst)))
     (method count-if (self pred lst)
       (doc "Count elements satisfying a predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable") (returns INTEGER "Count of matching elements"))
-      (%list-fold (fn (_ acc x) (if (pred x) (%list-int+ acc 1) acc)) 0 lst))
+      (%list-fold (fn (_ acc x) (if (pred x) (int+ acc 1) acc)) 0 lst))
     ; --- Slicing ---
     (method take (self n lst)
       (doc "Take the first n elements of a list (n coerced to INT)." (param n INTEGER "Number of elements") (param lst LIST "List"))
@@ -316,8 +313,8 @@
       (def go (fn (self j xs acc)
         ; Nested if, NOT and/or (#343): per element, operatives
         ; expand per evaluation.
-        (if (if (%list-int< 0 j) (eq? xs ()) #t) (%reverse acc)
-          (self (%list-int- j 1) (rest xs) (pair (first xs) acc)))))
+        (if (if (int< 0 j) (eq? xs ()) #t) (%reverse acc)
+          (self (int- j 1) (rest xs) (pair (first xs) acc)))))
       (go k lst ()))
     (method chunk (self n lst)
       (doc "Split a list into successive n-element sublists; the last may be shorter." (param n INTEGER "Chunk size (must be > 0)") (param lst LIST "List") (returns LIST "List of chunks") (example "(List chunk 2 (list 1 2 3 4 5))" "((1 2) (3 4) (5))"))
@@ -330,7 +327,7 @@
       (doc "Drop the first n elements of a list (n coerced to INT)." (param n INTEGER "Number of elements to skip") (param lst LIST "List"))
       (def k (%list->int n "List drop: count not convertible to INT"))
       (def go (fn (self j xs)
-        (if (if (%list-int< 0 j) (eq? xs ()) #t) xs (self (%list-int- j 1) (rest xs)))))
+        (if (if (int< 0 j) (eq? xs ()) #t) xs (self (int- j 1) (rest xs)))))
       (go k lst))
     (method take-while (self pred lst)
       (doc "Take elements from the front while predicate holds." (param pred CALLABLE "Predicate function") (param lst LIST "List"))

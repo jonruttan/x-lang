@@ -22,62 +22,53 @@
 ; Collection is explicit-trigger-only; mont-pow collects at fixed points.
 (import x/sys/gc)
 
-(def %add (prim-ref 'int '+))
-(def %sub (prim-ref 'int '-))
-(def %mul (prim-ref 'int '*))
-(def %oref (prim-ref (lit obj) (lit ref)))
-(def %oset! (prim-ref (lit obj) (lit set!)))
-(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %char->int (prim-ref (lit char) (lit ->int)))
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %pset1 (prim-ref (lit ptr) (lit set!)))
+(import x/core/doors char->int int* int+ int- obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
 
 (def %M 67108863)
 
-(def %byte (fn (_ s i) (%char->int (%byte-ref s i))))
-(def %lr (fn (_ v i) (%oref v (%add i 1))))
-(def %ls! (fn (_ v i x) (%oset! v (%add i 1) x)))
+(def %byte (fn (_ s i) (char->int (str-byte-ref s i))))
+(def %lr (fn (_ v i) (obj-ref v (int+ i 1))))
+(def %ls! (fn (_ v i x) (obj-set! v (int+ i 1) x)))
 
 (def %limbs (fn (_ n) (Vector make n 0)))
 
 (def %copy
   (fn (_ v n)
     (def out (%limbs n))
-    ((fn (self i) (unless (= i n) (do (%ls! out i (%lr v i)) (self (%add i 1))))) 0)
+    ((fn (self i) (unless (= i n) (do (%ls! out i (%lr v i)) (self (int+ i 1))))) 0)
     out))
 
 ; --- the modulus: a vector of (N LIMBS N' R2 ONE LEN BYTES) ---------------
 
-(def mont-n (fn (_ m) (%oref m 1)))
+(def mont-n (fn (_ m) (obj-ref m 1)))
 ; The limbs are made from the bytes when first asked for: a compiled
 ; engine reads the bytes itself and never asks.
 (def %m-limbs
   (fn (_ m)
-    (when (null? (%oref m 2))
-      (do (def r (%oref m 7))
-          (%oset! m 2 (%from-be (first r) (first (rest r)) (first (rest (rest r))) (mont-n m)))))
-    (%oref m 2)))
-(def %m-inv (fn (_ m) (%oref m 3)))
+    (when (null? (obj-ref m 2))
+      (do (def r (obj-ref m 7))
+          (obj-set! m 2 (%from-be (first r) (first (rest r)) (first (rest (rest r))) (mont-n m)))))
+    (obj-ref m 2)))
+(def %m-inv (fn (_ m) (obj-ref m 3)))
 ; R^2 mod m and R mod m are made when first asked for: by pure x here --
 ; 52n doublings of a limb vector, 200 ms for P-256's prime -- or by a
 ; compiled engine's add through mont-set-r2!, which mont-jit does before
 ; anything asks, in milliseconds.
 (def %m-r2
   (fn (_ m)
-    (when (null? (%oref m 4)) (%oset! m 4 (%r2 (%m-limbs m) (mont-n m))))
-    (%oref m 4)))
+    (when (null? (obj-ref m 4)) (obj-set! m 4 (%r2 (%m-limbs m) (mont-n m))))
+    (obj-ref m 4)))
 (def mont-one
   (fn (_ m)
-    (when (null? (%oref m 5))
+    (when (null? (obj-ref m 5))
       (do (def one (%limbs (mont-n m)))
           (%ls! one 0 1)
-          (%oset! m 5 (mont-mul m one (%m-r2 m)))))
-    (%oref m 5)))
-(def mont-r2-set? (fn (_ m) (not (null? (%oref m 4)))))
-(def mont-set-r2! (fn (_ m v) (%oset! m 4 v) m))
-(def mont-bytes (fn (_ m) (%oref m 6)))
-(def mont-region (fn (_ m) (%oref m 7)))
+          (obj-set! m 5 (mont-mul m one (%m-r2 m)))))
+    (obj-ref m 5)))
+(def mont-r2-set? (fn (_ m) (not (null? (obj-ref m 4)))))
+(def mont-set-r2! (fn (_ m v) (obj-set! m 4 v) m))
+(def mont-bytes (fn (_ m) (obj-ref m 6)))
+(def mont-region (fn (_ m) (obj-ref m 7)))
 (def mont-limbs (fn (_ m) (%m-limbs m)))
 
 ; A big-endian region's bytes as n limbs: byte j from the end lands at bit
@@ -87,30 +78,30 @@
     (def v (%limbs n))
     ((fn (self j limb off)
        (unless (= j len)
-         (do (def b (%byte s (%sub (%add start len) (%add j 1))))
+         (do (def b (%byte s (int- (int+ start len) (int+ j 1))))
              (when (< limb n)
                (%ls! v limb (| (%lr v limb) (& (<< b off) %M))))
-             (when (and (> off 18) (< (%add limb 1) n))
-               (%ls! v (%add limb 1) (| (%lr v (%add limb 1)) (>> b (%sub 26 off)))))
-             (if (>= (%add off 8) 26)
-               (self (%add j 1) (%add limb 1) (%sub (%add off 8) 26))
-               (self (%add j 1) limb (%add off 8))))))
+             (when (and (> off 18) (< (int+ limb 1) n))
+               (%ls! v (int+ limb 1) (| (%lr v (int+ limb 1)) (>> b (int- 26 off)))))
+             (if (>= (int+ off 8) 26)
+               (self (int+ j 1) (int+ limb 1) (int- (int+ off 8) 26))
+               (self (int+ j 1) limb (int+ off 8))))))
      0 0 0)
     v))
 
 ; n limbs as len big-endian bytes, in a fresh buffer.
 (def %to-be
   (fn (_ v n len)
-    (def out (%make-str (if (> len 0) len 1)))
-    (def p (%str->ptr out))
+    (def out (str-make (if (> len 0) len 1)))
+    (def p (str->ptr out))
     ((fn (self j limb off)
        (unless (= j len)
          (do (def lo (if (< limb n) (>> (%lr v limb) off) 0))
-             (def hi (if (and (> off 18) (< (%add limb 1) n)) (<< (%lr v (%add limb 1)) (%sub 26 off)) 0))
-             (%pset1 p (%sub len (%add j 1)) (& (| lo hi) 255) 1)
-             (if (>= (%add off 8) 26)
-               (self (%add j 1) (%add limb 1) (%sub (%add off 8) 26))
-               (self (%add j 1) limb (%add off 8))))))
+             (def hi (if (and (> off 18) (< (int+ limb 1) n)) (<< (%lr v (int+ limb 1)) (int- 26 off)) 0))
+             (ptr-set! p (int- len (int+ j 1)) (& (| lo hi) 255) 1)
+             (if (>= (int+ off 8) 26)
+               (self (int+ j 1) (int+ limb 1) (int- (int+ off 8) 26))
+               (self (int+ j 1) limb (int+ off 8))))))
      0 0 0)
     out))
 
@@ -121,17 +112,17 @@
        (if (< i 0) #t
          (match ((> (%lr a i) (%lr b i)) #t)
                 ((< (%lr a i) (%lr b i)) #f)
-                (#t (self (%sub i 1))))))
-     (%sub n 1))))
+                (#t (self (int- i 1))))))
+     (int- n 1))))
 
 ; a := a - b in place, the borrow carried by the arithmetic shift.
 (def %sub-in!
   (fn (_ a b n)
     ((fn (self i c)
        (unless (= i n)
-         (do (def s (%add (%sub (%lr a i) (%lr b i)) c))
+         (do (def s (int+ (int- (%lr a i) (%lr b i)) c))
              (%ls! a i (& s %M))
-             (self (%add i 1) (>> s 26)))))
+             (self (int+ i 1) (>> s 26)))))
      0 0)))
 
 ; a := a + b in place; the carry out of the top limb is answered.
@@ -139,17 +130,17 @@
   (fn (_ a b n)
     ((fn (self i c)
        (if (= i n) c
-         (do (def s (%add (%add (%lr a i) (%lr b i)) c))
+         (do (def s (int+ (int+ (%lr a i) (%lr b i)) c))
              (%ls! a i (& s %M))
-             (self (%add i 1) (>> s 26)))))
+             (self (int+ i 1) (>> s 26)))))
      0 0)))
 
 ; -m0^-1 mod 2^26 by Newton's iteration: x <- x (2 - m0 x) doubles the
 ; bits right each time, from one right bit (m0 is odd).
 (def %neg-inverse
   (fn (_ m0)
-    (def x ((fn (self x k) (if (= k 0) x (self (& (%mul x (%sub 2 (& (%mul m0 x) %M))) %M) (%sub k 1)))) 1 5))
-    (& (%sub 0 x) %M)))
+    (def x ((fn (self x k) (if (= k 0) x (self (& (int* x (int- 2 (& (int* m0 x) %M))) %M) (int- k 1)))) 1 5))
+    (& (int- 0 x) %M)))
 
 ; 2^(2*26n) mod m, by doubling 1 that many times.
 (def %r2
@@ -160,7 +151,7 @@
        (unless (= k 0)
          (do (def carry (%add-in! x x n))
              (when (or (> carry 0) (%ge? x m n)) (%sub-in! x m n))
-             (self (%sub k 1)))))
+             (self (int- k 1)))))
      (* 52 n))
     x))
 
@@ -173,31 +164,31 @@
     (def n (mont-n m))
     (def p (%m-limbs m))
     (def inv (%m-inv m))
-    (def t (%limbs (%add n 2)))
+    (def t (%limbs (int+ n 2)))
     ((fn (self i)
        (unless (= i n)
          (do (def ai (%lr a i))
              (def c ((fn (self j c)
                        (if (= j n) c
-                         (do (def s (%add (%add (%lr t j) (%mul ai (%lr b j))) c))
+                         (do (def s (int+ (int+ (%lr t j) (int* ai (%lr b j))) c))
                              (%ls! t j (& s %M))
-                             (self (%add j 1) (>> s 26)))))
+                             (self (int+ j 1) (>> s 26)))))
                      0 0))
-             (def s (%add (%lr t n) c))
+             (def s (int+ (%lr t n) c))
              (%ls! t n (& s %M))
-             (%ls! t (%add n 1) (>> s 26))
-             (def q (& (%mul (%lr t 0) inv) %M))
-             (def c0 (>> (%add (%lr t 0) (%mul q (%lr p 0))) 26))
+             (%ls! t (int+ n 1) (>> s 26))
+             (def q (& (int* (%lr t 0) inv) %M))
+             (def c0 (>> (int+ (%lr t 0) (int* q (%lr p 0))) 26))
              (def c2 ((fn (self j c)
                         (if (= j n) c
-                          (do (def s (%add (%add (%lr t j) (%mul q (%lr p j))) c))
-                              (%ls! t (%sub j 1) (& s %M))
-                              (self (%add j 1) (>> s 26)))))
+                          (do (def s (int+ (int+ (%lr t j) (int* q (%lr p j))) c))
+                              (%ls! t (int- j 1) (& s %M))
+                              (self (int+ j 1) (>> s 26)))))
                       1 c0))
-             (def s2 (%add (%lr t n) c2))
-             (%ls! t (%sub n 1) (& s2 %M))
-             (%ls! t n (%add (%lr t (%add n 1)) (>> s2 26)))
-             (self (%add i 1)))))
+             (def s2 (int+ (%lr t n) c2))
+             (%ls! t (int- n 1) (& s2 %M))
+             (%ls! t n (int+ (%lr t (int+ n 1)) (>> s2 26)))
+             (self (int+ i 1)))))
      0)
     (def out (%copy t n))
     (when (or (> (%lr t n) 0) (%ge? out p n)) (%sub-in! out p n))
@@ -227,8 +218,8 @@
     (%ls! one 0 1)
     (mont-mul m a one)))
 
-(def mont-zero? (fn (_ m a) ((fn (self i) (if (= i (mont-n m)) #t (if (= (%lr a i) 0) (self (%add i 1)) #f))) 0)))
-(def mont-eq? (fn (_ m a b) ((fn (self i) (if (= i (mont-n m)) #t (if (= (%lr a i) (%lr b i)) (self (%add i 1)) #f))) 0)))
+(def mont-zero? (fn (_ m a) ((fn (self i) (if (= i (mont-n m)) #t (if (= (%lr a i) 0) (self (int+ i 1)) #f))) 0)))
+(def mont-eq? (fn (_ m a b) ((fn (self i) (if (= i (mont-n m)) #t (if (= (%lr a i) (%lr b i)) (self (int+ i 1)) #f))) 0)))
 
 ; a^e in the form, e a big-endian byte region: square and multiply from
 ; the top bit down.  A pure-x multiply leaves thousands of objects behind
@@ -239,12 +230,12 @@
     ((fn (self j acc)
        (if (= j len) acc
          (do (when (and (> j 0) (= (& j 3) 0)) (Heap collect))
-             (def b (%byte s (%add start j)))
-             (self (%add j 1)
+             (def b (%byte s (int+ start j)))
+             (self (int+ j 1)
                    ((fn (self k acc)
                       (if (< k 0) acc
                         (do (def sq (mont-mul m acc acc))
-                            (self (%sub k 1) (if (= (& (>> b k) 1) 1) (mont-mul m sq a) sq)))))
+                            (self (int- k 1) (if (= (& (>> b k) 1) 1) (mont-mul m sq a) sq)))))
                     7 acc)))))
      0 (mont-one m))))
 
@@ -270,7 +261,7 @@
 ; The low limb of a big-endian region: its last four bytes' low 26 bits.
 (def %low-limb
   (fn (_ s start len)
-    (def b (fn (_ k) (if (< k len) (%byte s (%sub (%add start len) (%add k 1))) 0)))
+    (def b (fn (_ k) (if (< k len) (%byte s (int- (int+ start len) (int+ k 1))) 0)))
     (& (| (| (b 0) (<< (b 1) 8)) (| (<< (b 2) 16) (<< (b 3) 24))) %M)))
 
 ; The modulus from its big-endian bytes (odd, its top byte nonzero).  The
@@ -279,12 +270,12 @@
 (def mont-modulus
   (fn (_ s start len)
     ; the fewest limbs holding 8 len bits with one to spare
-    (def n ((fn (self n) (if (> (%mul 26 n) (%mul 8 len)) n (self (%add n 1)))) 1))
+    (def n ((fn (self n) (if (> (int* 26 n) (int* 8 len)) n (self (int+ n 1)))) 1))
     (def m (Vector make 7 ()))
-    (%oset! m 1 n)
-    (%oset! m 3 (%neg-inverse (%low-limb s start len)))
-    (%oset! m 6 len)
-    (%oset! m 7 (list s start len))
+    (obj-set! m 1 n)
+    (obj-set! m 3 (%neg-inverse (%low-limb s start len)))
+    (obj-set! m 6 len)
+    (obj-set! m 7 (list s start len))
     m))
 
 ; A big-endian region as a number below m, out of the form, reduced

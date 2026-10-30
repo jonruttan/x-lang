@@ -16,9 +16,7 @@
 ; dispatcher, the type prims the state cells use, and the write-stack push
 ; and pop the writer brackets below call.
 (def %cvt (prim-ref 'convert 'to))
-(def %type-of (prim-ref 'type 'of))
-(def %type-by-atom (prim-ref 'type 'by-atom))
-(def %type-push-write (prim-ref 'type 'push-write))
+(import x/core/doors char->int type-by-atom type-of type-push-write)
 (def %type-pop-write (prim-ref 'type 'pop-write))
 
 ; --- C code generator utilities ---
@@ -87,11 +85,10 @@
 ; --- Type system access (via type.x) ---
 
 ; Cache types at load time using representative objects
-(def %list-type (%type-by-atom (%type-of (list 1))))
-(def %symbol-type (%type-by-atom (%type-of 'a)))
-(def %int-type (%type-by-atom (%type-of 0)))
-(def %char-type (%type-by-atom (%type-of #\a)))
-(def %cc-char->int (prim-ref 'char '->int))
+(def %list-type (type-by-atom (type-of (list 1))))
+(def %symbol-type (type-by-atom (type-of 'a)))
+(def %int-type (type-by-atom (type-of 0)))
+(def %char-type (type-by-atom (type-of #\a)))
 
 ; --- C-emitting write handlers ---
 ;
@@ -124,7 +121,7 @@
 ; handler a #\c constant in a compiled form reached cc verbatim.
 (def %compile-char-write
   (fn (_ c)
-    (display (%cvt (%cc-char->int c) %string))))
+    (display (%cvt (char->int c) %string))))
 
 ; LIST: inspect operator, dispatch to form-specific C emission
 ; Sub-expressions are emitted by calling write on them (recurses through
@@ -250,7 +247,7 @@
     (if (number? x)
       (display (%cvt x %string))
       (if (char? x)
-        (display (%cvt (%cc-char->int x) %string))
+        (display (%cvt (char->int x) %string))
         (do (display "x_atomint(") (%cw-emit x) (display ")"))))))
 
 ; Build a binary comparison emitter for a given C operator string
@@ -490,10 +487,10 @@
 ; --- The writer brackets: push the four C-emitting handlers, pop them ---
 (doc (def compile-push-writers
   (fn (_)
-    (%type-push-write %list-type %compile-list-write)
-    (%type-push-write %symbol-type %compile-symbol-write)
-    (%type-push-write %int-type %compile-int-write)
-    (%type-push-write %char-type %compile-char-write)))
+    (type-push-write %list-type %compile-list-write)
+    (type-push-write %symbol-type %compile-symbol-write)
+    (type-push-write %int-type %compile-int-write)
+    (type-push-write %char-type %compile-char-write)))
   (returns ANY "nil")
   "Push the C-emitting write handlers onto the list, symbol, int and char write stacks.")
 (doc (def compile-pop-writers

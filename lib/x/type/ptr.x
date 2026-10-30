@@ -5,7 +5,7 @@
 ; DE-REGISTERED (R5): the classes -- or catalogue fetches -- are the only
 ; surface. Low-level/hot consumers (boot/data.x's int mutators, the JIT
 ; assembler, x/num/float's stubs) fetch-and-cache into module %-vars:
-;   (def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
+;   (def ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
 ;
 ; Pointer CONSTRUCTION from an int is int->ptr (catalogue ns `int`, method
 ; ->ptr); (Ptr from-int n) fetches it. obj->ptr / str->ptr live on the Obj
@@ -16,9 +16,8 @@
 
 ; Type helpers for ptr? (ns `type` de-registered; fetch from the catalogue).
 ; The PTR handle is obtained by type-of'ing a null pointer -- not dereferenced.
-(def %type-of (prim-ref (lit type) (lit of)))
-(def %type? (prim-ref (lit type) (lit ?)))
-(def %ptr (%type-of ((prim-ref (lit int) (lit ->ptr)) 0)))
+(import x/core/doors int->ptr obj->ptr str->ptr type-of type?)
+(def %ptr (type-of ((prim-ref (lit int) (lit ->ptr)) 0)))
 
 (def-class Ptr ()
   (static
@@ -29,7 +28,7 @@
     (method ptr? (self (param x ANY "Value to test"))
       (doc "Test whether a value is a raw pointer."
         (returns BOOL "True if x is a pointer"))
-      (%type? x %ptr))
+      (type? x %ptr))
     (method ->int (self (param p POINTER "A pointer"))
       (doc "The integer (address) representation of a pointer."
         (returns INTEGER "Integer address"))

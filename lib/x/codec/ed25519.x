@@ -27,18 +27,9 @@
 (import x/codec/sha512)
 (import x/codec/hex)
 
-(def %add (prim-ref 'int '+))
-(def %sub (prim-ref 'int '-))
-(def %mul (prim-ref 'int '*))
-(def %oref (prim-ref (lit obj) (lit ref)))
-(def %oset! (prim-ref (lit obj) (lit set!)))
-(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %char->int (prim-ref (lit char) (lit ->int)))
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %pset1 (prim-ref (lit ptr) (lit set!)))
+(import x/core/doors char->int int* int+ int- obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
 
-(def %byte (fn (_ s i) (%char->int (%byte-ref s i))))
+(def %byte (fn (_ s i) (char->int (str-byte-ref s i))))
 
 ; --- bytes ------------------------------------------------------------
 
@@ -46,20 +37,20 @@
 ; strings may hold NULs, so a byte loop, never an append.
 (def %total
   (fn (self rs)
-    (if (null? rs) 0 (%add (first (rest (rest (first rs)))) (self (rest rs))))))
+    (if (null? rs) 0 (int+ (first (rest (rest (first rs)))) (self (rest rs))))))
 
 (def %join
   (fn (_ regions)
     (def n (%total regions))
-    (def out (%make-str n))
-    (def p (%str->ptr out))
+    (def out (str-make n))
+    (def p (str->ptr out))
     ((fn (self rs at)
        (unless (null? rs)
          (do (def s (first (first rs)))
              (def start (first (rest (first rs))))
              (def len (first (rest (rest (first rs)))))
-             ((fn (self i) (unless (= i len) (do (%pset1 p (%add at i) (%byte s (%add start i)) 1) (self (%add i 1))))) 0)
-             (self (rest rs) (%add at len))))) regions 0)
+             ((fn (self i) (unless (= i len) (do (ptr-set! p (int+ at i) (%byte s (int+ start i)) 1) (self (int+ i 1))))) 0)
+             (self (rest rs) (int+ at len))))) regions 0)
     out))
 
 ; A big-endian hex spelling as little-endian bytes: how the constants
@@ -68,14 +59,14 @@
   (fn (_ hex)
     (def be (Hex decode hex))
     (def n (>> (Str8 length hex) 1))
-    (def out (%make-str n))
-    (def p (%str->ptr out))
-    ((fn (self i) (unless (= i n) (do (%pset1 p i (%byte be (%sub (%sub n 1) i)) 1) (self (%add i 1))))) 0)
+    (def out (str-make n))
+    (def p (str->ptr out))
+    ((fn (self i) (unless (= i n) (do (ptr-set! p i (%byte be (int- (int- n 1) i)) 1) (self (int+ i 1))))) 0)
     out))
 
 (def %same-bytes?
   (fn (self x y i n)
-    (if (= i n) #t (if (= (%byte x i) (%byte y i)) (self x y (%add i 1) n) #f))))
+    (if (= i n) #t (if (= (%byte x i) (%byte y i)) (self x y (int+ i 1) n) #f))))
 
 ; SHA-512 of joined regions, as 64 bytes.
 (def %sha512
@@ -146,7 +137,7 @@
              (self (if (= (& (>> (%byte k (>> bit 3)) (& bit 7)) 1) 1)
                      (%complete (%add-cached doubled cq #f))
                      doubled)
-                   (%sub bit 1)))))
+                   (int- bit 1)))))
      %identity 255)))
 
 ; A point's encoding (ref10 ge_p3_tobytes): y, with x's sign in the top bit.
@@ -157,7 +148,7 @@
     (def y (fe-mul (%py p) recip))
     (def s (fe-tobytes y))
     (when (fe-negative? x)
-      (%pset1 (%str->ptr s) 31 (| (%byte s 31) 128) 1))
+      (ptr-set! (str->ptr s) 31 (| (%byte s 31) 128) 1))
     s))
 
 ; An encoding's point (ref10 ge_frombytes_negate_vartime, without the
@@ -198,43 +189,43 @@
   (fn (_ s n)
     (def v (Vector make (>> n 1) 0))
     ((fn (self i) (unless (= i (>> n 1))
-                    (do (%oset! v (%add i 1) (| (%byte s (%mul i 2)) (<< (%byte s (%add (%mul i 2) 1)) 8)))
-                        (self (%add i 1))))) 0)
+                    (do (obj-set! v (int+ i 1) (| (%byte s (int* i 2)) (<< (%byte s (int+ (int* i 2) 1)) 8)))
+                        (self (int+ i 1))))) 0)
     v))
 
 (def %L (%limbs %L-bytes 32))
 
-(def %ld3 (fn (_ s i) (| (%byte s i) (| (<< (%byte s (%add i 1)) 8) (<< (%byte s (%add i 2)) 16)))))
-(def %ld4 (fn (_ s i) (| (%ld3 s i) (<< (%byte s (%add i 3)) 24))))
+(def %ld3 (fn (_ s i) (| (%byte s i) (| (<< (%byte s (int+ i 1)) 8) (<< (%byte s (int+ i 2)) 16)))))
+(def %ld4 (fn (_ s i) (| (%ld3 s i) (<< (%byte s (int+ i 3)) 24))))
 
 ; limb i of the reduction's vector, in slot i+1
-(def %s (fn (_ v i) (%oref v (%add i 1))))
-(def %s! (fn (_ v i x) (%oset! v (%add i 1) x)))
+(def %s (fn (_ v i) (obj-ref v (int+ i 1))))
+(def %s! (fn (_ v i x) (obj-set! v (int+ i 1) x)))
 
 ; limb k folded into limbs k-12..k-7: 2^252 is -(L - 2^252) mod L
 (def %fold!
   (fn (_ v k)
     (def c (%s v k))
-    (%s! v (%sub k 12) (%add (%s v (%sub k 12)) (%mul c 666643)))
-    (%s! v (%sub k 11) (%add (%s v (%sub k 11)) (%mul c 470296)))
-    (%s! v (%sub k 10) (%add (%s v (%sub k 10)) (%mul c 654183)))
-    (%s! v (%sub k 9) (%sub (%s v (%sub k 9)) (%mul c 997805)))
-    (%s! v (%sub k 8) (%add (%s v (%sub k 8)) (%mul c 136657)))
-    (%s! v (%sub k 7) (%sub (%s v (%sub k 7)) (%mul c 683901)))
+    (%s! v (int- k 12) (int+ (%s v (int- k 12)) (int* c 666643)))
+    (%s! v (int- k 11) (int+ (%s v (int- k 11)) (int* c 470296)))
+    (%s! v (int- k 10) (int+ (%s v (int- k 10)) (int* c 654183)))
+    (%s! v (int- k 9) (int- (%s v (int- k 9)) (int* c 997805)))
+    (%s! v (int- k 8) (int+ (%s v (int- k 8)) (int* c 136657)))
+    (%s! v (int- k 7) (int- (%s v (int- k 7)) (int* c 683901)))
     (%s! v k 0)))
 
 ; limb i's carry into limb i+1: rounded (to [-2^20, 2^20)) or plain
 (def %carry-round!
   (fn (_ v i)
-    (def c (>> (%add (%s v i) 1048576) 21))
-    (%s! v (%add i 1) (%add (%s v (%add i 1)) c))
-    (%s! v i (%sub (%s v i) (<< c 21)))))
+    (def c (>> (int+ (%s v i) 1048576) 21))
+    (%s! v (int+ i 1) (int+ (%s v (int+ i 1)) c))
+    (%s! v i (int- (%s v i) (<< c 21)))))
 
 (def %carry!
   (fn (_ v i)
     (def c (>> (%s v i) 21))
-    (%s! v (%add i 1) (%add (%s v (%add i 1)) c))
-    (%s! v i (%sub (%s v i) (<< c 21)))))
+    (%s! v (int+ i 1) (int+ (%s v (int+ i 1)) c))
+    (%s! v i (int- (%s v i) (<< c 21)))))
 
 (def %each (fn (self f v is) (unless (null? is) (do (f v (first is)) (self f v (rest is))))))
 
@@ -247,12 +238,12 @@
     ; byte 60
     ((fn (self i)
        (unless (= i 24)
-         (do (def bit (%mul i 21))
+         (do (def bit (int* i 21))
              (def at (>> bit 3))
              (def sh (& bit 7))
-             (def raw (if (if (= i 23) #t (> (%add sh 21) 24)) (%ld4 s at) (%ld3 s at)))
+             (def raw (if (if (= i 23) #t (> (int+ sh 21) 24)) (%ld4 s at) (%ld3 s at)))
              (%s! v i (if (= i 23) (>> raw sh) (& (>> raw sh) 2097151)))
-             (self (%add i 1))))) 0)
+             (self (int+ i 1))))) 0)
     (%each %fold! v (list 23 22 21 20 19 18))
     (%each %carry-round! v (list 6 8 10 12 14 16 7 9 11 13 15))
     (%each %fold! v (list 17 16 15 14 13 12))
@@ -262,57 +253,57 @@
     (%fold! v 12)
     (%each %carry! v (list 0 1 2 3 4 5 6 7 8 9 10))
     ; byte k is bits 8k..8k+7 of the twelve limbs, each at bit 21i
-    (def out (%make-str 32))
-    (def p (%str->ptr out))
+    (def out (str-make 32))
+    (def p (str->ptr out))
     ((fn (self k)
        (unless (= k 32)
-         (do (def lo (%mul k 8))
-             (%pset1 p k
+         (do (def lo (int* k 8))
+             (ptr-set! p k
                (& ((fn (self i acc)
                      (if (= i 12) acc
-                       (do (def at (%mul i 21))
-                           (self (%add i 1)
-                             (if (if (< at (%add lo 8)) (> (%add at 21) lo) #f)
-                               (| acc (if (>= at lo) (<< (%s v i) (%sub at lo)) (>> (%s v i) (%sub lo at))))
+                       (do (def at (int* i 21))
+                           (self (int+ i 1)
+                             (if (if (< at (int+ lo 8)) (> (int+ at 21) lo) #f)
+                               (| acc (if (>= at lo) (<< (%s v i) (int- at lo)) (>> (%s v i) (int- lo at))))
                                acc)))))
                    0 0)
                   255)
                1)
-             (self (%add k 1))))) 0)
+             (self (int+ k 1))))) 0)
     out))
 
 ; a·b + c on 16-limb vectors, as 64 bytes.
 (def %muladd
   (fn (_ a b c)
     (def p (Vector make 32 0))
-    ((fn (self i) (unless (= i 17) (do (%oset! p i (%oref c i)) (self (%add i 1))))) 1)
+    ((fn (self i) (unless (= i 17) (do (obj-set! p i (obj-ref c i)) (self (int+ i 1))))) 1)
     ; row i: a_i times every b_j into column i+j, the carry riding along
     ; and landing in column i+16
     ((fn (self i)
        (unless (= i 17)
          (do ((fn (self j carry)
                 (if (= j 17)
-                  (%oset! p (%add i 16) (%add (%oref p (%add i 16)) carry))
-                  (do (def col (%sub (%add i j) 1))
-                      (def t (%add (%add (%oref p col) (%mul (%oref a i) (%oref b j))) carry))
-                      (%oset! p col (& t 65535))
-                      (self (%add j 1) (>> t 16)))))
+                  (obj-set! p (int+ i 16) (int+ (obj-ref p (int+ i 16)) carry))
+                  (do (def col (int- (int+ i j) 1))
+                      (def t (int+ (int+ (obj-ref p col) (int* (obj-ref a i) (obj-ref b j))) carry))
+                      (obj-set! p col (& t 65535))
+                      (self (int+ j 1) (>> t 16)))))
               1 0)
-             (self (%add i 1))))) 1)
+             (self (int+ i 1))))) 1)
     ; a row's last carry may have pushed a column past 16 bits; settle once
     ((fn (self i carry)
        (unless (= i 33)
-         (do (def t (%add (%oref p i) carry))
-             (%oset! p i (& t 65535))
-             (self (%add i 1) (>> t 16)))))
+         (do (def t (int+ (obj-ref p i) carry))
+             (obj-set! p i (& t 65535))
+             (self (int+ i 1) (>> t 16)))))
      1 0)
-    (def out (%make-str 64))
-    (def q (%str->ptr out))
+    (def out (str-make 64))
+    (def q (str->ptr out))
     ((fn (self i)
        (unless (= i 32)
-         (do (%pset1 q (%mul i 2) (& (%oref p (%add i 1)) 255) 1)
-             (%pset1 q (%add (%mul i 2) 1) (>> (%oref p (%add i 1)) 8) 1)
-             (self (%add i 1))))) 0)
+         (do (ptr-set! q (int* i 2) (& (obj-ref p (int+ i 1)) 255) 1)
+             (ptr-set! q (int+ (int* i 2) 1) (>> (obj-ref p (int+ i 1)) 8) 1)
+             (self (int+ i 1))))) 0)
     out))
 
 ; S < L, S as 32 bytes: a signature's scalar must be canonical.
@@ -321,9 +312,9 @@
     (def v (%limbs s 32))
     ((fn (self i)
        (match ((< i 1) #f)
-              ((< (%oref v i) (%oref %L i)) #t)
-              ((> (%oref v i) (%oref %L i)) #f)
-              (#t (self (%sub i 1)))))
+              ((< (obj-ref v i) (obj-ref %L i)) #t)
+              ((> (obj-ref v i) (obj-ref %L i)) #f)
+              (#t (self (int- i 1)))))
      16)))
 
 ; --- The compiled engine (JIT), adopted only when it proves out ------
@@ -374,9 +365,9 @@
 (def %expand
   (fn (_ seed)
     (def h (%sha512 (list (list seed 0 32))))
-    (def p (%str->ptr h))
-    (%pset1 p 0 (& (%byte h 0) 248) 1)
-    (%pset1 p 31 (| (& (%byte h 31) 63) 64) 1)
+    (def p (str->ptr h))
+    (ptr-set! p 0 (& (%byte h 0) 248) 1)
+    (ptr-set! p 31 (| (& (%byte h 31) 63) 64) 1)
     h))
 
 (def %public

@@ -7,15 +7,12 @@
 (import x/core/list)
 (import x/doc/emit)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(def %token-read-string (prim-ref 'tok 'read-str))
+(import x/core/doors int->char str->sym str-append tok-read-str)
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(def %str-append (prim-ref 'str 'append))
 
 (import x/type/str)
 ; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
-(def %integer->char (prim-ref 'int '->char))
-(def %str->symbol (prim-ref 'str '->sym))
 
 
 ; --- Predicates (cross-base: use str=? not eq?) ---
@@ -286,7 +283,7 @@
     (def %rt-notes
       (let ()
         (%doc-commit!)
-        (let ((%e (%doc-lookup (%str->symbol (Str str cname "/" %mname)))))
+        (let ((%e (%doc-lookup (str->sym (Str str cname "/" %mname)))))
           (if (null? %e) ()
             ((fn (go l acc)
                (if (null? l) (%reverse acc)
@@ -489,14 +486,14 @@
     (if (null? %provide)
       (unless (str=? fallback "")
         (em page-header fallback "" ()
-            (%fold (fn (_ acc ch) (if (= ch (%integer->char 47)) (+ acc 1) acc))
+            (%fold (fn (_ acc ch) (if (= ch (int->char 47)) (+ acc 1) acc))
               0 (Str ->list fallback))
             #f))
       (let ()
         (def %mod-name (symbol->str (List ref 0 %provide)))
         ; Back navigation — count slashes to determine depth
         (def %depth
-          (%fold (fn (_ acc ch) (if (= ch (%integer->char 47)) (+ acc 1) acc))
+          (%fold (fn (_ acc ch) (if (= ch (int->char 47)) (+ acc 1) acc))
             0 (Str ->list %mod-name)))
         (em page-header %mod-name (List ref 1 %provide)
             (DocEmit meta-strs (List ref 6 %provide)) %depth #t)))))
@@ -534,7 +531,7 @@
 (doc (def %doc-walk
   (fn (_ tokens em)
     (doc-walk-with-prims tokens () em "")))
-  (param tokens LIST "Token list from %token-read-string")
+  (param tokens LIST "Token list from tok-read-str")
   (param em ANY "Emitter class (DocMd, DocMan)")
   "Walk a token tree, emitting all documentation through an emitter.")
 

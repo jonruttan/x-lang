@@ -39,15 +39,11 @@
 
 ; Object identity, as boot/module.x has it: eq? compares the operand word,
 ; and two closures share theirs.
-(def %compiled-same? (prim-ref (lit obj) (lit same?)))
+(import x/core/doors image-recache-hook! image-transient! io-display-to-str obj-same? obj-set!)
 ; A raise is kept as its text.  The engine raises one value and fills it
 ; again at the next raise, so the value itself would not keep.
-(def %compiled-text (prim-ref (lit io) (lit display-to-str)))
-(def %compiled-set! (prim-ref (lit obj) (lit set!)))
 ; The doors to the image writer's transients and the loader's recache hooks
 ; (boot/reflect.x).
-(def %compiled-transient! (prim-ref (lit image) (lit transient!)))
-(def %compiled-recache-hook! (prim-ref (lit image) (lit recache-hook!)))
 
 (def-class Compiled ()
   (doc "A function that has a compiled version: its interpreted version, the function that compiles it, and the function that installs either. (Compiled make ...) adds one to the list and compiles it; (Compiled report) prints the list."
@@ -76,12 +72,12 @@
     ((fn (_ made)
        (if (first made)
          (self %install! (rest made)
-               (if (%compiled-same? (rest made) (self interpreted))
+               (if (obj-same? (rest made) (self interpreted))
                  (lit interpreted)
                  (lit compiled))
                "")
          (self %install! (self interpreted) (lit failed) (rest made))))
-     (guard (e (pair #f (%compiled-text e)))
+     (guard (e (pair #f (io-display-to-str e)))
        (pair #t ((self compile))))))
 
   (method interpret! (self)
@@ -104,7 +100,7 @@
          (Compiled all (pair c (Compiled all)))
          ; After the compile has run: what it loaded has added its own
          ; hooks by now, and this one follows them.
-         (%compiled-recache-hook! (fn (_) (c compile!)))
+         (image-recache-hook! (fn (_) (c compile!)))
          c)
        (new Compiled name name interpreted interpreted
                      compile compile install install)))
@@ -132,7 +128,7 @@
     (method into-cell (self (param cell PAIR "The pair whose first holds the function"))
       (doc "An install function for the first of a pair, such as one cell of a type's handler list."
         (returns CALLABLE "(fn (_ version))"))
-      (fn (_ v) (%compiled-set! cell 0 v)))
+      (fn (_ v) (obj-set! cell 0 v)))
 
     (method named (self (param name SYMBOL "An entry's name"))
       (doc "The newest entry of that name."
@@ -191,7 +187,7 @@
        (Compiled list)))))
 
 ; The writer runs this inside the child it images, before its walk.
-(%compiled-transient! (fn (_) (Compiled interpret-all!)))
+(image-transient! (fn (_) (Compiled interpret-all!)))
 
 (doc (provide x/tool/compiled Compiled)
   "Functions that have a compiled version: switched to interpreted before a state image is written and compiled again after one is loaded, with a list of which are compiled.")

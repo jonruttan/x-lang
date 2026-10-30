@@ -41,13 +41,8 @@
 (import x/repl/paint)
 (import x/reader/indent)
 
-(def %ln-blen (prim-ref (lit str) (lit byte-len)))
-(def %ln-bsub (prim-ref (lit str) (lit byte-sub)))
-(def %ln-append (prim-ref (lit str) (lit append)))
-(def %ln-bref (prim-ref (lit str) (lit byte-ref)))
-(def %ln-collect (prim-ref (lit heap) (lit collect)))
-(def %ln-cint (prim-ref (lit char) (lit ->int)))
-(def %ln-byte (fn (_ s i) (%ln-cint (%ln-bref s i))))
+(import x/core/doors char->int heap-collect int& int+ int- int< int= str-append str-byte-len str-byte-ref str-byte-sub)
+(def %ln-byte (fn (_ s i) (char->int (str-byte-ref s i))))
 
 ; x has no automatic collect, and the turn sweep runs between lines; every key
 ; of a line allocates -- the redraw, and the painter more -- so a long paste
@@ -63,16 +58,11 @@
 (def %ln-sweep-if-due!
   (fn (_)
     (if (< (+ %ln-heap-floor %ln-heap-room) (%ln-allocated))
-      (do (%ln-collect) (set! %ln-heap-floor (%ln-allocated)))
+      (do (heap-collect) (set! %ln-heap-floor (%ln-allocated)))
       ())))
 
 ; The integer doors, which allocate nothing: the generic arithmetic allocates
 ; per call, and the measuring below runs it a byte at a time.
-(def %ln+ (prim-ref (lit int) (lit +)))
-(def %ln- (prim-ref (lit int) (lit -)))
-(def %ln< (prim-ref (lit int) (lit <)))
-(def %ln= (prim-ref (lit int) (lit =)))
-(def %ln& (prim-ref (lit int) (lit &)))
 
 ; UTF-8 motion over the cached prims.  Edit's next-start and prev-start answer
 ; the same, but each is a class call and next-start makes two more inside, and
@@ -82,24 +72,24 @@
 ; 192 one byte (a stray continuation byte too), then two, three, four.
 (def %ln-next-start
   (fn (_ s i)
-    (def n (%ln-blen s))
-    (if (%ln< i n)
+    (def n (str-byte-len s))
+    (if (int< i n)
       (do
         (def b (%ln-byte s i))
-        (def e (%ln+ i (if (%ln< b 192) 1 (if (%ln< b 224) 2 (if (%ln< b 240) 3 4)))))
-        (if (%ln< n e) n e))
+        (def e (int+ i (if (int< b 192) 1 (if (int< b 224) 2 (if (int< b 240) 3 4)))))
+        (if (int< n e) n e))
       n)))
 
 (def %ln-prev-start
   (fn (_ s i)
     (let ((go (fn (self j)
-                (if (%ln< 0 j)
+                (if (int< 0 j)
                   ; A continuation byte is 10xxxxxx: keep walking.
                   (do
-                    (def p (%ln- j 1))
-                    (if (%ln= 128 (%ln& (%ln-byte s p) 192)) (self p) p))
+                    (def p (int- j 1))
+                    (if (int= 128 (int& (%ln-byte s p) 192)) (self p) p))
                   0))))
-      (go (if (%ln< (%ln-blen s) i) (%ln-blen s) i)))))
+      (go (if (int< (str-byte-len s) i) (str-byte-len s) i)))))
 
 ; The session's buffer: one Edit, so history survives from line to line.
 (def %ln-buffer ())
@@ -141,13 +131,13 @@
 ; The column after the character at byte i of s, drawn from column col.
 (def %ln-advance
   (fn (_ s i col)
-    (if (%ln= 9 (%ln-byte s i)) (%ln-indent-advance col 9 %ln-tab-stop) (%ln+ col 1))))
+    (if (int= 9 (%ln-byte s i)) (%ln-indent-advance col 9 %ln-tab-stop) (int+ col 1))))
 
 ; The column reached by drawing s[from, to) from column col.
 (def %ln-columns
   (fn (_ s from to col)
     (let ((go (fn (self i c)
-                (if (%ln< i to) (self (%ln-next-start s i) (%ln-advance s i c)) c))))
+                (if (int< i to) (self (%ln-next-start s i) (%ln-advance s i c)) c))))
       (go from col))))
 
 ; The byte offset to start drawing from so that s[start, i) fits in k columns.
@@ -158,23 +148,23 @@
 (def %ln-back-columns
   (fn (_ s i k)
     (let ((go (fn (self j c)
-                (if (%ln< 0 j)
+                (if (int< 0 j)
                   (do
                     (def p (%ln-prev-start s j))
-                    (def w (if (%ln= 9 (%ln-byte s p)) %ln-tab-stop 1))
-                    (if (%ln< c w) j (self p (%ln- c w))))
+                    (def w (if (int= 9 (%ln-byte s p)) %ln-tab-stop 1))
+                    (if (int< c w) j (self p (int- c w))))
                   0))))
       (go i k))))
 
 ; The byte offset at most k columns forward from i, drawing from column col.
 (def %ln-forward-columns
   (fn (_ s i k col)
-    (let ((n (%ln-blen s)) (limit (%ln+ col k)))
+    (let ((n (str-byte-len s)) (limit (int+ col k)))
       (let ((go (fn (self j c)
-                  (if (%ln< j n)
+                  (if (int< j n)
                     (do
                       (def c2 (%ln-advance s j c))
-                      (if (%ln< limit c2) j (self (%ln-next-start s j) c2)))
+                      (if (int< limit c2) j (self (%ln-next-start s j) c2)))
                     n))))
         (go i col)))))
 
@@ -196,7 +186,7 @@
 (def %ln-marks
   (fn (_ text point start end)
     (if (null? %repl-marks) ()
-      (let ((base (%ln-blen %ln-context)))
+      (let ((base (str-byte-len %ln-context)))
         (let ((lo (+ base start)) (hi (+ base end)))
           (let ((go (fn (self ms acc)
                       (if (null? ms) acc
@@ -209,7 +199,7 @@
             ; order it meets them.
             (%reverse
               (go (guard (_ ())
-                    (%repl-marks (if (= base 0) text (%ln-append %ln-context text))
+                    (%repl-marks (if (= base 0) text (str-append %ln-context text))
                                  (if (< point 0) -1 (+ base point))))
                   ()))))))))
 
@@ -226,19 +216,19 @@
   (fn (_ fd prompt ed cols . settled)
     (let ((text (ed text))
           (point (ed point))
-          (pwidth (%ln-columns prompt 0 (%ln-blen prompt) 0)))
+          (pwidth (%ln-columns prompt 0 (str-byte-len prompt) 0)))
       (let ((avail (let ((a (- cols pwidth 1))) (if (< a 8) 8 a))))
         ; Scroll sideways only as far as it takes to keep the cursor in view.
         (let ((start (let ((cc (%ln-columns text 0 point pwidth)))
                        (if (<= (- cc pwidth) avail) 0 (%ln-back-columns text point avail)))))
           (let ((end (%ln-forward-columns text start avail pwidth)))
-            (let ((window (%ln-bsub text start (- end start)))
+            (let ((window (str-byte-sub text start (- end start)))
                   (marks (%ln-marks text (if (null? settled) point -1) start end))
                   (col (%ln-columns text start point pwidth)))
               (Term emit fd
-                (%ln-append "\r"
-                  (%ln-append %ln-kill-right
-                    (%ln-append prompt
+                (str-append "\r"
+                  (str-append %ln-kill-right
+                    (str-append prompt
                       ; The painter belongs to the session, not to this file.
                       ; A lang that reads its own syntax sets %repl-paint to a
                       ; painter that knows it; nil means no colouring.
@@ -246,12 +236,12 @@
                       ; window is the context itself, the same string on every
                       ; keystroke, which the painter's cache compares by
                       ; identity.
-                      (%ln-append (%ln-paint window marks
+                      (str-append (%ln-paint window marks
                                     (if (= start 0) %ln-context
-                                      (%ln-append %ln-context (%ln-bsub text 0 start))))
-                        (%ln-append "\r"
+                                      (str-append %ln-context (str-byte-sub text 0 start))))
+                        (str-append "\r"
                           (if (= col 0) ""
-                            (%ln-append "\x1b[" (%ln-append (Str8 str col) "C"))))))))))))))))
+                            (str-append "\x1b[" (str-append (Str8 str col) "C"))))))))))))))))
 
 ; --- history on disk --------------------------------------------------------
 ;
@@ -266,23 +256,23 @@
       (if (not (null? override)) override
         (let ((state (Sys getenv "XDG_STATE_HOME"))
               (home (Sys getenv "HOME")))
-          (if (not (null? state)) (%ln-append state "/x/history")
-            (if (null? home) () (%ln-append home "/.local/state/x/history"))))))))
+          (if (not (null? state)) (str-append state "/x/history")
+            (if (null? home) () (str-append home "/.local/state/x/history"))))))))
 
 (def %ln-load-history!
   (fn (_ ed)
     (let ((path (%ln-history-path)))
-      (unless (or (null? path) (= 0 (%ln-blen path)))
+      (unless (or (null? path) (= 0 (str-byte-len path)))
         ; Newest first is the order Edit browses in; the file is oldest first,
         ; the order a person reads it in.
         (guard (_ ())
-          (List for-each (fn (_ l) (unless (= 0 (%ln-blen l)) (ed remember! l)))
+          (List for-each (fn (_ l) (unless (= 0 (str-byte-len l)) (ed remember! l)))
                 (File read-lines path)))))))
 
 (def %ln-append-history!
   (fn (_ s)
     (let ((path (%ln-history-path)))
-      (unless (or (null? path) (= 0 (%ln-blen path)))
+      (unless (or (null? path) (= 0 (str-byte-len path)))
         ; Appended per line rather than written out at exit: a session that
         ; ends in a crash, a kill, or a power cut still keeps what it typed,
         ; and two sessions running at once interleave instead of one of them
@@ -297,7 +287,7 @@
         (guard (_ ())
           (let ((fd (Sys open-append path)))
             (unless (< fd 0)
-              (Sys fd-write fd (%ln-append s "\n"))
+              (Sys fd-write fd (str-append s "\n"))
               (Sys close fd))))))))
 
 ; --- completion --------------------------------------------------------------
@@ -309,7 +299,7 @@
 ; Doc commits the lazily filled registry before it lists.
 (def %ln-completions
   (fn (_ prefix)
-    (if (= 0 (%ln-blen prefix)) ()
+    (if (= 0 (str-byte-len prefix)) ()
       (List filter (fn (_ name) (Str8 starts? prefix name))
         (List map symbol->str (Doc names))))))
 
@@ -318,7 +308,7 @@
   (fn (_ ed)
     (let ((text (ed text)) (point (ed point)))
       (let ((b (let ((probe (Edit make))) (probe set-text! text point) (probe back-word!) (probe point))))
-        (%ln-bsub text b (- point b))))))
+        (str-byte-sub text b (- point b))))))
 
 ; The head of the innermost form still open at the point -- the `Str8` in
 ; `(Str8 sta`.  A forward walk with a depth count, because going backwards
@@ -344,7 +334,7 @@
           ; followed by another one -- `((f x) y` has no head to speak of.
           (let ((st (first opens)))
             (let ((e (%ln-atom-end text st point)))
-              (if (<= e st) "" (%ln-bsub text st (- e st))))))))))
+              (if (<= e st) "" (str-byte-sub text st (- e st))))))))))
 
 (def %ln-eol
   (fn (self s i n) (if (>= i n) i (if (= 10 (%ln-byte s i)) i (self s (+ i 1) n)))))
@@ -377,10 +367,10 @@
     (let ((word (%ln-word-before ed))
           (head (%ln-form-head (ed text) (ed point))))
       (let ((qualified?
-              (and (> (%ln-blen head) 0)
+              (and (> (str-byte-len head) 0)
                 (and (null? (Str8 index-of "/" word))
                   (let ((b0 (%ln-byte head 0))) (and (>= b0 65) (<= b0 90)))))))
-        (let ((qual (if qualified? (%ln-append head (%ln-append "/" word)) ())))
+        (let ((qual (if qualified? (str-append head (str-append "/" word)) ())))
           (let ((qnames (if (null? qual) () (%ln-completions qual))))
             (if (not (null? qnames)) (pair qual qnames)
               (pair word (%ln-completions word)))))))))
@@ -405,15 +395,15 @@
                     (let ((b (first rest-names)))
                       (let ((trim (fn (self k)
                                     (if (= k 0) ""
-                                      (if (Str8 starts? (%ln-bsub acc 0 k) b)
-                                        (%ln-bsub acc 0 k) (self (- k 1)))))))
-                        (self (trim (%ln-blen acc)) (rest rest-names))))))))
+                                      (if (Str8 starts? (str-byte-sub acc 0 k) b)
+                                        (str-byte-sub acc 0 k) (self (- k 1)))))))
+                        (self (trim (str-byte-len acc)) (rest rest-names))))))))
         (go (first names) (rest names))))))
 
 ; Everything of `name` that is not yet on screen.
 (def %ln-tail
   (fn (_ name typed)
-    (%ln-bsub name (%ln-blen typed) (- (%ln-blen name) (%ln-blen typed)))))
+    (str-byte-sub name (str-byte-len typed) (- (str-byte-len name) (str-byte-len typed)))))
 
 ; Whether only spaces and tabs come before the point.
 (def %ln-blank-before?
@@ -446,16 +436,16 @@
             ; nothing, show them -- the shell's bargain, and the reason a
             ; second Tab is what lists rather than the first.
             (let ((common (%ln-common-prefix names)))
-              (if (> (%ln-blen common) (%ln-blen typed))
+              (if (> (str-byte-len common) (str-byte-len typed))
                 (ed insert! (%ln-tail common typed))
                 (do
                   (Term emit fd "\r\n")
                   (List for-each
-                        (fn (_ n) (Term emit fd (%ln-append "  " (%ln-append n "\r\n"))))
+                        (fn (_ n) (Term emit fd (str-append "  " (str-append n "\r\n"))))
                         (List take 40 names))
                   (when (> (List length names) 40)
-                    (Term emit fd (%ln-append "  ... "
-                      (%ln-append (Str8 str (- (List length names) 40)) " more\r\n")))))))))))))
+                    (Term emit fd (str-append "  ... "
+                      (str-append (Str8 str (- (List length names) 40)) " more\r\n")))))))))))))
 
 ; ctrl-v, readline's quoted-insert: the key after it goes into the buffer as
 ; text, whatever it would have done on its own.  A Tab is the case that
@@ -490,9 +480,9 @@
 ; `failed` marks a query that no entry in the searched direction contains.
 (def %ln-search-prompt
   (fn (_ query dir failed)
-    (%ln-append (if failed "(failed " "(")
-      (%ln-append (if (eq? dir (lit back)) "reverse-i-search)`" "i-search)`")
-        (%ln-append query "': ")))))
+    (str-append (if failed "(failed " "(")
+      (str-append (if (eq? dir (lit back)) "reverse-i-search)`" "i-search)`")
+        (str-append query "': ")))))
 
 ; One search, from the key that starts it to the key that ends it.  Answers
 ; how it ended: 'submit for Enter, 'cancel for ctrl-c, 'eof when input ends,
@@ -524,7 +514,7 @@
                      (if (null? browsed) (if (eq? dir (lit back)) 0 -1) browsed)))
             (accept (fn (_ query hit)
                       (do (unless (null? hit) (ed jump! (first hit) (rest hit)))
-                          (unless (= 0 (%ln-blen query)) (Line last-search query))))))
+                          (unless (= 0 (str-byte-len query)) (Line last-search query))))))
         (let ((go (fn (self query dir hit failed undo)
                     (do
                       (if (null? hit) (view set-text! original point0)
@@ -545,14 +535,14 @@
                                 (self (first s) (first (rest s)) (first (rest (rest s)))
                                       (first (rest (rest (rest s)))) (rest undo)))))
                           ((str? k)
-                            (let ((q (%ln-append query k)))
+                            (let ((q (str-append query k)))
                               (if failed (self q dir hit #t (pair here undo))
                                 (let ((h (ed search q (if (null? hit) (start dir) (first hit)) dir)))
                                   (self q dir (if (null? h) hit h) (null? h) (pair here undo))))))
                           ((if (eq? k (lit search-back)) #t (eq? k (lit search-forward)))
                             (let ((d (if (eq? k (lit search-back)) (lit back) (lit forward)))
-                                  (q (if (= 0 (%ln-blen query)) (Line last-search) query)))
-                              (if (if (= 0 (%ln-blen q)) #t (if failed (eq? d dir) #f))
+                                  (q (if (= 0 (str-byte-len query)) (Line last-search) query)))
+                              (if (if (= 0 (str-byte-len q)) #t (if failed (eq? d dir) #f))
                                 (self query d hit failed undo)
                                 (let ((h (ed search q
                                            (if (null? hit) (start d)
@@ -741,8 +731,8 @@
                               r))))))
               (set! %ln-context
                 (if (null? context) ""
-                  (if (= 0 (%ln-blen (first context))) ""
-                    (%ln-append (first context) "\n"))))
+                  (if (= 0 (str-byte-len (first context))) ""
+                    (str-append (first context) "\n"))))
               ; The terminal goes back even if the loop raises: a session that
               ; dies with ECHO off leaves the user's shell broken, and that is
               ; not a thing to leave to the happy path.
@@ -812,7 +802,7 @@
 (def %ln-eval-line
   (fn (self text)
     (let ((forms (guard (err (if (%ln-unterminated?  err) (lit %more) (Err raise (lit syntax) err ())))
-                   ((prim-ref (lit tok) (lit read-str)) (%base) (%ln-append text "\n")))))
+                   ((prim-ref (lit tok) (lit read-str)) (%base) (str-append text "\n")))))
       (if (eq? forms (lit %more))
         ; Unfinished: ask for the rest.  ctrl-c abandons the whole entry,
         ; ctrl-d on an empty continuation line is the end of the session --
@@ -821,7 +811,7 @@
           (match
             ((eq? more (lit eof)) (Sys exit 0))
             ((eq? more (lit cancel)) ())
-            (#t (self (%ln-append text (%ln-append "\n" more))))))
+            (#t (self (str-append text (str-append "\n" more))))))
         ; A line may hold several forms, and each one is its own result:
         ; `(write 1) (write 2)` prints both, the way handing the same text
         ; to the C reader would.
@@ -839,7 +829,7 @@
               (if (Err stop? err) (display "\n")
                 (Stream with-fd 2
                   (fn (_)
-                    (display (%str-append (%error-loc-prefix)
+                    (display (str-append (%error-loc-prefix)
                                (if (str? err) err (Str8 str err)))
                              "\n")))))
             (%repl-eval-line line)))))))
@@ -873,7 +863,7 @@
       (do (set! repl %repl-platform-repl) (repl))
       (do
         ; The turn sweep, at the top of the iteration where the seat is quiet.
-        (%ln-collect)
+        (heap-collect)
         (set! %ln-heap-floor (%ln-allocated))
         (%set-cell-int! %sigint-flag 0)
         (%ln-turn)

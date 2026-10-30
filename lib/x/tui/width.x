@@ -17,17 +17,7 @@
 (import x/type/class)
 (import x/codec/utf8 utf8-cp-at utf8-width)
 
-(def %wd-make-str (prim-ref (lit str) (lit make)))
-(def %wd-str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %wd-blen (prim-ref (lit str) (lit byte-len)))
-(def %wd-bref (prim-ref (lit str) (lit byte-ref)))
-(def %wd-c->i (prim-ref (lit char) (lit ->int)))
-(def %wd-pref (prim-ref (lit ptr) (lit ref)))
-(def %wd-pset (prim-ref (lit ptr) (lit set!)))
-(def %wd< (prim-ref (lit int) (lit <)))
-(def %wd+ (prim-ref (lit int) (lit +)))
-(def %wd* (prim-ref (lit int) (lit *)))
-(def %wd-quot (prim-ref (lit int) (lit /)))
+(import x/core/doors char->int int* int+ int/ int< ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-make)
 
 (def %wd-ranges (list
   768 879 0 1155 1161 0 1425 1469 0 1471 1471 0 1473 1474 0 1476 1477 0
@@ -132,46 +122,46 @@
 (def %wd-count 0)
 (def %wd-pack!
   (fn (_)
-    (def n (%wd-quot (%length %wd-ranges) 3))
-    (def s (%wd-make-str (%wd* n 12)))
-    (def p (%wd-str->ptr s))
+    (def n (int/ (%length %wd-ranges) 3))
+    (def s (str-make (int* n 12)))
+    (def p (str->ptr s))
     ((fn (self xs at)
        (match ((eq? xs ()) ())
-              (#t (do (%wd-pset p at (first xs) 4) (self (rest xs) (%wd+ at 4))))))
+              (#t (do (ptr-set! p at (first xs) 4) (self (rest xs) (int+ at 4))))))
      %wd-ranges 0)
     (set! %wd-count n)
     (set! %wd-table s)))
 (def %wd-search
   (fn (self p cp lo hi)
     (match
-      ((%wd< hi lo) 1)
+      ((int< hi lo) 1)
       (#t ((fn (_ mid)
              (match
-               ((%wd< cp (%wd-pref p (%wd* mid 12) 4)) (self p cp lo (%wd+ mid -1)))
-               ((%wd< (%wd-pref p (%wd+ (%wd* mid 12) 4) 4) cp) (self p cp (%wd+ mid 1) hi))
-               (#t (%wd-pref p (%wd+ (%wd* mid 12) 8) 4))))
-           (%wd-quot (%wd+ lo hi) 2))))))
+               ((int< cp (ptr-ref p (int* mid 12) 4)) (self p cp lo (int+ mid -1)))
+               ((int< (ptr-ref p (int+ (int* mid 12) 4) 4) cp) (self p cp (int+ mid 1) hi))
+               (#t (ptr-ref p (int+ (int* mid 12) 8) 4))))
+           (int/ (int+ lo hi) 2))))))
 
 ; CP's width: 0, 1 or 2.
 (def char-width
   (fn (_ cp)
     (match
-      ((%wd< cp 32) 0)
-      ((%wd< cp 127) 1)
-      ((%wd< cp 160) 0)
+      ((int< cp 32) 0)
+      ((int< cp 127) 1)
+      ((int< cp 160) 0)
       (#t (do (match ((eq? %wd-table ()) (%wd-pack!)) (#t ()))
-              (%wd-search (%wd-str->ptr %wd-table) cp 0 (%wd+ %wd-count -1)))))))
+              (%wd-search (str->ptr %wd-table) cp 0 (int+ %wd-count -1)))))))
 ; The width of S, UTF-8, from byte I.
 (def %wd-text
   (fn (self s i n)
     (match
-      ((%wd< i (%wd-blen s))
+      ((int< i (str-byte-len s))
         ((fn (_ b)
-           (match ((%wd< b 32) (self s (%wd+ i 1) n))
-                  ((%wd< b 127) (self s (%wd+ i 1) (%wd+ n 1)))
-                  ((%wd< b 128) (self s (%wd+ i 1) n))
-                  (#t (self s (%wd+ i (utf8-width s i)) (%wd+ n (char-width (utf8-cp-at s i)))))))
-         (%wd-c->i (%wd-bref s i))))
+           (match ((int< b 32) (self s (int+ i 1) n))
+                  ((int< b 127) (self s (int+ i 1) (int+ n 1)))
+                  ((int< b 128) (self s (int+ i 1) n))
+                  (#t (self s (int+ i (utf8-width s i)) (int+ n (char-width (utf8-cp-at s i)))))))
+         (char->int (str-byte-ref s i))))
       (#t n))))
 
 ; S's width.

@@ -11,7 +11,7 @@
 (import x/sys/posix)
 (import x/sys/proc)
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(def %str-append (prim-ref 'str 'append))
+(import x/core/doors str-append)
 
 (import x/type/hash)
 (import x/num/bigint)
@@ -33,7 +33,7 @@
 (def #cr "\r")
 (def #esc "\x1b")
 (def #0 "")
-(def #crnl (%str-append #cr #nl))
+(def #crnl (str-append #cr #nl))
 
 ; --- I/O constants ---
 (def stdin 0)

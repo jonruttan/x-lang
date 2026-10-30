@@ -72,10 +72,9 @@
 
 ; Raw integer division and modulo, not (Num quotient ...): the tab-stop
 ; arithmetic is on the per-character path and immediates allocate nothing.
-(def %ind-div (prim-ref (lit int) (lit /)))
+(import x/core/doors char->int int/)
 ; measure runs inside Logo's LOGO-INDENT read handler, which is a reader
 ; callback like advance's caller: the cast is fetched, never dispatched.
-(def %ind-char->int (prim-ref (lit char) (lit ->int)))
 
 ; --- Measurement -------------------------------------------------------------
 
@@ -94,7 +93,7 @@
     (if (= chr #\space)
       (+ col 1)
       (if (= chr #\tab)
-        (* tab-stop (+ 1 (%ind-div col tab-stop)))
+        (* tab-stop (+ 1 (int/ col tab-stop)))
         col))))
 
 ; (%indent-scan s start tab-stop) -- (COLUMN . END-INDEX) for the run of spaces
@@ -113,7 +112,7 @@
       (fn (self i col)
         (if (>= i len)
           (pair col i)
-          (let ((c (%ind-char->int (Str8 ref i s))))
+          (let ((c (char->int (Str8 ref i s))))
             (if (if (= c #\space) #t (= c #\tab))
               (self (+ i 1) (%indent-advance col c tab-stop))
               (pair col i))))))

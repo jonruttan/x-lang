@@ -23,27 +23,11 @@
 (import x/type/vector)
 (import x/tool/compiled)
 
-(def %add (prim-ref 'int '+))
-(def %sub (prim-ref 'int '-))
-(def %oref (prim-ref (lit obj) (lit ref)))
-(def %oset! (prim-ref (lit obj) (lit set!)))
-(def %pref (prim-ref (lit ptr) (lit ref)))
-(def %pset! (prim-ref (lit ptr) (lit set!)))
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
-(def %mem-copy (prim-ref (lit mem) (lit copy)))
+(import x/core/doors int& int+ int- int->ptr int< int<< int= int>> int| mem-cmp mem-copy obj-ref obj-set! ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-make)
 
 ; The int doors: the generic comparisons and bit operations dispatch
-; through the tower.  There is no int > or >=: a > b is (%lt b a).
-(def %lt (prim-ref (lit int) (lit <)))
-(def %eq (prim-ref (lit int) (lit =)))
-(def %and (prim-ref (lit int) (lit &)))
-(def %or (prim-ref (lit int) (lit |)))
+; through the tower.  There is no int > or >=: a > b is (int< b a).
 (def %xor (prim-ref (lit int) (lit ^)))
-(def %shl (prim-ref (lit int) (lit <<)))
-(def %shr (prim-ref (lit int) (lit >>)))
 
 (def %M32 4294967295)
 (def %M40 1099511627775)
@@ -86,7 +70,7 @@
         #f)
       #f)))
 
-(def %at (fn (_ p off) (%int->ptr (%add (%ptr->int p) off))))
+(def %at (fn (_ p off) (int->ptr (int+ (ptr->int p) off))))
 
 ; The paths below run once a bit, a symbol or a byte, so they are written
 ; in primitives alone, as inflate.x's are: def in a body, if, do and
@@ -97,13 +81,13 @@
 ; look ahead can be taken back.
 (def %fill!
   (fn (self s need)
-    (def cnt (%oref s %BITCNT))
-    (if (%lt cnt need)
-      (do (def i (%oref s %INCNT))
-          (if (%eq i (%oref s %INLEN)) (%short) ())
-          (%oset! s %INCNT (%add i 1))
-          (%oset! s %BITBUF (%and (%or (%shl (%oref s %BITBUF) 8) (%and (%pref (%oref s %IN) i 1) 255)) %M40))
-          (%oset! s %BITCNT (%add cnt 8))
+    (def cnt (obj-ref s %BITCNT))
+    (if (int< cnt need)
+      (do (def i (obj-ref s %INCNT))
+          (if (int= i (obj-ref s %INLEN)) (%short) ())
+          (obj-set! s %INCNT (int+ i 1))
+          (obj-set! s %BITBUF (int& (int| (int<< (obj-ref s %BITBUF) 8) (int& (ptr-ref (obj-ref s %IN) i 1) 255)) %M40))
+          (obj-set! s %BITCNT (int+ cnt 8))
           (self s need))
       ())))
 
@@ -111,9 +95,9 @@
 (def %peek
   (fn (_ s need)
     (%fill! s need)
-    (%and (%shr (%oref s %BITBUF) (%sub (%oref s %BITCNT) need)) (%sub (%shl 1 need) 1))))
+    (int& (int>> (obj-ref s %BITBUF) (int- (obj-ref s %BITCNT) need)) (int- (int<< 1 need) 1))))
 
-(def %skip! (fn (_ s n) (%oset! s %BITCNT (%sub (%oref s %BITCNT) n))))
+(def %skip! (fn (_ s n) (obj-set! s %BITCNT (int- (obj-ref s %BITCNT) n))))
 
 (def %bits
   (fn (_ s need)
@@ -125,10 +109,10 @@
 ; used steps back over them.
 (def %unread-bytes!
   (fn (_ s)
-    (def back (%shr (%oref s %BITCNT) 3))
-    (if (%lt 0 back)
-      (do (%oset! s %INCNT (%sub (%oref s %INCNT) back))
-          (%oset! s %BITCNT (%sub (%oref s %BITCNT) (%shl back 3))))
+    (def back (int>> (obj-ref s %BITCNT) 3))
+    (if (int< 0 back)
+      (do (obj-set! s %INCNT (int- (obj-ref s %INCNT) back))
+          (obj-set! s %BITCNT (int- (obj-ref s %BITCNT) (int<< back 3))))
       ())))
 
 ; --- the CRC ------------------------------------------------------------------
@@ -137,23 +121,23 @@
 ; i+1 holds the table entry for byte i.
 (def %crc-entry
   (fn (self c k)
-    (if (%eq k 0) c
-      (self (if (%eq (%and c 2147483648) 0)
-              (%and (%shl c 1) %M32)
-              (%xor (%and (%shl c 1) %M32) 79764919))
-            (%sub k 1)))))
+    (if (int= k 0) c
+      (self (if (int= (int& c 2147483648) 0)
+              (int& (int<< c 1) %M32)
+              (%xor (int& (int<< c 1) %M32) 79764919))
+            (int- k 1)))))
 
 (def %crc-table (Vector make 256 0))
 ((fn (self i)
-   (if (%lt i 256)
-     (do (%oset! %crc-table (%add i 1) (%crc-entry (%shl i 24) 8))
-         (self (%add i 1)))
+   (if (int< i 256)
+     (do (obj-set! %crc-table (int+ i 1) (%crc-entry (int<< i 24) 8))
+         (self (int+ i 1)))
      ()))
  0)
 
 (def %crc-byte
   (fn (_ crc b)
-    (%xor (%and (%shl crc 8) %M32) (%oref %crc-table (%add (%and (%xor (%shr crc 24) b) 255) 1)))))
+    (%xor (int& (int<< crc 8) %M32) (obj-ref %crc-table (int+ (int& (%xor (int>> crc 24) b) 255) 1)))))
 
 ; --- the block header ---------------------------------------------------------
 
@@ -167,72 +151,72 @@
 
 (def %map-ranges!
   (fn (self s sym->byte ranges r total)
-    (if (%eq r 16) total
-      (if (%eq (%and ranges (%shr 32768 r)) 0)
-        (self s sym->byte ranges (%add r 1) total)
-        (self s sym->byte ranges (%add r 1) (%map-bytes! s sym->byte (%bits s 16) (%shl r 4) 0 total))))))
+    (if (int= r 16) total
+      (if (int= (int& ranges (int>> 32768 r)) 0)
+        (self s sym->byte ranges (int+ r 1) total)
+        (self s sym->byte ranges (int+ r 1) (%map-bytes! s sym->byte (%bits s 16) (int<< r 4) 0 total))))))
 
 (def %map-bytes!
   (fn (self s sym->byte inner base k total)
-    (if (%eq k 16) total
-      (if (%eq (%and inner (%shr 32768 k)) 0)
-        (self s sym->byte inner base (%add k 1) total)
-        (do (%oset! sym->byte (%add total 1) (%add base k))
-            (self s sym->byte inner base (%add k 1) (%add total 1)))))))
+    (if (int= k 16) total
+      (if (int= (int& inner (int>> 32768 k)) 0)
+        (self s sym->byte inner base (int+ k 1) total)
+        (do (obj-set! sym->byte (int+ total 1) (int+ base k))
+            (self s sym->byte inner base (int+ k 1) (int+ total 1)))))))
 
 ; The selectors: nsel unary-coded move-to-front positions over the groups,
 ; each the group the next fifty symbols are coded with.
 (def %selectors!
   (fn (self s sel mtf groups i nsel)
-    (if (%eq i nsel) ()
+    (if (int= i nsel) ()
       (do (def n (%unary s groups 0))
-          (def g (%oref mtf (%add n 1)))
+          (def g (obj-ref mtf (int+ n 1)))
           (%mtf-shift! mtf n)
-          (%oset! mtf 1 g)
-          (%pset! sel i g 1)
-          (self s sel mtf groups (%add i 1) nsel)))))
+          (obj-set! mtf 1 g)
+          (ptr-set! sel i g 1)
+          (self s sel mtf groups (int+ i 1) nsel)))))
 
 (def %unary
   (fn (self s groups n)
-    (if (%eq (%bits s 1) 0) n
-      (if (%lt n (%sub groups 1)) (self s groups (%add n 1))
+    (if (int= (%bits s 1) 0) n
+      (if (int< n (int- groups 1)) (self s groups (int+ n 1))
         (%fail (lit data) "a selector past the groups")))))
 
 ; Slot i+1 of v holds i, from i below n.
 (def %identity!
   (fn (self v i n)
-    (if (%lt i n) (do (%oset! v (%add i 1) i) (self v (%add i 1) n)) ())))
+    (if (int< i n) (do (obj-set! v (int+ i 1) i) (self v (int+ i 1) n)) ())))
 
 ; Slots n down to 1 of mtf each moved up one.
 (def %mtf-shift!
   (fn (self mtf n)
-    (if (%eq n 0) ()
-      (do (%oset! mtf (%add n 1) (%oref mtf n))
-          (self mtf (%sub n 1))))))
+    (if (int= n 0) ()
+      (do (obj-set! mtf (int+ n 1) (obj-ref mtf n))
+          (self mtf (int- n 1))))))
 
 ; A group's code lengths: the first in five bits, each next one a run of
 ; +1 and -1 steps from the last, ended by a 0 bit.  Slot i+1 of lens holds
 ; symbol i's.
 (def %lengths!
   (fn (self s lens i count len)
-    (if (%eq i count) ()
+    (if (int= i count) ()
       (do (def l (%step-length s len))
-          (%oset! lens (%add i 1) l)
-          (self s lens (%add i 1) count l)))))
+          (obj-set! lens (int+ i 1) l)
+          (self s lens (int+ i 1) count l)))))
 
 (def %step-length
   (fn (self s len)
-    (if (if (%lt len 1) #t (%lt 20 len)) (%fail (lit data) "a code length out of range") ())
+    (if (if (int< len 1) #t (int< 20 len)) (%fail (lit data) "a code length out of range") ())
     (def two (%peek s 2))
-    (if (%lt two 2)
+    (if (int< two 2)
       (do (%skip! s 1) len)
-      (do (%skip! s 2) (self s (if (%eq two 3) (%sub len 1) (%add len 1)))))))
+      (do (%skip! s 2) (self s (if (int= two 3) (int- len 1) (int+ len 1)))))))
 
 (def %min-max
   (fn (self lens i count lo hi)
-    (if (%eq i count) (pair lo hi)
-      (do (def l (%oref lens (%add i 1)))
-          (self lens (%add i 1) count (if (%lt l lo) l lo) (if (%lt hi l) l hi))))))
+    (if (int= i count) (pair lo hi)
+      (do (def l (obj-ref lens (int+ i 1)))
+          (self lens (int+ i 1) count (if (int< l lo) l lo) (if (int< hi l) l hi))))))
 
 ; A group's decoding tables, as busybox lays them out: permute lists the
 ; symbols by code length, limit[len] is the largest code of len bits read
@@ -241,7 +225,7 @@
 ; permute.  Answers (MINLEN MAXLEN LIMIT BASE PERMUTE).
 (def %group-table
   (fn (_ lens count)
-    (def mm (%min-max lens 1 count (%oref lens 1) (%oref lens 1)))
+    (def mm (%min-max lens 1 count (obj-ref lens 1) (obj-ref lens 1)))
     (def lo (first mm))
     (def hi (rest mm))
     (def permute (Vector make 258 0))
@@ -251,42 +235,42 @@
     (%permute! lens count permute lo hi 0)
     (%count-lengths! lens temp 0 count)
     (def pp (%limits! limit base temp lo hi 0 0))
-    (%oset! limit (%add hi 1) (%sub (%add pp (%oref temp (%add hi 1))) 1))
-    (%oset! limit (%add hi 2) 2147483647)
-    (%oset! base (%add lo 1) 0)
+    (obj-set! limit (int+ hi 1) (int- (int+ pp (obj-ref temp (int+ hi 1))) 1))
+    (obj-set! limit (int+ hi 2) 2147483647)
+    (obj-set! base (int+ lo 1) 0)
     (list lo hi limit base permute)))
 
 (def %permute!
   (fn (self lens count permute len hi pp)
-    (if (%lt hi len) ()
-      (self lens count permute (%add len 1) hi (%permute-len! lens count permute len 0 pp)))))
+    (if (int< hi len) ()
+      (self lens count permute (int+ len 1) hi (%permute-len! lens count permute len 0 pp)))))
 
 (def %permute-len!
   (fn (self lens count permute len k pp)
-    (if (%eq k count) pp
-      (if (%eq (%oref lens (%add k 1)) len)
-        (do (%oset! permute (%add pp 1) k) (self lens count permute len (%add k 1) (%add pp 1)))
-        (self lens count permute len (%add k 1) pp)))))
+    (if (int= k count) pp
+      (if (int= (obj-ref lens (int+ k 1)) len)
+        (do (obj-set! permute (int+ pp 1) k) (self lens count permute len (int+ k 1) (int+ pp 1)))
+        (self lens count permute len (int+ k 1) pp)))))
 
 (def %count-lengths!
   (fn (self lens temp i count)
-    (if (%eq i count) ()
-      (do (def l (%add (%oref lens (%add i 1)) 1))
-          (%oset! temp l (%add (%oref temp l) 1))
-          (self lens temp (%add i 1) count)))))
+    (if (int= i count) ()
+      (do (def l (int+ (obj-ref lens (int+ i 1)) 1))
+          (obj-set! temp l (int+ (obj-ref temp l) 1))
+          (self lens temp (int+ i 1) count)))))
 
 ; limit[i] and base[i+1] for i from lo below hi; pp and t carried, pp
 ; answered.
 (def %limits!
   (fn (self limit base temp i hi pp t)
-    (if (%lt i hi)
-      (do (def ti (%oref temp (%add i 1)))
-          (def pp2 (%add pp ti))
-          (%oset! limit (%add i 1) (%sub (%shl pp2 (%sub hi i)) 1))
-          (def pp3 (%shl pp2 1))
-          (def t2 (%add t ti))
-          (%oset! base (%add i 2) (%sub pp3 t2))
-          (self limit base temp (%add i 1) hi pp3 t2))
+    (if (int< i hi)
+      (do (def ti (obj-ref temp (int+ i 1)))
+          (def pp2 (int+ pp ti))
+          (obj-set! limit (int+ i 1) (int- (int<< pp2 (int- hi i)) 1))
+          (def pp3 (int<< pp2 1))
+          (def t2 (int+ t ti))
+          (obj-set! base (int+ i 2) (int- pp3 t2))
+          (self limit base temp (int+ i 1) hi pp3 t2))
       pp)))
 
 ; --- the symbols --------------------------------------------------------------
@@ -300,16 +284,16 @@
     (def limit (first (rest (rest g))))
     (def v (%peek s hi))
     (def len (%code-length limit v lo))
-    (def back (%sub hi len))
-    (if (%lt back 0) (%fail (lit data) "a code no table holds") ())
+    (def back (int- hi len))
+    (if (int< back 0) (%fail (lit data) "a code no table holds") ())
     (%skip! s len)
-    (def k (%sub (%shr v back) (%oref (first (rest (rest (rest g)))) (%add len 1))))
-    (if (if (%lt k 0) #t (%lt 257 k)) (%fail (lit data) "a code no table holds") ())
-    (%oref (first (rest (rest (rest (rest g))))) (%add k 1))))
+    (def k (int- (int>> v back) (obj-ref (first (rest (rest (rest g)))) (int+ len 1))))
+    (if (if (int< k 0) #t (int< 257 k)) (%fail (lit data) "a code no table holds") ())
+    (obj-ref (first (rest (rest (rest (rest g))))) (int+ k 1))))
 
 (def %code-length
   (fn (self limit v len)
-    (if (%lt (%oref limit (%add len 1)) v) (self limit v (%add len 1)) len)))
+    (if (int< (obj-ref limit (int+ len 1)) v) (self limit v (int+ len 1)) len)))
 
 ; The block's symbols decoded into the block buffer: runs of RUNA and RUNB
 ; spell a repeat count of the byte at the front of the move-to-front list,
@@ -319,53 +303,53 @@
   (fn (_ s groups ngroups sel nsel sym->byte total counts)
     (def mtf (Vector make 256 0))
     (%identity! mtf 0 256)
-    (%symbols! s groups ngroups sel nsel sym->byte (%add total 1) counts mtf 0 0 0 0 0 0)))
+    (%symbols! s groups ngroups sel nsel sym->byte (int+ total 1) counts mtf 0 0 0 0 0 0)))
 
 ; sn: the next selector; left: symbols left in the group in hand; g: that
 ; group; run: the run's place value, 0 outside a run; cnt: the run's count;
 ; n: entries written.
 (def %symbols!
   (fn (self s groups ngroups sel nsel sym->byte eob counts mtf sn left g run cnt n)
-    (if (%eq left 0)
-      (do (if (%lt sn nsel) () (%fail (lit data) "more symbols than selectors"))
-          (def gi (%and (%pref sel sn 1) 255))
-          (if (%lt gi ngroups) () (%fail (lit data) "a selector past the groups"))
-          (self s groups ngroups sel nsel sym->byte eob counts mtf (%add sn 1) 50 (%oref groups (%add gi 1)) run cnt n))
+    (if (int= left 0)
+      (do (if (int< sn nsel) () (%fail (lit data) "more symbols than selectors"))
+          (def gi (int& (ptr-ref sel sn 1) 255))
+          (if (int< gi ngroups) () (%fail (lit data) "a selector past the groups"))
+          (self s groups ngroups sel nsel sym->byte eob counts mtf (int+ sn 1) 50 (obj-ref groups (int+ gi 1)) run cnt n))
       (do (def sym (%symbol s g))
-          (if (%lt sym 2)
+          (if (int< sym 2)
             ; RUNA adds the place value, RUNB twice it
-            (do (def place (if (%eq run 0) 1 run))
-                (def cnt2 (%add (if (%eq run 0) 0 cnt) (%shl place sym)))
-                (def size (%oref s %DBUFSIZE))
-                (self s groups ngroups sel nsel sym->byte eob counts mtf sn (%sub left 1) g
-                  (if (%lt place size) (%shl place 1) place) cnt2 n))
-            (do (def n2 (if (%eq run 0) n (%run-out! s sym->byte counts mtf cnt n)))
-                (if (%lt sym eob)
-                  (do (if (%lt n2 (%oref s %DBUFSIZE)) () (%fail (lit data) "a block longer than its size"))
-                      (def i (%sub sym 1))
-                      (def u (%oref mtf (%add i 1)))
+            (do (def place (if (int= run 0) 1 run))
+                (def cnt2 (int+ (if (int= run 0) 0 cnt) (int<< place sym)))
+                (def size (obj-ref s %DBUFSIZE))
+                (self s groups ngroups sel nsel sym->byte eob counts mtf sn (int- left 1) g
+                  (if (int< place size) (int<< place 1) place) cnt2 n))
+            (do (def n2 (if (int= run 0) n (%run-out! s sym->byte counts mtf cnt n)))
+                (if (int< sym eob)
+                  (do (if (int< n2 (obj-ref s %DBUFSIZE)) () (%fail (lit data) "a block longer than its size"))
+                      (def i (int- sym 1))
+                      (def u (obj-ref mtf (int+ i 1)))
                       (%mtf-shift! mtf i)
-                      (%oset! mtf 1 u)
-                      (def b (%oref sym->byte (%add u 1)))
-                      (%oset! counts (%add b 1) (%add (%oref counts (%add b 1)) 1))
-                      (%pset! (%oref s %DBUFP) (%shl n2 3) b 8)
-                      (self s groups ngroups sel nsel sym->byte eob counts mtf sn (%sub left 1) g 0 0 (%add n2 1)))
+                      (obj-set! mtf 1 u)
+                      (def b (obj-ref sym->byte (int+ u 1)))
+                      (obj-set! counts (int+ b 1) (int+ (obj-ref counts (int+ b 1)) 1))
+                      (ptr-set! (obj-ref s %DBUFP) (int<< n2 3) b 8)
+                      (self s groups ngroups sel nsel sym->byte eob counts mtf sn (int- left 1) g 0 0 (int+ n2 1)))
                   n2)))))))
 
 ; A run's cnt copies of the front byte written from n; the new count.
 (def %run-out!
   (fn (_ s sym->byte counts mtf cnt n)
-    (def end (%add n cnt))
-    (if (%lt (%oref s %DBUFSIZE) end) (%fail (lit data) "a run past the block's size") ())
-    (def b (%oref sym->byte (%add (%oref mtf 1) 1)))
-    (%oset! counts (%add b 1) (%add (%oref counts (%add b 1)) cnt))
-    (%fill-run! (%oref s %DBUFP) n end b)
+    (def end (int+ n cnt))
+    (if (int< (obj-ref s %DBUFSIZE) end) (%fail (lit data) "a run past the block's size") ())
+    (def b (obj-ref sym->byte (int+ (obj-ref mtf 1) 1)))
+    (obj-set! counts (int+ b 1) (int+ (obj-ref counts (int+ b 1)) cnt))
+    (%fill-run! (obj-ref s %DBUFP) n end b)
     end))
 
 (def %fill-run!
   (fn (self p i end b)
-    (if (%lt i end)
-      (do (%pset! p (%shl i 3) b 8) (self p (%add i 1) end b))
+    (if (int< i end)
+      (do (ptr-set! p (int<< i 3) b 8) (self p (int+ i 1) end b))
       ())))
 
 ; --- the inverse transform ----------------------------------------------------
@@ -375,70 +359,70 @@
 (def %link!
   (fn (_ s counts n)
     (%cumulative! counts 0 0)
-    (%link-entries! (%oref s %DBUFP) counts 0 n)))
+    (%link-entries! (obj-ref s %DBUFP) counts 0 n)))
 
 ; Each count from i on replaced by the sum of those before it, j so far.
 (def %cumulative!
   (fn (self counts i j)
-    (if (%lt i 256)
-      (do (def c (%oref counts (%add i 1)))
-          (%oset! counts (%add i 1) j)
-          (self counts (%add i 1) (%add j c)))
+    (if (int< i 256)
+      (do (def c (obj-ref counts (int+ i 1)))
+          (obj-set! counts (int+ i 1) j)
+          (self counts (int+ i 1) (int+ j c)))
       ())))
 
 (def %link-entries!
   (fn (self p counts i n)
-    (if (%lt i n)
-      (do (def b (%and (%pref p (%shl i 3) 8) 255))
-          (def at (%oref counts (%add b 1)))
-          (%pset! p (%shl at 3) (%or (%pref p (%shl at 3) 8) (%shl i 8)) 8)
-          (%oset! counts (%add b 1) (%add at 1))
-          (self p counts (%add i 1) n))
+    (if (int< i n)
+      (do (def b (int& (ptr-ref p (int<< i 3) 8) 255))
+          (def at (obj-ref counts (int+ b 1)))
+          (ptr-set! p (int<< at 3) (int| (ptr-ref p (int<< at 3) 8) (int<< i 8)) 8)
+          (obj-set! counts (int+ b 1) (int+ at 1))
+          (self p counts (int+ i 1) n))
       ())))
 
 ; Room for n more output bytes, the region doubled until it fits.
 (def %room!
   (fn (_ s n)
-    (def need (%add (%oref s %OUTCNT) n))
-    (if (%lt (%oref s %OUTCAP) need) (%grow! s need (%shl (%oref s %OUTCAP) 1)) ())))
+    (def need (int+ (obj-ref s %OUTCNT) n))
+    (if (int< (obj-ref s %OUTCAP) need) (%grow! s need (int<< (obj-ref s %OUTCAP) 1)) ())))
 
 (def %grow!
   (fn (self s need ncap)
-    (if (%lt ncap need) (self s need (%shl ncap 1))
-      (do (def r (%make-str ncap))
-          (def cnt (%oref s %OUTCNT))
-          (if (%lt 0 cnt) (%mem-copy (%str->ptr r) (%oref s %OUTP) cnt) ())
-          (%oset! s %OUT r)
-          (%oset! s %OUTP (%str->ptr r))
-          (%oset! s %OUTCAP ncap)))))
+    (if (int< ncap need) (self s need (int<< ncap 1))
+      (do (def r (str-make ncap))
+          (def cnt (obj-ref s %OUTCNT))
+          (if (int< 0 cnt) (mem-copy (str->ptr r) (obj-ref s %OUTP) cnt) ())
+          (obj-set! s %OUT r)
+          (obj-set! s %OUTP (str->ptr r))
+          (obj-set! s %OUTCAP ncap)))))
 
 ; copies+1 bytes b written; the CRC over them answered.
 (def %emit!
   (fn (self s b copies crc)
-    (def cnt (%oref s %OUTCNT))
-    (%pset! (%oref s %OUTP) cnt b 1)
-    (%oset! s %OUTCNT (%add cnt 1))
-    (if (%eq copies 0) (%crc-byte crc b)
-      (self s b (%sub copies 1) (%crc-byte crc b)))))
+    (def cnt (obj-ref s %OUTCNT))
+    (ptr-set! (obj-ref s %OUTP) cnt b 1)
+    (obj-set! s %OUTCNT (int+ cnt 1))
+    (if (int= copies 0) (%crc-byte crc b)
+      (self s b (int- copies 1) (%crc-byte crc b)))))
 
 ; read_bunzip's walk: left entries to follow from pos, the byte in hand
 ; and the one before it, and the countdown to a run's count byte -- after
 ; four alike, the next byte is how many more.  Answers the block's CRC.
 (def %walk!
   (fn (self s p pos cur left countdown crc)
-    (if (%eq left 0) (%xor crc %M32)
-      (do (def e (%pref p (%shl pos 3) 8))
-          (def next (%and e 255))
-          (def npos (%shr e 8))
-          (def cd (%sub countdown 1))
-          (if (%eq cd 0)
+    (if (int= left 0) (%xor crc %M32)
+      (do (def e (ptr-ref p (int<< pos 3) 8))
+          (def next (int& e 255))
+          (def npos (int>> e 8))
+          (def cd (int- countdown 1))
+          (if (int= cd 0)
             ; a run's count: next more copies of cur
-            (if (%eq next 0)
-              (self s p npos cur (%sub left 1) 5 crc)
+            (if (int= next 0)
+              (self s p npos cur (int- left 1) 5 crc)
               (do (%room! s next)
-                  (self s p npos cur (%sub left 1) 5 (%emit! s cur (%sub next 1) crc))))
+                  (self s p npos cur (int- left 1) 5 (%emit! s cur (int- next 1) crc))))
             (do (%room! s 1)
-                (self s p npos next (%sub left 1) (if (%eq next cur) cd 4) (%emit! s next 0 crc))))))))
+                (self s p npos next (int- left 1) (if (int= next cur) cd 4) (%emit! s next 0 crc))))))))
 
 ; --- a block ------------------------------------------------------------------
 
@@ -447,42 +431,42 @@
 ; the stored one.
 (def %block!
   (fn (_ s)
-    (if (%eq (%bits s 1) 1) (%fail (lit obsolete) "a randomised block") ())
+    (if (int= (%bits s 1) 1) (%fail (lit obsolete) "a randomised block") ())
     (def origin (%bits s 24))
-    (if (%lt (%oref s %DBUFSIZE) origin) (%fail (lit data) "an origin past the block's size") ())
+    (if (int< (obj-ref s %DBUFSIZE) origin) (%fail (lit data) "an origin past the block's size") ())
     (def sym->byte (Vector make 256 0))
     (def total (%byte-map! s sym->byte))
     (def ngroups (%bits s 3))
-    (if (if (%lt ngroups 2) #t (%lt 6 ngroups)) (%fail (lit data) "a group count out of range") ())
+    (if (if (int< ngroups 2) #t (int< 6 ngroups)) (%fail (lit data) "a group count out of range") ())
     (def nsel (%bits s 15))
-    (if (%eq nsel 0) (%fail (lit data) "no selectors") ())
-    (def sel (%make-str nsel))
+    (if (int= nsel 0) (%fail (lit data) "no selectors") ())
+    (def sel (str-make nsel))
     (def mtf (Vector make 6 0))
     (%identity! mtf 0 6)
-    (%selectors! s (%str->ptr sel) mtf ngroups 0 nsel)
-    (def count (%add total 2))
+    (%selectors! s (str->ptr sel) mtf ngroups 0 nsel)
+    (def count (int+ total 2))
     (def groups (Vector make ngroups 0))
     (%groups! s groups 0 ngroups count)
     (def counts (Vector make 256 0))
-    (def engine (%oref s %ENGINE))
-    (def n ((first engine) s groups ngroups (%str->ptr sel) nsel sym->byte total counts))
+    (def engine (obj-ref s %ENGINE))
+    (def n ((first engine) s groups ngroups (str->ptr sel) nsel sym->byte total counts))
     ((first (rest engine)) s counts n)
-    (if (%eq n 0) 0
-      (do (if (%lt origin n) () (%fail (lit data) "an origin past the block"))
-          (def e (%pref (%oref s %DBUFP) (%shl origin 3) 8))
-          ((first (rest (rest engine))) s (%shr e 8) (%and e 255) n)))))
+    (if (int= n 0) 0
+      (do (if (int< origin n) () (%fail (lit data) "an origin past the block"))
+          (def e (ptr-ref (obj-ref s %DBUFP) (int<< origin 3) 8))
+          ((first (rest (rest engine))) s (int>> e 8) (int& e 255) n)))))
 
 ; The walk over a whole block: n entries from pos, cur in hand.
 (def %walk-block!
-  (fn (_ s pos cur n) (%walk! s (%oref s %DBUFP) pos cur n 5 %M32)))
+  (fn (_ s pos cur n) (%walk! s (obj-ref s %DBUFP) pos cur n 5 %M32)))
 
 (def %groups!
   (fn (self s groups j ngroups count)
-    (if (%eq j ngroups) ()
+    (if (int= j ngroups) ()
       (do (def lens (Vector make 258 0))
           (%lengths! s lens 0 count (%bits s 5))
-          (%oset! groups (%add j 1) (%group-table lens count))
-          (self s groups (%add j 1) ngroups count)))))
+          (obj-set! groups (int+ j 1) (%group-table lens count))
+          (self s groups (int+ j 1) ngroups count)))))
 
 ; --- a stream -----------------------------------------------------------------
 
@@ -491,26 +475,26 @@
 (def %decoder
   (fn (_ buf start n engine)
     (def s (Vector make %NSLOTS 0))
-    (%oset! s %ENGINE engine)
-    (%oset! s %IN (%at (%str->ptr buf) start))
-    (%oset! s %INLEN n)
-    (%oset! s %OUT (%make-str 4096))
-    (%oset! s %OUTP (%str->ptr (%oref s %OUT)))
-    (%oset! s %OUTCAP 4096)
+    (obj-set! s %ENGINE engine)
+    (obj-set! s %IN (%at (str->ptr buf) start))
+    (obj-set! s %INLEN n)
+    (obj-set! s %OUT (str-make 4096))
+    (obj-set! s %OUTP (str->ptr (obj-ref s %OUT)))
+    (obj-set! s %OUTCAP 4096)
     s))
 
 ; "BZh" and the size digit: the block buffer made for 100000 entries a
 ; step of the digit.
 (def %header!
   (fn (_ s)
-    (if (%eq (%bits s 16) 16986) () (%fail (lit magic) "no BZ magic"))
+    (if (int= (%bits s 16) 16986) () (%fail (lit magic) "no BZ magic"))
     (def h (%bits s 16))
-    (def k (%sub h 26672))
-    (if (if (%lt k 1) #t (%lt 9 k)) (%fail (lit header) "no block size header") ())
+    (def k (int- h 26672))
+    (if (if (int< k 1) #t (int< 9 k)) (%fail (lit header) "no block size header") ())
     (def size (* 100000 k))
-    (%oset! s %DBUF (%make-str (%shl size 3)))
-    (%oset! s %DBUFP (%str->ptr (%oref s %DBUF)))
-    (%oset! s %DBUFSIZE size)))
+    (obj-set! s %DBUF (str-make (int<< size 3)))
+    (obj-set! s %DBUFP (str->ptr (obj-ref s %DBUF)))
+    (obj-set! s %DBUFSIZE size)))
 
 ; The next block or the end: a block decoded and its CRC folded into
 ; combined, answered; or, at the end marker, (end . STORED-CRC).  A block
@@ -521,11 +505,11 @@
     (def j (%bits s 24))
     (def stored (%bits s 32))
     (match
-      ((if (%eq i 1536581) (%eq j 3690640) #f) (pair (lit end) stored))
-      ((if (%eq i 3227993) (%eq j 2511705) #f)
+      ((if (int= i 1536581) (int= j 3690640) #f) (pair (lit end) stored))
+      ((if (int= i 3227993) (int= j 2511705) #f)
         (do (def crc (%block! s))
-            (if (%eq crc stored)
-              (%xor (%and (%or (%shl combined 1) (%shr combined 31)) %M32) crc)
+            (if (int= crc stored)
+              (%xor (int& (int| (int<< combined 1) (int>> combined 31)) %M32) crc)
               (pair (lit bad) crc))))
       (#t (%fail (lit data) "no block magic")))))
 
@@ -538,7 +522,7 @@
     (def end (%blocks! s 0))
     (if (pair? end) (%fail (lit crc) "a block's CRC is wrong") ())
     (%unread-bytes! s)
-    (list (%oref s %OUT) (%oref s %OUTCNT) (%oref s %INCNT))))
+    (list (obj-ref s %OUT) (obj-ref s %OUTCNT) (obj-ref s %INCNT))))
 
 ; Blocks to the end marker: the combined CRC checked there.
 (def %blocks!
@@ -547,7 +531,7 @@
     (match
       ((not (pair? r)) (self s r))
       ((eq? (first r) (lit bad)) r)
-      ((%eq (rest r) combined) combined)
+      ((int= (rest r) combined) combined)
       (#t (%fail (lit crc) "the stream's CRC is wrong")))))
 
 ; --- a stream fed a piece at a time ------------------------------------------
@@ -570,55 +554,55 @@
 (def %stream-new
   (fn (_)
     (def z (Vector make 10 0))
-    (%oset! z %ZIN (%make-str 4096))
-    (%oset! z %ZINCAP 4096)
-    (%oset! z %ZDEC ())
-    (%oset! z %ZDONE #f)
-    (%oset! z %ZOK #t)
+    (obj-set! z %ZIN (str-make 4096))
+    (obj-set! z %ZINCAP 4096)
+    (obj-set! z %ZDEC ())
+    (obj-set! z %ZDONE #f)
+    (obj-set! z %ZOK #t)
     z))
 
 ; n bytes of buf from start held after those already held.
 (def %take-input!
   (fn (_ z buf start n)
-    (def have (%oref z %ZINCNT))
-    (def total (%add have n))
-    (if (%lt (%oref z %ZINCAP) total)
-      (do (def cap ((fn (self c) (if (%lt c total) (self (%shl c 1)) c)) (%shl (%oref z %ZINCAP) 1)))
-          (def r (%make-str cap))
-          (if (%lt 0 have) (%mem-copy (%str->ptr r) (%str->ptr (%oref z %ZIN)) have) ())
-          (%oset! z %ZIN r)
-          (%oset! z %ZINCAP cap))
+    (def have (obj-ref z %ZINCNT))
+    (def total (int+ have n))
+    (if (int< (obj-ref z %ZINCAP) total)
+      (do (def cap ((fn (self c) (if (int< c total) (self (int<< c 1)) c)) (int<< (obj-ref z %ZINCAP) 1)))
+          (def r (str-make cap))
+          (if (int< 0 have) (mem-copy (str->ptr r) (str->ptr (obj-ref z %ZIN)) have) ())
+          (obj-set! z %ZIN r)
+          (obj-set! z %ZINCAP cap))
       ())
-    (if (%lt 0 n) (%mem-copy (%at (%str->ptr (%oref z %ZIN)) have) (%at (%str->ptr buf) start) n) ())
-    (%oset! z %ZINCNT total)))
+    (if (int< 0 n) (mem-copy (%at (str->ptr (obj-ref z %ZIN)) have) (%at (str->ptr buf) start) n) ())
+    (obj-set! z %ZINCNT total)))
 
 ; The decoder pointed at the input held, its bits carried over, its output
 ; emptied.
 (def %rewind!
   (fn (_ z)
-    (def s (%oref z %ZDEC))
-    (%oset! s %IN (%str->ptr (%oref z %ZIN)))
-    (%oset! s %INLEN (%oref z %ZINCNT))
-    (%oset! s %INCNT 0)
-    (%oset! s %BITBUF (%oref z %ZBITBUF))
-    (%oset! s %BITCNT (%oref z %ZBITCNT))
-    (%oset! s %OUTCNT 0)
+    (def s (obj-ref z %ZDEC))
+    (obj-set! s %IN (str->ptr (obj-ref z %ZIN)))
+    (obj-set! s %INLEN (obj-ref z %ZINCNT))
+    (obj-set! s %INCNT 0)
+    (obj-set! s %BITBUF (obj-ref z %ZBITBUF))
+    (obj-set! s %BITCNT (obj-ref z %ZBITCNT))
+    (obj-set! s %OUTCNT 0)
     s))
 
 ; The input the decoder used dropped from the front, and its bits kept.
 (def %consume!
   (fn (_ z s)
-    (def used (%oref s %INCNT))
-    (def left (%sub (%oref z %ZINCNT) used))
-    (if (if (%lt 0 used) (%lt 0 left) #f)
-      (do (def r (%make-str (%oref z %ZINCAP)))
-          (%mem-copy (%str->ptr r) (%at (%str->ptr (%oref z %ZIN)) used) left)
-          (%oset! z %ZIN r))
+    (def used (obj-ref s %INCNT))
+    (def left (int- (obj-ref z %ZINCNT) used))
+    (if (if (int< 0 used) (int< 0 left) #f)
+      (do (def r (str-make (obj-ref z %ZINCAP)))
+          (mem-copy (str->ptr r) (%at (str->ptr (obj-ref z %ZIN)) used) left)
+          (obj-set! z %ZIN r))
       ())
-    (%oset! z %ZINCNT left)
-    (%oset! z %ZBITBUF (%oref s %BITBUF))
-    (%oset! z %ZBITCNT (%oref s %BITCNT))
-    (%oset! z %ZTRIED 0)))
+    (obj-set! z %ZINCNT left)
+    (obj-set! z %ZBITBUF (obj-ref s %BITBUF))
+    (obj-set! z %ZBITCNT (obj-ref s %BITCNT))
+    (obj-set! z %ZTRIED 0)))
 
 ; The output of what the input held decoded: the header once, then blocks
 ; while the input holds them whole.  pieces gathers (REGION . N) pairs,
@@ -626,49 +610,49 @@
 ; error, not a wait.
 (def %stream-run
   (fn (self z pieces final?)
-    (if (%oref z %ZDONE) pieces
-      (do (def d (%oref z %ZDEC))
+    (if (obj-ref z %ZDONE) pieces
+      (do (def d (obj-ref z %ZDEC))
           (def s (if (null? d)
-                   (%decoder (%oref z %ZIN) 0 (%oref z %ZINCNT) (%engine-for %jit-threshold))
+                   (%decoder (obj-ref z %ZIN) 0 (obj-ref z %ZINCNT) (%engine-for %jit-threshold))
                    (%rewind! z)))
           (def r (guard (e (if (if (%short? e) (not final?) #f) () (error e)))
                    (do (if (null? d) (%header! s) ())
-                       (if (null? d) (lit header) (%next! s (%oref z %ZCRC))))))
+                       (if (null? d) (lit header) (%next! s (obj-ref z %ZCRC))))))
           (match
-            ((null? r) (do (%oset! z %ZTRIED (%oref z %ZINCNT)) pieces))
+            ((null? r) (do (obj-set! z %ZTRIED (obj-ref z %ZINCNT)) pieces))
             ((eq? r (lit header))
-              (do (%oset! z %ZDEC s) (%consume! z s) (self z pieces final?)))
+              (do (obj-set! z %ZDEC s) (%consume! z s) (self z pieces final?)))
             ((not (pair? r))
-              (do (%oset! z %ZCRC r)
+              (do (obj-set! z %ZCRC r)
                   (%consume! z s)
                   (self z (%piece s pieces) final?)))
             ((eq? (first r) (lit bad))
-              (do (%oset! z %ZOK #f) (%oset! z %ZDONE #t)
+              (do (obj-set! z %ZOK #f) (obj-set! z %ZDONE #t)
                   (%unread-bytes! s) (%consume! z s)
                   (%piece s pieces)))
             (#t
-              (do (if (%eq (rest r) (%oref z %ZCRC)) () (%oset! z %ZOK #f))
-                  (%oset! z %ZDONE #t)
+              (do (if (int= (rest r) (obj-ref z %ZCRC)) () (obj-set! z %ZOK #f))
+                  (obj-set! z %ZDONE #t)
                   ; the rest of the last byte is padding
                   (%unread-bytes! s)
-                  (%oset! s %BITCNT 0)
+                  (obj-set! s %BITCNT 0)
                   (%consume! z s)
                   pieces)))))))
 
 (def %piece
   (fn (_ s pieces)
-    (def n (%oref s %OUTCNT))
-    (if (%eq n 0) pieces
-      (do (def r (%make-str n))
-          (%mem-copy (%str->ptr r) (%oref s %OUTP) n)
+    (def n (obj-ref s %OUTCNT))
+    (if (int= n 0) pieces
+      (do (def r (str-make n))
+          (mem-copy (str->ptr r) (obj-ref s %OUTP) n)
           (pair (pair r n) pieces)))))
 
 ; The pieces, oldest first, as one (OUT N).
 (def %join
   (fn (_ pieces)
-    (def total (List fold (fn (_ acc p) (%add acc (rest p))) 0 pieces))
+    (def total (List fold (fn (_ acc p) (int+ acc (rest p))) 0 pieces))
     (def out (%region-of total))
-    (List fold (fn (_ at p) (do (%mem-copy (%at (%str->ptr out) at) (%str->ptr (first p)) (rest p)) (%add at (rest p))))
+    (List fold (fn (_ at p) (do (mem-copy (%at (str->ptr out) at) (str->ptr (first p)) (rest p)) (int+ at (rest p))))
       0 (List reverse pieces))
     (list out total)))
 
@@ -678,7 +662,7 @@
 (def %stream-feed
   (fn (_ z buf start n)
     (%take-input! z buf start n)
-    (if (%lt (%oref z %ZINCNT) (%shl (%oref z %ZTRIED) 1))
+    (if (int< (obj-ref z %ZINCNT) (int<< (obj-ref z %ZTRIED) 1))
       (list %empty 0)
       (%join (%stream-run z () #f)))))
 
@@ -709,12 +693,11 @@
 
 (def %region
   (fn (_ bytes)
-    (let ((r (%make-str (List length bytes))))
-      (do ((fn (self i l) (unless (null? l) (do (%pset! (%str->ptr r) i (first l) 1) (self (%add i 1) (rest l)))))
+    (let ((r (str-make (List length bytes))))
+      (do ((fn (self i l) (unless (null? l) (do (ptr-set! (str->ptr r) i (first l) 1) (self (int+ i 1) (rest l)))))
            0 bytes)
           r))))
 
-(def %mem-cmp (prim-ref (lit mem) (lit cmp)))
 
 ; Does an engine decode every check stream as this file's loops do, byte for
 ; byte, using as much input?
@@ -728,7 +711,7 @@
             (let ((want (%decode-all in 0 n %pure)) (got (%decode-all in 0 n engine)))
               (and (= (first (rest want)) (first (rest got)))
                    (= (first (rest (rest want))) (first (rest (rest got))))
-                   (= 0 (%mem-cmp (%str->ptr (first want)) (%str->ptr (first got)) (first (rest want)))))))))
+                   (= 0 (mem-cmp (str->ptr (first want)) (str->ptr (first got)) (first (rest want)))))))))
       %check-streams)))
 
 (def %entry ())
@@ -767,17 +750,16 @@
          %entry))))
 
 ; A region of n bytes, never of none: a (str make) of 0 is no buffer.
-(def %region-of (fn (_ n) (%make-str (if (%lt n 1) 1 n))))
+(def %region-of (fn (_ n) (str-make (if (int< n 1) 1 n))))
 
 (def %empty (%region-of 0))
 
-(def %str-byte-len (prim-ref (lit str) (lit byte-len)))
 
 (def %span
   (fn (_ s span)
     (match
-      ((null? span) (list 0 (%str-byte-len s)))
-      ((null? (rest span)) (list (first span) (%sub (%str-byte-len s) (first span))))
+      ((null? span) (list 0 (str-byte-len s)))
+      ((null? (rest span)) (list (first span) (int- (str-byte-len s) (first span))))
       (#t (list (first span) (first (rest span)))))))
 
 (def-class Bunzip2 ()
@@ -808,15 +790,15 @@
     (method done? (self (param z OBJECT "A (Bunzip2 stream)"))
       (doc "Has the stream's end been reached: its end marker read, or a block whose CRC is wrong?"
         (returns BOOL "#t once it has"))
-      (%oref z %ZDONE))
+      (obj-ref z %ZDONE))
     (method ok? (self (param z OBJECT "A (Bunzip2 stream)"))
       (doc "Has every CRC read so far held: each block's, and the stream's at its end?"
         (returns BOOL "#f once one has not"))
-      (%oref z %ZOK))
+      (obj-ref z %ZOK))
     (method rest (self (param z OBJECT "A (Bunzip2 stream)"))
       (doc "The input not used: once the stream is done, the bytes after its end -- the next stream of a file that holds several, say."
         (returns LIST "(BUF N): a region and how many bytes of it"))
-      (list (%oref z %ZIN) (%oref z %ZINCNT)))
+      (list (obj-ref z %ZIN) (obj-ref z %ZINCNT)))
     (method jit! (self)
       (doc "Build and adopt the compiled symbol, link and walk loops (JIT; ARM64 and x86-64 backends) now, if they decode the check streams exactly as the pure-x ones do. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x decoder carries on, with the same output. decode builds it on its own for an input of 4KB or more, and a fed stream always."
         (returns BOOL "#t when the compiled engine is active"))

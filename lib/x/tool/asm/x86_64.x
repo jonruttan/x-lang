@@ -20,7 +20,7 @@
 ;            mapping below or handled inside the lowering.
 
 ; Fetch the ptr prims from the catalogue (ns `ptr` is de-registered, R5).
-(def %ptr-set! (prim-ref 'ptr 'set!))
+(import x/core/doors ptr-set!)
 
 ; --- Register aliases (hardware encoding numbers) ---
 (def rax (reg 0))  (def rcx (reg 1))  (def rdx (reg 2))  (def rbx (reg 3))
@@ -702,7 +702,7 @@
 (def %x86_64-patch
   ((fn (_ i+ i-)
      (fn (_ buf-ptr offset width ptype target)
-       (%ptr-set! buf-ptr offset (i- target (i+ offset width)) width)))
+       (ptr-set! buf-ptr offset (i- target (i+ offset width)) width)))
    (prim-ref 'int '+) (prim-ref 'int '-)))
 
 ; --- Export architecture ---

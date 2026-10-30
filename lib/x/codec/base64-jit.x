@@ -19,10 +19,7 @@
 (import x/tool/jit-group jit-group)
 (import x/codec/bytes)
 
-(def %bj-make-str (prim-ref (lit str) (lit make)))
-(def %bj-str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %bj-ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %bj-div (prim-ref (lit int) (lit /)))
+(import x/core/doors int/ ptr->int str->ptr str-make)
 
 ; --- the expression (generation time) ----------------------------------------
 
@@ -85,8 +82,8 @@
       (def s (first r))
       (def start (first (rest r)))
       (def len (first (rest (rest r))))
-      (def out (%bj-make-str (+ 1 (%bj-div (* 3 len) 4))))
-      (def n (loop (+ (%bj-ptr->int (%bj-str->ptr s)) start) (%bj-ptr->int (%bj-str->ptr out)) len 0 0 0 0 0 0 0 0))
+      (def out (str-make (+ 1 (int/ (* 3 len) 4))))
+      (def n (loop (+ (ptr->int (str->ptr s)) start) (ptr->int (str->ptr out)) len 0 0 0 0 0 0 0 0))
       (if (>= n 0) (list out 0 n)
         (%bj-bad (if (= n -1) "character outside the alphabet"
                    (if (= n -2) "= padding before the final group"

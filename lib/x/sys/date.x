@@ -15,14 +15,13 @@
 ; Tower-proof integer ops: under xenon or radon the ambient / promotes to
 ; RATIONAL (287787200/146097 is not a year). Civil math is INT math by
 ; definition -- fetch the raw C ops once and use them throughout.
-(def %i/ (prim-ref 'int '/))
-(def %i% (prim-ref 'int '%))
+(import x/core/doors int% int/)
 
 ; Truncating / is C division; these need FLOOR division for pre-epoch
 ; times. %fdiv rounds toward negative infinity.
 (def %fdiv
   (fn (_ a b)
-    (let ((q (%i/ a b)))
+    (let ((q (int/ a b)))
       (if (and (< a 0) (not (= (* q b) a))) (- q 1) q))))
 
 ; days since 1970-01-01 -> (year month day), proleptic Gregorian.
@@ -37,10 +36,10 @@
           ; 1968-12-29, and a doe/365 term passed spot checks but shifted
           ; year-boundary days (2023-03-01 decoded as Feb 29) -- the 4000-day
           ; roundtrip sweep in date.spec.md is the pin that holds the law.
-          (let ((yoe (%i/ (- (+ (- doe (%i/ doe 1460)) (%i/ doe 36524)) (%i/ doe 146096)) 365)))
-            (let ((doy (- doe (+ (* 365 yoe) (- (%i/ yoe 4) (%i/ yoe 100))))))
-              (let ((mp (%i/ (+ (* 5 doy) 2) 153)))
-                (let ((d (+ (- doy (%i/ (+ (* 153 mp) 2) 5)) 1))
+          (let ((yoe (int/ (- (+ (- doe (int/ doe 1460)) (int/ doe 36524)) (int/ doe 146096)) 365)))
+            (let ((doy (- doe (+ (* 365 yoe) (- (int/ yoe 4) (int/ yoe 100))))))
+              (let ((mp (int/ (+ (* 5 doy) 2) 153)))
+                (let ((d (+ (- doy (int/ (+ (* 153 mp) 2) 5)) 1))
                       (m (if (< mp 10) (+ mp 3) (- mp 9))))
                   (list (+ (+ yoe (* era 400)) (if (<= m 2) 1 0)) m d))))))))))
 
@@ -50,8 +49,8 @@
     (let ((y (if (<= m 2) (- y0 1) y0)))
       (let ((era (%fdiv y 400)))
         (let ((yoe (- y (* era 400))))
-          (let ((doy (+ (%i/ (+ (* 153 (if (> m 2) (- m 3) (+ m 9))) 2) 5) (- d 1))))
-            (let ((doe (+ (* yoe 365) (+ (- (%i/ yoe 4) (%i/ yoe 100)) doy))))
+          (let ((doy (+ (int/ (+ (* 153 (if (> m 2) (- m 3) (+ m 9))) 2) 5) (- d 1))))
+            (let ((doe (+ (* yoe 365) (+ (- (int/ yoe 4) (int/ yoe 100)) doy))))
               (- (+ (* era 146097) doe) 719468))))))))
 
 (def %pad2 (fn (_ n) (Str8 pad-left 2 #\0 (%number->str n))))
@@ -74,10 +73,10 @@
       (list (pair 'year (first ymd))
             (pair 'month (first (rest ymd)))
             (pair 'day (first (rest (rest ymd))))
-            (pair 'hour (%i/ sod 3600))
-            (pair 'minute (%i/ (%i% sod 3600) 60))
-            (pair 'second (%i% sod 60))
-            (pair 'wday (%i% (+ (%i% (+ days 4) 7) 7) 7))))
+            (pair 'hour (int/ sod 3600))
+            (pair 'minute (int/ (int% sod 3600) 60))
+            (pair 'second (int% sod 60))
+            (pair 'wday (int% (+ (int% (+ days 4) 7) 7) 7))))
 
     (method to-unix (self (param date ALIST "Date alist; hour/minute/second default to 0 when absent"))
       (doc "Civil date-time alist (UTC) back to unix seconds -- the inverse of from-unix."
@@ -178,8 +177,8 @@
       (doc "Gregorian leap-year test."
         (returns BOOL "True for leap years")
         (example "(list (Date leap-year? 2024) (Date leap-year? 1900) (Date leap-year? 2000))" "(#t #f #t)"))
-      (if (= (%i% y 4) 0)
-        (if (= (%i% y 100) 0) (= (%i% y 400) 0) #t)
+      (if (= (int% y 4) 0)
+        (if (= (int% y 100) 0) (= (int% y 400) 0) #t)
         #f))))
 
 (doc (provide x/sys/date Date)

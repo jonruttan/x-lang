@@ -18,8 +18,7 @@
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
 (module x/reader/quasi-reader)
 
-(def %buffer-token (prim-ref (lit buf) (lit tok)))
-(def %buffer-last-char (prim-ref (lit buf) (lit last-char)))
+(import x/core/doors buf-last-char buf-tok)
 (def %token-read (prim-ref (lit tok) (lit read)))
 
 
@@ -49,7 +48,7 @@
 
 (def quasi-read
   (fn (_ buffer . rest)
-    (if (= (%buffer-last-char buffer) #\`)
+    (if (= (buf-last-char buffer) #\`)
       (pair (lit quasi) (pair (%token-read buffer) ()))
       ())))
 
@@ -58,8 +57,8 @@
 ; delimiter, so the last char no longer identifies the macro.)
 (def unquote-read
   (fn (_ buffer . rest)
-    (if (= (%str-ref (%buffer-token buffer) 0) #\,)
-      (if (= (%buffer-last-char buffer) #\@)
+    (if (= (%str-ref (buf-tok buffer) 0) #\,)
+      (if (= (buf-last-char buffer) #\@)
         (pair (lit unquote-splicing) (pair (%token-read buffer) ()))
         (pair (lit unquote) (pair (%token-read buffer) ())))
       ())))

@@ -12,20 +12,13 @@
 (import x/codec/hmac)
 (import x/codec/bytes)
 
-(def %add (prim-ref 'int '+))
-(def %sub (prim-ref 'int '-))
-(def %byte-len (prim-ref (lit str) (lit byte-len)))
-(def %byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %char->int (prim-ref (lit char) (lit ->int)))
-(def %make-str (prim-ref (lit str) (lit make)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %pset1 (prim-ref (lit ptr) (lit set!)))
+(import x/core/doors char->int int+ int- ptr-set! str->ptr str-byte-len str-byte-ref str-make)
 
-(def %byte (fn (_ s i) (%char->int (%byte-ref s i))))
+(def %byte (fn (_ s i) (char->int (str-byte-ref s i))))
 
 (def %region
   (fn (_ x)
-    (if (str? x) (list x 0 (%byte-len x)) x)))
+    (if (str? x) (list x 0 (str-byte-len x)) x)))
 
 ; T(1) | T(2) | ... until len bytes are written: T(i) = HMAC(prk, T(i-1) |
 ; info | i), T(0) empty.
@@ -35,16 +28,16 @@
     (when (> len (* 255 hl))
       (Err raise (lit value) "Hkdf expand: more than 255 blocks asked for" len))
     (def key (if (str? prk) (list prk 0 hl) prk))
-    (def ctr (%make-str 1))
-    (def cp (%str->ptr ctr))
+    (def ctr (str-make 1))
+    (def cp (str->ptr ctr))
     ; the blocks joined by memcpy, then cut to len: a block of exactly len
     ; is the answer as it stands
     ((fn (self i prev acc)
        (if (>= (first (rest (rest acc))) len)
          (if (= (first (rest (rest acc))) len) (first acc) (first (Bytes copy (list (first acc) 0 len))))
-         (do (%pset1 cp 0 i 1)
+         (do (ptr-set! cp 0 i 1)
              (def t (list (Hmac mac hash key (%join prev info ctr)) 0 hl))
-             (self (%add i 1) t (if (null? prev) t (Bytes join acc t))))))
+             (self (int+ i 1) t (if (null? prev) t (Bytes join acc t))))))
      1 () (list ctr 0 0))))
 
 ; T(i-1) | info | i as one region, for the HMAC's message: Bytes join

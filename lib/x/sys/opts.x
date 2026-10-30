@@ -44,6 +44,7 @@
 (module x/sys/opts)
 (import x/type/class)
 (import x/core/list)
+(import x/core/doors str-byte-len str-byte-ref str-byte-sub)
 
 (def-class Opts ()
   (doc "The command line, parsed against a declaration: a list of flags that stand alone and a list that take an argument. Clusters, attached and separated values, --long, --long=value and -- are all understood, so a caller does not re-derive them. Answers a record the other methods read."
@@ -183,8 +184,6 @@
         (returns STRING "The text, ending in a newline")
         (example "(Opts usage (Opts declare \"t\" \"[-a] FILE\" \"Do it\" (list (Opts flag \"-a\" \"All\"))))" "\"Usage: t [-a] FILE\\n\\nDo it\\n\\n\\t-a\\tAll\\n\"")
         (example "(Opts usage (Opts declare \"t\" \"FILE\" ()  ()))" "\"Usage: t FILE\\n\""))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
       (def syn (rest (Assoc entry (lit synopsis) decl)))
       (def summary (rest (Assoc entry (lit summary) decl)))
       (def banner (self %setting decl (lit banner) ()))
@@ -194,8 +193,8 @@
         (list (if (null? banner) "" (%str-concat (list banner "\n\n")))
               "Usage: " (self name decl)
               (match
-                ((= (%blen syn) 0) "")
-                ((= (%bref syn 0) 10) syn)
+                ((= (str-byte-len syn) 0) "")
+                ((= (str-byte-ref syn 0) 10) syn)
                 (#t (%str-concat (list " " syn))))
               (if (if (null? summary) (null? shown) #f) ""
                 (%str-concat
@@ -246,12 +245,11 @@
     ; column is the first stop past 8 plus the widest left
     (method %column (self (param rows LIST "The listed rows"))
       (doc "The first tab stop past the widest option." (returns INTEGER "The column"))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
       (let go ((rs rows) (wide 0))
         (if (null? rs) (self %stop (+ 8 wide))
           (go (rest rs)
               (if (eq? (first (first rs)) (lit text)) wide
-                (let ((w (%blen (self %left (first rs)))))
+                (let ((w (str-byte-len (self %left (first rs)))))
                   (if (> w wide) w wide)))))))
 
     (method %stop (self (param col INTEGER "A column"))
@@ -261,11 +259,10 @@
     (method %line (self (param row LIST "A listed row") (param column INTEGER "The description column"))
       (doc "One row of the help text, without its newline."
         (returns STRING "The line"))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
       (if (eq? (first row) (lit text)) (List ref 3 row)
         (let ((left (self %left row)))
           ; a tab at least, then tabs until the column is reached
-          (let go ((c (self %stop (+ 8 (%blen left)))) (acc (list left "\t")))
+          (let go ((c (self %stop (+ 8 (str-byte-len left)))) (acc (list left "\t")))
             (if (>= c column)
               (%str-concat (%reverse (pair (List ref 3 row) (pair "\t" acc))))
               (go (self %stop c) (pair "\t" acc)))))))
@@ -315,11 +312,9 @@
       (doc "Could this token be an option?"
         (returns BOOL "True for -x, -xy, --long; false for -, -5 and plain words")
         (example "(Opts %option? \"-5\")" "#f"))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (if (< (%blen tok) 2) #f
-        (if (not (= (%bref tok 0) 45)) #f
-          (let ((c (%bref tok 1)))
+      (if (< (str-byte-len tok) 2) #f
+        (if (not (= (str-byte-ref tok 0) 45)) #f
+          (let ((c (str-byte-ref tok 1)))
             (if (>= c 48) (not (<= c 57)) #t)))))
 
     (method %walk (self (param flags LIST "Standalone options")
@@ -328,8 +323,6 @@
                         (param leading BOOL "Stop at the first operand?"))
       (doc "The parser proper: answers the record the accessors read."
         (returns ALIST "((on . LIST) (values . ALIST) (operands . LIST) (unknown . ANY))"))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bsub (prim-ref (lit str) (lit byte-sub)))
       ; state rides the walk: seen flags, (flag . value) pairs, operands,
       ; and the first token nobody declared
       (let go ((as argv) (on ()) (vals ()) (ops ()) (bad ()) (done #f))
@@ -373,21 +366,16 @@
 
     (method %long-split (self (param tok STRING "A --name=value token"))
       (doc "Split --name=value into its pair." (returns PAIR "(--name . value)"))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %bsub (prim-ref (lit str) (lit byte-sub)))
       (let go ((i 0))
-        (if (>= i (%blen tok)) (pair tok "")
-          (if (= (%bref tok i) 61)
-            (pair (%bsub tok 0 i) (%bsub tok (+ i 1) (- (%blen tok) (+ i 1))))
+        (if (>= i (str-byte-len tok)) (pair tok "")
+          (if (= (str-byte-ref tok i) 61)
+            (pair (str-byte-sub tok 0 i) (str-byte-sub tok (+ i 1) (- (str-byte-len tok) (+ i 1))))
             (go (+ i 1))))))
 
     (method %long-value? (self (param tok STRING "A token") (param values LIST "Value-taking options"))
       (doc "Is this --name=value for a declared value option?" (returns BOOL "True when it is"))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (if (< (%blen tok) 3) #f
-        (if (not (= (%bref tok 1) 45)) #f
+      (if (< (str-byte-len tok) 3) #f
+        (if (not (= (str-byte-ref tok 1) 45)) #f
           (self %member? (first (self %long-split tok)) values))))
 
     ; -rn, -k2, -nk2: each letter is a flag until one takes a value, and
@@ -399,17 +387,14 @@
                            (param more LIST "The arguments after this token"))
       (doc "Split a cluster into the options it names."
         (returns ANY "(ON VALUES () REST), or nil when a letter is undeclared"))
-      (def %blen (prim-ref (lit str) (lit byte-len)))
-      (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (def %bsub (prim-ref (lit str) (lit byte-sub)))
       (def %dash (fn (_ c) (bytes->str (list 45 c))))
       (let go ((i 1) (on ()) (vals ()))
-        (if (>= i (%blen tok)) (list (%reverse on) (%reverse vals) () more)
-          (let ((name (%dash (%bref tok i))))
+        (if (>= i (str-byte-len tok)) (list (%reverse on) (%reverse vals) () more)
+          (let ((name (%dash (str-byte-ref tok i))))
             (match
               ((self %member? name values)
-                (let ((tail (%bsub tok (+ i 1) (- (%blen tok) (+ i 1)))))
-                  (if (> (%blen tail) 0)
+                (let ((tail (str-byte-sub tok (+ i 1) (- (str-byte-len tok) (+ i 1)))))
+                  (if (> (str-byte-len tail) 0)
                     (list (%reverse on) (%reverse (pair (pair name tail) vals)) () more)
                     (if (null? more) ()
                       (list (%reverse on)

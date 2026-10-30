@@ -14,21 +14,9 @@
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
 
-(def %add (prim-ref (lit int) (lit +)))
-(def %sub (prim-ref (lit int) (lit -)))
-(def %lt (prim-ref (lit int) (lit <)))
-(def %eq (prim-ref (lit int) (lit =)))
-(def %and (prim-ref (lit int) (lit &)))
-(def %or (prim-ref (lit int) (lit |)))
-(def %shl (prim-ref (lit int) (lit <<)))
-(def %shr (prim-ref (lit int) (lit >>)))
-(def %oref (prim-ref (lit obj) (lit ref)))
-(def %oset! (prim-ref (lit obj) (lit set!)))
-(def %pref (prim-ref (lit ptr) (lit ref)))
-(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %str-byte-len (prim-ref (lit str) (lit byte-len)))
+(import x/core/doors int& int+ int- int->ptr int< int<< int= int>> int| obj-ref obj-set! ptr->int ptr-ref str->ptr str-byte-len)
 
-(def %xor (fn (_ a b) (%sub (%or a b) (%and a b))))
+(def %xor (fn (_ a b) (int- (int| a b) (int& a b))))
 
 (def %m32 4294967295)
 
@@ -36,14 +24,14 @@
 ; shifts, the polynomial folded in when the top bit is set.
 (def %table (Vector make 256 0))
 ((fn (self i)
-   (if (%lt i 256)
-     (do (%oset! %table (%add i 1)
+   (if (int< i 256)
+     (do (obj-set! %table (int+ i 1)
            ((fn (fold k c)
-              (if (%eq k 0) c
-                (fold (%sub k 1)
-                  (%and (if (%eq (%and c 2147483648) 0) (%shl c 1) (%xor (%shl c 1) 79764919)) %m32))))
-            8 (%shl i 24)))
-         (self (%add i 1)))
+              (if (int= k 0) c
+                (fold (int- k 1)
+                  (int& (if (int= (int& c 2147483648) 0) (int<< c 1) (%xor (int<< c 1) 79764919)) %m32))))
+            8 (int<< i 24)))
+         (self (int+ i 1)))
      ()))
  0)
 
@@ -51,32 +39,30 @@
 ; written out as crc32.x's are: a call of %xor a byte costs a frame.
 (def %fold
   (fn (self p i n c)
-    (if (%lt i n)
-      (do (def b (%and (%pref p i 1) 255))
-          (def h (%shr c 24))
-          (def t (%oref %table (%add (%sub (%or h b) (%and h b)) 1)))
-          (def s (%and (%shl c 8) %m32))
-          (self p (%add i 1) n (%sub (%or t s) (%and t s))))
+    (if (int< i n)
+      (do (def b (int& (ptr-ref p i 1) 255))
+          (def h (int>> c 24))
+          (def t (obj-ref %table (int+ (int- (int| h b) (int& h b)) 1)))
+          (def s (int& (int<< c 8) %m32))
+          (self p (int+ i 1) n (int- (int| t s) (int& t s))))
       c)))
 
 ; The register after the length's octets, low first, until none are left.
 (def %fold-length
   (fn (self n c)
-    (if (%eq n 0) c
-      (do (def h (%xor (%shr c 24) (%and n 255)))
-          (self (%shr n 8) (%xor (%oref %table (%add h 1)) (%and (%shl c 8) %m32)))))))
+    (if (int= n 0) c
+      (do (def h (%xor (int>> c 24) (int& n 255)))
+          (self (int>> n 8) (%xor (obj-ref %table (int+ h 1)) (int& (int<< c 8) %m32)))))))
 
 ; START and LENGTH from an optional span, defaulting to the whole string.
 (def %span
   (fn (_ s span)
     (match
-      ((null? span) (list 0 (%str-byte-len s)))
-      ((null? (rest span)) (list (first span) (%sub (%str-byte-len s) (first span))))
+      ((null? span) (list 0 (str-byte-len s)))
+      ((null? (rest span)) (list (first span) (int- (str-byte-len s) (first span))))
       (#t (list (first span) (first (rest span)))))))
 
-(def %ptr-at (prim-ref (lit ptr) (lit ->int)))
-(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
-(def %at (fn (_ p off) (%int->ptr (%add (%ptr-at p) off))))
+(def %at (fn (_ p off) (int->ptr (int+ (ptr->int p) off))))
 
 ; --- The compiled engine (JIT), adopted only when it proves out ------
 ;
@@ -92,9 +78,9 @@
 (def %agrees?
   (fn (_ eng)
     (def r ((prim-ref (lit str) (lit make)) 3000))
-    (def p (%str->ptr r))
-    ((fn (self i) (when (%lt i 3000) (do ((prim-ref (lit ptr) (lit set!)) p i (%and (%add (%add i 1) (%shr i 3)) 255) 1) (self (%add i 1))))) 0)
-    (and (= (%fold-x (%str->ptr "123456789") 9 0) (eng (%str->ptr "123456789") 9 0))
+    (def p (str->ptr r))
+    ((fn (self i) (when (int< i 3000) (do ((prim-ref (lit ptr) (lit set!)) p i (int& (int+ (int+ i 1) (int>> i 3)) 255) 1) (self (int+ i 1))))) 0)
+    (and (= (%fold-x (str->ptr "123456789") 9 0) (eng (str->ptr "123456789") 9 0))
          (= (%fold-x p 3000 0) (eng p 3000 0))
          (= (%fold-x p 3000 123456789) (eng p 3000 123456789)))))
 
@@ -139,7 +125,7 @@
         (example "(Cksum of \"\")" "4294967295"))
       (def sp (%span s span))
       (def n (first (rest sp)))
-      (%xor (%fold-length n ((%fold-for n) (%at (%str->ptr s) (first sp)) n 0)) %m32))
+      (%xor (%fold-length n ((%fold-for n) (%at (str->ptr s) (first sp)) n 0)) %m32))
     (method jit! (self)
       (doc "Build and adopt the compiled byte loop (JIT; ARM64 and x86-64 backends) now, if it sums the check inputs exactly as the pure-x fold does. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x fold carries on, with the same sums. of builds it on its own for 4KB or more."
         (returns BOOL "#t when the compiled engine is active"))

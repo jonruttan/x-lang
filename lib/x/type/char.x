@@ -7,8 +7,7 @@
 
 (import x/type/class)
 ; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
-(def %char->integer (prim-ref (lit char) (lit ->int)))
-(def %integer->char (prim-ref (lit int) (lit ->char)))
+(import x/core/doors char->int int->char type-by-atom type-of type-push-call)
 
 
 (def-class Char ()
@@ -17,53 +16,53 @@
     ; prim directly via (prim-ref (lit char) (lit ->int)) / (lit int) (lit ->char)) ---
     (method ->int (self (param c CHARACTER "Character"))
       (doc "The integer code point of a character." (returns INTEGER "Code point (0-255 for ASCII/byte chars)"))
-      (%char->integer c))
+      (char->int c))
     (method from-int (self (param n INTEGER "Integer code point"))
       (doc "The character for an integer code point." (returns CHARACTER "The character"))
-      (%integer->char n))
+      (int->char n))
     ; --- Classification ---
     (method alphabetic? (self (param c CHARACTER "Character to test"))
       (doc "Test whether a character is alphabetic." (returns BOOL "True if c is a letter A-Z or a-z"))
-      (let ((n (%char->integer c)))
+      (let ((n (char->int c)))
         ; Nested if, NOT and/or (#343): per character via the Str8
         ; upcase/downcase/trim walks.
         (if (if (>= n 65) (<= n 90) #f) #t (if (>= n 97) (<= n 122) #f))))
     (method numeric? (self (param c CHARACTER "Character to test"))
       (doc "Test whether a character is a digit." (returns BOOL "True if c is a digit 0-9"))
-      (let ((n (%char->integer c))) (if (>= n 48) (<= n 57) #f)))
+      (let ((n (char->int c))) (if (>= n 48) (<= n 57) #f)))
     (method whitespace? (self (param c CHARACTER "Character to test"))
       (doc "Test whether a character is whitespace (space, tab, newline, CR, FF)." (returns BOOL "True if c is whitespace"))
-      (let ((n (%char->integer c)))
+      (let ((n (char->int c)))
         (if (= n 32) #t (if (= n 9) #t (if (= n 10) #t (if (= n 13) #t (= n 12)))))))
     (method upper-case? (self (param c CHARACTER "Character to test"))
       (doc "Test whether a character is uppercase." (returns BOOL "True if c is uppercase A-Z"))
-      (let ((n (%char->integer c))) (if (>= n 65) (<= n 90) #f)))
+      (let ((n (char->int c))) (if (>= n 65) (<= n 90) #f)))
     (method lower-case? (self (param c CHARACTER "Character to test"))
       (doc "Test whether a character is lowercase." (returns BOOL "True if c is lowercase a-z"))
-      (let ((n (%char->integer c))) (if (>= n 97) (<= n 122) #f)))
+      (let ((n (char->int c))) (if (>= n 97) (<= n 122) #f)))
     ; --- Case conversion ---
     (method upcase (self (param c CHARACTER "Character to convert"))
       (doc "Convert a character to uppercase." (returns CHARACTER "Uppercase version of c, or c unchanged"))
-      (if (Char lower-case? c) (%integer->char (- (%char->integer c) 32)) c))
+      (if (Char lower-case? c) (int->char (- (char->int c) 32)) c))
     (method downcase (self (param c CHARACTER "Character to convert"))
       (doc "Convert a character to lowercase." (returns CHARACTER "Lowercase version of c, or c unchanged"))
-      (if (Char upper-case? c) (%integer->char (+ (%char->integer c) 32)) c))
+      (if (Char upper-case? c) (int->char (+ (char->int c) 32)) c))
     ; --- Comparisons (by code point) ---
     (method =? (self (param a CHARACTER "First character") (param b CHARACTER "Second character"))
       (doc "Test whether two characters are equal." (returns BOOL "True if characters are equal"))
-      (= (%char->integer a) (%char->integer b)))
+      (= (char->int a) (char->int b)))
     (method <? (self (param a CHARACTER "First character") (param b CHARACTER "Second character"))
       (doc "Test whether a character is less than another by code point." (returns BOOL "True if a comes before b"))
-      (< (%char->integer a) (%char->integer b)))
+      (< (char->int a) (char->int b)))
     (method >? (self (param a CHARACTER "First character") (param b CHARACTER "Second character"))
       (doc "Test whether a character is greater than another by code point." (returns BOOL "True if a comes after b"))
-      (> (%char->integer a) (%char->integer b)))
+      (> (char->int a) (char->int b)))
     (method <=? (self (param a CHARACTER "First character") (param b CHARACTER "Second character"))
       (doc "Test whether a character is less than or equal to another." (returns BOOL "True if a is equal to or comes before b"))
-      (<= (%char->integer a) (%char->integer b)))
+      (<= (char->int a) (char->int b)))
     (method >=? (self (param a CHARACTER "First character") (param b CHARACTER "Second character"))
       (doc "Test whether a character is greater than or equal to another." (returns BOOL "True if a is equal to or comes after b"))
-      (>= (%char->integer a) (%char->integer b)))
+      (>= (char->int a) (char->int b)))
     ; --- Case-insensitive comparisons ---
     (method ci=? (self (param a CHARACTER "First character") (param b CHARACTER "Second character"))
       (doc "Case-insensitive character equality." (returns BOOL "True if characters are equal ignoring case"))
@@ -83,10 +82,7 @@
 
 ; Value dispatch (subject-last): a character calls Char's static methods --
 ; (#\a upcase) -> (Char upcase #\a); (#\a ->int) -> (Char ->int #\a).
-(def %type-of (prim-ref (lit type) (lit of)))
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
-(def %type-push-call (prim-ref (lit type) (lit push-call)))
-(%type-push-call (%type-by-atom (%type-of (%integer->char 0))) (class-call-handler Char))
+(type-push-call (type-by-atom (type-of (int->char 0))) (class-call-handler Char))
 
 (doc (provide x/type/char Char)
   (note "ASCII only. Classification, case conversion, and comparison homed on the Char class.")

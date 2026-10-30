@@ -29,15 +29,7 @@
 (import x/sys/gc)
 (import x/codec/mont mont-n mont-mul mont-add mont-sub mont-to mont-number mont-bytes mont-bytes-of mont-region mont-limbs mont-minus-two mont-r2 mont-r2-set? mont-set-r2!)
 
-(def %mj-make-str (prim-ref (lit str) (lit make)))
-(def %mj-str->ptr (prim-ref (lit str) (lit ->ptr)))
-(def %mj-ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %mj-pset (prim-ref (lit ptr) (lit set-word!)))
-(def %mj-pref (prim-ref (lit ptr) (lit ref-word)))
-(def %mj-oref (prim-ref (lit obj) (lit ref)))
-(def %mj-oset! (prim-ref (lit obj) (lit set!)))
-(def %mj-byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %mj-char->int (prim-ref (lit char) (lit ->int)))
+(import x/core/doors char->int obj-ref obj-set! ptr->int ptr-ref-word ptr-set-word! str->ptr str-byte-ref str-make)
 
 (def %M 67108863)
 
@@ -278,7 +270,7 @@
   (fn (_) (not (null? (guard (e ()) (%ml-compiled))))))
 
 ; The address of byte start of string s.
-(def %ml-address (fn (_ s start) (+ (%mj-ptr->int (%mj-str->ptr s)) start)))
+(def %ml-address (fn (_ s start) (+ (ptr->int (str->ptr s)) start)))
 
 ; --- the engine -----------------------------------------------------------
 ;
@@ -291,31 +283,31 @@
 ; 0..mont-jit-free - 1; the slots above hold R^2, a plain one and R mod m
 ; for entering and leaving the form, and a power's working values.
 
-(def mont-jit-n (fn (_ e) (%mj-oref e 4)))
-(def %mj-pure? (fn (_ e) (eq? (%mj-oref e 8) (lit pure))))
-(def %mj-m (fn (_ e) (%mj-oref e 9)))
+(def mont-jit-n (fn (_ e) (obj-ref e 4)))
+(def %mj-pure? (fn (_ e) (eq? (obj-ref e 8) (lit pure))))
+(def %mj-m (fn (_ e) (obj-ref e 9)))
 
 ; Slot k's word offset, in a compiled engine.
-(def %mj-off (fn (_ e k) (+ (%mj-oref e 13) (* k (mont-jit-n e)))))
+(def %mj-off (fn (_ e k) (+ (obj-ref e 13) (* k (mont-jit-n e)))))
 
-(def %mj-word-ref (fn (_ e k i) (%mj-pref (%mj-oref e 2) (* (+ (%mj-off e k) i) 8))))
-(def %mj-word-set! (fn (_ e k i v) (%mj-pset (%mj-oref e 2) (* (+ (%mj-off e k) i) 8) v)))
-(def %mj-word! (fn (_ e w v) (%mj-pset (%mj-oref e 2) (* w 8) v)))
+(def %mj-word-ref (fn (_ e k i) (ptr-ref-word (obj-ref e 2) (* (+ (%mj-off e k) i) 8))))
+(def %mj-word-set! (fn (_ e k i v) (ptr-set-word! (obj-ref e 2) (* (+ (%mj-off e k) i) 8) v)))
+(def %mj-word! (fn (_ e w v) (ptr-set-word! (obj-ref e 2) (* w 8) v)))
 
 (def mont-jit-load!
   (fn (_ e k v)
     (def n (mont-jit-n e))
     (if (%mj-pure? e)
-      (%mj-oset! (%mj-oref e 1) (+ k 1) v)
-      ((fn (self i) (unless (= i n) (do (%mj-word-set! e k i (%mj-oref v (+ i 1))) (self (+ i 1))))) 0))))
+      (obj-set! (obj-ref e 1) (+ k 1) v)
+      ((fn (self i) (unless (= i n) (do (%mj-word-set! e k i (obj-ref v (+ i 1))) (self (+ i 1))))) 0))))
 
 (def mont-jit-store
   (fn (_ e k)
     (def n (mont-jit-n e))
     (if (%mj-pure? e)
-      (%mj-oref (%mj-oref e 1) (+ k 1))
+      (obj-ref (obj-ref e 1) (+ k 1))
       (do (def v (Vector make n 0))
-          ((fn (self i) (unless (= i n) (do (%mj-oset! v (+ i 1) (%mj-word-ref e k i)) (self (+ i 1))))) 0)
+          ((fn (self i) (unless (= i n) (do (obj-set! v (+ i 1) (%mj-word-ref e k i)) (self (+ i 1))))) 0)
           v))))
 
 ; Slot k from big-endian bytes, a number below m out of the form, and a
@@ -326,7 +318,7 @@
   (fn (_ e k s start len)
     (if (%mj-pure? e)
       (mont-jit-load! e k (mont-number (%mj-m e) s start len))
-      ((%mj-oref e 10) (%mj-oref e 3) (%mj-off e k) (%ml-address s start) len 0 0 0 0))))
+      ((obj-ref e 10) (obj-ref e 3) (%mj-off e k) (%ml-address s start) len 0 0 0 0))))
 
 (def mont-jit-store-bytes
   (fn (_ e k)
@@ -334,19 +326,19 @@
     (if (%mj-pure? e)
       (mont-bytes-of m (mont-jit-store e k))
       (do (def len (mont-bytes m))
-          (def out (%mj-make-str (if (> len 0) len 1)))
-          ((%mj-oref e 11) (%mj-oref e 3) (%mj-off e k) (%ml-address out 0) len 0 0 0)
+          (def out (str-make (if (> len 0) len 1)))
+          ((obj-ref e 11) (obj-ref e 3) (%mj-off e k) (%ml-address out 0) len 0 0 0)
           out))))
 
 ; One operation: a one-step program at the table's first entry, run.
 (def %mj-step!
   (fn (_ e op h f g)
-    (def t (%mj-oref e 14))
+    (def t (obj-ref e 14))
     (%mj-word! e t op)
     (%mj-word! e (+ t 1) (%mj-off e h))
     (%mj-word! e (+ t 2) (%mj-off e f))
     (%mj-word! e (+ t 3) (%mj-off e g))
-    ((%mj-oref e 5) (%mj-oref e 3) 0 9 0 0 0 0 0 0 0)))
+    ((obj-ref e 5) (obj-ref e 3) 0 9 0 0 0 0 0 0 0)))
 
 (def %mj-op
   (fn (_ e op pure h f g)
@@ -371,8 +363,8 @@
     (if (%mj-pure? e)
       (do (def n (mont-jit-n e))
           (def v (mont-jit-store e k))
-          ((fn (self i) (if (> i n) #t (if (= (%mj-oref v i) 0) (self (+ i 1)) #f))) 1))
-      (= 0 ((%mj-oref e 6) (%mj-oref e 3) (%mj-off e k) 0 0)))))
+          ((fn (self i) (if (> i n) #t (if (= (obj-ref v i) 0) (self (+ i 1)) #f))) 1))
+      (= 0 ((obj-ref e 6) (obj-ref e 3) (%mj-off e k) 0 0)))))
 
 (def mont-jit-eq?
   (fn (_ e k l)
@@ -380,8 +372,8 @@
       (do (def n (mont-jit-n e))
           (def a (mont-jit-store e k))
           (def b (mont-jit-store e l))
-          ((fn (self i) (if (> i n) #t (if (= (%mj-oref a i) (%mj-oref b i)) (self (+ i 1)) #f))) 1))
-      (= 0 ((%mj-oref e 7) (%mj-oref e 3) (%mj-off e k) (%mj-off e l) 0 0)))))
+          ((fn (self i) (if (> i n) #t (if (= (obj-ref a i) (obj-ref b i)) (self (+ i 1)) #f))) 1))
+      (= 0 ((obj-ref e 7) (obj-ref e 3) (%mj-off e k) (%mj-off e l) 0 0)))))
 
 ; Into the form (times R^2), out of it (times a plain one), and R mod m.
 (def mont-jit-to! (fn (_ e h f) (mont-jit-mul e h f %mj-r2)))
@@ -399,7 +391,7 @@
        (unless (= j len)
          (do ; a pure engine's multiplies leave thousands of objects each
              (when (and (%mj-pure? e) (= (& j 3) 0)) (Heap collect))
-             (def b (%mj-char->int (%mj-byte-ref s (+ start j))))
+             (def b (char->int (str-byte-ref s (+ start j))))
              ((fn (self k)
                 (unless (< k 0)
                   (do (mont-jit-mul e %mj-acc %mj-acc %mj-acc)
@@ -417,11 +409,11 @@
     (mont-jit-pow! e h f (mont-minus-two m) 0 (mont-bytes m))))
 
 (def %mj-same?
-  (fn (_ x y n) ((fn (self i) (if (> i n) #t (if (= (%mj-oref x i) (%mj-oref y i)) (self (+ i 1)) #f))) 1)))
+  (fn (_ x y n) ((fn (self i) (if (> i n) #t (if (= (obj-ref x i) (obj-ref y i)) (self (+ i 1)) #f))) 1)))
 
 (def %mj-same-bytes?
   (fn (_ a b len)
-    ((fn (self i) (if (= i len) #t (if (= (%mj-char->int (%mj-byte-ref a i)) (%mj-char->int (%mj-byte-ref b i))) (self (+ i 1)) #f))) 0)))
+    ((fn (self i) (if (= i len) #t (if (= (char->int (str-byte-ref a i)) (char->int (str-byte-ref b i))) (self (+ i 1)) #f))) 0)))
 
 ; The differential check: each operation against mont.x's on numbers with
 ; every limb in use, and near the top of the range, where the final
@@ -432,8 +424,8 @@
     (def len (mont-bytes m))
     (def num
       (fn (_ byte)
-        (def s (%mj-make-str len))
-        (def p (%mj-str->ptr s))
+        (def s (str-make len))
+        (def p (str->ptr s))
         ((fn (self i) (unless (= i len) (do ((prim-ref (lit ptr) (lit set!)) p i (& (+ byte (* i 37)) 255) 1) (self (+ i 1))))) 0)
         (mont-to m (mont-number m s 0 len))))
     (def x (num 91))
@@ -476,7 +468,7 @@
   (fn (_ e m)
     (if (%mj-pure? e)
       (do (def one (Vector make (mont-n m) 0))
-          (%mj-oset! one 1 1)
+          (obj-set! one 1 1)
           (mont-jit-load! e %mj-plain-one one)
           (mont-jit-load! e %mj-r2 (mont-r2 m)))
       (do (mont-jit-sub e %mj-plain-one %mj-plain-one %mj-plain-one)
@@ -518,17 +510,17 @@
 (def %mj-engine
   (fn (_ m)
     (def e (Vector make 16 ()))
-    (%mj-oset! e 4 (mont-n m))
-    (%mj-oset! e 9 m)
-    (%mj-oset! e 13 0)
+    (obj-set! e 4 (mont-n m))
+    (obj-set! e 9 m)
+    (obj-set! e 13 0)
     e))
 
 ; A pure engine: the same slots and calls, mont.x's arithmetic beneath.
 (def mont-jit-pure
   (fn (_ m)
     (def e (%mj-engine m))
-    (%mj-oset! e 1 (Vector make %mj-slots ()))
-    (%mj-oset! e 8 (lit pure))
+    (obj-set! e 1 (Vector make %mj-slots ()))
+    (obj-set! e 8 (lit pure))
     (%mj-reserve! e m)
     e))
 
@@ -541,34 +533,34 @@
   (fn (_ m)
     (def n (mont-n m))
     (def e (%mj-engine m))
-    (%mj-oset! e 13 %mj-hdr)
+    (obj-set! e 13 %mj-hdr)
     (def T (+ %mj-hdr (* %mj-slots n)))
     (def D (+ T n 2))
     (def P (+ D n))
     (def TBL (+ P n))
     (def words (+ TBL %mj-table))
-    (def buf (%mj-make-str (* words 8)))
-    (def ptr (%mj-str->ptr buf))
-    (%mj-oset! e 1 buf)
-    (%mj-oset! e 2 ptr)
-    (%mj-oset! e 3 (%mj-ptr->int ptr))
-    (%mj-word! e 0 n) (%mj-word! e 1 T) (%mj-word! e 2 D) (%mj-word! e 3 P) (%mj-word! e 4 (%mj-oref m 3)) (%mj-word! e 7 TBL)
+    (def buf (str-make (* words 8)))
+    (def ptr (str->ptr buf))
+    (obj-set! e 1 buf)
+    (obj-set! e 2 ptr)
+    (obj-set! e 3 (ptr->int ptr))
+    (%mj-word! e 0 n) (%mj-word! e 1 T) (%mj-word! e 2 D) (%mj-word! e 3 P) (%mj-word! e 4 (obj-ref m 3)) (%mj-word! e 7 TBL)
     (%mj-word! e (+ TBL 4) 0)
-    (%mj-oset! e 14 TBL)
-    (%mj-oset! e 12 (+ TBL 8))
-    (%mj-oset! e 15 words)
+    (obj-set! e 14 TBL)
+    (obj-set! e 12 (+ TBL 8))
+    (obj-set! e 15 words)
     (def fresh (null? (first %ml-fns)))
     (def built (%ml-compiled))
     (def fns (first built))
-    (%mj-oset! e 5 (List ref 0 fns))
-    (%mj-oset! e 6 (List ref 1 fns))
-    (%mj-oset! e 7 (List ref 2 fns))
-    (%mj-oset! e 10 (List ref 3 fns))
-    (%mj-oset! e 11 (List ref 4 fns))
-    (%mj-oset! e 8 (lit compiled))
+    (obj-set! e 5 (List ref 0 fns))
+    (obj-set! e 6 (List ref 1 fns))
+    (obj-set! e 7 (List ref 2 fns))
+    (obj-set! e 10 (List ref 3 fns))
+    (obj-set! e 11 (List ref 4 fns))
+    (obj-set! e 8 (lit compiled))
     ; the modulus's limbs, read from its bytes by the engine itself
     (def r (mont-region m))
-    ((%mj-oref e 10) (%mj-oref e 3) P (%ml-address (first r) (first (rest r))) (first (rest (rest r))) 0 0 0 0)
+    ((obj-ref e 10) (obj-ref e 3) P (%ml-address (first r) (first (rest r))) (first (rest (rest r))) 0 0 0 0)
     (%mj-reserve! e m)
     (when (and fresh (not (rest built))) (%mj-check e m))
     e))
@@ -608,9 +600,9 @@
                                (if (null? (rest (rest (rest s)))) (first (rest (rest s))) (first (rest (rest (rest s))))))))
     (if (%mj-pure? e)
       (List map (fn (_ s) (do (def p (parts s)) (%mj-step e (first p) (List ref 1 p) (List ref 2 p) (List ref 3 p)))) steps)
-      (do (def at (%mj-oref e 12))
+      (do (def at (obj-ref e 12))
           (def end (+ at (* 4 (+ (List length steps) 1))))
-          (when (> end (%mj-oref e 15))
+          (when (> end (obj-ref e 15))
             (Err raise (lit state) "mont-jit: the engine's program table is full" (List length steps)))
           ((fn (self ss w)
              (if (null? ss) (%mj-word! e w 0)
@@ -621,8 +613,8 @@
                    (%mj-word! e (+ w 3) (%mj-off e (List ref 3 p)))
                    (self (rest ss) (+ w 4)))))
            steps at)
-          (%mj-oset! e 12 end)
-          (>> (- at (%mj-oref e 14)) 2)))))
+          (obj-set! e 12 end)
+          (>> (- at (obj-ref e 14)) 2)))))
 
 (def mont-jit-run!
   (fn (self e prog)
@@ -634,7 +626,7 @@
                ((first s) () (first r) (first (rest r)) (first (rest (rest r))))
                (loop (rest p)))))
        prog)
-      ((%mj-oref e 5) (%mj-oref e 3) prog 9 0 0 0 0 0 0 0))))
+      ((obj-ref e 5) (obj-ref e 3) prog 9 0 0 0 0 0 0 0))))
 
 (doc (provide x/codec/mont-jit mont-jit-engine mont-jit-make mont-jit-pure mont-jit-compiled? mont-jit-ready! mont-jit-free mont-jit-n
               mont-jit-load! mont-jit-store mont-jit-copy! mont-jit-zero? mont-jit-eq?

@@ -44,7 +44,7 @@ changes is that the type system can finally SEE them.
 ### printing round-trips
 
 ```x
-(list (Str8 append "" (%display-to-str #t)) (Str8 append "" (%display-to-str #f)))
+(list (Str8 append "" (io-display-to-str #t)) (Str8 append "" (io-display-to-str #f)))
 ```
 ---
     ("#t" "#f")
