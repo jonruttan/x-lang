@@ -6,8 +6,6 @@ needs six facts, and will otherwise guess them wrong — the same six, every
 time. Read this file first; it is short on purpose and every claim in it is
 checkable with one command.
 
-`CLAUDE.md` is a symlink to this file.
-
 ## What x-lang is, in three sentences
 
 A minimal, type-agnostic **engine** provides atoms, pairs, an adaptive
@@ -47,9 +45,7 @@ human one, `(newline)` between them.
 
 Do not run `./x-bin` (or `x-bin-asan`, `x-bin-cov`, …). Run bare, it has no
 allocation ceiling and a runaway program takes the machine down — nine
-documented OOM incidents. A `PreToolUse` hook
-([.claude/hooks/x-guard.sh](.claude/hooks/x-guard.sh)) blocks it, but the
-hook is a backstop, not the rule. The safe routes arm limits first: `x.sh`
+documented OOM incidents. The safe routes arm limits first: `x.sh`
 (pipes the library onto stdin, which arms conservative limits) and
 `tests/x/spec-runner.sh` (arms `X_ALLOC_LIMIT_OBJS` per spec).
 
@@ -128,7 +124,7 @@ Most "that function doesn't exist" confusion is a dialect mismatch.
 
 | Flag | Dialect | Has |
 |---|---|---|
-| *(none)* | helium (`lib/x.x` → `lib/he.x`) | 40+ modules: combinators, lists, sort, strings, vectors, promises, quasiquote, REPL. **No numeric tower.** |
+| *(none)* | helium (`lib/x.x` → `lib/he.x`) | combinators, lists, sort, strings, vectors, promises, quasiquote, REPL. **No numeric tower.** |
 | `-l xe` | xenon | helium + POSIX, hash tables, JIT, the full numeric tower (bigint, float, rational, complex, decimal) |
 | `-l rn` | radon | xenon + raw syscalls, char/IO constants; file I/O and sockets on demand. **Experimental.** |
 
@@ -144,12 +140,12 @@ auto-discovered and deduplicated.
 
 | Path | What |
 |---|---|
-| `lib/x/**` | the library, ~130 modules, all x-lang. The `(doc …)` forms here generate the API reference. |
+| `lib/x/**` | the library, all x-lang. The `(doc …)` forms here generate the API reference. |
 | `lib/x.x`, `lib/xe.x`, `lib/rn.x` | dialect entry points |
 | `engine` → | symlink to the engine checkout or unpacked release. Not this repo. |
-| `tests/x/specs/**` | **142 spec files: executable examples with expected output.** The best corpus for "how is this actually used". |
+| `tests/x/specs/**` | **spec files: executable examples with expected output.** The best corpus for "how is this actually used". |
 | `tests/x/conformance/**` | what judges an engine implementation |
-| `docs/` | 28 hand-written documents; [docs/index.md](docs/index.md) is the front door |
+| `docs/` | the hand-written documents; [docs/index.md](docs/index.md) is the front door |
 | `tools/` | self-hosted linter, formatter, coverage, profiler, doc generator |
 | `apps/`, `examples/` | worked programs |
 
@@ -187,12 +183,12 @@ Full style rules: [docs/contributing.md](docs/contributing.md) and
 ## Testing and gates
 
 ```bash
-make test-x       # the x-lang spec suite (2,800+ cases), each job booted
+make test-x       # the x-lang spec suite, each job booted
                   # from a state image; IMG=0 boots every library from source
 make test-c       # the engine's C unit tests (delegated; a fetched
                   # release ships no C and says it skipped)
 make test         # everything
-make lint         # the self-hosted linter
+make lint-x       # the self-hosted linter
 ```
 
 Run `make test-x` after touching anything under `lib/`. CI runs the full

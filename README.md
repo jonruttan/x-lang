@@ -53,7 +53,7 @@ native-code compiler is in progress.
 ; Fexprs at the core: op receives its arguments unevaluated,
 ; plus the caller's environment as e
 (def my-quote (op (x) e x))
-(my-quote (+ 1 2))             ; -> the list (+ 1 2), unevaluated
+(my-quote (+ 1 2))             ; -> ('+ 1 2), the list unevaluated
 
 ; Every closure receives itself as argument 0 -- recursion needs no global name
 (def fact (fn (self n) (if (= n 0) 1 (* n (self (- n 1))))))
@@ -92,8 +92,8 @@ x -l logo                   # REPL + viewer at http://localhost:8080
 | [x-awk](https://github.com/jonruttan/x-awk) | an awk: the language and the `x -l awk --` CLI | unreleased |
 | [x-grep](https://github.com/jonruttan/x-grep) | a grep: BRE by translation, ERE native, `-F` on bytes | unreleased |
 | [x-sed](https://github.com/jonruttan/x-sed) | a sed, riding x-grep's regex doors — the first cross-bundle lang | unreleased |
-| [x-make](https://github.com/jonruttan/x-make) | a make: the GNU subset x-lang's own Makefiles use | unreleased |
-| [x-coreutils](https://github.com/jonruttan/x-coreutils) | forty-four applets in one bundle made as busybox is, `sort` to `sha256sum` | unreleased |
+| [x-make](https://github.com/jonruttan/x-make) | a make: the portable core x-lang's own Makefiles use | unreleased |
+| [x-coreutils](https://github.com/jonruttan/x-coreutils) | a busybox: its applets in one bundle, `sort` to `sha256sum` | unreleased |
 | [x-cc](https://github.com/jonruttan/x-cc) | a C front end and evaluator; eligible functions lower to native through the engine | unreleased |
 
 **No version numbers in that column, deliberately** — and no dialect column
@@ -152,7 +152,7 @@ The system is layered. Each layer expands capabilities without modifying those b
 
 1. **Atom/pair bootstrap** (the engine) — One storage layout, two blessed lengths: every object is a fixed-size vector of slots, and the two smallest — the atom (one) and the pair (two) — are sufficient for evaluation and data construction. The evaluator dispatches through type methods, so these two suffice to get the system running.
 2. **Adaptive type system** — Runtime type definitions with dispatch methods (call, eval, write, length, etc.). Types and the base object share the same nested-list contract structure, extensible by appending pairs.
-3. **Modular library** (`lib/`) — ~100 modules organized by domain: core operations, custom types (vectors, strings, promises), a numeric tower (bigint, float, rational, complex, decimal), system interfaces (POSIX, FFI, GC), self-hosted tools (linter, formatter, coverage, profiler, doc generator), and platform-specific code (x86_64, ARM64).
+3. **Modular library** (`lib/`) — modules organized by domain: core operations, custom types (vectors, strings, promises), a numeric tower (bigint, float, rational, complex, decimal), system interfaces (POSIX, FFI, GC), self-hosted tools (linter, formatter, coverage, profiler, doc generator), and platform-specific code (x86_64, ARM64).
 4. **FFI and native code** — Dynamic library loading via `dlopen`/`dlsym`, calls through a pointer, raw pointer operations, and a JIT compiler that compiles x-lang functions to native machine code via a data-driven assembler.
 
 See [docs/](docs/) for complete reference documentation.
@@ -340,7 +340,7 @@ staged/packaged installs. Remove with `make uninstall` (same `PREFIX`).
 ## Test
 
 ```sh
-make test-x                          # x-lang spec suite (2,500+ cases)
+make test-x                          # x-lang spec suite
 make test-c                          # the engine's C unit tests (delegated)
 make test                            # all tests
 ```
@@ -361,8 +361,8 @@ included, is published at <https://jonruttan.github.io/x-lang/>. New to the
 vocabulary? The [Glossary](docs/glossary.md) defines the load-bearing terms
 (fexpr, operative, dialect, the base, contract).
 
-**Coding agents start at [AGENTS.md](AGENTS.md)** (`CLAUDE.md` symlinks to
-it) — the short briefing: how to run it, the Lisp assumptions that fail here,
+**Coding agents start at [AGENTS.md](AGENTS.md)** — the short briefing:
+how to run it, the Lisp assumptions that fail here,
 and the three calls that answer "what exists" without reading any of the
 above. [llms.txt](llms.txt) is the machine-readable index of this list.
 
