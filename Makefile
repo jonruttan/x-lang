@@ -946,7 +946,8 @@ ASAN_RUN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0:quarantine_size_
 #     test-asan leaves them out; test-asan-crypto runs only them.  One glob
 #     a spec, written out: a pattern substitution over the names is GNU
 #     make's own.
-ASAN_CRYPTO_SPECS = */lib/aes.spec.md */lib/bcrypt.spec.md */lib/chacha20.spec.md \
+ASAN_CRYPTO_SPECS = */lib/aes.spec.md */lib/aes-jit.spec.md */lib/bcrypt.spec.md */lib/chacha20.spec.md \
+  */lib/ghash.spec.md */lib/ghash-jit.spec.md \
   */lib/chacha20-jit.spec.md */lib/chacha20-poly1305.spec.md */lib/crypt.spec.md \
   */lib/der.spec.md */lib/ecdsa.spec.md */lib/ed25519.spec.md */lib/ed25519-jit.spec.md \
   */lib/hkdf.spec.md */lib/hmac.spec.md */lib/mont.spec.md */lib/mont-jit.spec.md \
