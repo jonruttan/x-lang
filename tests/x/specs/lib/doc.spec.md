@@ -107,6 +107,50 @@ list used to be handed to `symbol->str` and walked as a string pointer.
 ---
     (#t #t #t)
 
+## help on a name with no entry
+
+A name with no entry of its own is answered by what it is: a module not yet
+loaded, the last segment of documented names, a binding with no doc, or
+nothing.  Only the first line of each answer is pinned.
+
+### says what the name is before saying there is no doc
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/sys/stream)
+  (def doc-help-first
+    (fn (_ thunk)
+      (let ((tmp (File temp "/tmp/x-doc-help-")))
+        (File close (first tmp))
+        (Stream with-file (rest tmp) thunk)
+        (let ((text (File read-all (rest tmp))))
+          (File unlink (rest tmp))
+          (first (Str8 split "\n" text))))))
+  (def doc-help-bound 1)
+  (list
+    (doc-help-first (fn (_) (help x/sys/pty)))
+    (doc-help-first (fn (_) (help gcd)))
+    (doc-help-first (fn (_) (help doc-help-bound)))
+    (doc-help-first (fn (_) (help totallyunknownxyz)))))
+```
+---
+    ("x/sys/pty is not loaded; (import x/sys/pty) loads it, then (help x/sys/pty) reads it" "No top-level doc for gcd; documented names ending in /gcd:" "doc-help-bound is bound but has no documentation" "No documentation for totallyunknownxyz")
+
+### apropos says when nothing matches, and hides % names unless asked
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/sys/stream)
+  (def doc-help-tmp (File temp "/tmp/x-doc-help-"))
+  (File close (first doc-help-tmp))
+  (Stream with-file (rest doc-help-tmp) (fn (_) (apropos "zzzznotamethod")))
+  (def doc-help-text (File read-all (rest doc-help-tmp)))
+  (File unlink (rest doc-help-tmp))
+  (list doc-help-text
+        (List any? (fn (_ n) (Str8 starts? "%" (symbol->str n))) (apropos "map"))
+        (List any? (fn (_ n) (Str8 starts? "%" (symbol->str n))) (apropos "%map"))))
+```
+---
+    ("no documented name contains \"zzzznotamethod\"\n" #f #t)
+
 ## help on a class
 
 A class's own data is its static fields and an instance's data its fields, so

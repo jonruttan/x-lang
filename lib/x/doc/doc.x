@@ -400,7 +400,10 @@
       (fn (_ ex)
         (display "  > ")
         (%highlight-code (first ex))
-        (display " => " (rest ex) "\n"))
+        ; A def's example has nothing to show after it: no arrow to nothing.
+        (if (str=? (rest ex) "")
+          (newline)
+          (display " => " (rest ex) "\n")))
       examples)))
 
 (def %display-sees
@@ -709,22 +712,68 @@
                     (if (not (null? %entry))
                       (%display-doc %entry)
                       (let ()
-                        ; Not a binding/module/doc/class. It may still be a METHOD
-                        ; name on some class (e.g. upcase on Char/Str8) -- surface
-                        ; those rather than a bare "no documentation".
-                        (def %hits (%apropos-matches (symbol->str %h-name)))
+                        ; Not a module, doc or class.  What it is instead is
+                        ; said before any bare "no documentation": a module not
+                        ; yet loaded, a method of that name on some class
+                        ; (upcase on Char and Str8), a name bound but
+                        ; undocumented, or merely a substring of documented
+                        ; names.
+                        (def %name-str (symbol->str %h-name))
+                        (def %same? (prim-ref (lit obj) (lit same?)))
+                        (def %unbound (pair () ()))
+                        (def %bound?
+                          (not (%same? %unbound (guard (_ %unbound) (eval %h-name e)))))
+                        ; The part of a documented name after its last "/".
+                        (def %segment
+                          (fn (_ full)
+                            (def %s (symbol->str full))
+                            (def %n (%str-length %s))
+                            (def %go
+                              (fn (self i)
+                                (if (< i 0) %s
+                                  (if (str=? (%substring %s i (+ i 1)) "/")
+                                    (%substring %s (+ i 1) %n)
+                                    (self (- i 1))))))
+                            (%go (- %n 1))))
+                        (def %hits (%apropos-matches %name-str))
+                        (def %named
+                          (List filter (fn (_ n) (str=? (%segment n) %name-str)) %hits))
+                        (if (%module-name-shown? %h-name)
+                          (display %h-name " is not loaded; (import " %h-name
+                                   ") loads it, then (help " %h-name ") reads it\n")
+                        (if (not (null? %named))
+                          (do (display "No top-level doc for " %h-name
+                                       "; documented names ending in /" %h-name ":\n")
+                              (%apropos-show %named))
+                        (if %bound?
+                          (do (display %h-name " is bound but has no documentation\n")
+                              (if (null? %hits) ()
+                                (do (display "  documented names containing it:\n")
+                                    (%apropos-show %hits))))
                         (if (null? %hits)
                           (%display-no-doc %h-name)
                           (do (display "No top-level doc for " %h-name
-                                       "; documented methods matching it:\n")
-                              (%apropos-show %hits)))))))))))))))))
+                                       "; documented names containing it:\n")
+                              (%apropos-show %hits))))))))))))))))))))
 
 ; Documented names that CONTAIN pat (a string), sorted, each once: the
 ; sorted names Doc lists, filtered.  Shared by apropos and help's
-; name-not-found fallback.
+; name-not-found fallback.  A %-private name (a bare %map, a Class/%meth)
+; is left out unless the pattern itself starts with %: a search for a
+; public name answers public names.
 (def %apropos-matches
   (fn (_ pat)
-    (List filter (fn (_ name) (%doc-str-contains? pat (symbol->str name)))
+    (def %private?
+      (fn (_ s)
+        (if (str=? (%substring s 0 1) "%") #t (%doc-str-contains? "/%" s))))
+    (def %want-private
+      (if (= (%str-length pat) 0) #f (str=? (%substring pat 0 1) "%")))
+    (List filter
+      (fn (_ name)
+        (def %s (symbol->str name))
+        (if (%doc-str-contains? pat %s)
+          (if %want-private #t (not (%private? %s)))
+          #f))
       (Doc names))))
 
 ; Display each matching name with its description, one per line.
@@ -745,7 +794,9 @@
     (def %raw (if (symbol? pattern) pattern (eval pattern e)))
     (def %pat (if (symbol? %raw) (symbol->str %raw) %raw))
     (def %hits (%apropos-matches %pat))
-    (%apropos-show %hits)
+    (if (null? %hits)
+      (display "no documented name contains \"" %pat "\"\n")
+      (%apropos-show %hits))
     %hits))
 
 ; --- Module discovery ---
