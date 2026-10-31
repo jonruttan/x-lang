@@ -201,6 +201,22 @@ a file and only the heading lines are kept: a name is coloured when
 ---
     ("  static:" "    fields:" "    methods:" "  fields:" "  methods:")
 
+### a class with no summary of its own reads its module's
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/sys/stream)
+  (def doc-help-tmp (File temp "/tmp/x-doc-help-"))
+  (File close (first doc-help-tmp))
+  (Stream with-file (rest doc-help-tmp) (fn (_) (help List)))
+  (def doc-help-lines (Str8 split "\n" (File read-all (rest doc-help-tmp))))
+  (File unlink (rest doc-help-tmp))
+  (list (Str8 starts? "List -- The list/sequence API" (first doc-help-lines))
+        (pair? (List filter (fn (_ l) (str=? l "  module: x/type/list"))
+                            doc-help-lines))))
+```
+---
+    (#t #t)
+
 ## provide registration
 
 ### the List class module is registered
