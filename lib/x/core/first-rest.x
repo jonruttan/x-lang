@@ -12,7 +12,11 @@
 ;
 ; Native code is per-process: the image writer gets the raw prims back
 ; (a transient thunk), and the recache hook compiles again after a load,
-; from the byte cache the image carries.  Where the lane refuses -- an
+; from the byte cache the image carries.  The child an image is written
+; from never arms: a library that aliases the prims at load -- `(def car
+; first)` -- would hold a compiled prim no image can name, and the writer
+; refuses the image.  Its aliases keep the raw prims; the globals are
+; armed by the recache hook after a load.  Where the lane refuses -- an
 ; engine without the JIT's symbols, a platform without a backend -- the
 ; prims stay raw, and (first ()) is what the spec says it is.
 (module x/core/first-rest)
@@ -41,7 +45,7 @@
     (set! first %fr-raw-first)
     (set! rest %fr-raw-rest)))
 
-(%fr-arm!)
+(if (guard (_ ()) %image-writing) () (%fr-arm!))
 (set! %image-transients (pair %fr-disarm! %image-transients))
 ((prim-ref (lit image) (lit recache-hook!)) %fr-arm!)
 
