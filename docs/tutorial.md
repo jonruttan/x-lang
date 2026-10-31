@@ -43,16 +43,15 @@ This loads the x-lang standard library and drops into a REPL:
 The prompt is `> `. Results are printed after each expression. Nil results print nothing.
 
 Leave the session with `(quit)` or ctrl-d. Ctrl-c cancels a half-typed
-multi-line form and returns a fresh prompt (at an empty prompt it ends the
-session). `(help)` shows the documentation
-index — see [Exploration](#exploration) below.
+multi-line form and returns a fresh prompt; the session stays open.
+`(help)` shows the documentation index — see [Exploration](#exploration) below.
 
 The arrow keys work, and so do the readline chords: ctrl-a and ctrl-e for
 the ends of the line, ctrl-w and ctrl-k to kill, ctrl-y to put it back, Up
 and Down for history that outlives the session, Tab to complete any
 documented name. What you type is coloured as you type it. It is built in —
 there is nothing to install and nothing to wrap the session in.
-[docs/repl.md](docs/repl.md) is the reference.
+[The REPL reference](repl.md) has the rest.
 
 For the full-stack dialect (xenon) with the numeric tower, the compiler,
 and POSIX:
@@ -125,7 +124,7 @@ Integers, strings, and characters are self-evaluating:
 > "hello"
 "hello"
 > #\a
-a
+#\a
 ```
 
 ### Pairs and Lists
@@ -236,11 +235,11 @@ x-lang's evaluation model is distinctive. All C-level primitives are **fexprs**:
 The standard library provides a rich set of list operations:
 
 ```x-repl
-> (map (fn (_ x) (* x x)) (list 1 2 3 4 5))
+> (List map (fn (_ x) (* x x)) (list 1 2 3 4 5))
 (1 4 9 16 25)
-> (filter (fn (_ x) (> x 2)) (list 1 2 3 4 5))
+> (List filter (fn (_ x) (> x 2)) (list 1 2 3 4 5))
 (3 4 5)
-> (fold + 0 (list 1 2 3 4 5))
+> (List fold + 0 (list 1 2 3 4 5))
 15
 > (List sort < (list 3 1 4 1 5 9))
 (1 1 3 4 5 9)

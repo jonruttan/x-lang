@@ -331,7 +331,7 @@ The spec runner evaluates the `scheme` code block and compares stdout against th
 >
 > **Multi-line output (`` ```output ``).** Fence the expected block as `` ```output `` to compare the **full multi-line stdout** instead — for formatters, pretty-printers, and any multi-line render. Leading blank lines are ignored and the trailing newline is trimmed; interior blank lines are significant. Errors are catchable too: the runner prints an uncaught error to stdout as `Error: <value>`, so a `` ```output `` block can assert it (or use `raised`/`throws?`). See `tests/x/specs/meta/multiline.spec.md`.
 >
-> A spec can swap in a custom support library with a `# @lib ../tests/x/lib/NAME.x` header — it *replaces* the default lib, so the support file must `(include "lib/x-core.x")` first (see `tests/x/lib/token.x`).
+> A spec can swap in a custom support library with a `# @lib ../tests/x/lib/NAME.x` header — it *replaces* the default lib, so the support file must `(include "lib/x-core.x")` first (see `tests/x/lib/fmt.x`).
 
 ### The test-with-fix rule
 
@@ -469,7 +469,7 @@ gate, so such a branch is refused before it leaves the machine.
 ### Generating Docs
 
 ```sh
-make doc-c           # C API reference (Doxygen → docs/ref/c/)
+make doc-c           # C API reference (the engine runs Doxygen into its own docs/ref/c/)
 make doc-x           # x-lang library reference (doc-gen → docs/ref/x/)
 make doc             # both
 ```
