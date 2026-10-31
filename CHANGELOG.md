@@ -5,6 +5,52 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-10-31
+
+**x/tui/window passes over a link that takes no place on the page.** ([#1144]) Tab on a page holding an empty link, or a link whose only text is an image, segfaulted the engine; next-link and prev-link now skip such a link, and `Window select` of one selects none and answers nil.
+
+[#1144]: https://github.com/jonruttan/x-lang/pull/1144
+
+**The tutorial's list examples run.** ([#1143]) `map`, `filter` and `fold` were shown as bare names and are unbound; they are `(List map ...)`, `(List filter ...)` and `(List fold ...)`. The tutorial, README and AGENTS.md also lose a `CLAUDE.md` that no longer exists, a missing hook link, `make lint` (it is `make lint-x`), the ctrl-c text the REPL contradicts, and hand-copied counts that had drifted; `docs/index.md` links the engine laws.
+
+[#1143]: https://github.com/jonruttan/x-lang/pull/1143
+
+**`help` says what a name with no entry is.** ([#1142]) A module not yet loaded answers with the import that loads it; `(help map)` lists the documented names ending in `/map`; a bound but undocumented name says so. `apropos` hides %-private names unless the pattern starts with `%`, and prints a line when nothing matches. An example with no result prints no ` => `.
+
+[#1142]: https://github.com/jonruttan/x-lang/pull/1142
+
+**AES-GCM: `(Aes gcm-seal ...)` and `(Aes gcm-open ...)`, with GHASH and compiled engines for AES and GHASH.** ([#1139]) Galois/counter mode (NIST SP 800-38D) with 128-, 192- and 256-bit keys and a 96-bit IV, as SSH's aes128-gcm@openssh.com and aes256-gcm@openssh.com use it.  gcm-open answers nil when the tag does not match.  `(Ghash hash ...)` is the hash on its own.  `(Aes jit!)` and `(Ghash jit!)` build the compiled engines, which are also built on their own for large inputs; output is the same either way.
+
+[#1139]: https://github.com/jonruttan/x-lang/pull/1139
+
+**`X_LANG_DIR` finds the bundles with or without a trailing slash.** ([#1141]) The wrapper appended `*/` to it as given, so the `X_LANG_DIR=/path/to/x-NAME/..` line in the bundle READMEs found nothing; it ends the path in a slash now.
+
+[#1141]: https://github.com/jonruttan/x-lang/pull/1141
+
+**`x --help` lists every option the parser accepts.** ([#1140]) `--install-lang`, `--share-dir`, `--engine-path` and `--` were parsed and never listed; the usage line now reads `[OPTION]... [-- ARG...]`, and `-l` says what it takes (a dialect, a library or app, or an installed lang). The wrapper gate reads the parser's option labels and fails on one the help omits.
+
+[#1140]: https://github.com/jonruttan/x-lang/pull/1140
+
+**The library's engine doors are one module.** ([#1138]) `x/core/doors` provides each hot catalogue door once -- `int+`, `int<`, `str-byte-ref`, `obj-ref`, `ptr-set!`, `type-of` and 50 more -- and every library file imports the ones it calls instead of fetching its own, 1,129 fewer `prim-ref` lines across 136 files; a door imported costs what a local def cost, 0 objects a call for `int<` where `<` is a closure call. `x/codec/flate-codes` provides the DEFLATE length and distance tables `Inflate` and `Deflate` each carried.
+
+[#1138]: https://github.com/jonruttan/x-lang/pull/1138
+
+**HTML forms reach the page.** ([#1137]) `(Html parse)` keeps a form's fields as inlines beside the links, `(field TYPE NAME VALUE ON OPTIONS FORM)`, with the form's number, action and method on each; `x/tui/page` draws them as lynx does, in one piece, and files them with the links, so a window selects a field as it selects a link.  An `Http` response carries a `url` entry, where it came from after redirects.
+
+[#1137]: https://github.com/jonruttan/x-lang/pull/1137
+
+**The second-engine check shows its DERIVED context portably.** ([#1136]) It printed the lines after a `DERIVED:` finding with sed's `,+4` address, which GNU and BSD sed read but POSIX, busybox and x-sed do not; an awk counter now prints the same lines on every awk.
+
+[#1136]: https://github.com/jonruttan/x-lang/pull/1136
+
+**`(first ())` and `(rest ())` raise instead of taking the process down.** ([#1135]) The engine's prims stay unchecked; the globals the library binds are compiled guards (`x/core/first-rest`, object functions in the assembler lane: a nil test and the read), so a list walk costs what the raw prims do (4M steps: 10.2 s raw, 9.8-10.0 s guarded) and `(first ())` raises `first: () has no first`. `compile-asm` takes the symbol `object` as its third argument for an object function called from x: arguments evaluate and stay objects, the result is one. `x/tool/safe-access`, the opt-in closure guard at 3.3x, is retired.
+
+[#1135]: https://github.com/jonruttan/x-lang/pull/1135
+
+**The library carries what the bundles copied.** ([#1133]) `Err text` (the message of any error value), `Sys setsid`, `Proc quiet!` (a daemon's descriptors) and `Lang symbols-bare!` (write symbols without the quote), each replacing copies in the bundles.
+
+[#1133]: https://github.com/jonruttan/x-lang/pull/1133
+
 ## [0.43.1] - 2026-10-29
 
 **An interactive lang session runs with no guard around it again.** ([#1132]) In v0.42.0 and v0.43.0, `x -l LANG` with no program ran the lang's session under the batch loop's guard, so a ctrl-c partway through an entry could end the session with `Error [...]: STOP` where it should have discarded the entry.  The batch loop now wraps only a program: a `-f` or `-F` file, a piped stdin or `-c`.
