@@ -45,7 +45,7 @@
     (set! first %fr-raw-first)
     (set! rest %fr-raw-rest)))
 
-(if (guard (_ ()) %image-writing) () (%fr-arm!))
+(if (guard (_ ()) (eval (lit %image-writing))) () (%fr-arm!))
 (set! %image-transients (pair %fr-disarm! %image-transients))
 ((prim-ref (lit image) (lit recache-hook!)) %fr-arm!)
 
