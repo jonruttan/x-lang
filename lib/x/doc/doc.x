@@ -704,7 +704,19 @@
                   (let ()
                     (def %cdoc (Doc entry (class-name %cls)))
                     (if (null? %cdoc)
-                      (do (display %c-name (class-name %cls) %c-reset "\n"))
+                      (let ()
+                        ; A class with no summary of its own is described by
+                        ; the module that provides it, so the one text is
+                        ; written once, on the provide.
+                        (def %cmod (%module-for-sym (class-name %cls)))
+                        (def %mdoc (if (null? %cmod) () (Doc entry %cmod)))
+                        (%display-entry-line "" (class-name %cls)
+                          (if (null? %mdoc) "" (%mdoc desc)))
+                        (if (null? %mdoc) ()
+                          (do (%display-notes (%mdoc notes))
+                              (%display-examples (%mdoc examples))
+                              (%display-examples (%mdoc samples))
+                              (display "  module: " %cmod "\n"))))
                       (%display-doc %cdoc))
                     (%display-class-sections %cls "  "))
                   (let ()

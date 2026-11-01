@@ -1745,4 +1745,8 @@
           (Pin %pin-interpret (Pin %pin-forms (File read-all %pin-announced))
                               (%path-dir %pin-announced))))))
 
-(provide x/tool/pin Pin)
+(doc (provide x/tool/pin Pin)
+  (note "Loading this module arms the overlay roots named in the project's pin.xon; the wrapper announces the manifest, --no-pin skips it.")
+  (note "Project verbs: (Pin init), (Pin sync), (Pin check), (Pin boot \"vX.Y.Z\"). Module verbs: closure, vendor, verify, audit, fetch, install, bundle.")
+  (note "docs/pinning-tutorial.md walks through it step by step; docs/modules.md (Pinning) is the reference.")
+  "Pinning: freeze the modules a project imports, or the platform itself, inside the project.")

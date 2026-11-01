@@ -138,5 +138,7 @@
                     (self (rest fvs) (+ i 1))))))
             (%patch-go fvars 0)))))))
 
-(provide x/tool/compile/pipeline
+(doc (provide x/tool/compile/pipeline
   generate-fn-body generate-c-with-fns compile-with-writers compile-patch-fvars)
+  (note "Loaded by x/tool/compile, which re-exports compile-with-writers; import the rest by name from here.")
+  "C generation stages for the compiler: function bodies via write-to-str, multi-function units, and fvar table patching.")

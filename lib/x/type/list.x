@@ -584,7 +584,7 @@
 (bind-call-over! (Type of (list 1)) List)
 
 (doc (provide x/type/list List)
-  (note "The list/sequence operations as static methods; core/list.x keeps the low-level layer (fold/map/filter globals + %-helpers) it is built on.")
+  (note "The list/sequence operations as static methods; core/list.x keeps the %-helpers they are built on.")
   (note "Element access is (List ref n lst) -- the adjudicated name; list-ref/list-tail are Scheme-compat wrappers.")
   (example "(List ref 1 (list 10 20 30))" "20")
-  "List: the list/sequence API, homed on the List class.")
+  "The list/sequence API, homed on the List class.")
