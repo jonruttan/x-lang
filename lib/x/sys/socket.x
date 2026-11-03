@@ -13,6 +13,7 @@
 (import x/sys/posix)
 (import x/type/class)
 (import x/core/list)
+(import x/type/gen)
 
 ; libc doors (cold: fetched once at load; calls go through ptr-call)
 (import x/core/doors char->int ffi-dlopen ffi-dlsym int% int->ptr int/ ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! str->ptr str-byte-ref str-make)
@@ -98,42 +99,77 @@
     (unless (null? addr) (ptr-call %c-free addr))
     (error (Err from-errno en op detail))))
 
+; Bind and listen on one port: socket + SO_REUSEADDR + bind + listen.
+; host is already checked.
+(def %sk-listen-port
+  (fn (_ host port backlog)
+    (def fd (%sk-fold (ptr-call %c-socket %AF-INET %SOCK-STREAM 0)))
+    (when (< fd 0) (%sk-fail fd 'socket port ()))
+    ; SO_REUSEADDR: an int 1 (4 LE bytes) so quick restarts do not
+    ; trip on TIME_WAIT.
+    (def optval (int->ptr (ptr-call %c-malloc 4)))
+    (ptr-call %c-memset optval 0 4)
+    (%sk-set1! optval 0 1)
+    (ptr-call %c-setsockopt fd %SOL-SOCKET %SO-REUSEADDR optval 4)
+    (ptr-call %c-free optval)
+    (def addr (%make-sockaddr-in port host))
+    (def r (%sk-fold (ptr-call %c-bind fd addr 16)))
+    (when (< r 0) (do (ptr-call %c-close fd) (%sk-fail r 'bind port addr)))
+    (ptr-call %c-free addr)
+    (def lr (%sk-fold (ptr-call %c-listen fd backlog)))
+    (when (< lr 0) (do (ptr-call %c-close fd) (%sk-fail lr 'listen port ())))
+    fd))
+
+; Try each port a Gen's (step . state) yields until one binds. A port in
+; use answers its Err out of the guard and the walk moves on; any other
+; failure raises from the guard. tried is the ports so far, newest first;
+; prev is the most recent eaddrinuse Err, nil before the first.
+(def %sk-listen-first
+  (fn (self step state host backlog tried prev)
+    (def s (step state))
+    (if (null? s)
+      (if (null? prev)
+        (Err raise 'value "Socket: no port to try" ())
+        (error (Err from-errno (Assoc get 'errno (prev data)) 'bind (List reverse tried))))
+      (do
+        (def port (first s))
+        (unless (number? port)
+          (Err raise 'value "Socket: a port candidate is not an INTEGER" (list (pair 'detail port))))
+        (def r (guard (e (if (and (Err err? e) (eq? (Assoc get 'sym (e data)) 'eaddrinuse)) e (error e)))
+                 (%sk-listen-port host port backlog)))
+        (if (number? r)
+          r
+          (self step (rest s) host backlog (pair port tried) r))))))
+
 (def-class Socket ()
   (doc "Blocking IPv4 TCP over libc FFI: listen/accept on the server side, connect on the client side, send/recv/close on both."
     (note "No DNS: hosts are dotted quads (\"127.0.0.1\"). Failures raise label 'io Errs with errno detail; recv answers nil at orderly EOF (absence, not a sentinel).")
     (sample "(let ((fd (Socket tcp-connect \"127.0.0.1\" 8080))) (Socket send fd \"ping\") (Socket recv fd 4096))" "the reply string"))
   (static
-    (method tcp-listen (self (param port INTEGER "Port to bind")
+    (method tcp-listen (self (param ports INTEGER|LIST|Gen "Port to bind, or the candidates to try in order")
                              . (param backlog INTEGER "Listen backlog; default 16"))
       (doc "Create a TCP server socket: socket + SO_REUSEADDR + bind(INADDR_ANY, port) + listen."
         (returns INTEGER "The listening file descriptor")
-        (sample "(Socket tcp-listen 8080)" "a listening fd"))
-      (if (null? backlog) (Socket tcp-listen-on () port) (Socket tcp-listen-on () port (first backlog))))
+        (note "ports is walked as tcp-listen-on walks it; read the port bound with local-port.")
+        (sample "(Socket tcp-listen 8080)" "a listening fd")
+        (sample "(Socket tcp-listen (list 8080 (Gen range 9000 9010) 0))" "a listening fd on the first free port"))
+      (if (null? backlog) (Socket tcp-listen-on () ports) (Socket tcp-listen-on () ports (first backlog))))
 
     (method tcp-listen-on (self (param host STRING "Dotted-quad IPv4 address of a local interface; nil for every interface")
-                                (param port INTEGER "Port to bind")
+                                (param ports INTEGER|LIST|Gen "Port to bind, or the candidates to try in order")
                                 . (param backlog INTEGER "Listen backlog; default 16"))
       (doc "Create a TCP server socket bound to one local address: what tcp-listen does, with bind(host, port) in place of INADDR_ANY, so only connections to that address reach it."
         (returns INTEGER "The listening file descriptor")
-        (note "An address no interface holds is a label 'io Err from bind (eaddrnotavail); a host that is not a dotted quad raises 'value before any syscall.")
-        (sample "(Socket tcp-listen-on \"127.0.0.1\" 8080)" "a listening fd on the loopback only"))
+        (note "An INTEGER is the one port to bind. A list or a Gen is walked by Gen flatten, lazily, and each port is tried in turn until one binds; a port in use (eaddrinuse) moves on to the next, any other failure raises at once. When every candidate is in use the eaddrinuse Err carries the ports tried, in order, as its detail. 0 lets the kernel choose, so a list ending in 0 always binds; local-port reads the port bound.")
+        (note "An address no interface holds is a label 'io Err from bind (eaddrnotavail); a host that is not a dotted quad, or a candidate that is not an INTEGER, raises 'value before any syscall for it.")
+        (sample "(Socket tcp-listen-on \"127.0.0.1\" 8080)" "a listening fd on the loopback only")
+        (sample "(Socket tcp-listen-on \"127.0.0.1\" (list 8080 (Gen range 9000 9010) 0))" "a listening fd on the first free port"))
+      (def bl (if (null? backlog) 16 (first backlog)))
       (unless (null? host) (%parse-quad host))
-      (def fd (%sk-fold (ptr-call %c-socket %AF-INET %SOCK-STREAM 0)))
-      (when (< fd 0) (%sk-fail fd 'socket port ()))
-      ; SO_REUSEADDR: an int 1 (4 LE bytes) so quick restarts do not
-      ; trip on TIME_WAIT.
-      (def optval (int->ptr (ptr-call %c-malloc 4)))
-      (ptr-call %c-memset optval 0 4)
-      (%sk-set1! optval 0 1)
-      (ptr-call %c-setsockopt fd %SOL-SOCKET %SO-REUSEADDR optval 4)
-      (ptr-call %c-free optval)
-      (def addr (%make-sockaddr-in port host))
-      (def r (%sk-fold (ptr-call %c-bind fd addr 16)))
-      (when (< r 0) (do (ptr-call %c-close fd) (%sk-fail r 'bind port addr)))
-      (ptr-call %c-free addr)
-      (def lr (%sk-fold (ptr-call %c-listen fd (if (null? backlog) 16 (first backlog)))))
-      (when (< lr 0) (do (ptr-call %c-close fd) (%sk-fail lr 'listen port ())))
-      fd)
+      (if (number? ports)
+        (%sk-listen-port host ports bl)
+        (let ((g (Gen flatten ports)))
+          (%sk-listen-first (g step) (g state) host bl () ()))))
 
     (method accept (self (param fd INTEGER "Listening file descriptor"))
       (doc "Block until a client connects; the peer address is discarded (stat the fd's peer later if wanted)."

@@ -100,6 +100,91 @@ kernel choose, and reads the choice back with local-port.
 ---
     'value
 
+## candidate ports
+
+A port is held by binding 0 and reading the choice back, so a held port is
+one this process owns and a candidate list can start with it.
+
+### a list skips a port in use and binds the next
+
+```x
+(do (import x/sys/socket)
+  (def held (Socket tcp-listen 0))
+  (def port (Socket local-port held))
+  (def l (Socket tcp-listen (list port 0)))
+  (def got (Socket local-port l))
+  (Socket close l)
+  (Socket close held)
+  (list (> got 0) (= got port)))
+```
+---
+    (#t #f)
+
+### a Gen inside the list is walked in its place
+
+```x
+(do (import x/sys/socket)
+  (def held (Socket tcp-listen 0))
+  (def port (Socket local-port held))
+  (def l (Socket tcp-listen (list (Gen range port (+ port 1)) 0)))
+  (def got (Socket local-port l))
+  (Socket close l)
+  (Socket close held)
+  (list (> got 0) (= got port)))
+```
+---
+    (#t #f)
+
+### the first free candidate wins
+
+```x
+(do (import x/sys/socket)
+  (def a (Socket tcp-listen 0))
+  (def port (Socket local-port a))
+  (Socket close a)
+  (def l (Socket tcp-listen (list port 0)))
+  (def got (Socket local-port l))
+  (Socket close l)
+  (= got port))
+```
+---
+    #t
+
+### every candidate in use is an eaddrinuse naming the ports tried
+
+```x
+(do (import x/sys/socket)
+  (def held (Socket tcp-listen 0))
+  (def port (Socket local-port held))
+  (def r (guard (e (list (Err label e) (Assoc get 'sym (e data))
+                         (equal? (Assoc get 'detail (e data)) (list port port))))
+           (Socket tcp-listen (Gen of port port))))
+  (Socket close held)
+  r)
+```
+---
+    ('io 'eaddrinuse #t)
+
+### a failure other than eaddrinuse raises without trying the rest
+
+```x
+(do (import x/sys/socket)
+  (guard (e (list (Err label e) (Assoc get 'sym (e data))))
+    (Socket tcp-listen-on "192.0.2.1" (list 0 0))))
+```
+---
+    ('io 'eaddrnotavail)
+
+### no candidates, or one that is not an INTEGER, raises 'value
+
+```x
+(do (import x/sys/socket)
+  (list (guard (e (Err label e)) (Socket tcp-listen (list)))
+        (guard (e (list (Err label e) (Assoc get 'detail (e data)))) (Socket tcp-listen (list "8080")))))
+```
+---
+    ('value ('value "8080"))
+
 ### local-port answers the kernel's choice for a listener and a datagram socket alike
 
 ```x
