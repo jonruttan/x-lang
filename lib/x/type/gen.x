@@ -27,9 +27,37 @@
 ; contract with the iterator object as the state.
 (def %gen-i-step (prim-ref (lit iter) (lit step)))
 
+; The step over a list's elements: from-list's, and flatten's for a list.
+(def %gen-list-step (fn (_ l) (if (null? l) () (pair (first l) (rest l)))))
+
+; What flatten walks into: a list or a Gen.  Everything else -- a string, a
+; vector, any other object -- is one value, as in List flatten.
+(def %gen-walked?
+  (fn (_ v) (if (pair? v) #t (if (object? v) (instance-of? v Gen) #f))))
+
+; A source of the walk as (step . state): a list steps through its elements,
+; a Gen through its own step, from where it stands.
+(def %gen-source
+  (fn (_ v) (if (pair? v) (pair %gen-list-step v) (pair (v step) (v state)))))
+
+; One step of flatten.  The state is a stack of sources, innermost first.
+; Step the innermost: when it is exhausted, drop it; when it yields a list or
+; a Gen, push that as the new innermost; else yield the value.
+(def %gen-flatten-step
+  (fn (self stack)
+    (if (null? stack) ()
+      (let ((top (first stack)))
+        (let ((s ((first top) (rest top))))
+          (if (null? s)
+            (self (rest stack))
+            (let ((stepped (pair (pair (first top) (rest s)) (rest stack))))
+              (if (%gen-walked? (first s))
+                (self (pair (%gen-source (first s)) stepped))
+                (pair (first s) stepped)))))))))
+
 (def-class Gen ()
   (doc "A lazy generator: a step function over a state, producing values on demand."
-    (note "Build with range / range-by / count-from / repeat / iterate / from-list / from-seq / of, or the `make` primitive.")
+    (note "Build with range / range-by / count-from / repeat / iterate / from-list / from-seq / of / flatten, or the `make` primitive.")
     (note "Transformers (%map filter take drop take-while drop-while enumerate zip zip-with scan) are lazy -- each returns a new Gen.")
     (note "Consumers (->list ->vector for-each fold reduce count sum product any? all? none? find ref first last min max empty?) drive it.")
     (note "count-from / repeat / iterate are INFINITE -- bound them with take / take-while before any consumer.")
@@ -95,12 +123,20 @@
     (method from-list (self (param lst LIST "Source list"))
       (doc "A generator over a list's elements."
         (returns Gen "Generator") (example "((Gen from-list (list 1 2 3)) ->list)" "(1 2 3)"))
-      (Gen make (fn (_ l) (if (null? l) () (pair (first l) (rest l)))) lst))
+      (Gen make %gen-list-step lst))
 
     (method of (self . (param args ANY "Values"))
       (doc "A generator over the given values."
         (returns Gen "Generator") (example "((Gen of 1 2 3) ->list)" "(1 2 3)"))
-      (Gen from-list args)))
+      (Gen from-list args))
+
+    (method flatten (self (param v ANY "The value to walk"))
+      (doc "A generator over v walked depth first: a list or a Gen inside it is walked in its place, and every other value is yielded as it is (lazy)."
+        (returns Gen "Generator")
+        (note "Lists and Gens are walked; strings, vectors and other objects are values, as in List flatten. A v that is neither is yielded once.")
+        (note "A Gen is not stepped until the walk reaches it, so one that is INFINITE makes the walk infinite: bound it with take / take-while.")
+        (example "((Gen flatten (list 1 (Gen range 2 4) (list 4 (list 5)))) ->list)" "(1 2 3 4 5)"))
+      (Gen make %gen-flatten-step (list (pair %gen-list-step (list v))))))
 
   ; one step: (value . next-state), or () when exhausted
   (method %next (self) ((self step) (self state)))
@@ -192,6 +228,12 @@
       (Gen make
         (fn (_ st) (let ((s (src (rest st)))) (if (null? s) () (let ((acc (f (first st) (first s)))) (pair acc (pair acc (rest s)))))))
         (pair init (self state)))))
+
+  (method flatten (self)
+    (doc "This generator walked depth first: a list or a Gen among its values is walked in its place (lazy). See the static flatten."
+      (returns Gen "Generator")
+      (example "(((Gen of 1 (list 2 3) (Gen range 4 6)) flatten) ->list)" "(1 2 3 4 5)"))
+    (Gen flatten self))
 
   ; ==========================================================================
   ; Eager consumers -- drive the generator

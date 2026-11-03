@@ -57,6 +57,46 @@ intermediate list is built between stages.
 ---
     (1 2 3)
 
+### flatten -- lists and Gens walked in their place
+
+```x
+((Gen flatten (list 8080 (Gen range 9000 9003) (list 9100 (Gen range 9200 9202)) 0)) ->list)
+```
+---
+    (8080 9000 9001 9002 9100 9200 9201 0)
+
+### flatten keeps strings and vectors whole
+
+```x
+((Gen flatten (list "ab" (Vector of 1 2) 3)) count)
+```
+---
+    3
+
+### flatten yields a value that is neither a list nor a Gen once
+
+```x
+((Gen flatten 42) ->list)
+```
+---
+    (42)
+
+### flatten steps a Gen only when the walk reaches it
+
+```x
+(((Gen flatten (list 1 (Gen count-from 10) 99)) take 3) ->list)
+```
+---
+    (1 10 11)
+
+### flatten on an instance walks its values
+
+```x
+(((Gen of 1 (list 2 3) (Gen range 4 6)) flatten) ->list)
+```
+---
+    (1 2 3 4 5)
+
 ## Lazy transformers
 
 ### map
