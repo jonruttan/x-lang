@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-11-03
+
+**`Socket tcp-listen` and `tcp-listen-on` take a list or Gen of candidate ports.** ([#1149]) `(Socket tcp-listen (list 8080 (Gen range 9000 9010) 0))` binds 8080 if it is free, else the first free port from 9000 to 9009, else one the kernel chooses; `(Socket local-port fd)` reads which. Only a port in use moves on to the next candidate. When all are in use the eaddrinuse Err names the ports tried. An INTEGER behaves as before.
+
+[#1149]: https://github.com/jonruttan/x-lang/pull/1149
+
+**`(Gen flatten v)` walks lists and generators in their place, lazily.** ([#1148]) `(Gen flatten (list 8080 (Gen range 9000 9010) 0))` yields 8080, then 9000 to 9009, then 0, and steps the range only when the walk reaches it. Strings, vectors and other objects are single values, as in List flatten; `(g flatten)` walks a generator's own values.
+
+[#1148]: https://github.com/jonruttan/x-lang/pull/1148
+
 ## [0.44.0] - 2026-11-02
 
 **An image written from a library that aliases `first` or `rest` at load is no longer refused.** ([#1146]) The writer's child leaves the prims raw (the guards of #1135 are compiled and no image can name them); the globals are armed after a load. x-ash's boot image wrote `unnameable: 2` on x-lang main.
