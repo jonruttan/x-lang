@@ -362,96 +362,11 @@
   (param expr LIST "A (fn (_ params...) body) expression")
   (returns PRIMITIVE "Compiled native function"))
 
-; compile-batch: compile multiple (fn ...) expressions in one cc call.
-; Returns a list of prims, one per expression.
-; Caches the shared library by expression hash. Fvar table patched after load.
-(def compile-batch
-  (fn (_ . exprs)
-    (def %n (%length exprs))
-
-    ; Resolve functions from a loaded library.  Tail accumulate +
-    ; %rev-onto (the 2026-09-01 %map1 pattern): the old (pair %fn (self ...))
-    ; recursed in argument position, one C eval frame group per batch
-    ; entry -- a huge compile-batch would have crashed the C stack.
-    (def %resolve-all
-      (fn (self lib i n acc)
-        (if (= i n) (%rev-onto acc ())
-          (let ((name (Str append "batch_" (%cvt i %string))))
-            (def %fn (ffi-dlsym lib name))
-            (if (null? %fn)
-              (Err raise 'io (Str append "compile-batch: dlsym failed for " name) ()))
-            (%type-cast! %fn first)
-            (self lib (+ i 1) n (pair %fn acc))))))
-
-    ; Cache lookup
-    (def %batch-key (io-write-to-str exprs))
-    (def %batch-hash (%compile-cache-key %batch-key))
-    (def %cache-path (Str append %compile-cache-dir %batch-hash compile-ext))
-
-    (if (Sys file-exists? %cache-path)
-      ; Cache hit: load and patch fvar table
-      (let ((lib (ffi-dlopen %cache-path 1)))
-        (when (not (null? lib))
-          (do
-            (if (not (null? (compile-fvars)))
-              (compile-patch-fvars lib (compile-fvars)))
-            (%resolve-all lib 0 %n ()))))
-
-      ; Cache miss: generate, compile, cache, load
-      (let ()
-        (set! %compile-id (+ %compile-id 1))
-        (def %id (%cvt %compile-id %string))
-        (def %src-path (Str append "/tmp/x-compile-" (%compile-pid-tag) "-" %id ".c"))
-
-        (compile-push-writers)
-
-        (def %c-all
-          (fn (self es i acc)
-            (if (null? es) acc
-              (let ((expr (first es)))
-                (if (not (eq? (first expr) 'fn))
-                  (Err raise 'type "compile-batch: each expression must be (fn ...)" ()))
-                (let ((params (first (rest expr)))
-                      (body (first (rest (rest expr))))
-                      (name (Str append "batch_" (%cvt i %string))))
-                  (compile-fns-set! (list (list)))
-                  (def %fn-c
-                    (Str append "x_obj_t *" name
-                         "(x_obj_t *p_base, x_obj_t *p_args) {\n"
-                         (c-param-decls params)
-                         "    return " (generate-fn-body params body) ";\n"
-                         "}\n\n"))
-                  (self (rest es) (+ i 1) (pair %fn-c acc)))))))
-
-        (def %c-source
-          (Str append "#include \"x-obj.h\"\n"
-               "#include \"x-type/buffer.h\"\n\n"
-               (if (null? (compile-fvars)) ""
-                 "x_obj_t *x_fvar_table[64];\n\n")
-               (%str-concat (%reverse (%c-all exprs 0 ())))))
-
-        (compile-pop-writers)
-
-        (compile-write %src-path %c-source)
-        (compile-cc %src-path %cache-path)
-        (guard (_ ()) (File unlink %src-path))
-
-        (def %lib (ffi-dlopen %cache-path 1))
-        (if (null? %lib) (Err raise 'io (%compile-load-failure "compile-batch" %cache-path) ()))
-
-        ; Patch fvar table with current runtime pointers
-        (if (not (null? (compile-fvars)))
-          (compile-patch-fvars %lib (compile-fvars)))
-
-        (%resolve-all %lib 0 %n ())))))
-(doc compile-batch "Compile multiple (fn ...) expressions in a single cc invocation."
-  (returns LIST "List of compiled native primitives"))
-
 (doc (provide x/tool/compile
   compile-to-c compile-write compile-cc compile-load
   compile-cc-flags compile-ext compile-hosted? compile-with-writers
   compile-emitters compile-add-emitter!
-  compile compile-c compile-asm compile-batch)
+  compile compile-c compile-asm)
   (note "Default compile uses JIT assembler. compile-c falls back to C compiler. compile-asm is the pure JIT path.")
   (note "A module of its own: every name here is reached with (import x/tool/compile NAME); compile-with-writers, compile-emitters and compile-add-emitter! are re-exported from x/tool/compile/pipeline and x/tool/compile/emit.")
   "Native code compiler: JIT assembler (default) with C compiler fallback.")

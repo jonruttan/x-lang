@@ -5,4 +5,4 @@
 (import x/tool/compile
   compile-to-c compile-write compile-cc compile-load compile-cc-flags compile-ext
   compile-hosted? compile-with-writers compile-emitters compile-add-emitter!
-  compile compile-c compile-asm compile-batch)
+  compile compile-c compile-asm)
