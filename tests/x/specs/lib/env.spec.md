@@ -69,6 +69,20 @@ reads them by name, answering fresh pairs the List and Assoc walkers accept.
 ---
     (#t #t 3)
 
+### a scoped module's frame, a tree under the root, lists its private names
+
+```x
+(import x/type/module)
+(import x/tool/compiled)
+(let ((e (Module env 'x/tool/compiled)))
+  (list (pair? e)
+        (same? (Env parent e) (Env root))
+        (List includes? 'Compiled (Env names e))
+        (same? (Assoc get 'Compiled (Env bindings e)) (eval 'Compiled e))))
+```
+---
+    (#t #t #t #t)
+
 ## parent
 
 ### a frame's parent is the environment its closure was made in

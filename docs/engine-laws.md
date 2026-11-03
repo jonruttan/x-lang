@@ -93,7 +93,7 @@ neither, an instance is itself and a form headed by one is data. Checked by
 ### 10 — an environment is one pair
 
 An environment is `(bindings . parent)`: `bindings` a chain of
-`(name . value)` cells, or the root's tree; `parent` the enclosing
+`(name . value)` cells, or a tree of them; `parent` the enclosing
 environment, or nil at the root. It is a pair tree like everything else in
 the base, so `first` and `rest` walk it and the collector marks it with no
 special case. Shipped in x-engine-c v0.2.10, which retired the frame marks,
@@ -103,7 +103,10 @@ and is retired too: a `def` evaluated with `eval!` binds in the root.
 The rules:
 
 - **Lookup** searches `bindings`, then the parent's, up to the root. The
-  root's bindings may be a tree; that is one environment's detail.
+  frames the engine makes keep an alist; the root, and an environment whose
+  spine the language made with `pair` -- a list pair, as a scoped module's
+  is -- keep a tree, so a module's hundreds of names cost a lookup from
+  inside it one tree search, not a walk. `pair?` tells the two apart.
 - **`def`** binds in the current environment: it updates the name's cell
   there if one exists, otherwise adds one. Never the parent.
 - **`set!`** finds the name by lookup and updates the cell where it is found.

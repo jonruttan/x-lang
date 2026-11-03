@@ -843,7 +843,10 @@
 ; frame, (first e), not by a lookup: a lookup walks to the root, where a name
 ; every module can see is bound to the very object the import is about to
 ; copy, and the copy would never be made.  The root has no parent, so there
-; the lookup is the frame.  One binding per name per environment: a name
+; the lookup is the frame.  A module's frame is a tree, as the root's is:
+; the engine keeps one behind a spine the language made with pair, which
+; pair? tells from the alist frames it makes itself (law 10).  One binding
+; per name per environment: a name
 ; already bound in `e` to the same object (same?, never eq?, which is #t for
 ; any two closures) is a repeat and does nothing; bound to anything else,
 ; refused.
@@ -853,7 +856,21 @@
     (def %alias (match ((pair? spec) (first (rest spec))) (#t spec)))
     (def %value (eval %sym (%module-env-of name)))
     (def %root? (%module-same? e (%module-root-env)))
-    (def %own (match (%root? ()) (#t (%module-assoc %alias (first e)))))
+    (def %own
+      (match
+        (%root? ())
+        ((pair? e)                                  ; (entry . (left . right)) a node
+          ((fn (self k node)                        ; walked whole, by identity
+             (match
+               ((eq? node ()) ())
+               ((eq? (first (first node)) k) (first node))
+               (#t
+                 (let ((%left (self k (first (rest node)))))
+                   (match
+                     ((eq? %left ()) (self k (rest (rest node))))
+                     (#t %left))))))
+           %alias (first e)))
+        (#t (%module-assoc %alias (first e)))))
     (def %have
       (match
         (%root? (guard (_ %module-unbound) (eval %alias e)))
