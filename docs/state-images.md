@@ -224,7 +224,11 @@ it is imaging.
   source read on helium, made some 370M objects before the writer's first
   collect, a footprint past 12GB for a heap of 371K objects; with it the
   write peaks at 1.25GB. Outside the writer the loader does not collect,
-  since an import can come from code holding anything.
+  since an import can come from code holding anything. A Lexer make is one
+  form that compiles every state, and with the byte cache empty each
+  compile leaves about 0.6M objects, so in the child it also sweeps after
+  each compile: x-ash's shell lexer made 34M objects at once, a 2.3GB
+  write, 0.95GB with the sweep.
 - **Bare primitives in the loop.** The library's guarded operators and
   reflective accessors are x, and each costs allocations per call; over
   every object of a heap that ends the process. This is

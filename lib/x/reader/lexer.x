@@ -32,7 +32,7 @@
 (import x/type/base)
 (import x/type/buf)
 (import x/protocol/str/str8)
-(import x/core/doors buf-tok char->int image-recache-hook! image-transient! int+ int- int< int= obj->ptr ptr-ref-word str-byte-len str-byte-ref str-make tok-read-str)
+(import x/core/doors buf-tok char->int heap-collect image-recache-hook! image-transient! int+ int- int< int= obj->ptr ptr-ref-word str-byte-len str-byte-ref str-make tok-read-str)
 
 (def-class Lexer ()
   (doc "A tokenizer base built from data rules, its analyser states compiled to native code when the assembler lane is open and interpreted otherwise. Make one with (Lexer make rules), where each rule is made by run, skip, table, quoted, until, number, nested, word, escape, pattern, any or record; read text with (l read-str s), a span of bytes with (l read-span s start len). A token is (tag text); from a number rule (tag text label), from a record rule (tag bytes length)."
@@ -452,6 +452,14 @@
       (Lexer %rec-state! (first r)
         (if (rest r) ((prim-ref (lit compile) (lit asm-cache-last-text))) ())
         fvars)
+      ; A compile the byte cache cannot answer leaves about 0.6M objects of
+      ; garbage, and a make is one form, so the loader's sweep at the end of
+      ; the file comes after all of them.  In an image writer's child the
+      ; make sweeps after each such compile instead, once the state is on
+      ; the lexer's list; elsewhere it never collects.
+      (if (rest r)
+        (if (guard (_ #f) (eval (lit %image-writing))) (heap-collect) ())
+        ())
       (first r))
 
     ; FORM realized: (STATE . COMPILED?), the compiled state when the lane
