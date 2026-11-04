@@ -143,6 +143,7 @@
 (def asm-emit!
   (fn (_ asm mnemonic . args)
     (def arch (obj-ref asm 5))
+    (if (null? arch) (Err raise 'state "asm: no assembler backend for this platform" ()))
     (def entry (%asm-assq mnemonic (first arch)))
     (if (null? entry) (Err raise 'value (Str append "asm: unknown mnemonic: " (symbol->str mnemonic)) ()))
     ; Match operand signature
@@ -172,10 +173,13 @@
 
 ; --- Load architecture ---
 ; import, not a path literal: resolves through the import roots so the
-; backend loads in an installed tree too.
-(if %asm-arm64?
-  (import x/tool/asm/arm64)
-  (import x/tool/asm/x86_64))
+; backend loads in an installed tree too.  A platform with no backend loads
+; none: %arch stays empty and asm-emit! refuses, which is how the probes
+; ahead of every compile learn that the lane is closed there.
+(match
+  (%asm-arm64? (import x/tool/asm/arm64))
+  (arch-x86-64? (import x/tool/asm/x86_64))
+  (#t ()))
 
 (doc (provide x/asm
   asm-emit! asm-label! asm-patch! asm-pos

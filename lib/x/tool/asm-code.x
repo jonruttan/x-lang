@@ -211,7 +211,12 @@
 ; The host's relocator.  The backend lists it as its fourth part as well, but a
 ; buffer poured from the cache is made before -- and usually without -- the
 ; backend, so the relocator answers from here, not from the buffer's %arch.
-(def %asm-reloc (if %asm-arm64? %arm64-reloc %x86_64-reloc))
+(def %asm-reloc
+  (match
+    (%asm-arm64? %arm64-reloc)
+    (arch-x86-64? %x86_64-reloc)
+    (#t (fn (_ . site)
+          (Err raise 'state "asm: no assembler backend for this platform" ())))))
 
 ; Re-encode the 64-bit immediate at OFFSET to VAL, in place.  MUST run while
 ; the buffer is still writable: asm-finalize! mprotects it R+X, and a write
