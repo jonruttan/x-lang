@@ -12,6 +12,10 @@
 # as siblings under ../languages/ -- override with X_LANG_DIR (trailing slash,
 # x.sh globs "$X_LANG_DIR"*/).  --allow-lang-skew because checkouts carry no
 # version stamp for the (requires-lang ...) equality check.
+#
+# Every unsuffixed row boots from source.  The -img rows boot the same
+# bundles from their state images (docs/state-images.md), the start a user
+# sees.
 
 set -e
 
@@ -110,8 +114,19 @@ run_bench() {
 
 # A bundle row: x.sh boots the bundle's dialect, arms its root, cats its
 # entry, then the snippet (-f also keeps the interactive launcher off).
+# --no-image boots from source, the work the x-core row does.
+XSH="X_BIN='$BASEDIR/x-bin-profile' X_LANG_DIR='$LANGS' sh ./x.sh --no-pin --allow-lang-skew"
 run_bench_lang() {
-    run_bench "$1" "X_BIN='$BASEDIR/x-bin-profile' X_LANG_DIR='$LANGS' sh ./x.sh --no-pin --allow-lang-skew -l $1 -f '$SNIPPET'"
+    run_bench "$1" "$XSH --no-image -l $1 -f '$SNIPPET'"
+}
+
+# An image row: the same boot loaded from the state image x.sh keeps in the
+# user's cache.  The untimed run first writes the image when it is absent or
+# stale; a lang whose image cannot be written boots from source in both runs,
+# and its -img row then matches its source row.
+run_bench_image() {
+    sh -c "$XSH -l $1 -f '$SNIPPET'" >/dev/null 2>&1 || true
+    run_bench "$1-img" "$XSH -l $1 -f '$SNIPPET'"
 }
 
 echo ""
@@ -122,6 +137,9 @@ run_bench "x-core" "cat lib/x-core.x '$SNIPPET' | ./x-bin-profile"
 run_bench_lang "r5rs"
 run_bench_lang "r7rs"
 run_bench_lang "sweet"
+run_bench_image "r5rs"
+run_bench_image "r7rs"
+run_bench_image "sweet"
 
 echo ""
 
