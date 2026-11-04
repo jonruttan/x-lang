@@ -85,9 +85,8 @@ sh tools/dev/cov.sh FILE      # single-file branch coverage
 sh tools/dev/cov-lib.sh      # aggregated library coverage (x-bin-profile)
 ```
 
-NOTE: the `make x-bin-cov` build target this tool needs is currently
-absent from the Makefile (pre-existing rot; only `make clean` remembers
-the binary).  Restoring it is tracked in the tools-overhaul follow-ups.
+`make x-bin-cov` builds the coverage engine in the engine's tree and copies
+it here.
 
 1. **Marking**: `x-bin-cov` adds one line to `x_eval()` under `#ifdef
    X_COV`, setting bit 0x2 on every evaluated expression's flags field.
@@ -305,8 +304,18 @@ out to git want a clone.
 ## Others
 
 - `tools/dev/bench.sh` -- library-load benchmarks over `x-bin-profile`
+- `tools/dev/cov-report.x` -- the library coverage report `cov-lib.sh` prints
 - `tools/dev/doc.x` -- Markdown doc generation from source (per-file filter)
 - `tools/dev/doc-index.x` -- the `docs/ref` master index (filter)
+- `tools/dev/doc-sweep.sh` -- generate the reference from the library source
+- `tools/dev/fmt-sweep.sh` -- format, or check the format of, the whole library
+- `tools/dev/highlight.x`, `highlight-sweep.sh` -- render the x-lang code
+  blocks in Markdown as highlighted HTML, in place
+- `tools/dev/images.sh` -- write every state image the suite boots from, in
+  parallel
+- `tools/dev/nul-escape.x` -- stdin to stdout with every zero byte written as
+  text
+- `tools/dev/profile-tsv.x` -- every profile row, for a script to merge
 
 ## Tests
 

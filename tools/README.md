@@ -2,29 +2,32 @@
 
 | Directory | What lives here |
 |---|---|
-| `contract/` | Machine-readable single sources of truth: the C binding surface (`isa.x`), object header layout (`obj-layout.x`), base-object slot tree (`base-layout.x`) and field paths (`base-paths.x`), the sanctioned bare top level (`bare-globals.x`), and the header generator (`gen-base-layout.awk`).  These are the SPEC of the system, not tooling; two of them are boot-closure includes. |
-| `check/` | Everything `make gates` / `make test` drives.  One file per gate; the Makefile target names (`check-isa`, ...) are the stable external contract. |
+| `contract/` | Machine-readable single sources of truth: what x-lang needs from an engine (`requires.x`) and the engine contract's vocabulary (`features.x`, the compliance specs, `gen-engine-xon.sh`), what a lang may rely on (`seam.x`, `langs.x`), and the ratchet budgets (`bare-globals.x`, `percent-globals.x`, `private-reads.x`, `shared-privates.x`, `constraints.x`, the doc vocabularies).  These are the SPEC of the system, not tooling.  The C binding surface and object layout moved to the engine with the C source. |
+| `check/` | Everything `make gates` / `make test` drives.  One file per gate; the Makefile target names are the stable external contract, and `make help` is their catalogue -- the scripts are not listed again here. |
+| `engine/` | The engine pin (`engine.pin.xon`) and the scripts that fetch the engine it names, bump it, and refuse a directory it does not name. |
+| `lang-kit/` | What a lang bundle's own build runs against this tree: the spec harness generator, the lint, the provide and duplicate-definition checks, the release references.  [docs/lang-contract.md](../docs/lang-contract.md) is the reference. |
 | `release/` | Artifact production: amalgam generation, binary tarballs, the release manifest, macOS signing. |
-| `dev/` | Conveniences: formatter, linter, coverage, benchmarks, doc generation.  See `dev/README.md`. |
+| `dev/` | Conveniences: formatter, linter, coverage, benchmarks, images, doc generation.  See `dev/README.md`. |
+| `fuzz/` | Cross-engine differential input: a deterministic batch of forms both engines evaluate. |
+| `roots/` | Regenerates `lib/x/net/mozilla-roots.pem` from Mozilla's list. |
 | `lib/` | Shared shell helpers for the scripts above (`guard.sh`, a wall-time ceiling an interrupt can stop). |
 | `tests/` | The tools' own spec suite (`make test-tools`). |
 
 ## Shell policy: logic lives in x
 
 Tool LOGIC is written in x-lang -- entry scripts here or modules under
-`lib/x/tool/`.  Shell survives in exactly three sanctioned roles:
+`lib/x/tool/`.  Shell survives in exactly four sanctioned roles:
 
 1. **Process orchestration around the engine** -- building or booting the
    binary under test, pty allocation, per-spec subprocess isolation and
    timeouts, tar/codesign, profiling binaries.  A gate that must observe
    the engine from OUTSIDE (`amalgam-smoke`, `pin-smoke`,
    `bootstrap-smoke`) cannot run inside it.
-2. **The C-artifact contract scans** (`check/isa.sh`,
-   `check/obj-layout.sh`, `check/base-paths.sh`, plus
-   `contract/gen-base-layout.awk`).  These audit the C source and must
+2. **The C-artifact contract scans** -- these live in the engine's repository,
+   beside the C source they audit (`check/isa.sh`, `check/obj-layout.sh`,
+   `check/base-paths.sh`, the base-layout header generator).  They must
    keep working when the interpreter build is broken -- independence from
-   `x-bin` is a feature, not a shell habit.  (The awk generator is also
-   bootstrap-circular: it emits a header the C build needs.)
+   `x-bin` is a feature, not a shell habit.
 3. **Corpus-scanning ratchets** (`check/bare-globals.sh`,
    `check/path-literals.sh`, `check/dup-defs.sh`), for two measured
    reasons from the 2026-08 overhaul:
