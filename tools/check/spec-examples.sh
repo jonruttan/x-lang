@@ -12,6 +12,13 @@
 # `x -> 10`).  Same idea as the doctest ratchet (#16), pointed at prose instead
 # of the doc registry.
 #
+# A fence opened as ```x-repl is a session transcript instead: `> EXPR` is an
+# entry, a following line that starts with whitespace continues it, and the
+# lines after it up to the next `>` are what the REPL prints for it -- the
+# value as `write` renders it.  An entry with no lines under it asserts
+# nothing (a def, or output the doc leaves out) and is setup for the next one.
+# docs/tutorial.md writes its examples this way.
+#
 # The document is a parameter.  The format is not unique to the spec:
 # docs/primitives.md and docs/standard-library.md write their examples the same
 # way.  Which docs are gated is tools/check/doc-examples.conf's business; this
@@ -50,61 +57,8 @@ awk -v section_mark="$SECTION" -v default_lib="$DEFAULT_LIB" \
     -v label="$(basename "$DOC")" '
 function flush_setup() { setup = "" }
 
-# An end-of-line comment on the EXPECTED value is prose, not part of the value:
-# `(newline) -> ()  ; prints \n` asserts (), and the comment says what else
-# happens. Quote-aware, and the `;` must follow whitespace, so a `;` inside a
-# string literal or an identifier survives.
-function strip_comment(s,   i, c, q) {
-  q = 0
-  for (i = 1; i <= length(s); i++) {
-    c = substr(s, i, 1)
-    if (c == "\"") q = !q
-    else if (c == ";" && !q && i > 1 && substr(s, i - 1, 1) ~ /[ \t]/) {
-      s = substr(s, 1, i - 1)
-      break
-    }
-  }
-  sub(/[ \t]+$/, "", s)
-  return s
-}
-
-# Section headings become spec groups.
-index($0, section_mark) == 1 {
-  section = substr($0, length(section_mark) + 1)
-  gsub(/"/, "", section)
-  next
-}
-
-/^```/ {
-  in_fence = !in_fence
-  if (in_fence) flush_setup()
-  next
-}
-
-!in_fence { next }
-
-# Assertion line: EXPR -> EXPECTED
-/ -> / {
-  line_no = NR
-  expr = $0
-  expected = $0
-  sub(/ -> .*$/, "", expr)
-  sub(/^.* -> /, "", expected)
-  expected = strip_comment(expected)
-
-  # Skip what cannot be a mechanical assertion:
-  #   TBD/... placeholders, prose arrows, error demos (the harness renders
-  #   errors differently), and anything with an unbalanced fence artifact.
-  if (expected ~ /TBD/ || expr ~ /TBD/) next
-  if (expr ~ /\.\.\./ || expected ~ /\.\.\./) next
-  if (expected ~ /^[Ee]rror/) next
-  # <symbol>, <instance>, <fn> etc. are prose placeholders, not literal values.
-  if (expected ~ /^</) next
-  # display/write examples assert on a RETURN value while also printing, so the
-  # harness (which compares stdout) sees both -- not drift, just unassertable.
-  if (expr ~ /display|write|print/) next
-  if (expr == "" || expected == "") next
-
+# Write one case; the file for its section opens on the first.
+function emit(line_no, expr, expected,   title, n, i, lines) {
   if (!section) section = "spec"
   if (section != last_section) {
     slug = section
@@ -135,7 +89,9 @@ index($0, section_mark) == 1 {
     last_section = section
   }
 
-  printf "\n### %s:%d %s\n\n", label, line_no, expr >> outfile
+  title = expr
+  sub(/\n.*/, "", title)
+  printf "\n### %s:%d %s\n\n", label, line_no, title >> outfile
   printf "```scheme\n" >> outfile
   # The wrap spans lines with the closing paren on its own: an end-of-line
   # comment in setup or expr must not be able to swallow the rest of the form.
@@ -143,8 +99,110 @@ index($0, section_mark) == 1 {
   else printf "%s\n", expr >> outfile
   printf "```\n---\n" >> outfile
   # nil prints as an empty line in the harness, so an expected () is blank.
-  if (expected == "()") printf "\n" >> outfile
-  else printf "    %s\n", expected >> outfile
+  if (expected == "()") { printf "\n" >> outfile; return }
+  n = split(expected, lines, "\n")
+  for (i = 1; i <= n; i++) printf "    %s\n", lines[i] >> outfile
+}
+
+# A transcript entry with printed lines is a case; one without is setup for
+# the next.  An entry that prints (display, write) or raises cannot be
+# asserted, as for an arrow line.
+function flush_entry() {
+  if (reading == "") return
+  reading = ""
+  if (printed ~ /^[Ee]rror|^\*\*\*/) return
+  if (printed == "" || entry ~ /display|write|print/) {
+    setup = setup "\n" entry
+    return
+  }
+  emit(entry_no, entry, printed)
+  setup = ""
+}
+
+
+# An end-of-line comment on the EXPECTED value is prose, not part of the value:
+# `(newline) -> ()  ; prints \n` asserts (), and the comment says what else
+# happens. Quote-aware, and the `;` must follow whitespace, so a `;` inside a
+# string literal or an identifier survives.
+function strip_comment(s,   i, c, q) {
+  q = 0
+  for (i = 1; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    if (c == "\"") q = !q
+    else if (c == ";" && !q && i > 1 && substr(s, i - 1, 1) ~ /[ \t]/) {
+      s = substr(s, 1, i - 1)
+      break
+    }
+  }
+  sub(/[ \t]+$/, "", s)
+  return s
+}
+
+# Section headings become spec groups.
+index($0, section_mark) == 1 {
+  section = substr($0, length(section_mark) + 1)
+  gsub(/"/, "", section)
+  next
+}
+
+/^```/ {
+  if (in_fence && repl) flush_entry()
+  in_fence = !in_fence
+  repl = 0
+  fence_open = in_fence ? $0 : ""
+  if (in_fence) flush_setup()
+  next
+}
+
+!in_fence { next }
+
+# An x-repl fence is a transcript when it opens on a `> ` entry; spec.md
+# writes arrow lines in x-repl fences too.
+fence_open != "" {
+  repl = fence_open ~ /^```x-repl/ && $0 ~ /^> /
+  fence_open = ""
+}
+
+# Transcript line: an entry, its continuation, or what it printed.
+repl {
+  if ($0 ~ /^> /) {
+    flush_entry()
+    entry = substr($0, 3)
+    entry_no = NR
+    printed = ""
+    reading = "entry"
+  } else if (reading == "entry" && $0 ~ /^[ \t]/) {
+    entry = entry "\n" $0
+  } else if (reading != "") {
+    printed = (reading == "printed") ? printed "\n" $0 : $0
+    reading = "printed"
+  }
+  next
+}
+
+# Assertion line: EXPR -> EXPECTED
+/ -> / {
+  line_no = NR
+  expr = $0
+  expected = $0
+  sub(/ -> .*$/, "", expr)
+  sub(/^.* -> /, "", expected)
+  expected = strip_comment(expected)
+
+  # Skip what cannot be a mechanical assertion:
+  #   TBD/... placeholders, prose arrows, error demos (the harness renders
+  #   errors differently), and anything with an unbalanced fence artifact.
+  if (expected ~ /TBD/ || expr ~ /TBD/) next
+  if (expr ~ /\.\.\./ || expected ~ /\.\.\./) next
+  if (expected ~ /^[Ee]rror/) next
+  # <symbol>, <instance>, <fn> etc. are prose placeholders, not literal values.
+  if (expected ~ /^</) next
+  # display/write examples assert on a RETURN value while also printing, so the
+  # harness (which compares stdout) sees both -- not drift, just unassertable.
+  if (expr ~ /display|write|print/) next
+  if (expr == "" || expected == "") next
+
+  emit(line_no, expr, expected)
   next
 }
 
