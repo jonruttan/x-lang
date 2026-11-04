@@ -6,6 +6,11 @@ Date:     2014-01-23
 Revision: 4 (2017-09-08)  
 
 
+> **In x-lang** the header format below holds, but the changelog does not
+> come from the type: a `feat`, `fix` or `perf` commit carries its own entry
+> after a `Changelog:` line. [docs/contributing.md](docs/contributing.md#the-changelog)
+> ("Commit Conventions") is the rule; where the two differ, it wins.
+
 # Git Commit Guidelines
 
 These rules are adopted from the [AngularJS commit conventions].

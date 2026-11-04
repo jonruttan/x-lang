@@ -95,6 +95,11 @@ x -l logo                   # REPL + viewer at http://localhost:8080
 | [x-make](https://github.com/jonruttan/x-make) | a make: the portable core x-lang's own Makefiles use | unreleased |
 | [x-coreutils](https://github.com/jonruttan/x-coreutils) | a busybox: its applets in one bundle, `sort` to `sha256sum` | unreleased |
 | [x-cc](https://github.com/jonruttan/x-cc) | a C front end and evaluator; eligible functions lower to native through the engine | unreleased |
+| [x-git](https://github.com/jonruttan/x-git) | a git, compared against git itself; its digests and compression are x-lang's | unreleased |
+| [x-ssh](https://github.com/jonruttan/x-ssh) | an SSH: client, server, key tool, scp, SFTP and the agent, by OpenSSH's names | unreleased |
+| [x-tmux](https://github.com/jonruttan/x-tmux) | a terminal multiplexer, after tmux: sessions, windows and panes on pseudo-terminals | unreleased |
+| [x-browse](https://github.com/jonruttan/x-browse) | a terminal browser for Markdown and HTML, after lynx, links and w3m | unreleased |
+| [x-infocom](https://github.com/jonruttan/x-infocom) | an Infocom Z-machine: plays story files, with the tools around one | unreleased |
 
 **No version numbers in that column, deliberately** — and no dialect column
 any more, for the same reason. Each would be a copy of a fact that lives in

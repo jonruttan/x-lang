@@ -196,7 +196,7 @@ the way it did when `rlwrap` was the advice.
 
 ## The pieces
 
-Four modules, each usable on its own, and only one of them touches a
+Five modules, each usable on its own, and only one of them touches a
 descriptor:
 
 | Module | Holds |
@@ -205,6 +205,7 @@ descriptor:
 | [`x/repl/term`](../lib/x/repl/term.x) | raw mode, the window geometry, and turning bytes into keys |
 | [`x/repl/paint`](../lib/x/repl/paint.x) | colouring a line that may still be half-typed |
 | [`x/repl/line`](../lib/x/repl/line.x) | the loop that joins them, plus history and completion |
+| [`x/repl/lang`](../lib/x/repl/lang.x) | the named bundles of prompt seams a session switches between ([Switching languages](#switching-languages)) |
 
 The split is what makes the thing testable. `Edit` is pure and `Term key`
 takes a byte-reading function rather than a descriptor, so nearly all of the
