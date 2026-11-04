@@ -3,8 +3,9 @@
 ; An environment is one pair, (bindings . parent).  A frame's bindings are
 ; an alist of (name . value) cells and its parent is the environment it was
 ; made in; the root's bindings are a tree whose nodes are
-; (entry . (left . right)) and its parent is nil (docs/engine-laws.md, law
-; 10).  The engine makes them: a call makes a child of the closure's
+; (entry . (left . right)) and its parent is nil, and a module's are a tree
+; too, behind a spine the language made with pair (docs/engine-laws.md, law
+; 10).  The engine makes the others: a call makes a child of the closure's
 ; environment, an operative receives its caller's as a value, and (Fn env f)
 ; reads the one a closure was made in.  This class reads them by name.
 ;
@@ -18,22 +19,24 @@
 (import x/type/class)
 
 (def-class Env ()
-  (doc "Environments as values: one pair (bindings . parent), as (Env current), (Env root) and (Fn env f) answer. A frame's bindings are an alist of (name . value) and its parent the environment it was made in; the root's bindings are a tree and its parent nil. Not the process environment, which Sys environ and Sys getenv read."
+  (doc "Environments as values: one pair (bindings . parent), as (Env current), (Env root) and (Fn env f) answer. A frame's bindings are an alist of (name . value) and its parent the environment it was made in; the root's bindings are a tree and its parent nil, and a scoped module's are a tree under the root. Not the process environment, which Sys environ and Sys getenv read."
     (example "(eval 'k ((fn (_ k) (Env current)) 7))" "7")
     (example "(Env has? (Env root) 'first)" "#t"))
   (static
     ; The bindings of one environment as a fresh alist.  A tree node,
     ; (entry . (left . right)), and an alist cell, (entry . next), look alike
     ; for as far as a walk can see, so the two are told apart by the
-    ; environment, not its bindings: the root alone has no parent (law 10),
-    ; and the root alone keeps a tree.  Both are copied: the engine's cells
-    ; are not list pairs, and a caller holding the live alist could rebind a
-    ; frame through set-rest!.
+    ; environment, not its bindings (law 10): the root has no parent, and a
+    ; module's spine is a list pair, made by the language, where the engine
+    ; makes its frames of its own cells; both keep a tree.  Every frame is
+    ; copied: the engine's cells are not list pairs, and a caller holding
+    ; the live alist could rebind a frame through set-rest!.
     (method %flatten (self e)
-      (doc "The bindings of environment e as a fresh alist: a frame's copied, the root's tree walked in order.")
+      (doc "The bindings of environment e as a fresh alist: a frame's copied, the root's and a module's tree walked in order.")
       (match
         ((null? (first e)) ())
         ((null? (rest e)) (Env %walk-tree (first e) ()))
+        ((pair? e) (Env %walk-tree (first e) ()))
         (#t (Env %copy-alist (first e) ()))))
     (method %copy-alist (self l acc)
       (doc "A fresh copy of an alist of (name . value) cells, in the same order.")
