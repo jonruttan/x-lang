@@ -73,3 +73,43 @@ else outside the alphabet (#61: no silent repair).
 ```
 ---
     ('value 'value 'value)
+
+## the region doors
+
+### encode-region: the seven vectors, read by count
+
+```x
+(do (import x/codec/base64) (import x/codec/bytes)
+  (write (List map (fn (_ h) (Bytes hex (Base64 encode-region (Bytes of-hex h))))
+              (list "" "66" "666f" "666f6f" "666f6f62" "666f6f6261" "666f6f626172"))))
+```
+---
+    ("" "5a673d3d" "5a6d383d" "5a6d3976" "5a6d397659673d3d" "5a6d3976596d453d" "5a6d3976596d4679")
+
+### encode-region: a NUL and high bytes, and a region that starts past 0
+
+00 ff 10 is AP8Q; the region from byte 1, ff 10, is /xA=.
+
+```x
+(do (import x/codec/base64) (import x/codec/bytes)
+  (def %b64-r (Bytes of-hex "00ff10fe"))
+  (write (list (Bytes hex (Base64 encode-region (list (first %b64-r) 0 3)))
+               (Bytes hex (Base64 encode-region (list (first %b64-r) 1 2))))))
+```
+---
+    ("41503851" "2f78413d")
+
+### encode-region round-trips 3000 bytes of every value through decode-region
+
+Under 4 KB, so both run in pure x.
+
+```x
+(do (import x/codec/base64) (import x/codec/bytes)
+  (def %b64-n ((prim-ref (lit str) (lit make)) 3000))
+  ((fn (self i) (when (< i 3000) (do ((prim-ref (lit ptr) (lit set!)) ((prim-ref (lit str) (lit ->ptr)) %b64-n) i (% (* i 7) 256) 1) (self (+ i 1))))) 0)
+  (def %b64-e (Base64 encode-region (list %b64-n 0 3000)))
+  (write (list (Bytes length %b64-e)
+               (Bytes same? (Base64 decode-region %b64-e) (list %b64-n 0 3000)))))
+```
+---
+    (4000 #t)

@@ -3,6 +3,8 @@
 ; Two doors each way (#362):
 ;   encode / decode             string <-> string, the common case
 ;   encode-bytes / decode-bytes byte list <-> string, the binary-lossless door
+;   encode-region / decode-region  a region (BUF START LEN) in and out, read
+;                               by count, each with a compiled engine
 ; str values are C strings (bytes past NUL unobservable -- the x-lib ruling),
 ; so a payload that may contain a 0 byte belongs on the -bytes doors; the
 ; byte list is the library's established binary carrier ((Sys fd-read),
@@ -27,7 +29,7 @@
 ; The bit operations through the int doors: the generic ones dispatch
 ; through the numeric tower, about a hundred objects a call, these none.
 ; There is no int xor: a ^ b is (a | b) - (a & b).
-(import x/core/doors char->int int& int- int/ int<< int>> int| ptr-set! str->ptr str-byte-len str-byte-ref str-make)
+(import x/core/doors char->int int& int- int->ptr int/ int<< int>> int| ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-make)
 (def %xor (fn (_ a b) (int- (int| a b) (int& a b))))
 
 
@@ -78,6 +80,45 @@
                        (self (+ i 1) acc2 nbits2 n (+ chars 1) pads))))))))
      start 0 0 0 0 0)))
 
+; A 6-bit value's alphabet byte.
+(def %b64-e6
+  (fn (_ v)
+    (match
+      ((< v 26) (+ 65 v))
+      ((< v 52) (+ 71 v))
+      ((< v 62) (- v 4))
+      ((= v 62) 43)
+      (#t 47))))
+
+; The encoding of the bytes from i below end at p, written at q from n on:
+; three bytes a group of four characters, a last group of one or two bytes
+; padded out with =.  Answers how many characters it wrote.
+(def %b64-encode-into
+  (fn (self p i end q n)
+    (def left (- end i))
+    (def b0 (if (> left 0) (int& (ptr-ref p i 1) 255) 0))
+    (def b1 (if (> left 1) (int& (ptr-ref p (+ i 1) 1) 255) 0))
+    (def b2 (if (> left 2) (int& (ptr-ref p (+ i 2) 1) 255) 0))
+    (if (> left 0)
+      (do (ptr-set! q n (%b64-e6 (int>> b0 2)) 1)
+          (ptr-set! q (+ n 1) (%b64-e6 (int| (int<< (int& b0 3) 4) (int>> b1 4))) 1)
+          (ptr-set! q (+ n 2)
+            (if (> left 1) (%b64-e6 (int| (int<< (int& b1 15) 2) (int>> b2 6))) 61) 1)
+          (ptr-set! q (+ n 3) (if (> left 2) (%b64-e6 (int& b2 63)) 61) 1)
+          (if (> left 3) (self p (+ i 3) end q (+ n 4)) (+ n 4)))
+      n)))
+
+; Encode a region into a fresh buffer: the text as (BUF 0 LEN).
+(def %b64-encode-region
+  (fn (_ r)
+    (def len (first (rest (rest r))))
+    (def m (* 4 (int/ (+ len 2) 3)))
+    (def out (str-make (+ m 1)))
+    (%b64-encode-into
+      (int->ptr (+ (ptr->int (str->ptr (first r))) (first (rest r))))
+      0 len (str->ptr out) 0)
+    (list out 0 m)))
+
 ; --- the compiled decoder, adopted only when it proves out ------------------
 ;
 ; An entry of Compiled's (lib/x/tool/compiled.x), made the first time
@@ -111,6 +152,61 @@
          (entry compiled)
          %b64-decode-region))
      %b64-entry)))
+
+; --- the compiled encoder, built for a long input --------------------------
+;
+; An entry of Compiled's made on demand, as the decoder's is, but asked for
+; by encode-region on its own for an input of %b64-enc-threshold bytes or
+; more (or by encode-jit!): x/codec/base64-encode-jit compiles the loop,
+; and it is adopted only after it encodes the check inputs below byte for
+; byte as %b64-encode-region does.
+
+; Check inputs: no bytes, one, two and three, and 3000 bytes of every value
+; in turn, NULs among them, whole and with one and two bytes left over.
+(def %b64-enc-agrees?
+  (fn (_ eng)
+    (def r (str-make 3000))
+    (def p (str->ptr r))
+    ((fn (self i)
+       (when (< i 3000)
+         (do (ptr-set! p i (int& (+ (+ i 1) (int>> i 3)) 255) 1) (self (+ i 1)))))
+     0)
+    (def %same
+      (fn (_ x) (Bytes same? (eng x) (%b64-encode-region x))))
+    (and (%same (list "" 0 0)) (%same (list "f" 0 1)) (%same (list "fo" 0 2))
+         (%same (list "foo" 0 3)) (%same (list r 0 3000)) (%same (list r 1 2998))
+         (%same (list r 2 2996)))))
+
+(def %b64-enc-threshold 4096)
+(def %b64-enc-entry ())
+
+(def %b64-enc-try!
+  (fn (_)
+    (when (null? %b64-enc-entry)
+      (set! %b64-enc-entry
+        (Compiled make-on-demand (lit base64-encode) %b64-encode-region
+          (fn (_)
+            (import x/codec/base64-encode-jit)
+            ((prim-ref (lit base64) (lit encode-jit-make)) %b64-enc-agrees?))
+          (fn (_ v) ()))))
+    ((fn (_ entry)
+       (when (eq? (entry state) (lit interpreted)) (entry compile!))
+       (eq? (entry state) (lit compiled)))
+     %b64-enc-entry)))
+
+; The encoder for LEN bytes: the compiled one when it is built, or when LEN
+; is past the bar and a build succeeds; else the pure one.
+(def %b64-encoder
+  (fn (_ len)
+    (do (when (and (>= len %b64-enc-threshold)
+                   ((fn (_ entry) (if (null? entry) #t (eq? (entry state) (lit interpreted))))
+                    %b64-enc-entry))
+          (%b64-enc-try!))
+        ((fn (_ entry)
+           (if (if (null? entry) #f (eq? (entry state) (lit compiled)))
+             (entry compiled)
+             %b64-encode-region))
+         %b64-enc-entry))))
 
 (def-class Base64 ()
   (doc "RFC 4648 base64 (standard alphabet, = padding). encode/decode carry strings; encode-bytes/decode-bytes carry byte lists -- the lossless door for payloads that may contain NUL."
@@ -233,6 +329,15 @@
         (returns LIST "(BUF 0 LEN)")
         (example "(Bytes hex (Base64 decode-region \"aGk=\"))" "\"6869\""))
       ((%b64-decode) (Bytes of text)))
+    (method encode-region (self (param bytes ANY "The bytes: a region (BUF START LEN), or a STRING up to its first NUL"))
+      (doc "Encode to a fresh buffer, the text as a region (BUF 0 LEN), = padded: the lossless door for binary, read by count, so a NUL is a byte like any other. Pure x, or the compiled encoder, which is built for an input of 4 KB or more (or by encode-jit!) and adopted once it agrees with the pure one."
+        (returns LIST "(BUF 0 LEN)")
+        (example "(Bytes hex (Base64 encode-region (Bytes of-hex \"610062\")))" "\"59514269\""))
+      ((fn (_ r) ((%b64-encoder (first (rest (rest r)))) r)) (Bytes of bytes)))
+    (method encode-jit! (self)
+      (doc "Build and adopt the compiled encoder (JIT; ARM64 and x86-64 backends) now, if it encodes the check inputs byte for byte as the pure-x encode-region does. Idempotent; answers whether the compiled encoder is active. encode-region builds it on its own for 4 KB or more."
+        (returns BOOL "#t when the compiled encoder is active"))
+      (%b64-enc-try!))
     (method jit! (self)
       (doc "Build and adopt the compiled decoder (JIT; ARM64 and x86-64 backends) now, if it proves itself against the pure-x decode-region. Idempotent; answers whether the compiled decoder is active."
         (returns BOOL "#t when the compiled decoder is active"))
