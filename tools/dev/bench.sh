@@ -32,21 +32,14 @@ if [ "$1" != "--no-build" ]; then
     echo "done."
 fi
 
-# Profile snippet, appended after each lang load.  It is self-contained: it
-# reads the engine's profile list through boot globals and prims only,
-# mirroring lib/x/tool/profile.x's profile-dump line.  It must not import that
-# module, because the snippet runs under each lang's own reader, and under
-# x-sweet the include path does not strip the reader's whitespace marks from
-# multi-line forms.  Single-line forms read identically under every reader
-# benched here.
+# Profile snippet, appended after each load: lib/x/tool/profile.x's own
+# profile-dump, read under each lang's reader.  x-sweet's include seam
+# suspends its reader while a module loads, so the import reads the module as
+# written.
 SNIPPET="${TMPDIR}/x-bench-$$.snippet.x"
 cat > "$SNIPPET" <<'EOF'
-(def %bp-sa (prim-ref (lit str) (lit append)))
-(def %bp-w (prim-ref (lit io) (lit write-to-str)))
-(def %bp-c (%reflect-base-cell (lit profile)))
-(def %bp-n (fn (_ c) (%cell-int (first (first c)))))
-(def %bp-kv (fn (_ k v r) (%bp-sa k (%bp-sa (%bp-w v) r))))
-(%stderr (%bp-kv "allocs=" (%bp-n %bp-c) (%bp-kv " evals=" (%bp-n (rest %bp-c)) (%bp-kv " tco=" (%bp-n (rest (rest %bp-c))) (%bp-kv " assoc-calls=" (%bp-n (rest (rest (rest %bp-c)))) (%bp-kv " assoc-steps=" (%bp-n (rest (rest (rest (rest %bp-c))))) (%bp-kv " sym-find-calls=" (%bp-n (rest (rest (rest (rest (rest %bp-c)))))) (%bp-kv " sym-find-steps=" (%bp-n (rest (rest (rest (rest (rest (rest %bp-c))))))) (%bp-kv " gc-runs=" (%bp-n (rest (rest (rest (rest (rest (rest (rest %bp-c)))))))) (%bp-kv " bst-hits=" (%bp-n (rest (rest (rest (rest (rest (rest (rest (rest %bp-c))))))))) (%bp-kv " bst-misses=" (%bp-n (rest (rest (rest (rest (rest (rest (rest (rest (rest %bp-c)))))))))) (%bp-kv " heap=" (Heap count) "\n")))))))))))))
+(import x/tool/profile profile-dump)
+(profile-dump)
 EOF
 trap 'rm -f "$SNIPPET"' EXIT
 trap 'exit 130' INT
