@@ -490,33 +490,56 @@
 ; and the mangled body crashed the engine when evaluated (found live,
 ; 2026-09-01).  Plain prims and 2-arg appends read identically under every
 ; reader this module can arrive through.
-; The helpers are BODY defs, not globals (the percent-globals budget holds
-; this file at 4) -- dump runs once, so the defs-at-depth cost is nothing.
-(doc (def profile-dump
+; The helpers are BODY defs, not globals -- dump runs once, so the
+; defs-at-depth cost is nothing.
+
+; A snapshot is (heap allocs evals tco ...): the live heap count, then every
+; counter in the engine's profile list, in that list's order.  Importing this
+; module costs evaluation that the counters record, so a caller measuring a
+; boot takes the snapshot before the import, with the same walk written out
+; (tools/dev/bench.sh does), and hands it to profile-dump.
+(doc (def profile-snapshot
   (fn (_ )
-    (def %prof-kv
-      (fn (_ label value rest)
-        (str-append label (str-append (io-write-to-str value) rest))))
+    (def %prof-ints
+      (fn (self cells)
+        (match
+          ((eq? cells ()) ())
+          (#t (pair (%cell-int (first (first cells))) (self (rest cells)))))))
+    (pair (Heap count) (%prof-ints (%profile)))))
+  (returns LIST "The heap count, then each profile counter")
+  "Return the profile counters and heap count as they stand, for profile-dump.")
+
+(doc (def profile-dump
+  (fn (_ . snap)
+    (def %prof-line
+      (fn (self labels values)
+        (match
+          ((eq? labels ()) "")
+          (#t (str-append (first labels)
+                (str-append (io-write-to-str (first values))
+                  (self (rest labels) (rest values))))))))
+    (def %prof-snap
+      (match
+        ((eq? snap ()) (profile-snapshot))
+        (#t (first snap))))
     (%stderr
-      (%prof-kv "allocs=" (alloc-count)
-        (%prof-kv " evals=" (eval-count)
-          (%prof-kv " tco=" (tco-count)
-            (%prof-kv " assoc-calls=" (assoc-calls-count)
-              (%prof-kv " assoc-steps=" (assoc-steps-count)
-                (%prof-kv " sym-find-calls=" (sym-find-calls-count)
-                  (%prof-kv " sym-find-steps=" (sym-find-steps-count)
-                    (%prof-kv " gc-runs=" (gc-runs-count)
-                      (%prof-kv " bst-hits=" (bst-hits-count)
-                        (%prof-kv " bst-misses=" (bst-misses-count)
-                          (%prof-kv " heap=" (Heap count) "\n"))))))))))))))
-  "Dump all profile counters to stderr.")
+      (str-append
+        (%prof-line
+          (lit ("allocs=" " evals=" " tco=" " assoc-calls=" " assoc-steps="
+                " sym-find-calls=" " sym-find-steps=" " gc-runs=" " bst-hits="
+                " bst-misses="))
+          (rest %prof-snap))
+        (str-append " heap="
+          (str-append (io-write-to-str (first %prof-snap)) "\n"))))))
+  (param snap LIST "Optional: a profile-snapshot taken earlier")
+  "Dump the profile counters and heap count to stderr, as they stand or as snap recorded them.")
 
 (doc (provide x/tool/profile
   alloc-count eval-count tco-count
   assoc-calls-count assoc-steps-count
   sym-find-calls-count sym-find-steps-count
   gc-runs-count bst-hits-count bst-misses-count
-  profile-reset profile-dump
+  profile-reset profile-snapshot profile-dump
   profile-evals-max profile-evals profile-tree profile-fn
   profile-rows profile-clear! profile-report
   heap-collect heap-collect-force)

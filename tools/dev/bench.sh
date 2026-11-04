@@ -36,14 +36,16 @@ if [ "$1" != "--no-build" ]; then
     echo "done."
 fi
 
-# Profile snippet, appended after each load: lib/x/tool/profile.x's own
-# profile-dump, read under each lang's reader.  x-sweet's include seam
-# suspends its reader while a module loads, so the import reads the module as
-# written.
+# Profile snippet, appended after each load and read under each lang's
+# reader.  The first form is profile-snapshot's walk written out: it takes the
+# counters before x/tool/profile is imported, because the import's own
+# evaluation would otherwise land in every row (2-4.5M evals, the larger part
+# of an image row).  profile-dump then prints that snapshot.
 SNIPPET="${TMPDIR}/x-bench-$$.snippet.x"
 cat > "$SNIPPET" <<'EOF'
+(def %bench-snap (pair (Heap count) ((fn (self cells) (if (eq? cells ()) () (pair (%cell-int (first (first cells))) (self (rest cells))))) (%reflect-base-cell (lit profile)))))
 (import x/tool/profile profile-dump)
-(profile-dump)
+(profile-dump %bench-snap)
 EOF
 trap 'rm -f "$SNIPPET"' EXIT
 trap 'exit 130' INT
