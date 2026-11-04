@@ -6,7 +6,9 @@
 # other two files carrying that format held 235 assertions that nothing had
 # executed, and running them found retired primitives still documented as
 # live, list functions documented as bare globals years after they moved onto
-# classes, and three swapped argument orders (#452, #453).
+# classes, and three swapped argument orders (#452, #453).  docs/tutorial.md
+# writes session transcripts instead (`> EXPR` and what the REPL printed);
+# spec-examples.sh reads those too.
 #
 # Which docs run, at what heading level, under which dialect, and whether
 # failures are fatal is tools/check/doc-examples.conf -- see that file for the
