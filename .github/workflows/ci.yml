@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-24.04, ubuntu-24.04-arm]
+        os: [macos-15, ubuntu-24.04, ubuntu-24.04-arm]
     steps:
       - uses: actions/checkout@v7
       # x-lang is the language; the engine is a separate project, acquired
@@ -155,7 +155,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-24.04]
+        os: [macos-15, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v7
       # THE SANITIZER ENGINE IS BUILT FROM THE PINNED SOURCES, and a tag is
@@ -201,7 +201,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-24.04]
+        os: [macos-15, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v7
       # x-lang is the language; the engine is a separate project, acquired
@@ -240,7 +240,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-24.04]
+        os: [macos-15, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v7
       # x-lang is the language; the engine is a separate project, acquired
@@ -282,7 +282,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-24.04]
+        os: [macos-15, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v7
       # SOURCES.  Half of what this job checks is the engine's C reference --
@@ -316,7 +316,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-24.04]
+        os: [macos-15, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v7
       # x-lang is the language; the engine is a separate project, acquired
