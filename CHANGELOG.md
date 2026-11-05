@@ -5,6 +5,74 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-11-05
+
+**The engine is x-engine-c v0.2.27** ([#1175]). Every object's extra meta words start at zero, from x-expr itself (x-engine-c#116, #119), so a form read from standard input keeps its stamp under any allocator: `lib/source.spec.md` passes under AddressSanitizer, and with #1165 the ASan run on main is green again.
+
+[#1175]: https://github.com/jonruttan/x-lang/pull/1175
+
+**Every Vector method shows a worked example under help.** ([#1174]) The 8
+entries of `(help Vector method)` that answered with a description
+alone now carry an executable example, run by `make doctest`: the
+doctest spec grows from 754 to 763.
+
+[#1174]: https://github.com/jonruttan/x-lang/pull/1174
+
+**CI's macOS legs run on macos-15.** ([#1173]) GitHub retired the macos-14 image on 2026-11-02.
+
+[#1173]: https://github.com/jonruttan/x-lang/pull/1173
+
+**The string classes show a worked example under help.** ([#1171]) `Str8/iter` and
+the four `StrUtf8` codec methods that answered `help` with a description
+alone now carry an executable example, run by `make doctest`: the doctest
+spec grows from 692 to 697.
+
+[#1171]: https://github.com/jonruttan/x-lang/pull/1171
+
+**The x86-64 backend takes `bl` as a second name for `call`** ([#1172]), as it
+takes `b` for `jmp`, so a call into another object keeps the one
+vocabulary on both hosts.
+
+**A link library, `x/tool/link`, and the assembler's hand-off to a linker.** ([#1172])
+An object is `(SECTIONS SYMBOLS RELOCS)`: sections `(NAME ALIGN SIZE BYTES)`,
+symbols `(NAME SECTION OFFSET SCOPE)`, local or global, and relocations
+`(SECTION OFFSET KIND NAME ADDEND)` whose kinds are the caller's.  `link`
+lays objects out as one program, section by section in object order and
+each at its alignment, asks the caller where each output section will be,
+resolves every name (a local shadows a global; an undefined or a twice-
+defined name refuses) and calls the caller's patcher at every relocation;
+`link-undefined` lists the names no object defines; `link-write!` and
+`link-read` keep an object file, the records as text after a first line
+that says how long they are, then the bytes.  The assembler gained
+`asm-unresolved!`, the patches naming labels it never placed, taken out
+so the code finalizes as a section and the linker resolves them, with
+page-relative patches taken as well on request; `asm-labels`;
+`asm-patch-at!` and `asm-reloc-at!`, the backend's patcher and the
+64-bit relocator on code no assembler holds; and `asm-adr-far!`, an
+address in reach of a whole executable -- `adrp` and an `add` with the
+patch types `arm64-adrp` and `arm64-lo12` on arm64, whose encoders
+`asm-patch-adrp!` and `asm-patch-lo12!` a linker calls with real
+addresses, and `lea` from RIP on x86-64.  The label index finalize built
+inline is now `asm-label-finder`, shared.  x-cc's objects and linker are
+the first client.
+
+[#1172]: https://github.com/jonruttan/x-lang/pull/1172
+
+**Every List method shows a worked example under help.** ([#1168]) 55 entries of
+`(help List method)` that answered with a description alone now carry an
+executable example, run by `make doctest`: the doctest spec grows from
+692 to 749.
+
+[#1168]: https://github.com/jonruttan/x-lang/pull/1168
+
+**The include-paths spec restores the import roots it arms, so a batched run no longer leaks them into the next file.** ([#1165]) `make test-asan` had failed on module-imports' roots message on every main run since that case landed.
+
+[#1165]: https://github.com/jonruttan/x-lang/pull/1165
+
+**`x/codec/png` decodes PNG, and `x/tui/picture` draws an image as terminal text.** ([#1164]) `Png decode` and `Png size` take every colour type, depth, interlacing and transparency, to RGBA, with a compiled engine for the row loops (`Png jit!`); `Picture lines` draws an RGBA image as half-block text in 24-bit or 256 colours, and `Picture fit` sizes it.
+
+[#1164]: https://github.com/jonruttan/x-lang/pull/1164
+
 ## [0.46.0] - 2026-11-04
 
 **A Lexer make in an image writer's child sweeps after each state it compiles, so a cold-cache write no longer holds every compile's garbage at once.** ([#1162]) x-ash's image write in a fresh x-os build container went from 2290 MB to 954 MB peak.
