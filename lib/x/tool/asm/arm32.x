@@ -1,30 +1,54 @@
-; tool/asm/arm32.x -- 32-bit ARM (A32, VFPv3) opcode table and fixed-width
-; encoder: the assembler's backend on a 4-byte word.  A private component of
-; the assembler, loaded by tool/asm.x where the platform declares `arm`; it
+; tool/asm/arm32.x -- 32-bit ARM (A32, VFPv3) opcode table and encoder: the
+; assembler's backend on a 4-byte word.  A private component of the
+; assembler, loaded by tool/asm.x where the platform declares `arm`; it
 ; references (reg n) from asm.x.
 ;
-; THE VOCABULARY IS THE FLOAT STUBS'.  A double does not fit this machine's
-; word, so x/num/float.x's stubs take a double as TWO words and give one back
-; through a pointer, and the rows here are what those stubs emit: the moves
-; between the core and VFP banks, the four operations, the compares, the
-; conversions, a store through a pointer, a call.  The compiler's vocabulary
-; (branches, labels, the integer family) is not here: asm-emit! raises on a
-; mnemonic the table lacks, which is how the probe ahead of every compile
-; finds the lane closed and keeps the interpreted twin.
+; PARITY BACKEND, as x86_64.x is.  asm-compile.x emits ONE vocabulary --
+; arm64 mnemonics, portable register names, its three-argument call
+; protocol -- and this file lowers it to A32.  What A32 lacks is lowered
+; here, not taught to the compiler:
 ;
-; Encodings checked against clang's assembler (-target armv7-linux-gnueabihf).
+;   immediates  A32's are eight rotated bits, arm64's twelve or sixteen.  A
+;               value past eight bits goes through lr first, MOVW then MOVT.
+;   cbz/cbnz    there are none: CMP Rt, #0, then B.EQ or B.NE.
+;   orn, xzr    there is no ORN and no zero register: MVN, and RSB #0 for
+;               the negation the compiler spells (sub d xzr s).
+;   adr         ADD Rd, PC, lr after loading the distance into lr, which
+;               reaches the whole address space.
+;   widths      a word is four bytes, so ldr and ldrw are one load and
+;               ldrsw is ldr; a halfword's offset is eight bits.
+;
+; lr is the scratch.  The prologue saves it, a call through blr writes it,
+; and nothing between a prologue and its epilogue reads it, so a lowering
+; may load it freely.  An offset or an immediate past what one instruction
+; holds costs two more.
+;
+; The double rows are the float stubs' (x/num/float.x): a double does not fit
+; this machine's word, so a stub takes a double as TWO words and gives one
+; back through a pointer.
+;
+; Encodings checked against GNU as (-march=armv7-a -mfpu=vfpv3-d16).
 
 (import x/core/doors ptr-ref ptr-set!)
 
 ; --- Register aliases ---
-; The portable model's names, on this machine's registers: r0-r3 carry a C
-; call's first four words and r0 its answer; r4-r7 are callee-saved, and the
-; prologue keeps them; ip (r12) is the call-target register, so x8 names it
-; and a stub's call sequence is the same on every backend.
+; The portable model on this machine's registers, by role, as x86_64.x maps
+; it:
+;   x0-x3    r0-r3: a C call's first four words, and r0 its answer
+;   x8       r12 (ip): the call target
+;   x19-x22  r4-r7: callee-saved, the prologue keeps them -- p_base, p_args,
+;            the argument accumulator, the slot base
+;   xzr      a PSEUDO register (99): A32 has no zero register
+; x4-x7 name r4-r7 too, which the float stubs use as scratch inside their
+; own prologue.
 (def x0 (reg 0))  (def x1 (reg 1))  (def x2 (reg 2))  (def x3 (reg 3))
 (def x4 (reg 4))  (def x5 (reg 5))  (def x6 (reg 6))  (def x7 (reg 7))
 (def x8 (reg 12))
+(def x19 (reg 4)) (def x20 (reg 5)) (def x21 (reg 6)) (def x22 (reg 7))
+(def xzr (reg 99))
 (def fp (reg 11)) (def sp (reg 13)) (def lr (reg 14)) (def pc (reg 15))
+(def %arm32-zr 99)
+(def %arm32-lr 14)
 
 ; The double registers d0-d7: a C call's double arguments and its answer in
 ; the hard-float convention.  An FP operand is a (reg n) like any other; the
@@ -71,52 +95,76 @@
 ; --- Load a word-sized immediate: MOVW then MOVT ---
 ; The name is the portable model's: what loads an address on every backend.
 ; An imm16 is split as the encoding wants it, imm4 at [19:16] and imm12 at
-; [11:0].
+; [11:0].  MOVW Rd = 0xE3000000, MOVT Rd = 0xE3400000.
 (def %arm32-imm16
   (fn (_ v) (| (<< (& (>> v 12) 15) 16) (& v 4095))))
+(def %arm32-movw (fn (_ rd v) (| 3808428032 (| (<< (& rd 15) 12) (%arm32-imm16 (& v 65535))))))
+(def %arm32-movt (fn (_ rd v) (| 3812622336 (| (<< (& rd 15) 12) (%arm32-imm16 (& (>> v 16) 65535))))))
 (def asm-load-imm64!
   (fn (_ asm rd-reg val)
     (def rd (if (pair? rd-reg) (%op-value rd-reg) rd-reg))
-    ; MOVW Rd, #imm16 = 0xE3000000 | imm4<<16 | Rd<<12 | imm12
-    (%emit-u32-le! asm (| 3808428032 (| (<< (& rd 15) 12) (%arm32-imm16 (& val 65535)))))
-    ; MOVT Rd, #imm16 = 0xE3400000
-    (%emit-u32-le! asm (| 3812622336 (| (<< (& rd 15) 12) (%arm32-imm16 (& (>> val 16) 65535)))))))
+    (%emit-u32-le! asm (%arm32-movw rd val))
+    (%emit-u32-le! asm (%arm32-movt rd val))))
 
 ; --- Opcode table ---
-; Every row is condition AL.  The double registers here are d0-d15, which
-; need no D, N or M extension bit; the fields leave those bits zero.
+; Every row is condition AL.  A symbol names a lowering in the dispatch
+; below; a list is a descriptor for the field encoder.  The double registers
+; here are d0-d15, which need no D, N or M extension bit.
 (def %arm32-table
   (list
-    ; BX LR
-    (pair 'ret (list
-      (pair '|| (list 3778019102))))       ; 0xE12FFF1E
+    (pair 'ret (list (pair '|| 'ret)))
+    (pair 'nop (list (pair '|| 'nop)))
+    (pair 'mov (list (pair 'rr 'mov) (pair 'ri 'movi)))
 
-    ; MOV Rd, Rm
-    (pair 'mov (list
-      (pair 'rr (list 3785359360          ; 0xE1A00000
-        (list 0 12 4 0)      ; Rd
-        (list 1 0 4 0)))     ; Rm
-      ; MOV Rd, #imm8 (an unrotated 8-bit immediate)
-      (pair 'ri (list 3818913792          ; 0xE3A00000
-        (list 0 12 4 0)      ; Rd
-        (list 1 0 8 0)))))   ; imm8
+    ; The three-address integer family, the register and immediate forms
+    (pair 'add  (list (pair 'rrr 'add) (pair 'rri 'addi)))
+    (pair 'sub  (list (pair 'rrr 'sub) (pair 'rri 'subi)))
+    (pair 'and  (list (pair 'rrr 'and)))
+    (pair 'orr  (list (pair 'rrr 'orr)))
+    (pair 'eor  (list (pair 'rrr 'eor)))
+    (pair 'orn  (list (pair 'rrr 'orn)))
+    (pair 'mul  (list (pair 'rrr 'mul)))
+    (pair 'lslv (list (pair 'rrr 'lslv)))
+    (pair 'lsrv (list (pair 'rrr 'lsrv)))
+    (pair 'asrv (list (pair 'rrr 'asrv)))
+    (pair 'sdiv (list (pair 'rrr 'sdiv)))
+    (pair 'msub (list (pair 'rrrr 'msub)))
+    (pair 'cmp  (list (pair 'rr 'cmp) (pair 'ri 'cmpi)))
 
-    ; LDR Rt, [Rn, #imm12] / STR
-    (pair 'ldr (list
-      (pair 'rm (list 3851419648          ; 0xE5900000
-        (list 0 12 4 0)      ; Rt
-        (list 1 16 4 0)      ; Rn from mem base (sub=0)
-        (list 1 0 12 0 1))))) ; imm12 from mem offset (sub=1)
-    (pair 'str (list
-      (pair 'rm (list 3850371072          ; 0xE5800000
-        (list 0 12 4 0)
-        (list 1 16 4 0)
-        (list 1 0 12 0 1)))))
+    ; Loads and stores against (mem base offset), at every width the
+    ; compiler names
+    (pair 'ldr   (list (pair 'rm 'ldr)))
+    (pair 'str   (list (pair 'rm 'str)))
+    (pair 'ldrw  (list (pair 'rm 'ldr)))
+    (pair 'ldrsw (list (pair 'rm 'ldr)))
+    (pair 'strw  (list (pair 'rm 'str)))
+    (pair 'ldrb  (list (pair 'rm 'ldrb)))
+    (pair 'strb  (list (pair 'rm 'strb)))
+    (pair 'ldrsb (list (pair 'rm 'ldrsb)))
+    (pair 'ldrh  (list (pair 'rm 'ldrh)))
+    (pair 'ldrsh (list (pair 'rm 'ldrsh)))
+    (pair 'strh  (list (pair 'rm 'strh)))
 
-    ; BLX Rm: the call through a register, as blr is on arm64
-    (pair 'blr (list
-      (pair 'r (list 3778019120           ; 0xE12FFF30
-        (list 0 0 4 0)))))
+    ; Branches.  B = 0xEA000000, BL = 0xEB000000, B<cond> = cond<<28 |
+    ; 0x0A000000; each takes the 24-bit word offset the patcher fills in.
+    (pair 'b    (list (pair 'l (list 3925868544 (list 0 0 24 0)))))
+    (pair 'bl   (list (pair 'l (list 3942645760 (list 0 0 24 0)))))
+    (pair 'b/eq (list (pair 'l (list 167772160 (list 0 0 24 0)))))      ; EQ 0
+    (pair 'b/ne (list (pair 'l (list 436207616 (list 0 0 24 0)))))      ; NE 1
+    (pair 'b/ge (list (pair 'l (list 2852126720 (list 0 0 24 0)))))     ; GE 10
+    (pair 'b/lt (list (pair 'l (list 3120562176 (list 0 0 24 0)))))     ; LT 11
+    (pair 'b/gt (list (pair 'l (list 3388997632 (list 0 0 24 0)))))     ; GT 12
+    (pair 'b/le (list (pair 'l (list 3657433088 (list 0 0 24 0)))))     ; LE 13
+    (pair 'cbz  (list (pair 'rl 'cbz)))
+    (pair 'cbnz (list (pair 'rl 'cbnz)))
+    (pair 'adr  (list (pair 'rl 'adr)))
+
+    ; BLX Rm, BX Rm: the calls and jumps through a register
+    (pair 'blr (list (pair 'r (list 3778019120 (list 0 0 4 0)))))       ; 0xE12FFF30
+    (pair 'br  (list (pair 'r (list 3778019088 (list 0 0 4 0)))))       ; 0xE12FFF10
+
+    (pair 'push (list (pair 'r 'push)))
+    (pair 'pop  (list (pair 'r 'pop)))
 
     ; --- The VFP bank ---
     ; VMOV Dm, Rt, Rt2: two words into a double, the low word first
@@ -166,9 +214,9 @@
         (list 1 16 4 0)
         (list 1 0 8 2 1)))))
 
-    ; The conversions and compares are lowerings (the dispatch below): each is
-    ; two or three instructions through the single s(2n) that is d(n)'s low
-    ; half, which they clobber.
+    ; The conversions and compares are lowerings: each is two or three
+    ; instructions through the single s(2n) that is d(n)'s low half, which
+    ; they clobber.
     (pair 'scvtf (list (pair 'rr 'scvtf)))       ; Dd <- Xn (int -> double)
     (pair 'fcvtzs (list (pair 'rr 'fcvtzs)))     ; Xd <- Dn (double -> int, toward zero)
     (pair 'fcvt/s (list (pair 'rr 'fcvt/s)))     ; Xd <- Dn (double -> a single's bits)
@@ -179,15 +227,16 @@
   ))
 
 ; --- Prologue/epilogue helpers ---
-; asm-push!/asm-pop!: one register to or from the stack.
-; PUSH {Rt} = STR Rt, [SP, #-4]! = 0xE52D0004 | Rt<<12
-; POP {Rt} = LDR Rt, [SP], #4 = 0xE49D0004 | Rt<<12
+; asm-push!/asm-pop!: one register to or from a 16-byte stack slot, the
+; slot arm64 and x86-64 push, so the compiler's slot arithmetic is the same
+; on every backend.  STR Rt, [SP, #-16]! = 0xE52D0010 | Rt<<12; LDR Rt,
+; [SP], #16 = 0xE49D0010 | Rt<<12.
 (def asm-push!
   (fn (_ asm r)
-    (%emit-u32-le! asm (| 3844931588 (<< (& (first (rest r)) 15) 12)))))
+    (%emit-u32-le! asm (| 3844931600 (<< (& (first (rest r)) 15) 12)))))
 (def asm-pop!
   (fn (_ asm r)
-    (%emit-u32-le! asm (| 3835494404 (<< (& (first (rest r)) 15) 12)))))
+    (%emit-u32-le! asm (| 3835494416 (<< (& (first (rest r)) 15) 12)))))
 
 ; asm-prologue!: PUSH {r4-r7, r11, lr}; MOV r11, sp.  Six words, so the
 ; stack stays 8-byte aligned as the convention asks at a call, and a
@@ -203,68 +252,243 @@
 (def asm-stack-arg
   (fn (_ n) (+ 24 (* 4 (- n 4)))))
 
+; asm-frame-base!: x22 (r7) = sp, the base of the parameter slots a function
+; pushes after its prologue.  MOV r7, sp = 0xE1A0700D.
+(def asm-frame-base!
+  (fn (_ asm)
+    (%emit-u32-le! asm 3785388045)))
+
 ; asm-epilogue!: POP {r4-r7, r11, pc}: the return is the pop into pc.
 (def asm-epilogue!
   (fn (_ asm)
     (%emit-u32-le! asm 3904735472)))  ; pop {r4, r5, r6, r7, r11, pc} 0xE8BD88F0
 
+; --- The lowerings ---
+(def %arm32-w! (fn (_ asm word) (%emit-u32-le! asm word)))
+
+; A data-processing word: OP | Rn<<16 | Rd<<12 | Rm.
+(def %arm32-dp
+  (fn (_ op rd rn rm) (| op (| (<< rn 16) (| (<< rd 12) rm)))))
+
+; A source register, with the zero register loaded into lr: MOV lr, #0 =
+; 0xE3A0E000.
+(def %arm32-src!
+  (fn (_ asm r)
+    (if (= r %arm32-zr) (do (%arm32-w! asm 3818971136) %arm32-lr) r)))
+
+; VALUE into lr, whole, and lr's number back.
+(def %arm32-lr!
+  (fn (_ asm v)
+    (do (%arm32-w! asm (%arm32-movw %arm32-lr v))
+        (%arm32-w! asm (%arm32-movt %arm32-lr v))
+        %arm32-lr)))
+
+; Rd = Rn OP #imm where an eight-bit immediate holds it (IMM-OP), else
+; through lr (REG-OP).
+(def %arm32-imm-op!
+  (fn (_ asm imm-op reg-op rd rn v)
+    (if (and (>= v 0) (<= v 255))
+      (%arm32-w! asm (| imm-op (| (<< rn 16) (| (<< rd 12) v))))
+      (%arm32-w! asm (%arm32-dp reg-op rd rn (%arm32-lr! asm v))))))
+
+; A load or store of a word or a byte: LDR/STR Rt, [Rn, #+-imm12].  BASE is
+; the word with U clear (an offset below zero); U is bit 23.  An offset past
+; twelve bits is added into lr first.
+(def %arm32-ls!
+  (fn (_ asm base rt rn off)
+    (if (and (> off -4096) (< off 4096))
+      (%arm32-w! asm (| base (| (if (< off 0) 0 8388608)
+                          (| (<< rn 16) (| (<< rt 12) (if (< off 0) (- 0 off) off))))))
+      (do (%arm32-lr! asm off)
+          (%arm32-w! asm (%arm32-dp 3766484992 %arm32-lr rn %arm32-lr))   ; add lr, rn, lr
+          (%arm32-w! asm (| base (| 8388608 (| (<< %arm32-lr 16) (<< rt 12)))))))))
+
+; The halfword and signed-byte forms: the offset is eight bits, split
+; imm4H at [11:8] and imm4L at [3:0].
+(def %arm32-ls-half!
+  (fn (_ asm base rt rn off)
+    (if (and (> off -256) (< off 256))
+      ((fn (_ a)
+         (%arm32-w! asm (| base (| (if (< off 0) 0 8388608)
+                             (| (<< rn 16) (| (<< rt 12) (| (<< (>> a 4) 8) (& a 15))))))))
+       (if (< off 0) (- 0 off) off))
+      (do (%arm32-lr! asm off)
+          (%arm32-w! asm (%arm32-dp 3766484992 %arm32-lr rn %arm32-lr))
+          (%arm32-w! asm (| base (| 8388608 (| (<< %arm32-lr 16) (<< rt 12)))))))))
+
+; LOAD-STORE: a mem lowering's base word and its encoder.
+(def %arm32-mem-forms
+  (list (pair 'ldr   (pair 3843031040 %arm32-ls!))       ; 0xE5100000
+        (pair 'str   (pair 3841982464 %arm32-ls!))       ; 0xE5000000
+        (pair 'ldrb  (pair 3847225344 %arm32-ls!))       ; 0xE5500000
+        (pair 'strb  (pair 3846176768 %arm32-ls!))       ; 0xE5400000
+        (pair 'ldrh  (pair 3780116656 %arm32-ls-half!))  ; 0xE15000B0
+        (pair 'strh  (pair 3779068080 %arm32-ls-half!))  ; 0xE14000B0
+        (pair 'ldrsb (pair 3780116688 %arm32-ls-half!))  ; 0xE15000D0
+        (pair 'ldrsh (pair 3780116720 %arm32-ls-half!)))) ; 0xE15000F0
+
+; The register-to-register family: Rd = Rn OP Rm.
+(def %arm32-rrr-forms
+  (list (pair 'add 3766484992)     ; 0xE0800000
+        (pair 'sub 3762290688)     ; 0xE0400000
+        (pair 'and 3758096384)     ; 0xE0000000
+        (pair 'orr 3783262208)     ; 0xE1800000
+        (pair 'eor 3760193536)))   ; 0xE0200000
+
+; The shifts by a register: MOV Rd, Rn, <shift> Rm = OP | Rd<<12 | Rm<<8 | Rn.
+(def %arm32-shift-forms
+  (list (pair 'lslv 3785359376)    ; 0xE1A00010
+        (pair 'lsrv 3785359408)    ; 0xE1A00030
+        (pair 'asrv 3785359440)))  ; 0xE1A00050
+
+; A branch on CONDITION to LABEL, patched once the label is placed.
+(def %arm32-branch!
+  (fn (_ asm cnd lname)
+    (do (asm-patch! asm 4 'arm32-rel24 lname)
+        (%arm32-w! asm (| 167772160 (<< cnd 28))))))
+
 ; --- Dispatch encoder ---
-; The lowerings.  VMOV Sn, Rt = 0xEE000A10 | Vn<<16 | Rt<<12 (N bit zero: Sn
-; is s(2d), even), VMOV Rt, Sn = 0xEE100A10 likewise; VCVT.F64.S32 Dd, Sm =
-; 0xEEB80BC0 | Dd<<12 | Vm; VCVT.S32.F64 Sd, Dm = 0xEEBD0BC0 | Vd<<12 | Dm
-; (rounds toward zero); VCVT.F32.F64 Sd, Dm = 0xEEB70BC0; VCVT.F64.F32 Dd,
-; Sm = 0xEEB70AC0; VCVT.F32.S32 Sd, Sm = 0xEEB80AC0.  flt/feq: VCMP.F64 Dn,
-; Dm = 0xEEB40B40 | Dn<<12 | Dm, VMRS APSR_nzcv, FPSCR = 0xEEF1FA10, then
+; The double lowerings: VMOV Sn, Rt = 0xEE000A10 | Vn<<16 | Rt<<12 (N bit
+; zero: Sn is s(2d), even), VMOV Rt, Sn = 0xEE100A10 likewise; VCVT.F64.S32
+; Dd, Sm = 0xEEB80BC0 | Dd<<12 | Vm; VCVT.S32.F64 Sd, Dm = 0xEEBD0BC0 | Vd<<12
+; | Dm (rounds toward zero); VCVT.F32.F64 Sd, Dm = 0xEEB70BC0; VCVT.F64.F32
+; Dd, Sm = 0xEEB70AC0; VCVT.F32.S32 Sd, Sm = 0xEEB80AC0.  flt/feq: VCMP.F64
+; Dn, Dm = 0xEEB40B40 | Dn<<12 | Dm, VMRS APSR_nzcv, FPSCR = 0xEEF1FA10, then
 ; MOV<cond> Rd, #1 and MOV<cond'> Rd, #0 on the pair a NaN leaves false, MI/PL
 ; for <, EQ/NE for =: MOV<c> Rd, #imm = 0x03A00000 | cond<<28 | Rd<<12 | imm.
 (def %arm32-dispatch
   (fn (_ asm descriptor args)
-    ; The operands' values, as far as there are operands: rest of () raises,
-    ; so each step is guarded by the one before it.
-    (def r1 (if (null? args) () (rest args)))
-    (def r2 (if (null? r1) () (rest r1)))
-    (def a0 (if (null? args) 0 (%op-value (first args))))
-    (def a1 (if (null? r1) 0 (%op-value (first r1))))
-    (def a2 (if (null? r2) 0 (%op-value (first r2))))
-    (match
-      ((eq? descriptor 'scvtf)
-        (do (%emit-u32-le! asm (| 3992979984 (| (<< a0 16) (<< a1 12))))    ; vmov s(2d), r
-            (%emit-u32-le! asm (| 4005039040 (| (<< a0 12) a0)))))          ; vcvt.f64.s32 d, s(2d)
-      ((eq? descriptor 'fcvtzs)
-        (do (%emit-u32-le! asm (| 4005366720 (| (<< a1 12) a1)))            ; vcvt.s32.f64 s(2d), d
-            (%emit-u32-le! asm (| 3994028560 (| (<< a1 16) (<< a0 12))))))  ; vmov r, s(2d)
-      ((eq? descriptor 'fcvt/s)
-        (do (%emit-u32-le! asm (| 4004973504 (| (<< a1 12) a1)))            ; vcvt.f32.f64 s(2d), d
-            (%emit-u32-le! asm (| 3994028560 (| (<< a1 16) (<< a0 12))))))  ; vmov r, s(2d)
-      ((eq? descriptor 'fcvt/d)
-        (do (%emit-u32-le! asm (| 3992979984 (| (<< a0 16) (<< a1 12))))    ; vmov s(2d), r
-            (%emit-u32-le! asm (| 4004973248 (| (<< a0 12) a0)))))          ; vcvt.f64.f32 d, s(2d)
-      ((eq? descriptor 'scvtf/s)
-        ; through s0, the scratch, since the answer is an integer register
-        (do (%emit-u32-le! asm (| 3992979984 (<< a1 12)))                   ; vmov s0, r
-            (%emit-u32-le! asm 4005038784)                                  ; vcvt.f32.s32 s0, s0
-            (%emit-u32-le! asm (| 3994028560 (<< a0 12)))))                 ; vmov r, s0
-      ((or (eq? descriptor 'flt) (eq? descriptor 'feq))
-        (let ((yes (if (eq? descriptor 'flt) 4 0))     ; MI, EQ
-              (no  (if (eq? descriptor 'flt) 5 1)))    ; PL, NE
-          (%emit-u32-le! asm (| 4004776768 (| (<< a1 12) a2)))              ; vcmp.f64 dn, dm
-          (%emit-u32-le! asm 4008835600)                                    ; vmrs APSR_nzcv, fpscr
-          (%emit-u32-le! asm (| 60817409 (| (<< yes 28) (<< a0 12))))       ; mov<yes> rd, #1
-          (%emit-u32-le! asm (| 60817408 (| (<< no 28) (<< a0 12))))))      ; mov<no> rd, #0
-      (#t (%arm32-encode asm descriptor args)))))
+    (if (pair? descriptor) (%arm32-encode asm descriptor args)
+      (let ()
+        ; The operands, as far as there are operands: rest of () raises, so
+        ; each step is guarded by the one before it.  A mem operand's value
+        ; is its base; its offset is A2's place in it.
+        (def r1 (if (null? args) () (rest args)))
+        (def r2 (if (null? r1) () (rest r1)))
+        (def r3 (if (null? r2) () (rest r2)))
+        (def a0 (if (null? args) 0 (%op-value (first args))))
+        (def a1 (if (null? r1) 0 (%op-value (first r1))))
+        (def a2 (if (null? r2) 0 (%op-value (first r2))))
+        (def a3 (if (null? r3) 0 (%op-value (first r3))))
+        (def rrr (%asm-assq descriptor %arm32-rrr-forms))
+        (def shift (%asm-assq descriptor %arm32-shift-forms))
+        (def memf (%asm-assq descriptor %arm32-mem-forms))
+        (match
+          ((not (null? memf))
+            ((rest (rest memf)) asm (first (rest memf)) a0 a1 (first (rest (rest (first r1))))))
+          ; sub d xzr s is the negation: RSB Rd, Rm, #0 = 0xE2600000
+          ((and (eq? descriptor 'sub) (= a1 %arm32-zr))
+            (%arm32-w! asm (| 3797942272 (| (<< a2 16) (<< a0 12)))))
+          ((not (null? rrr))
+            (%arm32-w! asm (%arm32-dp (rest rrr) a0 (%arm32-src! asm a1) (%arm32-src! asm a2))))
+          ((not (null? shift))
+            (%arm32-w! asm (| (rest shift) (| (<< a0 12) (| (<< (%arm32-src! asm a2) 8) (%arm32-src! asm a1))))))
+          ; orn d xzr s is the complement: MVN Rd, Rm = 0xE1E00000; any other
+          ; orn is MVN into lr, then ORR
+          ((eq? descriptor 'orn)
+            (if (= a1 %arm32-zr)
+              (%arm32-w! asm (%arm32-dp 3789553664 a0 0 a2))
+              (do (%arm32-w! asm (%arm32-dp 3789553664 %arm32-lr 0 a2))
+                  (%arm32-w! asm (%arm32-dp 3783262208 a0 a1 %arm32-lr)))))
+          ; MUL Rd, Rn, Rm = 0xE0000090 | Rd<<16 | Rm<<8 | Rn
+          ((eq? descriptor 'mul)
+            (%arm32-w! asm (| 3758096528 (| (<< a0 16) (| (<< a2 8) a1)))))
+          ; SDIV Rd, Rn, Rm = 0xE710F010 | Rd<<16 | Rm<<8 | Rn
+          ((eq? descriptor 'sdiv)
+            (%arm32-w! asm (| 3876646928 (| (<< a0 16) (| (<< a2 8) a1)))))
+          ; MLS Rd, Rn, Rm, Ra = 0xE0600090 | Rd<<16 | Ra<<12 | Rm<<8 | Rn:
+          ; Rd = Ra - Rn*Rm, which is msub's
+          ((eq? descriptor 'msub)
+            (%arm32-w! asm (| 3764387984 (| (<< a0 16) (| (<< a3 12) (| (<< a2 8) a1))))))
+          ((eq? descriptor 'addi) (%arm32-imm-op! asm 3800039424 3766484992 a0 a1 a2))
+          ((eq? descriptor 'subi) (%arm32-imm-op! asm 3795845120 3762290688 a0 a1 a2))
+          ; MOV Rd, Rm = 0xE1A00000; the zero register is MOV Rd, #0
+          ((eq? descriptor 'mov)
+            (if (= a1 %arm32-zr) (%arm32-w! asm (| 3818913792 (<< a0 12)))
+              (%arm32-w! asm (%arm32-dp 3785359360 a0 0 a1))))
+          ; MOVW takes what arm64's MOVZ does, sixteen bits; anything else is
+          ; the whole word
+          ((eq? descriptor 'movi)
+            (if (and (>= a1 0) (<= a1 65535))
+              (%arm32-w! asm (%arm32-movw a0 a1))
+              (asm-load-imm64! asm a0 a1)))
+          ; CMP Rn, Rm = 0xE1500000; CMP Rn, #imm8 = 0xE3500000
+          ((eq? descriptor 'cmp)
+            (%arm32-w! asm (%arm32-dp 3780116480 0 (%arm32-src! asm a0) (%arm32-src! asm a1))))
+          ((eq? descriptor 'cmpi)
+            (if (and (>= a1 0) (<= a1 255))
+              (%arm32-w! asm (| 3813670912 (| (<< a0 16) a1)))
+              (%arm32-w! asm (%arm32-dp 3780116480 0 a0 (%arm32-lr! asm a1)))))
+          ; CMP Rt, #0, then B.EQ or B.NE
+          ((eq? descriptor 'cbz)
+            (do (%arm32-w! asm (| 3813670912 (<< a0 16))) (%arm32-branch! asm 0 a1)))
+          ((eq? descriptor 'cbnz)
+            (do (%arm32-w! asm (| 3813670912 (<< a0 16))) (%arm32-branch! asm 1 a1)))
+          ; The distance into lr, then ADD Rd, PC, lr = 0xE08F0000 | Rd<<12 |
+          ; 14; the patch, at the MOVW, fills the pair once the label is placed
+          ((eq? descriptor 'adr)
+            (do (asm-patch! asm 12 'arm32-adr a1)
+                (%arm32-w! asm (%arm32-movw %arm32-lr 0))
+                (%arm32-w! asm (%arm32-movt %arm32-lr 0))
+                (%arm32-w! asm (| 3767468032 (| (<< a0 12) %arm32-lr)))))
+          ((eq? descriptor 'push) (asm-push! asm (first args)))
+          ((eq? descriptor 'pop) (asm-pop! asm (first args)))
+          ((eq? descriptor 'ret) (%arm32-w! asm 3778019102))       ; BX LR 0xE12FFF1E
+          ((eq? descriptor 'nop) (%arm32-w! asm 3810586624))       ; 0xE320F000
+          ((eq? descriptor 'scvtf)
+            (do (%arm32-w! asm (| 3992979984 (| (<< a0 16) (<< a1 12))))    ; vmov s(2d), r
+                (%arm32-w! asm (| 4005039040 (| (<< a0 12) a0)))))          ; vcvt.f64.s32 d, s(2d)
+          ((eq? descriptor 'fcvtzs)
+            (do (%arm32-w! asm (| 4005366720 (| (<< a1 12) a1)))            ; vcvt.s32.f64 s(2d), d
+                (%arm32-w! asm (| 3994028560 (| (<< a1 16) (<< a0 12))))))  ; vmov r, s(2d)
+          ((eq? descriptor 'fcvt/s)
+            (do (%arm32-w! asm (| 4004973504 (| (<< a1 12) a1)))            ; vcvt.f32.f64 s(2d), d
+                (%arm32-w! asm (| 3994028560 (| (<< a1 16) (<< a0 12))))))  ; vmov r, s(2d)
+          ((eq? descriptor 'fcvt/d)
+            (do (%arm32-w! asm (| 3992979984 (| (<< a0 16) (<< a1 12))))    ; vmov s(2d), r
+                (%arm32-w! asm (| 4004973248 (| (<< a0 12) a0)))))          ; vcvt.f64.f32 d, s(2d)
+          ((eq? descriptor 'scvtf/s)
+            ; through s0, the scratch, since the answer is an integer register
+            (do (%arm32-w! asm (| 3992979984 (<< a1 12)))                   ; vmov s0, r
+                (%arm32-w! asm 4005038784)                                  ; vcvt.f32.s32 s0, s0
+                (%arm32-w! asm (| 3994028560 (<< a0 12)))))                 ; vmov r, s0
+          ((or (eq? descriptor 'flt) (eq? descriptor 'feq))
+            (let ((yes (if (eq? descriptor 'flt) 4 0))     ; MI, EQ
+                  (no  (if (eq? descriptor 'flt) 5 1)))    ; PL, NE
+              (%arm32-w! asm (| 4004776768 (| (<< a1 12) a2)))              ; vcmp.f64 dn, dm
+              (%arm32-w! asm 4008835600)                                    ; vmrs APSR_nzcv, fpscr
+              (%arm32-w! asm (| 60817409 (| (<< yes 28) (<< a0 12))))       ; mov<yes> rd, #1
+              (%arm32-w! asm (| 60817408 (| (<< no 28) (<< a0 12))))))      ; mov<no> rd, #0
+          (#t (Err raise 'value (Str append "asm: arm32 has no lowering " (symbol->str descriptor)) ())))))))
 
-; --- Patch resolver: B/BL's 24-bit word offset, from the pipeline's pc ---
+; --- An address in reach of the whole executable ---
+; adr already reaches every address on a 4-byte word, so the far form is it.
+(def asm-adr-far!
+  (fn (_ asm rd-reg lname)
+    (asm-emit! asm 'adr (if (pair? rd-reg) rd-reg (reg rd-reg)) (label lname))))
+
+; --- Patch resolver ---
+; B/BL/B<cond>: the 24-bit word offset from the pipeline's pc, eight bytes
+; on.  adr: the distance from the ADD's pc (the MOVW at OFFSET, the ADD
+; eight bytes on, its pc eight more) into the MOVW/MOVT pair, the register
+; read back from the MOVW.
 (def %arm32-patch
-  ((fn (_ i- i& i| i>>)
+  ((fn (_ i- i& i| i>> i+)
      (fn (_ buf-ptr offset width ptype target)
        (match
          ((eq? ptype 'arm32-rel24)
            (ptr-set! buf-ptr offset
              (i| (i& (ptr-ref buf-ptr offset 4) -16777216)
-                 (i& (i>> (i- target (+ offset 8)) 2) 16777215))
+                 (i& (i>> (i- target (i+ offset 8)) 2) 16777215))
              4))
+         ((eq? ptype 'arm32-adr)
+           ((fn (_ d rd)
+              (do (ptr-set! buf-ptr offset (%arm32-movw rd d) 4)
+                  (ptr-set! buf-ptr (i+ offset 4) (%arm32-movt rd d) 4)))
+            (i- target (i+ offset 16))
+            (i& (i>> (ptr-ref buf-ptr offset 4) 12) 15)))
          (#t (ptr-set! buf-ptr offset (- target (+ offset width)) width)))))
-   (prim-ref 'int '-) (prim-ref 'int '&) (prim-ref 'int '|) (prim-ref 'int '>>)))
+   (prim-ref 'int '-) (prim-ref 'int '&) (prim-ref 'int '|) (prim-ref 'int '>>) (prim-ref 'int '+)))
 
 ; --- Export architecture: (table encoder patcher relocator) ---
 (set! %arch (list %arm32-table %arm32-dispatch %arm32-patch %asm-reloc))

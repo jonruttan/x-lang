@@ -569,12 +569,14 @@
 ; The sites are held in a code object, whose word units an image carries
 ; whole: a string is rebuilt up to its first NUL, and an offset or a slot is
 ; mostly zero bytes.  An engine with no code type holds no entries, and a
-; string serves the one pour.
+; string serves the one pour.  A site is eight bytes whatever the word, so
+; N sites are N words on an 8-byte word and twice that on a 4-byte one.
 (def %asm-cache-words
   (fn (_ n)
     (if (null? %asm-cache-code-type) (str-make (int* 8 (if (int= n 0) 1 n)))
-      (do (def b (obj-make %asm-cache-code-type (int+ n 1)))
-          (obj-set! b 0 n)
+      (do (def words (int* n (int/ 8 %word-size)))
+          (def b (obj-make %asm-cache-code-type (int+ words 1)))
+          (obj-set! b 0 words)
           b))))
 
 (def %asm-cache-words-at
@@ -693,10 +695,12 @@
   (fn (_) (%asm-cache-text %asm-cache-patcher-expr () #f)))
 
 ; The patcher, or () for the x walk: looked for once a process, held or cached,
-; never compiled here -- a pour must not load the compiler.
+; never compiled here -- a pour must not load the compiler.  A site packs its
+; offset and its slot into one 8-byte word, which a 4-byte word cannot read
+; whole, so there the walk is the patcher.
 (def %asm-cache-patcher
   (fn (_)
-    (def c (first %asm-cache-patcher-cell))
+    (def c (if (= %word-size 8) (first %asm-cache-patcher-cell) (lit none)))
     (if (null? c)
       (do
         (%set-first! %asm-cache-patcher-cell #f)

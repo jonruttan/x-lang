@@ -215,14 +215,12 @@
 (match
   (%asm-arm64? (import x/tool/asm/arm64))
   (arch-x86-64? (import x/tool/asm/x86_64))
-  ; 32-bit arm has the float stubs' vocabulary only: the compiler's first
-  ; mnemonic outside it raises, and the probe keeps the interpreted twin.
   (arch-arm? (import x/tool/asm/arm32))
   (#t ()))
 
 (doc (def asm-backend? (fn (_) (not (null? %arch))))
   (returns BOOL "Whether this platform has an assembler backend")
-  (sample "(asm-backend?)" "#t on arm64 and x86-64, #f on 32-bit arm")
+  (sample "(asm-backend?)" "#t on arm64, x86-64 and 32-bit arm")
   "Whether the assembler can emit for this machine: what a module that emits code at load asks before it does, since asm-emit! refuses where there is no backend.")
 
 (doc (provide x/asm

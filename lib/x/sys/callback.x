@@ -100,12 +100,13 @@
       (def eval-arg (Callback %door "jit_eval_arg"))
       (def pair-at (ptr->int (obj->ptr pair)))
       (def atomint (Callback %door "jit_atomint"))
-      ; where the C convention puts the arguments, past the prologue: arm64's
-      ; x0-x3; x86-64's rdi (the prologue's x0), rsi (x1), rdx and rcx
-      (def args-in (if arch-arm64? (list x0 x1 (reg 2) (reg 3)) (list x0 x1 (reg 2) (reg 1))))
-      (def keep (list x19 x20 x21 x22))
       (if (not (asm-backend?))
         (Err raise (lit state) "Callback: no assembler backend for this platform" ()))
+      ; where the C convention puts the arguments, past the prologue: arm64's
+      ; x0-x3 and 32-bit arm's r0-r3; x86-64's rdi (the prologue's x0), rsi
+      ; (x1), rdx and rcx
+      (def args-in (if arch-x86-64? (list x0 x1 (reg 2) (reg 1)) (list x0 x1 (reg 2) (reg 3))))
+      (def keep (list x19 x20 x21 x22))
       (def a (asm-new 1024))
       (def call (fn (_ addr) (do (asm-load-imm64! a x8 addr) (asm-emit! a (lit blr) x8))))
       (def nth (fn (self l i) (if (= i 0) (first l) (self (rest l) (- i 1)))))

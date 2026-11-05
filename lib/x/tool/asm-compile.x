@@ -515,7 +515,7 @@
 ;   (%mem-ref  ADDR-EXPR INDEX)        -> word at ADDR[INDEX]
 ;   (%mem-set! ADDR-EXPR INDEX VALUE)  -> stores, yields VALUE
 ;
-; INDEX is a literal (imm12 scaled by 8: 0..4095 words).  No bounds
+; INDEX is a literal, 0..4095 words, scaled by the word.  No bounds
 ; check exists and none is possible -- this is the raw-pointer layer,
 ; the same trust model as (obj ref); the caller owns the buffer.
 (def %asm-mem-offset
@@ -524,7 +524,7 @@
       (Err raise 'value "asm-compile: %mem index must be a literal" ()))
     (if (or (< idx 0) (> idx 4095))
       (Err raise 'value "asm-compile: %mem index out of range (0..4095)" ()))
-    (* idx 8)))
+    (* idx %word-size)))
 
 (def %asm-compile-mem-ref
   (fn (_ asm args params)
@@ -546,7 +546,7 @@
 ; The constant-index forms above cover fixed slots; these take the index
 ; as an EXPRESSION, which is what a loop needs (K[t], W[t & 15]) -- and
 ; a loop is what keeps a generated body small enough to compile.  No new
-; encoding: scale the index by 8 with lslv, add it to the base, then the
+; encoding: scale the index by the word with lslv, add it to the base, then the
 ; same ldr/str at offset 0.
 ;
 ;   (%mem-ref-at  ADDR IDX)        -> word at ADDR[IDX]
@@ -555,8 +555,8 @@
 ; Unchecked, like the constant-index pair: the caller owns the buffer.
 (def %asm-emit-scale-index!
   (fn (_ asm)
-    ; x0 = index -> x1 = index * 8
-    (asm-emit! asm 'mov x2 (imm 3))
+    ; x0 = index -> x1 = index * the word
+    (asm-emit! asm 'mov x2 (imm (if (= %word-size 8) 3 2)))
     (asm-emit! asm 'lslv x0 x0 x2)
     (asm-emit! asm 'mov x1 x0)))
 
@@ -565,7 +565,7 @@
     (%asm-compile-expr asm (first args) params)          ; base
     (asm-push! asm x0)
     (%asm-compile-expr asm (first (rest args)) params)   ; index
-    (%asm-emit-scale-index! asm)                         ; x1 = index*8
+    (%asm-emit-scale-index! asm)                         ; x1 = index*word
     (asm-pop! asm x0)                             ; x0 = base
     (asm-emit! asm 'add x0 x0 x1)
     (asm-emit! asm (lit ldr) x0 (mem 0 0))))
