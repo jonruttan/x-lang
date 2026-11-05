@@ -297,6 +297,9 @@
     ; ADR Xd, label (the label's address, PC-relative, within a megabyte)
     (pair 'adr (list (pair 'rl 'adr)))
 
+    ; ADRP Xd, label (the label's page, PC-relative, within four gigabytes)
+    (pair 'adrp (list (pair 'rl 'adrp)))
+
     ; BR Xn (branch to register)
     (pair 'br (list
       (pair 'r (list 3592355840          ; 0xD61F0000
@@ -513,6 +516,12 @@
       ((eq? descriptor 'adr)
         (do (asm-patch! asm 4 'arm64-adr (%op-value (first (rest args))))
             (%emit-u32-le! asm (| 268435456 (& (%op-value (first args)) 31)))))
+      ; ADRP Xd, label = 0x90000000 | immlo<<29 | immhi<<5 | Rd: the
+      ; label's page, as pages on from this instruction's, in the same 21
+      ; bits; the resolver fills them in
+      ((eq? descriptor 'adrp)
+        (do (asm-patch! asm 4 'arm64-adrp (%op-value (first (rest args))))
+            (%emit-u32-le! asm (| 2415919104 (& (%op-value (first args)) 31)))))
       ((or (eq? descriptor 'flt) (eq? descriptor 'feq))
         (let ((rd (%op-value (first args)))
               (rn (%op-value (first (rest args))))
@@ -548,9 +557,50 @@
              ; 0x9F00001F keeps the opcode bits and Rd
              (ptr-set! buf-ptr offset
                (| (& word 2667577375) (| (<< (& bytes 3) 29) (<< (& (>> bytes 2) 524287) 5))) 4)))
+         ; ADRP and the ADD after it: the buffer is page-aligned, so an
+         ; offset's page is its address's
+         ((eq? ptype 'arm64-adrp)
+           (asm-patch-adrp! buf-ptr offset (i- (i>> target 12) (i>> offset 12))))
+         ((eq? ptype 'arm64-lo12)
+           (asm-patch-lo12! buf-ptr offset target))
          ; Generic fallback
          (#t (ptr-set! buf-ptr offset (- target (+ offset width)) width)))))
    (prim-ref 'int '-) (prim-ref 'int '&) (prim-ref 'int '|) (prim-ref 'int '<<) (prim-ref 'int '>>)))
+
+; --- An address in reach of the whole executable (ADRP + ADD) ---
+; adr reaches a megabyte; a program linked from many parts is larger.
+; ADRP Xd takes the label's page, ADD Xd, Xd, #lo12 the rest, four
+; gigabytes either way.  A linker patches the pair where the code's page
+; is not the buffer's: the two encoders below take the page count and the
+; low twelve bits themselves, so it can.
+(def asm-adr-far!
+  (fn (_ asm rd-reg lname)
+    (def rd (if (pair? rd-reg) (%op-value rd-reg) rd-reg))
+    (asm-emit! asm 'adrp (reg rd) (label lname))
+    (asm-patch! asm 4 'arm64-lo12 lname)
+    ; ADD Xd, Xd, #0, the immediate patched in
+    (%emit-u32-le! asm (| 2432696320 (| (<< rd 5) rd)))))
+
+; the ADRP at OFFSET, its immediate set to PAGES, which may be below zero;
+; 0x9F00001F keeps the opcode bits and Rd
+(def asm-patch-adrp!
+  ((fn (_ i& i| i<< i>>)
+     (fn (_ buf-ptr offset pages)
+       (ptr-set! buf-ptr offset
+         (i| (i& (ptr-ref buf-ptr offset 4) 2667577375)
+             (i| (i<< (i& pages 3) 29) (i<< (i& (i>> pages 2) 524287) 5)))
+         4)))
+   (prim-ref 'int '&) (prim-ref 'int '|) (prim-ref 'int '<<) (prim-ref 'int '>>)))
+
+; the ADD at OFFSET, its immediate set to the low twelve bits of ADDRESS;
+; 0xFFC003FF keeps the opcode bits, Rn and Rd
+(def asm-patch-lo12!
+  ((fn (_ i& i| i<<)
+     (fn (_ buf-ptr offset address)
+       (ptr-set! buf-ptr offset
+         (i| (i& (ptr-ref buf-ptr offset 4) 4290774015) (i<< (i& address 4095) 10))
+         4)))
+   (prim-ref 'int '&) (prim-ref 'int '|) (prim-ref 'int '<<)))
 
 ; --- Export architecture: (table encoder patcher relocator) ---
 ; The relocator is asm-code.x's: a buffer poured from the byte cache needs it
