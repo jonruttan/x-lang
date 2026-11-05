@@ -265,7 +265,8 @@
         (example "(Str8 str \"x=\" 5 \"!\")" "\"x=5!\""))
       (apply %str-build args))                     ; delegate to the %-private builder
     (method iter (self (param s STRING "String to iterate"))
-      (doc "An iterator over the string's characters." (returns ITER "Character iterator"))
+      (doc "An iterator over the string's characters." (returns ITER "Character iterator")
+        (example "(Iter ->list (Str8 iter \"abc\"))" "(#\\a #\\b #\\c)"))
       (Iter new s))
     (method make   (self (param k INTEGER "Number of elements") . (param rest CHARACTER "Fill character (default space)"))
       (doc "A string of k copies of the fill character (space if omitted)."
