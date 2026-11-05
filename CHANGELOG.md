@@ -5,6 +5,46 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-11-04
+
+**A Lexer make in an image writer's child sweeps after each state it compiles, so a cold-cache write no longer holds every compile's garbage at once.** ([#1162]) x-ash's image write in a fresh x-os build container went from 2290 MB to 954 MB peak.
+
+[#1162]: https://github.com/jonruttan/x-lang/pull/1162
+
+**`(Base64 encode-region REGION)` encodes a region `(BUF START LEN)` read by count, NULs included, and answers the text as a region.** ([#1161]) A compiled encoder is built on its own for inputs of 4 KB or more, and `(Base64 encode-jit!)` builds it on demand; output is the same either way.  1 MB encodes in about 0.2 s, where encode-bytes takes minutes.
+
+[#1161]: https://github.com/jonruttan/x-lang/pull/1161
+
+**Bzip2 compresses to bzip2 in x, with no libbz2.** ([#1160]) `(Bzip2 compress s level)` answers `(OUT N)` for one stream at a block size digit of 1 to 9; `(Bzip2 stream)` and `feed` write one a piece at a time, a block as the pieces fill it.  The streams are byte for byte the ones busybox's compressor writes -- the run-length coder, busybox's fallback sort, move-to-front, zero-run coding and up to six Huffman tables, a table for each group of fifty symbols -- checked against what bzip2 1.0.8 wrote at `-1` and `-9`.  The run, sort, move-to-front, selection and writing loops are compiled (`(Bzip2 jit!)`, past 4KB on its own, always for a stream) and adopted only after writing the check streams exactly as the pure-x ones do.
+
+[#1160]: https://github.com/jonruttan/x-lang/pull/1160
+
+**`make bench` counts the boot alone.** ([#1159]) Each row's counters are taken before
+`x/tool/profile` is imported, so the profiler's own load no longer lands in
+them; `profile-snapshot` returns the counters and `profile-dump` prints one
+it is given.  Evals, before -> after: x-core 24.21M -> 22.17M, r5rs 55.38M
+-> 50.81M, r7rs 59.91M -> 55.31M, sweet 27.03M -> 23.98M, r5rs-img 10.55M
+-> 5.98M, r7rs-img 10.59M -> 5.99M, sweet-img 6.08M -> 2.03M.
+
+[#1159]: https://github.com/jonruttan/x-lang/pull/1159
+
+**A selective import into a scoped module asks the engine whether the name is already bound, rather than walking the module's tree in the library.** ([#1157]) The check behaves the same; `%module-import-one!` is nine lines shorter.
+
+[#1157]: https://github.com/jonruttan/x-lang/pull/1157
+
+**A scoped module's names cost a lookup from inside it one tree search, not a walk.** ([#1154]) The engine is x-engine-c v0.2.26, whose #114 keeps a tree behind
+an environment the language makes with `pair`, as a module's is, and the
+library reads it as one: `Env bindings` and `Env names` flatten a module's
+frame as they do the root's, and a selective import's check for a name
+already bound walks the tree.  x-coreutils's `vi`, a module of 337 names,
+goes from 2.6 back to 1.0 ms a keystroke.
+
+[#1154]: https://github.com/jonruttan/x-lang/pull/1154
+
+**`make bench` compares like with like: every bundle row boots from source, and `-img` rows time the state-image boot.** ([#1153]) The r5rs, r7rs and sweet rows had been loading x.sh's cached state image while x-core booted from source, so the bundles read as faster than the core they run on (r5rs 1.06s against x-core 2.80s). From source, on engine v0.2.25: x-core 2.73s, r5rs 5.92s, r7rs 6.69s, sweet 2.91s; from the image: r5rs 1.09s, r7rs 1.11s, sweet 0.66s.
+
+[#1153]: https://github.com/jonruttan/x-lang/pull/1153
+
 ## [0.45.0] - 2026-11-03
 
 **`Socket tcp-listen` and `tcp-listen-on` take a list or Gen of candidate ports.** ([#1149]) `(Socket tcp-listen (list 8080 (Gen range 9000 9010) 0))` binds 8080 if it is free, else the first free port from 9000 to 9009, else one the kernel chooses; `(Socket local-port fd)` reads which. Only a port in use moves on to the next candidate. When all are in use the eaddrinuse Err names the ports tried. An INTEGER behaves as before.
