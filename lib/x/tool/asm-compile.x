@@ -1262,6 +1262,11 @@
 
 (def asm-compile-fresh
   (fn (_ expr fvars mode)
+    ; A platform with no assembler backend has no lane at all: say so here,
+    ; where the tower's probe catches it, not as an unbound asm-prologue!
+    ; a thousand lines in.
+    (if (not (asm-backend?))
+      (Err raise 'state "asm-compile: no assembler backend for this platform" ()))
     ; Refuse before emitting anything when the JIT runtime is not
     ; reachable.  An unresolved helper is address 0, and a compiled call
     ; to 0 is a SIGSEGV arbitrarily far from the cause -- which is what a
