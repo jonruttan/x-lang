@@ -104,6 +104,7 @@ loaded code forever.
 ### configurable: import-path! adds a root, falling back to the lib default
 
 ```x
+(def %ip-roots (first %import-roots-cell))
 (import-path! "lib/x")
 (list (str=? (%module-resolve 'core/list) "lib/x/core/list.x")
       (str=? (%module-resolve 'x/num/random) "lib/x/num/random.x"))
@@ -293,6 +294,18 @@ keeps the loud contract.
 ```
 ---
     refused
+
+### the roots go back to what they were before this file armed any
+
+The import roots are process state, and a spec batch runs several files in
+one process: a root left armed here is a root the next file searches.
+
+```x
+(do (%set-first! %import-roots-cell %ip-roots)
+    (first %import-roots-cell))
+```
+---
+    ("lib")
 
 ## guard unwinds include state (#242)
 
