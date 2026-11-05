@@ -12,4 +12,4 @@
 ; 2026-10-26 audit's figure, 1072 of 1747, came from a form parser over
 ; the sources; the walk counts what help reads.
 
-(entries-without-example 1321)
+(entries-without-example 1266)
