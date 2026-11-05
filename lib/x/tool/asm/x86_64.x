@@ -628,6 +628,13 @@
       (pair 'l (list () (list 232) ()           ; 0xE8
         (list (list 'rel32 0))))))
 
+    ; BL -- arm64's name for the call by label; same encoding as CALL, as
+    ; B is JMP's, so code that calls into another object keeps the one
+    ; vocabulary too
+    (pair 'bl (list
+      (pair 'l (list () (list 232) ()           ; 0xE8
+        (list (list 'rel32 0))))))
+
     ; The scalar double instructions, all lowered by %x86-float
     (pair 'fmov/d (list (pair 'rr '(sse fmov/d))))
     (pair 'fmov/x (list (pair 'rr '(sse fmov/x))))
@@ -695,6 +702,13 @@
     (%emit-bytes! asm (list (if (> rd 7) 73 72)   ; 0x48 REX.W / 0x49 REX.WB
                             (| 184 (& rd 7))))    ; 0xB8+rd
     (%emit-u64-le! asm val)))
+
+; --- An address in reach of the whole executable ---
+; LEA from RIP reaches two gigabytes either way, so adr is the whole of it
+; here; arm64's needs ADRP and an ADD.
+(def asm-adr-far!
+  (fn (_ asm rd-reg lname)
+    (asm-emit! asm 'adr (if (pair? rd-reg) rd-reg (reg rd-reg)) (label lname))))
 
 ; --- Patch resolver: x86_64 rel32 ---
 ; every value here is an INT, so the offset is worked out on the integer

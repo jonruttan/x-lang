@@ -169,6 +169,42 @@
 (def asm-pos
   (fn (_ asm) (obj-ref asm 1)))
 
+; the labels placed so far, (NAME . POSITION), newest first
+(def asm-labels
+  (fn (_ asm) (obj-ref asm 3)))
+
+; The patch at OFFSET in the code at BUF-PTR -- WIDTH and TYPE as
+; asm-patch! took them -- resolved to TARGET, an offset in the same code,
+; as the backend encodes it: what asm-finalize! does for a label, for a
+; linker that places the code beside other code.  The buffer must still
+; be writable.
+(def asm-patch-at!
+  (fn (_ buf-ptr offset width type target)
+    ((List ref 2 %arch) buf-ptr offset width type target)))
+
+; The patches that name a label the assembler has not placed, taken out of
+; it, oldest first: what a linker resolves, once the code is a section
+; beside others.  Each is (OFFSET WIDTH TYPE LABEL), as asm-patch! wrote
+; it; what stays is what asm-finalize! then resolves.  TYPES, when given,
+; names patch types taken whether their label is placed or not: a
+; page-relative address (arm64-adrp, arm64-lo12) is right only where the
+; buffer's page is the code's, which a linker that puts the code at an
+; offset in a file cannot promise, so it resolves those itself.
+(def asm-unresolved!
+  (fn (_ asm . more)
+    (def types (if (null? more) () (first more)))
+    (def find (asm-label-finder (obj-ref asm 3)))
+    (def typed?
+      (fn (self t ts) (if (null? ts) #f (if (eq? t (first ts)) #t (self t (rest ts))))))
+    (def go
+      (fn (self ps kept taken)
+        (if (null? ps) (do (obj-set! asm 4 kept) taken)
+          (if (if (typed? (first (rest (rest (first ps)))) types) #t
+                (null? (find (first (rest (rest (rest (first ps))))))))
+            (self (rest ps) kept (pair (first ps) taken))
+            (self (rest ps) (pair (first ps) kept) taken)))))
+    (go (obj-ref asm 4) () ())))
+
 
 ; --- Load architecture ---
 ; import, not a path literal: resolves through the import roots so the
@@ -178,6 +214,6 @@
   (import x/tool/asm/x86_64))
 
 (doc (provide x/asm
-  asm-emit! asm-label! asm-patch! asm-pos
+  asm-emit! asm-label! asm-patch! asm-pos asm-labels asm-unresolved! asm-patch-at!
   reg imm mem label)
   "Data-driven assembler with JIT execution via mmap; the buffers it emits into are x/tool/asm-code's.")
