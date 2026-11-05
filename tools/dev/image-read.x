@@ -84,7 +84,9 @@
   (%fail (pair (lit engine-release) (%p->s (%i2p (%i+ BLOB (%i+ RELEASE W)))))))
 
 ; --- names in the tables (spec 3.2) -----------------------------------------
-(def %words-for (fn (_ n) (%i+ 1 (%shr (%i+ n 1) 3))))
+; Whole words of this machine's width; the division is the engine's (int /).
+(def %words-for
+  ((fn (_ idiv) (fn (_ n) (%i+ 1 (idiv (%i+ n 1) W)))) (prim! (lit int) (lit /))))
 (def %name-at (fn (_ pos) (%p->s (%i2p (at (%i+ pos 1))))))   ; pos: the len word
 (def %after-name (fn (_ pos) (%i+ pos (%i+ 1 (%words-for (w pos))))))
 (def %str-byte-ref (prim! (lit str) (lit byte-ref)))

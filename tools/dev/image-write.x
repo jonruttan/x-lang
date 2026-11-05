@@ -400,7 +400,9 @@
 (def %XCUR 0)                    ; words written
 (def %XCOUNT 0)
 (def %XIDX (%ht-new))            ; address -> external index
-(def %words-for (fn (_ n) (image-int+ 1 (image-int>> (image-int+ n 1) 3))))
+; The words a name of N bytes takes with its NUL: whole words, on this
+; machine's word, as the reader's %words-for counts them.
+(def %words-for (fn (_ n) (image-int+ 1 (image-int/ (image-int+ n 1) %word-size))))
 (def %put-name
   (fn (_ b cur nm)
     ((fn (_ n)

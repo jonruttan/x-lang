@@ -181,7 +181,12 @@
   (arch-x86-64? (import x/tool/asm/x86_64))
   (#t ()))
 
+(doc (def asm-backend? (fn (_) (not (null? %arch))))
+  (returns BOOL "Whether this platform has an assembler backend")
+  (sample "(asm-backend?)" "#t on arm64 and x86-64, #f on 32-bit arm")
+  "Whether the assembler can emit for this machine: what a module that emits code at load asks before it does, since asm-emit! refuses where there is no backend.")
+
 (doc (provide x/asm
-  asm-emit! asm-label! asm-patch! asm-pos
+  asm-emit! asm-label! asm-patch! asm-pos asm-backend?
   reg imm mem label)
   "Data-driven assembler with JIT execution via mmap; the buffers it emits into are x/tool/asm-code's.")

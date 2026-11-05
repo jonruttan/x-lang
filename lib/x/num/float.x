@@ -318,13 +318,15 @@
 (def %stub-capacity 128)
 
 ; The entry point for LABEL (NAME resolved through libm when it has one), or
-; nil when NAME does not resolve.  Each stub is its own small buffer.  The
-; frame is the assembler's prologue: on x86-64 it is also what moves the
-; first argument into x0, and it keeps the stack aligned for the libm call.
+; nil when NAME does not resolve, or when this machine has no assembler
+; backend to emit it with: a platform without one loads the tower with its
+; float cells empty.  Each stub is its own small buffer.  The frame is the
+; assembler's prologue: on x86-64 it is also what moves the first argument
+; into x0, and it keeps the stack aligned for the libm call.
 (def %stub-emit
   (fn (_ label name)
     (let ((addr (if (null? name) () (ffi-dlsym %libm name))))
-      (if (and (not (null? name)) (null? addr)) ()
+      (if (or (not (asm-backend?)) (and (not (null? name)) (null? addr))) ()
         (let ((a (asm-new %stub-capacity)))
           (do (asm-prologue! a)
               (%stub-body! a label (if (null? addr) 0 (ptr->int addr)))
