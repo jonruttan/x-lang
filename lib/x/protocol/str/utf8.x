@@ -117,11 +117,13 @@
     ; --- The byte <-> code-point codec (x/codec/utf8 surfaces here) ---
     (method seq-len (self (param b INTEGER "Lead byte value (0-255)"))
       (doc "Number of bytes in the UTF-8 sequence introduced by lead byte b."
-        (returns INTEGER "Sequence length 1-4"))
+        (returns INTEGER "Sequence length 1-4")
+        (example "(StrUtf8 seq-len 194)" "2"))
       (utf8-seq-len b))
     (method decode (self (param s STRING "Byte string") (param i INTEGER "Byte index of a sequence start"))
       (doc "Decode the UTF-8 sequence at byte index i."
-        (returns PAIR "(code-point . next-byte-index)"))
+        (returns PAIR "(code-point . next-byte-index)")
+        (example "(StrUtf8 decode \"$¢\" 1)" "(162 . 3)"))
       (utf8-decode s i))
     (method encode (self (param cp INTEGER "Code point to encode"))
       (doc "Encode a code point as a list of its 1-4 UTF-8 byte values. Out-of-range emits U+FFFD."
@@ -130,11 +132,13 @@
       (utf8-encode cp))
     (method width (self (param s STRING "Byte string") (param i INTEGER "Byte index of a sequence start"))
       (doc "Byte width of the UTF-8 sequence at byte index i. Allocation-free."
-        (returns INTEGER "Sequence length 1-4"))
+        (returns INTEGER "Sequence length 1-4")
+        (example "(StrUtf8 width \"$¢\" 1)" "2"))
       (utf8-width s i))
     (method cp-at (self (param s STRING "Byte string") (param i INTEGER "Byte index of a sequence start"))
       (doc "Code point at byte index i. Allocation-free (no pair, no closure)."
-        (returns INTEGER "Decoded code point"))
+        (returns INTEGER "Decoded code point")
+        (example "(StrUtf8 cp-at \"$¢\" 1)" "162"))
       (utf8-cp-at s i))))
 
 ; Str = the AMBIENT string protocol. The default is UTF-8 (code points): the
