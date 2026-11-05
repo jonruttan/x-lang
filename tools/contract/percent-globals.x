@@ -290,6 +290,7 @@
 ; per-backend work (MOVZ + 3x MOVK, sixteen bits to a word).
 ; arm64.x fell 9 to 8 when %arm64-reloc moved to asm-code.x.
 (file "lib/x/tool/asm/arm64.x" 6)
+(file "lib/x/tool/asm/arm32.x" 6)
 ; x86_64.x rose 23 to 24 for %x86_64-reloc: the same operation, one flat
 ; 8-byte store after the two opcode bytes.
 ; x86_64.x rose 24 to 25 for %x86-float: the scalar double instructions (SSE2),

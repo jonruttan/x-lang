@@ -3,7 +3,7 @@
 
 (import x/type/class)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(import x/core/doors buf-tok char->int ffi-dlopen ffi-dlsym int% int* int+ int/ int= io-display-to-str ptr->int ptr-call str-byte-len str-byte-ref str-byte-sub type-by-atom type-from-cell type-make type-make-instance type-of type-push-call type-push-op type?)
+(import x/core/doors buf-tok char->int ffi-dlopen ffi-dlsym int% int* int+ int/ int= io-display-to-str obj-make obj-ref obj-set! ptr->int ptr-call ptr-ref str-byte-len str-byte-ref str-byte-sub type-by-atom type-from-cell type-make type-make-instance type-of type-push-call type-push-op type?)
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 
@@ -24,7 +24,12 @@
 (import x/tool/asm)
 
 ;
-; Float values are stored as IEEE 754 double bit patterns inside integers.
+; Float values are stored as IEEE 754 double bit patterns: inside an integer
+; where the word holds all 64 bits, and in a VECTOR of two words, the low word
+; first, where it does not (a 4-byte word).  A value's payload is `(first
+; value)` on either; what reads or makes one below asks %word-size, and the
+; stubs take the two-word form as two arguments a double and give their
+; answer back through a pointer.
 ; The tokenizer's competitive scoring system ensures "3.14" (score 4)
 ; outscores the integer match "3" (score 1).
 ;
@@ -52,10 +57,12 @@
 
 ; The limb base, and the largest factor each pass multiplies by:
 ; a limb times a factor, plus the carry, stays under 2^63.
-(def %limb-base 1000000000)
-(def %limb-digits 9)
-(def %pow5-step 12)                  ; 5^12 = 244140625
-(def %pow2-step 29)                  ; 2^29 = 536870912
+; On a 4-byte word the same bound is 2^31: base 10^4, and factors 5^6 and
+; 2^14, so a limb times a factor plus the carry stays under 2^28.
+(def %limb-base (if (int= %word-size 8) 1000000000 10000))
+(def %limb-digits (if (int= %word-size 8) 9 4))
+(def %pow5-step (if (int= %word-size 8) 12 6))   ; 5^12 = 244140625; 5^6 = 15625
+(def %pow2-step (if (int= %word-size 8) 29 14))  ; 2^29 = 536870912; 2^14 = 16384
 
 ; The machine int operators throughout: these are limbs and small factors,
 ; and the generic / answers a rational once num/rational has loaded.
@@ -75,6 +82,15 @@
          (let ((v (int+ (int* (first ls) s) carry)))
            (pair (int% v %limb-base) (self (rest ls) (int/ v %limb-base))))))
      limbs 0)))
+
+; LIMBS + S, S small.
+(def %limbs+s
+  (fn (self ls s)
+    (match
+      ((int= s 0) ls)
+      ((null? ls) (%int->limbs s))
+      (#t (let ((v (int+ (first ls) s)))
+            (pair (int% v %limb-base) (self (rest ls) (int/ v %limb-base))))))))
 
 ; LIMBS * B^K, K passes of B^STEP and one of the rest.
 (def %limbs*pow
@@ -113,13 +129,20 @@
     (if (>= i (str-byte-len ds)) #f
       (if (int= (%byte-at ds i) 48) (self ds (+ i 1)) #t))))
 
-; The machine int the first N digits of DS spell (N <= 15, so it fits).
-(def %digits->int
-  (fn (_ ds n)
-    ((fn (self i acc)
-       (if (>= i n) acc
-         (self (+ i 1) (+ (* acc 10) (- (%byte-at ds i) 48)))))
-     0 0)))
+; DS plus one, as digits: the trailing nines roll to zeros and the digit
+; before them goes up, or a 1 goes in front of a string of nines.  On the
+; string, not through an int: fifteen digits are more than a 4-byte word.
+(def %digits-inc
+  (fn (_ ds)
+    (def n (str-byte-len ds))
+    ((fn (self i)
+       (match
+         ((< i 0) (Str8 append "1" (%zeros n)))
+         ((int= (%byte-at ds i) 57) (self (- i 1)))
+         (#t (Str8 append (str-byte-sub ds 0 i)
+                          (io-display-to-str (- (%byte-at ds i) 47))
+                          (%zeros (- (- n i) 1))))))
+     (- n 1))))
 
 ; Round the digit string DS (value DS * 10^(X - len + 1), leading digit
 ; at decimal exponent X) to P significant digits, ties to even.  Answers
@@ -129,15 +152,14 @@
     (if (<= (str-byte-len ds) p) (pair ds x)
       (let ((kept (str-byte-sub ds 0 p))
             (next (- (%byte-at ds p) 48)))
-        (def k (%digits->int ds p))
         (def up
           (match
             ((> next 5) #t)
             ((< next 5) #f)
             ((%any-nonzero? ds (+ p 1)) #t)
-            (#t (int= (& k 1) 1))))
+            (#t (int= (& (%byte-at ds (- p 1)) 1) 1))))
         (if (not up) (pair kept x)
-          (let ((s (io-display-to-str (+ k 1))))
+          (let ((s (%digits-inc kept)))
             (if (> (str-byte-len s) p)
               (pair (str-byte-sub s 0 p) (+ x 1))
               (pair s x))))))))
@@ -161,24 +183,37 @@
         (Str8 append (str-byte-sub ds 0 (+ x 1)) "." (str-byte-sub ds (+ x 1) (- n (+ x 1)))))
       (#t (Str8 append ds (%zeros (- (+ x 1) n)))))))
 
+; The sign, exponent and fraction are read from the high word: the whole
+; payload on an 8-byte word, the second of the two on a 4-byte one, where
+; the fraction's upper twenty bits are there and its lower thirty-two in the
+; low word.  The mantissa goes straight to limbs, since on a 4-byte word no
+; int holds its fifty-three bits: the low word joins sixteen bits at a time.
 (def %bits->g
   (fn (_ bits)
-    (def neg (< bits 0))
+    (def wide (int= %word-size 8))
+    (def hi (if wide bits (obj-ref bits 2)))
+    (def lo (if wide 0 (obj-ref bits 1)))
+    (def neg (< hi 0))
     (def sign (if neg "-" ""))
-    (def ex (& (>> bits 52) 2047))
-    (def frac (& bits (- (<< 1 52) 1)))
+    (def ex (& (>> hi (if wide 52 20)) 2047))
+    (def frac (& hi (if wide (- (<< 1 52) 1) 1048575)))
+    (def frac-zero? (and (int= frac 0) (int= lo 0)))
     (match
       ((int= ex 2047)
-        (if (int= frac 0) (Str8 append sign "inf") "nan"))
-      ((and (int= ex 0) (int= frac 0))
+        (if frac-zero? (Str8 append sign "inf") "nan"))
+      ((and (int= ex 0) frac-zero?)
         (Str8 append sign "0"))
       (#t
-        (let ((m (if (int= ex 0) frac (| frac (<< 1 52))))
+        (let ((mh (if (int= ex 0) frac (| frac (<< 1 (if wide 52 20)))))
               (e (if (int= ex 0) -1074 (- ex 1075))))
+          (def m
+            (if wide (%int->limbs mh)
+              (%limbs+s (%limbs* (%limbs+s (%limbs* (%int->limbs mh) 65536) (& (>> lo 16) 65535)) 65536)
+                        (& lo 65535))))
           (def ds (%limbs->str
                     (if (< e 0)
-                      (%limbs*pow (%int->limbs m) 5 %pow5-step (- 0 e))
-                      (%limbs*pow (%int->limbs m) 2 %pow2-step e))))
+                      (%limbs*pow m 5 %pow5-step (- 0 e))
+                      (%limbs*pow m 2 %pow2-step e))))
           (def x (+ (- (str-byte-len ds) 1) (if (< e 0) e 0)))
           (def r (%round-digits ds x %float-precision))
           (Str8 append sign
@@ -247,6 +282,14 @@
             (ffi-dlopen () 1)))))))
 (def %libm (%libm-open))
 
+; On a 4-byte word: the 8 bytes a stub writes a double answer to, and the
+; vector type a payload is made of.  The region is this process's, like the
+; stubs: emptied for a state image and made again when one loads.
+(def %ptr-alloc (prim-ref (lit ptr) (lit alloc)))
+(def %out-make (fn (_) (if (int= %word-size 8) () (%ptr-alloc 8))))
+(def %out (%out-make))
+(def %words-t (if (int= %word-size 8) () (type-of (Vector of 0 0))))
+
 ; --- The stubs: the double operations as machine code -------------------------
 ; (ptr call) passes its arguments in the general registers and reads the
 ; answer from x0/rax, and a double's bits are an INT here, so a double
@@ -313,6 +356,42 @@
         (do (asm-emit! a 'fmov/d d0 x0) (asm-emit! a 'mov x0 x1) (%stub-call! a addr) (%stub-ret! a)))
       (#t (Err raise 'value "Float: no such stub label" label)))))
 
+; The same stubs on a 4-byte word.  A double is two arguments, low word then
+; high, and an answer that is a double goes out through a pointer, the last
+; argument: (ptr call) hands back one word.  The first four words travel in
+; the argument registers and the fifth, when there is one, on the stack,
+; where asm-stack-arg says the prologue left it.  x4 keeps the pointer
+; across a libm call, since the prologue saves it.
+(def %stub-args2-2w!
+  (fn (_ a)
+    (do (asm-emit! a 'fmov/d2 d0 x0 x1)
+        (asm-emit! a 'fmov/d2 d1 x2 x3))))
+(def %stub-out-2w!
+  (fn (_ a r) (asm-emit! a 'fstr d0 (mem r 0))))
+(def %stub-fifth-2w!
+  (fn (_ a) (asm-emit! a 'ldr x4 (mem sp (asm-stack-arg 4)))))
+(def %stub-body-2w!
+  (fn (_ a label addr)
+    (match
+      ((str=? label "d+d") (do (%stub-args2-2w! a) (%stub-fifth-2w! a) (asm-emit! a 'fadd d0 d0 d1) (%stub-out-2w! a x4)))
+      ((str=? label "d-d") (do (%stub-args2-2w! a) (%stub-fifth-2w! a) (asm-emit! a 'fsub d0 d0 d1) (%stub-out-2w! a x4)))
+      ((str=? label "d*d") (do (%stub-args2-2w! a) (%stub-fifth-2w! a) (asm-emit! a 'fmul d0 d0 d1) (%stub-out-2w! a x4)))
+      ((str=? label "d/d") (do (%stub-args2-2w! a) (%stub-fifth-2w! a) (asm-emit! a 'fdiv d0 d0 d1) (%stub-out-2w! a x4)))
+      ((str=? label "d<d") (do (%stub-args2-2w! a) (asm-emit! a 'flt x0 d0 d1)))
+      ((str=? label "d=d") (do (%stub-args2-2w! a) (asm-emit! a 'feq x0 d0 d1)))
+      ((str=? label "i->d") (do (asm-emit! a 'scvtf d0 x0) (%stub-out-2w! a x1)))
+      ((str=? label "d->i") (do (asm-emit! a 'fmov/d2 d0 x0 x1) (asm-emit! a 'fcvtzs x0 d0)))
+      ((str=? label "d->f") (do (asm-emit! a 'fmov/d2 d0 x0 x1) (asm-emit! a 'fcvt/s x0 d0)))
+      ((str=? label "f->d") (do (asm-emit! a 'fcvt/d d0 x0) (%stub-out-2w! a x1)))
+      ((str=? label "i->f") (asm-emit! a 'scvtf/s x0 x0))
+      ((str=? label "d->d") (do (asm-emit! a 'fmov/d2 d0 x0 x1) (asm-emit! a 'mov x4 x2) (%stub-call! a addr) (%stub-out-2w! a x4)))
+      ((str=? label "dd->d") (do (%stub-args2-2w! a) (%stub-fifth-2w! a) (%stub-call! a addr) (%stub-out-2w! a x4)))
+      ((str=? label "s0->d") (do (asm-emit! a 'mov x4 x1) (asm-emit! a 'mov x1 (imm 0)) (%stub-call! a addr) (%stub-out-2w! a x4)))
+      ((str=? label "ii->d") (do (asm-emit! a 'mov x4 x2) (%stub-call! a addr) (%stub-out-2w! a x4)))
+      ((or (str=? label "di->d") (str=? label "dp->d"))
+        (do (asm-emit! a 'fmov/d2 d0 x0 x1) (asm-emit! a 'mov x0 x2) (asm-emit! a 'mov x4 x3) (%stub-call! a addr) (%stub-out-2w! a x4)))
+      (#t (Err raise 'value "Float: no such stub label" label)))))
+
 ; Room for the longest stub: a frame, a 64-bit immediate, a call and three
 ; moves, well under this on both backends.
 (def %stub-capacity 128)
@@ -329,7 +408,8 @@
       (if (or (not (asm-backend?)) (and (not (null? name)) (null? addr))) ()
         (let ((a (asm-new %stub-capacity)))
           (do (asm-prologue! a)
-              (%stub-body! a label (if (null? addr) 0 (ptr->int addr)))
+              ((if (int= %word-size 8) %stub-body! %stub-body-2w!)
+               a label (if (null? addr) 0 (ptr->int addr)))
               (asm-epilogue! a)
               (asm-finalize! a)))))))
 
@@ -369,6 +449,9 @@
 ; call.
 (def %stub-make
   (fn (_ label cell)
+    ((if (int= %word-size 8) %stub-make-1w %stub-make-2w) label cell)))
+(def %stub-make-1w
+  (fn (_ label cell)
     (match
       ((str=? label "d->d")
         (fn (_ x) (type-make-instance float (ptr-call (first cell) (first x)))))
@@ -381,6 +464,42 @@
         (fn (_ x) (ptr-call (first cell) x)))
       ((str=? label "ptr") (first cell))  ; the pointer itself
       (#t (fn (_ a b) (ptr-call (first cell) a b))))))
+; On a 4-byte word.  A payload is a vector of two words; the closure hands
+; the stub the words, and reads a double answer back from %out, the 8 bytes
+; every "->d" stub writes.  The payload's words are read with obj-ref: slot 0
+; of a vector is its length, so the low word is slot 1 and the high slot 2.
+(def %lo (fn (_ p) (obj-ref p 1)))
+(def %hi (fn (_ p) (obj-ref p 2)))
+(def %out-words
+  (fn (_)
+    (let ((v (obj-make %words-t 3)))
+      (do (obj-set! v 0 2)
+          (obj-set! v 1 (ptr-ref %out 0 4))
+          (obj-set! v 2 (ptr-ref %out 4 4))
+          v))))
+(def %stub-make-2w
+  (fn (_ label cell)
+    (match
+      ((str=? label "d->d")
+        (fn (_ x) (do (ptr-call (first cell) (%lo (first x)) (%hi (first x)) %out)
+                      (type-make-instance float (%out-words)))))
+      ((str=? label "dd->d")
+        (fn (_ a b) (do (ptr-call (first cell) (%lo (first a)) (%hi (first a)) (%lo (first b)) (%hi (first b)) %out)
+                        (type-make-instance float (%out-words)))))
+      ((or (str=? label "d<d") (str=? label "d=d"))
+        (fn (_ a b) (int= (ptr-call (first cell) (%lo a) (%hi a) (%lo b) (%hi b)) 1)))
+      ((or (str=? label "d->i") (str=? label "d->f"))
+        (fn (_ x) (ptr-call (first cell) (%lo x) (%hi x))))
+      ((str=? label "i->f")
+        (fn (_ x) (ptr-call (first cell) x)))
+      ((or (str=? label "i->d") (str=? label "f->d") (str=? label "s0->d"))
+        (fn (_ x) (do (ptr-call (first cell) x %out) (%out-words))))
+      ((str=? label "ii->d")
+        (fn (_ a b) (do (ptr-call (first cell) a b %out) (%out-words))))
+      ((or (str=? label "di->d") (str=? label "dp->d"))
+        (fn (_ x n) (do (ptr-call (first cell) (%lo x) (%hi x) n %out) (%out-words))))
+      ((str=? label "ptr") (first cell))
+      (#t (fn (_ a b) (do (ptr-call (first cell) (%lo a) (%hi a) (%lo b) (%hi b) %out) (%out-words)))))))
 ; A row is (GLOBAL LABEL NAME CELL HELD?): HELD? when the closure has gone to
 ; a caller who keeps it (libm-fn), so its cell must be filled at a load.
 (def %stub-fn
@@ -418,6 +537,7 @@
 (set! %image-transients
   (pair (fn (_)
           (do (set! %libm ())
+              (set! %out ())
               ((fn (self l)
                  (if (null? l) ()
                    (do (self (rest l))
@@ -436,6 +556,7 @@
 (set! %image-recache-hooks
   (pair (fn (_)
           (do (set! %libm (%libm-open))
+              (set! %out (%out-make))
               ((fn (self l)
                  (if (null? l) ()
                    (do (self (rest l))
@@ -713,17 +834,19 @@
         (returns BOOL "True if x is real"))
       (real? x))
     ; --- Conversions ---
-    (method bits->str (self (param bits INTEGER "IEEE 754 double bit pattern"))
+    ; The bit pattern is an INTEGER where the word holds all 64 bits, and a
+    ; VECTOR of two words, the low word first, on a 4-byte word.
+    (method bits->str (self (param bits ANY "IEEE 754 double bit pattern: an INTEGER, or a VECTOR of two words on a 4-byte word"))
       (doc "Render a raw IEEE 754 bit pattern as its decimal string -- FFI plumbing; value-level work wants (Float from) / the printer." (returns STRING "Decimal string representation"))
       (%float->str bits))
-    (method bits->int (self (param bits INTEGER "IEEE 754 double bit pattern"))
+    (method bits->int (self (param bits ANY "IEEE 754 double bit pattern: an INTEGER, or a VECTOR of two words on a 4-byte word"))
       (doc "Truncate a raw IEEE 754 bit pattern to a machine integer -- FFI plumbing; value-level work wants (Float ->int)." (returns INTEGER "Truncated integer value"))
       (%float->int bits))
     (method int->bits (self (param n INTEGER "Integer value"))
-      (doc "The IEEE 754 bit pattern of an integer's double value -- FFI plumbing, NOT a float constructor; (Float from) builds instances." (returns INTEGER "IEEE 754 double bit pattern"))
+      (doc "The IEEE 754 bit pattern of an integer's double value -- FFI plumbing, NOT a float constructor; (Float from) builds instances." (returns ANY "IEEE 754 double bit pattern: an INTEGER, or a VECTOR of two words on a 4-byte word"))
       (int->float n))
     (method str->bits (self (param s STRING "Decimal string to parse"))
-      (doc "The IEEE 754 bit pattern of a decimal string's double value -- FFI plumbing, NOT a parser-to-instance; (Float from) builds instances (the old from-str name claimed FLOAT and returned bits, #66)." (returns INTEGER "IEEE 754 double bit pattern"))
+      (doc "The IEEE 754 bit pattern of a decimal string's double value -- FFI plumbing, NOT a parser-to-instance; (Float from) builds instances (the old from-str name claimed FLOAT and returned bits, #66)." (returns ANY "IEEE 754 double bit pattern: an INTEGER, or a VECTOR of two words on a 4-byte word"))
       (str->float s))
     (method from (self (param x ANY "An exact number (int, bigint, rational), a numeric string, or a float (identity)"))
       (doc "Construct a float from any convertible value, through the conversion catalogue -- the generic value door (was exact->inexact, #357). Raises a label 'type when nothing converts." (returns FLOAT "Float instance"))

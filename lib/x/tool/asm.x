@@ -215,6 +215,9 @@
 (match
   (%asm-arm64? (import x/tool/asm/arm64))
   (arch-x86-64? (import x/tool/asm/x86_64))
+  ; 32-bit arm has the float stubs' vocabulary only: the compiler's first
+  ; mnemonic outside it raises, and the probe keeps the interpreted twin.
+  (arch-arm? (import x/tool/asm/arm32))
   (#t ()))
 
 (doc (def asm-backend? (fn (_) (not (null? %arch))))
