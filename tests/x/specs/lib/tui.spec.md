@@ -1,4 +1,4 @@
-# Tui: styled-cell screen, Markdown page, windows and tabs
+# Tui: styled-cell screen, Markdown page, windows, tabs and pictures
 # @weight 1
 
 ## Width
@@ -137,3 +137,54 @@ select of one selects none, and the page lays out, scrolls and draws.
 ```
 ---
     (319 320 ("/home" () ()) (1 3 1 () 1 () () () 319 314 () 317 314 0 () 5) ("[logo]" "" "para 1 l1" "" "para 2 l2") #f #t)
+
+## Picture
+
+### an image is fitted to the cells it is given, its shape kept, never grown
+
+A cell is two pixels tall, so ROWS cells hold twice ROWS pixels.
+
+```x
+(do (import x/tui/picture)
+  (list (Picture fit 640 480 80 24) (Picture fit 16 16 80 24) (Picture fit 100 10 20 24) (Picture fit 10 100 80 5)))
+```
+---
+    ((64 48) (16 16) (20 2) (1 10))
+
+### a cell is the pixel above in the foreground and the pixel below in the background; a transparent one is the terminal's
+
+Red over blue, green over nothing, nothing over yellow, nothing over nothing:
+an upper half block, an upper alone, a lower alone, a space.  The colours
+are set again only where they change.
+
+```x
+(do (import x/tui/picture) (import x/codec/bytes)
+  (def px (Bytes of-list (list 255 0 0 255  0 255 0 255  0 0 0 0  0 0 0 0
+                               0 0 255 255  0 0 0 0  255 255 0 255  0 0 0 0)))
+  (Picture lines (list 4 2 (first px)) 80 24 'rgb))
+```
+---
+    ("\x1b[0;38;2;255;0;0;48;2;0;0;255m▀\x1b[0;38;2;0;255;0m▀\x1b[0;38;2;255;255;0m▄\x1b[0m \x1b[0m")
+
+### a shrunk image averages the pixels each one covers
+
+Red and blue side by side drawn one pixel wide: their average.
+
+```x
+(do (import x/tui/picture) (import x/codec/bytes)
+  (Picture lines (list 2 1 (first (Bytes of-list (list 255 0 0 255 0 0 255 255)))) 1 1 'rgb))
+```
+---
+    ("\x1b[0;38;2;127;0;127m▀\x1b[0m")
+
+### the 256-colour palette: the nearest of the cube's colours and the greys
+
+Pure red is the cube's 196; a mid grey is the grey ramp's 244, nearer than
+the cube's grey.
+
+```x
+(do (import x/tui/picture) (import x/codec/bytes)
+  (Picture lines (list 1 2 (first (Bytes of-list (list 255 0 0 255 128 128 128 255)))) 4 4 'indexed))
+```
+---
+    ("\x1b[0;38;5;196;48;5;244m▀\x1b[0m")
