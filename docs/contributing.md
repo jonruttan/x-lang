@@ -115,7 +115,9 @@ the Doxygen house style — live with the code they govern, in
   runs every example as a regression test (gate + CI). Side-effectful,
   environment-dependent, or prose-described demonstrations are
   `(sample "in" "prose")` — rendered by help exactly like an example, never
-  executed
+  executed. An entry with neither shows the reader nothing to try;
+  `make check-help-examples` counts those against the ceiling in
+  `tools/contract/help-examples.x`, which may only go down
 - **No `cond`/`convert` in tokenizer callbacks** — Use nested `if` and direct C primitives to avoid GC corruption
 - **Quote spelling** — `'x` in all post-boot code (#45 R2). `(lit x)` is the
   boot-layer mechanism spelling, used only in files that parse before the

@@ -463,11 +463,20 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 	sh tests/x/doctest-runner.sh
 .PHONY: doctest
 
+# The help-example ratchet: the doc entries that show the reader no
+# (example ...) or (sample ...) form, tallied by the doctest walk's census
+# and held to the ceiling in tools/contract/help-examples.x.  The walk
+# imports every library module (about twenty seconds and a few GB here), so
+# this sits in `gates`, not the pre-push `gates-fast`.
+check-help-examples: $(EXECUTABLE) ## Count the doc entries that show no example against their ceiling
+	sh tools/check/help-examples.sh
+.PHONY: check-help-examples
+
 # The contract gates, ONE definition: `make test` runs them first and
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-lang-kit-harness check-lang-kit-lint check-lang-kit-spec-gate check-lang-kit-dup-defs check-pin check-release-manifest check-bootstrap check-package check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
+gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-lang-kit-harness check-lang-kit-lint check-lang-kit-spec-gate check-lang-kit-dup-defs check-pin check-release-manifest check-bootstrap check-package check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-highlight-roundtrip check-primitives-doc check-help-examples ## Run the contract gates
 .PHONY: gates
 
 .PHONY: check-spec-weights

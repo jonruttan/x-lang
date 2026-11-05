@@ -182,6 +182,8 @@
 (shared "lib/x/doc/doc.x" %doc-entry-examples "an entry's examples")
 (shared "lib/x/doc/doc.x" %doc-entry-notes "an entry's notes")
 (shared "lib/x/doc/doc.x" %doc-entry-samples "an entry's samples")
+(shared "lib/x/doc/doc.x" %module-lookup "the module registered under a name")
+(shared "lib/x/doc/doc.x" %doc-str-contains? "whether a string holds a substring")
 (shared "lib/x/doc/doc.x" %highlight-code "prints code; display until repl/ansi.x sets it")
 (shared "lib/x/doc/doc.x" %c-reset "a colour code, empty until repl/ansi.x sets it")
 (shared "lib/x/doc/doc.x" %c-bold "a colour code, empty until repl/ansi.x sets it")
