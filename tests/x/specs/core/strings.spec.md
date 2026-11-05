@@ -390,6 +390,31 @@ keeps the JSON `\u` parser (`(%str->number %t 16)`) byte-exact.
 ---
     (255 #t 5)
 
+## str->number hex reads the word's bits (#1167)
+
+A hex digit string is a bit pattern, as `0xFFFFFFFF` is in C: the digits fill
+the word from the low end and the top bit is the sign, so as many `f`s as the
+word has nibbles read as -1 on every width. A pattern wider than the word,
+counted in significant digits, raises: a 64-bit constant cannot slip into a
+32-bit word as a different number. Decimal is a number and keeps its overflow
+check (next section).
+
+### the word's width of f is -1, by prefix or by radix, leading zeros free
+
+```x
+(do
+  (def %fs ((fn (self n acc) (if (= n 0) acc (self (- n 1) (Str8 append acc "f"))))
+            (* 2 %word-size) ""))
+  (list (%str->number %fs 16)
+        (%str->number (Str8 append "0x" %fs))
+        (%str->number (Str8 append "-0x" %fs))
+        (%str->number (Str8 append "00" %fs) 16)
+        (%str->number "ffff" 16)
+        (guard (e (lit R)) (%str->number (Str8 append %fs "f") 16))))
+```
+---
+    (-1 -1 1 -1 65535 'R)
+
 ## str->number decimal digits
 
 One to fifteen decimal digits, with no radix passed, are read in one walk on
