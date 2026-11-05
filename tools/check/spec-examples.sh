@@ -111,7 +111,9 @@ function flush_entry() {
   if (reading == "") return
   reading = ""
   if (printed ~ /^[Ee]rror|^\*\*\*/) return
-  if (printed == "" || entry ~ /display|write|print/) {
+  # #<base:objs 1615>, #<fn>, #<ATOM:0x...>: an address or a count, not a
+  # value the doc promises -- the same rule the arrow form applies to `<...>`.
+  if (printed == "" || printed ~ /^#</ || entry ~ /display|write|print/) {
     setup = setup "\n" entry
     return
   }
