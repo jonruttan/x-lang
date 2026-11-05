@@ -1,4 +1,5 @@
 ; float.x -- Floating-point type with IEEE 754 bit-pattern storage
+; lint-known: x3 x4 sp
 (module x/num/float)
 
 (import x/type/class)

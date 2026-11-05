@@ -219,9 +219,13 @@
 ; for <, EQ/NE for =: MOV<c> Rd, #imm = 0x03A00000 | cond<<28 | Rd<<12 | imm.
 (def %arm32-dispatch
   (fn (_ asm descriptor args)
+    ; The operands' values, as far as there are operands: rest of () raises,
+    ; so each step is guarded by the one before it.
+    (def r1 (if (null? args) () (rest args)))
+    (def r2 (if (null? r1) () (rest r1)))
     (def a0 (if (null? args) 0 (%op-value (first args))))
-    (def a1 (if (null? (rest args)) 0 (%op-value (first (rest args)))))
-    (def a2 (if (null? (rest (rest args))) 0 (%op-value (first (rest (rest args))))))
+    (def a1 (if (null? r1) 0 (%op-value (first r1))))
+    (def a2 (if (null? r2) 0 (%op-value (first r2))))
     (match
       ((eq? descriptor 'scvtf)
         (do (%emit-u32-le! asm (| 3992979984 (| (<< a0 16) (<< a1 12))))    ; vmov s(2d), r
