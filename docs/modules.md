@@ -213,9 +213,12 @@ exports, so they stay the module's own, and `%count` is not bound anywhere
 but the module. A selective `(import x/example/counter bump)` copies `bump`
 into the importer's own environment, where it is called directly.
 
-As an expression, `(module NAME)` denotes the module's environment — a
-`(bindings . parent)` pair whose parent is the root — so a tool can walk a
-module's names. A module that is not loaded is an error.
+A module's environment is a `(bindings . parent)` pair whose parent is the
+root, and `(Module env 'NAME)` answers it, so a tool can walk a module's
+names. `(module NAME)` evaluated where no file is loading, at the prompt or
+from `-c`, answers the same; in a file being loaded it is the header
+wherever it stands, and the rest of the file reads into that module. A
+module that is not loaded is an error.
 
 Scoping is **opt-in and per file**. A module's file with no `(module NAME)`
 header loads in the root, exactly as before — which is every module in the

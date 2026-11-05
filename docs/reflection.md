@@ -124,8 +124,11 @@ engine law 10 in [Engine Laws](engine-laws.md).
   the enclosing environment; `(Env has? e 'name)` whether a name resolves
   from `e` outward, as lookup finds it.
 - `(eval form e)` evaluates in `e`, and a `def` inside binds there and
-  stays bound. `(module NAME)` as an expression answers a loaded module's
-  environment, a child of the root for a scoped module.
+  stays bound. `(Module env 'NAME)` answers a loaded module's environment,
+  a child of the root for a scoped module. `(module NAME)` answers the
+  same at the prompt, but in a file being loaded it is the header: the
+  rest of the file reads into that module, as
+  [Modules](modules.md#module-scope) describes.
 
 An environment is not for `write`: its chain ends at the root, which binds
 closures whose environment is the root again, so printing never finishes.
