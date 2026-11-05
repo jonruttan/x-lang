@@ -41,6 +41,30 @@
 (def %fail-imports (pair () ()))
 (def %count! (fn (_ cell) (%set-first! cell (+ (first cell) 1))))
 
+; --- The help-example tally (tools/check/help-examples.sh) ---
+; help renders an entry's examples and samples alike, so an entry with
+; either shows the reader one; the entries with neither are the count that
+; check holds to its ceiling.  Of those, a module is keyed under its own
+; name and a method under Class/method; both hold a slash, so the module
+; registry is asked first, and what is left is a bare def or primitive.
+; An entry documented twice is walked twice and counted twice; help shows
+; the newer one.
+(def %help-tally
+  (list (pair 'entries 0) (pair 'example 0) (pair 'sample-only 0)
+        (pair 'method 0) (pair 'def 0) (pair 'module 0)))
+(def %tally (fn (_ key) (List find (fn (_ c) (eq? (first c) key)) %help-tally)))
+(def %tally! (fn (_ key) (def c (%tally key)) (%set-rest! c (+ (rest c) 1))))
+
+(def %tally-entry!
+  (fn (_ e)
+    (%tally! 'entries)
+    (match
+      ((not (null? (%doc-entry-examples e))) (%tally! 'example))
+      ((not (null? (%doc-entry-samples e))) (%tally! 'sample-only))
+      ((not (null? (%module-lookup (%doc-entry-name e)))) (%tally! 'module))
+      ((%doc-str-contains? "/" (symbol->str (%doc-entry-name e))) (%tally! 'method))
+      (#t (%tally! 'def)))))
+
 ; Emit one example as a harness test. mod is the import path string, or
 ; nil for boot-registered names.
 (def %emit-example
@@ -65,6 +89,7 @@
   (fn (_ entries mod)
     (List for-each
       (fn (_ e)
+        (%tally-entry! e)
         (let ((name (%doc-entry-name e)))
           (def %go
             (fn (self exs idx)
@@ -122,5 +147,13 @@
 (display "emitted: " (first %n-emitted) "\n"
          "blank-expected (illustrative, skipped): " (first %n-blank) "\n"
          "samples (illustrative by contract, not run): " (first %n-samples)
+         "\n" "entries: " (rest (%tally 'entries))
+         "\n" "with example: " (rest (%tally 'example))
+         "\n" "with sample only: " (rest (%tally 'sample-only))
+         "\n" "without example or sample: "
+         (+ (rest (%tally 'method)) (+ (rest (%tally 'def)) (rest (%tally 'module))))
+         " (methods " (rest (%tally 'method))
+         ", defs " (rest (%tally 'def))
+         ", modules " (rest (%tally 'module)) ")"
          "\n" "failed imports: ")
 (write (first %fail-imports)) (newline)
