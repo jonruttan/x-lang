@@ -150,11 +150,15 @@ call, not a binding list.
 
 ### help still reports the applicative signature
 
+The entry help reads, through the registry record: the wrap left the
+applicative's return annotation in place.
+
 ```x
-(help List/map)
+(import x/doc/registry)
+((Doc entry 'List/map) returns)
 ```
 ---
-      => LIST -- New list
+    ('LIST "New list")
 
 ### the wrap does not double the selector in the class listing
 

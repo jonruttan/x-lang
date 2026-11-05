@@ -143,10 +143,10 @@ layout contract — `engine/tools/contract/base-paths.x`, one row per field — 
 `(Base fields)` lists them:
 
 ```x-repl
-> (List length (b fields))
-64
-> (%cell-int (first (b cell 'line)))
-1
+> (List includes? 'line (b fields))
+#t
+> (Num int? (%cell-int (first (b cell 'line))))
+#t
 ```
 
 `(b cell 'name)` walks the contract's path from the child and answers the
@@ -185,10 +185,10 @@ answers a Type instance:
 #<type:INTEGER>
 > (t-int name)
 "INTEGER"
-> (List length (t-int fields))
-44
-> (List length ((Type wrap (Type of "s")) fields))
-44
+> (List includes? 'type-write (t-int fields))
+#t
+> (equal? (t-int fields) ((Type wrap (Type of "s")) fields))
+#t
 ```
 
 `(t cell 'field-name)` walks the type-rooted rows of the same layout

@@ -169,7 +169,9 @@ this tree.
   instruction index.
 - **state** — slot 1 of a callable: what its entry uses.
   `(params body . env)` for a closure, `(params envname body . env)`
-  for an operative, the combiner for a wrap.
+  for an operative, `(() () . combiner)` for a wrap: a closure with no
+  parameters and no body, the combiner where the environment goes, which
+  is where `unwrap` reads it.
 - **instruction** — one row of the ISA: a bare name and/or a catalogue
   coordinate, and one function behind it. Arguments arrive as written;
   an instruction that wants values evaluates them itself.
