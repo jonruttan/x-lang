@@ -696,6 +696,13 @@
                             (| 184 (& rd 7))))    ; 0xB8+rd
     (%emit-u64-le! asm val)))
 
+; --- An address in reach of the whole executable ---
+; LEA from RIP reaches two gigabytes either way, so adr is the whole of it
+; here; arm64's needs ADRP and an ADD.
+(def asm-adr-far!
+  (fn (_ asm rd-reg lname)
+    (asm-emit! asm 'adr (if (pair? rd-reg) rd-reg (reg rd-reg)) (label lname))))
+
 ; --- Patch resolver: x86_64 rel32 ---
 ; every value here is an INT, so the offset is worked out on the integer
 ; doors, bound once
