@@ -628,6 +628,13 @@
       (pair 'l (list () (list 232) ()           ; 0xE8
         (list (list 'rel32 0))))))
 
+    ; BL -- arm64's name for the call by label; same encoding as CALL, as
+    ; B is JMP's, so code that calls into another object keeps the one
+    ; vocabulary too
+    (pair 'bl (list
+      (pair 'l (list () (list 232) ()           ; 0xE8
+        (list (list 'rel32 0))))))
+
     ; The scalar double instructions, all lowered by %x86-float
     (pair 'fmov/d (list (pair 'rr '(sse fmov/d))))
     (pair 'fmov/x (list (pair 'rr '(sse fmov/x))))
