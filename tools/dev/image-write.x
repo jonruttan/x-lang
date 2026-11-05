@@ -118,9 +118,17 @@
       ; stops.  The marker before the include is how image-build.sh tells an
       ; entry that ended the writer from a writer that never ran.
       (%child-def! (lit %image-writing) (list (lit lit) #t))
+      ; The child's allocation message, armed as the contract arms this
+      ; base's, with the same ceiling.  A child that cannot allocate -- at
+      ; the ceiling, or at a malloc the machine refuses -- then stops with a
+      ; line in the log instead of a bare exit 2 that says nothing.
+      (%B eval (list (lit alloc-limit!) (%cell-int (first (%reflect-base-cell (lit alloc-limit))))))
       (display "image: writer begins") (newline)
       ; The path too: `include` records it in the child's file registry.
       (%B eval (list (lit include) (list (prim-ref (lit str) (lit append)) "" %IMG-LIB)))
+      ; What the load left live in the child, for the record: the number a
+      ; machine with less room has to hold.
+      (display "image: child objects: ") (write (%cell-int (first (%B cell (lit alloc-count))))) (newline)
       ;  And the mark is taken back.  It is a global in the child, so the
       ; walk below would carry it into the image, and every boot from that
       ; image would read "I am being imaged" and skip the dispatch the entry
