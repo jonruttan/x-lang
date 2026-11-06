@@ -26,8 +26,11 @@
 ; entry made on demand adds no hook: it stays interpreted after a load
 ; until its owner compiles it.
 ;
-; (Compiled into-name) and (Compiled into-cell) make the two install
-; functions the library has needed; any other place a function can be
+; (Compiled into-name) and (Compiled into-cell) make install functions for
+; a binding and for a cell.  (Compiled into-object) installs into the
+; function object itself, for a function the library binds once in many
+; places, such as the doors of x/core/doors: every holder of the object
+; calls whichever version is installed.  Any other place a function can be
 ; installed is a function of one value written where the place is known.
 ;
 ; The forms below keep to fn, if and match.  A lang bundle may give `do` a
@@ -39,11 +42,33 @@
 
 ; Object identity, as boot/module.x has it: eq? compares the operand word,
 ; and two closures share theirs.
-(import x/core/doors image-recache-hook! image-transient! io-display-to-str obj-same? obj-set!)
+(import x/core/doors image-recache-hook! image-transient! io-display-to-str obj-same? obj-set!
+  obj->ptr ptr-ref-word ptr-set-word!)
 ; A raise is kept as its text.  The engine raises one value and fills it
 ; again at the next raise, so the value itself would not keep.
 ; The doors to the image writer's transients and the loader's recache hooks
 ; (boot/reflect.x).
+
+; A function object, closure or primitive, is a type word and two data
+; words: the routine a call runs, and the state it runs on (a closure's
+; parameters, body and environment; nil for a primitive).  The collector
+; follows the state only while the type is a closure's.  (%compiled-words!
+; TO FROM) writes FROM's three words into TO, all three read before any is
+; written, and answers TO.
+(def %compiled-type-off (* %obj-slot-type %word-size))
+(def %compiled-call-off (* %obj-meta-len %word-size))
+(def %compiled-state-off (* (+ %obj-meta-len 1) %word-size))
+(def %compiled-words!
+  (fn (_ to from)
+    ((fn (_ p type call state)
+       (ptr-set-word! p %compiled-call-off call)
+       (ptr-set-word! p %compiled-state-off state)
+       (ptr-set-word! p %compiled-type-off type)
+       to)
+     (obj->ptr to)
+     (ptr-ref-word (obj->ptr from) %compiled-type-off)
+     (ptr-ref-word (obj->ptr from) %compiled-call-off)
+     (ptr-ref-word (obj->ptr from) %compiled-state-off))))
 
 (def-class Compiled ()
   (doc "A function that has a compiled version: its interpreted version, the function that compiles it, and the function that installs either. (Compiled make ...) adds one to the list and compiles it; (Compiled report) prints the list."
@@ -129,6 +154,21 @@
       (doc "An install function for the first of a pair, such as one cell of a type's handler list."
         (returns CALLABLE "(fn (_ version))"))
       (fn (_ v) (obj-set! cell 0 v)))
+
+    (method into-object (self (param target CALLABLE "The function object to rewrite"))
+      (doc "An install function for the function object itself: installing a version writes its type and its two data words into TARGET, so every holder of TARGET calls that version. TARGET keeps its flags and its identity."
+        (returns CALLABLE "(fn (_ version))")
+        (see in-place))
+      (fn (_ v) (%compiled-words! target v)))
+
+    (method in-place (self (param name SYMBOL "What the list calls the function")
+                           (param target CALLABLE "The function to compile where it stands")
+                           (param compile CALLABLE "(fn (_)) answering the compiled version; a raise fails, and answering the interpreted version declines"))
+      (doc "Add a function to the list as make does, installed into TARGET itself (into-object). The interpreted version is a new function object holding TARGET's two data words, which keeps TARGET's body alive while TARGET holds the compiled version."
+        (returns Compiled "The entry")
+        (see make) (see into-object))
+      (Compiled make name (%compiled-words! (fn (_ . a) a) target) compile
+                (Compiled into-object target)))
 
     (method named (self (param name SYMBOL "An entry's name"))
       (doc "The newest entry of that name."

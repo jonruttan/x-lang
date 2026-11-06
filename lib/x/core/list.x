@@ -34,6 +34,7 @@
           (%go ()))))))
   (param x ANY "A list, nil, or iterable (e.g. vector)")
   (returns LIST "The input as a proper list")
+  (example "(%as-list (Vector of 1 2 3))" "(1 2 3)")
   "Boot-layer plumbing: normalize any iterable to a list (%fold/%map/%filter self-normalize through it). The PUBLIC conversion surface is (List from-seq); this % helper is not provided.")
 
 (note "Folds")
@@ -53,6 +54,7 @@
        (param lst LIST "List or iterable to fold over"))
     (%fold-go f init (%as-list lst))))
   (returns ANY "Final accumulated value")
+  (example "(%fold (fn (_ acc x) (+ acc x)) 0 '(1 2 3))" "6")
   "Boot-layer fold; the public face is (List fold).")
 
 (note "Basics")
@@ -60,6 +62,7 @@
 (doc (def %length
   (fn (_ (param lst LIST "List or iterable"))
     (%fold (fn (_ acc _) (+ acc 1)) 0 lst)))
+  (example "(%length '(a b c))" "3")
   "Boot-layer length; the public face is (List length).")
 
 ; Reverse-prepend: the tail-recursive list builder (one trampolined self-call
@@ -75,11 +78,13 @@
     (%rev-onto (%rev-onto a ()) b)))
 
 (doc (def %append (fn (_ . args) (%fold %append2 () args)))
+  (example "(%append '(1 2) '(3) '(4 5))" "(1 2 3 4 5)")
   "Boot-layer append; the public face is (List append).")
 
 (doc (def %reverse
   (fn (_ (param lst LIST "List or iterable"))
     (%fold (fn (_ acc x) (pair x acc)) () lst)))
+  (example "(%reverse '(1 2 3))" "(3 2 1)")
   "Boot-layer reverse; the public face is (List reverse).")
 
 (note "Iteration")
@@ -124,6 +129,8 @@
         (%map1 f (first lsts))
         (%mapn-go f lsts ())))))
   (returns LIST "New list")
+  (example "(%map (fn (_ x) (* x x)) '(1 2 3))" "(1 4 9)")
+  (example "(%map + '(1 2) '(10 20))" "(11 22)")
   "Boot-layer map; the public face is (List map).")
 
 ; Already-normalized loop; see %fold-go.  Accumulate + %rev-onto, like
@@ -142,6 +149,7 @@
        (param lst LIST "List or iterable"))
     (%filter-go pred (%as-list lst) ())))
   (returns LIST "Filtered list")
+  (example "(%filter (fn (_ x) (> x 1)) '(1 2 3))" "(2 3)")
   "Boot-layer filter; the public face is (List filter).")
 
 (note "Search")
@@ -159,6 +167,8 @@
       ((eq? x (first lst)) #t)
       (#t (self x (rest lst))))))
   (returns BOOL "True if x occurs in lst under eq?")
+  (example "(%memq? 'b '(a b c))" "#t")
+  (example "(%memq? 'z '(a b c))" "#f")
   (note "Boot-layer eq? membership; the public face is (List includes?). Cross-base names need %member-str?.")
   "Boot-layer eq? membership test.")
 
@@ -170,6 +180,7 @@
       ((str=? s (first lst)) #t)
       (#t (self s (rest lst))))))
   (returns BOOL "True if s occurs in lst under str=?")
+  (example "(%member-str? \"b\" (list \"a\" \"b\"))" "#t")
   (note "The str=? side of the membership split; convert cross-base symbols to strings and use this.")
   "Boot-layer string membership test.")
 
@@ -181,6 +192,7 @@
       ((pred (first lst)) (first lst))
       (#t (self pred (rest lst))))))
   (returns ANY "First element satisfying pred, or nil")
+  (example "(%find (fn (_ x) (> x 1)) '(1 2 3))" "2")
   (note "Boot-layer find-first; the public face is (List find). A nil result conflates a stored nil with a miss -- box at the call site when that matters (the %opt-cell pattern).")
   "Boot-layer find-first matching element.")
 
@@ -211,6 +223,7 @@
       (if (null? (rest lsts))
         (%for-each1 f (first lsts))
         (%for-eachn-go f lsts)))))
+  (sample "(%for-each display '(1 2 3))" "prints 123")
   "Boot-layer for-each; the public face is (List for-each).")
 
 ; else and str-copy RETIRED by ruling (#108, 2026-07-22): cond/case match

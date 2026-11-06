@@ -192,6 +192,39 @@ has not been compiled, and its state and reason are the fields' defaults.
 ---
     ('fast 'slow 'fast)
 
+### into the function object itself, so a holder bound before calls the version installed
+
+A primitive stands in for a compiled version.  The collect runs while the
+object holds it, and the interpreted version installed after it still has
+its body.
+
+```x
+(do (import x/tool/compiled)
+  (def %slow-o (fn (_ l) (+ (first l) 1)))
+  (def %held-o (list %slow-o))
+  (def %entry-o (Compiled in-place (lit o) %slow-o (fn (_) first)))
+  (def %fast-o ((first %held-o) (list 7 8)))
+  (Heap collect)
+  (def %gc-o ((first %held-o) (list 9)))
+  (%entry-o interpret!)
+  (write (list %fast-o %gc-o ((first %held-o) (list 41)) (%entry-o state)
+               (same? (first %held-o) %slow-o))))
+```
+---
+    (7 9 42 'interpreted #t)
+
+### in place, the interpreted version is another object that calls as the function did
+
+```x
+(do (import x/tool/compiled)
+  (def %slow-p (fn (_ n) (+ n 1)))
+  (def %entry-p (Compiled in-place (lit p) %slow-p (fn (_) (Err raise (lit state) "no lane here" ()))))
+  (write (list (%entry-p state) (same? (%entry-p interpreted) %slow-p)
+               ((%entry-p interpreted) 1) (%slow-p 2))))
+```
+---
+    ('failed #f 2 3)
+
 ## every entry
 
 ### entries compile oldest first, so a compile finds what an earlier one made
