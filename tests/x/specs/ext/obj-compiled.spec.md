@@ -2,23 +2,25 @@
 # @requires native/jit
 # @weight 1
 
-`lib/x/tool/obj-compiled.x` compiles `(obj ref)` and `(obj set!)` through
-compile-asm and installs each into its own closure object, so a door bound
-before the import calls the compiled version.  Both stay entries of
-Compiled's list, switched to interpreted before a state image is written.
+`lib/x/tool/obj-compiled.x` compiles `(obj ref)`, `(obj set!)` and `null?`
+through compile-asm and installs each into its own closure object, so a
+holder bound before the import calls the compiled version.  All three stay
+entries of Compiled's list, switched to interpreted before a state image is
+written.
 
 ## the doors
 
-### both are compiled on import
+### all three are compiled on import
 
 ```x
 (do (import x/tool/obj-compiled)
   (import x/tool/compiled)
   (write (list ((Compiled named (lit obj-ref)) state)
-               ((Compiled named (lit obj-set!)) state))))
+               ((Compiled named (lit obj-set!)) state)
+               ((Compiled named (lit null?)) state))))
 ```
 ---
-    ('compiled 'compiled)
+    ('compiled 'compiled 'compiled)
 
 ### a door bound before the import is the compiled primitive
 
@@ -62,3 +64,23 @@ Compiled's list, switched to interpreted before a state image is written.
 ```
 ---
     (('z #f) 'z #t)
+
+## null?
+
+### null? answers as its interpreted version on every kind of value
+
+The integer 0 and the character 0 are here because eq? compares an
+immediate scalar by its value.
+
+```x
+(do (import x/tool/obj-compiled)
+  (import x/tool/compiled)
+  (def %slow-null ((Compiled named (lit null?)) interpreted))
+  (def %vals (list () 0 (%integer->char 0) #f #t "" (lit a) (list 1) (pair () ())
+                   (Vector make 0 0) null? first))
+  (write (list (eq? (type-of null?) (type-of first))
+               (List map null? %vals)
+               (List map %slow-null %vals))))
+```
+---
+    (#t (#t #f #f #f #f #f #f #f #f #f #f #f) (#t #f #f #f #f #f #f #f #f #f #f #f))
