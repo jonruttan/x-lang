@@ -51,7 +51,7 @@ as a^(m-2).  Pure x, the inverses are most of the file's nineteen seconds.
 
 ## modulo P-384's order
 
-### an inverse over fifteen limbs
+### an inverse modulo a 48-byte order
 
 ```x
 (do
@@ -60,8 +60,8 @@ as a^(m-2).  Pure x, the inverses are most of the file's nineteen seconds.
   (def %mn-n (Bytes of-hex "ffffffffffffffffffffffffffffffffffffffffffffffffc7634d81f4372ddf581a0db248b0a77aecec196accc52973"))
   (def %mn-m (mont-modulus (first %mn-n) 0 48))
   (def %mn-a (mont-to %mn-m (mont-number %mn-m (first (Bytes of-hex "84880a80cde03a52a0e5f34145420754193686446127fe7a252d7017a4dc3b4a0d713d008779179543a60e009c9937d6")) 0 48)))
-  (write (list (mont-n %mn-m)
+  (write (list (mont-bytes %mn-m)
                (Bytes hex (list (mont-bytes-of %mn-m (mont-from %mn-m (mont-inv %mn-m %mn-a))) 0 48)))))
 ```
 ---
-    (15 "d2d0622bfbaada19c33ace6ac129af9e19ff14ac13cc14706e835ed6fc11a4bb8a7af7efeaf26b6cdd1ba99b9cd7896d")
+    (48 "d2d0622bfbaada19c33ace6ac129af9e19ff14ac13cc14706e835ed6fc11a4bb8a7af7efeaf26b6cdd1ba99b9cd7896d")

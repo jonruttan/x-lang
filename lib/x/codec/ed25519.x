@@ -23,11 +23,15 @@
 (import x/sys/gc)
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
-(import x/codec/fe25519 fe-zero fe-limbs fe-frombytes fe-tobytes fe-add fe-sub fe-mul fe-sq fe-invert fe-neg fe-pow22523 fe-negative? fe-nonzero?)
+(import x/codec/fe25519 fe-zero fe-limbs fe-frombytes fe-tobytes fe-add fe-sub fe-mul fe-sq fe-invert fe-neg fe-pow22523 fe-negative? fe-nonzero? fe-engine)
+; a 4-byte word's scalar multiplication
+(import x/codec/mont-jit mont-jit-load! mont-jit-store mont-jit-program mont-jit-run!)
 (import x/codec/sha512)
 (import x/codec/hex)
 
-(import x/core/doors char->int int* int+ int- obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
+(import x/core/doors char->int int& int* int+ int- int/ obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
+; a 4-byte word's scalars
+(import x/codec/mont mont-modulus mont-n mont-number mont-bytes-of mont-mul mont-add mont-to mont-from)
 
 (def %byte (fn (_ s i) (char->int (str-byte-ref s i))))
 
@@ -140,6 +144,66 @@
                    (int- bit 1)))))
      %identity 255)))
 
+; --- The scalar multiplication on a 4-byte word -------------------------
+;
+; There the field is x/codec/mont-jit's engine (fe-engine), where an
+; operation through x is a load, a call and a store: a doubling and an
+; addition of the cached point, each completed, are written to the engine
+; as programs once and run in one call a step, the accumulator in four
+; slots.  The slots: the accumulator X Y Z T, the cached point, then
+; eleven temporaries.
+(def %narrow (< %word-size 8))
+(def %AX 3) (def %AY 4) (def %AZ 5) (def %AT 6)
+(def %QP 7) (def %QM 8) (def %QZ 9) (def %QT 10)
+(def %t (fn (_ k) (+ 11 k)))
+
+; %double then %complete
+(def %dbl-steps
+  (list (list (lit mul) (%t 0) %AX %AX) (list (lit mul) (%t 1) %AY %AY)
+        (list (lit mul) (%t 2) %AZ %AZ) (list (lit add) (%t 3) (%t 2) (%t 2))
+        (list (lit add) (%t 4) %AX %AY) (list (lit mul) (%t 5) (%t 4) (%t 4))
+        (list (lit add) (%t 6) (%t 1) (%t 0)) (list (lit sub) (%t 7) (%t 1) (%t 0))
+        (list (lit sub) (%t 8) (%t 5) (%t 6)) (list (lit sub) (%t 9) (%t 3) (%t 7))
+        (list (lit mul) %AX (%t 8) (%t 9)) (list (lit mul) %AY (%t 6) (%t 7))
+        (list (lit mul) %AZ (%t 7) (%t 9)) (list (lit mul) %AT (%t 8) (%t 6))))
+
+; %add-cached of the cached point, then %complete
+(def %add-steps
+  (list (list (lit add) (%t 0) %AY %AX) (list (lit mul) (%t 1) (%t 0) %QP)
+        (list (lit sub) (%t 2) %AY %AX) (list (lit mul) (%t 3) (%t 2) %QM)
+        (list (lit mul) (%t 4) %QT %AT) (list (lit mul) (%t 5) %AZ %QZ)
+        (list (lit add) (%t 6) (%t 5) (%t 5))
+        (list (lit sub) (%t 7) (%t 1) (%t 3)) (list (lit add) (%t 8) (%t 1) (%t 3))
+        (list (lit add) (%t 9) (%t 6) (%t 4)) (list (lit sub) (%t 10) (%t 6) (%t 4))
+        (list (lit mul) %AX (%t 7) (%t 10)) (list (lit mul) %AY (%t 8) (%t 9))
+        (list (lit mul) %AZ (%t 9) (%t 10)) (list (lit mul) %AT (%t 7) (%t 8))))
+
+; the two programs, made on the engine the first time: double, add
+(def %progs ())
+
+(def %scalarmult-narrow
+  (fn (_ k p)
+    (def e (fe-engine))
+    (when (null? %progs)
+      (set! %progs (list (mont-jit-program e %dbl-steps) (mont-jit-program e %add-steps))))
+    (def cq (%cached p))
+    (mont-jit-load! e %QP (first cq))
+    (mont-jit-load! e %QM (first (rest cq)))
+    (mont-jit-load! e %QZ (first (rest (rest cq))))
+    (mont-jit-load! e %QT (first (rest (rest (rest cq)))))
+    (mont-jit-load! e %AX (fe-zero))
+    (mont-jit-load! e %AY %one)
+    (mont-jit-load! e %AZ %one)
+    (mont-jit-load! e %AT (fe-zero))
+    ((fn (self bit)
+       (unless (< bit 0)
+         (do (when (= (& bit 15) 0) (Heap collect))
+             (mont-jit-run! e (first %progs))
+             (when (= (& (>> (%byte k (>> bit 3)) (& bit 7)) 1) 1) (mont-jit-run! e (first (rest %progs))))
+             (self (int- bit 1)))))
+     255)
+    (list (mont-jit-store e %AX) (mont-jit-store e %AY) (mont-jit-store e %AZ) (mont-jit-store e %AT))))
+
 ; A point's encoding (ref10 ge_p3_tobytes): y, with x's sign in the top bit.
 (def %encode
   (fn (_ p)
@@ -230,7 +294,7 @@
 (def %each (fn (self f v is) (unless (null? is) (do (f v (first is)) (self f v (rest is))))))
 
 ; The 64 bytes of s from byte 0, mod L, as 32 bytes.
-(def %sc-reduce
+(def %sc-reduce-21
   (fn (_ s)
     (def v (Vector make 24 0))
     ; limb i is bits 21i..21i+20: a 3- or 4-byte load from byte 21i/8,
@@ -273,7 +337,7 @@
     out))
 
 ; a·b + c on 16-limb vectors, as 64 bytes.
-(def %muladd
+(def %muladd-16
   (fn (_ a b c)
     (def p (Vector make 32 0))
     ((fn (self i) (unless (= i 17) (do (obj-set! p i (obj-ref c i)) (self (int+ i 1))))) 1)
@@ -306,6 +370,75 @@
              (self (int+ i 1))))) 0)
     out))
 
+; --- Scalars on a 4-byte word -------------------------------------------
+;
+; A 21-bit limb times a 20-bit constant, and a 16-bit limb times a 16-bit
+; one, are past a 4-byte word.  There a scalar is reduced mod L through
+; x/codec/mont, as fe25519's elements are: the bytes taken 31 at a time
+; from the top, each below 2^248 and so below L, folded as acc 2^248 +
+; chunk.  The answers are the same bytes as the limbs' above.
+(def %L-be (Hex decode "1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed"))
+(def %lm (if %narrow (mont-modulus %L-be 0 32) ()))
+
+; bytes [start, start + n) of little-endian s as 32 big-endian bytes
+(def %be32
+  (fn (_ s start n)
+    (def out (str-make 32))
+    (def p (str->ptr out))
+    ((fn (self i)
+       (unless (= i 32)
+         (do (ptr-set! p (int- 31 i) (if (< i n) (%byte s (int+ start i)) 0) 1)
+             (self (int+ i 1)))))
+     0)
+    out))
+
+; 2^248 in the form: the step between chunks
+(def %l248 (if %narrow (mont-to %lm (mont-number %lm (Hex decode "0100000000000000000000000000000000000000000000000000000000000000") 0 32)) ()))
+
+; n little-endian bytes of s mod L, in the form
+(def %mod-l
+  (fn (_ s n)
+    ((fn (self i acc)
+       (if (< i 0) acc
+         (do (def at (int* i 31))
+             (def k (if (< (int+ at 31) n) 31 (int- n at)))
+             (def chunk (mont-to %lm (mont-number %lm (%be32 s at k) 0 32)))
+             (self (int- i 1) (mont-add %lm (mont-mul %lm acc %l248) chunk)))))
+     (int/ (int- n 1) 31) (Vector make (mont-n %lm) 0))))
+
+; a number in the form as n little-endian bytes, those past 32 zero
+(def %le-of
+  (fn (_ v n)
+    (def be (mont-bytes-of %lm (mont-from %lm v)))
+    (def out (str-make n))
+    (def p (str->ptr out))
+    ((fn (self i) (unless (= i n) (do (ptr-set! p i (if (< i 32) (%byte be (int- 31 i)) 0) 1) (self (int+ i 1))))) 0)
+    out))
+
+; 16 limbs of 16 bits as 32 little-endian bytes
+(def %bytes16
+  (fn (_ v)
+    (def out (str-make 32))
+    (def p (str->ptr out))
+    ((fn (self i)
+       (unless (= i 16)
+         (do (ptr-set! p (int* i 2) (int& (obj-ref v (int+ i 1)) 255) 1)
+             (ptr-set! p (int+ (int* i 2) 1) (int& (>> (obj-ref v (int+ i 1)) 8) 255) 1)
+             (self (int+ i 1)))))
+     0)
+    out))
+
+; The 64 bytes of s from byte 0, mod L, as 32 bytes.
+(def %sc-reduce
+  (fn (_ s) (if %narrow (%le-of (%mod-l s 64) 32) (%sc-reduce-21 s))))
+
+; a·b + c on 16-limb vectors, as 64 bytes.
+(def %muladd
+  (fn (_ a b c)
+    (if %narrow
+      (%le-of (mont-add %lm (mont-mul %lm (%mod-l (%bytes16 a) 32) (%mod-l (%bytes16 b) 32)) (%mod-l (%bytes16 c) 32)) 64)
+      (%muladd-16 a b c))))
+
 ; S < L, S as 32 bytes: a signature's scalar must be canonical.
 (def %canonical?
   (fn (_ s)
@@ -326,7 +459,7 @@
 ; work a signature leans on, (SCALARMULT INVERT POW22523): interpreted,
 ; the pure-x three; compiled, the engine's.
 (def %entry ())
-(def %interpreted (list %scalarmult fe-invert fe-pow22523))
+(def %interpreted (list (if %narrow %scalarmult-narrow %scalarmult) fe-invert fe-pow22523))
 
 (def %jit-try!
   (fn (_)

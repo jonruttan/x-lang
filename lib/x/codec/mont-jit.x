@@ -2,7 +2,7 @@
 ;
 ; Loaded lazily, as the other engines are: this module pulls the JIT
 ; toolchain.  For a modulus x/codec/mont built, the engine is a scratch of
-; 64-bit words -- a header, SLOTS numbers of n limbs each, the row and the
+; the machine's words, holding mont.x's limbs -- a header, SLOTS numbers of n limbs each, the row and the
 ; difference a multiply works in, the modulus's limbs, and a table of
 ; PROGRAMS -- and five compiled functions generic over the modulus, built
 ; once a machine and poured by every process after: the RUNNER, which
@@ -27,11 +27,12 @@
 (import x/type/vector)
 ; A pure engine's inverse collects at fixed points, as mont-pow does.
 (import x/sys/gc)
-(import x/codec/mont mont-n mont-mul mont-add mont-sub mont-to mont-number mont-bytes mont-bytes-of mont-region mont-limbs mont-minus-two mont-r2 mont-r2-set? mont-set-r2!)
+(import x/codec/mont mont-limb-bits mont-n mont-mul mont-add mont-sub mont-to mont-number mont-bytes mont-bytes-of mont-region mont-limbs mont-minus-two mont-r2 mont-r2-set? mont-set-r2!)
 
 (import x/core/doors char->int obj-ref obj-set! ptr->int ptr-ref-word ptr-set-word! str->ptr str-byte-ref str-make)
 
-(def %M 67108863)
+(def %B mont-limb-bits)
+(def %M (- (<< 1 %B) 1))
 
 ; --- the scratch's shape ---------------------------------------------------
 ;
@@ -72,7 +73,7 @@
 (def %ml-sum (list (lit %mem-ref) (lit a) %ml-S))
 (def %ml-sum! (fn (_ v) (list (lit %mem-set!) (lit a) %ml-S v)))
 (def %ml-low (list (lit &) %ml-sum %M))
-(def %ml-carry (list (lit >>) %ml-sum 26))
+(def %ml-carry (list (lit >>) %ml-sum %B))
 
 ; The runner's state: pc the step, ph the phase, i the row, j the limb,
 ; c the carry, q the quotient digit, h f g the step's offsets.
@@ -118,7 +119,7 @@
         ; q clears the bottom limb
         (list (lit %mem-set!) (lit a) %ml-Q (list (lit &) (list (lit *) (%ml-at %ml-T 0) %ml-INV) %M))
         (%ml-self 2 (lit i) 1
-                  (list (lit >>) (list (lit +) (%ml-at %ml-T 0) (list (lit *) (list (lit %mem-ref) (lit a) %ml-Q) (%ml-at %ml-P 0))) 26)
+                  (list (lit >>) (list (lit +) (%ml-at %ml-T 0) (list (lit *) (list (lit %mem-ref) (lit a) %ml-Q) (%ml-at %ml-P 0))) %B)
                   (list (lit %mem-ref) (lit a) %ml-Q))))
   (list (lit if) (list (lit =) (lit ph) 2)
     (list (lit if) (list (lit <) (lit j) %ml-N)
@@ -222,12 +223,12 @@
           (list (lit if) (list (lit <) (lit limb) %ml-N)
             (%ml-set (lit h) (lit limb) (list (lit |) (%ml-at (lit h) (lit limb)) (list (lit &) (list (lit <<) %ml-byte (lit off)) %M)))
             0)
-          (list (lit if) (list (lit if) (list (lit >) (lit off) 18) (list (lit <) (list (lit +) (lit limb) 1) %ml-N) 0)
+          (list (lit if) (list (lit if) (list (lit >) (lit off) (- %B 8)) (list (lit <) (list (lit +) (lit limb) 1) %ml-N) 0)
             (%ml-set (lit h) (list (lit +) (lit limb) 1)
-                     (list (lit |) (%ml-at (lit h) (list (lit +) (lit limb) 1)) (list (lit >>) %ml-byte (list (lit -) 26 (lit off)))))
+                     (list (lit |) (%ml-at (lit h) (list (lit +) (lit limb) 1)) (list (lit >>) %ml-byte (list (lit -) %B (lit off)))))
             0)
-          (list (lit if) (list (lit >=) (list (lit +) (lit off) 8) 26)
-            (list (lit self) (lit a) (lit h) (lit src) (lit len) 1 (list (lit +) (lit j) 1) (list (lit +) (lit limb) 1) (list (lit -) (list (lit +) (lit off) 8) 26))
+          (list (lit if) (list (lit >=) (list (lit +) (lit off) 8) %B)
+            (list (lit self) (lit a) (lit h) (lit src) (lit len) 1 (list (lit +) (lit j) 1) (list (lit +) (lit limb) 1) (list (lit -) (list (lit +) (lit off) 8) %B))
             (list (lit self) (lit a) (lit h) (lit src) (lit len) 1 (list (lit +) (lit j) 1) (lit limb) (list (lit +) (lit off) 8))))
         0))))
 
@@ -242,12 +243,12 @@
           (list (lit &)
             (list (lit |)
               (list (lit if) (list (lit <) (lit limb) %ml-N) (list (lit >>) (%ml-at (lit f) (lit limb)) (lit off)) 0)
-              (list (lit if) (list (lit if) (list (lit >) (lit off) 18) (list (lit <) (list (lit +) (lit limb) 1) %ml-N) 0)
-                (list (lit <<) (%ml-at (lit f) (list (lit +) (lit limb) 1)) (list (lit -) 26 (lit off)))
+              (list (lit if) (list (lit if) (list (lit >) (lit off) (- %B 8)) (list (lit <) (list (lit +) (lit limb) 1) %ml-N) 0)
+                (list (lit <<) (%ml-at (lit f) (list (lit +) (lit limb) 1)) (list (lit -) %B (lit off)))
                 0))
             255))
-        (list (lit if) (list (lit >=) (list (lit +) (lit off) 8) 26)
-          (list (lit self) (lit a) (lit f) (lit dst) (lit len) (list (lit +) (lit j) 1) (list (lit +) (lit limb) 1) (list (lit -) (list (lit +) (lit off) 8) 26))
+        (list (lit if) (list (lit >=) (list (lit +) (lit off) 8) %B)
+          (list (lit self) (lit a) (lit f) (lit dst) (lit len) (list (lit +) (lit j) 1) (list (lit +) (lit limb) 1) (list (lit -) (list (lit +) (lit off) 8) %B))
           (list (lit self) (lit a) (lit f) (lit dst) (lit len) (list (lit +) (lit j) 1) (lit limb) (list (lit +) (lit off) 8))))
       0)))
 
@@ -258,8 +259,6 @@
 (def %ml-fns (pair () ()))
 (def %ml-compiled
   (fn (_)
-    ; the loops lay out and compute in 8-byte words
-    (if (< %word-size 8) (Err raise (lit state) "mont-jit: written for an 8-byte word" ()))
     (when (null? (first %ml-fns))
       (jit-group "mont-jit-run:5"
         (fn (_) (list %ml-run-expr %ml-or-expr %ml-xor-or-expr %ml-from-be-expr %ml-to-be-expr))
@@ -292,9 +291,9 @@
 ; Slot k's word offset, in a compiled engine.
 (def %mj-off (fn (_ e k) (+ (obj-ref e 13) (* k (mont-jit-n e)))))
 
-(def %mj-word-ref (fn (_ e k i) (ptr-ref-word (obj-ref e 2) (* (+ (%mj-off e k) i) 8))))
-(def %mj-word-set! (fn (_ e k i v) (ptr-set-word! (obj-ref e 2) (* (+ (%mj-off e k) i) 8) v)))
-(def %mj-word! (fn (_ e w v) (ptr-set-word! (obj-ref e 2) (* w 8) v)))
+(def %mj-word-ref (fn (_ e k i) (ptr-ref-word (obj-ref e 2) (* (+ (%mj-off e k) i) %word-size))))
+(def %mj-word-set! (fn (_ e k i v) (ptr-set-word! (obj-ref e 2) (* (+ (%mj-off e k) i) %word-size) v)))
+(def %mj-word! (fn (_ e w v) (ptr-set-word! (obj-ref e 2) (* w %word-size) v)))
 
 (def mont-jit-load!
   (fn (_ e k v)
@@ -482,12 +481,12 @@
           (unless (mont-r2-set? m) (mont-set-r2! m (mont-jit-store e %mj-r2)))))
     (mont-jit-mul e %mj-r %mj-plain-one %mj-r2)))
 
-; R^2 mod m into its slot, by the engine.  2^(26(n-2)) is below m (m's
-; top byte is nonzero, and 26n is within 26 of its bit length), so 52
-; doublings of it reach R mod m, the form's one; then with t_k = 2^(26n +
-; k) mod m, the engine's multiply takes t_a and t_b to t_(a+b), and a
-; square-and-multiply ladder over 26n itself climbs from t_0 and t_1 to
-; t_26n = R^2 in some fifty multiplies.  mont.x's own pure-x doubling
+; R^2 mod m into its slot, by the engine, B the limb's bits.  2^(B(n-2))
+; is below m (m's top byte is nonzero, and Bn is within B of its bit
+; length), so 2B doublings of it reach R mod m, the form's one; then with
+; t_k = 2^(Bn + k) mod m, the engine's multiply takes t_a and t_b to
+; t_(a+b), and a square-and-multiply ladder over Bn itself climbs from
+; t_0 and t_1 to t_Bn = R^2 in some fifty multiplies.  mont.x's own pure-x doubling
 ; loop is two hundred milliseconds for P-256's prime and minutes for an
 ; RSA modulus.  The slot is cleared as a number less itself.
 (def %mj-r2!
@@ -499,9 +498,9 @@
     ((fn (self k)
        (unless (= k 0)
          (do (mont-jit-add e %mj-r2 %mj-r2 %mj-r2) (self (- k 1)))))
-     (* 26 (- n k0)))
+     (* %B (- n k0)))
     (mont-jit-add e %mj-base %mj-r2 %mj-r2)
-    (def s (* 26 n))
+    (def s (* %B n))
     ((fn (self k)
        (unless (< k 0)
          (do (mont-jit-mul e %mj-r2 %mj-r2 %mj-r2)
@@ -533,8 +532,6 @@
 ; lane cannot build them or they disagree.
 (def mont-jit-make
   (fn (_ m)
-    ; the engine lays out and computes in 8-byte words
-    (if (< %word-size 8) (Err raise (lit state) "mont-jit: written for an 8-byte word" ()))
     (def n (mont-n m))
     (def e (%mj-engine m))
     (obj-set! e 13 %mj-hdr)
@@ -543,7 +540,7 @@
     (def P (+ D n))
     (def TBL (+ P n))
     (def words (+ TBL %mj-table))
-    (def buf (str-make (* words 8)))
+    (def buf (str-make (* words %word-size)))
     (def ptr (str->ptr buf))
     (obj-set! e 1 buf)
     (obj-set! e 2 ptr)

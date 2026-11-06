@@ -9,8 +9,8 @@
 ; The arithmetic is mod 2^130 - 5 on 26-bit limbs, five to a number, as
 ; poly1305-donna's 32-bit variant lays it out: a limb times a limb (or
 ; five times one) is under 2^56, a row of five under 2^59, so every
-; product and sum fits the engine's 64-bit int and the cipher is
-; tower-proof on the int prims.  A compiled engine in x/codec/poly1305-jit
+; product and sum fits an 8-byte word and the cipher is tower-proof on
+; the int prims; a 4-byte word's limbs are narrower, below.  A compiled engine in x/codec/poly1305-jit
 ; takes the block loop -- the hot part -- and is adopted only after it
 ; agrees with the one here; the key clamp, the padded last block and the
 ; final reduction stay in x on both paths.
@@ -20,7 +20,7 @@
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
 
-(import x/core/doors char->int int& int* int+ int- int< int<< int>> int| obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
+(import x/core/doors char->int int% int& int* int+ int- int/ int< int<< int>> int| obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
 (def %M 67108863)
 (def %M32 4294967295)
 
@@ -87,13 +87,135 @@
     (obj-set! h 4 (int& e3 %M))
     (obj-set! h 5 (int& e4 %M))))
 
+; --- A 4-byte word's limbs ---------------------------------------------
+;
+; A product of two 26-bit limbs is past a 4-byte word.  There a number is
+; thirteen limbs of 10 bits (130 = 13 x 10): a limb times five times a
+; limb is under 2^24, a row of thirteen under 2^28, and the same fold, 5
+; for 2^130, reduces it.  The rows are a loop over the limbs, where the
+; 26-bit ones above are written out.  %blocks! takes this path when the
+; word is narrower than 8 bytes; the tag's arithmetic, the key's clamp
+; and the padding are the same either way.
+(def %nb 10)
+(def %nk 13)
+(def %nm 1023)
+
+; Bits [at, at + 10) of the little-endian bytes at i of s, of which there
+; are n: three bytes cover any ten bits; a byte past n is zero.
+(def %bits
+  (fn (_ s i n at)
+    (def b (fn (_ k) (if (int< k n) (%byte s (int+ i k)) 0)))
+    (def k (int>> at 3))
+    (int& (int>> (int| (b k) (int| (int<< (b (int+ k 1)) 8) (int<< (b (int+ k 2)) 16))) (int& at 7)) %nm)))
+
+; r clamped (2.5), as thirteen limbs then five times each: the clamp
+; clears the top four bits of each 32-bit word of r and the low two of
+; the upper three, read from the key's bytes.
+(def %r-narrow
+  (fn (_ key)
+    (def c (str-make 16))
+    (def p (str->ptr c))
+    ((fn (self k)
+       (unless (= k 16)
+         (do (ptr-set! p k (int& (%byte key k) (match ((= (int& k 3) 3) 15) ((and (= (int& k 3) 0) (> k 0)) 252) (#t 255))) 1)
+             (self (int+ k 1)))))
+     0)
+    (def rv (Vector make (int* 2 %nk) 0))
+    ((fn (self j)
+       (unless (= j %nk)
+         (do (def r (%bits c 0 16 (int* j %nb)))
+             (obj-set! rv (int+ j 1) r)
+             (obj-set! rv (int+ (int+ j %nk) 1) (int* r 5))
+             (self (int+ j 1)))))
+     0)
+    rv))
+
+; One block on thirteen limbs: the block's bits added to h, the top one
+; with hibit, then h times r, each row i the products h_j r_(i-j) and,
+; past the top, h_j 5r_(13+i-j), carried down the limbs.
+(def %block-narrow!
+  (fn (_ h rv s i hibit)
+    ((fn (self j)
+       (unless (= j %nk)
+         (do (obj-set! h (int+ j 1) (int+ (obj-ref h (int+ j 1)) (%bits s i 16 (int* j %nb))))
+             (self (int+ j 1)))))
+     0)
+    (obj-set! h %nk (int+ (obj-ref h %nk) hibit))
+    (def d (Vector make %nk 0))
+    ((fn (self row)
+       (unless (= row %nk)
+         (do (obj-set! d (int+ row 1)
+               ((fn (self j acc)
+                  (if (= j %nk) acc
+                    (self (int+ j 1)
+                      (int+ acc (int* (obj-ref h (int+ j 1))
+                                      (if (> j row)
+                                        (obj-ref rv (int+ (int+ %nk (int- (int+ %nk row) j)) 1))
+                                        (obj-ref rv (int+ (int- row j) 1))))))))
+                0 0))
+             (self (int+ row 1)))))
+     0)
+    ((fn (self j c)
+       (if (= j %nk)
+         ; the carry past the top folds back times five
+         (do (def f0 (int+ (obj-ref h 1) (int* c 5)))
+             (obj-set! h 1 (int& f0 %nm))
+             (obj-set! h 2 (int+ (obj-ref h 2) (int>> f0 %nb))))
+         (do (def v (int+ (obj-ref d (int+ j 1)) c))
+             (obj-set! h (int+ j 1) (int& v %nm))
+             (self (int+ j 1) (int>> v %nb)))))
+     0 0)))
+
+; The tag from thirteen limbs: h carried through, reduced mod p by
+; adding 5 and keeping the sum when it reaches 2^130, then plus s mod
+; 2^128, a byte at a time.
+(def %finish-narrow
+  (fn (_ h key)
+    (def carry!
+      (fn (_ v)
+        ((fn (self j c)
+           (if (= j %nk)
+             (do (def f0 (int+ (obj-ref v 1) (int* c 5)))
+                 (obj-set! v 1 (int& f0 %nm))
+                 (obj-set! v 2 (int+ (obj-ref v 2) (int>> f0 %nb))))
+             (do (def x (int+ (obj-ref v (int+ j 1)) c))
+                 (obj-set! v (int+ j 1) (int& x %nm))
+                 (self (int+ j 1) (int>> x %nb)))))
+         0 0)))
+    (carry! h)
+    (carry! h)
+    (def g (Vector make %nk 0))
+    (def top
+      ((fn (self j c)
+         (if (= j %nk) c
+           (do (def x (int+ (int+ (obj-ref h (int+ j 1)) c) (if (= j 0) 5 0)))
+               (obj-set! g (int+ j 1) (int& x %nm))
+               (self (int+ j 1) (int>> x %nb)))))
+       0 0))
+    (def k (if (> top 0) g h))
+    (def tag (str-make 16))
+    (def p (str->ptr tag))
+    ((fn (self n c)
+       (unless (= n 16)
+         (do (def at (int* n 8))
+             (def lo (int>> (obj-ref k (int+ (int/ at %nb) 1)) (int% at %nb)))
+             (def hi (if (int< (int+ (int/ at %nb) 1) %nk)
+                       (int<< (obj-ref k (int+ (int/ at %nb) 2)) (int- %nb (int% at %nb)))
+                       0))
+             (def x (int+ (int+ (int& (int| lo hi) 255) (%byte key (int+ 16 n))) c))
+             (ptr-set! p n (int& x 255) 1)
+             (self (int+ n 1) (int>> x 8)))))
+     0 0)
+    tag))
+
 ; The block loop, pure x: blocks from byte i up to end of s, end - i a
 ; multiple of sixteen.  The compiled engine takes the same arguments and
 ; leaves the same h, so it is a drop-in for this function.
+(def %narrow (< %word-size 8))
 (def %blocks!
   (fn (self h rv s i end hibit)
     (when (int< i end)
-      (do (%block! h rv s i hibit)
+      (do (if %narrow (%block-narrow! h rv s i hibit) (%block! h rv s i hibit))
           (self h rv s (int+ i 16) end hibit)))))
 
 ; A short last block padded as 2.5 says: the bytes, then 0x01, then
@@ -195,13 +317,14 @@
                ((fn (_ entry) (if (null? entry) #t (eq? (entry state) (lit interpreted))))
                 %entry))
       (%jit-try!))
-    (def h (Vector make 5 0))
-    (def rv (%r-vector key))
+    (def h (Vector make (if %narrow %nk 5) 0))
+    (def rv (if %narrow (%r-narrow key) (%r-vector key)))
     (def whole (int<< (int>> len 4) 4))
-    (%run! h rv s start (int+ start whole) 16777216)
+    ; the 2^128 bit, in the top limb
+    (%run! h rv s start (int+ start whole) (if %narrow (int<< 1 (int- 128 (int* %nb (int- %nk 1)))) 16777216))
     (unless (= whole len)
       (%run! h rv (%tail s (int+ start whole) (int- len whole)) 0 16 0))
-    (%finish h key)))
+    (if %narrow (%finish-narrow h key) (%finish h key))))
 
 (def %region
   (fn (_ s r)
