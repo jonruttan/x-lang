@@ -205,7 +205,8 @@
     (method make (self (param n INTEGER "Number of elements")
                        (param fill ANY "Value to fill each slot with"))
       (doc "Create a vector of length n, with every element set to fill."
-        (returns VECTOR "New vector of length n filled with fill"))
+        (returns VECTOR "New vector of length n filled with fill")
+        (example "(Vector make 3 0)" "#(0 0 0)"))
       ; n is converted to INT once, as an index is, so the length and every
       ; count below run on the integer doors.
       (def k (%vec->int n "Vector make: length not convertible to INT"))
@@ -237,12 +238,16 @@
       v)
     ; --- Predicate ---
     (method vector? (self (param x ANY "Value to test"))
-      (doc "Test whether a value is a vector." (returns BOOL "True if x is a vector"))
+      (doc "Test whether a value is a vector." (returns BOOL "True if x is a vector")
+        (example "(Vector vector? (Vector of 1 2))" "#t")
+        (example "(Vector vector? (list 1 2))" "#f"))
       (type? x %vector))
     ; --- Access ---
     (method ref (self (param i INTEGER "Zero-based index; negative counts from the end") (param v VECTOR "Vector"))
       (doc "Return the element at index i of a vector; negative i counts from the end. Errors when i is out of range."
-        (returns ANY "Element at index i"))
+        (returns ANY "Element at index i")
+        (example "(Vector ref 1 (Vector of 10 20 30))" "20")
+        (example "(Vector ref -1 (Vector of 10 20 30))" "30"))
       (def k (%vec-slot i v))
       (if (null? k) (%vec-ref-checked i v) (obj-ref v k)))
     (method set! (self (param i INTEGER "Zero-based index; negative counts from the end")
@@ -254,12 +259,14 @@
       (def k (%vec-slot i v))
       (if (null? k) (%vec-set-checked i x v) (%vec-put! v k x)))
     (method length (self (param v VECTOR "Vector"))
-      (doc "Return the number of elements in a vector." (returns INTEGER "Number of elements"))
+      (doc "Return the number of elements in a vector." (returns INTEGER "Number of elements")
+        (example "(Vector length (Vector of 1 2 3))" "3"))
       (%vec-check v "Vector length: not a vector")
       (obj-ref v 0))
     ; --- Conversion ---
     (method ->list (self (param v VECTOR "Vector to convert"))
-      (doc "Convert a vector to a list." (returns LIST "List of the vector's elements"))
+      (doc "Convert a vector to a list." (returns LIST "List of the vector's elements")
+        (example "(Vector ->list (Vector of 1 2 3))" "(1 2 3)"))
       (%vec-check v "Vector ->list: not a vector")
       (def len (obj-ref v 0))
       (def build
@@ -268,10 +275,12 @@
             (self (int- i 1) (pair (obj-ref v (int+ i 1)) acc)))))
       (build (int- len 1) ()))
     (method from-list (self (param lst LIST "List to convert"))
-      (doc "Convert a list to a vector." (returns VECTOR "New vector containing the list's elements"))
+      (doc "Convert a list to a vector." (returns VECTOR "New vector containing the list's elements")
+        (example "(Vector from-list (list 1 2 3))" "#(1 2 3)"))
       (%vector-from-list %vector lst))
     (method iter (self (param v VECTOR "Vector to iterate"))
-      (doc "An iterator over the vector's elements." (returns ITER "Iterator"))
+      (doc "An iterator over the vector's elements." (returns ITER "Iterator")
+        (example "(Iter ->list (Vector iter (Vector of 1 2)))" "(1 2)"))
       (Iter new v))
     ; --- Traversal ---
     ; Slot walks, not ->list walks: a vector is already indexable, so
@@ -284,7 +293,8 @@
     (method for-each (self (param f CALLABLE "Applied to each element for effect")
                            (param v VECTOR "Vector to traverse"))
       (doc "Apply f to each element in order, for its side effects; returns nil. Named for-each, matching List/Iter/Seq."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (sample "(Vector for-each display (Vector of 1 2 3))" "prints 123"))
       (%vec-check v "Vector for-each: not a vector")
       (def len (obj-ref v 0))
       (def go
