@@ -163,7 +163,31 @@
          (self (rest fs)
            (Str append acc "|" (symbol->str (first (first fs)))
              (if (null? (rest (first fs))) "=" ":")))))
-      fvars (if (eq? mode (lit object)) "!o" (if mode "!a" "!i")))))
+      fvars
+      (match
+        ((eq? mode (lit object)) "!o")
+        ((pair? mode) (Str append "!r" (io-write-to-str (rest mode))))
+        (mode "!a")
+        (#t "!i")))))
+
+; A run mode: (run TYPE ...), the calling world of a routine the engine calls
+; through a slot of the base's slot vector (engine/tools/contract/base-slots.x).
+; Its arguments arrive as a run of words, one a parameter, and each TYPE says
+; what its word holds: an object, an integer or a string.
+(def %asm-cache-run-mode?
+  (fn (_ m)
+    (if (pair? m)
+      (if (eq? (first m) (lit run))
+        ((fn (self ts)
+           (match
+             ((null? ts) #t)
+             ((eq? (first ts) (lit object)) (self (rest ts)))
+             ((eq? (first ts) (lit integer)) (self (rest ts)))
+             ((eq? (first ts) (lit string)) (self (rest ts)))
+             (#t #f)))
+         (rest m))
+        #f)
+      #f)))
 
 ; The full text a hit must match.  It is both hashed into the filename and
 ; STORED IN THE ENTRY, so a 64-bit collision costs a miss rather than handing
@@ -1351,11 +1375,14 @@
         ((null? %asm-rest) #f)
         ((pair? (rest %asm-rest))
           (let ((m (first (rest %asm-rest))))
-            (if (or (eq? m #t) (eq? m #f) (eq? m (lit object))) m
+            (if (or (eq? m #t) (eq? m #f) (eq? m (lit object)) (%asm-cache-run-mode? m)) m
               (Err raise 'value
                 (Str append "compile-asm: the third argument names the calling "
                   "world: #t for an analyse callback, #f for an integer "
-                  "function, or the symbol object for an object function.") ()))))
+                  "function, the symbol object for an object function, or "
+                  "(run TYPE ...) for a routine the engine calls through a "
+                  "slot, one TYPE a parameter, each object, integer or "
+                  "string.") ()))))
         ((null? fvars) #f)
         (#t (Err raise 'value
               (Str append "compile-asm: fvars passed without declaring the calling "
@@ -1409,7 +1436,12 @@
    answering.  In object mode the arguments evaluate and stay the objects
    they evaluate to, the result is returned as one, and every param is an
    object param: (= p 0) is the nil test, (first p) reads through the
-   trampoline, and arithmetic on a param refuses.
+   trampoline, and arithmetic on a param refuses.  (run TYPE ...) declares
+   a routine for a slot of the base's slot vector -- see (Base slots) and
+   (Base slot!): its arguments arrive as a run of words with no self in
+   front, one TYPE a parameter, each object, integer or string; a word is
+   read as it is, an object-typed param refuses arithmetic, the result is
+   returned as it is, and only a self-call in tail position compiles.
    An fvar holding a prim may be called by name; (%call HEAD arg ...) calls a
    prim the code computes, and refuses at run time if the head is not one.
    The compiled function works with map, fold, closures, etc.

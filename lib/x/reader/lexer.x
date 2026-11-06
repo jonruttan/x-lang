@@ -32,7 +32,8 @@
 (import x/type/base)
 (import x/type/buf)
 (import x/protocol/str/str8)
-(import x/core/doors buf-tok char->int heap-collect image-recache-hook! image-transient! int+ int- int< int= obj->ptr ptr-ref-word str-byte-len str-byte-ref str-make tok-read-str)
+(import x/core/doors buf-tok char->int heap-collect image-recache-hook! image-transient! int+ int- int< int= int>> obj->ptr ptr->int ptr-ref-word str-byte-len str-byte-ref str-make tok-read-str)
+(import x/type/dict)
 
 (def-class Lexer ()
   (doc "A tokenizer base built from data rules, its analyser states compiled to native code when the assembler lane is open and interpreted otherwise. Make one with (Lexer make rules), where each rule is made by run, skip, table, quoted, until, number, nested, word, escape, pattern, any or record; read text with (l read-str s), a span of bytes with (l read-span s start len). A token is (tag text); from a number rule (tag text label), from a record rule (tag bytes length)."
@@ -123,11 +124,14 @@
     ; the same rule list, the same object.
     (%keys (pair () ()))
     ; The recorder a full make runs under: on, then the states made, newest
-    ; first, as (state text fvars) -- TEXT the cache key, nil for a twin -- and
-    ; the rules' first states, newest first.
+    ; first, as (state text fvars names) -- TEXT the cache key, nil for a
+    ; twin, NAMES the free variables its held entry patches, read as the
+    ; state is made -- and the rules' first states, newest first.  %rec-names
+    ; holds the door that reads the names, fetched once a make.
     (%rec-on (pair #f ()))
     (%rec-states (pair () ()))
     (%rec-entries (pair () ()))
+    (%rec-names (pair () ()))
     ; The plans read so far, as (text . plan), newest first.  A group this heap
     ; already holds hands back the same text each time it is opened -- a remake,
     ; or a make in a process booted from an image the group was made in -- and
@@ -1360,9 +1364,15 @@
     ; checked.  Anything the plan cannot name means no plan, and the next make
     ; is a full one again.
 
+    ; A state's entry was held by the compile that made it, so it is at the
+    ; head of the held list and its names are found in one step.  Read at
+    ; the plan instead, the walk for each state passed every entry held
+    ; after it.
     (method %rec-state! (self st text fvars)
       (when (first (Lexer %rec-on))
-        (%set-first! (Lexer %rec-states) (pair (list st text fvars) (first (Lexer %rec-states))))))
+        (%set-first! (Lexer %rec-states)
+          (pair (list st text fvars (if (null? text) () ((first (Lexer %rec-names)) text)))
+                (first (Lexer %rec-states))))))
 
     (method %rec-entry! (self st)
       (when (first (Lexer %rec-on))
@@ -1371,6 +1381,7 @@
     (method %install-recording! (self l)
       (%set-first! (Lexer %rec-states) ())
       (%set-first! (Lexer %rec-entries) ())
+      (%set-first! (Lexer %rec-names) (prim-ref (lit compile) (lit asm-cache-held-fvar-names)))
       (%set-first! (Lexer %rec-on) #t)
       (guard (e (do (%set-first! (Lexer %rec-on) #f) (error e)))
         (Lexer %install! l (l rules)))
@@ -1405,12 +1416,20 @@
         (fn (self l acc) (if (null? l) acc (self (rest l) (pair (first l) acc))))
         (fn (self a b) (if (null? a) b (pair (first a) (self (rest a) b))))))
 
-    ; The plan for RECS, the states made oldest first as (state text fvars),
-    ; and ENTRIES, each rule's first state; raises when a state is a twin or a
-    ; free variable is a thing a plan cannot name.  A free variable is written
-    ; (NAME KIND N) -- NAME its symbol's text, KIND 0 for the N-th state, 1 for
-    ; the N-th cell, 2 for the N-th buffer, 3 for the integer N -- so the plan
-    ; is strings and integers only, which print and read back as themselves.
+    ; The plan for RECS, the states made oldest first as (state text fvars
+    ; names), and ENTRIES, each rule's first state; raises when a state is a
+    ; twin or a free variable is a thing a plan cannot name.  A free variable
+    ; is written (NAME KIND N) -- NAME its symbol's text, KIND 0 for the N-th
+    ; state, 1 for the N-th cell, 2 for the N-th buffer, 3 for the integer N --
+    ; so the plan is strings and integers only, which print and read back as
+    ; themselves.
+    ;
+    ; A state, a cell and a buffer are found by address in a Dict, and each
+    ; record carries its names, so the plan is one pass over the records.  A
+    ; walk of the states for each free variable is quadratic in the states:
+    ; for a 686-state lexer that is 43M objects, more than its compiles
+    ; allocate.  Only the key texts are matched one against another, by
+    ; content.
     (method %plan (self l recs entries)
       (def kit (Lexer %kit))
       (def pos (first (rest kit)))
@@ -1421,34 +1440,56 @@
       (def i- int-)
       (def i< int<)
       (def no (fn (_ why) (Err raise (lit lexer) why ())))
-      (def eq (fn (_ a b) (eq? a b)))
+      ; An object's key: its address, the alignment bits dropped, so that
+      ; keys spread over a table whose size is a power of two
+      (def key (fn (_ x) (int>> (ptr->int (obj->ptr x)) 4)))
+      ; the key texts, oldest first, each once, and each record's place
+      ; among them, newest first
+      (def places (pair () ()))
       (def texts
-        (rev ((fn (self rs acc)
+        (rev ((fn (self rs acc n)
                 (if (null? rs) acc
                   (do (def t (first (rest (first rs))))
                       (if (null? t) (no "a twin state") ())
-                      (self (rest rs)
-                        (if (i< (pos t acc str=?) 0) (pair t acc) acc)))))
-              recs ())
+                      (def at (pos t acc str=?))
+                      (if (i< at 0)
+                        (do (%set-first! places (pair n (first places)))
+                            (self (rest rs) (pair t acc) (i+ n 1)))
+                        (do (%set-first! places (pair (i- (i- n 1) at) (first places)))
+                            (self (rest rs) acc n))))))
+              recs () 0)
              ()))
-      (def sts (map1 (fn (_ r) (first r)) recs))
+      ; each state's place among the records
+      (def sts (Dict make (i+ 1 (len recs))))
+      ((fn (self rs n)
+         (unless (null? rs)
+           (do (sts set! (key (first (first rs))) n)
+               (self (rest rs) (i+ n 1)))))
+       recs 0)
+      (def state-of
+        (fn (_ v)
+          (if (if (null? v) #t (number? v)) -1
+            (do (def k (sts get (key v)))
+                (if (null? k) -1 k)))))
       ; cells and buffers met, newest first, with how many: a thing's number
       ; is how many were met before it
-      (def cells (pair () 0))
-      (def bufs (pair () 0))
+      (def cells (list () 0 (Dict make)))
+      (def bufs (list () 0 (Dict make)))
       (def number!
         (fn (_ seen x)
-          (def at (pos x (first seen) eq))
-          (if (i< at 0)
-            (do (def n (rest seen))
+          (def met (first (rest (rest seen))))
+          (def at (met get (key x)))
+          (if (null? at)
+            (do (def n (first (rest seen)))
                 (%set-first! seen (pair x (first seen)))
-                (%set-rest! seen (i+ n 1))
+                (%set-first! (rest seen) (i+ n 1))
+                (met set! (key x) n)
                 n)
-            (i- (i- (rest seen) 1) at))))
+            at)))
       (def recipe
         (fn (_ fv)
           (def v (rest fv))
-          (def k (pos v sts eq))
+          (def k (state-of v))
           (def name (symbol->str (first fv)))
           (match
             ((not (i< k 0)) (list name 0 k))
@@ -1460,10 +1501,8 @@
       ; in a few of them; the plan keeps those, in the order of the entry's
       ; slots, so a replay builds a handful of values a state and the pour
       ; takes them as they come, with no name matched.
-      (def used (prim-ref (lit compile) (lit asm-cache-held-fvar-names)))
       (def keep
-        (fn (_ text fvs)
-          (def names (used text))
+        (fn (_ names fvs)
           (if (eq? names #f) (no "a state whose entry is not held") ())
           (map1
             (fn (_ nm)
@@ -1475,13 +1514,16 @@
               (if (null? hit) (no "a slot no free variable of the state names") hit))
             names)))
       (def states
-        (map1 (fn (_ r)
-                (pair (pos (first (rest r)) texts str=?)
-                      (map1 recipe (keep (first (rest r)) (first (rest (rest r)))))))
-              recs))
+        ((fn (self rs ps)
+           (if (null? rs) ()
+             (do (def r (first rs))
+                 (pair (pair (first ps)
+                             (map1 recipe (keep (first (rest (rest (rest r)))) (first (rest (rest r))))))
+                       (self (rest rs) (rest ps))))))
+         recs (rev (first places) ())))
       (def state-at
         (fn (_ s)
-          (def k (pos s sts eq))
+          (def k (state-of s))
           (if (i< k 0) (no "a state the make did not record") k)))
       (list (Lexer %plan-version) (len texts) states
             (map1 (fn (_ c) (if (null? (first c)) () (state-at (first c)))) (rev (first cells) ()))
