@@ -89,6 +89,16 @@ A caller where the later of two flags wins -- busybox md5sum's -b and -t
 ---
     (("-") ("-5"))
 
+### a declared digit is an option, alone or leading a cluster; an undeclared one is still an operand
+
+```x
+(do (import x/sys/opts)
+  (def p (Opts parse (list "-4" "-v") (list "-3") (list "-4v" "-35" "-6" "h")))
+  (list (Opts on? p "-4") (Opts on? p "-v") (Opts value p "-3") (Opts operands p)))
+```
+---
+    (#t #t "5" ("-6" "h"))
+
 ### `--` ends the options, whatever follows looks like
 
 ```x

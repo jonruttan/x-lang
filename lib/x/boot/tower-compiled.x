@@ -60,6 +60,9 @@
 ; Every compile below is on Compiled's list: it is switched to interpreted
 ; before a state image is written and compiled again after one is loaded.
 (import x/tool/compiled)
+; (obj ref) and (obj set!) compiled into their own closure objects, ahead
+; of the tower so every type below reads and writes its slots through them.
+(import x/tool/obj-compiled)
 
 ; --- THE BURST USES THE ENGINE'S OWN JIT, NEVER A SYSTEM TOOLCHAIN -----------
 ;
