@@ -272,7 +272,8 @@
 
 (doc number? "Test whether a value is any numeric type (integer, rational, float, or complex)."
   (param x ANY "Value to test")
-  (returns BOOL "True if x is a number"))
+  (returns BOOL "True if x is a number")
+  (example "(number? 3+4i)" "#t"))
 (set! number?
   (fn (_ x)
     (match
@@ -283,14 +284,16 @@
 
 (doc complex? "Test whether a value is any numeric type (alias for number?)."
   (param x ANY "Value to test")
-  (returns BOOL "True if x is a number"))
+  (returns BOOL "True if x is a number")
+  (example "(list (complex? 3+4i) (complex? 'a))" "(#t #f)"))
 ; A wrapper, not an alias: number? is widened by the modules that load
 ; after this one (decimal), and a copy taken here would stop at this moment.
 (def complex? (fn (_ x) (number? x)))
 
 (doc real? "Test whether a value is a real number (integer, rational, or float, but not complex)."
   (param x ANY "Value to test")
-  (returns BOOL "True if x is a real number"))
+  (returns BOOL "True if x is a real number")
+  (example "(list (real? 1.5) (real? 3+4i))" "(#t #f)"))
 (set! real?
   (fn (_ x)
     (if (rat? x) #t
@@ -306,50 +309,64 @@
       %complex)
     (method complex? (self (param x ANY "Value to test"))
       (doc "Test whether a value is any numeric type (alias for number?)."
-        (returns BOOL "True if x is a number"))
+        (returns BOOL "True if x is a number")
+        (example "(Complex complex? 2i)" "#t"))
       (number? x))
     (method make (self (param re NUMBER "Real part") (param im NUMBER "Imaginary part"))
       (doc "Construct a complex number from rectangular coordinates."
-        (returns COMPLEX|NUMBER "Complex number, or real if imaginary part is zero"))
+        (returns COMPLEX|NUMBER "Complex number, or real if imaginary part is zero")
+        (example "(Complex make 3 4)" "3+4i")
+        (example "(Complex make 3 0)" "3"))
       (make-complex re im))
     (method from-polar (self (param mag NUMBER "Magnitude") (param ang NUMBER "Angle in radians"))
       (doc "Construct a complex number from polar coordinates (magnitude and angle)."
-        (returns COMPLEX|NUMBER "Complex number from polar coordinates"))
+        (returns COMPLEX|NUMBER "Complex number from polar coordinates")
+        (example "(Complex from-polar 2 0)" "2.0+0.0i"))
       (let ((fang (float-of ang)) (fmag (float-of mag)))
         (make-complex
           (f-mul fmag (fcos fang))
           (f-mul fmag (fsin fang)))))
     (method real-part (self (param z COMPLEX|NUMBER "Complex or real number"))
       (doc "Return the real part of a complex number, or the number itself for reals."
-        (returns NUMBER "Real part"))
+        (returns NUMBER "Real part")
+        (example "(Complex real-part 3+4i)" "3"))
       (%complex-re z))
     (method imag-part (self (param z COMPLEX|NUMBER "Complex or real number"))
       (doc "Return the imaginary part of a complex number, or 0 for reals."
-        (returns NUMBER "Imaginary part"))
+        (returns NUMBER "Imaginary part")
+        (example "(Complex imag-part 3+4i)" "4")
+        (example "(Complex imag-part 7)" "0"))
       (%complex-im z))
     (method magnitude (self (param z COMPLEX|NUMBER "Complex or real number"))
       (doc "Return the magnitude (absolute value) of a complex or real number."
-        (returns FLOAT "Absolute value (distance from origin)"))
+        (returns FLOAT "Absolute value (distance from origin)")
+        (example "(Complex magnitude 3+4i)" "5.0"))
       (%cx-magnitude z))
     (method angle (self (param z COMPLEX|NUMBER "Complex or real number"))
       (doc "Return the angle (argument) of a complex number in radians."
-        (returns FLOAT "Angle in radians"))
+        (returns FLOAT "Angle in radians")
+        (example "(Complex angle 0+1i)" "1.5707963267949"))
       (%cx-angle z))
     (method + (self (param a COMPLEX|NUMBER "First operand") (param b COMPLEX|NUMBER "Second operand"))
-      (doc "Add two complex numbers (reals promote)." (returns COMPLEX|NUMBER "Sum, collapsed to real if imaginary part is zero"))
+      (doc "Add two complex numbers (reals promote)." (returns COMPLEX|NUMBER "Sum, collapsed to real if imaginary part is zero")
+        (example "(Complex + 1+2i 3-1i)" "4+1i"))
       (cx-add (ensure-complex a) (ensure-complex b)))
     (method - (self (param a COMPLEX|NUMBER "First operand") (param b COMPLEX|NUMBER "Second operand"))
-      (doc "Subtract two complex numbers (reals promote)." (returns COMPLEX|NUMBER "Difference, collapsed to real if imaginary part is zero"))
+      (doc "Subtract two complex numbers (reals promote)." (returns COMPLEX|NUMBER "Difference, collapsed to real if imaginary part is zero")
+        (example "(Complex - 3+4i 3)" "0+4i"))
       (cx-sub (ensure-complex a) (ensure-complex b)))
     (method * (self (param a COMPLEX|NUMBER "First operand") (param b COMPLEX|NUMBER "Second operand"))
-      (doc "Multiply two complex numbers (reals promote)." (returns COMPLEX|NUMBER "Product, collapsed to real if imaginary part is zero"))
+      (doc "Multiply two complex numbers (reals promote)." (returns COMPLEX|NUMBER "Product, collapsed to real if imaginary part is zero")
+        (example "(Complex * 2i 2i)" "-4"))
       (cx-mul (ensure-complex a) (ensure-complex b)))
     (method / (self (param a COMPLEX|NUMBER "Dividend") (param b COMPLEX|NUMBER "Divisor"))
-      (doc "Divide two complex numbers (reals promote)." (returns COMPLEX|NUMBER "Quotient, collapsed to real if imaginary part is zero"))
+      (doc "Divide two complex numbers (reals promote)." (returns COMPLEX|NUMBER "Quotient, collapsed to real if imaginary part is zero")
+        (example "(Complex / 4+2i 2)" "2+1i"))
       (cx-div (ensure-complex a) (ensure-complex b)))
     (method = (self (param a COMPLEX|NUMBER "Left operand") (param b COMPLEX|NUMBER "Right operand"))
       (doc "Test whether two complex numbers are equal (reals promote)."
-        (returns BOOL "True if both real and imaginary parts are equal"))
+        (returns BOOL "True if both real and imaginary parts are equal")
+        (example "(Complex = 2 2+0i)" "#t"))
       (cx-eq (ensure-complex a) (ensure-complex b)))))
 
 ; Value dispatch (subject-last): (1+2i real-part) -> (Complex real-part 1+2i).
