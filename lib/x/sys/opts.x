@@ -39,7 +39,8 @@
 ; cluster `-nk2`, the long form `--name` and `--name=value`, and `--`
 ; ending the options.  A bare `-` is an operand (it means stdin), and
 ; so is a negative number, so `sort -5` reads as an operand rather
-; than five unknown flags.
+; than five unknown flags -- unless its digit is a declared option, as
+; ssh's -4 and scp's -3 are.
 
 (module x/sys/opts)
 (import x/type/class)
@@ -317,6 +318,23 @@
           (let ((c (str-byte-ref tok 1)))
             (if (>= c 48) (not (<= c 57)) #t)))))
 
+    ; a token led by a digit option the declaration names, ssh's -4 or
+    ; scp's -3: an option after all, alone or leading a cluster.
+    (method %digit-option? (self (param tok STRING "A command-line token")
+                                 (param flags LIST "Standalone options")
+                                 (param values LIST "Value-taking options"))
+      (doc "Is this token led by a declared digit option?"
+        (returns BOOL "True for -4 or -4v when -4 is declared; false otherwise")
+        (example "(Opts %digit-option? \"-4\" (list \"-4\") ())" "#t")
+        (example "(Opts %digit-option? \"-5\" (list \"-4\") ())" "#f"))
+      (if (< (str-byte-len tok) 2) #f
+        (if (not (= (str-byte-ref tok 0) 45)) #f
+          (let ((c (str-byte-ref tok 1)))
+            (if (if (>= c 48) (<= c 57) #f)
+              (let ((name (bytes->str (list 45 c))))
+                (if (self %member? name flags) #t (self %member? name values)))
+              #f)))))
+
     (method %walk (self (param flags LIST "Standalone options")
                         (param values LIST "Value-taking options")
                         (param argv LIST "Arguments")
@@ -338,7 +356,7 @@
                 (go (rest as) on vals
                     (if (str=? a "--") (if done (pair a ops) ops) (pair a ops))
                     bad #t))
-              ((not (self %option? a))
+              ((not (if (self %option? a) #t (self %digit-option? a flags values)))
                 (go (rest as) on vals (pair a ops) bad leading))
               ; an exact value option: its argument is the next token
               ((self %member? a values)
