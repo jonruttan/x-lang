@@ -1,10 +1,11 @@
-; obj-compiled.x -- (obj ref) and (obj set!) compiled where they stand
+; obj-compiled.x -- (obj ref), (obj set!) and null? compiled where they stand
 ;
 ; Every vector, record and object field access in the library reads or
-; writes one data word through (obj ref) or (obj set!), and both are
-; interpreted closures (boot/reflect.x, boot/data.x).  The library binds
-; each once, as the doors of x/core/doors and the prim-ref forms beside
-; them, so a compiled version bound to a new name would reach no caller.
+; writes one data word through (obj ref) or (obj set!), and every list walk
+; ends on null?.  All three are interpreted closures (boot/reflect.x,
+; boot/data.x, core/predicates.x).  The library binds each once, as the doors of
+; x/core/doors, the prim-ref forms beside them and the global null?, so a
+; compiled version bound to a new name would reach no caller.
 ; Here each is compiled through compile-asm in object mode and installed
 ; into the closure object itself (Compiled in-place): every holder calls
 ; the compiled version, and the interpreted one stays on Compiled's list
@@ -13,7 +14,8 @@
 ; Data word I of an object is word (%obj-meta-len + I) from its address,
 ; and I arrives as an integer object whose value is its own first data
 ; word.  The bodies read and write that word as the interpreted versions
-; do, with no check of either operand.
+; do, with no check of either operand.  Nil is the null pointer, so null?
+; compares its operand with 0 and answers the #t or #f object.
 
 (module x/tool/obj-compiled)
 (import x/tool/compile compile-asm)
@@ -40,5 +42,10 @@
       (list (lit fn) (lit (_ o i v)) (list (lit %mem-set-at!) (lit o) %obj-compiled-word (lit v)))
       () (lit object))))
 
+(Compiled in-place (lit null?) null?
+  (fn (_)
+    (compile-asm (lit (fn (_ x) (if (= x ()) t f)))
+      (list (pair (lit t) #t) (pair (lit f) #f)) (lit object))))
+
 (doc (provide x/tool/obj-compiled)
-  "Compiles (obj ref) and (obj set!) and installs each into its own closure object, so every holder of either calls the compiled version.")
+  "Compiles (obj ref), (obj set!) and null? and installs each into its own closure object, so every holder of any of them calls the compiled version.")
