@@ -68,6 +68,8 @@
 ; guards; a raise means "stay pure-x".
 (def sum-jit-make
   (fn (_ which check)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "sum-jit: written for an 8-byte word" ()))
     (def step (compile-asm (%sj-expr (if (eq? which (lit bsd)) %sj-bsd %sj-sysv))))
     (def buf (str-make (* 8 %JWORDS)))
     (def ptr (str->ptr buf))

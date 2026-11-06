@@ -518,11 +518,10 @@
 
     ; --- Wall clock (#21) ---
     ; libc gettimeofday into a GC-owned 16-byte buffer; the timeval decode
-    ; is OS-shared: tv_sec is an i64 at 0 on both; tv_usec at 8 fits a u32
-    ; read on both (Darwin's field IS 32-bit; Linux's is an i64 < 1e6).
-    ; That is the 64-bit timeval; a 32-bit one puts tv_usec at 4, and the
-    ; 4-byte usec read is a widening (ptr ref) -- host byte order.
-    ; constraint: word-size = 8 -- struct timeval field offsets are 64-bit
+    ; is OS-shared: tv_sec is a long at 0, a word; tv_usec follows it, one
+    ; word on, and is below 1e6, so a 4-byte read holds it whatever its
+    ; width (Darwin's field IS 32-bit; Linux's is a long).  The 4-byte usec
+    ; read is a widening (ptr ref) -- host byte order.
     ; constraint: endian = little -- widening (ptr ref) of tv_usec
     (method time-of-day (self)
       (doc "Wall-clock time from gettimeofday: (unix-seconds . microseconds)."
@@ -532,7 +531,7 @@
         (let ((buf (str->ptr s)))
           (let ((r (%sys-fold (ptr-call (%resolve "gettimeofday") buf 0))))
             (when (< r 0) (error (Err from-errno (Err errno-of r) (lit gettimeofday) ())))
-            (pair (ptr-ref buf 0 8) (ptr-ref buf 8 4))))))
+            (pair (ptr-ref buf 0 %word-size) (ptr-ref buf %word-size 4))))))
 
     (method now (self)
       (doc "Wall-clock time as unix seconds (UTC) -- the noun reading; (Sys time thunk) is the verb. CPU time is (Sys clock); civil dates are the Date class (x/sys/date)."
@@ -546,8 +545,8 @@
     ; fields read here: tm_isdst an int at 32, tm_gmtoff a long at 40 (an
     ; offset within a day, so its low 32 bits, sign-folded), tm_zone a char*
     ; at 48.  Those are 64-bit offsets, and the low half of tm_gmtoff is read
-    ; as an int: the word-size and endian constraints time-of-day declares
-    ; for this file hold here too.
+    ; as an int, in host byte order.
+    ; constraint: word-size = 8 -- struct tm field offsets are 64-bit
     (method zone (self (param secs INTEGER "Unix seconds: the instant whose zone to read"))
       (doc "The local time zone in force at unix second secs, from the C library's localtime_r: its offset from UTC in seconds east, its abbreviation, and whether it is daylight time. TZ in the environment chooses the zone, as it does for every C program; with none set, the system's."
         (returns ALIST "((offset . SECONDS-EAST) (name . STRING) (dst . BOOL))")

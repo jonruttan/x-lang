@@ -327,6 +327,8 @@
 ; "stay pure-x".
 (def bunzip2-jit-make
   (fn (_ state room crc check)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "bunzip2-jit: written for an 8-byte word" ()))
     (def %sym-step (compile-asm %bj-symbols-expr))
     (def %link-step (compile-asm %bj-link-expr))
     (def %walk-step (compile-asm %bj-walk-expr))

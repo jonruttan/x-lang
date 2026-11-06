@@ -666,22 +666,42 @@
 ; the host relocator's encoding, written as two 8-byte stores (A64: MOVZ and
 ; three MOVKs, sixteen bits each, the register read back from the MOVZ) or one
 ; (x86-64: the imm64 after a two-byte opcode).
+;  On a 4-byte word a site is two words, its offset and then its slot, and a
+; slot's value is the first word of its eight bytes.  The encoding is the A32
+; relocator's: MOVW and MOVT, sixteen bits each, imm4 at [19:16] and imm12 at
+; [11:0], the register read back from the MOVW.
 (def %asm-cache-patcher-expr
-  ((fn (_ site)
-     (def at (list '+ 'code (list '& site 4294967295)))
-     (def val (list '%mem-ref-at 'vals (list '>> site 32)))
-     (def rd (list '& (list '%mem-ref at 0) 31))
-     (def half (fn (_ op shift) (list '| op (list '| (list '<< (list '& (list '>> val shift) 65535) 5) rd))))
-     (def body
-       (if %asm-arm64?
-         (list 'do
-           (list '%mem-set! at 0 (list '| (half 3531603968 0) (list '<< (half 4070572032 16) 32)))
-           (list '%mem-set! (list '+ at 8) 0 (list '| (half 4072669184 32) (list '<< (half 4074766336 48) 32))))
-         (list '%mem-set! (list '+ at 2) 0 val)))
-     (list 'fn '(self code sites vals n)
-       (list 'if '(= n 0) 0
-         (list 'do body '(self code sites vals (- n 1))))))
-   '(%mem-ref-at sites (- n 1))))
+  (if (= %word-size 4)
+    ((fn (_ k)
+       (def at (list '+ 'code (list '%mem-ref-at 'sites k)))
+       (def val (list '%mem-ref-at 'vals (list '* 2 (list '%mem-ref-at 'sites (list '+ k 1)))))
+       (def rd (list '<< (list '& (list '>> (list '%mem-ref at 0) 12) 15) 12))
+       (def half
+         (fn (_ shift)
+           ((fn (_ v) (list '| (list '<< (list '& (list '>> v 12) 15) 16) (list '& v 4095)))
+            (list '& (list '>> val shift) 65535))))
+       (list 'fn '(self code sites vals n)
+         (list 'if '(= n 0) 0
+           (list 'do
+             (list '%mem-set! at 0 (list '| 0xE3000000 (list '| rd (half 0))))
+             (list '%mem-set! at 1 (list '| 0xE3400000 (list '| rd (half 16))))
+             '(self code sites vals (- n 1))))))
+     '(* 2 (- n 1)))
+    ((fn (_ site)
+       (def at (list '+ 'code (list '& site 4294967295)))
+       (def val (list '%mem-ref-at 'vals (list '>> site 32)))
+       (def rd (list '& (list '%mem-ref at 0) 31))
+       (def half (fn (_ op shift) (list '| op (list '| (list '<< (list '& (list '>> val shift) 65535) 5) rd))))
+       (def body
+         (if %asm-arm64?
+           (list 'do
+             (list '%mem-set! at 0 (list '| (half 3531603968 0) (list '<< (half 4070572032 16) 32)))
+             (list '%mem-set! (list '+ at 8) 0 (list '| (half 4072669184 32) (list '<< (half 4074766336 48) 32))))
+           (list '%mem-set! (list '+ at 2) 0 val)))
+       (list 'fn '(self code sites vals n)
+         (list 'if '(= n 0) 0
+           (list 'do body '(self code sites vals (- n 1))))))
+     '(%mem-ref-at sites (- n 1)))))
 
 ; () before this process has looked, the patcher once it has one, #f when it
 ; looked and none was cached (a compile may still make one), 'none when the
@@ -695,12 +715,10 @@
   (fn (_) (%asm-cache-text %asm-cache-patcher-expr () #f)))
 
 ; The patcher, or () for the x walk: looked for once a process, held or cached,
-; never compiled here -- a pour must not load the compiler.  A site packs its
-; offset and its slot into one 8-byte word, which a 4-byte word cannot read
-; whole, so there the walk is the patcher.
+; never compiled here -- a pour must not load the compiler.
 (def %asm-cache-patcher
   (fn (_)
-    (def c (if (= %word-size 8) (first %asm-cache-patcher-cell) (lit none)))
+    (def c (first %asm-cache-patcher-cell))
     (if (null? c)
       (do
         (%set-first! %asm-cache-patcher-cell #f)
@@ -757,14 +775,17 @@
           (def st (%asm-cache-sites (list (list 0 0 "a") (list 16 1 "b"))))
           (def vals (str-make 16))
           (def vp (str->ptr vals))
-          (ptr-set-word! vp 0 1311768467463790320)
-          (ptr-set-word! vp 8 9141386507638288912)
+          (def wide (int= %word-size 8))
+          (ptr-set-word! vp 0 (if wide 1311768467463790320 0x12345678))
+          (ptr-set-word! vp 8 (if wide 9141386507638288912 0x7EDCBA98))
+          ; the first instruction of a site: A64 MOVZ x3 and x17, A32 MOVW
+          ; r3 and r12, which the relocator reads the register back from
           (def scratch
             (fn (_)
               (def s (str-make 32))
               (def p (str->ptr s))
-              (ptr-set! p 0 3531603971 4)
-              (ptr-set! p 16 3531603985 4)
+              (ptr-set! p 0 (if wide 3531603971 0xE3003000) 4)
+              (ptr-set! p 16 (if wide 3531603985 0xE300C000) 4)
               s))
           (def a (scratch))
           (def b (scratch))
@@ -777,7 +798,7 @@
           (when ((fn (self at)
                    (if (int= at 32) #t
                      (if (int= (ptr-ref-word pa at) (ptr-ref-word pb at))
-                       (self (int+ at 8)) #f)))
+                       (self (int+ at %word-size)) #f)))
                  0)
             (%set-first! %asm-cache-patcher-cell f)))))))
 

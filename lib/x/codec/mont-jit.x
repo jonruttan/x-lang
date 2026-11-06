@@ -258,6 +258,8 @@
 (def %ml-fns (pair () ()))
 (def %ml-compiled
   (fn (_)
+    ; the loops lay out and compute in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "mont-jit: written for an 8-byte word" ()))
     (when (null? (first %ml-fns))
       (jit-group "mont-jit-run:5"
         (fn (_) (list %ml-run-expr %ml-or-expr %ml-xor-or-expr %ml-from-be-expr %ml-to-be-expr))
@@ -531,6 +533,8 @@
 ; lane cannot build them or they disagree.
 (def mont-jit-make
   (fn (_ m)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "mont-jit: written for an 8-byte word" ()))
     (def n (mont-n m))
     (def e (%mj-engine m))
     (obj-set! e 13 %mj-hdr)

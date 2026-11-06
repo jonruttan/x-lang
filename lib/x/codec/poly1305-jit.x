@@ -109,6 +109,8 @@
 ; toolchain error, or on DISAGREEMENT with the reference.
 (def poly1305-jit-make
   (fn (_ ref rv)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "poly1305-jit: written for an 8-byte word" ()))
     (jit-group "poly1305-jit" (fn (_) (list %pj-step-expr))
       (fn (_ fns replayed?) (%pj-wire ref rv (first fns) replayed?)))))
 

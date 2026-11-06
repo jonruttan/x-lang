@@ -139,6 +139,8 @@
 ; guards; a raise means "stay pure-x", never a wrong digest.
 (def sha512-jit-make
   (fn (_ k ihs ref)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "sha512-jit: written for an 8-byte word" ()))
     (jit-group "sha512-jit:emit" (fn (_) (list %s5-rounds-expr %s5-fill-expr %s5-emit-expr))
       (fn (_ fns replayed?)
         (%s5-wire k ihs ref (first fns) (first (rest fns)) (first (rest (rest fns))) replayed?)))))

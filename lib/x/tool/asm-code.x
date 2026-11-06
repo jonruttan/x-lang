@@ -217,9 +217,9 @@
      (fn (_ buf-ptr offset val)
        (def rd (bshl (band (bshr (ptr-ref buf-ptr offset 4) 12) 15) 12))
        (def half (fn (_ v) (bor (bshl (band (bshr v 12) 15) 16) (band v 4095))))
-       (ptr-set! buf-ptr offset (bor 3808428032 (bor rd (half (band val 65535)))) 4)
+       (ptr-set! buf-ptr offset (bor 0xE3000000 (bor rd (half (band val 65535)))) 4)
        (ptr-set! buf-ptr (iadd offset 4)
-         (bor 3812622336 (bor rd (half (band (bshr val 16) 65535)))) 4)))
+         (bor 0xE3400000 (bor rd (half (band (bshr val 16) 65535)))) 4)))
    (prim-ref 'int '&) (prim-ref 'int '|) (prim-ref 'int '<<)
    (prim-ref 'int '>>) (prim-ref 'int '+)))
 

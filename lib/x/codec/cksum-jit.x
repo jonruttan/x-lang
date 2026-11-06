@@ -66,6 +66,8 @@
 ; guards; a raise means "stay pure-x".
 (def cksum-jit-make
   (fn (_ table check)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "cksum-jit: written for an 8-byte word" ()))
     (def step (compile-asm %kj-expr))
     (def buf (str-make (* 8 (+ %KT 256))))
     (def ptr (str->ptr buf))

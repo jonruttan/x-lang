@@ -285,7 +285,9 @@
 ; relocators that moved from the backends, and %asm-reloc, the host's
 ; relocator, which a buffer poured from the cache reads without the backend;
 ; and %asm-emit, the slot asm.x fills so that calling an assembler emits.
-(file "lib/x/tool/asm-code.x" 22)
+; asm-code.x rose 22 to 23 for %arm32-reloc, the third backend's relocator:
+; MOVW and MOVT, sixteen bits each, the register read back from the MOVW.
+(file "lib/x/tool/asm-code.x" 23)
 ; arm64.x rose 8 to 9 for %arm64-reloc: re-encoding a 64-bit immediate is
 ; per-backend work (MOVZ + 3x MOVK, sixteen bits to a word).
 ; arm64.x fell 9 to 8 when %arm64-reloc moved to asm-code.x.
