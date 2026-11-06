@@ -91,7 +91,17 @@ call makes about 20 KB.
 
 ## State images and CI
 
-### I1. The suite boots from source on CI
+### I1. A bundle without CI
+A bundle with no CI workflow is checked only by whoever runs its suite last,
+on one machine and one release; its pull requests show no checks.
+- **Check:** `gh api repos/OWNER/REPO/contents/.github/workflows` answers
+  404, or no workflow calls x-lang's `bundle.yml`.
+- **Remedy:** `.github/workflows/ci.yml` calling
+  `jonruttan/x-lang/.github/workflows/bundle.yml@main` on push to main, pull
+  requests and a weekly schedule. It runs `tests/spec-gate.sh` against the
+  declared release and main on Linux x86-64, Linux arm64 and macOS.
+
+### I2. The suite boots from source on CI
 Bundle CI runs an x-lang checkout (`.x-lang/x.sh`). A checkout's `x.sh` reads
 `lib/` from the current directory, so a bundle script that runs `"$X"` from
 the bundle directory works with an installed x and fails on CI. When that
@@ -102,35 +112,35 @@ script is an image probe, the suite falls back to booting from source.
   `(cd "$("$X" --share-dir)" && "$X" -f FILE)`, and print a probe's stderr
   when it fails.
 
-### I2. A probe every declared release passes
+### I3. A probe every declared release passes
 A capability probe for a fix the declared release already carries can only
 fail for another reason, and its message then names the wrong one.
 - **Check:** for each probe in `tests/`, the release that brought the fix,
   against `(requires-release ...)` in `lang.xon`.
 - **Remedy:** delete the probe.
 
-### I3. Runner logic copied across bundles
+### I4. Runner logic copied across bundles
 A block copied into many bundles' `tests/spec-runner.sh` carries one defect
 into all of them.
 - **Check:** `md5` the same block across the bundles' runners.
 - **Remedy:** move it into the platform runner or the lang kit, behind a knob
   a bundle sets.
 
-### I4. A stale image after an edit
+### I5. A stale image after an edit
 `x -l NAME` boots from an image keyed by the bundle's path, not its contents.
 The spec runner's image is keyed on contents.
 - **Check:** an edit, then a run from the same `X_LANG_DIR`.
 - **Remedy:** a fresh langs directory after an edit, or an empty
   `~/.cache/x/images/`.
 
-### I5. Modules the image key does not hash
+### I6. Modules the image key does not hash
 The image key hashes `.x` files; modules with another extension (x-r5rs's
 `.scm`) do not rewrite the image.
 - **Check:** the bundle's module extensions against `IMG_KEY_EXT` in
   `tests/spec-runner.sh`.
 - **Remedy:** name each extension in `IMG_KEY_EXT`.
 
-### I6. NUL bytes in a module-level buffer
+### I7. NUL bytes in a module-level buffer
 The image writer copies strings to their first NUL, so a module-level buffer
 holding a NUL comes back short.
 - **Check:** top-level `%make-str`, `Bytes of-hex` with `00`,
@@ -138,7 +148,7 @@ holding a NUL comes back short.
   `IMG=0`.
 - **Remedy:** build the buffer per call.
 
-### I7. Per-process state fixed at load
+### I8. Per-process state fixed at load
 A second base, a session, `$$`, colour or a signal handler fixed at load is
 wrong in every process that loads the image.
 - **Check:** the writer's log says `unnameable: 0`; `X_IMG_WHO=1` names the
@@ -146,7 +156,7 @@ wrong in every process that loads the image.
 - **Remedy:** build it on first use, or rebuild it from a replayable table
   (x-python#42).
 
-### I8. A missing import the specs cannot see
+### I9. A missing import the specs cannot see
 The spec harness loads the whole platform and the kit lint preloads sibling
 modules, so a module with a missing import passes every spec and fails from
 its image or in x-os.
@@ -155,12 +165,12 @@ its image or in x-os.
   `docker.io/jonruttan/x-os:latest`.
 - **Remedy:** add the import.
 
-### I9. A pin moved past an untested release
+### I10. A pin moved past an untested release
 - **Check:** the suite on the tag before `(requires-release ...)` moves; for
   a failure on the main leg only, `git log v<declared>..origin/main --
   tools/lang-kit`.
-- **Remedy:** move the pin once the tag's suite passes. A bundle with no CI
-  leg puts its local tally in the PR body.
+- **Remedy:** move the pin once the tag's suite passes. Until a bundle has CI
+  (I1), its PR body carries the local tally.
 
 ## Specs and the runner
 
