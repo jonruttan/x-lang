@@ -111,6 +111,44 @@ used to kill the engine.
 ---
     Error: type: %str-concat: not a string
 
+### five or more pieces join in spans, in order
+
+```x
+(%str-concat (list "a" "b" "" "cd" "e" "" "fgh" "i"))
+```
+---
+    "abcdefghi"
+
+### a long list of short pieces keeps its order
+
+```x
+(def concat-digits
+  (fn (self i acc)
+    (if (< i 0) acc (self (- i 1) (pair (Io display-to-str (% i 10)) acc)))))
+(def concat-joined (%str-concat (concat-digits 2999 ())))
+(display (list (Str8 length concat-joined) (Str8 sub 0 12 concat-joined) (Str8 sub 2988 12 concat-joined)))
+```
+---
+    (3000 012345678901 890123456789)
+
+### a non-string piece late in a long list raises a type error
+
+```x
+(%str-concat (list "a" "b" "c" "d" "e" "f" 5))
+```
+---
+    Error: type: %str-concat: not a string
+
+### an output of 256 KB or more takes the block arm
+
+```x
+(def concat-kb (Str8 make 1024 #\a))
+(def concat-kbs (fn (self i acc) (if (eq? i 0) acc (self (- i 1) (pair concat-kb acc)))))
+(display (Str8 length (%str-concat (concat-kbs 300 ()))))
+```
+---
+    307200
+
 ## substring
 
 ### extracts substring
