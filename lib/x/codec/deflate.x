@@ -217,14 +217,15 @@
     (ptr-set! prev (int<< (int& i %WMASK) 2) (ptr-ref head h 4) 4)
     (ptr-set! head h (int+ i 1) 4)))
 
-; How many bytes from a and b agree, up to limit: eight at a time while
-; eight are left, then one.
+; How many bytes from a and b agree, up to limit: a word at a time while
+; a word is left, then one.  The word is the machine's: a read of 8 on a
+; 4-byte word holds 4 of them, and a stride of 8 would count 4 unread.
 (def %agree
   (fn (self p a b k limit)
-    (if (int< (int- limit k) 8)
+    (if (int< (int- limit k) %word-size)
       (%agree-bytes p a b k limit)
-      (if (int= (ptr-ref p (int+ a k) 8) (ptr-ref p (int+ b k) 8))
-        (self p a b (int+ k 8) limit)
+      (if (int= (ptr-ref p (int+ a k) %word-size) (ptr-ref p (int+ b k) %word-size))
+        (self p a b (int+ k %word-size) limit)
         (%agree-bytes p a b k limit)))))
 
 (def %agree-bytes
