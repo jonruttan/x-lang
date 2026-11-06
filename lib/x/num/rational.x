@@ -296,7 +296,10 @@
 
 (doc / "Divide numbers; integer division produces rationals when not exact."
   (param args NUMBER "Numbers to divide")
-  (returns NUMBER "Quotient"))
+  (returns NUMBER "Quotient")
+  (example "(/ 6 3)" "2")
+  (example "(/ 1 3)" "1/3")
+  (example "(/ 3)" "1/3"))
 (set! /
   (fn (_ . args)
     (if (null? args) 1

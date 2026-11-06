@@ -161,32 +161,40 @@
 
 (doc ~ "Bitwise NOT."
   (param n INTEGER "Integer")
-  (returns INTEGER "Bitwise complement"))
+  (returns INTEGER "Bitwise complement")
+  (example "(~ 0)" "-1")
+  (example "(~ 5)" "-6"))
 
 (doc & "Bitwise AND."
   (param a INTEGER "First operand")
   (param b INTEGER "Second operand")
-  (returns INTEGER "Bitwise AND"))
+  (returns INTEGER "Bitwise AND")
+  (example "(& 12 10)" "8"))
 
 (doc | "Bitwise OR."
   (param a INTEGER "First operand")
   (param b INTEGER "Second operand")
-  (returns INTEGER "Bitwise OR"))
+  (returns INTEGER "Bitwise OR")
+  (example "(| 12 10)" "14"))
 
 (doc ^ "Bitwise XOR."
   (param a INTEGER "First operand")
   (param b INTEGER "Second operand")
-  (returns INTEGER "Bitwise XOR"))
+  (returns INTEGER "Bitwise XOR")
+  (example "(^ 12 10)" "6"))
 
 (doc << "Left shift."
   (param n INTEGER "Value to shift")
   (param count INTEGER "Number of bits")
-  (returns INTEGER "Shifted value"))
+  (returns INTEGER "Shifted value")
+  (example "(<< 1 4)" "16"))
 
 (doc >> "Arithmetic right shift."
   (param n INTEGER "Value to shift")
   (param count INTEGER "Number of bits")
-  (returns INTEGER "Shifted value"))
+  (returns INTEGER "Shifted value")
+  (example "(>> 16 2)" "4")
+  (example "(>> -16 2)" "-4"))
 
 ; === Predicates ===
 
@@ -214,12 +222,16 @@
 (doc = "Test numeric equality."
   (param a INTEGER "First number")
   (param b INTEGER "Second number")
-  (returns BOOL "t if equal"))
+  (returns BOOL "t if equal")
+  (example "(= 3 3)" "#t")
+  (example "(= 3 4)" "#f"))
 
 (doc < "Test numeric less-than."
   (param a INTEGER "First number")
   (param b INTEGER "Second number")
-  (returns BOOL "t if a < b"))
+  (returns BOOL "t if a < b")
+  (example "(< 1 2)" "#t")
+  (example "(< 2 1)" "#f"))
 
 ; char->integer (ns char) and integer->char (ns int) are de-registered (R5);
 ; the Char class (->int / from-int) carries their docs. Reader-hot consumers
