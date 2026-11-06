@@ -161,6 +161,25 @@ The grammar reads from the line that opens the top-level form.
 ---
     ((3 2 'error))
 
+### a class function may answer the token's pieces
+
+Each piece is (offset length class) inside the token, in order; a piece of
+class nil is left plain, and pieces are clipped to the range like any span.
+
+```x
+(do (import x/tool/syntax)
+    (let ((g (Syntax make 'kv
+               (list (Lexer run 'blank " " " ") (Lexer run 'pair "abc=" "abc="))
+               (list (pair 'pair
+                       (fn (_ t)
+                         (let ((i (Str8 index-of "=" t)))
+                           (if (null? i) 'name
+                             (list (list 0 i 'name) (list i 1 ()) (list (+ i 1) (- (Str8 length t) (+ i 1)) 'string))))))))))
+      (list (g spans "ab=c a") (g spans "ab=c a" 1 3))))
+```
+---
+    (((0 2 'name) (3 1 'string) (5 1 'name)) ((1 1 'name) (3 1 'string)))
+
 ### x-lang's grammar is for .x files
 
 ```x
