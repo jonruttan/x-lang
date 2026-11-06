@@ -23,11 +23,14 @@
 
   (static
     (method set? (self (param x ANY "Value to test"))
-      (doc "Test whether a value is a Set." (returns BOOL "#t when x is a Set instance"))
+      (doc "Test whether a value is a Set." (returns BOOL "#t when x is a Set instance")
+        (example "(Set set? (Set make))" "#t")
+        (example "(Set set? (list 1))" "#f"))
       (if (object? x) (instance-of? x self) #f))
 
     (method make (self)
-      (doc "An empty set." (returns Set "A new empty set"))
+      (doc "An empty set." (returns Set "A new empty set")
+        (example "((Set make) empty?)" "#t"))
       (new-from self (list 'd (Dict make))))
 
     (method from-list (self (param lst LIST "Elements to add (duplicates collapse)"))
@@ -55,36 +58,44 @@
   (method add! (self x)
     (doc "Add an element (a no-op when already present); returns the set for chaining."
       (param x ANY "Element (symbol, string, integer, char, or class instance)")
-      (returns Set "self"))
+      (returns Set "self")
+      (example "(((Set make) add! 'a) has? 'a)" "#t")
+      (example "(((Set of 1 2) add! 2) length)" "2"))
     ((self %d) set! x #t)
     self)
 
   (method has? (self x)
     (doc "Test membership."
       (param x ANY "Element to test")
-      (returns BOOL "#t when x is a member"))
+      (returns BOOL "#t when x is a member")
+      (example "((Set of 1 2) has? 2)" "#t")
+      (example "((Set of 1 2) has? 3)" "#f"))
     ((self %d) has? x))
 
   (method del! (self x)
     (doc "Remove an element (a no-op when absent); returns the set for chaining."
       (param x ANY "Element to remove")
-      (returns Set "self"))
+      (returns Set "self")
+      (example "(((Set of 1 2) del! 1) has? 1)" "#f"))
     ((self %d) del! x)
     self)
 
   ; --- size ---------------------------------------------------------------
   (method length (self)
-    (doc "The number of members (a stored property, O(1))." (returns INTEGER "Member count"))
+    (doc "The number of members (a stored property, O(1))." (returns INTEGER "Member count")
+      (example "((Set of 1 2 3) length)" "3"))
     ((self %d) length))
 
   (method empty? (self)
-    (doc "Test whether the set has no members." (returns BOOL "#t when empty"))
+    (doc "Test whether the set has no members." (returns BOOL "#t when empty")
+      (example "((Set of 1) empty?)" "#f"))
     ((self %d) empty?))
 
   ; --- algebra ------------------------------------------------------------
   (method copy (self)
     (doc "A new set with the same members (a shallow copy)."
-      (returns Set "An independent set of the same members"))
+      (returns Set "An independent set of the same members")
+      (example "(let ((s (Set of 1 2))) (def c (s copy)) (c add! 3) (s length))" "2"))
     (Set from-list (self ->list)))
 
   (method union (self (param other Set "Set to unite with"))
@@ -116,7 +127,9 @@
 
   (method superset? (self (param other Set "Candidate subset"))
     (doc "Test whether this set contains every member of `other`."
-      (returns BOOL "#t when this set is a superset of other"))
+      (returns BOOL "#t when this set is a superset of other")
+      (example "((Set of 1 2 3) superset? (Set of 1 2))" "#t")
+      (example "((Set of 1 2) superset? (Set of 1 3))" "#f"))
     (other subset? self))
 
   (method =? (self (param other Set "Set to compare with"))
@@ -129,7 +142,8 @@
   (method for-each (self f)
     (doc "Apply f to each member, for side effects (unordered)."
       (param f CALLABLE "Applied to each member")
-      (returns ANY "nil"))
+      (returns ANY "nil")
+      (sample "((Set of 1) for-each (fn (_ x) (display x)))" "prints 1"))
     (List for-each f (self ->list)))
 
   (method filter (self f)
@@ -156,7 +170,8 @@
 
   ; --- extraction ---------------------------------------------------------
   (method ->list (self)
-    (doc "The members as a list (unordered)." (returns LIST "List of members"))
+    (doc "The members as a list (unordered)." (returns LIST "List of members")
+      (example "((Set of 7) ->list)" "(7)"))
     ((self %d) keys)))
 
 
