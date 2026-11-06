@@ -180,6 +180,8 @@
 
 ; the two programs, made on the engine the first time: double, add
 (def %progs ())
+; written into fe-engine's table, so dropped with it from an image
+((prim-ref (lit image) (lit transient!)) (fn (_) (set! %progs ())))
 
 (def %scalarmult-narrow
   (fn (_ k p)

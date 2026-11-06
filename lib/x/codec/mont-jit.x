@@ -257,6 +257,9 @@
 ; The key counts them: a poured group is whatever was stored under its
 ; key, so a group that changes must change its name.
 (def %ml-fns (pair () ()))
+; compiled code is this process's: an image drops the five, and the first
+; engine after a load pours them again
+((prim-ref (lit image) (lit transient!)) (fn (_) (%set-first! %ml-fns ())))
 (def %ml-compiled
   (fn (_)
     (when (null? (first %ml-fns))

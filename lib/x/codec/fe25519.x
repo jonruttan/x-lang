@@ -202,6 +202,9 @@
 ; is mont.x's.  Each loads its operands into slots 0 and 1, computes
 ; into slot 2 and stores it.
 (def %pe ())
+; an engine is this process's memory and compiled code: an image drops it,
+; and the first use after a load builds it again
+((prim-ref (lit image) (lit transient!)) (fn (_) (set! %pe ())))
 (def %engine
   (fn (_)
     (when (null? %pe) (set! %pe (mont-jit-engine %pm)))
