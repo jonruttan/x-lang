@@ -9,7 +9,9 @@ these cases re-prove agreement through the class, and read what the engine
 writes back with `Inflate` and with the system zlib.  `%dj-fill` puts bytes
 into a region from a generator: 0 a short repeat, 1 varied text with repeats
 at many distances, 2 six-bit symbols that hardly repeat.  `%dj-bytes` reads a
-region back as a byte list.
+region back as a byte list.  Each loop fetches its `ptr` primitive once,
+before the loop: a `prim-ref` is a catalog lookup that allocates, and
+these loops run once per byte.
 
 ## the engine builds and is adopted
 
@@ -33,8 +35,9 @@ The streams are written before the engine is built, then again through it.
   (def %dj-fill (fn (_ which n)
     (def r ((prim-ref (lit str) (lit make)) n))
     (def p ((prim-ref (lit str) (lit ->ptr)) r))
+    (def set (prim-ref (lit ptr) (lit set!)))
     ((fn (self i s) (when (< i n)
-       (do ((prim-ref (lit ptr) (lit set!)) p i
+       (do (set p i
               (match ((= which 0) (+ 97 (% i 3))) ((= which 1) (+ 97 (% (+ (* i i) (/ i 7)) 23))) (#t (+ 32 (& s 63)))) 1)
            (self (+ i 1) (% (* s 75) 65537)))))
      0 1)
@@ -59,13 +62,14 @@ block of 16384 tokens, and past the output's first growth many times over.
 
 ```x
 (do (import x/codec/deflate) (import x/codec/inflate) (import x/codec/zlib)
-  (def %dj-bytes (fn (_ r n) (let ((p ((prim-ref (lit str) (lit ->ptr)) r)))
-    ((fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (& ((prim-ref (lit ptr) (lit ref)) p i 1) 255) acc)))) (- n 1) ()))))
+  (def %dj-bytes (fn (_ r n) (let ((p ((prim-ref (lit str) (lit ->ptr)) r)) (get (prim-ref (lit ptr) (lit ref))))
+    ((fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (& (get p i 1) 255) acc)))) (- n 1) ()))))
   (write
     ((fn (_)
        (def in ((prim-ref (lit str) (lit make)) 60000))
        (def p ((prim-ref (lit str) (lit ->ptr)) in))
-       ((fn (self i s) (when (< i 60000) (do ((prim-ref (lit ptr) (lit set!)) p i (if (< (% i 1000) 500) (+ 32 (& s 63)) (+ 97 (% i 7))) 1) (self (+ i 1) (% (* s 75) 65537))))) 0 1)
+       (def set (prim-ref (lit ptr) (lit set!)))
+       ((fn (self i s) (when (< i 60000) (do (set p i (if (< (% i 1000) 500) (+ 32 (& s 63)) (+ 97 (% i 7))) 1) (self (+ i 1) (% (* s 75) 65537))))) 0 1)
        (def z (Deflate zlib in 0 60000))
        (def back (Inflate zlib (first z) 0 (first (rest z))))
        (def same? (= 0 ((prim-ref (lit mem) (lit cmp)) p ((prim-ref (lit str) (lit ->ptr)) (first back)) 60000)))
