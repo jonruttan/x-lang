@@ -222,7 +222,9 @@
        (%sx-line-start s at) 0))))
 
 ; A token's class from the grammar's table: the entry's class, or a function
-; of the token's text answering one; nil for a tag with no entry.
+; of the token's text answering one, or answering the token's pieces, each
+; (offset length class) inside the text, in order; nil for a tag with no
+; entry.
 (def %sx-class-of
   (fn (_ table tag text)
     (def hit
@@ -231,6 +233,23 @@
     (if (null? hit) ()
       (let ((c (rest hit))) (if (if (null? c) #t (symbol? c)) c (if (str? c) c (c text)))))))
 
+; One span (offset length class) clipped to [lo, hi) onto acc; a span with
+; no class or none of its bytes in range is left off.
+(def %sx-clip
+  (fn (_ o n cls lo hi acc)
+    (def e (int+ o n))
+    (if (if (null? cls) #t (if (<= e lo) #t (>= o hi))) acc
+      (let ((s0 (if (< o lo) lo o)) (e0 (if (> e hi) hi e)))
+        (pair (list s0 (int- e0 s0) cls) acc)))))
+
+; The pieces of a token at offset at, each moved to the text's offsets.
+(def %sx-pieces
+  (fn (self ps at lo hi acc)
+    (if (null? ps) acc
+      (let ((p (first ps)))
+        (self (rest ps) at lo hi
+          (%sx-clip (int+ at (first p)) (first (rest p)) (first (rest (rest p))) lo hi acc))))))
+
 ; The tokens' spans inside [lo, hi), each (offset length class), offsets
 ; counted in the text the tokens were read from from base.  A token with no
 ; class is left out; bytes after the lexer stops are plain.
@@ -238,13 +257,13 @@
   (fn (self table toks at lo hi acc)
     (if (if (null? toks) #t (>= at hi)) (%reverse acc)
       (let ((tag (first (first toks))) (text (first (rest (first toks)))))
-        (let ((e (int+ at (str-byte-len text))))
-          (if (<= e lo) (self table (rest toks) e lo hi acc)
+        (let ((n (str-byte-len text)))
+          (if (<= (int+ at n) lo) (self table (rest toks) (int+ at n) lo hi acc)
             (let ((cls (%sx-class-of table tag text)))
-              (if (null? cls) (self table (rest toks) e lo hi acc)
-                (let ((s0 (if (< at lo) lo at)) (e0 (if (> e hi) hi e)))
-                  (self table (rest toks) e lo hi
-                    (pair (list s0 (int- e0 s0) cls) acc)))))))))))
+              (self table (rest toks) (int+ at n) lo hi
+                (if (pair? cls)
+                  (%sx-pieces cls at lo hi acc)
+                  (%sx-clip at n cls lo hi acc))))))))))
 
 (def %sx-spans
   (fn (_ g s start len lim)
@@ -720,7 +739,7 @@
   (doc (name ()) "The grammar's name, a symbol")
   (doc (rules ()) "The Lexer rules, each token's tag looked up in classes")
   (doc (end " ") "The Lexer's end text: see Lexer's end field")
-  (doc (classes ()) "Each (TAG . CLASS): CLASS a class symbol, nil to leave the token plain, or a function of the token's text answering one")
+  (doc (classes ()) "Each (TAG . CLASS): CLASS a class symbol, nil to leave the token plain, or a function of the token's text answering one, or answering the token's pieces, each (offset length class) inside the text, in order, a piece of class nil left plain")
   (doc (sync ()) "A test (fn (_ text offset)) of a line start, true where the lexer can start outside any string or comment; nil to read from the text's start")
   (doc (lines 100) "How many lines spans walks back looking for a line the sync test passes")
   (doc (files ()) "The file name endings the grammar is for, as \".x\"")
@@ -741,8 +760,8 @@
     (%sx-spans self text start len lim))
 
   (method class-of (self (param tag SYMBOL "A token's tag") (param text STRING "The token's text"))
-    (doc "The class the grammar gives a token, or nil for one it leaves plain."
-      (returns SYMBOL "A class")
+    (doc "The class the grammar gives a token, or nil for one it leaves plain; a class function may answer the token's pieces instead, each (offset length class) inside the text."
+      (returns SYMBOL "A class, or the pieces")
       (example "((Syntax x) class-of 'atom \"Str8\")" "'class"))
     (%sx-class-of (self classes) tag text))
 
