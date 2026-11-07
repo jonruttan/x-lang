@@ -64,8 +64,9 @@ jobs:
             -e PARALLEL=1 -e SPEC_HEAVY_JOBS=1 debian:bookworm sh -c '
             apt-get update -q > /dev/null
             apt-get install -y -q --no-install-recommends \
-              build-essential git curl ca-certificates > /dev/null
+              build-essential git curl ca-certificates cmake sudo > /dev/null
             getconf LONG_BIT && uname -m
+            sh tools/dev/sdl3-install.sh || echo "sdl3-install failed; the x/sys/sdl spec will say so"
             make engine && make && make test-c && make test-x \
               && make conformance && make doctest'
 
