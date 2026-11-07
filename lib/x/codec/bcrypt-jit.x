@@ -23,7 +23,7 @@
 (import x/tool/jit-group jit-group)
 
 (import x/core/doors char->int ptr->int ptr-ref-word ptr-set! ptr-set-word! str->ptr str-byte-ref str-make)
-(def %bj-M 4294967295)
+(def %bj-M 0xFFFFFFFF)
 
 ; the buffer, in words:
 ;   0..17 P | 18..1041 S0 S1 S2 S3 | 1042..1059 the salt's key words |
@@ -47,11 +47,14 @@
 (def %bj-seq
   (fn (_ n f) (pair 'do ((fn (self i) (if (= i n) () (pair (f i) (self (+ i 1))))) 0))))
 
-; F on the word in buffer word x: S0[a] + S1[b], XOR S2[c], + S3[d].
+; F on the word in buffer word x: S0[a] + S1[b], XOR S2[c], + S3[d].  `>>`
+; is arithmetic: on a 4-byte word the top byte is masked too.
+(def %bj-top
+  (fn (_ X) (if (< %word-size 8) (list '& (list '>> X 24) 255) (list '>> X 24))))
 (def %bj-f
   (fn (_ x)
     (def X (%bj-W x))
-    (list '& (list '+ (list '^ (list '& (list '+ (%bj-at (list '+ 18 (list '>> X 24)))
+    (list '& (list '+ (list '^ (list '& (list '+ (%bj-at (list '+ 18 (%bj-top X)))
                                                  (%bj-at (list '+ 274 (list '& (list '>> X 16) 255))))
                                          %bj-M)
                                 (%bj-at (list '+ 530 (list '& (list '>> X 8) 255))))
@@ -126,19 +129,17 @@
 ; assembler backend, on any toolchain error, or on a wrong answer.
 (def bcrypt-jit-make
   (fn (_ ref init)
-    ; the engine lays out and computes in 8-byte words
-    (if (< %word-size 8) (Err raise (lit state) "bcrypt-jit: written for an 8-byte word" ()))
     (jit-group "bcrypt-jit" (fn (_) (list %bj-reset-expr %bj-expand-expr %bj-final-expr))
       (fn (_ fns replayed?) (%bj-wire init (first fns) (List ref 1 fns) (List ref 2 fns) replayed?)))))
 
 (def %bj-wire
   (fn (_ init %reset %expand %final replayed?)
     (unless replayed? (Heap collect))
-    (def %buf (str-make (+ (* %bj-words 8) 8)))
+    (def %buf (str-make (* (+ %bj-words 1) %word-size)))
     (def %ptr (str->ptr %buf))
     (def %addr (ptr->int %ptr))
-    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i 8) v)))
-    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i 8))))
+    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i %word-size) v)))
+    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i %word-size))))
     ((fn (self i ws) (unless (null? ws) (do (%poke i (first ws)) (self (+ i 1) (rest ws))))) %bj-INIT init)
     (def %byte (fn (_ s i) (char->int (str-byte-ref s i))))
     ; big-endian word k of a 64-byte digest, k counted around its 16
@@ -193,4 +194,4 @@
 (prim-reg! (lit bcrypt) (lit jit-make) bcrypt-jit-make)
 
 (doc (provide x/codec/bcrypt-jit bcrypt-jit-make)
-  "The compiled bcrypt_hash engine (JIT, ARM64 and x86-64 backends); built and adopted by x/codec/bcrypt after it answers Go's bcrypt_hash vector.")
+  "The compiled bcrypt_hash engine (JIT, ARM64, x86-64 and 32-bit ARM backends); built and adopted by x/codec/bcrypt after it answers Go's bcrypt_hash vector.")
