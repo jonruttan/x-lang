@@ -5,6 +5,26 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-11-07
+
+**The core primitives show worked examples under help.** ([#1200]) `(help eval)`,
+`(help call/cc)`, `(help null?)`, `(help >)` and the rest of 43 entries
+that answered with a description alone now carry an example, run by `make
+doctest`, or a sample for the ones that print or load: the doctest spec
+grows to 1049.
+
+[#1200]: https://github.com/jonruttan/x-lang/pull/1200
+
+Added `x/gfx/canvas`: RGBA canvases with fill, copy, blend, stamp, nine-piece, text and light operations, compiled (`Canvas jit!`) and checked against pure x. ([#1198])
+
+[#1198]: https://github.com/jonruttan/x-lang/pull/1198
+
+- helium: and, or, null?, (obj ref) and (obj set!) run compiled in every dialect, the default one included. ([#1197])
+- apply: a primitive receives the values as themselves; a list among them is no longer evaluated as a form.
+- library: the nested-if workarounds for and and or are gone.
+
+[#1197]: https://github.com/jonruttan/x-lang/pull/1197
+
 ## [0.48.0] - 2026-11-07
 
 **The engine is x-engine-c v0.2.28** ([#1180]), whose release carries the base-slots contract file.
