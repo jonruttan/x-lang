@@ -311,10 +311,9 @@
       (doc "Take the first n elements of a list (n coerced to INT)." (param n INTEGER "Number of elements") (param lst LIST "List") (example "(List take 2 (list 1 2 3))" "(1 2)"))
       (def k (%list->int n "List take: count not convertible to INT"))
       (def go (fn (self j xs acc)
-        ; Nested if, NOT and/or (#343): per element, operatives
-        ; expand per evaluation.
-        (if (if (int< 0 j) (eq? xs ()) #t) (%reverse acc)
-          (self (int- j 1) (rest xs) (pair (first xs) acc)))))
+        (if (and (int< 0 j) (not (eq? xs ())))
+          (self (int- j 1) (rest xs) (pair (first xs) acc))
+          (%reverse acc))))
       (go k lst ()))
     (method chunk (self n lst)
       (doc "Split a list into successive n-element sublists; the last may be shorter." (param n INTEGER "Chunk size (must be > 0)") (param lst LIST "List") (returns LIST "List of chunks") (example "(List chunk 2 (list 1 2 3 4 5))" "((1 2) (3 4) (5))"))
@@ -327,7 +326,7 @@
       (doc "Drop the first n elements of a list (n coerced to INT)." (param n INTEGER "Number of elements to skip") (param lst LIST "List") (example "(List drop 2 (list 1 2 3))" "(3)"))
       (def k (%list->int n "List drop: count not convertible to INT"))
       (def go (fn (self j xs)
-        (if (if (int< 0 j) (eq? xs ()) #t) xs (self (int- j 1) (rest xs)))))
+        (if (and (int< 0 j) (not (eq? xs ()))) (self (int- j 1) (rest xs)) xs)))
       (go k lst))
     (method take-while (self pred lst)
       (doc "Take elements from the front while predicate holds." (param pred CALLABLE "Predicate function") (param lst LIST "List") (example "(List take-while (fn (_ x) (< x 3)) (list 1 2 3 1))" "(1 2)"))
