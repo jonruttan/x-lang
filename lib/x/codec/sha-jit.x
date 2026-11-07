@@ -33,7 +33,8 @@
 (import x/tool/jit-group jit-group)
 
 (import x/core/doors int->ptr mem-copy obj-ref ptr->int ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make)
-(def %sj-M 4294967295)
+(def %sj-M 0xFFFFFFFF)
+(def %sj-narrow (< %word-size 8))
 
 ; scratch layout, one 1024-byte buffer (words):
 ;   0..15 W | 16..23 working state | 24 t1 25 t2 | 26 base 27 len
@@ -49,11 +50,15 @@
 (def %sj-AT (fn (_ e) (list '%mem-ref-at 'a e)))
 (def %sj-setC (fn (_ i v) (list '%mem-set! 'a i v)))
 (def %sj-setAT (fn (_ e v) (list '%mem-set-at! 'a e v)))
-(def %sj-rotr (fn (_ x n) (list '& (list '| (list '>> x n) (list '<< x (- 32 n))) %sj-M)))
+; `>>` is arithmetic: on a 4-byte word the logical shift keeps the low
+; 32-n bits, where an 8-byte word's 32-bit value has no sign to carry in.
+(def %sj-srl
+  (fn (_ x n) (if %sj-narrow (list '& (list '>> x n) (- (<< 1 (- 32 n)) 1)) (list '>> x n))))
+(def %sj-rotr (fn (_ x n) (list '& (list '| (%sj-srl x n) (list '<< x (- 32 n))) %sj-M)))
 (def %sj-bs0 (fn (_ x) (list '^ (%sj-rotr x 2)  (list '^ (%sj-rotr x 13) (%sj-rotr x 22)))))
 (def %sj-bs1 (fn (_ x) (list '^ (%sj-rotr x 6)  (list '^ (%sj-rotr x 11) (%sj-rotr x 25)))))
-(def %sj-ss0 (fn (_ x) (list '^ (%sj-rotr x 7)  (list '^ (%sj-rotr x 18) (list '>> x 3)))))
-(def %sj-ss1 (fn (_ x) (list '^ (%sj-rotr x 17) (list '^ (%sj-rotr x 19) (list '>> x 10)))))
+(def %sj-ss0 (fn (_ x) (list '^ (%sj-rotr x 7)  (list '^ (%sj-rotr x 18) (%sj-srl x 3)))))
+(def %sj-ss1 (fn (_ x) (list '^ (%sj-rotr x 17) (list '^ (%sj-rotr x 19) (%sj-srl x 10)))))
 (def %sj-ch  (fn (_ x y z) (list '^ (list '& x y) (list '& (list '& (list '~ x) %sj-M) z))))
 (def %sj-maj (fn (_ x y z) (list '^ (list '& x y) (list '^ (list '& x z) (list '& y z)))))
 (def %sj-m32 (fn (_ e) (list '& e %sj-M)))
@@ -99,7 +104,7 @@
 ; W[t] for t >= 16 is computed in place in the ring, as the standard's
 ; alternative method (6.1.3) does: W[t & 15] = rotl1 of the xor of the
 ; words 3, 8, 14 and 16 back.  f and K change every twenty rounds.
-(def %sj-rotl (fn (_ x n) (list '& (list '| (list '<< x n) (list '>> x (- 32 n))) %sj-M)))
+(def %sj-rotl (fn (_ x n) (list '& (list '| (list '<< x n) (%sj-srl x (- 32 n))) %sj-M)))
 (def %sj-par (fn (_ x y z) (list '^ x (list '^ y z))))
 (def %sj1-f
   (fn (_ b c d)
@@ -110,7 +115,7 @@
 (def %sj1-k
   (list 'if (list '< 't 20) 1518500249
     (list 'if (list '< 't 40) 1859775393
-      (list 'if (list '< 't 60) 2400959708 3395469782))))
+      (list 'if (list '< 't 60) 0x8F1BBCDC 0xCA62C1D6))))
 (def %sj1-schedule
   (%sj-setAT (list '& 't 15)
     (%sj-rotl (list '^ (%sj-w 3) (list '^ (%sj-w 8) (list '^ (%sj-w 14) (%sj-w 16)))) 1)))
@@ -141,10 +146,11 @@
     (def i (if (= k 0) (%sj-C 26) (list '+ (%sj-C 26) k)))
     (def L (%sj-C 27))
     (def T (%sj-C 28))
+    ; the length's bytes past the word's are zero, high first
     (list 'if (list '< i L)
       (list '%mem-byte-ref-at 'm i)
       (list 'if (list '= i L) 128
-        (list 'if (list '< i (list '- T 8)) 0
+        (list 'if (list '< i (list '- T %word-size)) 0
           (list '& (list '>> (list '<< L 3)
                          (list '<< (list '- (list '- T 1) i) 3)) 255))))))
 (def %sj-fill-word
@@ -179,7 +185,12 @@
         (list '& (list '* 7 't) 15)))))
 (def %sj5-r (%sj-AT (list '+ %sj5-RB (list '+ (list '<< (list '>> 't 4) 2) (list '& 't 3)))))
 (def %sj5-rotl
-  (fn (_ x n) (list '& (list '| (list '<< x n) (list '>> x (list '- 32 n))) %sj-M)))
+  (fn (_ x n)
+    (list '& (list '| (list '<< x n)
+                      (if %sj-narrow
+                        (list '& (list '>> x (list '- 32 n)) (list '- (list '<< 1 n) 1))
+                        (list '>> x (list '- 32 n))))
+             %sj-M)))
 (def %sj5-round-body
   (list 'do
     (%sj-setC 24 (%sj-m32 (list '+ (list '+ %sj-A (%sj5-f %sj-B %sj-Cc %sj-D))
@@ -203,12 +214,14 @@
     (def i (if (= k 0) (%sj-C 26) (list '+ (%sj-C 26) k)))
     (def L (%sj-C 27))
     (def T (%sj-C 28))
+    ; the length's bytes past the word's are zero, low first
     (list 'if (list '< i L)
       (list '%mem-byte-ref-at 'm i)
       (list 'if (list '= i L) 128
         (list 'if (list '< i (list '- T 8)) 0
-          (list '& (list '>> (list '<< L 3)
-                         (list '<< (list '- i (list '- T 8)) 3)) 255))))))
+          ((fn (_ b) (if %sj-narrow (list 'if (list '< i (list '- T 4)) b 0) b))
+           (list '& (list '>> (list '<< L 3)
+                          (list '<< (list '- i (list '- T 8)) 3)) 255)))))))
 (def %sj5-fill-word
   (fn (_ t)
     (%sj-setC t
@@ -252,12 +265,11 @@
 ; functions, or raises -- on a host whose architecture has no assembler
 ; backend (unknown mnemonic), on any toolchain error, or on DISAGREEMENT
 ; with the reference.  The caller guards; a raise means "stay pure-x",
-; never a wrong digest.  Both current backends (ARM64, x86-64) compile the
-; same vocabulary, so this module is arch-blind.
+; never a wrong digest.  Every backend (ARM64, x86-64, 32-bit ARM) compiles
+; the same vocabulary, so this module is arch-blind; what it asks is the
+; word's width.
 (def %sj-make
   (fn (_ label rounds fill big? preload ih ref)
-    ; the engine lays out and computes in 8-byte words
-    (if (< %word-size 8) (Err raise (lit state) "sha-jit: written for an 8-byte word" ()))
     (jit-group (Str8 append "sha-jit:" label ":emit")
       (fn (_) (list rounds fill (%sj-emit-expr (List length ih) big?)))
       (fn (_ fns replayed?)
@@ -274,17 +286,17 @@
     (def %buf (str-make 1024))
     (def %ptr (str->ptr %buf))
     (def %addr (ptr->int %ptr))
-    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i 8) v)))
-    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i 8))))
+    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i %word-size) v)))
+    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i %word-size))))
     (List for-each (fn (_ sw) (%poke (first sw) (rest sw))) preload)
     ; the initial H preset once at slot %sj-IB, so a digest starts H with
     ; one copy rather than a poke a word
     ((fn (self i hs)
        (unless (null? hs)
          (do (%poke (+ %sj-IB i) (first hs)) (self (+ i 1) (rest hs))))) 0 ih)
-    (def %h-ptr (int->ptr (+ %addr (* 8 %sj-HB))))
-    (def %ih-ptr (int->ptr (+ %addr (* 8 %sj-IB))))
-    (def %ih-bytes (* 8 (List length ih)))
+    (def %h-ptr (int->ptr (+ %addr (* %word-size %sj-HB))))
+    (def %ih-ptr (int->ptr (+ %addr (* %word-size %sj-IB))))
+    (def %ih-bytes (* %word-size (List length ih)))
     (def %last (- (List length ih) 1))
     (def %disagrees (Str8 append label "-jit: engine disagrees with the pure-x digest"))
     ; The optional LENGTH mirrors the pure-x path's.  The compiled code needs
@@ -423,4 +435,4 @@
 (prim-reg! (lit md5) (lit jit-make) md5-jit-make)
 
 (doc (provide x/codec/sha-jit sha-jit-make sha1-jit-make md5-jit-make)
-  "The compiled SHA-256, SHA-1 and MD5 engines (JIT, ARM64 and x86-64 backends); each built and adopted only via its codec's jit! after proving agreement with the pure-x digest.")
+  "The compiled SHA-256, SHA-1 and MD5 engines (JIT, ARM64, x86-64 and 32-bit ARM backends); each built and adopted only via its codec's jit! after proving agreement with the pure-x digest.")
