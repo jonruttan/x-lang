@@ -46,7 +46,9 @@
 (import x/core/doors type-by-atom type-of)
 (def %apply-call-top (prim-ref (lit type) (lit call-top)))
 ; The label of callable f, in one call on the door's fast path: (lit fn)
-; for a closure or a primitive, which take the values as they are; (lit op)
+; for a closure, which takes the values as they are; (lit prim) for a
+; primitive, which evaluates each operand it is given, so a list among the
+; values would be evaluated as a form; (lit op)
 ; for an operative; (lit wrap) for a wrapped combiner, a procedure carrying
 ; the engine's wrap flag (flag 1, engine/tools/contract/obj-layout.x); and ()
 ; for anything else, which its type's call handler takes.  The doors it reads
@@ -72,7 +74,7 @@
            (match
              ((eq? (bit-and (ref-word (o->p f) flags-off) %obj-flag-1) 0) (lit fn))
              (#t (lit wrap))))
-         ((is? f prim-t) (lit fn))
+         ((is? f prim-t) (lit prim))
          ((is? f op-t) (lit op))
          (#t ()))))
    ()))
@@ -104,7 +106,7 @@
     (def k (%apply-label h))
     (match
       ((eq? h ()) (Err raise (lit type) "apply: not callable" f))
-      ((eq? k (lit fn)) (%apply h (pair f args)))
+      ((or (eq? k (lit fn)) (eq? k (lit prim))) (%apply h (pair f args)))
       ((eq? k (lit wrap)) (apply h (pair f args)))
       (#t (%apply h (pair f (%apply-quoted args)))))))
 (doc (def apply
@@ -114,6 +116,7 @@
     (match
       ((eq? spread ()) (Err raise (lit type) "apply: no argument list" ()))
       ((eq? label (lit fn)) (%apply f (%apply-args spread)))
+      ((eq? label (lit prim)) (%apply f (%apply-quoted (%apply-args spread))))
       ((eq? label (lit op)) (%apply f (%apply-args spread)))
       ((eq? label (lit wrap)) (apply (unwrap f) (%apply-args spread)))
       (#t (%apply-value f (%apply-args spread))))))
@@ -225,9 +228,7 @@
         (example "(Fn label (wrap (op (x) e x)))" "'wrap")
         (example "(Fn label first)" "'prim")
         (example "(null? (Fn label 42))" "#t"))
-      (if ((prim-ref (lit type) (lit ?)) f (type-of eq?))
-        (lit prim)
-        (%apply-label f)))
+      (%apply-label f))
     (method %state (self f)
       (doc "The state of a closure or an operative, slot 1, or () for any other value."
         (example "(first (Fn %state (fn (_ x) x)))" "('_ 'x)"))

@@ -36,7 +36,7 @@ jobs:
     outputs:
       version: ${{ steps.read.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: read
         name: Read (requires-release ...) from lang.xon
         run: |
@@ -62,10 +62,10 @@ jobs:
         os: [macos-15, ubuntu-24.04, ubuntu-24.04-arm]
         x-lang: [declared, main]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check out x-lang
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: jonruttan/x-lang
           ref: ${{ matrix.x-lang == 'main' && 'main' || needs.release.outputs.version }}
@@ -106,7 +106,7 @@ jobs:
     name: no root-relative includes
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # x.sh boots the declared dialect and arms the bundle root before run.x
       # is read, so no file in a bundle needs a root-relative include, and one

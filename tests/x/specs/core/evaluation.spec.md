@@ -294,6 +294,23 @@ with no handler raises.
 ---
     10
 
+### a primitive takes a symbol or a list among the values as itself
+
+A primitive evaluates each operand it is given, so `apply` hands it each value
+quoted, as it does an operative call handler.  The engine's own primitives and
+the ones compiled in place answer alike, and a predicate passed to a list
+operation through `Fn complement` sees each element as it is.
+
+```x
+(list (apply first (list (list (lit pid) 1)))
+      (apply null? (list (list (lit pid) 1)))
+      (apply eq? (lit s) (list (lit s)))
+      ((Fn complement null?) (list (lit pid) 1))
+      (List reject null? (list (list (lit pid) 1) () (list (lit use)))))
+```
+---
+    ('pid #f #t #t (('pid 1) ('use)))
+
 ### a make-type instance applies through its closure call handler
 
 ```x

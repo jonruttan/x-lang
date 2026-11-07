@@ -8,10 +8,13 @@
 ; core/boolean.x).  The library binds each once, as the doors of
 ; x/core/doors, the prim-ref forms beside them and the globals, so a
 ; compiled version bound to a new name would reach no caller.  Here each is
-; compiled through compile-asm and installed into the object itself
-; (Compiled in-place): every holder calls the compiled version, and the
-; interpreted one stays on Compiled's list for an image write, an engine
-; without a JIT, or a compile that raises.
+; compiled through the assembler lane's cache door (compile-asm's own
+; function) and installed into the object itself (Compiled in-place): every
+; holder calls the compiled version, and the interpreted one stays on
+; Compiled's list for an image write, an engine without a JIT, or a compile
+; that raises.  x-core imports this module last, beside x/core/first-rest,
+; so every dialect runs the compiled versions; it needs only the lane x-core
+; already carries, never the cc lane's x/tool/compile.
 ;
 ; Data word I of an object is word (%obj-meta-len + I) from its address,
 ; and I arrives as an integer object whose value is its own first data
@@ -27,7 +30,7 @@
 ; first true value, or the last value when none is true.
 
 (module x/tool/obj-compiled)
-(import x/tool/compile compile-asm)
+(import x/tool/asm-cache asm-compile-cached)
 (import x/tool/compiled)
 
 (def %obj-compiled-ref
@@ -41,24 +44,24 @@
 
 (Compiled in-place (lit obj-ref) %obj-compiled-ref
   (fn (_)
-    (compile-asm
+    (asm-compile-cached
       (list (lit fn) (lit (_ o i)) (list (lit %mem-ref-at) (lit o) %obj-compiled-word))
       () (lit object))))
 
 (Compiled in-place (lit obj-set!) %obj-compiled-set!
   (fn (_)
-    (compile-asm
+    (asm-compile-cached
       (list (lit fn) (lit (_ o i v)) (list (lit %mem-set-at!) (lit o) %obj-compiled-word (lit v)))
       () (lit object))))
 
 (Compiled in-place (lit null?) null?
   (fn (_)
-    (compile-asm (lit (fn (_ x) (if (= x ()) t f)))
+    (asm-compile-cached (lit (fn (_ x) (if (= x ()) t f)))
       (list (pair (lit t) #t) (pair (lit f) #f)) (lit object))))
 
 (Compiled in-place (lit and) and
   (fn (_)
-    (compile-asm
+    (asm-compile-cached
       (lit (fn (self l)
              (match
                ((= l ()) t)
@@ -69,7 +72,7 @@
 
 (Compiled in-place (lit or) or
   (fn (_)
-    (compile-asm
+    (asm-compile-cached
       (lit (fn (self l)
              (match
                ((= l ()) ())

@@ -4,17 +4,17 @@
 
 `lib/x/tool/obj-compiled.x` compiles `(obj ref)`, `(obj set!)`, `null?`,
 `and` and `or` through compile-asm and installs each into its own object, so
-a holder bound before the import calls the compiled version.  All five stay
-entries of Compiled's list, switched to interpreted before a state image is
-written.
+a holder bound before the import calls the compiled version.  x-core imports
+it, so every dialect, helium included, runs the compiled versions.  All five
+stay entries of Compiled's list, switched to interpreted before a state image
+is written.
 
 ## the doors
 
-### all five are compiled on import
+### x-core has all five compiled, with no import
 
 ```x
-(do (import x/tool/obj-compiled)
-  (import x/tool/compiled)
+(do (import x/tool/compiled)
   (write (List map (fn (_ name) ((Compiled named name) state))
            (list (lit obj-ref) (lit obj-set!) (lit null?) (lit and) (lit or)))))
 ```
