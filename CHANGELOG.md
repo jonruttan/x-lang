@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.49.0] - 2026-11-07
 
+**The engine is x-engine-c v0.2.29**, whose child base allocates on its parent's chain, so a value bound into a sandbox base survives the parent's collects ([x-engine-c#126]). The sandboxing tutorial's examples are checked again.
+
+[x-engine-c#126]: https://github.com/jonruttan/x-engine-c/pull/126
+
 Added `x/gfx/canvas`: RGBA canvases with fill, copy, blend, stamp, nine-piece, text and light operations, compiled (`Canvas jit!`) and checked against pure x. ([#1198])
 
 [#1198]: https://github.com/jonruttan/x-lang/pull/1198
