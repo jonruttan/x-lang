@@ -287,13 +287,13 @@
       ((eq? v #f) "false")
       ((null? v) "[]")
       ((str? v) (%json-emit-string v))
-      ((number? v) (io-display-to-str v))
+      ((Num int? v) (io-display-to-str v))
       ((symbol? v)
         (if (str=? (symbol->str v) "null") "null"
           (%json-emit-string (symbol->str v))))
       ((pair? v) (%json-emit-array v))
       ((Dict dict? v) (%json-emit-object v))
-      ; tower instances are not number?-true; dispatch the rest by type name
+      ; the tower's numbers by type name: a rational and a complex have no JSON form
       (#t (let ((tn (Type name v)))
             (match
               ((str=? tn "FLOAT") (io-display-to-str v))
