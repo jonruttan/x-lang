@@ -23,6 +23,7 @@
   (param name SYMBOL "Bound name to update")
   (param value ANY "New value")
   (note "Signals an error if name is not already bound.")
+  (example "(do (def x 1) (set! x 2) x)" "2")
   (see def))
 
 (doc fn "Create a closure (applicative: arguments are evaluated before the body runs)."
@@ -47,12 +48,14 @@
   (param env LIST "Environment alist (optional)")
   (returns ANY "Result of evaluation")
   (note "With one arg: uses TCO (tail-call safe). With env arg: saves/restores env after.")
+  (example "(eval '(+ 1 2))" "3")
   (see eval!))
 
 (doc eval! "Evaluate in current environment, returning the result immediately."
   (param expr ANY "Expression to evaluate")
   (returns ANY "Result of evaluation")
   (note "No TCO, no env save/restore. Use for non-tail evaluation of computed forms.")
+  (example "(eval! '(* 6 7))" "42")
   (see eval))
 
 (doc match "Pattern matching: evaluate clauses until a test succeeds."
@@ -73,11 +76,13 @@
 
 (doc wrap "Create an applicative from a combiner (evaluates args before calling)."
   (param combiner CALLABLE "An operative or procedure")
-  (returns CALLABLE "An applicative"))
+  (returns CALLABLE "An applicative")
+  (example "((wrap (op (a) e a)) (+ 1 2))" "3"))
 
 (doc unwrap "Extract the underlying combiner from an applicative."
   (param applicative CALLABLE "A wrapped combiner")
-  (returns CALLABLE "The underlying combiner"))
+  (returns CALLABLE "The underlying combiner")
+  (example "((unwrap (wrap (op (a) e a))) (+ 1 2))" "('+ 1 2)"))
 
 ; === Pair operations ===
 
@@ -243,11 +248,13 @@
 
 (doc symbol->str "Convert a symbol to a string."
   (param sym SYMBOL "A symbol")
-  (returns STRING "The symbol's name"))
+  (returns STRING "The symbol's name")
+  (example "(symbol->str 'abc)" "\"abc\""))
 
 (doc bytes->str "Pack a list of characters into a string, one low byte per char."
   (param bytes LIST "List of byte-valued characters")
-  (returns STRING "A string of those bytes"))
+  (returns STRING "A string of those bytes")
+  (example "(bytes->str (list #\\h #\\i))" "\"hi\""))
 
 ; === I/O ===
 
@@ -259,11 +266,13 @@
 (doc write "Write a value in machine-readable form."
   (param val ANY "Value to write")
   (note "Strings are quoted, characters show read syntax. Use for serialization.")
+  (sample "(write \"hi\")" "prints \"hi\" with its quotes")
   (see display))
 
 (doc display "Display a value in human-readable form."
   (param val ANY "Value to display")
   (note "Strings are unquoted, characters are bare. Use for user output.")
+  (sample "(display \"hi\")" "prints hi without quotes")
   (see write))
 
 ; === Memory ===
@@ -271,7 +280,8 @@
 (note "Memory management")
 
 (doc alloc-limit! "Set the allocation ceiling (runaway-memory guard): the process stops rather than allocate past n objects. 0 disables."
-  (param n INTEGER "Object-count ceiling; 0 = unlimited"))
+  (param n INTEGER "Object-count ceiling; 0 = unlimited")
+  (sample "(alloc-limit! 50000000)" "stops the process before it holds more than 50 million objects"))
 
 ; === Type system ===
 
@@ -293,7 +303,9 @@
 
 (doc call/cc "Call a function with the current continuation."
   (param f CALLABLE "Function receiving the continuation")
-  (returns ANY "Result of f, or value passed to continuation"))
+  (returns ANY "Result of f, or value passed to continuation")
+  (example "(+ 1 (call/cc (fn (_ k) (k 41))))" "42")
+  (example "(+ 1 (call/cc (fn (_ k) 2)))" "3"))
 
 ; === x-core operatives ===
 
@@ -301,39 +313,57 @@
 
 (doc null? "Test if a value is nil (the empty list)."
   (param x ANY "Value to test")
-  (returns BOOL "t if nil"))
+  (returns BOOL "t if nil")
+  (example "(null? ())" "#t")
+  (example "(null? '(1))" "#f"))
 
 (doc pair? "Test if a value is a pair (cons cell)."
   (param x ANY "Value to test")
-  (returns BOOL "t if pair"))
+  (returns BOOL "t if pair")
+  (example "(pair? '(1))" "#t")
+  (example "(pair? ())" "#f"))
 
 (doc atom? "Test if a value is an atom (not a pair)."
   (param x ANY "Value to test")
-  (returns BOOL "t if not a pair"))
+  (returns BOOL "t if not a pair")
+  (example "(atom? 5)" "#t")
+  (example "(atom? '(1))" "#f"))
 
 (doc number? "Test if a value is an integer."
   (param x ANY "Value to test")
-  (returns BOOL "t if integer"))
+  (returns BOOL "t if integer")
+  (example "(number? 42)" "#t")
+  (example "(number? \"42\")" "#f"))
 
 (doc real? "Test if a value is a real number: a number that is not complex. The number modules extend it in place as they load."
   (param x ANY "Value to test")
-  (returns BOOL "t if real"))
+  (returns BOOL "t if real")
+  (example "(real? 42)" "#t")
+  (example "(real? 'a)" "#f"))
 
 (doc str? "Test if a value is a string."
   (param x ANY "Value to test")
-  (returns BOOL "t if string"))
+  (returns BOOL "t if string")
+  (example "(str? \"a\")" "#t")
+  (example "(str? 'a)" "#f"))
 
 (doc symbol? "Test if a value is a symbol."
   (param x ANY "Value to test")
-  (returns BOOL "t if symbol"))
+  (returns BOOL "t if symbol")
+  (example "(symbol? 'a)" "#t")
+  (example "(symbol? \"a\")" "#f"))
 
 (doc char? "Test if a value is a character."
   (param x ANY "Value to test")
-  (returns BOOL "t if character"))
+  (returns BOOL "t if character")
+  (example "(char? #\\a)" "#t")
+  (example "(char? \"a\")" "#f"))
 
 (doc procedure? "Test if a value is callable (procedure or primitive)."
   (param x ANY "Value to test")
-  (returns BOOL "t if procedure or primitive"))
+  (returns BOOL "t if procedure or primitive")
+  (example "(procedure? list)" "#t")
+  (example "(procedure? 'list)" "#f"))
 
 (doc if "Conditional: evaluate test, then branch."
   (param test ANY "Condition expression")
@@ -355,11 +385,14 @@
   (example "(do (def x 1) (+ x 1))" "2"))
 
 (doc begin "Alias for do."
+  (example "(begin 1 2)" "2")
   (see do))
 
 (doc not "Logical negation."
   (param x ANY "Value to negate")
-  (returns BOOL "t if x is falsy"))
+  (returns BOOL "t if x is falsy")
+  (example "(not #f)" "#t")
+  (example "(not 0)" "#f"))
 
 (doc list "Create a list from arguments."
   (param args ANY "Zero or more values")
@@ -376,7 +409,8 @@
   (returns ANY "First truthy value, or nil")
   (example "(or #f 42)" "42"))
 
-(doc newline "Display a newline character.")
+(doc newline "Display a newline character."
+  (sample "(do (display \"a\") (newline) (display \"b\"))" "prints a and b on two lines"))
 
 (doc quasi "Quasiquote: template with unquote and splicing."
   (param template ANY "Template expression with , and ,@ escapes")
@@ -384,21 +418,27 @@
   (example "(let ((x 42)) (quasi (a ,x b)))" "('a 42 'b)"))
 
 (doc repl "Start the read-eval-print loop."
-  (note "Customizable: %repl-prompt and %repl-print control display."))
+  (note "Customizable: %repl-prompt and %repl-print control display.")
+  (sample "(repl)" "reads, evaluates and prints forms from stdin until end of input"))
 
 (doc include-once "Load and evaluate a file, skipping if already loaded."
-  (param path STRING "File path to include"))
+  (param path STRING "File path to include")
+  (sample "(include-once \"lib/x/type/set.x\")" "loads the file the first time, does nothing after"))
 
 (doc provide "Register a module's exported symbols."
   (param name SYMBOL "Module name, e.g. x/list")
-  (param exports SYMBOL "Exported symbol names (variadic)"))
+  (param exports SYMBOL "Exported symbol names (variadic)")
+  (sample "(provide my/shapes area perimeter)" "records my/shapes as loaded, exporting area and perimeter"))
 
 (doc import "Import a module (include its file if not yet loaded)."
-  (param name SYMBOL "Module name to import"))
+  (param name SYMBOL "Module name to import")
+  (sample "(import x/type/set)" "loads the Set class the first time it is asked for"))
 
 (doc atom? "Test if a value is an atom (not a pair or nil)."
   (param x ANY "Value to test")
-  (returns BOOL "t if atom"))
+  (returns BOOL "t if atom")
+  (example "(atom? 'a)" "#t")
+  (example "(atom? '(a))" "#f"))
 
 (doc number->str "Convert an integer to a string."
   (param n INTEGER "Integer to convert")
@@ -427,11 +467,14 @@
 (doc str=? "Test string equality."
   (param a STRING "First string")
   (param b STRING "Second string")
-  (returns BOOL "t if equal"))
+  (returns BOOL "t if equal")
+  (example "(str=? \"abc\" \"abc\")" "#t")
+  (example "(str=? \"abc\" \"abd\")" "#f"))
 
 
 (doc require-once "Include a file only if it has not been loaded before. Alias for include-once."
   (param path STRING "File path to include")
+  (sample "(require-once \"lib/x/type/set.x\")" "loads the file the first time, does nothing after")
   (see include-once))
 
 (doc peek-char "Return the next character from stdin without consuming it."
@@ -441,20 +484,26 @@
 
 (doc doc "Attach documentation metadata to a definition, provide, or bare symbol."
   (note "Three forms: (doc (def name val) meta... desc), (doc (provide name syms) meta... desc), (doc name meta... desc)")
-  (note "Meta forms: (param name TYPE desc), (returns TYPE desc), (example expr result), (see name), (note text)"))
+  (note "Meta forms: (param name TYPE desc), (returns TYPE desc), (example expr result), (see name), (note text)")
+  (sample "(doc (def sq (fn (_ n) (* n n))) (example \"(sq 4)\" \"16\") \"Square n.\")" "defines sq; (help sq) shows the description and the example"))
 
 (doc note "Section marker for documentation grouping. No-op at runtime."
-  (param text STRING "Section description"))
+  (param text STRING "Section description")
+  (sample "(note \"Geometry\")" "marks the entries that follow as one section"))
 
 (doc help "Look up documentation in the REPL."
   (note "(help) shows overview. (help name) shows function, class or module docs; (help Class member) shows one member. (help modules) lists all modules.")
-  (note "A name is a bare symbol as written, or an expression that evaluates to one, such as 'name. Anything else answers \"No documentation\". A class listing leaves out members whose names begin with %; (help Class %member) still answers for one by name."))
+  (note "A name is a bare symbol as written, or an expression that evaluates to one, such as 'name. Anything else answers \"No documentation\". A class listing leaves out members whose names begin with %; (help Class %member) still answers for one by name.")
+  (sample "(help first)" "prints first's description, parameters and examples")
+  (sample "(help Str8 split)" "prints one member of the Str8 class"))
 
 (doc apropos "Search documentation by name substring, printing each match with its description."
   (param str STRING "Substring to search for: a string, a bare symbol, or an expression that evaluates to one")
-  (returns LIST "The matching names, as symbols, sorted by name; () when nothing matches"))
+  (returns LIST "The matching names, as symbols, sorted by name; () when nothing matches")
+  (sample "(apropos \"split\")" "prints every documented name holding split, each with its description"))
 
-(doc modules "List all known modules with load status and descriptions.")
+(doc modules "List all known modules with load status and descriptions."
+  (sample "(modules)" "prints each module's name, a [loaded] mark when loaded, and its description"))
 
 ; === Primitives catalogue (the registry protocol) ===
 
@@ -464,11 +513,14 @@
   (note "The registry of stable implementation identities; modules fetch dependencies")
   (note "from it at load instead of assuming ambient global names.")
   (returns LIST "The live catalogue alist")
+  (example "(pair? (prims))" "#t")
   (see prim-ref))
 
 (doc prim-domain "The method alist filed under a catalogue namespace, or nil."
   (param ns SYMBOL "Namespace symbol, e.g. 'int")
   (returns LIST "((method . impl) ...) for the namespace, or nil")
+  (example "(pair? (prim-domain 'int))" "#t")
+  (example "(null? (prim-domain 'no-such-ns))" "#t")
   (see prims))
 
 (doc prim-ref "Fetch the implementation filed under ns/method, or nil."
@@ -499,9 +551,12 @@
 ; their own (provide ...) in (doc ...). Their descriptions are registered here
 ; instead, keyed by module name -- the same key %display-overview looks up.
 (doc x/core/predicates
-  "Type predicates (null?, pair?, number?, real?, str?, symbol?, char?, ...) built from C primitives.")
+  "Type predicates (null?, pair?, number?, real?, str?, symbol?, char?, ...) built from C primitives."
+  (example "(list (null? ()) (pair? ()) (symbol? 'a))" "(#t #f #t)"))
 (doc x/core/control
-  "Core control flow: if and let, as operatives built on match.")
+  "Core control flow: if and let, as operatives built on match."
+  (example "(let ((n 3)) (if (> n 2) 'big 'small))" "'big"))
 
 (doc (provide x/doc/doc-prims)
+  (sample "(help +)" "prints the entry this module files for the + primitive")
   "Retroactive documentation for C primitives, boot forms, and type system functions.")
