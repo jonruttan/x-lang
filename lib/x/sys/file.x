@@ -573,8 +573,9 @@
       (def times (str-make 32))
       (def p ((prim-ref 'str '->ptr) times))
       (def set-word (prim-ref 'ptr 'set-word!))
-      (set-word p 0 atime) (set-word p 8 0)
-      (set-word p 16 mtime) (set-word p 24 0)
+      (def w %word-size)
+      (set-word p 0 atime) (set-word p w 0)
+      (set-word p (* 2 w) mtime) (set-word p (* 3 w) 0)
       (def r (%sys-utimes path times))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'set-times path)))
       ())
@@ -600,18 +601,26 @@
       (def buf (str-make 2304))
       (def r (%sys-statfs path buf))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'statfs path)))
-      ; The field spec per OS: Darwin's f_bsize is a u32 leading the
-      ; struct, Linux's is the second of eleven longs.  Only the block and
-      ; inode counts are decoded -- Darwin puts two 1024-byte mount names
-      ; after them.
+      ; The field spec per platform: Darwin's f_bsize is a u32 leading the
+      ; struct, 64-bit Linux's is the second of eleven longs, and 32-bit
+      ; arm's statfs64 (the call statfs stands in for there) has a u32
+      ; type and bsize before 64-bit counts.  Only the block and inode
+      ; counts are decoded -- Darwin puts two 1024-byte mount names after
+      ; them.
       (Struct unpack
-        (if os-darwin?
-          (list (list 'bsize 'u32) (list 'iosize 'i32)
-                (list 'blocks 'u64) (list 'bfree 'u64) (list 'bavail 'u64)
-                (list 'files 'u64) (list 'ffree 'u64))
-          (list (list 'pad 8) (list 'bsize 'i64)
-                (list 'blocks 'u64) (list 'bfree 'u64) (list 'bavail 'u64)
-                (list 'files 'u64) (list 'ffree 'u64)))
+        (match
+          (os-darwin?
+            (list (list 'bsize 'u32) (list 'iosize 'i32)
+                  (list 'blocks 'u64) (list 'bfree 'u64) (list 'bavail 'u64)
+                  (list 'files 'u64) (list 'ffree 'u64)))
+          (arch-arm?
+            (list (list 'pad 4) (list 'bsize 'u32)
+                  (list 'blocks 'u64) (list 'bfree 'u64) (list 'bavail 'u64)
+                  (list 'files 'u64) (list 'ffree 'u64)))
+          (#t
+            (list (list 'pad 8) (list 'bsize 'i64)
+                  (list 'blocks 'u64) (list 'bfree 'u64) (list 'bavail 'u64)
+                  (list 'files 'u64) (list 'ffree 'u64))))
         buf))
 
     ; --- The coverage tail (#364) ---

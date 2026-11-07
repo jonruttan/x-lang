@@ -82,27 +82,25 @@
               (let ((v (rdr buf off))) (match ((int< v half) v) (#t (int- v span))))))
           rdr)))
       ; An 8-byte field reads its two's-complement value, the one an 8-byte
-      ; word's accumulation wraps to.  On a 4-byte word that is two words.
-      ; When the high one only extends the low one's sign the low one is the
-      ; value (an unsigned field: a high word of 0 over a non-negative low
-      ; one).  Otherwise the value leaves the word, and the two join through
-      ; the promoting + and *, which need bigint loaded; the high word counts
-      ; unsigned in an unsigned field.  The test is at the read, so a layout
-      ; that declares the field loads without bigint.
+      ; word's accumulation wraps to, u64 and i64 alike.  On a 4-byte word
+      ; that is two words, the high one signed.  When it only extends the low
+      ; one's sign the low one is the value; otherwise the value leaves the
+      ; word, and the two join through the promoting + and *, which need
+      ; bigint loaded.  The test is at the read, so a layout that declares
+      ; the field loads without bigint.
       (def %le64 (fn (_ ty)
         (if (int= %word-size 8) (%le 8)
-          (let ((w4 (%le 4)) (signed (eq? ty (lit i64))))
+          (let ((w4 (%le 4)))
             (fn (_ buf off)
               (let ((lo (w4 buf off)) (hi (w4 buf (int+ off 4))))
                 (match
                   ((if (int= hi 0) (not (int< lo 0)) #f) lo)
-                  ((if signed (if (int= hi -1) (int< lo 0) #f) #f) lo)
+                  ((if (int= hi -1) (int< lo 0) #f) lo)
                   (#t
                     (let ((k (* 65536 65536)))
                       (if (not (< 0 k))
                         (%bad "an 8-byte value past the 4-byte word needs x/num/bigint" ty))
-                      (+ (* (if (if signed #t (not (int< hi 0))) hi (+ hi k)) k)
-                         (if (int< lo 0) (+ lo k) lo)))))))))))
+                      (+ (* hi k) (if (int< lo 0) (+ lo k) lo)))))))))))
       ; big-endian unsigned reader over w bytes
       (def %be (fn (_ w)
         (def go (fn (self buf off i acc)

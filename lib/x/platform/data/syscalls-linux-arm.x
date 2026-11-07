@@ -425,7 +425,8 @@
 ; The table keeps a 16-bit-uid `chown` and a 32-bit-offset `fcntl` under the
 ; plain names; the calls a 32-bit libc makes are the `32` and `64` forms, and
 ; the stat calls that fill the kernel's stat64 layout (the one stat-layout
-; describes) are the `64` forms.
+; describes) are the `64` forms.  statfs64 takes the size of its struct,
+; 84 bytes on ARM EABI (packed to 4), and fills 64-bit block counts.
 (def linux-arm-syscall-stand-ins
   (lit (
     (stat   stat64  (a0 a1))
@@ -435,4 +436,5 @@
     (lchown lchown32 (a0 a1 a2))
     (fchown fchown32 (a0 a1 a2))
     (fcntl  fcntl64 (a0 a1 a2))
+    (statfs statfs64 (a0 84 a1))
   )))
