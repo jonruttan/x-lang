@@ -70,6 +70,8 @@
       ((eq? b ()) (error ">: needs two arguments"))
       (#t (< b a)))))
   (returns BOOL "True if a is greater than b")
+  (example "(> 3 2)" "#t")
+  (example "(> 2 2)" "#f")
   "Test whether a is greater than b.")
 
 (doc (def <= (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
@@ -79,6 +81,8 @@
       ((< a b) #t)
       (#t (= a b)))))
   (returns BOOL "True if a is less than or equal to b")
+  (example "(<= 2 2)" "#t")
+  (example "(<= 3 2)" "#f")
   "Test whether a is less than or equal to b.")
 
 (doc (def >= (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
@@ -88,6 +92,8 @@
       ((< b a) #t)
       (#t (= a b)))))
   (returns BOOL "True if a is greater than or equal to b")
+  (example "(>= 2 2)" "#t")
+  (example "(>= 1 2)" "#f")
   "Test whether a is greater than or equal to b.")
 
 (doc (provide x/core/logic boolean? equal? > <= >=)
