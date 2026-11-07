@@ -44,11 +44,9 @@
   ; fields at different offsets, so the decode reads neighbouring fields.
   (constraint "lib/x/sys/file.x" word-size = 8)
 
-  ; struct addrinfo's POINTER members move with the word: ai_addr rides @32
-  ; (Darwin) / @24 (glibc) and ai_next @40 only on 64-bit; the result cell is
-  ; allocated 8 bytes wide to hold one.  ai_family @4 is width-stable, but it
-  ; is read as a 4-byte value out of an i32 field, which is the endian half.
-  (constraint "lib/x/sys/socket.x" word-size = 8)
+  ; struct addrinfo's pointer members follow its 20-byte header on word
+  ; boundaries, so their offsets come from the word.  ai_family @4 is stable,
+  ; but it is read as a 4-byte value out of an i32 field: the endian half.
   (constraint "lib/x/sys/socket.x" endian = little)
 
   ; The timeval decode reads tv_sec as an 8-byte value at 0 and tv_usec as a
