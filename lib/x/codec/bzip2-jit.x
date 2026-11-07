@@ -535,6 +535,8 @@
 ; guards; a raise means "stay pure-x".
 (def bzip2-jit-make
   (fn (_ state work room check)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "bzip2-jit: written for an 8-byte word" ()))
     (def %take-step (compile-asm %zj-take-expr))
     (def %sort-step (compile-asm %zj-sort-expr))
     (def %mtf-step (compile-asm %zj-mtf-expr))

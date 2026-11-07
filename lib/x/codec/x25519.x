@@ -10,7 +10,8 @@
 ; RFC's Montgomery ladder over it, bit by bit from the top, with the
 ; inverse's 2^255 - 21 power chain at the end.  A compiled engine in
 ; x/codec/x25519-jit takes the field operations and is adopted only after
-; it agrees with this one.  This is not constant time: an interpreter
+; it agrees with this one; a 4-byte word runs the ladder's step as a
+; program on fe25519's engine.  This is not constant time: an interpreter
 ; branches on the data it handles, and the swap here is a branch.
 (module x/codec/x25519)
 
@@ -26,7 +27,9 @@
 
 (def %byte (fn (_ s i) (char->int (str-byte-ref s i))))
 
-(import x/codec/fe25519 fe-zero fe-limbs fe-frombytes fe-tobytes fe-add fe-sub fe-mul fe-sq fe-mul121666 fe-invert)
+(import x/codec/fe25519 fe-zero fe-limbs fe-frombytes fe-tobytes fe-add fe-sub fe-mul fe-sq fe-mul121666 fe-invert fe-engine)
+; a 4-byte word's ladder
+(import x/codec/mont-jit mont-jit-load! mont-jit-store mont-jit-program mont-jit-run!)
 
 ; The clamped scalar's bit at position pos.
 (def %bit
@@ -78,6 +81,62 @@
     (def r (%ladder k x1 (fe-limbs (list 1)) (fe-zero) x1 (fe-limbs (list 1)) 0 254))
     (fe-tobytes (fe-mul (first r) (fe-invert (first (rest r)))))))
 
+; --- The ladder on a 4-byte word ---------------------------------------
+;
+; There the field is x/codec/mont-jit's engine (fe-engine), where an
+; operation through x is a load, a call and a store: the ladder's step is
+; written to the engine as a program once, in two orders -- the swap is
+; which slots it reads -- and run in one call a step.  The slots: x1, the
+; pair x2 z2 and x3 z3, the constant, then eighteen temporaries.
+(def %narrow (< %word-size 8))
+(def %X1 3) (def %X2 4) (def %Z2 5) (def %X3 6) (def %Z3 7) (def %C 8)
+(def %t (fn (_ k) (+ 9 k)))
+
+; The step of %ladder above, from (a2 c2 a3 c3), its four answers left in
+; x2 z2 x3 z3.
+(def %step
+  (fn (_ a2 c2 a3 c3)
+    (list (list (lit sub) (%t 0) a3 c3) (list (lit sub) (%t 1) a2 c2)
+          (list (lit add) (%t 2) a2 c2) (list (lit add) (%t 3) a3 c3)
+          (list (lit mul) (%t 4) (%t 0) (%t 2)) (list (lit mul) (%t 5) (%t 3) (%t 1))
+          (list (lit mul) (%t 6) (%t 1) (%t 1)) (list (lit mul) (%t 7) (%t 2) (%t 2))
+          (list (lit add) (%t 8) (%t 4) (%t 5)) (list (lit sub) (%t 9) (%t 4) (%t 5))
+          (list (lit mul) (%t 10) (%t 7) (%t 6)) (list (lit sub) (%t 11) (%t 7) (%t 6))
+          (list (lit mul) (%t 12) (%t 9) (%t 9)) (list (lit mul) (%t 13) (%t 11) %C)
+          (list (lit mul) (%t 14) (%t 8) (%t 8)) (list (lit add) (%t 15) (%t 6) (%t 13))
+          (list (lit mul) (%t 16) %X1 (%t 12)) (list (lit mul) (%t 17) (%t 11) (%t 15))
+          (list (lit copy) %X2 (%t 10)) (list (lit copy) %Z2 (%t 17))
+          (list (lit copy) %X3 (%t 14)) (list (lit copy) %Z3 (%t 16)))))
+
+; the two programs, made on the engine the first time: unswapped, swapped
+(def %progs ())
+; written into fe-engine's table, so dropped with it from an image
+((prim-ref (lit image) (lit transient!)) (fn (_) (set! %progs ())))
+
+(def %scalarmult-narrow
+  (fn (_ k u)
+    (def e (fe-engine))
+    (when (null? %progs)
+      (set! %progs (list (mont-jit-program e (%step %X2 %Z2 %X3 %Z3)) (mont-jit-program e (%step %X3 %Z3 %X2 %Z2)))))
+    (def x1 (fe-frombytes u))
+    (def one (fe-limbs (list 1)))
+    (mont-jit-load! e %X1 x1)
+    (mont-jit-load! e %X2 one)
+    (mont-jit-load! e %Z2 (fe-zero))
+    (mont-jit-load! e %X3 x1)
+    (mont-jit-load! e %Z3 one)
+    (mont-jit-load! e %C (fe-limbs (list 121666)))
+    (def last
+      ((fn (self swap pos)
+         (do (when (= (& pos 15) 0) (Heap collect))
+             (def b (%bit k pos))
+             (mont-jit-run! e (if (= (^ swap b) 1) (first (rest %progs)) (first %progs)))
+             (if (= pos 0) b (self b (int- pos 1)))))
+       0 254))
+    (def x (mont-jit-store e (if (= last 1) %X3 %X2)))
+    (def z (mont-jit-store e (if (= last 1) %Z3 %Z2)))
+    (fe-tobytes (fe-mul x (fe-invert z)))))
+
 (def %nine
   (fn (_)
     (def s (str-make 32))
@@ -112,7 +171,7 @@
     ((fn (_ entry)
        (if (if (null? entry) #f (eq? (entry state) (lit compiled)))
          ((entry compiled) k u)
-         (%scalarmult k u)))
+         (if %narrow (%scalarmult-narrow k u) (%scalarmult k u))))
      %entry)))
 
 (def-class X25519 ()

@@ -46,6 +46,8 @@
 ; or on DISAGREEMENT with the RFC's bytes.
 (def ed25519-jit-make
   (fn (_ d2 base)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "ed25519-jit: written for an 8-byte word" ()))
     (def %ops (fe-jit-compile))
     (def %mul (List ref 0 %ops))
     (def %add (List ref 1 %ops))

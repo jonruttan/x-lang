@@ -126,6 +126,8 @@
 ; assembler backend, on any toolchain error, or on a wrong answer.
 (def bcrypt-jit-make
   (fn (_ ref init)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "bcrypt-jit: written for an 8-byte word" ()))
     (jit-group "bcrypt-jit" (fn (_) (list %bj-reset-expr %bj-expand-expr %bj-final-expr))
       (fn (_ fns replayed?) (%bj-wire init (first fns) (List ref 1 fns) (List ref 2 fns) replayed?)))))
 

@@ -12,7 +12,13 @@
 (def %cvt (prim-ref (lit convert) (lit to)))
 (def %string-type (Type named STRING))
 
-(def %hex8 (fn (_ wd) (Str pad-left 8 #\0 (%cvt wd %string-type 16))))
+; A half's 32 bits as eight hex digits, sixteen bits at a time: on a
+; 4-byte word one with its top bit set is negative, which the converter
+; signs.
+(def %hex8
+  (fn (_ wd)
+    (Str8 append (Str pad-left 4 #\0 (%cvt (& (>> wd 16) 65535) %string-type 16))
+                 (Str pad-left 4 #\0 (%cvt (& wd 65535) %string-type 16)))))
 
 ; The first twelve halves of the sixteen: six 64-bit words.
 (def %hex

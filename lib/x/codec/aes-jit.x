@@ -216,6 +216,8 @@
 ; toolchain error, or on DISAGREEMENT with the reference.
 (def aes-jit-make
   (fn (_ ref schedule sub-byte)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "aes-jit: written for an 8-byte word" ()))
     (jit-group "aes-jit" (fn (_) (list %aj-block-expr))
       (fn (_ fns replayed?) (%aj-wire ref schedule sub-byte (first fns) replayed?)))))
 

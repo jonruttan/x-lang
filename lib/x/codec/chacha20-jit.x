@@ -145,6 +145,8 @@
 ; toolchain error, or on DISAGREEMENT with the reference.
 (def chacha20-jit-make
   (fn (_ ref)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "chacha20-jit: written for an 8-byte word" ()))
     (jit-group "chacha20-jit" (fn (_) (list %cj-block-expr))
       (fn (_ fns replayed?) (%cj-wire ref (first fns) replayed?)))))
 

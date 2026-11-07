@@ -238,6 +238,8 @@
 ; raise means "stay pure-x".
 (def inflate-jit-make
   (fn (_ state room check)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "inflate-jit: written for an 8-byte word" ()))
     (def %step (compile-asm %ij-step-expr))
     (def %adler-step (compile-asm %ij-adler-expr))
     (def %abuf (str-make 64))

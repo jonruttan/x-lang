@@ -24,9 +24,10 @@
 
 (def %urandom-path "/dev/urandom")
 (def %rand-mask 2147483647)     ; 2^31 - 1: keep every RESULT in [0, 2^31)
-(def %rand-mask32 4294967295)   ; 2^32 - 1: the xorshift REGISTER stays 32-bit
-(def %rand-span 2147483648)     ; 2^31: the size of the %bits output range
-(def %rand-default-seed 2463534242) ; a nonzero xorshift seed (Marsaglia)
+; The register's 32 bits and the seed are spelled in hex, the word's bits:
+; on a 4-byte word they fill it, where a decimal past 2^31 does not fit.
+(def %rand-mask32 0xFFFFFFFF)   ; the xorshift REGISTER stays 32-bit
+(def %rand-default-seed 0x92D68CA2) ; 2463534242, a nonzero xorshift seed (Marsaglia)
 ; Cached int prim (#335): ambient % routes through the tower's op
 ; dispatch per draw; every operand here is int by construction.
 (import x/core/doors int%)
@@ -38,7 +39,7 @@
     (see sw) (see hw) (see int) (see shuffle))
 
   (label 'sw)         ; 'sw -> xorshift PRNG,  'hw -> /dev/urandom
-  (state 2463534242)  ; xorshift register (sw only); must stay nonzero
+  (state 0x92D68CA2)  ; xorshift register (sw only); must stay nonzero
   (fd ())             ; cached /dev/urandom fd (hw only); opened on first use
 
   (static
@@ -75,10 +76,12 @@
   ; (the triple's period/quality analysis assumes a 32-bit state -- the old
   ; 31-bit-masked register was an unanalyzed variant); only the RESULT is
   ; masked to 31 bits so every backend yields the same [0, 2^31) range.
+  ; The right shift is masked to the 15 bits it keeps: >> is arithmetic,
+  ; and on a 4-byte word a register with its top bit set reads negative.
   (method %sw-bits (self)
     (let ((s0 (field 'state)))
       (let ((s1 (& (^ s0 (<< s0 13)) %rand-mask32)))
-        (let ((s2 (^ s1 (>> s1 17))))
+        (let ((s2 (^ s1 (& (>> s1 17) 32767))))
           (let ((s3 (& (^ s2 (<< s2 5)) %rand-mask32)))
             (set-field! 'state s3)
             (& s3 %rand-mask))))))
@@ -109,11 +112,13 @@
     ; An n below 1 has nothing to draw, and 0 would reach int% as the
     ; divisor: x86 traps, and arm64 answers a limit of 0 that no draw is
     ; under, so the loop never ends.  An empty range, or a between with its
-    ; bounds reversed, arrives here as one of these.
+    ; bounds reversed, arrives here as one of these.  The last draw kept is
+    ; 2^31 - 1 less 2^31 mod n, worked from 2^31 - 1 so it fits a 4-byte
+    ; word, where 2^31 does not.
     (if (< n 1) (Err raise 'value "Random int: n must be > 0" n)
-      (let ((limit (- %rand-span (int% %rand-span n))))
+      (let ((top (- %rand-mask (int% (+ (int% %rand-mask n) 1) n))))
         (let go ((b (self %bits)))
-          (if (< b limit) (int% b n) (go (self %bits)))))))
+          (if (<= b top) (int% b n) (go (self %bits)))))))
 
   (method range (self lo hi)
     (doc "A random integer in [lo, hi) -- exclusive upper bound; `between` is the inclusive twin. The name carries the bound contract."

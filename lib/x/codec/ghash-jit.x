@@ -154,6 +154,8 @@
 ; ref: the pure-x hash, (fn (_ h s len) -> 16 bytes) -- the oracle.
 (def ghash-jit-make
   (fn (_ ref)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "ghash-jit: written for an 8-byte word" ()))
     (jit-group "ghash-jit:nibble" (fn (_) (list %gj-block-expr))
       (fn (_ fns replayed?) (%gj-wire ref (first fns) replayed?)))))
 

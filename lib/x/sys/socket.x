@@ -229,15 +229,17 @@
       (doc "The host's first IPv4 address as a dotted quad, via getaddrinfo (#412) -- the DNS door; every other Socket method still takes quads. Raises a label 'io with the gai code when resolution fails, label 'value when the name has no IPv4 address."
         (returns STRING "A dotted quad, e.g. \"140.82.114.3\"")
         (sample "(Socket resolve \"localhost\")" "\"127.0.0.1\""))
-      ; struct addrinfo, 64-bit: ai_family i32@4 and ai_next*@40 agree
-      ; across the OSes; Darwin and glibc SWAP the middle pointers --
-      ; ai_addr rides @32 on Darwin (canonname @24) and @24 on Linux.
-      ; The pointer fields move with the word, and the 4-byte ai_family
-      ; read below is a widening (ptr ref) -- host byte order.
-      ; constraint: word-size = 8 -- struct addrinfo pointer offsets
+      ; struct addrinfo: five 4-byte fields (ai_flags, ai_family @4,
+      ; ai_socktype, ai_protocol, ai_addrlen) fill 20 bytes, and the three
+      ; pointers follow on word boundaries, ai_next last: pointer k at
+      ; 16 + (k + 1) words, 20, 24, 28 on a 4-byte word and 24, 32, 40 on
+      ; an 8-byte one.  Darwin and glibc SWAP the first two -- ai_canonname,
+      ; then ai_addr on Darwin; ai_addr, then ai_canonname on Linux.  The
+      ; 4-byte ai_family read below is a widening (ptr ref) -- host byte order.
       ; constraint: endian = little -- widening (ptr ref) of ai_family
-      (def addr-off (if os-darwin? 32 24))
-      (def rescell-region (str-make 8))
+      (def addr-off (+ 16 (* (if os-darwin? 2 1) %word-size)))
+      (def next-off (+ 16 (* 3 %word-size)))
+      (def rescell-region (str-make %word-size))
       (def rescell (str->ptr rescell-region))
       (def r (%sk-fold (ptr-call (%sk "getaddrinfo") name 0 0 rescell)))
       (when (not (= r 0))
@@ -252,14 +254,14 @@
                 (match
                   ((= (& (ptr-ref np 4 4) 65535) 2)          ; AF_INET
                     (let ((sa (ptr-ref-word np addr-off)))
-                      (if (= sa 0) (walk (ptr-ref-word np 40))
+                      (if (= sa 0) (walk (ptr-ref-word np next-off))
                         (let ((sp (int->ptr sa)))
                           (Str8 append
                             (%number->str (& (ptr-ref sp 4 1) 255)) "."
                             (%number->str (& (ptr-ref sp 5 1) 255)) "."
                             (%number->str (& (ptr-ref sp 6 1) 255)) "."
                             (%number->str (& (ptr-ref sp 7 1) 255)))))))
-                  (#t (walk (ptr-ref-word np 40)))))))))
+                  (#t (walk (ptr-ref-word np next-off)))))))))
       (ptr-call (%sk "freeaddrinfo") (int->ptr head))
       (when (null? quad)
         (Err raise (lit value) (Str8 append "Socket resolve: no IPv4 address for " name) ()))

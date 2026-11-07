@@ -67,6 +67,8 @@
 ; guards; a raise means "stay pure-x".
 (def crc32-jit-make
   (fn (_ table check)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "crc32-jit: written for an 8-byte word" ()))
     (def step (compile-asm %cj-expr))
     (def buf (str-make (* 8 (+ %CT 256))))
     (def ptr (str->ptr buf))

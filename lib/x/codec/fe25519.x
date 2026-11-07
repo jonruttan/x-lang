@@ -4,8 +4,9 @@
 ; even limbs 26 bits wide and odd ones 25 -- SIGNED, with ref10's
 ; rounding carries, so that a product of two limbs times the fold's 19
 ; and the odd-odd 2 is under 2^58 and a row of ten under 2^62: every
-; value fits the engine's 64-bit int, whose right shift is arithmetic,
-; and the arithmetic is tower-proof on the int prims.  The multiply is
+; value fits an 8-byte word, whose right shift is arithmetic, and the
+; arithmetic is tower-proof on the int prims.  A 4-byte word's element
+; is x/codec/mont's, below.  The multiply is
 ; written out as ref10 writes it, since a loop's bookkeeping is most of
 ; an interpreted multiply's cost and an exchange does three thousand of
 ; them.  A field element is a ten-slot vector; the engines in
@@ -18,7 +19,11 @@
 ; fixed points, as the ladder that calls it does.
 (import x/sys/gc)
 
-(import x/core/doors char->int int* int+ int- obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
+(import x/core/doors char->int int& int* int+ int- obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
+; a 4-byte word's field
+(import x/codec/mont mont-modulus mont-n)
+(import x/codec/mont-jit mont-jit-engine mont-jit-load! mont-jit-store mont-jit-load-bytes! mont-jit-store-bytes
+  mont-jit-to! mont-jit-from! mont-jit-mul mont-jit-add mont-jit-sub mont-jit-inv! mont-jit-pow!)
 
 (def %byte (fn (_ s i) (char->int (str-byte-ref s i))))
 
@@ -31,13 +36,13 @@
 
 ; A field element is a ten-slot vector, limb i in slot i+1 (the length
 ; rides slot 0).
-(def fe-zero (fn (_) (Vector make 10 0)))
+(def %zero10 (fn (_) (Vector make 10 0)))
 (def fe-ref (fn (_ f i) (obj-ref f (int+ i 1))))
 (def fe-set! (fn (_ f i v) (obj-set! f (int+ i 1) v)))
 
-(def fe-limbs
+(def %limbs10
   (fn (_ ls)
-    (def f (fe-zero))
+    (def f (%zero10))
     ((fn (self i xs)
        (unless (null? xs) (do (fe-set! f i (first xs)) (self (int+ i 1) (rest xs))))) 0 ls)
     f))
@@ -68,9 +73,9 @@
 
 ; 32 little-endian bytes to a field element (ref10 fe_frombytes), the top
 ; bit masked as the RFC's decodeUCoordinate says.
-(def fe-frombytes
+(def %frombytes10
   (fn (_ s)
-    (def h (fe-limbs (list (%load4 s 0)
+    (def h (%limbs10 (list (%load4 s 0)
                          (<< (%load3 s 4) 6)
                          (<< (%load3 s 7) 5)
                          (<< (%load3 s 10) 3)
@@ -86,9 +91,9 @@
 ; A field element to 32 bytes (ref10 fe_tobytes): reduced fully mod p --
 ; q is whether h is at or over p, found by carrying 19 times the top limb
 ; through -- then the limbs packed at their bit positions.
-(def fe-tobytes
+(def %tobytes10
   (fn (_ f)
-    (def h (fe-limbs (List map (fn (_ i) (fe-ref f i)) (list 0 1 2 3 4 5 6 7 8 9))))
+    (def h (%limbs10 (List map (fn (_ i) (fe-ref f i)) (list 0 1 2 3 4 5 6 7 8 9))))
     (def q
       ((fn (self i c)
          (if (= i 10) c
@@ -120,13 +125,13 @@
              (self (int+ k 1) i2)))) 0 0)
     out))
 
-(def fe-add
+(def %add10
   (fn (_ f g)
-    (fe-limbs (list (int+ (obj-ref f 1) (obj-ref g 1)) (int+ (obj-ref f 2) (obj-ref g 2)) (int+ (obj-ref f 3) (obj-ref g 3)) (int+ (obj-ref f 4) (obj-ref g 4)) (int+ (obj-ref f 5) (obj-ref g 5)) (int+ (obj-ref f 6) (obj-ref g 6)) (int+ (obj-ref f 7) (obj-ref g 7)) (int+ (obj-ref f 8) (obj-ref g 8)) (int+ (obj-ref f 9) (obj-ref g 9)) (int+ (obj-ref f 10) (obj-ref g 10))))))
+    (%limbs10 (list (int+ (obj-ref f 1) (obj-ref g 1)) (int+ (obj-ref f 2) (obj-ref g 2)) (int+ (obj-ref f 3) (obj-ref g 3)) (int+ (obj-ref f 4) (obj-ref g 4)) (int+ (obj-ref f 5) (obj-ref g 5)) (int+ (obj-ref f 6) (obj-ref g 6)) (int+ (obj-ref f 7) (obj-ref g 7)) (int+ (obj-ref f 8) (obj-ref g 8)) (int+ (obj-ref f 9) (obj-ref g 9)) (int+ (obj-ref f 10) (obj-ref g 10))))))
 
-(def fe-sub
+(def %sub10
   (fn (_ f g)
-    (fe-limbs (list (int- (obj-ref f 1) (obj-ref g 1)) (int- (obj-ref f 2) (obj-ref g 2)) (int- (obj-ref f 3) (obj-ref g 3)) (int- (obj-ref f 4) (obj-ref g 4)) (int- (obj-ref f 5) (obj-ref g 5)) (int- (obj-ref f 6) (obj-ref g 6)) (int- (obj-ref f 7) (obj-ref g 7)) (int- (obj-ref f 8) (obj-ref g 8)) (int- (obj-ref f 9) (obj-ref g 9)) (int- (obj-ref f 10) (obj-ref g 10))))))
+    (%limbs10 (list (int- (obj-ref f 1) (obj-ref g 1)) (int- (obj-ref f 2) (obj-ref g 2)) (int- (obj-ref f 3) (obj-ref g 3)) (int- (obj-ref f 4) (obj-ref g 4)) (int- (obj-ref f 5) (obj-ref g 5)) (int- (obj-ref f 6) (obj-ref g 6)) (int- (obj-ref f 7) (obj-ref g 7)) (int- (obj-ref f 8) (obj-ref g 8)) (int- (obj-ref f 9) (obj-ref g 9)) (int- (obj-ref f 10) (obj-ref g 10))))))
 
 ; The product (ref10 fe_mul), unrolled as ref10 writes it: row k collects
 ; f_i g_j for i + j = k and, folded back by 19 since 2^255 = 19 mod p,
@@ -134,7 +139,7 @@
 ; radix, so its f is doubled.  Written out rather than looped because a
 ; loop's bookkeeping is most of an interpreted multiply's cost, and an
 ; exchange does three thousand of them.
-(def fe-mul
+(def %mul10
   (fn (_ f g)
     (def f0 (obj-ref f 1)) (def f1 (obj-ref f 2)) (def f2 (obj-ref f 3)) (def f3 (obj-ref f 4))
     (def f4 (obj-ref f 5)) (def f5 (obj-ref f 6)) (def f6 (obj-ref f 7)) (def f7 (obj-ref f 8))
@@ -157,16 +162,96 @@
     (def h7 (int+ (int+ (int+ (int* f0 g7) (int* f1 g6)) (int+ (int* f2 g5) (int* f3 g4))) (int+ (int+ (int+ (int* f4 g3) (int* f5 g2)) (int+ (int* f6 g1) (int* f7 g0))) (int+ (int* f8 g9-19) (int* f9 g8-19)))))
     (def h8 (int+ (int+ (int+ (int* f0 g8) (int* f1-2 g7)) (int+ (int* f2 g6) (int* f3-2 g5))) (int+ (int+ (int+ (int* f4 g4) (int* f5-2 g3)) (int+ (int* f6 g2) (int* f7-2 g1))) (int+ (int* f8 g0) (int* f9-2 g9-19)))))
     (def h9 (int+ (int+ (int+ (int* f0 g9) (int* f1 g8)) (int+ (int* f2 g7) (int* f3 g6))) (int+ (int+ (int+ (int* f4 g5) (int* f5 g4)) (int+ (int* f6 g3) (int* f7 g2))) (int+ (int* f8 g1) (int* f9 g0)))))
-    (def h (fe-limbs (list h0 h1 h2 h3 h4 h5 h6 h7 h8 h9)))
+    (def h (%limbs10 (list h0 h1 h2 h3 h4 h5 h6 h7 h8 h9)))
     (%carry-all! h %mul-order)
     h))
+
+; --- The element the word holds ----------------------------------------
+;
+; ref10's limbs need a product of two under 2^58, past a 4-byte word.
+; There an element is a number mod p in x/codec/mont's Montgomery form,
+; on the limbs that word allows: the same operations and the same bytes
+; in and out, slower.  An 8-byte word keeps ref10's limbs.
+(def %narrow (< %word-size 8))
+
+; p = 2^255 - 19, big-endian, as mont reads a modulus
+(def %p-be
+  ((fn (_ s)
+     (def p (str->ptr s))
+     ((fn (self i) (unless (= i 32) (do (ptr-set! p i (match ((= i 0) 127) ((= i 31) 237) (#t 255)) 1) (self (int+ i 1))))) 0)
+     s)
+   (str-make 32)))
+(def %pm (if %narrow (mont-modulus %p-be 0 32) ()))
+
+; 32 bytes in the other order; top clears the top bit of the encoding,
+; as decodeUCoordinate does
+(def %reverse32
+  (fn (_ s top)
+    (def out (str-make 32))
+    (def p (str->ptr out))
+    ((fn (self i)
+       (unless (= i 32)
+         (do (ptr-set! p i (if (and top (= i 0)) (int& (%byte s 31) 127) (%byte s (int- 31 i))) 1)
+             (self (int+ i 1)))))
+     0)
+    out))
+
+; The operations run on x/codec/mont-jit's engine for p, made the first
+; time one is asked for: compiled, a multiply is a call where mont.x's
+; pure one is a hundred milliseconds of x on a small machine; pure, it
+; is mont.x's.  Each loads its operands into slots 0 and 1, computes
+; into slot 2 and stores it.
+(def %pe ())
+; an engine is this process's memory and compiled code: an image drops it,
+; and the first use after a load builds it again
+((prim-ref (lit image) (lit transient!)) (fn (_) (set! %pe ())))
+(def %engine
+  (fn (_)
+    (when (null? %pe) (set! %pe (mont-jit-engine %pm)))
+    %pe))
+(def %op
+  (fn (_ op f g)
+    (def e (%engine))
+    (mont-jit-load! e 0 f)
+    (mont-jit-load! e 1 g)
+    (op e 2 0 1)
+    (mont-jit-store e 2)))
+
+(def %n-frombytes
+  (fn (_ s)
+    (def e (%engine))
+    (mont-jit-load-bytes! e 0 (%reverse32 s #t) 0 32)
+    (mont-jit-to! e 0 0)
+    (mont-jit-store e 0)))
+(def %n-tobytes
+  (fn (_ f)
+    (def e (%engine))
+    (mont-jit-load! e 0 f)
+    (mont-jit-from! e 0 0)
+    (%reverse32 (mont-jit-store-bytes e 0) #f)))
+
+(def fe-zero (fn (_) (if %narrow (Vector make (mont-n %pm) 0) (%zero10))))
+(def fe-limbs (fn (_ ls) (if %narrow (%n-frombytes (%tobytes10 (%limbs10 ls))) (%limbs10 ls))))
+(def fe-frombytes (fn (_ s) (if %narrow (%n-frombytes s) (%frombytes10 s))))
+(def fe-tobytes (fn (_ f) (if %narrow (%n-tobytes f) (%tobytes10 f))))
+(def fe-add (fn (_ f g) (if %narrow (%op mont-jit-add f g) (%add10 f g))))
+(def fe-sub (fn (_ f g) (if %narrow (%op mont-jit-sub f g) (%sub10 f g))))
+(def fe-mul (fn (_ f g) (if %narrow (%op mont-jit-mul f g) (%mul10 f g))))
+(def %n121666 ())
+(def fe-mul121666
+  (fn (_ f)
+    (if %narrow
+      (do (when (null? %n121666) (set! %n121666 (fe-limbs (list 121666))))
+          (%op mont-jit-mul f %n121666))
+      (%mul121666-10 f))))
+(def fe-neg (fn (_ f) (if %narrow (%op mont-jit-sub (fe-zero) f) (%neg10 f))))
 
 (def fe-sq (fn (_ f) (fe-mul f f)))
 
 ; Times (A - 2) / 4 = 121666, the ladder's constant (ref10 fe_mul121666).
-(def fe-mul121666
+(def %mul121666-10
   (fn (_ f)
-    (def h (fe-limbs (list (int* (obj-ref f 1) 121666) (int* (obj-ref f 2) 121666) (int* (obj-ref f 3) 121666) (int* (obj-ref f 4) 121666) (int* (obj-ref f 5) 121666) (int* (obj-ref f 6) 121666) (int* (obj-ref f 7) 121666) (int* (obj-ref f 8) 121666) (int* (obj-ref f 9) 121666) (int* (obj-ref f 10) 121666))))
+    (def h (%limbs10 (list (int* (obj-ref f 1) 121666) (int* (obj-ref f 2) 121666) (int* (obj-ref f 3) 121666) (int* (obj-ref f 4) 121666) (int* (obj-ref f 5) 121666) (int* (obj-ref f 6) 121666) (int* (obj-ref f 7) 121666) (int* (obj-ref f 8) 121666) (int* (obj-ref f 9) 121666) (int* (obj-ref f 10) 121666))))
     (%carry-all! h %load-order)
     h))
 
@@ -178,7 +263,7 @@
           (self (fe-sq f) (int- n 1))))))
 
 ; z^(p - 2) = z^(2^255 - 21), ref10's chain.
-(def fe-invert
+(def %invert10
   (fn (_ z)
     (def t0 (fe-sq z))
     (def t1 (fe-mul z (fe-sq-n t0 2)))
@@ -196,16 +281,16 @@
 
 ; --- what Ed25519 needs beyond the ladder ------------------------------
 
-(def fe-neg
+(def %neg10
   (fn (_ f)
-    (fe-limbs (list (int- 0 (fe-ref f 0)) (int- 0 (fe-ref f 1)) (int- 0 (fe-ref f 2))
+    (%limbs10 (list (int- 0 (fe-ref f 0)) (int- 0 (fe-ref f 1)) (int- 0 (fe-ref f 2))
                     (int- 0 (fe-ref f 3)) (int- 0 (fe-ref f 4)) (int- 0 (fe-ref f 5))
                     (int- 0 (fe-ref f 6)) (int- 0 (fe-ref f 7)) (int- 0 (fe-ref f 8))
                     (int- 0 (fe-ref f 9))))))
 
 ; z^((p - 5) / 8) = z^(2^252 - 3), ref10's chain: the square root's
 ; helper in a point's decompression.
-(def fe-pow22523
+(def %pow22523-10
   (fn (_ z)
     (def t0 (fe-sq z))
     (def t1 (fe-mul z (fe-sq-n t0 2)))
@@ -219,6 +304,30 @@
     (def t0e (fe-mul (fe-sq-n t1e 50) t0d))
     (fe-mul (fe-sq-n t0e 2) z)))
 
+; On the engine the two powers are each one: the inverse Fermat's, and
+; (p - 5) / 8 = 2^252 - 3 from its big-endian bytes.
+(def %e22523
+  ((fn (_ s)
+     (def p (str->ptr s))
+     ((fn (self i) (unless (= i 32) (do (ptr-set! p i (match ((= i 0) 15) ((= i 31) 253) (#t 255)) 1) (self (int+ i 1))))) 0)
+     s)
+   (str-make 32)))
+(def fe-invert
+  (fn (_ z)
+    (if %narrow
+      (do (def e (%engine)) (mont-jit-load! e 0 z) (mont-jit-inv! e 2 0) (mont-jit-store e 2))
+      (%invert10 z))))
+(def fe-pow22523
+  (fn (_ z)
+    (if %narrow
+      (do (def e (%engine)) (mont-jit-load! e 0 z) (mont-jit-pow! e 2 0 %e22523 0 32) (mont-jit-store e 2))
+      (%pow22523-10 z))))
+
+; The engine a 4-byte word's elements are on, for a caller that runs a
+; program of operations on it -- slots 0 to 2 are this module's own -- or
+; nil on an 8-byte word.
+(def fe-engine (fn (_) (if %narrow (%engine) ())))
+
 ; The sign bit of the canonical encoding: the low bit of its first byte.
 (def fe-negative?
   (fn (_ f) (= (& (%byte (fe-tobytes f) 0) 1) 1)))
@@ -229,5 +338,5 @@
     (def s (fe-tobytes f))
     ((fn (self i) (if (= i 32) #f (if (= (%byte s i) 0) (self (int+ i 1)) #t))) 0)))
 
-(doc (provide x/codec/fe25519 fe-zero fe-limbs fe-ref fe-set! fe-frombytes fe-tobytes fe-add fe-sub fe-mul fe-sq fe-sq-n fe-mul121666 fe-invert fe-neg fe-pow22523 fe-negative? fe-nonzero?)
-  "The field GF(2^255 - 19) on ref10's ten signed limbs: elements as ten-slot vectors, bytes in and out, add, subtract, negate, multiply, square, the ladder's times-121666, the inverse and the square root's power. Pure x-lang; what X25519 and Ed25519 compute in.")
+(doc (provide x/codec/fe25519 fe-zero fe-limbs fe-ref fe-set! fe-frombytes fe-tobytes fe-add fe-sub fe-mul fe-sq fe-sq-n fe-mul121666 fe-invert fe-neg fe-pow22523 fe-negative? fe-nonzero? fe-engine)
+  "The field GF(2^255 - 19) on ref10's ten signed limbs, or on a 4-byte word as Montgomery numbers on x/codec/mont-jit's engine (fe-engine): elements as vectors, bytes in and out, add, subtract, negate, multiply, square, the ladder's times-121666, the inverse and the square root's power. What X25519 and Ed25519 compute in.")

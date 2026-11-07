@@ -26,7 +26,7 @@
 (import x/tui/width char-width)
 (import x/tui/style style-sgr)
 
-(import x/core/doors char->int int% int& int* int+ int/ int< int>> int| obj-make obj-ref obj-set! ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-byte-sub str-make)
+(import x/core/doors char->int int% int& int* int+ int/ int< int= int>> int| obj-make obj-ref obj-set! ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-byte-sub str-make)
 (def %sc-vector ((prim-ref (lit type) (lit of)) (Vector make 0 ())))
 
 ; A screen is a vector: 0 rows, 1 columns, 2 the cells, 3 what the terminal
@@ -44,6 +44,17 @@
 (def %sc-cp (fn (_ p o) (ptr-ref p o 4)))
 (def %sc-style (fn (_ p o) (ptr-ref p (int+ o 4) 4)))
 (def %sc-set! (fn (_ p o cp style) (ptr-set! p o cp 4) (ptr-set! p (int+ o 4) style 4)))
+; Whether cell O is the same in P and Q, and cell O of P copied to Q: the
+; cell's 8 bytes in one access where the word holds them, in its two
+; 4-byte halves where it does not.
+(def %sc-same?
+  (if (int< %word-size 8)
+    (fn (_ p q o) (if (int= (ptr-ref p o 4) (ptr-ref q o 4)) (int= (%sc-style p o) (%sc-style q o)) #f))
+    (fn (_ p q o) (int= (ptr-ref p o 8) (ptr-ref q o 8)))))
+(def %sc-copy!
+  (if (int< %word-size 8)
+    (fn (_ p q o) (%sc-set! q o (%sc-cp p o) (%sc-style p o)))
+    (fn (_ p q o) (ptr-set! q o (ptr-ref p o 8) 8))))
 
 ; Every cell from offset O to E blank in STYLE.
 (def %sc-paint!
@@ -170,11 +181,11 @@
 (def %sc-first
   (fn (self p q o e)
     (match ((int< e o) -1)
-           ((= (ptr-ref p o 8) (ptr-ref q o 8)) (self p q (int+ o 8) e))
+           ((%sc-same? p q o) (self p q (int+ o 8) e))
            (#t o))))
 (def %sc-last
   (fn (self p q o e)
-    (match ((= (ptr-ref p e 8) (ptr-ref q e 8)) (self p q o (int+ e -8)))
+    (match ((%sc-same? p q e) (self p q o (int+ e -8)))
            (#t e))))
 ; The cells from offset O to E written into B from I, each copied to what
 ; is shown, Q.  STYLE is the style the terminal has: -1 when it is not
@@ -185,7 +196,7 @@
       ((int< e o) (pair i style))
       (#t (do (def cp (%sc-cp p o))
               (def st (%sc-style p o))
-              (ptr-set! q o (ptr-ref p o 8) 8)
+              (%sc-copy! p q o)
               (match
                 ((= cp 0) (self s p q b (int+ o 8) e i style))
                 ((= st style) (self s p q b (int+ o 8) e (%sc-wcp! b i cp) style))

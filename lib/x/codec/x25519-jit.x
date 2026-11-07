@@ -116,6 +116,8 @@
 
 (def x25519-jit-make
   (fn (_ frombytes tobytes)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "x25519-jit: written for an 8-byte word" ()))
     ; the field operations, built and proven against the pure-x field: the
     ; ladder and the chain compile the same expressions
     (fe-jit-compile)

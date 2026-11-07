@@ -8,7 +8,7 @@
 (import x/core/list)
 (import x/core/alist)
 
-; The three tables live under platform/data/ (#38: this file was 95%
+; The tables live under platform/data/ (#38: this file was 95%
 ; literal data); import registers the names so later imports no-op -- and
 ; resolves through the import roots, so the tables load in an installed
 ; tree too (no root-relative path literals at runtime).
@@ -16,6 +16,7 @@
 (import x/platform/data/syscalls-i386)
 (import x/platform/data/syscalls-darwin)
 (import x/platform/data/syscalls-linux-generic)
+(import x/platform/data/syscalls-linux-arm)
 
 ; --- platform detection ---
 ; x-machine is the build triple, e.g. "arm64-apple-darwin25.5.0" vs
@@ -85,6 +86,15 @@
 (def arch-x86-64?
   (match ((eq? %declared-arch ()) (%os-contains? "x86_64" x-machine 0))
          (#t (eq? %declared-arch (lit x86-64)))))
+; 32-bit arm.  The engine declares it `arm`; a GNU triple spells it "arm-" or
+; "armv7-", and "arm64" begins the same way, so the triple parse asks arm64
+; first.
+(def arch-arm?
+  (match ((eq? %declared-arch ())
+           (if arch-arm64? #f
+             (if (%os-contains? "arm-" x-machine 0) #t
+               (%os-contains? "armv" x-machine 0))))
+         (#t (eq? %declared-arch (lit arm)))))
 
 ; --- the platform, named once ---
 ; Every table below is picked by this.  A host that is none of these raises
@@ -96,6 +106,7 @@
     (os-darwin? (lit darwin))
     ((if os-linux? arch-x86-64? #f) (lit linux-x86-64))
     ((if os-linux? arch-arm64? #f) (lit linux-arm64))
+    ((if os-linux? arch-arm? #f) (lit linux-arm))
     (#t (error (pair (lit unsupported-platform) x-machine)))))
 
 ; --- File open-mode flags (O_*) ---
@@ -129,9 +140,10 @@
   (list (lit sync)       1052672)  ; 04010000
   (list (lit path)       2097152)))  ; 010000000
 
-; arm64 Linux: direct, largefile, directory and nofollow trade values with
-; x86-64's (arch/arm64/include/uapi/asm/fcntl.h); the rest are the same.
-(def %file-modes-linux-arm64 (list
+; arm Linux, both widths: direct, largefile, directory and nofollow trade
+; values with x86-64's (arch/arm/include/uapi/asm/fcntl.h, which arm64's
+; repeats); the rest are the same.
+(def %file-modes-linux-arm (list
   (list (lit accmode)    3)        ; 00000003
   (list (lit rdonly)     0)        ; 00000000
   (list (lit wronly)     1)        ; 00000001
@@ -174,14 +186,16 @@
 (def file-modes
   (match
     ((eq? %platform (lit darwin)) %file-modes-darwin)
-    ((eq? %platform (lit linux-arm64)) %file-modes-linux-arm64)
+    ((eq? %platform (lit linux-arm64)) %file-modes-linux-arm)
+    ((eq? %platform (lit linux-arm)) %file-modes-linux-arm)
     (#t %file-modes-linux)))
 
 ; --- the stat struct ---
 ; The whole struct as a Struct field spec, one per platform: Darwin's is
 ; stat64's, Linux x86-64's is its own, and arm64's is the generic one, which
 ; narrows nlink to a u32 and so puts mode at 16 where x86-64 has it at 24.
-; All three are 64-bit layouts.
+; Those three are 64-bit layouts; 32-bit arm's is the kernel's stat64, which
+; the stat64 calls fill.
 (def %stat-layout-darwin (list
   (list (lit dev) (lit u32)) (list (lit mode) (lit u16))
   (list (lit nlink) (lit u16)) (list (lit ino) (lit u64))
@@ -215,10 +229,28 @@
   (list (lit pad) 8) (list (lit mtime) (lit i64)) (list (lit pad) 8)
   (list (lit ctime) (lit i64))))
 
+; 32-bit arm's stat64 (arch/arm/include/uapi/asm/stat.h): 32-bit mode,
+; nlink, uid and gid, 32-bit times as a seconds word and a nanoseconds word,
+; the inode's low word at 12 and the whole inode at 96, and the 8-byte
+; fields aligned by the EABI, which is where the pads come from.
+(def %stat-layout-linux-arm (list
+  (list (lit dev) (lit u64)) (list (lit pad) 8)
+  (list (lit mode) (lit u32)) (list (lit nlink) (lit u32))
+  (list (lit uid) (lit u32)) (list (lit gid) (lit u32))
+  (list (lit rdev) (lit u64)) (list (lit pad) 8)
+  (list (lit size) (lit i64)) (list (lit blksize) (lit u32))
+  (list (lit pad) 4)
+  (list (lit blocks) (lit u64))
+  (list (lit atime) (lit i32)) (list (lit pad) 4)
+  (list (lit mtime) (lit i32)) (list (lit pad) 4)
+  (list (lit ctime) (lit i32)) (list (lit pad) 4)
+  (list (lit ino) (lit u64))))
+
 (def stat-layout
   (match
     ((eq? %platform (lit darwin)) %stat-layout-darwin)
     ((eq? %platform (lit linux-arm64)) %stat-layout-linux-generic)
+    ((eq? %platform (lit linux-arm)) %stat-layout-linux-arm)
     (#t %stat-layout-linux-x86-64)))
 
 ; --- syscall numbers ---
@@ -230,6 +262,9 @@
           (if (null? e) -1 (first e))))
       ((eq? %platform (lit linux-arm64))
         (let ((e (%assoc-get call linux-generic-syscall-numbers)))
+          (if (null? e) -1 (first e))))
+      ((eq? %platform (lit linux-arm))
+        (let ((e (%assoc-get call linux-arm-syscall-numbers)))
           (if (null? e) -1 (first e))))
       ; index-of misses with nil; -1 stays this table's OS-domain invalid
       ; marker (never a valid syscall number)
@@ -263,6 +298,8 @@
     (match
       ((eq? %platform (lit linux-arm64))
         (%assoc-get name linux-generic-syscall-stand-ins))
+      ((eq? %platform (lit linux-arm))
+        (%assoc-get name linux-arm-syscall-stand-ins))
       (#t ()))))
 
 (def %door-slots
@@ -298,9 +335,10 @@
 (doc (provide x/platform/syscall
   (global syscall-id) (global syscall-door)
   (global os-darwin?) (global os-linux?)
-  (global arch-arm64?) (global arch-x86-64?)
+  (global arch-arm64?) (global arch-x86-64?) (global arch-arm?)
   (global x86_64-syscall-names) (global i386-syscall-names) (global darwin-syscall-numbers)
   (global linux-generic-syscall-numbers) (global linux-generic-syscall-stand-ins)
+  (global linux-arm-syscall-numbers) (global linux-arm-syscall-stand-ins)
   file-modes stat-layout)
-  (note "syscall-id answers a number from this platform's table: Darwin's bare BSD numbers (libc OR-folds the 0x2000000 UNIX class), Linux x86-64's, or the Linux generic table on arm64. syscall-door answers something to call, and is what reaches a call the generic table spells differently.")
+  (note "syscall-id answers a number from this platform's table: Darwin's bare BSD numbers (libc OR-folds the 0x2000000 UNIX class), Linux x86-64's, the Linux generic table on arm64, or the arm EABI table on 32-bit arm. syscall-door answers something to call, and is what reaches a call a table spells differently.")
   "The platform layer: which OS and architecture this is, and the syscall numbers, stand-in calls, open flags and stat layout that follow from it.")

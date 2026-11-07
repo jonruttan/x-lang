@@ -46,6 +46,29 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # The 32-bit arm leg: the suite inside a linux/arm/v7 container on the
+  # arm64 runner, whose kernel executes it natively (CONFIG_COMPAT; QEMU is
+  # not installed, since a registered qemu-arm would take the binaries over).
+  # It reports and does not gate, as the arm64 leg does.  The stress lane
+  # stays off: its heaps are sized for a 64-bit address space.
+  specs-arm:
+    name: specs (linux/arm/v7)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build and test in a 32-bit container
+        run: |
+          docker run --rm --platform linux/arm/v7 -v "$PWD:/w" -w /w \
+            -e PARALLEL=1 -e SPEC_HEAVY_JOBS=1 debian:bookworm sh -c '
+            apt-get update -q > /dev/null
+            apt-get install -y -q --no-install-recommends \
+              build-essential git curl ca-certificates > /dev/null
+            getconf LONG_BIT && uname -m
+            make engine && make && make test-c && make test-x \
+              && make conformance && make doctest'
+
   specs:
     name: specs (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

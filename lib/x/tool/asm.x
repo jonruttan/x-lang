@@ -143,6 +143,7 @@
 (def asm-emit!
   (fn (_ asm mnemonic . args)
     (def arch (obj-ref asm 5))
+    (if (null? arch) (Err raise 'state "asm: no assembler backend for this platform" ()))
     (def entry (%asm-assq mnemonic (first arch)))
     (if (null? entry) (Err raise 'value (Str append "asm: unknown mnemonic: " (symbol->str mnemonic)) ()))
     ; Match operand signature
@@ -208,12 +209,22 @@
 
 ; --- Load architecture ---
 ; import, not a path literal: resolves through the import roots so the
-; backend loads in an installed tree too.
-(if %asm-arm64?
-  (import x/tool/asm/arm64)
-  (import x/tool/asm/x86_64))
+; backend loads in an installed tree too.  A platform with no backend loads
+; none: %arch stays empty and asm-emit! refuses, which is how the probes
+; ahead of every compile learn that the lane is closed there.
+(match
+  (%asm-arm64? (import x/tool/asm/arm64))
+  (arch-x86-64? (import x/tool/asm/x86_64))
+  (arch-arm? (import x/tool/asm/arm32))
+  (#t ()))
+
+(doc (def asm-backend? (fn (_) (not (null? %arch))))
+  (returns BOOL "Whether this platform has an assembler backend")
+  (sample "(asm-backend?)" "#t on arm64, x86-64 and 32-bit arm")
+  "Whether the assembler can emit for this machine: what a module that emits code at load asks before it does, since asm-emit! refuses where there is no backend.")
 
 (doc (provide x/asm
   asm-emit! asm-label! asm-patch! asm-pos asm-labels asm-unresolved! asm-patch-at!
+  asm-backend?
   reg imm mem label)
   "Data-driven assembler with JIT execution via mmap; the buffers it emits into are x/tool/asm-code's.")

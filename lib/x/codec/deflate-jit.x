@@ -271,6 +271,8 @@
 ; guards; a raise means "stay pure-x".
 (def deflate-jit-make
   (fn (_ state tables room put-code check)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "deflate-jit: written for an 8-byte word" ()))
     (def %step (compile-asm %dj-step-expr))
     (def %matcher (compile-asm %dm-expr))
     (def %mbuf (str-make (* %MWORDS 8)))

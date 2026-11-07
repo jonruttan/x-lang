@@ -1,17 +1,20 @@
-; mont.x -- Montgomery arithmetic modulo an odd number, on 26-bit limbs.
+; mont.x -- Montgomery arithmetic modulo an odd number, on limbs as wide
+; as the word allows.
 ;
 ; ECDSA over P-256 and P-384 works modulo the curve's prime and its
 ; order, and RSA modulo its public modulus: all of it is multiplication
 ; mod m, and Montgomery's form makes that a multiply and shifts with no
-; division.  A number is a vector of n limbs of 26 bits, least
+; division.  A number is a vector of n limbs of B bits, least
 ; significant first, limb k in slot k+1 (the length rides slot 0, as
-; fe25519's do).  26 bits keep every product of two limbs under 2^52 and
-; a row's sum with its carry under 2^54, inside the engine's 64-bit int,
-; whose right shift is arithmetic -- the lane has no high-half multiply,
-; so a limb must be small enough that the low half is the whole product.
+; fe25519's do).  A row's sum -- a limb, a product of two and a carry --
+; is under 2^(2B+1), and must fit the engine's signed int, whose right
+; shift is arithmetic: the lane has no high-half multiply, so a limb must
+; be small enough that the low half is the whole product.  B is 26 on an
+; 8-byte word and 14 on a 4-byte one, and x/codec/mont-jit's compiled
+; engine works in the same limbs.
 ;
 ; A MODULUS is built once from its big-endian bytes: its limbs, n' =
-; -m^-1 mod 2^26, and R^2 mod m (R = 2^(26n)) for entering the form.
+; -m^-1 mod 2^B, and R^2 mod m (R = 2^(Bn)) for entering the form.
 ; Numbers in Montgomery form are a R mod m; mont-mul of two of them is
 ; their product's, and mont-from leaves the form.  Everything here is
 ; pure x on the int prims; a compiled multiplier can replace mont-mul
@@ -24,7 +27,10 @@
 
 (import x/core/doors char->int int* int+ int- obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
 
-(def %M 67108863)
+; B, and the mask of a limb; a compiled engine works in the same limbs
+(def mont-limb-bits ((fn (_ b) (if (< b 26) b 26)) (>> (int- (int* 8 %word-size) 3) 1)))
+(def %B mont-limb-bits)
+(def %M (int- (<< 1 %B) 1))
 
 (def %byte (fn (_ s i) (char->int (str-byte-ref s i))))
 (def %lr (fn (_ v i) (obj-ref v (int+ i 1))))
@@ -51,7 +57,7 @@
     (obj-ref m 2)))
 (def %m-inv (fn (_ m) (obj-ref m 3)))
 ; R^2 mod m and R mod m are made when first asked for: by pure x here --
-; 52n doublings of a limb vector, 200 ms for P-256's prime -- or by a
+; 2Bn doublings of a limb vector, 200 ms for P-256's prime -- or by a
 ; compiled engine's add through mont-set-r2!, which mont-jit does before
 ; anything asks, in milliseconds.
 (def %m-r2
@@ -72,7 +78,7 @@
 (def mont-limbs (fn (_ m) (%m-limbs m)))
 
 ; A big-endian region's bytes as n limbs: byte j from the end lands at bit
-; 8j, in limb (8j)/26 and, when it straddles, the next.
+; 8j, in limb (8j)/B and, when it straddles, the next.
 (def %from-be
   (fn (_ s start len n)
     (def v (%limbs n))
@@ -81,10 +87,10 @@
          (do (def b (%byte s (int- (int+ start len) (int+ j 1))))
              (when (< limb n)
                (%ls! v limb (| (%lr v limb) (& (<< b off) %M))))
-             (when (and (> off 18) (< (int+ limb 1) n))
-               (%ls! v (int+ limb 1) (| (%lr v (int+ limb 1)) (>> b (int- 26 off)))))
-             (if (>= (int+ off 8) 26)
-               (self (int+ j 1) (int+ limb 1) (int- (int+ off 8) 26))
+             (when (and (> off (int- %B 8)) (< (int+ limb 1) n))
+               (%ls! v (int+ limb 1) (| (%lr v (int+ limb 1)) (>> b (int- %B off)))))
+             (if (>= (int+ off 8) %B)
+               (self (int+ j 1) (int+ limb 1) (int- (int+ off 8) %B))
                (self (int+ j 1) limb (int+ off 8))))))
      0 0 0)
     v))
@@ -97,10 +103,10 @@
     ((fn (self j limb off)
        (unless (= j len)
          (do (def lo (if (< limb n) (>> (%lr v limb) off) 0))
-             (def hi (if (and (> off 18) (< (int+ limb 1) n)) (<< (%lr v (int+ limb 1)) (int- 26 off)) 0))
+             (def hi (if (and (> off (int- %B 8)) (< (int+ limb 1) n)) (<< (%lr v (int+ limb 1)) (int- %B off)) 0))
              (ptr-set! p (int- len (int+ j 1)) (& (| lo hi) 255) 1)
-             (if (>= (int+ off 8) 26)
-               (self (int+ j 1) (int+ limb 1) (int- (int+ off 8) 26))
+             (if (>= (int+ off 8) %B)
+               (self (int+ j 1) (int+ limb 1) (int- (int+ off 8) %B))
                (self (int+ j 1) limb (int+ off 8))))))
      0 0 0)
     out))
@@ -122,7 +128,7 @@
        (unless (= i n)
          (do (def s (int+ (int- (%lr a i) (%lr b i)) c))
              (%ls! a i (& s %M))
-             (self (int+ i 1) (>> s 26)))))
+             (self (int+ i 1) (>> s %B)))))
      0 0)))
 
 ; a := a + b in place; the carry out of the top limb is answered.
@@ -132,10 +138,10 @@
        (if (= i n) c
          (do (def s (int+ (int+ (%lr a i) (%lr b i)) c))
              (%ls! a i (& s %M))
-             (self (int+ i 1) (>> s 26)))))
+             (self (int+ i 1) (>> s %B)))))
      0 0)))
 
-; -m0^-1 mod 2^26 by Newton's iteration: x <- x (2 - m0 x) doubles the
+; -m0^-1 mod 2^B by Newton's iteration: x <- x (2 - m0 x) doubles the
 ; bits right each time, from one right bit (m0 is odd).
 (def %neg-inverse
   (fn (_ m0)
@@ -152,7 +158,7 @@
          (do (def carry (%add-in! x x n))
              (when (or (> carry 0) (%ge? x m n)) (%sub-in! x m n))
              (self (int- k 1)))))
-     (* 52 n))
+     (int* (int* 2 %B) n))
     x))
 
 ; --- the multiplier -----------------------------------------------------
@@ -172,22 +178,22 @@
                        (if (= j n) c
                          (do (def s (int+ (int+ (%lr t j) (int* ai (%lr b j))) c))
                              (%ls! t j (& s %M))
-                             (self (int+ j 1) (>> s 26)))))
+                             (self (int+ j 1) (>> s %B)))))
                      0 0))
              (def s (int+ (%lr t n) c))
              (%ls! t n (& s %M))
-             (%ls! t (int+ n 1) (>> s 26))
+             (%ls! t (int+ n 1) (>> s %B))
              (def q (& (int* (%lr t 0) inv) %M))
-             (def c0 (>> (int+ (%lr t 0) (int* q (%lr p 0))) 26))
+             (def c0 (>> (int+ (%lr t 0) (int* q (%lr p 0))) %B))
              (def c2 ((fn (self j c)
                         (if (= j n) c
                           (do (def s (int+ (int+ (%lr t j) (int* q (%lr p j))) c))
                               (%ls! t (int- j 1) (& s %M))
-                              (self (int+ j 1) (>> s 26)))))
+                              (self (int+ j 1) (>> s %B)))))
                       1 c0))
              (def s2 (int+ (%lr t n) c2))
              (%ls! t (int- n 1) (& s2 %M))
-             (%ls! t n (int+ (%lr t (int+ n 1)) (>> s2 26)))
+             (%ls! t n (int+ (%lr t (int+ n 1)) (>> s2 %B)))
              (self (int+ i 1)))))
      0)
     (def out (%copy t n))
@@ -258,7 +264,7 @@
 ; The modulus's R^2 mod m, out of the form, for an engine entering it.
 (def mont-r2 (fn (_ m) (%m-r2 m)))
 
-; The low limb of a big-endian region: its last four bytes' low 26 bits.
+; The low limb of a big-endian region: its last four bytes' low B bits.
 (def %low-limb
   (fn (_ s start len)
     (def b (fn (_ k) (if (< k len) (%byte s (int- (int+ start len) (int+ k 1))) 0)))
@@ -270,7 +276,7 @@
 (def mont-modulus
   (fn (_ s start len)
     ; the fewest limbs holding 8 len bits with one to spare
-    (def n ((fn (self n) (if (> (int* 26 n) (int* 8 len)) n (self (int+ n 1)))) 1))
+    (def n ((fn (self n) (if (> (int* %B n) (int* 8 len)) n (self (int+ n 1)))) 1))
     (def m (Vector make 7 ()))
     (obj-set! m 1 n)
     (obj-set! m 3 (%neg-inverse (%low-limb s start len)))
@@ -296,6 +302,6 @@
     (def n (mont-n m))
     (not (%ge? (%from-be s start len n) (%m-limbs m) n))))
 
-(doc (provide x/codec/mont mont-modulus mont-n mont-one mont-bytes mont-region mont-limbs mont-number mont-bytes-of mont-below?
+(doc (provide x/codec/mont mont-limb-bits mont-modulus mont-n mont-one mont-bytes mont-region mont-limbs mont-number mont-bytes-of mont-below?
   mont-mul mont-add mont-sub mont-to mont-from mont-pow mont-inv mont-minus-two mont-r2 mont-r2-set? mont-set-r2! mont-zero? mont-eq?)
-  "Montgomery arithmetic modulo an odd number on 26-bit limbs: a modulus from its big-endian bytes, mont-mul, add, sub, pow and inv in the form, and the doors in and out.")
+  "Montgomery arithmetic modulo an odd number on limbs as wide as the word allows: a modulus from its big-endian bytes, mont-mul, add, sub, pow and inv in the form, and the doors in and out.")

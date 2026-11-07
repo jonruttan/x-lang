@@ -113,6 +113,8 @@
 ; guards; a raise means "stay pure-x", never a wrong digest.
 (def sha3-jit-make
   (fn (_ rc ref)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "sha3-jit: written for an 8-byte word" ()))
     (def %theta (compile-asm %k3-theta-expr))
     (def %rhopi (compile-asm %k3-rhopi-expr))
     (def %chi (compile-asm %k3-chi-expr))

@@ -131,6 +131,10 @@
   ; platform's data, bare as the other three tables are.
   (linux-generic-syscall-numbers)
   (linux-generic-syscall-stand-ins)
+  ; The arm EABI table and its stand-ins: 32-bit arm's data, bare as the
+  ; others are.
+  (linux-arm-syscall-numbers)
+  (linux-arm-syscall-stand-ins)
   ; arch-*? join os-*? for the same reason those rows exist: the build triple is
   ; parsed once, in lib/x/platform/syscall.x, and the answer is read by
   ; lib/x/tool/asm.x and lib/x/tool/compile.x rather than sniffed again in
@@ -138,6 +142,7 @@
   ; class machinery that would otherwise home them.
   (arch-arm64?)
   (arch-x86-64?)
+  (arch-arm?)
   (os-darwin?)
   (os-linux?)
   (protocol-format-id)

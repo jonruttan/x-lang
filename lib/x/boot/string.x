@@ -207,17 +207,20 @@
        (fn (self s i len acc)
          (match
            ((eq? i len) acc)
-           ((eq? i 15) (read s ()))
-           ((int< (%str-byte-ref s i) zero) (read s ()))
-           ((int< nine (%str-byte-ref s i)) (read s ()))
+           ((eq? i 15) (read s () int+ int*))
+           ((int< (%str-byte-ref s i) zero) (read s () int+ int*))
+           ((int< nine (%str-byte-ref s i)) (read s () int+ int*))
            (#t (self s (int+ i 1) len
                      (int+ (int* acc 10) (%n2s-int- (%str-byte-ref s i) zero)))))))
      (fn (_ s . rest)
        (match
-         ((not (eq? rest ())) (read s rest))
+         ((not (eq? rest ())) (read s rest int+ int*))
          ((eq? (%str-byte-len s) 0) ())
          (#t (walk s 0 (%str-byte-len s) 0)))))
-   (fn (_ s rest)
+   ; The two integer doors come along for the hex path, which fills the word
+   ; bit by bit and must wrap as the machine does, whatever + and * are bound
+   ; to by the time it runs (the tower's generics promote instead).
+   (fn (_ s rest int+ int*)
     (def radix (match ((eq? rest ()) 10) (#t (first rest))))
     (def len (%str-byte-len s))
     (match
@@ -287,16 +290,49 @@
                                             (error "str->number: integer overflow"))
                                           (#t (self (+ i 1) acc2)))))
                                     (#t ()))))))))
-                    (let ((result (%parse pstart 0)))
+                    ; HEX READS THE WORD'S BITS.  A hex digit string is a bit
+                    ; pattern, as 0xFFFFFFFF is in C: the digits fill the word
+                    ; from the low end and the top bit is the sign, so "ffffffff"
+                    ; is -1 on a 32-bit word and 4294967295 on a 64-bit one.
+                    ; What overflows is a pattern WIDER than the word -- more
+                    ; significant digits than the word has nibbles -- and that
+                    ; raises, so a 64-bit constant still cannot slip into a
+                    ; 32-bit word as something else.  Decimal stays a number,
+                    ; verified digit by digit as below.
+                    (let ((%bits
+                            (fn (self i acc n)
+                              (match
+                                ((= i len) acc)
+                                (#t
+                                  (let ((d (%digit (%str-byte-ref s i))))
+                                    (match
+                                      ((eq? d ()) ())
+                                      ((< d 16)
+                                        (let ((n2 (match ((match ((= n 0) (= d 0)) (#t #f)) 0)
+                                                         (#t (+ n 1)))))
+                                          (match
+                                            ((< (* 2 %word-size) n2)
+                                              (error "str->number: hex wider than the word"))
+                                            (#t (self (+ i 1) (int+ (int* acc 16) d) n2)))))
+                                      (#t ()))))))))
                       (match
-                        ((eq? result ()) ())
-                        (neg result)
-                        (#t
-                          ; The positive reading of |INT_MIN| overflows even
-                          ; though the negative accumulation held it.
-                          (let ((posv (- 0 result)))
+                        ((= pradix 16)
+                          (let ((v (%bits pstart 0 0)))
                             (match
-                              ((< posv 0) (error "str->number: integer overflow"))
-                              (#t posv)))))))))))))))
+                              ((eq? v ()) ())
+                              (neg (- 0 v))
+                              (#t v))))
+                        (#t
+                          (let ((result (%parse pstart 0)))
+                            (match
+                              ((eq? result ()) ())
+                              (neg result)
+                              (#t
+                                ; The positive reading of |INT_MIN| overflows even
+                                ; though the negative accumulation held it.
+                                (let ((posv (- 0 result)))
+                                  (match
+                                    ((< posv 0) (error "str->number: integer overflow"))
+                                    (#t posv))))))))))))))))))
    (prim-ref (lit int) (lit +)) (prim-ref (lit int) (lit *)) (prim-ref (lit int) (lit <))
    (%char->integer #\0) (%char->integer #\9)))

@@ -256,6 +256,8 @@
 ; same vocabulary, so this module is arch-blind.
 (def %sj-make
   (fn (_ label rounds fill big? preload ih ref)
+    ; the engine lays out and computes in 8-byte words
+    (if (< %word-size 8) (Err raise (lit state) "sha-jit: written for an 8-byte word" ()))
     (jit-group (Str8 append "sha-jit:" label ":emit")
       (fn (_) (list rounds fill (%sj-emit-expr (List length ih) big?)))
       (fn (_ fns replayed?)

@@ -1,6 +1,36 @@
 # @lib ../tests/x/lib/float.x
 # @weight 4
 
+## the payload is the double's bits, in as many words as the machine needs
+
+An INTEGER where the word holds all 64 bits; a VECTOR of two words, the low
+word first, on a 4-byte word.  1.5 is 0x3FF8000000000000: a high word of
+1073217536 and a low word of 0.
+
+### one word or two, by %word-size
+
+```x
+(do
+  (def p (first 1.5))
+  (if (= %word-size 8)
+    (= p 4609434218613702656)
+    (and (Vector vector? p) (= (Vector ref 0 p) 0) (= (Vector ref 1 p) 1073217536))))
+```
+---
+    #t
+
+### the words of a result read back the same way
+
+```x
+(do
+  (def p (first (Float + 1.0 0.5)))
+  (if (= %word-size 8)
+    (= p 4609434218613702656)
+    (and (= (Vector ref 0 p) 0) (= (Vector ref 1 p) 1073217536))))
+```
+---
+    #t
+
 ## float literals
 
 ### parses simple float
