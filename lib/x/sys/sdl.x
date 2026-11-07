@@ -90,7 +90,7 @@
       (def p (str->ptr region))
       (let go ((i 0))
         (when (< i n)
-          (do (ptr-set! p i 0 8) (go (+ i 8)))))
+          (do (ptr-set-word! p i 0) (go (+ i %word-size)))))
       region)
 
     (method load! (self (param path STRING "A libSDL3 file to try first"))
