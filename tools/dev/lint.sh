@@ -83,9 +83,18 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# FILE's top-level (import ...) forms on one line, comments dropped.  A form
-# may run over several lines, so it is read to its closing paren; an
-# import's parts are symbols, so counting parens finds it.
+# FILE's (import ...) forms on one line, comments dropped.  A form may run
+# over several lines, so it is read to its closing paren; an import's parts
+# are symbols, so counting parens finds it.
+# An import inside a body is taken as well as one at the top level: a module
+# may load a sibling only when a function first needs it -- inflate.x's
+# check streams import x/codec/hex inside %agrees? -- and the names that load
+# binds are as much the file's as a top-level import's.  Such a line may
+# close the forms around it, (import x/tool/asm/x86_64)), so the form is cut
+# where its own parens balance.  A nested import may sit on one branch of a
+# test that only one machine takes -- asm.x imports x/tool/asm/arm64 or
+# x86_64 by the host's ISA, and the other cannot load here -- so a nested
+# one is loaded under a guard and a load that fails binds nothing.
 # Each import is followed by a collect.  The engine never collects on its
 # own, so a preload's footprint was the SUM of its imports' load garbage:
 # lib/x/num/tower.x's six (bigint 4.7M objects, float 28.9M, rational 8.8M,
@@ -98,11 +107,24 @@ done
 # pile up; the peak is the heaviest single import.
 _import_forms() {
   sed 's/;.*$//' "$1" | awk '
-    !open && /^\(import / { open = 1; form = ""; depth = 0 }
+    !open && /^[ \t]*\(import[ \t]/ {
+      open = 1; form = ""; depth = 0
+      nested = ($0 ~ /^[ \t]/)
+      sub(/^[ \t]*/, "")
+    }
     open {
-      form = form " " $0
-      depth += gsub(/\(/, "(") - gsub(/\)/, ")")
-      if (depth <= 0) { printf "%s ((prim-ref (lit heap) (lit collect))) ", form; open = 0 }
+      line = $0
+      for (i = 1; i <= length(line); i++) {
+        c = substr(line, i, 1)
+        if (c == "(") depth++
+        else if (c == ")") depth--
+        if (depth == 0) break
+      }
+      form = form " " substr(line, 1, i)
+      if (depth == 0) {
+        if (nested) form = " (guard (_ ())" form ")"
+        printf "%s ((prim-ref (lit heap) (lit collect))) ", form; open = 0
+      }
     }'
 }
 
