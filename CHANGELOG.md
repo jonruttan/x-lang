@@ -5,6 +5,126 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-11-07
+
+**The engine is x-engine-c v0.2.28** ([#1180]), whose release carries the base-slots contract file.
+
+**Help shows a worked example for every method of Num, Float, Decimal and Complex.** ([#1185])
+
+[#1185]: https://github.com/jonruttan/x-lang/pull/1185
+
+**`x/sys/sdl` opens a window and shows an RGBA buffer in it, through the host's SDL3.** ([#1193]) `Sdl open` makes a resizable window for a w x h picture drawn at whole-number scale; `Sdl show!` puts a buffer on screen; `Sdl poll` answers key, quit and close events; `Sdl read-pixels` reads the drawn frame back. SDL3 is loaded with dlopen, as `Zlib` loads libz, and `Sdl load!` names a copy to try first.
+
+[#1193]: https://github.com/jonruttan/x-lang/pull/1193
+
+- compile-asm: the operative calling world, with %eval for lazy argument evaluation in the caller's environment. ([#1192])
+- compile-asm: #f is false in the object worlds' tests, as nil is.
+- x/tool/obj-compiled: and and or compiled in place, about 36x faster than interpreted and 6x faster than the nested if workaround.
+
+[#1192]: https://github.com/jonruttan/x-lang/pull/1192
+
+**Bundle CI checks out the langs a bundle requires.** ([#1191])  `.github/workflows/bundle.yml` clones each `(requires-lang "NAME" ["vX.Y.Z"])` row of lang.xon beside the bundle as `x-NAME`, so a bundle written on top of another lang runs its suite on CI.
+
+[#1191]: https://github.com/jonruttan/x-lang/pull/1191
+
+**`null?` runs compiled.** ([#1190]) x/tool/obj-compiled compiles it beside
+`(obj ref)` and `(obj set!)` and installs it into its own closure object,
+so every list walk calls the compiled version; it answers as the
+interpreted one on every kind of value, the integer 0 and the character 0
+included. A call costs what a C primitive's does: 200k calls take 466 ms
+against 525 ms interpreted and 488 ms for `first`. On x-chess, timed in one
+process with only `null?` switched, perft depth 3 takes 1274 ms against
+1295 ms interpreted.
+
+[#1190]: https://github.com/jonruttan/x-lang/pull/1190
+
+**Char, Assoc and Set show worked examples under help.** ([#1184]) The 48
+entries of `(help Char method)`, `(help Assoc method)` and `(help Set
+method)` that answered with a description alone now carry an executable
+example or a sample, run by `make doctest`: the doctest spec grows to
+861.
+
+[#1184]: https://github.com/jonruttan/x-lang/pull/1184
+
+**A cold `Lexer make` no longer spends quadratic memory recording its
+cache plan.** ([#1187]) `%plan` finds states, cells and buffers by address and
+reads each state's held names as the state is made, so it is one pass
+over the states.  On x-python's 254-state lexer the plan step allocates
+1.22M objects instead of 6.53M; a cold make of a 686-state lexer peaks at
+1,019 MB instead of 2,717 MB (9 s instead of 11 s).  The plan text is
+unchanged.
+
+[#1187]: https://github.com/jonruttan/x-lang/pull/1187
+
+**A compiled routine can replace an engine routine in a running base.** ([#1180])
+`compile-asm` takes `(run TYPE ...)` as its calling world: a routine with
+the engine's one signature, whose parameters are the words of the
+argument run the engine passes through a slot.  `(Base slots)`,
+`(Base slot b name)` and `(Base slot! b name routine)` read and write the
+base's slot vector by the names in the engine's base-slots contract.  A
+compiled heap-sweep routine installed this way is called by `(Heap
+collect)`, and storing the engine's address back restores it.  Needs
+x-engine-c v0.2.28, whose release carries the contract file.
+
+[#1180]: https://github.com/jonruttan/x-lang/pull/1180
+
+**`(obj ref)` and `(obj set!)` run compiled.** ([#1186]) Every vector, record and
+field access reads or writes a data word through one of the two, and
+both were interpreted closures. x/tool/obj-compiled compiles each with
+compile-asm and installs it into the closure object itself, through the
+new `(Compiled in-place ...)`, so a door bound before the import calls
+the compiled version. Both are switched to interpreted before a state
+image is written and compiled again after a load, like every other
+Compiled entry. x-base, xenon and radon import the module at boot.
+Measured on x-chess (helium, which imports it itself at a cost of about
+310 ms): perft depth 3 from 3476 ms to 1411 ms, and a depth-3 search
+from 241 ms to 141 ms.
+
+[#1186]: https://github.com/jonruttan/x-lang/pull/1186
+
+**Fn's combinators and Gen's consumers show a worked example under
+help.** ([#1183]) 45 entries of `(help Fn method)`, `(help Gen method)` and the
+boot list walkers that answered with a description alone now carry an
+executable example or a sample, run by `make doctest`: the doctest
+spec grows from 802 to 849.
+
+[#1183]: https://github.com/jonruttan/x-lang/pull/1183
+
+**A declared digit option is an option** ([#1182]) (`x/sys/opts`): a token led by `-` and a digit the declaration names, such as ssh's `-4` or scp's `-3`, alone or leading a cluster, is read as that option; before, any such token was an operand, as a negative number is.  An undeclared digit is still an operand, so `sort -5` reads as before.
+
+[#1182]: https://github.com/jonruttan/x-lang/pull/1182
+
+**`%str-concat` no longer copies total*n/2 bytes for many small pieces.** ([#1181])
+Below 256 KB the fold runs in spans of total/sqrt(n) bytes, so a join of
+n pieces copies total*sqrt(n) bytes, and every `Str8 join` and string
+builder that funnels through it leaves that much garbage instead.  A
+200K-piece, 150 KB join (x-cc's object file) passed 3.1 GB and was
+stopped; it now finishes in 1.2-2.3 s at a 1.65-1.8 GB peak for the
+whole process, 1.05 GB of which is building the pieces.  A 2000-piece
+8 KB join: 10.1 -> 9.3-10.2 ms, and 200 of them peak at 1.0-1.2 GB
+instead of 2.3-2.5 GB.  Counting the pieces costs a 4-piece join about
+2-3 us (20.2-21.4 -> 22.0-24.4 us).
+
+[#1181]: https://github.com/jonruttan/x-lang/pull/1181
+
+**The arithmetic and comparison primitives show worked examples under
+help.** ([#1179]) `(help +)`, `(help <)`, `(help <<)` and the rest of the 13
+entries that answered with a description alone now carry an executable
+example, run by `make doctest`: the doctest spec grows to 802.
+
+[#1179]: https://github.com/jonruttan/x-lang/pull/1179
+
+**A grammar's class function may answer its token's pieces** ([#1178]) (`x/tool/syntax`): each `(offset length class)` inside the token, in order, so one token can be drawn in several classes -- a `$var` inside a shell string, the name in `name=value`, a make target before its colon. A class symbol or nil works as before.
+
+[#1178]: https://github.com/jonruttan/x-lang/pull/1178
+
+**Every Dict method shows a worked example under help.** ([#1177]) The 13
+entries of `(help Dict method)` that answered with a description alone
+now carry an executable example or a sample, run by `make doctest`:
+the doctest spec grows from 763 to 778.
+
+[#1177]: https://github.com/jonruttan/x-lang/pull/1177
+
 ## [0.47.0] - 2026-11-05
 
 **The engine is x-engine-c v0.2.27** ([#1175]). Every object's extra meta words start at zero, from x-expr itself (x-engine-c#116, #119), so a form read from standard input keeps its stamp under any allocator: `lib/source.spec.md` passes under AddressSanitizer, and with #1165 the ASan run on main is green again.
