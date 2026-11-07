@@ -71,6 +71,22 @@ jobs:
           ref: ${{ matrix.x-lang == 'main' && 'main' || needs.release.outputs.version }}
           path: .x-lang
 
+      # The langs this bundle is written on top of: each (requires-lang "NAME")
+      # row of lang.xon, cloned beside the bundle as x-NAME, the layout x.sh's
+      # bundle_reqs_of reads and the harnesses look for.  A row that names a
+      # version gets that tag; one that names none gets the default branch.
+      # actions/checkout writes only inside the workspace, so this is git.
+      - name: Check out the langs this bundle requires
+        run: |
+          {
+            sed -n 's/^(requires-lang "\([^"]*\)"[^"]*"\([^"]*\)").*/\1 \2/p' lang.xon
+            sed -n 's/^(requires-lang "\([^"]*\)")[[:space:]]*$/\1/p' lang.xon
+          } | while read -r name version; do
+            echo "x-$name ${version:-default branch}"
+            git clone --quiet --depth 1 ${version:+--branch "$version"} \
+              "https://github.com/jonruttan/x-$name.git" "../x-$name"
+          done
+
       # The engine is acquired: x-lang pins one and fetches it, or on arm64
       # Linux clones the pinned release and builds it.
       - name: Build the platform

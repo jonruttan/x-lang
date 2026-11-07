@@ -13,6 +13,7 @@
 ; through type/type.x's %layout-* helpers (that module loads earlier).
 
 (import x/type/class)
+(import x/core/doors int->ptr obj->ptr obj-ref obj-set! ptr->int ptr->obj str-append)
 
 (def-class Base ()
   (doc "Execution-context / sandbox objects: each base is a whole, isolated interpreter -- its own environment, type registry, and reader state -- wrapped as a Base instance."
@@ -103,7 +104,38 @@
     (method fields (self)
       (doc "Every base field name in the layout contract (base-rooted rows of engine/tools/contract/base-paths.x)."
         (returns LIST "Field name symbols, contract order"))
-      (Type %layout-fields (lit base)))))
+      (Type %layout-fields (lit base)))
+    (method slots (self)
+      (doc "The positions in a base's slot vector, from the engine's contract (engine/tools/contract/base-slots.x): one row a slot, (position name (argument...) (type...)). A routine in a slot has the engine's one signature, (base args), where args is a run of words, one an argument, each an object, an integer or a string as the row gives it."
+        (returns LIST "The contract rows, position order"))
+      %base-slots)
+    (method %slot-position (self name)
+      (doc "The contract position of slot name; refuses a name the contract does not list."
+        (returns INTEGER "The position"))
+      (def %go
+        (fn (loop rows)
+          (match
+            ((null? rows)
+              (Err raise (lit value) (str-append "Base slot: no such slot: " (symbol->str name)) ()))
+            ((eq? (first (rest (first rows))) name) (first (first rows)))
+            (#t (loop (rest rows))))))
+      (%go %base-slots))
+    (method slot (self (param target ANY "The base whose slot vector to read (instance or raw)")
+                       (param name SYMBOL "A slot name -- see (Base slots)"))
+      (doc "The address of the routine in target's slot name: the function pointer the engine calls through that position, as an integer."
+        (returns INTEGER "The routine's address"))
+      (ptr->int (obj->ptr (obj-ref (obj-ref (Base raw-of target) 1)
+                                   (+ (Base %slot-position name) 1)))))
+    (method slot! (self (param target ANY "The base whose slot vector to write (instance or raw)")
+                        (param name SYMBOL "A slot name -- see (Base slots)")
+                        (param routine ANY "A callable, or a routine's address as an integer"))
+      (doc "Store routine in target's slot name, so the engine calls it through that position from its next call on, in target alone. A callable's function pointer is what is stored, and the caller keeps the callable alive for as long as the slot holds it. Storing back the address this answers restores the routine it replaced."
+        (returns INTEGER "The address the slot held"))
+      (let ((prev (Base slot target name))
+            (addr (if (number? routine) routine (ptr->int (obj->ptr (obj-ref routine 0))))))
+        (obj-set! (obj-ref (Base raw-of target) 1) (+ (Base %slot-position name) 1)
+          (ptr->obj (int->ptr addr)))
+        prev))))
 
 (doc (provide x/type/base Base)
   (note "(Base make) -> a Base instance wrapping a fresh execution-context; (b eval expr) / (Base eval b expr) evaluates expr inside it, isolated from the outer env.")

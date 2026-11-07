@@ -624,7 +624,9 @@
 
 (doc + "Add numbers, promoting to bigint on overflow."
   (param args INTEGER|BIGINT "Numbers to add")
-  (returns INTEGER|BIGINT "Sum"))
+  (returns INTEGER|BIGINT "Sum")
+  (example "(+ 1 2 3)" "6")
+  (example "(+ 9223372036854775807 1)" "9223372036854775808"))
 (set! +
   (fn (_ . args)
     (match
@@ -636,7 +638,10 @@
 
 (doc - "Subtract numbers, promoting to bigint on overflow. Unary form negates."
   (param args INTEGER|BIGINT "Numbers to subtract")
-  (returns INTEGER|BIGINT "Difference"))
+  (returns INTEGER|BIGINT "Difference")
+  (example "(- 10 3 2)" "5")
+  (example "(- 5)" "-5")
+  (example "(- -9223372036854775807 2)" "-9223372036854775809"))
 (set! -
   (fn (_ . args)
     (match
@@ -653,7 +658,9 @@
 
 (doc * "Multiply numbers, promoting to bigint on overflow."
   (param args INTEGER|BIGINT "Numbers to multiply")
-  (returns INTEGER|BIGINT "Product"))
+  (returns INTEGER|BIGINT "Product")
+  (example "(* 2 3 4)" "24")
+  (example "(* 4294967296 4294967296)" "18446744073709551616"))
 (set! *
   (fn (_ . args)
     (match
@@ -665,7 +672,9 @@
 
 (doc / "Divide numbers; bigint operands dispatch through the type ops."
   (param args INTEGER|BIGINT "Numbers to divide")
-  (returns INTEGER|BIGINT "Quotient"))
+  (returns INTEGER|BIGINT "Quotient")
+  (example "(/ 100 5 2)" "10")
+  (example "(/ 18446744073709551616 4294967296)" "4294967296"))
 (set! /
   (fn (_ . args)
     (match

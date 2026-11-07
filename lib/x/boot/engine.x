@@ -29,6 +29,8 @@
 ; obj-layout.x must precede data.x (its header offsets).  Both are pure `def`
 ; forms over integers and lists -- no dependencies of their own -- so loading them
 ; together here, ahead of both consumers, is safe and keeps the seam in one place.
+; base-slots.x is a third such form, the slot vector's positions, read by the
+; slot door on the Base class (lib/x/type/base.x).
 
 ; The engine's root, as DATA, for the consumers that need a path at RUNTIME
 ; rather than at include time: lib/x/tool/compile.x builds the JIT's -I flags
@@ -40,3 +42,4 @@
 
 (include "engine/tools/contract/base-paths.x")
 (include "engine/tools/contract/obj-layout.x")
+(include "engine/tools/contract/base-slots.x")

@@ -116,7 +116,9 @@
 
   (static
     (method dict? (self (param x ANY "Value to test"))
-      (doc "Test whether a value is a Dict." (returns BOOL "#t when x is a Dict instance"))
+      (doc "Test whether a value is a Dict." (returns BOOL "#t when x is a Dict instance")
+        (example "(Dict dict? (Dict make))" "#t")
+        (example "(Dict dict? (list 1 2))" "#f"))
       (if (object? x) (instance-of? x self) #f))
 
     (method make (self . opt)
@@ -202,7 +204,9 @@
     (doc "The value stored under a key, or a default only when the key is ABSENT."
       (param d ANY "Default for an absent key")
       (param k ANY "Key to look up")
-      (returns ANY "Stored value (a stored nil included), or the default"))
+      (returns ANY "Stored value (a stored nil included), or the default")
+      (example "((Dict from-plist (list 'a 1)) get-or 0 'b)" "0")
+      (example "(null? ((Dict from-plist (list 'a ())) get-or 0 'a))" "#t"))
     (def %cap (field 'cap))
     (if (eq? %cap ()) (%dict-uninit!))
     (def hit (%dict-find k (obj-ref (field 'store) (%dict-slot %cap k))))
@@ -212,7 +216,8 @@
     (doc "The value stored under a key, or (thunk) only when the key is ABSENT -- get-or's lazy twin (mirrors Assoc opt-get-or-else)."
       (param thunk CALLABLE "Nullary default producer; runs only on a miss")
       (param k ANY "Key to look up")
-      (returns ANY "Stored value (a stored nil included), or (thunk)"))
+      (returns ANY "Stored value (a stored nil included), or (thunk)")
+      (example "((Dict make) get-or-else (fn (_) 42) 'a)" "42"))
     (def %cap (field 'cap))
     (if (eq? %cap ()) (%dict-uninit!))
     (def hit (%dict-find k (obj-ref (field 'store) (%dict-slot %cap k))))
@@ -221,7 +226,9 @@
   (method has? (self k)
     (doc "Test whether a key is present."
       (param k ANY "Key to test")
-      (returns BOOL "#t when the key is stored"))
+      (returns BOOL "#t when the key is stored")
+      (example "((Dict from-plist (list 'a 1)) has? 'a)" "#t")
+      (example "((Dict from-plist (list 'a 1)) has? 'b)" "#f"))
     (def %cap (field 'cap))
     (if (eq? %cap ()) (%dict-uninit!))
     (pair? (%dict-find k (obj-ref (field 'store) (%dict-slot %cap k)))))
@@ -251,7 +258,8 @@
   (method del! (self k)
     (doc "Remove a key (a no-op when absent); returns the dict for chaining."
       (param k ANY "Key to remove")
-      (returns Dict "self"))
+      (returns Dict "self")
+      (example "(((Dict from-plist (list 'a 1 'b 2)) del! 'a) has? 'a)" "#f"))
     (def %store (field 'store))
     (def %cap (field 'cap))
     (if (eq? %cap ()) (%dict-uninit!))
@@ -264,17 +272,20 @@
 
   ; --- size ---------------------------------------------------------------
   (method length (self)
-    (doc "The number of stored entries (a stored property, O(1))." (returns INTEGER "Entry count"))
+    (doc "The number of stored entries (a stored property, O(1))." (returns INTEGER "Entry count")
+      (example "((Dict from-plist (list 'a 1 'b 2)) length)" "2"))
     (field 'n))
 
   (method empty? (self)
-    (doc "Test whether the dict holds no entries." (returns BOOL "#t when empty"))
+    (doc "Test whether the dict holds no entries." (returns BOOL "#t when empty")
+      (example "((Dict from-plist (list 'a 1)) empty?)" "#f"))
     (= 0 (field 'n)))
 
   ; --- extraction ---------------------------------------------------------
   (method ->alist (self)
     (doc "A fresh alist snapshot of the entries (unordered)."
-      (returns LIST "((key . val) ...) -- new assocs, detached from the table"))
+      (returns LIST "((key . val) ...) -- new assocs, detached from the table")
+      (example "((Dict from-plist (list 'a 1)) ->alist)" "(('a . 1))"))
     ; copy each entry: the live (key . val) pairs are mutated by set!, so a
     ; snapshot must not alias them
     (def %store (field 'store))
@@ -288,26 +299,31 @@
 
   (method ->plist (self)
     (doc "The entries as a flat (k v k v ...) plist snapshot (unordered)."
-      (returns LIST "Plist of the entries"))
+      (returns LIST "Plist of the entries")
+      (example "((Dict from-plist (list 'a 1)) ->plist)" "('a 1)"))
     (List fold (fn (_ acc e) (pair (first e) (pair (rest e) acc))) () (self ->alist)))
 
   (method ->bindings (self)
     (doc "The entries as a bindings list ((key value) ...) snapshot (unordered)."
-      (returns LIST "Bindings list of the entries"))
+      (returns LIST "Bindings list of the entries")
+      (example "((Dict from-plist (list 'a 1)) ->bindings)" "(('a 1))"))
     (List map (fn (_ e) (list (first e) (rest e))) (self ->alist)))
 
   (method keys (self)
-    (doc "All stored keys (unordered)." (returns LIST "List of keys"))
+    (doc "All stored keys (unordered)." (returns LIST "List of keys")
+      (example "(List sort < ((Dict from-plist (list 3 \"c\" 1 \"a\" 2 \"b\")) keys))" "(1 2 3)"))
     (List map first (self ->alist)))
 
   (method vals (self)
-    (doc "All stored values (unordered)." (returns LIST "List of values"))
+    (doc "All stored values (unordered)." (returns LIST "List of values")
+      (example "(List sort < ((Dict from-plist (list 'a 3 'b 1 'c 2)) vals))" "(1 2 3)"))
     (List map rest (self ->alist)))
 
   (method for-each (self f)
     (doc "Apply f to each (key . val) entry pair, for side effects."
       (param f CALLABLE "Applied to each (key . val) pair")
-      (returns ANY "nil"))
+      (returns ANY "nil")
+      (sample "((Dict from-plist (list 'a 1)) for-each (fn (_ e) (display (rest e))))" "prints 1"))
     (List for-each f (self ->alist)))
 
   ; Type-preserving, like List/Vector/Set/Gen map -- a dict maps to a dict.

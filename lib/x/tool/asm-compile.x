@@ -254,8 +254,33 @@
 ; and its result is returned as the object it is -- the shape of a guarded
 ; first: a pointer tested against nil and read through a trampoline, never
 ; a number.  Arithmetic and the ordered comparisons on a param refuse as
-; they do in analyser mode; `=` against 0 is the nil test.
+; they do in analyser mode; `=` against 0 is the nil test.  A value tested
+; for truth is false when it is nil or the #f object, as it is in x: the
+; door (asm-cache.x) hands this world the fvar %false, holding #f, and a
+; test compares against it after the nil test.
 (def %asm-object? #f)
+; The object world's operative: a function called from x whose one
+; parameter is its argument list as the call wrote it, unevaluated, as an
+; (op args e ...) receives it.  (%eval x) evaluates one of those
+; expressions in the caller's environment, which is the environment
+; current when the call runs.  So a body chooses which arguments are
+; evaluated, and when, and how many times.  Declared with the symbol
+; operative, and %asm-object? holds as well: the parameter is an object
+; and the result is returned as one.
+(def %asm-operative? #f)
+; The fourth world: a ROUTINE the engine calls through a slot of the base's
+; slot vector (engine/tools/contract/base-slots.x), declared (run TYPE ...),
+; and held here as that declaration, () in every other world.  It has the
+; engine's one signature, (base args), but args is not the prim ABI's list:
+; it is a run of words, one a parameter, in order, with no self in front.  So
+; parameter k is the word at args + 8k, loaded as it is: nothing evaluates it
+; and nothing unboxes it, because the caller wrote the value itself -- an
+; object pointer, a raw integer or a string pointer, as its TYPE says.  The
+; rest is the object world: the result is returned as it is, a param typed
+; object refuses arithmetic, and (first p) reads through the trampoline.  A
+; self-call that returns would build the prim ABI's list, so it refuses; a
+; tail self-call is a jump and compiles.
+(def %asm-run ())
 ; In analyser mode the tokenizer protocol fixes the leading params: (self
 ; buffer score chr) -- buffer and score are x_obj_t*, chr is a raw character.
 ; A bare object param must load its POINTER, never unbox it: atomint on a
@@ -431,6 +456,15 @@
             (asm-load-imm64! asm x0 (ptr->int (obj->ptr val))))))
       ; Not a fvar: load from params
       (let ((idx (%find params 0)))
+      ; A routine's parameter is word idx of its argument run, as it is.
+      (if (not (null? %asm-run))
+        (asm-emit! asm (lit ldr) x0 (mem x20 (* %word-size idx)))
+      ; An operative's one parameter is its argument list: the call list
+      ; after the callee, nothing evaluated.
+      (if %asm-operative?
+        (do (asm-emit! asm 'mov x0 x20)
+            (%emit-restobj! asm))
+      (do
         (asm-emit! asm 'mov x0 x20)
         (def %skip
           (fn (self n)
@@ -459,33 +493,80 @@
             (asm-emit! asm 'mov x1 x0)
             (asm-emit! asm 'mov x0 x19)
             (%emit-eval-arg! asm)
-            (when unbox (%emit-atomint! asm)))))))))))
+            (when unbox (%emit-atomint! asm))))))))))))))
 
-; Compile (or a b ...): short-circuit, returns first truthy value
+; --- Truth -------------------------------------------------------------------
+; A test is false on 0, which is nil and an integer function's zero.  In the
+; object world it is also false on the #f object, whose address the door
+; hands over as the fvar %false; a world without that fvar tests 0 alone.
+; x1 is the scratch the comparison takes: the value under test stays in x0.
+(def %asm-false-entry
+  (fn (_)
+    (if %asm-object? (compile-fvar-lookup (lit %false)) ())))
+
+(def %asm-load-false!
+  (fn (_ asm entry)
+    (asm-reloc! asm (asm-pos asm) (lit fvar) (lit %false))
+    (asm-load-imm64! asm x1 (ptr->int (obj->ptr (rest entry))))))
+
+; Branch to LBL when x0 is false.
+(def %asm-branch-false!
+  (fn (_ asm lbl)
+    (def entry (%asm-false-entry))
+    (asm-emit! asm 'cbz x0 (label lbl))
+    (unless (null? entry)
+      (do (%asm-load-false! asm entry)
+          (asm-emit! asm 'cmp x0 x1)
+          (asm-emit! asm 'b/eq (label lbl))))))
+
+; Branch to LBL when x0 is true.
+(def %asm-branch-true!
+  (fn (_ asm lbl)
+    (def entry (%asm-false-entry))
+    (if (null? entry)
+      (asm-emit! asm 'cbnz x0 (label lbl))
+      (let ((lbl-false (%asm-genlabel "%false")))
+        (asm-emit! asm 'cbz x0 (label lbl-false))
+        (%asm-load-false! asm entry)
+        (asm-emit! asm 'cmp x0 x1)
+        (asm-emit! asm 'b/ne (label lbl))
+        (asm-label! asm lbl-false)))))
+
+; Compile (or a b ...): short-circuit, returns the first true value, or the
+; last value when none is.  The last operand is in the tail position the or
+; is in.
 (def %asm-compile-or
   (fn (_ asm args params)
+    (def tail %asm-in-tail)
     (def lbl-end (%asm-genlabel "%or_end"))
+    (if (null? (rest args)) (set! %asm-tail tail) ())
     (%asm-compile-expr asm (first args) params)
     (def %or-rest
       (fn (self as)
         (unless (null? as)
           (do
-            (asm-emit! asm 'cbnz x0 (label lbl-end))
+            (%asm-branch-true! asm lbl-end)
+            (if (null? (rest as)) (set! %asm-tail tail) ())
             (%asm-compile-expr asm (first as) params)
             (self (rest as))))))
     (%or-rest (rest args))
     (asm-label! asm lbl-end)))
 
-; Compile (and a b ...): short-circuit, returns 0 on first falsy
+; Compile (and a b ...): short-circuit, returns the first false value, or the
+; last value when none is.  The last operand is in the tail position the and
+; is in.
 (def %asm-compile-and
   (fn (_ asm args params)
+    (def tail %asm-in-tail)
     (def lbl-end (%asm-genlabel "%and_end"))
+    (if (null? (rest args)) (set! %asm-tail tail) ())
     (%asm-compile-expr asm (first args) params)
     (def %and-rest
       (fn (self as)
         (unless (null? as)
           (do
-            (asm-emit! asm 'cbz x0 (label lbl-end))
+            (%asm-branch-false! asm lbl-end)
+            (if (null? (rest as)) (set! %asm-tail tail) ())
             (%asm-compile-expr asm (first as) params)
             (self (rest as))))))
     (%and-rest (rest args))
@@ -800,7 +881,7 @@
                  (Str append "asm-compile: " (symbol->str op)
                    " cannot take the object parameter " (symbol->str (first as))
                    " as an operand: this compile is in "
-                   (if %asm-object? "object" "analyser")
+                   (match ((not (null? %asm-run)) "run") (%asm-object? "object") (#t "analyser"))
                    " mode, where that parameter is an x_obj_t* and not a "
                    "number.  Pass #f as compile-asm's third argument for an "
                    "ordinary integer function.") ()))
@@ -920,6 +1001,16 @@
       ((eq? op 'or) (%asm-compile-or asm args params))
       ((eq? op 'and) (%asm-compile-and asm args params))
       ((eq? op 'not) (%asm-compile-not asm args params))
+      ; (%eval x): an operative evaluates one of its argument expressions,
+      ; in the environment the call runs in.
+      ((eq? op '%eval)
+        (if %asm-operative?
+          (do (%asm-compile-expr asm (first args) params)
+              (asm-emit! asm 'mov x1 x0)
+              (asm-emit! asm 'mov x0 x19)
+              (%emit-eval-arg! asm))
+          (Err raise 'value
+            "asm-compile: %eval evaluates an operative's argument, and this compile is not an operative.  Pass the symbol operative as compile-asm's third argument." ())))
       ((eq? op '%call)
         ; The one form whose HEAD is an operand: (%call HEAD
         ; arg ...).  Spelled explicitly rather than by
@@ -973,7 +1064,8 @@
 ; Match: (match (test expr) ...).  The arms are tried in order and the first
 ; whose test is truthy supplies the value; with no arm taken the value is nil.
 ; A comparison as a test folds into cmp and one conditional branch; any other
-; test is evaluated and tested with cbz.  A literal #t test takes its arm
+; test is evaluated and tested for truth (%asm-branch-false!, under "Truth"
+; above).  A literal #t test takes its arm
 ; unconditionally -- the `(#t expr)` default is the fallthrough, and nothing
 ; after it is emitted.
 (set! %asm-compile-match
@@ -1013,7 +1105,7 @@
             (asm-emit! asm (%cmp-branch cmp-op) (label lbl)))
           (do
             (%asm-compile-expr asm test params)
-            (asm-emit! asm 'cbz x0 (label lbl))))))
+            (%asm-branch-false! asm lbl)))))
 
     (def %arms
       (fn (self as)
@@ -1157,6 +1249,12 @@
 ; A self-call that returns here: a call through the trampoline cell.
 (def %asm-compile-self-frame
   (fn (_ asm args params)
+    (unless (null? %asm-run)
+      (Err raise 'value
+        (Str append "asm-compile: a routine compiled in run mode takes its "
+          "arguments as a run of words, and a self-call that returns would "
+          "pass them as a list; only a self-call in tail position compiles "
+          "here.") ()))
     (if (> (%length args) 4)
       (Err raise 'value "asm-compile: max 4 args for recursive calls" ()))
     (%asm-emit-arg-list! asm args params)
@@ -1280,16 +1378,34 @@
       (Err raise 'type "compile-asm: expression must be (fn (_ params...) body)" ()))
     (compile-fvars-set! fvars)
     ; MODE arrives already decided: #t an analyser, #f an integer function,
-    ; the symbol object an object function.  The door (compile-asm, in
+    ; the symbol object an object function, the symbol operative an object
+    ; function given its argument list unevaluated, (run TYPE ...) a slot routine.
+    ; The door (compile-asm, in
     ; asm-cache.x) applies the default, because the CACHE KEY has to name
     ; the same answer this compile does -- two modes over one source text
     ; are two different bodies, and a key that could not tell them apart
     ; would hand back the wrong one.
-    (set! %asm-object? (eq? mode (lit object)))
+    (set! %asm-run (if (pair? mode) mode ()))
+    (set! %asm-operative? (eq? mode (lit operative)))
+    (set! %asm-object? (if (pair? mode) #t (if %asm-operative? #t (eq? mode (lit object)))))
     (set! %asm-analyser? (if %asm-object? #f (if mode #t #f)))
     (def fn-params (first (rest expr)))
     (def fn-body (first (rest (rest expr))))
     (def params (rest fn-params))  ; skip self (_)
+    (unless (or (not %asm-operative?) (= (%length params) 1))
+      (set! %asm-operative? #f)
+      (set! %asm-object? #f)
+      (Err raise 'value
+        (Str append "asm-compile: an operative takes one parameter, its argument "
+          "list, and this function takes " (%number->str (%length params)) ".") ()))
+    (unless (or (null? %asm-run) (= (%length params) (%length (rest %asm-run))))
+      (set! %asm-run ())
+      (set! %asm-object? #f)
+      (Err raise 'value
+        (Str append "asm-compile: run mode declares one TYPE a parameter, and "
+          "this function takes " (%number->str (%length params))
+          " parameters where the declaration gives "
+          (%number->str (%length (rest mode))) " types.") ()))
 
     ; Allocate trampoline cell for self-recursion
     (def c-malloc (ffi-dlsym (ffi-dlopen () 1) "malloc"))
@@ -1299,6 +1415,14 @@
     (set! %asm-self-name (first fn-params))
     (set! %asm-object-params
       (match
+        ; A routine's object params are the ones its declaration types so.
+        ((not (null? %asm-run))
+          ((fn (self ps ts)
+             (match
+               ((null? ps) ())
+               ((eq? (first ts) (lit object)) (pair (first ps) (self (rest ps) (rest ts))))
+               (#t (self (rest ps) (rest ts)))))
+           params (rest %asm-run)))
         (%asm-object? params)
         ((not %asm-analyser?) ())
         ((null? params) ())
@@ -1378,6 +1502,8 @@
     (set! %asm-object-params ())
     (set! %asm-analyser? #f)
     (set! %asm-object? #f)
+    (set! %asm-operative? #f)
+    (set! %asm-run ())
     (compile-fvars-set! ())
 
     ; Create proper x-lang prim from the raw function pointer
@@ -1397,7 +1523,11 @@
    Takes the fvar alist and the MODE already decided by that door: #f an
    integer function, #t an analyse callback, the symbol object an object
    function called from x, whose params stay the objects they evaluate to and
-   whose result is returned as one.
+   whose result is returned as one, the symbol operative an object function
+   whose one param is its argument list unevaluated, each argument evaluated
+   where the body says (%eval x), or (run TYPE ...) a routine for a slot
+   of the base's slot vector, whose params are the words of its argument
+   run.
    An fvar holding a prim may be CALLED by name; (%call HEAD arg ...) calls
    a prim the code computes, and refuses at run time if the head is not
    one.")

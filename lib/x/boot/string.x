@@ -45,13 +45,11 @@
         (eq? 0 (%mem-cmp (%str->ptr a) (%str->ptr b) (%str-byte-len a))))
       (#t #f))))
 
-; %str-concat: join a LIST of strings -- ONE allocation, one (mem copy)
-; per piece, O(total bytes) (#333).  The append-accumulate idiom this
-; replaces re-copied the whole accumulator per piece (O(n^2) in output
-; size); every multi-piece builder in the library (join, interpolation,
-; the codec emitters, replace) funnels here now.  GC-safe on the str=?
-; grounds: collection is explicit-only, %out stays a live binding for
-; the whole walk, and each raw ptr is derived and consumed with no
+; %str-concat: join a LIST of strings (#333).  Every multi-piece builder
+; in the library (join, interpolation, the codec emitters, replace)
+; funnels here.  The arms are below.  The block arm is GC-safe on the
+; str=? grounds: collection is explicit-only, `out` stays a live binding
+; for the whole walk, and each raw ptr is derived and consumed with no
 ; collect possible in between.
 (def %int->ptr (prim-ref (lit int) (lit ->ptr)))
 ; C arithmetic, fetched once: this runs per PIECE, and the ambient
@@ -63,62 +61,89 @@
 (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
 (def %mem-copy (prim-ref (lit mem) (lit copy)))
 (def %str-make (prim-ref (lit str) (lit make)))
-; HYBRID, measured and derived (2026-08-19): the fold arm costs
-; total*n/2 bytes of C memcpy, the block arm ~15us of prim overhead per
-; piece -- the n cancels and the crossover is TOTAL OUTPUT alone,
-; ~300KB on the measured machine (a 330KB join ties).  Below the
-; threshold the fold's memcpy constant wins (a 2000-piece 8KB join
-; measured 6x faster there than the block path); above it the fold is
-; quadratic without bound while the block stays linear -- the old
-; unconditional fold OOM-pressured at ~2GB copied for what is now one
-; 300KB pass.  Both arms produce identical bytes; the threshold only
-; trades constants.
+; HYBRID, measured and derived (2026-08-19, 2026-11-06).  The block arm
+; costs ~15us of prim overhead a piece and copies total bytes once; it
+; serves any output of 256 KB or more, where a fold's copying loses to
+; that overhead whatever the piece count.
+;
+; Below that the fold wins on constants, but a fold over the whole list
+; copies total*n/2 bytes, and every copy is garbage until the next
+; (Heap collect): x-cc joining an object file's ~200K tokens (~150 KB)
+; reached a 9 GB footprint.  So the fold runs in SPANS: it appends into
+; an accumulator until that holds S bytes, then starts a new one, and
+; the spans are appended back to front at the end.  The n/S spans copy
+; n*S/2 bytes building and total^2/(2S) joining, least at S =
+; total/sqrt(n), which leaves total*sqrt(n) bytes copied.  SPAN finds S
+; as the first power of two with S*S*n >= total*total.  For n <= 4,
+; n/2 <= sqrt(n) and spans save nothing, so the plain fold runs.
+; Measured (peak footprint of the whole spec process):
+;   2000 pieces, 8 KB, 200 joins: 10.1 ms a join, 2.3-2.5 GB  ->  9.3-10.2 ms, 1.0-1.2 GB
+;   200K pieces, 150 KB:          killed at 3.1 GB            ->  1.2-2.3 s, 1.65-1.8 GB
+;                                 (building the pieces alone peaks at 1.05 GB)
+;   4 pieces, 8 bytes:            20.2-21.4 us                ->  22.0-24.4 us (the piece count)
+; Every arm produces identical bytes; the choice only trades constants.
 ;
 ; Every piece is type-checked in the length walk, which visits each one
 ; before any raw read: %str-byte-len and %str-append take a string on
 ; trust, so a non-string piece read arbitrary memory and (%str-concat
 ; (list "a" 5)) killed the engine.  One (type ?) prim call a piece, nil
-; included (the prim answers #f for nil); the prim and the STRING handle
-; are bound once, in the closure around the fn rather than as globals,
+; included (the prim answers #f for nil).  The prims and the helpers are
+; bound once, in the closure around the fn rather than as globals,
 ; because the file's %-budget (tools/contract/percent-globals.x) is
-; full.  Err resolves at call time, as in core/list.x.  Measured over
-; 20,000 four-piece calls: no heap objects added (197 a call before and
-; after -- a prim call allocates nothing) and about 3% CPU on the bare
-; call; a caller's own check walk ahead of the call cost 188 objects
-; more a call.
+; full.  Err resolves at call time, as in core/list.x.  Every helper is
+; a tail loop: the span list and the block walk run to any length.
 (def %str-concat
-  ((fn (_ %sc-str? %sc-str-type)
-     (fn (_ pieces)
-       (do
-         (def %sc-total
-           ((fn (self ps n)
-              (match
-                ((null? ps) n)
-                ((%sc-str? (first ps) %sc-str-type)
-                  (self (rest ps) (%sc-int+ n (%str-byte-len (first ps)))))
-                (#t (Err raise (lit type) "%str-concat: not a string" ()))))
-            pieces 0))
+  ((fn (_ str? str-type int*)
+     (def fold
+       (fn (self ps acc)
          (match
-           ((%sc-int< %sc-total 262144)
-             ((fn (self ps acc)
-                (match
-                  ((null? ps) acc)
-                  (#t (self (rest ps) (%str-append acc (first ps))))))
-              pieces ""))
-           (#t
-             (do
-               (def %out (%str-make %sc-total))
-               (def %sc-base (%ptr->int (%str->ptr %out)))
-               ((fn (self ps off)
-                  (match
-                    ((null? ps) %out)
-                    (#t (do
-                          (def %sc-n (%str-byte-len (first ps)))
-                          (%mem-copy (%int->ptr (%sc-int+ %sc-base off)) (%str->ptr (first ps)) %sc-n)
-                          (self (rest ps) (%sc-int+ off %sc-n))))))
-                pieces 0)))))))
+           ((null? ps) acc)
+           (#t (self (rest ps) (%str-append acc (first ps)))))))
+     (def unspan
+       (fn (self done acc)
+         (match
+           ((null? done) acc)
+           (#t (self (rest done) (%str-append (first done) acc))))))
+     (def spans
+       (fn (self ps s acc done)
+         (match
+           ((null? ps) (unspan done acc))
+           ((%sc-int< (%str-byte-len acc) s)
+             (self (rest ps) s (%str-append acc (first ps)) done))
+           (#t (self (rest ps) s (first ps) (pair acc done))))))
+     (def span
+       (fn (self s n t2)
+         (match
+           ((%sc-int< (int* (int* s s) n) t2) (self (%sc-int+ s s) n t2))
+           (#t s))))
+     (def block
+       (fn (_ ps total)
+         (do
+           (def out (%str-make total))
+           (def base (%ptr->int (%str->ptr out)))
+           ((fn (self ps off)
+              (match
+                ((null? ps) out)
+                (#t (do
+                      (def len (%str-byte-len (first ps)))
+                      (%mem-copy (%int->ptr (%sc-int+ base off)) (%str->ptr (first ps)) len)
+                      (self (rest ps) (%sc-int+ off len))))))
+            ps 0))))
+     (fn (_ pieces)
+       ((fn (self ps n total)
+          (match
+            ((null? ps)
+              (match
+                ((%sc-int< 262143 total) (block pieces total))
+                ((%sc-int< n 5) (fold pieces ""))
+                (#t (spans (rest pieces) (span 1 n (int* total total)) (first pieces) ()))))
+            ((str? (first ps) str-type)
+              (self (rest ps) (%sc-int+ n 1) (%sc-int+ total (%str-byte-len (first ps)))))
+            (#t (Err raise (lit type) "%str-concat: not a string" ()))))
+        pieces 0 0)))
    (prim-ref (lit type) (lit ?))
-   ((prim-ref (lit type) (lit of)) "")))
+   ((prim-ref (lit type) (lit of)) "")
+   (prim-ref (lit int) (lit *))))
 
 ; number->str: (number->str n [radix]) -> string
 (def %n2s/ /)
