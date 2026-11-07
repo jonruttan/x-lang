@@ -553,21 +553,22 @@ is stopped; boxed tower divisors keep their own dispatch.
 LONG_MIN / -1 is the one integer division whose quotient leaves the range,
 and C division has no test for it: x86-64 traps and arm64 answers.  -1
 answers without dividing -- the quotient wraps, as `*` and `-` do at that
-value, and the remainder is 0.  The value comes from the bitwise door rather
-than a literal.
+value, and the remainder is 0.  The value comes from the bitwise door at the
+word's sign bit rather than a literal.
 
 ### the quotient wraps like the other operators
 
 ```x
-(list (/ (<< 1 63) -1) (* (<< 1 63) -1) (- 0 (<< 1 63)))
+(let ((m (<< 1 (- (* 8 %word-size) 1))))
+  (list (eq? (/ m -1) m) (eq? (* m -1) m) (eq? (- 0 m) m) (< m 0)))
 ```
 ---
-    (-9223372036854775808 -9223372036854775808 -9223372036854775808)
+    (#t #t #t #t)
 
 ### the remainder is 0
 
 ```x
-(% (<< 1 63) -1)
+(% (<< 1 (- (* 8 %word-size) 1)) -1)
 ```
 ---
     0

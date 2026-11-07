@@ -158,6 +158,7 @@
   (param a INTEGER "Dividend")
   (param b INTEGER "Divisor")
   (returns INTEGER "a divided by b, toward zero")
+  (example "(image-int/ -7 2)" "-3")
   "The engine's (int /), which the number tower does not wrap.")
 (doc (def image-int< (prim-ref (lit int) (lit <)))
   (param a INTEGER "First operand")

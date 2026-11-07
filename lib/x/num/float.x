@@ -184,20 +184,32 @@
         (Str8 append (str-byte-sub ds 0 (+ x 1)) "." (str-byte-sub ds (+ x 1) (- n (+ x 1)))))
       (#t (Str8 append ds (%zeros (- (+ x 1) n)))))))
 
-; The sign, exponent and fraction are read from the high word: the whole
-; payload on an 8-byte word, the second of the two on a 4-byte one, where
-; the fraction's upper twenty bits are there and its lower thirty-two in the
-; low word.  The mantissa goes straight to limbs, since on a 4-byte word no
-; int holds its fifty-three bits: the low word joins sixteen bits at a time.
-(def %bits->g
+; A double's fields from its stored bit pattern, on either word, as
+; (NEG EX FHI LO).  The sign, exponent and fraction are read from the high
+; word: the whole payload on an 8-byte word, the second of the two on a
+; 4-byte one.  EX is the 11-bit exponent field; FHI the fraction bits the
+; high word holds, all fifty-two on an 8-byte word and the top twenty on a
+; 4-byte one; LO the low thirty-two on a 4-byte word and 0 on an 8-byte one.
+(def float-split
   (fn (_ bits)
     (def wide (int= %word-size 8))
     (def hi (if wide bits (obj-ref bits 2)))
-    (def lo (if wide 0 (obj-ref bits 1)))
-    (def neg (< hi 0))
+    (list (< hi 0)
+          (& (>> hi (if wide 52 20)) 2047)
+          (& hi (if wide (- (<< 1 52) 1) 1048575))
+          (if wide 0 (obj-ref bits 1)))))
+
+; The mantissa goes straight to limbs, since on a 4-byte word no int holds
+; its fifty-three bits: the low word joins sixteen bits at a time.
+(def %bits->g
+  (fn (_ bits)
+    (def wide (int= %word-size 8))
+    (def fields (float-split bits))
+    (def neg (first fields))
+    (def ex (first (rest fields)))
+    (def frac (first (rest (rest fields))))
+    (def lo (first (rest (rest (rest fields)))))
     (def sign (if neg "-" ""))
-    (def ex (& (>> hi (if wide 52 20)) 2047))
-    (def frac (& hi (if wide (- (<< 1 52) 1) 1048575)))
     (def frac-zero? (and (int= frac 0) (int= lo 0)))
     (match
       ((int= ex 2047)
@@ -783,9 +795,10 @@
   (param x ANY "Value to test")
   (returns BOOL "True if x is a number")
   (example "(list (number? 2.5) (number? \"2.5\"))" "(#t #f)")
-  "Test whether a value is a number (integer or float).")
+  "Test whether a value is a number (now including floats).")
 
-(set! number? (fn (_ x) (if (%int-number? x) #t (float? x))))
+(def %float-was-number? number?)
+(set! number? (fn (_ x) (if (float? x) #t (%float-was-number? x))))
 
 ; --- Bigint -> float conversion (registered late, after f+/f* are defined) ---
 ; A pairwise registration: it needs bigint's handle (the from-alist key) and
@@ -1003,20 +1016,18 @@
       (f-add pi pi))
 
     ; --- IEEE-special predicates (#363) ---
-    ; Bit tests on the stored pattern: exponent all-ones ((<< 2047 52),
-    ; 0x7FF0000000000000) marks the specials; the 52 mantissa bits split
-    ; NaN from infinity. The masks are DERIVED, not written out: a 17+-
-    ; digit decimal literal parses as a BIGINT wherever num/bigint has
-    ; capped the int reader, and & refuses bigints. All three are TOTAL
-    ; predicates: #f, never a raise, off-domain.
+    ; Field tests on the stored pattern, through float-split: an exponent
+    ; field of all ones marks the specials, and a fraction of zero splits
+    ; infinity from NaN.  All three are TOTAL predicates: #f, never a
+    ; raise, off-domain.
     (method nan? (self (param x ANY "Value to test"))
       (doc "Is x a float NaN? #f for every non-float (an int is never NaN)."
         (returns BOOL "#t only for a NaN float")
         (sample "(Float nan? (/ 0.0 0.0))" "#t"))
       (if (float? x)
-        (let ((em (<< 2047 52)))
-          (if (= (& (first x) em) em)
-            (not (= (& (first x) (- (<< 1 52) 1)) 0))
+        (let ((f (float-split (first x))))
+          (if (= (first (rest f)) 2047)
+            (not (and (= (first (rest (rest f))) 0) (= (first (rest (rest (rest f)))) 0)))
             #f))
         #f))
     (method inf? (self (param x ANY "Value to test"))
@@ -1024,9 +1035,9 @@
         (returns BOOL "#t only for an infinite float")
         (sample "(Float inf? (/ 1.0 0.0))" "#t"))
       (if (float? x)
-        (let ((em (<< 2047 52)))
-          (if (= (& (first x) em) em)
-            (= (& (first x) (- (<< 1 52) 1)) 0)
+        (let ((f (float-split (first x))))
+          (if (= (first (rest f)) 2047)
+            (and (= (first (rest (rest f))) 0) (= (first (rest (rest (rest f)))) 0))
             #f))
         #f))
     (method finite? (self (param x ANY "Value to test"))
@@ -1035,8 +1046,7 @@
         (sample "(Float finite? 42)" "#t"))
       (match
         ((float? x)
-         (let ((em (<< 2047 52)))
-           (not (= (& (first x) em) em))))
+         (not (= (first (rest (float-split (first x)))) 2047)))
         ((number? x) #t)
         (#t #f)))))
 
@@ -1050,7 +1060,7 @@
 (doc (provide x/num/float Float
   float float? float-of float-type ensure-float
   f-add f-sub f-mul f-div f-mod f-eq f-lt fsin fcos fsqrt fatan2 str->float int->float pi
-  float-frac float-first-frac float-int-digits float-neg-int libm-fn)
+  float-frac float-first-frac float-int-digits float-neg-int float-split libm-fn)
   (note "Literal syntax: 3.14. The generic operators dispatch float operands")
   (note "through the type ops; mixed operands resolve by the from-relation.")
   (example "(+ 1 3.14)" "4.14")

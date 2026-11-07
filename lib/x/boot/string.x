@@ -93,7 +93,7 @@
 ; full.  Err resolves at call time, as in core/list.x.  Every helper is
 ; a tail loop: the span list and the block walk run to any length.
 (def %str-concat
-  ((fn (_ str? str-type int*)
+  ((fn (_ str? str-type int* int/)
      (def fold
        (fn (self ps acc)
          (match
@@ -111,10 +111,18 @@
            ((%sc-int< (%str-byte-len acc) s)
              (self (rest ps) s (%str-append acc (first ps)) done))
            (#t (self (rest ps) s (first ps) (pair acc done))))))
+     ; S*S*n against total*total, as products where an 8-byte word holds
+     ; them.  A 4-byte word's wrap past total = 46340 made the test hold
+     ; for ever, S doubling to 0; there it is n < a*a for a = total/S,
+     ; asked as n/a < a, which cannot overflow and stops within a power of
+     ; two of the same S.
      (def span
-       (fn (self s n t2)
+       (fn (self s n t)
          (match
-           ((%sc-int< (int* (int* s s) n) t2) (self (%sc-int+ s s) n t2))
+           ((if (eq? %word-size 8)
+              (%sc-int< (int* (int* s s) n) (int* t t))
+              ((fn (_ a) (if (%sc-int< 0 a) (%sc-int< (int/ n a) a) #f)) (int/ t s)))
+             (self (%sc-int+ s s) n t))
            (#t s))))
      (def block
        (fn (_ ps total)
@@ -136,14 +144,15 @@
               (match
                 ((%sc-int< 262143 total) (block pieces total))
                 ((%sc-int< n 5) (fold pieces ""))
-                (#t (spans (rest pieces) (span 1 n (int* total total)) (first pieces) ()))))
+                (#t (spans (rest pieces) (span 1 n total) (first pieces) ()))))
             ((str? (first ps) str-type)
               (self (rest ps) (%sc-int+ n 1) (%sc-int+ total (%str-byte-len (first ps)))))
             (#t (Err raise (lit type) "%str-concat: not a string" ()))))
         pieces 0 0)))
    (prim-ref (lit type) (lit ?))
    ((prim-ref (lit type) (lit of)) "")
-   (prim-ref (lit int) (lit *))))
+   (prim-ref (lit int) (lit *))
+   (prim-ref (lit int) (lit /))))
 
 ; number->str: (number->str n [radix]) -> string
 (def %n2s/ /)
@@ -195,19 +204,20 @@
 ; would be ambiguous ("0x" as digits-of-16 is a miss, and stays one).
 ; The sign parses first, so "-0xff" -> -255 like a negated reader literal.
 ;
-; One to fifteen decimal digits and nothing else, with no radix passed, is
+; A short run of decimal digits and nothing else, with no radix passed, is
 ; the usual text -- a count, a descriptor, a field of a record -- and is read
-; in one walk on the integer doors: fifteen digits stay inside a machine
-; word, so nothing can wrap.  Any other text is read by READ, the parser
-; below, which builds its digit reader and walks the tower.  The doors and
-; the walk are bound once, here, rather than as names of the file.
+; in one walk on the integer doors.  The run is as long as the word cannot
+; wrap: two digits a byte, less one, which is fifteen on an 8-byte word and
+; seven on a 4-byte one.  Any other text is read by READ, the parser below,
+; which builds its digit reader and walks the tower.  The doors and the walk
+; are bound once, here, rather than as names of the file.
 (def %str->number
-  ((fn (_ read int+ int* int< zero nine)
+  ((fn (_ read int+ int* int< zero nine short)
      (def walk
        (fn (self s i len acc)
          (match
            ((eq? i len) acc)
-           ((eq? i 15) (read s () int+ int*))
+           ((eq? i short) (read s () int+ int*))
            ((int< (%str-byte-ref s i) zero) (read s () int+ int*))
            ((int< nine (%str-byte-ref s i)) (read s () int+ int*))
            (#t (self s (int+ i 1) len
@@ -335,4 +345,5 @@
                                     ((< posv 0) (error "str->number: integer overflow"))
                                     (#t posv))))))))))))))))))
    (prim-ref (lit int) (lit +)) (prim-ref (lit int) (lit *)) (prim-ref (lit int) (lit <))
-   (%char->integer #\0) (%char->integer #\9)))
+   (%char->integer #\0) (%char->integer #\9)
+   (%data-int+ (%data-int* 2 %word-size) -1)))

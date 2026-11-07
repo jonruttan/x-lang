@@ -455,18 +455,24 @@ check (next section).
 
 ## str->number decimal digits
 
-One to fifteen decimal digits, with no radix passed, are read in one walk on
-the integer doors; any other text reads as it did, by the full parser.
+A run of decimal digits the word cannot wrap (two a byte, less one: fifteen
+on an 8-byte word), with no radix passed, is read in one walk on the integer
+doors; any other text reads as it did, by the full parser.
 
 ### digits read as decimal, leading zeros included, at every length up to the walk's
 
+The walk's longest run, and one digit past it for the parser.
+
 ```x
-(list (%str->number "0") (%str->number "007") (%str->number "010")
-      (%str->number "123456789012345") (%str->number "1234567890123456")
-      (%str->number "12a") (%str->number "") (%str->number "-5") (%str->number "+5"))
+(let ((k (- (* 2 %word-size) 1))
+      (same? (fn (_ s) (str=? (%number->str (%str->number s)) s))))
+  (list (%str->number "0") (%str->number "007") (%str->number "010")
+        (same? (%substring "1234567890123456" 0 k))
+        (same? (%substring "1234567890123456" 0 (+ k 1)))
+        (%str->number "12a") (%str->number "") (%str->number "-5") (%str->number "+5")))
 ```
 ---
-    (0 7 10 123456789012345 1234567890123456 () () -5 5)
+    (0 7 10 #t #t () () -5 5)
 
 ### the walk costs fewer objects than the full parser
 
@@ -493,11 +499,18 @@ number, which is how JSON corrupted 64-bit IDs.
 
 ### overflow raises, boundaries parse exactly
 
+The boundaries are the word's: LONG_MAX and LONG_MIN as written, and
+LONG_MAX + 1 spelled from LONG_MAX (whose last digit is 7 on an 8-byte
+word and a 4-byte one).
+
 ```x
-(list (guard (e (lit R)) (%str->number "12345678901234567890"))
-      (guard (e (lit R)) (%str->number "9223372036854775808"))
-      (%str->number "9223372036854775807")
-      (%str->number "-9223372036854775808"))
+(let ((mn (<< 1 (- (* 8 %word-size) 1))))
+  (let ((mx (- -1 mn)))
+    (list (guard (e (lit R)) (%str->number "12345678901234567890"))
+          (guard (e (lit R))
+            (%str->number (str-append (%number->str (/ mx 10)) (%number->str (+ (% mx 10) 1)))))
+          (eq? (%str->number (%number->str mx)) mx)
+          (eq? (%str->number (%number->str mn)) mn))))
 ```
 ---
-    ('R 'R 9223372036854775807 -9223372036854775808)
+    ('R 'R #t #t)

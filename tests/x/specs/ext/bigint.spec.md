@@ -1,6 +1,20 @@
 # @lib ../tests/x/lib/bigint.x
 # @weight 2
 
+## the word's edges
+
+The cases at the word's limits take their operands from
+`tests/x/lib/word-edges.x`, built from the machine word rather than
+literals, so a case states the same fact on an 8-byte word and a 4-byte
+one.  LONG_MAX is LONG_MIN's magnitude less one, and that magnitude is a
+bigint.
+
+```x
+(list (= (- -1 %bw-min) (- %bw-big 1)) (Bigint bigint? %bw-big))
+```
+---
+    (#t #t)
+
 ## bigint literal
 
 ### parses large number
@@ -148,12 +162,10 @@
 ### no overflow adding zero to the most negative
 
 The guard's domain is plain native ints, and the reader promotes long
-literals, so the edge operands are computed: 3037000499 squared is the
-largest native square, and the trim reaches LONG_MIN exactly.
+literals, so the edge operand is the word's own.
 
 ```x
-(let ((m (- (- 0 (* 3037000499 3037000499)) 5928526807)))
-  (if (Bigint would-overflow-add? 0 m) "y" "n"))
+(if (Bigint would-overflow-add? 0 %bw-min) "y" "n")
 ```
 ---
     "n"
@@ -170,8 +182,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 ### overflow one below the most negative
 
 ```x
-(let ((m (- (- 0 (* 3037000499 3037000499)) 5928526807)))
-  (Bigint would-overflow-add? m -1))
+(Bigint would-overflow-add? %bw-min -1)
 ```
 ---
     #t
@@ -186,8 +197,11 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### negative minus digit stays native (regression: wrapped threshold)
 
+A negative a hundred bigint bases out, less ten: -99999999990 on an
+8-byte word.
+
 ```x
-(if (Bigint bigint? (- -99999999990 9)) "big" "native")
+(if (Bigint bigint? (- (+ (- 0 (* %bw-b 100)) 10) 9)) "big" "native")
 ```
 ---
     "native"
@@ -195,7 +209,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 ### negative minus digit answers a value-eq native int
 
 ```x
-(eq? (- -99999999990 9) -99999999999)
+(eq? (- (+ (- 0 (* %bw-b 100)) 10) 9) (+ (- 0 (* %bw-b 100)) 1))
 ```
 ---
     #t
@@ -204,27 +218,35 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### bigint difference that fits native demotes
 
+With t ten bigint bases (10^10 on an 8-byte word), t^2 - 1 less (t - 1)t
+is t - 1: two bigints whose difference fits.
+
 ```x
-(eq? (- 99999999999999999999 99999999990000000000) 9999999999)
+(let ((t (* %bw-b 10)))
+  (eq? (- (- (* t t) 1) (* (- t 1) t)) (- t 1)))
 ```
 ---
     #t
 
-### 19-digit quotient that fits native demotes
+### a quotient one digit past the word demotes
+
+The largest power of ten the word holds, times ten, is a bigint (10^19 on
+an 8-byte word); a tenth of it fits again.
 
 ```x
-(eq? (/ 10000000000000000000 10) 1000000000000000000)
+(list (Bigint bigint? (* %bw-p10 10)) (eq? (/ (* %bw-p10 10) 10) %bw-p10))
+```
+---
+    (#t #t)
+
+### str->number reads the widest run of nines the word holds (regression: stealth bigint failed its verify)
+
+```x
+(let ((n (- %bw-p10 1)))
+  (eq? (%str->number (%number->str n)) n))
 ```
 ---
     #t
-
-### str->number reads 11 digits of nines (regression: stealth bigint failed its verify)
-
-```x
-(%str->number "99999999999")
-```
----
-    99999999999
 
 ### negative subtraction that fits stays native
 
@@ -257,52 +279,53 @@ largest native square, and the trim reaches LONG_MIN exactly.
 Two's complement gives LONG_MIN no positive counterpart, so every route that
 reached it through its own magnitude wrapped straight back to it.  The value
 comes from the bitwise door rather than a literal: the reader promotes a
-19-digit literal to a bigint, which is the case that already worked.
+literal past the word to a bigint, which is the case that already worked.
+Each answer is checked against `%bw-big`, its magnitude built by `expt`.
 
 ### promotes to the right magnitude
 
 ```x
-(write (- 0 (<< 1 63)))
+(= (- 0 %bw-min) %bw-big)
 ```
 ---
-    9223372036854775808
+    #t
 
 ### unary negation promotes the same way
 
 ```x
-(write (- (<< 1 63)))
+(= (- %bw-min) %bw-big)
 ```
 ---
-    9223372036854775808
+    #t
 
 ### abs promotes through the generic layer
 
 ```x
-(write (Num abs (<< 1 63)))
+(= (Num abs %bw-min) %bw-big)
 ```
 ---
-    9223372036854775808
+    #t
 
 ### a bigint addend carries it back across zero
 
 ```x
-(write (+ (<< 1 63) 18446744073709551616))
+(= (+ %bw-min (* 2 %bw-big)) %bw-big)
 ```
 ---
-    9223372036854775808
+    #t
 
 ### the same sum with the operands swapped
 
 ```x
-(write (+ 18446744073709551616 (<< 1 63)))
+(= (+ (* 2 %bw-big) %bw-min) %bw-big)
 ```
 ---
-    9223372036854775808
+    #t
 
 ### a sum that still fits stays native
 
 ```x
-(if (Bigint bigint? (+ (<< 1 63) 1)) "big" "native")
+(if (Bigint bigint? (+ %bw-min 1)) "big" "native")
 ```
 ---
     "native"
@@ -310,42 +333,42 @@ comes from the bitwise door rather than a literal: the reader promotes a
 ### and answers what a native sum should
 
 ```x
-(write (+ (<< 1 63) 1))
+(= (+ %bw-min 1) (- 1 %bw-big))
 ```
 ---
-    -9223372036854775807
+    #t
 
 ### one step below it promotes
 
 ```x
-(write (- (<< 1 63) 1))
+(= (- %bw-min 1) (- -1 %bw-big))
 ```
 ---
-    -9223372036854775809
+    #t
 
 ### converting to bigint and back round-trips
 
 ```x
-(write (Convert to (<< 1 63) (Bigint type)))
+(= (Convert to %bw-min (Bigint type)) (- 0 %bw-big))
 ```
 ---
-    -9223372036854775808
+    #t
 
 ### the product that overflows
 
 ```x
-(write (* (<< 1 63) -1))
+(= (* %bw-min -1) %bw-big)
 ```
 ---
-    9223372036854775808
+    #t
 
 ### a doubling that used to wrap to zero
 
 ```x
-(write (* 2 (<< 1 63)))
+(= (* 2 %bw-min) (* -2 %bw-big))
 ```
 ---
-    -18446744073709551616
+    #t
 
 ### would-overflow-mul? sees it on the right
 
@@ -354,7 +377,7 @@ negative operand never exceeds a bound, so the check passed and the product
 wrapped.
 
 ```x
-(Bigint would-overflow-mul? 2 (<< 1 63))
+(Bigint would-overflow-mul? 2 %bw-min)
 ```
 ---
     #t
@@ -362,7 +385,7 @@ wrapped.
 ### would-overflow-mul? still lets times-one through
 
 ```x
-(if (Bigint would-overflow-mul? 1 (<< 1 63)) "y" "n")
+(if (Bigint would-overflow-mul? 1 %bw-min) "y" "n")
 ```
 ---
     "n"
@@ -373,18 +396,18 @@ wrapped.
 `a / b`: arm64 answers LONG_MIN and x86 traps.  The tower promotes instead.
 
 ```x
-(write (/ (<< 1 63) -1))
+(= (/ %bw-min -1) %bw-big)
 ```
 ---
-    9223372036854775808
+    #t
 
 ### every other quotient is still the prim's
 
 ```x
-(write (/ (<< 1 63) 2))
+(eq? (/ %bw-min 2) (- 0 (<< 1 (- %bw-bits 1))))
 ```
 ---
-    -4611686018427387904
+    #t
 
 ## big+
 
@@ -434,8 +457,11 @@ wrapped.
 
 ### product that fits native demotes
 
+The largest limb squared fits the word: 999999999 on an 8-byte word.
+
 ```x
-(if (Bigint bigint? (Bigint * (Convert to 999999999 (Bigint type)) (Convert to 999999999 (Bigint type)))) "big" "native")
+(let ((l (Convert to (- %bw-b 1) (Bigint type))))
+  (if (Bigint bigint? (Bigint * l l)) "big" "native"))
 ```
 ---
     "native"
@@ -443,7 +469,8 @@ wrapped.
 ### demoted product has the native value
 
 ```x
-(eq? (Bigint * (Convert to 999999999 (Bigint type)) (Convert to 999999999 (Bigint type))) 999999998000000001)
+(let ((l (Convert to (- %bw-b 1) (Bigint type))))
+  (eq? (Bigint * l l) (* (- %bw-b 1) (- %bw-b 1))))
 ```
 ---
     #t
@@ -506,8 +533,8 @@ same product with the operands both ways round.
 ### a two-limb bigint times a one-limb int demotes either way round
 
 ```x
-(let ((b (Convert to 10000000000 (Bigint type))))
-  (list (eq? (Bigint * b 3) 30000000000) (eq? (Bigint * 3 b) 30000000000)))
+(let ((b (Convert to (* %bw-b 10) (Bigint type))))
+  (list (eq? (Bigint * b 3) (* %bw-b 30)) (eq? (Bigint * 3 b) (* %bw-b 30))))
 ```
 ---
     (#t #t)

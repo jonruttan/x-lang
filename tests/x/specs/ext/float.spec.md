@@ -978,16 +978,23 @@ is unchanged.
 
 ### with no name, a stub by its label: 0.1 to a single and back, and 16777217 to one
 
+A double's bit pattern is the word's (an INTEGER on an 8-byte word, two
+words on a 4-byte one), so the doubles are spelled through `str->bits`; a
+single's thirty-two bits are an INTEGER on either.  0.1 as a single is
+0x3DCCCCCD, which widens to 0.100000001490116119384765625 exactly.
+
 ```x
 ((fn (_)
    (import x/num/float libm-fn)
    (def spec-d->f (libm-fn (lit spec-d->f) "d->f" ()))
    (def spec-f->d (libm-fn (lit spec-f->d) "f->d" ()))
    (def spec-i->f (libm-fn (lit spec-i->f) "i->f" ()))
-   (list (spec-d->f 4591870180066957722) (spec-f->d 1036831949) (spec-i->f 16777217))))
+   (list (spec-d->f (Float str->bits "0.1"))
+         (equal? (spec-f->d 1036831949) (Float str->bits "0.100000001490116119384765625"))
+         (spec-i->f 16777217))))
 ```
 ---
-    (1036831949 4591870180174331904 1266679808)
+    (1036831949 #t 1266679808)
 
 ## printing
 

@@ -285,12 +285,19 @@
       (#t (make-rational a b)))))
 
 ; / policy: this module OWNS the variadic / (one policy owner per operator --
-; bigint owns + - * overflow promotion). Both-plain-int division promotes to
-; rational when inexact; anything typed flows through the dispatching C binary
-; (rational/float/bigint handlers take it from there). Unary (/ x) = (/ 1 x).
+; bigint owns + - * overflow promotion). Division of two exact integers, native
+; or bigint, promotes to rational when inexact; anything else flows through
+; the dispatching C binary (rational/float handlers take it from there).  A
+; bigint is known by its registered name, since bigint may not be loaded:
+; left to the binary, its handler answers the truncated quotient, and
+; (/ 1 100000000000000000000) was 0.  Unary (/ x) = (/ 1 x).
+(def %rat-type-name (prim-ref (lit type) (lit name)))
+(def %exact-int?
+  (fn (_ x)
+    (if (%int-number? x) #t (str=? (%rat-type-name (type-of x)) "BIGINT"))))
 (def %rat-div-policy
   (fn (_ a b)
-    (if (if (%int-number? a) (%int-number? b) #f)
+    (if (if (%exact-int? a) (%exact-int? b) #f)
       (%exact-div a b)
       (int/ a b))))
 
@@ -309,15 +316,26 @@
 
 ; --- Reader ---
 
+; A component is read as the same digits written alone would be.  A run the
+; word cannot wrap (two digits a byte, less one) converts directly; a longer
+; one goes through the reader, whose analysers make it a bigint when the
+; tower has one -- past 2^63 on an 8-byte word, past 2^31 on a 4-byte one.
+(def %rat-short (int- (int* 2 %word-size) 1))
+(def %rat-tok-read (prim-ref (lit tok) (lit read-str)))
+(def %rat-component
+  (fn (_ s)
+    (if (int< %rat-short (%str-length s))
+      (first (%rat-tok-read (%base) (str-append s " ")))
+      (%cvt s %int))))
+
 (set! %rational-read
   (fn (_ . args)
     (let ((tok (buf-tok (first args))))
       (let ((pos (%rat-find-slash tok 0 (%str-length tok))))
         (if pos
           (make-rational
-            (%cvt (%substring tok 0 pos) %int)
-            (%cvt
-              (%substring tok (int+ pos 1) (%str-length tok)) %int))
+            (%rat-component (%substring tok 0 pos))
+            (%rat-component (%substring tok (int+ pos 1) (%str-length tok))))
           ())))))
 
 (import x/type/class)
@@ -372,6 +390,15 @@
 ; Make a rational VALUE dispatch its calls to the Rational class (subject-last):
 ; (1/2 numerator) -> (Rational numerator 1/2); (1/2 - 1/3) -> (Rational - 1/2 1/3).
 (type-push-call (type-by-atom rational) (class-call-handler Rational))
+
+; number? is extended in place, each tower module chaining onto the
+; predicate as it found it (decimal.x says why); real? asks number?.
+(def %rat-was-number? number?)
+(doc number? "Test whether a value is any numeric type (now including rationals)."
+  (param x ANY "Value to test")
+  (returns BOOL "True if x is a number")
+  (example "(number? 1/2)" "#t"))
+(set! number? (fn (_ x) (if (rat? x) #t (%rat-was-number? x))))
 
 ; Join the pact last, once the module is fully usable: tower members
 ; announce themselves so pairwise registrations fire in any load order.

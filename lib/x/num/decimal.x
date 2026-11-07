@@ -29,7 +29,7 @@
 ; they were before core/arithmetic.x wrapped the bare names.
 (import x/core/doors buf-tok char->int int% int* int+ int- int/ int< int= str-append type-by-atom type-from-cell type-make type-make-instance type-of type-push-call type-push-op type?)
 (import x/num/bigint bigint bigint? big-limbs bigint-digits-per-limb)
-(import x/num/float float)
+(import x/num/float float float-split)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
@@ -770,19 +770,26 @@
 ; identity -- m * 2^-k = m * 5^k * 10^-k -- so the decimal that comes back
 ; is the double's true value, all 55 digits of 0.1 included, not a
 ; 17-digit shortest-round-trip approximation of it.
+;
+; The fields come from float-split.  On a 4-byte word the high word's twenty
+; fraction bits and the low word's thirty-two make the mantissa through the
+; promoting + and *, the low word read unsigned.
 (def %dec-from-float
   (fn (_ f)
-    (let ((bits (first f)))
-      (let ((em (& (>> bits 52) 2047))
-            (mant (& bits (int- (<< 1 52) 1))))
+    (let ((fields (float-split (first f))))
+      (let ((em (first (rest fields)))
+            (fhi (first (rest (rest fields))))
+            (lo (first (rest (rest (rest fields))))))
         (if (int= em 2047)
           (Err raise 'value "Decimal from: a float inf/NaN has no decimal" f)
-          (let ((m (if (int= em 0) mant (int+ mant (<< 1 52))))
+          (let ((hiw (if (int= em 0) fhi (int+ fhi (<< 1 (if (int= %word-size 8) 52 20)))))
                 (e2 (if (int= em 0) -1074 (int- em 1075))))
-            (let ((d (if (int< e2 0)
-                       (%make-dec (* m (%dec-powi 5 (int- 0 e2))) e2)
-                       (%make-dec (* m (%dec-powi 2 e2)) 0))))
-              (if (int< bits 0) (%dec-neg d) d))))))))
+            (let ((m (if (int= %word-size 8) hiw
+                       (+ (* hiw 4294967296) (if (int< lo 0) (+ lo 4294967296) lo)))))
+              (let ((d (if (int< e2 0)
+                         (%make-dec (* m (%dec-powi 5 (int- 0 e2))) e2)
+                         (%make-dec (* m (%dec-powi 2 e2)) 0))))
+                (if (first fields) (%dec-neg d) d)))))))))
 
 (note "Predicates")
 
