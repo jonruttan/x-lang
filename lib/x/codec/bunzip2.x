@@ -29,8 +29,13 @@
 ; through the tower.  There is no int > or >=: a > b is (int< b a).
 (def %xor (prim-ref (lit int) (lit ^)))
 
-(def %M32 4294967295)
-(def %M40 1099511627775)
+(def %M32 0xFFFFFFFF)
+; The bit buffer keeps 40 bits on an 8-byte word; a 4-byte word keeps its
+; own 32, which a read of up to 24 bits never needs more than (%bits).
+(def %narrow (int< %word-size 8))
+(def %M40 (if %narrow -1 (int- (int<< 1 40) 1)))
+; The block's tt entries are machine words: 2^%wshift bytes.
+(def %wshift (if %narrow 2 3))
 
 ; A decoder's state, in the slots of one vector (slot k holds field k): the
 ; input's address, its length and how much of it is read; the bits read
@@ -99,11 +104,14 @@
 
 (def %skip! (fn (_ s n) (obj-set! s %BITCNT (int- (obj-ref s %BITCNT) n))))
 
+; More than 24 bits on a 4-byte word is two reads, the high 16 first.
 (def %bits
-  (fn (_ s need)
-    (def v (%peek s need))
-    (%skip! s need)
-    v))
+  (fn (self s need)
+    (if (if %narrow (int< 24 need) #f)
+      (int| (int<< (self s 16) (int- need 16)) (self s (int- need 16)))
+      (do (def v (%peek s need))
+          (%skip! s need)
+          v))))
 
 ; The whole bytes read ahead given back to the input: the count of input
 ; used steps back over them.
@@ -122,7 +130,7 @@
 (def %crc-entry
   (fn (self c k)
     (if (int= k 0) c
-      (self (if (int= (int& c 2147483648) 0)
+      (self (if (int= (int& c 0x80000000) 0)
               (int& (int<< c 1) %M32)
               (%xor (int& (int<< c 1) %M32) 79764919))
             (int- k 1)))))
@@ -332,7 +340,7 @@
                       (obj-set! mtf 1 u)
                       (def b (obj-ref sym->byte (int+ u 1)))
                       (obj-set! counts (int+ b 1) (int+ (obj-ref counts (int+ b 1)) 1))
-                      (ptr-set! (obj-ref s %DBUFP) (int<< n2 3) b 8)
+                      (ptr-set! (obj-ref s %DBUFP) (int<< n2 %wshift) b %word-size)
                       (self s groups ngroups sel nsel sym->byte eob counts mtf sn (int- left 1) g 0 0 (int+ n2 1)))
                   n2)))))))
 
@@ -349,7 +357,7 @@
 (def %fill-run!
   (fn (self p i end b)
     (if (int< i end)
-      (do (ptr-set! p (int<< i 3) b 8) (self p (int+ i 1) end b))
+      (do (ptr-set! p (int<< i %wshift) b %word-size) (self p (int+ i 1) end b))
       ())))
 
 ; --- the inverse transform ----------------------------------------------------
@@ -373,9 +381,9 @@
 (def %link-entries!
   (fn (self p counts i n)
     (if (int< i n)
-      (do (def b (int& (ptr-ref p (int<< i 3) 8) 255))
+      (do (def b (int& (ptr-ref p (int<< i %wshift) %word-size) 255))
           (def at (obj-ref counts (int+ b 1)))
-          (ptr-set! p (int<< at 3) (int| (ptr-ref p (int<< at 3) 8) (int<< i 8)) 8)
+          (ptr-set! p (int<< at %wshift) (int| (ptr-ref p (int<< at %wshift) %word-size) (int<< i 8)) %word-size)
           (obj-set! counts (int+ b 1) (int+ at 1))
           (self p counts (int+ i 1) n))
       ())))
@@ -411,7 +419,7 @@
 (def %walk!
   (fn (self s p pos cur left countdown crc)
     (if (int= left 0) (%xor crc %M32)
-      (do (def e (ptr-ref p (int<< pos 3) 8))
+      (do (def e (ptr-ref p (int<< pos %wshift) %word-size))
           (def next (int& e 255))
           (def npos (int>> e 8))
           (def cd (int- countdown 1))
@@ -453,7 +461,7 @@
     ((first (rest engine)) s counts n)
     (if (int= n 0) 0
       (do (if (int< origin n) () (%fail (lit data) "an origin past the block"))
-          (def e (ptr-ref (obj-ref s %DBUFP) (int<< origin 3) 8))
+          (def e (ptr-ref (obj-ref s %DBUFP) (int<< origin %wshift) %word-size))
           ((first (rest (rest engine))) s (int>> e 8) (int& e 255) n)))))
 
 ; The walk over a whole block: n entries from pos, cur in hand.
@@ -492,7 +500,7 @@
     (def k (int- h 26672))
     (if (if (int< k 1) #t (int< 9 k)) (%fail (lit header) "no block size header") ())
     (def size (* 100000 k))
-    (obj-set! s %DBUF (str-make (int<< size 3)))
+    (obj-set! s %DBUF (str-make (int<< size %wshift)))
     (obj-set! s %DBUFP (str->ptr (obj-ref s %DBUF)))
     (obj-set! s %DBUFSIZE size)))
 
@@ -509,7 +517,7 @@
       ((if (int= i 3227993) (int= j 2511705) #f)
         (do (def crc (%block! s))
             (if (int= crc stored)
-              (%xor (int& (int| (int<< combined 1) (int>> combined 31)) %M32) crc)
+              (%xor (int& (int| (int<< combined 1) (int& (int>> combined 31) 1)) %M32) crc)
               (pair (lit bad) crc))))
       (#t (%fail (lit data) "no block magic")))))
 
