@@ -1,0 +1,69 @@
+name: ASan
+
+# Both suites under AddressSanitizer, on every push to main.  Its own
+# workflow so CI's runs on main do not queue behind its ~35 minutes; the
+# release gate never waited on it.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: asan-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Memory-safety gate: both suites under AddressSanitizer. HARD gate since
+  # the baseline reached zero (2026-07-13; was 112 findings): a red run here
+  # is a real memory-safety regression -- the class that is silently wrong
+  # on 64-bit and segfaults on 32-bit/Pi. See test-asan in the Makefile for
+  # the pinned ASAN_OPTIONS rationale.
+  asan:
+    name: make ${{ matrix.target }}
+    # Main only: the sanitizer multiplies the whole suite 5-10x.
+    runs-on: ubuntu-24.04
+    # Two runners: the crypto and compiled codec specs (ASAN_CRYPTO_SPECS in
+    # the Makefile) were 36 of the suite's 78 minutes under the sanitizer on
+    # one runner, which runs one heavy spec at a time to stay inside 16 GB.
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [test-asan, test-asan-crypto]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      # THE SANITIZER ENGINE IS BUILT FROM THE PINNED SOURCES, and a tag is
+      # immutable (asan-boot.sh: "the build never goes stale"), so the build
+      # -- 55 seconds on both runners, and again in this job, before the suite -- is
+      # the same bytes on every run of the same pin on the same image.
+      # Cached on exactly those two facts.  The IMAGE is in the key on
+      # purpose: the engine is built with gcc, which links libasan
+      # DYNAMICALLY, so a binary is only as good as its image's runtime, and
+      # a new image is a new build.  A miss costs what every run cost
+      # before; the sources come back with the build, so fetch.sh's source
+      # arm reuses the tree instead of cloning.
+      - name: Runner image
+        id: image
+        run: echo "version=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+      - name: Sanitizer engine build
+        uses: actions/cache@v4
+        with:
+          path: deps/engine-src
+          key: asan-engine-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/engine/engine.pin.xon') }}-${{ steps.image.outputs.version }}
+      # SOURCES, not a release: the sanitizer build compiles the engine, so
+      # this is the leg that keeps the source arm honest.  It is also the only
+      # CI job that exercises it, which is why it is not `make engine`.
+      - name: Acquire the engine (sources)
+        run: make engine-source
+      - name: SDL3 build cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.sdl3
+          key: sdl3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/dev/sdl3-install.sh') }}
+      - name: SDL3
+        run: sh tools/dev/sdl3-install.sh
+      - name: Run suites under AddressSanitizer
+        run: make ${{ matrix.target }}
+        env:
+          PARALLEL: "1"
