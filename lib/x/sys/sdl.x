@@ -37,6 +37,7 @@
 (def-class Sdl ()
   (doc "A window that shows an RGBA pixel buffer, and its keyboard and window events, through the host's SDL3 loaded with dlopen."
     (note "SDL3 is looked for at the path given to load!, then as libSDL3.so.0, libSDL3.0.dylib, and under /opt/homebrew/lib and /usr/local/lib. A missing library raises a label 'io.")
+    (example "(Sdl key (lit up))" "1073741906")
     (see open) (see show!) (see poll) (see available?))
   (static
     (%path-cell (pair () ()))
@@ -47,13 +48,19 @@
     (%nearest 0)
     (%resizable 32)
     (%event-size 128)
-    (keys (lit ((up . 1073741906) (down . 1073741905) (left . 1073741904) (right . 1073741903)
-           (escape . 27) (return . 13) (backspace . 8) (tab . 9) (space . 32)))
-      "Keycodes by name for keys that are not printable characters")
+    (%keys (lit ((up . 1073741906) (down . 1073741905) (left . 1073741904) (right . 1073741903)
+            (escape . 27) (return . 13) (backspace . 8) (tab . 9) (space . 32))))
+
+    (method keys (self)
+      (doc "Keycodes by name for keys that are not printable characters."
+        (returns LIST "((name . keycode) ...)")
+        (example "(first (Sdl keys))" "('up . 1073741906)"))
+      (Sdl %keys))
 
     (method %handle (self)
       (doc "The libSDL3 handle, or nil when no candidate opens."
-        (returns POINTER|NIL "The dlopen handle"))
+        (returns POINTER|NIL "The dlopen handle")
+        (sample "(Sdl %handle)" "the libSDL3 handle, or nil"))
       (let try ((names (List append (first (Sdl %path-cell))
                                     (list "libSDL3.so.0" "libSDL3.0.dylib"
                                           "/opt/homebrew/lib/libSDL3.0.dylib"
@@ -64,7 +71,8 @@
 
     (method %sym (self (param name STRING "SDL function name"))
       (doc "The named SDL3 function; raises a label 'io when libSDL3 is not found."
-        (returns POINTER "The function pointer"))
+        (returns POINTER "The function pointer")
+        (sample "(Sdl %sym \"SDL_Init\")" "a function pointer"))
       (def h (Sdl %handle))
       (when (null? h)
         (Err raise (lit io) "Sdl: libSDL3 not found" (first (Sdl %path-cell))))
@@ -72,20 +80,23 @@
 
     (method %ok (self (param r INTEGER "A C bool result") (param what STRING "The call, for the message"))
       (doc "Raise a label 'io with SDL's error when a bool result is false."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (sample "(Sdl %ok 1 \"init\")" "nil"))
       (when (= (& r 255) 0)
         (Err raise (lit io) (Str8 append "Sdl " what ": " (Sdl error)) r)))
 
     (method %made (self (param p INTEGER "A pointer result") (param what STRING "The call, for the message"))
       (doc "The pointer, or a label 'io with SDL's error when it is NULL."
-        (returns INTEGER "The pointer, as an integer"))
+        (returns INTEGER "The pointer, as an integer")
+        (sample "(Sdl %made p \"window\")" "p"))
       (when (= p 0)
         (Err raise (lit io) (Str8 append "Sdl " what ": " (Sdl error)) ()))
       p)
 
     (method %zeroed (self (param n INTEGER "Byte count, a multiple of 8"))
       (doc "A (str make) region of n zero bytes."
-        (returns STRING "The region"))
+        (returns STRING "The region")
+        (sample "(Sdl %zeroed 128)" "a 128-byte region of zeros"))
       (def region (str-make n))
       (def p (str->ptr region))
       (let go ((i 0))
@@ -240,4 +251,5 @@
       ())))
 
 (doc (provide x/sys/sdl Sdl)
+  (example "(Sdl key (lit escape))" "27")
   "A window that shows an RGBA pixel buffer, with keyboard and window events, through the host's SDL3 over the dlopen FFI.")
