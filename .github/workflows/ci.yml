@@ -1,14 +1,13 @@
 name: CI
 
-# TWO TIERS (2026-08-11).  A pull request gets a FAST verdict: build,
-# the fast contract gates, both spec suites, doctests, lint -- the same
-# depth the pre-push hook runs, minutes not tens of minutes.  A push to
-# main gets the FULL depth: every gate (including the network-touching
-# release checks and the many-boot pin smoke), the examples ratchet, the
-# tty contract, and the AddressSanitizer leg.  The trade is deliberate:
-# a regression only the deep tier catches lands on main for at most one
-# cycle, and the deep tier still guards every release (the release
-# workflow runs the full gate again before publishing anything).
+# ONE VERDICT PER TREE.  A pull request runs everything that judges a
+# commit: every gate, both spec suites, doctests, lint, docs, man pages and
+# the examples.  It records the tree it tested (the `tree` job).  A push to
+# main whose tree a passing PR run already tested is not run again: the
+# `reuse` job finds that run and every other job skips, so the release gate
+# reads the PR's verdict.  A merge whose tree no PR run tested (main moved
+# after the PR's last run, a squash, a direct push) runs in full.
+# AddressSanitizer is .github/workflows/asan.yml, on main only.
 #
 # FAN-OUT (2026-08-18, #318).  The suite used to run as ONE job whose
 # steps ran serially, so the wall clock was the SUM of every step
@@ -30,12 +29,7 @@ on:
   push:
     branches: [main]
   pull_request:
-  # Manual full-depth run on ANY ref: every main-only job (full gates,
-  # examples/tty, asan) fires because the conditions test only "not a
-  # pull_request".  This is how a change to a deep-tier-only surface
-  # gets verified BEFORE merge instead of burning a main run to find
-  # out -- #366 (an asan-only OOM invisible to PR CI) is the shape it
-  # exists for; #294 recommended it first.
+  # A manual run on any ref runs in full.
   workflow_dispatch:
 
 # A superseded PR run keeps burning runners until its slowest leg ends;
@@ -46,8 +40,63 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # The tree a PR run tests: the merge of the PR into main as it stood.
+  tree:
+    name: tested tree
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - run: git rev-parse 'HEAD^{tree}' > tree
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tested-tree
+          path: tree
+          retention-days: 30
+
+  # On a push to main: a merge commit whose second parent is a PR head, and
+  # whose tree a passing PR run of that head recorded, has its verdict.
+  reuse:
+    name: reuse a PR's verdict
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      tested: ${{ steps.find.outputs.tested }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          head=$(git rev-parse -q --verify 'HEAD^2' || true)
+          tested=false
+          if [ -n "$head" ]; then
+            for id in $(gh run list --workflow ci.yml --event pull_request --commit "$head" \
+                          --status success --json databaseId --jq '.[].databaseId'); do
+              dir=$(mktemp -d)
+              if gh run download "$id" --name tested-tree --dir "$dir" 2>/dev/null &&
+                 [ "$(cat "$dir/tree")" = "$tree" ]; then
+                echo "PR run $id passed on tree $tree: not running it again"
+                tested=true
+                break
+              fi
+            done
+          fi
+          [ "$tested" = true ] || echo "no passing PR run tested tree $tree: running in full"
+          echo "tested=$tested" >> "$GITHUB_OUTPUT"
+
   specs:
     name: specs (${{ matrix.os }})
+    needs: reuse
+    if: ${{ !cancelled() && needs.reuse.outputs.tested != 'true' }}
     runs-on: ${{ matrix.os }}
     # The macOS job grew from 8 to 19 minutes across eight runs of main and
     # PR #665's first attempt was cancelled at 20 with every suite green,
@@ -160,6 +209,8 @@ jobs:
 
   gates:
     name: gates (${{ matrix.os }})
+    needs: reuse
+    if: ${{ !cancelled() && needs.reuse.outputs.tested != 'true' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -192,20 +243,17 @@ jobs:
         run: make engine
       - name: Build
         run: make
-      # The contract gates: the FULL set on main (network checks, pin
-      # smoke, amalgam build included), the fast subset on a PR -- both
-      # are single Makefile definitions, never a hand-list here (a
-      # hand-listed subset once let check-pin's first Linux run happen
-      # in the release job).
-      - name: Contract gates (full, main)
-        if: github.event_name != 'pull_request'
+      # The full contract gates on every run, a PR's included: a gate that
+      # runs only after merge lets main go red on a change its PR passed.
+      # The job (about 12 minutes) runs beside the specs legs and finishes
+      # before them.
+      - name: Contract gates
         run: make gates
-      - name: Contract gates (fast, PR)
-        if: github.event_name == 'pull_request'
-        run: make gates-fast
 
   lint:
     name: lint (${{ matrix.os }})
+    needs: reuse
+    if: ${{ !cancelled() && needs.reuse.outputs.tested != 'true' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
@@ -245,6 +293,8 @@ jobs:
 
   docs:
     name: docs (${{ matrix.os }})
+    needs: reuse
+    if: ${{ !cancelled() && needs.reuse.outputs.tested != 'true' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
@@ -287,6 +337,8 @@ jobs:
   # it says out loud when the half is not checked.
   man:
     name: man pages (${{ matrix.os }})
+    needs: reuse
+    if: ${{ !cancelled() && needs.reuse.outputs.tested != 'true' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -320,7 +372,8 @@ jobs:
   # examples/rn/ reaches raw syscalls, and their numbers differ per platform.
   examples:
     name: examples (${{ matrix.os }})
-    if: github.event_name != 'pull_request'
+    needs: reuse
+    if: ${{ !cancelled() && needs.reuse.outputs.tested != 'true' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
@@ -353,60 +406,3 @@ jobs:
         env:
           EXAMPLE_JOBS: ${{ matrix.os == 'ubuntu-24.04' && '1' || '4' }}
         run: make check-examples
-
-  # Memory-safety gate: both suites under AddressSanitizer. HARD gate since
-  # the baseline reached zero (2026-07-13; was 112 findings): a red run here
-  # is a real memory-safety regression -- the class that is silently wrong
-  # on 64-bit and segfaults on 32-bit/Pi. See test-asan in the Makefile for
-  # the pinned ASAN_OPTIONS rationale.
-  asan:
-    name: make ${{ matrix.target }}
-    # Deep tier only: the sanitizer multiplies the whole suite 5-10x,
-    # which is most of what made every PR round-trip cost tens of
-    # minutes.  Merges to main still cannot land without it.
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-24.04
-    # Two runners: the crypto and compiled codec specs (ASAN_CRYPTO_SPECS in
-    # the Makefile) were 36 of the suite's 78 minutes under the sanitizer on
-    # one runner, which runs one heavy spec at a time to stay inside 16 GB.
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [test-asan, test-asan-crypto]
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v7
-      # THE SANITIZER ENGINE IS BUILT FROM THE PINNED SOURCES, and a tag is
-      # immutable (asan-boot.sh: "the build never goes stale"), so the build
-      # -- 55 seconds on both runners, and again in this job, before the suite -- is
-      # the same bytes on every run of the same pin on the same image.
-      # Cached on exactly those two facts.  The IMAGE is in the key on
-      # purpose: the engine is built with gcc, which links libasan
-      # DYNAMICALLY, so a binary is only as good as its image's runtime, and
-      # a new image is a new build.  A miss costs what every run cost
-      # before; the sources come back with the build, so fetch.sh's source
-      # arm reuses the tree instead of cloning.
-      - name: Runner image
-        id: image
-        run: echo "version=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
-      - name: Sanitizer engine build
-        uses: actions/cache@v4
-        with:
-          path: deps/engine-src
-          key: asan-engine-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/engine/engine.pin.xon') }}-${{ steps.image.outputs.version }}
-      # SOURCES, not a release: the sanitizer build compiles the engine, so
-      # this is the leg that keeps the source arm honest.  It is also the only
-      # CI job that exercises it, which is why it is not `make engine`.
-      - name: Acquire the engine (sources)
-        run: make engine-source
-      - name: SDL3 build cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.sdl3
-          key: sdl3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/dev/sdl3-install.sh') }}
-      - name: SDL3
-        run: sh tools/dev/sdl3-install.sh
-      - name: Run suites under AddressSanitizer
-        run: make ${{ matrix.target }}
-        env:
-          PARALLEL: "1"

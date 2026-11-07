@@ -22,23 +22,16 @@
 #   The worktree is built and tested at the pushed sha and then removed.  It
 #   reuses this checkout's acquired engine through X_ENGINE_DIR, so it needs
 #   no network: deps/ is gitignored and a fresh worktree would otherwise try
-#   to acquire one.  Measured at ~3m for a full build plus test-fast.
+#   to acquire one.
 #
-# Runs `make test-fast` (the fast scan gates, the ASan boot, test-c + test-x), NOT the full
-# `make test`: the full suite is too long to hold a push's SSH connection open
-# across the hook -- GitHub hangs up the idle channel before the transfer
-# starts.  CI remains the enforcing gate for the FULL surface:
-# .github/workflows/ci.yml fans `make test`'s members out across parallel jobs
-# (specs / gates / lint / docs / interactive) on every push and PR, with
-# test-asan on merges to main (#330 corrected this note: ci.yml step-lists the
-# members rather than invoking the `make test` umbrella).  Run `make test`
-# locally when you want the whole thing in one command before pushing.
-# Install with `make install-hooks` (sets core.hooksPath=.githooks).  Bypass a
-# single push with `git push --no-verify`.
+# Runs `make gates-fast`, the static contract gates, in seconds.  The spec
+# suites run in CI on every PR (.github/workflows/ci.yml), on three
+# platforms, which this hook cannot; running them here as well cost about ten
+# minutes a push and judged nothing CI does not.  Run `make test-fast` or
+# `make test` locally when you want a suite before pushing.  Install with
+# `make install-hooks` (sets core.hooksPath=.githooks).
 #
 # RUN_ASAN=1 additionally runs `make test-asan` as a NON-BLOCKING advisory.
-# The baseline is clean and CI hard-gates it on merge to main; locally it
-# stays opt-in only because instrumentation makes it ~2-3x slower.
 set -e
 
 root=$(git rev-parse --show-toplevel) || exit 1
@@ -75,9 +68,9 @@ fi
 
 run_fast() {
 	# $1 is a label for the message only; the caller has already cd'd.
-	printf '[pre-push] make test-fast (%s) ...\n' "$1"
-	if ! make test-fast; then
-		printf '\n[pre-push] BLOCKED: `make test-fast` is red at %s.\n' "$1" >&2
+	printf '[pre-push] make gates-fast (%s) ...\n' "$1"
+	if ! make gates-fast; then
+		printf '\n[pre-push] BLOCKED: `make gates-fast` is red at %s.\n' "$1" >&2
 		printf '[pre-push] Fix it, or bypass with `git push --no-verify`.\n' >&2
 		return 1
 	fi
