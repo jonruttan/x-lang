@@ -271,20 +271,18 @@
 ; guards; a raise means "stay pure-x".
 (def deflate-jit-make
   (fn (_ state tables room put-code check)
-    ; the engine lays out and computes in 8-byte words
-    (if (< %word-size 8) (Err raise (lit state) "deflate-jit: written for an 8-byte word" ()))
     (def %step (compile-asm %dj-step-expr))
     (def %matcher (compile-asm %dm-expr))
-    (def %mbuf (str-make (* %MWORDS 8)))
+    (def %mbuf (str-make (* %MWORDS %word-size)))
     (def %mptr (str->ptr %mbuf))
     (def %maddr (ptr->int %mptr))
-    (def %mpoke (fn (_ i v) (ptr-set-word! %mptr (* i 8) v)))
+    (def %mpoke (fn (_ i v) (ptr-set-word! %mptr (* i %word-size) v)))
     ; A zeroed table of n words, held by the caller for as long as its
     ; address is in use.
     (def %words
       (fn (_ n)
-        (def r (str-make (* n 8)))
-        (%dj-mem-set (str->ptr r) 0 (* n 8))
+        (def r (str-make (* n %word-size)))
+        (%dj-mem-set (str->ptr r) 0 (* n %word-size))
         r))
     (def %match
       (fn (_ src n lens vals)
@@ -298,11 +296,11 @@
         (%mpoke %MVALS (ptr->int vals))
         (%mpoke %MT 0)
         (%matcher %maddr 0 0 0 0)))
-    (def %buf (str-make (* %WORDS 8)))
+    (def %buf (str-make (* %WORDS %word-size)))
     (def %ptr (str->ptr %buf))
     (def %addr (ptr->int %ptr))
-    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i 8) v)))
-    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i 8))))
+    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i %word-size) v)))
+    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i %word-size))))
     (def %slot (fn (_ name) (rest (Assoc entry name state))))
     ; Slots 1..n of vector v into words base..base+n-1.
     (def %load!
@@ -338,11 +336,11 @@
         (obj-set! w (%slot (lit bitcnt)) (%peek %BC))
         (put-code w lcodes llen 256)))
     (def %counter (compile-asm %dc-expr))
-    (def %cbuf (str-make (* %CWORDS 8)))
+    (def %cbuf (str-make (* %CWORDS %word-size)))
     (def %cptr (str->ptr %cbuf))
     (def %caddr (ptr->int %cptr))
-    (def %cpoke (fn (_ i v) (ptr-set-word! %cptr (* i 8) v)))
-    (def %cpeek (fn (_ i) (ptr-ref-word %cptr (* i 8))))
+    (def %cpoke (fn (_ i v) (ptr-set-word! %cptr (* i %word-size) v)))
+    (def %cpeek (fn (_ i) (ptr-ref-word %cptr (* i %word-size))))
     ((fn (self k) (if (> k 259) () (do (%cpoke (+ %CLCODE (- k 1)) (obj-ref (first tables) k)) (self (+ k 1))))) 1)
     (def %dcode-table (first (rest (rest (rest tables)))))
     ((fn (self k) (if (> k 512) () (do (%cpoke (+ %CDCODE (- k 1)) (obj-ref %dcode-table k)) (self (+ k 1))))) 1)
@@ -375,8 +373,8 @@
     (def %aaddr (ptr->int %aptr))
     (def %adler
       (fn (_ p n)
-        (ptr-set-word! %aptr (* %AP 8) (ptr->int p))
-        (ptr-set-word! %aptr (* %AN 8) n)
+        (ptr-set-word! %aptr (* %AP %word-size) (ptr->int p))
+        (ptr-set-word! %aptr (* %AN %word-size) n)
         (%summer %aaddr 0 1 0)))
     (def %engine (list %match %put %count %adler))
     (if (check %engine) ()
@@ -389,4 +387,4 @@
 (prim-reg! (lit deflate) (lit jit-make) deflate-jit-make)
 
 (doc (provide x/codec/deflate-jit deflate-jit-make)
-  "The compiled matcher and token writer behind Deflate (JIT, ARM64 and x86-64 backends); built and adopted only after writing what the pure-x encoder writes.")
+  "The compiled matcher and token writer behind Deflate (JIT, ARM64, x86-64 and 32-bit ARM backends); built and adopted only after writing what the pure-x encoder writes.")

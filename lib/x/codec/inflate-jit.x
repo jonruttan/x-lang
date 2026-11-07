@@ -238,15 +238,13 @@
 ; raise means "stay pure-x".
 (def inflate-jit-make
   (fn (_ state room check)
-    ; the engine lays out and computes in 8-byte words
-    (if (< %word-size 8) (Err raise (lit state) "inflate-jit: written for an 8-byte word" ()))
     (def %step (compile-asm %ij-step-expr))
     (def %adler-step (compile-asm %ij-adler-expr))
     (def %abuf (str-make 64))
     (def %aptr (str->ptr %abuf))
     (def %aaddr (ptr->int %aptr))
-    (def %apoke (fn (_ i v) (ptr-set-word! %aptr (* i 8) v)))
-    (def %apeek (fn (_ i) (ptr-ref-word %aptr (* i 8))))
+    (def %apoke (fn (_ i v) (ptr-set-word! %aptr (* i %word-size) v)))
+    (def %apeek (fn (_ i) (ptr-ref-word %aptr (* i %word-size))))
     (def %adler
       (fn (_ p n)
         (%apoke %AP (ptr->int p))
@@ -265,8 +263,8 @@
     (def %buf (str-make 4096))
     (def %ptr (str->ptr %buf))
     (def %addr (ptr->int %ptr))
-    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i 8) v)))
-    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i 8))))
+    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i %word-size) v)))
+    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i %word-size))))
     (def %slot (fn (_ name) (rest (Assoc entry name state))))
     (List for-each
       (fn (_ t)
@@ -323,4 +321,4 @@
 (prim-reg! (lit inflate) (lit jit-make) inflate-jit-make)
 
 (doc (provide x/codec/inflate-jit inflate-jit-make)
-  "The compiled Huffman loop behind Inflate (JIT, ARM64 and x86-64 backends); built and adopted only after agreeing with the pure-x decoder.")
+  "The compiled Huffman loop behind Inflate (JIT, ARM64, x86-64 and 32-bit ARM backends); built and adopted only after agreeing with the pure-x decoder.")
