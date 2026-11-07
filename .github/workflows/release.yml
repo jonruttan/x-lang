@@ -35,6 +35,9 @@ jobs:
         run: make engine
       - name: Build
         run: make
+      # The fallback `make test` below runs x/sys/sdl's spec, which loads libSDL3.
+      - name: SDL3
+        run: sh tools/dev/sdl3-install.sh
       # THE GATE STANDS BETWEEN A TAG AND ITS ARTIFACTS: a tag on a red
       # tree publishes nothing.  But a tag lands on a commit ci.yml has
       # ALREADY judged -- every push to main runs the full contract gates,

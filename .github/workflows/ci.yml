@@ -73,6 +73,16 @@ jobs:
         run: make
       - name: C specs
         run: make test-c
+      # x/sys/sdl's spec loads the host's libSDL3; Linux builds it from the
+      # tag in the script, cached on the script and the runner.
+      - name: SDL3 build cache
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: ~/.sdl3
+          key: sdl3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/dev/sdl3-install.sh') }}
+      - name: SDL3
+        run: sh tools/dev/sdl3-install.sh
       # THE STATE IMAGES THE SUITE BOOTS FROM, cached across runs.  Writing
       # all 29 costs about three minutes (2026-09-06, the three JIT dialects
       # among them), more than images save a run, so a miss pays once and a
@@ -389,6 +399,13 @@ jobs:
       # CI job that exercises it, which is why it is not `make engine`.
       - name: Acquire the engine (sources)
         run: make engine-source
+      - name: SDL3 build cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.sdl3
+          key: sdl3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/dev/sdl3-install.sh') }}
+      - name: SDL3
+        run: sh tools/dev/sdl3-install.sh
       - name: Run suites under AddressSanitizer
         run: make ${{ matrix.target }}
         env:
