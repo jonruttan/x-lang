@@ -518,10 +518,14 @@
 
     ; --- Wall clock (#21) ---
     ; libc gettimeofday into a GC-owned 16-byte buffer; the timeval decode
-    ; is OS-shared: tv_sec is a long at 0, a word; tv_usec follows it, one
-    ; word on, and is below 1e6, so a 4-byte read holds it whatever its
-    ; width (Darwin's field IS 32-bit; Linux's is a long).  The 4-byte usec
-    ; read is a widening (ptr ref) -- host byte order.
+    ; is OS-shared: tv_sec is a time_t at 0, read as a word, and tv_usec
+    ; follows it, below 1e6, so a 4-byte read holds it whatever its width
+    ; (Darwin's field IS 32-bit; Linux's is a long).  On a 4-byte word the
+    ; time_t is 4 bytes under glibc and 8 under musl, whose gettimeofday
+    ; writes the 64-bit layout (its gmtime_r and localtime_r take the 32-bit
+    ; one), so the call answers which: tv_usec's slot in the 64-bit layout
+    ; is filled with -1, which a 32-bit call leaves and no microsecond count
+    ; is.  The 4-byte usec read is a widening (ptr ref) -- host byte order.
     ; constraint: endian = little -- widening (ptr ref) of tv_usec
     (method time-of-day (self)
       (doc "Wall-clock time from gettimeofday: (unix-seconds . microseconds)."
@@ -529,9 +533,11 @@
         (sample "(Sys time-of-day)" "(1752861000 . 123456)"))
       (let ((s (str-make 16)))
         (let ((buf (str->ptr s)))
+          (when (< %word-size 8) (ptr-set-word! buf 8 -1))
           (let ((r (%sys-fold (ptr-call (%resolve "gettimeofday") buf 0))))
             (when (< r 0) (error (Err from-errno (Err errno-of r) (lit gettimeofday) ())))
-            (pair (ptr-ref buf 0 %word-size) (ptr-ref buf %word-size 4))))))
+            (pair (ptr-ref buf 0 %word-size)
+                  (ptr-ref buf (if (< %word-size 8) (if (= (ptr-ref buf 8 4) -1) 4 8) 8) 4))))))
 
     (method now (self)
       (doc "Wall-clock time as unix seconds (UTC) -- the noun reading; (Sys time thunk) is the verb. CPU time is (Sys clock); civil dates are the Date class (x/sys/date)."
@@ -546,9 +552,9 @@
     ; tm_gmtoff a long on the next word boundary (36 on a 4-byte word, 40 on
     ; an 8-byte one; an offset within a day, so its low 32 bits, sign-folded)
     ; and tm_zone a char* a word on.  The low half of tm_gmtoff is read as an
-    ; int, in host byte order.  The time_t passed in is 8 bytes on musl's
-    ; 32-bit ABI and a word on glibc's, so its 8 bytes hold the seconds
-    ; sign-extended: either reads the same instant.
+    ; int, in host byte order.  The time_t passed in is 8 bytes holding the
+    ; seconds sign-extended, so a C library that reads 4 of them (glibc,
+    ; and musl's localtime_r on a 4-byte word) and one that reads 8 agree.
     ; constraint: endian = little -- tm_gmtoff's low half read as an int
     (method zone (self (param secs INTEGER "Unix seconds: the instant whose zone to read"))
       (doc "The local time zone in force at unix second secs, from the C library's localtime_r: its offset from UTC in seconds east, its abbreviation, and whether it is daylight time. TZ in the environment chooses the zone, as it does for every C program; with none set, the system's."
