@@ -47,12 +47,9 @@
 ; ' and ` each terminate an adjacent token (foo'bar reads as foo then 'bar).
 ; The comma does NOT: unquote is recognised only where a token BEGINS, so a
 ; comma inside a token is just a symbol character ({O,O} is one symbol).
-; Nested if (no cond/or) and no binding keep it allocation-free on the
-; per-char delimiter path.
 (def macro-delimit
   (fn (_ buffer . rest)
-    (if (if (= (buf-last-char buffer) #\') #t
-          (= (buf-last-char buffer) #\`))
+    (if (or (= (buf-last-char buffer) #\') (= (buf-last-char buffer) #\`))
       (%seq (%buffer-unread buffer) buffer)
       ())))
 

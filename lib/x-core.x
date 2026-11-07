@@ -341,6 +341,9 @@
 ; boot walked went through the raw prims and every list a program walks
 ; goes through the guards.
 (include-once "lib/x/core/first-rest.x")
+; (obj ref), (obj set!), null?, and and or compiled where they stand, on
+; the same lane, so every dialect runs them compiled from here on.
+(import x/tool/obj-compiled)
 ((prim-ref (lit heap) (lit collect)))
 
 ; Install the SIGINT handler so ctrl-c breaks loops.  On builds without

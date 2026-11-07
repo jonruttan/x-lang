@@ -35,16 +35,12 @@
 (def %regex-parse ())
 
 ; Word character check: [0-9A-Za-z_]
-; Nested if, NOT and/or (#343): the operatives expand per evaluation
-; (~330 objects each -- the lib/x/core/list.x %as-list precedent) and
-; these tests run per character in the matcher's inner loop.
 (def %regex-is-word-char
   (fn (_ c)
-    (match
-      ((if (>= c 48) (<= c 57) #f) #t)
-      ((if (>= c 65) (<= c 90) #f) #t)
-      ((if (>= c 97) (<= c 122) #f) #t)
-      (#t (= c 95)))))
+    (or (and (>= c 48) (<= c 57))
+        (and (>= c 65) (<= c 90))
+        (and (>= c 97) (<= c 122))
+        (= c 95))))
 
 ; Character class membership: check if chr (char) matches any entry (int codes)
 ; The char->int cast happens ONCE, above the entry walk (#337): the old

@@ -145,8 +145,7 @@
         (returns CHARACTER "Byte at position i")
         (example "(Str8 ref 0 \"abc\")" "#\\a"))
       ; str-byte-ref reads s[i] unchecked (heap over-read past the string), so
-      ; the byte-length compare here is the x-lang guard. Nested ifs, not `or`:
-      ; this runs per element inside the suite's loops. The entry coercion
+      ; the byte-length compare here is the x-lang guard. The entry coercion
       ; makes a piped index-search miss (nil, unconvertible) fail loudly; only
       ; the negative case pays the second byte-len fetch.
       (def j (%str8->int i "Str8 ref: index not convertible to INT"))

@@ -15,23 +15,19 @@
 
 (doc (def %as-list
   (fn (_ x)
-    ; Nested if, NOT `or`: or is an expand-per-evaluation macro (~330
-    ; objects each time), and this fast path runs inside every fold/map
-    ; step in the system (the 2026-07-16 arithmetic-disease probes).
-    (if (null? x) x
-      (if (pair? x) x
-        (let ((it (Iter new x)))
-          ; Drain via %i-empty?/%i-next like (Iter ->list): APPLYING the
-          ; iter object never advances it -- (it) yields a singleton of
-          ; the iterator -- so the old (it) loop spun forever on every
-          ; non-pair input (C-stack crash; nothing in boot hit it).  And
-          ; accumulate + %rev-onto (tail), so depth is bounded.  All the
-          ; names here resolve at CALL time, like Iter above and the Err
-          ; note at %map1-go.
-          (def %go (fn (self acc)
-            (if (%i-empty? it) (%rev-onto acc ())
-              (self (pair (%i-next it) acc)))))
-          (%go ()))))))
+    (if (or (null? x) (pair? x)) x
+      (let ((it (Iter new x)))
+        ; Drain via %i-empty?/%i-next like (Iter ->list): APPLYING the
+        ; iter object never advances it -- (it) yields a singleton of
+        ; the iterator -- so the old (it) loop spun forever on every
+        ; non-pair input (C-stack crash; nothing in boot hit it).  And
+        ; accumulate + %rev-onto (tail), so depth is bounded.  All the
+        ; names here resolve at CALL time, like Iter above and the Err
+        ; note at %map1-go.
+        (def %go (fn (self acc)
+          (if (%i-empty? it) (%rev-onto acc ())
+            (self (pair (%i-next it) acc)))))
+        (%go ())))))
   (param x ANY "A list, nil, or iterable (e.g. vector)")
   (returns LIST "The input as a proper list")
   (example "(%as-list (Vector of 1 2 3))" "(1 2 3)")

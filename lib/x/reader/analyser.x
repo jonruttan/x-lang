@@ -40,20 +40,18 @@
 (def %make-digit-state
   (fn (_ done)
     (fn (self buffer score chr)
-      ; Nested if, NOT and/or (#343): operatives expand per evaluation
-      ; and these states run per character of every token.
-      (if (if (>= chr 48) (<= chr 57) #f)
+      (if (and (>= chr 48) (<= chr 57))
         self
         (done buffer score chr)))))
 
 (def %make-xdigit-state
   (fn (_ done)
     (fn (self buffer score chr)
-      (match
-        ((if (>= chr 48) (<= chr 57) #f) self)
-        ((if (>= chr 65) (<= chr 70) #f) self)
-        ((if (>= chr 97) (<= chr 102) #f) self)
-        (#t (done buffer score chr))))))
+      (if (or (and (>= chr 48) (<= chr 57))
+              (and (>= chr 65) (<= chr 70))
+              (and (>= chr 97) (<= chr 102)))
+        self
+        (done buffer score chr)))))
 
 (def %make-char-state
   (fn (_ ch next fail)
