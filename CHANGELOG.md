@@ -7,6 +7,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.49.0] - 2026-11-07
 
+**The core primitives show worked examples under help.** ([#1200]) `(help eval)`,
+`(help call/cc)`, `(help null?)`, `(help >)` and the rest of 43 entries
+that answered with a description alone now carry an example, run by `make
+doctest`, or a sample for the ones that print or load: the doctest spec
+grows to 1049.
+
+[#1200]: https://github.com/jonruttan/x-lang/pull/1200
+
 Added `x/gfx/canvas`: RGBA canvases with fill, copy, blend, stamp, nine-piece, text and light operations, compiled (`Canvas jit!`) and checked against pure x. ([#1198])
 
 [#1198]: https://github.com/jonruttan/x-lang/pull/1198
