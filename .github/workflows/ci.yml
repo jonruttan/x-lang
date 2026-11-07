@@ -49,7 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: git rev-parse 'HEAD^{tree}' > tree
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tested-tree
           path: tree
@@ -126,7 +126,7 @@ jobs:
       # tag in the script, cached on the script and the runner.
       - name: SDL3 build cache
         if: runner.os == 'Linux'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.sdl3
           key: sdl3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/dev/sdl3-install.sh') }}
@@ -144,7 +144,7 @@ jobs:
       # architecture is in the key because an image is one machine's heap:
       # the two Linux legs share an OS name and nothing else.
       - name: State images
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .images
           key: images-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/engine/engine.pin.xon', 'lib/**/*.x', 'tests/x/lib/*.x', 'engine/tools/contract/*.x', 'tools/dev/image-build.sh', 'tools/dev/image-write.x', 'tools/dev/image-read.x', 'lib/img.x') }}
@@ -233,7 +233,7 @@ jobs:
         id: image
         run: echo "version=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
       - name: Sanitizer engine build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: deps/engine-src
           key: asan-engine-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/engine/engine.pin.xon') }}-${{ steps.image.outputs.version }}
