@@ -68,14 +68,12 @@
 ; guards; a raise means "stay pure-x".
 (def sum-jit-make
   (fn (_ which check)
-    ; the engine lays out and computes in 8-byte words
-    (if (< %word-size 8) (Err raise (lit state) "sum-jit: written for an 8-byte word" ()))
     (def step (compile-asm (%sj-expr (if (eq? which (lit bsd)) %sj-bsd %sj-sysv))))
-    (def buf (str-make (* 8 %JWORDS)))
+    (def buf (str-make (* %word-size %JWORDS)))
     (def ptr (str->ptr buf))
     (def addr (ptr->int ptr))
-    (def poke (fn (_ i v) (ptr-set-word! ptr (* i 8) v)))
-    (def peek (fn (_ i) (ptr-ref-word ptr (* i 8))))
+    (def poke (fn (_ i v) (ptr-set-word! ptr (* i %word-size) v)))
+    (def peek (fn (_ i) (ptr-ref-word ptr (* i %word-size))))
     (def fold
       (fn (_ p n s)
         ; the scratch region is held here, so the address stays good
@@ -101,4 +99,4 @@
 (prim-reg! (lit sum) (lit jit-make) sum-jit-make)
 
 (doc (provide x/codec/sum-jit sum-jit-make)
-  "The compiled checksums of sum(1) (JIT, ARM64 and x86-64 backends) behind (Sum jit!): one loop over the bytes for each, adopted only after it sums the check inputs as its pure-x fold does.")
+  "The compiled checksums of sum(1) (JIT; ARM64, x86-64 and 32-bit ARM backends) behind (Sum jit!): one loop over the bytes for each, adopted only after it sums the check inputs as its pure-x fold does.")

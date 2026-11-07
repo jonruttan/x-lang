@@ -6,19 +6,22 @@
 ; reflected polynomial of ISO 3309, started at all ones.
 ;
 ; Pure INT on the C bit ops through the int doors; the exclusive or, which
-; has no door, is (a | b) - (a & b) on the non-negative words here.  The
+; has no door, is (a | b) - (a & b), which the word's wrap keeps exact; the
+; register is the word's low 32 bits, converted at of by x/num/u32.  The
 ; byte loop is one top-level function calling itself in tail position.
 (module x/codec/cksum)
 
 (import x/type/vector)
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
+(import x/num/u32 u32 u32-srl)
 
 (import x/core/doors int& int+ int- int->ptr int< int<< int= int>> int| obj-ref obj-set! ptr->int ptr-ref str->ptr str-byte-len)
 
 (def %xor (fn (_ a b) (int- (int| a b) (int& a b))))
+(def %srl u32-srl)
 
-(def %m32 4294967295)
+(def %m32 0xFFFFFFFF)
 
 ; Slot i+1 holds byte i's entry: i in the register's top octet, eight
 ; shifts, the polynomial folded in when the top bit is set.
@@ -29,7 +32,7 @@
            ((fn (fold k c)
               (if (int= k 0) c
                 (fold (int- k 1)
-                  (int& (if (int= (int& c 2147483648) 0) (int<< c 1) (%xor (int<< c 1) 79764919)) %m32))))
+                  (int& (if (int= (int& c 0x80000000) 0) (int<< c 1) (%xor (int<< c 1) 79764919)) %m32))))
             8 (int<< i 24)))
          (self (int+ i 1)))
      ()))
@@ -41,7 +44,7 @@
   (fn (self p i n c)
     (if (int< i n)
       (do (def b (int& (ptr-ref p i 1) 255))
-          (def h (int>> c 24))
+          (def h (%srl c 24))
           (def t (obj-ref %table (int+ (int- (int| h b) (int& h b)) 1)))
           (def s (int& (int<< c 8) %m32))
           (self p (int+ i 1) n (int- (int| t s) (int& t s))))
@@ -51,7 +54,7 @@
 (def %fold-length
   (fn (self n c)
     (if (int= n 0) c
-      (do (def h (%xor (int>> c 24) (int& n 255)))
+      (do (def h (%xor (%srl c 24) (int& n 255)))
           (self (int>> n 8) (%xor (obj-ref %table (int+ h 1)) (int& (int<< c 8) %m32)))))))
 
 ; START and LENGTH from an optional span, defaulting to the whole string.
@@ -125,9 +128,9 @@
         (example "(Cksum of \"\")" "4294967295"))
       (def sp (%span s span))
       (def n (first (rest sp)))
-      (%xor (%fold-length n ((%fold-for n) (%at (str->ptr s) (first sp)) n 0)) %m32))
+      (u32 (%xor (%fold-length n ((%fold-for n) (%at (str->ptr s) (first sp)) n 0)) %m32)))
     (method jit! (self)
-      (doc "Build and adopt the compiled byte loop (JIT; ARM64 and x86-64 backends) now, if it sums the check inputs exactly as the pure-x fold does. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x fold carries on, with the same sums. of builds it on its own for 4KB or more."
+      (doc "Build and adopt the compiled byte loop (JIT; ARM64, x86-64 and 32-bit ARM backends) now, if it sums the check inputs exactly as the pure-x fold does. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x fold carries on, with the same sums. of builds it on its own for 4KB or more."
         (returns BOOL "#t when the compiled engine is active"))
       (%jit-try!))))
 

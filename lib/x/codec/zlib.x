@@ -32,6 +32,7 @@
 (module x/codec/zlib)
 (import x/type/class)
 (import x/core/list)
+(import x/num/u32 u32 u32-bits)
 (import x/core/doors ffi-dlopen ffi-dlsym int->ptr ptr->int ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make)
 
 ; A z_stream field's offset, field k counted in words, and its size: 112
@@ -243,7 +244,7 @@
       (doc "The CRC-32 (ISO 3309, as gzip and zip carry it) of CRC's data followed by N bytes of BUF."
         (returns INTEGER "The CRC, 0 to 4294967295")
         (example "(Zlib crc32 0 \"123456789\" 9)" "3421780262"))
-      (& (ptr-call (Zlib %sym "crc32") crc (str->ptr buf) n) 4294967295))
+      (u32 (ptr-call (Zlib %sym "crc32") (u32-bits crc) (str->ptr buf) n)))
 
     (method gz-read-all (self (param path STRING "A .gz file to read"))
       (doc "The whole decompressed content of a gzip file, as a byte list (gzopen/gzread in 64KB slabs). Raises a label 'io when the file cannot be opened; corrupt content raises a label 'value."

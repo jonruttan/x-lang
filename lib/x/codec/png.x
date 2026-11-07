@@ -23,6 +23,7 @@
 
 (import x/codec/inflate Inflate)
 (import x/codec/crc32 Crc32)
+(import x/num/u32 u32-bits)
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
 
@@ -70,7 +71,7 @@
         (def type (%u32 p (int+ i 4)))
         (def next (int+ i (int+ len 12)))
         (match ((match ((int< len 0) #t) ((int< end next) #t) (#t #f)) (%fail "a chunk runs past the end of the file"))
-               ((not (int= (Crc32 of s (int+ i 4) (int+ len 4)) (%u32 p (int+ i (int+ len 8)))))
+               ((not (int= (u32-bits (Crc32 of s (int+ i 4) (int+ len 4))) (%u32 p (int+ i (int+ len 8)))))
                  (%fail "a chunk's CRC does not match its data"))
                ((int= type %IEND) (List reverse (pair (list type (int+ i 8) len) acc)))
                (#t (self s p next end (pair (list type (int+ i 8) len) acc)))))))))
