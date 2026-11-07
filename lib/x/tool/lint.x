@@ -129,7 +129,9 @@
 ; `self` are conventional self-slot names that nested scopes reuse on purpose,
 ; so they are never flagged.
 (def %shadow-check! (fn (_ nm scope)
-  (when (if (if (str=? nm "_") #t (str=? nm "self")) #f (%scope-has-name? nm scope))
+  (when (if (if (str=? nm "_") #t (str=? nm "self")) #f
+          (let ((e (%assoc-str nm scope)))
+            (if (null? e) #f (not (pair? (rest (rest e)))))))   ; an implicit binding is no shadow
     (%warn! "shadow" nm))))
 
 ; Add one parameter to scope as a (name . used-box) entry, checking for shadows
@@ -306,7 +308,16 @@
 
 (def %lint-fn (fn (_ form)
   (def saved (first %lint-scope))
-  (%set-first! %lint-scope (%add-params (first (rest form)) saved))
+  (def self-name (first (Lint %lint-self-name)))
+  (%set-first! (Lint %lint-self-name) ())
+  (%set-first! %lint-scope
+    (let ((ps (first (rest form))))
+      ; (def go (fn (go i) ...)): the self slot named for the definition is
+      ; the same function as the name it would hide, so it is no shadow.
+      (if (if (null? self-name) #f
+            (if (pair? ps) (if (symbol? (first ps)) (str=? (%cvt (first ps) %lint-string-type) self-name) #f) #f))
+        (%add-params (rest ps) (pair (pair self-name (list #f)) saved))
+        (%add-params ps saved))))
   (def params (first %lint-scope))               ; param entries (boxes shared with scope)
   (def nparams (- (%length params) (%length saved)))
   (%lint-seq (rest (rest form)))
@@ -393,6 +404,10 @@
     (do (%scope-add! (%cvt name-part %lint-string-type))      ; (def name val): self-ref ok
         (%lint-ladder-scan (%cvt name-part %lint-string-type) (%ladder-at form 2))
         (%lint-depth-scan  (%cvt name-part %lint-string-type) (%ladder-at form 2))
+        ; a (fn ...) value learns the name it is bound to (%lint-fn)
+        (let ((v (first (rest (rest form)))))
+          (when (if (pair? v) (if (symbol? (first v)) (str=? (%cvt (first v) %lint-string-type) "fn") #f) #f)
+            (%set-first! (Lint %lint-self-name) (%cvt name-part %lint-string-type))))
         (%lint-form (first (rest (rest form))))))))
 
 ; (set! NAME (fn ...)) is the second half of a self-referential definition:
@@ -443,14 +458,17 @@
       ((pair? test) (if (symbol? (first test)) (%cvt (first test) %lint-string-type) "?"))
       ((symbol? test) (%cvt test %lint-string-type))
       (#t (guard (_ "?") (io-write-to-str test))))))
+  ; A clause is a test and a body, not a call: walked as one, (#t cube)
+  ; read as a send of the message cube to the value of #t, and cube was
+  ; never counted as a use.  So each clause's forms are walked in turn.
   (def %scan (fn (self clauses)
     (unless (null? clauses)
       (do
         (when (%clause-extra? (first clauses))
           (%warn! "match-multi" (%clause-name (first (first clauses)))))
+        (if (pair? (first clauses)) (%lint-seq (first clauses)) (%lint-form (first clauses)))
         (self (rest clauses))))))
-  (%scan (rest form))
-  (%lint-seq (rest form))))
+  (%scan (rest form))))
 
 ; --- Multi-way ladder check (docs/code-quality.md 1.1 / 1.2) ---
 ;
@@ -760,11 +778,16 @@
           ; An operative static takes its arguments unevaluated -- (Type named
           ; STRING) -- so they are not references; the class says whether
           ; the selector names an operative.  Anything unresolvable walks the arguments.
+          ; A block-form selector is stored as an operative too (x/type/block),
+          ; but a send not in block form, (List all? (fn ...) xs), evaluates
+          ; every argument, so its arguments are references.
           (if (guard (_ #f)
-                (let ((subject (eval (str->sym (%cvt (first form) %lint-string-type)) (rest %lint-scope))))
-                  (if (class? subject)
-                    (operative? (class-static-ref subject (str->sym (%cvt (first (rest form)) %lint-string-type))))
-                    #f)))
+                (let ((subject (eval (str->sym (%cvt (first form) %lint-string-type)) (rest %lint-scope)))
+                      (sel (%cvt (first (rest form)) %lint-string-type)))
+                  (match
+                    ((not (class? subject)) #f)
+                    ((%member-str? sel (Lint %lint-block-selectors)) #f)
+                    (#t (operative? (class-static-ref subject (str->sym sel)))))))
             ()
             (%lint-seq (rest (rest form))))))   ; selector skipped, args walked
     ((%lint-member-send? form)
@@ -932,7 +955,14 @@
     (%warn! "call-nonfn" (guard (_ "?") (%cvt (first form) %lint-string-type))))
   (%lint-check-arity form)
   (%lint-check-malformed form)
-  (%lint-dispatch form) ()))
+  ; provide is handled here, ahead of either dispatch, so the construct
+  ; table (which declares it skip) and the default agree on it
+  (if (if (null? (first %lint-head-cell)) #f
+        (if (str=? (first %lint-head-cell) "provide")
+          (not (%scope-has-name? "provide" (first %lint-scope))) #f))
+    (Lint %lint-provide form)
+    (%lint-dispatch form))
+  ()))
 
 (def %lint-push (fn (_)
   (type-push-write %lint-list-type %lint-list-handler)
@@ -973,6 +1003,7 @@
         ((prim-ref (lit heap) (lit collect)))
         ()))
     (%lint-class-siblings (list ()) "Sibling method names of the class being walked")
+    (%lint-self-name (list ()) "The name a (def NAME (fn ...)) binds, for that fn's self slot")
     ; The environment a file's heads resolve in.  A file headed (module
     ; NAME) is evaluated in NAME's environment, where its private names
     ; bind and the root does not see them; resolving there reads a send on
@@ -1123,10 +1154,16 @@
   ; The calling convention binds recur (the method's own self-reference),
   ; the field/set-field! instance accessors, and the class's sibling
   ; method names (instance methods call each other bare).
-  (%scope-add! "recur")
-  (%scope-add! "field")
-  (%scope-add! "set-field!")
-  (%for-each (fn (_ n) (%scope-add! n)) (first (Lint %lint-class-siblings)))
+  ; These are implicit, so a parameter or local named like one of them --
+  ; (method add (self tabs window)) beside a method window -- hides nothing
+  ; the author wrote, and is no shadow: the entry's box carries a second
+  ; element that %shadow-check! reads as "implicit".
+  (def implicit! (fn (_ n)
+    (%set-first! %lint-scope (pair (pair n (list #f #t)) (first %lint-scope)))))
+  (implicit! "recur")
+  (implicit! "field")
+  (implicit! "set-field!")
+  (%for-each implicit! (first (Lint %lint-class-siblings)))
   (%set-first! %lint-scope (%add-params (first (rest (rest form))) (first %lint-scope)))
   (%lint-seq (rest (rest (rest form))))
   (%lint-leak-scan (%last (rest (rest (rest form)))))
@@ -1165,6 +1202,17 @@
             (%set-first! %lint-class-names
               (pair (%cvt (first (rest f)) %lint-string-type) (first %lint-class-names)))))
         (recur self (rest forms)))))
+    ; (provide PATH NAME... (global NAME)...) -- the module path is not a
+    ; reference, but every name it exports is: an importer uses it, so a
+    ; class or function defined only to be provided is not unused.
+    (method %lint-provide (self form)
+      (%for-each
+        (fn (_ x)
+          (match
+            ((symbol? x) (%lint-form x))
+            ((if (pair? x) (pair? (rest x)) #f) (%lint-form (first (rest x))))
+            (#t ())))
+        (if (pair? (rest form)) (rest (rest form)) ())))
     (method %lint-computed-call (self form)
   (match
     ((self %lint-block-form? form) (self %lint-block-form! form))
@@ -1201,6 +1249,7 @@
   (%set-first! %lint-scope ())
   (%set-first! %lint-class-names ())
   (%set-first! (Lint %lint-class-siblings) ())
+  (%set-first! (Lint %lint-self-name) ())
   (%set-rest! %lint-scope (Lint %lint-module-of forms))   ; where the file's heads resolve
   (%arity-collect forms)                             ; pre-pass: file-local fn arities
   (Lint %lint-class-prepass forms)                        ; pre-pass: class names (order independence)

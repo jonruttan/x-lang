@@ -689,6 +689,7 @@
   (note "loop with the class as argument 0 -- ((method-of C 'step) C cur v).")
   (note "Do NOT (wrap ...) the handle; a stored method already evaluates its")
   (note "args exactly once at direct call.")
+  (example "(do (def-class Twice () (static (method of (self n) (* 2 n)))) ((method-of Twice 'of) Twice 4))" "8")
   (see method-ref)
   "Resolve a static method to a bare closure for hot-loop direct calls.")
 
@@ -967,11 +968,15 @@
 
 (doc (def object? (fn (_ (param x ANY "Value to test")) (type? x %object)))
   (returns BOOL "True if x is an object instance")
+  (example "(do (def-class P () x) (object? (new P x 1)))" "#t")
+  (example "(object? 5)" "#f")
   (see class?)
   "Test whether a value is an object instance.")
 
 (doc (def class? (fn (_ (param x ANY "Value to test")) (type? x %class)))
   (returns BOOL "True if x is a class")
+  (example "(class? List)" "#t")
+  (example "(do (def-class P () x) (class? (new P x 1)))" "#f")
   (see object?)
   "Test whether a value is a class.")
 
@@ -979,6 +984,7 @@
   (fn (_ (param inst OBJECT "Instance"))
     (if (object? inst) (%obj-class inst) (error "class-of: not an instance"))))
   (returns CLASS "The class an instance belongs to")
+  (example "(do (def-class P () x) (same? (class-of (new P x 1)) P))" "#t")
   (see class-name)
   "Return the class an instance belongs to (itself a callable class value).")
 
@@ -986,6 +992,8 @@
   (fn (_ (param x ANY "An instance or a class"))
     (%assoc-get (lit name) (%class-data (if (class? x) x (%obj-class x))))))
   (returns SYMBOL "The class name")
+  (example "(class-name List)" "'List")
+  (example "(do (def-class P () x) (class-name (new P x 1)))" "'P")
   (see class-of)
   "Return the name symbol of a class, or of an instance's class.")
 
@@ -993,6 +1001,8 @@
   (fn (_ (param c CLASS "A class"))
     (%assoc-get (lit parent) (%class-data c))))
   (returns CLASS "The parent class, or nil for a root class")
+  (example "(do (def-class Pet ()) (def-class Cat (extends Pet)) (class-name (class-parent Cat)))" "'Pet")
+  (example "(null? (class-parent List))" "#t")
   (see class-name)
   "Return a class's parent class (the one it extends), or nil if it has none.")
 
@@ -1008,6 +1018,8 @@
   (fn (_ (param inst OBJECT "Instance") (param class CLASS "Class"))
     (%class-ancestor? (%obj-class inst) class)))
   (returns BOOL "True if inst is a class or one of its subclasses")
+  (example "(do (def-class Pet ()) (def-class Cat (extends Pet)) (instance-of? (new Cat) Pet))" "#t")
+  (example "(do (def-class Pet ()) (def-class Cat (extends Pet)) (instance-of? (new Pet) Cat))" "#f")
   (see object?)
   "Test whether an instance belongs to a class or any of its descendants.")
 
@@ -1025,6 +1037,7 @@
 (doc (def class-fields
   (fn (_ (param c CLASS "A class")) (%assoc-keys (%assoc-get (lit fields) (%class-data c)))))
   (returns LIST "This class's own instance-field names")
+  (example "(do (def-class P () x y) (class-fields P))" "('x 'y)")
   (see class-methods)
   "List a class's own instance field names (not inherited).")
 
@@ -1032,12 +1045,14 @@
   (fn (_ (param c CLASS "A class"))
     (%names-minus (%assoc-keys (%assoc-get (lit methods) (%class-data c))) ())))
   (returns LIST "This class's own instance-method names")
+  (example "(do (def-class C () (method get (self) 1) (static (method make-one (self) 2))) (class-methods C))" "('get)")
   (see class-fields)
   "List a class's own instance method names (not inherited).")
 
 (doc (def class-static-fields
   (fn (_ (param c CLASS "A class")) (%assoc-keys (%class-statics c))))
   (returns LIST "This class's own static-field names")
+  (example "(do (def-class C () x (static (n 7))) (class-static-fields C))" "('n)")
   (see class-static-methods)
   "List a class's own static field names (not inherited).")
 
@@ -1045,6 +1060,7 @@
   (fn (_ (param c CLASS "A class"))
     (%names-minus (%assoc-keys (%assoc-get (lit s-methods) (%class-data c))) ())))
   (returns LIST "This class's own static-method names")
+  (example "(do (def-class C () (method get (self) 1) (static (method make-one (self) 2))) (class-static-methods C))" "('make-one)")
   (see class-static-fields)
   "List a class's own static method names (not inherited).")
 
@@ -1058,6 +1074,8 @@
       (let ((entry (%assq name (%assoc-get (lit s-methods) (%class-data c)))))
         (if (null? entry) (self (class-parent c) name) (rest entry))))))
   (returns CALLABLE "The static method as defined -- a procedure or an operative -- or nil, also for a C that is not a class")
+  (example "(do (def-class Pet () (static (method kind (self) 'pet))) (def-class Cat (extends Pet)) ((class-static-ref Cat 'kind) Cat))" "'pet")
+  (example "(null? (class-static-ref List 'no-such-method))" "#t")
   (see method-ref)
   "Look up a class's static method by name, through the parent chain, as the value it was defined as.")
 
@@ -1678,11 +1696,13 @@
 
 (doc class-call-handler "Make the call handler that gives a type's values method dispatch: (value selector args...) calls the class's static method, subject-last, and any other call form is echoed as data."
   (param class CLASS "The class whose static methods answer the value's messages")
-  (returns CALLABLE "An operative for the type's call slot, installed with Type push-call"))
+  (returns CALLABLE "An operative for the type's call slot, installed with Type push-call")
+  (sample "(Type push-call (Type by-atom point) (class-call-handler Point))" "(p norm) on a POINT value now calls (Point norm p)"))
 (doc bind-call-over! "Install method dispatch to a class over a type's existing call handler: a symbol selector reaches the class's static method, and anything else falls through to what the type's call slot did before."
   (param type-handle ATOM "The type handle whose values gain the dispatch")
   (param class CLASS "The class whose static methods answer")
-  (returns ANY "What the type's push-call answers"))
+  (returns ANY "What the type's push-call answers")
+  (sample "(bind-call-over! (Type of p) Point)" "(p norm) now calls (Point norm p); (p 0) still does what it did before"))
 
 (doc (provide x/type/class
   def-class new new-from super method-ref method-of

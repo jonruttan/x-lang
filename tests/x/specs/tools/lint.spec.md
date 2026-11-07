@@ -507,6 +507,108 @@ names an operative, through class-static-ref).
 ---
     #t
 
+## lint: uses the walk once missed
+
+### a local read only inside a callback to a block selector is used
+
+```x
+(do
+  (def %r (lint-forms (list '(def f (fn (_ xs) (def runs (list 1)) (List all? (fn (_ i) (List ref i runs)) xs)))) () ()))
+  (display (null? (lint-warnings-of "unused" %r))))
+```
+---
+    #t
+
+### an unused local beside a block selector's callback is still flagged
+
+```x
+(do
+  (def %r (lint-forms (list '(def f (fn (_ xs) (def dead 1) (List all? (fn (_ i) i) xs)))) () ()))
+  (display (lint-warnings-of "unused" %r)))
+```
+---
+    (dead)
+
+### a match clause's body symbol is a use
+
+```x
+(do
+  (def %r (lint-forms (list '(def f (fn (_ c) (def cube (+ c 1)) (match ((< c 0) 0) (#t cube))))) () ()))
+  (display (null? (lint-warnings-of "unused" %r))))
+```
+---
+    #t
+
+### an unused local beside a match clause is still flagged
+
+```x
+(do
+  (def %r (lint-forms (list '(def f (fn (_ c) (def dead 1) (match ((< c 0) 0) (#t c))))) () ()))
+  (display (lint-warnings-of "unused" %r)))
+```
+---
+    (dead)
+
+### a name a module provides is used
+
+```x
+(do
+  (def %r (lint-forms (list '(def-class Foo ()) '(def bar 1) '(provide m/foo Foo (global bar))) () ()))
+  (display (lint-unused (first %r) (first (rest %r)) ())))
+```
+---
+    ()
+
+### a provide's module path is not a reference
+
+```x
+(do
+  (def %r (lint-forms (list '(def bar 1) '(provide m/foo bar)) () ()))
+  (display (lint-undefined (first %r) (first (rest %r)))))
+```
+---
+    ()
+
+### a definition the module does not provide is still unused
+
+```x
+(do
+  (def %r (lint-forms (list '(def-class Foo ()) '(def baz 1) '(provide m/foo Foo)) () ()))
+  (display (lint-unused (first %r) (first (rest %r)) ())))
+```
+---
+    (baz)
+
+### a fn's self slot named for the def it is bound to is no shadow
+
+```x
+(do
+  (def %r (lint-forms (list '(def f (fn (_ n) (def go (fn (go i) (if (< i n) (go (+ i 1)) i))) (go 0)))) () ()))
+  (display (null? (lint-warnings-of "shadow" %r))))
+```
+---
+    #t
+
+### a self slot hiding a different local is still a shadow
+
+```x
+(do
+  (def %r (lint-forms (list '(def f (fn (_ go) (def g (fn (go i) i)) (g (go 0))))) () ()))
+  (display (lint-warnings-of "shadow" %r)))
+```
+---
+    (go)
+
+### a parameter named like a sibling method is no shadow
+
+```x
+(do
+  (def %r (lint-forms (list '(def-class Tabs () (method window (self k) k) (method add (self window) (window 0)))) () ()))
+  (display (null? (lint-warnings-of "shadow" %r))))
+```
+---
+    #t
+
 ## lint: display-chain warning (#291)
 
 ### adjacent output calls in a sequence warn (advisory)
