@@ -294,7 +294,7 @@
           (fn (_)
             (import x/codec/poly1305-jit)
             ((prim-ref (lit poly1305) (lit jit-make)) %blocks!
-              (%r-vector (Str8 pad-right 32 #\k ""))))
+              ((if %narrow %r-narrow %r-vector) (Str8 pad-right 32 #\k ""))))
           (fn (_ v) ()))))
     ((fn (_ entry)
        (when (eq? (entry state) (lit interpreted)) (entry compile!))

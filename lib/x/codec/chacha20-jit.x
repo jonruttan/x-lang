@@ -12,7 +12,7 @@
 ; as sha-jit's rounds are: the entry copies the state into the working
 ; words; each call then is one double round -- eight quarter rounds, the
 ; whole thing straight-line, no indexing -- and the tenth sums the state
-; back in, XORs the block into the output as eight 64-bit words, and
+; back in, XORs the block into the output a machine word at a time, and
 ; carries the counter.  A block the region ends inside is walked a byte a
 ; call instead, each behind the region's bound, so that is the one path
 ; with a test per byte.  The driver here, in x, runs it once a block.
@@ -24,7 +24,7 @@
 (import x/tool/jit-group jit-group)
 
 (import x/core/doors char->int ptr->int ptr-ref-word ptr-set! ptr-set-word! str->ptr str-byte-ref str-make)
-(def %cj-M 4294967295)
+(def %cj-M 0xFFFFFFFF)
 
 ; scratch layout, one 512-byte buffer (words):
 ;   0..15 state | 16..31 working words | 32 in | 33 out | 34 pos | 35 len
@@ -47,7 +47,12 @@
 (def %cj-C (fn (_ i) (list '%mem-ref 'a i)))
 (def %cj-setC (fn (_ i v) (list '%mem-set! 'a i v)))
 (def %cj-m32 (fn (_ e) (list '& e %cj-M)))
-(def %cj-rotl (fn (_ x n) (list '& (list '| (list '<< x n) (list '>> x (- 32 n))) %cj-M)))
+; `>>` is arithmetic: on a 4-byte word the right shift keeps its low 32-n
+; bits, where an 8-byte word's 32-bit value has no sign to carry in.
+(def %cj-srl
+  (fn (_ x n)
+    (if (< %word-size 8) (list '& (list '>> x n) (- (<< 1 (- 32 n)) 1)) (list '>> x n))))
+(def %cj-rotl (fn (_ x n) (list '& (list '| (list '<< x n) (%cj-srl x (- 32 n))) %cj-M)))
 (def %cj-seq
   (fn (_ n f) (pair 'do ((fn (self i) (if (= i n) () (pair (f i) (self (+ i 1))))) 0))))
 
@@ -77,17 +82,20 @@
 (def %cj-sum
   (%cj-seq 16 (fn (_ i) (%cj-setC (+ %cj-W i) (%cj-m32 (list '+ (%cj-C (+ %cj-W i)) (%cj-C i)))))))
 
-; A whole block's XOR, eight 64-bit words: input and output words k of
-; the block (unaligned loads and stores, which both backends allow),
-; against working words 2k and 2k+1 side by side.  pos is a multiple of
-; 64, so pos>>3 is the block's first word.
+; A whole block's XOR, a machine word at a time: input and output words k
+; of the block (unaligned loads and stores, which every backend allows),
+; against the working words the word holds -- 2k and 2k+1 side by side on
+; an 8-byte word, k alone on a 4-byte one.  pos is a multiple of 64, so
+; pos>>3 (pos>>2) is the block's first word.
+(def %cj-words (if (< %word-size 8) 16 8))
 (def %cj-xor-word
   (fn (_ k)
-    (def at (list '+ (list '>> (%cj-C %cj-POS) 3) k))
+    (def at (list '+ (list '>> (%cj-C %cj-POS) (if (< %word-size 8) 2 3)) k))
     (list '%mem-set-at! (%cj-C %cj-OUT) at
       (list '^ (list '%mem-ref-at (%cj-C %cj-IN) at)
-               (list '| (%cj-C (+ %cj-W (* 2 k)))
-                        (list '<< (%cj-C (+ %cj-W (+ (* 2 k) 1))) 32))))))
+               (if (< %word-size 8) (%cj-C (+ %cj-W k))
+                 (list '| (%cj-C (+ %cj-W (* 2 k)))
+                          (list '<< (%cj-C (+ %cj-W (+ (* 2 k) 1))) 32)))))))
 
 ; The counter: word 12, carried into word 13.
 (def %cj-bump
@@ -121,7 +129,7 @@
 (def %cj-finish
   (list 'do %cj-sum
     (list 'if (list '< (list '+ (%cj-C %cj-POS) 64) (list '+ (%cj-C %cj-LEN) 1))
-      (list 'do (%cj-seq 8 %cj-xor-word) %cj-bump
+      (list 'do (%cj-seq %cj-words %cj-xor-word) %cj-bump
         (%cj-setC %cj-POS (list '+ (%cj-C %cj-POS) 64))
         (%cj-setC %cj-RUN (list '- (%cj-C %cj-RUN) 1))
         (list 'if (list '< (%cj-C %cj-RUN) 1) 0
@@ -145,8 +153,6 @@
 ; toolchain error, or on DISAGREEMENT with the reference.
 (def chacha20-jit-make
   (fn (_ ref)
-    ; the engine lays out and computes in 8-byte words
-    (if (< %word-size 8) (Err raise (lit state) "chacha20-jit: written for an 8-byte word" ()))
     (jit-group "chacha20-jit" (fn (_) (list %cj-block-expr))
       (fn (_ fns replayed?) (%cj-wire ref (first fns) replayed?)))))
 
@@ -162,8 +168,8 @@
     (def %buf (str-make 512))
     (def %ptr (str->ptr %buf))
     (def %addr (ptr->int %ptr))
-    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i 8) v)))
-    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i 8))))
+    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i %word-size) v)))
+    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i %word-size))))
     (def %engine
       (fn (_ st s start len)
         (def out (str-make len))
@@ -209,7 +215,7 @@
           (%check (%st 1) %in 0 1)
           (%check (%st 1) %in 0 63)
           (%check (%st 1) %in 0 65)
-          (%check (%st 4294967295) %in 7 150)
+          (%check (%st 0xFFFFFFFF) %in 7 150)
           (%check (%st 0) %in 0 0)))
     %engine))
 
@@ -219,4 +225,4 @@
 (prim-reg! (lit chacha20) (lit jit-make) chacha20-jit-make)
 
 (doc (provide x/codec/chacha20-jit chacha20-jit-make)
-  "The compiled ChaCha20 block engine (JIT, ARM64 and x86-64 backends); built and adopted only via (ChaCha20 jit!) after proving agreement with the pure-x cipher.")
+  "The compiled ChaCha20 block engine (JIT, ARM64, x86-64 and 32-bit ARM backends); built and adopted only via (ChaCha20 jit!) after proving agreement with the pure-x cipher.")
