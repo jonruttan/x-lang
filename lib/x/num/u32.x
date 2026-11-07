@@ -28,7 +28,7 @@
       (#t v))))
   (param v INTEGER "A word whose low 32 bits are the value, or the value itself")
   (returns INTEGER "The value, 0 to 4294967295: a bigint from 2^31 up on a 4-byte word")
-  (example "(u32 -1)" "4294967295")
+  (example "(do (import x/num/u32 u32) (u32 -1))" "4294967295")
   "The unsigned value of a word's low 32 bits.")
 
 (doc (def u32-bits
@@ -39,7 +39,7 @@
       (#t (- v %span)))))
   (param v INTEGER "A value, 0 to 4294967295")
   (returns INTEGER "The value's 32 bits as the word holds them: negative from 2^31 up on a 4-byte word")
-  (example "(u32 (u32-bits 4294967295))" "4294967295")
+  (example "(do (import x/num/u32 u32 u32-bits) (u32 (u32-bits 4294967295)))" "4294967295")
   "The word holding a 32-bit value's bits, the form a computation in the word's bits takes.")
 
 ; An 8-byte word holds the bits non-negative, so its arithmetic shift is
@@ -51,9 +51,9 @@
   (param x INTEGER "32 bits as u32-bits holds them")
   (param n INTEGER "The shift, 1 to 31")
   (returns INTEGER "x shifted right n places, zeros in from the top, as u32-bits holds it")
-  (example "(u32 (u32-srl (u32-bits 4294967295) 4))" "268435455")
+  (example "(do (import x/num/u32 u32 u32-bits u32-srl) (u32 (u32-srl (u32-bits 4294967295) 4)))" "268435455")
   "The logical right shift of 32 bits held in a word.")
 
 (doc (provide x/num/u32 u32 u32-bits u32-srl)
-  (example "(u32 (u32-srl (u32-bits 4294967295) 28))" "15")
+  (example "(do (import x/num/u32 u32 u32-bits u32-srl) (u32 (u32-srl (u32-bits 4294967295) 28)))" "15")
   "32-bit unsigned values on any word: u32 reads a word's low 32 bits as the value, u32-bits takes the value back to the word's bits, and u32-srl shifts those bits right logically.")
