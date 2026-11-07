@@ -1,0 +1,243 @@
+; sys/sdl.x -- Sdl: a window, a pixel buffer shown in it, and its events,
+; through the host's SDL3, loaded with dlopen.
+;
+; SDL3 is bound the way codec/zlib.x binds libz: dlopen, dlsym and ptr call
+; from x/core/doors, no new C.  Every call here takes integers and pointers
+; only, so the engine's ptr call carries all of them.
+;
+;   (Sdl load! path)            -> path; tried before the default names
+;   (Sdl available?)            -> #t when libSDL3 opens
+;   (Sdl hint! name value)      -> #t when SDL took the hint
+;   (Sdl open title w h scale)  -> a window: a w x h RGBA picture shown at
+;                                  scale, kept at whole multiples on resize
+;   (Sdl canvas win)            -> a zeroed RGBA buffer the window's size
+;   (Sdl draw! win buf)         -> the buffer drawn, not yet presented
+;   (Sdl present! win)          -> the drawn frame on screen
+;   (Sdl show! win buf)         -> draw! then present!
+;   (Sdl read-pixels win)       -> the drawn frame as an RGBA buffer
+;   (Sdl poll)                  -> the next event, or nil
+;   (Sdl post-key! code)        -> queues a key-down event, as a key press
+;   (Sdl close win)             -> releases the window and SDL
+;   (Sdl error)                 -> SDL's last error message
+;
+; A buffer is a (str make) region of w*h*4 bytes, R G B A per pixel, rows
+; top to bottom with no padding.  Events are lists: (key-down KEY MOD REPEAT),
+; (key-up KEY MOD REPEAT), (quit), (close), or (other TYPE).  KEY is SDL's
+; keycode: the character's code for printable keys, (Sdl key 'up) and the
+; other names in (Sdl keys) for the rest.
+;
+; SDL's bool results are read from the low byte only, as both calling
+; conventions leave the rest of the register undefined.
+
+(module x/sys/sdl)
+(import x/type/class)
+(import x/core/list)
+(import x/core/doors ffi-dlopen ffi-dlsym int->ptr ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make mem-copy)
+
+(def-class Sdl ()
+  (doc "A window that shows an RGBA pixel buffer, and its keyboard and window events, through the host's SDL3 loaded with dlopen."
+    (note "SDL3 is looked for at the path given to load!, then as libSDL3.so.0, libSDL3.0.dylib, and under /opt/homebrew/lib and /usr/local/lib. A missing library raises a label 'io.")
+    (see open) (see show!) (see poll) (see available?))
+  (static
+    (%path-cell (pair () ()))
+    (%init-video 32)
+    (%rgba32 376840196)
+    (%streaming 1)
+    (%integer-scale 4)
+    (%nearest 0)
+    (%resizable 32)
+    (%event-size 128)
+    (keys (lit ((up . 1073741906) (down . 1073741905) (left . 1073741904) (right . 1073741903)
+           (escape . 27) (return . 13) (backspace . 8) (tab . 9) (space . 32)))
+      "Keycodes by name for keys that are not printable characters")
+
+    (method %handle (self)
+      (doc "The libSDL3 handle, or nil when no candidate opens."
+        (returns POINTER|NIL "The dlopen handle"))
+      (let try ((names (List append (first (Sdl %path-cell))
+                                    (list "libSDL3.so.0" "libSDL3.0.dylib"
+                                          "/opt/homebrew/lib/libSDL3.0.dylib"
+                                          "/usr/local/lib/libSDL3.0.dylib"))))
+        (if (null? names) ()
+          (let ((h (ffi-dlopen (first names) 1)))
+            (if h h (try (rest names)))))))
+
+    (method %sym (self (param name STRING "SDL function name"))
+      (doc "The named SDL3 function; raises a label 'io when libSDL3 is not found."
+        (returns POINTER "The function pointer"))
+      (def h (Sdl %handle))
+      (when (null? h)
+        (Err raise (lit io) "Sdl: libSDL3 not found" (first (Sdl %path-cell))))
+      (ffi-dlsym h name))
+
+    (method %ok (self (param r INTEGER "A C bool result") (param what STRING "The call, for the message"))
+      (doc "Raise a label 'io with SDL's error when a bool result is false."
+        (returns ANY "nil"))
+      (when (= (& r 255) 0)
+        (Err raise (lit io) (Str8 append "Sdl " what ": " (Sdl error)) r)))
+
+    (method %made (self (param p INTEGER "A pointer result") (param what STRING "The call, for the message"))
+      (doc "The pointer, or a label 'io with SDL's error when it is NULL."
+        (returns INTEGER "The pointer, as an integer"))
+      (when (= p 0)
+        (Err raise (lit io) (Str8 append "Sdl " what ": " (Sdl error)) ()))
+      p)
+
+    (method %zeroed (self (param n INTEGER "Byte count, a multiple of 8"))
+      (doc "A (str make) region of n zero bytes."
+        (returns STRING "The region"))
+      (def region (str-make n))
+      (def p (str->ptr region))
+      (let go ((i 0))
+        (when (< i n)
+          (do (ptr-set! p i 0 8) (go (+ i 8)))))
+      region)
+
+    (method load! (self (param path STRING "A libSDL3 file to try first"))
+      (doc "Name the libSDL3 to load ahead of the default names, as a game shipping its own copy does."
+        (returns STRING "The path")
+        (example "(Sdl load! \"/nonexistent/libSDL3.dylib\")" "\"/nonexistent/libSDL3.dylib\""))
+      (%set-first! (Sdl %path-cell) (list path))
+      path)
+
+    (method available? (self)
+      (doc "Whether a libSDL3 can be opened."
+        (returns BOOL "#t when one opens")
+        (sample "(Sdl available?)" "#t on a host with SDL3"))
+      (not (null? (Sdl %handle))))
+
+    (method error (self)
+      (doc "SDL's last error message."
+        (returns STRING "The message, empty when there is none")
+        (sample "(Sdl error)" "\"\""))
+      (ptr->str (int->ptr (ptr-call (Sdl %sym "SDL_GetError")))))
+
+    (method hint! (self (param name STRING "An SDL hint name, such as SDL_VIDEO_DRIVER")
+                        (param value STRING "Its value"))
+      (doc "Set an SDL hint; video and render driver hints take effect at the next open."
+        (returns BOOL "#t when SDL took the hint")
+        (sample "(Sdl hint! \"SDL_VIDEO_DRIVER\" \"offscreen\")" "#t"))
+      (not (= (& (ptr-call (Sdl %sym "SDL_SetHint") name value) 255) 0)))
+
+    (method open (self (param title STRING "Window title")
+                       (param w INTEGER "Picture width in pixels")
+                       (param h INTEGER "Picture height in pixels")
+                       (param scale INTEGER "Initial window size, in multiples of the picture"))
+      (doc "Start SDL's video and open a resizable window that shows a w x h RGBA picture, scaled by whole multiples with nearest-pixel sampling."
+        (returns LIST "The window: (window renderer texture w h)")
+        (sample "(Sdl open \"x\" 320 200 3)" "a 960 x 600 window"))
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_Init") (Sdl %init-video)) "init")
+      (def win (Sdl %made (ptr-call (Sdl %sym "SDL_CreateWindow") title (* w scale) (* h scale)
+                                    (Sdl %resizable))
+                          "window"))
+      (def ren (Sdl %made (ptr-call (Sdl %sym "SDL_CreateRenderer") win ()) "renderer"))
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_SetRenderLogicalPresentation") ren w h (Sdl %integer-scale))
+               "logical size")
+      (def tex (Sdl %made (ptr-call (Sdl %sym "SDL_CreateTexture") ren (Sdl %rgba32) (Sdl %streaming) w h)
+                          "texture"))
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_SetTextureScaleMode") tex (Sdl %nearest)) "scale mode")
+      (list win ren tex w h))
+
+    (method canvas (self (param win LIST "A window from open"))
+      (doc "A zeroed RGBA buffer the size of the window's picture: transparent black."
+        (returns STRING "A region of w*h*4 bytes")
+        (sample "(Sdl canvas win)" "a 256000-byte region for 320 x 200"))
+      (Sdl %zeroed (* 4 (List ref 3 win) (List ref 4 win))))
+
+    (method draw! (self (param win LIST "A window from open")
+                        (param buf STRING "An RGBA buffer the window's size"))
+      (doc "Upload the buffer and draw it over the whole picture; nothing shows until present!."
+        (returns LIST "The window")
+        (sample "(Sdl draw! win (Sdl canvas win))" "win"))
+      (def ren (List ref 1 win))
+      (def tex (List ref 2 win))
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_UpdateTexture") tex () (str->ptr buf) (* 4 (List ref 3 win)))
+               "upload")
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_RenderClear") ren) "clear")
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_RenderTexture") ren tex () ()) "draw")
+      win)
+
+    (method present! (self (param win LIST "A window from open"))
+      (doc "Put the drawn frame on screen."
+        (returns LIST "The window")
+        (sample "(Sdl present! win)" "win"))
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_RenderPresent") (List ref 1 win)) "present")
+      win)
+
+    (method show! (self (param win LIST "A window from open")
+                        (param buf STRING "An RGBA buffer the window's size"))
+      (doc "Draw the buffer and present it."
+        (returns LIST "The window")
+        (sample "(Sdl show! win buf)" "win"))
+      (Sdl draw! win buf)
+      (Sdl present! win))
+
+    (method read-pixels (self (param win LIST "A window from open"))
+      (doc "The frame drawn since the last present, read back as an RGBA buffer; call it before present!."
+        (returns STRING "A region of w*h*4 bytes")
+        (sample "(Sdl read-pixels win)" "the drawn frame"))
+      (def w (List ref 3 win))
+      (def h (List ref 4 win))
+      (def got (Sdl %made (ptr-call (Sdl %sym "SDL_RenderReadPixels") (List ref 1 win) ()) "read"))
+      (def s (Sdl %made (ptr-call (Sdl %sym "SDL_ConvertSurface") got (Sdl %rgba32)) "convert"))
+      (ptr-call (Sdl %sym "SDL_DestroySurface") got)
+      (def sp (int->ptr s))
+      (def pitch (ptr-ref sp 16 4))
+      ; pixels follows the 4-byte pitch at 16, on the next word boundary
+      (def pixels (ptr-ref-word sp (+ 16 %word-size)))
+      (def out (str-make (* 4 w h)))
+      (def op (str->ptr out))
+      (let row ((y 0))
+        (when (< y h)
+          (do (mem-copy (int->ptr (+ (ptr->int op) (* y w 4)))
+                        (int->ptr (+ pixels (* y pitch)))
+                        (* w 4))
+              (row (+ y 1)))))
+      (ptr-call (Sdl %sym "SDL_DestroySurface") s)
+      out)
+
+    (method poll (self)
+      (doc "The next queued event, or nil when the queue is empty."
+        (returns LIST|NIL "(key-down KEY MOD REPEAT), (key-up KEY MOD REPEAT), (quit), (close) or (other TYPE)")
+        (sample "(Sdl poll)" "(key-down 97 0 #f)"))
+      (def ev (Sdl %zeroed (Sdl %event-size)))
+      (def p (str->ptr ev))
+      (if (= (& (ptr-call (Sdl %sym "SDL_PollEvent") p) 255) 0) ()
+        (let ((type (ptr-ref p 0 4)))
+          (match
+            ((= type 768) (list (lit key-down) (ptr-ref p 28 4) (ptr-ref p 32 2) (not (= (ptr-ref p 37 1) 0))))
+            ((= type 769) (list (lit key-up) (ptr-ref p 28 4) (ptr-ref p 32 2) (not (= (ptr-ref p 37 1) 0))))
+            ((= type 256) (list (lit quit)))
+            ((= type 528) (list (lit close)))
+            (#t (list (lit other) type))))))
+
+    (method post-key! (self (param code INTEGER "An SDL keycode"))
+      (doc "Queue a key-down event for code, as if it had been pressed: input for tests and replays."
+        (returns BOOL "#t when SDL queued it")
+        (sample "(Sdl post-key! (Sdl key (lit up)))" "#t"))
+      (def ev (Sdl %zeroed (Sdl %event-size)))
+      (def p (str->ptr ev))
+      (ptr-set! p 0 768 4)
+      (ptr-set! p 28 code 4)
+      (ptr-set! p 36 1 1)
+      (not (= (& (ptr-call (Sdl %sym "SDL_PushEvent") p) 255) 0)))
+
+    (method key (self (param name SYMBOL "A key name from (Sdl keys)"))
+      (doc "The keycode of a named key that is not a printable character."
+        (returns INTEGER|NIL "The keycode, or nil for an unknown name")
+        (example "(Sdl key (lit escape))" "27"))
+      (def hit (List find (fn (_ e) (eq? (first e) name)) (Sdl keys)))
+      (if (null? hit) () (rest hit)))
+
+    (method close (self (param win LIST "A window from open"))
+      (doc "Release the window's texture, renderer and window, and shut SDL down."
+        (returns ANY "nil")
+        (sample "(Sdl close win)" "nil"))
+      (ptr-call (Sdl %sym "SDL_DestroyTexture") (List ref 2 win))
+      (ptr-call (Sdl %sym "SDL_DestroyRenderer") (List ref 1 win))
+      (ptr-call (Sdl %sym "SDL_DestroyWindow") (List ref 0 win))
+      (ptr-call (Sdl %sym "SDL_Quit"))
+      ())))
+
+(doc (provide x/sys/sdl Sdl)
+  "A window that shows an RGBA pixel buffer, with keyboard and window events, through the host's SDL3 over the dlopen FFI.")
