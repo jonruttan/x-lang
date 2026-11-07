@@ -24,7 +24,7 @@
 (def %O_APPEND (first (%assoc-get (lit append) file-modes)))
 
 ; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
-(import x/core/doors ffi-dlopen ffi-dlsym int- int< ptr-call ptr-ref ptr-set-word! str->ptr str-make)
+(import x/core/doors ffi-dlopen ffi-dlsym int- int< ptr-call ptr-ref ptr-ref-word ptr-set-word! str->ptr str-make)
 
 ; GC-owned byte regions for FFI out-params (pipe's fd pair, fd-read's read
 ; block): allocate as a string -- the collector owns the region, so there is
@@ -541,25 +541,30 @@
 
     ; --- Time zone ---
     ; libc's localtime_r into a GC-owned struct tm, after tzset so a TZ set
-    ; since the last call is read.  Glibc's and Darwin's struct tm share the
-    ; fields read here: tm_isdst an int at 32, tm_gmtoff a long at 40 (an
-    ; offset within a day, so its low 32 bits, sign-folded), tm_zone a char*
-    ; at 48.  Those are 64-bit offsets, and the low half of tm_gmtoff is read
-    ; as an int, in host byte order.
-    ; constraint: word-size = 8 -- struct tm field offsets are 64-bit
+    ; since the last call is read.  Glibc's, musl's and Darwin's struct tm
+    ; share the fields read here: nine ints, tm_isdst the last at 32, then
+    ; tm_gmtoff a long on the next word boundary (36 on a 4-byte word, 40 on
+    ; an 8-byte one; an offset within a day, so its low 32 bits, sign-folded)
+    ; and tm_zone a char* a word on.  The low half of tm_gmtoff is read as an
+    ; int, in host byte order.  The time_t passed in is 8 bytes on musl's
+    ; 32-bit ABI and a word on glibc's, so its 8 bytes hold the seconds
+    ; sign-extended: either reads the same instant.
+    ; constraint: endian = little -- tm_gmtoff's low half read as an int
     (method zone (self (param secs INTEGER "Unix seconds: the instant whose zone to read"))
       (doc "The local time zone in force at unix second secs, from the C library's localtime_r: its offset from UTC in seconds east, its abbreviation, and whether it is daylight time. TZ in the environment chooses the zone, as it does for every C program; with none set, the system's."
         (returns ALIST "((offset . SECONDS-EAST) (name . STRING) (dst . BOOL))")
         (note "Civil fields in local time are (Date local secs).")
         (sample "(Sys zone (Sys now))" "((offset . -14400) (name . \"EDT\") (dst . #t))"))
-      (let ((t (str-make 8)) (tm (str-make 64)))
+      (let ((t (str-make 8)) (tm (str-make 64))
+            (gmtoff (if (< %word-size 8) 36 40)))
         (ptr-set-word! (str->ptr t) 0 secs)
+        (when (< %word-size 8) (ptr-set-word! (str->ptr t) %word-size (if (< secs 0) -1 0)))
         (ptr-call (%resolve "tzset"))
         (when (= 0 (ptr-call (%resolve "localtime_r") (str->ptr t) (str->ptr tm)))
           (Err raise (lit value) "Sys zone: localtime_r cannot convert the time" secs))
         (let ((p (str->ptr tm)))
-          (list (pair (lit offset) (%sys-fold (ptr-ref p 40 4)))
-                (pair (lit name) (%cvt (%cvt (ptr-ref p 48 8) %ptr) %string))
+          (list (pair (lit offset) (%sys-fold (ptr-ref p gmtoff 4)))
+                (pair (lit name) (%cvt (%cvt (ptr-ref-word p (+ gmtoff %word-size)) %ptr) %string))
                 (pair (lit dst) (> (ptr-ref p 32 4) 0))))))
 
     ; zone's inverse: libc's mktime over a struct tm of local fields, with

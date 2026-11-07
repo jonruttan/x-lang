@@ -49,10 +49,10 @@
   ; but it is read as a 4-byte value out of an i32 field: the endian half.
   (constraint "lib/x/sys/socket.x" endian = little)
 
-  ; The timeval decode reads tv_sec as an 8-byte value at 0 and tv_usec as a
-  ; 4-byte value at 8 -- the 64-bit layout on both OSes.  A 32-bit timeval
-  ; puts tv_usec at 4.
-  (constraint "lib/x/sys/posix.x" word-size = 8)
+  ; The timeval decode reads tv_usec, a 4-byte value a word on, and Sys zone
+  ; reads the low half of struct tm's tm_gmtoff as an int: both widen in host
+  ; byte order.  The offsets follow the word.
+  (constraint "lib/x/sys/posix.x" endian = little)
   (constraint "lib/x/sys/posix.x" endian = little)
 
   ; The sign-fold builds its half/span constants as (<< 1 (- (* 8 w) 1)) --
