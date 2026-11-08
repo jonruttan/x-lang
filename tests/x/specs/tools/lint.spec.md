@@ -609,6 +609,56 @@ names an operative, through class-static-ref).
 ---
     #t
 
+### a loop helper's parameter its call fills with the outer name is no shadow
+
+```x
+(do
+  (def %r (lint-forms (list '(def unfold (fn (_ pred g seed) (def go (fn (self seed acc) (if (pred seed) acc (self (g seed) (pair seed acc))))) (go seed ())))) () ()))
+  (display (null? (lint-warnings-of "shadow" %r))))
+```
+---
+    #t
+
+### every call of the helper must pass the outer name
+
+```x
+(do
+  (def %r (lint-forms (list '(def f (fn (_ which dirs) (def scan (fn (self which form dirs) (foo which form dirs))) (scan which 1 dirs) (scan 2 1 dirs)))) () ()))
+  (display (lint-warnings-of "shadow" %r)))
+```
+---
+    (which)
+
+### a fn applied where it stands carries its call's names
+
+```x
+(do
+  (def %r (lint-forms (list '(def f (fn (_ i n) ((fn (self i) (if (< i n) (self (+ i 1)) i)) i)))) () ()))
+  (display (null? (lint-warnings-of "shadow" %r))))
+```
+---
+    #t
+
+### a parameter filled from another position still shadows
+
+```x
+(do
+  (def %r (lint-forms (list '(def f (fn (_ i n) ((fn (self i k) (if (< k n) (self (+ i 1) (+ k 1)) i)) 0 i)))) () ()))
+  (display (lint-warnings-of "shadow" %r)))
+```
+---
+    (i)
+
+### a helper fed something else still shadows
+
+```x
+(do
+  (def %r (lint-forms (list '(def f (fn (_ seed) (def go (fn (self seed) seed)) (go (+ seed 1))))) () ()))
+  (display (lint-warnings-of "shadow" %r)))
+```
+---
+    (seed)
+
 ## lint: display-chain warning (#291)
 
 ### adjacent output calls in a sequence warn (advisory)

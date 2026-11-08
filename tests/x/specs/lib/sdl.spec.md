@@ -75,6 +75,54 @@ pixels it drew. The host needs libSDL3 installed.
 ---
     (('key-down 1073741906 0 #f) #t)
 
+### gamepad button and axis events come back from poll by name
+
+SDL's event layout: type at 0, the pad's id at 16, the button or axis at
+20, a button's down flag at 21, an axis's signed 16-bit value at 24.
+
+```x
+(do (import x/sys/sdl) (import x/core/doors ptr-call ptr-set! str->ptr str-make)
+  (Sdl hint! "SDL_VIDEO_DRIVER" "dummy")
+  (Sdl hint! "SDL_RENDER_DRIVER" "software")
+  (def win (Sdl open "spec" 4 2 1))
+  (def push (fn (_ type which index down value)
+    (do (def ev (str-make 128))
+        (def p (str->ptr ev))
+        (let go ((i 0)) (when (< i 128) (do (ptr-set! p i 0 8) (go (+ i 8)))))
+        (ptr-set! p 0 type 4)
+        (ptr-set! p 16 which 4)
+        (ptr-set! p 20 index 1)
+        (ptr-set! p 21 down 1)
+        (ptr-set! p 24 value 2)
+        (ptr-call (Sdl %sym "SDL_PushEvent") p))))
+  (push 1617 7 11 1 0)
+  (push 1618 7 0 0 0)
+  (push 1616 7 1 0 (- 65536 32768))
+  (push 1616 7 5 0 32767)
+  (def pad? (fn (_ e) (List find (fn (_ k) (eq? k (first e))) (lit (pad-down pad-up pad-axis)))))
+  (def got (let next ((e (Sdl poll)) (acc ()))
+             (if (null? e) (List reverse acc)
+               (next (Sdl poll) (if (pad? e) (pair e acc) acc)))))
+  (Sdl close win)
+  got)
+```
+---
+    (('pad-down 'dpad-up 7) ('pad-up 'south 7) ('pad-axis 'left-y -32768 7) ('pad-axis 'right-trigger 32767 7))
+
+### fullscreen! answers the window, going there and back
+
+```x
+(do (import x/sys/sdl)
+  (Sdl hint! "SDL_VIDEO_DRIVER" "dummy")
+  (Sdl hint! "SDL_RENDER_DRIVER" "software")
+  (def win (Sdl open "spec" 4 2 1))
+  (def both (list (eq? (Sdl fullscreen! win #t) win) (eq? (Sdl fullscreen! win #f) win)))
+  (Sdl close win)
+  both)
+```
+---
+    (#t #t)
+
 ## loading
 
 ### a path given to load! that does not open falls back to the default names
