@@ -438,7 +438,9 @@
   (param name SYMBOL "What the list of compiled functions calls it")
   (param f ANY "A closure made by fn")
   (returns Compiled "The entry: (entry state) is compiled, or failed with (entry reason)")
+  (sample "((compile-fn! 'fib fib) state)" "compiled, and every holder of fib now calls the compiled version")
   "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, not, if, when, unless, match, do, and, or, def and set! compile in place; a call of any other closure passes it values. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
 
 (doc (provide x/tool/fn-compile compile-fn!)
+  (sample "(import x/tool/fn-compile compile-fn!) (compile-fn! 'fib fib)" "fib compiled where it stands, its interpreted version kept on the Compiled list")
   "A program's closures compiled where they stand, through compile-asm's function world.")
