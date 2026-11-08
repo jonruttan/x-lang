@@ -17,14 +17,21 @@
 ;   (Sdl read-pixels win)       -> the drawn frame as an RGBA buffer
 ;   (Sdl poll)                  -> the next event, or nil
 ;   (Sdl post-key! code)        -> queues a key-down event, as a key press
+;   (Sdl fullscreen! win on)    -> the window fullscreen on the desktop, or back
+;   (Sdl buttons) (Sdl axes)    -> gamepad button and axis names
 ;   (Sdl close win)             -> releases the window and SDL
 ;   (Sdl error)                 -> SDL's last error message
 ;
 ; A buffer is a (str make) region of w*h*4 bytes, R G B A per pixel, rows
 ; top to bottom with no padding.  Events are lists: (key-down KEY MOD REPEAT),
-; (key-up KEY MOD REPEAT), (quit), (close), or (other TYPE).  KEY is SDL's
-; keycode: the character's code for printable keys, (Sdl key 'up) and the
-; other names in (Sdl keys) for the rest.
+; (key-up KEY MOD REPEAT), (pad-down BUTTON PAD), (pad-up BUTTON PAD),
+; (pad-axis AXIS VALUE PAD), (pad-added PAD), (pad-removed PAD), (quit),
+; (close), or (other TYPE).  KEY is SDL's keycode: the character's code for
+; printable keys, (Sdl key 'up) and the other names in (Sdl keys) for the
+; rest.  BUTTON and AXIS are names from (Sdl buttons) and (Sdl axes); PAD is
+; SDL's joystick instance id.  open starts the gamepad subsystem with video,
+; so pads connected at open arrive as pad-added, and poll opens each pad as
+; it is added, which is what makes its buttons report.
 ;
 ; SDL's bool results are read from the low byte only, as both calling
 ; conventions leave the rest of the register undefined.
@@ -42,6 +49,10 @@
   (static
     (%path-cell (pair () ()))
     (%init-video 32)
+    (%init-gamepad 8192)
+    (%buttons (lit (south east west north back guide start left-stick right-stick
+                    left-shoulder right-shoulder dpad-up dpad-down dpad-left dpad-right)))
+    (%axes (lit (left-x left-y right-x right-y left-trigger right-trigger)))
     (%rgba32 376840196)
     (%streaming 1)
     (%integer-scale 4)
@@ -137,7 +148,7 @@
       (doc "Start SDL's video and open a resizable window that shows a w x h RGBA picture, scaled by whole multiples with nearest-pixel sampling."
         (returns LIST "The window: (window renderer texture w h)")
         (sample "(Sdl open \"x\" 320 200 3)" "a 960 x 600 window"))
-      (Sdl %ok (ptr-call (Sdl %sym "SDL_Init") (Sdl %init-video)) "init")
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_Init") (| (Sdl %init-video) (Sdl %init-gamepad))) "init")
       (def win (Sdl %made (ptr-call (Sdl %sym "SDL_CreateWindow") title (* w scale) (* h scale)
                                     (Sdl %resizable))
                           "window"))
@@ -209,7 +220,8 @@
 
     (method poll (self)
       (doc "The next queued event, or nil when the queue is empty."
-        (returns LIST|NIL "(key-down KEY MOD REPEAT), (key-up KEY MOD REPEAT), (quit), (close) or (other TYPE)")
+        (note "A gamepad is opened when its pad-added arrives and closed at pad-removed; pads already connected at open arrive as pad-added too.")
+        (returns LIST|NIL "(key-down KEY MOD REPEAT), (key-up KEY MOD REPEAT), (pad-down BUTTON PAD), (pad-up BUTTON PAD), (pad-axis AXIS VALUE PAD), (pad-added PAD), (pad-removed PAD), (quit), (close) or (other TYPE)")
         (sample "(Sdl poll)" "(key-down 97 0 #f)"))
       (def ev (Sdl %zeroed (Sdl %event-size)))
       (def p (str->ptr ev))
@@ -218,9 +230,51 @@
           (match
             ((= type 768) (list (lit key-down) (ptr-ref p 28 4) (ptr-ref p 32 2) (not (= (ptr-ref p 37 1) 0))))
             ((= type 769) (list (lit key-up) (ptr-ref p 28 4) (ptr-ref p 32 2) (not (= (ptr-ref p 37 1) 0))))
+            ((= type 1616) (list (lit pad-axis) (Sdl %name (Sdl %axes) (ptr-ref p 20 1))
+                                 (Sdl %sint16 (ptr-ref p 24 2)) (ptr-ref p 16 4)))
+            ((= type 1617) (list (lit pad-down) (Sdl %name (Sdl %buttons) (ptr-ref p 20 1)) (ptr-ref p 16 4)))
+            ((= type 1618) (list (lit pad-up) (Sdl %name (Sdl %buttons) (ptr-ref p 20 1)) (ptr-ref p 16 4)))
+            ((= type 1619)
+              (do (ptr-call (Sdl %sym "SDL_OpenGamepad") (ptr-ref p 16 4))
+                  (list (lit pad-added) (ptr-ref p 16 4))))
+            ((= type 1620)
+              (let ((pad (ptr-call (Sdl %sym "SDL_GetGamepadFromID") (ptr-ref p 16 4))))
+                (do (when (not (= pad 0)) (ptr-call (Sdl %sym "SDL_CloseGamepad") pad))
+                    (list (lit pad-removed) (ptr-ref p 16 4)))))
             ((= type 256) (list (lit quit)))
             ((= type 528) (list (lit close)))
             (#t (list (lit other) type))))))
+
+    (method %name (self (param names LIST "Symbols in SDL's enum order") (param i INTEGER "An enum value"))
+      (doc "The symbol for an SDL enum value, or the value itself past the named ones."
+        (returns SYMBOL|INTEGER "The name, or i")
+        (example "(Sdl %name (Sdl %buttons) 11)" "'dpad-up"))
+      (if (< i (List length names)) (List ref i names) i))
+
+    (method %sint16 (self (param u INTEGER "A 16-bit field read unsigned"))
+      (doc "The field as a signed 16-bit value."
+        (returns INTEGER "-32768 to 32767")
+        (example "(Sdl %sint16 65535)" "-1"))
+      (if (< u 32768) u (- u 65536)))
+
+    (method buttons (self)
+      (doc "Gamepad button names in SDL's order; south is the bottom face button, Xbox A."
+        (returns LIST "(south east west north ...)")
+        (example "(List ref 0 (Sdl buttons))" "'south"))
+      (Sdl %buttons))
+
+    (method axes (self)
+      (doc "Gamepad axis names in SDL's order; sticks run -32768 to 32767, triggers 0 to 32767."
+        (returns LIST "(left-x left-y right-x right-y left-trigger right-trigger)")
+        (example "(List ref 4 (Sdl axes))" "'left-trigger"))
+      (Sdl %axes))
+
+    (method fullscreen! (self (param win LIST "A window from open") (param on BOOL "#t for fullscreen, #f for a window"))
+      (doc "Switch the window to the desktop's fullscreen or back; the picture keeps its whole-multiple scaling."
+        (returns LIST "The window")
+        (sample "(Sdl fullscreen! win #t)" "win"))
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_SetWindowFullscreen") (List ref 0 win) (if on 1 0)) "fullscreen")
+      win)
 
     (method post-key! (self (param code INTEGER "An SDL keycode"))
       (doc "Queue a key-down event for code, as if it had been pressed: input for tests and replays."
