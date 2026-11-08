@@ -1243,13 +1243,14 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	# namer are library modules (x/tool/image/walk, x/tool/image/name) and
 	# install with lib/ --
 	# engine/tools/contract/ holds the contracts a checkout reads from the
-	# engine submodule (isa.x is the namer's catalogue), and nothing else.
+	# engine (isa.x is the namer's catalogue): every one the engine ships,
+	# so a contract the library starts including is installed with it.
 	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tools/dev $(DESTDIR)$(LIBDIR)/engine/tools/contract
 	for f in image-build.sh image-write.x image-read.x; do \
 		install $C -m 0644 tools/dev/$$f $(DESTDIR)$(LIBDIR)/tools/dev/$$f || exit 1; \
 		diff tools/dev/$$f $(DESTDIR)$(LIBDIR)/tools/dev/$$f || exit 1; done
-	for f in obj-layout.x base-paths.x base-layout.x isa.x; do \
-		install $C -m 0644 $(ENGINE_DIR)/tools/contract/$$f $(DESTDIR)$(LIBDIR)/engine/tools/contract/$$f || exit 1; done
+	for p in $(ENGINE_DIR)/tools/contract/*.x; do \
+		install $C -m 0644 $$p $(DESTDIR)$(LIBDIR)/engine/tools/contract/$${p##*/} || exit 1; done
 	# The tree's RELEASE IDENTITY, beside the engine's ISA fingerprint and
 	# for the same reason: an installed tree has no source checkout and no
 	# git, so without these two lines it cannot answer "which release is
