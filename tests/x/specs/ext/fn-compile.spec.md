@@ -106,6 +106,41 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 ---
     (#t ('lt 7 3 #f #t))
 
+### pair? and symbol? answer as the interpreter does
+
+```x
+(def %fc-kind
+  (fn (_ x)
+    (match
+      ((pair? x) (lit pair))
+      ((symbol? x) (lit symbol))
+      (#t (list (pair? x) (symbol? x))))))
+(def %fc-kinds (fn (_ l) (List map %fc-kind l)))
+(def %fc-vals (list (pair 1 2) (lit (1 2)) (lit a) () 7 "s" #f (Type alist)))
+(def %fc-kind-before (%fc-kinds %fc-vals))
+(def %fc-e (compile-fn! (lit %fc-kind) %fc-kind))
+(write (list (%fc-e state) (equal? %fc-kind-before (%fc-kinds %fc-vals)) (%fc-kinds %fc-vals)))
+```
+---
+    ('compiled #t ('pair 'pair 'symbol (#f #f) (#f #f) (#f #f) (#f #f) (#f #f)))
+
+### a tree walk that tests pair? and symbol? on every node
+
+```x
+(def %fc-syms
+  (fn (self t n)
+    (match
+      ((pair? t) (self (rest t) (self (first t) n)))
+      ((symbol? t) (int+ n 1))
+      (#t n))))
+(def %fc-tree (lit (a (b c) (1 (d "e" (f))) g)))
+(def %fc-syms-before (%fc-syms %fc-tree 0))
+(def %fc-e (compile-fn! (lit %fc-syms) %fc-syms))
+(write (list (%fc-e state) %fc-syms-before (%fc-syms %fc-tree 0)))
+```
+---
+    ('compiled 6 6)
+
 ## free names are read when the code runs
 
 ### a global set! after the compile is seen

@@ -147,3 +147,21 @@ Its first operand is the call's template, which a jump does not use.
 ```
 ---
     'raised
+
+## type tests
+
+### %type-is? answers the handle when the type is named it, else nil
+
+`(Type alist)` is built by the engine from pairs of its own PAIR type,
+which pair? answers #f for.
+
+```x
+(def %fw-type-of (prim-ref (lit type) (lit of)))
+(def %fw-ty-fv (list (pair (lit h) (%fw-type-of (pair 1 2))) (pair (lit y) (lit yes)) (pair (lit n) (lit no))))
+(def %fw-ty (compile-asm (lit (fn (_ x) (if (%type-is? x h) y n)))
+  %fw-ty-fv (lit function)))
+(write (list (%fw-ty (pair 1 2)) (%fw-ty (lit (1 2))) (%fw-ty (lit a)) (%fw-ty ())
+             (%fw-ty 7) (%fw-ty "s") (%fw-ty #f) (%fw-ty (Type alist))))
+```
+---
+    ('yes 'yes 'no 'no 'no 'no 'no 'no)

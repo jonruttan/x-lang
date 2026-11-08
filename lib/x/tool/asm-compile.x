@@ -293,6 +293,8 @@
 ;                         parameter: in tail position a jump, and otherwise
 ;                         a call through T of the fvar %self, the function
 ;                         object
+;   (%type-is? X H)       H when X's type is named H, else nil: the test
+;                         type? makes, H an fvar holding a type-name handle
 ;   %op-first %op-rest %op-unbox
 ;                         fvars: the expression evaluated in place of first,
 ;                         rest or %unbox when the operand is nil
@@ -1126,7 +1128,39 @@
     (emit-fast)
     (asm-label! asm lbl-end)))
 
-(def %asm-fn-forms '(def %unbox %box %call-q))
+; x0 = H when X's type is named H, else nil: the test the type? primitive
+; makes, read in place.  H is an fvar holding a type-name handle, as
+; type-of answers one.  X's type is its type word; a type that is no pair
+; tree of the engine's pair type has no name and answers nil, as type?
+; answers #f; otherwise its name is the contract path type-name from it,
+; and the name is compared by identity, so a type of another base with the
+; same name answers H too.
+(def %asm-emit-type-is!
+  (fn (_ asm x h params)
+    (def lbl-no (%asm-genlabel "%tno"))
+    (def lbl-end (%asm-genlabel "%tend"))
+    (%asm-compile-expr asm x params)
+    (asm-emit! asm 'cbz x0 (label lbl-no))
+    (asm-emit! asm (lit ldr) x1 (mem x0 %word-size))
+    (asm-emit! asm 'cbz x1 (label lbl-no))
+    (asm-emit! asm (lit ldr) x2 (mem x1 %word-size))
+    (asm-reloc! asm (asm-pos asm) (lit trampoline) (%jit-name-of %jit-pair-type))
+    (asm-load-imm64! asm x8 %jit-pair-type)
+    (asm-emit! asm 'cmp x2 x8)
+    (asm-emit! asm 'b/ne (label lbl-no))
+    (%for-each
+      (fn (_ step)
+        (asm-emit! asm (lit ldr) x1
+          (mem x1 (* %word-size (if (eq? step (lit f)) %obj-meta-len (+ %obj-meta-len 1))))))
+      (%reflect-path (lit type-name) %base-paths))
+    (%asm-load-fvar! asm x0 h)
+    (asm-emit! asm 'cmp x1 x0)
+    (asm-emit! asm 'b/eq (label lbl-end))
+    (asm-label! asm lbl-no)
+    (asm-emit! asm 'mov x0 (imm 0))
+    (asm-label! asm lbl-end)))
+
+(def %asm-fn-forms '(def %unbox %box %call-q %type-is?))
 
 (def %asm-compile-fn-form
   (fn (_ asm op args params)
@@ -1140,6 +1174,8 @@
       ((eq? op (lit %box))
         (do (%asm-compile-expr asm (first args) params)
             (%emit-mkint! asm)))
+      ((eq? op (lit %type-is?))
+        (%asm-emit-type-is! asm (first args) (first (rest args)) params))
       (#t
         (do (%asm-fn-check-operands! op (rest args))
             (%asm-emit-quoted-call! asm (first args)
