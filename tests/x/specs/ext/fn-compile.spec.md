@@ -141,6 +141,21 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 ---
     ('compiled 6 6)
 
+### a C primitive head is called with values
+
+```x
+(def %fc-sym-of (prim-ref (lit str) (lit ->sym)))
+(def %fc-name-of (prim-ref (lit sym) (lit ->str)))
+(def %fc-cat (prim-ref (lit str) (lit append)))
+(def %fc-tag
+  (fn (_ s) (%fc-sym-of (%fc-cat "tag-" (%fc-name-of s)))))
+(def %fc-tag-before (%fc-tag (lit a)))
+(def %fc-e (compile-fn! (lit %fc-tag) %fc-tag))
+(write (list (%fc-e state) %fc-tag-before (%fc-tag (lit b))))
+```
+---
+    ('compiled 'tag-a 'tag-b)
+
 ## free names are read when the code runs
 
 ### a global set! after the compile is seen
@@ -220,6 +235,16 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 ```
 ---
     'failed
+
+### a head the ISA labels spine is refused
+
+```x
+(def %fc-guarded (fn (_ x) (guard (e 0) (int+ x 1))))
+(def %fc-e (compile-fn! (lit %fc-guarded) %fc-guarded))
+(write (list (%fc-e state) (%fc-guarded 4)))
+```
+---
+    ('failed 5)
 
 ### a value that is not a closure raises and keeps what it holds
 
