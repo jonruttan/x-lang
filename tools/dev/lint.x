@@ -9,8 +9,11 @@
 ; Uses x-lang's own env-alist for "known" symbols -- no manual enumeration of
 ; C primitives or library defs.
 ;
-; Input order on stdin: constructs.x, lang-constructs (or ()), then optional
-; %lint-lib flag, then target file forms.
+; This file defines the linter and reads nothing, so a state image can carry
+; it with the library (tools/dev/lint-image.x); tools/dev/lint-run.x is the
+; driver that reads the input and lints it.  Input order on stdin, for the
+; driver: constructs.x, lang-constructs (or ()), then optional %lint-lib flag,
+; then target file forms.
 
 ; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
 (def %read (prim-ref 'io 'read))
@@ -20,14 +23,6 @@
 
 (do
   (import x/tool/lint)
-
-  ; --- Load construct declarations ---
-
-  (def %constructs (%read))
-  (def %lang-constructs (%read))
-  (def %all-constructs
-    (if (null? %lang-constructs) %constructs
-      (%append %constructs %lang-constructs)))
 
   ; Convert each prop's key AND value to a string at BUILD time -- the construct
   ; symbols are fresh here (just read), so this is safe; comparing them later by
@@ -48,7 +43,8 @@
           (def props (%props->str (rest entry)))
           (%build-lookup (rest entries)
             (pair (pair name props) acc))))))
-  (def %scope-table (%build-lookup %all-constructs ()))
+  ; The construct table, set by the driver once it has read the declarations.
+  (def %scope-table ())
   ; Cross-base lookup: table keys are strings (built by %props->str), so
   ; the canonical str=? entry lookup (%assoc-str, core/alist.x) applies.
   ; The 90-entry scan is NOT the cost at this size (a Dict variant
@@ -124,11 +120,10 @@
             ((str=? h "doc")         (Lint %lint-doc form))
             (#t                      (%lint-call form))))))))
 
-  ; --- Read target forms, analyze via lint-forms ---
+  ; --- Lint the input: the functions the driver runs ---
 
-  ; First form may be a mode flag: %lint-lib suppresses unused warnings.
-  (def %first-form (%read))
-  (def %lib-mode (eq? %first-form '%lint-lib))
+  ; Whether the input's first form was the %lint-lib flag; the driver sets it.
+  (def %lib-mode #f)
 
   ; Slurp remaining forms (order is irrelevant -- defs/uses are sets).
   ; Reading makes garbage too, and a batch reads every file before it lints
@@ -141,10 +136,6 @@
     ; as the form it is rather than ending the slurp.
     (if (same? form %token-eof) acc
       (do (Lint %lint-sweep!) (self (pair form acc))))))
-  (def %forms-rev (%read-all ()))
-  (def %all-forms
-    (if %lib-mode %forms-rev (pair %first-form %forms-rev)))
-
   ; Lint ONE file's forms; emit its findings; return #t on pass.
   ; In batch mode every line rides `out` (stdout) so the per-file blocks
   ; stay ordered; single-file mode keeps the legacy stderr findings.
@@ -216,7 +207,7 @@
   (def %emit-out (fn (_ . parts) (%for-each (fn (_ p) (display p)) parts)))
   (def %emit-err (fn (_ . parts) (%for-each (fn (_ p) (%stderr p)) parts)))
 
-  ; Split %all-forms (REVERSED file order preserved within: %read-all
+  ; Split the forms (REVERSED file order preserved within: %read-all
   ; prepends, so forms arrive newest-first; lint-forms treats them as a
   ; set, and the marker split keys on the markers regardless of order
   ; -- walk the REVERSED list so files come out in stream order).
@@ -226,44 +217,4 @@
       (if (%batch-marker? (first forms))
         (self (rest forms) (list (first forms))
               (pair (%reverse cur) groups))
-        (self (rest forms) (pair (first forms) cur) groups)))))
-
-  (def %groups (%split (%reverse %all-forms) () ()))
-
-  (if (null? (rest %groups))
-    ; Single file, no markers: legacy output exactly.
-    (if (%lint-one (first %groups) %emit-err)
-      (display "ok\n")
-      (error 'lint-failed))
-    ; Batch: first batch is pre-marker prologue (constructs already
-    ; consumed upstream; normally empty).  Each marked batch prints a
-    ; %%LINT%% block; the shell reassembles per-file verdicts.
-    (do
-      (def %any-fail (list #f))
-      (%for-each
-        (fn (_ g)
-          (unless (null? g)
-            (when (%batch-marker? (first g))
-              (let ((name (first (rest (first g)))))
-                (do
-                  ; Sweep before every file -- and never after the last
-                  ; one (a single-file child would pay ~5s to free a heap
-                  ; the exit is about to drop anyway).  x has no automatic
-                  ; GC, so without this a child's heap grows monotonically
-                  ; across the batch: the live-object count at the end of
-                  ; a batch is the SUM of every file's analysis garbage (a
-                  ; 16GB release runner OOM-killed four such children,
-                  ; #622).  Before the FIRST file the sweep drops the boot
-                  ; and reader residue (~17M objects) from under the
-                  ; heaviest work.  %all-forms pins every file's AST for
-                  ; the run, but the ASTs are ~100K objects against
-                  ; 2-117M of per-file analysis state, so the sweep takes
-                  ; the heap back to its floor -- figures in the commits.
-                  (Heap collect)
-                  (%emit-out "%%LINT%% " name "\n")
-                  (if (%lint-one (rest g) %emit-out)
-                    (%emit-out "%%OK%%\n")
-                    (do (%set-first! %any-fail #t)
-                        (%emit-out "%%FAIL%%\n"))))))))
-        %groups)
-      (if (first %any-fail) (error 'lint-failed) ()))))
+        (self (rest forms) (pair (first forms) cur) groups))))))

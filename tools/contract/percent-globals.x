@@ -338,5 +338,5 @@
 (file "tools/dev/image-foreign.x" 7)
 (file "tools/dev/image-read.x" 57)
 (file "tools/dev/image-write.x" 97)
-(file "tools/dev/lint.x" 22)
+(file "tools/dev/lint.x" 15)
 (file "tools/fuzz/diff-gen.x" 18)

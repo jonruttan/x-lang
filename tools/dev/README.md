@@ -69,8 +69,13 @@ exports are used downstream).  Scope tracking covers `def`/`set!`, `fn`,
 
 ### Architecture
 
-- `tools/dev/lint.x` -- the linter (scope walk + reporting; the `%lint-lib`
-  first-form token is its library-mode flag)
+- `tools/dev/lint.x` -- the linter (scope walk + reporting); it reads
+  nothing, so a state image can carry it
+- `tools/dev/lint-run.x` -- the driver: reads the constructs, the mode flag
+  (the `%lint-lib` first-form token) and the target forms, and lints them
+- `tools/dev/lint-image.x` -- the library a lint child boots, `lib/x-core.x`
+  plus the linter; in a checkout `lint.sh` boots every child from a state
+  image of it (`X_LINT_IMAGE=0` boots from source)
 - `tools/dev/lint.sh` -- launch wrapper (file discovery, constructs input)
 
 ## Coverage
