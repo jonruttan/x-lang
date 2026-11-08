@@ -56,6 +56,22 @@ pixels it drew. The host needs libSDL3 installed.
 ---
     ((255 0 0 255) (0 0 255 255) (0 255 0 255) (0 0 255 255))
 
+### scaling: fit and whole each answer the window; any other mode raises
+
+```x
+(do (import x/sys/sdl)
+  (Sdl hint! "SDL_VIDEO_DRIVER" "dummy")
+  (Sdl hint! "SDL_RENDER_DRIVER" "software")
+  (def win (Sdl open "spec" 4 2 1))
+  (def fit (eq? (Sdl scaling! win (lit fit)) win))
+  (def whole (eq? (Sdl scaling! win (lit whole)) win))
+  (def bad (guard (e (Err label e)) (Sdl scaling! win (lit stretch))))
+  (Sdl close win)
+  (list fit whole bad))
+```
+---
+    (#t #t 'value)
+
 ## events
 
 ### a posted key comes back from poll as key-down

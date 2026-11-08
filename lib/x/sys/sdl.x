@@ -10,6 +10,8 @@
 ;   (Sdl hint! name value)      -> #t when SDL took the hint
 ;   (Sdl open title w h scale)  -> a window: a w x h RGBA picture shown at
 ;                                  scale, kept at whole multiples on resize
+;   (Sdl scaling! win mode)     -> win; mode whole (whole multiples) or fit
+;                                  (as large as fits, its shape kept)
 ;   (Sdl canvas win)            -> a zeroed RGBA buffer the window's size
 ;   (Sdl draw! win buf)         -> the buffer drawn, not yet presented
 ;   (Sdl present! win)          -> the drawn frame on screen
@@ -45,6 +47,7 @@
     (%rgba32 376840196)
     (%streaming 1)
     (%integer-scale 4)
+    (%letterbox 2)
     (%nearest 0)
     (%resizable 32)
     (%event-size 128)
@@ -148,6 +151,18 @@
                           "texture"))
       (Sdl %ok (ptr-call (Sdl %sym "SDL_SetTextureScaleMode") tex (Sdl %nearest)) "scale mode")
       (list win ren tex w h))
+
+    (method scaling! (self (param win LIST "A window from open")
+                           (param mode SYMBOL "whole: whole multiples only; fit: as large as the window allows, its shape kept"))
+      (doc "Set how the picture fills the window as it is resized: by whole multiples, every pixel the same size and bars round the rest, or as large as fits, the bars only on two sides and the pixels a little uneven."
+        (returns LIST "The window")
+        (sample "(Sdl scaling! win (lit fit))" "the picture fills the window's width or height"))
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_SetRenderLogicalPresentation") (List ref 1 win) (List ref 3 win) (List ref 4 win)
+                         (match ((eq? mode (lit whole)) (Sdl %integer-scale))
+                                ((eq? mode (lit fit)) (Sdl %letterbox))
+                                (#t (Err raise (lit value) "Sdl scaling!: the mode is whole or fit" mode))))
+               "logical size")
+      win)
 
     (method canvas (self (param win LIST "A window from open"))
       (doc "A zeroed RGBA buffer the size of the window's picture: transparent black."
