@@ -12,7 +12,8 @@
 ;   integers   int+ int- int* int/ int% int& int| int<< int>> on raw words,
 ;              boxed only where a value leaves the arithmetic; int< and int=
 ;              as a branch in a test, #t or #f as a value
-;   objects    first rest pair eq? null? not obj-ref obj-set!
+;   objects    first rest pair eq? null? not obj-ref obj-set!, and pair? and
+;              symbol? as a read of the operand's type name
 ;   control    if when unless match do and or, def of a local, set! of a
 ;              local or a free name
 ;   calls      a call of F itself (a jump in tail position), and a call of
@@ -57,7 +58,15 @@
         (pair or (lit or)) (pair not (lit not)) (pair first (lit first))
         (pair rest (lit rest)) (pair pair (lit pair)) (pair eq? (lit eq?))
         (pair null? (lit null?)) (pair obj-ref (lit obj-ref))
-        (pair obj-set! (lit obj-set!))))
+        (pair obj-set! (lit obj-set!)) (pair pair? (lit pair?))
+        (pair symbol? (lit symbol?))))
+
+; The type-name handle each type test asks for, as type-of answers it for
+; a value of the type.
+(def %fc-type-of (prim-ref (lit type) (lit of)))
+(def %fc-type-names
+  (list (pair (lit pair?) (%fc-type-of (pair 1 2)))
+        (pair (lit symbol?) (%fc-type-of (lit a)))))
 
 ; The primitives a compiled body may call with values: each evaluates its
 ; operands as an applicative does.
@@ -310,7 +319,8 @@
       ; A pair the evaluator and pair? read as one is a list pair, which
       ; the pair primitive makes.
       ((eq? form (lit pair)) (%fc-call (%fc-const pair) args))
-      ((or (eq? form (lit eq?)) (eq? form (lit null?)))
+      ((or (eq? form (lit eq?)) (eq? form (lit null?))
+           (eq? form (lit pair?)) (eq? form (lit symbol?)))
         (%fc-bool (%fc-test (pair form args))))
       ((or (eq? form (lit obj-ref)) (eq? form (lit obj-set!))) (%fc-obj form args))
       (#t (%fc-refuse "no rewrite for " (symbol->str form))))))
@@ -382,12 +392,16 @@
        (%fc-assq (rest (%fc-binding (first e))) %fc-forms))
       ())))
 
-; In a test, null? and eq? compare words and branch, with no #t or #f built.
+; In a test, null? and eq? compare words and branch, and pair? and symbol?
+; read the operand's type name, with no #t or #f built.
 (set! %fc-test
   (fn (_ e)
     ((fn (_ form)
        (match
          ((eq? form (lit null?)) (list (lit =) (%fc-value (first (rest e))) ()))
+         ((or (eq? form (lit pair?)) (eq? form (lit symbol?)))
+           (list (lit %type-is?) (%fc-value (first (rest e)))
+                 (%fc-const (rest (%fc-assq form %fc-type-names)))))
          ((eq? form (lit eq?))
            ((fn (_ held) (%fc-with (first held) (pair (lit =) (rest held))))
             (%fc-hold (List map %fc-value (rest e)))))
@@ -439,7 +453,7 @@
   (param f ANY "A closure made by fn")
   (returns Compiled "The entry: (entry state) is compiled, or failed with (entry reason)")
   (sample "((compile-fn! 'fib fib) state)" "compiled, and every holder of fib now calls the compiled version")
-  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, not, if, when, unless, match, do, and, or, def and set! compile in place; a call of any other closure passes it values. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
+  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def and set! compile in place; a call of any other closure passes it values. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
 
 (doc (provide x/tool/fn-compile compile-fn!)
   (sample "(import x/tool/fn-compile compile-fn!) (compile-fn! 'fib fib)" "fib compiled where it stands, its interpreted version kept on the Compiled list")
