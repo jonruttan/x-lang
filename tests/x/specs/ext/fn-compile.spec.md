@@ -246,6 +246,16 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 ---
     ('failed 5)
 
+### a rest parameter is refused
+
+```x
+(def %fc-rest (fn (_ a . more) (pair a more)))
+(def %fc-e (compile-fn! (lit %fc-rest) %fc-rest))
+(write (list (%fc-e state) (%fc-rest 1 2 3)))
+```
+---
+    ('failed (1 2 3))
+
 ### a value that is not a closure raises and keeps what it holds
 
 ```x

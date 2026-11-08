@@ -442,7 +442,9 @@
 (def %fc-rewrite
   (fn (_ f)
     (def ps (Fn params f))
-    (unless (and (pair? ps) (List all? symbol? ps))
+    ; List list? first: List all? walks rest until (), and on a rest
+    ; parameter, (_ . args), it would take first of the symbol.
+    (unless (and (pair? ps) (List list? ps) (List all? symbol? ps))
       (%fc-refuse "the parameters are not a list of names"))
     (set! %fc-target f)
     (set! %fc-env (Fn env f))
