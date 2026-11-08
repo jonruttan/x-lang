@@ -113,7 +113,7 @@ jobs:
             -e PARALLEL=1 -e SPEC_HEAVY_JOBS=1 debian:bookworm sh -c '
             apt-get update -q > /dev/null
             apt-get install -y -q --no-install-recommends \
-              build-essential git curl ca-certificates cmake sudo > /dev/null
+              build-essential git curl ca-certificates cmake sudo netcat-openbsd > /dev/null
             getconf LONG_BIT && uname -m
             sh tools/dev/sdl3-install.sh || echo "sdl3-install failed; the x/sys/sdl spec will say so"
             # the suite as the checkout'"'"'s owner, as the other legs run it:

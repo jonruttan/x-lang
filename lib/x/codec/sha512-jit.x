@@ -23,7 +23,7 @@
 
 (import x/tool/jit-group jit-group)
 
-(import x/core/doors char->int int->ptr mem-copy obj-ref ptr->int ptr-ref ptr-set! str->ptr str-byte-ref str-make)
+(import x/core/doors char->int int& int- int->ptr int<< int= int>> int| mem-copy obj-ref ptr->int ptr-ref ptr-set! str->ptr str-byte-ref str-make)
 
 ; scratch layout, one 2048-byte buffer (64-bit words):
 ;   0..15 W ring | 16..23 working state | 24 t1 25 t2 | 26 base 27 len
@@ -178,7 +178,7 @@
           (list #t (%n5-word w) (%n5-word (+ w 1)))))))
 
 ; a word shifted right n places logically, 1 <= n <= 31
-(def %n5-srl (fn (_ x n) (list '& (list '>> x n) (- (<< 1 (- 32 n)) 1))))
+(def %n5-srl (fn (_ x n) (list '& (list '>> x n) (int- (int<< 1 (int- 32 n)) 1))))
 (def %n5-shr
   (fn (_ v n)
     (def x (%n5-fix v))
@@ -465,9 +465,11 @@
              (do (%digest (first l) %s5-bin2 300 %s5-out)
                  ((fn (self i hs)
                     (unless (null? hs)
-                      (do (unless (= (ptr-ref (str->ptr %s5-out) i 4)
-                                     (| (| (<< (& (first hs) 255) 24) (<< (& (>> (first hs) 8) 255) 16))
-                                        (| (<< (& (>> (first hs) 16) 255) 8) (& (>> (first hs) 24) 255))))
+                      ; the word doors: a byte shifted to the top of a
+                      ; 4-byte word wraps, where generic << promotes
+                      (do (unless (int= (ptr-ref (str->ptr %s5-out) i 4)
+                                        (int| (int| (int<< (int& (first hs) 255) 24) (int<< (int& (int>> (first hs) 8) 255) 16))
+                                              (int| (int<< (int& (int>> (first hs) 16) 255) 8) (int& (int>> (first hs) 24) 255))))
                             (Err raise 'state (Str8 append %disagrees " (bytes)") ()))
                           (self (+ i 4) (rest hs)))))
                   0 (%digest (first l) %s5-bin2 300))

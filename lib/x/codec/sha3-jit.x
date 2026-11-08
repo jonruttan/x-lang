@@ -21,7 +21,7 @@
 (import x/tool/compile compile-asm)
 (import x/type/vector)
 
-(import x/core/doors obj-ref ptr->int ptr-ref ptr-set! str->ptr str-make)
+(import x/core/doors int- int<< obj-ref ptr->int ptr-ref ptr-set! str->ptr str-make)
 
 ; scratch layout, one 1024-byte buffer of words, a lane L = 8/word-size
 ; words, low first -- one on an 8-byte word, two on a 4-byte word -- and
@@ -49,7 +49,7 @@
 ; limb J of lane I in the region at BASE
 (def %k3-limb (fn (_ base i j) (+ base (* i %k3-L) j)))
 (def %k3-lmask
-  (fn (_ n) (if (= n 1) (~ (<< 1 (- %k3-W 1))) (- (<< 1 (- %k3-W n)) 1))))
+  (fn (_ n) (if (= n 1) (~ (int<< 1 (int- %k3-W 1))) (int- (int<< 1 (int- %k3-W n)) 1))))
 ; limb J of a lane rotated left N, AT giving its limbs: whole limbs move
 ; Q = N/W over and the bits R = N%W across, the top R bits of the limb
 ; below coming in under; on one limb, the lane's own rotate

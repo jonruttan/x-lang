@@ -20,7 +20,10 @@
 (import x/sys/gc)
 (import x/tool/compiled)
 
-(import x/core/doors char->int int% int* int+ int- int/ obj-ref obj-set! str-byte-ref)
+(import x/core/doors char->int int% int* int+ int- int/ int<< obj-ref obj-set! str-byte-ref)
+
+; Every left shift is the word door's: a lane's bits wrap at the top of
+; the word, where generic << promotes once x/num/bigint is loaded.
 
 ; A lane is %L limbs of the word's %W bits, low limb first: one limb on an
 ; 8-byte word, two on a 4-byte word.  Lane I's limb J is slot I*L+J.
@@ -39,7 +42,7 @@
         (if (< c 58) (int- c 48) (int- c 87))))
     (def limb
       (fn (self p end acc)
-        (if (= p end) acc (self (int+ p 1) end (| (<< acc 4) (digit p))))))
+        (if (= p end) acc (self (int+ p 1) end (| (int<< acc 4) (digit p))))))
     ((fn (self j)
        (if (= j %L) ()
          (pair (limb (int- 16 (int* (int+ j 1) per)) (int- 16 (int* j per)) 0)
@@ -66,9 +69,9 @@
 (def %pi (Vector from-list (lit (0 10 20 5 15 16 1 11 21 6 7 17 2 12 22 23 8 18 3 13 14 24 9 19 4))))
 
 ; the mask that makes an arithmetic shift right by N logical: W-N ones
-(def %top-ones (~ (<< 1 (int- %W 1))))
+(def %top-ones (~ (int<< 1 (int- %W 1))))
 (def %lmask
-  (fn (_ n) (if (= n 1) %top-ones (int- (<< 1 (int- %W n)) 1))))
+  (fn (_ n) (if (= n 1) %top-ones (int- (int<< 1 (int- %W n)) 1))))
 
 ; vector slot I of V (slot 0 of a Vector's object holds its length)
 (def %v (fn (_ v i) (obj-ref v (int+ i 1))))
@@ -87,7 +90,7 @@
        (unless (= j %L)
          (do (%v! dst (int+ (int* d %L) j)
                (if (= r 0) (at (int- j q))
-                 (| (<< (at (int- j q)) r)
+                 (| (int<< (at (int- j q)) r)
                     (& (>> (at (int- (int- j q) 1)) (int- %W r)) (%lmask (int- %W r))))))
              (self (int+ j 1))))) 0)))
 
@@ -157,7 +160,7 @@
 (def %lane
   (fn (self s len total base k acc)
     (if (< k 0) acc
-      (self s len total base (int- k 1) (| (<< acc 8) (%byte s len total (int+ base k)))))))
+      (self s len total base (int- k 1) (| (int<< acc 8) (%byte s len total (int+ base k)))))))
 
 ; a lane's limbs lie in the block in order, so slot K is the word at byte
 ; K times the word's size

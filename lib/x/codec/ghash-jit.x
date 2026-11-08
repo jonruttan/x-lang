@@ -28,6 +28,9 @@
 (def %gj-pset1 (prim-ref (lit ptr) (lit set!)))
 (def %gj-byte-ref (prim-ref (lit str) (lit byte-ref)))
 (def %gj-char->int (prim-ref (lit char) (lit ->int)))
+; the word's left shift: a byte or bit moved to the top of a 4-byte word
+; wraps, where generic << promotes once x/num/bigint is loaded
+(def %gj<< (prim-ref (lit int) (lit <<)))
 
 ; scratch layout, one buffer (words):
 ;   0..63 the multiples of H, four words each | 64..79 the fold table |
@@ -131,7 +134,7 @@
 (def %gj-multiples!
   (fn (_ poke peek h)
     (def b (fn (_ i) (%gj-char->int (%gj-byte-ref h i))))
-    (def word (fn (_ k) (| (<< (b (* 4 k)) 24) (| (<< (b (+ (* 4 k) 1)) 16) (| (<< (b (+ (* 4 k) 2)) 8) (b (+ (* 4 k) 3)))))))
+    (def word (fn (_ k) (| (%gj<< (b (* 4 k)) 24) (| (%gj<< (b (+ (* 4 k) 1)) 16) (| (%gj<< (b (+ (* 4 k) 2)) 8) (b (+ (* 4 k) 3)))))))
     (def put (fn (_ n ws) ((fn (self k ws) (unless (null? ws) (do (poke (+ (* 4 n) k) (first ws)) (self (+ k 1) (rest ws))))) 0 ws)))
     (def get (fn (_ n) (list (peek (* 4 n)) (peek (+ (* 4 n) 1)) (peek (+ (* 4 n) 2)) (peek (+ (* 4 n) 3)))))
     (def half
@@ -141,9 +144,9 @@
         (def srl1 (fn (_ x) (& (>> x 1) 0x7FFFFFFF)))
         (def top (srl1 v0))
         (list (if (= (& v3 1) 1) (%gj-xor top 0xE1000000) top)
-              (| (srl1 v1) (<< (& v0 1) 31))
-              (| (srl1 v2) (<< (& v1 1) 31))
-              (| (srl1 v3) (<< (& v2 1) 31)))))
+              (| (srl1 v1) (%gj<< (& v0 1) 31))
+              (| (srl1 v2) (%gj<< (& v1 1) 31))
+              (| (srl1 v3) (%gj<< (& v2 1) 31)))))
     (def sum
       (fn (_ x y)
         ((fn (self x y) (if (null? x) () (pair (%gj-xor (first x) (first y)) (self (rest x) (rest y))))) x y)))
@@ -174,7 +177,7 @@
     (def %addr (%gj-ptr->int %ptr))
     (def %poke (fn (_ i v) (%gj-pset %ptr (* i %word-size) v)))
     (def %peek (fn (_ i) (%gj-pref %ptr (* i %word-size))))
-    ((fn (self i rs) (unless (null? rs) (do (%poke (+ %gj-REM i) (<< (first rs) 16)) (self (+ i 1) (rest rs))))) 0 %gj-rems)
+    ((fn (self i rs) (unless (null? rs) (do (%poke (+ %gj-REM i) (%gj<< (first rs) 16)) (self (+ i 1) (rest rs))))) 0 %gj-rems)
     (def %b (fn (_ s i) (%gj-char->int (%gj-byte-ref s i))))
     (def %same
       (fn (self x y i n)

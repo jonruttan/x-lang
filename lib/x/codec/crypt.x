@@ -18,7 +18,10 @@
 
 (import x/type/vector)
 
-(import x/core/doors char->int int* int+ int- int->ptr mem-copy obj-ref ptr->int ptr-set! str->ptr str-byte-len str-byte-ref str-make)
+(import x/core/doors char->int int* int+ int- int<< int->ptr mem-copy obj-ref ptr->int ptr-set! str->ptr str-byte-len str-byte-ref str-make)
+
+; Every left shift is the word door's: a half's bits wrap at the top of a
+; 4-byte word, where generic << promotes once x/num/bigint is loaded.
 (def %m32 0xFFFFFFFF)
 
 ; vector slot I of V (slot 0 of a Vector's object holds its length)
@@ -72,7 +75,7 @@
     (def at (if (> w 32) (fn (_ i) (%bit2 x w i)) (fn (_ i) (%bit x w i))))
     (def bits
       (fn (self i end acc)
-        (if (= i end) acc (self (int+ i 1) end (| (<< acc 1) (at (%v table i)))))))
+        (if (= i end) acc (self (int+ i 1) end (| (int<< acc 1) (at (%v table i)))))))
     (if (> n 32) (pair (bits 0 (int- n 32) 0) (bits (int- n 32) n 0)) (bits 0 n 0))))
 
 ; the six bits at shift S of the 64-bit value (HI . LO)
@@ -81,15 +84,15 @@
     (match
       ((>= s 32) (& (>> (first x) (int- s 32)) 63))
       ((<= s 26) (& (>> (rest x) s) 63))
-      (#t (| (& (<< (first x) (int- 32 s)) 63) (& (>> (rest x) s) (int- (<< 1 (int- 32 s)) 1)))))))
+      (#t (| (& (int<< (first x) (int- 32 s)) 63) (& (>> (rest x) s) (int- (int<< 1 (int- 32 s)) 1)))))))
 
 ; P applied to box B's output VAL, the four bits at the box's own place
 (def %sp-entry
   (fn (_ b v)
-    (def row (| (<< (& (>> v 5) 1) 1) (& v 1)))
+    (def row (| (int<< (& (>> v 5) 1) 1) (& v 1)))
     (def col (& (>> v 1) 15))
     (def val (%v %s (int+ (int* b 64) (int+ (int* row 16) col))))
-    (%perm (<< val (int- 28 (int* b 4))) 32 %p 32)))
+    (%perm (int<< val (int- 28 (int* b 4))) 32 %p 32)))
 
 ; the eight boxes' tables, box B's at 64B
 (def %sp
@@ -102,26 +105,26 @@
 (def %subkeys
   (fn (_ hi lo)
     (def cd (%perm (pair hi lo) 64 %pc1 56))
-    (def rot28 (fn (_ x n) (& (| (<< x n) (>> x (int- 28 n))) 268435455)))
+    (def rot28 (fn (_ x n) (& (| (int<< x n) (>> x (int- 28 n))) 268435455)))
     ; C D's 56 bits as halves: C's top 24, then its low 4 over D
-    (def cd2 (fn (_ c d) (pair (>> c 4) (| (<< (& c 15) 28) d))))
+    (def cd2 (fn (_ c d) (pair (>> c 4) (| (int<< (& c 15) 28) d))))
     ((fn (self ss c d acc)
        (if (null? ss) (Vector from-list (List reverse acc))
          (let ((c2 (rot28 c (first ss))) (d2 (rot28 d (first ss))))
            (let ((k (%perm (cd2 c2 d2) 56 %pc2 48)))
              (self (rest ss) c2 d2
-               (pair (pair (| (<< (first k) 8) (& (>> (rest k) 24) 255)) (& (rest k) 16777215)) acc))))))
-     %shifts (| (<< (first cd) 4) (& (>> (rest cd) 28) 15)) (& (rest cd) 268435455) ())))
+               (pair (pair (| (int<< (first k) 8) (& (>> (rest k) 24) 255)) (& (rest k) 16777215)) acc))))))
+     %shifts (| (int<< (first cd) 4) (& (>> (rest cd) 28) 15)) (& (rest cd) 268435455) ())))
 
 ; f(R, K) with the salt's mask: E's eight groups from R doubled, salted,
 ; keyed, through the S and P tables
 (def %f
   (fn (_ r k salt)
-    (def rr (| (& (>> r 1) 0x7FFFFFFF) (<< (& r 1) 31)))
+    (def rr (| (& (>> r 1) 0x7FFFFFFF) (int<< (& r 1) 31)))
     ; group B is bits 4B..4B+5 of RR twice over, the last wrapping round
     (def group (fn (_ b) (%six (pair rr rr) (int- 58 (int* 4 b)))))
-    (def el (| (<< (group 0) 18) (| (<< (group 1) 12) (| (<< (group 2) 6) (group 3)))))
-    (def er (| (<< (group 4) 18) (| (<< (group 5) 12) (| (<< (group 6) 6) (group 7)))))
+    (def el (| (int<< (group 0) 18) (| (int<< (group 1) 12) (| (int<< (group 2) 6) (group 3)))))
+    (def er (| (int<< (group 4) 18) (| (int<< (group 5) 12) (| (int<< (group 6) 6) (group 7)))))
     (def sw (& (^ el er) salt))
     (def xl (^ (^ el sw) (first k)))
     (def xr (^ (^ er sw) (rest k)))
@@ -147,17 +150,17 @@
 ; which in a 24-bit half is the bit 23-I from the bottom
 (def %salt-mask
   (fn (_ s0 s1)
-    (def bits (| (%a64 s0) (<< (%a64 s1) 6)))
+    (def bits (| (%a64 s0) (int<< (%a64 s1) 6)))
     ((fn (self i acc)
        (if (= i 12) acc
-         (self (int+ i 1) (if (= (& (>> bits i) 1) 1) (| acc (<< 1 (int- 23 i))) acc))))
+         (self (int+ i 1) (if (= (& (>> bits i) 1) 1) (| acc (int<< 1 (int- 23 i))) acc))))
      0 0)))
 
 (def %des
   (fn (_ key s0 s1)
-    (def kb (fn (_ i) (if (< i (Str8 length key)) (& (<< (char->int (str-byte-ref key i)) 1) 255) 0)))
-    (def hi (| (<< (kb 0) 24) (| (<< (kb 1) 16) (| (<< (kb 2) 8) (kb 3)))))
-    (def lo (| (<< (kb 4) 24) (| (<< (kb 5) 16) (| (<< (kb 6) 8) (kb 7)))))
+    (def kb (fn (_ i) (if (< i (Str8 length key)) (& (int<< (char->int (str-byte-ref key i)) 1) 255) 0)))
+    (def hi (| (int<< (kb 0) 24) (| (int<< (kb 1) 16) (| (int<< (kb 2) 8) (kb 3)))))
+    (def lo (| (int<< (kb 4) 24) (| (int<< (kb 5) 16) (| (int<< (kb 6) 8) (kb 7)))))
     (def ks (%subkeys hi lo))
     (def salt (%salt-mask s0 s1))
     ; the sixteen rounds, then the halves swapped; twenty-five times
@@ -174,7 +177,7 @@
     ; eleven characters, six bits each from the top, two zero bits after
     (Str8 join ""
       (List map (fn (_ g)
-                  (char (if (= g 10) (<< (& (rest block) 15) 2) (%six block (int- 58 (int* 6 g))))))
+                  (char (if (= g 10) (int<< (& (rest block) 15) 2) (%six block (int- 58 (int* 6 g))))))
                 (List range 0 11)))))
 
 ; --- $1$, $5$ and $6$: the hashes built on a digest ------------------------
@@ -243,8 +246,8 @@
       (List map (fn (_ g)
                   (match
                     ((null? (rest g)) (%to64 (%b d (first g)) 2))
-                    ((null? (first g)) (%to64 (| (<< (%b d (first (rest g))) 8) (%b d (first (rest (rest g))))) 3))
-                    (#t (%to64 (| (<< (%b d (first g)) 16) (| (<< (%b d (first (rest g))) 8) (%b d (first (rest (rest g))))))
+                    ((null? (first g)) (%to64 (| (int<< (%b d (first (rest g))) 8) (%b d (first (rest (rest g))))) 3))
+                    (#t (%to64 (| (int<< (%b d (first g)) 16) (| (int<< (%b d (first (rest g))) 8) (%b d (first (rest (rest g))))))
                                4))))
                 groups))))
 
@@ -272,7 +275,7 @@
     (def dbuf (str-make (int+ size 1)))
     (def dp (str->ptr dbuf))
     (mem-copy dp (str->ptr (first d)) size)
-    (def msg (str-make (int+ (int+ (<< kn 1) sn) (int+ (<< size 1) 1))))
+    (def msg (str-make (int+ (int+ (int<< kn 1) sn) (int+ (int<< size 1) 1))))
     (def mp (ptr->int (str->ptr msg)))
     ; N bytes from SRC at AT in the message, and the offset after them
     (def put

@@ -105,3 +105,16 @@ file quick; the default 5000 is the $6$ case below.
 ```
 ---
     ("$6$rounds=1000$abcd$2yt1GyxelqZREONggCckkaFjAfO.fq7xpFvFzkhIB1/Pt1XNZL.Ohdudqvxo7dLBda9tCdTv8ij4g4wwbV78X/" "$6$rounds=1000$0123456789abcdef$SVifqBT9xNyg92utDhq0L6ytqSgwMYY1LBq7rvo9CorCUlohnfFr0JrTM.g9nPNvdVA0j0mcDWNT9jvjPkLHS1" "$6$rounds=1000$abc$zaWpAwySRl8PX4W2aEMJwxpN82bCKtDZP0RBdOD6W7BQlilBqAsWnAZuS10iUyJZneS8Ob1gxs1BZkqJi1nTi.")
+
+## with x/num/bigint loaded
+
+### the hash is the same when the generic operators promote
+
+```x
+(do
+  (import x/num/bigint)
+  (import x/codec/crypt)
+  (display (Crypt des "password" "Xy")))
+```
+---
+    Xy2PtsPf0839Y
