@@ -145,3 +145,29 @@ reads them by name, answering fresh pairs the List and Assoc walkers accept.
 ```
 ---
     (#t 7)
+
+## cell
+
+### the binding itself, from the frame or an enclosing one
+
+The cell is the one lookup reads, so a later `set!` is seen through it.
+
+```x
+((fn (_ k)
+   (def c (Env cell (Env current) 'k))
+   (def r (Env cell (Env current) 'first))
+   (set! k 8)
+   (list (first c) (rest c) (eq? (rest r) first)))
+ 7)
+```
+---
+    ('k 8 #t)
+
+### an unbound name answers nil, and a name that is not a symbol is a type error
+
+```x
+(list (Env cell (Env root) 'no-such-name-zz)
+      (guard (e (Err label e)) (Env cell (Env root) 42)))
+```
+---
+    (() 'type)

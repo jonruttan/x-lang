@@ -129,6 +129,11 @@
 ; address is 0 -- an unresolved trampoline emitted as `blr 0` is the
 ; segfault-far-from-the-cause this file exists to refuse.
 (def %jit-call-value (%jit-bind! (lit %jit-call-value) "jit_call_value" #t))
+; The engine's pair type, the type word of every cell the function world
+; registers on the root chain: the collector's mark descends only pairs of
+; this type.  Data, not code, and OPTIONAL for the same reason as the two
+; above; only the function world needs it.
+(def %jit-pair-type (%jit-bind! (lit %jit-pair-type) "x_type_pair_obj" #t))
 
 ; The name each trampoline address came from.  A relocation record has to
 ; name the SYMBOL, not the address: the address is the very thing that is
@@ -268,6 +273,44 @@
 ; operative, and %asm-object? holds as well: the parameter is an object
 ; and the result is returned as one.
 (def %asm-operative? #f)
+; The function world: a closure of the program compiled where it stands
+; (x/tool/fn-compile rewrites its body into this world's forms).  Every
+; value is an object, as in the object world, and %asm-object? holds.  Its
+; parameters and its locals -- a (def NAME EXPR) anywhere in the body --
+; each live in a CELL: a pair object built on the machine stack and linked
+; into the base's root chain, the way the engine's own C frames register
+; what they hold (x_heap_root_push), so a collect run by a function it calls
+; keeps everything the frame holds.  An argument the call does not pass
+; leaves its parameter nil.
+;
+;   (%unbox X)            the raw word of integer object X
+;   (%box W)              raw word W as an integer object
+;   (%call-q T F A ...)   F applied to the values A ...: T is an fvar holding
+;                         the call's template, ((lit ()) (lit ()) ...), one
+;                         (lit x) for F and one for each A, which the code
+;                         fills with the values and evaluates
+;   (NAME T A ...)        a call of the function itself, NAME its self
+;                         parameter: in tail position a jump, and otherwise
+;                         a call through T of the fvar %self, the function
+;                         object
+;   %op-first %op-rest %op-unbox
+;                         fvars: the expression evaluated in place of first,
+;                         rest or %unbox when the operand is nil
+;
+; A call reaches code that can collect, so every object live across one
+; must be in a cell: the rewriter binds an operand to a local before a later
+; operand makes a call, and the operands of a call make none.
+(def %asm-function? #f)
+(def %asm-cell-bytes 48)        ; a pair's five words, padded to 16
+(def %asm-frame-bytes 16)       ; the saved chain head and its field cell
+(def %asm-cell-offset
+  (fn (_ k) (+ %asm-frame-bytes (* %asm-cell-bytes k))))
+; Where cell k's first word, its value, sits.
+(def %asm-cell-value-offset
+  (fn (_ k) (+ (%asm-cell-offset k) (* %word-size %obj-meta-len))))
+; The parameters, which a tail self-call stores over; the cells hold these
+; and then the locals (%asm-slots).
+(def %asm-fn-params ())
 ; The fourth world: a ROUTINE the engine calls through a slot of the base's
 ; slot vector (engine/tools/contract/base-slots.x), declared (run TYPE ...),
 ; and held here as that declaration, () in every other world.  It has the
@@ -334,7 +377,13 @@
     (def n (%length %asm-slots))
     ((fn (self ps k)
        (if (null? ps) ()
-         (if (eq? name (first ps)) (* 16 (- (- n 1) k)) (self (rest ps) (+ k 1)))))
+         (if (eq? name (first ps))
+           ; In the function world slot k is cell k, and its value is the
+           ; cell's first word.
+           (if %asm-function?
+             (%asm-cell-value-offset k)
+             (* 16 (- (- n 1) k)))
+           (self (rest ps) (+ k 1)))))
      %asm-slots 0)))
 
 ; Does expr call one of params through (%call p ...)?
@@ -915,6 +964,8 @@
 (def %asm-object-operand?
   (fn (_ e)
     (match
+      ; Every value of the function world is an object.
+      (%asm-function? (not (number? e)))
       ((pair? e) (if (eq? (first e) 'first) #t (eq? (first e) 'rest)))
       ((not (symbol? e)) #f)
       ((%asm-memq e %asm-object-params) #t)
@@ -953,7 +1004,150 @@
           (if (pair? operand)
             (%asm-compile-call asm operand params)
             (%asm-compile-param asm operand params #f))
-          (%emit-call! asm field))))))
+          (if %asm-function?
+            (%asm-emit-nil-guard! asm
+              (if (eq? op (lit first)) (lit %op-first) (lit %op-rest))
+              (fn (_) (%emit-call! asm field)))
+            (%emit-call! asm field)))))))
+
+; --- The function world's forms ----------------------------------------------
+
+; Load the object fvar NAME holds into REG.
+(def %asm-load-fvar!
+  (fn (_ asm reg name)
+    (def entry (compile-fvar-lookup name))
+    (if (null? entry)
+      (Err raise 'value (Str append "asm-compile: the function world needs the fvar " (symbol->str name)) ()))
+    (if (null? (rest entry))
+      (asm-emit! asm 'mov reg (imm 0))
+      (do (asm-reloc! asm (asm-pos asm) (lit fvar) name)
+          (asm-load-imm64! asm reg (ptr->int (obj->ptr (rest entry))))))))
+
+; Does E make a call: a %call-q, or a call of the function itself?  Either
+; runs code that can collect.
+(def %asm-fn-calls?
+  (fn (self e)
+    (match
+      ((not (pair? e)) #f)
+      ((eq? (first e) (lit %call-q)) #t)
+      ((eq? (first e) %asm-self-name) #t)
+      (#t ((fn (each l)
+             (match
+               ((not (pair? l)) #f)
+               ((self (first l)) #t)
+               (#t (each (rest l)))))
+           e)))))
+
+; The operands of a form that holds values in registers and on the machine
+; stack while it evaluates the next make no call: a collect there would free
+; a value held nowhere the collector looks.  The rewriter binds each such
+; operand to a local, whose cell roots it.
+(def %asm-fn-check-operands!
+  (fn (_ op args)
+    (%for-each
+      (fn (_ a)
+        ; A number here is a raw word, and a value is an object.
+        (when (number? a)
+          (Err raise 'value
+            (Str append "asm-compile: an operand of " (%asm-form-name op)
+              " is a raw number, where a value is an object: "
+              (io-write-to-str a)) ()))
+        (when (%asm-fn-calls? a)
+          (Err raise 'value
+            (Str append "asm-compile: an operand of " (%asm-form-name op)
+              " makes a call, which can collect; bind it to a local first: "
+              (io-write-to-str a)) ())))
+      args)))
+
+; The locals of a function world body: the NAME of each (def NAME EXPR) in
+; it, in the order they first appear, less the parameters.
+(def %asm-fn-locals
+  (fn (_ body params)
+    (def acc (pair () ()))
+    ((fn (walk e)
+       (when (pair? e)
+         (do
+           (when (and (eq? (first e) (lit def)) (pair? (rest e))
+                      (symbol? (first (rest e)))
+                      (not (%asm-memq (first (rest e)) params))
+                      (not (%asm-memq (first (rest e)) (first acc))))
+             (%set-first! acc (pair (first (rest e)) (first acc))))
+           ((fn (each l)
+              (when (pair? l) (do (walk (first l)) (each (rest l)))))
+            e))))
+     body)
+    ((fn (rev l out) (if (null? l) out (rev (rest l) (pair (first l) out))))
+     (first acc) ())))
+
+; x0 = the value of a call through the template TEMPLATE, an fvar holding a
+; list ((lit ()) (lit ()) ...) with one (lit x) for the callee and one for
+; each argument.  Each emitter leaves one value in x0, and the value is
+; stored as the x of its (lit x), in order: a callee evaluates the operands
+; it is given, so each is handed over quoted, the callee as well, since a
+; closure is a pair and evaluated it would be a call.  Then the template is
+; evaluated.  A list the evaluator reads as a call is a list pair, which
+; carries meta words the JIT's pair helper does not make, so the list is
+; made once, where the call site is written, and filled where it runs.  An
+; applicative has evaluated every operand before its body runs, so a call
+; made from the body that fills the same template again finds it free.
+(def %asm-emit-quoted-call!
+  (fn (_ asm template emitters)
+    (def lit-x (* %word-size %obj-meta-len))
+    (def next (* %word-size (+ %obj-meta-len 1)))
+    ((fn (self es i)
+       (unless (null? es)
+         (do ((first es))
+             (%asm-load-fvar! asm x1 template)
+             ((fn (skip n) (when (> n 0) (do (asm-emit! asm (lit ldr) x1 (mem x1 next)) (skip (- n 1)))))
+              i)
+             (asm-emit! asm (lit ldr) x1 (mem x1 lit-x))   ; (lit x)
+             (asm-emit! asm (lit ldr) x1 (mem x1 next))    ; (x)
+             (asm-emit! asm (lit str) x0 (mem x1 lit-x))
+             (self (rest es) (+ i 1)))))
+     emitters 0)
+    (%asm-load-fvar! asm x1 template)
+    (asm-emit! asm 'mov x0 x19)
+    (%emit-eval-arg! asm)))
+
+; x0 is the operand of a read the code makes unchecked: nil there is a
+; segfault.  On nil the fvar FAULT, an expression, is evaluated instead: it
+; raises what the guarded first or rest raises, or the integer fault
+; (asm-cache.x, %asm-fn-fvars).  Otherwise EMIT-FAST emits the read.
+(def %asm-emit-nil-guard!
+  (fn (_ asm fault emit-fast)
+    (def lbl-ok (%asm-genlabel "%nn"))
+    (def lbl-end (%asm-genlabel "%nne"))
+    (asm-emit! asm 'cbnz x0 (label lbl-ok))
+    (%asm-load-fvar! asm x1 fault)
+    (asm-emit! asm 'mov x0 x19)
+    (%emit-eval-arg! asm)
+    (asm-emit! asm 'b (label lbl-end))
+    (asm-label! asm lbl-ok)
+    (emit-fast)
+    (asm-label! asm lbl-end)))
+
+(def %asm-fn-forms '(def %unbox %box %call-q))
+
+(def %asm-compile-fn-form
+  (fn (_ asm op args params)
+    (match
+      ((eq? op (lit def))
+        (do (%asm-compile-expr asm (first (rest args)) params)
+            (asm-emit! asm (lit str) x0 (mem x22 (%asm-slot-offset (first args))))))
+      ((eq? op (lit %unbox))
+        (do (%asm-compile-expr asm (first args) params)
+            (%asm-emit-nil-guard! asm (lit %op-unbox) (fn (_) (%emit-atomint! asm)))))
+      ((eq? op (lit %box))
+        (do (%asm-compile-expr asm (first args) params)
+            (%emit-mkint! asm)))
+      (#t
+        (do (%asm-fn-check-operands! op (rest args))
+            (%asm-emit-quoted-call! asm (first args)
+              ((fn (self as)
+                 (if (null? as) ()
+                   (pair (fn (_) (%asm-compile-expr asm (first as) params))
+                         (self (rest as)))))
+               (rest args))))))))
 
 ; Compile a call expression
 (set! %asm-compile-call
@@ -963,6 +1157,8 @@
     (%asm-check-int-operands op args)
     (def %bitwise (Assoc entry op %asm-bitwise-ops))
     (match
+      ((and %asm-function? (%asm-memq op %asm-fn-forms))
+        (%asm-compile-fn-form asm op args params))
       ((not (null? %bitwise))
         (%asm-compile-binop asm (rest %bitwise) args params))
       ((eq? op '~)
@@ -1220,17 +1416,28 @@
 ; across the call since the callee uses them too.
 (def %asm-compile-self-call
   (fn (_ asm args params)
-    (if (if %asm-in-tail (not (null? %asm-slots)) #f)
-      (%asm-compile-tail-jump asm args params)
-      (%asm-compile-self-frame asm args params))))
+    (match
+      ; The function world's first operand is the call's template, which a
+      ; jump has no use for.
+      ((if %asm-in-tail (not (null? %asm-slots)) #f)
+        (%asm-compile-tail-jump asm (if %asm-function? (rest args) args) params))
+      ; Otherwise it calls itself the way it calls anything else.
+      (%asm-function?
+        (%asm-compile-fn-form asm (lit %call-q)
+          (pair (first args) (pair (lit %self) (rest args))) params))
+      (#t (%asm-compile-self-frame asm args params)))))
 
 ; A self-call in tail position: every new argument evaluated first and
 ; held on the stack, since each may read the parameters it replaces; then
 ; stored over the slots, last first; then back to the top of the body.
 (def %asm-compile-tail-jump
   (fn (_ asm args params)
-    (if (not (= (%length args) (%length %asm-slots)))
+    (def stored (if %asm-function? %asm-fn-params %asm-slots))
+    (if (not (= (%length args) (%length stored)))
       (Err raise 'value "asm-compile: a self-call passes as many arguments as the function takes" ()))
+    ; The new values wait on the machine stack, where a collect cannot see
+    ; them.
+    (when %asm-function? (%asm-fn-check-operands! %asm-self-name args))
     ((fn (self as)
        (if (null? as) ()
          (do (%asm-compile-expr asm (first as) params)
@@ -1243,7 +1450,7 @@
          (do (self (rest ps))
              (asm-pop! asm x0)
              (asm-emit! asm (lit str) x0 (mem x22 (%asm-slot-offset (first ps)))))))
-     %asm-slots)
+     stored)
     (asm-emit! asm 'b (label %asm-loop-label))))
 
 ; A self-call that returns here: a call through the trampoline cell.
@@ -1351,10 +1558,19 @@
       ; wrong is the worst failure mode a compiler has; refuse at
       ; generation instead.  An fvar bound to something that is not a prim
       ; refuses the same way -- it is known now, so it is caught now.
-      (if (%asm-fvar-callable? fn-name)
-        (%asm-compile-callable-call asm fn-name args params)
+      (match
+        ; The function world passes values, and calls only through a
+        ; template, which a call by name does not give.
+        (%asm-function?
+          (Err raise 'value
+            (Str append "asm-compile: the function world calls through "
+              "(%call-q TEMPLATE F A ...), and " (%asm-form-name fn-name)
+              " is called by name") ()))
+        ((%asm-fvar-callable? fn-name)
+          (%asm-compile-callable-call asm fn-name args params))
+        (#t
         (Err raise 'value
-          (Str append "asm-compile: unsupported form: " (%asm-form-name fn-name)) ())))))
+          (Str append "asm-compile: unsupported form: " (%asm-form-name fn-name)) ()))))))
 
 ; --- Public API ---
 
@@ -1382,7 +1598,15 @@
     ; would hand back the wrong one.
     (set! %asm-run (if (pair? mode) mode ()))
     (set! %asm-operative? (eq? mode (lit operative)))
-    (set! %asm-object? (if (pair? mode) #t (if %asm-operative? #t (eq? mode (lit object)))))
+    (set! %asm-function? (eq? mode (lit function)))
+    (set! %asm-object?
+      (match ((pair? mode) #t) (%asm-operative? #t) (%asm-function? #t)
+             (#t (eq? mode (lit object)))))
+    (when (and %asm-function? (= %jit-pair-type 0))
+      (set! %asm-function? #f)
+      (set! %asm-object? #f)
+      (Err raise 'state
+        "asm-compile: this engine exports no x_type_pair_obj, so the function world cannot root its cells" ()))
     (set! %asm-analyser? (if %asm-object? #f (if mode #t #f)))
     (def fn-params (first (rest expr)))
     (def fn-body (first (rest (rest expr))))
@@ -1418,6 +1642,9 @@
                ((eq? (first ts) (lit object)) (pair (first ps) (self (rest ps) (rest ts))))
                (#t (self (rest ps) (rest ts)))))
            params (rest %asm-run)))
+        ; Every function world value is an object, and arithmetic takes
+        ; the raw words %unbox reads: no parameter is checked as one.
+        (%asm-function? ())
         (%asm-object? params)
         ((not %asm-analyser?) ())
         ((null? params) ())
@@ -1449,7 +1676,71 @@
     (def slotted
       (if %asm-analyser? #f
         (if (null? params) #f (not (%asm-calls-param? fn-body params)))))
-    (if slotted
+    ; The function world's frame: zeroed cells on the machine stack, x22 at
+    ; their base, each linked onto the base's root chain (see the function
+    ; world, above), then each parameter evaluated into its cell.
+    (def cells (if %asm-function? (%append params (%asm-fn-locals fn-body params)) ()))
+    (def frame-pushes (if %asm-function? (+ 1 (* 3 (%length cells))) 0))
+    (when %asm-function?
+      (asm-emit! asm 'mov x0 (imm 0))
+      ((fn (self n) (when (> n 0) (do (asm-push! asm x0) (self (- n 1)))))
+       frame-pushes)
+      (asm-frame-base! asm)
+      ; x0 = the root chain's field cell, walked from the base.
+      (asm-emit! asm 'mov x0 x19)
+      (%for-each
+        (fn (_ step)
+          (asm-emit! asm (lit ldr) x0
+            (mem x0 (* %word-size (if (eq? step (lit f)) %obj-meta-len (+ %obj-meta-len 1))))))
+        (%reflect-path (lit heap-root-chain) %base-paths))
+      (asm-emit! asm (lit str) x0 (mem x22 8))
+      (asm-emit! asm (lit ldr) x1 (mem x0 (* %word-size %obj-meta-len)))
+      (asm-emit! asm (lit str) x1 (mem x22 0))
+      (asm-reloc! asm (asm-pos asm) (lit trampoline) (%jit-name-of %jit-pair-type))
+      (asm-load-imm64! asm x2 %jit-pair-type)
+      ; Cell k links to the head before it, and becomes the head.  A push
+      ; writes one word of its 16 bytes, and which one is the backend's, so
+      ; the flags, value and rest words are cleared here: a parameter with
+      ; no argument reads nil, and a mark never follows stale stack.
+      ((fn (self k)
+         (when (< k (%length cells))
+           (do (asm-emit! asm (lit str) x2 (mem x22 (+ (%asm-cell-offset k) %word-size)))
+               (asm-emit! asm (lit str) x1 (mem x22 (%asm-cell-offset k)))
+               (asm-emit! asm 'mov x3 (imm 0))
+               (asm-emit! asm (lit str) x3 (mem x22 (+ (%asm-cell-offset k) (* 2 %word-size))))
+               (asm-emit! asm (lit str) x3 (mem x22 (%asm-cell-value-offset k)))
+               (asm-emit! asm (lit str) x3 (mem x22 (+ (%asm-cell-value-offset k) %word-size)))
+               (asm-emit! asm 'mov x3 (imm (%asm-cell-offset k)))
+               (asm-emit! asm 'mov x1 x22)
+               (asm-emit! asm 'add x1 x1 x3)
+               (self (+ k 1)))))
+       0)
+      (asm-emit! asm (lit str) x1 (mem x0 (* %word-size %obj-meta-len)))
+      ; The parameters, each argument evaluated into its cell, x21 walking
+      ; the argument list.  A parameter with no argument keeps nil.
+      (asm-emit! asm 'mov x21 x20)
+      ((fn (self ps k)
+         (unless (null? ps)
+           (let ((lbl-none (%asm-genlabel "%noarg")))
+             (asm-emit! asm 'mov x0 x21)
+             (asm-emit! asm 'cbz x0 (label lbl-none))
+             (%emit-restobj! asm)
+             (asm-emit! asm 'mov x21 x0)
+             (asm-emit! asm 'cbz x0 (label lbl-none))
+             (%emit-firstobj! asm)
+             (asm-emit! asm 'mov x1 x0)
+             (asm-emit! asm 'mov x0 x19)
+             (%emit-eval-arg! asm)
+             (asm-emit! asm (lit str) x0 (mem x22 (%asm-cell-value-offset k)))
+             (asm-label! asm lbl-none)
+             (self (rest ps) (+ k 1)))))
+       params 0)
+      (set! %asm-fn-params params)
+      (set! %asm-slots cells)
+      (set! %asm-loop-label (%asm-genlabel "%top"))
+      (asm-label! asm %asm-loop-label)
+      (set! %asm-tail #t))
+    (if (and slotted (not %asm-function?))
       (do ((fn (self ps)
              (if (null? ps) ()
                (do (%asm-compile-param asm (first ps) params)
@@ -1475,8 +1766,16 @@
 
     ; The slots popped, so the epilogue finds the stack as the prologue
     ; left it.
-    ((fn (self ps) (if (null? ps) () (do (asm-pop! asm x2) (self (rest ps))))) %asm-slots)
+    ; The function world's frame off the root chain, its old head restored.
+    (if %asm-function?
+      (do (asm-emit! asm (lit ldr) x1 (mem x22 8))
+          (asm-emit! asm (lit ldr) x2 (mem x22 0))
+          (asm-emit! asm (lit str) x2 (mem x1 (* %word-size %obj-meta-len)))
+          ((fn (self n) (when (> n 0) (do (asm-pop! asm x2) (self (- n 1)))))
+           frame-pushes))
+      ((fn (self ps) (if (null? ps) () (do (asm-pop! asm x2) (self (rest ps))))) %asm-slots))
     (set! %asm-slots ())
+    (set! %asm-fn-params ())
     (set! %asm-loop-label ())
 
     ; Epilogue
@@ -1498,6 +1797,7 @@
     (set! %asm-analyser? #f)
     (set! %asm-object? #f)
     (set! %asm-operative? #f)
+    (set! %asm-function? #f)
     (set! %asm-run ())
     (compile-fvars-set! ())
 

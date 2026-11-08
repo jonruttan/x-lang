@@ -17,6 +17,8 @@
 (module x/type/env)
 
 (import x/type/class)
+(import x/type/base)
+(import x/core/doors int->ptr obj->ptr ptr->int ptr->obj ptr-call ptr-set-word! str->ptr str-make)
 
 (def-class Env ()
   (doc "Environments as values: one pair (bindings . parent), as (Env current), (Env root) and (Fn env f) answer. A frame's bindings are an alist of (name . value) and its parent the environment it was made in; the root's bindings are a tree and its parent nil, and a scoped module's are a tree under the root. Not the process environment, which Sys environ and Sys getenv read."
@@ -75,6 +77,21 @@
       (if (symbol? name)
         (guard (_ #f) (do (eval name e) #t))
         (Err raise (lit type) "Env has?: a name is a symbol" name)))
+    (method cell (self (param e ANY "An environment") (param name SYMBOL "A name"))
+      (doc "The binding name resolves to in e, as the engine's lookup finds it, in its own frame or an enclosing one: the (name . value) cell itself, whose rest is the binding, so a later set! or def of the name in that frame is read through it. nil when name is unbound in e. A name that is not a symbol raises a type error."
+        (returns ANY "The (name . value) cell, or nil")
+        (example "(eq? (rest (Env cell (Env root) 'first)) first)" "#t")
+        (example "(Env cell (Env root) 'no-such-name-zz)" "()"))
+      (if (symbol? name)
+        ; The engine's own lookup, through its slot: a run of two words,
+        ; the environment and the name.
+        ((fn (_ run)
+           (ptr-set-word! (str->ptr run) 0 (ptr->int (obj->ptr e)))
+           (ptr-set-word! (str->ptr run) %word-size (ptr->int (obj->ptr name)))
+           (ptr->obj (ptr-call (int->ptr (Base slot (%base) (lit env-lookup)))
+                               (obj->ptr (%base)) (str->ptr run))))
+         (str-make (* 2 %word-size)))
+        (Err raise (lit type) "Env cell: a name is a symbol" name)))
     (method root (self)
       (doc "The root environment of the running base: where top-level forms bind, every frame's outermost parent, with the library's names in its tree and no parent of its own."
         (returns ANY "The root environment")
@@ -93,6 +110,6 @@
   (example "(eval 'k ((fn (_ k) (Env current)) 7))" "7"))
 
 (doc (provide x/type/env Env)
-  (note "An environment is read by name: (Env bindings e), (Env names e), (Env parent e), (Env has? e 'name); (Env current) and (Env root) answer one.")
+  (note "An environment is read by name: (Env bindings e), (Env names e), (Env parent e), (Env has? e 'name), (Env cell e 'name); (Env current) and (Env root) answer one.")
   (example "(Env has? (Env root) 'first)" "#t")
   "Env: environments as values -- one pair (bindings . parent) -- read by name.")
