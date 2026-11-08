@@ -131,7 +131,10 @@
 (def %shadow-check! (fn (_ nm scope)
   (when (if (if (str=? nm "_") #t (str=? nm "self")) #f
           (let ((e (%assoc-str nm scope)))
-            (if (null? e) #f (not (pair? (rest (rest e)))))))   ; an implicit binding is no shadow
+            (if (null? e) #f
+              (if (pair? (rest (rest e))) #f                   ; an implicit binding is no shadow
+                ; a helper's parameter its call fills with the outer name
+                (not (%member-str? nm (first (Lint %lint-no-shadow))))))))
     (%warn! "shadow" nm))))
 
 ; Add one parameter to scope as a (name . used-box) entry, checking for shadows
@@ -235,6 +238,7 @@
                   (if (pair? (rest forms)) (Lint %lint-out-verb? (first (rest forms))) #f)
                   #f)
             (%warn! "display-chain" (%cvt (first (first forms)) %lint-string-type)))
+          (Lint %lint-note-helper! (first forms) (rest forms))
           (%lint-form (first forms))
           (when (%lint-binds? (first forms))
             (let ((bn (%lint-bound-name (first forms))))
@@ -310,6 +314,8 @@
   (def saved (first %lint-scope))
   (def self-name (first (Lint %lint-self-name)))
   (%set-first! (Lint %lint-self-name) ())
+  (%set-first! (Lint %lint-no-shadow) (first (Lint %lint-carried)))
+  (%set-first! (Lint %lint-carried) ())
   (%set-first! %lint-scope
     (let ((ps (first (rest form))))
       ; (def go (fn (go i) ...)): the self slot named for the definition is
@@ -318,6 +324,7 @@
             (if (pair? ps) (if (symbol? (first ps)) (str=? (%cvt (first ps) %lint-string-type) self-name) #f) #f))
         (%add-params (rest ps) (pair (pair self-name (list #f)) saved))
         (%add-params ps saved))))
+  (%set-first! (Lint %lint-no-shadow) ())
   (def params (first %lint-scope))               ; param entries (boxes shared with scope)
   (def nparams (- (%length params) (%length saved)))
   (%lint-seq (rest (rest form)))
@@ -955,6 +962,10 @@
     (%warn! "call-nonfn" (guard (_ "?") (%cvt (first form) %lint-string-type))))
   (%lint-check-arity form)
   (%lint-check-malformed form)
+  ; ((fn (self i) ...) i): the call is right here
+  (when (Lint %lint-fn-form? (first form))
+    (%set-first! (Lint %lint-carried)
+      (Lint %lint-carried-of (Lint %lint-after-self (first form)) (list (rest form)))))
   ; provide is handled here, ahead of either dispatch, so the construct
   ; table (which declares it skip) and the default agree on it
   (if (if (null? (first %lint-head-cell)) #f
@@ -1004,6 +1015,67 @@
         ()))
     (%lint-class-siblings (list ()) "Sibling method names of the class being walked")
     (%lint-self-name (list ()) "The name a (def NAME (fn ...)) binds, for that fn's self slot")
+    ; A loop helper's parameter that its call fills with the outer variable
+    ; of the same name carries that variable on, as (let ((x (f x)))) refines
+    ; it, and is no shadow:
+    ;   (method unfold (self pred f g seed)
+    ;     (def go (fn (self seed acc) ...)) (go seed ()))
+    ; Only the exact idiom: every call of the helper in the rest of the
+    ; sequence -- or the one call of a fn applied where it stands -- passes
+    ; the parameter's own name in the parameter's own position.  A helper fed
+    ; anything else, ((fn (self k i) ...) 0 i), still shadows.
+    (%lint-carried (list ()) "Parameter names the next fn walked carries from its call")
+    (%lint-no-shadow (list ()) "Parameter names of the fn being entered that are no shadow")
+    (method %lint-fn-form? (self x)
+      (if (pair? x)
+        (if (symbol? (first x))
+          (if (str=? (%cvt (first x) %lint-string-type) "fn") (pair? (rest x)) #f) #f) #f))
+    ; A (fn PARAMS ...) form's parameters after the self slot.
+    (method %lint-after-self (self fn-form)
+      (let ((ps (first (rest fn-form))))
+        (if (pair? ps) (rest ps) ())))
+    ; (def NAME (fn ...)) followed by REST in a sequence: note what it carries.
+    ; The scan runs over the rest of the sequence for every such helper, so it
+    ; compares symbols with eq? and recurses through closures, not statics:
+    ; a conversion or a class dispatch per node made markdown.x's deep
+    ; helpers cost gigabytes.
+    (method %lint-note-helper! (self form rest-forms)
+      (when (if (pair? form) (eq? (first form) 'def) #f)
+        (when (if (pair? (rest form)) (if (symbol? (first (rest form))) (pair? (rest (rest form))) #f) #f)
+          (let ((v (first (rest (rest form)))))
+            (when (self %lint-fn-form? v)
+              (%set-first! (Lint %lint-carried)
+                (self %lint-carried-of (self %lint-after-self v)
+                  (self %lint-calls-in (first (rest form)) rest-forms))))))))
+    ; Argument lists of every (NAME ...) call in the forms XS, data skipped.
+    ; One walk over the cons tree: X is a form when FORM? is true, else the
+    ; tail of a list whose elements are forms.
+    (method %lint-calls-in (self name xs)
+      (def scan (fn (scan x form? acc)
+        (match
+          ((not (pair? x)) acc)
+          ((not form?) (scan (rest x) #f (scan (first x) #t acc)))
+          ((eq? (first x) 'lit) acc)
+          (#t (scan (rest x) #f
+                (scan (first x) #t (if (eq? (first x) name) (pair (rest x) acc) acc)))))))
+      (scan xs #f ()))
+    ; The PARAMS (after the self slot) that every call in CALLS fills with
+    ; the parameter's own name in its position, as name strings; no call,
+    ; nothing carried.  A slot that is not a plain symbol carries nothing.
+    (method %lint-carried-of (self params calls)
+      (def at (fn (at args i)
+        (if (pair? args) (if (> i 0) (at (rest args) (- i 1)) (first args)) ())))
+      (def all-pass? (fn (all-pass? cs i p)
+        (if (null? cs) #t
+          (if (eq? (at (first cs) i) p) (all-pass? (rest cs) i p) #f))))
+      (def walk (fn (walk ps i acc)
+        (if (pair? ps)
+          (walk (rest ps) (+ i 1)
+            (if (if (symbol? (first ps)) (all-pass? calls i (first ps)) #f)
+              (pair (%cvt (first ps) %lint-string-type) acc)
+              acc))
+          acc)))
+      (if (null? calls) () (walk params 0 ())))
     ; The environment a file's heads resolve in.  A file headed (module
     ; NAME) is evaluated in NAME's environment, where its private names
     ; bind and the root does not see them; resolving there reads a send on
@@ -1250,6 +1322,8 @@
   (%set-first! %lint-class-names ())
   (%set-first! (Lint %lint-class-siblings) ())
   (%set-first! (Lint %lint-self-name) ())
+  (%set-first! (Lint %lint-carried) ())
+  (%set-first! (Lint %lint-no-shadow) ())
   (%set-rest! %lint-scope (Lint %lint-module-of forms))   ; where the file's heads resolve
   (%arity-collect forms)                             ; pre-pass: file-local fn arities
   (Lint %lint-class-prepass forms)                        ; pre-pass: class names (order independence)
