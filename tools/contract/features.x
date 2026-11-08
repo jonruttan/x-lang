@@ -252,7 +252,7 @@
   (int-width)              ; DERIVED: word-size * 8; declared for readers, never required
   (endian little big)      ; byte order of a widening (ptr ref) read
   (os darwin linux bsd)
-  (arch arm64 x86-64 i386)
+  (arch arm64 x86-64 i386 arm)
   (machine)                ; the full build triple, as DATA -- replaces x-machine sniffing
   (release)                ; the release THIS BINARY was built as.  Free-form, like
                            ;   machine: a project spells its releases however it
