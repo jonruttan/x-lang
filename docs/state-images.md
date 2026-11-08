@@ -311,6 +311,12 @@ The compiled version is remade, not carried. The cache carries the bytes.
   edit rewrites every image on purpose: a suite that silently tests a stale
   library is worse than a slow one. The header's release catches a changed
   engine; the key catches changed source.
+- **The linter.** In a checkout, `tools/dev/lint.sh` writes
+  `.images/lint-image.x.ximg`, an image of `lib/x-core.x` with the linter
+  (`tools/dev/lint-image.x`), keyed as above and on `tools/dev/lint.x`. It
+  boots every lint child from that image, then loads the child's preload and
+  the driver. `X_LINT_IMAGE=0` boots from source, as an installed tree's
+  lint (the lang kit's) does.
 - **A lang bundle's suite** boots from an image of its harness, keyed on the
   bundle's module tree as well ([lang-contract.md](lang-contract.md)). The
   harness is on `x-core.x`, the dialect the bundle ships, not on
