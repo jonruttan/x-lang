@@ -156,6 +156,39 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 ---
     ('compiled 'tag-a 'tag-b)
 
+### let binds in parallel, in a scope of its own
+
+```x
+(def %fc-lets
+  (fn (_ a b)
+    (def r (let ((a b) (b a)) (list a b)))
+    (def s (let ((a 10)) (let ((a (int+ a 1)) (q a)) (list a q))))
+    (let ((c (int+ a 1)))
+      (def d (int* c 2))
+      (set! c (int+ c d))
+      (list r s c d a b))))
+(def %fc-lets-before (%fc-lets 1 2))
+(def %fc-e (compile-fn! (lit %fc-lets) %fc-lets))
+(write (list (%fc-e state) (equal? %fc-lets-before (%fc-lets 1 2)) (%fc-lets 1 2)))
+```
+---
+    ('compiled #t ((2 1) (11 10) 6 4 1 2))
+
+### a let across a call keeps its values
+
+```x
+(def %fc-lnext (fn (_ x) (int+ x 1)))
+(def %fc-lcall
+  (fn (self n acc)
+    (if (int= n 0) acc
+      (let ((m (int- n 1)) (cell (pair n acc)))
+        (self m (pair (%fc-lnext (first cell)) (rest cell)))))))
+(def %fc-e (compile-fn! (lit %fc-lcall) %fc-lcall))
+(write (list (%fc-e state) (%fc-lcall 3 ())))
+```
+---
+    ('compiled (2 3 4))
+
 ## free names are read when the code runs
 
 ### a global set! after the compile is seen
@@ -245,6 +278,16 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 ```
 ---
     ('failed 5)
+
+### a named let is refused
+
+```x
+(def %fc-nlet (fn (_ n) (let loop ((i n) (acc 0)) (if (int= i 0) acc (loop (int- i 1) (int+ acc i))))))
+(def %fc-e (compile-fn! (lit %fc-nlet) %fc-nlet))
+(write (list (%fc-e state) (%fc-nlet 4)))
+```
+---
+    ('failed 10)
 
 ### a rest parameter is refused
 

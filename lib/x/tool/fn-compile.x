@@ -16,7 +16,7 @@
 ;   objects    first rest pair eq? null? not obj-ref obj-set!, and pair? and
 ;              symbol? as a read of the operand's type name
 ;   control    if when unless match do and or, def of a local, set! of a
-;              local or a free name
+;              local or a free name, let as fresh locals (not a named let)
 ;   calls      a call of F itself (a jump in tail position), and a call of
 ;              any closure or any C primitive the engine's ISA manifest does
 ;              not label spine, with values
@@ -438,6 +438,92 @@
      (%fc-form-of e))))
 (set! %fc-raw (fn (_ e) (%fc-expr e (lit raw))))
 
+; --- let, as locals ----------------------------------------------------------------
+;
+; (let ((N E) ...) BODY ...) is ((fn (_ N ...) BODY ...) E ...): each E is
+; evaluated in the enclosing scope, then BODY runs in a scope of its own.
+; Before the rest of the rewrite it becomes (do (def N' E) ... BODY ...),
+; with a fresh local N' for each N and for each def of BODY's own scope,
+; renamed through BODY.  Each E keeps the enclosing names, so the binding
+; stays parallel.  A named let, (let NAME BINDINGS ...), is a loop and is
+; refused.
+
+; Is `let` in the closure being rewritten the let of x/core/control?
+(def %fc-let? #f)
+
+(def %fc-let-here?
+  (fn (_ ps body)
+    (def cell (Env cell %fc-env (lit let)))
+    (and (not (null? cell)) (obj-same? (rest cell) let)
+         (not (%fc-memq (lit let) ps)) (not (%fc-memq (lit let) (%fc-defs body))))))
+
+(def %fc-let-form?
+  (fn (_ e) (and %fc-let? (pair? e) (eq? (first e) (lit let)))))
+
+; The names a let body binds in its own scope: NAMES, then each def of
+; BODY not already among them.  A nested let's body is a scope of its own,
+; and its values are evaluated in this one.
+(def %fc-scope-names
+  (fn (_ names body)
+    (def acc (pair (List reverse names) ()))
+    ((fn (walk e)
+       (when (pair? e)
+         (match
+           ((eq? (first e) (lit lit)) ())
+           ((%fc-let-form? e)
+             (when (and (pair? (rest e)) (List list? (first (rest e))))
+               (List map (fn (_ b) (when (pair? b) (walk (rest b)))) (first (rest e)))))
+           (#t
+             (do
+               (when (and (eq? (first e) (lit def)) (pair? (rest e)) (symbol? (first (rest e)))
+                          (not (%fc-memq (first (rest e)) (first acc))))
+                 (%set-first! acc (pair (first (rest e)) (first acc))))
+               ((fn (each l) (when (pair? l) (do (walk (first l)) (each (rest l))))) e))))))
+     body)
+    (List reverse (first acc))))
+
+(def %fc-rename
+  (fn (_ s m) ((fn (_ hit) (if (null? hit) s (rest hit))) (%fc-assq s m))))
+
+(def %fc-unlet ())
+(def %fc-unlet-list
+  (fn (self l m)
+    (if (pair? l) (pair (%fc-unlet (first l) m) (self (rest l) m)) (%fc-unlet l m))))
+
+(def %fc-let-binding?
+  (fn (_ b)
+    (and (pair? b) (symbol? (first b)) (pair? (rest b)) (null? (rest (rest b))))))
+
+(def %fc-unlet-let
+  (fn (_ e m)
+    (when (and (pair? (rest e)) (symbol? (first (rest e))))
+      (%fc-refuse "a named let"))
+    (def bs (if (pair? (rest e)) (first (rest e)) ()))
+    (unless (and (pair? (rest e)) (List list? bs) (List all? %fc-let-binding? bs))
+      (%fc-refuse "a let whose bindings are not a list of (name value)"))
+    (def body (rest (rest e)))
+    (unless (pair? body) (%fc-refuse "a let with no body"))
+    (def inits (List map (fn (_ b) (%fc-unlet (first (rest b)) m)) bs))
+    (def inner
+      (%fold (fn (_ acc n) (pair (pair n (%fc-fresh "%fc-l")) acc)) m
+        (%fc-scope-names (List map first bs) body)))
+    (def defs
+      ((fn (self l vs)
+         (if (null? l) ()
+           (pair (list (lit def) (%fc-rename (first (first l)) inner) (first vs))
+                 (self (rest l) (rest vs)))))
+       bs inits))
+    (pair (lit do) (%append defs (%fc-unlet-list body inner)))))
+
+(set! %fc-unlet
+  (fn (_ e m)
+    (match
+      ((symbol? e) (%fc-rename e m))
+      ((not (pair? e)) e)
+      ((eq? (first e) (lit lit)) e)
+      ((%fc-let-form? e) (%fc-unlet-let e m))
+      (#t (%fc-unlet-list e m)))))
+
 ; F as a function world expression and its fvars: (form . fvars).
 (def %fc-rewrite
   (fn (_ f)
@@ -449,11 +535,14 @@
     (set! %fc-target f)
     (set! %fc-env (Fn env f))
     (set! %fc-self (first ps))
-    (set! %fc-names (%append (rest ps) (%fc-defs (Fn body f))))
+    (set! %fc-count 0)
+    (set! %fc-let? (%fc-let-here? ps (Fn body f)))
+    (def src (%fc-unlet-list (Fn body f) ()))
+    (set! %fc-let? #f)
+    (set! %fc-names (%append (rest ps) (%fc-defs src)))
     (set! %fc-fvars (list (pair (lit %self) f)))
     (set! %fc-cells ())
-    (set! %fc-count 0)
-    (def body (%fc-body (Fn body f)))
+    (def body (%fc-body src))
     (def made
       (pair (list (lit fn) (pair (lit %fc-self) (rest ps)) body) %fc-fvars))
     (set! %fc-target ())
@@ -484,7 +573,7 @@
   (param f ANY "A closure made by fn")
   (returns Compiled "The entry: (entry state) is compiled, or failed with (entry reason)")
   (sample "((compile-fn! 'fib fib) state)" "compiled, and every holder of fib now calls the compiled version")
-  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def and set! compile in place; a call of any other closure, or of a C primitive the engine's ISA manifest does not label spine, passes it values. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
+  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let (not a named let) compile in place; a call of any other closure, or of a C primitive the engine's ISA manifest does not label spine, passes it values. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
 
 (doc (provide x/tool/fn-compile compile-fn!)
   (sample "(import x/tool/fn-compile compile-fn!) (compile-fn! 'fib fib)" "fib compiled where it stands, its interpreted version kept on the Compiled list")
