@@ -81,7 +81,7 @@
       (doc "The binding name resolves to in e, as the engine's lookup finds it, in its own frame or an enclosing one: the (name . value) cell itself, whose rest is the binding, so a later set! or def of the name in that frame is read through it. nil when name is unbound in e. A name that is not a symbol raises a type error."
         (returns ANY "The (name . value) cell, or nil")
         (example "(eq? (rest (Env cell (Env root) 'first)) first)" "#t")
-        (example "(Env cell (Env root) 'no-such-name-zz)" "()"))
+        (example "(null? (Env cell (Env root) 'no-such-name-zz))" "#t"))
       (if (symbol? name)
         ; The engine's own lookup, through its slot: a run of two words,
         ; the environment and the name.
