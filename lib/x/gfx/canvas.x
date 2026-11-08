@@ -10,17 +10,19 @@
 ; Every operation clips to the canvas it draws on and to the one it reads,
 ; so a rectangle hanging off an edge draws the part that is on it.
 ;
-; The pixel loops are six kernels, each written once below as an integer
+; The pixel loops are seven kernels, each written once below as an integer
 ; function over byte addresses.  The pure-x version is that form with its
-; operators bound to the int doors; x/gfx/canvas-jit compiles the same form,
-; and the compiled six are adopted only after they write what the pure ones
-; write over the check pictures.  They are built once a process when the
-; canvases drawn have covered %jit-threshold pixels, or on (Canvas jit!).
+; operators bound to the int doors (x/tool/int-form); x/tool/int-form-jit
+; compiles the same form, and the compiled seven are adopted only after
+; they write what the pure ones write over the check pictures.  They are
+; built once a process when the canvases drawn have covered %jit-threshold
+; pixels, or on (Canvas jit!).
 (module x/gfx/canvas)
 
 (import x/tool/compiled)
+(import x/tool/int-form int-form-pure)
 
-(import x/core/doors int& int* int+ int- int->ptr int/ int< int<< int= int>> mem-copy ptr->int ptr-ref ptr-set! ptr-ref-word ptr-set-word! str->ptr str-byte-len str-byte-ref str-make char->int)
+(import x/core/doors int& int* int+ int- int->ptr int/ int< int<< int= int>> mem-copy ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-make char->int)
 
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "Canvas: " what) ())))
 
@@ -167,27 +169,8 @@
 (def %forms (list %copy-form %fill-form %blend-form %stamp-form %stretch-form %lerp-form %light-form))
 
 ; --- The pure-x kernels ----------------------------------------------------
-;
-; Each form with its operators replaced by the doors themselves: the
-; function objects stand in the form where the names were, so the form
-; means the same thing in whatever environment evaluates it.
 
-(def %ops
-  (list (pair (lit +) int+) (pair (lit -) int-) (pair (lit *) int*) (pair (lit <) int<)
-        (pair (lit =) int=) (pair (lit >>) int>>) (pair (lit <<) int<<) (pair (lit &) int&)
-        (pair (lit %mem-byte-ref-at) (fn (_ a i) (int& (ptr-ref (int->ptr (int+ a i)) 0 1) 255)))
-        (pair (lit %mem-byte-set-at!) (fn (_ a i v) (ptr-set! (int->ptr (int+ a i)) 0 v 1)))
-        (pair (lit %mem-ref-at) (fn (_ a i) (ptr-ref-word (int->ptr a) (int* i %word-size))))
-        (pair (lit %mem-set-at!) (fn (_ a i v) (ptr-set-word! (int->ptr a) (int* i %word-size) v)))))
-
-(def %subst
-  (fn (self form)
-    (match
-      ((pair? form) (pair (self (first form)) (self (rest form))))
-      ((symbol? form) ((fn (_ e) (if (null? e) form (rest e))) (Assoc entry form %ops)))
-      (#t form))))
-
-(def %pure (List map (fn (_ f) (eval (%subst f))) %forms))
+(def %pure (List map int-form-pure %forms))
 
 ; --- The kernels in use ----------------------------------------------------
 ;
@@ -272,8 +255,8 @@
       (set! %entry
         (Compiled make-on-demand (lit canvas) %pure
           (fn (_)
-            (import x/gfx/canvas-jit)
-            ((prim-ref (lit canvas) (lit jit-make)) %forms %agrees?))
+            (import x/tool/int-form-jit)
+            ((prim-ref (lit int-form) (lit jit-make)) %forms %agrees?))
           %install!)))
     ((fn (_ entry)
        (when (eq? (entry state) (lit interpreted)) (entry compile!))
