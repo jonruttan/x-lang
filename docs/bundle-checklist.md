@@ -99,7 +99,8 @@ on one machine and one release; its pull requests show no checks.
 - **Remedy:** `.github/workflows/ci.yml` calling
   `jonruttan/x-lang/.github/workflows/bundle.yml@main` on push to main, pull
   requests and a weekly schedule. It runs `tests/spec-gate.sh` against the
-  declared release and main on Linux x86-64, Linux arm64 and macOS.
+  declared release, and against main except on a pull request, on Linux
+  x86-64, Linux arm64 and macOS unless the `os` input names other runners.
 
 ### I2. The suite boots from source on CI
 Bundle CI runs an x-lang checkout (`.x-lang/x.sh`). A checkout's `x.sh` reads

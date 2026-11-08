@@ -7,16 +7,24 @@ name: bundle
 #     ci:
 #       uses: jonruttan/x-lang/.github/workflows/bundle.yml@main
 #
-# The suite runs on every operating system x-lang's own ci.yml tests, against
+# The suite runs on the operating systems x-lang's own ci.yml tests, against
 # two x-lang revisions: the release the bundle declares in lang.xon's
 # (requires-release ...), and main.  The declared leg is the verdict; the main
 # leg reports that the platform has moved and is allowed to fail.  The release
 # is read from lang.xon, so it is named in one place.
 #
-# The operating systems here and in ci.yml's specs legs are the same list and
-# change together.  The arm64 Linux leg reports and does not gate, as ci.yml's
-# does; the engine pin declares no linux arm64 artifact, so its `make engine`
-# clones the pinned release and builds it.
+# A pull request runs the declared leg alone.  The main leg gates nothing --
+# a pinned bundle merges on its declared release -- and what it reports is
+# that x-lang has moved, which the runs after a merge still say: a push to the
+# bundle's default branch, the caller's schedule (the bundles run weekly), and
+# a manual dispatch.  That halves a pull request's run.
+#
+# The operating systems default to ci.yml's specs legs; the two lists change
+# together.  A bundle whose suite holds facts of one machine, or whose heap
+# fits one runner and not another, names its own list in the os input.  The
+# arm64 Linux leg reports and does not gate, as ci.yml's does; the engine pin
+# declares no linux arm64 artifact, so its `make engine` clones the pinned
+# release and builds it.
 
 on:
   workflow_call:
@@ -28,6 +36,12 @@ on:
           TIMEOUT_UNIT_SECS.
         type: string
         default: ""
+      os:
+        description: >-
+          The runners the spec gate runs on, as a JSON list.  The default is
+          the list x-lang's own ci.yml tests.
+        type: string
+        default: '["macos-15", "ubuntu-24.04", "ubuntu-24.04-arm"]'
 
 jobs:
   release:
@@ -59,8 +73,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, ubuntu-24.04, ubuntu-24.04-arm]
-        x-lang: [declared, main]
+        os: ${{ fromJSON(inputs.os) }}
+        x-lang: ${{ fromJSON(github.event_name == 'pull_request' && '["declared"]' || '["declared", "main"]') }}
     steps:
       - uses: actions/checkout@v7
 
