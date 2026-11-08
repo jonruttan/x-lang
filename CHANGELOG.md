@@ -5,6 +5,35 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-11-07
+
+**An installed x writes state images again.** ([#1208]) Since 0.48.0 `make install`
+left out the engine's `base-slots.x` contract, which the image writer
+includes, so an installed x could not write an image for a dialect or a
+bundle and booted from source on every run. Every contract file the engine
+ships is installed now; x-roguelike's image writes again (188,592 objects).
+
+[#1208]: https://github.com/jonruttan/x-lang/pull/1208
+
+**A window's picture can fill it at any size.** ([#1209]) `(Sdl scaling! win 'fit)`
+shows the picture as large as the window allows, its shape kept and bars
+on two sides only; `'whole` keeps the whole multiples `open` starts with.
+
+[#1209]: https://github.com/jonruttan/x-lang/pull/1209
+
+Sdl reports gamepad buttons, axes and hot-plug from poll, and
+fullscreen! switches a window to desktop fullscreen and back. ([#1207])
+
+[#1207]: https://github.com/jonruttan/x-lang/pull/1207
+
+**A loop helper's parameter that its call fills with the outer variable of
+the same name is no longer reported as a shadow.** ([#1205]) (def go (fn (self seed
+acc) ...)) followed by (go seed ()) carries seed on, as (let ((x (f x))))
+refines x; a helper fed anything else still shadows.  Over lib/ and apps/
+the shadow warnings go from 121 names to 38.
+
+[#1205]: https://github.com/jonruttan/x-lang/pull/1205
+
 ## [0.49.0] - 2026-11-07
 
 **The linter no longer reports a name as unused or shadowed when it is
