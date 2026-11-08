@@ -1,4 +1,5 @@
 ; fn-compile.x -- a program's closure compiled where it stands
+; lint-known: %isa-bare %isa-keep %isa-catalogue
 ;
 ; (compile-fn! NAME F) rewrites the closure F into the function world of
 ; compile-asm (lib/x/tool/asm-compile.x) and installs the compiled version
@@ -17,7 +18,8 @@
 ;   control    if when unless match do and or, def of a local, set! of a
 ;              local or a free name
 ;   calls      a call of F itself (a jump in tail position), and a call of
-;              any closure or a primitive in %fc-applicatives, with values
+;              any closure or any C primitive the engine's ISA manifest does
+;              not label spine, with values
 ;
 ; A free name is read through its binding cell, found by the engine's lookup
 ; when F is compiled ((Env cell ...)): a later set! or def of the name is
@@ -68,9 +70,36 @@
   (list (pair (lit pair?) (%fc-type-of (pair 1 2)))
         (pair (lit symbol?) (%fc-type-of (lit a)))))
 
-; The primitives a compiled body may call with values: each evaluates its
-; operands as an applicative does.
-(def %fc-applicatives (list first rest pair eq? null? obj-ref obj-set!))
+; The primitives a compiled body may call with values: every one the engine's
+; ISA manifest files under a label other than spine.  A spine primitive is
+; the evaluator itself (def, fn, guard, lit, match, apply) and is handed its
+; operands as forms; every other C primitive evaluates its operands as an
+; applicative does.  A manifest name bound to something other than a
+; primitive (the library's wrappers of the raw bitwise operators) adds
+; nothing, and a primitive the manifest does not list is not called.
+(include (Str append %engine-root "/tools/contract/isa.x"))
+(def %fc-prim-type (%fc-type-of eq?))
+(def %fc-isa-value
+  (fn (_ v acc) (if (eq? (%fc-type-of v) %fc-prim-type) (pair v acc) acc)))
+(def %fc-isa-bare
+  (fn (self rows acc)
+    (match
+      ((null? rows) acc)
+      ((eq? (first (rest (first rows))) (lit spine)) (self (rest rows) acc))
+      (#t (self (rest rows)
+            (guard (_ acc) (%fc-isa-value (eval (first (first rows))) acc)))))))
+(def %fc-isa-catalogue
+  (fn (self rows acc)
+    (def row (if (null? rows) () (first rows)))
+    (match
+      ((null? rows) acc)
+      ((eq? (first (rest (rest row))) (lit spine)) (self (rest rows) acc))
+      (#t (self (rest rows)
+            (guard (_ acc)
+              (%fc-isa-value (prim-ref (first row) (first (rest row))) acc)))))))
+(def %fc-applicatives
+  (%fc-isa-catalogue %isa-catalogue
+    (%fc-isa-bare %isa-keep (%fc-isa-bare %isa-bare ()))))
 ; And every closure compile-fn! has been given, which is a primitive once
 ; it is compiled.
 (def %fc-compiled ())
@@ -453,7 +482,7 @@
   (param f ANY "A closure made by fn")
   (returns Compiled "The entry: (entry state) is compiled, or failed with (entry reason)")
   (sample "((compile-fn! 'fib fib) state)" "compiled, and every holder of fib now calls the compiled version")
-  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def and set! compile in place; a call of any other closure passes it values. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
+  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def and set! compile in place; a call of any other closure, or of a C primitive the engine's ISA manifest does not label spine, passes it values. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
 
 (doc (provide x/tool/fn-compile compile-fn!)
   (sample "(import x/tool/fn-compile compile-fn!) (compile-fn! 'fib fib)" "fib compiled where it stands, its interpreted version kept on the Compiled list")
