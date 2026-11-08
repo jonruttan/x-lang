@@ -4,31 +4,52 @@
 ; less a quarter of the width -- xored into them little-endian, then the
 ; twenty-four rounds.  The message ends with SHA-3's domain bits, 0x06, and
 ; the block's last byte or'd with 0x80; the digest is the state's first
-; WIDTH/8 bytes.  Keccak has no additions, so unlike sha512.x a lane is one
-; engine int: xor, and, not and the left shift wrap as the standard wants,
-; and the only care is the right shift, which is arithmetic and is masked
-; after to be logical.  The padded message is addressed virtually, with no
-; copy built, and a compiled engine in x/codec/sha3-jit is adopted only
-; after it agrees with this one.  The round constants are the standard's
-; hex spellings, each as two 32-bit halves.
+; WIDTH/8 bytes.  Keccak has no additions, so unlike sha512.x a lane is
+; words with no carries between them: one on an 8-byte word, two on a
+; 4-byte word.  Xor, and, not and the left shift wrap as the standard
+; wants, a rotate moves limbs and the bits across them, and the only care
+; is the right shift, which is arithmetic and is masked after to be
+; logical.  The padded message is addressed virtually, with no copy built,
+; and a compiled engine in x/codec/sha3-jit is adopted only after it agrees
+; with this one.  The round constants are the standard's hex spellings,
+; each as two 32-bit halves.
 (module x/codec/sha3)
 
 (import x/type/vector)
+(import x/type/list)
 (import x/sys/gc)
 (import x/tool/compiled)
 
 (import x/core/doors char->int int% int* int+ int- int/ obj-ref obj-set! str-byte-ref)
-(def %cvt (prim-ref (lit convert) (lit to)))
 
-; hex halves to the 64-bit words they spell, hi shifted over lo; the %cvt
-; narrows a tower integer to the C int the bit ops take (sha512.x)
+; A lane is %L limbs of the word's %W bits, low limb first: one limb on an
+; 8-byte word, two on a 4-byte word.  Lane I's limb J is slot I*L+J.
+(def %W (int* 8 %word-size))
+(def %L (int/ 64 %W))
+
+; the 64 bits hex halves HI and LO spell, as the lane's limbs: limb J is
+; hex digits 16-(J+1)*W/4 to 16-J*W/4 of HI then LO, read in the word's
+; bits, where a 4-byte word's top limb may read negative
+(def %lane-limbs
+  (fn (_ hi lo)
+    (def per (int/ %W 4))
+    (def digit
+      (fn (_ p)
+        (def c (char->int (str-byte-ref (if (< p 8) hi lo) (int% p 8))))
+        (if (< c 58) (int- c 48) (int- c 87))))
+    (def limb
+      (fn (self p end acc)
+        (if (= p end) acc (self (int+ p 1) end (| (<< acc 4) (digit p))))))
+    ((fn (self j)
+       (if (= j %L) ()
+         (pair (limb (int- 16 (int* (int+ j 1) per)) (int- 16 (int* j per)) 0)
+               (self (int+ j 1))))) 0)))
+
 (def %lanes
-  (let ((int-type (Type named INTEGER)))
-    (fn (self hexes)
-      (if (null? hexes) ()
-        (pair (| (<< (%cvt (%str->number (first hexes) 16) int-type) 32)
-                 (%cvt (%str->number (first (rest hexes)) 16) int-type))
-              (self (rest (rest hexes))))))))
+  (fn (self hexes)
+    (if (null? hexes) ()
+      (List append (%lane-limbs (first hexes) (first (rest hexes)))
+                   (self (rest (rest hexes)))))))
 
 ; the round constants (3.2.5), hi then lo
 (def %rc (Vector from-list (%lanes (lit (
@@ -44,28 +65,53 @@
 (def %rot (Vector from-list (lit (0 1 62 28 27 36 44 6 55 20 3 10 43 25 39 41 45 15 21 8 18 2 61 56 14))))
 (def %pi (Vector from-list (lit (0 10 20 5 15 16 1 11 21 6 7 17 2 12 22 23 8 18 3 13 14 24 9 19 4))))
 
-; the mask that makes an arithmetic shift right by N logical: 64-N ones
+; the mask that makes an arithmetic shift right by N logical: W-N ones
+(def %top-ones (~ (<< 1 (int- %W 1))))
 (def %lmask
-  (fn (_ n) (if (= n 1) 9223372036854775807 (int- (<< 1 (int- 64 n)) 1))))
-
-(def %rotl
-  (fn (_ x n) (if (= n 0) x (| (<< x n) (& (>> x (int- 64 n)) (%lmask (int- 64 n)))))))
+  (fn (_ n) (if (= n 1) %top-ones (int- (<< 1 (int- %W n)) 1))))
 
 ; vector slot I of V (slot 0 of a Vector's object holds its length)
 (def %v (fn (_ v i) (obj-ref v (int+ i 1))))
 (def %v! (fn (_ v i x) (obj-set! v (int+ i 1) x)))
 
-; theta: each column's parity, mixed into the lanes beside it
+; Lane S of SRC rotated left N places, into lane D of DST.  The rotate
+; moves whole limbs Q = N/W over and the bits R = N%W across: out limb J
+; is in limb J-Q shifted up R, with the top R bits of limb J-Q-1 below it.
+; On one limb that is the lane's own rotate.
+(def %rotl!
+  (fn (_ src s dst d n)
+    (def q (int/ n %W))
+    (def r (int% n %W))
+    (def at (fn (_ j) (%v src (int+ (int* s %L) (int% (int+ j %L) %L)))))
+    ((fn (self j)
+       (unless (= j %L)
+         (do (%v! dst (int+ (int* d %L) j)
+               (if (= r 0) (at (int- j q))
+                 (| (<< (at (int- j q)) r)
+                    (& (>> (at (int- (int- j q) 1)) (int- %W r)) (%lmask (int- %W r))))))
+             (self (int+ j 1))))) 0)))
+
+; theta: each column's parity into C's first five lanes, the parity
+; rotated by one into its last five, and both mixed into the lanes beside
+; each column
 (def %theta!
   (fn (_ a c)
-    ((fn (self x)
-       (unless (= x 5)
-         (do (%v! c x (^ (%v a x) (^ (%v a (int+ x 5)) (^ (%v a (int+ x 10)) (^ (%v a (int+ x 15)) (%v a (int+ x 20)))))))
-             (self (int+ x 1))))) 0)
+    (def n5 (int* 5 %L))
+    ((fn (self k)
+       (unless (= k n5)
+         (do (%v! c k (^ (%v a k) (^ (%v a (int+ k n5)) (^ (%v a (int+ k (int* 2 n5))) (^ (%v a (int+ k (int* 3 n5))) (%v a (int+ k (int* 4 n5))))))))
+             (self (int+ k 1))))) 0)
+    ((fn (self x) (unless (= x 5) (do (%rotl! c x c (int+ x 5) 1) (self (int+ x 1))))) 0)
     ((fn (self i)
        (unless (= i 25)
          (do (def x (int% i 5))
-             (%v! a i (^ (%v a i) (^ (%v c (int% (int+ x 4) 5)) (%rotl (%v c (int% (int+ x 1) 5)) 1))))
+             (def lo (int* (int% (int+ x 4) 5) %L))
+             (def hi (int* (int+ 5 (int% (int+ x 1) 5)) %L))
+             ((fn (self j)
+                (unless (= j %L)
+                  (do (def k (int+ (int* i %L) j))
+                      (%v! a k (^ (%v a k) (^ (%v c (int+ lo j)) (%v c (int+ hi j)))))
+                      (self (int+ j 1))))) 0)
              (self (int+ i 1))))) 0)))
 
 ; rho and pi into B, then chi back into A, then iota
@@ -73,15 +119,24 @@
   (fn (_ a b r)
     ((fn (self i)
        (unless (= i 25)
-         (do (%v! b (%v %pi i) (%rotl (%v a i) (%v %rot i)))
+         (do (%rotl! a i b (%v %pi i) (%v %rot i))
              (self (int+ i 1))))) 0)
     ((fn (self i)
        (unless (= i 25)
          (do (def x (int% i 5))
              (def row (int- i x))
-             (%v! a i (^ (%v b i) (& (~ (%v b (int+ row (int% (int+ x 1) 5)))) (%v b (int+ row (int% (int+ x 2) 5))))))
+             (def b1 (int* (int+ row (int% (int+ x 1) 5)) %L))
+             (def b2 (int* (int+ row (int% (int+ x 2) 5)) %L))
+             ((fn (self j)
+                (unless (= j %L)
+                  (do (def k (int+ (int* i %L) j))
+                      (%v! a k (^ (%v b k) (& (~ (%v b (int+ b1 j))) (%v b (int+ b2 j)))))
+                      (self (int+ j 1))))) 0)
              (self (int+ i 1))))) 0)
-    (%v! a 0 (^ (%v a 0) (%v %rc r)))))
+    ((fn (self j)
+       (unless (= j %L)
+         (do (%v! a j (^ (%v a j) (%v %rc (int+ (int* r %L) j))))
+             (self (int+ j 1))))) 0)))
 
 (def %permute!
   (fn (self a b c r)
@@ -98,17 +153,19 @@
       ((= i (int- total 1)) 128)
       (#t 0))))
 
-; the lane at byte BASE of the padded message, little-endian
+; the limb at byte BASE of the padded message, little-endian
 (def %lane
   (fn (self s len total base k acc)
     (if (< k 0) acc
       (self s len total base (int- k 1) (| (<< acc 8) (%byte s len total (int+ base k)))))))
 
+; a lane's limbs lie in the block in order, so slot K is the word at byte
+; K times the word's size
 (def %absorb!
-  (fn (self s len total base a i lanes)
-    (unless (= i lanes)
-      (do (%v! a i (^ (%v a i) (%lane s len total (int+ base (<< i 3)) 7 0)))
-          (self s len total base a (int+ i 1) lanes)))))
+  (fn (self s len total base a i slots)
+    (unless (= i slots)
+      (do (%v! a i (^ (%v a i) (%lane s len total (int+ base (int* i %word-size)) (int- %word-size 1) 0)))
+          (self s len total base a (int+ i 1) slots)))))
 
 ; one collect at completion returns the digest's net growth to zero, and
 ; one every eighth block keeps a long input's garbage bounded (sha512.x)
@@ -118,22 +175,22 @@
       ((= base total) (do (Heap collect) a))
       (#t
         (do (when (and (> k 0) (= (& k 7) 0)) (Heap collect))
-            (%absorb! s len total base a 0 (>> rate 3))
+            (%absorb! s len total base a 0 (int/ rate %word-size))
             (%permute! a b c 0)
             (self s len total rate (int+ base rate) (int+ k 1) a b c))))))
 
-; the state after the whole message, a Vector of the twenty-five lanes: the
-; pure-x digest, which the compiled engine stands in for
+; the state after the whole message, a Vector of the twenty-five lanes'
+; limbs: the pure-x digest, which the compiled engine stands in for
 (def %digest-state
   (fn (_ width s n)
     (def rate (int- 200 (>> width 2)))
     (def total (int* (int+ (int/ n rate) 1) rate))
-    (%blocks s n total rate 0 0 (Vector make 25 0) (Vector make 25 0) (Vector make 5 0))))
+    (%blocks s n total rate 0 0 (Vector make (int* 25 %L) 0) (Vector make (int* 25 %L) 0) (Vector make (int* 10 %L) 0))))
 
 ; the state's first N bytes as lowercase hex
 (def %hex
   (fn (_ a n)
-    (def byte (fn (_ k) (& (>> (%v a (>> k 3)) (<< (& k 7) 3)) 255)))
+    (def byte (fn (_ k) (& (>> (%v a (int/ k %word-size)) (int* (int% k %word-size) 8)) 255)))
     (Str8 join ""
       (List map (fn (_ k) (let ((v (byte k)))
                             (Str8 append (%v %digits (>> v 4)) (%v %digits (& v 15)))))

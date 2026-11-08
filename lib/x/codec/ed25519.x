@@ -470,7 +470,7 @@
         (Compiled make-on-demand (lit ed25519) %interpreted
           (fn (_)
             (import x/codec/ed25519-jit)
-            ((prim-ref (lit ed25519) (lit jit-make)) %d2 %base))
+            ((prim-ref (lit ed25519) (lit jit-make)) %d2 %base %interpreted))
           (fn (_ v) ()))))
     ((fn (_ entry)
        (when (eq? (entry state) (lit interpreted)) (entry compile!))

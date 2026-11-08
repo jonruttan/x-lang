@@ -19,7 +19,7 @@
 (import x/type/vector)
 
 (import x/core/doors char->int int* int+ int- int->ptr mem-copy obj-ref ptr->int ptr-set! str->ptr str-byte-len str-byte-ref str-make)
-(def %m32 4294967295)
+(def %m32 0xFFFFFFFF)
 
 ; vector slot I of V (slot 0 of a Vector's object holds its length)
 (def %v (fn (_ v i) (obj-ref v (int+ i 1))))
@@ -53,16 +53,35 @@
   13 2 8 4 6 15 11 1 10 9 3 14 5 0 12 7 1 15 13 8 10 3 7 4 12 5 6 11 0 14 9 2
   7 11 4 1 9 12 14 2 0 6 10 13 15 3 5 8 2 1 14 7 4 10 8 13 15 12 9 0 3 5 6 11))))
 
-; bit I (from 1, the most significant) of the W-bit word X
+; A value wider than 32 bits is two halves (HI . LO), LO its low 32 bits
+; and HI the rest, so that a 4-byte word holds each.
+
+; bit I (from 1, the most significant) of the W-bit word X, W at most 32
 (def %bit (fn (_ x w i) (& (>> x (int- w i)) 1)))
 
-; the W-bit word X permuted by TABLE (positions in X), N bits out
+; bit I of the W-bit value in halves (HI . LO)
+(def %bit2
+  (fn (_ x w i)
+    (def top (int- w 32))
+    (if (> i top) (%bit (rest x) 32 (int- i top)) (%bit (first x) top i))))
+
+; the W-bit value X permuted by TABLE (positions in X), N bits out: a word
+; for N up to 32, halves past it; X a word or halves as W says
 (def %perm
   (fn (_ x w table n)
-    ((fn (self i acc)
-       (if (= i n) acc
-         (self (int+ i 1) (| (<< acc 1) (%bit x w (%v table i))))))
-     0 0)))
+    (def at (if (> w 32) (fn (_ i) (%bit2 x w i)) (fn (_ i) (%bit x w i))))
+    (def bits
+      (fn (self i end acc)
+        (if (= i end) acc (self (int+ i 1) end (| (<< acc 1) (at (%v table i)))))))
+    (if (> n 32) (pair (bits 0 (int- n 32) 0) (bits (int- n 32) n 0)) (bits 0 n 0))))
+
+; the six bits at shift S of the 64-bit value (HI . LO)
+(def %six
+  (fn (_ x s)
+    (match
+      ((>= s 32) (& (>> (first x) (int- s 32)) 63))
+      ((<= s 26) (& (>> (rest x) s) 63))
+      (#t (| (& (<< (first x) (int- 32 s)) 63) (& (>> (rest x) s) (int- (<< 1 (int- 32 s)) 1)))))))
 
 ; P applied to box B's output VAL, the four bits at the box's own place
 (def %sp-entry
@@ -82,23 +101,25 @@
 ; bits as two 24-bit halves (LEFT . RIGHT), the E box's halves' order
 (def %subkeys
   (fn (_ hi lo)
-    (def key (| (<< hi 32) lo))
-    (def cd (%perm key 64 %pc1 56))
+    (def cd (%perm (pair hi lo) 64 %pc1 56))
     (def rot28 (fn (_ x n) (& (| (<< x n) (>> x (int- 28 n))) 268435455)))
+    ; C D's 56 bits as halves: C's top 24, then its low 4 over D
+    (def cd2 (fn (_ c d) (pair (>> c 4) (| (<< (& c 15) 28) d))))
     ((fn (self ss c d acc)
        (if (null? ss) (Vector from-list (List reverse acc))
          (let ((c2 (rot28 c (first ss))) (d2 (rot28 d (first ss))))
-           (let ((k (%perm (| (<< c2 28) d2) 56 %pc2 48)))
-             (self (rest ss) c2 d2 (pair (pair (>> k 24) (& k 16777215)) acc))))))
-     %shifts (>> cd 28) (& cd 268435455) ())))
+           (let ((k (%perm (cd2 c2 d2) 56 %pc2 48)))
+             (self (rest ss) c2 d2
+               (pair (pair (| (<< (first k) 8) (& (>> (rest k) 24) 255)) (& (rest k) 16777215)) acc))))))
+     %shifts (| (<< (first cd) 4) (& (>> (rest cd) 28) 15)) (& (rest cd) 268435455) ())))
 
 ; f(R, K) with the salt's mask: E's eight groups from R doubled, salted,
 ; keyed, through the S and P tables
 (def %f
   (fn (_ r k salt)
-    (def rr (| (>> r 1) (<< (& r 1) 31)))
-    (def dd (| (<< rr 32) rr))
-    (def group (fn (_ b) (& (>> dd (int- 58 (int* 4 b))) 63)))
+    (def rr (| (& (>> r 1) 0x7FFFFFFF) (<< (& r 1) 31)))
+    ; group B is bits 4B..4B+5 of RR twice over, the last wrapping round
+    (def group (fn (_ b) (%six (pair rr rr) (int- 58 (int* 4 b)))))
     (def el (| (<< (group 0) 18) (| (<< (group 1) 12) (| (<< (group 2) 6) (group 3)))))
     (def er (| (<< (group 4) 18) (| (<< (group 5) 12) (| (<< (group 6) 6) (group 7)))))
     (def sw (& (^ el er) salt))
@@ -148,12 +169,12 @@
       ((fn (self n h)
          (if (= n 25) h (self (int+ n 1) (rounds 0 (first h) (rest h)))))
        0 (pair 0 0)))
-    (def block (%perm (| (<< (first lr) 32) (rest lr)) 64 %fp 64))
+    (def block (%perm lr 64 %fp 64))
     (def char (fn (_ v) (Str8 sub v 1 %crypt64)))
     ; eleven characters, six bits each from the top, two zero bits after
     (Str8 join ""
       (List map (fn (_ g)
-                  (char (if (= g 10) (<< (& block 15) 2) (& (>> block (int- 58 (int* 6 g))) 63))))
+                  (char (if (= g 10) (<< (& (rest block) 15) 2) (%six block (int- 58 (int* 6 g))))))
                 (List range 0 11)))))
 
 ; --- $1$, $5$ and $6$: the hashes built on a digest ------------------------

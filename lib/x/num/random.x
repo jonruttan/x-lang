@@ -161,9 +161,11 @@
     ; (Float from), the VALUE door -- the first cut used from-int, which
     ; was the raw BITS door (renamed int->bits, #357): dividing coerced
     ; bit patterns clustered every draw near [0.98, 1) instead of uniform.
-    (let ((hi (self %bits)) (lo (self %bits)))
-      (Float / (Float from (+ (* hi 4194304) (>> lo 9)))
-               (Float from 9007199254740992))))
+    ; The 53 bits are joined in the float, where they are exact on any
+    ; word: a 4-byte word holds neither hi * 2^22 nor 2^53.
+    (let ((hi (self %bits)) (lo (self %bits)) (k (Float from 4194304)))
+      (Float / (Float + (Float * (Float from hi) k) (Float from (>> lo 9)))
+               (Float * (Float * (Float from 32768) (Float from 65536)) k))))
 
   (method uuid (self)
     (doc "A random version-4 UUID string from this source -- 16 bytes with the version (byte 6) and IETF-variant (byte 8) bits set, rendered 8-4-4-4-12 lowercase hex (#375). A seeded software source yields reproducible UUIDs (tests); (Random hw) yields real ones. Late-bound: needs x/codec/hex loaded."

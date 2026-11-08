@@ -159,7 +159,7 @@
         (Compiled make-on-demand (lit x25519) %scalarmult
           (fn (_)
             (import x/codec/x25519-jit)
-            ((prim-ref (lit x25519) (lit jit-make)) fe-frombytes fe-tobytes))
+            ((prim-ref (lit x25519) (lit jit-make)) fe-frombytes fe-tobytes %scalarmult-narrow))
           (fn (_ v) ()))))
     ((fn (_ entry)
        (when (eq? (entry state) (lit interpreted)) (entry compile!))

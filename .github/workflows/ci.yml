@@ -116,8 +116,11 @@ jobs:
               build-essential git curl ca-certificates cmake sudo > /dev/null
             getconf LONG_BIT && uname -m
             sh tools/dev/sdl3-install.sh || echo "sdl3-install failed; the x/sys/sdl spec will say so"
-            make engine && make && make test-c && make test-x \
-              && make conformance && make doctest'
+            # the suite as the checkout'"'"'s owner, as the other legs run it:
+            # specs compare the files'"'"' owner with the effective uid
+            useradd -m -u "$(stat -c %u /w)" builder
+            su builder -c "make engine && make && make test-c && make test-x \
+              && make conformance && make doctest"'
 
   specs:
     name: specs (${{ matrix.os }})

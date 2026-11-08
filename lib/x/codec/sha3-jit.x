@@ -7,9 +7,10 @@
 ; only after it AGREES with that digest on the standard's widths, padding
 ; boundaries and binary input.
 ;
-; The lanes live in a scratch buffer as 64-bit words.  Four compiled
-; functions do the work: absorb xors a block of the padded message into the
-; lanes, a lane a step, with SHA-3's padding compiled arithmetic on the
+; The lanes live in a scratch buffer as words, as sha3.x holds them: one a
+; lane on an 8-byte word, two on a 4-byte word.  Four compiled functions do
+; the work: absorb xors a block of the padded message into the lanes, a
+; word a step, with SHA-3's padding compiled arithmetic on the
 ; length and the total; theta, rho-pi and chi-iota are a round's three
 ; steps, each unrolled over the twenty-five lanes.  The x driver calls them
 ; per block and per round -- one function a step keeps each inside what the
@@ -22,12 +23,22 @@
 
 (import x/core/doors obj-ref ptr->int ptr-ref ptr-set! str->ptr str-make)
 
-; scratch layout, one 1024-byte buffer of 64-bit words:
+; scratch layout, one 1024-byte buffer of words, a lane L = 8/word-size
+; words, low first -- one on an 8-byte word, two on a 4-byte word -- and
+; slot K*L the start of what an 8-byte word has at slot K:
 ;   0..24 A (the lanes) | 25..49 B | 50..54 C | 55 base 56 len 57 total
-;   58 lanes a block | 64..87 the round constants
-(def %k3-B 25)
-(def %k3-C 50)
-(def %k3-RC 64)
+;   58 words a block | 64..87 the round constants
+(def %k3-W (* 8 %word-size))
+(def %k3-L (/ 64 %k3-W))
+(def %k3-B (* 25 %k3-L))
+(def %k3-C (* 50 %k3-L))
+(def %k3-BASE (* 55 %k3-L))
+(def %k3-LEN (+ %k3-BASE 1))
+(def %k3-TOTAL (+ %k3-BASE 2))
+(def %k3-WORDS (+ %k3-BASE 3))
+(def %k3-RC (* 64 %k3-L))
+; a word's byte offset is its index shifted by this
+(def %k3-wshift (if (< %word-size 8) 2 3))
 
 (def %k3-rot (lit (0 1 62 28 27 36 44 6 55 20 3 10 43 25 39 41 45 15 21 8 18 2 61 56 14)))
 (def %k3-pi (lit (0 10 20 5 15 16 1 11 21 6 7 17 2 12 22 23 8 18 3 13 14 24 9 19 4)))
@@ -35,86 +46,104 @@
 ; --- expression builders (generation time) ---
 (def %k3-at (fn (_ i) (list '%mem-ref 'a i)))
 (def %k3-set (fn (_ i v) (list '%mem-set! 'a i v)))
-(def %k3-lmask (fn (_ n) (if (= n 1) 9223372036854775807 (- (<< 1 (- 64 n)) 1))))
+; limb J of lane I in the region at BASE
+(def %k3-limb (fn (_ base i j) (+ base (* i %k3-L) j)))
+(def %k3-lmask
+  (fn (_ n) (if (= n 1) (~ (<< 1 (- %k3-W 1))) (- (<< 1 (- %k3-W n)) 1))))
+; limb J of a lane rotated left N, AT giving its limbs: whole limbs move
+; Q = N/W over and the bits R = N%W across, the top R bits of the limb
+; below coming in under; on one limb, the lane's own rotate
 (def %k3-rotl
-  (fn (_ x n)
-    (if (= n 0) x
-      (list '| (list '<< x n) (list '& (list '>> x (- 64 n)) (%k3-lmask (- 64 n)))))))
+  (fn (_ at n j)
+    (def q (/ n %k3-W))
+    (def r (% n %k3-W))
+    (def limb (fn (_ k) (at (% (+ k %k3-L %k3-L) %k3-L))))
+    (if (= r 0) (limb (- j q))
+      (list '| (list '<< (limb (- j q)) r)
+               (list '& (list '>> (limb (- (- j q) 1)) (- %k3-W r)) (%k3-lmask (- %k3-W r)))))))
 (def %k3-seq
   (fn (_ n f) (pair 'do ((fn (self i) (if (= i n) () (pair (f i) (self (+ i 1))))) 0))))
+; F over every limb of the twenty-five lanes, lane I limb J
+(def %k3-limbs
+  (fn (_ f) (%k3-seq (* 25 %k3-L) (fn (_ k) (f (/ k %k3-L) (% k %k3-L))))))
 (def %k3-nth (fn (self n l) (if (= n 0) (first l) (self (- n 1) (rest l)))))
 
 ; theta: C[x] the column parities, then each lane xored with its neighbours'
 (def %k3-theta-expr
   (list 'fn '(self a)
     (list 'do
-      (%k3-seq 5 (fn (_ x)
-        (%k3-set (+ %k3-C x)
-          (list '^ (%k3-at x) (list '^ (%k3-at (+ x 5)) (list '^ (%k3-at (+ x 10))
-            (list '^ (%k3-at (+ x 15)) (%k3-at (+ x 20)))))))))
-      (%k3-seq 25 (fn (_ i)
+      (%k3-seq (* 5 %k3-L) (fn (_ k)
+        (%k3-set (+ %k3-C k)
+          (list '^ (%k3-at k) (list '^ (%k3-at (+ k (* 5 %k3-L))) (list '^ (%k3-at (+ k (* 10 %k3-L)))
+            (list '^ (%k3-at (+ k (* 15 %k3-L))) (%k3-at (+ k (* 20 %k3-L))))))))))
+      (%k3-limbs (fn (_ i j)
         (let ((x (% i 5)))
-          (%k3-set i (list '^ (%k3-at i)
-                       (list '^ (%k3-at (+ %k3-C (% (+ x 4) 5)))
-                                (%k3-rotl (%k3-at (+ %k3-C (% (+ x 1) 5))) 1))))))))))
+          (%k3-set (%k3-limb 0 i j)
+            (list '^ (%k3-at (%k3-limb 0 i j))
+              (list '^ (%k3-at (%k3-limb %k3-C (% (+ x 4) 5) j))
+                       (%k3-rotl (fn (_ m) (%k3-at (%k3-limb %k3-C (% (+ x 1) 5) m))) 1 j))))))))))
 
 ; rho and pi: each lane rotated into its place in B
 (def %k3-rhopi-expr
   (list 'fn '(self a)
-    (%k3-seq 25 (fn (_ i)
-      (%k3-set (+ %k3-B (%k3-nth i %k3-pi)) (%k3-rotl (%k3-at i) (%k3-nth i %k3-rot)))))))
+    (%k3-limbs (fn (_ i j)
+      (%k3-set (%k3-limb %k3-B (%k3-nth i %k3-pi) j)
+        (%k3-rotl (fn (_ m) (%k3-at (%k3-limb 0 i m))) (%k3-nth i %k3-rot) j))))))
 
 ; chi from B back into A, then iota with round R's constant
 (def %k3-chi-expr
   (list 'fn '(self a r)
     (list 'do
-      (%k3-seq 25 (fn (_ i)
+      (%k3-limbs (fn (_ i j)
         (let ((x (% i 5)) (row (- i (% i 5))))
-          (%k3-set i (list '^ (%k3-at (+ %k3-B i))
-                       (list '& (list '~ (%k3-at (+ %k3-B row (% (+ x 1) 5))))
-                                (%k3-at (+ %k3-B row (% (+ x 2) 5)))))))))
-      (%k3-set 0 (list '^ (%k3-at 0) (list '%mem-ref-at 'a (list '+ %k3-RC 'r)))))))
+          (%k3-set (%k3-limb 0 i j)
+            (list '^ (%k3-at (%k3-limb %k3-B i j))
+              (list '& (list '~ (%k3-at (%k3-limb %k3-B (+ row (% (+ x 1) 5)) j)))
+                       (%k3-at (%k3-limb %k3-B (+ row (% (+ x 2) 5)) j))))))))
+      (%k3-seq %k3-L (fn (_ j)
+        (%k3-set j (list '^ (%k3-at j)
+                     (list '%mem-ref-at 'a
+                       (list '+ (+ %k3-RC j) (if (= %k3-L 1) 'r (list '* 'r %k3-L)))))))))))
 
 ; byte K of the padded message, K an expression: the message, 0x06, zeros,
 ; 0x80 on the last byte of the last block, 0x86 where the two meet
 (def %k3-pad-byte
   (fn (_ k)
-    (def L (%k3-at 56))
-    (def T (%k3-at 57))
+    (def L (%k3-at %k3-LEN))
+    (def T (%k3-at %k3-TOTAL))
     (list 'if (list '< k L)
       (list '%mem-byte-ref-at 'm k)
       (list 'if (list '= k L)
         (list 'if (list '= k (list '- T 1)) 134 6)
         (list 'if (list '= k (list '- T 1)) 128 0)))))
 
-; lane T of the block at base: eight padded bytes, little-endian
+; word T of the block at base: the word's padded bytes, little-endian
+(def %k3-byte-at
+  (fn (_ j) (%k3-pad-byte (list '+ (list '+ (%k3-at %k3-BASE) (list '<< 't %k3-wshift)) j))))
 (def %k3-lane
   ((fn (self j acc)
      (if (< j 0) acc
-       (self (- j 1)
-         (list '| (list '<< (%k3-pad-byte (list '+ (list '+ (%k3-at 55) (list '<< 't 3)) j)) (* 8 j)) acc))))
-   6 (list (lit <<) (%k3-pad-byte (list (lit +) (list (lit +) (%k3-at 55) (list (lit <<) (lit t) 3)) 7)) 56)))
+       (self (- j 1) (list '| (list '<< (%k3-byte-at j) (* 8 j)) acc))))
+   (- %word-size 2) (list '<< (%k3-byte-at (- %word-size 1)) (* 8 (- %word-size 1)))))
 
 (def %k3-absorb-expr
   (list 'fn '(self a m t)
-    (list 'if (list '= 't (%k3-at 58)) 0
+    (list 'if (list '= 't (%k3-at %k3-WORDS)) 0
       (list 'do
         (list '%mem-set-at! 'a 't (list '^ (list '%mem-ref-at 'a 't) %k3-lane))
         (list 'self 'a 'm (list '+ 't 1))))))
 
 ; --- build: compile, wire a driver, and PROVE it against the reference ---
 ;
-; rc:  the codec's round-constant vector, twenty-four lanes.
-; ref: the pure-x digest, (fn (_ width s n) -> a Vector of the 25 lanes).
+; rc:  the codec's round-constant vector, twenty-four lanes' limbs.
+; ref: the pure-x digest, (fn (_ width s n) -> a Vector of the 25 lanes' limbs).
 ;
-; Returns (fn (_ width s n) -> a Vector of the 25 lanes) driving the
+; Returns (fn (_ width s n) -> a Vector of the same) driving the
 ; compiled functions, or raises -- on a host with no assembler backend, on
 ; any toolchain error, or on DISAGREEMENT with the reference.  The caller
 ; guards; a raise means "stay pure-x", never a wrong digest.
 (def sha3-jit-make
   (fn (_ rc ref)
-    ; the engine lays out and computes in 8-byte words
-    (if (< %word-size 8) (Err raise (lit state) "sha3-jit: written for an 8-byte word" ()))
     (def %theta (compile-asm %k3-theta-expr))
     (def %rhopi (compile-asm %k3-rhopi-expr))
     (def %chi (compile-asm %k3-chi-expr))
@@ -123,33 +152,33 @@
     (def %buf (str-make 1024))
     (def %ptr (str->ptr %buf))
     (def %addr (ptr->int %ptr))
-    (def %poke (fn (_ i v) (ptr-set! %ptr (* i 8) v 8)))
-    (def %peek (fn (_ i) (ptr-ref %ptr (* i 8) 8)))
+    (def %poke (fn (_ i v) (ptr-set! %ptr (* i %word-size) v %word-size)))
+    (def %peek (fn (_ i) (ptr-ref %ptr (* i %word-size) %word-size)))
     ((fn (self r)
-       (unless (= r 24)
+       (unless (= r (* 24 %k3-L))
          (do (%poke (+ %k3-RC r) (obj-ref rc (+ r 1))) (self (+ r 1))))) 0)
     (def %digest
       (fn (_ width s n)
         (def rate (- 200 (>> width 2)))
         (def total (* (+ (/ (- n (% n rate)) rate) 1) rate))
         (def maddr (ptr->int (str->ptr s)))
-        ((fn (self i) (unless (= i 25) (do (%poke i 0) (self (+ i 1))))) 0)
-        (%poke 56 n)
-        (%poke 57 total)
-        (%poke 58 (>> rate 3))
+        ((fn (self i) (unless (= i (* 25 %k3-L)) (do (%poke i 0) (self (+ i 1))))) 0)
+        (%poke %k3-LEN n)
+        (%poke %k3-TOTAL total)
+        (%poke %k3-WORDS (>> rate %k3-wshift))
         ((fn (self b)
            (unless (= b total)
-             (do (%poke 55 b)
+             (do (%poke %k3-BASE b)
                  (%absorb %addr maddr 0)
                  ((fn (self r)
                     (unless (= r 24)
                       (do (%theta %addr) (%rhopi %addr) (%chi %addr r) (self (+ r 1))))) 0)
                  (self (+ b rate))))) 0)
-        (Vector from-list ((fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (%peek i) acc)))) 24 ()))))
+        (Vector from-list ((fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (%peek i) acc)))) (- (* 25 %k3-L) 1) ()))))
     (def %disagrees "sha3-jit: engine disagrees with the pure-x digest")
     (def %same
       (fn (_ x y)
-        ((fn (self i) (if (= i 25) #t (if (= (Vector ref i x) (Vector ref i y)) (self (+ i 1)) #f))) 0)))
+        ((fn (self i) (if (= i (* 25 %k3-L)) #t (if (= (Vector ref i x) (Vector ref i y)) (self (+ i 1)) #f))) 0)))
     (def %check
       (fn (_ width s n)
         (unless (%same (%digest width s n) (ref width s n))

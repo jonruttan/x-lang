@@ -15,7 +15,10 @@ contract.
 unactionable, so the generator is a seeded LCG: a failure prints the
 case that broke and the seed that produced it, and rerunning that seed
 reproduces it exactly. Widen coverage by raising the case count or
-changing the seed — never by making it time-dependent.
+changing the seed — never by making it time-dependent. The LCG draws the
+same cases on any word: the seed keeps the word's low 32 bits, and a draw
+masks the shifted seed to its 24 bits, which a 4-byte word's arithmetic
+shift would otherwise fill with the sign.
 
 **Scope, stated honestly.** The generated expressions are
 INTEGER-VALUED: comparisons and the boolean forms appear only inside
@@ -28,7 +31,7 @@ stay under 32 (ARM64 shifts by the low six bits of the register, C's
 shift by at least the word width is undefined — comparing those would
 pit a defined answer against an undefined one). Signed overflow in `*`
 and `<<` is assumed to wrap identically on both sides, which it does:
-the interpreter's arithmetic is C on a 64-bit word and the JIT's is the
+the interpreter's arithmetic is C on the platform's word and the JIT's is the
 register file. This runs under
 helium: with the numeric tower loaded, interpreted arithmetic would
 promote to bigint where the JIT wraps, so the oracle would disagree for
@@ -44,8 +47,8 @@ reasons that are not defects.
   (def %seed-cell (pair 20260805 ()))
   (def %rand
     (fn (_ n)
-      (%set-first! %seed-cell (& (+ (* (first %seed-cell) 1664525) 1013904223) 4294967295))
-      (% (>> (first %seed-cell) 8) n)))
+      (%set-first! %seed-cell (& (+ (* (first %seed-cell) 1664525) 1013904223) 0xFFFFFFFF))
+      (% (& (>> (first %seed-cell) 8) 16777215) n)))
 
   ; Local list walkers.  This file's harness is x-core + posix + hash +
   ; compile -- the `List` CLASS is not loaded, and the runner discards
@@ -219,8 +222,8 @@ anything the JIT does not implement used to compile *as* a self-call.
   (def %seed-cell (pair 777001 ()))
   (def %rand
     (fn (_ n)
-      (%set-first! %seed-cell (& (+ (* (first %seed-cell) 1664525) 1013904223) 4294967295))
-      (% (>> (first %seed-cell) 8) n)))
+      (%set-first! %seed-cell (& (+ (* (first %seed-cell) 1664525) 1013904223) 0xFFFFFFFF))
+      (% (& (>> (first %seed-cell) 8) 16777215) n)))
 
   ; bounded leaves: the two params and small literals only
   (def %leaf
@@ -327,8 +330,8 @@ other's sentinels and is caught by whichever phase runs next.
   (def %seed-cell (pair 20260806 ()))
   (def %rand
     (fn (_ n)
-      (%set-first! %seed-cell (& (+ (* (first %seed-cell) 1664525) 1013904223) 4294967295))
-      (% (>> (first %seed-cell) 8) n)))
+      (%set-first! %seed-cell (& (+ (* (first %seed-cell) 1664525) 1013904223) 0xFFFFFFFF))
+      (% (& (>> (first %seed-cell) 8) 16777215) n)))
   (def %nth (fn (self n xs) (if (= n 0) (first xs) (self (- n 1) (rest xs)))))
   (def %len (fn (self xs) (if (null? xs) 0 (+ 1 (self (rest xs))))))
   (def %pick (fn (_ xs) (%nth (%rand (%len xs)) xs)))
@@ -352,7 +355,7 @@ other's sentinels and is caught by whichever phase runs next.
   (def %fill
     (fn (self j)
       (unless (>= j %slots)
-        (do (%setw %ptr (* j 8) (%sentinel j)) (self (+ j 1))))))
+        (do (%setw %ptr (* j %word-size) (%sentinel j)) (self (+ j 1))))))
 
   ; --- index expressions: integer arithmetic over the two arguments ---
   (def %gen ())
@@ -389,7 +392,7 @@ other's sentinels and is caught by whichever phase runs next.
   (def %verify
     (fn (self j slot v)
       (if (>= j %slots) 'ok
-        (let ((got (%refw %ptr (* j 8)))
+        (let ((got (%refw %ptr (* j %word-size)))
               (want (if (= j slot) v (%sentinel j))))
           (if (= got want) (self (+ j 1) slot v)
             (%cat (list "SLOT " (%w j) " got=" (%w got) " want=" (%w want))))))))

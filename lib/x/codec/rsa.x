@@ -463,10 +463,16 @@
           0))
        (if (null? found) (self) found)))))
 
+; a b mod m on ints, a and b below m, m at most 2^16 + 1: b in two bytes'
+; worth, so no product passes 2^25, which a 4-byte word holds
+(def %mul-mod-small
+  (fn (_ a b m)
+    (int% (int+ (int* (int% (int* a (int>> b 8)) m) 256) (int* a (int& b 255))) m)))
+
 ; b^x mod m on ints, m small.
 (def %pow-small
   (fn (_ b x m)
-    ((fn (self b x acc) (if (= x 0) acc (self (int% (int* b b) m) (int>> x 1) (if (= (int& x 1) 1) (int% (int* acc b) m) acc)))) (int% b m) x 1)))
+    ((fn (self b x acc) (if (= x 0) acc (self (%mul-mod-small b b m) (int>> x 1) (if (= (int& x 1) 1) (%mul-mod-small acc b m) acc)))) (int% b m) x 1)))
 
 ; A key of bits bits: (N E D IQMP P Q), big-endian regions, n and d n's
 ; length, iqmp p's.

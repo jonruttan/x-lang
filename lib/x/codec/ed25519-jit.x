@@ -40,14 +40,27 @@
 ; d2:   the field element 2d, as the codec holds it.
 ; base: the base point, for the check.
 ;
+; narrow: the codec's three on a 4-byte word, already over the compiled
+;       field of x/codec/mont-jit, where the ten-limb operations, whose
+;       products are 64-bit, have no word to run in: the engine there.
+;
 ; Returns (SCALARMULT INVERT POW22523): (fn (_ k p) -> point), and the
 ; field's two chains as (fn (_ z) -> element); or raises -- on a host
 ; whose architecture has no assembler backend, on any toolchain error,
 ; or on DISAGREEMENT with the RFC's bytes.
 (def ed25519-jit-make
-  (fn (_ d2 base)
-    ; the engine lays out and computes in 8-byte words
-    (if (< %word-size 8) (Err raise (lit state) "ed25519-jit: written for an 8-byte word" ()))
+  (fn (_ d2 base narrow)
+    ; a list of its own on a 4-byte word: Compiled reads the interpreted
+    ; value itself back as a maker declining
+    (def three
+      (if (< %word-size 8) (list (first narrow) (first (rest narrow)) (first (rest (rest narrow))))
+        (%ej-build d2)))
+    (%ej-prove! three base)
+    three))
+
+; the double-and-add over fe25519-jit's operations, and its chains
+(def %ej-build
+  (fn (_ d2)
     (def %ops (fe-jit-compile))
     (def %mul (List ref 0 %ops))
     (def %add (List ref 1 %ops))
@@ -110,14 +123,18 @@
                  (self (- bit 1)))))
          255)
         (list (%store %X) (%store %Y) (%store %Z) (%store %T))))
-    ; The field operations were proven against the pure-x field when they
-    ; were built; what is left to prove is the double-and-add over them,
-    ; and RFC 8032's test 1 proves it: its seed's clamped scalar times the
-    ; base point encodes as its public key, the bytes the pure-x
-    ; function's spec holds it to.  The encoding's inverse is the field
-    ; engine's chain, itself checked where it is built.
-    (def %invert (first (fe-jit-chains)))
-    (def %pow22523 (first (rest (fe-jit-chains))))
+    (list %engine (first (fe-jit-chains)) (first (rest (fe-jit-chains))))))
+
+; The field operations were proven against the pure-x field when they
+; were built; what is left to prove is the double-and-add over them, and
+; RFC 8032's test 1 proves it: its seed's clamped scalar times the base
+; point encodes as its public key, the bytes the pure-x function's spec
+; holds it to.  The encoding's inverse is the field engine's chain, itself
+; checked where it is built.
+(def %ej-prove!
+  (fn (_ three base)
+    (def %engine (first three))
+    (def %invert (first (rest three)))
     (def %encode
       (fn (_ p)
         (def recip (%invert (List ref 2 p)))
@@ -146,8 +163,7 @@
             #f))))
     (unless (%same (%encode (%engine (%hex-bytes "307c83864f2833cb427a2ef1c00a013cfdff2768d980c0a3a520f006904de94f") base))
                    (%hex-bytes "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a") 0)
-      (Err raise 'state "ed25519-jit: engine disagrees with RFC 8032" ()))
-    (list %engine %invert %pow22523)))
+      (Err raise 'state "ed25519-jit: engine disagrees with RFC 8032" ()))))
 
 ; The codec reaches the maker through the catalogue: it loads this module
 ; inside the function that builds its engine, and a name imported there is

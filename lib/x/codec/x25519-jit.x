@@ -114,10 +114,15 @@
           (list 'if (list '= 'ph last) 0
             (list 'self 'a (list '+ 'ph 1) (next 3) (next 0) (next 1) (next 2))))))))
 
+; narrow: the codec's ladder on a 4-byte word, already over the compiled
+;         field of x/codec/mont-jit, where the ten-limb operations, whose
+;         products are 64-bit, have no word to run in: the engine there.
 (def x25519-jit-make
+  (fn (_ frombytes tobytes narrow)
+    (if (< %word-size 8) (%xj-prove! narrow) (%xj-build frombytes tobytes))))
+
+(def %xj-build
   (fn (_ frombytes tobytes)
-    ; the engine lays out and computes in 8-byte words
-    (if (< %word-size 8) (Err raise (lit state) "x25519-jit: written for an 8-byte word" ()))
     ; the field operations, built and proven against the pure-x field: the
     ; ladder and the chain compile the same expressions
     (fe-jit-compile)
@@ -163,7 +168,17 @@
         ; the inverse and the last multiply, from the table's first step
         ((fn (_ s) (%chain %addr 0 (List ref 3 s) (List ref 0 s) (List ref 1 s) (List ref 2 s))) (first %xj-chain))
         (tobytes (%store %X2))))
-    ; the differential check: the RFC's 6.1 exchange, both directions
+    ; Operations replayed from the cache group passed this very check in
+    ; the process that stored them; the ladder over them is this file's
+    ; own source, the same in every process.
+    (if (fe-jit-replayed?) %engine (%xj-prove! %engine))))
+
+; The field operations were proven against the pure-x field when they
+; were built; what is left to prove is the ladder over them, and the RFC's
+; own bytes prove it -- the bytes the pure-x function's spec holds it to
+; -- in both directions of the exchange.  Answers the engine.
+(def %xj-prove!
+  (fn (_ %engine)
     (def %same
       (fn (self x y i)
         (if (= i 32) #t
@@ -182,25 +197,16 @@
                                 (%digit (char->int (str-byte-ref hex (+ (* 2 i) 1))))) 1)
                  (self (+ i 1))))) 0)
         s))
-    ; The field operations were proven against the pure-x field when they
-    ; were built; what is left to prove is the ladder over them, and the
-    ; RFC's own bytes prove it -- the bytes the pure-x function's spec
-    ; holds it to -- in both directions of the exchange.
     (def %check
       (fn (_ k u expect)
         (unless (%same (%engine k u) expect 0)
           (Err raise 'state "x25519-jit: engine disagrees with RFC 7748" ()))))
-    ; Operations replayed from the cache group passed this very check in
-    ; the process that stored them; the ladder over them is this file's
-    ; own source, the same in every process.
-    (unless (fe-jit-replayed?)
-      (do
-        (def %a (%hex-bytes "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"))
-        (def %b (%hex-bytes "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb"))
-        (def %apub (%hex-bytes "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a"))
-        (def %nine (%hex-bytes "0900000000000000000000000000000000000000000000000000000000000000"))
-        (%check %a %nine %apub)
-        (%check %b %apub (%hex-bytes "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742"))))
+    (def %a (%hex-bytes "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"))
+    (def %b (%hex-bytes "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb"))
+    (def %apub (%hex-bytes "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a"))
+    (def %nine (%hex-bytes "0900000000000000000000000000000000000000000000000000000000000000"))
+    (%check %a %nine %apub)
+    (%check %b %apub (%hex-bytes "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742"))
     %engine))
 
 ; The codec reaches the maker through the catalogue: it loads this module

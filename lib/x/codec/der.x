@@ -13,8 +13,12 @@
 ; The bit operations through the int doors: the generic ones dispatch
 ; through the numeric tower, about a hundred objects a call, these none.
 ; There is no int xor: a ^ b is (a | b) - (a & b).
-(import x/core/doors char->int int& int- int/ int<< int>> int| ptr-set! str->ptr str-byte-ref str-make)
+(import x/core/doors char->int int& int- int/ int< int<< int>> int| ptr-set! str->ptr str-byte-ref str-make)
 (def %xor (fn (_ a b) (int- (int| a b) (int& a b))))
+
+; A time is seconds since 1970, past 2^31 from 2038 on: a 4-byte word holds
+; it as a bigint, which the generic arithmetic promotes to once bigint loads.
+(when (int< %word-size 8) (import x/num/bigint))
 
 
 ; Integer division on the int prim: under the numeric tower / is exact, and

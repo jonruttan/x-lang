@@ -72,14 +72,21 @@
         (list '^ (%gj-W (+ %gj-Y k))
           (list '| (list '<< (b 0) 24) (list '| (list '<< (b 1) 16) (list '| (list '<< (b 2) 8) (b 3)))))))))
 
+; A word moved right four bits, zeros in from the top.  An 8-byte word
+; holds the 32 bits non-negative, so its arithmetic shift is already
+; logical; on a 4-byte word the top bit is the sign, which the mask clears.
+(def %gj-narrow (< %word-size 8))
+(def %gj-srl4
+  (fn (_ x) (if %gj-narrow (list '& (list '>> x 4) 268435455) (list '>> x 4))))
+
 ; Z moved right four bits, the nibble that falls off folded back in.
 (def %gj-shift
   (list 'do
     (%gj-setW %gj-T (list '& (%gj-W (+ %gj-Z 3)) 15))
-    (%gj-setW (+ %gj-Z 3) (list '| (list '>> (%gj-W (+ %gj-Z 3)) 4) (list '<< (list '& (%gj-W (+ %gj-Z 2)) 15) 28)))
-    (%gj-setW (+ %gj-Z 2) (list '| (list '>> (%gj-W (+ %gj-Z 2)) 4) (list '<< (list '& (%gj-W (+ %gj-Z 1)) 15) 28)))
-    (%gj-setW (+ %gj-Z 1) (list '| (list '>> (%gj-W (+ %gj-Z 1)) 4) (list '<< (list '& (%gj-W %gj-Z) 15) 28)))
-    (%gj-setW %gj-Z (list '^ (list '>> (%gj-W %gj-Z) 4) (%gj-at (list '+ %gj-REM (%gj-W %gj-T)))))))
+    (%gj-setW (+ %gj-Z 3) (list '| (%gj-srl4 (%gj-W (+ %gj-Z 3))) (list '<< (list '& (%gj-W (+ %gj-Z 2)) 15) 28)))
+    (%gj-setW (+ %gj-Z 2) (list '| (%gj-srl4 (%gj-W (+ %gj-Z 2))) (list '<< (list '& (%gj-W (+ %gj-Z 1)) 15) 28)))
+    (%gj-setW (+ %gj-Z 1) (list '| (%gj-srl4 (%gj-W (+ %gj-Z 1))) (list '<< (list '& (%gj-W %gj-Z) 15) 28)))
+    (%gj-setW %gj-Z (list '^ (%gj-srl4 (%gj-W %gj-Z)) (%gj-at (list '+ %gj-REM (%gj-W %gj-T)))))))
 
 ; Z XOR the multiple of H by a nibble.
 (def %gj-add
@@ -116,8 +123,8 @@
 
 ; --- the multiples of H (per H, in x) ---
 ;
-; No int xor in x: a ^ b is (a | b) - (a & b).
-(def %gj-xor (fn (_ a b) (- (| a b) (& a b))))
+; The xor of two words, in the word's bits on either width.
+(def %gj-xor (fn (_ a b) (^ a b)))
 
 ; H's sixteen multiples: 8 is H itself, 4, 2 and 1 H moved right a bit at
 ; a time with R folded in, the rest their sums.
@@ -130,11 +137,13 @@
     (def half
       (fn (_ v)
         (def v0 (first v)) (def v1 (first (rest v))) (def v2 (first (rest (rest v)))) (def v3 (first (rest (rest (rest v)))))
-        (def top (>> v0 1))
-        (list (if (= (& v3 1) 1) (%gj-xor top 3774873600) top)
-              (| (>> v1 1) (<< (& v0 1) 31))
-              (| (>> v2 1) (<< (& v1 1) 31))
-              (| (>> v3 1) (<< (& v2 1) 31)))))
+        ; right a bit, zeros in: the mask is a no-op on an 8-byte word
+        (def srl1 (fn (_ x) (& (>> x 1) 0x7FFFFFFF)))
+        (def top (srl1 v0))
+        (list (if (= (& v3 1) 1) (%gj-xor top 0xE1000000) top)
+              (| (srl1 v1) (<< (& v0 1) 31))
+              (| (srl1 v2) (<< (& v1 1) 31))
+              (| (srl1 v3) (<< (& v2 1) 31)))))
     (def sum
       (fn (_ x y)
         ((fn (self x y) (if (null? x) () (pair (%gj-xor (first x) (first y)) (self (rest x) (rest y))))) x y)))
@@ -154,19 +163,17 @@
 ; ref: the pure-x hash, (fn (_ h s len) -> 16 bytes) -- the oracle.
 (def ghash-jit-make
   (fn (_ ref)
-    ; the engine lays out and computes in 8-byte words
-    (if (< %word-size 8) (Err raise (lit state) "ghash-jit: written for an 8-byte word" ()))
     (jit-group "ghash-jit:nibble" (fn (_) (list %gj-block-expr))
       (fn (_ fns replayed?) (%gj-wire ref (first fns) replayed?)))))
 
 (def %gj-wire
   (fn (_ ref %block replayed?)
     (unless replayed? (Heap collect))
-    (def %buf (%gj-make-str (* 8 %gj-words)))
+    (def %buf (%gj-make-str (* %word-size %gj-words)))
     (def %ptr (%gj-str->ptr %buf))
     (def %addr (%gj-ptr->int %ptr))
-    (def %poke (fn (_ i v) (%gj-pset %ptr (* i 8) v)))
-    (def %peek (fn (_ i) (%gj-pref %ptr (* i 8))))
+    (def %poke (fn (_ i v) (%gj-pset %ptr (* i %word-size) v)))
+    (def %peek (fn (_ i) (%gj-pref %ptr (* i %word-size))))
     ((fn (self i rs) (unless (null? rs) (do (%poke (+ %gj-REM i) (<< (first rs) 16)) (self (+ i 1) (rest rs))))) 0 %gj-rems)
     (def %b (fn (_ s i) (%gj-char->int (%gj-byte-ref s i))))
     (def %same

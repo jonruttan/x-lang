@@ -16,7 +16,9 @@
 ; every logical shift here is masked after, and a rotation is the masked
 ; shift or'd with the left shift.  The scratch holds K and H as 64-bit
 ; words poked and read as two 4-byte halves, which keeps the x side of
-; the driver on 32-bit values the way the codec is.
+; the driver on 32-bit values the way the codec is.  A 4-byte word holds a
+; slot as those two halves, and its functions are generated from them: see
+; the engine on a 4-byte word, below.
 (module x/codec/sha512-jit)
 
 (import x/tool/jit-group jit-group)
@@ -126,6 +128,197 @@
            7 ())
           (list (list 'self 'a 'o (list '+ 'w 1))))))))
 
+; --- the same engine on a 4-byte word (generation time) ---
+;
+; A 64-bit slot is two words there, lo at word 2i and hi at 2i+1, the
+; halves the driver pokes and reads on either word.  A value is
+; (READ? LO HI), two expressions for its words, READ? when each is a plain
+; read.  The rotations and shifts move bits across the halves; an addition
+; adds the halves and carries the low half's carry-out into the high:
+; (a & b) | ((a | b) & ~sum), its top bit.  An expression reads each of
+; its inputs once a half, so a value fed to anything that reads it twice
+; is stored first, in a temporary at word %n5-TMP on: a function is a list
+; of stores, written in order.
+(def %s5-narrow (< %word-size 8))
+(def %n5-TMP 288)
+
+(def %n5-word (fn (_ i) (list '%mem-ref 'a i)))
+(def %n5-word-at (fn (_ e) (list '%mem-ref-at 'a e)))
+(def %n5-slot (fn (_ i) (list #t (%n5-word (* 2 i)) (%n5-word (+ (* 2 i) 1)))))
+; 64-bit slot E, an expression, read at run time
+(def %n5-slot-at
+  (fn (_ e) (list #t (%n5-word-at (list '<< e 1)) (%n5-word-at (list '+ (list '<< e 1) 1)))))
+(def %n5-lo (fn (_ v) (first (rest v))))
+(def %n5-hi (fn (_ v) (first (rest (rest v)))))
+(def %n5-val (fn (_ lo hi) (list #f lo hi)))
+
+; the function being generated: its stores, newest first, and its next
+; temporary
+(def %n5-out (pair () %n5-TMP))
+(def %n5-begin! (fn (_) (%set-first! %n5-out ()) (%set-rest! %n5-out %n5-TMP)))
+(def %n5-emit! (fn (_ s) (%set-first! %n5-out (pair s (first %n5-out)))))
+(def %n5-stores
+  (fn (_) (pair 'do ((fn (self l acc) (if (null? l) acc (self (rest l) (pair (first l) acc)))) (first %n5-out) ()))))
+(def %n5-store!
+  (fn (_ i v)
+    (%n5-emit! (list '%mem-set! 'a (* 2 i) (%n5-lo v)))
+    (%n5-emit! (list '%mem-set! 'a (+ (* 2 i) 1) (%n5-hi v)))))
+(def %n5-store-at!
+  (fn (_ e v)
+    (%n5-emit! (list '%mem-set-at! 'a (list '<< e 1) (%n5-lo v)))
+    (%n5-emit! (list '%mem-set-at! 'a (list '+ (list '<< e 1) 1) (%n5-hi v)))))
+; V as plain reads: itself, or stored to a fresh temporary
+(def %n5-fix
+  (fn (_ v)
+    (if (first v) v
+      (do (def w (rest %n5-out))
+          (%set-rest! %n5-out (+ w 2))
+          (%n5-emit! (list '%mem-set! 'a w (%n5-lo v)))
+          (%n5-emit! (list '%mem-set! 'a (+ w 1) (%n5-hi v)))
+          (list #t (%n5-word w) (%n5-word (+ w 1)))))))
+
+; a word shifted right n places logically, 1 <= n <= 31
+(def %n5-srl (fn (_ x n) (list '& (list '>> x n) (- (<< 1 (- 32 n)) 1))))
+(def %n5-shr
+  (fn (_ v n)
+    (def x (%n5-fix v))
+    (%n5-val (list '| (%n5-srl (%n5-lo x) n) (list '<< (%n5-hi x) (- 32 n)))
+             (%n5-srl (%n5-hi x) n))))
+; right by n, 1 <= n <= 63: past 32 the halves trade places first
+(def %n5-rotr
+  (fn (_ v n)
+    (def x (%n5-fix v))
+    (def lo (if (< n 32) (%n5-lo x) (%n5-hi x)))
+    (def hi (if (< n 32) (%n5-hi x) (%n5-lo x)))
+    (def m (% n 32))
+    (if (= m 0) (list #t lo hi)
+      (%n5-val (list '| (%n5-srl lo m) (list '<< hi (- 32 m)))
+               (list '| (%n5-srl hi m) (list '<< lo (- 32 m)))))))
+(def %n5-op2 (fn (_ op x y) (%n5-val (list op (%n5-lo x) (%n5-lo y)) (list op (%n5-hi x) (%n5-hi y)))))
+(def %n5-xor (fn (_ x y) (%n5-op2 '^ x y)))
+(def %n5-and (fn (_ x y) (%n5-op2 '& x y)))
+(def %n5-not (fn (_ x) (%n5-val (list '~ (%n5-lo x)) (list '~ (%n5-hi x)))))
+; The sum is stored whole, in a temporary: its high half reads the inputs'
+; low halves again, and a store of the sum over an input would change them.
+(def %n5-add
+  (fn (_ u v)
+    (def x (%n5-fix u))
+    (def y (%n5-fix v))
+    (def w (rest %n5-out))
+    (%set-rest! %n5-out (+ w 2))
+    (def a (%n5-lo x))
+    (def b (%n5-lo y))
+    (def s (%n5-word w))
+    (%n5-emit! (list '%mem-set! 'a w (list '+ a b)))
+    (%n5-emit! (list '%mem-set! 'a (+ w 1)
+                 (list '+ (list '+ (%n5-hi x) (%n5-hi y))
+                          (%n5-srl (list '| (list '& a b) (list '& (list '| a b) (list '~ s))) 31))))
+    (list #t s (%n5-word (+ w 1)))))
+
+(def %n5-bs0 (fn (_ x) (%n5-xor (%n5-rotr x 28) (%n5-xor (%n5-rotr x 34) (%n5-rotr x 39)))))
+(def %n5-bs1 (fn (_ x) (%n5-xor (%n5-rotr x 14) (%n5-xor (%n5-rotr x 18) (%n5-rotr x 41)))))
+(def %n5-ss0 (fn (_ x) (%n5-xor (%n5-rotr x 1) (%n5-xor (%n5-rotr x 8) (%n5-shr x 7)))))
+(def %n5-ss1 (fn (_ x) (%n5-xor (%n5-rotr x 19) (%n5-xor (%n5-rotr x 61) (%n5-shr x 6)))))
+(def %n5-ch (fn (_ x y z) (%n5-xor (%n5-and x y) (%n5-and (%n5-not x) z))))
+(def %n5-maj (fn (_ x y z) (%n5-xor (%n5-and x y) (%n5-xor (%n5-and x z) (%n5-and y z)))))
+(def %n5-w (fn (_ off) (%n5-slot-at (list '& (list '- 't off) 15))))
+
+(def %n5-extend
+  (fn (_)
+    (%n5-begin!)
+    (%n5-store-at! (list '& 't 15)
+      (%n5-add (%n5-add (%n5-ss1 (%n5-w 2)) (%n5-w 7))
+               (%n5-add (%n5-ss0 (%n5-w 15)) (%n5-w 16))))
+    (%n5-stores)))
+
+; the extension's stores are generated first, and the round's after: the
+; two share the store list, and the extension's temporaries are dead before
+; the round's are written
+(def %n5-round-body
+  (fn (_)
+    (def ext (%n5-extend))
+    (%n5-begin!)
+    (def A (%n5-slot 16)) (def B (%n5-slot 17)) (def C (%n5-slot 18)) (def D (%n5-slot 19))
+    (def E (%n5-slot 20)) (def F (%n5-slot 21)) (def G (%n5-slot 22)) (def H (%n5-slot 23))
+    (%n5-store! 24 (%n5-add (%n5-add H (%n5-bs1 E))
+                            (%n5-add (%n5-ch E F G)
+                                     (%n5-add (%n5-slot-at (list '+ %s5-KB 't))
+                                              (%n5-slot-at (list '& 't 15))))))
+    (%n5-store! 25 (%n5-add (%n5-bs0 A) (%n5-maj A B C)))
+    (%n5-store! 23 G) (%n5-store! 22 F) (%n5-store! 21 E)
+    (%n5-store! 20 (%n5-add D (%n5-slot 24)))
+    (%n5-store! 19 C) (%n5-store! 18 B) (%n5-store! 17 A)
+    (%n5-store! 16 (%n5-add (%n5-slot 24) (%n5-slot 25)))
+    (list 'do (list 'if (list '< 't 16) 0 ext)
+              (%n5-stores)
+              (list 'self 'a (list '+ 't 1)))))
+
+(def %n5-load-h
+  (fn (_)
+    (%n5-begin!)
+    ((fn (self i) (unless (= i 8) (do (%n5-store! (+ 16 i) (%n5-slot (+ %s5-HB i))) (self (+ i 1))))) 0)
+    (%n5-stores)))
+(def %n5-store-h
+  (fn (_)
+    (%n5-begin!)
+    ((fn (self i)
+       (unless (= i 8)
+         (do (%n5-store! (+ %s5-HB i) (%n5-add (%n5-slot (+ %s5-HB i)) (%n5-slot (+ 16 i))))
+             (self (+ i 1))))) 0)
+    (%n5-stores)))
+(def %n5-rounds-expr
+  (fn (_)
+    (def load (%n5-load-h))
+    (def store (%n5-store-h))
+    (list 'fn '(self a t)
+      (list 'if (list '< 't 0)
+        (list 'do load (list 'self 'a 0))
+        (list 'if (list '= 't 80) store (%n5-round-body))))))
+
+; the fill: len, total and base are the low words of slots 27, 28 and 26,
+; and the bit length's top four bytes are zeros, a 4-byte word's message
+; being under 2^29 bytes
+(def %n5-pad-byte
+  (fn (_ k)
+    (def i (if (= k 0) (%n5-word 52) (list '+ (%n5-word 52) k)))
+    (def L (%n5-word 54))
+    (def T (%n5-word 56))
+    (list 'if (list '< i L)
+      (list '%mem-byte-ref-at 'm i)
+      (list 'if (list '= i L) 128
+        (list 'if (list '< i (list '- T 4)) 0
+          (list '& (list '>> (list '<< L 3)
+                         (list '<< (list '- (list '- T 1) i) 3)) 255))))))
+; a word from the four padded bytes at byte 8t+O of the block, big-endian
+(def %n5-fill-half
+  (fn (_ o)
+    ((fn (self k acc)
+       (if (< k 0) acc
+         (self (- k 1) (list '| (list '<< (%n5-pad-byte (list '+ (list '<< 't 3) (+ o k))) (* 8 (- 3 k))) acc))))
+     2 (%n5-pad-byte (list '+ (list '<< 't 3) (+ o 3))))))
+(def %n5-fill-expr
+  (list 'fn '(self a m t)
+    (list 'if (list '= 't 16) 0
+      (list 'do (list '%mem-set-at! 'a (list '+ (list '<< 't 1) 1) (%n5-fill-half 0))
+                (list '%mem-set-at! 'a (list '<< 't 1) (%n5-fill-half 4))
+                (list 'self 'a 'm (list '+ 't 1))))))
+
+; the digest written out, H's words big-endian, hi half first
+(def %n5-emit-expr
+  (list 'fn '(self a o w)
+    (list 'if (list '= 'w 8) 0
+      (pair 'do
+        (List append
+          ((fn (self j acc)
+             (if (< j 0) acc
+               (self (- j 1)
+                 (pair (list '%mem-byte-set-at! 'o (list '+ (list '<< 'w 3) j)
+                             (list '& (list '>> (%n5-word-at (list '+ (list '<< (list '+ %s5-HB 'w) 1) (if (< j 4) 1 0)))
+                                            (* 8 (- 3 (% j 4)))) 255))
+                       acc))))
+           7 ())
+          (list (list 'self 'a 'o (list '+ 'w 1))))))))
+
 ; --- build: compile, wire a driver, and PROVE it against the reference ---
 ;
 ; k:   the codec's K vector, 160 halves, hi then lo (slots 2t+1, 2t+2).
@@ -139,9 +332,9 @@
 ; guards; a raise means "stay pure-x", never a wrong digest.
 (def sha512-jit-make
   (fn (_ k ihs ref)
-    ; the engine lays out and computes in 8-byte words
-    (if (< %word-size 8) (Err raise (lit state) "sha512-jit: written for an 8-byte word" ()))
-    (jit-group "sha512-jit:emit" (fn (_) (list %s5-rounds-expr %s5-fill-expr %s5-emit-expr))
+    (jit-group "sha512-jit:emit"
+      (fn (_) (if %s5-narrow (list (%n5-rounds-expr) %n5-fill-expr %n5-emit-expr)
+                (list %s5-rounds-expr %s5-fill-expr %s5-emit-expr)))
       (fn (_ fns replayed?)
         (%s5-wire k ihs ref (first fns) (first (rest fns)) (first (rest (rest fns))) replayed?)))))
 
@@ -157,7 +350,11 @@
     (def %addr (ptr->int %ptr))
     ; a 64-bit slot as its two halves: lo at the slot's first four bytes
     (def %poke-halves (fn (_ i hi lo) (ptr-set! %ptr (* i 8) lo 4) (ptr-set! %ptr (+ (* i 8) 4) hi 4)))
-    (def %poke (fn (_ i v) (ptr-set! %ptr (* i 8) v 8)))
+    ; a small value in a 64-bit slot: the whole word, or its low half and
+    ; a zero high half on a 4-byte word
+    (def %poke
+      (if %s5-narrow (fn (_ i v) (%poke-halves i 0 v))
+        (fn (_ i v) (ptr-set! %ptr (* i 8) v 8))))
     (def %peek-hi (fn (_ i) (ptr-ref %ptr (+ (* i 8) 4) 4)))
     (def %peek-lo (fn (_ i) (ptr-ref %ptr (* i 8) 4)))
     ((fn (self t)
