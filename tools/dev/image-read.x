@@ -231,10 +231,10 @@
 (def %append-l (fn (self a b) (if (null? a) b (pair (first a) (self (rest a) b)))))
 (def %ENV-ORDER (lit (env env-root)))
 (def %env-cell? (fn (self l nm) (if (null? l) #f (if (eq? (first l) nm) #t (self (rest l) nm)))))
-;  The same cells the writer roots: not the profile counters, not sigint
-; (spec 1) -- those stay this base's own.
+;  The same cells the writer roots: not the profile counters, not sigint,
+; not line, not parent (spec 1) -- those stay this base's own.
 (def %prefix? (fn (_ sym pre) (if (%lt (%str-byte-len (%p->s (%symbytes sym))) (%str-byte-len pre)) #f (str=? (%str-byte-sub (%p->s (%symbytes sym)) 0 (%str-byte-len pre)) pre))))
-(def %root-cell? (fn (_ nm) (if (eq? nm (lit sigint)) #f (if (eq? nm (lit line)) #f (not (%prefix? nm "profile-"))))))
+(def %root-cell? (fn (_ nm) (if (eq? nm (lit sigint)) #f (if (eq? nm (lit line)) #f (if (eq? nm (lit parent)) #f (not (%prefix? nm "profile-")))))))
 (def %OTHERS ((fn (self l acc) (if (null? l) acc (self (rest l) (if (%root-cell? (first (first l))) (if (%env-cell? %ENV-ORDER (first (first l))) acc (pair (first (first l)) acc)) acc)))) %LANG ()))
 ; execution order: the others, then env and env-root, the root last
 (def %ORDER (%append-l %OTHERS %ENV-ORDER))
