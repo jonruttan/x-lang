@@ -445,8 +445,30 @@
        (%fc-assq (rest (%fc-binding (first e))) %fc-forms))
       ())))
 
-; In a test, null? and eq? compare words and branch, and pair? and symbol?
-; read the operand's type name, with no #t or #f built.
+; eq? compares value words (docs/spec.md, eq?): an integer or a character
+; by its value, any other object by its first data word, and nil only to
+; nil.  Comparing the two objects' addresses answers #f for two integer
+; objects of one value, which the interpreter answers #t.  Both operands
+; are bound to locals, in order, and nil is tested before %unbox reads
+; either one's first data word.
+(def %fc-eq
+  (fn (_ ops)
+    (def a (%fc-fresh "%fc-t"))
+    (def b (%fc-fresh "%fc-t"))
+    (set! %fc-names (pair a (pair b %fc-names)))
+    (def yes (%fc-const #t))
+    (list (lit do)
+      (list (lit def) a (first ops))
+      (list (lit def) b (first (rest ops)))
+      (list (lit if) (list (lit =) a ())
+        (list (lit if) (list (lit =) b ()) yes (lit %false))
+        (list (lit if) (list (lit =) b ()) (lit %false)
+          (list (lit if) (list (lit =) (list (lit %unbox) a) (list (lit %unbox) b))
+            yes (lit %false)))))))
+
+; In a test, null? compares words and branches, eq? compares value words
+; (%fc-eq), and pair? and symbol? read the operand's type name, with no #t
+; or #f built.
 (set! %fc-test
   (fn (_ e)
     ((fn (_ form)
@@ -455,9 +477,7 @@
          ((or (eq? form (lit pair?)) (eq? form (lit symbol?)))
            (list (lit %type-is?) (%fc-value (first (rest e)))
                  (%fc-const (rest (%fc-assq form %fc-type-names)))))
-         ((eq? form (lit eq?))
-           ((fn (_ held) (%fc-with (first held) (pair (lit =) (rest held))))
-            (%fc-hold (List map %fc-value (rest e)))))
+         ((eq? form (lit eq?)) (%fc-eq (List map %fc-value (rest e))))
          (#t (%fc-expr e (lit test)))))
      (%fc-form-of e))))
 (set! %fc-raw (fn (_ e) (%fc-expr e (lit raw))))
