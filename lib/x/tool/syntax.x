@@ -616,9 +616,12 @@
     (note "The file is read on the first use of a theme, and again after forget!; one that does not read is one line on stderr and the default theme.")
     (example "((Theme default) style 'keyword)" "1537")
     (example "((Theme default) sgr 'number)" "\"\\x1b[33m\""))
-  (doc (name ()) "The theme's name, a symbol")
-  (doc (styles ()) "Each (CLASS . STYLE): STYLE a Style integer")
-  (doc (codes ()) "Each (CLASS . SEQUENCE): the SGR sequence that draws the class, as sgr answers it")
+  (doc (name ()) "The theme's name, a symbol"
+    (example "((Theme default) name)" "'default"))
+  (doc (styles ()) "Each (CLASS . STYLE): STYLE a Style integer"
+    (example "((Theme make 'mono '((keyword (bold) () ()))) styles)" "(('keyword . 1))"))
+  (doc (codes ()) "Each (CLASS . SEQUENCE): the SGR sequence that draws the class, as sgr answers it"
+    (example "((Theme make 'mono '((keyword (bold) () ()))) codes)" "(('keyword . \"\\x1b[1m\"))"))
 
   (method style (self (param cls SYMBOL "A class"))
     (doc "The Style the theme draws a class with, 0 (plain) for one it leaves out."
@@ -652,7 +655,8 @@
 
     (method default (self)
       (doc "The default theme: comments and privates dim; strings green, numbers yellow, names blue, characters and escapes magenta; keywords, constants and classes bold in magenta, red and cyan; errors bold red; punctuation and operators plain."
-        (returns Theme "The theme"))
+        (returns Theme "The theme")
+        (example "((Theme default) sgr 'string)" "\"\\x1b[32m\""))
       (if (null? (first %sx-default))
         (%set-first! %sx-default (Theme make (lit default) %sx-default-rows))
         ())
@@ -660,7 +664,8 @@
 
     (method register! (self (param t Theme "A theme"))
       (doc "Add a theme to the ones named finds; one of the same name is replaced. A theme file's themes are found before registered ones."
-        (returns Theme "The theme"))
+        (returns Theme "The theme")
+        (example "((Theme register! (Theme make 'mono ())) name)" "'mono"))
       (%set-first! %sx-themes
         (pair t (List filter (fn (_ h) (not (eq? (h name) (t name)))) (first %sx-themes))))
       t)
@@ -685,21 +690,24 @@
 
     (method current (self)
       (doc "The theme in use: the one use! set, else the one the user's theme file names with (use NAME), else the default."
-        (returns Theme "The theme"))
+        (returns Theme "The theme")
+        (sample "((Theme current) name)" "'default, unless use! or the theme file chose another"))
       (%sx-read-user!)
       (if (null? (first %sx-theme)) (%set-first! %sx-theme (Theme default)) ())
       (first %sx-theme))
 
     (method use! (self (param t Theme "A theme"))
       (doc "Draw with a theme from now on."
-        (returns Theme "The theme"))
+        (returns Theme "The theme")
+        (example "((Theme use! (Theme default)) name)" "'default"))
       (%sx-read-user!)
       (%set-first! %sx-theme t)
       t)
 
     (method file (self)
       (doc "The user's theme file: $X_THEME, else $XDG_CONFIG_HOME/x/theme.x, else ~/.config/x/theme.x; nil for an empty X_THEME or no home. The file need not exist."
-        (returns STRING "The path, or nil"))
+        (returns STRING "The path, or nil")
+        (sample "(Theme file)" "\"/home/me/.config/x/theme.x\" with neither X_THEME nor XDG_CONFIG_HOME set"))
       (%sx-theme-file))
 
     (method load! (self (param path STRING "A theme file"))
@@ -724,7 +732,8 @@
 
     (method forget! (self)
       (doc "Drop the theme in use and the theme file's themes, read again on next use; registered themes stay."
-        (returns NIL "Nothing"))
+        (returns NIL "Nothing")
+        (example "(null? (Theme forget!))" "#t"))
       (%set-first! %sx-theme ())
       (%set-first! %sx-user ())
       ())))
@@ -736,16 +745,26 @@
     (note "The classes are one vocabulary, (Syntax classes), so a renderer knows every grammar's output: comment string char number keyword constant class private name punct operator escape error.")
     (note "A grammar's lexer is made on its first read, not when the grammar is: making a Lexer compiles its states, which a process that never highlights should not pay for.")
     (example "((Syntax x) spans \"(def x 42) ; hi\")" "((0 1 'punct) (1 3 'keyword) (5 1 'name) (7 2 'number) (9 1 'punct) (11 4 'comment))"))
-  (doc (name ()) "The grammar's name, a symbol")
-  (doc (rules ()) "The Lexer rules, each token's tag looked up in classes")
-  (doc (end " ") "The Lexer's end text: see Lexer's end field")
-  (doc (classes ()) "Each (TAG . CLASS): CLASS a class symbol, nil to leave the token plain, or a function of the token's text answering one, or answering the token's pieces, each (offset length class) inside the text, in order, a piece of class nil left plain")
-  (doc (sync ()) "A test (fn (_ text offset)) of a line start, true where the lexer can start outside any string or comment; nil to read from the text's start")
-  (doc (lines 100) "How many lines spans walks back looking for a line the sync test passes")
-  (doc (files ()) "The file name endings the grammar is for, as \".x\"")
-  (doc (names ()) "The whole file names the grammar is for, as \"Makefile\"")
-  (doc (interpreters ()) "The programs a #! line names for the grammar's files, as \"sh\"; a version after the name is ignored, so \"python\" is for python3.12")
-  (doc (lexer ()) "The Lexer, made from the rules on the first read")
+  (doc (name ()) "The grammar's name, a symbol"
+    (example "((Syntax x) name)" "'x"))
+  (doc (rules ()) "The Lexer rules, each token's tag looked up in classes"
+    (example "((Syntax make 'plain (list (Lexer any 'text)) ()) rules)" "(('any \"text\" 'text))"))
+  (doc (end " ") "The Lexer's end text: see Lexer's end field"
+    (example "((Syntax x) end)" "\" \""))
+  (doc (classes ()) "Each (TAG . CLASS): CLASS a class symbol, nil to leave the token plain, or a function of the token's text answering one, or answering the token's pieces, each (offset length class) inside the text, in order, a piece of class nil left plain"
+    (example "(List map (fn (_ p) (first p)) ((Syntax x) classes))" "('comment 'string 'char 'paren 'atom 'bad)"))
+  (doc (sync ()) "A test (fn (_ text offset)) of a line start, true where the lexer can start outside any string or comment; nil to read from the text's start"
+    (example "(((Syntax x) sync) \"a\\n(b\" 2)" "#t"))
+  (doc (lines 100) "How many lines spans walks back looking for a line the sync test passes"
+    (example "((Syntax x) lines)" "100"))
+  (doc (files ()) "The file name endings the grammar is for, as \".x\""
+    (example "((Syntax x) files)" "(\".x\" \".xon\")"))
+  (doc (names ()) "The whole file names the grammar is for, as \"Makefile\""
+    (example "(null? ((Syntax x) names))" "#t"))
+  (doc (interpreters ()) "The programs a #! line names for the grammar's files, as \"sh\"; a version after the name is ignored, so \"python\" is for python3.12"
+    (example "((Syntax x) interpreters)" "(\"x\")"))
+  (doc (lexer ()) "The Lexer, made from the rules on the first read"
+    (example "(null? ((Syntax make 'plain (list (Lexer any 'text)) ()) lexer))" "#t"))
 
   (method spans (self (param text STRING "The text")
                       . (param range LIST "Optionally the start, the length, and the end of the meaningful text"))
@@ -783,7 +802,8 @@
     (method over (self (param l Lexer "A Lexer whose rules read every byte")
                        (param classes LIST "Each (TAG . CLASS), as the classes field takes them"))
       (doc "A grammar over a Lexer already made, reading from the text's start."
-        (returns Syntax "The grammar"))
+        (returns Syntax "The grammar")
+        (example "((Syntax over (Lexer make (list (Lexer run 'w \"ab\" \"ab\")) \" \") (list (pair 'w 'name))) spans \"ab\")" "((0 2 'name))"))
       (let ((g (Syntax make (lit lexer) (l rules) classes))) (g lexer l) g))
 
     (method x (self)
@@ -804,7 +824,8 @@
 
     (method register! (self (param g Syntax "A grammar"))
       (doc "Add a grammar to the ones named and for-file finds; one of the same name is replaced. A grammar module a bundle's lang.xon names registers its grammar this way when it loads."
-        (returns Syntax "The grammar"))
+        (returns Syntax "The grammar")
+        (example "(eq? (Syntax register! (Syntax x)) (Syntax named 'x))" "#t"))
       (%set-first! %sx-registry
         (pair g (List filter (fn (_ h) (not (eq? (h name) (g name)))) (first %sx-registry))))
       g)
@@ -838,7 +859,8 @@
 
     (method classes (self)
       (doc "Every class a grammar's table may answer, in index order."
-        (returns LIST "Class symbols"))
+        (returns LIST "Class symbols")
+        (example "(Syntax classes)" "('comment 'string 'char 'number 'keyword 'constant 'class 'private 'name 'punct 'operator 'escape 'error)"))
       (List map (fn (_ row) (first row)) %sx-table))
 
     (method index (self (param cls SYMBOL "A class"))
@@ -861,7 +883,8 @@
 
     (method code (self (param cls SYMBOL "A class"))
       (doc "The SGR sequence a class is drawn with in the theme in use when standard output takes colour (Ansi enabled?), else empty."
-        (returns STRING "The escape sequence, or empty"))
+        (returns STRING "The escape sequence, or empty")
+        (sample "(Syntax code 'number)" "\"\\x1b[33m\" in the default theme on a terminal, \"\" when output is a pipe"))
       (if (Ansi enabled?) ((Theme current) sgr cls) ""))
 
     (method ansi (self (param text STRING "The text the spans index")
@@ -929,12 +952,14 @@
 
     (method keywords (self)
       (doc "x-lang's constructs, as a Dict used as a set."
-        (returns Dict "Construct name -> #t"))
+        (returns Dict "Construct name -> #t")
+        (example "((Syntax keywords) get \"def\")" "#t"))
       (%sx-keywords))
 
     (method forget! (self)
       (doc "Drop the construct set, the memo of atom classes and the bundles' catalogue rows, read again on next use: a lang that registers literal syntax changes what the reader answers, and an image runs where other bundles are installed."
-        (returns NIL "Nothing"))
+        (returns NIL "Nothing")
+        (example "(null? (Syntax forget!))" "#t"))
       (%set-first! %sx-kw ())
       (%set-first! %sx-memo ())
       (%set-first! %sx-bundle-rows ())
@@ -950,4 +975,5 @@
   (note "One vocabulary of classes, one span shape, three renderers: a grammar never writes markup, and a renderer never reads text.")
   (note "Theme says how a terminal draws each class; the user's theme file chooses one.")
   (note "x/repl/paint colours the REPL line and x/tool/highlight the documentation from (Syntax x).")
+  (example "((Syntax x) spans \"(f 1)\")" "((0 1 'punct) (1 1 'name) (3 1 'number) (4 1 'punct))")
   "Syntax: lexical grammars and the renderers that draw their spans.")
