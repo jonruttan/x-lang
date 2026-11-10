@@ -56,7 +56,7 @@
 (doc int-form-wide "FORM with each (*>> a b k) written as (>> (* a b) k): the form compile-asm takes on an 8-byte word, where one word holds the product."
   (param form LIST "An int form")
   (returns LIST "The form, its *>> products spelled as a multiply and a shift")
-  (example "(do (import x/tool/int-form int-form-wide) (int-form-wide (lit (fn (_ a b) (*>> a b 16)))))" "(fn (_ a b) (>> (* a b) 16))"))
+  (example "(do (import x/tool/int-form int-form-wide) (equal? (int-form-wide (lit (fn (_ a b) (*>> a b 16)))) (lit (fn (_ a b) (>> (* a b) 16)))))" "#t"))
 
 (doc (provide x/tool/int-form int-form-pure int-form-wide)
   "An integer (fn ...) form, the kind compile-asm compiles, as the pure-x function it means: the twin a compiled loop is checked against."
