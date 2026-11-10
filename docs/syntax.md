@@ -42,6 +42,11 @@ echoes them in shorthand.
 - Decimals print with their `d`: `1.5d` echoes `1.5d`, because a printed
   `1.5` would read back as a float. `(Decimal ->str x)` is the suffix-free
   text. (Implemented.)
+- Fixed-point literals — module-gated, on any dialect: once `x/num/fixed`
+  is loaded, `0.75q16` reads as the integer 49152, the number times 2^16.
+  The value is a plain integer and prints as one. A form is read whole
+  before it runs, so the import stands in a form before the first
+  literal. (Implemented.)
 - Leading-zero integers are decimal (`019` is nineteen); `0x13` is hex.
   (Implemented.)
 
