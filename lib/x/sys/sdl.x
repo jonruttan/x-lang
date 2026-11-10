@@ -53,7 +53,7 @@
 (module x/sys/sdl)
 (import x/type/class)
 (import x/core/list)
-(import x/core/doors ffi-dlopen ffi-dlsym int->ptr int& int<< int= ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make mem-copy)
+(import x/core/doors ffi-dlopen ffi-dlsym int- int->ptr int& int< int<< int= int>> int| ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make mem-copy)
 
 (def-class Sdl ()
   (doc "A window that shows an RGBA pixel buffer, its keyboard and window events, and streams of sound, through the host's SDL3 loaded with dlopen."
@@ -301,12 +301,13 @@
     (method %f32-int (self (param b INTEGER "A 32-bit IEEE float's bits, read as an integer"))
       (doc "The float as a whole number, toward zero; SDL gives the mouse's places as floats."
         (returns INTEGER "The whole part")
-        (example "(Sdl %f32-int 1092616192)" "10")
-        (example "(Sdl %f32-int 3212836864)" "-1"))
-      (def e (& (>> b 23) 255))
-      (def m (| (& b 8388607) 8388608))
-      (def n (match ((< e 127) 0) ((< e 150) (>> m (- 150 e))) (#t (<< m (- e 150)))))
-      (if (= (& b 2147483648) 0) n (- 0 n)))
+        (example "(Sdl %f32-int 0x41200000)" "10")
+        (example "(Sdl %f32-int 0xBF800000)" "-1"))
+      ; the float's 32 bits: bit 31 is its sign on any word, and the bits above it are not its
+      (def e (int& (int>> b 23) 255))
+      (def m (int| (int& b 0x7FFFFF) 0x800000))
+      (def n (match ((int< e 127) 0) ((int< e 150) (int>> m (int- 150 e))) (#t (int<< m (int- e 150)))))
+      (if (int= 0 (int& b (int<< 1 31))) n (int- 0 n)))
 
     (method %held (self (param state INTEGER "SDL's mouse button flags"))
       (doc "The mouse buttons held, by name, for the flags SDL gives with a motion."
