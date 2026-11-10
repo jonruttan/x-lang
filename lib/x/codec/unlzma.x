@@ -570,16 +570,16 @@
 
 (def-class Unlzma ()
   (doc "lzma decompression in pure x-lang, the .lzma \"alone\" format busybox's unlzma and lzcat read. (Unlzma decode s start n) answers (OUT N USED)."
-    (example "(do (import x/codec/hex) (first (rest (Unlzma decode (Hex decode \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\") 0 33))))" "13"))
+    (example "(do (import x/codec/bytes) (def z (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (first (rest (Unlzma decode (first z) 0 (Bytes length z)))))" "13"))
   (static
     (method decode (self (param s STRING "Bytes holding a .lzma stream")
                          . (param span LIST "START, then LENGTH: where the stream starts in s and how many bytes of s it may use; default all of s"))
       (doc "Decompress one .lzma stream: the 13-byte header, then the range coder's bytes, to the end marker or to the length the header declares. Give LENGTH for binary input: s's own length is measured to its first NUL, and a header holds three."
         (returns LIST "(OUT N USED): the output region, its byte count, and the input bytes the stream used")
-        (example "(do (import x/codec/hex) (first (rest (Unlzma decode (Hex decode \"5d00000004ffffffffffffffff0083fffbffffc0000000\") 0 23))))" "0"))
+        (example "(do (import x/codec/bytes) (def z (Bytes of-hex \"5d00000004ffffffffffffffff0083fffbffffc0000000\")) (first (rest (Unlzma decode (first z) 0 (Bytes length z)))))" "0"))
       (def sp (%span s span))
       (%decode-all s (first sp) (first (rest sp))))))
 
 (doc (provide x/codec/unlzma Unlzma)
-  (example "(do (import x/codec/hex) (first (rest (rest (Unlzma decode (Hex decode \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\") 0 33)))))" "33")
+  (example "(do (import x/codec/bytes) (def z (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (first (rest (rest (Unlzma decode (first z) 0 (Bytes length z))))))" "33")
   "lzma decompression in pure x-lang, the .lzma \"alone\" format: (Unlzma decode s start n) answers (OUT N USED).")
