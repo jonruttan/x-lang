@@ -1060,12 +1060,12 @@ the reader for the files it lints and such a token arrives as the marker
 ```x
 (do
   (Lint %lint-arm-source!)
-  (def %forms (Tok read-str (%base) "(& a 4294967295) (& b 0xFFFFFFFF)"))
+  (def %forms (Tok read-str (%base) "(& a 4294967295) (& b 0xFF)"))
   (Lint %lint-disarm-source!)
   (write %forms))
 ```
 ---
-    (('& 'a ('lit ('%wide-decimal "4294967295"))) ('& 'b 4294967295))
+    (('& 'a ('lit ('%wide-decimal "4294967295"))) ('& 'b 255))
 
 ### an armed read marks by value, at the word's two ends
 
@@ -1079,16 +1079,19 @@ the reader for the files it lints and such a token arrives as the marker
 ---
     ((2147483647 ('lit ('%wide-decimal "2147483648")) -2147483648 ('lit ('%wide-decimal "-2147483649"))))
 
-### a read after disarming reads the integer
+### a read after disarming reads an integer, not the marker
+
+What the integer is depends on the word, so the case asks only its kind.
 
 ```x
 (do
   (Lint %lint-arm-source!)
   (Lint %lint-disarm-source!)
-  (write (Tok read-str (%base) "(& a 4294967295)")))
+  (def %form (first (Tok read-str (%base) "(& a 4294967295)")))
+  (display (pair? (first (rest (rest %form))))))
 ```
 ---
-    (('& 'a 4294967295))
+    #f
 
 ### an armed read's forms carry the finding through lint-forms
 
