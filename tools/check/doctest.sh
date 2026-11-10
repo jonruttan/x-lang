@@ -1,10 +1,11 @@
 #!/bin/sh
 # doctest.sh -- generate the doctest spec from the library's (example ...)
-# forms (#16). Emits the generated .spec.md on stdout; run it through the
-# spec harness with:
+# forms (#16). Emits the generated .spec.md on stdout.  `make doctest` cuts
+# it into one spec file per library area and runs those:
 #
 #   sh tools/check/doctest.sh > build/doctests.spec.md
-#   sh tests/x/spec-runner.sh build/doctests.spec.md
+#   awk -v dir=build/doctest-specs -f tools/check/doctest-split.awk build/doctests.spec.md
+#   sh tests/x/doctest-runner.sh
 #
 # Module list is auto-discovered from lib/x/**. Denylist, with cause:
 #   x/tool/asm/*       -- asm backend opcode tables: raw-included by
