@@ -1234,6 +1234,7 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tools/dev
 	install $C -m 0644 tools/dev/lint.sh $(DESTDIR)$(LIBDIR)/tools/dev/lint.sh
 	install $C -m 0644 tools/dev/lint.x $(DESTDIR)$(LIBDIR)/tools/dev/lint.x
+	install $C -m 0644 tools/dev/lint-run.x $(DESTDIR)$(LIBDIR)/tools/dev/lint-run.x
 	# THE STATE-IMAGE TOOLS, so an installed x boots from images too: the
 	# wrapper writes a dialect's image on a miss and a bundle's installer
 	# writes the bundle's (x --image NAME), and both load through lib/img.x

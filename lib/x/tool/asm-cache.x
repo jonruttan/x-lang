@@ -167,6 +167,7 @@
       (match
         ((eq? mode (lit object)) "!o")
         ((eq? mode (lit operative)) "!p")
+        ((eq? mode (lit function)) "!f")
         ((pair? mode) (Str append "!r" (io-write-to-str (rest mode))))
         (mode "!a")
         (#t "!i")))))
@@ -1384,6 +1385,23 @@
 ; replaced.  That includes the JIT-runtime refusal: a missing trampoline makes
 ; dlsym answer nil, which misses, which reaches asm-compile-fresh, which
 ; raises the same "JIT runtime unavailable" it always did.
+; What a function world compile applies to a nil operand of an integer
+; operation in place of reading it.
+(def %asm-fn-unbox-fault
+  (fn (_ v)
+    (Err raise 'type "a compiled function's integer operation was given nil" v)))
+; The function world's fixed fvars: #f, and what each unchecked read
+; evaluates in its place when its operand is nil.  Bound here, once, so the
+; compiled code's embedded addresses stay rooted for the process.  A nil
+; first or rest raises what x/core/first-rest's guards raise: this module
+; loads before those guards are armed, so the first and rest it sees are
+; the engine's unguarded ones.
+(def %asm-fn-fvars
+  (list (pair (lit %false) #f)
+        (pair (lit %op-first) (list (list (lit lit) error) "first: () has no first"))
+        (pair (lit %op-rest) (list (list (lit lit) error) "rest: () has no rest"))
+        (pair (lit %op-unbox) (list (list (lit lit) %asm-fn-unbox-fault) ()))))
+
 (def asm-compile-cached
   (fn (_ expr . %asm-rest)
     (def fvars (unless (null? %asm-rest) (first %asm-rest)))
@@ -1402,14 +1420,16 @@
         ((pair? (rest %asm-rest))
           (let ((m (first (rest %asm-rest))))
             (if (or (eq? m #t) (eq? m #f) (eq? m (lit object)) (eq? m (lit operative))
-                    (%asm-cache-run-mode? m))
+                    (eq? m (lit function)) (%asm-cache-run-mode? m))
               m
               (Err raise 'value
                 (Str append "compile-asm: the third argument names the calling "
                   "world: #t for an analyse callback, #f for an integer "
                   "function, the symbol object for an object function, the "
                   "symbol operative for an object function given its argument "
-                  "list unevaluated, or (run TYPE ...) for a routine the engine "
+                  "list unevaluated, the symbol function for a program's "
+                  "closure rewritten by x/tool/fn-compile, or (run TYPE ...) "
+                  "for a routine the engine "
                   "calls through a slot, one TYPE a parameter, each object, "
                   "integer or string.") ()))))
         ((null? fvars) #f)
@@ -1422,10 +1442,15 @@
     ; (asm-compile.x, "Truth"), and #f's address is per-process, so it rides
     ; the fvar %false: added here, the key and the relocation records name it
     ; as the compile does.
+    ; The function world takes three more the same way: what each unchecked
+    ; read evaluates in its place when its operand is nil.
     (def fvars
-      (if (or (eq? analyser? (lit object)) (eq? analyser? (lit operative)))
-        (pair (pair (lit %false) #f) fvars)
-        fvars))
+      (match
+        ((eq? analyser? (lit function))
+          (%append %asm-fn-fvars fvars))
+        ((or (eq? analyser? (lit object)) (eq? analyser? (lit operative)))
+          (pair (pair (lit %false) #f) fvars))
+        (#t fvars)))
     ; Whether to stand aside is decided FIRST, before the printer is asked for
     ; anything: on that path this module gets out of the way entirely and the
     ; expression takes the route it took before there was a cache.

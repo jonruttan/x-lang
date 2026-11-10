@@ -150,3 +150,41 @@ SDL's event layout: type at 0, the pad's id at 16, the button or axis at
 ```
 ---
     #t
+
+## sound
+
+Every case selects SDL's dummy audio driver, which takes frames at the
+rate a device would and plays them nowhere.
+
+### a stream opens, takes frames, and reports them queued until cleared
+
+```x
+(do (import x/sys/sdl) (import x/core/doors str-make)
+  (Sdl hint! "SDL_AUDIO_DRIVER" "dummy")
+  (def s (Sdl audio-open 44100 2))
+  (def buf (str-make 176400))
+  (def put (Sdl audio-put! s buf 176400))
+  (def ahead (< 0 (Sdl audio-queued s)))
+  (Sdl audio-clear! s)
+  (def cleared (Sdl audio-queued s))
+  (Sdl audio-close s)
+  (list put ahead cleared))
+```
+---
+    (176400 #t 0)
+
+### two streams open at once, each its own queue
+
+```x
+(do (import x/sys/sdl) (import x/core/doors str-make)
+  (Sdl hint! "SDL_AUDIO_DRIVER" "dummy")
+  (def a (Sdl audio-open 44100 2))
+  (def b (Sdl audio-open 22050 1))
+  (Sdl audio-put! a (str-make 88200) 88200)
+  (def got (list (< 0 (Sdl audio-queued a)) (Sdl audio-queued b)))
+  (Sdl audio-close a)
+  (Sdl audio-close b)
+  got)
+```
+---
+    (#t 0)

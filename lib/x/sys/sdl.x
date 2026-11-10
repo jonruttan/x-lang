@@ -1,5 +1,5 @@
-; sys/sdl.x -- Sdl: a window, a pixel buffer shown in it, and its events,
-; through the host's SDL3, loaded with dlopen.
+; sys/sdl.x -- Sdl: a window, a pixel buffer shown in it, its events, and
+; streams of sound, through the host's SDL3, loaded with dlopen.
 ;
 ; SDL3 is bound the way codec/zlib.x binds libz: dlopen, dlsym and ptr call
 ; from x/core/doors, no new C.  Every call here takes integers and pointers
@@ -23,7 +23,15 @@
 ;   (Sdl buttons) (Sdl axes)    -> gamepad button and axis names
 ;   (Sdl close win)             -> releases the window and SDL
 ;   (Sdl error)                 -> SDL's last error message
+;   (Sdl audio-open rate chans) -> a playing stream of signed 16-bit frames
+;   (Sdl audio-put! s buf n)    -> n bytes of buf queued to play after the rest
+;   (Sdl audio-queued s)        -> bytes queued and not yet played
+;   (Sdl audio-clear! s)        -> the queue dropped, unplayed
+;   (Sdl audio-close s)         -> the stream released
 ;
+; Audio is pushed, never pulled: each stream is its own device stream, which
+; SDL mixes with the others, and SDL's audio thread never calls into x.  A
+; caller keeps a stream fed by asking audio-queued how far ahead it is.
 ; A buffer is a (str make) region of w*h*4 bytes, R G B A per pixel, rows
 ; top to bottom with no padding.  Events are lists: (key-down KEY MOD REPEAT),
 ; (key-up KEY MOD REPEAT), (pad-down BUTTON PAD), (pad-up BUTTON PAD),
@@ -44,7 +52,7 @@
 (import x/core/doors ffi-dlopen ffi-dlsym int->ptr ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make mem-copy)
 
 (def-class Sdl ()
-  (doc "A window that shows an RGBA pixel buffer, and its keyboard and window events, through the host's SDL3 loaded with dlopen."
+  (doc "A window that shows an RGBA pixel buffer, its keyboard and window events, and streams of sound, through the host's SDL3 loaded with dlopen."
     (note "SDL3 is looked for at the path given to load!, then as libSDL3.so.0, libSDL3.0.dylib, and under /opt/homebrew/lib and /usr/local/lib. A missing library raises a label 'io.")
     (example "(Sdl key (lit up))" "1073741906")
     (see open) (see show!) (see poll) (see available?))
@@ -52,6 +60,9 @@
     (%path-cell (pair () ()))
     (%init-video 32)
     (%init-gamepad 8192)
+    (%init-audio 16)
+    (%s16 32784)
+    (%default-playback 4294967295)
     (%buttons (lit (south east west north back guide start left-stick right-stick
                     left-shoulder right-shoulder dpad-up dpad-down dpad-left dpad-right)))
     (%axes (lit (left-x left-y right-x right-y left-trigger right-trigger)))
@@ -309,6 +320,53 @@
       (def hit (List find (fn (_ e) (eq? (first e) name)) (Sdl keys)))
       (if (null? hit) () (rest hit)))
 
+    (method audio-open (self (param rate INTEGER "Frames a second, such as 44100")
+                             (param chans INTEGER "Channels a frame: 1 mono, 2 stereo, left first"))
+      (doc "Start SDL's audio and open a stream to the default playback device that plays signed 16-bit little-endian frames, already running: what is put on it plays as soon as the device takes it. Each stream is mixed with every other one open."
+        (note "With the hint SDL_AUDIO_DRIVER set to dummy, a stream opens and drains with no sound device, as a spec needs.")
+        (returns INTEGER "The stream, an SDL_AudioStream pointer as an integer")
+        (sample "(Sdl audio-open 44100 2)" "a stream"))
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_InitSubSystem") (Sdl %init-audio)) "audio init")
+      (def spec (Sdl %zeroed 16))
+      (def p (str->ptr spec))
+      (ptr-set! p 0 (Sdl %s16) 4)
+      (ptr-set! p 4 chans 4)
+      (ptr-set! p 8 rate 4)
+      (def s (Sdl %made (ptr-call (Sdl %sym "SDL_OpenAudioDeviceStream") (Sdl %default-playback) p () ())
+                        "audio stream"))
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_ResumeAudioStreamDevice") s) "audio resume")
+      s)
+
+    (method audio-put! (self (param s INTEGER "A stream from audio-open")
+                             (param buf STRING "A region of frames")
+                             (param n INTEGER "Bytes of it to queue, from its start"))
+      (doc "Queue the first n bytes of buf to play after what is already queued. SDL copies them: buf may be written again at once."
+        (returns INTEGER "n")
+        (sample "(Sdl audio-put! s buf 4096)" "4096"))
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_PutAudioStreamData") s (str->ptr buf) n) "audio put")
+      n)
+
+    (method audio-queued (self (param s INTEGER "A stream from audio-open"))
+      (doc "Bytes queued on the stream and not yet taken by the device: how far ahead of the speaker the stream is."
+        (returns INTEGER "A byte count, 0 when it has run dry")
+        (sample "(Sdl audio-queued s)" "17640"))
+      (def n (& (ptr-call (Sdl %sym "SDL_GetAudioStreamQueued") s) 4294967295))
+      (if (< n 2147483648) n (Err raise (lit io) (Str8 append "Sdl audio-queued: " (Sdl error)) s)))
+
+    (method audio-clear! (self (param s INTEGER "A stream from audio-open"))
+      (doc "Drop everything queued on the stream, unplayed: the next put plays at once."
+        (returns INTEGER "The stream")
+        (sample "(Sdl audio-clear! s)" "s"))
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_ClearAudioStream") s) "audio clear")
+      s)
+
+    (method audio-close (self (param s INTEGER "A stream from audio-open"))
+      (doc "Stop the stream and release it and its device; what was queued is dropped."
+        (returns ANY "nil")
+        (sample "(Sdl audio-close s)" "nil"))
+      (ptr-call (Sdl %sym "SDL_DestroyAudioStream") s)
+      ())
+
     (method close (self (param win LIST "A window from open"))
       (doc "Release the window's texture, renderer and window, and shut SDL down."
         (returns ANY "nil")
@@ -321,4 +379,4 @@
 
 (doc (provide x/sys/sdl Sdl)
   (example "(Sdl key (lit escape))" "27")
-  "A window that shows an RGBA pixel buffer, with keyboard and window events, through the host's SDL3 over the dlopen FFI.")
+  "A window that shows an RGBA pixel buffer, with keyboard and window events and streams of sound, through the host's SDL3 over the dlopen FFI.")

@@ -109,6 +109,19 @@ and `openssl s_server` serves https.
 ---
     ("a%20b%26c%3Dd" "A-z_0.~")
 
+### url-decode turns %XX of either case into its byte, leaves a stray % and + as they are, and undoes url-encode
+
+```x
+(do (import x/net/http)
+  (list (Http url-decode "a%20b%26c%3dd+e")
+        (Http url-decode "100% %zz %4")
+        (Http url-decode "%C3%A9t%C3%A9")
+        (Http url-decode (Http url-encode "x=1&y=a b/~"))
+        (Http url-decode "")))
+```
+---
+    ("a b&c=d+e" "100% %zz %4" "été" "x=1&y=a b/~" "")
+
 ### with-query: ? on a bare url, & after; both sides encoded
 
 ```x

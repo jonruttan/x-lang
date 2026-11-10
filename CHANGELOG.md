@@ -5,6 +5,86 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-11-08
+
+**Added sound: audio streams in `x/sys/sdl`, and `x/audio/mixer` and `x/audio/tracker`** ([#1217]). `Sdl audio-open`, `audio-put!`, `audio-queued`, `audio-clear!` and `audio-close` push signed 16-bit frames to SDL3 over the dlopen FFI. `x/audio/mixer` synthesises voices from wave tables, with envelopes, slides, low-pass, pan and echoes, and mixes them to stereo a block at a time; its seven per-frame loops are compiled (`Mixer jit!`) and checked against pure x, and a 1024-frame block of 12 voices and two echoes costs 1.5 ms. `x/audio/tracker` plays songs written as data, their tempo and layers following a tension. The int-form loop machinery is shared as `x/tool/int-form` and `x/tool/int-form-jit` (formerly `x/gfx/canvas-jit`).
+
+[#1217]: https://github.com/jonruttan/x-lang/pull/1217
+
+- compile-fn! compiles let (parallel bindings, nested, defs in its body)
+  as fresh locals; a named let still leaves the function interpreted ([#1216]).
+
+[#1216]: https://github.com/jonruttan/x-lang/pull/1216
+
+- compile-fn! on a closure with a rest parameter refuses it with "the
+  parameters are not a list of names" instead of segfaulting ([#1215]).
+
+[#1215]: https://github.com/jonruttan/x-lang/pull/1215
+
+- compile-fn! calls every C primitive the engine's ISA manifest does not
+  label spine (str ->sym, str append, sym ->str, type of, ...) with
+  values; spine primitives such as guard still leave the function
+  interpreted ([#1214]).
+
+[#1214]: https://github.com/jonruttan/x-lang/pull/1214
+
+**compile-fn! carries pair? and symbol? in place** ([#1213]).  A compiled closure
+tests an operand's type by reading its type name, as type? does, rather
+than calling the interpreted predicate.  A tree walk testing pair? and
+symbol? on every node goes from 2113 ms to 214 ms.
+
+[#1213]: https://github.com/jonruttan/x-lang/pull/1213
+
+**The linter boots from a state image** ([#1212]).  In a checkout, `tools/dev/lint.sh` writes `.images/lint-image.x.ximg` (the library and the linter, keyed on both and the engine) and boots every lint child from it.  `make lint-x` NPROC=2 on arm64: 479 s -> 188 s, the same 226 verdicts and the same findings.  One child: `lib/x/core/logic.x` 3.65 s -> 0.46 s, `lib/x/codec/fe25519.x` 5.44 s -> 2.11 s; the image write is 7 s, once.  `X_LINT_IMAGE=0` boots from source.
+
+[#1212]: https://github.com/jonruttan/x-lang/pull/1212
+
+**compile-fn! compiles a program's own closure where it stands** ([#1206]).
+(compile-fn! NAME F), from x/tool/fn-compile, rewrites the closure F into
+compile-asm's new function world, (compile-asm EXPR FVARS (lit function)),
+and installs the compiled version into F itself, so every holder of F
+calls it; the interpreted version stays on the Compiled list.  Parameters
+and locals live in cells on the root chain, so a collect inside a callee
+keeps the frame.  A body with a form the rewrite cannot carry stays
+interpreted, with the reason recorded.  (Env cell e 'name) answers a
+name's binding cell.  fib 22 goes from 95 ms to 14 ms; x-chess perft 3,
+with its board functions compiled, from 2096 ms to 741 ms.
+
+[#1206]: https://github.com/jonruttan/x-lang/pull/1206
+
+**Bundle CI runs the main leg off pull requests, and takes the runners as an input** ([#1211]).  `.github/workflows/bundle.yml` runs a pull request against the declared release only; the x-lang main leg runs on a push to the bundle's default branch, on its schedule and on a manual dispatch.  The new `os` input names the runners as a JSON list and defaults to the ones x-lang's ci.yml tests.
+
+[#1211]: https://github.com/jonruttan/x-lang/pull/1211
+
+## [0.50.0] - 2026-11-07
+
+**An installed x writes state images again.** ([#1208]) Since 0.48.0 `make install`
+left out the engine's `base-slots.x` contract, which the image writer
+includes, so an installed x could not write an image for a dialect or a
+bundle and booted from source on every run. Every contract file the engine
+ships is installed now; x-roguelike's image writes again (188,592 objects).
+
+[#1208]: https://github.com/jonruttan/x-lang/pull/1208
+
+**A window's picture can fill it at any size.** ([#1209]) `(Sdl scaling! win 'fit)`
+shows the picture as large as the window allows, its shape kept and bars
+on two sides only; `'whole` keeps the whole multiples `open` starts with.
+
+[#1209]: https://github.com/jonruttan/x-lang/pull/1209
+
+Sdl reports gamepad buttons, axes and hot-plug from poll, and
+fullscreen! switches a window to desktop fullscreen and back. ([#1207])
+
+[#1207]: https://github.com/jonruttan/x-lang/pull/1207
+
+**A loop helper's parameter that its call fills with the outer variable of
+the same name is no longer reported as a shadow.** ([#1205]) (def go (fn (self seed
+acc) ...)) followed by (go seed ()) carries seed on, as (let ((x (f x))))
+refines x; a helper fed anything else still shadows.  Over lib/ and apps/
+the shadow warnings go from 121 names to 38.
+
+[#1205]: https://github.com/jonruttan/x-lang/pull/1205
+
 ## [0.49.0] - 2026-11-07
 
 **The linter no longer reports a name as unused or shadowed when it is

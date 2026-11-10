@@ -26,6 +26,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="${X_LINT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 X_BIN="${X_BIN:-$PROJECT_DIR/x-bin}"
 LINTER="$SCRIPT_DIR/lint.x"
+DRIVER="$SCRIPT_DIR/lint-run.x"
 # The library, as this root can serve it.  lib/x-core.x opens with a
 # ROOT-RELATIVE include, so it only loads with the checkout as the
 # working directory; an installed tree ships the launcher-free boot
@@ -67,6 +68,46 @@ _constructs_input() {
   fi
 }
 
+# THE BOOT, FROM A STATE IMAGE.  Every lint child used to evaluate the library
+# and the linter from source before it read the first form of its target.
+# In a checkout the child boots from an image of both instead
+# (tools/dev/lint-image.x, written by tools/dev/image-build.sh and keyed on
+# the library, the linter and the engine, so a current one is reused and an
+# edit rewrites it), and then loads its preload and the driver.  The first
+# lint run writes the image; every child after it, in that run and later
+# ones, loads it.  LINT_IMG carries the answer to the children, "-" when
+# there is no image: an installed tree (X_LINT_ROOT), X_LINT_IMAGE=0, or a
+# write that failed or was refused.  Without one the boot is from source, as
+# before.
+_lint_image() {
+  [ -z "${LINT_IMG:-}" ] || return 0
+  LINT_IMG=-
+  if [ -z "${X_LINT_ROOT:-}" ] && [ "${X_LINT_IMAGE:-1}" != 0 ]; then
+    _idir="${X_LINT_IMG_DIR:-$PROJECT_DIR/.images}"
+    # A current image is reused silently; a write, or a refusal, says so on
+    # stderr.  The builder removes the image before it writes, so an image
+    # on disk afterwards is a current one.
+    ( cd "$PROJECT_DIR" && sh tools/dev/image-build.sh tools/dev/lint-image.x "$_idir" tools/dev/lint.x ) \
+      2>&1 | grep -v ' is current$' >&2
+    [ -f "$_idir/lint-image.x.ximg" ] && LINT_IMG="$(cd "$_idir" && pwd)/lint-image.x.ximg"
+  fi
+  export LINT_IMG
+}
+# The library and, with no image, the linter: what comes ahead of the preload,
+# and what comes after it.  The image's loader is the spec runner's, rooted at
+# this checkout on the way in.
+_boot_lib() {
+  if [ "${LINT_IMG:--}" != - ]; then
+    printf '(def %%IMG-PATH "%s")\n' "$LINT_IMG"
+    sed 's|^(include "\([^/]\)|(include "'"$PROJECT_DIR"'/\1|' "$PROJECT_DIR/lib/img.x" "$PROJECT_DIR/tools/dev/image-read.x"
+  else
+    printf '%s\n' "$LANG_PRE"; cat "$LANG_LIB"
+  fi
+}
+_boot_linter() {
+  [ "${LINT_IMG:--}" != - ] || cat "$LINTER"
+}
+
 LIB_MODE=0
 LANG=""
 SHOW_WARNINGS=0
@@ -82,6 +123,7 @@ while [ $# -gt 0 ]; do
     *) break ;;
   esac
 done
+_lint_image
 
 # FILE's (import ...) forms on one line, comments dropped.  A form may run
 # over several lines, so it is read to its closing paren; an import's parts
@@ -290,7 +332,7 @@ if [ -n "${GROUP_LIST:-}" ]; then
         cat "$_f"
         printf '\n'
       done < "$GROUP_LIST"
-    } | { printf '%s\n' "$LANG_PRE"; cat "$LANG_LIB"; printf '%s\n' "$_PRELOAD"; cat "$LINTER" -; } | "$X_BIN" 2>&1)
+    } | { _boot_lib; printf '%s\n' "$_PRELOAD"; _boot_linter; cat "$DRIVER" -; } | "$X_BIN" 2>&1)
   printf '%s\n' "$_OUT" | awk -v listfile="$GROUP_LIST" -v proj="$PROJECT_DIR/" '
     BEGIN {
       nf = 0
@@ -468,9 +510,9 @@ for f in "$@"; do
   # Run linter: library [+ app preload] + linter code, then constructs +
   # [mode flag] + target
   if [ "$LIB_MODE" -eq 1 ]; then
-    _OUT=$({ printf '%s\n%%lint-lib\n' "$_CONSTRUCTS_INPUT"; cat "$f"; } | { printf '%s\n' "$LANG_PRE"; cat "$LANG_LIB"; printf '%s\n' "$_PRELOAD"; cat "$LINTER" -; } | "$X_BIN" 2>&1)
+    _OUT=$({ printf '%s\n%%lint-lib\n' "$_CONSTRUCTS_INPUT"; cat "$f"; } | { _boot_lib; printf '%s\n' "$_PRELOAD"; _boot_linter; cat "$DRIVER" -; } | "$X_BIN" 2>&1)
   else
-    _OUT=$({ printf '%s\n' "$_CONSTRUCTS_INPUT"; cat "$f"; } | { printf '%s\n' "$LANG_PRE"; cat "$LANG_LIB"; printf '%s\n' "$_PRELOAD"; cat "$LINTER" -; } | "$X_BIN" 2>&1)
+    _OUT=$({ printf '%s\n' "$_CONSTRUCTS_INPUT"; cat "$f"; } | { _boot_lib; printf '%s\n' "$_PRELOAD"; _boot_linter; cat "$DRIVER" -; } | "$X_BIN" 2>&1)
   fi
   # Decide pass/fail from the linter's own output, not $?: an uncaught
   # x-lang (error) now exits non-zero, but output-based detection also

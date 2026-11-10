@@ -97,7 +97,7 @@ and calls through an address the way a slot is called.
 (display (guard (e (e msg)) (compile-asm '(fn (self a) a) () '(run float))))
 ```
 ---
-    compile-asm: the third argument names the calling world: #t for an analyse callback, #f for an integer function, the symbol object for an object function, the symbol operative for an object function given its argument list unevaluated, or (run TYPE ...) for a routine the engine calls through a slot, one TYPE a parameter, each object, integer or string.
+    compile-asm: the third argument names the calling world: #t for an analyse callback, #f for an integer function, the symbol object for an object function, the symbol operative for an object function given its argument list unevaluated, the symbol function for a program's closure rewritten by x/tool/fn-compile, or (run TYPE ...) for a routine the engine calls through a slot, one TYPE a parameter, each object, integer or string.
 
 ## the slot door
 
