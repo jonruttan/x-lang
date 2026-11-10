@@ -189,7 +189,7 @@
                    (profile-evals-max))))
   (param obj ANY "Object to read")
   (returns INTEGER "Times evaluation reached obj, at most (profile-evals-max)")
-  (example "(import x/tool/profile profile-evals) (profile-evals '(a b))" "0")
+  (sample "(import x/tool/profile profile-evals) (profile-evals '(a b))" "0 on a 64-bit engine, where the count has its own bits: quoted data is never evaluated")
   "Return how many times evaluation reached an object.")
 
 ; One step of a walk.  acc is (evals nodes saturated): n joins the sum, the
@@ -231,7 +231,7 @@
   (param expr ANY "Body or form to walk")
   (param stop INTEGER "Flag bits that end the walk at a pair below expr which carries one of them; 0 walks everything")
   (returns LIST "(evals nodes saturated): the counts summed, the pairs visited, and #t when a count was at its maximum")
-  (example "(import x/tool/profile profile-tree) (profile-tree '(a (b c)) 0)" "(0 4 #f)")
+  (sample "(import x/tool/profile profile-tree) (profile-tree '(a (b c)) 0)" "(0 4 #f) on a 64-bit engine: four pairs, none of them evaluated")
   "Sum the eval counts through a body or a form.")
 
 ; A function's calls.  A procedure steps onto its body's first cell once a
