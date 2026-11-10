@@ -204,4 +204,4 @@
 
 (doc (provide x/num/fixed fixed fixed* fixed/ fixed*/ fixed-ratio fixed-floor fixed-round fixed-clamp)
   (example "(do (import x/num/fixed fixed-ratio fixed*) (fixed* (fixed-ratio 3 4 16) (fixed-ratio 1 2 16) 16))" "24576")
-  "Fixed-point arithmetic on plain integers: a value is a number times 2^k, k stated at each call, and products and quotients are exact through 64 bits on any word.")
+  "Fixed-point arithmetic on plain integers: a value is a number times 2^k, k stated at each call, and products and quotients are exact through 64 bits on any word. x/num/fixed-literal adds a reader literal for the values, 0.75q16.")
