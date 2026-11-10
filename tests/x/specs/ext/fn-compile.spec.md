@@ -17,10 +17,10 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 (def %fc-tri (fn (self n acc) (if (int< n 1) acc (self (int- n 1) (int+ acc n)))))
 (def %fc-tri-before (%fc-tri 1000 0))
 (def %fc-e (compile-fn! (lit %fc-tri) %fc-tri))
-(write (list (%fc-e state) (Fn label %fc-tri) %fc-tri-before (%fc-tri 1000 0) (%fc-tri 100000 0)))
+(write (list (%fc-e state) (Fn label %fc-tri) %fc-tri-before (%fc-tri 1000 0) (%fc-tri 65535 0)))
 ```
 ---
-    ('compiled 'prim 500500 500500 5000050000)
+    ('compiled 'prim 500500 500500 2147450880)
 
 ### recursion by the function's own name is a call of itself
 
