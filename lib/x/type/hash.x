@@ -11,7 +11,7 @@
 
 ; The binary integer primitives, fetched from the catalogue: the C operators as
 ; they were before core/arithmetic.x wrapped the bare names.
-(import x/core/doors char->int int* int+ int= str-append str-byte-len str-byte-ref)
+(import x/core/doors char->int int* int+ int- int= int& int| str-append str-byte-len str-byte-ref)
 (import x/type/class)
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 
@@ -33,18 +33,25 @@
 (def %fnv-offset -3750763034362895579)
 (def %fnv-prime 1099511628211)
 
+; The loop over S's bytes from I, LEN its length, H the hash so far.  A
+; module-level closure on integer doors only, so compile-fn! can rewrite it
+; in place: boot/tower-compiled.x compiles it where the engine has a JIT,
+; and everywhere else it runs as written.  The xor is spelled (a|b)-(a&b),
+; which compile-fn! carries; it equals (^ a b) for every pair of words.
+(def %fnv-go
+  (fn (self s len i h)
+    (if (int= i len) h
+      (self s len (int+ i 1)
+        (int* (do (def b (char->int (str-byte-ref s i)))
+                  (int- (int| h b) (int& h b)))
+              %fnv-prime)))))
+
 (def-class Hash ()
   (static
     (method fnv-1a (self (param s STRING "String to hash"))
       (doc "Hash a string to a 64-bit integer using the FNV-1a algorithm."
         (returns INTEGER "64-bit FNV-1a hash value"))
-      (def %len (str-byte-len s))
-      (def %go
-        (fn (self i h)
-          (if (int= i %len) h
-            (self (int+ i 1)
-              (int* (^ h (char->int (str-byte-ref s i))) %fnv-prime)))))
-      (%go 0 %fnv-offset))
+      (%fnv-go s (str-byte-len s) 0 %fnv-offset))
     (method ->hex (self (param n INTEGER "64-bit signed hash value"))
       (doc "Convert a 64-bit signed integer to a 16-character unsigned hex string."
         (returns STRING "16-character hexadecimal string"))
