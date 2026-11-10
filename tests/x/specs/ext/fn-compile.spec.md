@@ -207,6 +207,24 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 ---
     ('compiled (6 . 8) (6 . 8) 'failed 7)
 
+### a guard runs its body and its handler as the interpreter does
+
+```x
+(def %fc-gcheck (fn (_ l y) (if (null? l) (error "empty") (pair y l))))
+(def %fc-gd
+  (fn (_ x l)
+    (def k (int+ x 1))
+    (let ((y (int* k 2)))
+      (list (guard (_ (list (lit caught) y)) (%fc-gcheck l y))
+            (if (guard (_ #f) (%fc-gcheck l y)) (int+ k y) k)))))
+(def %fc-gd-before (list (%fc-gd 1 ()) (%fc-gd 1 (lit (a)))))
+(def %fc-e (compile-fn! (lit %fc-gd) %fc-gd))
+(write (list (%fc-e state) (equal? %fc-gd-before (list (%fc-gd 1 ()) (%fc-gd 1 (lit (a)))))
+             (%fc-gd 1 ()) (%fc-gd 1 (lit (a)))))
+```
+---
+    ('compiled #t (('caught 4) 2) ((4 'a) 6))
+
 ## free names are read when the code runs
 
 ### a global set! after the compile is seen
@@ -290,9 +308,19 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 ### a head the ISA labels spine is refused
 
 ```x
-(def %fc-guarded (fn (_ x) (guard (e 0) (int+ x 1))))
-(def %fc-e (compile-fn! (lit %fc-guarded) %fc-guarded))
-(write (list (%fc-e state) (%fc-guarded 4)))
+(def %fc-evals (fn (_ x) (eval x)))
+(def %fc-e (compile-fn! (lit %fc-evals) %fc-evals))
+(write (list (%fc-e state) (%fc-evals (lit (int+ 4 1)))))
+```
+---
+    ('failed 5)
+
+### a guard that sets a local of the function is refused
+
+```x
+(def %fc-gset (fn (_ x) (guard (_ 0) (set! x 5)) x))
+(def %fc-e (compile-fn! (lit %fc-gset) %fc-gset))
+(write (list (%fc-e state) (%fc-gset 1)))
 ```
 ---
     ('failed 5)
