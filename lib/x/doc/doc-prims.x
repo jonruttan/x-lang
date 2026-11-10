@@ -45,11 +45,13 @@
 
 (doc eval "Evaluate an expression, optionally in a given environment."
   (param expr ANY "Expression to evaluate")
-  (param env LIST "Environment alist (optional)")
+  (param env PAIR "Environment to evaluate in (optional): one an operative receives as its environment parameter, or one (Env current) or (Fn env f) answers")
   (returns ANY "Result of evaluation")
   (note "With one arg: uses TCO (tail-call safe). With env arg: saves/restores env after.")
+  (note "An environment is one pair, (bindings . parent), not an alist. The engine does not check its shape: a hand-built one, such as (list (pair 'x 5)), crashes the process.")
   (example "(eval '(+ 1 2))" "3")
-  (see eval!))
+  (example "(let ((k 7)) ((op () e (eval '(+ k 1) e))))" "8")
+  (see eval!) (see Env))
 
 (doc eval! "Evaluate in current environment, returning the result immediately."
   (param expr ANY "Expression to evaluate")
@@ -110,27 +112,9 @@
   (sample "(rest ())" "raises rest: () has no rest")
   (see first) (see pair))
 
-(doc set-first! "Mutate the first element of a pair."
-  (param p PAIR "A pair")
-  (param val ANY "New value"))
-
-(doc set-rest! "Mutate the second element of a pair."
-  (param p PAIR "A pair")
-  (param val ANY "New value"))
-
-(doc first-int "Return the first element as a raw integer."
-  (param p PAIR "A pair"))
-
-(doc rest-int "Return the second element as a raw integer."
-  (param p PAIR "A pair"))
-
-(doc set-first-int! "Mutate the first element as a raw integer."
-  (param p PAIR "A pair")
-  (param val INTEGER "Integer value"))
-
-(doc set-rest-int! "Mutate the second element as a raw integer."
-  (param p PAIR "A pair")
-  (param val INTEGER "Integer value"))
+; The pair mutators and raw-integer accessors (set-first!, set-rest!,
+; first-int, rest-int, set-first-int!, set-rest-int!) are %-private layout
+; plumbing in boot/data.x (#108): no bare name, so no entry here.
 
 ; === Arithmetic ===
 
@@ -440,29 +424,9 @@
   (example "(atom? 'a)" "#t")
   (example "(atom? '(a))" "#f"))
 
-(doc number->str "Convert an integer to a string."
-  (param n INTEGER "Integer to convert")
-  (param radix INTEGER "Base (optional, default 10)")
-  (returns STRING "String representation"))
-
-(doc str->number "Parse a string as an integer."
-  (param s STRING "String to parse")
-  (returns INTEGER "Parsed integer, or nil on failure"))
-
-(doc str-ref "Return the character at an index in a string."
-  (param s STRING "A string")
-  (param i INTEGER "Zero-based index")
-  (returns CHARACTER "Character at index"))
-
-(doc str-length "Return the length of a string."
-  (param s STRING "A string")
-  (returns INTEGER "Number of characters"))
-
-(doc substring "Extract a substring."
-  (param s STRING "Source string")
-  (param start INTEGER "Start index (inclusive)")
-  (param end INTEGER "End index (exclusive)")
-  (returns STRING "The substring"))
+; number->str, str->number, str-ref, str-length and substring are %-private
+; in boot/string.x (#108).  The public surface is (Str8 length s),
+; (Str8 ref i s), (Str8 sub start count s) and (Convert to v type).
 
 (doc str=? "Test string equality."
   (param a STRING "First string")
@@ -476,9 +440,6 @@
   (param path STRING "File path to include")
   (sample "(require-once \"lib/x/type/set.x\")" "loads the file the first time, does nothing after")
   (see include-once))
-
-(doc peek-char "Return the next character from stdin without consuming it."
-  (returns CHARACTER "The next character, or () at EOF"))
 
 ; === Documentation system (x/doc/doc) ===
 
