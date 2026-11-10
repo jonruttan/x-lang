@@ -16,7 +16,8 @@
 ;   objects    first rest pair eq? null? not obj-ref obj-set!, and pair? and
 ;              symbol? as a read of the operand's type name
 ;   control    if when unless match do and or, def of a local, set! of a
-;              local or a free name, let as fresh locals (not a named let)
+;              local or a free name, let as fresh locals (not a named let),
+;              guard outlined into closures the engine's guard runs
 ;   calls      a call of F itself (a jump in tail position), and a call of
 ;              any closure or any C primitive the engine's ISA manifest does
 ;              not label spine, with values; a send (C SEL ...) to a class's
@@ -414,6 +415,9 @@
 (def %fc-expr
   (fn (_ e mode)
     (match
+      ((and (pair? e) (eq? (first e) (lit %fc-guarded)))
+        ((fn (_ c) (if (eq? mode (lit raw)) (list (lit %unbox) c) c))
+         (%fc-call (%fc-const %fc-guard-door) (rest e))))
       ((pair? e)
         (if (symbol? (first e))
           (%fc-named-call (first e) (rest e) mode)
@@ -436,7 +440,7 @@
 (def %fc-form-of
   (fn (_ e)
     (if (and (pair? e) (symbol? (first e)) (not (%fc-memq (first e) %fc-names))
-             (not (eq? (first e) %fc-self)))
+             (not (eq? (first e) %fc-self)) (not (eq? (first e) (lit %fc-guarded))))
       ((fn (_ hit) (if (null? hit) () (rest hit)))
        (%fc-assq (rest (%fc-binding (first e))) %fc-forms))
       ())))
@@ -535,6 +539,87 @@
        bs inits))
     (pair (lit do) (%append defs (%fc-unlet-list body inner)))))
 
+; --- guard, outlined ---------------------------------------------------------------
+;
+; The engine's guard catches a raise by returning to the C stack it saved
+; when it was entered, and code compiled here cannot save one.  So
+; (guard (V H) B) is outlined: B becomes (fn (_ L ...) B) and H becomes
+; (fn (_ V L ...) H), both made in F's environment, where L are the locals
+; of F they read.  F calls %fc-guard-door with the two and the values of
+; L, and the door runs the engine's guard.  Each outlined closure is given
+; to compile-fn! after F.  A B or H that would def or set! a local of F is
+; refused: the outlined copy cannot write it back.  A guard inside B or H
+; stays a guard there, outlined when that closure is compiled.
+
+(def %fc-guard? #f)
+(def %fc-outer ())                ; F's parameters and defs, during the pre-pass
+(def %fc-outlined ())             ; ((name . closure) ...), compiled after F
+
+(def %fc-guard-door
+  (fn (_ body handler . vals)
+    (guard (e (apply handler (pair e vals))) (apply body vals))))
+
+(def %fc-guard-here?
+  (fn (_ ps body)
+    (def cell (Env cell %fc-env (lit guard)))
+    (and (not (null? cell)) (obj-same? (rest cell) guard)
+         (not (%fc-memq (lit guard) ps)) (not (%fc-memq (lit guard) (%fc-defs body))))))
+
+(def %fc-guard-form?
+  (fn (_ e) (and %fc-guard? (pair? e) (eq? (first e) (lit guard)))))
+
+; The names E mentions outside lit, each once, in the order they appear.
+(def %fc-mentions
+  (fn (_ e)
+    (def acc (pair () ()))
+    ((fn (walk x)
+       (match
+         ((symbol? x)
+           (unless (%fc-memq x (first acc)) (%set-first! acc (pair x (first acc)))))
+         ((not (pair? x)) ())
+         ((eq? (first x) (lit lit)) ())
+         (#t ((fn (each l) (if (pair? l) (do (walk (first l)) (each (rest l))) (walk l))) x))))
+     e)
+    (List reverse (first acc))))
+
+; The names E defs or set!s, outside lit.
+(def %fc-writes
+  (fn (_ e)
+    (def acc (pair () ()))
+    ((fn (walk x)
+       (when (and (pair? x) (not (eq? (first x) (lit lit))))
+         (do
+           (when (and (or (eq? (first x) (lit def)) (eq? (first x) (lit set!)))
+                      (pair? (rest x)) (symbol? (first (rest x))))
+             (%set-first! acc (pair (first (rest x)) (first acc))))
+           ((fn (each l) (when (pair? l) (do (walk (first l)) (each (rest l))))) x))))
+     e)
+    (first acc)))
+
+(def %fc-unguard
+  (fn (_ e m)
+    (def spec (if (pair? (rest e)) (first (rest e)) ()))
+    (unless (and (pair? spec) (symbol? (first spec)) (pair? (rest spec))
+                 (null? (rest (rest spec))) (pair? (rest (rest e)))
+                 (null? (rest (rest (rest e)))))
+      (%fc-refuse "a guard not of the form (guard (NAME HANDLER) BODY)"))
+    (def v (%fc-fresh "%fc-e"))
+    (set! %fc-guard? #f)
+    (def body (%fc-unlet (first (rest (rest e))) m))
+    (def handler (%fc-unlet (first (rest spec)) (pair (pair (first spec) v) m)))
+    (set! %fc-guard? #t)
+    (def known (%append %fc-outer (List map rest m)))
+    (when (List any? (fn (_ s) (%fc-memq s known)) (%fc-writes (list body handler)))
+      (%fc-refuse "a guard that defines or sets a local of the function"))
+    (def locals
+      (List filter (fn (_ s) (and (not (eq? s (lit _))) (%fc-memq s known)))
+        (%fc-mentions (list body handler))))
+    (def bf (eval (list (lit fn) (pair (lit _) locals) body) %fc-env))
+    (def hf (eval (list (lit fn) (pair (lit _) (pair v locals)) handler) %fc-env))
+    (set! %fc-outlined
+      (pair (pair (lit %fc-guard-body) bf) (pair (pair (lit %fc-guard-handler) hf) %fc-outlined)))
+    (pair (lit %fc-guarded) (pair (list (lit lit) bf) (pair (list (lit lit) hf) locals)))))
+
 (set! %fc-unlet
   (fn (_ e m)
     (match
@@ -542,6 +627,7 @@
       ((not (pair? e)) e)
       ((eq? (first e) (lit lit)) e)
       ((%fc-let-form? e) (%fc-unlet-let e m))
+      ((%fc-guard-form? e) (%fc-unguard e m))
       (#t (%fc-unlet-list e m)))))
 
 ; F as a function world expression and its fvars: (form . fvars).
@@ -556,9 +642,13 @@
     (set! %fc-env (Fn env f))
     (set! %fc-self (first ps))
     (set! %fc-count 0)
+    (set! %fc-outlined ())
+    (set! %fc-outer (%append ps (%fc-defs (Fn body f))))
     (set! %fc-let? (%fc-let-here? ps (Fn body f)))
+    (set! %fc-guard? (%fc-guard-here? ps (Fn body f)))
     (def src (%fc-unlet-list (Fn body f) ()))
     (set! %fc-let? #f)
+    (set! %fc-guard? #f)
     (set! %fc-names (%append (rest ps) (%fc-defs src)))
     (set! %fc-fvars (list (pair (lit %self) f)))
     (set! %fc-cells ())
@@ -581,19 +671,26 @@
     (def made
       (guard (e (pair #f (io-display-to-str e)))
         (pair #t (%fc-rewrite f))))
+    ; Taken before the closures guard outlined are compiled: each of those
+    ; is a rewrite of its own, and starts the list again.
+    (def outlined (if (first made) %fc-outlined ()))
+    (set! %fc-outlined ())
     (set! %fc-compiled (pair f %fc-compiled))
-    (Compiled in-place name f
-      (fn (_)
-        (if (first made)
-          (asm-compile-cached (first (rest made)) (rest (rest made)) (lit function))
-          (Err raise (lit value) (rest made) ()))))))
+    (def entry
+      (Compiled in-place name f
+        (fn (_)
+          (if (first made)
+            (asm-compile-cached (first (rest made)) (rest (rest made)) (lit function))
+            (Err raise (lit value) (rest made) ())))))
+    (List map (fn (_ o) (compile-fn! (first o) (rest o))) outlined)
+    entry))
 
 (doc compile-fn!
   (param name SYMBOL "What the list of compiled functions calls it")
   (param f ANY "A closure made by fn")
   (returns Compiled "The entry: (entry state) is compiled, or failed with (entry reason)")
   (sample "((compile-fn! 'fib fib) state)" "compiled, and every holder of fib now calls the compiled version")
-  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let (not a named let) compile in place; a call of any other closure, or of a C primitive the engine's ISA manifest does not label spine, passes it values, and a send (C sel ...) to a class's public static method calls the method method-of resolves when F is compiled. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
+  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let (not a named let) compile in place; a (guard (name handler) body) is outlined into two closures, run by the engine's guard and compiled in turn; a call of any other closure, or of a C primitive the engine's ISA manifest does not label spine, passes it values, and a send (C sel ...) to a class's public static method calls the method method-of resolves when F is compiled. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
 
 (doc (provide x/tool/fn-compile compile-fn!)
   (sample "(import x/tool/fn-compile compile-fn!) (compile-fn! 'fib fib)" "fib compiled where it stands, its interpreted version kept on the Compiled list")
