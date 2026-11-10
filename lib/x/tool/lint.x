@@ -18,8 +18,14 @@
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 (def %type-pop-write (prim-ref 'type 'pop-write))
 
-; Fetch the conversion dispatcher from the catalogue (registered by sys/convert.x).
-(def %cvt (prim-ref 'convert 'to))
+; Every conversion in this file asks for a name's string, and nearly every
+; value converted is a symbol.  The conversion dispatcher (registered by
+; sys/convert.x) looks up the value's type and applies its entry on every
+; call; a symbol goes straight to the catalogue's symbol door instead, and
+; any other value still goes through the dispatcher.
+(def %cvt
+  (let ((to (prim-ref 'convert 'to)) (sym->str (prim-ref 'sym '->str)))
+    (fn (_ v type) (if (symbol? v) (sym->str v) (to v type)))))
 
 
 (import x/core/alist)

@@ -17,9 +17,12 @@
 
 ; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
 (def %read (prim-ref 'io 'read))
-; The bare `convert` global was homed (the conversion surface is the Convert
-; class); fetch the dispatcher directly -- same door lib/x/tool/lint.x uses.
-(def %lint-cvt (prim-ref 'convert 'to))
+; A name's string: a symbol through the catalogue's symbol door, any other
+; value through the conversion dispatcher -- the same split lib/x/tool/lint.x
+; makes, since the dispatcher's type lookup is the cost on symbols.
+(def %lint-cvt
+  (let ((to (prim-ref 'convert 'to)) (sym->str (prim-ref 'sym '->str)))
+    (fn (_ v type) (if (symbol? v) (sym->str v) (to v type)))))
 
 (do
   (import x/tool/lint)
