@@ -21,7 +21,7 @@
 (import x/tool/compile compile-asm)
 (import x/type/vector)
 
-(import x/core/doors int- int<< obj-ref ptr->int ptr-ref ptr-set! str->ptr str-make)
+(import x/core/doors int- int/ int<< obj-ref ptr->int ptr-ref ptr-set! str->ptr str-make)
 
 ; scratch layout, one 1024-byte buffer of words, a lane L = 8/word-size
 ; words, low first -- one on an 8-byte word, two on a 4-byte word -- and
@@ -29,7 +29,7 @@
 ;   0..24 A (the lanes) | 25..49 B | 50..54 C | 55 base 56 len 57 total
 ;   58 words a block | 64..87 the round constants
 (def %k3-W (* 8 %word-size))
-(def %k3-L (/ 64 %k3-W))
+(def %k3-L (int/ 64 %k3-W))
 (def %k3-B (* 25 %k3-L))
 (def %k3-C (* 50 %k3-L))
 (def %k3-BASE (* 55 %k3-L))
@@ -55,7 +55,7 @@
 ; below coming in under; on one limb, the lane's own rotate
 (def %k3-rotl
   (fn (_ at n j)
-    (def q (/ n %k3-W))
+    (def q (int/ n %k3-W))
     (def r (% n %k3-W))
     (def limb (fn (_ k) (at (% (+ k %k3-L %k3-L) %k3-L))))
     (if (= r 0) (limb (- j q))
@@ -65,7 +65,7 @@
   (fn (_ n f) (pair 'do ((fn (self i) (if (= i n) () (pair (f i) (self (+ i 1))))) 0))))
 ; F over every limb of the twenty-five lanes, lane I limb J
 (def %k3-limbs
-  (fn (_ f) (%k3-seq (* 25 %k3-L) (fn (_ k) (f (/ k %k3-L) (% k %k3-L))))))
+  (fn (_ f) (%k3-seq (* 25 %k3-L) (fn (_ k) (f (int/ k %k3-L) (% k %k3-L))))))
 (def %k3-nth (fn (self n l) (if (= n 0) (first l) (self (- n 1) (rest l)))))
 
 ; theta: C[x] the column parities, then each lane xored with its neighbours'
