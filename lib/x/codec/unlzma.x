@@ -548,7 +548,8 @@
       (#t (list (first span) (first (rest span)))))))
 
 (def-class Unlzma ()
-  (doc "lzma decompression in pure x-lang, the .lzma \"alone\" format busybox's unlzma and lzcat read. (Unlzma decode s start n) answers (OUT N USED).")
+  (doc "lzma decompression in pure x-lang, the .lzma \"alone\" format busybox's unlzma and lzcat read. (Unlzma decode s start n) answers (OUT N USED)."
+    (example "(do (import x/codec/hex) (first (rest (Unlzma decode (Hex decode \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\") 0 33))))" "13"))
   (static
     (method decode (self (param s STRING "Bytes holding a .lzma stream")
                          . (param span LIST "START, then LENGTH: where the stream starts in s and how many bytes of s it may use; default all of s"))
@@ -559,4 +560,5 @@
       (%decode-all s (first sp) (first (rest sp))))))
 
 (doc (provide x/codec/unlzma Unlzma)
+  (example "(do (import x/codec/hex) (first (rest (rest (Unlzma decode (Hex decode \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\") 0 33)))))" "33")
   "lzma decompression in pure x-lang, the .lzma \"alone\" format: (Unlzma decode s start n) answers (OUT N USED).")
