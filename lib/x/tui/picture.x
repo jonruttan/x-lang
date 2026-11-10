@@ -146,8 +146,8 @@
                         (param colours SYMBOL "rgb for 24-bit colour, indexed for the 256-colour palette"))
       (doc "The image as lines of text: each cell an upper half block, its foreground the pixel above and its background the pixel below, with SGR where the colours change and the plain style at each line's end. A pixel mostly transparent shows the terminal's background."
         (returns LIST "The lines, (H + 1) / 2 of them for a drawing H pixels tall")
-        (example "(Picture lines (list 1 2 (first (Bytes of-list (list 255 0 0 255 0 0 255 255)))) 4 4 'rgb)" "(\"\\x1b[0;38;2;255;0;0;48;2;0;0;255m▀\\x1b[0m\")")
-        (example "(Picture lines (list 1 2 (first (Bytes of-list (list 255 0 0 255 0 0 0 0)))) 4 4 'indexed)" "(\"\\x1b[0;38;5;196m▀\\x1b[0m\")"))
+        (example "(do (import x/codec/bytes) (Picture lines (list 1 2 (first (Bytes of-list (list 255 0 0 255 0 0 255 255)))) 4 4 'rgb))" "(\"\\x1b[0;38;2;255;0;0;48;2;0;0;255m▀\\x1b[0m\")")
+        (example "(do (import x/codec/bytes) (Picture lines (list 1 2 (first (Bytes of-list (list 255 0 0 255 0 0 0 0)))) 4 4 'indexed))" "(\"\\x1b[0;38;5;196m▀\\x1b[0m\")"))
       (def w (first image))
       (def h (List ref 1 image))
       (def p (str->ptr (List ref 2 image)))
