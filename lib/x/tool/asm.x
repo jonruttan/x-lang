@@ -136,7 +136,7 @@
 
 (def %emit-u64-le!
   (fn (_ asm val)
-    (%emit-u32-le! asm (& val 4294967295))
+    (%emit-u32-le! asm (& val 0xFFFFFFFF))
     (%emit-u32-le! asm (>> val 32))))
 
 

@@ -22,7 +22,7 @@
 
 (import x/core/doors char->int int% int& int* int+ int- int/ int< int<< int>> int| obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
 (def %M 67108863)
-(def %M32 4294967295)
+(def %M32 0xFFFFFFFF)
 
 ; The bit operations through the int doors: the generic ones dispatch
 ; through the numeric tower, about a hundred objects a call, these none.

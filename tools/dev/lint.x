@@ -133,12 +133,21 @@
   ; any: x-coreutils's 31 files left 77M objects on the heap before the
   ; first sweep.  The walk's threshold sweep runs between forms here as
   ; well; the forms read so far ride ACC, so they are kept.
-  (def %read-all (fn (self acc)
-    (def form (%read))
-    ; End of input is the EOF sentinel, so a () among the forms is read
-    ; as the form it is rather than ending the slurp.
-    (if (same? form %token-eof) acc
-      (do (Lint %lint-sweep!) (self (pair form acc))))))
+  ; The reader is armed for the slurp and no longer: a wide decimal literal
+  ; in the files under lint reads as its marker (Lint %lint-wide-token), and
+  ; whatever the session reads afterwards reads as it always does.
+  (def %read-all (fn (_ acc)
+    (Lint %lint-arm-source!)
+    (def forms
+      ((fn (self acc)
+         (def form (%read))
+         ; End of input is the EOF sentinel, so a () among the forms is read
+         ; as the form it is rather than ending the slurp.
+         (if (same? form %token-eof) acc
+           (do (Lint %lint-sweep!) (self (pair form acc)))))
+       acc))
+    (Lint %lint-disarm-source!)
+    forms))
   ; Lint ONE file's forms; emit its findings; return #t on pass.
   ; In batch mode every line rides `out` (stdout) so the per-file blocks
   ; stay ordered; single-file mode keeps the legacy stderr findings.
@@ -193,8 +202,12 @@
     ; match-multi fails (not advisory): a clause body past the first
     ; expression can never run -- every hit is dead code with no legitimate
     ; spelling (#166), so unlike arity/shadow there is nothing to tolerate.
+    ; wide-decimal fails too: the literal reads as a Bigint on a 4-byte
+    ; word, where the operation it is given to raises or answers wrongly,
+    ; and the hex spelling is always there to write.
     (if (null? %undefined) (if (null? %unused)
-      (null? (lint-warnings-of "match-multi" %result)) #f) #f)))
+      (if (null? (lint-warnings-of "match-multi" %result))
+        (null? (lint-warnings-of "wide-decimal" %result)) #f) #f) #f)))
 
   ; Batch protocol (#323): the stream may hold SEVERAL files, each
   ; introduced by a (%lint-next-file "NAME") marker form the shell
