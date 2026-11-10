@@ -405,14 +405,14 @@
 
 (def-class Page ()
   (doc "A document laid out for a terminal: lines of styled runs no wider than the page, its links and form fields numbered together with the places they take, drawn onto a screen."
-    (example "(Page line-text (Page markdown (Markdown parse \"# Hi\\n\\nthere\") 20) 2)" "\"there\"")
+    (example "(do (import x/codec/markdown) (Page line-text (Page markdown (Markdown parse \"# Hi\\n\\nthere\") 20) 2))" "\"there\"")
     (see markdown) (see text) (see draw))
   (static
     (method markdown (self (param blocks LIST "Blocks, as (Markdown parse) answers them")
                            (param width INTEGER "Columns"))
       (doc "Lay BLOCKS out WIDTH wide: paragraphs and headings wrapped, code kept as it is, quotes barred, list items marked, a blank line between blocks (none in a tight list).  A form's field, as (Html parse) answers one, is drawn as lynx draws it: a text field as its value padded with underscores, a checkbox as [ ] or [X], a radio button as ( ) or (*), a select as its chosen option in brackets, a submit button as its label in brackets."
         (returns VECTOR "The page")
-        (example "(Page count (Page markdown (Markdown parse \"a\\n\\n- b\\n- c\") 20))" "4")
+        (example "(do (import x/codec/markdown) (Page count (Page markdown (Markdown parse \"a\\n\\n- b\\n- c\") 20)))" "4")
         (example "(Page line-text (Page markdown (list (list 'paragraph (list \"Q: \" (list 'field 'text \"q\" \"hi\" #f () ()) \" \" (list 'field 'checkbox \"c\" \"on\" #t () ())))) 40) 0)" "\"Q: hi__________________ [X]\""))
       (def links (pair () ()))
       (def lines (%pg-blocks blocks width 0 #f links))
@@ -442,7 +442,7 @@
     (method links (self (param page VECTOR "A page"))
       (doc "PAGE's links and form fields in order: (DESTINATION TITLE SPANS) each, a field's DESTINATION its (field ...) inline and its TITLE nil, SPANS the (LINE COLUMN WIDTH) places its text takes."
         (returns LIST "Links and fields")
-        (example "(Page links (Page markdown (Markdown parse \"see [x](/u)\") 20))" "((\"/u\" () ((0 4 1))))"))
+        (example "(do (import x/codec/markdown) (Page links (Page markdown (Markdown parse \"see [x](/u)\") 20)))" "((\"/u\" () ((0 4 1))))"))
       ((fn (go k out) (match ((int< k 0) out) (#t (go (int+ k -1) (pair (%pg-at (%pg-links page) k) out)))))
        (int+ (%pg-count (%pg-links page)) -1) ()))
     (method draw (self (param page VECTOR "A page") (param screen VECTOR "A screen (x/tui/screen)")

@@ -455,11 +455,14 @@ test-tools: $(EXECUTABLE) x-bin-profile ## Run the tool suite's specs (tools/tes
 
 # The doctest ratchet (#16): every (example "in" "out") in the doc registry
 # is an executable contract -- "out" must be the true echo.  tools/check/doctest.sh
-# extracts them into a generated spec; the lang runner executes it.
+# extracts them into a generated spec, tools/check/doctest-split.awk cuts that
+# into one spec file per library area, and the lang runner executes the files.
 # Illustrations that must not run are (sample ...) forms (see doc.x).
 doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 	mkdir -p build/doctest-specs
-	sh tools/check/doctest.sh > build/doctest-specs/doctests.spec.md
+	rm -f build/doctest-specs/*.spec.md
+	sh tools/check/doctest.sh > build/doctests.spec.md
+	awk -v dir=build/doctest-specs -f tools/check/doctest-split.awk build/doctests.spec.md
 	sh tests/x/doctest-runner.sh
 .PHONY: doctest
 
