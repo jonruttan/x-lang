@@ -995,3 +995,109 @@ whose private `%state` holds a number.
 ```
 ---
     #t
+
+## lint: a wide decimal literal given to a bit operation
+
+A decimal integer literal that does not fit a 4-byte word reads there as a
+Bigint once x/num/bigint is loaded, and the bit operators and the integer
+doors take a word. A hex literal reads the word's bits on either word. The
+walk sees read forms, where both spellings are one value, so the driver arms
+the reader for the files it lints and such a token arrives as the marker
+`(lit (%wide-decimal "TOKEN"))`. The finding is named by the token.
+
+### flags a wide decimal given to an integer door
+
+```x
+(do
+  (def %r (lint-forms (list (list 'int& 'x (list 'lit (list '%wide-decimal "4294967295")))) () ()))
+  (display (lint-has? "4294967295" (lint-warnings-of "wide-decimal" %r))))
+```
+---
+    #t
+
+### flags a wide decimal given to a bit operator
+
+```x
+(do
+  (def %r (lint-forms (list (list '>> (list 'lit (list '%wide-decimal "2147483648")) 'n)) () ()))
+  (display (lint-has? "2147483648" (lint-warnings-of "wide-decimal" %r))))
+```
+---
+    #t
+
+### flags a wide decimal as the value of a def
+
+```x
+(do
+  (def %r (lint-forms (list (list 'def 'mask (list 'lit (list '%wide-decimal "4294967295")))) () ()))
+  (display (lint-has? "4294967295" (lint-warnings-of "wide-decimal" %r))))
+```
+---
+    #t
+
+### a wide decimal given to arithmetic is not flagged
+
+```x
+(do
+  (def %r (lint-forms (list (list '+ 'x (list 'lit (list '%wide-decimal "4294967296")))) () ()))
+  (display (null? (lint-warnings-of "wide-decimal" %r))))
+```
+---
+    #t
+
+### the marker adds no use of its own
+
+```x
+(do
+  (def %r (lint-forms (list (list 'def 'mask (list 'lit (list '%wide-decimal "4294967295")))) () ()))
+  (display (lint-has? "%wide-decimal" (first (rest %r)))))
+```
+---
+    #f
+
+### an armed read marks a decimal past the word and leaves hex alone
+
+```x
+(do
+  (Lint %lint-arm-source!)
+  (def %forms (Tok read-str (%base) "(& a 4294967295) (& b 0xFFFFFFFF)"))
+  (Lint %lint-disarm-source!)
+  (write %forms))
+```
+---
+    (('& 'a ('lit ('%wide-decimal "4294967295"))) ('& 'b 4294967295))
+
+### an armed read marks by value, at the word's two ends
+
+```x
+(do
+  (Lint %lint-arm-source!)
+  (def %forms (Tok read-str (%base) "(2147483647 2147483648 -2147483648 -2147483649)"))
+  (Lint %lint-disarm-source!)
+  (write %forms))
+```
+---
+    ((2147483647 ('lit ('%wide-decimal "2147483648")) -2147483648 ('lit ('%wide-decimal "-2147483649"))))
+
+### a read after disarming reads the integer
+
+```x
+(do
+  (Lint %lint-arm-source!)
+  (Lint %lint-disarm-source!)
+  (write (Tok read-str (%base) "(& a 4294967295)")))
+```
+---
+    (('& 'a 4294967295))
+
+### an armed read's forms carry the finding through lint-forms
+
+```x
+(do
+  (Lint %lint-arm-source!)
+  (def %forms (Tok read-str (%base) "(def m 4294967295) (def n 0xFFFFFFFF) (int& x 2147483648) (list 4294967295)"))
+  (Lint %lint-disarm-source!)
+  (write (lint-warnings-of "wide-decimal" (lint-forms %forms () ()))))
+```
+---
+    ("2147483648" "4294967295")

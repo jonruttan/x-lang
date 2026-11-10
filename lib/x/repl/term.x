@@ -239,7 +239,7 @@
       (doc "A speed as a baud: Darwin's as it is, Linux's B-code looked up; nil for a code with no baud."
         (returns ANY "The baud, or nil"))
       (if os-darwin? speed
-        (let ((code (& speed 4294967295)))
+        (let ((code (& speed 0xFFFFFFFF)))
           (let ((row (List find (fn (_ r) (= (rest r) code)) (Term %bauds))))
             (if (null? row) () (first row))))))
 

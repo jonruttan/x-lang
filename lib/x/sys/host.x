@@ -607,7 +607,7 @@
           ; handle also searches the frameworks it loads
           (def c (fn (_ name args) (apply call (pair (dlsym h name) args))))
           ; mach ports and kern_return_t are 32 bits wide
-          (def u32 (fn (_ v) (& v 4294967295)))
+          (def u32 (fn (_ v) (& v 0xFFFFFFFF)))
           (def release (fn (_ p) (if (= p 0) () (c "CFRelease" (list p)))))
           ; a CFString of an ASCII name (kCFStringEncodingUTF8)
           (def cfstr (fn (_ s) (c "CFStringCreateWithCString" (list 0 s 134217984))))
