@@ -19,14 +19,17 @@
 ;              local or a free name, let as fresh locals (not a named let)
 ;   calls      a call of F itself (a jump in tail position), and a call of
 ;              any closure or any C primitive the engine's ISA manifest does
-;              not label spine, with values
+;              not label spine, with values; a send (C SEL ...) to a class's
+;              public static method, as a call of the method method-of
+;              resolves
 ;
 ; A free name is read through its binding cell, found by the engine's lookup
 ; when F is compiled ((Env cell ...)): a later set! or def of the name is
 ; seen, as interpreted code sees it.  A head is decided when F is compiled,
 ; by the value its name is bound to then: an integer door is compiled as the
-; operation, a closure as a call.  Rebinding one of those names to something
-; else afterwards is not seen until F is compiled again.
+; operation, a closure as a call, a class send as a call of the method it
+; resolves to then.  Rebinding one of those names, or redefining that
+; method, afterwards is not seen until F is compiled again.
 ;
 ; A call runs code that can collect, so an object the frame holds across a
 ; call must be in a cell (the function world, asm-compile.x).  The rewrite
@@ -376,8 +379,25 @@
       ((not (null? form)) (value (%fc-form (rest form) args)))
       ((%fc-applicative? v)
         (value (%fc-call (list (lit rest) (%fc-cell h)) args)))
+      ((and (class? v) (pair? args)) (value (%fc-send h v args)))
       (#t (%fc-refuse "the head " (symbol->str h)
             " is bound to neither a closure nor a form the rewrite knows")))))
+
+; (C SEL ARG ...) with C a class: the class runs its public static method
+; SEL as (M C ARG ...), so the send is that call, M resolved by method-of
+; when F is compiled and C read from its binding.  A static field, a
+; guarded member or no member of that name is refused.
+(def %fc-send
+  (fn (_ h c args)
+    (def s (first args))
+    (def sel (if (and (pair? s) (eq? (first s) (lit lit)) (pair? (rest s))) (first (rest s)) s))
+    (unless (symbol? sel)
+      (%fc-refuse "a send to " (symbol->str h) " whose selector is not a name"))
+    (def m (method-of c sel))
+    (when (null? m)
+      (%fc-refuse "the send (" (symbol->str h) " " (symbol->str sel)
+        ") is not a public static method"))
+    (%fc-call (%fc-const m) (pair h (rest args)))))
 
 ; (H . ARGS) with H a symbol: what its name means decides the rewrite.
 (def %fc-named-call
@@ -573,7 +593,7 @@
   (param f ANY "A closure made by fn")
   (returns Compiled "The entry: (entry state) is compiled, or failed with (entry reason)")
   (sample "((compile-fn! 'fib fib) state)" "compiled, and every holder of fib now calls the compiled version")
-  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let (not a named let) compile in place; a call of any other closure, or of a C primitive the engine's ISA manifest does not label spine, passes it values. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
+  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let (not a named let) compile in place; a call of any other closure, or of a C primitive the engine's ISA manifest does not label spine, passes it values, and a send (C sel ...) to a class's public static method calls the method method-of resolves when F is compiled. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
 
 (doc (provide x/tool/fn-compile compile-fn!)
   (sample "(import x/tool/fn-compile compile-fn!) (compile-fn! 'fib fib)" "fib compiled where it stands, its interpreted version kept on the Compiled list")

@@ -189,6 +189,24 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 ---
     ('compiled (2 3 4))
 
+### a send to a class's static method is a call of the method
+
+```x
+(def-class FcSends ()
+  (static
+    (limit 7 "A static field")
+    (method twice (self n) (int* n 2))
+    (method both (self a b) (pair a b))))
+(def %fc-sends (fn (_ x) (FcSends both (FcSends twice x) (FcSends (lit twice) (int+ x 1)))))
+(def %fc-sends-before (%fc-sends 3))
+(def %fc-e (compile-fn! (lit %fc-sends) %fc-sends))
+(def %fc-field (fn (_) (FcSends limit)))
+(def %fc-f (compile-fn! (lit %fc-field) %fc-field))
+(write (list (%fc-e state) %fc-sends-before (%fc-sends 3) (%fc-f state) (%fc-field)))
+```
+---
+    ('compiled (6 . 8) (6 . 8) 'failed 7)
+
 ## free names are read when the code runs
 
 ### a global set! after the compile is seen
@@ -255,7 +273,7 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 (def %fc-nested (fn (_ l) (List map (fn (_ x) (int+ x 1)) l)))
 (def %fc-e (compile-fn! (lit %fc-nested) %fc-nested))
 (write (list (%fc-e state) (Fn label %fc-nested) (%fc-nested (list 1 2))
-             (not (null? (Str index-of "List" (%fc-e reason))))))
+             (not (null? (Str index-of "head fn" (%fc-e reason))))))
 ```
 ---
     ('failed 'fn (2 3) #t)
