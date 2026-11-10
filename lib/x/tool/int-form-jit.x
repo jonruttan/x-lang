@@ -10,6 +10,7 @@
 (module x/tool/int-form-jit)
 
 (import x/tool/compile compile-asm)
+(import x/tool/int-form int-form-wide)
 
 ; FORMS: the kernels as (fn ...) forms.  CHECK: (fn (_ engine) -> #t) when
 ; ENGINE, a list of kernels in FORMS' order, agrees with the pure ones.
@@ -18,7 +19,7 @@
 ; "stay pure-x".
 (def int-form-jit-make
   (fn (_ forms check)
-    (def engine (List map (fn (_ f) (compile-asm f)) forms))
+    (def engine (List map (fn (_ f) (compile-asm (int-form-wide f))) forms))
     (Heap collect)
     (unless (check engine)
       (Err raise (lit state) "int-form-jit: the compiled loops disagree with the pure-x loops" ()))

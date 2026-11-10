@@ -30,7 +30,7 @@ pure-x loops and again with the compiled ones, byte for byte.
 ```x
 (do (import x/audio/mixer) (import x/core/doors ptr-ref-word int->ptr)
   (def w (Mixer wave (lit sine)))
-  (def at (fn (_ i) (ptr-ref-word (int->ptr (List ref 1 w)) (* i 8))))
+  (def at (fn (_ i) (ptr-ref-word (int->ptr (List ref 1 w)) (* i %word-size))))
   (list (at 0) (< 32700 (at 512)) (< (at 1024) 50) (< -50 (at 1024)) (< (at 1536) -32700)))
 ```
 ---
@@ -43,7 +43,7 @@ pure-x loops and again with the compiled ones, byte for byte.
   (Mixer wave! (lit square3) (list 3 0 1))
   (def w (Mixer wave (lit square3)))
   (def peak (let go ((i 0) (m 0))
-              (if (< i 2048) (go (+ i 1) ((fn (_ v) (if (< m v) v m)) (ptr-ref-word (int->ptr (List ref 1 w)) (* i 8)))) m)))
+              (if (< i 2048) (go (+ i 1) ((fn (_ v) (if (< m v) v m)) (ptr-ref-word (int->ptr (List ref 1 w)) (* i %word-size)))) m)))
   (list (< peak 32768) (< 20000 peak)))
 ```
 ---

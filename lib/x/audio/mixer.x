@@ -26,6 +26,7 @@
 (import x/tool/int-form int-form-pure)
 (import x/core/doors int% int& int* int+ int- int/ int< int= int>> int<< obj-make obj-ref obj-set!
   ptr->int ptr-ref-word ptr-set-word! int->ptr str->ptr str-make str-byte-len str-byte-ref char->int mem-copy)
+(import x/num/fixed fixed/ fixed*/)
 
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "Mixer: " what) ())))
 
@@ -42,8 +43,8 @@
 (def %osc-form
   (lit (fn (self m i n tab sh ph st ds vol dv y k)
     (if (< i n)
-      (self m (+ i 1) n tab sh (& (+ ph st) 4294967295) (+ st ds) ds (+ vol dv) dv
-            (%mem-set-at! m i (+ y (>> (* (- (>> (* (%mem-ref-at tab (>> ph sh)) (>> vol 8)) 16) y) k) 16)))
+      (self m (+ i 1) n tab sh (& (+ ph st) 0xFFFFFFFF) (+ st ds) ds (+ vol dv) dv
+            (%mem-set-at! m i (+ y (*>> (- (>> (* (%mem-ref-at tab (& (>> ph sh) (- (<< 1 (- 32 sh)) 1))) (>> vol 8)) 16) y) k 16)))
             k)
       ph))))
 
@@ -94,7 +95,7 @@
   (lit (fn (self t i n c s e)
     (if (< i n)
       (do (%mem-set-at! t i (>> s 15))
-          (self t (+ i 1) n (- c (>> (* s e) 30)) (+ s (>> (* (- c (>> (* s e) 30)) e) 30)) e))
+          (self t (+ i 1) n (- c (*>> s e 30)) (+ s (*>> (- c (*>> s e 30)) e 30)) e))
       0))))
 
 ; Words I to N of table T added A/256 of harmonic H of the sine S, which
@@ -302,7 +303,7 @@
     (if (int< oct 4) (int>> f (int- 4 oct)) (int<< f (int- oct 4)))))
 
 ; The step a frame for thousandths of a hertz MHZ at RATE frames a second.
-(def %step (fn (_ mhz rate) (int/ (int<< mhz 32) (int* rate 1000))))
+(def %step (fn (_ mhz rate) (fixed/ mhz (int* rate 1000) 32)))
 
 ; A pitch as a voice gives it: a note's name, or (hz N).
 (def %pitch-mhz
@@ -310,7 +311,7 @@
     (if (str? p) (%note-mhz p) (int* p 1000))))
 
 ; STEP moved CENTS cents, close enough for the few a chorus is detuned.
-(def %detune (fn (_ step cents) (int+ step (int/ (int* step (int* cents 5778)) 10000000))))
+(def %detune (fn (_ step cents) (int+ step (fixed*/ step (int* cents 5778) 10000000))))
 
 ; --- Voices ----------------------------------------------------------------
 ;
@@ -333,8 +334,8 @@
     (if (null? hit) default (rest hit))))
 (def %prop1 (fn (_ spec key default) ((fn (_ v) (if (null? v) default (first v))) (%prop spec key ()))))
 
-(def %ms (fn (_ ms rate) (int/ (int* ms rate) 1000)))
-(def %level (fn (_ pct gain) (int/ (int* (int<< pct 24) gain) 10000)))
+(def %ms (fn (_ ms rate) (fixed*/ ms rate 1000)))
+(def %level (fn (_ pct gain) (fixed*/ (int<< pct 24) gain 10000)))
 
 ; Voice SPEC at RATE, starting AT frames after the block's start, at GAIN
 ; percent.  SPEC is a list of (KEY ...): (wave NAME), (env (MS PCT) ...),
