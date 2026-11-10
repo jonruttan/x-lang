@@ -14,39 +14,16 @@
 ; Importing this module makes Str8 / StrUtf8 / Str available. (The classes are
 ; also preloaded at boot, so they are globally available without an import.)
 ;
-; The deprecated str-* helper functions have been removed; use the byte
-; accessors below and the class methods for the full API.
+; The str-* helper functions are gone from the top level: the byte view is
+; the Str8 class, and the class methods are the full API.
 
 (import x/protocol/str/utf8)   ; provides Str8, StrUtf8, and the Str alias
 
-; --- Byte accessors (the raw 8-bit view) ---
-; str-length / str-ref / substring are defined in boot (bound to the str-byte-*
-; C primitives) and are ALWAYS byte-level, independent of the active protocol --
-; the low-level octet API the readers/tokenizers rely on. str=? is the byte-level
-; equality primitive. Documented here for discoverability; for the active-protocol
-; element view use the Str methods (e.g. (Str length s), (Str ref i s)) or the
-; explicit (Str8 ...) / (StrUtf8 ...).
-
-(doc str-length
-  (param s STRING "String to measure")
-  (returns INTEGER "Byte length of s")
-  (example "(%str-length \"$¢€\")" "6")
-  "Byte length (raw octets). For element count in the active protocol use (Str length s).")
-
-(doc str-ref
-  (param s STRING "String to index")
-  (param i INTEGER "Byte offset (negative counts from the end)")
-  (returns CHARACTER "The byte at offset i, as a CHARACTER (0-255)")
-  (example "(%str-ref \"$¢€\" 1)" "#\\Â")
-  "Byte at offset i, UNCHECKED: an out-of-range offset reads out of bounds -- use (Str8 ref i s) for the checked byte view. For the i-th code point use (StrUtf8 ref i s) or the bare (s i) -- equivalent, including negative i counting from the end.")
-
-(doc substring
-  (param s STRING "Source string")
-  (param start INTEGER "Start byte offset")
-  (param end INTEGER "End byte offset (exclusive)")
-  (returns STRING "The bytes [start, end) of s")
-  (example "(%substring \"abcdef\" 1 4)" "\"bcd\"")
-  "Byte substring [start, end) -- the byte-level slice-convention primitive. Always byte-level.")
+; --- Byte equality ---
+; str=? is the byte-level equality primitive.  The byte accessors str-length,
+; str-ref and substring are %-private in boot/string.x (#108); the byte view
+; is (Str8 length s), (Str8 ref i s) and (Str8 sub start count s), and the
+; active-protocol view is (Str length s), (Str ref i s).
 
 (doc str=?
   (param a STRING "First string") (param b STRING "Second string")
@@ -56,5 +33,5 @@
 
 (doc (provide x/type/str)
   (note "The string library is the protocol classes Str8 / StrUtf8, with Str naming the active protocol (StrUtf8 by default). Use (Str append a b), (Str length s), etc.; (help Str8 method) for per-method docs.")
-  (note "Byte accessors str-length, str-ref, substring, str=? are always byte-level.")
-  "String library: the Str8 / StrUtf8 protocol classes and the byte accessors.")
+  (note "str=? is always byte-level; the byte view of a string is the Str8 class.")
+  "String library: the Str8 / StrUtf8 protocol classes and byte equality.")
