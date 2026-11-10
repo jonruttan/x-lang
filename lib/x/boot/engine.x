@@ -36,7 +36,9 @@
 ; rather than at include time: lib/x/tool/compile.x builds the JIT's -I flags
 ; from it, and lib/x/tool/pin.x reads the engine's ISA manifest through it.
 ; Those run long after the library is up, so a value is enough for them; only
-; the includes below need a literal.
+; the includes below need a literal.  These are relative to the current
+; directory, the repo case; boot/module.x hangs them off %install-root where
+; the embedder defines one, as it does the import roots.
 (def %engine-root "engine")
 (def %engine-contract-root "engine/tools/contract")
 

@@ -635,16 +635,11 @@
           (pair (lit dec-int) (%tower-state %dec-env (lit dec-int))))
     %dec-analyse-interp)
 
-; --- Compile the FNV-1a loop ------------------------------------------------
-; Hash fnv-1a's byte loop (x/type/hash, %fnv-go) is the inner loop of every
-; Dict op on a string or symbol key.  compile-fn! rewrites it in place on
-; the asm lane, through the byte cache, and puts it on Compiled's list, so
-; an image holds the interpreted loop and the loader compiles it again.
-; With no JIT the loop stays as written, as the states above do.
-(import x/tool/fn-compile compile-fn!)
-(if %tower-jit?
-  (compile-fn! (lit fnv-1a) (%tower-state (module x/type/hash) (lit %fnv-go)))
-  ())
+; --- The library's compiled loops --------------------------------------------
+; Loading the function compiler compiles the library's own hot loops (Hash
+; fnv-1a's, lib/x/tool/fn-compile.x), each on Compiled's list, so an image
+; holds them interpreted and the loader compiles them again.
+(import x/tool/fn-compile)
 
 ; --- Reclaim the load burst: NOT HERE ---------------------------------------
 ;
