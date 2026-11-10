@@ -396,6 +396,30 @@
                       (if (%plain? c) (pair c acc)
                         (pair (%hex (& c 15)) (pair (%hex (>> c 4)) (pair 37 acc))))))))))))
 
+    (method url-decode (self (param s STRING "Percent-encoded text"))
+      (doc "Undo percent-encoding: each %XX, either case, becomes its byte; a % not followed by two hex digits stays as it is, and + stays +."
+        (returns STRING "The decoded text")
+        (example "(Http url-decode \"a%20b%26c%3dd+e\")" "\"a b&c=d+e\"")
+        (example "(Http url-decode \"100% %zz\")" "\"100% %zz\""))
+      (def %digit (fn (_ c)
+        (match ((if (>= c 48) (<= c 57) #f) (- c 48))
+               ((if (>= c 65) (<= c 70) #f) (- c 55))
+               ((if (>= c 97) (<= c 102) #f) (- c 87))
+               (#t ()))))
+      (def n (str-byte-len s))
+      (bytes->str
+        (%reverse
+          (let go ((i 0) (acc ()))
+            (match
+              ((= i n) acc)
+              (#t
+                (let ((c (char->int (str-byte-ref s i)))
+                      (hi (if (< (+ i 2) n) (%digit (char->int (str-byte-ref s (+ i 1)))) ()))
+                      (lo (if (< (+ i 2) n) (%digit (char->int (str-byte-ref s (+ i 2)))) ())))
+                  (if (if (= c 37) (if (null? hi) #f (not (null? lo))) #f)
+                    (go (+ i 3) (pair (+ (* hi 16) lo) acc))
+                    (go (+ i 1) (pair c acc))))))))))
+
     (method with-query (self (param url STRING "Base url (may already carry a query)")
                              (param params ALIST "(name . value) strings, both percent-encoded here"))
       (doc "Append percent-encoded query parameters: ? on a bare url, & on one already carrying a query (#412)."
@@ -609,5 +633,5 @@
       (Http request "HEAD" url (if (null? headers) () (first headers)) ()))))
 
 (doc (provide x/net/http Http)
-  (note "http/1.1 over Socket -- and https over Tls (#412), verification on, names resolved via (Socket resolve) with the Host header keeping the name. Connection: close; chunked + Content-Length framing decoded; bodies are byte lists (bytes->str for text); redirects auto-follow (cap 10; (redirects . 0) opts out; 303->GET, 301/302 POST->GET, 307/308 preserve). (Http open) / (Http read s n) / (Http close s) stream a body a piece at a time. Verbs: get/post/put/patch/delete/head; url-encode/with-query build query strings; (Http basic-auth u p) / (Http bearer-auth tok) are the Authorization pairs (stripped on cross-host redirects). net/ = messages carried over sys/socket transport.")
+  (note "http/1.1 over Socket -- and https over Tls (#412), verification on, names resolved via (Socket resolve) with the Host header keeping the name. Connection: close; chunked + Content-Length framing decoded; bodies are byte lists (bytes->str for text); redirects auto-follow (cap 10; (redirects . 0) opts out; 303->GET, 301/302 POST->GET, 307/308 preserve). (Http open) / (Http read s n) / (Http close s) stream a body a piece at a time. Verbs: get/post/put/patch/delete/head; url-encode/with-query build query strings, url-decode undoes the encoding; (Http basic-auth u p) / (Http bearer-auth tok) are the Authorization pairs (stripped on cross-host redirects). net/ = messages carried over sys/socket transport.")
   "A plain-http client, homed on the Http class.")
