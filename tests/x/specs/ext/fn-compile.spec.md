@@ -106,6 +106,31 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 ---
     (#t ('lt 7 3 #f #t))
 
+### eq? compares value words as the interpreter does
+
+```x
+(def %fc-eqs
+  (fn (_ n c)
+    (list (eq? 0 (int- n n)) (eq? 1000000 (int* n 1000000)) (eq? 97 c)
+          (eq? (lit x) (lit x)) (eq? "a" "a") (eq? (pair (lit x) 1) (pair (lit x) 9))
+          (eq? () ()) (eq? () 0) (eq? 0 ()) (eq? () #f))))
+(def %fc-eqs-before (%fc-eqs 1 #\a))
+(def %fc-e (compile-fn! (lit %fc-eqs) %fc-eqs))
+(def %fc-streq (fn (_ a b) (str=? a b)))
+(def %fc-mem-cmp (prim-ref (lit mem) (lit cmp)))
+(def %fc-str->ptr (prim-ref (lit str) (lit ->ptr)))
+(def %fc-str=
+  (fn (_ a b)
+    (if (int= (str-byte-len a) (str-byte-len b))
+      (eq? 0 (%fc-mem-cmp (%fc-str->ptr a) (%fc-str->ptr b) (str-byte-len a)))
+      #f)))
+(def %fc-s (compile-fn! (lit %fc-str=) %fc-str=))
+(write (list (%fc-e state) (equal? %fc-eqs-before (%fc-eqs 1 #\a)) (%fc-eqs 1 #\a)
+             (%fc-s state) (%fc-str= "abc" "abc") (%fc-str= "abc" "abd")))
+```
+---
+    ('compiled #t (#t #t #t #t #f #t #t #f #f #f) 'compiled #t #f)
+
 ### pair? and symbol? answer as the interpreter does
 
 ```x
