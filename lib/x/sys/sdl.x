@@ -302,11 +302,12 @@
       (doc "The float as a whole number, toward zero; SDL gives the mouse's places as floats."
         (returns INTEGER "The whole part")
         (example "(Sdl %f32-int 1092616192)" "10")
-        (example "(Sdl %f32-int 3212836864)" "-1"))
+        (example "(Sdl %f32-int 0xBF800000)" "-1"))
       (def e (& (>> b 23) 255))
       (def m (| (& b 8388607) 8388608))
       (def n (match ((< e 127) 0) ((< e 150) (>> m (- 150 e))) (#t (<< m (- e 150)))))
-      (if (= (& b 2147483648) 0) n (- 0 n)))
+      ; the sign is bit 31, asked for by its place: a 4-byte word has no 2^31 to mask with
+      (if (= (& (>> b 31) 1) 0) n (- 0 n)))
 
     (method %held (self (param state INTEGER "SDL's mouse button flags"))
       (doc "The mouse buttons held, by name, for the flags SDL gives with a motion."
