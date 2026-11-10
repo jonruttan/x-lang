@@ -103,17 +103,22 @@
       (%sys-fold r))
     ; --- Process control ---
     (method fork (self)
-      (doc "Fork the current process." (returns INTEGER "PID of child in parent, 0 in child, -1 on error"))
+      (doc "Fork the current process." (returns INTEGER "PID of child in parent, 0 in child, -1 on error")
+        (sample "(Sys fork)" "48214 in the parent, 0 in the child"))
       (%sys-fold (ptr-call %c-fork)))
     (method getpid (self)
-      (doc "Return the current process ID." (returns INTEGER "Process ID"))
+      (doc "Return the current process ID." (returns INTEGER "Process ID")
+        (example "(< 0 (Sys getpid))" "#t")
+        (sample "(Sys getpid)" "48213"))
       (%sys-fold (ptr-call %c-getpid)))
     (method setsid (self)
       (doc "Start a new session with this process as its leader, as a daemon does after its fork: setsid(2), through libc since Darwin's syscall table has no number for it."
-        (returns INTEGER "The new session id; negative when this process already leads a process group"))
+        (returns INTEGER "The new session id; negative when this process already leads a process group")
+        (sample "(Sys setsid)" "48214, in a forked child, which now leads its own session"))
       (%sys-fold (ptr-call %c-setsid)))
     (method exit (self (param status INTEGER "Exit status code"))
-      (doc "Terminate the process with the given exit status.")
+      (doc "Terminate the process with the given exit status."
+        (sample "(Sys exit 1)" "the process ends; its parent sees status 1"))
       (ptr-call %c-exit status))
     ; --- Arguments ---
     ; A launcher starts the engine as `x-bin OPTION... -- ARG...`: its own
@@ -150,7 +155,8 @@
       (doc "Wait for a child and return how it ended."
         (returns INTEGER "Exit status 0-255 for a normal exit; 128+N when signal N killed the child (the shell convention)")
         (note "The old contract returned WEXITSTATUS unconditionally, so a signal-killed child reported 0 -- success (#226).")
-        (note "A caught signal -- the engine's SIGINT, any catch-signal -- interrupts waitpid, which then waits again; any other failure, such as a pid that is no child of this process, raises the io Err."))
+        (note "A caught signal -- the engine's SIGINT, any catch-signal -- interrupts waitpid, which then waits again; any other failure, such as a pid that is no child of this process, raises the io Err.")
+        (sample "(Sys wait child)" "0 when the child exited 0; 137 when SIGKILL (9) ended it"))
       ; Status word lands in a GC-owned (str make) region (see pipe).
       ; Low 7 bits = the killing signal, 0 for a normal exit; the exit
       ; code rides bits 8-15.
@@ -167,7 +173,8 @@
                     (again)
                     (error (Err from-errno errno (lit waitpid) pid))))))))))
     (method exec (self (param name STRING "Program name") (param args LIST "List of argument strings"))
-      (doc "Replace the current process with the named program. Does not return on success.")
+      (doc "Replace the current process with the named program. Does not return on success."
+        (sample "(Sys exec \"ls\" (list \"-l\"))" "the process becomes ls -l, found on PATH; -1 only when it cannot"))
       (let ((all (pair name args)))
         (let ((n (%length all)))
           (let ((argv (%cvt (ptr-call %c-malloc (* (+ n 1) %word-size)) %ptr)))
@@ -193,14 +200,17 @@
     (sig-ign 1 "signal(2) disposition: ignore the signal")
     (method kill (self (param pid INTEGER "Process ID")
                        (param sig INTEGER "Signal number, e.g. (Sys sigterm)"))
-      (doc "Send a signal to a process." (returns INTEGER "0 on success, -1 on error"))
+      (doc "Send a signal to a process." (returns INTEGER "0 on success, -1 on error")
+        (example "(Sys kill (Sys getpid) 0)" "0")
+        (sample "(Sys kill child (Sys sigterm))" "0, and the child is asked to end"))
       ; Cold path: resolve per call (the file-exists? pattern), keeping
       ; the module inside its %-globals budget.
       (%sys-fold (ptr-call (%resolve "kill") pid sig)))
     (method signal (self (param sig INTEGER "Signal number")
                          (param disposition INTEGER "(Sys sig-ign) or (Sys sig-dfl) ONLY -- an x-lang closure cannot be a C signal handler"))
       (doc "Set a signal's disposition to ignore or default."
-        (returns ANY "The previous disposition; meaningful only when it was one of the two constants"))
+        (returns ANY "The previous disposition; meaningful only when it was one of the two constants")
+        (sample "(Sys signal 13 (Sys sig-ign))" "SIGPIPE is ignored from now on: a write to a closed pipe answers -1"))
       ; signal(2) returns a POINTER (the old handler) -- never %sys-fold
       ; a pointer return (see the fold's comment above).
       (ptr-call (%resolve "signal") sig disposition))
@@ -208,11 +218,15 @@
     (sigttou 22 "SIGTTOU: a background process set or wrote to its terminal (22 on Darwin and Linux)")
     (method sigtstp (self)
       (doc "SIGTSTP, the terminal's stop key (^Z): 18 on Darwin, 20 on Linux."
-        (returns INTEGER "The signal number"))
+        (returns INTEGER "The signal number")
+        (example "(List includes? (Sys sigtstp) (list 18 20))" "#t")
+        (sample "(Sys sigtstp)" "18 on Darwin"))
       (if os-darwin? 18 20))
     (method sigstop (self)
       (doc "SIGSTOP, the stop no handler can catch: 17 on Darwin, 19 on Linux."
-        (returns INTEGER "The signal number"))
+        (returns INTEGER "The signal number")
+        (example "(List includes? (Sys sigstop) (list 17 19))" "#t")
+        (sample "(Sys sigstop)" "17 on Darwin"))
       (if os-darwin? 17 19))
     ; The numbers past the POSIX-fixed few are the kernel's own: Darwin
     ; numbers BUS, SYS, USR1 and USR2 and the job-control signals apart from
@@ -236,23 +250,30 @@
       (number names 1))
     (method catch-signal (self (param sig INTEGER "Signal number"))
       (doc "Catch a signal: from now on its arrival is recorded for take-signal, and nothing else happens -- what it means is the caller's to decide. A read or poll waiting when it arrives is interrupted."
-        (returns INTEGER "0, or -1 when sig cannot be caught or this engine records no signals"))
+        (returns INTEGER "0, or -1 when sig cannot be caught or this engine records no signals")
+        (sample "(Sys catch-signal (Sys sigwinch))" "0; (Sys take-signal (Sys sigwinch)) is #t after the terminal is resized"))
       (let ((catch (prim-ref (lit signal) (lit catch))))
         (if (null? catch) -1 (catch sig))))
     (method take-signal (self (param sig INTEGER "Signal number"))
       (doc "Whether a caught signal arrived since the last take, clearing the record; two arrivals between takes are one."
-        (returns BOOL "True when it arrived"))
+        (returns BOOL "True when it arrived")
+        (sample "(Sys take-signal (Sys sigwinch))" "#t once after each resize, when catch-signal caught it; #f otherwise"))
       (let ((take (prim-ref (lit signal) (lit take))))
         (if (null? take) #f (= (take sig) 1))))
     ; --- File descriptors ---
     (method close (self (param fd INTEGER "File descriptor to close"))
-      (doc "Close a file descriptor." (returns INTEGER "0 on success, -1 on error"))
+      (doc "Close a file descriptor." (returns INTEGER "0 on success, -1 on error")
+        (example "(Sys close -1)" "-1")
+        (sample "(Sys close fd)" "0"))
       (%sys-fold (ptr-call %c-close fd)))
     (method dup2 (self (param old INTEGER "Source file descriptor") (param new INTEGER "Target file descriptor"))
-      (doc "Duplicate a file descriptor onto another." (returns INTEGER "New file descriptor, or -1 on error"))
+      (doc "Duplicate a file descriptor onto another." (returns INTEGER "New file descriptor, or -1 on error")
+        (example "(Sys dup2 -1 -1)" "-1")
+        (sample "(Sys dup2 (rest p) 1)" "1: stdout now writes into the pipe p"))
       (%sys-fold (ptr-call %c-dup2 old new)))
     (method pipe (self)
-      (doc "Create a pipe and return a pair of file descriptors." (returns PAIR "Pair of (read-fd . write-fd)"))
+      (doc "Create a pipe and return a pair of file descriptors." (returns PAIR "Pair of (read-fd . write-fd)")
+        (sample "(Sys pipe)" "(5 . 6)"))
       ; The two 4-byte fds land in a GC-owned (str make) region; the outer
       ; let keeps the backing string alive across the ptr reads.
       (let ((s (str-make 8)))
@@ -261,20 +282,26 @@
           (pair (ptr-ref buf 0 4) (ptr-ref buf 4 4)))))
     ; --- File I/O (O_* flags from the platform table, resolved at load above) ---
     (method open-read (self (param path STRING "File path to open"))
-      (doc "Open a file for reading." (returns INTEGER "File descriptor, or -1 on error"))
+      (doc "Open a file for reading." (returns INTEGER "File descriptor, or -1 on error")
+        (example "(Sys open-read \"/nonexistent/file\")" "-1")
+        (sample "(Sys open-read \"/etc/hosts\")" "3"))
       (%sys-fold (ptr-call %c-open path %O_RDONLY)))
     (method open-write (self (param path STRING "File path to open"))
-      (doc "Open a file for writing, creating or truncating it." (returns INTEGER "File descriptor, or -1 on error"))
+      (doc "Open a file for writing, creating or truncating it." (returns INTEGER "File descriptor, or -1 on error")
+        (sample "(Sys open-write \"out.txt\")" "3, and out.txt is empty"))
       (let ((fd (%sys-fold (ptr-call %c-open path (+ %O_WRONLY (+ %O_CREAT %O_TRUNC)) 438))))
         (if (>= fd 0) (ptr-call %c-fchmod fd 438))
         fd))
     (method open-append (self (param path STRING "File path to open"))
-      (doc "Open a file for appending, creating it if necessary." (returns INTEGER "File descriptor, or -1 on error"))
+      (doc "Open a file for appending, creating it if necessary." (returns INTEGER "File descriptor, or -1 on error")
+        (sample "(Sys open-append \"log.txt\")" "3; writes land after what log.txt already holds"))
       (let ((fd (%sys-fold (ptr-call %c-open path (+ %O_WRONLY (+ %O_CREAT %O_APPEND)) 438))))
         (if (>= fd 0) (ptr-call %c-fchmod fd 438))
         fd))
     (method fd-write (self (param fd NUMBER "File descriptor") (param s STRING "String to write"))
-      (doc "Write a string to a file descriptor." (returns NUMBER "Bytes written"))
+      (doc "Write a string to a file descriptor." (returns NUMBER "Bytes written")
+        (example "(Sys fd-write -1 \"hi\")" "-1")
+        (sample "(Sys fd-write 1 \"hi\\n\")" "3, after hi on standard output"))
       (%sys-fold (ptr-call (%resolve "write") fd s (%str-length s))))
     (method fd-read (self (param fd NUMBER "File descriptor to read from")
                           (param n NUMBER "Maximum number of bytes to read"))
@@ -294,11 +321,15 @@
     (method file-exists? (self (param path STRING "File path to check"))
       (doc "Check if a file exists (via access with F_OK=0)."
         (returns BOOL "True if file exists")
-        (note "Deliberately duplicated across profiles with (File exists?) (#361): boot/module.x resolves imports through THIS door before sys/file (stat + Err, the ergonomic sibling) can load. Post-boot callers doing file work generally want the File class."))
+        (note "Deliberately duplicated across profiles with (File exists?) (#361): boot/module.x resolves imports through THIS door before sys/file (stat + Err, the ergonomic sibling) can load. Post-boot callers doing file work generally want the File class.")
+        (example "(Sys file-exists? \"/\")" "#t")
+        (example "(Sys file-exists? \"/nonexistent/file\")" "#f"))
       (= (%sys-fold (ptr-call (%resolve "access") path 0)) 0))
     ; --- Environment ---
     (method chdir (self (param path STRING "Directory path"))
-      (doc "Change the current working directory -- (Sys getcwd) reads it back." (returns INTEGER "0 on success, -1 on error"))
+      (doc "Change the current working directory -- (Sys getcwd) reads it back." (returns INTEGER "0 on success, -1 on error")
+        (example "(Sys chdir \"/nonexistent/dir\")" "-1")
+        (sample "(Sys chdir \"/tmp\")" "0, and (Sys getcwd) now answers the /tmp directory"))
       (%sys-fold (ptr-call %c-chdir path)))
     (method getcwd (self)
       (doc "The current working directory (getcwd) -- the symmetric half of (Sys chdir) (#361)."
@@ -310,16 +341,21 @@
         (let ((r (ptr-call (%resolve "getcwd") (str->ptr s) 4096)))
           (if (= r 0) () (%cvt (%cvt r %ptr) %string)))))
     (method setenv (self (param name STRING "Variable name") (param val STRING "Variable value"))
-      (doc "Set an environment variable, overwriting any existing value -- (Sys unsetenv) removes it." (returns INTEGER "0 on success, -1 on error"))
+      (doc "Set an environment variable, overwriting any existing value -- (Sys unsetenv) removes it." (returns INTEGER "0 on success, -1 on error")
+        (example "(Sys setenv \"X_HELP_SETENV\" \"on\")" "0")
+        (example "((fn (_ r) (Sys getenv \"X_HELP_SETENV\")) (Sys setenv \"X_HELP_SETENV\" \"on\"))" "\"on\""))
       (%sys-fold (ptr-call %c-setenv name val 1)))
     (method getenv (self (param name STRING "Variable name"))
-      (doc "Get the value of an environment variable." (returns STRING "Variable value, or nil if not set"))
+      (doc "Get the value of an environment variable." (returns STRING "Variable value, or nil if not set")
+        (example "(null? (Sys getenv \"X_HELP_NO_SUCH_NAME\"))" "#t")
+        (sample "(Sys getenv \"HOME\")" "\"/home/user\""))
       ; POINTER return -- must NOT go through %sys-fold (see its comment).
       (let ((result (ptr-call %c-getenv name)))
         (if (= result 0) () (%cvt (%cvt result %ptr) %string))))
     (method unsetenv (self (param name STRING "Variable name"))
       (doc "Remove an environment variable -- the symmetric half of (Sys setenv) (#361). Removing an absent name succeeds."
-        (returns INTEGER "0 on success, -1 on error"))
+        (returns INTEGER "0 on success, -1 on error")
+        (example "(Sys unsetenv \"X_HELP_NO_SUCH_NAME\")" "0"))
       (%sys-fold (ptr-call (%resolve "unsetenv") name)))
     (method environ (self)
       (doc "The whole environment as a list of \"NAME=VALUE\" strings, in table order (#361). Split an entry at its FIRST '=' only -- values may themselves contain '='."
@@ -346,15 +382,21 @@
       (%sys-fold (ptr-call (%resolve "getuid"))))
     (method geteuid (self)
       (doc "The process's EFFECTIVE user id -- who it acts as, which is what a permission check reads."
-        (returns INTEGER "User id"))
+        (returns INTEGER "User id")
+        (example "(<= 0 (Sys geteuid))" "#t")
+        (sample "(Sys geteuid)" "0 under sudo; otherwise the same as (Sys getuid)"))
       (%sys-fold (ptr-call (%resolve "geteuid"))))
     (method getgid (self)
       (doc "The process's real group id."
-        (returns INTEGER "Group id"))
+        (returns INTEGER "Group id")
+        (example "(<= 0 (Sys getgid))" "#t")
+        (sample "(Sys getgid)" "20"))
       (%sys-fold (ptr-call (%resolve "getgid"))))
     (method getegid (self)
       (doc "The process's effective group id."
-        (returns INTEGER "Group id"))
+        (returns INTEGER "Group id")
+        (example "(<= 0 (Sys getegid))" "#t")
+        (sample "(Sys getegid)" "20"))
       (%sys-fold (ptr-call (%resolve "getegid"))))
     (method getgroups (self)
       (doc "The process's supplementary group ids, as a list. getgroups is asked its own count first, so the buffer is never guessed."
@@ -397,29 +439,38 @@
         (if (< n 1) 1 n)))
     (method sync (self)
       (doc "Flush the filesystem write buffers (sync). Returns nil; there is nothing to fail."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (sample "(Sys sync)" "nil, after the kernel is told to write its dirty buffers"))
       (ptr-call (%resolve "sync"))
       ())
     (method fsync (self (param fd INTEGER "File descriptor to flush"))
       (doc "Flush ONE open file's buffers to disk (fsync), rather than the whole system."
-        (returns INTEGER "0 on success, -1 on error"))
+        (returns INTEGER "0 on success, -1 on error")
+        (example "(Sys fsync -1)" "-1")
+        (sample "(Sys fsync fd)" "0, once fd's writes are on the disk"))
       (%sys-fold (ptr-call (%resolve "fsync") fd)))
     (method nice (self (param increment INTEGER "Amount to add to the scheduling priority"))
       (doc "Raise the process's nice value -- a HIGHER number means a LOWER priority, and only a privileged process may lower it."
-        (returns INTEGER "The new nice value, or -1 on error"))
+        (returns INTEGER "The new nice value, or -1 on error")
+        (sample "(Sys nice 5)" "5, from a process that ran at 0"))
       (%sys-fold (ptr-call (%resolve "nice") increment)))
     (method chroot (self (param path STRING "New filesystem root"))
       (doc "Change the process's filesystem root. Privileged: an unprivileged caller gets -1 with EPERM."
-        (returns INTEGER "0 on success, -1 on error"))
+        (returns INTEGER "0 on success, -1 on error")
+        (example "(Sys chroot \"/nonexistent/dir\")" "-1")
+        (sample "(Sys chroot \"/srv/jail\")" "0 as root; -1 for anyone else"))
       (%sys-fold (ptr-call (%resolve "chroot") path)))
     ; --- Sleep (#361) ---
     (method sleep (self (param seconds INTEGER "Whole seconds to block"))
       (doc "Block for the given number of seconds (libc sleep). A signal can wake it early; sub-second waits are (Sys usleep)."
-        (returns INTEGER "0 after the full interval; the seconds left unslept when a signal woke it early"))
+        (returns INTEGER "0 after the full interval; the seconds left unslept when a signal woke it early")
+        (example "(Sys sleep 0)" "0")
+        (sample "(Sys sleep 2)" "0, two seconds later"))
       (%sys-fold (ptr-call (%resolve "sleep") seconds)))
     (method usleep (self (param micros INTEGER "Microseconds to block"))
       (doc "Block for the given number of microseconds (libc usleep) -- the sub-second door; whole seconds read better through (Sys sleep)."
-        (returns INTEGER "0 on success, -1 on error"))
+        (returns INTEGER "0 on success, -1 on error")
+        (example "(Sys usleep 1000)" "0"))
       (%sys-fold (ptr-call (%resolve "usleep") micros)))
     (method isatty (self (param fd NUMBER "File descriptor to test"))
       (doc "Test whether a file descriptor refers to a terminal (TTY)."
@@ -461,7 +512,9 @@
 
     (method %poll-bits (self (param events LIST "Symbols: in, out"))
       (doc "The pollfd events bits for a list of in and out."
-        (returns INTEGER "POLLIN | POLLOUT as asked"))
+        (returns INTEGER "POLLIN | POLLOUT as asked")
+        (example "(Sys %poll-bits (list 'in))" "1")
+        (example "(Sys %poll-bits (list 'in 'out))" "5"))
       (let go ((l events) (bits 0))
         (match
           ((null? l) bits)
@@ -471,7 +524,9 @@
 
     (method %poll-events (self (param rev INTEGER "A pollfd's revents"))
       (doc "The symbols for a revents word: in (POLLIN or POLLPRI), out, err, hup, nval."
-        (returns LIST "The events, in that order"))
+        (returns LIST "The events, in that order")
+        (example "(Sys %poll-events 1)" "('in)")
+        (example "(Sys %poll-events 17)" "('in 'hup)"))
       (def bit (fn (_ mask name rest) (if (= (& rev mask) 0) rest (pair name rest))))
       (bit 3 (lit in) (bit 4 (lit out) (bit 8 (lit err) (bit 16 (lit hup) (bit 32 (lit nval) ()))))))
 
@@ -497,7 +552,9 @@
     ; here as the catalogue bridge retires (R4). Cold path -> inline prim-ref.
     (method clock (self)
       (doc "Current process CPU time in microseconds (the (Sys time) profiler reads this). WALL-clock time is (Sys now) / (Sys time-of-day)."
-        (returns INTEGER "Microseconds of CPU time consumed"))
+        (returns INTEGER "Microseconds of CPU time consumed")
+        (example "(< 0 (Sys clock))" "#t")
+        (sample "(Sys clock)" "184213"))
       ((prim-ref (lit sys) (lit clock))))
 
     ; The verb seat (#108 rethink, ruled 2026-07-22): (Sys time thunk) TIMES;
@@ -592,4 +649,6 @@
 (doc (provide x/sys/posix Sys)
   (note "POSIX via the Sys class: (Sys fork), (Sys exec name args), (Sys pipe),")
   (note "(Sys open-read path), (Sys getenv name), (Sys isatty fd), ...")
+  (example "(Sys open-read \"/nonexistent/file\")" "-1")
+  (sample "(Sys getenv \"HOME\")" "\"/home/user\"")
   "POSIX system call wrappers, homed on the Sys class.")
