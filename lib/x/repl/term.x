@@ -254,7 +254,7 @@
         (returns ANY "The baud, or nil")
         (example "(Term %baud 0)" "0"))
       (if os-darwin? speed
-        (let ((code (& speed 4294967295)))
+        (let ((code (& speed 0xFFFFFFFF)))
           (let ((row (List find (fn (_ r) (= (rest r) code)) (Term %bauds))))
             (if (null? row) () (first row))))))
 
