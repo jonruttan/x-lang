@@ -213,12 +213,28 @@
 ; once/import) -- a raw include does not register, so a later once/import of
 ; that path reloads it in reality.  A ./ or ../ path resolves against the
 ; including file, as module.x resolves it, and is simulated as the
-; root-relative path it names.  A non-literal path can't be simulated --
+; root-relative path it names.  (Str append %engine-root "PATH") names a
+; file of the engine's, and %engine-root is "engine" (boot/engine.x), the
+; link from the root.  Any other non-literal path can't be simulated --
 ; report it rather than skip silently.
 (def %do-include
   (fn (_ form file force)
+    ; The PATH of (Str append %engine-root PATH), or nil.
+    (def engine-path
+      (fn (_ a)
+        (match
+          ((not (pair? a)) ())
+          ((not (eq? (first a) 'Str)) ())
+          ((not (pair? (rest a))) ())
+          ((not (eq? (first (rest a)) 'append)) ())
+          ((not (pair? (rest (rest a)))) ())
+          ((not (eq? (first (rest (rest a))) '%engine-root)) ())
+          ((not (pair? (rest (rest (rest a))))) ())
+          ((not (str? (first (rest (rest (rest a)))))) ())
+          (#t (first (rest (rest (rest a))))))))
     (let ((arg (let ((a (first (rest form))))
                  (match
+                   ((engine-path a) (Str8 append "engine" (engine-path a)))
                    ((not (str? a)) a)
                    ((str=? a "") a)
                    ((eq? (Str8 ref 0 a) 46) (Path norm (Path join (Path dirname file) a)))
