@@ -176,13 +176,34 @@
 ; A byte at a time into code, once range has shrunk past 2^24.  Both are 32
 ; bits wide, so every step masks.
 
+; The coder's code and range are 32-bit patterns, and the word they sit in
+; is the platform's: 64 bits holds them as the numbers they are, 32 bits
+; holds the same bits as a signed int.  Wrapping, masking and subtraction
+; carry the bits either way, and %M32 is every bit of a 32-bit word on both
+; (it reads as -1 where the word is 32 bits).  Only two operations differ:
+; a right shift sign-extends, and a comparison reads the top bit as a sign.
+;
+; %ushr shifts right and clears what a sign extension would have filled in,
+; which is the shift the coder wants on either word.  %ult compares the
+; halves first -- a 32-bit pattern shifted right by one is never negative,
+; whatever the word -- and the low bits only to break a tie.
+(def %ushr
+  (fn (_ x n) (int& (int>> x n) (int- (int<< 1 (int- 32 n)) 1))))
+
+(def %ult
+  (fn (_ a b)
+    (def ah (%ushr a 1))
+    (def bh (%ushr b 1))
+    (if (int< ah bh) #t
+      (if (int< bh ah) #f (int< (int& a 1) (int& b 1))))))
+
 (def %shift-in!
   (fn (_ s)
     (obj-set! s %RANGE (int& (int<< (obj-ref s %RANGE) 8) %M32))
     (obj-set! s %CODE (int& (int| (int<< (obj-ref s %CODE) 8) (%byte! s)) %M32))))
 
 (def %normalize!
-  (fn (_ s) (if (int< (obj-ref s %RANGE) %TOP) (%shift-in! s) ())))
+  (fn (_ s) (if (%ult (obj-ref s %RANGE) %TOP) (%shift-in! s) ())))
 
 ; Five shifts prime the coder.  The first of those five bytes leaves the low
 ; 32 bits again and is never read, which is why the sixth byte of a stream
@@ -200,8 +221,8 @@
     (%normalize! s)
     (def p (obj-ref s %PROBS))
     (def v (%wref p pi))
-    (def bound (int* v (int>> (obj-ref s %RANGE) %MODEL-BITS)))
-    (if (int< (obj-ref s %CODE) bound)
+    (def bound (int* v (%ushr (obj-ref s %RANGE) %MODEL-BITS)))
+    (if (%ult (obj-ref s %CODE) bound)
       (do (obj-set! s %RANGE bound)
           (%wset! p pi (int+ v (int>> (int- %MODEL-TOTAL v) %MOVE-BITS)))
           0)
@@ -215,8 +236,8 @@
 (def %direct-bit!
   (fn (_ s)
     (%normalize! s)
-    (obj-set! s %RANGE (int>> (obj-ref s %RANGE) 1))
-    (if (int< (obj-ref s %CODE) (obj-ref s %RANGE)) 0
+    (obj-set! s %RANGE (%ushr (obj-ref s %RANGE) 1))
+    (if (%ult (obj-ref s %CODE) (obj-ref s %RANGE)) 0
       (do (obj-set! s %CODE (int- (obj-ref s %CODE) (obj-ref s %RANGE))) 1))))
 
 ; levels bits, each against the context the bits so far name: a walk down a
