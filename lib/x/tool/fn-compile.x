@@ -692,6 +692,14 @@
   (sample "((compile-fn! 'fib fib) state)" "compiled, and every holder of fib now calls the compiled version")
   "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let (not a named let) compile in place; a (guard (name handler) body) is outlined into two closures, run by the engine's guard and compiled in turn; a call of any other closure, or of a C primitive the engine's ISA manifest does not label spine, passes it values, and a send (C sel ...) to a class's public static method calls the method method-of resolves when F is compiled. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
 
+; The library's own hot loops, compiled wherever the compiler loads: the
+; tower dialects import this module at boot, and a program on helium that
+; imports it gets them too.  Hash fnv-1a's byte loop (x/type/hash, loaded in
+; every context) is the inner loop of every Dict op on a string or symbol
+; key.  On an engine with no JIT the entry fails and the loop stays as
+; written.
+(compile-fn! (lit fnv-1a) (eval (lit %fnv-go) (module x/type/hash)))
+
 (doc (provide x/tool/fn-compile compile-fn!)
   (sample "(import x/tool/fn-compile compile-fn!) (compile-fn! 'fib fib)" "fib compiled where it stands, its interpreted version kept on the Compiled list")
   "A program's closures compiled where they stand, through compile-asm's function world.")

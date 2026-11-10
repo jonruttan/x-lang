@@ -35,8 +35,8 @@
 
 ; The loop over S's bytes from I, LEN its length, H the hash so far.  A
 ; module-level closure on integer doors only, so compile-fn! can rewrite it
-; in place: boot/tower-compiled.x compiles it where the engine has a JIT,
-; and everywhere else it runs as written.  The xor is spelled (a|b)-(a&b),
+; in place: loading x/tool/fn-compile compiles it where the engine has a
+; JIT (the tower dialects load it at boot), and elsewhere it runs as written.  The xor is spelled (a|b)-(a&b),
 ; which compile-fn! carries; it equals (^ a b) for every pair of words.
 (def %fnv-go
   (fn (self s len i h)

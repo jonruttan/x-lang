@@ -466,6 +466,11 @@
 ; case -- the guard falls back to "lib" and nothing changes.
 (def %import-roots-cell
   (pair (guard (_ (list "lib")) (list (%path-join %install-root "lib"))) ()))
+; The engine's roots (boot/engine.x) are read at run time, by an include
+; whose path is built from them among others, so they take the same root.
+(set! %engine-root (guard (_ %engine-root) (%path-join %install-root %engine-root)))
+(set! %engine-contract-root
+  (guard (_ %engine-contract-root) (%path-join %install-root %engine-contract-root)))
 (def %file-exists?
   (fn (_ path) (guard (_ #f) (Sys file-exists? path))))
 (def import-path!
