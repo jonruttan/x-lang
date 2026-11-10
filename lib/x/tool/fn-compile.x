@@ -22,7 +22,8 @@
 ;              any closure or any C primitive the engine's ISA manifest does
 ;              not label spine, with values; a send (C SEL ...) to a class's
 ;              public static method, as a call of the method method-of
-;              resolves
+;              resolves, and to its own public static field, as a call of
+;              the class
 ;
 ; A free name is read through its binding cell, found by the engine's lookup
 ; when F is compiled ((Env cell ...)): a later set! or def of the name is
@@ -386,8 +387,11 @@
 
 ; (C SEL ARG ...) with C a class: the class runs its public static method
 ; SEL as (M C ARG ...), so the send is that call, M resolved by method-of
-; when F is compiled and C read from its binding.  A static field, a
-; guarded member or no member of that name is refused.
+; when F is compiled and C read from its binding.  A send to one of C's own
+; public static fields, (C SEL) to read it or (C SEL V) to write it, is a
+; call of C itself with (lit SEL) and the values: the class's dispatch reads
+; or writes the field where it lives, when the code runs.  A guarded member,
+; an inherited field or no member of that name is refused.
 (def %fc-send
   (fn (_ h c args)
     (def s (first args))
@@ -395,10 +399,20 @@
     (unless (symbol? sel)
       (%fc-refuse "a send to " (symbol->str h) " whose selector is not a name"))
     (def m (method-of c sel))
-    (when (null? m)
-      (%fc-refuse "the send (" (symbol->str h) " " (symbol->str sel)
-        ") is not a public static method"))
-    (%fc-call (%fc-const m) (pair h (rest args)))))
+    (match
+      ((not (null? m)) (%fc-call (%fc-const m) (pair h (rest args))))
+      ((%fc-static-field? c sel)
+        (%fc-call (list (lit rest) (%fc-cell h)) (pair (list (lit lit) sel) (rest args))))
+      (#t (%fc-refuse "the send (" (symbol->str h) " " (symbol->str sel)
+            ") is neither a public static method nor a public static field")))))
+
+; SEL is one of C's own static fields, and reading it from the root
+; environment does not raise, as a private or protected one does there.
+; A read has no effect.
+(def %fc-static-field?
+  (fn (_ c sel)
+    (and (%fc-memq sel (class-static-fields c))
+         (guard (_ #f) (do (eval (list c (list (lit lit) sel)) (Env root)) #t)))))
 
 ; (H . ARGS) with H a symbol: what its name means decides the rewrite.
 (def %fc-named-call
@@ -710,7 +724,7 @@
   (param f ANY "A closure made by fn")
   (returns Compiled "The entry: (entry state) is compiled, or failed with (entry reason)")
   (sample "((compile-fn! 'fib fib) state)" "compiled, and every holder of fib now calls the compiled version")
-  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let (not a named let) compile in place; a (guard (name handler) body) is outlined into two closures, run by the engine's guard and compiled in turn; a call of any other closure, or of a C primitive the engine's ISA manifest does not label spine, passes it values, and a send (C sel ...) to a class's public static method calls the method method-of resolves when F is compiled. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
+  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let (not a named let) compile in place; a (guard (name handler) body) is outlined into two closures, run by the engine's guard and compiled in turn; a call of any other closure, or of a C primitive the engine's ISA manifest does not label spine, passes it values, and a send (C sel ...) to a class's public static method calls the method method-of resolves when F is compiled, and one to its own public static field calls the class to read or write it. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
 
 ; The library's own hot loops, compiled wherever the compiler loads: the
 ; tower dialects import this module at boot, and a program on helium that
