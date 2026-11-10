@@ -7,7 +7,9 @@ The compiled codes loop behind `(Inflate jit!)`.  It is adopted only after
 decoding a fixed-code and a dynamic-code stream exactly as the pure-x loop
 does; these cases re-prove agreement through the class, on inputs made by the
 system zlib.  `%ij-region` puts a byte list into a byte region and
-`%ij-bytes` reads one back.
+`%ij-bytes` reads one back.  Each loop fetches its `ptr` primitive once,
+before the loop: a `prim-ref` is a catalog lookup that allocates, and
+these loops run once per byte.
 
 ## the engine builds and is adopted
 
@@ -28,10 +30,10 @@ system zlib.  `%ij-region` puts a byte list into a byte region and
 (do (import x/codec/inflate) (import x/codec/zlib)
   (Inflate jit!)
   (def %ij-region (fn (_ bs) (let ((r ((prim-ref (lit str) (lit make)) (List length bs))))
-    (let ((p ((prim-ref (lit str) (lit ->ptr)) r)))
-      (do ((fn (self i l) (unless (null? l) (do ((prim-ref (lit ptr) (lit set!)) p i (first l) 1) (self (+ i 1) (rest l))))) 0 bs) r)))))
-  (def %ij-bytes (fn (_ r n) (let ((p ((prim-ref (lit str) (lit ->ptr)) r)))
-    ((fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (& ((prim-ref (lit ptr) (lit ref)) p i 1) 255) acc)))) (- n 1) ()))))
+    (let ((p ((prim-ref (lit str) (lit ->ptr)) r)) (set (prim-ref (lit ptr) (lit set!))))
+      (do ((fn (self i l) (unless (null? l) (do (set p i (first l) 1) (self (+ i 1) (rest l))))) 0 bs) r)))))
+  (def %ij-bytes (fn (_ r n) (let ((p ((prim-ref (lit str) (lit ->ptr)) r)) (get (prim-ref (lit ptr) (lit ref))))
+    ((fn (self i acc) (if (< i 0) acc (self (- i 1) (pair (& (get p i 1) 255) acc)))) (- n 1) ()))))
   (def %ij-round (fn (_ data level)
     (let ((z (Zlib compress data level)))
       (let ((r (Inflate zlib (%ij-region z) 0 (List length z))))
@@ -58,16 +60,17 @@ a list, so a 40000-element list left live overruns the C stack.
 (do (import x/codec/inflate) (import x/codec/zlib)
   (Inflate jit!)
   (def %ij-region (fn (_ bs) (let ((r ((prim-ref (lit str) (lit make)) (List length bs))))
-    (let ((p ((prim-ref (lit str) (lit ->ptr)) r)))
-      (do ((fn (self i l) (unless (null? l) (do ((prim-ref (lit ptr) (lit set!)) p i (first l) 1) (self (+ i 1) (rest l))))) 0 bs) r)))))
+    (let ((p ((prim-ref (lit str) (lit ->ptr)) r)) (set (prim-ref (lit ptr) (lit set!))))
+      (do ((fn (self i l) (unless (null? l) (do (set p i (first l) 1) (self (+ i 1) (rest l))))) 0 bs) r)))))
   (write
     ((fn (_)
        (def data (List map (fn (_ i) (+ 65 (% (* i 31) 26))) (List range 0 40000)))
        (def z (Zlib compress data 6))
        (def r (Inflate zlib (%ij-region z) 0 (List length z)))
        (def p ((prim-ref (lit str) (lit ->ptr)) (first r)))
+       (def get (prim-ref (lit ptr) (lit ref)))
        (list (first (rest r))
-             ((fn (self i l) (if (null? l) #t (if (= (& ((prim-ref (lit ptr) (lit ref)) p i 1) 255) (first l)) (self (+ i 1) (rest l)) #f))) 0 data))))))
+             ((fn (self i l) (if (null? l) #t (if (= (& (get p i 1) 255) (first l)) (self (+ i 1) (rest l)) #f))) 0 data))))))
 ```
 ---
     (40000 #t)
@@ -78,8 +81,8 @@ a list, so a 40000-element list left live overruns the C stack.
 (do (import x/codec/inflate) (import x/codec/zlib)
   (Inflate jit!)
   (def %ij-region (fn (_ bs) (let ((r ((prim-ref (lit str) (lit make)) (List length bs))))
-    (let ((p ((prim-ref (lit str) (lit ->ptr)) r)))
-      (do ((fn (self i l) (unless (null? l) (do ((prim-ref (lit ptr) (lit set!)) p i (first l) 1) (self (+ i 1) (rest l))))) 0 bs) r)))))
+    (let ((p ((prim-ref (lit str) (lit ->ptr)) r)) (set (prim-ref (lit ptr) (lit set!))))
+      (do ((fn (self i l) (unless (null? l) (do (set p i (first l) 1) (self (+ i 1) (rest l))))) 0 bs) r)))))
   (def %ij-z (Zlib compress (List map (fn (_ i) (& (* i 13) 255)) (List range 0 400)) 6))
   (guard (e (e msg)) (Inflate raw (%ij-region %ij-z) 2 10)))
 ```
@@ -99,7 +102,8 @@ budget of steps, so the driver runs the step again.
   (def %ij-pure (eval (lit %adler32-x) (module x/codec/inflate)))
   (def %ij-r ((prim-ref (lit str) (lit make)) 70000))
   (def %ij-p ((prim-ref (lit str) (lit ->ptr)) %ij-r))
-  ((fn (self i) (when (< i 70000) (do ((prim-ref (lit ptr) (lit set!)) %ij-p i (& (* i 151) 255) 1) (self (+ i 1))))) 0)
+  (def %ij-set (prim-ref (lit ptr) (lit set!)))
+  ((fn (self i) (when (< i 70000) (do (%ij-set %ij-p i (& (* i 151) 255) 1) (self (+ i 1))))) 0)
   (write (list (= (Inflate adler32 %ij-r 70000) (%ij-pure %ij-p 70000))
                (Inflate adler32 "Wikipedia" 9))))
 ```
