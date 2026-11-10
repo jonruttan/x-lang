@@ -28,6 +28,7 @@
 (module x/codec/unlzma)
 
 (import x/type/vector)
+(import x/num/u32 u32-srl)
 
 (import x/core/doors int% int& int* int+ int- int->ptr int/ int< int<< int= int>> int| mem-copy obj-ref obj-set! ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-make)
 
@@ -35,8 +36,11 @@
 ; or >= either: a > b is (int< b a).
 (def %mem-set (prim-ref (lit mem) (lit set)))
 
-(def %M32 4294967295)
-(def %I32MAX 2147483647)
+; Every bit of a 32-bit pattern, spelled in hex because hex reads the bits:
+; -1 where the word is 32 bits, 4294967295 where it is 64.  The decimal
+; would be a number, and on a 32-bit word a number that large is a Bigint
+; once Bigint is loaded, which no integer door can mask with.
+(def %M32 0xFFFFFFFF)
 
 ; --- the range coder's shape ------------------------------------------------
 
@@ -179,23 +183,21 @@
 ; The coder's code and range are 32-bit patterns, and the word they sit in
 ; is the platform's: 64 bits holds them as the numbers they are, 32 bits
 ; holds the same bits as a signed int.  Wrapping, masking and subtraction
-; carry the bits either way, and %M32 is every bit of a 32-bit word on both
-; (it reads as -1 where the word is 32 bits).  Only two operations differ:
-; a right shift sign-extends, and a comparison reads the top bit as a sign.
+; carry the bits either way.  Only two operations differ: a right shift
+; sign-extends, and a comparison reads the top bit as a sign.
 ;
-; %ushr shifts right and clears what a sign extension would have filled in,
-; which is the shift the coder wants on either word.  %ult compares the
-; halves first -- a 32-bit pattern shifted right by one is never negative,
-; whatever the word -- and the low bits only to break a tie.
-(def %ushr
-  (fn (_ x n) (int& (int>> x n) (int- (int<< 1 (int- 32 n)) 1))))
-
+; The shift is x/num/u32's u32-srl, the logical one on either word.  The
+; comparison is %ult: on an 8-byte word the patterns are the numbers and it
+; is the door itself; on a 4-byte word it compares the halves first -- a
+; pattern shifted right by one is never negative -- and the low bits only
+; to break a tie.
 (def %ult
-  (fn (_ a b)
-    (def ah (%ushr a 1))
-    (def bh (%ushr b 1))
-    (if (int< ah bh) #t
-      (if (int< bh ah) #f (int< (int& a 1) (int& b 1))))))
+  (if (int< 4 %word-size) int<
+    (fn (_ a b)
+      (def ah (u32-srl a 1))
+      (def bh (u32-srl b 1))
+      (if (int< ah bh) #t
+        (if (int< bh ah) #f (int< (int& a 1) (int& b 1)))))))
 
 (def %shift-in!
   (fn (_ s)
@@ -221,7 +223,7 @@
     (%normalize! s)
     (def p (obj-ref s %PROBS))
     (def v (%wref p pi))
-    (def bound (int* v (%ushr (obj-ref s %RANGE) %MODEL-BITS)))
+    (def bound (int* v (u32-srl (obj-ref s %RANGE) %MODEL-BITS)))
     (if (%ult (obj-ref s %CODE) bound)
       (do (obj-set! s %RANGE bound)
           (%wset! p pi (int+ v (int>> (int- %MODEL-TOTAL v) %MOVE-BITS)))
@@ -236,7 +238,7 @@
 (def %direct-bit!
   (fn (_ s)
     (%normalize! s)
-    (obj-set! s %RANGE (%ushr (obj-ref s %RANGE) 1))
+    (obj-set! s %RANGE (u32-srl (obj-ref s %RANGE) 1))
     (if (%ult (obj-ref s %CODE) (obj-ref s %RANGE)) 0
       (do (obj-set! s %CODE (int- (obj-ref s %CODE) (obj-ref s %RANGE))) 1))))
 
@@ -437,7 +439,7 @@
     (obj-set! s %STATE (int+ (obj-ref s %STATE) %NLITSTATES))
     (obj-set! s %REP0 (int& (int+ d 1) %M32))
     (if (int= 0 (obj-ref s %REP0)) (lit end)
-      (if (int< %I32MAX (obj-ref s %REP0))
+      (if (int= 1 (u32-srl (obj-ref s %REP0) 31))
         (%fail (lit data) "a distance is not a number of bytes")
         (int+ len %MATCHMINLEN)))))
 

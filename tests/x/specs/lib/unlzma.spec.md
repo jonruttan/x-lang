@@ -7,6 +7,27 @@ here in hex.  `%lz-region` puts a byte list into a byte region and
 size, which is what the tool writes when it is not told one, so each
 decodes to its end marker.
 
+## whatever was loaded first
+
+### the codec read after Bigint
+
+The range coder masks to 32 bits.  On a 4-byte word a decimal literal past
+the word is a Bigint once Bigint is loaded, and no integer door masks with
+one, so the mask is spelled in hex, which reads the word's bits either way.
+This case comes first so that the codec is read with Bigint already there,
+the order a long session meets it in.
+
+```x
+(do (import x/num/bigint) (import x/codec/unlzma) (import x/codec/hex)
+  (def %lz-region (fn (_ bs) (let ((r ((prim-ref (lit str) (lit make)) (List length bs))))
+    (let ((p ((prim-ref (lit str) (lit ->ptr)) r)))
+      (do ((fn (self i l) (unless (null? l) (do ((prim-ref (lit ptr) (lit set!)) p i (first l) 1) (self (+ i 1) (rest l))))) 0 bs) r)))))
+  (def %lz-z (Hex decode-bytes "5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000"))
+  (rest (Unlzma decode (%lz-region %lz-z) 0 (List length %lz-z))))
+```
+---
+    (13 33)
+
 ## whole streams
 
 ### a short input
