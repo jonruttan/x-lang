@@ -127,14 +127,16 @@ on any word. The sweeps pin one answer for an 8-byte word and a 4-byte one.
 
 ## the literal
 
-Once the module is loaded the reader takes `DIGITS[.DIGITS]qK`: the decimal
-number times 2^K, as an integer. The cases read their text through the
-reader's string door, so each one reads after the import has run.
+Once `x/num/fixed-literal` is loaded the reader takes `DIGITS[.DIGITS]qK`:
+the decimal number times 2^K, as an integer. The literal is its own module,
+so a program that only calls the arithmetic does not carry its reader. The
+cases read their text through the reader's string door, so each one reads
+after the import has run.
 
 ### a literal reads as the scaled integer
 
 ```x
-(import x/num/fixed)
+(import x/num/fixed-literal)
 (write (Tok read-str (%base) "0.75q16 1q16 3.14159q16 10.5q4 0q4 0.25q32 +1.5q1 "))
 ```
 ---
@@ -143,7 +145,7 @@ reader's string door, so each one reads after the import has run.
 ### a literal rounds to the nearest, a half away from zero
 
 ```x
-(import x/num/fixed)
+(import x/num/fixed-literal)
 (write (Tok read-str (%base) "0.1q8 -0.1q8 0.5q0 -0.5q0 0.4q0 -0.4q0 0.3333333333333333333333q16 "))
 ```
 ---
@@ -152,7 +154,7 @@ reader's string door, so each one reads after the import has run.
 ### a negative literal, and the 32-bit bounds
 
 ```x
-(import x/num/fixed)
+(import x/num/fixed-literal)
 (write (Tok read-str (%base) "-0.75q16 32767.9999q16 -32768q16 2147483647q0 -2147483648q0 -0.5q32 "))
 ```
 ---
@@ -161,7 +163,7 @@ reader's string door, so each one reads after the import has run.
 ### a literal past 32 bits is an error where it is read
 
 ```x
-(import x/num/fixed)
+(import x/num/fixed-literal)
 (def %fx-refused
   (fn (_ text) (guard (e #t) (do (Tok read-str (%base) text) #f))))
 (write (list (%fx-refused "32768q16 ") (%fx-refused "0.5q32 ") (%fx-refused "2147483648q0 ")
@@ -173,7 +175,7 @@ reader's string door, so each one reads after the import has run.
 ### what is not a literal reads as it did
 
 ```x
-(import x/num/fixed)
+(import x/num/fixed-literal)
 (write (list (Tok read-str (%base) "12 q16 (- 5 3) 7q ") (- 5 3)))
 ```
 ---
@@ -182,6 +184,7 @@ reader's string door, so each one reads after the import has run.
 ### a literal in source is the integer
 
 ```x
+(import x/num/fixed-literal)
 (import x/num/fixed fixed*)
 (write (list 0.75q16 (fixed* 0.75q16 0.5q16 16) (eq? 0.75q16 49152)))
 ```
