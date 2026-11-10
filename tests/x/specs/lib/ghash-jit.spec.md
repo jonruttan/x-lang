@@ -83,3 +83,16 @@ H are made again, and the last call goes back to the first key.
 ```
 ---
     (#t #t #t #t #t)
+
+## with x/num/bigint loaded
+
+### the engine builds when the generic operators promote
+
+```x
+(do
+  (import x/num/bigint)
+  (import x/codec/ghash)
+  (display (Ghash jit!)))
+```
+---
+    #t

@@ -27,13 +27,15 @@
 ; There is no int xor: a ^ b is (a | b) - (a & b).  Every operand is an int.
 (def %xor (fn (_ a b) (int- (int| a b) (int& a b))))
 
-(def %mask 4294967295)
+(def %mask 0xFFFFFFFF)
 
 ; "expand 32-byte k", as four little-endian words (2.3):
 ; 61707865 3320646e 79622d32 6b206574
 (def %sigma (list 1634760805 857760878 2036477234 1797285236))
 
-(def %rotl (fn (_ x n) (int& (int| (int<< x n) (int>> x (int- 32 n))) %mask)))
+; `>>` is arithmetic: the right shift keeps its low n bits, the logical
+; shift on a 4-byte word as on an 8-byte one.
+(def %rotl (fn (_ x n) (int& (int| (int<< x n) (int& (int>> x (int- 32 n)) (int- (int<< 1 n) 1))) %mask)))
 
 (def %byte (fn (_ s i) (char->int (str-byte-ref s i))))
 

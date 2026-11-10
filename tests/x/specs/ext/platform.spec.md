@@ -17,13 +17,14 @@ values **without issuing any real syscall**; the assertions branch on
 ---
     #t
 
-### syscall-id maps open to the platform's number (BSD 5 / Linux x86-64 2 / none on arm64 Linux)
+### syscall-id maps open to the platform's number (BSD 5 / Linux x86-64 2 / none on arm64 Linux / 32-bit ARM Linux 5)
 
 The Linux generic table, which arm64 uses, has no `open`: the miss is -1.
+32-bit ARM Linux keeps the old numbers, which begin as BSD's do.
 
 ```x
 (eq? (syscall-id 'open)
-     (match (os-darwin? 5) (arch-arm64? -1) (#t 2)))
+     (match (os-darwin? 5) (arch-arm64? -1) (arch-arm? 5) (#t 2)))
 ```
 ---
     #t
@@ -34,6 +35,7 @@ The Linux generic table, which arm64 uses, has no `open`: the miss is -1.
 (def %want
   (match (os-darwin? (list 3 4 6))
          (arch-arm64? (list 63 64 57))
+         (arch-arm? (list 3 4 6))
          (#t (list 0 1 3))))
 (equal? (list (syscall-id 'read) (syscall-id 'write) (syscall-id 'close))
         %want)
@@ -47,6 +49,7 @@ The Linux generic table, which arm64 uses, has no `open`: the miss is -1.
 (def %want
   (match (os-darwin? (list 2 59 7))
          (arch-arm64? (list -1 221 260))
+         (arch-arm? (list 2 11 114))
          (#t (list 57 59 61))))
 (equal? (list (syscall-id 'fork) (syscall-id 'execve) (syscall-id 'wait4))
         %want)
@@ -145,11 +148,11 @@ number in hand.
 ---
     #t
 
-### O_DIRECTORY matches the platform (macOS 1048576 / Linux x86-64 65536 / arm64 16384)
+### O_DIRECTORY matches the platform (macOS 1048576 / Linux x86-64 65536 / ARM, either width, 16384)
 
 ```x
 (eq? (first (Assoc get 'directory (File file-modes)))
-     (match (os-darwin? 1048576) (arch-arm64? 16384) (#t 65536)))
+     (match (os-darwin? 1048576) (arch-arm64? 16384) (arch-arm? 16384) (#t 65536)))
 ```
 ---
     #t

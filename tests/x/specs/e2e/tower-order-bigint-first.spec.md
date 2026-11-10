@@ -16,12 +16,15 @@ their import's test as separate forms.
 
 ### bigint works alone
 
+LONG_MAX plus one, from the word's sign bit: 2^63 on an 8-byte word.
+
 ```x
 (import x/num/bigint)
-(Bigint + 9223372036854775807 1)
+(let ((bits (- (* 8 %word-size) 1)))
+  (= (Bigint + (- -1 (<< 1 bits)) 1) (Num expt 2 bits)))
 ```
 ---
-    9223372036854775808
+    #t
 
 ### bigint literals parse from the next form on
 

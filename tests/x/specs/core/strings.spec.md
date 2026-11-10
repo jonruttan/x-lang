@@ -428,20 +428,51 @@ keeps the JSON `\u` parser (`(%str->number %t 16)`) byte-exact.
 ---
     (255 #t 5)
 
+## str->number hex reads the word's bits (#1167)
+
+A hex digit string is a bit pattern, as `0xFFFFFFFF` is in C: the digits fill
+the word from the low end and the top bit is the sign, so as many `f`s as the
+word has nibbles read as -1 on every width. A pattern wider than the word,
+counted in significant digits, raises: a 64-bit constant cannot slip into a
+32-bit word as a different number. Decimal is a number and keeps its overflow
+check (next section).
+
+### the word's width of f is -1, by prefix or by radix, leading zeros free
+
+```x
+(do
+  (def %fs ((fn (self n acc) (if (= n 0) acc (self (- n 1) (Str8 append acc "f"))))
+            (* 2 %word-size) ""))
+  (list (%str->number %fs 16)
+        (%str->number (Str8 append "0x" %fs))
+        (%str->number (Str8 append "-0x" %fs))
+        (%str->number (Str8 append "00" %fs) 16)
+        (%str->number "ffff" 16)
+        (guard (e (lit R)) (%str->number (Str8 append %fs "f") 16))))
+```
+---
+    (-1 -1 1 -1 65535 'R)
+
 ## str->number decimal digits
 
-One to fifteen decimal digits, with no radix passed, are read in one walk on
-the integer doors; any other text reads as it did, by the full parser.
+A run of decimal digits the word cannot wrap (two a byte, less one: fifteen
+on an 8-byte word), with no radix passed, is read in one walk on the integer
+doors; any other text reads as it did, by the full parser.
 
 ### digits read as decimal, leading zeros included, at every length up to the walk's
 
+The walk's longest run, and one digit past it for the parser.
+
 ```x
-(list (%str->number "0") (%str->number "007") (%str->number "010")
-      (%str->number "123456789012345") (%str->number "1234567890123456")
-      (%str->number "12a") (%str->number "") (%str->number "-5") (%str->number "+5"))
+(let ((k (- (* 2 %word-size) 1))
+      (same? (fn (_ s) (str=? (%number->str (%str->number s)) s))))
+  (list (%str->number "0") (%str->number "007") (%str->number "010")
+        (same? (%substring "1234567890123456" 0 k))
+        (same? (%substring "1234567890123456" 0 (+ k 1)))
+        (%str->number "12a") (%str->number "") (%str->number "-5") (%str->number "+5")))
 ```
 ---
-    (0 7 10 123456789012345 1234567890123456 () () -5 5)
+    (0 7 10 #t #t () () -5 5)
 
 ### the walk costs fewer objects than the full parser
 
@@ -468,11 +499,18 @@ number, which is how JSON corrupted 64-bit IDs.
 
 ### overflow raises, boundaries parse exactly
 
+The boundaries are the word's: LONG_MAX and LONG_MIN as written, and
+LONG_MAX + 1 spelled from LONG_MAX (whose last digit is 7 on an 8-byte
+word and a 4-byte one).
+
 ```x
-(list (guard (e (lit R)) (%str->number "12345678901234567890"))
-      (guard (e (lit R)) (%str->number "9223372036854775808"))
-      (%str->number "9223372036854775807")
-      (%str->number "-9223372036854775808"))
+(let ((mn (<< 1 (- (* 8 %word-size) 1))))
+  (let ((mx (- -1 mn)))
+    (list (guard (e (lit R)) (%str->number "12345678901234567890"))
+          (guard (e (lit R))
+            (%str->number (str-append (%number->str (/ mx 10)) (%number->str (+ (% mx 10) 1)))))
+          (eq? (%str->number (%number->str mx)) mx)
+          (eq? (%str->number (%number->str mn)) mn))))
 ```
 ---
-    ('R 'R 9223372036854775807 -9223372036854775808)
+    ('R 'R #t #t)

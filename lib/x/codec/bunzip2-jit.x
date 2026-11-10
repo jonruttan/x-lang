@@ -73,8 +73,10 @@
 (def %GPERM 48)
 (def %WORDS (+ %GROUPS (* 6 %GSIZE)))
 
-(def %M32 4294967295)
-(def %M40 1099511627775)
+(def %M32 0xFFFFFFFF)
+; bunzip2.x's bit buffer: 40 bits on an 8-byte word, the word's own 32 on a
+; 4-byte one, which a code of at most 20 bits never outgrows.
+(def %M40 (if (< %word-size 8) -1 (- (<< 1 40) 1)))
 
 ; What an error status means; -1 is a short read.
 (def %bj-error
@@ -331,11 +333,11 @@
     (def %link-step (compile-asm %bj-link-expr))
     (def %walk-step (compile-asm %bj-walk-expr))
     (Heap collect)
-    (def %buf (str-make (* 8 %WORDS)))
+    (def %buf (str-make (* %word-size %WORDS)))
     (def %ptr (str->ptr %buf))
     (def %addr (ptr->int %ptr))
-    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i 8) v)))
-    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i 8))))
+    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i %word-size) v)))
+    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i %word-size))))
     (def %slot (fn (_ name) (rest (Assoc entry name state))))
     ((fn (self i) (when (< i 256) (do (%poke (+ %CT i) (obj-ref crc (+ i 1))) (self (+ i 1))))) 0)
     ; runs a step until it is done, or raises on its error
@@ -437,4 +439,4 @@
 (prim-reg! (lit bunzip2) (lit jit-make) bunzip2-jit-make)
 
 (doc (provide x/codec/bunzip2-jit bunzip2-jit-make)
-  "The compiled loops behind Bunzip2 (JIT, ARM64 and x86-64 backends): the coded symbols, the inverse transform's links and its walk, built and adopted only after agreeing with the pure-x decoder.")
+  "The compiled loops behind Bunzip2 (JIT, ARM64, x86-64 and 32-bit ARM backends): the coded symbols, the inverse transform's links and its walk, built and adopted only after agreeing with the pure-x decoder.")

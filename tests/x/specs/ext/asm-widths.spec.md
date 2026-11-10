@@ -93,10 +93,11 @@ on x86-64 (SysV passes it in rdi, and x1 is rsi already), and closes with
           (def r (Ptr call (asm-finalize! a) (%asm-widths-ptr->int %p) 0))
           (asm-free! a)
           r)))
-  (display (list (load 'ldrw 0) (load 'ldrsw 0) (load 'ldrw 4) (load 'ldrsw 4))))
+  (display (equal? (list (load 'ldrw 0) (load 'ldrsw 0) (load 'ldrw 4) (load 'ldrsw 4))
+                   (list 0xFFFFFFFF -1 305419896 305419896))))
 ```
 ---
-    (4294967295 -1 305419896 305419896)
+    #t
 
 ## stores
 
@@ -150,8 +151,9 @@ on x86-64 (SysV passes it in rdi, and x1 is rsi already), and closes with
           (def r (Ptr call (asm-finalize! a) (%asm-widths-ptr->int %p) -2))
           (asm-free! a)
           r)))
-  (display (list (trip 'strb 'ldrsb) (trip 'strh 'ldrsh) (trip 'strw 'ldrsw)
-                 (trip 'strb 'ldrb) (trip 'strh 'ldrh) (trip 'strw 'ldrw))))
+  (display (equal? (list (trip 'strb 'ldrsb) (trip 'strh 'ldrsh) (trip 'strw 'ldrsw)
+                         (trip 'strb 'ldrb) (trip 'strh 'ldrh) (trip 'strw 'ldrw))
+                   (list -2 -2 -2 254 65534 0xFFFFFFFE))))
 ```
 ---
-    (-2 -2 -2 254 65534 4294967294)
+    #t

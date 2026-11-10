@@ -208,10 +208,31 @@
   (fn (_ buf-ptr offset val)
     (ptr-set! buf-ptr (+ offset 2) val 8)))
 
+; --- Relocate a word immediate in place: 32-bit ARM (MOVW + MOVT) ---------
+; Sixteen bits to a word, imm4 at [19:16] and imm12 at [11:0]; the register
+; is read back from the MOVW, as the A64 relocator reads it from the MOVZ.
+; 0xE3000000 is MOVW, 0xE3400000 MOVT.
+(def %arm32-reloc
+  ((fn (_ band bor bshl bshr iadd)
+     (fn (_ buf-ptr offset val)
+       (def rd (bshl (band (bshr (ptr-ref buf-ptr offset 4) 12) 15) 12))
+       (def half (fn (_ v) (bor (bshl (band (bshr v 12) 15) 16) (band v 4095))))
+       (ptr-set! buf-ptr offset (bor 0xE3000000 (bor rd (half (band val 65535)))) 4)
+       (ptr-set! buf-ptr (iadd offset 4)
+         (bor 0xE3400000 (bor rd (half (band (bshr val 16) 65535)))) 4)))
+   (prim-ref 'int '&) (prim-ref 'int '|) (prim-ref 'int '<<)
+   (prim-ref 'int '>>) (prim-ref 'int '+)))
+
 ; The host's relocator.  The backend lists it as its fourth part as well, but a
 ; buffer poured from the cache is made before -- and usually without -- the
 ; backend, so the relocator answers from here, not from the buffer's %arch.
-(def %asm-reloc (if %asm-arm64? %arm64-reloc %x86_64-reloc))
+(def %asm-reloc
+  (match
+    (%asm-arm64? %arm64-reloc)
+    (arch-x86-64? %x86_64-reloc)
+    (arch-arm? %arm32-reloc)
+    (#t (fn (_ . site)
+          (Err raise 'state "asm: no assembler backend for this platform" ())))))
 
 ; Re-encode the 64-bit immediate at OFFSET to VAL, in place.  MUST run while
 ; the buffer is still writable: asm-finalize! mprotects it R+X, and a write

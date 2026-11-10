@@ -17,36 +17,41 @@
 (import x/core/doors char->int int* int+ int- obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
 (def %cvt (prim-ref (lit convert) (lit to)))
 (def %string-type (Type named STRING))
-(def %mask 4294967295)
+(def %mask 0xFFFFFFFF)
 
 ; 67452301 efcdab89 98badcfe 10325476 (3.3)
-(def %ih (list 1732584193 4023233417 2562383102 271733878))
+(def %ih (list 1732584193 0xEFCDAB89 0x98BADCFE 271733878))
 
-; T[i] = floor(2^32 * |sin(i + 1)|) (3.4), in decimal
+; T[i] = floor(2^32 * |sin(i + 1)|) (3.4), in hex: the word's bits on any
+; width, where a decimal past 2^31 is a Bigint on a 4-byte word
 (def %k (Vector from-list (lit (
-  3614090360 3905402710 606105819 3250441966 4118548399 1200080426 2821735955 4249261313
-  1770035416 2336552879 4294925233 2304563134 1804603682 4254626195 2792965006 1236535329
-  4129170786 3225465664 643717713 3921069994 3593408605 38016083 3634488961 3889429448
-  568446438 3275163606 4107603335 1163531501 2850285829 4243563512 1735328473 2368359562
-  4294588738 2272392833 1839030562 4259657740 2763975236 1272893353 4139469664 3200236656
-  681279174 3936430074 3572445317 76029189 3654602809 3873151461 530742520 3299628645
-  4096336452 1126891415 2878612391 4237533241 1700485571 2399980690 4293915773 2240044497
-  1873313359 4264355552 2734768916 1309151649 4149444226 3174756917 718787259 3951481745))))
+  0xD76AA478 0xE8C7B756 606105819 0xC1BDCEEE 0xF57C0FAF 1200080426 0xA8304613 0xFD469501
+  1770035416 0x8B44F7AF 0xFFFF5BB1 0x895CD7BE 1804603682 0xFD987193 0xA679438E 1236535329
+  0xF61E2562 0xC040B340 643717713 0xE9B6C7AA 0xD62F105D 38016083 0xD8A1E681 0xE7D3FBC8
+  568446438 0xC33707D6 0xF4D50D87 1163531501 0xA9E3E905 0xFCEFA3F8 1735328473 0x8D2A4C8A
+  0xFFFA3942 0x8771F681 1839030562 0xFDE5380C 0xA4BEEA44 1272893353 0xF6BB4B60 0xBEBFBC70
+  681279174 0xEAA127FA 0xD4EF3085 76029189 0xD9D4D039 0xE6DB99E5 530742520 0xC4AC5665
+  0xF4292244 1126891415 0xAB9423A7 0xFC93A039 1700485571 0x8F0CCC92 0xFFEFF47D 0x85845DD1
+  1873313359 0xFE2CE6E0 0xA3014314 1309151649 0xF7537E82 0xBD3AF235 718787259 0xEB86D391))))
 
 ; the shift each step rotates by (3.4), four to a round
 (def %r (Vector from-list (lit (7 12 17 22 5 9 14 20 4 11 16 23 6 10 15 21))))
 
-(def %rotl (fn (_ x n) (& (| (<< x n) (>> x (int- 32 n))) %mask)))
+; `>>` is arithmetic: the right shift keeps its low n bits, the logical
+; shift on a 4-byte word as on an 8-byte one.
+(def %rotl (fn (_ x n) (& (| (<< x n) (& (>> x (int- 32 n)) (int- (<< 1 n) 1))) %mask)))
 
 ; Byte i of the padded message: the message; then 0x80; then zeros; then
-; the bit length, little-endian in the last 8 bytes.
+; the bit length, little-endian in the last 8 bytes; a byte past the word
+; is zero.
 (def %byte
   (fn (_ s len total i)
     (match
       ((< i len) (char->int (str-byte-ref s i)))
       ((= i len) 128)
       ((< i (int- total 8)) 0)
-      (#t (& (>> (int* len 8) (<< (int- i (int- total 8)) 3)) 255)))))
+      (#t ((fn (_ sh) (if (< sh (int* 8 %word-size)) (& (>> (int* len 8) sh) 255) 0))
+           (<< (int- i (int- total 8)) 3))))))
 
 ; word j of the block at BASE, little-endian
 (def %word

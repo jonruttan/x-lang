@@ -93,7 +93,7 @@
 ; full.  Err resolves at call time, as in core/list.x.  Every helper is
 ; a tail loop: the span list and the block walk run to any length.
 (def %str-concat
-  ((fn (_ str? str-type int*)
+  ((fn (_ str? str-type int* int/)
      (def fold
        (fn (self ps acc)
          (match
@@ -111,10 +111,18 @@
            ((%sc-int< (%str-byte-len acc) s)
              (self (rest ps) s (%str-append acc (first ps)) done))
            (#t (self (rest ps) s (first ps) (pair acc done))))))
+     ; S*S*n against total*total, as products where an 8-byte word holds
+     ; them.  A 4-byte word's wrap past total = 46340 made the test hold
+     ; for ever, S doubling to 0; there it is n < a*a for a = total/S,
+     ; asked as n/a < a, which cannot overflow and stops within a power of
+     ; two of the same S.
      (def span
-       (fn (self s n t2)
+       (fn (self s n t)
          (match
-           ((%sc-int< (int* (int* s s) n) t2) (self (%sc-int+ s s) n t2))
+           ((if (eq? %word-size 8)
+              (%sc-int< (int* (int* s s) n) (int* t t))
+              ((fn (_ a) (if (%sc-int< 0 a) (%sc-int< (int/ n a) a) #f)) (int/ t s)))
+             (self (%sc-int+ s s) n t))
            (#t s))))
      (def block
        (fn (_ ps total)
@@ -136,14 +144,15 @@
               (match
                 ((%sc-int< 262143 total) (block pieces total))
                 ((%sc-int< n 5) (fold pieces ""))
-                (#t (spans (rest pieces) (span 1 n (int* total total)) (first pieces) ()))))
+                (#t (spans (rest pieces) (span 1 n total) (first pieces) ()))))
             ((str? (first ps) str-type)
               (self (rest ps) (%sc-int+ n 1) (%sc-int+ total (%str-byte-len (first ps)))))
             (#t (Err raise (lit type) "%str-concat: not a string" ()))))
         pieces 0 0)))
    (prim-ref (lit type) (lit ?))
    ((prim-ref (lit type) (lit of)) "")
-   (prim-ref (lit int) (lit *))))
+   (prim-ref (lit int) (lit *))
+   (prim-ref (lit int) (lit /))))
 
 ; number->str: (number->str n [radix]) -> string
 (def %n2s/ /)
@@ -195,29 +204,33 @@
 ; would be ambiguous ("0x" as digits-of-16 is a miss, and stays one).
 ; The sign parses first, so "-0xff" -> -255 like a negated reader literal.
 ;
-; One to fifteen decimal digits and nothing else, with no radix passed, is
+; A short run of decimal digits and nothing else, with no radix passed, is
 ; the usual text -- a count, a descriptor, a field of a record -- and is read
-; in one walk on the integer doors: fifteen digits stay inside a machine
-; word, so nothing can wrap.  Any other text is read by READ, the parser
-; below, which builds its digit reader and walks the tower.  The doors and
-; the walk are bound once, here, rather than as names of the file.
+; in one walk on the integer doors.  The run is as long as the word cannot
+; wrap: two digits a byte, less one, which is fifteen on an 8-byte word and
+; seven on a 4-byte one.  Any other text is read by READ, the parser below,
+; which builds its digit reader and walks the tower.  The doors and the walk
+; are bound once, here, rather than as names of the file.
 (def %str->number
-  ((fn (_ read int+ int* int< zero nine)
+  ((fn (_ read int+ int* int< zero nine short)
      (def walk
        (fn (self s i len acc)
          (match
            ((eq? i len) acc)
-           ((eq? i 15) (read s ()))
-           ((int< (%str-byte-ref s i) zero) (read s ()))
-           ((int< nine (%str-byte-ref s i)) (read s ()))
+           ((eq? i short) (read s () int+ int*))
+           ((int< (%str-byte-ref s i) zero) (read s () int+ int*))
+           ((int< nine (%str-byte-ref s i)) (read s () int+ int*))
            (#t (self s (int+ i 1) len
                      (int+ (int* acc 10) (%n2s-int- (%str-byte-ref s i) zero)))))))
      (fn (_ s . rest)
        (match
-         ((not (eq? rest ())) (read s rest))
+         ((not (eq? rest ())) (read s rest int+ int*))
          ((eq? (%str-byte-len s) 0) ())
          (#t (walk s 0 (%str-byte-len s) 0)))))
-   (fn (_ s rest)
+   ; The two integer doors come along for the hex path, which fills the word
+   ; bit by bit and must wrap as the machine does, whatever + and * are bound
+   ; to by the time it runs (the tower's generics promote instead).
+   (fn (_ s rest int+ int*)
     (def radix (match ((eq? rest ()) 10) (#t (first rest))))
     (def len (%str-byte-len s))
     (match
@@ -287,16 +300,50 @@
                                             (error "str->number: integer overflow"))
                                           (#t (self (+ i 1) acc2)))))
                                     (#t ()))))))))
-                    (let ((result (%parse pstart 0)))
+                    ; HEX READS THE WORD'S BITS.  A hex digit string is a bit
+                    ; pattern, as 0xFFFFFFFF is in C: the digits fill the word
+                    ; from the low end and the top bit is the sign, so "ffffffff"
+                    ; is -1 on a 32-bit word and 4294967295 on a 64-bit one.
+                    ; What overflows is a pattern WIDER than the word -- more
+                    ; significant digits than the word has nibbles -- and that
+                    ; raises, so a 64-bit constant still cannot slip into a
+                    ; 32-bit word as something else.  Decimal stays a number,
+                    ; verified digit by digit as below.
+                    (let ((%bits
+                            (fn (self i acc n)
+                              (match
+                                ((= i len) acc)
+                                (#t
+                                  (let ((d (%digit (%str-byte-ref s i))))
+                                    (match
+                                      ((eq? d ()) ())
+                                      ((< d 16)
+                                        (let ((n2 (match ((match ((= n 0) (= d 0)) (#t #f)) 0)
+                                                         (#t (+ n 1)))))
+                                          (match
+                                            ((< (* 2 %word-size) n2)
+                                              (error "str->number: hex wider than the word"))
+                                            (#t (self (+ i 1) (int+ (int* acc 16) d) n2)))))
+                                      (#t ()))))))))
                       (match
-                        ((eq? result ()) ())
-                        (neg result)
-                        (#t
-                          ; The positive reading of |INT_MIN| overflows even
-                          ; though the negative accumulation held it.
-                          (let ((posv (- 0 result)))
+                        ((= pradix 16)
+                          (let ((v (%bits pstart 0 0)))
                             (match
-                              ((< posv 0) (error "str->number: integer overflow"))
-                              (#t posv)))))))))))))))
+                              ((eq? v ()) ())
+                              (neg (- 0 v))
+                              (#t v))))
+                        (#t
+                          (let ((result (%parse pstart 0)))
+                            (match
+                              ((eq? result ()) ())
+                              (neg result)
+                              (#t
+                                ; The positive reading of |INT_MIN| overflows even
+                                ; though the negative accumulation held it.
+                                (let ((posv (- 0 result)))
+                                  (match
+                                    ((< posv 0) (error "str->number: integer overflow"))
+                                    (#t posv))))))))))))))))))
    (prim-ref (lit int) (lit +)) (prim-ref (lit int) (lit *)) (prim-ref (lit int) (lit <))
-   (%char->integer #\0) (%char->integer #\9)))
+   (%char->integer #\0) (%char->integer #\9)
+   (%data-int+ (%data-int* 2 %word-size) -1)))

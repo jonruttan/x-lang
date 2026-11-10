@@ -274,13 +274,9 @@
   (param x ANY "Value to test")
   (returns BOOL "True if x is a number")
   (example "(number? 3+4i)" "#t"))
-(set! number?
-  (fn (_ x)
-    (match
-      ((%complex? x) #t)
-      ((rat? x) #t)
-      ((float? x) #t)
-      (#t (%int-number? x)))))
+; Chained onto the predicate as found, as each tower module extends it.
+(def %cx-was-number? number?)
+(set! number? (fn (_ x) (if (%complex? x) #t (%cx-was-number? x))))
 
 (doc complex? "Test whether a value is any numeric type (alias for number?)."
   (param x ANY "Value to test")
@@ -294,11 +290,9 @@
   (param x ANY "Value to test")
   (returns BOOL "True if x is a real number")
   (example "(list (real? 1.5) (real? 3+4i))" "(#t #f)"))
-(set! real?
-  (fn (_ x)
-    (if (rat? x) #t
-      (if (float? x) #t
-        (%int-number? x)))))
+; Narrowed: every number but a complex one, as the predicate found answers.
+(def %cx-was-real? real?)
+(set! real? (fn (_ x) (if (%complex? x) #f (%cx-was-real? x))))
 
 (def-class Complex ()
   (static

@@ -29,11 +29,11 @@
       t)))
 
 ; The total cut to 32 bits, as sum's unsigned register wraps, and folded
-; twice into 16.
+; twice into 16: its low half and its high half, each masked, so the cut
+; needs no 32-bit constant and a 4-byte word's sign does not come down.
 (def %sysv-fold
   (fn (_ t)
-    (def w (int& t 4294967295))
-    (def r (int+ (int& w 65535) (int>> w 16)))
+    (def r (int+ (int& t 65535) (int& (int>> t 16) 65535)))
     (int& (int+ (int& r 65535) (int>> r 16)) 65535)))
 
 ; START and LENGTH from an optional span, defaulting to the whole string.

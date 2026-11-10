@@ -118,3 +118,17 @@ ce18e8713e167e3c1b2b99e204943573b1152d09cb83b7088f1ae121ac211aec6695d8c4b5a59dd6
 ```
 ---
     4c7b7b21845a66228729b18d1baab95424444cec41245000d98b10ccb55fdaa567d363290cdcdf0f004d23dc4c39aeb44c2b18076705d072a805e3fc31ac72ba
+
+### the engine builds with x/num/bigint loaded
+
+Bigint makes the generic operators promote past the word; the maker's
+own check works on the word, so a narrow word builds the same engine.
+
+```x
+(do
+  (import x/num/bigint)
+  (import x/codec/sha512)
+  (display (list (Sha512 jit!) (Sha512 hex "abc"))))
+```
+---
+    (#t ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f)

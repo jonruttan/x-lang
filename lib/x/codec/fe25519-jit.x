@@ -15,7 +15,7 @@
 (module x/codec/fe25519-jit)
 
 (import x/tool/jit-group jit-group)
-(import x/codec/fe25519 fe-zero fe-limbs fe-frombytes fe-tobytes fe-add fe-sub fe-mul fe-sq fe-sq-n fe-mul121666)
+(import x/codec/fe25519 fe-zero fe-limbs fe-frombytes fe-tobytes fe-add fe-sub fe-mul fe-sq fe-sq-n fe-mul121666 fe-engine fe-invert fe-pow22523)
 
 (def fe-jit-rows 120)
 (def fe-jit-swap 130)
@@ -166,9 +166,13 @@
 ; The five operations compiled, each (fn (_ a ...)) over the scratch
 ; address a and word offsets: (mul h f g) (add h f g) (sub h f g)
 ; (mul121666 h f) (cswap f g b).  Built and checked the first time it is
-; asked for; both curves' engines share the one build.
+; asked for; both curves' engines share the one build.  On a 4-byte word
+; the ten limbs' products have no word to run in, and the field is already
+; x/codec/mont-jit's compiled engine (fe-engine): the build there.
+(def %fj-narrow (< %word-size 8))
 (def fe-jit-compile
   (fn (_)
+    (when (and %fj-narrow (null? %fj-built)) (set! %fj-built (fe-engine)))
     (when (null? %fj-built)
       (set! %fj-built
         (jit-group "fe25519-jit"
@@ -257,8 +261,11 @@
 ; (invert pow22523), each (fn (_ z) -> element), built the first time.
 (def fe-jit-chains
   (fn (_)
-    (when (null? %fj-chains) (set! %fj-chains (%fj-make-chains (fe-jit-compile))))
+    (when (null? %fj-chains)
+      (set! %fj-chains
+        ; the field's own chains run on its compiled engine on a 4-byte word
+        (if %fj-narrow (list fe-invert fe-pow22523) (%fj-make-chains (fe-jit-compile)))))
     %fj-chains))
 
 (doc (provide x/codec/fe25519-jit fe-jit-compile fe-jit-replayed? fe-jit-exprs fe-jit-chains fe-jit-rows fe-jit-swap)
-  "The GF(2^255 - 19) operations as compiled functions over a scratch of limbs (JIT, ARM64 and x86-64 backends): (fe-jit-compile) builds multiply, add, subtract, times-121666 and swap once a process, each checked against the pure-x field; (fe-jit-chains) the inverse and the square root's power on field elements over them.")
+  "The GF(2^255 - 19) operations as compiled functions over a scratch of limbs (JIT, ARM64 and x86-64 backends): (fe-jit-compile) builds multiply, add, subtract, times-121666 and swap once a process, each checked against the pure-x field; (fe-jit-chains) the inverse and the square root's power on field elements over them. On a 4-byte word the build is x/codec/mont-jit's engine, the field's own there.")

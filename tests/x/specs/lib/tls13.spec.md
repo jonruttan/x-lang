@@ -59,7 +59,9 @@ the protocol and the cipher suite it agreed; a second connection without
 socket a TCP connect made, read and written both, then a pair of pipes to
 `nc`, which carries the bytes to the server -- a program between, as
 busybox's `ssl_client -e` has it.  Each gets the page, and close leaves the
-caller's descriptors open.
+caller's descriptors open.  The pipe into `nc` is closed once the request
+is sent, the client having nothing more to write: Debian's `nc` holds its
+output open until its input ends, so the page would otherwise never end.
 
 ```x
 (do (import x/net/tls13) (import x/sys/socket) (import x/sys/posix) (import x/sys/proc)
@@ -76,17 +78,19 @@ caller's descriptors open.
     (fn (self s acc)
       (let ((r (Tls13 recv-run s 4096)))
         (if (null? r) acc (self s (Str8 append acc (Str8 slice 0 (rest r) (first r))))))))
+  ; SENT runs once the request is out
   (def %t13o-page
-    (fn (_ in out)
+    (fn (_ in out sent)
       (let ((s (Tls13 over in out (list (pair 'host "localhost") (list 'insecure)))))
         (do (Tls13 send s "GET / HTTP/1.0\r\n\r\n")
+            (sent)
             (def page (%t13o-read s ""))
             (Tls13 close s)
             (list (Str8 starts? "HTTP/1.0 200" page) (Str8 includes? "TLSv1.3" page))))))
   (def %t13o-socket
     (guard (e (list 'raised (Err label e) (e msg)))
       (let ((fd (Socket tcp-connect "127.0.0.1" %t13o-port)))
-        (let ((r (%t13o-page fd fd)))
+        (let ((r (%t13o-page fd fd (fn (_) ()))))
           ; still open: close answers 0
           (list r (Sys close fd))))))
   (def %t13o-pipes
@@ -94,14 +98,17 @@ caller's descriptors open.
       (let ((to (Sys pipe)) (from (Sys pipe)))
         (let ((pid (Sys fork)))
           (when (= pid 0)
+            ; the pipes' own descriptors closed once they are 0 and 1,
+            ; so nc's are the only copies
             (do (Sys close (rest to)) (Sys close (first from))
                 (Sys dup2 (first to) 0) (Sys dup2 (rest from) 1)
+                (Sys close (first to)) (Sys close (rest from))
                 (Sys exec "/usr/bin/nc" (list "127.0.0.1" (%number->str %t13o-port)))
                 (Sys exit 127)))
           (Sys close (first to))
           (Sys close (rest from))
-          (let ((r (%t13o-page (first from) (rest to))))
-            (do (Sys close (rest to)) (Sys close (first from)) (Sys wait pid) r))))))
+          (let ((r (%t13o-page (first from) (rest to) (fn (_) (Sys close (rest to))))))
+            (do (Sys close (first from)) (Sys wait pid) r))))))
   (Proc run! (list "/bin/sh" "-c" (Str8 append "kill $(cat " %t13o-dir "/pid) 2>/dev/null; rm -rf " %t13o-dir)))
   (write (list %t13o-socket %t13o-pipes)))
 ```

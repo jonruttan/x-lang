@@ -36,21 +36,24 @@
 
 (def %int-type (type-of 0))
 
-(def %M32 4294967295)
+(def %M32 0xFFFFFFFF)
 
 ; --- memory ------------------------------------------------------------------
 
+; A table's slot is the machine word, which the compiled engine reads them
+; as: 2^%wshift bytes.
+(def %wshift (if (int< %word-size 8) 2 3))
 (def %at (fn (_ p off) (int->ptr (int+ (ptr->int p) off))))
-(def %wref (fn (_ p i) (ptr-ref p (int<< i 3) 8)))
-(def %wset! (fn (_ p i v) (ptr-set! p (int<< i 3) v 8)))
+(def %wref (fn (_ p i) (ptr-ref p (int<< i %wshift) %word-size)))
+(def %wset! (fn (_ p i v) (ptr-set! p (int<< i %wshift) v %word-size)))
 (def %bref (fn (_ p i) (int& (ptr-ref p i 1) 255)))
 (def %bset! (fn (_ p i v) (ptr-set! p i v 1)))
 
 ; A region of n words, zeroed.
 (def %words
   (fn (_ n)
-    (def r (str-make (int<< n 3)))
-    (%mem-set (str->ptr r) 0 (int<< n 3))
+    (def r (str-make (int<< n %wshift)))
+    (%mem-set (str->ptr r) 0 (int<< n %wshift))
     r))
 
 (def %clear!
@@ -114,7 +117,7 @@
 (def %crc-entry
   (fn (self c k)
     (if (int= k 0) c
-      (self (if (int= (int& c 2147483648) 0)
+      (self (if (int= (int& c 0x80000000) 0)
               (int& (int<< c 1) %M32)
               (%xor (int& (int<< c 1) %M32) 79764919))
             (int- k 1)))))
@@ -171,7 +174,9 @@
     (obj-set! e %BSLIVE (int+ (obj-ref e %BSLIVE) n))))
 
 (def %u16! (fn (_ e u) (%bits! e 16 u)))
-(def %u32! (fn (_ e u) (%bits! e 16 (int>> u 16)) (%bits! e 16 (int& u 65535))))
+; `>>` is arithmetic: the high half is masked, or a 4-byte word's sign
+; would land on the bits already in the buffer.
+(def %u32! (fn (_ e u) (%bits! e 16 (int& (int>> u 16) 65535)) (%bits! e 16 (int& u 65535))))
 
 ; The bits left written out, the last byte padded with zeros.
 (def %finish-bits!
@@ -251,8 +256,8 @@
       ())))
 
 (def %fmap (fn (_ e) (obj-ref e %WORKP)))
-(def %eclass (fn (_ e) (%at (obj-ref e %WORKP) (int<< (obj-ref e %WORKN) 3))))
-(def %bhtab (fn (_ e) (%at (obj-ref e %WORKP) (int<< (obj-ref e %WORKN) 4))))
+(def %eclass (fn (_ e) (%at (obj-ref e %WORKP) (int<< (obj-ref e %WORKN) %wshift))))
+(def %bhtab (fn (_ e) (%at (obj-ref e %WORKP) (int<< (obj-ref e %WORKN) (int+ %wshift 1)))))
 
 (def %swap!
   (fn (_ p i j)
@@ -573,7 +578,7 @@
   (fn (_ a b)
     (def da (int& a 255))
     (def db (int& b 255))
-    (int| (int+ (int& a 4294967040) (int& b 4294967040)) (int+ 1 (if (int< da db) db da)))))
+    (int| (int+ (int& a 0xFFFFFF00) (int& b 0xFFFFFF00)) (int+ 1 (if (int< da db) db da)))))
 
 (def %depth
   (fn (self parent k j)
@@ -787,7 +792,7 @@
       (if (int= n 0) 0
         (do (obj-set! e %CRC (%xor (obj-ref e %CRC) %M32))
             (def c (obj-ref e %COMBINED))
-            (obj-set! e %COMBINED (%xor (int& (int| (int<< c 1) (int>> c 31)) %M32) (obj-ref e %CRC)))
+            (obj-set! e %COMBINED (%xor (int& (int| (int<< c 1) (int& (int>> c 31) 1)) %M32) (obj-ref e %CRC)))
             ((first (rest engine)) e))))
     (when (int= (obj-ref e %BLOCKNO) 1)
       (%u32! e (int+ 1113221168 (obj-ref e %LEVEL))))

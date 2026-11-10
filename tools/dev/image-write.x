@@ -118,6 +118,11 @@
       ; stops.  The marker before the include is how image-build.sh tells an
       ; entry that ended the writer from a writer that never ran.
       (%child-def! (lit %image-writing) (list (lit lit) #t))
+      ; The child's allocation message, armed as the contract arms this
+      ; base's, with the same ceiling.  A child that cannot allocate -- at
+      ; the ceiling, or at a malloc the machine refuses -- then stops with a
+      ; line in the log instead of a bare exit 2 that says nothing.
+      (%B eval (list (lit alloc-limit!) (%cell-int (first (%reflect-base-cell (lit alloc-limit))))))
       (display "image: writer begins") (newline)
       ; The path too: `include` records it in the child's file registry.
       (%B eval (list (lit include) (list (prim-ref (lit str) (lit append)) "" %IMG-LIB)))
@@ -166,15 +171,19 @@
                   (first l))
                  (self (rest l)))))
          (%B eval (lit %image-transients))))
-      ; The child has never collected.  Its own collect, evaluated inside it.
+      ; The child's collect, evaluated inside it: a child is on this base's
+      ; chain, so it collects the chain they share.
       (%B eval (list image-collect))
       ; What the writer can hold is stated rather than discovered at run time.
       ; Its object table is a fixed allocation (%OBJ-CAP-WORDS below), and a
-      ; record is three words plus the units, so the live count the child's
-      ; collect leaves bounds what fits.  Without the bound, a heap past it --
-      ; python's runtime is tens of millions of allocations and a few million
-      ; live -- walks until the process runs out of memory.
+      ; record is three words plus the units, so the live count the collect
+      ; leaves bounds what fits.  The child's count runs from its newest
+      ; object to the chain's end, so it counts what this base made before
+      ; the child too.  Without the bound, a heap past it -- python's runtime
+      ; is tens of millions of allocations and a few million live -- walks
+      ; until the process runs out of memory.
       ((fn (_ live)
+         (do (display "image: live after the load: ") (write live) (newline))
          (if (image-int< live 1000000) ()
            (do (display "image: refused -- ") (write live)
                (display " live objects in the child; this writer holds a million")
@@ -209,15 +218,17 @@
 (def node (op (nm . kids) e (do (%eval-all kids e) ())))
 (def build (op (x) e (do (set! %IN-BUILD #t) (eval x e) (set! %IN-BUILD #f) ())))
 (include "engine/tools/contract/base-layout.x")
-; The profile counters, the sigint flag and the line counter stay the
-; loader's own.  `line` sits in the layout's build region, but the C reader
-; holds its counter atom directly and counts into it: a cell swapped under
-; the reader reads 0 from then on (spec 8).
+; The profile counters, the sigint flag, the line counter and the parent
+; stay the loader's own.  `line` sits in the layout's build region, but the
+; C reader holds its counter atom directly and counts into it: a cell
+; swapped under the reader reads 0 from then on (spec 8).  `parent` is the
+; base the imaged one was made from -- this writer's, all of it.
 (def %root-cell?
   (fn (_ nm)
     (if (eq? nm (lit sigint)) #f
       (if (eq? nm (lit line)) #f
-        (not (str=? (Str8 sub 0 8 (symbol->str nm)) "profile-"))))))
+        (if (eq? nm (lit parent)) #f
+          (not (str=? (Str8 sub 0 8 (symbol->str nm)) "profile-")))))))
 (def %ROOTS ((fn (self l acc) (if (null? l) acc (self (rest l) (if (%root-cell? (first (first l))) (pair (first l) acc) acc)))) %LANG ()))
 
 (def %step (fn (_ v s) (if (eq? s (lit f)) (first v) (rest v))))
@@ -312,8 +323,8 @@
 
 ; --- the engine's statics, by role and by pristine type row (spec 3.4) --------
 (def %STATIC-NAMES (%ht-new))   ; address -> (label . name) object address
-(def %STATIC-OBJS ())
-(def %static! (fn (_ a label nm) (if (eq? (%ht-find %STATIC-NAMES a) 0) (do (set! %STATIC-OBJS (pair (pair label nm) %STATIC-OBJS)) (%ht-add! %STATIC-NAMES a (%addr (first %STATIC-OBJS)))) ())))
+(def %STATIC-OBJS ())           ; each address named, then its (label . name): the mark stops at the addresses
+(def %static! (fn (_ a label nm) (if (eq? (%ht-find %STATIC-NAMES a) 0) (do (set! %STATIC-OBJS (pair a (pair (pair label nm) %STATIC-OBJS))) (%ht-add! %STATIC-NAMES a (%addr (first (rest %STATIC-OBJS))))) ())))
 (def %X-STATIC 6) (def %X-TYPE-STATIC 7) (def %X-BASE-ROW 8)
 (%static! (%addr (first (%at %RAW (%row-steps %base-paths (lit true))))) %X-STATIC "true")
 (%static! (%addr (first (%at %RAW (%row-steps %base-paths (lit false))))) %X-STATIC "false")
@@ -360,6 +371,26 @@
 
 ; --- mark (spec 4.1) ------------------------------------------------------------
 (%between)
+;  What the image names rather than writes -- the statics, and the base the
+; imaged one was made from -- is flagged before the mark, so a mark that
+; reaches one stops there.  A child is on its parent's chain: past a named
+; node lies this writer's heap, which the write's walk would reach.  The
+; flags come off after the mark.
+;  %STATIC-OBJS is walked two at a time, an address and then its entry; the
+; parent, when there is one, goes on the front the same way.
+(def %trace-stops!
+  (fn (_ on)
+    ((fn (self l)
+       (if (null? l) ()
+         (do ((fn (_ p w)
+                (image-set-word! p image-flags-off
+                  (if on (if (image-traced? p) w (image-int+ w image-trace-flag))
+                    (image-int& w (image-int- (image-int- 0 1) image-trace-flag)))))
+              (image-int->ptr (first l)) (image-ref-word (image-int->ptr (first l)) image-flags-off))
+             (self (rest (rest l))))))
+     ((fn (_ v) (if (null? v) %STATIC-OBJS (pair (%addr v) (pair () %STATIC-OBJS))))
+      (first (%at %RAW (%row-steps %base-paths (lit parent))))))))
+(%trace-stops! #t)
 ((fn (self l) (if (null? l) () (do ((fn (_ v) (if (null? v) () (image-mark! v image-trace-flag))) (%root-value (first l))) (self (rest l))))) %ROOTS)
 ;  A leaf under a cell that a root reaches is the library's, not the base's:
 ; module.x hangs its include-once list off the false cell.  The cells stay
@@ -379,18 +410,18 @@
 ;  The traced cells of the spine -- the library holds the base's false cell,
 ; its registry cell, its file registry -- stay spine: the flag comes off
 ; them, so the write below meets nothing but language objects.
-(def %untrace-spine!
-  (fn (self l)
-    (if (null? l) ()
-      (do ((fn (_ a)
-             (if (eq? (%ht-find %SPINE a) 1)
-                 (if (image-traced? a)
-                     (image-set-word! a image-flags-off (image-int& (image-ref-word a image-flags-off) (image-int- (image-int- 0 1) image-trace-flag)))
-                     ())
-                 ()))
-           (first l))
-          (self (rest l))))))
-(%untrace-spine! %SPINE-LIST)
+((fn (self l)
+   (if (null? l) ()
+     (do ((fn (_ a)
+            (if (eq? (%ht-find %SPINE a) 1)
+                (if (image-traced? a)
+                    (image-set-word! a image-flags-off (image-int& (image-ref-word a image-flags-off) (image-int- (image-int- 0 1) image-trace-flag)))
+                    ())
+                ()))
+          (first l))
+         (self (rest l)))))
+ %SPINE-LIST)
+(%trace-stops! #f)
 (%between)
 
 
@@ -400,7 +431,9 @@
 (def %XCUR 0)                    ; words written
 (def %XCOUNT 0)
 (def %XIDX (%ht-new))            ; address -> external index
-(def %words-for (fn (_ n) (image-int+ 1 (image-int>> (image-int+ n 1) 3))))
+; The words a name of N bytes takes with its NUL: whole words, on this
+; machine's word, as the reader's %words-for counts them.
+(def %words-for (fn (_ n) (image-int+ 1 (image-int/ (image-int+ n 1) %word-size))))
 (def %put-name
   (fn (_ b cur nm)
     ((fn (_ n)

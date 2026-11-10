@@ -46,7 +46,8 @@
 ; (str ref) is NOT interchangeable here: char->int on ITS result answers
 ; garbage (51105660208 for a byte whose value is 100).  Only byte-ref
 ; yields the char whose ->int is the byte.
-(def %sha-mask 4294967295)
+; The word's low 32 bits, in hex so it reads as bits: -1 on a 4-byte word.
+(def %sha-mask 0xFFFFFFFF)
 
 ; The integer type's handle is fetched once, by name through Type's door,
 ; and held by the function that asks the converter for it.
@@ -83,26 +84,29 @@
 ; -- because a %sha-rotr helper costs an interpreted call, and the four
 ; sigmas would make twelve of them PER ROUND (#123: the digest's cost
 ; is call scaffolding, not arithmetic).  Each pair below reads n/32-n.
+; `>>` is arithmetic, and on a 4-byte word a value with its top bit set
+; is negative, so each right shift keeps its low 32-n bits: the logical
+; shift on either word, a no-op on an 8-byte one.
 (def %sha-bsig0
   (fn (_ x)
-    (^ (& (| (>> x 2) (<< x 30)) %sha-mask)
-       (^ (& (| (>> x 13) (<< x 19)) %sha-mask)
-          (& (| (>> x 22) (<< x 10)) %sha-mask)))))
+    (^ (& (| (& (>> x 2) 1073741823) (<< x 30)) %sha-mask)
+       (^ (& (| (& (>> x 13) 524287) (<< x 19)) %sha-mask)
+          (& (| (& (>> x 22) 1023) (<< x 10)) %sha-mask)))))
 (def %sha-bsig1
   (fn (_ x)
-    (^ (& (| (>> x 6) (<< x 26)) %sha-mask)
-       (^ (& (| (>> x 11) (<< x 21)) %sha-mask)
-          (& (| (>> x 25) (<< x 7)) %sha-mask)))))
+    (^ (& (| (& (>> x 6) 67108863) (<< x 26)) %sha-mask)
+       (^ (& (| (& (>> x 11) 2097151) (<< x 21)) %sha-mask)
+          (& (| (& (>> x 25) 127) (<< x 7)) %sha-mask)))))
 (def %sha-ssig0
   (fn (_ x)
-    (^ (& (| (>> x 7) (<< x 25)) %sha-mask)
-       (^ (& (| (>> x 18) (<< x 14)) %sha-mask)
-          (>> x 3)))))
+    (^ (& (| (& (>> x 7) 33554431) (<< x 25)) %sha-mask)
+       (^ (& (| (& (>> x 18) 16383) (<< x 14)) %sha-mask)
+          (& (>> x 3) 536870911)))))
 (def %sha-ssig1
   (fn (_ x)
-    (^ (& (| (>> x 17) (<< x 15)) %sha-mask)
-       (^ (& (| (>> x 19) (<< x 13)) %sha-mask)
-          (>> x 10)))))
+    (^ (& (| (& (>> x 17) 32767) (<< x 15)) %sha-mask)
+       (^ (& (| (& (>> x 19) 8191) (<< x 13)) %sha-mask)
+          (& (>> x 10) 4194303)))))
 (def %sha-ch  (fn (_ x y z) (^ (& x y) (& (& (~ x) %sha-mask) z))))
 (def %sha-maj (fn (_ x y z) (^ (& x y) (^ (& x z) (& y z)))))
 
@@ -111,14 +115,15 @@
 
 ; The padded message, addressed virtually -- no padded copy is built.
 ; Byte i is: the message; then 0x80; then zeros; then the bit length,
-; big-endian in the last 8 bytes.
+; big-endian in the last 8 bytes; a byte past the word is zero.
 (def %sha-byte
   (fn (_ s len total i)
     (match
       ((< i len) (char->int (str-byte-ref s i)))
       ((= i len) 128)
       ((< i (int- total 8)) 0)
-      (#t (& (>> (int* len 8) (<< (int- (int- total 1) i) 3)) 255)))))
+      (#t ((fn (_ sh) (if (< sh (int* 8 %word-size)) (& (>> (int* len 8) sh) 255) 0))
+           (<< (int- (int- total 1) i) 3))))))
 
 (def %sha-word
   (fn (_ s len total base)
@@ -196,9 +201,13 @@
                 (& (int+ h6 (first (rest (rest (rest (rest (rest (rest r)))))))) %sha-mask)
                 (& (int+ h7 (first (rest (rest (rest (rest (rest (rest (rest r))))))))) %sha-mask))))))))
 
+; A word's 32 bits as eight hex digits, sixteen bits at a time: on a 4-byte
+; word one with its top bit set is negative, which the converter signs.
 (def %sha-hex8
   (let ((string-type (Type named STRING)))
-    (fn (_ wd) (Str pad-left 8 #\0 (%cvt wd string-type 16)))))
+    (fn (_ wd)
+      (Str8 append (Str pad-left 4 #\0 (%cvt (& (>> wd 16) 65535) string-type 16))
+                   (Str pad-left 4 #\0 (%cvt (& wd 65535) string-type 16))))))
 
 (def %sha-hex-list
   (fn (self hs)

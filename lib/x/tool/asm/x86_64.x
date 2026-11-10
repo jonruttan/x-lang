@@ -678,6 +678,12 @@
             65 86             ; push r14
             72 137 248))))    ; mov rax, rdi
 
+; The byte offset of a caller's Nth word argument (from 0) from rsp inside
+; the prologue's frame: the first six travel in registers, the rest above
+; the return address on entry, which the five pushes moved by 40.
+(def asm-stack-arg
+  (fn (_ n) (+ 48 (* 8 (- n 6)))))
+
 ; asm-frame-base!: x22 (r14) = sp, the base of the parameter slots a
 ; function pushes after its prologue.
 (def asm-frame-base!

@@ -133,9 +133,15 @@ traversal's visited test, so marking with it halts at the first one; a leftover
 
 ### tree-mark! returns the object it marks
 
+The flag is taken back before the case ends: the walk follows an object to
+its type, and from a type's handlers to whatever they hold, and a flag left
+there stops the next walk short.
+
 ```x
 (def subject (pair 'held ()))
-(eq? ((prim-ref 'heap 'tree-mark!) subject 1024) subject)
+(def marked ((prim-ref 'heap 'tree-mark!) subject 1024))
+((prim-ref 'heap 'chain-clear!) 1024)
+(eq? marked subject)
 ```
 ---
     #t

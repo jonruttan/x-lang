@@ -11,8 +11,8 @@
 ; outside [0-9a-fA-F] raises a label 'value Err -- no whitespace tolerance
 ; (hex payloads are not line-wrapped the way PEM base64 is).
 ;
-; Digest formatting is a different job: (Hash ->hex) renders one 64-bit
-; INT as 16 hex chars; this codec transcodes byte sequences.
+; Digest formatting is a different job: (Hash ->hex) renders one word as
+; two hex chars a byte; this codec transcodes byte sequences.
 ;
 ; Helpers live as method-local closures, not %-globals (budget 0) and not
 ; %-methods (per-character class dispatch is the measured overhead, #332).

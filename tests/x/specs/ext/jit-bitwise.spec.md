@@ -95,13 +95,16 @@ the two instructions agree, so nothing above would have caught this.)
 ### a full 32-bit rotate compiles and runs natively
 
 rotr32(x, n) = ((x >> n) | (x << (32 - n))) & 0xFFFFFFFF — the operation
-the digest's four sigma functions are built from.
+the digest's four sigma functions are built from.  The answer is the top
+bit alone, which the literal 0x80000000 spells on either word: 2147483648
+on an 8-byte word, the word's sign bit on a 4-byte one.
 
 ```x
-(display ((compile-asm '(fn (_ x n) (& (| (>> x n) (<< x (- 32 n))) 4294967295))) 1 1))
+(display (= ((compile-asm '(fn (_ x n) (& (| (>> x n) (<< x (- 32 n))) 0xFFFFFFFF))) 1 1)
+            0x80000000))
 ```
 ---
-    2147483648
+    #t
 
 ### the rotate agrees with the interpreted definition across cases
 

@@ -99,3 +99,19 @@ a69f73cca23a9ac5c8b567dc185a756e97c982164fe25859e0d1dcc1475c80a615b2123af1f5f94c
 ```
 ---
     (value value 8)
+
+## with x/num/bigint loaded
+
+### the digest is the same when the generic operators promote
+
+A lane's bits wrap at the top of the word through the word's own shift,
+whatever generic << does once bigint is loaded.
+
+```x
+(do
+  (import x/num/bigint)
+  (import x/codec/sha3)
+  (display (Sha3 hex 256 "abc")))
+```
+---
+    3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532

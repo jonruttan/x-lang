@@ -23,7 +23,7 @@
 (def %KC 3)        ; the register
 (def %KSTEPS 4)
 (def %KBUDGET 5)
-(def %KMASK 6)     ; 4294967295
+(def %KMASK 6)     ; 0xFFFFFFFF, the word's low 32 bits
 (def %KT 8)        ; the table, 256 words
 
 (def %kj-budget 256)
@@ -67,13 +67,13 @@
 (def cksum-jit-make
   (fn (_ table check)
     (def step (compile-asm %kj-expr))
-    (def buf (str-make (* 8 (+ %KT 256))))
+    (def buf (str-make (* %word-size (+ %KT 256))))
     (def ptr (str->ptr buf))
     (def addr (ptr->int ptr))
-    (def poke (fn (_ i v) (ptr-set-word! ptr (* i 8) v)))
-    (def peek (fn (_ i) (ptr-ref-word ptr (* i 8))))
+    (def poke (fn (_ i v) (ptr-set-word! ptr (* i %word-size) v)))
+    (def peek (fn (_ i) (ptr-ref-word ptr (* i %word-size))))
     ((fn (self i) (when (< i 256) (do (poke (+ %KT i) (obj-ref table (+ i 1))) (self (+ i 1))))) 0)
-    (poke %KMASK 4294967295)
+    (poke %KMASK 0xFFFFFFFF)
     (def fold
       (fn (_ p n c)
         ; the scratch region is held here, so the address stays good
@@ -99,4 +99,4 @@
 (prim-reg! (lit cksum) (lit jit-make) cksum-jit-make)
 
 (doc (provide x/codec/cksum-jit cksum-jit-make)
-  "The compiled CRC of POSIX cksum (JIT, ARM64 and x86-64 backends) behind (Cksum jit!): one loop over the bytes, adopted only after it sums the check inputs as the pure-x fold does.")
+  "The compiled CRC of POSIX cksum (JIT; ARM64, x86-64 and 32-bit ARM backends) behind (Cksum jit!): one loop over the bytes, adopted only after it sums the check inputs as the pure-x fold does.")

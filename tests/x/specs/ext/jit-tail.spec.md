@@ -12,11 +12,15 @@ nothing per turn.  Unlabelled on purpose: both backends run it.
 
 ### a million turns: past any C stack a call per turn would need
 
+The sum is the machine's: 500000500000 on an 8-byte word, its wrap on a
+4-byte one, which the int door's product of the closed form gives.
+
 ```x
-(display ((compile-asm '(fn (self n acc) (if (= n 0) acc (self (- n 1) (+ acc n))))) 1000000 0))
+(eq? ((compile-asm '(fn (self n acc) (if (= n 0) acc (self (- n 1) (+ acc n))))) 1000000 0)
+     ((prim-ref (lit int) (lit *)) 500000 1000001))
 ```
 ---
-    500000500000
+    #t
 
 ### a turn allocates nothing
 

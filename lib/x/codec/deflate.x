@@ -199,10 +199,11 @@
 ; The tables are byte regions, not vectors: a Vector of 32768 slots costs
 ; 12.7M objects to make (its fill is a loop), a region one allocation and
 ; a memset.  The hash and chain tables hold 4-byte slots, a position kept
-; plus one so a zeroed slot reads as none; the token tables hold 8-byte
-; words, which the compiled writer reads as words.
-(def %tref (fn (_ t i) (ptr-ref t (int<< i 3) 8)))
-(def %tset! (fn (_ t i v) (ptr-set! t (int<< i 3) v 8)))
+; plus one so a zeroed slot reads as none; the token tables hold words,
+; which the compiled writer reads as words: a length, distance or byte
+; fits any word, and a slot of 8 on a 4-byte word is wider than it holds.
+(def %tref (fn (_ t i) (ptr-ref t (int* i %word-size) %word-size)))
+(def %tset! (fn (_ t i v) (ptr-set! t (int* i %word-size) v %word-size)))
 
 (def %table
   (fn (_ slots)
@@ -217,14 +218,15 @@
     (ptr-set! prev (int<< (int& i %WMASK) 2) (ptr-ref head h 4) 4)
     (ptr-set! head h (int+ i 1) 4)))
 
-; How many bytes from a and b agree, up to limit: eight at a time while
-; eight are left, then one.
+; How many bytes from a and b agree, up to limit: a word at a time while
+; a word is left, then one.  The word is the machine's: a read of 8 on a
+; 4-byte word holds 4 of them, and a stride of 8 would count 4 unread.
 (def %agree
   (fn (self p a b k limit)
-    (if (int< (int- limit k) 8)
+    (if (int< (int- limit k) %word-size)
       (%agree-bytes p a b k limit)
-      (if (int= (ptr-ref p (int+ a k) 8) (ptr-ref p (int+ b k) 8))
-        (self p a b (int+ k 8) limit)
+      (if (int= (ptr-ref p (int+ a k) %word-size) (ptr-ref p (int+ b k) %word-size))
+        (self p a b (int+ k %word-size) limit)
         (%agree-bytes p a b k limit)))))
 
 (def %agree-bytes
@@ -624,8 +626,8 @@
 ; own.
 (def %piece!
   (fn (_ w src n eng final?)
-    (def lens (str-make (int<< (int+ n 1) 3)))
-    (def vals (str-make (int<< (int+ n 1) 3)))
+    (def lens (str-make (int* (int+ n 1) %word-size)))
+    (def vals (str-make (int* (int+ n 1) %word-size)))
     (def ntok (if (int= n 0) 0 ((first eng) src n (str->ptr lens) (str->ptr vals))))
     (if (int= ntok 0)
       (if final? (do (%put-bits! w 1 1) (%put-bits! w 1 2) (%put-code! w %fixed-lit-codes %fixed-lit-lengths 256)) ())

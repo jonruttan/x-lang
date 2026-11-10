@@ -19,7 +19,7 @@
 ; One compiled function serves a block, entered through an r=-1 sentinel
 ; as chacha20-jit's is: the entry loads the counter XORed with the first
 ; round key; each call then is one round; round NR makes the keystream
-; words, XORs a whole block into the output as two 64-bit words, and
+; words, XORs a whole block into the output a machine word at a time, and
 ; carries the counter.  A block the region ends inside is walked a byte a
 ; call instead, each behind the region's bound.  The driver here, in x,
 ; runs it a run of blocks an entry.
@@ -37,7 +37,7 @@
 (def %aj-byte-ref (prim-ref (lit str) (lit byte-ref)))
 (def %aj-char->int (prim-ref (lit char) (lit ->int)))
 (def %aj-oref (prim-ref (lit obj) (lit ref)))
-(def %aj-M 4294967295)
+(def %aj-M 0xFFFFFFFF)
 
 ; scratch layout, one buffer (words):
 ;   0..1023 T0 T1 T2 T3 | 1024..1279 the S-box | 1280..1339 round keys |
@@ -112,16 +112,19 @@
       (list '| (list '<< (%aj-byte e 8) 16)
         (list '| (list '<< (%aj-byte e 16) 8) (%aj-byte e 24))))))
 
-; Output word k of a whole block, k 0 or 1: input word k XORed with
-; keystream words 2k and 2k+1 side by side.  pos is a multiple of 16, so
-; pos>>3 is the block's first word.
+; Output word k of a whole block, a machine word: input word k XORed with
+; the keystream words it holds -- 2k and 2k+1 side by side on an 8-byte
+; word, k alone on a 4-byte one.  pos is a multiple of 16, so pos>>3
+; (pos>>2) is the block's first word.
+(def %aj-narrow (< %word-size 8))
 (def %aj-xor-word
   (fn (_ k)
-    (def at (list '+ (list '>> (%aj-W %aj-POS) 3) k))
+    (def at (list '+ (list '>> (%aj-W %aj-POS) (if %aj-narrow 2 3)) k))
     (list '%mem-set-at! (%aj-W %aj-OUT) at
       (list '^ (list '%mem-ref-at (%aj-W %aj-IN) at)
-               (list '| (%aj-swap (%aj-W (+ %aj-KS (* 2 k))))
-                        (list '<< (%aj-swap (%aj-W (+ %aj-KS (+ (* 2 k) 1)))) 32))))))
+               (if %aj-narrow (%aj-swap (%aj-W (+ %aj-KS k)))
+                 (list '| (%aj-swap (%aj-W (+ %aj-KS (* 2 k))))
+                          (list '<< (%aj-swap (%aj-W (+ %aj-KS (+ (* 2 k) 1)))) 32)))))))
 
 ; The counter plus one, big-endian across its four words.
 (def %aj-bump
@@ -168,7 +171,7 @@
   (list 'do
     (%aj-seq 4 (fn (_ i) (%aj-setW (+ %aj-KS i) (%aj-last-word i))))
     (list 'if (list '< (list '+ (%aj-W %aj-POS) 16) (list '+ (%aj-W %aj-LEN) 1))
-      (list 'do (%aj-xor-word 0) (%aj-xor-word 1) %aj-bump
+      (list 'do (%aj-seq (if %aj-narrow 4 2) %aj-xor-word) %aj-bump
         (%aj-setW %aj-POS (list '+ (%aj-W %aj-POS) 16))
         (%aj-setW %aj-RUN (list '- (%aj-W %aj-RUN) 1))
         (list 'if (list '< (%aj-W %aj-RUN) 1) 0
@@ -188,7 +191,9 @@
 ; No int xor in x: a ^ b is (a | b) - (a & b).
 (def %aj-xor (fn (_ a b) (- (| a b) (& a b))))
 (def %aj-xtime (fn (_ a) (%aj-xor (& (<< a 1) 255) (if (= (& a 128) 0) 0 27))))
-(def %aj-rotr8 (fn (_ w) (| (>> w 8) (<< (& w 255) 24))))
+; `>>` is arithmetic, and a 4-byte word's table entry has its top bit set
+; as often as not: the shift keeps its low 24 bits.
+(def %aj-rotr8 (fn (_ w) (| (& (>> w 8) 16777215) (<< (& w 255) 24))))
 
 ; T0[x] is the column (2s, s, s, 3s) for s the S-box's x; T1..T3 are it
 ; rotated right by 8, 16 and 24.
@@ -222,11 +227,11 @@
 (def %aj-wire
   (fn (_ ref schedule sub-byte %block replayed?)
     (unless replayed? (Heap collect))
-    (def %buf (%aj-make-str (* 8 %aj-words)))
+    (def %buf (%aj-make-str (* %word-size %aj-words)))
     (def %ptr (%aj-str->ptr %buf))
     (def %addr (%aj-ptr->int %ptr))
-    (def %poke (fn (_ i v) (%aj-pset %ptr (* i 8) v)))
-    (def %peek (fn (_ i) (%aj-pref %ptr (* i 8))))
+    (def %poke (fn (_ i v) (%aj-pset %ptr (* i %word-size) v)))
+    (def %peek (fn (_ i) (%aj-pref %ptr (* i %word-size))))
     (%aj-tables! %poke sub-byte)
     (def %b (fn (_ s i) (%aj-char->int (%aj-byte-ref s i))))
     (def %engine
@@ -299,4 +304,4 @@
 (prim-reg! (lit aes) (lit jit-make) aes-jit-make)
 
 (doc (provide x/codec/aes-jit aes-jit-make)
-  "The compiled AES counter-mode engine (JIT, ARM64 and x86-64 backends); built and adopted only via (Aes jit!) after proving agreement with the pure-x cipher.")
+  "The compiled AES counter-mode engine (JIT, ARM64, x86-64 and 32-bit ARM backends); built and adopted only via (Aes jit!) after proving agreement with the pure-x cipher.")

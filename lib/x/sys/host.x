@@ -39,11 +39,33 @@
 (import x/num/float)
 (import x/codec/struct)
 (import x/platform/syscall stat-layout)
+; CPU times are nanoseconds and byte totals pass 2^31 within seconds of
+; boot: on a 4-byte word they are bigints, which the tower's * and + make
+; once bigint is loaded.  An 8-byte word holds them all.
+(when (< %word-size 8) (import x/num/bigint))
+
+; The device and inode of a stat, cut from the platform's layout as File
+; stat's fields are (x/sys/file): the two kept, everything before and between
+; them a pad, and the reader compiled once.
+(def %dev-ino-fields
+  (let go ((rows stat-layout) (gap 0) (acc ()))
+    (match
+      ((null? rows) (List reverse acc))
+      ((or (eq? (first (first rows)) (lit dev)) (eq? (first (first rows)) (lit ino)))
+        (go (rest rows) 0 (pair (first rows) (if (> gap 0) (pair (list (lit pad) gap) acc) acc))))
+      (#t (go (rest rows) (+ gap (Struct length (list (first rows)))) acc)))))
+(def %dev-ino-read (Struct reader %dev-ino-fields))
+
+; The stat call, resolved once: syscall-door searches the platform's table,
+; and holders stats every link and descriptor of every process.
+(def %stat-door (syscall-door (if os-darwin? (lit stat64) (lit stat))))
 
 (def-class Host ()
   (doc "The machine as the kernel reports it: boot time, load, memory, CPU time, system-wide counters, disk, network and interrupt totals, processes and logged-in users, the same records on Linux and Darwin."
     (note "A field the kernel does not report is nil. Darwin reports another user's process memory and CPU time only to root.")
-    (see boot-time) (see load) (see tasks) (see memory) (see cpu) (see cpus) (see counters) (see disks) (see interfaces) (see interrupts) (see processes) (see process) (see args) (see exe) (see threads) (see maps) (see regions) (see files) (see holders) (see utmp) (see users))
+    (see boot-time) (see load) (see tasks) (see memory) (see cpu) (see cpus) (see counters) (see disks) (see interfaces) (see interrupts) (see processes) (see process) (see args) (see exe) (see threads) (see maps) (see regions) (see files) (see holders) (see utmp) (see users)
+    (example "(List length (Host load))" "3")
+    (sample "(Assoc get 'comm (Host process (Sys getpid)))" "\"x-bin\""))
   (static
     (source    ()      "'linux or 'darwin: which reader answers; nil means this kernel's")
     (proc-root "/proc" "The /proc tree the Linux reader opens")
@@ -54,46 +76,57 @@
 
     (method %backend (self)
       (doc "The reader that answers: the source field, or this kernel's."
-        (returns SYMBOL "'linux or 'darwin"))
+        (returns SYMBOL "'linux or 'darwin")
+        (example "(List includes? (Host %backend) (list 'linux 'darwin))" "#t")
+        (sample "(Host %backend)" "darwin on a Mac"))
       (if (null? (Host source)) (if os-darwin? (lit darwin) (lit linux)) (Host source)))
 
     (method %sym (self (param name STRING "libc function name"))
       (doc "The named libc function, resolved through the process's own handle."
-        (returns POINTER "The function pointer"))
+        (returns POINTER "The function pointer")
+        (sample "(Host %sym \"getpid\")" "the address of libc's getpid, for ptr call"))
       ((prim-ref (lit ffi) (lit dlsym)) ((prim-ref (lit ffi) (lit dlopen)) () 1) name))
 
     (method %call (self (param name STRING "libc function name") . (param argv LIST "Its arguments"))
       (doc "Call a libc function and fold its int result to a signed value."
-        (returns INTEGER "The result, negative on failure"))
+        (returns INTEGER "The result, negative on failure")
+        (example "(= (Host %call \"getpid\") (Sys getpid))" "#t"))
       (Sys %sign-fold (apply (prim-ref (lit ptr) (lit call)) (pair (Host %sym name) argv))))
 
     (method %buf (self (param n INTEGER "Size in bytes"))
       (doc "A GC-owned region of n bytes. Its contents are not zeroed: read only what a call wrote."
-        (returns STRING "The region"))
+        (returns STRING "The region")
+        (sample "(Host %buf 160)" "a 160-byte region, room for a struct stat"))
       ((prim-ref (lit str) (lit make)) n))
 
     (method %ptr (self (param buf STRING "A region from %buf"))
       (doc "The region's address, for a C argument."
-        (returns POINTER "The address"))
+        (returns POINTER "The address")
+        (example "(Host %cstr-ptr (Host %ptr \"hi\"))" "\"hi\""))
       ((prim-ref (lit str) (lit ->ptr)) buf))
 
     (method %int-at (self (param buf STRING "A region") (param off INTEGER "Byte offset")
                           (param n INTEGER "Width: 1, 2, 4 or 8"))
       (doc "The unsigned little-endian integer of n bytes at off."
-        (returns INTEGER "The value"))
+        (returns INTEGER "The value")
+        (example "(Host %int-at \"AB\" 0 2)" "16961")
+        (example "(Host %int-at \"AB\" 1 1)" "66"))
       ((prim-ref (lit ptr) (lit ref)) (Host %ptr buf) off n))
 
     (method %signed-at (self (param buf STRING "A region") (param off INTEGER "Byte offset")
                              (param n INTEGER "Width: 1, 2 or 4"))
       (doc "The two's-complement integer of n bytes at off."
-        (returns INTEGER "The value"))
+        (returns INTEGER "The value")
+        (example "(Host %signed-at (bytes->str (list 255 255)) 0 2)" "-1")
+        (example "(Host %signed-at \"AB\" 0 2)" "16961"))
       (def v (Host %int-at buf off n))
       (def top (<< 1 (- (* 8 n) 1)))
       (if (< v top) v (- v (* 2 top))))
 
     (method %types (self)
       (doc "The STRING, POINTER and INTEGER type handles, looked up once: a (Type named) lookup costs tens of thousands of objects, and a C string is read for every argument of every process."
-        (returns LIST "(STRING POINTER INTEGER)"))
+        (returns LIST "(STRING POINTER INTEGER)")
+        (example "(List length (Host %types))" "3"))
       (when (null? (Host types))
         (Host types (list (Type named STRING) (Type named POINTER) (Type named INTEGER))))
       (Host types))
@@ -101,7 +134,9 @@
     (method %cstr-at (self (param buf STRING "A region") (param off INTEGER "Byte offset")
                            (param n INTEGER "Most bytes to read"))
       (doc "The NUL-terminated string at off, at most n bytes. Read through its address: a region's own length stops at its first NUL, so a substring of it cannot reach past one."
-        (returns STRING "The string"))
+        (returns STRING "The string")
+        (example "(Host %cstr-at \"hello\" 1 3)" "\"ell\"")
+        (example "(Host %cstr-at (bytes->str (list 97 98 0 99)) 0 4)" "\"ab\""))
       (def cvt (prim-ref (lit convert) (lit to)))
       (def t (Host %types))
       (def at (cvt (+ (cvt ((prim-ref (lit str) (lit ->ptr)) buf) (first (rest (rest t)))) off) (first (rest t))))
@@ -112,11 +147,14 @@
 
     (method %cstr-ptr (self (param p POINTER "Address of a NUL-terminated string"))
       (doc "The C string at an address."
-        (returns STRING "The string"))
+        (returns STRING "The string")
+        (example "(Host %cstr-ptr (Host %ptr \"hi\"))" "\"hi\""))
       ((prim-ref (lit convert) (lit to)) p (first (Host %types))))
     (method %int (self (param s STRING "Decimal digits, optionally signed"))
       (doc "The integer a decimal field spells; nil when it spells none."
-        (returns ANY "INTEGER, or nil"))
+        (returns ANY "INTEGER, or nil")
+        (example "(Host %int \"-42\")" "-42")
+        (example "(null? (Host %int \"x\"))" "#t"))
       ; the int doors throughout: a record parses a dozen of these, and the
       ; tower's comparisons and arithmetic allocate on every digit
       (def at (prim-ref (lit str) (lit byte-ref)))
@@ -128,20 +166,26 @@
       (def digit? (fn (_ b) (if (i< 47 b) (i< b 58) #f)))
       (def n (Str8 length s))
       (def neg (if (i< 0 n) (i= (at s 0) 45) #f))
+      ; a 4-byte word's counters pass it: the tower's, with bigint loaded
+      (def wide (i= %word-size 8))
+      (def a+ (if wide i+ +))
+      (def a* (if wide i* *))
       (def go
         (fn (self i acc)
           (match
             ((if (i< i n) #f #t) acc)
-            ((digit? (at s i)) (self (i+ i 1) (i+ (i* acc 10) (i- (at s i) 48))))
+            ((digit? (at s i)) (self (i+ i 1) (a+ (a* acc 10) (i- (at s i) 48))))
             (#t acc))))
       (def start (if neg 1 0))
       (if (if (i< start n) (digit? (at s start)) #f)
-        (let ((v (go start 0))) (if neg (i- 0 v) v))
+        (let ((v (go start 0))) (if neg (if wide (i- 0 v) (- 0 v)) v))
         ()))
 
     (method %hex (self (param s STRING "Hexadecimal digits"))
       (doc "The integer a run of hex digits spells, read up to the first byte that is not one; 0 for none. Sixteen digits are its 64 bits, through the int doors whether or not the tower is loaded, so a value past the signed range, such as an address in the top half of the address space, is negative."
-        (returns INTEGER "The value"))
+        (returns INTEGER "The value")
+        (example "(Host %hex \"ff\")" "255")
+        (example "(Host %hex \"1fz\")" "31"))
       (def at (prim-ref (lit str) (lit byte-ref)))
       (def n ((prim-ref (lit str) (lit byte-len)) s))
       (def i+ (prim-ref (lit int) (lit +)))
@@ -153,17 +197,28 @@
             ((if (>= b 97) (<= b 102) #f) (- b 87))
             ((if (>= b 65) (<= b 70) #f) (- b 55))
             (#t ()))))
+      ; a 4-byte word reads through the tower, with bigint loaded, and folds
+      ; past 2^63 to the signed value an 8-byte word's wrap gives
+      (def wide (= %word-size 8))
+      (def a+ (if wide i+ +))
+      (def a* (if wide i* *))
       (def go
         (fn (self i acc)
           (if (>= i n) acc
             (let ((d (digit (at s i))))
-              (if (null? d) acc (self (+ i 1) (i+ (i* acc 16) d)))))))
-      (go 0 0))
+              (if (null? d) acc (self (+ i 1) (a+ (a* acc 16) d)))))))
+      (def v (go 0 0))
+      (if wide v
+        (let ((top (* 65536 65536 65536 32768)))
+          (if (< v top) v (- v (* top 2))))))
 
     (method %fold-lines (self (param path STRING "A file") (param f CALLABLE "(f line acc) answers the next acc; line has no newline")
                               (param init ANY "The first acc"))
       (doc "Fold f over a file's lines, read a piece at a time, so a long /proc file is never held whole."
-        (returns ANY "The last acc, or nil when the file cannot be opened"))
+        (returns ANY "The last acc, or nil when the file cannot be opened")
+        (example "(Host %fold-lines \"/dev/null\" (fn (_ line n) (+ n 1)) 0)" "0")
+        (example "(null? (Host %fold-lines \"/nonexistent/file\" (fn (_ line n) (+ n 1)) 0))" "#t")
+        (sample "(Host %fold-lines \"/proc/stat\" (fn (_ line n) (+ n 1)) 0)" "the number of lines in /proc/stat"))
       (def fd (File open path (lit rdonly)))
       (if (< fd 0) ()
         (let ((buf (Host %buf 4096)))
@@ -184,7 +239,9 @@
 
     (method %read (self (param path STRING "A file under /proc"))
       (doc "The whole of a /proc file, or nil when it cannot be opened. /proc files stat as empty, so this reads to end of file rather than sizing by stat. Text only: a NUL ends the string."
-        (returns ANY "STRING, or nil"))
+        (returns ANY "STRING, or nil")
+        (example "(null? (Host %read \"/nonexistent/file\"))" "#t")
+        (sample "(Host %read \"/proc/loadavg\")" "\"0.52 0.58 0.59 2/913 48213\\n\""))
       (def fd (File open path (lit rdonly)))
       (if (< fd 0) ()
         (let ((buf (Host %buf 4096)))
@@ -198,41 +255,52 @@
 
     (method %fields (self (param s STRING "A line"))
       (doc "The line's fields, split on runs of spaces."
-        (returns LIST "Field strings"))
+        (returns LIST "Field strings")
+        (example "(Host %fields \"  cpu0  12 34 \")" "(\"cpu0\" \"12\" \"34\")"))
       (List reject (fn (_ f) (str=? f "")) (Str8 split " " s)))
 
     (method %line-value (self (param lines LIST "Lines of a /proc file") (param key STRING "Leading word, e.g. \"btime\" or \"Cached:\""))
       (doc "The integer after a line's leading key, or nil when no line has it."
-        (returns ANY "INTEGER, or nil"))
+        (returns ANY "INTEGER, or nil")
+        (example "(Host %line-value (list \"cpu 1 2\" \"btime 1700000000\") \"btime\")" "1700000000")
+        (example "(null? (Host %line-value (list \"cpu 1 2\") \"btime\"))" "#t"))
       (def hit (List find (fn (_ l) (Str8 starts? (Str8 append key " ") l)) lines))
       (if (null? hit) () (Host %int (first (rest (Host %fields hit))))))
 
     (method %lines (self (param name STRING "File under the /proc root"))
       (doc "A /proc file's lines, or nil when it cannot be read."
-        (returns LIST "Line strings"))
+        (returns LIST "Line strings")
+        (example "(null? (Host %lines \"no-such-file\"))" "#t")
+        (sample "(first (Host %lines \"stat\"))" "\"cpu  4705 150 1120 16250 520 0 30 0 0 0\" on Linux"))
       (def s (Host %read (Str8 append (Host proc-root) "/" name)))
       (if (null? s) () (Str8 split "\n" s)))
 
     (method %sysconf (self (param linux INTEGER "The name's number on Linux") (param darwin INTEGER "Its number on Darwin"))
       (doc "A sysconf value; the name numbers differ between the two libcs."
-        (returns INTEGER "The value"))
+        (returns INTEGER "The value")
+        (example "(= (Host %sysconf 30 29) (Host %page-size))" "#t")
+        (sample "(Host %sysconf 84 58)" "10, the processors online"))
       (Host %call "sysconf" (if os-darwin? darwin linux)))
 
     (method %hz (self)
       (doc "Clock ticks a second (_SC_CLK_TCK), the unit of /proc's CPU times."
-        (returns INTEGER "Ticks a second"))
+        (returns INTEGER "Ticks a second")
+        (example "(< 0 (Host %hz))" "#t")
+        (sample "(Host %hz)" "100"))
       (Host %sysconf 2 3))
 
     (method %ticks->ns (self (param t INTEGER "Clock ticks"))
       (doc "Clock ticks in nanoseconds."
-        (returns INTEGER "Nanoseconds"))
+        (returns INTEGER "Nanoseconds")
+        (example "(Host %ticks->ns (Host %hz))" "1000000000"))
       (/ (* t 1000000000) (Host %hz)))
 
     ; --- Linux: sysinfo(2) ----------------------------------------------------
 
     (method %sysinfo (self)
       (doc "struct sysinfo as an alist of the fields read here."
-        (returns ALIST "uptime, three loads (scaled by 65536), memory fields in units, unit"))
+        (returns ALIST "uptime, three loads (scaled by 65536), memory fields in units, unit")
+        (sample "(Assoc get 'uptime (Host %sysinfo))" "86400, a day after boot, on Linux"))
       (def b (Host %buf 128))
       (if (< (Host %call "sysinfo" (Host %ptr b)) 0) ()
         (let ((unit (Host %int-at b 104 4)))
@@ -247,7 +315,8 @@
 
     (method %sysctl (self (param name STRING "A sysctl name, e.g. \"vm.loadavg\"") (param n INTEGER "Buffer size"))
       (doc "The value of a sysctl name as a region, or nil when the kernel refuses."
-        (returns ANY "STRING region, or nil"))
+        (returns ANY "STRING region, or nil")
+        (sample "(Host %int-at (Host %sysctl \"hw.ncpu\" 4) 0 4)" "10, on Darwin"))
       (def b (Host %buf n))
       (def len (Host %buf 8))
       ((prim-ref (lit ptr) (lit set-word!)) (Host %ptr len) 0 n)
@@ -255,18 +324,22 @@
 
     (method %sysctl-size (self (param name STRING "A sysctl name"))
       (doc "How many bytes the sysctl name's value currently needs."
-        (returns INTEGER "Bytes, 0 when the kernel refuses"))
+        (returns INTEGER "Bytes, 0 when the kernel refuses")
+        (sample "(Host %sysctl-size \"vm.loadavg\")" "24, on Darwin"))
       (def len (Host %buf 8))
       (if (< (Host %call "sysctlbyname" name 0 (Host %ptr len) 0 0) 0) 0 (Host %int-at len 0 8)))
 
     (method %page-size (self)
       (doc "The page size (sysconf _SC_PAGESIZE), the unit of /proc's rss and of the Mach page counts."
-        (returns INTEGER "Bytes"))
+        (returns INTEGER "Bytes")
+        (example "(< 0 (Host %page-size))" "#t")
+        (sample "(Host %page-size)" "16384 on Apple silicon, 4096 on most Linux machines"))
       (Host %sysconf 30 29))
 
     (method %mach-ns (self (param t INTEGER "Mach absolute time units"))
       (doc "Mach time units in nanoseconds, by mach_timebase_info."
-        (returns INTEGER "Nanoseconds"))
+        (returns INTEGER "Nanoseconds")
+        (sample "(Host %mach-ns 24)" "1000 on Apple silicon, whose timebase is 125/3"))
       (def tb (Host %buf 8))
       (Host %call "mach_timebase_info" (Host %ptr tb))
       ; the int door: the tower's / would answer a fraction for a timebase like 125/3
@@ -292,7 +365,8 @@
 
     (method %darwin-loads (self)
       (doc "vm.loadavg's three averages, each divided by its fscale."
-        (returns LIST "Three floats"))
+        (returns LIST "Three floats")
+        (sample "(Host %darwin-loads)" "(3.85 4.5 6.27), on Darwin"))
       ; struct loadavg: three fixpt_t, then the long fscale at 16
       (def b (Host %sysctl "vm.loadavg" 24))
       (def scale (Host %int-at b 16 8))
@@ -326,7 +400,8 @@
 
     (method %linux-memory (self)
       (doc "memory, from sysinfo and /proc/meminfo."
-        (returns ALIST "The memory record"))
+        (returns ALIST "The memory record")
+        (sample "(Assoc get 'total (Host %linux-memory))" "8221675520, on Linux"))
       (def si (Host %sysinfo))
       (def u (Assoc get (lit unit) si))
       (def m (Host %lines "meminfo"))
@@ -348,7 +423,8 @@
 
     (method %darwin-memory (self)
       (doc "memory, from sysctl and host_statistics64 (HOST_VM_INFO64)."
-        (returns ALIST "The memory record"))
+        (returns ALIST "The memory record")
+        (sample "(Assoc get 'total (Host %darwin-memory))" "17179869184, on Darwin"))
       (def page (Host %page-size))
       (def vm (Host %darwin-vm))
       (def ok (not (null? vm)))
@@ -366,7 +442,8 @@
 
     (method %darwin-vm (self)
       (doc "host_statistics64's HOST_VM_INFO64, a struct vm_statistics64, or nil when the kernel refuses."
-        (returns ANY "STRING region, or nil"))
+        (returns ANY "STRING region, or nil")
+        (sample "(Host %int-at (Host %darwin-vm) 0 4)" "free_count, the free pages, on Darwin"))
       (def vm (Host %buf 416))
       (def count (Host %buf 8))
       ((prim-ref (lit ptr) (lit set-word!)) (Host %ptr count) 0 104)
@@ -384,7 +461,8 @@
 
     (method %linux-counters (self)
       (doc "counters, from /proc/stat, /proc/vmstat and /proc/sys/fs/file-nr."
-        (returns ALIST "The counters record"))
+        (returns ALIST "The counters record")
+        (sample "(Assoc get 'forks (Host %linux-counters))" "48213, on Linux"))
       (def st (Host %lines "stat"))
       (def vm (Host %lines "vmstat"))
       (def from-vm (fn (_ k) (Host %line-value vm k)))
@@ -411,7 +489,8 @@
 
     (method %darwin-counters (self)
       (doc "counters, from host_statistics64's HOST_VM_INFO64 and sysctl."
-        (returns ALIST "The counters record"))
+        (returns ALIST "The counters record")
+        (sample "(Assoc get 'faults (Host %darwin-counters))" "912845113, on Darwin"))
       (def page (Host %page-size))
       (def vm (Host %darwin-vm))
       ; struct vm_statistics64: pageins at 32, pageouts 40, faults 48, swapins
@@ -440,7 +519,8 @@
     (method %irq-table (self (param name STRING "interrupts or softirqs, under the /proc root")
                              (param soft BOOL "Whether its sources are softirqs"))
       (doc "The records of one /proc interrupt table: a header naming the processors (CPU0 CPU1 ...), then a line a source, NAME: then a count a processor."
-        (returns LIST "Interrupt records"))
+        (returns LIST "Interrupt records")
+        (sample "(Assoc get 'name (first (Host %irq-table \"softirqs\" #t)))" "\"HI\", on Linux"))
       (def ls (Host %lines name))
       (if (null? ls) ()
         (let ((columns (List map (fn (_ f) (Host %int (Str8 sub 3 (- (Str8 length f) 3) f)))
@@ -467,7 +547,10 @@
 
     (method %digits? (self (param s STRING "A field"))
       (doc "Whether a field is all decimal digits, and at least one."
-        (returns BOOL "#t or #f"))
+        (returns BOOL "#t or #f")
+        (example "(Host %digits? \"123\")" "#t")
+        (example "(Host %digits? \"12a\")" "#f")
+        (example "(Host %digits? \"\")" "#f"))
       (def at (prim-ref (lit str) (lit byte-ref)))
       (def n ((prim-ref (lit str) (lit byte-len)) s))
       (def go (fn (self i) (if (>= i n) #t (if (if (>= (at s i) 48) (<= (at s i) 57) #f) (self (+ i 1)) #f))))
@@ -481,7 +564,9 @@
 
     (method %disk-record (self (param name STRING "Device name") (param v LIST "major minor and the twelve totals, in disks' order"))
       (doc "The disk record for a name and its figures."
-        (returns ALIST "The disk record"))
+        (returns ALIST "The disk record")
+        (example "(Assoc get 'reads (Host %disk-record \"sda\" (list 8 0 120)))" "120")
+        (example "(null? (Assoc get 'writes (Host %disk-record \"sda\" (list 8 0 120))))" "#t"))
       (def go (fn (self ks vs) (if (null? ks) () (pair (pair (first ks) (if (null? vs) () (first vs))) (self (rest ks) (if (null? vs) () (rest vs)))))))
       (pair (pair (lit name) name)
         (go (lit (major minor reads reads-merged read-bytes read-time writes writes-merged write-bytes
@@ -490,7 +575,8 @@
 
     (method %linux-disks (self)
       (doc "disks, from /proc/diskstats: major minor name, then reads merged sectors ms, writes merged sectors ms, in-flight, io ms and weighted ms."
-        (returns LIST "Disk records"))
+        (returns LIST "Disk records")
+        (sample "(Assoc get 'name (first (Host %linux-disks)))" "\"sda\", on Linux"))
       (def sectors (fn (_ v) (if (null? v) () (* v 512))))
       (def ms (fn (_ v) (if (null? v) () (* v 1000000))))
       (def one
@@ -512,7 +598,8 @@
 
     (method %darwin-disks (self)
       (doc "disks, from IOKit: each IOBlockStorageDriver's Statistics dictionary (Operations, Bytes and Total Time, read and write, the times in nanoseconds), and the BSD Name, Major and Minor of the media under it. A driver with no media, an empty reader, is left out. nil when IOKit will not load."
-        (returns LIST "Disk records"))
+        (returns LIST "Disk records")
+        (sample "(Assoc get 'name (first (Host %darwin-disks)))" "\"disk0\", on Darwin"))
       (def h ((prim-ref (lit ffi) (lit dlopen)) "/System/Library/Frameworks/IOKit.framework/IOKit" 1))
       (if (not h) ()
         (let ((call (prim-ref (lit ptr) (lit call))) (dlsym (prim-ref (lit ffi) (lit dlsym))))
@@ -590,7 +677,8 @@
 
     (method %interface-record (self (param name STRING "Interface name") (param v LIST "The sixteen totals, in interfaces' order"))
       (doc "The interface record for a name and its totals."
-        (returns ALIST "The interface record"))
+        (returns ALIST "The interface record")
+        (example "(Assoc get 'tx-bytes (Host %interface-record \"lo\" (list 1 2 3 4 5 6 7 8 900)))" "900"))
       (def go (fn (self ks vs) (if (null? ks) () (pair (pair (first ks) (if (null? vs) () (first vs))) (self (rest ks) (if (null? vs) () (rest vs)))))))
       (pair (pair (lit name) name)
         (go (lit (rx-bytes rx-packets rx-errors rx-dropped rx-fifo rx-frame rx-compressed rx-multicast
@@ -599,7 +687,8 @@
 
     (method %linux-interfaces (self)
       (doc "interfaces, from /proc/net/dev: two header lines, then NAME: and sixteen totals, received then sent. The first total may follow the colon with no space."
-        (returns LIST "Interface records"))
+        (returns LIST "Interface records")
+        (sample "(Assoc get 'name (first (Host %linux-interfaces)))" "\"lo\", on Linux"))
       (def one
         (fn (_ l)
           (def colon (Str8 index-of ":" l))
@@ -612,7 +701,8 @@
 
     (method %darwin-interfaces (self)
       (doc "interfaces, as netstat -i reads them: the indexes from the RTM_IFINFO2 messages of sysctl CTL_NET PF_ROUTE 0 0 NET_RT_IFLIST2 0, then each interface's struct ifmibdata from CTL_NET PF_LINK NETLINK_GENERIC IFMIB_IFDATA INDEX IFDATA_GENERAL. The routing messages' own if_data64 counts bytes in 32 bits for a user without privileges; the ifmibdata's counts are whole."
-        (returns LIST "Interface records"))
+        (returns LIST "Interface records")
+        (sample "(Assoc get 'name (first (Host %darwin-interfaces)))" "\"lo0\", on Darwin"))
       (def r (Host %sysctl-mib (list 4 17 0 0 6 0) ()))
       ; ifmibdata: the name at 0, snd_drops at 32, if_data64 at 52; in that,
       ; the 64-bit counts from ipackets at 24
@@ -663,7 +753,9 @@
 
     (method %cpu-record (self (param ticks LIST "Tick counts in /proc/stat's order; fewer than ten leave the rest nil"))
       (doc "A cpu record from clock ticks: user nice system idle iowait irq softirq steal guest guest-nice, in nanoseconds. guest and guest-nice are also counted in user and nice, as the kernel counts them."
-        (returns ALIST "The cpu record"))
+        (returns ALIST "The cpu record")
+        (example "(Assoc get 'user (Host %cpu-record (list (Host %hz))))" "1000000000")
+        (example "(null? (Assoc get 'idle (Host %cpu-record (list 1 2))))" "#t"))
       (def go
         (fn (self ks ts)
           (if (null? ks) ()
@@ -675,7 +767,8 @@
 
     (method %darwin-cpu-ticks (self)
       (doc "host_processor_info's PROCESSOR_CPU_LOAD_INFO ticks for each processor, in cpu's order: user, nice, system, idle. The kernel hands back an array it allocated, which is returned to it with vm_deallocate."
-        (returns LIST "Four tick counts a processor"))
+        (returns LIST "Four tick counts a processor")
+        (sample "(first (Host %darwin-cpu-ticks))" "(1206744 0 712934 9847120), on Darwin"))
       (def ref (prim-ref (lit ptr) (lit ref)))
       (def cvt (prim-ref (lit convert) (lit to)))
       (def pointer-type (first (rest (Host %types))))
@@ -699,7 +792,8 @@
 
     (method %darwin-ticks (self)
       (doc "HOST_CPU_LOAD_INFO's ticks, in cpu's order: user, nice, system, idle."
-        (returns LIST "Four tick counts"))
+        (returns LIST "Four tick counts")
+        (sample "(Host %darwin-ticks)" "(9654340 0 5703912 78776960), on Darwin"))
       (def b (Host %buf 16))
       (def count (Host %buf 8))
       ((prim-ref (lit ptr) (lit set-word!)) (Host %ptr count) 0 4)
@@ -756,7 +850,8 @@
 
     (method %darwin-threads (self (param pid INTEGER "Process ID"))
       (doc "threads, from proc_pidinfo: PROC_PIDLISTTHREADIDS for the ids, then PROC_PIDTHREADID64INFO for each thread's struct proc_threadinfo."
-        (returns ANY "LIST of thread records, or nil"))
+        (returns ANY "LIST of thread records, or nil")
+        (sample "(List length (Host %darwin-threads (Sys getpid)))" "1, on Darwin"))
       ; the context's primitives and the int doors, as %darwin-maps reads: a
       ; class call a field cost a thread hundreds of thousands of objects
       (def c (Host %darwin-ctx))
@@ -821,13 +916,15 @@
 
     (method %maps-record (self (param v LIST "mapped-ro mapped-rw stack shared-clean shared-dirty private-clean private-dirty, bytes"))
       (doc "The maps record for seven sums in its order."
-        (returns ALIST "The maps record"))
+        (returns ALIST "The maps record")
+        (example "(Assoc get 'stack (Host %maps-record (list 1 2 3 4 5 6 7)))" "3"))
       (def go (fn (self ks vs) (if (null? ks) () (pair (pair (first ks) (first vs)) (self (rest ks) (rest vs))))))
       (go (lit (mapped-ro mapped-rw stack shared-clean shared-dirty private-clean private-dirty)) v))
 
     (method %linux-maps (self (param pid INTEGER "Process ID"))
       (doc "maps, from /proc/PID/smaps, read a line at a time, BusyBox's procps_read_smaps over the same lines."
-        (returns ANY "The maps record, or nil"))
+        (returns ANY "The maps record, or nil")
+        (sample "(< 0 (Assoc get 'mapped-ro (Host %linux-maps (Sys getpid))))" "#t, on Linux"))
       ; the byte primitives and the int doors: a Str8 or class call on each of
       ; thousands of lines cost a process millions of objects
       (def len (prim-ref (lit str) (lit byte-len)))
@@ -893,7 +990,8 @@
 
     (method %darwin-maps (self (param pid INTEGER "Process ID"))
       (doc "maps, from proc_pidinfo's PROC_PIDREGIONINFO, one struct proc_regioninfo a region from address 0 up."
-        (returns ANY "The maps record, or nil"))
+        (returns ANY "The maps record, or nil")
+        (sample "(< 0 (Assoc get 'mapped-ro (Host %darwin-maps (Sys getpid))))" "#t, on Darwin"))
       ; straight off the context's primitives and the int doors: a class call
       ; a field cost a region thousands of objects, and a process has hundreds
       ; of regions
@@ -957,7 +1055,9 @@
                                (param type ANY "SYMBOL, or nil") (param name ANY "STRING, or nil")
                                (param id ANY "INTEGER, or nil") (param inet LIST "proto family port fields, or nil"))
       (doc "The files record for one thing a process has open."
-        (returns ALIST "The record"))
+        (returns ALIST "The record")
+        (example "(Assoc get 'fd (Host %file-record 'fd 3 () () 'pipe () 7 ()))" "3")
+        (example "(Assoc get 'id (Host %file-record 'fd 3 () () 'pipe () 7 ()))" "7"))
       (pair (pair (lit use) use)
         (pair (pair (lit fd) fd)
           (pair (pair (lit dev) dev)
@@ -967,7 +1067,9 @@
 
     (method %file-set (self)
       (doc "A set of files by device and inode, for a walk that meets the same file many times: answers (seen? dev ino), #t when the pair was already given and #f the first time, when it is added. The pairs sit in one zeroed region of 16-byte slots, opened by address: a list scanned per region made a walk over Firefox's 7,000 regions and 2,000 files quadratic. A table holding 16,384 files answers #f for any more."
-        (returns CALLABLE "(seen? dev ino)"))
+        (returns CALLABLE "(seen? dev ino)")
+        (example "((fn (_ seen?) (seen? 1 2)) (Host %file-set))" "#f")
+        (example "((fn (_ seen?) (seen? 1 2) (seen? 1 2)) (Host %file-set))" "#t"))
       (def slots 16384)
       (def b (Host %buf (* 16 slots)))
       (Host %call "memset" (Host %ptr b) 0 (* 16 slots))
@@ -996,15 +1098,20 @@
         (probe (i& (i+ ino (i>> ino 14)) mask) slots)))
 
     (method %dev-ino (self (param path STRING "A path, followed through links"))
-      (doc "The device and inode stat(2) reports for path, or nil when it cannot be stat'd. The inode is at 8 in every platform's struct; the device is the word before it, 4 bytes on Darwin and 8 on Linux."
-        (returns ANY "PAIR (dev . ino), or nil"))
+      (doc "The device and inode stat(2) reports for path, or nil when it cannot be stat'd, read where the platform's stat layout puts them."
+        (returns ANY "PAIR (dev . ino), or nil")
+        (example "(null? (Host %dev-ino \"/nonexistent/file\"))" "#t")
+        (sample "(Host %dev-ino \"/\")" "(16777233 . 2)"))
       (def b (Host %buf 160))
-      (if (< ((syscall-door (if os-darwin? (lit stat64) (lit stat))) path b) 0) ()
-        (pair (Host %int-at b 0 (if os-darwin? 4 8)) (Host %int-at b 8 8))))
+      (if (< (%stat-door path b) 0) ()
+        (let ((d (%dev-ino-read b 0)))
+          (pair (Assoc get (lit dev) d) (Assoc get (lit ino) d)))))
 
     (method %linux-dev (self (param s STRING "MAJ:MIN in hexadecimal, as /proc/PID/maps writes it"))
       (doc "The device number this platform's makedev packs from a major and minor, so a maps line compares equal to stat(2)'s dev for the same file: glibc's on Linux, major << 24 | minor on Darwin, where a spec runs the Linux reader over a fixture."
-        (returns INTEGER "The device"))
+        (returns INTEGER "The device")
+        (example "(Host %maps-dev (Host %linux-dev \"08:01\"))" "\"08:01\"")
+        (sample "(Host %linux-dev \"08:01\")" "2049 on Linux, 134217729 on Darwin"))
       (def colon (Str8 index-of ":" s))
       (def maj (Host %hex s))
       (def min (Host %hex (Str8 sub (+ colon 1) (Str8 length s) s)))
@@ -1014,7 +1121,8 @@
 
     (method %linux-sockets (self)
       (doc "The internet sockets /proc/net lists, by inode: an alist from each inode to its proto, family and local port, from tcp, udp, raw and icmp and their 6 twins. A table the kernel does not have is skipped."
-        (returns ALIST "inode -> (proto family port) fields"))
+        (returns ALIST "inode -> (proto family port) fields")
+        (sample "(Assoc get 'port (Assoc get 21734 (Host %linux-sockets)))" "22, sshd's listening socket, on Linux"))
       ; sl local_address rem_address st queues tr tm->when retrnsmt uid timeout inode
       (def table
         (fn (_ name proto family acc)
@@ -1037,7 +1145,8 @@
 
     (method %linux-files (self (param pid INTEGER "Process ID") (param uses LIST "The uses to read"))
       (doc "files, from the /proc/PID cwd, root, exe and fd links and the maps lines: a link to a path is a file; any other spells its type before a colon and, for a socket or pipe, its inode between brackets. dev and ino are stat(2)'s through the link."
-        (returns ANY "LIST of file records, or nil"))
+        (returns ANY "LIST of file records, or nil")
+        (sample "(Assoc get 'use (first (Host %linux-files (Sys getpid) (list 'cwd))))" "cwd, on Linux"))
       (def dir (Str8 append (Host proc-root) "/" (Str8 str pid)))
       (def on? (fn (_ u) (List includes? u uses)))
       ; a link's record; socks is the /proc/net table, read once a process
@@ -1098,7 +1207,8 @@
 
     (method %darwin-files (self (param pid INTEGER "Process ID") (param uses LIST "The uses to read"))
       (doc "files: proc_pidinfo's PROC_PIDVNODEPATHINFO for the current and root directories, proc_pidpath for the executable, PROC_PIDLISTFDS for the descriptors, a struct proc_fdinfo (fd, type) each, then proc_pidfdinfo for a file's struct vnode_fdinfowithpath or a socket's struct socket_fdinfo or a pipe's struct pipe_fdinfo, and PROC_PIDREGIONPATHINFO's regions from address 0 up for the mapped files."
-        (returns ANY "LIST of file records, or nil"))
+        (returns ANY "LIST of file records, or nil")
+        (sample "(Assoc get 'use (first (Host %darwin-files (Sys getpid) (list 'cwd))))" "cwd, on Darwin"))
       ; straight off the context's primitives and the int doors, with no class
       ; call a record and a path read only for a file not already seen: a
       ; process can hold thousands of descriptors and map a few hundred files
@@ -1237,7 +1347,8 @@
 
     (method %darwin-holders (self (param path STRING "A path that stats") (param whole BOOL "Its file system rather than the path"))
       (doc "holders, from proc_listpidspath over PROC_ALL_PIDS: the kernel walks each process's descriptors, directories, text and mappings. The buffer has room for the process table proc_listpids reports, and a few hundred more."
-        (returns LIST "Pids"))
+        (returns LIST "Pids")
+        (sample "(List includes? (Sys getpid) (Host %darwin-holders \".\" #f))" "#t, on Darwin"))
       (def ref (prim-ref (lit ptr) (lit ref)))
       (def want (Host %call "proc_listpids" 1 0 0 0))
       (def size (+ (if (< want 0) 0 want) 1024))
@@ -1249,7 +1360,8 @@
 
     (method %linux-holders (self (param path STRING "A path that stats") (param whole BOOL "Its file system rather than the path"))
       (doc "holders, from each /proc/PID: the cwd, root and exe links and the fd links stat'd, then the maps text searched for the path's ` MAJ:MIN INODE ` (or with whole, ` MAJ:MIN `) as the kernel prints it, one strstr over the file. A process is read only as far as its first match."
-        (returns LIST "Pids"))
+        (returns LIST "Pids")
+        (sample "(List includes? (Sys getpid) (Host %linux-holders \".\" #f))" "#t, on Linux"))
       (def id (Host %dev-ino path))
       (def root (Host proc-root))
       (def hit?
@@ -1271,14 +1383,18 @@
 
     (method %maps-dev (self (param dev INTEGER "A device number, as stat(2) reports it"))
       (doc "The device as /proc/PID/maps prints it, MAJ:MIN in lower-case hexadecimal, two digits at least: %linux-dev read backwards, in this platform's encoding."
-        (returns STRING "MAJ:MIN"))
+        (returns STRING "MAJ:MIN")
+        (example "(Host %maps-dev (Host %linux-dev \"fd:1a\"))" "\"fd:1a\"")
+        (sample "(Host %maps-dev 2049)" "\"08:01\" on Linux"))
       ; the int doors: a caller's dialect may read / as the tower's division
       (def i/ (prim-ref (lit int) (lit /)))
       (def i& (prim-ref (lit int) (lit &)))
       (def i+ (prim-ref (lit int) (lit +)))
       (def i- (prim-ref (lit int) (lit -)))
       (def i< (prim-ref (lit int) (lit <)))
-      (def maj (if os-darwin? (i/ dev 16777216) (i+ (i& (i/ dev 256) 4095) (i- (i/ dev 4294967296) (i& (i/ dev 4294967296) 4095)))))
+      ; glibc's major takes the word's bits from 32 up; a 4-byte word has none
+      (def hi (if (< %word-size 8) 0 (let ((h (i/ dev (<< 65536 16)))) (i- h (i& h 4095)))))
+      (def maj (if os-darwin? (i/ dev 16777216) (i+ (i& (i/ dev 256) 4095) hi)))
       (def min (if os-darwin? (i& dev 16777215) (i+ (i& dev 255) (i- (i/ dev 4096) (i& (i/ dev 4096) 255)))))
       (def digits "0123456789abcdef")
       (def hex
@@ -1295,13 +1411,15 @@
 
     (method %region-record (self (param v LIST "start size mode name pss private-dirty swap"))
       (doc "The region record for seven fields in its order."
-        (returns ALIST "The region record"))
+        (returns ALIST "The region record")
+        (example "(Assoc get 'mode (Host %region-record (list 4096 8192 \"r-xp\" \"/bin/sh\" 0 0 0)))" "\"r-xp\""))
       (def go (fn (self ks vs) (if (null? ks) () (pair (pair (first ks) (first vs)) (self (rest ks) (rest vs))))))
       (go (lit (start size mode name pss private-dirty swap)) v))
 
     (method %linux-regions (self (param pid INTEGER "Process ID"))
       (doc "regions, from /proc/PID/smaps, read a line at a time, BusyBox's pmap over the same lines."
-        (returns ANY "LIST of region records, or nil"))
+        (returns ANY "LIST of region records, or nil")
+        (sample "(Assoc get 'mode (first (Host %linux-regions (Sys getpid))))" "\"r--p\", on Linux"))
       ; the byte primitives and the int doors, as %linux-maps reads
       (def len (prim-ref (lit str) (lit byte-len)))
       (def sub (prim-ref (lit str) (lit byte-sub)))
@@ -1357,7 +1475,8 @@
 
     (method %darwin-regions (self (param pid INTEGER "Process ID"))
       (doc "regions, from proc_pidinfo's PROC_PIDREGIONPATHINFO, one struct proc_regionwithpathinfo a region from address 0 up."
-        (returns ANY "LIST of region records, or nil"))
+        (returns ANY "LIST of region records, or nil")
+        (sample "(Assoc get 'mode (first (Host %darwin-regions (Sys getpid))))" "\"r-xp\", on Darwin"))
       ; the context's primitives and the int doors, as %darwin-maps reads
       (def c (Host %darwin-ctx))
       (def ref (first c))
@@ -1404,12 +1523,14 @@
 
     (method %linux-btime (self)
       (doc "The boot time /proc/stat records, the base of a process's start time."
-        (returns INTEGER "Unix seconds"))
+        (returns INTEGER "Unix seconds")
+        (sample "(Host %linux-btime)" "1790652922, on Linux"))
       (Host %line-value (Host %lines "stat") "btime"))
 
     (method %linux-processes (self)
       (doc "processes, from /proc/PID/stat; a process that exits mid-walk is left out."
-        (returns LIST "Process records"))
+        (returns LIST "Process records")
+        (sample "(Assoc get 'comm (first (Host %linux-processes)))" "\"init\", on Linux"))
       (def btime (Host %linux-btime))
       (def pids (List filter (fn (_ name) (not (null? (Host %int name))))
                   (File list-dir (Host proc-root))))
@@ -1417,13 +1538,15 @@
 
     (method %linux-record (self (param btime INTEGER "Boot time, unix seconds") (param name STRING "The pid, as its /proc directory is named"))
       (doc "One process's record from /proc/PID/stat, or nil when it is gone."
-        (returns ANY "A process record, or nil"))
+        (returns ANY "A process record, or nil")
+        (sample "(Assoc get 'comm (Host %linux-record (Host %linux-btime) \"1\"))" "\"init\", on Linux"))
       (Host %linux-record-at btime (Str8 append (Host proc-root) "/" name) (Host %int name)))
 
     (method %linux-record-at (self (param btime INTEGER "Boot time, unix seconds") (param dir STRING "A /proc/PID or /proc/PID/task/TID directory")
                                    (param id INTEGER "The pid or thread id the directory is named for"))
       (doc "A record from a directory's stat file, or nil when it is gone. comm is read between the first ( and the last ), since a name may hold either. A field past the end of a short line is nil."
-        (returns ANY "A process record, or nil"))
+        (returns ANY "A process record, or nil")
+        (sample "(Assoc get 'pid (Host %linux-record-at (Host %linux-btime) \"/proc/1/task/1\" 1))" "1, on Linux"))
       (def s (Host %read (Str8 append dir "/stat")))
       (if (null? s) ()
         (let ((open (Str8 index-of "(" s)) (close (Str8 last-index-of ")" s)))
@@ -1459,15 +1582,18 @@
 
     (method %owner (self (param path STRING "A /proc/PID directory"))
       (doc "The uid and gid owning a path, as BusyBox's ps reads a process's user and group."
-        (returns ANY "PAIR (uid . gid), or nil"))
+        (returns ANY "PAIR (uid . gid), or nil")
+        (example "(null? (Host %owner \"/nonexistent/file\"))" "#t")
+        (sample "(Host %owner \"/\")" "(0 . 0)"))
       (def b (Host %buf 160))
-      (if (< ((syscall-door (if os-darwin? (lit stat64) (lit stat))) path b) 0) ()
+      (if (< (%stat-door path b) 0) ()
         (let ((st (Struct unpack stat-layout b)))
           (pair (Assoc get (lit uid) st) (Assoc get (lit gid) st)))))
 
     (method %real-ids (self (param dir STRING "A /proc/PID directory"))
       (doc "The real uid and gid, the first number of /proc/PID/status's Uid: and Gid: lines, as BusyBox's ps reads ruser and rgroup."
-        (returns ANY "PAIR (ruid . rgid), or nil"))
+        (returns ANY "PAIR (ruid . rgid), or nil")
+        (sample "(Host %real-ids \"/proc/1\")" "(0 . 0), on Linux"))
       (def s (Host %read (Str8 append dir "/status")))
       ; found in place, not by splitting the file into lines: Uid: and Gid:
       ; are never the first line, and a record is read for every process
@@ -1492,7 +1618,8 @@
 
     (method %linux-args (self (param pid INTEGER "Process ID"))
       (doc "args, from /proc/PID/cmdline: the strings between its NUL bytes, split as each read lands, since a string holding a NUL cannot be carried whole."
-        (returns ANY "LIST of strings, or nil"))
+        (returns ANY "LIST of strings, or nil")
+        (sample "(Host %linux-args (Sys getpid))" "(\"x-bin\" \"--batch\"), on Linux"))
       (def fd (File open (Str8 append (Host proc-root) "/" (Str8 str pid) "/cmdline") (lit rdonly)))
       (if (< fd 0) ()
         (let ((buf (Host %buf 4096)) (at (prim-ref (lit str) (lit byte-ref))))
@@ -1518,7 +1645,8 @@
                              (param from INTEGER "Where to start") (param end INTEGER "Where to stop")
                              (param most INTEGER "Most strings to take"))
       (doc "The first most NUL-terminated strings between from and end."
-        (returns LIST "Strings"))
+        (returns LIST "Strings")
+        (example "(Host %nul-split (bytes->str (list 97 0 98 99 0 100 0)) 0 7 2)" "(\"a\" \"bc\")"))
       (def go
         (fn (self i k acc)
           (if (if (>= i end) #t (>= k most)) (List reverse acc)
@@ -1528,7 +1656,8 @@
 
     (method %sysctl-mib (self (param mib LIST "The name as integers") (param n ANY "Buffer size, or nil to ask the kernel how much the value needs"))
       (doc "A sysctl value by numeric name, as (region . length), or nil when the kernel refuses or answers nothing (no such process). With no size, the kernel is asked first, so the region is as large as the value and no larger."
-        (returns ANY "PAIR (region . length), or nil"))
+        (returns ANY "PAIR (region . length), or nil")
+        (sample "(rest (Host %sysctl-mib (list 6 3) 4))" "4, hw.ncpu's four bytes, on Darwin"))
       (def set (prim-ref (lit ptr) (lit set!)))
       (def set-word (prim-ref (lit ptr) (lit set-word!)))
       (def words ((fn (self l n) (if (null? l) n (self (rest l) (+ n 1)))) mib 0))
@@ -1550,7 +1679,8 @@
 
     (method %darwin-processes (self)
       (doc "processes, from kern.proc.all and proc_pidinfo. The table is asked for its size first and given room for a few more processes, since it can grow between the two calls."
-        (returns LIST "Process records"))
+        (returns LIST "Process records")
+        (sample "(List length (Host %darwin-processes))" "772, on Darwin"))
       (def need (+ (Host %sysctl-size "kern.proc.all") (* 64 648)))
       (def len (Host %buf 8))
       (def b (Host %buf need))
@@ -1562,7 +1692,8 @@
 
     (method %darwin-ctx (self)
       (doc "What reading Darwin's process records needs, fetched once a process rather than once a field: the pointer and conversion primitives, the type handles, proc_pidinfo, getsid and sysctl resolved, and the Mach timebase. Cached in ctx; the image recache hook clears it, since a resolved symbol is a fact of the process that resolved it."
-        (returns LIST "(ref call make ->ptr proc_pidinfo getsid numer denom sysctl set! cvt string-type pointer-type integer-type byte-len byte-ref)"))
+        (returns LIST "(ref call make ->ptr proc_pidinfo getsid numer denom sysctl set! cvt string-type pointer-type integer-type byte-len byte-ref)")
+        (sample "(List length (Host %darwin-ctx))" "16, on Darwin"))
       (when (null? (Host ctx))
         (let ((ref (prim-ref (lit ptr) (lit ref)))
               (call (prim-ref (lit ptr) (lit call)))
@@ -1583,7 +1714,8 @@
     (method %darwin-record (self (param b STRING "kinfo_proc rows") (param o INTEGER "This row's offset")
                                  (param ctx LIST "What %darwin-ctx answers"))
       (doc "One process's record from its kinfo_proc row, with proc_pidinfo's task info where the kernel gives it. state is Z or T from p_stat (SZOMB, SSTOP); otherwise p_stat reads SRUN for nearly every process, so R or S comes from the task info's running-thread count, as Darwin's ps decides it, and is nil where the task info is refused."
-        (returns ALIST "A process record"))
+        (returns ALIST "A process record")
+        (sample "(Assoc get 'comm (Host process 1))" "\"launchd\": process reads its row through this, on Darwin"))
       ; every field a ptr ref at its offset: a class call a field cost a
       ; record hundreds of thousands of objects
       (def ref (first ctx))
@@ -1633,7 +1765,8 @@
 
     (method %darwin-args (self (param pid INTEGER "Process ID"))
       (doc "args, from kern.procargs2: argc, the executable's path, padding NULs, then the argc strings."
-        (returns ANY "LIST of strings, or nil"))
+        (returns ANY "LIST of strings, or nil")
+        (sample "(Host %darwin-args (Sys getpid))" "(\"x-bin\" \"--batch\"), on Darwin"))
       ; straight off the context's primitives: ps reads this for every
       ; process, and a class call a step cost each read tens of thousands
       ; of objects

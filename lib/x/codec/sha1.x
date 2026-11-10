@@ -22,22 +22,26 @@
 (import x/core/doors char->int int* int+ int- obj-ref obj-set! str-byte-ref)
 (def %cvt (prim-ref (lit convert) (lit to)))
 (def %string-type (Type named STRING))
-(def %mask 4294967295)
+(def %mask 0xFFFFFFFF)
 
 ; 67452301 efcdab89 98badcfe 10325476 c3d2e1f0 (5.3.1)
-(def %ih (list 1732584193 4023233417 2562383102 271733878 3285377520))
+(def %ih (list 1732584193 0xEFCDAB89 0x98BADCFE 271733878 0xC3D2E1F0))
 
-(def %rotl (fn (_ x n) (& (| (<< x n) (>> x (int- 32 n))) %mask)))
+; `>>` is arithmetic: the right shift keeps its low n bits, the logical
+; shift on a 4-byte word as on an 8-byte one.
+(def %rotl (fn (_ x n) (& (| (<< x n) (& (>> x (int- 32 n)) (int- (<< 1 n) 1))) %mask)))
 
 ; Byte i of the padded message: the message; then 0x80; then zeros; then
-; the bit length, big-endian in the last 8 bytes.
+; the bit length, big-endian in the last 8 bytes; a byte past the word is
+; zero.
 (def %byte
   (fn (_ s len total i)
     (match
       ((< i len) (char->int (str-byte-ref s i)))
       ((= i len) 128)
       ((< i (int- total 8)) 0)
-      (#t (& (>> (int* len 8) (<< (int- (int- total 1) i) 3)) 255)))))
+      (#t ((fn (_ sh) (if (< sh (int* 8 %word-size)) (& (>> (int* len 8) sh) 255) 0))
+           (<< (int- (int- total 1) i) 3))))))
 
 (def %word
   (fn (_ s len total base)
@@ -79,8 +83,8 @@
     (match
       ((< t 20) 1518500249)
       ((< t 40) 1859775393)
-      ((< t 60) 2400959708)
-      (#t 3395469782))))
+      ((< t 60) 0x8F1BBCDC)
+      (#t 0xCA62C1D6))))
 
 (def %rounds
   (fn (self w t a b c d e)
@@ -121,7 +125,12 @@
     (def len (match ((null? n) (Str8 length s)) (#t (first n))))
     (%blocks s len (<< (int+ (>> (int+ len 8) 6) 1) 6) 0 (Vector make 80 0) %ih)))
 
-(def %hex8 (fn (_ wd) (Str pad-left 8 #\0 (%cvt wd %string-type 16))))
+; A word's 32 bits as eight hex digits, sixteen bits at a time: on a 4-byte
+; word one with its top bit set is negative, which the converter signs.
+(def %hex8
+  (fn (_ wd)
+    (Str8 append (Str pad-left 4 #\0 (%cvt (& (>> wd 16) 65535) %string-type 16))
+                 (Str pad-left 4 #\0 (%cvt (& wd 65535) %string-type 16)))))
 
 (def %hex (fn (_ hs) (Str8 join "" (List map %hex8 hs))))
 

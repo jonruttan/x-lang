@@ -58,7 +58,8 @@ a8061dc1305136c6c22b8baf0c0127a9
 ### the engine agrees with pure-x on every way a message can end
 
 The pure-x side is the module's own block loop, read through its
-environment and run through the class's own finish; the lengths cover a
+environment and run through the class's own finish, on the limbs the
+word takes (five of 26 bits, or thirteen of 10); the lengths cover a
 short message, a block, one over, a run longer than one entry's 128
 blocks, and the on-its-own threshold, where mac builds the engine itself.
 
@@ -68,18 +69,19 @@ blocks, and the on-its-own threshold, where mac builds the engine itself.
   (import x/codec/poly1305)
   (import x/type/vector)
   (Poly1305 jit!)
+  (def %pp-narrow (eval (lit %narrow) (module x/codec/poly1305)))
   (def %pp-blocks (eval (lit %blocks!) (module x/codec/poly1305)))
-  (def %pp-rv (eval (lit %r-vector) (module x/codec/poly1305)))
+  (def %pp-rv (eval (if %pp-narrow (lit %r-narrow) (lit %r-vector)) (module x/codec/poly1305)))
   (def %pp-tail (eval (lit %tail) (module x/codec/poly1305)))
-  (def %pp-finish (eval (lit %finish) (module x/codec/poly1305)))
+  (def %pp-finish (eval (if %pp-narrow (lit %finish-narrow) (lit %finish)) (module x/codec/poly1305)))
   (def %pp-k (Hex decode "85d6be7857556d337f4452fe42d506a80103808afb0db2fd4abff6af4149f51b"))
   (def %pp-in (Str8 pad-right 5000 #\q "z"))
   (def %pp-pure
     (fn (_ n)
-      (def h (Vector make 5 0))
+      (def h (Vector make (if %pp-narrow 13 5) 0))
       (def rv (%pp-rv %pp-k))
       (def whole (<< (>> n 4) 4))
-      (%pp-blocks h rv %pp-in 0 whole 16777216)
+      (%pp-blocks h rv %pp-in 0 whole (if %pp-narrow 256 16777216))
       (unless (= whole n) (%pp-blocks h rv (%pp-tail %pp-in whole (- n whole)) 0 16 0))
       (Hex encode (%pp-finish h %pp-k))))
   (def %pp-agree

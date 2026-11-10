@@ -125,11 +125,13 @@ The plan is keyed by the rules and `%plan-version`, not by the states' forms:
 a change to how states are made -- a form, a free variable's name or value,
 a state added or dropped -- replays an old plan over new rules unless the
 version moves.  This digest is of every state's key text (its identity
-prefix off) and the plan, for the first rule list: when it changes, bump
+prefix off) and the plan, for the first rule list, as a CRC-32, which is the
+same value on any word: when it changes, bump
 `%plan-version` in lib/x/reader/lexer.x and set the new digest here.
 
 ```x
 (do
+  (import x/codec/crc32)
   (def %lp-key (Str append "lexer:" (%number->str (Lexer %plan-version)) ":"
                  ((prim-ref (lit io) (lit write-to-str)) (pair " " %lp-rules))))
   (def %lp-held ((prim-ref (lit compile) (lit asm-cache-group)) %lp-key
@@ -141,11 +143,11 @@ prefix off) and the plan, for the first rule list: when it changes, bump
   (def %lp-texts ((fn (self l acc) (if (null? l) acc (self (rest l) (pair (%lp-strip (first l)) acc)))) (first %lp-held) ()))
   (Sys unsetenv "X_ASM_CACHE_DIR")
   (write (list (List length %lp-texts) (str? (rest %lp-held))
-               (Hash fnv-1a (Str append (Str8 join "\n" %lp-texts) "\n" (rest %lp-held)))))
+               (Crc32 of (Str append (Str8 join "\n" %lp-texts) "\n" (rest %lp-held)))))
   (newline))
 ```
 ---
-    (42 #t -2842649399382787802)
+    (42 #t 576075713)
 
 ### the plan's text reads back as the plan, and text that is not one is no plan
 

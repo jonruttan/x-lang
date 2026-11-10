@@ -514,46 +514,47 @@
 LONG_MIN has no positive counterpart in the word, so a raw negation hands it
 back unchanged.  As a divisor or a denominator it came out with the wrong
 sign, and a denominator stayed negative.  The value comes from the bitwise
-door rather than a literal.
+door rather than a literal, and each answer is checked against `%bw-big`,
+its magnitude built by `expt` (tests/x/lib/word-edges.x).
 
 ### dividing by -1 promotes
 
 ```x
-(/ (<< 1 63) -1)
+(= (/ %bw-min -1) %bw-big)
 ```
 ---
-    9223372036854775808
+    #t
 
 ### a quotient by a negative is positive
 
 ```x
-(/ (<< 1 63) -3)
+(= (/ %bw-min -3) (/ %bw-big 3))
 ```
 ---
-    9223372036854775808/3
+    #t
 
 ### as a denominator the sign moves to the numerator
 
 ```x
-(list (/ 1 (<< 1 63)) (/ -1 (<< 1 63)))
+(list (= (/ 1 %bw-min) (/ -1 %bw-big)) (= (/ -1 %bw-min) (/ 1 %bw-big)))
 ```
 ---
-    (-1/9223372036854775808 1/9223372036854775808)
+    (#t #t)
 
 ### that rational does arithmetic
 
 ```x
-(list (+ (/ 1 (<< 1 63)) (/ 1 (<< 1 63)))
-      (* (/ 1 (<< 1 63)) (<< 1 63))
-      (- (/ 1 (<< 1 63))))
+(list (= (+ (/ 1 %bw-min) (/ 1 %bw-min)) (/ -2 %bw-big))
+      (= (* (/ 1 %bw-min) %bw-min) 1)
+      (= (- (/ 1 %bw-min)) (/ 1 %bw-big)))
 ```
 ---
-    (-1/4611686018427387904 1 1/9223372036854775808)
+    (#t #t #t)
 
 ### a remainder whose cross products divide by -1
 
 ```x
-(% -4611686018427387904 -1/2)
+(% (/ %bw-min 2) -1/2)
 ```
 ---
     0
@@ -561,10 +562,10 @@ door rather than a literal.
 ### its remainder by -1 is 0, and its quotient promotes through Num too
 
 ```x
-(list (% (<< 1 63) -1) (Num quotient (<< 1 63) -1))
+(list (% %bw-min -1) (= (Num quotient %bw-min -1) %bw-big))
 ```
 ---
-    (0 9223372036854775808)
+    (0 #t)
 
 ## a zero divisor raises before the machine divides (regression: x86 trapped)
 
@@ -575,7 +576,7 @@ and arm64 answered, so `(/ 0 0)` and a bigint over 0 came out as 0.
 
 ```x
 (list (guard (e (lit R)) (/ 1 0)) (guard (e (lit R)) (/ 0 0))
-      (guard (e (lit R)) (/ (<< 1 63) 0))
+      (guard (e (lit R)) (/ %bw-min 0))
       (guard (e (lit R)) (/ 100000000000000000000 0))
       (guard (e (lit R)) (/ 6 3 0)))
 ```

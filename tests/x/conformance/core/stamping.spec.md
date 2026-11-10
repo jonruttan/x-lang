@@ -27,9 +27,9 @@ host's.
 (def %same-w (fn (_ x y i) (eq? (%prw (%o2p x) i) (%prw (%o2p y) i))))
 (def %tslot
   (fn (self i)
-    (match ((eq? i 48) (error "type-word-not-found"))
+    (match ((eq? i (* 6 %param-word-size)) (error "type-word-not-found"))
            ((match ((%same-w a c i) (match ((%same-w a "zz" i) #f) (#t #t))) (#t #f)) i)
-           (#t (self (+ i 8))))))
+           (#t (self (+ i %param-word-size))))))
 (def ts (%tslot 0))
 (def %tw (fn (_ o) (%prw (%o2p o) ts)))
 (def b (%bmake))
@@ -62,9 +62,9 @@ host's, and the child's in neither's parent.
 (def %same-w (fn (_ x y i) (eq? (%prw (%o2p x) i) (%prw (%o2p y) i))))
 (def %tslot
   (fn (self i)
-    (match ((eq? i 48) (error "type-word-not-found"))
+    (match ((eq? i (* 6 %param-word-size)) (error "type-word-not-found"))
            ((match ((%same-w a c i) (match ((%same-w a "zz" i) #f) (#t #t))) (#t #f)) i)
-           (#t (self (+ i 8))))))
+           (#t (self (+ i %param-word-size))))))
 (def ts (%tslot 0))
 (def %tw (fn (_ o) (%prw (%o2p o) ts)))
 (def b (%bmake))

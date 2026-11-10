@@ -32,7 +32,13 @@
 (module x/codec/zlib)
 (import x/type/class)
 (import x/core/list)
+(import x/num/u32 u32 u32-bits)
 (import x/core/doors ffi-dlopen ffi-dlsym int->ptr ptr->int ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make)
+
+; A z_stream field's offset, field k counted in words, and its size: 112
+; bytes on LP64, 56 on a 4-byte word.
+(def %zs (fn (_ k) (* k %word-size)))
+(def %zs-size (%zs 14))
 
 (def-class Zlib ()
   (doc "Compression via the system zlib over the dlopen FFI: compress/decompress (zlib format, byte lists both ways), the gzip file doors gz-read-all/gz-write-all, and streams (deflater, inflater, step, end) that deflate and inflate buffers in place, with crc32."
@@ -131,10 +137,10 @@
 
     ; --- streams: deflate and inflate a buffer at a time ---------------------
     ; A stream is (KIND . REGION): KIND 'deflate or 'inflate, REGION a
-    ; (str make) block holding zlib's z_stream (112 bytes on LP64; zlib's own
-    ; state hangs off it, malloc'd, until end). The block never moves. Fields
-    ; written and read: next_in 0, avail_in 8 (u32), next_out 24, avail_out 32
-    ; (u32), msg 48.
+    ; (str make) block holding zlib's z_stream (fourteen words; zlib's own
+    ; state hangs off it, malloc'd, until end). The block never moves. Each
+    ; field takes a word, a u32 padded to one: written and read are next_in 0,
+    ; avail_in 1, next_out 3, avail_out 4 and msg 6, in words.
 
     ; windowBits for a format: zlib's header, gzip's, or none
     (method %window (self (param format SYMBOL "zlib, gzip or raw"))
@@ -157,18 +163,18 @@
                           (param args LIST "The init call's arguments after the stream"))
       (doc "A fresh z_stream block, initialised by the named libz call."
         (returns PAIR "(KIND . REGION)"))
-      (def region (str-make 112))
+      (def region (str-make %zs-size))
       (def p (str->ptr region))
       ; zalloc, zfree and opaque nil: zlib's malloc and free
       (let clear ((off 0))
-        (when (< off 112) (do (ptr-set-word! p off 0) (clear (+ off 8)))))
+        (when (< off %zs-size) (do (ptr-set-word! p off 0) (clear (+ off %word-size)))))
       (def version (ptr-call (Zlib %sym "zlibVersion")))
       (def r (Zlib %int (match
                           ((= (List length args) 1)
-                            (ptr-call (Zlib %sym init) p (first args) version 112))
+                            (ptr-call (Zlib %sym init) p (first args) version %zs-size))
                           (#t
                             (ptr-call (Zlib %sym init) p (first args) 8 (first (rest args)) 8 0
-                              version 112)))))
+                              version %zs-size)))))
       (when (not (= r 0))
         (Err raise (lit value) "Zlib: the stream could not be made" r))
       (pair kind region))
@@ -205,21 +211,21 @@
       (def p (str->ptr (rest s)))
       (def deflate? (eq? (first s) (lit deflate)))
       (ptr-set-word! p 0 (+ (ptr->int (str->ptr in)) off))
-      (ptr-set! p 8 n 4)
-      (ptr-set-word! p 24 (+ (ptr->int (str->ptr out)) at))
-      (ptr-set! p 32 room 4)
+      (ptr-set! p (%zs 1) n 4)
+      (ptr-set-word! p (%zs 3) (+ (ptr->int (str->ptr out)) at))
+      (ptr-set! p (%zs 4) room 4)
       ; Z_FINISH 4, else Z_NO_FLUSH 0
       (def r (Zlib %int (ptr-call (Zlib %sym (if deflate? "deflate" "inflate")) p
                           (if (if deflate? finish #f) 4 0))))
-      (def used (- n (& (ptr-ref p 8 4) 4294967295)))
-      (def made (- room (& (ptr-ref p 32 4) 4294967295)))
+      (def used (- n (& (ptr-ref p (%zs 1) 4) 0xFFFFFFFF)))
+      (def made (- room (& (ptr-ref p (%zs 4) 4) 0xFFFFFFFF)))
       (match
         ((= r 0) (list used made (lit ok)))
         ((= r 1) (list used made (lit end)))
         ; Z_BUF_ERROR: nothing could be done with what was given
         ((= r -5) (list used made (lit stuck)))
         (#t
-          (let ((msg (ptr-ref-word p 48)))
+          (let ((msg (ptr-ref-word p (%zs 6))))
             (Err raise (lit value)
               (if (= msg 0) "Zlib: zlib error"
                 (Str8 append "Zlib: " (ptr->str (int->ptr msg))))
@@ -238,7 +244,7 @@
       (doc "The CRC-32 (ISO 3309, as gzip and zip carry it) of CRC's data followed by N bytes of BUF."
         (returns INTEGER "The CRC, 0 to 4294967295")
         (example "(Zlib crc32 0 \"123456789\" 9)" "3421780262"))
-      (& (ptr-call (Zlib %sym "crc32") crc (str->ptr buf) n) 4294967295))
+      (u32 (ptr-call (Zlib %sym "crc32") (u32-bits crc) (str->ptr buf) n)))
 
     (method gz-read-all (self (param path STRING "A .gz file to read"))
       (doc "The whole decompressed content of a gzip file, as a byte list (gzopen/gzread in 64KB slabs). Raises a label 'io when the file cannot be opened; corrupt content raises a label 'value."

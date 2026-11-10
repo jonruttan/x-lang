@@ -175,6 +175,12 @@
   (returns INTEGER "a shifted right by n bits")
   (example "(image-int>> 256 4)" "16")
   "The engine's (int >>), which the number tower does not wrap.")
+(doc (def image-int/ (prim-ref (lit int) (lit /)))
+  (param a INTEGER "Dividend")
+  (param b INTEGER "Divisor")
+  (returns INTEGER "a divided by b, toward zero")
+  (example "(image-int/ -7 2)" "-3")
+  "The engine's (int /), which the number tower does not wrap.")
 (doc (def image-int< (prim-ref (lit int) (lit <)))
   (param a INTEGER "First operand")
   (param b INTEGER "Second operand")
@@ -317,6 +323,6 @@
   image-heap-off image-flags-off image-type-off
   image-obj->ptr image-ptr->obj image-int->ptr
   image-ref-word image-set-word! image-ptr->str image-byte-len
-  image-int+ image-int- image-int* image-int& image-int>> image-int<)
+  image-int+ image-int- image-int* image-int& image-int>> image-int/ image-int<)
   (sample "(image-walk-all cur (fn (_ p n) (image-int+ n 1)) 0)" "(n . n): every object on the chain from cur, counted")
   "The heap walk and the unit reader of the state-image tools.")

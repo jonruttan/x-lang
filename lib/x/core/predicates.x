@@ -32,8 +32,9 @@
 (def atom? (fn (_ x) (not (pair? x))))
 (def number? (fn (_ x) (%type? x %type-int)))
 ; real? and number? are extended in place by the number modules as they load
-; (float widens number?, complex narrows real?, decimal adds its own), which
-; is why both live here in the root and not in a module's own frame.
+; (bigint, rational, float, complex and decimal each widen number?, complex
+; narrows real?), which is why both live here in the root and not in a
+; module's own frame.
 (def real? (fn (_ x) (number? x)))
 (def str? (fn (_ x) (%type? x %type-str)))
 (def symbol? (fn (_ x) (%type? x %type-sym)))

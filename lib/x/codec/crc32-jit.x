@@ -33,6 +33,12 @@
 (def %M (fn (_ k) (list '%mem-ref 'a k)))
 (def %S (fn (_ k v) (list '%mem-set! 'a k v)))
 (def %MA (fn (_ e) (list '%mem-ref-at 'a e)))
+; The register shifted down a byte.  An 8-byte word holds it non-negative;
+; on a 4-byte word the arithmetic shift copies its top bit down, and the
+; mask clears the 8 bits that came in.
+(def %srl8
+  (fn (_ e)
+    (if (< %word-size 8) (list '& (list '>> e 8) 16777215) (list '>> e 8))))
 
 (def %cj-expr
   (list 'fn '(self a)
@@ -45,7 +51,7 @@
                  (list 'do
                    (%S %CC (list '^
                              (%MA (list '+ %CT (list '& (list '^ (%M %CC) (list '%mem-byte-ref-at (%M %CP) (%M %CI))) 255)))
-                             (list '>> (%M %CC) 8)))
+                             (%srl8 (%M %CC))))
                    (%S %CI (list '+ (%M %CI) 1)))
                  0)
                (self (+ j 1)))))
@@ -68,11 +74,11 @@
 (def crc32-jit-make
   (fn (_ table check)
     (def step (compile-asm %cj-expr))
-    (def buf (str-make (* 8 (+ %CT 256))))
+    (def buf (str-make (* %word-size (+ %CT 256))))
     (def ptr (str->ptr buf))
     (def addr (ptr->int ptr))
-    (def poke (fn (_ i v) (ptr-set-word! ptr (* i 8) v)))
-    (def peek (fn (_ i) (ptr-ref-word ptr (* i 8))))
+    (def poke (fn (_ i v) (ptr-set-word! ptr (* i %word-size) v)))
+    (def peek (fn (_ i) (ptr-ref-word ptr (* i %word-size))))
     ((fn (self i) (when (< i 256) (do (poke (+ %CT i) (obj-ref table (+ i 1))) (self (+ i 1))))) 0)
     (def fold
       (fn (_ p n c)
@@ -99,4 +105,4 @@
 (prim-reg! (lit crc32) (lit jit-make) crc32-jit-make)
 
 (doc (provide x/codec/crc32-jit crc32-jit-make)
-  "The compiled CRC-32 (JIT, ARM64 and x86-64 backends) behind (Crc32 jit!): one loop over the bytes, adopted only after it sums the check inputs as the pure-x fold does.")
+  "The compiled CRC-32 (JIT; ARM64, x86-64 and 32-bit ARM backends) behind (Crc32 jit!): one loop over the bytes, adopted only after it sums the check inputs as the pure-x fold does.")

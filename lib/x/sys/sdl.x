@@ -18,9 +18,13 @@
 ;   (Sdl show! win buf)         -> draw! then present!
 ;   (Sdl read-pixels win)       -> the drawn frame as an RGBA buffer
 ;   (Sdl poll)                  -> the next event, or nil
+;   (Sdl poll win)              -> the same, the mouse in the picture's pixels
 ;   (Sdl post-key! code)        -> queues a key-down event, as a key press
-;   (Sdl fullscreen! win on)    -> the window fullscreen on the desktop, or back
+;   (Sdl fullscreen! win on)    -> the window fullscreen on the desktop, or back,
+;                                  and raised
+;   (Sdl raise! win)            -> win, in front and given the keyboard
 ;   (Sdl buttons) (Sdl axes)    -> gamepad button and axis names
+;   (Sdl mouse-buttons)         -> mouse button names
 ;   (Sdl close win)             -> releases the window and SDL
 ;   (Sdl error)                 -> SDL's last error message
 ;   (Sdl audio-open rate chans) -> a playing stream of signed 16-bit frames
@@ -49,7 +53,7 @@
 (module x/sys/sdl)
 (import x/type/class)
 (import x/core/list)
-(import x/core/doors ffi-dlopen ffi-dlsym int->ptr ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make mem-copy)
+(import x/core/doors ffi-dlopen ffi-dlsym int->ptr int& int<< int= ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make mem-copy)
 
 (def-class Sdl ()
   (doc "A window that shows an RGBA pixel buffer, its keyboard and window events, and streams of sound, through the host's SDL3 loaded with dlopen."
@@ -66,6 +70,7 @@
     (%buttons (lit (south east west north back guide start left-stick right-stick
                     left-shoulder right-shoulder dpad-up dpad-down dpad-left dpad-right)))
     (%axes (lit (left-x left-y right-x right-y left-trigger right-trigger)))
+    (%mouse-buttons (lit (left middle right x1 x2)))
     (%rgba32 376840196)
     (%streaming 1)
     (%integer-scale 4)
@@ -126,7 +131,7 @@
       (def p (str->ptr region))
       (let go ((i 0))
         (when (< i n)
-          (do (ptr-set! p i 0 8) (go (+ i 8)))))
+          (do (ptr-set-word! p i 0) (go (+ i %word-size)))))
       region)
 
     (method load! (self (param path STRING "A libSDL3 file to try first"))
@@ -244,16 +249,26 @@
       (ptr-call (Sdl %sym "SDL_DestroySurface") s)
       out)
 
-    (method poll (self)
+    (method poll (self . (param win LIST "A window from open: the mouse's places in its picture's pixels"))
       (doc "The next queued event, or nil when the queue is empty."
         (note "A gamepad is opened when its pad-added arrives and closed at pad-removed; pads already connected at open arrive as pad-added too.")
-        (returns LIST|NIL "(key-down KEY MOD REPEAT), (key-up KEY MOD REPEAT), (pad-down BUTTON PAD), (pad-up BUTTON PAD), (pad-axis AXIS VALUE PAD), (pad-added PAD), (pad-removed PAD), (quit), (close) or (other TYPE)")
-        (sample "(Sdl poll)" "(key-down 97 0 #f)"))
+        (note "The mouse's X Y are in the window's pixels, or in the picture's when the window is given, whole and toward zero; a place in the bars beside the picture lies outside it, below 0 or past its size.")
+        (returns LIST|NIL "(key-down KEY MOD REPEAT), (key-up KEY MOD REPEAT), (mouse-down BUTTON X Y), (mouse-up BUTTON X Y), (mouse-motion X Y HELD), (pad-down BUTTON PAD), (pad-up BUTTON PAD), (pad-axis AXIS VALUE PAD), (pad-added PAD), (pad-removed PAD), (quit), (close) or (other TYPE)")
+        (sample "(Sdl poll)" "(key-down 97 0 #f)")
+        (sample "(Sdl poll win)" "(mouse-motion 120 64 (left))"))
       (def ev (Sdl %zeroed (Sdl %event-size)))
       (def p (str->ptr ev))
       (if (= (& (ptr-call (Sdl %sym "SDL_PollEvent") p) 255) 0) ()
         (let ((type (ptr-ref p 0 4)))
+          (do (when (if (null? win) #f (if (< 1023 type) (< type 1027) #f))
+                (ptr-call (Sdl %sym "SDL_ConvertEventToRenderCoordinates") (List ref 1 (first win)) p))
           (match
+            ((= type 1024) (list (lit mouse-motion) (Sdl %f32-int (ptr-ref p 28 4)) (Sdl %f32-int (ptr-ref p 32 4))
+                                 (Sdl %held (ptr-ref p 24 4))))
+            ((= type 1025) (list (lit mouse-down) (Sdl %name (Sdl %mouse-buttons) (- (ptr-ref p 24 1) 1))
+                                 (Sdl %f32-int (ptr-ref p 28 4)) (Sdl %f32-int (ptr-ref p 32 4))))
+            ((= type 1026) (list (lit mouse-up) (Sdl %name (Sdl %mouse-buttons) (- (ptr-ref p 24 1) 1))
+                                 (Sdl %f32-int (ptr-ref p 28 4)) (Sdl %f32-int (ptr-ref p 32 4))))
             ((= type 768) (list (lit key-down) (ptr-ref p 28 4) (ptr-ref p 32 2) (not (= (ptr-ref p 37 1) 0))))
             ((= type 769) (list (lit key-up) (ptr-ref p 28 4) (ptr-ref p 32 2) (not (= (ptr-ref p 37 1) 0))))
             ((= type 1616) (list (lit pad-axis) (Sdl %name (Sdl %axes) (ptr-ref p 20 1))
@@ -269,7 +284,7 @@
                     (list (lit pad-removed) (ptr-ref p 16 4)))))
             ((= type 256) (list (lit quit)))
             ((= type 528) (list (lit close)))
-            (#t (list (lit other) type))))))
+            (#t (list (lit other) type)))))))
 
     (method %name (self (param names LIST "Symbols in SDL's enum order") (param i INTEGER "An enum value"))
       (doc "The symbol for an SDL enum value, or the value itself past the named ones."
@@ -282,6 +297,28 @@
         (returns INTEGER "-32768 to 32767")
         (example "(Sdl %sint16 65535)" "-1"))
       (if (< u 32768) u (- u 65536)))
+
+    (method %f32-int (self (param b INTEGER "A 32-bit IEEE float's bits, read as an integer"))
+      (doc "The float as a whole number, toward zero; SDL gives the mouse's places as floats."
+        (returns INTEGER "The whole part")
+        (example "(Sdl %f32-int 1092616192)" "10")
+        (example "(Sdl %f32-int 3212836864)" "-1"))
+      (def e (& (>> b 23) 255))
+      (def m (| (& b 8388607) 8388608))
+      (def n (match ((< e 127) 0) ((< e 150) (>> m (- 150 e))) (#t (<< m (- e 150)))))
+      (if (= (& b 2147483648) 0) n (- 0 n)))
+
+    (method %held (self (param state INTEGER "SDL's mouse button flags"))
+      (doc "The mouse buttons held, by name, for the flags SDL gives with a motion."
+        (returns LIST "Names from (Sdl mouse-buttons)")
+        (example "(Sdl %held 5)" "('left 'right)"))
+      (List flat-map (fn (_ i) (if (= 0 (& state (<< 1 i))) () (list (List ref i (Sdl %mouse-buttons))))) (List range 0 5)))
+
+    (method mouse-buttons (self)
+      (doc "Mouse button names in SDL's order, button 1 first."
+        (returns LIST "(left middle right x1 x2)")
+        (example "(List ref 2 (Sdl mouse-buttons))" "'right"))
+      (Sdl %mouse-buttons))
 
     (method buttons (self)
       (doc "Gamepad button names in SDL's order; south is the bottom face button, Xbox A."
@@ -300,6 +337,15 @@
         (returns LIST "The window")
         (sample "(Sdl fullscreen! win #t)" "win"))
       (Sdl %ok (ptr-call (Sdl %sym "SDL_SetWindowFullscreen") (List ref 0 win) (if on 1 0)) "fullscreen")
+      ; A Mac's fullscreen in place leaves the keyboard with the window
+      ; that had it, the terminal the program started from.
+      (Sdl raise! win))
+
+    (method raise! (self (param win LIST "A window from open"))
+      (doc "Bring the window to the front and give it the keyboard, as far as the system allows: it may refuse to take the keyboard from another program."
+        (returns LIST "The window")
+        (sample "(Sdl raise! win)" "win"))
+      (ptr-call (Sdl %sym "SDL_RaiseWindow") (List ref 0 win))
       win)
 
     (method post-key! (self (param code INTEGER "An SDL keycode"))
@@ -350,8 +396,10 @@
       (doc "Bytes queued on the stream and not yet taken by the device: how far ahead of the speaker the stream is."
         (returns INTEGER "A byte count, 0 when it has run dry")
         (sample "(Sdl audio-queued s)" "17640"))
-      (def n (& (ptr-call (Sdl %sym "SDL_GetAudioStreamQueued") s) 4294967295))
-      (if (< n 2147483648) n (Err raise (lit io) (Str8 append "Sdl audio-queued: " (Sdl error)) s)))
+      ; a C int: bit 31 is its sign on any word, and the bits above it are not its
+      (def n (ptr-call (Sdl %sym "SDL_GetAudioStreamQueued") s))
+      (if (int= 0 (int& n (int<< 1 31))) (int& n 2147483647)
+        (Err raise (lit io) (Str8 append "Sdl audio-queued: " (Sdl error)) s)))
 
     (method audio-clear! (self (param s INTEGER "A stream from audio-open"))
       (doc "Drop everything queued on the stream, unplayed: the next put plays at once."
