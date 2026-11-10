@@ -27,12 +27,15 @@ Before the fix this answered 34506 — that is `(100000 & 65535) + 42`.
 ### the 32-bit mask survives compilation
 
 Before the fix this answered 65577 — the mask had collapsed to 65535.
+The mask is the word's 32 low bits, which hex reads on any word; the sum
+is the machine's, 4294967337 on an 8-byte word.
 
 ```x
-(display ((compile-asm '(fn (_ x) (+ x 4294967295))) 42))
+(eq? ((compile-asm '(fn (_ x) (+ x 0xFFFFFFFF))) 42)
+     ((prim-ref (lit int) (lit +)) 42 0xFFFFFFFF))
 ```
 ---
-    4294967337
+    #t
 
 ### a literal at the MOVZ boundary still works
 

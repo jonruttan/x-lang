@@ -90,7 +90,7 @@
 (def %ASIZE 258)
 (def %SELMTF 18016)
 
-(def %M32 4294967295)
+(def %M32 0xFFFFFFFF)
 
 ; --- expression builders (generation time) ---
 (def %M (fn (_ k) (list '%mem-ref 'a k)))
@@ -541,11 +541,11 @@
     (def %select-step (compile-asm %zj-select-expr))
     (def %write-step (compile-asm %zj-write-expr))
     (Heap collect)
-    (def %buf (str-make (* 8 %WORDS)))
+    (def %buf (str-make (* %word-size %WORDS)))
     (def %ptr (str->ptr %buf))
     (def %addr (ptr->int %ptr))
-    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i 8) v)))
-    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i 8))))
+    (def %poke (fn (_ i v) (ptr-set-word! %ptr (* i %word-size) v)))
+    (def %peek (fn (_ i) (ptr-ref-word %ptr (* i %word-size))))
     (def %slot (fn (_ name) (rest (Assoc entry name state))))
     (def %get (fn (_ e name) (obj-ref e (%slot name))))
     (def %put! (fn (_ e name v) (obj-set! e (%slot name) v)))
@@ -560,8 +560,8 @@
         (def w (%get e (lit workn)))
         (def p (%addr-of e (lit workp)))
         (%poke %FM p)
-        (%poke %EC (+ p (* w 8)))
-        (%poke %BH (+ p (* w 16)))))
+        (%poke %EC (+ p (* w %word-size)))
+        (%poke %BH (+ p (* w (* 2 %word-size))))))
     (def %take
       (fn (_ e p i end)
         (%poke %BLOCK (%addr-of e (lit blockp)))
@@ -590,8 +590,8 @@
         (%load! e)
         ; the used bytes numbered in order, and the counts cleared
         (def tab (%get e (lit tabp)))
-        (def tref (fn (_ k) (ptr-ref-word tab (* k 8))))
-        (def tset (fn (_ k v) (ptr-set-word! tab (* k 8) v)))
+        (def tref (fn (_ k) (ptr-ref-word tab (* k %word-size))))
+        (def tset (fn (_ k v) (ptr-set-word! tab (* k %word-size) v)))
         (def nuse
           ((fn (self i cnt)
              (if (= i 256) cnt
@@ -635,4 +635,4 @@
 (prim-reg! (lit bzip2) (lit jit-make) bzip2-jit-make)
 
 (doc (provide x/codec/bzip2-jit bzip2-jit-make)
-  "The compiled loops behind Bzip2 (JIT, ARM64 and x86-64 backends): the input's runs, the sort, the move-to-front values, the table selection and the symbol writer, built and adopted only after writing what the pure-x encoder writes.")
+  "The compiled loops behind Bzip2 (JIT, ARM64, x86-64 and 32-bit ARM backends): the input's runs, the sort, the move-to-front values, the table selection and the symbol writer, built and adopted only after writing what the pure-x encoder writes.")

@@ -15,15 +15,18 @@
 ; %equal-others: the extension hook for compound types this file cannot know
 ; about (logic.x loads before the object system). A later module installs a
 ; handler (fn (_ equal? a b) -> #t/#f), chaining the previous one -- vector.x
-; installs elementwise vector equality this way. The default says #f: identity
-; already failed by the time the hook runs. Class INSTANCES deliberately stay
-; identity-compared (they have object identity); a value-semantics instance
-; type can install its own handler here.
+; installs elementwise vector equality this way. The handlers run BEFORE any
+; eq? shortcut, and eq? is the default at the end of the chain: eq? reads
+; slot 0, which for a vector is its length, so two distinct vectors of one
+; length answered eq? and an eq? shortcut ahead of the handler called them
+; equal (a double's two-word bit patterns on a 4-byte word, for one).  Class
+; INSTANCES deliberately stay identity-compared (they have object identity);
+; a value-semantics instance type can install its own handler here.
 ;
 ; The cell is in the catalogue for the module that installs a handler:
 ; x/type/vector fetches (prim-ref (lit logic) (lit equal-others)) rather than
 ; reading this file's private name from the root.
-(def %equal-others (pair (fn (_ eq a b) #f) ()))
+(def %equal-others (pair (fn (_ eq a b) (eq? a b)) ()))
 (prim-reg! (lit logic) (lit equal-others) %equal-others)
 
 (doc (def equal?
@@ -33,7 +36,6 @@
       ((and (str? a) (str? b)) (str=? a b))
       ((and (pair? a) (pair? b)) (and (self (first a) (first b)) (self (rest a) (rest b))))
       ((or (pair? a) (pair? b)) #f)
-      ((eq? a b) #t)
       (#t ((first %equal-others) self a b)))))
   (returns BOOL "True if a and b are structurally equal")
   (note "Vectors compare elementwise (handler installed by x/type/vector); class instances compare by identity.")

@@ -122,10 +122,10 @@ Its first operand is the call's template, which a jump does not use.
     (if (= (%unbox n) 0) acc
       (self t (%box (- (%unbox n) 1)) (%box (+ (%unbox acc) (%unbox n)))))))
   %fw-sum-fv (lit function)))
-(write (%fw-sum 100000 0))
+(write (%fw-sum 65535 0))
 ```
 ---
-    5000050000
+    2147450880
 
 ## nil where a read expects a value
 

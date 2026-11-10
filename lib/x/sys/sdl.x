@@ -53,7 +53,7 @@
 (module x/sys/sdl)
 (import x/type/class)
 (import x/core/list)
-(import x/core/doors ffi-dlopen ffi-dlsym int->ptr ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make mem-copy)
+(import x/core/doors ffi-dlopen ffi-dlsym int->ptr int& int<< int= ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make mem-copy)
 
 (def-class Sdl ()
   (doc "A window that shows an RGBA pixel buffer, its keyboard and window events, and streams of sound, through the host's SDL3 loaded with dlopen."
@@ -131,7 +131,7 @@
       (def p (str->ptr region))
       (let go ((i 0))
         (when (< i n)
-          (do (ptr-set! p i 0 8) (go (+ i 8)))))
+          (do (ptr-set-word! p i 0) (go (+ i %word-size)))))
       region)
 
     (method load! (self (param path STRING "A libSDL3 file to try first"))
@@ -396,8 +396,10 @@
       (doc "Bytes queued on the stream and not yet taken by the device: how far ahead of the speaker the stream is."
         (returns INTEGER "A byte count, 0 when it has run dry")
         (sample "(Sdl audio-queued s)" "17640"))
-      (def n (& (ptr-call (Sdl %sym "SDL_GetAudioStreamQueued") s) 4294967295))
-      (if (< n 2147483648) n (Err raise (lit io) (Str8 append "Sdl audio-queued: " (Sdl error)) s)))
+      ; a C int: bit 31 is its sign on any word, and the bits above it are not its
+      (def n (ptr-call (Sdl %sym "SDL_GetAudioStreamQueued") s))
+      (if (int= 0 (int& n (int<< 1 31))) (int& n 2147483647)
+        (Err raise (lit io) (Str8 append "Sdl audio-queued: " (Sdl error)) s)))
 
     (method audio-clear! (self (param s INTEGER "A stream from audio-open"))
       (doc "Drop everything queued on the stream, unplayed: the next put plays at once."

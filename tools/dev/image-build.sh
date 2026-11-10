@@ -114,8 +114,12 @@ rm -f "$img" "$keyf" "$skip"
 # of a write.  X_IMAGE_NO_WRITE keeps the boot from recursing into a write of
 # its own: a current image is used, and a stale or absent one is neither
 # written nor used, so the writer boots from source only when it has to.
+# How the writer ended, kept for the reports below: a shell names a signal
+# only sometimes (bash says "Killed", dash says nothing), and a child the
+# kernel ended for memory leaves no other trace.  128 and up is a signal.
+rc=0
 { printf '(def %%IMG-LIB "%s") (def %%IMG-OUT "%s")\n' "$lib" "$img"; [ -n "${X_IMG_WHO:-}" ] && printf '(def %%IMG-WHO #t)\n'; cat tools/dev/image-write.x; } \
-	| X_IMAGE_NO_WRITE=1 sh "$X_SH" -q > "$out/$name.log" 2>&1 || true
+	| X_IMAGE_NO_WRITE=1 sh "$X_SH" -q > "$out/$name.log" 2>&1 || rc=$?
 grep 'objects:\|IMAGE TOTAL\|ERROR\|fault' "$out/$name.log" || true
 # A refusal the writer states -- a type it cannot describe, a transient that
 # raised in the child -- is exit 3 like an unnameable word: the caller
@@ -144,7 +148,12 @@ fi
 # there -- so a lang that loads and stops while it is bound images like any
 # other.
 if grep -q '^image: writer begins' "$out/$name.log" && ! grep -q '^objects:' "$out/$name.log"; then
-	echo "image: refused -- $lib ended the writer while loading (an entry that reads stdin or exits at load; check %image-writing and load only)" >&2
+	if [ "$rc" -ge 128 ]; then
+		how="killed by signal $((rc - 128))"
+	else
+		how="exit $rc"
+	fi
+	echo "image: refused -- $lib ended the writer while loading ($how; an entry that reads stdin or exits at load, or the kernel ending a child it has no memory for; check %image-writing and load only)" >&2
 	printf '%s\n' "$key" > "$keyf"
 	: > "$skip"
 	exit 3

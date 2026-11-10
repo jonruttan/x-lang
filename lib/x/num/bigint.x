@@ -886,6 +886,15 @@
 ; Value dispatch (subject-last): (big bigint?) -> (Bigint bigint? big).
 (type-push-call (type-by-atom bigint) (class-call-handler Bigint))
 
+; number? is extended in place, each tower module chaining onto the
+; predicate as it found it (decimal.x says why); real? asks number?.
+(def %big-was-number? number?)
+(doc number? "Test whether a value is any numeric type (now including bigints)."
+  (param x ANY "Value to test")
+  (returns BOOL "True if x is a number")
+  (example "(number? (* 4294967296 4294967296 4294967296))" "#t"))
+(set! number? (fn (_ x) (if (bigint? x) #t (%big-was-number? x))))
+
 ; Join the pact last, once the module is fully usable: this fires any
 ; pairwise registration waiting on bigint (e.g. float's bigint->float
 ; conversion) regardless of which module loaded first.

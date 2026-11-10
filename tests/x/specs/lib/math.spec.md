@@ -384,15 +384,20 @@ each even step until it exhausted memory.
 The divisor is added only when the truncated remainder has the other sign, so
 the sum cannot leave the range.  ((a % b) + b) % b wrapped here.
 
+The operands are the word's: LONG_MIN from its sign bit, LONG_MAX, and
+2^62 on an 8-byte word (2^30 on a 4-byte one).
+
 ```x
-(list (Num modulo 9223372036854775806 9223372036854775807)
-      (Num modulo 5 9223372036854775807)
-      (Num modulo -1 (<< 1 63))
-      (Num modulo 4611686018427387904 4611686018427387905)
-      (Num modulo -2 9223372036854775807))
+(let ((mn (<< 1 (- (* 8 %word-size) 1))) (h (<< 1 (- (* 8 %word-size) 2))))
+  (let ((mx (- -1 mn)))
+    (list (eq? (Num modulo (- mx 1) mx) (- mx 1))
+          (Num modulo 5 mx)
+          (Num modulo -1 mn)
+          (eq? (Num modulo h (+ h 1)) h)
+          (eq? (Num modulo -2 mx) (- mx 2)))))
 ```
 ---
-    (9223372036854775806 5 -1 4611686018427387904 9223372036854775805)
+    (#t 5 -1 #t #t)
 
 ### divmod pairs them
 
@@ -416,11 +421,12 @@ the sum cannot leave the range.  ((a % b) + b) % b wrapped here.
 ### -1 divides without the machine at the most negative integer
 
 ```x
-(list (Num quotient (<< 1 63) -1) (Num remainder (<< 1 63) -1)
-      (Num modulo (<< 1 63) -1) (Num divmod (<< 1 63) -1))
+(let ((mn (<< 1 (- (* 8 %word-size) 1))))
+  (list (eq? (Num quotient mn -1) mn) (Num remainder mn -1)
+        (Num modulo mn -1) (equal? (Num divmod mn -1) (list mn 0))))
 ```
 ---
-    (-9223372036854775808 0 0 (-9223372036854775808 0))
+    (#t 0 0 #t)
 
 ### any other dividend over -1 divides as before
 

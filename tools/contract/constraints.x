@@ -44,25 +44,16 @@
   ; fields at different offsets, so the decode reads neighbouring fields.
   (constraint "lib/x/sys/file.x" word-size = 8)
 
-  ; struct addrinfo's POINTER members move with the word: ai_addr rides @32
-  ; (Darwin) / @24 (glibc) and ai_next @40 only on 64-bit; the result cell is
-  ; allocated 8 bytes wide to hold one.  ai_family @4 is width-stable, but it
-  ; is read as a 4-byte value out of an i32 field, which is the endian half.
-  (constraint "lib/x/sys/socket.x" word-size = 8)
+  ; struct addrinfo's pointer members follow its 20-byte header on word
+  ; boundaries, so their offsets come from the word.  ai_family @4 is stable,
+  ; but it is read as a 4-byte value out of an i32 field: the endian half.
   (constraint "lib/x/sys/socket.x" endian = little)
 
-  ; The timeval decode reads tv_sec as an 8-byte value at 0 and tv_usec as a
-  ; 4-byte value at 8 -- the 64-bit layout on both OSes.  A 32-bit timeval
-  ; puts tv_usec at 4.
-  (constraint "lib/x/sys/posix.x" word-size = 8)
+  ; The timeval decode reads tv_usec, a 4-byte value a word on, and Sys zone
+  ; reads the low half of struct tm's tm_gmtoff as an int: both widen in host
+  ; byte order.  The offsets follow the word.
   (constraint "lib/x/sys/posix.x" endian = little)
-
-  ; The sign-fold builds its half/span constants as (<< 1 (- (* 8 w) 1)) --
-  ; for a 4-byte field that is (<< 1 31), which overflows a 32-bit fixnum, and
-  ; the 8-byte case relies on the accumulation wrapping to the two's-complement
-  ; value in a 64-bit machine int.  Byte assembly itself is endian-NEUTRAL here
-  ; (%le and %be both build the value arithmetically), so only the width binds.
-  (constraint "lib/x/codec/struct.x" word-size = 8)
+  (constraint "lib/x/sys/posix.x" endian = little)
 
   ; (Ptr ref p off width) is a memcpy of `width` bytes into the low end of a
   ; zeroed machine int -- x_prim_ptr_ref in the engine's src/x-prim/ffi.c.  On a

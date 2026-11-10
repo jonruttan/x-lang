@@ -180,7 +180,7 @@
 ; The engine's allocator.  dlopen/dlsym/dladdr stay: naming a C function is
 ; the dynamic linker's job, and there is no engine-side substitute for it.
 (def %image-dl-buf ((prim-ref (lit ptr) (lit alloc)) 64))
-(def %image-dli-sname 16)   ; Dl_info: fname, fbase, sname, saddr
+(def %image-dli-sname (* 2 %word-size))   ; Dl_info: fname, fbase, sname, saddr -- the third pointer
 ; Returns the symbol NAME if it round-trips back to the same address, else nil.
 ; The round trip is checked rather than assumed: macOS reports getpid as
 ; "__getpid", which does resolve back, and a mechanism quietly producing

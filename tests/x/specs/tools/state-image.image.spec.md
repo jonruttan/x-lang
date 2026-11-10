@@ -64,7 +64,7 @@ says why.
 ### magic, version, word size, byte order, a count
 
 ```x
-(display (%probe-raw (Str8 append "(def %rw (prim-ref (lit ptr) (lit ref-word))) (def buf ((prim-ref (lit ptr) (lit alloc)) 200)) (def fd ((prim-ref (lit sys) (lit open)) \"" (Str8 append %img "\" 0)) ((prim-ref (lit sys) (lit read)) fd buf 160) (def w (fn (_ i) (%rw buf (* i 8))))
+(display (%probe-raw (Str8 append "(def %rw (prim-ref (lit ptr) (lit ref-word))) (def buf ((prim-ref (lit ptr) (lit alloc)) 200)) (def fd ((prim-ref (lit sys) (lit open)) \"" (Str8 append %img "\" 0)) ((prim-ref (lit sys) (lit read)) fd buf 160) (def w (fn (_ i) (%rw buf (* i %word-size))))
 (display (if (eq? (w 0) 1196247384) (if (eq? (w 1) 1) (if (eq? (w 2) %word-size) (if (eq? (w 3) 1) (if (< 0 (w 4)) \"header ok\" \"no objects\") \"byte order\") \"word size\") \"version\") \"magic\")) (newline)"))))
 ```
 ---
@@ -83,10 +83,10 @@ says why.
 ### strings, symbols, integers and characters survive
 
 ```x
-(display (%probe "(write (list (< 0 (Str8 length x-machine)) (first (rest (first %type-unit-label-rows))) (first (first (rest (rest (first %type-unit-label-rows))))) %word-size)) (newline)"))
+(display (%probe (Str8 append "(write (list (< 0 (Str8 length x-machine)) (first (rest (first %type-unit-label-rows))) (first (first (rest (rest (first %type-unit-label-rows))))) (eq? %word-size " (Str8 append ((prim-ref (lit io) (lit write-to-str)) %word-size) "))) (newline)"))))
 ```
 ---
-    (#t 1 'word 8)
+    (#t 1 'word #t)
 
 ## §6.3 closures
 
@@ -211,7 +211,7 @@ rebuilds it, and the rebuilt struct is a struct whose name reads back.
 ```x
 (def %sbuf ((prim-ref (lit ptr) (lit alloc)) 80))
 (def n ((prim-ref (lit image) (lit save!)) (pair 1 2) %sbuf))
-(display (list n (Ptr ref-word %sbuf 8) (Ptr ref-word %sbuf 24)))
+(display (list n (Ptr ref-word %sbuf %word-size) (Ptr ref-word %sbuf (* 3 %word-size))))
 ```
 ---
     (2 0 0)
@@ -241,11 +241,11 @@ rebuilds it, and the rebuilt struct is a struct whose name reads back.
 (%flag-tree! st)
 (def cursor (pair 1 2))
 (def table (%alloc 8000)) (def blob (%alloc 800)) (def result (%alloc 40))
-(%psw result 0 1000) (%psw result 8 800)
+(%psw result 0 1000) (%psw result %word-size 800)
 (def N ((prim-ref (lit image) (lit write!)) cursor %FLAG table blob (fn (_ w k o) ()) (list st) result))
-(def IX (%alloc (* 8 (+ N 1))))
+(def IX (%alloc (* %word-size (+ N 1))))
 ((prim-ref (lit image) (lit rebuild!)) table 0 N (pair () ()) 1 blob IX)
-(def root (%p2o (Ptr from-int (Ptr ref-word IX (* 8 (Ptr ref-word result 32))))))
+(def root (%p2o (Ptr from-int (Ptr ref-word IX (* %word-size (Ptr ref-word result (* 4 %word-size)))))))
 (def name-atom (first (first root)))
 (display (list (< 0 N) (%spair? root) (Ptr ->str (Ptr from-int (%rw name-atom %data-off)))))
 ```

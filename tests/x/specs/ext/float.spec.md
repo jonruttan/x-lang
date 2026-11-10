@@ -1,6 +1,36 @@
 # @lib ../tests/x/lib/float.x
 # @weight 4
 
+## the payload is the double's bits, in as many words as the machine needs
+
+An INTEGER where the word holds all 64 bits; a VECTOR of two words, the low
+word first, on a 4-byte word.  1.5 is 0x3FF8000000000000: a high word of
+1073217536 and a low word of 0.
+
+### one word or two, by %word-size
+
+```x
+(do
+  (def p (first 1.5))
+  (if (= %word-size 8)
+    (= p 4609434218613702656)
+    (and (Vector vector? p) (= (Vector ref 0 p) 0) (= (Vector ref 1 p) 1073217536))))
+```
+---
+    #t
+
+### the words of a result read back the same way
+
+```x
+(do
+  (def p (first (Float + 1.0 0.5)))
+  (if (= %word-size 8)
+    (= p 4609434218613702656)
+    (and (= (Vector ref 0 p) 0) (= (Vector ref 1 p) 1073217536))))
+```
+---
+    #t
+
 ## float literals
 
 ### parses simple float
@@ -948,16 +978,23 @@ is unchanged.
 
 ### with no name, a stub by its label: 0.1 to a single and back, and 16777217 to one
 
+A double's bit pattern is the word's (an INTEGER on an 8-byte word, two
+words on a 4-byte one), so the doubles are spelled through `str->bits`; a
+single's thirty-two bits are an INTEGER on either.  0.1 as a single is
+0x3DCCCCCD, which widens to 0.100000001490116119384765625 exactly.
+
 ```x
 ((fn (_)
    (import x/num/float libm-fn)
    (def spec-d->f (libm-fn (lit spec-d->f) "d->f" ()))
    (def spec-f->d (libm-fn (lit spec-f->d) "f->d" ()))
    (def spec-i->f (libm-fn (lit spec-i->f) "i->f" ()))
-   (list (spec-d->f 4591870180066957722) (spec-f->d 1036831949) (spec-i->f 16777217))))
+   (list (spec-d->f (Float str->bits "0.1"))
+         (equal? (spec-f->d 1036831949) (Float str->bits "0.100000001490116119384765625"))
+         (spec-i->f 16777217))))
 ```
 ---
-    (1036831949 4591870180174331904 1266679808)
+    (1036831949 #t 1266679808)
 
 ## printing
 

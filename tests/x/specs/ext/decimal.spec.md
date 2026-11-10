@@ -789,15 +789,17 @@ digits as at 34, and the suite is not the place to pay for 34.
 A significand of LONG_MIN has no positive counterpart in the word, so its
 raw magnitude came back negative: it printed with two signs, divided by -1 to
 itself, and counted as one digit.  The value comes from the bitwise door
-rather than a literal.
+rather than a literal, and is checked against `%bw-big`, its magnitude built
+by `expt` (tests/x/lib/word-edges.x).
 
 ### it prints with one sign
 
 ```x
-(* (<< 1 63) 1d)
+(str=? (io-display-to-str (* %bw-min 1d))
+       (str-append "-" (str-append (io-display-to-str %bw-big) "d")))
 ```
 ---
-    -9223372036854775808d
+    #t
 
 ### and reads back the same
 
@@ -810,15 +812,16 @@ rather than a literal.
 ### dividing by -1 gives the positive value
 
 ```x
-(/ (* (<< 1 63) 1d) -1)
+(= (/ (* %bw-min 1d) -1) (* %bw-big 1d))
 ```
 ---
-    9223372036854775808d
+    #t
 
 ### negation and magnitude promote
 
 ```x
-(list (Decimal neg (* (<< 1 63) 1d)) (Decimal abs (* (<< 1 63) 1d)))
+(list (= (Decimal neg (* %bw-min 1d)) (* %bw-big 1d))
+      (= (Decimal abs (* %bw-min 1d)) (* %bw-big 1d)))
 ```
 ---
-    (9223372036854775808d 9223372036854775808d)
+    (#t #t)

@@ -487,6 +487,12 @@
     (%emit-u32-le! asm 2847890421)    ; stp x21, x22, [sp, #-16]!
     (%emit-u32-le! asm 2432697341)))  ; mov x29, sp
 
+; The byte offset of a caller's Nth word argument (from 0) from sp inside
+; the prologue's frame: the first eight travel in x0-x7, the rest at [sp]
+; on entry, which the three stores moved by 48.
+(def asm-stack-arg
+  (fn (_ n) (+ 48 (* 8 (- n 8)))))
+
 ; asm-frame-base!: x22 = sp, the base of the parameter slots a function
 ; pushes after its prologue.  ADD x22, sp, #0 = 0x910003F6.
 (def asm-frame-base!

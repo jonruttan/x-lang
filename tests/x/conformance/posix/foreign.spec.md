@@ -98,6 +98,7 @@ skips is a case that proves nothing.
       (match ((eq? %param-arch (lit x86-64)) 1)
              ((eq? %param-arch (lit arm64)) 64)
              ((eq? %param-arch (lit i386)) 4)
+             ((eq? %param-arch (lit arm)) 4)
              (#t ())))
     (#t ())))
 (%ok (match ((eq? %sys-write ()) ()) (#t (< (syscall %sys-write 999 "x" 1) 0))))

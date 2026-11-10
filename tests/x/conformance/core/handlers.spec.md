@@ -94,7 +94,7 @@ the way `lib/x/boot/data.x` probes it; the word stride is the machine's.
 (def %off (fn (self i) (match ((eq? (%prw (%o2p probe) i) probe) i) (#t (self (+ i 1))))))
 (def d0 (%off 0))
 (def f (fn (zz) 47))
-(def state (%p2o (%i2p (%prw (%o2p f) (+ d0 8)))))
+(def state (%p2o (%i2p (%prw (%o2p f) (+ d0 %param-word-size)))))
 (%ok (eq? (first (first state)) (lit zz)))
 ```
 ---

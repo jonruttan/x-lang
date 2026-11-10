@@ -40,6 +40,9 @@ as `(obj ref)`: the caller owns the buffer and its bounds.
 
 ### a full 32-bit value survives (the slot is a machine word)
 
+32 one bits: 4294967295 on an 8-byte word, -1 on a 4-byte one, where they
+are the whole word.
+
 ```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
@@ -47,11 +50,12 @@ as `(obj ref)`: the caller owns the buffer and its bounds.
   (def %jit-mem-ptr->int (prim-ref (lit ptr) (lit ->int)))
   (def %buf (%make-str 512))
   (def %addr (%jit-mem-ptr->int (%jit-mem-str->ptr %buf)))
-  ((compile-asm '(fn (_ a v) (%mem-set! a 7 v))) %addr 4294967295)
-  (display ((compile-asm '(fn (_ a) (%mem-ref a 7))) %addr)))
+  ((compile-asm '(fn (_ a v) (%mem-set! a 7 v))) %addr 0xFFFFFFFF)
+  (display (= ((compile-asm '(fn (_ a) (%mem-ref a 7))) %addr)
+              (if (< %word-size 8) -1 4294967295))))
 ```
 ---
-    4294967295
+    #t
 
 ### distinct slots do not interfere
 
@@ -214,9 +218,10 @@ truncation happens in memory, where STRB ignores everything above bit 7.
 
 ### byte indices address the bytes INSIDE a word slot
 
-Word slot 6 is bytes 48..55, little-endian: the word 258 (0x102) reads
-back as byte 2 at 48 and byte 1 at 49. This is the layout contract that
-lets one buffer serve both word and byte operations at once.
+Word slot 6 is bytes 48..55 on an 8-byte word and 24..27 on a 4-byte one,
+little-endian: the word 258 (0x102) reads back as byte 2 at its first byte
+and byte 1 at the next. This is the layout contract that lets one buffer
+serve both word and byte operations at once.
 
 ```x
 (do
@@ -225,9 +230,10 @@ lets one buffer serve both word and byte operations at once.
   (def %jit-mem-ptr->int (prim-ref (lit ptr) (lit ->int)))
   (def %buf (%make-str 256))
   (def %a (%jit-mem-ptr->int (%jit-mem-str->ptr %buf)))
+  (def %at (* 6 %word-size))
   ((compile-asm '(fn (_ a) (%mem-set! a 6 258))) %a)
-  (display (list ((compile-asm '(fn (_ a) (%mem-byte-ref a 48))) %a)
-                 ((compile-asm '(fn (_ a) (%mem-byte-ref a 49))) %a))))
+  (display (list ((compile-asm (list 'fn '(_ a) (list '%mem-byte-ref 'a %at))) %a)
+                 ((compile-asm (list 'fn '(_ a) (list '%mem-byte-ref 'a (+ %at 1)))) %a))))
 ```
 ---
     (2 1)

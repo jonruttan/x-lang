@@ -8,17 +8,21 @@
 ; the two are checked against each other by.
 ;
 ; Pure INT on the C bit ops through the int doors; the exclusive or, which
-; has no door, is (a | b) - (a & b) on the non-negative words here.  The
-; byte loop is one top-level function calling itself in tail position.
+; has no door, is (a | b) - (a & b), which the word's wrap keeps exact.
+; The register is the word's low 32 bits, converted at of and update by
+; x/num/u32.  The byte loop is one top-level function calling itself in
+; tail position.
 (module x/codec/crc32)
 
 (import x/type/vector)
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
+(import x/num/u32 u32 u32-bits u32-srl)
 
 (import x/core/doors int& int+ int- int->ptr int< int= int>> int| obj-ref obj-set! ptr->int ptr-ref str->ptr str-byte-len)
 
 (def %xor (fn (_ a b) (int- (int| a b) (int& a b))))
+(def %srl u32-srl)
 
 ; Slot i+1 holds byte i's CRC: eight shifts, the polynomial folded in
 ; when the low bit is set.
@@ -28,7 +32,7 @@
      (do (obj-set! %table (int+ i 1)
            ((fn (fold k c)
               (if (int= k 0) c
-                (fold (int- k 1) (if (int= (int& c 1) 0) (int>> c 1) (%xor (int>> c 1) 3988292384)))))
+                (fold (int- k 1) (if (int= (int& c 1) 0) (%srl c 1) (%xor (%srl c 1) 0xEDB88320)))))
             8 i))
          (self (int+ i 1)))
      ()))
@@ -42,7 +46,7 @@
     (if (int< i n)
       (do (def b (int& (ptr-ref p i 1) 255))
           (def t (obj-ref %table (int+ (int& (int- (int| c b) (int& c b)) 255) 1)))
-          (def s (int>> c 8))
+          (def s (%srl c 8))
           (self p (int+ i 1) n (int- (int| t s) (int& t s))))
       c)))
 
@@ -73,8 +77,8 @@
     (def r ((prim-ref (lit str) (lit make)) 3000))
     (def p (str->ptr r))
     ((fn (self i) (when (int< i 3000) (do ((prim-ref (lit ptr) (lit set!)) p i (int& (int+ (int>> (int+ i 1) 0) (int>> i 3)) 255) 1) (self (int+ i 1))))) 0)
-    (and (= (%fold-x (str->ptr "123456789") 9 4294967295) (eng (str->ptr "123456789") 9 4294967295))
-         (= (%fold-x p 3000 4294967295) (eng p 3000 4294967295))
+    (and (= (%fold-x (str->ptr "123456789") 9 0xFFFFFFFF) (eng (str->ptr "123456789") 9 0xFFFFFFFF))
+         (= (%fold-x p 3000 0xFFFFFFFF) (eng p 3000 0xFFFFFFFF))
          (= (%fold-x p 3000 123456789) (eng p 3000 123456789)))))
 
 (def %jit-threshold 4096)
@@ -117,7 +121,7 @@
         (example "(Crc32 of \"123456789\")" "3421780262")
         (example "(Crc32 of \"\")" "0"))
       (def sp (%span s span))
-      (%xor ((%fold-for (first (rest sp))) (%at (str->ptr s) (first sp)) (first (rest sp)) 4294967295) 4294967295))
+      (u32 (%xor ((%fold-for (first (rest sp))) (%at (str->ptr s) (first sp)) (first (rest sp)) 0xFFFFFFFF) 0xFFFFFFFF)))
     (method update (self (param crc INTEGER "The CRC so far; 0 to start")
                          (param s STRING "Bytes")
                          . (param span LIST "START, then LENGTH, as for of"))
@@ -125,9 +129,9 @@
         (returns INTEGER "The CRC, 0 to 4294967295")
         (example "(Crc32 update (Crc32 update 0 \"1234\") \"56789\")" "3421780262"))
       (def sp (%span s span))
-      (%xor ((%fold-for (first (rest sp))) (%at (str->ptr s) (first sp)) (first (rest sp)) (%xor crc 4294967295)) 4294967295))
+      (u32 (%xor ((%fold-for (first (rest sp))) (%at (str->ptr s) (first sp)) (first (rest sp)) (%xor (u32-bits crc) 0xFFFFFFFF)) 0xFFFFFFFF)))
     (method jit! (self)
-      (doc "Build and adopt the compiled byte loop (JIT; ARM64 and x86-64 backends) now, if it sums the check inputs exactly as the pure-x fold does. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x fold carries on, with the same sums. of and update build it on their own for 4KB or more."
+      (doc "Build and adopt the compiled byte loop (JIT; ARM64, x86-64 and 32-bit ARM backends) now, if it sums the check inputs exactly as the pure-x fold does. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x fold carries on, with the same sums. of and update build it on their own for 4KB or more."
         (returns BOOL "#t when the compiled engine is active"))
       (%jit-try!))))
 

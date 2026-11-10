@@ -39,6 +39,26 @@
 (import x/num/float)
 (import x/codec/struct)
 (import x/platform/syscall stat-layout)
+; CPU times are nanoseconds and byte totals pass 2^31 within seconds of
+; boot: on a 4-byte word they are bigints, which the tower's * and + make
+; once bigint is loaded.  An 8-byte word holds them all.
+(when (< %word-size 8) (import x/num/bigint))
+
+; The device and inode of a stat, cut from the platform's layout as File
+; stat's fields are (x/sys/file): the two kept, everything before and between
+; them a pad, and the reader compiled once.
+(def %dev-ino-fields
+  (let go ((rows stat-layout) (gap 0) (acc ()))
+    (match
+      ((null? rows) (List reverse acc))
+      ((or (eq? (first (first rows)) (lit dev)) (eq? (first (first rows)) (lit ino)))
+        (go (rest rows) 0 (pair (first rows) (if (> gap 0) (pair (list (lit pad) gap) acc) acc))))
+      (#t (go (rest rows) (+ gap (Struct length (list (first rows)))) acc)))))
+(def %dev-ino-read (Struct reader %dev-ino-fields))
+
+; The stat call, resolved once: syscall-door searches the platform's table,
+; and holders stats every link and descriptor of every process.
+(def %stat-door (syscall-door (if os-darwin? (lit stat64) (lit stat))))
 
 (def-class Host ()
   (doc "The machine as the kernel reports it: boot time, load, memory, CPU time, system-wide counters, disk, network and interrupt totals, processes and logged-in users, the same records on Linux and Darwin."
@@ -146,15 +166,19 @@
       (def digit? (fn (_ b) (if (i< 47 b) (i< b 58) #f)))
       (def n (Str8 length s))
       (def neg (if (i< 0 n) (i= (at s 0) 45) #f))
+      ; a 4-byte word's counters pass it: the tower's, with bigint loaded
+      (def wide (i= %word-size 8))
+      (def a+ (if wide i+ +))
+      (def a* (if wide i* *))
       (def go
         (fn (self i acc)
           (match
             ((if (i< i n) #f #t) acc)
-            ((digit? (at s i)) (self (i+ i 1) (i+ (i* acc 10) (i- (at s i) 48))))
+            ((digit? (at s i)) (self (i+ i 1) (a+ (a* acc 10) (i- (at s i) 48))))
             (#t acc))))
       (def start (if neg 1 0))
       (if (if (i< start n) (digit? (at s start)) #f)
-        (let ((v (go start 0))) (if neg (i- 0 v) v))
+        (let ((v (go start 0))) (if neg (if wide (i- 0 v) (- 0 v)) v))
         ()))
 
     (method %hex (self (param s STRING "Hexadecimal digits"))
@@ -173,12 +197,20 @@
             ((if (>= b 97) (<= b 102) #f) (- b 87))
             ((if (>= b 65) (<= b 70) #f) (- b 55))
             (#t ()))))
+      ; a 4-byte word reads through the tower, with bigint loaded, and folds
+      ; past 2^63 to the signed value an 8-byte word's wrap gives
+      (def wide (= %word-size 8))
+      (def a+ (if wide i+ +))
+      (def a* (if wide i* *))
       (def go
         (fn (self i acc)
           (if (>= i n) acc
             (let ((d (digit (at s i))))
-              (if (null? d) acc (self (+ i 1) (i+ (i* acc 16) d)))))))
-      (go 0 0))
+              (if (null? d) acc (self (+ i 1) (a+ (a* acc 16) d)))))))
+      (def v (go 0 0))
+      (if wide v
+        (let ((top (* 65536 65536 65536 32768)))
+          (if (< v top) v (- v (* top 2))))))
 
     (method %fold-lines (self (param path STRING "A file") (param f CALLABLE "(f line acc) answers the next acc; line has no newline")
                               (param init ANY "The first acc"))
@@ -1066,13 +1098,14 @@
         (probe (i& (i+ ino (i>> ino 14)) mask) slots)))
 
     (method %dev-ino (self (param path STRING "A path, followed through links"))
-      (doc "The device and inode stat(2) reports for path, or nil when it cannot be stat'd. The inode is at 8 in every platform's struct; the device is the word before it, 4 bytes on Darwin and 8 on Linux."
+      (doc "The device and inode stat(2) reports for path, or nil when it cannot be stat'd, read where the platform's stat layout puts them."
         (returns ANY "PAIR (dev . ino), or nil")
         (example "(null? (Host %dev-ino \"/nonexistent/file\"))" "#t")
         (sample "(Host %dev-ino \"/\")" "(16777233 . 2)"))
       (def b (Host %buf 160))
-      (if (< ((syscall-door (if os-darwin? (lit stat64) (lit stat))) path b) 0) ()
-        (pair (Host %int-at b 0 (if os-darwin? 4 8)) (Host %int-at b 8 8))))
+      (if (< (%stat-door path b) 0) ()
+        (let ((d (%dev-ino-read b 0)))
+          (pair (Assoc get (lit dev) d) (Assoc get (lit ino) d)))))
 
     (method %linux-dev (self (param s STRING "MAJ:MIN in hexadecimal, as /proc/PID/maps writes it"))
       (doc "The device number this platform's makedev packs from a major and minor, so a maps line compares equal to stat(2)'s dev for the same file: glibc's on Linux, major << 24 | minor on Darwin, where a spec runs the Linux reader over a fixture."
@@ -1359,7 +1392,9 @@
       (def i+ (prim-ref (lit int) (lit +)))
       (def i- (prim-ref (lit int) (lit -)))
       (def i< (prim-ref (lit int) (lit <)))
-      (def maj (if os-darwin? (i/ dev 16777216) (i+ (i& (i/ dev 256) 4095) (i- (i/ dev 4294967296) (i& (i/ dev 4294967296) 4095)))))
+      ; glibc's major takes the word's bits from 32 up; a 4-byte word has none
+      (def hi (if (< %word-size 8) 0 (let ((h (i/ dev (<< 65536 16)))) (i- h (i& h 4095)))))
+      (def maj (if os-darwin? (i/ dev 16777216) (i+ (i& (i/ dev 256) 4095) hi)))
       (def min (if os-darwin? (i& dev 16777215) (i+ (i& dev 255) (i- (i/ dev 4096) (i& (i/ dev 4096) 255)))))
       (def digits "0123456789abcdef")
       (def hex
@@ -1551,7 +1586,7 @@
         (example "(null? (Host %owner \"/nonexistent/file\"))" "#t")
         (sample "(Host %owner \"/\")" "(0 . 0)"))
       (def b (Host %buf 160))
-      (if (< ((syscall-door (if os-darwin? (lit stat64) (lit stat))) path b) 0) ()
+      (if (< (%stat-door path b) 0) ()
         (let ((st (Struct unpack stat-layout b)))
           (pair (Assoc get (lit uid) st) (Assoc get (lit gid) st)))))
 

@@ -27,7 +27,7 @@ and calls through an address the way a slot is called.
       (def run (ptr-call %jr-malloc 64))
       ((fn (self ws i)
          (unless (null? ws)
-           (do (ptr-set-word! run (* 8 i) (first ws))
+           (do (ptr-set-word! run (* %word-size i) (first ws))
                (self (rest ws) (+ i 1)))))
        words 0)
       (ptr-call (int->ptr (%jr-addr c)) (obj->ptr (%base)) run)))

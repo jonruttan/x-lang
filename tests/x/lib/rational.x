@@ -3,3 +3,4 @@
 (import x/num/bigint)
 (import x/num/float)
 (import x/num/rational)
+(include "tests/x/lib/word-edges.x")

@@ -39,11 +39,14 @@
 
 ### produces hex string
 
+Two digits a byte of the word: 16 on an 8-byte word, 8 on a 4-byte one.
+
 ```x
-(%str-length (Hash ->hex (Hash fnv-1a "hello")))
+(= (%str-length (Hash ->hex (Hash fnv-1a "hello")))
+   (if (< %word-size 8) 8 16))
 ```
 ---
-    16
+    #t
 
 ### consistent output
 

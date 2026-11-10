@@ -42,7 +42,7 @@ generated `x-eval-layout.h`):
 | io-fields | `type-alist` (cell) | the type registry: `((name-stack . struct) …)`, keyed by the name-stack node (`x_alist_assoc` compares `first(key)`, `x-alist.c`) |
 | io-state | `line`, `true`, `false` | `true`/`false` hold the engine statics `x_true_obj`/`x_false_obj` |
 | profile | ten counters | plain integers; the loader may keep its own |
-| state | `eval-list`, `token-cache`, `sigint`, `err`, `prims`, `file`, `err-line`, `err-file`, `file-registry` | `err` is the one base-resident ERR instance every raise fills (`x_type_err_register`); `prims` is the catalogue, a list of `(ns (method . PRIMITIVE) …)` (`x_prim_register`); `sigint` is a shared atom |
+| state | `eval-list`, `token-cache`, `sigint`, `err`, `prims`, `file`, `err-line`, `err-file`, `file-registry`, `parent` | `err` is the one base-resident ERR instance every raise fills (`x_type_err_register`); `prims` is the catalogue, a list of `(ns (method . PRIMITIVE) …)` (`x_prim_register`); `sigint` is a shared atom; `parent` is the base this one was made from, nil in the root |
 
 Process state, which the loader keeps: `files` (descriptors, write-buf, and
 the read buffer — a BUFFER over a C array on `main`'s stack, `x-cli.c`),
@@ -433,7 +433,9 @@ test, not the unit test.
   does the **line counter**: `line` sits in the layout's build region, but
   the C reader holds the counter atom directly and counts into it, so a
   cell swapped under the reader reads 0 from then on. Writer and loader
-  leave it out of the roots, beside the profile counters and `sigint`.
+  leave it out of the roots, beside the profile counters, `sigint` and
+  `parent`, the base an imaged child was made from: the writer's, which is
+  no part of the image.
 - **Object metadata** (`obj-meta-extra`: line and file ids) is not carried;
   a loaded image's error reports have no source positions. The loader
   rebuilds with the metadata width at 0 and puts it back after, so a
