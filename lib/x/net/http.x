@@ -60,7 +60,9 @@
     ; --- url -> ((host . H) (port . P) (path . S)); strict per #61 ---
     (method %parse-url (self (param url STRING "http://HOST[:PORT][/PATH...]"))
       (doc "Split an http or https url; the path defaults to \"/\", the port to the scheme's (80/443); a missing scheme raises a label 'value."
-        (returns ALIST "((host . H) (port . P) (path . S) (tls . BOOL))"))
+        (returns ALIST "((host . H) (port . P) (path . S) (tls . BOOL))")
+        (example "(Http %parse-url \"https://h:8443/a/b\")" "(('host . \"h\") ('port . 8443) ('path . \"/a/b\") ('tls . #t))")
+        (example "(rest (Assoc find 'port (Http %parse-url \"http://h\")))" "80"))
       (def tls? (Str8 starts? "https://" url))
       (unless (if tls? #t (Str8 starts? "http://" url))
         (Err raise (lit value) "Http: not an http(s):// url" url))
@@ -87,7 +89,8 @@
                                  (param headers ALIST "(name . value) strings, appended verbatim")
                                  (param body ANY "Body string, a run (STRING . COUNT), or nil"))
       (doc "Render the request: verb + path, Host (with the port when it is not the scheme's own, RFC 9110 7.2), Connection: close, Content-Length when a body rides, the caller's headers, CRLF framing. A string body follows the head in the text; a run's bytes are not text, so the text ends at the head and the run is sent after it."
-        (returns STRING "The request text"))
+        (returns STRING "The request text")
+        (example "(Str8 includes? \"Host: h:8080\" (Http %build-request \"GET\" (Http %parse-url \"http://h:8080/p\") () ()))" "#t"))
       (def port (rest (Assoc find (lit port) u)))
       (def head
         (Str8 append method " " (rest (Assoc find (lit path) u)) " HTTP/1.1\r\n"
@@ -109,7 +112,8 @@
                             (param buf STRING "The run's buffer")
                             (param n INTEGER "How many of its bytes"))
       (doc "All n bytes of buf sent on fd: Socket send-run sends what the socket takes at once, so what is left is sent again until none is."
-        (returns INTEGER "n"))
+        (returns INTEGER "n")
+        (sample "(Http %send-run fd buf 70000)" "70000, after as many sends as the socket needs"))
       (def w (Socket send-run fd buf n))
       (when (< w n)
         (let ((r (Http %run-copy buf w (- n w))))
@@ -120,7 +124,9 @@
     ; hex chunk-size parse over bytes; -1 marks a non-hex byte
     (method %hex-nibble (self (param c INTEGER "Byte value"))
       (doc "The hex value of one byte, or -1 off-domain."
-        (returns INTEGER "0-15, or -1"))
+        (returns INTEGER "0-15, or -1")
+        (example "(Http %hex-nibble 97)" "10")
+        (example "(Http %hex-nibble 103)" "-1"))
       (match
         ((if (>= c 48) (<= c 57) #f) (- c 48))
         ((if (>= c 97) (<= c 102) #f) (- c 87))
@@ -138,7 +144,8 @@
                             (param b STRING "The second buffer, or nil")
                             (param m INTEGER "How many of its bytes, from its start"))
       (doc "A new run of a's n bytes from off followed by b's first m, copied by libc's memcpy: NUL bytes and all, a few objects whatever the size."
-        (returns PAIR "(STRING . n+m)"))
+        (returns PAIR "(STRING . n+m)")
+        (example "(Http %run->bytes (Http %run-join \"abc\" 1 2 \"xyz\" 1))" "(98 99 120)"))
       (def memcpy ((prim-ref (lit ffi) (lit dlsym)) ((prim-ref (lit ffi) (lit dlopen)) () 1) "memcpy"))
       (def out (str-make (if (< (+ n m) 1) 1 (+ n m))))
       (def at (ptr->int (str->ptr out)))
@@ -152,18 +159,21 @@
                             (param off INTEGER "First byte to copy")
                             (param n INTEGER "How many bytes"))
       (doc "A new run of buf's n bytes from off."
-        (returns PAIR "(STRING . n)"))
+        (returns PAIR "(STRING . n)")
+        (example "(Http %run->bytes (Http %run-copy \"hello\" 1 3))" "(101 108 108)"))
       (Http %run-join buf off n () 0))
 
     (method %run->bytes (self (param r PAIR "A run, (STRING . COUNT)"))
       (doc "A run's bytes as a byte list, the carrier request and %parse-response answer with."
-        (returns LIST "The bytes, 0-255 each"))
+        (returns LIST "The bytes, 0-255 each")
+        (example "(Http %run->bytes (pair \"AB\" 2))" "(65 66)"))
       (let go ((i (- (rest r) 1)) (acc ()))
         (if (< i 0) acc (go (- i 1) (pair (& (char->int (str-byte-ref (first r) i)) 255) acc)))))
 
     (method %recv (self (param s OBJECT "An HttpStream"))
       (doc "One read off the stream's transport: the Tls session, the socket, or the next of its pieces."
-        (returns ANY "A run, or nil at end of input"))
+        (returns ANY "A run, or nil at end of input")
+        (example "(Http %recv (Http %over-runs (list (pair \"ab\" 2))))" "(\"ab\" . 2)"))
       (match
         ((not (null? (s tls))) (Tls recv-run (s tls) 65536))
         ((not (null? (s fd))) (Socket recv-run (s fd) 65536))
@@ -173,7 +183,9 @@
 
     (method %fill (self (param s OBJECT "An HttpStream"))
       (doc "Read once more from the transport onto the buffer: the read becomes the buffer when the buffer is used up, and is joined to what is left of it otherwise."
-        (returns BOOL "#f at end of input"))
+        (returns BOOL "#f at end of input")
+        (example "(Http %fill (Http %over-runs (list (pair \"ab\" 2))))" "#t")
+        (example "(Http %fill (Http %over-runs ()))" "#f"))
       (def got (Http %recv s))
       (def have (- (s end) (s off)))
       (match
@@ -185,7 +197,8 @@
 
     (method %line (self (param s OBJECT "An HttpStream"))
       (doc "The next CRLF-terminated line as a string, consumed through the CRLF. An empty line answers \"\"; input that ends before a CRLF answers #f and leaves the partial line buffered."
-        (returns ANY "STRING, or #f at end of input"))
+        (returns ANY "STRING, or #f at end of input")
+        (example "(Http %line (Http %over-runs (list (pair \"hi\\r\\nyo\" 6))))" "\"hi\""))
       (let scan ((i (s off)))
         (match
           ((>= (+ i 1) (s end))
@@ -199,7 +212,8 @@
     (method %take (self (param s OBJECT "An HttpStream")
                         (param n INTEGER "Most bytes wanted"))
       (doc "Up to n buffered bytes as a run, after one transport read when the buffer is used up. A whole buffer is handed over as it is; part of one is copied."
-        (returns ANY "A run, or nil at end of input"))
+        (returns ANY "A run, or nil at end of input")
+        (example "(Http %run->bytes (Http %take (Http %over-runs (list (pair \"abc\" 3))) 2))" "(97 98)"))
       (when (= (s off) (s end)) (Http %fill s))
       (def have (- (s end) (s off)))
       (def k (if (< n have) n have))
@@ -212,12 +226,14 @@
             (do (s off (+ (s off) k)) r)))))
 
     (method %bad-chunk (self (param what STRING "What was wrong"))
-      (doc "Raise a label 'value for malformed chunked framing.")
+      (doc "Raise a label 'value for malformed chunked framing."
+        (example "(guard (e #t) (Http %bad-chunk \"missing size\"))" "#t"))
       (Err raise (lit value) (Str8 append "Http: bad chunked framing: " what) ()))
 
     (method %chunk-size (self (param line STRING "A chunk-size line, without its CRLF"))
       (doc "The hex size that opens the line; a chunk extension (\";...\") after it is ignored. A line with no leading hex digit raises a label 'value."
-        (returns INTEGER "The chunk's size"))
+        (returns INTEGER "The chunk's size")
+        (example "(Http %chunk-size \"1a;ext=1\")" "26"))
       (def len (Str8 length line))
       (let go ((i 0) (n 0) (any #f))
         (def v (if (>= i len) -1 (Http %hex-nibble (char->int (str-byte-ref line i)))))
@@ -229,7 +245,8 @@
     (method %read-counted (self (param s OBJECT "An HttpStream framed by Content-Length")
                                 (param n INTEGER "Most bytes wanted"))
       (doc "The next run of a Content-Length body; the count runs down to nil. Input that ends early ends the body there."
-        (returns ANY "A run, or nil at the end of the body"))
+        (returns ANY "A run, or nil at the end of the body")
+        (example "(let ((s (Http %over-runs (list (pair \"abcdef\" 6))))) (do (s left 3) (Http %run->bytes (Http %read-counted s 10))))" "(97 98 99)"))
       (match
         ((= (s left) 0) (do (s mode (lit none)) ()))
         (#t
@@ -241,7 +258,8 @@
     (method %read-chunked (self (param s OBJECT "An HttpStream framed by Transfer-Encoding: chunked")
                                 (param n INTEGER "Most bytes wanted"))
       (doc "The next run of a chunked body. The stream's mode walks size (a hex size line), data (that many bytes), tail (the CRLF after them), and trailer (header lines to an empty one) after the zero chunk. Malformed framing raises a label 'value."
-        (returns ANY "A run, or nil at the end of the body"))
+        (returns ANY "A run, or nil at the end of the body")
+        (example "(let ((s (Http %over-runs (list (pair \"3\\r\\nabc\\r\\n0\\r\\n\\r\\n\" 13))))) (do (s mode 'size) (Http %run->bytes (Http %read-chunked s 10))))" "(97 98 99)"))
       (let step ()
         (def m (s mode))
         (match
@@ -283,7 +301,8 @@
 
     (method %drain (self (param s OBJECT "An HttpStream"))
       (doc "Read the rest of the body into one byte list."
-        (returns LIST "The body's bytes"))
+        (returns LIST "The body's bytes")
+        (example "(let ((s (Http %over-runs (list (pair \"ab\" 2) (pair \"cd\" 2))))) (do (s mode 'eof) (Http %drain s)))" "(97 98 99 100)"))
       (let go ((acc ()))
         (let ((r (Http read s 65536)))
           (if (null? r) (List flat-map (fn (_ c) c) (%reverse acc))
@@ -292,7 +311,8 @@
     (method %start (self (param s OBJECT "An HttpStream at the start of a response")
                          (param no-body BOOL "#t for a HEAD response"))
       (doc "Read the head: the status line, the header lines, and the body's framing from them. HEAD responses carry no body whatever their framing headers say; a Transfer-Encoding naming chunked decodes chunks; a numeric Content-Length counts; anything else reads to the end of input. A response with no blank line after its head raises a label 'value."
-        (returns OBJECT "s, positioned at the body"))
+        (returns OBJECT "s, positioned at the body")
+        (example "((Http %start (Http %over-runs (list (pair \"HTTP/1.1 204 No Content\\r\\n\\r\\n\" 27))) #f) status)" "204"))
       (def %bad (fn (_ what)
         (Err raise (lit value) (Str8 append "Http: bad response: " what) ())))
       (def lines
@@ -335,18 +355,21 @@
     (method %over (self (param pieces LIST "Byte lists, one answered per transport read")
                         (param no-body BOOL "#t for a HEAD response"))
       (doc "A stream over byte-list pieces instead of a connection, its head read: the wire's shape, a piece per read, with no socket."
-        (returns OBJECT "An HttpStream positioned at the body"))
+        (returns OBJECT "An HttpStream positioned at the body")
+        (example "((Http %over (list (list 72 84 84 80 47 49 46 49 32 50 48 52 32 88 13 10 13 10)) #f) head)" "(\"HTTP/1.1 204 X\")"))
       (def runs (List map (fn (_ b) (pair (bytes->str b) (List length b))) pieces))
       (Http %start (Http %over-runs runs) no-body))
 
     (method %over-runs (self (param pieces LIST "Runs, one answered per transport read"))
       (doc "A fresh stream whose transport is a list of runs."
-        (returns OBJECT "An HttpStream"))
+        (returns OBJECT "An HttpStream")
+        (example "((Http %over-runs (list (pair \"ab\" 2))) pieces)" "((\"ab\" . 2))"))
       (new HttpStream pieces pieces))
 
     (method %dechunk (self (param bytes LIST "Chunked-framing body bytes"))
       (doc "Decode Transfer-Encoding: chunked framing: hex-size line, that many bytes, CRLF, repeated to the zero chunk. Malformed framing raises a label 'value."
-        (returns LIST "The unframed body bytes"))
+        (returns LIST "The unframed body bytes")
+        (example "(bytes->str (Http %dechunk (list 51 13 10 97 98 99 13 10 48 13 10 13 10)))" "\"abc\""))
       (def pieces (list (pair (bytes->str bytes) (List length bytes))))
       (def mode (lit size))
       (Http %drain (new HttpStream pieces pieces mode mode)))
@@ -354,7 +377,8 @@
     (method %parse-response (self (param bytes LIST "The raw response bytes, complete")
                                   . (param no-body BOOL "Truthy for HEAD responses: headers may claim a Content-Length, but no body follows"))
       (doc "Parse a full http response: status from the status line, headers lowercased into an alist, the body unframed (chunked decoded; Content-Length applied; else everything to EOF). HEAD callers pass the no-body flag -- framing headers describe the body a GET would have carried."
-        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))"))
+        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))")
+        (example "(Http %parse-response (list 72 84 84 80 47 49 46 49 32 50 48 48 32 75 13 10 67 111 110 116 101 110 116 45 76 101 110 103 116 104 58 32 50 13 10 13 10 104 105))" "(('status . 200) ('headers (\"content-length\" . \"2\")) ('body 104 105))"))
       (def s (Http %over (list bytes) (if (null? no-body) #f (first no-body))))
       (def body (Http %drain s))
       (list (pair (lit status) (s status))
@@ -363,7 +387,9 @@
 
     (method %quad? (self (param host STRING "Host text"))
       (doc "Is this a dotted quad already (digits and dots only)? Names go through (Socket resolve)."
-        (returns BOOL "#t for dotted-quad text"))
+        (returns BOOL "#t for dotted-quad text")
+        (example "(Http %quad? \"10.0.0.1\")" "#t")
+        (example "(Http %quad? \"example.com\")" "#f"))
       (def n (str-byte-len host))
       (let go ((i 0))
         (match
@@ -448,7 +474,8 @@
 
     (method %sans-auth (self (param headers ALIST "Request headers"))
       (doc "The headers without any Authorization entry (name compared case-insensitively) -- applied when a redirect hops to a DIFFERENT host, so credentials never leak cross-origin (the curl rule)."
-        (returns ALIST "The filtered headers"))
+        (returns ALIST "The filtered headers")
+        (example "(Http %sans-auth (list (pair \"authorization\" \"x\") (pair \"Accept\" \"*/*\")))" "((\"Accept\" . \"*/*\"))"))
       (List reject
         (fn (_ h) (str=? (Str8 downcase (first h)) "authorization"))
         headers))
@@ -458,7 +485,10 @@
                        (param key SYMBOL "Option name")
                        (param default ANY "Value when absent"))
       (doc "An option's value: (key . v) gives v, a bare (key) gives #t, absence gives default."
-        (returns ANY "The value"))
+        (returns ANY "The value")
+        (example "(Http %opt (list (pair 'redirects 3)) 'redirects 10)" "3")
+        (example "(Http %opt (list (list 'insecure)) 'insecure #f)" "#t")
+        (example "(Http %opt () 'redirects 10)" "10"))
       (def e (Assoc entry key o))
       (match
         ((null? e) default)
@@ -471,7 +501,8 @@
                              (param body ANY "Body: a string, a run (STRING . COUNT) for bytes, or nil")
                              (param o ALIST "open's options"))
       (doc "One exchange, redirects NOT followed -- the wire step open loops over: connect, send the request, read the head."
-        (returns OBJECT "An HttpStream positioned at the body"))
+        (returns OBJECT "An HttpStream positioned at the body")
+        (sample "((Http %open-once \"GET\" \"http://127.0.0.1:8080/old\" () () ()) status)" "301: the redirect itself, not followed"))
       (def u (Http %parse-url url))
       (def host (rest (Assoc find (lit host) u)))
       (def quad (if (Http %quad? host) host (Socket resolve host)))
@@ -531,7 +562,8 @@
 
     (method close (self (param s OBJECT "An (Http open) stream"))
       (doc "End the exchange: close the connection under the stream. Closing twice is harmless."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (sample "(Http close (Http open \"GET\" \"http://127.0.0.1:8080/f\" () ()))" "() -- the connection is closed and the body left unread"))
       (match
         ((not (null? (s tls))) (do (Tls close (s tls)) (s tls ())))
         ((not (null? (s fd))) (do (Socket close (s fd)) (s fd ())))
@@ -610,28 +642,33 @@
                       (param body ANY "Request body, a string or a run (STRING . COUNT)")
                       . (param headers ALIST "Optional (name . value) header strings"))
       (doc "PUT body to the url."
-        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))"))
+        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))")
+        (sample "(Http put \"http://127.0.0.1:8080/doc/1\" \"{}\" (list (pair \"Content-Type\" \"application/json\")))" "the response alist"))
       (Http request "PUT" url (if (null? headers) () (first headers)) body))
 
     (method patch (self (param url STRING "Target url")
                         (param body ANY "Request body, a string or a run (STRING . COUNT)")
                         . (param headers ALIST "Optional (name . value) header strings"))
       (doc "PATCH the url with body."
-        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))"))
+        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))")
+        (sample "(Http patch \"http://127.0.0.1:8080/doc/1\" \"{\\\"n\\\":2}\")" "the response alist"))
       (Http request "PATCH" url (if (null? headers) () (first headers)) body))
 
     (method delete (self (param url STRING "Target url")
                          . (param headers ALIST "Optional (name . value) header strings"))
       (doc "DELETE the url."
-        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))"))
+        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))")
+        (sample "(rest (Assoc find 'status (Http delete \"http://127.0.0.1:8080/doc/1\")))" "204"))
       (Http request "DELETE" url (if (null? headers) () (first headers)) ()))
 
     (method head (self (param url STRING "Target url")
                        . (param headers ALIST "Optional (name . value) header strings"))
       (doc "HEAD the url: the headers a GET would return, no body (framing headers describe the body that WOULD have come; the parser applies no body framing)."
-        (returns ALIST "((status . INT) (headers . ALIST) (body . ()))"))
+        (returns ALIST "((status . INT) (headers . ALIST) (body . ()))")
+        (sample "(Assoc find \"content-length\" (rest (Assoc find 'headers (Http head \"http://127.0.0.1:8080/f\"))))" "(\"content-length\" . \"4096\"), with no body read"))
       (Http request "HEAD" url (if (null? headers) () (first headers)) ()))))
 
 (doc (provide x/net/http Http)
   (note "http/1.1 over Socket -- and https over Tls (#412), verification on, names resolved via (Socket resolve) with the Host header keeping the name. Connection: close; chunked + Content-Length framing decoded; bodies are byte lists (bytes->str for text); redirects auto-follow (cap 10; (redirects . 0) opts out; 303->GET, 301/302 POST->GET, 307/308 preserve). (Http open) / (Http read s n) / (Http close s) stream a body a piece at a time. Verbs: get/post/put/patch/delete/head; url-encode/with-query build query strings, url-decode undoes the encoding; (Http basic-auth u p) / (Http bearer-auth tok) are the Authorization pairs (stripped on cross-host redirects). net/ = messages carried over sys/socket transport.")
+  (example "(Http with-query \"http://h/s\" (list (pair \"q\" \"x y\")))" "\"http://h/s?q=x%20y\"")
   "A plain-http client, homed on the Http class.")
