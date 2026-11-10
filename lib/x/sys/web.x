@@ -643,4 +643,5 @@ connect();requestAnimationFrame(padLoop);
       ())))
 
 (doc (provide x/sys/web Web)
+  (example "(Web available?)" "#t")
   "A window in a browser tab: (Web open title w h scale) listens for a page, and Sdl's other messages draw to it, play sound on it, and read its keys and gamepads.")
