@@ -46,6 +46,7 @@
 
 ; --- boot/engine.x ----------------------------------------------------------
 (shared "lib/x/boot/engine.x" %engine-root "the engine's root, as a path")
+(shared "lib/x/boot/engine.x" %engine-contract-root "the engine's contract directory, as a path")
 
 ; --- boot/registry.x: the walk from the base to a cell -----------------------
 (shared "lib/x/boot/registry.x" %reflect-base-cell "the object a base path name addresses: how a file reaches an engine cell")
