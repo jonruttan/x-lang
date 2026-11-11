@@ -25,12 +25,16 @@
 ; they read a probability index and the state vector, so the .xz
 ; container's LZMA2 can drive them a chunk at a time without a second copy
 ; of the coder.
+;
+; This file's decoder is the reference.  x/codec/unlzma-jit compiles the
+; decisions, and it is adopted only once it agrees with this one (below).
 (module x/codec/unlzma)
 
 (import x/type/vector)
+(import x/tool/compiled)
 (import x/num/u32 u32-srl)
 
-(import x/core/doors int% int& int* int+ int- int->ptr int/ int< int<< int= int>> int| mem-copy obj-ref obj-set! ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-make)
+(import x/core/doors int% int& int* int+ int- int->ptr int/ int< int<< int= int>> int| mem-cmp mem-copy obj-ref obj-set! ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-make)
 
 ; The one coordinate the doors module does not carry.  There is no int >
 ; or >= either: a > b is (int< b a).
@@ -529,11 +533,7 @@
     (obj-set! s %DSTSIZE (%dst-size p 5))
     (def want (obj-ref s %DSTSIZE))
     (if (int< 0 want) (if (int< want (obj-ref s %DICTSIZE)) (obj-set! s %DICTSIZE want) ()) ())
-    (def n (int+ %LITERAL (int<< %LITSIZE (int+ lc lp))))
-    (def pr (%probs n))
-    (obj-set! s %NPROBS n)
-    (obj-set! s %PROBSR pr)
-    (obj-set! s %PROBS (str->ptr pr))
+    (obj-set! s %NPROBS (int+ %LITERAL (int<< %LITSIZE (int+ lc lp))))
     (obj-set! s %INCNT 13)))
 
 (def %decoder
@@ -553,15 +553,129 @@
     (obj-set! d %DICT ())
     d))
 
-(def %decode-all
-  (fn (_ s start n)
-    (def d (%decoder s start n))
-    (%header! d)
+; The decisions, from the first to the end, by this file's loops: the
+; probabilities and the window made, the stream run, the window's last bytes
+; out.  Answers (OUT N USED).
+(def %pure-run
+  (fn (_ d)
+    (def pr (%probs (obj-ref d %NPROBS)))
+    (obj-set! d %PROBSR pr)
+    (obj-set! d %PROBS (str->ptr pr))
     (%dict-room! d 1)
-    (%rc-init! d)
     (%run! d)
     (%flush! d (obj-ref d %DICTPOS))
     (list (obj-ref d %OUT) (obj-ref d %OUTCNT) (obj-ref d %INCNT))))
+
+; One stream: the header and the coder's first bytes here, the decisions by
+; run, this file's %pure-run or the compiled engine's.
+(def %decode-all
+  (fn (_ s start n run)
+    (def d (%decoder s start n))
+    (%header! d)
+    (%rc-init! d)
+    (run d)))
+
+; --- The compiled engine (JIT), adopted only when it proves out --------------
+;
+; x/codec/unlzma-jit compiles the decisions: everything %pure-run does after
+; the header and the coder's first bytes.  As Bunzip2's engine is, it is an
+; entry of Compiled's made on demand, built for an input of %jit-threshold
+; bytes or more or on (Unlzma jit!), and adopted only after it decodes the
+; streams below exactly as %pure-run does.  The entry's value is the run:
+; %pure-run, or the engine's.
+
+; Streams written by xz 5.8.4.  The first is --lzma1=preset=9,dict=4KiB over
+; 4652 bytes built to reach every decision the format has -- literals plain
+; and matched, distances from each tier, all four repeated ones, lengths from
+; each tier -- and the window wraps once.  The second declares its length.
+(def %check-streams
+  (list (Str8 append
+          "5d00100000ffffffffffffffff00399948caebd3b5bc6180c1fad3fafc7972156fc13767639185bd015f88c195a2f4c4"
+          "7140f803827086e65f855789c9412488723be50124b0ca6fb9b4d26be6cdfd8319d24179ba9c46c23fbb1e3cb7172b51"
+          "8485a73ed2a40c39bb9abf714d3ae98273d60480cde321bbaa33a281b2379fd2a3e92a26eb2d1d0f68560014e515d3a0"
+          "9f4cb995d7f1b1c79304d8067ea4e23b34dee7c1db0d2715e75138ced1310e2cc81ae77f8bb2d98226c9bcbdccc9f48f"
+          "427e61e55508e4149932d8ca6ba54da2fba83a8649459ba1ecad3de60f0762e6d24904e3f240870cbf4761dac9db2fed"
+          "a05fad8a5637565e7a10cd122aea43f424b4f83e463740d612fd6796e553ccb064eed37577ea3f7e379ccf579ad6e378"
+          "46f4f8643e37866b6a0936d79e83a5ddd0d95bc6e207e5d5225c7eb54fee2a6ae542d0d6b6b75ccfc6d54a6c3a2b5a43"
+          "b5ff1b9ae63615b7deca95a4882c8ccda80d72ec5d7db6559d9b58ead38452f80e094c101344c571a7bc4c5345c093f0"
+          "d1340bbb36349f25567f2f523b268db64a9f585e95e0f87a60dd93b90dbf5503bffc157839b2742fb81378cb45e8ac6f"
+          "f9c4da32d7b5ffb5a44d789b4d23a2cf78f59b790c641acc802d180fdcf7e2b2e00fbefddba98d4bc41736440615ac12"
+          "a2157c4e1c58b7813c1934997ca3917ed538e97ee321609c5299597bd8cf267bed6c26c62d06d02d6fd5c01eb752aea1"
+          "8c5e60d355c5a0d550499bb5a7336b9ec7117075399ada8c8382c2e5d3eab26bab66fd2538d915bccd2e51192b69643b"
+          "bf5ffb4197245d5ed08b795bf7b89e9e4560f236feecf2fb2a99cb5c50a6160245c199aaa8ed0d7801c5e8433bc6fe14"
+          "97e354a41008c573999c0df3d86cb2cc7aa60651eb42a6c025c4a53d5cc74fb7cfe05ec220fdf5ad4d709e40949f60b3"
+          "0e976b193bf459f5e213b20b7f326919aa40359a19c30131dd924cd739b155a4f7e4f913dedeefd0a7459a820bc00075"
+          "6f21b790600211554ee75de7cf66b92bcef0b812c2805e45fded04861771c1f004665e1487a48e38e255fd44542fa3de"
+          "2042f108674ca552407ef7020574d870f649a27c89546d0aa161564ac799cbabd677e6a04e5e723ccc84849520ec0a9d"
+          "b2fb9b0edb63cba450b7470691a1d2d93e13a69a8c8c6724d35c312ccb4582d3ec05d6e7e3b45994d1eb1d111c5e209a"
+          "4b8569b945729c3f99eecfb8ad58009f95de46a54414407cb22cb744e8d5423cbe2120af994d8d3fac712e4a38107398"
+          "d668d295681cb720330ee3f781fd4b56eb42411791fffd9eae8c")        "5d000000040d0000000000000000341949ee8def8c80b1e6f35b7bffffb5c80000"))
+
+(def %region
+  (fn (_ bytes)
+    (let ((r (str-make (List length bytes))))
+      (do ((fn (self i l) (unless (null? l) (do (ptr-set! (str->ptr r) i (first l) 1) (self (int+ i 1) (rest l)))))
+           0 bytes)
+          r))))
+
+; Does a run decode every check stream as %pure-run does, byte for byte,
+; using as much input?
+(def %agrees?
+  (fn (_ run)
+    (import x/codec/hex)
+    (List all?
+      (fn (_ hex)
+        (let ((bytes (Hex decode-bytes hex)))
+          (let ((in (%region bytes)) (n (List length bytes)))
+            (let ((want (%decode-all in 0 n %pure-run)) (got (%decode-all in 0 n run)))
+              (and (= (first (rest want)) (first (rest got)))
+                   (= (first (rest (rest want))) (first (rest (rest got))))
+                   (= 0 (mem-cmp (str->ptr (first want)) (str->ptr (first got)) (first (rest want)))))))))
+      %check-streams)))
+
+(def %entry ())
+(def %jit-threshold 4096)
+
+(def %jit-try!
+  (fn (_)
+    (when (null? %entry)
+      (set! %entry
+        (Compiled make-on-demand (lit unlzma) %pure-run
+          (fn (_)
+            (import x/codec/unlzma-jit)
+            ((prim-ref (lit unlzma) (lit jit-make))
+             (list (pair (lit in) %IN) (pair (lit inlen) %INLEN) (pair (lit incnt) %INCNT)
+                   (pair (lit code) %CODE) (pair (lit range) %RANGE) (pair (lit nprobs) %NPROBS)
+                   (pair (lit dictsize) %DICTSIZE) (pair (lit lc) %LC) (pair (lit posmask) %POSMASK)
+                   (pair (lit litmask) %LITMASK) (pair (lit state) %STATE) (pair (lit rep0) %REP0)
+                   (pair (lit rep1) %REP1) (pair (lit rep2) %REP2) (pair (lit rep3) %REP3)
+                   (pair (lit prev) %PREV) (pair (lit dstsize) %DSTSIZE))
+             (list (pair (lit is-match) %IS-MATCH) (pair (lit is-rep) %IS-REP) (pair (lit is-rep-g0) %IS-REP-G0)
+                   (pair (lit is-rep-g1) %IS-REP-G1) (pair (lit is-rep-g2) %IS-REP-G2)
+                   (pair (lit is-rep-0-long) %IS-REP-0-LONG) (pair (lit pos-slot) %POS-SLOT)
+                   (pair (lit spec-pos) %SPEC-POS) (pair (lit align) %ALIGN) (pair (lit len-coder) %LEN-CODER)
+                   (pair (lit rep-len-coder) %REP-LEN-CODER) (pair (lit literal) %LITERAL)
+                   (pair (lit len-choice) %LEN-CHOICE) (pair (lit len-choice-2) %LEN-CHOICE-2)
+                   (pair (lit len-low) %LEN-LOW) (pair (lit len-mid) %LEN-MID) (pair (lit len-high) %LEN-HIGH))
+             %next-state %agrees?))
+          (fn (_ _) ()))))
+    ((fn (_ entry)
+       (when (eq? (entry state) (lit interpreted)) (entry compile!))
+       (eq? (entry state) (lit compiled)))
+     %entry)))
+
+; The run for n bytes of input: the engine's when it is built, or when n is
+; past the bar and a build succeeds; else %pure-run.
+(def %engine-for
+  (fn (_ n)
+    (do (when (and (>= n %jit-threshold)
+                   ((fn (_ entry) (if (null? entry) #t (eq? (entry state) (lit interpreted)))) %entry))
+          (%jit-try!))
+        ((fn (_ entry)
+           (if (if (null? entry) #f (eq? (entry state) (lit compiled)))
+             (entry compiled)
+             %pure-run))
+         %entry))))
 
 (def %span
   (fn (_ s span)
@@ -580,7 +694,11 @@
         (returns LIST "(OUT N USED): the output region, its byte count, and the input bytes the stream used")
         (example "(do (import x/codec/bytes) (def z (Bytes of-hex \"5d00000004ffffffffffffffff0083fffbffffc0000000\")) (first (rest (Unlzma decode (first z) 0 (Bytes length z)))))" "0"))
       (def sp (%span s span))
-      (%decode-all s (first sp) (first (rest sp))))))
+      (%decode-all s (first sp) (first (rest sp)) (%engine-for (first (rest sp)))))
+    (method jit! (self)
+      (doc "Build and adopt the compiled decoder (JIT; ARM64, x86-64 and 32-bit ARM backends) now, if it decodes the check streams exactly as the pure-x one does. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x decoder carries on, with the same output. decode builds it on its own for an input of 4KB or more."
+        (returns BOOL "#t when the compiled engine is active"))
+      (%jit-try!))))
 
 (doc (provide x/codec/unlzma Unlzma)
   (example "(do (import x/codec/bytes) (def z (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (first (rest (rest (Unlzma decode (first z) 0 (Bytes length z))))))" "33")
