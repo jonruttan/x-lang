@@ -58,6 +58,12 @@ out as the mark, and the collector's own mark bit cannot be left set across
 a collect. The base tree is walked only through `base-layout.x` and
 `base-paths.x`, as `lib/x/boot/reflect.x` walks it, never as structure.
 
+The mark follows an object to its type, and a type's handlers are closures
+that hold their environment, so a mark from any object at all reaches the
+whole environment. The writer bounds it the one way the traversal allows,
+since the flag is also its visited test: it flags its stopping points first
+(format §4.1).
+
 **The seam is the seam.** An image is taken where
 [crafting-a-lang.md](crafting-a-lang.md) §6 puts the per-turn sweep: the
 previous eval has finished and no reader is mid-flight. The control cells

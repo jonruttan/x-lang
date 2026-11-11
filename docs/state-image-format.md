@@ -256,6 +256,15 @@ holds -- the `false` cell, the registry cell -- is reached by the mark and
 is not language state: the writer takes the flag off it before the walk,
 which is `(image write!)`'s (§7): the loop sees flags and nothing else.
 
+The mark follows every object to its type, and a type's handlers are
+closures that hold their environment, so a mark from any object, even a
+fresh pair, an integer, a symbol or a string, flags the whole environment.
+Since the flag is also the mark's visited test, a writer that wants less
+flags its stopping points before the mark and takes those flags off after:
+the image writer flags what the image names rather than writes (the statics,
+and the parent base) with `%trace-stops!` in `tools/dev/image-write.x`.
+`pin!` is not affected: its walk stops at the SHARED type nodes.
+
 While a frame holds a cursor into a child base's chain, **this base must not
 collect**: the collector marks through whatever a frame holds, and a sweep
 clears flags on this chain only, so each collect leaves stale mark bits on
