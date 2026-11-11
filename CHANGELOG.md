@@ -5,6 +5,257 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-11-11
+
+**A heap mark can be made more than once in a process.** ([#1243]) `image-clear!` in
+`x/tool/image/walk` now takes the borrowed flag off the base object as well
+as the allocation chain.  The engine's `(heap chain-clear!)` never reaches
+the base object, and a flag left there made every later mark from the base
+flag nothing, silently; the module's "one mark per process" rule is gone.
+
+[#1243]: https://github.com/jonruttan/x-lang/pull/1243
+
+**An object function keeps the arguments it has evaluated rooted.** ([#1239])
+compile-asm's object world evaluated each argument into a raw stack
+slot, so a collect run while a later argument evaluated freed an earlier
+one.  With `(obj set!)` compiled, `Vector build` over a filler that
+collects lost its index and stored into a reused word: x-coreutils' sort,
+shuf, comm and the -z reader crashed (exit 139/138), ran past 3.5 GB or
+hit the allocation limit.  An object function of two or more parameters
+now holds them in root-chain cells, as the function world does; one
+parameter keeps its raw slot.  No measurable cost on `(obj ref)` and
+`(obj set!)` over 6M calls.
+
+[#1239]: https://github.com/jonruttan/x-lang/pull/1239
+
+**Every Syntax, Theme, Compiled and profile entry shows a worked example
+under help.** ([#1234]) The 71 entries of `(help Syntax ...)`, `(help Theme ...)`,
+`(help Compiled ...)`, the x/tool/profile functions and their three
+modules that answered with a description alone now carry an executable
+example or a sample, run by `make doctest`: the doctest spec grows to
+1341.
+
+[#1234]: https://github.com/jonruttan/x-lang/pull/1234
+
+**Term's speed lookup works on a 32-bit word.** ([#1233]) `Term %baud`, which
+`(Term modes fd)` uses for ispeed and ospeed, raised on 32-bit Linux;
+it now masks with 0xFFFFFFFF.
+
+[#1233]: https://github.com/jonruttan/x-lang/pull/1233
+
+**Every REPL line-editor entry shows a worked example under help.** ([#1233])
+The 49 entries of `(help Term ...)` and `(help Edit ...)` that
+answered with a description alone now carry an executable example or
+a sample, run by `make doctest`: the doctest spec reaches 1345.
+
+**Unlzma decompresses lzma in x, with no liblzma.** ([#1228]) `(Unlzma decode s start n)` answers `(OUT N USED)` for one `.lzma` "alone" stream, the format busybox's `unlzma` and `lzcat` read: the header's `lc`, `lp`, `pb` and dictionary size, then the range coder's bytes to the end marker or to the length the header declares.  The window grows to the dictionary size as the output does rather than taking 64MB up front, and a distance naming bytes the stream never wrote raises a label `'value` whose data holds `(lzma . KIND)` where busybox reads uninitialized memory.  Checked against streams `xz --format=lzma` wrote: a short input, nothing at all, 300 varied bytes, a run, a repeating input, 16KB over a 4KiB dictionary so the window wraps four times, and a header that declares its length.
+
+[#1228]: https://github.com/jonruttan/x-lang/pull/1228
+
+**The linter fails a wide decimal literal given to a bit operation.** ([#1242]) A
+decimal integer that does not fit a 4-byte word, given to `&`, `|`, `^`,
+`~`, `<<`, `>>` or an integer door, or bound by a `def`, is reported as
+`wide-decimal` and fails `make lint-x`; a bit pattern is written in hex,
+which reads the same on either word.  Six such masks in the library and
+apps/bitwise are hex now.
+
+[#1242]: https://github.com/jonruttan/x-lang/pull/1242
+
+- compile-fn! compiles a send to a class's own public static field, ([#1232])
+  read or write, as a call of the class; private and inherited fields
+  still leave the function interpreted.
+
+[#1232]: https://github.com/jonruttan/x-lang/pull/1232
+
+**help no longer documents names that are not bound.** ([#1236]) `(help set-first!)`,
+`(help str-length)`, `(help number->str)`, `(help peek-char)` and the rest
+of twelve retired names now answer "No documentation" instead of
+describing a function that raises Unbound SYMBOL.  `(help eval)` says the
+environment argument is one pair, (bindings . parent), as an operative
+receives it, not an alist.
+
+[#1236]: https://github.com/jonruttan/x-lang/pull/1236
+
+**`x/num/fixed-literal` adds a reader literal for fixed-point values.** ([#1235]) `0.75q16` reads as the integer 49152 once `x/num/fixed-literal` is loaded; `x/num/fixed` itself registers no reader, so a program that only calls the arithmetic does not carry one.
+
+[#1235]: https://github.com/jonruttan/x-lang/pull/1235
+
+**A cache hit no longer rebuilds an entry's site table.** ([#1237]) An entry's .asm
+file now carries the table in the layout a group file uses, so a hit
+copies the sites in one block instead of matching every relocation record
+against the slot list, and the entry is held with that table rather than
+building it a second time.  Compiling the linter's 82 closures from a warm
+cache drops from 3.02 s to 1.66 s.  Every cached entry recompiles once,
+since both file magics move.
+
+[#1237]: https://github.com/jonruttan/x-lang/pull/1237
+
+**(Sdl poll) reads the mouse's place on a 4-byte word.** ([#1238]) The float SDL
+gives for it is taken apart on the integer doors, with bit 31 as its sign.
+
+[#1238]: https://github.com/jonruttan/x-lang/pull/1238
+
+- compile-fn! compiles eq? to the interpreter's value-word compare; a ([#1231])
+  compiled function comparing integers with eq?, such as str=?, answered
+  #f where the interpreter answers #t.
+
+[#1231]: https://github.com/jonruttan/x-lang/pull/1231
+
+Sum sysv answers the same checksum on a 4-byte word. ([#1167])
+
+[#1167]: https://github.com/jonruttan/x-lang/pull/1167
+
+**x/num/fixed** ([#1167]): fixed-point arithmetic on plain
+integers, exact through 64 bits on a 4-byte word and an 8-byte one.
+x/audio/mixer renders on a 4-byte word.
+
+(Sdl audio-queued) answers on a 4-byte word. ([#1167])
+
+**The engine is x-engine-c v0.2.31** ([#1167]). A base made
+with (Base make) allocates on its maker's chain, so a value bound into it
+survives the maker's collects, and (heap-collect) inside it collects.
+An engine built for 32-bit ARM declares arch arm.
+
+- Fixed: the handlers and stamping conformance cases read objects by ([#1167])
+  the engine's word, so a 4-byte engine passes them.
+- Added: the contract's arch vocabulary spells arm (32-bit ARM).
+
+- Fixed: SHA-3, crypt(3) DES, and the GHASH and SHA-512 compiled engines ([#1167])
+  give the same answers with x/num/bigint loaded; on a 4-byte word
+  (Tls13 ready!) builds the SHA-512 engine.
+
+Hash fnv-1a is FNV-1a 32 on a 4-byte word; the SHA-3, ([#1167])
+SHA-512, GHASH, X25519 and Ed25519 engines, DES crypt and RSA key
+generation work on a 4-byte word.
+
+Bzip2 and Bunzip2 and their JIT engines run on 32-bit ARM. ([#1167])
+
+The Inflate and Deflate JIT engines build, prove and adopt on 32-bit ARM. ([#1167])
+
+bcrypt and its JIT engine run on 32-bit ARM. ([#1167])
+
+The AES, SHA-256, SHA-1 and MD5 JIT engines build, prove and adopt on 32-bit ARM. ([#1167])
+
+The ChaCha20 and Poly1305 JIT engines build, prove and adopt on 32-bit ARM. ([#1167])
+
+The scalar double spec runs on 32-bit ARM through the VFP lowerings. ([#1167])
+
+Struct, statfs and set-times read and write by the platform word on 32-bit ARM. ([#1167])
+
+x/num/u32 converts a 32-bit unsigned value to and from a ([#1167])
+word's bits on any word; Crc32, Cksum, Zlib crc32 and Png give the same
+values on a 32-bit word as on a 64-bit one, and the CRC-32, cksum and
+sum engines compile on 32-bit ARM.
+
+str->number, rational reading and division, Float's ([#1167])
+predicates, equal? on vectors, Struct's 64-bit fields and Host all
+answer the same values on a 32-bit word as on a 64-bit one; an exact
+integer quotient past the word is now exact; number? accepts bigints
+and rationals; joining many pieces no longer hangs on a 32-bit word.
+
+x/sys/sdl clears its event and pixel regions on a 4-byte word, so a posted key reads back as a press, not a repeat. ([#1167])
+
+(Sys time-of-day) reads the microseconds under musl on 32-bit ([#1167])
+hosts, where it answered 0.
+
+The terminal screen's diff compares and copies cells by their ([#1167])
+4-byte halves on a 32-bit host; a cell whose style alone changed was not
+redrawn there.
+
+Sys zone reads struct tm at the machine's word size and ([#1167])
+deflate's token tables are word-wide; on 32-bit Linux, musl's stack
+protector killed git commit, and zone read the wrong fields.
+
+(Socket resolve) reads struct addrinfo at the machine's word ([#1167])
+size; on 32-bit hosts it answered no IPv4 address for every name.
+
+Deflate's pure-x matcher compares a word at a time at the ([#1167])
+machine's width, and Zlib's streams lay out z_stream by the word; on
+32-bit arm deflate's multi-block output and zlib's streams were wrong.
+
+(Random sw) draws on a 4-byte word, the same stream as on an 8-byte one. ([#1167])
+
+A state image of a library that used the mont-jit engine at load drops its compiled code and rebuilds it on first use. ([#1167])
+
+The ssh crypto codecs (SHA-512/384, ChaCha20, Poly1305, GHASH, Montgomery, X25519, Ed25519) run on a 4-byte word; pure-x SHA-512 on a 64-bit host is about 1.6x slower (2.57 s to 4.08 s on its bench). ([#1167])
+
+**SHA-1, SHA-256 and MD5 on 32-bit.** ([#1167]) The pure-x digests give the right answer on a 4-byte word: their rotates shift logically, and their constants are spelled in hex.
+
+**32-bit arm: floats, codecs and the clock.** ([#1167]) The arm32 backend's encodings are spelled in hex, so they hold once bigint is loaded; the JIT engines written for an 8-byte word decline a 4-byte one and keep their pure-x path; `(Sys time-of-day)` reads the 32-bit `timeval`.
+
+**Compiled code on 32-bit arm.** ([#1167]) `x/tool/asm/arm32` lowers the compiler's whole vocabulary to A32, so `compile-asm`, the JIT engines, the first/rest guards and `Callback` run natively there. The byte cache's site table is sized by the word.
+
+**Floats on a 4-byte word.** ([#1167]) A Float's payload is its IEEE 754 bits in an INTEGER where the word holds them and in a VECTOR of two words, the low word first, where it does not; `Float bits->str`, `bits->int`, `int->bits` and `str->bits` take and give that payload. A 32-bit arm backend, `x/tool/asm/arm32`, emits the float stubs there, with a double as two words in and an answer through a pointer. The printer rounds on the digit string and sizes its limbs to the word.
+
+**A hex string reads as the word's bits.** ([#1167]) `str->number` with a `0x` prefix or radix 16 fills the word from the low end, so `"ffffffff"` is -1 on a 32-bit word and 4294967295 on a 64-bit one; a pattern with more significant digits than the word has nibbles raises `hex wider than the word`. Decimal keeps its overflow check.
+
+**The JIT lane refuses plainly on a machine with no assembler backend.** ([#1167]) `compile-asm` and the `Callback` stub raise `no assembler backend for this platform` before emitting, instead of ending on an unbound `asm-prologue!`.
+
+**State images write on a 32-bit machine.** ([#1167]) The namer read `dladdr`'s symbol name at a 64-bit offset and the name tables counted words with a shift by 3; both now take the width from `%word-size`. `asm-backend?` answers whether the assembler has a backend for this machine, and the tower loads with empty float cells where it has none instead of ending at the first stub.
+
+**x-lang boots on 32-bit arm Linux.** ([#1167]) The platform layer names `linux-arm` for an engine that declares `arm`: the arm EABI syscall table, stand-ins for the `stat64`, `chown32` and `fcntl64` forms, the kernel's stat64 layout, and arm's open flags. Where no assembler backend exists the JIT lane refuses rather than loading x86-64's, so the tower, the lexers and the bundles keep their interpreted states. A non-gating linux/arm/v7 leg runs the suite in a 32-bit container on the arm64 runner.
+
+**`Sdl raise!` gives a window the keyboard, and `Sdl poll` reports the mouse.** ([#1230]) `(Sdl raise! win)` brings the window to the front with the keyboard, and `fullscreen!` raises the window it switches, so a game that starts fullscreen on a Mac takes keys without a click.  `(Sdl poll)` answers `(mouse-down BUTTON X Y)`, `(mouse-up BUTTON X Y)` and `(mouse-motion X Y HELD)`, buttons named by `(Sdl mouse-buttons)`; `(Sdl poll win)` gives X Y in the picture's pixels.
+
+[#1230]: https://github.com/jonruttan/x-lang/pull/1230
+
+- The linter converts symbols to their names directly instead of ([#1229])
+  through the conversion dispatcher, which cuts its run time by about
+  40 percent.
+
+[#1229]: https://github.com/jonruttan/x-lang/pull/1229
+
+**Every Host and Sys entry shows a worked example under help.** ([#1227]) The 110
+entries of `(help Host ...)`, `(help Sys ...)` and the x/sys/posix
+module that answered with a description alone now carry an executable
+example or a sample, run by `make doctest`: the doctest spec grows to
+1213.
+
+[#1227]: https://github.com/jonruttan/x-lang/pull/1227
+
+**Every Http and image-walk entry shows a worked example under help.** ([#1226])
+The 66 entries of x/net/http and x/tool/image/walk that answered
+`help` with a description alone now carry an executable example or a
+sample; the doctest spec runs 1190.
+
+[#1226]: https://github.com/jonruttan/x-lang/pull/1226
+
+- x/tool/fn-compile loads from an installed tree in any directory; it ([#1225])
+  could not open the engine's ISA manifest outside the install's share/x.
+- Loading x/tool/fn-compile compiles Hash fnv-1a's loop, so a program on
+  helium gets the compiled hash, and Dict ops on string or symbol keys
+  with it, by importing the module.
+
+[#1225]: https://github.com/jonruttan/x-lang/pull/1225
+
+**Added `x/sys/web`: a window in a browser tab, answering `Sdl`'s messages.** ([#1224]) `(Web open title w h scale)` listens on 127.0.0.1 (ports 8080 to 8089, or what `Web listen!` names) and serves a page whose canvas shows the RGBA picture and whose Web Audio plays the signed 16-bit streams; a WebSocket carries frames and samples to it and keys and gamepad input back as the events `Sdl poll` answers, with SDL's keycodes and button names. A program written to `Sdl` runs in a browser by naming `Web` instead, with nothing outside x.
+
+[#1224]: https://github.com/jonruttan/x-lang/pull/1224
+
+- compile-fn! compiles a function containing (guard (name handler) body): ([#1223])
+  the body and handler are outlined into closures the engine's guard
+  runs, each compiled in turn; a guard that writes a local of the
+  function still leaves it interpreted.
+
+[#1223]: https://github.com/jonruttan/x-lang/pull/1223
+
+- Hash fnv-1a, and so every Dict op on a string or symbol key, runs a ([#1222])
+  compiled byte loop where the engine has a JIT: a 26-byte key's hash
+  allocates about a third of what it did.
+
+[#1222]: https://github.com/jonruttan/x-lang/pull/1222
+
+Http url-decode undoes percent-encoding, the inverse of url-encode. ([#1220])
+
+[#1220]: https://github.com/jonruttan/x-lang/pull/1220
+
+- compile-fn! compiles a send (C sel ...) to a class's public static ([#1219])
+  method as a call of the method method-of resolves; static fields and
+  guarded members still leave the function interpreted.
+
+[#1219]: https://github.com/jonruttan/x-lang/pull/1219
+
+
 ## [0.51.0] - 2026-11-08
 
 **Added sound: audio streams in `x/sys/sdl`, and `x/audio/mixer` and `x/audio/tracker`** ([#1217]). `Sdl audio-open`, `audio-put!`, `audio-queued`, `audio-clear!` and `audio-close` push signed 16-bit frames to SDL3 over the dlopen FFI. `x/audio/mixer` synthesises voices from wave tables, with envelopes, slides, low-pass, pan and echoes, and mixes them to stereo a block at a time; its seven per-frame loops are compiled (`Mixer jit!`) and checked against pure x, and a 1024-frame block of 12 voices and two echoes costs 1.5 ms. `x/audio/tracker` plays songs written as data, their tempo and layers following a tension. The int-form loop machinery is shared as `x/tool/int-form` and `x/tool/int-form-jit` (formerly `x/gfx/canvas-jit`).
