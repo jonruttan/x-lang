@@ -968,14 +968,14 @@
     (%warn! "call-nonfn" (guard (_ "?") (%cvt (first form) %lint-string-type))))
   (%lint-check-arity form)
   (%lint-check-malformed form)
-  ; A bit operation or a def given a wide decimal literal (see Lint
+  ; A bit operation given a wide decimal literal (see Lint
   ; %lint-wide-token).  The heads are compared here and the class is asked
   ; only on a match: a send per node is what the walk avoids.
   (let ((h (first %lint-head-cell)))
     (unless (null? h)
       (when (< (str-byte-len h) 6)
         (when (match
-                ((str=? h "def") #t) ((str=? h "&") #t) ((str=? h "|") #t)
+                ((str=? h "&") #t) ((str=? h "|") #t)
                 ((str=? h "^") #t) ((str=? h "~") #t) ((str=? h "<<") #t)
                 ((str=? h ">>") #t) ((str=? h "int&") #t) ((str=? h "int|") #t)
                 ((str=? h "int<<") #t) ((str=? h "int>>") #t) (#t #f))
@@ -1057,7 +1057,13 @@
     ; (%lint-arm-source!), such a token reads as
     ;   (lit (%wide-decimal "4294967295"))
     ; which the walk skips as it skips any literal, and the list handler
-    ; reports where it is an argument of a bit operation or the value of a def.
+    ; reports where it is an argument of a bit operation.
+    ;
+    ; Only there.  A wide decimal anywhere else is a number: an epoch offset
+    ; of 2208988800 or a modulus of 4294967296 is meant to read as a Bigint
+    ; on a 4-byte word, and in hex it would read as the word's bits, a
+    ; different number.  A def does not say which its value is, so a mask
+    ; bound by a def and used later is not reported.
     (%lint-word-max "2147483647" "The largest integer a 4-byte word holds, as its digits")
     (%lint-word-min "2147483648" "The digits of the smallest integer a 4-byte word holds")
     (%lint-int-type ((prim-ref (lit type) (lit by-atom)) ((prim-ref (lit type) (lit of)) 0)) "The integer type, whose read stack the arming pushes on")
