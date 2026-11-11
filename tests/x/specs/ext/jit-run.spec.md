@@ -65,7 +65,39 @@ and calls through an address the way a slot is called.
 ---
     5050
 
+## a routine calls another
+
+### by address, with a word of its choosing or its own argument run
+
+`(%call-routine ADDR ARGS)` calls the routine at ADDR with this base and
+the word ARGS; `(%run-args)` is the run the routine itself was called with,
+so the second routine here hands the first exactly what it was given: the
+address of a word and 7.  It answers their sum less the address.
+
+```x
+(do
+  (def %jr-sum (compile-asm '(fn (self a b) (+ a b)) () '(run integer integer)))
+  (def %jr-box (ptr-call %jr-malloc 8))
+  (ptr-set-word! %jr-box 0 (%jr-addr %jr-sum))
+  (def %jr-pass
+    (compile-asm
+      (list (lit fn) (lit (self a b))
+        (list (lit -) (list (lit %call-routine) (list (lit %mem-ref) (lit a) 0) (lit (%run-args))) (lit a)))
+      () '(run integer integer)))
+  (display (%jr-call %jr-pass (list (ptr->int %jr-box) 7))))
+```
+---
+    7
+
 ## what run mode refuses
+
+### %run-args outside a routine
+
+```x
+(display (guard (e (e msg)) (compile-asm '(fn (self a) (%run-args)) ())))
+```
+---
+    asm-compile: %run-args is a routine's argument run, and this compile is not a routine.  Pass (run TYPE ...) as compile-asm's third argument.
 
 ### arithmetic on an object-typed parameter
 

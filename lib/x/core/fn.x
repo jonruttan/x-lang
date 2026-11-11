@@ -94,6 +94,17 @@
     (match
       ((eq? vals ()) ())
       (#t (pair (list (lit lit) (first vals)) (self (rest vals)))))))
+; The values for primitive f, as the engine's apply is to be handed them:
+; quoted, unless (first %apply-values) says f takes values as they are.  It
+; is nil until something that makes such primitives says which they are
+; (Fn apply-values!).
+(def %apply-values (pair () ()))
+(def %apply-prim-args
+  (fn (_ f vals)
+    (match
+      ((eq? (first %apply-values) ()) (%apply-quoted vals))
+      (((first %apply-values) f) vals)
+      (#t (%apply-quoted vals)))))
 ; The value path, off the fast path so a closure pays for nothing here.  The
 ; handler is the one (v args...) would reach.  Its locals are bound with def,
 ; the primitive; let is derived from apply and builds a form to do it.
@@ -116,7 +127,7 @@
     (match
       ((eq? spread ()) (Err raise (lit type) "apply: no argument list" ()))
       ((eq? label (lit fn)) (%apply f (%apply-args spread)))
-      ((eq? label (lit prim)) (%apply f (%apply-quoted (%apply-args spread))))
+      ((eq? label (lit prim)) (%apply f (%apply-prim-args f (%apply-args spread))))
       ((eq? label (lit op)) (%apply f (%apply-args spread)))
       ((eq? label (lit wrap)) (apply (unwrap f) (%apply-args spread)))
       (#t (%apply-value f (%apply-args spread))))))
@@ -220,6 +231,12 @@
     ; type tests the apply door uses, with a primitive told apart first:
     ; the door's own label answers fn for one, which is right for applying
     ; it and wrong for describing it.
+    (method apply-values! (self (param takes? ANY "(fn (_ f)) answering whether primitive f takes values, or nil for none does"))
+      (doc "Say which primitives apply hands its values as they are. apply quotes each value for a primitive, which evaluates what it is given; a primitive that is handed values by the engine's apply routine, as a function compiled by x/tool/fn-compile is, must not have them quoted. One answer is kept, the last given."
+        (returns NIL "nil")
+        (sample "(Fn apply-values! (fn (_ f) #f))" "()"))
+      (%set-first! %apply-values takes?)
+      ())
     (method label (self (param f ANY "Any value"))
       (doc "Which callable f is: 'fn for a closure made by fn, 'op for an operative made by op, 'wrap for a wrapped combiner made by wrap, 'prim for an engine primitive, and () for anything else, including a value that is callable only through its type's call handler."
         (returns SYMBOL "'fn, 'op, 'wrap or 'prim, or () for a value that is none of them")

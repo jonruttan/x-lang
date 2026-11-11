@@ -43,9 +43,11 @@
 (import x/type/env)
 (import x/core/fn)
 (import x/tool/compiled)
-(import x/tool/asm-cache asm-compile-cached)
+(import x/tool/asm-cache asm-compile-cached asm-fn-values)
+(import x/type/base)
 (import x/core/doors int+ int- int* int/ int% int< int= int& int| int<< int>>
-  obj-ref obj-set! obj-same? io-display-to-str str->sym type-of)
+  image-transient! obj-ref obj-set! obj-same? obj->ptr ptr->int ptr-ref-word ptr-set-word! io-display-to-str str->sym
+  type-of)
 
 ; --- What a head means --------------------------------------------------------
 
@@ -693,6 +695,68 @@
     (set! %fc-env ())
     made))
 
+; --- An apply of a compiled function -------------------------------------------
+; A call hands a function its argument expressions and an apply hands it
+; values.  A closure is told which by the engine, which binds values as they
+; are; a compiled function is a primitive, and the engine calls a primitive
+; one way.  So the engine's apply routine is stood in for, in the base's slot
+; (Base slot!): the routine below sets the function world's word (asm-fn-values)
+; and calls the function when what is applied is one of these, and calls the
+; routine it replaced for anything else.
+;
+; One of these is known by its state word, which holds the address of
+; asm-fn-values: no closure's state and no other primitive's is that object.
+; The word after the one the function reads holds the address of the routine
+; replaced, which is this process's and so is read, not compiled in.
+(def %fc-apply-expr
+  (let ((head (list (lit %mem-ref) (lit call) %obj-meta-len)))
+    (list (lit fn) (lit (self call))
+      (list (lit if)
+        (list (lit and) (lit call) head
+          (list (lit =) (list (lit %mem-ref) head (int+ %obj-meta-len 1)) (lit %values)))
+        (list (lit do)
+          (list (lit %mem-set!) (lit %values) (int+ %obj-meta-len 1) 1)
+          (list (lit %call-routine) (list (lit %mem-ref) head %obj-meta-len) (lit call)))
+        (list (lit %call-routine)
+          (list (lit %mem-ref) (lit %values) (int+ %obj-meta-len 2))
+          (lit (%run-args)))))))
+
+; The routine, once this base's apply slot holds it; nil until then, and on an
+; engine where a compiled function has no word to read.
+(def %fc-apply ())
+(def %fc-arm-apply!
+  (fn (_)
+    (when (if (null? %fc-apply) (not (null? asm-fn-values)) #f)
+      (def routine
+        (asm-compile-cached %fc-apply-expr (list (pair (lit %values) asm-fn-values)) (lit (run integer))))
+      (ptr-set-word! (obj->ptr asm-fn-values) (%data-word-off 2)
+        (Base slot (%base) (lit callable-apply)))
+      (Base slot! (%base) (lit callable-apply) routine)
+      (Fn apply-values!
+        (fn (_ f)
+          (int= (ptr-ref-word (obj->ptr f) (%data-word-off 1)) (ptr->int (obj->ptr asm-fn-values)))))
+      (set! %fc-apply routine))))
+
+; The engine's routine back in the slot.  The writer of a state image runs
+; this in the child it images, after which nothing there is marked: every
+; entry is interpreted again (x/tool/compiled), and the first compile after
+; the image is loaded arms the slot of the base that loaded it.
+(def %fc-disarm-apply!
+  (fn (_)
+    (unless (null? %fc-apply)
+      (Base slot! (%base) (lit callable-apply)
+        (ptr-ref-word (obj->ptr asm-fn-values) (%data-word-off 2)))
+      (Fn apply-values! ())
+      (set! %fc-apply ()))))
+(image-transient! (fn (_) (%fc-disarm-apply!)))
+
+; V, a compiled function, marked as one the apply routine hands values.
+(def %fc-mark!
+  (fn (_ v)
+    (unless (null? %fc-apply)
+      (ptr-set-word! (obj->ptr v) (%data-word-off 1) (ptr->int (obj->ptr asm-fn-values))))
+    v))
+
 (def compile-fn!
   (fn (_ name f)
     ; Anything but a closure raises before an entry is made: an entry
@@ -714,7 +778,8 @@
       (Compiled in-place name f
         (fn (_)
           (if (first made)
-            (asm-compile-cached (first (rest made)) (rest (rest made)) (lit function))
+            (do (%fc-arm-apply!)
+                (%fc-mark! (asm-compile-cached (first (rest made)) (rest (rest made)) (lit function))))
             (Err raise (lit value) (rest made) ())))))
     (List map (fn (_ o) (compile-fn! (first o) (rest o))) outlined)
     entry))
@@ -724,7 +789,7 @@
   (param f ANY "A closure made by fn")
   (returns Compiled "The entry: (entry state) is compiled, or failed with (entry reason)")
   (sample "((compile-fn! 'fib fib) state)" "compiled, and every holder of fib now calls the compiled version")
-  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let (not a named let) compile in place; a (guard (name handler) body) is outlined into two closures, run by the engine's guard and compiled in turn; a call of any other closure, or of a C primitive the engine's ISA manifest does not label spine, passes it values, and a send (C sel ...) to a class's public static method calls the method method-of resolves when F is compiled, and one to its own public static field calls the class to read or write it. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
+  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let (not a named let) compile in place; a (guard (name handler) body) is outlined into two closures, run by the engine's guard and compiled in turn; a call of any other closure, or of a C primitive the engine's ISA manifest does not label spine, passes it values, and a send (C sel ...) to a class's public static method calls the method method-of resolves when F is compiled, and one to its own public static field calls the class to read or write it. Applied, by apply or by the engine as a type's handler is, the compiled F takes the values it is handed as a closure does: the first compile puts a routine in this base's callable-apply slot (Base slot!) that tells it so, and a state image is written with the engine's routine back in the slot. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
 
 ; The library's own hot loops, compiled wherever the compiler loads: the
 ; tower dialects import this module at boot, and a program on helium that

@@ -305,6 +305,9 @@
 ;   %op-first %op-rest %op-unbox
 ;                         fvars: the expression evaluated in place of first,
 ;                         rest or %unbox when the operand is nil
+;   %values               an fvar: the code object whose word says, for one
+;                         entry, that the arguments are values (an apply)
+;                         and not expressions (a call); see asm-fn-values
 ;
 ; A call reaches code that can collect, so every object live across one
 ; must be in a cell: the rewriter binds an operand to a local before a later
@@ -1260,6 +1263,24 @@
         ; emitter does not recognise still refuses loudly
         ; instead of becoming a computed call by accident.
         (%asm-compile-callable-call asm (first args) (rest args) params))
+      ; (%run-args): a routine's own argument run, the word it was called
+      ; with, to hand on to the routine it stands in for.
+      ((eq? op '%run-args)
+        (if (null? %asm-run)
+          (Err raise 'value "asm-compile: %run-args is a routine's argument run, and this compile is not a routine.  Pass (run TYPE ...) as compile-asm's third argument." ())
+          (asm-emit! asm 'mov x0 x20)))
+      ; (%call-routine ADDR ARGS): the routine at address ADDR called with
+      ; this base and the word ARGS, an argument run or a call list as that
+      ; routine takes it.  Both are raw words, and so is what it answers.
+      ((eq? op '%call-routine)
+        (do (%asm-compile-expr asm (first args) params)
+            (asm-push! asm x0)
+            (%asm-compile-expr asm (first (rest args)) params)
+            (asm-emit! asm 'mov x1 x0)
+            (asm-pop! asm x0)
+            (asm-emit! asm 'mov x8 x0)
+            (asm-emit! asm 'mov x0 x19)
+            (asm-emit! asm 'blr x8)))
       ((eq? op '%seq) (%asm-compile-do asm args params))
       ((eq? op 'first)
         (%asm-compile-object-field asm op args params %jit-firstobj))
@@ -1782,25 +1803,50 @@
                (self (+ k 1)))))
        0)
       (asm-emit! asm (lit str) x1 (mem x0 (* %word-size %obj-meta-len)))
-      ; The parameters, each argument evaluated into its cell, x21 walking
-      ; the argument list.  A parameter with no argument keeps nil.
-      (asm-emit! asm 'mov x21 x20)
-      ((fn (self ps k)
-         (unless (null? ps)
-           (let ((lbl-none (%asm-genlabel "%noarg")))
-             (asm-emit! asm 'mov x0 x21)
-             (asm-emit! asm 'cbz x0 (label lbl-none))
-             (%emit-restobj! asm)
-             (asm-emit! asm 'mov x21 x0)
-             (asm-emit! asm 'cbz x0 (label lbl-none))
-             (%emit-firstobj! asm)
-             (asm-emit! asm 'mov x1 x0)
-             (asm-emit! asm 'mov x0 x19)
-             (%emit-eval-arg! asm)
-             (asm-emit! asm (lit str) x0 (mem x22 (%asm-cell-value-offset k)))
-             (asm-label! asm lbl-none)
-             (self (rest ps) (+ k 1)))))
-       params 0)
+      ; The parameters, each argument into its cell, x21 walking the
+      ; argument list.  A parameter with no argument keeps nil.  A call
+      ; passes expressions, and each is evaluated; an apply passes values,
+      ; and says so in the word of the fvar %values, which is read once
+      ; and cleared before anything else can run.
+      (def args-into-cells!
+        (fn (_ eval?)
+          (asm-emit! asm 'mov x21 x20)
+          ((fn (self ps k)
+             (unless (null? ps)
+               (let ((lbl-none (%asm-genlabel "%noarg")))
+                 (asm-emit! asm 'mov x0 x21)
+                 (asm-emit! asm 'cbz x0 (label lbl-none))
+                 (%emit-restobj! asm)
+                 (asm-emit! asm 'mov x21 x0)
+                 (asm-emit! asm 'cbz x0 (label lbl-none))
+                 (%emit-firstobj! asm)
+                 (when eval?
+                   (asm-emit! asm 'mov x1 x0)
+                   (asm-emit! asm 'mov x0 x19)
+                   (%emit-eval-arg! asm))
+                 (asm-emit! asm (lit str) x0 (mem x22 (%asm-cell-value-offset k)))
+                 (asm-label! asm lbl-none)
+                 (self (rest ps) (+ k 1)))))
+           params 0)))
+      (def values (compile-fvar-lookup (lit %values)))
+      (if (null? values) (args-into-cells! #t)
+        (let ((lbl-eval (%asm-genlabel "%evalargs"))
+              (lbl-bound (%asm-genlabel "%bound"))
+              (word (* %word-size (+ %obj-meta-len 1)))
+              (load! (fn (_)
+                       (asm-reloc! asm (asm-pos asm) (lit fvar) (lit %values))
+                       (asm-load-imm64! asm x0 (ptr->int (obj->ptr (rest values)))))))
+          (load!)
+          (asm-emit! asm (lit ldr) x0 (mem 0 word))
+          (asm-emit! asm 'cbz x0 (label lbl-eval))
+          (load!)
+          (asm-emit! asm 'mov x1 (imm 0))
+          (asm-emit! asm (lit str) x1 (mem 0 word))
+          (args-into-cells! #f)
+          (asm-emit! asm 'b (label lbl-bound))
+          (asm-label! asm lbl-eval)
+          (args-into-cells! #t)
+          (asm-label! asm lbl-bound)))
       (set! %asm-fn-params params)
       (set! %asm-slots cells)
       (set! %asm-loop-label (%asm-genlabel "%top"))
