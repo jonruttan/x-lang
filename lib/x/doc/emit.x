@@ -26,7 +26,8 @@
   (doc "The documentation output protocol: the operations doc-gen's walk emits through. Subclass and supply all twelve to add an output format."
     (note "Every operation is a STATIC method, so the emitter is passed as the class value itself rather than an instance.")
     (note "Operations receive plain data -- strings and lists of strings -- never raw token forms; doc-gen owns the destructuring.")
-    (see page-header) (see entry-head))
+    (see page-header) (see entry-head)
+    (example "(DocEmit as-str 'page-header)" "\"page-header\""))
   (interface page-header section class-head interface-line entry-head
              alias text note params returns examples see-also)
 
@@ -39,18 +40,23 @@
     (method as-str (self (param v ANY "Any token value"))
       (doc "Stringify a token value the way the generator's interpolation does."
         (note "Entry heads are sometimes symbols (a bare def) and sometimes already strings (a rendered method signature); both must render unquoted.")
-        (returns STRING "The value as display text"))
+        (returns STRING "The value as display text")
+        (example "(DocEmit as-str 'abc)" "\"abc\"")
+        (example "(DocEmit as-str 42)" "\"42\""))
       #"{v}")
 
     (method meta-strs (self (param forms LIST "(note ...) or (see ...) forms"))
       (doc "Take the payload of each meta form, stringified."
-        (returns LIST "String list"))
+        (returns LIST "String list")
+        (example "(DocEmit meta-strs '((note \"a\") (see b)))" "(\"a\" \"b\")"))
       (%map (fn (_ f) (self as-str (first (rest f)))) forms))
 
     (method param-triples (self (param ps LIST "(param NAME TYPE desc) forms"))
       (doc "Flatten parameter forms to (name type desc) string triples, each absent field empty."
         (note "The layouts are load-bearing and predate the protocol: a THIRD element that is a string is not a type at all -- it carries no type, and its description was never rendered either. Both rules are preserved rather than fixed, because the pages are a ratcheted artifact.")
-        (returns LIST "List of three-element string lists"))
+        (returns LIST "List of three-element string lists")
+        (example "(DocEmit param-triples '((param n INTEGER \"Count\")))" "((\"n\" \"INTEGER\" \"Count\"))")
+        (example "(DocEmit param-triples '((param n \"Count\")))" "((\"n\" \"\" \"\"))"))
       (%map
         (fn (_ p)
           (let ((third (unless (null? (rest (rest p))) (first (rest (rest p)))))
@@ -64,7 +70,8 @@
 
     (method example-pairs (self (param exs LIST "(example in out) forms"))
       (doc "Flatten example forms to (input output) string pairs."
-        (returns LIST "List of two-element string lists"))
+        (returns LIST "List of two-element string lists")
+        (example "(DocEmit example-pairs '((example \"(+ 1 2)\" \"3\")))" "((\"(+ 1 2)\" \"3\"))"))
       (%map (fn (_ ex)
               (list (self as-str (first (rest ex)))
                     (self as-str (first (rest (rest ex))))))
@@ -72,14 +79,17 @@
 
     (method returns-desc (self (param ret LIST "A (returns TYPE desc) form"))
       (doc "A return form's description, or empty -- a non-string third element is not a description."
-        (returns STRING "The description text"))
+        (returns STRING "The description text")
+        (example "(DocEmit returns-desc '(returns STRING \"The text\"))" "\"The text\"")
+        (example "(DocEmit returns-desc '(returns STRING))" "\"\""))
       (if (null? (rest (rest ret))) ""
         (if (str? (first (rest (rest ret)))) (first (rest (rest ret))) "")))))
 
 (def-class DocMd (extends DocEmit)
   (doc "Markdown emitter: the reference pages under docs/ref/x, one .md per module."
     (note "Output is byte-for-byte what doc-gen emitted before the protocol existed; the sweep's pages are unchanged.")
-    (see DocEmit))
+    (see DocEmit)
+    (example "(DocMd entry-head \"DocMd/text\")" "### `DocMd/text`"))
   (static
     (method page-header (self (param mod STRING "Module name, e.g. x/type/base")
                               (param desc STRING "Module description, or \"\"")
@@ -88,7 +98,9 @@
                               (param declared? BOOL "Whether the file declared (provide ...)"))
       (doc "Emit the page header: the index back-link, the H1, the module description and its notes."
         (note "depth drives the ../ prefix on the index link; roff has no such link and ignores it.")
-        (note "An UNDECLARED file gets no Markdown header at all -- lib/x/boot/* declares no module, and a title invented from its path would turn a page the sweep drops into one it keeps. roff is the format that structurally needs a header, so DocMan emits one either way."))
+        (note "An UNDECLARED file gets no Markdown header at all -- lib/x/boot/* declares no module, and a title invented from its path would turn a page the sweep drops into one it keeps. roff is the format that structurally needs a header, so DocMan emits one either way.")
+        (example "(null? (DocMd page-header \"x/boot/core\" \"\" () 2 #f))" "#t")
+        (sample "(DocMd page-header \"x/type/dict\" \"Dictionaries.\" () 2 #t)" "prints the [← Index](../../index.md) back-link, the # x/type/dict heading and the description, each followed by a blank line"))
       (when declared?
         (do
           (def %back
@@ -100,40 +112,49 @@
           (List for-each (fn (_ n) (display #"> {n}\n\n")) notes))))
 
     (method section (self (param title STRING "Section title"))
-      (doc "Emit a section heading -- a (note \"...\") form at file top level.")
+      (doc "Emit a section heading -- a (note \"...\") form at file top level."
+        (example "(DocMd section \"Usage\")" "## Usage"))
       (display #"## {title}\n\n"))
 
     (method class-head (self (param cname STRING "Class name")
                              (param parent STRING "Parent class name, or \"\""))
-      (doc "Emit a class heading, and its parent when the class extends one.")
+      (doc "Emit a class heading, and its parent when the class extends one."
+        (example "(DocMd class-head \"Dict\" \"\")" "## Class `Dict`")
+        (sample "(DocMd class-head \"DocMd\" \"DocEmit\")" "prints ## Class `DocMd`, then *Extends `DocEmit`.* as its own paragraph"))
       (display #"## Class `{cname}`\n\n")
       (unless (str=? parent "") (display #"*Extends `{parent}`.*\n\n")))
 
     (method interface-line (self (param names LIST "Operation name strings"))
-      (doc "Emit a class's (interface ...) contract -- the operations a subclass must supply.")
+      (doc "Emit a class's (interface ...) contract -- the operations a subclass must supply."
+        (example "(DocMd interface-line (list \"text\" \"note\"))" "**Interface:** `text` `note` "))
       (display "**Interface:** ")
       (List for-each (fn (_ n) (display #"`{n}` ")) names)
       (display "\n\n"))
 
     (method entry-head (self (param name STRING "Entry name or rendered signature"))
-      (doc "Emit the heading for one documented entry: a def, a method, or a field.")
+      (doc "Emit the heading for one documented entry: a def, a method, or a field."
+        (example "(DocMd entry-head \"f\")" "### `f`"))
       (display #"### `{name}`\n\n"))
 
     (method alias (self (param name STRING "Lookup name for the entry that follows"))
       (doc "Record a lookup name for the next entry. Markdown has intra-page anchors already, so this is a no-op here; man output turns each one into a .so stub page."
-        (note "Called with the STRUCTURED name -- Class-method, not the rendered signature -- because a lookup name has to be typeable."))
+        (note "Called with the STRUCTURED name -- Class-method, not the rendered signature -- because a lookup name has to be typeable.")
+        (example "(null? (DocMd alias \"Str8-split\"))" "#t"))
       ())
 
     (method text (self (param s STRING "Paragraph text"))
-      (doc "Emit a description paragraph.")
+      (doc "Emit a description paragraph."
+        (example "(DocMd text \"Hello.\")" "Hello."))
       (display #"{s}\n\n"))
 
     (method note (self (param s STRING "Note text"))
-      (doc "Emit one note -- a caveat or contract line attached to the entry above it.")
+      (doc "Emit one note -- a caveat or contract line attached to the entry above it."
+        (sample "(DocMd note \"Careful.\")" "prints > Careful. as a blockquote line, then a blank line"))
       (display #"> {s}\n\n"))
 
     (method params (self (param ps LIST "List of (name type desc) string triples"))
-      (doc "Emit the parameter list. An empty type or description is omitted rather than rendered blank.")
+      (doc "Emit the parameter list. An empty type or description is omitted rather than rendered blank."
+        (sample "(DocMd params (list (list \"n\" \"INTEGER\" \"Count\") (list \"s\" \"\" \"\")))" "prints **Parameters:**, a blank line, the lines - **n** : `INTEGER` — Count and - **s**, then a blank line"))
       (display "**Parameters:**\n\n")
       (List for-each
         (fn (_ p)
@@ -146,14 +167,17 @@
 
     (method returns (self (param type STRING "Return type name")
                           (param desc STRING "Return description, or \"\""))
-      (doc "Emit the return type and its description.")
+      (doc "Emit the return type and its description."
+        (example "(DocMd returns \"STRING\" \"The text\")" "**Returns:** `STRING` — The text")
+        (example "(DocMd returns \"LIST\" \"\")" "**Returns:** `LIST`"))
       (display #"**Returns:** `{type}`")
       (unless (str=? desc "") (display #" — {desc}"))
       (newline) (newline))
 
     (method examples (self (param exs LIST "List of (input output) string pairs"))
       (doc "Emit the worked examples as an x-repl block."
-        (note "The x-repl fence is what the doctest ratchet reads back; the pairs are (example INPUT OUTPUT) forms."))
+        (note "The x-repl fence is what the doctest ratchet reads back; the pairs are (example INPUT OUTPUT) forms.")
+        (sample "(DocMd examples (list (list \"(+ 1 2)\" \"3\")))" "prints **Examples:**, a blank line, then an x-repl fence holding the line (+ 1 2) => 3"))
       (display "**Examples:**\n\n" "```x-repl\n")
       (List for-each
         (fn (_ ex) (display #"{(List ref 0 ex)} => {(List ref 1 ex)}\n"))
@@ -161,10 +185,12 @@
       (display "```\n\n"))
 
     (method see-also (self (param names LIST "Referenced name strings"))
-      (doc "Emit the cross-references as intra-page anchors.")
+      (doc "Emit the cross-references as intra-page anchors."
+        (example "(DocMd see-also (list \"text\"))" "**See also:** [`text`](#text) "))
       (display "**See also:** ")
       (List for-each (fn (_ s) (display #"[`{s}`](#{s}) ")) names)
       (newline) (newline))))
 
 (doc (provide x/doc/emit DocEmit DocMd)
-  "The documentation output protocol (DocEmit) and its Markdown implementation (DocMd).")
+  "The documentation output protocol (DocEmit) and its Markdown implementation (DocMd)."
+  (example "(DocMd section \"Usage\")" "## Usage"))

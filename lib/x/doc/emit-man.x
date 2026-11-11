@@ -30,12 +30,16 @@
   (doc "roff emitter: one man page per module, section 3x, plus .so alias stubs for every documented name."
     (note "Section 3x, not 3: Doxygen's C reference already occupies section 3, and the two namespaces should not collide.")
     (note "Alias names ride out as .\\\" X-ALIAS comment lines for the sweep to harvest; roff ignores them.")
-    (see DocEmit) (see esc))
+    (see DocEmit) (see esc)
+    (example "(DocMan page-name \"x/doc/emit-man\")" "\"x-doc-emit-man\""))
   (static
     (method esc (self (param s STRING "Text to escape"))
       (doc "Escape a string for roff."
         (note "Three rules: a backslash becomes \\e, a hyphen becomes \\- (roff renders a bare - as a typographic hyphen, which is wrong for an identifier and breaks copy-paste), and a leading . or ' is protected with \\& so roff does not read the line as a request.")
-        (returns STRING "Text safe to emit in a man page"))
+        (returns STRING "Text safe to emit in a man page")
+        (example "(DocMan esc \"a-b\")" "\"a\\\\-b\"")
+        (example "(DocMan esc \".TH\")" "\"\\\\&.TH\"")
+        (example "(DocMan esc \"a\\\\b\")" "\"a\\\\eb\""))
       (def %n (str-byte-len s))
       (bytes->str
         (%reverse
@@ -70,7 +74,8 @@
                               (param depth INTEGER "Directory depth -- unused; man pages have no relative links")
                               (param declared? BOOL "Whether the file declared (provide ...) -- unused; a man page needs a .TH either way"))
       (doc "Emit the .TH header, the NAME section man's apropos database reads, and DESCRIPTION."
-        (note "Unlike Markdown, roff gets a header even for an undeclared file: without .TH the file is not a man page, and man renders it with no header at all. The title then comes from the source path."))
+        (note "Unlike Markdown, roff gets a header even for an undeclared file: without .TH the file is not a man page, and man renders it with no header at all. The title then comes from the source path.")
+        (sample "(DocMan page-header \"x/type/dict\" \"Dictionaries.\" () 2 #t)" "prints .TH \"x-type-dict\" \"3x\" with the X_RELEASE environment value in the date slot, then .SH NAME, x/type/dict \\- Dictionaries., and a DESCRIPTION section"))
       ; The release rides the .TH date slot, which is where Doxygen puts it
       ; for the C reference too -- an installed page can then say which build
       ; it came from.  Read from the environment for the same reason doc-c
@@ -93,41 +98,50 @@
             (List for-each (fn (_ n) (self note n)) notes))))
 
     (method section (self (param title STRING "Section title"))
-      (doc "Emit a top-level section heading.")
+      (doc "Emit a top-level section heading."
+        (example "(DocMan section \"Usage\")" ".SH \"Usage\""))
       (display #".SH \"{(self esc title)}\"\n"))
 
     (method class-head (self (param cname STRING "Class name")
                              (param parent STRING "Parent class name, or \"\""))
-      (doc "Emit a class as its own section, naming the parent when it extends one.")
+      (doc "Emit a class as its own section, naming the parent when it extends one."
+        (example "(DocMan class-head \"Dict\" \"\")" ".SH \"CLASS Dict\"")
+        (sample "(DocMan class-head \"DocMan\" \"DocEmit\")" "prints .SH \"CLASS DocMan\", then a .PP paragraph saying it extends DocEmit in bold"))
       (display #".SH \"CLASS {(self esc cname)}\"\n")
       (unless (str=? parent "")
         (display #".PP\nExtends \\fB{(self esc parent)}\\fP.\n")))
 
     (method interface-line (self (param names LIST "Operation name strings"))
-      (doc "Emit the class's (interface ...) contract.")
+      (doc "Emit the class's (interface ...) contract."
+        (sample "(DocMan interface-line (list \"text\" \"note\"))" "prints .PP, then a line with Interface: and each name in bold"))
       (display ".PP\n\\fBInterface:\\fP")
       (List for-each (fn (_ n) (display #" \\fB{(self esc n)}\\fP")) names)
       (newline))
 
     (method entry-head (self (param name STRING "Entry name or rendered signature"))
-      (doc "Emit one entry as a subsection heading.")
+      (doc "Emit one entry as a subsection heading."
+        (example "(DocMan entry-head \"f\")" ".SS \"f\""))
       (display #".SS \"{(self esc name)}\"\n"))
 
     (method alias (self (param name STRING "Lookup name for the entry that follows"))
       (doc "Record a lookup name as a roff comment for the sweep to harvest into a .so stub."
-        (note "Emitted UNESCAPED: this is a file name for the sweep, not display text."))
+        (note "Emitted UNESCAPED: this is a file name for the sweep, not display text.")
+        (example "(DocMan alias \"Str8-split\")" ".\\\" X-ALIAS Str8-split"))
       (display #".\\\" X-ALIAS {name}\n"))
 
     (method text (self (param s STRING "Paragraph text"))
-      (doc "Emit a description paragraph.")
+      (doc "Emit a description paragraph."
+        (sample "(DocMan text \"See a-b.\")" "prints .PP, then See a\\-b. on its own line"))
       (display #".PP\n{(self esc s)}\n"))
 
     (method note (self (param s STRING "Note text"))
-      (doc "Emit a note as an indented block, the roff answer to Markdown's blockquote.")
+      (doc "Emit a note as an indented block, the roff answer to Markdown's blockquote."
+        (sample "(DocMan note \"Careful.\")" "prints .RS 4, .PP, Careful. and .RE, one to a line"))
       (display #".RS 4\n.PP\n{(self esc s)}\n.RE\n"))
 
     (method params (self (param ps LIST "List of (name type desc) string triples"))
-      (doc "Emit the parameter list as tagged paragraphs -- the layout man readers expect for arguments.")
+      (doc "Emit the parameter list as tagged paragraphs -- the layout man readers expect for arguments."
+        (sample "(DocMan params (list (list \"n\" \"INTEGER\" \"Count\")))" "prints a bold Parameters: paragraph, then a .TP entry: n in bold with INTEGER in italics, and Count on the next line"))
       (display ".PP\n\\fBParameters:\\fP\n")
       (List for-each
         (fn (_ p)
@@ -141,13 +155,15 @@
 
     (method returns (self (param type STRING "Return type name")
                           (param desc STRING "Return description, or \"\""))
-      (doc "Emit the return type and its description.")
+      (doc "Emit the return type and its description."
+        (sample "(DocMan returns \"STRING\" \"The text\")" "prints .PP, then a line with Returns: in bold, STRING in italics and \\- The text"))
       (display #".PP\n\\fBReturns:\\fP \\fI{(self esc type)}\\fP")
       (unless (str=? desc "") (display #" \\- {(self esc desc)}"))
       (newline))
 
     (method examples (self (param exs LIST "List of (input output) string pairs"))
-      (doc "Emit the worked examples as a no-fill block, so the transcript keeps its own line breaks and spacing.")
+      (doc "Emit the worked examples as a no-fill block, so the transcript keeps its own line breaks and spacing."
+        (sample "(DocMan examples (list (list \"(+ 1 2)\" \"3\")))" "prints a bold Examples: paragraph, then an indented .nf block holding the line (+ 1 2) => 3"))
       (display ".PP\n\\fBExamples:\\fP\n.RS 4\n.nf\n")
       (List for-each
         (fn (_ ex)
@@ -156,10 +172,12 @@
       (display ".fi\n.RE\n"))
 
     (method see-also (self (param names LIST "Referenced name strings"))
-      (doc "Emit the cross-references.")
+      (doc "Emit the cross-references."
+        (sample "(DocMan see-also (list \"text\" \"note\"))" "prints .PP, then a line with See also: and each name in bold"))
       (display ".PP\n\\fBSee also:\\fP")
       (List for-each (fn (_ s) (display #" \\fB{(self esc s)}\\fP")) names)
       (newline))))
 
 (doc (provide x/doc/emit-man DocMan)
-  "roff (man page) emitter for the documentation generator.")
+  "roff (man page) emitter for the documentation generator."
+  (example "(DocMan entry-head \"Str8/split\")" ".SS \"Str8/split\""))

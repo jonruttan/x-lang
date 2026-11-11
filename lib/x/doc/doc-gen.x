@@ -160,7 +160,9 @@
           (self (rest tokens)))))))
   (param tokens LIST "Token list (e.g. from tokenizing doc-prims.x)")
   (returns LIST "Alist of (name-string . extracted-7-tuple) pairs")
-  "Build a lookup alist from (doc ...) forms in a token stream.")
+  "Build a lookup alist from (doc ...) forms in a token stream."
+  (example "(import x/doc/doc-gen doc-build-lookup) (List map (fn (_ p) (first p)) (doc-build-lookup '((doc (def a 1) \"A.\") (def b 2) (doc c \"C.\"))))" "(\"a\" \"c\")")
+  (example "(import x/doc/doc-gen doc-build-lookup) (doc-build-lookup '((doc foo \"Foo.\")))" "((\"foo\" 'foo \"Foo.\" () () () () ()))"))
 
 ; The extracted 7-tuple for name-str in an alist from doc-build-lookup, or
 ; (); compared as strings (cross-base safe).
@@ -518,7 +520,8 @@
   (param prims-alist LIST "Alist from doc-build-lookup (or () for none)")
   (param em ANY "Emitter class (DocMd, DocMan)")
   (param fallback STRING "Module name to title the page with when the file declares no (provide ...)")
-  "Walk source tokens, using prims-alist as fallback docs for bare defs.")
+  "Walk source tokens, using prims-alist as fallback docs for bare defs."
+  (sample "(doc-walk-with-prims '((def foo 1)) '((\"foo\" foo \"Foo.\" () () () () ())) DocMd \"x/demo\")" "prints a ### `foo` heading and the paragraph Foo., the description the alist supplies for the bare def"))
 
 ; A token list's documentation, every entry, through the emitter em.
 (def %doc-walk
@@ -527,4 +530,5 @@
 
 (doc (provide x/doc/doc-gen doc-build-lookup doc-walk-with-prims)
   (note "The two exports are the driver's, tools/dev/doc.x: it imports them by name.")
-  "Documentation generator from x-lang source tokens; output format rides an emitter (x/doc/emit).")
+  "Documentation generator from x-lang source tokens; output format rides an emitter (x/doc/emit)."
+  (example "(import x/doc/doc-gen doc-build-lookup) (first (first (doc-build-lookup '((doc foo \"Foo.\")))))" "\"foo\""))
