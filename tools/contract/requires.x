@@ -78,6 +78,9 @@
   (needs "lib/x/sys/cont.x" isa/gc)
   (needs "lib/x/sys/gc.x" isa/gc)
   (needs "lib/x/sys/host.x" isa/ffi-call)
+  ; ioctl through the syscall door: the console mode, the input grab and
+  ; the PCM calls.
+  (needs "lib/x/sys/linux.x" isa/syscall)
   (needs "lib/x/sys/posix.x" isa/sys isa/syscall)
   ; posix_openpt and the rest through the ffi door; TIOCSWINSZ and TIOCSCTTY
   ; through the syscall door, for term.x's reason: ioctl is variadic.
