@@ -1025,12 +1025,15 @@ the reader for the files it lints and such a token arrives as the marker
 ---
     #t
 
-### flags a wide decimal as the value of a def
+### a wide decimal bound by a def is not flagged
+
+A def does not say whether its value is a bit pattern or a number, and a
+number such as an epoch offset is right in decimal.
 
 ```x
 (do
-  (def %r (lint-forms (list (list 'def 'mask (list 'lit (list '%wide-decimal "4294967295")))) () ()))
-  (display (lint-has? "4294967295" (lint-warnings-of "wide-decimal" %r))))
+  (def %r (lint-forms (list (list 'def 'bias (list 'lit (list '%wide-decimal "2208988800")))) () ()))
+  (display (null? (lint-warnings-of "wide-decimal" %r))))
 ```
 ---
     #t
@@ -1103,4 +1106,4 @@ What the integer is depends on the word, so the case asks only its kind.
   (write (lint-warnings-of "wide-decimal" (lint-forms %forms () ()))))
 ```
 ---
-    ("2147483648" "4294967295")
+    ("2147483648")
