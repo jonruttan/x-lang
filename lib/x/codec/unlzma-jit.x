@@ -556,4 +556,5 @@
 (prim-reg! (lit unlzma) (lit jit-make) unlzma-jit-make)
 
 (doc (provide x/codec/unlzma-jit unlzma-jit-make)
+  (example "(do (import x/codec/unlzma-jit) (procedure? (prim-ref (lit unlzma) (lit jit-make))))" "#t")
   "The compiled decoder behind Unlzma (JIT, ARM64, x86-64 and 32-bit ARM backends): the whole decode loop, one compiled state machine, built and adopted only after agreeing with the pure-x decoder.")
