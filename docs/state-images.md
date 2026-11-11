@@ -282,10 +282,10 @@ writer refuses what is not declared.
 
 A compiled analyser runs from a page the writing process mapped, and no
 name reacquires a page in another process. What an image can carry is the
-code and its relocation records: `lib/x/tool/asm-cache.x` holds each entry
-in the heap, the code as an object of `word` units and the records as a
-list, so a compile after a load is a copy into a fresh page and a patch,
-with no compiler run.
+code and where it is patched: `lib/x/tool/asm-cache.x` holds each entry in
+the heap, the code as an object of `word` units with its site table (the
+addresses it names, and the sites that name each), so a compile after a
+load is a copy into a fresh page and a patch, with no compiler run.
 
 Every compile in `boot/tower-compiled.x` is the same pattern, source over
 free variables displacing an interpreted twin. Each makes an entry in

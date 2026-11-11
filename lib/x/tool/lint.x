@@ -13,7 +13,7 @@
 ; STRINGS; lint-has? tests membership.
 (import x/core/list)
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(import x/core/doors io-write-to-str str->sym str-byte-len str-byte-ref type-push-write)
+(import x/core/doors buf-tok io-write-to-str str->sym str-byte-len str-byte-ref type-push-write)
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 (def %type-pop-write (prim-ref 'type 'pop-write))
@@ -968,6 +968,18 @@
     (%warn! "call-nonfn" (guard (_ "?") (%cvt (first form) %lint-string-type))))
   (%lint-check-arity form)
   (%lint-check-malformed form)
+  ; A bit operation or a def given a wide decimal literal (see Lint
+  ; %lint-wide-token).  The heads are compared here and the class is asked
+  ; only on a match: a send per node is what the walk avoids.
+  (let ((h (first %lint-head-cell)))
+    (unless (null? h)
+      (when (< (str-byte-len h) 6)
+        (when (match
+                ((str=? h "def") #t) ((str=? h "&") #t) ((str=? h "|") #t)
+                ((str=? h "^") #t) ((str=? h "~") #t) ((str=? h "<<") #t)
+                ((str=? h ">>") #t) ((str=? h "int&") #t) ((str=? h "int|") #t)
+                ((str=? h "int<<") #t) ((str=? h "int>>") #t) (#t #f))
+          (Lint %lint-wide-args! (rest form))))))
   ; ((fn (self i) ...) i): the call is right here
   (when (Lint %lint-fn-form? (first form))
     (%set-first! (Lint %lint-carried)
@@ -1032,6 +1044,89 @@
     ; anything else, ((fn (self k i) ...) 0 i), still shadows.
     (%lint-carried (list ()) "Parameter names the next fn walked carries from its call")
     (%lint-no-shadow (list ()) "Parameter names of the fn being entered that are no shadow")
+    ; --- Wide decimal literals ---
+    ; A decimal integer literal that does not fit a 4-byte word reads there
+    ; as a Bigint once x/num/bigint is loaded, and the bit operators and the
+    ; integer doors take a word: (& b 2147483648) raised on linux/arm/v7, and
+    ; (int& x 4294967295) masked with the object's word and answered wrongly.
+    ; A hex literal reads the word's bits on either word, so a bit pattern is
+    ; written in hex.
+    ;
+    ; The walk sees read forms, where 4294967295 and 0xFFFFFFFF are one
+    ; value, so the spelling is kept at the read: while the reader is armed
+    ; (%lint-arm-source!), such a token reads as
+    ;   (lit (%wide-decimal "4294967295"))
+    ; which the walk skips as it skips any literal, and the list handler
+    ; reports where it is an argument of a bit operation or the value of a def.
+    (%lint-word-max "2147483647" "The largest integer a 4-byte word holds, as its digits")
+    (%lint-word-min "2147483648" "The digits of the smallest integer a 4-byte word holds")
+    (%lint-int-type ((prim-ref (lit type) (lit by-atom)) ((prim-ref (lit type) (lit of)) 0)) "The integer type, whose read stack the arming pushes on")
+    (%lint-read-saved (list ()) "The integer type's read stack as it was before arming")
+    ; Whether the digits of TOK from byte I on, N of them, are past LIMIT,
+    ; a string of ten digits: more digits are, fewer are not, and ten compare
+    ; byte by byte.
+    (method %lint-digits-past? (self tok i n limit)
+      (match
+        ((< 10 n) #t)
+        ((< n 10) #f)
+        (#t ((fn (go k)
+               (if (= k 10) #f
+                 (let ((a (%char->integer (str-byte-ref tok (+ i k))))
+                       (b (%char->integer (str-byte-ref limit k))))
+                   (match ((< b a) #t) ((< a b) #f) (#t (go (+ k 1)))))))
+             0))))
+    ; The marker for the integer token TOK when it is a decimal that does not
+    ; fit a 4-byte word; nil for any other token, a hex one among them.
+    (method %lint-wide-token (self tok)
+      (let ((len (str-byte-len tok)))
+        (def neg (if (< 0 len) (eq? 45 (%char->integer (str-byte-ref tok 0))) #f))
+        (def start (if (< 0 len)
+                     (if (if neg #t (eq? 43 (%char->integer (str-byte-ref tok 0)))) 1 0)
+                     0))
+        ; past the leading zeros; a byte that is no digit ends the scan with
+        ; nil, which is how 0x10 leaves
+        (def digits? (fn (digits? i)
+          (if (= i len) #t
+            (let ((c (%char->integer (str-byte-ref tok i))))
+              (if (if (< c 48) #t (< 57 c)) #f (digits? (+ i 1)))))))
+        (def skip (fn (skip i)
+          (if (if (< i len) (eq? 48 (%char->integer (str-byte-ref tok i))) #f) (skip (+ i 1)) i)))
+        (if (if (< start len) (digits? start) #f)
+          (let ((i (skip start)))
+            (if (self %lint-digits-past? tok i (- len i)
+                  (if neg (Lint %lint-word-min) (Lint %lint-word-max)))
+              (list (lit lit) (list (lit %wide-decimal) tok))
+              ()))
+          ())))
+    ; The token of ARG when it is the marker, else nil.
+    (method %lint-wide-of (self arg)
+      (if (if (pair? arg) (pair? (rest arg)) #f)
+        (let ((m (first (rest arg))))
+          (if (if (pair? m) (if (symbol? (first m)) (pair? (rest m)) #f) #f)
+            (if (str=? (%cvt (first m) %lint-string-type) "%wide-decimal") (first (rest m)) ())
+            ()))
+        ()))
+    (method %lint-wide-args! (self args)
+      (when (pair? args)
+        (let ((tok (self %lint-wide-of (first args))))
+          (unless (null? tok) (%warn! "wide-decimal" tok)))
+        (self %lint-wide-args! (rest args))))
+    ; Arm the reader: from here an integer token that %lint-wide-token marks
+    ; reads as its marker.  The handler goes ahead of the type's own readers
+    ; and answers nil for every other token, which passes it to them.
+    (method %lint-arm-source! (self)
+      (let ((cell ((prim-ref (lit type) (lit read-cell)) (Lint %lint-int-type))))
+        (when (null? (first (Lint %lint-read-saved)))
+          (%set-first! (Lint %lint-read-saved) (first cell))
+          ((prim-ref (lit type) (lit push-read)) (Lint %lint-int-type)
+            (pair (fn (_ buffer . rest) (Lint %lint-wide-token (buf-tok buffer)))
+                  (first cell))))))
+    ; Put the integer type's read stack back as arming found it.
+    (method %lint-disarm-source! (self)
+      (unless (null? (first (Lint %lint-read-saved)))
+        (%set-first! ((prim-ref (lit type) (lit read-cell)) (Lint %lint-int-type))
+                     (first (Lint %lint-read-saved)))
+        (%set-first! (Lint %lint-read-saved) ())))
     (method %lint-fn-form? (self x)
       (if (pair? x)
         (if (symbol? (first x))
@@ -1384,7 +1479,7 @@
 (doc (def lint-warnings-of (fn (_ label result)
   (%map (fn (_ w) (rest w))
     (%filter (fn (_ w) (str=? (first w) label)) (lint-warnings result)))))
-  (param label STRING "Warning label: arity | call-nonfn | dup-def | malformed | match-multi | shadow | unused")
+  (param label STRING "Warning label: arity | call-nonfn | dup-def | malformed | match-multi | shadow | unused | wide-decimal")
   (param result LIST "Result of lint-forms")
   (returns LIST "The names for warnings of that label")
   "Filter pedantic warnings to one label, returning their names.")

@@ -225,12 +225,30 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 (def %fc-sends (fn (_ x) (FcSends both (FcSends twice x) (FcSends (lit twice) (int+ x 1)))))
 (def %fc-sends-before (%fc-sends 3))
 (def %fc-e (compile-fn! (lit %fc-sends) %fc-sends))
-(def %fc-field (fn (_) (FcSends limit)))
-(def %fc-f (compile-fn! (lit %fc-field) %fc-field))
-(write (list (%fc-e state) %fc-sends-before (%fc-sends 3) (%fc-f state) (%fc-field)))
+(write (list (%fc-e state) %fc-sends-before (%fc-sends 3)))
 ```
 ---
-    ('compiled (6 . 8) (6 . 8) 'failed 7)
+    ('compiled (6 . 8) (6 . 8))
+
+### a send to a class's public static field reads and writes it where it lives
+
+```x
+(def-class FcFields ()
+  (static
+    (limit 7 "A static field")
+    (private (held 3))))
+(def %fc-field (fn (_ d) (int+ (FcFields limit) d)))
+(def %fc-f (compile-fn! (lit %fc-field) %fc-field))
+(def %fc-setf (fn (_ v) (FcFields limit v)))
+(def %fc-s (compile-fn! (lit %fc-setf) %fc-setf))
+(def %fc-before (%fc-field 1))
+(%fc-setf 40)
+(def %fc-held (fn (_) (FcFields held)))
+(def %fc-h (compile-fn! (lit %fc-held) %fc-held))
+(write (list (%fc-f state) (%fc-s state) %fc-before (%fc-field 2) (FcFields limit) (%fc-h state)))
+```
+---
+    ('compiled 'compiled 8 42 40 'failed)
 
 ### a guard runs its body and its handler as the interpreter does
 

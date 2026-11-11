@@ -239,7 +239,7 @@
                   ((eq? ty (lit u16)) (%le-bytes (%val name) 2))
                   ((eq? ty (lit i16)) (%le-bytes (& (%val name) 65535) 2))
                   ((eq? ty (lit u32)) (%le-bytes (%val name) 4))
-                  ((eq? ty (lit i32)) (%le-bytes (& (%val name) 4294967295) 4))
+                  ((eq? ty (lit i32)) (%le-bytes (& (%val name) 0xFFFFFFFF) 4))
                   ((eq? ty (lit u64)) (%le-bytes (%val name) 8))
                   ((eq? ty (lit i64)) (%le-bytes (%val name) 8))
                   ((eq? ty (lit u16be)) (%be-bytes (%val name) 2))
