@@ -199,7 +199,7 @@
                     (pair
                       (let ((x (if (= op 3) (Num abs (- i half)) (+ i ox)))
                             (y (if (= op 3) (Num abs (- j half)) (+ j oy))))
-                        (= 1 (& (>> (& (f x y) 4294967295) k) 1)))
+                        (= 1 (& (>> (& (f x y) 0xFFFFFFFF) k) 1)))
                       racc))))
               acc)))))
 

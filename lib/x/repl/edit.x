@@ -94,15 +94,18 @@
   ; --- reading the buffer ---------------------------------------------------
 
   (method text (self)
-    (doc "The buffer's bytes." (returns STRING "The line as typed so far"))
+    (doc "The buffer's bytes." (returns STRING "The line as typed so far")
+      (example "(let ((e (Edit make))) (e insert! \"ab\") (e text))" "\"ab\""))
     (field 'text))
 
   (method point (self)
-    (doc "The cursor, as a byte offset into the text." (returns INTEGER "Byte offset"))
+    (doc "The cursor, as a byte offset into the text." (returns INTEGER "Byte offset")
+      (example "(let ((e (Edit make))) (e insert! \"ab\") (e point))" "2"))
     (field 'point))
 
   (method empty? (self)
-    (doc "Whether the buffer holds no bytes." (returns BOOL "True when the line is empty"))
+    (doc "Whether the buffer holds no bytes." (returns BOOL "True when the line is empty")
+      (example "((Edit make) empty?)" "#t"))
     (= 0 (Str8 length (field 'text))))
 
   (method before (self)
@@ -112,7 +115,8 @@
     (Str8 sub 0 (field 'point) (field 'text)))
 
   (method after (self)
-    (doc "The text to the right of the point." (returns STRING "Bytes in [point, end)"))
+    (doc "The text to the right of the point." (returns STRING "Bytes in [point, end)")
+      (example "(let ((e (Edit make))) (e insert! \"abc\") (e back!) (e after))" "\"c\""))
     (let ((t (field 'text)))
       (Str8 sub (field 'point) (- (Str8 length t) (field 'point)) t)))
 
@@ -121,7 +125,9 @@
   (method set-text! (self (param s STRING "Replacement text")
                           . (param at INTEGER "Where to leave the point; default the end"))
     (doc "Replace the whole buffer, leaving the point at `at` (the end by default). The point is clamped into the new text."
-      (returns Edit "self"))
+      (returns Edit "self")
+      (example "(let ((e (Edit make))) (e set-text! \"hello\" 2) (e after))" "\"llo\"")
+      (example "(let ((e (Edit make))) (e set-text! \"hello\" 99) (e point))" "5"))
     (set-field! 'text s)
     (let ((n (Str8 length s)))
       (let ((p (if (null? at) n (first at))))
@@ -153,7 +159,8 @@
 
   (method del! (self)
     (doc "Delete the character at the point (the Delete key). A no-op at the end of the line."
-      (returns Edit "self"))
+      (returns Edit "self")
+      (example "(let ((e (Edit make))) (e insert! \"abc\") (e bol!) (e del!) (e text))" "\"bc\""))
     (let ((t (field 'text)) (p (field 'point)))
       (unless (>= p (Str8 length t))
         (let ((e (Edit next-start t p)))
@@ -164,22 +171,26 @@
   ; --- motion ---------------------------------------------------------------
 
   (method back! (self)
-    (doc "Move the point one character left." (returns Edit "self"))
+    (doc "Move the point one character left." (returns Edit "self")
+      (example "(let ((e (Edit make))) (e insert! \"hé\") (e back!) (e point))" "1"))
     (set-field! 'point (Edit prev-start (field 'text) (field 'point)))
     self)
 
   (method forward! (self)
-    (doc "Move the point one character right." (returns Edit "self"))
+    (doc "Move the point one character right." (returns Edit "self")
+      (example "(let ((e (Edit make))) (e insert! \"éa\") (e bol!) (e forward!) (e point))" "2"))
     (set-field! 'point (Edit next-start (field 'text) (field 'point)))
     self)
 
   (method bol! (self)
-    (doc "Move the point to the start of the line (ctrl-a / Home)." (returns Edit "self"))
+    (doc "Move the point to the start of the line (ctrl-a / Home)." (returns Edit "self")
+      (example "(let ((e (Edit make))) (e insert! \"abc\") (e bol!) (e point))" "0"))
     (set-field! 'point 0)
     self)
 
   (method eol! (self)
-    (doc "Move the point to the end of the line (ctrl-e / End)." (returns Edit "self"))
+    (doc "Move the point to the end of the line (ctrl-e / End)." (returns Edit "self")
+      (example "(let ((e (Edit make))) (e insert! \"abc\") (e bol!) (e eol!) (e point))" "3"))
     (set-field! 'point (Str8 length (field 'text)))
     self)
 
@@ -203,7 +214,8 @@
 
   (method forward-word! (self)
     (doc "Move the point right over one word, skipping any separators first (meta-f / ctrl-right)."
-      (returns Edit "self"))
+      (returns Edit "self")
+      (example "(let ((e (Edit make))) (e insert! \"ab cd\") (e bol!) (e forward-word!) (e point))" "2"))
     (let ((bref (prim-ref (lit str) (lit byte-ref)))
           (cint (prim-ref (lit char) (lit ->int)))
           (t (field 'text)))
@@ -218,7 +230,8 @@
 
   (method kill-eol! (self)
     (doc "Delete from the point to the end of the line, saving it for yank! (ctrl-k)."
-      (returns Edit "self"))
+      (returns Edit "self")
+      (example "(let ((e (Edit make))) (e insert! \"ab cd\") (e back-word!) (e kill-eol!) (list (e text) (e kill)))" "(\"ab \" \"cd\")"))
     (let ((t (field 'text)) (p (field 'point)))
       (set-field! 'kill (Str8 sub p (- (Str8 length t) p) t))
       (set-field! 'text (Str8 sub 0 p t)))
@@ -226,7 +239,8 @@
 
   (method kill-bol! (self)
     (doc "Delete from the start of the line to the point, saving it for yank! (ctrl-u)."
-      (returns Edit "self"))
+      (returns Edit "self")
+      (example "(let ((e (Edit make))) (e insert! \"ab cd\") (e back-word!) (e kill-bol!) (list (e text) (e kill)))" "(\"cd\" \"ab \")"))
     (let ((t (field 'text)) (p (field 'point)))
       (set-field! 'kill (Str8 sub 0 p t))
       (set-field! 'text (Str8 sub p (- (Str8 length t) p) t))
@@ -246,12 +260,14 @@
     self)
 
   (method yank! (self)
-    (doc "Insert the last killed text at the point (ctrl-y)." (returns Edit "self"))
+    (doc "Insert the last killed text at the point (ctrl-y)." (returns Edit "self")
+      (example "(let ((e (Edit make))) (e insert! \"ab cd\") (e kill-word-back!) (e bol!) (e yank!) (e text))" "\"cdab \""))
     (self insert! (field 'kill))
     self)
 
   (method kill (self)
-    (doc "The last killed text." (returns STRING "The kill ring's one entry"))
+    (doc "The last killed text." (returns STRING "The kill ring's one entry")
+      (example "(let ((e (Edit make))) (e insert! \"ab cd\") (e kill-word-back!) (e kill))" "\"cd\""))
     (field 'kill))
 
   (method clear! (self)
@@ -273,7 +289,8 @@
   ; newest entry", and it counts upward into the past.
 
   (method hist (self)
-    (doc "The history list, newest first." (returns LIST "Entries"))
+    (doc "The history list, newest first." (returns LIST "Entries")
+      (example "(let ((e (Edit make))) (e remember! \"b\") (e remember! \"a\") (e hist))" "(\"a\" \"b\")"))
     (field 'hist))
 
   (method remember! (self (param s STRING "The line to record"))
@@ -290,7 +307,9 @@
 
   (method earlier! (self)
     (doc "Show the next entry further back in history (Up / ctrl-p), stashing the fresh line on the way out. A no-op at the oldest entry."
-      (returns BOOL "True when the buffer changed"))
+      (returns BOOL "True when the buffer changed")
+      (example "(let ((e (Edit make (list \"new\" \"old\")))) (e earlier!) (e earlier!) (e text))" "\"old\"")
+      (example "((Edit make) earlier!)" "#f"))
     (let ((h (field 'hist)) (hp (field 'hpos)))
       (let ((next (if (null? hp) 0 (+ hp 1))))
         (if (>= next (List length h)) #f
@@ -302,7 +321,8 @@
 
   (method later! (self)
     (doc "Show the next entry toward the present (Down / ctrl-n), restoring the stashed fresh line at the bottom. A no-op when already editing a fresh line."
-      (returns BOOL "True when the buffer changed"))
+      (returns BOOL "True when the buffer changed")
+      (example "(let ((e (Edit make (list \"b\" \"a\")))) (e insert! \"draft\") (e earlier!) (e later!) (e text))" "\"draft\""))
     (let ((hp (field 'hpos)))
       (if (null? hp) #f
         (if (= hp 0)
@@ -315,12 +335,14 @@
 
   (method browsing? (self)
     (doc "Whether the buffer is showing a history entry rather than a fresh line."
-      (returns BOOL "True while browsing"))
+      (returns BOOL "True while browsing")
+      (example "(let ((e (Edit make (list \"a\")))) (e earlier!) (e browsing?))" "#t"))
     (not (null? (field 'hpos))))
 
   (method position (self)
     (doc "The index of the history entry being shown, 0 being the newest, or nil while a fresh line is being edited."
-      (returns ANY "An index, or nil"))
+      (returns ANY "An index, or nil")
+      (example "(let ((e (Edit make (list \"b\" \"a\")))) (e earlier!) (e earlier!) (e position))" "1"))
     (field 'hpos))
 
   ; --- searching the history -------------------------------------------------
@@ -375,4 +397,5 @@
 (doc (provide x/repl/edit Edit)
   (note "Pure: no terminal, no descriptor. repl/term.x owns the tty and repl/line.x drives both.")
   (note "Offsets are bytes; motion is by character, so multi-byte glyphs are never split.")
+  (example "(let ((e (Edit make))) (e insert! \"ab\") (e bol!) (e insert! \"X\") (e text))" "\"Xab\"")
   "Edit: the line buffer and cursor a REPL key press acts on.")
