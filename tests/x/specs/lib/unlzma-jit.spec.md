@@ -135,3 +135,40 @@ bytes: the end marker comes before the coder's last flush byte.
 ```
 ---
     ('value "Unlzma: the stream ends inside a symbol" (('lzma . 'short)))
+
+## a stream fed a piece at a time
+
+### an output that outgrows its regions, fifty bytes at a time
+
+The 100000-byte stream above, fed through the engine: each piece's decisions run until
+fewer bytes are unread than one might need, and the bytes held carry to
+the next.  The CRC-32 is carried across the pieces.  The byte the stream
+leaves is the coder's last flush byte.
+
+```x
+(do (import x/codec/unlzma) (import x/codec/hex) (import x/codec/crc32)
+  (Unlzma jit!)
+  (def %uj-region (fn (_ bs) (let ((r ((prim-ref (lit str) (lit make)) (List length bs))))
+    (let ((p ((prim-ref (lit str) (lit ->ptr)) r)))
+      (do ((fn (self i l) (unless (null? l) (do ((prim-ref (lit ptr) (lit set!)) p i (first l) 1) (self (+ i 1) (rest l))))) 0 bs) r)))))
+  (def %uj-fed (fn (_ in n step)
+    (let ((z (Unlzma stream))
+          (sum (fn (_ acc p) (list (+ (first acc) (first (rest p))) (Crc32 update (first (rest acc)) (first p) 0 (first (rest p)))))))
+      ((fn (self off acc)
+         (if (< off n)
+           (self (+ off step) (sum acc (Unlzma feed z in off (if (< (- n off) step) (- n off) step))))
+           (let ((all (sum acc (Unlzma finish z))))
+             (list (first all) (first (rest all)) (Unlzma done? z) (first (rest (Unlzma rest z)))))))
+       0 (list 0 0)))))
+  (def %uj-z (Hex decode-bytes (Str8 append
+    "5d00000004ffffffffffffffff003098c8e25de1f04e8ff4b440f478025cf20601bd7bd42fc2d8d02d9a269b3609cc03"
+    "b58c1c21a1fd665f7bc68e3a23b1a4baa0ebd46ff7df289b037d04abb1f53a247b10fa45369775500de590a1cff24842"
+    "210f6c1b39c21f42f8a389284d8f8d3f24d84cda4d36472a77f2be194e751544fff50da539b8b8a3144ffcc1740161d8"
+    "be7ddfefbab8997ad6fb2b5f1f2243c97b3842d5c7b66a2698032b7d16d418a758a0bad4f3a46e3f480b4fbcb1a9af6c"
+    "dc219705819bbace15e7acdf8198614c2b40f02884a2c2e885dd49ce6cea1e2b9c1b7b04eaa9cb7250c48d4b5b8f8fa3"
+    "c1267022ea550feb976ec9343d26df9e906275563de2c79f33cf73394e640ca097dad3028f84a23b93a33237a94ed0c4"
+    "bef3bbffff120c0000")))
+  (write (%uj-fed (%uj-region %uj-z) (List length %uj-z) 50)))
+```
+---
+    (100000 881757662 #t 1)

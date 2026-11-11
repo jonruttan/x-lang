@@ -34,7 +34,7 @@
 (import x/tool/compiled)
 (import x/num/u32 u32-srl)
 
-(import x/core/doors int% int& int* int+ int- int->ptr int/ int< int<< int= int>> int| mem-cmp mem-copy obj-ref obj-set! ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-make)
+(import x/core/doors int% int& int* int+ int- int->ptr int/ int< int<< int= int>> int| mem-cmp mem-copy obj-ref obj-set! ptr->int ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-byte-len str-make)
 
 ; The one coordinate the doors module does not carry.  There is no int >
 ; or >= either: a > b is (int< b a).
@@ -110,7 +110,9 @@
 ; header's lc and the masks pb and lp make; the state machine's state, the
 ; last four distances and the byte before the write position; the output
 ; size the header declares, or -1 for the "not told" the alone format
-; writes when the size is unknown.
+; writes when the size is unknown; how much of the window is on the output
+; already; the fewest unread bytes a decision starts with, 0 for an input
+; held whole; and whether the stream's end is reached.
 (def %IN 1)
 (def %INLEN 2)
 (def %INCNT 3)
@@ -140,7 +142,10 @@
 (def %REP3 27)
 (def %PREV 28)
 (def %DSTSIZE 29)
-(def %NSLOTS 29)
+(def %DICTFLUSH 30)
+(def %INWAIT 31)
+(def %DONE 32)
+(def %NSLOTS 32)
 
 (def %fail
   (fn (_ kind what)
@@ -149,8 +154,10 @@
 ; --- memory -----------------------------------------------------------------
 
 (def %at (fn (_ p off) (int->ptr (int+ (ptr->int p) off))))
-(def %wref (fn (_ p i) (ptr-ref p (int<< i 3) 8)))
-(def %wset! (fn (_ p i v) (ptr-set! p (int<< i 3) v 8)))
+; A probability is a word, the platform's, so the compiled decoder reads the
+; same region.
+(def %wref (fn (_ p i) (ptr-ref-word p (int* i %word-size))))
+(def %wset! (fn (_ p i v) (ptr-set-word! p (int* i %word-size) v)))
 (def %bref (fn (_ p i) (int& (ptr-ref p i 1) 255)))
 (def %bset! (fn (_ p i v) (ptr-set! p i v 1)))
 
@@ -162,13 +169,23 @@
     (def r (str-make k))
     (do (%mem-set (str->ptr r) 0 k) r)))
 
-; A region of n words, every one 1024: each probability starts even.
+; A region of n words, every one 1024: each probability starts even.  The
+; first word is set and the words set so far copied after themselves, so
+; the fill is a few copies, not a step a word.
 (def %probs
   (fn (_ n)
-    (def r (str-make (int<< n 3)))
+    (def size (int* n %word-size))
+    (def r (str-make size))
     (def p (str->ptr r))
-    (do ((fn (self i) (if (int< i n) (do (%wset! p i (int>> %MODEL-TOTAL 1)) (self (int+ i 1))) ())) 0)
-        r)))
+    (%wset! p 0 (int>> %MODEL-TOTAL 1))
+    ((fn (self k)
+       (if (int< k size)
+         (do (def m (if (int< (int- size k) k) (int- size k) k))
+             (mem-copy (%at p k) p m)
+             (self (int+ k m)))
+         ()))
+     %word-size)
+    r))
 
 ; --- the input --------------------------------------------------------------
 
@@ -294,14 +311,17 @@
           (obj-set! s %OUTP (str->ptr r))
           (obj-set! s %OUTCAP ncap)))))
 
-; The window's first n bytes onto the output.
+; The window's bytes not yet on the output, to end, onto it.
 (def %flush!
-  (fn (_ s n)
+  (fn (_ s end)
+    (def from (obj-ref s %DICTFLUSH))
+    (def n (int- end from))
     (if (int< 0 n)
       (do (%out-room! s n)
-          (mem-copy (%at (obj-ref s %OUTP) (obj-ref s %OUTCNT)) (obj-ref s %DICT) n)
+          (mem-copy (%at (obj-ref s %OUTP) (obj-ref s %OUTCNT)) (%at (obj-ref s %DICT) from) n)
           (obj-set! s %OUTCNT (int+ (obj-ref s %OUTCNT) n)))
-      ())))
+      ())
+    (obj-set! s %DICTFLUSH end)))
 
 ; One byte into the window, and the window out when the byte fills it.
 (def %put!
@@ -314,6 +334,7 @@
     (if (int< (obj-ref s %DICTHIGH) n) (obj-set! s %DICTHIGH n) ())
     (if (int= n (obj-ref s %DICTSIZE))
       (do (%flush! s n)
+          (obj-set! s %DICTFLUSH 0)
           (obj-set! s %DICTPOS 0)
           (obj-set! s %GLOBALPOS (int+ (obj-ref s %GLOBALPOS) (obj-ref s %DICTSIZE))))
       (obj-set! s %DICTPOS n))))
@@ -495,10 +516,23 @@
           (if (eq? len (lit end)) #f
             (do (%copy-loop! s len) #t))))))
 
+; Decisions until the end, or until fewer bytes are unread than INWAIT,
+; the most one decision can read.
 (def %run!
   (fn (self s)
-    (if (%done? s) ()
-      (if (%step! s) (self s) ()))))
+    (match
+      ((%done? s) (obj-set! s %DONE #t))
+      ((int< (int- (obj-ref s %INLEN) (obj-ref s %INCNT)) (obj-ref s %INWAIT)) ())
+      ((%step! s) (self s))
+      (#t (obj-set! s %DONE #t)))))
+
+; The most bytes one decision reads: a bit reads at most one, and the
+; longest decision is a fresh match -- is-match and is-rep, a length's two
+; choices and its high tree, the slot, and the top slot's coded bits, its
+; direct ones and the align tree's.
+(def %DECISION-BYTES
+  (int+ 4 (int+ %LEN-HIGH-BITS
+                (int+ %POS-SLOT-BITS (int- (int>> (int- (int<< 1 %POS-SLOT-BITS) 1) 1) 1)))))
 
 ; --- the header -------------------------------------------------------------
 
@@ -551,29 +585,153 @@
     (obj-set! d %OUTCAP 256)
     (obj-set! d %DICTR ())
     (obj-set! d %DICT ())
+    (obj-set! d %DONE #f)
     d))
 
-; The decisions, from the first to the end, by this file's loops: the
-; probabilities and the window made, the stream run, the window's last bytes
-; out.  Answers (OUT N USED).
-(def %pure-run
+; The probabilities and the window made, once the header has sized them.
+(def %start!
   (fn (_ d)
     (def pr (%probs (obj-ref d %NPROBS)))
     (obj-set! d %PROBSR pr)
     (obj-set! d %PROBS (str->ptr pr))
-    (%dict-room! d 1)
-    (%run! d)
-    (%flush! d (obj-ref d %DICTPOS))
-    (list (obj-ref d %OUT) (obj-ref d %OUTCNT) (obj-ref d %INCNT))))
+    (%dict-room! d 1)))
 
-; One stream: the header and the coder's first bytes here, the decisions by
-; run, this file's %pure-run or the compiled engine's.
+; A run carries the decisions on from the top of one, as %run! says when to
+; stop, and leaves every slot of d current: what the decisions wrote is on
+; the output, and DONE says whether the end is reached.  This file's run is
+; %pure-run; the compiled engine's is the other.
+(def %pure-run
+  (fn (_ d)
+    (%run! d)
+    (%flush! d (obj-ref d %DICTPOS))))
+
+; One stream held whole: the header and the coder's first bytes here, the
+; decisions by run.  Answers (OUT N USED).
 (def %decode-all
   (fn (_ s start n run)
     (def d (%decoder s start n))
     (%header! d)
     (%rc-init! d)
-    (run d)))
+    (%start! d)
+    (run d)
+    (list (obj-ref d %OUT) (obj-ref d %OUTCNT) (obj-ref d %INCNT))))
+
+; --- a stream fed a piece at a time -------------------------------------------
+;
+; The stream holds the input not yet read, its capacity and count, the
+; decoder once the header is read, its run, whether the end is reached,
+; and the capacity the last piece's output grew to.  Each run stops at the top of a decision that might not have
+; its bytes, so the decoder needs no state inside one, and the bytes it
+; stops short of are held for the next piece.
+(def %ZIN 1)
+(def %ZINCAP 2)
+(def %ZINCNT 3)
+(def %ZDEC 4)
+(def %ZRUN 5)
+(def %ZDONE 6)
+(def %ZOUTCAP 7)
+
+; The header's 13 bytes and the coder's first five.
+(def %HEAD-BYTES 18)
+
+; run is the decoder's, or () to choose one by the input the header comes
+; with, as decode chooses by its input.
+(def %stream-new
+  (fn (_ run)
+    (def z (Vector make 7 0))
+    (obj-set! z %ZIN (str-make 4096))
+    (obj-set! z %ZINCAP 4096)
+    (obj-set! z %ZOUTCAP 256)
+    (obj-set! z %ZDEC ())
+    (obj-set! z %ZRUN run)
+    (obj-set! z %ZDONE #f)
+    z))
+
+; n bytes of buf from start held after those already held.
+(def %take-input!
+  (fn (_ z buf start n)
+    (def have (obj-ref z %ZINCNT))
+    (def total (int+ have n))
+    (if (int< (obj-ref z %ZINCAP) total)
+      (do (def cap (%dict-double (int<< (obj-ref z %ZINCAP) 1) total))
+          (def r (str-make cap))
+          (if (int< 0 have) (mem-copy (str->ptr r) (str->ptr (obj-ref z %ZIN)) have) ())
+          (obj-set! z %ZIN r)
+          (obj-set! z %ZINCAP cap))
+      ())
+    (if (int< 0 n) (mem-copy (%at (str->ptr (obj-ref z %ZIN)) have) (%at (str->ptr buf) start) n) ())
+    (obj-set! z %ZINCNT total)))
+
+; The decoder pointed at the input held, told how much a decision needs
+; unread, and given an output of its own, as large as the last piece's
+; grew to.
+(def %rewind!
+  (fn (_ z d final?)
+    (def cap (obj-ref z %ZOUTCAP))
+    (def o (str-make cap))
+    (obj-set! d %IN (str->ptr (obj-ref z %ZIN)))
+    (obj-set! d %INLEN (obj-ref z %ZINCNT))
+    (obj-set! d %INWAIT (if final? 0 %DECISION-BYTES))
+    (obj-set! d %OUT o)
+    (obj-set! d %OUTP (str->ptr o))
+    (obj-set! d %OUTCAP cap)
+    (obj-set! d %OUTCNT 0)
+    d))
+
+; The decoder made from the header and the coder's first bytes.
+(def %stream-start!
+  (fn (_ z)
+    (def n (obj-ref z %ZINCNT))
+    (def d (%decoder (obj-ref z %ZIN) 0 n))
+    (%header! d)
+    (%rc-init! d)
+    (%start! d)
+    (if (null? (obj-ref z %ZRUN)) (obj-set! z %ZRUN (%engine-for n)) ())
+    (obj-set! z %ZDEC d)
+    d))
+
+; The input the decoder read dropped from the front.
+(def %consume!
+  (fn (_ z d)
+    (def used (obj-ref d %INCNT))
+    (def left (int- (obj-ref z %ZINCNT) used))
+    (if (if (int< 0 used) (int< 0 left) #f)
+      ; the bytes left move to the front of the same region when they do
+      ; not overlap where they go, which is every time a run reads more
+      ; than it leaves
+      (if (int< used left)
+        (do (def r (str-make (obj-ref z %ZINCAP)))
+            (mem-copy (str->ptr r) (%at (str->ptr (obj-ref z %ZIN)) used) left)
+            (obj-set! z %ZIN r))
+        (mem-copy (str->ptr (obj-ref z %ZIN)) (%at (str->ptr (obj-ref z %ZIN)) used) left))
+      ())
+    (obj-set! z %ZINCNT left)
+    (obj-set! d %INCNT 0)))
+
+(def %empty (%zeroed 1))
+
+; What the input held decodes to, as (OUT N).  final? says the input has
+; ended: the decisions run to the end, and running out is an error, not a
+; wait.
+(def %stream-run
+  (fn (_ z final?)
+    (match
+      ((obj-ref z %ZDONE) (list %empty 0))
+      ((and (null? (obj-ref z %ZDEC)) (not final?) (int< (obj-ref z %ZINCNT) %HEAD-BYTES))
+        (list %empty 0))
+      (#t
+        (do (def d (if (null? (obj-ref z %ZDEC)) (%stream-start! z) (obj-ref z %ZDEC)))
+            (%rewind! z d final?)
+            ((obj-ref z %ZRUN) d)
+            (obj-set! z %ZOUTCAP (obj-ref d %OUTCAP))
+            (%consume! z d)
+            (if (obj-ref d %DONE) (obj-set! z %ZDONE #t) ())
+            (list (obj-ref d %OUT) (obj-ref d %OUTCNT)))))))
+
+(def %stream-feed
+  (fn (_ z buf start n)
+    (%take-input! z buf start n)
+    (%stream-run z #f)))
 
 ; --- The compiled engine (JIT), adopted only when it proves out --------------
 ;
@@ -618,8 +776,30 @@
            0 bytes)
           r))))
 
+; Where the next piece of a fed stream's output starts in want's n bytes,
+; once piece agrees with them there; -1 once one has not.
+(def %piece-at
+  (fn (_ at piece want n)
+    (def k (first (rest piece)))
+    (if (if (int< at 0) #t (int< n (int+ at k))) -1
+      (if (int= 0 (mem-cmp (%at (str->ptr want) at) (str->ptr (first piece)) k)) (int+ at k) -1))))
+
+; The stream in n bytes of in, fed through run in pieces of step bytes and
+; then finished: does it come out as want's wn bytes?
+(def %fed-agrees?
+  (fn (_ in n run step want wn)
+    (def z (%stream-new run))
+    (def fed
+      ((fn (self off at)
+         (if (int< off n)
+           (do (def k (if (int< (int- n off) step) (int- n off) step))
+               (self (int+ off k) (%piece-at at (%stream-feed z in off k) want wn)))
+           at))
+       0 0))
+    (int= wn (%piece-at fed (%stream-run z #t) want wn))))
+
 ; Does a run decode every check stream as %pure-run does, byte for byte,
-; using as much input?
+; using as much input, and fed 97 bytes at a time as well as whole?
 (def %agrees?
   (fn (_ run)
     (import x/codec/hex)
@@ -630,7 +810,8 @@
             (let ((want (%decode-all in 0 n %pure-run)) (got (%decode-all in 0 n run)))
               (and (= (first (rest want)) (first (rest got)))
                    (= (first (rest (rest want))) (first (rest (rest got))))
-                   (= 0 (mem-cmp (str->ptr (first want)) (str->ptr (first got)) (first (rest want)))))))))
+                   (= 0 (mem-cmp (str->ptr (first want)) (str->ptr (first got)) (first (rest want))))
+                   (%fed-agrees? in n run 97 (first want) (first (rest want))))))))
       %check-streams)))
 
 (def %entry ())
@@ -645,11 +826,17 @@
             (import x/codec/unlzma-jit)
             ((prim-ref (lit unlzma) (lit jit-make))
              (list (pair (lit in) %IN) (pair (lit inlen) %INLEN) (pair (lit incnt) %INCNT)
-                   (pair (lit code) %CODE) (pair (lit range) %RANGE) (pair (lit nprobs) %NPROBS)
-                   (pair (lit dictsize) %DICTSIZE) (pair (lit lc) %LC) (pair (lit posmask) %POSMASK)
+                   (pair (lit code) %CODE) (pair (lit range) %RANGE) (pair (lit probs) %PROBS)
+                   (pair (lit nprobs) %NPROBS) (pair (lit dictr) %DICTR) (pair (lit dict) %DICT)
+                   (pair (lit dictsize) %DICTSIZE) (pair (lit dictcap) %DICTCAP)
+                   (pair (lit dictpos) %DICTPOS) (pair (lit dicthigh) %DICTHIGH)
+                   (pair (lit globalpos) %GLOBALPOS) (pair (lit out) %OUT) (pair (lit outp) %OUTP)
+                   (pair (lit outcap) %OUTCAP) (pair (lit outcnt) %OUTCNT)
+                   (pair (lit lc) %LC) (pair (lit posmask) %POSMASK)
                    (pair (lit litmask) %LITMASK) (pair (lit state) %STATE) (pair (lit rep0) %REP0)
                    (pair (lit rep1) %REP1) (pair (lit rep2) %REP2) (pair (lit rep3) %REP3)
-                   (pair (lit prev) %PREV) (pair (lit dstsize) %DSTSIZE))
+                   (pair (lit prev) %PREV) (pair (lit dstsize) %DSTSIZE)
+                   (pair (lit dictflush) %DICTFLUSH) (pair (lit inwait) %INWAIT) (pair (lit done) %DONE))
              (list (pair (lit is-match) %IS-MATCH) (pair (lit is-rep) %IS-REP) (pair (lit is-rep-g0) %IS-REP-G0)
                    (pair (lit is-rep-g1) %IS-REP-G1) (pair (lit is-rep-g2) %IS-REP-G2)
                    (pair (lit is-rep-0-long) %IS-REP-0-LONG) (pair (lit pos-slot) %POS-SLOT)
@@ -685,7 +872,7 @@
       (#t (list (first span) (first (rest span)))))))
 
 (def-class Unlzma ()
-  (doc "lzma decompression in pure x-lang, the .lzma \"alone\" format busybox's unlzma and lzcat read. (Unlzma decode s start n) answers (OUT N USED)."
+  (doc "lzma decompression in pure x-lang, the .lzma \"alone\" format busybox's unlzma and lzcat read. (Unlzma decode s start n) answers (OUT N USED) for one whole stream; a stream can also be fed a piece at a time: stream, feed, finish, done?, rest. A malformed stream raises a label 'value whose data holds (lzma . KIND), KIND 'short when the input ends inside it, else 'data."
     (example "(do (import x/codec/bytes) (def z (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (first (rest (Unlzma decode (first z) 0 (Bytes length z)))))" "13"))
   (static
     (method decode (self (param s STRING "Bytes holding a .lzma stream")
@@ -695,12 +882,40 @@
         (example "(do (import x/codec/bytes) (def z (Bytes of-hex \"5d00000004ffffffffffffffff0083fffbffffc0000000\")) (first (rest (Unlzma decode (first z) 0 (Bytes length z)))))" "0"))
       (def sp (%span s span))
       (%decode-all s (first sp) (first (rest sp)) (%engine-for (first (rest sp)))))
+    (method stream (self)
+      (doc "A .lzma stream to be fed a piece at a time with (Unlzma feed), what unlzma wants of a file it must not read whole. A decision is decoded once the input holds every byte it might read, so between pieces the input held is under 48 bytes."
+        (returns OBJECT "The stream")
+        (example "(let ((z (Unlzma stream))) (Unlzma done? z))" "#f"))
+      (%stream-new ()))
+    (method feed (self (param z OBJECT "A (Unlzma stream)")
+                       (param s STRING "Bytes holding the next piece")
+                       (param start INTEGER "Where the piece starts in s")
+                       (param n INTEGER "How many bytes it is"))
+      (doc "Give the stream n more bytes. Answers what the decisions they complete decode to; the last few bytes held wait for the next piece or for finish. Once the stream's end is reached, more bytes are kept for (Unlzma rest) and answer none. Raises a label 'value on a malformed stream."
+        (returns LIST "(OUT N): a region and how many of its bytes came out")
+        (example "(do (import x/codec/bytes) (def b (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (def z (Unlzma stream)) (first (rest (Unlzma feed z (first b) 0 (Bytes length b)))))" "0"))
+      (%stream-feed z s start n))
+    (method finish (self (param z OBJECT "A (Unlzma stream)"))
+      (doc "The input has ended: what is held is decoded, and a stream cut short raises a label 'value whose data holds (lzma . short)."
+        (returns LIST "(OUT N), as feed answers")
+        (example "(do (import x/codec/bytes) (def b (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (def z (Unlzma stream)) (Unlzma feed z (first b) 0 (Bytes length b)) (first (rest (Unlzma finish z))))" "13"))
+      (%stream-run z #t))
+    (method done? (self (param z OBJECT "A (Unlzma stream)"))
+      (doc "Has the stream's end been reached: its end marker read, or the length its header declares written?"
+        (returns BOOL "#t once it has")
+        (example "(do (import x/codec/bytes) (def b (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (def z (Unlzma stream)) (Unlzma feed z (first b) 0 (Bytes length b)) (Unlzma finish z) (Unlzma done? z))" "#t"))
+      (obj-ref z %ZDONE))
+    (method rest (self (param z OBJECT "A (Unlzma stream)"))
+      (doc "The input not used: once the stream is done, the bytes after its end. A stream that declares its length can leave the coder's last bytes among them."
+        (returns LIST "(BUF N): a region and how many bytes of it")
+        (example "(do (import x/codec/bytes) (def b (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000414243\")) (def z (Unlzma stream)) (Unlzma feed z (first b) 0 (Bytes length b)) (Unlzma finish z) (first (rest (Unlzma rest z))))" "3"))
+      (list (obj-ref z %ZIN) (obj-ref z %ZINCNT)))
     (method jit! (self)
-      (doc "Build and adopt the compiled decoder (JIT; ARM64, x86-64 and 32-bit ARM backends) now, if it decodes the check streams exactly as the pure-x one does. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x decoder carries on, with the same output. decode builds it on its own for an input of 4KB or more."
+      (doc "Build and adopt the compiled decoder (JIT; ARM64, x86-64 and 32-bit ARM backends) now, if it decodes the check streams exactly as the pure-x one does. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x decoder carries on, with the same output. decode builds it on its own for an input of 4KB or more, and a stream for a first piece of 4KB or more."
         (returns BOOL "#t when the compiled engine is active")
         (example "(Unlzma jit!)" "#t"))
       (%jit-try!))))
 
 (doc (provide x/codec/unlzma Unlzma)
   (example "(do (import x/codec/bytes) (def z (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (first (rest (rest (Unlzma decode (first z) 0 (Bytes length z))))))" "33")
-  "lzma decompression in pure x-lang, the .lzma \"alone\" format: (Unlzma decode s start n) answers (OUT N USED).")
+  "lzma decompression in pure x-lang, the .lzma \"alone\" format: (Unlzma decode s start n) answers (OUT N USED); stream, feed, finish, done? and rest decode a piece at a time.")
