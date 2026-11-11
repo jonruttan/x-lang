@@ -36,6 +36,7 @@
   (doc "The terminal a REPL line is read on: raw mode, window size, and byte-to-key decoding. Every method takes the descriptor explicitly -- this class holds no ambient tty."
     (note "raw! returns a saved-state token to hand back to restore!; the pair is meant to bracket one line read, so evaluated code runs in a cooked terminal.")
     (note "key decodes one keystroke from a byte-reading function, so it is testable against a canned byte source with no terminal present.")
+    (example "(Term key (fn (_) 9))" "'complete")
     (see raw!) (see raw-with-signals!) (see restore!) (see key) (see window) (see measure))
 
   (static
@@ -75,7 +76,8 @@
 
     (method %resolve! (self)
       (doc "Resolve the libc entry points this class rides. Called at class definition, and again from the image recache hook -- a dlopen handle is a fact of the PROCESS, and a state image carries the heap of whichever process wrote it."
-        (returns NIL "Nothing; the handles are installed as a side effect"))
+        (returns NIL "Nothing; the handles are installed as a side effect")
+        (sample "(Term %resolve!)" "re-reads the libc handles and the ioctl number for this process"))
       (let ((dlopen (prim-ref (lit ffi) (lit dlopen)))
             (dlsym  (prim-ref (lit ffi) (lit dlsym))))
         (let ((L (dlopen () 1)))
@@ -98,7 +100,8 @@
 
     (method tty? (self (param fd INTEGER "Descriptor to test"))
       (doc "Whether fd is a terminal and this build can drive one -- the two questions a caller actually has, answered together, so nothing has to test for a nil libc symbol."
-        (returns BOOL "True when fd is a tty and termios resolved"))
+        (returns BOOL "True when fd is a tty and termios resolved")
+        (example "(Term tty? -1)" "#f"))
       (and (Sys isatty fd)
            (and (not (null? (Term c-tcget))) (not (null? (Term c-cfraw))))))
 
@@ -119,7 +122,8 @@
     ; Linux, so it sits at byte 24 or byte 12.  Its low four bytes are read and
     ; written either way; both are little-endian here.
     (method %isig-on! (self (param p POINTER "A struct termios"))
-      (doc "Turn ISIG on in the termios at p." (returns NIL "Nothing"))
+      (doc "Turn ISIG on in the termios at p." (returns NIL "Nothing")
+        (sample "(Term %isig-on! p)" "the termios at p has ISIG set; the terminal is unchanged until it is applied"))
       (let ((pref (prim-ref (lit ptr) (lit ref)))
             (pset (prim-ref (lit ptr) (lit set!)))
             (at (if os-darwin? 24 12))
@@ -130,7 +134,8 @@
     (method %raw! (self (param fd INTEGER "Descriptor to put into raw mode")
                         (param signals? BOOL "Whether the signal keys still signal"))
       (doc "raw! and raw-with-signals!: the terminal's settings saved, then made raw."
-        (returns ANY "A saved-state token for restore!, or nil"))
+        (returns ANY "A saved-state token for restore!, or nil")
+        (sample "(Term %raw! 0 #t)" "a token, or nil when stdin is a pipe"))
       (if (not (Term tty? fd)) ()
         (let ((call (prim-ref (lit ptr) (lit call)))
               (mkstr (prim-ref (lit str) (lit make)))
@@ -156,7 +161,8 @@
     (method restore! (self (param fd INTEGER "Descriptor to restore")
                            (param saved ANY "The token raw! returned"))
       (doc "Put fd back the way raw! found it. A nil token is a no-op, so the unwind path can call this unconditionally."
-        (returns BOOL "True when the terminal was restored"))
+        (returns BOOL "True when the terminal was restored")
+        (example "(Term restore! 0 ())" "#f"))
       (if (null? saved) #f
         (let ((call (prim-ref (lit ptr) (lit call)))
               (toptr (prim-ref (lit str) (lit ->ptr))))
@@ -175,7 +181,8 @@
 
     (method %mode-rows (self)
       (doc "This OS's named modes, as (NAME WHERE VALUE): WHERE a flag word, 0 c_iflag to 3 c_lflag, and VALUE its bit; 'cc and VALUE the character's index in c_cc; or 'size and VALUE the CSIZE setting the name stands for."
-        (returns LIST "The rows, cs7 before cs8"))
+        (returns LIST "The rows, cs7 before cs8")
+        (example "(List find (fn (_ r) (eq? (first r) 'echo)) (Term %mode-rows))" "('echo 3 8)"))
       (if os-darwin?
         (list (list (lit vintr) (lit cc) 8) (list (lit vquit) (lit cc) 9) (list (lit verase) (lit cc) 3)
               (list (lit vkill) (lit cc) 5) (list (lit veof) (lit cc) 0) (list (lit veol) (lit cc) 1)
@@ -210,23 +217,30 @@
               (list (lit cs7) (lit size) 32) (list (lit cs8) (lit size) 48) (list (lit parenb) 2 256) (list (lit parodd) 2 512))))
 
     (method %flag-at (self (param word INTEGER "A flag word, 0 c_iflag to 3 c_lflag"))
-      (doc "The byte offset of a flag word in struct termios." (returns INTEGER "The offset"))
+      (doc "The byte offset of a flag word in struct termios." (returns INTEGER "The offset")
+        (example "(Term %flag-at 0)" "0")
+        (sample "(Term %flag-at 3)" "24 on Darwin, 12 on Linux"))
       (* word (if os-darwin? 8 4)))
 
     (method %cc-at (self (param index INTEGER "An index in c_cc"))
-      (doc "The byte offset of a control character in struct termios." (returns INTEGER "The offset"))
+      (doc "The byte offset of a control character in struct termios." (returns INTEGER "The offset")
+        (example "(- (Term %cc-at 5) (Term %cc-at 0))" "5")
+        (sample "(Term %cc-at 0)" "32 on Darwin, 17 on Linux"))
       (+ index (if os-darwin? 32 17)))
 
     (method %csize (self)
-      (doc "CSIZE: the character-size bits of c_cflag." (returns INTEGER "The mask"))
+      (doc "CSIZE: the character-size bits of c_cflag." (returns INTEGER "The mask")
+        (sample "(Term %csize)" "768 on Darwin, 48 on Linux"))
       (if os-darwin? 768 48))
 
     (method %vdisable (self)
-      (doc "_POSIX_VDISABLE: the c_cc value that turns a character off." (returns INTEGER "The value"))
+      (doc "_POSIX_VDISABLE: the c_cc value that turns a character off." (returns INTEGER "The value")
+        (sample "(Term %vdisable)" "255 on Darwin, 0 on Linux"))
       (if os-darwin? 255 0))
 
     (method %bauds (self)
-      (doc "Linux's speed codes as (BAUD . CODE); Darwin's speed is the baud itself." (returns LIST "The table"))
+      (doc "Linux's speed codes as (BAUD . CODE); Darwin's speed is the baud itself." (returns LIST "The table")
+        (example "(first (Term %bauds))" "(0 . 0)"))
       (list (pair 0 0) (pair 50 1) (pair 75 2) (pair 110 3) (pair 134 4) (pair 150 5) (pair 200 6)
             (pair 300 7) (pair 600 8) (pair 1200 9) (pair 1800 10) (pair 2400 11) (pair 4800 12)
             (pair 9600 13) (pair 19200 14) (pair 38400 15) (pair 57600 4097) (pair 115200 4098)
@@ -237,7 +251,8 @@
 
     (method %baud (self (param speed INTEGER "What cfgetospeed answered"))
       (doc "A speed as a baud: Darwin's as it is, Linux's B-code looked up; nil for a code with no baud."
-        (returns ANY "The baud, or nil"))
+        (returns ANY "The baud, or nil")
+        (example "(Term %baud 0)" "0"))
       (if os-darwin? speed
         (let ((code (& speed 0xFFFFFFFF)))
           (let ((row (List find (fn (_ r) (= (rest r) code)) (Term %bauds))))
@@ -245,7 +260,9 @@
 
     (method %speed (self (param baud INTEGER "A baud"))
       (doc "The speed cfsetospeed takes for a baud: Darwin's the baud, Linux's its B-code; nil for a baud Linux has no code for."
-        (returns ANY "The speed, or nil"))
+        (returns ANY "The speed, or nil")
+        (example "(Term %baud (Term %speed 9600))" "9600")
+        (sample "(Term %speed 9600)" "9600 on Darwin, 13 on Linux"))
       (if os-darwin? baud
         (let ((row (List find (fn (_ r) (= (first r) baud)) (Term %bauds))))
           (if (null? row) () (rest row)))))
@@ -253,7 +270,8 @@
     (method %mode (self (param p POINTER "A struct termios")
                         (param row LIST "A mode row"))
       (doc "A mode's value in the termios at p: a flag's BOOL, a character's code, nil when it is turned off, or whether the size is the row's."
-        (returns ANY "The value"))
+        (returns ANY "The value")
+        (example "(let ((b ((prim-ref 'str 'make) 128))) (let ((p ((prim-ref 'str '->ptr) b)) (row (List find (fn (_ r) (eq? (first r) 'echo)) (Term mode-rows)))) (Term %mode! p row #f) (Term %mode p row)))" "#f"))
       (let ((pref (prim-ref (lit ptr) (lit ref)))
             (where (List ref 1 row)) (v (List ref 2 row)))
         (match
@@ -266,7 +284,8 @@
                          (param row LIST "A mode row")
                          (param value ANY "A flag's BOOL, a character's code or nil"))
       (doc "Set a mode in the termios at p. A size set #f is left as it is: it says what the size is not, not what it is."
-        (returns NIL "Nothing"))
+        (returns NIL "Nothing")
+        (example "(let ((b ((prim-ref 'str 'make) 128))) (let ((p ((prim-ref 'str '->ptr) b)) (row (List find (fn (_ r) (eq? (first r) 'echo)) (Term mode-rows)))) (Term %mode! p row #t) (Term %mode p row)))" "#t"))
       (let ((pref (prim-ref (lit ptr) (lit ref)))
             (pset (prim-ref (lit ptr) (lit set!)))
             (where (List ref 1 row)) (v (List ref 2 row)))
@@ -363,7 +382,8 @@
     (method %env-int (self (param name STRING "Environment variable")
                            (param dflt INTEGER "Value when unset or unparseable"))
       (doc "An environment variable read as a positive integer, or the default."
-        (returns INTEGER "The parsed value, or dflt"))
+        (returns INTEGER "The parsed value, or dflt")
+        (example "(Term %env-int \"X_HELP_EXAMPLE_UNSET\" 80)" "80"))
       (let ((v (Sys getenv name)))
         (if (null? v) dflt
           (guard (_ dflt)
@@ -374,7 +394,8 @@
     (method emit (self (param fd INTEGER "Descriptor to write to")
                        (param s STRING "Bytes to write"))
       (doc "Write bytes straight to the descriptor, bypassing the printer. A redraw is a burst of escape sequences and must not be interleaved with whatever the evaluator is writing to stdout."
-        (returns INTEGER "Bytes written"))
+        (returns INTEGER "Bytes written")
+        (sample "(Term emit 1 \"\\r\\n\")" "2, the bytes written"))
       (Sys fd-write fd s))
 
     ; --- keys -----------------------------------------------------------------
@@ -437,13 +458,15 @@
             (#t (Term %utf8 read-byte b))))))
 
     (method %one-byte (self (param b INTEGER "A byte value 0-255"))
-      (doc "A one-byte string holding b." (returns STRING "The byte as text"))
+      (doc "A one-byte string holding b." (returns STRING "The byte as text")
+        (example "(Term %one-byte 65)" "\"A\""))
       (bytes->str (list b)))
 
     (method %utf8 (self (param read-byte CALLABLE "Byte reader")
                         (param lead INTEGER "The leading byte"))
       (doc "Read the continuation bytes of a UTF-8 sequence whose leading byte is `lead`, and return the whole character. A truncated or malformed sequence yields what arrived, which the redraw will render as the terminal sees fit."
-        (returns STRING "One character"))
+        (returns STRING "One character")
+        (example "(Term %utf8 (fn (_) 169) 195)" "\"é\""))
       (let ((need (match ((= 192 (& lead 224)) 1)
                          ((= 224 (& lead 240)) 2)
                          ((= 240 (& lead 248)) 3)
@@ -457,7 +480,8 @@
 
     (method %escape (self (param read-byte CALLABLE "Byte reader"))
       (doc "Decode the tail of an escape sequence: CSI (ESC [), SS3 (ESC O), or meta-<char>."
-        (returns ANY "A key symbol, or 'escape"))
+        (returns ANY "A key symbol, or 'escape")
+        (example "(Term %escape (fn (_) 98))" "'word-left"))
       (let ((b (read-byte)))
         (match
           ((null? b) (lit escape))
@@ -470,7 +494,8 @@
 
     (method %ss3 (self (param read-byte CALLABLE "Byte reader"))
       (doc "Decode an SS3 sequence (ESC O x) -- what a terminal in application-cursor mode sends for the arrows, what most send for F1 to F4, and what a keypad in application mode sends for its digits."
-        (returns ANY "A key symbol"))
+        (returns ANY "A key symbol")
+        (example "(Term %ss3 (fn (_) 80))" "'f1"))
       (let ((b (read-byte)))
         (match
           ((null? b) (lit escape))
@@ -490,7 +515,8 @@
 
     (method %keypad (self (param n INTEGER "The keypad digit, 0 to 9"))
       (doc "The key symbol for keypad digit n."
-        (returns SYMBOL "'kp0 to 'kp9"))
+        (returns SYMBOL "'kp0 to 'kp9")
+        (example "(Term %keypad 7)" "'kp7"))
       (match
         ((= n 0) (lit kp0)) ((= n 1) (lit kp1)) ((= n 2) (lit kp2)) ((= n 3) (lit kp3))
         ((= n 4) (lit kp4)) ((= n 5) (lit kp5)) ((= n 6) (lit kp6)) ((= n 7) (lit kp7))
@@ -498,7 +524,8 @@
 
     (method %csi (self (param read-byte CALLABLE "Byte reader"))
       (doc "Decode a CSI sequence (ESC [ ...): the arrows, Home/End, Delete, and the modified arrows terminals spell ESC [ 1 ; 5 C."
-        (returns ANY "A key symbol"))
+        (returns ANY "A key symbol")
+        (example "(let ((bs (list 49 59 53 67))) (Term %csi (fn (_) (let ((b (first bs))) (set! bs (rest bs)) b))))" "'word-right"))
       ; Parameter bytes (digits and ';') are collected until a final byte in
       ; 0x40-0x7E arrives.  Only the modifier matters here -- ctrl+arrow --
       ; so the parameters are kept as a byte list and inspected at the end
@@ -514,7 +541,8 @@
     (method %csi-final (self (param final INTEGER "The sequence's final byte")
                              (param params LIST "The parameter bytes, in order"))
       (doc "Name the key a CSI sequence's final byte and parameters stand for."
-        (returns ANY "A key symbol"))
+        (returns ANY "A key symbol")
+        (example "(Term %csi-final 67 (list 49 59 53))" "'word-right"))
       ; A ctrl-modified arrow carries ";5" among its parameters (";6" is
       ; ctrl-shift, which this treats the same -- the motion is what matters).
       (let ((ctrl? (or (List includes? 53 params) (List includes? 54 params))))
@@ -535,7 +563,8 @@
 
     (method %csi-number (self (param params LIST "The parameter bytes, in order"))
       (doc "A CSI sequence's first parameter as a number: its digits up to the first ';', 0 when there are none."
-        (returns INTEGER "The number"))
+        (returns INTEGER "The number")
+        (example "(Term %csi-number (list 49 53 59 53))" "15"))
       (let ((go (fn (self ps n)
                   (if (or (null? ps) (or (< (first ps) 48) (> (first ps) 57))) n
                     (self (rest ps) (+ (* n 10) (- (first ps) 48)))))))
@@ -543,7 +572,8 @@
 
     (method %tilde (self (param n INTEGER "The first parameter of ESC [ N ~"))
       (doc "Name the key ESC [ N ~ stands for: Home, End, Delete, Page Up and Page Down, and the function keys, whose numbers skip 16 and 22."
-        (returns ANY "A key symbol"))
+        (returns ANY "A key symbol")
+        (example "(Term %tilde 3)" "'delete"))
       ; The number is read whole: 15~ is F5, which a test for the byte '1'
       ; among the parameters would take for Home.
       (match
@@ -568,4 +598,5 @@
 (doc (provide x/repl/term Term)
   (note "Raw mode is meant to bracket a single line read: repl/line.x restores the terminal before the form it read is evaluated.")
   (note "key takes a byte-reading function rather than a descriptor, so key decoding is testable with no tty.")
+  (example "(Term key (fn (_) 127))" "'backspace")
   "Term: raw mode, terminal size, and byte-to-key decoding for the REPL line editor.")
