@@ -968,7 +968,7 @@ ASAN_CRYPTO_SPECS = */lib/aes.spec.md */lib/aes-jit.spec.md */lib/bcrypt.spec.md
   */lib/sha384.spec.md */lib/sha512.spec.md */lib/sha512-jit.spec.md */lib/tls-keys.spec.md \
   */lib/tls13.spec.md */lib/x25519.spec.md */lib/x25519-jit.spec.md */lib/x509.spec.md \
   */lib/bunzip2.spec.md */lib/bunzip2-jit.spec.md */lib/bzip2.spec.md */lib/bzip2-jit.spec.md \
-  */lib/deflate-jit.spec.md */lib/inflate-jit.spec.md */lib/png-jit.spec.md
+  */lib/deflate-jit.spec.md */lib/inflate-jit.spec.md */lib/png-jit.spec.md */lib/unlzma-jit.spec.md
 test-asan: x-bin-asan ## Run both suites under AddressSanitizer, less the crypto (memory-safety gate)
 	ASAN_OPTIONS=$(ASAN_RUN_OPTIONS) TIMEOUT_UNIT_SECS=180 SPEC_HEAVY_JOBS=1 X_BIN=./x-bin-asan SPECS_SKIP='$(ASAN_CRYPTO_SPECS)' sh tests/x/spec-runner.sh
 	$(ENGINE_MAKE) test-asan
