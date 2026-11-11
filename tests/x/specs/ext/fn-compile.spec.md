@@ -309,6 +309,55 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 ---
     (12 30)
 
+## applied, a compiled function takes values
+
+A call hands a function expressions and an apply hands it values.  The
+engine's apply routine, in the base's slot, is stood in for by one that
+tells a compiled function which it is being given.
+
+### apply, map and a call each give the arguments once
+
+```x
+(def %fc-ap (fn (_ o k) (list k o)))
+(def %fc-ap-via (fn (_ o) (%fc-ap o 1)))
+(compile-fn! (lit %fc-ap) %fc-ap)
+(compile-fn! (lit %fc-ap-via) %fc-ap-via)
+(write (list (apply %fc-ap (list (lit (a b)) (lit zebra)))
+             (apply %fc-ap (lit q) (list (lit (c))))
+             (List map %fc-ap (list (lit a) (lit (b))) (list (lit c) (lit d)))
+             (%fc-ap (lit (d e)) (+ 1 2))
+             (apply %fc-ap-via (list (lit (g))))))
+```
+---
+    (('zebra ('a 'b)) (('c) 'q) (('c 'a) ('d ('b))) (3 ('d 'e)) (1 ('g)))
+
+### a type's write handler is handed the value being written
+
+The printer applies a write handler from C.  A list handed over is the
+value, not a form to call.
+
+```x
+(import x/core/doors type-push-write)
+(def %fc-wh-type ((prim-ref (lit type) (lit by-atom)) ((prim-ref (lit type) (lit of)) (list 1))))
+(def %fc-wh-seen (list ()))
+(def %fc-wh (fn (_ o) (%set-first! %fc-wh-seen (pair o (first %fc-wh-seen))) ()))
+(def %fc-wh-e (compile-fn! (lit %fc-wh) %fc-wh))
+(type-push-write %fc-wh-type %fc-wh)
+(def %fc-wh-out (io-write-to-str (lit (quux zebra))))
+((prim-ref (lit type) (lit pop-write)) %fc-wh-type)
+(write (list (%fc-wh-e state) %fc-wh-out (first %fc-wh-seen)))
+```
+---
+    ('compiled "" (('quux 'zebra)))
+
+### a primitive and a closure are applied as before
+
+```x
+(write (list (apply first (list (lit (x y)))) (apply (fn (_ a) a) (list (lit (z)))) (apply + 1 (list 2 3))))
+```
+---
+    ('x ('z) 6)
+
 ## the frame across a collect
 
 ### a collect inside a callee keeps every object the frame holds

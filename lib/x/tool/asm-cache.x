@@ -140,7 +140,7 @@
 ; format.  It is a literal rather than a name of its own because a name here is
 ; another top-level %-global (tools/contract/percent-globals.x).
 (def %asm-cache-identity
-  (Str append x-machine x-release x-lib-version "g4"))
+  (Str append x-machine x-release x-lib-version "g5"))
 
 ; The emitted code is not a function of the source alone, so the fvar table's
 ; ARRANGEMENT is part of the key.  Inside analyser mode a name absent from the table
@@ -1337,6 +1337,22 @@
         (pair (lit %op-rest) (list (list (lit lit) error) "rest: () has no rest"))
         (pair (lit %op-unbox) (list (list (lit lit) %asm-fn-unbox-fault) ()))))
 
+; How a function world function is told its arguments are values: one word,
+; 1 while an apply is handing them over and 0 otherwise.  Whoever applies
+; the function sets it and calls, and the function reads and clears it
+; before it runs anything else, so it is never set across other code.  The
+; word is the second unit of a code object, which the collector does not
+; follow and an image carries as it is.  nil on an engine with no code type:
+; a function compiled there evaluates its arguments, as a call needs.
+(def asm-fn-values
+  (if (null? %asm-cache-code-type) ()
+    (do (def cell (%asm-cache-words 2))
+        (ptr-set-word! (obj->ptr cell) (%data-word-off 1) 0)
+        (ptr-set-word! (obj->ptr cell) (%data-word-off 2) 0)
+        cell)))
+(unless (null? asm-fn-values)
+  (set! %asm-fn-fvars (%append %asm-fn-fvars (list (pair (lit %values) asm-fn-values)))))
+
 (def asm-compile-cached
   (fn (_ expr . %asm-rest)
     (def fvars (unless (null? %asm-rest) (first %asm-rest)))
@@ -1515,6 +1531,6 @@
    included.  Nothing is noted in the open group, and a group whose thunk
    noted nothing and set no extra keeps its file as it is.")
 
-(doc (provide x/tool/asm-cache asm-compile-cached asm-cache-group asm-cache-group-held asm-cache-group-extra! asm-cache-held-pour asm-cache-held-fvar-names asm-cache-held-entry asm-cache-entry-pour asm-cache-last-text)
+(doc (provide x/tool/asm-cache asm-compile-cached asm-cache-group asm-cache-group-held asm-cache-group-extra! asm-cache-held-pour asm-cache-held-fvar-names asm-cache-held-entry asm-cache-entry-pour asm-cache-last-text asm-fn-values)
   "The cache behind the compile-asm door: persistent emitted native code, over
    the JIT compiler it falls back to.")
