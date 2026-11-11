@@ -41,7 +41,7 @@
 ; redefines it to be code-point aware -- each char is UTF-8 encoded via the
 ; shared codec, then byte-packed. Exact inverse of str->list, so
 ; (list->str (str->list s)) round-trips any UTF-8 string.
-(doc (def %list->str
+(def %list->str
   (fn (_ chars)
     ; Reverse-prepend each code point's bytes, reverse once (#333): the
     ; per-char %append was O(n^2) pairs -- this is the registered
@@ -54,11 +54,10 @@
           (%reverse
             (%fold (fn (_ acc ch) (%rev-onto (utf8-encode (char->int ch)) acc))
                   () chars)))))))
-  (param chars LIST "List of CHARACTERs (Unicode code points)")
-  (returns STRING "UTF-8 string encoding each code point")
-  "Build a UTF-8 string from a list of code-point characters. Inverse of str->list.")
 
-(doc (def %str->list
+; str->list: UTF-8 string -> list of code-point CHARACTERs, one per code
+; point.  Inverse of list->str.
+(def %str->list
   (fn (_ s)
     (def len (%str-length s))
     (let go ((i 0) (acc ()))
@@ -66,9 +65,6 @@
         (%reverse acc)
         (let ((d (utf8-decode s i)))
           (go (rest d) (pair (int->char (first d)) acc)))))))
-  (param s STRING "String to decode")
-  (returns LIST "List of CHARACTERs, one per Unicode code point")
-  "Decode a UTF-8 string into a list of code-point characters. Inverse of list->str.")
 
 ; --- bare (s i) -> code-point call handler ---------------------------------
 ;

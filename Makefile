@@ -468,10 +468,11 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 
 # The help-example ratchet: the doc entries that show the reader no
 # (example ...) or (sample ...) form, tallied by the doctest walk's census
-# and held to the ceiling in tools/contract/help-examples.x.  The walk
-# imports every library module (about twenty seconds and a few GB here), so
+# and held to the ceiling in tools/contract/help-examples.x.  The same walk
+# fails a def entry whose name the root does not bind and no module
+# provides.  The walk imports every library module (about twenty seconds and a few GB here), so
 # this sits in `gates`, not the pre-push `gates-fast`.
-check-help-examples: $(EXECUTABLE) ## Count the doc entries that show no example against their ceiling
+check-help-examples: $(EXECUTABLE) ## Count the doc entries that show no example against their ceiling; fail entries for unbound names
 	sh tools/check/help-examples.sh
 .PHONY: check-help-examples
 
