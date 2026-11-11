@@ -248,8 +248,10 @@ The walk is the imaged base's allocation chain, from the base object's heap
 link, filtered to objects the mark reached. The mark is
 `(heap tree-mark! base-object TRACE)` — the collector's own traversal from
 the base, with a flag the collector does not use — so "reachable" means what
-the collector means by it, type hooks included. The mark is made **once per
-process**: `chain-clear!` disables later marks. A spine cell the library
+the collector means by it, type hooks included. The mark is taken
+back with `image-clear!`: the engine's `chain-clear!` alone leaves the flag
+on the base object, which no chain holds, and a later mark from the base
+then flags nothing. A spine cell the library
 holds -- the `false` cell, the registry cell -- is reached by the mark and
 is not language state: the writer takes the flag off it before the walk,
 which is `(image write!)`'s (§7): the loop sees flags and nothing else.
