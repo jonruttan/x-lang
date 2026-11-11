@@ -52,12 +52,25 @@
   (returns INTEGER "The machine word read there")
   (sample "(image-ref-word (image-obj->ptr o) image-flags-off)" "the flags word of o's header")
   "The engine's (ptr ref-word): read one machine word.")
+(doc (def image-set-word! (prim-ref (lit ptr) (lit set-word!)))
+  (param p POINTER "Base address")
+  (param off INTEGER "Offset from it, in bytes")
+  (param w INTEGER "Word to write")
+  (returns ANY "What the engine's write answers")
+  (sample "(image-set-word! p image-heap-off 0)" "ends the chain at the object at p, as an image writer does to its last object")
+  "The engine's (ptr set-word!): write one machine word.")
 (doc (def image-int+ (prim-ref (lit int) (lit +)))
   (param a INTEGER "First addend")
   (param b INTEGER "Second addend")
   (returns INTEGER "Their sum")
   (example "(image-int+ 2 3)" "5")
   "The engine's (int +), which the number tower does not wrap.")
+(doc (def image-int- (prim-ref (lit int) (lit -)))
+  (param a INTEGER "Minuend")
+  (param b INTEGER "Subtrahend")
+  (returns INTEGER "Their difference")
+  (example "(image-int- 7 3)" "4")
+  "The engine's (int -), which the number tower does not wrap.")
 (doc (def image-int& (prim-ref (lit int) (lit &)))
   (param a INTEGER "First operand")
   (param b INTEGER "Second operand")
@@ -76,13 +89,8 @@
   (param root ANY "Object to mark from")
   (param flag INTEGER "Flag bit to set")
   (returns ANY "What the engine's mark answers")
-  (sample "(image-mark! root image-trace-flag)" "flags every object reachable from root, once per process, before image-walk")
-  "The engine's (heap tree-mark!): set a flag on every object reachable from root.")
-(doc (def image-clear! (prim-ref (lit heap) (lit chain-clear!)))
-  (param flag INTEGER "Flag bit to clear")
-  (returns ANY "What the engine's clear answers")
-  (sample "(image-clear! image-trace-flag)" "clears the trace flag chain-wide; no later mark flags anything")
-  "The engine's (heap chain-clear!): clear a flag on every object of the chain.  A mark made after a clear flags nothing, so a process marks once.")
+  (sample "(image-mark! root image-trace-flag)" "flags every object reachable from root, before image-walk")
+  "The engine's (heap tree-mark!): set a flag on every object reachable from root.  The flag is also the walk's visited test, so a mark from an object that already carries it flags nothing.")
 (doc (def image-trace-flag %obj-flag-trace)
   (sample "image-trace-flag" "1024 on the 64-bit engines")
   "The flag bit a mark sets and a walk reads, from the object layout contract.")
@@ -92,6 +100,22 @@
 (doc (def image-flags-off (* %obj-slot-flags %word-size))
   (sample "image-flags-off" "16 on the 64-bit engines")
   "Byte offset of an object's flags word.")
+; The base object is on no allocation chain, so the engine's clear never
+; reaches it, and a flag left there stops the next mark from the base at its
+; first object.  image-clear! takes it off the base object as well.
+(doc (def image-clear!
+  ((fn (_ chain-clear!)
+     (fn (_ flag)
+       (chain-clear! flag)
+       ((fn (_ p)
+          ((fn (_ w) (image-set-word! p image-flags-off (image-int- w (image-int& w flag))))
+           (image-ref-word p image-flags-off)))
+        (image-obj->ptr (%base)))))
+   (prim-ref (lit heap) (lit chain-clear!))))
+  (param flag INTEGER "Flag bit to clear")
+  (returns ANY "Unspecified")
+  (sample "(image-clear! image-trace-flag)" "clears the trace flag on the chain and on the base object; a later mark starts clean")
+  "Clear a flag on every object of this base's chain, with the engine's (heap chain-clear!), and on the base object itself, which the chain does not hold.")
 (def %image-next (fn (_ p) (image-ref-word p image-heap-off)))
 (doc (def image-traced? (fn (_ p) (if (eq? (image-int& (image-ref-word p image-flags-off) image-trace-flag) 0) #f #t)))
   (param p POINTER "Pointer to an object's header")
@@ -103,13 +127,12 @@
 ; visits every object on the chain and needs none.  Two rules force that
 ; distinction:
 ;
-;   * One mark per process.  (heap chain-clear!) permanently disables any
-;     later (heap tree-mark!): marking twice with no clear between is
-;     idempotent, but a mark after a clear flags nothing at all, silently, and
-;     every subsequent walk reports a clean zero of everything.  A pass that
-;     needs no reachability must not spend the one mark -- it uses
-;     image-walk-all and runs before the mark, which also lets it `def` its
-;     results freely.
+;   * A mark is cleared with image-clear!, never with the engine's
+;     (heap chain-clear!) alone.  The engine's clear leaves the flag on the
+;     base object, and the next mark from the base then flags nothing at all,
+;     silently, so every later walk reports a clean zero of everything.  A
+;     pass that needs no reachability uses image-walk-all and runs before the
+;     mark, which also lets it `def` its results freely.
 ;   * No collect while a cursor points into another base's chain (spec 4.1).
 ;     The periodic collect below is this base's; it marks whatever this
 ;     base's frames hold -- the cursor, an object on the other chain -- and a
@@ -157,13 +180,7 @@
                       (image-int+ n 1) seen filt)))))
 
 ; --- unit labels ----------------------------------------------------------
-(doc (def image-int- (prim-ref (lit int) (lit -)))
-  (param a INTEGER "Minuend")
-  (param b INTEGER "Subtrahend")
-  (returns INTEGER "Their difference")
-  (example "(image-int- 7 3)" "4")
-  "The engine's (int -), which the number tower does not wrap.")
-(doc (def image-int* (prim-ref (lit int) (lit *)))
+(doc (def image-int*(prim-ref (lit int) (lit *)))
   (param a INTEGER "First factor")
   (param b INTEGER "Second factor")
   (returns INTEGER "Their product")
@@ -188,13 +205,6 @@
   (example "(image-int< 1 2)" "#t")
   (example "(image-int< 2 1)" "#f")
   "The engine's (int <), which the number tower does not wrap.")
-(doc (def image-set-word! (prim-ref (lit ptr) (lit set-word!)))
-  (param p POINTER "Base address")
-  (param off INTEGER "Offset from it, in bytes")
-  (param w INTEGER "Word to write")
-  (returns ANY "What the engine's write answers")
-  (sample "(image-set-word! p image-heap-off 0)" "ends the chain at the object at p, as an image writer does to its last object")
-  "The engine's (ptr set-word!): write one machine word.")
 (doc (def image-ptr->str (prim-ref (lit ptr) (lit ->str)))
   (param p POINTER "Pointer to NUL-terminated bytes")
   (returns STRING "A string of those bytes")
