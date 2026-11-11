@@ -90,7 +90,7 @@
   (param flag INTEGER "Flag bit to set")
   (returns ANY "What the engine's mark answers")
   (sample "(image-mark! root image-trace-flag)" "flags every object reachable from root, before image-walk")
-  "The engine's (heap tree-mark!): set a flag on every object reachable from root.  The flag is also the walk's visited test, so a mark from an object that already carries it flags nothing.")
+  "The engine's (heap tree-mark!): set a flag on every object reachable from root.  The mark follows each object to its type, and a type's handlers are closures that hold their environment, so a mark from any object, a fresh pair or an integer included, flags the whole environment.  The flag is also the walk's visited test: a mark from an object that already carries it flags nothing, and a caller that wants less flags its stopping points first.")
 (doc (def image-trace-flag %obj-flag-trace)
   (sample "image-trace-flag" "1024 on the 64-bit engines")
   "The flag bit a mark sets and a walk reads, from the object layout contract.")
@@ -140,6 +140,13 @@
 ;     walk leaves the other base with stale mark bits.  A walk over a child
 ;     turns the periodic collect off with image-walk-collect! and collects
 ;     between walks instead.
+;
+; The mark follows an object to its type, a type's handlers are closures, and
+; a closure holds its environment, so a mark from any object (a fresh pair, an
+; integer, a symbol) flags the whole environment.  A walk that wants less flags
+; its stopping points before the mark, as tools/dev/image-write.x does with
+; %trace-stops!, and takes the flags off after.  pin! is not affected: its walk
+; stops at the SHARED type nodes.
 (def %image-walk-collect #t)
 (doc (def image-walk-collect! (fn (_ on) (set! %image-walk-collect on)))
   (param on BOOL "#t for a collect every 1024 objects walked, #f for none")
