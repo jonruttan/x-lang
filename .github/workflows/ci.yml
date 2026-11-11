@@ -96,7 +96,8 @@ jobs:
   # The 32-bit arm leg: the suite inside a linux/arm/v7 container on the
   # arm64 runner, whose kernel executes it natively (CONFIG_COMPAT; QEMU is
   # not installed, since a registered qemu-arm would take the binaries over).
-  # It reports and does not gate, as the arm64 leg does.  The stress lane
+  # It gates: a 32-bit regression fails the run, so a PR goes red and the
+  # reuse job finds no passing run to carry onto main.  The stress lane
   # stays off: its heaps are sized for a 64-bit address space.
   specs-arm:
     name: specs (linux/arm/v7)
@@ -104,7 +105,6 @@ jobs:
     if: ${{ !cancelled() && needs.reuse.outputs.tested != 'true' }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 45
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - name: Build and test in a 32-bit container
