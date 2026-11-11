@@ -16,50 +16,60 @@
 
 (doc (def alloc-count (fn (_ ) (%cell-int (first (first (%profile))))))
   (returns INTEGER "Total heap allocations since last reset")
+  (sample "(import x/tool/profile alloc-count) (alloc-count)" "the objects allocated since the last profile-reset; 0 on an engine built not to count them")
   "Return the number of heap objects allocated.")
 
 (doc (def eval-count (fn (_ ) (%cell-int (first (first (rest (%profile)))))))
   (returns INTEGER "Total eval calls since last reset")
+  (sample "(import x/tool/profile eval-count) (eval-count)" "the evaluations since the last profile-reset, as 9873")
   "Return the number of eval invocations.")
 
 (doc (def tco-count
   (fn (_ ) (%cell-int (first (first (rest (rest (%profile))))))))
   (returns INTEGER "Total tail-call optimizations since last reset")
+  (sample "(import x/tool/profile tco-count) (tco-count)" "the tail calls made since the last profile-reset; a loop of n steps adds about n")
   "Return the number of tail-call optimizations performed.")
 
 (doc (def assoc-calls-count
   (fn (_ ) (%cell-int (first (first (rest (rest (rest (%profile)))))))))
   (returns INTEGER "Total alist lookup calls")
+  (sample "(import x/tool/profile assoc-calls-count) (assoc-calls-count)" "the alist lookups since the last profile-reset; 0 on an engine built not to count them")
   "Return the number of association list lookup operations.")
 
 (doc (def assoc-steps-count
   (fn (_ ) (%cell-int (first (first (rest (rest (rest (rest (%profile))))))))))
   (returns INTEGER "Total alist walk steps")
+  (sample "(import x/tool/profile assoc-steps-count) (assoc-steps-count)" "the steps those lookups walked; divided by assoc-calls-count, the average walk")
   "Return the total steps walked during alist lookups.")
 
 (doc (def sym-find-calls-count
   (fn (_ ) (%cell-int (first (first (rest (rest (rest (rest (rest (%profile)))))))))))
   (returns INTEGER "Total symbol-find calls")
+  (sample "(import x/tool/profile sym-find-calls-count) (sym-find-calls-count)" "the symbol lookups since the last profile-reset; 0 on an engine built not to count them")
   "Return the number of symbol lookup operations.")
 
 (doc (def sym-find-steps-count
   (fn (_ ) (%cell-int (first (first (rest (rest (rest (rest (rest (rest (%profile))))))))))))
   (returns INTEGER "Total symbol-find steps")
+  (sample "(import x/tool/profile sym-find-steps-count) (sym-find-steps-count)" "the steps those lookups walked; divided by sym-find-calls-count, the average walk")
   "Return the total steps walked during symbol lookups.")
 
 (doc (def gc-runs-count
   (fn (_ ) (%cell-int (first (first (rest (rest (rest (rest (rest (rest (rest (%profile)))))))))))))
   (returns INTEGER "Total GC mark/sweep cycles")
+  (sample "(import x/tool/profile gc-runs-count) (gc-runs-count)" "the collections since the last profile-reset; 0 on an engine built not to count them")
   "Return the number of garbage collection runs.")
 
 (doc (def bst-hits-count
   (fn (_ ) (%cell-int (first (first (rest (rest (rest (rest (rest (rest (rest (rest (%profile))))))))))))))
   (returns INTEGER "BST cache hits")
+  (sample "(import x/tool/profile bst-hits-count) (bst-hits-count)" "the lookups the tree answered since the last profile-reset; 0 on an engine built not to count them")
   "Return the number of successful BST (binary search tree) lookups.")
 
 (doc (def bst-misses-count
   (fn (_ ) (%cell-int (first (first (rest (rest (rest (rest (rest (rest (rest (rest (rest (%profile)))))))))))))))
   (returns INTEGER "BST cache misses")
+  (sample "(import x/tool/profile bst-misses-count) (bst-misses-count)" "the lookups that walked the alist instead; 0 on an engine built not to count them")
   "Return the number of BST lookups that fell through to alist walk.")
 
 ; --- Reset ---
@@ -76,6 +86,7 @@
     (%set-cell-int! (first (first (rest (rest (rest (rest (rest (rest (rest (%profile)))))))))) 0)
     (%set-cell-int! (first (first (rest (rest (rest (rest (rest (rest (rest (rest (%profile))))))))))) 0)
     (%set-cell-int! (first (first (rest (rest (rest (rest (rest (rest (rest (rest (rest (%profile)))))))))))) 0)))
+  (sample "(import x/tool/profile profile-reset eval-count) (profile-reset) (work) (eval-count)" "the evaluations work did, and no others")
   "Reset all performance counters to zero.")
 
 ; --- Heap collection ---
@@ -97,6 +108,7 @@
     (set! %hc-last-surviving %hcf-after)
     (- %hcf-before %hcf-after)))
   (returns INTEGER "Number of objects freed")
+  (sample "(import x/tool/profile heap-collect-force) (heap-collect-force)" "the objects that collection freed, as 1882")
   "Force a full GC mark/sweep cycle, returning the number of objects freed.")
 
 (doc (def heap-collect
@@ -106,6 +118,7 @@
       (heap-collect-force)
       0)))
   (returns INTEGER "Number of objects freed, or 0 if skipped")
+  (sample "(heap-collect)" "0 when fewer objects were allocated since the last collection than survived it, else a collection's count of objects freed")
   "Smart GC: only collect when allocations since last run exceed surviving objects.")
 
 ; --- Eval counts per object ---
@@ -167,6 +180,7 @@
 (doc (def profile-evals-max
   (fn (_) (int- (int<< 1 %obj-evals-bits) 1)))
   (returns INTEGER "The value an eval count stops at")
+  (sample "(import x/tool/profile profile-evals-max) (profile-evals-max)" "1048575 where the engine's layout gives the count twenty bits")
   "Return the largest eval count an object can hold.")
 
 (doc (def profile-evals
@@ -175,6 +189,7 @@
                    (profile-evals-max))))
   (param obj ANY "Object to read")
   (returns INTEGER "Times evaluation reached obj, at most (profile-evals-max)")
+  (sample "(import x/tool/profile profile-evals) (profile-evals '(a b))" "0 on a 64-bit engine, where the count has its own bits: quoted data is never evaluated")
   "Return how many times evaluation reached an object.")
 
 ; One step of a walk.  acc is (evals nodes saturated): n joins the sum, the
@@ -216,6 +231,7 @@
   (param expr ANY "Body or form to walk")
   (param stop INTEGER "Flag bits that end the walk at a pair below expr which carries one of them; 0 walks everything")
   (returns LIST "(evals nodes saturated): the counts summed, the pairs visited, and #t when a count was at its maximum")
+  (sample "(import x/tool/profile profile-tree) (profile-tree '(a (b c)) 0)" "(0 4 #f) on a 64-bit engine: four pairs, none of them evaluated")
   "Sum the eval counts through a body or a form.")
 
 ; A function's calls.  A procedure steps onto its body's first cell once a
@@ -438,6 +454,7 @@
         (%profile-bodies %obj-flag-trace)))
      (first %profile-registry))))
   (returns LIST "One (file line calls evals nodes saturated) row for each function body evaluation reached, in no order")
+  (sample "(import x/tool/profile profile-rows) (profile-rows)" "((\"lib/x/core/list.x\" 120 40 815 31 #f) ...) on a profiling engine; nil on one that does not count")
   "Return the calls and evaluation of every function on the heap, by the file and line its body starts on.")
 
 ; The engine clears the count's bits across the whole allocation chain in one
@@ -446,6 +463,7 @@
   (fn (_)
     (%profile-chain-clear! (int<< (profile-evals-max) %obj-evals-shift))))
   (returns NIL "nil")
+  (sample "(import x/tool/profile profile-clear! profile-report) (profile-clear!) (work) (profile-report 10)" "the ten functions work ran most")
   "Set the eval count of every object on the heap to zero, so that what is counted next belongs to what runs next.")
 
 (def %profile-print
@@ -479,6 +497,7 @@
      (profile-rows))))
   (param n INTEGER "Rows to print")
   (returns ANY "nil")
+  (sample "(import x/tool/profile profile-report) (profile-report 3)" "a header, evals calls pairs where, and three rows, as 815 40 31 lib/x/core/list.x:120")
   (note "A + after a row's evals says a count in that body was at its maximum, so the sum is a lower bound.")
   "Print the n functions whose bodies evaluation reached most, most first.")
 
@@ -507,6 +526,7 @@
           (#t (pair (%cell-int (first (first cells))) (self (rest cells)))))))
     (pair (Heap count) (%prof-ints (%profile)))))
   (returns LIST "The heap count, then each profile counter")
+  (sample "(import x/tool/profile profile-snapshot) (profile-snapshot)" "(158946 0 37887 3841 0 0 0 0 0 0 0 0): the heap count, then allocs, evals, tco and the rest in profile-dump's order")
   "Return the profile counters and heap count as they stand, for profile-dump.")
 
 (doc (def profile-dump
@@ -532,6 +552,7 @@
         (str-append " heap="
           (str-append (io-write-to-str (first %prof-snap)) "\n"))))))
   (param snap LIST "Optional: a profile-snapshot taken earlier")
+  (sample "(import x/tool/profile profile-dump) (profile-dump)" "one line on stderr, as allocs=0 evals=37887 tco=3841 ... heap=158946")
   "Dump the profile counters and heap count to stderr, as they stand or as snap recorded them.")
 
 (doc (provide x/tool/profile
@@ -543,4 +564,5 @@
   profile-evals-max profile-evals profile-tree profile-fn
   profile-rows profile-clear! profile-report
   heap-collect heap-collect-force)
+  (sample "(import x/tool/profile profile-clear! profile-report) (profile-clear!) (work) (profile-report 10)" "the ten functions work ran most, on an engine built to count evaluation")
   "Performance profiling and smart garbage collection.")
