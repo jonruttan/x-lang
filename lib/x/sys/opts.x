@@ -148,26 +148,32 @@
 
     (method hidden (self (param row LIST "A flag or value row"))
       (doc "The row, accepted by parse but left out of usage -- for spellings a command takes and does not advertise."
-        (returns LIST "The row, unlisted"))
+        (returns LIST "The row, unlisted")
+        (example "(Opts flags (Opts declare \"t\" \"\" () (list (Opts hidden (Opts flag \"-x\" \"X\")))))" "(\"-x\")")
+        (example "(Opts usage (Opts declare \"t\" \"\" () (list (Opts hidden (Opts flag \"-x\" \"X\")))))" "\"Usage: t\\n\""))
       (list (first row) (List ref 1 row) (List ref 2 row) (List ref 3 row) #f))
 
     (method text (self (param line STRING "A line of the help text, printed as written"))
       (doc "A row that is only text: a continuation line, a heading, or an option row laid out by hand. It declares nothing."
-        (returns LIST "The row"))
+        (returns LIST "The row")
+        (example "(Opts usage (Opts declare \"t\" \"\" () (list (Opts text \"Options:\"))))" "\"Usage: t\\n\\nOptions:\\n\""))
       (list (lit text) () () line #t))
 
     (method name (self (param decl ALIST "A declaration"))
-      (doc "The command's name." (returns STRING "The name"))
+      (doc "The command's name." (returns STRING "The name")
+        (example "(Opts name (Opts declare \"cut\" \"\" () ()))" "\"cut\""))
       (rest (Assoc entry (lit name) decl)))
 
     (method flags (self (param decl ALIST "A declaration"))
       (doc "Every spelling of every option that stands alone, hidden or not."
-        (returns LIST "The spellings"))
+        (returns LIST "The spellings")
+        (example "(Opts flags (Opts declare \"t\" \"\" () (list (Opts flag \"-q\" \"--quiet\" \"Quiet\") (Opts hidden (Opts flag \"-x\" \"X\")))))" "(\"-q\" \"--quiet\" \"-x\")"))
       (rest (Assoc entry (lit flags) decl)))
 
     (method valued (self (param decl ALIST "A declaration"))
       (doc "Every spelling of every option that takes an argument, hidden or not."
-        (returns LIST "The spellings"))
+        (returns LIST "The spellings")
+        (example "(Opts valued (Opts declare \"t\" \"\" () (list (Opts arg \"-o\" \"--output\" \"FILE\" \"Out\"))))" "(\"-o\" \"--output\")"))
       (rest (Assoc entry (lit valued) decl)))
 
     (method help? (self (param decl ALIST "A declaration")
@@ -214,12 +220,15 @@
     (method %setting (self (param decl ALIST "A declaration")
                            (param key SYMBOL "column, help or banner")
                            (param default ANY "Answered when it was not set"))
-      (doc "A setting given to declare, or the default." (returns ANY "The setting"))
+      (doc "A setting given to declare, or the default." (returns ANY "The setting")
+        (example "(Opts %setting (Opts declare \"t\" \"\" () () (pair 'column 24)) 'column 16)" "24")
+        (example "(Opts %setting (Opts declare \"t\" \"\" () ()) 'column 16)" "16"))
       (let ((e (Assoc entry key (rest (Assoc entry (lit settings) decl)))))
         (if (null? e) default (rest e))))
 
     (method %spellings (self (param rows LIST "Rows") (param label SYMBOL "flag or value"))
-      (doc "Every spelling of the rows with this label, in order." (returns LIST "The spellings"))
+      (doc "Every spelling of the rows with this label, in order." (returns LIST "The spellings")
+        (example "(Opts %spellings (list (Opts flag \"-a\" \"A\") (Opts arg \"-o\" \"F\" \"O\") (Opts flag \"-b\" \"--big\" \"B\")) 'flag)" "(\"-a\" \"-b\" \"--big\")"))
       (let go ((rs rows) (acc ()))
         (if (null? rs) (%reverse acc)
           (go (rest rs)
@@ -227,14 +236,17 @@
                 (%append2 (%reverse (List ref 1 (first rs))) acc) acc)))))
 
     (method %shown (self (param rows LIST "Rows"))
-      (doc "The rows usage lists." (returns LIST "The rows not hidden"))
+      (doc "The rows usage lists." (returns LIST "The rows not hidden")
+        (example "(List length (Opts %shown (list (Opts flag \"-a\" \"A\") (Opts hidden (Opts flag \"-b\" \"B\")))))" "1"))
       (let go ((rs rows) (acc ()))
         (if (null? rs) (%reverse acc)
           (go (rest rs) (if (List ref 4 (first rs)) (pair (first rs) acc) acc)))))
 
     (method %left (self (param row LIST "A flag or value row"))
       (doc "A row's left column: its spellings joined by commas, and the argument's name."
-        (returns STRING "The text"))
+        (returns STRING "The text")
+        (example "(Opts %left (Opts arg \"-o\" \"--output\" \"FILE\" \"Out\"))" "\"-o,--output FILE\"")
+        (example "(Opts %left (Opts flag \"-q\" \"Quiet\"))" "\"-q\""))
       (let go ((ss (List ref 1 row)) (acc ()))
         (if (null? ss)
           (%str-concat
@@ -245,7 +257,9 @@
     ; the left column starts at the first tab stop, 8, so the description
     ; column is the first stop past 8 plus the widest left
     (method %column (self (param rows LIST "The listed rows"))
-      (doc "The first tab stop past the widest option." (returns INTEGER "The column"))
+      (doc "The first tab stop past the widest option." (returns INTEGER "The column")
+        (example "(Opts %column (list (Opts flag \"-a\" \"All\")))" "16")
+        (example "(Opts %column (list (Opts arg \"-o\" \"--output\" \"FILE\" \"Out\")))" "32"))
       (let go ((rs rows) (wide 0))
         (if (null? rs) (self %stop (+ 8 wide))
           (go (rest rs)
@@ -254,12 +268,16 @@
                   (if (> w wide) w wide)))))))
 
     (method %stop (self (param col INTEGER "A column"))
-      (doc "The first tab stop past this column." (returns INTEGER "The stop"))
+      (doc "The first tab stop past this column." (returns INTEGER "The stop")
+        (example "(Opts %stop 8)" "16")
+        (example "(Opts %stop 13)" "16"))
       (let go ((s 8)) (if (> s col) s (go (+ s 8)))))
 
     (method %line (self (param row LIST "A listed row") (param column INTEGER "The description column"))
       (doc "One row of the help text, without its newline."
-        (returns STRING "The line"))
+        (returns STRING "The line")
+        (example "(Opts %line (Opts flag \"-a\" \"All\") 16)" "\"\\t-a\\tAll\"")
+        (example "(Opts %line (Opts flag \"-a\" \"All\") 24)" "\"\\t-a\\t\\tAll\""))
       (if (eq? (first row) (lit text)) (List ref 3 row)
         (let ((left (self %left row)))
           ; a tab at least, then tabs until the column is reached
@@ -272,7 +290,8 @@
                          (param more LIST "argv, or the values and argv")
                          (param leading BOOL "Stop at the first operand?"))
       (doc "Parse either form; a declaration's rows widen each option to all its spellings."
-        (returns ALIST "The parsed record"))
+        (returns ALIST "The parsed record")
+        (example "(Opts operands (Opts %parse (list \"-a\") (list () (list \"-a\" \"f\")) #f))" "(\"f\")"))
       (if (null? (rest more))
         (self %widen (self %walk (self flags decl) (self valued decl) (first more) leading)
               (rest (Assoc entry (lit rows) decl)))
@@ -280,7 +299,8 @@
 
     (method %widen (self (param rec ALIST "A parsed record") (param rows LIST "The declaration's rows"))
       (doc "The record with every option given recorded under each of its row's spellings."
-        (returns ALIST "The record"))
+        (returns ALIST "The record")
+        (example "(Opts on? (Opts %widen (Opts %walk (list \"-q\") () (list \"-q\") #f) (list (Opts flag \"-q\" \"--quiet\" \"Q\"))) \"--quiet\")" "#t"))
       (def spell (fn (_ s)
         (let go ((rs rows))
           (match
@@ -303,7 +323,9 @@
     ; --- the walk ---------------------------------------------------------
 
     (method %member? (self (param x STRING "Needle") (param xs LIST "Haystack"))
-      (doc "Is this string in the list?" (returns BOOL "True when present"))
+      (doc "Is this string in the list?" (returns BOOL "True when present")
+        (example "(Opts %member? \"-b\" (list \"-a\" \"-b\"))" "#t")
+        (example "(Opts %member? \"-c\" (list \"-a\" \"-b\"))" "#f"))
       (let go ((l xs))
         (if (null? l) #f (if (str=? (first l) x) #t (go (rest l))))))
 
@@ -340,7 +362,9 @@
                         (param argv LIST "Arguments")
                         (param leading BOOL "Stop at the first operand?"))
       (doc "The parser proper: answers the record the accessors read."
-        (returns ALIST "((on . LIST) (values . ALIST) (operands . LIST) (unknown . ANY))"))
+        (returns ALIST "((on . LIST) (values . ALIST) (operands . LIST) (unknown . ANY))")
+        (example "(Opts operands (Opts %walk (list \"-n\") () (list \"a\" \"-n\" \"b\") #f))" "(\"a\" \"b\")")
+        (example "(Opts operands (Opts %walk (list \"-n\") () (list \"a\" \"-n\" \"b\") #t))" "(\"a\" \"-n\" \"b\")"))
       ; state rides the walk: seen flags, (flag . value) pairs, operands,
       ; and the first token nobody declared
       (let go ((as argv) (on ()) (vals ()) (ops ()) (bad ()) (done #f))
@@ -383,7 +407,9 @@
                         ops bad done)))))))))
 
     (method %long-split (self (param tok STRING "A --name=value token"))
-      (doc "Split --name=value into its pair." (returns PAIR "(--name . value)"))
+      (doc "Split --name=value into its pair." (returns PAIR "(--name . value)")
+        (example "(Opts %long-split \"--width=80\")" "(\"--width\" . \"80\")")
+        (example "(Opts %long-split \"--width\")" "(\"--width\" . \"\")"))
       (let go ((i 0))
         (if (>= i (str-byte-len tok)) (pair tok "")
           (if (= (str-byte-ref tok i) 61)
@@ -391,7 +417,9 @@
             (go (+ i 1))))))
 
     (method %long-value? (self (param tok STRING "A token") (param values LIST "Value-taking options"))
-      (doc "Is this --name=value for a declared value option?" (returns BOOL "True when it is"))
+      (doc "Is this --name=value for a declared value option?" (returns BOOL "True when it is")
+        (example "(Opts %long-value? \"--width=80\" (list \"--width\"))" "#t")
+        (example "(Opts %long-value? \"--width=80\" ())" "#f"))
       (if (< (str-byte-len tok) 3) #f
         (if (not (= (str-byte-ref tok 1) 45)) #f
           (self %member? (first (self %long-split tok)) values))))
@@ -404,7 +432,9 @@
                            (param values LIST "Value-taking options")
                            (param more LIST "The arguments after this token"))
       (doc "Split a cluster into the options it names."
-        (returns ANY "(ON VALUES () REST), or nil when a letter is undeclared"))
+        (returns ANY "(ON VALUES () REST), or nil when a letter is undeclared")
+        (example "(Opts %cluster \"-nk2\" (list \"-n\") (list \"-k\") ())" "((\"-n\") ((\"-k\" . \"2\")) () ())")
+        (example "(null? (Opts %cluster \"-nz\" (list \"-n\") () ()))" "#t"))
       (def %dash (fn (_ c) (bytes->str (list 45 c))))
       (let go ((i 1) (on ()) (vals ()))
         (if (>= i (str-byte-len tok)) (list (%reverse on) (%reverse vals) () more)
@@ -422,4 +452,5 @@
               (#t ()))))))))
 
 (doc (provide x/sys/opts Opts)
-  "Command-line parsing against a declaration of flags and valued options, on the Opts class.")
+  "Command-line parsing against a declaration of flags and valued options, on the Opts class."
+  (example "(Opts operands (Opts parse (list \"-l\") () (list \"-l\" \"dir\")))" "(\"dir\")"))
