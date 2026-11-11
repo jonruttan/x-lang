@@ -21,6 +21,10 @@
 #     branches that each add examples then merge in either order; the row
 #     is lowered in the branch that stands on both.
 #
+# The same trailer lists the def entries whose name the root does not bind
+# and no module provides -- an entry left behind when its name was made
+# %-private or deleted -- and any one fails the check.
+#
 # The walk takes the doctest's time (about twenty seconds here) and memory,
 # so the Makefile files this under `gates`, not the pre-push `gates-fast`.
 
@@ -61,6 +65,19 @@ fi
 
 echo "help-examples: $n_entries entries; $n_example with an example, $n_sample with a sample only"
 echo "help-examples: $bare_line"
+
+# A def entry whose name nothing binds documents a retired name: the root
+# does not bind it and no module provides it.  The walk lists them as
+# (NAME MODULE), MODULE the import it met the entry under, () at boot.
+unbound=$(sed -n 's/^unbound defs: //p' "$_TMP")
+if [ -z "$unbound" ]; then
+  echo "help-examples: FAIL -- the census trailer carries no unbound-defs line" >&2
+  exit 1
+fi
+if [ "$unbound" != "()" ]; then
+  echo "help-examples: FAIL -- doc entries for names nothing binds; remove each entry, or bind or provide the name: $unbound" >&2
+  exit 1
+fi
 
 if [ "$n_bare" -gt "$ceiling" ]; then
   echo "help-examples: FAIL -- $n_bare entries show no example, over the ceiling of $ceiling; give the new entries an (example \"in\" \"out\") form (docs/contributing.md)" >&2

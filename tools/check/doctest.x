@@ -49,21 +49,33 @@
 ; registry is asked first, and what is left is a bare def or primitive.
 ; An entry documented twice is walked twice and counted twice; help shows
 ; the newer one.
+;
+; The tally also keeps every def entry, under def-names, as (NAME MODULE):
+; MODULE the import the walk met the entry under, () for the boot surface.
+; The trailer looks each NAME up once every module is loaded; see "Documented
+; defs nothing binds" below.
 (def %help-tally
   (list (pair 'entries 0) (pair 'example 0) (pair 'sample-only 0)
-        (pair 'method 0) (pair 'def 0) (pair 'module 0)))
+        (pair 'method 0) (pair 'def 0) (pair 'module 0) (pair 'def-names ())))
 (def %tally (fn (_ key) (List find (fn (_ c) (eq? (first c) key)) %help-tally)))
 (def %tally! (fn (_ key) (def c (%tally key)) (%set-rest! c (+ (rest c) 1))))
 
 (def %tally-entry!
-  (fn (_ e)
+  (fn (_ e mod)
+    (def name (%doc-entry-name e))
+    (def group
+      (match
+        ((not (null? (%module-lookup name))) 'module)
+        ((%doc-str-contains? "/" (symbol->str name)) 'method)
+        (#t 'def)))
+    (when (eq? group 'def)
+      (let ((c (%tally 'def-names)))
+        (%set-rest! c (pair (list name (if mod (%str->sym mod) ())) (rest c)))))
     (%tally! 'entries)
     (match
       ((not (null? (%doc-entry-examples e))) (%tally! 'example))
       ((not (null? (%doc-entry-samples e))) (%tally! 'sample-only))
-      ((not (null? (%module-lookup (%doc-entry-name e)))) (%tally! 'module))
-      ((%doc-str-contains? "/" (symbol->str (%doc-entry-name e))) (%tally! 'method))
-      (#t (%tally! 'def)))))
+      (#t (%tally! group)))))
 
 ; Emit one example as a harness test. mod is the import path string, or
 ; nil for boot-registered names.
@@ -89,7 +101,7 @@
   (fn (_ entries mod)
     (List for-each
       (fn (_ e)
-        (%tally-entry! e)
+        (%tally-entry! e mod)
         (let ((name (%doc-entry-name e)))
           (def %go
             (fn (self exs idx)
@@ -157,3 +169,40 @@
          ", modules " (rest (%tally 'module)) ")"
          "\n" "failed imports: ")
 (write (first %fail-imports)) (newline)
+
+; --- Documented defs nothing binds (tools/check/help-examples.sh) ---
+; A def entry names a binding, and once the binding is retired -- made
+; %-private, or deleted -- the entry documents nothing, while help and the
+; generated reference go on showing it.  A NAME the tally kept is bound when
+; the root binds it, or when a module's provide list names it and the
+; module's own environment binds it: a scoped module's exports live in its
+; environment, a child of the root, and a selective import reads them from
+; there.  A private a scoped module binds and does not provide is reachable
+; by no reader of help, so its entry counts as unbound.  The walk's MODULE
+; is not always the file that wrote the entry -- an import loads what it
+; imports, and the boot loads scoped modules too -- so the lookup does not
+; start from it.
+(import x/type/module)
+(import x/type/env)
+(let ()
+  (def same-obj? (prim-ref 'obj 'same?))
+  (def no-binding (pair () ()))
+  (def bound-in?
+    (fn (_ name env)
+      (not (same-obj? no-binding (guard (_ no-binding) (eval name env))))))
+  ; (ENV . EXPORTS) for each loaded module that provides a name.
+  (def provides
+    (List map (fn (_ m) (pair (Module env m) (Module exports m)))
+      (List filter
+        (fn (_ m) (if (Module loaded? m) (not (null? (Module exports m))) #f))
+        (Module names))))
+  (def def-bound?
+    (fn (_ name)
+      (if (bound-in? name (Env root)) #t
+        (List any?
+          (fn (_ p) (if (List includes? name (rest p)) (bound-in? name (first p)) #f))
+          provides))))
+  (display "unbound defs: ")
+  (write (List reverse
+    (List filter (fn (_ d) (not (def-bound? (first d)))) (rest (%tally 'def-names)))))
+  (newline))

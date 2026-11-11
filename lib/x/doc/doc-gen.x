@@ -17,13 +17,10 @@
 
 ; --- Predicates (cross-base: use str=? not eq?) ---
 
-(doc (def %doc-sym-is?
+; Whether sym is a symbol named name, compared as strings (cross-base safe).
+(def %doc-sym-is?
   (fn (_ sym name)
     (when (symbol? sym) (str=? (symbol->str sym) name))))
-  (param sym ANY "Value to test")
-  (param name STRING "Expected symbol name")
-  (returns BOOL "True if sym is a symbol with the given name")
-  "Test if a value is a symbol matching a name string (cross-base safe).")
 
 (def %docgen-form? (fn (_ tok)
   (when (pair? tok) (%doc-sym-is? (first tok) "doc"))))
@@ -63,7 +60,8 @@
 
 ; --- Main doc form extraction ---
 
-(doc (def %doc-extract
+; A (doc ...) token form -> (name desc params returns examples sees notes).
+(def %doc-extract
   (fn (_ form)
     (def %second (first (rest form)))
     (def %meta (rest (rest form)))
@@ -98,9 +96,6 @@
               (%doc-extract-meta-type %meta "example" ())
               (%doc-extract-meta-type %meta "see" ())
               (%doc-extract-meta-type %meta "note" ())))))))
-  (param form LIST "A (doc ...) token form")
-  (returns LIST "(name desc params returns examples sees notes)")
-  "Extract structured metadata from a (doc ...) form.")
 
 ; --- Output, through an emitter ------------------------------------------
 ; The walk below never writes Markdown -- it calls an EMITTER, a class value
@@ -109,7 +104,9 @@
 ; and (name type desc) triples, so an emitter never has to know what a
 ; spliced variadic tail or a three-element (param ...) means.
 
-(doc (def %doc-emit-entry
+; One entry's info, as %doc-extract builds it, through the emitter em
+; (DocMd, DocMan).
+(def %doc-emit-entry
   (fn (_ em info)
     (def %name (List ref 0 info))
     (def %desc (List ref 1 info))
@@ -128,9 +125,6 @@
         (em returns (DocEmit as-str (first (rest %ret))) (DocEmit returns-desc %ret))))
     (unless (null? %examples) (em examples (DocEmit example-pairs %examples)))
     (unless (null? %sees) (em see-also (DocEmit meta-strs %sees)))))
-  (param em ANY "Emitter class (DocMd, DocMan)")
-  (param info LIST "Extracted doc info from doc-extract")
-  "Emit a single entry's documentation through an emitter.")
 
 ; One field declaration -> heading, optional description, the field note and
 ; its visibility.  Shared by the (doc DECL "...") arm and the bare-field
@@ -168,14 +162,12 @@
   (returns LIST "Alist of (name-string . extracted-7-tuple) pairs")
   "Build a lookup alist from (doc ...) forms in a token stream.")
 
-(doc (def %doc-lookup-alist
+; The extracted 7-tuple for name-str in an alist from doc-build-lookup, or
+; (); compared as strings (cross-base safe).
+(def %doc-lookup-alist
   (fn (_ alist name-str)
     (let ((hit (%assoc-str name-str alist)))
       (unless (null? hit) (rest hit)))))
-  (param alist LIST "Alist from doc-build-lookup")
-  (param name-str STRING "Function name as string")
-  (returns LIST "Extracted 7-tuple, or () if not found")
-  "Cross-base-safe lookup in a doc alist by name string.")
 
 ; --- Token tree walker ---
 
@@ -528,12 +520,10 @@
   (param fallback STRING "Module name to title the page with when the file declares no (provide ...)")
   "Walk source tokens, using prims-alist as fallback docs for bare defs.")
 
-(doc (def %doc-walk
+; A token list's documentation, every entry, through the emitter em.
+(def %doc-walk
   (fn (_ tokens em)
     (doc-walk-with-prims tokens () em "")))
-  (param tokens LIST "Token list from tok-read-str")
-  (param em ANY "Emitter class (DocMd, DocMan)")
-  "Walk a token tree, emitting all documentation through an emitter.")
 
 (doc (provide x/doc/doc-gen doc-build-lookup doc-walk-with-prims)
   (note "The two exports are the driver's, tools/dev/doc.x: it imports them by name.")
