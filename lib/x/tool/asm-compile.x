@@ -263,6 +263,13 @@
 ; for truth is false when it is nil or the #f object, as it is in x: the
 ; door (asm-cache.x) hands this world the fvar %false, holding #f, and a
 ; test compares against it after the nil test.
+;
+; The arguments are evaluated in turn, and evaluating one runs x code that can
+; collect, so the values evaluated before it must be where the collector sees
+; them.  A function of two or more parameters keeps them in the function
+; world's cells (below), linked onto the root chain: in (obj set! v (int+ i 1)
+; (f i)) the index is a fresh integer, and f may collect.  A function of one
+; parameter has no earlier value to keep and holds it in a raw slot.
 (def %asm-object? #f)
 ; The object world's operative: a function called from x whose one
 ; parameter is its argument list as the call wrote it, unevaluated, as an
@@ -310,8 +317,10 @@
 ; Where cell k's first word, its value, sits.
 (def %asm-cell-value-offset
   (fn (_ k) (+ (%asm-cell-offset k) (* %word-size %obj-meta-len))))
-; The parameters, which a tail self-call stores over; the cells hold these
-; and then the locals (%asm-slots).
+; The parameters of a rooted frame, which a tail self-call stores over; the
+; cells hold these and then the locals (%asm-slots).  Set in the function
+; world and for an object function whose parameters are in cells; () in a
+; frame of raw slots.
 (def %asm-fn-params ())
 ; The fourth world: a ROUTINE the engine calls through a slot of the base's
 ; slot vector (engine/tools/contract/base-slots.x), declared (run TYPE ...),
@@ -380,9 +389,10 @@
     ((fn (self ps k)
        (if (null? ps) ()
          (if (eq? name (first ps))
-           ; In the function world slot k is cell k, and its value is the
-           ; cell's first word.
-           (if %asm-function?
+           ; In a rooted frame (the function world, or an object function
+           ; whose parameters are in cells: %asm-fn-params is set) slot k is
+           ; cell k, and its value is the cell's first word.
+           (if (or %asm-function? (pair? %asm-fn-params))
              (%asm-cell-value-offset k)
              (* 16 (- (- n 1) k)))
            (self (rest ps) (+ k 1)))))
@@ -1713,16 +1723,31 @@
     ; and pushed, x22 at their base, the body's top labelled for the tail
     ; self-call.  See "Parameter slots" above for who is not slotted.
     (set! %asm-slots ())
+    (set! %asm-fn-params ())
     (set! %asm-tail #f)
     (def slotted
       (if %asm-analyser? #f
         (if (null? params) #f (not (%asm-calls-param? fn-body params)))))
-    ; The function world's frame: zeroed cells on the machine stack, x22 at
-    ; their base, each linked onto the base's root chain (see the function
-    ; world, above), then each parameter evaluated into its cell.
-    (def cells (if %asm-function? (%append params (%asm-fn-locals fn-body params)) ()))
-    (def frame-pushes (if %asm-function? (+ 1 (* 3 (%length cells))) 0))
-    (when %asm-function?
+    ; A rooted frame: zeroed cells on the machine stack, x22 at their base,
+    ; each linked onto the base's root chain (see the function world, above),
+    ; then each parameter evaluated into its cell.  The function world's
+    ; frame, and an object function's of two or more parameters (see the
+    ; object world, above).  A routine's words are written by its caller and
+    ; an operative's one parameter is the call's own list: neither evaluates.
+    (def rooted
+      (or %asm-function?
+          (and slotted %asm-object? (not %asm-operative?) (null? %asm-run)
+               (pair? (rest params)))))
+    (when (and rooted (= %jit-pair-type 0))
+      (Err raise 'state
+        "asm-compile: this engine exports no x_type_pair_obj, so an object function of two or more parameters cannot root them" ()))
+    (def cells
+      (match
+        (%asm-function? (%append params (%asm-fn-locals fn-body params)))
+        (rooted params)
+        (#t ())))
+    (def frame-pushes (if rooted (+ 1 (* 3 (%length cells))) 0))
+    (when rooted
       (asm-emit! asm 'mov x0 (imm 0))
       ((fn (self n) (when (> n 0) (do (asm-push! asm x0) (self (- n 1)))))
        frame-pushes)
@@ -1781,7 +1806,7 @@
       (set! %asm-loop-label (%asm-genlabel "%top"))
       (asm-label! asm %asm-loop-label)
       (set! %asm-tail #t))
-    (if (and slotted (not %asm-function?))
+    (if (and slotted (not rooted))
       (do ((fn (self ps)
              (if (null? ps) ()
                (do (%asm-compile-param asm (first ps) params)
@@ -1807,8 +1832,8 @@
 
     ; The slots popped, so the epilogue finds the stack as the prologue
     ; left it.
-    ; The function world's frame off the root chain, its old head restored.
-    (if %asm-function?
+    ; A rooted frame off the root chain, its old head restored.
+    (if rooted
       (do (asm-emit! asm (lit ldr) x1 (mem x22 8))
           (asm-emit! asm (lit ldr) x2 (mem x22 0))
           (asm-emit! asm (lit str) x2 (mem x1 (* %word-size %obj-meta-len)))

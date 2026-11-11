@@ -64,6 +64,26 @@ is written.
 ---
     (('z #f) 'z #t)
 
+### set!'s value collects, and the index evaluated before it survives
+
+Vector build writes each slot with (obj set! v (int+ i 1) (f i)): the index
+is a fresh integer, evaluated before (f i), and f here collects and then
+allocates over whatever the collect freed.  The index is held in a rooted
+cell, so every store lands in its own slot.
+
+```x
+(do (import x/tool/obj-compiled)
+  (def %v (Vector build 3000
+            (fn (_ i)
+              (do (if (if (= i 1000) #t (= i 2000)) (Heap collect) ())
+                  (list i (list i i))))))
+  (Heap collect)
+  (write (list (Vector length %v) (Vector ref 0 %v) (Vector ref 1000 %v)
+               (Vector ref 2999 %v))))
+```
+---
+    (3000 (0 (0 0)) (1000 (1000 1000)) (2999 (2999 2999)))
+
 ## null?
 
 ### null? answers as its interpreted version on every kind of value
