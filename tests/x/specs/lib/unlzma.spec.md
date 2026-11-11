@@ -215,3 +215,94 @@ The properties byte packs lc, lp and pb, so 225 and up name no settings.
 ```
 ---
     ('value "Unlzma: the stream ends inside a symbol" (('lzma . 'short)))
+
+## a stream fed a piece at a time
+
+`%lz-fed` feeds a stream step bytes at a time and then finishes it, and
+answers the bytes that came out, their CRC-32 carried across the pieces,
+whether the stream is done, and how many bytes it left unread.  `gzip`
+gives each output's CRC-32.  Each piece here is under the 4KB that builds
+the compiled decoder, so these run this file's.
+
+### a byte at a time
+
+```x
+(do (import x/codec/unlzma) (import x/codec/hex) (import x/codec/crc32)
+  (def %lz-region (fn (_ bs) (let ((r ((prim-ref (lit str) (lit make)) (List length bs))))
+    (let ((p ((prim-ref (lit str) (lit ->ptr)) r)))
+      (do ((fn (self i l) (unless (null? l) (do ((prim-ref (lit ptr) (lit set!)) p i (first l) 1) (self (+ i 1) (rest l))))) 0 bs) r)))))
+  (def %lz-fed (fn (_ in n step)
+    (let ((z (Unlzma stream))
+          (sum (fn (_ acc p) (list (+ (first acc) (first (rest p))) (Crc32 update (first (rest acc)) (first p) 0 (first (rest p)))))))
+      ((fn (self off acc)
+         (if (< off n)
+           (self (+ off step) (sum acc (Unlzma feed z in off (if (< (- n off) step) (- n off) step))))
+           (let ((all (sum acc (Unlzma finish z))))
+             (list (first all) (first (rest all)) (Unlzma done? z) (first (rest (Unlzma rest z)))))))
+       0 (list 0 0)))))
+  (def %lz-z (Hex decode-bytes "5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000"))
+  (write (%lz-fed (%lz-region %lz-z) (List length %lz-z) 1)))
+```
+---
+    (13 522593755 #t 0)
+
+### a window that wraps, five bytes at a time
+
+The stream above whose 16384 bytes wrap a 4096-byte window four times.
+
+```x
+(do (import x/codec/unlzma) (import x/codec/hex) (import x/codec/crc32)
+  (def %lz-region (fn (_ bs) (let ((r ((prim-ref (lit str) (lit make)) (List length bs))))
+    (let ((p ((prim-ref (lit str) (lit ->ptr)) r)))
+      (do ((fn (self i l) (unless (null? l) (do ((prim-ref (lit ptr) (lit set!)) p i (first l) 1) (self (+ i 1) (rest l))))) 0 bs) r)))))
+  (def %lz-fed (fn (_ in n step)
+    (let ((z (Unlzma stream))
+          (sum (fn (_ acc p) (list (+ (first acc) (first (rest p))) (Crc32 update (first (rest acc)) (first p) 0 (first (rest p)))))))
+      ((fn (self off acc)
+         (if (< off n)
+           (self (+ off step) (sum acc (Unlzma feed z in off (if (< (- n off) step) (- n off) step))))
+           (let ((all (sum acc (Unlzma finish z))))
+             (list (first all) (first (rest all)) (Unlzma done? z) (first (rest (Unlzma rest z)))))))
+       0 (list 0 0)))))
+  (def %lz-z (Hex decode-bytes (Str8 append
+    "5d00100000ffffffffffffffff003098c8e25de1f04e8ff4b440f478025cf20601bd7bd42fc2d8d02d9a269b3609cc03b5"
+    "8c1c21a1fd665f7bc69ded659c450edeccf6a5785ed94c769027cba16f23bba933a303127329fffe56c400")))
+  (write (%lz-fed (%lz-region %lz-z) (List length %lz-z) 5)))
+```
+---
+    (16384 3778333515 #t 0)
+
+### the header waits for its bytes
+
+Ten bytes are not a header: none come out and the stream is not done.
+
+```x
+(do (import x/codec/unlzma) (import x/codec/hex)
+  (def %lz-region (fn (_ bs) (let ((r ((prim-ref (lit str) (lit make)) (List length bs))))
+    (let ((p ((prim-ref (lit str) (lit ->ptr)) r)))
+      (do ((fn (self i l) (unless (null? l) (do ((prim-ref (lit ptr) (lit set!)) p i (first l) 1) (self (+ i 1) (rest l))))) 0 bs) r)))))
+  (def %lz-z (Hex decode-bytes "5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000"))
+  (def %lz-s (Unlzma stream))
+  (write (list (first (rest (Unlzma feed %lz-s (%lz-region %lz-z) 0 10))) (Unlzma done? %lz-s))))
+```
+---
+    (0 #f)
+
+### a stream cut short, then finished
+
+Fed, the bytes wait; finished, they are a stream that stops inside a
+symbol.
+
+```x
+(do (import x/codec/unlzma) (import x/codec/hex)
+  (def %lz-region (fn (_ bs) (let ((r ((prim-ref (lit str) (lit make)) (List length bs))))
+    (let ((p ((prim-ref (lit str) (lit ->ptr)) r)))
+      (do ((fn (self i l) (unless (null? l) (do ((prim-ref (lit ptr) (lit set!)) p i (first l) 1) (self (+ i 1) (rest l))))) 0 bs) r)))))
+  (def %lz-z (Hex decode-bytes "5d00000004ffffffffffffffff00341949ee8def8c80b1e6"))
+  (def %lz-s (Unlzma stream))
+  (Unlzma feed %lz-s (%lz-region %lz-z) 0 (List length %lz-z))
+  (guard (e (list (Err label e) (e msg) (e data)))
+    (Unlzma finish %lz-s)))
+```
+---
+    ('value "Unlzma: the stream ends inside a symbol" (('lzma . 'short)))

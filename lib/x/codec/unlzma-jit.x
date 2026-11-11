@@ -3,10 +3,11 @@
 ; Loaded lazily by x/codec/unlzma, as x/codec/bunzip2-jit is by Bunzip2:
 ; this module pulls the JIT toolchain, and the codec must stay loadable and
 ; correct on a host with no JIT.  The pure-x decoder in unlzma.x is the
-; reference and the fallback; this engine replaces its decode loop, from the
-; first decision to the end marker or the declared length, and is adopted
-; only after it agrees with the reference on the check streams.  The header
-; and the range coder's first five bytes stay in x.
+; reference and the fallback; this engine replaces its decode loop, the
+; decisions from the top of one to the end or to an input that might run
+; out inside the next, and is adopted only after it agrees with the
+; reference on the check streams, whole and fed in pieces.  The header, the
+; range coder's first five bytes and the regions stay in x.
 ;
 ; The loop is one compiled function over a scratch of words, a state machine
 ; whose phase is its first argument.  Every move between phases is a
@@ -21,15 +22,17 @@
 ; not fit: less than a match's 273 bytes of room left in the output, or in
 ; the window while the window is still growing towards the header's
 ; dictionary size.  The driver grows that region and runs the loop again.
-; An input that runs out leaves an error status and feeds zero bytes until
-; the loop is back at the top of a decision.
+; It returns as well when fewer bytes are unread than a decision might
+; read, for a stream fed a piece at a time.  An input that runs out inside
+; a decision leaves an error status and feeds zero bytes until the loop is
+; back at the top of one.
 (module x/codec/unlzma-jit)
 
 (import x/tool/compile compile-asm)
 (import x/type/vector)
 (import x/num/u32 u32-srl)
 
-(import x/core/doors mem-copy obj-ref ptr->int ptr-ref-word ptr-set-word! str->ptr str-make)
+(import x/core/doors mem-copy obj-ref obj-set! ptr->int ptr-ref-word ptr-set-word! str->ptr str-make)
 
 ; scratch layout (words)
 (def %IN 0)         ; the input's address, its length, how much is read
@@ -58,7 +61,8 @@
 (def %REP3 23)
 (def %PREV 24)
 (def %DSTSIZE 25)   ; the output size the header declares, or -1
-(def %ST 26)        ; 0 running, 1 done, 2 output room, 3 window room, <0 error
+(def %ST 26)        ; 0 running, 1 done, 2 output room, 3 window room, 4 input
+                    ; wanted, <0 error
 (def %POSST 27)     ; the decision's position state
 (def %BIT 28)       ; the bit the bit phase decoded
 (def %V 29)
@@ -87,6 +91,7 @@
 (def %DACC 52)
 (def %DBITS 53)
 (def %D 54)
+(def %INWAIT 55)    ; the fewest unread bytes a decision starts with
 (def %NEXT 64)      ; 12: what the state becomes after a literal
 (def %WORDS 76)
 
@@ -144,7 +149,6 @@
 (def %P-DLOW-BIT 25)
 (def %P-DIRECT 26)
 (def %P-DIST 27)
-(def %P-INIT 28)
 
 (def %go (fn (_ ph) (list 'self 'a ph 0 0)))
 (def %bit (fn (_ idx ret) (list 'self 'a %P-BIT idx ret)))
@@ -229,20 +233,22 @@
 (def %uj-head
   (fn (_ L)
     (list
-      ; top: the end, room, then the decision's first bit
+      ; top: the end, the input, room, then the decision's first bit
       (list 'if (list '< (%M %ST) 0) 0
         (list 'if (list 'and (list '< -1 (%M %DSTSIZE))
                              (list '< (list '- (%M %DSTSIZE) 1) (list '+ (%M %GLOBALPOS) (%M %DICTPOS))))
           (list 'do (%S %ST 1) 0)
-          (list 'if (list '< (%M %OUTCAP) (list '+ (%M %OUTCNT) %MAXLEN))
-            (list 'do (%S %ST 2) 0)
-            (list 'if (list 'and (list '< (%M %DICTCAP) (%M %DICTSIZE))
-                                 (list '< (%M %DICTCAP) (list '+ (%M %DICTPOS) %MAXLEN)))
-              (list 'do (%S %ST 3) 0)
-              (list 'do
-                (%S %POSST (list '& (list '+ (%M %DICTPOS) (%M %GLOBALPOS)) (%M %POSMASK)))
-                (%bit (list '+ (L (lit is-match)) (list '+ (list '<< (%M %STATE) 4) (%M %POSST)))
-                      %P-IS-MATCH))))))
+          (list 'if (list '< (list '- (%M %INLEN) (%M %INCNT)) (%M %INWAIT))
+            (list 'do (%S %ST 4) 0)
+            (list 'if (list '< (%M %OUTCAP) (list '+ (%M %OUTCNT) %MAXLEN))
+              (list 'do (%S %ST 2) 0)
+              (list 'if (list 'and (list '< (%M %DICTCAP) (%M %DICTSIZE))
+                                   (list '< (%M %DICTCAP) (list '+ (%M %DICTPOS) %MAXLEN)))
+                (list 'do (%S %ST 3) 0)
+                (list 'do
+                  (%S %POSST (list '& (list '+ (%M %DICTPOS) (%M %GLOBALPOS)) (%M %POSMASK)))
+                  (%bit (list '+ (L (lit is-match)) (list '+ (list '<< (%M %STATE) 4) (%M %POSST)))
+                        %P-IS-MATCH)))))))
       ; bit: one bit against the probability at index i, which it moves
       (list 'do
         %normalize
@@ -398,7 +404,7 @@
         (%S %DBITS (list '- (%M %DBITS) 1))
         (%go %P-DLOW)))))
 
-; 26-28: a distance's coded bits, its end, and the probabilities' first values.
+; 26-27: a distance's coded bits and its end.
 (def %uj-distance-end
   (fn (_ L)
     (list
@@ -424,11 +430,7 @@
         (list 'if (list '= (%M %REP0) 0)
           (list 'if (list '< (%M %ST) 0) 0 (list 'do (%S %ST 1) 0))
           (list 'if (%top-bit? (%M %REP0)) (list 'do (%fail -4) (%go %P-TOP))
-            (list 'do (%S %LEN (list '+ (%M %LEN) 2)) (%go %P-COPY)))))
-      ; init: every probability even, then the first decision
-      (list 'if (list '< 'i (%M %NPROBS))
-        (list 'do (list '%mem-set-at! (%M %PROBS) 'i 1024) (list 'self 'a %P-INIT (list '+ 'i 1) 0))
-        (%go %P-TOP)))))
+            (list 'do (%S %LEN (list '+ (%M %LEN) 2)) (%go %P-COPY))))))))
 
 (def %uj-phases
   (fn (_ L)
@@ -453,16 +455,18 @@
 
 ; --- build: compile, wire the driver, and PROVE it against the reference ---
 ;
-; state:  unlzma.x's slot numbers for its decoder, as an alist (in inlen
-;         incnt code range nprobs dictsize lc posmask litmask state rep0
-;         rep1 rep2 rep3 prev dstsize), read after the header and the
-;         coder's first bytes.
+; state:  unlzma.x's slot numbers for its decoder, as an alist: the
+;         input, the coder, the probabilities, the window, the output, the
+;         header's numbers, the state machine's, the flush mark, the input
+;         a decision waits for, and done.  The decoder holds its regions and
+;         every number; the run reads them in and writes them back.
 ; layout: its probability layout, as an alist of offsets by name.
 ; next:   its vector of what the state becomes after a literal.
 ; check:  (fn (_ run) -> #t) -- runs the reference's check streams through a
 ;         candidate and answers whether every output agreed with its own.
 ;
-; Answers a drop-in for unlzma.x's run, (fn (_ d)) -> (OUT N USED).  Or
+; Answers a drop-in for unlzma.x's run, (fn (_ d)), which carries d's
+; decisions on as unlzma.x's %pure-run does.  Or
 ; raises: on a host with no assembler backend, a toolchain error, or any
 ; disagreement.  The caller guards; a raise means "stay pure-x".
 (def unlzma-jit-make
@@ -476,6 +480,27 @@
     (def %peek (fn (_ i) (ptr-ref-word %ptr (* i %word-size))))
     (def %slot (fn (_ name) (rest (Assoc entry name state))))
     ((fn (self i) (when (< i 12) (do (%poke (+ %NEXT i) (Vector ref i next)) (self (+ i 1))))) 0)
+    ; The scratch's words that are the decoder's numbers, each by its slot:
+    ; read in before a run and written back after, so the decoder carries a
+    ; stream from one run to the next and the scratch holds nothing between.
+    (def %words
+      (List map (fn (_ p) (pair (first p) (%slot (rest p))))
+        (list (pair %INLEN (lit inlen)) (pair %INCNT (lit incnt)) (pair %CODE (lit code))
+              (pair %RANGE (lit range)) (pair %NPROBS (lit nprobs)) (pair %DICTSIZE (lit dictsize))
+              (pair %DICTCAP (lit dictcap)) (pair %DICTPOS (lit dictpos)) (pair %DICTHIGH (lit dicthigh))
+              (pair %GLOBALPOS (lit globalpos)) (pair %OUTCAP (lit outcap)) (pair %OUTCNT (lit outcnt))
+              (pair %LC (lit lc)) (pair %POSMASK (lit posmask)) (pair %LITMASK (lit litmask))
+              (pair %STATE (lit state)) (pair %REP0 (lit rep0)) (pair %REP1 (lit rep1))
+              (pair %REP2 (lit rep2)) (pair %REP3 (lit rep3)) (pair %PREV (lit prev))
+              (pair %DSTSIZE (lit dstsize)) (pair %INWAIT (lit inwait)))))
+    (def %s-in (%slot (lit in)))
+    (def %s-probs (%slot (lit probs)))
+    (def %s-dictr (%slot (lit dictr)))
+    (def %s-dict (%slot (lit dict)))
+    (def %s-out (%slot (lit out)))
+    (def %s-outp (%slot (lit outp)))
+    (def %s-flush (%slot (lit dictflush)))
+    (def %s-done (%slot (lit done)))
     ; a region of cap bytes holding the first n of old
     (def %regrow
       (fn (_ old n cap)
@@ -483,68 +508,46 @@
         (when (< 0 n) (mem-copy (str->ptr r) (str->ptr old) n))
         r))
     (def %double (fn (self c n) (if (< c n) (self (* c 2) n) c)))
-    ; the loop run from phase ph until it is done, its regions grown when it
-    ; returns for room
+    ; The loop run from the top of a decision until it is done or wants
+    ; input, its regions grown when it returns for room.  Each byte went to
+    ; the output as it went to the window, so the window is all flushed.
     (def %drive
-      (fn (self ph out win)
+      (fn (self d)
         (%poke %ST 0)
-        (%step %addr ph 0 0)
+        (%step %addr %P-TOP 0 0)
         (def st (%peek %ST))
         (match
-          ((= st 1) (list out (%peek %OUTCNT) (%peek %INCNT)))
+          ((or (= st 1) (= st 4))
+            (do (List for-each (fn (_ p) (obj-set! d (rest p) (%peek (first p)))) %words)
+                (obj-set! d %s-flush (%peek %DICTPOS))
+                (when (= st 1) (obj-set! d %s-done #t))))
           ((= st 2)
             (do (def cap (%double (* 2 (%peek %OUTCAP)) (+ (%peek %OUTCNT) %MAXLEN)))
-                (def o (%regrow out (%peek %OUTCNT) cap))
+                (def o (%regrow (obj-ref d %s-out) (%peek %OUTCNT) cap))
+                (obj-set! d %s-out o)
+                (obj-set! d %s-outp (str->ptr o))
                 (%poke %OUT (ptr->int (str->ptr o)))
                 (%poke %OUTCAP cap)
-                (self %P-TOP o win)))
+                (self d)))
           ((= st 3)
             (do (def want (%double (* 2 (%peek %DICTCAP)) (+ (%peek %DICTPOS) %MAXLEN)))
                 (def cap (if (< (%peek %DICTSIZE) want) (%peek %DICTSIZE) want))
-                (def w (%regrow win (%peek %DICTHIGH) cap))
+                (def w (%regrow (obj-ref d %s-dictr) (%peek %DICTHIGH) cap))
+                (obj-set! d %s-dictr w)
+                (obj-set! d %s-dict (str->ptr w))
                 (%poke %DICT (ptr->int (str->ptr w)))
                 (%poke %DICTCAP cap)
-                (self %P-TOP out w)))
+                (self d)))
           (#t (do (def e (%uj-error st))
                   (Err raise (lit value) (Str8 append "Unlzma: " (rest e)) (list (pair (lit lzma) (first e)))))))))
     (def %run
       (fn (_ d)
-        (def n (obj-ref d (%slot (lit nprobs))))
-        (def size (obj-ref d (%slot (lit dictsize))))
-        (def dst (obj-ref d (%slot (lit dstsize))))
-        (def inlen (obj-ref d (%slot (lit inlen))))
-        (def probs (str-make (* n %word-size)))
-        (def dcap (if (< size 65536) size 65536))
-        (def win (str-make dcap))
-        (def ocap (if (< dst 0) (if (< inlen 1024) 4096 (* 4 inlen)) (+ dst %MAXLEN)))
-        (def out (str-make ocap))
-        (%poke %IN (ptr->int (obj-ref d (%slot (lit in)))))
-        (%poke %INLEN inlen)
-        (%poke %INCNT (obj-ref d (%slot (lit incnt))))
-        (%poke %CODE (obj-ref d (%slot (lit code))))
-        (%poke %RANGE (obj-ref d (%slot (lit range))))
-        (%poke %PROBS (ptr->int (str->ptr probs)))
-        (%poke %NPROBS n)
-        (%poke %DICT (ptr->int (str->ptr win)))
-        (%poke %DICTSIZE size)
-        (%poke %DICTCAP dcap)
-        (%poke %DICTPOS 0)
-        (%poke %DICTHIGH 0)
-        (%poke %GLOBALPOS 0)
-        (%poke %OUT (ptr->int (str->ptr out)))
-        (%poke %OUTCAP ocap)
-        (%poke %OUTCNT 0)
-        (%poke %LC (obj-ref d (%slot (lit lc))))
-        (%poke %POSMASK (obj-ref d (%slot (lit posmask))))
-        (%poke %LITMASK (obj-ref d (%slot (lit litmask))))
-        (%poke %STATE (obj-ref d (%slot (lit state))))
-        (%poke %REP0 (obj-ref d (%slot (lit rep0))))
-        (%poke %REP1 (obj-ref d (%slot (lit rep1))))
-        (%poke %REP2 (obj-ref d (%slot (lit rep2))))
-        (%poke %REP3 (obj-ref d (%slot (lit rep3))))
-        (%poke %PREV (obj-ref d (%slot (lit prev))))
-        (%poke %DSTSIZE dst)
-        (do probs (%drive %P-INIT out win))))
+        (List for-each (fn (_ p) (%poke (first p) (obj-ref d (rest p)))) %words)
+        (%poke %IN (ptr->int (obj-ref d %s-in)))
+        (%poke %PROBS (ptr->int (obj-ref d %s-probs)))
+        (%poke %DICT (ptr->int (obj-ref d %s-dict)))
+        (%poke %OUT (ptr->int (obj-ref d %s-outp)))
+        (%drive d)))
     (unless (check %run)
       (Err raise (lit state) "unlzma-jit: engine disagrees with the pure-x decoder" ()))
     ; the scratch is held by the driver's closure
