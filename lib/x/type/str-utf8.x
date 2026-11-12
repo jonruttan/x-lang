@@ -157,4 +157,5 @@
 (doc (provide x/type/str-utf8)
   (note "Low-level layer, loaded before the object system. The high-level string API is the Str8 / StrUtf8 classes and the Str entry point in x/type/str.")
   (note "The %-private byte API (%str-length, %str-ref, %substring) stays byte-level; only the bare (s i) call is code-point aware.")
+  (example "(\"héllo\" 1)" "#\\é")
   "The low-level UTF-8 code-point layer for the STRING type: the list<->str transforms and the bare (s i) code-point indexing handler.")

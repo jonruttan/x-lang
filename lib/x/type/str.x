@@ -34,4 +34,5 @@
 (doc (provide x/type/str)
   (note "The string library is the protocol classes Str8 / StrUtf8, with Str naming the active protocol (StrUtf8 by default). Use (Str append a b), (Str length s), etc.; (help Str8 method) for per-method docs.")
   (note "str=? is always byte-level; the byte view of a string is the Str8 class.")
+  (example "(list (Str length \"héllo\") (Str8 length \"héllo\"))" "(5 6)")
   "String library: the Str8 / StrUtf8 protocol classes and byte equality.")

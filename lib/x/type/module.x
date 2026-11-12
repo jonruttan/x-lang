@@ -18,7 +18,9 @@
   (static
     ; The registry entry (name . exports) a provide recorded, or ().
     (method %entry (self name)
-      (doc "The (name . exports) entry provide recorded for name, or ().")
+      (doc "The (name . exports) entry provide recorded for name, or ()."
+        (example "(first (Module %entry 'x/core/fn))" "'x/core/fn")
+        (example "(null? (Module %entry 'x/no/such))" "#t"))
       (Assoc entry name (first %module-registry-cell)))
     (method names (self)
       (doc "Every module name the session knows, sorted: the boot modules registered at boot and every module imported since, loaded or not."

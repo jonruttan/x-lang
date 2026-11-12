@@ -73,19 +73,27 @@
       (%i-make step state))
     (method next (self (param it ITER "Iterator to advance"))
       (doc "The next element, ADVANCING the iterator in place (the C driver writes the successor state back into the box); () once exhausted. (Iter step) is the functional sibling that leaves it untouched."
-        (returns ANY "The next element, or nil when exhausted"))
+        (returns ANY "The next element, or nil when exhausted")
+        (example "(let ((it (Iter new (list 1 2 3)))) (Iter next it) (Iter next it))" "2"))
       (%i-next (Iter %check it "Iter next: not an iterator")))
     (method step   (self it)
       (doc "Step ITERATOR functionally: (value . next-iterator) leaving it untouched, or () when exhausted -- the generator view of an iterator."
-        (param it ITER "Iterator") (returns ANY "Pair of value and successor iterator, or nil"))
+        (param it ITER "Iterator") (returns ANY "Pair of value and successor iterator, or nil")
+        (example "(first (Iter step (Iter new (list 1 2))))" "1")
+        (example "(let ((it (Iter new (list 1 2)))) (Iter step it) (Iter next it))" "1")
+        (example "(null? (Iter step (Iter new ())))" "#t"))
       (%i-step (Iter %check it "Iter step: not an iterator")))
     (method empty? (self (param it ITER "Iterator to test"))
       (doc "Is the iterator exhausted? True once next would return nil; the source is not advanced."
-        (returns BOOL "True when nothing remains"))
+        (returns BOOL "True when nothing remains")
+        (example "(Iter empty? (Iter new ()))" "#t")
+        (example "(Iter empty? (Iter new (list 1)))" "#f"))
       (%i-empty? (Iter %check it "Iter empty?: not an iterator")))
     (method iter? (self (param x ANY "Value to test"))
       (doc "Test whether a value is an iterator."
-        (returns BOOL "True if x is an iterator"))
+        (returns BOOL "True if x is an iterator")
+        (example "(Iter iter? (Iter new (list 1)))" "#t")
+        (example "(Iter iter? (list 1))" "#f"))
       (type? x %iter))
     ; nil has no type for the prim to dispatch on, so shadow it to an empty
     ; iterator; everything else uses the prim's per-type slot dispatch.
@@ -114,7 +122,8 @@
     (method for-each (self (param f CALLABLE "One-argument fn, called per element for effect")
                            (param it ITER "Iterator to drain"))
       (doc "Drain the iterator applying f to each element for effect; returns nil."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (example "(Iter for-each display (Iter new (list 1 2 3)))" "123"))
       (let loop ((it (Iter %check it "Iter for-each: not an iterator")))
         (if (%i-empty? it) () (do (f (%i-next it)) (loop it)))))
     (method fold (self (param f CALLABLE "Two-argument fn: (f acc element) -> next acc")

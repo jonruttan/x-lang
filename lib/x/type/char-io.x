@@ -67,4 +67,6 @@
   (type-push-write   ct %char-write))
 
 (doc (provide x/type/char-io)
+  (example "(Io write-to-str #\\a)" "\"#\\\\a\"")
+  (example "(Str8 length (Io display-to-str #\\é))" "2")
   "UTF-8-aware write/display handlers for CHARACTER values, so a code point renders as its glyph.")

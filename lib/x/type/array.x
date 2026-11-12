@@ -31,7 +31,9 @@
     (method make (self . opt)
       (doc "An empty array. Pass a capacity to pre-size the backing store."
         (param opt LIST "Optional (capacity) -- initial backing size, default 8")
-        (returns Array "A new empty array"))
+        (returns Array "A new empty array")
+        (example "((Array make) length)" "0")
+        (example "((Array make 64) empty?)" "#t"))
       (def c (if (pair? opt) (first opt) 8))
       (new-from self (list 'store (Vector make c ()) 'len 0)))
 
@@ -71,7 +73,8 @@
   (method push! (self x)
     (doc "Append an element (doubling the backing store when full); returns the array for chaining."
       (param x ANY "Element to append")
-      (returns Array "self"))
+      (returns Array "self")
+      (example "(((Array of 1 2) push! 3) ->list)" "(1 2 3)"))
     (self %live)
     (def n (field 'len))
     (when (= n (obj-ref (field 'store) 0))
@@ -87,7 +90,8 @@
 
   (method pop! (self)
     (doc "Remove and return the last element; errors when empty."
-      (returns ANY "The removed element"))
+      (returns ANY "The removed element")
+      (example "(let ((a (Array of 1 2 3))) (list (a pop!) (a length)))" "(3 2)"))
     (self %live)
     (def n (field 'len))
     (if (= n 0) (Err raise 'value "Array pop!: empty" ())
@@ -99,29 +103,36 @@
   (method ref (self i)
     (doc "The element at index i (negative counts from the end); errors out of range."
       (param i INTEGER "Zero-based index")
-      (returns ANY "Element at i"))
+      (returns ANY "Element at i")
+      (example "((Array of 'a 'b 'c) ref 1)" "'b")
+      (example "((Array of 'a 'b 'c) ref -1)" "'c"))
     (obj-ref (field 'store) (+ 1 (self %index i "Array ref"))))
 
   (method set! (self i x)
     (doc "Store x at index i (in place; negative counts from the end); errors out of range; returns the array for chaining."
       (param i INTEGER "Zero-based index")
       (param x ANY "Value to store")
-      (returns Array "self"))
+      (returns Array "self")
+      (example "(((Array of 1 2 3) set! 0 9) ->list)" "(9 2 3)"))
     (obj-set! (field 'store) (+ 1 (self %index i "Array set!")) x)
     self)
 
   (method length (self)
-    (doc "The live element count." (returns INTEGER "Element count"))
+    (doc "The live element count." (returns INTEGER "Element count")
+      (example "((Array of 1 2 3) length)" "3"))
     (self %live)
     (field 'len))
 
   (method empty? (self)
-    (doc "Test whether the array holds no elements." (returns BOOL "#t when empty"))
+    (doc "Test whether the array holds no elements." (returns BOOL "#t when empty")
+      (example "((Array make) empty?)" "#t")
+      (example "((Array of 1) empty?)" "#f"))
     (self %live)
     (= 0 (field 'len)))
 
   (method ->list (self)
-    (doc "The elements as a list, in order." (returns LIST "List of elements"))
+    (doc "The elements as a list, in order." (returns LIST "List of elements")
+      (example "((Array of 'x 'y) ->list)" "('x 'y)"))
     (self %live)
     (let go ((i (field 'len)) (acc ()))
       (if (= i 0) acc

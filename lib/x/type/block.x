@@ -46,7 +46,8 @@
 (import x/core/doors int- int< str-append)
 
 (def-class Block ()
-  (doc "Block-form methods: give a higher-order method a block form, (names ...) body ....")
+  (doc "Block-form methods: give a higher-order method a block form, (names ...) body ...."
+    (example "(do (Block method! List 'map) (List map (x) (* x 2) (list 1 2)))" "(2 4)"))
 
   (static
     ; --- guarded list walks --------------------------------------------

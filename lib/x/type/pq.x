@@ -58,14 +58,16 @@
   ; --- public API ---
   (method push! (self (param v ANY "Value to enqueue"))
     (doc "Enqueue a value: O(log n). Returns the queue for chaining."
-      (returns Pq "self"))
+      (returns Pq "self")
+      (example "((((Pq make (fn (_ a b) (< a b))) push! 5) push! 2) peek)" "2"))
     ((field 'store) push! v)
     (self %sift-up! (- ((field 'store) length) 1))
     self)
 
   (method peek (self)
     (doc "The front value (the one pop! would return), without removing it; raises a label 'value when empty."
-      (returns ANY "The front value"))
+      (returns ANY "The front value")
+      (example "(let ((q (Pq make (fn (_ a b) (> a b))))) (q push! 1) (q push! 7) (q peek))" "7"))
     (if (= ((field 'store) length) 0)
       (Err raise 'value "Pq peek: empty" ())
       ((field 'store) ref 0)))
@@ -87,14 +89,17 @@
 
   (method length (self)
     (doc "How many values are queued."
-      (returns INTEGER "The count"))
+      (returns INTEGER "The count")
+      (example "((((Pq make (fn (_ a b) (< a b))) push! 1) push! 1) length)" "2"))
     ((field 'store) length))
 
   (method empty? (self)
     (doc "Is the queue empty?"
-      (returns BOOL "#t when nothing is queued"))
+      (returns BOOL "#t when nothing is queued")
+      (example "((Pq make (fn (_ a b) (< a b))) empty?)" "#t"))
     (= ((field 'store) length) 0)))
 
 (doc (provide x/type/pq Pq)
   (note "The heap structure under the queue name -- Heap is the GC class. Comparator contract matches List sort: (cmp a b) -> #t when a comes strictly first.")
+  (example "(let ((q (Pq make (fn (_ a b) (< a b))))) (q push! 3) (q push! 1) (q pop!))" "1")
   "A binary-heap priority queue, homed on the Pq class.")

@@ -35,45 +35,56 @@
   (static
     (method write (self (param v ANY "Value to write"))
       (doc "Write a value in machine-readable form (strings quoted, etc.). Also available bare as the fundamental output verb."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (example "(Io write \"hi\")" "\"hi\""))
       ((prim-ref (lit io) (lit write)) v))
     (method display (self (param v ANY "Value to display"))
       (doc "Display a value in human-readable form (strings unquoted). Also available bare as the fundamental output verb."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (example "(Io display \"hi\")" "hi"))
       ((prim-ref (lit io) (lit display)) v))
     (method read (self)
       (doc "Read and parse one expression from stdin."
         (note "The read primitive answers the EOF sentinel, %token-eof, at end of input, so that a () in the input is a value; this method answers () there for callers that loop until nil.")
-        (returns ANY "The parsed expression, or () at end of input"))
+        (returns ANY "The parsed expression, or () at end of input")
+        (sample "(Io read)" "(+ 1 2), unevaluated, when the next input is the text (+ 1 2)"))
       (let ((%v ((prim-ref (lit io) (lit read)))))
         (match
           ((same? %v %token-eof) ())
           (#t %v))))
     (method read-char (self)
       (doc "Read one character from stdin."
-        (returns ANY "The character, or () at end of input"))
+        (returns ANY "The character, or () at end of input")
+        (sample "(Io read-char)" "#\\y when the next input is the text yes"))
       ((prim-ref (lit io) (lit read-char))))
     (method write-to-str (self (param v ANY "Value to serialize"))
       (doc "Capture write output as a string (write form: strings quoted)."
-        (returns STRING "The machine-readable rendering of V"))
+        (returns STRING "The machine-readable rendering of V")
+        (example "(Io write-to-str (list 'a \"b\"))" "\"('a \\\"b\\\")\""))
       ((prim-ref (lit io) (lit write-to-str)) v))
     (method display-to-str (self (param v ANY "Value to serialize"))
       (doc "Capture display output as a string (display form: strings unquoted)."
-        (returns STRING "The human-readable rendering of V"))
+        (returns STRING "The human-readable rendering of V")
+        (example "(Io display-to-str \"hi\")" "\"hi\"")
+        (example "(Io display-to-str 42)" "\"42\""))
       ((prim-ref (lit io) (lit display-to-str)) v))
     (method error-line (self)
       (doc "The source line number where the most recent error was raised. Frozen at raise time, so it is accurate read from inside a guard handler; between errors it retains the last one (boot itself catches some, so it is rarely 0)."
-        (returns INTEGER "Line number"))
+        (returns INTEGER "Line number")
+        (sample "(guard (e (Io error-line)) (no-such-binding))" "the line the unbound name was read on"))
       ((prim-ref (lit io) (lit error-line))))
     (method error-file (self)
       (doc "The source file path where the most recent error was raised, or \"\" when it arose from stdin/REPL input rather than an included file. Frozen at raise time (see error-line)."
-        (returns STRING "File path"))
+        (returns STRING "File path")
+        (example "(guard (e (Io error-file)) (no-such-binding))" "\"\""))
       ((prim-ref (lit io) (lit error-file))))
     (method repl-read (self)
       (doc "Read one expression for the REPL, applying its read conventions."
-        (returns ANY "The parsed expression"))
+        (returns ANY "The parsed expression")
+        (sample "(Io repl-read)" "the next expression typed at the prompt, unevaluated"))
       ((prim-ref (lit io) (lit repl-read))))))
 
 (doc (provide x/type/io Io)
   (note "ns `io` de-registered except write/display (kept bare via the keep-list); the other six are Io-only. Reader-context/hot callers fetch-and-cache.")
+  (example "(Io write-to-str \"hi\")" "\"\\\"hi\\\"\"")
   "Input/output on the Io class: write/display (also bare), read/read-char, the to-string captures, and the REPL hooks.")

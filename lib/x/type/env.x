@@ -34,20 +34,23 @@
     ; copied: the engine's cells are not list pairs, and a caller holding
     ; the live alist could rebind a frame through set-rest!.
     (method %flatten (self e)
-      (doc "The bindings of environment e as a fresh alist: a frame's copied, the root's and a module's tree walked in order.")
+      (doc "The bindings of environment e as a fresh alist: a frame's copied, the root's and a module's tree walked in order."
+        (example "(first (Env %flatten ((fn (_ k) (Env current)) 7)))" "('k . 7)"))
       (match
         ((null? (first e)) ())
         ((null? (rest e)) (Env %walk-tree (first e) ()))
         ((pair? e) (Env %walk-tree (first e) ()))
         (#t (Env %copy-alist (first e) ()))))
     (method %copy-alist (self l acc)
-      (doc "A fresh copy of an alist of (name . value) cells, in the same order.")
+      (doc "A fresh copy of an alist of (name . value) cells, in the same order."
+        (example "(Env %copy-alist (list (pair 'a 1) (pair 'b 2)) ())" "(('a . 1) ('b . 2))"))
       (match
         ((null? l) (List reverse acc))
         (#t (Env %copy-alist (rest l)
               (pair (pair (first (first l)) (rest (first l))) acc)))))
     (method %walk-tree (self node acc)
-      (doc "Every entry of a (entry . (left . right)) tree, as fresh pairs, onto acc.")
+      (doc "Every entry of a (entry . (left . right)) tree, as fresh pairs, onto acc."
+        (example "(Env %walk-tree (pair (pair 'b 2) (pair (pair (pair 'a 1) (pair () ())) (pair (pair 'c 3) (pair () ())))) ())" "(('a . 1) ('b . 2) ('c . 3))"))
       (match
         ((null? node) acc)
         (#t

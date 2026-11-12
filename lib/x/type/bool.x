@@ -87,4 +87,6 @@
         %image-recache-hooks))
 
 (doc (provide x/type/bool)
+  (example "(Type name (Type of #t))" "\"BOOL\"")
+  (example "(guard (e (Err label e)) (+ #t 1))" "'type")
   "BOOL: the boolean singletons as a real x-defined type -- (Type of #t) answers, and arithmetic on booleans refuses through the op registry instead of falling through to machine math.")

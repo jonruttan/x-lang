@@ -177,7 +177,9 @@
                      (param target ANY "Target type handle (e.g. (Type of 0))")
                      . (param extra ANY "Converter-specific arguments (e.g. a radix)"))
       (doc "Convert VAL to the TARGET type via the type system's registered conversions."
-        (returns ANY "The converted value; on no registered conversion, (Convert missing)'s result (default nil)"))
+        (returns ANY "The converted value; on no registered conversion, (Convert missing)'s result (default nil)")
+        (example "(Convert to \"42\" (Type named INTEGER))" "42")
+        (example "(Convert to 255 (Type named STRING) 16)" "\"ff\""))
       (apply %convert-to (pair val (pair target extra))))
     ; An index or count seat: the value as an INT, or an error naming the
     ; seat (N5, implicit conversion).  A caller on a hot path tests
@@ -185,7 +187,10 @@
     (method to-int (self (param v ANY "Value to use as an INT")
                          (param what STRING "The error's message when v does not convert"))
       (doc "V as an INT: V itself when it is one, else its registered conversion to INT; raises WHAT when there is none."
-        (returns INTEGER "The integer"))
+        (returns INTEGER "The integer")
+        (example "(Convert to-int 7 \"no\")" "7")
+        (example "(Convert to-int \"12\" \"no\")" "12")
+        (example "(guard (e e) (Convert to-int 'x \"not an int\"))" "\"not an int\""))
       (if (if (null? v) #f (eq? (type-of v) %int)) v
         (let ((k (%convert-to v %int)))
           (if (if (null? k) #f (eq? (type-of k) %int)) k (error what)))))))
@@ -193,4 +198,5 @@
 (doc (provide x/type/convert Convert)
   (note "Hot consumers fetch the dispatcher from the catalogue: (prim-ref 'convert 'to). The no-match policy is the (Convert missing) static field.")
   (note "The base type handles have a public spelling: (Type named INTEGER), (Type named STRING), and so on for any registered name.")
+  (example "(Convert to 42 (Type named STRING))" "\"42\"")
   "Generic type conversion: the Convert class over the type system's from/to alists.")

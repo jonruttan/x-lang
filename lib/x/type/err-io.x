@@ -57,4 +57,5 @@
   (type-push-write   et (fn (_ e) (display (%err-io-render e)))))
 
 (doc (provide x/type/err-io)
+  (example "(guard (e (Io display-to-str e)) (no-such-binding))" "\"Unbound SYMBOL 'no-such-binding'\"")
   "Write/display handlers for ERR, the engine's raised-error value -- the default wording of an engine error, and the stack a lang pushes its own over.")

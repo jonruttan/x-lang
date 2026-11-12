@@ -46,19 +46,24 @@
   (method add! (self (param x ANY "Value to tally")
                      . (param n INTEGER "Tally increment; default 1 (negative decrements)"))
     (doc "Add n (default 1) to x's tally. Returns the counter for chaining; a tally may go negative -- the counter records what it is told."
-      (returns Counter "self"))
+      (returns Counter "self")
+      (example "(((Counter make) add! 'a) get 'a)" "1")
+      (example "(((Counter make) add! 'a 5) get 'a)" "5"))
     (let ((d (self %d)))
       (d set! x (+ (d get-or 0 x) (if (null? n) 1 (first n)))))
     self)
 
   (method get (self (param x ANY "Value to read"))
     (doc "x's tally; 0 when x was never added -- absence and zero read alike, the counting convention."
-      (returns INTEGER "The tally"))
+      (returns INTEGER "The tally")
+      (example "((Counter from-list (list 'a 'b 'a)) get 'a)" "2")
+      (example "((Counter make) get 'z)" "0"))
     ((self %d) get-or 0 x))
 
   (method del! (self (param x ANY "Value to forget"))
     (doc "Drop x's tally entirely (get returns 0 afterwards). Returns the counter for chaining."
-      (returns Counter "self"))
+      (returns Counter "self")
+      (example "(((Counter from-list (list 'a 'a)) del! 'a) get 'a)" "0"))
     ((self %d) del! x)
     self)
 
@@ -70,12 +75,14 @@
 
   (method keys (self)
     (doc "Every value holding a tally (order unspecified -- the Dict's table order)."
-      (returns LIST "The tallied values"))
+      (returns LIST "The tallied values")
+      (example "((Counter from-list (list 'a 'a)) keys)" "('a)"))
     ((self %d) keys))
 
   (method ->alist (self)
     (doc "The tallies as ((value . count) ...), order unspecified."
-      (returns ALIST "(value . count) pairs"))
+      (returns ALIST "(value . count) pairs")
+      (example "((Counter from-list (list 'a 'a)) ->alist)" "(('a . 2))"))
     ((self %d) ->alist))
 
   (method most-common (self . (param n INTEGER "How many entries; default all"))
@@ -88,4 +95,5 @@
 
 (doc (provide x/type/counter Counter)
   (note "Dict-backed: key runtime types and equality are Dict's; absent keys read 0; most-common rides the stable List sort, so equal counts keep table order.")
+  (example "((Counter from-list (list 'a 'b 'a)) get 'a)" "2")
   "A counting map, homed on the Counter class.")
