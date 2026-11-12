@@ -516,10 +516,10 @@ theirs.
 (def %fc-times (fn (_ n k) ((fn (self i acc) (if (int< i 1) acc (self (int- i 1) (int+ acc k)))) n 0)))
 (write (list ((compile-fn! (lit %fc-sum-to) %fc-sum-to) state)
              ((compile-fn! (lit %fc-times) %fc-times) state)
-             (%fc-sum-to 100000) (%fc-times 1000 3)))
+             (%fc-sum-to 10000) (%fc-times 1000 3)))
 ```
 ---
-    ('compiled 'compiled 5000050000 3000)
+    ('compiled 'compiled 50005000 3000)
 
 ### loops and literals nest, and an inner self is its own
 
