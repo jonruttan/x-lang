@@ -118,6 +118,8 @@
     (compile-pop-writers)
     result))
   (returns ANY "Result of calling thunk")
+  (example "(import x/tool/compile/pipeline compile-with-writers) (compile-with-writers (fn (_) (Io write-to-str 42)))" "\"42\"")
+  (example "(import x/tool/compile/pipeline compile-with-writers) (compile-with-writers (fn (_) (Io write-to-str #\\a)))" "\"97\"")
   "Push C code-generation write handlers, call thunk, pop handlers. Use for custom C generation.")
 
 ; --- Fvar table patching: write runtime pointers into loaded .so ---
@@ -141,4 +143,5 @@
 (doc (provide x/tool/compile/pipeline
   generate-fn-body generate-c-with-fns compile-with-writers compile-patch-fvars)
   (note "Loaded by x/tool/compile, which re-exports compile-with-writers; import the rest by name from here.")
+  (example "(import x/tool/compile/pipeline compile-with-writers) (compile-with-writers (fn (_) (Io write-to-str 7)))" "\"7\"")
   "C generation stages for the compiler: function bodies via write-to-str, multi-function units, and fvar table patching.")

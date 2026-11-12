@@ -351,4 +351,5 @@
 (doc (provide x/tool/asm-code
   asm-new asm-finalize! asm-free! asm-reloc! asm-relocs asm-relocator asm-reloc-apply!
   asm-reloc-at! asm-label-finder)
+  (sample "(asm-free! asm)" "unmaps the code buffer asm-new mapped and asm-finalize! made executable")
   "Native code buffers: map, relocate, protect and free -- what a function's bytes need, without the encoder.")

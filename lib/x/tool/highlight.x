@@ -116,24 +116,30 @@
   (static
     (method spans (self (param text STRING "Source text"))
       (doc "Write span markup for source text, WITHOUT the surrounding container."
-        (returns ANY "nil (output via display)"))
+        (returns ANY "nil (output via display)")
+        (example "(Highlight spans \"(f 1)\")" "<span class=\"p\">(</span><span class=\"n\">f</span> <span class=\"m\">1</span><span class=\"p\">)</span>"))
       (%hl-write-source text))
 
     (method source (self (param text STRING "Source text"))
       (doc "Write x-lang source as a complete Rouge-style code block."
-        (returns ANY "nil (output via display)"))
+        (returns ANY "nil (output via display)")
+        (example "(Highlight source \"42\")" "<div class=\"highlight\"><pre class=\"highlight\"><code><span class=\"m\">42</span></code></pre></div>"))
       (do (%hl-open) (%hl-write-source text) (%hl-close)))
 
     (method transcript (self (param text STRING "REPL transcript text"))
       (doc "Write a REPL transcript -- \"> expr\" prompts and \"expr => result\" lines -- as a complete code block."
-        (returns ANY "nil (output via display)"))
+        (returns ANY "nil (output via display)")
+        (example "(Highlight transcript \"x => 3\")" "<div class=\"highlight\"><pre class=\"highlight\"><code><span class=\"n\">x</span><span class=\"o\"> =&gt; </span><span class=\"m\">3</span></code></pre></div>")
+        (sample "(Highlight transcript \"> (+ 1 2)\\n3\")" "the prompt as a gp span, (+ 1 2) as code, and 3, the printed value, as a go span"))
       (do (%hl-open) (%hl-write-transcript text) (%hl-close)))
 
     (method escape (self (param text STRING "Text to escape"))
       (doc "HTML-escape &, < and > in text."
-        (returns STRING "Escaped text"))
+        (returns STRING "Escaped text")
+        (example "(Highlight escape \"a<b & c>d\")" "\"a&lt;b &amp; c&gt;d\""))
       (%hl-escape text))))
 
 (doc (provide x/tool/highlight Highlight)
   (note "The tokens are (Syntax x)'s and the markup Syntax's HTML renderer's; the Highlight class adds the transcript lines and the container.")
+  (example "(Highlight spans \"x\")" "<span class=\"n\">x</span>")
   "x-lang source and REPL transcripts as HTML, in Rouge token classes.")

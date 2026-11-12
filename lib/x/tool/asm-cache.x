@@ -1437,6 +1437,7 @@
 
 (doc asm-compile-cached
   (returns CALLABLE "X-lang callable prim")
+  (sample "((asm-compile-cached '(fn (_ x) (+ x 1))) 41)" "42; the first run emits and stores the bytes, a later one loads them from the cache")
   "JIT compile an x-lang (fn ...) expression to a native prim, through a
    persistent byte cache.  This is the function behind compile-asm, the door
    in x/tool/compile, which loads this module on its first call and hands
@@ -1508,6 +1509,7 @@
 
 (doc asm-cache-group
   (returns ANY "What THUNK answers")
+  (sample "(asm-cache-group \"my-set\" (fn (_) (compile-asm '(fn (_ x) (+ x 1)))))" "the compiled function; a later process that opens \"my-set\" loads the entry before its thunk runs")
   "Run THUNK, a (fn (_)), with every compile-asm in it grouped under KEY, a
    string naming the set: the same key in a later process loads every entry
    the group kept from one file into the heap before THUNK runs, so each of
@@ -1517,17 +1519,20 @@
 
 (doc asm-cache-group-held
   (returns ANY "(TEXTS . EXTRA), or nil outside a group")
+  (example "(import x/tool/asm-cache asm-cache-group-held) (null? (asm-cache-group-held))" "#t")
   "Inside a group's thunk, the key texts the group already held, oldest first
    -- the order they were compiled in -- and the extra the group carried, a
    string or nil.")
 
 (doc asm-cache-group-extra!
   (returns BOOL "#f outside a group")
+  (example "(import x/tool/asm-cache asm-cache-group-extra!) (asm-cache-group-extra! \"note\")" "#f")
   "Inside a group's thunk, set the string the group writes after its entries,
    which a later process reads back through asm-cache-group-held.")
 
 (doc asm-cache-held-pour
   (returns ANY "X-lang callable prim, or nil")
+  (example "(import x/tool/asm-cache asm-cache-held-pour) (null? (asm-cache-held-pour \"no such key\" ()))" "#t")
   "The held entry whose key text is TEXT, poured with FVARS: a load by key, with
    no expression printed or hashed.  Nil when no entry is held for the text.
    The text is noted in the open group, as a compile's is.  FVARS are
@@ -1535,12 +1540,14 @@
 
 (doc asm-cache-last-text
   (returns ANY "A string, or nil")
+  (sample "(asm-cache-last-text)" "the key text of the compile just made, which (asm-cache-held-pour TEXT FVARS) loads again")
   "The key text of the last compile-asm through the cache, which
    asm-cache-held-pour takes to load the same entry again; nil when that
    compile stood aside from the cache.")
 
 (doc asm-cache-held-fvar-names
   (returns ANY "A list of strings, or #f")
+  (example "(import x/tool/asm-cache asm-cache-held-fvar-names) (asm-cache-held-fvar-names \"no such key\")" "#f")
   "The names, as text and in slot order, of the free variables the held entry
    whose key text is TEXT patches into its code: what a pour of it needs of
    the FVARS it is given, and the order asm-cache-entry-pour takes their
@@ -1548,12 +1555,14 @@
 
 (doc asm-cache-held-entry
   (returns ANY "An entry, or nil")
+  (example "(import x/tool/asm-cache asm-cache-held-entry) (null? (asm-cache-held-entry \"no such key\"))" "#t")
   "The entry held for the key text TEXT, which asm-cache-entry-pour pours:
    found once, it is poured again with no text matched.  Nil when no entry is
    held for the text.  An image carries it with the held entries.")
 
 (doc asm-cache-entry-pour
   (returns ANY "X-lang callable prim, or nil")
+  (example "(import x/tool/asm-cache asm-cache-entry-pour) (null? (asm-cache-entry-pour () ()))" "#t")
   "The entry E from asm-cache-held-entry, poured as asm-cache-held-pour
    pours, its fvar slots given FVALS: their values, unnamed, in the slot
    order asm-cache-held-fvar-names lists.  Nil on a miss, a list too short
@@ -1561,5 +1570,6 @@
    noted nothing and set no extra keeps its file as it is.")
 
 (doc (provide x/tool/asm-cache asm-compile-cached asm-cache-group asm-cache-group-held asm-cache-group-extra! asm-cache-held-pour asm-cache-held-fvar-names asm-cache-held-entry asm-cache-entry-pour asm-cache-last-text asm-fn-values asm-compile-kept)
+  (example "(import x/tool/asm-cache asm-cache-held-entry) (null? (asm-cache-held-entry \"no such key\"))" "#t")
   "The cache behind the compile-asm door: persistent emitted native code, over
    the JIT compiler it falls back to.")
