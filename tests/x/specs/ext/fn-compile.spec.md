@@ -509,6 +509,26 @@ theirs.
 ---
     ('compiled 'compiled (6 7) (11 12))
 
+### a closure over locals runs its body compiled, its self-calls the body's own
+
+```x
+(def %fc-outlined-count
+  (fn (_ ) (%length (List filter (fn (_ en) (eq? (en name) (lit %fc-fn))) (Compiled all)))))
+(def %fc-before (%fc-outlined-count))
+(def %fc-leaves
+  (fn (_ t k)
+    (def walk (fn (self e) (if (pair? e) (int+ (self (first e)) (self (rest e))) (if (null? e) 0 k))))
+    (walk t)))
+(def %fc-steps (fn (_ k) (def f (fn (self n acc) (if (int< n 1) acc (self (int- n 1) (int+ acc k))))) (f 100000 0)))
+(def %fc-itself (fn (_ k) (def f (fn (self n) (if (int< n 1) self (int+ k n)))) (list (eq? (f 0) f) (f 2))))
+(def %fc-more (fn (_ k) (def f (fn (_ a . more) (list k a more))) (list (f 1) (f 1 2 3))))
+(write (List map (fn (_ f) ((compile-fn! (lit f) f) state)) (list %fc-leaves %fc-steps %fc-itself %fc-more)))
+(write (list (int- (%fc-outlined-count) %fc-before)
+             (%fc-leaves (list 1 (list 2 3)) 7) (%fc-steps 2) (%fc-itself 4) (%fc-more 9)))
+```
+---
+    ('compiled 'compiled 'compiled 'compiled)(4 21 200000 (#t 6) ((9 1 ()) (9 1 (2 3))))
+
 ### a loop written in place compiles, its self-call a jump
 
 ```x
