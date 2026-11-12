@@ -482,18 +482,97 @@ theirs.
 ---
     (15 5050 ((1 2) (3) 'z))
 
+## a fn literal
+
+### a literal that reads no local is one closure, compiled in turn
+
+```x
+(def %fc-outlined-count
+  (fn (_ ) (%length (List filter (fn (_ en) (eq? (en name) (lit %fc-fn))) (Compiled all)))))
+(def %fc-before (%fc-outlined-count))
+(def %fc-inc-all (fn (_ l) (List map (fn (_ x) (int+ x 1)) l)))
+(def %fc-e (compile-fn! (lit %fc-inc-all) %fc-inc-all))
+(write (list (%fc-e state) (int- (%fc-outlined-count) %fc-before) (%fc-inc-all (list 1 2))))
+```
+---
+    ('compiled 1 (2 3))
+
+### a literal is handed the parameters and let locals it reads
+
+```x
+(def %fc-add-all (fn (_ l k) (List map (fn (_ x) (int+ x k)) l)))
+(def %fc-add-ten (fn (_ l) (let ((k 10)) (List map (fn (_ x) (int+ x k)) l))))
+(write (list ((compile-fn! (lit %fc-add-all) %fc-add-all) state)
+             ((compile-fn! (lit %fc-add-ten) %fc-add-ten) state)
+             (%fc-add-all (list 1 2) 5) (%fc-add-ten (list 1 2))))
+```
+---
+    ('compiled 'compiled (6 7) (11 12))
+
+### a loop written in place compiles, its self-call a jump
+
+```x
+(def %fc-sum-to (fn (_ n) ((fn (self i acc) (if (int< i 1) acc (self (int- i 1) (int+ acc i)))) n 0)))
+(def %fc-times (fn (_ n k) ((fn (self i acc) (if (int< i 1) acc (self (int- i 1) (int+ acc k)))) n 0)))
+(write (list ((compile-fn! (lit %fc-sum-to) %fc-sum-to) state)
+             ((compile-fn! (lit %fc-times) %fc-times) state)
+             (%fc-sum-to 100000) (%fc-times 1000 3)))
+```
+---
+    ('compiled 'compiled 5000050000 3000)
+
+### loops and literals nest, and an inner self is its own
+
+```x
+(def %fc-total
+  (fn (_ rows)
+    ((fn (self rs acc)
+       (if (null? rs) acc
+         (self (rest rs) ((fn (self l a) (if (null? l) a (self (rest l) (int+ a (first l))))) (first rs) acc))))
+     rows 0)))
+(def %fc-doubled (fn (_ ls) (List map (fn (_ l) (List map (fn (_ x) (int* x 2)) l)) ls)))
+(write (list ((compile-fn! (lit %fc-total) %fc-total) state)
+             ((compile-fn! (lit %fc-doubled) %fc-doubled) state)
+             (%fc-total (list (list 1 2) (list 3) ())) (%fc-doubled (list (list 1) (list 2 3)))))
+```
+---
+    ('compiled 'compiled 6 ((2) (4 6)))
+
+### a loop that hands itself on is a closure
+
+```x
+(def %fc-rev
+  (fn (_ l) ((fn (self l acc) (if (null? l) acc (apply self (list (rest l) (pair (first l) acc))))) l ())))
+(write (list ((compile-fn! (lit %fc-rev) %fc-rev) state) (%fc-rev (list 1 2 3))))
+```
+---
+    ('compiled (3 2 1))
+
+### a literal that sets a local, or reads one written after it, is refused
+
+```x
+(def %fc-count-up (fn (_ l) (def n 0) (List map (fn (_ x) (set! n (int+ n 1))) l) n))
+(def %fc-late-set (fn (_ k) (def g (fn (_ ) k)) (set! k 5) (g)))
+(def %fc-late-def (fn (_ ) (def g (fn (_ ) (h))) (def h (fn (_ ) 1)) (g)))
+(write (List map (fn (_ f) (def e (compile-fn! (lit f) f)) (list (e state) (Fn label f)))
+         (list %fc-count-up %fc-late-set %fc-late-def)))
+(write (list (%fc-count-up (list 1 2 3)) (%fc-late-set 1) (%fc-late-def)))
+```
+---
+    (('failed 'fn) ('failed 'fn) ('failed 'fn))(3 5 1)
+
 ## refusals
 
 ### a body the rewrite cannot carry stays interpreted, with the reason
 
 ```x
-(def %fc-nested (fn (_ l) (List map (fn (_ x) (int+ x 1)) l)))
-(def %fc-e (compile-fn! (lit %fc-nested) %fc-nested))
-(write (list (%fc-e state) (Fn label %fc-nested) (%fc-nested (list 1 2))
-             (not (null? (Str index-of "head fn" (%fc-e reason))))))
+(def %fc-computed (fn (_ fs x) ((first fs) x)))
+(def %fc-e (compile-fn! (lit %fc-computed) %fc-computed))
+(write (list (%fc-e state) (Fn label %fc-computed) (%fc-computed (list (fn (_ y) (int+ y 1))) 2)
+             (not (null? (Str index-of "head is not a name" (%fc-e reason))))))
 ```
 ---
-    ('failed 'fn (2 3) #t)
+    ('failed 'fn 3 #t)
 
 ### a free name unbound when the closure is compiled is refused
 
