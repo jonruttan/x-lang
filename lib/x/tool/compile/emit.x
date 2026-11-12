@@ -53,23 +53,29 @@
 
 (doc (def compile-fvars (fn (_) %compile-fvars))
   (returns LIST "The free-variable alist ((sym . value) ...) of the compile in progress, or nil")
+  (example "(import x/tool/compile/emit compile-fvars) (null? (compile-fvars))" "#t")
   "The free variables the compile in progress resolves through the fvar table.")
 (doc (def compile-fvars-set! (fn (_ (param fvars LIST "Free-variable alist, or nil")) (set! %compile-fvars fvars)))
   (returns ANY "nil")
+  (example "(import x/tool/compile/emit compile-fvars compile-fvars-set!) (let ((r (do (compile-fvars-set! (list (pair 'k 5))) (compile-fvars)))) (compile-fvars-set! ()) r)" "(('k . 5))")
   "Set the free-variable alist for the compile about to run; the driver and asm-compile call it around each compile.")
 (doc (def compile-params-set! (fn (_ (param params LIST "Parameter symbols of the function being generated")) (set! %compile-params params)))
   (returns ANY "nil")
+  (example "(import x/tool/compile/emit compile-params-set! compile-push-writers compile-pop-writers) (let ((s (do (compile-params-set! '(x)) (compile-push-writers) (Io write-to-str 'x)))) (compile-pop-writers) (compile-params-set! ()) s)" "\"p_x\"")
   "Set the parameter list the symbol writer distinguishes from free variables.")
 (doc (def compile-fns (fn (_) %compile-fns))
   (returns LIST "The nested-function holder: a one-element list whose first is the (name params body) entries")
+  (example "(import x/tool/compile/emit compile-fns compile-fns-set!) (let ((old (compile-fns))) (compile-fns-set! (list (list))) (let ((r (compile-fns))) (compile-fns-set! old) r))" "(())")
   "The nested functions the fn emitter has collected during the compile in progress.")
 (doc (def compile-fns-set! (fn (_ (param fns LIST "A fresh holder, (list (list))")) (set! %compile-fns fns)))
   (returns ANY "nil")
+  (example "(import x/tool/compile/emit compile-fns compile-fns-set!) (let ((old (compile-fns))) (compile-fns-set! (list (list))) (let ((r (first (compile-fns)))) (compile-fns-set! old) (null? r)))" "#t")
   "Install the holder nested functions are collected into.")
 
 (doc (def compile-fvar-lookup
   (fn (_ (param sym SYMBOL "A free-variable symbol")) (%assq sym %compile-fvars)))
   (returns ANY "The (sym . value) entry, or nil when sym is not a free variable")
+  (example "(import x/tool/compile/emit compile-fvar-lookup compile-fvars-set!) (let ((r (do (compile-fvars-set! (list (pair 'k 5))) (compile-fvar-lookup 'k)))) (compile-fvars-set! ()) r)" "('k . 5)")
   "Look a symbol up in the free-variable alist of the compile in progress.")
 
 ; Return the index of a fvar symbol in %compile-fvars (for table emission)
@@ -464,6 +470,7 @@
 
 (doc (def compile-emitters (fn (_) %compile-emitters))
   (returns LIST "The (operator . handler) alist, most recently added first")
+  (example "(import x/tool/compile/emit compile-emitters) (pair? (Assoc entry '+ (compile-emitters)))" "#t")
   "The C emitter table as it stands.")
 
 (doc (def compile-add-emitter!
@@ -471,6 +478,7 @@
        (param handler CALLABLE "Emitter function: (fn (_ args) ...)"))
     (set! %compile-emitters (pair (pair op handler) %compile-emitters))))
   (returns LIST "Updated emitter alist")
+  (sample "(compile-add-emitter! 'zero (fn (_ args) (display \"0\")))" "the emitter alist with ('zero . handler) in front: (zero) now compiles to 0")
   "Register a new C code emitter for a form. The handler receives the argument list.")
 
 ; LIST write handler: dispatch via alist
@@ -492,6 +500,7 @@
     (type-push-write %int-type %compile-int-write)
     (type-push-write %char-type %compile-char-write)))
   (returns ANY "nil")
+  (example "(import x/tool/compile/emit compile-push-writers compile-pop-writers) (let ((s (do (compile-push-writers) (Io write-to-str 7)))) (compile-pop-writers) s)" "\"7\"")
   "Push the C-emitting write handlers onto the list, symbol, int and char write stacks.")
 (doc (def compile-pop-writers
   (fn (_)
@@ -500,6 +509,7 @@
     (%type-pop-write %int-type)
     (%type-pop-write %char-type)))
   (returns ANY "nil")
+  (example "(import x/tool/compile/emit compile-push-writers compile-pop-writers) (do (compile-push-writers) (compile-pop-writers) (Io write-to-str 'x))" "\"'x\"")
   "Pop the handlers compile-push-writers pushed.")
 
 (doc (provide x/tool/compile/emit
@@ -508,4 +518,5 @@
   compile-params-set! compile-fns compile-fns-set!
   compile-push-writers compile-pop-writers
   compile-emitters compile-add-emitter!)
+  (example "(import x/tool/compile/emit compile-push-writers compile-pop-writers) (let ((s (do (compile-push-writers) (Io write-to-str #\\a)))) (compile-pop-writers) s)" "\"97\"")
   "The C emitters and the compile state: what turns x forms into C text, reached by x/tool/compile, x/tool/compile/pipeline and x/tool/asm-compile through selective imports.")

@@ -92,4 +92,5 @@
                 out)))))))
 
 (doc (provide x/tool/jit-group jit-group)
+  (sample "(jit-group \"my-engine\" (fn (_) (list '(fn (_ x) (+ x 1)))) (fn (_ fns replayed?) ((first fns) 41)))" "42; replayed? is #f in the process that compiles and #t in a later one that pours the functions from the group")
   "A compiled engine's functions as one cache group: (jit-group KEY GEN USE) compiles GEN's expressions and records a plan the next process pours them by, with nothing generated, printed or proven again; USE gets the functions and whether they were replayed.")

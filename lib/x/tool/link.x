@@ -112,6 +112,8 @@
     (go objects 0 ())))
   (param objects LIST "Objects, each (SECTIONS SYMBOLS RELOCS)")
   (returns LIST "The names the objects' relocations take that no object defines, each once, in order of first use")
+  (example "(import x/tool/link link-undefined) (link-undefined (list (list () () (list (list 'text 0 'abs \"puts\" 0)))))" "(\"puts\")")
+  (example "(import x/tool/link link-undefined) (link-undefined (list (list (list (list 'text 1 2 \"ab\")) (list (list \"main\" 'text 0 'global)) (list (list 'text 0 'abs \"main\" 0) (list 'text 1 'abs \"exit\" 0)))))" "(\"exit\")")
   "The names a link of OBJECTS would be missing: what a runtime object has to define, or a library has to supply, before link.")
 
 ; --- the layout ------------------------------------------------------------------
@@ -224,6 +226,9 @@
   (param addresses CALLABLE "Given ((NAME . SIZE) ...) for the output sections, answers ((NAME . ADDRESS) ...): where each will be")
   (param patch CALLABLE "Called (patch PTR OFFSET KIND VALUE SITE) for each relocation: the output section's bytes, where in them the place is, the relocation's kind, the value it takes (its name's address and the addend), and the place's own address")
   (returns LIST "(SECTIONS SYMBOLS): the output sections, each (NAME ADDRESS SIZE BYTES), and a Dict from each global's name to (SECTION OFFSET ADDRESS)")
+  (example "(import x/tool/link link) (first (first (link (list (list (list (list 'text 1 2 \"ab\")) (list (list \"main\" 'text 0 'global)) ())) (fn (_ ss) (List map (fn (_ s) (pair (first s) 4096)) ss)) (fn (_ p o k v s) ()))))" "('text 4096 2 \"ab\")")
+  (example "(import x/tool/link link) ((first (rest (link (list (list (list (list 'text 1 2 \"ab\")) (list (list \"main\" 'text 0 'global)) ()) (list (list (list 'text 4 3 \"cde\")) (list (list \"f\" 'text 0 'global)) ())) (fn (_ ss) (List map (fn (_ s) (pair (first s) 4096)) ss)) (fn (_ p o k v s) ())))) get \"f\")" "('text 4 4100)")
+  (example "(import x/tool/link link) (let ((seen ())) (link (list (list (list (list 'text 1 4 \"abcd\")) (list (list \"main\" 'text 0 'global)) (list (list 'text 2 'abs \"main\" 1)))) (fn (_ ss) (List map (fn (_ s) (pair (first s) 4096)) ss)) (fn (_ p o k v s) (set! seen (list o k v s)))) seen)" "(2 'abs 4097 4098)")
   "Link OBJECTS: lay their sections out, resolve every name, and patch every place that takes one.  A name no object defines, or one defined twice, refuses.")
 
 ; --- object files ------------------------------------------------------------------
@@ -611,7 +616,9 @@
     (pair sections (rest object))))
   (param path STRING "An object file link-write! wrote")
   (returns LIST "The object, (SECTIONS SYMBOLS RELOCS)")
+  (sample "(link-read \"unit.xo\")" "the object link-write! wrote there, (SECTIONS SYMBOLS RELOCS), each section's bytes read back")
   "Read the object file at PATH, its records binary or text.  From binary records the relocations come grouped by the name each takes, the names in the order they were written and each name's relocations in theirs; link resolves a name once for the group.")
 
 (doc (provide x/tool/link link link-undefined link-write! link-read)
+  (example "(import x/tool/link link-undefined) (link-undefined (list (list () () (list (list 'data 0 'abs \"table\" 0)))))" "(\"table\")")
   "Sections, symbols and relocations: lay objects out as one program, resolve and patch every name, and read and write object files.")

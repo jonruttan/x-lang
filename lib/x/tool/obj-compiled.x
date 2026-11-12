@@ -81,4 +81,5 @@
       () (lit operative))))
 
 (doc (provide x/tool/obj-compiled)
+  (sample "(import x/tool/obj-compiled)" "(null? ()), (and ...), (or ...), (obj ref) and (obj set!) now run the compiled versions; their answers are unchanged")
   "Compiles (obj ref), (obj set!), null?, and and or, and installs each into its own object, so every holder of any of them calls the compiled version.")
