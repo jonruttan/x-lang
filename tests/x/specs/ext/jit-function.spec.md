@@ -165,3 +165,24 @@ which pair? answers #f for.
 ```
 ---
     ('yes 'yes 'no 'no 'no 'no 'no 'no)
+
+## a rest parameter
+
+### the arguments after the named ones, as a list
+
+Called, each is evaluated once; a function with none left has nil.
+
+```x
+(def %fw-rest (compile-asm (lit (fn (_ a . more) more)) () (lit function)))
+(write (list (%fw-rest 1 2 (lit (x)) (+ 1 2)) (%fw-rest 1) (%fw-rest)))
+```
+---
+    ((2 ('x) 3) () ())
+
+### in any other world it refuses
+
+```x
+(display (guard (e (e msg)) (compile-asm (lit (fn (_ a . more) a)) () (lit object))))
+```
+---
+    asm-compile: a rest parameter compiles in the function world, the third argument function, and in no other

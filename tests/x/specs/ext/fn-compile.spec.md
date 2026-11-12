@@ -431,6 +431,57 @@ function with a guard has an fvar no name finds again.
 ---
     ((((1 2) 1 2) (1 2) 1 2) (1 2) 1 2)
 
+## a rest parameter
+
+`(fn (self a . more) ...)` binds `more` to the list of every argument after
+`a`'s.  Called, the arguments are expressions and each is evaluated once,
+by the engine's own eval-list; applied, they are values and the list is
+theirs.
+
+### called, each argument is evaluated once
+
+```x
+(def %fc-rest (fn (_ a . more) (pair a more)))
+(def %fc-rest-e (compile-fn! (lit %fc-rest) %fc-rest))
+(def %fc-rest-n (list 0))
+(def %fc-rest-tick (fn (_) (%set-first! %fc-rest-n (int+ (first %fc-rest-n) 1)) (first %fc-rest-n)))
+(write (list (%fc-rest-e state) (%fc-rest 1 2 3) (%fc-rest 1) (%fc-rest (lit (a b)) (%fc-rest-tick) (lit z) (%fc-rest-tick))
+             (first %fc-rest-n)))
+```
+---
+    ('compiled (1 2 3) (1) (('a 'b) 1 'z 2) 2)
+
+### applied, the values are taken as they are
+
+```x
+(write (list (apply %fc-rest (list 1 (lit (x y)) (lit z))) (apply %fc-rest (list (lit q)))
+             (List map %fc-rest (list 1 2) (list (lit (a)) (lit b)))))
+```
+---
+    ((1 ('x 'y) 'z) ('q) ((1 ('a)) (2 'b)))
+
+### every argument in the rest parameter, and none
+
+```x
+(def %fc-all (fn (_ . all) all))
+(compile-fn! (lit %fc-all) %fc-all)
+(write (list (%fc-all) (%fc-all 1 (lit two) (lit (3))) (apply %fc-all (list (lit (a)) (lit b)))))
+```
+---
+    (() (1 'two (3)) (('a) 'b))
+
+### a self-call passes as many arguments as it likes, and the list survives a collect
+
+```x
+(def %fc-sum (fn (self acc . xs) (if (null? xs) acc (apply self (pair (int+ acc (first xs)) (rest xs))))))
+(compile-fn! (lit %fc-sum) %fc-sum)
+(def %fc-keep-rest (fn (_ a . more) (Heap collect) (List range 0 200) (pair a more)))
+(compile-fn! (lit %fc-keep-rest) %fc-keep-rest)
+(write (list (%fc-sum 0 1 2 3 4 5) (apply %fc-sum 0 (List range 1 101)) (%fc-keep-rest (list 1 2) (list 3) (lit z))))
+```
+---
+    (15 5050 ((1 2) (3) 'z))
+
 ## refusals
 
 ### a body the rewrite cannot carry stays interpreted, with the reason
@@ -482,16 +533,6 @@ function with a guard has an fvar no name finds again.
 ```
 ---
     ('failed 10)
-
-### a rest parameter is refused
-
-```x
-(def %fc-rest (fn (_ a . more) (pair a more)))
-(def %fc-e (compile-fn! (lit %fc-rest) %fc-rest))
-(write (list (%fc-e state) (%fc-rest 1 2 3)))
-```
----
-    ('failed (1 2 3))
 
 ### a value that is not a closure raises and keeps what it holds
 
