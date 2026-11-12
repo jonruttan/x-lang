@@ -1443,6 +1443,7 @@
   (param defs LIST "Accumulator for defined symbol NAMES")
   (param uses LIST "Accumulator for used symbol NAMES")
   (returns LIST "(defs uses issues leaks warnings) -- defs/uses/issues/leaks are NAME STRINGS; warnings are (label . name) pairs for arity / call-nonfn / display-chain / dup-def / ladder / dispatch / malformed / match-multi / shadow / unused; ladder names carry the arm count as NAME/ARMS")
+  (example "(import x/tool/lint lint-forms) (lint-forms '((def a 1) (def b (+ a c))) () ())" "((\"b\" \"a\") (\"c\" \"a\" \"+\") () () ())")
   "Walk top-level forms via the write stacks, collecting def/use names, first/rest issues, tail-position def leaks, and pedantic warnings (arity, non-callable calls, duplicate defs, malformed forms, lexical shadows, and unused locals).  A first form (module NAME) names a loaded module whose environment resolves the file's heads.")
 
 (doc (def lint-undefined (fn (_ defs uses)
@@ -1453,6 +1454,7 @@
   (param defs LIST "Defined names from lint-forms")
   (param uses LIST "Used names from lint-forms")
   (returns LIST "Names used but not defined")
+  (example "(import x/tool/lint lint-undefined) (lint-undefined (list \"a\") (list \"a\" \"first\" \"zz-nope\"))" "(\"zz-nope\")")
   "Compute undefined names: used but not in env or file defs.")
 
 (doc (def lint-unused (fn (_ defs uses lib-mode)
@@ -1465,21 +1467,26 @@
   (param uses LIST "Used names from lint-forms")
   (param lib-mode BOOL "If true, skip unused check")
   (returns LIST "Names defined but never used")
+  (example "(import x/tool/lint lint-unused) (lint-unused (list \"a\" \"b\" \"%c\") (list \"a\") #f)" "(\"b\")")
+  (example "(import x/tool/lint lint-unused) (null? (lint-unused (list \"a\" \"b\") (list \"a\") #t))" "#t")
   "Compute unused names: defined but not referenced. Skips %-prefixed internals.")
 
 (doc (def lint-first-rest (fn (_ result) (first (rest (rest result)))))
   (param result LIST "Result of lint-forms")
   (returns LIST "Op names (first/rest) applied to a literal non-list")
+  (example "(import x/tool/lint lint-forms lint-first-rest) (lint-first-rest (lint-forms '((first 'a)) () ()))" "(\"first\")")
   "Extract the first/rest-on-non-list findings from a lint-forms result.")
 
 (doc (def lint-leaks (fn (_ result) (first (rest (rest (rest result))))))
   (param result LIST "Result of lint-forms")
   (returns LIST "Def names that bind in tail position (leak to global; use let)")
+  (example "(import x/tool/lint lint-forms lint-leaks) (lint-leaks (lint-forms '((def f (fn (_) (def y 1)))) () ()))" "(\"y\")")
   "Extract the tail-position-def leak findings from a lint-forms result.")
 
 (doc (def lint-warnings (fn (_ result) (first (rest (rest (rest (rest result)))))))
   (param result LIST "Result of lint-forms")
   (returns LIST "Pedantic findings as (label . name) pairs")
+  (example "(import x/tool/lint lint-forms lint-warnings) (lint-warnings (lint-forms '((def a 1) (def a 2)) () ()))" "((\"dup-def\" . \"a\"))")
   "Extract all pedantic warnings (arity, call-nonfn, dup-def, ...) from a result.")
 
 (doc (def lint-warnings-of (fn (_ label result)
@@ -1488,15 +1495,18 @@
   (param label STRING "Warning label: arity | call-nonfn | dup-def | malformed | match-multi | shadow | unused | wide-decimal")
   (param result LIST "Result of lint-forms")
   (returns LIST "The names for warnings of that label")
+  (example "(import x/tool/lint lint-forms lint-warnings-of) (lint-warnings-of \"dup-def\" (lint-forms '((def a 1) (def a 2)) () ()))" "(\"a\")")
   "Filter pedantic warnings to one label, returning their names.")
 
 (doc (def lint-has? (fn (_ name names) (%member-str? name names)))
   (param name STRING "A symbol name")
   (param names LIST "A list of names (e.g. from lint-undefined)")
   (returns BOOL "#t if name is in names")
+  (example "(import x/tool/lint lint-has?) (lint-has? \"a\" (list \"b\" \"a\"))" "#t")
   "Test whether a name string is in a names list (string equality).")
 
 (doc (provide x/tool/lint
   lint-forms lint-undefined lint-unused lint-first-rest lint-leaks
   lint-warnings lint-warnings-of lint-has?)
+  (example "(import x/tool/lint lint-forms lint-undefined) (let ((r (lint-forms '((def b (+ a 1))) () ()))) (lint-undefined (first r) (first (rest r))))" "(\"a\")")
   "AST linter via the type-system write stacks: name-based def/use analysis + first/rest + tail-def-leak + pedantic (arity / non-callable / duplicate-def) checks.")

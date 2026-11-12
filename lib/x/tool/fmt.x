@@ -241,61 +241,75 @@
   (static
     (method build-table (self (param constructs LIST "Construct declarations (from XEON)"))
       (doc "Build a formatter lookup table from construct declarations."
-        (returns ALIST "Lookup table mapping names to property lists"))
+        (returns ALIST "Lookup table mapping names to property lists")
+        (example "(Fmt build-table '((def (fmt . head-1))))" "((\"def\" ('fmt . 'head-1)))"))
       (%fmt-build-table constructs))
 
     (method lookup (self (param name SYMBOL "Form name to look up")
                          (param table ALIST "Table from (Fmt build-table)"))
       (doc "Look up formatting properties for a construct name."
-        (returns LIST "Property list, or nil"))
+        (returns LIST "Property list, or nil")
+        (example "(Fmt lookup 'def (Fmt build-table '((def (fmt . head-1)))))" "(('fmt . 'head-1))")
+        (example "(null? (Fmt lookup 'when (Fmt build-table '((def (fmt . head-1))))))" "#t"))
       (%fmt-lookup name table))
 
     (method get-prop (self (param key SYMBOL "Property key")
                            (param props LIST "Property list from (Fmt lookup)"))
       (doc "Get a specific property from a construct property list."
-        (returns ANY "Property value, or nil"))
+        (returns ANY "Property value, or nil")
+        (example "(Fmt get-prop 'fmt '((fmt . body)))" "'body"))
       (%fmt-get-prop key props))
 
     (method comment? (self (param tok ANY "Token to test"))
       (doc "Test whether a token is a comment token."
-        (returns BOOL "True if tok is a (%comment ...) token"))
+        (returns BOOL "True if tok is a (%comment ...) token")
+        (example "(Fmt comment? (list '%comment \"; note\"))" "#t")
+        (example "(Fmt comment? '(def x 1))" "#f"))
       (%fmt-comment? tok))
 
     (method width (self (param form ANY "Form to measure"))
       (doc "Estimate the display width of a form in CODE POINTS (via write-to-str; a comment counts as 80). Code points approximate display columns except for double-width/combining glyphs (wcwidth is a known gap)."
-        (returns INTEGER "Estimated width in code points"))
+        (returns INTEGER "Estimated width in code points")
+        (example "(Fmt width '(def x 1))" "11"))
       (%fmt-width form))
 
     (method expr (self (param form ANY "Expression to format")
                        (param col INTEGER "Current indentation column"))
       (doc "Format any expression, writing the result to output."
-        (returns ANY "nil (output via display)"))
+        (returns ANY "nil (output via display)")
+        (example "(Fmt expr '(def x 'y) 0)" "(def x 'y)"))
       (%fmt-expr form col))
 
     (method list (self (param form LIST "List form to format")
                        (param col INTEGER "Current indentation column")
                        (param table ALIST "Formatter table"))
       (doc "Format a list form with indentation-aware pretty printing, writing the result."
-        (returns ANY "nil (output via display)"))
+        (returns ANY "nil (output via display)")
+        (example "(Fmt list '(def x 1) 0 ())" "(def x 1)")
+        (sample "(Fmt list '(def some-long-name (fn (_ alpha beta) (+ alpha beta gamma delta epsilon))) 0 (Fmt build-table '((def (fmt . head-1)))))" "(def some-long-name\n  (fn\n    (_ alpha beta)\n    (+ alpha beta gamma delta epsilon)))"))
       (%fmt-list form col table))
 
     (method body (self (param forms LIST "Body forms")
                        (param col INTEGER "Current indentation column"))
       (doc "Format a sequence of body forms, one per line, writing the result."
-        (returns ANY "nil (output via display)"))
+        (returns ANY "nil (output via display)")
+        (example "(Fmt body '((a 1)) 0)" "(a 1)"))
       (%fmt-body forms col))
 
     (method tokens (self (param tokens LIST "Token list from the tokenizer")
                          (param table ALIST "Formatter table from (Fmt build-table)"))
       (doc "Format a list of top-level tokens with the given construct table, writing the result."
-        (returns ANY "nil (output via display)"))
+        (returns ANY "nil (output via display)")
+        (example "(Fmt tokens '((def x 1)) ())" "(def x 1)"))
       (%fmt-tokens tokens table))
 
     (method fold-sugar! (self (param on BOOL "Fold lit/quasi/unquote forms to reader sugar?"))
       (doc "Set whether (lit x) / (quasi x) / (unquote x) fold to ' ` , sugar in output. ON is the docs/syntax.md ruling for post-boot code; a driver formatting a BOOT-CONSTRAINED file (its text loads before the quote reader arms) must turn it OFF or the output cannot boot (#307)."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (sample "(Fmt fold-sugar! #f)" "later printing writes (f (lit y)) where it wrote (f 'y)"))
       (%set-first! %fmt-fold-sugar on))))
 
 (doc (provide x/tool/fmt Fmt)
   (note "Formatting logic is %-private (the mutually-recursive printers call each other directly); the Fmt class is the API.")
+  (example "(Fmt width '(a b))" "7")
   "Comment-preserving s-expression formatter on the Fmt class.")

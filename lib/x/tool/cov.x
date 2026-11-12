@@ -29,6 +29,8 @@
 (doc (def cov-word-size
   (fn (_) %cov-word-size))
   (returns INTEGER "Bytes in a machine word, 8 or 4")
+  (example "(import x/tool/cov cov-word-size) (List includes? (cov-word-size) (list 4 8))" "#t")
+  (sample "(cov-word-size)" "8 on a 64-bit engine, 4 on a 32-bit one")
   "Return the size of a machine word on this engine, in bytes.")
 
 ; --- Object flag inspection ---
@@ -50,12 +52,14 @@
    ()))
   (param obj ANY "Object to read")
   (returns INTEGER "The object's flags word, or 0 for nil")
+  (example "(import x/tool/cov cov-flags) (cov-flags ())" "0")
   "Return the flags word of an object's header.")
 
 (doc (def cov-covered?
   (fn (_ obj) (> (& (cov-flags obj) 2) 0)))
   (param obj ANY "Object to check")
   (returns BOOL "True if object was evaluated (FLAG_2 set)")
+  (sample "(cov-covered? (first (cov-body f)))" "#t under x-bin-profile once f has run; #f under an engine that does not mark")
   "Test whether an object was marked as evaluated by x-bin-profile.")
 
 ; Cons test by cached type-handle eq? (#342), REPAIRED for the type-label
@@ -82,6 +86,8 @@
    ()))
   (param x ANY "Object to test")
   (returns BOOL "True if x is a pair, a list cell or an engine-built spine cell")
+  (example "(import x/tool/cov cov-cons?) (cov-cons? (list 1))" "#t")
+  (example "(import x/tool/cov cov-cons?) (cov-cons? 5)" "#f")
   "Test whether an object is a cell a body walk can step through.")
 
 ; A procedure's state is (params body . env) and an operative's is
@@ -108,6 +114,8 @@
    ()))
   (param val CALLABLE "Procedure or operative made by fn or op")
   (returns LIST "The body forms, or nil when there are none")
+  (example "(import x/tool/cov cov-body) (cov-body (fn (_ x) (+ x 1)))" "(('+ 'x 1))")
+  (example "(import x/tool/cov cov-body) (cov-body (op (a) e a))" "('a)")
   "Return the body forms of a procedure or an operative.")
 
 ; --- AST coverage counting ---
@@ -139,6 +147,8 @@
   (param expr ANY "AST node to walk")
   (param depth INTEGER "Current recursion depth (limit 15)")
   (returns LIST "(covered total) pair")
+  (example "(import x/tool/cov cov-count-tree) (first (rest (cov-count-tree (list 1 2) 0)))" "2")
+  (sample "(cov-count-tree (cov-body f) 0)" "(COVERED TOTAL): of the body's cells, those x-bin-profile marked as run, and all of them")
   "Count covered and total AST nodes in a tree.")
 
 ; --- Per-function check ---
@@ -161,6 +171,8 @@
   (param val ANY "Function value to inspect")
   (param tsv-mode BOOL "Output TSV format if true")
   (returns LIST "(name covered total) or nil")
+  (example "(import x/tool/cov cov-check-fn) (first (cov-check-fn 'inc (fn (_ x) (+ x 1)) #f))" "'inc")
+  (sample "(cov-check-fn 'inc inc #f)" "('inc COVERED TOTAL), the counts cov-count-tree takes of inc's body")
   "Check coverage for a single function.")
 
 ; --- Per-class check (#408) ---
@@ -198,6 +210,7 @@
   (param c CLASS "Class value to inspect")
   (param tsv-mode BOOL "Output TSV format if true")
   (returns LIST "List of (name covered total) rows (empty in TSV mode)")
+  (example "(import x/tool/cov cov-check-class) (List includes? \"Iter/next\" (List map first (cov-check-class 'Iter Iter #f)))" "#t")
   "Check coverage of every method a class defines itself.")
 
 ; --- Env-alist walker ---
@@ -218,6 +231,7 @@
   (param alist LIST "Environment alist to walk")
   (param n INTEGER "Counter (limit 5000)")
   (param tsv-mode BOOL "Output TSV format if true")
+  (sample "(cov-walk (list (pair 'inc (fn (_ x) (+ x 1)))) 0 #t)" "one tab-separated row a procedure: COV, 'inc, its covered count and its total (0 and 4 under an engine that does not mark)")
   "Walk an environment alist checking coverage on each procedure and class.")
 
 ; --- Library boundary ---
@@ -232,10 +246,12 @@
         (self (rest alist))))))
   (param alist LIST "Environment alist")
   (returns LIST "Alist from library boundary marker onward")
+  (example "(import x/tool/cov cov-skip-to-library) (cov-skip-to-library (list (pair 'a 1) (pair '%cov-library-end 0) (pair 'b 2)))" "(('b . 2))")
   "Skip past test definitions to the library boundary marker.")
 
 (doc (provide x/tool/cov
   cov-word-size cov-flags cov-covered? cov-cons? cov-body
   cov-count-tree cov-check-fn cov-check-class cov-walk
   cov-skip-to-library)
+  (example "(import x/tool/cov cov-cons? cov-body) (cov-cons? (cov-body (fn (_ x) x)))" "#t")
   "Library coverage analysis for x-bin-profile instrumented code.")

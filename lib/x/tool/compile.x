@@ -146,7 +146,8 @@
     (File exists? "engine/ext/x-expr/include")
     #f))
 (doc compile-hosted? "Whether this engine ships the C headers the cc lane compiles against; the tower's JIT probe reads it to choose between compiling and keeping the interpreted twin."
-  (returns BOOL "#t when engine/include and engine/ext/x-expr/include exist"))
+  (returns BOOL "#t when engine/include and engine/ext/x-expr/include exist")
+  (sample "compile-hosted?" "#t in a checkout or a release that ships the engine's headers, #f in an install without them"))
 
 ; --- Multi-arg string concatenation ---
 
@@ -231,7 +232,9 @@
       (fn (_ ) (generate-c-with-fns expr %fns-holder)))))
 (doc compile-to-c "Generate C source code from an (fn ...) expression."
   (param expr LIST "A (fn (_ params...) body) expression")
-  (returns STRING "Generated C source code"))
+  (returns STRING "Generated C source code")
+  (example "(import x/tool/compile compile-to-c) (Str8 starts? \"#include\" (compile-to-c '(fn (_ x) (+ x 1))))" "#t")
+  (sample "(compile-to-c '(fn (_ x) (+ x 1)))" "C source defining x_obj_t *fn_0(x_obj_t *p_base, x_obj_t *p_args), whose body returns x + 1 as a new int object"))
 
 (def compile-write
   (fn (_ path source)
@@ -241,14 +244,16 @@
 (doc compile-write "Write a string to a file. Returns the path."
   (param path STRING "Output file path")
   (param source STRING "Content to write")
-  (returns STRING "The path written to"))
+  (returns STRING "The path written to")
+  (sample "(compile-write \"/tmp/unit.c\" (compile-to-c '(fn (_ x) x)))" "\"/tmp/unit.c\", the file holding the C source"))
 
 (def compile-cc
   (fn (_ src-path lib-path)
     (%compile-cc src-path lib-path)))
 (doc compile-cc "Invoke the C compiler on a source file to produce a shared library."
   (param src-path STRING "C source file")
-  (param lib-path STRING "Output shared library path"))
+  (param lib-path STRING "Output shared library path")
+  (sample "(compile-cc \"/tmp/unit.c\" (Str append \"/tmp/unit\" compile-ext))" "the shared library, built by cc with compile-cc-flags; a cc failure raises with its exit status"))
 
 (def compile-load
   (fn (_ lib-path)
@@ -260,15 +265,18 @@
     %fn))
 (doc compile-load "Load a compiled shared library and return fn_0 as a callable primitive."
   (param lib-path STRING "Path to shared library")
-  (returns PRIMITIVE "Native function"))
+  (returns PRIMITIVE "Native function")
+  (sample "((compile-load (Str append \"/tmp/unit\" compile-ext)) 5)" "what the library's fn_0 answers for 5"))
 
 (def compile-cc-flags %compile-cc-flags)
 (doc compile-cc-flags "Compiler flags for the current platform."
-  (returns LIST "Platform-specific cc flags"))
+  (returns LIST "Platform-specific cc flags")
+  (sample "compile-cc-flags" "(\"-bundle\" \"-undefined\" \"dynamic_lookup\") on macOS"))
 
 (def compile-ext %compile-ext)
 (doc compile-ext "Shared library file extension for the current platform."
-  (returns STRING ".bundle or .so"))
+  (returns STRING ".bundle or .so")
+  (sample "compile-ext" "\".bundle\" on macOS"))
 
 ; compile: compile a single (fn ...) expression to a native prim
 ; Optional second arg: free variable alist ((sym . val) ...)
@@ -319,7 +327,8 @@
         %fn))))
 (doc compile-c "Compile an (fn ...) expression to a native primitive via C compiler. Caches by expression hash."
   (param expr LIST "A (fn (_ params...) body) expression")
-  (returns PRIMITIVE "Compiled native function"))
+  (returns PRIMITIVE "Compiled native function")
+  (sample "((compile-c '(fn (_ x) (+ x k)) (list (pair 'k 10))) 5)" "15, with k read through the fvar table; a second run loads the cached library"))
 
 ; --- Full C compilation (called by compile-cache.x on cache miss) ---
 
@@ -360,7 +369,8 @@
       (compile-c expr (first %c-rest)))))
 (doc compile "Compile an (fn ...) expression to native code. Pure expressions use JIT assembler; fvar expressions use C compiler with persistent caching."
   (param expr LIST "A (fn (_ params...) body) expression")
-  (returns PRIMITIVE "Compiled native function"))
+  (returns PRIMITIVE "Compiled native function")
+  (sample "((compile '(fn (_ x) (+ x 1))) 41)" "42, through the JIT assembler"))
 
 (doc (provide x/tool/compile
   compile-to-c compile-write compile-cc compile-load
@@ -369,4 +379,5 @@
   compile compile-c compile-asm)
   (note "Default compile uses JIT assembler. compile-c falls back to C compiler. compile-asm is the pure JIT path.")
   (note "A module of its own: every name here is reached with (import x/tool/compile NAME); compile-with-writers, compile-emitters and compile-add-emitter! are re-exported from x/tool/compile/pipeline and x/tool/compile/emit.")
+  (example "(import x/tool/compile compile-to-c) (Str8 starts? \"#include\" (compile-to-c '(fn (_ x) x)))" "#t")
   "Native code compiler: JIT assembler (default) with C compiler fallback.")

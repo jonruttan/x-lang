@@ -1996,7 +1996,9 @@
    run.
    An fvar holding a prim may be CALLED by name; (%call HEAD arg ...) calls
    a prim the code computes, and refuses at run time if the head is not
-   one.")
+   one."
+  (sample "((asm-compile-fresh '(fn (_ x) (+ x 1)) () #f) 41)" "42, from native code emitted for this platform's assembler backend"))
 
 (doc (provide x/tool/asm-compile asm-compile-fresh)
+  (sample "(import x/tool/asm-compile asm-compile-fresh)" "the compiler compile-asm falls back to on a byte-cache miss; loading it costs about 2.5M evals")
   "JIT compiler: x-lang to native code via assembler.")

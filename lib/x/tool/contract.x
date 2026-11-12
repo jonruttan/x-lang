@@ -32,13 +32,15 @@
     (if (= c 0) (< la lb) (< c 0))))
 
 (def-class Contract ()
-  (doc "Shared scaffold for the in-language contract gates (tools/check/*.x): sorted file walks, sorted-list set difference, and entry-script argv/allocation plumbing.")
+  (doc "Shared scaffold for the in-language contract gates (tools/check/*.x): sorted file walks, sorted-list set difference, and entry-script argv/allocation plumbing."
+    (example "(Contract only (Contract uniq (Contract sort (list \"b\" \"a\" \"b\"))) (list \"b\"))" "(\"a\")"))
   (static
 
   (method walk (self (param dir STRING "Directory to walk")
                      (param keep? CALLABLE "Path predicate: keep files answering truthy"))
     (doc "Every file under dir (recursive) whose repo-relative path satisfies keep?, sorted by byte order -- the `find DIR | sort` replacement."
-      (returns LIST "Sorted path strings"))
+      (returns LIST "Sorted path strings")
+      (sample "(Contract walk \"lib/x/tool/image\" (fn (_ p) (Str8 ends? \".x\" p)))" "(\"lib/x/tool/image/name.x\" \"lib/x/tool/image/walk.x\")"))
     (def %go
       (fn (self path acc)
         (match
@@ -54,12 +56,15 @@
 
   (method sort (self (param xs LIST "String list"))
     (doc "xs sorted ascending by byte order.  Deliberately locale-free: shell `sort` output depends on the host locale, byte order does not."
-      (returns LIST "Sorted list"))
+      (returns LIST "Sorted list")
+      (example "(Contract sort (list \"b\" \"a\" \"c\"))" "(\"a\" \"b\" \"c\")")
+      (example "(Contract sort (list \"a\" \"_\" \"B\"))" "(\"B\" \"_\" \"a\")"))
     (List sort %ct-str<? xs))
 
   (method uniq (self (param xs LIST "SORTED string list"))
     (doc "Adjacent duplicates removed (with sort, `sort -u`)."
-      (returns LIST "Deduplicated list"))
+      (returns LIST "Deduplicated list")
+      (example "(Contract uniq (list \"a\" \"a\" \"b\"))" "(\"a\" \"b\")"))
     (let go ((xs xs) (acc ()))
       (match
         ((null? xs) (List reverse acc))
@@ -69,7 +74,8 @@
   (method only (self (param as LIST "SORTED deduplicated string list")
                      (param bs LIST "SORTED deduplicated string list"))
     (doc "Members of as absent from bs, in order (merge walk; both inputs sorted and deduplicated)."
-      (returns LIST "as minus bs"))
+      (returns LIST "as minus bs")
+      (example "(Contract only (list \"a\" \"b\" \"c\") (list \"b\"))" "(\"a\" \"c\")"))
     (let go ((as as) (bs bs) (acc ()))
       (match
         ((null? as) (List reverse acc))
@@ -80,11 +86,13 @@
 
   (method argv (self)
     (doc "The tool's own arguments: (Sys args 'program) without the engine's path -- what follows the \"--\" x.sh writes after its own options."
-      (returns LIST "Argument strings"))
+      (returns LIST "Argument strings")
+      (sample "(Contract argv)" "the strings after the \"--\" x.sh wrote, (\"--update\") for one flag"))
     (let ((a (Sys args (lit program)))) (if (null? a) () (rest a))))
 
   (method alloc-guard! (self)
-    (doc "Arm alloc-limit! from X_ALLOC_LIMIT_OBJS -- default 300000000, non-numeric values fall OPEN to the default: the same contract as the spec harness and the shell gates it replaces.")
+    (doc "Arm alloc-limit! from X_ALLOC_LIMIT_OBJS -- default 300000000, non-numeric values fall OPEN to the default: the same contract as the spec harness and the shell gates it replaces."
+      (sample "(Contract alloc-guard!)" "arms the limit from X_ALLOC_LIMIT_OBJS, or 300000000 when it is unset or not a number"))
     (def %digits
       (fn (_ s)
         ; the numeric value, or nil unless s is one or more digit bytes
@@ -104,4 +112,5 @@
 
 (doc (provide x/tool/contract Contract)
   (note "Gates run from the repo root (make provides the cwd), so walk paths are repo-relative by construction; the shell policy that homed the gates in the language is tools/README.md.")
+  (example "(Contract uniq (Contract sort (list \"b\" \"a\" \"b\")))" "(\"a\" \"b\")")
   "Shared scaffold for the in-language gate ratchets, on the Contract class: the sorted recursive walk, sorted-list set ops (sort/uniq/only), the tool's own argv behind the engine prefix, and the allocation guard.")
