@@ -260,4 +260,5 @@
           (#t #f))))))
 
 (doc (provide x/type/path Path)
+  (example "(do (import x/type/path) (Path join \"lib\" \"x\" \"core.x\"))" "\"lib/x/core.x\"")
   "Pure-string pathname manipulation on the Path class.")

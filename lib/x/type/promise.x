@@ -31,12 +31,16 @@
               (set! forced #t)
               (set! result val)
               val)))))))
+  (example "(Promise force (delay (* 6 7)))" "42")
+  (example "(Promise promise? (delay (no-such-binding)))" "#t")
   "Create a promise that delays evaluation of an expression until forced.")
 
 (def-class Promise ()
   (static
     (method promise? (self (param x ANY "Value to test"))
-      (doc "Test whether a value is a promise." (returns BOOL "True if x is a promise"))
+      (doc "Test whether a value is a promise." (returns BOOL "True if x is a promise")
+        (example "(Promise promise? (delay 1))" "#t")
+        (example "(Promise promise? 1)" "#f"))
       (type? x %promise))
     (method force (self (param p ANY "Promise or value"))
       (doc "Force a promise, returning its cached value. Non-promises pass through."

@@ -29,14 +29,16 @@
 
   (method push-left! (self (param v ANY "Value for the left end"))
     (doc "Push onto the left end: O(1). Returns the deque for chaining."
-      (returns Deque "self"))
+      (returns Deque "self")
+      (example "((((Deque make) push-left! 2) push-left! 1) ->list)" "(1 2)"))
     (set-field! 'front (pair v (field 'front)))
     (set-field! 'len (+ (field 'len) 1))
     self)
 
   (method push! (self (param v ANY "Value for the right end"))
     (doc "Push onto the right end: O(1). Returns the deque for chaining."
-      (returns Deque "self"))
+      (returns Deque "self")
+      (example "((((Deque make) push! 1) push! 2) ->list)" "(1 2)"))
     (set-field! 'back (pair v (field 'back)))
     (set-field! 'len (+ (field 'len) 1))
     self)
@@ -80,7 +82,8 @@
 
   (method peek-left (self)
     (doc "The leftmost value without removing it; raises a label 'value when empty."
-      (returns ANY "The leftmost value"))
+      (returns ANY "The leftmost value")
+      (example "((((Deque make) push! 1) push! 2) peek-left)" "1"))
     (match
       ((= (field 'len) 0) (Err raise 'value "Deque peek-left: empty" ()))
       ((pair? (field 'front)) (first (field 'front)))
@@ -88,7 +91,9 @@
 
   (method peek (self)
     (doc "The rightmost value without removing it; raises a label 'value when empty. O(n) when every element sits on the far list; the pops stay amortized O(1)."
-      (returns ANY "The rightmost value"))
+      (returns ANY "The rightmost value")
+      (example "((((Deque make) push! 1) push! 2) peek)" "2")
+      (example "((((Deque make) push-left! 2) push-left! 1) peek)" "2"))
     (match
       ((= (field 'len) 0) (Err raise 'value "Deque peek: empty" ()))
       ((pair? (field 'back)) (first (field 'back)))
@@ -96,19 +101,24 @@
 
   (method length (self)
     (doc "How many values the deque holds (kept O(1))."
-      (returns INTEGER "The count"))
+      (returns INTEGER "The count")
+      (example "((((Deque make) push! 1) push-left! 0) length)" "2"))
     (field 'len))
 
   (method empty? (self)
     (doc "Is the deque empty?"
-      (returns BOOL "#t when it holds nothing"))
+      (returns BOOL "#t when it holds nothing")
+      (example "((Deque make) empty?)" "#t")
+      (example "(((Deque make) push! 1) empty?)" "#f"))
     (= (field 'len) 0))
 
   (method ->list (self)
     (doc "The deque's values, left to right, as a fresh list; the deque is untouched."
-      (returns LIST "Values in deque order"))
+      (returns LIST "Values in deque order")
+      (example "((((Deque make) push! 'b) push-left! 'a) ->list)" "('a 'b)"))
     (List append (field 'front) (%reverse (field 'back)))))
 
 (doc (provide x/type/deque Deque)
   (note "Two-list construction: each element moves between the lists at most once, so both ends pop amortized O(1); length rides a counter.")
+  (example "(let ((d (Deque make))) (d push! 2) (d push-left! 1) (d ->list))" "(1 2)")
   "A double-ended queue, homed on the Deque class.")

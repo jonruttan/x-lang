@@ -40,6 +40,8 @@
   (fn (_ (param x ANY "Value to test"))
     (if (pair? x) (eq? (first x) %trait-label) #f)))
   (returns BOOL "#t for a trait value")
+  (example "(do (def-trait Hi (method hi (self) 'hi)) (trait? Hi))" "#t")
+  (example "(trait? 5)" "#f")
   (see def-trait)
   "Test whether a value is a trait.")
 

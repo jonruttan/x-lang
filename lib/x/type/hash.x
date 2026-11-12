@@ -57,11 +57,15 @@
   (static
     (method fnv-1a (self (param s STRING "String to hash"))
       (doc "Hash a string to a word using the FNV-1a algorithm: FNV-1a 64 on an 8-byte word, FNV-1a 32 on a 4-byte word."
-        (returns INTEGER "The FNV-1a hash, the word's width"))
+        (returns INTEGER "The FNV-1a hash, the word's width")
+        (example "(= (Hash fnv-1a \"a\") (Hash fnv-1a \"a\"))" "#t")
+        (example "(str=? (Hash ->hex (Hash fnv-1a \"\")) (if (< %word-size 8) \"811c9dc5\" \"cbf29ce484222325\"))" "#t"))
       (%fnv-go s (str-byte-len s) 0 %fnv-offset))
     (method ->hex (self (param n INTEGER "A word, such as a hash"))
       (doc "Convert a word to its unsigned hex string, two digits a byte: 16 on an 8-byte word, 8 on a 4-byte word."
-        (returns STRING "The word's bits in hexadecimal"))
+        (returns STRING "The word's bits in hexadecimal")
+        (example "(str=? (Hash ->hex 255) (if (< %word-size 8) \"000000ff\" \"00000000000000ff\"))" "#t")
+        (example "(= (Str8 length (Hash ->hex -1)) (* 2 %word-size))" "#t"))
       (def %lo (& n %half-mask))
       (def %hi (& (>> n %half-bits) %half-mask))
       (str-append (Str pad-left %word-size #\0 (%cvt %hi %string 16))

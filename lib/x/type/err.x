@@ -138,7 +138,8 @@
     (eq? (self label) k))
   (method %repr (self)
     (doc "Inspection form: #<err:LABEL MESSAGE>."
-      (returns STRING "The repr string"))
+      (returns STRING "The repr string")
+      (example "((Err make 'io \"boom\" ()) %repr)" "\"#<err:io boom>\""))
     (Str8 append "#<err:" (symbol->str (self label)) " " (self msg) ">"))
   ; display's form, the sentence a raise site wrote: what the engine prints
   ; for the same error uncaught, and what the REPL and the batch loop show.
@@ -160,6 +161,7 @@
     (method %str (self (param a ANY "An ERR slot: a static-string atom"))
       (doc "Lift an ERR slot to a real STRING."
         (returns STRING "The slot's bytes")
+        (example "(guard (e (Err %str (first e))) (no-such-binding))" "\"Unbound SYMBOL\"")
         (note "An ERR's code and subject are static-string ATOMS -- the engine repoints their string pointers per raise, which is what keeps a raise allocation-free -- so they carry no STRING type and Str8 refuses them. Appending to \"\" copies the bytes out, the same lift the printer always used on a raw error atom."))
       (str-append "" a))
 
@@ -175,7 +177,9 @@
                         (param msg STRING "Human-readable message")
                         (param data ALIST "Context alist (or ())"))
       (doc "Construct an Err and raise it: (error (Err make label msg data) \"label: msg\")."
-        (returns ANY "Does not return"))
+        (returns ANY "Does not return")
+        (example "(guard (e (Err label e)) (Err raise 'value \"bad\" ()))" "'value")
+        (example "(guard (e (e msg)) (Err raise 'value \"bad\" ()))" "\"bad\""))
       ; The second argument is the UNCAUGHT report.  A guard still
       ; receives the Err object -- (Err label e) depends on that -- but
       ; an uncaught object printed as the bare word "error", because the
@@ -241,7 +245,8 @@
 
     (method errno-of (self (param r INTEGER "A failed call's raw return value (negative)"))
       (doc "Recover the CURRENT errno after a failed libc/syscall call. The syscall prim routes through libc on both OSes, returning a bare -1 with the reason parked behind the per-thread errno location -- __error() on Darwin, __errno_location() on Linux; this derefs it (lazily resolving the symbol once). Falls back to (- 0 r) on a libc without the symbol. Fetch BEFORE any intervening call (a close on the error path clobbers errno)."
-        (returns INTEGER "The positive errno"))
+        (returns INTEGER "The positive errno")
+        (sample "(Err errno-of r)" "2 (ENOENT) right after an open of a missing path returned -1"))
       (match
         ((null? (first %errno-loc-cell))
           (%set-first! %errno-loc-cell
@@ -271,4 +276,5 @@
 
 (doc (provide x/type/err Err)
   (note "The structured-error convention: label + message + data over the untyped C error prim. See the header comment for the label vocabulary and the guard/match idiom.")
+  (example "(guard (e (Err label e)) (Err raise 'io \"closed\" ()))" "'io")
   "Structured errors: the Err class, label taxonomy, errno translation.")

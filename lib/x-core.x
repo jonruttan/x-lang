@@ -385,6 +385,7 @@
   "Boot: include-once/import/provide and the include-list registry.")
 (doc (provide x/type/struct)
   (note "The reflection helpers are %-private here and filed under catalogue ns `type`; the API is the Type class (x/type/type).")
+  (example "(Type name (Type of 5))" "\"INTEGER\"")
   "Type system mechanism: struct navigation and handler-stack wiring, registered in the catalogue.")
 (doc (provide x/core
   null? if let do begin not atom? list

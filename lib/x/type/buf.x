@@ -21,42 +21,51 @@
   (static
     (method tok (self (param buffer ANY "A tokenizer buffer"))
       (doc "The buffer's current token as a string."
-        (returns STRING "The token text"))
+        (returns STRING "The token text")
+        (sample "(Buf tok buffer)" "\"0x1F\" inside a reader handler called on that token"))
       ((prim-ref (lit buf) (lit tok)) buffer))
     (method last-char (self (param buffer ANY "A tokenizer buffer"))
       (doc "The last character read into the buffer, as its integer code."
-        (returns INTEGER "The character code"))
+        (returns INTEGER "The character code")
+        (sample "(Buf last-char buffer)" "41 when the reader has just read a )"))
       ((prim-ref (lit buf) (lit last-char)) buffer))
     (method reset (self (param buffer ANY "A tokenizer buffer"))
       (doc "Empty a tokenizer buffer: reset its read and write cursors to the base."
-        (returns ANY "The buffer"))
+        (returns ANY "The buffer")
+        (sample "(Buf reset buffer)" "the buffer, empty: (Buf tok buffer) then answers \"\""))
       ((prim-ref (lit buf) (lit reset)) buffer))
     (method retain (self (param buffer ANY "A tokenizer buffer"))
       (doc "Compact a buffer's unread data to the front, freeing consumed space."
-        (returns ANY "The buffer"))
+        (returns ANY "The buffer")
+        (sample "(Buf retain buffer)" "the buffer, its unread bytes moved to the front"))
       ((prim-ref (lit buf) (lit retain)) buffer))
     (method append (self (param buffer ANY "A tokenizer buffer") (param ch CHARACTER "Character to write"))
       (doc "Append one character at a buffer's write cursor."
-        (returns ANY "The buffer"))
+        (returns ANY "The buffer")
+        (sample "(Buf append buffer #\\x)" "the buffer, its token now ending in x"))
       ((prim-ref (lit buf) (lit append)) buffer ch))
     (method read (self (param buffer ANY "A tokenizer buffer"))
       (doc "Read one character into a buffer, extending from the input channel if it is exhausted."
-        (returns ANY "The buffer, or () at EOF"))
+        (returns ANY "The buffer, or () at EOF")
+        (sample "(Buf read buffer)" "the buffer with one more character read, or () at the end of the input"))
       ((prim-ref (lit buf) (lit read)) buffer))
     (method read-text (self (param buffer ANY "A tokenizer buffer"))
       (doc "Like (Buf read), but a NUL character counts as end-of-input."
-        (returns ANY "The buffer, or () at EOF/NUL"))
+        (returns ANY "The buffer, or () at EOF/NUL")
+        (sample "(Buf read-text buffer)" "the buffer with one more character read, or () at a NUL or the end of the input"))
       ((prim-ref (lit buf) (lit read-text)) buffer))))
 
 (def-class Tok ()
   (static
     (method read (self (param buffer ANY "A tokenizer buffer"))
       (doc "Read one token from a buffer through the type system's analysers."
-        (returns ANY "The parsed token"))
+        (returns ANY "The parsed token")
+        (sample "(Tok read buffer)" "the next value the buffer's input spells, such as 42 for the text 42"))
       ((prim-ref (lit tok) (lit read)) buffer))
     (method read-str (self (param base ANY "Base object with type alist (Base instance or raw)") (param s STRING "Source string to tokenize"))
       (doc "Tokenize a string using a base's type system."
-        (returns LIST "List of parsed tokens"))
+        (returns LIST "List of parsed tokens")
+        (example "(Tok read-str (Base make) \"1 (a b) \\\"s\\\"\")" "(1 ('a 'b) \"s\")"))
       ; The C prim consumes a RAW base; a Base instance unwraps here (the
       ; tokenizer seam).  Base is late-bound on purpose -- type/base.x
       ; loads after this module, and nothing calls read-str mid-boot.
@@ -64,4 +73,5 @@
 
 (doc (provide x/type/buf Buf Tok)
   (note "ns `buf`/`tok` are de-registered; reader-hot callers fetch-and-cache the prims, never class-dispatch per token.")
+  (example "(Tok read-str (Base make) \"(+ 1 2)\")" "(('+ 1 2))")
   "Tokenizer buffers (Buf) and the token stream (Tok): the low-level reader surface for custom types.")
