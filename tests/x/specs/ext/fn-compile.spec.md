@@ -375,6 +375,45 @@ kept.
 ---
     ('x ('z) 6)
 
+## an fvar's name says how its value is come by
+
+The values a compiled function reads from outside itself are this
+process's: a binding cell, the list a call site fills, a method.  Each
+fvar's name says what it is, so the values are found again from the
+closure and the names, with no rewrite.
+
+### the names, and the values read back from them
+
+```x
+(def %fc-nm-m (module x/tool/fn-compile))
+(def %fc-nm-g (fn (_ a b) (list a b)))
+(def %fc-nm (fn (_ x) (if (symbol? x) (pair x "s") (%fc-nm-g x (lit tag)))))
+(def %fc-nm-made ((eval (lit %fc-rewrite) %fc-nm-m) %fc-nm))
+(def %fc-nm-names (List map first (rest %fc-nm-made)))
+(def %fc-nm-vals ((eval (lit %fc-fvar-values) %fc-nm-m) %fc-nm %fc-nm-names))
+(def %fc-nm-same
+  (fn (self a b)
+    (match ((null? a) (null? b))
+           ((if (obj-same? (first a) (first b)) #t (equal? (first a) (first b))) (self (rest a) (rest b)))
+           (#t #f))))
+(write (list (List reverse %fc-nm-names) (%fc-nm-same %fc-nm-vals (List map rest (rest %fc-nm-made)))))
+```
+---
+    (('%self '%y:symbol? '%x:pair '%t:2:1 '%l:0 '%c:%fc-nm-g '%t:2:2 '%q:tag) #t)
+
+### a guard's closures have no name that says them
+
+The two closures a guard is outlined into are made by the rewrite, so a
+function with a guard has an fvar no name finds again.
+
+```x
+(def %fc-nm-gd (fn (_ x) (guard (e 0) (first x))))
+(def %fc-nm-gd-made ((eval (lit %fc-rewrite) %fc-nm-m) %fc-nm-gd))
+(write ((eval (lit %fc-fvar-values) %fc-nm-m) %fc-nm-gd (List map first (rest %fc-nm-gd-made))))
+```
+---
+    #f
+
 ## the frame across a collect
 
 ### a collect inside a callee keeps every object the frame holds
