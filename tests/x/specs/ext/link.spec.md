@@ -155,7 +155,12 @@ and B's takes the global.
 
 ## object files
 
-### an object written and read back is the same object
+### an object written and read back is the same object, its relocations grouped by name
+
+The records are binary unless text is asked for.  Binary records hold each
+name once, with every place that takes its value, so the relocations come
+back a name at a time: the object's symbols in order, then a name that is
+taken and is no symbol of it.
 
 ```x
 (do
@@ -163,17 +168,89 @@ and B's takes the global.
   (import x/sys/file)
   (def %t (File temp))
   (File close (first %t))
-  (def %o (list (list (list 'text 4 8 "ABCDEFGH") (list 'data 8 16 "xy"))
+  (def %o (list (list (list 'text 4 8 "ABCDEFGH") (list 'data 8 2 "xy") (list 'bss 16 64 ()))
                 (list (list "f" 'text 0 'global) (list "s" 'data 0 'local) (list "g" () 0 'global))
-                (list (list 'text 4 (list 'patch 4 'arm64-rel) "g" 0) (list 'data 8 'word "s" 3))))
+                (list (list 'text 4 (list 'patch 4 'arm64-rel) "g" 0) (list 'data 8 'word "s" -3)
+                      (list 'text 0 'word "h" 7) (list 'text 2 'word "g" 1))))
   (link-write! (rest %t) %o)
+  (def %line (let ((fd (File open (rest %t) 'rdonly)) (b ((prim-ref 'str 'make) 10))) (File read fd b 10) (File close fd) b))
   (def %back (link-read (rest %t)))
   (File unlink (rest %t))
-  (write %back)
+  (write (list %line %back))
   (newline))
 ```
 ---
-    ((('text 4 8 "ABCDEFGH") ('data 8 16 "xy")) (("f" 'text 0 'global) ("s" 'data 0 'local) ("g" () 0 'global)) (('text 4 ('patch 4 'arm64-rel) "g" 0) ('data 8 'word "s" 3)))
+    ("x-object 2" ((('text 4 8 "ABCDEFGH") ('data 8 2 "xy") ('bss 16 64 ())) (("f" 'text 0 'global) ("s" 'data 0 'local) ("g" () 0 'global)) (('data 8 'word "s" -3) ('text 4 ('patch 4 'arm64-rel) "g" 0) ('text 2 'word "g" 1) ('text 0 'word "h" 7))))
+
+### written as text, an object reads back as it was written
+
+```x
+(do
+  (import x/tool/link link link-undefined link-write! link-read)
+  (import x/sys/file)
+  (def %t (File temp))
+  (File close (first %t))
+  (def %o (list (list (list 'text 4 8 "ABCDEFGH") (list 'data 8 2 "xy"))
+                (list (list "f" 'text 0 'global) (list "s" 'data 0 'local) (list "g" () 0 'global))
+                (list (list 'text 4 (list 'patch 4 'arm64-rel) "g" 0) (list 'data 8 'word "s" 3))))
+  (link-write! (rest %t) %o 'text)
+  (def %line (let ((fd (File open (rest %t) 'rdonly)) (b ((prim-ref 'str 'make) 10))) (File read fd b 10) (File close fd) b))
+  (def %back (link-read (rest %t)))
+  (File unlink (rest %t))
+  (write (list %line (equal? %back %o)))
+  (newline))
+```
+---
+    ("x-object 1" #t)
+
+### a name with a byte past 127 is written as text
+
+A binary record ends a name on a byte with its top bit set, so such a name
+has no binary form, and the object is written as text.
+
+```x
+(do
+  (import x/tool/link link link-undefined link-write! link-read)
+  (import x/sys/file)
+  (def %t (File temp))
+  (File close (first %t))
+  (def %o (list (list (list 'text 4 4 "ABCD")) (list (list "caf\xc3\xa9" 'text 0 'global)) ()))
+  (link-write! (rest %t) %o)
+  (def %line (let ((fd (File open (rest %t) 'rdonly)) (b ((prim-ref 'str 'make) 10))) (File read fd b 10) (File close fd) b))
+  (def %back (link-read (rest %t)))
+  (File unlink (rest %t))
+  (write (list %line (equal? %back %o)))
+  (newline))
+```
+---
+    ("x-object 1" #t)
+
+### an object read from binary records links as the one it was written from
+
+```x
+(do
+  (import x/tool/link link link-undefined link-write! link-read)
+  (import x/sys/file)
+  (def %t (File temp))
+  (File close (first %t))
+  (def %a (list (list (list 'text 4 16 "0123456789abcdef"))
+                (list (list "f" 'text 0 'global))
+                (list (list 'text 0 'word "g" 1) (list 'text 4 'word "h" 2) (list 'text 8 'word "g" 3) (list 'text 12 'word "h" -4))))
+  (def %b (list (list (list 'data 8 16 ())) (list (list "g" 'data 0 'global) (list "h" 'data 8 'global)) ()))
+  (link-write! (rest %t) %a)
+  (def %back (link-read (rest %t)))
+  (File unlink (rest %t))
+  (def %seen (list ()))
+  (def %run (fn (_ o)
+    (%set-first! %seen ())
+    (link (list o %b) (fn (_ ss) (List map (fn (_ s) (pair (first s) (if (eq? (first s) 'text) 4096 8192))) ss))
+      (fn (_ p offset kind value site) (%set-first! %seen (pair (list offset value site) (first %seen)))))
+    (List sort (fn (_ x y) (< (first x) (first y))) (first %seen))))
+  (write (list (equal? (%run %a) (%run %back)) (%run %back)))
+  (newline))
+```
+---
+    (#t ((0 8193 4096) (4 8202 4100) (8 8195 4104) (12 8196 4108)))
 
 ### a file that is no object refuses
 
