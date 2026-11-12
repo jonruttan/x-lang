@@ -350,6 +350,23 @@ value, not a form to call.
 ---
     ('compiled "" (('quux 'zebra)))
 
+### an entry compiled again answers as before, called or applied
+
+An entry is switched to interpreted before a state image is written and
+compiled again after one is loaded.  The second compile pours what the first
+kept.
+
+```x
+(def %fc-again (fn (_ a b) (list b a)))
+(def %fc-again-e (compile-fn! (lit %fc-again) %fc-again))
+(%fc-again-e interpret!)
+(def %fc-again-mid (list (%fc-again-e state) (%fc-again 1 2)))
+(%fc-again-e compile!)
+(write (list %fc-again-mid (%fc-again-e state) (%fc-again 1 2) (apply %fc-again (list (lit x) (lit (y))))))
+```
+---
+    (('interpreted (2 1)) 'compiled (2 1) (('y) 'x))
+
 ### a primitive and a closure are applied as before
 
 ```x

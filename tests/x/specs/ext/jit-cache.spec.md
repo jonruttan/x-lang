@@ -410,6 +410,32 @@ answer alike.
 ---
     ('compiled 35 35 35)
 
+### a compile kept in a cell pours again with no key printed
+
+`asm-compile-kept` keeps what a compile found in the caller's cell: the held
+entry and its fvars' values in slot order.  The second compile here runs with
+the key's printer replaced by one that raises, and answers all the same.
+
+```x
+(do
+  (import x/tool/asm-cache asm-compile-kept)
+  (def %kp-m (module x/tool/asm-cache))
+  (def %kp-cell (pair () ()))
+  (def %kp-e '(fn (_ x) (+ x 41)))
+  (def %kp-f (asm-compile-kept %kp-cell %kp-e () #f))
+  (def %kp-kept (not (null? (first %kp-cell))))
+  (def %kp-text (eval (lit %asm-cache-text) %kp-m))
+  (eval (list (lit set!) (lit %asm-cache-text)
+          (list (lit lit) (fn (_ . a) (Err raise (lit value) "a key was printed" ()))))
+    %kp-m)
+  (def %kp-again (guard (e (e msg)) ((asm-compile-kept %kp-cell %kp-e () #f) 1)))
+  (eval (list (lit set!) (lit %asm-cache-text) (list (lit lit) %kp-text)) %kp-m)
+  (write (list (%kp-f 1) %kp-kept %kp-again))
+  (newline))
+```
+---
+    (42 #t 42)
+
 ## groups: many entries in one file
 
 A caller that compiles the same set of functions in every process groups them

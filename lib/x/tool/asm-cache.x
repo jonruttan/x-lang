@@ -1353,6 +1353,16 @@
 (unless (null? asm-fn-values)
   (set! %asm-fn-fvars (%append %asm-fn-fvars (list (pair (lit %values) asm-fn-values)))))
 
+; FVARS with the fvars every compile of WORLD takes ahead of them.
+(def %asm-cache-world-fvars
+  (fn (_ fvars world)
+    (match
+      ((eq? world (lit function))
+        (%append %asm-fn-fvars fvars))
+      ((or (eq? world (lit object)) (eq? world (lit operative)))
+        (pair (pair (lit %false) #f) fvars))
+      (#t fvars))))
+
 (def asm-compile-cached
   (fn (_ expr . %asm-rest)
     (def fvars (unless (null? %asm-rest) (first %asm-rest)))
@@ -1395,13 +1405,7 @@
     ; as the compile does.
     ; The function world takes three more the same way: what each unchecked
     ; read evaluates in its place when its operand is nil.
-    (def fvars
-      (match
-        ((eq? analyser? (lit function))
-          (%append %asm-fn-fvars fvars))
-        ((or (eq? analyser? (lit object)) (eq? analyser? (lit operative)))
-          (pair (pair (lit %false) #f) fvars))
-        (#t fvars)))
+    (def fvars (%asm-cache-world-fvars fvars analyser?))
     ; Whether to stand aside is decided FIRST, before the printer is asked for
     ; anything: on that path this module gets out of the way entirely and the
     ; expression takes the route it took before there was a cache.
@@ -1463,6 +1467,31 @@
    The cache keeps two files per entry, in /tmp or in the directory the
    X_ASM_CACHE_DIR environment variable names, and holds each entry in the
    heap as well, where a state image carries it.")
+
+(def asm-compile-kept
+  (fn (_ kept expr fvars world)
+    (def e (first kept))
+    (def again (if (null? e) () (asm-cache-entry-pour (first e) (rest e))))
+    (if (not (null? again)) again
+      (do
+        (def f (asm-compile-cached expr fvars world))
+        (def text (asm-cache-last-text))
+        (def held (if (null? text) () (%asm-cache-held-find text %asm-cache-held)))
+        (def fvals
+          (if (null? held) #f
+            (%asm-cache-fvar-values (first (rest (rest (rest held))))
+              (%asm-cache-world-fvars fvars world))))
+        (%set-first! kept (if (eq? fvals #f) () (pair held fvals)))
+        f))))
+
+(doc asm-compile-kept
+  (param kept LIST "A cell the caller owns, (pair () ()) before the first compile: what this compile found is kept in it")
+  (param expr LIST "The (fn (params...) body), as compile-asm takes it")
+  (param fvars LIST "The free variables, ((NAME . VALUE) ...)")
+  (param world ANY "The calling world, as compile-asm's third argument names it")
+  (returns CALLABLE "The compiled function")
+  (sample "(asm-compile-kept cell '(fn (_ x) (+ x 1)) () #f)" "the compiled function; a second call with the same cell pours it again")
+  "asm-compile-cached for a caller that compiles the same EXPR over the same FVARS more than once in a process or across a state image, as an entry of x/tool/compiled does each time it is compiled again. The first compile keeps the entry held for it and its fvars' values in the entry's slot order in KEPT; a later one pours from that, with no key printed and no name matched. KEPT answers for nothing else: a different EXPR or FVARS takes a cell of its own.")
 
 ; Filed in the catalogue for the compile-asm door in x/tool/compile: that module
 ; loads this one on first use and cannot name a function of a module it has
@@ -1531,6 +1560,6 @@
    included.  Nothing is noted in the open group, and a group whose thunk
    noted nothing and set no extra keeps its file as it is.")
 
-(doc (provide x/tool/asm-cache asm-compile-cached asm-cache-group asm-cache-group-held asm-cache-group-extra! asm-cache-held-pour asm-cache-held-fvar-names asm-cache-held-entry asm-cache-entry-pour asm-cache-last-text asm-fn-values)
+(doc (provide x/tool/asm-cache asm-compile-cached asm-cache-group asm-cache-group-held asm-cache-group-extra! asm-cache-held-pour asm-cache-held-fvar-names asm-cache-held-entry asm-cache-entry-pour asm-cache-last-text asm-fn-values asm-compile-kept)
   "The cache behind the compile-asm door: persistent emitted native code, over
    the JIT compiler it falls back to.")

@@ -43,7 +43,7 @@
 (import x/type/env)
 (import x/core/fn)
 (import x/tool/compiled)
-(import x/tool/asm-cache asm-compile-cached asm-fn-values)
+(import x/tool/asm-cache asm-compile-cached asm-compile-kept asm-fn-values)
 (import x/type/base)
 (import x/core/doors int+ int- int* int/ int% int< int= int& int| int<< int>>
   image-transient! obj-ref obj-set! obj-same? obj->ptr ptr->int ptr-ref-word ptr-set-word! io-display-to-str str->sym
@@ -774,12 +774,15 @@
     (def outlined (if (first made) %fc-outlined ()))
     (set! %fc-outlined ())
     (set! %fc-compiled (pair f %fc-compiled))
+    ; What the first compile found, for the compiles after it: an entry is
+    ; compiled again after every state image load.
+    (def kept (pair () ()))
     (def entry
       (Compiled in-place name f
         (fn (_)
           (if (first made)
             (do (%fc-arm-apply!)
-                (%fc-mark! (asm-compile-cached (first (rest made)) (rest (rest made)) (lit function))))
+                (%fc-mark! (asm-compile-kept kept (first (rest made)) (rest (rest made)) (lit function))))
             (Err raise (lit value) (rest made) ())))))
     (List map (fn (_ o) (compile-fn! (first o) (rest o))) outlined)
     entry))
