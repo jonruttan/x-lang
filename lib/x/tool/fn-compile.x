@@ -736,10 +736,14 @@
 ; F as a function world expression and its fvars: (form . fvars).
 (def %fc-rewrite
   (fn (_ f)
-    (def ps (Fn params f))
-    ; List list? first: List all? walks rest until (), and on a rest
-    ; parameter, (_ . args), it would take first of the symbol.
-    (unless (and (pair? ps) (List list? ps) (List all? symbol? ps))
+    ; The parameters as F wrote them, and as a list: a rest parameter, the
+    ; name a dotted list ends in, is the last of PS.
+    (def given (Fn params f))
+    (def ps
+      ((fn (self l) (match ((null? l) ()) ((pair? l) (pair (first l) (self (rest l)))) (#t (list l))))
+       given))
+    ; A self parameter there must be: (fn args ...) has none to name.
+    (unless (and (pair? given) (List all? symbol? ps))
       (%fc-refuse "the parameters are not a list of names"))
     (set! %fc-target f)
     (set! %fc-env (Fn env f))
@@ -758,7 +762,7 @@
     (set! %fc-cells ())
     (def body (%fc-body src))
     (def made
-      (pair (list (lit fn) (pair (lit %fc-self) (rest ps)) body) %fc-fvars))
+      (pair (list (lit fn) (pair (lit %fc-self) (rest given)) body) %fc-fvars))
     (set! %fc-target ())
     (set! %fc-env ())
     made))
@@ -930,7 +934,7 @@
   (param f ANY "A closure made by fn")
   (returns Compiled "The entry: (entry state) is compiled, or failed with (entry reason)")
   (sample "((compile-fn! 'fib fib) state)" "compiled, and every holder of fib now calls the compiled version")
-  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let (not a named let) compile in place; a (guard (name handler) body) is outlined into two closures, run by the engine's guard and compiled in turn; a call of any other closure, or of a C primitive the engine's ISA manifest does not label spine, passes it values, and a send (C sel ...) to a class's public static method calls the method method-of resolves when F is compiled, and one to its own public static field calls the class to read or write it. Applied, by apply or by the engine as a type's handler is, the compiled F takes the values it is handed as a closure does: the first compile puts a routine in this base's callable-apply slot (Base slot!) that tells it so, and a state image is written with the engine's routine back in the slot. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
+  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let (not a named let) compile in place; a (guard (name handler) body) is outlined into two closures, run by the engine's guard and compiled in turn; a call of any other closure, or of a C primitive the engine's ISA manifest does not label spine, passes it values, and a send (C sel ...) to a class's public static method calls the method method-of resolves when F is compiled, and one to its own public static field calls the class to read or write it. A rest parameter, (fn (self a . more) ...), is bound to the list of the arguments after a's, and such a function's self-call is a call and not a jump. Applied, by apply or by the engine as a type's handler is, the compiled F takes the values it is handed as a closure does: the first compile puts a routine in this base's callable-apply slot (Base slot!) that tells it so, and a state image is written with the engine's routine back in the slot. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
 
 ; The library's own hot loops, compiled wherever the compiler loads: the
 ; tower dialects import this module at boot, and a program on helium that
