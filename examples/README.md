@@ -31,8 +31,8 @@ x-lang that surprises people coming from Scheme.
 
 ## 2. The full-stack dialect (`xe/`)
 
-Needs `-l xe` (xenon), which adds the numeric tower, POSIX, hash tables, and the
-JIT.
+Needs `-l xe` (xenon), which adds the numeric tower, regular expressions,
+`Dict` and `Set`, and the JIT.
 
 | File | What it shows |
 |------|---------------|

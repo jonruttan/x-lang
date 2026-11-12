@@ -1,10 +1,9 @@
 # x-lang Specification
 
-**Version:** 0.5.2
-
-This document is the normative specification for x-lang. Each section maps 1:1
-to a test file in `tests/x/specs/`. Behavior described here MUST be implemented
-and tested. Items marked **TBD** have uncertain semantics and need investigation.
+This document is the normative specification for the core language: the
+reader, evaluation, and the primitive forms. The library above the core is
+specified by its `(doc …)` forms and by the spec files in `tests/x/specs/`.
+Behavior described here MUST be implemented and tested. Items marked **TBD** have uncertain semantics and need investigation.
 
 All primitives receive unevaluated arguments (fexpr-style) and evaluate what
 they need internally. Boolean true is `#t`; boolean false is `#f`. Nil is `()`

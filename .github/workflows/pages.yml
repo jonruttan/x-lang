@@ -181,7 +181,7 @@ jobs:
           # repository.  Hardcoding "/x-lang" would break the day a
           # custom domain is pointed at the site.
           title: x-lang
-          description: Type-agnostic expression interpreter in C89
+          description: A system that hosts languages as libraries over a fexpr core
           theme: jekyll-theme-primer
           plugins:
             - jekyll-relative-links

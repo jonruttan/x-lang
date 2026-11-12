@@ -169,9 +169,9 @@ The REPL loop in `x_cli.c` runs these stages in sequence: prompt, read, eval, pr
 
 The library is composed into dialects that control what capabilities are loaded. Each dialect includes all of the previous:
 
-**helium** (`lib/he.x` / `lib/x-core.x`): The light dialect and the default (`lib/x.x` is a pointer to it). Bootstraps 40+ modules providing core operations, combinators, list processing, strings, vectors, promises, quasiquote, and a REPL. No numeric tower or system access.
+**helium** (`lib/he.x` / `lib/x-core.x`): The light dialect and the default (`lib/x.x` is a pointer to it). Bootstraps the modules providing core operations, combinators, list processing, strings, vectors, promises, quasiquote, the POSIX wrappers, and a REPL. No numeric tower.
 
-**xenon** (`lib/xe.x`): Stable full-stack dialect. Adds POSIX wrappers, hash tables, the JIT compiler, and a numeric tower (bigint, float, rational, complex, decimal). Each numeric type's tokenizer analyser is compiled to native code immediately after loading, so subsequent source files are parsed through fast compiled analysers rather than interpreted ones.
+**xenon** (`lib/xe.x`): Stable full-stack dialect. Adds the assembler and compiler, regular expressions, `Dict` and `Set`, and a numeric tower (bigint, float, rational, complex, decimal). Each numeric type's tokenizer analyser is compiled to native code immediately after loading, so subsequent source files are parsed through fast compiled analysers rather than interpreted ones.
 
 **radon** (`lib/rn.x`): Experimental dialect. Everything in xenon plus raw syscall lookup tables, file I/O, socket constants, car/cdr composition helpers, character constants, and I/O handle constants.
 
@@ -183,10 +183,10 @@ sh x.sh -l xe        # xenon
 sh x.sh -l rn        # radon
 ```
 
-Langs (R5RS Scheme, R7RS Scheme, Kernel, ASH shell, sweet expressions) are loaded as additional libraries on top of a dialect. The interpreter core has no knowledge of any specific language. Without any library, the bare interpreter exposes only C-level primitives.
+Langs (R5RS Scheme, Kernel, a POSIX shell, Python, C and the others the [README](../README.md#languages-on-top) lists) are loaded as additional libraries on top of a dialect. The interpreter core has no knowledge of any specific language. Without any library, the bare interpreter exposes only C-level primitives.
 
 ### I/O Model
 
 The C core has no file-open or file-close primitives. Its only I/O is reading bytes from stdin and writing bytes to stdout/stderr via POSIX `read`/`write` syscalls on the file descriptors stored in the base object. Code loading happens externally through shell concatenation.
 
-The xenon and radon dialects extend this via the FFI: `lib/x/sys/posix.x` wraps fork, exec, pipe, dup2, wait, open, close, read, write, chdir, getenv, and setenv. `lib/x/sys/file.x` (radon only) provides higher-level file I/O with symbolic mode flags. This keeps the C core minimal while still supporting full system access when needed.
+The library extends this via the FFI: `lib/x/sys/posix.x`, loaded in every dialect, wraps fork, exec, pipe, dup2, wait, open, close, read, write, chdir, getenv, and setenv. `lib/x/sys/file.x` provides higher-level file I/O with symbolic mode flags. This keeps the C core minimal while still supporting full system access when needed.

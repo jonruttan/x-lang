@@ -5,32 +5,24 @@
 
 A dialect is a composition of x-lang library modules that determines what capabilities are loaded. The dialects are named after noble gases — the theme ties to the x-expr/Xe etymology, and read correctly it is self-teaching along the two axes that actually distinguish the entries:
 
-- **Atomic weight = library weight.** Helium is light: fast boot, no numeric tower. Xenon and radon are heavy: the full tower, POSIX, the compiler.
+- **Atomic weight = library weight.** Helium is light: fast boot, no numeric tower. Xenon and radon are heavy: the full tower, regular expressions, the compiler.
 - **Radioactivity = instability.** Xenon is inert: the stable full-stack surface. Radon is radioactive: xenon's surface plus experimental, raw, volatile APIs.
 
 | Name | Element | Is |
 |------|---------|----|
-| — | — | `./x-bin`, the engine binary: no libraries, substrate rather than a dialect |
+| — | — | the engine binary: no libraries, substrate rather than a dialect |
 | `he` | helium | light, fast boot, interactive; no tower — the **default** |
-| `xe` | xenon | full numeric tower, POSIX, compiler; stable |
+| `xe` | xenon | full numeric tower, regular expressions, `Dict` and `Set`, compiler; stable |
 | `rn` | radon | xenon's surface plus experimental/raw APIs; explicitly volatile |
 
 **The rule dialects follow: they may differ in what surface is *loaded*; they must never differ in what a shared spelling *means*.** A `+` that means pointer arithmetic in one dialect, or a `+` that coerces `"123"` to a number, is not a dialect — it is a different language wearing the same clothes (that would be a *lang*, below). If radon ever grows ergonomic address math, it gets a distinct spelling (the `Ptr` class), not an overload.
 
-The interpreter core has no knowledge of any dialect. Dialects are loaded by shell concatenation before user input. The shell wrapper (`x.sh`) selects a dialect with the `-l` flag:
+The interpreter core has no knowledge of any dialect. A dialect is library source the wrapper feeds the engine ahead of user input. The shell wrapper (`x.sh`, installed as `x`) selects a dialect with the `-l` flag:
 
 ```sh
 sh x.sh                  # helium (default)
 sh x.sh -l xe            # xenon
 sh x.sh -l rn            # radon
-```
-
-Or directly:
-
-```sh
-cat lib/he.x - | ./x-bin     # helium
-cat lib/xe.x - | ./x-bin     # xenon
-cat lib/rn.x - | ./x-bin     # radon
 ```
 
 In an **installed** tree (`make install`) the wrapper boots the same dialects
@@ -39,7 +31,7 @@ include chain flattened to a single stream) — and
 the library under `share/x/lib/` is byte-identical to the repo's. Repo
 checkouts always load the live entries above.
 
-`lib/x.x` is a pointer, not a dialect: it is what a bare `sh x.sh` boots, and it currently points at helium. The default stays light on purpose — xenon's boot runs eight runtime `cc` compilations (the compiled tokenizer analysers), which would make every newcomer run slow and host-toolchain-dependent. The pre-0.3.0 spellings `x-and`/`x-or` are retired (see the CHANGELOG); an unknown `-l` name fails with the wrapper's inventory listing, which names the real entries.
+`lib/x.x` is a pointer, not a dialect: it is what a bare `sh x.sh` boots, and it points at helium. The default is the light one because xenon's boot loads the compiler and the numeric tower and compiles the reader's analysers, which a session that needs none of them should not pay for. An unknown `-l` name fails with the wrapper's inventory listing, which names the real entries.
 
 ---
 
@@ -51,8 +43,9 @@ The light dialect. Loads `lib/x-core.x`, which bootstraps the module system and 
 - **Core:** predicates, control flow, GC, type system, conversions, booleans, higher-order functions, logic, list operations (60+ functions), math, syntax forms (`cond`, `case`, `when`, `unless`, `letrec`), association lists, arithmetic, quasiquote, REPL, banner
 - **System:** intrinsics, token system, numeric tower helpers
 - **Types:** characters, strings, vectors, promises
+- **POSIX wrappers** (`x/sys/posix.x`) — fork, exec, pipe, dup2, wait, open, close, read, write, chdir, getenv, setenv via FFI
 
-Helium provides everything needed for general-purpose programming: combinators, list processing, sorting, pattern matching, strings, vectors, lazy evaluation, and an interactive REPL. It has no numeric tower beyond built-in integers, no POSIX access, and no file I/O.
+Helium provides everything needed for general-purpose programming: combinators, list processing, sorting, pattern matching, strings, vectors, lazy evaluation, and an interactive REPL. It has no numeric tower beyond built-in integers.
 
 ---
 
@@ -60,10 +53,9 @@ Helium provides everything needed for general-purpose programming: combinators, 
 
 Stable full-stack dialect. Includes all of helium's surface, then adds:
 
-- **POSIX wrappers** (`x/sys/posix.x`) — fork, exec, pipe, dup2, wait, open, close, read, write, chdir, getenv, setenv via FFI
-- **Hash tables** (`x/type/hash.x`) — FNV-1a hash function for strings
-- **Dict** (`x/type/dict.x`) — content-hashed mutable hash table (symbol, string, integer, and char keys); the common container, loaded by default in both tower dialects
-- **Compiler** (`x/tool/compile.x`) — Compiles x-lang functions by emitting C, invoking a host `cc` at runtime, and `dlopen`ing the result. Requires a C toolchain on the machine running it. (The separate data-driven *assembler* — `x/tool/asm.x`, emitting machine code directly on ARM64 and x86_64 — is not loaded by this dialect.)
+- **Dict** and **Set** (`x/type/dict.x`, `x/type/set.x`) — content-hashed mutable containers (symbol, string, integer, and char keys), loaded by default in both tower dialects
+- **Assembler** (`x/tool/asm.x`) — emits machine code in process on ARM64, x86-64 and 32-bit ARM
+- **Compiler** (`x/tool/compile.x`) — `compile-asm` lowers x-lang functions to native code through the assembler, with no host toolchain. `compile` is the C-emitting lane: it invokes a host `cc` at runtime and `dlopen`s the result, and needs a C toolchain on the machine running it.
 
 Then loads the numeric tower with immediate analyser compilation (the shared
 block `lib/x/boot/tower-compiled.x`, included by every full-tower
@@ -103,19 +95,13 @@ Radon is the right choice for systems programming, kernel hacking, or any task t
 
 Langs are loaded as additional libraries on top of a dialect, aliasing x-lang primitives and adding derived forms to emulate another language's syntax. This is where same-spelling-different-meaning belongs: a lang may claim any spelling it likes, because it announces itself as a different language.
 
-| Lang | Base Dialect | Description |
-|-------------|-------------|-------------|
-| R5RS Scheme | helium | `lambda`, `cons`/`car`/`cdr`, `define`, `cond`, `case` |
-| R7RS Scheme | R5RS | `do`, `case-lambda`, `delay`/`force`, `values`, `define-record-type` |
-| Kernel | helium | `$vau` (operative-first), `$define!`, `$lambda` via `wrap` |
-| ASH Shell | helium | POSIX shell syntax: pipes, redirections, if/while/for/case |
-| Sweet Expressions | helium | SRFI-105/110: curly-infix + indentation-sensitive syntax |
-
-Langs are maintained as sibling projects and load by concatenation on
-top of a dialect:
+Each lang is a sibling project, installed as a pinned bundle and selected with the same `-l` flag:
 
 ```sh
-cat lib/he.x path/to/r5rs.x - | ./x-bin
+x --install-lang https://github.com/jonruttan/x-r5rs/releases/latest/download/lang.pin.xon
+x -l r5rs
 ```
+
+A lang declares the dialect it loads over in its own `lang.xon`. The [README](../README.md#languages-on-top) lists the langs; [The Lang Contract](lang-contract.md) is the terms one is held to.
 
 The interpreter core has no knowledge of any lang. All lang semantics are implemented in x-lang library code.

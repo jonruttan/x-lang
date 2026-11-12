@@ -124,8 +124,8 @@ Most "that function doesn't exist" confusion is a dialect mismatch.
 
 | Flag | Dialect | Has |
 |---|---|---|
-| *(none)* | helium (`lib/x.x` → `lib/he.x`) | combinators, lists, sort, strings, vectors, promises, quasiquote, REPL. **No numeric tower.** |
-| `-l xe` | xenon | helium + POSIX, hash tables, JIT, the full numeric tower (bigint, float, rational, complex, decimal) |
+| *(none)* | helium (`lib/x.x` → `lib/he.x`) | combinators, lists, sort, strings, vectors, promises, quasiquote, POSIX, REPL. **No numeric tower.** |
+| `-l xe` | xenon | helium + the full numeric tower (bigint, float, rational, complex, decimal), regex, `Dict` and `Set`, the assembler and compiler |
 | `-l rn` | radon | xenon + raw syscalls, char/IO constants; file I/O and sockets on demand. **Experimental.** |
 
 ```bash
