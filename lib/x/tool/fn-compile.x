@@ -46,7 +46,8 @@
 (import x/tool/asm-cache asm-compile-cached asm-compile-kept asm-fn-values)
 (import x/type/base)
 (import x/core/doors int+ int- int* int/ int% int< int= int& int| int<< int>>
-  image-transient! obj-ref obj-set! obj-same? obj->ptr ptr->int ptr-ref-word ptr-set-word! io-display-to-str str->sym
+  char->int image-transient! obj-ref obj-set! obj-same? obj->ptr ptr->int ptr-ref-word ptr-set-word! io-display-to-str
+  str->sym str-byte-len str-byte-ref str-byte-sub
   type-of)
 
 ; --- What a head means --------------------------------------------------------
@@ -135,6 +136,7 @@
 (def %fc-names ())               ; parameters and locals
 (def %fc-fvars ())               ; ((name . value) ...), newest first
 (def %fc-cells ())               ; ((free-name . fvar-name) ...)
+(def %fc-lits ())                ; the body's literals, in the order %fc-literals walks them
 (def %fc-count 0)
 
 (def %fc-refuse
@@ -146,16 +148,80 @@
     (set! %fc-count (int+ %fc-count 1))
     (str->sym (Str append stem (%number->str %fc-count)))))
 
-; A constant, as an fvar holding it.
-(def %fc-const
+; --- What an fvar's name says ---------------------------------------------------
+; An fvar's value is this process's: a binding cell, a list a call site
+; fills, a method.  Its NAME says how the value is come by from F alone, so
+; the compiled code can be kept apart from the process that made it and the
+; values found again by name (%fc-fvar-values), with no rewrite of F:
+;
+;   %self            F
+;   %c:NAME          the binding cell of the free name NAME in F's environment
+;   %t:N:I           a call site's template for N arguments, the I-th name
+;                    the rewrite made, so each site has its own
+;   %k:true          #t
+;   %l:K             the K-th literal of F's body, as %fc-literals walks it
+;   %q:NAME          the symbol NAME
+;   %m:HEAD:SEL      the method (method-of C SEL), C the value of HEAD
+;   %y:FORM          the type name pair? or symbol? asks for
+;   %x:pair %x:guard the pair primitive and the door a guard runs through
+;
+; A constant that is none of these has a name that says nothing, %fc-kN: an
+; outlined guard's two closures are made by the rewrite and by nothing else.
+(def %fc-name (fn (_ . parts) (str->sym (%fold (fn (_ a s) (Str append a s)) "" parts))))
+(def %fc-x-pair (%fc-name "%x:pair"))
+(def %fc-x-guard (%fc-name "%x:guard"))
+(def %fc-k-true (%fc-name "%k:true"))
+
+; The literals of BODY, in order: each (lit X)'s X, whole, and each atom
+; that is neither a name nor nil.
+(def %fc-literals
+  (fn (_ body)
+    (def acc (pair () ()))
+    ((fn (walk e)
+       (match
+         ((null? e) ())
+         ((symbol? e) ())
+         ((not (pair? e)) (%set-first! acc (pair e (first acc))))
+         ((and (eq? (first e) (lit lit)) (pair? (rest e)))
+           (%set-first! acc (pair (first (rest e)) (first acc))))
+         (#t ((fn (each l) (when (pair? l) (do (walk (first l)) (each (rest l))))) e))))
+     body)
+    (List reverse (first acc))))
+
+; NAME bound to V among the fvars, once.
+(def %fc-fvar!
+  (fn (_ name v)
+    (when (null? (%fc-assq name %fc-fvars))
+      (set! %fc-fvars (pair (pair name v) %fc-fvars)))
+    name))
+
+; The name of constant V when the rewrite gives none: the literal of the
+; body it is, or a name that says nothing.
+(def %fc-const-name
   (fn (_ v)
+    (def k
+      ((fn (self l i) (match ((null? l) ()) ((obj-same? (first l) v) i) (#t (self (rest l) (int+ i 1)))))
+       %fc-lits 0))
+    (match
+      ((symbol? v) (%fc-name "%q:" (symbol->str v)))
+      ((null? k) (%fc-fresh "%fc-k"))
+      (#t (%fc-name "%l:" (%number->str k))))))
+
+; A constant, as an fvar holding it; NAME when the rewrite knows what it is.
+(def %fc-const
+  (fn (_ v . name)
     (match
       ((null? v) ())
       ((eq? v #f) (lit %false))
-      (#t ((fn (_ name)
-             (set! %fc-fvars (pair (pair name v) %fc-fvars))
-             name)
-           (%fc-fresh "%fc-k"))))))
+      ((eq? v #t) (%fc-fvar! %fc-k-true v))
+      ((null? name) (%fc-fvar! (%fc-const-name v) v))
+      (#t (%fc-fvar! (first name) v)))))
+
+; A template's name: its arguments, and a count that makes it the site's own.
+(def %fc-template-name
+  (fn (_ n)
+    (set! %fc-count (int+ %fc-count 1))
+    (%fc-name "%t:" (%number->str n) ":" (%number->str %fc-count))))
 
 ; A free name's binding cell, as an fvar.
 (def %fc-binding
@@ -173,7 +239,7 @@
          (set! %fc-fvars (pair (pair fv (%fc-binding name)) %fc-fvars))
          (set! %fc-cells (pair (pair name fv) %fc-cells))
          fv)
-       (%fc-fresh "%fc-c"))
+       (%fc-name "%c:" (symbol->str name)))
       (rest known))))
 
 ; What NAME means at the head of a call: (self), (local), or (free . value).
@@ -291,7 +357,7 @@
 ; or a self-call (%fc-self T ...), T the site's template.
 (def %fc-call
   (fn (_ head args)
-    (def t (%fc-const (%fc-template (%length args))))
+    (def t (%fc-const (%fc-template (%length args)) (%fc-template-name (%length args))))
     ((fn (_ held)
        (%fc-with (first held)
          (if (eq? head (lit %fc-self))
@@ -354,7 +420,7 @@
       ((eq? form (lit rest)) (list (lit rest) (%fc-value (first args))))
       ; A pair the evaluator and pair? read as one is a list pair, which
       ; the pair primitive makes.
-      ((eq? form (lit pair)) (%fc-call (%fc-const pair) args))
+      ((eq? form (lit pair)) (%fc-call (%fc-const pair %fc-x-pair) args))
       ((or (eq? form (lit eq?)) (eq? form (lit null?))
            (eq? form (lit pair?)) (eq? form (lit symbol?)))
         (%fc-bool (%fc-test (pair form args))))
@@ -402,7 +468,8 @@
       (%fc-refuse "a send to " (symbol->str h) " whose selector is not a name"))
     (def m (method-of c sel))
     (match
-      ((not (null? m)) (%fc-call (%fc-const m) (pair h (rest args))))
+      ((not (null? m))
+        (%fc-call (%fc-const m (%fc-name "%m:" (symbol->str h) ":" (symbol->str sel))) (pair h (rest args))))
       ((%fc-static-field? c sel)
         (%fc-call (list (lit rest) (%fc-cell h)) (pair (list (lit lit) sel) (rest args))))
       (#t (%fc-refuse "the send (" (symbol->str h) " " (symbol->str sel)
@@ -433,7 +500,7 @@
     (match
       ((and (pair? e) (eq? (first e) (lit %fc-guarded)))
         ((fn (_ c) (if (eq? mode (lit raw)) (list (lit %unbox) c) c))
-         (%fc-call (%fc-const %fc-guard-door) (rest e))))
+         (%fc-call (%fc-const %fc-guard-door %fc-x-guard) (rest e))))
       ((pair? e)
         (if (symbol? (first e))
           (%fc-named-call (first e) (rest e) mode)
@@ -492,7 +559,7 @@
          ((eq? form (lit null?)) (list (lit =) (%fc-value (first (rest e))) ()))
          ((or (eq? form (lit pair?)) (eq? form (lit symbol?)))
            (list (lit %type-is?) (%fc-value (first (rest e)))
-                 (%fc-const (rest (%fc-assq form %fc-type-names)))))
+                 (%fc-const (rest (%fc-assq form %fc-type-names)) (%fc-name "%y:" (symbol->str form)))))
          ((eq? form (lit eq?)) (%fc-eq (List map %fc-value (rest e))))
          (#t (%fc-expr e (lit test)))))
      (%fc-form-of e))))
@@ -687,6 +754,7 @@
     (set! %fc-guard? #f)
     (set! %fc-names (%append (rest ps) (%fc-defs src)))
     (set! %fc-fvars (list (pair (lit %self) f)))
+    (set! %fc-lits (%fc-literals (Fn body f)))
     (set! %fc-cells ())
     (def body (%fc-body src))
     (def made
@@ -694,6 +762,76 @@
     (set! %fc-target ())
     (set! %fc-env ())
     made))
+
+; --- The fvars' values, from their names ----------------------------------------
+; What the names say, read back: the values of NAMES for the closure F, in
+; order, or #f when one of them says nothing or what it says is not there
+; (a free name no longer bound, a class with no such method).  F is read and
+; not rewritten.
+(def %fc-digits
+  (fn (_ s)
+    (def n (str-byte-len s))
+    ((fn (self i acc)
+       (if (int= i n) acc
+         (let ((d (int- (char->int (str-byte-ref s i)) 48)))
+           (if (if (int< d 0) #t (int< 9 d)) () (self (int+ i 1) (int+ (int* acc 10) d))))))
+     0 0)))
+
+(def %fc-fvar-values
+  (fn (_ f names)
+    (def env (Fn env f))
+    ; the body's literals by name, made at the first %l: asked for
+    (def lits (pair () #f))
+    (def literal
+      (fn (_ name)
+        (unless (rest lits)
+          (%set-first! lits
+            ((fn (self l k acc)
+               (if (null? l) acc
+                 (self (rest l) (int+ k 1) (pair (pair (%fc-name "%l:" (%number->str k)) (first l)) acc))))
+             (%fc-literals (Fn body f)) 0 ()))
+          (%set-rest! lits #t))
+        (def e (%fc-assq name (first lits)))
+        (if (null? e) () (list (rest e)))))
+    ; (VALUE), or () when NAME's value is not to be had
+    (def one
+      (fn (_ name)
+        (def s (symbol->str name))
+        ; the letter of a %L:REST name, as its code, or 0
+        (def letter
+          (if (int< (str-byte-len s) 3) 0
+            (if (int= (char->int (str-byte-ref s 2)) 58) (char->int (str-byte-ref s 1)) 0)))
+        (def tail (fn (_ ) (str-byte-sub s 3 (int- (str-byte-len s) 3))))
+        (match
+          ((eq? name (lit %self)) (list f))
+          ((eq? name %fc-k-true) (list #t))
+          ((eq? name %fc-x-pair) (list pair))
+          ((eq? name %fc-x-guard) (list %fc-guard-door))
+          ((int= letter 99)
+            (let ((cell (Env cell env (str->sym (tail)))))
+              (if (null? cell) () (list cell))))
+          ((int= letter 108) (literal name))
+          ((int= letter 113) (list (str->sym (tail))))
+          ((int= letter 116)
+            (let ((n (%fc-digits (first (Str split ":" (tail))))))
+              (if (null? n) () (list (%fc-template n)))))
+          ((int= letter 121)
+            (let ((e (%fc-assq (str->sym (tail)) %fc-type-names)))
+              (if (null? e) () (list (rest e)))))
+          ((int= letter 109)
+            (let ((parts (Str split ":" (tail))))
+              (if (if (null? (rest parts)) #t (not (null? (rest (rest parts))))) ()
+                (let ((cell (Env cell env (str->sym (first parts)))))
+                  (def m
+                    (if (null? cell) ()
+                      (if (class? (rest cell)) (method-of (rest cell) (str->sym (first (rest parts)))) ())))
+                  (if (null? m) () (list m))))))
+          (#t ()))))
+    ((fn (self ns acc)
+       (if (null? ns) (List reverse acc)
+         (let ((v (one (first ns))))
+           (if (null? v) #f (self (rest ns) (pair (first v) acc))))))
+     names ())))
 
 ; --- An apply of a compiled function -------------------------------------------
 ; A call hands a function its argument expressions and an apply hands it
