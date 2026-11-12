@@ -2,8 +2,8 @@
 
 *x-lang: computational expressions over a minimal, type-agnostic engine.*
 
-The library is written in x-lang, in about 140 modules under `lib/x/`, one
-module to a file. Every function, class and method in it carries a `(doc …)`
+The library is written in x-lang, in modules under `lib/x/`, one module to a
+file. Every function, class and method in it carries a `(doc …)`
 form beside its definition, and that form is the reference: the
 [x-lang API Reference](https://jonruttan.github.io/x-lang/docs/ref/x/index.html)
 is generated from them, module by module, and `make doc-x` writes the same
@@ -21,7 +21,11 @@ in it; it does not repeat the reference.
 | `lib/x/protocol/` | the sequence and string protocols a class implements to join those families |
 | `lib/x/num/` | the numeric tower: bigint, float, rational, complex, decimal, and the mixed-type policy in `x/num/tower` |
 | `lib/x/sys/` | POSIX, files, streams, processes, pseudo-terminals, sockets, the collector, dates, command-line options |
-| `lib/x/codec/` | JSON, XON, CSV, base64, hex, UTF-8, SHA-1 and SHA-256, zlib, structs |
+| `lib/x/codec/` | JSON, XON, CSV, Markdown, HTML, PNG, base64, hex, UTF-8, structs; deflate, zlib, bzip2 and lzma; the MD5, SHA-1, SHA-2 and SHA-3 digests; AES, ChaCha20-Poly1305, RSA, ECDSA, Ed25519 and X25519 |
+| `lib/x/net/` | TLS, X.509 and HTTP |
+| `lib/x/tui/` | the terminal screen, windows, tabs, styles and pictures |
+| `lib/x/gfx/`, `lib/x/audio/` | a drawing canvas; a mixer and a tracker |
+| `lib/x/test/` | assertions |
 | `lib/x/reader/` | the tokenizer's intrinsics, the lexer, the analyser, and the literal, quasiquote and indentation readers |
 | `lib/x/repl/` | the line editor, colour, the banner and the loop a lang hands its session to |
 | `lib/x/tool/` | the linter, formatter, highlighter, coverage, profiler, assembler and compiler, the state-image walk, the pin tool |
@@ -29,8 +33,9 @@ in it; it does not repeat the reference.
 | `lib/x/platform/` | the syscall tables, directory entries and socket constants per platform |
 
 Which modules a session has depends on its dialect: helium loads the core,
-the types and the REPL; xenon adds POSIX, hash tables, the JIT and the
-numeric tower; radon adds the raw syscall layer. [Dialects](dialects.md) has
+the types, POSIX and the REPL; xenon adds the numeric tower, regular
+expressions, `Dict` and `Set`, and the assembler and compiler; radon adds the
+raw syscall layer. [Dialects](dialects.md) has
 the composition, and `(modules)` lists every module with a `[loaded]` mark
 beside those the running session has.
 

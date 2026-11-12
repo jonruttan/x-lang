@@ -66,10 +66,10 @@ the claim that whole surface languages load on top of a dialect." That is a
 lang's job description, and it is now [x-logo](https://github.com/jonruttan/x-logo).
 `apps/` is empty.
 
-## The three pinned artifacts
+## The four pinned artifacts
 
-x-lang already acquires two of its three parts rather than containing them. A
-lang bundle is the third, and it is deliberately the *least* novel of them:
+x-lang acquires its parts rather than containing them, and a lang bundle is
+acquired the same way:
 
 | artifact | pinned by | acquired by | status |
 |---|---|---|---|
@@ -78,11 +78,9 @@ lang bundle is the third, and it is deliberately the *least* novel of them:
 | **library overlay** | `(root …)` in `pin.xon` | `Pin vendor` — copies from the *installed platform* | shipped |
 | **lang bundle** | `lang.pin.xon` | `Pin bundle`, run with `-l NAME` | **shipped** |
 
-Read the third row carefully, because it is the whole reason the fourth is
-needed: `Pin vendor` freezes library modules by copying them out of the platform
-you already have. There is today **no mechanism anywhere for acquiring a
-third-party x-lang tree.** That is the gap, and it is the only genuinely missing
-piece — everything else below is an arrangement of parts that already exist.
+The third and fourth rows differ in where the tree comes from. `Pin vendor`
+freezes library modules by copying them out of the installed platform; `Pin
+bundle` acquires a tree the platform does not carry.
 
 ## What a bundle is
 

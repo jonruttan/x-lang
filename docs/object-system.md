@@ -119,7 +119,7 @@ which is the basis for computed properties and for private data (below).
 
 > `(obj 'name)` also works — a quoted selector is unwrapped to the bare name — but
 > `(obj name)` is idiomatic. The `'` reader is a separate general feature
-> (`lib/x/type/lit-reader.x`); objects don't need it.
+> (`lib/x/reader/lit-reader.x`); objects don't need it.
 
 A send must name something. `(obj)` and `(Class)` supply no selector at all —
 argument leniency binds it to nil — and a non-symbol selector names nothing

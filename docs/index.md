@@ -12,9 +12,9 @@
 
 ## Language
 
-- [Specification](spec.md) — Normative language specification (maps 1:1 to test files)
+- [Specification](spec.md) — Normative specification of the core language
 - [Glossary](glossary.md) — One name per concept: the settled cross-layer vocabulary
-- [Syntax](syntax.md) — The preferred forms and idioms (least surprise; aspirational items marked)
+- [Syntax](syntax.md) — The preferred forms and idioms (least surprise)
 - [Bare Syntax](syntax-bare.md) — The reader spec any implementation must match
 - [Architecture](architecture.md) — System design, evaluation model, the contract pattern
 - [The Engine Contract](engine-contract.md) — What an engine must provide, promise and report; how a second implementation is checked

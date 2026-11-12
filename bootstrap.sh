@@ -12,8 +12,8 @@
 #   sh bootstrap.sh
 #
 # It clones x-lang (unless already in a checkout), acquires the engine that
-# clone names,
-# builds the engine (a ~4-second C89 compile), and prints how to run
+# clone pins (a verified release, or a source build where none is
+# published), builds, and prints how to run
 # and how to install.  With --install (or X_INSTALL=1) it also installs
 # to a user prefix -- no sudo, nothing written outside the prefix.
 #
@@ -25,9 +25,7 @@
 #   X_INSTALL  1 => install      (default: build only)
 # Flags: --install, --ref REF, --prefix DIR, --src DIR, --help
 #
-# No compiler, no clone -- deliberately: this is the setup step the
-# 4-second build never needed help with; it removes the toolchain and
-# submodule dance, not a slow compile.
+# Needs make and a C compiler; git only to clone.
 set -eu
 
 X_REPO="${X_REPO:-https://github.com/jonruttan/x-lang.git}"
