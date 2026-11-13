@@ -103,6 +103,7 @@ path_form_safe() {
 BUNDLE_DIR=
 BUNDLE_ENTRY=
 BUNDLE_DIALECT=
+BUNDLE_COMPILED=
 BUNDLE_DEPS=
 # Bundles loaded BESIDE the session's lang: every -l after the first.  Their
 # roots are armed and their entries read before the first lang's entry, and
@@ -246,6 +247,9 @@ bundle_resolve() {
 	BUNDLE_DIR="$_found"
 	BUNDLE_DIALECT=$(sed -n 's/^(dialect \([a-z0-9-]*\)).*/\1/p' "$BUNDLE_DIR/lang.xon" | head -1)
 	BUNDLE_ENTRY=$(sed -n 's/^(entry "\([^"]*\)").*/\1/p' "$BUNDLE_DIR/lang.xon" | head -1)
+	# (image compiled): the state image its installer writes carries the
+	# lang's closures compiled (compile-root! in x/tool/fn-compile).
+	BUNDLE_COMPILED=$(sed -n 's/^(image compiled).*/1/p' "$BUNDLE_DIR/lang.xon" | head -1)
 	: "${BUNDLE_DIALECT:=he}"
 	: "${BUNDLE_ENTRY:=run.x}"
 	if [ ! -f "$BUNDLE_DIR/$BUNDLE_ENTRY" ]; then
@@ -1597,7 +1601,8 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ "$X_LIB" != img ]; then
 		_iimg="$_idir/$_iname.boot.x.ximg"
 		if [ -n "$_itmp" ] && { root_form; param_forms; pin_form; cat "$ENTRY"; pin_arm; bundle_form image; \
 		     [ -z "$EXTRA_ENTRIES" ] || eval "cat $EXTRA_ENTRIES"; \
-		     [ -z "$BUNDLE_DIR" ] || cat "$BUNDLE_DIR/$BUNDLE_ENTRY"; } > "$_ilib" 2>/dev/null; then
+		     [ -z "$BUNDLE_DIR" ] || cat "$BUNDLE_DIR/$BUNDLE_ENTRY"; \
+		     [ -z "$BUNDLE_COMPILED" ] || printf '(import x/tool/fn-compile)\n((eval (lit compile-root!) (Module env (lit x/tool/fn-compile))) "%s")\n' "$BUNDLE_DIR"; } > "$_ilib" 2>/dev/null; then
 			_ish="$SCRIPT_PATH/$(basename "$0")"
 			[ -n "$INSTALL_ROOT" ] || _ish="$0"
 			if [ -n "$image_write" ]; then
