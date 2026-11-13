@@ -223,6 +223,18 @@ every other manifest here:
 `x/sys/socket` needs radon, and declaring helium means it dies at boot on a
 missing import rather than at acquisition on a legible refusal.
 
+A bundle whose state image should carry its closures compiled says so:
+
+```x
+(image compiled)
+```
+
+When the image is written, after the entry has loaded, `compile-root!`
+(`x/tool/fn-compile`) runs on the bundle's root: each closure a module
+there defines at its top level goes through `compile-fn!`, and one the
+rewrite cannot carry stays interpreted. An image load compiles them again,
+as it does every Compiled entry.
+
 A bundle that knows how to highlight its own language says so with a
 `(grammar …)` form, one for each grammar:
 

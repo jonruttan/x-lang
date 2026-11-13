@@ -700,3 +700,43 @@ evaluator or an apply, so a chain of them runs in constant stack.
 ```
 ---
     ('compiled 10)
+
+## a module's own closures
+
+### compile-module! compiles the closures a module defines, not those it imports
+
+fcm/two imports one-sum from fcm/one and defines two-f; only two-f is its own.
+
+```x
+(import x/tool/fn-compile compile-module! compile-root!)
+(import-path! "tests/x/fixtures/fncompile")
+(import fcm/two two-f)
+(def %fc-ms (compile-module! (lit fcm/two)))
+(write (list (List map (fn (_ e) (e name)) %fc-ms) (List map (fn (_ e) (e state)) %fc-ms)
+             (two-f 3) (Fn label two-f) (Fn label (eval (lit one-sum) (Module env (lit fcm/one))))))
+```
+---
+    (('two-f) ('compiled) 20 'prim 'fn)
+
+### compile-root! compiles every loaded module under a root, each closure once
+
+Under the fixture root, fcm/one's two closures are left; a number is no
+closure, and two-f, compiled already, is not compiled again.
+
+```x
+(def %fc-rs (compile-root! "tests/x/fixtures/fncompile"))
+(write (list (List sort (fn (_ a b) (Str8 <? (symbol->str a) (symbol->str b)))
+               (List map (fn (_ e) (e name)) %fc-rs))
+             (List map (fn (_ e) (e state)) %fc-rs)
+             (two-f 3) (compile-root! "tests/x/fixtures/fncompile")))
+```
+---
+    (('%sq 'one-sum) ('compiled 'compiled) 20 ())
+
+### a module loaded by include, or not loaded, has no closures of its own
+
+```x
+(write (list (compile-module! (lit x/no/such)) (compile-module! (lit x/boot/module))))
+```
+---
+    (() ())
