@@ -49,7 +49,7 @@
   ; NOTHING in lib/ or apps/ reaches -- they are not prim-ref-able at all, being
   ; build flags that change how existing primitives behave.  Naming `full` here
   ; would have made the default engine fail `provides >= requires`, because
-  ; coverage and profiling are VARIANT builds (x-bin-cov, x-bin-profile) and the
+  ; coverage and profiling are a VARIANT build (x-bin-profile) and the
   ; default x-bin honestly does not have them.
   (profile posix)
   (needs "lib/rn.x" isa/gc)

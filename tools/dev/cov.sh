@@ -3,8 +3,8 @@
 #
 # Usage: sh tools/dev/cov.sh [--lang LANG] [--test TEST] FILE
 #
-# Runs the target file through the x-bin-cov binary (which marks
-# evaluated AST nodes) then reports which branches were taken.
+# Runs the target file through x-bin-profile (the release engine build
+# that marks evaluated AST nodes) then reports which branches were taken.
 #
 # --test TEST: append test file content after the source file
 #              so test expressions exercise the library's branches.
@@ -13,7 +13,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-X_COV="${ROOT}/x-bin-cov"
+X_COV="${ROOT}/x-bin-profile"
 LIB="${ROOT}/lib/x-core.x"
 COV="${ROOT}/tools/dev/cov.x"
 CONSTRUCTS="${ROOT}/lib/x/constructs.x"
@@ -40,8 +40,8 @@ done
 [ -f "$FILE" ] || { echo "Error: $FILE not found" >&2; exit 1; }
 [ -n "$TEST" ] && { [ -f "$TEST" ] || { echo "Error: $TEST not found" >&2; exit 1; }; }
 
-# Check x-bin-cov binary exists
-[ -f "$X_COV" ] || { echo "Error: x-bin-cov not found (run: make x-bin-cov)" >&2; exit 1; }
+# Check the coverage engine exists
+[ -f "$X_COV" ] || { echo "Error: x-bin-profile not found (run: make x-bin-profile)" >&2; exit 1; }
 
 # Auto-detect language from file path if not specified
 if [ -z "$LANG" ]; then

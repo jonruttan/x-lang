@@ -80,21 +80,21 @@ exports are used downstream).  Scope tracking covers `def`/`set!`, `fn`,
 
 ## Coverage
 
-Flag-bit branch coverage for x-lang programs.  The `x-bin-cov` binary is
-a modified build that sets `X_OBJ_FLAG_2` (0x2) on every AST node at eval
-time; the reporter walks the original AST afterwards and reports which
-`if`/`match`/`cond` branches never ran.
+Flag-bit branch coverage for x-lang programs.  The profiling engine,
+`x-bin-profile`, is built with `-DX_COV` and sets `X_OBJ_FLAG_2` (0x2) on
+every AST node at eval time; the reporter walks the original AST afterwards
+and reports which `if`/`match`/`cond` branches never ran.
 
 ```sh
 sh tools/dev/cov.sh FILE      # single-file branch coverage
-sh tools/dev/cov-lib.sh      # aggregated library coverage (x-bin-profile)
+sh tools/dev/cov-lib.sh      # aggregated library coverage
 ```
 
-`make x-bin-cov` builds the coverage engine in the engine's tree and copies
-it here.
+Every engine release ships `x-bin-profile`, and `make x-bin-profile` copies
+it here (a checkout builds it first).
 
-1. **Marking**: `x-bin-cov` adds one line to `x_eval()` under `#ifdef
-   X_COV`, setting bit 0x2 on every evaluated expression's flags field.
+1. **Marking**: under `#ifdef X_COV`, `x_eval()` sets bit 0x2 on every
+   evaluated expression's flags field.
 2. **Tokenization**: the reporter (`cov.x`) reads the source as a string
    and tokenizes with `(Tok read-str)` on the current base.
 3. **Evaluation**: an operative loop evaluates each top-level form
@@ -104,7 +104,7 @@ it here.
 The GC sweep clears only `X_OBJ_FLAG_HEAP`, so coverage flags survive
 collection.  Limitations: interned atoms are shared (marking one `x`
 marks them all -- compound branch expressions are the reliable signal);
-no line numbers; the target must run under `x-bin-cov` itself.
+no line numbers; the target must run under `x-bin-profile` itself.
 
 ## Profiling
 
@@ -329,7 +329,7 @@ make test-tools
 ```
 
 Runs `tools/tests/` (fmt specs on the plain engine, cov + meta specs on
-`x-bin-cov`).  In `make test` and CI since the #180 repair.  The legacy
+`x-bin-profile`).  In `make test` and CI since the #180 repair.  The legacy
 def/use library `lint-lib.x` and its specs were retired with that repair
 (dead code: loaded by nothing, its `%walk-pair` dispatcher was never
 assigned); the live linter is `lib/x/tool/lint.x`, gated by `lint-x`.
