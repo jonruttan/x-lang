@@ -136,9 +136,14 @@ on port 0 and reads the port back with local-port.
   (def w-c (Socket tcp-connect "127.0.0.1" w-port))
   (Socket send w-c (Str8 append "GET /socket HTTP/1.1\r\nUpgrade: websocket\r\n"
                               "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"))
+  ; poll does not wait, so each poll below follows a wait of up to a second
+  ; for the server's side to have something to read: the connection, then
+  ; the end of the stream once the client has closed.
+  (Sys poll (list (pair (Web %ref w-win (lit listener)) (list 'in))) 1000)
   (Web poll)
   (def w-had (not (null? (Web %ref w-win (lit page)))))
   (Socket close w-c)
+  (Sys poll (list (pair (Web %ref w-win (lit page)) (list 'in))) 1000)
   (def w-after (Web poll))
   (def w-gone (null? (Web %ref w-win (lit page))))
   (Web close w-win)
