@@ -10,7 +10,9 @@
 ;     (echo 370 40 25)               an effect over the whole mixer, in
 ;     (reverb 120 80 30)             order: (echo MS FB WET), (reverb SIZE
 ;     (phase 1 4 3000 40 60)         DECAY WET), (phase LEAST-MS MOST-MS
-;                                    PERIOD-MS FB WET) (see Mixer effect!)
+;     (limit 90 100)                 PERIOD-MS FB WET), (chorus ...),
+;                                    (drive ...), (crush ...), (sweep ...)
+;                                    or (limit ...) (see Mixer effect!)
 ;     (instrument NAME PROP ...)     a voice's props (see Mixer play!), with
 ;                                    (release MS), (layer calm|tension) and
 ;                                    any number of (voice PROP ...), each a
@@ -59,7 +61,7 @@
 ; effect (LETTER ARG ...).
 
 (def %tracker-keys (lit (release layer voice)))
-(def %effect-heads (lit (echo reverb phase)))
+(def %effect-heads (lit (echo reverb phase chorus drive crush sweep limit)))
 
 (def %instrument
   (fn (_ f)
@@ -95,7 +97,7 @@
       (%fail (Str8 append "not a number: " s)))
     (if neg (int- 0 (%digits ds)) (%digits ds))))
 
-(def %effect-letters (list "a" "v" "s" "p" "t" "f" "c" "d" "r"))
+(def %effect-letters (list "a" "v" "s" "p" "t" "f" "l" "c" "d" "r"))
 
 ; An effect in a cell, a letter and its numbers apart by commas, "v30,4",
 ; as (LETTER ARG ...).
@@ -247,6 +249,7 @@
 ;   p N         portamento: from the channel's last note over N ticks
 ;   t D,P       tremolo: D percent down and back every P ticks
 ;   f P         fade: to P percent by the next fade or the note's end
+;   l P         low-pass: to P percent of its cut by the next l or the note's end
 ;   c N         cut: let go N ticks into the row
 ;   d N         delay: start N ticks into the row (on the note's own cell)
 ;   r N         retrigger: start again every N ticks
@@ -352,7 +355,8 @@
 
 ; A note LEN ms long with the effects FX at MS a row and TICK a tick, its
 ; instrument's envelope ENV let go over RELEASE, glided from FROM cents
-; (nil for none): (ENV BEND), BEND nil when its pitch is not moved.
+; (nil for none): (ENV BEND FILTER), BEND nil when its pitch is not moved
+; and FILTER when its low-pass is not.
 (def %shape
   (fn (_ fx len ms tick env release from)
     (def end (int+ len release))
@@ -361,6 +365,7 @@
     (def slides (%spans fx "s" ms len))
     (def glide (if (null? from) () (pair from (int* tick (%fx-arg (%fx fx "p") 1)))))
     (def fades (%spans fx "f" ms len))
+    (def lows (List filter (fn (_ sp) (not (null? (List ref 2 sp)))) (%spans fx "l" ms len)))
     (def trems (%spans fx "t" ms end))
     (def vib-per (fn (_ sp) (%period (List ref 1 (List ref 2 sp)) tick 4)))
     (def trem-per (fn (_ sp) (%period (List ref 1 (List ref 2 sp)) tick 2)))
@@ -379,12 +384,13 @@
               (int+ (List fold (fn (_ acc sp) (int+ acc (%ramp t (first sp) (first (rest sp)) (first (List ref 2 sp)))))
                                0 (List filter (fn (_ sp) (not (null? (List ref 2 sp)))) slides))
                     (if (null? glide) 0 (int- (first glide) (%ramp t 0 (%max 1 (rest glide)) (first glide))))))))
+    (def toward (fn (_ t) (fn (_ sp) (int- 100 (%ramp t (first sp) (first (rest sp)) (int- 100 (first (List ref 2 sp))))))))
+    (def product (fn (_ ps) (List fold (fn (_ acc f) (int/ (int* acc f) 100)) 100 ps)))
     (def factor
       (fn (_ t right)
-        (List fold (fn (_ acc f) (int/ (int* acc f) 100)) 100
+        (product
           (List append
-            (List map (fn (_ sp) (int- 100 (%ramp t (first sp) (first (rest sp)) (int- 100 (first (List ref 2 sp))))))
-                      (List filter (fn (_ sp) (not (null? (List ref 2 sp)))) fades))
+            (List map (toward t) (List filter (fn (_ sp) (not (null? (List ref 2 sp)))) fades))
             (List map (fn (_ sp) ((fn (_ u) (if (if (null? u) #t (not (two? sp))) 100 (int- 100 (%swell u (trem-per sp) (first (List ref 2 sp))))))
                                   (%within sp t right)))
                       trems)))))
@@ -402,7 +408,10 @@
                            end)
                    (fn (_ t right) (int/ (int* (%env-level base t) (factor t right)) 100))))
           (if (if (null? arps) (if (null? vibs) (if (null? slides) (null? glide) #f) #f) #f) ()
-            (%path (%times bends end) cents)))))
+            (%path (%times bends end) cents))
+          (if (null? lows) ()
+            (%path (%times (List append (list 0 end) (List flat-map (fn (_ sp) (list (first sp) (first (rest sp)))) lows)) end)
+                   (fn (_ t _) (product (List map (toward t) lows))))))))
 
 ; The note at the head of CELLS, in channel CI, started in M at MS a row:
 ; each voice of instrument INST at W percent, shaped by its effects.
@@ -428,8 +437,9 @@
           (List map (fn (_ v)
                       (def own (if (%pitched? v) v (pair (list (lit note) note) v)))
                       (def timed (if (int= at 0) own (pair (list (lit at) (int+ at (%prop1 v (lit at) 0))) own)))
+                      (def bent (if (null? (List ref 1 shape)) timed (pair (pair (lit bend) (List ref 1 shape)) timed)))
                       (pair (pair (lit env) (first shape))
-                            (if (null? (first (rest shape))) timed (pair (pair (lit bend) (first (rest shape))) timed))))
+                            (if (null? (List ref 2 shape)) bent (pair (pair (lit filter) (List ref 2 shape)) bent))))
                     (List ref 1 inst))
           0 (int/ (int* w (List ref 2 cell)) 100)))
       (List filter (fn (_ s) (int< s len)) (%marks 0 len every)))

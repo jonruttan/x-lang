@@ -5,17 +5,18 @@
 ; envelope of straight lines between points, through a one-pole low-pass,
 ; and placed left or right.  A sound is a list of voices.  A mixer renders
 ; the voices playing a block at a time into a buffer of frames, with its
-; effects over the mix (echoes, a reverb, a phaser), and at each block's
-; boundary and at any frame a source asks for, it hands the time to its
-; sources (a tracker, a pulse) which start the voices due then.  A mixer's
-; pitch and cut move every voice in it, and its effects can be named,
-; changed and taken off while it plays.
+; effects over the mix (echoes, a reverb, a phaser, a chorus, a drive, a
+; crush, a swept filter, a limiter), and at each block's boundary and at
+; any frame a source asks for, it hands the time to its sources (a
+; tracker, a pulse) which start the voices due then.  A mixer's pitch and
+; cut move every voice in it, and its effects can be named, changed and
+; taken off while it plays.
 ;
 ; Everything is integers.  A phase is 32 bits of a cycle, a step the phase
 ; a frame; a level is 0 to 2^24; a gain or a pan weight is 0 to 256.
 ; Times in a voice's description are milliseconds, levels percent.
 ;
-; The loops that touch every frame are ten kernels, each written once
+; The loops that touch every frame are fourteen kernels, each written once
 ; below as an integer function over word addresses.  The pure-x version is
 ; that form through x/tool/int-form; x/tool/int-form-jit compiles the same
 ; forms, and the compiled ones are adopted only after they write what the
@@ -39,15 +40,15 @@
 
 ; Frames I to N of mono buffer M: wave table TAB read at phase PH >> SH,
 ; PH stepping by ST and ST by DS, at level VOL stepping by DV, through the
-; low-pass whose last output is Y and whose coefficient is K (65536 passes
-; all).  Answers the phase after the last frame; the low-pass's last
-; output is the last frame written.
+; low-pass whose last output is Y and whose coefficient is K in 2^24ths
+; (2^24 passes all), stepping by DK.  Answers the phase after the last
+; frame; the low-pass's last output is the last frame written.
 (def %osc-form
-  (lit (fn (self m i n tab sh ph st ds vol dv y k)
+  (lit (fn (self m i n tab sh ph st ds vol dv y k dk)
     (if (< i n)
       (self m (+ i 1) n tab sh (& (+ ph st) 0xFFFFFFFF) (+ st ds) ds (+ vol dv) dv
-            (%mem-set-at! m i (+ y (*>> (- (>> (* (%mem-ref-at tab (& (>> ph sh) (- (<< 1 (- 32 sh)) 1))) (>> vol 8)) 16) y) k 16)))
-            k)
+            (%mem-set-at! m i (+ y (*>> (- (>> (* (%mem-ref-at tab (& (>> ph sh) (- (<< 1 (- 32 sh)) 1))) (>> vol 8)) 16) y) (>> k 8) 16)))
+            (+ k dk) dk)
       ph))))
 
 ; Frames I to N of mono buffer M added into stereo buffer A, left and
@@ -98,16 +99,16 @@
           (self w a (+ i 1) n g))
       0))))
 
-; Words I to N of stereo buffer A through the line R, MASK + 1 words, a
+; Words I to N of stereo buffer X through the line R, MASK + 1 words, a
 ; power of two, at P, read DL 65536ths of a frame back, DL stepping by DDL
 ; a word: the delay swept, read between the two frames it falls between.
-; The line gets the mix plus what is read at FB, the mix what is read at
-; WET, both of 256 and either negative.  Answers the place after the last
-; word.
+; The line gets X plus what is read at FB, Y what is read at WET, both of
+; 256 and either negative.  X and Y the same buffer is a phaser over it;
+; apart, a voice of a chorus.  Answers the place after the last word.
 (def %phase-form
-  (lit (fn (self a r i n p mask dl ddl fb wet)
+  (lit (fn (self x a r i n p mask dl ddl fb wet)
     (if (< i n)
-      (do (%mem-set-at! r p (+ (%mem-ref-at a i)
+      (do (%mem-set-at! r p (+ (%mem-ref-at x i)
                                (>> (* (>> (+ (* (%mem-ref-at r (& (- p (<< (>> dl 16) 1)) mask)) (- 256 (& (>> dl 8) 255)))
                                              (* (%mem-ref-at r (& (- p (+ (<< (>> dl 16) 1) 2)) mask)) (& (>> dl 8) 255)))
                                           8)
@@ -119,8 +120,81 @@
                                           8)
                                       wet)
                                    8)))
-          (self a r (+ i 1) n (& (+ p 1) mask) mask (+ dl ddl) ddl fb wet))
+          (self x a r (+ i 1) n (& (+ p 1) mask) mask (+ dl ddl) ddl fb wet))
       p))))
+
+; Words I to N of buffer A driven: each word, kept at H, taken GAIN of 256
+; up and clipped to 16 bits, then through x - x^3 / 3 (x a whole 2^15),
+; which leaves a quiet word as it was and rounds a loud one off at two
+; thirds of full scale; A gets what that adds at WET of 256.
+(def %drive-form
+  (lit (fn (self a h i n g wet)
+    (if (< i n)
+      (do (%mem-set-at! h 0 (%mem-ref-at a i))
+          (%mem-set-at! a i (>> (* (%mem-ref-at a i) g) 8))
+          (%mem-set-at! a i (match ((< 32768 (%mem-ref-at a i)) 32768)
+                                   ((< (%mem-ref-at a i) -32768) -32768)
+                                   (#t (%mem-ref-at a i))))
+          (%mem-set-at! a i (- (%mem-ref-at a i)
+                               (>> (* (>> (* (>> (* (%mem-ref-at a i) (%mem-ref-at a i)) 15) (%mem-ref-at a i)) 15) 85) 8)))
+          (%mem-set-at! a i (+ (%mem-ref-at h 0) (>> (* (- (%mem-ref-at a i) (%mem-ref-at h 0)) wet) 8)))
+          (self a h (+ i 1) n g wet))
+      0))))
+
+; Frames I to N of stereo buffer A crushed: each word ANDed with MASK,
+; which drops its low bits, and held at H, a frame of two words, taken
+; again each time C, stepping by ST, passes 65536.  Answers C.
+(def %crush-form
+  (lit (fn (self a h i n c st mask)
+    (if (< i n)
+      (do (if (< (+ c st) 65536) 0
+            (do (%mem-set-at! h 0 (& (%mem-ref-at a (<< i 1)) mask))
+                (%mem-set-at! h 1 (& (%mem-ref-at a (+ (<< i 1) 1)) mask))))
+          (%mem-set-at! a (<< i 1) (%mem-ref-at h 0))
+          (%mem-set-at! a (+ (<< i 1) 1) (%mem-ref-at h 1))
+          (self a h (+ i 1) n (if (< (+ c st) 65536) (+ c st) (- (+ c st) 65536)) st mask))
+      c))))
+
+; Frames I to N of stereo buffer A through a state-variable low-pass, its
+; low and band outputs for left then right at H: F, the cutoff in 65536ths
+; (2 pi times the cutoff over the rate), stepping by DF a frame, and Q of
+; 256 the damping, 512 none, less sharper.  Answers 0.
+(def %sweep-form
+  (lit (fn (self a h i n f df q)
+    (if (< i n)
+      (do (%mem-set-at! h 0 (+ (%mem-ref-at h 0) (*>> f (%mem-ref-at h 1) 16)))
+          (%mem-set-at! h 1 (+ (%mem-ref-at h 1)
+                               (*>> f (- (- (%mem-ref-at a (<< i 1)) (%mem-ref-at h 0)) (>> (* q (%mem-ref-at h 1)) 8)) 16)))
+          (%mem-set-at! a (<< i 1) (%mem-ref-at h 0))
+          (%mem-set-at! h 2 (+ (%mem-ref-at h 2) (*>> f (%mem-ref-at h 3) 16)))
+          (%mem-set-at! h 3 (+ (%mem-ref-at h 3)
+                               (*>> f (- (- (%mem-ref-at a (+ (<< i 1) 1)) (%mem-ref-at h 2)) (>> (* q (%mem-ref-at h 3)) 8)) 16)))
+          (%mem-set-at! a (+ (<< i 1) 1) (%mem-ref-at h 2))
+          (self a h (+ i 1) n (+ f df) df q))
+      0))))
+
+; Frames I to N of stereo buffer A at gain G of 65536, held under CEIL: a
+; frame either of whose words G would take past CEIL takes G down a 32nd
+; and is tried again, and after each frame G climbs back toward 65536 by
+; REL 65536ths of the way and one more.  Answers G.
+(def %limit-form
+  (lit (fn (self a i n g ceil rel)
+    (if (< i n)
+      (if (< ceil (*>> (match ((< (%mem-ref-at a (<< i 1)) 0) (- 0 (%mem-ref-at a (<< i 1))))
+                              (#t (%mem-ref-at a (<< i 1))))
+                       g 16))
+        (self a i n (- g (+ (>> g 5) 1)) ceil rel)
+        (if (< ceil (*>> (match ((< (%mem-ref-at a (+ (<< i 1) 1)) 0) (- 0 (%mem-ref-at a (+ (<< i 1) 1))))
+                                (#t (%mem-ref-at a (+ (<< i 1) 1))))
+                         g 16))
+          (self a i n (- g (+ (>> g 5) 1)) ceil rel)
+          (do (%mem-set-at! a (<< i 1) (*>> (%mem-ref-at a (<< i 1)) g 16))
+              (%mem-set-at! a (+ (<< i 1) 1) (*>> (%mem-ref-at a (+ (<< i 1) 1)) g 16))
+              (self a (+ i 1) n
+                    (match ((< 65536 (+ (+ g (*>> (- 65536 g) rel 16)) 1)) 65536)
+                           (#t (+ (+ g (*>> (- 65536 g) rel 16)) 1)))
+                    ceil rel))))
+      g))))
 
 ; Words I to N of buffer A at gain G, clipped to 16 bits, written to O as
 ; little-endian byte pairs; A is left zero for the next block.
@@ -166,7 +240,7 @@
       x))))
 
 (def %forms (list %osc-form %mix-form %echo-form %out-form %sine-form %harm-form %noise-form
-                  %allpass-form %add-form %phase-form))
+                  %allpass-form %add-form %phase-form %drive-form %crush-form %sweep-form %limit-form))
 
 (def %pure (List map int-form-pure %forms))
 
@@ -182,6 +256,10 @@
 (def %k-allpass ())
 (def %k-add ())
 (def %k-phase ())
+(def %k-drive ())
+(def %k-crush ())
+(def %k-sweep ())
+(def %k-limit ())
 
 (def %install!
   (fn (_ ks)
@@ -194,7 +272,11 @@
     (set! %k-noise (List ref 6 ks))
     (set! %k-allpass (List ref 7 ks))
     (set! %k-add (List ref 8 ks))
-    (set! %k-phase (List ref 9 ks))))
+    (set! %k-phase (List ref 9 ks))
+    (set! %k-drive (List ref 10 ks))
+    (set! %k-crush (List ref 11 ks))
+    (set! %k-sweep (List ref 12 ks))
+    (set! %k-limit (List ref 13 ks))))
 
 (%install! %pure)
 
@@ -240,7 +322,7 @@
 (def %agrees?
   (fn (_ engine)
     (def runs
-      (list (fn (_ k d e) (k d 3 40 e 26 4000000000 123456789 -1000 9000000 -700 55 30000))
+      (list (fn (_ k d e) (k d 3 40 e 26 4000000000 123456789 -1000 9000000 -700 55 7680000 -900))
             (fn (_ k d e) (k e d 0 30 200 57))
             (fn (_ k d e) (k d d e 0 64 5 60 300 90 (%wref e 5)))
             (fn (_ k d e) (k d e 0 64 300))
@@ -249,7 +331,11 @@
             (fn (_ k d _) (k d 0 64 977))
             (fn (_ k d e) (k d e 0 64 7 30 179 (%wref e 7)))
             (fn (_ k d e) (k d e 0 64 200))
-            (fn (_ k d e) (k d e 0 64 5 63 197208 -300 -150 200))))
+            (fn (_ k d e) (k d d e 0 64 5 63 197208 -300 -150 200))
+            (fn (_ k d e) (k d e 0 64 700 200))
+            (fn (_ k d e) (k d e 0 32 1000 20000 -256))
+            (fn (_ k d e) (k d e 0 32 9000 37 300))
+            (fn (_ k d _) (k d 0 32 65536 12000 300))))
     (List all?
       (fn (_ i)
         (def a (%check-words 64 5))
@@ -261,7 +347,7 @@
         (match ((not (= ra rb)) #f)
                ((not (%same? (%addr a) (%addr b) 0 64)) #f)
                (#t (%same? (%addr c) (%addr d) 0 64))))
-      (list 0 1 2 3 4 5 6 7 8 9))))
+      (list 0 1 2 3 4 5 6 7 8 9 10 11 12 13))))
 
 (def %entry ())
 
@@ -390,12 +476,15 @@
 ; --- Voices ----------------------------------------------------------------
 ;
 ; A voice is a vector record: its wave's table and shift, phase, step,
-; step's step, level, low-pass output and coefficient, left and right
-; weights, the frame it has reached (negative before it starts), its
-; envelope's points still ahead, ((FRAME . LEVEL) ...), from its start,
-; its wave, its low-pass coefficient before the mixer's cut, and its bend's
-; points still ahead, ((FRAME . STEP) ...): the step it is at each point,
-; in straight lines between, and held after the last.
+; step's step, level, low-pass output and coefficient (in 2^24ths), left
+; and right weights, the frame it has reached (negative before it starts),
+; its envelope's points still ahead, ((FRAME . LEVEL) ...), from its start,
+; its wave, its low-pass coefficient before the mixer's cut (in 65536ths),
+; its bend's points still ahead, ((FRAME . STEP) ...): the step it is at
+; each point, in straight lines between, and held after the last; the
+; coefficient's step a frame, its filter's points still ahead, ((FRAME .
+; PCT) ...), the percent of its own cut at each, the same way; the mixer's
+; cut it is played at, and the percent its filter last reached.
 
 (def %vector-type ((prim-ref (lit type) (lit of)) (Vector make 0 ())))
 (def %rec (fn (_ n) ((fn (_ r) (do (obj-set! r 0 n) r)) (obj-make %vector-type (int+ n 1)))))
@@ -404,10 +493,13 @@
 
 (def %v-tab 0) (def %v-sh 1) (def %v-ph 2) (def %v-st 3) (def %v-ds 4) (def %v-vol 5)
 (def %v-y 6) (def %v-k 7) (def %v-gl 8) (def %v-gr 9) (def %v-t 10) (def %v-env 11) (def %v-wave 12)
-(def %v-k0 13) (def %v-bend 14)
+(def %v-k0 13) (def %v-bend 14) (def %v-dk 15) (def %v-filter 16) (def %v-mcut 17) (def %v-kpct 18)
 
 ; Low-pass coefficient K at CUT percent, never shut.
 (def %cut-k (fn (_ k cut) ((fn (_ c) (if (int< c 1) 1 c)) (int/ (int* k cut) 100))))
+
+; Voice V's coefficient in 2^24ths with its filter at PCT percent.
+(def %k-at (fn (_ v pct) (int<< (%cut-k (%cut-k (%get v %v-k0) (%get v %v-mcut)) pct) 8)))
 
 (def %prop
   (fn (_ spec key default)
@@ -422,9 +514,11 @@
 ; percent, moved CENTS cents and its low-pass at CUT percent, the mixer's
 ; own.  SPEC is a list of (KEY ...): (wave NAME), (env (MS PCT) ...), a
 ; pitch (note "C4") or (hz N), (slide PITCH), (bend (MS CENTS) ...), (cut
-; PCT), (pan -100..100), (gain PCT), (detune CENTS), (at MS).  A bend is
-; the pitch's path, CENTS from it at each MS, in straight lines between and
-; a jump where two points share an MS; with one, the slide is not used.
+; PCT), (filter (MS PCT) ...), (pan -100..100), (gain PCT), (detune
+; CENTS), (at MS).  A bend is the pitch's path, CENTS from it at each MS,
+; in straight lines between and a jump where two points share an MS; with
+; one, the slide is not used.  A filter is the low-pass's path the same
+; way, PCT of its cut at each MS, and its cut before the first.
 (def %voice
   (fn (_ spec rate at gain cents master-cut)
     (def w (%wave (%prop1 spec (lit wave) (lit sine))))
@@ -443,7 +537,7 @@
                         (%prop spec (lit bend) ())))
     (def cut (%prop1 spec (lit cut) 100))
     (def pan (%prop1 spec (lit pan) 0))
-    (def v (%rec 15))
+    (def v (%rec 19))
     (%put! v %v-tab (List ref 1 w))
     (%put! v %v-sh (List ref 2 w))
     (%put! v %v-ph 0)
@@ -453,7 +547,12 @@
     (%put! v %v-vol 0)
     (%put! v %v-y 0)
     (%put! v %v-k0 (int/ (int* (if (int< 100 cut) 100 (if (int< cut 1) 1 cut)) 65536) 100))
-    (%put! v %v-k (%cut-k (%get v %v-k0) master-cut))
+    (%put! v %v-mcut master-cut)
+    (%put! v %v-kpct 100)
+    (%put! v %v-k (%k-at v 100))
+    (%put! v %v-dk 0)
+    (%put! v %v-filter (List map (fn (_ p) (pair (%ms (first p) rate) (%clamp 1 100 (first (rest p)))))
+                                 (%prop spec (lit filter) ())))
     (%put! v %v-gl (int/ (int* (int- 100 pan) 256) 200))
     (%put! v %v-gr (int/ (int* (int+ 100 pan) 256) 200))
     (%put! v %v-t (int- 0 (int+ at (%ms (%prop1 spec (lit at) 0) rate))))
@@ -472,9 +571,28 @@
                           (#t 0)))
     (%put! v %v-bend ahead)))
 
+; Voice V's coefficient's step a frame from frame T, at K, toward its
+; filter's next point, or 0 to hold.
+(def %k-step
+  (fn (_ v t k)
+    (def ahead (%get v %v-filter))
+    (if (if (null? ahead) #f (int< t (first (first ahead))))
+      (int/ (int- (%k-at v (rest (first ahead))) k) (int- (first (first ahead)) t))
+      0)))
+
+; Voice V's filter point P reached: its coefficient taken, and the step
+; toward the next point, or held.
+(def %filter-to!
+  (fn (_ v p ahead)
+    (%put! v %v-kpct (rest p))
+    (%put! v %v-k (%k-at v (rest p)))
+    (%put! v %v-filter ahead)
+    (%put! v %v-dk (%k-step v (first p) (%get v %v-k)))))
+
 ; Voice V rendered over frames A to B of the block into mono buffer M and
-; added into stereo buffer S, in stretches that end at its envelope's and
-; its bend's points.  Answers #t while the voice has more to play.
+; added into stereo buffer S, in stretches that end at its envelope's, its
+; bend's and its filter's points.  Answers #t while the voice has more to
+; play.
 (def %voice-render!
   (fn (_ v m s a b)
     (def t (%get v %v-t))
@@ -483,17 +601,20 @@
         ((fn (self from)
            (def env (%get v %v-env))
            (def bend (%get v %v-bend))
+           (def filt (%get v %v-filter))
            (match
              ((null? env) #f)
              ((not (int< from b)) #t)
              ((if (null? bend) #f (not (int< (%get v %v-t) (first (first bend)))))
                (do (%bend-to! v (first bend) (rest bend)) (self from)))
+             ((if (null? filt) #f (not (int< (%get v %v-t) (first (first filt)))))
+               (do (%filter-to! v (first filt) (rest filt)) (self from)))
              (#t
                (do (def tt (%get v %v-t))
                    (def point (first env))
                    (def left (int- (first point) tt))
-                   (def until (if (null? bend) left
-                                ((fn (_ l) (if (int< l left) l left)) (int- (first (first bend)) tt))))
+                   (def sooner (fn (_ l pts) (if (null? pts) l ((fn (_ k) (if (int< k l) k l)) (int- (first (first pts)) tt)))))
+                   (def until (sooner (sooner left bend) filt))
                    (def to (if (int< (int+ from until) b) (int+ from until) b))
                    (def n (int- to from))
                    (def vol (%get v %v-vol))
@@ -502,8 +623,9 @@
                      (do (def dv (int/ (int- (rest point) vol) left))
                          (%put! v %v-ph
                            (%k-osc m from to (%get v %v-tab) (%get v %v-sh) (%get v %v-ph) (%get v %v-st)
-                                   (%get v %v-ds) vol dv (%get v %v-y) (%get v %v-k)))
+                                   (%get v %v-ds) vol dv (%get v %v-y) (%get v %v-k) (%get v %v-dk)))
                          (%put! v %v-st (int+ (%get v %v-st) (int* n (%get v %v-ds))))
+                         (%put! v %v-k (int+ (%get v %v-k) (int* n (%get v %v-dk))))
                          (%put! v %v-y (%wref m (int- to 1)))
                          (%k-mix m s from to (%get v %v-gl) (%get v %v-gr))
                          (%put! v %v-t (int+ tt n))
@@ -580,7 +702,15 @@
 (def %cut!
   (fn (_ m pct)
     (def cut (if (int< 100 pct) 100 (if (int< pct 1) 1 pct)))
-    (List for-each (fn (_ v) (%put! v %v-k (%cut-k (%get v %v-k0) cut))) (%get m %m-voices))
+    (List for-each
+      (fn (_ v)
+        (def old (%get v %v-mcut))
+        (%put! v %v-mcut cut)
+        (if (int= (%get v %v-dk) 0)
+          (%put! v %v-k (%k-at v (%get v %v-kpct)))
+          (do (%put! v %v-k (int/ (int* (%get v %v-k) cut) old))
+              (%put! v %v-dk (%k-step v (%get v %v-t) (%get v %v-k))))))
+      (%get m %m-voices))
     (%put! m %m-cut cut)
     m))
 
@@ -597,7 +727,16 @@
 ;   add      the wet buffer into the mix at a gain, the wet buffer cleared
 ;   phase    line region, address, words (a power of two), place; the
 ;            delay's least and its sweep in 65536ths of a frame, the sweep's
-;            period in frames and the frame it has reached; feedback, wet
+;            period in frames and the frame it has reached; feedback, wet,
+;            and whether it sums into the wet buffer (a chorus's voice)
+;            or over the mix (a phaser)
+;   drive    a word of scratch; gain, wet
+;   crush    a held frame of two words; the hold's count, its step, the
+;            mask that keeps a word's high bits
+;   sweep    the low-pass's four words of state; the lowest step, the
+;            cents it sweeps up, the sweep's period in frames and the
+;            frame it has reached; damping
+;   limit    gain in 65536ths, ceiling, release
 ;
 ; Gains are of 256.
 
@@ -640,10 +779,47 @@
 (def %pow2 (fn (self n k) (if (int< k n) (self n (int* k 2)) k)))
 
 (def %phase-stage
-  (fn (_ least most period fb wet)
-    (def s (%line-stage (lit phase) (%pow2 (int* 2 (int+ (int>> most 16) 2)) 2) 6))
-    (%put! s 5 least) (%put! s 6 (int- most least)) (%put! s 7 (if (int< period 2) 2 period)) (%put! s 8 0)
-    (%put! s 9 fb) (%put! s 10 wet)
+  (fn (_ least most period fb wet into from)
+    (def s (%line-stage (lit phase) (%pow2 (int* 2 (int+ (int>> most 16) 2)) 2) 7))
+    (%put! s 5 least) (%put! s 6 (int- most least)) (%put! s 7 (if (int< period 2) 2 period))
+    (%put! s 8 (int% from (%get s 7)))
+    (%put! s 9 fb) (%put! s 10 wet) (%put! s 11 into)
+    s))
+
+(def %drive-stage
+  (fn (_ g wet)
+    (def s (%line-stage (lit drive) 1 2))
+    (%put! s 5 g) (%put! s 6 wet)
+    s))
+
+(def %crush-stage
+  (fn (_ st mask)
+    (def s (%line-stage (lit crush) 2 3))
+    (%put! s 5 65535) (%put! s 6 st) (%put! s 7 mask)
+    s))
+
+; The cents from step LO up to step HI, to the cent: the least C whose
+; shift of LO reaches HI.
+(def %span
+  (fn (_ lo hi)
+    ((fn (self a b)
+       (if (int< (int+ a 1) b)
+         ((fn (_ c) (if (int< (%shift lo c) hi) (self c b) (self a c))) (int/ (int+ a b) 2))
+         b))
+     -1 9600)))
+
+(def %sweep-stage
+  (fn (_ lo hi period q)
+    (def s (%line-stage (lit sweep) 4 5))
+    (%put! s 5 lo) (%put! s 6 (if (int< lo hi) (%span lo hi) 0)) (%put! s 7 (if (int< period 2) 2 period))
+    (%put! s 8 0) (%put! s 9 q)
+    s))
+
+(def %limit-stage
+  (fn (_ ceil rel)
+    (def s (%rec 4))
+    (%put! s %s-kind (lit limit))
+    (%put! s 1 65536) (%put! s 2 ceil) (%put! s 3 rel)
     s))
 
 ; The combs of a reverb in tenths of a millisecond at a size of 100, and
@@ -652,12 +828,15 @@
 (def %combs (list 297 371 411 437))
 (def %allpasses (list 50 17))
 
-; The stages for SPEC at RATE: (echo MS FB WET), (reverb SIZE DECAY WET)
-; or (phase LEAST-MS MOST-MS PERIOD-MS FB WET).
+; The stages for SPEC at RATE: (echo MS FB WET), (reverb SIZE DECAY WET),
+; (phase LEAST-MS MOST-MS PERIOD-MS FB WET), (chorus VOICES MS DEPTH-MS
+; PERIOD-MS WET), (drive GAIN WET), (crush BITS HZ), (sweep LOW-HZ HIGH-HZ
+; PERIOD-MS RES) or (limit CEILING RELEASE-MS).
 (def %stages
   (fn (_ spec rate)
     (def arg (fn (_ i) (List ref (int+ i 1) spec)))
     (def tenths (fn (_ t) (fixed*/ t rate 10000)))
+    (def delay (fn (_ ms) (%clamp 65536 1073741824 (int* 65536 (%ms ms rate)))))
     (match
       ((eq? (first spec) (lit echo))
         (list (%echo-stage (%ms (arg 0) rate) (%pct256 (arg 1)) (%pct256 (arg 2)) #f)))
@@ -670,8 +849,32 @@
       ((eq? (first spec) (lit phase))
         ((fn (_ least)
            (list (%phase-stage least (%clamp least 1073741824 (int* 65536 (%ms (arg 1) rate))) (%ms (arg 2) rate)
-                               (%pct256 (%clamp -95 95 (arg 3))) (%pct256 (%clamp -100 100 (arg 4))))))
-         (%clamp 65536 1073741824 (int* 65536 (%ms (arg 0) rate)))))
+                               (%pct256 (%clamp -95 95 (arg 3))) (%pct256 (%clamp -100 100 (arg 4))) #f 0)))
+         (delay (arg 0))))
+      ((eq? (first spec) (lit chorus))
+        (do (def n (%clamp 1 4 (arg 0)))
+            (def period (%ms (arg 3) rate))
+            (List append
+              ((fn (self k)
+                 (if (int< k n)
+                   (pair (%phase-stage (delay (int- (arg 1) (arg 2))) (delay (int+ (arg 1) (arg 2))) period
+                                       0 (int/ 256 n) #t (int/ (int* period k) n))
+                         (self (int+ k 1)))
+                   ()))
+               0)
+              (list (%add-stage (%pct256 (%clamp 0 100 (arg 4))))))))
+      ((eq? (first spec) (lit drive))
+        (list (%drive-stage (%pct256 (%clamp 0 10000 (arg 0))) (%pct256 (%clamp 0 100 (arg 1))))))
+      ((eq? (first spec) (lit crush))
+        (list (%crush-stage (if (int< (arg 1) 1) 65536 (%clamp 1 65536 (fixed*/ 65536 (arg 1) rate)))
+                            (int- 0 (int<< 1 (int- 16 (%clamp 1 16 (arg 0))))))))
+      ((eq? (first spec) (lit sweep))
+        (list (%sweep-stage (%step (int* 1000 (%clamp 1 (int/ rate 7) (arg 0))) rate)
+                            (%step (int* 1000 (%clamp 1 (int/ rate 7) (arg 1))) rate)
+                            (%ms (arg 2) rate) (int- 512 (int/ (int* 486 (%clamp 0 100 (arg 3))) 100)))))
+      ((eq? (first spec) (lit limit))
+        (list (%limit-stage (int/ (int* 32767 (%clamp 1 100 (arg 0))) 100)
+                            (int/ 65536 (%clamp 1 1073741824 (%ms (arg 1) rate))))))
       (#t (%fail (Str8 append "effect: no effect named " (symbol->str (first spec))))))))
 
 ; STAGES with each line the same length as OLD's at the same place taken
@@ -684,10 +887,10 @@
           (def o (if (null? old) () (first old)))
           (when (if (null? o) #f
                   (if (eq? (%get o %s-kind) (%get s %s-kind))
-                    (if (eq? (%get s %s-kind) (lit add)) #f (int= (%get o %s-len) (%get s %s-len)))
+                    (if (List includes? (%get s %s-kind) (lit (add limit))) #f (int= (%get o %s-len) (%get s %s-len)))
                     #f))
             (do (%put! s %s-line (%get o %s-line)) (%put! s %s-addr (%get o %s-addr)) (%put! s %s-place (%get o %s-place))
-                (when (eq? (%get s %s-kind) (lit phase)) (%put! s 8 (%get o 8)))))
+                (when (List includes? (%get s %s-kind) (lit (phase sweep))) (%put! s 8 (%get o 8)))))
           (self (rest stages) (if (null? old) () (rest old)))))))
 
 (def %effect-make
@@ -726,6 +929,22 @@
     (def u (int- t (int* period (int/ t period))))
     (int+ (%get s 5) (fixed*/ (%get s 6) (if (int< u half) u (int- period u)) half))))
 
+; A sweep stage's cutoff at frame T of its sweep, a triangle from its
+; lowest up and back by its cents, as 2 pi times the cutoff over the rate
+; in 65536ths, under 60000 to keep the filter stable.
+(def %sweep-f
+  (fn (_ s t)
+    (def period (%get s 7))
+    (def half (%max1 (int/ period 2)))
+    (def u (int% t period))
+    (def step (%shift (%get s 5) (fixed*/ (%get s 6) (if (int< u half) u (int- period u)) half)))
+    (%clamp 1 60000 (fixed*/ step 6283 65536000))))
+
+(def %max1 (fn (_ n) (if (int< n 1) 1 n)))
+
+; T moved on B frames round a stage's period.
+(def %turn (fn (_ s t b) (int% (int+ t b) (%get s 7))))
+
 ; Stage S over words 0 to N of M's block of B frames.
 (def %stage!
   (fn (_ m s n b)
@@ -741,12 +960,20 @@
         (%put! s %s-place (%k-allpass wet line 0 n (%get s %s-place) (%get s %s-len) (%get s 5)
                                       (%wref line (%get s %s-place)))))
       ((eq? kind (lit add)) (%k-add wet acc 0 n (%get s 1)))
-      (#t
+      ((eq? kind (lit phase))
         (do (def t (%get s 8))
             (def dl (%phase-dl s t))
-            (%put! s %s-place (%k-phase acc line 0 n (%get s %s-place) (int- (%get s %s-len) 1) dl
+            (%put! s %s-place (%k-phase acc (if (%get s 11) wet acc) line 0 n (%get s %s-place) (int- (%get s %s-len) 1) dl
                                         (int/ (int- (%phase-dl s (int+ t b)) dl) n) (%get s 9) (%get s 10)))
-            (%put! s 8 ((fn (_ t1) (int- t1 (int* (%get s 7) (int/ t1 (%get s 7))))) (int+ t b))))))))
+            (%put! s 8 (%turn s t b))))
+      ((eq? kind (lit drive)) (%k-drive acc line 0 n (%get s 5) (%get s 6)))
+      ((eq? kind (lit crush)) (%put! s 5 (%k-crush acc line 0 b (%get s 5) (%get s 6) (%get s 7))))
+      ((eq? kind (lit sweep))
+        (do (def t (%get s 8))
+            (def f (%sweep-f s t))
+            (%k-sweep acc line 0 b f (int/ (int- (%sweep-f s (int+ t b)) f) b) (%get s 9))
+            (%put! s 8 (%turn s t b))))
+      (#t (%put! s 1 (%k-limit acc 0 b (%get s 1) (%get s 2) (%get s 3)))))))
 
 ; Frames A to B of the block: every voice, then the voices that have ended
 ; dropped.
@@ -825,7 +1052,7 @@
       (%make rate block))
 
     (method play! (self (param m VECTOR "A mixer")
-                        (param specs LIST "Voices, each a list of (KEY ...): (wave NAME), (env (MS PCT) ...), (note \"C4\") or (hz N), (slide PITCH), (bend (MS CENTS) ...), (cut PCT), (pan -100..100), (gain PCT), (detune CENTS), (at MS)")
+                        (param specs LIST "Voices, each a list of (KEY ...): (wave NAME), (env (MS PCT) ...), (note \"C4\") or (hz N), (slide PITCH), (bend (MS CENTS) ...), (cut PCT), (filter (MS PCT) ...), (pan -100..100), (gain PCT), (detune CENTS), (at MS)")
                         (param at INTEGER "Frames after the start of the stretch being rendered, 0 at once")
                         (param gain INTEGER "Percent of each voice's own gain"))
       (doc "Start a sound: each voice plays its envelope from AT, its pitch sliding to its slide's over the envelope, or following its bend (CENTS from its pitch at each MS, straight between, a jump where two points share an MS), and ends at the envelope's last point. A voice with no wave is a sine; with no envelope, a 200 ms fade."
@@ -853,8 +1080,8 @@
 
     (method effect! (self (param m VECTOR "A mixer")
                           (param name ANY "The effect's name: a symbol, or any object kept to name it, told apart by identity (same?)")
-                          (param spec LIST "(echo MS FB WET), (reverb SIZE DECAY WET) or (phase LEAST-MS MOST-MS PERIOD-MS FB WET); nil to take it off"))
-      (doc "Put an effect over everything the mixer renders, by name: a new name runs after the effects already there, a name already there is changed in its place, and nil takes it off. An echo is the mix delayed by MS, FB percent fed back and WET percent added, each repeat duller. A reverb is a room: four combs at SIZE percent of a middling room's lengths, DECAY percent fed back (up to 98), through two all-passes, WET percent added. A phase sweeps a short delay from LEAST-MS to MOST-MS and back every PERIOD-MS, FB percent fed back and WET percent added, each -95 to 95 and -100 to 100: a phaser at a millisecond or two, a flanger at more. A change that keeps an effect's kind and its lines' lengths keeps what is ringing in them."
+                          (param spec LIST "(echo MS FB WET), (reverb SIZE DECAY WET), (phase LEAST-MS MOST-MS PERIOD-MS FB WET), (chorus VOICES MS DEPTH-MS PERIOD-MS WET), (drive GAIN WET), (crush BITS HZ), (sweep LOW-HZ HIGH-HZ PERIOD-MS RES) or (limit CEILING RELEASE-MS); nil to take it off"))
+      (doc "Put an effect over everything the mixer renders, by name: a new name runs after the effects already there, a name already there is changed in its place, and nil takes it off. An echo is the mix delayed by MS, FB percent fed back and WET percent added, each repeat duller. A reverb is a room: four combs at SIZE percent of a middling room's lengths, DECAY percent fed back (up to 98), through two all-passes, WET percent added. A phase sweeps a short delay from LEAST-MS to MOST-MS and back every PERIOD-MS, FB percent fed back and WET percent added, each -95 to 95 and -100 to 100: a phaser at a millisecond or two, a flanger at more. A chorus is VOICES (1 to 4) copies of the mix, each delayed MS swept DEPTH-MS either way every PERIOD-MS, a share of the period apart, WET percent added. A drive takes the mix up GAIN percent and rounds it off, a quiet sound as it was and a loud one saturated, WET percent of the change kept. A crush keeps BITS of each sample's 16 and holds it HZ times a second, 0 for every frame. A sweep is a resonant low-pass swept from LOW-HZ up to HIGH-HZ and back every PERIOD-MS, RES 0 to 100 its resonance: an auto-wah. A limit holds the mix under CEILING percent of full scale, taking its gain down at once and back over RELEASE-MS. A change that keeps an effect's kind and its lines' lengths keeps what is ringing in them."
         (returns VECTOR "The mixer")
         (sample "(Mixer effect! m (lit room) (list (lit reverb) 120 80 30))" "m"))
       (%effect! m name spec))
@@ -965,5 +1192,5 @@
       (%jit-try!))))
 
 (doc (provide x/audio/mixer Mixer)
-  "Sound synthesised and mixed in x: wave tables, voices with envelopes, pitch slides, low-pass and pan, effects over the mix (echoes, a reverb, a phaser), a pitch and a cut moving every voice, and stereo signed 16-bit frames a block at a time for (Sdl audio-put!), the per-frame loops compiled and checked against pure x."
+  "Sound synthesised and mixed in x: wave tables, voices with envelopes, pitch slides, low-pass and pan, effects over the mix (echoes, a reverb, a phaser, a chorus, a drive, a crush, a swept filter, a limiter), a pitch and a cut moving every voice, and stereo signed 16-bit frames a block at a time for (Sdl audio-put!), the per-frame loops compiled and checked against pure x."
   (example "(List ref 2 (Mixer wave (lit sine)))" "21"))
