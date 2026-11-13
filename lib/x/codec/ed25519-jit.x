@@ -171,4 +171,5 @@
 (prim-reg! (lit ed25519) (lit jit-make) ed25519-jit-make)
 
 (doc (provide x/codec/ed25519-jit ed25519-jit-make)
+  (example "(do (import x/codec/ed25519-jit) (procedure? (prim-ref (lit ed25519) (lit jit-make))))" "#t")
   "The compiled Ed25519 scalar multiplication, inverse and square root's power (JIT, ARM64 and x86-64 backends) over x/codec/fe25519-jit's checked operations; built and adopted only via (Ed25519 jit!) after answering RFC 8032's test 1.")

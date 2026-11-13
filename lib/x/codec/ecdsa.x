@@ -590,4 +590,5 @@
       (%public curve private))))
 
 (doc (provide x/codec/ecdsa Ecdsa)
+  (sample "(Ecdsa verify (lit p256) pub (Sha256 bytes-n msg n) r s)" "#t when r and s are pub's signature of msg's SHA-256")
   "ECDSA over P-256, P-384 and P-521: (Ecdsa verify curve public hash r s) (SEC 1 4.1.4), verify-der for a DER signature, sign with RFC 6979's deterministic nonce (4.1.3), and public, a private key's point; on x/codec/mont-jit's engines.")

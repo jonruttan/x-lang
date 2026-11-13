@@ -358,7 +358,8 @@
                         (param rounds INTEGER "Rounds, 1 or more: OpenSSH writes 16")
                         (param key-len INTEGER "Bytes of key to derive, 1 to 1024"))
       (doc "bcrypt-pbkdf (OpenBSD's bcrypt_pbkdf.c): key-len bytes derived from a passphrase and a salt over rounds of bcrypt_hash -- what OpenSSH turns a key file's passphrase into the key and IV of its cipher with. The regions are read by their lengths, so a salt holding NUL bytes is whole; the answer is binary, read by key-len. Each round is a bcrypt_hash, 129 Blowfish key schedules: the compiled engine is built for the first, and adopted only when it answers Go's bcrypt_hash vector; pure-x carries on otherwise, identical and far slower."
-        (returns STRING "key-len bytes"))
+        (returns STRING "key-len bytes")
+        (sample "(Bcrypt pbkdf \"passphrase\" 10 salt 16 16 48)" "the 48 bytes OpenSSH splits into an aes256-ctr key and IV for a key file whose salt is salt and rounds 16"))
       (when (int< rounds 1) (Err raise 'value "Bcrypt: rounds must be 1 or more" rounds))
       (when (int< password-len 1) (Err raise 'value "Bcrypt: an empty password" password-len))
       (when (if (int< salt-len 1) #t (int< 1048576 salt-len)) (Err raise 'value "Bcrypt: a bad salt length" salt-len))
@@ -367,12 +368,15 @@
     (method hash (self (param pass STRING "A 64-byte SHA-512 digest: the passphrase's")
                        (param salt STRING "A 64-byte SHA-512 digest: the salt's"))
       (doc "bcrypt_hash: the 32 bytes Blowfish answers for two SHA-512 digests, the step bcrypt-pbkdf repeats. Through the compiled engine once it is adopted."
-        (returns STRING "32 bytes"))
+        (returns STRING "32 bytes")
+        (sample "(Bcrypt hash (Sha512 bytes-n \"pw\" 2) (Sha512 bytes-n \"salt\" 4))" "32 bytes of Blowfish output; one round of pbkdf"))
       (%hash pass salt))
     (method jit! (self)
       (doc "Build and adopt the compiled bcrypt_hash engine (JIT; ARM64 and x86-64 backends) now, if it answers Go's bcrypt_hash vector. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. pbkdf and hash build it on their own."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Bcrypt jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the hashes are the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/bcrypt Bcrypt bcrypt-initial-state)
+  (sample "(Bcrypt pbkdf \"passphrase\" 10 salt 16 16 48)" "the key and IV of an OpenSSH key file's cipher; each round costs 129 Blowfish key schedules, so the first call also builds the compiled engine")
   "bcrypt-pbkdf (OpenBSD): (Bcrypt pbkdf password password-len salt salt-len rounds key-len) derives key bytes as OpenSSH does for a key file's passphrase; (Bcrypt hash pass salt) is one bcrypt_hash. Pure x-lang, with a compiled engine built on first use and adopted only after it answers Go's vector.")

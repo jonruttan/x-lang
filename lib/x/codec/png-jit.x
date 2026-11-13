@@ -120,4 +120,5 @@
 (prim-reg! (lit png) (lit jit-make) png-jit-make)
 
 (doc (provide x/codec/png-jit png-jit-make)
+  (example "(do (import x/codec/png-jit) (procedure? (prim-ref (lit png) (lit jit-make))))" "#t")
   "The compiled row loops (JIT, ARM64 and x86-64 backends) behind (Png jit!): the four PNG filters undone in place, and the 8-bit layouts written as RGBA, adopted only after they agree with the pure-x loops.")

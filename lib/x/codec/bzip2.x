@@ -933,7 +933,8 @@
       (Err raise (lit value) "Bzip2: the level is not 1 to 9" (list (pair (lit bzip2) (lit level)))))))
 
 (def-class Bzip2 ()
-  (doc "bzip2 compression in pure x-lang, byte for byte as busybox's bzip2 writes it. (Bzip2 compress s level) answers (OUT N); a stream can also be written a piece at a time: stream, feed.")
+  (doc "bzip2 compression in pure x-lang, byte for byte as busybox's bzip2 writes it. (Bzip2 compress s level) answers (OUT N); a stream can also be written a piece at a time: stream, feed."
+    (example "(first (rest (Bzip2 compress \"hello\" 1)))" "41"))
   (static
     (method compress (self (param s STRING "The bytes to compress")
                            (param level INTEGER "The block size digit, 1 to 9: blocks of 100000 bytes a step")
@@ -946,7 +947,8 @@
              s (first sp) (first (rest sp)) #t))
     (method stream (self (param level INTEGER "The block size digit, 1 to 9"))
       (doc "A bzip2 stream written a piece at a time with (Bzip2 feed): what bzip2 wants of a file it must not read whole. The output is the bytes compress writes for the pieces joined."
-        (returns OBJECT "The stream"))
+        (returns OBJECT "The stream")
+        (sample "(let ((z (Bzip2 stream 9))) (first (rest (Bzip2 feed z \"hello\" 0 5 #t))))" "41, the size (Bzip2 compress \"hello\" 9) answers; a stream builds the compiled engine"))
       ; A piece at a time says nothing about the whole, so a stream asks for
       ; the engine outright rather than by the first piece's size.
       (%encoder (%level-ok level) (%engine-for %jit-threshold)))
@@ -956,12 +958,15 @@
                        (param n INTEGER "How many bytes it is")
                        (param final BOOL "Is this the last piece? The last block and the end marker are then written"))
       (doc "Compress n more bytes into the stream. Answers the whole bytes of stream the blocks they fill make; a block is written once it is full, the bits short of a byte wait, and the last piece (final) writes the rest."
-        (returns LIST "(OUT N): a region and how many of its bytes the stream gained"))
+        (returns LIST "(OUT N): a region and how many of its bytes the stream gained")
+        (sample "(do (Bzip2 feed z \"hel\" 0 3 #f) (first (rest (Bzip2 feed z \"lo\" 0 2 #t))))" "41 for a fresh (Bzip2 stream 9): the first feed waits for its block, the final one writes the stream"))
       (%feed z s start n final))
     (method jit! (self)
       (doc "Build and adopt the compiled run, sort, move-to-front, selection and writing loops (JIT; ARM64 and x86-64 backends) now, if they write the check streams exactly as the pure-x ones do. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x compressor carries on, with the same bytes. compress builds it on its own for an input of 4KB or more, and a stream always."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Bzip2 jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the output is the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/bzip2 Bzip2)
+  (example "(Str8 sub 0 4 (first (Bzip2 compress \"hello\" 1)))" "\"BZh1\"")
   "bzip2 compression in pure x-lang, busybox's compressor: (Bzip2 compress s level) answers (OUT N); stream and feed write one a piece at a time.")

@@ -282,7 +282,8 @@
                                 (param size INTEGER "The key's length in bytes: 16, 24 or 32, for AES-128, -192 or -256")
                                 (param block STRING "The 16 bytes to encrypt"))
       (doc "One block of the AES cipher (FIPS 197): 16 bytes encrypted under a 128-, 192- or 256-bit key, answered as a fresh 16-byte string -- binary, so read it by count. The key is read by size, not by its string length, so a key holding NUL bytes is whole."
-        (returns STRING "16 bytes"))
+        (returns STRING "16 bytes")
+        (example "(do (import x/codec/bytes) (Bytes hex (Bytes region (Aes encrypt-block (first (Bytes of-hex \"000102030405060708090a0b0c0d0e0f\")) 16 (first (Bytes of-hex \"00112233445566778899aabbccddeeff\"))) 0 16)))" "\"69c4e0d86a7b0430d8cdb78070b4c55a\""))
       (%check-size size)
       (def st (Vector make 16 0))
       (%encrypt! (%schedule key size) st (Vector make 16 0) block 0)
@@ -307,7 +308,8 @@
                            (param start INTEGER "Where the plaintext starts")
                            (param len INTEGER "Its length"))
       (doc "AES-GCM encryption (NIST SP 800-38D): the plaintext region in counter mode from the block after J0, and the 16-byte tag over the additional data and the ciphertext -- OpenSSH's aes128-gcm@openssh.com and aes256-gcm@openssh.com (RFC 5647), where the additional data is the packet length. Answered as (CIPHERTEXT . TAG), fresh strings of len and 16 bytes."
-        (returns PAIR "(CIPHERTEXT . TAG)"))
+        (returns PAIR "(CIPHERTEXT . TAG)")
+        (example "(do (import x/codec/bytes) (let ((r (Aes gcm-seal (first (Bytes of-hex \"00000000000000000000000000000000\")) 16 (first (Bytes of-hex \"000000000000000000000000\")) (first (Bytes of-hex \"00000000000000000000000000000000\")) 0 0 0 16))) (list (Bytes hex (Bytes region (first r) 0 16)) (Bytes hex (Bytes region (rest r) 0 16)))))" "(\"0388dace60b6a392f328c2b971b2fe78\" \"ab6e47d42cec13bdf53a67b21257bddf\")"))
       (%check-size size)
       (def ks (%schedule-of key size))
       (def c (%run ks (%gcm-block iv 2) s start len))
@@ -322,7 +324,9 @@
                            (param len INTEGER "Its length")
                            (param tag STRING "The 16-byte tag that came with it"))
       (doc "AES-GCM decryption (NIST SP 800-38D): the tag over the additional data and the ciphertext checked, every byte of it, and only then the ciphertext deciphered. Answers the plaintext, a fresh string of len bytes, or nil when the tag does not match."
-        (returns ANY "The plaintext, or nil"))
+        (returns ANY "The plaintext, or nil")
+        (example "(do (import x/codec/bytes) (let ((k (first (Bytes of-hex \"00000000000000000000000000000000\"))) (iv (first (Bytes of-hex \"000000000000000000000000\")))) (let ((r (Aes gcm-seal k 16 iv \"secret\" 0 0 0 6))) (Aes gcm-open k 16 iv (first r) 0 0 0 6 (rest r)))))" "\"secret\"")
+        (example "(do (import x/codec/bytes) (let ((k (first (Bytes of-hex \"00000000000000000000000000000000\"))) (iv (first (Bytes of-hex \"000000000000000000000000\")))) (let ((r (Aes gcm-seal k 16 iv \"secret\" 0 0 0 6))) (null? (Aes gcm-open k 16 iv (first r) 0 0 0 6 (Str8 pad-right 16 #\\x \"\"))))))" "#t"))
       (%check-size size)
       (def ks (%schedule-of key size))
       (def want (%gcm-tag ks iv s a-start a-len s start len))
@@ -331,8 +335,10 @@
       (if (int= diff 0) (%run ks (%gcm-block iv 2) s start len) ()))
     (method jit! (self)
       (doc "Build and adopt the compiled counter-mode engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x cipher. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. ctr also builds it on its own for any single region of 1KB or more."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Aes jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the answers are the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/aes Aes)
+  (example "(Aes ctr \"0123456789abcdef\" 16 \"fedcba9876543210\" (Aes ctr \"0123456789abcdef\" 16 \"fedcba9876543210\" \"hello\" 0 5) 0 5)" "\"hello\"")
   "AES (FIPS 197): (Aes encrypt-block key size block) is one block, (Aes ctr key size iv s [start len]) counter mode (SP 800-38A), OpenSSH's aes-ctr; (Aes gcm-seal ...) and (Aes gcm-open ...) Galois/counter mode (SP 800-38D), OpenSSH's aes-gcm. Key sizes 16, 24 and 32 bytes. Pure x-lang, with an optional differentially-verified JIT engine for counter mode ((Aes jit!), or built on its own for a region of 1KB or more).")

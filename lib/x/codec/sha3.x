@@ -266,8 +266,10 @@
       (%checked width s n))
     (method jit! (self)
       (doc "Build and adopt the compiled permutation engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x digest. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. hex also builds it on its own for any single input of 4KB or more."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Sha3 jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the digests are the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/sha3 Sha3)
+  (example "(Sha3 hex 256 \"\")" "\"a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a\"")
   "SHA-3 (FIPS 202): (Sha3 hex WIDTH s) digests a byte string. Pure x-lang, with an optional differentially-verified JIT engine ((Sha3 jit!), or built on its own for an input of 4KB or more).")

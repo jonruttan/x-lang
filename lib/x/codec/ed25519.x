@@ -538,13 +538,15 @@
   (static
     (method public (self (param seed STRING "The private key: 32 bytes are read"))
       (doc "The public key for a seed (RFC 8032 5.1.5): the clamped first half of its SHA-512 times the base point, encoded as 32 bytes."
-        (returns STRING "32 bytes"))
+        (returns STRING "32 bytes")
+        (sample "(Bytes hex (Bytes region (Ed25519 public (first (Bytes of-hex \"9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60\"))) 0 32))" "\"d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a\", RFC 8032 7.1's test 1"))
       (%public seed))
     (method sign (self (param seed STRING "The private key: 32 bytes are read")
                        (param m STRING "The message")
                        . (param span LIST "START, then LENGTH: which bytes of m; default all of m"))
       (doc "The signature of a message under a seed (RFC 8032 5.1.6): R then S, 64 bytes. Deterministic: the same seed and message always give the same signature. GIVE THE REGION FOR BINARY INPUT: m's own length is measured to its first NUL. Not constant time."
-        (returns STRING "64 bytes"))
+        (returns STRING "64 bytes")
+        (sample "(Bytes hex (Bytes region (Ed25519 sign seed \"\" 0 0) 0 64))" "\"e5564300c360ac72...4655141438e7a100b\" for test 1's seed, RFC 8032 7.1"))
       (def r (%region m span))
       (%sign seed m (first r) (first (rest r))))
     (method verify (self (param pub STRING "The public key: 32 bytes are read")
@@ -552,13 +554,16 @@
                          (param m STRING "The message")
                          . (param span LIST "START, then LENGTH: which bytes of m; default all of m"))
       (doc "Whether sig is pub's signature of the message (RFC 8032 5.1.7): #f for a key that encodes no point, an S at or past the group order, or a signature that does not check. Not constant time."
-        (returns BOOL "#t when the signature checks"))
+        (returns BOOL "#t when the signature checks")
+        (sample "(Ed25519 verify (Ed25519 public seed) (Ed25519 sign seed \"abc\") \"abc\")" "#t; with \"abd\" as the message, #f"))
       (def r (%region m span))
       (%verify pub sig m (first r) (first (rest r))))
     (method jit! (self)
       (doc "Build and adopt the compiled scalar multiplication, inverse and square root's power (JIT; ARM64 and x86-64 backends) now, if they answer RFC 8032's test 1 and the field operations under them agree with the pure-x field. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. sign and verify never build it on their own, so the pure-x functions stay what a host without the JIT runs and what the specs prove; the build costs less than one pure-x signature, so a process that signs or checks asks for it."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Ed25519 jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the keys and signatures are the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/ed25519 Ed25519)
+  (sample "(Ed25519 verify (Ed25519 public seed) (Ed25519 sign seed m) m)" "#t: a seed's signature checks under its public key")
   "Ed25519 (RFC 8032): (Ed25519 public seed), (Ed25519 sign seed m [start len]) and (Ed25519 verify pub sig m [start len]). Pure x-lang over x/codec/fe25519 and x/codec/sha512, with an optional differentially-verified JIT engine ((Ed25519 jit!)).")

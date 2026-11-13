@@ -112,7 +112,8 @@
          %entry))))
 
 (def-class Crc32 ()
-  (doc "The CRC-32 of ISO 3309 (gzip, zip, git's pack indexes) in pure x-lang.")
+  (doc "The CRC-32 of ISO 3309 (gzip, zip, git's pack indexes) in pure x-lang."
+    (example "(Crc32 of \"abc\")" "891568578"))
   (static
     (method of (self (param s STRING "Bytes")
                      . (param span LIST "START, then LENGTH: which bytes of s; default all of s"))
@@ -132,8 +133,10 @@
       (u32 (%xor ((%fold-for (first (rest sp))) (%at (str->ptr s) (first sp)) (first (rest sp)) (%xor (u32-bits crc) 0xFFFFFFFF)) 0xFFFFFFFF)))
     (method jit! (self)
       (doc "Build and adopt the compiled byte loop (JIT; ARM64, x86-64 and 32-bit ARM backends) now, if it sums the check inputs exactly as the pure-x fold does. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x fold carries on, with the same sums. of and update build it on their own for 4KB or more."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Crc32 jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the sums are the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/crc32 Crc32)
+  (example "(Crc32 update (Crc32 of \"ab\") \"c\")" "891568578")
   "The CRC-32 of ISO 3309 in pure x-lang: (Crc32 of s) and (Crc32 update crc s), the sum libz's crc32 answers.")

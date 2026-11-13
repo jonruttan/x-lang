@@ -258,3 +258,100 @@ is nil) because nothing exercised this layer.
 ```
 ---
     (2 #t)
+
+## cov: branch coverage
+
+`cov-branches` walks forms that have run and counts the branches the
+construct declarations name, by the marks x-bin-profile leaves.
+
+### an if counts its then and its else
+
+```x
+(do
+  (import x/tool/cov cov-branches)
+  (def %forms (Tok read-str (%base) "(if #t (+ 1 1) (+ 2 2))\n"))
+  (eval (first %forms))
+  (def r (cov-branches %forms (lit ((if (branch . cond))))))
+  (write (list (first r) (first (rest r)))))
+```
+---
+    (1 2)
+
+### the untaken branch is listed with its label
+
+```x
+(do
+  (import x/tool/cov cov-branches)
+  (def %forms (Tok read-str (%base) "(if #t (+ 1 1) (+ 2 2))\n"))
+  (eval (first %forms))
+  (def r (cov-branches %forms (lit ((if (branch . cond))))))
+  (def missed (first (rest (rest r))))
+  (display (first (first missed))))
+```
+---
+    if-else
+
+### a match counts one branch a clause
+
+```x
+(do
+  (import x/tool/cov cov-branches)
+  (def %forms (Tok read-str (%base) "(match ((eq? 1 1) (+ 1 0)) ((eq? 1 2) (+ 2 0)))\n"))
+  (eval (first %forms))
+  (def r (cov-branches %forms (lit ((match (branch . clauses))))))
+  (write (list (first r) (first (rest r)))))
+```
+---
+    (1 2)
+
+### an and counts each argument, and stops where evaluation stopped
+
+```x
+(do
+  (import x/tool/cov cov-branches)
+  (def %forms (Tok read-str (%base) "(and (eq? 1 2) (+ 1 2))\n"))
+  (eval (first %forms))
+  (def r (cov-branches %forms (lit ((and (branch . short))))))
+  (write (list (first r) (first (rest r)))))
+```
+---
+    (1 2)
+
+### a guard's handler is a branch, unreached when nothing raises
+
+```x
+(do
+  (import x/tool/cov cov-branches)
+  (def %forms (Tok read-str (%base) "(guard (e (+ 1 2)) (+ 3 4))\n"))
+  (eval (first %forms))
+  (def r (cov-branches %forms (lit ((guard (branch . guard))))))
+  (write (list (first r) (first (rest r)))))
+```
+---
+    (0 1)
+
+### branches inside a called fn are found
+
+```x
+(do
+  (import x/tool/cov cov-branches)
+  (def %forms (Tok read-str (%base) "(def %cov-probe (fn (_ x) (if (> x 0) (+ x 1) (- x 1))))\n(%cov-probe 5)\n"))
+  (eval (first %forms))
+  (eval (first (rest %forms)))
+  (def r (cov-branches %forms (lit ((if (branch . cond))))))
+  (write (list (first r) (first (rest r)))))
+```
+---
+    (1 2)
+
+### a construct declared with no branches is not counted
+
+```x
+(do
+  (import x/tool/cov cov-branches)
+  (def %forms (Tok read-str (%base) "(if #t (+ 1 1) (+ 2 2))\n"))
+  (eval (first %forms))
+  (write (first (rest (cov-branches %forms (lit ((if (branch . none)) (do (fmt . body)))))))))
+```
+---
+    0

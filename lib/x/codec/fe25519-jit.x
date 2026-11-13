@@ -268,4 +268,5 @@
     %fj-chains))
 
 (doc (provide x/codec/fe25519-jit fe-jit-compile fe-jit-replayed? fe-jit-exprs fe-jit-chains fe-jit-rows fe-jit-swap)
+  (example "(do (import x/codec/fe25519-jit fe-jit-compile) (procedure? fe-jit-compile))" "#t")
   "The GF(2^255 - 19) operations as compiled functions over a scratch of limbs (JIT, ARM64 and x86-64 backends): (fe-jit-compile) builds multiply, add, subtract, times-121666 and swap once a process, each checked against the pure-x field; (fe-jit-chains) the inverse and the square root's power on field elements over them. On a 4-byte word the build is x/codec/mont-jit's engine, the field's own there.")

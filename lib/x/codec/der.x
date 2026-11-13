@@ -165,4 +165,5 @@
       ((fn (self i acc) (if (= i (%len contents)) acc (self (+ i 1) (int| (int<< acc 8) (%at contents i))))) 0 0))))
 
 (doc (provide x/codec/der Der)
+  (example "(first (Der read (Bytes of-hex \"020101\")))" "2")
   "DER (X.690) over regions: (Der read r) answers an element (TAG CONTENTS WHOLE); items, oid, time, bits and small read what is inside one.")

@@ -42,6 +42,8 @@
 (module x/tool/fn-compile)
 (import x/type/class)
 (import x/type/env)
+(import x/type/module)
+(import x/sys/gc)
 (import x/core/fn)
 (import x/tool/compiled)
 (import x/tool/asm-cache asm-compile-cached asm-compile-kept asm-fn-values)
@@ -346,13 +348,30 @@
            (list op (%fc-raw (first args)) (%fc-raw (first (rest args))))
            (rest (rest args)))))))
 
+; Every template made, so that each can be emptied before a state image is
+; written.  A template holds the values of its last call until the call
+; returns (asm-compile.x, %asm-emit-quoted-call!), and past that when the
+; call was in tail position or raised out of it; a value there can be a
+; Ptr to a string's bytes, which no image can name.  The template is
+; registered where it is made, so one made for a rewrite and one read back
+; by its name (%fc-fvar-values) are both emptied.
+(def %fc-templates ())
+(def %fc-empty-templates!
+  (fn (_)
+    (List for-each
+      (fn (_ t) (List for-each (fn (_ slot) (%set-first! (rest slot) ())) t))
+      %fc-templates)))
+
 ; The template a call site fills and evaluates (asm-compile.x, the function
 ; world): one (lit ()) for the callee and one for each of N arguments, made
 ; here with list, so the evaluator reads it as a call.
 (def %fc-template
   (fn (_ n)
-    ((fn (self k acc) (if (int< k 0) acc (self (int- k 1) (pair (list (lit lit) ()) acc))))
-     n ())))
+    (def made
+      ((fn (self k acc) (if (int< k 0) acc (self (int- k 1) (pair (list (lit lit) ()) acc))))
+       n ()))
+    (set! %fc-templates (pair made %fc-templates))
+    made))
 
 ; A call with values: HEAD and ARGS rewritten, held, then (%call-q T ...)
 ; or a self-call (%fc-self T ...), T the site's template.
@@ -1073,15 +1092,26 @@
 ; asm-fn-values: no closure's state and no other primitive's is that object.
 ; The word after the one the function reads holds the address of the routine
 ; replaced, which is this process's and so is read, not compiled in.
+;
+; A compiled function that answers nil may have left a tail call in the
+; base's tco-expr cell (asm-compile.x, %asm-emit-quoted-call!), as the
+; evaluator's own trampoline expects of a primitive; an apply makes it, by
+; the engine's trampoline routine, handed a run of one nil.  Its address,
+; the cell's and the run's are units 4, 3 and 5 of asm-fn-values.
 (def %fc-apply-expr
-  (let ((head (list (lit %mem-ref) (lit call) %obj-meta-len)))
+  (let ((head (list (lit %mem-ref) (lit call) %obj-meta-len))
+        (unit (fn (_ i) (list (lit %mem-ref) (lit %values) (int+ %obj-meta-len i)))))
     (list (lit fn) (lit (self call))
       (list (lit if)
         (list (lit and) (lit call) head
           (list (lit =) (list (lit %mem-ref) head (int+ %obj-meta-len 1)) (lit %values)))
         (list (lit do)
           (list (lit %mem-set!) (lit %values) (int+ %obj-meta-len 1) 1)
-          (list (lit %call-routine) (list (lit %mem-ref) head %obj-meta-len) (lit call)))
+          (list (lit or)
+            (list (lit %call-routine) (list (lit %mem-ref) head %obj-meta-len) (lit call))
+            (list (lit if) (list (lit =) (list (lit %mem-ref) (unit 3) %obj-meta-len) 0) 0
+              (list (lit %call-routine) (unit 4)
+                (list (lit +) (lit %values) (int* %word-size (int+ %obj-meta-len 5)))))))
         (list (lit %call-routine)
           (list (lit %mem-ref) (lit %values) (int+ %obj-meta-len 2))
           (lit (%run-args)))))))
@@ -1096,6 +1126,10 @@
         (asm-compile-cached %fc-apply-expr (list (pair (lit %values) asm-fn-values)) (lit (run integer))))
       (ptr-set-word! (obj->ptr asm-fn-values) (%data-word-off 2)
         (Base slot (%base) (lit callable-apply)))
+      (ptr-set-word! (obj->ptr asm-fn-values) (%data-word-off 4)
+        (Base slot (%base) (lit eval-tco-trampoline)))
+      (ptr-set-word! (obj->ptr asm-fn-values) (%data-word-off 3)
+        (ptr->int (obj->ptr (Base cell (%base) (lit tco-expr)))))
       (Base slot! (%base) (lit callable-apply) routine)
       (Fn apply-values!
         (fn (_ f)
@@ -1105,14 +1139,19 @@
 ; The engine's routine back in the slot.  The writer of a state image runs
 ; this in the child it images, after which nothing there is marked: every
 ; entry is interpreted again (x/tool/compiled), and the first compile after
-; the image is loaded arms the slot of the base that loaded it.
+; the image is loaded arms the slot of the base that loaded it.  The image
+; carries units 3 and 4 as 0, so a tail call is made where it stands until
+; then, and no template holds a value.
 (def %fc-disarm-apply!
   (fn (_)
     (unless (null? %fc-apply)
       (Base slot! (%base) (lit callable-apply)
         (ptr-ref-word (obj->ptr asm-fn-values) (%data-word-off 2)))
+      (ptr-set-word! (obj->ptr asm-fn-values) (%data-word-off 3) 0)
+      (ptr-set-word! (obj->ptr asm-fn-values) (%data-word-off 4) 0)
       (Fn apply-values! ())
-      (set! %fc-apply ()))))
+      (set! %fc-apply ()))
+    (%fc-empty-templates!)))
 (image-transient! (fn (_) (%fc-disarm-apply!)))
 
 ; V, a compiled function, marked as one the apply routine hands values.
@@ -1167,6 +1206,50 @@
 ; written.
 (compile-fn! (lit fnv-1a) (eval (lit %fnv-go) (module x/type/hash)))
 
-(doc (provide x/tool/fn-compile compile-fn!)
+; A closure module M defines at its top level has M's frame as its
+; environment; a name M imports holds a closure of another module's frame,
+; and a closure made inside a call has a frame of that call.  So the frame
+; says which closures are M's own.  One compiled already is no closure
+; now, and one refused is on %fc-compiled: neither is compiled again.
+(def compile-module!
+  (fn (_ name)
+    (def env (Module env name))
+    (if (or (null? env) (obj-same? env (Env root))) ()
+      (List fold
+        (fn (_ acc sym)
+          (def v (eval sym env))
+          (if (and (eq? (Fn label v) (lit fn)) (obj-same? (Fn env v) env)
+                   (not (List any? (fn (_ c) (obj-same? c v)) %fc-compiled)))
+            (pair (compile-fn! sym v) acc)
+            acc))
+        () (Env names env)))))
+
+(doc compile-module!
+  (param name SYMBOL "A loaded module's name, such as 'chess/board")
+  (returns LIST "A Compiled entry for each closure compiled or refused")
+  (sample "(compile-module! 'chess/board)" "each closure chess/board defines, compiled where it stands")
+  "Compile, by compile-fn!, each closure the scoped module NAME defines at its top level: those whose environment is the module's own frame, not those it imports. A module that is not loaded, or was loaded by include into the root, answers ().")
+
+; x collects only when asked, and a compile leaves hundreds of thousands
+; of objects behind it: a module's compiles are collected before the next
+; module's begin.
+(def compile-root!
+  (fn (_ dir)
+    (List fold
+      (fn (_ acc name)
+        (if (Str8 starts? dir (%module-resolve name))
+          (do (def made (compile-module! name))
+              (Heap collect)
+              (%append made acc))
+          acc))
+      () (List filter (fn (_ m) (Module loaded? m)) (Module names)))))
+
+(doc compile-root!
+  (param dir STRING "An import root, as import-path! was given it")
+  (returns LIST "A Compiled entry for each closure compiled or refused")
+  (sample "(compile-root! %lang-root)" "the closures of every module the lang's root holds, compiled")
+  "Compile, by compile-module!, every loaded module whose file the import roots resolve under DIR: a lang's own modules, when DIR is its root. A lang whose lang.xon says (image compiled) has this run on its root before its state image is written, so the image carries its closures compiled.")
+
+(doc (provide x/tool/fn-compile compile-fn! compile-module! compile-root!)
   (sample "(import x/tool/fn-compile compile-fn!) (compile-fn! 'fib fib)" "fib compiled where it stands, its interpreted version kept on the Compiled list")
   "A program's closures compiled where they stand, through compile-asm's function world.")

@@ -137,4 +137,5 @@
       (%hex-of s n))))
 
 (doc (provide x/codec/hmac Hmac)
+  (example "(Hmac hex (lit sha256) \"key\" \"msg\")" "\"2d93cbc1be167bcb1637a4a23cbff01a7878f0c50ee833954ea5221bb1b8c628\"")
   "HMAC (RFC 2104) over SHA-256, SHA-384 and SHA-512: (Hmac mac 'sha256 key msg) answers the tag's bytes, binary-safe through regions.")

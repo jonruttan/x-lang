@@ -17,6 +17,7 @@
 (def dext (Vector from-list (list 0 0 0 0 1 1 2 2 3 3 4 4 5 5 6 6 7 7 8 8 9 9 10 10 11 11 12 12 13 13)))
 
 (doc (provide x/codec/flate-codes lbase lext dbase dext)
+  (example "(do (import x/codec/flate-codes lbase dbase) (list (Vector ref 0 lbase) (Vector ref 29 dbase)))" "(3 24577)")
   (note "Slot k+1 of each vector is symbol k's entry: lbase and lext for the length symbols 257..285 taken from 257, dbase and dext for the distance symbols 0..29.")
   (see Inflate)
   (see Deflate)

@@ -34,7 +34,9 @@
     ; Decode the body by content-type; pass non-json bodies through raw.
     (method %decode (self (param resp ALIST "An Http response alist"))
       (doc "The response with a JSON body decoded to a value (content-type says json and bytes exist); other bodies pass through as byte lists."
-        (returns ALIST "((status . INT) (headers . ALIST) (body . VALUE-or-BYTES))"))
+        (returns ALIST "((status . INT) (headers . ALIST) (body . VALUE-or-BYTES))")
+        (example "(rest (Assoc find 'body (Rest %decode (list (pair 'status 200) (pair 'headers (list (pair \"content-type\" \"application/json\"))) (pair 'body (list 91 49 44 50 93))))))" "(1 2)")
+        (example "(rest (Assoc find 'body (Rest %decode (list (pair 'status 200) (pair 'headers ()) (pair 'body (list 104 105))))))" "(104 105)"))
       (def headers (rest (Assoc find (lit headers) resp)))
       (def body (rest (Assoc find (lit body) resp)))
       (def ct (Assoc find "content-type" headers))
@@ -50,7 +52,9 @@
     ; peer: later duplicates are legal http, and callers may override).
     (method %headers (self (param extra ALIST "Caller headers"))
       (doc "Content-Type/Accept application/json plus the caller's headers."
-        (returns ALIST "Header pairs"))
+        (returns ALIST "Header pairs")
+        (example "(first (Rest %headers ()))" "(\"Content-Type\" . \"application/json\")")
+        (example "(List length (Rest %headers (list (pair \"X-A\" \"1\"))))" "3"))
       (List append
         (list (pair "Content-Type" "application/json")
               (pair "Accept" "application/json"))
@@ -70,7 +74,8 @@
     (method delete (self (param url STRING "Endpoint url")
                          . (param headers ALIST "Optional (name . value) header strings"))
       (doc "DELETE the endpoint; a JSON response body comes back decoded."
-        (returns ALIST "((status . INT) (headers . ALIST) (body . VALUE))"))
+        (returns ALIST "((status . INT) (headers . ALIST) (body . VALUE))")
+        (sample "(Rest ok? (Rest delete \"http://127.0.0.1:8080/users/1\"))" "#t once the server has deleted it"))
       (Rest %decode
         (Http request "DELETE" url
           (List append (list (pair "Accept" "application/json"))
@@ -92,7 +97,8 @@
                       (param value ANY "The value to send, emitted as JSON")
                       . (param headers ALIST "Optional (name . value) header strings"))
       (doc "PUT value as a JSON body; a JSON response body comes back decoded."
-        (returns ALIST "((status . INT) (headers . ALIST) (body . VALUE))"))
+        (returns ALIST "((status . INT) (headers . ALIST) (body . VALUE))")
+        (sample "(Rest put \"http://127.0.0.1:8080/users/1\" (Dict from-plist (list \"name\" \"ida\")))" "the response alist, body decoded"))
       (Rest %decode
         (Http request "PUT" url
           (Rest %headers (if (null? headers) () (first headers)))
@@ -102,7 +108,8 @@
                         (param value ANY "The value to send, emitted as JSON")
                         . (param headers ALIST "Optional (name . value) header strings"))
       (doc "PATCH the endpoint with value as a JSON body; a JSON response body comes back decoded."
-        (returns ALIST "((status . INT) (headers . ALIST) (body . VALUE))"))
+        (returns ALIST "((status . INT) (headers . ALIST) (body . VALUE))")
+        (sample "(Rest patch \"http://127.0.0.1:8080/users/1\" (Dict from-plist (list \"age\" 37)))" "the response alist, body decoded"))
       (Rest %decode
         (Http request "PATCH" url
           (Rest %headers (if (null? headers) () (first headers)))
@@ -117,4 +124,6 @@
 
 (doc (provide x/net/rest Rest)
   (note "The JSON layer over Http: values out (Json emit + the json headers), values back (Json parse by content-type). Statuses stay data -- ok? answers 2xx; redirects auto-follow at the Http profile, so a 3xx here means the chain ENDED on one (no location, or following disabled).")
+  (example "(Rest ok? (list (pair 'status 404)))" "#f")
+  (sample "(Rest get \"http://127.0.0.1:8080/users\")" "((status . 200) (headers ...) (body . the decoded list))")
   "JSON-speaking REST verbs, homed on the Rest class.")

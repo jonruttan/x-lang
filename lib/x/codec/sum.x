@@ -112,7 +112,8 @@
     ((%fold-for which n) (%at (str->ptr s) (first sp)) n 0)))
 
 (def-class Sum ()
-  (doc "The two checksums of sum(1), BSD's and System V's, in pure x-lang.")
+  (doc "The two checksums of sum(1), BSD's and System V's, in pure x-lang."
+    (example "(Sum bsd \"abc\")" "16556"))
   (static
     (method bsd (self (param s STRING "Bytes")
                       . (param span LIST "START, then LENGTH: which bytes of s; default all of s"))
@@ -130,8 +131,10 @@
       (%sysv-fold (%run (lit sysv) s span)))
     (method jit! (self)
       (doc "Build and adopt both compiled byte loops (JIT; ARM64 and x86-64 backends) now, if each sums the check inputs exactly as its pure-x fold does. Idempotent. Answers #t when both engines are active, #f otherwise -- the pure-x folds carry on, with the same sums. bsd and sysv build theirs on their own for 4KB or more."
-        (returns BOOL "#t when both compiled engines are active"))
+        (returns BOOL "#t when both compiled engines are active")
+        (sample "(Sum jit!)" "#t once both compiled engines have proved themselves on this host, #f where they cannot be built; the sums are the same either way"))
       (and (%jit-try! (lit bsd)) (%jit-try! (lit sysv))))))
 
 (doc (provide x/codec/sum Sum)
+  (example "(Sum sysv \"abc\")" "294")
   "The two checksums of sum(1) in pure x-lang: (Sum bsd s), BSD's rotate-and-add, and (Sum sysv s), System V's byte total folded into 16 bits.")

@@ -798,7 +798,8 @@
     (%answer w)))
 
 (def-class Deflate ()
-  (doc "DEFLATE streams written in pure x-lang: stored, or compressed with LZ77 and Huffman codes as zlib's deflate does at its default level. Each writer answers (OUT N): a byte region and how many of its bytes the stream is. A raw stream can also be written a piece at a time: stream, feed.")
+  (doc "DEFLATE streams written in pure x-lang: stored, or compressed with LZ77 and Huffman codes as zlib's deflate does at its default level. Each writer answers (OUT N): a byte region and how many of its bytes the stream is. A raw stream can also be written a piece at a time: stream, feed."
+    (example "(first (rest (Deflate stored \"abc\")))" "8"))
   (static
     (method raw (self (param s STRING "The bytes to compress")
                       . (param span LIST "START, then LENGTH: which bytes of s; default all of s"))
@@ -840,8 +841,10 @@
       (%stream-feed w s start n final))
     (method jit! (self)
       (doc "Build and adopt the compiled matcher and token writer (JIT; ARM64 and x86-64 backends) now, if the streams they write for the check inputs are byte for byte the pure-x encoder's. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x encoder carries on, with the same output. raw, zlib and feed build it on their own for an input of 16KB or more."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Deflate jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the output is the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/deflate Deflate)
+  (example "(do (import x/codec/inflate) (let ((c (Deflate raw \"hello\"))) (let ((d (Inflate raw (first c) 0 (first (rest c))))) (Str8 sub 0 (first (rest d)) (first d)))))" "\"hello\"")
   "DEFLATE streams written in pure x-lang: (Deflate raw s) and (Deflate zlib s) compressed, (Deflate stored s) and (Deflate zlib-stored s) the bytes as they are; each answers (OUT N).")

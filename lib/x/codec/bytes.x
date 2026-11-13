@@ -328,4 +328,5 @@
       (Bytes get rd (Bytes left rd)))))
 
 (doc (provide x/codec/bytes Bytes)
+  (example "(Bytes hex (Bytes of \"abc\"))" "\"616263\"")
   "Binary buffers that carry their length: regions (BUF START LEN), a growable writer, and a bounds-checked reader, for protocol bytes with NULs anywhere.")

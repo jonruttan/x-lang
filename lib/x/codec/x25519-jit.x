@@ -215,4 +215,5 @@
 (prim-reg! (lit x25519) (lit jit-make) x25519-jit-make)
 
 (doc (provide x/codec/x25519-jit x25519-jit-make)
+  (example "(do (import x/codec/x25519-jit) (procedure? (prim-ref (lit x25519) (lit jit-make))))" "#t")
   "The compiled X25519 ladder (JIT, ARM64 and x86-64 backends) over x/codec/fe25519-jit's checked field operations; built and adopted only via (X25519 jit!) after answering RFC 7748's exchange in both directions.")

@@ -336,11 +336,13 @@
       ((fn (_ r) ((%b64-encoder (first (rest (rest r)))) r)) (Bytes of bytes)))
     (method encode-jit! (self)
       (doc "Build and adopt the compiled encoder (JIT; ARM64 and x86-64 backends) now, if it encodes the check inputs byte for byte as the pure-x encode-region does. Idempotent; answers whether the compiled encoder is active. encode-region builds it on its own for 4 KB or more."
-        (returns BOOL "#t when the compiled encoder is active"))
+        (returns BOOL "#t when the compiled encoder is active")
+        (sample "(Base64 encode-jit!)" "#t once the compiled encoder has proved itself on this host, #f where none can be built; the text is the same either way"))
       (%b64-enc-try!))
     (method jit! (self)
       (doc "Build and adopt the compiled decoder (JIT; ARM64 and x86-64 backends) now, if it proves itself against the pure-x decode-region. Idempotent; answers whether the compiled decoder is active."
-        (returns BOOL "#t when the compiled decoder is active"))
+        (returns BOOL "#t when the compiled decoder is active")
+        (sample "(Base64 jit!)" "#t once the compiled decoder has proved itself on this host, #f where none can be built; the bytes are the same either way"))
       (%b64-jit-try!))
     (method decode (self (param b64 STRING "Base64 text to decode"))
       (doc "Decode base64 text to a string. A decoded payload containing a 0 byte is only fully observable through decode-bytes (str values are C strings); same strictness as decode-bytes."
@@ -349,5 +351,6 @@
       (bytes->str (self decode-bytes b64)))))
 
 (doc (provide x/codec/base64 Base64)
+  (example "(Base64 encode \"hi\")" "\"aGk=\"")
   (note "Standard alphabet only (+ /); = padding required; whitespace skipped on decode. The -bytes doors carry NUL-bearing binary losslessly.")
   "RFC 4648 base64 encode/decode, homed on the Base64 class.")

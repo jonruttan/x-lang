@@ -339,4 +339,5 @@
     ((fn (self i) (if (= i 32) #f (if (= (%byte s i) 0) (self (int+ i 1)) #t))) 0)))
 
 (doc (provide x/codec/fe25519 fe-zero fe-limbs fe-ref fe-set! fe-frombytes fe-tobytes fe-add fe-sub fe-mul fe-sq fe-sq-n fe-mul121666 fe-invert fe-neg fe-pow22523 fe-negative? fe-nonzero? fe-engine)
+  (example "(do (import x/codec/fe25519 fe-zero fe-negative?) (fe-negative? (fe-zero)))" "#f")
   "The field GF(2^255 - 19) on ref10's ten signed limbs, or on a 4-byte word as Montgomery numbers on x/codec/mont-jit's engine (fe-engine): elements as vectors, bytes in and out, add, subtract, negate, multiply, square, the ladder's times-121666, the inverse and the square root's power. What X25519 and Ed25519 compute in.")

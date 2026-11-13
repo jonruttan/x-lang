@@ -95,11 +95,13 @@ it here (a checkout builds it first).
 
 1. **Marking**: under `#ifdef X_COV`, `x_eval()` sets bit 0x2 on every
    evaluated expression's flags field.
-2. **Tokenization**: the reporter (`cov.x`) reads the source as a string
-   and tokenizes with `(Tok read-str)` on the current base.
+2. **Reading**: the reporter (`cov.x`) reads the source as a string and
+   parses it with `(Xon parse)`.
 3. **Evaluation**: an operative loop evaluates each top-level form
    (operatives, not closures, so `def` effects persist).
-4. **Walking**: branch nodes without the flag are reported.
+4. **Walking**: `cov-branches` (`x/tool/cov`) walks the forms and counts
+   the branches the construct declarations name; `cov.x` prints the
+   count and the branches without the flag.
 
 The GC sweep clears only `X_OBJ_FLAG_HEAP`, so coverage flags survive
 collection.  Limitations: interned atoms are shared (marking one `x`

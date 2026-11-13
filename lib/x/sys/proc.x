@@ -17,11 +17,14 @@
 (def-class Proc ()
   (doc "Argv-based child processes: run and wait, or run and capture stdout; and quiet!, a daemon's descriptors."
     (note "Status convention: 0-255 = the child's exit code; 125 = the child died before exec (an error between fork and exec -- the child never escapes); 127 = exec never happened (command absent); 128+N = killed by signal N. Callers branch on = 127 for command-absent (the %pin-download! contract).")
-    (see run!) (see capture) (see quiet!))
+    (see run!) (see capture) (see quiet!)
+    (example "(Proc run! (list \"/bin/sh\" \"-c\" \"exit 2\"))" "2")
+    (example "(rest (Proc capture (list \"/bin/sh\" \"-c\" \"printf ok\")))" "\"ok\""))
   (static
     (method quiet! (self)
       (doc "The standard descriptors on /dev/null, as a daemon's are: what a server does once it has written its pid file, with (Sys setsid) and (Sys chdir \"/\") the rest of leaving the terminal."
-        (returns BOOL "#t; #f when /dev/null would not open, the descriptors left as they were"))
+        (returns BOOL "#t; #f when /dev/null would not open, the descriptors left as they were")
+        (sample "(do (Sys setsid) (Sys chdir \"/\") (Proc quiet!))" "#t, the process detached from its terminal"))
       (def null (File open "/dev/null" (lit rdwr)))
       (match
         ((< null 0) #f)

@@ -1,6 +1,7 @@
 # @lib ../tests/x/lib/compile.x
 # @requires native/jit
-# @weight 2
+# @weight 15
+# @timeout-scale 4
 
 `(compile-fn! NAME F)` (lib/x/tool/fn-compile.x) compiles a program's
 closure F where it stands: F becomes the compiled version, every holder of
@@ -641,3 +642,134 @@ theirs.
 ```
 ---
     ('type (1 2 3))
+
+## tail calls
+
+A call in tail position of a closure other than F is a tail call, as it is
+interpreted: F leaves the filled call for whoever called it to make, the
+evaluator or an apply, so a chain of them runs in constant stack.
+
+### a tail call of another compiled closure is a tail call
+
+```x
+(def %fc-ping (fn (_ n acc) (if (int= n 0) acc (%fc-pong (int- n 1) (int+ acc 1)))))
+(def %fc-pong (fn (_ n acc) (if (int= n 0) acc (%fc-ping (int- n 1) (int+ acc 2)))))
+(def %fc-e1 (compile-fn! (lit %fc-ping) %fc-ping))
+(def %fc-e2 (compile-fn! (lit %fc-pong) %fc-pong))
+(write (list (%fc-e1 state) (%fc-e2 state) (%fc-ping 1000000 0)))
+```
+---
+    ('compiled 'compiled 1500000)
+
+### an apply of a compiled closure makes the tail call it leaves
+
+```x
+(write (list (apply %fc-ping (list 1000000 0)) (List map (fn (_ n) (%fc-pong n 0)) (list 0 1 2 3))))
+```
+---
+    (1500000 (0 2 3 5))
+
+### a tail call inside a guard is made inside it
+
+```x
+(def %fc-raiser (fn (_ x) (if (int= x 0) (error "zero") x)))
+(def %fc-guarded (fn (_ x) (guard (e (lit caught)) (%fc-raiser x))))
+(def %fc-e (compile-fn! (lit %fc-guarded) %fc-guarded))
+(write (list (%fc-e state) (%fc-guarded 0) (%fc-guarded 4)))
+```
+---
+    ('compiled 'caught 4)
+
+### a tail call of an interpreted closure, and back
+
+```x
+(def %fc-even? (fn (_ n) (if (int= n 0) #t (%fc-odd? (int- n 1)))))
+(def %fc-odd? (fn (_ n) (if (int= n 0) #f (%fc-even? (int- n 1)))))
+(def %fc-e (compile-fn! (lit %fc-even?) %fc-even?))
+(write (list (%fc-e state) (%fc-even? 1000001) (%fc-odd? 1000001)))
+```
+---
+    ('compiled #f #t)
+
+### a call not in tail position answers its value to the code after it
+
+```x
+(def %fc-inc (fn (_ n) (int+ n 1)))
+(def %fc-twice (fn (_ n) (int+ (%fc-inc n) (%fc-inc n))))
+(def %fc-e (compile-fn! (lit %fc-twice) %fc-twice))
+(write (list (%fc-e state) (%fc-twice 4)))
+```
+---
+    ('compiled 10)
+
+## a module's own closures
+
+### compile-module! compiles the closures a module defines, not those it imports
+
+fcm/two imports one-sum from fcm/one and defines two-f; only two-f is its own.
+
+```x
+(import x/tool/fn-compile compile-module! compile-root!)
+(import-path! "tests/x/fixtures/fncompile")
+(import fcm/two two-f)
+(def %fc-ms (compile-module! (lit fcm/two)))
+(write (list (List map (fn (_ e) (e name)) %fc-ms) (List map (fn (_ e) (e state)) %fc-ms)
+             (two-f 3) (Fn label two-f) (Fn label (eval (lit one-sum) (Module env (lit fcm/one))))))
+```
+---
+    (('two-f) ('compiled) 20 'prim 'fn)
+
+### compile-root! compiles every loaded module under a root, each closure once
+
+Under the fixture root, fcm/one's two closures are left; a number is no
+closure, and two-f, compiled already, is not compiled again.
+
+```x
+(def %fc-rs (compile-root! "tests/x/fixtures/fncompile"))
+(write (list (List sort (fn (_ a b) (Str8 <? (symbol->str a) (symbol->str b)))
+               (List map (fn (_ e) (e name)) %fc-rs))
+             (List map (fn (_ e) (e state)) %fc-rs)
+             (two-f 3) (compile-root! "tests/x/fixtures/fncompile")))
+```
+---
+    (('%sq 'one-sum) ('compiled 'compiled) 20 ())
+
+### a module loaded by include, or not loaded, has no closures of its own
+
+```x
+(write (list (compile-module! (lit x/no/such)) (compile-module! (lit x/boot/module))))
+```
+---
+    (() ())
+
+## a state image
+
+A call site's template holds the values of its call until the call returns,
+and past that when the call is a tail call or raises out of its callee.  A
+value there can be a Ptr to a string's bytes, which no image can name, so
+every template is emptied before a state image is written.
+
+### an image of compiled closures that passed Ptrs through their calls writes
+
+The library (tests/x/fixtures/fncompile/image.x) compiles closures whose
+calls return, tail-call and raise with a Ptr as an argument, and str=?, and
+runs each.  The writer runs in a child, with an asm cache of its own, and
+the child prints its answer as one line.
+
+```x
+(do
+  (import x/sys/posix)
+  (def %fci-child (Sys fork))
+  (when (= %fci-child 0)
+    (Sys exec "/bin/sh"
+      (list "-c"
+        (Str append
+          "d=$(mktemp -d) && X_ASM_CACHE_DIR=$d/cache sh tools/dev/image-build.sh"
+          " tests/x/fixtures/fncompile/image.x $d/out > /dev/null 2>&1;"
+          " l=$d/out/image.x.log; echo $(grep '^((' $l) $(grep -o 'unnameable: [0-9]*' $l)"
+          " $(test -s $d/out/image.x.ximg && echo written); rm -rf \"$d\""))))
+  (Sys wait %fci-child)
+  ())
+```
+---
+    (('compiled 'compiled 'compiled 'compiled 'compiled) 1 2 'caught #t #t) unnameable: 0 written

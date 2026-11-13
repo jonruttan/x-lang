@@ -387,4 +387,5 @@
 (prim-reg! (lit deflate) (lit jit-make) deflate-jit-make)
 
 (doc (provide x/codec/deflate-jit deflate-jit-make)
+  (example "(do (import x/codec/deflate-jit) (procedure? (prim-ref (lit deflate) (lit jit-make))))" "#t")
   "The compiled matcher and token writer behind Deflate (JIT, ARM64, x86-64 and 32-bit ARM backends); built and adopted only after writing what the pure-x encoder writes.")

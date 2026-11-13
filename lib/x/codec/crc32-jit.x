@@ -105,4 +105,5 @@
 (prim-reg! (lit crc32) (lit jit-make) crc32-jit-make)
 
 (doc (provide x/codec/crc32-jit crc32-jit-make)
+  (example "(do (import x/codec/crc32-jit) (procedure? (prim-ref (lit crc32) (lit jit-make))))" "#t")
   "The compiled CRC-32 (JIT; ARM64, x86-64 and 32-bit ARM backends) behind (Crc32 jit!): one loop over the bytes, adopted only after it sums the check inputs as the pure-x fold does.")

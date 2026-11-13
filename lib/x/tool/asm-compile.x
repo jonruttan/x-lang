@@ -1122,8 +1122,18 @@
 ; After the call each x is nil again: a template holds no value past its
 ; call, so it keeps no object alive and a state image of the code carries
 ; none, a raw pointer among them.
+;
+; In tail position (TAIL) the call is the evaluator's to make, as an
+; interpreted tail call is: the filled template is left in the base's
+; tco-expr cell, whose address unit 3 of %values holds, and the function
+; answers nil; whoever called it makes the call in its place (the evaluator's
+; trampoline, or the apply routine, x/tool/fn-compile), so a chain of tail
+; calls runs in constant stack.  The template keeps its values until its
+; site is filled again: x/tool/fn-compile empties every template before an
+; image is written.  Unit 3 is 0 until this process has armed it, and then
+; the call is made here.
 (def %asm-emit-quoted-call!
-  (fn (_ asm template emitters)
+  (fn (_ asm template emitters tail)
     (def lit-x (* %word-size %obj-meta-len))
     (def next (* %word-size (+ %obj-meta-len 1)))
     ((fn (self es i)
@@ -1137,6 +1147,17 @@
              (asm-emit! asm (lit str) x0 (mem x1 lit-x))
              (self (rest es) (+ i 1)))))
      emitters 0)
+    (def lbl-end (%asm-genlabel "%qce"))
+    (when (and tail (not (null? (compile-fvar-lookup (lit %values)))))
+      (def lbl-call (%asm-genlabel "%qcc"))
+      (%asm-load-fvar! asm x1 (lit %values))
+      (asm-emit! asm (lit ldr) x2 (mem x1 (* %word-size (+ %obj-meta-len 3))))
+      (asm-emit! asm 'cbz x2 (label lbl-call))
+      (%asm-load-fvar! asm x1 template)
+      (asm-emit! asm (lit str) x1 (mem x2 lit-x))
+      (asm-emit! asm 'mov x0 (imm 0))
+      (asm-emit! asm 'b (label lbl-end))
+      (asm-label! asm lbl-call))
     (%asm-load-fvar! asm x1 template)
     (asm-emit! asm 'mov x0 x19)
     (%emit-eval-arg! asm)
@@ -1151,7 +1172,8 @@
              (asm-emit! asm (lit str) x8 (mem x2 lit-x))
              (unless (= n 1) (asm-emit! asm (lit ldr) x1 (mem x1 next)))
              (self (- n 1)))))
-     (%length emitters))))
+     (%length emitters))
+    (asm-label! asm lbl-end)))
 
 ; x0 is the operand of a read the code makes unchecked: nil there is a
 ; segfault.  On nil the fvar FAULT, an expression, is evaluated instead: it
@@ -1218,14 +1240,18 @@
             (%emit-mkint! asm)))
       ((eq? op (lit %type-is?))
         (%asm-emit-type-is! asm (first args) (first (rest args)) params))
+      ; Tail position is read before any operand is compiled: compiling one
+      ; sets it for that operand's own forms.
       (#t
-        (do (%asm-fn-check-operands! op (rest args))
+        (do (def tail %asm-in-tail)
+            (%asm-fn-check-operands! op (rest args))
             (%asm-emit-quoted-call! asm (first args)
               ((fn (self as)
                  (if (null? as) ()
                    (pair (fn (_) (%asm-compile-expr asm (first as) params))
                          (self (rest as)))))
-               (rest args))))))))
+               (rest args))
+              tail))))))
 
 ; Compile a call expression
 (set! %asm-compile-call
