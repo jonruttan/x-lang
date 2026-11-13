@@ -23,7 +23,8 @@
 ; Other languages' grammars come from their bundles: a lang.xon's
 ; (grammar ...) forms are the catalogue, and a grammar's module is imported
 ; the first time a file needs it.  A file's grammar is the one its modeline
-; names, else its #! line's interpreter's, else its name's.
+; names, else the one a rule in the user's syntax file gives it, else its #!
+; line's interpreter's, else its name's.
 ;
 ; How a terminal draws each class is a theme: a Style (x/tui/style) a class,
 ; data apart from any grammar.  The theme in use is the default unless the
@@ -140,15 +141,17 @@
 (def %sx-themes (pair () ()))
 (def %sx-user (pair () ()))
 
-; $X_THEME, else $XDG_CONFIG_HOME/x/theme.x, else ~/.config/x/theme.x; nil
-; for an empty X_THEME or no home.
-(def %sx-theme-file
-  (fn (_)
-    (let ((o (Sys getenv "X_THEME")))
+; A user file: $VAR, else $XDG_CONFIG_HOME/x/NAME, else ~/.config/x/NAME;
+; nil for an empty VAR or no home.
+(def %sx-config-file
+  (fn (_ var name)
+    (let ((o (Sys getenv var)))
       (if (not (null? o)) (if (= (str-byte-len o) 0) () o)
         (let ((c (Sys getenv "XDG_CONFIG_HOME")) (h (Sys getenv "HOME")))
-          (if (not (null? c)) (str-append c "/x/theme.x")
-            (if (null? h) () (str-append h "/.config/x/theme.x"))))))))
+          (if (not (null? c)) (str-append c "/x/" name)
+            (if (null? h) () (str-append h "/.config/x/" name))))))))
+
+(def %sx-theme-file (fn (_) (%sx-config-file "X_THEME" "theme.x")))
 
 ; The user's file, read once.  No file is no themes; one that does not read
 ; is one line on stderr and the default, as an unreadable construct list is.
@@ -426,25 +429,67 @@
         (guard (_ "deps/langs") (%path-join %install-root "langs"))))))
 
 (def %sx-grammar-keys (list (lit module) (lit files) (lit names) (lit interpreters)))
+(def %sx-rule-keys (rest %sx-grammar-keys))
+
+(def %sx-grammar-bad
+  (fn (_ form why) (Err raise (lit value) (str-append "Syntax: a grammar form " why) form)))
+
+; Each of KEYS' clause in a (grammar NAME ...) form, nil for one it leaves
+; out; a clause of another key is refused, saying the form HOLDS.
+(def %sx-grammar-clauses
+  (fn (_ form keys holds)
+    (if (if (pair? (rest form)) (symbol? (first (rest form))) #f) ()
+      (%sx-grammar-bad form "needs a name"))
+    (List for-each
+      (fn (_ c)
+        (if (if (pair? c) (List includes? (first c) keys) #f) () (%sx-grammar-bad form holds)))
+      (rest (rest form)))
+    (List map
+      (fn (_ key)
+        (let ((c (List find (fn (_ c) (eq? (first c) key)) (rest (rest form)))))
+          (if (null? c) () (rest c))))
+      keys)))
 
 ; The row of a (grammar ...) form from the bundle at ROOT.
 (def %sx-grammar-row
   (fn (_ form root)
-    (def bad (fn (_ why) (Err raise (lit value) (str-append "Syntax: a grammar form " why) form)))
-    (if (if (pair? (rest form)) (symbol? (first (rest form))) #f) () (bad "needs a name"))
-    (List for-each
-      (fn (_ c)
-        (if (if (pair? c) (List includes? (first c) %sx-grammar-keys) #f) ()
-          (bad "holds (module M), (files ...), (names ...) and (interpreters ...)")))
-      (rest (rest form)))
-    (def clause
-      (fn (_ key)
-        (let ((c (List find (fn (_ c) (eq? (first c) key)) (rest (rest form)))))
-          (if (null? c) () (rest c)))))
-    (def module (clause (lit module)))
-    (if (if (pair? module) (symbol? (first module)) #f) () (bad "needs (module NAME)"))
-    (list (first (rest form)) (first module) root
-          (clause (lit files)) (clause (lit names)) (clause (lit interpreters)))))
+    (def cs (%sx-grammar-clauses form %sx-grammar-keys
+              "holds (module M), (files ...), (names ...) and (interpreters ...)"))
+    (def module (first cs))
+    (if (if (pair? module) (symbol? (first module)) #f) ()
+      (%sx-grammar-bad form "needs (module NAME)"))
+    (pair (first (rest form)) (pair (first module) (pair root (rest cs))))))
+
+; The row of a rule in the user's syntax file: a grammar's name and the
+; files, names and interpreters it is for, as a row with no module or root.
+(def %sx-rule-row
+  (fn (_ form)
+    (pair (first (rest form))
+          (pair () (pair () (%sx-grammar-clauses form %sx-rule-keys
+                              "in the syntax file holds (files ...), (names ...) and (interpreters ...)"))))))
+
+; The user's syntax file, (Syntax rules-file), and its rows, read once.
+(def %sx-rules (pair () ()))
+
+(def %sx-rules-file (fn (_) (%sx-config-file "X_SYNTAX" "syntax.x")))
+
+; The user's rules: each (grammar NAME ...) form in the syntax file.  No file
+; is no rules; one that does not read is one line on stderr and no rules.
+(def %sx-user-rules
+  (fn (_)
+    (if (null? (first %sx-rules))
+      (let ((path (%sx-rules-file)))
+        (%set-first! %sx-rules
+          (list (if (if (null? path) #t (not (File exists? path))) ()
+                  (guard (e (do (%sx-warn (list "syntax file " path " unreadable (" e ") -- its rules are left out"))
+                                ()))
+                    (List map
+                      (fn (_ f)
+                        (if (if (pair? f) (eq? (first f) (lit grammar)) #f) (%sx-rule-row f)
+                          (Err raise (lit value) "Syntax: a syntax file holds (grammar NAME ...) forms" f)))
+                      (tok-read-str (%base) (File read-all path))))))))
+      ())
+    (first (first %sx-rules))))
 
 ; Every bundle's rows; a lang.xon that does not read is one line on stderr
 ; and its grammars left out.
@@ -584,13 +629,11 @@
         (self (str-byte-sub s 0 (int- n 1)))
         s))))
 
-; The row for a file: a modeline's name, else the #! line's interpreter,
-; else the name's ending or the whole base name.
-(def %sx-row-for
-  (fn (_ rows path text)
-    (def mode (if (null? text) () (%sx-modeline text)))
-    (def by-mode (if (null? mode) () (List find (fn (_ r) (eq? (first r) mode)) rows)))
-    (def interp (if (null? text) () (%sx-interpreter text)))
+; The row among ROWS for a file: the one whose interpreters hold the #! line's
+; interpreter, else the one whose files the name ends with or whose names
+; hold its base name.
+(def %sx-row-match
+  (fn (_ rows path interp)
     (def by-interp
       (if (null? interp) ()
         (let ((plain (%sx-unversioned interp)))
@@ -599,14 +642,24 @@
                         (first (rest (rest (rest (rest (rest r))))))))
             rows))))
     (def base (%sx-base-name path))
-    (match
-      ((not (null? by-mode)) by-mode)
-      ((not (null? by-interp)) by-interp)
-      (#t (List find
-            (fn (_ r)
-              (if (List any? (fn (_ suffix) (Str8 ends? suffix path)) (first (rest (rest (rest r))))) #t
-                (List any? (fn (_ nm) (str=? nm base)) (first (rest (rest (rest (rest r))))))))
-            rows)))))
+    (if (not (null? by-interp)) by-interp
+      (List find
+        (fn (_ r)
+          (if (List any? (fn (_ suffix) (Str8 ends? suffix path)) (first (rest (rest (rest r))))) #t
+            (List any? (fn (_ nm) (str=? nm base)) (first (rest (rest (rest (rest r))))))))
+        rows))))
+
+; The row for a file: a modeline's name, else the user's rule for it, else
+; the grammars' own, each by the #! line's interpreter, then the name's
+; ending or the whole base name.
+(def %sx-row-for
+  (fn (_ rows path text)
+    (def mode (if (null? text) () (%sx-modeline text)))
+    (def by-mode (if (null? mode) () (List find (fn (_ r) (eq? (first r) mode)) rows)))
+    (def interp (if (null? text) () (%sx-interpreter text)))
+    (if (not (null? by-mode)) by-mode
+      (let ((by-rule (%sx-row-match (%sx-user-rules) path interp)))
+        (if (not (null? by-rule)) by-rule (%sx-row-match rows path interp))))))
 
 ; --- the Theme class ------------------------------------------------------------
 
@@ -744,6 +797,8 @@
   (doc "A lexical grammar for highlighting: a Lexer whose rules read every byte, and a table from each token's tag to its class. spans answers (offset length class) for a stretch of text; ansi, html and cells render spans for a terminal, a web page and a screen editor. (Syntax x) is x-lang's own grammar."
     (note "The classes are one vocabulary, (Syntax classes), so a renderer knows every grammar's output: comment string char number keyword constant class private name punct operator escape error.")
     (note "A grammar's lexer is made on its first read, not when the grammar is: making a Lexer compiles its states, which a process that never highlights should not pay for.")
+    (note "The user's syntax file, (Syntax rules-file), gives files grammars their own do not: each (grammar NAME (files ...) (names ...) (interpreters ...)) is a rule, as a lang.xon's grammar form is without its module, asked before every grammar's own and after a modeline. It is data, read and never evaluated, on the first for-file and again after forget!; one that does not read is one line on stderr and no rules.")
+    (sample "; ~/.config/x/syntax.x\n(grammar sh (files \".zsh\" \".env\") (names \"PKGBUILD\"))" "a .zsh file, a .env file and a PKGBUILD read as sh")
     (example "((Syntax x) spans \"(def x 42) ; hi\")" "((0 1 'punct) (1 3 'keyword) (5 1 'name) (7 2 'number) (9 1 'punct) (11 4 'comment))"))
   (doc (name ()) "The grammar's name, a symbol"
     (example "((Syntax x) name)" "'x"))
@@ -842,13 +897,19 @@
 
     (method for-file (self (param path STRING "A file name")
                            . (param text LIST "Optionally the file's text"))
-      (doc "The grammar for a file: with its text, the one a modeline in the first or last five lines names (vi: set ft=NAME, or filetype, syn or syntax), else the one whose interpreters hold the program the #! line runs; else the one whose files the name ends with or whose names hold its base name. Registered grammars are asked before bundles' and loaded as named loads them; nil for none."
+      (doc "The grammar for a file: with its text, the one a modeline in the first or last five lines names (vi: set ft=NAME, or filetype, syn or syntax); else the one a rule in the user's syntax file gives it; else the one whose interpreters hold the program the #! line runs; else the one whose files the name ends with or whose names hold its base name. Registered grammars are asked before bundles' and loaded as named loads them; nil for none, and for a rule naming a grammar none knows."
         (returns Syntax "The grammar, or nil")
         (example "((Syntax for-file \"lib/x/tool/syntax.x\") name)" "'x")
         (example "((Syntax for-file \"build\" \"#!/usr/bin/env x\\n\") name)" "'x"))
       (Syntax x)
       (let ((row (%sx-row-for (%sx-rows) path (if (null? text) () (first text)))))
         (if (null? row) () (Syntax named (first row)))))
+
+    (method rules-file (self)
+      (doc "The user's syntax file: $X_SYNTAX, else $XDG_CONFIG_HOME/x/syntax.x, else ~/.config/x/syntax.x; nil for an empty X_SYNTAX or no home. The file need not exist."
+        (returns STRING "The path, or nil")
+        (sample "(Syntax rules-file)" "\"/home/me/.config/x/syntax.x\" with neither X_SYNTAX nor XDG_CONFIG_HOME set"))
+      (%sx-rules-file))
 
     (method catalogue (self)
       (doc "Every grammar named and for-file can find, as (NAME MODULE ROOT FILES NAMES INTERPRETERS): the registered ones with no module or root, then each bundle's (grammar ...) forms in its lang.xon, read once."
@@ -957,9 +1018,10 @@
       (%sx-keywords))
 
     (method forget! (self)
-      (doc "Drop the construct set, the memo of atom classes and the bundles' catalogue rows, read again on next use: a lang that registers literal syntax changes what the reader answers, and an image runs where other bundles are installed."
+      (doc "Drop the construct set, the memo of atom classes, the bundles' catalogue rows and the syntax file's rules, read again on next use: a lang that registers literal syntax changes what the reader answers, and an image runs where other bundles are installed and for another user."
         (returns NIL "Nothing")
         (example "(null? (Syntax forget!))" "#t"))
+      (%set-first! %sx-rules ())
       (%set-first! %sx-kw ())
       (%set-first! %sx-memo ())
       (%set-first! %sx-bundle-rows ())

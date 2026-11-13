@@ -404,6 +404,64 @@ declares a grammar and whose `fx/syntax.x` registers it, and points
 ---
     ('fx 'fx () 'fx 'fx 'fx 'x 'x ())
 
+### the user's syntax file gives a file its grammar, after a modeline and before the grammars' own
+
+The rule makes .x files, a Build file and a #! line running zz read as fx; a
+modeline still names x, and a name no rule holds keeps its grammar.  A file
+that does not read is no rules.
+
+```x
+(do (import x/sys/posix) (import x/sys/file) (import x/tool/syntax)
+  (def tmp (File temp "/tmp/x-spec-langs-"))
+  (File close (first tmp))
+  (def d (rest tmp))
+  (File unlink d)
+  (List for-each (fn (_ s) (File mkdir (Str8 append d s))) (list "" "/fx" "/fx/fx"))
+  (File write-all (Str8 append d "/fx/lang.xon")
+    "(lang \"fx\")\n(grammar fx (module fx/syntax) (files \".fx\"))\n")
+  (File write-all (Str8 append d "/fx/fx/syntax.x")
+    "(import x/tool/syntax)\n(Syntax register! (Syntax make 'fx (list (Lexer any 'other)) ()))\n")
+  (def rules (Str8 append d "/syntax.x"))
+  (File write-all rules "(grammar fx (files \".x\") (names \"Build\") (interpreters \"zz\"))\n")
+  (def was-langs (Sys getenv "X_LANG_DIR"))
+  (def was-rules (Sys getenv "X_SYNTAX"))
+  (Sys setenv "X_LANG_DIR" d)
+  (Sys setenv "X_SYNTAX" rules)
+  (Syntax forget!)
+  (def name (fn (_ path . text)
+    (let ((g (apply Syntax (pair 'for-file (pair path text))))) (if (null? g) () (g name)))))
+  (def ruled
+    (list (name "a.x") (name "src/Build") (name "run" "#!/usr/bin/env zz\n")
+          (name "a.x" "; vi: set ft=x:\n") (name "a.xon")))
+  (File write-all rules "(grammar fx (module fx/syntax))\n")
+  (Syntax forget!)
+  (def unread (name "a.x"))
+  (File unlink rules)
+  (List for-each (fn (_ s) (File unlink (Str8 append d s))) (list "/fx/fx/syntax.x" "/fx/lang.xon"))
+  (List for-each (fn (_ s) (File rmdir (Str8 append d s))) (list "/fx/fx" "/fx" ""))
+  (Sys setenv "X_LANG_DIR" (if (null? was-langs) "" was-langs))
+  (Sys setenv "X_SYNTAX" (if (null? was-rules) "" was-rules))
+  (Syntax forget!)
+  (list ruled unread))
+```
+---
+    (('fx 'fx 'fx 'x 'x) 'x)
+
+### the syntax file is X_SYNTAX, and an empty X_SYNTAX reads none
+
+```x
+(do (import x/sys/posix) (import x/tool/syntax)
+  (def was (Sys getenv "X_SYNTAX"))
+  (Sys setenv "X_SYNTAX" "/tmp/x-spec-syntax-file")
+  (def a (Syntax rules-file))
+  (Sys setenv "X_SYNTAX" "")
+  (def b (Syntax rules-file))
+  (Sys setenv "X_SYNTAX" (if (null? was) "" was))
+  (list a b))
+```
+---
+    ("/tmp/x-spec-syntax-file" ())
+
 ### a lang.xon that does not read, or a module that registers nothing, is no grammar
 
 A bundle row is one with a module; the registered grammars have none.
