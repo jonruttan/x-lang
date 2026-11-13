@@ -393,5 +393,5 @@
       (%sha-hash %sha512 "6" %sha512-groups key salt))))
 
 (doc (provide x/codec/crypt Crypt)
-  (example "(Crypt md5 \"pw\" \"salt\")" "\"$1$salt$IXp9zPHZ94CMcVBXaZFPN/\"")
+  (sample "(Crypt md5 \"pw\" \"salt\")" "\"$1$salt$IXp9zPHZ94CMcVBXaZFPN/\", as openssl passwd -1 answers; its 1000 rounds are the cost")
   "crypt(3)'s password hashes: (Crypt des key salt), the traditional DES one; (Crypt md5 key salt), $1$; (Crypt sha256 key salt) and (Crypt sha512 key salt), $5$ and $6$. Pure x-lang, the digest-built ones on their codecs' compiled engines.")
