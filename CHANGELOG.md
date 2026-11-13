@@ -5,6 +5,281 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-11-13
+
+**The engine is x-engine-c v0.2.32** ([#1271]). A second error caught
+from a child base with `(b eval ...)` in a later form no longer
+segfaults on Linux ([x-engine-c#136]).
+
+[#1271]: https://github.com/jonruttan/x-lang/pull/1271
+[x-engine-c#136]: https://github.com/jonruttan/x-engine-c/pull/136
+
+**Every compiled call's template is emptied before a state image is
+written, including one read back by its name.** ([#1280]) A spec now
+writes an image of compiled closures that passed raw string pointers
+through their calls and checks it has no unnameable words.
+
+[#1280]: https://github.com/jonruttan/x-lang/pull/1280
+
+**The web spec's closed-page case no longer races the end of the
+stream.** ([#1281]) It waits on the server's own socket, with Sys poll
+and a one-second bound, before each `(Web poll)`, instead of polling
+once and expecting the close to have arrived.
+
+[#1281]: https://github.com/jonruttan/x-lang/pull/1281
+
+**A lang can carry its closures compiled.** ([#1279]) A bundle whose
+lang.xon says `(image compiled)` gets a state image with every closure
+its own modules define compiled by `compile-fn!`. `compile-module!` and
+`compile-root!` (`x/tool/fn-compile`) compile one module's closures, or
+those of every module under a root.
+
+[#1279]: https://github.com/jonruttan/x-lang/pull/1279
+
+**`fmt.x`, `lint.sh` and `cov.sh` take a lang's constructs by file.** ([#1278])
+`--constructs FILE` names a bundle's `constructs.x`, read after the
+platform's; it replaces `--lang NAME`, which looked under a `lang/`
+directory that no longer exists and so read nothing.
+
+[#1278]: https://github.com/jonruttan/x-lang/pull/1278
+
+**Compiled closures make tail calls.** ([#1277]) A closure compiled with
+`compile-fn!` makes a call in tail position of another closure as a
+tail call, as interpreted code does: mutually recursive compiled
+closures, and compiled code calling back into interpreted code, run in
+constant stack.
+
+[#1277]: https://github.com/jonruttan/x-lang/pull/1277
+
+**A mixer's chorus, drive, crush, swept filter and limiter, a voice's
+filter path, and a tracker's low-pass cell effect** ([#1276])
+(`x/audio/mixer`, `x/audio/tracker`): `(Mixer effect! m NAME SPEC)`
+takes `(chorus VOICES MS DEPTH-MS PERIOD-MS WET)`, `(drive GAIN WET)` (a
+soft clip that leaves quiet sound alone), `(crush BITS HZ)`, `(sweep
+LOW-HZ HIGH-HZ PERIOD-MS RES)` (a resonant low-pass swept by octaves: an
+auto-wah) and `(limit CEILING RELEASE-MS)`, and a song takes them beside
+`(echo ...)`.  A voice's `(filter (MS PCT) ...)` is its low-pass's path,
+as `(bend ...)` is its pitch's, and a pattern cell's `l P` closes or
+opens a note's low-pass to P percent over its span.  Four new kernels
+(drive, crush, sweep, limit) are compiled and adopted only when they
+agree with their pure-x forms.
+
+[#1276]: https://github.com/jonruttan/x-lang/pull/1276
+
+**A mixer's pitch, cut, bend and named effects, and a tracker's pace,
+effects and cell effects** ([#1272]) (`x/audio/mixer`,
+`x/audio/tracker`): `(Mixer pitch! m CENTS)` moves every voice, playing
+and to come, from its own pitch, and `(Mixer cut! m PCT)` closes every
+voice's low-pass to a share of its own.  A voice's `(bend (MS CENTS)
+...)` is its pitch's path, straight between points and jumping where
+two share a time; `(Mixer semitone NAME)` gives a note's semitones.
+`(Mixer effect! m NAME SPEC)` puts an echo, a reverb (four combs through
+two all-passes) or a phase (a swept, interpolated short delay: a phaser
+or a flanger) over the mix by name, changes it in place keeping what
+rings, or takes it off with nil; `(Mixer effects m)` lists them.  A song
+takes `(reverb ...)` and `(phase ...)` beside `(echo ...)`; a change of
+song swaps its effects for the next song's, and playing a song again no
+longer adds its echoes twice.  A pattern cell carries tracker effects
+after its note, `C4/v30,4 ./s-200`: arpeggio, vibrato, slide,
+portamento, tremolo, fade, cut, delay and retrigger, timed in `(ticks
+N)` a row.  `(Tracker pace! t PCT)` plays a song at a share of its
+tempo.  Three new kernels (all-pass, wet add, phase) are compiled and
+adopted only when they agree with their pure-x forms.
+
+[#1272]: https://github.com/jonruttan/x-lang/pull/1272
+
+**help shows worked examples for the lib/x/codec modules** ([#1275])
+(Zlib, Aes, Ghash, the digests, Bzip2, Bunzip2, Inflate, Deflate, Xon,
+Struct, the compiled engines and the rest).
+
+[#1275]: https://github.com/jonruttan/x-lang/pull/1275
+
+**help shows worked examples for the lib/x/sys and lib/x/net modules**
+([#1274]) (Heap, Pact, Stream, Socket, Pty, Callback, Rest, Tls, X509
+and the rest).
+
+[#1274]: https://github.com/jonruttan/x-lang/pull/1274
+
+**`docs/sandboxing-tutorial.md` is gated.** ([#1245]) Its 21 assertions
+pass on the engine that fixes a parent's collect sweeping a value
+handed to a child base, so `make check-doc-examples` fails on it rather
+than reporting.
+
+[#1245]: https://github.com/jonruttan/x-lang/pull/1245
+
+**Branch coverage is a library function.** ([#1269]) `cov-branches` in
+`x/tool/cov` takes forms that have run under `x-bin-profile` and the
+construct declarations, and returns the branches reached, the branches
+in all, and the ones never taken; `tools/dev/cov.sh` reports from it,
+now in source order.
+
+[#1269]: https://github.com/jonruttan/x-lang/pull/1269
+
+**`make test-x-cov` and `make test-cov` are gone.** ([#1268]) They measured C line
+coverage of an engine that is no longer in this repository; x-engine-c's
+`make test-c-cov` does that.  x-lang coverage is `make cov-x` and
+`tools/dev/cov.sh`, on `x-bin-profile`.
+
+[#1268]: https://github.com/jonruttan/x-lang/pull/1268
+
+**A user syntax file gives files their grammar** ([#1267])
+(`x/tool/syntax`): `$X_SYNTAX`, else `$XDG_CONFIG_HOME/x/syntax.x`,
+else `~/.config/x/syntax.x`, holds rules such as `(grammar sh (files
+".zsh") (names "PKGBUILD"))`.  `Syntax for-file` asks them after a
+modeline and before every grammar's own suffixes, names and
+interpreters; `(Syntax rules-file)` answers the path.
+
+[#1267]: https://github.com/jonruttan/x-lang/pull/1267
+
+**The coverage tools run on a released engine.** ([#1266]) `tools/dev/cov.sh` and
+the cov specs in `make test-tools` use `x-bin-profile`, which every
+engine release ships with coverage marking compiled in, instead of a
+separately built `x-bin-cov`; the cov specs no longer skip on a tree
+without engine sources.
+
+[#1266]: https://github.com/jonruttan/x-lang/pull/1266
+
+**Clearing a compiled call's template works on x86_64 and arm32.** ([#1265]) It
+stores a zeroed register, not xzr, which only arm64 has.
+
+**Lint runs faster: its image carries the linter compiled.** ([#1265]) A full
+lint takes 57 s, down from 69 s.
+
+**A compiled call no longer keeps its last arguments alive.** ([#1265]) Code that
+calls back into x clears its call template afterwards, so a state image
+of it writes.
+
+[#1265]: https://github.com/jonruttan/x-lang/pull/1265
+
+**A closure over locals in a compiled function runs its body compiled.** ([#1264])
+A fn literal reading locals of the function compile-fn! compiles
+answers a closure whose body is compiled once, and its self-calls stay
+in the compiled body: a local recursive helper is a compiled loop.
+
+[#1264]: https://github.com/jonruttan/x-lang/pull/1264
+
+**compile-fn! compiles a function with a fn literal in it.** ([#1263])
+A loop written in place, ((fn (self ...) ...) arg ...), compiles to a
+closure taking the locals it reads, compiled in turn.  A literal reading
+no local is one closure, compiled in turn.  Any other answers an
+interpreted closure over the values of the locals it reads.  A literal
+that sets a local, or holds one the function writes after it, is
+refused.
+
+[#1263]: https://github.com/jonruttan/x-lang/pull/1263
+
+**The bare help entries under lib/x/type show a worked example.** ([#1262]) The
+113 entries there that answered `help` with a description alone, from
+Array, Deque, Pq and Counter to Obj, Ptr, Io and Base, now carry an
+executable example or a sample; the doctest spec grows to 1585.
+
+[#1262]: https://github.com/jonruttan/x-lang/pull/1262
+
+**help shows worked examples for the lib/x/tool modules** ([#1261])
+(Contract, Fmt, Highlight, cov, lint, link, image/name, compile,
+asm-cache and the rest).
+
+[#1261]: https://github.com/jonruttan/x-lang/pull/1261
+
+**compile-fn! compiles a function with a rest parameter.** ([#1260])
+(fn (self a . more) ...) binds more to the list of the arguments after
+a's, called or applied.  A self-call of such a function is a call, not
+the tail jump.
+
+[#1260]: https://github.com/jonruttan/x-lang/pull/1260
+
+**The free variables of a compiled function are named for what they
+are.** ([#1259]) A function compiled by compile-fn! names each value it
+takes from outside (%c:NAME a binding cell, %t:N:I a call template,
+%m:HEAD:SEL a method, %l:K a literal), and the values can be read back
+from the names and the closure without rewriting it.  This is what an
+object file of compiled functions needs to name what its code takes.
+
+[#1259]: https://github.com/jonruttan/x-lang/pull/1259
+
+**Object files are binary by default and read through a Lexer.** ([#1258])
+link-write! writes one record a section, a relocation kind and a name,
+each name with every place that takes its value; link-read takes both the
+binary and the text form, and (link-write! path object 'text) still
+writes text.  Reading a 416-relocation object drops from 78 ms to 6 ms,
+and linking it from 128 ms to 24 ms.  Relocations read from binary
+records come grouped by name.
+
+[#1258]: https://github.com/jonruttan/x-lang/pull/1258
+
+**A function compiled by compile-fn! comes back from a state image with
+no key printed.** ([#1257]) Each entry keeps what its first compile
+found, so the compile after an image load pours it directly.  Compiling
+97 functions again after a load drops from 793 ms to 86 ms.  New door:
+asm-compile-kept.
+
+[#1257]: https://github.com/jonruttan/x-lang/pull/1257
+
+**help shows worked examples for the doc generator modules** ([#1255])
+(x/doc/emit, x/doc/emit-man, x/doc/doc-gen).
+
+[#1255]: https://github.com/jonruttan/x-lang/pull/1255
+
+**Every Opts entry shows a worked example under help.** ([#1254])
+The 20 entries of `(help Opts ...)` and `(help x/sys/opts)` that
+answered with a description alone now carry an executable example,
+run by `make doctest`: the doctest spec reaches 1434.
+
+[#1254]: https://github.com/jonruttan/x-lang/pull/1254
+
+**`Linux` (x/sys/linux): Sdl's message set on the Linux console.** ([#1253])  A
+program written against Sdl swaps the class name and draws to the
+framebuffer, reads keys from evdev and plays sound through ALSA, with
+no library and no display server.  `(Linux devices! FB SYSFS INPUT PCM
+CONSOLE)` points it at other paths.
+
+[#1253]: https://github.com/jonruttan/x-lang/pull/1253
+
+**Unlzma decodes a stream a piece at a time.** ([#1252]) `stream`, `feed`,
+`finish`, `done?` and `rest` decode a .lzma stream in pieces, through the
+compiled decoder once a piece is 4KB or more.
+
+[#1252]: https://github.com/jonruttan/x-lang/pull/1252
+
+**The linux/arm/v7 CI leg gates.** ([#1251]) A 32-bit failure now fails
+the run, so a pull request can no longer merge on top of one.
+
+[#1251]: https://github.com/jonruttan/x-lang/pull/1251
+
+**A compiled function can be a handler.** ([#1249]) A function compiled by
+compile-fn! now takes the values an apply hands it as a closure does,
+whether the apply is the library's or the engine's own (a type's write
+handler, class dispatch).  Before, it evaluated them a second time.  The
+engine is unchanged: the first compile puts a routine in the base's
+callable-apply slot.
+
+[#1249]: https://github.com/jonruttan/x-lang/pull/1249
+
+**`make check-help-examples` fails a doc entry for a name nothing binds.** ([#1248])
+A def entry whose name the root does not bind and no module provides --
+left behind when its name was made %-private or deleted -- is listed on
+the doctest census's `unbound defs:` line and fails the check.  The seven
+entries it found, private helpers in x/type/str-utf8 and x/doc/doc-gen,
+are removed.
+
+[#1248]: https://github.com/jonruttan/x-lang/pull/1248
+
+**Unlzma decodes through a compiled engine.** ([#1247]) `x/codec/unlzma-jit` compiles
+the decoder's decisions into one compiled state machine, built for an input
+of 4KB or more or on `(Unlzma jit!)` and adopted only once it decodes the
+check streams exactly as the pure-x decoder does.  400000 bytes decode in 44
+ms, where the pure decoder takes 2.56 s for 50000; the compile is 0.56 s,
+once a process.
+
+[#1247]: https://github.com/jonruttan/x-lang/pull/1247
+
+**The linter's wide-decimal rule reports bit-operation arguments only.** ([#1246]) A
+decimal past a 4-byte word bound by a `def` is no longer a finding: a
+number such as an epoch offset is right in decimal, and in hex it would
+read as the word's bits.
+
+[#1246]: https://github.com/jonruttan/x-lang/pull/1246
+
 ## [0.52.0] - 2026-11-11
 
 **A heap mark can be made more than once in a process.** ([#1243]) `image-clear!` in
