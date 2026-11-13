@@ -32,23 +32,28 @@
     (method send (self (param session OBJECT "A (Tls connect) session")
                        (param s ANY "The bytes: a region (BUF START LEN), or a STRING up to its first NUL"))
       (doc "Send all the bytes through the session; raises a label 'io on failure."
-        (returns INTEGER "Bytes written"))
+        (returns INTEGER "Bytes written")
+        (sample "(Tls send s \"GET / HTTP/1.0\\r\\nHost: github.com\\r\\n\\r\\n\")" "36"))
       (Tls13 send session s))
     (method recv-bytes (self (param session OBJECT "A (Tls connect) session")
                              (param maxlen INTEGER "Maximum bytes to receive"))
       (doc "Receive up to maxlen bytes as a byte list (the lossless carrier); nil at an orderly close; raises a label 'io on failure."
-        (returns ANY "Byte list, or nil at orderly close"))
+        (returns ANY "Byte list, or nil at orderly close")
+        (sample "(Tls recv-bytes s 4)" "(72 84 84 80), the start of \"HTTP\""))
       (Tls13 recv-bytes session maxlen))
     (method recv-run (self (param session OBJECT "A (Tls connect) session")
                            (param maxlen INTEGER "Maximum bytes to receive"))
       (doc "Receive up to maxlen bytes as a RUN: (STRING . COUNT), NUL bytes included. nil at an orderly close; raises a label 'io on failure."
-        (returns ANY "(STRING . COUNT), or nil at orderly close"))
+        (returns ANY "(STRING . COUNT), or nil at orderly close")
+        (sample "(Tls recv-run s 65536)" "(\"HTTP/1.0 200 OK...\" . COUNT), as much as one record carried"))
       (Tls13 recv-run session maxlen))
     (method close (self (param session OBJECT "A (Tls connect) session"))
       (doc "Send close_notify and close the connection."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (sample "(Tls close s)" "nil, the session closed"))
       (Tls13 close session))))
 
 (doc (provide x/net/tls Tls)
   (note "TLS 1.3 written in x (x/net/tls13): the server authenticated against Mozilla's roots by default; ('insecure) is the explicit development override. Hosts are quads: (Socket resolve) turns names into them; Http wires the two together for https:// urls.")
+  (sample "(Tls connect (Socket resolve \"github.com\") 443 (list (pair 'host \"github.com\")))" "a verified session")
   "TLS client sessions, homed on the Tls class.")

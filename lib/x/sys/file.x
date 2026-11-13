@@ -315,7 +315,9 @@
     ; takes 32-bit offsets (llseek is the 64-bit door there; not wired).
     (method %whence (self (param whence ANY "Seek origin -- symbol or number"))
       (doc "Resolve a seek origin to its POSIX SEEK_* value (identical across Linux/macOS): 'set -> 0, 'cur -> 1, 'end -> 2; a number passes through. Raises a label 'type Err on anything else -- an unknown origin must not reach the kernel."
-        (returns INTEGER "0, 1, 2, or the number given"))
+        (returns INTEGER "0, 1, 2, or the number given")
+        (example "(File %whence 'end)" "2")
+        (example "(File %whence 7)" "7"))
       (match
         ((number? whence) whence)
         ((eq? whence 'set) 0)
@@ -716,4 +718,6 @@
 
 (doc (provide x/sys/file File)
   (note "Imports x/platform/syscall for syscall-door; read buffers come from the (str make) core primitive, so File runs under plain x-core. Call (File file-modes) / (File stat-flags) for the symbolic flag tables.")
+  (example "(File %whence 'cur)" "1")
+  (sample "(File read-all \"notes.txt\")" "the file's contents as a string")
   "File I/O via POSIX syscalls, homed on the File class.")

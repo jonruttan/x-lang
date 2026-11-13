@@ -38,7 +38,9 @@
 
     (method capture (self (param f CALLABLE "Receives the continuation, a procedure of the value to pass"))
       (doc "call/cc, with the captured frames' roots marked while the continuation waits."
-        (returns ANY "What f answers, or the value the continuation was invoked with"))
+        (returns ANY "What f answers, or the value the continuation was invoked with")
+        (example "(Cont capture (fn (_ k) 7))" "7")
+        (example "(Cont capture (fn (_ k) (k 5) 9))" "5"))
       ((Cont %callcc)
         (fn (_ k)
           (let ((m (Cont %marker k)))
@@ -114,4 +116,5 @@
 
 (doc (provide x/sys/cont Cont)
   (note "The engine's call/cc stays bare; this is the door for a continuation that waits -- a generator, a coroutine.")
+  (example "(+ 1 (Cont capture (fn (_ k) (k 2) 10)))" "3")
   "Continuations whose captured frames' roots the collector marks while they wait.")

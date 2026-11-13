@@ -121,4 +121,5 @@
       (TlsKeys expand-label hash secret "traffic upd" %no-bytes (Hmac size hash)))))
 
 (doc (provide x/net/tls-keys TlsKeys)
+  (example "(Bytes hex (TlsKeys empty-hash (lit sha256)))" "\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"")
   "The TLS 1.3 key schedule (RFC 8446 7.1): Expand-Label, Derive-Secret, the early, handshake and master secrets, traffic keys and Finished, over regions.")
