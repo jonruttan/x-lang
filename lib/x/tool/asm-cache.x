@@ -134,13 +134,13 @@
 ; blind to what produced the bytes serves stale bytes, which is the argument the
 ; engine half of the key already makes.
 ;
-; x-lib-version covers a consumer, who gets a release.  The "g6" is the codegen
+; x-lib-version covers a consumer, who gets a release.  The "g7" is the codegen
 ; epoch and covers development: bumping it is part of changing what the emitter
 ; accepts, refuses or emits, the rule %asm-cache-magic states for the record
 ; format.  It is a literal rather than a name of its own because a name here is
 ; another top-level %-global (tools/contract/percent-globals.x).
 (def %asm-cache-identity
-  (Str append x-machine x-release x-lib-version "g6"))
+  (Str append x-machine x-release x-lib-version "g7"))
 
 ; The emitted code is not a function of the source alone, so the fvar table's
 ; ARRANGEMENT is part of the key.  Inside analyser mode a name absent from the table
@@ -1344,11 +1344,17 @@
 ; word is the second unit of a code object, which the collector does not
 ; follow and an image carries as it is.  nil on an engine with no code type:
 ; a function compiled there evaluates its arguments, as a call needs.
+;
+; Its other units are this process's, set by whoever stands in for the
+; engine's apply routine (x/tool/fn-compile) and 0 until then: 2 the routine
+; replaced, 3 the base's tco-expr cell, where a call in tail position leaves
+; its form for the evaluator to make (0: the call is made where it stands),
+; 4 the engine's tail-call trampoline, and 5 a word that stays 0, the
+; argument run the trampoline is handed.
 (def asm-fn-values
   (if (null? %asm-cache-code-type) ()
-    (do (def cell (%asm-cache-words 2))
-        (ptr-set-word! (obj->ptr cell) (%data-word-off 1) 0)
-        (ptr-set-word! (obj->ptr cell) (%data-word-off 2) 0)
+    (do (def cell (%asm-cache-words 5))
+        ((fn (self i) (when (int< i 6) (do (ptr-set-word! (obj->ptr cell) (%data-word-off i) 0) (self (int+ i 1))))) 1)
         cell)))
 (unless (null? asm-fn-values)
   (set! %asm-fn-fvars (%append %asm-fn-fvars (list (pair (lit %values) asm-fn-values)))))
