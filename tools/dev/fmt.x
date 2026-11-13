@@ -1,7 +1,7 @@
 ; fmt.x -- x-lang comment-preserving formatter (entry script)
 ;
 ; A pure filter: format files to stdout.
-;   sh x.sh --no-pin -q -f tools/dev/fmt.x -- [--lang LANG] FILE...
+;   sh x.sh --no-pin -q -f tools/dev/fmt.x -- [--constructs FILE] FILE...
 ; ONE file streams bare (byte-exact: fmt-x writes it back verbatim).
 ; Several files stream behind "%%FMT-X-PAGE%% <source>" sentinel lines
 ; (#307, the doc.x batch pattern): one engine boot serves the chunk,
@@ -12,9 +12,9 @@
 ; script), so inputs are read by path -- which also retires the old
 ; wrapper's awk string-escape hack.
 ;
-; Data-driven: construct declarations (lib/x/constructs.x, plus the
-; language-specific table when --lang or the file's path names one) tell
-; the formatter how each form nests.
+; Data-driven: construct declarations (lib/x/constructs.x, plus a lang's
+; own constructs.x when --constructs names it) tell the formatter how each
+; form nests.
 
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
 ; The quote forms' analysers and readers, seated on the scratch base below.
@@ -31,59 +31,34 @@
 
   (Contract alloc-guard!)
 
-  ; --- args: [--lang LANG] FILE... ---
+  ; --- args: [--constructs FILE] FILE... ---
   (def %argv (Contract argv))
-  (def %lang
-    (if (and (pair? %argv) (str=? (first %argv) "--lang"))
+  (def %fmt-constructs
+    (if (and (pair? %argv) (str=? (first %argv) "--constructs"))
       (if (pair? (rest %argv)) (first (rest %argv)) ()) ()))
   (def %fmt-files
     (match
-      ((null? %lang) %argv)
+      ((null? %fmt-constructs) %argv)
       (#t (rest (rest %argv)))))
   (when (null? %fmt-files)
-    (do (Stream with-fd 2 (fn (_) (display "Usage: x.sh --no-pin -q -f tools/dev/fmt.x -- [--lang LANG] FILE...\n")))
+    (do (Stream with-fd 2 (fn (_) (display "Usage: x.sh --no-pin -q -f tools/dev/fmt.x -- [--constructs FILE] FILE...\n")))
         (Sys exit 1)))
   (List for-each
     (fn (_ f)
       (unless (File exists? f)
         (do (Stream with-fd 2 (fn (_) (display (Str8 append "Error: " (Str8 append f " not found\n")))))
             (Sys exit 1))))
-    %fmt-files)
+    (if (null? %fmt-constructs) %fmt-files (pair %fmt-constructs %fmt-files)))
 
-  ; Auto-detect language from the file path (the old wrapper's case table)
-  (def %lang-of
-    (fn (_ path)
-      (match
-        ((Str8 includes? "/lang/r5rs/" path) "r5rs")
-        ((Str8 includes? "/lang/r7rs/" path) "r7rs")
-        ((Str8 includes? "/lang/krn/" path) "krn")
-        ((Str8 includes? "/lang/ash/" path) "ash")
-        ((Str8 includes? "/lang/sweet/" path) "sweet")
-        ((Str8 includes? "/lang/sl/" path) "sl")
-        (#t ()))))
   ; --- Load construct declarations (parsed, not evaluated) ---
+  ; The platform's, then a lang's own when --constructs names its file.
   (def %parse-one
     (fn (_ path) (first (Xon parse (File read-all path)))))
-  (def %constructs (%parse-one "lib/x/constructs.x"))
-  ; One built table per LANG, cached across the batch (a lib sweep is
-  ; one lang -- nil -- so this is one build).  Key "" = no lang.
-  (def %table-cache (pair () ()))
-  (def %table-for
-    (fn (_ lang)
-      (def key (if (null? lang) "" lang))
-      (def hit (%find (fn (_ e) (str=? key (first e)))
-                      (first %table-cache)))
-      (if (not (null? hit)) (rest hit)
-        (let ((lc (if (null? lang) ()
-                    (let ((p (Str8 append "lang/"
-                               (Str8 append lang "/lib/constructs.x"))))
-                      (if (File exists? p) (%parse-one p) ())))))
-          (let ((table (Fmt build-table
-                         (if (null? lc) %constructs
-                           (%append %constructs lc)))))
-            (do (%set-first! %table-cache
-                  (pair (pair key table) (first %table-cache)))
-                table))))))
+  (def %table
+    (Fmt build-table
+      (if (null? %fmt-constructs) (%parse-one "lib/x/constructs.x")
+        (%append (%parse-one "lib/x/constructs.x")
+                 (%parse-one %fmt-constructs)))))
 
   ; Reader that keeps the comment text as a token
   (def %fmt-comment-reader (fn (_ . args)
@@ -230,9 +205,8 @@
       ; Boot-constrained files keep their (lit ...) spellings; everything
       ; else folds to the encouraged sugar.
       (Fmt fold-sugar! (not (%boot-file? file)))
-      (def %the-lang (if (null? %lang) (%lang-of file) %lang))
       (def %tokens (Xon parse (File read-all file) %fmt-base))
-      (Fmt tokens %tokens (%table-for %the-lang))))
+      (Fmt tokens %tokens %table)))
 
   ; --- Drive: bare stream for ONE file, sentinel pages for several ---
   (if (null? (rest %fmt-files))

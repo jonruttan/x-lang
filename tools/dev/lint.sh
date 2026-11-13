@@ -5,10 +5,11 @@
 # the interpreter's own env-alist for known symbols -- no manual
 # enumeration needed.
 #
-# Usage: sh tools/dev/lint.sh [--lib] [--lang LANG] [file.x ...]
+# Usage: sh tools/dev/lint.sh [--lib] [--constructs FILE] [file.x ...]
 #   --lib: suppress unused warnings (for library/export files)
 #   --warnings: also print advisory warnings for files that pass
-#   --lang LANG: use language-specific constructs
+#   --constructs FILE: a lang's own construct declarations (a bundle's
+#     constructs.x), read after the platform's; X_LINT_CONSTRUCTS is the same
 #   No args: lint lib/x-core.x, lib/x/*.x, and apps/*/*.x in --lib mode
 #
 # App files (apps/NAME/*.x) reference their sibling modules, so linting one
@@ -55,14 +56,12 @@ CONSTRUCTS="$PROJECT_DIR/lib/x/constructs.x"
 # The constructs the linter reads: the platform's, then a lang's own when one
 # is given.  A lang bundle's constructs.x declares the lang's binding forms --
 # Kernel's $lambda and $define!, Scheme's define -- so the linter reads a
-# parameter they bind as bound; the lang kit's shim names it through
-# X_LINT_CONSTRUCTS.  Both lint paths, per file and --group, read the same
-# input from here.
+# parameter they bind as bound; --constructs or X_LINT_CONSTRUCTS names it,
+# and the lang kit's shim sets the latter.  Both lint paths, per file and
+# --group, read the same input from here.
 _constructs_input() {
   if [ -n "${X_LINT_CONSTRUCTS:-}" ] && [ -f "$X_LINT_CONSTRUCTS" ]; then
     printf '%s %s' "$(cat "$CONSTRUCTS")" "$(cat "$X_LINT_CONSTRUCTS")"
-  elif [ -n "${1:-}" ] && [ -f "$1" ]; then
-    printf '%s %s' "$(cat "$CONSTRUCTS")" "$(cat "$1")"
   else
     printf '%s ()' "$(cat "$CONSTRUCTS")"
   fi
@@ -109,7 +108,6 @@ _boot_linter() {
 }
 
 LIB_MODE=0
-LANG=""
 SHOW_WARNINGS=0
 
 # Parse flags (before file args)
@@ -118,8 +116,10 @@ while [ $# -gt 0 ]; do
     --lib) LIB_MODE=1; shift ;;
     --warnings) SHOW_WARNINGS=1; shift ;;
     --group) GROUP_LIST="$2"; shift 2 ;;
-    --lang) LANG="$2"; shift 2 ;;
-    -*) echo "Usage: $0 [--lib] [--warnings] [--lang LANG] [file.x ...]" >&2; exit 1 ;;
+    --constructs)
+      [ -f "${2:-}" ] || { echo "Error: ${2:-} not found" >&2; exit 1; }
+      X_LINT_CONSTRUCTS="$2"; export X_LINT_CONSTRUCTS; shift 2 ;;
+    -*) echo "Usage: $0 [--lib] [--warnings] [--constructs FILE] [file.x ...]" >&2; exit 1 ;;
     *) break ;;
   esac
 done
@@ -484,24 +484,9 @@ for f in "$@"; do
   esac
   _NAME=$(echo "$f" | sed "s|$PROJECT_DIR/||")
 
-  # Auto-detect language from file path if not specified
-  _LANG="$LANG"
-  if [ -z "$_LANG" ]; then
-    case "$f" in
-      */lang/r5rs/*) _LANG="r5rs" ;;
-      */lang/r7rs/*) _LANG="r7rs" ;;
-      */lang/krn/*)  _LANG="krn"  ;;
-      */lang/ash/*)  _LANG="ash"  ;;
-      */lang/sweet/*) _LANG="sweet" ;;
-      */lang/sl/*)   _LANG="sl"   ;;
-    esac
-  fi
-
-  # Build constructs input: the platform's, then the lang's (see
+  # Constructs input: the platform's, then the lang's (see
   # _constructs_input).
-  _LANG_CONSTRUCTS=""
-  [ -z "$_LANG" ] || _LANG_CONSTRUCTS="$PROJECT_DIR/lang/$_LANG/lib/constructs.x"
-  _CONSTRUCTS_INPUT="$(_constructs_input "$_LANG_CONSTRUCTS")"
+  _CONSTRUCTS_INPUT="$(_constructs_input)"
 
   # Preload: factored into _preload_for (#323) -- the batch grouper
   # keys on the same text this loop executes.
