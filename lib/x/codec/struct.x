@@ -50,7 +50,8 @@
     ; capturing the byte prims; pads carry a nil rdr. Cold, build-time only.
     (method %plan (self (param spec LIST "Field spec"))
       (doc "Compile a field spec into ((name width reader-closure) ...) -- pads carry a nil reader. Raises a label 'value on malformed fields or unknown types."
-        (returns LIST "The plan, in spec order"))
+        (returns LIST "The plan, in spec order")
+        (example "(List map (fn (_ f) (first (rest f))) (Struct %plan (list (list 'a 'u8) (list 'pad 2) (list 'b 'u16))))" "(1 2 2)"))
       ; The readers assemble values on the integer primitives: a byte, an
       ; offset or a width is never nil, and a machine int wraps at 64 bits,
       ; which is what makes an 8-byte read the two's-complement value with
@@ -168,7 +169,8 @@
     ; ends with the alist in spec order.  Cold, build-time only.
     (method %fields (self (param plan LIST "A plan from (Struct %plan)"))
       (doc "The plan's fields with each one's byte offset in the record, pads dropped, last field first."
-        (returns LIST "((name offset reader-closure) ...), in reverse spec order"))
+        (returns LIST "((name offset reader-closure) ...), in reverse spec order")
+        (example "(List map (fn (_ f) (list (first f) (first (rest f)))) (Struct %fields (Struct %plan (list (list 'a 'u8) (list 'pad 2) (list 'b 'u16)))))" "(('b 3) ('a 0))"))
       (let go ((p plan) (off 0) (acc ()))
         (match
           ((null? p) acc)
@@ -254,5 +256,6 @@
         spec))))
 
 (doc (provide x/codec/struct Struct)
+  (example "(Struct length (list (list 'a 'u8) (list 'b 'u16)))" "3")
   (note "Buffers are strings, reads NUL-blind, bounds the caller's (the x-lib C-string ruling); pack emits byte lists. First adopter: sys/file.x's stat/lstat decode. x/type/struct is unrelated type-system plumbing.")
   "Binary record pack/unpack against a field spec, homed on the Struct class.")

@@ -321,4 +321,5 @@
 (prim-reg! (lit inflate) (lit jit-make) inflate-jit-make)
 
 (doc (provide x/codec/inflate-jit inflate-jit-make)
+  (example "(do (import x/codec/inflate-jit) (procedure? (prim-ref (lit inflate) (lit jit-make))))" "#t")
   "The compiled Huffman loop behind Inflate (JIT, ARM64, x86-64 and 32-bit ARM backends); built and adopted only after agreeing with the pure-x decoder.")

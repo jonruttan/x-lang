@@ -217,12 +217,15 @@
     (method block (self (param key STRING "The 256-bit key: 32 bytes are read")
                         (param iv STRING "Block counter and nonce: 16 bytes are read"))
       (doc "The 64-byte keystream block for key and iv (RFC 8439 2.3): the cipher over sixty-four zero bytes. The first 32 bytes of block 0 are what the Poly1305 one-time key is taken from."
-        (returns STRING "64 bytes"))
+        (returns STRING "64 bytes")
+        (example "(do (import x/codec/bytes) (Bytes hex (Bytes region (ChaCha20 block (first (Bytes of-hex \"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f\")) (first (Bytes of-hex \"01000000000000090000004a00000000\"))) 0 16)))" "\"10f1e7e4d13b5915500fdd1fa32071c4\""))
       (%run (%state key iv) (%zeros 64) 0 64))
     (method jit! (self)
       (doc "Build and adopt the compiled cipher engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x cipher. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. xor also builds it on its own for any single region of 8KB or more."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(ChaCha20 jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the keystream is the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/chacha20 ChaCha20)
+  (example "(ChaCha20 xor (Str8 pad-right 32 #\\k \"\") (Str8 pad-right 16 #\\i \"\") (ChaCha20 xor (Str8 pad-right 32 #\\k \"\") (Str8 pad-right 16 #\\i \"\") \"hi\") 0 2)" "\"hi\"")
   "ChaCha20 (RFC 8439): (ChaCha20 xor key iv s [start len]) encrypts or decrypts a byte region, (ChaCha20 block key iv) is a keystream block. Pure x-lang, with an optional differentially-verified JIT engine ((ChaCha20 jit!), or built on its own for a region of 8KB or more).")

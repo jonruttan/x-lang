@@ -439,4 +439,5 @@
 (prim-reg! (lit bunzip2) (lit jit-make) bunzip2-jit-make)
 
 (doc (provide x/codec/bunzip2-jit bunzip2-jit-make)
+  (example "(do (import x/codec/bunzip2-jit) (procedure? (prim-ref (lit bunzip2) (lit jit-make))))" "#t")
   "The compiled loops behind Bunzip2 (JIT, ARM64, x86-64 and 32-bit ARM backends): the coded symbols, the inverse transform's links and its walk, built and adopted only after agreeing with the pure-x decoder.")

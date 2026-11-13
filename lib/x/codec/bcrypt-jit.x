@@ -194,4 +194,5 @@
 (prim-reg! (lit bcrypt) (lit jit-make) bcrypt-jit-make)
 
 (doc (provide x/codec/bcrypt-jit bcrypt-jit-make)
+  (example "(do (import x/codec/bcrypt-jit) (procedure? (prim-ref (lit bcrypt) (lit jit-make))))" "#t")
   "The compiled bcrypt_hash engine (JIT, ARM64, x86-64 and 32-bit ARM backends); built and adopted by x/codec/bcrypt after it answers Go's bcrypt_hash vector.")

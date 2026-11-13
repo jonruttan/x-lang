@@ -116,4 +116,5 @@
       (Bytes copy (list out 64 (%len ct))))))
 
 (doc (provide x/codec/chacha20-poly1305 ChaCha20Poly1305)
+  (example "(Bytes length (ChaCha20Poly1305 seal (Bytes of-hex \"0000000000000000000000000000000000000000000000000000000000000000\") (Bytes of-hex \"000000000000000000000000\") (Bytes of-hex \"\") (Bytes of-hex \"0102\")))" "18")
   "The ChaCha20-Poly1305 AEAD (RFC 8439 2.8): (ChaCha20Poly1305 seal key nonce aad pt) and (ChaCha20Poly1305 open key nonce aad sealed), over regions.")

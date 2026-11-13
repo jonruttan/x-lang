@@ -96,6 +96,7 @@
               (| 128 (& cp 63)))))))
 
 (doc (provide x/codec/utf8 utf8-decode utf8-encode utf8-width utf8-seq-len utf8-cp-at)
+  (example "(do (import x/codec/utf8 utf8-seq-len utf8-cp-at) (list (utf8-seq-len 0xE2) (utf8-cp-at \"A\" 0)))" "(3 65)")
   (note "The five functions are exports for the string layers that decode inside")
   (note "tokenizer callbacks, where class dispatch is forbidden: they import them by")
   (note "name and call them directly. The public API is on the Utf8 class:")

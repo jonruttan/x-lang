@@ -78,5 +78,6 @@
       (bytes->str (self decode-bytes hex)))))
 
 (doc (provide x/codec/hex Hex)
+  (example "(Hex decode (Hex encode \"hi\"))" "\"hi\"")
   (note "Lowercase out, either case in, strict decode. The -bytes doors carry NUL-bearing binary losslessly; (Hash ->hex) stays the INT-digest formatter.")
   "Hexadecimal bytes<->text transcoding, homed on the Hex class.")

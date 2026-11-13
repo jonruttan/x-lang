@@ -95,4 +95,5 @@
 (prim-reg! (lit base64) (lit encode-jit-make) base64-encode-jit-make)
 
 (doc (provide x/codec/base64-encode-jit base64-encode-jit-make)
+  (example "(do (import x/codec/base64-encode-jit) (procedure? (prim-ref (lit base64) (lit encode-jit-make))))" "#t")
   "The compiled base64 encoder (JIT, ARM64 and x86-64 backends) behind (Base64 encode-region): one loop over the bytes, adopted only after it encodes the check inputs byte for byte as the pure-x encoder does.")

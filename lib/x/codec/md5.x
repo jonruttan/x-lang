@@ -202,23 +202,28 @@
     (method bytes-n (self (param s STRING "Byte region to digest")
                           (param n INTEGER "How many bytes of s to digest"))
       (doc "MD5 of the FIRST n BYTES of s, as a fresh buffer of the digest's 16 bytes -- binary, so read it by count, not as a string: a NUL among the bytes ends its string length. THE LENGTH IS YOUR CLAIM AND IS NOT CHECKED, as hex-n's is."
-        (returns STRING "A 16-byte buffer"))
+        (returns STRING "A 16-byte buffer")
+        (example "(do (import x/codec/bytes) (Bytes hex (Bytes region (Md5 bytes-n \"abc\" 3) 0 16)))" "\"900150983cd24fb0d6963f7d28e17f72\""))
       (%words s n (str-make 17)))
     (method bytes-into (self (param s STRING "Byte region to digest")
                              (param n INTEGER "How many bytes of s to digest")
                              (param out STRING "A buffer of 16 bytes or more, written from its start"))
       (doc "MD5 of the FIRST n BYTES of s, its 16 bytes written into out, which is returned: bytes-n into a buffer you own, so a loop of digests makes none. The compiled engine writes the bytes itself, with no list between. THE LENGTHS ARE YOUR CLAIM AND ARE NOT CHECKED: out shorter than 16 bytes is written past."
-        (returns STRING "out"))
+        (returns STRING "out")
+        (example "(do (import x/codec/bytes) (Bytes hex (Bytes region (Md5 bytes-into \"abc\" 3 (Str8 pad-right 16 #\\- \"\")) 0 16)))" "\"900150983cd24fb0d6963f7d28e17f72\""))
       (%words s n out))
     (method bytes-writer (self)
       (doc "A function (s n out) doing what bytes-into does, for a loop of digests: the compiled engine itself once it is adopted, so each call pays no dispatch, or bytes-into's own path while it is not. It does not build the engine; call jit! first. Ask again after a state image loads: one held across it is the engine of the session that wrote it."
-        (returns CALLABLE "(fn (_ s n out)) answering out"))
+        (returns CALLABLE "(fn (_ s n out)) answering out")
+        (example "(do (import x/codec/bytes) (Bytes hex (Bytes region ((Md5 bytes-writer) \"abc\" 3 (Str8 pad-right 16 #\\- \"\")) 0 16)))" "\"900150983cd24fb0d6963f7d28e17f72\""))
       ((fn (_ c) (if (null? c) (fn (_ s n out) (%words s n out)) c))
        (if (null? %entry) () ((fn (_ entry) (entry compiled)) %entry))))
     (method jit! (self)
       (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x digest. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. hex also builds it on its own for any single input of 8KB or more."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Md5 jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the digests are the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/md5 Md5)
+  (example "(Md5 hex \"a\")" "\"0cc175b9c0f1b6a831c399e269772661\"")
   "MD5 (RFC 1321): (Md5 hex s) digests a byte string, (Md5 hex-n s n) and (Md5 bytes-n s n) its first n bytes. Pure x-lang, with an optional differentially-verified JIT engine ((Md5 jit!), or built on its own for an input of 8KB or more).")

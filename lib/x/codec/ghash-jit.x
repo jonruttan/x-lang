@@ -229,4 +229,5 @@
 (prim-reg! (lit ghash) (lit jit-make) ghash-jit-make)
 
 (doc (provide x/codec/ghash-jit ghash-jit-make)
+  (example "(do (import x/codec/ghash-jit) (procedure? (prim-ref (lit ghash) (lit jit-make))))" "#t")
   "The compiled GHASH engine (JIT, ARM64 and x86-64 backends); built and adopted only via (Ghash jit!) after proving agreement with the pure-x hash.")

@@ -206,4 +206,5 @@
 (prim-reg! (lit sha3) (lit jit-make) sha3-jit-make)
 
 (doc (provide x/codec/sha3-jit sha3-jit-make)
+  (example "(do (import x/codec/sha3-jit) (procedure? (prim-ref (lit sha3) (lit jit-make))))" "#t")
   "The compiled Keccak engine for SHA-3 (JIT, ARM64 and x86-64 backends); built and adopted only via (Sha3 jit!) after proving agreement with the pure-x digest.")

@@ -304,4 +304,5 @@
 (prim-reg! (lit aes) (lit jit-make) aes-jit-make)
 
 (doc (provide x/codec/aes-jit aes-jit-make)
+  (example "(do (import x/codec/aes-jit) (procedure? (prim-ref (lit aes) (lit jit-make))))" "#t")
   "The compiled AES counter-mode engine (JIT, ARM64, x86-64 and 32-bit ARM backends); built and adopted only via (Aes jit!) after proving agreement with the pure-x cipher.")

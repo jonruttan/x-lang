@@ -250,4 +250,5 @@
 (prim-reg! (lit poly1305) (lit jit-make) poly1305-jit-make)
 
 (doc (provide x/codec/poly1305-jit poly1305-jit-make)
+  (example "(do (import x/codec/poly1305-jit) (procedure? (prim-ref (lit poly1305) (lit jit-make))))" "#t")
   "The compiled Poly1305 block loop (JIT, ARM64, x86-64 and 32-bit ARM backends); built and adopted only via (Poly1305 jit!) after proving agreement with the pure-x loop.")

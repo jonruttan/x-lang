@@ -771,12 +771,14 @@
       (#t (list (first span) (first (rest span)))))))
 
 (def-class Bunzip2 ()
-  (doc "bzip2 decompression in pure x-lang, as busybox's bunzip2 decodes it. (Bunzip2 decode s) answers (OUT N USED) for one whole stream; a stream can also be fed a piece at a time: stream, feed, finish, done?, ok?, rest. A malformed stream raises a label 'value whose data holds (bunzip . KIND), KIND one of 'magic, 'header, 'data, 'obsolete or 'crc, and (short . #t) when the input ends inside it.")
+  (doc "bzip2 decompression in pure x-lang, as busybox's bunzip2 decodes it. (Bunzip2 decode s) answers (OUT N USED) for one whole stream; a stream can also be fed a piece at a time: stream, feed, finish, done?, ok?, rest. A malformed stream raises a label 'value whose data holds (bunzip . KIND), KIND one of 'magic, 'header, 'data, 'obsolete or 'crc, and (short . #t) when the input ends inside it."
+    (example "(do (import x/codec/bzip2) (let ((c (Bzip2 compress \"hello\" 9))) (let ((d (Bunzip2 decode (first c) 0 (first (rest c))))) (Str8 sub 0 (first (rest d)) (first d)))))" "\"hello\""))
   (static
     (method decode (self (param s STRING "Bytes holding a bzip2 stream")
                          . (param span LIST "START, then LENGTH: where the stream starts in s and how many bytes of s it may use; default all of s"))
       (doc "Decompress one bzip2 stream: \"BZh\", its blocks, the end marker. Every block's CRC and the stream's are checked. Give LENGTH for binary input: s's own length is measured to its first NUL."
-        (returns LIST "(OUT N USED): the output region, its byte count, and the input bytes the stream used"))
+        (returns LIST "(OUT N USED): the output region, its byte count, and the input bytes the stream used")
+        (example "(do (import x/codec/bzip2) (let ((c (Bzip2 compress \"hello\" 9))) (let ((d (Bunzip2 decode (first c) 0 (first (rest c))))) (list (Str8 sub 0 (first (rest d)) (first d)) (first (rest (rest d)))))))" "(\"hello\" 41)"))
       (def sp (%span s span))
       (%decode-all s (first sp) (first (rest sp)) (%engine-for (first (rest sp)))))
     (method stream (self)
@@ -789,28 +791,36 @@
                        (param start INTEGER "Where the piece starts in s")
                        (param n INTEGER "How many bytes it is"))
       (doc "Give the stream n more bytes. Answers what the blocks they complete decode to; once the end marker is read, more bytes are kept for (Bunzip2 rest) and answer none. A block whose CRC is wrong is answered all the same and ends the stream, ok? then #f. Raises a label 'value on a malformed stream."
-        (returns LIST "(OUT N): a region and how many of its bytes came out"))
+        (returns LIST "(OUT N): a region and how many of its bytes came out")
+        (example "(do (import x/codec/bzip2) (let ((z (Bunzip2 stream)) (c (Bzip2 compress \"hello\" 9))) (let ((o (Bunzip2 feed z (first c) 0 (first (rest c))))) (Str8 sub 0 (first (rest o)) (first o)))))" "\"hello\"")
+        (example "(do (import x/codec/bzip2) (let ((z (Bunzip2 stream)) (c (Bzip2 compress \"hello\" 9))) (do (Bunzip2 feed z (first c) 0 10) (first (rest (Bunzip2 feed z (first c) 10 (- (first (rest c)) 10)))))))" "5"))
       (%stream-feed z s start n))
     (method finish (self (param z OBJECT "A (Bunzip2 stream)"))
       (doc "The input has ended: what is held is decoded, and a stream cut short raises a label 'value whose data holds (short . #t)."
-        (returns LIST "(OUT N), as feed answers"))
+        (returns LIST "(OUT N), as feed answers")
+        (example "(do (import x/codec/bzip2) (let ((z (Bunzip2 stream)) (c (Bzip2 compress \"hello\" 9))) (do (Bunzip2 feed z (first c) 0 (first (rest c))) (first (rest (Bunzip2 finish z))))))" "0"))
       (%join (%stream-run z () #t)))
     (method done? (self (param z OBJECT "A (Bunzip2 stream)"))
       (doc "Has the stream's end been reached: its end marker read, or a block whose CRC is wrong?"
-        (returns BOOL "#t once it has"))
+        (returns BOOL "#t once it has")
+        (example "(do (import x/codec/bzip2) (let ((z (Bunzip2 stream)) (c (Bzip2 compress \"hello\" 9))) (do (Bunzip2 feed z (first c) 0 (first (rest c))) (Bunzip2 done? z))))" "#t"))
       (obj-ref z %ZDONE))
     (method ok? (self (param z OBJECT "A (Bunzip2 stream)"))
       (doc "Has every CRC read so far held: each block's, and the stream's at its end?"
-        (returns BOOL "#f once one has not"))
+        (returns BOOL "#f once one has not")
+        (example "(do (import x/codec/bzip2) (let ((z (Bunzip2 stream)) (c (Bzip2 compress \"hello\" 9))) (do (Bunzip2 feed z (first c) 0 (first (rest c))) (Bunzip2 ok? z))))" "#t"))
       (obj-ref z %ZOK))
     (method rest (self (param z OBJECT "A (Bunzip2 stream)"))
       (doc "The input not used: once the stream is done, the bytes after its end -- the next stream of a file that holds several, say."
-        (returns LIST "(BUF N): a region and how many bytes of it"))
+        (returns LIST "(BUF N): a region and how many bytes of it")
+        (example "(do (import x/codec/bzip2) (let ((z (Bunzip2 stream)) (c (Bzip2 compress \"hello\" 9))) (do (Bunzip2 feed z (first c) 0 (first (rest c))) (Bunzip2 feed z \"xyz\" 0 3) (let ((r (Bunzip2 rest z))) (Str8 sub 0 (first (rest r)) (first r))))))" "\"xyz\""))
       (list (obj-ref z %ZIN) (obj-ref z %ZINCNT)))
     (method jit! (self)
       (doc "Build and adopt the compiled symbol, link and walk loops (JIT; ARM64 and x86-64 backends) now, if they decode the check streams exactly as the pure-x ones do. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x decoder carries on, with the same output. decode builds it on its own for an input of 4KB or more, and a fed stream always."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Bunzip2 jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the output is the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/bunzip2 Bunzip2)
+  (example "(do (import x/codec/bzip2) (let ((c (Bzip2 compress \"abc\" 9))) (first (rest (Bunzip2 decode (first c) 0 (first (rest c)))))))" "3")
   "bzip2 decompression in pure x-lang, busybox's decoder: (Bunzip2 decode s) answers (OUT N USED); stream, feed, finish, done?, ok? and rest decode a piece at a time.")

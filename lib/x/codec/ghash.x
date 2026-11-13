@@ -152,13 +152,16 @@
                        (param c-start INTEGER "Where c's region starts")
                        (param c-len INTEGER "Its length in bytes"))
       (doc "GHASH (NIST SP 800-38D 6.4) of additional data and ciphertext under H: each region zero-padded to a 16-byte block, then their lengths in bits, folded as Y = (Y xor X) * H in GF(2^128). Answered as a fresh 16-byte string -- binary, so read it by count. Computed pure-x, or by the differentially-verified compiled engine once (jit!) has built it -- identical output either way."
-        (returns STRING "16 bytes"))
+        (returns STRING "16 bytes")
+        (example "(Bytes hex (Bytes region (Ghash hash (first (Bytes of-hex \"66e94bd4ef8a2c3b884cfa59ca342b2e\")) \"\" 0 0 (first (Bytes of-hex \"0388dace60b6a392f328c2b971b2fe78\")) 0 16) 0 16))" "\"f38cbb1ad69223dcc3457ae5b6b0f885\""))
       (def in (%input a a-start a-len c c-start c-len))
       (%run h (first in) (rest in)))
     (method jit! (self)
       (doc "Build and adopt the compiled GHASH engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x hash. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. hash also builds it on its own for an input of 256 bytes or more."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Ghash jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the answers are the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/ghash Ghash)
+  (example "(Bytes hex (Bytes region (Ghash hash (first (Bytes of-hex \"66e94bd4ef8a2c3b884cfa59ca342b2e\")) \"\" 0 0 \"\" 0 0) 0 16))" "\"00000000000000000000000000000000\"")
   "GHASH (NIST SP 800-38D): (Ghash hash h a a-start a-len c c-start c-len) is GCM's hash of additional data and ciphertext under H. Pure x-lang, with an optional differentially-verified JIT engine ((Ghash jit!), or built on its own for an input of 256 bytes or more).")

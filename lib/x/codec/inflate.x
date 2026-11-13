@@ -770,18 +770,21 @@
     (obj-set! z %ZWINCNT keep)))
 
 (def-class Inflate ()
-  (doc "DEFLATE decompression in pure x-lang: raw streams (RFC 1951) and zlib streams (RFC 1950). Each answers (OUT N USED): OUT a byte region holding the N bytes decompressed, USED how many input bytes the stream took, so a reader of streams laid end to end goes on from there. A raw stream can also be fed a piece at a time: stream, feed, done?, rest.")
+  (doc "DEFLATE decompression in pure x-lang: raw streams (RFC 1951) and zlib streams (RFC 1950). Each answers (OUT N USED): OUT a byte region holding the N bytes decompressed, USED how many input bytes the stream took, so a reader of streams laid end to end goes on from there. A raw stream can also be fed a piece at a time: stream, feed, done?, rest."
+    (example "(do (import x/codec/deflate) (let ((c (Deflate zlib \"hello\"))) (first (rest (Inflate zlib (first c) 0 (first (rest c)))))))" "5"))
   (static
     (method raw (self (param s STRING "Bytes holding a raw DEFLATE stream")
                       . (param span LIST "START, then LENGTH: where the stream starts in s and how many bytes of s it may use; default all of s"))
       (doc "Decompress a raw DEFLATE stream (RFC 1951). Raises a label 'value naming what is wrong with a malformed one. Give LENGTH for binary input: s's own length is measured to its first NUL."
-        (returns LIST "(OUT N USED): the output region, its byte count, and the input bytes the stream used"))
+        (returns LIST "(OUT N USED): the output region, its byte count, and the input bytes the stream used")
+        (example "(do (import x/codec/deflate) (let ((c (Deflate raw \"hello\"))) (let ((d (Inflate raw (first c) 0 (first (rest c))))) (list (Str8 sub 0 (first (rest d)) (first d)) (first (rest (rest d)))))))" "(\"hello\" 7)"))
       (def sp (%span s span))
       (%raw s (first sp) (first (rest sp)) (first (%engine-for (first (rest sp))))))
     (method zlib (self (param s STRING "Bytes holding a zlib stream")
                        . (param span LIST "START, then LENGTH, as for raw"))
       (doc "Decompress a zlib stream (RFC 1950): its header checked, then a raw stream, then its Adler-32 checked against what came out. Raises a label 'value on any of them failing."
-        (returns LIST "(OUT N USED), as for raw; USED includes the header and the Adler-32"))
+        (returns LIST "(OUT N USED), as for raw; USED includes the header and the Adler-32")
+        (example "(do (import x/codec/deflate) (let ((c (Deflate zlib \"hello\"))) (let ((d (Inflate zlib (first c) 0 (first (rest c))))) (list (Str8 sub 0 (first (rest d)) (first d)) (first (rest (rest d)))))))" "(\"hello\" 13)"))
       (def sp (%span s span))
       (%zlib s (first sp) (first (rest sp))))
     (method stream (self)
@@ -794,15 +797,18 @@
                        (param start INTEGER "Where the piece starts in s")
                        (param n INTEGER "How many bytes it is"))
       (doc "Give the stream n more bytes. Answers what the blocks they complete decode to; once the final block is done, more bytes are kept for (Inflate rest) and answer none. Raises a label 'value on a malformed stream, as raw does."
-        (returns LIST "(OUT N): a region and how many of its bytes came out"))
+        (returns LIST "(OUT N): a region and how many of its bytes came out")
+        (example "(do (import x/codec/deflate) (let ((z (Inflate stream)) (c (Deflate raw \"hello\"))) (let ((o (Inflate feed z (first c) 0 (first (rest c))))) (Str8 sub 0 (first (rest o)) (first o)))))" "\"hello\""))
       (%stream-feed z s start n))
     (method done? (self (param z OBJECT "An (Inflate stream)"))
       (doc "Has the stream's final block been decoded?"
-        (returns BOOL "#t once it has"))
+        (returns BOOL "#t once it has")
+        (example "(do (import x/codec/deflate) (let ((z (Inflate stream)) (c (Deflate raw \"hello\"))) (do (Inflate feed z (first c) 0 (first (rest c))) (Inflate done? z))))" "#t"))
       (obj-ref z %ZDONE))
     (method rest (self (param z OBJECT "An (Inflate stream)"))
       (doc "The input not used: once the stream is done, the bytes fed after its end -- a gzip member's trailer, say; before, the part of a block still waiting for more."
-        (returns LIST "(BUF N): a region and how many bytes of it"))
+        (returns LIST "(BUF N): a region and how many bytes of it")
+        (example "(do (import x/codec/deflate) (let ((z (Inflate stream)) (c (Deflate raw \"hello\"))) (do (Inflate feed z (first c) 0 (first (rest c))) (Inflate feed z \"tail\" 0 4) (let ((r (Inflate rest z))) (Str8 sub 0 (first (rest r)) (first r))))))" "\"tail\""))
       (list (obj-ref z %ZIN) (obj-ref z %ZINCNT)))
     (method adler32 (self (param s STRING "Bytes") (param n INTEGER "How many of them"))
       (doc "The Adler-32 checksum (RFC 1950) of the first n bytes of s."
@@ -811,8 +817,10 @@
       ((rest (%engine-for n)) (str->ptr s) n))
     (method jit! (self)
       (doc "Build and adopt the compiled codes loop and Adler-32 (JIT; ARM64 and x86-64 backends) now, if they decode and sum the check streams exactly as the pure-x ones do. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x decoder carries on, with the same output. raw and zlib build it on their own for an input of 4KB or more."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Inflate jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the output is the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/inflate Inflate)
+  (example "(Inflate adler32 \"abc\" 3)" "38600999")
   "DEFLATE decompression (RFC 1951) and the zlib wrapper (RFC 1950) in pure x-lang, with a differentially-verified compiled engine for the codes loop: (Inflate zlib s) answers (OUT N USED).")

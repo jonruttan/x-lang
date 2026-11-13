@@ -489,8 +489,10 @@
       (%decode s (first sp) (first (rest sp))))
     (method jit! (self)
       (doc "Build and adopt the compiled row loops (JIT; ARM64 and x86-64 backends) now, if they undo the check rows' filters and write the check pixels exactly as the pure-x loops do. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x loops carry on, with the same output. decode builds it on its own for an image of 22KB or more inflated."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Png jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the images are the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/png Png)
+  (example "(let ((r (Bytes of-hex \"89504e470d0a1a0a0000000d49484452000000020000000108020000007b40e8dd0000000f4944415408d763f8cfc0c0f09f010007ff01ff09a29f170000000049454e44ae426082\"))) (Png size (first r) 0 (List ref 2 r)))" "(2 1)")
   "PNG images decoded to RGBA in pure x-lang, with a differentially-verified compiled engine for the row loops: (Png decode s) answers (WIDTH HEIGHT RGBA), (Png size s) the size alone.")

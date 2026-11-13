@@ -554,4 +554,5 @@
       (%power mod d em))))
 
 (doc (provide x/codec/rsa Rsa)
+  (sample "(Rsa verify-pkcs1 n e (lit sha256) digest sig)" "#t when sig is the key's PKCS#1 v1.5 signature of the SHA-256 digest")
   "RSA signatures (RFC 8017): (Rsa verify-pkcs1 n e hash digest sig) and sign-pkcs1 for PKCS#1 v1.5, as certificates and SSH's rsa-sha2-* are signed, verify-pss for RSASSA-PSS with the salt as long as the hash, as TLS 1.3 signs, and sign-pss to make one; the power on x/codec/mont-jit's looping engine.")

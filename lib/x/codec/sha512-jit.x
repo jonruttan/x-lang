@@ -482,4 +482,5 @@
 (prim-reg! (lit sha512) (lit jit-make) sha512-jit-make)
 
 (doc (provide x/codec/sha512-jit sha512-jit-make)
+  (example "(do (import x/codec/sha512-jit) (procedure? (prim-ref (lit sha512) (lit jit-make))))" "#t")
   "The compiled SHA-512 engine (JIT, ARM64 and x86-64 backends); built and adopted only via (Sha512 jit!) after proving agreement with the pure-x digest.")
