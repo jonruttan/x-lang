@@ -5,6 +5,153 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-11-13
+
+**Engine v0.2.32: a second error caught from a child base no longer
+segfaults.** An error in a child base left its root-chain nodes pointing
+at dead stack, and the parent's next collect read them.
+
+**Clearing a compiled call's template works on x86_64 and arm32.** ([#1265]) It
+stores a zeroed register, not xzr, which only arm64 has.
+
+**Lint runs faster: its image carries the linter compiled.** ([#1265]) A full
+lint takes 57 s, down from 69 s.
+
+**A compiled call no longer keeps its last arguments alive.** ([#1265]) Code that
+calls back into x clears its call template afterwards, so a state image
+of it writes.
+
+[#1265]: https://github.com/jonruttan/x-lang/pull/1265
+
+**A closure over locals in a compiled function runs its body compiled.** ([#1264])
+A fn literal reading locals of the function compile-fn! compiles
+answers a closure whose body is compiled once, and its self-calls stay
+in the compiled body: a local recursive helper is a compiled loop.
+
+[#1264]: https://github.com/jonruttan/x-lang/pull/1264
+
+**compile-fn! compiles a function with a fn literal in it.** ([#1263])
+A loop written in place, ((fn (self ...) ...) arg ...), compiles to a
+closure taking the locals it reads, compiled in turn.  A literal reading
+no local is one closure, compiled in turn.  Any other answers an
+interpreted closure over the values of the locals it reads.  A literal
+that sets a local, or holds one the function writes after it, is
+refused.
+
+[#1263]: https://github.com/jonruttan/x-lang/pull/1263
+
+**The bare help entries under lib/x/type show a worked example.** ([#1262]) The
+113 entries there that answered `help` with a description alone, from
+Array, Deque, Pq and Counter to Obj, Ptr, Io and Base, now carry an
+executable example or a sample; the doctest spec grows to 1585.
+
+[#1262]: https://github.com/jonruttan/x-lang/pull/1262
+
+**help shows worked examples for the lib/x/tool modules** ([#1261])
+(Contract, Fmt, Highlight, cov, lint, link, image/name, compile,
+asm-cache and the rest).
+
+[#1261]: https://github.com/jonruttan/x-lang/pull/1261
+
+**compile-fn! compiles a function with a rest parameter.** ([#1260])
+(fn (self a . more) ...) binds more to the list of the arguments after
+a's, called or applied.  A self-call of such a function is a call, not
+the tail jump.
+
+[#1260]: https://github.com/jonruttan/x-lang/pull/1260
+
+**The free variables of a compiled function are named for what they
+are.** ([#1259]) A function compiled by compile-fn! names each value it
+takes from outside (%c:NAME a binding cell, %t:N:I a call template,
+%m:HEAD:SEL a method, %l:K a literal), and the values can be read back
+from the names and the closure without rewriting it.  This is what an
+object file of compiled functions needs to name what its code takes.
+
+[#1259]: https://github.com/jonruttan/x-lang/pull/1259
+
+**Object files are binary by default and read through a Lexer.** ([#1258])
+link-write! writes one record a section, a relocation kind and a name,
+each name with every place that takes its value; link-read takes both the
+binary and the text form, and (link-write! path object 'text) still
+writes text.  Reading a 416-relocation object drops from 78 ms to 6 ms,
+and linking it from 128 ms to 24 ms.  Relocations read from binary
+records come grouped by name.
+
+[#1258]: https://github.com/jonruttan/x-lang/pull/1258
+
+**A function compiled by compile-fn! comes back from a state image with
+no key printed.** ([#1257]) Each entry keeps what its first compile
+found, so the compile after an image load pours it directly.  Compiling
+97 functions again after a load drops from 793 ms to 86 ms.  New door:
+asm-compile-kept.
+
+[#1257]: https://github.com/jonruttan/x-lang/pull/1257
+
+**help shows worked examples for the doc generator modules** ([#1255])
+(x/doc/emit, x/doc/emit-man, x/doc/doc-gen).
+
+[#1255]: https://github.com/jonruttan/x-lang/pull/1255
+
+**Every Opts entry shows a worked example under help.** ([#1254])
+The 20 entries of `(help Opts ...)` and `(help x/sys/opts)` that
+answered with a description alone now carry an executable example,
+run by `make doctest`: the doctest spec reaches 1434.
+
+[#1254]: https://github.com/jonruttan/x-lang/pull/1254
+
+**`Linux` (x/sys/linux): Sdl's message set on the Linux console.** ([#1253])  A
+program written against Sdl swaps the class name and draws to the
+framebuffer, reads keys from evdev and plays sound through ALSA, with
+no library and no display server.  `(Linux devices! FB SYSFS INPUT PCM
+CONSOLE)` points it at other paths.
+
+[#1253]: https://github.com/jonruttan/x-lang/pull/1253
+
+**Unlzma decodes a stream a piece at a time.** ([#1252]) `stream`, `feed`,
+`finish`, `done?` and `rest` decode a .lzma stream in pieces, through the
+compiled decoder once a piece is 4KB or more.
+
+[#1252]: https://github.com/jonruttan/x-lang/pull/1252
+
+**The linux/arm/v7 CI leg gates.** ([#1251]) A 32-bit failure now fails
+the run, so a pull request can no longer merge on top of one.
+
+[#1251]: https://github.com/jonruttan/x-lang/pull/1251
+
+**A compiled function can be a handler.** ([#1249]) A function compiled by
+compile-fn! now takes the values an apply hands it as a closure does,
+whether the apply is the library's or the engine's own (a type's write
+handler, class dispatch).  Before, it evaluated them a second time.  The
+engine is unchanged: the first compile puts a routine in the base's
+callable-apply slot.
+
+[#1249]: https://github.com/jonruttan/x-lang/pull/1249
+
+**`make check-help-examples` fails a doc entry for a name nothing binds.** ([#1248])
+A def entry whose name the root does not bind and no module provides --
+left behind when its name was made %-private or deleted -- is listed on
+the doctest census's `unbound defs:` line and fails the check.  The seven
+entries it found, private helpers in x/type/str-utf8 and x/doc/doc-gen,
+are removed.
+
+[#1248]: https://github.com/jonruttan/x-lang/pull/1248
+
+**Unlzma decodes through a compiled engine.** ([#1247]) `x/codec/unlzma-jit` compiles
+the decoder's decisions into one compiled state machine, built for an input
+of 4KB or more or on `(Unlzma jit!)` and adopted only once it decodes the
+check streams exactly as the pure-x decoder does.  400000 bytes decode in 44
+ms, where the pure decoder takes 2.56 s for 50000; the compile is 0.56 s,
+once a process.
+
+[#1247]: https://github.com/jonruttan/x-lang/pull/1247
+
+**The linter's wide-decimal rule reports bit-operation arguments only.** ([#1246]) A
+decimal past a 4-byte word bound by a `def` is no longer a finding: a
+number such as an epoch offset is right in decimal, and in hex it would
+read as the word's bits.
+
+[#1246]: https://github.com/jonruttan/x-lang/pull/1246
+
 ## [0.52.0] - 2026-11-11
 
 **A heap mark can be made more than once in a process.** ([#1243]) `image-clear!` in
