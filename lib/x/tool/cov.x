@@ -249,9 +249,114 @@
   (example "(import x/tool/cov cov-skip-to-library) (cov-skip-to-library (list (pair 'a 1) (pair '%cov-library-end 0) (pair 'b 2)))" "(('b . 2))")
   "Skip past test definitions to the library boundary marker.")
 
+; --- Branch coverage ---
+
+; Which forms have branches, and of what kind, comes from the construct
+; declarations (lib/x/constructs.x and a lang's own), never from names
+; written here.  A declaration is (name (key . value) ...); its branch value
+; is one of:
+;   cond     (if TEST THEN ELSE): THEN and ELSE are branches
+;   clauses  each clause's first body form is a branch (match, cond)
+;   short    each argument is a branch (and, or)
+;   guard    the handler of (guard (VAR HANDLER) BODY ...) is a branch
+; Names are compared as strings: the declarations may be read in another
+; base, and a symbol is interned per base.
+(doc (def cov-branches
+  ((fn (_)
+     (def name (fn (_ x) (%cvt x %string)))
+     (def branch-kind
+       (fn (self props)
+         (match ((null? props) ())
+                ((and (pair? (first props))
+                      (str=? (name (first (first props))) "branch"))
+                 (name (rest (first props))))
+                (#t (self (rest props))))))
+     (def find
+       (fn (self key al)
+         (match ((null? key) ())
+                ((null? al) ())
+                ((str=? (first (first al)) key) (rest (first al)))
+                (#t (self key (rest al))))))
+     ; A nil branch has nothing to evaluate, so nothing to miss.
+     (def ran? (fn (_ form) (if (null? form) #t (cov-covered? form))))
+     (def each
+       (fn (self f xs)
+         (when (pair? xs)
+           (do (f (first xs)) (self f (rest xs))))))
+     ; The walkers, one a kind: (form check walk), where check counts a
+     ; branch and walk descends into a form.
+     (def walk-if
+       (fn (_ form check walk)
+         (def args (rest form))
+         (when (pair? args)
+           (do (walk (first args))
+               (def then-else (rest args))
+               (when (pair? then-else)
+                 (do (check (lit if-then) (first then-else))
+                     (walk (first then-else))
+                     (when (pair? (rest then-else))
+                       (do (check (lit if-else) (first (rest then-else)))
+                           (walk (first (rest then-else)))))))))))
+     (def walk-clauses
+       (fn (_ form check walk)
+         (each (fn (_ clause)
+                 (when (and (pair? clause) (pair? (rest clause)))
+                   (do (check (lit clause) (first (rest clause)))
+                       (walk (first (rest clause))))))
+               (rest form))))
+     (def walk-short
+       (fn (_ form check walk)
+         (each (fn (_ arg) (check (lit short-circuit) arg) (walk arg))
+               (rest form))))
+     (def walk-guard
+       (fn (_ form check walk)
+         (def clause (first (rest form)))
+         (when (and (pair? clause) (pair? (rest clause)))
+           (do (check (lit guard-handler) (first (rest clause)))
+               (walk (first (rest clause)))))
+         (each walk (rest (rest form)))))
+     (def walkers
+       (list (pair "cond" walk-if) (pair "clauses" walk-clauses)
+             (pair "short" walk-short) (pair "guard" walk-guard)))
+     ; ((name . walker) ...) for the declared constructs that have branches.
+     (def table
+       (fn (self entries acc)
+         (if (null? entries) acc
+           (let ((w (find (branch-kind (rest (first entries))) walkers)))
+             (self (rest entries)
+                   (if (null? w) acc
+                     (pair (pair (name (first (first entries))) w) acc)))))))
+     (fn (_ forms constructs)
+       (def tab (table constructs ()))
+       (def covered (pair 0 ()))
+       (def total (pair 0 ()))
+       (def missed (pair () ()))
+       (def check
+         (fn (_ label form)
+           (%set-first! total (+ (first total) 1))
+           (if (ran? form)
+             (%set-first! covered (+ (first covered) 1))
+             (%set-first! missed (pair (list label form) (first missed))))))
+       (def walk
+         (fn (self form)
+           (when (pair? form)
+             (if (not (symbol? (first form)))
+               (each self form)
+               (let ((w (find (name (first form)) tab)))
+                 (if (null? w) (each self form) (w form check self)))))))
+       (each walk forms)
+       (list (first covered) (first total) (List reverse (first missed)))))
+   ()))
+  (param forms LIST "Top-level forms, after they have been evaluated")
+  (param constructs LIST "Construct declarations, each (name (key . value) ...)")
+  (returns LIST "(covered total uncovered), uncovered a list of (label form) in source order")
+  (example "(import x/tool/cov cov-branches) (first (rest (cov-branches (lit ((if c (f 1) (g 2)))) (lit ((if (branch . cond)))))))" "2")
+  (sample "(cov-branches forms constructs)" "(3 4 ((if-else (g 2)))) once the forms have run under x-bin-profile and one else branch never did")
+  "Count the branches in forms that evaluation reached, and list those it did not.")
+
 (doc (provide x/tool/cov
   cov-word-size cov-flags cov-covered? cov-cons? cov-body
   cov-count-tree cov-check-fn cov-check-class cov-walk
-  cov-skip-to-library)
+  cov-skip-to-library cov-branches)
   (example "(import x/tool/cov cov-cons? cov-body) (cov-cons? (cov-body (fn (_ x) x)))" "#t")
   "Library coverage analysis for x-bin-profile instrumented code.")

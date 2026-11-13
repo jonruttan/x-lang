@@ -1,263 +1,60 @@
 ; cov.x -- x-lang branch coverage reporter
 ;
-; Data-driven: reads construct declarations from XEON files
-; to know which forms have branches to track (if, match, cond, etc.).
-; No hardcoded form names -- each language ships its own declarations.
-;
 ; Runs on x-bin-profile, which marks every evaluated AST node with
-; X_OBJ_FLAG_2 (0x2). After evaluating target code, walks the AST
-; to report which branches were never taken.
+; X_OBJ_FLAG_2 (0x2).  Evaluates the target's forms, then asks
+; x/tool/cov's cov-branches which branches were never taken.  Which forms
+; have branches comes from the construct declarations, so each language
+; brings its own.
 ;
 ; Input order on stdin: constructs.x, lang-constructs (or ()),
 ; then quoted source string.
 
-; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
-; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` de-registered, R5).
-(def %ptr-ref-word (prim-ref 'ptr 'ref-word))
-(def %ptr-set-word! (prim-ref 'ptr 'set-word!))
-
+(def %read (prim-ref 'io 'read))
 (def %obj-meta-count! (prim-ref 'obj 'meta-count!))
 (def %obj-meta-ref (prim-ref 'obj 'meta-ref))
-; Fetch the io plumbing prims from the catalogue (ns `io` partly de-registered, R5).
-(def %read (prim-ref 'io 'read))
-; The bare `convert` global was homed (the conversion surface is the Convert
-; class); fetch the dispatcher directly -- same door tools/dev/lint.x uses.
-; The type handles it is asked for come by name through Type's door: at the
-; site where a table is built once, and held by the walker, which converts a
-; head per form.
-(def %cov-cvt (prim-ref 'convert 'to))
-
 
 (do
   (import x/codec/xon)
-
-  ; --- Load construct declarations ---
+  (import x/tool/cov cov-branches)
 
   (def %constructs (%read))
   (def %lang-constructs (%read))
-  (def %all-constructs
-    (if (null? %lang-constructs) %constructs
-      (%append %constructs %lang-constructs)))
 
-  ; Build lookup alist: ((name-string . props) ...)
-  (def %build-lookup (fn (_ entries acc)
-    (if (null? entries) acc
-      (do (def entry (first entries))
-          (def name (%cov-cvt (first entry) (Type named STRING)))
-          (def props (rest entry))
-          (%build-lookup (rest entries)
-            (pair (pair name props) acc))))))
-  (def %construct-table (%build-lookup %all-constructs ()))
-
-  ; Cross-base lookup: table keys are strings, so the canonical str=?
-  ; entry lookup (%assoc-str, core/alist.x) is the comparator.
-  (def %construct-lookup (fn (_ name)
-    (def entry
-      (%assoc-str (%cov-cvt name (Type named STRING)) %construct-table))
-    (unless (null? entry)
-      (rest entry))))
-
-  ; Get a property value from a property list.  str=? on a converted key,
-  ; NOT eq?: construct symbols are read in a fresh base, and per-base
-  ; interning makes cross-base eq? the crash lint.x's header warns about
-  ; (#227).  pair?-guarded because props can mix bare flags with pairs.
-  (def %get-prop (fn (_ key props)
-    (unless (null? props)
-      (if (pair? (first props))
-        (if (str=? (%cov-cvt (first (first props)) (Type named STRING)) key)
-          (rest (first props))
-          (%get-prop key (rest props)))
-        (%get-prop key (rest props))))))
-
-  ; --- Derive word-size and define flag access ---
-
-  (def word-size
-    (if (> (%cov-cvt (%cov-cvt 4294967296 (Type named POINTER))
-                     (Type named INTEGER))
-           0)
-      8 4))
-
-  (def %flags-offset (* 2 word-size))
-  (def %cov-bit 2)
-
-  ; %obj->ptr (boot data.x), NOT the convert catalogue: int->%ptr there is
-  ; a VALUE cast, so an atom branch -- the then of (if c 1 2) -- would
-  ; have its value dereferenced as an address (garbage or SIGSEGV).
-  ; %obj->ptr yields the object HEADER address for atoms and pairs alike
-  ; (proven: an evaluated int branch reads back marked).
-  (def obj-flags (fn (_ obj)
-    (%ptr-ref-word (%obj->ptr obj) %flags-offset)))
-
-  (def obj-flag-set (fn (_ obj bit)
-    (%ptr-set-word! (%obj->ptr obj) %flags-offset
-      (| (obj-flags obj) bit))
-    obj))
-
-  (def %marked? (fn (_ obj)
-    (if (null? obj) t
-      (> (& (obj-flags obj) %cov-bit) 0))))
-
-  ; --- Enable extra metadata for line tracking ---
-
+  ; One metadata word an object, for the line the reader stamps.
   (%obj-meta-count! 1)
 
-  ; --- Tokenize input ---
+  (def %forms (Xon parse (%read)))
 
-  (def %input (%read))
-  ; Xon parse carries the end-of-buffer termination fix this call
-  ; previously lacked (#230).
-  (def %tokens (Xon parse %input))
-
-  ; --- Evaluate all top-level forms ---
-
-  (def %forms %tokens)
+  ; An operative, so each form's def binds where the program's would.
+  (def %todo %forms)
   (def %eval-loop ())
   (set! %eval-loop (op (_ ) %e
-    (if (not (null? %forms))
+    (unless (null? %todo)
       (do
-        (guard (err ()) (eval! (first %forms)))
-        (set! %forms (rest %forms))
+        (guard (err ()) (eval! (first %todo)))
+        (set! %todo (rest %todo))
         (%eval-loop)))))
   (%eval-loop)
 
-  ; --- Walk AST and report uncovered branches ---
+  (def %result
+    (cov-branches %forms
+      (if (null? %lang-constructs) %constructs
+        (%append %constructs %lang-constructs))))
 
-  (def %total-branches 0)
-  (def %covered-branches 0)
-  (def %uncovered ())
-
-  (def %check-branch (fn (_ label form)
-    (set! %total-branches (+ %total-branches 1))
-    (if (%marked? form)
-      (set! %covered-branches (+ %covered-branches 1))
-      (set! %uncovered
-        (pair (list label form (%obj-meta-ref form 0)) %uncovered)))))
-
-  ; --- Per-type branch evaluators ---
-
-  ; cond: if-style then/else branches
-  (def %cond-eval (fn (_ form walk)
-    (def args (rest form))
-    (unless (null? args)
-      (do
-        (walk (first args))
-        (def then-else (rest args))
-        (unless (null? then-else)
-          (do
-            (def then-form (first then-else))
-            (%check-branch 'if-then then-form)
-            (walk then-form)
-            (def else-rest (rest then-else))
-            (unless (null? else-rest)
-              (do
-                (def else-form (first else-rest))
-                (%check-branch 'if-else else-form)
-                (walk else-form)))))))))
-
-  ; clauses: each subform is a clause with a body
-  (def %clause-eval (fn (_ form walk)
-    (def %walk-clauses (fn (_ clauses)
-      (unless (null? clauses)
-        (when (pair? clauses)
-          (do (when (pair? (first clauses))
-                (do (def body (rest (first clauses)))
-                    (unless (null? body)
-                      (do (def body-form (first body))
-                          (%check-branch 'clause body-form)
-                          (walk body-form)))))
-              (%walk-clauses (rest clauses)))))))
-    (%walk-clauses (rest form))))
-
-  ; short: each arg is a short-circuit branch (and/or)
-  (def %short-eval (fn (_ form walk)
-    (def %walk-args (fn (_ args)
-      (unless (null? args)
-        (when (pair? args)
-          (do (%check-branch 'short-circuit (first args))
-              (walk (first args))
-              (%walk-args (rest args)))))))
-    (%walk-args (rest form))))
-
-  ; guard: handler is error path, body is normal path
-  (def %guard-eval (fn (_ form walk)
-    (def clause (first (rest form)))
-    (unless (null? clause)
-      (do
-        (def handler (first (rest clause)))
-        (%check-branch 'guard-handler handler)
-        (walk handler)))
-    (def %walk-body (fn (_ body)
-      (unless (null? body)
-        (when (pair? body)
-          (do (walk (first body))
-              (%walk-body (rest body)))))))
-    (%walk-body (rest (rest form)))))
-
-  ; --- Build dispatch table from constructs ---
-
-  (def %build-dispatch (fn (_ entries acc)
-    (if (null? entries) acc
-      (do (def entry (first entries))
-          (def name (%cov-cvt (first entry) (Type named STRING)))
-          (def props (rest entry))
-          (def branch-type (%get-prop "branch" props))
-          (def handler
-            (if (eq? branch-type 'cond)    %cond-eval
-            (if (eq? branch-type 'clauses) %clause-eval
-            (if (eq? branch-type 'short)   %short-eval
-            (when (eq? branch-type 'guard)   %guard-eval)))))
-          (%build-dispatch (rest entries)
-            (if (null? handler) acc
-              (pair (pair name handler) acc)))))))
-  (def %dispatch (%build-dispatch %all-constructs ()))
-
-  ; --- Generic walker ---
-
-  (def %safe-walk ())
-  (set! %safe-walk (fn (_ walk forms)
-    (when (pair? forms)
-      (do (walk (first forms))
-          (%safe-walk walk (rest forms))))))
-
-  (def %cov-eval ())
-  (set! %cov-eval
-    (let ((string-type (Type named STRING)))
-      (fn (_ form)
-        (unless (null? form)
-          (unless (not (pair? form))
-            (if (not (symbol? (first form)))
-              (%safe-walk %cov-eval form)
-              (do
-                ; Canonical %assoc-str, not a local walker: a same-named def
-                ; here binds globally (top-level do) and once clobbered
-                ; class.x's %lookup.
-                (def handler
-                  (%assoc-str (%cov-cvt (first form) string-type) %dispatch))
-                (if handler
-                  ((rest handler) form %cov-eval)
-                  (%safe-walk %cov-eval form)))))))))
-
-  ; Walk all top-level forms
-  (%for-each %cov-eval %tokens)
-
-  ; --- Report ---
-
-  (if (> %total-branches 0)
+  (if (> (first (rest %result)) 0)
     (do
-      (display "Branch coverage: " %covered-branches "/" %total-branches "\n")
-
-      (if (null? %uncovered)
+      (display "Branch coverage: " (first %result) "/" (first (rest %result)) "\n")
+      (if (null? (first (rest (rest %result))))
         (display "All branches covered.\n")
         (do
           (display "Uncovered branches:\n")
           (%for-each (fn (_ entry)
-            (def line (first (rest (rest entry))))
+            (def line (%obj-meta-ref (first (rest entry)) 0))
             (if (> line 0)
-              (do (display "  line " line ": "))
+              (display "  line " line ": ")
               (display "  "))
             (display (first entry) ": ")
             (write (first (rest entry)))
             (display "\n"))
-            %uncovered))))
+            (first (rest (rest %result)))))))
     (display "No branches to cover.\n")))
