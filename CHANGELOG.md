@@ -14,6 +14,23 @@ read them.
 
 [x-engine-c#136]: https://github.com/jonruttan/x-engine-c/pull/136
 
+**A user syntax file gives files their grammar** ([#1267])
+(`x/tool/syntax`): `$X_SYNTAX`, else `$XDG_CONFIG_HOME/x/syntax.x`,
+else `~/.config/x/syntax.x`, holds rules such as `(grammar sh (files
+".zsh") (names "PKGBUILD"))`.  `Syntax for-file` asks them after a
+modeline and before every grammar's own suffixes, names and
+interpreters; `(Syntax rules-file)` answers the path.
+
+[#1267]: https://github.com/jonruttan/x-lang/pull/1267
+
+**The coverage tools run on a released engine.** ([#1266]) `tools/dev/cov.sh` and
+the cov specs in `make test-tools` use `x-bin-profile`, which every
+engine release ships with coverage marking compiled in, instead of a
+separately built `x-bin-cov`; the cov specs no longer skip on a tree
+without engine sources.
+
+[#1266]: https://github.com/jonruttan/x-lang/pull/1266
+
 **Clearing a compiled call's template works on x86_64 and arm32.** ([#1265]) It
 stores a zeroed register, not xzr, which only arm64 has.
 
