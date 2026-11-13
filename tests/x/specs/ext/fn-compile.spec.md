@@ -1,6 +1,7 @@
 # @lib ../tests/x/lib/compile.x
 # @requires native/jit
-# @weight 2
+# @weight 15
+# @timeout-scale 4
 
 `(compile-fn! NAME F)` (lib/x/tool/fn-compile.x) compiles a program's
 closure F where it stands: F becomes the compiled version, every holder of
@@ -700,3 +701,35 @@ evaluator or an apply, so a chain of them runs in constant stack.
 ```
 ---
     ('compiled 10)
+
+## a state image
+
+A call site's template holds the values of its call until the call returns,
+and past that when the call is a tail call or raises out of its callee.  A
+value there can be a Ptr to a string's bytes, which no image can name, so
+every template is emptied before a state image is written.
+
+### an image of compiled closures that passed Ptrs through their calls writes
+
+The library (tests/x/fixtures/fn-compile/image.x) compiles closures whose
+calls return, tail-call and raise with a Ptr as an argument, and str=?, and
+runs each.  The writer runs in a child, with an asm cache of its own, and
+the child prints its answer as one line.
+
+```x
+(do
+  (import x/sys/posix)
+  (def %fci-child (Sys fork))
+  (when (= %fci-child 0)
+    (Sys exec "/bin/sh"
+      (list "-c"
+        (Str append
+          "d=$(mktemp -d) && X_ASM_CACHE_DIR=$d/cache sh tools/dev/image-build.sh"
+          " tests/x/fixtures/fn-compile/image.x $d/out > /dev/null 2>&1;"
+          " l=$d/out/image.x.log; echo $(grep '^((' $l) $(grep -o 'unnameable: [0-9]*' $l)"
+          " $(test -s $d/out/image.x.ximg && echo written); rm -rf \"$d\""))))
+  (Sys wait %fci-child)
+  ())
+```
+---
+    (('compiled 'compiled 'compiled 'compiled 'compiled) 1 2 'caught #t #t) unnameable: 0 written

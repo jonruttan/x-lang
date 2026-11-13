@@ -347,8 +347,12 @@
            (rest (rest args)))))))
 
 ; Every template made, so that each can be emptied before a state image is
-; written: one whose call was in tail position keeps its values until its
-; site is filled again (asm-compile.x, %asm-emit-quoted-call!).
+; written.  A template holds the values of its last call until the call
+; returns (asm-compile.x, %asm-emit-quoted-call!), and past that when the
+; call was in tail position or raised out of it; a value there can be a
+; Ptr to a string's bytes, which no image can name.  The template is
+; registered where it is made, so one made for a rewrite and one read back
+; by its name (%fc-fvar-values) are both emptied.
 (def %fc-templates ())
 (def %fc-empty-templates!
   (fn (_)
@@ -361,16 +365,17 @@
 ; here with list, so the evaluator reads it as a call.
 (def %fc-template
   (fn (_ n)
-    ((fn (self k acc) (if (int< k 0) acc (self (int- k 1) (pair (list (lit lit) ()) acc))))
-     n ())))
+    (def made
+      ((fn (self k acc) (if (int< k 0) acc (self (int- k 1) (pair (list (lit lit) ()) acc))))
+       n ()))
+    (set! %fc-templates (pair made %fc-templates))
+    made))
 
 ; A call with values: HEAD and ARGS rewritten, held, then (%call-q T ...)
 ; or a self-call (%fc-self T ...), T the site's template.
 (def %fc-call
   (fn (_ head args)
-    (def made (%fc-template (%length args)))
-    (set! %fc-templates (pair made %fc-templates))
-    (def t (%fc-const made (%fc-template-name (%length args))))
+    (def t (%fc-const (%fc-template (%length args)) (%fc-template-name (%length args))))
     ((fn (_ held)
        (%fc-with (first held)
          (if (eq? head (lit %fc-self))
