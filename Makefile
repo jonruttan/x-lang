@@ -174,9 +174,6 @@ LIBDIR?=$(PREFIX)/share/$(NAME)
 LIBEXECDIR?=$(PREFIX)/libexec/$(NAME)
 MANDIR?=$(PREFIX)/share/man
 
-# Coverage
-COVERAGE_DIR=.coverage
-
 # ============================================================================
 # Build
 # ============================================================================
@@ -291,13 +288,10 @@ $(ENGINE_DIR)/$(EXECUTABLE): engine-link FORCE
 
 # The variants, same pattern.  Each is PHONY-free for the same reason as the
 # plain engine: the copy must compare timestamps, not run unconditionally.
-# One rule a variant, written out: a static pattern rule over the four, and
+# One rule a variant, written out: a static pattern rule over the three, and
 # the `$<` and `$*` it would use in an explicit rule, are GNU make's own.
 x-bin-asan: $(ENGINE_DIR)/x-bin-asan
 	cp $(ENGINE_DIR)/x-bin-asan $@
-
-x-bin-cov: $(ENGINE_DIR)/x-bin-cov
-	cp $(ENGINE_DIR)/x-bin-cov $@
 
 x-bin-profile: $(ENGINE_DIR)/x-bin-profile
 	cp $(ENGINE_DIR)/x-bin-profile $@
@@ -307,9 +301,6 @@ x-bin-debug: $(ENGINE_DIR)/x-bin-debug
 
 $(ENGINE_DIR)/x-bin-asan: FORCE
 	$(ENGINE_MAKE) x-bin-asan
-
-$(ENGINE_DIR)/x-bin-cov: FORCE
-	$(ENGINE_MAKE) x-bin-cov
 
 $(ENGINE_DIR)/x-bin-debug: FORCE
 	$(ENGINE_MAKE) x-bin-debug
@@ -980,34 +971,6 @@ install-hooks: ## Install the pre-push test gate (core.hooksPath=.githooks)
 .PHONY: install-hooks
 
 # ============================================================================
-# Coverage
-# ============================================================================
-
-test-x-cov: cov-clean $(EXECUTABLE) ## x-lang tests with coverage
-	$(MAKE) clean
-	$(ENGINE_MAKE) x-bin-cov
-	cp $(ENGINE_DIR)/x-bin-cov $(EXECUTABLE)
-	sh tests/x/spec-runner.sh
-	mkdir -p $(COVERAGE_DIR)
-	gcovr -r . --filter 'src/' --print-summary --html-details $(COVERAGE_DIR)/index.html
-.PHONY: test-x-cov
-
-test-cov: cov-clean ## All tests with coverage
-	$(MAKE) clean
-	$(ENGINE_MAKE) x-bin-cov
-	cp $(ENGINE_DIR)/x-bin-cov $(EXECUTABLE)
-	sh tests/x/spec-runner.sh
-	$(ENGINE_MAKE) test-c-cov
-	mkdir -p $(COVERAGE_DIR)
-	gcovr -r . --filter 'src/' --print-summary --html-details $(COVERAGE_DIR)/index.html
-.PHONY: test-cov
-
-cov-clean: ## Clean coverage artifacts
-	rm -rf $(COVERAGE_DIR)
-	find . -name '*.gcov' -o -name '*.gcda' -o -name '*.gcno' | xargs rm -f
-.PHONY: cov-clean
-
-# ============================================================================
 # Performance
 # ============================================================================
 
@@ -1350,7 +1313,7 @@ uninstall-man-x: ## Remove the x-lang man pages from MANDIR
 uninstall-man: uninstall-man-c uninstall-man-x ## Remove both man references from MANDIR
 .PHONY: uninstall-man
 
-clean: cov-clean ## Clean build artifacts
+clean: ## Clean build artifacts
 	rm -f $(EXECUTABLE) x-bin-debug x-bin-profile x-bin-asan x-bin-cov *.out *.core core
 	@if [ -f $(ENGINE_DIR)/Makefile ]; then cd $(ENGINE_DIR) && $(MAKE) clean; fi
 	@# Pre-rename binary names (engine was `x` until the x-bin rename): a
