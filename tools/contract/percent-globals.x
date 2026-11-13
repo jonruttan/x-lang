@@ -333,7 +333,7 @@
 (file "tools/contract/requires.x" 1)
 (file "tools/dev/bench-sha256.x" 75)
 (file "tools/dev/cov-report.x" 5)
-(file "tools/dev/cov.x" 32)
+(file "tools/dev/cov.x" 9)
 (file "tools/dev/doc-index.x" 10)
 (file "tools/dev/doc.x" 4)
 (file "tools/dev/fmt.x" 13)
