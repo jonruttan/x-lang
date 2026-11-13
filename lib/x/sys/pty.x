@@ -35,31 +35,41 @@
 (def-class Pty ()
   (doc "A pseudo-terminal: (Pty open) a master and the slave's path, (Pty window! fd cols rows) its size, (Pty attach! path cols rows) a forked child's controlling terminal, (Pty fork cols rows) the three together as forkpty(3) does, and (Pty spawn program args cols rows) a program run on one."
     (note "The master answers as given, blocking: a poll loop makes it non-blocking with (Sys nonblock! master), which reaches fcntl as a syscall for the reason window! reaches ioctl as one.")
-    (see open) (see window!) (see attach!) (see fork) (see spawn))
+    (see open) (see window!) (see attach!) (see fork) (see spawn)
+    (sample "(Pty spawn \"/bin/sh\" () 80 24)" "(PID . MASTER): read the shell's output from MASTER, write its input to it"))
 
   (static
     (method %c (self (param name STRING "A libc function"))
-      (doc "The libc entry point named, resolved now." (returns POINTER "Its address"))
+      (doc "The libc entry point named, resolved now." (returns POINTER "Its address")
+        (sample "(Pty %c \"posix_openpt\")" "the address of libc's posix_openpt, for ptr call"))
       ((prim-ref (lit ffi) (lit dlsym)) ((prim-ref (lit ffi) (lit dlopen)) () 1) name))
 
     (method %call (self (param name STRING "A libc function") . (param args LIST "Its arguments"))
-      (doc "A libc call's int answer, sign-folded: -1 is an error." (returns INTEGER "The answer"))
+      (doc "A libc call's int answer, sign-folded: -1 is an error." (returns INTEGER "The answer")
+        (example "(= (Pty %call \"getpid\") (Sys getpid))" "#t")
+        (example "(Pty %call \"grantpt\" -1)" "-1"))
       (Sys %sign-fold (apply (prim-ref (lit ptr) (lit call)) (pair (Pty %c name) args))))
 
     (method %ioctl (self (param fd INTEGER "Descriptor")
                          (param request INTEGER "The request number")
                          (param arg ANY "Its argument: an integer or a buffer"))
       (doc "ioctl(2) as a syscall, sign-folded: -1 when this platform's table has no ioctl."
-        (returns INTEGER "0, or negative on error"))
+        (returns INTEGER "0, or negative on error")
+        (example "(< (Pty %ioctl -1 (Pty tiocswinsz) 0) 0)" "#t")
+        (sample "(Pty %ioctl master (Pty tiocswinsz) winsize)" "0, the window set"))
       (def id (syscall-id (lit ioctl)))
       (if (< id 0) -1 (Sys %sign-fold (syscall id fd request arg))))
 
     (method tiocswinsz (self)
-      (doc "The TIOCSWINSZ ioctl request for this OS." (returns INTEGER "The request"))
+      (doc "The TIOCSWINSZ ioctl request for this OS." (returns INTEGER "The request")
+        (example "(List includes? (Pty tiocswinsz) (list 0x80087467 21524))" "#t")
+        (sample "(Pty tiocswinsz)" "2148037735 on Darwin, 21524 on Linux"))
       (if os-darwin? 2148037735 21524))
 
     (method tiocsctty (self)
-      (doc "The TIOCSCTTY ioctl request for this OS." (returns INTEGER "The request"))
+      (doc "The TIOCSCTTY ioctl request for this OS." (returns INTEGER "The request")
+        (example "(List includes? (Pty tiocsctty) (list 536900705 21518))" "#t")
+        (sample "(Pty tiocsctty)" "536900705 on Darwin, 21518 on Linux"))
       (if os-darwin? 536900705 21518))
 
     (method open (self)
@@ -141,4 +151,6 @@
 (doc (provide x/sys/pty Pty)
   (note "ioctl goes by syscall, never the fixed-signature ffi door: it is variadic.")
   (note "A new terminal's window is set by the child as it attaches: Darwin loses one set on the master first.")
+  (example "(List includes? (Pty tiocsctty) (list 536900705 21518))" "#t")
+  (sample "(Pty open)" "(5 . \"/dev/ttys004\"), the master and the slave's path")
   "Pty: pseudo-terminals, and a program run on one.")

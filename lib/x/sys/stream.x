@@ -75,10 +75,12 @@
               'owned? #t)))
 
     (method stdout (self)
-      (doc "A stream onto stdout (fd 1)." (returns Stream "stdout stream"))
+      (doc "A stream onto stdout (fd 1)." (returns Stream "stdout stream")
+        (example "((Stream stdout) fd)" "1"))
       (Stream to-fd 1))
     (method stderr (self)
-      (doc "A stream onto stderr (fd 2)." (returns Stream "stderr stream"))
+      (doc "A stream onto stderr (fd 2)." (returns Stream "stderr stream")
+        (example "((Stream stderr) fd)" "2"))
       (Stream to-fd 2))
 
     ; --- introspection ---
@@ -109,7 +111,8 @@
 
   ; --- instance methods ---
   (method fd (self)
-    (doc "The file descriptor this stream writes to." (returns INTEGER "the fd"))
+    (doc "The file descriptor this stream writes to." (returns INTEGER "the fd")
+      (example "((Stream to-fd 5) fd)" "5"))
     (field 'fd))
 
   (method with (self (param thunk CALLABLE "Zero-arg thunk to run"))
@@ -121,19 +124,26 @@
   (method write (self (param data STRING "Bytes to write")
                       (param size INTEGER "Number of bytes"))
     (doc "Write SIZE bytes of DATA directly to the stream's fd. Needs the radon dialect."
-      (returns INTEGER "Bytes written, or negative on error"))
+      (returns INTEGER "Bytes written, or negative on error")
+      (sample "((Stream stderr) write \"oops\\n\" 5)" "5, with oops on stderr"))
     (File write (field 'fd) data size))
 
   (method display (self (param v ANY "Value to render"))
     (doc "Render V (display form) to this stream."
-      (returns ANY "nil"))
+      (returns ANY "nil")
+      (example "((Stream stdout) display \"hi\")" "hi")
+      (sample "((Stream stderr) display (list 1 2))" "(1 2) on stderr"))
     (%with-fd (field 'fd) (fn (_) (display v))))
 
   (method close (self)
     (doc "Close the stream's fd if it owns it (opened via to-file); a no-op for wrapped fds (to-fd/stdout/stderr)."
-      (returns ANY "File close result, or nil when not owned"))
+      (returns ANY "File close result, or nil when not owned")
+      (example "(null? ((Stream to-fd 2) close))" "#t")
+      (sample "((Stream to-file \"out.txt\") close)" "0, out.txt closed"))
     (if (field 'owned?) (File close (field 'fd)) ())))
 
 (doc (provide x/sys/stream Stream)
   (note "Redirection is pure X -- push/pop the base's fileout fd (an atom among the io `files` fields); no C primitive. File targets need the radon dialect.")
+  (example "((Stream stderr) fd)" "2")
+  (sample "(Stream with-file \"out.txt\" (fn (_) (display \"hi\")))" "writes hi to out.txt")
   "Output redirection as first-class Streams: to-fd/to-file/stdout/stderr, (s with thunk)/write/display/close, plus the with-fd / with-file helpers.")

@@ -732,7 +732,8 @@
   (static
     (method ready! (self)
       (doc "Build every compiled engine a connect uses, now: X25519, SHA-256, ChaCha20, Poly1305, SHA-512 (it serves the SHA-384 that signs most intermediates), the base64 decoder (a trusted root is found as a PEM block) and the Montgomery runner (the signatures' arithmetic). Poured from the cache when they are there, built and proven when not; connect calls it before dialling, so nothing compiles while a server waits, and an image build calls it to fill the cache it ships with. Answers #t when every engine is compiled."
-        (returns BOOL "#t when every engine is compiled"))
+        (returns BOOL "#t when every engine is compiled")
+        (sample "(Tls13 ready!)" "#t, every engine compiled or poured from the cache"))
       ((fn (self l) (if (null? l) #t (if (first l) (self (rest l)) #f)))
        (list (X25519 jit!) (Sha256 jit!) (ChaCha20 jit!) (Poly1305 jit!) (Sha512 jit!) (Base64 jit!) (mont-jit-ready!))))
     (method connect (self (param quad STRING "Dotted-quad IPv4 address (resolve names via (Socket resolve))")
@@ -775,7 +776,8 @@
     (method send (self (param session OBJECT "A (Tls13 connect) session")
                        (param data ANY "The bytes: a region (BUF START LEN), or a STRING up to its first NUL"))
       (doc "Send the bytes as application data, in records of at most 16384 bytes each."
-        (returns INTEGER "Bytes sent"))
+        (returns INTEGER "Bytes sent")
+        (sample "(Tls13 send s \"GET / HTTP/1.0\\r\\n\\r\\n\")" "18"))
       (def r (Bytes of data))
       ((fn (self at)
          (unless (>= at (Bytes length r))
@@ -787,7 +789,8 @@
     (method recv-run (self (param session OBJECT "A (Tls13 connect) session")
                            (param maxlen INTEGER "Maximum bytes to receive"))
       (doc "Receive up to maxlen bytes of application data as a RUN: (STRING . COUNT), NUL bytes included. nil at the server's close; raises a label 'io on a record that does not authenticate or an alert."
-        (returns ANY "(STRING . COUNT), or nil at close"))
+        (returns ANY "(STRING . COUNT), or nil at close")
+        (sample "(Tls13 recv-run s 65536)" "(\"HTTP/1.0 200 OK...\" . COUNT), as much as one record carried"))
       (def pending (%get session %app-pending))
       (def r (if (> (Bytes length pending) 0) pending (%next-data session)))
       (if (null? r) ()
@@ -798,18 +801,21 @@
     (method recv-bytes (self (param session OBJECT "A (Tls13 connect) session")
                              (param maxlen INTEGER "Maximum bytes to receive"))
       (doc "Receive up to maxlen bytes as a byte list; nil at the server's close."
-        (returns ANY "Byte list, or nil at close"))
+        (returns ANY "Byte list, or nil at close")
+        (sample "(Tls13 recv-bytes s 4)" "(72 84 84 80), the start of \"HTTP\""))
       (def run (Tls13 recv-run session maxlen))
       (if (null? run) ()
         ((fn (self i acc) (if (< i 0) acc (self (int- i 1) (pair (Bytes ref (list (first run) 0 (rest run)) i) acc))))
          (int- (rest run) 1) ())))
     (method pending? (self (param session OBJECT "A (Tls13 connect) or (Tls13 over) session"))
       (doc "Does the session hold application data it has already read -- bytes a smaller recv-run left, or a whole record read ahead? poll() on the descriptor cannot see these, so a loop that polls asks this first and receives while it holds. A whole record that carries no data (a session ticket) is taken by the next recv-run, which then reads on."
-        (returns BOOL "#t when there is something to receive without reading the descriptor"))
+        (returns BOOL "#t when there is something to receive without reading the descriptor")
+        (sample "(do (Tls13 recv-run s 10) (Tls13 pending? s))" "#t while the record that answered holds more than ten bytes"))
       (%pending? session))
     (method close (self (param session OBJECT "A (Tls13 connect) session"))
       (doc "Send close_notify, unless the server closed first, and close the socket connect dialled; a session over a caller's descriptors leaves them open."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (sample "(Tls13 close s)" "nil, the session closed"))
       (unless (%get session %closed)
         (guard (e ()) (%send-sealed session %ct-alert (Bytes of-list (list 1 0)))))
       (%set! session %closed #t)
@@ -817,13 +823,16 @@
       ())
     (method certificates (self (param session OBJECT "A (Tls13 connect) session"))
       (doc "The server's certificates as it sent them, leaf first, each a region of DER bytes -- what a chain check reads."
-        (returns LIST "Regions"))
+        (returns LIST "Regions")
+        (sample "(List length (Tls13 certificates s))" "how many the server sent, often 2: the leaf and one intermediate"))
       (%get session %certs))
     (method signature (self (param session OBJECT "A (Tls13 connect) session"))
       (doc "The server's CertificateVerify: (ALGORITHM SIGNATURE TRANSCRIPT-HASH), what it signed over being the context string and that hash (RFC 8446 4.4.3)."
-        (returns LIST "(INTEGER region region)"))
+        (returns LIST "(INTEGER region region)")
+        (sample "(first (Tls13 signature s))" "1027, ecdsa_secp256r1_sha256"))
       (%get session %verify))))
 
 (doc (provide x/net/tls13 Tls13)
   (note "TLS 1.3 written in x: X25519, ChaCha20-Poly1305, SHA-256. The server's certificate is not yet checked; ('insecure) is required until it is.")
+  (sample "(Tls13 connect \"127.0.0.1\" 8443 (list 'insecure))" "a session with a self-signed development server")
   "TLS 1.3 in x (RFC 8446): a client -- connect, or over descriptors already open -- with send, recv-run, recv-bytes and close as x/net/tls has them, and accept, the server's side.")

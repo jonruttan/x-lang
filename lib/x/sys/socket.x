@@ -195,7 +195,8 @@
     (method send (self (param fd INTEGER "Connected file descriptor")
                        (param s STRING "Bytes to send"))
       (doc "Send the whole string; raises on failure, a peer that has closed among them (epipe), where libc would otherwise end the process with SIGPIPE."
-        (returns INTEGER "Bytes sent"))
+        (returns INTEGER "Bytes sent")
+        (sample "(Socket send fd \"GET / HTTP/1.0\\r\\n\\r\\n\")" "18"))
       (def r (%sk-fold (ptr-call %c-send fd s (Str8 length s) %MSG-NOSIGNAL)))
       (when (< r 0) (%sk-fail r 'send fd ()))
       r)
@@ -204,7 +205,8 @@
                            (param s STRING "The bytes, NULs included")
                            (param n INTEGER "How many bytes of s to send"))
       (doc "Send the first n BYTES of s -- the lossless door, as recv-run is: send measures its string to the first NUL, and a binary packet has NULs inside. THE COUNT IS YOUR CLAIM AND IS NOT CHECKED. Raises on failure, a peer that has closed among them (epipe), as send does."
-        (returns INTEGER "Bytes sent"))
+        (returns INTEGER "Bytes sent")
+        (sample "(Socket send-run fd (first run) (rest run))" "the run's count, NUL bytes included"))
       (def r (%sk-fold (ptr-call %c-send fd s n %MSG-NOSIGNAL)))
       (when (< r 0) (%sk-fail r 'send fd ()))
       r)
@@ -212,7 +214,8 @@
     (method recv (self (param fd INTEGER "Connected file descriptor")
                        (param maxlen INTEGER "Maximum bytes to receive"))
       (doc "Receive up to maxlen bytes as a string; nil at orderly EOF (the peer closed); raises on failure."
-        (returns ANY "The received string, or nil at EOF"))
+        (returns ANY "The received string, or nil at EOF")
+        (sample "(Socket recv fd 4096)" "\"pong\", or nil once the peer has closed"))
       (def buf (int->ptr (ptr-call %c-malloc (+ maxlen 1))))
       (def n (%sk-fold (ptr-call %c-recv fd buf maxlen 0)))
       (when (< n 0)
@@ -270,7 +273,8 @@
     (method recv-bytes (self (param fd INTEGER "Connected file descriptor")
                             (param maxlen INTEGER "Maximum bytes to receive"))
       (doc "Receive up to maxlen bytes as a BYTE LIST -- the lossless door (recv's string return truncates at the first NUL; this one carries binary intact, #374); nil at orderly EOF; raises on failure."
-        (returns ANY "Byte list (0-255 values), or nil at EOF"))
+        (returns ANY "Byte list (0-255 values), or nil at EOF")
+        (sample "(Socket recv-bytes fd 4)" "(112 0 110 103), a NUL byte kept"))
       (def buf (int->ptr (ptr-call %c-malloc maxlen)))
       (def n (%sk-fold (ptr-call %c-recv fd buf maxlen 0)))
       (when (< n 0)
@@ -296,7 +300,9 @@
 
     (method close (self (param fd INTEGER "File descriptor to close"))
       (doc "Close a socket file descriptor."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (example "(null? (Socket close -1))" "#t")
+        (sample "(Socket close fd)" "nil, the connection closed"))
       (ptr-call %c-close fd)
       ())
 
@@ -397,7 +403,8 @@
                           (param host STRING "Dotted-quad IPv4 destination")
                           (param port INTEGER "Destination port"))
       (doc "Send one datagram to host:port through an unconnected UDP socket."
-        (returns INTEGER "Bytes sent"))
+        (returns INTEGER "Bytes sent")
+        (sample "(Socket send-to fd \"ping\" \"127.0.0.1\" 9999)" "4"))
       (def addr (%make-sockaddr-in port host))
       (def r (%sk-fold (ptr-call (%sk "sendto") fd s (Str8 length s) 0 addr 16)))
       (when (< r 0) (%sk-fail r 'sendto (list host port) addr))
@@ -481,7 +488,8 @@
 
     (method %sockaddr-un (self (param path STRING "Filesystem socket path (under 100 bytes)"))
       (doc "Build a malloc'd sockaddr_un for path -- the caller frees. Raises a label 'value past 99 bytes (the struct's path field is 104)."
-        (returns POINTER "The packed address (110 bytes)"))
+        (returns POINTER "The packed address (110 bytes)")
+        (sample "(Socket %sockaddr-un \"/tmp/app.sock\")" "the address of a sockaddr_un for /tmp/app.sock, to free after the call"))
       (def plen (Str8 length path))
       (when (> plen 99)
         (Err raise 'value "Socket: unix path exceeds sockaddr_un capacity" path))
@@ -552,4 +560,6 @@
 
 (doc (provide x/sys/socket Socket)
   (note "First consumer: x/logo/serve.x (whose Darwin-only constants this replaces). Recv truncates at the first NUL byte (ptr->str) -- fine for text protocols; recv-bytes is the lossless byte-list door (#374).")
+  (example "(null? (Socket close -1))" "#t")
+  (sample "(Socket tcp-connect \"127.0.0.1\" 8080)" "a connected fd")
   "Blocking IPv4 TCP on the Socket class, over libc FFI.")
