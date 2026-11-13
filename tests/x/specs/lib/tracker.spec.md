@@ -21,6 +21,21 @@ reached and what is sounding.
 ---
     (250 166 100 125)
 
+### a pace plays the song slower or faster, over the tension's tempo
+
+```x
+(do (import x/audio/tracker)
+  (def t (Tracker make (lit (song "s" (bpm 60) (rows 4) (tension-bpm 60) (instrument a) (pattern p (a "A3")) (order p)))))
+  (Tracker pace! t 50)
+  (def slow (Tracker row-ms t))
+  (Tracker tension! t 100)
+  (def tense (Tracker row-ms t))
+  (Tracker pace! t 1000)
+  (list slow tense (Tracker pace t) (Tracker row-ms t)))
+```
+---
+    (500 250 400 31)
+
 ### a song that names what it does not have raises
 
 ```x
@@ -118,3 +133,84 @@ reached and what is sounding.
 ```
 ---
     ("one" "two" (0 . 0))
+
+### a song's effects go over the mixer, and the next song's take their places
+
+```x
+(do (import x/audio/tracker) (import x/audio/mixer)
+  (def m (Mixer make 8000 256))
+  (def t (Tracker make (lit (song "one" (bpm 600) (rows 4) (echo 30 40 20) (phase 1 3 500 40 50)
+                                  (instrument a) (pattern p (a "A3")) (order p)))))
+  (Tracker play! t m)
+  (Tracker play! t m)
+  (def one (List map rest (Mixer effects m)))
+  (Tracker song! t (lit (song "two" (bpm 600) (rows 4) (reverb 100 70 30) (instrument b) (pattern q (b "C3")) (order q))))
+  (Mixer block! m) (Mixer block! m)
+  (list one (Tracker name t) (List map rest (Mixer effects m))))
+```
+---
+    ((('echo 30 40 20) ('phase 1 3 500 40 50)) "two" (('reverb 100 70 30)))
+
+## a cell's effects
+
+### a cell's effect that is no letter, or a number that is none, raises
+
+```x
+(do (import x/audio/tracker)
+  (def make (fn (_ cells) (guard (e (Err text e)) (Tracker name (Tracker make (list (lit song) "s" (lit (instrument a)) (list (lit pattern) (lit p) (list (lit a) cells)) (lit (order p))))))))
+  (list (make "A3/x1") (make "A3/v3a") (make "A3/v30,4 ./s-200 -")))
+```
+---
+    ("Tracker: no effect x1" "Tracker: not a number: 3a" "s")
+
+### an arpeggio of nothing sounds as the plain note, and each pitch and level effect changes it
+
+```x
+(do (import x/audio/tracker) (import x/audio/mixer) (import x/core/doors ptr-ref str->ptr)
+  (def song (fn (_ cells) (list (lit song) "s" (lit (bpm 60)) (lit (rows 4)) (lit (ticks 4))
+                                (lit (instrument a (wave sine) (env (0 100) (10 100)) (release 20)))
+                                (list (lit pattern) (lit p) (list (lit a) cells)) (lit (order p)))))
+  (def s16 (fn (_ r i) ((fn (_ u) (if (< u 32768) u (- u 65536))) (+ (ptr-ref (str->ptr r) (* 2 i) 1) (* 256 (ptr-ref (str->ptr r) (+ 1 (* 2 i)) 1))))))
+  (def worst
+    (fn (_ a b)
+      (def ma (Mixer make 8000 256))
+      (def mb (Mixer make 8000 256))
+      (Tracker play! (Tracker make (song a)) ma)
+      (Tracker play! (Tracker make (song b)) mb)
+      ((fn (self n w)
+         (if (< n 1) w
+           ((fn (_ ra rb)
+              (self (- n 1) ((fn (self i w) (if (< i 512) (self (+ i 1) ((fn (_ d) (if (< w d) d w)) ((fn (_ d) (if (< d 0) (- 0 d) d)) (- (s16 ra i) (s16 rb i))))) w)) 0 w)))
+            (Mixer block! ma) (Mixer block! mb))))
+       12 0)))
+  (def plain "C4 . . .")
+  (list (< (worst plain "C4/a0,0 . . .") 8)
+        (List all? (fn (_ c) (< 1000 (worst plain c)))
+          (list "C4/a12 . . ." "C4/v50,4 . . ." "C4 ./s-1200 . ." "G3 C4/p4 . ." "C4/t90,2 . . ." "C4/f0 . . ."))))
+```
+---
+    (#t #t)
+
+### a delay starts the note late, a cut lets it go early, and a retrigger starts it again
+
+```x
+(do (import x/audio/tracker) (import x/audio/mixer) (import x/core/doors ptr-ref str->ptr)
+  (def song (fn (_ cells) (list (lit song) "s" (lit (bpm 60)) (lit (rows 4)) (lit (ticks 4))
+                                (lit (instrument a (wave sine) (env (0 100) (10 100)) (release 10)))
+                                (list (lit pattern) (lit p) (list (lit a) cells)) (lit (order p)))))
+  (def loud (fn (_ r) ((fn (self i acc) (if (< i 1024) (self (+ i 2) (+ acc (if (= 0 (+ (ptr-ref (str->ptr r) i 1) (ptr-ref (str->ptr r) (+ i 1) 1))) 0 1))) acc)) 0 0)))
+  (def heard
+    (fn (_ cells n)
+      (def m (Mixer make 8000 256))
+      (Tracker play! (Tracker make (song cells)) m)
+      ((fn (self k acc) (if (< k n) (self (+ k 1) (pair (< 0 (loud (Mixer block! m))) acc)) (List reverse acc))) 0 ())))
+  (def started
+    (fn (_ cells)
+      (def m (Mixer make 8000 256))
+      (Tracker play! (Tracker make (song cells)) m)
+      (Mixer block! m)
+      (Mixer playing m)))
+  (list (heard "C4/d2 . . ." 4) (heard "C4/c1 . . ." 8) (started "C4") (started "C4/r1")))
+```
+---
+    ((#f #f #f #t) (#t #t #t #f #f #f #f #f) 1 5)
