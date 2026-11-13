@@ -468,6 +468,12 @@ gate, so such a branch is refused before it leaves the machine.
 
 ## Documentation
 
+### Writing Docs
+
+Hand-written documents are [GitHub Flavored Markdown](https://github.github.com/gfm/)
+with ATX (`#`) headings. A document's file name is letters, digits, `-` and
+`.`, starting with a letter or digit and ending in `.md`.
+
 ### Generating Docs
 
 ```sh
