@@ -702,6 +702,46 @@ evaluator or an apply, so a chain of them runs in constant stack.
 ---
     ('compiled 10)
 
+## a module's own closures
+
+### compile-module! compiles the closures a module defines, not those it imports
+
+fcm/two imports one-sum from fcm/one and defines two-f; only two-f is its own.
+
+```x
+(import x/tool/fn-compile compile-module! compile-root!)
+(import-path! "tests/x/fixtures/fncompile")
+(import fcm/two two-f)
+(def %fc-ms (compile-module! (lit fcm/two)))
+(write (list (List map (fn (_ e) (e name)) %fc-ms) (List map (fn (_ e) (e state)) %fc-ms)
+             (two-f 3) (Fn label two-f) (Fn label (eval (lit one-sum) (Module env (lit fcm/one))))))
+```
+---
+    (('two-f) ('compiled) 20 'prim 'fn)
+
+### compile-root! compiles every loaded module under a root, each closure once
+
+Under the fixture root, fcm/one's two closures are left; a number is no
+closure, and two-f, compiled already, is not compiled again.
+
+```x
+(def %fc-rs (compile-root! "tests/x/fixtures/fncompile"))
+(write (list (List sort (fn (_ a b) (Str8 <? (symbol->str a) (symbol->str b)))
+               (List map (fn (_ e) (e name)) %fc-rs))
+             (List map (fn (_ e) (e state)) %fc-rs)
+             (two-f 3) (compile-root! "tests/x/fixtures/fncompile")))
+```
+---
+    (('%sq 'one-sum) ('compiled 'compiled) 20 ())
+
+### a module loaded by include, or not loaded, has no closures of its own
+
+```x
+(write (list (compile-module! (lit x/no/such)) (compile-module! (lit x/boot/module))))
+```
+---
+    (() ())
+
 ## a state image
 
 A call site's template holds the values of its call until the call returns,
@@ -711,7 +751,7 @@ every template is emptied before a state image is written.
 
 ### an image of compiled closures that passed Ptrs through their calls writes
 
-The library (tests/x/fixtures/fn-compile/image.x) compiles closures whose
+The library (tests/x/fixtures/fncompile/image.x) compiles closures whose
 calls return, tail-call and raise with a Ptr as an argument, and str=?, and
 runs each.  The writer runs in a child, with an asm cache of its own, and
 the child prints its answer as one line.
@@ -725,7 +765,7 @@ the child prints its answer as one line.
       (list "-c"
         (Str append
           "d=$(mktemp -d) && X_ASM_CACHE_DIR=$d/cache sh tools/dev/image-build.sh"
-          " tests/x/fixtures/fn-compile/image.x $d/out > /dev/null 2>&1;"
+          " tests/x/fixtures/fncompile/image.x $d/out > /dev/null 2>&1;"
           " l=$d/out/image.x.log; echo $(grep '^((' $l) $(grep -o 'unnameable: [0-9]*' $l)"
           " $(test -s $d/out/image.x.ximg && echo written); rm -rf \"$d\""))))
   (Sys wait %fci-child)

@@ -42,6 +42,8 @@
 (module x/tool/fn-compile)
 (import x/type/class)
 (import x/type/env)
+(import x/type/module)
+(import x/sys/gc)
 (import x/core/fn)
 (import x/tool/compiled)
 (import x/tool/asm-cache asm-compile-cached asm-compile-kept asm-fn-values)
@@ -1204,6 +1206,50 @@
 ; written.
 (compile-fn! (lit fnv-1a) (eval (lit %fnv-go) (module x/type/hash)))
 
-(doc (provide x/tool/fn-compile compile-fn!)
+; A closure module M defines at its top level has M's frame as its
+; environment; a name M imports holds a closure of another module's frame,
+; and a closure made inside a call has a frame of that call.  So the frame
+; says which closures are M's own.  One compiled already is no closure
+; now, and one refused is on %fc-compiled: neither is compiled again.
+(def compile-module!
+  (fn (_ name)
+    (def env (Module env name))
+    (if (or (null? env) (obj-same? env (Env root))) ()
+      (List fold
+        (fn (_ acc sym)
+          (def v (eval sym env))
+          (if (and (eq? (Fn label v) (lit fn)) (obj-same? (Fn env v) env)
+                   (not (List any? (fn (_ c) (obj-same? c v)) %fc-compiled)))
+            (pair (compile-fn! sym v) acc)
+            acc))
+        () (Env names env)))))
+
+(doc compile-module!
+  (param name SYMBOL "A loaded module's name, such as 'chess/board")
+  (returns LIST "A Compiled entry for each closure compiled or refused")
+  (sample "(compile-module! 'chess/board)" "each closure chess/board defines, compiled where it stands")
+  "Compile, by compile-fn!, each closure the scoped module NAME defines at its top level: those whose environment is the module's own frame, not those it imports. A module that is not loaded, or was loaded by include into the root, answers ().")
+
+; x collects only when asked, and a compile leaves hundreds of thousands
+; of objects behind it: a module's compiles are collected before the next
+; module's begin.
+(def compile-root!
+  (fn (_ dir)
+    (List fold
+      (fn (_ acc name)
+        (if (Str8 starts? dir (%module-resolve name))
+          (do (def made (compile-module! name))
+              (Heap collect)
+              (%append made acc))
+          acc))
+      () (List filter (fn (_ m) (Module loaded? m)) (Module names)))))
+
+(doc compile-root!
+  (param dir STRING "An import root, as import-path! was given it")
+  (returns LIST "A Compiled entry for each closure compiled or refused")
+  (sample "(compile-root! %lang-root)" "the closures of every module the lang's root holds, compiled")
+  "Compile, by compile-module!, every loaded module whose file the import roots resolve under DIR: a lang's own modules, when DIR is its root. A lang whose lang.xon says (image compiled) has this run on its root before its state image is written, so the image carries its closures compiled.")
+
+(doc (provide x/tool/fn-compile compile-fn! compile-module! compile-root!)
   (sample "(import x/tool/fn-compile compile-fn!) (compile-fn! 'fib fib)" "fib compiled where it stands, its interpreted version kept on the Compiled list")
   "A program's closures compiled where they stand, through compile-asm's function world.")
