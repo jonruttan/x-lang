@@ -178,6 +178,22 @@ pure-x loops and again with the compiled ones, byte for byte.
 ---
     (0 #f)
 
+### a filter held at a percent plays as a cut of that percent, and a closing one dulls the voice
+
+```x
+(do (import x/audio/mixer) (import x/core/doors mem-cmp ptr-ref str->ptr)
+  (def peak (fn (_ r) ((fn (self i acc) (if (< i 1024) (self (+ i 2) ((fn (_ v) (if (< acc v) v acc)) ((fn (_ w) (if (< w 0) (- 0 w) w)) ((fn (_ u) (if (< 32767 u) (- u 65536) u)) (+ (ptr-ref (str->ptr r) i 1) (* 256 (ptr-ref (str->ptr r) (+ i 1) 1))))))) acc)) 0 0)))
+  (def tone (list (list (lit wave) (lit noise)) (list (lit hz) 2000) (list (lit env) (list 0 90) (list 200 90))))
+  (def run (fn (_ v) (do (def m (Mixer make 8000 256)) (Mixer play! m (list v) 0 100) (Mixer block! m) (Mixer block! m))))
+  (def closing (Mixer make 8000 256))
+  (Mixer play! closing (list (pair (list (lit filter) (list 0 100) (list 64 2)) tone)) 0 100)
+  (list (mem-cmp (str->ptr (run (pair (list (lit cut) 40) tone)))
+                 (str->ptr (run (pair (list (lit filter) (list 0 40)) tone))) 1024)
+        ((fn (_ a b c) (if (< b a) (< (* 10 c) a) #f)) (peak (Mixer block! closing)) (peak (Mixer block! closing)) (peak (Mixer block! closing)))))
+```
+---
+    (0 #t)
+
 ## effects
 
 ### an effect is named, changed in its place and taken off
@@ -232,6 +248,42 @@ pure-x loops and again with the compiled ones, byte for byte.
 ---
     ((0 0) #t #f)
 
+### a drive rounds a loud mix off at two thirds of full scale, and a limit holds it under its ceiling
+
+```x
+(do (import x/audio/mixer) (import x/core/doors ptr-ref str->ptr)
+  (def peak (fn (_ r) ((fn (self i acc) (if (< i 1024) (self (+ i 2) ((fn (_ v) (if (< acc v) v acc)) ((fn (_ w) (if (< w 0) (- 0 w) w)) ((fn (_ u) (if (< 32767 u) (- u 65536) u)) (+ (ptr-ref (str->ptr r) i 1) (* 256 (ptr-ref (str->ptr r) (+ i 1) 1))))))) acc)) 0 0)))
+  (def run
+    (fn (_ specs)
+      (def m (Mixer make 8000 256))
+      (List for-each (fn (_ s) (Mixer effect! m (first s) s)) specs)
+      (Mixer play! m (list (list (list (lit hz) 300) (list (lit env) (list 0 100) (list 200 100)))) 0 100)
+      (Mixer block! m)
+      (peak (Mixer block! m))))
+  (list (run ()) (run (list (list (lit drive) 800 100))) (run (list (list (lit limit) 20 100)))
+        (run (list (list (lit drive) 800 100) (list (lit limit) 50 100)))))
+```
+---
+    (16384 21888 6552 16383)
+
+### a crush, a chorus and a sweep each change what is heard
+
+```x
+(do (import x/audio/mixer) (import x/core/doors mem-cmp str->ptr)
+  (def run
+    (fn (_ spec)
+      (def m (Mixer make 8000 256))
+      (unless (null? spec) (Mixer effect! m (lit fx) spec))
+      (Mixer play! m (list (list (list (lit hz) 300) (list (lit env) (list 0 60) (list 200 60)))) 0 100)
+      (Mixer block! m)
+      (Mixer block! m)))
+  (def dry (run ()))
+  (List map (fn (_ s) (= 0 (mem-cmp (str->ptr dry) (str->ptr (run s)) 1024)))
+    (list (list (lit crush) 4 0) (list (lit crush) 16 1000) (list (lit chorus) 3 20 5 1000 60) (list (lit sweep) 200 1500 500 40))))
+```
+---
+    (#f #f #f #f)
+
 ## the compiled loops
 
 ### built where there is a JIT, they render a scene byte for byte as the pure loops do
@@ -251,6 +303,36 @@ pure-x loops and again with the compiled ones, byte for byte.
                                  (list (lit at) 13) (list (lit env) (list 0 100) (list 70 0))))
                   37 80)
       (Mixer block! m) (Mixer block! m)
+      (Mixer block! m)))
+  (if (Mixer jit!)
+    (do ((Compiled named (lit audio)) interpret!)
+        (def pure (scene))
+        ((Compiled named (lit audio)) compile!)
+        (mem-cmp (str->ptr pure) (str->ptr (scene)) 2048))
+    0))
+```
+---
+    0
+
+### built where there is a JIT, they render the newer effects and a filter byte for byte as the pure loops do
+
+```x
+(do (import x/audio/mixer) (import x/tool/compiled) (import x/core/doors mem-cmp str->ptr)
+  (def scene
+    (fn (_)
+      (def m (Mixer make 22050 512))
+      (Mixer effect! m (lit a) (list (lit drive) 300 70))
+      (Mixer effect! m (lit b) (list (lit chorus) 3 15 4 700 50))
+      (Mixer effect! m (lit c) (list (lit sweep) 300 3000 400 60))
+      (Mixer effect! m (lit d) (list (lit crush) 8 6000))
+      (Mixer effect! m (lit e) (list (lit limit) 60 80))
+      (Mixer play! m (list (list (list (lit note) "C3") (list (lit filter) (list 0 100) (list 40 10) (list 60 80))
+                                 (list (lit env) (list 0 0) (list 8 90) (list 60 40) (list 90 0)))
+                           (list (list (lit wave) (lit noise)) (list (lit hz) 2000) (list (lit at) 13) (list (lit env) (list 0 100) (list 70 0))))
+                  37 80)
+      (Mixer block! m)
+      (Mixer cut! m 50)
+      (Mixer block! m)
       (Mixer block! m)))
   (if (Mixer jit!)
     (do ((Compiled named (lit audio)) interpret!)

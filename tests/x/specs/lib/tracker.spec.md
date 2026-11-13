@@ -139,17 +139,17 @@ reached and what is sounding.
 ```x
 (do (import x/audio/tracker) (import x/audio/mixer)
   (def m (Mixer make 8000 256))
-  (def t (Tracker make (lit (song "one" (bpm 600) (rows 4) (echo 30 40 20) (phase 1 3 500 40 50)
+  (def t (Tracker make (lit (song "one" (bpm 600) (rows 4) (echo 30 40 20) (phase 1 3 500 40 50) (drive 200 50)
                                   (instrument a) (pattern p (a "A3")) (order p)))))
   (Tracker play! t m)
   (Tracker play! t m)
   (def one (List map rest (Mixer effects m)))
-  (Tracker song! t (lit (song "two" (bpm 600) (rows 4) (reverb 100 70 30) (instrument b) (pattern q (b "C3")) (order q))))
+  (Tracker song! t (lit (song "two" (bpm 600) (rows 4) (reverb 100 70 30) (limit 90 100) (instrument b) (pattern q (b "C3")) (order q))))
   (Mixer block! m) (Mixer block! m)
   (list one (Tracker name t) (List map rest (Mixer effects m))))
 ```
 ---
-    ((('echo 30 40 20) ('phase 1 3 500 40 50)) "two" (('reverb 100 70 30)))
+    ((('echo 30 40 20) ('phase 1 3 500 40 50) ('drive 200 50)) "two" (('reverb 100 70 30) ('limit 90 100)))
 
 ## a cell's effects
 
@@ -186,7 +186,7 @@ reached and what is sounding.
   (def plain "C4 . . .")
   (list (< (worst plain "C4/a0,0 . . .") 8)
         (List all? (fn (_ c) (< 1000 (worst plain c)))
-          (list "C4/a12 . . ." "C4/v50,4 . . ." "C4 ./s-1200 . ." "G3 C4/p4 . ." "C4/t90,2 . . ." "C4/f0 . . ."))))
+          (list "C4/a12 . . ." "C4/v50,4 . . ." "C4 ./s-1200 . ." "G3 C4/p4 . ." "C4/t90,2 . . ." "C4/f0 . . ." "C4/l3 . . ."))))
 ```
 ---
     (#t #t)
