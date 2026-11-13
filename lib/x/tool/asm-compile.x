@@ -1119,6 +1119,9 @@
 ; made once, where the call site is written, and filled where it runs.  An
 ; applicative has evaluated every operand before its body runs, so a call
 ; made from the body that fills the same template again finds it free.
+; After the call each x is nil again: a template holds no value past its
+; call, so it keeps no object alive and a state image of the code carries
+; none, a raw pointer among them.
 (def %asm-emit-quoted-call!
   (fn (_ asm template emitters)
     (def lit-x (* %word-size %obj-meta-len))
@@ -1136,7 +1139,19 @@
      emitters 0)
     (%asm-load-fvar! asm x1 template)
     (asm-emit! asm 'mov x0 x19)
-    (%emit-eval-arg! asm)))
+    (%emit-eval-arg! asm)
+    ; x0, the value, is kept; x1 walks the template, x2 each (x), and x8
+    ; holds the nil stored -- xzr is no register on x86_64 or arm32.
+    (%asm-load-fvar! asm x1 template)
+    (asm-emit! asm 'mov x8 (imm 0))
+    ((fn (self n)
+       (when (> n 0)
+         (do (asm-emit! asm (lit ldr) x2 (mem x1 lit-x))
+             (asm-emit! asm (lit ldr) x2 (mem x2 next))
+             (asm-emit! asm (lit str) x8 (mem x2 lit-x))
+             (unless (= n 1) (asm-emit! asm (lit ldr) x1 (mem x1 next)))
+             (self (- n 1)))))
+     (%length emitters))))
 
 ; x0 is the operand of a read the code makes unchecked: nil there is a
 ; segfault.  On nil the fvar FAULT, an expression, is evaluated instead: it

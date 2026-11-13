@@ -390,11 +390,12 @@ after it.
 
 A compile leaves the process holding the compiled patcher, adopted only after
 it agreed with the x walk. A load through it and a load through the walk
-answer alike.
+answer alike. The expression is one no case before compiled, so the compile
+stores its entry in the directory the loads look in, not only in the heap.
 
 ```x
 (do
-  (def %pt-e '(fn (_ x) (* x 5)))
+  (def %pt-e '(fn (_ x) (* x 6)))
   (def %pt-f (compile-asm %pt-e ()))
   (def %pt-t (%asm-cache-text %pt-e ()))
   (def %pt-cell (%ac (lit %asm-cache-patcher-cell)))
@@ -408,7 +409,7 @@ answer alike.
   (newline))
 ```
 ---
-    ('compiled 35 35 35)
+    ('compiled 42 42 42)
 
 ### a compile kept in a cell pours again with no key printed
 
