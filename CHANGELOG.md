@@ -8,8 +8,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [0.53.0] - 2026-11-13
 
 **Engine v0.2.32: a second error caught from a child base no longer
-segfaults.** An error in a child base left its root-chain nodes pointing
-at dead stack, and the parent's next collect read them.
+segfaults.** ([x-engine-c#136]) An error in a child base left its
+root-chain nodes pointing at dead stack, and the parent's next collect
+read them.
+
+[x-engine-c#136]: https://github.com/jonruttan/x-engine-c/pull/136
 
 **Clearing a compiled call's template works on x86_64 and arm32.** ([#1265]) It
 stores a zeroed register, not xzr, which only arm64 has.
