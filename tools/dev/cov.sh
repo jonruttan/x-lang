@@ -1,11 +1,13 @@
 #!/bin/sh
 # cov.sh -- x-lang branch coverage wrapper
 #
-# Usage: sh tools/dev/cov.sh [--lang LANG] [--test TEST] FILE
+# Usage: sh tools/dev/cov.sh [--constructs FILE] [--test TEST] FILE
 #
 # Runs the target file through x-bin-profile (the release engine build
 # that marks evaluated AST nodes) then reports which branches were taken.
 #
+# --constructs FILE: a lang's own construct declarations (a bundle's
+#              constructs.x), read after the platform's.
 # --test TEST: append test file content after the source file
 #              so test expressions exercise the library's branches.
 
@@ -19,17 +21,17 @@ COV="${ROOT}/tools/dev/cov.x"
 CONSTRUCTS="${ROOT}/lib/x/constructs.x"
 
 usage() {
-    echo "Usage: $0 [--lang LANG] [--test TEST] FILE" >&2
+    echo "Usage: $0 [--constructs FILE] [--test TEST] FILE" >&2
     exit 1
 }
 
 # Parse args
-LANG=""
+LANG_CONSTRUCTS=""
 FILE=""
 TEST=""
 while [ $# -gt 0 ]; do
     case "$1" in
-        --lang) LANG="$2"; shift 2 ;;
+        --constructs) LANG_CONSTRUCTS="$2"; shift 2 ;;
         --test) TEST="$2"; shift 2 ;;
         -*) usage ;;
         *) FILE="$1"; shift ;;
@@ -39,27 +41,12 @@ done
 [ -z "$FILE" ] && usage
 [ -f "$FILE" ] || { echo "Error: $FILE not found" >&2; exit 1; }
 [ -n "$TEST" ] && { [ -f "$TEST" ] || { echo "Error: $TEST not found" >&2; exit 1; }; }
+[ -n "$LANG_CONSTRUCTS" ] && { [ -f "$LANG_CONSTRUCTS" ] || { echo "Error: $LANG_CONSTRUCTS not found" >&2; exit 1; }; }
 
 # Check the coverage engine exists
 [ -f "$X_COV" ] || { echo "Error: x-bin-profile not found (run: make x-bin-profile)" >&2; exit 1; }
 
-# Auto-detect language from file path if not specified
-if [ -z "$LANG" ]; then
-    case "$FILE" in
-        */lang/r5rs/*) LANG="r5rs" ;;
-        */lang/r7rs/*) LANG="r7rs" ;;
-        */lang/krn/*)  LANG="krn"  ;;
-        */lang/ash/*)  LANG="ash"  ;;
-        */lang/sweet/*) LANG="sweet" ;;
-        */lang/sl/*)   LANG="sl"   ;;
-    esac
-fi
-
-# Build constructs: base + lang (or ())
-LANG_CONSTRUCTS=""
-if [ -n "$LANG" ] && [ -f "${ROOT}/lang/${LANG}/lib/constructs.x" ]; then
-    LANG_CONSTRUCTS="${ROOT}/lang/${LANG}/lib/constructs.x"
-fi
+# Constructs: the platform's, then the lang's (or ())
 if [ -n "$LANG_CONSTRUCTS" ]; then
     CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") $(cat "$LANG_CONSTRUCTS")"
 else
