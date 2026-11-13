@@ -176,5 +176,6 @@
             records))))))
 
 (doc (provide x/codec/csv Csv)
+  (example "(Csv parse \"a,b\\n1,2\\n\")" "((\"a\" \"b\") (\"1\" \"2\"))")
   (note "Tables are rows of field STRINGS -- parse never guesses types. Comma is the separator (RFC 4180); strict on malformed quoting per #61. The records profile keys alists by the header strings.")
   "RFC 4180 csv parse/emit, homed on the Csv class.")

@@ -28,7 +28,8 @@
   (doc "xon (x object notation) codec: read forms from text, walk a closed vocabulary, emit forms as lines."
     (note "One form per line on emit -- the contract the shell-side extractors (x.sh, release scripts) anchor on.")
     (note "String arguments escape through the printer's write path, so the reader always inverts the writer (#224).")
-    (see read) (see emit) (see walk))
+    (see read) (see emit) (see walk)
+    (example "(Xon emit (list (list 'a 1)))" "\"(a 1)\\n\""))
   (static
     ; write-to-str quotes and escapes strings, renders numbers bare --
     ; but renders symbols as 'sym, and xon heads/args are bare, so
@@ -64,7 +65,8 @@
     (method arm-source! (self (param b ANY "A fresh base, before its first read"))
       (doc "Arm b to keep #\"...\" literals as ('%interp \"<source text>\") tokens."
         (returns ANY "nil")
-        (note "For tools that read SOURCE into a scratch base (fmt, doc). The literal survives verbatim instead of shattering."))
+        (note "For tools that read SOURCE into a scratch base (fmt, doc). The literal survives verbatim instead of shattering.")
+        (sample "(Xon arm-source! b)" "a later read in b keeps a #\"...\" literal as ('%interp \"<its source text>\")"))
       (let ((st (Xon %xon-find-type b "STRING")))
         (unless (null? st)
           (type-push-analyse st (pair interp-analyse (first (%type-analyse-cell st))))
@@ -124,7 +126,8 @@
               (pair "(" (pair (symbol->str (first form)) (%args (rest form) ())))))))
     (method emit (self (param forms LIST "Forms to render"))
       (doc "Render forms as xon text, one per line."
-        (returns STRING "xon text"))
+        (returns STRING "xon text")
+        (example "(Xon emit (list (list 'a 1) (list 'b \"c\")))" "\"(a 1)\\n(b \\\"c\\\")\\n\""))
       ; One rendered piece per form, one concat (#333).
       (%str-concat (%map (fn (_ f) (Xon emit-form f)) forms)))
     (method walk (self (param table LIST "Vocabulary: ((head . handler) ...) alist, eq?-keyed")
@@ -132,6 +135,7 @@
                       (param forms LIST "Forms to dispatch"))
       (doc "Dispatch each form to its head's handler; collect non-nil results in form order."
         (returns LIST "Non-nil handler results, in input order")
+        (example "(Xon walk (list (pair 'a (fn (_ f) (first (rest f))))) (fn (_ f) ()) (list (list 'a 1) (list 'b 2) (list 'a 3)))" "(1 3)")
         (note "A handler returning nil contributes nothing -- effect-style vocabularies return nil throughout and ignore the result.")
         (note "eq? on heads is sound only when table symbols and forms were read in the SAME base (symbols intern per-base)."))
       (def %go
@@ -146,6 +150,7 @@
       (%go forms ()))))
 
 (doc (provide x/codec/xon Xon)
+  (example "(Xon emit (list (list 'pin \"x\")))" "\"(pin \\\"x\\\")\\n\"")
   (note "The consumers this replaces hand-rolled all three layers: pin.x's renderers/walkers (#224/#230), and the tool scripts' bare Tok read-str calls.")
   (note "Boot-included modules (repl/ansi.x) cannot import this codec mid-boot; they keep a local terminated-read with a comment.")
   "Xon: read, vocabulary-walk, and emit the xon form language.")

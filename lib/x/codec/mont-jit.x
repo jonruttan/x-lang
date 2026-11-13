@@ -637,4 +637,5 @@
               mont-jit-load-bytes! mont-jit-store-bytes
               mont-jit-mul mont-jit-add mont-jit-sub mont-jit-to! mont-jit-from! mont-jit-one! mont-jit-pow! mont-jit-inv!
               mont-jit-program mont-jit-run!)
+  (example "(do (import x/codec/mont-jit mont-jit-engine) (procedure? mont-jit-engine))" "#t")
   "Montgomery arithmetic for one modulus over named slots: (mont-jit-engine m) builds a compiled engine (JIT, ARM64 and x86-64 backends) generic over the modulus, checked against x/codec/mont's pure-x operations, or falls back to those; a program of operations runs in one call; slots 0..mont-jit-free - 1 are the caller's.")

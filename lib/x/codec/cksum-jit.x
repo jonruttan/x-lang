@@ -99,4 +99,5 @@
 (prim-reg! (lit cksum) (lit jit-make) cksum-jit-make)
 
 (doc (provide x/codec/cksum-jit cksum-jit-make)
+  (example "(do (import x/codec/cksum-jit) (procedure? (prim-ref (lit cksum) (lit jit-make))))" "#t")
   "The compiled CRC of POSIX cksum (JIT; ARM64, x86-64 and 32-bit ARM backends) behind (Cksum jit!): one loop over the bytes, adopted only after it sums the check inputs as the pure-x fold does.")

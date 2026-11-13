@@ -304,4 +304,5 @@
 
 (doc (provide x/codec/mont mont-limb-bits mont-modulus mont-n mont-one mont-bytes mont-region mont-limbs mont-number mont-bytes-of mont-below?
   mont-mul mont-add mont-sub mont-to mont-from mont-pow mont-inv mont-minus-two mont-r2 mont-r2-set? mont-set-r2! mont-zero? mont-eq?)
+  (example "(do (import x/codec/mont mont-modulus mont-number mont-to mont-from mont-mul mont-bytes-of) (let ((m (mont-modulus (first (Bytes of-hex \"07\")) 0 1))) (let ((a (mont-to m (mont-number m (first (Bytes of-hex \"03\")) 0 1))) (b (mont-to m (mont-number m (first (Bytes of-hex \"05\")) 0 1)))) (Bytes hex (Bytes region (mont-bytes-of m (mont-from m (mont-mul m a b))) 0 1)))))" "\"01\"")
   "Montgomery arithmetic modulo an odd number on limbs as wide as the word allows: a modulus from its big-endian bytes, mont-mul, add, sub, pow and inv in the form, and the doors in and out.")

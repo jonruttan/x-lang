@@ -48,7 +48,8 @@
     ; Resolve one libz symbol, per call (cold; dlopen caches the handle).
     (method %sym (self (param name STRING "libz function name"))
       (doc "The named libz symbol, resolving libz.so.1 / libz.dylib / the current process, in that order."
-        (returns POINTER "The function pointer"))
+        (returns POINTER "The function pointer")
+        (example "(Zlib %sym \"crc32\")" "#<ptr>"))
       (def h
         (let ((h1 (ffi-dlopen "libz.so.1" 1)))
           (if h1 h1
@@ -60,7 +61,8 @@
     ; GC-owned. Returns (region . ptr); the caller keeps the region live.
     (method %to-buf (self (param bytes LIST "Byte values"))
       (doc "Copy a byte list into a GC-owned buffer region."
-        (returns PAIR "(region-string . raw-ptr)"))
+        (returns PAIR "(region-string . raw-ptr)")
+        (example "(Zlib %from-buf (rest (Zlib %to-buf (list 1 2 3))) 3)" "(1 2 3)"))
       (def n (List length bytes))
       (def region (str-make (if (= n 0) 1 n)))
       (def p (str->ptr region))
@@ -73,7 +75,8 @@
     ; buffer ptr -> byte list of the first n bytes.
     (method %from-buf (self (param p POINTER "Buffer pointer") (param n INTEGER "Byte count"))
       (doc "Read n bytes from a buffer into a byte list."
-        (returns LIST "Byte values (0-255)"))
+        (returns LIST "Byte values (0-255)")
+        (example "(Zlib %from-buf (rest (Zlib %to-buf (list 104 105))) 2)" "(104 105)"))
       (let go ((i (- n 1)) (acc ()))
         (if (< i 0) acc
           (go (- i 1) (pair (& (ptr-ref p i 1) 255) acc)))))
@@ -82,12 +85,14 @@
     ; uLongf is unsigned long = the machine word on both target OSes.
     (method %len-cell! (self (param p POINTER "Cell pointer") (param v INTEGER "Value"))
       (doc "Store v as the platform word in a length in/out cell."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (example "(let ((b (Zlib %to-buf (list 0 0 0 0 0 0 0 0)))) (do (Zlib %len-cell! (rest b) 300) (Zlib %len-cell (rest b))))" "300"))
       (ptr-set-word! p 0 v)
       ())
     (method %len-cell (self (param p POINTER "Cell pointer"))
       (doc "Read the platform word from a length in/out cell."
-        (returns INTEGER "The stored value"))
+        (returns INTEGER "The stored value")
+        (example "(let ((b (Zlib %to-buf (list 0 0 0 0 0 0 0 0)))) (do (Zlib %len-cell! (rest b) 7) (Zlib %len-cell (rest b))))" "7"))
       (ptr-ref-word p 0))
 
     (method compress (self (param bytes LIST "Bytes to compress")
@@ -145,7 +150,9 @@
     ; windowBits for a format: zlib's header, gzip's, or none
     (method %window (self (param format SYMBOL "zlib, gzip or raw"))
       (doc "zlib's windowBits for a stream format."
-        (returns INTEGER "15, 31 or -15"))
+        (returns INTEGER "15, 31 or -15")
+        (example "(Zlib %window 'gzip)" "31")
+        (example "(Zlib %window 'raw)" "-15"))
       (match
         ((eq? format (lit zlib)) 15)
         ((eq? format (lit gzip)) 31)
@@ -155,14 +162,17 @@
     ; an int return, its u32 top half folded back to negative
     (method %int (self (param raw INTEGER "A zero-extended int return"))
       (doc "Fold a zero-extended C int return to its signed value."
-        (returns INTEGER "The signed value"))
+        (returns INTEGER "The signed value")
+        (example "(Zlib %int 0xFFFFFFFD)" "-3")
+        (example "(Zlib %int 5)" "5"))
       (if (> raw 2147483647) (- raw 4294967296) raw))
 
     (method %stream (self (param kind SYMBOL "deflate or inflate")
                           (param init STRING "deflateInit2_ or inflateInit2_")
                           (param args LIST "The init call's arguments after the stream"))
       (doc "A fresh z_stream block, initialised by the named libz call."
-        (returns PAIR "(KIND . REGION)"))
+        (returns PAIR "(KIND . REGION)")
+        (example "(let ((s (Zlib %stream 'inflate \"inflateInit2_\" (list -15)))) (do (Zlib end s) (Zlib %kind s)))" "'inflate"))
       (def region (str-make %zs-size))
       (def p (str->ptr region))
       ; zalloc, zfree and opaque nil: zlib's malloc and free
@@ -194,7 +204,8 @@
 
     (method %kind (self (param s PAIR "A stream"))
       (doc "A stream's kind."
-        (returns SYMBOL "deflate or inflate"))
+        (returns SYMBOL "deflate or inflate")
+        (example "(Zlib %kind (pair 'deflate ()))" "'deflate"))
       (first s))
 
     (method step (self (param s PAIR "A stream from deflater or inflater")
@@ -233,7 +244,8 @@
 
     (method end (self (param s PAIR "A stream"))
       (doc "Free a stream's zlib state. The stream is not used again."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (example "(null? (Zlib end (Zlib inflater 'raw)))" "#t"))
       (ptr-call (Zlib %sym (if (eq? (first s) (lit deflate)) "deflateEnd" "inflateEnd"))
         (str->ptr (rest s)))
       ())
@@ -294,4 +306,5 @@
 
 (doc (provide x/codec/zlib Zlib)
   (note "The system zlib over the dlopen FFI -- the libm precedent, no new C (#373's ruled strategy). Byte lists both ways; zlib-format one-shots plus the gzip file doors. A pure-x inflate remains possible later if a self-contained amalgam story needs it.")
+  (example "(Zlib crc32 0 \"abc\" 3)" "891568578")
   "Compression through the system zlib, homed on the Zlib class.")

@@ -99,4 +99,5 @@
 (prim-reg! (lit sum) (lit jit-make) sum-jit-make)
 
 (doc (provide x/codec/sum-jit sum-jit-make)
+  (example "(do (import x/codec/sum-jit) (procedure? (prim-ref (lit sum) (lit jit-make))))" "#t")
   "The compiled checksums of sum(1) (JIT; ARM64, x86-64 and 32-bit ARM backends) behind (Sum jit!): one loop over the bytes for each, adopted only after it sums the check inputs as its pure-x fold does.")

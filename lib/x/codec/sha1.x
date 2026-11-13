@@ -190,8 +190,10 @@
       (%hex (%words s n)))
     (method jit! (self)
       (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x digest. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. hex also builds it on its own for any single input of 8KB or more."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Sha1 jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the digests are the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/sha1 Sha1)
+  (example "(Sha1 hex \"abc\")" "\"a9993e364706816aba3e25717850c26c9cd0d89d\"")
   "SHA-1 (FIPS 180-4): (Sha1 hex s) digests a byte string. Pure x-lang, with an optional differentially-verified JIT engine ((Sha1 jit!), or built on its own for an input of 8KB or more).")

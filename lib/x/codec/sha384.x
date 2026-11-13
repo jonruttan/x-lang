@@ -41,12 +41,15 @@
     (method bytes-n (self (param s STRING "Byte region to digest")
                           (param n INTEGER "How many bytes of s to digest"))
       (doc "SHA-384 of the FIRST n BYTES of s, as a fresh buffer of the digest's 48 bytes -- binary, so read it by count, not as a string."
-        (returns STRING "A 48-byte buffer"))
+        (returns STRING "A 48-byte buffer")
+        (example "(do (import x/codec/bytes) (Bytes hex (Bytes region (Sha384 bytes-n \"abc\" 3) 0 8)))" "\"cb00753f45a35e8b\""))
       (sha512-bytes (List take 12 (sha384-words s n))))
     (method jit! (self)
       (doc "Build and adopt the compiled digest engine (SHA-512's, which SHA-384 shares) now, if it can prove itself against the pure-x digest. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. hex also builds it on its own for any single input of 4KB or more."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Sha384 jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the digests are the same either way"))
       (sha512-jit-try!))))
 
 (doc (provide x/codec/sha384 Sha384)
+  (example "(Sha384 hex \"\")" "\"38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b\"")
   "SHA-384 (FIPS 180-4): (Sha384 hex s) digests a byte string. Pure x-lang, on SHA-512's digest and its optional differentially-verified JIT engine.")

@@ -179,16 +179,20 @@
     (method scalarmult (self (param k STRING "The scalar: 32 bytes are read, clamped as the RFC says")
                              (param u STRING "The u-coordinate: 32 bytes are read, little-endian, the top bit ignored"))
       (doc "X25519 (RFC 7748 5): the u-coordinate of k times the point at u, as 32 little-endian bytes. With a peer's public key as u this is the shared secret; the caller checks it against all zeros if its protocol says to. Computed pure-x, or by the differentially-verified compiled engine once (jit!) has built it -- identical output either way. Not constant time."
-        (returns STRING "32 bytes"))
+        (returns STRING "32 bytes")
+        (sample "(Bytes hex (Bytes region (X25519 scalarmult alice-private bob-public) 0 32))" "\"4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742\", the shared secret of RFC 7748 6.1"))
       (%run k u))
     (method base (self (param k STRING "The private key: 32 bytes are read"))
       (doc "The public key for k: k times the base point, u = 9."
-        (returns STRING "32 bytes"))
+        (returns STRING "32 bytes")
+        (sample "(Bytes hex (Bytes region (X25519 base (first (Bytes of-hex \"77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a\"))) 0 32))" "\"8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a\", Alice's public key in RFC 7748 6.1"))
       (%run k (%nine)))
     (method jit! (self)
       (doc "Build and adopt the compiled ladder (JIT; ARM64 and x86-64 backends) now, if it answers RFC 7748's exchange and the field operations under it agree with the pure-x field. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. scalarmult never builds it on its own, so the pure-x function stays what a host without the JIT runs and what the specs prove; the build costs less than one pure-x exchange, so a process that exchanges keys asks for it."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(X25519 jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the shared secrets are the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/x25519 X25519)
+  (sample "(X25519 scalarmult a-private (X25519 base b-private))" "the same 32 bytes as (X25519 scalarmult b-private (X25519 base a-private)): the shared secret")
   "X25519 (RFC 7748): (X25519 scalarmult k u) and (X25519 base k), 32 bytes each. Pure x-lang on ref10's ten-limb field, with an optional differentially-verified JIT engine ((X25519 jit!)).")

@@ -118,7 +118,8 @@
          %entry))))
 
 (def-class Cksum ()
-  (doc "The CRC of POSIX cksum in pure x-lang.")
+  (doc "The CRC of POSIX cksum in pure x-lang."
+    (example "(Cksum of \"abc\")" "1219131554"))
   (static
     (method of (self (param s STRING "Bytes")
                      . (param span LIST "START, then LENGTH: which bytes of s; default all of s"))
@@ -131,8 +132,10 @@
       (u32 (%xor (%fold-length n ((%fold-for n) (%at (str->ptr s) (first sp)) n 0)) %m32)))
     (method jit! (self)
       (doc "Build and adopt the compiled byte loop (JIT; ARM64, x86-64 and 32-bit ARM backends) now, if it sums the check inputs exactly as the pure-x fold does. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x fold carries on, with the same sums. of builds it on its own for 4KB or more."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Cksum jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the sums are the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/cksum Cksum)
+  (example "(Cksum of \"abc\")" "1219131554")
   "The CRC of POSIX cksum in pure x-lang: (Cksum of s), the polynomial 0x04C11DB7 MSB first with the length folded in.")

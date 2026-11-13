@@ -362,23 +362,28 @@
     (method bytes-n (self (param s STRING "Byte region to digest")
                           (param n INTEGER "How many bytes of s to digest"))
       (doc "SHA-256 of the FIRST n BYTES of s, as a fresh buffer of the digest's 32 bytes -- binary, so read it by count, not as a string: a NUL among the bytes ends its string length. The same engines as hex-n, without the hex. THE LENGTH IS YOUR CLAIM AND IS NOT CHECKED, as hex-n's is."
-        (returns STRING "A 32-byte buffer"))
+        (returns STRING "A 32-byte buffer")
+        (example "(do (import x/codec/bytes) (Bytes hex (Bytes region (Sha256 bytes-n \"abc\" 3) 0 8)))" "\"ba7816bf8f01cfea\""))
       (%sha-hash-words s n (str-make 33)))
     (method bytes-into (self (param s STRING "Byte region to digest")
                              (param n INTEGER "How many bytes of s to digest")
                              (param out STRING "A buffer of 32 bytes or more, written from its start"))
       (doc "SHA-256 of the FIRST n BYTES of s, its 32 bytes written into out, which is returned: bytes-n into a buffer you own, so a loop of digests makes none. The compiled engine writes the bytes itself, with no list between. THE LENGTHS ARE YOUR CLAIM AND ARE NOT CHECKED: out shorter than 32 bytes is written past."
-        (returns STRING "out"))
+        (returns STRING "out")
+        (example "(do (import x/codec/bytes) (Bytes hex (Bytes region (Sha256 bytes-into \"abc\" 3 (Str8 pad-right 32 #\\- \"\")) 0 8)))" "\"ba7816bf8f01cfea\""))
       (%sha-hash-words s n out))
     (method bytes-writer (self)
       (doc "A function (s n out) doing what bytes-into does, for a loop of digests: the compiled engine itself once it is adopted, so each call pays no dispatch, or bytes-into's own path while it is not. It does not build the engine; call jit! first. Ask again after a state image loads: one held across it is the engine of the session that wrote it."
-        (returns CALLABLE "(fn (_ s n out)) answering out"))
+        (returns CALLABLE "(fn (_ s n out)) answering out")
+        (example "(do (import x/codec/bytes) (Bytes hex (Bytes region ((Sha256 bytes-writer) \"abc\" 3 (Str8 pad-right 32 #\\- \"\")) 0 8)))" "\"ba7816bf8f01cfea\""))
       ((fn (_ c) (if (null? c) (fn (_ s n out) (%sha-hash-words s n out)) c))
        (if (null? %sha-entry) () ((fn (_ entry) (entry compiled)) %sha-entry))))
     (method jit! (self)
       (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself: the engine is adopted only after agreeing with the pure-x digest on the FIPS vectors plus a multi-block padding case. Idempotent; seconds of compile on first success. Returns #t when the engine is active, #f when unavailable (no assembler backend for this host, no JIT toolchain, or a failed check -- pure-x carries on and results are identical either way). hex also builds it on its own for any single input of 12KB or more -- the measured size at which the build repays itself within the call -- so calling this is an optimization, not a requirement."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Sha256 jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the digests are the same either way"))
       (%sha-jit-try!))))
 
 (doc (provide x/codec/sha256 Sha256)
+  (example "(Sha256 hex \"a\")" "\"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb\"")
   "SHA-256 (FIPS 180-4): (Sha256 hex s) digests a byte string. Pure x-lang, with an optional differentially-verified JIT engine ((Sha256 jit!), or built on its own for an input of 12KB or more).")

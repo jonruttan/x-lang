@@ -435,4 +435,6 @@
 (prim-reg! (lit md5) (lit jit-make) md5-jit-make)
 
 (doc (provide x/codec/sha-jit sha-jit-make sha1-jit-make md5-jit-make)
+  (example "(do (import x/codec/sha-jit) (procedure? (prim-ref (lit sha256) (lit jit-make))))" "#t")
+  (example "(do (import x/codec/sha-jit) (procedure? (prim-ref (lit md5) (lit jit-make))))" "#t")
   "The compiled SHA-256, SHA-1 and MD5 engines (JIT, ARM64, x86-64 and 32-bit ARM backends); each built and adopted only via its codec's jit! after proving agreement with the pure-x digest.")

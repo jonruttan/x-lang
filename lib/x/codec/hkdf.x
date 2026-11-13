@@ -67,4 +67,5 @@
       (%expand hash prk info len))))
 
 (doc (provide x/codec/hkdf Hkdf)
+  (example "(Hmac to-hex (Hkdf extract (lit sha256) \"salt\" \"secret\") 4)" "\"98e5340f\"")
   "HKDF (RFC 5869) over SHA-256, SHA-384 and SHA-512: (Hkdf extract hash salt ikm) and (Hkdf expand hash prk info len), binary-safe.")

@@ -225,4 +225,5 @@
 (prim-reg! (lit chacha20) (lit jit-make) chacha20-jit-make)
 
 (doc (provide x/codec/chacha20-jit chacha20-jit-make)
+  (example "(do (import x/codec/chacha20-jit) (procedure? (prim-ref (lit chacha20) (lit jit-make))))" "#t")
   "The compiled ChaCha20 block engine (JIT, ARM64, x86-64 and 32-bit ARM backends); built and adopted only via (ChaCha20 jit!) after proving agreement with the pure-x cipher.")

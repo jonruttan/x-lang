@@ -635,4 +635,5 @@
 (prim-reg! (lit bzip2) (lit jit-make) bzip2-jit-make)
 
 (doc (provide x/codec/bzip2-jit bzip2-jit-make)
+  (example "(do (import x/codec/bzip2-jit) (procedure? (prim-ref (lit bzip2) (lit jit-make))))" "#t")
   "The compiled loops behind Bzip2 (JIT, ARM64, x86-64 and 32-bit ARM backends): the input's runs, the sort, the move-to-front values, the table selection and the symbol writer, built and adopted only after writing what the pure-x encoder writes.")

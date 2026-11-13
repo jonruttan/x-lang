@@ -343,8 +343,10 @@
       (%mac key s (first r) (first (rest r))))
     (method jit! (self)
       (doc "Build and adopt the compiled block engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x block loop. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. mac also builds it on its own for any single region of 48KB or more."
-        (returns BOOL "#t when the compiled engine is active"))
+        (returns BOOL "#t when the compiled engine is active")
+        (sample "(Poly1305 jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the tags are the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/poly1305 Poly1305)
+  (example "(Poly1305 mac (Str8 pad-right 32 #\\k \"\") \"\")" "\"kkkkkkkkkkkkkkkk\"")
   "Poly1305 (RFC 8439 2.5): (Poly1305 mac key s [start len]) is the 16-byte tag of a byte region under a one-time key. Pure x-lang, with an optional differentially-verified JIT engine ((Poly1305 jit!), or built on its own for a region of 48KB or more).")
