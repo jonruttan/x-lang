@@ -7,12 +7,120 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.53.0] - 2026-11-13
 
-**Engine v0.2.32: a second error caught from a child base no longer
-segfaults.** ([x-engine-c#136]) An error in a child base left its
-root-chain nodes pointing at dead stack, and the parent's next collect
-read them.
+**The engine is x-engine-c v0.2.32** ([#1271]). A second error caught
+from a child base with `(b eval ...)` in a later form no longer
+segfaults on Linux ([x-engine-c#136]).
 
+[#1271]: https://github.com/jonruttan/x-lang/pull/1271
 [x-engine-c#136]: https://github.com/jonruttan/x-engine-c/pull/136
+
+**Every compiled call's template is emptied before a state image is
+written, including one read back by its name.** ([#1280]) A spec now
+writes an image of compiled closures that passed raw string pointers
+through their calls and checks it has no unnameable words.
+
+[#1280]: https://github.com/jonruttan/x-lang/pull/1280
+
+**The web spec's closed-page case no longer races the end of the
+stream.** ([#1281]) It waits on the server's own socket, with Sys poll
+and a one-second bound, before each `(Web poll)`, instead of polling
+once and expecting the close to have arrived.
+
+[#1281]: https://github.com/jonruttan/x-lang/pull/1281
+
+**A lang can carry its closures compiled.** ([#1279]) A bundle whose
+lang.xon says `(image compiled)` gets a state image with every closure
+its own modules define compiled by `compile-fn!`. `compile-module!` and
+`compile-root!` (`x/tool/fn-compile`) compile one module's closures, or
+those of every module under a root.
+
+[#1279]: https://github.com/jonruttan/x-lang/pull/1279
+
+**`fmt.x`, `lint.sh` and `cov.sh` take a lang's constructs by file.** ([#1278])
+`--constructs FILE` names a bundle's `constructs.x`, read after the
+platform's; it replaces `--lang NAME`, which looked under a `lang/`
+directory that no longer exists and so read nothing.
+
+[#1278]: https://github.com/jonruttan/x-lang/pull/1278
+
+**Compiled closures make tail calls.** ([#1277]) A closure compiled with
+`compile-fn!` makes a call in tail position of another closure as a
+tail call, as interpreted code does: mutually recursive compiled
+closures, and compiled code calling back into interpreted code, run in
+constant stack.
+
+[#1277]: https://github.com/jonruttan/x-lang/pull/1277
+
+**A mixer's chorus, drive, crush, swept filter and limiter, a voice's
+filter path, and a tracker's low-pass cell effect** ([#1276])
+(`x/audio/mixer`, `x/audio/tracker`): `(Mixer effect! m NAME SPEC)`
+takes `(chorus VOICES MS DEPTH-MS PERIOD-MS WET)`, `(drive GAIN WET)` (a
+soft clip that leaves quiet sound alone), `(crush BITS HZ)`, `(sweep
+LOW-HZ HIGH-HZ PERIOD-MS RES)` (a resonant low-pass swept by octaves: an
+auto-wah) and `(limit CEILING RELEASE-MS)`, and a song takes them beside
+`(echo ...)`.  A voice's `(filter (MS PCT) ...)` is its low-pass's path,
+as `(bend ...)` is its pitch's, and a pattern cell's `l P` closes or
+opens a note's low-pass to P percent over its span.  Four new kernels
+(drive, crush, sweep, limit) are compiled and adopted only when they
+agree with their pure-x forms.
+
+[#1276]: https://github.com/jonruttan/x-lang/pull/1276
+
+**A mixer's pitch, cut, bend and named effects, and a tracker's pace,
+effects and cell effects** ([#1272]) (`x/audio/mixer`,
+`x/audio/tracker`): `(Mixer pitch! m CENTS)` moves every voice, playing
+and to come, from its own pitch, and `(Mixer cut! m PCT)` closes every
+voice's low-pass to a share of its own.  A voice's `(bend (MS CENTS)
+...)` is its pitch's path, straight between points and jumping where
+two share a time; `(Mixer semitone NAME)` gives a note's semitones.
+`(Mixer effect! m NAME SPEC)` puts an echo, a reverb (four combs through
+two all-passes) or a phase (a swept, interpolated short delay: a phaser
+or a flanger) over the mix by name, changes it in place keeping what
+rings, or takes it off with nil; `(Mixer effects m)` lists them.  A song
+takes `(reverb ...)` and `(phase ...)` beside `(echo ...)`; a change of
+song swaps its effects for the next song's, and playing a song again no
+longer adds its echoes twice.  A pattern cell carries tracker effects
+after its note, `C4/v30,4 ./s-200`: arpeggio, vibrato, slide,
+portamento, tremolo, fade, cut, delay and retrigger, timed in `(ticks
+N)` a row.  `(Tracker pace! t PCT)` plays a song at a share of its
+tempo.  Three new kernels (all-pass, wet add, phase) are compiled and
+adopted only when they agree with their pure-x forms.
+
+[#1272]: https://github.com/jonruttan/x-lang/pull/1272
+
+**help shows worked examples for the lib/x/codec modules** ([#1275])
+(Zlib, Aes, Ghash, the digests, Bzip2, Bunzip2, Inflate, Deflate, Xon,
+Struct, the compiled engines and the rest).
+
+[#1275]: https://github.com/jonruttan/x-lang/pull/1275
+
+**help shows worked examples for the lib/x/sys and lib/x/net modules**
+([#1274]) (Heap, Pact, Stream, Socket, Pty, Callback, Rest, Tls, X509
+and the rest).
+
+[#1274]: https://github.com/jonruttan/x-lang/pull/1274
+
+**`docs/sandboxing-tutorial.md` is gated.** ([#1245]) Its 21 assertions
+pass on the engine that fixes a parent's collect sweeping a value
+handed to a child base, so `make check-doc-examples` fails on it rather
+than reporting.
+
+[#1245]: https://github.com/jonruttan/x-lang/pull/1245
+
+**Branch coverage is a library function.** ([#1269]) `cov-branches` in
+`x/tool/cov` takes forms that have run under `x-bin-profile` and the
+construct declarations, and returns the branches reached, the branches
+in all, and the ones never taken; `tools/dev/cov.sh` reports from it,
+now in source order.
+
+[#1269]: https://github.com/jonruttan/x-lang/pull/1269
+
+**`make test-x-cov` and `make test-cov` are gone.** ([#1268]) They measured C line
+coverage of an engine that is no longer in this repository; x-engine-c's
+`make test-c-cov` does that.  x-lang coverage is `make cov-x` and
+`tools/dev/cov.sh`, on `x-bin-profile`.
+
+[#1268]: https://github.com/jonruttan/x-lang/pull/1268
 
 **A user syntax file gives files their grammar** ([#1267])
 (`x/tool/syntax`): `$X_SYNTAX`, else `$XDG_CONFIG_HOME/x/syntax.x`,
