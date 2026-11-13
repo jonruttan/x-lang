@@ -56,4 +56,6 @@
        0 0))))
 
 (doc (provide x/net/roots Roots)
+  (sample "(Roots count)" "121")
+  (sample "(List length (Roots find (X509 issuer cert)))" "1, the root that may have signed cert")
   "The certificate authorities x's TLS client trusts, Mozilla's: (Roots find name) answers the roots with that subject, parsed.")

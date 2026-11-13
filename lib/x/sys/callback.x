@@ -38,14 +38,20 @@
     (note "Keep the Callback while the library may call the address: it holds F, and the stub reaches F through its address.")
     (note "An error raised in F unwinds through the C caller's frames; a callback that can fail should catch its own errors.")
     (sample "(Callback make (fn (_ a b) (- a b)) 2)" "a comparator a C library can call"))
-  (doc (target ()) "The function the stub calls: the one made with, answering its result as an integer")
-  (doc (nargs 0) "How many arguments the C caller passes, 0 to 4")
-  (doc (asm ()) "The assembler buffer the stub was written into, or nil between an image write and its load")
-  (doc (address 0) "The stub's address, the integer to hand a C library; 0 between an image write and its load")
+  (doc (target ()) "The function the stub calls: the one made with, answering its result as an integer"
+    (example "(((new Callback target (fn (_ a) (* a 2))) target) 21)" "42"))
+  (doc (nargs 0) "How many arguments the C caller passes, 0 to 4"
+    (example "((new Callback nargs 2) nargs)" "2"))
+  (doc (asm ()) "The assembler buffer the stub was written into, or nil between an image write and its load"
+    (example "(null? ((new Callback) asm))" "#t"))
+  (doc (address 0) "The stub's address, the integer to hand a C library; 0 between an image write and its load"
+    (example "((new Callback) address)" "0")
+    (sample "((Callback make (fn (_ a b) (- a b)) 2) address)" "the stub's address, an integer"))
 
   (method remake! (self)
     (doc "Write the stub again -- what the recache hook does after an image load; a consumer never needs to call it."
-      (returns INTEGER "The stub's new address"))
+      (returns INTEGER "The stub's new address")
+      (sample "(cb remake!)" "the stub's new address"))
     (self free!)
     (self asm (Callback %write (self target) (self nargs)))
     (self address (ptr->int (asm-finalize! (self asm))))
@@ -53,7 +59,9 @@
 
   (method free! (self)
     (doc "Release the stub.  The address is not callable afterwards."
-      (returns ANY "nil"))
+      (returns ANY "nil")
+      (example "(let ((cb (new Callback address 0))) (cb free!) (cb address))" "0")
+      (sample "(cb free!)" "nil, the stub released and the address 0"))
     (if (null? (self asm)) () (asm-free! (self asm)))
     (self asm ())
     (self address 0)
@@ -162,4 +170,6 @@
       a)))
 
 (doc (provide x/sys/callback Callback)
+  (example "((new Callback nargs 2) nargs)" "2")
+  (sample "(Callback make (fn (_ a b) (- a b)) 2)" "a comparator a C library such as qsort can call")
   "C function pointers that call x functions: a stub per callback, for a C library that takes a function pointer.")

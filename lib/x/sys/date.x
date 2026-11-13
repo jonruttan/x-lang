@@ -183,4 +183,6 @@
 
 (doc (provide x/sys/date Date)
   (note "(Date now) needs x/sys/posix loaded for (Sys now); everything else is pure. Timezone-aware work happens at the boundary -- this module is UTC by design.")
+  (example "(Date ->iso (Date from-unix 86400))" "\"1970-01-02T00:00:00Z\"")
+  (sample "(Date ->iso (Date now))" "the current UTC time, e.g. \"2026-11-13T09:30:00Z\"")
   "Civil dates over unix time on the Date class: from-unix / to-unix / now / ->iso / leap-year?.")

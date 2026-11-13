@@ -306,28 +306,34 @@
           (if (null? p1) (%fail "no private key") (%rsa-private (first p1))))))
     (method subject (self (param cert LIST "A parsed certificate"))
       (doc "The subject's name, as its DER bytes."
-        (returns LIST "A region"))
+        (returns LIST "A region")
+        (sample "(Bytes hex (X509 subject cert))" "the name's DER in hex: \"3015311330110603550403130a6769746875622e636f6d\" for a subject of CN=github.com alone"))
       (%subject cert))
     (method issuer (self (param cert LIST "A parsed certificate"))
       (doc "The issuer's name, as its DER bytes."
-        (returns LIST "A region"))
+        (returns LIST "A region")
+        (sample "(Roots find (X509 issuer cert))" "the trusted roots that may have signed cert"))
       (%issuer cert))
     (method validity (self (param cert LIST "A parsed certificate"))
       (doc "(NOT-BEFORE NOT-AFTER), Unix seconds."
-        (returns LIST "Two integers"))
+        (returns LIST "Two integers")
+        (sample "(List map (fn (_ t) (Date ->iso (Date from-unix t))) (X509 validity cert))" "the two dates, e.g. (\"2026-02-05T00:00:00Z\" \"2027-02-05T23:59:59Z\")"))
       (list (%not-before cert) (%not-after cert)))
     (method dns-names (self (param cert LIST "A parsed certificate"))
       (doc "The subject's alternative DNS names, lowercase."
-        (returns LIST "Strings"))
+        (returns LIST "Strings")
+        (sample "(X509 dns-names cert)" "the names, e.g. (\"github.com\" \"www.github.com\")"))
       (%dns cert))
     (method public-key (self (param cert LIST "A parsed certificate"))
       (doc "(KIND KEY): p256 or p384 and the key's bytes as SEC 1 encodes them; rsa and (N E), the modulus and exponent as the big-endian regions DER holds; or nil and the key's bytes for a kind this code does not use."
-        (returns LIST "(SYMBOL region) or (rsa (region region))"))
+        (returns LIST "(SYMBOL region) or (rsa (region region))")
+        (sample "(first (X509 public-key cert))" "'p256 for an ECDSA P-256 key, 'rsa for an RSA one"))
       (list (%kind cert) (%key cert)))
     (method signed-by? (self (param child LIST "A parsed certificate")
                              (param parent LIST "The certificate that may have signed it"))
       (doc "#t when parent's key signed child: ECDSA over P-256 or P-384, or RSA PKCS#1 v1.5 with SHA-256, SHA-384 or SHA-512. An RSASSA-PSS signature answers #f: it is not checked."
-        (returns BOOL "#t when the signature holds"))
+        (returns BOOL "#t when the signature holds")
+        (sample "(X509 signed-by? leaf intermediate)" "#t"))
       (%signed-by? child parent))
     (method verify-chain (self (param certs LIST "The server's certificates, leaf first, each a region of DER bytes or a certificate X509 parse already read")
                                (param host STRING "The name the client asked for")
@@ -348,4 +354,5 @@
       (%walk leaf (rest parsed) roots now))))
 
 (doc (provide x/net/x509 X509)
+  (sample "(X509 dns-names (X509 parse (first (X509 from-pem (File read-all \"server.pem\")))))" "the names the server's certificate covers")
   "X.509 certificates (RFC 5280): parse, from-pem, private-key (an RSA or Ed25519 key from PEM), and verify-chain -- a TLS server's chain checked for its host, dates, CA constraints and signatures (ECDSA and RSA) up to a trusted root.")

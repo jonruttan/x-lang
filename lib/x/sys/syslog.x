@@ -55,7 +55,10 @@
       (+ (* f 8) s))
 
     (method %two (self (param n INTEGER "0 to 99") (param pad STRING "The leading character under ten"))
-      (doc "n in two characters." (returns STRING "Two characters"))
+      (doc "n in two characters." (returns STRING "Two characters")
+        (example "(Syslog %two 7 \"0\")" "\"07\"")
+        (example "(Syslog %two 7 \" \")" "\" 7\"")
+        (example "(Syslog %two 42 \"0\")" "\"42\""))
       (def t ((prim-ref (lit convert) (lit to)) n (Type named STRING) 10))
       (if (< n 10) (Str8 append pad t) t))
 
@@ -101,4 +104,6 @@
 
 (doc (provide x/sys/syslog Syslog)
   (note "No daemon is needed to build a line: (Syslog line ...) is pure but for the zone the time is shown in.")
+  (example "(Syslog priority (lit user) (lit err))" "11")
+  (sample "(Syslog send \"myapp\" (lit user) (lit info) \"started\")" "#t with a syslogd listening, #f with none")
   "syslog(3)'s line and its send, over Socket's unix datagram door.")
