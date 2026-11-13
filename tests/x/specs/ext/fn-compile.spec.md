@@ -641,3 +641,62 @@ theirs.
 ```
 ---
     ('type (1 2 3))
+
+## tail calls
+
+A call in tail position of a closure other than F is a tail call, as it is
+interpreted: F leaves the filled call for whoever called it to make, the
+evaluator or an apply, so a chain of them runs in constant stack.
+
+### a tail call of another compiled closure is a tail call
+
+```x
+(def %fc-ping (fn (_ n acc) (if (int= n 0) acc (%fc-pong (int- n 1) (int+ acc 1)))))
+(def %fc-pong (fn (_ n acc) (if (int= n 0) acc (%fc-ping (int- n 1) (int+ acc 2)))))
+(def %fc-e1 (compile-fn! (lit %fc-ping) %fc-ping))
+(def %fc-e2 (compile-fn! (lit %fc-pong) %fc-pong))
+(write (list (%fc-e1 state) (%fc-e2 state) (%fc-ping 1000000 0)))
+```
+---
+    ('compiled 'compiled 1500000)
+
+### an apply of a compiled closure makes the tail call it leaves
+
+```x
+(write (list (apply %fc-ping (list 1000000 0)) (List map (fn (_ n) (%fc-pong n 0)) (list 0 1 2 3))))
+```
+---
+    (1500000 (0 2 3 5))
+
+### a tail call inside a guard is made inside it
+
+```x
+(def %fc-raiser (fn (_ x) (if (int= x 0) (error "zero") x)))
+(def %fc-guarded (fn (_ x) (guard (e (lit caught)) (%fc-raiser x))))
+(def %fc-e (compile-fn! (lit %fc-guarded) %fc-guarded))
+(write (list (%fc-e state) (%fc-guarded 0) (%fc-guarded 4)))
+```
+---
+    ('compiled 'caught 4)
+
+### a tail call of an interpreted closure, and back
+
+```x
+(def %fc-even? (fn (_ n) (if (int= n 0) #t (%fc-odd? (int- n 1)))))
+(def %fc-odd? (fn (_ n) (if (int= n 0) #f (%fc-even? (int- n 1)))))
+(def %fc-e (compile-fn! (lit %fc-even?) %fc-even?))
+(write (list (%fc-e state) (%fc-even? 1000001) (%fc-odd? 1000001)))
+```
+---
+    ('compiled #f #t)
+
+### a call not in tail position answers its value to the code after it
+
+```x
+(def %fc-inc (fn (_ n) (int+ n 1)))
+(def %fc-twice (fn (_ n) (int+ (%fc-inc n) (%fc-inc n))))
+(def %fc-e (compile-fn! (lit %fc-twice) %fc-twice))
+(write (list (%fc-e state) (%fc-twice 4)))
+```
+---
+    ('compiled 10)

@@ -346,6 +346,16 @@
            (list op (%fc-raw (first args)) (%fc-raw (first (rest args))))
            (rest (rest args)))))))
 
+; Every template made, so that each can be emptied before a state image is
+; written: one whose call was in tail position keeps its values until its
+; site is filled again (asm-compile.x, %asm-emit-quoted-call!).
+(def %fc-templates ())
+(def %fc-empty-templates!
+  (fn (_)
+    (List for-each
+      (fn (_ t) (List for-each (fn (_ slot) (%set-first! (rest slot) ())) t))
+      %fc-templates)))
+
 ; The template a call site fills and evaluates (asm-compile.x, the function
 ; world): one (lit ()) for the callee and one for each of N arguments, made
 ; here with list, so the evaluator reads it as a call.
@@ -358,7 +368,9 @@
 ; or a self-call (%fc-self T ...), T the site's template.
 (def %fc-call
   (fn (_ head args)
-    (def t (%fc-const (%fc-template (%length args)) (%fc-template-name (%length args))))
+    (def made (%fc-template (%length args)))
+    (set! %fc-templates (pair made %fc-templates))
+    (def t (%fc-const made (%fc-template-name (%length args))))
     ((fn (_ held)
        (%fc-with (first held)
          (if (eq? head (lit %fc-self))
@@ -1073,15 +1085,26 @@
 ; asm-fn-values: no closure's state and no other primitive's is that object.
 ; The word after the one the function reads holds the address of the routine
 ; replaced, which is this process's and so is read, not compiled in.
+;
+; A compiled function that answers nil may have left a tail call in the
+; base's tco-expr cell (asm-compile.x, %asm-emit-quoted-call!), as the
+; evaluator's own trampoline expects of a primitive; an apply makes it, by
+; the engine's trampoline routine, handed a run of one nil.  Its address,
+; the cell's and the run's are units 4, 3 and 5 of asm-fn-values.
 (def %fc-apply-expr
-  (let ((head (list (lit %mem-ref) (lit call) %obj-meta-len)))
+  (let ((head (list (lit %mem-ref) (lit call) %obj-meta-len))
+        (unit (fn (_ i) (list (lit %mem-ref) (lit %values) (int+ %obj-meta-len i)))))
     (list (lit fn) (lit (self call))
       (list (lit if)
         (list (lit and) (lit call) head
           (list (lit =) (list (lit %mem-ref) head (int+ %obj-meta-len 1)) (lit %values)))
         (list (lit do)
           (list (lit %mem-set!) (lit %values) (int+ %obj-meta-len 1) 1)
-          (list (lit %call-routine) (list (lit %mem-ref) head %obj-meta-len) (lit call)))
+          (list (lit or)
+            (list (lit %call-routine) (list (lit %mem-ref) head %obj-meta-len) (lit call))
+            (list (lit if) (list (lit =) (list (lit %mem-ref) (unit 3) %obj-meta-len) 0) 0
+              (list (lit %call-routine) (unit 4)
+                (list (lit +) (lit %values) (int* %word-size (int+ %obj-meta-len 5)))))))
         (list (lit %call-routine)
           (list (lit %mem-ref) (lit %values) (int+ %obj-meta-len 2))
           (lit (%run-args)))))))
@@ -1096,6 +1119,10 @@
         (asm-compile-cached %fc-apply-expr (list (pair (lit %values) asm-fn-values)) (lit (run integer))))
       (ptr-set-word! (obj->ptr asm-fn-values) (%data-word-off 2)
         (Base slot (%base) (lit callable-apply)))
+      (ptr-set-word! (obj->ptr asm-fn-values) (%data-word-off 4)
+        (Base slot (%base) (lit eval-tco-trampoline)))
+      (ptr-set-word! (obj->ptr asm-fn-values) (%data-word-off 3)
+        (ptr->int (obj->ptr (Base cell (%base) (lit tco-expr)))))
       (Base slot! (%base) (lit callable-apply) routine)
       (Fn apply-values!
         (fn (_ f)
@@ -1105,14 +1132,19 @@
 ; The engine's routine back in the slot.  The writer of a state image runs
 ; this in the child it images, after which nothing there is marked: every
 ; entry is interpreted again (x/tool/compiled), and the first compile after
-; the image is loaded arms the slot of the base that loaded it.
+; the image is loaded arms the slot of the base that loaded it.  The image
+; carries units 3 and 4 as 0, so a tail call is made where it stands until
+; then, and no template holds a value.
 (def %fc-disarm-apply!
   (fn (_)
     (unless (null? %fc-apply)
       (Base slot! (%base) (lit callable-apply)
         (ptr-ref-word (obj->ptr asm-fn-values) (%data-word-off 2)))
+      (ptr-set-word! (obj->ptr asm-fn-values) (%data-word-off 3) 0)
+      (ptr-set-word! (obj->ptr asm-fn-values) (%data-word-off 4) 0)
       (Fn apply-values! ())
-      (set! %fc-apply ()))))
+      (set! %fc-apply ()))
+    (%fc-empty-templates!)))
 (image-transient! (fn (_) (%fc-disarm-apply!)))
 
 ; V, a compiled function, marked as one the apply routine hands values.
