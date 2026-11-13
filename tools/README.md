@@ -44,7 +44,7 @@ Tool LOGIC is written in x-lang -- entry scripts here or modules under
    File lists ride shell `find | sort` onto argv -- the boot-order
    pattern: shell enumerates, x analyzes.
 4. **Thin launch glue where an engine variant is required**
-   (`dev/cov.sh` needs `x-bin-cov`).
+   (`dev/cov.sh` needs `x-bin-profile`).
 
 Everything else runs as an x entry script:
 
