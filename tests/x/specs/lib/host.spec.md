@@ -82,7 +82,7 @@ clear it), so a later case in the same batch reads the real machine.
 ```x
 (do (import x/sys/host)
   (def e (Host exe (Sys getpid)))
-  ; x-bin, or a variant build of it: x-bin-asan, x-bin-cov
+  ; x-bin, or a variant build of it: x-bin-asan, x-bin-profile
   (list (Str8 starts? "/" e) (not (null? (Str8 index-of "/x-bin" e)))))
 ```
 ---

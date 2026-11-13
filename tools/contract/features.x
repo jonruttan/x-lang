@@ -83,7 +83,7 @@
   (io/include    X_INCLUDE) ; the `include` primitive.  Repo-mode boot CANNOT
                             ;   start without it: x.sh cats an entry whose first
                             ;   act is to include the boot closure.
-  (instr/cov     X_COV)     ; coverage marking -- tools/dev/cov.x, x-bin-cov
+  (instr/cov     X_COV)     ; coverage marking -- tools/dev/cov.x, x-bin-profile
   (instr/profile X_PROFILE) ; eval counters -- lib/x/tool/profile.x
   ; --- the native-extension lanes -----------------------------------------
   ; Neither is a label: both are things an engine SHIPS or EXPORTS, proven the

@@ -63,7 +63,7 @@ indistinguishable from a gate that passed.
 manifest the engine ratchets against its own C — instead of scanning the C
 itself, so it asks the same question of a checkout and a release alike.
 
-The variant builds (`make test-asan`, `x-bin-cov`) do need a checkout, and say
+The sanitizer build (`make test-asan`) does need a checkout, and says
 so rather than skipping: running no sanitizer is not a result.
 
 ```sh
