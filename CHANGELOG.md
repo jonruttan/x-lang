@@ -7,6 +7,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.54.0] - 2026-11-14
 
+**`Gif` (x/codec/gif) reads GIF images.** ([#1286]) `Gif decode` and
+`Gif size` read the first image as RGBA, with transparency and
+interlacing.
+
+[#1286]: https://github.com/jonruttan/x-lang/pull/1286
+
 **A fed Unlzma stream that raises carries what it decoded.** ([#1282])
 The error holds `(out OUT N)`, the output the call decoded before the
 decision that failed.
@@ -17,6 +23,12 @@ decision that failed.
 lib/x/repl.** ([#1283])
 
 [#1283]: https://github.com/jonruttan/x-lang/pull/1283
+
+**help shows a worked example for the Bigint, Rational and Random
+methods, the alist bootstrap helpers, boolean?, equal?, the derived
+syntax forms, and the x/core modules.** ([#1284])
+
+[#1284]: https://github.com/jonruttan/x-lang/pull/1284
 
 ## [0.53.0] - 2026-11-13
 
