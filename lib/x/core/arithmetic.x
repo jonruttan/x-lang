@@ -183,4 +183,5 @@
 (set! ~  (%arith-int-guard 1 "~"  ~))
 
 (doc (provide x/core/arithmetic)
+  (example "(list (+ 1 2 3) (- 10 1 2) (* 2 3 4) (/ 12 2 3) (% 17 5))" "(6 7 24 2 2)")
   "Variadic +, -, *, /, % folded over the binary C primitives.")

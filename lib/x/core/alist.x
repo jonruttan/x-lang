@@ -22,6 +22,7 @@
       (#t (self key (rest alist))))))
   (returns ANY "Value associated with key, or nil if not found")
   (note "Bootstrap layer: the object system dispatches through this. Class API: (Assoc get ...).")
+  (example "(%assoc-get 'b '((a . 1) (b . 2)))" "2")
   "Look up a key in an alist, returning its value or nil.")
 
 (doc (def %assoc-has?
@@ -33,6 +34,7 @@
       (#t (self key (rest alist))))))
   (returns BOOL "True if key is present")
   (note "Bootstrap layer: the object system dispatches through this. Class API: (Assoc has? ...).")
+  (example "(list (%assoc-has? 'a '((a . 1))) (%assoc-has? 'z '((a . 1))))" "(#t #f)")
   "Test whether a key exists in an alist.")
 
 ; Entry-returning lookups (#227): %assoc-get conflates a stored nil with
@@ -50,6 +52,7 @@
       (#t (self key (rest alist))))))
   (returns ANY "The (key . value) entry pair, or nil if not found")
   (note "Entry-returning eq? lookup. Class API: (Assoc entry ...).")
+  (example "(%assq 'b '((a . 1) (b . 2)))" "('b . 2)")
   "Look up a key in an alist, returning the entry pair or nil.")
 
 (doc (def %assoc-str
@@ -61,6 +64,7 @@
       (#t (self key (rest alist))))))
   (returns ANY "The (key . value) entry pair, or nil if not found")
   (note "The str=? side of the key-equality split: tables keyed by converted (cross-base) names use this.")
+  (example "(%assoc-str \"b\" (list (pair \"a\" 1) (pair \"b\" 2)))" "(\"b\" . 2)")
   "Look up a string key in an alist, returning the entry pair or nil.")
 
 (note "Modification")
@@ -74,6 +78,7 @@
       (#t (pair (first alist) (self key (rest alist)))))))
   (returns LIST "Alist without the given key")
   (note "Bootstrap layer. Class API: (Assoc del ...).")
+  (example "(%assoc-del 'a '((a . 1) (b . 2) (a . 3)))" "(('b . 2))")
   "Remove all entries for a key from an alist.")
 
 (doc (def %assoc-put
@@ -83,6 +88,7 @@
     (pair (pair key val) (%assoc-del key alist))))
   (returns LIST "Alist with the key set to val")
   (note "Bootstrap layer: the object system dispatches through this. Class API: (Assoc put ...).")
+  (example "(%assoc-put 'a 9 '((a . 1) (b . 2)))" "(('a . 9) ('b . 2))")
   "Set a key-value pair, replacing any existing entry for that key.")
 
 (note "Extraction")
@@ -90,6 +96,7 @@
 (doc (def %assoc-keys (fn (_ (param alist LIST "Association list")) (%map first alist)))
   (returns LIST "List of keys")
   (note "Bootstrap layer: the object system's introspection uses this. Class API: (Assoc keys ...).")
+  (example "(%assoc-keys '((a . 1) (b . 2)))" "('a 'b)")
   "Return all keys from an alist.")
 
 (note "Option stores")

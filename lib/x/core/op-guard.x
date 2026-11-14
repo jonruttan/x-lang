@@ -48,4 +48,5 @@
 ; half closed when bool.x claimed the singletons (#101).
 
 (doc (provide x/core/op-guard)
+  (example "(guard (e (Err label e)) (+ \"a\" 1))" "'type")
   "Non-numeric types (string, list, pair, vector) refuse the arithmetic operators with err:type instead of falling through to pointer arithmetic; symbols cannot (their type slot is the interning tree, not a registered type) and remain the documented residual; booleans refuse via type/bool.x.")
