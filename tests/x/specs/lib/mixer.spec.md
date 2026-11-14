@@ -49,6 +49,114 @@ pure-x loops and again with the compiled ones, byte for byte.
 ---
     (#t #t)
 
+### a square is high for half the cycle and low for the other half
+
+```x
+(do (import x/audio/mixer) (import x/core/doors ptr-ref-word int->ptr)
+  (def w (Mixer wave (lit square)))
+  (let go ((i 0) (hi 0) (lo 0))
+    (if (< i 2048)
+      ((fn (_ v) (go (+ i 1) (if (= v 32767) (+ hi 1) hi) (if (= v -32767) (+ lo 1) lo))) (ptr-ref-word (int->ptr (List ref 1 w)) (* i %word-size)))
+      (list hi lo))))
+```
+---
+    (1024 1024)
+
+### a triangle rises to full scale at a quarter cycle and falls to its floor at three quarters
+
+```x
+(do (import x/audio/mixer) (import x/core/doors ptr-ref-word int->ptr)
+  (def w (Mixer wave (lit triangle)))
+  (def at (fn (_ i) (ptr-ref-word (int->ptr (List ref 1 w)) (* i %word-size))))
+  (list (at 0) (at 256) (at 512) (at 1024) (at 1536) (at 1792)))
+```
+---
+    (0 16384 32767 0 -32767 -16384)
+
+### a saw rises and drops at half cycle, and the inverse saw is its negative word for word
+
+```x
+(do (import x/audio/mixer) (import x/core/doors ptr-ref-word int->ptr)
+  (def saw (Mixer wave (lit saw)))
+  (def inv (Mixer wave (lit inverse-saw)))
+  (def at (fn (_ w i) (ptr-ref-word (int->ptr (List ref 1 w)) (* i %word-size))))
+  (list (at saw 512) (at saw 1023) (at saw 1024)
+        (let go ((i 0)) (if (< i 2048) (if (= 0 (+ (at saw i) (at inv i))) (go (+ i 1)) i) #t))))
+```
+---
+    (16384 32735 -32767 #t)
+
+### metal is 127 steps of full-scale noise in a table of 128 words, repeating
+
+```x
+(do (import x/audio/mixer) (import x/core/doors ptr-ref-word int->ptr)
+  (def w (Mixer wave (lit metal)))
+  (def at (fn (_ i) (ptr-ref-word (int->ptr (List ref 1 w)) (* i %word-size))))
+  (list (List ref 2 w) (= (at 0) (at 127))
+        (let go ((i 0) (n 0)) (if (< i 127) (go (+ i 1) (if (= 32767 (at i)) (+ n 1) n)) n))
+        (let go ((i 0)) (if (< i 128) (if (= 32767 ((fn (_ v) (if (< v 0) (- 0 v) v)) (at i))) (go (+ i 1)) #f) #t))))
+```
+---
+    (25 #t 64 #t)
+
+### a wave drawn by points: straight lines, jumps where two points share a position
+
+```x
+(do (import x/audio/mixer) (import x/core/doors ptr-ref-word int->ptr)
+  (Mixer shape! (lit ramp) (list (list 0 -50) (list 1 50) (list 1 0) (list 4 0)))
+  (def w (Mixer wave (lit ramp)))
+  (def at (fn (_ i) (ptr-ref-word (int->ptr (List ref 1 w)) (* i %word-size))))
+  (list (at 0) (at 256) (at 511) (at 512) (at 2047)))
+```
+---
+    (-16383 0 16319 0 0)
+
+### points out of order or range raise
+
+```x
+(do (import x/audio/mixer)
+  (def tries (fn (_ points) (guard (e (Err text e)) (Mixer shape! (lit bad) points))))
+  (List map tries (list (list (list 1 0) (list 2 0))
+                        (list (list 0 0) (list 2 50) (list 1 0))
+                        (list (list 0 0) (list 1 101))
+                        (list (list 0 0))
+                        (list 3))))
+```
+---
+    ("Mixer: wave: the first point is at position 0" "Mixer: wave: positions never fall" "Mixer: wave: levels are -100 to 100" "Mixer: wave: the last point's position is past 0" "Mixer: wave: points are (POSITION LEVEL) pairs of integers")
+
+### a song's voice plays a shaped wave by name
+
+```x
+(do (import x/audio/mixer) (import x/core/doors ptr-ref str->ptr)
+  (def m (Mixer make 8000 256))
+  (Mixer play! m (list (list (list (lit wave) (lit square)) (list (lit hz) 250) (list (lit env) (list 0 100) (list 100 100)))) 0 100)
+  (def b (Mixer block! m))
+  (def word (fn (_ i) ((fn (_ u) (if (< 32767 u) (- u 65536) u)) (+ (ptr-ref (str->ptr b) (* 4 i) 1) (* 256 (ptr-ref (str->ptr b) (+ (* 4 i) 1) 1))))))
+  (list (< 0 (word 4)) (= (word 4) (word 10)) (< (word 20) 0) (= (word 20) (word 26))))
+```
+---
+    (#t #t #t #t)
+
+### a pulse is the saw at a width: high for that share of the cycle, and a moving width sweeps it
+
+```x
+(do (import x/audio/mixer) (import x/core/doors ptr-ref str->ptr)
+  (def word (fn (_ b i) ((fn (_ u) (if (< 32767 u) (- u 65536) u)) (+ (ptr-ref (str->ptr b) (* 4 i) 1) (* 256 (ptr-ref (str->ptr b) (+ (* 4 i) 1) 1))))))
+  (def highs (fn (_ b from) (let go ((i from) (n 0)) (if (< i (+ from 32)) (go (+ i 1) (if (< 0 (word b i)) (+ n 1) n)) n))))
+  (def pulse (fn (_ keys)
+               (def m (Mixer make 8000 256))
+               (Mixer play! m (list (List append (list (list (lit wave) (lit pulse)) (list (lit hz) 250) (list (lit env) (list 0 100) (list 100 100))) keys)) 0 100)
+               (def a (highs (Mixer block! m) 0))
+               (list a (highs (Mixer block! m) 0))))
+  (def fixed (pulse (list (list (lit width) (list 0 25)))))
+  (def square (pulse ()))
+  (def sweep (pulse (list (list (lit width) (list 0 25) (list 32 75)))))
+  (list (first fixed) (first square) (first sweep) (List ref 1 sweep)))
+```
+---
+    (8 16 8 24)
+
 ## rendering
 
 ### a voice plays from its start, and the block is silent after it ends
