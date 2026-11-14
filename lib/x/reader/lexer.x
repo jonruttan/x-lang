@@ -43,14 +43,23 @@
     (note "A make with every state compiled records a plan in its cache group, and a later make of the same rules -- in this heap, or in a process that reads the group file -- rebuilds the states from it with no form made, printed or checked; the replayed field says which make ran.")
     (note "The first make in a process imports x/tool/asm-cache. A bundle that writes a state image and makes its lexer outside it reads that module from source at the first make, which under a lang whose reader analysers make every later read dear (the numeric tower) costs seconds: import x/tool/asm-cache where the image is written.")
     (example "(let ((l (Lexer make (list (Lexer skip \" \") (Lexer run 'word (list (pair 97 122)) (list (pair 97 122))))))) (l read-str \"ab c\"))" "(('word \"ab\") ('word \"c\"))"))
-  (doc (rules ()) "The rules the base is built from, in priority order")
-  (doc (raw ()) "The raw tokenizer base, or nil between an image write and its load")
-  (doc (states ()) "Every state installed on the base -- the compiled ones as native code, the rest as closures; held so the collector keeps them")
-  (doc (compiled 0) "How many states the assembler lane compiled in the last make; 0 when the lane is closed")
-  (doc (replayed #f) "Whether the last make rebuilt the states from the plan its cache group holds, with no form made, rather than making them")
-  (doc (reader ()) "The closure read-str calls: the tokenizing door, the raw base and the end text bound once, so a read costs no class dispatch. Made with the base, and nil while the base is")
-  (doc (resets ()) "A state for each nested and word rule that puts its return stack at depth 0, called before every read: a read that ended inside an open span leaves the depth where it stopped")
-  (doc (end " ") "Text appended to every read, so the last token meets a delimiter: a token is only read once a character ends it, and the engine drops an unterminated tail. One space unless make was given another; a C lexer wants a newline, which also ends a last line comment. An any rule is built to refuse its bytes, so setting it after make wants a remake!")
+  (doc (rules ()) "The rules the base is built from, in priority order"
+    (example "(List length ((new Lexer rules (list (Lexer skip \" \"))) rules))" "1"))
+  (doc (raw ()) "The raw tokenizer base, or nil between an image write and its load"
+    (example "(null? ((new Lexer) raw))" "#t"))
+  (doc (states ()) "Every state installed on the base -- the compiled ones as native code, the rest as closures; held so the collector keeps them"
+    (example "(null? ((new Lexer) states))" "#t"))
+  (doc (compiled 0) "How many states the assembler lane compiled in the last make; 0 when the lane is closed"
+    (example "((new Lexer) compiled)" "0")
+    (sample "(l compiled)" "the count from l's make, which differs with the lane"))
+  (doc (replayed #f) "Whether the last make rebuilt the states from the plan its cache group holds, with no form made, rather than making them"
+    (example "((new Lexer) replayed)" "#f"))
+  (doc (reader ()) "The closure read-str calls: the tokenizing door, the raw base and the end text bound once, so a read costs no class dispatch. Made with the base, and nil while the base is"
+    (example "(null? ((new Lexer) reader))" "#t"))
+  (doc (resets ()) "A state for each nested and word rule that puts its return stack at depth 0, called before every read: a read that ended inside an open span leaves the depth where it stopped"
+    (example "(null? ((new Lexer) resets))" "#t"))
+  (doc (end " ") "Text appended to every read, so the last token meets a delimiter: a token is only read once a character ends it, and the engine drops an unterminated tail. One space unless make was given another; a C lexer wants a newline, which also ends a last line comment. An any rule is built to refuse its bytes, so setting it after make wants a remake!"
+    (example "((new Lexer) end)" "\" \""))
 
   (method read-str (self (param s STRING "Text to tokenize"))
     (doc "The tokens of s, in order, each (tag text) or (tag text label); dropped tokens (skip, an until rule with no tag) do not appear. The end text (a space unless set) is appended first, so the last token is seen."
@@ -78,7 +87,8 @@
 
   (method remake! (self)
     (doc "Make the base and its states again from the rules -- what the recache hook does after an image load; a consumer never needs to call it."
-      (returns ANY "The raw base"))
+      (returns ANY "The raw base")
+      (example "(let ((l (new Lexer rules (list (Lexer skip \" \") (Lexer run 'w \"a\" \"a\"))))) (l remake!) (l read-str \"a aa\"))" "(('w \"a\") ('w \"aa\"))"))
     (self states ())
     (self compiled 0)
     (self replayed #f)
@@ -1757,4 +1767,5 @@
   (note "Rules are data: run, skip, table, quoted, until, number, nested, word, escape, pattern, any, record. (Lexer make rules) builds the base; (l read-str s) reads text, (l read-span s start len) a span of bytes.")
   (note "Every analyser state is one form, compiled through compile-asm when the lane is open and evaluated as the interpreted twin otherwise; the base is remade after an image load.")
   (note "With the lane closed the twins run inside the child base, and their first comparison registers the engine's INTEGER type there with its s-expression analyser: a signed digit run such as +1 then reads as an integer wherever it outranks a one-byte rule. Compiled states register nothing.")
+  (example "(let ((l (Lexer make (list (Lexer skip \" \") (Lexer table 'op (list \"<\" \"<<\")))))) (l read-str \"<< <\"))" "(('op \"<<\") ('op \"<\"))")
   "Tokenizer bases from data rules, with compiled analysers.")

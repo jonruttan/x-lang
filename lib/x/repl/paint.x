@@ -244,22 +244,26 @@
 
     (method labels (self)
       (doc "Every class `classify` and the spans can answer, (Syntax classes)."
-        (returns LIST "Class symbols"))
+        (returns LIST "Class symbols")
+        (example "(List includes? 'number (Paint labels))" "#t"))
       (Syntax classes))
 
     (method keywords (self)
       (doc "The construct set, as a Dict used as a set."
-        (returns Dict "Construct name -> #t"))
+        (returns Dict "Construct name -> #t")
+        (example "((Paint keywords) get \"def\")" "#t"))
       (Syntax keywords))
 
     (method enabled? (self)
       (doc "Whether painting will do anything -- false when colour is off, in which case `line` returns its argument unchanged."
-        (returns BOOL "True when ANSI colour is on"))
+        (returns BOOL "True when ANSI colour is on")
+        (example "(eq? (Paint enabled?) (Ansi enabled?))" "#t"))
       (Ansi enabled?))
 
     (method forget! (self)
       (doc "Rebuild the construct set, the memo and the palette. A lang that registers new literal syntax changes what the reader answers, and a state image loaded into a different process changes what the colours are; this is how a session says so."
-        (returns NIL "Nothing; the caches are rebuilt"))
+        (returns NIL "Nothing; the caches are rebuilt")
+        (example "(do (Paint forget!) (Paint classify \"42\"))" "'number"))
       (Syntax forget!)
       (%paint-install!))))
 
@@ -301,5 +305,6 @@
   (note "The spans are (Syntax x)'s: x/tool/syntax reads the line and classes each token, and this file draws them, adding the paren depths and the pair beside the cursor.")
   (note "A lang whose syntax a Lexer reads colours its line with (Paint lexer l colours), each token by its tag, through the same span walk.")
   (note "marks gives every paren its nesting depth; line colours them by depth when handed the result. The editor threads the two together on every redraw.")
+  (example "(Paint classify \"def\")" "'keyword")
   "Paint: ANSI syntax colouring for a REPL line that is still being typed.")
 (provide x/repl/paint Paint)

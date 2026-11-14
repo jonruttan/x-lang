@@ -25,15 +25,19 @@
     (example "(null? (Source line (list 1 2)))" "#t"))
   (static
     (method %meta (self o i)
-      (doc "Meta word i of o, or 0 when o carries none.")
+      (doc "Meta word i of o, or 0 when o carries none."
+        (example "(number? (Source %meta (list 1) 0))" "#t"))
       ((prim-ref (lit obj) (lit meta-ref)) o i))
     (method %registry (self)
-      (doc "The base's file registry: ((id-atom . path) ...), newest first.")
+      (doc "The base's file registry: ((id-atom . path) ...), newest first."
+        (example "(str? (rest (first (Source %registry))))" "#t"))
       (first (%reflect-base-cell (lit file-registry))))
     ; The path filed under id, or () when none is: the one lookup every
     ; reader below shares.  Id 0 is standard input, which has no entry.
     (method %path-of (self id)
-      (doc "The path filed under id, \"\" for 0, () when none is.")
+      (doc "The path filed under id, \"\" for 0, () when none is."
+        (example "(Source %path-of 0)" "\"\"")
+        (example "(null? (Source %path-of 999999))" "#t"))
       (if (= id 0) ""
         (let go ((reg (Source %registry)))
           (match
@@ -44,7 +48,8 @@
     ; standard input or a file the loader filed; anything else is what the
     ; allocation left in an unstamped cell.
     (method %believed? (self form)
-      (doc "Whether form carries a stamp the reader left, rather than leftover words.")
+      (doc "Whether form carries a stamp the reader left, rather than leftover words."
+        (example "(Source %believed? (list 1 2))" "#f"))
       (if (< 0 (Source %meta form 0))
         (not (null? (Source %path-of (Source %meta form 1))))
         #f))

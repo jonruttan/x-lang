@@ -211,6 +211,7 @@
   (note "Customizable via %repl-prompt (default \"> \"), %repl-prompt-more, %repl-print, %repl-paint (nil, or a line-text -> display-text function used by the line editor), %repl-marks (nil, or a (text point) -> marks function naming the parens to highlight), %repl-complete (Tab's candidate source) and %repl-eval-line (what the editor does with a finished line). x/repl/lang bundles the seven as a named lang, and (lang NAME) installs one.")
   (note "Uses dynamic scoping so def persists across iterations.")
   (note "Uses eval! (no env save/restore) so definitions persist.")
+  (sample "(repl)" "the > prompt: each form typed is evaluated and its value printed, until ctrl-d or (quit)")
   "Start the read-eval-print loop.")
 
 ; The platform's own repl, remembered by identity.  `repl` is the seam a lang
@@ -223,4 +224,5 @@
 (def %repl-platform-repl repl)
 
 (doc (provide x/repl/loop repl quit)
+  (sample "(repl)" "a session at the > prompt; (quit) ends it")
   "Start the read-eval-print loop.")
