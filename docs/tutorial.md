@@ -54,7 +54,7 @@ there is nothing to install and nothing to wrap the session in.
 [The REPL reference](repl.md) has the rest.
 
 For the full-stack dialect (xenon) with the numeric tower, the compiler,
-and POSIX:
+regular expressions, and `Dict` and `Set`:
 
 ```sh
 sh x.sh -l xe
@@ -247,6 +247,38 @@ The standard library provides a rich set of list operations:
 ((1 . "a") (2 . "b") (3 . "c"))
 ```
 
+## Classes
+
+`def-class` defines a class: its fields, then its methods. An instance is
+called with a field name to read it, a field name and a value to set it, or
+a method name to call the method:
+
+```x-repl
+> (def-class Point ()
+    x y
+    (method sum (self) (+ (self x) (self y))))
+> (def p (new Point x 3 y 4))
+> (p sum)
+7
+> (p x)
+3
+```
+
+A class may extend one parent, and `super` calls the parent's version of a
+method:
+
+```x-repl
+> (def-class Point3 (extends Point)
+    z
+    (method sum (self) (+ (super self sum) (self z))))
+> ((new Point3 x 1 y 2 z 3) sum)
+6
+```
+
+The library's own types are classes too: `List`, `Vector` and `Str8` are
+called the same way. [The Object System](object-system.md) covers statics,
+defaults and documentation.
+
 ## Modules
 
 Everything the default dialect ships is ready without ceremony — vectors,
@@ -301,6 +333,25 @@ Use `modules` to list all registered modules:
 | xenon | `sh x.sh -l xe` | Numeric computing, full-stack applications |
 | radon | `sh x.sh -l rn` | Systems programming, OS interaction |
 
+## Other Languages
+
+`-l` also loads a **lang**: a language implemented in x-lang and installed
+as a bundle. Each lives in its own repository; the
+[README](../README.md#languages-on-top) lists them. One with a release
+installs from its pin:
+
+```sh
+x --install-lang https://github.com/jonruttan/x-r5rs/releases/latest/download/lang.pin.xon
+x -l r5rs
+```
+
+A lang without a release installs from its checkout with `make install`.
+Tool langs take their arguments after `--`, as the tool would:
+
+```sh
+printf 'b\na\n' | x -l coreutils -- sort
+```
+
 ## Next Steps
 
 - [Specification](spec.md) — Complete language reference with examples
@@ -309,3 +360,5 @@ Use `modules` to list all registered modules:
 - [Architecture](architecture.md) — How the interpreter works internally
 - [Dialects](dialects.md) — Detailed dialect comparison
 - [Modules](modules.md) — The provide/import module system
+- [The Object System](object-system.md) — classes, inheritance and statics
+- [The Lang Contract](lang-contract.md) — what a lang bundle is held to

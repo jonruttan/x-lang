@@ -5,9 +5,15 @@ invokes, measured rather than grepped. The long-term goal is that each row
 below is either implemented in x, absorbed as an x-coreutils applet, or
 explicitly ruled a permanent external.
 
+> **A snapshot.** The figures below were measured on 2026-09-16 and have not
+> been re-measured since. File and line references (`x.sh:1039` and the like)
+> are as they stood that day. [Since the measurement](#since-the-measurement)
+> lists what is known to have moved; a fresh run follows
+> [Reproducing](#reproducing).
+
 ## Progress (2026-09-16)
 
-Measured fresh on this date. 37 of the 45 rows have a registered,
+37 of the 45 rows have a registered,
 spec-checked implementation in x, and they carry 98.5% of the logged
 invocations (20,096 of 20,398):
 
@@ -44,6 +50,19 @@ a shell script that runs BEFORE any engine exists and so cannot use x to parse
 it."
 
 Closure therefore has a floor above zero, and 45 of 45 was never the target.
+
+## Since the measurement
+
+Known changes that the table does not reflect:
+
+- **tar** has an implementation in x: x-coreutils ships a `tar` applet.
+  The row would move from external to "in x" on a fresh run.
+- **cc**: [x-cc](https://github.com/jonruttan/x-cc) is a C compiler written
+  in x. Whether it can take the JIT cc lane's calls has not been measured,
+  so the row stays external here.
+- **case counts** have grown. `tools/contract/langs.x` carries the current
+  suite sizes for each bundle; the counts quoted in this file are the
+  2026-09-16 ones.
 
 ## What moved since 2026-08-31
 
