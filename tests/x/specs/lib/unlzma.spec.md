@@ -291,18 +291,52 @@ Ten bytes are not a header: none come out and the stream is not done.
 ### a stream cut short, then finished
 
 Fed, the bytes wait; finished, they are a stream that stops inside a
-symbol.
+symbol.  The raise carries what came out before it -- all six bytes of
+"hello\n", as `xz -dc` gives them, the end marker being what is cut --
+and the stream is over.
 
 ```x
 (do (import x/codec/unlzma) (import x/codec/hex)
   (def %lz-region (fn (_ bs) (let ((r ((prim-ref (lit str) (lit make)) (List length bs))))
     (let ((p ((prim-ref (lit str) (lit ->ptr)) r)))
       (do ((fn (self i l) (unless (null? l) (do ((prim-ref (lit ptr) (lit set!)) p i (first l) 1) (self (+ i 1) (rest l))))) 0 bs) r)))))
+  (def %lz-at (fn (self k l) (if (eq? (first (first l)) k) (rest (first l)) (self k (rest l)))))
   (def %lz-z (Hex decode-bytes "5d00000004ffffffffffffffff00341949ee8def8c80b1e6"))
   (def %lz-s (Unlzma stream))
   (Unlzma feed %lz-s (%lz-region %lz-z) 0 (List length %lz-z))
-  (guard (e (list (Err label e) (e msg) (e data)))
+  (guard (e (list (Err label e) (e msg) (%lz-at (lit lzma) (e data))
+                  (first (rest (%lz-at (lit out) (e data)))) (Unlzma done? %lz-s)))
     (Unlzma finish %lz-s)))
 ```
 ---
-    ('value "Unlzma: the stream ends inside a symbol" (('lzma . 'short)))
+    ('value "Unlzma: the stream ends inside a symbol" 'short 6 #t)
+
+### a stream cut short keeps the windows it decoded
+
+The 4096-byte-window stream of 150000 bytes cut at half its 388 bytes, fed
+whole and then finished: the feed's output and the raise's together are
+the 50007 bytes `xz -dc` decodes from it, and their CRC-32 is gzip's.
+
+```x
+(do (import x/codec/unlzma) (import x/codec/hex) (import x/codec/crc32)
+  (def %lz-region (fn (_ bs) (let ((r ((prim-ref (lit str) (lit make)) (List length bs))))
+    (let ((p ((prim-ref (lit str) (lit ->ptr)) r)))
+      (do ((fn (self i l) (unless (null? l) (do ((prim-ref (lit ptr) (lit set!)) p i (first l) 1) (self (+ i 1) (rest l))))) 0 bs) r)))))
+  (def %lz-at (fn (self k l) (if (eq? (first (first l)) k) (rest (first l)) (self k (rest l)))))
+  (def %lz-z (Hex decode-bytes (Str8 append
+    "5d00100000ffffffffffffffff003098c8e25de1f04e8ff4b440f478025cf20601bd7bd42fc2d8d02d9a269b3609cc03"
+    "b58c1c21a1fd665f7bc68e3a23b1a4baa0ebd46ff7df289b037d04abb1f53a247b10fa45369775500de590a1cff24842"
+    "210f6c1b39c21f42f8a389284d8f8d3f24d84cda4d36472a77f2be194e751544fff50da539b8b8a3144ffcc1740161d8"
+    "be7ddfefbab8997ad6fb2b5f1f2243c97b3842d5c7b66a2698032b7d16d418a758a0bad4f3a46e3f480b4fbcb1a9af6c"
+    "dc21")))
+  (def %lz-s (Unlzma stream))
+  (def %lz-p (Unlzma feed %lz-s (%lz-region %lz-z) 0 (List length %lz-z)))
+  (def %lz-c (Crc32 update 0 (first %lz-p) 0 (first (rest %lz-p))))
+  (guard (e (let ((q (%lz-at (lit out) (e data))))
+              (list (+ (first (rest %lz-p)) (first (rest q)))
+                    (Crc32 update %lz-c (first q) 0 (first (rest q)))
+                    (%lz-at (lit lzma) (e data)))))
+    (Unlzma finish %lz-s)))
+```
+---
+    (50007 3562979691 'short)

@@ -720,13 +720,35 @@
       ((and (null? (obj-ref z %ZDEC)) (not final?) (int< (obj-ref z %ZINCNT) %HEAD-BYTES))
         (list %empty 0))
       (#t
-        (do (def d (if (null? (obj-ref z %ZDEC)) (%stream-start! z) (obj-ref z %ZDEC)))
-            (%rewind! z d final?)
-            ((obj-ref z %ZRUN) d)
-            (obj-set! z %ZOUTCAP (obj-ref d %OUTCAP))
-            (%consume! z d)
-            (if (obj-ref d %DONE) (obj-set! z %ZDONE #t) ())
-            (list (obj-ref d %OUT) (obj-ref d %OUTCNT)))))))
+        (guard (e (if (%lzma-error? e) (%gone-bad! z e) (error e)))
+          (do (def d (if (null? (obj-ref z %ZDEC)) (%stream-start! z) (obj-ref z %ZDEC)))
+              (%rewind! z d final?)
+              ((obj-ref z %ZRUN) d)
+              (obj-set! z %ZOUTCAP (obj-ref d %OUTCAP))
+              (%consume! z d)
+              (if (obj-ref d %DONE) (obj-set! z %ZDONE #t) ())
+              (list (obj-ref d %OUT) (obj-ref d %OUTCNT))))))))
+
+; Is e a malformed stream's raise, one whose data holds (lzma . KIND)?
+(def %lzma-error?
+  (fn (_ e)
+    (and (eq? (Err label e) (lit value))
+         (List any? (fn (_ p) (and (pair? p) (eq? (first p) (lit lzma)))) (e data)))))
+
+; A stream gone bad ends, and its raise carries what it decoded before:
+; every decision up to the one that failed, the bytes of a run's earlier
+; decisions as well as a feed's.  Neither run puts a byte of a decision
+; before the decision is read whole, so the window up to the write
+; position is that output.
+(def %gone-bad!
+  (fn (_ z e)
+    (def d (obj-ref z %ZDEC))
+    (def out
+      (if (null? d) (list %empty 0)
+        (do (%flush! d (obj-ref d %DICTPOS))
+            (list (obj-ref d %OUT) (obj-ref d %OUTCNT)))))
+    (obj-set! z %ZDONE #t)
+    (Err raise (lit value) (e msg) (List append (e data) (list (pair (lit out) out))))))
 
 (def %stream-feed
   (fn (_ z buf start n)
@@ -872,7 +894,7 @@
       (#t (list (first span) (first (rest span)))))))
 
 (def-class Unlzma ()
-  (doc "lzma decompression in pure x-lang, the .lzma \"alone\" format busybox's unlzma and lzcat read. (Unlzma decode s start n) answers (OUT N USED) for one whole stream; a stream can also be fed a piece at a time: stream, feed, finish, done?, rest. A malformed stream raises a label 'value whose data holds (lzma . KIND), KIND 'short when the input ends inside it, else 'data."
+  (doc "lzma decompression in pure x-lang, the .lzma \"alone\" format busybox's unlzma and lzcat read. (Unlzma decode s start n) answers (OUT N USED) for one whole stream; a stream can also be fed a piece at a time: stream, feed, finish, done?, rest. A malformed stream raises a label 'value whose data holds (lzma . KIND), KIND 'short when the input ends inside it, else 'data; a fed stream's raise holds (out OUT N) as well, what that call decoded before the decision that failed."
     (example "(do (import x/codec/bytes) (def z (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (first (rest (Unlzma decode (first z) 0 (Bytes length z)))))" "13"))
   (static
     (method decode (self (param s STRING "Bytes holding a .lzma stream")
@@ -891,17 +913,17 @@
                        (param s STRING "Bytes holding the next piece")
                        (param start INTEGER "Where the piece starts in s")
                        (param n INTEGER "How many bytes it is"))
-      (doc "Give the stream n more bytes. Answers what the decisions they complete decode to; the last few bytes held wait for the next piece or for finish. Once the stream's end is reached, more bytes are kept for (Unlzma rest) and answer none. Raises a label 'value on a malformed stream."
+      (doc "Give the stream n more bytes. Answers what the decisions they complete decode to; the last few bytes held wait for the next piece or for finish. Once the stream's end is reached, more bytes are kept for (Unlzma rest) and answer none. A malformed stream raises a label 'value whose data holds (lzma . KIND) and (out OUT N), what this call decoded before the decision that failed, and the stream is over."
         (returns LIST "(OUT N): a region and how many of its bytes came out")
         (example "(do (import x/codec/bytes) (def b (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (def z (Unlzma stream)) (first (rest (Unlzma feed z (first b) 0 (Bytes length b)))))" "0"))
       (%stream-feed z s start n))
     (method finish (self (param z OBJECT "A (Unlzma stream)"))
-      (doc "The input has ended: what is held is decoded, and a stream cut short raises a label 'value whose data holds (lzma . short)."
+      (doc "The input has ended: what is held is decoded, and a stream cut short raises a label 'value whose data holds (lzma . short) and (out OUT N), what this call decoded before the decision that ran out, as busybox writes it before it stops."
         (returns LIST "(OUT N), as feed answers")
         (example "(do (import x/codec/bytes) (def b (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (def z (Unlzma stream)) (Unlzma feed z (first b) 0 (Bytes length b)) (first (rest (Unlzma finish z))))" "13"))
       (%stream-run z #t))
     (method done? (self (param z OBJECT "A (Unlzma stream)"))
-      (doc "Has the stream's end been reached: its end marker read, or the length its header declares written?"
+      (doc "Has the stream's end been reached: its end marker read, the length its header declares written, or a raise?"
         (returns BOOL "#t once it has")
         (example "(do (import x/codec/bytes) (def b (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (def z (Unlzma stream)) (Unlzma feed z (first b) 0 (Bytes length b)) (Unlzma finish z) (Unlzma done? z))" "#t"))
       (obj-ref z %ZDONE))

@@ -92,6 +92,7 @@
 (def %DBITS 53)
 (def %D 54)
 (def %INWAIT 55)    ; the fewest unread bytes a decision starts with
+(def %TOPCNT 56)    ; the output's count at the top of the decision
 (def %NEXT 64)      ; 12: what the state becomes after a literal
 (def %WORDS 76)
 
@@ -246,6 +247,7 @@
                                    (list '< (%M %DICTCAP) (list '+ (%M %DICTPOS) %MAXLEN)))
                 (list 'do (%S %ST 3) 0)
                 (list 'do
+                  (%S %TOPCNT (%M %OUTCNT))
                   (%S %POSST (list '& (list '+ (%M %DICTPOS) (%M %GLOBALPOS)) (%M %POSMASK)))
                   (%bit (list '+ (L (lit is-match)) (list '+ (list '<< (%M %STATE) 4) (%M %POSST)))
                         %P-IS-MATCH)))))))
@@ -500,6 +502,7 @@
     (def %s-out (%slot (lit out)))
     (def %s-outp (%slot (lit outp)))
     (def %s-flush (%slot (lit dictflush)))
+    (def %s-outcnt (%slot (lit outcnt)))
     (def %s-done (%slot (lit done)))
     ; a region of cap bytes holding the first n of old
     (def %regrow
@@ -508,6 +511,11 @@
         (when (< 0 n) (mem-copy (str->ptr r) (str->ptr old) n))
         r))
     (def %double (fn (self c n) (if (< c n) (self (* c 2) n) c)))
+    ; The scratch's numbers back into d; the window is all on the output.
+    (def %save!
+      (fn (_ d)
+        (List for-each (fn (_ p) (obj-set! d (rest p) (%peek (first p)))) %words)
+        (obj-set! d %s-flush (%peek %DICTPOS))))
     ; The loop run from the top of a decision until it is done or wants
     ; input, its regions grown when it returns for room.  Each byte went to
     ; the output as it went to the window, so the window is all flushed.
@@ -518,8 +526,7 @@
         (def st (%peek %ST))
         (match
           ((or (= st 1) (= st 4))
-            (do (List for-each (fn (_ p) (obj-set! d (rest p) (%peek (first p)))) %words)
-                (obj-set! d %s-flush (%peek %DICTPOS))
+            (do (%save! d)
                 (when (= st 1) (obj-set! d %s-done #t))))
           ((= st 2)
             (do (def cap (%double (* 2 (%peek %OUTCAP)) (+ (%peek %OUTCNT) %MAXLEN)))
@@ -538,7 +545,11 @@
                 (%poke %DICT (ptr->int (str->ptr w)))
                 (%poke %DICTCAP cap)
                 (self d)))
-          (#t (do (def e (%uj-error st))
+          ; the output only up to the top of the decision that failed, the
+          ; bytes it put on the way past the error not counted
+          (#t (do (%save! d)
+                  (obj-set! d %s-outcnt (%peek %TOPCNT))
+                  (def e (%uj-error st))
                   (Err raise (lit value) (Str8 append "Unlzma: " (rest e)) (list (pair (lit lzma) (first e)))))))))
     (def %run
       (fn (_ d)
