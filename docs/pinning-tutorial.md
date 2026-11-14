@@ -7,14 +7,8 @@ platform itself. The reference lives in [modules.md](modules.md)
 shown here was run as written. (`x` below is the installed command; in
 a repo checkout spell it `sh x.sh`, run from the repo root.)
 
-> **Requires x-lang ≥ v0.3.1-rc2.** The `Pin` authoring API
-> (`closure`/`vendor`/`verify`/`fetch`) landed in v0.3.1; on v0.3.0 or
-> earlier `(import x/tool/pin)` provides only the manifest runtime and
-> `(Pin …)` raises `Unbound SYMBOL 'Pin`. Check with `(help Pin)`.
->
-> **The manifest-driven verbs (`sync`/`check`/`boot`) and the `(src …)`
-> form need a newer x still.** The manifest vocabulary is *closed* — an
-> unknown form is a loud error, which is what catches typos — so a
+> **Mind the release your project pins to.** The manifest vocabulary is
+> *closed* — an unknown form is a loud error, which is what catches typos — so a
 > `pin.xon` carrying `(src …)` is refused outright by any x that
 > predates it, with `pin: unknown form`. That cuts both ways: the
 > project's own x, *and* whatever x your CI installs from a release.
@@ -247,9 +241,9 @@ the same tagged source:
   the amalgams were built against) and the **payload fingerprint** (one
   digest over everything the release ships as library).
 
-(`v0.4.0` below stands in for whichever tag you are pinning; check the
-[releases page](https://github.com/jonruttan/x-lang/releases) for what
-each tag publishes.)
+(The commands below were run against `v0.4.0`; substitute the tag you
+are pinning. The [releases page](https://github.com/jonruttan/x-lang/releases)
+lists every tag and what it publishes.)
 
 **Start with the tarball — you never have to build an engine to pin
 the platform:**
@@ -257,7 +251,7 @@ the platform:**
 ```sh
 tar -xzf x-v0.4.0-<os>-<arch>.tar.gz
 sha256sum -c x-v0.4.0-<os>-<arch>.tar.gz.sha256   # verify the download
-xattr -dr com.apple.quarantine x-v0.4.0           # macOS only (Gatekeeper)
+xattr -dr com.apple.quarantine x-v0.4.0           # macOS, browser downloads only
 x-v0.4.0/bin/x -f main.x                          # or add bin/ to PATH
 ```
 
