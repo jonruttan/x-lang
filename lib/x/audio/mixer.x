@@ -16,7 +16,7 @@
 ; a frame; a level is 0 to 2^24; a gain or a pan weight is 0 to 256.
 ; Times in a voice's description are milliseconds, levels percent.
 ;
-; The loops that touch every frame are fourteen kernels, each written once
+; The loops that touch every frame are fifteen kernels, each written once
 ; below as an integer function over word addresses.  The pure-x version is
 ; that form through x/tool/int-form; x/tool/int-form-jit compiles the same
 ; forms, and the compiled ones are adopted only after they write what the
@@ -41,14 +41,23 @@
 ; Frames I to N of mono buffer M: wave table TAB read at phase PH >> SH,
 ; PH stepping by ST and ST by DS, at level VOL stepping by DV, through the
 ; low-pass whose last output is Y and whose coefficient is K in 2^24ths
-; (2^24 passes all), stepping by DK.  Answers the phase after the last
-; frame; the low-pass's last output is the last frame written.
+; (2^24 passes all), stepping by DK.  The wave is A/256 of the read at PH
+; less G/256 of the read OFF 2^24ths of a cycle on, OFF stepping by DOFF
+; (2^24ths keep a width's path inside a 32-bit word): A 256 and G
+; 0 is the wave itself, both 128 its width.  Answers the phase after the
+; last frame; the low-pass's last output is the last frame written.
 (def %osc-form
-  (lit (fn (self m i n tab sh ph st ds vol dv y k dk)
+  (lit (fn (self m i n tab sh ph st ds vol dv y k dk off doff a g)
     (if (< i n)
       (self m (+ i 1) n tab sh (& (+ ph st) 0xFFFFFFFF) (+ st ds) ds (+ vol dv) dv
-            (%mem-set-at! m i (+ y (*>> (- (>> (* (%mem-ref-at tab (& (>> ph sh) (- (<< 1 (- 32 sh)) 1))) (>> vol 8)) 16) y) (>> k 8) 16)))
-            (+ k dk) dk)
+            (%mem-set-at! m i (+ y (*>> (- (>> (* (>> (- (* (%mem-ref-at tab (& (>> ph sh) (- (<< 1 (- 32 sh)) 1))) a)
+                                                          (* (%mem-ref-at tab (& (>> (& (+ ph (<< off 8)) 0xFFFFFFFF) sh) (- (<< 1 (- 32 sh)) 1))) g))
+                                                       8)
+                                                    (>> vol 8))
+                                                 16)
+                                              y)
+                                           (>> k 8) 16)))
+            (+ k dk) dk (+ off doff) doff a g)
       ph))))
 
 ; Frames I to N of mono buffer M added into stereo buffer A, left and
@@ -239,8 +248,20 @@
           (self t (+ i 1) n (& (+ (* x 1103515245) 12345) 2147483647)))
       x))))
 
+; Words I to N of table T a straight line: V in 2^12ths of a word,
+; stepping by DV, each word V rounded to the nearest, halves away from 0,
+; so a line and its negative are each other's negative word for word.
+(def %line-form
+  (lit (fn (self t i n v dv)
+    (if (< i n)
+      (do (%mem-set-at! t i (match ((< v 0) (- 0 (>> (+ (- 0 v) 2048) 12)))
+                                   (#t (>> (+ v 2048) 12))))
+          (self t (+ i 1) n (+ v dv) dv))
+      0))))
+
 (def %forms (list %osc-form %mix-form %echo-form %out-form %sine-form %harm-form %noise-form
-                  %allpass-form %add-form %phase-form %drive-form %crush-form %sweep-form %limit-form))
+                  %allpass-form %add-form %phase-form %drive-form %crush-form %sweep-form %limit-form
+                  %line-form))
 
 (def %pure (List map int-form-pure %forms))
 
@@ -260,6 +281,7 @@
 (def %k-crush ())
 (def %k-sweep ())
 (def %k-limit ())
+(def %k-line ())
 
 (def %install!
   (fn (_ ks)
@@ -276,7 +298,8 @@
     (set! %k-drive (List ref 10 ks))
     (set! %k-crush (List ref 11 ks))
     (set! %k-sweep (List ref 12 ks))
-    (set! %k-limit (List ref 13 ks))))
+    (set! %k-limit (List ref 13 ks))
+    (set! %k-line (List ref 14 ks))))
 
 (%install! %pure)
 
@@ -322,7 +345,7 @@
 (def %agrees?
   (fn (_ engine)
     (def runs
-      (list (fn (_ k d e) (k d 3 40 e 26 4000000000 123456789 -1000 9000000 -700 55 7680000 -900))
+      (list (fn (_ k d e) (k d 3 40 e 26 4000000000 123456789 -1000 9000000 -700 55 7680000 -900 4000000 30000 128 128))
             (fn (_ k d e) (k e d 0 30 200 57))
             (fn (_ k d e) (k d d e 0 64 5 60 300 90 (%wref e 5)))
             (fn (_ k d e) (k d e 0 64 300))
@@ -335,7 +358,8 @@
             (fn (_ k d e) (k d e 0 64 700 200))
             (fn (_ k d e) (k d e 0 32 1000 20000 -256))
             (fn (_ k d e) (k d e 0 32 9000 37 300))
-            (fn (_ k d _) (k d 0 32 65536 12000 300))))
+            (fn (_ k d _) (k d 0 32 65536 12000 300))
+            (fn (_ k d _) (k d 3 60 -134213632 4473924))))
     (List all?
       (fn (_ i)
         (def a (%check-words 64 5))
@@ -347,7 +371,7 @@
         (match ((not (= ra rb)) #f)
                ((not (%same? (%addr a) (%addr b) 0 64)) #f)
                (#t (%same? (%addr c) (%addr d) 0 64))))
-      (list 0 1 2 3 4 5 6 7 8 9 10 11 12 13))))
+      (list 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14))))
 
 (def %entry ())
 
@@ -409,13 +433,71 @@
       1 amps)
     (list r (%addr r) (int- 32 %cycle-bits))))
 
+; One cycle drawn as straight lines between POINTS, each (POSITION LEVEL):
+; positions from 0, never falling, the last one the cycle's end; levels
+; percent of full scale, -100 to 100.  Two points at one position are a
+; jump, and so is the end's level back to the start's.
+(def %shape-wave
+  (fn (_ points)
+    (def bad (fn (_ what) (%fail (Str8 append "wave: " what))))
+    (def int2? (fn (_ p) (if (pair? p) (if (number? (first p)) (if (pair? (rest p)) (number? (first (rest p))) #f) #f) #f)))
+    (unless (and (pair? points) (List all? int2? points))
+      (bad "points are (POSITION LEVEL) pairs of integers"))
+    (unless (int= (first (first points)) 0) (bad "the first point is at position 0"))
+    (unless (List all? (fn (_ p) (not (or (int< (first (rest p)) -100) (int< 100 (first (rest p)))))) points)
+      (bad "levels are -100 to 100"))
+    (unless ((fn (self ps) (if (null? (rest ps)) #t (if (int< (first (first (rest ps))) (first (first ps))) #f (self (rest ps)))))
+             points)
+      (bad "positions never fall"))
+    (def span (first (List last points)))
+    (unless (int< 0 span) (bad "the last point's position is past 0"))
+    (def r (%words %cycle))
+    (def at (fn (_ p) (int/ (int* (first p) %cycle) span)))
+    (def level (fn (_ p) (int<< (int/ (int* (first (rest p)) 32767) 100) 12)))
+    ((fn (self ps)
+       (unless (null? (rest ps))
+         (do (def a (first ps))
+             (def b (first (rest ps)))
+             (unless (int= (at a) (at b))
+               (%k-line (%addr r) (at a) (at b) (level a) (int/ (int- (level b) (level a)) (int- (at b) (at a)))))
+             (self (rest ps)))))
+     points)
+    (list r (%addr r) (int- 32 %cycle-bits))))
+
+; The shapes every song can name, as points.
+(def %shapes
+  (lit ((square (0 100) (1 100) (1 -100) (2 -100))
+        (triangle (0 0) (1 100) (3 -100) (4 0))
+        (saw (0 0) (1 100) (1 -100) (2 0))
+        (inverse-saw (0 0) (1 -100) (1 100) (2 0)))))
+
+(def %metal-bits 7)
+
+; A short noise that repeats: the 127 steps of a 7-bit shift register,
+; each full scale up or down, in a table of 128 words read at the note's
+; pitch, so it rings like metal where noise hisses.
+(def %metal-wave
+  (fn (_)
+    (def n (int<< 1 %metal-bits))
+    (def r (%words n))
+    ((fn (self i x)
+       (when (int< i n)
+         (do (ptr-set-word! (int->ptr (%addr r)) (int* i %word-size) (if (int= (int& x 1) 1) 32767 -32767))
+             (self (int+ i 1) (int+ (int>> x 1) (int<< (int& (int+ x (int>> x 1)) 1) 6))))))
+     0 1)
+    (list r (%addr r) (int- 32 %metal-bits))))
+
 (def %wave
   (fn (_ name)
     (def hit (Assoc entry name (first %waves)))
+    (def shape (Assoc entry name %shapes))
     (match
       ((not (null? hit)) (rest hit))
+      ((not (null? shape)) (%wave-put! name (%shape-wave (rest shape))))
       ((eq? name (lit sine)) (%wave-put! name (%sine-wave)))
       ((eq? name (lit noise)) (%wave-put! name (%noise-wave)))
+      ((eq? name (lit metal)) (%wave-put! name (%metal-wave)))
+      ((eq? name (lit pulse)) (%wave-put! name (%wave (lit saw))))
       (#t (%fail (Str8 append "no wave named " (symbol->str name)))))))
 
 (def %wave-put!
@@ -484,7 +566,10 @@
 ; each point, in straight lines between, and held after the last; the
 ; coefficient's step a frame, its filter's points still ahead, ((FRAME .
 ; PCT) ...), the percent of its own cut at each, the same way; the mixer's
-; cut it is played at, and the percent its filter last reached.
+; cut it is played at, and the percent its filter last reached; its
+; width's offset, the offset's step a frame, the width's points still
+; ahead, ((FRAME . OFFSET) ...), the same way as its bend's, and the two
+; reads' weights in 256ths.
 
 (def %vector-type ((prim-ref (lit type) (lit of)) (Vector make 0 ())))
 (def %rec (fn (_ n) ((fn (_ r) (do (obj-set! r 0 n) r)) (obj-make %vector-type (int+ n 1)))))
@@ -494,6 +579,10 @@
 (def %v-tab 0) (def %v-sh 1) (def %v-ph 2) (def %v-st 3) (def %v-ds 4) (def %v-vol 5)
 (def %v-y 6) (def %v-k 7) (def %v-gl 8) (def %v-gr 9) (def %v-t 10) (def %v-env 11) (def %v-wave 12)
 (def %v-k0 13) (def %v-bend 14) (def %v-dk 15) (def %v-filter 16) (def %v-mcut 17) (def %v-kpct 18)
+(def %v-off 19) (def %v-doff 20) (def %v-width 21) (def %v-a 22) (def %v-g 23)
+
+; A cycle's share PCT in 2^24ths: 167773 is 2^24 / 100, rounded up.
+(def %cycle-share (fn (_ pct) (int* (%clamp 0 100 pct) 167773)))
 
 ; Low-pass coefficient K at CUT percent, never shut.
 (def %cut-k (fn (_ k cut) ((fn (_ c) (if (int< c 1) 1 c)) (int/ (int* k cut) 100))))
@@ -515,13 +604,20 @@
 ; own.  SPEC is a list of (KEY ...): (wave NAME), (env (MS PCT) ...), a
 ; pitch (note "C4") or (hz N), (slide PITCH), (bend (MS CENTS) ...), (cut
 ; PCT), (filter (MS PCT) ...), (pan -100..100), (gain PCT), (detune
-; CENTS), (at MS).  A bend is the pitch's path, CENTS from it at each MS,
-; in straight lines between and a jump where two points share an MS; with
-; one, the slide is not used.  A filter is the low-pass's path the same
-; way, PCT of its cut at each MS, and its cut before the first.
+; CENTS), (width (MS PCT) ...), (at MS).  A bend is the pitch's path,
+; CENTS from it at each MS, in straight lines between and a jump where two
+; points share an MS; with one, the slide is not used.  A filter is the
+; low-pass's path the same way, PCT of its cut at each MS, and its cut
+; before the first.  A width is the wave less itself PCT of a cycle on,
+; halved, its path the same way and its first point's before it: on the
+; saw, a pulse high for PCT of the cycle.  A pulse is the saw at width 50
+; unless it has a width of its own.
 (def %voice
   (fn (_ spec rate at gain cents master-cut)
-    (def w (%wave (%prop1 spec (lit wave) (lit sine))))
+    (def name (%prop1 spec (lit wave) (lit sine)))
+    (def w (%wave name))
+    (def width (List map (fn (_ p) (pair (%ms (first p) rate) (%cycle-share (first (rest p)))))
+                         (%prop spec (lit width) (if (eq? name (lit pulse)) (lit ((0 50))) ()))))
     (def g (int/ (int* gain (%prop1 spec (lit gain) 100)) 100))
     (def env (List map (fn (_ p) (pair (%ms (first p) rate) (%level (first (rest p)) g)))
                    (%prop spec (lit env) (lit ((0 100) (200 0))))))
@@ -537,7 +633,12 @@
                         (%prop spec (lit bend) ())))
     (def cut (%prop1 spec (lit cut) 100))
     (def pan (%prop1 spec (lit pan) 0))
-    (def v (%rec 19))
+    (def v (%rec 24))
+    (%put! v %v-off (if (null? width) 0 (rest (first width))))
+    (%put! v %v-doff 0)
+    (%put! v %v-width width)
+    (%put! v %v-a (if (null? width) 256 128))
+    (%put! v %v-g (if (null? width) 0 128))
     (%put! v %v-tab (List ref 1 w))
     (%put! v %v-sh (List ref 2 w))
     (%put! v %v-ph 0)
@@ -560,16 +661,17 @@
     (%put! v %v-wave w)
     v))
 
-; Voice V's bend point P reached: its step taken, and the step's step
-; toward the next point, or held.
-(def %bend-to!
-  (fn (_ v p ahead)
-    (%put! v %v-st (rest p))
-    (%put! v %v-ds (match ((null? ahead) 0)
-                          ((int< (first p) (first (first ahead)))
-                            (int/ (int- (rest (first ahead)) (rest p)) (int- (first (first ahead)) (first p))))
-                          (#t 0)))
-    (%put! v %v-bend ahead)))
+; Voice V's point P reached on a path whose points ahead are at KP: the
+; value at KX taken, and its step a frame at KD toward the next point, or
+; held.  A bend's path is the step, a width's the offset.
+(def %path-to!
+  (fn (_ v kx kd kp p ahead)
+    (%put! v kx (rest p))
+    (%put! v kd (match ((null? ahead) 0)
+                       ((int< (first p) (first (first ahead)))
+                         (int/ (int- (rest (first ahead)) (rest p)) (int- (first (first ahead)) (first p))))
+                       (#t 0)))
+    (%put! v kp ahead)))
 
 ; Voice V's coefficient's step a frame from frame T, at K, toward its
 ; filter's next point, or 0 to hold.
@@ -591,8 +693,8 @@
 
 ; Voice V rendered over frames A to B of the block into mono buffer M and
 ; added into stereo buffer S, in stretches that end at its envelope's, its
-; bend's and its filter's points.  Answers #t while the voice has more to
-; play.
+; bend's, its filter's and its width's points.  Answers #t while the voice
+; has more to play.
 (def %voice-render!
   (fn (_ v m s a b)
     (def t (%get v %v-t))
@@ -602,19 +704,22 @@
            (def env (%get v %v-env))
            (def bend (%get v %v-bend))
            (def filt (%get v %v-filter))
+           (def width (%get v %v-width))
            (match
              ((null? env) #f)
              ((not (int< from b)) #t)
              ((if (null? bend) #f (not (int< (%get v %v-t) (first (first bend)))))
-               (do (%bend-to! v (first bend) (rest bend)) (self from)))
+               (do (%path-to! v %v-st %v-ds %v-bend (first bend) (rest bend)) (self from)))
              ((if (null? filt) #f (not (int< (%get v %v-t) (first (first filt)))))
                (do (%filter-to! v (first filt) (rest filt)) (self from)))
+             ((if (null? width) #f (not (int< (%get v %v-t) (first (first width)))))
+               (do (%path-to! v %v-off %v-doff %v-width (first width) (rest width)) (self from)))
              (#t
                (do (def tt (%get v %v-t))
                    (def point (first env))
                    (def left (int- (first point) tt))
                    (def sooner (fn (_ l pts) (if (null? pts) l ((fn (_ k) (if (int< k l) k l)) (int- (first (first pts)) tt)))))
-                   (def until (sooner (sooner left bend) filt))
+                   (def until (sooner (sooner (sooner left bend) filt) width))
                    (def to (if (int< (int+ from until) b) (int+ from until) b))
                    (def n (int- to from))
                    (def vol (%get v %v-vol))
@@ -623,8 +728,10 @@
                      (do (def dv (int/ (int- (rest point) vol) left))
                          (%put! v %v-ph
                            (%k-osc m from to (%get v %v-tab) (%get v %v-sh) (%get v %v-ph) (%get v %v-st)
-                                   (%get v %v-ds) vol dv (%get v %v-y) (%get v %v-k) (%get v %v-dk)))
+                                   (%get v %v-ds) vol dv (%get v %v-y) (%get v %v-k) (%get v %v-dk)
+                                   (%get v %v-off) (%get v %v-doff) (%get v %v-a) (%get v %v-g)))
                          (%put! v %v-st (int+ (%get v %v-st) (int* n (%get v %v-ds))))
+                         (%put! v %v-off (int+ (%get v %v-off) (int* n (%get v %v-doff))))
                          (%put! v %v-k (int+ (%get v %v-k) (int* n (%get v %v-dk))))
                          (%put! v %v-y (%wref m (int- to 1)))
                          (%k-mix m s from to (%get v %v-gl) (%get v %v-gr))
@@ -1052,12 +1159,13 @@
       (%make rate block))
 
     (method play! (self (param m VECTOR "A mixer")
-                        (param specs LIST "Voices, each a list of (KEY ...): (wave NAME), (env (MS PCT) ...), (note \"C4\") or (hz N), (slide PITCH), (bend (MS CENTS) ...), (cut PCT), (filter (MS PCT) ...), (pan -100..100), (gain PCT), (detune CENTS), (at MS)")
+                        (param specs LIST "Voices, each a list of (KEY ...): (wave NAME), (env (MS PCT) ...), (note \"C4\") or (hz N), (slide PITCH), (bend (MS CENTS) ...), (cut PCT), (filter (MS PCT) ...), (width (MS PCT) ...), (pan -100..100), (gain PCT), (detune CENTS), (at MS)")
                         (param at INTEGER "Frames after the start of the stretch being rendered, 0 at once")
                         (param gain INTEGER "Percent of each voice's own gain"))
-      (doc "Start a sound: each voice plays its envelope from AT, its pitch sliding to its slide's over the envelope, or following its bend (CENTS from its pitch at each MS, straight between, a jump where two points share an MS), and ends at the envelope's last point. A voice with no wave is a sine; with no envelope, a 200 ms fade."
+      (doc "Start a sound: each voice plays its envelope from AT, its pitch sliding to its slide's over the envelope, or following its bend (CENTS from its pitch at each MS, straight between, a jump where two points share an MS), and ends at the envelope's last point. A width is the wave less itself PCT of a cycle on, halved, following its points the same way: a saw with a width is a pulse high for PCT of the cycle, and a width that moves is a pulse sweep. A voice with no wave is a sine; with no envelope, a 200 ms fade; a pulse is the saw at width 50 unless it has its own width."
         (returns VECTOR "The mixer")
-        (sample "(Mixer play! m (list (list (list (lit note) \"A4\") (list (lit env) (list 0 0) (list 5 80) (list 300 0)))) 0 100)" "m"))
+        (sample "(Mixer play! m (list (list (list (lit note) \"A4\") (list (lit env) (list 0 0) (list 5 80) (list 300 0)))) 0 100)" "m")
+        (sample "(Mixer play! m (list (list (list (lit wave) (lit pulse)) (list (lit note) \"A3\") (list (lit width) (list 0 12) (list 400 50)) (list (lit env) (list 0 80) (list 400 0)))) 0 100)" "m"))
       (%play! m specs at gain))
 
     (method source! (self (param m VECTOR "A mixer")
@@ -1158,11 +1266,21 @@
         (sample "(Mixer render 44100 (list (list (list (lit hz) 220))) ())" "(region . 36864)"))
       (%render rate specs echoes))
 
-    (method wave (self (param name SYMBOL "sine, noise, or a name given to wave!"))
-      (doc "A wave table: one cycle of the wave, or for noise 32768 random words, read by a voice at its pitch. Raises a label 'value for a name with no wave."
+    (method wave (self (param name SYMBOL "sine, square, triangle, saw, inverse-saw, pulse, noise, metal, or a name given to wave! or shape!"))
+      (doc "A wave table: one cycle of the wave, or for noise 32768 random words, read by a voice at its pitch. square is high for half the cycle; triangle rises and falls; saw rises and drops, inverse-saw falls and leaps; pulse is the saw's table, played at a width (see play!); metal is 127 steps of noise repeating, a ring at the note's pitch. The shapes are drawn exact, not band-limited, so on high notes their upper harmonics fold back as tones off the note's series. Raises a label 'value for a name with no wave."
         (returns LIST "(REGION ADDRESS SHIFT): a voice's phase shifted right by SHIFT is the word to read")
-        (example "(List ref 2 (Mixer wave (lit noise)))" "17"))
+        (example "(List ref 2 (Mixer wave (lit noise)))" "17")
+        (example "(List ref 2 (Mixer wave (lit square)))" "21")
+        (example "(List ref 2 (Mixer wave (lit metal)))" "25"))
       (%wave name))
+
+    (method shape! (self (param name SYMBOL "The wave's name")
+                         (param points LIST "Each (POSITION LEVEL): positions from 0, never falling, the last the cycle's end, any scale; levels -100 to 100 percent of full scale"))
+      (doc "Make a wave drawn as straight lines between POINTS, for voices to name: two points at one position are a jump, and the end jumps back to the start's level. ((0 100) (1 100) (1 -100) (2 -100)) is the square; ((0 0) (1 100) (3 -100) (4 0)) the triangle. Raises a label 'value for points out of order or range."
+        (returns SYMBOL "NAME")
+        (example "(Mixer shape! (lit stair) (list (list 0 100) (list 1 100) (list 1 0) (list 2 0) (list 2 -100) (list 3 -100)))" "'stair"))
+      (%wave-put! name (%shape-wave points))
+      name)
 
     (method wave! (self (param name SYMBOL "The wave's name")
                         (param amps LIST "Each harmonic's amplitude, from the fundamental: integers, any scale, negative inverted"))
