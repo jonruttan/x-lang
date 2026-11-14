@@ -120,8 +120,12 @@
       (#t (do (%sc-set! p o cp style)
               (match ((= w 2) (%sc-set! p (int+ o 8) 0 style)) (#t ()))
               (go p cols (int+ o (int* 8 w)) (int+ c w) text i style))))))
+; Whether ROW and COL are a cell of the screen.
 (def %sc-in?
-  (fn (_ s r c) (match ((int< r 0) #f) ((int< r (%sc-get s 0)) (match ((int< c 0) #f) (#t #t))) (#t #f))))
+  (fn (_ s r c)
+    (match ((int< r 0) #f) ((int< c 0) #f)
+           ((int< r (%sc-get s 0)) (int< c (%sc-get s 1)))
+           (#t #f))))
 (def screen-put!
   (fn (_ s r c text style)
     (match
