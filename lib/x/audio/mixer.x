@@ -42,7 +42,8 @@
 ; PH stepping by ST and ST by DS, at level VOL stepping by DV, through the
 ; low-pass whose last output is Y and whose coefficient is K in 2^24ths
 ; (2^24 passes all), stepping by DK.  The wave is A/256 of the read at PH
-; less G/256 of the read OFF further on, OFF stepping by DOFF: A 256 and G
+; less G/256 of the read OFF 2^24ths of a cycle on, OFF stepping by DOFF
+; (2^24ths keep a width's path inside a 32-bit word): A 256 and G
 ; 0 is the wave itself, both 128 its width.  Answers the phase after the
 ; last frame; the low-pass's last output is the last frame written.
 (def %osc-form
@@ -50,7 +51,7 @@
     (if (< i n)
       (self m (+ i 1) n tab sh (& (+ ph st) 0xFFFFFFFF) (+ st ds) ds (+ vol dv) dv
             (%mem-set-at! m i (+ y (*>> (- (>> (* (>> (- (* (%mem-ref-at tab (& (>> ph sh) (- (<< 1 (- 32 sh)) 1))) a)
-                                                          (* (%mem-ref-at tab (& (>> (& (+ ph off) 0xFFFFFFFF) sh) (- (<< 1 (- 32 sh)) 1))) g))
+                                                          (* (%mem-ref-at tab (& (>> (& (+ ph (<< off 8)) 0xFFFFFFFF) sh) (- (<< 1 (- 32 sh)) 1))) g))
                                                        8)
                                                     (>> vol 8))
                                                  16)
@@ -344,7 +345,7 @@
 (def %agrees?
   (fn (_ engine)
     (def runs
-      (list (fn (_ k d e) (k d 3 40 e 26 4000000000 123456789 -1000 9000000 -700 55 7680000 -900 1000000000 3000000 128 128))
+      (list (fn (_ k d e) (k d 3 40 e 26 4000000000 123456789 -1000 9000000 -700 55 7680000 -900 4000000 30000 128 128))
             (fn (_ k d e) (k e d 0 30 200 57))
             (fn (_ k d e) (k d d e 0 64 5 60 300 90 (%wref e 5)))
             (fn (_ k d e) (k d e 0 64 300))
@@ -580,8 +581,8 @@
 (def %v-k0 13) (def %v-bend 14) (def %v-dk 15) (def %v-filter 16) (def %v-mcut 17) (def %v-kpct 18)
 (def %v-off 19) (def %v-doff 20) (def %v-width 21) (def %v-a 22) (def %v-g 23)
 
-; A cycle's share PCT as a phase: 42949673 is 2^32 / 100, rounded up.
-(def %phase-pct (fn (_ pct) (int* (%clamp 0 100 pct) 42949673)))
+; A cycle's share PCT in 2^24ths: 167773 is 2^24 / 100, rounded up.
+(def %cycle-share (fn (_ pct) (int* (%clamp 0 100 pct) 167773)))
 
 ; Low-pass coefficient K at CUT percent, never shut.
 (def %cut-k (fn (_ k cut) ((fn (_ c) (if (int< c 1) 1 c)) (int/ (int* k cut) 100))))
@@ -615,7 +616,7 @@
   (fn (_ spec rate at gain cents master-cut)
     (def name (%prop1 spec (lit wave) (lit sine)))
     (def w (%wave name))
-    (def width (List map (fn (_ p) (pair (%ms (first p) rate) (%phase-pct (first (rest p)))))
+    (def width (List map (fn (_ p) (pair (%ms (first p) rate) (%cycle-share (first (rest p)))))
                          (%prop spec (lit width) (if (eq? name (lit pulse)) (lit ((0 50))) ()))))
     (def g (int/ (int* gain (%prop1 spec (lit gain) 100)) 100))
     (def env (List map (fn (_ p) (pair (%ms (first p) rate) (%level (first (rest p)) g)))
