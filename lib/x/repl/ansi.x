@@ -74,11 +74,15 @@
     (repl-own    ()  "The REPL printer this class installed, or nil -- how install/1 tells its own from a lang's")
     (method enabled? (self)
       (doc "Check whether ANSI color support is active."
-        (returns BOOL "True if ANSI color output is enabled"))
+        (returns BOOL "True if ANSI color output is enabled")
+        (example "(boolean? (Ansi enabled?))" "#t")
+        (sample "(Ansi enabled?)" "#t at a terminal; #f under NO_COLOR, TERM=dumb, --no-color or a pipe"))
       %ansi?)
     (method wrap (self (param style STRING "ANSI escape sequence") (param text STRING "Text to wrap"))
       (doc "Wrap text in an ANSI style code with automatic reset."
-        (returns STRING "Text wrapped in ANSI codes, or plain text if colors disabled"))
+        (returns STRING "Text wrapped in ANSI codes, or plain text if colors disabled")
+        (example "(Str8 sub 0 3 (Ansi wrap \"<\" \"hi\"))" "\"<hi\"")
+        (sample "(Ansi wrap (Ansi bold) \"hi\")" "hi in bold, the reset after it; plain hi when colour is off"))
       (str-append style (str-append text (Ansi reset))))
     (method highlight (self (param code STRING "Source code string to highlight"))
       (doc "Display a code string coloured by the spans of (Syntax x), byte for byte as written."
@@ -90,7 +94,8 @@
         (do (import x/tool/syntax)
             (display (Syntax ansi code ((Syntax x) spans code) 0 (Str8 length code))))))
     (method enable-repl (self)
-      (doc "Enable syntax-highlighted REPL output using LSP semantic token colors.")
+      (doc "Enable syntax-highlighted REPL output using LSP semantic token colors."
+        (sample "(Ansi enable-repl)" "results print in colour from the next line on; nothing changes when colour is off"))
       (unless (not %ansi?)
         (set! %repl-print
           (fn (_ result)
@@ -102,13 +107,15 @@
         (Ansi repl-own %repl-print)
         (Lang register! "x" (list (pair (lit %repl-print) %repl-print)))))
     (method disable-repl (self)
-      (doc "Restore plain REPL output.")
+      (doc "Restore plain REPL output."
+        (sample "(Ansi disable-repl)" "results print plain from the next line on"))
       (set! %repl-print %saved-repl-print)
       (Ansi repl-own ())
       (Lang register! "x" (list (pair (lit %repl-print) %saved-repl-print))))
     (method install (self)
       (doc "Detect the terminal and (re)install every colour this file owns -- the class statics, the printer's %c-* globals, doc.x's stubs and the REPL printer. Called when this file loads and again by the image recache hook, since whether there is a terminal is a fact of the PROCESS and the colours are strings a state image would otherwise carry from the writer's pipe."
-        (returns NIL "Nothing; the colours are installed as a side effect"))
+        (returns NIL "Nothing; the colours are installed as a side effect")
+        (sample "(Ansi install)" "the colours detected again, as when a state image loads at a terminal"))
       (do
         (set! %no-color-env (Sys getenv "NO_COLOR"))
         (set! %term-env (Sys getenv "TERM"))
@@ -247,4 +254,5 @@
   (note "Color scheme: LSP semantic tokens — number=yellow, string=green, symbol=blue, char=magenta, bool=bold-red, function=cyan.")
   (note "Colors are Ansi static fields ((Ansi red), (Ansi bold-cyan), ...); empty strings when color is off.")
   (note "Respects NO_COLOR and TERM=dumb; pass --no-color to disable.")
+  (example "(Str8 sub 0 3 (Ansi wrap \"<\" \"hi\"))" "\"<hi\"")
   "ANSI terminal color support, homed on the Ansi class.")

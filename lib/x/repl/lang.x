@@ -105,7 +105,9 @@
 
     (method get (self (param name ANY "A name, a string or a symbol"))
       (doc "A registered lang's alist, or nil when none has the name."
-        (returns LIST "((seam . value) ...)"))
+        (returns LIST "((seam . value) ...)")
+        (example "(Assoc has? '%repl-prompt (Lang get \"x\"))" "#t")
+        (example "(null? (Lang get \"no-such-lang\"))" "#t"))
       (let ((entry (Lang %lang-entry (Lang %lang-str name))))
         (if (null? entry) () (rest entry))))
 
@@ -165,4 +167,5 @@
 (doc (provide x/repl/lang Lang lang)
   (note "x-lang's own prompt is registered as \"x\" by the files that own its parts, merging as each loads: this file the prompts and the plain printer, repl/ansi.x the coloured printer, repl/paint.x the painter and marks, repl/line.x the completer and the line evaluator.")
   (note "A lang registers itself from its entry, then installs itself with use! if it owns the session, or leaves the platform's prompt in place if it was loaded beside another lang.")
+  (example "(Lang current)" "\"x\"")
   "Lang: the languages a session can switch between, and `lang`, the switch.")

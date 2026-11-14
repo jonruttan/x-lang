@@ -66,6 +66,7 @@
 (doc (provide x/reader/quasi-reader
   quasi-analyse unquote-analyse quasi-read unquote-read
   quasi-accept unquote-after-comma)
+  (example "`(1 ,(+ 1 1) ,@(list 3 4))" "(1 2 3 4)")
   "Quasiquote reader-macro handlers (backtick, comma, comma-at), placed on the
 symbol type by lit-reader.x, which imports them; the tower imports the entry
 tests and their states to compile them.")

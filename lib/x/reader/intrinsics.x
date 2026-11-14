@@ -71,4 +71,5 @@
     (%cell-int (first (%reflect-base-cell (lit line))))))
 
 (doc (provide x/reader/intrinsics)
+  (example "(number? (%current-line))" "#t")
   "Low-level tokenizer and profiling intrinsics: buffer scoring helpers and line tracking.")

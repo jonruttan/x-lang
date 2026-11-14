@@ -634,6 +634,7 @@
     (note "Raw mode brackets the read only: the line is handed back with the terminal already restored, so whatever evaluates it runs in a cooked tty.")
     (note "Long lines scroll sideways within the row rather than wrapping, which also bounds a redraw's cost by the terminal's width rather than the line's length.")
     (note "ctrl-r and ctrl-s search the history backward and forward as each key is typed, in the manner of readline; Enter runs the match, ctrl-g abandons the search, and any other key keeps the match for editing.")
+    (sample "(Line read \"> \")" "the line typed at the prompt, as a string, with the terminal restored")
     (see read) (see available?) (see history-path))
 
   (static
@@ -644,7 +645,8 @@
     (method %key (self (param fd INTEGER "The descriptor being read")
                        (param read-byte CALLABLE "Byte reader"))
       (doc "The next key, as Term key decodes it, or 'idle when the read's idle time passes first."
-        (returns ANY "A key, nil at the end of input, or 'idle"))
+        (returns ANY "A key, nil at the end of input, or 'idle")
+        (example "(Line %key 0 (fn (_) 9))" "'complete"))
       (let ((idle (Line %idle)))
         (if (or (eq? idle #f)
                 (not (null? (Sys poll (list (pair fd (list (lit in)))) (* (first idle) 100)))))
@@ -652,25 +654,30 @@
           (lit idle))))
     (method available? (self)
       (doc "Whether a line can be edited here: a terminal on the read descriptor, and a build whose termios calls resolved. False means the caller should fall back to plain line-at-a-time reading."
-        (returns BOOL "True when the editor can run"))
+        (returns BOOL "True when the editor can run")
+        (sample "(Line available?)" "#t in a session at a terminal; #f when standard input is a pipe or a file"))
       (Term tty? %ln-fd))
 
     (method fd (self . (param fd INTEGER "The descriptor to read from; omit to read the current one"))
       (doc "The descriptor the editor reads from, and sets it when given one. repl/loop.x reclaims the terminal onto fd 0 before the first read, so 0 is right for a session; a caller driving a different tty says so here."
-        (returns INTEGER "The descriptor in force"))
+        (returns INTEGER "The descriptor in force")
+        (example "(Line fd)" "0"))
       (unless (null? fd) (set! %ln-fd (first fd)))
       %ln-fd)
 
     (method completer (self . (param f CALLABLE "The completer to install; () turns Tab off. Omit to read the one in force"))
       (doc "The function Tab asks for candidates, and installs one when given it. It is handed the Edit buffer and answers (typed . names) -- the text being completed, and every name it could become. The seam itself is %repl-complete; this reads and sets it."
         (returns ANY "The completer in force, or nil when Tab does nothing")
-        (note "The default prefix-searches the doc registry, which holds what x-lang modules document. A lang that parses its own syntax has none of its names there, so it installs its own here, the way it sets %repl-paint for the colour. Filling a unique answer, extending to the common prefix and listing on the second Tab stay whichever completer is installed."))
+        (note "The default prefix-searches the doc registry, which holds what x-lang modules document. A lang that parses its own syntax has none of its names there, so it installs its own here, the way it sets %repl-paint for the colour. Filling a unique answer, extending to the common prefix and listing on the second Tab stay whichever completer is installed.")
+        (example "(procedure? (Line completer))" "#t")
+        (sample "(Line completer ())" "nil, and Tab inserts nothing"))
       (unless (null? f) (set! %repl-complete (first f)))
       %repl-complete)
 
     (method buffer (self)
       (doc "The session's Edit buffer -- one for the process, so history carries from line to line. Made on first use, with the history file loaded into it."
-        (returns Edit "The session buffer"))
+        (returns Edit "The session buffer")
+        (sample "(Line buffer)" "the Edit buffer, its history read from the history file on the first call"))
       (when (null? %ln-buffer)
         (set! %ln-buffer (Edit make))
         (unless %ln-history-loaded
@@ -709,7 +716,9 @@
       (doc "Read one edited line. Returns the line as a string, 'eof for ctrl-d on an empty line, or 'cancel for ctrl-c. The terminal is restored before this returns, whichever way it ends."
         (returns ANY "A STRING, 'eof, or 'cancel")
         (note "A line that is kept is pushed onto the history and appended to the history file; 'eof and 'cancel are not recorded.")
-        (note "With context, a continuation line is marked and painted as the rest of the entry: paren depths carry on from the earlier lines, a close paren that closes one of them takes its colour, and a string left open there is coloured as a string."))
+        (note "With context, a continuation line is marked and painted as the rest of the entry: paren depths carry on from the earlier lines, a close paren that closes one of them takes its colour, and a string left open there is coloured as a string.")
+        (sample "(Line read \"> \")" "\"(+ 1 2)\" -- what was typed before Enter")
+        (sample "(Line read \"..   \" \"(def x\")" "the second line of an entry, painted as the rest of (def x"))
       (let ((fd %ln-fd))
         (let ((saved (Term raw! fd)))
           (if (null? saved) (lit eof)
@@ -918,5 +927,7 @@
   (note "Tab completes against the documentation registry -- the same names apropos searches -- so a module that documents an export completes as soon as it loads.")
   (note "A Tab with nothing to complete and only whitespace before the cursor inserts a tab, and ctrl-v followed by Tab inserts one after text; a tab is drawn to the next multiple of eight columns.")
   (note "A lang that reads its own syntax has no names in that registry: it sets (Line completer) to its own, or () to turn Tab off, as it sets %repl-paint for the colour, and %repl-eval-line to read its syntax from the line the editor hands back. x/repl/lang bundles those as a named lang a session switches to with (lang NAME).")
+  (example "(Line fd)" "0")
+  (sample "(Line read \"> \")" "one edited line from the terminal")
   "Line: one edited, coloured line read from the terminal; the built-in replacement for rlwrap.")
 (provide x/repl/line Line)
