@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-11-14
+
+**Shaped waves, waves drawn by points, and pulse sweeps in the mixer.** ([#1290])
+`(wave square)`, `triangle`, `saw`, `inverse-saw`, `pulse` and `metal` (a
+127-step looping noise read at the note's pitch) are built in beside
+`sine` and `noise`; `(Mixer shape! NAME POINTS)` draws a wave as straight
+lines between `(POSITION LEVEL)` points; a voice's `(width (MS PCT) ...)`
+plays its wave less itself PCT of a cycle on, so a saw with a width is a
+pulse of that width and a moving width is a pulse sweep.  The shapes are
+not band-limited: the square's off-series power is -23 dB at C4 and
+-14 dB at C7.
+
+[#1290]: https://github.com/jonruttan/x-lang/pull/1290
+
 ## [0.54.0] - 2026-11-14
 
 **`Screen put` at a column at or past the screen's width puts
