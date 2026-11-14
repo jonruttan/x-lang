@@ -51,6 +51,22 @@ A wide character over half of another blanks the half left behind.
 ---
     ("\x1b[0m\x1b[H\x1b[2J\x1b[1;1H\x1b[0;1mab\x1b[0m   \x1b[2;1H     \x1b[0m\x1b[1;1H" "" "\x1b[2;3H\x1b[0mx中\x1b[0m\x1b[1;1H" "\x1b[2;4H\x1b[0m z\x1b[0m\x1b[1;1H" "\x1b[2;2H\x1b[0mQ\x1b[0m\x1b[1;1H" "ab   " " Qx z" 5 "ab 中")
 
+### a put at or past the right edge puts nothing and answers its column
+
+On the last row, where the cells end, and on a row above a wide character the next row starts with: the cells and the next render are unchanged.
+
+```x
+(do (import x/tui/screen)
+  (def s (Screen make 2 4))
+  (Screen put s 0 0 "abcd" 0)
+  (Screen put s 1 0 "中ab" 0)
+  (Screen render s)
+  (list (Screen put s 1 4 "x" 0) (Screen put s 1 9 "y" 0) (Screen put s 0 5 "z" 0) (Screen put s 1 -1 "w" 0)
+        (Screen fill s 1 4 3 16) (Screen render s) (Screen row-text s 0) (Screen row-text s 1)))
+```
+---
+    (4 9 5 -1 () "" "abcd" "中ab")
+
 ## Page
 
 ### Markdown laid out at a width: wrapping, quotes, lists, code, rules, links
