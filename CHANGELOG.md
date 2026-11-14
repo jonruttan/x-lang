@@ -7,6 +7,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.54.0] - 2026-11-14
 
+**`Screen put` at a column at or past the screen's width puts
+nothing.** ([#1289]) It wrote outside the cells, into the next row or
+the heap.
+
+[#1289]: https://github.com/jonruttan/x-lang/pull/1289
+
+**The tutorial covers classes and installing langs.** ([#1288]) The
+architecture guide describes the engine's include, buffer, base layout
+and type fields as they are.
+
+[#1288]: https://github.com/jonruttan/x-lang/pull/1288
+
 **`Gif` (x/codec/gif) reads GIF images.** ([#1286]) `Gif decode` and
 `Gif size` read the first image as RGBA, with transparency and
 interlacing.
