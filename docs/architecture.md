@@ -31,13 +31,13 @@ Each layer expands capabilities without modifying those below it.
 
 **Layer 2: Adaptive Type System.** `make-type` and `make-instance` introduce new types at runtime. Each type is a nested linked list carrying a fixed prefix of dispatch methods (call, eval, write, length, etc.) and an extensible tail for type-specific data. New types plug into the existing evaluation, printing, and comparison infrastructure the moment they are registered. Types registered at startup include symbols, lists, integers, strings, characters, primitives, procedures, operatives, buffers, whitespace, and comments.
 
-**Layer 3: Modular Library.** 100+ modules (one module = one `provide`-ing `.x` source file) organized by domain: core operations (`lib/x/core/`), custom types (`lib/x/type/`), a numeric tower (`lib/x/num/`), system interfaces (`lib/x/sys/`), self-hosted tools (`lib/x/tool/`), documentation (`lib/x/doc/`), and platform-specific code (`lib/x/platform/`). The bootstrap sequence in `lib/x-core.x` pre-registers all boot module names and loads 40+ core modules via `provide`/`import` with name-keyed deduplication. This layer is composed into dialects (helium, xenon, radon) that control which capabilities are available.
+**Layer 3: Modular Library.** Over 200 modules (one module = one `provide`-ing `.x` source file) organized by domain: core operations (`lib/x/core/`), custom types (`lib/x/type/`), a numeric tower (`lib/x/num/`), system interfaces (`lib/x/sys/`), self-hosted tools (`lib/x/tool/`), documentation (`lib/x/doc/`), and platform-specific code (`lib/x/platform/`). The bootstrap sequence in `lib/x-core.x` pre-registers the boot module names and loads the core modules via `provide`/`import` with name-keyed deduplication. This layer is composed into dialects (helium, xenon, radon) that control which capabilities are available.
 
 **Layer 4: FFI and Native Code.** Dynamic library loading via `dlopen`/`dlsym` (the engine's foreign door, bound by its CLI), calls through a pointer with long arguments, raw pointer operations, and a JIT compiler (`lib/x/tool/compile.x`, `lib/x/tool/asm.x`) that compiles x-lang functions to native x86_64/ARM64 machine code via a data-driven assembler with mmap execution. POSIX system calls (fork, exec, pipe, dup2, wait, open, close, etc.) are wrapped as x-lang functions through the FFI in `lib/x/sys/posix.x`. The engine does no floating point: `lib/x/num/float.x` emits each double operation as a small machine-code stub through the same assembler, and calls `libm` through stubs of the same kind.
 
 ### The Base Object
 
-The base object (`p_base`) is the interpreter's root context: a pair tree built from the same atoms and pairs as every other value (there is no struct). x-engine-c builds it in two halves: its embeddable expression core supplies a skeleton -- the I/O and metadata fields, profile counters, hooks, and heap-fields -- and its eval layer fills the environment/control half the core leaves nil, appending a few fields of its own. Every leaf is either a stack cell `(current . saved)` for dynamic push/pop, or a direct value. The split is that engine's; what any engine must carry is the layout contract, `engine/tools/contract/base-layout.x`. x-expr's base is one atom holding the tree; x-engine-c's is two units, the tree first and its slot vector second: the routines the engine calls through -- the evaluator, environment lookup, the reader, calling, allocation and the collector's phases -- a function pointer each, at the positions `engine/tools/contract/base-slots.x` gives. A call locates the vector in one load from the base, and a routine is replaced in that base alone by storing another function in its slot.
+The base object (`p_base`) is the interpreter's root context: a pair tree built from the same atoms and pairs as every other value (there is no struct). x-engine-c builds it in two halves: its embeddable expression core supplies a skeleton -- the I/O and metadata fields, profile counters, hooks, and heap-fields -- and its eval layer fills the environment/control half the core leaves nil, appending a few fields of its own. Every leaf is either a stack cell `(current . saved)` for dynamic push/pop, or a direct value. The split is that engine's; what any engine must ship is the paths x-lang reads, `engine/tools/contract/base-paths.x`, and the slot positions, `engine/tools/contract/base-slots.x`. x-expr's base is one atom holding the tree; x-engine-c's is two units, the tree first and its slot vector second: the routines the engine calls through -- the evaluator, environment lookup, the reader, calling, allocation and the collector's phases -- a function pointer each, at the positions `engine/tools/contract/base-slots.x` gives. A call locates the vector in one load from the base, and a routine is replaced in that base alone by storing another function in its slot.
 
 ```
 base = x_base(p_base)
@@ -46,11 +46,11 @@ base = x_base(p_base)
     ctrl   save-stack, error-handler, tco-expr, tco-env
   rest:  io + meta               (expression-core skeleton)
     io     type-alist, line, true, false  (+ the core's file handles)
-    meta   profile counters, eval-list, token-cache,
-           mark-hooks, free-hooks, mark-roots, sigint
+    meta   profile counters, eval-list, token-cache, sigint, err,
+           mark-hooks, free-hooks, mark-roots, and more
 ```
 
-Field access is via nested `first`/`rest` traversal, expressed with the `x_<binary>` accessors (`x_0` = first, `x_1` = rest, read left-to-right outer-to-inner). For example `x_eval_field_env_alist(X)` resolves to `first(first(first(base)))`. The authoritative layout, including which leaves are field cells versus direct values, is `engine/tools/contract/base-layout.x` (mirrored by `engine/include/x-eval-layout.h`, generated there from it, and pinned by `make check-base-paths`).
+Field access is via nested `first`/`rest` traversal, expressed with the `x_<binary>` accessors (`x_0` = first, `x_1` = rest, read left-to-right outer-to-inner). For example `x_eval_field_env_alist(X)` resolves to `first(first(first(base)))`. In x-engine-c the full layout, including which leaves are field cells versus direct values, is `engine/tools/contract/base-layout.x`; `engine/include/x-eval-layout.h` is generated from it, and `make check-base-paths` holds `base-paths.x` to it.
 
 #### Nil
 
@@ -61,45 +61,35 @@ Nil is `NULL`. The empty list `()` parses to `NULL`, and `x_obj_isnil` checks `p
 Every runtime value is represented by an object: a contiguous array of `x_obj_t` units, each a union of pointer, integer, character, string, function pointer, and void pointer:
 
 ```
-[ gc | type | flags | data... ]
+[ heap | type | flags | data... ]
 ```
 
-- **gc** -- GC chain pointer (present only when `X_GC` is defined).
+- **heap** -- the collector's chain link (0 in a build without `X_HEAP`).
 - **type** -- pointer to the object's type definition (or to `x_type_atom_obj` / `x_type_pair_obj` for intrinsic types).
 - **flags** -- the attribute bits: ownership, read-only status and the rest.
 - **data** -- one datum for atoms, two for pairs.
 
-Atoms carry a single `x_obj_t` datum. Pairs carry two: `first` and `rest`. All compound structures (lists, environments, the base itself, type definitions) are built from chains of pairs terminated by nil (`p_base`).
+Atoms carry a single `x_obj_t` datum. Pairs carry two: `first` and `rest`. All compound structures (lists, environments, the base itself, type definitions) are built from chains of pairs terminated by nil.
+
+This header is x-engine-c's. Another engine may lay its header out differently; x-lang reads the offsets from the engine's `tools/contract/obj-layout.x` rather than assuming them.
 
 ### The Contract Pattern
 
 Types and the base object share the same structural contract: a nested linked list with a fixed-layout prefix followed by an extensible tail.
 
-**Type contract** (13 fields, in five parts):
+**Type contract.** x-engine-c's `struct x_type_t` (`engine/include/x-type.h`) lists the fields in order:
 
-```x
-(
-  name
-  data
-  (make free clone units length)
-  (call eval convert)
-  (analyse delimit write)
-)
+```
+name  data
+mark  make  free  clone  units  length       ; the heap
+call  eval  from  to                         ; evaluation and conversion
+analyse  delimit  read  write  display       ; the reader and the writer
+iter  ops  save  load                        ; iteration, operators, images
 ```
 
-The `struct x_type_t` mirrors this layout for convenient initialization in C, but the runtime representation is pairs. The heap fields govern allocation and sizing. The proc fields govern evaluation and invocation. The io fields govern parsing and output. The `data` field and any pairs appended beyond field 4 are owned by the specific type -- the infrastructure only inspects the prefix it understands.
+The struct is for initialization in C; the runtime representation is pairs. The `data` field and any pairs appended after the prefix are owned by the specific type -- the infrastructure only inspects the prefix it understands.
 
-**Base contract** (3 top-level fields with nested tuples):
-
-```x
-(
-  (type-alist)
-  (file-in file-out file-err)
-  (env eval-list buffer token-cache error-handler tco-expr tco-env)
-)
-```
-
-Both contracts are extensible by appending pairs to the tail. This is how the system remains type-agnostic: adding a new type or extending the base does not require modifying existing traversal code.
+The base is the same pattern, laid out under [The Base Object](#the-base-object). Both are extensible by appending pairs to the tail. This is how the system remains type-agnostic: adding a new type or extending the base does not require modifying existing traversal code.
 
 ### Evaluation Model
 
@@ -151,9 +141,9 @@ Input flows through a fixed sequence of stages:
 stdin -> buffer -> tokenizer -> s-expression reader -> evaluator -> writer -> stdout
 ```
 
-1. **Input.** Bytes arrive on stdin. The interpreter has no file I/O primitives -- loading code is done externally via shell pipe (`cat lib/x.x program.x | ./x-bin`).
+1. **Input.** Bytes arrive on stdin, or from a file `include` opens. `x.sh` pipes the dialect's entry file (`lib/x.x` and its `include`s) to the engine's stdin, or boots from a state image, and sends the program's files as `include` forms. `include` pushes a file onto the base's input stack and reads it to its end.
 
-2. **Buffer.** A fixed-size `char[]` buffer (`X_CLI_BUFFER_SIZE`, 256 bytes) is wrapped in a buffer type object and attached to the base at `x_base_field_buffer`. The buffer feeds single characters to the tokenizer.
+2. **Buffer.** A read buffer (`X_READ_BUF_SIZE`, 64 KiB) is wrapped in a buffer type object and pushed onto the base's `buffer` row, one per input source. The buffer feeds characters to the tokenizer.
 
 3. **Tokenizer.** `x_token_read` iterates the registered type list. Each type provides an `analyse` method that inspects the buffer to determine if the upcoming bytes match that type, and a `delimit` method that determines token boundaries. The tokenizer dispatches to the highest-scoring type. In the xenon and radon dialects, analyser functions for numeric types are compiled to native machine code at load time via the JIT compiler, significantly accelerating tokenization.
 
@@ -163,7 +153,7 @@ stdin -> buffer -> tokenizer -> s-expression reader -> evaluator -> writer -> st
 
 6. **Writer.** `x_sexp_write` dispatches on type: intrinsic atoms and pairs have hardcoded writers; all other types dispatch through `x_type_field_write`. Output goes to the base's stdout file descriptor.
 
-The REPL loop in `x_cli.c` runs these stages in sequence: prompt, read, eval, print, repeat until EOF.
+The REPL loop in x-engine-c's `src/x-cli.c` runs these stages in sequence: prompt, read, eval, print, repeat until EOF.
 
 ### Dialect System
 
@@ -173,7 +163,7 @@ The library is composed into dialects that control what capabilities are loaded.
 
 **xenon** (`lib/xe.x`): Stable full-stack dialect. Adds the assembler and compiler, regular expressions, `Dict` and `Set`, and a numeric tower (bigint, float, rational, complex, decimal). Each numeric type's tokenizer analyser is compiled to native code immediately after loading, so subsequent source files are parsed through fast compiled analysers rather than interpreted ones.
 
-**radon** (`lib/rn.x`): Experimental dialect. Everything in xenon plus raw syscall lookup tables, file I/O, socket constants, car/cdr composition helpers, character constants, and I/O handle constants.
+**radon** (`lib/rn.x`): Experimental dialect. Everything in xenon plus car/cdr composition helpers, character constants, and I/O handle constants. The raw syscall table, `lib/x/sys/file.x` and socket constants are left as opt-in `include`s.
 
 Dialects are selected via the shell wrapper's `-l` flag:
 
@@ -187,6 +177,6 @@ Langs (R5RS Scheme, Kernel, a POSIX shell, Python, C and the others the [README]
 
 ### I/O Model
 
-The C core has no file-open or file-close primitives. Its only I/O is reading bytes from stdin and writing bytes to stdout/stderr via POSIX `read`/`write` syscalls on the file descriptors stored in the base object. Code loading happens externally through shell concatenation.
+The engine's own I/O is small: `include` opens a source file and reads it, and the `io` instructions read and write bytes on the file descriptors stored in the base object. It has no general file-open or file-close instruction.
 
 The library extends this via the FFI: `lib/x/sys/posix.x`, loaded in every dialect, wraps fork, exec, pipe, dup2, wait, open, close, read, write, chdir, getenv, and setenv. `lib/x/sys/file.x` provides higher-level file I/O with symbolic mode flags. This keeps the C core minimal while still supporting full system access when needed.

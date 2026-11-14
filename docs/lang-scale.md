@@ -2,8 +2,8 @@
 
 [The Lang Contract](lang-contract.md) says what one lang is held to. This says
 what has to be true for there to be twenty of them, and it exists because the
-answers are different: nothing in the contract is wrong at six bundles, and
-three things in it are O(N) by hand.
+answers are different: nothing in the contract is wrong at a dozen bundles,
+and three things in it are O(N) by hand.
 
 > **Status.** Rulings 1, 2 and 5 are built: the lang kit under
 > `tools/lang-kit/`, the release-refs gate in four bundles (x-coreutils,
@@ -13,8 +13,8 @@ three things in it are O(N) by hand.
 
 ## The problem
 
-Six langs were published when this was written. The cost of the seventh is
-not in the language. It is in everything around it:
+The registry, `tools/contract/langs.x`, lists thirteen langs. The cost of
+the next one is not in the language. It is in everything around it:
 
 **The scaffolding is a copy.** `tools/bundle.sh`, `tests/spec-gate.sh`,
 `ci.yml`, `release.yml`, the `Makefile` and `tests/spec-runner.sh` are the
@@ -48,7 +48,7 @@ replace it:
 | | catches | cost |
 |---|---|---|
 | `check-seam` | a rename in the platform breaking every lang | gates-fast |
-| `check-langs` | a behaviour change the platform cannot see | six suites, gates |
+| `check-langs` | a behaviour change the platform cannot see | every registered suite, gates |
 | per-bundle CI | the bundle's own correctness, on a release matrix | per bundle |
 | `requires-release` | running against an untested platform | a string compare |
 | `requires-lang` | a lang's dependency on another lang | a string compare |
@@ -71,8 +71,8 @@ acquired by pin and parameterized from the manifest reduces a new bundle to
 the only two things that are actually its own: **the language, and its specs.**
 
 This is the ruling that changes the slope. Adding a lang stops being "copy 450
-lines and remember to update them"; fixing the release roller stops being six
-pull requests.
+lines and remember to update them"; fixing the release roller stops being a
+pull request per bundle.
 
 The constraint it must respect: a bundle still has to build from a clean clone,
 which is already gated. An acquired kit is exactly as legitimate as an acquired
@@ -81,8 +81,11 @@ vendored into the release tarball so an unpacked bundle needs nothing.
 
 ## Ruling 2: one source of truth per fact, held by a gate
 
-> **Shipped** in x-r5rs and x-r7rs — see [What shipping it
-> taught](#what-shipping-ruling-2-taught) below. Not yet in the other four.
+> **Shipped** in part. Six bundles' CI derives the release from the
+> manifest (x-ash, x-coreutils, x-logo, x-python, x-r5rs, x-r7rs), and four
+> gate their READMEs (x-coreutils, x-logo, x-r5rs, x-r7rs) — see [What
+> shipping it taught](#what-shipping-ruling-2-taught) below. The other
+> bundles do neither yet.
 
 `requires-release` in `lang.xon` is the truth about which platform a bundle was
 built against. The README and the CI matrix should **derive** it, not repeat
@@ -116,7 +119,7 @@ on its own line, where no proximity test can pair it with its name.
 
 ## Ruling 3: arrange the checks by cadence, not by repository
 
-The sequential six-suite sweep does not belong on every commit, and a run
+The sequential sweep of every suite does not belong on every commit, and a run
 of every bundle does not belong in front of a release either. What belongs
 where follows from one fact: **a bundle pins the x-lang release it runs
 on.** A new release cannot break a bundle until the bundle moves its pin,
