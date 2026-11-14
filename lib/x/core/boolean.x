@@ -48,4 +48,5 @@
   "Short-circuit logical OR. Evaluates left to right, returns the first truthy value; when nothing is truthy the last operand passes through unchanged.")
 
 (doc (provide x/core/boolean and or)
+  (example "(list (and 1 2) (or #f 3))" "(2 3)")
   "Short-circuit logical AND and OR operatives.")

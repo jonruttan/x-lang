@@ -2,6 +2,7 @@
 
 (doc (def boolean? (fn (_ (param x ANY "Value to test")) (or (eq? x #t) (eq? x #f))))
   (returns BOOL "True if x is #t or #f")
+  (example "(list (boolean? #f) (boolean? #t) (boolean? 0) (boolean? ()))" "(#t #t #f #f)")
   "Test whether a value is a boolean.")
 
 ; default-to and until live on the Fn class (combinators).
@@ -39,6 +40,8 @@
       (#t ((first %equal-others) self a b)))))
   (returns BOOL "True if a and b are structurally equal")
   (note "Vectors compare elementwise (handler installed by x/type/vector); class instances compare by identity.")
+  (example "(equal? (list 1 \"a\" (list 2 3)) (list 1 \"a\" (list 2 3)))" "#t")
+  (example "(list (equal? \"ab\" \"ab\") (eq? (list 1) (list 1)))" "(#t #f)")
   "Structural equality: numbers by value, strings by content, pairs and vectors element-wise (deep), else identity.")
 
 ; `equal?` is a bare global, so a session may rebind it, and lang bundles do --
@@ -101,4 +104,5 @@
 (doc (provide x/core/logic boolean? equal? > <= >=)
   (note "boolean? stays with the type-predicate cohort transitionally; equal?/>/<=/>= are")
   (note "keep-list operators. default-to and until live on the Fn class.")
+  (example "(list (boolean? #f) (equal? (list 1 2) (list 1 2)) (>= 3 3))" "(#t #t #t)")
   "Boolean logic, structural equality, and derived comparisons.")
