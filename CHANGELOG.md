@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-11-14
+
+**A fed Unlzma stream that raises carries what it decoded.** ([#1282])
+The error holds `(out OUT N)`, the output the call decoded before the
+decision that failed.
+
+[#1282]: https://github.com/jonruttan/x-lang/pull/1282
+
+**help shows a worked example for every doc entry under lib/x/reader and
+lib/x/repl.** ([#1283])
+
+[#1283]: https://github.com/jonruttan/x-lang/pull/1283
+
 ## [0.53.0] - 2026-11-13
 
 **The engine is x-engine-c v0.2.32** ([#1271]). A second error caught
