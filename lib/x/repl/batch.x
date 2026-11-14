@@ -45,7 +45,9 @@
           (batch))))))
   (note "Evaluates through eval!, as repl does, so definitions persist across forms.")
   (note "Ends the run at the first raise, with status 1, as the engine's loop did.")
+  (sample "(batch)" "every form left on standard input evaluated in turn; a raise prints its file:line and exits 1")
   "Evaluate the rest of the input, one form at a time, reporting a raise with its source location.")
 
 (doc (provide x/repl/batch (global batch))
+  (sample "(batch)" "the rest of the program run form by form, as x -f prog.x runs it")
   "The batch loop behind -f, -c and a piped stdin: forms evaluated under a guard, a raise reported with its location.")

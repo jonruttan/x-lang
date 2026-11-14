@@ -38,4 +38,5 @@
           (display "\n" "(help) for help; (quit) or ctrl-d to exit\n"))))))
 
 (doc (provide x/repl/banner)
+  (sample "(%banner)" "the lang's name and version, then (help) for help; (quit) or ctrl-d to exit -- nothing under --quiet or -q")
   "Startup banner printed when the REPL launches.")

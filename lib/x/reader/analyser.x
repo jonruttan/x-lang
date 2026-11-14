@@ -123,15 +123,18 @@
     ; --- terminators ---
     (method accept (self (param buffer ANY "Token buffer") (param score ANY "Score atom") (param chr ANY "Current character (ignored)"))
       (doc "Accept the current token, rewinding the last character. The standard state terminator."
-        (returns ANY "Score object (signals match)"))
+        (returns ANY "Score object (signals match)")
+        (sample "(Analyser make-digit-state (prim-ref 'token 'accept))" "a run of digits, accepted before the byte that ends it"))
       (%tok-accept buffer score chr))
     (method accept-inclusive (self (param buffer ANY "Token buffer") (param score ANY "Score atom") (param chr ANY "Current character (ignored)"))
       (doc "Accept the current token INCLUDING the current character."
-        (returns ANY "Score object (signals match)"))
+        (returns ANY "Score object (signals match)")
+        (sample "(Analyser make-char-state 59 (prim-ref 'token 'accept-inclusive) ())" "a one-byte ; token, the ; part of it"))
       (%tok-accept-inclusive buffer score chr))
     (method reject (self (param buffer ANY "Token buffer") (param score ANY "Score atom") (param chr ANY "Current character (ignored)"))
       (doc "Reject the current token. Returns nil to signal no match."
-        (returns NIL "Nil (signals no match)"))
+        (returns NIL "Nil (signals no match)")
+        (example "(null? (Analyser reject () () 0))" "#t"))
       (%tok-reject buffer score chr))
 
     ; --- state builders ---
@@ -143,7 +146,8 @@
 
     (method make-xdigit-state (self (param done CALLABLE "Called on non-xdigit"))
       (doc "A state that loops while reading hex digits [0-9a-fA-F], then calls done."
-        (returns CALLABLE "Analyzer state"))
+        (returns CALLABLE "Analyzer state")
+        (example "(procedure? (Analyser make-xdigit-state ()))" "#t"))
       (%make-xdigit-state done))
 
     (method make-char-state (self (param ch INTEGER "Character code to match")
@@ -210,4 +214,5 @@
 (doc (provide x/reader/analyser Analyser)
   (note "States receive (self buffer score chr): return self to loop, another state to transition, a score to accept, nil to reject.")
   (note "Terminators registered under catalogue ns `token` (accept/accept-inclusive/reject) -- reader-context callers fetch-and-cache them; never dispatch (Analyser accept ...) per character.")
+  (example "(procedure? (Analyser make-digit-state ()))" "#t")
   "Composable tokenizer state-machine builders on the Analyser class.")

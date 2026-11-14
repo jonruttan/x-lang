@@ -202,7 +202,8 @@
 
     (method %pop (self cols col acc)
       (doc "Pop levels deeper than col, accumulating a `close` for each. Never pops the base: column 0 closes only at end of input."
-        (returns PAIR "(remaining-stack . closes)"))
+        (returns PAIR "(remaining-stack . closes)")
+        (example "(Indent %pop '(8 4 0) 4 ())" "((4 0) 'close)"))
       (if (null? (rest cols))
         (pair cols acc)
         (if (> (first cols) col)
@@ -211,7 +212,8 @@
 
     (method %feed (self cols col label)
       (doc "The stack and the events for a line at col. Every result ends with exactly one `open` or `same`, so no caller counts levels."
-        (returns PAIR "(new-stack . events)"))
+        (returns PAIR "(new-stack . events)")
+        (example "(Indent %feed '(0) 4 'error)" "((4 0) 'open)"))
       (let ((popped (Indent %pop cols col ())))
         (let ((rest-cols (first popped))
               (closes (rest popped)))
@@ -239,18 +241,21 @@
 
   (method reset! (self)
     (doc "Close everything and start again at column 0. The state a fresh instance has."
-      (returns Indent "self"))
+      (returns Indent "self")
+      (example "(let ((i (Indent make))) (i feed 4) (i reset!) (i depth))" "1"))
     (set-field! 'cols (list 0))
     self)
 
   (method column (self)
     (doc "The innermost open column."
-      (returns INTEGER "The column"))
+      (returns INTEGER "The column")
+      (example "(let ((i (Indent make))) (i feed 4) (i column))" "4"))
     (first (field 'cols)))
 
   (method depth (self)
     (doc "How many levels are open. A fresh indenter is 1: column 0 counts."
-      (returns INTEGER "The depth"))
+      (returns INTEGER "The depth")
+      (example "(let ((i (Indent make))) (i feed 4) (i depth))" "2"))
     (List length (field 'cols)))
 
   (method feed (self (param col INTEGER "The column this line begins at"))
@@ -276,4 +281,5 @@
   (note "Policy is constructor-set: tab stop and what an unmatched dedent means. Defaults are SRFI-110's, which are also Python's.")
   (note "Blank and comment-only lines are the CALLER's business: a line that produces no column never reaches feed.")
   (note "Registered under catalogue ns `indent` (advance/scan/measure/classify) for per-character callers who must not dispatch.")
+  (example "(Indent classify 0 4)" "'shallower")
   "The stack discipline under indentation-sensitive grouping (#520).")
