@@ -105,4 +105,5 @@
   (note "A door is the catalogue entry itself, so a call through it allocates nothing where the platform operator is a closure call: (int <) is 0 objects a call against 10 for `<`, (int +) 1 against 2 for `+`.")
   (note "A selective import, (import x/core/doors int+ str-byte-ref), copies the door into the importer's frame, where it costs what a local def costs; an unscoped importer's frame is the root.")
   (see prim-ref)
+  (example "(do (import x/core/doors int+ int<) (list (int+ 2 3) (int< 2 3)))" "(5 #t)")
   "The engine's hot doors -- (int +), (str byte-ref), (obj ref), (ptr set!), (type of) and the rest a hot path in the library calls -- each bound once under a name spelled from its coordinate, for every module to import instead of fetching its own.")

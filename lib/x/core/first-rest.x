@@ -51,4 +51,5 @@
 
 (doc (provide x/core/first-rest)
   (note "Raises `first: () has no first` / `rest: () has no rest`; the guard is a compiled object function, so a list walk costs what it did on the raw prims.")
+  (example "(guard (e (Io display-to-str e)) (first ()))" "\"first: () has no first\"")
   "first and rest guarded against nil, as compiled prims the boot sets the globals to.")

@@ -57,4 +57,5 @@
   "Quasiquote: template with unquote and splicing.")
 
 (doc (provide x/core/quasi (global quasi))
+  (example "(quasi (a ,(+ 1 2) ,@(list 4 5)))" "('a 3 4 5)")
   "Quasiquote: template with unquote and splicing.")

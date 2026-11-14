@@ -62,7 +62,9 @@
   (method seed! (self n)
     (doc "Reseed the software PRNG. A zero seed is replaced -- xorshift needs a nonzero state."
       (param n INTEGER "Seed value")
-      (returns Random "self, for chaining"))
+      (returns Random "self, for chaining")
+      (example "(((Random sw 1) seed! 7) int 1000)" "583")
+      (example "(= (((Random sw 1) seed! 7) int 1000) ((Random sw 7) int 1000))" "#t"))
     (set-field! 'state (if (= n 0) %rand-default-seed (& n %rand-mask32)))
     self)
 
@@ -124,14 +126,16 @@
     (doc "A random integer in [lo, hi) -- exclusive upper bound; `between` is the inclusive twin. The name carries the bound contract."
       (param lo INTEGER "Inclusive lower bound")
       (param hi INTEGER "Exclusive upper bound")
-      (returns INTEGER "A value in [lo, hi)"))
+      (returns INTEGER "A value in [lo, hi)")
+      (example "((Random sw 42) range 10 20)" "12"))
     (+ lo (self int (- hi lo))))
 
   (method between (self lo hi)
     (doc "A random integer in [lo, hi] -- both ends inclusive; `range` is the exclusive twin. The name carries the bound contract."
       (param lo INTEGER "Inclusive lower bound")
       (param hi INTEGER "Inclusive upper bound")
-      (returns INTEGER "A value in [lo, hi]"))
+      (returns INTEGER "A value in [lo, hi]")
+      (example "((Random sw 42) between 1 6)" "1"))
     (+ lo (self int (+ 1 (- hi lo)))))
 
   (method bool (self)
@@ -143,7 +147,8 @@
   (method bytes (self n)
     (doc "A list of n random byte values (0-255)."
       (param n INTEGER "How many bytes")
-      (returns LIST "n byte values"))
+      (returns LIST "n byte values")
+      (example "((Random sw 3) bytes 4)" "(73 71 3 99)"))
     (let go ((i n) (acc ()))
       (if (= i 0) acc (go (- i 1) (pair (self int 256) acc)))))
 
@@ -216,4 +221,5 @@
 
 (doc (provide x/num/random Random)
   (note "Two backends behind one interface: (Random sw [seed]) software, (Random hw) kernel. The software stream is not cryptographically secure.")
+  (example "(let ((r (Random sw 42))) (list (r int 6) (r int 6) (r int 6)))" "(0 2 3)")
   "Pseudo- and hardware random number generation.")
