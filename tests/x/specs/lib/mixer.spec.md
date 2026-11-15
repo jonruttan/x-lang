@@ -173,6 +173,89 @@ pure-x loops and again with the compiled ones, byte for byte.
 ---
     (#t #t #t #t #t)
 
+## samples and cycles
+
+### a sample at its root plays its frames as they are, once, and the voice ends with it
+
+```x
+(do (import x/audio/mixer) (import x/codec/bytes) (import x/core/doors ptr-ref str->ptr)
+  (Mixer sample! (lit spec-hit) (first (Bytes of-hex "803e80c1401f0000")) 4 8000 "C4")
+  (def m (Mixer make 8000 256))
+  (Mixer play! m (list (list (list (lit wave) (lit spec-hit)) (list (lit note) "C4"))) 0 100)
+  (def b (Mixer block! m))
+  (def word (fn (_ i) ((fn (_ u) (if (< 32767 u) (- u 65536) u)) (+ (ptr-ref (str->ptr b) (* 4 i) 1) (* 256 (ptr-ref (str->ptr b) (+ (* 4 i) 1) 1))))))
+  (list (< 1000 (word 0)) (= (word 1) (- 0 (word 0))) (= (* 2 (word 2)) (word 0)) (word 3) (word 4) (word 40) (Mixer playing m)))
+```
+---
+    (#t #t #t 0 0 0 0)
+
+### an octave above its root, a sample reads every other frame
+
+```x
+(do (import x/audio/mixer) (import x/codec/bytes) (import x/core/doors ptr-ref str->ptr)
+  (Mixer sample! (lit spec-hit) (first (Bytes of-hex "803e80c1401f0000")) 4 8000 "C4")
+  (def m (Mixer make 8000 256))
+  (Mixer play! m (list (list (list (lit wave) (lit spec-hit)) (list (lit note) "C5"))) 0 100)
+  (def b (Mixer block! m))
+  (def word (fn (_ i) ((fn (_ u) (if (< 32767 u) (- u 65536) u)) (+ (ptr-ref (str->ptr b) (* 4 i) 1) (* 256 (ptr-ref (str->ptr b) (+ (* 4 i) 1) 1))))))
+  (list (< 1000 (word 0)) (= (* 2 (word 1)) (word 0)) (word 2) (word 3)))
+```
+---
+    (#t #t 0 0)
+
+### a looped sample goes back to its loop's start at its end, until its envelope ends
+
+```x
+(do (import x/audio/mixer) (import x/codec/bytes) (import x/core/doors ptr-ref str->ptr)
+  (Mixer sample! (lit spec-loop) (first (Bytes of-hex "803e80c1401f0000")) 4 8000 "C4" 1 3)
+  (def m (Mixer make 8000 256))
+  (Mixer play! m (list (list (list (lit wave) (lit spec-loop)) (list (lit note) "C4") (list (lit env) (list 0 100) (list 100 100)))) 0 100)
+  (def b (Mixer block! m))
+  (def word (fn (_ i) ((fn (_ u) (if (< 32767 u) (- u 65536) u)) (+ (ptr-ref (str->ptr b) (* 4 i) 1) (* 256 (ptr-ref (str->ptr b) (+ (* 4 i) 1) 1))))))
+  (list (< (word 1) 0) (= (word 3) (word 1)) (= (word 4) (word 2)) (= (word 5) (word 1)) (= (word 255) (word 1)) (Mixer playing m)))
+```
+---
+    (#t #t #t #t #t 1)
+
+### a recorded cycle plays band-limited: at a quarter of the frame rate, its fundamental alone, at the cycle's phase
+
+```x
+(do (import x/audio/mixer) (import x/codec/bytes) (import x/core/doors ptr-ref str->ptr)
+  (Mixer cycle! (lit spec-eight) (first (Bytes of-hex "ff7fff7fff7fff7f0180018001800180")) 8)
+  (def m (Mixer make 8000 256))
+  (Mixer play! m (list (list (list (lit wave) (lit spec-eight)) (list (lit hz) 2000) (list (lit env) (list 0 100) (list 100 100)))) 0 100)
+  (def b (Mixer block! m))
+  (def word (fn (_ i) ((fn (_ u) (if (< 32767 u) (- u 65536) u)) (+ (ptr-ref (str->ptr b) (* 4 i) 1) (* 256 (ptr-ref (str->ptr b) (+ (* 4 i) 1) 1))))))
+  (def mirror (fn (_ a b) (if (< (+ a b) 3) (< -3 (+ a b)) #f)))
+  (list (< 0 (word 8)) (< (word 8) (word 9)) (mirror (word 8) (word 10)) (mirror (word 9) (word 11))))
+```
+---
+    (#t #t #t #t)
+
+### a recorded cycle is drawn as straight lines between its frames across the whole table
+
+```x
+(do (import x/audio/mixer) (import x/codec/bytes) (import x/core/doors ptr-ref-word int->ptr)
+  (Mixer cycle! (lit spec-ramp) (first (Bytes of-hex "00000020004000600080")) 5)
+  (def w (Mixer wave (lit spec-ramp)))
+  (def at (fn (_ i) (ptr-ref-word (int->ptr (List ref 1 w)) (* i %word-size))))
+  (list (List ref 2 w) (< (at 0) (at 400)) (< (at 400) (at 800)) (< (at 1640) (at 0))))
+```
+---
+    (21 #t #t #t)
+
+### a loop out of the sound, and a cycle too short to hold a harmonic, raise
+
+```x
+(do (import x/audio/mixer) (import x/codec/bytes)
+  (def pcm (first (Bytes of-hex "803e80c1401f0000")))
+  (list (guard (e (Err text e)) (Mixer sample! (lit spec-bad) pcm 4 8000 "C4" 2 9))
+        (guard (e (Err text e)) (Mixer sample! (lit spec-bad) pcm 4 8000 "C4" 3 1))
+        (guard (e (Err text e)) (Mixer cycle! (lit spec-bad) pcm 2))))
+```
+---
+    ("Mixer: sample: a loop's start is before its end, both within the sound" "Mixer: sample: a loop's start is before its end, both within the sound" "Mixer: cycle: a cycle needs at least 3 frames")
+
 ## rendering
 
 ### a voice plays from its start, and the block is silent after it ends
