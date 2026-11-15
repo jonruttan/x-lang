@@ -157,4 +157,5 @@
       (List map (fn (_ y) (%pc-line p w h tw th y colours)) (List range 0 (int/ (int+ th 1) 2))))))
 
 (doc (provide x/tui/picture Picture)
+  (example "(Picture fit 640 480 80 24)" "(64 48)")
   "An RGBA image drawn as terminal text, two pixels a cell: (Picture lines image cols rows colours) answers the lines, (Picture fit w h cols rows) the size they draw it at.")

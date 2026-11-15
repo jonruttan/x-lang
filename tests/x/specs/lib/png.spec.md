@@ -267,6 +267,42 @@ so these run the pure-x loops; png-jit.spec.md runs them through the engine.
 ---
     (13 7)
 
+## the first row
+
+These three were written here, not by ImageMagick, which filters a first
+row None: a 3 x 2 RGBA image, every row under one filter, the image data
+a stored zlib stream.  The row above the first is zeros.
+
+### every row filtered Up, the first against a row of zeros
+
+```x
+(do (import x/codec/png) (import x/codec/bytes)
+  (def r (Bytes of-hex "89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a00000025494441547801011a00e5ff02ff0000ff00ff00ff0000ffff0211203000405160007080910080db08d250995ebf0000000049454e44ae426082"))
+  (Bytes hex (list (List ref 2 (Png decode (first r) 0 (List ref 2 r))) 0 24)))
+```
+---
+    "ff0000ff00ff00ff0000ffff102030ff405060ff708090ff"
+
+### every row filtered Average, the first against a row of zeros
+
+```x
+(do (import x/codec/png) (import x/codec/bytes)
+  (def r (Bytes of-hex "89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a00000025494441547801011a00e5ff03ff0000ff81ff00800081ff80039120308038c148005058e100902f0a304a11bd6f0000000049454e44ae426082"))
+  (Bytes hex (list (List ref 2 (Png decode (first r) 0 (List ref 2 r))) 0 24)))
+```
+---
+    "ff0000ff00ff00ff0000ffff102030ff405060ff708090ff"
+
+### every row filtered Paeth, the first against a row of zeros
+
+```x
+(do (import x/codec/png) (import x/codec/bytes)
+  (def r (Bytes of-hex "89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a00000025494441547801011a00e5ff04ff0000ff01ff00000001ff00041120300040513000308091005f4e066a1971fde50000000049454e44ae426082"))
+  (Bytes hex (list (List ref 2 (Png decode (first r) 0 (List ref 2 r))) 0 24)))
+```
+---
+    "ff0000ff00ff00ff0000ffff102030ff405060ff708090ff"
+
 ## malformed images
 
 ### not a PNG

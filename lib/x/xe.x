@@ -18,4 +18,5 @@
   (note "xenon: stable/hardened dialect with compiler, POSIX, and full numeric tower.")
   (note "Common containers loaded by default: Dict (content-hashed mutable table) and Set (membership over a Dict).")
   (note "No experimental extensions (syscall, file, socket).")
+  (example "(Dict dict? (Dict make))" "#t")
   "x/xe: Stable full-stack dialect built on x-lang.")

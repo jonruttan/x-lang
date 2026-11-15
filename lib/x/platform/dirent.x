@@ -76,8 +76,11 @@
           (#t acc))))
     (%walk 0 acc)))
   (returns LIST "Entry names consed onto acc, deleted (ino-0) slots skipped, dot entries KEPT")
+  (example "(dirent-names \"\" 0 (list \"a\"))" "(\"a\")")
+  (sample "(dirent-names buf n ())" "the names in a buffer getdents64 or getdirentries64 filled with n bytes, \".\" and \"..\" among them")
   "Decode one dirent64 batch buffer into entry names.")
 
 (doc (provide x/platform/dirent dirent-names)
   (note "Layout truth for dirent64 on both OSes; boot/module.x and sys/file.x both decode through this.")
+  (example "(dirent-names \"\" 0 (list \"x\" \"y\"))" "(\"x\" \"y\")")
   "The shared getdents batch decoder.")

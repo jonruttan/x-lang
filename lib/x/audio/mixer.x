@@ -16,7 +16,7 @@
 ; a frame; a level is 0 to 2^24; a gain or a pan weight is 0 to 256.
 ; Times in a voice's description are milliseconds, levels percent.
 ;
-; The loops that touch every frame are sixteen kernels, each written once
+; The loops that touch every frame are eighteen kernels, each written once
 ; below as an integer function over word addresses.  The pure-x version is
 ; that form through x/tool/word-form; x/tool/word-form-jit compiles the same
 ; forms, and the compiled ones are adopted only after they write what the
@@ -268,9 +268,44 @@
           (self t (+ i 1) n (+ v dv) dv))
       0))))
 
+; Frames I to N of mono buffer M: the sample TAB read at frame POS and
+; FR 65536ths on, between that word and the next, POS and FR stepping by
+; ST 65536ths a frame and ST by DS, at level VOL stepping by DV, through
+; the low-pass of %osc-form (Y, K, DK).  Past frame END the read goes
+; BACK frames back, a loop; or, BACK 0, stays at END, where TAB is 0.  A
+; step past a whole loop goes to its start, so no read leaves the table.
+; Answers the frame after the last; Q's word 0 is its fraction.
+(def %smp-form
+  (lit (fn (self m i n tab q pos fr st ds vol dv y k dk end back)
+    (if (< i n)
+      (self m (+ i 1) n tab q
+            (match ((< (+ pos (>> (+ fr st) 16)) end) (+ pos (>> (+ fr st) 16)))
+                   ((= back 0) end)
+                   ((< (- (+ pos (>> (+ fr st) 16)) back) end) (- (+ pos (>> (+ fr st) 16)) back))
+                   (#t (- end back)))
+            (& (+ fr st) 65535) (+ st ds) ds (+ vol dv) dv
+            (%mem-set-at! m i (+ y (*>> (- (>> (* (+ (%mem-ref-at tab pos)
+                                                     (>> (* (- (%mem-ref-at tab (+ pos 1)) (%mem-ref-at tab pos)) (>> fr 1)) 15))
+                                                  (>> vol 8))
+                                               16)
+                                            y)
+                                         (>> k 8) 16)))
+            (+ k dk) dk end back)
+      (do (%mem-set-at! q 0 fr) pos)))))
+
+; Words I to N of table T the signed 16-bit little-endian samples at byte
+; address P.
+(def %pcm-form
+  (lit (fn (self t p i n)
+    (if (< i n)
+      (do (%mem-set-at! t i (- (+ (%mem-byte-ref-at p (+ i i)) (<< (%mem-byte-ref-at p (+ (+ i i) 1)) 8))
+                               (<< (& (%mem-byte-ref-at p (+ (+ i i) 1)) 128) 9)))
+          (self t p (+ i 1) n))
+      0))))
+
 (def %forms (list %osc-form %mix-form %echo-form %out-form %sine-form %harm-form %noise-form
                   %allpass-form %add-form %phase-form %drive-form %crush-form %sweep-form %limit-form
-                  %line-form %gain-form))
+                  %line-form %gain-form %smp-form %pcm-form))
 
 (def %pure (List map word-form-pure %forms))
 
@@ -292,6 +327,8 @@
 (def %k-limit ())
 (def %k-line ())
 (def %k-gain ())
+(def %k-smp ())
+(def %k-pcm ())
 
 (def %install!
   (fn (_ ks)
@@ -310,7 +347,9 @@
     (set! %k-sweep (List ref 12 ks))
     (set! %k-limit (List ref 13 ks))
     (set! %k-line (List ref 14 ks))
-    (set! %k-gain (List ref 15 ks))))
+    (set! %k-gain (List ref 15 ks))
+    (set! %k-smp (List ref 16 ks))
+    (set! %k-pcm (List ref 17 ks))))
 
 (%install! %pure)
 
@@ -332,6 +371,11 @@
 
 (def %addr (fn (_ r) (ptr->int (str->ptr r))))
 (def %wref (fn (_ a i) (ptr-ref-word (int->ptr a) (int* i %word-size))))
+
+; The word the sample kernel leaves its fraction in, and the region that
+; keeps it.
+(def %q-region (%words 1))
+(def %q (%addr %q-region))
 
 ; --- The compiled kernels, adopted only when they agree --------------------
 
@@ -371,7 +415,9 @@
             (fn (_ k d e) (k d e 0 32 9000 37 300))
             (fn (_ k d _) (k d 0 32 65536 12000 300))
             (fn (_ k d _) (k d 3 60 -134213632 4473924))
-            (fn (_ k d _) (k d 0 64 50000))))
+            (fn (_ k d _) (k d 0 64 50000))
+            (fn (_ k d e) (k d 3 40 e d 5 1234 150000 -50 9000000 -700 55 7680000 -900 50 30))
+            (fn (_ k d e) (k d e 0 32))))
     (List all?
       (fn (_ i)
         (def a (%check-words 64 5))
@@ -383,7 +429,7 @@
         (match ((not (= ra rb)) #f)
                ((not (%same? (%addr a) (%addr b) 0 64)) #f)
                (#t (%same? (%addr c) (%addr d) 0 64))))
-      (list 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15))))
+      (list 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17))))
 
 (def %entry ())
 
@@ -410,6 +456,12 @@
 ; the harmonics the table holds, 0 for a wave drawn with corners, whose
 ; harmonics never end; and OCTAVES a cell of the tables made for voices,
 ; ((K . WAVE) ...).  Tables are shared by every mixer.
+;
+; A sample is the same record, its SHIFT, HARMONIC and COUNT nil, nil and
+; 0, and a seventh entry, (END BACK RATE ROOT): the frame its reads end
+; at, the frames a loop goes back (0 for none), its frames a second, and
+; the pitch it sounds at that rate in thousandths of a hertz.  Its table
+; is its frames, then two zero words.  A wave's seventh entry is nil.
 
 (def %cycle-bits 11)
 (def %cycle (int<< 1 %cycle-bits))
@@ -419,7 +471,7 @@
 
 (def %waves (pair () ()))
 
-(def %wave-of (fn (_ r shift harmonic count) (list r (%addr r) shift harmonic count (pair () ()))))
+(def %wave-of (fn (_ r shift harmonic count) (list r (%addr r) shift harmonic count (pair () ()) ())))
 
 (def %sine-wave
   (fn (_)
@@ -593,6 +645,98 @@
      0 1)
     (%wave-of r (int- 32 %metal-bits) () 0)))
 
+; FRAMES words of the signed 16-bit little-endian samples in PCM, then
+; TAIL zero words.
+(def %pcm-words
+  (fn (_ pcm frames tail)
+    (when (int< 4095 frames) (%jit-try!))
+    (def r (%words (int+ frames tail)))
+    (%k-pcm (%addr r) (ptr->int (str->ptr pcm)) 0 frames)
+    r))
+
+(def %pcm-check
+  (fn (_ what frames least)
+    (unless (if (number? frames) (not (int< frames least)) #f)
+      (%fail what))))
+
+; The sample of FRAMES frames in PCM, RATE frames a second, sounding at
+; pitch ROOT, LOOP () or (START END): the frames from START up to END
+; repeat.
+(def %sample-wave
+  (fn (_ pcm frames rate root loop)
+    (def bad (fn (_ what) (%fail (Str8 append "sample: " what))))
+    (%pcm-check "sample: a sound needs at least 1 frame" frames 1)
+    (unless (if (number? rate) (int< 0 rate) #f) (bad "the rate is frames a second, past 0"))
+    (def mhz (%pitch-mhz root))
+    (unless (null? loop)
+      (unless (if (number? (first loop)) (if (pair? (rest loop)) (number? (first (rest loop))) #f) #f)
+        (bad "a loop is (START END), frames"))
+      (unless (if (int< -1 (first loop)) (if (int< (first loop) (first (rest loop))) (not (int< frames (first (rest loop)))) #f) #f)
+        (bad "a loop's start is before its end, both within the sound")))
+    (def r (%pcm-words pcm frames 2))
+    (list r (%addr r) () () 0 (pair () ())
+          (if (null? loop)
+            (list frames 0 rate mhz)
+            (list (first (rest loop)) (int- (first (rest loop)) (first loop)) rate mhz)))))
+
+; The step a frame, in 65536ths of a frame, for sample info SMP played at
+; MHZ thousandths of a hertz, RATE frames a second.
+(def %sample-step
+  (fn (_ smp mhz rate)
+    (fixed*/ (fixed*/ mhz (List ref 2 smp) (List ref 3 smp)) 65536 rate)))
+
+; The harmonics of the cycle of FRAMES words at A, below half its length,
+; as %table-for asks for them: the Fourier transform of the cycle at its
+; own length, harmonic H 2 X[H] / FRAMES, its real part the cosine's
+; amplitude and its imaginary part the sine's, negated.
+(def %cycle-harmonic
+  (fn (_ a frames)
+    (import x/num/fourier)
+    (import x/num/float float-of)
+    (def re (Vector make frames (float-of 0)))
+    (def im (Vector make frames (float-of 0)))
+    ((fn (self i) (when (int< i frames) (do (%put! re i (float-of (%wref a i))) (self (int+ i 1))))) 0)
+    ((Fourier plan frames) forward! re im)
+    (def word (fn (_ x) (Float ->int (Float round (Float / (Float * 2 x) frames)))))
+    (def n (int+ (int>> (int- frames 1) 1) 1))
+    (def amps (Vector make n (pair 0 0)))
+    ((fn (self h)
+       (when (int< h n)
+         (do (%put! amps h (pair (word (%get re h)) (int- 0 (word (%get im h))))) (self (int+ h 1)))))
+     1)
+    (fn (_ h) (if (int< h n) (%get amps h) (pair 0 0)))))
+
+; One cycle of FRAMES frames in PCM, as a wave: drawn as a table of 2048
+; words, read between its frames and its level about 0, or, longer than
+; that, summed from its first 1023 harmonics; and played band-limited
+; from its harmonics, each below half its length.
+(def %cycle-wave
+  (fn (_ pcm frames)
+    (%pcm-check "cycle: a cycle needs at least 3 frames" frames 3)
+    (def s (%pcm-words pcm frames 1))
+    (def a (%addr s))
+    (ptr-set-word! (int->ptr a) (int* frames %word-size) (%wref a 0))
+    (def harmonic (%cycle-harmonic a frames))
+    (def count (int>> (int- frames 1) 1))
+    (def r
+      (if (int< %cycle frames)
+        (%harmonics-table harmonic (int- (int>> %cycle 1) 1))
+        ((fn (_ t mean)
+           ((fn (self i)
+              (when (int< i %cycle)
+                ((fn (_ x)
+                   ((fn (_ j f)
+                      (ptr-set-word! (int->ptr (%addr t)) (int* i %word-size)
+                        (int- (int+ (%wref a j) (int/ (int* (int- (%wref a (int+ j 1)) (%wref a j)) f) %cycle)) mean))
+                      (self (int+ i 1)))
+                    (int>> x %cycle-bits) (int& x (int- %cycle 1))))
+                 (int* i frames))))
+            0)
+           t)
+         (%words %cycle)
+         ((fn (self i acc) (if (int< i frames) (self (int+ i 1) (int+ acc (%wref a i))) (int/ acc frames))) 0 0))))
+    (%wave-of r (int- 32 %cycle-bits) harmonic count)))
+
 (def %wave
   (fn (_ name)
     (def hit (Assoc entry name (first %waves)))
@@ -675,8 +819,8 @@
 ; cut it is played at, and the percent its filter last reached; its
 ; width's offset, the offset's step a frame, the width's points still
 ; ahead, ((FRAME . OFFSET) ...), the same way as its bend's, and the two
-; reads' weights in 256ths; and the highest step it reaches, which picks its
-; table.
+; reads' weights in 256ths; the highest step it reaches, which picks its
+; table; and, reading a sample, its read's fraction of a frame in 65536ths.
 
 (def %vector-type ((prim-ref (lit type) (lit of)) (Vector make 0 ())))
 (def %rec (fn (_ n) ((fn (_ r) (do (obj-set! r 0 n) r)) (obj-make %vector-type (int+ n 1)))))
@@ -687,6 +831,7 @@
 (def %v-y 6) (def %v-k 7) (def %v-gl 8) (def %v-gr 9) (def %v-t 10) (def %v-env 11) (def %v-wave 12)
 (def %v-k0 13) (def %v-bend 14) (def %v-dk 15) (def %v-filter 16) (def %v-mcut 17) (def %v-kpct 18)
 (def %v-off 19) (def %v-doff 20) (def %v-width 21) (def %v-a 22) (def %v-g 23) (def %v-top 24)
+(def %v-fr 25)
 
 ; A cycle's share PCT in 2^24ths: 167773 is 2^24 / 100, rounded up.
 (def %cycle-share (fn (_ pct) (int* (%clamp 0 100 pct) 167773)))
@@ -725,29 +870,36 @@
 ; before the first.  A width is the wave less itself PCT of a cycle on,
 ; halved, its path the same way and its first point's before it: on the
 ; saw, a pulse high for PCT of the cycle.  A pulse is the saw at width 50
-; unless it has a width of its own.
+; unless it has a width of its own.  A sample (sample!) steps through its
+; frames at the pitch's share of its root, has no width, and, played once,
+; ends at its end, its level held at its first unless SPEC has an env.
 (def %voice
   (fn (_ spec rate at gain cents master-cut)
     (def name (%prop1 spec (lit wave) (lit sine)))
     (def w (%wave name))
-    (def width (List map (fn (_ p) (pair (%ms (first p) rate) (%cycle-share (first (rest p)))))
-                         (%prop spec (lit width) (if (eq? name (lit pulse)) (lit ((0 50))) ()))))
+    (def smp (List ref 6 w))
+    (def width (if (null? smp)
+                 (List map (fn (_ p) (pair (%ms (first p) rate) (%cycle-share (first (rest p)))))
+                           (%prop spec (lit width) (if (eq? name (lit pulse)) (lit ((0 50))) ())))
+                 ()))
     (def g (int/ (int* gain (%prop1 spec (lit gain) 100)) 100))
     (def env (List map (fn (_ p) (pair (%ms (first p) rate) (%level (first (rest p)) g)))
-                   (%prop spec (lit env) (lit ((0 100) (200 0))))))
+                   (%prop spec (lit env)
+                     (if (if (null? smp) #f (int= (List ref 1 smp) 0)) (lit ((0 100) (600000 100))) (lit ((0 100) (200 0)))))))
+    (def step (fn (_ mhz) (if (null? smp) (%step mhz rate) (%sample-step smp mhz rate))))
     (def len (if (null? env) 0 (first (List ref -1 env))))
     (def pitch (%prop1 spec (lit note) ()))
     (def mhz (if (null? pitch) (int* 1000 (%prop1 spec (lit hz) 440)) (%note-mhz pitch)))
     (def moved (fn (_ s) (if (int= cents 0) s (%shift s cents))))
-    (def base (%detune (%step mhz rate) (%prop1 spec (lit detune) 0)))
+    (def base (%detune (step mhz) (%prop1 spec (lit detune) 0)))
     (def st (moved base))
     (def slide (%prop1 spec (lit slide) ()))
-    (def st1 (if (null? slide) st (moved (%detune (%step (%pitch-mhz slide) rate) (%prop1 spec (lit detune) 0)))))
+    (def st1 (if (null? slide) st (moved (%detune (step (%pitch-mhz slide)) (%prop1 spec (lit detune) 0)))))
     (def bend (List map (fn (_ p) (pair (%ms (first p) rate) (moved (%shift base (first (rest p))))))
                         (%prop spec (lit bend) ())))
     (def cut (%prop1 spec (lit cut) 100))
     (def pan (%prop1 spec (lit pan) 0))
-    (def v (%rec 25))
+    (def v (%rec 26))
     (%put! v %v-off (if (null? width) 0 (rest (first width))))
     (%put! v %v-doff 0)
     (%put! v %v-width width)
@@ -757,6 +909,7 @@
     (%put! v %v-top (List fold (fn (_ m p) (if (int< m (rest p)) (rest p) m)) (if (int< st st1) st1 st) bend))
     (%retable! v)
     (%put! v %v-ph 0)
+    (%put! v %v-fr 0)
     (%put! v %v-st st)
     (%put! v %v-ds (if (if (null? bend) (int< 0 len) #f) (int/ (int- st1 st) len) 0))
     (%put! v %v-bend bend)
@@ -808,7 +961,7 @@
 ; Voice V rendered over frames A to B of the block into mono buffer M and
 ; added into stereo buffer S, in stretches that end at its envelope's, its
 ; bend's, its filter's and its width's points.  Answers #t while the voice
-; has more to play.
+; has more to play: a sample played once has none past its end.
 (def %voice-render!
   (fn (_ v m s a b)
     (def t (%get v %v-t))
@@ -840,10 +993,16 @@
                    (if (int< n 1)
                      (do (%put! v %v-vol (rest point)) (%put! v %v-env (rest env)) (self from))
                      (do (def dv (int/ (int- (rest point) vol) left))
+                         (def smp (List ref 6 (%get v %v-wave)))
                          (%put! v %v-ph
-                           (%k-osc m from to (%get v %v-tab) (%get v %v-sh) (%get v %v-ph) (%get v %v-st)
-                                   (%get v %v-ds) vol dv (%get v %v-y) (%get v %v-k) (%get v %v-dk)
-                                   (%get v %v-off) (%get v %v-doff) (%get v %v-a) (%get v %v-g)))
+                           (if (null? smp)
+                             (%k-osc m from to (%get v %v-tab) (%get v %v-sh) (%get v %v-ph) (%get v %v-st)
+                                     (%get v %v-ds) vol dv (%get v %v-y) (%get v %v-k) (%get v %v-dk)
+                                     (%get v %v-off) (%get v %v-doff) (%get v %v-a) (%get v %v-g))
+                             (%k-smp m from to (%get v %v-tab) %q (%get v %v-ph) (%get v %v-fr) (%get v %v-st)
+                                     (%get v %v-ds) vol dv (%get v %v-y) (%get v %v-k) (%get v %v-dk)
+                                     (first smp) (List ref 1 smp))))
+                         (unless (null? smp) (%put! v %v-fr (%wref %q 0)))
                          (%put! v %v-st (int+ (%get v %v-st) (int* n (%get v %v-ds))))
                          (%put! v %v-off (int+ (%get v %v-off) (int* n (%get v %v-doff))))
                          (%put! v %v-k (int+ (%get v %v-k) (int* n (%get v %v-dk))))
@@ -853,6 +1012,9 @@
                          (if (int= n left)
                            (do (%put! v %v-vol (rest point)) (%put! v %v-env (rest env)))
                            (%put! v %v-vol (int+ vol (int* n dv))))
+                         ; a sample played once is over at its end
+                         (when (if (null? smp) #f (if (int= (List ref 1 smp) 0) (not (int< (%get v %v-ph) (first smp))) #f))
+                           (%put! v %v-env ()))
                          (self to)))))))
          (if (int< t 0) (do (%put! v %v-t 0) (int- a t)) a)))
       (#t (do (%put! v %v-t (int+ t (int- b a))) #t)))))
@@ -1382,8 +1544,8 @@
         (sample "(Mixer render 44100 (list (list (list (lit hz) 220))) ())" "(region . 36864)"))
       (%render rate specs echoes))
 
-    (method wave (self (param name SYMBOL "sine, square, triangle, saw, inverse-saw, pulse, noise, metal, or a name given to wave! or shape!"))
-      (doc "A wave table: one cycle of the wave, or for noise 32768 random words, read by a voice at its pitch. square is high for half the cycle; triangle rises and falls; saw rises and drops, inverse-saw falls and leaps; pulse is the saw's table, played at a width (see play!); metal is 127 steps of noise repeating, a ring at the note's pitch. This is the wave as drawn, every harmonic in it; a voice reads it with only the harmonics below half its frame rate at the highest pitch it reaches, from a table made for that octave the first time it is needed, so none folds back as a tone off the note's series (noise and metal are read as they are). Raises a label 'value for a name with no wave."
+    (method wave (self (param name SYMBOL "sine, square, triangle, saw, inverse-saw, pulse, noise, metal, or a name given to wave!, shape!, cycle! or sample!"))
+      (doc "A wave table: one cycle of the wave, or for noise 32768 random words, read by a voice at its pitch. square is high for half the cycle; triangle rises and falls; saw rises and drops, inverse-saw falls and leaps; pulse is the saw's table, played at a width (see play!); metal is 127 steps of noise repeating, a ring at the note's pitch. This is the wave as drawn, every harmonic in it; a voice reads it with only the harmonics below half its frame rate at the highest pitch it reaches, from a table made for that octave the first time it is needed, so none folds back as a tone off the note's series (noise and metal are read as they are). A sample's table is its frames, then two zero words, and its SHIFT is nil: a voice reads it by frame. Raises a label 'value for a name with no wave."
         (returns LIST "(REGION ADDRESS SHIFT): a voice's phase shifted right by SHIFT is the word to read")
         (example "(List ref 2 (Mixer wave (lit noise)))" "17")
         (example "(List ref 2 (Mixer wave (lit square)))" "21")
@@ -1396,6 +1558,27 @@
         (returns SYMBOL "NAME")
         (example "(Mixer shape! (lit stair) (list (list 0 100) (list 1 100) (list 1 0) (list 2 0) (list 2 -100) (list 3 -100)))" "'stair"))
       (%wave-put! name (%shape-wave points))
+      name)
+
+    (method sample! (self (param name SYMBOL "The sample's name")
+                          (param pcm STRING "The sound: FRAMES signed 16-bit little-endian samples, one channel, as (Wav decode) answers it")
+                          (param frames INTEGER "The frames in PCM, 1 or more")
+                          (param rate INTEGER "PCM's frames a second")
+                          (param root ANY "The pitch PCM sounds at RATE: a note's name, such as \"C4\", or hertz")
+                          . (param loop LIST "START, then END: the frames from START up to END repeat; default none"))
+      (doc "Make a sample, for voices to name as they name a wave: the recorded sound played at the voice's pitch, faster for a higher note than ROOT and slower for a lower one, read between its frames. Without a loop it plays once and the voice ends with it, its level held at the envelope's first unless the voice gives an envelope; with a loop it plays to END, then from START to END again until the envelope ends. A width is not used. It is played as it was recorded, not band-limited, so a note far above ROOT can fold its highest harmonics back. Raises a label 'value for a rate, root or loop out of range."
+        (returns SYMBOL "NAME")
+        (example "(do (import x/codec/bytes) (Mixer sample! (lit click) (first (Bytes of-hex \"ff7f00800000\")) 3 8000 \"C4\"))" "'click"))
+      (%wave-put! name (%sample-wave pcm frames rate root (if (null? loop) () (list (first loop) (first (rest loop))))))
+      name)
+
+    (method cycle! (self (param name SYMBOL "The wave's name")
+                         (param pcm STRING "One cycle of a wave: FRAMES signed 16-bit little-endian samples, one channel, as (Wav decode) answers it")
+                         (param frames INTEGER "The frames in the cycle, 3 or more"))
+      (doc "Make a wave of one recorded cycle, for voices to name: the cycle read at the voice's pitch, as the wave of shape! or wave! is, whatever its length. It is drawn as 2048 words, about 0, and played band-limited from its harmonics, which come from a Fourier transform of the cycle at its own length; it holds none past half its frames. Raises a label 'value for fewer than 3 frames."
+        (returns SYMBOL "NAME")
+        (example "(do (import x/codec/bytes) (Mixer cycle! (lit blip) (first (Bytes of-hex \"ff7f00800000\")) 3))" "'blip"))
+      (%wave-put! name (%cycle-wave pcm frames))
       name)
 
     (method wave! (self (param name SYMBOL "The wave's name")

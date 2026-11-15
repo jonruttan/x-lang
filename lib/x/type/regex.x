@@ -718,18 +718,21 @@
 (def-class Regex ()
   (static
     (method regex? (self (param x ANY "Value to test"))
-      (doc "Test whether a value is a regex." (returns BOOL "True if x is a regex"))
+      (doc "Test whether a value is a regex." (returns BOOL "True if x is a regex")
+        (example "(list (Regex regex? #/a/) (Regex regex? \"a\"))" "(#t #f)"))
       (type? x %regex))
     ; Every exec method is subject-LAST (the regex is the final parameter):
     ; the class-call handler appends the dispatched value last, so value-calls
     ; like (#/,/ split "a,b") route to (Regex split "a,b" #/,/).
     (method match (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
-      (doc "Test whether a regex matches an entire string." (returns BOOL "True if regex matches the entire string"))
+      (doc "Test whether a regex matches an entire string." (returns BOOL "True if regex matches the entire string")
+        (example "(list (Regex match \"abc\" #/a.c/) (Regex match \"abcd\" #/a.c/))" "(#t #f)"))
       (def end (%str-length str))
       (def result (%regex-exec (%rx-nodes rx) str 0 end ()))
       (if (and result (= (first result) end)) #t #f))
     (method search (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
-      (doc "Search for the first occurrence of a regex pattern in a string." (returns LIST "Pair (start end) of first match, or nil if not found"))
+      (doc "Search for the first occurrence of a regex pattern in a string." (returns LIST "Pair (start end) of first match, or nil if not found")
+        (example "(Regex search \"xx123\" #/[0-9]+/)" "(2 5)"))
       (def end (%str-length str))
       (def nodes (%rx-nodes rx))   ; hoisted: guard once, not per position (#337)
       (def %try
@@ -740,7 +743,8 @@
                 (self (+ i 1)))))))
       (%try 0))
     (method find-at (self (param str STRING "Input string") (param pos INTEGER "Start position") (param rx REGEX "Compiled regex"))
-      (doc "Search for regex starting from position pos." (returns LIST "Pair (start end) of match, or nil"))
+      (doc "Search for regex starting from position pos." (returns LIST "Pair (start end) of match, or nil")
+        (example "(Regex find-at \"1a2b\" 1 #/[0-9]/)" "(2 3)"))
       (def end (%str-length str))
       (def nodes (%rx-nodes rx))   ; hoisted: guard once, not per position (#337)
       (def %try
@@ -777,7 +781,8 @@
               (self next (pair (%substring str start end) acc))))))
       (%go 0 ()))
     (method find-all-pos (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
-      (doc "Find all non-overlapping match positions." (returns LIST "List of (start end) pairs"))
+      (doc "Find all non-overlapping match positions." (returns LIST "List of (start end) pairs")
+        (example "(Regex find-all-pos \"a1b22\" #/[0-9]+/)" "((1 2) (3 5))"))
       (def %go
         (fn (self pos acc)
           (def m (Regex find-at str pos rx))
@@ -841,11 +846,13 @@
                        (param pos INTEGER "Starting position in the string")
                        (param end INTEGER "End position (string length)"))
       (doc "Execute a regex AST against a string from the given position."
-        (returns INTEGER "Final position after match, or nil on failure"))
+        (returns INTEGER "Final position after match, or nil on failure")
+        (example "(Regex exec (Regex parse \"ab\") \"xabc\" 1 4)" "3"))
       (let ((r (%regex-exec nodes str pos end ())))
         (if (null? r) () (first r))))
     (method parse (self (param pattern STRING "Regex pattern string"))
-      (doc "Parse a regex pattern string into a bare AST node list. For a value the exec methods accept, use (Regex compile)." (returns LIST "AST node list"))
+      (doc "Parse a regex pattern string into a bare AST node list. For a value the exec methods accept, use (Regex compile)." (returns LIST "AST node list")
+        (example "(Regex parse \"ab\")" "(('lit #\\a) ('lit #\\b))"))
       (%regex-parse pattern))
     (method compile (self (param pattern STRING "Regex pattern string"))
       (doc "Compile a pattern string into a REGEX value -- the programmatic twin of the #/.../ literal, for patterns built at runtime."

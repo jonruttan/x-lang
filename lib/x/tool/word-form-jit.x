@@ -2,7 +2,7 @@
 ; adopted only when they agree with their pure-x twins.
 ;
 ; Loaded lazily by the libraries whose loops are word forms (x/gfx/canvas,
-; x/audio/mixer), never on their import: this module pulls the JIT
+; x/audio/mixer, x/codec/wav), never on their import: this module pulls the JIT
 ; toolchain, and each library stays usable and correct on a host with no
 ; JIT.  It compiles the forms a library hands it, the same forms its pure-x
 ; loops are made from (x/tool/word-form), and answers them only after the
