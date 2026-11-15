@@ -125,7 +125,7 @@ pure-x loops and again with the compiled ones, byte for byte.
 ---
     ("Mixer: wave: the first point is at position 0" "Mixer: wave: positions never fall" "Mixer: wave: levels are -100 to 100" "Mixer: wave: the last point's position is past 0" "Mixer: wave: points are (POSITION LEVEL) pairs of integers")
 
-### a song's voice plays a shaped wave by name
+### a song's voice plays a shaped wave by name, its low half the mirror of its high
 
 ```x
 (do (import x/audio/mixer) (import x/core/doors ptr-ref str->ptr)
@@ -133,12 +133,13 @@ pure-x loops and again with the compiled ones, byte for byte.
   (Mixer play! m (list (list (list (lit wave) (lit square)) (list (lit hz) 250) (list (lit env) (list 0 100) (list 100 100)))) 0 100)
   (def b (Mixer block! m))
   (def word (fn (_ i) ((fn (_ u) (if (< 32767 u) (- u 65536) u)) (+ (ptr-ref (str->ptr b) (* 4 i) 1) (* 256 (ptr-ref (str->ptr b) (+ (* 4 i) 1) 1))))))
-  (list (< 0 (word 4)) (= (word 4) (word 10)) (< (word 20) 0) (= (word 20) (word 26))))
+  (def mirror (fn (_ a b) (if (< (+ a b) 3) (< -3 (+ a b)) #f)))
+  (list (< 0 (word 4)) (< 0 (word 10)) (mirror (word 4) (word 20)) (mirror (word 10) (word 26))))
 ```
 ---
     (#t #t #t #t)
 
-### a pulse is the saw at a width: high for that share of the cycle, and a moving width sweeps it
+### a pulse is the saw at a width: high for that share of the cycle, within a frame at its band-limited edges, and a moving width sweeps it
 
 ```x
 (do (import x/audio/mixer) (import x/core/doors ptr-ref str->ptr)
@@ -152,10 +153,25 @@ pure-x loops and again with the compiled ones, byte for byte.
   (def fixed (pulse (list (list (lit width) (list 0 25)))))
   (def square (pulse ()))
   (def sweep (pulse (list (list (lit width) (list 0 25) (list 32 75)))))
-  (list (first fixed) (first square) (first sweep) (List ref 1 sweep)))
+  (def near (fn (_ n want) (if (< (- want 2) n) (< n (+ want 2)) #f)))
+  (list (near (first fixed) 8) (near (first square) 16) (near (first sweep) 8) (near (List ref 1 sweep) 24)))
 ```
 ---
-    (8 16 8 24)
+    (#t #t #t #t)
+
+### a square at a quarter of the frame rate plays as its fundamental alone, rising from zero
+
+```x
+(do (import x/audio/mixer) (import x/core/doors ptr-ref str->ptr)
+  (def m (Mixer make 8000 256))
+  (Mixer play! m (list (list (list (lit wave) (lit square)) (list (lit hz) 2000) (list (lit env) (list 0 100) (list 100 100)))) 0 100)
+  (def b (Mixer block! m))
+  (def word (fn (_ i) ((fn (_ u) (if (< 32767 u) (- u 65536) u)) (+ (ptr-ref (str->ptr b) (* 4 i) 1) (* 256 (ptr-ref (str->ptr b) (+ (* 4 i) 1) 1))))))
+  (def small (fn (_ v) (if (< -300 v) (< v 300) #f)))
+  (list (small (word 8)) (< 1000 (word 9)) (small (word 10)) (< (+ (word 9) (word 11)) 3) (< -3 (+ (word 9) (word 11)))))
+```
+---
+    (#t #t #t #t #t)
 
 ## rendering
 

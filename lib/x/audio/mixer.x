@@ -16,7 +16,7 @@
 ; a frame; a level is 0 to 2^24; a gain or a pan weight is 0 to 256.
 ; Times in a voice's description are milliseconds, levels percent.
 ;
-; The loops that touch every frame are fifteen kernels, each written once
+; The loops that touch every frame are sixteen kernels, each written once
 ; below as an integer function over word addresses.  The pure-x version is
 ; that form through x/tool/int-form; x/tool/int-form-jit compiles the same
 ; forms, and the compiled ones are adopted only after they write what the
@@ -230,13 +230,22 @@
           (self t (+ i 1) n (- c (*>> s e 30)) (+ s (*>> (- c (*>> s e 30)) e 30)) e))
       0))))
 
-; Words I to N of table T added A/256 of harmonic H of the sine S, which
-; is MASK + 1 words long.
+; Words I to N of table T added harmonic H of the sine S, which is MASK +
+; 1 words long, read PH words on, at A words of amplitude: S's word times
+; A over 2^15, rounded to the nearest.
 (def %harm-form
-  (lit (fn (self t s i n h a mask)
+  (lit (fn (self t s i n h ph a mask)
     (if (< i n)
-      (do (%mem-set-at! t i (+ (%mem-ref-at t i) (>> (* (%mem-ref-at s (& (* i h) mask)) a) 8)))
-          (self t s (+ i 1) n h a mask))
+      (do (%mem-set-at! t i (+ (%mem-ref-at t i) (>> (+ (* (%mem-ref-at s (& (+ (* i h) ph) mask)) a) 16384) 15)))
+          (self t s (+ i 1) n h ph a mask))
+      0))))
+
+; Words I to N of table T times G over 2^16, rounded to the nearest.
+(def %gain-form
+  (lit (fn (self t i n g)
+    (if (< i n)
+      (do (%mem-set-at! t i (>> (+ (* (%mem-ref-at t i) g) 32768) 16))
+          (self t (+ i 1) n g))
       0))))
 
 ; Words I to N of table T noise from -32768 to 32767, drawn from the
@@ -261,7 +270,7 @@
 
 (def %forms (list %osc-form %mix-form %echo-form %out-form %sine-form %harm-form %noise-form
                   %allpass-form %add-form %phase-form %drive-form %crush-form %sweep-form %limit-form
-                  %line-form))
+                  %line-form %gain-form))
 
 (def %pure (List map int-form-pure %forms))
 
@@ -282,6 +291,7 @@
 (def %k-sweep ())
 (def %k-limit ())
 (def %k-line ())
+(def %k-gain ())
 
 (def %install!
   (fn (_ ks)
@@ -299,7 +309,8 @@
     (set! %k-crush (List ref 11 ks))
     (set! %k-sweep (List ref 12 ks))
     (set! %k-limit (List ref 13 ks))
-    (set! %k-line (List ref 14 ks))))
+    (set! %k-line (List ref 14 ks))
+    (set! %k-gain (List ref 15 ks))))
 
 (%install! %pure)
 
@@ -350,7 +361,7 @@
             (fn (_ k d e) (k d d e 0 64 5 60 300 90 (%wref e 5)))
             (fn (_ k d e) (k d e 0 64 300))
             (fn (_ k d _) (k d 0 64 1073709056 0 102943708))
-            (fn (_ k d e) (k d e 0 64 3 -90 63))
+            (fn (_ k d e) (k d e 0 64 3 100 -9000 63))
             (fn (_ k d _) (k d 0 64 977))
             (fn (_ k d e) (k d e 0 64 7 30 179 (%wref e 7)))
             (fn (_ k d e) (k d e 0 64 200))
@@ -359,7 +370,8 @@
             (fn (_ k d e) (k d e 0 32 1000 20000 -256))
             (fn (_ k d e) (k d e 0 32 9000 37 300))
             (fn (_ k d _) (k d 0 32 65536 12000 300))
-            (fn (_ k d _) (k d 3 60 -134213632 4473924))))
+            (fn (_ k d _) (k d 3 60 -134213632 4473924))
+            (fn (_ k d _) (k d 0 64 50000))))
     (List all?
       (fn (_ i)
         (def a (%check-words 64 5))
@@ -371,7 +383,7 @@
         (match ((not (= ra rb)) #f)
                ((not (%same? (%addr a) (%addr b) 0 64)) #f)
                (#t (%same? (%addr c) (%addr d) 0 64))))
-      (list 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14))))
+      (list 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15))))
 
 (def %entry ())
 
@@ -391,8 +403,13 @@
 
 ; --- Wave tables -----------------------------------------------------------
 ;
-; A wave is (REGION ADDRESS SHIFT): a table of 2^(32 - SHIFT) words, one
-; cycle, each -32768 to 32767.  Tables are shared by every mixer.
+; A wave is (REGION ADDRESS SHIFT HARMONIC COUNT OCTAVES): a table of
+; 2^(32 - SHIFT) words, one cycle, each -32768 to 32767; HARMONIC, for a
+; wave that is a sum of harmonics, (fn (_ H) (COS . SIN)), harmonic H's
+; amplitudes in words, and nil for one that is not (noise, metal); COUNT
+; the harmonics the table holds, 0 for a wave drawn with corners, whose
+; harmonics never end; and OCTAVES a cell of the tables made for voices,
+; ((K . WAVE) ...).  Tables are shared by every mixer.
 
 (def %cycle-bits 11)
 (def %cycle (int<< 1 %cycle-bits))
@@ -402,20 +419,38 @@
 
 (def %waves (pair () ()))
 
+(def %wave-of (fn (_ r shift harmonic count) (list r (%addr r) shift harmonic count (pair () ()))))
+
 (def %sine-wave
   (fn (_)
     (def r (%words %cycle))
     (%k-sine (%addr r) 0 %cycle 1073709056 0 %cycle-turn)
-    (list r (%addr r) (int- 32 %cycle-bits))))
+    (%wave-of r (int- 32 %cycle-bits) (fn (_ h) (if (int= h 1) (pair 0 32767) (pair 0 0))) 1)))
 
 (def %noise-wave
   (fn (_)
     (def n (int<< 1 %noise-bits))
     (def r (%words n))
     (%k-noise (%addr r) 0 n 20261108)
-    (list r (%addr r) (int- 32 %noise-bits))))
+    (%wave-of r (int- 32 %noise-bits) () 0)))
 
 (def %abs (fn (_ n) (if (int< n 0) (int- 0 n) n)))
+
+; A cycle of harmonics 1 to N of HARMONIC summed, from the sine's table:
+; each a sine read at H times the pitch, its cosine a quarter cycle on.
+(def %harmonics-table
+  (fn (_ harmonic n)
+    (def s (List ref 1 (%wave (lit sine))))
+    (def r (%words %cycle))
+    ((fn (self h)
+       (unless (int< n h)
+         ((fn (_ c)
+            (unless (int= (first c) 0) (%k-harm (%addr r) s 0 %cycle h (int>> %cycle 2) (first c) (int- %cycle 1)))
+            (unless (int= (rest c) 0) (%k-harm (%addr r) s 0 %cycle h 0 (rest c) (int- %cycle 1)))
+            (self (int+ h 1)))
+          (harmonic h))))
+     1)
+    r))
 
 ; Harmonics AMPS, the first the fundamental, summed into one cycle, scaled
 ; so the loudest the sum can be is the sine's.
@@ -423,15 +458,44 @@
   (fn (_ amps)
     (def total (List fold (fn (_ acc a) (int+ acc (%abs a))) 0 amps))
     (when (int< total 1) (%fail "wave: the harmonics are all zero"))
-    (def sine (%wave (lit sine)))
-    (def r (%words %cycle))
-    (List fold
-      (fn (_ h a)
-        (unless (int= a 0)
-          (%k-harm (%addr r) (List ref 1 sine) 0 %cycle h (int/ (int* a 256) total) (int- %cycle 1)))
-        (int+ h 1))
-      1 amps)
-    (list r (%addr r) (int- 32 %cycle-bits))))
+    (def n (List length amps))
+    (def harmonic (fn (_ h) (if (int< n h) (pair 0 0) (pair 0 (fixed*/ (List ref (int- h 1) amps) 32767 total)))))
+    (%wave-of (%harmonics-table harmonic n) (int- 32 %cycle-bits) harmonic n)))
+
+; The highest bit set in a step: K where the step is 2^K to 2^(K+1) - 1.
+(def %top-bit (fn (self s) (if (int< s 2) 0 (int+ 1 (self (int>> s 1))))))
+
+; The largest word of the cycle at A, either sign.
+(def %peak
+  (fn (_ a)
+    ((fn (self i m) (if (int< i %cycle) (self (int+ i 1) ((fn (_ v) (if (int< m v) v m)) (%abs (%wref a i)))) m))
+     0 0)))
+
+; The table of wave W for a voice whose step reaches TOP: W's own when it
+; is no sum of harmonics, or when every harmonic it holds is below half
+; the frame rate at TOP; else W's harmonics below that, made once for the
+; octave of steps TOP is in and kept, and turned down if their sum peaks
+; past full scale.  A step from 2^K up reaches harmonic 2^(30 - K) at
+; half the frame rate.
+(def %table-for
+  (fn (_ w top)
+    (def harmonic (List ref 3 w))
+    (def k (%top-bit top))
+    (def n (if (int< 29 k) 1 (int<< 1 (int- 30 k))))
+    (def count (List ref 4 w))
+    (def cell (List ref 5 w))
+    (match ((null? harmonic) w)
+           ((not (int< n (int>> %cycle 1))) w)
+           ((if (int< 0 count) (not (int< n count)) #f) w)
+           (#t ((fn (_ hit)
+                  (if (null? hit)
+                    ((fn (_ r)
+                       ((fn (_ p) (when (int< 32767 p) (%k-gain (%addr r) 0 %cycle (fixed*/ 32767 65536 p)))) (%peak (%addr r)))
+                       ((fn (_ t) (do (%set-first! cell (pair (pair k t) (first cell))) t))
+                        (%wave-of r (List ref 2 w) harmonic n)))
+                     (%harmonics-table harmonic n))
+                    (rest hit)))
+                (Assoc entry k (first cell)))))))
 
 ; One cycle drawn as straight lines between POINTS, each (POSITION LEVEL):
 ; positions from 0, never falling, the last one the cycle's end; levels
@@ -462,7 +526,49 @@
                (%k-line (%addr r) (at a) (at b) (level a) (int/ (int- (level b) (level a)) (int- (at b) (at a)))))
              (self (rest ps)))))
      points)
-    (list r (%addr r) (int- 32 %cycle-bits))))
+    (%wave-of r (int- 32 %cycle-bits) (%shape-harmonic points span) 0)))
+
+; The harmonics of the cycle POINTS draw, SPAN their last position: a
+; line's harmonics come from its corners alone.  Where the level jumps by
+; J at a word X of the cycle and its slope (percent a cycle) turns by D,
+; harmonic H gains, with T = 2 pi H X / 2048 and w = 2 pi H,
+;   cosine  -(J sin T / w + D cos T / w^2) * 2,
+;   sine     (J cos T / w - D sin T / w^2) * 2,
+; in percent; a word is 327.67 of them.  So in words, against the sine's
+; table S (2^15 at its peak), the terms are J S / 314 H and D S / 1974 H^2.
+(def %shape-harmonic
+  (fn (_ points span)
+    (def at (fn (_ p) (int/ (int* (first p) %cycle) span)))
+    (def segs
+      ((fn (self ps acc)
+         (if (null? (rest ps)) acc
+           (self (rest ps)
+                 ((fn (_ a b)
+                    (if (int< (at a) (at b))
+                      (pair (list (at a) (first (rest a)) (first (rest b))
+                                  (fixed*/ (int- (first (rest b)) (first (rest a))) %cycle (int- (at b) (at a))))
+                            acc)
+                      acc))
+                  (first ps) (first (rest ps))))))
+       points ()))
+    ; Each corner (X J D), from each line and the one before it, round the cycle.
+    (def corners
+      ((fn (self ss prev acc)
+         (if (null? ss) acc
+           (self (rest ss) (first ss)
+                 (pair (list (first (first ss)) (int- (List ref 1 (first ss)) (List ref 2 prev)) (int- (List ref 3 (first ss)) (List ref 3 prev)))
+                       acc))))
+       (List reverse segs) (first segs) ()))
+    (def s (List ref 1 (%wave (lit sine))))
+    (def mask (int- %cycle 1))
+    (fn (_ h)
+      (def sum (fn (_ f) (List fold (fn (_ acc c) (int+ acc (f c))) 0 corners)))
+      (def sn (fn (_ x) (%wref s (int& (int* h x) mask))))
+      (def cs (fn (_ x) (%wref s (int& (int+ (int* h x) (int>> %cycle 2)) mask))))
+      (def j (fn (_ c f) (fixed*/ (List ref 1 c) (f (first c)) (int* 314 h))))
+      (def d (fn (_ c f) (int/ (fixed*/ (List ref 2 c) (f (first c)) (int* 1974 h)) h)))
+      (pair (int- 0 (int+ (sum (fn (_ c) (j c sn))) (sum (fn (_ c) (d c cs)))))
+            (int- (sum (fn (_ c) (j c cs))) (sum (fn (_ c) (d c sn))))))))
 
 ; The shapes every song can name, as points.
 (def %shapes
@@ -485,7 +591,7 @@
          (do (ptr-set-word! (int->ptr (%addr r)) (int* i %word-size) (if (int= (int& x 1) 1) 32767 -32767))
              (self (int+ i 1) (int+ (int>> x 1) (int<< (int& (int+ x (int>> x 1)) 1) 6))))))
      0 1)
-    (list r (%addr r) (int- 32 %metal-bits))))
+    (%wave-of r (int- 32 %metal-bits) () 0)))
 
 (def %wave
   (fn (_ name)
@@ -569,7 +675,8 @@
 ; cut it is played at, and the percent its filter last reached; its
 ; width's offset, the offset's step a frame, the width's points still
 ; ahead, ((FRAME . OFFSET) ...), the same way as its bend's, and the two
-; reads' weights in 256ths.
+; reads' weights in 256ths; and the highest step it reaches, which picks its
+; table.
 
 (def %vector-type ((prim-ref (lit type) (lit of)) (Vector make 0 ())))
 (def %rec (fn (_ n) ((fn (_ r) (do (obj-set! r 0 n) r)) (obj-make %vector-type (int+ n 1)))))
@@ -579,7 +686,7 @@
 (def %v-tab 0) (def %v-sh 1) (def %v-ph 2) (def %v-st 3) (def %v-ds 4) (def %v-vol 5)
 (def %v-y 6) (def %v-k 7) (def %v-gl 8) (def %v-gr 9) (def %v-t 10) (def %v-env 11) (def %v-wave 12)
 (def %v-k0 13) (def %v-bend 14) (def %v-dk 15) (def %v-filter 16) (def %v-mcut 17) (def %v-kpct 18)
-(def %v-off 19) (def %v-doff 20) (def %v-width 21) (def %v-a 22) (def %v-g 23)
+(def %v-off 19) (def %v-doff 20) (def %v-width 21) (def %v-a 22) (def %v-g 23) (def %v-top 24)
 
 ; A cycle's share PCT in 2^24ths: 167773 is 2^24 / 100, rounded up.
 (def %cycle-share (fn (_ pct) (int* (%clamp 0 100 pct) 167773)))
@@ -598,6 +705,13 @@
 
 (def %ms (fn (_ ms rate) (fixed*/ ms rate 1000)))
 (def %level (fn (_ pct gain) (fixed*/ (int<< pct 24) gain 10000)))
+
+; Voice V reading the table of its wave for the highest step it reaches:
+; no harmonic of it at or past half the frame rate, so none folds back.
+(def %retable!
+  (fn (_ v)
+    ((fn (_ t) (do (%put! v %v-tab (List ref 1 t)) (%put! v %v-sh (List ref 2 t))))
+     (%table-for (%get v %v-wave) (%get v %v-top)))))
 
 ; Voice SPEC at RATE, starting AT frames after the block's start, at GAIN
 ; percent, moved CENTS cents and its low-pass at CUT percent, the mixer's
@@ -633,14 +747,15 @@
                         (%prop spec (lit bend) ())))
     (def cut (%prop1 spec (lit cut) 100))
     (def pan (%prop1 spec (lit pan) 0))
-    (def v (%rec 24))
+    (def v (%rec 25))
     (%put! v %v-off (if (null? width) 0 (rest (first width))))
     (%put! v %v-doff 0)
     (%put! v %v-width width)
     (%put! v %v-a (if (null? width) 256 128))
     (%put! v %v-g (if (null? width) 0 128))
-    (%put! v %v-tab (List ref 1 w))
-    (%put! v %v-sh (List ref 2 w))
+    (%put! v %v-wave w)
+    (%put! v %v-top (List fold (fn (_ m p) (if (int< m (rest p)) (rest p) m)) (if (int< st st1) st1 st) bend))
+    (%retable! v)
     (%put! v %v-ph 0)
     (%put! v %v-st st)
     (%put! v %v-ds (if (if (null? bend) (int< 0 len) #f) (int/ (int- st1 st) len) 0))
@@ -658,7 +773,6 @@
     (%put! v %v-gr (int/ (int* (int+ 100 pan) 256) 200))
     (%put! v %v-t (int- 0 (int+ at (%ms (%prop1 spec (lit at) 0) rate))))
     (%put! v %v-env env)
-    (%put! v %v-wave w)
     v))
 
 ; Voice V's point P reached on a path whose points ahead are at KP: the
@@ -800,7 +914,9 @@
         (fn (_ v)
           (%put! v %v-st (%shift (%get v %v-st) by))
           (%put! v %v-ds (%shift (%get v %v-ds) by))
-          (%put! v %v-bend (List map (fn (_ p) (pair (first p) (%shift (rest p) by))) (%get v %v-bend))))
+          (%put! v %v-bend (List map (fn (_ p) (pair (first p) (%shift (rest p) by))) (%get v %v-bend)))
+          (%put! v %v-top (%shift (%get v %v-top) by))
+          (%retable! v))
         (%get m %m-voices)))
     (%put! m %m-pitch cents)
     m))
@@ -1267,12 +1383,12 @@
       (%render rate specs echoes))
 
     (method wave (self (param name SYMBOL "sine, square, triangle, saw, inverse-saw, pulse, noise, metal, or a name given to wave! or shape!"))
-      (doc "A wave table: one cycle of the wave, or for noise 32768 random words, read by a voice at its pitch. square is high for half the cycle; triangle rises and falls; saw rises and drops, inverse-saw falls and leaps; pulse is the saw's table, played at a width (see play!); metal is 127 steps of noise repeating, a ring at the note's pitch. The shapes are drawn exact, not band-limited, so on high notes their upper harmonics fold back as tones off the note's series. Raises a label 'value for a name with no wave."
+      (doc "A wave table: one cycle of the wave, or for noise 32768 random words, read by a voice at its pitch. square is high for half the cycle; triangle rises and falls; saw rises and drops, inverse-saw falls and leaps; pulse is the saw's table, played at a width (see play!); metal is 127 steps of noise repeating, a ring at the note's pitch. This is the wave as drawn, every harmonic in it; a voice reads it with only the harmonics below half its frame rate at the highest pitch it reaches, from a table made for that octave the first time it is needed, so none folds back as a tone off the note's series (noise and metal are read as they are). Raises a label 'value for a name with no wave."
         (returns LIST "(REGION ADDRESS SHIFT): a voice's phase shifted right by SHIFT is the word to read")
         (example "(List ref 2 (Mixer wave (lit noise)))" "17")
         (example "(List ref 2 (Mixer wave (lit square)))" "21")
         (example "(List ref 2 (Mixer wave (lit metal)))" "25"))
-      (%wave name))
+      ((fn (_ w) (list (List ref 0 w) (List ref 1 w) (List ref 2 w))) (%wave name)))
 
     (method shape! (self (param name SYMBOL "The wave's name")
                          (param points LIST "Each (POSITION LEVEL): positions from 0, never falling, the last the cycle's end, any scale; levels -100 to 100 percent of full scale"))
