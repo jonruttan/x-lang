@@ -182,6 +182,22 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 ---
     ('compiled 'tag-a 'tag-b)
 
+### a call with values is made the same from a caller that binds lit
+
+The call's values are handed over quoted by the operative lit itself, not
+by its name, so a caller whose frame binds lit, or any frame between it and
+the root, changes nothing.
+
+```x
+(def %fc-cat2 (prim-ref (lit str) (lit append)))
+(def %fc-greet (fn (_ s) (%fc-cat2 "hi " s)))
+(def %fc-e (compile-fn! (lit %fc-greet) %fc-greet))
+(def %fc-shadow (fn (_ lit s) (%fc-greet s)))
+(write (list (%fc-e state) (%fc-greet "a") (%fc-shadow 0 "b")))
+```
+---
+    ('compiled "hi a" "hi b")
+
 ### let binds in parallel, in a scope of its own
 
 ```x
