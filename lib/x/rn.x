@@ -133,5 +133,6 @@
   (note "Includes compiler and POSIX FFI.")
   (note "Common containers loaded by default: Dict (content-hashed mutable table).")
   (note "Extends arithmetic with bigint, float, rational, complex, regex.")
+  (example "(list (cadr '(1 2 3)) (caddr '(1 2 3)))" "(2 3)")
   (note "Syscall table, file I/O, and sockets are opt-in -- include them yourself if you call (system …) or use these subsystems.")
   "x/rn: Experimental hacking dialect built on x-lang.")

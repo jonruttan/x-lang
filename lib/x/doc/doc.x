@@ -857,4 +857,6 @@
 
 (doc (provide x/doc/doc doc note help apropos modules)
   (note "doc wraps def or provide for metadata. help for REPL lookup. apropos for search.")
+  (sample "(help List map)" "prints the entry: signature, each argument's type, the return type and its examples")
+  (sample "(apropos \"split\")" "prints every documented name containing split")
   "Inline documentation system.")

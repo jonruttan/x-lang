@@ -189,31 +189,38 @@
   (static
     (method make (self (param name SYMBOL "The generic's name (for errors and printing)"))
       (doc "Create a generic function value with no methods."
-        (returns ANY "The callable generic"))
+        (returns ANY "The callable generic")
+        (example "(let ((g (Generic make 'g))) (Generic add! g (list #t) (fn (_ x) (* x 2))) (g 21))" "42"))
       (type-make-instance %generic
         (list (pair (lit name) name) (list ()) (list ()))))
     (method generic? (self (param x ANY "Value to test"))
       (doc "Test whether a value is a generic function."
-        (returns BOOL "#t for a generic"))
+        (returns BOOL "#t for a generic")
+        (example "(list (Generic generic? (Generic make 'g)) (Generic generic? 5))" "(#t #f)"))
       (type? x %generic))
     (method add! (self (param g ANY "The generic") (param keys LIST "Signature keys: class | type handle | #t wildcard, one per argument") (param f CALLABLE "The method body, (fn (_ args...) ...)"))
       (doc "Register a method on a generic (the computed-signature door; (on ...) is the sugar). The newest registration wins ties with an identical signature."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (example "(let ((g (Generic make 'g))) (Generic add! g (list (Type of 1)) (fn (_ x) 'int)) (Generic add! g (list #t) (fn (_ x) 'any)) (list (g 1) (g \"s\")))" "('int 'any)"))
       (let ((box (first (rest (first g)))))
         (%set-first! box (pair (pair keys f) (first box))))
       ())
     (method miss! (self (param g ANY "The generic") (param f CALLABLE "Handler: (fn (_ g args) ...)"))
       (doc "Install the no-applicable-method handler (the numeric tower's lattice promotion rides here). nil restores the default error."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (example "(let ((g (Generic make 'g))) (Generic miss! g (fn (_ g args) (List length args))) (g 1 2 3))" "3"))
       (%set-first! (first (rest (rest (first g)))) f)
       ())
     (method absorbs? (self (param k1 ANY "A signature key: a type handle, a class, or the #t wildcard") (param k2 ANY "The key it may absorb"))
       (doc "Whether k1 absorbs k2 through the conversion lattice: k1 is a type handle whose type declares a conversion from k2, the relation the C operator arbitration reads. A class or wildcard absorbs nothing. The numeric tower's promotion asks this at its miss handler."
-        (returns BOOL "#t when k1's type converts from k2"))
+        (returns BOOL "#t when k1's type converts from k2")
+        (example "(Generic absorbs? (Type of 1.5) (Type of 1))" "#t")
+        (example "(not (Generic absorbs? #t (Type of 1)))" "#t"))
       (%g-absorbs? k1 k2))
     (method methods-of (self (param g ANY "The generic"))
       (doc "The registered (keys . fn) method records, newest first."
-        (returns LIST "Method records"))
+        (returns LIST "Method records")
+        (example "(let ((g (Generic make 'g))) (Generic add! g (list #t) (fn (_ x) x)) (first (first (Generic methods-of g))))" "(#t)"))
       (first (first (rest (first g)))))))
 
 (doc (def def-generic

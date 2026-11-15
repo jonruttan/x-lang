@@ -227,4 +227,5 @@
   asm-emit! asm-label! asm-patch! asm-pos asm-labels asm-unresolved! asm-patch-at!
   asm-backend?
   reg imm mem label)
+  (example "(boolean? (asm-backend?))" "#t")
   "Data-driven assembler with JIT execution via mmap; the buffers it emits into are x/tool/asm-code's.")

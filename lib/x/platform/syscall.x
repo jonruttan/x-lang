@@ -341,4 +341,6 @@
   (global linux-arm-syscall-numbers) (global linux-arm-syscall-stand-ins)
   file-modes stat-layout)
   (note "syscall-id answers a number from this platform's table: Darwin's bare BSD numbers (libc OR-folds the 0x2000000 UNIX class), Linux x86-64's, the Linux generic table on arm64, or the arm EABI table on 32-bit arm. syscall-door answers something to call, and is what reaches a call a table spells differently.")
+  (example "(List includes? (syscall-id 'write) (list 1 4 64))" "#t")
+  (example "(list (boolean? os-darwin?) (boolean? arch-arm64?))" "(#t #t)")
   "The platform layer: which OS and architecture this is, and the syscall numbers, stand-in calls, open flags and stat layout that follow from it.")
