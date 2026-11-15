@@ -79,7 +79,7 @@
       (let ((f (self %fast)))
         (let ((st ((obj-ref f 4) (self %enc-or enc (self %enc-of (list x))) (self %extent extent))))
           ((obj-ref f 9) st x)
-          (new-from self (list (lit st) st)))))
+          (self %make st))))
 
     (method from (self (param x LIST|VECTOR|NUMBER "Numbers, nested as lists or vectors, one level per axis")
                        . (param enc LIST "Optional encoding; by default i64 when every element is an integer, else f64"))
@@ -93,7 +93,7 @@
           (let ((a ((obj-ref f 13) st)) (put ((obj-ref f 6) (first st))))
             (def go (fn (go i xs) (if (null? xs) () (do (put a i (first xs)) (go (int+ i 1) (rest xs))))))
             (go 0 xs))
-          (new-from self (list (lit st) st)))))
+          (self %make st))))
 
     (method range (self (param n INTEGER "The count, at least 0")
                         . (param enc LIST "Optional encoding: i64 (the default) or f64"))
@@ -106,7 +106,7 @@
           (let ((a ((obj-ref f 13) st)) (put ((obj-ref f 6) (first st))))
             (def go (fn (go i) (if (int< i n) (do (put a i i) (go (int+ i 1))) ())))
             (go 0))
-          (new-from self (list (lit st) st)))))
+          (self %make st))))
 
     (method encodings (self)
       (doc "The encodings a tensor's elements can have."
@@ -408,7 +408,7 @@
     (%lanes-cell (pair () ()))
 
     (method %lane-new (self name)
-      (let ((e (list name #f (word-form-pure (self %form name)) 0 #f)))
+      (let ((e (list name #f (word-form-pure (self %form-of name)) 0 #f)))
         (%set-first! (self %lanes-cell) (pair e (first (self %lanes-cell))))
         e))
 
@@ -422,17 +422,45 @@
     (method %jit (self name)
       (let ((e (self %lane name)))
         (if (List ref 4 e) ()
-          (let ((pure (List ref 2 e)) (form (self %form name)))
+          (let ((pure (List ref 2 e)) (form (self %form-of name)) (check (self %check-of name)))
             (%set-first! (List drop 4 e) #t)
             (Compiled make-on-demand (str->sym (Str8 append "tensor-" (symbol->str name))) pure
               (fn (_)
                 (import x/tool/word-form-jit)
                 (first ((prim-ref (lit word-form) (lit jit-make)) (list form)
-                        (fn (_ engine) (Tensor %agrees? name (first engine))))))
+                        (fn (_ engine) (check (first engine))))))
               (fn (_ v)
                 (%set-first! (List drop 1 e) (not (eq? v pure)))
                 (%set-first! (List drop 2 e) v)))))
         name))
+
+    ; --- kernels from other modules --------------------------------------
+    ; A module built on Tensor, x/num/matrix, registers its own kernels
+    ; here and runs them on the same lanes: (NAME FORM CHECK), FORM the
+    ; word form and CHECK (fn (_ compiled) -> BOOL), true when the compiled
+    ; kernel writes what the pure one does.  A kernel keeps the lane's
+    ; convention: BUDGET in scratch word 8, answering 1 when its run is
+    ; done and 0 when the budget is spent.
+    (%registered-cell (pair () ()))
+    (method %register! (self name form check)
+      (if (null? (Assoc entry name (first (self %registered-cell))))
+        (%set-first! (self %registered-cell) (pair (list name form check) (first (self %registered-cell))))
+        ())
+      name)
+    (method %form-of (self name)
+      (let ((e (Assoc entry name (first (self %registered-cell)))))
+        (if (null? e) (self %form name) (List ref 1 e))))
+    (method %check-of (self name)
+      (let ((e (Assoc entry name (first (self %registered-cell)))))
+        (if (null? e) (fn (_ compiled) (Tensor %agrees? name compiled)) (List ref 2 e))))
+
+    ; --- the class a result takes ------------------------------------------
+    ; A subclass, Matrix, keeps its class through the operations that keep
+    ; what makes it one.  %make builds an instance of this class from a
+    ; state for the making methods; %result-class answers the class an
+    ; operation's result takes, here the class itself.
+    (method %make (self st) (new-from self (list (lit st) st)))
+    (method %result-class (self st) self)
 
     ; The compiled kernel against the pure one: both run over the same
     ; check inputs, eight elements of A and B, each into an output and a
@@ -745,7 +773,8 @@
 
   ; --- inside -----------------------------------------------------------------
   (method %st (self) (field (lit st)))
-  (method %wrap (self st) (new-from Tensor (list (lit st) st)))
+  (method %wrap (self st)
+    (let ((c ((class-of self) %result-class st))) (new-from c (list (lit st) st))))
   (method %zip (self which other)
     (self %wrap
       ((obj-ref (Tensor %fast) 7) which (field (lit st))
