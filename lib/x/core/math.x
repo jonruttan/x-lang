@@ -51,14 +51,14 @@
         (example "(Num abs -7)" "7"))
       (if (< n 0) (- 0 n) n))
     (method min (self (param a NUMBER "First number") . (param more NUMBER "More numbers"))
-      (doc "Return the smallest of one or more numbers." (returns NUMBER "The smallest argument")
+      (doc "Return the least of one or more numbers." (returns NUMBER "The least argument")
         (example "(Num min 3 1 2)" "1"))
       (if (null? more) a
         (if (null? (rest more))
           (if (< (first more) a) (first more) a)   ; binary fast path
           (%fold (fn (_ m x) (if (< x m) x m)) a more))))
     (method max (self (param a NUMBER "First number") . (param more NUMBER "More numbers"))
-      (doc "Return the largest of one or more numbers." (returns NUMBER "The largest argument")
+      (doc "Return the greatest of one or more numbers." (returns NUMBER "The greatest argument")
         (example "(Num max 3 1 2)" "3"))
       (if (null? more) a
         (if (null? (rest more))
@@ -99,7 +99,7 @@
         ((eq? b -1) (list (- 0 a) (int% a 1)))
         (#t (list (int/ a b) (int% a b)))))
     (method isqrt (self (param n INTEGER "Non-negative integer"))
-      (doc "Integer square root: the largest k with k*k <= n (Newton's method); errors on a negative input." (returns INTEGER "floor(sqrt(n))")
+      (doc "Integer square root: the greatest k with k*k <= n (Newton's method); errors on a negative input." (returns INTEGER "floor(sqrt(n))")
         (example "(Num isqrt 99)" "9"))
       (if (< n 0) (Err raise (lit value) "Num isqrt: negative input" ())
         (if (< n 2) n
@@ -113,14 +113,14 @@
       (Num min hi (Num max lo n)))
     (method min-by (self (param f CALLABLE "Projection function")
                          (param a ANY "First value") (param b ANY "Second value"))
-      (doc "Return the value with the smaller result under f."
-        (returns ANY "The value whose projection is smaller")
+      (doc "Return the value with the lesser result under f."
+        (returns ANY "The value whose projection is the lesser")
         (example "(Num min-by (fn (_ n) (* n n)) -3 2)" "2"))
       (if (< (f a) (f b)) a b))
     (method max-by (self (param f CALLABLE "Projection function")
                          (param a ANY "First value") (param b ANY "Second value"))
-      (doc "Return the value with the larger result under f."
-        (returns ANY "The value whose projection is larger")
+      (doc "Return the value with the greater result under f."
+        (returns ANY "The value whose projection is the greater")
         (example "(Num max-by (fn (_ n) (* n n)) -3 2)" "-3"))
       (if (> (f a) (f b)) a b))
     ; --- Number predicates ---
