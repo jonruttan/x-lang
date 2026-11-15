@@ -149,7 +149,10 @@
             (do
               (%emit "")
               (display "## ") (%emit m)
-              (%emit-entries new m)))))))
+              (%emit-entries new m))))))
+    ; A sweep after each import: nothing collects on its own, and the
+    ; garbage of every import kept to the end was most of the process.
+    ((prim-ref 'heap 'collect)))
   (rest args))  ; args[0] is the interpreter binary path
 
 ; --- Census trailer (prose section; the harness ignores it) ---
