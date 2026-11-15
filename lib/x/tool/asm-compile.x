@@ -950,7 +950,7 @@
 ; top-level %-global.
 (def %asm-check-int-operands
   (fn (_ op args)
-    (when (%asm-memq op '(+ - * / % & | ^ << >> ~ < > <= >=))
+    (when (%asm-memq op '(+ - * / % & | ^ << >> ~ < > <= >= f+ f- f* f/ f< f= f-sqrt i->f f->i))
       ((fn (self as)
          (unless (null? as)
            (do
@@ -1289,6 +1289,15 @@
       ((eq? op '*) (%asm-compile-binop asm 'mul args params))
       ((eq? op '/) (%asm-compile-binop asm 'sdiv args params))
       ((eq? op '%) (%asm-compile-mod asm args params))
+      ((eq? op 'f+) (%asm-compile-fbinop asm 'fadd args params))
+      ((eq? op 'f-) (%asm-compile-fbinop asm 'fsub args params))
+      ((eq? op 'f*) (%asm-compile-fbinop asm 'fmul args params))
+      ((eq? op 'f/) (%asm-compile-fbinop asm 'fdiv args params))
+      ((eq? op 'f<) (%asm-compile-fbinop asm 'flt args params))
+      ((eq? op 'f=) (%asm-compile-fbinop asm 'feq args params))
+      ((eq? op 'f-sqrt) (%asm-compile-funop asm 'fsqrt args params))
+      ((eq? op 'i->f) (%asm-compile-funop asm 'scvtf args params))
+      ((eq? op 'f->i) (%asm-compile-funop asm 'fcvtzs args params))
       ; `if` is a match of one or two arms, the way lib/x/core/control.x
       ; derives it: the else, when there is one, is the `#t` arm.
       ((eq? op 'if)
@@ -1367,6 +1376,54 @@
     (asm-emit! asm 'mov x1 x0)
     (asm-pop! asm x0)
     (asm-emit! asm insn x0 x0 x1)))
+
+; Double arithmetic: (f+ A B), f-, f*, f/.  Each operand is a word
+; holding a double's IEEE bits, as Float's payload and a double in memory
+; are, and so is the answer: the bits move to d0 and d1 unchanged, the FP
+; unit operates, and the bits come back, as x/num/float's "d+d" stubs do.
+; (f< A B) and (f= A B) are the comparisons: their answer is 1 or 0 in x0,
+; as < and = answer, and 0 when either operand is a NaN.
+; A double fills an 8-byte word only, so a 4-byte word refuses at
+; generation and the caller's pure twin carries on.
+(def %asm-require-wide-word
+  (fn (_)
+    (if (= %word-size 8) ()
+      (Err raise 'value "asm-compile: double operations need an 8-byte word" ()))))
+
+(def %asm-compile-fbinop
+  (fn (_ asm insn args params)
+    (%asm-require-wide-word)
+    (%asm-compile-expr asm (first args) params)
+    (asm-push! asm x0)
+    (%asm-compile-expr asm (first (rest args)) params)
+    (asm-emit! asm 'mov x1 x0)
+    (asm-pop! asm x0)
+    (asm-emit! asm 'fmov/d d0 x0)
+    (asm-emit! asm 'fmov/d d1 x1)
+    (if (or (eq? insn 'flt) (eq? insn 'feq))
+      (asm-emit! asm insn x0 d0 d1)
+      (do (asm-emit! asm insn d0 d0 d1)
+          (asm-emit! asm 'fmov/x x0 d0)))))
+
+; One operand: (f-sqrt A) is the double's square root, (i->f N) the
+; integer N as a double, and (f->i A) the double truncated toward zero to an
+; integer.  FSQRT rounds once, as libm's sqrt does, so the pure twin answers
+; the same bits.
+(def %asm-compile-funop
+  (fn (_ asm insn args params)
+    (%asm-require-wide-word)
+    (%asm-compile-expr asm (first args) params)
+    (match
+      ((eq? insn 'scvtf)
+        (do (asm-emit! asm 'scvtf d0 x0)
+            (asm-emit! asm 'fmov/x x0 d0)))
+      ((eq? insn 'fcvtzs)
+        (do (asm-emit! asm 'fmov/d d0 x0)
+            (asm-emit! asm 'fcvtzs x0 d0)))
+      (#t
+        (do (asm-emit! asm 'fmov/d d0 x0)
+            (asm-emit! asm insn d0 d0)
+            (asm-emit! asm 'fmov/x x0 d0))))))
 
 ; Modulo: SDIV + MSUB
 (set! %asm-compile-mod

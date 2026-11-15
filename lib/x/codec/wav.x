@@ -18,7 +18,7 @@
 (module x/codec/wav)
 
 (import x/tool/compiled)
-(import x/tool/int-form int-form-pure)
+(import x/tool/word-form word-form-pure)
 
 (import x/core/doors char->int int& int* int+ int- int->ptr int/ int< int<< int= int>> ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-make)
 
@@ -99,7 +99,7 @@
 ; CH samples of W bytes, their top 16 bits from byte TOP of each, or, EIGHT
 ; 1, 8 bits unsigned raised to 16; their sum ACC, from channel C, times
 ; RECIP 65536ths, 65536 over CH, is the frame.  The loop is an integer form
-; (x/tool/int-form), run pure, or compiled once it agrees.
+; (x/tool/word-form), run pure, or compiled once it agrees.
 (def %mono-form
   (lit (fn (self o p f n c ch w top eight acc at recip)
     (if (< f n)
@@ -115,7 +115,7 @@
             (self o p (+ f 1) n 0 ch w top eight 0 at recip)))
       0))))
 
-(def %pure (int-form-pure %mono-form))
+(def %pure (word-form-pure %mono-form))
 (def %k-mono %pure)
 
 (def %addr (fn (_ s) (ptr->int (str->ptr s))))
@@ -147,8 +147,8 @@
       (set! %entry
         (Compiled make-on-demand (lit wav) (list %pure)
           (fn (_)
-            (import x/tool/int-form-jit)
-            ((prim-ref (lit int-form) (lit jit-make)) (list %mono-form) %agrees?))
+            (import x/tool/word-form-jit)
+            ((prim-ref (lit word-form) (lit jit-make)) (list %mono-form) %agrees?))
           (fn (_ ks) (set! %k-mono (first ks))))))
     ((fn (_ entry) (when (eq? (entry state) (lit interpreted)) (entry compile!))) %entry)))
 

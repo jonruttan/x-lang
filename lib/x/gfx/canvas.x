@@ -12,7 +12,7 @@
 ;
 ; The pixel loops are seven kernels, each written once below as an integer
 ; function over byte addresses.  The pure-x version is that form with its
-; operators bound to the int doors (x/tool/int-form); x/tool/int-form-jit
+; operators bound to the int doors (x/tool/word-form); x/tool/word-form-jit
 ; compiles the same form, and the compiled seven are adopted only after
 ; they write what the pure ones write over the check pictures.  They are
 ; built once a process when the canvases drawn have covered %jit-threshold
@@ -20,7 +20,7 @@
 (module x/gfx/canvas)
 
 (import x/tool/compiled)
-(import x/tool/int-form int-form-pure)
+(import x/tool/word-form word-form-pure)
 
 (import x/core/doors int& int* int+ int- int->ptr int/ int< int<< int= int>> mem-copy ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-make char->int)
 
@@ -170,7 +170,7 @@
 
 ; --- The pure-x kernels ----------------------------------------------------
 
-(def %pure (List map int-form-pure %forms))
+(def %pure (List map word-form-pure %forms))
 
 ; --- The kernels in use ----------------------------------------------------
 ;
@@ -255,8 +255,8 @@
       (set! %entry
         (Compiled make-on-demand (lit canvas) %pure
           (fn (_)
-            (import x/tool/int-form-jit)
-            ((prim-ref (lit int-form) (lit jit-make)) %forms %agrees?))
+            (import x/tool/word-form-jit)
+            ((prim-ref (lit word-form) (lit jit-make)) %forms %agrees?))
           %install!)))
     ((fn (_ entry)
        (when (eq? (entry state) (lit interpreted)) (entry compile!))

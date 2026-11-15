@@ -182,3 +182,24 @@ largest distance between two vectors of numbers, below 1e-9.
 ```
 ---
     ('value 'value 'value)
+
+## Memory
+
+### the pure kernels collect their own garbage
+
+Six 256-point transforms on the pure kernels churn about eight million
+objects; the plan collects as its debt passes its window, so the heap
+ends within a window of where it began.
+
+```x
+(do (import x/num/fourier) (import x/sys/gc)
+  (def p (Fourier plan 256))
+  (def v (Vector build 256 (fn (_ j) (- j 9))))
+  (Heap collect)
+  (def c0 (Heap count))
+  (def run (fn (self i) (if (< i 6) (do (p forward v) (self (+ i 1))) i)))
+  (run 0)
+  (list (Fourier compiled?) (< (- (Heap count) c0) 6000000)))
+```
+---
+    (#f #t)

@@ -43,8 +43,8 @@
 ;
 ; The loops that touch every pixel or sample are three kernels, each
 ; written once below as an integer function over byte and word addresses:
-; the pure-x version through x/tool/int-form, the compiled one from
-; x/tool/int-form-jit, adopted only after it writes what the pure one
+; the pure-x version through x/tool/word-form, the compiled one from
+; x/tool/word-form-jit, adopted only after it writes what the pure one
 ; writes.  They are built at open and at the first stream; in pure x a
 ; frame takes seconds.
 
@@ -55,7 +55,7 @@
 (import x/sys/file)
 (import x/sys/sdl)
 (import x/tool/compiled)
-(import x/tool/int-form int-form-pure)
+(import x/tool/word-form word-form-pure)
 (import x/platform/syscall file-modes syscall-id)
 (import x/core/doors char->int int& int* int+ int- int/ int< int= int<< int>> int->ptr
   mem-copy ptr->int ptr-ref ptr-set! ptr-ref-word ptr-set-word! str->ptr str-make)
@@ -106,7 +106,7 @@
 
 (def %forms (list %row-form %add-form %out-form))
 
-(def %pure (List map int-form-pure %forms))
+(def %pure (List map word-form-pure %forms))
 
 (def %k-row ())
 (def %k-add ())
@@ -181,8 +181,8 @@
       (set! %entry
         (Compiled make-on-demand (lit linux) %pure
           (fn (_)
-            (import x/tool/int-form-jit)
-            ((prim-ref (lit int-form) (lit jit-make)) %forms %agrees?))
+            (import x/tool/word-form-jit)
+            ((prim-ref (lit word-form) (lit jit-make)) %forms %agrees?))
           %install!)))
     ((fn (_ entry)
        (when (eq? (entry state) (lit interpreted)) (entry compile!))
