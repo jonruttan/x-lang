@@ -364,11 +364,14 @@
 
 ; The template a call site fills and evaluates (asm-compile.x, the function
 ; world): one (lit ()) for the callee and one for each of N arguments, made
-; here with list, so the evaluator reads it as a call.
+; here with list, so the evaluator reads it as a call.  Each head is the
+; operative lit itself, not its name: the template is evaluated in the
+; caller's environment, and a name would be looked up there on every call,
+; through every frame between the caller and the root.
 (def %fc-template
   (fn (_ n)
     (def made
-      ((fn (self k acc) (if (int< k 0) acc (self (int- k 1) (pair (list (lit lit) ()) acc))))
+      ((fn (self k acc) (if (int< k 0) acc (self (int- k 1) (pair (list lit ()) acc))))
        n ()))
     (set! %fc-templates (pair made %fc-templates))
     made))

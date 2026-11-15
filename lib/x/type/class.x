@@ -499,10 +499,11 @@
             hit))))))
 
 ; Unwrap a quoted 'x (i.e. (lit x)) to the bare symbol x, so (obj x) and (obj 'x)
-; both name the member x.
+; both name the member x.  The quote's head may be the operative lit itself,
+; as in the call templates of x/tool/fn-compile, as well as its name.
 (def %selector
   (fn (_ s)
-    (if (if (pair? s) (eq? (first s) (lit lit)) #f)
+    (if (if (pair? s) (if (eq? (first s) (lit lit)) #t (eq? (first s) lit)) #f)
       (first (rest s))
       s)))
 
