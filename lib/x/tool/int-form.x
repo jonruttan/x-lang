@@ -24,7 +24,6 @@
 
 (import x/core/doors int& int* int+ int- int->ptr int< int= int>> int<< ptr-ref ptr-set! ptr-ref-word ptr-set-word!)
 (import x/num/fixed fixed*)
-(import x/num/float libm-fn)
 (import x/type/vector)
 (import x/type/list)
 
@@ -58,15 +57,21 @@
         (pair (lit %f-ref) %int-form-double)
         (pair (lit %f-set!) %int-form-double!)))
 
-; The double operations, made on first use: (name . label).
+; The double operations, made on first use: (name . label).  x/num/float is
+; imported then, not at load: an integer-only caller (the mixer, the canvas)
+; loads no float tower, and a body that compiles its own tower after this
+; module does not load float twice.
 (def %int-form-float-labels
   (list (pair (lit %f+) "d+d") (pair (lit %f-) "d-d") (pair (lit %f*) "d*d") (pair (lit %f/) "d/d")))
 (def %int-form-float-ops ())
+(def %int-form-float-make
+  (fn (_)
+    (import x/num/float libm-fn)
+    (List map (fn (_ e) (pair (first e) (libm-fn (first e) (rest e) ()))) %int-form-float-labels)))
 (def %int-form-float
   (fn (_ name)
     (do (if (null? %int-form-float-ops)
-          (set! %int-form-float-ops
-            (List map (fn (_ e) (pair (first e) (libm-fn (first e) (rest e) ()))) %int-form-float-labels))
+          (set! %int-form-float-ops (%int-form-float-make))
           ())
         (Assoc entry name %int-form-float-ops))))
 
@@ -105,7 +110,7 @@
   (param form LIST "A (fn (self ...) ...) form over integers: + - * < = >> << &, (*>> a b k) for a product shifted down k places through 64 bits, if, match, do, the %mem- byte and word loads and stores, and on doubles' bits %f+ %f- %f* %f/ with the double loads and stores %f-ref and %f-set!")
   (returns CALLABLE "The function")
   (example "(do (import x/tool/int-form int-form-pure) ((int-form-pure (lit (fn (self n acc) (if (< n 1) acc (self (- n 1) (+ acc n)))))) 4 0))" "10")
-  (example "(do (import x/tool/int-form int-form-pure) (= ((int-form-pure (lit (fn (_ a b) (%f* a b)))) (first 1.5) (first 2.0)) (first 3.0)))" "#t"))
+  (example "(do (import x/tool/int-form int-form-pure) ((int-form-pure (lit (fn (_ a b) (%f* a b)))) 4609434218613702656 4611686018427387904))" "4613937818241073152"))
 
 (doc int-form-wide "FORM as compile-asm takes it on an 8-byte word, where one word holds a product and a double: each (*>> a b k) written as (>> (* a b) k), each %f-ref and %f-set! as the word load and store."
   (param form LIST "An int form")
