@@ -6,6 +6,11 @@ Transpose, slice and reshape answer views over the same bytes; the
 element-wise operations broadcast; the arithmetic runs in word-form kernels
 that compile once they have run long enough, and answer the same either way.
 
+An i64 element fills one word only on an 8-byte word. On a 4-byte word
+integers make f64 and i64 is refused, so the cases outside the i64 section
+ask for f64 and answer the same on either word, and each i64 case answers
+on a 4-byte word only when i64 is refused there.
+
 ## Making tensors
 
 ### from nested lists, the extent read off the nesting
@@ -17,14 +22,14 @@ that compile once they have run long enough, and answer the same either way.
 ---
     (2 3)
 
-### integers make i64, any other number makes f64
+### a non-integer element makes f64
 
 ```x
 (import x/num/tensor)
-(list ((Tensor from '(1 2)) encoding) ((Tensor from '(1 2.5)) encoding))
+((Tensor from '(1 2.5)) ->list)
 ```
 ---
-    ('i64 'f64)
+    (1.0 2.5)
 
 ### an encoding can be asked for
 
@@ -39,28 +44,28 @@ that compile once they have run long enough, and answer the same either way.
 
 ```x
 (import x/num/tensor)
-((Tensor from #(#(1 2) #(3 4))) ->list)
+((Tensor from #(#(1 2) #(3 4)) 'f64) ->list)
 ```
 ---
-    ((1 2) (3 4))
+    ((1.0 2.0) (3.0 4.0))
 
 ### zeros and fill
 
 ```x
 (import x/num/tensor)
-(list ((Tensor zeros '(2 2)) ->list) ((Tensor fill '(2 3) 7) ->list))
+(list ((Tensor zeros '(2 2)) ->list) ((Tensor fill '(2 3) 7.5) ->list))
 ```
 ---
-    (((0.0 0.0) (0.0 0.0)) ((7 7 7) (7 7 7)))
+    (((0.0 0.0) (0.0 0.0)) ((7.5 7.5 7.5) (7.5 7.5 7.5)))
 
 ### range
 
 ```x
 (import x/num/tensor)
-(list ((Tensor range 4) ->list) ((Tensor range 3 'f64) ->list))
+((Tensor range 3 'f64) ->list)
 ```
 ---
-    ((0 1 2 3) (0.0 1.0 2.0))
+    (0.0 1.0 2.0)
 
 ### ragged lists are refused
 
@@ -86,26 +91,26 @@ that compile once they have run long enough, and answer the same either way.
 
 ```x
 (import x/num/tensor)
-(let ((t (Tensor from '((1 2) (3 4)))))
+(let ((t (Tensor from '((1 2) (3 4)) 'f64)))
   (list (t ref 1 0) (t ref -1 -1)))
 ```
 ---
-    (3 4)
+    (3.0 4.0)
 
 ### set! stores and answers the tensor
 
 ```x
 (import x/num/tensor)
-(((Tensor zeros 3 'i64) set! 1 9) ->list)
+(((Tensor zeros 3) set! 1 9) ->list)
 ```
 ---
-    (0 9 0)
+    (0.0 9.0 0.0)
 
 ### an index past the axis is refused
 
 ```x
 (import x/num/tensor)
-(guard (e (Err label e)) ((Tensor range 3) ref 3))
+(guard (e (Err label e)) ((Tensor range 3 'f64) ref 3))
 ```
 ---
     'value
@@ -116,67 +121,58 @@ that compile once they have run long enough, and answer the same either way.
 
 ```x
 (import x/num/tensor)
-(let ((t ((Tensor from '((1 2 3) (4 5 6))) transpose)))
+(let ((t ((Tensor from '((1 2 3) (4 5 6)) 'f64) transpose)))
   (list (t ->list) (t strides) (t contiguous?)))
 ```
 ---
-    (((1 4) (2 5) (3 6)) (1 3) #f)
+    (((1.0 4.0) (2.0 5.0) (3.0 6.0)) (1 3) #f)
 
 ### slice of the inner axis
 
 ```x
 (import x/num/tensor)
-(((Tensor from '((1 2 3) (4 5 6))) slice 1 1 3) ->list)
+(((Tensor from '((1 2 3) (4 5 6)) 'f64) slice 1 1 3) ->list)
 ```
 ---
-    ((2 3) (5 6))
+    ((2.0 3.0) (5.0 6.0))
 
 ### a view shares its bytes
 
 ```x
 (import x/num/tensor)
-(let ((t (Tensor range 6)))
+(let ((t (Tensor range 6 'f64)))
   ((t slice 0 2 4) set! 0 99)
   (t ->list))
 ```
 ---
-    (0 1 99 3 4 5)
+    (0.0 1.0 99.0 3.0 4.0 5.0)
 
 ### reshape of a contiguous tensor
 
 ```x
 (import x/num/tensor)
-(((Tensor range 6) reshape '(2 3)) ->list)
+(((Tensor range 6 'f64) reshape '(2 3)) ->list)
 ```
 ---
-    ((0 1 2) (3 4 5))
+    ((0.0 1.0 2.0) (3.0 4.0 5.0))
 
 ### reshape of a transpose copies first
 
 ```x
 (import x/num/tensor)
-(((((Tensor range 6) reshape '(2 3)) transpose) reshape 6) ->list)
+(((((Tensor range 6 'f64) reshape '(2 3)) transpose) reshape 6) ->list)
 ```
 ---
-    (0 3 1 4 2 5)
+    (0.0 3.0 1.0 4.0 2.0 5.0)
 
 ### a reshape to a different size is refused
 
 ```x
 (import x/num/tensor)
-(guard (e (Err label e)) ((Tensor range 6) reshape '(4 2)))
+(guard (e (Err label e)) ((Tensor range 6 'f64) reshape '(4 2)))
 ```
 ---
     'value
-
-### as converts, truncating toward zero
-
-```x
-(import x/num/tensor)
-(list (((Tensor from '(1 2)) as 'f64) ->list) (((Tensor from '(2.5 -2.5)) as 'i64) ->list))
-```
----
-    ((1.0 2.0) (2 -2))
 
 ## Arithmetic
 
@@ -184,46 +180,37 @@ that compile once they have run long enough, and answer the same either way.
 
 ```x
 (import x/num/tensor)
-(list (((Tensor from '(1 2 3)) add 10) ->list) (((Tensor from '(5 7)) sub 2) ->list))
+(list (((Tensor from '(1 2 3) 'f64) add 10) ->list) (((Tensor from '(5 7) 'f64) sub 2) ->list))
 ```
 ---
-    ((11 12 13) (3 5))
+    ((11.0 12.0 13.0) (3.0 5.0))
 
 ### element-wise with a tensor
 
 ```x
 (import x/num/tensor)
-(((Tensor from '(1 2 3)) mul (Tensor from '(4 5 6))) ->list)
+(((Tensor from '(1 2 3) 'f64) mul (Tensor from '(4 5 6) 'f64)) ->list)
 ```
 ---
-    (4 10 18)
+    (4.0 10.0 18.0)
 
 ### a row broadcasts over every row
 
 ```x
 (import x/num/tensor)
-(((Tensor from '((1 2) (3 4))) add (Tensor from '(10 20))) ->list)
+(((Tensor from '((1 2) (3 4)) 'f64) add (Tensor from '(10 20) 'f64)) ->list)
 ```
 ---
-    ((11 22) (13 24))
+    ((11.0 22.0) (13.0 24.0))
 
 ### a column broadcasts over every column
 
 ```x
 (import x/num/tensor)
-(((Tensor from '((1 2) (3 4))) add (Tensor from '((10) (20)))) ->list)
+(((Tensor from '((1 2) (3 4)) 'f64) add (Tensor from '((10) (20)) 'f64)) ->list)
 ```
 ---
-    ((11 12) (23 24))
-
-### an f64 operand makes the result f64
-
-```x
-(import x/num/tensor)
-(((Tensor from '((1 2) (3 4))) add (Tensor from '(0.5 1))) ->list)
-```
----
-    ((1.5 3.0) (3.5 5.0))
+    ((11.0 12.0) (23.0 24.0))
 
 ### div is always f64
 
@@ -238,25 +225,27 @@ that compile once they have run long enough, and answer the same either way.
 
 ```x
 (import x/num/tensor)
-(list (((Tensor from '(1 5 3)) min 2) ->list) (((Tensor from '(1 5 3)) max 2) ->list))
+(let ((t (Tensor from '(1 5 3) 'f64)))
+  (list ((t min 2) ->list) ((t max 2) ->list)))
 ```
 ---
-    ((1 2 2) (2 5 3))
+    ((1.0 2.0 2.0) (2.0 5.0 3.0))
 
 ### arithmetic on a strided view
 
 ```x
 (import x/num/tensor)
-((((Tensor from '((1 2) (3 4))) transpose) sub (Tensor from '((1 2) (3 4)))) ->list)
+(let ((t (Tensor from '((1 2) (3 4)) 'f64)))
+  (((t transpose) sub t) ->list))
 ```
 ---
-    ((0 1) (-1 0))
+    ((0.0 1.0) (-1.0 0.0))
 
 ### extents that do not broadcast are refused
 
 ```x
 (import x/num/tensor)
-(guard (e (Err label e)) ((Tensor range 3) add (Tensor range 2)))
+(guard (e (Err label e)) ((Tensor range 3 'f64) add (Tensor range 2 'f64)))
 ```
 ---
     'value
@@ -267,29 +256,29 @@ that compile once they have run long enough, and answer the same either way.
 
 ```x
 (import x/num/tensor)
-(let ((t (Tensor from '((3 -1) (2 4)))))
+(let ((t (Tensor from '((3 -1) (2 4)) 'f64)))
   (list (t sum) (t least) (t greatest)))
 ```
 ---
-    (8 -1 4)
+    (8.0 -1.0 4.0)
 
-### an f64 sum and the mean
+### the mean
 
 ```x
 (import x/num/tensor)
-(list ((Tensor range 4 'f64) sum) ((Tensor from '(1 2 3 4)) mean))
+((Tensor from '(1 2 3 4)) mean)
 ```
 ---
-    (6.0 2.5)
+    2.5
 
 ### a reduction over a strided view
 
 ```x
 (import x/num/tensor)
-(((Tensor from '((1 2 3) (4 5 6))) slice 1 1 2) sum)
+(((Tensor from '((1 2 3) (4 5 6)) 'f64) slice 1 1 2) sum)
 ```
 ---
-    7
+    7.0
 
 ### a long run goes through the budgeted pure kernel
 
@@ -304,10 +293,61 @@ that compile once they have run long enough, and answer the same either way.
 
 ```x
 (import x/num/tensor)
-((Tensor zeros 0 'i64) sum)
+((Tensor zeros 0) sum)
 ```
 ---
-    0
+    0.0
+
+## i64
+
+### integers make i64 on an 8-byte word and f64 on a 4-byte word
+
+```x
+(import x/num/tensor)
+(eq? ((Tensor from '(1 2)) encoding) (if (= %word-size 8) 'i64 'f64))
+```
+---
+    #t
+
+### i64 is refused on a 4-byte word
+
+```x
+(import x/num/tensor)
+(if (= %word-size 8) 'value (guard (e (Err label e)) (Tensor zeros 1 'i64)))
+```
+---
+    'value
+
+### i64 arithmetic stays i64
+
+```x
+(import x/num/tensor)
+(if (< %word-size 8) (lit ((11 22) (13 24)))
+  (((Tensor from '((1 2) (3 4))) add (Tensor from '(10 20))) ->list))
+```
+---
+    ((11 22) (13 24))
+
+### i64 reductions answer integers
+
+```x
+(import x/num/tensor)
+(if (< %word-size 8) (lit (8 -1 4 0))
+  (let ((t (Tensor from '((3 -1) (2 4)))))
+    (list (t sum) (t least) (t greatest) ((Tensor zeros 0 'i64) sum))))
+```
+---
+    (8 -1 4 0)
+
+### as converts to i64, truncating toward zero
+
+```x
+(import x/num/tensor)
+(if (< %word-size 8) (lit (2 -2))
+  (((Tensor from '(2.5 -2.5)) as 'i64) ->list))
+```
+---
+    (2 -2)
 
 ## Compiled kernels
 
