@@ -50,15 +50,18 @@
     ; --- contract: every subclass overrides these three ---
     (method start (self (param v ANY "Value being traversed as a sequence"))
       (doc "Contract method: return an opaque cursor positioned at the first element. A subclass must override it."
-        (returns ANY "A cursor (opaque -- a byte offset for strings)"))
+        (returns ANY "A cursor (opaque -- a byte offset for strings)")
+        (example "(Str8 start \"abc\")" "0"))
       (Err raise (lit type) "Seq: start is abstract" ()))
     (method done? (self (param cur ANY "Current cursor") (param v ANY "Value being traversed"))
       (doc "Contract method: #t once the cursor has advanced past the last element. A subclass must override it."
-        (returns BOOL "#t when traversal is complete"))
+        (returns BOOL "#t when traversal is complete")
+        (example "(list (Str8 done? 1 \"abc\") (Str8 done? 3 \"abc\"))" "(#f #t)"))
       (Err raise (lit type) "Seq: done? is abstract" ()))
     (method step (self (param cur ANY "Current cursor") (param v ANY "Value being traversed"))
       (doc "Contract method: return (element . next-cursor) at the cursor. A subclass must override it."
-        (returns PAIR "A (element . next-cursor) pair"))
+        (returns PAIR "A (element . next-cursor) pair")
+        (example "(Str8 step 0 \"abc\")" "(#\\a . 1)"))
       (Err raise (lit type) "Seq: step is abstract" ()))
 
     ; --- derived once, polymorphic through (self ...) ---
@@ -79,7 +82,8 @@
 
     (method length (self (param v ANY "Value to measure"))
       (doc "Number of elements: the PROPERTY every finite collection exposes. The default is computed by the `count` walk in O(n); fixed-width encodings (e.g. Str8) override it in O(1)."
-        (returns INTEGER "Element count of v"))
+        (returns INTEGER "Element count of v")
+        (example "(Str8 length \"abc\")" "3"))
       (self count v))
 
     (method ->list (self (param v ANY "Value to traverse"))
@@ -96,7 +100,8 @@
 
     (method for-each (self (param f CALLABLE "Applied to each element") (param v ANY "Value to traverse"))
       (doc "Apply f to each element in order, for its side effects; returns nil. Named for-each, matching List/Iter/Gen."
-        (returns ANY "nil"))
+        (returns ANY "nil")
+        (example "(let ((n 0)) (Str8 for-each (fn (_ c) (set! n (+ n 1))) \"abc\") n)" "3"))
       (def %donef (method-of self (lit done?)))
       (def %stepf (method-of self (lit step)))
       (let loop ((cur ((method-of self (lit start)) self v)))
@@ -120,7 +125,8 @@
     ; Contract: a subclass that can serialize supplies char->bytes.
     (method char->bytes (self (param el ANY "One element to encode"))
       (doc "Contract method: return the list of byte values (0-255) for one element. A subclass that serializes must override it."
-        (returns LIST "Byte values for el"))
+        (returns LIST "Byte values for el")
+        (example "(Str8 char->bytes #\\a)" "(97)"))
       (Err raise (lit type) "Seq: char->bytes is abstract" ()))
 
     ; Derived: encode a list of elements to a string, via char->bytes +
@@ -155,4 +161,5 @@
 
 (doc (provide x/protocol/seq Seq)
   (note "A subclass supplies start/done?/step (and char->bytes to encode); count, length, ->list, for-each, fold and ->str are derived. (help Seq) lists the methods.")
+  (example "(Str8 ->list \"hi\")" "(#\\h #\\i)")
   "Seq: the base sequence protocol -- cursor-based traversal shared by every sequence type.")

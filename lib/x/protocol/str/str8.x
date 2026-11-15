@@ -683,4 +683,5 @@
 
 (doc (provide x/protocol/str/str8 Str8)
   (note "The 8-bit byte view. Use (Str8 length s), (Str8 upcase s), etc.; (help Str8) lists every method, (help Str8 method) shows one.")
+  (example "(Str8 upcase \"abc\")" "\"ABC\"")
   "The 8-bit byte string protocol (a Seq subclass) with the full string method suite.")
