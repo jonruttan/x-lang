@@ -110,7 +110,7 @@
   (param form LIST "A (fn (self ...) ...) form over integers: + - * < = >> << &, (*>> a b k) for a product shifted down k places through 64 bits, if, match, do, the %mem- byte and word loads and stores, and on doubles' bits %f+ %f- %f* %f/ with the double loads and stores %f-ref and %f-set!")
   (returns CALLABLE "The function")
   (example "(do (import x/tool/int-form int-form-pure) ((int-form-pure (lit (fn (self n acc) (if (< n 1) acc (self (- n 1) (+ acc n)))))) 4 0))" "10")
-  (example "(do (import x/tool/int-form int-form-pure) ((int-form-pure (lit (fn (_ a b) (%f* a b)))) 4609434218613702656 4611686018427387904))" "4613937818241073152"))
+  (example "(do (import x/tool/int-form int-form-pure) (import x/num/float) (equal? ((int-form-pure (lit (fn (_ a b) (%f* a b)))) (first (Float from 3)) (first (Float from 2))) (first (Float from 6))))" "#t"))
 
 (doc int-form-wide "FORM as compile-asm takes it on an 8-byte word, where one word holds a product and a double: each (*>> a b k) written as (>> (* a b) k), each %f-ref and %f-set! as the word load and store."
   (param form LIST "An int form")
