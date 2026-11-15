@@ -393,11 +393,15 @@
             (self (rest raws))))
       (#t ()))))
 
+; A sweep after each run, as phase 1 sweeps after each file: a walk of
+; the boot closure leaves its garbage behind, and the five runs' garbage
+; kept to the end was most of the process's memory.
 (def %simulate
   (fn (_ entry)
     (do (%reset-run!)
         (%process-file entry)
-        (%check-unregistered (first %raw-cell)))))
+        (%check-unregistered (first %raw-cell))
+        ((prim-ref (lit heap) (lit collect))))))
 
 (def %main
   (fn (_ paths)
