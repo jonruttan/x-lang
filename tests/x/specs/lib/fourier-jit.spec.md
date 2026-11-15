@@ -4,7 +4,7 @@
 # @timeout-scale 4
 
 The compiled kernels behind `(Fourier jit!)`: the radix-2 and pointwise
-int forms of x/num/fourier, compiled by compile-asm with its double
+word forms of x/num/fourier, compiled by compile-asm with its double
 operations and adopted only after they write the same bits as their pure
 twins on a radix-2 and a Bluestein transform. These cases re-prove the
 transforms through the class, and that the plans keep their own heap flat.

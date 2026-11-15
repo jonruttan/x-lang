@@ -18,7 +18,7 @@
 ;
 ; The loops that touch every frame are sixteen kernels, each written once
 ; below as an integer function over word addresses.  The pure-x version is
-; that form through x/tool/int-form; x/tool/int-form-jit compiles the same
+; that form through x/tool/word-form; x/tool/word-form-jit compiles the same
 ; forms, and the compiled ones are adopted only after they write what the
 ; pure ones write.  A mixer builds them when it is made: per-frame loops in
 ; pure x are too slow to keep a stream fed, so (Mixer jit!) answers whether
@@ -26,7 +26,7 @@
 (module x/audio/mixer)
 
 (import x/tool/compiled)
-(import x/tool/int-form int-form-pure)
+(import x/tool/word-form word-form-pure)
 (import x/core/doors int% int& int* int+ int- int/ int< int= int>> int<< obj-make obj-ref obj-set!
   ptr->int ptr-ref-word ptr-set-word! int->ptr str->ptr str-make str-byte-len str-byte-ref char->int mem-copy)
 (import x/num/fixed fixed/ fixed*/)
@@ -272,7 +272,7 @@
                   %allpass-form %add-form %phase-form %drive-form %crush-form %sweep-form %limit-form
                   %line-form %gain-form))
 
-(def %pure (List map int-form-pure %forms))
+(def %pure (List map word-form-pure %forms))
 
 ; --- The kernels in use ----------------------------------------------------
 
@@ -393,8 +393,8 @@
       (set! %entry
         (Compiled make-on-demand (lit audio) %pure
           (fn (_)
-            (import x/tool/int-form-jit)
-            ((prim-ref (lit int-form) (lit jit-make)) %forms %agrees?))
+            (import x/tool/word-form-jit)
+            ((prim-ref (lit word-form) (lit jit-make)) %forms %agrees?))
           %install!)))
     ((fn (_ entry)
        (when (eq? (entry state) (lit interpreted)) (entry compile!))

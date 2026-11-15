@@ -397,6 +397,8 @@
         ((eq? key 'fsub) (arith! asm 92 args))                   ; SUBSD
         ((eq? key 'fmul) (arith! asm 89 args))                   ; MULSD
         ((eq? key 'fdiv) (arith! asm 94 args))                   ; DIVSD
+        ; fsqrt xmm, xmm (SQRTSD F2 0F 51): one operand, so no MOVAPD.
+        ((eq? key 'fsqrt) (sse! asm 242 81 #f (arg args 0) (arg args 1)))
         ; scvtf xmm, r64 (CVTSI2SD F2 REX.W 0F 2A); fcvtzs r64, xmm
         ; (CVTTSD2SI F2 REX.W 0F 2C), truncating as FCVTZS does.  Out of
         ; range, x86 answers 0x8000000000000000 where arm64 saturates.
@@ -642,6 +644,7 @@
     (pair 'fsub   (list (pair 'rrr '(sse fsub))))
     (pair 'fmul   (list (pair 'rrr '(sse fmul))))
     (pair 'fdiv   (list (pair 'rrr '(sse fdiv))))
+    (pair 'fsqrt  (list (pair 'rr '(sse fsqrt))))
     (pair 'scvtf  (list (pair 'rr '(sse scvtf))))
     (pair 'fcvtzs (list (pair 'rr '(sse fcvtzs))))
     (pair 'fcvt/d (list (pair 'rr '(sse fcvt/d))))

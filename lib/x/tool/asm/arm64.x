@@ -418,6 +418,12 @@
         (list 1 5 5 0)
         (list 2 16 5 0)))))
 
+    ; FSQRT Dd, Dn (square root, rounded once)
+    (pair 'fsqrt (list
+      (pair 'rr (list 509722624          ; 0x1E61C000
+        (list 0 0 5 0)       ; Dd
+        (list 1 5 5 0)))))   ; Dn
+
     ; SCVTF Dd, Xn (signed integer -> double)
     (pair 'scvtf (list
       (pair 'rr (list 2657222656         ; 0x9E620000
