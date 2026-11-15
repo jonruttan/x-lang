@@ -163,22 +163,25 @@
     ; Everything a transform allocates is owed, in objects, and the plan
     ; collects once the debt passes %window. The window is sha256.x's: its
     ; digest collects every 8 blocks, ~4.4M objects of churn. The costs,
-    ; measured on arm64 by heap counts around each part: a pure kernel step
+    ; measured by heap counts around each part: a pure kernel step
     ; %step-cost objects, a converted element %elem-cost, a kernel run's
     ; dispatch %run-cost, a planned element %plan-cost, a term of the
     ; definition %term-cost. A pure kernel runs in calls of %window /
-    ; %step-cost steps, its debt paid between them.
+    ; %step-cost steps, its debt paid between them. The first figure of
+    ; each is arm64's; the second armv7's, where a double is a two-word
+    ; Vector: a step there measured 7.7 times arm64's, and 9400 covers a
+    ; whole 256- or 512-point transform on its own.
     ;
     ; The lane: a compile measured 1.8 s and a pure step 70 us, so once the
     ; process has run %jit-after pure steps (a compile's worth) the next
     ; kernel call builds the compiled kernels, and a run in progress
     ; carries on in them, since its state is all in its scratch.
     (%window 4400000)
-    (%step-cost 1023)
-    (%elem-cost 190)
+    (%step-cost (if (int= %word-size 8) 1023 9400))
+    (%elem-cost (if (int= %word-size 8) 190 280))
     (%run-cost 7000)
-    (%plan-cost 1300)
-    (%term-cost 2240)
+    (%plan-cost (if (int= %word-size 8) 1300 1930))
+    (%term-cost (if (int= %word-size 8) 2240 3880))
     (%jit-after 25000)
     (%debt-cell (pair 0 ()))
     (%steps-cell (pair 0 ()))
