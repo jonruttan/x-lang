@@ -63,10 +63,11 @@
 
     ; --- running a kernel ----------------------------------------------------
     ; Write WORDS, ((K . V) ...), into scratch S, clear the doubles the
-    ; kernels keep at 16 and 17, and drive kernel NAME to the end of its run.
+    ; kernels keep at 16, 17 and 18, and drive kernel NAME to the end of its
+    ; run.
     (method %run (self s name words)
       (let ((p (str->ptr s)))
-        (def clear (fn (go b) (if (int< b 144) (do (ptr-set-word! p b 0) (go (int+ b %word-size))) ())))
+        (def clear (fn (go b) (if (int< b 152) (do (ptr-set-word! p b 0) (go (int+ b %word-size))) ())))
         (clear 128)
         (List for-each (fn (_ w) (ptr-set-word! p (int* (first w) %word-size) (rest w))) words)
         ((obj-ref (Tensor %fast) 14) name s)))
@@ -154,7 +155,8 @@
     ; and 4, over R (10) rows and C (12) columns from I 1, J 0, keeping each
     ; row's multiplier at 17.  Forward and back substitution solve the N (11)
     ; by M (12) right side at 1 (strides 5 6) against L or U at 0 (strides 3
-    ; 4), summing in 16.
+    ; 4), summing in 16.  A sum starts again from the zero double at 18: a
+    ; literal 0 is one word, and on a 4-byte word a double is two.
     (method %kernels (self)
       (list
         (list (lit f64-product)
@@ -174,7 +176,7 @@
                     (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s)))
               (#t
                 (do (f-set! (%mem-ref s 2) (+ (* (%mem-ref s 13) (%mem-ref s 7)) (* (%mem-ref s 14) (%mem-ref s 9))) (f-ref s 16))
-                    (f-set! s 16 0) (%mem-set! s 15 0) (%mem-set! s 14 (+ (%mem-ref s 14) 1))
+                    (f-set! s 16 (f-ref s 18)) (%mem-set! s 15 0) (%mem-set! s 14 (+ (%mem-ref s 14) 1))
                     (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s))))))
           (lit ((0 . a) (1 . b) (2 . o) (3 . 3) (4 . 1) (5 . 3) (6 . 1) (7 . 3) (9 . 1) (10 . 3) (11 . 3) (12 . 3))))
         (list (lit f64-pivot)
@@ -246,7 +248,7 @@
                 (do (f-set! (%mem-ref s 1) (+ (* (%mem-ref s 13) (%mem-ref s 5)) (* (%mem-ref s 14) (%mem-ref s 6)))
                       (f- (f-ref (%mem-ref s 1) (+ (* (%mem-ref s 13) (%mem-ref s 5)) (* (%mem-ref s 14) (%mem-ref s 6))))
                           (f-ref s 16)))
-                    (f-set! s 16 0) (%mem-set! s 15 0) (%mem-set! s 13 (+ (%mem-ref s 13) 1))
+                    (f-set! s 16 (f-ref s 18)) (%mem-set! s 15 0) (%mem-set! s 13 (+ (%mem-ref s 13) 1))
                     (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s))))))
           (lit ((0 . a) (1 . b) (3 . 3) (4 . 1) (5 . 3) (6 . 1) (11 . 3) (12 . 3))))
         ; Back substitution walks the rows from the last: row R is N - 1 - I,
@@ -279,7 +281,7 @@
                           (f-ref (%mem-ref s 0)
                             (+ (* (- (- (%mem-ref s 11) 1) (%mem-ref s 13)) (%mem-ref s 3))
                                (* (- (- (%mem-ref s 11) 1) (%mem-ref s 13)) (%mem-ref s 4))))))
-                    (f-set! s 16 0) (%mem-set! s 15 0) (%mem-set! s 13 (+ (%mem-ref s 13) 1))
+                    (f-set! s 16 (f-ref s 18)) (%mem-set! s 15 0) (%mem-set! s 13 (+ (%mem-ref s 13) 1))
                     (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s))))))
           (lit ((0 . a) (1 . b) (3 . 3) (4 . 1) (5 . 3) (6 . 1) (11 . 3) (12 . 3))))))
 
@@ -318,7 +320,7 @@
                         ((eq? v (lit b)) (addr b))
                         ((eq? v (lit o)) (addr o))
                         (#t v)))))
-              (def clear (fn (go b) (if (int< b 144) (do (ptr-set-word! (str->ptr s) b 0) (go (int+ b %word-size))) ())))
+              (def clear (fn (go b) (if (int< b 152) (do (ptr-set-word! (str->ptr s) b 0) (go (int+ b %word-size))) ())))
               (clear 0)
               (List for-each (fn (_ w) (ptr-set-word! (str->ptr s) (int* (first w) %word-size) (value (rest w)))) words)
               (ptr-set-word! (str->ptr s) (int* 8 %word-size) 1073741823)
