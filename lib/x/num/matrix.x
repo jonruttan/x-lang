@@ -7,6 +7,10 @@
 ; matrix product, solve, inverse and determinant, and trace, diagonal and
 ; norm.  Every result of the linear algebra is f64.
 ;
+; A factorization is a value of its own: (m factor-lower-upper) answers a
+; LowerUpper, which keeps the factors and answers its parts, solves and the
+; determinant from them, so a matrix factored once solves many right sides.
+;
 ; The work is done by six kernels, word forms (x/tool/word-form) that loop
 ; over two or three axes inside one run, so an operation costs a few runs
 ; however large its matrices: the product; and LU factorization with
@@ -88,12 +92,12 @@
         (def go (fn (go b) (if (int< b 136) (if (int= (ptr-ref-word p b) 0) (go (int+ b %word-size)) #f) #t)))
         (go 128)))
 
-    ; --- LU factorization ----------------------------------------------------
+    ; --- the lower-upper factorization -----------------------------------------
     ; (A N PIVOTS SINGULAR?) for the square state ST: A a fresh contiguous
     ; f64 copy holding L below the diagonal (its unit diagonal implied) and
     ; U on and above it, PIVOTS the row swapped into each row in turn, and
     ; SINGULAR? whether a column had no nonzero pivot.
-    (method %lu (self st)
+    (method %factor (self st)
       (let ((f (Tensor %fast)) (n (first (List ref 1 st))) (s (str-make 256)))
         (let ((a ((obj-ref f 10) st (lit f64))))
           (let ((base ((obj-ref f 13) a)))
@@ -351,16 +355,19 @@
                       (pair 13 0) (pair 14 0) (pair 15 0))))
             (self %wrap o))))))
 
+  (method factor-lower-upper (self)
+    (doc "The lower-upper factorization with partial pivoting: a lower matrix L with 1 on its diagonal, an upper matrix U and a permutation P, with P times self equal to L times U. A singular matrix factors too, and its U has a 0 on the diagonal."
+      (returns LowerUpper "The factorization, which solves and answers the determinant without factoring again")
+      (example "((((Matrix from '((2 1) (4 3))) factor-lower-upper) lower) ->list)" "((1.0 0.0) (0.5 1.0))"))
+    (Matrix %square (self %st) "factor-lower-upper")
+    (LowerUpper %of (self %st)))
+
   (method solve (self (param b Tensor "The right side: a rank-1 Tensor of self's rows, or a Matrix of them"))
-    (doc "The x for which self times x is b, by LU factorization with partial pivoting. A singular matrix is refused."
+    (doc "The x for which self times x is b, through the lower-upper factorization. A singular matrix is refused. To solve many right sides against one matrix, factor it once with factor-lower-upper and solve with that."
       (returns Tensor "A fresh f64 Tensor of b's extent: rank 1 for a rank-1 b, a Matrix for a Matrix")
-      (example "(((Matrix from '((2 1) (1 3))) solve (Tensor from '(3 5))) ->list)" "(0.8 1.4)"))
-    (let ((n (Matrix %square (self %st) "solve")) (bs (b %st)))
-      (if (int= (first (List ref 1 bs)) n) ()
-        (Err raise (lit value) "Matrix solve: b's rows and the matrix's differ" (List ref 1 bs)))
-      (let ((lu (Matrix %lu (self %st))))
-        (if (List ref 3 lu) (Err raise (lit value) "Matrix solve: the matrix is singular" ()) ())
-        (self %wrap (Matrix %substitute lu ((obj-ref (Tensor %fast) 10) bs (lit f64)))))))
+      (example "(((Matrix from '((2 1) (1 3))) solve (Tensor from '(3 5))) ->list)" "(0.8 1.4)")
+      (see factor-lower-upper))
+    ((self factor-lower-upper) solve b))
 
   (method inverse (self)
     (doc "The matrix whose product with self is the identity. A singular matrix is refused."
@@ -369,21 +376,11 @@
     (self solve (Matrix identity (Matrix %square (self %st) "inverse"))))
 
   (method determinant (self)
-    (doc "The determinant, from the LU factorization: the product of U's diagonal, negated for each row swap. 0.0 for a singular matrix."
+    (doc "The determinant, from the lower-upper factorization. 0.0 for a singular matrix."
       (returns FLOAT "The determinant")
-      (example "((Matrix from '((4 1) (2 3))) determinant)" "10.0"))
-    (Matrix %square (self %st) "determinant")
-    (let ((lu (Matrix %lu (self %st))))
-      (if (List ref 3 lu) (float-of 0)
-        (let ((a (List ref 0 lu)) (n (List ref 1 lu)) (get ((obj-ref (Tensor %fast) 5) (lit f64))))
-          (let ((base ((obj-ref (Tensor %fast) 13) a)))
-            (def go
-              (fn (go k pivots acc)
-                (if (int= k n) acc
-                  (let ((d (get base (int+ (int* k n) k))))
-                    (go (int+ k 1) (rest pivots)
-                      (f-mul (if (int= (first pivots) k) acc (f-mul acc (float-of -1))) d))))))
-            (go 0 (List ref 2 lu) (float-of 1)))))))
+      (example "((Matrix from '((4 1) (2 3))) determinant)" "10.0")
+      (see factor-lower-upper))
+    ((self factor-lower-upper) determinant))
 
   (method diagonal (self)
     (doc "The view of the elements whose row and column are the same, as a rank-1 Tensor sharing self's bytes."
@@ -410,8 +407,109 @@
     (let ((ss ((self mul self) sum)))
       ((Matrix %sqrt) (if (type? ss float) ss (float-of ss))))))
 
+;
+; LowerUpper keeps the factors in one f64 state, L below the diagonal (its
+; diagonal of 1s implied) and U on and above it, with the row swapped into
+; each row in turn.  Its parts are made from that state when asked.
+(def-class LowerUpper ()
+  (doc "The lower-upper factorization of a square Matrix with partial pivoting, from (m factor-lower-upper): a lower matrix L with 1 on its diagonal, an upper matrix U and a permutation P, with P times the matrix equal to L times U. It solves and answers the determinant from the factors, so a matrix factored once solves many right sides."
+    (example "(let ((f ((Matrix from '((2 1) (4 3))) factor-lower-upper))) (list ((f lower) ->list) ((f upper) ->list) ((f permutation) ->list)))" "(((1.0 0.0) (0.5 1.0)) ((4.0 3.0) (0.0 -0.5)) ((0.0 1.0) (1.0 0.0)))")
+    (example "(((Matrix from '((2 1) (4 3))) factor-lower-upper) determinant)" "2.0")
+    (see lower) (see upper) (see permutation) (see solve) (see determinant))
+
+  packed    ; the factors: a contiguous f64 state of n rows, L below the diagonal, U on and above
+  n         ; the rows and columns
+  pivots    ; the row swapped into each row in turn
+  singular  ; #t where a column had no nonzero pivot
+
+  (static
+    (method %of (self st)
+      (let ((r (Matrix %factor st)))
+        (new-from self
+          (list (lit packed) (List ref 0 r) (lit n) (List ref 1 r)
+                (lit pivots) (List ref 2 r) (lit singular) (List ref 3 r))))))
+
+  ; A fresh copy of the factors with, in each row I, COUNT(I) elements from
+  ; column FROM(I) set to X.
+  (method %triangle (self count from x)
+    (let ((f (Tensor %fast)) (n (field (lit n))))
+      (let ((st ((obj-ref f 10) (field (lit packed)) (lit f64))))
+        (def go
+          (fn (go i)
+            (if (int< i n)
+              (do (if (int= (count i) 0) ()
+                    ((obj-ref f 9) ((obj-ref f 11) st (list (count i)) (list 1) (int+ (int* i n) (from i))) x))
+                  (go (int+ i 1)))
+              st)))
+        (go 0))))
+
+  (method lower (self)
+    (doc "L: the multipliers below the diagonal, 1 on it and 0 above."
+      (returns Matrix "A fresh f64 Matrix")
+      (example "((((Matrix from '((2 1) (4 3))) factor-lower-upper) lower) ->list)" "((1.0 0.0) (0.5 1.0))"))
+    (let ((n (field (lit n))) (f (Tensor %fast)))
+      (let ((st (self %triangle (fn (_ i) (int- n (int+ i 1))) (fn (_ i) (int+ i 1)) 0)))
+        ((obj-ref f 9) ((obj-ref f 11) st (list n) (list (int+ n 1)) 0) 1)
+        (Matrix %make st))))
+
+  (method upper (self)
+    (doc "U: the factored rows on and above the diagonal, 0 below it."
+      (returns Matrix "A fresh f64 Matrix")
+      (example "((((Matrix from '((2 1) (4 3))) factor-lower-upper) upper) ->list)" "((4.0 3.0) (0.0 -0.5))"))
+    (Matrix %make (self %triangle (fn (_ i) i) (fn (_ i) 0) 0)))
+
+  (method permutation (self)
+    (doc "P: the identity with its rows swapped as the factorization swapped the matrix's, so P times the matrix is L times U."
+      (returns Matrix "A fresh f64 Matrix of 0s and 1s")
+      (example "((((Matrix from '((2 1) (4 3))) factor-lower-upper) permutation) ->list)" "((0.0 1.0) (1.0 0.0))"))
+    (let ((n (field (lit n))) (p (Matrix identity (field (lit n)))) (s (str-make 256)))
+      (let ((base ((obj-ref (Tensor %fast) 13) (p %st))))
+        (def go
+          (fn (go k pivots)
+            (if (null? pivots) p
+              (do (if (int= (first pivots) k) ()
+                    (Matrix %run s (lit f64-swap)
+                      (list (pair 0 (int+ base (int* 8 (int* k n)))) (pair 1 (int+ base (int* 8 (int* (first pivots) n))))
+                            (pair 3 1) (pair 4 1) (pair 6 n) (pair 7 0))))
+                  (go (int+ k 1) (rest pivots))))))
+        (go 0 (field (lit pivots))))))
+
+  (method singular? (self)
+    (doc "Whether the matrix is singular: a column had no nonzero pivot, and U has a 0 on its diagonal."
+      (returns BOOL "#t for a singular matrix")
+      (example "(((Matrix from '((1 2) (2 4))) factor-lower-upper) singular?)" "#t"))
+    (field (lit singular)))
+
+  (method solve (self (param b Tensor "The right side: a rank-1 Tensor of the matrix's rows, or a Matrix of them"))
+    (doc "The x for which the factored matrix times x is b: b's rows put in P's order, then forward substitution with L and back substitution with U. A singular matrix is refused."
+      (returns Tensor "A fresh f64 Tensor of b's extent: rank 1 for a rank-1 b, a Matrix for a Matrix")
+      (example "((((Matrix from '((2 1) (1 3))) factor-lower-upper) solve (Tensor from '(3 5))) ->list)" "(0.8 1.4)"))
+    (let ((n (field (lit n))) (bs (b %st)))
+      (if (int= (first (List ref 1 bs)) n) ()
+        (Err raise (lit value) "LowerUpper solve: b's rows and the matrix's differ" (List ref 1 bs)))
+      (if (field (lit singular)) (Err raise (lit value) "LowerUpper solve: the matrix is singular" ()) ())
+      (let ((x (Matrix %substitute
+                 (list (field (lit packed)) n (field (lit pivots)) (field (lit singular)))
+                 ((obj-ref (Tensor %fast) 10) bs (lit f64)))))
+        ((Matrix %result-class x) %make x))))
+
+  (method determinant (self)
+    (doc "The determinant: the product of U's diagonal, negated for each row swap. 0.0 for a singular matrix."
+      (returns FLOAT "The determinant")
+      (example "(((Matrix from '((4 1) (2 3))) factor-lower-upper) determinant)" "10.0"))
+    (if (field (lit singular)) (float-of 0)
+      (let ((n (field (lit n))) (get ((obj-ref (Tensor %fast) 5) (lit f64))))
+        (let ((base ((obj-ref (Tensor %fast) 13) (field (lit packed)))))
+          (def go
+            (fn (go k pivots acc)
+              (if (int= k n) acc
+                (let ((d (get base (int+ (int* k n) k))))
+                  (go (int+ k 1) (rest pivots)
+                    (f-mul (if (int= (first pivots) k) acc (f-mul acc (float-of -1))) d))))))
+          (go 0 (field (lit pivots)) (float-of 1)))))))
+
 (Matrix %register-all!)
 
-(doc (provide x/num/matrix Matrix)
-  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal and norm -- run in kernels that compile once they have run long enough."
+(doc (provide x/num/matrix Matrix LowerUpper)
+  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal and norm -- run in kernels that compile once they have run long enough; and LowerUpper, its factorization."
   (example "((Matrix from '((2 1) (1 3))) determinant)" "5.0"))
