@@ -2,9 +2,10 @@
 # @weight 2
 
 `Matrix` is a `Tensor` of rank 2 with the linear algebra: the matrix
-product, solve, inverse, determinant, trace, diagonal and norm. Every
-result of the linear algebra is f64, so the cases answer the same on a
-4-byte word as on an 8-byte one.
+product, solve, inverse, determinant, trace, diagonal and norm, and its
+lower-upper factorization, a `LowerUpper`. Every result of the linear
+algebra is f64, so the cases answer the same on a 4-byte word as on an
+8-byte one.
 
 ## Making matrices
 
@@ -191,6 +192,64 @@ result of the linear algebra is f64, so the cases answer the same on a
 ```x
 (import x/num/matrix)
 (guard (e (Err label e)) ((Matrix from '((1 2 3) (4 5 6))) determinant))
+```
+---
+    'value
+
+## The lower-upper factorization
+
+### the parts of a factorization that swaps its rows
+
+```x
+(import x/num/matrix)
+(let ((f ((Matrix from '((2 1) (4 3))) factor-lower-upper)))
+  (list (class-name f) ((f lower) ->list) ((f upper) ->list) ((f permutation) ->list)))
+```
+---
+    ('LowerUpper ((1.0 0.0) (0.5 1.0)) ((4.0 3.0) (0.0 -0.5)) ((0.0 1.0) (1.0 0.0)))
+
+### the permutation times the matrix is the lower times the upper
+
+```x
+(import x/num/matrix)
+(import x/num/float f-lt)
+(let ((a (Matrix from '((1 2 3) (4 5 6) (7 8 10)))))
+  (let ((f (a factor-lower-upper)))
+    (list ((f permutation) ->list)
+          (f-lt ((((f permutation) product a) sub ((f lower) product (f upper))) norm) 0.000000001))))
+```
+---
+    (((0.0 0.0 1.0) (1.0 0.0 0.0) (0.0 1.0 0.0)) #t)
+
+### one factorization solves several right sides
+
+```x
+(import x/num/matrix)
+(let ((f ((Matrix from '((2 1) (1 3))) factor-lower-upper)))
+  (list ((f solve (Tensor from '(3 5))) ->list)
+        ((f solve (Tensor from '(3 4))) ->list)
+        (class-name (f solve (Matrix from '((3 3) (5 4)))))
+        (f determinant)))
+```
+---
+    ((0.8 1.4) (1.0 1.0) 'Matrix 5.0)
+
+### a singular matrix factors, and its solve is refused
+
+```x
+(import x/num/matrix)
+(let ((f ((Matrix from '((1 2) (2 4))) factor-lower-upper)))
+  (list (f singular?) (f determinant)
+        (guard (e (Err label e)) (f solve (Tensor from '(1 1))))))
+```
+---
+    (#t 0.0 'value)
+
+### a non-square matrix does not factor
+
+```x
+(import x/num/matrix)
+(guard (e (Err label e)) ((Matrix from '((1 2 3) (4 5 6))) factor-lower-upper))
 ```
 ---
     'value
