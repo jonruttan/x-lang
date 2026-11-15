@@ -53,8 +53,8 @@
 (def-class Tensor ()
   (doc "An n-dimensional array of numbers packed in bytes, each element an f64 (an IEEE double) or an i64 (a 64-bit integer). Transpose, slice and reshape answer views that share the bytes; the element-wise operations broadcast, an axis of length 1 stretching to the other operand's; the arithmetic runs in kernels that compile once they have run long enough."
     (note "The extent is the length of each axis, (2 3) for two rows of three; rank is its length. Indexes are 0-based and a negative one counts from the end.")
-    (example "((Tensor from '((1 2) (3 4))) ->list)" "((1 2) (3 4))")
-    (example "(((Tensor from '((1 2) (3 4))) add (Tensor from '(10 20))) ->list)" "((11 22) (13 24))")
+    (example "((Tensor from '((1.5 2) (3 4))) ->list)" "((1.5 2.0) (3.0 4.0))")
+    (example "(((Tensor from '((1 2) (3 4.5))) add (Tensor from '(10 20))) ->list)" "((11.0 22.0) (13.0 24.5))")
     (see from) (see zeros) (see add) (see sum) (see slice) (see jit!))
 
   st        ; the state: (ENC EXTENT STRIDES OFFSET DATA)
@@ -66,7 +66,7 @@
       (doc "A tensor of the given extent, every element 0."
         (returns Tensor "A fresh row-major tensor")
         (example "((Tensor zeros '(2 2)) ->list)" "((0.0 0.0) (0.0 0.0))")
-        (example "((Tensor zeros 3 'i64) ->list)" "(0 0 0)"))
+        (sample "((Tensor zeros 3 'i64) ->list)" "(0 0 0) on an 8-byte word; i64 is refused on a 4-byte word"))
       (self fill extent 0 (self %enc-or enc (lit f64))))
 
     (method fill (self (param extent INTEGER|LIST "Axis lengths, or one length for rank 1")
@@ -74,7 +74,7 @@
                        . (param enc LIST "Optional encoding; by default i64 for an integer, else f64"))
       (doc "A tensor of the given extent, every element x."
         (returns Tensor "A fresh row-major tensor")
-        (example "((Tensor fill '(2 3) 7) ->list)" "((7 7 7) (7 7 7))")
+        (example "((Tensor fill '(2 3) 7.5) ->list)" "((7.5 7.5 7.5) (7.5 7.5 7.5))")
         (example "((Tensor fill 2 0.5) ->list)" "(0.5 0.5)"))
       (let ((f (self %fast)))
         (let ((st ((obj-ref f 4) (self %enc-or enc (self %enc-of (list x))) (self %extent extent))))
@@ -99,8 +99,8 @@
                         . (param enc LIST "Optional encoding: i64 (the default) or f64"))
       (doc "The rank-1 tensor 0, 1, ..., n - 1."
         (returns Tensor "A fresh tensor of extent (n)")
-        (example "((Tensor range 4) ->list)" "(0 1 2 3)")
-        (example "((Tensor range 3 'f64) ->list)" "(0.0 1.0 2.0)"))
+        (example "((Tensor range 3 'f64) ->list)" "(0.0 1.0 2.0)")
+        (sample "((Tensor range 4) ->list)" "(0 1 2 3) on an 8-byte word, (0.0 1.0 2.0 3.0) on a 4-byte word"))
       (let ((f (self %fast)))
         (let ((st ((obj-ref f 4) (self %enc-or enc (if (int= %word-size 8) (lit i64) (lit f64))) (self %extent n))))
           (let ((a ((obj-ref f 13) st)) (put ((obj-ref f 6) (first st))))
@@ -559,7 +559,7 @@
   (method encoding (self)
     (doc "How each element is stored: f64 or i64."
       (returns SYMBOL "The encoding")
-      (example "((Tensor from '(1 2)) encoding)" "'i64"))
+      (example "((Tensor from '(1.5 2)) encoding)" "'f64"))
     (first (field (lit st))))
 
   (method extent (self)
@@ -597,7 +597,7 @@
   (method ref (self . (param idx LIST "One index per axis; negative counts from the end"))
     (doc "The element at the given indexes."
       (returns NUMBER "A Float for f64, an integer for i64")
-      (example "((Tensor from '((1 2) (3 4))) ref 1 0)" "3")
+      (example "((Tensor from '((1 2) (3 4.5))) ref 1 0)" "3.0")
       (example "((Tensor from '(1.5 2.5)) ref -1)" "2.5"))
     (let ((f (Tensor %fast)) (st (field (lit st))))
       (((obj-ref f 5) (first st)) (ptr->int (str->ptr (List ref 4 st))) ((obj-ref f 12) st idx))))
@@ -605,7 +605,7 @@
   (method set! (self . (param args LIST "One index per axis, then the value"))
     (doc "Store a value at the given indexes. A view shares its bytes, so the change shows through every tensor over them."
       (returns Tensor "self")
-      (example "(((Tensor zeros 3 'i64) set! 1 9) ->list)" "(0 9 0)"))
+      (example "(((Tensor zeros 3) set! 1 9) ->list)" "(0.0 9.0 0.0)"))
     (let ((f (Tensor %fast)) (st (field (lit st)))
           (idx (List take (int- (List length args) 1) args)) (x (List last args)))
       (((obj-ref f 6) (first st)) (ptr->int (str->ptr (List ref 4 st))) ((obj-ref f 12) st idx) x)
@@ -614,7 +614,7 @@
   (method ->list (self)
     (doc "The elements as lists nested one level per axis; a rank-0 tensor answers its one element."
       (returns LIST "Nested lists of numbers")
-      (example "((Tensor range 4) ->list)" "(0 1 2 3)"))
+      (example "((Tensor range 4 'f64) ->list)" "(0.0 1.0 2.0 3.0)"))
     (let ((st (field (lit st))))
       (let ((get ((obj-ref (Tensor %fast) 5) (first st))) (a (ptr->int (str->ptr (List ref 4 st)))))
         (def go
@@ -629,7 +629,7 @@
   (method transpose (self)
     (doc "The view with the axes in reverse order: element (i j) of a matrix's transpose is element (j i) of the matrix."
       (returns Tensor "A view sharing self's bytes")
-      (example "(((Tensor from '((1 2 3) (4 5 6))) transpose) ->list)" "((1 4) (2 5) (3 6))"))
+      (example "(((Tensor from '((1 2 3) (4 5 6)) 'f64) transpose) ->list)" "((1.0 4.0) (2.0 5.0) (3.0 6.0))"))
     (let ((st (field (lit st))))
       (self %wrap ((obj-ref (Tensor %fast) 11) st (List reverse (List ref 1 st)) (List reverse (List ref 2 st)) (List ref 3 st)))))
 
@@ -638,8 +638,8 @@
                       (param end INTEGER "The index after the last kept; negative counts from the end"))
     (doc "The view of indexes start up to end along one axis, every other axis whole."
       (returns Tensor "A view sharing self's bytes")
-      (example "(((Tensor range 6) slice 0 1 4) ->list)" "(1 2 3)")
-      (example "(((Tensor from '((1 2 3) (4 5 6))) slice 1 1 3) ->list)" "((2 3) (5 6))"))
+      (example "(((Tensor range 6 'f64) slice 0 1 4) ->list)" "(1.0 2.0 3.0)")
+      (example "(((Tensor from '((1 2 3) (4 5 6)) 'f64) slice 1 1 3) ->list)" "((2.0 3.0) (5.0 6.0))"))
     (let ((st (field (lit st))) (r (self rank)))
       (let ((ax (if (int< axis 0) (int+ axis r) axis)))
         (if (if (int< ax 0) #t (not (int< ax r)))
@@ -657,7 +657,7 @@
   (method reshape (self (param extent INTEGER|LIST "The new axis lengths; their product must be the size"))
     (doc "The same elements in row-major order under another extent: a view when self is contiguous, else a view of a copy."
       (returns Tensor "A tensor of the new extent")
-      (example "(((Tensor range 6) reshape '(2 3)) ->list)" "((0 1 2) (3 4 5))"))
+      (example "(((Tensor range 6 'f64) reshape '(2 3)) ->list)" "((0.0 1.0 2.0) (3.0 4.0 5.0))"))
     (let ((f (Tensor %fast)) (ext (Tensor %extent extent)) (st (field (lit st))))
       (if (int= ((obj-ref f 1) ext) (self size)) ()
         (Err raise (lit value) "Tensor reshape: the extent holds a different number of elements" extent))
@@ -667,34 +667,34 @@
   (method copy (self)
     (doc "A contiguous copy with bytes of its own."
       (returns Tensor "A fresh tensor of the same extent and encoding")
-      (example "((((Tensor range 3) transpose) copy) ->list)" "(0 1 2)"))
+      (example "((((Tensor range 3 'f64) transpose) copy) ->list)" "(0.0 1.0 2.0)"))
     (let ((st (field (lit st)))) (self %wrap ((obj-ref (Tensor %fast) 10) st (first st)))))
 
   (method as (self (param enc SYMBOL "The encoding: f64 or i64"))
     (doc "A contiguous copy in another encoding. f64 to i64 truncates toward zero."
       (returns Tensor "A fresh tensor of the same extent")
       (example "(((Tensor from '(1 2)) as 'f64) ->list)" "(1.0 2.0)")
-      (example "(((Tensor from '(2.5 -2.5)) as 'i64) ->list)" "(2 -2)"))
+      (sample "(((Tensor from '(2.5 -2.5)) as 'i64) ->list)" "(2 -2) on an 8-byte word; i64 is refused on a 4-byte word"))
     (self %wrap ((obj-ref (Tensor %fast) 10) (field (lit st)) (Tensor %enc-or (list enc) (lit f64)))))
 
   ; --- arithmetic -------------------------------------------------------------
   (method add (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
     (doc "The element-wise sum. Extents broadcast from the last axis, an axis of length 1 stretching; an f64 operand makes the result f64."
       (returns Tensor "A fresh tensor of the broadcast extent")
-      (example "(((Tensor from '(1 2 3)) add 10) ->list)" "(11 12 13)")
+      (example "(((Tensor from '(1 2 3) 'f64) add 10) ->list)" "(11.0 12.0 13.0)")
       (example "(((Tensor from '((1 2) (3 4))) add (Tensor from '(0.5 1))) ->list)" "((1.5 3.0) (3.5 5.0))"))
     (self %zip (lit add) other))
 
   (method sub (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
     (doc "The element-wise difference, self minus other, broadcast as add is."
       (returns Tensor "A fresh tensor of the broadcast extent")
-      (example "(((Tensor from '(5 7)) sub 2) ->list)" "(3 5)"))
+      (example "(((Tensor from '(5 7) 'f64) sub 2) ->list)" "(3.0 5.0)"))
     (self %zip (lit sub) other))
 
   (method mul (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
     (doc "The element-wise product, broadcast as add is. An i64 product wraps at 64 bits."
       (returns Tensor "A fresh tensor of the broadcast extent")
-      (example "(((Tensor from '(1 2 3)) mul (Tensor from '(4 5 6))) ->list)" "(4 10 18)"))
+      (example "(((Tensor from '(1 2 3) 'f64) mul (Tensor from '(4 5 6))) ->list)" "(4.0 10.0 18.0)"))
     (self %zip (lit mul) other))
 
   (method div (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
@@ -706,33 +706,33 @@
   (method min (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
     (doc "The element-wise lesser, broadcast as add is. Against a NaN the other operand is kept."
       (returns Tensor "A fresh tensor of the broadcast extent")
-      (example "(((Tensor from '(1 5 3)) min 2) ->list)" "(1 2 2)"))
+      (example "(((Tensor from '(1 5 3) 'f64) min 2) ->list)" "(1.0 2.0 2.0)"))
     (self %zip (lit min) other))
 
   (method max (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
     (doc "The element-wise greater, broadcast as add is. Against a NaN the other operand is kept."
       (returns Tensor "A fresh tensor of the broadcast extent")
-      (example "(((Tensor from '(1 5 3)) max 2) ->list)" "(2 5 3)"))
+      (example "(((Tensor from '(1 5 3) 'f64) max 2) ->list)" "(2.0 5.0 3.0)"))
     (self %zip (lit max) other))
 
   ; --- reductions -------------------------------------------------------------
   (method sum (self)
     (doc "The sum of every element: a Float for f64, an integer (wrapping at 64 bits) for i64."
       (returns NUMBER "The sum; 0 for no elements")
-      (example "((Tensor from '((1 2) (3 4))) sum)" "10")
+      (example "((Tensor from '((1 2) (3 4)) 'f64) sum)" "10.0")
       (example "((Tensor range 4 'f64) sum)" "6.0"))
     ((obj-ref (Tensor %fast) 8) (lit sum) (field (lit st))))
 
   (method least (self)
     (doc "The least element. A NaN loses to every number."
       (returns NUMBER "The least element; a raise for no elements")
-      (example "((Tensor from '(3 -1 2)) least)" "-1"))
+      (example "((Tensor from '(3 -1 2) 'f64) least)" "-1.0"))
     ((obj-ref (Tensor %fast) 8) (lit least) (field (lit st))))
 
   (method greatest (self)
     (doc "The greatest element. A NaN loses to every number."
       (returns NUMBER "The greatest element; a raise for no elements")
-      (example "((Tensor from '(3 -1 2)) greatest)" "3"))
+      (example "((Tensor from '(3 -1 2) 'f64) greatest)" "3.0"))
     ((obj-ref (Tensor %fast) 8) (lit greatest) (field (lit st))))
 
   (method mean (self)
@@ -753,4 +753,4 @@
 
 (doc (provide x/num/tensor Tensor)
   "Tensor: n-dimensional arrays of f64 or i64 packed in bytes, with views that share them, broadcasting element-wise arithmetic and reductions run in kernels that compile once they have run long enough."
-  (example "(((Tensor range 6) reshape '(2 3)) sum)" "15"))
+  (example "(((Tensor range 6 'f64) reshape '(2 3)) sum)" "15.0"))
