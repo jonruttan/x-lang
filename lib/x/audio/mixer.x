@@ -63,6 +63,9 @@
 ; %osc-form with a modulator: a second phase MPH stepping by MST.  RING 1
 ; turns the wave over while the modulator is in the second half of its
 ; cycle; SYNC 1 starts the phase again each frame the modulator's wraps.
+; A phase's top bit is read through >> and &, and a wrap seen as the new
+; phase's top 31 bits under the old's, so a word of 32 bits, where a phase
+; past 2^31 is negative, answers as a word of 64 does.
 ; Answers the phase after the last frame, the modulator's left at word 0
 ; of Q.
 (def %mod-form
@@ -70,8 +73,11 @@
     (if (< i n)
       (do (%mem-set-at! m i (* (- (* (%mem-ref-at tab (& (>> ph sh) (- (<< 1 (- 32 sh)) 1))) a)
                                   (* (%mem-ref-at tab (& (>> (& (+ ph (<< off 8)) 0xFFFFFFFF) sh) (- (<< 1 (- 32 sh)) 1))) g))
-                               (- 1 (* 2 (* ring (>> mph 31))))))
-          (self m (+ i 1) n tab sh (* (& (+ ph st) 0xFFFFFFFF) (- 1 (* sync (>> (+ mph mst) 32)))) (+ st ds) ds (+ vol dv) dv
+                               (- 1 (* 2 (* ring (& (>> mph 31) 1))))))
+          (self m (+ i 1) n tab sh
+                (* (& (+ ph st) 0xFFFFFFFF)
+                   (if (< (& (>> (& (+ mph mst) 0xFFFFFFFF) 1) 0x7FFFFFFF) (& (>> mph 1) 0x7FFFFFFF)) (- 1 sync) 1))
+                (+ st ds) ds (+ vol dv) dv
                 (%mem-set-at! m i (+ y (*>> (- (>> (* (>> (%mem-ref-at m i) 8) (>> vol 8)) 16) y) (>> k 8) 16)))
                 (+ k dk) dk (+ off doff) doff a g q (& (+ mph mst) 0xFFFFFFFF) mst ring sync))
       (do (%mem-set-at! q 0 mph) ph)))))
