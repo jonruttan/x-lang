@@ -56,9 +56,10 @@
     (%mem-set (str->ptr r) 0 (int<< n %wshift))
     r))
 
+; Words k to k+n-1 of the table at p set to zero, in one call: the encoder
+; clears 1548 words for each of its four selector passes.
 (def %clear!
-  (fn (self p k n)
-    (if (int= n 0) () (do (%wset! p k 0) (self p (int+ k 1) (int- n 1))))))
+  (fn (_ p k n) (%mem-set (%at p (int<< k %wshift)) 0 (int<< n %wshift))))
 
 (def %min (fn (_ a b) (if (int< a b) a b)))
 
@@ -126,6 +127,11 @@
   (fn (self p i)
     (if (int= i 256) ()
       (do (%wset! p i (%crc-entry (int<< i 24) 8)) (self p (int+ i 1))))))
+
+; The table, made once, as bunzip2.x's is; each encoder copies it into its
+; own tables, where the compiled engine reads it.
+(def %crc-words (%words 256))
+(%crc-fill! (str->ptr %crc-words) 0)
 
 (def %crc-byte
   (fn (_ p crc b)
@@ -819,7 +825,7 @@
     (obj-set! e %BLOCKP (str->ptr (obj-ref e %BLOCK)))
     (obj-set! e %TABLES (%words %TWORDS))
     (obj-set! e %TABP (str->ptr (obj-ref e %TABLES)))
-    (%crc-fill! (obj-ref e %TABP) 0)
+    (mem-copy (%at (obj-ref e %TABP) (int<< %CT %wshift)) (str->ptr %crc-words) (int<< 256 %wshift))
     (obj-set! e %OUT (str-make 4096))
     (obj-set! e %OUTP (str->ptr (obj-ref e %OUT)))
     (obj-set! e %OUTCAP 4096)
