@@ -935,7 +935,7 @@
     (method jit! (self)
       (doc "Build and adopt the compiled decoder (JIT; ARM64, x86-64 and 32-bit ARM backends) now, if it decodes the check streams exactly as the pure-x one does. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x decoder carries on, with the same output. decode builds it on its own for an input of 4KB or more, and a stream for a first piece of 4KB or more."
         (returns BOOL "#t when the compiled engine is active")
-        (example "(Unlzma jit!)" "#t"))
+        (sample "(Unlzma jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the output is the same either way"))
       (%jit-try!))))
 
 (doc (provide x/codec/unlzma Unlzma)
