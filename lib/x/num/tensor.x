@@ -56,7 +56,7 @@
 (def-class Tensor ()
   (doc "An n-dimensional array of numbers packed in bytes, each element an f64 (an IEEE double), an i64 (a 64-bit integer) or a c128 (a complex number, two doubles). Transpose, slice and reshape answer views that share the bytes; the element-wise operations broadcast, an axis of length 1 stretching to the other operand's; the arithmetic runs in kernels that compile once they have run long enough."
     (note "The extent is the length of each axis, (2 3) for two rows of three; rank is its length. Indexes are 0-based and a negative one counts from the end.")
-    (example "((Tensor from '((1.5 2) (3 4))) ->list)" "((1.5 2.0) (3.0 4.0))")
+    (example "((Tensor from '((1 2) (3 4))) ->list)" "((1 2) (3 4))")
     (example "(((Tensor from '((1 2) (3 4.5))) add (Tensor from '(10 20))) ->list)" "((11.0 22.0) (13.0 24.5))")
     (see from) (see zeros) (see add) (see sum) (see slice) (see jit!))
 

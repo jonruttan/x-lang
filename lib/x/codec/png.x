@@ -469,14 +469,14 @@
 
 (def-class Png ()
   (doc "PNG images decoded to RGBA in pure x-lang: every colour type and bit depth, palettes, tRNS transparency and Adam7 interlacing."
-    (example "(do (def r (Bytes of-hex \"89504e470d0a1a0a0000000d49484452000000020000000108020000007b40e8dd0000000f4944415408d763f8cfc0c0f09f010007ff01ff09a29f170000000049454e44ae426082\")) (Png size (first r) 0 (List ref 2 r)))" "(2 1)")
+    (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"89504e470d0a1a0a0000000d49484452000000020000000108020000007b40e8dd0000000f4944415408d763f8cfc0c0f09f010007ff01ff09a29f170000000049454e44ae426082\")) (Png size (first r) 0 (List ref 2 r)))" "(2 1)")
     (see decode))
   (static
     (method size (self (param s STRING "Bytes holding a PNG")
                        . (param span LIST "START, then LENGTH: which bytes of s; default all of s"))
       (doc "The image's width and height, from its header, without decoding it. Give LENGTH for a PNG held in a buffer: s's own length is measured to its first NUL. Raises a label 'value when the bytes are not a PNG."
         (returns LIST "(WIDTH HEIGHT)")
-        (example "(do (def r (Bytes of-hex \"89504e470d0a1a0a0000000d49484452000000020000000108020000007b40e8dd0000000f4944415408d763f8cfc0c0f09f010007ff01ff09a29f170000000049454e44ae426082\")) (Png size (first r) 0 (List ref 2 r)))" "(2 1)"))
+        (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"89504e470d0a1a0a0000000d49484452000000020000000108020000007b40e8dd0000000f4944415408d763f8cfc0c0f09f010007ff01ff09a29f170000000049454e44ae426082\")) (Png size (first r) 0 (List ref 2 r)))" "(2 1)"))
       (def sp (%span s span))
       (def p (%at (str->ptr s) (first sp)))
       (unless (match ((int< (first (rest sp)) 33) #f) (#t (%signed? p 0 %signature)))
@@ -487,7 +487,7 @@
                          . (param span LIST "START, then LENGTH, as for size"))
       (doc "Decode the image to RGBA at 8 bits a sample: grey spread to red, green and blue, samples under 8 bits scaled to 0-255, 16-bit samples cut to their high byte, palette indexes looked up, alpha 255 where the image has none. Each chunk's CRC is checked. Raises a label 'value naming what is wrong with a malformed image."
         (returns LIST "(WIDTH HEIGHT RGBA): RGBA a buffer of WIDTH x HEIGHT x 4 bytes, rows top to bottom")
-        (example "(do (def r (Bytes of-hex \"89504e470d0a1a0a0000000d49484452000000020000000108020000007b40e8dd0000000f4944415408d763f8cfc0c0f09f010007ff01ff09a29f170000000049454e44ae426082\")) (def d (Png decode (first r) 0 (List ref 2 r))) (Bytes hex (list (List ref 2 d) 0 8)))" "\"ff0000ff00ff00ff\""))
+        (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"89504e470d0a1a0a0000000d49484452000000020000000108020000007b40e8dd0000000f4944415408d763f8cfc0c0f09f010007ff01ff09a29f170000000049454e44ae426082\")) (def d (Png decode (first r) 0 (List ref 2 r))) (Bytes hex (list (List ref 2 d) 0 8)))" "\"ff0000ff00ff00ff\""))
       (def sp (%span s span))
       (%decode s (first sp) (first (rest sp))))
     (method jit! (self)
@@ -497,5 +497,5 @@
       (%jit-try!))))
 
 (doc (provide x/codec/png Png)
-  (example "(let ((r (Bytes of-hex \"89504e470d0a1a0a0000000d49484452000000020000000108020000007b40e8dd0000000f4944415408d763f8cfc0c0f09f010007ff01ff09a29f170000000049454e44ae426082\"))) (Png size (first r) 0 (List ref 2 r)))" "(2 1)")
+  (example "(do (import x/codec/bytes) (let ((r (Bytes of-hex \"89504e470d0a1a0a0000000d49484452000000020000000108020000007b40e8dd0000000f4944415408d763f8cfc0c0f09f010007ff01ff09a29f170000000049454e44ae426082\"))) (Png size (first r) 0 (List ref 2 r))))" "(2 1)")
   "PNG images decoded to RGBA in pure x-lang, with a differentially-verified compiled engine for the row loops: (Png decode s) answers (WIDTH HEIGHT RGBA), (Png size s) the size alone.")

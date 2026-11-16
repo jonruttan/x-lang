@@ -239,14 +239,14 @@
 
 (def-class Gif ()
   (doc "GIF images decoded to RGBA in pure x-lang: the first image of the file, global and local colour tables, transparency, interlacing."
-    (example "(do (def r (Bytes of-hex \"47494638396102000100f00100000000ffffff21f90400000000002c0000000002000100000202440a003b\")) (Gif size (first r) 0 (List ref 2 r)))" "(2 1)")
+    (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"47494638396102000100f00100000000ffffff21f90400000000002c0000000002000100000202440a003b\")) (Gif size (first r) 0 (List ref 2 r)))" "(2 1)")
     (see decode))
   (static
     (method size (self (param s STRING "Bytes holding a GIF")
                        . (param span LIST "START, then LENGTH: which bytes of s; default all of s"))
       (doc "The logical screen's width and height, from the header, without decoding. Give LENGTH for a GIF held in a buffer: s's own length is measured to its first NUL. Raises a label 'value when the bytes are not a GIF."
         (returns LIST "(WIDTH HEIGHT)")
-        (example "(do (def r (Bytes of-hex \"47494638396102000100f00100000000ffffff21f90400000000002c0000000002000100000202440a003b\")) (Gif size (first r) 0 (List ref 2 r)))" "(2 1)"))
+        (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"47494638396102000100f00100000000ffffff21f90400000000002c0000000002000100000202440a003b\")) (Gif size (first r) 0 (List ref 2 r)))" "(2 1)"))
       (def sp (%span s span))
       (def p (%at (str->ptr s) (first sp)))
       (unless (%signed? p (first (rest sp))) (%fail "not a GIF: the signature does not match"))
@@ -255,10 +255,10 @@
                          . (param span LIST "START, then LENGTH, as for size"))
       (doc "Decode the first image to RGBA at 8 bits a sample, the size of the logical screen: the image's indexes looked up in its colour table and placed at its offset, interlaced rows put in order. The screen outside the image and a transparent index are alpha 0; later frames are passed over. Raises a label 'value naming what is wrong with a malformed image."
         (returns LIST "(WIDTH HEIGHT RGBA): RGBA a buffer of WIDTH x HEIGHT x 4 bytes, rows top to bottom")
-        (example "(do (def r (Bytes of-hex \"47494638396102000100f00100000000ffffff21f90400000000002c0000000002000100000202440a003b\")) (def d (Gif decode (first r) 0 (List ref 2 r))) (Bytes hex (list (List ref 2 d) 0 8)))" "\"000000ffffffffff\""))
+        (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"47494638396102000100f00100000000ffffff21f90400000000002c0000000002000100000202440a003b\")) (def d (Gif decode (first r) 0 (List ref 2 r))) (Bytes hex (list (List ref 2 d) 0 8)))" "\"000000ffffffffff\""))
       (def sp (%span s span))
       (%decode s (first sp) (first (rest sp))))))
 
 (doc (provide x/codec/gif Gif)
-  (example "(let ((r (Bytes of-hex \"47494638396102000100f00100000000ffffff21f90400000000002c0000000002000100000202440a003b\"))) (Gif size (first r) 0 (List ref 2 r)))" "(2 1)")
+  (example "(do (import x/codec/bytes) (let ((r (Bytes of-hex \"47494638396102000100f00100000000ffffff21f90400000000002c0000000002000100000202440a003b\"))) (Gif size (first r) 0 (List ref 2 r))))" "(2 1)")
   "GIF images decoded to RGBA in pure x-lang: (Gif decode s) answers the first image as (WIDTH HEIGHT RGBA), (Gif size s) the size alone.")
