@@ -174,11 +174,15 @@
     ; reals never needs it, and loading it would raise the peak of every
     ; program that uses Tensor.  No Complex value exists until it is
     ; loaded, so an integer or a Float is known not to be one without it.
+    ; MAKE is read from the module's environment, where the load binds it.
     (%complex-cell (pair () ()))
     (method %complex (self)
       (if (null? (first (self %complex-cell)))
         (%set-first! (self %complex-cell)
-          ((fn (_) (import x/num/complex make-complex) (pair (type-of (make-complex 0 1)) make-complex))))
+          ((fn (_)
+             (import x/num/complex)
+             (let ((make (eval (lit make-complex) (Module env (lit x/num/complex)))))
+               (pair (type-of (make 0 1)) make)))))
         ())
       (first (self %complex-cell)))
     (method %complex? (self x)
