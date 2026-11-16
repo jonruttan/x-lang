@@ -349,6 +349,79 @@ on a 4-byte word only when i64 is refused there.
 ---
     (2 -2)
 
+## c128
+
+### a complex element makes a c128 tensor
+
+```x
+(import x/num/tensor)
+(import x/num/complex)
+(let ((t (Tensor from (list 1 (Complex make 0 2) 3.5))))
+  (list (t encoding) (t ->list) (t ref 1) ((Tensor zeros 2 'c128) ->list)))
+```
+---
+    ('c128 (1.0+0.0i 0.0+2.0i 3.5+0.0i) 0.0+2.0i (0.0+0.0i 0.0+0.0i))
+
+### the real and imaginary parts are views
+
+```x
+(import x/num/tensor)
+(let ((t (Tensor complex (Tensor from '((1 2) (3 4))) (Tensor from '(10 20)))))
+  (let ((re (t real)) (im (t imaginary)))
+    (re set! 0 1 9)
+    (list (re encoding) (re ->list) (im ->list) (t ref 0 1) ((t transpose) ->list))))
+```
+---
+    ('f64 ((1.0 9.0) (3.0 4.0)) ((10.0 20.0) (10.0 20.0)) 9.0+20.0i ((1.0+10.0i 3.0+10.0i) (9.0+20.0i 4.0+20.0i)))
+
+### the arithmetic
+
+```x
+(import x/num/tensor)
+(import x/num/complex)
+(let ((a (Tensor from (list (Complex make 1 2) (Complex make 3 -1))))
+      (b (Tensor from (list (Complex make 3 4) (Complex make 0 2)))))
+  (list ((a add b) ->list) ((a sub b) ->list) ((a mul b) ->list) ((a div b) ->list)))
+```
+---
+    ((4.0+6.0i 3.0+1.0i) (-2.0-2.0i 3.0-3.0i) (-5.0+10.0i 2.0+6.0i) (0.44+0.08i -0.5-1.5i))
+
+### reals and complex numbers mix to c128
+
+```x
+(import x/num/tensor)
+(import x/num/complex)
+(list (((Tensor from '(1 2)) add (Complex make 0 1)) ->list)
+      (((Tensor from '(1.5 2)) mul (Tensor from (list (Complex make 0 1)))) ->list)
+      (((Tensor from '(1 2) 'f64) as 'c128) encoding))
+```
+---
+    ((1.0+1.0i 2.0+1.0i) (0.0+1.5i 0.0+2.0i) 'c128)
+
+### sum, mean and conjugate
+
+```x
+(import x/num/tensor)
+(let ((t (Tensor complex (Tensor from '(1 2 3)) (Tensor from '(4 -5 7)))))
+  (list (t sum) (t mean) ((t conjugate) ->list) ((Tensor zeros 0 'c128) sum)))
+```
+---
+    (6.0+6.0i 2.0+2.0i (1.0-4.0i 2.0+5.0i 3.0-7.0i) 0.0+0.0i)
+
+### c128 has no order and no real copy
+
+```x
+(import x/num/tensor)
+(import x/num/complex)
+(let ((t (Tensor from (list (Complex make 1 2)))))
+  (list (guard (e (Err label e)) (t least))
+        (guard (e (Err label e)) (t min 0))
+        (guard (e (Err label e)) (t as 'f64))
+        (guard (e (Err label e)) ((Tensor zeros 1) set! 0 (Complex make 1 1)))))
+```
+---
+    ('value 'value 'value 'type)
+
 ## Compiled kernels
 
 ### a compiled kernel answers what the pure one does
@@ -369,6 +442,22 @@ on a 4-byte word only when i64 is refused there.
 (import x/num/tensor)
 (Tensor jit!)
 (List all? symbol? (Tensor compiled))
+```
+---
+    #t
+
+### the compiled c128 kernels answer what the pure ones do
+
+```x
+(import x/num/tensor)
+(import x/num/complex)
+(let ((a (Tensor from (list (Complex make 1 2) (Complex make 3 -1) 0.5)))
+      (b (Tensor from (list (Complex make 3 4) (Complex make 0 2) (Complex make -2 0.25)))))
+  (let ((run (fn (_) (list ((a add b) ->list) ((a mul b) ->list) ((a div b) ->list) (a sum)
+                          (((Tensor from '(1.5 2)) as 'c128) ->list)))))
+    (let ((before (run)))
+      (Tensor jit!)
+      (equal? before (run)))))
 ```
 ---
     #t
