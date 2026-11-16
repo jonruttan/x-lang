@@ -2,8 +2,8 @@
 ; signed 16-bit frames, block by block, for a stream to play.
 ;
 ; A voice is one oscillator: a wave table read at a pitch, shaped by an
-; envelope of straight lines between points, through a one-pole low-pass,
-; and placed left or right.  A sound is a list of voices.  A mixer renders
+; envelope of straight lines between points, through a one-pole low-pass
+; and, when it has one, a resonant filter, and placed left or right.  A sound is a list of voices.  A mixer renders
 ; the voices playing a block at a time into a buffer of frames, with its
 ; effects over the mix (echoes, a reverb, a phaser, a chorus, a drive, a
 ; crush, a swept filter, a limiter), and at each block's boundary and at
@@ -16,7 +16,7 @@
 ; a frame; a level is 0 to 2^24; a gain or a pan weight is 0 to 256.
 ; Times in a voice's description are milliseconds, levels percent.
 ;
-; The loops that touch every frame are eighteen kernels, each written once
+; The loops that touch every frame are nineteen kernels, each written once
 ; below as an integer function over word addresses.  The pure-x version is
 ; that form through x/tool/word-form; x/tool/word-form-jit compiles the same
 ; forms, and the compiled ones are adopted only after they write what the
@@ -182,6 +182,21 @@
           (self a h (+ i 1) n (+ f df) df q))
       0))))
 
+; Frames I to N of mono buffer M through a state-variable filter, its low
+; and band outputs at H, as %sweep-form's: F the cutoff in 65536ths
+; stepping by DF, Q the damping.  Each frame is its low, band and high
+; outputs at L, B and P of 256: a low-pass, a band-pass, a high-pass, or
+; a mix of them (low and high a notch).  Answers 0.
+(def %svf-form
+  (lit (fn (self m h i n f df q l b p)
+    (if (< i n)
+      (do (%mem-set-at! h 0 (+ (%mem-ref-at h 0) (*>> f (%mem-ref-at h 1) 16)))
+          (%mem-set-at! m i (- (- (%mem-ref-at m i) (%mem-ref-at h 0)) (>> (* q (%mem-ref-at h 1)) 8)))
+          (%mem-set-at! h 1 (+ (%mem-ref-at h 1) (*>> f (%mem-ref-at m i) 16)))
+          (%mem-set-at! m i (>> (+ (+ (* l (%mem-ref-at h 0)) (* b (%mem-ref-at h 1))) (* p (%mem-ref-at m i))) 8))
+          (self m h (+ i 1) n (+ f df) df q l b p))
+      0))))
+
 ; Frames I to N of stereo buffer A at gain G of 65536, held under CEIL: a
 ; frame either of whose words G would take past CEIL takes G down a 32nd
 ; and is tried again, and after each frame G climbs back toward 65536 by
@@ -305,7 +320,7 @@
 
 (def %forms (list %osc-form %mix-form %echo-form %out-form %sine-form %harm-form %noise-form
                   %allpass-form %add-form %phase-form %drive-form %crush-form %sweep-form %limit-form
-                  %line-form %gain-form %smp-form %pcm-form))
+                  %line-form %gain-form %smp-form %pcm-form %svf-form))
 
 (def %pure (List map word-form-pure %forms))
 
@@ -329,6 +344,7 @@
 (def %k-gain ())
 (def %k-smp ())
 (def %k-pcm ())
+(def %k-svf ())
 
 (def %install!
   (fn (_ ks)
@@ -349,7 +365,8 @@
     (set! %k-line (List ref 14 ks))
     (set! %k-gain (List ref 15 ks))
     (set! %k-smp (List ref 16 ks))
-    (set! %k-pcm (List ref 17 ks))))
+    (set! %k-pcm (List ref 17 ks))
+    (set! %k-svf (List ref 18 ks))))
 
 (%install! %pure)
 
@@ -417,7 +434,8 @@
             (fn (_ k d _) (k d 3 60 -134213632 4473924))
             (fn (_ k d _) (k d 0 64 50000))
             (fn (_ k d e) (k d 3 40 e d 5 1234 150000 -50 9000000 -700 55 7680000 -900 50 30))
-            (fn (_ k d e) (k d e 0 32))))
+            (fn (_ k d e) (k d e 0 32))
+            (fn (_ k d e) (k d e 0 64 9000 37 300 200 40 16))))
     (List all?
       (fn (_ i)
         (def a (%check-words 64 5))
@@ -429,7 +447,7 @@
         (match ((not (= ra rb)) #f)
                ((not (%same? (%addr a) (%addr b) 0 64)) #f)
                (#t (%same? (%addr c) (%addr d) 0 64))))
-      (list 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17))))
+      (list 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18))))
 
 (def %entry ())
 
@@ -831,7 +849,16 @@
 (def %v-y 6) (def %v-k 7) (def %v-gl 8) (def %v-gr 9) (def %v-t 10) (def %v-env 11) (def %v-wave 12)
 (def %v-k0 13) (def %v-bend 14) (def %v-dk 15) (def %v-filter 16) (def %v-mcut 17) (def %v-kpct 18)
 (def %v-off 19) (def %v-doff 20) (def %v-width 21) (def %v-a 22) (def %v-g 23) (def %v-top 24)
-(def %v-fr 25)
+(def %v-fr 25) (def %v-fp 26) (def %v-f 27) (def %v-df 28) (def %v-q 29) (def %v-lp 30) (def %v-bp 31)
+(def %v-hp 32) (def %v-h 33) (def %v-ha 34)
+
+; A resonant filter's cutoff at HZ, under a seventh of RATE, as 2 pi times
+; the cutoff over the rate in 65536ths, under 60000 to keep it stable.
+(def %svf-f (fn (_ hz rate) (%clamp 1 60000 (fixed*/ (%step (int* 1000 (%clamp 1 (int/ rate 7) hz)) rate) 6283 65536000))))
+
+; A resonant filter's damping in 256ths at RES percent: 512 none, 26 the
+; sharpest.
+(def %res-q (fn (_ res) (int- 512 (int/ (int* 486 (%clamp 0 100 res)) 100))))
 
 ; A cycle's share PCT in 2^24ths: 167773 is 2^24 / 100, rounded up.
 (def %cycle-share (fn (_ pct) (int* (%clamp 0 100 pct) 167773)))
@@ -863,14 +890,18 @@
 ; own.  SPEC is a list of (KEY ...): (wave NAME), (env (MS PCT) ...), a
 ; pitch (note "C4") or (hz N), (slide PITCH), (bend (MS CENTS) ...), (cut
 ; PCT), (filter (MS PCT) ...), (pan -100..100), (gain PCT), (detune
-; CENTS), (width (MS PCT) ...), (at MS).  A bend is the pitch's path,
+; CENTS), (width (MS PCT) ...), (cutoff (MS HZ) ...), (res PCT), (pass
+; MODE ...), (at MS).  A bend is the pitch's path,
 ; CENTS from it at each MS, in straight lines between and a jump where two
 ; points share an MS; with one, the slide is not used.  A filter is the
 ; low-pass's path the same way, PCT of its cut at each MS, and its cut
 ; before the first.  A width is the wave less itself PCT of a cycle on,
 ; halved, its path the same way and its first point's before it: on the
 ; saw, a pulse high for PCT of the cycle.  A pulse is the saw at width 50
-; unless it has a width of its own.  A sample (sample!) steps through its
+; unless it has a width of its own.  A cutoff is a resonant filter's path
+; the same way, after the low-pass: RES its resonance, 0 to 100, and its
+; MODEs which of low, band and high it lets through, low unless it names
+; them.  A voice with no cutoff has no resonant filter.  A sample (sample!) steps through its
 ; frames at the pitch's share of its root, has no width, and, played once,
 ; ends at its end, its level held at its first unless SPEC has an env.
 (def %voice
@@ -899,7 +930,19 @@
                         (%prop spec (lit bend) ())))
     (def cut (%prop1 spec (lit cut) 100))
     (def pan (%prop1 spec (lit pan) 0))
-    (def v (%rec 26))
+    (def cutoff (List map (fn (_ p) (pair (%ms (first p) rate) (%svf-f (first (rest p)) rate))) (%prop spec (lit cutoff) ())))
+    (def pass (%prop spec (lit pass) (lit (low))))
+    (def through (fn (_ mode) (if (List includes? mode pass) 256 0)))
+    (def v (%rec 35))
+    (%put! v %v-fp cutoff)
+    (%put! v %v-f (if (null? cutoff) 0 (rest (first cutoff))))
+    (%put! v %v-df 0)
+    (%put! v %v-q (%res-q (%prop1 spec (lit res) 0)))
+    (%put! v %v-lp (through (lit low)))
+    (%put! v %v-bp (through (lit band)))
+    (%put! v %v-hp (through (lit high)))
+    ((fn (_ h) (do (%put! v %v-h h) (%put! v %v-ha (if (null? h) 0 (%addr h)))))
+     (if (null? cutoff) () (%words 2)))
     (%put! v %v-off (if (null? width) 0 (rest (first width))))
     (%put! v %v-doff 0)
     (%put! v %v-width width)
@@ -972,6 +1015,7 @@
            (def bend (%get v %v-bend))
            (def filt (%get v %v-filter))
            (def width (%get v %v-width))
+           (def fp (%get v %v-fp))
            (match
              ((null? env) #f)
              ((not (int< from b)) #t)
@@ -981,12 +1025,14 @@
                (do (%filter-to! v (first filt) (rest filt)) (self from)))
              ((if (null? width) #f (not (int< (%get v %v-t) (first (first width)))))
                (do (%path-to! v %v-off %v-doff %v-width (first width) (rest width)) (self from)))
+             ((if (null? fp) #f (not (int< (%get v %v-t) (first (first fp)))))
+               (do (%path-to! v %v-f %v-df %v-fp (first fp) (rest fp)) (self from)))
              (#t
                (do (def tt (%get v %v-t))
                    (def point (first env))
                    (def left (int- (first point) tt))
                    (def sooner (fn (_ l pts) (if (null? pts) l ((fn (_ k) (if (int< k l) k l)) (int- (first (first pts)) tt)))))
-                   (def until (sooner (sooner (sooner left bend) filt) width))
+                   (def until (sooner (sooner (sooner (sooner left bend) filt) width) fp))
                    (def to (if (int< (int+ from until) b) (int+ from until) b))
                    (def n (int- to from))
                    (def vol (%get v %v-vol))
@@ -1007,6 +1053,10 @@
                          (%put! v %v-off (int+ (%get v %v-off) (int* n (%get v %v-doff))))
                          (%put! v %v-k (int+ (%get v %v-k) (int* n (%get v %v-dk))))
                          (%put! v %v-y (%wref m (int- to 1)))
+                         (unless (null? (%get v %v-h))
+                           (do (%k-svf m (%get v %v-ha) from to (%get v %v-f) (%get v %v-df) (%get v %v-q)
+                                       (%get v %v-lp) (%get v %v-bp) (%get v %v-hp))
+                               (%put! v %v-f (int+ (%get v %v-f) (int* n (%get v %v-df))))))
                          (%k-mix m s from to (%get v %v-gl) (%get v %v-gr))
                          (%put! v %v-t (int+ tt n))
                          (if (int= n left)
@@ -1256,7 +1306,7 @@
       ((eq? (first spec) (lit sweep))
         (list (%sweep-stage (%step (int* 1000 (%clamp 1 (int/ rate 7) (arg 0))) rate)
                             (%step (int* 1000 (%clamp 1 (int/ rate 7) (arg 1))) rate)
-                            (%ms (arg 2) rate) (int- 512 (int/ (int* 486 (%clamp 0 100 (arg 3))) 100)))))
+                            (%ms (arg 2) rate) (%res-q (arg 3)))))
       ((eq? (first spec) (lit limit))
         (list (%limit-stage (int/ (int* 32767 (%clamp 1 100 (arg 0))) 100)
                             (int/ 65536 (%clamp 1 1073741824 (%ms (arg 1) rate))))))
@@ -1437,10 +1487,10 @@
       (%make rate block))
 
     (method play! (self (param m VECTOR "A mixer")
-                        (param specs LIST "Voices, each a list of (KEY ...): (wave NAME), (env (MS PCT) ...), (note \"C4\") or (hz N), (slide PITCH), (bend (MS CENTS) ...), (cut PCT), (filter (MS PCT) ...), (width (MS PCT) ...), (pan -100..100), (gain PCT), (detune CENTS), (at MS)")
+                        (param specs LIST "Voices, each a list of (KEY ...): (wave NAME), (env (MS PCT) ...), (note \"C4\") or (hz N), (slide PITCH), (bend (MS CENTS) ...), (cut PCT), (filter (MS PCT) ...), (width (MS PCT) ...), (cutoff (MS HZ) ...), (res PCT), (pass MODE ...), (pan -100..100), (gain PCT), (detune CENTS), (at MS)")
                         (param at INTEGER "Frames after the start of the stretch being rendered, 0 at once")
                         (param gain INTEGER "Percent of each voice's own gain"))
-      (doc "Start a sound: each voice plays its envelope from AT, its pitch sliding to its slide's over the envelope, or following its bend (CENTS from its pitch at each MS, straight between, a jump where two points share an MS), and ends at the envelope's last point. A width is the wave less itself PCT of a cycle on, halved, following its points the same way: a saw with a width is a pulse high for PCT of the cycle, and a width that moves is a pulse sweep. A voice with no wave is a sine; with no envelope, a 200 ms fade; a pulse is the saw at width 50 unless it has its own width."
+      (doc "Start a sound: each voice plays its envelope from AT, its pitch sliding to its slide's over the envelope, or following its bend (CENTS from its pitch at each MS, straight between, a jump where two points share an MS), and ends at the envelope's last point. A width is the wave less itself PCT of a cycle on, halved, following its points the same way: a saw with a width is a pulse high for PCT of the cycle, and a width that moves is a pulse sweep. A cutoff is a resonant filter after the low-pass, its cutoff in hertz following its points the same way, RES 0 to 100 its resonance, and its pass the outputs let through: low, band, high, or any of them together (low and high a notch), low unless it names them. A voice with no wave is a sine; with no envelope, a 200 ms fade; a pulse is the saw at width 50 unless it has its own width."
         (returns VECTOR "The mixer")
         (sample "(Mixer play! m (list (list (list (lit note) \"A4\") (list (lit env) (list 0 0) (list 5 80) (list 300 0)))) 0 100)" "m")
         (sample "(Mixer play! m (list (list (list (lit wave) (lit pulse)) (list (lit note) \"A3\") (list (lit width) (list 0 12) (list 400 50)) (list (lit env) (list 0 80) (list 400 0)))) 0 100)" "m"))

@@ -401,6 +401,27 @@ pure-x loops and again with the compiled ones, byte for byte.
 ---
     (0 #t)
 
+### a resonant filter's low-pass dulls noise and its high-pass keeps the top, resonance rings at the cutoff, and a moving cutoff sweeps
+
+```x
+(do (import x/audio/mixer) (import x/core/doors mem-cmp ptr-ref str->ptr)
+  (def word (fn (_ r i) ((fn (_ u) (if (< 32767 u) (- u 65536) u)) (+ (ptr-ref (str->ptr r) i 1) (* 256 (ptr-ref (str->ptr r) (+ i 1) 1))))))
+  (def level (fn (_ r) ((fn (self i acc) (if (< i 1024) (self (+ i 2) ((fn (_ w) (+ acc (if (< w 0) (- 0 w) w))) (word r i))) acc)) 0 0)))
+  (def run (fn (_ v) (do (def m (Mixer make 8000 256)) (Mixer play! m (list v) 0 100) (Mixer block! m) (Mixer block! m))))
+  (def noise (list (list (lit wave) (lit noise)) (list (lit hz) 2000) (list (lit env) (list 0 90) (list 200 90))))
+  (def tone (list (list (lit hz) 500) (list (lit env) (list 0 30) (list 200 30))))
+  (def plain (level (run noise)))
+  (list (< (* 4 (level (run (List append (list (list (lit cutoff) (list 0 150))) noise)))) plain)
+        (< plain (* 2 (level (run (List append (list (list (lit cutoff) (list 0 150)) (list (lit pass) (lit high))) noise)))))
+        (< (* 2 (level (run (List append (list (list (lit cutoff) (list 0 500))) tone))))
+           (level (run (List append (list (list (lit cutoff) (list 0 500)) (list (lit res) 90)) tone))))
+        (not (= 0 (mem-cmp (str->ptr (run (List append (list (list (lit cutoff) (list 0 300))) noise)))
+                           (str->ptr (run (List append (list (list (lit cutoff) (list 0 300) (list 30 1000))) noise)))
+                           1024)))))
+```
+---
+    (#t #t #t #t)
+
 ## effects
 
 ### an effect is named, changed in its place and taken off
@@ -521,7 +542,7 @@ pure-x loops and again with the compiled ones, byte for byte.
 ---
     0
 
-### built where there is a JIT, they render the newer effects and a filter byte for byte as the pure loops do
+### built where there is a JIT, they render the newer effects, a filter and a resonant filter byte for byte as the pure loops do
 
 ```x
 (do (import x/audio/mixer) (import x/tool/compiled) (import x/core/doors mem-cmp str->ptr)
@@ -535,7 +556,8 @@ pure-x loops and again with the compiled ones, byte for byte.
       (Mixer effect! m (lit e) (list (lit limit) 60 80))
       (Mixer play! m (list (list (list (lit note) "C3") (list (lit filter) (list 0 100) (list 40 10) (list 60 80))
                                  (list (lit env) (list 0 0) (list 8 90) (list 60 40) (list 90 0)))
-                           (list (list (lit wave) (lit noise)) (list (lit hz) 2000) (list (lit at) 13) (list (lit env) (list 0 100) (list 70 0))))
+                           (list (list (lit wave) (lit noise)) (list (lit hz) 2000) (list (lit at) 13) (list (lit env) (list 0 100) (list 70 0))
+                                 (list (lit cutoff) (list 0 3000) (list 50 300)) (list (lit res) 80) (list (lit pass) (lit low) (lit high))))
                   37 80)
       (Mixer block! m)
       (Mixer cut! m 50)
