@@ -15,15 +15,21 @@
 ; answers an Orthogonal, the factorization by Householder reflections,
 ; which solves least squares.  (m factor-symmetric-eigen) answers a
 ; SymmetricEigen, the eigenvalues and orthonormal eigenvectors of a
-; symmetric m, by cyclic Jacobi rotations.
+; symmetric m, by cyclic Jacobi rotations.  (m factor-eigen) answers an
+; Eigen for any square m, its values and vectors complex: m is reduced to
+; Hessenberg form and then to real Schur form by Francis's double-shift QR
+; steps, that form is made complex triangular, and the vectors are solved
+; on the triangle.
 ;
-; The work is done by nine kernels, word forms (x/tool/word-form) that
+; The work is done by ten kernels, word forms (x/tool/word-form) that
 ; loop over two or three axes inside one run, so an operation costs a few
 ; runs however large its matrices: the product; LU factorization with
 ; partial pivoting, a pivot search down a column, a row swap and the
 ; elimination below a pivot, with forward and back substitution for solve;
 ; a scale down a column and a reflection of a block of columns for the
-; Householder factorization; and a sweep of Jacobi rotations.
+; Householder factorization, the Hessenberg reduction and the QR steps;
+; a sweep of Jacobi rotations; and back substitution on a complex
+; triangular matrix for its eigenvectors.
 ; They run on Tensor's lanes, pure in budgeted calls until they have run
 ; long enough, then compiled once the compiled kernel writes what the pure
 ; one writes on a check problem.
@@ -35,7 +41,7 @@
 (import x/type/class)
 (import x/type/list)
 (import x/num/tensor)
-(import x/num/float float float-of f-add f-sub f-mul f-div f-lt libm-fn)
+(import x/num/float float float-of f-add f-sub f-mul f-div f-lt f-eq libm-fn)
 (import x/tool/word-form word-form-pure)
 (import x/core/doors int+ int- int* int/ int< int= mem-cmp obj-ref ptr->int int->ptr
   ptr-ref-word ptr-set-word! str->ptr str-make type?)
@@ -272,6 +278,305 @@
       (if (int= j 0) vals
         (let ((x (List ref j vals)))
           (pair x (List map (fn (_ i) (if (int= i j) (first vals) (List ref i vals))) (List range 1 (List length vals)))))))
+
+    ; --- the eigenvalues of any square matrix ----------------------------------
+    ; Apply I - tau v v^T, v the R doubles at V with stride VS, to COUNT
+    ; vectors of R doubles at C, each ALONG apart within and ACROSS apart
+    ; from the next.
+    (method %reflect-block (self s v vs r tau c along across count)
+      (self %run-doubles s (lit f64-reflect)
+        (list (pair 0 v) (pair 1 c) (pair 3 vs) (pair 4 along) (pair 5 across)
+              (pair 10 r) (pair 12 count) (pair 13 0) (pair 14 0))
+        (list (pair 17 tau))))
+
+    ; (H Z) for the N by N state ST: H a fresh contiguous f64 copy reduced
+    ; to upper Hessenberg form, 0 below the first subdiagonal, by a
+    ; Householder reflection from both sides for each column, and Z the
+    ; product of the reflections, so ST is Z H Z^T.  Column K's reflection
+    ; is made as the Householder factorization makes one, from row K + 1.
+    (method %hessenberg (self st n)
+      (let ((f (Tensor %fast)) (s (str-make 256)) (zero (float-of 0)))
+        (let ((h ((obj-ref f 10) st (lit f64))) (z ((Matrix identity n) %st)))
+          (let ((hb ((obj-ref f 13) h)) (zb ((obj-ref f 13) z))
+                (get ((obj-ref f 5) (lit f64))) (put ((obj-ref f 6) (lit f64))))
+            (def at (fn (_ b i j) (int+ b (int* 8 (int+ (int* i n) j)))))
+            (def go
+              (fn (go k)
+                (if (int< k (int- n 2))
+                  (let ((x0 (get hb (int+ (int* (int+ k 1) n) k)))
+                        (tail ((obj-ref f 11) h (list (int- n (int+ k 2))) (list n) (int+ (int* (int+ k 2) n) k)))
+                        (r (int- n (int+ k 1))))
+                    (let ((tt (self %sum-squares tail)))
+                      (if (f-lt zero tt)
+                        (let ((norm ((self %sqrt) (f-add (f-mul x0 x0) tt))))
+                          (let ((beta (if (f-lt x0 zero) norm (f-sub zero norm))))
+                            (let ((tau (f-div (f-sub beta x0) beta)) (v (at hb (int+ k 1) k)))
+                              (self %run-doubles s (lit f64-scale)
+                                (list (pair 0 (at hb (int+ k 2) k)) (pair 3 n) (pair 6 (int- n (int+ k 2))) (pair 7 0))
+                                (list (pair 17 (f-div (float-of 1) (f-sub x0 beta)))))
+                              (put hb (int+ (int* (int+ k 1) n) k) (float-of 1))
+                              (self %reflect-block s v n r tau (at hb (int+ k 1) (int+ k 1)) n 1 r)
+                              (self %reflect-block s v n r tau (at hb 0 (int+ k 1)) 1 n n)
+                              (self %reflect-block s v n r tau (at zb 0 (int+ k 1)) 1 n n)
+                              (put hb (int+ (int* (int+ k 1) n) k) beta)
+                              ((obj-ref f 9) tail 0)
+                              (go (int+ k 1)))))
+                        (go (int+ k 1)))))
+                  (list h z))))
+            (go 0)))))
+
+    ; (WR WI), the real and imaginary parts of the eigenvalues, for the N
+    ; by N upper Hessenberg state H, which is left in real Schur form: upper
+    ; triangular but for a 2 by 2 block on the diagonal for each conjugate
+    ; pair, whose subdiagonal element is the one left below the diagonal
+    ; (the elements further below hold leftovers of the steps).  Z takes
+    ; every reflection from the right.  The steps are EISPACK's hqr2:
+    ; Francis's double-shift QR steps on the block above the last row not
+    ; yet split off, a row splitting off with its eigenvalue once its
+    ; subdiagonal element is negligible beside its neighbours on the
+    ; diagonal, two rows once the element above that is, an exceptional
+    ; shift after 10 and 20 steps without one, and a refusal after 30 N
+    ; steps in all.  Two rows with real eigenvalues are reflected to
+    ; triangular form; a conjugate pair keeps its block, the positive
+    ; imaginary part first.
+    (method %francis (self h z n)
+      (let ((f (Tensor %fast)) (s (str-make 256)) (zero (float-of 0)) (one (float-of 1)))
+        (let ((hb ((obj-ref f 13) h)) (zb ((obj-ref f 13) z)) (v ((obj-ref f 4) (lit f64) (list 3)))
+              (get ((obj-ref f 5) (lit f64))) (put ((obj-ref f 6) (lit f64)))
+              (norm ((self %sqrt) (self %sum-squares h)))
+              (half (f-div one (float-of 2))) (three-quarters (f-div (float-of 3) (float-of 4)))
+              (seven-sixteenths (f-div (float-of 7) (float-of 16))))
+          (let ((vb ((obj-ref f 13) v)))
+            (def at (fn (_ i j) (get hb (int+ (int* i n) j))))
+            (def at! (fn (_ i j x) (put hb (int+ (int* i n) j) x)))
+            (def absolute (fn (_ x) (if (f-lt x zero) (f-sub zero x) x)))
+            (def signed (fn (_ a b) (if (f-lt b zero) (f-sub zero (absolute a)) (absolute a))))
+            ; I - tau v v^T, v (1 Q R) cut to LEN, on rows K up from column
+            ; K, on columns K up to row EN or K + 3, and on Z's columns K up.
+            (def reflect
+              (fn (_ k len tau q r en)
+                (put vb 0 one) (put vb 1 q) (put vb 2 r)
+                (self %reflect-block s vb 1 len tau (int+ hb (int* 8 (int+ (int* k n) k))) n 1 (int- n k))
+                (self %reflect-block s vb 1 len tau (int+ hb (int* 8 k)) 1 n
+                  (int+ (if (int< en (int+ k 3)) en (int+ k 3)) 1))
+                (self %reflect-block s vb 1 len tau (int+ zb (int* 8 k)) 1 n n)))
+            ; The first row of the block ending at row L: the row below the
+            ; last negligible subdiagonal element above L, which is set to
+            ; 0, else 0.
+            (def split
+              (fn (go l)
+                (if (int= l 0) 0
+                  (let ((d (f-add (absolute (at (int- l 1) (int- l 1))) (absolute (at l l)))))
+                    (let ((d (if (f-eq d zero) norm d)))
+                      (if (f-eq (f-add d (absolute (at l (int- l 1)))) d)
+                        (do (at! l (int- l 1) zero) l)
+                        (go (int- l 1))))))))
+            ; (M P Q R): the row M at or below L where the step starts, the
+            ; first two subdiagonal elements below it negligible, with the
+            ; first column of the shifted product there, scaled.
+            (def start
+              (fn (go m l x y w)
+                (let ((zz (at m m)))
+                  (let ((r (f-sub x zz)) (d (f-sub y zz)))
+                    (let ((p (f-add (f-div (f-sub (f-mul r d) w) (at (int+ m 1) m)) (at m (int+ m 1))))
+                          (q (f-sub (f-sub (f-sub (at (int+ m 1) (int+ m 1)) zz) r) d))
+                          (r (at (int+ m 2) (int+ m 1))))
+                      (let ((d (f-add (f-add (absolute p) (absolute q)) (absolute r))))
+                        (let ((p (f-div p d)) (q (f-div q d)) (r (f-div r d)))
+                          (if (int= m l) (list m p q r)
+                            (let ((t1 (f-mul (absolute p)
+                                        (f-add (f-add (absolute (at (int- m 1) (int- m 1))) (absolute zz))
+                                               (absolute (at (int+ m 1) (int+ m 1)))))))
+                              (if (f-eq (f-add t1 (f-mul (absolute (at m (int- m 1))) (f-add (absolute q) (absolute r)))) t1)
+                                (list m p q r)
+                                (go (int- m 1) l x y w)))))))))))
+            ; The bulge chased from row M to the end of the block at EN.
+            (def chase
+              (fn (go k m l en p q r)
+                (if (int< (int- en 1) k) ()
+                  (let ((final (int= k (int- en 1))))
+                    (let ((pqr (if (int= k m) (list p q r)
+                                 (let ((p (at k (int- k 1))) (q (at (int+ k 1) (int- k 1)))
+                                       (r (if final zero (at (int+ k 2) (int- k 1)))))
+                                   (let ((x (f-add (f-add (absolute p) (absolute q)) (absolute r))))
+                                     (if (f-eq x zero) ()
+                                       (list (f-div p x) (f-div q x) (f-div r x) x)))))))
+                      (if (null? pqr) (go (int+ k 1) m l en zero zero zero)
+                        (let ((p (List ref 0 pqr)) (q (List ref 1 pqr)) (r (List ref 2 pqr)))
+                          (let ((d (signed ((self %sqrt) (f-add (f-add (f-mul p p) (f-mul q q)) (f-mul r r))) p)))
+                            (if (int= k m)
+                              (if (int= l m) () (at! k (int- k 1) (f-sub zero (at k (int- k 1)))))
+                              (at! k (int- k 1) (f-sub zero (f-mul d (List ref 3 pqr)))))
+                            (let ((p (f-add p d)))
+                              (reflect k (if final 2 3) (f-div p d) (f-div q p) (f-div r p) en)
+                              (go (int+ k 1) m l en zero zero zero))))))))))
+            ; One double-shift step on the block from row L to EN, shifts
+            ; given by X, Y and W.
+            (def step
+              (fn (_ en l x y w)
+                (let ((b (start (int- en 2) l x y w)))
+                  (let ((m (first b)))
+                    (List for-each
+                      (fn (_ i) (do (at! i (int- i 2) zero) (if (int= i (int+ m 2)) () (at! i (int- i 3) zero))))
+                      (List range (int+ m 2) (int+ en 1)))
+                    (chase m m l en (List ref 1 b) (List ref 2 b) (List ref 3 b))))))
+            ; The two eigenvalues of rows EN - 1 and EN, (WR1 WR2 WI1 WI2),
+            ; with a real pair's rows reflected to triangular form.  T is the
+            ; shift taken from the diagonal so far.
+            (def two
+              (fn (_ en x y w t)
+                (let ((na (int- en 1)) (p (f-mul (f-sub y x) half)))
+                  (let ((q (f-add (f-mul p p) w)) (x (f-add x t)))
+                    (let ((zz ((self %sqrt) (absolute q))))
+                      (at! en en x)
+                      (at! na na (f-add y t))
+                      (if (f-lt q zero)
+                        (list (f-add x p) (f-add x p) zz (f-sub zero zz))
+                        (let ((zz (f-add p (signed zz p))) (c (at en na)))
+                          (let ((size ((self %sqrt) (f-add (f-mul zz zz) (f-mul c c)))))
+                            (let ((beta (if (f-lt zz zero) size (f-sub zero size))))
+                              (reflect na 2 (f-div (f-sub beta zz) beta) (f-div c (f-sub zz beta)) zero en)
+                              (at! en na zero)
+                              (list (f-add x zz) (if (f-eq zz zero) (f-add x zz) (f-sub x (f-div w zz))) zero zero))))))))))
+            (def roots
+              (fn (go en its t steps wr wi)
+                (if (int< en 0) (list wr wi)
+                  (let ((l (split en)) (x (at en en)))
+                    (if (int= l en)
+                      (do (at! en en (f-add x t))
+                          (go (int- en 1) 0 t steps (pair (f-add x t) wr) (pair zero wi)))
+                      (let ((na (int- en 1)))
+                        (let ((y (at na na)) (w (f-mul (at en na) (at na en))))
+                          (if (int= l na)
+                            (let ((e (two en x y w t)))
+                              (go (int- en 2) 0 t steps
+                                (pair (List ref 0 e) (pair (List ref 1 e) wr))
+                                (pair (List ref 2 e) (pair (List ref 3 e) wi))))
+                            (if (int= steps 0)
+                              (Err raise (lit value) "Matrix factor-eigen: the QR steps did not converge" ())
+                              (let ((odd (if (int= its 10) #t (int= its 20))))
+                                (if odd (List for-each (fn (_ i) (at! i i (f-sub (at i i) x))) (List range 0 (int+ en 1))) ())
+                                (if odd
+                                  (let ((d (f-add (absolute (at en na)) (absolute (at na (int- na 1))))))
+                                    (step en l (f-mul three-quarters d) (f-mul three-quarters d)
+                                      (f-sub zero (f-mul seven-sixteenths (f-mul d d)))))
+                                  (step en l x y w))
+                                (go en (int+ its 1) (if odd (f-add t x) t) (int- steps 1) wr wi)))))))))))
+            (roots (int- n 1) 0 zero (int* 30 n) () ())))))
+
+    ; U and W, c128 copies of the real Schur form T and of Z, made complex
+    ; triangular: each 2 by 2 block of T, a conjugate pair's, is rotated by
+    ; G = (c* s; -s c), U's rows by G and its and W's columns by G^H, with c
+    ; and s from the pair's eigenvalue whose imaginary part is positive, so
+    ; that eigenvalue comes first on U's diagonal.  The matrix is then W U
+    ; W^H.
+    (method %complex-schur (self t u w n wr wi)
+      (let ((f (Tensor %fast)) (zero (float-of 0)))
+        (let ((tb ((obj-ref f 13) t)) (ub ((obj-ref f 13) u)) (wb ((obj-ref f 13) w))
+              (get ((obj-ref f 5) (lit f64))) (put ((obj-ref f 6) (lit f64))))
+          ; Over COUNT pairs of elements at double indexes I0 and I1 of
+          ; BASE, STEP doubles apart, (x y) becomes (a x + b y, c x + d y);
+          ; a, b, c and d are complex, each its real and imaginary parts.
+          (def mix
+            (fn (go base i0 i1 count step ar ai br bi cr ci dr di)
+              (if (int< 0 count)
+                (let ((xr (get base i0)) (xi (get base (int+ i0 1))) (yr (get base i1)) (yi (get base (int+ i1 1))))
+                  (put base i0 (f-sub (f-add (f-mul ar xr) (f-mul br yr)) (f-add (f-mul ai xi) (f-mul bi yi))))
+                  (put base (int+ i0 1) (f-add (f-add (f-mul ar xi) (f-mul ai xr)) (f-add (f-mul br yi) (f-mul bi yr))))
+                  (put base i1 (f-sub (f-add (f-mul cr xr) (f-mul dr yr)) (f-add (f-mul ci xi) (f-mul di yi))))
+                  (put base (int+ i1 1) (f-add (f-add (f-mul cr xi) (f-mul ci xr)) (f-add (f-mul dr yi) (f-mul di yr))))
+                  (go base (int+ i0 step) (int+ i1 step) (int- count 1) step ar ai br bi cr ci dr di))
+                ())))
+          (def go
+            (fn (go m)
+              (if (int< 0 m)
+                (let ((sub (get tb (int+ (int* m n) (int- m 1)))))
+                  (if (f-eq sub zero) (go (int- m 1))
+                    (let ((mr (f-sub (List ref (int- m 1) wr) (get tb (int+ (int* m n) m)))) (mi (List ref (int- m 1) wi)))
+                      (let ((r ((self %sqrt) (f-add (f-add (f-mul mr mr) (f-mul mi mi)) (f-mul sub sub)))))
+                        (let ((cr (f-div mr r)) (ci (f-div mi r)) (sr (f-div sub r)))
+                          (let ((nci (f-sub zero ci)) (nsr (f-sub zero sr)))
+                            (mix ub (int* 2 (int+ (int* (int- m 1) n) (int- m 1))) (int* 2 (int+ (int* m n) (int- m 1)))
+                              (int+ (int- n m) 1) 2 cr nci sr zero nsr zero cr ci)
+                            (mix ub (int* 2 (int- m 1)) (int* 2 m) (int+ m 1) (int* 2 n) cr ci sr zero nsr zero cr nci)
+                            (mix wb (int* 2 (int- m 1)) (int* 2 m) n (int* 2 n) cr ci sr zero nsr zero cr nci)
+                            (put ub (int* 2 (int+ (int* m n) (int- m 1))) zero)
+                            (put ub (int+ (int* 2 (int+ (int* m n) (int- m 1))) 1) zero)
+                            (go (int- m 2))))))))
+                ())))
+          (go (int- n 1)))))
+
+    ; The eigenvectors, a c128 Matrix: W Y, with W the unitary c128 state
+    ; and Y the c128 state of the triangle's eigenvectors, each column made
+    ; unit length with its greatest element real and positive.  Column K
+    ; of a value whose imaginary part, in WI, is negative is the conjugate
+    ; of the column before, its pair's; one whose imaginary part is 0 is
+    ; made real.
+    (method %eigenvectors (self w y n wi)
+      (let ((f (Tensor %fast)) (zero (float-of 0)))
+        (let ((wr (Matrix %make (Tensor %part w 0))) (wm (Matrix %make (Tensor %part w 1)))
+              (yr (Matrix %make (Tensor %part y 0))) (ym (Matrix %make (Tensor %part y 1))))
+          (let ((xr (((wr product yr) sub (wm product ym)) %st)) (xi (((wr product ym) add (wm product yr)) %st)))
+            (let ((rb ((obj-ref f 13) xr)) (ib ((obj-ref f 13) xi))
+                  (get ((obj-ref f 5) (lit f64))) (put ((obj-ref f 6) (lit f64))))
+              (def at (fn (_ i k) (int+ (int* i n) k)))
+              (def go
+                (fn (go k wi)
+                  (if (null? wi) ()
+                    (do (if (f-lt (first wi) zero)
+                          (List for-each
+                            (fn (_ i) (do (put rb (at i k) (get rb (at i (int- k 1))))
+                                          (put ib (at i k) (f-sub zero (get ib (at i (int- k 1)))))))
+                            (List range 0 n))
+                          (self %unit-column rb ib n k (f-eq (first wi) zero)))
+                        (go (int+ k 1) (rest wi))))))
+              (go 0 wi)
+              (Matrix complex (Matrix %make xr) (Matrix %make xi)))))))
+
+    ; Column K of the N by N contiguous f64 states at RB and IB, the real
+    ; and imaginary parts, scaled to unit length and turned so its first
+    ; greatest element is real and positive; with REAL, its imaginary parts
+    ; set to 0.  Adding 0.0 makes a -0.0 0.0.
+    (method %unit-column (self rb ib n k real)
+      (let ((zero (float-of 0)) (get ((obj-ref (Tensor %fast) 5) (lit f64))) (put ((obj-ref (Tensor %fast) 6) (lit f64))))
+        (def at (fn (_ i) (int+ (int* i n) k)))
+        (let ((squares (List map (fn (_ i) (let ((a (get rb (at i))) (b (get ib (at i)))) (f-add (f-mul a a) (f-mul b b))))
+                         (List range 0 n))))
+          (def total (fn (go xs acc) (if (null? xs) acc (go (rest xs) (f-add acc (first xs))))))
+          (let ((j (self %least-index (List map (fn (_ x) (f-sub zero x)) squares))))
+            (let ((size ((self %sqrt) (f-mul (total squares zero) (List ref j squares)))))
+              (let ((a (f-div (get rb (at j)) size)) (b (f-div (f-sub zero (get ib (at j))) size)))
+                (List for-each
+                  (fn (_ i)
+                    (let ((xr (get rb (at i))) (xi (get ib (at i))))
+                      (put rb (at i) (f-add (f-sub (f-mul xr a) (f-mul xi b)) zero))
+                      (put ib (at i) (if (if real #t (int= i j)) zero (f-add (f-add (f-mul xr b) (f-mul xi a)) zero)))))
+                  (List range 0 n))))))))
+
+    ; (VALUES VECTORS) for the N by N state ST: VALUES a rank-1 c128
+    ; Tensor in the order the QR steps leave them on the diagonal, VECTORS
+    ; a c128 Matrix whose column I is value I's eigenvector.  The vectors
+    ; are solved on the complex triangle U, a value equal to one above it
+    ; on U's diagonal taking a difference of 2^-52 of U's size in place of
+    ; 0.
+    (method %eigen (self st)
+      (let ((f (Tensor %fast)) (n (first (List ref 1 st))) (zero (float-of 0)))
+        (let ((hz (self %hessenberg st n)))
+          (let ((t (first hz)) (z (List ref 1 hz)))
+            (let ((w (self %francis t z n)))
+              (self %fill-rows! t (fn (_ i) (if (int< i 2) 0 (int- i 1))) (fn (_ i) 0) 0)
+              (let ((u ((obj-ref f 10) t (lit c128))) (v ((obj-ref f 10) z (lit c128)))
+                    (y ((obj-ref f 10) ((Matrix identity n) %st) (lit c128)))
+                    (e (f-div (float-of 1) (float-of 67108864)))
+                    (size ((self %sqrt) (self %sum-squares t))))
+                (self %complex-schur t u v n (first w) (List ref 1 w))
+                (if (int< n 2) ()
+                  (self %run-doubles (str-make 256) (lit c128-eigenvectors)
+                    (list (pair 0 ((obj-ref f 13) u)) (pair 1 ((obj-ref f 13) y)) (pair 11 n)
+                          (pair 13 0) (pair 14 0) (pair 15 0))
+                    (list (pair 22 (f-mul (f-mul e e) (if (f-lt zero size) size (float-of 1)))))))
+                (list (Tensor complex (Tensor from (first w) (lit f64)) (Tensor from (List ref 1 w) (lit f64)))
+                      (self %eigenvectors v y n (List ref 1 w)))))))))
 
     (method %square (self st who)
       (let ((ext (List ref 1 st)))
@@ -556,7 +861,48 @@
                                (* (- (- (%mem-ref s 11) 1) (%mem-ref s 13)) (%mem-ref s 4))))))
                     (f-set! s 16 (f-ref s 18)) (%mem-set! s 15 0) (%mem-set! s 13 (+ (%mem-ref s 13) 1))
                     (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s))))))
-          (lit ((0 . a) (1 . b) (3 . 3) (4 . 1) (5 . 3) (6 . 1) (11 . 3) (12 . 3))))))
+          (lit ((0 . a) (1 . b) (3 . 3) (4 . 1) (5 . 3) (6 . 1) (11 . 3) (12 . 3))))
+        ; Back substitution for the eigenvectors of the complex upper
+        ; triangle U, N (11) by N c128 at 0: column K (13) of Y, c128 at 1
+        ; and the identity to start, takes for each row I above K, from
+        ; the last, minus the sum over J (15) from I + 1 to K of U (I J)
+        ; times Y (J K), in 16 and 17, over U (I I) less U (K K), in 20
+        ; and 21, divided by Smith's method with the ratio and divisor at
+        ; 18 and 19.  Word 14 is I + 1, 0 when a column is done; a divisor
+        ; of 0 takes the small double at 22.  Element (I J) is the doubles
+        ; 2(I N + J) and the one after, its real and imaginary parts.
+        (list (lit c128-eigenvectors)
+          (lit (fn (self s)
+            (match
+              ((= (%mem-ref s 8) 0) 0)
+              ((= (%mem-ref s 13) (%mem-ref s 11)) 1)
+              ((= (%mem-ref s 14) 0)
+                (do (%mem-set! s 13 (+ (%mem-ref s 13) 1)) (%mem-set! s 14 (%mem-ref s 13)) (%mem-set! s 15 (%mem-ref s 13))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s)))
+              ((< (%mem-ref s 15) (+ (%mem-ref s 13) 1))
+                (do (f-set! s 16
+                      (f+ (f-ref s 16) (f- (f* (f-ref (%mem-ref s 0) (* 2 (+ (* (- (%mem-ref s 14) 1) (%mem-ref s 11)) (%mem-ref s 15)))) (f-ref (%mem-ref s 1) (* 2 (+ (* (%mem-ref s 15) (%mem-ref s 11)) (%mem-ref s 13))))) (f* (f-ref (%mem-ref s 0) (+ (* 2 (+ (* (- (%mem-ref s 14) 1) (%mem-ref s 11)) (%mem-ref s 15))) 1)) (f-ref (%mem-ref s 1) (+ (* 2 (+ (* (%mem-ref s 15) (%mem-ref s 11)) (%mem-ref s 13))) 1))))))
+                    (f-set! s 17
+                      (f+ (f-ref s 17) (f+ (f* (f-ref (%mem-ref s 0) (* 2 (+ (* (- (%mem-ref s 14) 1) (%mem-ref s 11)) (%mem-ref s 15)))) (f-ref (%mem-ref s 1) (+ (* 2 (+ (* (%mem-ref s 15) (%mem-ref s 11)) (%mem-ref s 13))) 1))) (f* (f-ref (%mem-ref s 0) (+ (* 2 (+ (* (- (%mem-ref s 14) 1) (%mem-ref s 11)) (%mem-ref s 15))) 1)) (f-ref (%mem-ref s 1) (* 2 (+ (* (%mem-ref s 15) (%mem-ref s 11)) (%mem-ref s 13))))))))
+                    (%mem-set! s 15 (+ (%mem-ref s 15) 1))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s)))
+              (#t
+                (do (f-set! s 20 (f- (f-ref (%mem-ref s 0) (* 2 (+ (* (- (%mem-ref s 14) 1) (%mem-ref s 11)) (- (%mem-ref s 14) 1)))) (f-ref (%mem-ref s 0) (* 2 (+ (* (%mem-ref s 13) (%mem-ref s 11)) (%mem-ref s 13))))))
+                    (f-set! s 21 (f- (f-ref (%mem-ref s 0) (+ (* 2 (+ (* (- (%mem-ref s 14) 1) (%mem-ref s 11)) (- (%mem-ref s 14) 1))) 1)) (f-ref (%mem-ref s 0) (+ (* 2 (+ (* (%mem-ref s 13) (%mem-ref s 11)) (%mem-ref s 13))) 1))))
+                    (if (f= (f-ref s 20) (i->f 0)) (if (f= (f-ref s 21) (i->f 0)) (f-set! s 20 (f-ref s 22)) 0) 0)
+                    (if (f< (if (f< (f-ref s 20) (i->f 0)) (f- (i->f 0) (f-ref s 20)) (f-ref s 20)) (if (f< (f-ref s 21) (i->f 0)) (f- (i->f 0) (f-ref s 21)) (f-ref s 21)))
+                      (do (f-set! s 18 (f/ (f-ref s 20) (f-ref s 21)))
+                          (f-set! s 19 (f- (i->f 0) (f+ (f-ref s 21) (f* (f-ref s 20) (f-ref s 18)))))
+                          (f-set! (%mem-ref s 1) (* 2 (+ (* (- (%mem-ref s 14) 1) (%mem-ref s 11)) (%mem-ref s 13))) (f/ (f+ (f* (f-ref s 16) (f-ref s 18)) (f-ref s 17)) (f-ref s 19)))
+                          (f-set! (%mem-ref s 1) (+ (* 2 (+ (* (- (%mem-ref s 14) 1) (%mem-ref s 11)) (%mem-ref s 13))) 1) (f/ (f- (f* (f-ref s 17) (f-ref s 18)) (f-ref s 16)) (f-ref s 19))))
+                      (do (f-set! s 18 (f/ (f-ref s 21) (f-ref s 20)))
+                          (f-set! s 19 (f- (i->f 0) (f+ (f-ref s 20) (f* (f-ref s 21) (f-ref s 18)))))
+                          (f-set! (%mem-ref s 1) (* 2 (+ (* (- (%mem-ref s 14) 1) (%mem-ref s 11)) (%mem-ref s 13))) (f/ (f+ (f-ref s 16) (f* (f-ref s 17) (f-ref s 18))) (f-ref s 19)))
+                          (f-set! (%mem-ref s 1) (+ (* 2 (+ (* (- (%mem-ref s 14) 1) (%mem-ref s 11)) (%mem-ref s 13))) 1) (f/ (f- (f-ref s 17) (f* (f-ref s 16) (f-ref s 18))) (f-ref s 19)))))
+                    (f-set! s 16 (i->f 0)) (f-set! s 17 (i->f 0))
+                    (%mem-set! s 14 (- (%mem-ref s 14) 1)) (%mem-set! s 15 (%mem-ref s 14))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s))))))
+          (lit ((0 . a) (1 . b) (11 . 2))))))
 
     (method %register-all! (self)
       (List for-each
@@ -647,6 +993,14 @@
     (Matrix %square (self %st) "factor-symmetric-eigen")
     (Matrix %symmetric self "factor-symmetric-eigen")
     (SymmetricEigen %of (self %st)))
+
+  (method factor-eigen (self)
+    (doc "The eigenvalues and eigenvectors of any square matrix: values, complex, in the order the QR steps leave them on the diagonal of the Schur form, a conjugate pair with the positive imaginary part first; and vectors, a complex Matrix whose column i is value i's eigenvector, of unit length with its first greatest element real and positive. For a symmetric matrix, factor-symmetric-eigen answers real values and vectors."
+      (returns Eigen "The values and vectors")
+      (example "((((Matrix from '((0 -1) (1 0))) factor-eigen) values) ->list)" "(0.0+1.0i 0.0-1.0i)")
+      (see factor-symmetric-eigen))
+    (Matrix %square (self %st) "factor-eigen")
+    (Eigen %of (self %st)))
 
   (method factor-orthogonal (self)
     (doc "The orthogonal-upper (QR) factorization by Householder reflections: Q, whose columns are orthonormal, and an upper R, with Q times R equal to self. With k the lesser of self's rows and columns, Q has self's rows and k columns and R has k rows and self's columns. Any matrix factors."
@@ -958,8 +1312,37 @@
       (example "((((Matrix from '((2 0) (0 1))) factor-symmetric-eigen) vectors) ->list)" "((0.0 1.0) (1.0 0.0))"))
     (field (lit vectors))))
 
+;
+; Eigen keeps the values as a rank-1 c128 Tensor and the vectors as a c128
+; Matrix, made by the Hessenberg reduction, the QR steps and the complex
+; triangle.
+(def-class Eigen ()
+  (doc "The eigenvalues and eigenvectors of a square Matrix, from (m factor-eigen): values, complex, in the order the QR steps leave them on the diagonal, a conjugate pair with the positive imaginary part first; and vectors, a complex Matrix whose column i is value i's eigenvector, so the matrix times vectors is vectors times the diagonal of values."
+    (example "(let ((e ((Matrix from '((2 0) (0 3))) factor-eigen))) (list ((e values) ->list) ((e vectors) ->list)))" "((2.0+0.0i 3.0+0.0i) ((1.0+0.0i 0.0+0.0i) (0.0+0.0i 1.0+0.0i)))")
+    (see values) (see vectors))
+
+  values    ; a rank-1 c128 Tensor
+  vectors   ; a c128 Matrix, column i value i's eigenvector
+
+  (static
+    (method %of (self st)
+      (let ((r (Matrix %eigen st)))
+        (new-from self (list (lit values) (first r) (lit vectors) (List ref 1 r))))))
+
+  (method values (self)
+    (doc "The eigenvalues, complex, a conjugate pair with the positive imaginary part first. A real eigenvalue has imaginary part 0.0."
+      (returns Tensor "A rank-1 c128 Tensor")
+      (example "((((Matrix from '((2 1) (0 3))) factor-eigen) values) ->list)" "(2.0+0.0i 3.0+0.0i)"))
+    (field (lit values)))
+
+  (method vectors (self)
+    (doc "The eigenvectors: a complex Matrix whose column i is value i's eigenvector, of unit length with its first greatest element real and positive; a real eigenvalue's is real, and a conjugate pair's are conjugates."
+      (returns Matrix "A c128 Matrix")
+      (example "((((Matrix from '((2 0) (0 3))) factor-eigen) vectors) ->list)" "((1.0+0.0i 0.0+0.0i) (0.0+0.0i 1.0+0.0i))"))
+    (field (lit vectors))))
+
 (Matrix %register-all!)
 
-(doc (provide x/num/matrix Matrix LowerUpper Cholesky Orthogonal SymmetricEigen)
-  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal and norm -- run in kernels that compile once they have run long enough; and its factorizations, LowerUpper, Cholesky, Orthogonal and SymmetricEigen."
+(doc (provide x/num/matrix Matrix LowerUpper Cholesky Orthogonal SymmetricEigen Eigen)
+  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal and norm -- run in kernels that compile once they have run long enough; and its factorizations, LowerUpper, Cholesky, Orthogonal, SymmetricEigen and Eigen."
   (example "((Matrix from '((2 1) (1 3))) determinant)" "5.0"))
