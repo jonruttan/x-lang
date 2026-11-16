@@ -3,9 +3,9 @@
 
 `Matrix` is a `Tensor` of rank 2 with the linear algebra: the matrix
 product, solve, inverse, determinant, trace, diagonal and norm, and its
-lower-upper, Cholesky, orthogonal-upper, symmetric eigen and eigen
-factorizations, a `LowerUpper`, a `Cholesky`, an `Orthogonal`, a
-`SymmetricEigen` and an `Eigen`. Every result of the linear algebra is
+lower-upper, Cholesky, orthogonal-upper, symmetric eigen, eigen and
+singular value factorizations, a `LowerUpper`, a `Cholesky`, an
+`Orthogonal`, a `SymmetricEigen`, an `Eigen` and a `Singular`. Every result of the linear algebra is
 f64, or c128 for `Eigen`, so the cases answer the same on a 4-byte word as
 on an 8-byte one.
 
@@ -500,6 +500,106 @@ on an 8-byte one.
 ---
     ((5.0+0.0i) ((1.0+0.0i)) 'value)
 
+## The singular value factorization
+
+### values from greatest to least, none negative
+
+```x
+(import x/num/matrix)
+(let ((d ((Matrix from '((3 0) (0 -4))) factor-singular)))
+  (list (class-name d) ((d values) ->list) ((d values) encoding)))
+```
+---
+    ('Singular (4.0 3.0) 'f64)
+
+### left and right are the vectors of a known matrix
+
+```x
+(import x/num/matrix)
+(let ((d ((Matrix from '((0 2) (1 0))) factor-singular)))
+  (list ((d left) ->list) ((d right) ->list)))
+```
+---
+    (((1.0 0.0) (0.0 1.0)) ((0.0 1.0) (1.0 0.0)))
+
+### left times the values times right's transpose is the matrix, and the vectors are orthonormal
+
+```x
+(import x/num/matrix)
+(import x/num/float f-lt)
+(let ((near (fn (_ a b) (let ((d (a sub b))) (f-lt ((d mul d) sum) 0.000000000000000001)))))
+  (List map
+    (fn (_ rows)
+      (let ((a (Matrix from rows)))
+        (let ((d (a factor-singular)))
+          (let ((u (d left)) (v (d right)) (k (List length ((d values) ->list))))
+            (list (near a ((u mul (d values)) product (v transpose)))
+                  (near ((u transpose) product u) (Matrix identity k))
+                  (near ((v transpose) product v) (Matrix identity k)))))))
+    '(((1 2 3) (4 5 6) (7 8 10)) ((1 2 3) (4 5 6)) ((1 2) (3 4) (5 6))
+      ((1 2 3) (4 5 6) (7 8 9)) ((1 1) (1 1))
+      ((4 -2 1 3) (3 6 -4 1) (2 1 8 -1) (1 -3 2 5)))))
+```
+---
+    ((#t #t #t) (#t #t #t) (#t #t #t) (#t #t #t) (#t #t #t) (#t #t #t))
+
+### a tall matrix and a wide one: k is the lesser of rows and columns
+
+```x
+(import x/num/matrix)
+(List map
+  (fn (_ rows)
+    (let ((d ((Matrix from rows) factor-singular)))
+      (list ((d left) extent) ((d values) extent) ((d right) extent))))
+  '(((1 2) (3 4) (5 6)) ((1 2 3) (4 5 6))))
+```
+---
+    (((3 2) (2) (2 2)) ((2 2) (2) (3 2)))
+
+### the values of a known matrix
+
+```x
+(import x/num/matrix)
+(import x/num/float f-lt)
+(let ((w (((Matrix from '((2 0) (0 0) (0 1))) factor-singular) values)))
+  (let ((d (w sub (Tensor from '(2 1)))))
+    (f-lt ((d mul d) sum) 0.000000000000000001)))
+```
+---
+    #t
+
+### the rank counts the values above the tolerance
+
+```x
+(import x/num/matrix)
+(List map
+  (fn (_ rows) (((Matrix from rows) factor-singular) rank))
+  '(((1 2 3) (4 5 6) (7 8 10)) ((1 2 3) (4 5 6) (7 8 9)) ((1 2) (2 4)) ((0 0) (0 0))))
+```
+---
+    (3 2 1 0)
+
+### an explicit tolerance
+
+```x
+(import x/num/matrix)
+(let ((d ((Matrix from '((1 0) (0 1/1000))) factor-singular)))
+  (list (d rank) (d rank 1/100) (d rank 2)))
+```
+---
+    (2 1 0)
+
+### one row, and a zero matrix's vectors are still orthonormal
+
+```x
+(import x/num/matrix)
+(let ((one ((Matrix from '((5))) factor-singular))
+      (zero ((Matrix from '((0 0) (0 0))) factor-singular)))
+  (list ((one values) ->list) ((one left) ->list) ((zero values) ->list) ((zero left) ->list)))
+```
+---
+    ((5.0) ((1.0)) (0.0 0.0) ((1.0 0.0) (0.0 1.0)))
+
 ## Diagonal, trace and norm
 
 ### the diagonal is a view
@@ -532,12 +632,14 @@ on an 8-byte one.
   (let ((before (list ((a inverse) ->list) (a determinant) ((a solve b) ->list)
                       (((a factor-orthogonal) solve b) ->list)
                       (((((a transpose) product a) factor-symmetric-eigen) values) ->list)
-                      (((a factor-eigen) vectors) ->list))))
+                      (((a factor-eigen) vectors) ->list)
+                      (((a factor-singular) left) ->list))))
     (Matrix jit!)
     (equal? before (list ((a inverse) ->list) (a determinant) ((a solve b) ->list)
                          (((a factor-orthogonal) solve b) ->list)
                          (((((a transpose) product a) factor-symmetric-eigen) values) ->list)
-                         (((a factor-eigen) vectors) ->list)))))
+                         (((a factor-eigen) vectors) ->list)
+                         (((a factor-singular) left) ->list)))))
 ```
 ---
     #t

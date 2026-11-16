@@ -19,17 +19,20 @@
 ; Eigen for any square m, its values and vectors complex: m is reduced to
 ; Hessenberg form and then to real Schur form by Francis's double-shift QR
 ; steps, that form is made complex triangular, and the vectors are solved
-; on the triangle.
+; on the triangle.  (m factor-singular) answers a Singular for any m, its
+; singular values and the left and right vectors, by one-sided Jacobi
+; rotations of m's columns; its rank counts the values above a tolerance.
 ;
-; The work is done by ten kernels, word forms (x/tool/word-form) that
+; The work is done by eleven kernels, word forms (x/tool/word-form) that
 ; loop over two or three axes inside one run, so an operation costs a few
 ; runs however large its matrices: the product; LU factorization with
 ; partial pivoting, a pivot search down a column, a row swap and the
 ; elimination below a pivot, with forward and back substitution for solve;
 ; a scale down a column and a reflection of a block of columns for the
 ; Householder factorization, the Hessenberg reduction and the QR steps;
-; a sweep of Jacobi rotations; and back substitution on a complex
-; triangular matrix for its eigenvectors.
+; a sweep of Jacobi rotations, and a sweep of them on a matrix's columns
+; alone; and back substitution on a complex triangular matrix for its
+; eigenvectors.
 ; They run on Tensor's lanes, pure in budgeted calls until they have run
 ; long enough, then compiled once the compiled kernel writes what the pure
 ; one writes on a check problem.
@@ -578,6 +581,105 @@
                 (list (Tensor complex (Tensor from (first w) (lit f64)) (Tensor from (List ref 1 w) (lit f64)))
                       (self %eigenvectors v y n (List ref 1 w)))))))))
 
+    ; --- the singular value decomposition ------------------------------------
+    ; (LEFT VALUES RIGHT) for the state ST of R rows and C columns: VALUES
+    ; a list of K Floats from greatest to least, K the lesser of R and C,
+    ; LEFT a fresh f64 state of R rows and K columns and RIGHT one of C rows
+    ; and K columns, both with orthonormal columns, and ST is LEFT times the
+    ; diagonal of VALUES times RIGHT's transpose.  A matrix wider than it is
+    ; tall is factored through its transpose, which exchanges LEFT and
+    ; RIGHT.
+    (method %singular (self st)
+      (let ((rows (first (List ref 1 st))) (cols (List ref 1 (List ref 1 st))))
+        (if (int< rows cols)
+          (let ((r (self %singular-tall (((Matrix %make st) transpose) %st))))
+            (list (List ref 2 r) (List ref 1 r) (List ref 0 r)))
+          (self %singular-tall st))))
+
+    ; %singular for ST of R rows and C columns, R at least C.  The sweeps
+    ; rotate pairs of A's columns, and V's by the same rotation, until no
+    ; pair is rotated, a pair being passed once its product is at most R
+    ; 2^-52 of the product of its lengths; 64 sweeps bound them.  Column J
+    ; of A is then value J times left column J.
+    (method %singular-tall (self st)
+      (let ((f (Tensor %fast)) (s (str-make 256))
+            (r (first (List ref 1 st))) (c (List ref 1 (List ref 1 st))))
+        (let ((a ((obj-ref f 10) st (lit f64))) (v ((Matrix identity c) %st))
+              (e (f-div (float-of 1) (float-of 67108864))))
+          (let ((ab ((obj-ref f 13) a)) (vb ((obj-ref f 13) v)) (tol (f-mul (float-of r) (f-mul e e))))
+            (def sweep
+              (fn (go count)
+                (if (int= count 64) ()
+                  (do (self %run-doubles s (lit f64-column-jacobi)
+                        (list (pair 0 ab) (pair 1 vb) (pair 3 c) (pair 4 c) (pair 9 0) (pair 10 0)
+                              (pair 11 c) (pair 12 r) (pair 13 0) (pair 14 1) (pair 15 0))
+                        (list (pair 22 tol)))
+                      (if (int= (self %word s 9) 0) () (go (int+ count 1)))))))
+            (if (int< c 2) () (sweep 0))
+            (let ((vals (self %sort-singular a v r c)))
+              (self %left-columns a r c vals (f-mul (f-mul (float-of r) (f-mul e e)) (first vals)))
+              (list a vals v))))))
+
+    ; The lengths of A's C columns, greatest first, with A's and V's
+    ; columns swapped to match.  A has R rows, V has C.
+    (method %sort-singular (self a v r c)
+      (let ((f (Tensor %fast)) (s (str-make 256)) (zero (float-of 0)) (get ((obj-ref (Tensor %fast) 5) (lit f64))))
+        (let ((ab ((obj-ref f 13) a)) (vb ((obj-ref f 13) v)))
+          (def column-length
+            (fn (_ j)
+              (def go (fn (go i acc) (if (int= i r) acc (let ((x (get ab (int+ (int* i c) j)))) (go (int+ i 1) (f-add acc (f-mul x x)))))))
+              ((self %sqrt) (go 0 zero))))
+          (def swap
+            (fn (_ base k j count)
+              (self %run s (lit f64-swap)
+                (list (pair 0 (int+ base (int* 8 k))) (pair 1 (int+ base (int* 8 (int+ k j))))
+                      (pair 3 c) (pair 4 c) (pair 6 count) (pair 7 0)))))
+          (def place
+            (fn (go k vals acc)
+              (if (null? vals) (List reverse acc)
+                (let ((j (self %least-index (List map (fn (_ x) (f-sub zero x)) vals))))
+                  (if (int= j 0) () (do (swap ab k j r) (swap vb k j c)))
+                  (let ((vals (self %swap-first vals j)))
+                    (go (int+ k 1) (rest vals) (pair (first vals) acc)))))))
+          (place 0 (List map column-length (List range 0 c)) ()))))
+
+    ; A's C columns made the left vectors: column J divided by value J, or,
+    ; where value J is at most CUT, the unit vector most nearly orthogonal
+    ; to the columns before it, made so by subtracting its projection on
+    ; them twice.  A has R rows.
+    (method %left-columns (self a r c vals cut)
+      (let ((zero (float-of 0)) (one (float-of 1)) (ab ((obj-ref (Tensor %fast) 13) a))
+            (get ((obj-ref (Tensor %fast) 5) (lit f64))) (put ((obj-ref (Tensor %fast) 6) (lit f64))))
+        (def at (fn (_ i j) (int+ (int* i c) j)))
+        (def dot
+          (fn (_ x j)
+            (def go (fn (go i xs acc) (if (null? xs) acc (go (int+ i 1) (rest xs) (f-add acc (f-mul (first xs) (get ab (at i j))))))))
+            (go 0 x zero)))
+        (def project
+          (fn (_ x j)
+            (def go
+              (fn (go l x)
+                (if (int= l j) x
+                  (let ((d (dot x l)))
+                    (go (int+ l 1) (List map (fn (_ i) (f-sub (List ref i x) (f-mul d (get ab (at i l))))) (List range 0 r)))))))
+            (go 0 x)))
+        (def squares (fn (_ x) (List fold (fn (_ acc y) (f-add acc (f-mul y y))) zero x)))
+        (def complete
+          (fn (_ j)
+            (let ((xs (List map (fn (_ k) (project (project (List map (fn (_ i) (if (int= i k) one zero)) (List range 0 r)) j) j))
+                        (List range 0 r))))
+              (let ((x (List ref (self %least-index (List map (fn (_ x) (f-sub zero (squares x))) xs)) xs)))
+                (let ((size ((self %sqrt) (squares x))))
+                  (List for-each (fn (_ i) (put ab (at i j) (f-add (f-div (List ref i x) size) zero))) (List range 0 r)))))))
+        (def go
+          (fn (go j vals)
+            (if (null? vals) ()
+              (do (if (f-lt cut (first vals))
+                    (List for-each (fn (_ i) (put ab (at i j) (f-add (f-div (get ab (at i j)) (first vals)) zero))) (List range 0 r))
+                    (complete j))
+                  (go (int+ j 1) (rest vals))))))
+        (go 0 vals)))
+
     (method %square (self st who)
       (let ((ext (List ref 1 st)))
         (if (int= (first ext) (first (rest ext))) (first ext)
@@ -902,7 +1004,82 @@
                     (f-set! s 16 (i->f 0)) (f-set! s 17 (i->f 0))
                     (%mem-set! s 14 (- (%mem-ref s 14) 1)) (%mem-set! s 15 (%mem-ref s 14))
                     (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s))))))
-          (lit ((0 . a) (1 . b) (11 . 2))))))
+          (lit ((0 . a) (1 . b) (11 . 2))))
+        ; A sweep of one-sided Jacobi rotations rotates each pair of columns
+        ; P < Q (13 14) of the M (12) by N (11) matrix at 0, row stride 3, to
+        ; make them orthogonal, and V's columns at 1, row stride 4, by the
+        ; same rotation.  Word 10 is 0 while K (15) runs down the rows
+        ; summing the squares of the two columns at 18 and 19 and their
+        ; product at 20, 1 while K runs through A's rows (below M) and V's
+        ; (below M + N) rotating them.  A pair whose product is at most the
+        ; double at 22 times the root of the product of its squares is
+        ; passed; word 9 counts the pairs rotated.  The rotation's c and s
+        ; are at 16 and 17, made as the symmetric Schur step makes them
+        ; from the squares and the product, with theta and the temporary at
+        ; 21 and t at 18.
+        (list (lit f64-column-jacobi)
+          (lit (fn (self s)
+            (match
+              ((= (%mem-ref s 8) 0) 0)
+              ((= (%mem-ref s 13) (- (%mem-ref s 11) 1)) 1)
+              ((= (%mem-ref s 14) (%mem-ref s 11))
+                (do (%mem-set! s 14 (+ (%mem-ref s 13) 2)) (%mem-set! s 13 (+ (%mem-ref s 13) 1))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s)))
+              ((= (%mem-ref s 10) 0)
+                (do (if (< (%mem-ref s 15) (%mem-ref s 12))
+                      (do (f-set! s 18
+                            (f+ (f-ref s 18)
+                                (f* (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 13)))
+                                    (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 13))))))
+                          (f-set! s 19
+                            (f+ (f-ref s 19)
+                                (f* (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 14)))
+                                    (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 14))))))
+                          (f-set! s 20
+                            (f+ (f-ref s 20)
+                                (f* (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 13)))
+                                    (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 14))))))
+                          (%mem-set! s 15 (+ (%mem-ref s 15) 1)))
+                      (do (if (f< (f* (f-ref s 22) (f-sqrt (f* (f-ref s 18) (f-ref s 19))))
+                                  (if (f< (f-ref s 20) (i->f 0)) (f- (i->f 0) (f-ref s 20)) (f-ref s 20)))
+                            (do (f-set! s 21 (f/ (f- (f-ref s 19) (f-ref s 18)) (f+ (f-ref s 20) (f-ref s 20))))
+                                (f-set! s 18
+                                  (f/ (i->f 1)
+                                      (f+ (if (f< (f-ref s 21) (i->f 0)) (f- (i->f 0) (f-ref s 21)) (f-ref s 21))
+                                          (f-sqrt (f+ (f* (f-ref s 21) (f-ref s 21)) (i->f 1))))))
+                                (if (f< (f-ref s 21) (i->f 0)) (f-set! s 18 (f- (i->f 0) (f-ref s 18))) 0)
+                                (f-set! s 16 (f/ (i->f 1) (f-sqrt (f+ (f* (f-ref s 18) (f-ref s 18)) (i->f 1)))))
+                                (f-set! s 17 (f* (f-ref s 18) (f-ref s 16)))
+                                (%mem-set! s 9 (+ (%mem-ref s 9) 1))
+                                (%mem-set! s 10 1))
+                            (%mem-set! s 14 (+ (%mem-ref s 14) 1)))
+                          (f-set! s 18 (i->f 0)) (f-set! s 19 (i->f 0)) (f-set! s 20 (i->f 0))
+                          (%mem-set! s 15 0)))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s)))
+              ((< (%mem-ref s 15) (%mem-ref s 12))
+                (do (f-set! s 21 (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 13))))
+                    (f-set! (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 13))
+                      (f- (f* (f-ref s 16) (f-ref s 21))
+                          (f* (f-ref s 17) (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 14))))))
+                    (f-set! (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 14))
+                      (f+ (f* (f-ref s 17) (f-ref s 21))
+                          (f* (f-ref s 16) (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 14))))))
+                    (%mem-set! s 15 (+ (%mem-ref s 15) 1))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s)))
+              ((< (%mem-ref s 15) (+ (%mem-ref s 12) (%mem-ref s 11)))
+                (do (f-set! s 21 (f-ref (%mem-ref s 1) (+ (* (- (%mem-ref s 15) (%mem-ref s 12)) (%mem-ref s 4)) (%mem-ref s 13))))
+                    (f-set! (%mem-ref s 1) (+ (* (- (%mem-ref s 15) (%mem-ref s 12)) (%mem-ref s 4)) (%mem-ref s 13))
+                      (f- (f* (f-ref s 16) (f-ref s 21))
+                          (f* (f-ref s 17) (f-ref (%mem-ref s 1) (+ (* (- (%mem-ref s 15) (%mem-ref s 12)) (%mem-ref s 4)) (%mem-ref s 14))))))
+                    (f-set! (%mem-ref s 1) (+ (* (- (%mem-ref s 15) (%mem-ref s 12)) (%mem-ref s 4)) (%mem-ref s 14))
+                      (f+ (f* (f-ref s 17) (f-ref s 21))
+                          (f* (f-ref s 16) (f-ref (%mem-ref s 1) (+ (* (- (%mem-ref s 15) (%mem-ref s 12)) (%mem-ref s 4)) (%mem-ref s 14))))))
+                    (%mem-set! s 15 (+ (%mem-ref s 15) 1))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s)))
+              (#t
+                (do (%mem-set! s 10 0) (%mem-set! s 15 0) (%mem-set! s 14 (+ (%mem-ref s 14) 1))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s))))))
+          (lit ((0 . a) (1 . b) (3 . 3) (4 . 3) (11 . 3) (12 . 3) (14 . 1))))))
 
     (method %register-all! (self)
       (List for-each
@@ -1001,6 +1178,12 @@
       (see factor-symmetric-eigen))
     (Matrix %square (self %st) "factor-eigen")
     (Eigen %of (self %st)))
+
+  (method factor-singular (self)
+    (doc "The singular value decomposition by one-sided Jacobi rotations: values, the singular values from greatest to least, and left and right, whose columns are orthonormal, with self equal to left times the diagonal of values times right's transpose. With k the lesser of self's rows and columns, there are k values, left has self's rows and k columns, and right has self's columns and k columns. Any matrix factors."
+      (returns Singular "The values and vectors, which answer the rank")
+      (example "((((Matrix from '((3 0) (0 -4))) factor-singular) values) ->list)" "(4.0 3.0)"))
+    (Singular %of (self %st)))
 
   (method factor-orthogonal (self)
     (doc "The orthogonal-upper (QR) factorization by Householder reflections: Q, whose columns are orthonormal, and an upper R, with Q times R equal to self. With k the lesser of self's rows and columns, Q has self's rows and k columns and R has k rows and self's columns. Any matrix factors."
@@ -1341,8 +1524,61 @@
       (example "((((Matrix from '((2 0) (0 3))) factor-eigen) vectors) ->list)" "((1.0+0.0i 0.0+0.0i) (0.0+0.0i 1.0+0.0i))"))
     (field (lit vectors))))
 
+;
+; Singular keeps the values as a rank-1 f64 Tensor and the left and right
+; vectors as f64 Matrices, made by one-sided Jacobi rotations of the
+; columns of the matrix or of its transpose.
+(def-class Singular ()
+  (doc "The singular value decomposition of a Matrix, from (m factor-singular): values, from greatest to least, and left and right, whose columns are orthonormal, so the matrix is left times the diagonal of values times right's transpose. The rank is the number of values above a tolerance."
+    (example "(let ((d ((Matrix from '((0 2) (1 0))) factor-singular))) (list ((d values) ->list) ((d left) ->list) ((d right) ->list)))" "((2.0 1.0) ((1.0 0.0) (0.0 1.0)) ((0.0 1.0) (1.0 0.0)))")
+    (see values) (see left) (see right) (see rank))
+
+  left      ; an f64 Matrix, the matrix's rows by k
+  values    ; a rank-1 f64 Tensor of k values, greatest first
+  right     ; an f64 Matrix, the matrix's columns by k
+
+  (static
+    (method %of (self st)
+      (let ((r (Matrix %singular st)))
+        (new-from self
+          (list (lit left) (Matrix %make (List ref 0 r))
+                (lit values) (Tensor from (List ref 1 r) (lit f64))
+                (lit right) (Matrix %make (List ref 2 r)))))))
+
+  (method values (self)
+    (doc "The singular values, from greatest to least, none negative."
+      (returns Tensor "A rank-1 f64 Tensor")
+      (example "((((Matrix from '((1 1) (1 1))) factor-singular) values) ->list)" "(2.0 0.0)"))
+    (field (lit values)))
+
+  (method left (self)
+    (doc "The left vectors: a Matrix of the matrix's rows whose columns are orthonormal, column i value i's. A vector's sign is not fixed, but left column i and right column i change sign together."
+      (returns Matrix "An f64 Matrix")
+      (example "((((Matrix from '((0 2) (1 0))) factor-singular) left) ->list)" "((1.0 0.0) (0.0 1.0))"))
+    (field (lit left)))
+
+  (method right (self)
+    (doc "The right vectors: a Matrix of the matrix's columns whose columns are orthonormal, column i value i's. The matrix times right column i is value i times left column i."
+      (returns Matrix "An f64 Matrix")
+      (example "((((Matrix from '((0 2) (1 0))) factor-singular) right) ->list)" "((0.0 1.0) (1.0 0.0))"))
+    (field (lit right)))
+
+  (method rank (self . (param tolerance LIST "Optional FLOAT; the default is the greatest value times the greater of the matrix's rows and columns times 2^-52"))
+    (doc "The matrix's rank: how many singular values are greater than the tolerance. The default tolerance scales with the matrix, so a value left by rounding in place of 0 is not counted. This is the matrix's rank in linear algebra, not a Tensor's rank, its number of axes."
+      (returns INTEGER "The number of values above the tolerance")
+      (example "(((Matrix from '((1 2) (2 4))) factor-singular) rank)" "1")
+      (example "(((Matrix from '((1 0) (0 1/1000))) factor-singular) rank 1/100)" "1"))
+    (let ((vals ((field (lit values)) ->list))
+          (e (f-div (float-of 1) (float-of 67108864))))
+      (let ((cut (if (null? tolerance)
+                   (let ((rows (first (List ref 1 ((field (lit left)) %st))))
+                         (cols (first (List ref 1 ((field (lit right)) %st)))))
+                     (f-mul (f-mul (first vals) (float-of (if (int< rows cols) cols rows))) (f-mul e e)))
+                   (float-of (first tolerance)))))
+        (List length (List filter (fn (_ x) (f-lt cut x)) vals))))))
+
 (Matrix %register-all!)
 
-(doc (provide x/num/matrix Matrix LowerUpper Cholesky Orthogonal SymmetricEigen Eigen)
-  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal and norm -- run in kernels that compile once they have run long enough; and its factorizations, LowerUpper, Cholesky, Orthogonal, SymmetricEigen and Eigen."
+(doc (provide x/num/matrix Matrix LowerUpper Cholesky Orthogonal SymmetricEigen Eigen Singular)
+  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal and norm -- run in kernels that compile once they have run long enough; and its factorizations, LowerUpper, Cholesky, Orthogonal, SymmetricEigen, Eigen and Singular."
   (example "((Matrix from '((2 1) (1 3))) determinant)" "5.0"))
