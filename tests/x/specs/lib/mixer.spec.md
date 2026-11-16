@@ -422,6 +422,25 @@ pure-x loops and again with the compiled ones, byte for byte.
 ---
     (#t #t #t #t)
 
+### a ring turns the wave over with its modulator, its level kept, and a sync plays the wave until the modulator's cycle ends, then starts it again
+
+```x
+(do (import x/audio/mixer) (import x/core/doors mem-cmp ptr-ref str->ptr)
+  (def word (fn (_ r i) ((fn (_ u) (if (< 32767 u) (- u 65536) u)) (+ (ptr-ref (str->ptr r) i 1) (* 256 (ptr-ref (str->ptr r) (+ i 1) 1))))))
+  (def level (fn (_ r) ((fn (self i acc) (if (< i 1024) (self (+ i 2) ((fn (_ w) (+ acc (if (< w 0) (- 0 w) w))) (word r i))) acc)) 0 0)))
+  (def run (fn (_ v) (do (def m (Mixer make 8000 256)) (Mixer play! m (list v) 0 100) (Mixer block! m))))
+  (def tri (list (list (lit wave) (lit triangle)) (list (lit hz) 100) (list (lit env) (list 0 80) (list 200 80))))
+  (def plain (run tri))
+  (def ringed (run (pair (list (lit ring) 1200) tri)))
+  (def synced (run (pair (list (lit sync) 1200) tri)))
+  (list (= (level plain) (level ringed))
+        (not (= 0 (mem-cmp (str->ptr plain) (str->ptr ringed) 1024)))
+        (mem-cmp (str->ptr plain) (str->ptr synced) 156)
+        (not (= 0 (mem-cmp (str->ptr plain) (str->ptr synced) 1024)))))
+```
+---
+    (#t #t 0 #t)
+
 ## effects
 
 ### an effect is named, changed in its place and taken off
@@ -542,7 +561,7 @@ pure-x loops and again with the compiled ones, byte for byte.
 ---
     0
 
-### built where there is a JIT, they render the newer effects, a filter and a resonant filter byte for byte as the pure loops do
+### built where there is a JIT, they render the newer effects, a filter, a resonant filter, a ring and a sync byte for byte as the pure loops do
 
 ```x
 (do (import x/audio/mixer) (import x/tool/compiled) (import x/core/doors mem-cmp str->ptr)
@@ -557,7 +576,9 @@ pure-x loops and again with the compiled ones, byte for byte.
       (Mixer play! m (list (list (list (lit note) "C3") (list (lit filter) (list 0 100) (list 40 10) (list 60 80))
                                  (list (lit env) (list 0 0) (list 8 90) (list 60 40) (list 90 0)))
                            (list (list (lit wave) (lit noise)) (list (lit hz) 2000) (list (lit at) 13) (list (lit env) (list 0 100) (list 70 0))
-                                 (list (lit cutoff) (list 0 3000) (list 50 300)) (list (lit res) 80) (list (lit pass) (lit low) (lit high))))
+                                 (list (lit cutoff) (list 0 3000) (list 50 300)) (list (lit res) 80) (list (lit pass) (lit low) (lit high)))
+                           (list (list (lit wave) (lit triangle)) (list (lit note) "A2") (list (lit ring) 700) (list (lit sync) -500)
+                                 (list (lit bend) (list 0 0) (list 60 1200)) (list (lit env) (list 0 80) (list 80 0))))
                   37 80)
       (Mixer block! m)
       (Mixer cut! m 50)
