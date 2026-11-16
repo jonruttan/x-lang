@@ -884,7 +884,7 @@
   (method conjugate (self)
     (doc "The complex conjugates, each imaginary part negated: a fresh c128 tensor for c128, a copy of self otherwise."
       (returns Tensor "A fresh tensor of self's extent and encoding")
-      (example "((((Tensor from '(1 2)) as 'c128) conjugate) ->list)" "(1.0+0.0i 2.0+0.0i)"))
+      (example "(((Tensor complex (Tensor from '(1 2)) (Tensor from '(3 -4))) conjugate) ->list)" "(1.0-3.0i 2.0+4.0i)"))
     (if (eq? (first (field (lit st))) (lit c128))
       (self %wrap ((Tensor complex (self real) ((self imaginary) mul -1)) %st))
       (self copy)))
