@@ -97,7 +97,7 @@
       (%fail (Str8 append "not a number: " s)))
     (if neg (int- 0 (%digits ds)) (%digits ds))))
 
-(def %effect-letters (list "a" "v" "s" "p" "t" "f" "l" "w" "c" "d" "r"))
+(def %effect-letters (list "a" "v" "s" "p" "t" "f" "l" "w" "o" "c" "d" "r"))
 
 ; An effect in a cell, a letter and its numbers apart by commas, "v30,4",
 ; as (LETTER ARG ...).
@@ -252,6 +252,8 @@
 ;   l P         low-pass: to P percent of its cut by the next l or the note's end
 ;   w P         width: a pulse's to P percent of its cycle by the next w or the
 ;               note's end, from its own width
+;   o H         cutoff: a resonant filter's to H hertz by the next o or the
+;               note's end, from its own cutoff (see Mixer play!)
 ;   c N         cut: let go N ticks into the row
 ;   d N         delay: start N ticks into the row (on the note's own cell)
 ;   r N         retrigger: start again every N ticks
@@ -357,9 +359,9 @@
 
 ; A note LEN ms long with the effects FX at MS a row and TICK a tick, its
 ; instrument's envelope ENV let go over RELEASE, glided from FROM cents
-; (nil for none): (ENV BEND FILTER WIDTHS), BEND nil when its pitch is not
-; moved and FILTER when its low-pass is not, WIDTHS the spans of its
-; widths, nil for none.
+; (nil for none): (ENV BEND FILTER WIDTHS CUTOFFS), BEND nil when its
+; pitch is not moved and FILTER when its low-pass is not, WIDTHS and
+; CUTOFFS the spans of its widths and cutoffs, nil for none.
 (def %shape
   (fn (_ fx len ms tick env release from)
     (def end (int+ len release))
@@ -415,23 +417,34 @@
           (if (null? lows) ()
             (%path (%times (List append (list 0 end) (List flat-map (fn (_ sp) (list (first sp) (first (rest sp)))) lows)) end)
                    (fn (_ t _) (product (List map (toward t) lows)))))
-          (List filter (fn (_ sp) (not (null? (List ref 2 sp)))) (%spans fx "w" ms len)))))
+          (List filter (fn (_ sp) (not (null? (List ref 2 sp)))) (%spans fx "w" ms len))
+          (List filter (fn (_ sp) (not (null? (List ref 2 sp)))) (%spans fx "o" ms len)))))
 
-; The width path of WIDTHS, spans of (w P) from %shape, over END ms from
-; FROM percent: each span moves it to its P, and it holds between.
-(def %width-path
-  (fn (_ widths from end)
-    (%path (%times (List append (list 0 end) (List flat-map (fn (_ sp) (list (first sp) (first (rest sp)))) widths)) end)
+; The path of SPANS, a letter's spans from %shape, over END ms from FROM:
+; each span moves it to its argument, and it holds between.
+(def %span-path
+  (fn (_ spans from end)
+    (%path (%times (List append (list 0 end) (List flat-map (fn (_ sp) (list (first sp) (first (rest sp)))) spans)) end)
            (fn (_ t _) (List fold (fn (_ cur sp) (int+ cur (%ramp t (first sp) (first (rest sp)) (int- (first (List ref 2 sp)) cur))))
-                                  from widths)))))
+                                  from spans)))))
+
+; Voice V with SPANS moving its path KEY from FROM, or V as it is when
+; there are no SPANS or FROM is nil (it has no path KEY to move).
+(def %moved
+  (fn (_ v key spans end from)
+    (if (if (null? spans) #t (null? from)) v
+      (pair (pair key (%span-path spans from end)) v))))
+
+; The first point's value of path KEY of voice V, or nil.
+(def %start (fn (_ v key) ((fn (_ own) (if (null? own) () (first (rest (first (rest own)))))) (%prop v key))))
 
 ; Voice V with WIDTHS moving its width, when it is a pulse or has a width
 ; of its own: from its width's first point, a pulse's 50 when it has none.
 (def %widened
   (fn (_ v widths end)
-    (def own (%prop v (lit width)))
-    (if (if (null? widths) #t (if (null? own) (not (eq? (%prop1 v (lit wave) ()) (lit pulse))) #f)) v
-      (pair (pair (lit width) (%width-path widths (if (null? own) 50 (first (rest (first (rest own))))) end)) v))))
+    (def own (%start v (lit width)))
+    (%moved v (lit width) widths end
+            (if (null? own) (if (eq? (%prop1 v (lit wave) ()) (lit pulse)) 50 ()) own))))
 
 ; The note at the head of CELLS, in channel CI, started in M at MS a row:
 ; each voice of instrument INST at W percent, shaped by its effects.
@@ -455,8 +468,9 @@
         (def at (int+ delay start))
         (Mixer play! m
           (List map (fn (_ v)
-                      (def own (%widened (if (%pitched? v) v (pair (list (lit note) note) v)) (List ref 3 shape)
-                                         (int+ (%min every (int- len start)) (List ref 3 inst))))
+                      (def end (int+ (%min every (int- len start)) (List ref 3 inst)))
+                      (def own (%moved (%widened (if (%pitched? v) v (pair (list (lit note) note) v)) (List ref 3 shape) end)
+                                       (lit cutoff) (List ref 4 shape) end (%start v (lit cutoff))))
                       (def timed (if (int= at 0) own (pair (list (lit at) (int+ at (%prop1 v (lit at) 0))) own)))
                       (def bent (if (null? (List ref 1 shape)) timed (pair (pair (lit bend) (List ref 1 shape)) timed)))
                       (pair (pair (lit env) (first shape))
