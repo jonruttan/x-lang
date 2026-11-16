@@ -4,7 +4,7 @@
 ; The base type handles, from their public door, fetched once at load.
 (def %int (Type named INTEGER))
 
-(import x/num/float float float? float-of f-add f-mul fsqrt fsin fcos fatan2 pi str->float)
+(import x/num/float float float? float-of float-split f-add f-mul fsqrt fsin fcos fatan2 pi str->float)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
 (import x/core/doors buf-tok int+ int- int= io-write-to-str type-by-atom type-make type-make-instance type-of type-push-call type-push-op type?)
 
@@ -163,10 +163,16 @@
       (pair
         'write
         (fn (_ self)
+          ; The sign between the parts comes from the imaginary part's
+          ; sign bit when it is a float, so -0.0 prints as 1.0-0.0i; the
+          ; part itself prints as its magnitude.
           (let ((re (first (first self))) (im (rest (first self))))
-            (display re)
-            (if (not (%real< im 0)) (display "+"))
-            (display im "i"))))
+            (let ((neg (if (float? im)
+                         (first (float-split (first im)))
+                         (%real< im 0))))
+              (display re)
+              (display (if neg "-" "+"))
+              (display (if neg (%real- 0 im) im) "i")))))
       (pair
         'analyse
         (fn (_ buffer score chr)

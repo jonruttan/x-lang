@@ -37,6 +37,22 @@
 ---
     3.14+2.5i
 
+### negative-zero imaginary part prints its sign once
+
+```x
+(display (Complex make 1.0 (* -1.0 0.0)))
+```
+---
+    1.0-0.0i
+
+### negative-zero imaginary part reads back negative
+
+```x
+(display (< (/ 1.0 (Complex imag-part 1.0-0.0i)) 0))
+```
+---
+    #t
+
 ### pure imaginary
 
 ```x
