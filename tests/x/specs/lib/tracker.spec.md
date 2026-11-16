@@ -191,6 +191,39 @@ reached and what is sounding.
 ---
     (#t #t)
 
+### a width effect moves a pulse's width from its own: to its own width it sounds as it was
+
+```x
+(do (import x/audio/tracker) (import x/audio/mixer) (import x/core/doors ptr-ref str->ptr)
+  (def song (fn (_ inst cells) (list (lit song) "s" (lit (bpm 60)) (lit (rows 4)) (lit (ticks 4))
+                                     (pair (lit instrument) (pair (lit a) inst))
+                                     (list (lit pattern) (lit p) (list (lit a) cells)) (lit (order p)))))
+  (def s16 (fn (_ r i) ((fn (_ u) (if (< u 32768) u (- u 65536))) (+ (ptr-ref (str->ptr r) (* 2 i) 1) (* 256 (ptr-ref (str->ptr r) (+ 1 (* 2 i)) 1))))))
+  (def worst
+    (fn (_ inst a b)
+      (def ma (Mixer make 8000 256))
+      (def mb (Mixer make 8000 256))
+      (Tracker play! (Tracker make (song inst a)) ma)
+      (Tracker play! (Tracker make (song inst b)) mb)
+      ((fn (self n w)
+         (if (< n 1) w
+           ((fn (_ ra rb)
+              (self (- n 1) ((fn (self i w) (if (< i 512) (self (+ i 1) ((fn (_ d) (if (< w d) d w)) ((fn (_ d) (if (< d 0) (- 0 d) d)) (- (s16 ra i) (s16 rb i))))) w)) 0 w)))
+            (Mixer block! ma) (Mixer block! mb))))
+       12 0)))
+  (def p50 (lit ((wave pulse) (env (0 100) (10 100)) (release 20))))
+  (def p20 (lit ((wave pulse) (width (0 20)) (env (0 100) (10 100)) (release 20))))
+  (def smooth (lit ((wave sine) (env (0 100) (10 100)) (release 20))))
+  (list (< (worst p50 "C4 . . ." "C4/w50 . . .") 8)
+        (< (worst p20 "C4 . . ." "C4/w20 . . .") 8)
+        (< 1000 (worst p50 "C4 . . ." "C4/w10 . . ."))
+        (< 1000 (worst p50 "C4 . . ." "C4 ./w90 . ."))
+        (< 1000 (worst p20 "C4 . . ." "C4/w50 . . ."))
+        (< (worst smooth "C4 . . ." "C4/w10 . . .") 8)))
+```
+---
+    (#t #t #t #t #t #t)
+
 ### a delay starts the note late, a cut lets it go early, and a retrigger starts it again
 
 ```x
