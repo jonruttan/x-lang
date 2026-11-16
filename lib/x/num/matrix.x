@@ -11,13 +11,17 @@
 ; LowerUpper, which keeps the factors and answers its parts, solves and the
 ; determinant from them, so a matrix factored once solves many right sides.
 ; (m factor-cholesky) answers a Cholesky for a symmetric positive-definite
-; m, built on a LowerUpper that never swaps a row.
+; m, built on a LowerUpper that never swaps a row.  (m factor-orthogonal)
+; answers an Orthogonal, the factorization by Householder reflections,
+; which solves least squares.
 ;
-; The work is done by six kernels, word forms (x/tool/word-form) that loop
-; over two or three axes inside one run, so an operation costs a few runs
-; however large its matrices: the product; and LU factorization with
+; The work is done by eight kernels, word forms (x/tool/word-form) that
+; loop over two or three axes inside one run, so an operation costs a few
+; runs however large its matrices: the product; LU factorization with
 ; partial pivoting, a pivot search down a column, a row swap and the
-; elimination below a pivot, with forward and back substitution for solve.
+; elimination below a pivot, with forward and back substitution for solve;
+; and a scale down a column and a reflection of a block of columns for the
+; Householder factorization.
 ; They run on Tensor's lanes, pure in budgeted calls until they have run
 ; long enough, then compiled once the compiled kernel writes what the pure
 ; one writes on a check problem.
@@ -29,7 +33,7 @@
 (import x/type/class)
 (import x/type/list)
 (import x/num/tensor)
-(import x/num/float float float-of f-mul f-lt libm-fn)
+(import x/num/float float float-of f-add f-sub f-mul f-div f-lt libm-fn)
 (import x/tool/word-form word-form-pure)
 (import x/core/doors int+ int- int* int/ int< int= mem-cmp obj-ref ptr->int int->ptr
   ptr-ref-word ptr-set-word! str->ptr str-make type?)
@@ -71,12 +75,30 @@
     ; Write WORDS, ((K . V) ...), into scratch S, clear the doubles the
     ; kernels keep at 16, 17 and 18, and drive kernel NAME to the end of its
     ; run.
-    (method %run (self s name words)
-      (let ((p (str->ptr s)))
+    (method %run (self s name words) (self %run-doubles s name words ()))
+
+    ; As %run, with DOUBLES, ((K . FLOAT) ...), written over the cleared
+    ; doubles before the run.
+    (method %run-doubles (self s name words doubles)
+      (let ((p (str->ptr s)) (put ((obj-ref (Tensor %fast) 6) (lit f64))))
         (def clear (fn (go b) (if (int< b 152) (do (ptr-set-word! p b 0) (go (int+ b %word-size))) ())))
         (clear 128)
         (List for-each (fn (_ w) (ptr-set-word! p (int* (first w) %word-size) (rest w))) words)
+        (List for-each (fn (_ d) (put (ptr->int p) (first d) (rest d))) doubles)
         ((obj-ref (Tensor %fast) 14) name s)))
+
+    ; In each row I of the contiguous state ST, COUNT(I) elements from
+    ; column FROM(I) set to X.  Answers ST.
+    (method %fill-rows! (self st count from x)
+      (let ((f (Tensor %fast)) (r (first (List ref 1 st))) (c (List ref 1 (List ref 1 st))))
+        (def go
+          (fn (go i)
+            (if (int< i r)
+              (do (if (int= (count i) 0) ()
+                    ((obj-ref f 9) ((obj-ref f 11) st (list (count i)) (list 1) (int+ (int* i c) (from i))) x))
+                  (go (int+ i 1)))
+              st)))
+        (go 0)))
 
     ; libm's sqrt, made on first use.
     (%sqrt-cell (pair () ()))
@@ -127,6 +149,45 @@
                                   (pair 13 1) (pair 14 0))))
                         (go (int+ k 1) (pair p pivots) (if zero #t singular))))))))
             (go 0 () #f)))))
+
+    ; --- the Householder factorization ------------------------------------------
+    ; (A M N TAUS) for the M by N state ST: A a fresh contiguous f64 copy
+    ; holding R on and above the diagonal and, below it, the tail of each
+    ; reflection's vector v, whose first element is 1; TAUS the factor of
+    ; each reflection I - tau v v^T, 0.0 where a column needed none.  Column
+    ; K's reflection sends its elements from row K to (beta 0 ... 0), beta
+    ; of the opposite sign to the first, as LAPACK's dlarfg does.
+    (method %householder (self st)
+      (let ((f (Tensor %fast)) (m (first (List ref 1 st))) (n (List ref 1 (List ref 1 st))) (s (str-make 256)))
+        (let ((a ((obj-ref f 10) st (lit f64))) (zero (float-of 0)))
+          (let ((base ((obj-ref f 13) a)) (get ((obj-ref f 5) (lit f64))) (put ((obj-ref f 6) (lit f64)))
+                (steps (if (int< (int- m 1) n) (int- m 1) n)))
+            (def at (fn (_ i j) (int+ base (int* 8 (int+ (int* i n) j)))))
+            (def go
+              (fn (go k taus)
+                (if (int< k steps)
+                  (let ((x0 (get base (int+ (int* k n) k)))
+                        (tail (Tensor %make ((obj-ref f 11) a (list (int- m (int+ k 1))) (list n) (int+ (int* (int+ k 1) n) k)))))
+                    (let ((tt ((tail mul tail) sum)))
+                      (if (f-lt zero tt)
+                        (let ((norm ((self %sqrt) (f-add (f-mul x0 x0) tt))))
+                          (let ((beta (if (f-lt x0 zero) norm (f-sub zero norm))))
+                            (let ((tau (f-div (f-sub beta x0) beta)))
+                              (self %run-doubles s (lit f64-scale)
+                                (list (pair 0 (at (int+ k 1) k)) (pair 3 n) (pair 6 (int- m (int+ k 1))) (pair 7 0))
+                                (list (pair 17 (f-div (float-of 1) (f-sub x0 beta)))))
+                              (put base (int+ (int* k n) k) (float-of 1))
+                              (if (int< (int+ k 1) n)
+                                (self %run-doubles s (lit f64-reflect)
+                                  (list (pair 0 (at k k)) (pair 1 (at k (int+ k 1))) (pair 3 n) (pair 4 n) (pair 5 1)
+                                        (pair 10 (int- m k)) (pair 12 (int- n (int+ k 1))) (pair 13 0) (pair 14 0))
+                                  (list (pair 17 tau)))
+                                ())
+                              (put base (int+ (int* k n) k) beta)
+                              (go (int+ k 1) (pair tau taus)))))
+                        (go (int+ k 1) (pair zero taus)))))
+                  (list a m n (List reverse taus)))))
+            (go 0 ())))))
 
     (method %square (self st who)
       (let ((ext (List ref 1 st)))
@@ -264,6 +325,52 @@
                     (f-set! s 16 (f-ref s 18)) (%mem-set! s 15 0) (%mem-set! s 13 (+ (%mem-ref s 13) 1))
                     (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s))))))
           (lit ((0 . a) (1 . b) (3 . 3) (4 . 1) (5 . 3) (6 . 1) (11 . 3) (12 . 3))))
+        ; The scale multiplies CNT (6) elements at 0, stride 3, counted by 7,
+        ; by the double at 17.
+        (list (lit f64-scale)
+          (lit (fn (self s)
+            (match
+              ((= (%mem-ref s 8) 0) 0)
+              ((= (%mem-ref s 7) (%mem-ref s 6)) 1)
+              (#t
+                (do (f-set! (%mem-ref s 0) (* (%mem-ref s 7) (%mem-ref s 3))
+                      (f* (f-ref (%mem-ref s 0) (* (%mem-ref s 7) (%mem-ref s 3))) (f-ref s 17)))
+                    (%mem-set! s 7 (+ (%mem-ref s 7) 1))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s))))))
+          (lit ((0 . a) (3 . 1) (6 . 3))))
+        ; The reflection applies I - tau v v^T, tau the double at 17, to the
+        ; R (10) rows and C (12) columns at 1 (row and column strides 4 5),
+        ; v the R elements at 0 (stride 3).  Column J (14) takes I (13)
+        ; through 2R + 1 steps: below R, the sum of v times the column, in
+        ; 16; at R, the sum times tau; above R, row I - R - 1 less the sum
+        ; times v.
+        (list (lit f64-reflect)
+          (lit (fn (self s)
+            (match
+              ((= (%mem-ref s 8) 0) 0)
+              ((= (%mem-ref s 14) (%mem-ref s 12)) 1)
+              ((= (%mem-ref s 13) (+ (* 2 (%mem-ref s 10)) 1))
+                (do (f-set! s 16 (f-ref s 18)) (%mem-set! s 13 0) (%mem-set! s 14 (+ (%mem-ref s 14) 1))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s)))
+              ((< (%mem-ref s 13) (%mem-ref s 10))
+                (do (f-set! s 16
+                      (f+ (f-ref s 16)
+                          (f* (f-ref (%mem-ref s 0) (* (%mem-ref s 13) (%mem-ref s 3)))
+                              (f-ref (%mem-ref s 1) (+ (* (%mem-ref s 13) (%mem-ref s 4)) (* (%mem-ref s 14) (%mem-ref s 5)))))))
+                    (%mem-set! s 13 (+ (%mem-ref s 13) 1))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s)))
+              ((= (%mem-ref s 13) (%mem-ref s 10))
+                (do (f-set! s 16 (f* (f-ref s 16) (f-ref s 17))) (%mem-set! s 13 (+ (%mem-ref s 13) 1))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s)))
+              (#t
+                (do (f-set! (%mem-ref s 1)
+                      (+ (* (- (- (%mem-ref s 13) (%mem-ref s 10)) 1) (%mem-ref s 4)) (* (%mem-ref s 14) (%mem-ref s 5)))
+                      (f- (f-ref (%mem-ref s 1)
+                            (+ (* (- (- (%mem-ref s 13) (%mem-ref s 10)) 1) (%mem-ref s 4)) (* (%mem-ref s 14) (%mem-ref s 5))))
+                          (f* (f-ref s 16) (f-ref (%mem-ref s 0) (* (- (- (%mem-ref s 13) (%mem-ref s 10)) 1) (%mem-ref s 3))))))
+                    (%mem-set! s 13 (+ (%mem-ref s 13) 1))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s))))))
+          (lit ((0 . a) (1 . b) (3 . 3) (4 . 3) (5 . 1) (10 . 3) (12 . 3))))
         ; Back substitution walks the rows from the last: row R is N - 1 - I,
         ; and its sum runs over the columns N - I + K for K below I.
         (list (lit f64-backward)
@@ -383,6 +490,12 @@
           ())))
     (Cholesky %of (self %st)))
 
+  (method factor-orthogonal (self)
+    (doc "The orthogonal-upper (QR) factorization by Householder reflections: Q, whose columns are orthonormal, and an upper R, with Q times R equal to self. With k the lesser of self's rows and columns, Q has self's rows and k columns and R has k rows and self's columns. Any matrix factors."
+      (returns Orthogonal "The factorization, which solves least squares without factoring again")
+      (example "((((Matrix from '((0 1) (1 1))) factor-orthogonal) upper) ->list)" "((-1.0 -1.0) (0.0 -1.0))"))
+    (Orthogonal %of (self %st)))
+
   (method solve (self (param b Tensor "The right side: a rank-1 Tensor of self's rows, or a Matrix of them"))
     (doc "The x for which self times x is b, through the lower-upper factorization. A singular matrix is refused. To solve many right sides against one matrix, factor it once with factor-lower-upper and solve with that."
       (returns Tensor "A fresh f64 Tensor of b's extent: rank 1 for a rank-1 b, a Matrix for a Matrix")
@@ -453,16 +566,7 @@
   ; A fresh copy of the factors with, in each row I, COUNT(I) elements from
   ; column FROM(I) set to X.
   (method %triangle (self count from x)
-    (let ((f (Tensor %fast)) (n (field (lit n))))
-      (let ((st ((obj-ref f 10) (field (lit packed)) (lit f64))))
-        (def go
-          (fn (go i)
-            (if (int< i n)
-              (do (if (int= (count i) 0) ()
-                    ((obj-ref f 9) ((obj-ref f 11) st (list (count i)) (list 1) (int+ (int* i n) (from i))) x))
-                  (go (int+ i 1)))
-              st)))
-        (go 0))))
+    (Matrix %fill-rows! ((obj-ref (Tensor %fast) 10) (field (lit packed)) (lit f64)) count from x))
 
   (method lower (self)
     (doc "L: the multipliers below the diagonal, 1 on it and 0 above."
@@ -577,8 +681,97 @@
       (example "(((Matrix from '((4 2) (2 5))) factor-cholesky) determinant)" "16.0"))
     ((field (lit factors)) determinant)))
 
+;
+; Orthogonal keeps the Householder factors in one f64 state, R on and
+; above the diagonal and each reflection's vector below it, with each
+; reflection's tau.  Q is never kept: it is the reflections applied to the
+; identity's first k columns, and a solve applies them to b instead.
+(def-class Orthogonal ()
+  (doc "The orthogonal-upper (QR) factorization of a Matrix by Householder reflections, from (m factor-orthogonal): Q, whose columns are orthonormal, and an upper R, with Q times R equal to the matrix. It solves least squares, so a matrix factored once fits many right sides."
+    (example "(let ((f ((Matrix from '((0 1) (1 1))) factor-orthogonal))) (list ((f orthogonal) ->list) ((f upper) ->list)))" "(((0.0 -1.0) (-1.0 0.0)) ((-1.0 -1.0) (0.0 -1.0)))")
+    (see orthogonal) (see upper) (see solve))
+
+  packed    ; the factors: a contiguous f64 state, R on and above the diagonal, each v's tail below
+  m         ; the rows
+  n         ; the columns
+  taus      ; each reflection's tau, 0.0 for one not made
+
+  (static
+    (method %of (self st)
+      (let ((r (Matrix %householder st)))
+        (new-from self
+          (list (lit packed) (List ref 0 r) (lit m) (List ref 1 r)
+                (lit n) (List ref 2 r) (lit taus) (List ref 3 r))))))
+
+  (method %k (self)
+    (if (int< (field (lit m)) (field (lit n))) (field (lit m)) (field (lit n))))
+
+  ; Apply the reflections numbered in ORDER to T, a fresh contiguous f64
+  ; state of M rows, one axis or two.  Answers T.
+  (method %reflect (self t order)
+    (let ((f (Tensor %fast)) (n (field (lit n))) (m (field (lit m))) (s (str-make 256)))
+      (let ((v ((obj-ref f 10) (field (lit packed)) (lit f64))))
+        ((obj-ref f 9) ((obj-ref f 11) v (list (self %k)) (list (int+ n 1)) 0) 1)
+        (let ((vb ((obj-ref f 13) v)) (tb ((obj-ref f 13) t))
+              (c (if (int= (List length (List ref 1 t)) 1) 1 (List ref 1 (List ref 1 t)))))
+          (List for-each
+            (fn (_ k)
+              (let ((tau (List ref k (field (lit taus)))))
+                (if (f-lt (float-of 0) tau)
+                  (Matrix %run-doubles s (lit f64-reflect)
+                    (list (pair 0 (int+ vb (int* 8 (int+ (int* k n) k)))) (pair 1 (int+ tb (int* 8 (int* k c))))
+                          (pair 3 n) (pair 4 c) (pair 5 1) (pair 10 (int- m k)) (pair 12 c) (pair 13 0) (pair 14 0))
+                    (list (pair 17 tau)))
+                  ())))
+            order)
+          t))))
+
+  (method orthogonal (self)
+    (doc "Q: the matrix's rows by k columns, k the lesser of its rows and columns, orthonormal, so Q's transpose times Q is the identity."
+      (returns Matrix "A fresh f64 Matrix")
+      (example "((((Matrix from '((0 1) (1 1))) factor-orthogonal) orthogonal) ->list)" "((0.0 -1.0) (-1.0 0.0))"))
+    (let ((f (Tensor %fast)) (k (self %k)))
+      (let ((t ((obj-ref f 4) (lit f64) (list (field (lit m)) k))))
+        ((obj-ref f 9) t 0)
+        ((obj-ref f 9) ((obj-ref f 11) t (list k) (list (int+ k 1)) 0) 1)
+        (Matrix %make (self %reflect t (List reverse (List range 0 (List length (field (lit taus))))))))))
+
+  (method upper (self)
+    (doc "R: k rows by the matrix's columns, k the lesser of its rows and columns, 0 below the diagonal."
+      (returns Matrix "A fresh f64 Matrix")
+      (example "((((Matrix from '((0 1) (1 1))) factor-orthogonal) upper) ->list)" "((-1.0 -1.0) (0.0 -1.0))"))
+    (let ((f (Tensor %fast)) (n (field (lit n))) (k (self %k)))
+      (Matrix %make
+        (Matrix %fill-rows!
+          ((obj-ref f 10) ((obj-ref f 11) (field (lit packed)) (list k n) (list n 1) 0) (lit f64))
+          (fn (_ i) (if (int< i n) i n)) (fn (_ i) 0) 0))))
+
+  (method solve (self (param b Tensor "The right side: a rank-1 Tensor of the matrix's rows, or a Matrix of them"))
+    (doc "The least-squares x: the one for which the matrix times x is nearest b, the exact solution for a square matrix. The matrix must have at least as many rows as columns, and independent columns; any other is refused."
+      (returns Tensor "A fresh f64 Tensor of the matrix's columns: rank 1 for a rank-1 b, a Matrix of b's columns for a Matrix")
+      (example "((((Matrix from '((0 1) (1 1))) factor-orthogonal) solve (Tensor from '(1 2))) ->list)" "(1.0 1.0)"))
+    (let ((f (Tensor %fast)) (m (field (lit m))) (n (field (lit n))) (bs (b %st)))
+      (if (int< m n) (Err raise (lit value) "Orthogonal solve: the matrix has fewer rows than columns" (list m n)) ())
+      (if (int= (first (List ref 1 bs)) m) ()
+        (Err raise (lit value) "Orthogonal solve: b's rows and the matrix's differ" (List ref 1 bs)))
+      (let ((get ((obj-ref f 5) (lit f64))) (pb ((obj-ref f 13) (field (lit packed)))))
+        (if (List any? (fn (_ i) (if (f-lt (float-of 0) (get pb (int+ (int* i n) i))) #f
+                                   (if (f-lt (get pb (int+ (int* i n) i)) (float-of 0)) #f #t)))
+              (List range 0 n))
+          (Err raise (lit value) "Orthogonal solve: the matrix's columns are not independent" ())
+          ()))
+      (let ((y (self %reflect ((obj-ref f 10) bs (lit f64)) (List range 0 (List length (field (lit taus))))))
+            (rank1 (int= (List length (List ref 1 bs)) 1)))
+        (let ((c (if rank1 1 (List ref 1 (List ref 1 bs)))))
+          (Matrix %run (str-make 256) (lit f64-backward)
+            (list (pair 0 ((obj-ref f 13) (field (lit packed)))) (pair 1 ((obj-ref f 13) y))
+                  (pair 3 n) (pair 4 1) (pair 5 c) (pair 6 1) (pair 11 n) (pair 12 c)
+                  (pair 13 0) (pair 14 0) (pair 15 0)))
+          (let ((x ((obj-ref f 10) ((obj-ref f 11) y (if rank1 (list n) (list n c)) (if rank1 (list 1) (list c 1)) 0) (lit f64))))
+            ((Matrix %result-class x) %make x)))))))
+
 (Matrix %register-all!)
 
-(doc (provide x/num/matrix Matrix LowerUpper Cholesky)
-  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal and norm -- run in kernels that compile once they have run long enough; and its factorizations, LowerUpper and Cholesky."
+(doc (provide x/num/matrix Matrix LowerUpper Cholesky Orthogonal)
+  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal and norm -- run in kernels that compile once they have run long enough; and its factorizations, LowerUpper, Cholesky and Orthogonal."
   (example "((Matrix from '((2 1) (1 3))) determinant)" "5.0"))

@@ -3,9 +3,10 @@
 
 `Matrix` is a `Tensor` of rank 2 with the linear algebra: the matrix
 product, solve, inverse, determinant, trace, diagonal and norm, and its
-lower-upper and Cholesky factorizations, a `LowerUpper` and a
-`Cholesky`. Every result of the linear algebra is f64, so the cases
-answer the same on a 4-byte word as on an 8-byte one.
+lower-upper, Cholesky and orthogonal-upper factorizations, a
+`LowerUpper`, a `Cholesky` and an `Orthogonal`. Every result of the
+linear algebra is f64, so the cases answer the same on a 4-byte word as
+on an 8-byte one.
 
 ## Making matrices
 
@@ -293,6 +294,73 @@ answer the same on a 4-byte word as on an 8-byte one.
 ---
     ('value 'value 'value 'value)
 
+## The orthogonal-upper factorization
+
+### the parts of a factorization
+
+```x
+(import x/num/matrix)
+(let ((f ((Matrix from '((0 1) (1 1))) factor-orthogonal)))
+  (list (class-name f) ((f orthogonal) ->list) ((f upper) ->list)))
+```
+---
+    ('Orthogonal ((0.0 -1.0) (-1.0 0.0)) ((-1.0 -1.0) (0.0 -1.0)))
+
+### Q times R is the matrix, and Q's columns are orthonormal
+
+```x
+(import x/num/matrix)
+(import x/num/float f-lt)
+(let ((near (fn (_ a b) (let ((d (a sub b))) (f-lt ((d mul d) sum) 0.000000000000000001)))))
+  (List map
+    (fn (_ rows)
+      (let ((a (Matrix from rows)))
+        (let ((f (a factor-orthogonal)))
+          (let ((q (f orthogonal)) (r (f upper)))
+            (list (q extent) (r extent) (near (q product r) a)
+                  (near ((q transpose) product q) (Matrix identity (List ref 1 (q extent)))))))))
+    '(((1 2 3) (4 5 6) (7 8 10) (2 1 1)) ((1 2 3) (4 5 6)) ((2 -1 0) (-1 2 -1) (0 -1 2)))))
+```
+---
+    (((4 3) (3 3) #t #t) ((2 2) (2 3) #t #t) ((3 3) (3 3) #t #t))
+
+### solve fits least squares
+
+```x
+(import x/num/matrix)
+(import x/num/float f-lt)
+(let ((near (fn (_ a b) (let ((d (a sub b))) (f-lt ((d mul d) sum) 0.000000000000000001))))
+      (a (Matrix from '((1 0) (1 1) (1 2) (1 3)))) (b (Tensor from '(1 2 2 4))))
+  (let ((x ((a factor-orthogonal) solve b)))
+    (list (x extent) (near x (Tensor from '(0.9 0.9)))
+          (near ((a transpose) product ((a product x) sub b)) (Tensor from '(0 0))))))
+```
+---
+    ((2) #t #t)
+
+### a square solve agrees with the lower-upper one
+
+```x
+(import x/num/matrix)
+(import x/num/float f-lt)
+(let ((a (Matrix from '((4 -2 1) (3 6 -4) (2 1 8)))) (b (Matrix from '((1 0) (2 1) (3 0)))))
+  (let ((d (((a factor-orthogonal) solve b) sub (a solve b))))
+    (list (class-name d) (f-lt ((d mul d) sum) 0.000000000000000001))))
+```
+---
+    ('Matrix #t)
+
+### solve refuses a wide matrix, dependent columns and a mismatched b
+
+```x
+(import x/num/matrix)
+(list (guard (e (Err label e)) (((Matrix from '((1 2 3) (4 5 6))) factor-orthogonal) solve (Tensor from '(1 1))))
+      (guard (e (Err label e)) (((Matrix from '((1 0) (1 0) (1 0))) factor-orthogonal) solve (Tensor from '(1 2 3))))
+      (guard (e (Err label e)) (((Matrix from '((1 0) (0 1) (1 1))) factor-orthogonal) solve (Tensor from '(1 2)))))
+```
+---
+    ('value 'value 'value)
+
 ## Diagonal, trace and norm
 
 ### the diagonal is a view
@@ -322,9 +390,11 @@ answer the same on a 4-byte word as on an 8-byte one.
 ```x
 (import x/num/matrix)
 (let ((a (Matrix from '((4 -2 1) (3 6 -4) (2 1 8)))) (b (Tensor from '(1 2 3))))
-  (let ((before (list ((a inverse) ->list) (a determinant) ((a solve b) ->list))))
+  (let ((before (list ((a inverse) ->list) (a determinant) ((a solve b) ->list)
+                      (((a factor-orthogonal) solve b) ->list))))
     (Matrix jit!)
-    (equal? before (list ((a inverse) ->list) (a determinant) ((a solve b) ->list)))))
+    (equal? before (list ((a inverse) ->list) (a determinant) ((a solve b) ->list)
+                         (((a factor-orthogonal) solve b) ->list)))))
 ```
 ---
     #t
