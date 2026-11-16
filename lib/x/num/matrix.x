@@ -13,15 +13,17 @@
 ; (m factor-cholesky) answers a Cholesky for a symmetric positive-definite
 ; m, built on a LowerUpper that never swaps a row.  (m factor-orthogonal)
 ; answers an Orthogonal, the factorization by Householder reflections,
-; which solves least squares.
+; which solves least squares.  (m factor-symmetric-eigen) answers a
+; SymmetricEigen, the eigenvalues and orthonormal eigenvectors of a
+; symmetric m, by cyclic Jacobi rotations.
 ;
-; The work is done by eight kernels, word forms (x/tool/word-form) that
+; The work is done by nine kernels, word forms (x/tool/word-form) that
 ; loop over two or three axes inside one run, so an operation costs a few
 ; runs however large its matrices: the product; LU factorization with
 ; partial pivoting, a pivot search down a column, a row swap and the
 ; elimination below a pivot, with forward and back substitution for solve;
-; and a scale down a column and a reflection of a block of columns for the
-; Householder factorization.
+; a scale down a column and a reflection of a block of columns for the
+; Householder factorization; and a sweep of Jacobi rotations.
 ; They run on Tensor's lanes, pure in budgeted calls until they have run
 ; long enough, then compiled once the compiled kernel writes what the pure
 ; one writes on a check problem.
@@ -73,7 +75,7 @@
 
     ; --- running a kernel ----------------------------------------------------
     ; Write WORDS, ((K . V) ...), into scratch S, clear the doubles the
-    ; kernels keep at 16, 17 and 18, and drive kernel NAME to the end of its
+    ; kernels keep from 16 to 20, and drive kernel NAME to the end of its
     ; run.
     (method %run (self s name words) (self %run-doubles s name words ()))
 
@@ -81,7 +83,7 @@
     ; doubles before the run.
     (method %run-doubles (self s name words doubles)
       (let ((p (str->ptr s)) (put ((obj-ref (Tensor %fast) 6) (lit f64))))
-        (def clear (fn (go b) (if (int< b 152) (do (ptr-set-word! p b 0) (go (int+ b %word-size))) ())))
+        (def clear (fn (go b) (if (int< b 168) (do (ptr-set-word! p b 0) (go (int+ b %word-size))) ())))
         (clear 128)
         (List for-each (fn (_ w) (ptr-set-word! p (int* (first w) %word-size) (rest w))) words)
         (List for-each (fn (_ d) (put (ptr->int p) (first d) (rest d))) doubles)
@@ -188,6 +190,88 @@
                         (go (int+ k 1) (pair zero taus)))))
                   (list a m n (List reverse taus)))))
             (go 0 ())))))
+
+    ; Refuse M unless it equals its transpose exactly.  A product's AᵀA is
+    ; exact: both triangles sum the same products in the same order.
+    (method %symmetric (self m who)
+      (let ((d (m sub (m transpose))))
+        (let ((ss ((d mul d) sum)))
+          (if (f-lt (float-of 0) (if (type? ss float) ss (float-of ss)))
+            (Err raise (lit value) (Str8 append "Matrix " who ": the matrix is not symmetric") ())
+            ()))))
+
+    ; --- the Jacobi eigenvalue iteration -------------------------------------
+    ; (VALUES VECTORS) for the symmetric N by N state ST: VALUES a list of
+    ; Floats from least to greatest, VECTORS a fresh contiguous f64 state
+    ; whose column I is value I's eigenvector.  A sweep rotates every pair
+    ; of rows and columns once; the sweeps stop when the sum of squares off
+    ; the diagonal is at most 1e-30 of the whole, is 0, or has stopped
+    ; falling, which roundoff reaches near 1e-32.
+    (method %jacobi (self st)
+      (let ((f (Tensor %fast)) (n (first (List ref 1 st))) (s (str-make 256)))
+        (let ((a ((obj-ref f 10) st (lit f64))) (v ((obj-ref f 4) (lit f64) (list n n))))
+          ((obj-ref f 9) v 0)
+          ((obj-ref f 9) ((obj-ref f 11) v (list n) (list (int+ n 1)) 0) 1)
+          (let ((total (self %sum-squares a)) (limit (self %ten-to-minus-30)))
+            (def sweep
+              (fn (go count last)
+                (let ((off (self %off-squares a n)))
+                  (if (if (int= count 64) #t
+                        (if (f-lt (f-mul limit total) off) (if (f-lt off last) #f #t) #t))
+                    ()
+                    (do (self %run s (lit f64-jacobi)
+                          (list (pair 0 ((obj-ref f 13) a)) (pair 1 ((obj-ref f 13) v)) (pair 3 n)
+                                (pair 10 0) (pair 11 n) (pair 13 0) (pair 14 1) (pair 15 0)))
+                        (go (int+ count 1) off))))))
+            (if (int< n 2) () (sweep 0 (f-mul total (float-of 2))))
+            (self %sort-eigen a v n)))))
+
+    ; 1e-30, made from integers so the file needs no float literal.
+    (method %ten-to-minus-30 (self)
+      (let ((m (f-div (float-of 1) (float-of 1000000))))
+        (f-mul m (f-mul m (f-mul m (f-mul m m))))))
+
+    (method %sum-squares (self st)
+      (let ((t (Tensor %make st)))
+        (let ((x ((t mul t) sum))) (if (type? x float) x (float-of x)))))
+
+    ; The sum of squares of the N by N state ST's elements off the diagonal.
+    (method %off-squares (self st n)
+      (let ((f (Tensor %fast)))
+        (let ((c ((obj-ref f 10) st (lit f64))))
+          ((obj-ref f 9) ((obj-ref f 11) c (list n) (list (int+ n 1)) 0) 0)
+          (self %sum-squares c))))
+
+    ; A's diagonal, least first, with V's columns swapped to match.
+    (method %sort-eigen (self a v n)
+      (let ((f (Tensor %fast)) (s (str-make 256)) (get ((obj-ref (Tensor %fast) 5) (lit f64))))
+        (let ((vb ((obj-ref f 13) v)) (ab ((obj-ref f 13) a)))
+          (def place
+            (fn (go k vals acc)
+              (if (null? vals) (list (List reverse acc) v)
+                (let ((j (self %least-index vals)))
+                  (if (int= j 0) ()
+                    (self %run s (lit f64-swap)
+                      (list (pair 0 (int+ vb (int* 8 k))) (pair 1 (int+ vb (int* 8 (int+ k j))))
+                            (pair 3 n) (pair 4 n) (pair 6 n) (pair 7 0))))
+                  (let ((vals (self %swap-first vals j)))
+                    (go (int+ k 1) (rest vals) (pair (first vals) acc)))))))
+          (place 0 (List map (fn (_ i) (get ab (int+ (int* i n) i))) (List range 0 n)) ()))))
+
+    ; The index of the least of the Floats VALS, the first where two tie.
+    (method %least-index (self vals)
+      (def go
+        (fn (go i best bi vals)
+          (if (null? vals) bi
+            (if (f-lt (first vals) best) (go (int+ i 1) (first vals) i (rest vals))
+              (go (int+ i 1) best bi (rest vals))))))
+      (go 1 (first vals) 0 (rest vals)))
+
+    ; VALS with its first element and element J exchanged.
+    (method %swap-first (self vals j)
+      (if (int= j 0) vals
+        (let ((x (List ref j vals)))
+          (pair x (List map (fn (_ i) (if (int= i j) (first vals) (List ref i vals))) (List range 1 (List length vals)))))))
 
     (method %square (self st who)
       (let ((ext (List ref 1 st)))
@@ -371,6 +455,75 @@
                     (%mem-set! s 13 (+ (%mem-ref s 13) 1))
                     (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s))))))
           (lit ((0 . a) (1 . b) (3 . 3) (4 . 3) (5 . 1) (10 . 3) (12 . 3))))
+        ; A Jacobi sweep rotates each pair P < Q (13 14) of the symmetric N
+        ; (11) by N matrix at 0, row stride 3, to zero its (P Q) element,
+        ; and V at 1 by the same rotation.  Word 10 is 0 before a pair's
+        ; rotation is made, 1 after; K (15) then runs through the columns
+        ; (below N), the rows (below 2N) and V's columns (below 3N).  The
+        ; rotation's c and s are at 16 and 17, theta and the temporary at
+        ; 19, t at 20, as Golub and Van Loan's symmetric Schur step makes
+        ; them: theta (aqq - app) / 2apq, t sign(theta) / (|theta| +
+        ; sqrt(theta^2 + 1)), c 1 / sqrt(t^2 + 1), s t c.  A pair whose
+        ; element is already 0 is passed.
+        (list (lit f64-jacobi)
+          (lit (fn (self s)
+            (match
+              ((= (%mem-ref s 8) 0) 0)
+              ((= (%mem-ref s 13) (- (%mem-ref s 11) 1)) 1)
+              ((= (%mem-ref s 14) (%mem-ref s 11))
+                (do (%mem-set! s 14 (+ (%mem-ref s 13) 2)) (%mem-set! s 13 (+ (%mem-ref s 13) 1))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s)))
+              ((= (%mem-ref s 10) 0)
+                (do (if (f= (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 13) (%mem-ref s 3)) (%mem-ref s 14))) (i->f 0))
+                      (%mem-set! s 14 (+ (%mem-ref s 14) 1))
+                      (do (f-set! s 19
+                            (f/ (f- (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 14) (%mem-ref s 3)) (%mem-ref s 14)))
+                                    (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 13) (%mem-ref s 3)) (%mem-ref s 13))))
+                                (f+ (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 13) (%mem-ref s 3)) (%mem-ref s 14)))
+                                    (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 13) (%mem-ref s 3)) (%mem-ref s 14))))))
+                          (f-set! s 20
+                            (f/ (i->f 1)
+                                (f+ (if (f< (f-ref s 19) (i->f 0)) (f- (i->f 0) (f-ref s 19)) (f-ref s 19))
+                                    (f-sqrt (f+ (f* (f-ref s 19) (f-ref s 19)) (i->f 1))))))
+                          (if (f< (f-ref s 19) (i->f 0)) (f-set! s 20 (f- (i->f 0) (f-ref s 20))) 0)
+                          (f-set! s 16 (f/ (i->f 1) (f-sqrt (f+ (f* (f-ref s 20) (f-ref s 20)) (i->f 1)))))
+                          (f-set! s 17 (f* (f-ref s 20) (f-ref s 16)))
+                          (%mem-set! s 10 1) (%mem-set! s 15 0)))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s)))
+              ((< (%mem-ref s 15) (%mem-ref s 11))
+                (do (f-set! s 19 (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 13))))
+                    (f-set! (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 13))
+                      (f- (f* (f-ref s 16) (f-ref s 19))
+                          (f* (f-ref s 17) (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 14))))))
+                    (f-set! (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 14))
+                      (f+ (f* (f-ref s 17) (f-ref s 19))
+                          (f* (f-ref s 16) (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 15) (%mem-ref s 3)) (%mem-ref s 14))))))
+                    (%mem-set! s 15 (+ (%mem-ref s 15) 1))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s)))
+              ((< (%mem-ref s 15) (* 2 (%mem-ref s 11)))
+                (do (f-set! s 19 (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 13) (%mem-ref s 3)) (- (%mem-ref s 15) (%mem-ref s 11)))))
+                    (f-set! (%mem-ref s 0) (+ (* (%mem-ref s 13) (%mem-ref s 3)) (- (%mem-ref s 15) (%mem-ref s 11)))
+                      (f- (f* (f-ref s 16) (f-ref s 19))
+                          (f* (f-ref s 17) (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 14) (%mem-ref s 3)) (- (%mem-ref s 15) (%mem-ref s 11)))))))
+                    (f-set! (%mem-ref s 0) (+ (* (%mem-ref s 14) (%mem-ref s 3)) (- (%mem-ref s 15) (%mem-ref s 11)))
+                      (f+ (f* (f-ref s 17) (f-ref s 19))
+                          (f* (f-ref s 16) (f-ref (%mem-ref s 0) (+ (* (%mem-ref s 14) (%mem-ref s 3)) (- (%mem-ref s 15) (%mem-ref s 11)))))))
+                    (%mem-set! s 15 (+ (%mem-ref s 15) 1))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s)))
+              ((< (%mem-ref s 15) (* 3 (%mem-ref s 11)))
+                (do (f-set! s 19 (f-ref (%mem-ref s 1) (+ (* (- (%mem-ref s 15) (* 2 (%mem-ref s 11))) (%mem-ref s 3)) (%mem-ref s 13))))
+                    (f-set! (%mem-ref s 1) (+ (* (- (%mem-ref s 15) (* 2 (%mem-ref s 11))) (%mem-ref s 3)) (%mem-ref s 13))
+                      (f- (f* (f-ref s 16) (f-ref s 19))
+                          (f* (f-ref s 17) (f-ref (%mem-ref s 1) (+ (* (- (%mem-ref s 15) (* 2 (%mem-ref s 11))) (%mem-ref s 3)) (%mem-ref s 14))))))
+                    (f-set! (%mem-ref s 1) (+ (* (- (%mem-ref s 15) (* 2 (%mem-ref s 11))) (%mem-ref s 3)) (%mem-ref s 14))
+                      (f+ (f* (f-ref s 17) (f-ref s 19))
+                          (f* (f-ref s 16) (f-ref (%mem-ref s 1) (+ (* (- (%mem-ref s 15) (* 2 (%mem-ref s 11))) (%mem-ref s 3)) (%mem-ref s 14))))))
+                    (%mem-set! s 15 (+ (%mem-ref s 15) 1))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s)))
+              (#t
+                (do (%mem-set! s 10 0) (%mem-set! s 15 0) (%mem-set! s 14 (+ (%mem-ref s 14) 1))
+                    (%mem-set! s 8 (- (%mem-ref s 8) 1)) (self s))))))
+          (lit ((0 . a) (1 . b) (3 . 3) (11 . 3) (13 . 0) (14 . 1))))
         ; Back substitution walks the rows from the last: row R is N - 1 - I,
         ; and its sum runs over the columns N - I + K for K below I.
         (list (lit f64-backward)
@@ -440,7 +593,7 @@
                         ((eq? v (lit b)) (addr b))
                         ((eq? v (lit o)) (addr o))
                         (#t v)))))
-              (def clear (fn (go b) (if (int< b 152) (do (ptr-set-word! (str->ptr s) b 0) (go (int+ b %word-size))) ())))
+              (def clear (fn (go b) (if (int< b 168) (do (ptr-set-word! (str->ptr s) b 0) (go (int+ b %word-size))) ())))
               (clear 0)
               (List for-each (fn (_ w) (ptr-set-word! (str->ptr s) (int* (first w) %word-size) (value (rest w)))) words)
               (ptr-set-word! (str->ptr s) (int* 8 %word-size) 1073741823)
@@ -483,12 +636,17 @@
       (returns Cholesky "The factorization, which solves and answers the determinant without factoring again")
       (example "((((Matrix from '((4 2) (2 5))) factor-cholesky) lower) ->list)" "((2.0 0.0) (1.0 2.0))"))
     (Matrix %square (self %st) "factor-cholesky")
-    (let ((d (self sub (self transpose))))
-      (let ((ss ((d mul d) sum)))
-        (if (f-lt (float-of 0) (if (type? ss float) ss (float-of ss)))
-          (Err raise (lit value) "Matrix factor-cholesky: the matrix is not symmetric" ())
-          ())))
+    (Matrix %symmetric self "factor-cholesky")
     (Cholesky %of (self %st)))
+
+  (method factor-symmetric-eigen (self)
+    (doc "The eigenvalues and eigenvectors of a symmetric matrix, by cyclic Jacobi rotations: values, real and from least to greatest, and vectors, whose columns are orthonormal and whose column i is value i's eigenvector. Self must be symmetric; any other matrix is refused."
+      (returns SymmetricEigen "The values and vectors")
+      (example "((((Matrix from '((2 1) (1 2))) factor-symmetric-eigen) values) ->list)" "(1.0 3.0)")
+      (see factor-eigen))
+    (Matrix %square (self %st) "factor-symmetric-eigen")
+    (Matrix %symmetric self "factor-symmetric-eigen")
+    (SymmetricEigen %of (self %st)))
 
   (method factor-orthogonal (self)
     (doc "The orthogonal-upper (QR) factorization by Householder reflections: Q, whose columns are orthonormal, and an upper R, with Q times R equal to self. With k the lesser of self's rows and columns, Q has self's rows and k columns and R has k rows and self's columns. Any matrix factors."
@@ -770,8 +928,38 @@
           (let ((x ((obj-ref f 10) ((obj-ref f 11) y (if rank1 (list n) (list n c)) (if rank1 (list 1) (list c 1)) 0) (lit f64))))
             ((Matrix %result-class x) %make x)))))))
 
+;
+; SymmetricEigen keeps the values as a rank-1 Tensor and the vectors as a
+; Matrix, both made by the Jacobi iteration.
+(def-class SymmetricEigen ()
+  (doc "The eigenvalues and eigenvectors of a symmetric Matrix, from (m factor-symmetric-eigen): values, real and from least to greatest, and vectors, an orthonormal Matrix whose column i is value i's eigenvector, so the matrix is vectors times the diagonal of values times vectors' transpose."
+    (example "(let ((f ((Matrix from '((2 0) (0 1))) factor-symmetric-eigen))) (list ((f values) ->list) ((f vectors) ->list)))" "((1.0 2.0) ((0.0 1.0) (1.0 0.0)))")
+    (see values) (see vectors))
+
+  values    ; a rank-1 f64 Tensor, least first
+  vectors   ; a Matrix, column i value i's eigenvector
+
+  (static
+    (method %of (self st)
+      (let ((r (Matrix %jacobi st)))
+        (new-from self
+          (list (lit values) (Tensor from (first r) (lit f64))
+                (lit vectors) (Matrix %make (List ref 1 r)))))))
+
+  (method values (self)
+    (doc "The eigenvalues, real and from least to greatest."
+      (returns Tensor "A rank-1 f64 Tensor")
+      (example "((((Matrix from '((2 1) (1 2))) factor-symmetric-eigen) values) ->list)" "(1.0 3.0)"))
+    (field (lit values)))
+
+  (method vectors (self)
+    (doc "The eigenvectors: an orthonormal Matrix whose column i is value i's eigenvector. An eigenvector's sign is not fixed: its negation is one too."
+      (returns Matrix "An f64 Matrix")
+      (example "((((Matrix from '((2 0) (0 1))) factor-symmetric-eigen) vectors) ->list)" "((0.0 1.0) (1.0 0.0))"))
+    (field (lit vectors))))
+
 (Matrix %register-all!)
 
-(doc (provide x/num/matrix Matrix LowerUpper Cholesky Orthogonal)
-  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal and norm -- run in kernels that compile once they have run long enough; and its factorizations, LowerUpper, Cholesky and Orthogonal."
+(doc (provide x/num/matrix Matrix LowerUpper Cholesky Orthogonal SymmetricEigen)
+  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal and norm -- run in kernels that compile once they have run long enough; and its factorizations, LowerUpper, Cholesky, Orthogonal and SymmetricEigen."
   (example "((Matrix from '((2 1) (1 3))) determinant)" "5.0"))

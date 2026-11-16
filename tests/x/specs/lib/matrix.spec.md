@@ -3,9 +3,9 @@
 
 `Matrix` is a `Tensor` of rank 2 with the linear algebra: the matrix
 product, solve, inverse, determinant, trace, diagonal and norm, and its
-lower-upper, Cholesky and orthogonal-upper factorizations, a
-`LowerUpper`, a `Cholesky` and an `Orthogonal`. Every result of the
-linear algebra is f64, so the cases answer the same on a 4-byte word as
+lower-upper, Cholesky, orthogonal-upper and symmetric eigen
+factorizations, a `LowerUpper`, a `Cholesky`, an `Orthogonal` and a
+`SymmetricEigen`. Every result of the linear algebra is f64, so the cases answer the same on a 4-byte word as
 on an 8-byte one.
 
 ## Making matrices
@@ -361,6 +361,61 @@ on an 8-byte one.
 ---
     ('value 'value 'value)
 
+## The symmetric eigen factorization
+
+### values from least to greatest, vectors as columns
+
+```x
+(import x/num/matrix)
+(let ((f ((Matrix from '((2 0) (0 1))) factor-symmetric-eigen)))
+  (list (class-name f) ((f values) ->list) ((f vectors) ->list)))
+```
+---
+    ('SymmetricEigen (1.0 2.0) ((0.0 1.0) (1.0 0.0)))
+
+### the vectors are orthonormal and rebuild the matrix
+
+```x
+(import x/num/matrix)
+(import x/num/float f-lt)
+(let ((near (fn (_ a b) (let ((d (a sub b))) (f-lt ((d mul d) sum) 0.000000000000000001)))))
+  (List map
+    (fn (_ rows)
+      (let ((a (Matrix from rows)))
+        (let ((f (a factor-symmetric-eigen)))
+          (let ((v (f vectors)) (w (f values)))
+            (list (near ((v mul w) product (v transpose)) a)
+                  (near ((v transpose) product v) (Matrix identity (List ref 0 (a extent)))))))))
+    '(((2 1) (1 2)) ((4 1 -2) (1 2 0) (-2 0 3)) ((2 -1 0 0) (-1 2 -1 0) (0 -1 2 -1) (0 0 -1 2)))))
+```
+---
+    ((#t #t) (#t #t) (#t #t))
+
+### the values of a known matrix
+
+```x
+(import x/num/matrix)
+(import x/num/float f-lt)
+(let ((w (((Matrix from '((2 1) (1 2))) factor-symmetric-eigen) values))
+      (u (((Matrix from '((6 0 0) (0 -1 0) (0 0 3))) factor-symmetric-eigen) values)))
+  (let ((d (w sub (Tensor from '(1 3)))))
+    (list (f-lt ((d mul d) sum) 0.000000000000000001) (u ->list))))
+```
+---
+    (#t (-1.0 3.0 6.0))
+
+### one row, and a matrix that is not symmetric or not square
+
+```x
+(import x/num/matrix)
+(let ((f ((Matrix from '((5))) factor-symmetric-eigen)))
+  (list ((f values) ->list) ((f vectors) ->list)
+        (guard (e (Err label e)) ((Matrix from '((1 2) (3 4))) factor-symmetric-eigen))
+        (guard (e (Err label e)) ((Matrix from '((1 2 3) (4 5 6))) factor-symmetric-eigen))))
+```
+---
+    ((5.0) ((1.0)) 'value 'value)
+
 ## Diagonal, trace and norm
 
 ### the diagonal is a view
@@ -391,10 +446,12 @@ on an 8-byte one.
 (import x/num/matrix)
 (let ((a (Matrix from '((4 -2 1) (3 6 -4) (2 1 8)))) (b (Tensor from '(1 2 3))))
   (let ((before (list ((a inverse) ->list) (a determinant) ((a solve b) ->list)
-                      (((a factor-orthogonal) solve b) ->list))))
+                      (((a factor-orthogonal) solve b) ->list)
+                      (((((a transpose) product a) factor-symmetric-eigen) values) ->list))))
     (Matrix jit!)
     (equal? before (list ((a inverse) ->list) (a determinant) ((a solve b) ->list)
-                         (((a factor-orthogonal) solve b) ->list)))))
+                         (((a factor-orthogonal) solve b) ->list)
+                         (((((a transpose) product a) factor-symmetric-eigen) values) ->list)))))
 ```
 ---
     #t
