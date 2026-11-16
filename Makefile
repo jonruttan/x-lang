@@ -437,14 +437,22 @@ test-tools: $(EXECUTABLE) x-bin-profile ## Run the tool suite's specs (tools/tes
 # The doctest ratchet (#16): every (example "in" "out") in the doc registry
 # is an executable contract -- "out" must be the true echo.  tools/check/doctest.sh
 # extracts them into a generated spec, tools/check/doctest-split.awk cuts that
-# into one spec file per library area, and the lang runner executes the files.
+# into one spec file per module, and the lang runner executes the files.
 # Illustrations that must not run are (sample ...) forms (see doc.x).
+#
+# Every file boots lib/x-core.x, from its state image as test-x's jobs do:
+# image-build.sh writes it when it is stale and skips it when it is current,
+# and its exit 3 (a library no image can carry) leaves the files booting from
+# source.  IMG=0 boots them from source.
+DOCTEST_RUN = sh tools/dev/image-build.sh lib/x-core.x $(IMG_DIR) || [ $$? -eq 3 ]; \
+	SPEC_RUNNER_DIR="$$(pwd)/tests" X_IMG_DIR="$$(cd $(IMG_DIR) && pwd)" sh tests/x/doctest-runner.sh
+DOCTEST_RUN_SRC = sh tests/x/doctest-runner.sh
 doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 	mkdir -p build/doctest-specs
 	rm -f build/doctest-specs/*.spec.md
 	sh tools/check/doctest.sh > build/doctests.spec.md
 	awk -v dir=build/doctest-specs -f tools/check/doctest-split.awk build/doctests.spec.md
-	sh tests/x/doctest-runner.sh
+	$(DOCTEST_RUN$(TEST_X_MODE))
 .PHONY: doctest
 
 # The help-example ratchet: the doc entries that show the reader no

@@ -1,7 +1,7 @@
 #!/bin/sh
 # doctest.sh -- generate the doctest spec from the library's (example ...)
 # forms (#16). Emits the generated .spec.md on stdout.  `make doctest` cuts
-# it into one spec file per library area and runs those:
+# it into one spec file per module and runs those:
 #
 #   sh tools/check/doctest.sh > build/doctests.spec.md
 #   awk -v dir=build/doctest-specs -f tools/check/doctest-split.awk build/doctests.spec.md
