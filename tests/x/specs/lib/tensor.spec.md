@@ -298,6 +298,81 @@ on a 4-byte word only when i64 is refused there.
 ---
     0.0
 
+## Statistics
+
+### variance divides by the count less 1, or less the correction given
+
+```x
+(import x/num/tensor)
+(let ((t (Tensor from '(2 4 4 4 5 5 7 9) 'f64)))
+  (list (t variance 0) (t variance 1) (t variance)))
+```
+---
+    (4.0 4.57142857142857 4.57142857142857)
+
+### deviation is the square root of the variance
+
+```x
+(import x/num/tensor)
+(let ((t (Tensor from '((2 4 4 4) (5 5 7 9)) 'f64)))
+  (list (t deviation 0) ((Tensor from '(1 3) 'f64) deviation)))
+```
+---
+    (2.0 1.4142135623731)
+
+### a c128 variance sums the squared magnitudes
+
+```x
+(import x/num/tensor)
+(import x/num/complex)
+((Tensor from (list (Complex make 1 1) (Complex make -1 -1))) variance 0)
+```
+---
+    2.0
+
+### a variance needs more elements than the correction
+
+```x
+(import x/num/tensor)
+(list (guard (e (Err label e)) ((Tensor from '(5) 'f64) variance))
+      ((Tensor from '(5) 'f64) variance 0))
+```
+---
+    ('value 0.0)
+
+### quantile interpolates between the sorted elements
+
+```x
+(import x/num/tensor)
+(let ((t (Tensor from '(4 1 3 2) 'f64)))
+  (list (t quantile 0) (t quantile 0.25) (t quantile 0.5) (t quantile 1)))
+```
+---
+    (1.0 1.75 2.5 4.0)
+
+### median of an odd and an even count, and over a matrix's every element
+
+```x
+(import x/num/tensor)
+(list ((Tensor from '(3 1 4 1 5) 'f64) median) ((Tensor from '(1 2 3 4) 'f64) median)
+      ((Tensor from '((9 1) (5 3)) 'f64) median))
+```
+---
+    (3.0 2.5 4.0)
+
+### quantile refuses a q outside 0 to 1, no elements and complex numbers
+
+```x
+(import x/num/tensor)
+(import x/num/complex)
+(List map (fn (_ thunk) (guard (e (Err label e)) (thunk)))
+  (list (fn (_) ((Tensor from '(1 2) 'f64) quantile 2))
+        (fn (_) ((Tensor zeros '(0) 'f64) median))
+        (fn (_) ((Tensor from (list (Complex make 0 1))) median))))
+```
+---
+    ('value 'value 'value)
+
 ## i64
 
 ### integers make i64 on an 8-byte word and f64 on a 4-byte word
