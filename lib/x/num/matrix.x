@@ -10,6 +10,8 @@
 ; A factorization is a value of its own: (m factor-lower-upper) answers a
 ; LowerUpper, which keeps the factors and answers its parts, solves and the
 ; determinant from them, so a matrix factored once solves many right sides.
+; (m factor-cholesky) answers a Cholesky for a symmetric positive-definite
+; m, built on a LowerUpper that never swaps a row.
 ;
 ; The work is done by six kernels, word forms (x/tool/word-form) that loop
 ; over two or three axes inside one run, so an operation costs a few runs
@@ -27,7 +29,7 @@
 (import x/type/class)
 (import x/type/list)
 (import x/num/tensor)
-(import x/num/float float float-of f-mul libm-fn)
+(import x/num/float float float-of f-mul f-lt libm-fn)
 (import x/tool/word-form word-form-pure)
 (import x/core/doors int+ int- int* int/ int< int= mem-cmp obj-ref ptr->int int->ptr
   ptr-ref-word ptr-set-word! str->ptr str-make type?)
@@ -96,27 +98,34 @@
     ; (A N PIVOTS SINGULAR?) for the square state ST: A a fresh contiguous
     ; f64 copy holding L below the diagonal (its unit diagonal implied) and
     ; U on and above it, PIVOTS the row swapped into each row in turn, and
-    ; SINGULAR? whether a column had no nonzero pivot.
-    (method %factor (self st)
+    ; SINGULAR? whether a column had no nonzero pivot.  Without PIVOTING no
+    ; row is swapped, and the factoring stops with SINGULAR? #t at the first
+    ; pivot that is not positive: what Cholesky needs, whose matrices never
+    ; need a swap.
+    (method %factor (self st pivoting)
       (let ((f (Tensor %fast)) (n (first (List ref 1 st))) (s (str-make 256)))
         (let ((a ((obj-ref f 10) st (lit f64))))
-          (let ((base ((obj-ref f 13) a)))
+          (let ((base ((obj-ref f 13) a)) (get ((obj-ref f 5) (lit f64))))
             (def at (fn (_ i j) (int+ base (int* 8 (int+ (int* i n) j)))))
             (def go
               (fn (go k pivots singular)
                 (if (int= k n) (list a n (List reverse pivots) singular)
-                  (do
-                    (self %run s (lit f64-pivot)
-                      (list (pair 0 (at k k)) (pair 3 n) (pair 6 (int- n k)) (pair 7 0) (pair 13 0)))
-                    (let ((p (int+ k (self %word s 13))) (zero (self %zero-16? s)))
-                      (if (int= p k) ()
-                        (self %run s (lit f64-swap)
-                          (list (pair 0 (at k 0)) (pair 1 (at p 0)) (pair 3 1) (pair 4 1) (pair 6 n) (pair 7 0))))
-                      (if zero ()
-                        (self %run s (lit f64-eliminate)
-                          (list (pair 0 (at k k)) (pair 3 n) (pair 4 1) (pair 10 (int- n k)) (pair 12 (int- n k))
-                                (pair 13 1) (pair 14 0))))
-                      (go (int+ k 1) (pair p pivots) (if zero #t singular)))))))
+                  (if (if pivoting #f (if (f-lt (float-of 0) (get base (int+ (int* k n) k))) #f #t))
+                    (list a n (List reverse pivots) #t)
+                    (do
+                      (if pivoting
+                        (self %run s (lit f64-pivot)
+                          (list (pair 0 (at k k)) (pair 3 n) (pair 6 (int- n k)) (pair 7 0) (pair 13 0)))
+                        ())
+                      (let ((p (if pivoting (int+ k (self %word s 13)) k)) (zero (if pivoting (self %zero-16? s) #f)))
+                        (if (int= p k) ()
+                          (self %run s (lit f64-swap)
+                            (list (pair 0 (at k 0)) (pair 1 (at p 0)) (pair 3 1) (pair 4 1) (pair 6 n) (pair 7 0))))
+                        (if zero ()
+                          (self %run s (lit f64-eliminate)
+                            (list (pair 0 (at k k)) (pair 3 n) (pair 4 1) (pair 10 (int- n k)) (pair 12 (int- n k))
+                                  (pair 13 1) (pair 14 0))))
+                        (go (int+ k 1) (pair p pivots) (if zero #t singular))))))))
             (go 0 () #f)))))
 
     (method %square (self st who)
@@ -360,7 +369,19 @@
       (returns LowerUpper "The factorization, which solves and answers the determinant without factoring again")
       (example "((((Matrix from '((2 1) (4 3))) factor-lower-upper) lower) ->list)" "((1.0 0.0) (0.5 1.0))"))
     (Matrix %square (self %st) "factor-lower-upper")
-    (LowerUpper %of (self %st)))
+    (LowerUpper %of (self %st) #t))
+
+  (method factor-cholesky (self)
+    (doc "The Cholesky factorization: a lower matrix L with a positive diagonal whose product with its transpose is self. Self must be symmetric and positive definite; any other matrix is refused."
+      (returns Cholesky "The factorization, which solves and answers the determinant without factoring again")
+      (example "((((Matrix from '((4 2) (2 5))) factor-cholesky) lower) ->list)" "((2.0 0.0) (1.0 2.0))"))
+    (Matrix %square (self %st) "factor-cholesky")
+    (let ((d (self sub (self transpose))))
+      (let ((ss ((d mul d) sum)))
+        (if (f-lt (float-of 0) (if (type? ss float) ss (float-of ss)))
+          (Err raise (lit value) "Matrix factor-cholesky: the matrix is not symmetric" ())
+          ())))
+    (Cholesky %of (self %st)))
 
   (method solve (self (param b Tensor "The right side: a rank-1 Tensor of self's rows, or a Matrix of them"))
     (doc "The x for which self times x is b, through the lower-upper factorization. A singular matrix is refused. To solve many right sides against one matrix, factor it once with factor-lower-upper and solve with that."
@@ -423,8 +444,8 @@
   singular  ; #t where a column had no nonzero pivot
 
   (static
-    (method %of (self st)
-      (let ((r (Matrix %factor st)))
+    (method %of (self st pivoting)
+      (let ((r (Matrix %factor st pivoting)))
         (new-from self
           (list (lit packed) (List ref 0 r) (lit n) (List ref 1 r)
                 (lit pivots) (List ref 2 r) (lit singular) (List ref 3 r))))))
@@ -508,8 +529,56 @@
                     (f-mul (if (int= (first pivots) k) acc (f-mul acc (float-of -1))) d))))))
           (go 0 (field (lit pivots)) (float-of 1)))))))
 
+;
+; Cholesky keeps the matrix's LowerUpper, factored without a row swap, and
+; the square roots of U's diagonal.  With D that diagonal, the matrix is
+; L' D L'^T for the LowerUpper's unit lower L', so its L is L' with each
+; column scaled by the square root of D's: the roots.
+(def-class Cholesky ()
+  (doc "The Cholesky factorization of a symmetric positive-definite Matrix, from (m factor-cholesky): a lower matrix L with a positive diagonal whose product with its transpose is the matrix. It solves and answers the determinant from the factors, so a matrix factored once solves many right sides."
+    (example "(let ((f ((Matrix from '((4 2) (2 5))) factor-cholesky))) (list ((f lower) ->list) ((f upper) ->list)))" "(((2.0 0.0) (1.0 2.0)) ((2.0 1.0) (0.0 2.0)))")
+    (example "(((Matrix from '((4 2) (2 5))) factor-cholesky) determinant)" "16.0")
+    (see lower) (see upper) (see solve) (see determinant))
+
+  factors   ; the matrix's LowerUpper, factored without a row swap
+  roots     ; a rank-1 f64 Tensor: the square root of each of U's diagonal elements
+
+  (static
+    (method %of (self st)
+      (let ((lu (LowerUpper %of st #f)))
+        (if (lu singular?)
+          (Err raise (lit value) "Matrix factor-cholesky: the matrix is not positive definite" ())
+          ())
+        (new-from self
+          (list (lit factors) lu
+                (lit roots) (Tensor from (List map (Matrix %sqrt) (((lu upper) diagonal) ->list)) (lit f64)))))))
+
+  (method lower (self)
+    (doc "L: lower, with a positive diagonal and 0 above it, whose product with its transpose is the matrix."
+      (returns Matrix "A fresh f64 Matrix")
+      (example "((((Matrix from '((4 2) (2 5))) factor-cholesky) lower) ->list)" "((2.0 0.0) (1.0 2.0))"))
+    (((field (lit factors)) lower) mul (field (lit roots))))
+
+  (method upper (self)
+    (doc "The transpose of L: upper, with a positive diagonal and 0 below it."
+      (returns Matrix "A fresh f64 Matrix")
+      (example "((((Matrix from '((4 2) (2 5))) factor-cholesky) upper) ->list)" "((2.0 1.0) (0.0 2.0))"))
+    (((self lower) transpose) copy))
+
+  (method solve (self (param b Tensor "The right side: a rank-1 Tensor of the matrix's rows, or a Matrix of them"))
+    (doc "The x for which the factored matrix times x is b."
+      (returns Tensor "A fresh f64 Tensor of b's extent: rank 1 for a rank-1 b, a Matrix for a Matrix")
+      (example "((((Matrix from '((4 2) (2 5))) factor-cholesky) solve (Tensor from '(6 7))) ->list)" "(1.0 1.0)"))
+    ((field (lit factors)) solve b))
+
+  (method determinant (self)
+    (doc "The determinant: the product of L's diagonal, squared. Always positive."
+      (returns FLOAT "The determinant")
+      (example "(((Matrix from '((4 2) (2 5))) factor-cholesky) determinant)" "16.0"))
+    ((field (lit factors)) determinant)))
+
 (Matrix %register-all!)
 
-(doc (provide x/num/matrix Matrix LowerUpper)
-  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal and norm -- run in kernels that compile once they have run long enough; and LowerUpper, its factorization."
+(doc (provide x/num/matrix Matrix LowerUpper Cholesky)
+  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal and norm -- run in kernels that compile once they have run long enough; and its factorizations, LowerUpper and Cholesky."
   (example "((Matrix from '((2 1) (1 3))) determinant)" "5.0"))
