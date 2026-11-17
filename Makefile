@@ -1139,7 +1139,7 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	@# there was not: it would stamp the SUBMODULE's fingerprint into a tree
 	@# built against another engine, and the wrapper compares that stamp to
 	@# decide whether a pinned amalgam may boot.
-	@sh -c 'if command -v shasum >/dev/null 2>&1; then shasum -a 256 $(ENGINE_DIR)/tools/contract/isa.x | cut -d" " -f1; 		else sha256sum $(ENGINE_DIR)/tools/contract/isa.x | cut -d" " -f1; fi' 		> $(DESTDIR)$(LIBDIR)/contract/isa.sha256
+	@sh -c '. tools/lib/digest.sh && x_sha256 $(ENGINE_DIR)/tools/contract/isa.x | cut -d" " -f1' > $(DESTDIR)$(LIBDIR)/contract/isa.sha256
 	# The LAYOUT fingerprint, and it is the one that matters for pairing.  The isa
 	# digest above is the C SURFACE -- byte-identical across rc10, v0.4.0 and
 	# v0.5.0, which is how a mismatched amalgam once passed the guard and
@@ -1150,7 +1150,7 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	# concatenation tools/release/release-manifest.sh and the x-engine.xon
 	# generator use, so all three producers agree by construction.
 	@cat $(ENGINE_DIR)/tools/contract/obj-layout.x $(ENGINE_DIR)/tools/contract/base-paths.x $(ENGINE_DIR)/tools/contract/base-layout.x > $(DESTDIR)$(LIBDIR)/contract/layout.cat
-	@sh -c 'if command -v shasum >/dev/null 2>&1; then shasum -a 256 $(DESTDIR)$(LIBDIR)/contract/layout.cat | cut -d" " -f1; else sha256sum $(DESTDIR)$(LIBDIR)/contract/layout.cat | cut -d" " -f1; fi' > $(DESTDIR)$(LIBDIR)/contract/layout.sha256
+	@sh -c '. tools/lib/digest.sh && x_sha256 $(DESTDIR)$(LIBDIR)/contract/layout.cat | cut -d" " -f1' > $(DESTDIR)$(LIBDIR)/contract/layout.sha256
 	@rm -f $(DESTDIR)$(LIBDIR)/contract/layout.cat
 	cp -R lib $(DESTDIR)$(LIBDIR)/lib
 	cp -R apps $(DESTDIR)$(LIBDIR)/apps

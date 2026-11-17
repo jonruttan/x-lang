@@ -37,9 +37,8 @@ _FILES=$(find lib -name '*.x' | sort)
 # build/, so the pre-push hook pays the ~25s walk only when something
 # that could change the answer changed; a fresh checkout (CI) or a red
 # tree always runs live -- only "ok" is ever cached.
-_DG="sha256sum"
-command -v sha256sum >/dev/null 2>&1 || _DG="shasum -a 256"
-_KEY=$({ $_DG tools/check/boot-order.sh tools/check/boot-order.x x-bin $_FILES; } | $_DG | awk '{print $1}')
+. tools/lib/digest.sh
+_KEY=$({ x_sha256 tools/check/boot-order.sh tools/check/boot-order.x x-bin $_FILES; } | x_sha256 | awk '{print $1}')
 _CACHE="build/boot-order.verdict"
 if [ -f "$_CACHE" ] && [ "$(cat "$_CACHE" 2>/dev/null)" = "$_KEY" ]; then
   echo "boot-order: ok (cached)"

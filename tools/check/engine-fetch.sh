@@ -32,10 +32,8 @@ trap 'exit 143' TERM
 
 fail() { echo "engine-fetch: FAIL: $1" >&2; shift; [ $# -gt 0 ] && sed 's/^/  /' "$@" >&2; exit 1; }
 
-digest() {
-	if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | cut -d' ' -f1
-	else sha256sum "$1" | cut -d' ' -f1; fi
-}
+. tools/lib/digest.sh
+digest() { x_sha256 "$1" | cut -d' ' -f1; }
 
 # --- a release fixture: the smallest thing laid out like an engine directory ----
 # Not a real engine: fetch.sh verifies bytes and publishes a directory, and

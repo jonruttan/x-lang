@@ -46,14 +46,9 @@ TAG="${1:-}"
 [ -n "$TAG" ] || { echo "release-manifest: usage: release-manifest.sh <tag>" >&2; exit 1; }
 [ -d build/boot ] || { echo "release-manifest: no build/boot -- run 'make boot' first" >&2; exit 1; }
 
-# Portable digest: coreutils on Linux, shasum on macOS.
-if command -v sha256sum >/dev/null 2>&1; then
-  _digest() { sha256sum "$1" | awk '{print $1}'; }
-elif command -v shasum >/dev/null 2>&1; then
-  _digest() { shasum -a 256 "$1" | awk '{print $1}'; }
-else
-  echo "release-manifest: no sha256sum or shasum on PATH" >&2; exit 1
-fi
+. tools/lib/digest.sh
+x_sha256 /dev/null >/dev/null || exit 1
+_digest() { x_sha256 "$1" | awk '{print $1}'; }
 
 check_hex() { # 64 lowercase hex chars, or die
   case "$1" in

@@ -87,6 +87,26 @@ path_form_safe() {
 	esac
 }
 
+# The digests, from whichever tool the host has: the coreutils name first
+# (GNU, busybox, x-coreutils), then macOS's shasum.  Each prints what
+# sha256sum prints, and returns 2 when neither is on PATH.  The same three
+# as tools/lib/digest.sh, which an installed wrapper cannot reach.
+x_sha256() {
+	if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"
+	elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$@"
+	else echo "digest: no sha256sum or shasum on PATH" >&2; return 2; fi
+}
+x_sha256_check() {
+	if command -v sha256sum >/dev/null 2>&1; then sha256sum -c "$1" >/dev/null 2>&1
+	elif command -v shasum >/dev/null 2>&1; then shasum -a 256 -c "$1" >/dev/null 2>&1
+	else echo "digest: no sha256sum or shasum on PATH" >&2; return 2; fi
+}
+x_sha1() {
+	if command -v sha1sum >/dev/null 2>&1; then sha1sum "$@"
+	elif command -v shasum >/dev/null 2>&1; then shasum -a 1 "$@"
+	else echo "digest: no sha1sum or shasum on PATH" >&2; return 2; fi
+}
+
 # --- lang bundles ------------------------------------------------
 # A bundle is a DIFFERENT SURFACE LANGUAGE acquired as a pinned artifact
 # (Pin bundle; docs/lang-contract.md).  Unlike a dialect entry it
@@ -1097,12 +1117,8 @@ if [ -n "$boot_file" ]; then
 	if [ -f "$_rel" ]; then
 		_wantb=$(sed -n 's/^[[:space:]]*(boot "[^"]*" "sha256:\([0-9a-f]*\)").*/\1/p' "$_rel" | head -1)
 		if [ -n "$_wantb" ]; then
-			if command -v sha256sum >/dev/null 2>&1; then
-				_haveb=$(sha256sum "$ENTRY" | awk '{print $1}')
-			elif command -v shasum >/dev/null 2>&1; then
-				_haveb=$(shasum -a 256 "$ENTRY" | awk '{print $1}')
-			else
-				_haveb=
+			_haveb=$(x_sha256 "$ENTRY" 2>/dev/null | awk '{print $1}')
+			if [ -z "$_haveb" ]; then
 				echo "x.sh: boot pin armed but no sha256 tool on PATH -- the amalgam's identity is unchecked" >&2
 			fi
 			if [ -n "$_haveb" ] && [ "$_wantb" != "$_haveb" ]; then
@@ -1170,11 +1186,7 @@ if [ -n "$boot_file" ]; then
 							curl -fsSL -o "$_cname.tar.gz" "$_base/$_reach_want/$_cname.tar.gz" \
 								&& curl -fsSL -o "$_cname.tar.gz.sha256" "$_base/$_reach_want/$_cname.tar.gz.sha256" \
 								|| { echo "x.sh: fetch failed: $_base/$_reach_want/$_cname.tar.gz" >&2; exit 1; }
-							if command -v sha256sum >/dev/null 2>&1; then
-								sha256sum -c "$_cname.tar.gz.sha256" >/dev/null 2>&1
-							else
-								shasum -a 256 -c "$_cname.tar.gz.sha256" >/dev/null 2>&1
-							fi || { echo "x.sh: digest mismatch on $_cname.tar.gz -- refusing to unpack; distrust the transport" >&2; exit 1; }
+							x_sha256_check "$_cname.tar.gz.sha256" || { echo "x.sh: digest mismatch on $_cname.tar.gz -- refusing to unpack; distrust the transport" >&2; exit 1; }
 							tar -xzf "$_cname.tar.gz"
 						) && [ -x "$_stage/x-${_reach_want}/bin/x" ] \
 							&& mkdir -p "$_croot/$_cname" \
@@ -1569,7 +1581,7 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ "$X_LIB" != img ]; then
 			_idir="$(dirname "$PIN_FILE")/.images"
 			_ikeys="$PIN_FILE $EXTRA_DIRS"
 		else
-			_idir="${XDG_CACHE_HOME:-$HOME/.cache}/x/images/$(printf '%s' "$_iroot" | shasum | cut -c1-12)"
+			_idir="${XDG_CACHE_HOME:-$HOME/.cache}/x/images/$(printf '%s' "$_iroot" | x_sha1 | cut -c1-12)"
 			_ikeys="$EXTRA_DIRS $BUNDLE_DEPS"
 		fi
 		require_engine
@@ -1633,7 +1645,7 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ "$X_LIB" != img ]; then
 				# The user's cache is the user's; a bundle may have one
 				# there too.
 				if [ -n "$BUNDLE_DIR" ]; then
-					_idir="${XDG_CACHE_HOME:-$HOME/.cache}/x/images/$(printf '%s' "$_iroot $BUNDLE_DIR" | shasum | cut -c1-12)"
+					_idir="${XDG_CACHE_HOME:-$HOME/.cache}/x/images/$(printf '%s' "$_iroot $BUNDLE_DIR" | x_sha1 | cut -c1-12)"
 					_iimg="$_idir/$_iname.boot.x.ximg"
 				fi
 				mkdir -p "$_idir" 2>/dev/null

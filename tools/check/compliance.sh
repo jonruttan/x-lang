@@ -84,10 +84,8 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 fail=0
 
-digest() {
-	if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
-	else shasum -a 256 "$1" | awk '{print $1}'; fi
-}
+. tools/lib/digest.sh
+digest() { x_sha256 "$1" | awk '{print $1}'; }
 
 # The engine's name comes from its own declaration, not from the directory it
 # sits in: a checkout and an unpacked release are the same engine at two
