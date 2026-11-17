@@ -92,9 +92,24 @@
               ((= b 101) #t)
               ((= b 69) #t)
               (#t (go (+ j 1))))))))
+    ; JSON allows an exponent with no point (1e3); the float reader needs
+    ; one, so an exponent with no point before it gets ".0" before its e.
+    (def %epos
+      (let go ((j i))
+        (if (>= j %end) ()
+          (let ((b (%json-byte s j)))
+            (match
+              ((= b 46) ())
+              ((= b 101) (- j i))
+              ((= b 69) (- j i))
+              (#t (go (+ j 1))))))))
+    (def %read-text
+      (if (null? %epos) %text
+        (str-append (str-append (str-byte-sub %text 0 %epos) ".0")
+          (str-byte-sub %text %epos (- (- %end i) %epos)))))
     ; %json-cvt, not the bits door (Float str->bits): that returns the raw IEEE bit
     ; pattern; the convert path boxes a real FLOAT value.
-    (def %v (if %floaty (%json-cvt %text (eval (lit float) (module x/num/float))) (%str->number %text)))
+    (def %v (if %floaty (%json-cvt %read-text (eval (lit float) (module x/num/float))) (%str->number %text)))
     (if (null? %v) (%json-err "malformed number" i) (pair %v %end))))
 
 ; --- strings ---------------------------------------------------------------

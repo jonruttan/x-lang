@@ -413,14 +413,39 @@
 ; an fvar, which bakes the value that name holds AT COMPILE TIME -- so the
 ; innermost state compiles first, or the compiled one hands back an
 ; interpreted successor and the loop drops out of native code on its first
-; transition.  And all four compile before the ENTRY analyser below, which
+; transition.  And all of them compile before the ENTRY analyser below, which
 ; names two of them the same way.
-(%tower-jit-global! float-frac #t
+(%tower-jit-global! float-exp-digits #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         me
         (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
     ()
+    (%tower-state %float-env (lit float-exp-digits))
+    %float-env)
+(%tower-jit-global! float-exp-first #t
+    (lit (fn (_ buffer score chr)
+      (if (and (>= chr 48) (<= chr 57)) float-exp-digits ())))
+    (list (pair (lit float-exp-digits) (%tower-state %float-env (lit float-exp-digits))))
+    (%tower-state %float-env (lit float-exp-first))
+    %float-env)
+(%tower-jit-global! float-exp-sign #t
+    (lit (fn (_ buffer score chr)
+      (if (or (= chr 43) (= chr 45))
+        float-exp-first
+        (if (and (>= chr 48) (<= chr 57)) float-exp-digits ()))))
+    (list (pair (lit float-exp-first) (%tower-state %float-env (lit float-exp-first)))
+          (pair (lit float-exp-digits) (%tower-state %float-env (lit float-exp-digits))))
+    (%tower-state %float-env (lit float-exp-sign))
+    %float-env)
+(%tower-jit-global! float-frac #t
+    (lit (fn (me buffer score chr)
+      (if (and (>= chr 48) (<= chr 57))
+        me
+        (if (or (= chr 101) (= chr 69))
+          float-exp-sign
+          (%seq (%buffer-unread buffer) (%score-set score 1 buffer))))))
+    (list (pair (lit float-exp-sign) (%tower-state %float-env (lit float-exp-sign))))
     (%tower-state %float-env (lit float-frac))
     %float-env)
 (%tower-jit-global! float-first-frac #t

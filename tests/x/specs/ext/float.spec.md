@@ -73,6 +73,22 @@ word first, on a 4-byte word.  1.5 is 0x3FF8000000000000: a high word of
 ---
     12345.6789
 
+### parses an exponent after the fraction
+
+```x
+(list 2.5e3 1.5E2 -3.969683028665376e+01 7.0e-3 1.0e0)
+```
+---
+    (2500.0 150.0 -39.6968302866538 0.007 1.0)
+
+### an exponent reaches far past the digits a float prints
+
+```x
+(list (< 0.0 1.0e-300) (< 1.0e-300 1.0e-299) (< 1.0e300 1.0e301))
+```
+---
+    (#t #t #t)
+
 ### float? true for float
 
 ```x
@@ -164,6 +180,22 @@ word first, on a 4-byte word.  1.5 is 0x3FF8000000000000: a high word of
 ```
 ---
     5.0
+
+### from converts a string the reader reads as one number
+
+```x
+(list (Float from "2.5") (Float from "-3.969683028665376e+01") (Float from "3") (Float from " 0.5 "))
+```
+---
+    (2.5 -39.6968302866538 3.0 0.5)
+
+### from rounds an integer string of any size
+
+```x
+(list (Float from "123456789012345678") (Float from "12345678901234567890123"))
+```
+---
+    (1.23456789012346e+17 1.23456789012346e+22)
 
 ### from result is float
 
@@ -853,6 +885,25 @@ is unchanged.
 ---
     Error: type: Float from: not convertible to FLOAT
 
+### from on a string that is not one number raises type
+
+The string is read as source is: one form, and that a number.
+
+```x
+(List map (fn (_ s) (guard (e (Err label e)) (Float from s)))
+  (list "abc" "2.5x" "" "2.5 3" "\"2.5\"" "(2.5)" "2.5e" "2.5e+" "1e3"))
+```
+---
+    ('type 'type 'type 'type 'type 'type 'type 'type 'type)
+
+### from on a symbol raises type
+
+```x
+(guard (e (Err label e)) (Float from 'x))
+```
+---
+    'type
+
 ### a mixed op with an unconvertible operand raises type, not a crash
 
 ```x
@@ -1000,7 +1051,8 @@ single's thirty-two bits are an INTEGER on either.  0.1 as a single is
 
 The printer is x (lib/x/num/float.x): exact digits from bigint, rounded to
 15 significant digits ties to even, laid out as C's `%.15g`, with `.0`
-kept on an integral value so it reads back as a float.
+kept on an integral value and before an exponent without a point, so it
+reads back as a float.
 
 ### fifteen significant digits, rounded
 
@@ -1013,18 +1065,18 @@ kept on an integral value so it reads back as a float.
 ### the exponent form below 1e-4 and from 1e15
 
 ```x
-(list (Float from "1e-5") (Float from "0.0001") (Float from "1e15") (Float from "1e14"))
+(list (Float from "1.0e-5") (Float from "0.0001") (Float from "1.0e15") (Float from "1.0e14"))
 ```
 ---
-    (1e-05 0.0001 1e+15 100000000000000.0)
+    (1.0e-05 0.0001 1.0e+15 100000000000000.0)
 
 ### the extremes: largest finite, smallest subnormal, a big exponent
 
 ```x
-(list (Float from "1.7976931348623157e308") (Float from "5e-324") (Float from "1e100"))
+(list (Float from "1.7976931348623157e308") (Float from "5.0e-324") (Float from "1.0e100"))
 ```
 ---
-    (1.79769313486232e+308 4.94065645841247e-324 1e+100)
+    (1.79769313486232e+308 4.94065645841247e-324 1.0e+100)
 
 ### signed zero, the infinities, NaN
 
