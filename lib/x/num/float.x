@@ -4,7 +4,7 @@
 
 (import x/type/class)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(import x/core/doors buf-tok char->int ffi-dlopen ffi-dlsym int% int* int+ int/ int= io-display-to-str obj-make obj-ref obj-set! ptr->int ptr-call ptr-ref str-byte-len str-byte-ref str-byte-sub type-by-atom type-from-cell type-make type-make-instance type-of type-push-call type-push-op type?)
+(import x/core/doors buf-tok tok-read-str str-append char->int ffi-dlopen ffi-dlsym int% int* int+ int/ int= io-display-to-str obj-make obj-ref obj-set! ptr->int ptr-call ptr-ref str-byte-len str-byte-ref str-byte-sub type-by-atom type-from-cell type-make type-make-instance type-of type-push-call type-push-op type?)
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 
@@ -234,13 +234,17 @@
 
 (def %float->str
   (fn (_ bits)
-    ; %.15g renders int-valued doubles bare ("1"), which re-reads as an
-    ; INT -- keep the point so floats round-trip (#45 R4). Skip anything
-    ; already carrying a point, an exponent, or inf/nan.
+    ; %.15g renders int-valued doubles bare ("1", "1e+100"), which re-read
+    ; as an INT, or an INT and a symbol -- keep the point so floats
+    ; round-trip (#45 R4): ".0" at the end, or before the exponent, which
+    ; the reader takes only after a point.  Skip anything already carrying
+    ; a point, and inf/nan.
     (let ((s (%bits->g bits)))
       (match
         ((Str8 includes? "." s) s)
-        ((Str8 includes? "e" s) s)
+        ((Str8 includes? "e" s)
+          (let ((i (Str8 index-of "e" s)))
+            (Str8 append (str-byte-sub s 0 i) ".0" (str-byte-sub s i (- (str-byte-len s) i)))))
         ((Str8 includes? "n" s) s)
         (#t (Str8 append s ".0"))))))
 
@@ -250,17 +254,43 @@
 (def %float->int
   (fn (_ bits) (%i<-d bits)))
 
-; State machine for tokenizer: matches [0-9]+\.[0-9]+
+; State machine for tokenizer: matches [0-9]+\.[0-9]+([eE][+-]?[0-9]+)?
 ; Uses intrinsic scoring — score computed from buffer length.
-; After first fractional digit: continue digits or score
+; The exponent wants a point before it, so 1e3 is no float, and at least
+; one digit, so a token that stops after its e or its sign is no float at
+; all.  The printer writes a point before every exponent to match.
 
+; Exponent digits: continue digits or score
+(def float-exp-digits ())
+
+(set! float-exp-digits
+  (fn (_ buffer score chr)
+    (if (and (>= chr 48) (<= chr 57))
+      float-exp-digits
+      (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
+
+; After the exponent's sign: one digit at least
+(def float-exp-first
+  (fn (_ buffer score chr)
+    (if (and (>= chr 48) (<= chr 57)) float-exp-digits ())))
+
+; After e or E: a sign or a digit
+(def float-exp-sign
+  (fn (_ buffer score chr)
+    (if (or (= chr 43) (= chr 45))
+      float-exp-first
+      (if (and (>= chr 48) (<= chr 57)) float-exp-digits ()))))
+
+; After first fractional digit: continue digits, start an exponent, or score
 (def float-frac ())
 
 (set! float-frac
   (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       float-frac
-      (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
+      (if (or (= chr 101) (= chr 69))
+        float-exp-sign
+        (%seq (%buffer-unread buffer) (%score-set score 1 buffer))))))
 ; Must see at least one digit after '.'
 
 (def float-first-frac
@@ -607,6 +637,21 @@
 (def str->float
   (fn (_ s) (%strtod s)))
 
+; The number the string S reads as: S read by the base's own tokenizers,
+; a float literal by the float type's, as the reader reads source, and
+; kept only when it is one form and that form a float or an integer.
+; Nil for anything else, so "2.5x" and "abc" convert to nothing.  A space
+; ends the last token, as the reader needs.
+(def %read-number
+  (fn (_ s)
+    (let ((forms (tok-read-str (%base) (str-append s " "))))
+      (if (if (pair? forms) (null? (rest forms)) #f)
+        (match
+          ((type? (first forms) float) (first forms))
+          ((type? (first forms) (type-of 42)) (type-make-instance float (int->float (first forms))))
+          (#t ()))
+        ()))))
+
 ; Float type with tokenizer, display, and alist-based convert
 
 (def float ())
@@ -634,7 +679,7 @@
             (fn (_ value) (type-make-instance float (int->float value))))
           (pair
             (type-of "")
-            (fn (_ value) (type-make-instance float (str->float value))))
+            (fn (_ value) (%read-number value)))
 ))
       (pair
         'to
@@ -873,8 +918,10 @@
         (example "(= (Float str->bits \"1.0\") (Float int->bits 1))" "#t"))
       (str->float s))
     (method from (self (param x ANY "An exact number (int, bigint, rational), a numeric string, or a float (identity)"))
-      (doc "Construct a float from any convertible value, through the conversion catalogue -- the generic value door (was exact->inexact, #357). Raises a label 'type when nothing converts." (returns FLOAT "Float instance")
-        (example "(Float from 3)" "3.0"))
+      (doc "Construct a float from any convertible value, through the conversion catalogue -- the generic value door (was exact->inexact, #357). A string converts when the reader reads the whole of it as one number, a float or an integer literal. Raises a label 'type when nothing converts." (returns FLOAT "Float instance")
+        (example "(Float from 3)" "3.0")
+        (example "(Float from \"-2.5e3\")" "-2500.0")
+        (example "(guard (e (Err label e)) (Float from \"2.5x\"))" "'type"))
       (float-of x))
     (method ->int (self (param x FLOAT "Float value (machine ints pass through)"))
       (doc "Convert an inexact float to an exact integer by truncation." (returns INTEGER "Truncated integer value")
