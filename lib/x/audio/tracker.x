@@ -97,7 +97,7 @@
       (%fail (Str8 append "not a number: " s)))
     (if neg (int- 0 (%digits ds)) (%digits ds))))
 
-(def %effect-letters (list "a" "v" "s" "p" "t" "f" "l" "w" "o" "c" "d" "r"))
+(def %effect-letters (list "a" "v" "s" "p" "t" "f" "l" "w" "o" "x" "y" "c" "d" "r"))
 
 ; An effect in a cell, a letter and its numbers apart by commas, "v30,4",
 ; as (LETTER ARG ...).
@@ -254,6 +254,9 @@
 ;               note's end, from its own width
 ;   o H         cutoff: a resonant filter's to H hertz by the next o or the
 ;               note's end, from its own cutoff (see Mixer play!)
+;   x C         ring: the note rung by a modulator C cents from its pitch
+;   y C         sync: the note hard-synced to a modulator C cents from its
+;               pitch (see Mixer play!)
 ;   c N         cut: let go N ticks into the row
 ;   d N         delay: start N ticks into the row (on the note's own cell)
 ;   r N         retrigger: start again every N ticks
@@ -446,6 +449,13 @@
     (%moved v (lit width) widths end
             (if (null? own) (if (eq? (%prop1 v (lit wave) ()) (lit pulse)) 50 ()) own))))
 
+; Voice V with the note's first ring (x C) and sync (y C) of FX ahead of
+; its own: a modulator C cents from its pitch, 0 when the effect has none.
+(def %coupled
+  (fn (_ v fx)
+    (List fold (fn (_ acc lk) ((fn (_ e) (if (null? e) acc (pair (list (rest lk) (%fx-arg e 0)) acc))) (%fx fx (first lk))))
+               v (list (pair "x" (lit ring)) (pair "y" (lit sync))))))
+
 ; The note at the head of CELLS, in channel CI, started in M at MS a row:
 ; each voice of instrument INST at W percent, shaped by its effects.
 (def %note!
@@ -469,8 +479,9 @@
         (Mixer play! m
           (List map (fn (_ v)
                       (def end (int+ (%min every (int- len start)) (List ref 3 inst)))
-                      (def own (%moved (%widened (if (%pitched? v) v (pair (list (lit note) note) v)) (List ref 3 shape) end)
-                                       (lit cutoff) (List ref 4 shape) end (%start v (lit cutoff))))
+                      (def own (%coupled (%moved (%widened (if (%pitched? v) v (pair (list (lit note) note) v)) (List ref 3 shape) end)
+                                                 (lit cutoff) (List ref 4 shape) end (%start v (lit cutoff)))
+                                         fx))
                       (def timed (if (int= at 0) own (pair (list (lit at) (int+ at (%prop1 v (lit at) 0))) own)))
                       (def bent (if (null? (List ref 1 shape)) timed (pair (pair (lit bend) (List ref 1 shape)) timed)))
                       (pair (pair (lit env) (first shape))
