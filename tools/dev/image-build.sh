@@ -38,6 +38,7 @@ lib="$1"; out="$2"
 shift 2
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$root"
+. tools/lib/digest.sh
 name="$(basename "$lib")"
 mkdir -p "$out"
 img="$out/$name.ximg"; keyf="$out/$name.key"
@@ -68,7 +69,7 @@ _caller_key() {
 		fi
 	done
 }
-key="$( { cat "$lib"; for d in lib tests/x/lib engine/tools/contract; do [ -d "$d" ] && find "$d" -name '*.x'; done | LC_ALL=C sort | xargs cat; cat tools/dev/image-write.x; cat "$engine"; _caller_key "$@"; } | shasum | cut -d' ' -f1)"
+key="$( { cat "$lib"; for d in lib tests/x/lib engine/tools/contract; do [ -d "$d" ] && find "$d" -name '*.x'; done | LC_ALL=C sort | xargs cat; cat tools/dev/image-write.x; cat "$engine"; _caller_key "$@"; } | x_sha1 | cut -d' ' -f1)"
 # A library the writer could not name (see the unnameable rule below) is
 # remembered by a marker beside the key, so the answer is not re-derived by
 # a failed write on every run: the marker holds until the key changes.

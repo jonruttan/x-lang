@@ -32,13 +32,9 @@ os=$(uname -s | tr 'A-Z' 'a-z')   # darwin | linux
 arch=$(uname -m)                  # arm64 | x86_64 | aarch64
 name="x-$TAG-$os-$arch"
 
-if command -v sha256sum >/dev/null 2>&1; then
-	_sha() { sha256sum "$1"; }
-elif command -v shasum >/dev/null 2>&1; then
-	_sha() { shasum -a 256 "$1"; }
-else
-	echo "package: no sha256sum or shasum on PATH" >&2; exit 1
-fi
+. tools/lib/digest.sh
+x_sha256 /dev/null >/dev/null || exit 1
+_sha() { x_sha256 "$1"; }
 
 STAGE=$(mktemp -d 2>/dev/null || echo "${TMPDIR:-/tmp}/pkg-stage.$$")
 EXTRACT=$(mktemp -d 2>/dev/null || echo "${TMPDIR:-/tmp}/pkg-extract.$$")

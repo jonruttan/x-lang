@@ -32,10 +32,8 @@ PIN="${PIN:-tools/engine/engine.pin.xon}"
 
 say() { echo "engine: $*" >&2; }
 
-digest() {
-	if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | cut -d' ' -f1
-	else sha256sum "$1" | cut -d' ' -f1; fi
-}
+. tools/lib/digest.sh
+digest() { x_sha256 "$1" | cut -d' ' -f1; }
 
 # --- the closed vocabulary ---------------------------------------------------
 # An unknown form is an error, the same ruling pin.xon's loader follows: a

@@ -62,11 +62,9 @@ trap 'rm -rf "$W"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-digest() {
-	if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
-	elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'
-	else echo "gen-engine-xon: no sha256sum or shasum on PATH" >&2; exit 2; fi
-}
+. "$ROOT/tools/lib/digest.sh"
+x_sha256 /dev/null >/dev/null || exit 2
+digest() { x_sha256 "$1" | awk '{print $1}'; }
 
 # --- the vocabulary: label -> capability group, and explicit per-coordinate rows -
 awk '/^\(def %feature-group-rows/{f=1;next} /^\)\)\)/{f=0}

@@ -71,6 +71,7 @@
 set -u
 
 cd "$(dirname "$0")/../.." || exit 1
+. tools/lib/digest.sh
 WRAPPER=./x.sh
 
 # Wall-time guard, through tools/lib/guard.sh rather than `timeout` itself:
@@ -278,11 +279,7 @@ grep -q "unlisted: acme/tail.x" "$_TMP/out" "$_TMP/err" \
 # fetch: a fake release over file:// -- verified or nothing.  The tiny
 # artifact keeps the pure-x digest instant; the layout and vocabulary
 # are exactly tools/release/release-manifest.sh's.
-if command -v sha256sum >/dev/null 2>&1; then
-  _dg() { sha256sum "$1" | awk '{print $1}'; }
-else
-  _dg() { shasum -a 256 "$1" | awk '{print $1}'; }
-fi
+_dg() { x_sha256 "$1" | awk '{print $1}'; }
 mkdir -p "$_TMP/rel/v9.9.9-smoke"
 printf '(def %%pin-smoke-fetched "tiny")\n' > "$_TMP/rel/v9.9.9-smoke/tiny.x"
 {
@@ -448,10 +445,7 @@ grep -q "quote or backslash" "$_TMP/err" || fail "pin-quote: no refusal message"
 
 # Digest helper, shared by the boot-time guards below and the offline
 # lifecycle cases further down.
-_sha() {
-	if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
-	else shasum -a 256 "$1" | awk '{print $1}'; fi
-}
+_sha() { x_sha256 "$1" | awk '{print $1}'; }
 
 # pairing-guard: the wrapper's boot-time ISA refusal, both layouts.
 # The guard arms only in INSTALLED mode (INSTALL_ROOT set), so no other
@@ -733,7 +727,7 @@ EOF
 chmod +x "$_TMP/mirror-stage/x-v9.9.7-mir/bin/x"
 _mname="x-v9.9.7-mir-${_cos}-${_carch}"
 (cd "$_TMP/mirror-stage" && tar -czf "$_mirror/$_mname.tar.gz" "x-v9.9.7-mir")
-(cd "$_mirror" && { command -v sha256sum >/dev/null 2>&1 && sha256sum "$_mname.tar.gz" || shasum -a 256 "$_mname.tar.gz"; } > "$_mname.tar.gz.sha256")
+(cd "$_mirror" && x_sha256 "$_mname.tar.gz" > "$_mname.tar.gz.sha256")
 _rel_proj reach2 v9.9.7-mir
 (cd "$_TMP" && $TIMEOUT_CMD env X_RELEASE_CACHE="$_TMP/cache2" X_RELEASE_BASE="file://$_TMP/mirror" sh "$_fake2/bin/x" --fetch-release -f "$_TMP/reach2/main.x" </dev/null) >"$_TMP/out" 2>"$_TMP/err"
 status=$?

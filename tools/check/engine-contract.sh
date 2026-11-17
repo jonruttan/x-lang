@@ -104,11 +104,8 @@ set -- "$FEAT" "$ISA" "$REQ" "$CONS" $(find lib apps -name '*.x' -type f | sort)
 # from a run that did not finish, is not kept.  The candidate engine is not an
 # input.  A file of the candidate's handed to the library half would be digested
 # with the rest, so check-second-engine still sees a derivation it perturbed.
-if command -v sha256sum >/dev/null 2>&1; then
-	digest() { sha256sum "$@"; }
-else
-	digest() { shasum -a 256 "$@"; }
-fi
+. tools/lib/digest.sh
+digest() { x_sha256 "$@"; }
 inputs=$(for f in tools/check/engine-contract.sh tools/check/engine-contract.x x.sh "${X_BIN:-x-bin}" \
 		engine/tools/contract/base-paths.x engine/tools/contract/obj-layout.x "$@"; do
 	if [ -f "$f" ]; then printf '%s\n' "$f"; fi
