@@ -338,3 +338,20 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ```
 ---
     ('value 'value 'value 'value 'value 'value 'value 'value 'value 'value 'value 'value 'value)
+
+## Other names
+
+### the names statistics texts use find the constructors
+
+```x
+(import x/sys/posix) (import x/sys/file) (import x/sys/stream)
+(def distribution-found ())
+(let ((tmp (File temp "/tmp/x-distribution-known-")))
+  (File close (first tmp))
+  (Stream with-file (rest tmp)
+    (fn (_) (set! distribution-found (list (apropos "student") (apropos "F distribution")))))
+  (File unlink (rest tmp)))
+distribution-found
+```
+---
+    (('Distribution/standardized-mean) ('Distribution/variance-ratio))

@@ -315,7 +315,7 @@
 
     (method standardized-mean (self (param freedom NUMBER "The degrees of freedom, greater than 0"))
       (doc "The distribution of a standardized mean, of its degrees of freedom: the distance of a sample's mean from the true mean, in the standard errors the sample itself estimates, with freedom one less than the sample's size. It is a standard normal over the root of an independent chi-squared divided by its freedom, and nears the standard normal as the freedom grows."
-        (note "Statistics texts call it the t distribution, or Student's t.")
+        (known-as "t distribution" "Student's t")
         (returns Distribution "The distribution")
         (example "((Distribution standardized-mean 5) cumulative 0)" "0.5"))
       (new-from StandardizedMean (list (lit freedom) (%positive "standardized-mean" "the degrees of freedom" freedom))))
@@ -323,7 +323,7 @@
     (method variance-ratio (self (param upper NUMBER "The degrees of freedom of the variance above, greater than 0")
                                  (param lower NUMBER "The degrees of freedom of the variance below, greater than 0"))
       (doc "The distribution of a variance ratio, of two degrees of freedom: the ratio of two independent chi-squareds, each divided by its freedom, which is the ratio of two sample variances of normals with one true variance."
-        (note "Statistics texts call it the F distribution.")
+        (known-as "F distribution")
         (returns Distribution "The distribution")
         (example "((Distribution variance-ratio 4 10) mean)" "1.25"))
       (new-from VarianceRatio
