@@ -116,7 +116,7 @@
     (example "(Crc32 of \"abc\")" "891568578"))
   (static
     (method of (self (param s STRING "Bytes")
-                     . (param span LIST "START, then LENGTH: which bytes of s; default all of s"))
+                     . (param span INTEGER "START, then LENGTH: which bytes of s; default all of s"))
       (doc "The CRC-32 of the bytes. Give LENGTH for binary input: s's own length is measured to its first NUL."
         (returns INTEGER "The CRC, 0 to 4294967295")
         (example "(Crc32 of \"123456789\")" "3421780262")
@@ -125,7 +125,7 @@
       (u32 (%xor ((%fold-for (first (rest sp))) (%at (str->ptr s) (first sp)) (first (rest sp)) 0xFFFFFFFF) 0xFFFFFFFF)))
     (method update (self (param crc INTEGER "The CRC so far; 0 to start")
                          (param s STRING "Bytes")
-                         . (param span LIST "START, then LENGTH, as for of"))
+                         . (param span INTEGER "START, then LENGTH, as for of"))
       (doc "The CRC-32 of the data crc sums followed by the bytes: a sum carried on across pieces, as Zlib crc32 carries it."
         (returns INTEGER "The CRC, 0 to 4294967295")
         (example "(Crc32 update (Crc32 update 0 \"1234\") \"56789\")" "3421780262"))

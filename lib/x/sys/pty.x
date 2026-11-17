@@ -44,7 +44,7 @@
         (sample "(Pty %c \"posix_openpt\")" "the address of libc's posix_openpt, for ptr call"))
       ((prim-ref (lit ffi) (lit dlsym)) ((prim-ref (lit ffi) (lit dlopen)) () 1) name))
 
-    (method %call (self (param name STRING "A libc function") . (param args LIST "Its arguments"))
+    (method %call (self (param name STRING "A libc function") . (param args ANY "Its arguments"))
       (doc "A libc call's int answer, sign-folded: -1 is an error." (returns INTEGER "The answer")
         (example "(= (Pty %call \"getpid\") (Sys getpid))" "#t")
         (example "(Pty %call \"grantpt\" -1)" "-1"))

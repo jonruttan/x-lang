@@ -143,7 +143,7 @@
       (when (> (int+ start len) (%r-len r))
         (Err raise (lit value) "Bytes sub: past the end of the region" (list start len)))
       (list (%r-buf r) (int+ (%r-start r) start) len))
-    (method join (self . (param parts LIST "Regions (BUF START LEN), or STRINGs up to their first NUL"))
+    (method join (self . (param parts LIST|STRING "Regions (BUF START LEN), or STRINGs up to their first NUL"))
       (doc "The parts' bytes end to end, in a fresh buffer."
         (returns LIST "(BUF 0 LEN)")
         (example "(Bytes hex (Bytes join (Bytes of-hex \"00\") \"ab\" (Bytes of-hex \"ff\")))" "\"006162ff\""))

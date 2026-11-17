@@ -155,7 +155,7 @@
 
   (static
     (method line (self (param s STRING "The text to paint")
-                       . (param more LIST "Optional: the marks, as `marks` answers them, then the text that comes before s in the same entry"))
+                       . (param more LIST|STRING "Optional: the marks, as `marks` answers them, then the text that comes before s in the same entry"))
       (doc "The text with ANSI colour codes inserted, and otherwise byte for byte -- the author's own spacing is preserved, because the cursor column is measured against it. With marks from `marks`, each paren is coloured by its nesting depth, a close with nothing to close is bold red, and the pair beside the cursor is inverse as well. With the text that comes before s -- the earlier lines of a multi-line entry, or the part of a line scrolled out of view -- s is painted as its continuation, so a string or a comment left open there colours the start of s. Returns s unchanged when colour is off."
         (returns STRING "A string safe to write to the terminal")
         (sample "(Paint line \"(def x 42)\")" "the same text, with `def` and `42` wrapped in SGR codes")

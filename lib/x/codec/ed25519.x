@@ -543,7 +543,7 @@
       (%public seed))
     (method sign (self (param seed STRING "The private key: 32 bytes are read")
                        (param m STRING "The message")
-                       . (param span LIST "START, then LENGTH: which bytes of m; default all of m"))
+                       . (param span INTEGER "START, then LENGTH: which bytes of m; default all of m"))
       (doc "The signature of a message under a seed (RFC 8032 5.1.6): R then S, 64 bytes. Deterministic: the same seed and message always give the same signature. GIVE THE REGION FOR BINARY INPUT: m's own length is measured to its first NUL. Not constant time."
         (returns STRING "64 bytes")
         (sample "(Bytes hex (Bytes region (Ed25519 sign seed \"\" 0 0) 0 64))" "\"e5564300c360ac72...4655141438e7a100b\" for test 1's seed, RFC 8032 7.1"))
@@ -552,7 +552,7 @@
     (method verify (self (param pub STRING "The public key: 32 bytes are read")
                          (param sig STRING "The signature: 64 bytes are read")
                          (param m STRING "The message")
-                         . (param span LIST "START, then LENGTH: which bytes of m; default all of m"))
+                         . (param span INTEGER "START, then LENGTH: which bytes of m; default all of m"))
       (doc "Whether sig is pub's signature of the message (RFC 8032 5.1.7): #f for a key that encodes no point, an S at or past the group order, or a signature that does not check. Not constant time."
         (returns BOOL "#t when the signature checks")
         (sample "(Ed25519 verify (Ed25519 public seed) (Ed25519 sign seed \"abc\") \"abc\")" "#t; with \"abd\" as the message, #f"))

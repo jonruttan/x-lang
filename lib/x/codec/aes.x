@@ -292,7 +292,7 @@
                       (param size INTEGER "The key's length in bytes: 16, 24 or 32")
                       (param iv STRING "The initial counter block: 16 bytes are read")
                       (param s STRING "The bytes to encrypt or decrypt")
-                      . (param span LIST "START, then LENGTH: which bytes of s; default all of s"))
+                      . (param span INTEGER "START, then LENGTH: which bytes of s; default all of s"))
       (doc "AES in counter mode (SP 800-38A 6.5): every byte of the region XORed with the cipher of the counter block, the counter incremented as one big-endian 128-bit integer each 16 bytes -- OpenSSH's aes128-ctr, aes192-ctr and aes256-ctr, and OpenSSL's. One operation encrypts and decrypts; a region ending inside a block uses that block's leading bytes. GIVE THE REGION FOR BINARY INPUT: s's own length is measured to its first NUL, and the answer's is LEN, which only the caller knows."
         (returns STRING "LEN bytes")
         (example "(Aes ctr (Str8 pad-right 32 #\\k \"\") 32 (Str8 pad-right 16 #\\i \"\") (Aes ctr (Str8 pad-right 32 #\\k \"\") 32 (Str8 pad-right 16 #\\i \"\") \"abc\") 0 3)" "\"abc\""))

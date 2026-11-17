@@ -124,7 +124,7 @@
     ; A launcher starts the engine as `x-bin OPTION... -- ARG...`: its own
     ; options, then "--", then the program's arguments, so neither can be
     ; taken for the other.  The engine binds the whole list as `args`.
-    (method args (self . (param which LIST "'program: leave out the launcher's options"))
+    (method args (self . (param which SYMBOL "'program: leave out the launcher's options"))
       (doc "The process's arguments as the engine was given them: the engine's path, then everything after it. With 'program, the launcher's own options are left out: the engine's path, then what follows the first \"--\", which a launcher writes between its options and the program's arguments. An engine started with no \"--\" has nothing left out."
         (returns LIST "Argument strings")
         (sample "(Sys args 'program)" "(\"/usr/local/libexec/x/x-bin\" \"status\" \"-s\") for x -l git -- status -s"))

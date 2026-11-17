@@ -1663,7 +1663,7 @@
                           (param frames INTEGER "The frames in PCM, 1 or more")
                           (param rate INTEGER "PCM's frames a second")
                           (param root ANY "The pitch PCM sounds at RATE: a note's name, such as \"C4\", or hertz")
-                          . (param loop LIST "START, then END: the frames from START up to END repeat; default none"))
+                          . (param loop INTEGER "START, then END: the frames from START up to END repeat; default none"))
       (doc "Make a sample, for voices to name as they name a wave: the recorded sound played at the voice's pitch, faster for a higher note than ROOT and slower for a lower one, read between its frames. Without a loop it plays once and the voice ends with it, its level held at the envelope's first unless the voice gives an envelope; with a loop it plays to END, then from START to END again until the envelope ends. A width is not used. It is played as it was recorded, not band-limited, so a note far above ROOT can fold its highest harmonics back. Raises a label 'value for a rate, root or loop out of range."
         (returns SYMBOL "NAME")
         (example "(do (import x/codec/bytes) (Mixer sample! (lit click) (first (Bytes of-hex \"ff7f00800000\")) 3 8000 \"C4\"))" "'click"))

@@ -1238,7 +1238,7 @@
     (let ((ss ((self mul self) sum)))
       ((Matrix %sqrt) (if (type? ss float) ss (float-of ss)))))
 
-  (method covariance (self . (param correction LIST "Optional INTEGER taken from the rows before dividing: 1 by default, 0 for the population covariance"))
+  (method covariance (self . (param correction INTEGER "Optional, taken from the rows before dividing: 1 by default, 0 for the population covariance"))
     (doc "The covariance of the columns, each a variable whose observations are the rows: element (i j) is the sum over the rows of the products of column i's and column j's differences from their means, over the rows less the correction. Its diagonal is each column's variance."
       (returns Matrix "A fresh f64 Matrix of self's columns by self's columns")
       (example "(((Matrix from '((1 2) (2 4) (3 6))) covariance) ->list)" "((1.0 2.0) (2.0 4.0))")
@@ -1588,7 +1588,7 @@
       (example "((((Matrix from '((0 2) (1 0))) factor-singular) right) ->list)" "((0.0 1.0) (1.0 0.0))"))
     (field (lit right)))
 
-  (method rank (self . (param tolerance LIST "Optional FLOAT; the default is the greatest value times the greater of the matrix's rows and columns times 2^-52"))
+  (method rank (self . (param tolerance NUMBER "Optional; the default is the greatest value times the greater of the matrix's rows and columns times 2^-52"))
     (doc "The matrix's rank: how many singular values are greater than the tolerance. The default tolerance scales with the matrix, so a value left by rounding in place of 0 is not counted. This is the matrix's rank in linear algebra, not a Tensor's rank, its number of axes."
       (returns INTEGER "The number of values above the tolerance")
       (example "(((Matrix from '((1 2) (2 4))) factor-singular) rank)" "1")
