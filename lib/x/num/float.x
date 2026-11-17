@@ -641,14 +641,18 @@
 ; a float literal by the float type's, as the reader reads source, and
 ; kept only when it is one form and that form a float or an integer.
 ; Nil for anything else, so "2.5x" and "abc" convert to nothing.  A space
-; ends the last token, as the reader needs.
+; ends the last token, as the reader needs.  An integer's text goes to
+; strtod, which rounds it correctly at any size; the integer read from
+; it may be a BIGINT, or may not fit a word.
+(def %type-name (prim-ref (lit type) (lit name)))
 (def %read-number
   (fn (_ s)
     (let ((forms (tok-read-str (%base) (str-append s " "))))
       (if (if (pair? forms) (null? (rest forms)) #f)
         (match
           ((type? (first forms) float) (first forms))
-          ((type? (first forms) (type-of 42)) (type-make-instance float (int->float (first forms))))
+          ((if (type? (first forms) (type-of 42)) #t (str=? (%type-name (type-of (first forms))) "BIGINT"))
+           (type-make-instance float (str->float s)))
           (#t ()))
         ()))))
 

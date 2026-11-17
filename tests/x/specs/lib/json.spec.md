@@ -39,6 +39,15 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 ---
     ("FLOAT" 1000.0)
 
+### an exponent may be capital, signed, and follow a point
+
+```x
+(do (import x/codec/json)
+  (list (Json parse "1E+2") (Json parse "-2.5e-1")))
+```
+---
+    (100.0 -0.25)
+
 ### true / false / null
 
 ```x

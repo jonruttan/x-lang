@@ -189,6 +189,14 @@ word first, on a 4-byte word.  1.5 is 0x3FF8000000000000: a high word of
 ---
     (2.5 -39.6968302866538 3.0 0.5)
 
+### from rounds an integer string of any size
+
+```x
+(list (Float from "123456789012345678") (Float from "12345678901234567890123"))
+```
+---
+    (1.23456789012346e+17 1.23456789012346e+22)
+
 ### from result is float
 
 ```x
