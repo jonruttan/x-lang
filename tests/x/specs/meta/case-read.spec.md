@@ -11,10 +11,10 @@ reads. See `tests/spec-runner.awk`.
 
 ```x
 (import x/num/float)
-(write (list 1.96 -2.5))
+(write (list 1.96 -2.5e3))
 ```
 ---
-    (1.96 -2.5)
+    (1.96 -2500.0)
 
 ### the last form's value is the snippet's value
 

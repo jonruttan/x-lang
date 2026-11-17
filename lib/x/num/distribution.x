@@ -109,7 +109,7 @@
 
 (def-class Normal ()
   (doc "The normal distribution of a mean and a deviation: density e^(-z^2/2) over the deviation times the root of 2 pi, z being x's distance from the mean in deviations."
-    (example "((Normal make 0 1) cumulative 0)" "0.5")
+    (example "((Normal make 0 1) cumulative 1.96)" "0.97500210485178")
     (see make) (see density) (see cumulative) (see survival) (see quantile))
 
   mean        ; a Float
