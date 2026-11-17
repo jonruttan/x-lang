@@ -158,10 +158,10 @@ reached and what is sounding.
 ```x
 (do (import x/audio/tracker)
   (def make (fn (_ cells) (guard (e (Err text e)) (Tracker name (Tracker make (list (lit song) "s" (lit (instrument a)) (list (lit pattern) (lit p) (list (lit a) cells)) (lit (order p))))))))
-  (list (make "A3/x1") (make "A3/v3a") (make "A3/v30,4 ./s-200 -")))
+  (list (make "A3/z1") (make "A3/v3a") (make "A3/v30,4 ./s-200 -")))
 ```
 ---
-    ("Tracker: no effect x1" "Tracker: not a number: 3a" "s")
+    ("Tracker: no effect z1" "Tracker: not a number: 3a" "s")
 
 ### an arpeggio of nothing sounds as the plain note, and each pitch and level effect changes it
 
@@ -253,6 +253,38 @@ reached and what is sounding.
 ```
 ---
     (#t #t #t #t)
+
+### a ring and a sync effect couple the note to a modulator, as the instrument's own ring and sync would
+
+```x
+(do (import x/audio/tracker) (import x/audio/mixer) (import x/core/doors ptr-ref str->ptr)
+  (def song (fn (_ inst cells) (list (lit song) "s" (lit (bpm 60)) (lit (rows 4)) (lit (ticks 4))
+                                     (pair (lit instrument) (pair (lit a) inst))
+                                     (list (lit pattern) (lit p) (list (lit a) cells)) (lit (order p)))))
+  (def s16 (fn (_ r i) ((fn (_ u) (if (< u 32768) u (- u 65536))) (+ (ptr-ref (str->ptr r) (* 2 i) 1) (* 256 (ptr-ref (str->ptr r) (+ 1 (* 2 i)) 1))))))
+  (def worst
+    (fn (_ ia a ib b)
+      (def ma (Mixer make 8000 256))
+      (def mb (Mixer make 8000 256))
+      (Tracker play! (Tracker make (song ia a)) ma)
+      (Tracker play! (Tracker make (song ib b)) mb)
+      ((fn (self n w)
+         (if (< n 1) w
+           ((fn (_ ra rb)
+              (self (- n 1) ((fn (self i w) (if (< i 512) (self (+ i 1) ((fn (_ d) (if (< w d) d w)) ((fn (_ d) (if (< d 0) (- 0 d) d)) (- (s16 ra i) (s16 rb i))))) w)) 0 w)))
+            (Mixer block! ma) (Mixer block! mb))))
+       12 0)))
+  (def tri (lit ((wave triangle) (env (0 100) (10 100)) (release 20))))
+  (def rung (lit ((wave triangle) (ring 1200) (env (0 100) (10 100)) (release 20))))
+  (def synced (lit ((wave triangle) (sync 700) (env (0 100) (10 100)) (release 20))))
+  (list (< 1000 (worst tri "C4 . . ." tri "C4/x1200 . . ."))
+        (< (worst rung "C4 . . ." tri "C4/x1200 . . .") 8)
+        (< 1000 (worst tri "C4 . . ." tri "C4/y700 . . ."))
+        (< (worst synced "C4 . . ." tri "C4/y700 . . .") 8)
+        (< 1000 (worst synced "C4 . . ." synced "C4/y-500 . . ."))))
+```
+---
+    (#t #t #t #t #t)
 
 ### a delay starts the note late, a cut lets it go early, and a retrigger starts it again
 
