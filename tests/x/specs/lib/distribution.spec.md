@@ -1,4 +1,5 @@
 # probability distributions (Normal, Uniform, Exponential)
+# @weight 3
 
 A distribution is a value made with its parameters, answering its density,
 cumulative, survival and quantile, mean, variance and deviation, each a
