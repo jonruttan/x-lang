@@ -222,6 +222,12 @@ value — unless the expected block is fenced as `` ```output ``, in which case
 the full multi-line output is compared (leading blanks ignored, trailing
 newline trimmed, interior blanks significant).
 
+A snippet's forms are read one at a time from the engine's input, each after
+the one before it has run, so a form that changes the reader (an import that
+adds float literals) changes how the rest of the snippet reads. The input is
+shared: a snippet that forks keeps the fork, the child's work and its exit in
+one form, or the child reads the forms after it.
+
 Two stages sit between the engine and the comparison. Stderr is redirected to a
 file, quoted only when a death message is being built (a green batch never
 opens it). Stdout passes through the NUL escaper, so a zero byte arrives as

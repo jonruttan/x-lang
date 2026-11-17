@@ -113,7 +113,7 @@ function collect() {
 function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, got, boundary_done, seen, want, _tn, _tp, statfile, _st) {
 	if (repl_cmd == " " || t_direct[from]) {
 		# Direct mode: feed tests to the lang REPL without
-		# %T harness or (begin ...) wrapper.  Used by Sweet where
+		# %T harness or %CASE% markers.  Used by Sweet where
 		# indentation-based grouping must see raw newlines/tokens.
 		# Each separator on its own line so sweet-read doesn't group them.
 		printf "" > tmpfile
@@ -130,14 +130,25 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 		}
 		close(tmpfile)
 	} else {
-		# Standard mode: %T harness with (begin ...) wrapping.
+		# Standard mode: the %T harness.  A snippet stands between two
+		# %CASE% markers, and %spec-case reads and evaluates its forms one
+		# at a time, answering the last form's value for %T to print.
+		# Each form is read after the one before it has run, so a snippet
+		# whose import changes the reader (x/num/float adds float
+		# literals) has its later forms read by the changed reader.  On an
+		# error, %spec-skip reads past the rest of the snippet.  The
+		# harness's names are ones no snippet uses, since its loop runs
+		# between a snippet's forms.
 		# Snippets eval via eval! (current-env, REPL/standalone semantics),
 		# NOT two-arg (eval %r %E): the latter's save/restore reverts the
 		# global BST after each snippet, discarding top-level defs -- so a
 		# self-referential def (e.g. a type whose converter calls
 		# (make-instance %t)) can't resolve %t.  eval! is TCO-capable, so
 		# deep tail-recursion specs still pass.
-		printf "(def %%T (op () %%E (def %%r (%s)) (if (eq? %%r (lit %%END%%)) () (%%seq (guard (err (display \"Error: \") (display err) (newline)) (%%repl-print (eval! %%r))) (%%T)))))\n", read_fn > tmpfile
+		printf "(def %%spec-skip (op () %%E (if (eq? (%s) (lit %%CASE%%)) () (%%spec-skip))))\n", read_fn > tmpfile
+		printf "(def %%spec-value ())\n" > tmpfile
+		printf "(def %%spec-case (op () %%E (def %%spec-form (%s)) (if (eq? %%spec-form (lit %%CASE%%)) %%spec-value (%%seq (set! %%spec-value (eval! %%spec-form)) (%%spec-case)))))\n", read_fn > tmpfile
+		printf "(def %%T (op () %%E (def %%r (%s)) (if (eq? %%r (lit %%END%%)) () (%%seq (if (eq? %%r (lit %%CASE%%)) (guard (err (display \"Error: \") (display err) (newline) (%%spec-skip)) (%%seq (set! %%spec-value ()) (%%seq (%%repl-print (%%spec-case)) (set! %%spec-value ())))) (guard (err (display \"Error: \") (display err) (newline)) (%%repl-print (eval! %%r)))) (%%T)))))\n", read_fn > tmpfile
 		printf "%s\n", "(%T)" > tmpfile
 		for (i = from; i <= to; i++) {
 			# A COLLECT AT EVERY SNIPPET SEAM.  With no auto-GC a batch
@@ -192,14 +203,10 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 					printf "((prim-ref (lit heap) (lit collect)))\n" > tmpfile
 				printf "(display \"<<SEP>>\\n\")\n" > tmpfile
 			}
-			# The closing paren sits on its OWN line: a test whose last
+			# The closing marker sits on its OWN line: a test whose last
 			# line ends in a `;` comment would otherwise swallow it,
-			# leaving an unterminated (begin that eats the <<SEP>>
-			# markers after it -- the test "vanishes" with no crash.
-			# Comments are legal x-lang, so the harness must be robust
-			# to them anywhere in the snippet (found via spec.md's own
-			# Comments example, #70 seam 2).
-			printf "(begin %s\n)\n", t_input[i] > tmpfile
+			# and %C would read on into the <<SEP>> forms after it.
+			printf "%%CASE%%\n%s\n%%CASE%%\n", t_input[i] > tmpfile
 		}
 		printf "(display \"<<SEP>>\\n\")\n" > tmpfile
 		printf "%s\n", "%END%" > tmpfile
