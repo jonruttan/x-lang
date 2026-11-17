@@ -61,6 +61,7 @@
 (def ptr->obj (prim-ref (lit ptr) (lit ->obj)))
 (def mem-copy (prim-ref (lit mem) (lit copy)))
 (def mem-cmp (prim-ref (lit mem) (lit cmp)))
+(def mem-set (prim-ref (lit mem) (lit set)))
 
 ; --- obj: slots and identity --------------------------------------------
 (def obj-make (prim-ref (lit obj) (lit make)))
@@ -96,7 +97,7 @@
 (doc (provide x/core/doors
   int+ int- int* int/ int% int< int= int& int| int<< int>> int->ptr int->char
   str-make str-append str-byte-ref str-byte-len str-byte-sub str->ptr str->sym char->int
-  ptr-ref ptr-set! ptr-ref-word ptr-set-word! ptr-call ptr->int ptr->str ptr->obj mem-copy mem-cmp
+  ptr-ref ptr-set! ptr-ref-word ptr-set-word! ptr-call ptr->int ptr->str ptr->obj mem-copy mem-cmp mem-set
   obj-make obj-ref obj-set! obj->ptr obj-same?
   type-of type? type-make type-make-instance type-by-atom type-from-cell
   type-push-call type-push-op type-push-write type-push-analyse

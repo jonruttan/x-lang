@@ -53,11 +53,12 @@
 (import x/core/list)
 (import x/sys/posix)
 (import x/sys/file)
+(import x/codec/bytes)
 (import x/sys/sdl)
 (import x/tool/compiled)
 (import x/tool/word-form word-form-pure)
 (import x/platform/syscall file-modes syscall-id)
-(import x/core/doors char->int int& int* int+ int- int/ int< int= int<< int>> int->ptr
+(import x/core/doors char->int int& int* int+ int/ int< int= int<< int>> int->ptr
   mem-copy ptr->int ptr-ref ptr-set! ptr-ref-word ptr-set-word! str->ptr str-make)
 
 ; --- The kernels, as forms -------------------------------------------------
@@ -122,18 +123,6 @@
 
 (def %addr (fn (_ r) (ptr->int (str->ptr r))))
 
-; N zero bytes: one word cleared, then copied over the rest, doubling.
-(def %zeroed
-  (fn (_ n)
-    (def r (str-make (int+ n %word-size)))
-    (def p (str->ptr r))
-    (ptr-set-word! p 0 0)
-    ((fn (self k)
-       (when (int< k n)
-         (do (mem-copy (int->ptr (int+ (ptr->int p) k)) p (if (int< (int* 2 k) n) k (int- n k)))
-             (self (int* 2 k)))))
-     %word-size)
-    r))
 (def %max (fn (_ a b) (if (int< a b) b a)))
 (def %min (fn (_ a b) (if (int< a b) a b)))
 
@@ -455,7 +444,7 @@
         (returns ANY "nil")
         (sample "(Linux %clear! win)" "nil"))
       (def fb (Linux %ref win (lit fb)))
-      (def row (%zeroed (Linux %ref win (lit stride))))
+      (def row (first (Bytes zeros (Linux %ref win (lit stride)))))
       (File seek fb 0)
       ((fn (self y) (when (< y (Linux %ref win (lit sh))) (do (File write fb row (Linux %ref win (lit stride))) (self (+ y 1))))) 0)
       ())
@@ -464,7 +453,7 @@
       (doc "A zeroed RGBA buffer the size of the window's picture: transparent black."
         (returns STRING "A region of w*h*4 bytes")
         (sample "(Linux canvas win)" "a 256000-byte region for 320 x 200"))
-      (%zeroed (* 4 (Linux %ref win (lit w)) (Linux %ref win (lit h)))))
+      (first (Bytes zeros (* 4 (Linux %ref win (lit w)) (Linux %ref win (lit h))))))
 
     (method draw! (self (param win VECTOR "A window from open")
                         (param buf STRING "An RGBA buffer the window's size"))
@@ -488,7 +477,7 @@
             (def dw (List ref 2 at))
             (def dh (List ref 3 at))
             (when (null? (Linux %ref win (lit out)))
-              (Linux %set! win (lit out) (%zeroed (* stride (Linux %ref win (lit sh))))))
+              (Linux %set! win (lit out) (first (Bytes zeros (* stride (Linux %ref win (lit sh)))))))
             (def out (Linux %ref win (lit out)))
             (def src (%addr frame))
             (def dst (+ (%addr out) (* stride (List ref 1 at)) (* 4 (first at))))
@@ -632,7 +621,7 @@
       (doc "A snd_pcm_hw_params asking for interleaved signed 16-bit little-endian frames at the rate and channels, a buffer of a tenth to a quarter of a second, and any period the device likes."
         (returns STRING "The struct, for SNDRV_PCM_IOCTL_HW_PARAMS")
         (sample "(Linux %hw-params 44100 2)" "608 bytes"))
-      (def b (%zeroed %pcm-hw-params-size))
+      (def b (first (Bytes zeros %pcm-hw-params-size)))
       (def p (str->ptr b))
       (def mask! (fn (_ k bit) (ptr-set! p (+ 4 (* k 32) (* 4 (int>> bit 5))) (int<< 1 (int& bit 31)) 4)))
       (def interval! (fn (_ k lo hi) (do (ptr-set! p (+ 260 (* (- k 8) 12)) lo 4) (ptr-set! p (+ 264 (* (- k 8) 12)) hi 4))))
@@ -670,7 +659,7 @@
       (Vector set! 4 frames snd)
       (Vector set! 5 0 snd)
       (Vector set! 6 () snd)
-      (Vector set! 7 (%zeroed (* frames chans %word-size)) snd)
+      (Vector set! 7 (first (Bytes zeros (* frames chans %word-size))) snd)
       (%set-first! (Linux %sound-cell) snd)
       snd)
 
@@ -678,7 +667,7 @@
       (doc "The frames written to the device and not yet played; a device that ran dry is prepared again, with nothing in it."
         (returns INTEGER "Frames")
         (sample "(Linux %delay snd)" "4410"))
-      (def d (%zeroed %word-size))
+      (def d (first (Bytes zeros %word-size)))
       (def r (Linux %ioctl (Vector ref 0 snd) %pcm-delay d))
       (if (< r 0)
         (do (Linux %ioctl (Vector ref 0 snd) %pcm-prepare 0) 0)
@@ -699,7 +688,7 @@
                   (List for-each (fn (_ s) (Linux %take! s (%addr acc) (* k bpf) (+ (Vector ref 5 snd) k))) (Vector ref 6 snd))
                   (def out (str-make (* k bpf)))
                   (%k-out (%addr acc) (%addr out) 0 samples)
-                  (def x (%zeroed (* 3 %word-size)))
+                  (def x (first (Bytes zeros (* 3 %word-size))))
                   (ptr-set-word! (str->ptr x) %word-size (%addr out))
                   (ptr-set-word! (str->ptr x) (* 2 %word-size) k)
                   (when (< (Linux %ioctl (Vector ref 0 snd) %pcm-writei x) 0)
