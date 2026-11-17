@@ -413,11 +413,6 @@
 (def %addr (fn (_ r) (ptr->int (str->ptr r))))
 (def %wref (fn (_ a i) (ptr-ref-word (int->ptr a) (int* i %word-size))))
 
-; The word the sample kernel leaves its fraction in, and the region that
-; keeps it.
-(def %q-region (%words 1))
-(def %q (%addr %q-region))
-
 ; --- The compiled kernels, adopted only when they agree --------------------
 
 (def %check-words
@@ -460,7 +455,7 @@
             (fn (_ k d e) (k d 3 40 e d 5 1234 150000 -50 9000000 -700 55 7680000 -900 50 30))
             (fn (_ k d e) (k d e 0 32))
             (fn (_ k d e) (k d e 0 64 9000 37 300 200 40 16))
-            (fn (_ k d e) (k d 3 40 e 26 4000000000 123456789 -1000 9000000 -700 55 7680000 -900 4000000 30000 128 128 %q 4000000000 300000000 1 1))))
+            (fn (_ k d e) (k d 3 40 e 26 4000000000 123456789 -1000 9000000 -700 55 7680000 -900 4000000 30000 128 128 d 4000000000 300000000 1 1))))
     (List all?
       (fn (_ i)
         (def a (%check-words 64 5))
@@ -876,6 +871,7 @@
 (def %v-off 19) (def %v-doff 20) (def %v-width 21) (def %v-a 22) (def %v-g 23) (def %v-top 24)
 (def %v-fr 25) (def %v-fp 26) (def %v-f 27) (def %v-df 28) (def %v-q 29) (def %v-lp 30) (def %v-bp 31)
 (def %v-hp 32) (def %v-h 33) (def %v-ha 34) (def %v-mph 35) (def %v-mst 36) (def %v-ring 37) (def %v-sync 38)
+(def %v-qr 39) (def %v-qa 40)
 
 ; A resonant filter's cutoff at HZ, under a seventh of RATE, as 2 pi times
 ; the cutoff over the rate in 65536ths, under 60000 to keep it stable.
@@ -966,11 +962,17 @@
     (def ring (%prop1 spec (lit ring) ()))
     (def sync (%prop1 spec (lit sync) ()))
     (def by (if (null? sync) ring sync))
-    (def v (%rec 39))
+    (def v (%rec 41))
     (%put! v %v-mph 0)
     (%put! v %v-mst (if (if (null? by) #t (not (null? smp))) 0 (moved (%shift base by))))
     (%put! v %v-ring (if (null? ring) 0 1))
     (%put! v %v-sync (if (null? sync) 0 1))
+    ; The word a sample's kernel leaves its fraction in, or a modulated
+    ; one its modulator's phase: the voice's own, made with it, as a
+    ; region made at load comes back from a state image cut short and at
+    ; another address.
+    ((fn (_ r) (do (%put! v %v-qr r) (%put! v %v-qa (if (null? r) 0 (%addr r)))))
+     (if (if (null? smp) (int= 0 (%get v %v-mst)) #f) () (%words 1)))
     (%put! v %v-fp cutoff)
     (%put! v %v-f (if (null? cutoff) 0 (rest (first cutoff))))
     (%put! v %v-df 0)
@@ -1080,7 +1082,7 @@
                          (%put! v %v-ph
                            (match
                              ((not (null? smp))
-                               (%k-smp m from to (%get v %v-tab) %q (%get v %v-ph) (%get v %v-fr) (%get v %v-st)
+                               (%k-smp m from to (%get v %v-tab) (%get v %v-qa) (%get v %v-ph) (%get v %v-fr) (%get v %v-st)
                                        (%get v %v-ds) vol dv (%get v %v-y) (%get v %v-k) (%get v %v-dk)
                                        (first smp) (List ref 1 smp)))
                              ((int= 0 (%get v %v-mst))
@@ -1091,9 +1093,9 @@
                                (%k-mod m from to (%get v %v-tab) (%get v %v-sh) (%get v %v-ph) (%get v %v-st)
                                        (%get v %v-ds) vol dv (%get v %v-y) (%get v %v-k) (%get v %v-dk)
                                        (%get v %v-off) (%get v %v-doff) (%get v %v-a) (%get v %v-g)
-                                       %q (%get v %v-mph) (%get v %v-mst) (%get v %v-ring) (%get v %v-sync)))))
-                         (unless (null? smp) (%put! v %v-fr (%wref %q 0)))
-                         (unless (if (null? smp) (int= 0 (%get v %v-mst)) #t) (%put! v %v-mph (%wref %q 0)))
+                                       (%get v %v-qa) (%get v %v-mph) (%get v %v-mst) (%get v %v-ring) (%get v %v-sync)))))
+                         (unless (null? smp) (%put! v %v-fr (%wref (%get v %v-qa) 0)))
+                         (unless (if (null? smp) (int= 0 (%get v %v-mst)) #t) (%put! v %v-mph (%wref (%get v %v-qa) 0)))
                          (%put! v %v-st (int+ (%get v %v-st) (int* n (%get v %v-ds))))
                          (%put! v %v-off (int+ (%get v %v-off) (int* n (%get v %v-doff))))
                          (%put! v %v-k (int+ (%get v %v-k) (int* n (%get v %v-dk))))
