@@ -24,6 +24,7 @@
 (import x/codec/inflate Inflate)
 (import x/codec/crc32 Crc32)
 (import x/num/u32 u32-bits)
+(import x/codec/bytes)
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
 
@@ -32,9 +33,6 @@
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "Png: " what) ())))
 
 (def %at (fn (_ p off) (int->ptr (int+ (ptr->int p) off))))
-(def %mem-set (prim-ref (lit mem) (lit set)))
-; N bytes of 0: str-make's bytes are not 0.
-(def %zeros (fn (_ n) ((fn (_ s) (do (%mem-set (str->ptr s) 0 n) s)) (str-make n))))
 (def %u8 (fn (_ p i) (int& (ptr-ref p i 1) 255)))
 (def %u16 (fn (_ p i) (int| (int<< (%u8 p i) 8) (%u8 p (int+ i 1)))))
 (def %u32 (fn (_ p i) (int| (int<< (%u16 p i) 16) (%u16 p (int+ i 2)))))
@@ -306,7 +304,7 @@
     (def dy (List ref 3 pass))
     (def unfilter (first engine))
     (def pixels (match ((eq? layout ()) %pixels-pure) (#t (List ref 1 engine))))
-    (def zero (%zeros (int+ stride 1)))
+    (def zero (first (Bytes zeros (int+ stride 1))))
     ((fn (self y u)
        (when (int< y ph)
          (def f (%at z (int+ at (int* y (int+ stride 1)))))
@@ -371,7 +369,7 @@
         (fn (_ case)
           (def a (str->ptr (%check-bytes 48 5)))
           (def b (str->ptr (%check-bytes 48 5)))
-          (def u (match ((first (rest (rest case))) above) (#t (str->ptr (%zeros 48)))))
+          (def u (match ((first (rest (rest case))) above) (#t (str->ptr (first (Bytes zeros 48))))))
           (%unfilter-pure (first case) a u 45 (List ref 1 case))
           (unfilter (first case) b u 45 (List ref 1 case))
           (%same? a b 0 48))
