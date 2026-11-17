@@ -16,7 +16,7 @@
 ; a frame; a level is 0 to 2^24; a gain or a pan weight is 0 to 256.
 ; Times in a voice's description are milliseconds, levels percent.
 ;
-; The loops that touch every frame are nineteen kernels, each written once
+; The loops that touch every frame are twenty kernels, each written once
 ; below as an integer function over word addresses.  The pure-x version is
 ; that form through x/tool/word-form; x/tool/word-form-jit compiles the same
 ; forms, and the compiled ones are adopted only after they write what the
@@ -59,6 +59,28 @@
                                            (>> k 8) 16)))
             (+ k dk) dk (+ off doff) doff a g)
       ph))))
+
+; %osc-form with a modulator: a second phase MPH stepping by MST.  RING 1
+; turns the wave over while the modulator is in the second half of its
+; cycle; SYNC 1 starts the phase again each frame the modulator's wraps.
+; A phase's top bit is read through >> and &, and a wrap seen as the new
+; phase's top 31 bits under the old's, so a word of 32 bits, where a phase
+; past 2^31 is negative, answers as a word of 64 does.
+; Answers the phase after the last frame, the modulator's left at word 0
+; of Q.
+(def %mod-form
+  (lit (fn (self m i n tab sh ph st ds vol dv y k dk off doff a g q mph mst ring sync)
+    (if (< i n)
+      (do (%mem-set-at! m i (* (- (* (%mem-ref-at tab (& (>> ph sh) (- (<< 1 (- 32 sh)) 1))) a)
+                                  (* (%mem-ref-at tab (& (>> (& (+ ph (<< off 8)) 0xFFFFFFFF) sh) (- (<< 1 (- 32 sh)) 1))) g))
+                               (- 1 (* 2 (* ring (& (>> mph 31) 1))))))
+          (self m (+ i 1) n tab sh
+                (* (& (+ ph st) 0xFFFFFFFF)
+                   (if (< (& (>> (& (+ mph mst) 0xFFFFFFFF) 1) 0x7FFFFFFF) (& (>> mph 1) 0x7FFFFFFF)) (- 1 sync) 1))
+                (+ st ds) ds (+ vol dv) dv
+                (%mem-set-at! m i (+ y (*>> (- (>> (* (>> (%mem-ref-at m i) 8) (>> vol 8)) 16) y) (>> k 8) 16)))
+                (+ k dk) dk (+ off doff) doff a g q (& (+ mph mst) 0xFFFFFFFF) mst ring sync))
+      (do (%mem-set-at! q 0 mph) ph)))))
 
 ; Frames I to N of mono buffer M added into stereo buffer A, left and
 ; right weighted by GL and GR.
@@ -320,7 +342,7 @@
 
 (def %forms (list %osc-form %mix-form %echo-form %out-form %sine-form %harm-form %noise-form
                   %allpass-form %add-form %phase-form %drive-form %crush-form %sweep-form %limit-form
-                  %line-form %gain-form %smp-form %pcm-form %svf-form))
+                  %line-form %gain-form %smp-form %pcm-form %svf-form %mod-form))
 
 (def %pure (List map word-form-pure %forms))
 
@@ -345,6 +367,7 @@
 (def %k-smp ())
 (def %k-pcm ())
 (def %k-svf ())
+(def %k-mod ())
 
 (def %install!
   (fn (_ ks)
@@ -366,7 +389,8 @@
     (set! %k-gain (List ref 15 ks))
     (set! %k-smp (List ref 16 ks))
     (set! %k-pcm (List ref 17 ks))
-    (set! %k-svf (List ref 18 ks))))
+    (set! %k-svf (List ref 18 ks))
+    (set! %k-mod (List ref 19 ks))))
 
 (%install! %pure)
 
@@ -435,7 +459,8 @@
             (fn (_ k d _) (k d 0 64 50000))
             (fn (_ k d e) (k d 3 40 e d 5 1234 150000 -50 9000000 -700 55 7680000 -900 50 30))
             (fn (_ k d e) (k d e 0 32))
-            (fn (_ k d e) (k d e 0 64 9000 37 300 200 40 16))))
+            (fn (_ k d e) (k d e 0 64 9000 37 300 200 40 16))
+            (fn (_ k d e) (k d 3 40 e 26 4000000000 123456789 -1000 9000000 -700 55 7680000 -900 4000000 30000 128 128 %q 4000000000 300000000 1 1))))
     (List all?
       (fn (_ i)
         (def a (%check-words 64 5))
@@ -447,7 +472,7 @@
         (match ((not (= ra rb)) #f)
                ((not (%same? (%addr a) (%addr b) 0 64)) #f)
                (#t (%same? (%addr c) (%addr d) 0 64))))
-      (list 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18))))
+      (list 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19))))
 
 (def %entry ())
 
@@ -850,7 +875,7 @@
 (def %v-k0 13) (def %v-bend 14) (def %v-dk 15) (def %v-filter 16) (def %v-mcut 17) (def %v-kpct 18)
 (def %v-off 19) (def %v-doff 20) (def %v-width 21) (def %v-a 22) (def %v-g 23) (def %v-top 24)
 (def %v-fr 25) (def %v-fp 26) (def %v-f 27) (def %v-df 28) (def %v-q 29) (def %v-lp 30) (def %v-bp 31)
-(def %v-hp 32) (def %v-h 33) (def %v-ha 34)
+(def %v-hp 32) (def %v-h 33) (def %v-ha 34) (def %v-mph 35) (def %v-mst 36) (def %v-ring 37) (def %v-sync 38)
 
 ; A resonant filter's cutoff at HZ, under a seventh of RATE, as 2 pi times
 ; the cutoff over the rate in 65536ths, under 60000 to keep it stable.
@@ -891,7 +916,7 @@
 ; pitch (note "C4") or (hz N), (slide PITCH), (bend (MS CENTS) ...), (cut
 ; PCT), (filter (MS PCT) ...), (pan -100..100), (gain PCT), (detune
 ; CENTS), (width (MS PCT) ...), (cutoff (MS HZ) ...), (res PCT), (pass
-; MODE ...), (at MS).  A bend is the pitch's path,
+; MODE ...), (ring CENTS), (sync CENTS), (at MS).  A bend is the pitch's path,
 ; CENTS from it at each MS, in straight lines between and a jump where two
 ; points share an MS; with one, the slide is not used.  A filter is the
 ; low-pass's path the same way, PCT of its cut at each MS, and its cut
@@ -901,7 +926,12 @@
 ; unless it has a width of its own.  A cutoff is a resonant filter's path
 ; the same way, after the low-pass: RES its resonance, 0 to 100, and its
 ; MODEs which of low, band and high it lets through, low unless it names
-; them.  A voice with no cutoff has no resonant filter.  A sample (sample!) steps through its
+; them.  A voice with no cutoff has no resonant filter.  A ring or a sync
+; is a modulator CENTS from the pitch, moved by the detune and the
+; mixer's pitch but not the bend: a ring turns the wave over while the
+; modulator is in the second half of its cycle, a sync starts the wave's
+; cycle again each time the modulator's ends, and with both, the sync's
+; CENTS place it.  A sample (sample!) steps through its
 ; frames at the pitch's share of its root, has no width, and, played once,
 ; ends at its end, its level held at its first unless SPEC has an env.
 (def %voice
@@ -933,7 +963,14 @@
     (def cutoff (List map (fn (_ p) (pair (%ms (first p) rate) (%svf-f (first (rest p)) rate))) (%prop spec (lit cutoff) ())))
     (def pass (%prop spec (lit pass) (lit (low))))
     (def through (fn (_ mode) (if (List includes? mode pass) 256 0)))
-    (def v (%rec 35))
+    (def ring (%prop1 spec (lit ring) ()))
+    (def sync (%prop1 spec (lit sync) ()))
+    (def by (if (null? sync) ring sync))
+    (def v (%rec 39))
+    (%put! v %v-mph 0)
+    (%put! v %v-mst (if (if (null? by) #t (not (null? smp))) 0 (moved (%shift base by))))
+    (%put! v %v-ring (if (null? ring) 0 1))
+    (%put! v %v-sync (if (null? sync) 0 1))
     (%put! v %v-fp cutoff)
     (%put! v %v-f (if (null? cutoff) 0 (rest (first cutoff))))
     (%put! v %v-df 0)
@@ -1041,14 +1078,22 @@
                      (do (def dv (int/ (int- (rest point) vol) left))
                          (def smp (List ref 6 (%get v %v-wave)))
                          (%put! v %v-ph
-                           (if (null? smp)
-                             (%k-osc m from to (%get v %v-tab) (%get v %v-sh) (%get v %v-ph) (%get v %v-st)
-                                     (%get v %v-ds) vol dv (%get v %v-y) (%get v %v-k) (%get v %v-dk)
-                                     (%get v %v-off) (%get v %v-doff) (%get v %v-a) (%get v %v-g))
-                             (%k-smp m from to (%get v %v-tab) %q (%get v %v-ph) (%get v %v-fr) (%get v %v-st)
-                                     (%get v %v-ds) vol dv (%get v %v-y) (%get v %v-k) (%get v %v-dk)
-                                     (first smp) (List ref 1 smp))))
+                           (match
+                             ((not (null? smp))
+                               (%k-smp m from to (%get v %v-tab) %q (%get v %v-ph) (%get v %v-fr) (%get v %v-st)
+                                       (%get v %v-ds) vol dv (%get v %v-y) (%get v %v-k) (%get v %v-dk)
+                                       (first smp) (List ref 1 smp)))
+                             ((int= 0 (%get v %v-mst))
+                               (%k-osc m from to (%get v %v-tab) (%get v %v-sh) (%get v %v-ph) (%get v %v-st)
+                                       (%get v %v-ds) vol dv (%get v %v-y) (%get v %v-k) (%get v %v-dk)
+                                       (%get v %v-off) (%get v %v-doff) (%get v %v-a) (%get v %v-g)))
+                             (#t
+                               (%k-mod m from to (%get v %v-tab) (%get v %v-sh) (%get v %v-ph) (%get v %v-st)
+                                       (%get v %v-ds) vol dv (%get v %v-y) (%get v %v-k) (%get v %v-dk)
+                                       (%get v %v-off) (%get v %v-doff) (%get v %v-a) (%get v %v-g)
+                                       %q (%get v %v-mph) (%get v %v-mst) (%get v %v-ring) (%get v %v-sync)))))
                          (unless (null? smp) (%put! v %v-fr (%wref %q 0)))
+                         (unless (if (null? smp) (int= 0 (%get v %v-mst)) #t) (%put! v %v-mph (%wref %q 0)))
                          (%put! v %v-st (int+ (%get v %v-st) (int* n (%get v %v-ds))))
                          (%put! v %v-off (int+ (%get v %v-off) (int* n (%get v %v-doff))))
                          (%put! v %v-k (int+ (%get v %v-k) (int* n (%get v %v-dk))))
@@ -1128,6 +1173,7 @@
           (%put! v %v-ds (%shift (%get v %v-ds) by))
           (%put! v %v-bend (List map (fn (_ p) (pair (first p) (%shift (rest p) by))) (%get v %v-bend)))
           (%put! v %v-top (%shift (%get v %v-top) by))
+          (unless (int= 0 (%get v %v-mst)) (%put! v %v-mst (%shift (%get v %v-mst) by)))
           (%retable! v))
         (%get m %m-voices)))
     (%put! m %m-pitch cents)
@@ -1487,10 +1533,10 @@
       (%make rate block))
 
     (method play! (self (param m VECTOR "A mixer")
-                        (param specs LIST "Voices, each a list of (KEY ...): (wave NAME), (env (MS PCT) ...), (note \"C4\") or (hz N), (slide PITCH), (bend (MS CENTS) ...), (cut PCT), (filter (MS PCT) ...), (width (MS PCT) ...), (cutoff (MS HZ) ...), (res PCT), (pass MODE ...), (pan -100..100), (gain PCT), (detune CENTS), (at MS)")
+                        (param specs LIST "Voices, each a list of (KEY ...): (wave NAME), (env (MS PCT) ...), (note \"C4\") or (hz N), (slide PITCH), (bend (MS CENTS) ...), (cut PCT), (filter (MS PCT) ...), (width (MS PCT) ...), (cutoff (MS HZ) ...), (res PCT), (pass MODE ...), (ring CENTS), (sync CENTS), (pan -100..100), (gain PCT), (detune CENTS), (at MS)")
                         (param at INTEGER "Frames after the start of the stretch being rendered, 0 at once")
                         (param gain INTEGER "Percent of each voice's own gain"))
-      (doc "Start a sound: each voice plays its envelope from AT, its pitch sliding to its slide's over the envelope, or following its bend (CENTS from its pitch at each MS, straight between, a jump where two points share an MS), and ends at the envelope's last point. A width is the wave less itself PCT of a cycle on, halved, following its points the same way: a saw with a width is a pulse high for PCT of the cycle, and a width that moves is a pulse sweep. A cutoff is a resonant filter after the low-pass, its cutoff in hertz following its points the same way, RES 0 to 100 its resonance, and its pass the outputs let through: low, band, high, or any of them together (low and high a notch), low unless it names them. A voice with no wave is a sine; with no envelope, a 200 ms fade; a pulse is the saw at width 50 unless it has its own width."
+      (doc "Start a sound: each voice plays its envelope from AT, its pitch sliding to its slide's over the envelope, or following its bend (CENTS from its pitch at each MS, straight between, a jump where two points share an MS), and ends at the envelope's last point. A width is the wave less itself PCT of a cycle on, halved, following its points the same way: a saw with a width is a pulse high for PCT of the cycle, and a width that moves is a pulse sweep. A cutoff is a resonant filter after the low-pass, its cutoff in hertz following its points the same way, RES 0 to 100 its resonance, and its pass the outputs let through: low, band, high, or any of them together (low and high a notch), low unless it names them. A ring or a sync is a modulator CENTS from the pitch, moved by the detune and the mixer's pitch but not the bend: a ring turns the wave over while the modulator is in the second half of its cycle (on a triangle, a ring modulator), and a sync starts the wave's cycle again each time the modulator's ends, so a bend under a sync sweeps its harmonics; with both, the sync's CENTS place it. A voice with no wave is a sine; with no envelope, a 200 ms fade; a pulse is the saw at width 50 unless it has its own width."
         (returns VECTOR "The mixer")
         (sample "(Mixer play! m (list (list (list (lit note) \"A4\") (list (lit env) (list 0 0) (list 5 80) (list 300 0)))) 0 100)" "m")
         (sample "(Mixer play! m (list (list (list (lit wave) (lit pulse)) (list (lit note) \"A3\") (list (lit width) (list 0 12) (list 400 50)) (list (lit env) (list 0 80) (list 400 0)))) 0 100)" "m"))
