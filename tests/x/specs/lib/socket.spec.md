@@ -431,3 +431,16 @@ econnreset on Linux once the reset has arrived.
 ```
 ---
     ((18 52 0 1 0 0 104 105) #t 3 #t)
+
+
+## names
+
+### canonical-name of localhost is a name; an unknown host is nil
+
+```x
+(do (import x/sys/socket)
+  (list (str? (Socket canonical-name "localhost"))
+        (null? (Socket canonical-name "no-such-host.invalid"))))
+```
+---
+    (#t #t)
