@@ -1208,12 +1208,20 @@
 ; A variadic tail is written dotted -- (self . (param args ...)) or
 ; (self k . (param rest ...)) -- so the (param ...) form can arrive as `sig`
 ; itself (the improper tail), not only as a list element; collect it either way.
+; The tail is handed on as (param NAME TYPE DESC rest): the fifth element is
+; what tells x/doc/doc it is a rest parameter, so the type and the
+; description are filled in where the form left them out.
 (def %sig-params
   (fn (loop sig)
     (unless (null? sig)
       (when (pair? sig)
         (if (eq? (first sig) (lit param))
-          (list sig)                                   ; dotted (param ...) tail
+          (list (list (lit param) (first (rest sig))     ; dotted (param ...) tail
+                      (if (null? (rest (rest sig))) () (first (rest (rest sig))))
+                      (if (null? (rest (rest sig))) ""
+                        (if (null? (rest (rest (rest sig)))) ""
+                          (first (rest (rest (rest sig))))))
+                      (lit rest)))
           (if (if (pair? (first sig)) (eq? (first (first sig)) (lit param)) #f)
             (pair (first sig) (loop (rest sig)))
             (loop (rest sig))))))))

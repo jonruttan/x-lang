@@ -119,7 +119,10 @@
 
 (def %doc-params-acc (pair () ()))
 
-; Extract (name type desc) from a (param name TYPE "desc") form
+; Extract (name type desc) from a (param name TYPE "desc") form.  A rest
+; parameter's answer carries a fourth element, the symbol rest: its form has
+; rest as a fifth element, which is how x/type/class hands on a method's
+; dotted tail.
 (def %doc-extract-param
   (fn (_ form)
     (def %p-name (first (rest form)))
@@ -130,16 +133,25 @@
                    ((str? (first (rest (rest (rest form)))))
                      (first (rest (rest (rest form)))))
                    (#t "")))
-    (list %p-name %p-type %p-desc)))
+    (def %p-after (match
+                    ((null? (rest (rest form))) ())
+                    ((null? (rest (rest (rest form)))) ())
+                    (#t (rest (rest (rest (rest form)))))))
+    (if (if (null? %p-after) #f (eq? (first %p-after) (lit rest)))
+      (list %p-name %p-type %p-desc (lit rest))
+      (list %p-name %p-type %p-desc))))
 
 (def %doc-strip-params
   (fn (self ps)
     (match
       ((null? ps) ())
       ((not (pair? ps)) ps)
+      ; the dotted tail: a rest parameter, filed with the mark
       ((eq? (first ps) (lit param))
         (let ()  ; scoped: def in tail position would leak to global
-          (def %info (%doc-extract-param ps))
+          (def %plain (%doc-extract-param ps))
+          (def %info (list (first %plain) (first (rest %plain))
+                           (first (rest (rest %plain))) (lit rest)))
           (%set-first! %doc-params-acc
             (pair %info (first %doc-params-acc)))
           (first %info)))
@@ -374,11 +386,13 @@
       (fn (_ n) (display "  " %c-dim n %c-reset "\n"))
       notes)))
 
+; A rest parameter is shown as the source writes it, after a dot.
 (def %display-params
   (fn (self ps)
     (if (null? ps) ()
       (do
-        (display "  " %c-param (first (first ps)) %c-reset)
+        (display "  " (if (null? (rest (rest (rest (first ps))))) "" ". ")
+                 %c-param (first (first ps)) %c-reset)
         (if (not (null? (first (rest (first ps)))))
           (do (display " : " %c-type (first (rest (first ps))) %c-reset)))
         (if (not (str=? (first (rest (rest (first ps)))) ""))

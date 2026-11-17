@@ -76,6 +76,49 @@ entries; these cases read them as records.
 ---
     ("Identity, documented here." (('n 'INTEGER "A number")) ('INTEGER "The number") (("(doc-registry-tmp 3)" . "3")))
 
+### a rest parameter's triple has a fourth element, the symbol rest
+
+A parameter written as the signature's dotted tail takes every remaining
+argument. Its triple says so; the ones ahead of it stay triples.
+
+```x
+(do
+  (doc (def doc-registry-rest
+         (fn (_ (param a INTEGER "First") . (param more STRING "Others")) a))
+    "One, then any number.")
+  ((Doc entry 'doc-registry-rest) params))
+```
+---
+    (('a 'INTEGER "First") ('more 'STRING "Others" 'rest))
+
+### a method's rest parameter is marked the same way
+
+```x
+(list (List map (fn (_ p) (List length p)) ((Doc entry 'Str8/format) params))
+      ((Doc entry 'Str8/str) params))
+```
+---
+    ((3 4) (('args 'ANY "Values to render and concatenate" 'rest)))
+
+### a rest parameter with no type and no description is still marked
+
+```x
+(do
+  (def-class DocRegistryRest ()
+    (static (method all (self . (param xs)) (doc "Every argument.") xs)))
+  ((Doc entry 'DocRegistryRest/all) params))
+```
+---
+    (('xs () "" 'rest))
+
+### a signature with no dotted tail has triples only
+
+```x
+(List map (fn (_ p) (null? (rest (rest (rest p))))) ((Doc entry 'Str8/split) params))
+```
+---
+    (#t #t)
+
 ## names
 
 ### every documented name, sorted, each once
