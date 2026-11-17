@@ -464,7 +464,7 @@ that does not read is no rules.
 
 ### a lang.xon that does not read, or a module that registers nothing, is no grammar
 
-A bundle row is one with a module; the registered grammars have none.
+A bundle row is one with a root; the registered grammars and x-lang's own have none.
 
 ```x
 (do (import x/sys/posix) (import x/sys/file) (import x/tool/syntax)
@@ -480,7 +480,7 @@ A bundle row is one with a module; the registered grammars have none.
   (def was (Sys getenv "X_LANG_DIR"))
   (Sys setenv "X_LANG_DIR" d)
   (Syntax forget!)
-  (def names (fn (_) (List map first (List filter (fn (_ r) (not (null? (List ref 1 r)))) (Syntax catalogue)))))
+  (def names (fn (_) (List map first (List filter (fn (_ r) (not (null? (List ref 2 r)))) (Syntax catalogue)))))
   (def seen (list (names) (Syntax named 'fy) (Syntax for-file "a.fy") (names)))
   (List for-each (fn (_ s) (File unlink (Str8 append d s)))
     (list "/fy/fy/syntax.x" "/fy/lang.xon" "/bad/lang.xon"))
@@ -491,3 +491,77 @@ A bundle row is one with a module; the registered grammars have none.
 ```
 ---
     (('fy) () () ())
+
+## x-lang's own grammars
+
+x-lang ships JSON's, Markdown's and HTML's grammars in its library, rows in
+the catalogue with a module and no root.
+
+### they are in the catalogue and found by file name
+
+```x
+(do (import x/tool/syntax)
+  (Syntax forget!)
+  (def row (fn (_ n) (List find (fn (_ r) (eq? (first r) n)) (Syntax catalogue))))
+  (def name (fn (_ f) (let ((g (Syntax for-file f))) (if (null? g) () (g name)))))
+  (list (List map (fn (_ n) (List ref 3 (row n))) (list 'json 'markdown 'html))
+        (List map name (list "a.json" "README.md" "doc.markdown" "i.htm" "x.html" "x.txt"))))
+```
+---
+    (((".json") (".md" ".markdown") (".html" ".htm" ".xhtml")) ('json 'markdown 'markdown 'html 'html ()))
+
+### JSON: a member's name, its value, and a word no JSON reads
+
+A string followed by a colon is a name; true, false and null are constants;
+any other word is an error; a comma or a bracket in a string is part of it.
+
+```x
+(do (import x/tool/syntax)
+  (def g (Syntax named 'json))
+  (list (g spans "{\"k\":\"v\", \"n\":-1.5e3,\"x\": nope, \"s\": \"a,]b\"}")
+        (g spans "\"open")))
+```
+---
+    (((0 1 'punct) (1 3 'name) (4 1 'punct) (5 3 'string) (8 1 'punct) (10 3 'name) (13 1 'punct) (14 6 'number) (20 1 'punct) (21 3 'name) (24 1 'punct) (26 4 'error) (30 1 'punct) (32 3 'name) (35 1 'punct) (37 6 'string) (43 1 'punct)) ((0 5 'string)))
+
+### Markdown: quotes, emphasis, escapes and autolinks
+
+Emphasis by _ inside a word is none, so snake_case_name stays plain.
+
+```x
+(do (import x/tool/syntax)
+  ((Syntax named 'markdown) spans "> q *em* **st** snake_case_name \\* <http://x.y>\n"))
+```
+---
+    ((0 2 'punct) (4 4 'constant) (9 6 'constant) (32 2 'escape) (35 12 'string))
+
+### Markdown: fences, rules, list items, reference definitions, comments and images
+
+```x
+(do (import x/tool/syntax)
+  (def g (Syntax named 'markdown))
+  (list (g spans "```sh\nls\n```\n---\n1. one\n[r]: http://u\n")
+        (g spans "text\n<!-- c -->\n![i](p) _e_")))
+```
+---
+    (((0 5 'punct) (5 4 'string) (9 3 'punct) (13 3 'punct) (17 2 'punct) (24 4 'name) (28 9 'string)) ((5 10 'comment) (16 4 'name) (20 3 'string) (24 3 'constant)))
+
+### HTML: declarations, comments, attributes quoted or not, and a lone <
+
+A < before a byte that starts no tag is text.
+
+```x
+(do (import x/tool/syntax)
+  ((Syntax named 'html) spans "<!DOCTYPE html>\n<!-- c --><p class=a id='b' hidden/>a < b"))
+```
+---
+    ((0 15 'keyword) (16 10 'comment) (26 1 'punct) (27 1 'keyword) (29 5 'name) (34 1 'punct) (35 1 'string) (37 2 'name) (39 1 'punct) (40 3 'string) (44 6 'name) (50 1 'punct) (51 1 'punct))
+
+### HTML: a script's or a style's body opens no tag
+
+```x
+(do (import x/tool/syntax)
+  ((Syntax named 'html) spans "<script>if (a<b) x()</script><style>p{}</style>"))
+```
+---
+    ((0 1 'punct) (1 6 'keyword) (7 1 'punct) (20 2 'punct) (22 6 'keyword) (28 1 'punct) (29 1 'punct) (30 5 'keyword) (35 1 'punct) (39 2 'punct) (41 5 'keyword) (46 1 'punct))
