@@ -4,8 +4,10 @@
 ; is everything a Tensor is: the views, the element-wise arithmetic and the
 ; reductions answer a Matrix while their result keeps two axes, and a Tensor
 ; once it does not (a diagonal, a reshape to one axis).  On top it has the
-; matrix product, solve, inverse and determinant, and trace, diagonal and
-; norm.  Every result of the linear algebra is f64.
+; matrix product, solve, inverse and determinant, trace, diagonal and
+; norm, and the covariance and correlation of its columns, each column a
+; variable and each row an observation.  Every result of the linear
+; algebra is f64.
 ;
 ; A factorization is a value of its own: (m factor-lower-upper) answers a
 ; LowerUpper, which keeps the factors and answers its parts, solves and the
@@ -50,7 +52,7 @@
   ptr-ref-word ptr-set-word! str->ptr str-make type?)
 
 (def-class Matrix (extends Tensor)
-  (doc "A Tensor of rank 2, rows then columns, with the linear algebra: the matrix product, solve, inverse, determinant, trace, diagonal and norm. It is every other thing a Tensor is, and an operation on it answers a Matrix while the result keeps two axes."
+  (doc "A Tensor of rank 2, rows then columns, with the linear algebra: the matrix product, solve, inverse, determinant, trace, diagonal and norm, and the covariance and correlation of its columns. It is every other thing a Tensor is, and an operation on it answers a Matrix while the result keeps two axes."
     (note "Make one as a Tensor is made, (Matrix from '((1 2) (3 4))); a making method refuses an extent that is not two axes. The results of the linear algebra are f64.")
     (example "(((Matrix from '((1 2) (3 4))) product (Matrix from '((0 1) (1 0)))) ->list)" "((2.0 1.0) (4.0 3.0))")
     (example "((Matrix from '((4 1) (2 3))) determinant)" "10.0")
@@ -1234,7 +1236,30 @@
       (returns FLOAT "The norm")
       (example "((Matrix from '((3 0) (0 4))) norm)" "5.0"))
     (let ((ss ((self mul self) sum)))
-      ((Matrix %sqrt) (if (type? ss float) ss (float-of ss))))))
+      ((Matrix %sqrt) (if (type? ss float) ss (float-of ss)))))
+
+  (method covariance (self . (param correction LIST "Optional INTEGER taken from the rows before dividing: 1 by default, 0 for the population covariance"))
+    (doc "The covariance of the columns, each a variable whose observations are the rows: element (i j) is the sum over the rows of the products of column i's and column j's differences from their means, over the rows less the correction. Its diagonal is each column's variance."
+      (returns Matrix "A fresh f64 Matrix of self's columns by self's columns")
+      (example "(((Matrix from '((1 2) (2 4) (3 6))) covariance) ->list)" "((1.0 2.0) (2.0 4.0))")
+      (see correlation))
+    (let ((n (first (self extent))) (c (if (null? correction) 1 (first correction))))
+      (if (int< c n) ()
+        (Err raise (lit value) "Matrix covariance: needs more rows than the correction" n))
+      (let ((x (self as (lit f64))) (f (Tensor %fast)))
+        (let ((ones ((obj-ref f 4) (lit f64) (list n))))
+          ((obj-ref f 9) ones 1)
+          (let ((d (x sub (((x transpose) product (Tensor %make ones)) div (float-of n)))))
+            (((d transpose) product d) div (float-of (int- n c))))))))
+
+  (method correlation (self)
+    (doc "The Pearson correlation of the columns, each a variable whose observations are the rows: the covariance with element (i j) divided by the deviations of columns i and j. Its diagonal is 1; a column whose elements are all equal has no deviation, and its row and column are not numbers."
+      (returns Matrix "A fresh f64 Matrix of self's columns by self's columns")
+      (example "(((Matrix from '((1 2) (2 4) (3 6))) correlation) ->list)" "((1.0 1.0) (1.0 1.0))")
+      (see covariance))
+    (let ((v (self covariance)))
+      (let ((d (Tensor from (List map (fn (_ x) ((Matrix %sqrt) x)) ((v diagonal) ->list)) (lit f64))))
+        (((v div d) transpose) div d)))))
 
 ;
 ; LowerUpper keeps the factors in one f64 state, L below the diagonal (its
@@ -1580,5 +1605,5 @@
 (Matrix %register-all!)
 
 (doc (provide x/num/matrix Matrix LowerUpper Cholesky Orthogonal SymmetricEigen Eigen Singular)
-  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal and norm -- run in kernels that compile once they have run long enough; and its factorizations, LowerUpper, Cholesky, Orthogonal, SymmetricEigen, Eigen and Singular."
+  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal, norm, covariance and correlation -- run in kernels that compile once they have run long enough; and its factorizations, LowerUpper, Cholesky, Orthogonal, SymmetricEigen, Eigen and Singular."
   (example "((Matrix from '((2 1) (1 3))) determinant)" "5.0"))

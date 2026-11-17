@@ -2,7 +2,8 @@
 # @weight 2
 
 `Matrix` is a `Tensor` of rank 2 with the linear algebra: the matrix
-product, solve, inverse, determinant, trace, diagonal and norm, and its
+product, solve, inverse, determinant, trace, diagonal and norm, the
+covariance and correlation of its columns, and its
 lower-upper, Cholesky, orthogonal-upper, symmetric eigen, eigen and
 singular value factorizations, a `LowerUpper`, a `Cholesky`, an
 `Orthogonal`, a `SymmetricEigen`, an `Eigen` and a `Singular`. Every result of the linear algebra is
@@ -621,6 +622,50 @@ on an 8-byte one.
 ```
 ---
     (5.0 5.0)
+
+## Covariance and correlation
+
+### the covariance of the columns, its diagonal their variances
+
+```x
+(import x/num/matrix)
+(let ((m (Matrix from '((1 2 10) (2 4 7) (3 6 4) (4 8 3)))))
+  (let ((v (m covariance)))
+    (list (v ->list) ((v diagonal) ->list) ((m slice 1 0 1) variance))))
+```
+---
+    (((1.66666666666667 3.33333333333333 -4.0) (3.33333333333333 6.66666666666667 -8.0) (-4.0 -8.0 10.0)) (1.66666666666667 6.66666666666667 10.0) 1.66666666666667)
+
+### a correction of 0 divides by the rows
+
+```x
+(import x/num/matrix)
+(((Matrix from '((1 2) (2 4) (3 6))) covariance 0) ->list)
+```
+---
+    ((0.666666666666667 1.33333333333333) (1.33333333333333 2.66666666666667))
+
+### the correlation of the columns
+
+```x
+(import x/num/matrix)
+(import x/num/float f-lt)
+(let ((r ((Matrix from '((1 2 10) (2 4 7) (3 6 4) (4 8 3))) correlation))
+      (k -0.9797958971132713))
+  (let ((d (r sub (Matrix from (list (list 1 1 k) (list 1 1 k) (list k k 1))))))
+    (f-lt ((d mul d) sum) 0.000000000000000001)))
+```
+---
+    #t
+
+### covariance needs more rows than the correction
+
+```x
+(import x/num/matrix)
+(guard (e (Err label e)) ((Matrix from '((1 2))) covariance))
+```
+---
+    'value
 
 ## Compiled kernels
 

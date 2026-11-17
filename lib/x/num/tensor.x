@@ -36,6 +36,10 @@
 ; costs about as much as a thousand objects, and an operation that went
 ; through one per step would cost more than its arithmetic.
 ;
+; The statistics of every element -- variance, deviation, quantile and
+; median -- are made from the reductions and a sorted list; variance and
+; deviation divide by the count less 1 unless given another correction.
+;
 ; On a 4-byte word a double is two words: f64 tensors run their pure
 ; kernels only, and i64 is refused, since an element does not fit a word.
 ;
@@ -47,7 +51,7 @@
 (import x/type/vector)
 (import x/type/list)
 (import x/sys/gc)
-(import x/num/float float float-of f-div libm-fn)
+(import x/num/float Float float float-of f-add f-sub f-mul f-div f-lt fsqrt libm-fn)
 (import x/tool/word-form word-form-pure)
 (import x/tool/compiled)
 (import x/core/doors int+ int- int* int/ int< int= int->ptr mem-copy mem-cmp obj-ref ptr->int
@@ -956,6 +960,51 @@
         (if (eq? (self encoding) (lit c128))
           (Tensor %make-complex (f-div ((self real) sum) (float-of n)) (f-div ((self imaginary) sum) (float-of n)))
           (f-div (float-of (self sum)) (float-of n))))))
+
+  (method variance (self . (param correction LIST "Optional INTEGER taken from the count before dividing: 1 by default, 0 for the population variance"))
+    (doc "The variance of every element: the sum of the squares of their differences from the mean, over the count less the correction. The default correction, 1, gives the sample variance; 0 gives the population variance. For c128 a difference's square is its squared magnitude."
+      (returns FLOAT "The variance; a raise unless the count is greater than the correction")
+      (example "((Tensor from '(1 2 3 4) 'f64) variance)" "1.66666666666667")
+      (example "((Tensor from '(1 2 3 4) 'f64) variance 0)" "1.25")
+      (see deviation))
+    (let ((n (self size)) (c (if (null? correction) 1 (first correction))))
+      (if (int< c n) ()
+        (Err raise (lit value) "Tensor variance: needs more elements than the correction" n))
+      (let ((d (if (eq? (self encoding) (lit c128)) (self sub (self mean)) ((self as (lit f64)) sub (self mean))))
+            (squares (fn (_ t) (float-of ((t mul t) sum)))))
+        (f-div (if (eq? (self encoding) (lit c128)) (f-add (squares (d real)) (squares (d imaginary))) (squares d))
+               (float-of (int- n c))))))
+
+  (method deviation (self . (param correction LIST "Optional INTEGER, as for variance: 1 by default, 0 for the population"))
+    (doc "The standard deviation of every element: the square root of the variance, with the same correction."
+      (returns FLOAT "The standard deviation")
+      (example "((Tensor from '(2 4 4 4 5 5 7 9) 'f64) deviation 0)" "2.0")
+      (see variance))
+    (fsqrt (if (null? correction) (self variance) (self variance (first correction)))))
+
+  (method quantile (self (param q NUMBER "The fraction, from 0 to 1"))
+    (doc "The value with the fraction q of the elements at or below it, interpolated linearly: at position (n - 1) q among the sorted elements, the element there, or between the two either side of it in proportion. This is Hyndman and Fan's seventh method, the default in numpy and R. c128 is refused: complex numbers have no order."
+      (returns FLOAT "The quantile; a raise for no elements or a q outside 0 to 1")
+      (example "((Tensor from '(1 2 3 4) 'f64) quantile 0.25)" "1.75")
+      (see median))
+    (let ((n (self size)) (q (float-of q)) (zero (float-of 0)) (one (float-of 1)))
+      (if (eq? (self encoding) (lit c128)) (Err raise (lit value) "Tensor quantile: complex numbers have no order" ()) ())
+      (if (int= n 0) (Err raise (lit value) "Tensor quantile: no elements" ()) ())
+      (if (if (f-lt q zero) #t (f-lt one q)) (Err raise (lit value) "Tensor quantile: q is outside 0 to 1" q) ())
+      (let ((xs (List sort (fn (_ a b) (f-lt a b)) (((self as (lit f64)) reshape (list n)) ->list)))
+            (h (f-mul (float-of (int- n 1)) q)))
+        (let ((lo (Float ->int h)))
+          (let ((x (List ref lo xs)))
+            (if (int= lo (int- n 1)) x
+              (f-add x (f-mul (f-sub h (float-of lo)) (f-sub (List ref (int+ lo 1) xs) x)))))))))
+
+  (method median (self)
+    (doc "The middle element once sorted, or the mean of the middle two for an even count: the quantile at 1/2. c128 is refused."
+      (returns FLOAT "The median; a raise for no elements")
+      (example "((Tensor from '(3 1 4 1 5) 'f64) median)" "3.0")
+      (example "((Tensor from '(1 2 3 4) 'f64) median)" "2.5")
+      (see quantile))
+    (self quantile (f-div (float-of 1) (float-of 2))))
 
   ; --- inside -----------------------------------------------------------------
   (method %st (self) (field (lit st)))
