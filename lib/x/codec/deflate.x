@@ -26,9 +26,9 @@
 (import x/tool/compiled)
 ; The length and distance code tables, shared with the decoder.
 (import x/codec/flate-codes lbase lext dbase dext)
-(import x/codec/bytes)
 
 (import x/core/doors int% int& int* int+ int- int->ptr int/ int< int<< int= int>> int| mem-cmp mem-copy obj-ref obj-set! ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-make)
+(def %mem-set (prim-ref (lit mem) (lit set)))
 
 (def %at (fn (_ p off) (int->ptr (int+ (ptr->int p) off))))
 
@@ -207,7 +207,8 @@
 
 (def %table
   (fn (_ slots)
-    (def r (first (Bytes zeros (int<< slots 2))))
+    (def r (str-make (int<< slots 2)))
+    (%mem-set (str->ptr r) 0 (int<< slots 2))
     (pair r (str->ptr r))))
 
 ; Position i entered: its chain link is what the hash headed before.

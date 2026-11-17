@@ -21,11 +21,10 @@
 ; documentation read.
 ;
 ; Other languages' grammars come from their bundles: a lang.xon's
-; (grammar ...) forms are the catalogue, with JSON's, Markdown's and HTML's,
-; which x-lang ships, and a grammar's module is imported the first time a
-; file needs it.  A file's grammar is the one its modeline names, else the
-; one a rule in the user's syntax file gives it, else its #! line's
-; interpreter's, else its name's.
+; (grammar ...) forms are the catalogue, and a grammar's module is imported
+; the first time a file needs it.  A file's grammar is the one its modeline
+; names, else the one a rule in the user's syntax file gives it, else its #!
+; line's interpreter's, else its name's.
 ;
 ; How a terminal draws each class is a theme: a Style (x/tui/style) a class,
 ; data apart from any grammar.  The theme in use is the default unless the
@@ -414,16 +413,7 @@
 ; directory, and MODULE imported from it the first time a file needs the
 ; grammar.  A registered grammar is a row with no module.  The bundles are
 ; read once, on the first lookup.
-;
-; x-lang's own grammars for formats no bundle owns are forms of the same
-; shape, here: each module is in x-lang's library, so its row has no root.
-; A bundle's grammar of the same name is asked first.
 (def %sx-bundle-rows (pair () ()))
-
-(def %sx-own-grammars
-  (lit ((grammar json (module x/tool/syntax/json) (files ".json"))
-        (grammar markdown (module x/tool/syntax/markdown) (files ".md" ".markdown"))
-        (grammar html (module x/tool/syntax/html) (files ".html" ".htm" ".xhtml")))))
 
 (def %sx-warn
   (fn (_ parts)
@@ -520,13 +510,7 @@
 
 (def %sx-bundles
   (fn (_)
-    (if (null? (first %sx-bundle-rows))
-      (let ((rows (%sx-read-bundles)))
-        (%set-first! %sx-bundle-rows
-          (list (List append rows
-                  (List filter (fn (_ r) (null? (%sx-row (first r) rows)))
-                    (List map (fn (_ f) (%sx-grammar-row f ())) %sx-own-grammars))))))
-      ())
+    (if (null? (first %sx-bundle-rows)) (%set-first! %sx-bundle-rows (list (%sx-read-bundles))) ())
     (first (first %sx-bundle-rows))))
 
 (def %sx-registered
@@ -540,7 +524,7 @@
     (List append own
       (List filter (fn (_ r) (null? (%sx-row (first r) own))) (%sx-bundles)))))
 
-; A row's grammar: its root, where it has one, made an import root and its module
+; A bundle row's grammar: its root made an import root and its module
 ; imported, which registers the grammar.  The lang.xon's files, names and
 ; interpreters are the grammar's where it sets none.  One that does not load
 ; is one line on stderr, and the row is dropped so it is not tried again.
@@ -551,7 +535,7 @@
                   (%set-first! %sx-bundle-rows
                     (list (List filter (fn (_ r) (not (eq? r row))) (%sx-bundles))))
                   ()))
-      (if (if (null? root) #t (List includes? root (first %import-roots-cell))) () (import-path! root))
+      (if (List includes? root (first %import-roots-cell)) () (import-path! root))
       (eval (list (lit import) (first (rest row))))
       (let ((g (%sx-registered (first row))))
         (if (null? g)
@@ -902,7 +886,7 @@
       g)
 
     (method named (self (param name SYMBOL "A grammar's name"))
-      (doc "The grammar of that name: a registered one, else one a bundle's lang.xon declares or x-lang ships (json, markdown, html), its module loaded now; nil for none."
+      (doc "The grammar of that name: a registered one, else one a bundle's lang.xon declares, its module loaded now; nil for none."
         (returns Syntax "The grammar, or nil")
         (example "(eq? (Syntax named 'x) (Syntax x))" "#t"))
       (Syntax x)
@@ -928,7 +912,7 @@
       (%sx-rules-file))
 
     (method catalogue (self)
-      (doc "Every grammar named and for-file can find, as (NAME MODULE ROOT FILES NAMES INTERPRETERS): the registered ones with no module or root, then each bundle's (grammar ...) forms in its lang.xon, read once, then x-lang's own, whose modules are in its library and so have no root, but for a name a bundle declares too."
+      (doc "Every grammar named and for-file can find, as (NAME MODULE ROOT FILES NAMES INTERPRETERS): the registered ones with no module or root, then each bundle's (grammar ...) forms in its lang.xon, read once."
         (returns LIST "The rows")
         (example "(first (Syntax catalogue))" "('x () () (\".x\" \".xon\") () (\"x\"))"))
       (Syntax x)

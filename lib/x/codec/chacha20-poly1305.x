@@ -13,7 +13,7 @@
 (import x/codec/poly1305)
 (import x/codec/bytes)
 
-(import x/core/doors int& int+ int- int<< int= int>> ptr-set! str->ptr)
+(import x/core/doors int& int+ int- int< int<< int= int>> ptr-set! str->ptr str-make)
 
 (def %len (fn (_ r) (first (rest (rest r)))))
 
@@ -23,9 +23,17 @@
 ; doors: the generic ones dispatch through the numeric tower, about a
 ; hundred objects a call.
 
+; n zero bytes in a fresh buffer, four at a write.
+(def %zeroed
+  (fn (_ n)
+    (def z (str-make n))
+    (def p (str->ptr z))
+    ((fn (self k) (when (int< k n) (do (ptr-set! p k 0 4) (self (int+ k 4))))) 0)
+    z))
+
 ; ChaCha20's 16-byte IV for block 0: a zero counter, then the 96-bit nonce.
 (def %iv0
-  (fn (_ nonce) (first (Bytes join (Bytes zeros 4) nonce))))
+  (fn (_ nonce) (first (Bytes join (list (%zeroed 4) 0 4) nonce))))
 
 ; A region as a buffer of its own, starting at 0, for the ciphers' key and
 ; IV arguments, which read from a buffer's first byte.
@@ -38,7 +46,7 @@
 ; little-endian numbers: thirty-two bytes.
 (def %tail
   (fn (_ a c)
-    (def b (first (Bytes zeros 32)))
+    (def b (%zeroed 32))
     (def p (str->ptr b))
     ((fn (self k) (unless (int= k 8)
                     (do (ptr-set! p (int+ k 16) (int& (int>> a (int<< k 3)) 255) 1)
@@ -53,7 +61,7 @@
 ; buffer: the key is its first 32 bytes, the data's XOR from byte 64.
 (def %pass
   (fn (_ key nonce r)
-    (def in (Bytes join (Bytes zeros 64) r))
+    (def in (Bytes join (list (%zeroed 64) 0 64) r))
     (ChaCha20 xor key (%iv0 nonce) (first in) 0 (%len in))))
 
 ; The tag over the additional data and the ciphertext, under the one-time

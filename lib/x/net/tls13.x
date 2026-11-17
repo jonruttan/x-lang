@@ -6,11 +6,8 @@
 ; ServerHello's share; the key schedule (x/net/tls-keys); the server's
 ; encrypted flight -- EncryptedExtensions, Certificate, CertificateVerify,
 ; Finished -- with its Finished checked; then the client's Finished and
-; application data both ways.  A server that asks for a client certificate
-; (CertificateRequest) is declined, as 4.4.2 allows: the client answers
-; with a Certificate message holding no certificate, and no
-; CertificateVerify, before its Finished.  The interface is x/net/tls's:
-; connect, send, recv-run, recv-bytes, close, so Http can take either.
+; application data both ways.  The interface is x/net/tls's: connect,
+; send, recv-run, recv-bytes, close, so Http can take either.
 ;
 ; The server is authenticated before connect returns: its CertificateVerify
 ; signature (RFC 8446 4.4.3) by the leaf certificate's key over the
@@ -28,9 +25,7 @@
 ; share (no HelloRetryRequest is sent), then ServerHello, the encrypted
 ; flight -- EncryptedExtensions, Certificate, CertificateVerify signed with
 ; an RSA key (PSS) or an Ed25519 key, Finished -- and the client's Finished
-; checked.  The client is not asked for a certificate unless
-; ('request-certificate) is given: then a CertificateRequest is sent, and
-; the client's Certificate must hold none, since none would be checked.
+; checked.  The client is not asked for a certificate.
 ;
 ; Bytes are regions (BUF START LEN), as x/codec/bytes has them.  The
 ; session is a vector of slots, written as the handshake and the records
@@ -368,13 +363,6 @@
                (#t (self version share))))))
      0 ())))
 
-; A CertificateRequest's certificate_request_context (4.3.2), which the
-; client's Certificate echoes.
-(def %request-context
-  (fn (_ body)
-    (def rd (Bytes reader body))
-    (Bytes copy (Bytes get rd (Bytes get-u8 rd)))))
-
 ; The Certificate message's certificates, leaf first (4.4.2).
 (def %certificates
   (fn (_ body)
@@ -416,10 +404,8 @@
     (def c-hs (TlsKeys derive-secret %hash hs "c hs traffic" hello-hash))
     (def s-hs (TlsKeys derive-secret %hash hs "s hs traffic" hello-hash))
     (%set-keys! s %read-key %read-iv %read-seq s-hs)
-    ; the server's encrypted flight, through its Finished; REQUEST is the
-    ; context of a CertificateRequest once one is seen, and the answer
-    (def request
-     ((fn (self request)
+    ; the server's encrypted flight, through its Finished
+    ((fn (self)
        (def m (%next-handshake s))
        (def type (first m))
        (match
@@ -427,13 +413,12 @@
            (do (def want (TlsKeys finished %hash s-hs (%transcript-hash tw)))
                (unless (Bytes same? want (first (rest m)))
                  (%fail "the server's Finished does not match the handshake" ()))
-               (Bytes put tw (first (rest (rest m))))
-               request))
-         ((= type %hs-encrypted-extensions) (do (Bytes put tw (first (rest (rest m)))) (self request)))
+               (Bytes put tw (first (rest (rest m))))))
+         ((= type %hs-encrypted-extensions) (do (Bytes put tw (first (rest (rest m)))) (self)))
          ((= type %hs-certificate)
            (do (%set! s %certs (%certificates (first (rest m))))
                (Bytes put tw (first (rest (rest m))))
-               (self request)))
+               (self)))
          ((= type %hs-certificate-verify)
            (do (def rd (Bytes reader (first (rest m))))
                (def alg (Bytes get-u16 rd))
@@ -441,13 +426,10 @@
                ; what the signature covers: the transcript before it (4.4.3)
                (%set! s %verify (list alg sig (Bytes copy (%transcript-hash tw))))
                (Bytes put tw (first (rest (rest m))))
-               (self request)))
+               (self)))
          ((= type %hs-certificate-request)
-           (do (def context (%request-context (first (rest m))))
-               (Bytes put tw (first (rest (rest m))))
-               (self context)))
-         (#t (%fail "an unexpected handshake message" type))))
-      ()))
+           (%fail "the server asked for a client certificate, which this client does not send" ()))
+         (#t (%fail "an unexpected handshake message" type)))))
     (def to-server-finished (%transcript-hash tw))
     (def master (TlsKeys master-secret %hash hs))
     (def c-ap (TlsKeys derive-secret %hash master "c ap traffic" to-server-finished))
@@ -455,15 +437,8 @@
     ; a ChangeCipherSpec for middleboxes (D.4), then the client's Finished
     (%send-region s (%plain-record %ct-ccs 771 (Bytes of-list (list 1))))
     (%set-keys! s %write-key %write-iv %write-seq c-hs)
-    ; a request for a certificate is declined (4.4.2): a Certificate with
-    ; the request's context and no certificate, which the client's Finished
-    ; then covers.  The application secrets above do not take it in.
-    (unless (null? request)
-      (do (def none (%certificate-message request ()))
-          (%send-sealed s %ct-handshake none)
-          (Bytes put tw none)))
     (%send-sealed s %ct-handshake
-      (%handshake-message %hs-finished (TlsKeys finished %hash c-hs (%transcript-hash tw))))
+      (%handshake-message %hs-finished (TlsKeys finished %hash c-hs to-server-finished)))
     (%set! s %read-secret s-ap)
     (%set! s %write-secret c-ap)
     (%set-keys! s %read-key %read-iv %read-seq s-ap)
@@ -620,10 +595,10 @@
     (Bytes put w (Bytes written ext))
     (%handshake-message %hs-server-hello (Bytes written w))))
 
-; The Certificate message (4.4.2): the request's context -- empty in the
-; server's -- then each certificate with no extensions.
+; The Certificate message (4.4.2): no context, each certificate with no
+; extensions.
 (def %certificate-message
-  (fn (_ context certs)
+  (fn (_ certs)
     (def l (Bytes writer))
     ((fn (self c)
        (unless (null? c)
@@ -633,24 +608,10 @@
              (self (rest c)))))
      certs)
     (def w (Bytes writer))
-    (Bytes put-u8 w (Bytes length context))
-    (Bytes put w context)
+    (Bytes put-u8 w 0)
     (Bytes put-u24 w (Bytes size l))
     (Bytes put w (Bytes written l))
     (%handshake-message %hs-certificate (Bytes written w))))
-
-; CertificateRequest (4.3.2): no context, and the signature_algorithms
-; extension the message must carry -- ECDSA P-256, RSA-PSS and Ed25519.
-(def %certificate-request
-  (fn (_)
-    (def ext (Bytes writer))
-    (%put-extension ext 13
-      (%extension-data (fn (_ e) (Bytes put-u16 e 6) (Bytes put-u16 e 1027) (Bytes put-u16 e 2052) (Bytes put-u16 e 2055))))
-    (def w (Bytes writer))
-    (Bytes put-u8 w 0)
-    (Bytes put-u16 w (Bytes size ext))
-    (Bytes put w (Bytes written ext))
-    (%handshake-message %hs-certificate-request (Bytes written w))))
 
 ; The scheme a key signs CertificateVerify with: rsa_pss_rsae_sha256 or ed25519.
 (def %key-scheme (fn (_ key) (if (eq? (first key) (lit rsa)) 2052 2055)))
@@ -672,11 +633,9 @@
 ; The server's handshake, from the client's hello to application keys both
 ; ways: ServerHello in the clear, then EncryptedExtensions, Certificate,
 ; CertificateVerify and Finished under the handshake keys, and the
-; client's Finished checked.  With ASK?, a CertificateRequest follows
-; EncryptedExtensions and the client's Certificate is read before its
-; Finished: it must hold no certificate, this server checking none.
+; client's Finished checked.
 (def %accept!
-  (fn (_ s priv public key certs ask?)
+  (fn (_ s priv public key certs)
     (def ch (%next-handshake s))
     (unless (= (first ch) %hs-client-hello) (%refuse! s "the client did not open with a ClientHello"))
     (def offer (%client-offer s (first (rest ch))))
@@ -700,24 +659,16 @@
     (%set-keys! s %read-key %read-iv %read-seq c-hs)
     (def flight (fn (_ m) (%send-sealed s %ct-handshake m) (Bytes put tw m)))
     (flight (%handshake-message %hs-encrypted-extensions (Bytes of-list (list 0 0))))
-    (when ask? (flight (%certificate-request)))
-    (flight (%certificate-message (Bytes of-list ()) certs))
+    (flight (%certificate-message certs))
     (flight (%certificate-verify key (%transcript-hash tw)))
     (flight (%handshake-message %hs-finished (TlsKeys finished %hash s-hs (%transcript-hash tw))))
     (def to-server-finished (%transcript-hash tw))
     (def master (TlsKeys master-secret %hash hs))
     (def c-ap (TlsKeys derive-secret %hash master "c ap traffic" to-server-finished))
     (def s-ap (TlsKeys derive-secret %hash master "s ap traffic" to-server-finished))
-    (when ask?
-      (do (def cc (%next-handshake s))
-          (unless (= (first cc) %hs-certificate)
-            (%fail "the client did not answer the request for a certificate" (first cc)))
-          (unless (null? (%certificates (first (rest cc))))
-            (%fail "the client sent a certificate, which this server does not check" ()))
-          (Bytes put tw (first (rest (rest cc))))))
     (def fin (%next-handshake s))
     (unless (= (first fin) %hs-finished) (%fail "the client did not answer with its Finished" (first fin)))
-    (unless (Bytes same? (TlsKeys finished %hash c-hs (%transcript-hash tw)) (first (rest fin)))
+    (unless (Bytes same? (TlsKeys finished %hash c-hs to-server-finished) (first (rest fin)))
       (%fail "the client's Finished does not match the handshake" ()))
     (%set! s %read-secret c-ap)
     (%set! s %write-secret s-ap)
@@ -788,7 +739,7 @@
     (method connect (self (param quad STRING "Dotted-quad IPv4 address (resolve names via (Socket resolve))")
                           (param port INTEGER "Port, usually 443")
                           . (param opts ALIST "Options: (host . NAME), the server's name, sent (SNI) and checked against its certificate; ('insecure) to skip the check"))
-      (doc "Open a TLS 1.3 session: TCP connect, the handshake (X25519, ChaCha20-Poly1305) with the server's Finished checked, then the server authenticated -- its CertificateVerify signature and its chain to one of Mozilla's roots for NAME. ('insecure) skips the authentication, for a self-signed development endpoint. A server that asks for a client certificate is declined: it is sent a Certificate message holding none (RFC 8446 4.4.2), and decides for itself whether to go on. A failure raises a label 'io naming it; the connection is closed."
+      (doc "Open a TLS 1.3 session: TCP connect, the handshake (X25519, ChaCha20-Poly1305) with the server's Finished checked, then the server authenticated -- its CertificateVerify signature and its chain to one of Mozilla's roots for NAME. ('insecure) skips the authentication, for a self-signed development endpoint. A failure raises a label 'io naming it; the connection is closed."
         (returns OBJECT "The session")
         (sample "(Tls13 connect \"140.82.114.3\" 443 (list (pair 'host \"github.com\")))" "a verified session"))
       ; everything slow happens before the server is dialled
@@ -805,8 +756,8 @@
       (%start in out #f (if (null? opts) () (first opts)) (%prepare)))
     (method accept (self (param in INTEGER "Descriptor the client's bytes are read from: an accepted socket, or standard input under inetd or tcpsvd")
                          (param out INTEGER "Descriptor the server's bytes are written to: the same socket, or standard output")
-                         . (param opts ALIST "(pem . TEXT): PEM text holding the private key -- RSA or Ed25519 -- and the certificates, leaf first; ('request-certificate) to ask the client for a certificate"))
-      (doc "The server's side of a TLS 1.3 session over a pair of descriptors already open: the client's hello read, X25519 and ChaCha20-Poly1305 agreed, the certificates sent and the handshake signed with the key -- RSA-PSS with SHA-256, or Ed25519 -- and the client's Finished checked. A hello that would need a HelloRetryRequest (no X25519 share, no ChaCha20-Poly1305) is answered with a handshake_failure alert. The client is not asked for a certificate unless ('request-certificate) is given: then a CertificateRequest is sent and the client's answer read, which must hold no certificate -- none would be checked, so a client that sends one is refused. Signing is variable time, as all of x's arithmetic is. send, recv-run, pending? and close then work as on a client's session; close leaves the descriptors open. A failure raises a label 'io naming it."
+                         . (param opts ALIST "(pem . TEXT): PEM text holding the private key -- RSA or Ed25519 -- and the certificates, leaf first"))
+      (doc "The server's side of a TLS 1.3 session over a pair of descriptors already open: the client's hello read, X25519 and ChaCha20-Poly1305 agreed, the certificates sent and the handshake signed with the key -- RSA-PSS with SHA-256, or Ed25519 -- and the client's Finished checked. A hello that would need a HelloRetryRequest (no X25519 share, no ChaCha20-Poly1305) is answered with a handshake_failure alert. The client is not asked for a certificate. Signing is variable time, as all of x's arithmetic is. send, recv-run, pending? and close then work as on a client's session; close leaves the descriptors open. A failure raises a label 'io naming it."
         (returns OBJECT "The session")
         (sample "(Tls13 accept 0 1 (list (pair 'pem (File read-all \"server.pem\"))))" "a session over an accepted socket"))
       (def o (if (null? opts) () (first opts)))
@@ -820,7 +771,7 @@
       (def keys (%prepare))
       (def s (%session in out #f))
       (%set! s %serving #t)
-      (%accept! s (first keys) (rest keys) key certs (not (null? (Assoc entry (lit request-certificate) o))))
+      (%accept! s (first keys) (rest keys) key certs)
       s)
     (method send (self (param session OBJECT "A (Tls13 connect) session")
                        (param data ANY "The bytes: a region (BUF START LEN), or a STRING up to its first NUL"))

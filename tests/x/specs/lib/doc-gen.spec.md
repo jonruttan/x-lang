@@ -315,3 +315,27 @@ reads it as a field named `doc`, and the page shows it as that field.
 ```
 ---
     ("Field: data carried by a DgSite9 instance." "doc")
+
+## known-as reaches the generated entry
+
+The names a `(known-as ...)` lists are emitted as one note after the form's
+own, so a page shows what `(help)` shows.
+
+### the names are one note, after the notes the form wrote
+
+```x
+(do (import x/doc/doc-gen)
+    (def-class DgRec3 (extends DocEmit)
+      (static (got ())
+        (method page-header (self . a) ()) (method section (self . a) ())
+        (method class-head (self . a) ()) (method interface-line (self . a) ())
+        (method entry-head (self . a) ()) (method alias (self . a) ())
+        (method text (self . a) ()) (method params (self . a) ())
+        (method returns (self . a) ()) (method examples (self . a) ())
+        (method see-also (self . a) ())
+        (method note (self s) (DgRec3 got (pair s (DgRec3 got))))))
+    ((eval (lit %doc-emit-method) (module x/doc/doc-gen)) DgRec3 '(method no-such-m (self x) (doc "doc" (note "first") (known-as "one name" "another") (returns ANY "r")) x) "DgNoSuchClass" #t "")
+    (List reverse (DgRec3 got)))
+```
+---
+    ("first" "Known as: one name, another.")

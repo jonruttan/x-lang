@@ -21,7 +21,6 @@
 (module x/codec/deflate-jit)
 
 (import x/tool/compile compile-asm)
-(import x/codec/bytes)
 
 (import x/core/doors obj-ref obj-set! ptr->int ptr-ref-word ptr-set-word! str->ptr str-make)
 
@@ -212,6 +211,8 @@
           (list 'self 'a 4 (list '+ 'i 1) 0 0))
         (list 'self 'a 0 (%M %ME) 0 0))))))))
 
+(def %dj-mem-set (prim-ref (lit mem) (lit set)))
+
 ; --- The counter: a block's frequencies, one compiled loop ---
 ;
 ; deflate.x's %count!: each token's literal/length symbol and distance code
@@ -278,7 +279,11 @@
     (def %mpoke (fn (_ i v) (ptr-set-word! %mptr (* i %word-size) v)))
     ; A zeroed table of n words, held by the caller for as long as its
     ; address is in use.
-    (def %words (fn (_ n) (first (Bytes zeros (* n %word-size)))))
+    (def %words
+      (fn (_ n)
+        (def r (str-make (* n %word-size)))
+        (%dj-mem-set (str->ptr r) 0 (* n %word-size))
+        r))
     (def %match
       (fn (_ src n lens vals)
         (def head (%words 32768))
