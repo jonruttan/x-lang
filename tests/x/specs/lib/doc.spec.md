@@ -107,6 +107,21 @@ list used to be handed to `symbol->str` and walked as a string pointer.
 ---
     (#t #t #t)
 
+### a rest parameter is shown after a dot
+
+A parameter written as a signature's dotted tail takes every remaining
+argument. `help` prints it as the source writes it; the parameters ahead of
+it print as before.
+
+```x
+(let ((text (doc-help-capture (fn (_) (help Str8 format)))))
+  (list (Str8 includes? "  spec : STRING" text)
+        (Str8 includes? "  . args : ANY" text)
+        (Str8 includes? "  . spec" text)))
+```
+---
+    (#t #t #f)
+
 ## help on a name with no entry
 
 A name with no entry of its own is answered by what it is: a module not yet
