@@ -64,7 +64,7 @@ for f in $found; do
 	# contract lives.  Forbidding those would trade real documentation for a tidier
 	# grep; a reader told where the contract is can go and read it.
 	hits=$(sed 's/;.*//' "$f" \
-		| grep -vE '^[[:space:]]*\((doc|note|sample|example|returns|param)[[:space:]]' \
+		| grep -vE '^[[:space:]]*\((doc|note|known-as|sample|example|returns|param)[[:space:]]' \
 		| grep -cE "$PATTERN" || true)
 	[ "$hits" -gt 0 ] || continue
 	if reason=$(exempt_reason "$f"); then
