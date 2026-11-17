@@ -775,7 +775,7 @@
     (example "(do (import x/codec/bzip2) (let ((c (Bzip2 compress \"hello\" 1))) (let ((d (Bunzip2 decode (first c) 0 (first (rest c))))) (Str8 sub 0 (first (rest d)) (first d)))))" "\"hello\""))
   (static
     (method decode (self (param s STRING "Bytes holding a bzip2 stream")
-                         . (param span LIST "START, then LENGTH: where the stream starts in s and how many bytes of s it may use; default all of s"))
+                         . (param span INTEGER "START, then LENGTH: where the stream starts in s and how many bytes of s it may use; default all of s"))
       (doc "Decompress one bzip2 stream: \"BZh\", its blocks, the end marker. Every block's CRC and the stream's are checked. Give LENGTH for binary input: s's own length is measured to its first NUL."
         (returns LIST "(OUT N USED): the output region, its byte count, and the input bytes the stream used")
         (example "(do (import x/codec/bzip2) (let ((c (Bzip2 compress \"hello\" 1))) (let ((d (Bunzip2 decode (first c) 0 (first (rest c))))) (list (Str8 sub 0 (first (rest d)) (first d)) (first (rest (rest d)))))))" "(\"hello\" 41)"))

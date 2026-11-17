@@ -208,7 +208,7 @@
     (method xor (self (param key STRING "The 256-bit key: 32 bytes are read")
                       (param iv STRING "Block counter and nonce: 16 bytes are read, state words 12..15 little-endian")
                       (param s STRING "The bytes to encrypt or decrypt")
-                      . (param span LIST "START, then LENGTH: which bytes of s; default all of s"))
+                      . (param span INTEGER "START, then LENGTH: which bytes of s; default all of s"))
       (doc "The ChaCha20 stream cipher (RFC 8439): every byte of the region XORed with the keystream for key and iv, answered as a fresh string of LEN bytes. One operation encrypts and decrypts. The iv is the sixteen bytes of state words 12..15: RFC 8439's 32-bit counter then 96-bit nonce, or the original cipher's 64-bit counter then 64-bit nonce -- the counter is word 12, carried into word 13. GIVE THE REGION FOR BINARY INPUT: s's own length is measured to its first NUL, and the answer's is LEN, which only the caller knows. Computed pure-x, or by the differentially-verified compiled engine once (jit!) has built it -- identical output either way."
         (returns STRING "LEN bytes")
         (example "(ChaCha20 xor (Str8 pad-right 32 #\\k \"\") (Str8 pad-right 16 #\\i \"\") (ChaCha20 xor (Str8 pad-right 32 #\\k \"\") (Str8 pad-right 16 #\\i \"\") \"abc\") 0 3)" "\"abc\""))

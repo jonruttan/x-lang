@@ -774,14 +774,14 @@
     (example "(do (import x/codec/deflate) (let ((c (Deflate zlib \"hello\"))) (first (rest (Inflate zlib (first c) 0 (first (rest c)))))))" "5"))
   (static
     (method raw (self (param s STRING "Bytes holding a raw DEFLATE stream")
-                      . (param span LIST "START, then LENGTH: where the stream starts in s and how many bytes of s it may use; default all of s"))
+                      . (param span INTEGER "START, then LENGTH: where the stream starts in s and how many bytes of s it may use; default all of s"))
       (doc "Decompress a raw DEFLATE stream (RFC 1951). Raises a label 'value naming what is wrong with a malformed one. Give LENGTH for binary input: s's own length is measured to its first NUL."
         (returns LIST "(OUT N USED): the output region, its byte count, and the input bytes the stream used")
         (example "(do (import x/codec/deflate) (let ((c (Deflate raw \"hello\"))) (let ((d (Inflate raw (first c) 0 (first (rest c))))) (list (Str8 sub 0 (first (rest d)) (first d)) (first (rest (rest d)))))))" "(\"hello\" 7)"))
       (def sp (%span s span))
       (%raw s (first sp) (first (rest sp)) (first (%engine-for (first (rest sp))))))
     (method zlib (self (param s STRING "Bytes holding a zlib stream")
-                       . (param span LIST "START, then LENGTH, as for raw"))
+                       . (param span INTEGER "START, then LENGTH, as for raw"))
       (doc "Decompress a zlib stream (RFC 1950): its header checked, then a raw stream, then its Adler-32 checked against what came out. Raises a label 'value on any of them failing."
         (returns LIST "(OUT N USED), as for raw; USED includes the header and the Adler-32")
         (example "(do (import x/codec/deflate) (let ((c (Deflate zlib \"hello\"))) (let ((d (Inflate zlib (first c) 0 (first (rest c))))) (list (Str8 sub 0 (first (rest d)) (first d)) (first (rest (rest d)))))))" "(\"hello\" 13)"))

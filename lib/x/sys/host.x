@@ -87,7 +87,7 @@
         (sample "(Host %sym \"getpid\")" "the address of libc's getpid, for ptr call"))
       ((prim-ref (lit ffi) (lit dlsym)) ((prim-ref (lit ffi) (lit dlopen)) () 1) name))
 
-    (method %call (self (param name STRING "libc function name") . (param argv LIST "Its arguments"))
+    (method %call (self (param name STRING "libc function name") . (param argv ANY "Its arguments"))
       (doc "Call a libc function and fold its int result to a signed value."
         (returns INTEGER "The result, negative on failure")
         (example "(= (Host %call \"getpid\") (Sys getpid))" "#t"))
@@ -1042,7 +1042,7 @@
             (if seen (Host %maps-record (list ro rw stack sc sd pc pd)) ()))))
       (go 0 0 0 0 0 0 0 0 #f))
 
-    (method files (self (param pid INTEGER "Process ID") . (param uses LIST "The uses to read, of 'cwd 'root 'exe 'fd 'map; every one when none is named"))
+    (method files (self (param pid INTEGER "Process ID") . (param uses SYMBOL "The uses to read, of 'cwd 'root 'exe 'fd 'map; every one when none is named"))
       (doc "What the process has open, one record each: its current directory, its root, its executable, each file descriptor in descriptor order, and each file it maps. use is 'cwd, 'root, 'exe, 'fd or 'map; fd is the descriptor's number, nil for the others; dev and ino are the device and inode of what it holds; type is 'file for a path and otherwise the kernel's own word ('socket 'pipe 'anon_inode on Linux; 'socket 'pipe 'kqueue 'pshm 'psem 'fsevents 'netpolicy 'channel 'nexus on Darwin); name is the kernel's name for it; id is the kernel's number for a socket or pipe. An internet socket adds proto ('tcp 'udp 'raw or 'icmp), family (4 or 6) and port, its local port. Linux reads the /proc/PID cwd, root, exe and fd links and the maps lines, so a descriptor's name is its link's text whatever the type (socket:[INODE], anon_inode:[eventfd]), and joins a socket to /proc/net by its inode; Darwin asks proc_pidinfo and proc_pidfdinfo, names only a file, by its path, gives a socket its kernel handle as both id and ino, and reports a root only for a chrooted process. Only the process's owner or root may read them. nil when the process is gone or the kernel will not say."
         (returns ANY "LIST of file records, or nil")
         (sample "(Assoc get 'fd (first (Host files (Sys getpid) 'fd)))" "0")
@@ -1337,7 +1337,7 @@
           ()))
       (List append dirs exe fds maps))
 
-    (method holders (self (param path STRING "A path, followed through links") . (param mount? LIST "#t to ask for its whole file system instead"))
+    (method holders (self (param path STRING "A path, followed through links") . (param mount? BOOL "#t to ask for its whole file system instead"))
       (doc "The processes that hold a path: as their working directory, root or executable, through a descriptor or a mapping, in pid order; with mount? #t, those that hold anything on the path's file system. Darwin asks the kernel, with proc_listpidspath (PROC_LISTPIDSPATH_PATH_IS_VOLUME for the file system); Linux reads each process's files records and compares the device and inode. A process whose files this user may not read is not among them. nil when the path will not stat."
         (returns ANY "LIST of pids, or nil")
         (sample "(List includes? (Sys getpid) (Host holders \".\"))" "#t"))

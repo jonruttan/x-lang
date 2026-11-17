@@ -119,7 +119,7 @@
                           (param synopsis STRING "What follows the name on the Usage: line")
                           (param summary ANY "The text under the Usage: line, or nil")
                           (param rows LIST "The rows: (Opts flag ...), (Opts arg ...), (Opts hidden ...), (Opts text ...)")
-                     . (param settings LIST "Pairs: (column . N) sets the description column, (help . #f) turns --help off, (banner . TEXT) leads the text"))
+                     . (param settings PAIR "Pairs: (column . N) sets the description column, (help . #f) turns --help off, (banner . TEXT) leads the text"))
       (doc "A command's options and its help text as ONE declaration: parse reads the rows' spellings and usage prints the rows, so an option cannot be accepted and undocumented, nor documented and refused. The synopsis is written out rather than generated -- busybox's group and order their options by hand."
         (returns ALIST "The declaration parse, help? and usage read")
         (example "(Opts flags (Opts declare \"t\" \"\" () (list (Opts flag \"-a\" \"All\") (Opts arg \"-o\" \"FILE\" \"Out\"))))" "(\"-a\")")
@@ -132,14 +132,14 @@
             (pair (lit valued) (self %spellings rows (lit value)))
             (pair (lit settings) settings)))
 
-    (method flag (self . (param words LIST "One or more spellings, then the description"))
+    (method flag (self . (param words STRING "One or more spellings, then the description"))
       (doc "A row for an option that stands alone. Every spelling names the same option: (Opts flag \"-q\" \"--quiet\" \"Quiet\")."
         (returns LIST "The row")
         (example "(Opts usage (Opts declare \"t\" \"\" () (list (Opts flag \"-q\" \"--quiet\" \"Quiet\"))))" "\"Usage: t\\n\\n\\t-q,--quiet\\tQuiet\\n\""))
       (def r (%reverse words))
       (list (lit flag) (%reverse (rest r)) () (first r) #t))
 
-    (method arg (self . (param words LIST "One or more spellings, the argument's name, then the description"))
+    (method arg (self . (param words STRING "One or more spellings, the argument's name, then the description"))
       (doc "A row for an option that takes an argument: (Opts arg \"-o\" \"FILE\" \"Output to FILE\")."
         (returns LIST "The row")
         (example "(Opts valued (Opts declare \"t\" \"\" () (list (Opts arg \"-o\" \"FILE\" \"Out\"))))" "(\"-o\")"))

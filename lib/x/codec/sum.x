@@ -116,14 +116,14 @@
     (example "(Sum bsd \"abc\")" "16556"))
   (static
     (method bsd (self (param s STRING "Bytes")
-                      . (param span LIST "START, then LENGTH: which bytes of s; default all of s"))
+                      . (param span INTEGER "START, then LENGTH: which bytes of s; default all of s"))
       (doc "BSD's checksum of the bytes, sum's default. Give LENGTH for binary input: s's own length is measured to its first NUL."
         (returns INTEGER "The checksum, 0 to 65535")
         (example "(Sum bsd \"123456789\")" "53615")
         (example "(Sum bsd \"\")" "0"))
       (%run (lit bsd) s span))
     (method sysv (self (param s STRING "Bytes")
-                       . (param span LIST "START, then LENGTH, as for bsd"))
+                       . (param span INTEGER "START, then LENGTH, as for bsd"))
       (doc "System V's checksum of the bytes, sum -s's."
         (returns INTEGER "The checksum, 0 to 65535")
         (example "(Sum sysv \"123456789\")" "477")

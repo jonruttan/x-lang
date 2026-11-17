@@ -124,7 +124,7 @@
         (example "(Hmac size (lit sha384))" "48"))
       (%out-size (%hash hash %hashes)))
     (method digest (self (param hash SYMBOL "The hash: sha256, sha384 or sha512")
-                         . (param regions LIST "Regions (STRING START LEN), or STRINGs up to their first NUL, digested end to end"))
+                         . (param regions LIST|STRING "Regions (STRING START LEN), or STRINGs up to their first NUL, digested end to end"))
       (doc "The plain digest of the regions joined, as a fresh buffer of exactly its bytes -- what TLS's transcript hash needs."
         (returns STRING "The digest's bytes, (Hmac size hash) of them")
         (example "(Hmac to-hex (Hmac digest (lit sha256) \"ab\" \"c\") 32)" "\"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\""))

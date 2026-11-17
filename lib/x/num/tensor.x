@@ -69,7 +69,7 @@
   (static
     ; --- making tensors -----------------------------------------------------
     (method zeros (self (param extent INTEGER|LIST "Axis lengths, or one length for rank 1")
-                        . (param enc LIST "Optional encoding: f64 (the default) or i64"))
+                        . (param enc SYMBOL "Optional encoding: f64 (the default) or i64"))
       (doc "A tensor of the given extent, every element 0."
         (returns Tensor "A fresh row-major tensor")
         (example "((Tensor zeros '(2 2)) ->list)" "((0.0 0.0) (0.0 0.0))")
@@ -78,7 +78,7 @@
 
     (method fill (self (param extent INTEGER|LIST "Axis lengths, or one length for rank 1")
                        (param x NUMBER "The value of every element")
-                       . (param enc LIST "Optional encoding; by default i64 for an integer, else f64"))
+                       . (param enc SYMBOL "Optional encoding; by default i64 for an integer, else f64"))
       (doc "A tensor of the given extent, every element x."
         (returns Tensor "A fresh row-major tensor")
         (example "((Tensor fill '(2 3) 7.5) ->list)" "((7.5 7.5 7.5) (7.5 7.5 7.5))")
@@ -89,7 +89,7 @@
           (self %make st))))
 
     (method from (self (param x LIST|VECTOR|NUMBER "Numbers, nested as lists or vectors, one level per axis")
-                       . (param enc LIST "Optional encoding; by default c128 when an element is complex, i64 when every element is an integer, else f64"))
+                       . (param enc SYMBOL "Optional encoding; by default c128 when an element is complex, i64 when every element is an integer, else f64"))
       (doc "A tensor holding the numbers of x, its extent read off the nesting. Every list at one depth must have the same length."
         (returns Tensor "A fresh row-major tensor")
         (example "((Tensor from '((1 2 3) (4 5 6))) extent)" "(2 3)")
@@ -104,7 +104,7 @@
           (self %make st))))
 
     (method range (self (param n INTEGER "The count, at least 0")
-                        . (param enc LIST "Optional encoding: i64 (the default) or f64"))
+                        . (param enc SYMBOL "Optional encoding: i64 (the default) or f64"))
       (doc "The rank-1 tensor 0, 1, ..., n - 1."
         (returns Tensor "A fresh tensor of extent (n)")
         (example "((Tensor range 3 'f64) ->list)" "(0.0 1.0 2.0)")
@@ -786,7 +786,7 @@
       (example "(((Tensor zeros '(2 3)) transpose) contiguous?)" "#f"))
     ((obj-ref (Tensor %fast) 3) (field (lit st))))
 
-  (method ref (self . (param idx LIST "One index per axis; negative counts from the end"))
+  (method ref (self . (param idx INTEGER "One index per axis; negative counts from the end"))
     (doc "The element at the given indexes."
       (returns NUMBER "A Float for f64, an integer for i64, a Complex for c128")
       (example "((Tensor from '((1 2) (3 4.5))) ref 1 0)" "3.0")
@@ -794,7 +794,7 @@
     (let ((f (Tensor %fast)) (st (field (lit st))))
       (((obj-ref f 5) (first st)) (ptr->int (str->ptr (List ref 4 st))) ((obj-ref f 12) st idx))))
 
-  (method set! (self . (param args LIST "One index per axis, then the value"))
+  (method set! (self . (param args NUMBER "One index per axis, then the value"))
     (doc "Store a value at the given indexes. A view shares its bytes, so the change shows through every tensor over them."
       (returns Tensor "self")
       (example "(((Tensor zeros 3) set! 1 9) ->list)" "(0.0 9.0 0.0)"))
@@ -961,7 +961,7 @@
           (Tensor %make-complex (f-div ((self real) sum) (float-of n)) (f-div ((self imaginary) sum) (float-of n)))
           (f-div (float-of (self sum)) (float-of n))))))
 
-  (method variance (self . (param correction LIST "Optional INTEGER taken from the count before dividing: 1 by default, 0 for the population variance"))
+  (method variance (self . (param correction INTEGER "Optional, taken from the count before dividing: 1 by default, 0 for the population variance"))
     (doc "The variance of every element: the sum of the squares of their differences from the mean, over the count less the correction. The default correction, 1, gives the sample variance; 0 gives the population variance. For c128 a difference's square is its squared magnitude."
       (returns FLOAT "The variance; a raise unless the count is greater than the correction")
       (example "((Tensor from '(1 2 3 4) 'f64) variance)" "1.66666666666667")
@@ -975,7 +975,7 @@
         (f-div (if (eq? (self encoding) (lit c128)) (f-add (squares (d real)) (squares (d imaginary))) (squares d))
                (float-of (int- n c))))))
 
-  (method deviation (self . (param correction LIST "Optional INTEGER, as for variance: 1 by default, 0 for the population"))
+  (method deviation (self . (param correction INTEGER "Optional, as for variance: 1 by default, 0 for the population"))
     (doc "The standard deviation of every element: the square root of the variance, with the same correction."
       (returns FLOAT "The standard deviation")
       (example "((Tensor from '(2 4 4 4 5 5 7 9) 'f64) deviation 0)" "2.0")

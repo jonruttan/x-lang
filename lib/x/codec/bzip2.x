@@ -944,7 +944,7 @@
   (static
     (method compress (self (param s STRING "The bytes to compress")
                            (param level INTEGER "The block size digit, 1 to 9: blocks of 100000 bytes a step")
-                           . (param span LIST "START, then LENGTH: where the bytes start in s and how many; default all of s"))
+                           . (param span INTEGER "START, then LENGTH: where the bytes start in s and how many; default all of s"))
       (doc "One bzip2 stream: \"BZh\" and the level, the blocks, the end marker and the stream's CRC, as busybox's bzip2 -LEVEL writes it. Give LENGTH for binary input: s's own length is measured to its first NUL."
         (returns LIST "(OUT N): a region and how many of its bytes the stream is")
         (example "(first (rest (Bzip2 compress \"\" 9)))" "14"))

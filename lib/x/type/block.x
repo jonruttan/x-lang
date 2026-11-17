@@ -373,7 +373,7 @@
 
     (method method! (self (param class CLASS "Class owning the method")
                           (param sel SYMBOL "Selector to give a block form")
-                        . (param opts LIST "Optional: shape symbol, trailing-argument count, callback position"))
+                        . (param opts SYMBOL|INTEGER "Optional: shape symbol, trailing-argument count, callback position"))
       (doc "Give a higher-order method a block form: (subject sel (names ...) body ...)."
         (returns ANY "The installed operative")
         (note "Shapes: element (default) -- (x) or (index x); pair -- (p) or (key value);")

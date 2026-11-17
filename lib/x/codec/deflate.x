@@ -802,25 +802,25 @@
     (example "(first (rest (Deflate stored \"abc\")))" "8"))
   (static
     (method raw (self (param s STRING "The bytes to compress")
-                      . (param span LIST "START, then LENGTH: which bytes of s; default all of s"))
+                      . (param span INTEGER "START, then LENGTH: which bytes of s; default all of s"))
       (doc "A raw DEFLATE stream (RFC 1951), compressed: repeats of three bytes or more within 32K found through a hash chain and coded as length/distance pairs, each block of up to 16384 tokens under its own Huffman codes, the fixed ones or stored, whichever is fewest bits. Give LENGTH for binary input: s's own length is measured to its first NUL."
         (returns LIST "(OUT N): the stream's region and its byte count")
         (example "(< (first (rest (Deflate raw \"abcabcabcabcabcabc\"))) 18)" "#t"))
       (%run s span %compress! ()))
     (method zlib (self (param s STRING "The bytes to compress")
-                       . (param span LIST "START, then LENGTH, as for raw"))
+                       . (param span INTEGER "START, then LENGTH, as for raw"))
       (doc "A zlib stream (RFC 1950) around a compressed raw stream: the two-byte header (method 8, a 32K window, the default level's FLEVEL, FCHECK making the pair a multiple of 31), then the Adler-32 of the bytes big-endian. What git writes a loose object as."
         (returns LIST "(OUT N): the stream's region and its byte count")
         (example "(first (rest (Deflate zlib \"abc\")))" "11"))
       (%run s span %compress! 156))
     (method stored (self (param s STRING "The bytes to carry")
-                         . (param span LIST "START, then LENGTH, as for raw"))
+                         . (param span INTEGER "START, then LENGTH, as for raw"))
       (doc "A raw DEFLATE stream (RFC 1951) of stored blocks: the bytes as they are, five bytes of framing a block of up to 65535."
         (returns LIST "(OUT N): the stream's region and its byte count")
         (example "(first (rest (Deflate stored \"abc\")))" "8"))
       (%run s span %stored-body ()))
     (method zlib-stored (self (param s STRING "The bytes to carry")
-                              . (param span LIST "START, then LENGTH, as for raw"))
+                              . (param span INTEGER "START, then LENGTH, as for raw"))
       (doc "A zlib stream (RFC 1950) of stored blocks: the header with FLEVEL 0 (0x78 0x01), the stored blocks, the Adler-32."
         (returns LIST "(OUT N): the stream's region and its byte count")
         (example "(first (rest (Deflate zlib-stored \"abc\")))" "14"))

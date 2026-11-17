@@ -116,7 +116,7 @@
   deviation   ; a Float, greater than 0
 
   (static
-    (method make (self . (param parameters LIST "Optional (MEAN DEVIATION); 0 and 1 by default, the standard normal"))
+    (method make (self . (param parameters NUMBER "Optional (MEAN DEVIATION); 0 and 1 by default, the standard normal"))
       (doc "The normal distribution of a mean and a deviation, the deviation greater than 0."
         (returns Normal "The distribution")
         (example "((Normal make 10 2) quantile 0.5)" "10.0"))
@@ -182,7 +182,7 @@
   upper   ; a Float, greater than lower
 
   (static
-    (method make (self . (param parameters LIST "Optional (LOWER UPPER); 0 and 1 by default"))
+    (method make (self . (param parameters NUMBER "Optional (LOWER UPPER); 0 and 1 by default"))
       (doc "The uniform distribution from lower to upper, upper greater than lower."
         (returns Uniform "The distribution")
         (example "((Uniform make 2 6) mean)" "4.0"))
@@ -254,7 +254,7 @@
   rate    ; a Float, greater than 0
 
   (static
-    (method make (self . (param parameters LIST "Optional (RATE); 1 by default"))
+    (method make (self . (param parameters NUMBER "Optional (RATE); 1 by default"))
       (doc "The exponential distribution of a rate greater than 0; its mean is 1 over the rate."
         (returns Exponential "The distribution")
         (example "((Exponential make 4) variance)" "0.0625"))

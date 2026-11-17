@@ -278,7 +278,7 @@
     (method until (self (param tag ANY "The token's tag, or nil to drop the token")
                         (param open STRING "The opening literal")
                         (param close STRING "The closing literal")
-                        . (param flags LIST "Optionally take, to-end, or both"))
+                        . (param flags SYMBOL "Optionally take, to-end, or both"))
       (doc "A rule for a span from open to close: comments, delimited patterns. A one-byte close is left for the next token (a newline ends a line comment and is then read on its own) unless the flag take is given, which makes it part of the token; a longer close is always taken, and ends the span at its first whole occurrence, so a `\"\"\"` span holds `\"\"` followed by another byte. With the flag to-end a span that meets no close runs to the end of the text and is a token all the same, the end text not part of it; without it, such a span is not a token."
         (returns LIST "The rule")
         (sample "(Lexer until () \"/*\" \"*/\")" "drop block comments")
@@ -309,7 +309,7 @@
                          (param open STRING "The opening literal")
                          (param start SYMBOL "The context the body after open is read in")
                          (param contexts LIST "Each (NAME CLOSE ESC OPENS): see the doc")
-                         . (param flags LIST "Optionally to-end"))
+                         . (param flags SYMBOL "Optionally to-end"))
       (doc "A rule for a span whose body holds spans of its own: open, then a body read in the context start, to the byte that closes start. A context is (NAME CLOSE ESC OPENS): CLOSE the byte that ends it, ESC the byte that takes the next byte literally (nil for none), OPENS a list of (LITERAL . CONTEXT), each literal entering that context, whose close returns to the one it was entered from. The token's text is the whole span, raw; contexts nest up to 63 deep, and a deeper one ends the match there. With the flag to-end a span still open at the end of the text is a token all the same, the end text not part of it; without it, such a span is not a token."
         (returns LIST "The rule")
         (note "Within a context no opening literal may be a prefix of another, and none may start with the context's close or escape byte; make refuses such a rule.")
@@ -321,7 +321,7 @@
                        (param start SYMBOL "The context the word is read in")
                        (param contexts LIST "Each (NAME CLOSE ESC OPENS), as nested takes them; start's CLOSE may be nil")
                        (param stop LIST "Class of the bytes that end the word, at depth 0")
-                       . (param flags LIST "Optionally to-end"))
+                       . (param flags SYMBOL "Optionally to-end"))
       (doc "A rule for a word whose bytes may hold spans: a nested span with no opening literal, read in the context start from its first byte, and ending before a byte of stop met at depth 0 -- that byte is left for the next token. A first byte in stop is no word. Spans opened inside it read as nested reads them, a stop byte inside one being an ordinary byte. With the flag to-end a word whose span is still open at the end of the text is a token all the same, the end text not part of it; without it, such a word is not a token."
         (returns LIST "The rule")
         (sample "(Lexer word 'word 'w (list (list 'w () 92 (list (pair \"\\\"\" 'dq) (pair \"$(\" 'cmd))) (list 'dq 34 92 (list (pair \"$(\" 'cmd))) (list 'cmd 41 92 (list (pair \"(\" 'cmd) (pair \"\\\"\" 'dq)))) \" \\t\\n;&|<>()\")" "a shell word: a\\ b\"c d\"$(e f) is one token")

@@ -61,7 +61,8 @@ this tree.
   `CHARACTER`, `POINTER`, ...), a class's name as spelled (`Dict`,
   `Gen`), or one of `ANY` (every value), `NUMBER` and `CALLABLE`
   (unions), `ALIST`, `TYPE` (a runtime type's handle). Unions are written
-  `INTEGER|BIGINT`. Documentation only.
+  `INTEGER|BIGINT`. A rest parameter's annotation names the type of each
+  argument it collects. Documentation only.
 
 ## Objects and classes
 

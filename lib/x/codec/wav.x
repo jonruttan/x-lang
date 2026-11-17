@@ -186,7 +186,7 @@
     (see decode))
   (static
     (method format (self (param s STRING "Bytes holding a WAV file")
-                         . (param span LIST "START, then LENGTH: which bytes of s; default all of s"))
+                         . (param span INTEGER "START, then LENGTH: which bytes of s; default all of s"))
       (doc "The file's frames a second, channels, bits a sample and frames, from its fmt and data chunks, without reading the frames. Give LENGTH for a file held in a buffer: s's own length is measured to its first NUL, and a WAV file has many. Raises a label 'value when the bytes are not a WAV file of integer PCM."
         (returns LIST "(RATE CHANNELS BITS FRAMES)")
         (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"524946462800000057415645666d74201000000001000100401f0000803e0000020010006461746104000000ff7f0080\")) (Wav format (first r) 0 (List ref 2 r)))" "(8000 1 16 2)"))
@@ -195,7 +195,7 @@
       (def f (%format p (first (rest sp))))
       (list (List ref 0 f) (List ref 1 f) (List ref 2 f) (List ref 3 f)))
     (method decode (self (param s STRING "Bytes holding a WAV file")
-                         . (param span LIST "START, then LENGTH, as for format"))
+                         . (param span INTEGER "START, then LENGTH, as for format"))
       (doc "The sound as one channel: each frame the mean of its channels, rounded down, each sample its top 16 bits, signed, little-endian, the form (Mixer sample!) and (Mixer cycle!) take. With it, a sampler chunk's first loop, END past its last frame, and the MIDI note the sound is at (60 is C4), each nil when the file has none. Raises a label 'value naming what is wrong with a file that is not WAV, ends early, or holds floating-point or other samples."
         (returns LIST "(RATE FRAMES PCM LOOP ROOT): PCM a buffer of FRAMES x 2 bytes; LOOP (START END) or nil; ROOT a MIDI note or nil")
         (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"524946462800000057415645666d74201000000001000100401f0000803e0000020010006461746104000000ff7f0080\")) (def d (Wav decode (first r) 0 (List ref 2 r))) (list (first d) (List ref 1 d) (Bytes hex (list (List ref 2 d) 0 4))))" "(8000 2 \"ff7f0080\")"))

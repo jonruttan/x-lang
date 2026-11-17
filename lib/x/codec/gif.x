@@ -243,7 +243,7 @@
     (see decode))
   (static
     (method size (self (param s STRING "Bytes holding a GIF")
-                       . (param span LIST "START, then LENGTH: which bytes of s; default all of s"))
+                       . (param span INTEGER "START, then LENGTH: which bytes of s; default all of s"))
       (doc "The logical screen's width and height, from the header, without decoding. Give LENGTH for a GIF held in a buffer: s's own length is measured to its first NUL. Raises a label 'value when the bytes are not a GIF."
         (returns LIST "(WIDTH HEIGHT)")
         (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"47494638396102000100f00100000000ffffff21f90400000000002c0000000002000100000202440a003b\")) (Gif size (first r) 0 (List ref 2 r)))" "(2 1)"))
@@ -252,7 +252,7 @@
       (unless (%signed? p (first (rest sp))) (%fail "not a GIF: the signature does not match"))
       (list (%u16 p 6) (%u16 p 8)))
     (method decode (self (param s STRING "Bytes holding a GIF")
-                         . (param span LIST "START, then LENGTH, as for size"))
+                         . (param span INTEGER "START, then LENGTH, as for size"))
       (doc "Decode the first image to RGBA at 8 bits a sample, the size of the logical screen: the image's indexes looked up in its colour table and placed at its offset, interlaced rows put in order. The screen outside the image and a transparent index are alpha 0; later frames are passed over. Raises a label 'value naming what is wrong with a malformed image."
         (returns LIST "(WIDTH HEIGHT RGBA): RGBA a buffer of WIDTH x HEIGHT x 4 bytes, rows top to bottom")
         (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"47494638396102000100f00100000000ffffff21f90400000000002c0000000002000100000202440a003b\")) (def d (Gif decode (first r) 0 (List ref 2 r))) (Bytes hex (list (List ref 2 d) 0 8)))" "\"000000ffffffffff\""))

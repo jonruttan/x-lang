@@ -335,7 +335,7 @@
   (static
     (method mac (self (param key STRING "The one-time key: 32 bytes are read, r then s")
                       (param s STRING "The bytes to authenticate")
-                      . (param span LIST "START, then LENGTH: which bytes of s; default all of s"))
+                      . (param span INTEGER "START, then LENGTH: which bytes of s; default all of s"))
       (doc "The Poly1305 tag (RFC 8439 2.5) of a byte region under a one-time key, as sixteen bytes. The key is used ONCE: a second message under the same key gives the key away. GIVE THE REGION FOR BINARY INPUT: s's own length is measured to its first NUL. Computed pure-x, or by the differentially-verified compiled engine once (jit!) has built it -- identical output either way."
         (returns STRING "16 bytes")
         (example "(Poly1305 mac (Str8 pad-right 32 #\\k \"\") \"\")" "\"kkkkkkkkkkkkkkkk\""))

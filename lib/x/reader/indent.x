@@ -161,7 +161,7 @@
   cols      ; open columns, deepest first, always ending in 0
 
   (static
-    (method make (self . (param opts LIST "Optional (TAB-STOP MISMATCH-LABEL); defaults 8 and 'error"))
+    (method make (self . (param opts INTEGER|SYMBOL "Optional (TAB-STOP MISMATCH-LABEL); defaults 8 and 'error"))
       (doc "An indenter with nothing but column 0 open. Defaults are SRFI-110's and Python's: a tab advances to the next multiple of 8, and a dedent matching no open level is an error -- the only one of the three historical answers with a specification behind it."
         (returns Indent "A fresh indenter")
         (example "((Indent make 1 'open) feed 3)" "('open)"))

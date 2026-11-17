@@ -689,7 +689,7 @@
     (%sx-sgr (self codes) cls))
 
   (method with (self (param rows LIST "Rows (CLASS ATTRIBUTES FOREGROUND BACKGROUND), as make takes them")
-                     . (param name LIST "Optionally the new theme's name; the same name if left out"))
+                     . (param name SYMBOL "Optionally the new theme's name; the same name if left out"))
     (doc "A theme with the rows over this one's: a class in rows is drawn as they say, every other as before."
       (returns Theme "The theme")
       (example "(((Theme default) with '((number (bold) 3 ()))) sgr 'number)" "\"\\x1b[1;33m\""))
@@ -822,7 +822,7 @@
     (example "(null? ((Syntax make 'plain (list (Lexer any 'text)) ()) lexer))" "#t"))
 
   (method spans (self (param text STRING "The text")
-                      . (param range LIST "Optionally the start, the length, and the end of the meaningful text"))
+                      . (param range INTEGER "Optionally the start, the length, and the end of the meaningful text"))
     (doc "The spans of text from start for length bytes, each (offset length class) in order, offsets into text and clipped to the range. The lexer reads from a line the sync test passes, so a string or comment opened before start colours the range's start, and to the end of the line the range ends in, never past the end given. Tokens with no class are left out."
       (returns LIST "((offset length class) ...)")
       (example "((Syntax x) spans \"\\\"a b\\\" c\" 3 4)" "((3 2 'string) (6 1 'name))"))
@@ -896,7 +896,7 @@
             (if (null? row) () (%sx-load row))))))
 
     (method for-file (self (param path STRING "A file name")
-                           . (param text LIST "Optionally the file's text"))
+                           . (param text STRING "Optionally the file's text"))
       (doc "The grammar for a file: with its text, the one a modeline in the first or last five lines names (vi: set ft=NAME, or filetype, syn or syntax); else the one a rule in the user's syntax file gives it; else the one whose interpreters hold the program the #! line runs; else the one whose files the name ends with or whose names hold its base name. Registered grammars are asked before bundles' and loaded as named loads them; nil for none, and for a rule naming a grammar none knows."
         (returns Syntax "The grammar, or nil")
         (example "((Syntax for-file \"lib/x/tool/syntax.x\") name)" "'x")
@@ -952,7 +952,7 @@
                        (param spans LIST "Spans, as spans answers them")
                        (param start INTEGER "The first byte to draw")
                        (param len INTEGER "How many bytes")
-                       . (param code-of LIST "Optionally (fn (_ span)) answering a span's escape sequence, or nil for its class's"))
+                       . (param code-of CALLABLE "Optionally (fn (_ span)) answering a span's escape sequence, or nil for its class's"))
       (doc "The bytes of text from start, each span's wrapped in its class's sequence and a reset, the rest plain. The sequences are code's, the theme in use's and empty when colour is off, unless code-of answers one."
         (returns STRING "The text with escape sequences inserted")
         (sample "(Syntax ansi s ((Syntax x) spans s) 0 (Str8 length s))" "s coloured as x-lang"))
