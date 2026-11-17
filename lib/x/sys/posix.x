@@ -411,6 +411,53 @@
               (let go ((i 0) (acc ()))
                 (if (= i n) (%reverse acc)
                   (go (+ i 1) (pair (ptr-ref p (* i 4) 4) acc)))))))))
+    ; struct passwd opens with pw_name and pw_passwd, two char pointers,
+    ; then pw_uid and pw_gid, two 4-byte ints, everywhere.  Linux (glibc
+    ; and musl alike) follows with pw_gecos, pw_dir and pw_shell, so gecos
+    ; sits 8 bytes past two words: 24 on an 8-byte word, 16 on a 4-byte one.
+    ; Darwin puts pw_change (a time_t) and pw_class (a pointer) first,
+    ; which moves gecos to 40; it ships on an 8-byte word only.  dir and
+    ; shell follow gecos a word apart on both.  The two 4-byte id reads are
+    ; widening (ptr ref)s -- host byte order, and unsigned, as uid_t is.
+    ; constraint: endian = little -- widening (ptr ref) of pw_uid and pw_gid
+    (method getpwuid (self (param uid INTEGER "User id to look up"))
+      (doc "The password-database entry for a user id, from getpwuid(3): the login name, the ids, the gecos field as stored (commas and all), the home directory and the login shell. Answers nil when no entry has that id."
+        (returns ALIST "((name . S) (uid . N) (gid . N) (gecos . S) (dir . S) (shell . S)), or nil")
+        (note "A field the C library leaves as a null pointer is nil.")
+        (example "(= (rest (Assoc entry 'uid (Sys getpwuid (Sys getuid)))) (Sys getuid))" "#t")
+        (sample "(Sys getpwuid (Sys getuid))" "((name . \"jon\") (uid . 501) (gid . 20) (gecos . \"Jonathan Ruttan\") (dir . \"/Users/jon\") (shell . \"/bin/zsh\"))"))
+      ; POINTER return -- must NOT go through %sys-fold (see its comment).
+      ; The strings live in the C library's static area, so each is copied
+      ; out before anything else can call getpwuid again.
+      (let ((pw (ptr-call (%resolve "getpwuid") uid)))
+        (if (= pw 0) ()
+          (let ((p (%cvt pw %ptr))
+                (gecos (if os-darwin? 40 (+ (* 2 %word-size) 8))))
+            (def %str-at
+              (fn (_ off)
+                (let ((s (ptr-ref-word p off)))
+                  (if (= s 0) () (%cvt (%cvt s %ptr) %string)))))
+            (list (pair (lit name) (%str-at 0))
+                  (pair (lit uid) (ptr-ref p (* 2 %word-size) 4))
+                  (pair (lit gid) (ptr-ref p (+ (* 2 %word-size) 4) 4))
+                  (pair (lit gecos) (%str-at gecos))
+                  (pair (lit dir) (%str-at (+ gecos %word-size)))
+                  (pair (lit shell) (%str-at (+ gecos (* 2 %word-size)))))))))
+    ; Darwin's MAXHOSTNAMELEN is 256 and Linux's HOST_NAME_MAX 64, so 256
+    ; bytes holds either; the last is kept NUL, since POSIX leaves a
+    ; truncated name unterminated.
+    (method gethostname (self)
+      (doc "This machine's host name, from gethostname(3) -- the name hostname(1) prints, which need not be fully qualified. Raises an io Err when the call fails."
+        (returns STRING "The host name")
+        (note "A fully qualified name for it, when the resolver knows one, is (Socket canonical-name (Sys gethostname)).")
+        (example "(< 0 (Str8 length (Sys gethostname)))" "#t")
+        (sample "(Sys gethostname)" "\"Mac\""))
+      (let ((s (str-make 256)) (set (prim-ref (lit ptr) (lit set!))))
+        (let ((p (str->ptr s)))
+          (set p 255 0 1)
+          (let ((r (%sys-fold (ptr-call (%resolve "gethostname") p 255))))
+            (when (< r 0) (error (Err from-errno (Err errno-of r) (lit gethostname) ())))
+            (%cvt p %string)))))
     ; struct utsname is five fixed char arrays back to back, and the
     ; array WIDTH is the whole per-OS difference: Darwin's _SYS_NAMELEN
     ; is 256, Linux's is 65 (with a sixth domainname field after).

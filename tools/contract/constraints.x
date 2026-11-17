@@ -51,7 +51,9 @@
 
   ; The timeval decode reads tv_usec, a 4-byte value a word on, and Sys zone
   ; reads the low half of struct tm's tm_gmtoff as an int: both widen in host
-  ; byte order.  The offsets follow the word.
+  ; byte order.  Sys getpwuid reads struct passwd's pw_uid and pw_gid, two
+  ; 4-byte ids after two pointers, the same way.  The offsets follow the word.
+  (constraint "lib/x/sys/posix.x" endian = little)
   (constraint "lib/x/sys/posix.x" endian = little)
   (constraint "lib/x/sys/posix.x" endian = little)
 

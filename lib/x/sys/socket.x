@@ -270,6 +270,40 @@
         (Err raise (lit value) (Str8 append "Socket resolve: no IPv4 address for " name) ()))
       quad)
 
+    (method canonical-name (self (param name STRING "Hostname to look up"))
+      (doc "The canonical name the resolver gives for a host, via getaddrinfo with AI_CANONNAME -- for a short name the resolver can qualify, its fully qualified form. Answers nil when the resolver knows no such host, or knows no canonical name for it; raises a label 'io with the gai code when resolution fails otherwise."
+        (returns STRING "The canonical name, or nil")
+        (note "What it answers is the resolver's: a name it cannot qualify may come back as given.")
+        (example "(str? (Socket canonical-name \"localhost\"))" "#t")
+        (sample "(Socket canonical-name (Sys gethostname))" "\"mac.home\""))
+      ; The hints are a zeroed struct addrinfo (eight words covers it on
+      ; either word size) with ai_flags, the 4-byte int at 0, set to
+      ; AI_CANONNAME, which is 2 on Darwin and Linux.  The first node of
+      ; the answer carries ai_canonname: pointer 0 after the five 4-byte
+      ; fields on Darwin, pointer 1 on Linux -- see resolve's layout note.
+      ; EAI_NONAME and EAI_NODATA, a miss, are 8 and 7 on Darwin, -2 and
+      ; -5 under glibc and musl.
+      (def hints-region (str-make (* 8 %word-size)))
+      (def hints (str->ptr hints-region))
+      (let zero ((off 0))
+        (when (< off (* 8 %word-size))
+          (ptr-set! hints off 0 4)
+          (zero (+ off 4))))
+      (ptr-set! hints 0 2 4)
+      (def canon-off (+ 16 (* (if os-darwin? 1 2) %word-size)))
+      (def rescell-region (str-make %word-size))
+      (def rescell (str->ptr rescell-region))
+      (def r (%sk-fold (ptr-call (%sk "getaddrinfo") name 0 hints rescell)))
+      (match
+        ((= r 0)
+          (let ((head (ptr-ref-word rescell 0)))
+            (let ((cn (if (= head 0) 0 (ptr-ref-word (int->ptr head) canon-off))))
+              (let ((answer (if (= cn 0) () (ptr->str (int->ptr cn)))))
+                (unless (= head 0) (ptr-call (%sk "freeaddrinfo") (int->ptr head)))
+                answer))))
+        ((List includes? r (if os-darwin? (list 8 7) (list -2 -5))) ())
+        (#t (Err raise (lit io) (Str8 append "Socket canonical-name: getaddrinfo failed for " name) r))))
+
     (method recv-bytes (self (param fd INTEGER "Connected file descriptor")
                             (param maxlen INTEGER "Maximum bytes to receive"))
       (doc "Receive up to maxlen bytes as a BYTE LIST -- the lossless door (recv's string return truncates at the first NUL; this one carries binary intact, #374); nil at orderly EOF; raises on failure."

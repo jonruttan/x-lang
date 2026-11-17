@@ -354,6 +354,52 @@ this file uses the `Sys` abstraction for that reason).
 ---
     (#t #t #t)
 
+### getpwuid reads the real uid's entry: its ids, and a home and shell that are paths
+
+```x
+(do (import x/sys/posix) (import x/core/alist)
+  (def pw (Sys getpwuid (Sys getuid)))
+  (def at (fn (_ k) (rest (Assoc entry k pw))))
+  (list (= (at 'uid) (Sys getuid))
+        (> (Str8 length (at 'name)) 0)
+        (str? (at 'gecos))
+        (Str8 starts? "/" (at 'dir))
+        (Str8 starts? "/" (at 'shell))))
+```
+---
+    (#t #t #t #t #t)
+
+### getpwuid 0 is root, whose home is where the system puts it
+
+```x
+(do (import x/sys/posix) (import x/core/alist) (import x/platform/syscall)
+  (def pw (Sys getpwuid 0))
+  (def at (fn (_ k) (rest (Assoc entry k pw))))
+  (list (at 'name) (at 'uid) (at 'gid)
+        (Str8 =? (at 'dir) (if os-darwin? "/var/root" "/root"))))
+```
+---
+    ("root" 0 0 #t)
+
+### getpwuid answers nil for an id no entry has
+
+```x
+(do (import x/sys/posix) (null? (Sys getpwuid 3999999999)))
+```
+---
+    #t
+
+### gethostname answers the name hostname prints, which uname calls nodename
+
+```x
+(do (import x/sys/posix) (import x/core/alist)
+  (def h (Sys gethostname))
+  (list (> (Str8 length h) 0)
+        (Str8 =? h (rest (Assoc entry 'nodename (Sys uname))))))
+```
+---
+    (#t #t)
+
 ### cpu-count is at least one
 
 ```scheme
