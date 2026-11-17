@@ -1298,6 +1298,8 @@
       ((eq? op 'f-sqrt) (%asm-compile-funop asm 'fsqrt args params))
       ((eq? op 'i->f) (%asm-compile-funop asm 'scvtf args params))
       ((eq? op 'f->i) (%asm-compile-funop asm 'fcvtzs args params))
+      ((eq? op 'f32-ref) (%asm-compile-f32-ref asm args params))
+      ((eq? op 'f32-set!) (%asm-compile-f32-set asm args params))
       ; `if` is a match of one or two arms, the way lib/x/core/control.x
       ; derives it: the else, when there is one, is the `#t` arm.
       ((eq? op 'if)
@@ -1424,6 +1426,44 @@
         (do (asm-emit! asm 'fmov/d d0 x0)
             (asm-emit! asm insn d0 d0)
             (asm-emit! asm 'fmov/x x0 d0))))))
+
+; A single in memory.  (f32-ref A I) is the single at A + 4I bytes widened
+; to a double, which is exact.  (f32-set! A I V) rounds the double V to a
+; single, stores it there and answers V.  A loop over singles so does its
+; arithmetic in doubles; for + - * and / the double result rounded to a
+; single is the one single arithmetic answers.
+(def %asm-compile-f32-address
+  (fn (_ asm args params)
+    (%asm-require-wide-word)
+    (%asm-compile-expr asm (first args) params)          ; base
+    (asm-push! asm x0)
+    (%asm-compile-expr asm (first (rest args)) params)   ; index
+    (asm-emit! asm 'mov x2 (imm 2))                      ; a single is 4 bytes
+    (asm-emit! asm 'lslv x0 x0 x2)
+    (asm-emit! asm 'mov x1 x0)
+    (asm-pop! asm x0)                                    ; x0 = base
+    (asm-emit! asm 'add x0 x0 x1)))                      ; x0 = address
+
+(def %asm-compile-f32-ref
+  (fn (_ asm args params)
+    (%asm-compile-f32-address asm args params)
+    (asm-emit! asm (lit ldrw) x0 (mem 0 0))
+    (asm-emit! asm 'fmov/d d0 x0)
+    (asm-emit! asm 'fcvt/d d0 d0)
+    (asm-emit! asm 'fmov/x x0 d0)))
+
+(def %asm-compile-f32-set
+  (fn (_ asm args params)
+    (%asm-compile-f32-address asm args params)
+    (asm-push! asm x0)                                   ; save address
+    (%asm-compile-expr asm (first (rest (rest args))) params) ; value
+    (asm-emit! asm 'mov x1 x0)                           ; x1 = the double
+    (asm-pop! asm x0)                                    ; x0 = address
+    (asm-emit! asm 'fmov/d d0 x1)
+    (asm-emit! asm 'fcvt/s d0 d0)
+    (asm-emit! asm 'fmov/x x2 d0)                        ; x2 = the single's bits
+    (asm-emit! asm (lit strw) x2 (mem 0 0))
+    (asm-emit! asm 'mov x0 x1)))                         ; yield the value
 
 ; Modulo: SDIV + MSUB
 (set! %asm-compile-mod
