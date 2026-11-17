@@ -462,12 +462,13 @@ or 0.
       ((> n 8) 0)
       ((%tabmove-intact? n) (loop (+ n 1)))
       (#t n))))
-(def %tabmove-pid (Sys fork))
-(when (= %tabmove-pid 0)
-  (def %set-first! (fn (_ p v) (%tabmove-set-first! p v) (%tabmove-count) p))
-  (def %set-rest! (fn (_ p v) (%tabmove-set-rest! p v) (%tabmove-count) p))
-  (Sys exit (%tabmove-first-loss 1)))
-(Sys wait %tabmove-pid)
+(begin
+  (def %tabmove-pid (Sys fork))
+  (when (= %tabmove-pid 0)
+    (def %set-first! (fn (_ p v) (%tabmove-set-first! p v) (%tabmove-count) p))
+    (def %set-rest! (fn (_ p v) (%tabmove-set-rest! p v) (%tabmove-count) p))
+    (Sys exit (%tabmove-first-loss 1)))
+  (Sys wait %tabmove-pid))
 ```
 ---
     0

@@ -10,10 +10,6 @@ and `math` to the digits printed.
 
 ### a distribution is a value of its class
 
-A block reads whole before it runs, so a float literal reads as a float
-only in a block after the one whose import loads the float reader; this
-case loads it.
-
 ```x
 (import x/num/distribution)
 (List map class-name (list (Normal make) (Uniform make) (Exponential make)))
