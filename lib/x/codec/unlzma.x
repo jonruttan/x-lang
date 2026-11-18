@@ -33,12 +33,10 @@
 (import x/type/vector)
 (import x/tool/compiled)
 (import x/num/u32 u32-srl)
+(import x/codec/bytes)
 
+; There is no int > or >= door: a > b is (int< b a).
 (import x/core/doors int% int& int* int+ int- int->ptr int/ int< int<< int= int>> int| mem-cmp mem-copy obj-ref obj-set! ptr->int ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-byte-len str-make)
-
-; The one coordinate the doors module does not carry.  There is no int >
-; or >= either: a > b is (int< b a).
-(def %mem-set (prim-ref (lit mem) (lit set)))
 
 ; Every bit of a 32-bit pattern, spelled in hex because hex reads the bits:
 ; -1 where the word is 32 bits, 4294967295 where it is 64.  The decimal
@@ -161,13 +159,6 @@
 (def %bref (fn (_ p i) (int& (ptr-ref p i 1) 255)))
 (def %bset! (fn (_ p i v) (ptr-set! p i v 1)))
 
-; A region of n bytes, zeroed; never of none, since a (str make) of 0 is no
-; buffer.
-(def %zeroed
-  (fn (_ n)
-    (def k (if (int< n 1) 1 n))
-    (def r (str-make k))
-    (do (%mem-set (str->ptr r) 0 k) r)))
 
 ; A region of n words, every one 1024: each probability starts even.  The
 ; first word is set and the words set so far copied after themselves, so
@@ -288,7 +279,7 @@
       (do (def want (%dict-double (if (int< cap 1) 1 cap) n))
           (def size (obj-ref s %DICTSIZE))
           (def ncap (if (int< size want) size want))
-          (def r (%zeroed ncap))
+          (def r (first (Bytes zeros ncap)))
           (def high (obj-ref s %DICTHIGH))
           (if (int< 0 high) (mem-copy (str->ptr r) (obj-ref s %DICT) high) ())
           (obj-set! s %DICTR r)
@@ -708,7 +699,7 @@
     (obj-set! z %ZINCNT left)
     (obj-set! d %INCNT 0)))
 
-(def %empty (%zeroed 1))
+(def %empty (first (Bytes zeros 1)))
 
 ; What the input held decodes to, as (OUT N).  final? says the input has
 ; ended: the decisions run to the end, and running out is an error, not a

@@ -127,15 +127,6 @@
 
 ; --- PSS ----------------------------------------------------------------------
 
-; Eight zero bytes, PSS's M' prefix, in a fresh buffer: made at load, an
-; image would bring them back empty.
-(def %zero8
-  (fn (_)
-    (def z (str-make 8))
-    (ptr-set! (str->ptr z) 0 0 4)
-    (ptr-set! (str->ptr z) 4 0 4)
-    (list z 0 8)))
-
 ; MGF1 (B.2.1): the hashes of seed and a counter, 0 up, cut to len bytes.
 (def %mgf1
   (fn (_ hash seed len)
@@ -189,20 +180,9 @@
                 (def salt-at (- db-len h))
                 (and (%run-of? db 0 (- salt-at 1) 0)
                      (= (%at db (- salt-at 1)) 1)
-                     (Bytes same? hh (list (Hmac digest hash (%zero8) digest (Bytes sub db salt-at h)) 0 h)))))))))
+                     (Bytes same? hh (list (Hmac digest hash (Bytes zeros 8) digest (Bytes sub db salt-at h)) 0 h)))))))))
 
 ; --- signing ------------------------------------------------------------------
-
-; n zero bytes in a fresh buffer, four a step and the odd ones singly.
-(def %zeros
-  (fn (_ n)
-    (def z (str-make (if (> n 0) n 1)))
-    (def p (str->ptr z))
-    ((fn (self i)
-       (if (<= (int+ i 4) n) (do (ptr-set! p i 0 4) (self (int+ i 4)))
-         (unless (>= i n) (do (ptr-set! p i 0 1) (self (int+ i 1))))))
-     0)
-    (list z 0 n)))
 
 ; EMSA-PSS-ENCODE (9.1.1), emBits = BITS - 1 and a fresh salt as long as the
 ; hash, laid out at K bytes: EM, after a zero byte when emLen is one short
@@ -216,15 +196,15 @@
     (def em-len (int>> (+ em-bits 7) 3))
     (if (< em-len (+ h h 2)) ()
       (do (def salt (Bytes random h))
-          (def hh (list (Hmac digest hash (%zeros 8) digest salt) 0 h))
+          (def hh (list (Hmac digest hash (Bytes zeros 8) digest salt) 0 h))
           (def db-len (- em-len h 1))
-          (def one (%zeros 1))
+          (def one (Bytes zeros 1))
           (ptr-set! (str->ptr (first one)) 0 1 1)
-          (def bc (%zeros 1))
+          (def bc (Bytes zeros 1))
           (ptr-set! (str->ptr (first bc)) 0 188 1)
-          (def db (Bytes join (%zeros (- db-len h 1)) one salt))
+          (def db (Bytes join (Bytes zeros (- db-len h 1)) one salt))
           (def masked (%unmask db (%mgf1 hash hh db-len) (int>> 255 (- (* 8 em-len) em-bits))))
-          (Bytes join (%zeros (- k em-len)) masked hh bc)))))
+          (Bytes join (Bytes zeros (- k em-len)) masked hh bc)))))
 
 ; --- key generation -----------------------------------------------------------
 ;
@@ -276,7 +256,7 @@
 (def %add-small
   (fn (_ r v)
     (def n (%len r))
-    (def out (%zeros n))
+    (def out (Bytes zeros n))
     (def carry
       ((fn (self i c)
          (if (< i 0) c
@@ -290,7 +270,7 @@
 (def %sub-small
   (fn (_ r v)
     (def n (%len r))
-    (def out (%zeros n))
+    (def out (Bytes zeros n))
     ((fn (self i b)
        (unless (< i 0)
          (do (def s (int- (%at r i) b))
@@ -303,7 +283,7 @@
 (def %sub-big
   (fn (_ a b)
     (def n (%len a))
-    (def out (%zeros n))
+    (def out (Bytes zeros n))
     ((fn (self i borrow)
        (unless (< i 0)
          (do (def s (int- (int- (%at a i) (%at b i)) borrow))
@@ -316,7 +296,7 @@
 (def %width
   (fn (_ r n)
     (def k (%len r))
-    (if (>= k n) (Bytes sub r (int- k n) n) (Bytes join (%zeros (int- n k)) r))))
+    (if (>= k n) (Bytes sub r (int- k n) n) (Bytes join (Bytes zeros (int- n k)) r))))
 
 ; a b, the two lengths' sum of bytes: columns of byte products summed,
 ; then the carries.
@@ -338,7 +318,7 @@
                 0))
              (self (int+ i 1)))))
      0)
-    (def out (%zeros n))
+    (def out (Bytes zeros n))
     ((fn (self k c)
        (unless (< k 0)
          (do (def s (int+ (obj-ref col (int+ k 1)) c))
@@ -354,7 +334,7 @@
 (def %div-small
   (fn (_ r m)
     (def n (%len r))
-    (def out (%zeros n))
+    (def out (Bytes zeros n))
     ((fn (self i acc)
        (unless (= i n)
          (do (def cur (int+ (int* acc 256) (%at r i)))
@@ -369,7 +349,7 @@
     (def n (%len r))
     (def bytes (int>> s 3))
     (def bits (int& s 7))
-    (def out (%zeros n))
+    (def out (Bytes zeros n))
     ((fn (self i)
        (unless (< i bytes)
          (do (def lo (%at r (int- i bytes)))
@@ -414,7 +394,7 @@
     (def bases (pair 2 ((fn (self i acc) (if (= i (int- rounds 1)) (List reverse acc) (self (int+ i 1) (pair (obj-ref (%smalls) (int+ i 1)) acc)))) 0 ())))
     ((fn (self l)
        (if (null? l) #t
-         (do (def a (%add-small (%zeros len) (first l)))
+         (do (def a (%add-small (Bytes zeros len) (first l)))
              (mont-jit-load-bytes! e 0 (first a) 0 len)
              (mont-jit-to! e 0 0)
              (mont-jit-pow! e 3 0 (first t) (first (rest t)) len)

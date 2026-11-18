@@ -24,6 +24,7 @@
 (import x/codec/inflate Inflate)
 (import x/codec/crc32 Crc32)
 (import x/num/u32 u32-bits)
+(import x/codec/bytes)
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
 
@@ -32,9 +33,6 @@
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "Png: " what) ())))
 
 (def %at (fn (_ p off) (int->ptr (int+ (ptr->int p) off))))
-(def %mem-set (prim-ref (lit mem) (lit set)))
-; N bytes of 0: str-make's bytes are not 0.
-(def %zeros (fn (_ n) ((fn (_ s) (do (%mem-set (str->ptr s) 0 n) s)) (str-make n))))
 (def %u8 (fn (_ p i) (int& (ptr-ref p i 1) 255)))
 (def %u16 (fn (_ p i) (int| (int<< (%u8 p i) 8) (%u8 p (int+ i 1)))))
 (def %u32 (fn (_ p i) (int| (int<< (%u16 p i) 16) (%u16 p (int+ i 2)))))
@@ -306,7 +304,7 @@
     (def dy (List ref 3 pass))
     (def unfilter (first engine))
     (def pixels (match ((eq? layout ()) %pixels-pure) (#t (List ref 1 engine))))
-    (def zero (%zeros (int+ stride 1)))
+    (def zero (first (Bytes zeros (int+ stride 1))))
     ((fn (self y u)
        (when (int< y ph)
          (def f (%at z (int+ at (int* y (int+ stride 1)))))
@@ -314,6 +312,21 @@
          (unless (int< (%u8 f 0) 5) (%fail "an unknown row filter"))
          (unfilter (%u8 f 0) r u stride bpp)
          (pixels layout put r o (int<< (int+ (int* (int+ y0 (int* y dy)) w) x0) 2) pw (int<< dx 2) pal)
+         (self (int+ y 1) r)))
+     0 (str->ptr zero))))
+
+; Undo the filters of ROWS rows of STRIDE bytes from AT of the buffer S, in
+; place, each row led by its filter byte.  UNFILTER is the row loop.
+(def %rows
+  (fn (_ unfilter s at rows stride bpp)
+    (def z (str->ptr s))
+    (def zero (%zeros (int+ stride 1)))
+    ((fn (self y u)
+       (when (int< y rows)
+         (def f (%at z (int+ at (int* y (int+ stride 1)))))
+         (def r (%at f 1))
+         (unless (int< (%u8 f 0) 5) (%fail "an unknown row filter"))
+         (unfilter (%u8 f 0) r u stride bpp)
          (self (int+ y 1) r)))
      0 (str->ptr zero))))
 
@@ -371,7 +384,7 @@
         (fn (_ case)
           (def a (str->ptr (%check-bytes 48 5)))
           (def b (str->ptr (%check-bytes 48 5)))
-          (def u (match ((first (rest (rest case))) above) (#t (str->ptr (%zeros 48)))))
+          (def u (match ((first (rest (rest case))) above) (#t (str->ptr (first (Bytes zeros 48))))))
           (%unfilter-pure (first case) a u 45 (List ref 1 case))
           (unfilter (first case) b u 45 (List ref 1 case))
           (%same? a b 0 48))
@@ -490,6 +503,15 @@
         (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"89504e470d0a1a0a0000000d49484452000000020000000108020000007b40e8dd0000000f4944415408d763f8cfc0c0f09f010007ff01ff09a29f170000000049454e44ae426082\")) (def d (Png decode (first r) 0 (List ref 2 r))) (Bytes hex (list (List ref 2 d) 0 8)))" "\"ff0000ff00ff00ff\""))
       (def sp (%span s span))
       (%decode s (first sp) (first (rest sp))))
+    (method unfilter (self (param s STRING "Bytes holding rows, each a filter byte and then STRIDE bytes")
+                           (param start INTEGER "Where the first row's filter byte is")
+                           (param rows INTEGER "How many rows")
+                           (param stride INTEGER "The bytes of a row after its filter byte")
+                           (param bpp INTEGER "The bytes of a whole pixel, 1 for a pixel under 8 bits"))
+      (doc "Undo the filters of rows of bytes in place, each row against the one above it and the first against zeros: the predictor of a PNG's rows, which a PDF's FlateDecode streams use too. The filter bytes stay where they are. Raises a label 'value for a filter past 4."
+        (returns ANY "nil")
+        (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"020102020101\")) (Png unfilter (first r) 0 2 2 1) (Bytes hex r))" "\"020102020203\""))
+      (%rows (first (%engine-for (int* rows (int+ stride 1)))) s start rows stride bpp))
     (method jit! (self)
       (doc "Build and adopt the compiled row loops (JIT; ARM64 and x86-64 backends) now, if they undo the check rows' filters and write the check pixels exactly as the pure-x loops do. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x loops carry on, with the same output. decode builds it on its own for an image of 22KB or more inflated."
         (returns BOOL "#t when the compiled engine is active")
