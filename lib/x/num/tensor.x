@@ -1,9 +1,10 @@
 ; tensor.x -- Tensor: an n-dimensional array of numbers packed in bytes.
 ;
 ; A tensor is an encoding, an extent, strides, an offset and a byte region.
-; The encoding says how each element is stored: f64, an IEEE double; i64,
-; a 64-bit integer; or c128, a complex number as two doubles, its real part
-; first.  f64 and i64 take 8 bytes, c128 16.  The extent is the length of
+; The encoding says how each element is stored: f64, an IEEE double; f32,
+; an IEEE single; i64, a 64-bit integer; or c128, a complex number as two
+; doubles, its real part first.  f64 and i64 take 8 bytes, f32 4 and c128
+; 16.  The extent is the length of
 ; each axis, (2 3) for two rows of three, and its length is the rank.  The
 ; strides say how many elements to step along each axis, and the offset is
 ; the index of the first element in the region.  A fresh tensor is laid out
@@ -40,8 +41,17 @@
 ; median -- are made from the reductions and a sorted list; variance and
 ; deviation divide by the count less 1 unless given another correction.
 ;
-; On a 4-byte word a double is two words: f64 tensors run their pure
-; kernels only, and i64 is refused, since an element does not fit a word.
+; An f32 kernel is the f64 kernel but for its loads and stores: an element
+; is read as a double, which holds a single exactly, and a result is
+; rounded to a single as it is stored.  For add, sub, mul and div that is
+; the result single arithmetic gives.  A reduction keeps its accumulator a
+; double, so an f32 sum answers a Float that was rounded to no single on
+; the way.  In an operation of two encodings c128 wins, then f64, then
+; f32: an f32 tensor stays f32 against a number or an i64 tensor.
+;
+; On a 4-byte word a double is two words: f64 and f32 tensors run their
+; pure kernels only, and i64 is refused, since an element does not fit a
+; word.
 ;
 ; @copyright 2026 Jon Ruttan
 ; @license MIT No Attribution (MIT-0)
@@ -58,7 +68,7 @@
   ptr-ref-word ptr-set-word! str->ptr str->sym str-make type-make-instance type-of type?)
 
 (def-class Tensor ()
-  (doc "An n-dimensional array of numbers packed in bytes, each element an f64 (an IEEE double), an i64 (a 64-bit integer) or a c128 (a complex number, two doubles). Transpose, slice and reshape answer views that share the bytes; the element-wise operations broadcast, an axis of length 1 stretching to the other operand's; the arithmetic runs in kernels that compile once they have run long enough."
+  (doc "An n-dimensional array of numbers packed in bytes, each element an f64 (an IEEE double), an f32 (an IEEE single), an i64 (a 64-bit integer) or a c128 (a complex number, two doubles). Transpose, slice and reshape answer views that share the bytes; the element-wise operations broadcast, an axis of length 1 stretching to the other operand's; the arithmetic runs in kernels that compile once they have run long enough."
     (note "The extent is the length of each axis, (2 3) for two rows of three; rank is its length. Indexes are 0-based and a negative one counts from the end.")
     (example "((Tensor from '((1 2) (3 4)) 'f64) ->list)" "((1.0 2.0) (3.0 4.0))")
     (example "(((Tensor from '((1 2) (3 4.5))) add (Tensor from '(10 20))) ->list)" "((11.0 22.0) (13.0 24.5))")
@@ -69,7 +79,7 @@
   (static
     ; --- making tensors -----------------------------------------------------
     (method zeros (self (param extent INTEGER|LIST "Axis lengths, or one length for rank 1")
-                        . (param enc SYMBOL "Optional encoding: f64 (the default) or i64"))
+                        . (param enc SYMBOL "Optional encoding: f64 (the default), f32, i64 or c128"))
       (doc "A tensor of the given extent, every element 0."
         (returns Tensor "A fresh row-major tensor")
         (example "((Tensor zeros '(2 2)) ->list)" "((0.0 0.0) (0.0 0.0))")
@@ -119,8 +129,8 @@
     (method encodings (self)
       (doc "The encodings a tensor's elements can have."
         (returns LIST "The encoding symbols")
-        (example "(Tensor encodings)" "('f64 'i64 'c128)"))
-      (list (lit f64) (lit i64) (lit c128)))
+        (example "(Tensor encodings)" "('f64 'f32 'i64 'c128)"))
+      (list (lit f64) (lit f32) (lit i64) (lit c128)))
 
     (method complex (self (param re Tensor|NUMBER "The real parts")
                           (param im Tensor|NUMBER "The imaginary parts, broadcasting with re"))
@@ -160,6 +170,7 @@
       (let ((e (if (null? opts) default (first opts))))
         (match
           ((eq? e (lit f64)) e)
+          ((eq? e (lit f32)) e)
           ((eq? e (lit c128)) e)
           ((eq? e (lit i64))
             (if (int= %word-size 8) e
@@ -234,12 +245,12 @@
 
     ; Scratch words: A 0, B 1, O 2 (addresses), AS 3, BS 4, OS 5 (strides),
     ; CNT 6, K 7, BUDGET 8, the i64 accumulator 13 and fill value 14; the f64
-    ; accumulator and fill value are doubles 16 and 17, past the words on
+    ; and f32 accumulator and fill value are doubles 16 and 17, past the words on
     ; either word width, and c128's accumulator and fill value are the two
     ; doubles 16 and 17, real then imaginary.  An operand's SLOT is the words of its (address .
     ; stride): A (0 . 3), B (1 . 4), the output O (2 . 5).
     (method %make-fast (self)
-      (let ((int-t (type-of 0)) (f64 (lit f64)) (c128 (lit c128))
+      (let ((int-t (type-of 0)) (f64 (lit f64)) (f32 (lit f32)) (c128 (lit c128))
             (fget (word-form-pure (lit (fn (_ a i) (f-ref a i)))))
             (fset (word-form-pure (lit (fn (_ a i v) (f-set! a i v)))))
             (i->d (libm-fn (lit %tensor-i->d) "i->d" ()))
@@ -265,7 +276,9 @@
         (def row-major
           (fn (go ext) (if (null? ext) () (let ((r (go (rest ext)))) (pair (if (null? r) 1 (int* (first (rest ext)) (first r))) r)))))
         (def contig? (fn (_ st) (if (int< (size-of (ext-of st)) 2) #t (same (row-major (ext-of st)) (str-of st)))))
-        (def width (fn (_ enc) (if (eq? enc c128) 16 8)))
+        (def width (fn (_ enc) (match ((eq? enc c128) 16) ((eq? enc f32) 4) (#t 8))))
+        ; f64 and f32 are the encodings whose elements a kernel holds as doubles.
+        (def real? (fn (_ enc) (if (eq? enc f64) #t (eq? enc f32))))
         (def base (fn (_ st) (ptr->int (str->ptr (data-of st)))))
         (def addr (fn (_ st) (int+ (base st) (int* (width (enc-of st)) (off-of st)))))
         (def make (fn (_ enc ext str off data) (list enc ext str off data)))
@@ -284,10 +297,24 @@
         (def make-complex (fn (_ re im) ((rest (cx)) re im)))
         (def re-of (fn (_ x) (if (cx? x) (first (first x)) x)))
         (def im-of (fn (_ x) (if (cx? x) (rest (first x)) 0)))
+        ; A single read as a double and a double stored as a single, (GET . SET),
+        ; made at the first f32 element read or written here: making them
+        ; makes the float stubs, which a tensor of integers never needs.
+        (def single-cell (pair () ()))
+        (def single
+          (fn (_)
+            (if (null? (first single-cell))
+              (%set-first! single-cell
+                (pair (word-form-pure (lit (fn (_ a i) (f32-ref a i))))
+                      (word-form-pure (lit (fn (_ a i v) (f32-set! a i v))))))
+              ())
+            (first single-cell)))
         (def get
           (fn (_ enc)
             (match
               ((eq? enc f64) (fn (_ a i) (type-make-instance float (fget a i))))
+              ((eq? enc f32)
+                (let ((sget (first (single)))) (fn (_ a i) (type-make-instance float (sget a i)))))
               ((eq? enc c128)
                 (fn (_ a i)
                   (make-complex (type-make-instance float (fget a (int* 2 i)))
@@ -300,6 +327,11 @@
                 (fn (_ a i x)
                   (if (cx? x) (Err raise (lit type) "Tensor: a complex number needs a c128 tensor" x) ())
                   (fset a i (bits x))))
+              ((eq? enc f32)
+                (let ((sset (rest (single))))
+                  (fn (_ a i x)
+                    (if (cx? x) (Err raise (lit type) "Tensor: a complex number needs a c128 tensor" x) ())
+                    (sset a i (bits x)))))
               ((eq? enc c128)
                 (fn (_ a i x) (fset a (int* 2 i) (bits (re-of x))) (fset a (int+ (int* 2 i) 1) (bits (im-of x)))))
               (#t (fn (_ a i x) (ptr-set-word! (int->ptr a) (int* 8 i) (int-of x)))))))
@@ -417,7 +449,7 @@
           (fn (_ st x)
             (let ((s (str-make 256)) (enc (enc-of st)))
               (match
-                ((eq? enc f64) (fset (ptr->int (str->ptr s)) 17 (bits x)))
+                ((real? enc) (fset (ptr->int (str->ptr s)) 17 (bits x)))
                 ((eq? enc c128)
                   (do (fset (ptr->int (str->ptr s)) 16 (bits (re-of x))) (fset (ptr->int (str->ptr s)) 17 (bits (im-of x)))))
                 (#t (set-word! s 14 (int-of x))))
@@ -440,6 +472,7 @@
           (fn (_ x enc)
             (let ((e (match ((cx? x) c128)
                             ((if (eq? enc (lit i64)) (type? x int-t) #f) (lit i64))
+                            ((eq? enc f32) f32)
                             (#t f64))))
               (let ((st (new e ())))
                 ((put e) (addr st) 0 x)
@@ -449,7 +482,9 @@
             (let ((b (if (pair? other) other (scalar other (enc-of a)))))
               (let ((enc (match
                            ((if (eq? (enc-of a) c128) #t (eq? (enc-of b) c128)) c128)
-                           ((if (eq? which (lit div)) #t (if (eq? (enc-of a) f64) #t (eq? (enc-of b) f64))) f64)
+                           ((if (eq? (enc-of a) f64) #t (eq? (enc-of b) f64)) f64)
+                           ((if (eq? (enc-of a) f32) #t (eq? (enc-of b) f32)) f32)
+                           ((eq? which (lit div)) f64)
                            (#t (lit i64)))))
                 (if (if (eq? enc c128) (if (eq? which (lit min)) #t (eq? which (lit max))) #f)
                   (Err raise (lit value) "Tensor: complex numbers have no order" which) ())
@@ -467,25 +502,27 @@
                 (Err raise (lit value) "Tensor: complex numbers have no order" which) ())
               (if (int= (size-of (ext-of st)) 0)
                 (if (eq? which (lit sum))
-                  (match ((eq? enc f64) (float-of 0)) ((eq? enc c128) (make-complex (float-of 0) (float-of 0))) (#t 0))
+                  (match ((real? enc) (float-of 0)) ((eq? enc c128) (make-complex (float-of 0) (float-of 0))) (#t 0))
                   (Err raise (lit value) "Tensor: no least or greatest of no elements" ()))
                 (let ((s (str-make 256)))
                   (let ((init (if (eq? which (lit sum)) 0 ((get enc) (base st) (off-of st)))))
                     (match
-                      ((eq? enc f64) (fset (ptr->int (str->ptr s)) 16 (bits init)))
+                      ((real? enc) (fset (ptr->int (str->ptr s)) 16 (bits init)))
                       ((eq? enc c128) (do (fset (ptr->int (str->ptr s)) 16 (bits 0)) (fset (ptr->int (str->ptr s)) 17 (bits 0))))
                       (#t (set-word! s 13 init))))
                   (apply-kernel (kname enc which) s (list st) (list (pair 0 3)) (ext-of st))
                   (match
-                    ((eq? enc f64) (type-make-instance float (fget (ptr->int (str->ptr s)) 16)))
+                    ((real? enc) (type-make-instance float (fget (ptr->int (str->ptr s)) 16)))
                     ((eq? enc c128)
                       (make-complex (type-make-instance float (fget (ptr->int (str->ptr s)) 16))
                                     (type-make-instance float (fget (ptr->int (str->ptr s)) 17))))
                     (#t (ptr-ref-word (str->ptr s) (int* 13 %word-size)))))))))
-        ; SRC broadcast into DST, an f64 state, converted from i64 if it is one.
+        ; SRC broadcast into DST, an f64 state, converted from f32 or i64 if it is one.
         (def assign!
           (fn (_ dst src)
-            (apply-kernel (if (eq? (enc-of src) f64) (kname f64 (lit copy)) (lit i64->f64))
+            (apply-kernel
+              (if (eq? (enc-of src) f64) (kname f64 (lit copy))
+                (str->sym (Str8 append (symbol->str (enc-of src)) "->f64")))
               (str-make 256) (list (stretch src (ext-of dst)) dst) (list (pair 0 3) (pair 2 5)) (ext-of dst))
             dst))
         (Vector of size-of row-major contig? new get put zip reduce fill! convert view index addr drive bits
@@ -566,7 +603,9 @@
     ; the byte.
     (method %agrees? (self name compiled)
       (let ((enc (List ref 2 (self %spec name))) (pure (word-form-pure (self %form name)))
-            (out-bytes (if (eq? (List ref 3 (self %spec name)) (lit c128)) 128 64)))
+            (out-bytes (match ((eq? (List ref 3 (self %spec name)) (lit c128)) 128)
+                              ((eq? (List ref 3 (self %spec name)) (lit f32)) 32)
+                              (#t 64))))
         (let ((a (self %check-input enc (list 3 -2 7 0 -5 9 1 4)))
               (b (self %check-input enc (list 2 8 -1 5 3 -4 6 2))))
           (let ((r1 (self %check-run pure a b)) (r2 (self %check-run compiled a b)))
@@ -575,8 +614,8 @@
                              (int->ptr (int+ (ptr->int (str->ptr (rest r2))) 104)) 40) 0)
               #f)))))
 
-    ; Eight elements in ENC, the address of their region: quarters for f64,
-    ; and for c128 quarters with an imaginary part of their own.
+    ; Eight elements in ENC, the address of their region: quarters for f64
+    ; and f32, and for c128 quarters with an imaginary part of their own.
     (method %check-input (self enc xs)
       (let ((f (self %fast)))
         (let ((st ((obj-ref f 4) enc (list 8))))
@@ -586,7 +625,7 @@
                 (if (null? xs) ()
                   (do (put a i
                         (match
-                          ((eq? enc (lit f64)) (f-div (float-of (first xs)) (float-of 4)))
+                          ((self %real? enc) (f-div (float-of (first xs)) (float-of 4)))
                           ((eq? enc (lit c128))
                             (self %make-complex (f-div (float-of (first xs)) (float-of 4)) (f-div (float-of (int- 1 (first xs))) (float-of 8))))
                           (#t (first xs))))
@@ -612,13 +651,13 @@
     ; and map1 is O[k] = A[k] converted from IN to OUT.  Each answers 1 when
     ; its run is done and 0 when its budget is spent.
     (method %kernel-specs (self)
-      (let ((encs (if (int= %word-size 8) (list (lit f64) (lit i64)) (list (lit f64)))))
+      (let ((encs (if (int= %word-size 8) (list (lit f64) (lit f32) (lit i64)) (list (lit f64) (lit f32)))))
         (List append
           (List flat-map
             (fn (_ enc)
               (List append
                 (List map (fn (_ which) (list (self %name enc which) (lit map2) enc enc which))
-                  (if (eq? enc (lit f64)) (list (lit add) (lit sub) (lit mul) (lit div) (lit min) (lit max))
+                  (if (self %real? enc) (list (lit add) (lit sub) (lit mul) (lit div) (lit min) (lit max))
                     (list (lit add) (lit sub) (lit mul) (lit min) (lit max))))
                 (List map (fn (_ which) (list (self %name enc which) (lit fold) enc enc which))
                   (list (lit sum) (lit least) (lit greatest)))
@@ -630,12 +669,20 @@
           (list (list (lit c128-sum) (lit fold) (lit c128) (lit c128) (lit sum))
                 (list (lit c128-fill) (lit fill) (lit c128) (lit c128) ())
                 (list (lit c128-copy) (lit map1) (lit c128) (lit c128) ())
-                (list (lit f64->c128) (lit map1) (lit f64) (lit c128) ()))
+                (list (lit f64->c128) (lit map1) (lit f64) (lit c128) ())
+                (list (lit f32->c128) (lit map1) (lit f32) (lit c128) ())
+                (list (lit f32->f64) (lit map1) (lit f32) (lit f64) ())
+                (list (lit f64->f32) (lit map1) (lit f64) (lit f32) ()))
           (if (int= %word-size 8)
             (list (list (lit i64->f64) (lit map1) (lit i64) (lit f64) ())
                   (list (lit f64->i64) (lit map1) (lit f64) (lit i64) ())
+                  (list (lit i64->f32) (lit map1) (lit i64) (lit f32) ())
+                  (list (lit f32->i64) (lit map1) (lit f32) (lit i64) ())
                   (list (lit i64->c128) (lit map1) (lit i64) (lit c128) ()))
             ()))))
+
+    ; f64 and f32: the encodings whose elements a kernel holds as doubles.
+    (method %real? (self enc) (if (eq? enc (lit f64)) #t (eq? enc (lit f32))))
 
     (method %name (self enc which) (str->sym (Str8 append (symbol->str enc) "-" (symbol->str which))))
 
@@ -716,27 +763,30 @@
                   (list (lit f-set!) (lit s) 19 (list (lit f+) br (list (lit f*) bi r)))
                   (self %cset 2 5 0 (list (lit f/) (list (lit f+) ar (list (lit f*) ai r)) d))
                   (self %cset 2 5 1 (list (lit f/) (list (lit f-) ai (list (lit f*) ar r)) d)))))))))
-    ; Element K of the operand whose address is word ADDR and stride word STRIDE.
+    ; Element K of the operand whose address is word ADDR and stride word
+    ; STRIDE.  An f32 element is read as a double and stored rounded to a
+    ; single, so an f64 and an f32 kernel differ in these two forms alone.
     (method %vref (self enc addr stride)
-      (list (if (eq? enc (lit f64)) (lit f-ref) (lit %mem-ref-at))
+      (list (match ((eq? enc (lit f64)) (lit f-ref)) ((eq? enc (lit f32)) (lit f32-ref)) (#t (lit %mem-ref-at)))
             (self %w addr) (list (lit *) (self %w 7) (self %w stride))))
     (method %vset (self enc addr stride v)
-      (list (if (eq? enc (lit f64)) (lit f-set!) (lit %mem-set-at!))
+      (list (match ((eq? enc (lit f64)) (lit f-set!)) ((eq? enc (lit f32)) (lit f32-set!)) (#t (lit %mem-set-at!)))
             (self %w addr) (list (lit *) (self %w 7) (self %w stride)) v))
     (method %acc (self enc)
-      (if (eq? enc (lit f64)) (list (lit f-ref) (lit s) 16) (self %w 13)))
+      (if (self %real? enc) (list (lit f-ref) (lit s) 16) (self %w 13)))
     (method %acc! (self enc v)
-      (if (eq? enc (lit f64)) (list (lit f-set!) (lit s) 16 v) (list (lit %mem-set!) (lit s) 13 v)))
+      (if (self %real? enc) (list (lit f-set!) (lit s) 16 v) (list (lit %mem-set!) (lit s) 13 v)))
     (method %v (self enc)
-      (if (eq? enc (lit f64)) (list (lit f-ref) (lit s) 17) (self %w 14)))
+      (if (self %real? enc) (list (lit f-ref) (lit s) 17) (self %w 14)))
     (method %conv (self in out x)
       (match
         ((eq? in out) x)
-        ((eq? out (lit f64)) (list (lit i->f) x))
+        ((if (self %real? in) (self %real? out) #f) x)
+        ((self %real? out) (list (lit i->f) x))
         (#t (list (lit f->i) x))))
     ; X which Y as a form: the arithmetic, or the lesser or greater by <.
     (method %op (self which enc x y)
-      (let ((f (eq? enc (lit f64))))
+      (let ((f (self %real? enc)))
         (match
           ((eq? which (lit add)) (list (if f (lit f+) (lit +)) x y))
           ((eq? which (lit sum)) (list (if f (lit f+) (lit +)) x y))
@@ -749,13 +799,15 @@
 
   ; --- the tensor -------------------------------------------------------------
   (method encoding (self)
-    (doc "How each element is stored: f64, i64 or c128."
+    (doc "How each element is stored: f64, f32, i64 or c128."
+      (known-as "dtype")
       (returns SYMBOL "The encoding")
       (example "((Tensor from '(1.5 2)) encoding)" "'f64"))
     (first (field (lit st))))
 
   (method extent (self)
     (doc "The length of each axis."
+      (known-as "shape")
       (returns LIST "Axis lengths, outermost first")
       (example "((Tensor zeros '(2 3)) extent)" "(2 3)"))
     (first (rest (field (lit st)))))
@@ -788,7 +840,7 @@
 
   (method ref (self . (param idx INTEGER "One index per axis; negative counts from the end"))
     (doc "The element at the given indexes."
-      (returns NUMBER "A Float for f64, an integer for i64, a Complex for c128")
+      (returns NUMBER "A Float for f64 or f32, an integer for i64, a Complex for c128")
       (example "((Tensor from '((1 2) (3 4.5))) ref 1 0)" "3.0")
       (example "((Tensor from '(1.5 2.5)) ref -1)" "2.5"))
     (let ((f (Tensor %fast)) (st (field (lit st))))
@@ -862,23 +914,24 @@
       (example "((((Tensor range 3 'f64) transpose) copy) ->list)" "(0.0 1.0 2.0)"))
     (let ((st (field (lit st)))) (self %wrap ((obj-ref (Tensor %fast) 10) st (first st)))))
 
-  (method as (self (param enc SYMBOL "The encoding: f64, i64 or c128"))
-    (doc "A contiguous copy in another encoding. f64 to i64 truncates toward zero; f64 or i64 to c128 gives each element a 0 imaginary part. A c128 tensor is refused: take its real or imaginary part."
+  (method as (self (param enc SYMBOL "The encoding: f64, f32, i64 or c128"))
+    (doc "A contiguous copy in another encoding. f64 to f32 rounds each element to the nearest single, and f32 to f64 is exact; f64 or f32 to i64 truncates toward zero; a real encoding to c128 gives each element a 0 imaginary part. A c128 tensor is refused: take its real or imaginary part."
       (returns Tensor "A fresh tensor of the same extent")
       (example "(((Tensor from '(1 2)) as 'f64) ->list)" "(1.0 2.0)")
+      (example "(((Tensor from '(0.1 2.5)) as 'f32) ->list)" "(0.100000001490116 2.5)")
       (sample "(((Tensor from '(2.5 -2.5)) as 'i64) ->list)" "(2 -2) on an 8-byte word; i64 is refused on a 4-byte word"))
     (self %wrap ((obj-ref (Tensor %fast) 10) (field (lit st)) (Tensor %enc-or (list enc) (lit f64)))))
 
   ; --- complex parts ----------------------------------------------------------
   (method real (self)
-    (doc "The real parts: for c128 an f64 view sharing self's bytes, so writing through it changes self; for f64 or i64, self."
+    (doc "The real parts: for c128 an f64 view sharing self's bytes, so writing through it changes self; for any other encoding, self."
       (returns Tensor "An f64 view for c128, else self")
       (example "(((Tensor complex (Tensor from '(1 2)) 5) real) ->list)" "(1.0 2.0)"))
     (let ((st (field (lit st))))
       (if (eq? (first st) (lit c128)) (self %wrap (Tensor %part st 0)) self)))
 
   (method imaginary (self)
-    (doc "The imaginary parts: for c128 an f64 view sharing self's bytes; for f64 or i64, a fresh tensor of zeros."
+    (doc "The imaginary parts: for c128 an f64 view sharing self's bytes; for any other encoding, a fresh tensor of zeros."
       (returns Tensor "An f64 view for c128, else zeros of self's extent and encoding")
       (example "(((Tensor complex (Tensor from '(1 2)) 5) imaginary) ->list)" "(5.0 5.0)"))
     (let ((st (field (lit st))) (f (Tensor %fast)))
@@ -895,10 +948,11 @@
 
   ; --- arithmetic -------------------------------------------------------------
   (method add (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
-    (doc "The element-wise sum. Extents broadcast from the last axis, an axis of length 1 stretching; a c128 operand makes the result c128, else an f64 operand makes it f64."
+    (doc "The element-wise sum. Extents broadcast from the last axis, an axis of length 1 stretching; a c128 operand makes the result c128, else an f64 operand makes it f64, else an f32 operand makes it f32. A number takes the tensor's encoding where that holds it: an f32 tensor and a number make f32."
       (returns Tensor "A fresh tensor of the broadcast extent")
       (example "(((Tensor from '(1 2 3) 'f64) add 10) ->list)" "(11.0 12.0 13.0)")
-      (example "(((Tensor from '((1 2) (3 4))) add (Tensor from '(0.5 1))) ->list)" "((1.5 3.0) (3.5 5.0))"))
+      (example "(((Tensor from '((1 2) (3 4))) add (Tensor from '(0.5 1))) ->list)" "((1.5 3.0) (3.5 5.0))")
+      (example "(((Tensor from '(1 2) 'f32) add 0.5) encoding)" "'f32"))
     (self %zip (lit add) other))
 
   (method sub (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
@@ -914,8 +968,8 @@
     (self %zip (lit mul) other))
 
   (method div (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
-    (doc "The element-wise quotient, self over other, in f64, or c128 when either operand is, broadcast as add is."
-      (returns Tensor "A fresh f64 or c128 tensor of the broadcast extent")
+    (doc "The element-wise quotient, self over other, broadcast as add is: c128 when either operand is, else f64 when either is, else f32 when either is, and f64 for two i64 operands."
+      (returns Tensor "A fresh f64, f32 or c128 tensor of the broadcast extent")
       (example "(((Tensor from '(1 2 3)) div 2) ->list)" "(0.5 1.0 1.5)"))
     (self %zip (lit div) other))
 
@@ -933,7 +987,7 @@
 
   ; --- reductions -------------------------------------------------------------
   (method sum (self)
-    (doc "The sum of every element: a Float for f64, an integer (wrapping at 64 bits) for i64, a Complex for c128."
+    (doc "The sum of every element: a Float for f64 or f32, an integer (wrapping at 64 bits) for i64, a Complex for c128. An f32 sum is added up in a double."
       (returns NUMBER "The sum; 0 for no elements")
       (example "((Tensor from '((1 2) (3 4)) 'f64) sum)" "10.0")
       (example "((Tensor range 4 'f64) sum)" "6.0"))
@@ -977,6 +1031,7 @@
 
   (method deviation (self . (param correction INTEGER "Optional, as for variance: 1 by default, 0 for the population"))
     (doc "The standard deviation of every element: the square root of the variance, with the same correction."
+      (known-as "standard deviation" "std")
       (returns FLOAT "The standard deviation")
       (example "((Tensor from '(2 4 4 4 5 5 7 9) 'f64) deviation 0)" "2.0")
       (see variance))
@@ -1016,5 +1071,5 @@
         (if (if (object? other) (instance-of? other Tensor) #f) (other %st) other)))))
 
 (doc (provide x/num/tensor Tensor)
-  "Tensor: n-dimensional arrays of f64, i64 or c128 packed in bytes, with views that share them, broadcasting element-wise arithmetic and reductions run in kernels that compile once they have run long enough."
+  "Tensor: n-dimensional arrays of f64, f32, i64 or c128 packed in bytes, with views that share them, broadcasting element-wise arithmetic and reductions run in kernels that compile once they have run long enough."
   (example "(((Tensor range 6 'f64) reshape '(2 3)) sum)" "15.0"))

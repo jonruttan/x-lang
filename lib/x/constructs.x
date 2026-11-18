@@ -66,4 +66,5 @@
   (sample  (fmt . call)    (scope . skip)        (branch . none))
   (see     (fmt . call)    (scope . skip)        (branch . none))
   (note    (fmt . call)    (scope . skip)        (branch . none))
+  (known-as (fmt . call)   (scope . skip)        (branch . none))
 )

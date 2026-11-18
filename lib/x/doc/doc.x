@@ -19,7 +19,12 @@
 ;     (param a ANY "First") (param d ANY "Second") (returns PAIR "A pair"))
 ;
 ; Metadata forms: (returns TYPE "desc"), (param name TYPE "desc"),
-;   (example "input" "output"), (see name), (note "text")
+;   (example "input" "output"), (see name), (note "text"),
+;   (known-as "other name" ...)
+;
+; (known-as ...) lists the other names a thing goes by -- the name another
+; library or a textbook gives it.  help shows them and apropos searches
+; them, so a reader who knows only the other name still finds the entry.
 ;
 ; Loaded before and/or — use nested if, not and/or/cond.
 
@@ -77,7 +82,7 @@
     (%go lst "")))
 
 ; --- Registry operations ---
-; Entry: (name desc returns params examples sees notes samples)
+; Entry: (name desc returns params examples sees notes samples known-as)
 ;
 ; example vs sample (#16): (example "in" "out") is an EXECUTABLE
 ; contract -- "out" is the true echo, and tools/check/doctest.x runs every
@@ -87,9 +92,9 @@
 ; never executed.
 
 (def %doc-register!
-  (fn (_ name desc returns params examples sees notes samples)
+  (fn (_ name desc returns params examples sees notes samples known-as)
     (%set-first! %doc-registry-cell
-      (pair (list name desc returns params examples sees notes samples)
+      (pair (list name desc returns params examples sees notes samples known-as)
             (first %doc-registry-cell)))))
 
 ; Shared alist lookup by eq? on first element
@@ -221,15 +226,31 @@
     (%set-first! %doc-params-acc ())))
 
 ; --- Collect all pending metadata into a register call ---
+; The known-as names are read from meta here: every string of every
+; (known-as "name" ...) form, in the order written.
 (def %doc-collect-and-register!
-  (fn (_ name desc)
+  (fn (_ name desc meta)
+    (def %names
+      (fn (self names acc)
+        (if (null? names) acc
+          (self (rest names)
+                (if (str? (first names)) (pair (first names) acc) acc)))))
+    (def %known
+      (fn (self forms acc)
+        (if (null? forms) (%doc-reverse acc)
+          (self (rest forms)
+                (if (if (pair? (first forms))
+                      (eq? (first (first forms)) (lit known-as)) #f)
+                  (%names (rest (first forms)) acc)
+                  acc)))))
     (%doc-register! name desc
       (first %doc-pending-returns)
       (%doc-reverse (first %doc-params-acc))
       (%doc-reverse (first %doc-pending-examples))
       (%doc-reverse (first %doc-pending-sees))
       (%doc-reverse (first %doc-pending-notes))
-      (%doc-reverse (first %doc-pending-samples)))))
+      (%doc-reverse (first %doc-pending-samples))
+      (%known meta ()))))
 
 ; --- Reconstruct fn with stripped params ---
 
@@ -319,13 +340,13 @@
       (do
         (%doc-reset-pending!)
         (%doc-process-meta meta)
-        (%doc-collect-and-register! form (%doc-find-last-string meta)))
+        (%doc-collect-and-register! form (%doc-find-last-string meta) meta))
     (if (eq? label (lit %provide))
       (do
         (%doc-reset-pending!)
         (%doc-process-meta meta)
         (%doc-collect-and-register! (first (rest form))
-          (%doc-find-last-string meta)))
+          (%doc-find-last-string meta) meta))
       ; %def
       (let ()
         (def %value (first (rest (rest form))))
@@ -334,7 +355,7 @@
         (%set-first! %doc-params-acc ())
         (%doc-strip-fn %value)
         (%doc-collect-and-register! (first (rest form))
-          (%doc-find-last-string meta)))))))
+          (%doc-find-last-string meta) meta))))))
 
 (def %doc-commit!
   (fn (_ )
@@ -380,8 +401,14 @@
 
 ; --- Display helpers ---
 
+; An entry's notes, under the other names it is known as, on one line.
 (def %display-notes
-  (fn (_ notes)
+  (fn (_ notes known)
+    (if (null? known) ()
+      (do
+        (display "  known as: " (first known))
+        (%doc-for-each (fn (_ n) (display ", " n)) (rest known))
+        (newline)))
     (%doc-for-each
       (fn (_ n) (display "  " %c-dim n %c-reset "\n"))
       notes)))
@@ -473,7 +500,7 @@
     (def %mod (%module-for-sym (entry name)))
     (if (not (null? %mod))
       (do (display "  module: " %c-module %mod %c-reset "\n")))
-    (%display-notes (entry notes))
+    (%display-notes (entry notes) (entry known-as))
     (%display-params (entry params))
     (%display-returns (entry returns))
     (%display-examples (entry examples))
@@ -492,7 +519,7 @@
       (if (null? %mod-doc) "" (%mod-doc desc)))
     (if (not (null? %mod-doc))
       (do
-        (%display-notes (%mod-doc notes))
+        (%display-notes (%mod-doc notes) (%mod-doc known-as))
         (%display-examples (%mod-doc examples))
         (%display-examples (%mod-doc samples))
         (newline)))
@@ -727,7 +754,7 @@
                         (%display-entry-line "" (class-name %cls)
                           (if (null? %mdoc) "" (%mdoc desc)))
                         (if (null? %mdoc) ()
-                          (do (%display-notes (%mdoc notes))
+                          (do (%display-notes (%mdoc notes) (%mdoc known-as))
                               (%display-examples (%mdoc examples))
                               (%display-examples (%mdoc samples))
                               (display "  module: " %cmod "\n"))))
@@ -770,23 +797,24 @@
                         (if (not (null? %named))
                           (do (display "No top-level doc for " %h-name
                                        "; documented names ending in /" %h-name ":\n")
-                              (%apropos-show %named))
+                              (%apropos-show %named %name-str))
                         (if %bound?
                           (do (display %h-name " is bound but has no documentation\n")
                               (if (null? %hits) ()
                                 (do (display "  documented names containing it:\n")
-                                    (%apropos-show %hits))))
+                                    (%apropos-show %hits %name-str))))
                         (if (null? %hits)
                           (%display-no-doc %h-name)
                           (do (display "No top-level doc for " %h-name
                                        "; documented names containing it:\n")
-                              (%apropos-show %hits))))))))))))))))))))
+                              (%apropos-show %hits %name-str))))))))))))))))))))
 
-; Documented names that CONTAIN pat (a string), sorted, each once: the
-; sorted names Doc lists, filtered.  Shared by apropos and help's
-; name-not-found fallback.  A %-private name (a bare %map, a Class/%meth)
-; is left out unless the pattern itself starts with %: a search for a
-; public name answers public names.
+; Documented names that CONTAIN pat (a string), or whose entry is known as
+; a name that does whatever the case of either, sorted, each once: the sorted names Doc lists,
+; filtered.  Shared by apropos and help's name-not-found fallback.  A
+; %-private name (a bare %map, a Class/%meth) is left out unless the
+; pattern itself starts with %: a search for a public name answers public
+; names.
 (def %apropos-matches
   (fn (_ pat)
     (def %private?
@@ -794,27 +822,57 @@
         (if (str=? (%substring s 0 1) "%") #t (%doc-str-contains? "/%" s))))
     (def %want-private
       (if (= (%str-length pat) 0) #f (str=? (%substring pat 0 1) "%")))
+    (def %low (Str8 downcase pat))
+    ; Whether one of an entry's known-as names, its ninth part, holds the
+    ; pattern.
+    (def %known?
+      (fn (self names)
+        (if (null? names) #f
+          (if (%doc-str-contains? %low (Str8 downcase (first names))) #t
+            (self (rest names))))))
     (List filter
       (fn (_ name)
         (def %s (symbol->str name))
-        (if (%doc-str-contains? pat %s)
+        (if (if (%doc-str-contains? pat %s) #t
+              (%known? (first (rest (rest (rest (rest (rest (rest (rest (rest
+                         (%doc-lookup name))))))))))))
           (if %want-private #t (not (%private? %s)))
           #f))
       (Doc names))))
 
-; Display each matching name with its description, one per line.
+; Display each matching name with its description, one per line.  A name
+; found by what it is known as shows that name after its own, so the
+; reader sees why it answered.
 (def %apropos-show
-  (fn (self names)
+  (fn (self names pat)
     (if (null? names) ()
-      (do
-        (%display-entry-line "  " (first names) ((Doc entry (first names)) desc))
-        (self (rest names))))))
+      (let ()
+        (def %name (first names))
+        (def %entry (Doc entry %name))
+        (def %low (Str8 downcase pat))
+        (def %known
+          (if (%doc-str-contains? pat (symbol->str %name)) ()
+            (List filter
+              (fn (_ k) (%doc-str-contains? %low (Str8 downcase k)))
+              (%entry known-as))))
+        (def %desc (%entry desc))
+        (if (null? %known)
+          (%display-entry-line "  " %name %desc)
+          (do
+            (%display-name "  " %name)
+            (display " (known as " (first %known))
+            (%doc-for-each (fn (_ k) (display ", " k)) (rest %known))
+            (display ")")
+            (if (not (str=? %desc "")) (display " -- " %desc))
+            (newline)))
+        (self (rest names) pat)))))
 
-; apropos: search the doc registry by name substring. The pattern may be a
-; bare symbol ((apropos upcase)), a string ((apropos "upcase")), or any
-; expression that evaluates to one ((apropos (lit upcase))).  Prints each
-; match with its description and answers the matching names, sorted, so a
-; program can search the registry as well as a reader.
+; apropos: search the doc registry by name substring, and by the other
+; names an entry's (known-as ...) lists. The pattern may be a bare symbol
+; ((apropos upcase)), a string ((apropos "upcase")), or any expression
+; that evaluates to one ((apropos (lit upcase))).  Prints each match with
+; its description and answers the matching names, sorted, so a program can
+; search the registry as well as a reader.
 (def apropos
   (op (pattern) e
     (def %raw (if (symbol? pattern) pattern (eval pattern e)))
@@ -822,7 +880,7 @@
     (def %hits (%apropos-matches %pat))
     (if (null? %hits)
       (display "no documented name contains \"" %pat "\"\n")
-      (%apropos-show %hits))
+      (%apropos-show %hits %pat))
     %hits))
 
 ; --- Module discovery ---
@@ -873,4 +931,5 @@
   (note "doc wraps def or provide for metadata. help for REPL lookup. apropos for search.")
   (sample "(help List map)" "prints the entry: signature, each argument's type, the return type and its examples")
   (sample "(apropos \"split\")" "prints every documented name containing split")
+  (sample "(apropos \"CDF\")" "prints the entries a (known-as ...) files under that name, as well as the names containing it")
   "Inline documentation system.")

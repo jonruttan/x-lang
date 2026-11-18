@@ -26,6 +26,12 @@
 ; writes those two as the word loads and stores compile-asm compiles.  On a
 ; 4-byte word a double is the two words Float keeps it in, and only the pure
 ; form runs.  The stubs are made the first time a form uses one.
+;
+; A single, a 32-bit float, is met only in memory.  (f32-ref A I) is the
+; single at A + 4I bytes as a double, which holds it exactly, and
+; (f32-set! A I V) stores the double V there rounded to a single and answers
+; V.  The arithmetic between is the doubles': for f+ f- f* and f/ the result
+; rounded to a single is the one single arithmetic answers.
 (module x/tool/word-form)
 
 (import x/core/doors int& int* int+ int- int->ptr int< int= int>> int<< ptr-ref ptr-set! ptr-ref-word ptr-set-word! type-make-instance)
@@ -73,7 +79,8 @@
 (def %word-form-float-labels
   (list (list (lit f+) "d+d" ()) (list (lit f-) "d-d" ()) (list (lit f*) "d*d" ()) (list (lit f/) "d/d" ())
         (list (lit f<) "d<d" ()) (list (lit f=) "d=d" ()) (list (lit f-sqrt) "d->d" "sqrt")
-        (list (lit i->f) "i->d" ()) (list (lit f->i) "d->i" ())))
+        (list (lit i->f) "i->d" ()) (list (lit f->i) "d->i" ())
+        (list (lit f32-ref) "f->d" ()) (list (lit f32-set!) "d->f" ())))
 (def %word-form-float-ops ())
 (def %word-form-float-make
   (fn (_)
@@ -82,9 +89,14 @@
       (fn (_ e)
         ((fn (_ stub)
            (pair (first e)
-             (if (str=? (first (rest e)) "d->d")
-               (fn (_ a) (first (stub (type-make-instance float a))))
-               stub)))
+             (match
+               ((str=? (first (rest e)) "d->d")
+                 (fn (_ a) (first (stub (type-make-instance float a)))))
+               ((eq? (first e) (lit f32-ref))
+                 (fn (_ a i) (stub (ptr-ref (int->ptr (int+ a (int* 4 i))) 0 4))))
+               ((eq? (first e) (lit f32-set!))
+                 (fn (_ a i v) (do (ptr-set! (int->ptr (int+ a (int* 4 i))) 0 (stub v) 4) v)))
+               (#t stub))))
          (libm-fn (first e) (first (rest e)) (first (rest (rest e))))))
       %word-form-float-labels)))
 (def %word-form-float
@@ -126,7 +138,7 @@
       (#t form))))
 
 (doc word-form-pure "The function FORM means, as pure x: its operators bound to the int doors and x/num/float's stubs, so it runs where compile-asm cannot and answers what compile-asm's answers."
-  (param form LIST "A (fn (self ...) ...) form over machine words: on integers + - * < = >> << &, (*>> a b k) for a product shifted down k places through 64 bits; on doubles' bits f+ f- f* f/ f-sqrt, the comparisons f< f=, and i->f f->i between the two; if, match, do; the %mem- byte and word loads and stores, and the double loads and stores f-ref and f-set!")
+  (param form LIST "A (fn (self ...) ...) form over machine words: on integers + - * < = >> << &, (*>> a b k) for a product shifted down k places through 64 bits; on doubles' bits f+ f- f* f/ f-sqrt, the comparisons f< f=, and i->f f->i between the two; if, match, do; the %mem- byte and word loads and stores, the double loads and stores f-ref and f-set!, and f32-ref and f32-set!, which load a single as a double and store a double rounded to a single")
   (returns CALLABLE "The function")
   (example "(do (import x/tool/word-form word-form-pure) ((word-form-pure (lit (fn (self n acc) (if (< n 1) acc (self (- n 1) (+ acc n)))))) 4 0))" "10")
   (example "(do (import x/tool/word-form word-form-pure) (import x/num/float) (equal? ((word-form-pure (lit (fn (_ a b) (f* a b)))) (first (Float from 3)) (first (Float from 2))) (first (Float from 6))))" "#t"))

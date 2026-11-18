@@ -315,6 +315,21 @@
          (self (int+ y 1) r)))
      0 (str->ptr zero))))
 
+; Undo the filters of ROWS rows of STRIDE bytes from AT of the buffer S, in
+; place, each row led by its filter byte.  UNFILTER is the row loop.
+(def %rows
+  (fn (_ unfilter s at rows stride bpp)
+    (def z (str->ptr s))
+    (def zero (first (Bytes zeros (int+ stride 1))))
+    ((fn (self y u)
+       (when (int< y rows)
+         (def f (%at z (int+ at (int* y (int+ stride 1)))))
+         (def r (%at f 1))
+         (unless (int< (%u8 f 0) 5) (%fail "an unknown row filter"))
+         (unfilter (%u8 f 0) r u stride bpp)
+         (self (int+ y 1) r)))
+     0 (str->ptr zero))))
+
 ; The bytes the passes take inflated: per pass a filter byte and a row.
 (def %need
   (fn (self passes w h bits acc)
@@ -488,6 +503,15 @@
         (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"89504e470d0a1a0a0000000d49484452000000020000000108020000007b40e8dd0000000f4944415408d763f8cfc0c0f09f010007ff01ff09a29f170000000049454e44ae426082\")) (def d (Png decode (first r) 0 (List ref 2 r))) (Bytes hex (list (List ref 2 d) 0 8)))" "\"ff0000ff00ff00ff\""))
       (def sp (%span s span))
       (%decode s (first sp) (first (rest sp))))
+    (method unfilter (self (param s STRING "Bytes holding rows, each a filter byte and then STRIDE bytes")
+                           (param start INTEGER "Where the first row's filter byte is")
+                           (param rows INTEGER "How many rows")
+                           (param stride INTEGER "The bytes of a row after its filter byte")
+                           (param bpp INTEGER "The bytes of a whole pixel, 1 for a pixel under 8 bits"))
+      (doc "Undo the filters of rows of bytes in place, each row against the one above it and the first against zeros: the predictor of a PNG's rows, which a PDF's FlateDecode streams use too. The filter bytes stay where they are. Raises a label 'value for a filter past 4."
+        (returns ANY "nil")
+        (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"020102020101\")) (Png unfilter (first r) 0 2 2 1) (Bytes hex r))" "\"020102020203\""))
+      (%rows (first (%engine-for (int* rows (int+ stride 1)))) s start rows stride bpp))
     (method jit! (self)
       (doc "Build and adopt the compiled row loops (JIT; ARM64 and x86-64 backends) now, if they undo the check rows' filters and write the check pixels exactly as the pure-x loops do. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x loops carry on, with the same output. decode builds it on its own for an image of 22KB or more inflated."
         (returns BOOL "#t when the compiled engine is active")
