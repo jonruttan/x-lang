@@ -119,7 +119,7 @@ there, so open takes neither.
              (def b (str-make (* 2 (List length vs))))
              ((fn (self i l) (unless (null? l) (do (ptr-set! (str->ptr b) (* 2 i) (first l) 2) (self (+ i 1) (rest l))))) 0 vs)
              b))
-  (def acc (first (Bytes zeros (* 4 %word-size))))
+  (def acc (Sdl %zeroed (* 4 %word-size)))
   (def stream (fn (_ vs) (let ((s (Vector make 4 ()))) (do (Vector set! 1 (list (list (s16 vs) 0 (* 2 (List length vs)))) s) (Vector set! 2 (* 2 (List length vs)) s) (Vector set! 3 0 s) s))))
   (def a (stream (list 1000 -2000 30000 -30000)))
   (def b (stream (list 24 -48 30000 -30000)))

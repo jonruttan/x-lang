@@ -249,3 +249,56 @@ a file and only the heading lines are kept: a name is coloured when
 ```
 ---
     #f
+
+## known-as
+
+`(known-as "name" ...)` in a doc form lists the other names a thing goes by.
+`apropos` searches them whatever their case, and says which one answered;
+`help` shows them. The output goes to a file and is searched, since a name is
+coloured when `x/repl/ansi` is loaded.
+
+### apropos finds an entry by a name it is known as, in any case
+
+```x
+(import x/sys/posix) (import x/sys/file) (import x/sys/stream)
+(doc (def doc-known-thing (fn (_ n) n))
+  (known-as "Zebra crossing" "zc-rule")
+  "A thing with other names.")
+(def doc-known-text
+  (fn (_ thunk)
+    (let ((tmp (File temp "/tmp/x-doc-known-")))
+      (File close (first tmp))
+      (Stream with-file (rest tmp) thunk)
+      (let ((text (File read-all (rest tmp))))
+        (File unlink (rest tmp))
+        text))))
+(def doc-known-hits ())
+(doc-known-text
+  (fn (_)
+    (set! doc-known-hits
+      (list (apropos "zebra cross") (apropos "ZC-RULE") (apropos "zebra walking")))))
+doc-known-hits
+```
+---
+    (('doc-known-thing) ('doc-known-thing) ())
+
+### apropos says which name answered, and not when the entry's own name did
+
+```x
+(list
+  (Str8 includes? "(known as Zebra crossing)"
+    (doc-known-text (fn (_) (apropos "zebra"))))
+  (Str8 includes? "(known as"
+    (doc-known-text (fn (_) (apropos "doc-known-thing")))))
+```
+---
+    (#t #f)
+
+### help shows the names on one line
+
+```x
+(Str8 includes? "  known as: Zebra crossing, zc-rule\n"
+  (doc-known-text (fn (_) (help doc-known-thing))))
+```
+---
+    #t

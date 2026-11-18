@@ -118,6 +118,10 @@ the Doxygen house style — live with the code they govern, in
   executed. An entry with neither shows the reader nothing to try;
   `make check-help-examples` counts those against the ceiling in
   `tools/contract/help-examples.x`, which may only go down
+- **`known-as` carries a thing's other names** — a library name says what
+  the thing is; the name another library or a textbook gives it goes in
+  `(known-as "other name" ...)` in its doc form. `help` shows the names and
+  `apropos` searches them, whatever their case
 - **No `cond`/`convert` in tokenizer callbacks** — Use nested `if` and direct C primitives to avoid GC corruption
 - **Quote spelling** — `'x` in all post-boot code (#45 R2). `(lit x)` is the
   boot-layer mechanism spelling, used only in files that parse before the

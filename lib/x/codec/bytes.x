@@ -16,7 +16,7 @@
 (import x/codec/hex)
 (import x/sys/file)
 
-(import x/core/doors char->int ffi-dlopen ffi-dlsym int+ int- int< int->ptr mem-set obj-ref obj-set! ptr->int ptr-call ptr-set! str->ptr str-byte-ref str-make)
+(import x/core/doors char->int ffi-dlopen ffi-dlsym int+ int- int->ptr obj-ref obj-set! ptr->int ptr-call ptr-set! str->ptr str-byte-ref str-make)
 ; The foreign door, bound once: a prim-ref walks the catalogue, thousands of
 ; objects a call.  The C symbols themselves are looked up per call (below).
 
@@ -202,13 +202,6 @@
       (def p (str->ptr out))
       ((fn (self i l) (unless (null? l) (do (ptr-set! p i (& (first l) 255) 1) (self (int+ i 1) (rest l))))) 0 bs)
       (list out 0 n))
-    (method zeros (self (param n INTEGER "How many bytes"))
-      (doc "n bytes of 0 in a fresh buffer. A buffer from str-make holds spaces, not zeros, so one read before every byte is written starts here."
-        (returns LIST "(BUF 0 n)")
-        (example "(Bytes hex (Bytes zeros 3))" "\"000000\""))
-      (def buf (%fresh n))
-      (mem-set (str->ptr buf) 0 (if (int< 0 n) n 1))
-      (list buf 0 n))
     (method random (self (param n INTEGER "How many bytes"))
       (doc "n bytes from the kernel's CSPRNG, /dev/urandom, in a fresh buffer. Raises a label 'io when the device cannot be read in full."
         (returns LIST "(BUF 0 n)")

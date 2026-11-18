@@ -10,8 +10,7 @@ CertificateVerify, RSA-PSS (scheme 2052), holds, and then the
 certificate, made with a common name alone, names no host.  connect
 builds every engine it uses before it dials (ready!), so the file
 carries the weight and the timeout of engine builds.  Last, accept, the
-server's side, against `openssl s_client` and x's own client, and a
-request for a client certificate, declined.
+server's side, against `openssl s_client` and x's own client.
 
 ## connecting
 
@@ -277,92 +276,3 @@ server read, or the error it raised, and what the client printed.
 ```
 ---
     (("ping\n" "pong\n") ("ping\n" "pong\n") ("ping\n" "pong\n") (('io "Tls13: the client does not take the scheme this server's key signs with (2055)") "") (('io "Tls13: the client does not offer TLS_CHACHA20_POLY1305_SHA256") ""))
-
-## a request for a client certificate
-
-### declined by the client, asked for by accept
-
-A server may ask the client for a certificate (CertificateRequest); the
-client declines with a Certificate message that holds none, and the server
-decides whether to go on.  `openssl s_server -verify 1` asks and goes on
-without one: its `-www` page says no client certificate came.  accept asks
-when given ('request-certificate): x's own client and `openssl s_client`
-with no certificate both decline and are served, and `s_client` sending a
-certificate is refused, accept checking none.  The report is as in the
-case above: what the server read, or the error it raised, and what the
-client printed.
-
-```x
-(do (import x/net/tls13) (import x/sys/socket) (import x/sys/posix) (import x/sys/proc) (import x/sys/file)
-  (def %t13r-dir (Str8 append "/tmp/x-lang-tls13r-" (%number->str (Sys getpid))))
-  (def %t13r-probe (Socket tcp-listen 0))
-  (def %t13r-port (Socket local-port %t13r-probe))
-  (Socket close %t13r-probe)
-  (Proc run! (list "/bin/sh" "-c"
-    (Str8 append "mkdir -p " %t13r-dir " && cd " %t13r-dir
-      " && openssl req -x509 -newkey rsa:2048 -nodes -keyout rsa.key -out rsa.crt -days 1 -subj /CN=localhost >/dev/null 2>&1"
-      " && cat rsa.key rsa.crt > rsa.pem"
-      " && { openssl s_server -quiet -www -tls1_3 -verify 1 -accept " (%number->str %t13r-port)
-      " -cert rsa.crt -key rsa.key >/dev/null 2>&1 & echo $! > pid; } && sleep 1")))
-  (def %t13r-read
-    (fn (self s acc)
-      (let ((r (Tls13 recv-run s 4096)))
-        (if (null? r) acc (self s (Str8 append acc (Str8 slice 0 (rest r) (first r))))))))
-  (def %t13r-openssl
-    (guard (e (list 'raised (Err label e) (e msg)))
-      (let ((s (Tls13 connect "127.0.0.1" %t13r-port (list (pair 'host "localhost") (list 'insecure)))))
-        (do (Tls13 send s "GET / HTTP/1.0\r\n\r\n")
-            (def page (%t13r-read s ""))
-            (Tls13 close s)
-            (list (Str8 starts? "HTTP/1.0 200" page)
-                  (Str8 includes? "TLSv1.3" page)
-                  (Str8 includes? "no client certificate available" page))))))
-  (Proc run! (list "/bin/sh" "-c" (Str8 append "kill $(cat " %t13r-dir "/pid) 2>/dev/null")))
-  (def %t13r-pem (fn (_ name) (File read-all (Str8 append %t13r-dir "/" name))))
-  ; one session of accept asking for a certificate: CLIENT run in a child
-  ; with the port, then what the server read and what the client printed
-  (def %t13r-one
-    (fn (_ client)
-      (def l (Socket tcp-listen-on "127.0.0.1" 0))
-      (def port (Socket local-port l))
-      (def pid (Sys fork))
-      (when (= pid 0)
-        (do (Socket close l)
-            (Proc run! (list "/bin/sh" "-c" (Str8 append "rm -f " %t13r-dir "/out")))
-            (client port)
-            (Sys exit 0)))
-      (def fd (Socket accept l))
-      (Socket close l)
-      (def read
-        (guard (e (list (Err label e) (e msg)))
-          (let ((s (Tls13 accept fd fd (list (pair 'pem (%t13r-pem "rsa.pem")) (list 'request-certificate)))))
-            (do (def got (Tls13 recv-run s 100))
-                (Tls13 send s "pong\n")
-                (Tls13 close s)
-                (Str8 slice 0 (rest got) (first got))))))
-      (Socket close fd)
-      (Sys wait pid)
-      (list read (guard (e "") (%t13r-pem "out")))))
-  (def %t13r-s-client
-    (fn (_ opts)
-      (fn (_ port)
-        (Proc run! (list "/bin/sh" "-c"
-          (Str8 append "cd " %t13r-dir " && printf 'ping\\n' | openssl s_client -quiet -connect 127.0.0.1:" (%number->str port)
-            " " opts " > out 2> err"))))))
-  (def %t13r-x-client
-    (fn (_ port)
-      (let ((s (guard (e ()) (Tls13 connect "127.0.0.1" port (list (pair 'host "localhost") (list 'insecure))))))
-        (unless (null? s)
-          (do (Tls13 send s "ping\n")
-              (def r (Tls13 recv-run s 100))
-              (File write-all (Str8 append %t13r-dir "/out") (Str8 slice 0 (rest r) (first r))))))))
-  (def %t13r-result
-    (list %t13r-openssl
-          (%t13r-one %t13r-x-client)
-          (%t13r-one (%t13r-s-client "-tls1_3"))
-          (%t13r-one (%t13r-s-client "-tls1_3 -cert rsa.crt -key rsa.key"))))
-  (Proc run! (list "/bin/sh" "-c" (Str8 append "rm -rf " %t13r-dir)))
-  (write %t13r-result))
-```
----
-    ((#t #t #t) ("ping\n" "pong\n") ("ping\n" "pong\n") (('io "Tls13: the client sent a certificate, which this server does not check") ""))

@@ -26,7 +26,6 @@
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
 (import x/codec/ghash)
-(import x/codec/bytes)
 
 (import x/core/doors char->int int& int+ int- int< int<< int= int>> int| obj-ref obj-set! ptr-set! str->ptr str-byte-ref str-make)
 ; The bit operations through the int doors, as chacha20.x's: there is no
@@ -246,10 +245,18 @@
           (obj-set! %kept 1 (%copy key size)) (obj-set! %kept 2 size) (obj-set! %kept 3 ks)
           ks))))
 
+; n zero bytes.
+(def %zeros
+  (fn (_ n)
+    (def out (str-make n))
+    (def p (str->ptr out))
+    ((fn (self i) (unless (int= i n) (do (ptr-set! p i 0 1) (self (int+ i 1))))) 0)
+    out))
+
 ; The counter block for a 96-bit IV and a 32-bit count.
 (def %gcm-block
   (fn (_ iv n)
-    (def out (first (Bytes zeros 16)))
+    (def out (%zeros 16))
     (def p (str->ptr out))
     ((fn (self i) (unless (int= i 12) (do (ptr-set! p i (%byte iv i) 1) (self (int+ i 1))))) 0)
     (ptr-set! p 15 n 1)
@@ -259,7 +266,7 @@
 ; (16 bytes) of the additional data a-start..a-len and the ciphertext.
 (def %gcm-tag
   (fn (_ ks iv s a-start a-len c c-start c-len)
-    (def zero (first (Bytes zeros 16)))
+    (def zero (%zeros 16))
     (def h (%run ks zero zero 0 16))
     (def s0 (%run ks (%gcm-block iv 1) zero 0 16))
     (def g (Ghash hash h s a-start a-len c c-start c-len))

@@ -54,6 +54,18 @@ entries; these cases read them as records.
 ---
     (('prim-reg!) #t #t)
 
+### known-as names are read as written, and () when the form gives none
+
+```x
+(doc (def doc-registry-known (fn (_ n) n))
+  (known-as "first other" "second other")
+  "A thing with other names.")
+(list ((Doc entry 'doc-registry-known) known-as)
+      ((Doc entry 'Str8/split) known-as))
+```
+---
+    (("first other" "second other") ())
+
 ### a name nothing is documented under answers ()
 
 ```x

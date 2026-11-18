@@ -1,7 +1,7 @@
 ; registry.x -- Doc: the documentation registry as data.
 ;
 ; Every (doc ...) form files one entry in the registry doc.x keeps, a list
-; (name desc returns params examples sees notes samples) in the order
+; (name desc returns params examples sees notes samples known-as) in the order
 ; %doc-register! takes them.  This class hands one back as a record with a
 ; field per part, and lists the names; help, apropos, modules and Tab
 ; completion read the registry through it.  The doctest checker and the
@@ -26,7 +26,7 @@
 (def %names-kept (pair () ()))
 
 (def-class Doc ()
-  (doc "A documentation entry as data: what one (doc ...) form filed, a field per part. (Doc entry 'name) answers one; (Doc names) lists every documented name. The params are (name TYPE desc) triples, the examples and samples (expr . result) pairs of strings, the sees symbols and the notes strings, as the doc form wrote them."
+  (doc "A documentation entry as data: what one (doc ...) form filed, a field per part. (Doc entry 'name) answers one; (Doc names) lists every documented name. The params are (name TYPE desc) triples, the examples and samples (expr . result) pairs of strings, the sees symbols, and the notes and the known-as names strings, as the doc form wrote them."
     (example "((Doc entry 'Str8/split) name)" "'Str8/split")
     (example "(List map first ((Doc entry 'Str8/split) params))" "('sep 's)")
     (example "(List last (List last ((Doc entry 'apply) params)))" "'rest"))
@@ -38,6 +38,7 @@
   (sees "The names the entry refers to, as symbols")
   (notes "The note strings, in order")
   (samples "The (expr . result) pairs shown but never run, both strings")
+  (known-as "The other names the entry goes by, as strings, in order")
   (static
     (method entry (self (param name ANY "A documented name: a symbol such as 'Str8/split, or the same as a string"))
       (doc "The entry documented under name, as a Doc record, or () when nothing is documented under it. A name is a bare symbol as the registry keys it, a method as Class/method, a module as its name; a string is interned first."
@@ -55,10 +56,10 @@
         (let ()
           (def r1 (rest e)) (def r2 (rest r1)) (def r3 (rest r2))
           (def r4 (rest r3)) (def r5 (rest r4)) (def r6 (rest r5))
-          (def r7 (rest r6))
+          (def r7 (rest r6)) (def r8 (rest r7))
           (new Doc
             (first e) (first r1) (first r2) (first r3)
-            (first r4) (first r5) (first r6) (first r7)))))
+            (first r4) (first r5) (first r6) (first r7) (first r8)))))
     (method names (self)
       (doc "Every documented name, sorted, each once: the names apropos searches and Tab completes. The list is built once and answered again until another name is documented, so it is shared: read it, do not change it."
         (returns LIST "Symbols, sorted by name")
@@ -93,6 +94,6 @@
           names)))))
 
 (doc (provide x/doc/registry Doc)
-  (note "The registry as data: (Doc entry 'name) answers a record with name, desc, returns, params, examples, sees, notes and samples; (Doc names) lists every documented name.")
+  (note "The registry as data: (Doc entry 'name) answers a record with name, desc, returns, params, examples, sees, notes, samples and known-as; (Doc names) lists every documented name.")
   (example "((Doc entry 'Str8/split) name)" "'Str8/split")
   "Doc: the documentation registry as data -- one record per documented name.")

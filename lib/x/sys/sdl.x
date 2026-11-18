@@ -53,8 +53,7 @@
 (module x/sys/sdl)
 (import x/type/class)
 (import x/core/list)
-(import x/codec/bytes)
-(import x/core/doors ffi-dlopen ffi-dlsym int- int->ptr int& int< int<< int= int>> int| ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! str->ptr str-make mem-copy)
+(import x/core/doors ffi-dlopen ffi-dlsym int- int->ptr int& int< int<< int= int>> int| ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make mem-copy)
 
 (def-class Sdl ()
   (doc "A window that shows an RGBA pixel buffer, its keyboard and window events, and streams of sound, through the host's SDL3 loaded with dlopen."
@@ -124,6 +123,17 @@
         (Err raise (lit io) (Str8 append "Sdl " what ": " (Sdl error)) ()))
       p)
 
+    (method %zeroed (self (param n INTEGER "Byte count, a multiple of 8"))
+      (doc "A (str make) region of n zero bytes."
+        (returns STRING "The region")
+        (sample "(Sdl %zeroed 128)" "a 128-byte region of zeros"))
+      (def region (str-make n))
+      (def p (str->ptr region))
+      (let go ((i 0))
+        (when (< i n)
+          (do (ptr-set-word! p i 0) (go (+ i %word-size)))))
+      region)
+
     (method load! (self (param path STRING "A libSDL3 file to try first"))
       (doc "Name the libSDL3 to load ahead of the default names, as a game shipping its own copy does."
         (returns STRING "The path")
@@ -185,7 +195,7 @@
       (doc "A zeroed RGBA buffer the size of the window's picture: transparent black."
         (returns STRING "A region of w*h*4 bytes")
         (sample "(Sdl canvas win)" "a 256000-byte region for 320 x 200"))
-      (first (Bytes zeros (* 4 (List ref 3 win) (List ref 4 win)))))
+      (Sdl %zeroed (* 4 (List ref 3 win) (List ref 4 win))))
 
     (method draw! (self (param win LIST "A window from open")
                         (param buf STRING "An RGBA buffer the window's size"))
@@ -246,7 +256,7 @@
         (returns LIST|NIL "(key-down KEY MOD REPEAT), (key-up KEY MOD REPEAT), (mouse-down BUTTON X Y), (mouse-up BUTTON X Y), (mouse-motion X Y HELD), (pad-down BUTTON PAD), (pad-up BUTTON PAD), (pad-axis AXIS VALUE PAD), (pad-added PAD), (pad-removed PAD), (quit), (close) or (other TYPE)")
         (sample "(Sdl poll)" "(key-down 97 0 #f)")
         (sample "(Sdl poll win)" "(mouse-motion 120 64 (left))"))
-      (def ev (first (Bytes zeros (Sdl %event-size))))
+      (def ev (Sdl %zeroed (Sdl %event-size)))
       (def p (str->ptr ev))
       (if (= (& (ptr-call (Sdl %sym "SDL_PollEvent") p) 255) 0) ()
         (let ((type (ptr-ref p 0 4)))
@@ -343,7 +353,7 @@
       (doc "Queue a key-down event for code, as if it had been pressed: input for tests and replays."
         (returns BOOL "#t when SDL queued it")
         (sample "(Sdl post-key! (Sdl key (lit up)))" "#t"))
-      (def ev (first (Bytes zeros (Sdl %event-size))))
+      (def ev (Sdl %zeroed (Sdl %event-size)))
       (def p (str->ptr ev))
       (ptr-set! p 0 768 4)
       (ptr-set! p 28 code 4)
@@ -364,7 +374,7 @@
         (returns INTEGER "The stream, an SDL_AudioStream pointer as an integer")
         (sample "(Sdl audio-open 44100 2)" "a stream"))
       (Sdl %ok (ptr-call (Sdl %sym "SDL_InitSubSystem") (Sdl %init-audio)) "audio init")
-      (def spec (first (Bytes zeros 16)))
+      (def spec (Sdl %zeroed 16))
       (def p (str->ptr spec))
       (ptr-set! p 0 (Sdl %s16) 4)
       (ptr-set! p 4 chans 4)

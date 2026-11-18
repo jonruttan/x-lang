@@ -58,6 +58,24 @@
           (self (rest forms) label acc))
         (self (rest forms) label acc)))))
 
+; The (note ...) forms of a doc's metadata, and after them one note that
+; lists the other names its (known-as ...) forms give, so a page shows what
+; (help) shows without the emitters learning a clause.
+(def %doc-notes
+  (fn (_ meta)
+    (def %names
+      ((fn (go forms acc)
+         (if (null? forms) (%reverse acc)
+           (go (rest forms)
+               ((fn (each names acc)
+                  (if (null? names) acc
+                    (each (rest names) (pair (DocEmit as-str (first names)) acc))))
+                (rest (first forms)) acc))))
+       (%doc-extract-meta-type meta "known-as" ()) ()))
+    (%append (%doc-extract-meta-type meta "note" ())
+      (if (null? %names) ()
+        (list (list 'note (Str str "Known as: " (Str8 join ", " %names) "."))))))))
+
 ; --- Main doc form extraction ---
 
 ; A (doc ...) token form -> (name desc params returns examples sees notes).
@@ -78,7 +96,7 @@
         (def %returns (%doc-extract-meta-type %meta "returns" ()))
         (def %examples (%doc-extract-meta-type %meta "example" ()))
         (def %sees (%doc-extract-meta-type %meta "see" ()))
-        (def %notes (%doc-extract-meta-type %meta "note" ()))
+        (def %notes (%doc-notes %meta))
         (list %name %desc %fn-params %returns %examples %sees %notes))
       (if (%doc-provide-form? %second)
         (let () (def %name (first (rest %second)))
@@ -88,14 +106,14 @@
               (%doc-extract-meta-type %meta "returns" ())
               (%doc-extract-meta-type %meta "example" ())
               (%doc-extract-meta-type %meta "see" ())
-              (%doc-extract-meta-type %meta "note" ())))
+              (%doc-notes %meta)))
         (let () (def %desc (%doc-find-last-string %meta))
             (list %second %desc
               (%doc-extract-meta-type %meta "param" ())
               (%doc-extract-meta-type %meta "returns" ())
               (%doc-extract-meta-type %meta "example" ())
               (%doc-extract-meta-type %meta "see" ())
-              (%doc-extract-meta-type %meta "note" ())))))))
+              (%doc-notes %meta)))))))
 
 ; --- Output, through an emitter ------------------------------------------
 ; The walk below never writes Markdown -- it calls an EMITTER, a class value
@@ -264,7 +282,7 @@
       (if static?
         (Str str "(" cname " " %mname (%doc-sig-str %args) ")")
         (Str str "(" %mname (%doc-sig-str %args) ")")))
-    (def %notes (%doc-extract-meta-type %meta "note" ()))
+    (def %notes (%doc-notes %meta))
     ; Notes the LIVE registry holds for this method that the source form
     ; does not.  x/type/block.x adds "Block form: ..." to a method's doc
     ; when its class module loads -- the wrap is the one place that knows
@@ -322,7 +340,7 @@
       (do (em text (first (rest f)))
           (%for-each
             (fn (_ n) (em note (DocEmit as-str (first (rest n)))))
-            (%doc-extract-meta-type %meta "note" ()))))))
+            (%doc-notes %meta))))))
 
 (def %doc-walk-class-body
   (fn (self em body cname static? vis)
