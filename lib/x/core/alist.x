@@ -14,7 +14,7 @@
 (note "Lookup")
 
 (doc (def %assoc-get
-  (fn (self (param key SYMBOL "Key to look up")
+  (fn (self (param key ANY "Key to look up (eq? comparison)")
        (param alist LIST "Association list"))
     (match
       ((null? alist) ())
@@ -26,7 +26,7 @@
   "Look up a key in an alist, returning its value or nil.")
 
 (doc (def %assoc-has?
-  (fn (self (param key SYMBOL "Key to check")
+  (fn (self (param key ANY "Key to check (eq? comparison)")
        (param alist LIST "Association list"))
     (match
       ((null? alist) #f)
@@ -44,7 +44,7 @@
 ; matches across bases), strings always compare by content.
 
 (doc (def %assq
-  (fn (self (param key SYMBOL "Key to look up (eq? comparison)")
+  (fn (self (param key ANY "Key to look up (eq? comparison)")
        (param alist LIST "Association list"))
     (match
       ((null? alist) ())
@@ -70,7 +70,7 @@
 (note "Modification")
 
 (doc (def %assoc-del
-  (fn (self (param key SYMBOL "Key to remove")
+  (fn (self (param key ANY "Key to remove (eq? comparison)")
        (param alist LIST "Association list"))
     (match
       ((null? alist) ())
@@ -82,7 +82,7 @@
   "Remove all entries for a key from an alist.")
 
 (doc (def %assoc-put
-  (fn (_ (param key SYMBOL "Key to set")
+  (fn (_ (param key ANY "Key to set (eq? comparison)")
        (param val ANY "Value to associate")
        (param alist LIST "Association list"))
     (pair (pair key val) (%assoc-del key alist))))
