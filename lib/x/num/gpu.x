@@ -180,7 +180,7 @@ kernel void product(device const float* a [[buffer(0)]],
     (method release (self (param t Tensor "A held tensor"))
       (doc "Give a held tensor's buffer back. The tensor and every view that shares the buffer are finished: using one afterwards raises a label 'state. Releasing a tensor already released, or one that is not held, does nothing."
         (returns ANY "nil")
-        (example "(Gpu release (Tensor from '(1 2)))" "()")
+        (example "(null? (Gpu release (Tensor from '(1 2))))" "#t")
         (sample "(Gpu release h)" "nil, h's buffer given back"))
       (let ((data (List ref 4 (t %st))))
         (if (if (pair? data) (not (int= (first data) 0)) #f)
