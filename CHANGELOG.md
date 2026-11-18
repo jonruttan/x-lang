@@ -5,6 +5,333 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-11-17
+
+**Tensor has an f32 encoding: 32-bit floats, 4 bytes an element.** ([#1335])
+`(Tensor from xs 'f32)`, `zeros`, `fill` and `as` take it; the views,
+the element-wise arithmetic, the reductions and the casts work on it,
+and its kernels compile as the others do.  An f32 tensor stays f32
+against a number or an i64 tensor and widens to f64 against an f64
+tensor; `sum`, `least`, `greatest` and `mean` answer Floats.  Word forms
+gain `f32-ref` and `f32-set!`, a single in memory read as a double and a
+double stored rounded to a single, in `word-form-pure` and
+`compile-asm`.
+
+[#1335]: https://github.com/jonruttan/x-lang/pull/1335
+
+**`x/sys/darwin/metal` runs kernels on the GPU through macOS's Metal.** ([#1334])
+`(Metal buffer bytes)` answers memory x and the GPU share, read and
+written through `(Metal pointer buf)`; `(Metal compile source name)`
+compiles a kernel from Metal Shading Language source, and
+`(Metal run pipeline buffers width height)` runs it over a grid and
+waits.  `(Metal available?)` answers `#f` on a host with no Metal
+device.  A kernel's floats are 32-bit.
+
+[#1334]: https://github.com/jonruttan/x-lang/pull/1334
+
+**A doc form takes `(known-as "other name" ...)`, and `apropos` searches
+it.** ([#1333]) `help` shows the other names a thing goes by on a
+`known as:` line; `apropos` matches them in any case and prints the
+name that answered, so a reader who knows only the name another library
+or a textbook uses still finds the entry.  `(Doc entry 'name)` answers
+them as `known-as`, the generated reference lists them in a note, and
+the linter accepts the clause in a method's doc.
+
+[#1333]: https://github.com/jonruttan/x-lang/pull/1333
+
+**`Distribution` is the one class of `x/num/distribution`.** ([#1321],
+[#1332]) Each distribution is made by a constructor: `(Distribution
+normal 0 1)`, `uniform`, `exponential`, `gamma`, `chi-squared`,
+`standardized-mean` and `variance-ratio`, and answers `density`,
+`cumulative`, `survival`, `quantile`, `mean`, `variance` and
+`deviation`.
+
+[#1321]: https://github.com/jonruttan/x-lang/pull/1321
+[#1332]: https://github.com/jonruttan/x-lang/pull/1332
+
+**x/tool/syntax colours JSON, Markdown and HTML.** ([#1331]) `(Syntax
+named 'json)`, `'markdown` and `'html`, found by `for-file` from .json,
+.md, .markdown, .html, .htm and .xhtml.
+
+[#1331]: https://github.com/jonruttan/x-lang/pull/1331
+
+**`Tls13` declines a server's request for a client certificate instead
+of ending the handshake.** ([#1330]) A server that sends a
+CertificateRequest -- MySQL and MariaDB send one to every client -- is
+answered with a Certificate message holding no certificate (RFC 8446
+4.4.2), and the handshake goes on if the server allows it; before,
+`connect` and `over` raised "the server asked for a client certificate,
+which this client does not send".  `(Tls13 accept in out (list (pair
+'pem text) (list 'request-certificate)))` asks the client for one and
+takes a client that declines; a client that sends a certificate is
+refused, `accept` checking none.
+
+[#1330]: https://github.com/jonruttan/x-lang/pull/1330
+
+**`(Bytes zeros n)`.** ([#1329]) n bytes of 0 in a fresh buffer, as a region
+(BUF 0 n); a buffer from `str-make` holds spaces, so one read before
+every byte is written starts here.  `mem-set` joins x/core/doors.  The
+private zero helpers in the codecs, gfx/canvas, sys/linux, sys/sdl and
+tool/link are gone; `Sdl %zeroed` is removed.
+
+[#1329]: https://github.com/jonruttan/x-lang/pull/1329
+
+**`(Annotation ? v T)` tests a value against a doc annotation.** ([#1328]) The new
+module `x/type/annotation` answers whether a value is one the annotation
+names: a runtime type, a class with its descendants, a union written
+`A|B`, or one of `ANY`, `NIL`, `NUMBER`, `CALLABLE`, `ALIST` and `TYPE`.
+nil satisfies `ANY`, `NIL`, `LIST` and `ALIST` only; `CALLABLE` is a
+value whose type has a call handler.
+
+[#1328]: https://github.com/jonruttan/x-lang/pull/1328
+
+**The build and release tools take their digests through one helper.**
+([#1327]) sha256sum or sha1sum when the host has them, shasum otherwise.
+
+[#1327]: https://github.com/jonruttan/x-lang/pull/1327
+
+**`(Sys getpwuid uid)`, `(Sys gethostname)` and `(Socket canonical-name host)`.** ([#1326])
+The real uid's password-database entry (name, uid, gid, gecos, dir,
+shell), the machine's host name, and the resolver's canonical name for a
+host through getaddrinfo's AI_CANONNAME, with struct passwd and struct
+addrinfo read at each platform's offsets: Darwin, and glibc or musl
+Linux on a 4- or 8-byte word.
+
+[#1326]: https://github.com/jonruttan/x-lang/pull/1326
+
+**The doc registry marks a rest parameter.** ([#1325]) A parameter written as a
+signature's dotted tail is filed in `Doc params` as `(name TYPE desc
+rest)`, where every other parameter is a `(name TYPE desc)` triple, and
+`help` prints it after a dot: `. args : ANY -- One value per {} slot`.
+
+[#1325]: https://github.com/jonruttan/x-lang/pull/1325
+
+**The spec runner reads a snippet one form at a time.** ([#1324]) A form that
+changes the reader, such as an import that adds float literals, changes
+how the rest of its snippet reads. A snippet that forks keeps the fork
+and the child's exit in one form, since the child shares the input.
+
+[#1324]: https://github.com/jonruttan/x-lang/pull/1324
+
+**Float exponents, and strings convert only when they are one number.** ([#1322])
+A float literal may carry an exponent after its fraction, `2.5e3`; the
+point stays required, so `1e3` is not a float. Floats print with a point
+before the exponent, `1.0e-05`, so they read back. `float-of` and
+`Float from` read a string as the reader does and refuse one that is not
+a single number, where `"abc"` gave 0.0 and `"2.5x"` gave 2.5.  Json
+parse still reads `1e3` as 1000.0, and `(Float from
+"123456789012345678")` answers the nearest float on every word size.
+
+[#1322]: https://github.com/jonruttan/x-lang/pull/1322
+
+**Mixer no longer crashes when loaded from a state image.** ([#1320])
+`x -l tracker` render and play segfaulted.
+
+[#1320]: https://github.com/jonruttan/x-lang/pull/1320
+
+**Tracker cells take `x C` and `y C` effects.** ([#1319]) They ring or
+hard-sync a note to a modulator C cents from its pitch.
+
+[#1319]: https://github.com/jonruttan/x-lang/pull/1319
+
+**Statistics: variance, deviation, quantile, median, covariance and
+correlation.** ([#1318]) `(t variance)` and `(t deviation)` divide by
+the count less 1 unless given another correction, `(t variance 0)` being
+the population variance; `(t quantile q)` interpolates linearly between
+the sorted elements and `(t median)` is its middle.  `(m covariance)`
+and `(m correlation)` treat a Matrix's columns as the variables.
+
+[#1318]: https://github.com/jonruttan/x-lang/pull/1318
+
+**Mixer voices take `(ring CENTS)` and `(sync CENTS)`.** ([#1317]) A
+modulator rings or hard-syncs the wave, on 32-bit platforms as on
+64-bit.
+
+[#1317]: https://github.com/jonruttan/x-lang/pull/1317
+
+**Singular: the singular value decomposition of any matrix.** ([#1316])
+`(m factor-singular)` answers a `Singular` with `values`, from greatest
+to least, and `left` and `right`, orthonormal columns, by one-sided
+Jacobi rotations; `(d rank)` counts the values above a tolerance that
+scales with the matrix, and `(d rank tol)` takes one.
+
+[#1316]: https://github.com/jonruttan/x-lang/pull/1316
+
+**Mixer voices take a resonant filter.** ([#1315]) `cutoff`, `res` and
+`pass`, and tracker cells an `o H` effect that moves its cutoff.
+
+[#1315]: https://github.com/jonruttan/x-lang/pull/1315
+
+**Eigen: the eigenvalues and eigenvectors of any square matrix.** ([#1314])
+`(m factor-eigen)` answers an `Eigen` with `values` and `vectors`, both
+c128, by Hessenberg reduction and Francis double-shift QR steps; a
+conjugate pair comes with its positive imaginary part first.
+
+[#1314]: https://github.com/jonruttan/x-lang/pull/1314
+
+**Tracker cells take a `w P` effect.** ([#1313]) It sweeps a pulse
+voice's width.
+
+[#1313]: https://github.com/jonruttan/x-lang/pull/1313
+
+**Doctests run one file per module, booted from the x-core image.** ([#1312])
+A file loads only its own module, which keeps the collect the runner
+makes before every case cheap, and boots from the state image as
+`make test-x` does (`IMG=0` boots from source).  On arm64, serially:
+the 2062 doctests 114.5 -> 75.0 s, 18 files -> 96, the longest file
+21 s (x/codec) -> 4 s.
+
+[#1312]: https://github.com/jonruttan/x-lang/pull/1312
+
+**A Complex whose imaginary part is -0.0 prints as `1.0-0.0i`.** ([#1311]) It
+printed as `1.0+-0.0i`; the sign between the parts now follows the
+float's sign bit, as numpy's `1-0j` does.
+
+[#1311]: https://github.com/jonruttan/x-lang/pull/1311
+
+**Tensor: the c128 encoding.** ([#1309]) Complex numbers as two doubles: `(Tensor
+from (list (Complex make 1 2)))`, `(Tensor complex re im)`, `(t as
+'c128)`; the views, broadcasting, `add`, `sub`, `mul`, `div`, `sum` and
+`mean` work as for f64, `real` and `imaginary` are f64 views sharing the
+bytes, and `conjugate` negates the imaginary parts. min, max, least and
+greatest refuse c128.
+
+[#1309]: https://github.com/jonruttan/x-lang/pull/1309
+
+**A bzip2 encoder starts in half the work.** ([#1310]) Its tables are cleared
+with one mem set rather than a word at a time, and its CRC table is
+built once at load and copied in.  `(Bzip2 compress "hello" 1)`:
+~685K -> ~336K objects, 52 -> 26 ms on arm64.  `(Unlzma jit!)`'s
+documented example is now a sample, as the other jit! methods' are,
+so the doctests no longer build the compiled decoder.
+
+[#1310]: https://github.com/jonruttan/x-lang/pull/1310
+
+**SymmetricEigen: the eigenvalues and eigenvectors of a symmetric
+matrix.** ([#1308]) `(m factor-symmetric-eigen)` answers a
+`SymmetricEigen` with `values`, real and from least to greatest, and
+`vectors`, orthonormal columns, by cyclic Jacobi rotations.
+
+[#1308]: https://github.com/jonruttan/x-lang/pull/1308
+
+**Orthogonal: a matrix's QR factorization, and least squares.** ([#1307])
+`(m factor-orthogonal)` answers an `Orthogonal` with `orthogonal` (Q,
+orthonormal columns), `upper` (R) and `solve`, the least-squares x for a
+tall matrix of independent columns, by Householder reflections.
+
+[#1307]: https://github.com/jonruttan/x-lang/pull/1307
+
+**Cholesky: the factorization of a symmetric positive-definite matrix.** ([#1305])
+`(m factor-cholesky)` answers a `Cholesky` with `lower` (L, whose product
+with its transpose is the matrix), `upper`, `solve` and `determinant`; a
+matrix that is not symmetric or not positive definite is refused.
+
+[#1305]: https://github.com/jonruttan/x-lang/pull/1305
+
+**`x/num/fixed` registers the fixed-point reader literal; `x/num/fixed-literal` is gone.** ([#1306])
+Once `x/num/fixed` is loaded, `0.75q16` reads as the integer 49152;
+there is no longer a separate module to import for the literal, and
+`(import x/num/fixed-literal)` now fails.
+
+[#1306]: https://github.com/jonruttan/x-lang/pull/1306
+
+**LowerUpper: a matrix's lower-upper factorization.** ([#1304]) `(m
+factor-lower-upper)` answers a `LowerUpper` with `lower`, `upper` and
+`permutation` (P times the matrix is L times U), `solve`, `determinant`
+and `singular?`, so a matrix factored once solves many right sides.
+Matrix's `solve`, `inverse` and `determinant` go through it.
+
+[#1304]: https://github.com/jonruttan/x-lang/pull/1304
+
+**Matrix: a Tensor of rank 2 with the linear algebra.** ([#1303]) `(import
+x/num/matrix)` gives `(Matrix from ...)`, `(Matrix identity n)`, the
+matrix product `(a product b)`, `solve`, `inverse`, `determinant`,
+`trace`, `diagonal` and `norm`, by LU factorization with partial
+pivoting, in kernels that compile once they have run long enough and
+answer the same either way.
+
+[#1303]: https://github.com/jonruttan/x-lang/pull/1303
+
+**The doctest extractor sweeps the heap after each module import.** ([#1302])
+`tools/check/doctest.sh` no longer keeps every import's garbage: peak
+footprint above 4.6 GB -> 946 MB.
+
+[#1302]: https://github.com/jonruttan/x-lang/pull/1302
+
+**Tensor: n-dimensional arrays of f64 or i64 packed in bytes.** ([#1301])
+`(import x/num/tensor)` gives views that share their bytes (transpose,
+slice, reshape), broadcasting element-wise arithmetic and the reductions
+sum, least, greatest and mean, run in word-form kernels that compile
+once they have run long enough and answer the same either way. On arm64
+an element-wise add of two one-element tensors costs about 7,800
+objects, and a compiled sum over 1,000 f64 elements 4,739 objects
+against 200,007 pure.
+
+[#1301]: https://github.com/jonruttan/x-lang/pull/1301
+
+**Compiled functions call closures and C primitives without looking up
+`lit`.** ([#1300]) A function compiled by `compile-fn!` no longer looks
+`lit` up in the caller's environment: faster from deep environments,
+and correct when the caller binds `lit`.
+
+[#1300]: https://github.com/jonruttan/x-lang/pull/1300
+
+**List and Gen ask a collection with least and greatest.** ([#1299]) `List min`,
+`List max`, `Gen min` and `Gen max` are renamed `least` and `greatest`,
+the names Tensor's reductions take; `Num min` and `Num max`, which
+operate on their arguments, keep their names. The old names are gone.
+
+[#1299]: https://github.com/jonruttan/x-lang/pull/1299
+
+**Fourier compiles its transform kernels, and x/tool/int-form is now
+x/tool/word-form.** ([#1294]) Fourier compiles after a compile's worth
+of pure work, or on `(Fourier jit!)`, and collects its own garbage.
+`word-form-pure`, `word-form-wide` and `word-form-jit-make` replace the
+int-form names, and the double operations are `f+ f- f* f/ f< f=
+f-sqrt i->f f->i` with `f-ref` and `f-set!`; `compile-asm` compiles all
+of them on an 8-byte word, and the assemblers encode fsqrt on arm64 and
+x86-64.
+
+[#1294]: https://github.com/jonruttan/x-lang/pull/1294
+
+**check-boot-order sweeps the heap after each simulated boot.** ([#1298]) Its five
+walks of the boot closure no longer keep one another's garbage: peak
+resident 1.58 -> 0.88 GB, peak footprint above 3 GB -> 788 MB, wall time
+unchanged.
+
+[#1298]: https://github.com/jonruttan/x-lang/pull/1298
+
+**The mixer plays recorded sounds.** ([#1295]) `x/codec/wav` reads WAV
+files, `Mixer sample!` plays one at a pitch, once or looped, and
+`Mixer cycle!` makes a band-limited wave of one recorded cycle.
+
+[#1295]: https://github.com/jonruttan/x-lang/pull/1295
+
+**help shows a worked example for every documented entry.** ([#1297])
+`socketcall-id`, `protocol-format-id` and `sock-id` answer their table
+index instead of -1.
+
+[#1297]: https://github.com/jonruttan/x-lang/pull/1297
+
+**Png decode undoes a first row filtered Up, Average or Paeth
+correctly.** ([#1296]) It was off by 0x20 a byte.
+
+[#1296]: https://github.com/jonruttan/x-lang/pull/1296
+
+**`x/num/fourier`: the discrete Fourier transform.** ([#1293]) The `Fourier` class
+plans a transform of length n once and reuses it: radix-2 for a power of
+two, Bluestein's algorithm for every other n, O(n log n) either way.
+`forward` / `inverse` take vectors of numbers and answer Complex values;
+`forward!` / `inverse!` transform split form (two float vectors) in place.
+`(Fourier fft v)`, `ifft`, and the O(n^2) reference `dft` / `idft`.
+
+[#1293]: https://github.com/jonruttan/x-lang/pull/1293
+
+**The mixer's voices read each wave band-limited to their pitch.**
+([#1292]) Squares, saws and drawn shapes no longer alias on high notes.
+
+[#1292]: https://github.com/jonruttan/x-lang/pull/1292
+
 ## [0.55.0] - 2026-11-14
 
 **Shaped waves, waves drawn by points, and pulse sweeps in the mixer.** ([#1290])
