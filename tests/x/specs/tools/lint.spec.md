@@ -1134,6 +1134,14 @@ What the integer is depends on the word, so the case asks only its kind.
 ---
     #t
 
+### does not flag a character where the annotation is NUMBER
+
+```x
+(display (null? (lint-warnings-of "annotation" (lint-forms '((<= 1 #\9)) () ()))))
+```
+---
+    #t
+
 ### flags nil where the annotation does not admit it
 
 ```x

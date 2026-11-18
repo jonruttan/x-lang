@@ -14,7 +14,8 @@
 ;   PAIR      a pair
 ;   ATOM      a value that is not a pair
 ;   NUMBER    what number? answers for, so the numeric modules that are
-;             loaded decide it
+;             loaded decide it, or a character: arithmetic and comparison
+;             take one
 ;   CALLABLE  a value whose type has a call handler
 ;   TYPE      a runtime type's handle
 ;   any other the name of v's runtime type, or the name of a class v is an
@@ -49,6 +50,7 @@
         (returns BOOL "#t when v satisfies t")
         (note "nil satisfies ANY, NIL, LIST and ALIST only. ALIST is tested as LIST is: the elements are not looked at.")
         (note "CALLABLE is a value whose type has a call handler, so a list, a string and a number satisfy it and nil, a symbol and a boolean do not.")
+        (note "NUMBER is what number? answers for, or a character, which arithmetic and comparison take.")
         (note "A name that is neither a runtime type's nor a loaded class's is satisfied by no value.")
         (example "(Annotation ? 7 'INTEGER)" "#t")
         (example "(Annotation ? \"7\" 'INTEGER)" "#f")
@@ -75,7 +77,7 @@
         ((null? v) #f)
         ((str=? p "PAIR") (self %pair? v))
         ((str=? p "ATOM") (not (self %pair? v)))
-        ((str=? p "NUMBER") (number? v))
+        ((str=? p "NUMBER") (if (number? v) #t (char? v)))
         ((str=? p "CALLABLE") (self %callable? v))
         ((str=? p "TYPE") (self %handle? v))
         ((self %pair? v) #f)
