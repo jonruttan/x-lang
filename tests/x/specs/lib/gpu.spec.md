@@ -253,11 +253,11 @@ any other, and product reads it, and answers one, with no copy.
 
 ```x
 (import x/num/gpu)
-(let ((t (Tensor from '(1 2))))
+(let ((t (Tensor from '(1.5 2.5))))
   (list (Gpu release t) (Gpu held? t) (t ->list)))
 ```
 ---
-    (() #f (1 2))
+    (() #f (1.5 2.5))
 
 ### with no GPU, hold raises a label io
 
