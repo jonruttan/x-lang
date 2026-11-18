@@ -31,6 +31,12 @@
 ; in budgeted calls and the heap is collected between them once the churn
 ; passes %window, as x/num/fourier's are.
 ;
+; DATA is the byte region, a (str make) string, or bytes another module
+; keeps: a pair (ADDRESS . OWNER), as x/num/gpu makes for a tensor whose
+; bytes are in a buffer the GPU shares.  Tensor reads and writes at
+; ADDRESS and does nothing with OWNER but keep it; an ADDRESS of 0 says
+; the bytes were given back, and using the tensor then raises.
+;
 ; An instance holds one field, its state: the list (ENC EXTENT STRIDES
 ; OFFSET DATA).  The work is done by closures over states, made once and
 ; kept in %fast-cell, which call one another directly: a class dispatch
@@ -234,7 +240,7 @@
     ;    7 zip WHICH ST OTHER   8 reduce WHICH ST       9 fill! ST X
     ;   10 convert ST ENC      11 view ST EXT STR OFF  12 index ST IDX
     ;   13 addr ST             14 drive NAME S        15 bits X
-    ;   16 broadcast EA EB      17 assign! DST SRC
+    ;   16 broadcast EA EB      17 assign! DST SRC     18 base ST
     ; A state is (ENC EXTENT STRIDES OFFSET DATA); OTHER is a state or a number.
     (%fast-cell (pair () ()))
     (method %fast (self)
@@ -279,7 +285,14 @@
         (def width (fn (_ enc) (match ((eq? enc c128) 16) ((eq? enc f32) 4) (#t 8))))
         ; f64 and f32 are the encodings whose elements a kernel holds as doubles.
         (def real? (fn (_ enc) (if (eq? enc f64) #t (eq? enc f32))))
-        (def base (fn (_ st) (ptr->int (str->ptr (data-of st)))))
+        ; The address of element 0's region: a string's bytes, or the address
+        ; of bytes another module keeps.
+        (def base
+          (fn (_ st)
+            (let ((d (data-of st)))
+              (if (pair? d)
+                (if (int= (first d) 0) (Err raise (lit state) "Tensor: its bytes were given back" ()) (first d))
+                (ptr->int (str->ptr d))))))
         (def addr (fn (_ st) (int+ (base st) (int* (width (enc-of st)) (off-of st)))))
         (def make (fn (_ enc ext str off data) (list enc ext str off data)))
         (def new
@@ -526,7 +539,7 @@
               (str-make 256) (list (stretch src (ext-of dst)) dst) (list (pair 0 3) (pair 2 5)) (ext-of dst))
             dst))
         (Vector of size-of row-major contig? new get put zip reduce fill! convert view index addr drive bits
-          broadcast assign!)))
+          broadcast assign! base)))
 
     ; --- the lanes ----------------------------------------------------------
     ; As x/num/fourier's: what the pure kernels allocate is owed in objects
@@ -844,7 +857,7 @@
       (example "((Tensor from '((1 2) (3 4.5))) ref 1 0)" "3.0")
       (example "((Tensor from '(1.5 2.5)) ref -1)" "2.5"))
     (let ((f (Tensor %fast)) (st (field (lit st))))
-      (((obj-ref f 5) (first st)) (ptr->int (str->ptr (List ref 4 st))) ((obj-ref f 12) st idx))))
+      (((obj-ref f 5) (first st)) ((obj-ref f 18) st) ((obj-ref f 12) st idx))))
 
   (method set! (self . (param args NUMBER "One index per axis, then the value"))
     (doc "Store a value at the given indexes. A view shares its bytes, so the change shows through every tensor over them."
@@ -852,7 +865,7 @@
       (example "(((Tensor zeros 3) set! 1 9) ->list)" "(0.0 9.0 0.0)"))
     (let ((f (Tensor %fast)) (st (field (lit st)))
           (idx (List take (int- (List length args) 1) args)) (x (List last args)))
-      (((obj-ref f 6) (first st)) (ptr->int (str->ptr (List ref 4 st))) ((obj-ref f 12) st idx) x)
+      (((obj-ref f 6) (first st)) ((obj-ref f 18) st) ((obj-ref f 12) st idx) x)
       self))
 
   (method ->list (self)
@@ -860,7 +873,7 @@
       (returns LIST "Nested lists of numbers")
       (example "((Tensor range 4 'f64) ->list)" "(0.0 1.0 2.0 3.0)"))
     (let ((st (field (lit st))))
-      (let ((get ((obj-ref (Tensor %fast) 5) (first st))) (a (ptr->int (str->ptr (List ref 4 st)))))
+      (let ((get ((obj-ref (Tensor %fast) 5) (first st))) (a ((obj-ref (Tensor %fast) 18) st)))
         (def go
           (fn (go ext str off)
             (if (null? ext) (get a off)

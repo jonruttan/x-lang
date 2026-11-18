@@ -143,6 +143,132 @@ bit as the CPU's.
 ---
     ((7.0 10.0) (15.0 22.0))
 
+## held tensors
+
+A held tensor's bytes are in a buffer the GPU shares. It is a Tensor like
+any other, and product reads it, and answers one, with no copy.
+
+### hold answers an f32 copy of the same class, and held? tells it from an ordinary tensor
+
+```x
+(import x/num/gpu)
+(if (Gpu available?)
+  (let ((h (Gpu hold (Matrix from '((1 2) (3 4))))))
+    (let ((r (list (h encoding) (h ->list) (Gpu held? h) (instance-of? h Matrix) (Gpu held? (Matrix from '((1)))))))
+      (Gpu release h)
+      r))
+  (list (lit f32) (lit ((1.0 2.0) (3.0 4.0))) #t #t #f))
+```
+---
+    ('f32 ((1.0 2.0) (3.0 4.0)) #t #t #f)
+
+### Tensor's operations work on a held tensor, and their results are ordinary
+
+```x
+(import x/num/gpu)
+(if (Gpu available?)
+  (let ((h (Gpu hold (Matrix from '((1 2) (3 4))))))
+    (let ((r (list ((h add 1) ->list) (Gpu held? (h add 1)) (h sum) (h least))))
+      (Gpu release h)
+      r))
+  (list (lit ((2.0 3.0) (4.0 5.0))) #f 10.0 1.0))
+```
+---
+    (((2.0 3.0) (4.0 5.0)) #f 10.0 1.0)
+
+### a view of a held tensor shares its buffer
+
+```x
+(import x/num/gpu)
+(if (Gpu available?)
+  (let ((h (Gpu hold (Matrix from '((1 2) (3 4))))))
+    (h set! 0 1 9)
+    (let ((r (list (Gpu held? (h transpose)) ((h transpose) ->list))))
+      (Gpu release h)
+      r))
+  (list #t (lit ((1.0 3.0) (9.0 4.0)))))
+```
+---
+    (#t ((1.0 3.0) (9.0 4.0)))
+
+### a product of held tensors is held, and a chain of products stays on the GPU
+
+```x
+(import x/num/gpu)
+(if (Gpu available?)
+  (let ((a (Gpu hold (Matrix from '((1 2) (3 4))))))
+    (let ((p (Gpu product a a)))
+      (let ((q (Gpu product p (a transpose))))
+        (let ((r (list (Gpu held? p) (p ->list) (Gpu held? q) (q ->list) (instance-of? q Matrix))))
+          (List for-each (fn (_ t) (Gpu release t)) (list a p q))
+          r))))
+  (list #t (lit ((7.0 10.0) (15.0 22.0))) #t (lit ((27.0 61.0) (59.0 133.0))) #t))
+```
+---
+    (#t ((7.0 10.0) (15.0 22.0)) #t ((27.0 61.0) (59.0 133.0)) #t)
+
+### a held view is read where it lies: a slice against a column, and an ordinary matrix against a held transpose
+
+```x
+(import x/num/gpu)
+(if (Gpu available?)
+  (let ((m (Gpu hold (Matrix from '((1 2 3) (4 5 6))))))
+    (let ((p (Gpu product (m slice 1 1 3) (Tensor from '(1 10))))
+          (q (Gpu product (Matrix from '((1 2) (3 4))) ((m transpose) slice 0 0 2))))
+      (let ((r (list (p ->list) (Gpu held? p) (q ->list) (Gpu held? q))))
+        (List for-each (fn (_ t) (Gpu release t)) (list m p q))
+        r)))
+  (list (lit (32.0 65.0)) #t (lit ((5.0 14.0) (11.0 32.0))) #t))
+```
+---
+    ((32.0 65.0) #t ((5.0 14.0) (11.0 32.0)) #t)
+
+### two ordinary operands answer an ordinary matrix
+
+```x
+(import x/num/gpu)
+(if (Gpu available?)
+  (Gpu held? (Gpu product (Matrix from '((1 2) (3 4))) (Matrix from '((1 0) (0 1)))))
+  #f)
+```
+---
+    #f
+
+### after release the tensor and its views raise a label state, and a second release does nothing
+
+```x
+(import x/num/gpu)
+(if (Gpu available?)
+  (let ((h (Gpu hold (Matrix from '((1 2) (3 4))))))
+    (let ((v (h transpose)))
+      (Gpu release h)
+      (list (guard (e (Err label e)) (h ->list)) (guard (e (Err label e)) (v sum))
+            (guard (e (Err label e)) (Gpu product v v)) (Gpu release h))))
+  (lit (state state state ())))
+```
+---
+    ('state 'state 'state ())
+
+### releasing an ordinary tensor does nothing
+
+```x
+(import x/num/gpu)
+(let ((t (Tensor from '(1 2))))
+  (list (Gpu release t) (Gpu held? t) (t ->list)))
+```
+---
+    (() #f (1 2))
+
+### with no GPU, hold raises a label io
+
+```x
+(import x/num/gpu)
+(if (Gpu available?) (lit io)
+  (guard (e (Err label e)) (Gpu hold (Tensor from '(1 2)))))
+```
+---
+    'io
+
 ## refusals
 
 ### extents that do not fit are refused
