@@ -42,6 +42,12 @@
 (def %lint-write (prim-ref 'io 'write))
 
 (import x/type/struct)
+; The annotation check asks a callee for its parameters as written
+; (Fn params), for the annotations its doc form states (Doc entry), and
+; whether a literal argument satisfies one (Annotation ?).
+(import x/core/fn)
+(import x/doc/registry)
+(import x/type/annotation)
 
 ; Type structs we attach handlers to (LIST = forms, SYMBOL = references).
 (def %lint-list-type   ((prim-ref 'type 'by-atom) ((prim-ref 'type 'of) (list 1))))
@@ -968,6 +974,23 @@
     (%warn! "call-nonfn" (guard (_ "?") (%cvt (first form) %lint-string-type))))
   (%lint-check-arity form)
   (%lint-check-malformed form)
+  ; A literal argument against the callee's annotation (see Lint
+  ; %lint-annot-call!).  The arguments are looked over here and the class is
+  ; asked only when one of them is a literal: a send per node is what the
+  ; walk avoids.
+  (unless (null? (first %lint-head-cell))
+    (when ((fn (go xs)
+             (match
+               ((not (pair? xs)) #f)
+               ((null? (first xs)) #t)
+               ((symbol? (first xs))
+                 (if (eq? (first xs) (lit #t)) #t
+                   (if (eq? (first xs) (lit #f)) #t (go (rest xs)))))
+               ((pair? (first xs))
+                 (if (eq? (first (first xs)) (lit lit)) #t (go (rest xs))))
+               (#t #t)))
+           (rest form))
+      (Lint %lint-annot-call! (first %lint-head-cell) form)))
   ; A bit operation given a wide decimal literal (see Lint
   ; %lint-wide-token).  The heads are compared here and the class is asked
   ; only on a match: a send per node is what the walk avoids.
@@ -1392,6 +1415,120 @@
             ((if (pair? x) (pair? (rest x)) #f) (%lint-form (first (rest x))))
             (#t ())))
         (if (pair? (rest form)) (rest (rest form)) ())))
+    ; --- Literal arguments against annotations ---
+    ; A call does not check its arguments, so a string passed where the
+    ; callee's doc form says INTEGER is found only when the callee trips on
+    ; it.  Where an argument is a literal the walk knows its value, and asks
+    ; (Annotation ?) whether it satisfies the parameter's annotation.
+    ;
+    ; The registry records only the parameters a doc form annotates, so a
+    ; position in its list is not a position in the call.  The callee's own
+    ; parameter list, as written, gives the positions, and each parameter
+    ; finds its annotation by name.
+    ;
+    ; Only a callee that evaluates its arguments is judged: a closure bound
+    ; to the head, or a class's static method that is one.  An operative
+    ; takes the forms themselves, and a block-form selector is stored as an
+    ; operative, so neither is looked at.  A send to a value, ("a,b" split
+    ; ","), is not judged either: the walk does not know the value's class.
+    (%lint-annot-kept (list ()) "The annotations of each callee asked about in this file, as (key . row); a row is (proper . rest), the registry's entry or () for each parameter in order and for the rest parameter, and () for a callee that is not judged")
+    ; The literal ARG stands for, as a list of one value, or () when ARG is
+    ; not a literal.  #t and #f read as symbols; a wide decimal's marker (see
+    ; %lint-wide-token) is a number the walk has not read.
+    (method %lint-literal (self arg)
+      (match
+        ((null? arg) (list ()))
+        ((symbol? arg)
+          (match
+            ((eq? arg (lit #t)) (list #t))
+            ((eq? arg (lit #f)) (list #f))
+            (#t ())))
+        ((not (pair? arg)) (list arg))
+        ((not (eq? (first arg) (lit lit))) ())
+        ((not (pair? (rest arg))) ())
+        (#t (let ((v (first (rest arg))))
+              (if (if (pair? v) (eq? (first v) (lit %wide-decimal)) #f) ()
+                (list v))))))
+    ; The registry's entry for the parameter NAME, a string, or ().
+    (method %lint-annot-of (self name triples)
+      (match
+        ((null? triples) ())
+        ((str=? name (%cvt (first (first triples)) %lint-string-type)) (first triples))
+        (#t (self %lint-annot-of name (rest triples)))))
+    ; The row for the parameter list PS, read against the registry's TRIPLES.
+    (method %lint-annot-row (self ps triples)
+      (match
+        ((null? ps) (pair () ()))
+        ((symbol? ps) (pair () (self %lint-annot-of (%cvt ps %lint-string-type) triples)))
+        ((not (pair? ps)) (pair () ()))
+        (#t (let ((more (self %lint-annot-row (rest ps) triples)))
+              (pair (pair (if (symbol? (first ps))
+                            (self %lint-annot-of (%cvt (first ps) %lint-string-type) triples)
+                            ())
+                          (first more))
+                    (rest more))))))
+    ; The row of the closure F documented under KEY, its first DROP
+    ; parameters being the slots a call does not fill; () when F is not a
+    ; closure or nothing is documented under KEY.
+    (method %lint-annot-row-of (self f key drop)
+      (match
+        ((not (eq? (Fn label f) (lit fn))) ())
+        (#t (let ((e (Doc entry key)))
+              (if (null? e) ()
+                (self %lint-annot-row
+                  ((fn (go ps n) (if (= n 0) ps (if (pair? ps) (go (rest ps) (- n 1)) ())))
+                   (Fn params f) drop)
+                  (e params)))))))
+    ; The row kept under KEY, made by MAKE the first time KEY is asked for.
+    (method %lint-annot-kept-row (self key make)
+      (let ((kept (%assoc-str key (first (Lint %lint-annot-kept)))))
+        (if (null? kept)
+          (let ((row (guard (_ ()) (make))))
+            (%set-first! (Lint %lint-annot-kept)
+              (pair (pair key row) (first (Lint %lint-annot-kept))))
+            row)
+          (rest kept))))
+    (method %lint-annot-arg! (self key arg triple)
+      (unless (null? triple)
+        (let ((t (first (rest triple))) (v (self %lint-literal arg)))
+          (unless (if (null? t) #t (null? v))
+            (unless (Annotation ? (first v) t)
+              (%warn! "annotation"
+                (Str8 append (Str8 append key "/")
+                  (%cvt (first triple) %lint-string-type))))))))
+    (method %lint-annot-args! (self key args proper more)
+      (match
+        ((not (pair? args)) ())
+        ((pair? proper)
+          (do (self %lint-annot-arg! key (first args) (first proper))
+              (self %lint-annot-args! key (rest args) (rest proper) more)))
+        ((null? more) ())
+        (#t (do (self %lint-annot-arg! key (first args) more)
+                (self %lint-annot-args! key (rest args) () more)))))
+    ; FORM is a call whose head, the string H, is a symbol and one of whose
+    ; arguments is a literal.
+    (method %lint-annot-call! (self h form)
+      (unless (%scope-has-name? h (first %lint-scope))
+        (let ((v (guard (_ ()) (eval (str->sym h) (rest %lint-scope)))))
+          (match
+            ((null? v) ())
+            ((class? v)
+              ; (Class sel arg ...): a static method's closure opens with its
+              ; recur and self slots
+              (when (if (pair? (rest form)) (symbol? (first (rest form))) #f)
+                (let ((sel (%cvt (first (rest form)) %lint-string-type)))
+                  (unless (%scope-has-name? sel (first %lint-scope))
+                    (let ((key (Str8 append (Str8 append h "/") sel)))
+                      (let ((row (self %lint-annot-kept-row key
+                                   (fn (_) (self %lint-annot-row-of
+                                             (class-static-ref v (str->sym sel)) key 2)))))
+                        (unless (null? row)
+                          (self %lint-annot-args! key (rest (rest form)) (first row) (rest row)))))))))
+            (#t
+              (let ((row (self %lint-annot-kept-row h
+                           (fn (_) (self %lint-annot-row-of v h 1)))))
+                (unless (null? row)
+                  (self %lint-annot-args! h (rest form) (first row) (rest row)))))))))
     (method %lint-computed-call (self form)
   (match
     ((self %lint-block-form? form) (self %lint-block-form! form))
@@ -1431,6 +1568,7 @@
   (%set-first! (Lint %lint-self-name) ())
   (%set-first! (Lint %lint-carried) ())
   (%set-first! (Lint %lint-no-shadow) ())
+  (%set-first! (Lint %lint-annot-kept) ())
   (%set-rest! %lint-scope (Lint %lint-module-of forms))   ; where the file's heads resolve
   (%arity-collect forms)                             ; pre-pass: file-local fn arities
   (Lint %lint-class-prepass forms)                        ; pre-pass: class names (order independence)
@@ -1442,9 +1580,9 @@
   (param forms LIST "List of top-level forms to analyze")
   (param defs LIST "Accumulator for defined symbol NAMES")
   (param uses LIST "Accumulator for used symbol NAMES")
-  (returns LIST "(defs uses issues leaks warnings) -- defs/uses/issues/leaks are NAME STRINGS; warnings are (label . name) pairs for arity / call-nonfn / display-chain / dup-def / ladder / dispatch / malformed / match-multi / shadow / unused; ladder names carry the arm count as NAME/ARMS")
+  (returns LIST "(defs uses issues leaks warnings) -- defs/uses/issues/leaks are NAME STRINGS; warnings are (label . name) pairs for annotation / arity / call-nonfn / display-chain / dup-def / ladder / dispatch / malformed / match-multi / shadow / unused; ladder names carry the arm count as NAME/ARMS, annotation names the parameter as CALLEE/PARAMETER")
   (example "(import x/tool/lint lint-forms) (lint-forms '((def a 1) (def b (+ a c))) () ())" "((\"b\" \"a\") (\"c\" \"a\" \"+\") () () ())")
-  "Walk top-level forms via the write stacks, collecting def/use names, first/rest issues, tail-position def leaks, and pedantic warnings (arity, non-callable calls, duplicate defs, malformed forms, lexical shadows, and unused locals).  A first form (module NAME) names a loaded module whose environment resolves the file's heads.")
+  "Walk top-level forms via the write stacks, collecting def/use names, first/rest issues, tail-position def leaks, and pedantic warnings (arity, literal arguments against annotations, non-callable calls, duplicate defs, malformed forms, lexical shadows, and unused locals).  A first form (module NAME) names a loaded module whose environment resolves the file's heads.")
 
 (doc (def lint-undefined (fn (_ defs uses)
   (%filter (fn (_ name)
@@ -1492,7 +1630,7 @@
 (doc (def lint-warnings-of (fn (_ label result)
   (%map (fn (_ w) (rest w))
     (%filter (fn (_ w) (str=? (first w) label)) (lint-warnings result)))))
-  (param label STRING "Warning label: arity | call-nonfn | dup-def | malformed | match-multi | shadow | unused | wide-decimal")
+  (param label STRING "Warning label: annotation | arity | call-nonfn | dup-def | malformed | match-multi | shadow | unused | wide-decimal")
   (param result LIST "Result of lint-forms")
   (returns LIST "The names for warnings of that label")
   (example "(import x/tool/lint lint-forms lint-warnings-of) (lint-warnings-of \"dup-def\" (lint-forms '((def a 1) (def a 2)) () ()))" "(\"a\")")

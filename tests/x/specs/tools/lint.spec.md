@@ -1107,3 +1107,81 @@ What the integer is depends on the word, so the case asks only its kind.
 ```
 ---
     ("2147483648")
+
+## lint: literal arguments against annotations
+
+### flags a literal that does not satisfy the parameter's annotation
+
+```x
+(display (lint-warnings-of "annotation" (lint-forms '((str=? 7 "a")) () ())))
+```
+---
+    (str=?/a)
+
+### does not flag a literal that satisfies it
+
+```x
+(display (null? (lint-warnings-of "annotation" (lint-forms '((str=? "b" "a")) () ()))))
+```
+---
+    #t
+
+### does not judge an argument that is not a literal
+
+```x
+(display (null? (lint-warnings-of "annotation" (lint-forms '((def f (fn (_ x) (str=? x (first x))))) () ()))))
+```
+---
+    #t
+
+### flags nil where the annotation does not admit it
+
+```x
+(display (lint-warnings-of "annotation" (lint-forms '((str=? "a" ())) () ())))
+```
+---
+    (str=?/b)
+
+### judges a quoted value and a boolean
+
+```x
+(display (lint-warnings-of "annotation" (lint-forms '((str=? 'a #t)) () ())))
+```
+---
+    (str=?/b str=?/a)
+
+### judges a class's static method, named Class/method/parameter
+
+```x
+(display (lint-warnings-of "annotation" (lint-forms '((Str8 split 7 "a,b")) () ())))
+```
+---
+    (Str8/split/sep)
+
+### finds a parameter's annotation by name, past one that has none
+
+```x
+(do
+  (doc (def lint-spec-annot (fn (_ (param n INTEGER "A count") x . (param more STRING "Words")) n))
+    "A function with an unannotated parameter and a rest parameter.")
+  (display (lint-warnings-of "annotation"
+    (lint-forms '((lint-spec-annot 1 'anything "a" "b") (lint-spec-annot "1" 2 "a")) () ()))))
+```
+---
+    (lint-spec-annot/n)
+
+### judges each argument a rest parameter collects
+
+```x
+(display (lint-warnings-of "annotation" (lint-forms '((lint-spec-annot 1 2 "a" 7 "b" 'c)) () ())))
+```
+---
+    (lint-spec-annot/more lint-spec-annot/more)
+
+### does not judge a call of a local that hides the name
+
+```x
+(display (null? (lint-warnings-of "annotation" (lint-forms '((def g (fn (_ str=?) (str=? 7 7)))) () ()))))
+```
+---
+    #t
