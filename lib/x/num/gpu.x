@@ -129,8 +129,9 @@ kernel void product(device const float* a [[buffer(0)]],
               (if (int= m (first eb)) ()
                 (Err raise (lit value) "Gpu product: a's columns and b's rows differ" (list m (first eb))))
               (let ((out ((obj-ref f 4) (lit f32) (if column (list r) (list r k)))))
-                ; a product with no elements, or summed over none, is the zeros out holds
-                (if (if (int= r 0) #t (if (int= m 0) #t (int= k 0))) ()
+                ; a product with no elements, or summed over none, is zeros; a
+                ; fresh state's bytes are not, so they are filled
+                (if (if (int= r 0) #t (if (int= m 0) #t (int= k 0))) ((obj-ref f 9) out 0)
                   (let ((ba (backend buffer (int* 4 (int* r m)))) (bb (backend buffer (int* 4 (int* m k))))
                         (bc (backend buffer (int* 4 (int* r k)))) (dims (backend buffer 8)))
                     (mem-copy (backend pointer ba) (int->ptr ((obj-ref f 13) sa)) (int* 4 (int* r m)))

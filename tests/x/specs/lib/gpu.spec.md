@@ -87,10 +87,10 @@ bit as the CPU's.
   (let ((m (Matrix from '((1 2 3) (4 5 6)) 'f32)))
     (list ((Gpu product m (m transpose)) ->list)
           ((Gpu product (m slice 1 0 2) (m slice 1 1 3)) ->list)))
-  (lit (((14.0 32.0) (32.0 77.0)) ((12.0 15.0) (28.0 36.0)))))
+  (lit (((14.0 32.0) (32.0 77.0)) ((12.0 15.0) (33.0 42.0)))))
 ```
 ---
-    (((14.0 32.0) (32.0 77.0)) ((12.0 15.0) (28.0 36.0)))
+    (((14.0 32.0) (32.0 77.0)) ((12.0 15.0) (33.0 42.0)))
 
 ### it answers what Matrix's product does on the same numbers
 
