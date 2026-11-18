@@ -1,11 +1,13 @@
 # Zone: named time zones from the zone database
 
 # @weight 5
-A zone is one TZif file.  Every case reads the four under
-`tests/x/fixtures/zone`, copies of the tz database's 2026f files, by naming
-that directory in TZDIR, and puts the TZDIR it found back before it answers:
-nothing here depends on the zones the machine has.  The offsets were checked
-against Python's `zoneinfo` over the same files.
+A zone is one TZif file.  Every case reads the files under
+`tests/x/fixtures/zone` by naming that directory in TZDIR, and puts the
+TZDIR it found back before it answers: nothing here depends on the zones
+the machine has.  Four are copies of the tz database's 2026f files; the
+three under `Rule` were made for these cases, each with no changes and a
+rule alone.  Every instant is one a 32-bit integer holds.  The offsets were
+checked against Python's `zoneinfo` over the same files.
 
 ## offsets
 
@@ -15,12 +17,12 @@ against Python's `zoneinfo` over the same files.
 (do (import x/sys/zone)
   (def dir-was (Sys getenv "TZDIR"))
   (Sys setenv "TZDIR" "tests/x/fixtures/zone")
-  (def r (List map (fn (_ s) ((Zone named "America/New_York") offset s)) (list -2208988800 0 1000000000 1767225600 1772953199 1772953200 1784116800 1793509199 1793509200 2500000000 4102444800)))
+  (def r (List map (fn (_ s) ((Zone named "America/New_York") offset s)) (list -2100000000 0 1000000000 1767225600 1772953199 1772953200 1784116800 1793509199 1793509200 2140000000)))
   (if (null? dir-was) (Sys unsetenv "TZDIR") (Sys setenv "TZDIR" dir-was))
   r)
 ```
 ---
-    (-18000 -18000 -14400 -18000 -18000 -14400 -14400 -14400 -14400 -14400 -18000)
+    (-18000 -18000 -14400 -18000 -18000 -14400 -14400 -14400 -14400 -14400)
 
 ### before a zone kept standard time its offset is the file's first, to the second
 
@@ -28,12 +30,12 @@ against Python's `zoneinfo` over the same files.
 (do (import x/sys/zone)
   (def dir-was (Sys getenv "TZDIR"))
   (Sys setenv "TZDIR" "tests/x/fixtures/zone")
-  (def r (List map (fn (_ s) ((Zone named "Asia/Kolkata") offset s)) (list -2208988800 0 1000000000 1767225600 1772953199 1772953200 1784116800 1793509199 1793509200 2500000000 4102444800)))
+  (def r (List map (fn (_ s) ((Zone named "Asia/Kolkata") offset s)) (list -2100000000 0 1000000000 1767225600 1772953199 1772953200 1784116800 1793509199 1793509200 2140000000)))
   (if (null? dir-was) (Sys unsetenv "TZDIR") (Sys setenv "TZDIR" dir-was))
   r)
 ```
 ---
-    (19270 19800 19800 19800 19800 19800 19800 19800 19800 19800 19800)
+    (19270 19800 19800 19800 19800 19800 19800 19800 19800 19800)
 
 ### daylight time of half an hour, south of the equator
 
@@ -41,12 +43,12 @@ against Python's `zoneinfo` over the same files.
 (do (import x/sys/zone)
   (def dir-was (Sys getenv "TZDIR"))
   (Sys setenv "TZDIR" "tests/x/fixtures/zone")
-  (def r (List map (fn (_ s) ((Zone named "Australia/Lord_Howe") offset s)) (list -2208988800 0 1000000000 1767225600 1772953199 1772953200 1784116800 1793509199 1793509200 2500000000 4102444800)))
+  (def r (List map (fn (_ s) ((Zone named "Australia/Lord_Howe") offset s)) (list -2100000000 0 1000000000 1767225600 1772953199 1772953200 1784116800 1793509199 1793509200 2140000000)))
   (if (null? dir-was) (Sys unsetenv "TZDIR") (Sys setenv "TZDIR" dir-was))
   r)
 ```
 ---
-    (36000 36000 37800 39600 39600 39600 37800 39600 39600 39600 39600)
+    (36000 36000 37800 39600 39600 39600 37800 39600 39600 39600)
 
 ### past the file's last change the rule it ends with answers
 
@@ -54,12 +56,51 @@ against Python's `zoneinfo` over the same files.
 (do (import x/sys/zone)
   (def dir-was (Sys getenv "TZDIR"))
   (Sys setenv "TZDIR" "tests/x/fixtures/zone")
-  (def r (List map (fn (_ s) ((Zone named "Europe/Paris") offset s)) (list 2500000000 4102444800 4118169600 4133894400)))
+  (def r (List map (fn (_ s) ((Zone named "Europe/Paris") offset s)) (list 2130000000 2140000000 2147000000)))
   (if (null? dir-was) (Sys unsetenv "TZDIR") (Sys setenv "TZDIR" dir-was))
   r)
 ```
 ---
-    (3600 3600 7200 3600)
+    (7200 7200 3600)
+
+### a file of a rule alone: daylight time from the second Sunday of March to the first of November
+
+```x
+(do (import x/sys/zone)
+  (def dir-was (Sys getenv "TZDIR"))
+  (Sys setenv "TZDIR" "tests/x/fixtures/zone")
+  (def r (List map (fn (_ s) ((Zone named "Rule/North") offset s)) (list -2100000000 0 1000000000 1767225600 1772953199 1772953200 1784116800 1793509199 1793509200 2140000000)))
+  (if (null? dir-was) (Sys unsetenv "TZDIR") (Sys setenv "TZDIR" dir-was))
+  r)
+```
+---
+    (-14400 -18000 -14400 -18000 -18000 -14400 -14400 -14400 -14400 -14400)
+
+### a rule whose daylight time spans the new year, by half an hour
+
+```x
+(do (import x/sys/zone)
+  (def dir-was (Sys getenv "TZDIR"))
+  (Sys setenv "TZDIR" "tests/x/fixtures/zone")
+  (def r (List map (fn (_ s) ((Zone named "Rule/South") offset s)) (list -2100000000 0 1000000000 1767225600 1772953199 1772953200 1784116800 1793509199 1793509200 2140000000)))
+  (if (null? dir-was) (Sys unsetenv "TZDIR") (Sys setenv "TZDIR" dir-was))
+  r)
+```
+---
+    (37800 39600 37800 39600 39600 39600 37800 39600 39600 39600)
+
+### a rule with no daylight time
+
+```x
+(do (import x/sys/zone)
+  (def dir-was (Sys getenv "TZDIR"))
+  (Sys setenv "TZDIR" "tests/x/fixtures/zone")
+  (def r (List map (fn (_ s) ((Zone named "Rule/Fixed") offset s)) (list -2100000000 0 1000000000 1767225600 1772953199 1772953200 1784116800 1793509199 1793509200 2140000000)))
+  (if (null? dir-was) (Sys unsetenv "TZDIR") (Sys setenv "TZDIR" dir-was))
+  r)
+```
+---
+    (19800 19800 19800 19800 19800 19800 19800 19800 19800 19800)
 
 ### UTC needs no file, in any case
 
@@ -95,7 +136,7 @@ against Python's `zoneinfo` over the same files.
 (do (import x/sys/zone)
   (def dir-was (Sys getenv "TZDIR"))
   (Sys setenv "TZDIR" "tests/x/fixtures/zone")
-  (def r (let ((z (Zone named "Europe/Paris"))) (List map (fn (_ s) (- (z local->unix (z local s)) s)) (list -2208988800 0 1000000000 1784116800 4102444800))))
+  (def r (let ((z (Zone named "Europe/Paris"))) (List map (fn (_ s) (- (z local->unix (z local s)) s)) (list -2100000000 0 1000000000 1784116800 2140000000))))
   (if (null? dir-was) (Sys unsetenv "TZDIR") (Sys setenv "TZDIR" dir-was))
   r)
 ```

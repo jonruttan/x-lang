@@ -70,6 +70,29 @@
            (self (+ i 1) (+ (* acc 256) (Bytes ref region (+ at i))))))
        1 (if (>= lead 128) (- lead 256) lead)))))
 
+; Whether an integer here holds a 64-bit time: it does where a word is 64
+; bits, and where a numeric tower is loaded.  Where it does not, a product
+; past the word wraps to zero.
+(def %zone-wide? (> (* 65536 65536) 0))
+
+; The least and the greatest second a 32-bit integer holds.
+(def %zone-latest 2147483647)
+(def %zone-earliest (- (- 0 %zone-latest) 1))
+
+; The time of eight bytes at AT.  Where an integer cannot hold one, a time
+; before the least it holds is that least, and one after the greatest is
+; that greatest: a change long ago is then in force from the start of the
+; seconds there are, and one too far ahead never comes.
+(def %zone-time
+  (fn (_ region at)
+    (if %zone-wide? (%zone-signed region at 8)
+      (let ((high (%zone-signed region at 4)) (low (%zone-signed region (+ at 4) 4)))
+        (match
+          ((and (= high 0) (>= low 0)) low)
+          ((and (= high -1) (< low 0)) low)
+          ((< high 0) %zone-earliest)
+          (#t %zone-latest))))))
+
 ; A TZif header is 44 bytes: the magic, a version, and after 15 unused
 ; bytes six counts of four bytes each.
 (def %zone-header 44)
@@ -105,7 +128,8 @@
           (pair
             (List fold
               (fn (_ changes i)
-                (pair (pair (%zone-signed region (+ data (* i width)) width)
+                (pair (pair (if (= width 8) (%zone-time region (+ data (* i width)))
+                              (%zone-signed region (+ data (* i width)) width))
                             (List ref (Bytes ref region (+ data (* times width) i)) offsets))
                       changes))
               () (List range 0 times))
@@ -222,38 +246,46 @@
                 (if (or (null? start) (null? end)) (list standard)
                   (list standard (- 0 (first dst)) (first start) (first end)))))))))))
 
-; The day a year, a month and a day name, counted from 1970-01-01.
-(def %zone-day
-  (fn (_ year month day)
-    (int/ (Date to-unix (list (pair 'year year) (pair 'month month) (pair 'day day)))
-          %zone-seconds-day)))
+; The days from 1 January to the first of each month in a year that is not
+; a leap year, and to the next 1 January.
+(def %zone-month-starts (list 0 31 59 90 120 151 181 212 243 273 304 334 365))
 
-; The second on the clock that END falls at in YEAR, counted as if the
-; clock were UTC.  A week past the month's end is its last.
-(def %zone-rule-moment
-  (fn (_ end year)
+; The days from 1 January of YEAR to the first of MONTH; month 13 is the
+; next January.
+(def %zone-year-day
+  (fn (_ year month)
+    (+ (List ref (- month 1) %zone-month-starts)
+       (if (and (> month 2) (Date leap-year? year)) 1 0))))
+
+; The second of YEAR that END falls at on the clock, counted from the
+; year's first day, whose weekday is JANUARY-WEEKDAY.  A week past the
+; month's end is its last.
+(def %zone-rule-second
+  (fn (_ end year january-weekday)
     (let ((month (first end)) (week (List second end)) (weekday (List third end)))
-      (let ((first-day (%zone-day year month 1))
-            (next-month (if (= month 12) (%zone-day (+ year 1) 1 1) (%zone-day year (+ month 1) 1))))
+      (let ((first-day (%zone-year-day year month)))
         (let ((day (+ first-day
-                      (%zone-floor-mod
-                        (- weekday (Assoc get 'wday (Date from-unix (* first-day %zone-seconds-day))))
-                        7)
+                      (%zone-floor-mod (- weekday (+ january-weekday first-day)) 7)
                       (* (- week 1) 7))))
-          (+ (* (if (>= day next-month) (- day 7) day) %zone-seconds-day)
+          (+ (* (if (>= day (%zone-year-day year (+ month 1))) (- day 7) day) %zone-seconds-day)
              (List ref 3 end)))))))
 
-; The offset RULE gives at the unix second SECS.
+; The offset RULE gives at the unix second SECS.  The year's two changes
+; and SECS are counted from the year's first day, so no second past the
+; year's end is worked out.
 (def %zone-rule-offset
   (fn (_ rule secs)
     (if (null? (rest rule)) (first rule)
       (let ((standard (first rule)) (daylight (List second rule)))
         (let ((year (Assoc get 'year (Date from-unix (+ secs standard)))))
-          (let ((start (- (%zone-rule-moment (List third rule) year) standard))
-                (end (- (%zone-rule-moment (List ref 3 rule) year) daylight)))
-            (if (if (< start end) (and (>= secs start) (< secs end))
-                  (or (>= secs start) (< secs end)))
-              daylight standard)))))))
+          (let ((january (Date to-unix (list (pair 'year year) (pair 'month 1) (pair 'day 1)))))
+            (let ((weekday (Assoc get 'wday (Date from-unix january))))
+              (let ((at (- secs january))
+                    (start (- (%zone-rule-second (List third rule) year weekday) standard))
+                    (end (- (%zone-rule-second (List ref 3 rule) year weekday) daylight)))
+                (if (if (< start end) (and (>= at start) (< at end))
+                      (or (>= at start) (< at end)))
+                  daylight standard)))))))))
 
 ; The offset at SECS of a zone with these CHANGES, FIRST offset and RULE:
 ; the rule's past the last change, else that of the latest change not
@@ -292,6 +324,7 @@
   (doc "A named time zone, read from the system's zone database: its offset from UTC at any instant, and civil time on its clock both ways."
     (note "A zone is one file under /usr/share/zoneinfo, or under the directory TZDIR names in the environment, in the TZif format of RFC 8536: the changes the file lists, and past the last of them the yearly rule it ends with. Nothing is asked of the C library, so several zones can be held at once and TZ does not matter. \"UTC\" needs no file.")
     (note "The calendar is x/sys/date's: a date is the alist Date uses, and seconds are unix seconds.")
+    (note "Where an integer is 32 bits and no numeric tower is loaded, the seconds there are run from 1901 to 2038, as (Sys now)'s do; a zone answers for those.")
     (sample "((Zone named \"Europe/Paris\") offset 1784116800)" "7200")
     (sample "(Assoc get 'hour ((Zone named \"Asia/Tokyo\") local 0))" "9"))
 
