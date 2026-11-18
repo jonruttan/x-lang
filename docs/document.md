@@ -8,6 +8,7 @@ and from every other.
 |---|---|---|
 | `x/codec/markdown` | `(Markdown parse TEXT)` | `(Markdown html BLOCKS)`, HTML |
 | `x/codec/html` | `(Html parse TEXT)` | |
+| `x/codec/pdf-text` | `(PdfText parse BYTES LENGTH)` | |
 | `x/tui/page` | | `(Page markdown BLOCKS WIDTH)`, lines for a terminal |
 
 `x/codec/document` holds the tree's definition as data and checks a tree
