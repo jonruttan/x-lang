@@ -135,6 +135,15 @@ registry does not hold.
 ---
     (#t #t #f #f)
 
+### NUMBER admits a character, INTEGER does not
+
+```x
+(list (Annotation ? #\0 'NUMBER) (Annotation ? #\0 'INTEGER)
+      (Annotation ? #\0 'CHARACTER))
+```
+---
+    (#t #f #t)
+
 ### CALLABLE is a value whose type has a call handler
 
 ```x
