@@ -80,7 +80,7 @@
 
 (def-class Ffi ()
   (static
-    (method dlopen (self (param path STRING "Library file path (() for the main program)")
+    (method dlopen (self (param path STRING|NIL "Library file path (() for the main program)")
                          (param mode INTEGER "dlopen mode flags (e.g. 1 = RTLD_LAZY)"))
       (doc "Load a shared library."
         (returns POINTER "Library handle, or () on failure")

@@ -244,16 +244,16 @@
     ; A rule is (kind name tag . args); %install! builds each one's states.
 
     (method run (self (param tag SYMBOL "The token's tag")
-                      (param first LIST "Class of the first character")
-                      (param rest LIST "Class of every following character")
-                      . (param follow LIST "Optionally the class of the byte that must come next"))
+                      (param first LIST|STRING "Class of the first character")
+                      (param rest LIST|STRING "Class of every following character")
+                      . (param follow LIST|STRING "Optionally the class of the byte that must come next"))
       (doc "A rule for a run of characters: one of first, then any number of rest. Identifiers, words. Given follow, the run is a token only when the byte after it is in follow; that byte is left for the next token."
         (returns LIST "The rule")
         (sample "(Lexer run 'id (list (pair 97 122) 95) (list (pair 97 122) (pair 48 57) 95))" "C-style identifiers")
         (sample "(Lexer run 'io (list (pair 48 57)) (list (pair 48 57)) \"<>\")" "a shell descriptor: the digits of 2>, not of 2 alone"))
       (list (lit run) (Str8 str tag) tag first rest follow))
 
-    (method skip (self (param class LIST "Class of the characters to drop"))
+    (method skip (self (param class LIST|STRING "Class of the characters to drop"))
       (doc "A rule that drops a run of characters: whitespace."
         (returns LIST "The rule")
         (sample "(Lexer skip \" \\t\\n\")" "drop blanks and newlines"))
@@ -293,7 +293,7 @@
       (list (lit until) (if (null? tag) "UNTIL" (Str8 str tag)) tag open close flags))
 
     (method number (self (param tag SYMBOL "The token's tag")
-                         (param suffix LIST "Class of suffix bytes taken after the digits, or nil"))
+                         (param suffix LIST|STRING "Class of suffix bytes taken after the digits, or nil"))
       (doc "A rule for a number: decimal digits, an optional fraction and exponent, or 0x and hex digits, with an optional hex fraction and p exponent (0x1.8p3); then any bytes of suffix. The token carries a label: 1 integer, 2 fraction or exponent (hex ones too), 3 hex integer."
         (returns LIST "The rule")
         (sample "(Lexer number 'num \"uUlL\")" "C integer and floating literals"))
@@ -320,7 +320,7 @@
     (method word (self (param tag SYMBOL "The token's tag")
                        (param start SYMBOL "The context the word is read in")
                        (param contexts LIST "Each (NAME CLOSE ESC OPENS), as nested takes them; start's CLOSE may be nil")
-                       (param stop LIST "Class of the bytes that end the word, at depth 0")
+                       (param stop LIST|STRING "Class of the bytes that end the word, at depth 0")
                        . (param flags SYMBOL "Optionally to-end"))
       (doc "A rule for a word whose bytes may hold spans: a nested span with no opening literal, read in the context start from its first byte, and ending before a byte of stop met at depth 0 -- that byte is left for the next token. A first byte in stop is no word. Spans opened inside it read as nested reads them, a stop byte inside one being an ordinary byte. With the flag to-end a word whose span is still open at the end of the text is a token all the same, the end text not part of it; without it, such a word is not a token."
         (returns LIST "The rule")
