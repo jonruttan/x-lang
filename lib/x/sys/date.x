@@ -1,7 +1,8 @@
 ; date.x -- Date: civil dates over unix time (#21). Pure integer math
 ; (Howard Hinnant's days/civil algorithms) in UTC; local time is the same
 ; calendar moved by the C library's zone offset (Sys zone), so there is no
-; timezone database here and no locale. A date is an ALIST:
+; timezone database here and no locale; x/sys/zone has named zones. A date
+; is an ALIST:
 ;   ((year . 2026) (month . 7) (day . 18)
 ;    (hour . 21) (minute . 30) (second . 0) (wday . 6))
 ; month 1-12, day 1-31, wday 0-6 with 0 = Sunday.
@@ -57,7 +58,7 @@
 
 (def-class Date ()
   (doc "Civil dates over unix time: pure integer math, proleptic Gregorian, UTC; local is UTC moved by the zone the C library reports."
-    (note "A date is an alist ((year . Y) (month . M) (day . D) (hour . H) (minute . MIN) (second . S) (wday . W)); month 1-12, wday 0-6 with 0 = Sunday. (Date local secs) adds offset and zone. No timezone database, no locale.")
+    (note "A date is an alist ((year . Y) (month . M) (day . D) (hour . H) (minute . MIN) (second . S) (wday . W)); month 1-12, wday 0-6 with 0 = Sunday. (Date local secs) adds offset and zone. No timezone database, no locale: a named zone is x/sys/zone's Zone.")
     (example "(Assoc get 'year (Date from-unix 0))" "1970")
     (example "(Date ->iso (Date from-unix 0))" "\"1970-01-01T00:00:00Z\""))
   (static
@@ -182,7 +183,7 @@
         #f))))
 
 (doc (provide x/sys/date Date)
-  (note "(Date now) needs x/sys/posix loaded for (Sys now); everything else is pure. Timezone-aware work happens at the boundary -- this module is UTC by design.")
+  (note "(Date now) needs x/sys/posix loaded for (Sys now); everything else is pure. Timezone-aware work happens at the boundary -- this module is UTC by design; x/sys/zone reads named zones.")
   (example "(Date ->iso (Date from-unix 86400))" "\"1970-01-02T00:00:00Z\"")
   (sample "(Date ->iso (Date now))" "the current UTC time, e.g. \"2026-11-13T09:30:00Z\"")
   "Civil dates over unix time on the Date class: from-unix / to-unix / now / ->iso / leap-year?.")
