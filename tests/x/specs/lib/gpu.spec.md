@@ -38,7 +38,7 @@ bit as the CPU's.
 (if (Gpu available?)
   (let ((p (Gpu product (Matrix from '((1 2) (3 4)) 'f32) (Matrix from '((0 1) (1 0)) 'f32))))
     (list (p encoding) (p ->list) (instance-of? p Matrix)))
-  (lit (f32 ((2.0 1.0) (4.0 3.0)) #t)))
+  (list (lit f32) (lit ((2.0 1.0) (4.0 3.0))) #t))
 ```
 ---
     ('f32 ((2.0 1.0) (4.0 3.0)) #t)
@@ -62,7 +62,7 @@ bit as the CPU's.
 (if (Gpu available?)
   (let ((p (Gpu product (Matrix from '((1 2) (3 4)) 'f32) (Tensor from '(1 1) 'f32))))
     (list (p ->list) (instance-of? p Matrix)))
-  (lit ((3.0 7.0) #f)))
+  (list (lit (3.0 7.0)) #f))
 ```
 ---
     ((3.0 7.0) #f)
