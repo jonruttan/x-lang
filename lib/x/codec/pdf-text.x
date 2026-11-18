@@ -9,8 +9,8 @@
 ;            and graphics matrices, the font and its size, the spacing
 ;            parameters -- and each string shown becomes a run (X Y SIZE
 ;            WIDTH TEXT STYLE): where it starts on the page, its font size
-;            there, how far it runs, its codes as UTF-8, and 1 for a bold
-;            font, 2 for an italic one, 3 for both.
+;            there, how far it runs, its codes as UTF-8, and its font's
+;            style: 1 bold, 2 italic, 4 fixed-width, added together.
 ;   lines    runs in the order shown that share a baseline are a line, a
 ;            space put where the gap between two is wider than a kern.
 ;   blocks   lines are a paragraph until the next starts a new one: it is
@@ -277,12 +277,13 @@
                    (%pt-int (first l) 0) (Pdf resolve f (first (rest l)))))))
      (%pt-items w))
     (%pt-table out)))
-; 1 for a bold font's name, 2 for an italic one's, 3 for both.
+; A font's style from its name: 1 bold, 2 italic, 4 fixed-width, added.
 (def %pt-style
   (fn (_ name)
     (def has? (fn (_ part) (not (null? (Str8 index-of part name)))))
     (int+ (match ((has? "Bold") 1) ((has? "bold") 1) ((has? "CMBX") 1) ((has? "Black") 1) ((has? "Heavy") 1) (#t 0))
-          (match ((has? "Italic") 2) ((has? "italic") 2) ((has? "Oblique") 2) ((has? "CMTI") 2) ((has? "CMSL") 2) (#t 0)))))
+          (int+ (match ((has? "Italic") 2) ((has? "italic") 2) ((has? "Oblique") 2) ((has? "CMTI") 2) ((has? "CMSL") 2) (#t 0))
+                (match ((has? "Courier") 4) ((has? "Mono") 4) ((has? "CMTT") 4) ((has? "Consolas") 4) ((has? "Menlo") 4) (#t 0))))))
 (def %pt-font
   (fn (_ f font)
     (def wide? (str=? (%pt-name (Pdf lookup f font "Subtype")) "Type0"))
@@ -645,12 +646,13 @@
   (fn (_ pieces)
     (def wrap
       (fn (_ text style)
-        (match ((int= style 1) (list (lit strong) (list text)))
+        (match ((int< 3 style) (list (lit code) text))
+               ((int= style 1) (list (lit strong) (list text)))
                ((int= style 2) (list (lit emph) (list text)))
                ((int= style 3) (list (lit strong) (list (list (lit emph) (list text)))))
                (#t text))))
     ((fn (self l text style acc)
-       ; A styled piece's space at its end goes after the node, not in it.
+       ; A styled piece's space at either end goes beside the node, not in it.
        (def flush
          (fn (_)
            (match ((null? text) acc)
@@ -658,8 +660,10 @@
                   ((int= style 0) (pair text acc))
                   (#t ((fn (_ inner)
                          (match ((str=? inner "") (pair text acc))
-                                ((int= (%pt-last-byte text) 32) (pair " " (pair (wrap inner style) acc)))
-                                (#t (pair (wrap inner style) acc))))
+                                (#t ((fn (_ led)
+                                       (match ((int= (%pt-last-byte text) 32) (pair " " (pair (wrap inner style) led)))
+                                              (#t (pair (wrap inner style) led))))
+                                     (match ((int= (%pt-first-byte text) 32) (pair " " acc)) (#t acc))))))
                        (%pt-trim text))))))
        (match
          ((null? l) (List reverse (flush)))
@@ -737,7 +741,7 @@
   (static
     (method runs (self (param f OBJECT "An open file, from (Pdf open)")
                        (param page LIST "A page, from (Pdf pages)"))
-      (doc "The runs a page's content stream shows, in the order shown, each (X Y SIZE WIDTH TEXT STYLE): where the run starts in thousandths of a point from the page's lower left, its font size there, how far it runs, its text, and 1 for a bold font, 2 for an italic one, 3 for both."
+      (doc "The runs a page's content stream shows, in the order shown, each (X Y SIZE WIDTH TEXT STYLE): where the run starts in thousandths of a point from the page's lower left, its font size there, how far it runs, its text, and its font's style: 1 bold, 2 italic, 4 fixed-width, added together."
         (returns LIST "((X Y SIZE WIDTH TEXT STYLE) ...)")
         (sample "(PdfText runs f (first (Pdf pages f)))" "((72000 720000 12000 27336 \"Hello\" 0))"))
       (%pt-runs f page))
