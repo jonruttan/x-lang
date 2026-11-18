@@ -1220,10 +1220,15 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	# engine/tools/contract/ holds the contracts a checkout reads from the
 	# engine (isa.x is the namer's catalogue): every one the engine ships,
 	# so a contract the library starts including is installed with it.
-	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tools/dev $(DESTDIR)$(LIBDIR)/engine/tools/contract
+	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tools/dev $(DESTDIR)$(LIBDIR)/tools/lib $(DESTDIR)$(LIBDIR)/engine/tools/contract
 	for f in image-build.sh image-write.x image-read.x; do \
 		install $C -m 0644 tools/dev/$$f $(DESTDIR)$(LIBDIR)/tools/dev/$$f || exit 1; \
 		diff tools/dev/$$f $(DESTDIR)$(LIBDIR)/tools/dev/$$f || exit 1; done
+	# image-build.sh keys an image with the harness's digests, sourced from
+	# tools/lib/digest.sh by root-relative path, so it lands there too:
+	# without it no installed tree writes an image, and a bundle's suite
+	# boots from source.
+	install $C -m 0644 tools/lib/digest.sh $(DESTDIR)$(LIBDIR)/tools/lib/digest.sh
 	for p in $(ENGINE_DIR)/tools/contract/*.x; do \
 		install $C -m 0644 $$p $(DESTDIR)$(LIBDIR)/engine/tools/contract/$${p##*/} || exit 1; done
 	# The tree's RELEASE IDENTITY, beside the engine's ISA fingerprint and
