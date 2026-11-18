@@ -5,6 +5,71 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-11-18
+
+**An installed x writes state images again.** ([#1353]) `make install` puts
+tools/lib/digest.sh beside tools/dev/image-build.sh, which sources it.
+
+[#1353]: https://github.com/jonruttan/x-lang/pull/1353
+
+**x/tool/syntax colours diff and patch, YAML, TOML, INI, CSS and XML.**
+([#1352]) `(Syntax named 'diff)`, `'yaml`, `'toml`, `'ini`, `'css` and
+`'xml`, found by `for-file` from .diff, .patch, .yaml, .yml, .toml, .ini,
+.cfg, .css, .xml, .svg, .xsl, .xslt, .xsd and .plist.
+
+[#1352]: https://github.com/jonruttan/x-lang/pull/1352
+
+**`x/sys/zone` reads named time zones from the system's zone database.**
+([#1351]) `(Zone named "Europe/Paris")` answers a zone, or nil when the
+system has none of that name; a zone answers its `offset` from UTC at a
+unix second, civil time on its clock with `local`, and unix seconds for a
+civil time with `local->unix`, in the alists `Date` uses.  `(Zone system)`
+is the system's own zone.  A zone is one TZif file under
+`/usr/share/zoneinfo`, or under the directory `TZDIR` names; the C library
+is not asked, so several zones can be held at once.  On an engine whose
+integers are 32 bits, a change from before 1901 or after 2038 is held at
+the first or last second such an integer has, and the yearly rule is
+worked out within its year, so offsets are right for every second there
+is.
+
+[#1351]: https://github.com/jonruttan/x-lang/pull/1351
+
+**The linter tests literal arguments against annotations.** ([#1348]) A
+literal argument that does not satisfy the annotation of the parameter it
+fills, `(str=? 7 "a")`, is reported as the advisory warning `annotation`,
+named `CALLEE/PARAMETER`.  Closures and a class's static methods that are
+closures are judged; operatives and sends to a value are not.
+`(Annotation ? v 'NUMBER)` answers `#t` for a character as well as for
+what `number?` answers for, because arithmetic and comparison take one.
+`INTEGER` is unchanged and still names the runtime type alone.
+
+[#1348]: https://github.com/jonruttan/x-lang/pull/1348
+
+**A project has a card, `docs/card.md`: one page for recall, every row
+with a result run.** ([#1347]) The format is in docs/contributing.md:
+headings and fenced rows only, `## Run` first, `## Differs` and `## More`
+last, at most 66 rows of 80 columns.  `tools/lang-kit/card.sh` holds a
+card to it and runs each `COMMAND -> OUTPUT` row of an `sh` fence;
+`make check-card` runs it on x-lang's own card, whose `EXPR -> VALUE` rows
+run under `make doc-examples`.  A bundle runs the same check from an
+installed x: `BUNDLE=. X=x sh "$(x --share-dir)/tools/lang-kit/card.sh"`.
+
+[#1347]: https://github.com/jonruttan/x-lang/pull/1347
+
+**Two distribution moments answer `inf` where they answered `nan`,
+matching SciPy.** ([#1346]) `(Distribution standardized-mean v)` has mean
+`inf` for `v` of 1 or less, and `(Distribution variance-ratio a b)` has
+variance `inf` for `b` of 2 or less.
+
+[#1346]: https://github.com/jonruttan/x-lang/pull/1346
+
+**`Gpu hold`, `held?` and `release` keep a tensor's f32 data in a buffer
+the GPU shares.** ([#1350]) `Gpu product` reads held operands in place and
+answers a held result when an operand is held.  The caller releases a held
+tensor; using one afterwards raises a label `'state`.
+
+[#1350]: https://github.com/jonruttan/x-lang/pull/1350
+
 ## [0.56.0] - 2026-11-18
 
 **`x/codec/pdf-text` reads a PDF's text as the document tree.** ([#1344])
