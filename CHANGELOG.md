@@ -5,7 +5,25 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-## [0.56.0] - 2026-11-17
+## [0.56.0] - 2026-11-18
+
+**`apropos` finds the numeric classes and methods under the names other
+libraries use.** ([#1339]) `deviation` answers to "standard deviation"
+and "std", a Distribution's `cumulative` to "CDF" and its `quantile` to
+"inverse CDF" and "ppf", a Tensor's `extent` to "shape" and its
+`encoding` to "dtype", and the `LowerUpper`, `Orthogonal` and
+`Singular` factorizations to "LU", "QR" and "SVD".
+
+[#1339]: https://github.com/jonruttan/x-lang/pull/1339
+
+**`x/codec/document` states the document tree the Markdown and HTML
+readers share.** ([#1338]) `(Document blocks)` and `(Document inlines)`
+answer the nodes, each a name and the kind of each part; `(Document
+check BLOCKS)` answers nil for a sound tree, or the first fault as
+`(NAME PART NODE)`.  `docs/document.md` describes each node and what a
+reader or a writer of another format holds to.
+
+[#1338]: https://github.com/jonruttan/x-lang/pull/1338
 
 **Tensor has an f32 encoding: 32-bit floats, 4 bytes an element.** ([#1335])
 `(Tensor from xs 'f32)`, `zeros`, `fill` and `as` take it; the views,
