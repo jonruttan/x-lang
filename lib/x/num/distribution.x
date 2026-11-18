@@ -370,7 +370,7 @@
         (#t (%invert self p (f-sub %one p))))))
 
   (method mean (self)
-    (doc "The mean, the distribution's centre of mass. It is infinite or not a number where the distribution has none."
+    (doc "The mean, the distribution's centre of mass. It is infinite where the distribution has none."
       (returns FLOAT "The mean")
       (example "((Distribution normal 3 2) mean)" "3.0")
       (example "((Distribution uniform 2 6) mean)" "4.0"))
@@ -504,8 +504,8 @@
 ; the root of v times B(v/2, 1/2).  The probability beyond |x| on one
 ; side is half the regularized incomplete beta I_w(v/2, 1/2) at
 ; w = v / (v + x^2), with 1 less w worked out as x^2 / (v + x^2).  The
-; mean is 0 above 1 degree of freedom; the variance is v / (v - 2) above
-; 2 and infinite from 1 to 2.
+; mean is 0 above 1 degree of freedom and infinite to there; the variance
+; is v / (v - 2) above 2, infinite from 1 to 2 and not a number to 1.
 (def-class StandardizedMean (extends Distribution)
   freedom   ; a Float, greater than 0
 
@@ -527,7 +527,7 @@
   (method survival (self x)
     (let ((x (float-of x)))
       (if (f-lt %zero x) (self %tail x) (f-sub %one (self %tail x)))))
-  (method mean (self) (if (f-lt %one (field (lit freedom))) %zero %not-a-number))
+  (method mean (self) (if (f-lt %one (field (lit freedom))) %zero %infinity))
   (method variance (self)
     (let ((v (field (lit freedom))))
       (match
@@ -541,8 +541,8 @@
 ; w = a x / (a x + b), and its survival the mirrored I at b / (a x + b).
 ; At x 0 the density is infinite for a below 2, 1 at 2 and 0 above.  The
 ; mean is b / (b - 2) above 2 and infinite to there; the variance is
-; 2 b^2 (a + b - 2) / (a (b - 2)^2 (b - 4)) above 4, infinite from 2 to
-; 4.
+; 2 b^2 (a + b - 2) / (a (b - 2)^2 (b - 4)) above 4 and infinite to
+; there.
 (def-class VarianceRatio (extends Distribution)
   upper   ; a Float, greater than 0: the freedom of the variance above
   lower   ; a Float, greater than 0: the freedom of the variance below
@@ -582,8 +582,7 @@
         ((f-lt %four b)
           (f-div (f-mul (f-mul %two (%square b)) (f-sub (f-add a b) %two))
                  (f-mul (f-mul a (%square (f-sub b %two))) (f-sub b %four))))
-        ((f-lt %two b) %infinity)
-        (#t %not-a-number)))))
+        (#t %infinity)))))
 
 (doc (provide x/num/distribution Distribution)
   "Probability distributions as values: the Distribution class makes the normal, uniform, exponential, gamma, chi-squared, standardized-mean and variance-ratio distributions from their parameters, each answering its density, cumulative, survival and quantile, mean, variance and deviation."

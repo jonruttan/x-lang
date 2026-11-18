@@ -250,7 +250,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
       ((Distribution standardized-mean 1) variance))
 ```
 ---
-    (0.0 1.66666666666667 inf nan nan)
+    (0.0 1.66666666666667 inf inf nan)
 
 ### one degree of freedom: the quantile at 3/4 is 1
 
@@ -293,7 +293,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
       ((Distribution variance-ratio 1 2) mean) ((Distribution variance-ratio 1 2) variance))
 ```
 ---
-    (1.25 1.90972222222222 2.0 inf inf nan)
+    (1.25 1.90972222222222 2.0 inf inf inf)
 
 ### the density at 0 turns on the upper freedom
 
