@@ -7,6 +7,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.56.0] - 2026-11-18
 
+**`x/codec/pdf` reads a PDF file's objects, streams and pages.** ([#1341])
+`(Pdf open BYTES LENGTH)` reads the cross-reference, tables and
+cross-reference streams; `(Pdf object)`, `(Pdf lookup)` and `(Pdf pages)`
+answer objects as plain lists, read from their offsets or object streams
+when first asked for; `(Pdf data)` undoes FlateDecode with the PNG
+predictors, ASCIIHexDecode and ASCII85Decode; `(Pdf read)` answers the
+objects and operators of a content stream.  `(Png unfilter)` undoes PNG
+row filters in place for any caller.
+
+[#1341]: https://github.com/jonruttan/x-lang/pull/1341
+
 **`apropos` finds the numeric classes and methods under the names other
 libraries use.** ([#1339]) `deviation` answers to "standard deviation"
 and "std", a Distribution's `cumulative` to "CDF" and its `quantile` to
