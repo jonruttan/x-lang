@@ -320,7 +320,7 @@
 (def %rows
   (fn (_ unfilter s at rows stride bpp)
     (def z (str->ptr s))
-    (def zero (%zeros (int+ stride 1)))
+    (def zero (first (Bytes zeros (int+ stride 1))))
     ((fn (self y u)
        (when (int< y rows)
          (def f (%at z (int+ at (int* y (int+ stride 1)))))
