@@ -42,6 +42,7 @@ runnable example, and `(modules)` lists everything available. From a shell:
 
 ## Reference
 
+- [Card](https://jonruttan.github.io/x-lang/docs/card.html): one page for recall — what to type and what it gives, every row run by the gates
 - [x-lang API reference](https://jonruttan.github.io/x-lang/docs/ref/x/index.html): every module, generated from the `(doc ...)` forms in the library source
 - [Primitives and core forms](https://jonruttan.github.io/x-lang/docs/primitives.html): the engine's instruction set and the operatives that boot on top
 - [Standard library](https://jonruttan.github.io/x-lang/docs/standard-library.html): the core library functions
