@@ -1267,6 +1267,7 @@
 ; each row in turn.  Its parts are made from that state when asked.
 (def-class LowerUpper ()
   (doc "The lower-upper factorization of a square Matrix with partial pivoting, from (m factor-lower-upper): a lower matrix L with 1 on its diagonal, an upper matrix U and a permutation P, with P times the matrix equal to L times U. It solves and answers the determinant from the factors, so a matrix factored once solves many right sides."
+    (known-as "LU")
     (example "(let ((f ((Matrix from '((2 1) (4 3))) factor-lower-upper))) (list ((f lower) ->list) ((f upper) ->list) ((f permutation) ->list)))" "(((1.0 0.0) (0.5 1.0)) ((4.0 3.0) (0.0 -0.5)) ((0.0 1.0) (1.0 0.0)))")
     (example "(((Matrix from '((2 1) (4 3))) factor-lower-upper) determinant)" "2.0")
     (see lower) (see upper) (see permutation) (see solve) (see determinant))
@@ -1408,6 +1409,7 @@
 ; identity's first k columns, and a solve applies them to b instead.
 (def-class Orthogonal ()
   (doc "The orthogonal-upper (QR) factorization of a Matrix by Householder reflections, from (m factor-orthogonal): Q, whose columns are orthonormal, and an upper R, with Q times R equal to the matrix. It solves least squares, so a matrix factored once fits many right sides."
+    (known-as "QR")
     (example "(let ((f ((Matrix from '((0 1) (1 1))) factor-orthogonal))) (list ((f orthogonal) ->list) ((f upper) ->list)))" "(((0.0 -1.0) (-1.0 0.0)) ((-1.0 -1.0) (0.0 -1.0)))")
     (see orthogonal) (see upper) (see solve))
 
@@ -1555,6 +1557,7 @@
 ; columns of the matrix or of its transpose.
 (def-class Singular ()
   (doc "The singular value decomposition of a Matrix, from (m factor-singular): values, from greatest to least, and left and right, whose columns are orthonormal, so the matrix is left times the diagonal of values times right's transpose. The rank is the number of values above a tolerance."
+    (known-as "SVD")
     (example "(let ((d ((Matrix from '((0 2) (1 0))) factor-singular))) (list ((d values) ->list) ((d left) ->list) ((d right) ->list)))" "((2.0 1.0) ((1.0 0.0) (0.0 1.0)) ((0.0 1.0) (1.0 0.0)))")
     (see values) (see left) (see right) (see rank))
 

@@ -18,6 +18,7 @@
 (module x/codec/chacha20)
 
 (import x/type/vector)
+(import x/codec/bytes)
 ; The compiled engine is on Compiled's list.
 (import x/tool/compiled)
 
@@ -146,18 +147,6 @@
     (%blocks! v w s start len out (str->ptr out) 0)
     out))
 
-; n zero bytes, so a block is the keystream itself: four at a write, and
-; the odd ones singly.
-(def %zeros
-  (fn (_ n)
-    (def s (str-make n))
-    (def p (str->ptr s))
-    ((fn (self i)
-       (if (int< (int+ i 3) n) (do (ptr-set! p i 0 4) (self (int+ i 4)))
-         (unless (int= i n) (do (ptr-set! p i 0 1) (self (int+ i 1))))))
-     0)
-    s))
-
 ; --- The compiled engine (JIT), adopted only when it proves out ------
 ;
 ; As sha1.x's: an entry of Compiled's, made the first time a build is
@@ -219,7 +208,8 @@
       (doc "The 64-byte keystream block for key and iv (RFC 8439 2.3): the cipher over sixty-four zero bytes. The first 32 bytes of block 0 are what the Poly1305 one-time key is taken from."
         (returns STRING "64 bytes")
         (example "(do (import x/codec/bytes) (Bytes hex (Bytes region (ChaCha20 block (first (Bytes of-hex \"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f\")) (first (Bytes of-hex \"01000000000000090000004a00000000\"))) 0 16)))" "\"10f1e7e4d13b5915500fdd1fa32071c4\""))
-      (%run (%state key iv) (%zeros 64) 0 64))
+      ; Over zero bytes, the cipher's output is the keystream itself.
+      (%run (%state key iv) (first (Bytes zeros 64)) 0 64))
     (method jit! (self)
       (doc "Build and adopt the compiled cipher engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself against the pure-x cipher. Idempotent. Returns #t when the engine is active, #f when unavailable -- pure-x carries on and results are identical either way. xor also builds it on its own for any single region of 8KB or more."
         (returns BOOL "#t when the compiled engine is active")

@@ -26,12 +26,12 @@
 
 (import x/type/vector)
 (import x/tool/compiled)
+(import x/codec/bytes)
 
-(import x/core/doors int% int& int+ int- int->ptr int/ int< int<< int= int>> int| mem-cmp mem-copy obj-ref obj-set! ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-make type-of)
+(import x/core/doors int% int& int+ int- int->ptr int/ int< int<< int= int>> int| mem-cmp mem-copy mem-set obj-ref obj-set! ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-make type-of)
 
-; The two coordinates the doors module does not carry.  There is no int >
+; The one coordinate the doors module does not carry.  There is no int >
 ; or >= either: a > b is (int< b a).
-(def %mem-set (prim-ref (lit mem) (lit set)))
 (def %xor (prim-ref (lit int) (lit ^)))
 
 (def %int-type (type-of 0))
@@ -50,16 +50,12 @@
 (def %bset! (fn (_ p i v) (ptr-set! p i v 1)))
 
 ; A region of n words, zeroed.
-(def %words
-  (fn (_ n)
-    (def r (str-make (int<< n %wshift)))
-    (%mem-set (str->ptr r) 0 (int<< n %wshift))
-    r))
+(def %words (fn (_ n) (first (Bytes zeros (int<< n %wshift)))))
 
 ; Words k to k+n-1 of the table at p set to zero, in one call: the encoder
 ; clears 1548 words for each of its four selector passes.
 (def %clear!
-  (fn (_ p k n) (%mem-set (%at p (int<< k %wshift)) 0 (int<< n %wshift))))
+  (fn (_ p k n) (mem-set (%at p (int<< k %wshift)) 0 (int<< n %wshift))))
 
 (def %min (fn (_ a b) (if (int< a b) a b)))
 

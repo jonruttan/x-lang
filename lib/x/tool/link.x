@@ -39,11 +39,10 @@
 (import x/codec/xon)
 (import x/core/logic equal?)
 (import x/reader/lexer)
+(import x/codec/bytes)
 (import x/core/doors char->int int+ int- int* int% int& int< int= int->ptr io-write-to-str mem-copy obj-same? ptr->int
   ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->sym str-byte-ref
   str->ptr str-byte-len str-make)
-
-(def %mem-set (prim-ref (lit mem) (lit set)))
 
 (def %link-round
   (fn (_ n align) (let ((m (int+ n (int- align 1)))) (int- m (int% m align)))))
@@ -156,11 +155,8 @@
     (def buffers (Dict make))
     (%for-each
       (fn (_ n)
-        (def size (rest (sizes get n)))
-        (def s (str-make (if (int= size 0) 1 size)))
-        (def p (str->ptr s))
-        (%mem-set p 0 (if (int= size 0) 1 size))
-        (buffers set! n (pair p s)))
+        (def s (first (Bytes zeros (rest (sizes get n)))))
+        (buffers set! n (pair (str->ptr s) s)))
       names)
     ; each object's bytes, at its sections' bases
     (def pour
@@ -435,9 +431,8 @@
     (def names (rest found))
     (if (%link-binary? sections kinds names)
       (let ((size (%link-block-size sections kinds names)))
-        (def block (str-make (if (int= size 0) 1 size)))
+        (def block (first (Bytes zeros size)))
         (def p (str->ptr block))
-        (%mem-set p 0 (if (int= size 0) 1 size))
         (def at (pair 0 ()))
         (%for-each
           (fn (_ s)

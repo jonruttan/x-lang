@@ -16,6 +16,7 @@
 ; raises a label 'value naming what was wrong.
 (module x/codec/gif)
 
+(import x/codec/bytes)
 (import x/core/doors int& int* int+ int- int->ptr int< int<< int= int>> int| ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-make)
 
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "Gif: " what) ())))
@@ -27,16 +28,6 @@
 (def %ref16 (fn (_ t i) (int& (ptr-ref t (int<< i 1) 2) 65535)))
 (def %set16! (fn (_ t i v) (ptr-set! t (int<< i 1) v 2)))
 
-; A buffer of N bytes, each 0: str-make's bytes are not.
-(def %zeros
-  (fn (_ n)
-    (def s (str-make n))
-    (def p (str->ptr s))
-    ((fn (self i)
-       (match ((int< (int+ i 3) n) (do (ptr-set! p i 0 4) (self (int+ i 4))))
-              ((int< i n) (do (ptr-set! p i 0 1) (self (int+ i 1))))
-              (#t s)))
-     0)))
 
 (def %span
   (fn (_ s span)
@@ -75,7 +66,7 @@
       ((fn (self i acc)
          ((fn (_ n) (if (int= n 0) acc (self (int+ i (int+ n 1)) (int+ acc n)))) (%u8 p i)))
        i 0))
-    (def buf (%zeros (int+ total 3)))
+    (def buf (first (Bytes zeros (int+ total 3))))
     (def b (str->ptr buf))
     ((fn (self i o)
        ((fn (_ n)
@@ -199,7 +190,7 @@
     (def global (%table (%u8 p 10) 13))
     (def after (if (null? global) 13 (int+ 13 (int* 3 (List ref 1 global)))))
     (%need after 0 len)
-    (def out (%zeros (int* (int* w h) 4)))
+    (def out (first (Bytes zeros (int* (int* w h) 4))))
     ((fn (self i trans)
        (%need i 1 len)
        ((fn (_ kind)
@@ -227,7 +218,7 @@
                 (when (match ((int< min 2) #t) ((int< 8 min) #t) (#t #f)) (%fail "an LZW code size outside 2 to 8"))
                 (%skip p (int+ at 1) len)
                 (def data (%gather p (int+ at 1) len))
-                (def ix (str->ptr (%zeros (int+ (int* fw fh) 1))))
+                (def ix (str->ptr (first (Bytes zeros (int+ (int* fw fh) 1)))))
                 (%lzw (str->ptr (first data)) (int<< (List ref 1 data) 3) min ix (int* fw fh))
                 (%draw ix fw fh left top (not (int= (int& packed 64) 0)) (str->ptr out) w h
                        (%at p (first table)) (List ref 1 table) trans)))

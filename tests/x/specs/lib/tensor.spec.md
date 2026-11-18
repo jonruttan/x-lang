@@ -678,3 +678,16 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ---
     (#t #t)
 
+
+## Other names
+
+### extent, encoding and deviation carry the names other libraries use
+
+```x
+(import x/num/tensor)
+(list ((Doc entry 'Tensor/extent) known-as)
+      ((Doc entry 'Tensor/encoding) known-as)
+      ((Doc entry 'Tensor/deviation) known-as))
+```
+---
+    (("shape") ("dtype") ("standard deviation" "std"))

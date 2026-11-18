@@ -688,3 +688,16 @@ on an 8-byte one.
 ```
 ---
     #t
+
+## Other names
+
+### the factorizations carry their short names
+
+```x
+(import x/num/matrix)
+(list ((Doc entry 'LowerUpper) known-as)
+      ((Doc entry 'Orthogonal) known-as)
+      ((Doc entry 'Singular) known-as))
+```
+---
+    (("LU") ("QR") ("SVD"))

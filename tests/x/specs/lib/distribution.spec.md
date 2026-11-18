@@ -355,3 +355,14 @@ distribution-found
 ```
 ---
     (('Distribution/standardized-mean) ('Distribution/variance-ratio))
+
+### the methods carry the names other libraries use
+
+```x
+(import x/num/distribution)
+(list ((Doc entry 'Distribution/cumulative) known-as)
+      ((Doc entry 'Distribution/quantile) known-as)
+      ((Doc entry 'Distribution/deviation) known-as))
+```
+---
+    (("CDF") ("inverse CDF" "ppf") ("standard deviation" "std"))
