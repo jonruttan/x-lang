@@ -21,8 +21,8 @@
 ; documentation read.
 ;
 ; Other languages' grammars come from their bundles: a lang.xon's
-; (grammar ...) forms are the catalogue, with JSON's, Markdown's and HTML's,
-; which x-lang ships, and a grammar's module is imported the first time a
+; (grammar ...) forms are the catalogue, with the formats' grammars x-lang
+; ships, and a grammar's module is imported the first time a
 ; file needs it.  A file's grammar is the one its modeline names, else the
 ; one a rule in the user's syntax file gives it, else its #! line's
 ; interpreter's, else its name's.
@@ -423,7 +423,13 @@
 (def %sx-own-grammars
   (lit ((grammar json (module x/tool/syntax/json) (files ".json"))
         (grammar markdown (module x/tool/syntax/markdown) (files ".md" ".markdown"))
-        (grammar html (module x/tool/syntax/html) (files ".html" ".htm" ".xhtml")))))
+        (grammar html (module x/tool/syntax/html) (files ".html" ".htm" ".xhtml"))
+        (grammar xml (module x/tool/syntax/html) (files ".xml" ".svg" ".xsl" ".xslt" ".xsd" ".plist"))
+        (grammar css (module x/tool/syntax/css) (files ".css"))
+        (grammar yaml (module x/tool/syntax/yaml) (files ".yaml" ".yml"))
+        (grammar toml (module x/tool/syntax/toml) (files ".toml"))
+        (grammar ini (module x/tool/syntax/toml) (files ".ini" ".cfg"))
+        (grammar diff (module x/tool/syntax/diff) (files ".diff" ".patch")))))
 
 (def %sx-warn
   (fn (_ parts)
@@ -902,7 +908,7 @@
       g)
 
     (method named (self (param name SYMBOL "A grammar's name"))
-      (doc "The grammar of that name: a registered one, else one a bundle's lang.xon declares or x-lang ships (json, markdown, html), its module loaded now; nil for none."
+      (doc "The grammar of that name: a registered one, else one a bundle's lang.xon declares or x-lang ships (json, markdown, html, xml, css, yaml, toml, ini, diff), its module loaded now; nil for none."
         (returns Syntax "The grammar, or nil")
         (example "(eq? (Syntax named 'x) (Syntax x))" "#t"))
       (Syntax x)

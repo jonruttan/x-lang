@@ -1,7 +1,10 @@
-; html.x -- the HTML highlighting grammar
+; html.x -- the HTML and XML highlighting grammars
 ;
-; x/tool/syntax's catalogue names this module for .html and .htm files and
-; imports it the first time a file needs the grammar.
+; x/tool/syntax's catalogue names this module for HTML files (the html
+; grammar) and XML ones (the xml grammar), and imports it the first time a
+; file needs either.  The two share their rules and classes; XML has no
+; script or style element, so its every < opens a tag, and an element's
+; name may start with _ or :.
 ;
 ; In a tag, the < and > and a / are punctuation, the element's name a
 ; keyword, an attribute's name a name, its = punctuation and its value,
@@ -30,25 +33,31 @@
 (def %sxh-text-bytes (list (pair 1 37) (pair 39 59) (pair 61 255) (pair -128 -1)))
 (def %sxh-alnum (list (pair 48 57) (pair 65 90) (pair 97 122)))
 
+; HTML's rules with raw? true, XML's without the script and style rules.
 (def %sxh-rules
-  (fn (_)
-    (list (Lexer until (lit comment) "<!--" "-->" (lit to-end))
-          (Lexer until (lit cdata) "<![CDATA[" "]]>" (lit to-end))
-          (Lexer until (lit raw) "<script" "</script>" (lit to-end))
-          (Lexer until (lit raw) "<SCRIPT" "</SCRIPT>" (lit to-end))
-          (Lexer until (lit raw) "<style" "</style>" (lit to-end))
-          (Lexer until (lit raw) "<STYLE" "</STYLE>" (lit to-end))
-          (Lexer nested (lit tag) "<" (lit tag) %sxh-contexts)
-          (Lexer pattern (lit ref) (list (list "&" 1 1) (list "#" 0 1) (list %sxh-alnum 1 ()) (list ";" 1 1)))
-          (Lexer run (lit text) %sxh-text-bytes %sxh-text-bytes)
-          (Lexer any (lit other)))))
+  (fn (_ raw?)
+    (List append
+      (list (Lexer until (lit comment) "<!--" "-->" (lit to-end))
+            (Lexer until (lit cdata) "<![CDATA[" "]]>" (lit to-end)))
+      (if raw?
+        (list (Lexer until (lit raw) "<script" "</script>" (lit to-end))
+              (Lexer until (lit raw) "<SCRIPT" "</SCRIPT>" (lit to-end))
+              (Lexer until (lit raw) "<style" "</style>" (lit to-end))
+              (Lexer until (lit raw) "<STYLE" "</STYLE>" (lit to-end)))
+        ())
+      (list (Lexer nested (lit tag) "<" (lit tag) %sxh-contexts)
+            (Lexer pattern (lit ref) (list (list "&" 1 1) (list "#" 0 1) (list %sxh-alnum 1 ()) (list ";" 1 1)))
+            (Lexer run (lit text) %sxh-text-bytes %sxh-text-bytes)
+            (Lexer any (lit other))))))
 
 ; Byte i of t, or -1 at or past e.
 (def %sxh-byte (fn (_ t i e) (if (>= i e) -1 (char->int (str-byte-ref t i)))))
 
 (def %sxh-blank? (fn (_ c) (List includes? c (list 32 9 10 13 12))))
 
-(def %sxh-letter? (fn (_ c) (if (if (>= c 65) (<= c 90) #f) #t (if (>= c 97) (<= c 122) #f))))
+; A byte that starts an element's name: a letter, or XML's _ and :.
+(def %sxh-letter?
+  (fn (_ c) (if (if (>= c 65) (<= c 90) #f) #t (if (if (>= c 97) (<= c 122) #f) #t (List includes? c (list 95 58))))))
 
 ; The offset of the first byte from i before e that stop? holds, else e.
 (def %sxh-until
@@ -112,15 +121,23 @@
           (if (if (null? c) #t (not (= (%sxh-byte t (int- n 1) n) 62))) open
             (List append open (%sxh-tag-pieces t c n))))))))
 
+(def %sxh-classes
+  (list (pair (lit comment) (lit comment)) (pair (lit cdata) (lit string))
+        (pair (lit raw) %sxh-raw) (pair (lit tag) %sxh-tag)
+        (pair (lit ref) (lit escape))))
+
 (Syntax register!
-  (let ((g (Syntax make (lit html) (%sxh-rules)
-             (list (pair (lit comment) (lit comment)) (pair (lit cdata) (lit string))
-                   (pair (lit raw) %sxh-raw) (pair (lit tag) %sxh-tag)
-                   (pair (lit ref) (lit escape))))))
+  (let ((g (Syntax make (lit html) (%sxh-rules #t) %sxh-classes)))
     (g files (list ".html" ".htm" ".xhtml"))
     g))
 
+(Syntax register!
+  (let ((g (Syntax make (lit xml) (%sxh-rules #f) %sxh-classes)))
+    (g files (list ".xml" ".svg" ".xsl" ".xslt" ".xsd" ".plist"))
+    g))
+
 (doc (provide x/tool/syntax/html)
-  (note "Imported by x/tool/syntax the first time a .html or .htm file needs the grammar; (Syntax named 'html) loads it.")
+  (note "Imported by x/tool/syntax the first time an HTML or XML file needs a grammar; (Syntax named 'html) and (Syntax named 'xml) load it.")
   (example "((Syntax named 'html) spans \"<a href=\\\"x\\\">&amp;</a>\")" "((0 1 'punct) (1 1 'keyword) (3 4 'name) (7 1 'punct) (8 3 'string) (11 1 'punct) (12 5 'escape) (17 2 'punct) (19 1 'keyword) (20 1 'punct))")
-  "HTML's highlighting grammar: tags, attributes, comments, declarations and character references.")
+  (example "((Syntax named 'xml) spans \"<?xml?><x:a b='1'/>\")" "((0 7 'keyword) (7 1 'punct) (8 3 'keyword) (12 1 'name) (13 1 'punct) (14 3 'string) (17 1 'punct) (18 1 'punct))")
+  "HTML's and XML's highlighting grammars: tags, attributes, comments, declarations and character references.")

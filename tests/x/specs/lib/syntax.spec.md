@@ -565,3 +565,59 @@ A < before a byte that starts no tag is text.
 ```
 ---
     ((0 1 'punct) (1 6 'keyword) (7 1 'punct) (20 2 'punct) (22 6 'keyword) (28 1 'punct) (29 1 'punct) (30 5 'keyword) (35 1 'punct) (39 2 'punct) (41 5 'keyword) (46 1 'punct))
+
+### the second set is found by file name
+
+```x
+(do (import x/tool/syntax)
+  (def name (fn (_ f) (let ((g (Syntax for-file f))) (if (null? g) () (g name)))))
+  (List map name (list "a.xml" "i.svg" "s.css" "c.yaml" "c.yml" "Cargo.toml" "a.ini" "setup.cfg" "a.diff" "fix.patch")))
+```
+---
+    ('xml 'xml 'css 'yaml 'yaml 'toml 'ini 'ini 'diff 'diff)
+
+### diff: headers, hunks, and added, removed, changed and plain lines
+
+```x
+(do (import x/tool/syntax)
+  ((Syntax named 'diff) spans "diff --git a/x b/x\nindex 1..2 100644\n--- a/x\n+++ b/x\n@@ -1,2 +1,2 @@ f\n-a\n+b\n c\n\\ No newline at end of file\n! d"))
+```
+---
+    ((0 18 'class) (19 17 'class) (37 7 'class) (45 7 'class) (53 17 'keyword) (71 2 'error) (74 2 'string) (80 27 'comment) (108 3 'operator))
+
+### YAML: keys, anchors, aliases, tags, block indicators, constants and numbers
+
+```x
+(do (import x/tool/syntax)
+  ((Syntax named 'yaml) spans "%YAML 1.2\n---\nk: &a !t 'v'\nl: *a\nb: |-\n  text\nf: [yes, ~, -1.5, 2026-11-18]\nu: http://x.y # c\n"))
+```
+---
+    ((0 5 'keyword) (6 3 'number) (10 3 'punct) (14 1 'name) (15 1 'punct) (17 2 'private) (20 2 'class) (23 3 'string) (27 1 'name) (28 1 'punct) (30 2 'private) (33 1 'name) (34 1 'punct) (36 2 'punct) (46 1 'name) (47 1 'punct) (49 1 'punct) (50 3 'constant) (53 1 'punct) (55 1 'constant) (56 1 'punct) (58 4 'number) (62 1 'punct) (64 10 'number) (74 1 'punct) (76 1 'name) (77 1 'punct) (90 3 'comment))
+
+### TOML and INI: headers, keys, strings, arrays and comments
+
+```x
+(do (import x/tool/syntax)
+  (list ((Syntax named 'toml) spans "[[a.b]]\nk = \"\"\"x\ny\"\"\"\nn = [\n  [1, 2],\n  'z',\n]\nd = 1979-05-27T07:32:00Z\n")
+        ((Syntax named 'ini) spans "; c\n[s]\nk=v ; d\n")))
+```
+---
+    (((0 7 'keyword) (8 1 'name) (10 1 'punct) (12 9 'string) (22 1 'name) (24 1 'punct) (26 1 'punct) (30 1 'punct) (31 1 'number) (32 1 'punct) (34 1 'number) (35 1 'punct) (36 1 'punct) (40 3 'string) (43 1 'punct) (45 1 'punct) (47 1 'name) (49 1 'punct) (51 20 'number)) ((0 3 'comment) (4 3 'keyword) (8 1 'name) (9 1 'punct) (12 3 'comment)))
+
+### CSS: at-rules, selectors, properties, numbers, colours, !important
+
+```x
+(do (import x/tool/syntax)
+  ((Syntax named 'css) spans "@media (max-width: 10px) {\n  #id > p::before, .a { margin: -.5em 0 !important; color: #a1b2c3 }\n}\n/* c */"))
+```
+---
+    ((0 6 'keyword) (7 1 'punct) (8 9 'name) (17 1 'punct) (19 4 'number) (23 1 'punct) (25 1 'punct) (29 3 'name) (33 1 'punct) (36 8 'constant) (44 1 'punct) (46 2 'class) (49 1 'punct) (51 6 'name) (57 1 'punct) (59 5 'number) (65 1 'number) (67 10 'keyword) (77 1 'punct) (79 5 'name) (84 1 'punct) (86 7 'number) (94 1 'punct) (96 1 'punct) (98 7 'comment))
+
+### XML: every < opens a tag, and names hold namespaces
+
+```x
+(do (import x/tool/syntax)
+  ((Syntax named 'xml) spans "<?xml version=\"1.0\"?>\n<r:s xmlns:r=\"u\"><script>a<b/></script><_x/></r:s>"))
+```
+---
+    ((0 21 'keyword) (22 1 'punct) (23 3 'keyword) (27 7 'name) (34 1 'punct) (35 3 'string) (38 1 'punct) (39 1 'punct) (40 6 'keyword) (46 1 'punct) (48 1 'punct) (49 1 'keyword) (50 1 'punct) (51 1 'punct) (52 2 'punct) (54 6 'keyword) (60 1 'punct) (61 1 'punct) (62 2 'keyword) (64 1 'punct) (65 1 'punct) (66 2 'punct) (68 3 'keyword) (71 1 'punct))
