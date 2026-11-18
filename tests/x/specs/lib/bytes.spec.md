@@ -45,6 +45,20 @@ them: at the start, in the middle and at the end.
 ---
     (#t #f #f)
 
+### zeros answers n bytes of 0, an odd count and none included
+
+A buffer from str-make holds spaces, so a byte zeros leaves unset reads 32.
+
+```x
+(do
+  (import x/codec/bytes)
+  (def %bz-r (Bytes zeros 7))
+  (write (list (Bytes length %bz-r) (Bytes hex %bz-r)
+               (Bytes length (Bytes zeros 0)) (Bytes hex (Bytes zeros 0)))))
+```
+---
+    (7 "00000000000000" 0 "")
+
 ### random answers the bytes asked for, and two draws differ
 
 ```x

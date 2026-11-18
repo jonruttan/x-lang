@@ -53,6 +53,7 @@
 (import x/sys/posix)
 (import x/sys/file)
 (import x/sys/sdl)
+(import x/codec/bytes)
 (import x/codec/sha1)
 (import x/codec/base64)
 (import x/core/doors char->int int/ ptr-set! str->ptr str-byte-ref str-make)
@@ -483,7 +484,7 @@ connect();requestAnimationFrame(padLoop);
       (doc "A zeroed RGBA buffer the size of the window's picture: transparent black."
         (returns STRING "A region of w*h*4 bytes")
         (sample "(Web canvas win)" "a 256000-byte region for 320 x 200"))
-      (Sdl %zeroed (* 4 (Web %ref win (lit w)) (Web %ref win (lit h)))))
+      (first (Bytes zeros (* 4 (Web %ref win (lit w)) (Web %ref win (lit h))))))
 
     (method draw! (self (param win VECTOR "A window from open")
                         (param buf STRING "An RGBA buffer the window's size"))

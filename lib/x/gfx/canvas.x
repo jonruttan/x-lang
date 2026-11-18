@@ -21,6 +21,7 @@
 
 (import x/tool/compiled)
 (import x/tool/word-form word-form-pure)
+(import x/codec/bytes)
 
 (import x/core/doors int& int* int+ int- int->ptr int/ int< int<< int= int>> mem-copy ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-make char->int)
 
@@ -284,23 +285,10 @@
     (def a (if (null? (rest (rest (rest c)))) 255 (first (rest (rest (rest c))))))
     (int+ (first c) (int+ (int<< (first (rest c)) 8) (int+ (int<< (first (rest (rest c))) 16) (int<< a 24))))))
 
-; N zero bytes: four written, then the zeros doubled by copying.
-(def %zeroed
-  (fn (_ n)
-    (def r (str-make (int+ n 4)))
-    (def p (str->ptr r))
-    (ptr-set! p 0 0 4)
-    ((fn (self k)
-       (when (int< k n)
-         (do (mem-copy (int->ptr (int+ (ptr->int p) k)) p (if (int< (int* 2 k) n) k (int- n k)))
-             (self (int* 2 k)))))
-     4)
-    r))
-
 (def %make
   (fn (_ w h)
     (when (match ((int< w 1) #t) ((int< h 1) #t) (#t #f)) (%fail "a canvas is at least 1 x 1"))
-    (list w h (%zeroed (int* 4 (int* w h))))))
+    (list w h (first (Bytes zeros (int* 4 (int* w h)))))))
 
 (def %max3 (fn (_ a b c) ((fn (_ m) (if (int< m c) c m)) (if (int< a b) b a))))
 (def %min3 (fn (_ a b c) ((fn (_ m) (if (int< c m) c m)) (if (int< b a) b a))))
@@ -371,7 +359,7 @@
   (fn (_ lines colours)
     (when (null? lines) (%fail "rows: no rows"))
     (def w (str-byte-len (first lines)))
-    (def table (%zeroed 1024))
+    (def table (first (Bytes zeros 1024)))
     (def tp (str->ptr table))
     (List for-each
       (fn (_ c) (ptr-set! tp (int* 4 (int& (char->int (str-byte-ref (first c) 0)) 255)) (%colour (rest c)) 4))
@@ -409,7 +397,7 @@
     (def mw (%w map))
     (when (int< (int<< mw lg) w) (%fail "light!: MAP has fewer columns than the rectangle has cells"))
     (def last-row (int- (%h map) 1))
-    (def t (%zeroed (int<< (int+ mw 2) 2)))
+    (def t (first (Bytes zeros (int<< (int+ mw 2) 2))))
     (def tp (ptr->int (str->ptr t)))
     (def row-at (fn (_ v) (%addr map 0 (if (int< v 0) 0 (if (int< last-row v) last-row v)))))
     (%clip (%w dst) (%h dst) x y 0 0 w h w h
@@ -438,7 +426,7 @@
     (def gw (str-byte-len (first (first (rest (first glyphs))))))
     (def gh (List length (first (rest (first glyphs)))))
     (def all (%make (int* gw (List length glyphs)) gh))
-    (def index (%zeroed 256))
+    (def index (first (Bytes zeros 256)))
     (List fold
       (fn (_ i g)
         (def pic (%rows (first (rest g)) (list (list "#" 255 255 255 255))))
