@@ -4,7 +4,9 @@
 
 The JIT's double operations: (f+ a b), f-, f*, f/, f-sqrt, the
 comparisons f< and f=, and the conversions i->f and f->i, on words holding
-IEEE 754 bit patterns, the payload of a Float and of a double in memory.
+IEEE 754 bit patterns, the payload of a Float and of a double in memory;
+and f32-ref and f32-set!, which read and store a single in memory as a
+double.
 Unlabelled: both 64-bit backends compile the same forms. A double fills
 an 8-byte word only, so on a 4-byte word the compile refuses, and each
 case answers what the 8-byte compile does when it cannot run, as text: a
@@ -250,6 +252,83 @@ the same bits; its comparisons answer #t and #f, as int< does.
 ```
 ---
     #t
+
+## singles in memory
+
+(f32-ref a i) is the single, a 32-bit float, at a + 4i bytes as a double,
+and (f32-set! a i v) stores the double v there rounded to a single and
+answers v. Single bit patterns used: 1.0 1065353216, 1.5 1069547520, 3.0
+1077936128, the single nearest 0.1 1036831949, the single nearest a third
+1051372203; and the double 0.1 4591870180066957722.
+
+### f32-ref: the single 1.5 at index 1 reads as the double 1.5
+
+```x
+(display (if (= %word-size 8)
+  (do (import x/core/doors str-make str->ptr ptr->int ptr-set!)
+      (def buf (str-make 8))
+      (ptr-set! (str->ptr buf) 0 0 4)
+      (ptr-set! (str->ptr buf) 4 1069547520 4)
+      ((compile-asm '(fn (_ a) (f32-ref a 1))) (ptr->int (str->ptr buf))))
+  "4609434218613702656"))
+```
+---
+    4609434218613702656
+
+### f32-set!: the double 0.1 is stored as the nearest single, the singles either side are left, and the double is answered
+
+```x
+(display (if (= %word-size 8)
+  (do (import x/core/doors str-make str->ptr ptr->int ptr-ref ptr-set!)
+      (def buf (str-make 12))
+      (ptr-set! (str->ptr buf) 0 286331153 4)
+      (ptr-set! (str->ptr buf) 4 0 4)
+      (ptr-set! (str->ptr buf) 8 286331153 4)
+      (def v ((compile-asm '(fn (_ a v) (f32-set! a 1 v))) (ptr->int (str->ptr buf)) 4591870180066957722))
+      (list v (ptr-ref (str->ptr buf) 0 4) (ptr-ref (str->ptr buf) 4 4) (ptr-ref (str->ptr buf) 8 4)))
+  "(4591870180066957722 286331153 1036831949 286331153)"))
+```
+---
+    (4591870180066957722 286331153 1036831949 286331153)
+
+### word-form-pure: f32-ref and f32-set! answer and store the same
+
+```x
+(display (if (= %word-size 8)
+  (do (import x/tool/word-form word-form-pure)
+      (import x/core/doors str-make str->ptr ptr->int ptr-ref ptr-set!)
+      (def buf (str-make 12))
+      (ptr-set! (str->ptr buf) 0 1069547520 4)
+      (ptr-set! (str->ptr buf) 4 0 4)
+      (ptr-set! (str->ptr buf) 8 286331153 4)
+      (def p (ptr->int (str->ptr buf)))
+      (list ((word-form-pure '(fn (_ a) (f32-ref a 0))) p)
+            ((word-form-pure '(fn (_ a v) (f32-set! a 1 v))) p 4591870180066957722)
+            (ptr-ref (str->ptr buf) 4 4) (ptr-ref (str->ptr buf) 8 4)))
+  "(4609434218613702656 4591870180066957722 1036831949 286331153)"))
+```
+---
+    (4609434218613702656 4591870180066957722 1036831949 286331153)
+
+### word-form-pure and compile-asm agree on a quotient of singles: 1.0 over 3.0 is the single nearest a third
+
+```x
+(display (if (= %word-size 8)
+  (do (import x/tool/word-form word-form-pure)
+      (import x/core/doors str-make str->ptr ptr->int ptr-ref ptr-set!)
+      (def %form '(fn (_ a) (f32-set! a 2 (f/ (f32-ref a 0) (f32-ref a 1)))))
+      (def run (fn (_ f)
+        (def buf (str-make 12))
+        (ptr-set! (str->ptr buf) 0 1065353216 4)
+        (ptr-set! (str->ptr buf) 4 1077936128 4)
+        (ptr-set! (str->ptr buf) 8 0 4)
+        (f (ptr->int (str->ptr buf)))
+        (ptr-ref (str->ptr buf) 8 4)))
+      (list (run (word-form-pure %form)) (run (compile-asm %form))))
+  "(1051372203 1051372203)"))
+```
+---
+    (1051372203 1051372203)
 
 ## refusals
 

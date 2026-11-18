@@ -1,7 +1,8 @@
 # n-dimensional arrays (Tensor)
 # @weight 2
 
-`Tensor` packs f64 or i64 elements in bytes under an extent and strides.
+`Tensor` packs f64, f32, i64 or c128 elements in bytes under an extent and
+strides.
 Transpose, slice and reshape answer views over the same bytes; the
 element-wise operations broadcast; the arithmetic runs in word-form kernels
 that compile once they have run long enough, and answer the same either way.
@@ -212,7 +213,7 @@ on a 4-byte word only when i64 is refused there.
 ---
     ((11.0 12.0) (23.0 24.0))
 
-### div is always f64
+### div of integers is f64
 
 ```x
 (import x/num/tensor)
@@ -424,6 +425,128 @@ on a 4-byte word only when i64 is refused there.
 ---
     (2 -2)
 
+## f32
+
+An f32 element is a single, a 32-bit float, in 4 bytes. It is read as a
+Float, which holds it exactly, and a Float stored is rounded to the
+nearest single: 0.1 reads back as 0.100000001490116.
+
+### an f32 tensor is asked for, and holds singles
+
+```x
+(import x/num/tensor)
+(let ((t (Tensor from '(1 2.5 0.1) 'f32)))
+  (list (t encoding) (t ->list)))
+```
+---
+    ('f32 (1.0 2.5 0.100000001490116))
+
+### zeros, fill, ref and set!
+
+```x
+(import x/num/tensor)
+(list ((Tensor zeros 2 'f32) ->list) ((Tensor fill 2 1.5 'f32) ->list)
+      (((Tensor zeros 3 'f32) set! -1 0.1) ref 2))
+```
+---
+    ((0.0 0.0) (1.5 1.5) 0.100000001490116)
+
+### f32 stays f32 with f32 and with a number, div included; an f64 tensor makes f64
+
+```x
+(import x/num/tensor)
+(let ((a (Tensor from '(1 2) 'f32)))
+  (list ((a add a) encoding) ((a mul 0.5) encoding) ((a div 3) encoding)
+        ((a add (Tensor from '(1 2) 'f64)) encoding) (((Tensor from '(1 2) 'f64) sub a) encoding)))
+```
+---
+    ('f32 'f32 'f32 'f64 'f64)
+
+### f32 stays f32 with an i64 tensor
+
+```x
+(import x/num/tensor)
+(if (< %word-size 8) (lit (f32 (2.0 5.0)))
+  (let ((t ((Tensor from '(1 2.5) 'f32) mul (Tensor from '(2 2)))))
+    (list (t encoding) (t ->list))))
+```
+---
+    ('f32 (2.0 5.0))
+
+### the arithmetic answers what single arithmetic does: 1 over 3 is the single nearest a third
+
+```x
+(import x/num/tensor)
+(list (((Tensor from '(1) 'f32) div 3) ->list)
+      (((Tensor from '(1 2.5 3) 'f32) add 0.1) ->list)
+      (((Tensor from '(1 5 3) 'f32) min 2) ->list))
+```
+---
+    ((0.333333343267441) (1.10000002384186 2.59999990463257 3.09999990463257) (1.0 2.0 2.0))
+
+### the reductions answer Floats, the sum kept in a double
+
+```x
+(import x/num/tensor)
+(let ((t (Tensor from '(1 2.5 3) 'f32)))
+  (list (t sum) (t least) (t greatest) (t mean) ((Tensor zeros 0 'f32) sum)))
+```
+---
+    (6.5 1.0 3.0 2.16666666666667 0.0)
+
+### views step by elements of 4 bytes
+
+```x
+(import x/num/tensor)
+(let ((m (Tensor from '((1 2 3) (4 5 6)) 'f32)))
+  (list ((m transpose) ->list) (((m transpose) copy) ->list)
+        (((m slice 1 1 3) add (Tensor from '(10 20) 'f32)) ->list)
+        ((m transpose) sum)))
+```
+---
+    (((1.0 4.0) (2.0 5.0) (3.0 6.0)) ((1.0 4.0) (2.0 5.0) (3.0 6.0)) ((12.0 23.0) (15.0 26.0)) 21.0)
+
+### as rounds f64 to f32, and widens f32 to f64 exactly
+
+```x
+(import x/num/tensor)
+(let ((t ((Tensor from '(0.1 2.5) 'f64) as 'f32)))
+  (list (t encoding) (t ->list) ((t as 'f64) encoding) ((t as 'f64) ->list)))
+```
+---
+    ('f32 (0.100000001490116 2.5) 'f64 (0.100000001490116 2.5))
+
+### as converts between f32 and i64, truncating toward zero
+
+```x
+(import x/num/tensor)
+(if (< %word-size 8) (lit ((2 -2) f32 (1.0 2.0)))
+  (list (((Tensor from '(2.5 -2.5) 'f32) as 'i64) ->list)
+        (((Tensor from '(1 2)) as 'f32) encoding) (((Tensor from '(1 2)) as 'f32) ->list)))
+```
+---
+    ((2 -2) 'f32 (1.0 2.0))
+
+### f32 mixes with complex numbers to c128
+
+```x
+(import x/num/tensor)
+(let ((a (Tensor from '(1 2.5) 'f32)))
+  (list ((a as 'c128) ->list) ((Tensor complex a 1) ->list)))
+```
+---
+    ((1.0+0.0i 2.5+0.0i) (1.0+1.0i 2.5+1.0i))
+
+### a complex element is refused
+
+```x
+(import x/num/tensor)
+(import x/num/complex)
+(guard (e (Err label e)) ((Tensor zeros 1 'f32) set! 0 (Complex make 0 1)))
+```
+---
+    'type
+
 ## c128
 
 ### a complex element makes a c128 tensor
@@ -536,3 +659,22 @@ on a 4-byte word only when i64 is refused there.
 ```
 ---
     #t
+
+### the compiled f32 kernels answer what the pure ones do
+
+```x
+(import x/num/tensor)
+(let ((a (Tensor from '((1.5 2) (3 0.1)) 'f32)) (b (Tensor from '(0.25 -3) 'f32)))
+  (let ((run (fn (_) (list ((a add b) ->list) ((a mul b) ->list) ((a div b) ->list) ((a max b) ->list)
+                          (a sum) (a least) (((a transpose) copy) ->list)
+                          ((a as 'f64) ->list) (((Tensor from '(0.1 0.7)) as 'f32) ->list)
+                          ((Tensor fill 2 0.3 'f32) ->list) ((a as 'c128) ->list)))))
+    (let ((before (run)))
+      (Tensor jit!)
+      (list (equal? before (run))
+            (List all? (fn (_ k) (List any? (fn (_ c) (eq? c k)) (Tensor compiled)))
+              (if (List empty? (Tensor compiled)) () (lit (f32-add f32-div f32-sum f32-copy f32->f64 f64->f32))))))))
+```
+---
+    (#t #t)
+
