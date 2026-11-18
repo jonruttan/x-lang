@@ -469,7 +469,7 @@ check-help-examples: $(EXECUTABLE) ## Count the doc entries that show no example
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-lang-kit-harness check-lang-kit-lint check-lang-kit-spec-gate check-lang-kit-dup-defs check-pin check-release-manifest check-bootstrap check-package check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-highlight-roundtrip check-primitives-doc check-help-examples ## Run the contract gates
+gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-lang-kit-harness check-lang-kit-lint check-lang-kit-spec-gate check-lang-kit-dup-defs check-lang-kit-card check-card check-pin check-release-manifest check-bootstrap check-package check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-highlight-roundtrip check-primitives-doc check-help-examples ## Run the contract gates
 .PHONY: gates
 
 .PHONY: check-spec-weights
@@ -500,7 +500,7 @@ check-spec-globals: ## No spec rebinds a name the engine or library owns
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-lang-kit-harness check-lang-kit-lint check-lang-kit-spec-gate check-lang-kit-dup-defs check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
+gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-lang-kit-harness check-lang-kit-lint check-lang-kit-spec-gate check-lang-kit-dup-defs check-lang-kit-card check-card check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast check-asan-boot test-c test-x ## Pre-push gate: fast gates, the ASan boot, both spec suites (CI runs full `make test`)
@@ -685,6 +685,15 @@ check-lang-kit-spec-gate: ## The lang kit's spec gate names a failure whose outp
 check-lang-kit-dup-defs: ## The lang kit's dup-defs fails a bundle whose files give one global name two meanings
 	sh tools/check/lang-kit-dup-defs.sh
 .PHONY: check-lang-kit-dup-defs
+
+check-lang-kit-card: ## The lang kit's card check refuses a card outside the format, and a shell row that gives other output
+	sh tools/check/lang-kit-card.sh
+.PHONY: check-lang-kit-card
+
+# The x rows of docs/card.md run under doc-examples (doc-examples.conf).
+check-card: boot ## Hold docs/card.md to the card format and run its shell rows
+	BUNDLE=. X=./x.sh sh tools/lang-kit/card.sh
+.PHONY: check-card
 
 # THE TOP LEVEL IS SACRED (#108): the runtime library may bind only the names
 # tools/contract/bare-globals.x sanctions; the manifest can only shrink.

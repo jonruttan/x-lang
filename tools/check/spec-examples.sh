@@ -19,6 +19,9 @@
 # nothing (a def, or output the doc leaves out) and is setup for the next one.
 # docs/tutorial.md writes its examples this way.
 #
+# A fence opened as ```sh holds shell, not x-lang, and is not read: docs/card.md
+# writes `COMMAND -> OUTPUT` rows there, which tools/lang-kit/card.sh runs.
+#
 # The document is a parameter.  The format is not unique to the spec:
 # docs/primitives.md and docs/standard-library.md write their examples the same
 # way.  Which docs are gated is tools/check/doc-examples.conf's business; this
@@ -152,11 +155,12 @@ index($0, section_mark) == 1 {
   in_fence = !in_fence
   repl = 0
   fence_open = in_fence ? $0 : ""
+  shell = in_fence && $0 == "```sh"
   if (in_fence) flush_setup()
   next
 }
 
-!in_fence { next }
+!in_fence || shell { next }
 
 # An x-repl fence is a transcript when it opens on a `> ` entry; spec.md
 # writes arrow lines in x-repl fences too.

@@ -478,6 +478,39 @@ Hand-written documents are [GitHub Flavored Markdown](https://github.github.com/
 with ATX (`#`) headings. A document's file name is letters, digits, `-` and
 `.`, starting with a letter or digit and ending in `.md`.
 
+### The card
+
+A project's card is `docs/card.md`: one page for recall, read by someone who
+has used the project and wants the exact spelling. It teaches nothing and
+covers a part; the tutorial and the reference do those. [x-lang's own](card.md)
+is the model, and a lang bundle's card has the same format.
+
+- **Title.** Line 1 is `# NAME card`.
+- **Rows only.** Outside a fence a card has `##` headings and blank lines, no
+  prose. A row is one line in a fence: what to type on the left, what it gives
+  or a note on the right.
+- **Sections.** `## Run` is first: how the project is started. Then the
+  sections the project needs, each named for a task. `## Differs` lists
+  where the project departs from what a newcomer already knows, and
+  `## More` the calls that reach the full reference; where present they are
+  last, in that order.
+- **One page.** At most 66 rows of at most 80 columns, a printed page. What
+  does not fit belongs in the reference.
+- **Checked rows.** In a fence opened as `sh`, a row `COMMAND -> OUTPUT` is
+  run from the project root and its standard output compared; `x` in a row is
+  the x under test, and a trailing `  # note` is not part of the output. In a
+  fence opened as `x-repl`, a row `EXPR -> VALUE` is an x-lang assertion, the
+  same form [spec.md](spec.md) uses, with a note after `;`. A row without
+  ` -> ` is not run: write one only for what cannot be asserted, such as the
+  interactive session.
+
+`make check-card` holds the format and runs the shell rows, and
+`make doc-examples` runs the x rows. In a bundle the check is the lang kit's:
+
+```sh
+BUNDLE=. X=x sh "$(x --share-dir)/tools/lang-kit/card.sh"
+```
+
 ### Generating Docs
 
 ```sh

@@ -33,6 +33,7 @@
 
 ## Reference
 
+- [Card](card.md) — one page for recall: what to type and what it gives, every row run by the gates
 - [The interactive session](repl.md) — the built-in line editor: keys, history, completion, as-you-type colour, and how to replace the loop
 - [Primitives and core forms](primitives.md) — the engine's instruction set, the coordinates reached through `prim-ref`, and the operatives and procedures that boot on top (hand-written)
 - [Standard Library](standard-library.md) — how the library is laid out and how to find a name in it; the reference itself is generated
