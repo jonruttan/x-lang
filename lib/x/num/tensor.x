@@ -800,12 +800,14 @@
   ; --- the tensor -------------------------------------------------------------
   (method encoding (self)
     (doc "How each element is stored: f64, f32, i64 or c128."
+      (known-as "dtype")
       (returns SYMBOL "The encoding")
       (example "((Tensor from '(1.5 2)) encoding)" "'f64"))
     (first (field (lit st))))
 
   (method extent (self)
     (doc "The length of each axis."
+      (known-as "shape")
       (returns LIST "Axis lengths, outermost first")
       (example "((Tensor zeros '(2 3)) extent)" "(2 3)"))
     (first (rest (field (lit st)))))
@@ -1029,6 +1031,7 @@
 
   (method deviation (self . (param correction INTEGER "Optional, as for variance: 1 by default, 0 for the population"))
     (doc "The standard deviation of every element: the square root of the variance, with the same correction."
+      (known-as "standard deviation" "std")
       (returns FLOAT "The standard deviation")
       (example "((Tensor from '(2 4 4 4 5 5 7 9) 'f64) deviation 0)" "2.0")
       (see variance))

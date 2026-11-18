@@ -344,6 +344,7 @@
 
   (method cumulative (self (param x NUMBER "Where"))
     (doc "The probability of a value at or below x."
+      (known-as "CDF")
       (returns FLOAT "A probability from 0 to 1")
       (example "((Distribution normal 0 1) cumulative 0)" "0.5")
       (example "((Distribution uniform 0 4) cumulative 3)" "0.75"))
@@ -358,6 +359,7 @@
 
   (method quantile (self (param p NUMBER "A probability from 0 to 1"))
     (doc "The x at which the cumulative is p, so (d cumulative (d quantile p)) is p. p 0 and 1 answer the ends of the values the distribution takes, which may be infinite; a p outside 0 to 1 is refused."
+      (known-as "inverse CDF" "ppf")
       (returns FLOAT "The quantile")
       (example "((Distribution normal 0 1) quantile 0.975)" "1.95996398454005")
       (example "((Distribution exponential 1) quantile 0.5)" "0.693147180559945"))
@@ -383,6 +385,7 @@
 
   (method deviation (self)
     (doc "The deviation, the variance's square root."
+      (known-as "standard deviation" "std")
       (returns FLOAT "The deviation")
       (example "((Distribution normal 3 2) deviation)" "2.0")
       (example "((Distribution uniform 0 12) deviation)" "3.46410161513775"))
