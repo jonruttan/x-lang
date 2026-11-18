@@ -19,6 +19,7 @@
 - [Architecture](architecture.md) — System design, evaluation model, the contract pattern
 - [The Engine Contract](engine-contract.md) — What an engine must provide, promise and report; how a second implementation is checked
 - [Engine Laws](engine-laws.md) — behaviour the language requires of an engine that the contract's files cannot state, and the check for each
+- [Design Rulings](design-rulings.md) — which layer answers a need: sixteen settled decisions a review cites by number
 - [Type System](type-system.md) — Objects, types, the base object, dispatch, extensibility
 - [Object System](object-system.md) — Message-passing classes, single inheritance, encapsulated fields, `super`
 - [Dialects](dialects.md) — the helium, xenon, and radon dialect layers
