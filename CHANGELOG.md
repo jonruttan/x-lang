@@ -7,6 +7,26 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.56.0] - 2026-11-18
 
+**`x/codec/pdf-text` reads a PDF's text as the document tree.** ([#1344])
+`(PdfText parse BYTES LENGTH)` answers headings and paragraphs from where
+the file placed its glyphs: runs gathered into lines, lines into
+paragraphs, a larger line a heading, a hyphenated word joined, bold and
+italic fonts kept as `strong` and `emph`.  `(PdfText runs)` answers a
+page's runs as placed and `(PdfText title)` the document's title.
+`x/codec/pdf-glyphs` maps glyph names and the WinAnsi, MacRoman and
+Standard encodings to Unicode.
+
+[#1344]: https://github.com/jonruttan/x-lang/pull/1344
+
+**`x/num/gpu` runs an f32 matrix product on the GPU.** ([#1337])
+`(Gpu product a b)` answers the product of two matrices, or of a matrix
+and a rank-1 tensor, as an f32 Matrix computed through Metal on macOS;
+operands of another encoding are cast to f32.  `(Gpu available?)` answers
+whether this host has a GPU, and `product` raises a label `'io` where it
+has none.
+
+[#1337]: https://github.com/jonruttan/x-lang/pull/1337
+
 **`x/codec/pdf` reads a PDF file's objects, streams and pages.** ([#1341])
 `(Pdf open BYTES LENGTH)` reads the cross-reference, tables and
 cross-reference streams; `(Pdf object)`, `(Pdf lookup)` and `(Pdf pages)`
