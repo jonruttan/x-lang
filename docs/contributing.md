@@ -480,29 +480,38 @@ with ATX (`#`) headings. A document's file name is letters, digits, `-` and
 
 ### The card
 
-A project's card is `docs/card.md`: one page for recall, read by someone who
-has used the project and wants the exact spelling. It teaches nothing and
-covers a part; the tutorial and the reference do those. [x-lang's own](card.md)
-is the model, and a lang bundle's card has the same format.
+A project's card is `docs/card.md`: the page someone who has used the
+project opens to find how a thing is spelled or what a name means. It follows
+the project's own areas, a lang's follow the language: its program shape, its
+variables, its functions, its control flow. [x-lang's own](card.md) is one,
+and a lang bundle's card has the same format.
 
 - **Title.** Line 1 is `# NAME card`.
-- **Rows only.** Outside a fence a card has `##` headings and blank lines, no
-  prose. A row is one line in a fence: what to type on the left, what it gives
-  or a note on the right.
-- **Sections.** `## Run` is first: how the project is started. Then the
-  sections the project needs, each named for a task. `## Differs` lists
-  where the project departs from what a newcomer already knows, and
-  `## More` the calls that reach the full reference; where present they are
-  last, in that order.
-- **One page.** At most 66 rows of at most 80 columns, a printed page. What
-  does not fit belongs in the reference.
-- **Checked rows.** In a fence opened as `sh`, a row `COMMAND -> OUTPUT` is
+- **Sections and cards.** `## ` opens a section and `### ` a card in it.
+  `## Run` is first: how the project is started. `## Differs` lists where the
+  project departs from what a newcomer already knows, in plain words, and
+  only where a user would meet it; `## More` gives the calls that reach the
+  full reference. Where present they are last, in that order.
+- **A card is a table or code.** A table gives names and their meanings in a
+  few words each. Code is a fence. There is no prose outside them: a
+  sentence that is needed is a comment in the code or a cell in the table.
+- **Width.** No fence line or table row is wider than 80 columns.
+- **A lang's programs.** In a lang bundle, a fence opened as the lang's name
+  holds one program in that lang, written as the lang and not inside a shell
+  string. A line ending in a comment `# -> TEXT` says TEXT is a line the
+  program prints (`;`, `--` and `//` are markers too). The program is run
+  once and its standard output must be those lines, in order. A fence opened
+  as `input`, earlier in the section, is its standard input: show the data a
+  program reads.
+- **Shell rows.** In a fence opened as `sh`, a row `COMMAND -> OUTPUT` is
   run from the project root and its standard output compared; `x` in a row is
-  the x under test, and a trailing `  # note` is not part of the output. In a
-  fence opened as `x-repl`, a row `EXPR -> VALUE` is an x-lang assertion, the
-  same form [spec.md](spec.md) uses, with a note after `;`. A row without
-  ` -> ` is not run: write one only for what cannot be asserted, such as the
-  interactive session.
+  the x under test, and a trailing `  # note` is not part of the output.
+  Shell rows are for the command line, in `## Run`.
+- **x-lang rows.** In a fence opened as `x-repl`, a row `EXPR -> VALUE` is an
+  x-lang assertion, the form [spec.md](spec.md) uses, with a note after `;`.
+- **Not run.** A row without ` -> `, and a program with no such line, is not
+  run: write one only for what cannot be asserted, such as the interactive
+  session.
 
 `make check-card` holds the format and runs the shell rows, and
 `make doc-examples` runs the x rows. In a bundle the check is the lang kit's:
@@ -511,11 +520,13 @@ is the model, and a lang bundle's card has the same format.
 X_LANG_DIR="$PWD/.." BUNDLE=. X=x sh "$(x --share-dir)/tools/lang-kit/card.sh"
 ```
 
-`X_LANG_DIR` is the directory holding the bundle, so `x -l NAME` in a row
-loads this tree and not an installed copy. The x is an installed one: a
-checkout's wrapper runs only from its own root, and the rows run from the
-bundle's. The bundle workflow runs the same line on every pull request of a
-bundle that has a `docs/card.md`.
+`X_LANG_DIR` is the directory holding the bundle, so `x -l NAME` loads this
+tree and not an installed copy. The x is an installed one: a checkout's
+wrapper runs only from its own root, and the card runs from the bundle's.
+The bundle says how one of its programs is run, in `tests/card-run.sh`: it
+is given the program as a file, X in the environment and the input on
+standard input. The bundle workflow runs the check on every pull request of
+a bundle that has a `docs/card.md`.
 
 ### Generating Docs
 
