@@ -62,7 +62,8 @@ this tree.
   `Gen`), or one of `ANY` (every value), `NUMBER` and `CALLABLE`
   (unions), `ALIST`, `TYPE` (a runtime type's handle). Unions are written
   `INTEGER|BIGINT`. A rest parameter's annotation names the type of each
-  argument it collects. Documentation only.
+  argument it collects. The linter tests a literal argument against it;
+  nothing tests it at a call.
 
 ## Objects and classes
 
