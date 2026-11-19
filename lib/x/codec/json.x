@@ -14,6 +14,12 @@
 ; a single slice. \uXXXX decodes to a code point (surrogate pairs combined)
 ; and re-encodes as UTF-8; raw UTF-8 bytes pass through untouched both ways.
 ;
+; Parsing leaves garbage behind every byte, and nothing collects it during
+; one call, so parse collects as it goes: each string, number and word
+; parsed adds its length to a debt, and the heap is collected when the debt
+; passes %json-window bytes of text.  A text of any length then costs the
+; values it answers and a window's garbage.
+;
 ; Emission escapes properly -- the gap that kept lib/x/logo/json.x app-only:
 ; " \ and control bytes come out as \" \\ \n \r \t \b \f or \u00XX.
 
@@ -22,6 +28,7 @@
 (import x/type/dict)
 (import x/type/list)
 (import x/num/float)
+(import x/sys/gc)
 
 ; Fetch the byte-level string prims from the catalogue (ns `str` de-registered, R5).
 (import x/core/doors char->int io-display-to-str str-append str-byte-len str-byte-ref str-byte-sub)
@@ -177,6 +184,15 @@
 ; --- values ----------------------------------------------------------------
 (def %json-parse-value ())
 
+; The bytes of text parsed between collections.
+(def %json-window 8192)
+(def %json-debt (pair 0 ()))
+(def %json-owe!
+  (fn (_ k)
+    (let ((d (+ (first %json-debt) k)))
+      (if (< d %json-window) (%set-first! %json-debt d)
+        (do (%set-first! %json-debt 0) (Heap collect))))))
+
 (def %json-parse-array
   (fn (self s i len acc)
     (def j (%json-skip-ws s i len))
@@ -204,6 +220,7 @@
       ((not (= (%json-byte s j) 34)) (%json-err "expected a string key" j))
       (#t
         (let ((key (%json-parse-string s (+ j 1) len (+ j 1) "")))
+          (%json-owe! (- (rest key) j))
           (let ((c (%json-skip-ws s (rest key) len)))
             (if (if (>= c len) #t (not (= (%json-byte s c) 58)))   ; :
               (%json-err "expected : after key" c)
@@ -222,15 +239,20 @@
     (if (>= j len) (%json-err "unexpected end of input" j)
       (let ((b (%json-byte s j)))
         (match
-          ((= b 34) (%json-parse-string s (+ j 1) len (+ j 1) ""))
           ((= b 123) (%json-parse-object s (+ j 1) len (Dict make)))
           ((= b 91) (%json-parse-array s (+ j 1) len ()))
-          ((= b 116) (%json-word s j len "true" #t))
-          ((= b 102) (%json-word s j len "false" #f))
-          ((= b 110) (%json-word s j len "null" 'null))
-          ((= b 45) (%json-parse-number s j len))
-          ((if (>= b 48) (<= b 57) #f) (%json-parse-number s j len))
-          (#t (%json-err "unexpected byte" j)))))))
+          (#t
+            ; a string, a number or a word: its length is owed once it is parsed
+            (let ((v (match
+                       ((= b 34) (%json-parse-string s (+ j 1) len (+ j 1) ""))
+                       ((= b 116) (%json-word s j len "true" #t))
+                       ((= b 102) (%json-word s j len "false" #f))
+                       ((= b 110) (%json-word s j len "null" 'null))
+                       ((= b 45) (%json-parse-number s j len))
+                       ((if (>= b 48) (<= b 57) #f) (%json-parse-number s j len))
+                       (#t (%json-err "unexpected byte" j)))))
+              (%json-owe! (- (rest v) j))
+              v)))))))
 
 ; --- emission ---------------------------------------------------------------
 (def %json-hex1 (fn (_ n) (str-byte-sub %json-hexdig (& n 15) 1)))
