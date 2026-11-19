@@ -508,8 +508,14 @@ is the model, and a lang bundle's card has the same format.
 `make doc-examples` runs the x rows. In a bundle the check is the lang kit's:
 
 ```sh
-BUNDLE=. X=x sh "$(x --share-dir)/tools/lang-kit/card.sh"
+X_LANG_DIR="$PWD/.." BUNDLE=. X=x sh "$(x --share-dir)/tools/lang-kit/card.sh"
 ```
+
+`X_LANG_DIR` is the directory holding the bundle, so `x -l NAME` in a row
+loads this tree and not an installed copy. The x is an installed one: a
+checkout's wrapper runs only from its own root, and the rows run from the
+bundle's. The bundle workflow runs the same line on every pull request of a
+bundle that has a `docs/card.md`.
 
 ### Generating Docs
 
