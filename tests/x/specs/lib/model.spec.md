@@ -92,6 +92,81 @@ answers are whole, or compare within a rounding.
 ---
     ((2.0) 0.8)
 
+## Judging the coefficients
+
+### freedom is the observations less the terms fitted
+
+```x
+(import x/num/model)
+(list (((Model linear) fit '(0 1 2 3) '(1 3 2 5)) freedom)
+      (((Model linear 'origin) fit '(1 2 3) '(2 4 7)) freedom)
+      (((Model linear) fit '((1 0) (0 1) (1 1) (2 1) (3 5)) '(3 4 6 8 9)) freedom)
+      (((Model linear) fit '(1 2) '(3 5)) freedom))
+```
+---
+    (2 2 2 0)
+
+### the residuals' deviation, and a slope's standard error, statistic and significance
+
+```x
+(import x/num/model)
+(let ((f ((Model linear) fit '(0 1 2) '(0 0 3)))
+      (near (fn (_ a b) (let ((d (- a b))) (< (* d d) 1.0e-24)))))
+  (list (near (* (f residual-deviation) (f residual-deviation)) 1.5)
+        (near (* ((f standard-errors) ref 0) ((f standard-errors) ref 0)) 0.75)
+        (near (* ((f statistics) ref 0) ((f statistics) ref 0)) 3.0)
+        (near (* 3 ((f significance) ref 0)) 1.0)))
+```
+---
+    (#t #t #t #t)
+
+### a line through scattered points, against the values worked by hand
+
+```x
+(import x/num/model)
+(let ((f ((Model linear) fit '(1 2 3 4 5) '(2.2 4.1 6.2 7.9 10.1)))
+      (near (fn (_ a b) (let ((d (- a b))) (< (* d d) 1.0e-16)))))
+  (list (near (f residual-deviation) 0.1211060142)
+        (near ((f standard-errors) ref 0) 0.0382970843)
+        (near (* ((f statistics) ref 0) ((f statistics) ref 0)) 2619.2727272727)
+        (< ((f significance) ref 0) 0.001)))
+```
+---
+    (#t #t #t #t)
+
+### an element for each predictor, the intercept left out
+
+```x
+(import x/num/model)
+(let ((f ((Model linear) fit '((1 0) (0 1) (1 1) (2 1) (3 5)) '(3 4 6 8 9)))
+      (g ((Model linear 'origin) fit '(1 2 3) '(2 4 7))))
+  (list ((f coefficients) size) ((f standard-errors) size) ((f statistics) size) ((f significance) size)
+        ((g standard-errors) size)))
+```
+---
+    (2 2 2 2 1)
+
+### a predictor that matters has a small significance, one that does not a large one
+
+```x
+(import x/num/model)
+(let ((f ((Model linear) fit '((1 1) (2 -1) (3 -1) (4 1) (5 1) (6 -1)) '(2.1 3.9 6.2 7.8 10.1 11.9))))
+  (list (< ((f significance) ref 0) 0.001) (< 0.1 ((f significance) ref 1))))
+```
+---
+    (#t #t)
+
+### other libraries' words find them
+
+```x
+(import x/num/model)
+(list ((Doc entry 'Fit/significance) known-as)
+      ((Doc entry 'Fit/statistics) known-as)
+      ((Doc entry 'Fit/residual-deviation) known-as))
+```
+---
+    (("p-value" "Pr(>|t|)") ("t value" "t statistic" "test statistic") ("residual standard error" "sigma"))
+
 ## The model and the data
 
 ### a fit leaves the model unchanged: one model fits many sets of data
@@ -141,3 +216,18 @@ answers are whole, or compare within a rounding.
 ```
 ---
     (("lm" "linear regression" "ordinary least squares" "OLS") ("R-squared" "r2" "coefficient of determination"))
+
+## The doc examples that round
+
+### each answers what its doc shows
+
+```x
+(import x/num/model)
+(let ((f ((Model linear) fit '(0 1 2) '(0 0 3))))
+  (list (Float round (Float * 1000 (f residual-deviation)))
+        (Float round (Float * 1000 ((f standard-errors) ref 0)))
+        (Float round (Float * 1000 ((f statistics) ref 0)))
+        (Float round (Float * 1000 ((f significance) ref 0)))))
+```
+---
+    (1225.0 866.0 1732.0 333.0)
