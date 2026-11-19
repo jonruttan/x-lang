@@ -42,10 +42,15 @@
 ;   x20 -> r12   p_args   (callee-saved)
 ;   x21 -> r13   arg-list accumulator (callee-saved -- the #192 lesson)
 ;   x22 -> r14   reserved (callee-saved, spilled for parity)
+;   x23 -> r15   callee-saved, and NOT kept by asm-prologue!: code that
+;   x24 -> rbp   uses them saves and restores them itself.  rbp is the
+;                prologue's frame pointer, which nothing reads back, so
+;                x24 is free after the prologue too
 ;   xzr -> a PSEUDO register (99): x86 has no zero register, so the two
 ;          xzr idioms lower specially (sub d zr s -> neg; orn d zr s -> not)
 (def x0  rax) (def x1  rsi) (def x2  rcx) (def x8  r10)
 (def x19 rbx) (def x20 r12) (def x21 r13) (def x22 r14)
+(def x23 r15) (def x24 rbp)
 (def xzr (reg 99))
 (def %x86-zr 99)
 ; d0-d7 are xmm0-xmm7 (the scalar double instructions below)

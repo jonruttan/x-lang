@@ -483,7 +483,10 @@
   (fn (_ asm r)
     (%emit-u32-le! asm (| 4165011424 (& (first (rest r)) 31)))))  ; 0xF84107E0|Rt
 
-; asm-prologue!: save x29 (fp) and x30 (lr), set up frame
+; asm-prologue!: save x29 (fp) and x30 (lr), and x19-x22, set up frame.
+; The portable model's x23 and x24 are callee-saved too, on every target,
+; but the prologue does not keep them: code that uses them saves and
+; restores them itself.
 ; STP x29, x30, [sp, #-16]! = 0xA9BF7BFD
 ; MOV x29, sp              = 0x910003FD
 (def asm-prologue!
