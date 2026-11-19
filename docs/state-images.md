@@ -332,10 +332,12 @@ The compiled version is remade, not carried. The cache carries the bytes.
   piped ahead of the program. For a bundle it is in the bundle's `.images/`
   and is its installer's to write (`x --image -l NAME` at the end of `make
   install`); the wrapper never writes into a bundle behind the installer's
-  back. For a dialect or an app it is in `~/.cache/x/images/<tree>/`,
+  back. For a dialect it is in `~/.cache/x/images/<tree>/`,
   written on a miss with one line on stderr. A pinned boot amalgam
   (`--boot`, or a manifest's `(boot ...)`) is never imaged: it is another
-  release's boot, and the loader is this tree's. `--no-image` boots from
+  release's boot, and the loader is this tree's. An app (`apps/NAME/run.x`) is
+  never imaged either: its entry runs its command as it loads, and a boot
+  from the load's result would never reach it. `--no-image` boots from
   source.
 
 An image is a cache, not an artifact. It carries no release of its own, it

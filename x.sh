@@ -1004,6 +1004,14 @@ ENTRY="${ENTRY_DIR}${X_LIB}${X_EXT}"
 if [ ! -e "$ENTRY" ] && [ -e "${APPS_PATH}${X_LIB}/${X_RUN}${X_EXT}" ]; then
 	ENTRY="${APPS_PATH}${X_LIB}/${X_RUN}${X_EXT}"
 fi
+# An app's entry runs its command as it loads: the dispatch is its last
+# form, with the program's arguments before it.  That makes it the one
+# entry a state image cannot stand in for -- the image is the load's
+# result, and a boot from it never reaches the form again -- so an app
+# boots from source every time.  Installed, the entry is the amalgam in
+# the entry dir; the app's own directory is what says it is one.
+app_entry=
+[ -e "${APPS_PATH}${X_LIB}/${X_RUN}${X_EXT}" ] && app_entry=1
 # THIRD STEP: an acquired lang bundle.  Unlike the first two this
 # does not make the NAMED file the entry -- the entry becomes the DIALECT
 # the bundle declares, and the bundle rides after it as a load made the way -F makes one.
@@ -1530,7 +1538,7 @@ fi
 # `x --image NAME` into the bundle's own .images/, and the wrapper does not
 # write into a bundle behind its installer's back.  What it does instead,
 # when that one is missing or stale, is fall through to the per-user cache
-# it already keeps for every other boot (a dialect, an app) -- writing the
+# it already keeps for every other boot (a dialect) -- writing the
 # user's own there, and saying so on stderr, because the first run after a
 # library or engine change pays a boot twice.  A bundle needs that fallback
 # MORE than a dialect does, not less: its key carries lib/ and the engine, so
@@ -1561,7 +1569,7 @@ img_loader() {
 # through itself, written on every cold cache for nothing -- the image spec's
 # fifteen probes each boot it, and on a slow runner those writes cost the
 # file its budget.
-if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ "$X_LIB" != img ]; then
+if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$app_entry" ] && [ "$X_LIB" != img ]; then
 	_iroot=$(img_root)
 	_ibuild="$_iroot/tools/dev/image-build.sh"
 	if [ -f "$_ibuild" ] && [ -f "$_iroot/lib/img.x" ]; then
@@ -1689,7 +1697,7 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ "$X_LIB" != img ]; then
 fi
 if [ -n "$image_write" ]; then
 	echo "Error: --image: nothing to write for '$X_LIB'" >&2
-	echo "  a pinned boot amalgam (--boot, or a manifest's (boot ...)) is not imaged, and the tree must carry tools/dev/image-build.sh" >&2
+	echo "  a pinned boot amalgam (--boot, or a manifest's (boot ...)) and an app are not imaged, and the tree must carry tools/dev/image-build.sh" >&2
 	exit 1
 fi
 

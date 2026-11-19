@@ -185,6 +185,23 @@ if [ -n "$help" ]; then
 	printf '  --help lists every option the parser accepts: ok\n'
 fi
 
+# An app's entry runs its command as it loads, so a boot that stood a state
+# image in for the load ran nothing: `x -l bitwise -- NAME` wrote its image,
+# booted from it and printed not a byte, status 0.  Twice, with a cache of
+# its own: the second boot is the one an image would have taken, and both
+# must print the same thing.
+if [ -e apps/bitwise/run.x ]; then
+	first=$(XDG_CACHE_HOME="$TMP/cache" sh x.sh -q -l bitwise -- x --json 2>/dev/null || true)
+	again=$(XDG_CACHE_HOME="$TMP/cache" sh x.sh -q -l bitwise -- x --json 2>/dev/null || true)
+	case "$first" in
+		*'"'*) want "an app's command runs on every boot" "$first" "$again" ;;
+		*)
+			printf 'wrapper: -l bitwise printed nothing for its command\n' >&2
+			fails=$((fails + 1))
+			;;
+	esac
+fi
+
 if [ "$fails" -gt 0 ]; then
 	printf 'wrapper: %d failure(s).\n' "$fails" >&2
 	exit 1
