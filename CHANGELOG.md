@@ -5,6 +5,100 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-11-19
+
+**A state image holds two million live objects.** ([#1360]) The writer
+refused a load past a million, and a bundle's harness had grown past it;
+the bound is now a sixth of the object table, `%OBJ-CAP-WORDS` in
+tools/dev/image-write.x, one number to raise.
+
+[#1360]: https://github.com/jonruttan/x-lang/pull/1360
+
+**A library that loads `x/sys/socket` takes a state image on Linux.**
+([#1367]) The module kept a pointer to libc's `memset`, which glibc
+resolves to a routine with no name a state image can carry it by, so the
+image was refused and the library booted from source.  It now zeroes
+memory with the engine's `(mem set)`.
+
+[#1367]: https://github.com/jonruttan/x-lang/pull/1367
+
+**A bzip2 stream written from a state image has its right CRC again.**
+([#1359]) The encoder's CRC table is made at its first use rather than at
+load, where an image kept it only to its first zero byte.
+
+[#1359]: https://github.com/jonruttan/x-lang/pull/1359
+
+**Three library names taken from people are renamed, and the old names no
+longer exist.** ([#1358]) `Cholesky` is `LowerTranspose` and
+`(m factor-cholesky)` is `(m factor-lower-transpose)`; `Fourier` is
+`Frequency`, imported from `x/num/frequency`; `(Fn curry f x)` is
+`(Fn partial f x)`.  `apropos` finds each under its former name.
+
+[#1358]: https://github.com/jonruttan/x-lang/pull/1358
+
+**File fields, a form's encoding, and `(Http multipart parts)`.**
+([#1366]) `Html parse` now answers `<input type=file>` as a `file` field,
+and a field's FORM is `(INDEX ACTION METHOD ENCODING)`, ENCODING
+`multipart` for `enctype=multipart/form-data`, else `urlencoded`.
+`(Http multipart parts)` answers `(RUN . CONTENT-TYPE)`: a
+multipart/form-data body for text parts `(NAME . VALUE)` and file parts
+`(NAME FILENAME REGION)`, ready for `Http post`.
+
+[#1366]: https://github.com/jonruttan/x-lang/pull/1366
+
+**`x/codec/safetensors` reads and writes safetensors files.** ([#1356],
+[#1365]) `(Safetensors open path)` answers an open file whose `ref` reads
+one named tensor at a time; `decode` and `encode` work on a whole file's
+bytes as a region, and `write` puts tensors in a file.  F64, F32 and I64
+are read, and F16 and BF16 are read as f32, so a model published in half
+precision loads; the widening runs as a compiled kernel where a JIT
+backend is.
+
+[#1356]: https://github.com/jonruttan/x-lang/pull/1356
+[#1365]: https://github.com/jonruttan/x-lang/pull/1365
+
+**A `Distribution` answers random variates.** ([#1364])
+`(d variate random)` is one value that follows the distribution, and
+`(d variate random n)` an f64 `Tensor` of `n`, from any `Random`: a
+seeded one answers the same values each time.  `apropos` finds it as
+"rvs", "sample", "draw" and "simulate".
+
+[#1364]: https://github.com/jonruttan/x-lang/pull/1364
+
+**`Document` reads and writes a document in a format by its name, and
+Markdown gains a writer.** ([#1363]) `(Document formats)` names markdown,
+html, pdf and text with the file endings of each; `(Document format NAME)`
+answers a file's format, `(Document read FORMAT TEXT)` its title and
+blocks, and `(Document write FORMAT BLOCKS)` the file in another.  The new
+`x/codec/markdown-write` writes a document tree as CommonMark that
+`(Markdown parse)` reads back as the same tree, so an HTML page or a PDF
+can be turned into Markdown.
+
+[#1363]: https://github.com/jonruttan/x-lang/pull/1363
+
+**`x/codec/pdf-write` writes a document tree as a PDF file.** ([#1355])
+`(PdfWrite bytes BLOCKS)` sets headings, paragraphs, code, quotes, lists
+and rules on US Letter pages in Helvetica and Courier, standard fonts the
+file need not carry, measured with Adobe's widths.  `(PdfText parse)` now
+reads a fixed-width font's text as `(code TEXT)` and keeps the space
+before a bold or italic run.
+
+[#1355]: https://github.com/jonruttan/x-lang/pull/1355
+
+**The assembler's portable registers include `x23` and `x24`.** ([#1361])
+Both are callee-saved on every target: ARM64's x23 and x24, x86-64's r15
+and rbp, and A32's r8 and r10.  `asm-prologue!` does not keep them, so a
+function that uses them pushes and pops them itself.
+
+[#1361]: https://github.com/jonruttan/x-lang/pull/1361
+
+**A card may hold tables, and a lang bundle's card runs programs in the
+lang's own fence.** ([#1362], [#1357]) The 66-row cap is removed, and the
+bundle workflow runs the card check for a bundle that has a docs/card.md.
+
+[#1362]: https://github.com/jonruttan/x-lang/pull/1362
+[#1357]: https://github.com/jonruttan/x-lang/pull/1357
+
 ## [0.57.0] - 2026-11-18
 
 **An installed x writes state images again.** ([#1353]) `make install` puts
