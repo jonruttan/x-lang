@@ -8,7 +8,7 @@
 #   - a card in the format passes, its shell rows run;
 #   - each rule fails alone: the title, prose outside a fence, a first
 #     section that is not Run, a section after More, an empty section, a row
-#     past 80 columns, more than 66 rows;
+#     past 80 columns;
 #   - a shell row whose command gives other output fails, and the report
 #     names the row.
 set -e
@@ -277,6 +277,83 @@ EOF
 lang runner
 rm "$TMP/runner/tests/card-run.sh"
 refuses runner 'there is no'
+
+card outfence <<EOF
+# demo card
+
+## Run
+
+${F}input
+a b
+c d
+${F}
+
+${F}demo
+cut -d ' ' -f 2
+${F}
+
+${F}output
+b
+d
+${F}
+
+${F}demo
+true
+${F}
+
+${F}output
+${F}
+EOF
+lang outfence
+passes outfence
+
+card outother <<EOF
+# demo card
+
+## Run
+
+${F}demo
+echo one
+${F}
+
+${F}output
+two
+${F}
+EOF
+lang outother
+refuses outother 'expected: two'
+
+card outlone <<EOF
+# demo card
+
+## Run
+
+${F}sh
+echo hi -> hi
+${F}
+
+${F}output
+hi
+${F}
+EOF
+lang outlone
+refuses outlone 'with no program before it'
+
+card outboth <<EOF
+# demo card
+
+## Run
+
+${F}demo
+echo one                        # -> one
+${F}
+
+${F}output
+one
+${F}
+EOF
+lang outboth
+refuses outboth 'that has arrow comments'
 
 if [ "$fails" -gt 0 ]; then
 	echo "lang-kit-card: FAIL ($fails)" >&2

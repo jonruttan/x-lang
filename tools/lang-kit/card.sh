@@ -33,8 +33,12 @@
 #                    once and its standard output is those lines, in order.
 #                    A fence opened as input, earlier in the section, is the
 #                    program's standard input.
+#   output fences    a fence opened as output, the next fence after a
+#                    program, is what that program prints, whole.  It is for
+#                    a lang with no comments; a program has arrow comments
+#                    or an output fence, not both.
 #
-# A row with no ` -> ` is not run, and nor is a program with no such line.
+# A row with no ` -> ` is not run, and nor is a program with neither.
 # Rows in other fences are not run by this check, and the summary counts
 # them.
 #
@@ -91,6 +95,11 @@ function end_program() {
     printf "%d\t%d\n", progs, prog_line > (tmp "/progs")
   } else
     unrun += prog_rows
+  # An output fence may follow: it speaks for this program.
+  last_prog = progs
+  last_line = prog_line
+  last_rows = prog_rows
+  last_wants = wants
 }
 
 NR == 1 {
@@ -101,6 +110,7 @@ NR == 1 {
 /^```/ {
   if (in_fence) {
     if (tag == "input") close(tmp "/input")
+    if (tag == "output" && out_prog) close(tmp "/want." out_prog)
     if (lang != "" && tag == lang) end_program()
     in_fence = 0
     next
@@ -108,6 +118,21 @@ NR == 1 {
   in_fence = 1
   tag = substr($0, 4)
   if (!sections) bad(NR, "a fence before the first section")
+  if (tag == "output") {
+    out_prog = 0
+    if (!last_prog)
+      bad(NR, "an output fence with no program before it")
+    else if (last_wants)
+      bad(NR, "an output fence after a program that has arrow comments")
+    else {
+      # The program was set aside as not run; it runs after all.
+      out_prog = last_prog
+      unrun -= last_rows
+      printf "" > (tmp "/want." out_prog)
+      printf "%d\t%d\n", last_prog, last_line > (tmp "/progs")
+    }
+  }
+  last_prog = 0
   if (tag == "input") {
     printf "" > (tmp "/input")
     has_input = 1
@@ -128,6 +153,10 @@ in_fence {
   section_rows++
   if (length($0) > max_cols) bad(NR, "a row wider than " max_cols " columns")
   if (tag == "input") { print > (tmp "/input"); next }
+  if (tag == "output") {
+    if (out_prog) print > (tmp "/want." out_prog)
+    next
+  }
   if (lang != "" && tag == lang) {
     prog_rows++
     print > (tmp "/prog." progs)
@@ -154,11 +183,13 @@ in_fence {
   section_line = NR
   section_rows = 0
   has_input = 0
+  last_prog = 0
   next
 }
 
 /^### / {
   if (!sections) bad(NR, "a card before the first section")
+  last_prog = 0
   next
 }
 
