@@ -116,6 +116,23 @@ jobs:
       - name: Run the spec gate
         run: env ${{ inputs.spec-env }} X="$PWD/.x-lang/x.sh" sh tests/spec-gate.sh
 
+      # docs/card.md, where the bundle has one (docs/contributing.md, "The
+      # card").  Its rows run from the bundle's root and a checkout's wrapper
+      # runs only from its own, so the platform is installed first; X_LANG_DIR
+      # is where this bundle and the langs it requires were checked out.  A
+      # card on a release with no card.sh is red: the page would otherwise be
+      # unchecked while its repository showed a pass.
+      - name: Check the card
+        if: hashFiles('docs/card.md') != ''
+        run: |
+          make -C .x-lang install PREFIX="$RUNNER_TEMP/x"
+          kit="$RUNNER_TEMP/x/share/x/tools/lang-kit/card.sh"
+          if [ ! -f "$kit" ]; then
+            echo "docs/card.md needs an x-lang that ships tools/lang-kit/card.sh" >&2
+            exit 1
+          fi
+          X_LANG_DIR="$PWD/.." BUNDLE=. X="$RUNNER_TEMP/x/bin/x" sh "$kit"
+
   relocatable:
     name: no root-relative includes
     runs-on: ubuntu-24.04
