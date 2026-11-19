@@ -53,6 +53,12 @@
 ; in an ordinary call that Sha256's adoption guard turns into "stay
 ; pure-x" -- correct, merely slower.
 (def %jit-lib (ffi-dlopen () 1))
+; libm, for the functions a form calls in it.  glibc keeps a library opened
+; this way out of the process's own scope, so a name the process does not
+; resolve is asked of this handle next.  Where there is no such file, as
+; on macOS, whose process scope has libm's names, this is nil and is never
+; asked.
+(def %jit-libm (ffi-dlopen "libm.so.6" 1))
 ; %jit-missing itself is defined in asm.x -- see the note there; this file
 ; fills it in.
 (def %jit-sym
@@ -69,7 +75,8 @@
 (def %jit-addr
   (fn (_ name . optional)
     (def p (if (null? optional) (%jit-sym name) (ffi-dlsym %jit-lib name)))
-    (if (null? p) 0 (ptr->int p))))
+    (def q (if (null? p) (if (null? %jit-libm) () (ffi-dlsym %jit-libm name)) p))
+    (if (null? q) 0 (ptr->int q))))
 ; --- These addresses are THIS PROCESS'S ALONE ---------------------------------
 ; Each is an INTEGER holding a dlsym result, and an integer names nothing: a
 ; state image carries it as it is, and a process that loads the image then
@@ -94,6 +101,7 @@
 (set! %image-transients
   (pair (fn (_)
           (do (set! %jit-lib ())
+              (set! %jit-libm ())
               ((fn (self l)
                  (if (null? l) ()
                    (do (self (rest l))
@@ -134,7 +142,8 @@
 ; this type.  Data, not code, and OPTIONAL for the same reason as the two
 ; above; only the function world needs it.
 (def %jit-pair-type (%jit-bind! (lit %jit-pair-type) "x_type_pair_obj" #t))
-; libm's exp, tanh and erf, which (f-exp A), (f-tanh A) and (f-erf A) call.  OPTIONAL for
+; libm's exp, tanh and erf, which (f-exp A), (f-tanh A) and (f-erf A) call,
+; found in the process's scope or through %jit-libm.  OPTIONAL for
 ; the same reason: an engine whose process has no such symbol in reach
 ; keeps compiling every form that uses none of them.
 (def %jit-libm-exp (%jit-bind! (lit %jit-libm-exp) "exp" #t))
@@ -165,6 +174,7 @@
 (set! %image-recache-hooks
   (pair (fn (_)
           (do (set! %jit-lib (ffi-dlopen () 1))
+              (set! %jit-libm (ffi-dlopen "libm.so.6" 1))
               (set! %jit-missing ())
               ((fn (self l)
                  (if (null? l) ()
