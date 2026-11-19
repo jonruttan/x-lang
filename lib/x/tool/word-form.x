@@ -18,7 +18,8 @@
 ; as the compiled store does.
 ;
 ; Doubles are their IEEE bits, as Float's payload is.  (f+ A B), f-, f*, f/
-; and (f-sqrt A) answer a double; (f< A B) and (f= A B) answer as < and =
+; and (f-sqrt A) answer a double, and so do (f-exp A), (f-tanh A) and (f-erf A),
+; libm's exp, tanh and erf, which the compiled form calls as this one does; (f< A B) and (f= A B) answer as < and =
 ; do, false when either is a NaN; (i->f N) is the integer N as a double and
 ; (f->i A) the double truncated toward zero.  All of them run through
 ; x/num/float's stubs.  (f-ref A I) / (f-set! A I V) are the double at
@@ -79,6 +80,7 @@
 (def %word-form-float-labels
   (list (list (lit f+) "d+d" ()) (list (lit f-) "d-d" ()) (list (lit f*) "d*d" ()) (list (lit f/) "d/d" ())
         (list (lit f<) "d<d" ()) (list (lit f=) "d=d" ()) (list (lit f-sqrt) "d->d" "sqrt")
+        (list (lit f-exp) "d->d" "exp") (list (lit f-tanh) "d->d" "tanh") (list (lit f-erf) "d->d" "erf")
         (list (lit i->f) "i->d" ()) (list (lit f->i) "d->i" ())
         (list (lit f32-ref) "f->d" ()) (list (lit f32-set!) "d->f" ())))
 (def %word-form-float-ops ())
@@ -138,7 +140,7 @@
       (#t form))))
 
 (doc word-form-pure "The function FORM means, as pure x: its operators bound to the int doors and x/num/float's stubs, so it runs where compile-asm cannot and answers what compile-asm's answers."
-  (param form LIST "A (fn (self ...) ...) form over machine words: on integers + - * < = >> << &, (*>> a b k) for a product shifted down k places through 64 bits; on doubles' bits f+ f- f* f/ f-sqrt, the comparisons f< f=, and i->f f->i between the two; if, match, do; the %mem- byte and word loads and stores, the double loads and stores f-ref and f-set!, and f32-ref and f32-set!, which load a single as a double and store a double rounded to a single")
+  (param form LIST "A (fn (self ...) ...) form over machine words: on integers + - * < = >> << &, (*>> a b k) for a product shifted down k places through 64 bits; on doubles' bits f+ f- f* f/ f-sqrt, libm's f-exp, f-tanh and f-erf, the comparisons f< f=, and i->f f->i between the two; if, match, do; the %mem- byte and word loads and stores, the double loads and stores f-ref and f-set!, and f32-ref and f32-set!, which load a single as a double and store a double rounded to a single")
   (returns CALLABLE "The function")
   (example "(do (import x/tool/word-form word-form-pure) ((word-form-pure (lit (fn (self n acc) (if (< n 1) acc (self (- n 1) (+ acc n)))))) 4 0))" "10")
   (example "(do (import x/tool/word-form word-form-pure) (import x/num/float) (equal? ((word-form-pure (lit (fn (_ a b) (f* a b)))) (first (Float from 3)) (first (Float from 2))) (first (Float from 6))))" "#t"))
