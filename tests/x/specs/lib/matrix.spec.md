@@ -4,8 +4,8 @@
 `Matrix` is a `Tensor` of rank 2 with the linear algebra: the matrix
 product, solve, inverse, determinant, trace, diagonal and norm, the
 covariance and correlation of its columns, and its
-lower-upper, Cholesky, orthogonal-upper, symmetric eigen, eigen and
-singular value factorizations, a `LowerUpper`, a `Cholesky`, an
+lower-upper, lower-transpose, orthogonal-upper, symmetric eigen, eigen and
+singular value factorizations, a `LowerUpper`, a `LowerTranspose`, an
 `Orthogonal`, a `SymmetricEigen`, an `Eigen` and a `Singular`. Every result of the linear algebra is
 f64, or c128 for `Eigen`, so the cases answer the same on a 4-byte word as
 on an 8-byte one.
@@ -257,18 +257,18 @@ on an 8-byte one.
 ---
     'value
 
-## The Cholesky factorization
+## The lower-transpose factorization
 
 ### the lower factor times its transpose is the matrix
 
 ```x
 (import x/num/matrix)
-(let ((f ((Matrix from '((4 2) (2 5))) factor-cholesky)))
+(let ((f ((Matrix from '((4 2) (2 5))) factor-lower-transpose)))
   (list (class-name f) ((f lower) ->list) ((f upper) ->list)
         (((f lower) product (f upper)) ->list)))
 ```
 ---
-    ('Cholesky ((2.0 0.0) (1.0 2.0)) ((2.0 1.0) (0.0 2.0)) ((4.0 2.0) (2.0 5.0)))
+    ('LowerTranspose ((2.0 0.0) (1.0 2.0)) ((2.0 1.0) (0.0 2.0)) ((4.0 2.0) (2.0 5.0)))
 
 ### it solves and answers the determinant
 
@@ -276,7 +276,7 @@ on an 8-byte one.
 (import x/num/matrix)
 (import x/num/float f-lt)
 (let ((a (Matrix from '((4 12 -16) (12 37 -43) (-16 -43 98)))))
-  (let ((f (a factor-cholesky)) (b (Tensor from '(1 2 3))))
+  (let ((f (a factor-lower-transpose)) (b (Tensor from '(1 2 3))))
     (list ((f lower) ->list) (f determinant)
           (let ((r ((a product (f solve b)) sub b)))
             (f-lt ((r mul r) sum) 0.000000000000000001)))))
@@ -288,10 +288,10 @@ on an 8-byte one.
 
 ```x
 (import x/num/matrix)
-(list (guard (e (Err label e)) ((Matrix from '((4 2) (1 5))) factor-cholesky))
-      (guard (e (Err label e)) ((Matrix from '((1 2) (2 1))) factor-cholesky))
-      (guard (e (Err label e)) ((Matrix from '((0 0) (0 1))) factor-cholesky))
-      (guard (e (Err label e)) ((Matrix from '((1 2 3) (4 5 6))) factor-cholesky)))
+(list (guard (e (Err label e)) ((Matrix from '((4 2) (1 5))) factor-lower-transpose))
+      (guard (e (Err label e)) ((Matrix from '((1 2) (2 1))) factor-lower-transpose))
+      (guard (e (Err label e)) ((Matrix from '((0 0) (0 1))) factor-lower-transpose))
+      (guard (e (Err label e)) ((Matrix from '((1 2 3) (4 5 6))) factor-lower-transpose)))
 ```
 ---
     ('value 'value 'value 'value)
@@ -696,8 +696,9 @@ on an 8-byte one.
 ```x
 (import x/num/matrix)
 (list ((Doc entry 'LowerUpper) known-as)
+      ((Doc entry 'LowerTranspose) known-as)
       ((Doc entry 'Orthogonal) known-as)
       ((Doc entry 'Singular) known-as))
 ```
 ---
-    (("LU") ("QR") ("SVD"))
+    (("LU") ("Cholesky") ("QR") ("SVD"))

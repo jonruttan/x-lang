@@ -12,7 +12,7 @@
 ; A factorization is a value of its own: (m factor-lower-upper) answers a
 ; LowerUpper, which keeps the factors and answers its parts, solves and the
 ; determinant from them, so a matrix factored once solves many right sides.
-; (m factor-cholesky) answers a Cholesky for a symmetric positive-definite
+; (m factor-lower-transpose) answers a LowerTranspose for a symmetric positive-definite
 ; m, built on a LowerUpper that never swaps a row.  (m factor-orthogonal)
 ; answers an Orthogonal, the factorization by Householder reflections,
 ; which solves least squares.  (m factor-symmetric-eigen) answers a
@@ -135,7 +135,7 @@
     ; U on and above it, PIVOTS the row swapped into each row in turn, and
     ; SINGULAR? whether a column had no nonzero pivot.  Without PIVOTING no
     ; row is swapped, and the factoring stops with SINGULAR? #t at the first
-    ; pivot that is not positive: what Cholesky needs, whose matrices never
+    ; pivot that is not positive: what LowerTranspose needs, whose matrices never
     ; need a swap.
     (method %factor (self st pivoting)
       (let ((f (Tensor %fast)) (n (first (List ref 1 st))) (s (str-make 256)))
@@ -1156,13 +1156,14 @@
     (Matrix %square (self %st) "factor-lower-upper")
     (LowerUpper %of (self %st) #t))
 
-  (method factor-cholesky (self)
-    (doc "The Cholesky factorization: a lower matrix L with a positive diagonal whose product with its transpose is self. Self must be symmetric and positive definite; any other matrix is refused."
-      (returns Cholesky "The factorization, which solves and answers the determinant without factoring again")
-      (example "((((Matrix from '((4 2) (2 5))) factor-cholesky) lower) ->list)" "((2.0 0.0) (1.0 2.0))"))
-    (Matrix %square (self %st) "factor-cholesky")
-    (Matrix %symmetric self "factor-cholesky")
-    (Cholesky %of (self %st)))
+  (method factor-lower-transpose (self)
+    (doc "The lower-transpose factorization: a lower matrix L with a positive diagonal whose product with its transpose is self. Self must be symmetric and positive definite; any other matrix is refused."
+      (known-as "Cholesky")
+      (returns LowerTranspose "The factorization, which solves and answers the determinant without factoring again")
+      (example "((((Matrix from '((4 2) (2 5))) factor-lower-transpose) lower) ->list)" "((2.0 0.0) (1.0 2.0))"))
+    (Matrix %square (self %st) "factor-lower-transpose")
+    (Matrix %symmetric self "factor-lower-transpose")
+    (LowerTranspose %of (self %st)))
 
   (method factor-symmetric-eigen (self)
     (doc "The eigenvalues and eigenvectors of a symmetric matrix, by cyclic Jacobi rotations: values, real and from least to greatest, and vectors, whose columns are orthonormal and whose column i is value i's eigenvector. Self must be symmetric; any other matrix is refused."
@@ -1355,14 +1356,15 @@
           (go 0 (field (lit pivots)) (float-of 1)))))))
 
 ;
-; Cholesky keeps the matrix's LowerUpper, factored without a row swap, and
+; LowerTranspose keeps the matrix's LowerUpper, factored without a row swap, and
 ; the square roots of U's diagonal.  With D that diagonal, the matrix is
 ; L' D L'^T for the LowerUpper's unit lower L', so its L is L' with each
 ; column scaled by the square root of D's: the roots.
-(def-class Cholesky ()
-  (doc "The Cholesky factorization of a symmetric positive-definite Matrix, from (m factor-cholesky): a lower matrix L with a positive diagonal whose product with its transpose is the matrix. It solves and answers the determinant from the factors, so a matrix factored once solves many right sides."
-    (example "(let ((f ((Matrix from '((4 2) (2 5))) factor-cholesky))) (list ((f lower) ->list) ((f upper) ->list)))" "(((2.0 0.0) (1.0 2.0)) ((2.0 1.0) (0.0 2.0)))")
-    (example "(((Matrix from '((4 2) (2 5))) factor-cholesky) determinant)" "16.0")
+(def-class LowerTranspose ()
+  (doc "The lower-transpose factorization of a symmetric positive-definite Matrix, from (m factor-lower-transpose): a lower matrix L with a positive diagonal whose product with its transpose is the matrix. It solves and answers the determinant from the factors, so a matrix factored once solves many right sides."
+    (known-as "Cholesky")
+    (example "(let ((f ((Matrix from '((4 2) (2 5))) factor-lower-transpose))) (list ((f lower) ->list) ((f upper) ->list)))" "(((2.0 0.0) (1.0 2.0)) ((2.0 1.0) (0.0 2.0)))")
+    (example "(((Matrix from '((4 2) (2 5))) factor-lower-transpose) determinant)" "16.0")
     (see lower) (see upper) (see solve) (see determinant))
 
   factors   ; the matrix's LowerUpper, factored without a row swap
@@ -1372,7 +1374,7 @@
     (method %of (self st)
       (let ((lu (LowerUpper %of st #f)))
         (if (lu singular?)
-          (Err raise (lit value) "Matrix factor-cholesky: the matrix is not positive definite" ())
+          (Err raise (lit value) "Matrix factor-lower-transpose: the matrix is not positive definite" ())
           ())
         (new-from self
           (list (lit factors) lu
@@ -1381,25 +1383,25 @@
   (method lower (self)
     (doc "L: lower, with a positive diagonal and 0 above it, whose product with its transpose is the matrix."
       (returns Matrix "A fresh f64 Matrix")
-      (example "((((Matrix from '((4 2) (2 5))) factor-cholesky) lower) ->list)" "((2.0 0.0) (1.0 2.0))"))
+      (example "((((Matrix from '((4 2) (2 5))) factor-lower-transpose) lower) ->list)" "((2.0 0.0) (1.0 2.0))"))
     (((field (lit factors)) lower) mul (field (lit roots))))
 
   (method upper (self)
     (doc "The transpose of L: upper, with a positive diagonal and 0 below it."
       (returns Matrix "A fresh f64 Matrix")
-      (example "((((Matrix from '((4 2) (2 5))) factor-cholesky) upper) ->list)" "((2.0 1.0) (0.0 2.0))"))
+      (example "((((Matrix from '((4 2) (2 5))) factor-lower-transpose) upper) ->list)" "((2.0 1.0) (0.0 2.0))"))
     (((self lower) transpose) copy))
 
   (method solve (self (param b Tensor "The right side: a rank-1 Tensor of the matrix's rows, or a Matrix of them"))
     (doc "The x for which the factored matrix times x is b."
       (returns Tensor "A fresh f64 Tensor of b's extent: rank 1 for a rank-1 b, a Matrix for a Matrix")
-      (example "((((Matrix from '((4 2) (2 5))) factor-cholesky) solve (Tensor from '(6 7))) ->list)" "(1.0 1.0)"))
+      (example "((((Matrix from '((4 2) (2 5))) factor-lower-transpose) solve (Tensor from '(6 7))) ->list)" "(1.0 1.0)"))
     ((field (lit factors)) solve b))
 
   (method determinant (self)
     (doc "The determinant: the product of L's diagonal, squared. Always positive."
       (returns FLOAT "The determinant")
-      (example "(((Matrix from '((4 2) (2 5))) factor-cholesky) determinant)" "16.0"))
+      (example "(((Matrix from '((4 2) (2 5))) factor-lower-transpose) determinant)" "16.0"))
     ((field (lit factors)) determinant)))
 
 ;
@@ -1607,6 +1609,6 @@
 
 (Matrix %register-all!)
 
-(doc (provide x/num/matrix Matrix LowerUpper Cholesky Orthogonal SymmetricEigen Eigen Singular)
-  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal, norm, covariance and correlation -- run in kernels that compile once they have run long enough; and its factorizations, LowerUpper, Cholesky, Orthogonal, SymmetricEigen, Eigen and Singular."
+(doc (provide x/num/matrix Matrix LowerUpper LowerTranspose Orthogonal SymmetricEigen Eigen Singular)
+  "Matrix: a Tensor of rank 2 with the linear algebra -- the matrix product, solve, inverse, determinant, trace, diagonal, norm, covariance and correlation -- run in kernels that compile once they have run long enough; and its factorizations, LowerUpper, LowerTranspose, Orthogonal, SymmetricEigen, Eigen and Singular."
   (example "((Matrix from '((2 1) (1 3))) determinant)" "5.0"))

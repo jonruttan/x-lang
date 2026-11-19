@@ -1,7 +1,7 @@
-# Discrete Fourier transform (Fourier)
+# Discrete Fourier transform (Frequency)
 # @weight 2
 
-`Fourier` plans a transform of one length: radix-2 for a power of two,
+`Frequency` plans a transform of one length: radix-2 for a power of two,
 Bluestein's algorithm for every other length. `fft` / `ifft` make a plan
 per call; `dft` / `idft` are the O(n^2) definition the fast paths are
 checked against.
@@ -14,8 +14,8 @@ largest distance between two vectors of numbers, below 1e-9.
 ### a power of two, radix-2
 
 ```x
-(import x/num/fourier)
-(Fourier fft #(1 2 3 4))
+(import x/num/frequency)
+(Frequency fft #(1 2 3 4))
 ```
 ---
     #(10.0+0.0i -2.0+2.0i -2.0+0.0i -2.0-2.0i)
@@ -23,8 +23,8 @@ largest distance between two vectors of numbers, below 1e-9.
 ### the definition gives the same
 
 ```x
-(import x/num/fourier)
-(Fourier dft #(1 2 3 4))
+(import x/num/frequency)
+(Frequency dft #(1 2 3 4))
 ```
 ---
     #(10.0+0.0i -2.0+2.0i -2.0+0.0i -2.0-2.0i)
@@ -32,8 +32,8 @@ largest distance between two vectors of numbers, below 1e-9.
 ### an impulse transforms to a constant
 
 ```x
-(import x/num/fourier)
-(Fourier fft #(1 0 0 0 0 0 0 0))
+(import x/num/frequency)
+(Frequency fft #(1 0 0 0 0 0 0 0))
 ```
 ---
     #(1.0+0.0i 1.0+0.0i 1.0+0.0i 1.0+0.0i 1.0+0.0i 1.0+0.0i 1.0+0.0i 1.0+0.0i)
@@ -41,8 +41,8 @@ largest distance between two vectors of numbers, below 1e-9.
 ### a constant transforms to an impulse
 
 ```x
-(import x/num/fourier)
-(Fourier ifft #(4 0 0 0))
+(import x/num/frequency)
+(Frequency ifft #(4 0 0 0))
 ```
 ---
     #(1.0+0.0i 1.0+0.0i 1.0+0.0i 1.0+0.0i)
@@ -50,8 +50,8 @@ largest distance between two vectors of numbers, below 1e-9.
 ### length 1 is the identity
 
 ```x
-(import x/num/fourier)
-(list (Fourier fft #(7)) (Fourier fft #(3+4i)))
+(import x/num/frequency)
+(list (Frequency fft #(7)) (Frequency fft #(3+4i)))
 ```
 ---
     (#(7.0+0.0i) #(3.0+4.0i))
@@ -59,8 +59,8 @@ largest distance between two vectors of numbers, below 1e-9.
 ### a list is taken as a vector
 
 ```x
-(import x/num/fourier)
-(Fourier fft (list 1 2))
+(import x/num/frequency)
+(Frequency fft (list 1 2))
 ```
 ---
     #(3.0+0.0i -1.0+0.0i)
@@ -70,14 +70,14 @@ largest distance between two vectors of numbers, below 1e-9.
 ### radix-2 matches dft on complex input, n = 8
 
 ```x
-(do (import x/num/fourier)
+(do (import x/num/frequency)
   (def near? (fn (_ a b)
     (< (Vector fold (fn (_ m x) (if (< m x) x m)) 0
          (Vector build (Vector length a)
            (fn (_ k) (Complex magnitude (- (Vector ref k a) (Vector ref k b))))))
        0.000000001)))
   (def v #(1 -2+1i 3.5 0+2i -1 4-3i 0.25 2))
-  (near? (Fourier fft v) (Fourier dft v)))
+  (near? (Frequency fft v) (Frequency dft v)))
 ```
 ---
     #t
@@ -85,14 +85,14 @@ largest distance between two vectors of numbers, below 1e-9.
 ### Bluestein matches dft for n = 3, 5, 6, 7, 12
 
 ```x
-(do (import x/num/fourier)
+(do (import x/num/frequency)
   (def near? (fn (_ a b)
     (< (Vector fold (fn (_ m x) (if (< m x) x m)) 0
          (Vector build (Vector length a)
            (fn (_ k) (Complex magnitude (- (Vector ref k a) (Vector ref k b))))))
        0.000000001)))
   (def sig (fn (_ n) (Vector build n (fn (_ j) (Complex make (- (* j j) 3) (- 2 j))))))
-  (List map (fn (_ n) (near? (Fourier fft (sig n)) (Fourier dft (sig n)))) (list 3 5 6 7 12)))
+  (List map (fn (_ n) (near? (Frequency fft (sig n)) (Frequency dft (sig n)))) (list 3 5 6 7 12)))
 ```
 ---
     (#t #t #t #t #t)
@@ -100,14 +100,14 @@ largest distance between two vectors of numbers, below 1e-9.
 ### the inverse matches idft for n = 6 and 8
 
 ```x
-(do (import x/num/fourier)
+(do (import x/num/frequency)
   (def near? (fn (_ a b)
     (< (Vector fold (fn (_ m x) (if (< m x) x m)) 0
          (Vector build (Vector length a)
            (fn (_ k) (Complex magnitude (- (Vector ref k a) (Vector ref k b))))))
        0.000000001)))
   (def sig (fn (_ n) (Vector build n (fn (_ j) (Complex make (* 2 j) (- 5 j))))))
-  (List map (fn (_ n) (near? (Fourier ifft (sig n)) (Fourier idft (sig n)))) (list 6 8)))
+  (List map (fn (_ n) (near? (Frequency ifft (sig n)) (Frequency idft (sig n)))) (list 6 8)))
 ```
 ---
     (#t #t)
@@ -117,14 +117,14 @@ largest distance between two vectors of numbers, below 1e-9.
 ### inverse undoes forward on one plan, n = 16 and n = 10
 
 ```x
-(do (import x/num/fourier)
+(do (import x/num/frequency)
   (def near? (fn (_ a b)
     (< (Vector fold (fn (_ m x) (if (< m x) x m)) 0
          (Vector build (Vector length a)
            (fn (_ k) (Complex magnitude (- (Vector ref k a) (Vector ref k b))))))
        0.000000001)))
   (List map (fn (_ n)
-         (let ((p (Fourier plan n)) (v (Vector build n (fn (_ j) (- (* 3 j) 7)))))
+         (let ((p (Frequency plan n)) (v (Vector build n (fn (_ j) (- (* 3 j) 7)))))
            (near? (p inverse (p forward v)) v)))
        (list 16 10)))
 ```
@@ -134,8 +134,8 @@ largest distance between two vectors of numbers, below 1e-9.
 ### a plan is reused across inputs
 
 ```x
-(import x/num/fourier)
-(let ((p (Fourier plan 2)))
+(import x/num/frequency)
+(let ((p (Frequency plan 2)))
   (list (p forward #(1 2)) (p forward #(5 5)) (p size)))
 ```
 ---
@@ -146,9 +146,9 @@ largest distance between two vectors of numbers, below 1e-9.
 ### forward! overwrites the two float vectors
 
 ```x
-(import x/num/fourier)
+(import x/num/frequency)
 (let ((re (Vector of 1.0 2.0 3.0 4.0)) (im (Vector of 0.0 0.0 0.0 0.0)))
-  ((Fourier plan 4) forward! re im)
+  ((Frequency plan 4) forward! re im)
   (list re im))
 ```
 ---
@@ -157,10 +157,10 @@ largest distance between two vectors of numbers, below 1e-9.
 ### inverse! returns them, on a Bluestein length
 
 ```x
-(do (import x/num/fourier)
+(do (import x/num/frequency)
   (def re (Vector of 1.0 -2.0 0.5))
   (def im (Vector of 0.0 1.0 3.0))
-  (def p (Fourier plan 3))
+  (def p (Frequency plan 3))
   (p inverse! re im)
   (p forward! re im)
   (list (< (Float abs (- (Vector ref 1 re) -2.0)) 0.000000001)
@@ -174,9 +174,9 @@ largest distance between two vectors of numbers, below 1e-9.
 ### a length below 1, a mismatched input, mismatched split vectors
 
 ```x
-(import x/num/fourier)
-(let ((p (Fourier plan 4)))
-  (list (guard (e (Err label e)) (Fourier plan 0))
+(import x/num/frequency)
+(let ((p (Frequency plan 4)))
+  (list (guard (e (Err label e)) (Frequency plan 0))
         (guard (e (Err label e)) (p forward #(1 2 3)))
         (guard (e (Err label e)) (p forward! (Vector of 1.0) (Vector of 1.0)))))
 ```
@@ -192,14 +192,25 @@ objects; the plan collects as its debt passes its window, so the heap
 ends within a window of where it began.
 
 ```x
-(do (import x/num/fourier) (import x/sys/gc)
-  (def p (Fourier plan 256))
+(do (import x/num/frequency) (import x/sys/gc)
+  (def p (Frequency plan 256))
   (def v (Vector build 256 (fn (_ j) (- j 9))))
   (Heap collect)
   (def c0 (Heap count))
   (def run (fn (self i) (if (< i 6) (do (p forward v) (self (+ i 1))) i)))
   (run 0)
-  (list (Fourier compiled?) (< (- (Heap count) c0) 6000000)))
+  (list (Frequency compiled?) (< (- (Heap count) c0) 6000000)))
 ```
 ---
     (#f #t)
+
+## Other names
+
+### the class carries the names texts use
+
+```x
+(import x/num/frequency)
+((Doc entry 'Frequency) known-as)
+```
+---
+    ("Fourier transform" "FFT" "DFT")
