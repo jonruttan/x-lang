@@ -24,7 +24,9 @@
 (include "engine/tools/contract/base-paths.x")
 
 (def %IMG-LIB (guard (_ ()) (eval (lit %IMG-LIB))))
-(def %OBJ-CAP-WORDS 6000000)
+; The object table, at six words a record: a load may leave a sixth of it
+; live, two million objects.
+(def %OBJ-CAP-WORDS 12000000)
 (def %IMG-OUT (guard (_ "/tmp/x.ximg") (eval (lit %IMG-OUT))))
 
 (def %alloc  (prim-ref (lit ptr) (lit alloc)))
@@ -175,7 +177,7 @@
       ; chain, so it collects the chain they share.
       (%B eval (list image-collect))
       ; What the writer can hold is stated rather than discovered at run time.
-      ; Its object table is a fixed allocation (%OBJ-CAP-WORDS below), and a
+      ; Its object table is a fixed allocation (%OBJ-CAP-WORDS above), and a
       ; record is three words plus the units, so the live count the collect
       ; leaves bounds what fits.  The child's count runs from its newest
       ; object to the chain's end, so it counts what this base made before
@@ -184,9 +186,9 @@
       ; until the process runs out of memory.
       ((fn (_ live)
          (do (display "image: live after the load: ") (write live) (newline))
-         (if (image-int< live 1000000) ()
+         (if (image-int< (image-int* live 6) %OBJ-CAP-WORDS) ()
            (do (display "image: refused -- ") (write live)
-               (display " live objects in the child; this writer holds a million")
+               (display " live objects in the child; this writer holds a sixth of ") (write %OBJ-CAP-WORDS)
                (display " (raise %OBJ-CAP-WORDS in tools/dev/image-write.x to widen it)") (newline)
                (Sys exit 3))))
        (%B eval (list image-heap-count)))

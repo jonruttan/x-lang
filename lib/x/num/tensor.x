@@ -29,7 +29,7 @@
 ; compiled one is adopted only after it writes the bytes the pure one
 ; writes on the check inputs.  A pure step allocates, so a pure kernel runs
 ; in budgeted calls and the heap is collected between them once the churn
-; passes %window, as x/num/fourier's are.
+; passes %window, as x/num/frequency's are.
 ;
 ; DATA is the byte region, a (str make) string, or bytes another module
 ; keeps: a pair (ADDRESS . OWNER), as x/num/gpu makes for a tensor whose
@@ -542,7 +542,7 @@
           broadcast assign! base)))
 
     ; --- the lanes ----------------------------------------------------------
-    ; As x/num/fourier's: what the pure kernels allocate is owed in objects
+    ; As x/num/frequency's: what the pure kernels allocate is owed in objects
     ; and the heap collected once the debt passes %window.  A pure step
     ; makes %step-cost objects (arm64's first, armv7's second) and a run's
     ; dispatch %run-cost.  A kernel compiles once it has run %jit-after pure

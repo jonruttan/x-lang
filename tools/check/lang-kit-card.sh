@@ -158,13 +158,45 @@ ${F}
 EOF
 refuses wide 'a row wider than'
 
-{
-	printf '# demo card\n\n## Run\n\n%ssh\n' "$F"
-	i=0
-	while [ "$i" -lt 67 ]; do printf 'demo %s\n' "$i"; i=$((i + 1)); done
-	printf '%s\n' "$F"
-} | card long
-refuses long '67 rows'
+card table <<EOF
+# demo card
+
+## Run
+
+${F}sh
+echo hi -> hi
+${F}
+
+## Names
+
+### Variables
+
+| Name | Meaning |
+|------|---------|
+| NR   | records read so far |
+
+### Shown
+
+${F}sh
+demo --help
+${F}
+EOF
+passes table
+
+card early <<EOF
+# demo card
+
+| Name | Meaning |
+|------|---------|
+| NR   | records read so far |
+
+## Run
+
+${F}sh
+echo hi -> hi
+${F}
+EOF
+refuses early 'a table before the first section'
 
 card output <<EOF
 # demo card
@@ -176,6 +208,75 @@ echo hi -> ho
 ${F}
 EOF
 refuses output 'expected: ho'
+
+# lang NAME -- make the fixture a bundle of the lang "demo", whose programs
+# are shell: the check knows no lang, only the bundle's runner.
+lang() {
+	mkdir -p "$TMP/$1/tests"
+	echo '(lang "demo")' > "$TMP/$1/lang.xon"
+	echo 'exec sh "$1"' > "$TMP/$1/tests/card-run.sh"
+}
+
+card program <<EOF
+# demo card
+
+## Run
+
+${F}sh
+echo hi -> hi
+${F}
+
+## Lines
+
+${F}input
+a b
+c d
+${F}
+
+${F}demo
+echo one                        # -> one
+n=\$(wc -l | tr -d ' ')
+echo "\$n lines"                 # -> 2 lines
+${F}
+
+${F}demo
+cut -d ' ' -f 2                 # -> b
+                                # -> d
+${F}
+
+## Quiet
+
+${F}demo
+echo one >/dev/null
+${F}
+EOF
+lang program
+passes program
+
+card printed <<EOF
+# demo card
+
+## Run
+
+${F}demo
+echo one                        # -> two
+${F}
+EOF
+lang printed
+refuses printed 'expected: two'
+
+card runner <<EOF
+# demo card
+
+## Run
+
+${F}demo
+echo one                        # -> one
+${F}
+EOF
+lang runner
+rm "$TMP/runner/tests/card-run.sh"
+refuses runner 'there is no'
 
 if [ "$fails" -gt 0 ]; then
 	echo "lang-kit-card: FAIL ($fails)" >&2

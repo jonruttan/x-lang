@@ -9,6 +9,7 @@ and from every other.
 | `x/codec/markdown` | `(Markdown parse TEXT)` | `(Markdown html BLOCKS)`, HTML |
 | `x/codec/html` | `(Html parse TEXT)` | |
 | `x/codec/pdf-text` | `(PdfText parse BYTES LENGTH)` | |
+| `x/codec/markdown-write` | | `(MarkdownWrite text BLOCKS)`, Markdown |
 | `x/codec/pdf-write` | | `(PdfWrite bytes BLOCKS)`, a PDF file |
 | `x/tui/page` | | `(Page markdown BLOCKS WIDTH)`, lines for a terminal |
 
@@ -21,6 +22,32 @@ against it:
 (Document inlines)       ; the inline nodes
 (Document check BLOCKS)  ; nil, or the first fault as (NAME PART NODE)
 ```
+
+## Formats
+
+`Document` names the formats and reads or writes a document in one by
+its name, so a caller need not know which module holds a format:
+
+```x
+(Document formats)                ; (("markdown" (".md" ...)) ("html" ...) ("pdf" ...) ("text" ...))
+(Document format "notes.md")       ; "markdown": by the name's ending
+(Document format NAME BYTES)      ; "pdf" for a PDF's signature, whatever the name
+(Document read FORMAT TEXT)       ; (TITLE . BLOCKS)
+(Document write FORMAT BLOCKS)    ; the file, (BUF START LENGTH)
+(Document title BLOCKS)           ; the first heading's text, or nil
+```
+
+`(Document read)` answers the format's own title before the blocks: an
+HTML page's `<title>`, a PDF's `/Title`, nil for a format with none.  It
+takes the bytes' count after the text, which a PDF needs.  `(Document
+write)` takes a title and the columns of text after the blocks; a title
+of nil is the document's first heading, and the columns are 80 unless
+given.  The text format is read as one code block that keeps its lines,
+and written as `x/tui/page` lays the document out.  A reader or writer
+is loaded when its format is first asked for.
+
+A format is added to the table in `lib/x/codec/document.x` with its
+reader, its writer, or both.
 
 ## Nodes
 
