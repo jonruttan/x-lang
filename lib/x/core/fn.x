@@ -160,12 +160,6 @@
         (returns CALLABLE "Piped function g(f(x))")
         (example "((Fn pipe (method-ref Num inc) (fn (_ x) (* x 10))) 1)" "20"))
       (fn (_ x) (g (f x))))
-    (method partial (self (param f CALLABLE "Binary function to partially apply") (param x ANY "First argument to bind"))
-      (doc "Partially apply a binary function by fixing its first argument."
-        (known-as "curry")
-        (returns CALLABLE "Function awaiting one argument")
-        (example "((Fn partial - 10) 3)" "7"))
-      (fn (_ y) (f x y)))
     (method flip (self (param f CALLABLE "Binary function"))
       (doc "Return a function that calls f with its two arguments reversed."
         (returns CALLABLE "Function with reversed argument order")
@@ -196,7 +190,9 @@
       (fn (_ . args) (not (apply pred args))))
     (method partial (self (param f CALLABLE "Function to partially apply") . (param bound ANY "Bound leading arguments"))
       (doc "Partially apply a function with leading arguments." (returns CALLABLE "Partially applied function")
-        (example "((Fn partial + 1 2) 3)" "6"))
+        (known-as "curry")
+        (example "((Fn partial + 1 2) 3)" "6")
+        (example "((Fn partial - 10) 3)" "7"))
       (fn (_ . args) (apply f (List append bound args))))
     (method juxt (self . (param fns CALLABLE "Functions to apply side by side"))
       (doc "Create a function that applies multiple functions and collects results." (returns CALLABLE "Juxtaposed function")

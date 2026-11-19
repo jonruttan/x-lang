@@ -55,16 +55,6 @@
 ---
     8
 
-## partial
-
-### partially applies first argument
-
-```x
-((Fn partial + 10) 5)
-```
----
-    15
-
 ## flip
 
 ### swaps argument order
@@ -104,6 +94,14 @@
     "even"
 
 ## partial
+
+### is known as curry
+
+```x
+((Doc entry 'Fn/partial) known-as)
+```
+---
+    ("curry")
 
 ### partially applies one argument
 
