@@ -38,6 +38,9 @@
 ;   x8       r12 (ip): the call target
 ;   x19-x22  r4-r7: callee-saved, the prologue keeps them -- p_base, p_args,
 ;            the argument accumulator, the slot base
+;   x23 x24  r8 r10: callee-saved, and NOT kept by asm-prologue!: code that
+;            uses them saves and restores them itself (r9 is the
+;            platform's register, so it is left alone)
 ;   xzr      a PSEUDO register (99): A32 has no zero register
 ; x4-x7 name r4-r7 too, which the float stubs use as scratch inside their
 ; own prologue.
@@ -45,6 +48,7 @@
 (def x4 (reg 4))  (def x5 (reg 5))  (def x6 (reg 6))  (def x7 (reg 7))
 (def x8 (reg 12))
 (def x19 (reg 4)) (def x20 (reg 5)) (def x21 (reg 6)) (def x22 (reg 7))
+(def x23 (reg 8)) (def x24 (reg 10))
 (def xzr (reg 99))
 (def fp (reg 11)) (def sp (reg 13)) (def lr (reg 14)) (def pc (reg 15))
 
