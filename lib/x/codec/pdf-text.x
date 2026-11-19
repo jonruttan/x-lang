@@ -18,6 +18,9 @@
 ;            first word would have fitted on the line before.  A line set
 ;            larger than the body's size is a heading, the largest size
 ;            level 1.  A word hyphenated at a line's end is joined.
+;            A paragraph that leads with a marker -- a bullet, or a
+;            hyphen or a number where a marker began the block -- is
+;            an item, and the items side by side are a list.
 ;
 ; A code is a character through the font's /ToUnicode map; with none, a
 ; simple font's /Encoding and its /Differences, or the encoding an embedded
@@ -26,7 +29,8 @@
 ;
 ; Not yet here: a composite font with no /ToUnicode, vertical writing, a
 ; rotated page, text set out of reading order or in columns the producer
-; interleaved, tables, lists, links, and inline images' bytes, which are
+; interleaved, tables, a list inside a list (its items join the outer
+; one), quotes, links, and inline images' bytes, which are
 ; passed over as they lex.
 
 (module x/codec/pdf-text)
@@ -601,6 +605,103 @@
       ((match ((int< 1 count) (int< (int+ (%pt-nth a 0) (int/ size 2)) (%pt-nth b 0))) (#t #f)) #t)
       ((int< (int+ (int+ (%pt-nth a 3) (int/ size 3)) (%pt-first-word b)) right) #t)
       (#t #f))))
+; --- list items --------------------------------------------------------------
+; A line is a list item's first when its text leads with a marker and a
+; space: a bullet, which no prose line begins with; a hyphen, an asterisk or
+; a dash, which a wrapped line of prose may; or a number of three digits
+; at most, then a period or a parenthesis.
+(def %pt-bullets (list "\xe2\x80\xa2" "\xe2\x97\xa6" "\xe2\x96\xaa" "\xe2\x80\xa3" "\xc2\xb7" "\xe2\x88\x99" "\xe2\x97\x8f" "\xe2\x97\x8b" "\xe2\x96\xa0"))
+(def %pt-dashes (list "-" "*" "\xe2\x80\x93" "\xe2\x80\x94"))
+(def %pt-byte (fn (_ t i) (match ((int< i (str-byte-len t)) (char->int (str-byte-ref t i))) (#t 0))))
+; Whether the byte of T at I ends a marker: a space, or T's end.
+(def %pt-gap? (fn (_ t i) (match ((int= i (str-byte-len t)) #t) (#t (int= (%pt-byte t i) 32)))))
+; How many bytes of T the one of MARKS it leads with takes, or nil.
+(def %pt-led
+  (fn (_ t marks)
+    ((fn (_ m) (match ((null? m) ()) (#t (str-byte-len m))))
+     (List find (fn (_ m) (match ((Str8 starts? m t) (%pt-gap? t (str-byte-len m))) (#t #f))) marks))))
+(def %pt-digits
+  (fn (self t i) (match ((int< (%pt-byte t i) 48) i) ((int< 57 (%pt-byte t i)) i) (#t (self t (int+ i 1))))))
+(def %pt-number
+  (fn (self t i end n) (match ((int= i end) n) (#t (self t (int+ i 1) end (int+ (int* n 10) (int- (%pt-byte t i) 48)))))))
+; The marker TEXT leads with, or nil: (KIND NUMBER REST), KIND bullet, dash
+; or number, NUMBER a numbered item's and else nil, REST the text after
+; the marker and its spaces.
+(def %pt-marker
+  (fn (_ text)
+    (def a (%pt-spaces text #f))
+    (def t (str-byte-sub text a (int- (str-byte-len text) a)))
+    (def after
+      (fn (_ k)
+        ((fn (_ r) ((fn (_ s) (str-byte-sub r s (int- (str-byte-len r) s))) (%pt-spaces r #f)))
+         (str-byte-sub t k (int- (str-byte-len t) k)))))
+    (def bullet (%pt-led t %pt-bullets))
+    (def dash (%pt-led t %pt-dashes))
+    (def d (%pt-digits t 0))
+    (match ((not (null? bullet)) (list (lit bullet) () (after bullet)))
+           ((not (null? dash)) (list (lit dash) () (after dash)))
+           ((match ((int< 0 d)
+                     (match ((int< d 4)
+                              (match ((match ((int= (%pt-byte t d) 46) #t) (#t (int= (%pt-byte t d) 41))) (%pt-gap? t (int+ d 1)))
+                                     (#t #f)))
+                            (#t #f)))
+                   (#t #f))
+             (list (lit number) (%pt-number t 0 d 0) (after (int+ d 1))))
+           (#t ()))))
+; Whether LINE begins an item in a block that HEAD began: a bullet does
+; in any block, a dash or a number only in one a marker began, where it
+; is the list going on and not prose wrapped.
+(def %pt-item-break?
+  (fn (_ head line body)
+    (match ((%pt-heading? line body) #f)
+           (#t ((fn (_ m)
+                  (match ((null? m) #f)
+                         ((eq? (first m) (lit bullet)) #t)
+                         (#t (not (null? (%pt-marker (%pt-line-text head)))))))
+                (%pt-marker (%pt-line-text line)))))))
+; INLINES as an item when they lead with a marker in plain text:
+; (pt-item ORDERED? NUMBER INLINES TOP BOTTOM SIZE), the marker taken off
+; and the item's first and last baselines kept, or nil.
+(def %pt-item
+  (fn (_ inlines group)
+    ((fn (_ m)
+       (match ((null? m) ())
+              (#t (list (lit pt-item) (eq? (first m) (lit number)) (first (rest m))
+                        (match ((str=? (first (rest (rest m))) "") (rest inlines))
+                               (#t (pair (first (rest (rest m))) (rest inlines))))
+                        (%pt-nth (first group) 1) (%pt-nth (List last group) 1) (%pt-nth (first group) 2)))))
+     (match ((null? inlines) ()) ((str? (first inlines)) (%pt-marker (first inlines))) (#t ())))))
+(def %pt-item? (fn (_ b) (eq? (first b) (lit pt-item))))
+; The items that lead L and are ordered as ORDERED? says, and what follows.
+(def %pt-run
+  (fn (self l ordered? acc)
+    (match ((null? l) (pair (List reverse acc) ()))
+           ((match ((%pt-item? (first l)) (eq? (%pt-nth (first l) 1) ordered?)) (#t #f))
+             (self (rest l) ordered? (pair (first l) acc)))
+           (#t (pair (List reverse acc) l)))))
+; Whether each of ITEMS follows the one before at a line's distance.
+(def %pt-tight?
+  (fn (self items)
+    (match ((null? items) #t)
+           ((null? (rest items)) #t)
+           ((int< (int* (%pt-nth (first items) 6) 16) (int* (int- (%pt-nth (first items) 5) (%pt-nth (first (rest items)) 4)) 10)) #f)
+           (#t (self (rest items))))))
+; BLOCKS with each run of items made a list.
+(def %pt-listed
+  (fn (self blocks)
+    (match ((null? blocks) ())
+           ((%pt-item? (first blocks))
+             ((fn (_ run)
+                (pair (list (lit list) (%pt-nth (first blocks) 1)
+                            (match ((%pt-nth (first blocks) 1) (%pt-nth (first blocks) 2)) (#t ()))
+                            (%pt-tight? (first run))
+                            (List map
+                              (fn (_ item) (match ((null? (%pt-nth item 3)) ()) (#t (list (list (lit paragraph) (%pt-nth item 3))))))
+                              (first run)))
+                      (self (rest run))))
+              (%pt-run blocks (%pt-nth (first blocks) 1) ())))
+           (#t (pair (first blocks) (self (rest blocks)))))))
+
 ; The lines of one page as groups, each the lines of a block in order.
 (def %pt-groups
   (fn (_ lines body)
@@ -609,7 +710,7 @@
        (match
          ((null? l) (List reverse (match ((null? group) acc) (#t (pair (List reverse group) acc)))))
          ((null? group) (self (rest l) (list (first l)) 1 acc))
-         ((%pt-break? (first group) (first l) count right body)
+         ((match ((%pt-item-break? (List last group) (first l) body) #t) (#t (%pt-break? (first group) (first l) count right body)))
            (self (rest l) (list (first l)) 1 (pair (List reverse group) acc)))
          (#t (self (rest l) (pair (first l) group) (int+ count 1) acc))))
      lines () 0 ())))
@@ -706,16 +807,20 @@
          (List index-of (int/ (int+ (%pt-nth line 2) 250) 500) sizes))))
     (List flat-map
       (fn (_ lines)
-        (List flat-map
-          (fn (_ group)
-            (match
-              ((%pt-heading? (first group) body)
-                ((fn (_ text)
-                   (match ((str=? text "") ()) (#t (list (list (lit heading) (level (first group)) (list text))))))
-                 (%pt-trim (Str8 join " " (List map (fn (_ line) (%pt-trim (%pt-line-text line))) group)))))
-              (#t ((fn (_ inlines) (match ((null? inlines) ()) (#t (list (list (lit paragraph) inlines)))))
-                   (%pt-merged (%pt-inlines (%pt-joined group)))))))
-          (%pt-groups lines body)))
+        (%pt-listed
+          (List flat-map
+            (fn (_ group)
+              (match
+                ((%pt-heading? (first group) body)
+                  ((fn (_ text)
+                     (match ((str=? text "") ()) (#t (list (list (lit heading) (level (first group)) (list text))))))
+                   (%pt-trim (Str8 join " " (List map (fn (_ line) (%pt-trim (%pt-line-text line))) group)))))
+                (#t ((fn (_ inlines)
+                       (match ((null? inlines) ())
+                              (#t ((fn (_ item) (list (match ((null? item) (list (lit paragraph) inlines)) (#t item))))
+                                   (%pt-item inlines group)))))
+                     (%pt-merged (%pt-inlines (%pt-joined group)))))))
+            (%pt-groups lines body))))
       pages)))
 
 ; A text string object in UTF-8: UTF-16 after a byte order mark, else a byte
@@ -756,7 +861,7 @@
           (Pdf pages f))))
     (method parse (self (param s STRING "Bytes holding a PDF file")
                         . (param length INTEGER "How many bytes; default s's length to its first NUL"))
-      (doc "Read a PDF into blocks: (heading LEVEL INLINES) for a line set larger than the body's size, the largest level 1, and (paragraph INLINES) for the rest, a line end a (softbreak), a bold run (strong INLINES) and an italic one (emph INLINES). Raises a label 'value for a file (Pdf open) refuses."
+      (doc "Read a PDF into blocks: (heading LEVEL INLINES) for a line set larger than the body's size, the largest level 1, (list ORDERED? START TIGHT? ITEMS) for paragraphs side by side that each lead with a bullet or a number, the marker taken off, and (paragraph INLINES) for the rest, a line end a (softbreak), a bold run (strong INLINES) and an italic one (emph INLINES). Raises a label 'value for a file (Pdf open) refuses."
         (returns LIST "A document's blocks")
         (sample "(PdfText parse bytes size)" "(('heading 1 (\"1 Hello\")) ('paragraph (\"This is a small paragraph\" ('softbreak) \"of text.\")))"))
       (PdfText blocks (Pdf open s (match ((null? length) (str-byte-len s)) (#t (first length))))))
