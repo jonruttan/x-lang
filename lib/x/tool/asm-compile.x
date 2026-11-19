@@ -53,6 +53,12 @@
 ; in an ordinary call that Sha256's adoption guard turns into "stay
 ; pure-x" -- correct, merely slower.
 (def %jit-lib (ffi-dlopen () 1))
+; libm, for the functions a form calls in it.  glibc keeps a library opened
+; this way out of the process's own scope, so a name the process does not
+; resolve is asked of this handle next.  Where there is no such file, as
+; on macOS, whose process scope has libm's names, this is nil and is never
+; asked.
+(def %jit-libm (ffi-dlopen "libm.so.6" 1))
 ; %jit-missing itself is defined in asm.x -- see the note there; this file
 ; fills it in.
 (def %jit-sym
@@ -69,7 +75,8 @@
 (def %jit-addr
   (fn (_ name . optional)
     (def p (if (null? optional) (%jit-sym name) (ffi-dlsym %jit-lib name)))
-    (if (null? p) 0 (ptr->int p))))
+    (def q (if (null? p) (if (null? %jit-libm) () (ffi-dlsym %jit-libm name)) p))
+    (if (null? q) 0 (ptr->int q))))
 ; --- These addresses are THIS PROCESS'S ALONE ---------------------------------
 ; Each is an INTEGER holding a dlsym result, and an integer names nothing: a
 ; state image carries it as it is, and a process that loads the image then
@@ -94,6 +101,7 @@
 (set! %image-transients
   (pair (fn (_)
           (do (set! %jit-lib ())
+              (set! %jit-libm ())
               ((fn (self l)
                  (if (null? l) ()
                    (do (self (rest l))
@@ -134,6 +142,13 @@
 ; this type.  Data, not code, and OPTIONAL for the same reason as the two
 ; above; only the function world needs it.
 (def %jit-pair-type (%jit-bind! (lit %jit-pair-type) "x_type_pair_obj" #t))
+; libm's exp, tanh and erf, which (f-exp A), (f-tanh A) and (f-erf A) call,
+; found in the process's scope or through %jit-libm.  OPTIONAL for
+; the same reason: an engine whose process has no such symbol in reach
+; keeps compiling every form that uses none of them.
+(def %jit-libm-exp (%jit-bind! (lit %jit-libm-exp) "exp" #t))
+(def %jit-libm-tanh (%jit-bind! (lit %jit-libm-tanh) "tanh" #t))
+(def %jit-libm-erf (%jit-bind! (lit %jit-libm-erf) "erf" #t))
 
 ; The name each trampoline address came from.  A relocation record has to
 ; name the SYMBOL, not the address: the address is the very thing that is
@@ -159,6 +174,7 @@
 (set! %image-recache-hooks
   (pair (fn (_)
           (do (set! %jit-lib (ffi-dlopen () 1))
+              (set! %jit-libm (ffi-dlopen "libm.so.6" 1))
               (set! %jit-missing ())
               ((fn (self l)
                  (if (null? l) ()
@@ -950,7 +966,7 @@
 ; top-level %-global.
 (def %asm-check-int-operands
   (fn (_ op args)
-    (when (%asm-memq op '(+ - * / % & | ^ << >> ~ < > <= >= f+ f- f* f/ f< f= f-sqrt i->f f->i))
+    (when (%asm-memq op '(+ - * / % & | ^ << >> ~ < > <= >= f+ f- f* f/ f< f= f-sqrt f-exp f-tanh f-erf i->f f->i))
       ((fn (self as)
          (unless (null? as)
            (do
@@ -1296,6 +1312,9 @@
       ((eq? op 'f<) (%asm-compile-fbinop asm 'flt args params))
       ((eq? op 'f=) (%asm-compile-fbinop asm 'feq args params))
       ((eq? op 'f-sqrt) (%asm-compile-funop asm 'fsqrt args params))
+      ((eq? op 'f-exp) (%asm-compile-libm asm %jit-libm-exp args params))
+      ((eq? op 'f-tanh) (%asm-compile-libm asm %jit-libm-tanh args params))
+      ((eq? op 'f-erf) (%asm-compile-libm asm %jit-libm-erf args params))
       ((eq? op 'i->f) (%asm-compile-funop asm 'scvtf args params))
       ((eq? op 'f->i) (%asm-compile-funop asm 'fcvtzs args params))
       ((eq? op 'f32-ref) (%asm-compile-f32-ref asm args params))
@@ -1426,6 +1445,18 @@
         (do (asm-emit! asm 'fmov/d d0 x0)
             (asm-emit! asm insn d0 d0)
             (asm-emit! asm 'fmov/x x0 d0))))))
+
+; (f-exp A), (f-tanh A) and (f-erf A): the double goes to libm's function at ADDR in
+; d0 and comes back there, as a C function of one double takes and answers
+; it.  The pure twin calls the same function, so the two answer the same
+; bits.  %emit-call! refuses an address of 0, a symbol this process lacks.
+(def %asm-compile-libm
+  (fn (_ asm addr args params)
+    (%asm-require-wide-word)
+    (%asm-compile-expr asm (first args) params)
+    (asm-emit! asm 'fmov/d d0 x0)
+    (%emit-call! asm addr)
+    (asm-emit! asm 'fmov/x x0 d0)))
 
 ; A single in memory.  (f32-ref A I) is the single at A + 4I bytes widened
 ; to a double, which is exact.  (f32-set! A I V) rounds the double V to a

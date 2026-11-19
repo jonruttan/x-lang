@@ -2,8 +2,8 @@
 # @requires native/jit
 # @weight 1
 
-The JIT's double operations: (f+ a b), f-, f*, f/, f-sqrt, the
-comparisons f< and f=, and the conversions i->f and f->i, on words holding
+The JIT's double operations: (f+ a b), f-, f*, f/, f-sqrt, libm's f-exp,
+f-tanh and f-erf, the comparisons f< and f=, and the conversions i->f and f->i, on words holding
 IEEE 754 bit patterns, the payload of a Float and of a double in memory;
 and f32-ref and f32-set!, which read and store a single in memory as a
 double.
@@ -107,6 +107,67 @@ patterns used: 1.0 4607182418800017408, 2.0 4611686018427387904, 3.0
 ```
 ---
     4613937818241073152
+
+### f-exp: e to the 0.0 is 1.0
+
+```x
+(display (if (= %word-size 8)
+  ((compile-asm '(fn (_ a) (f-exp a))) 0)
+  "4607182418800017408"))
+```
+---
+    4607182418800017408
+
+### f-tanh: the hyperbolic tangent of 0.0 is 0.0
+
+```x
+(display (if (= %word-size 8)
+  ((compile-asm '(fn (_ a) (f-tanh a))) 0)
+  "0"))
+```
+---
+    0
+
+### f-erf: the error function of 0.0 is 0.0
+
+```x
+(display (if (= %word-size 8)
+  ((compile-asm '(fn (_ a) (f-erf a))) 0)
+  "0"))
+```
+---
+    0
+
+### f-exp, f-tanh and f-erf answer the bits their pure twins do
+
+The inputs are 1.0, 0.5, -2.5 and 1000.0, whose exp is an infinity. Each
+calls libm compiled and pure, so the two agree to the bit.
+
+```x
+(display (if (= %word-size 8)
+  (do (import x/tool/word-form word-form-pure)
+    (let ((ce (compile-asm '(fn (_ a) (f-exp a)))) (pe (word-form-pure '(fn (_ a) (f-exp a))))
+          (ct (compile-asm '(fn (_ a) (f-tanh a)))) (pt (word-form-pure '(fn (_ a) (f-tanh a))))
+          (cr (compile-asm '(fn (_ a) (f-erf a)))) (pr (word-form-pure '(fn (_ a) (f-erf a)))))
+      (List all? (fn (_ b) (if (= (ce b) (pe b)) (if (= (ct b) (pt b)) (= (cr b) (pr b)) #f) #f))
+        (list 4607182418800017408 4602678819172646912 -4610560118520545280 4652007308841189376))))
+  #t))
+```
+---
+    #t
+
+### a libm call inside an expression keeps its operands
+
+1.5 + exp(0.0) * 2.0 is 3.5: the sum's first operand waits on the stack
+across the call.
+
+```x
+(display (if (= %word-size 8)
+  ((compile-asm '(fn (_ a b c) (f+ a (f* (f-exp b) c)))) 4609434218613702656 0 4611686018427387904)
+  "4615063718147915776"))
+```
+---
+    4615063718147915776
 
 ### f<: 1.0 < 2.0 is 1
 
