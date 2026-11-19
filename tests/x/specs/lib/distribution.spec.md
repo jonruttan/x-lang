@@ -339,6 +339,74 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ---
     ('value 'value 'value 'value 'value 'value 'value 'value 'value 'value 'value 'value 'value)
 
+## Variates
+
+### a variate is the quantile of the source's uniform value, the same for the same seed
+
+```x
+(import x/num/distribution) (import x/num/random)
+(let ((d (Distribution exponential 2)))
+  (list (= (d variate (Random sw 7)) (d quantile ((Random sw 7) float)))
+        (= (d variate (Random sw 7)) (d variate (Random sw 7)))))
+```
+---
+    (#t #t)
+
+### a count answers an f64 Tensor of the values in the order single variates come
+
+```x
+(import x/num/distribution) (import x/num/random) (import x/num/tensor)
+(let ((d (Distribution normal 10 2)) (a (Random sw 3)) (b (Random sw 3)))
+  (let ((t (d variate a 3)))
+    (let ((l (t ->list)))
+      (list (t extent) (t encoding)
+            (= (List ref 0 l) (d variate b))
+            (= (List ref 1 l) (d variate b))
+            (= (List ref 2 l) (d variate b))))))
+```
+---
+    ((3) 'f64 #t #t #t)
+
+### the values lie where the distribution does, about its mean
+
+```x
+(import x/num/distribution) (import x/num/random) (import x/num/tensor)
+(let ((u ((Distribution uniform 2 6) variate (Random sw 1) 200))
+      (n ((Distribution normal 10 2) variate (Random sw 1) 400)))
+  (list (<= 2 (u least)) (< (u greatest) 6)
+        (< 9.5 (n mean)) (< (n mean) 10.5)))
+```
+---
+    (#t #t #t #t)
+
+### a distribution with no closed quantile answers through the search
+
+```x
+(import x/num/distribution) (import x/num/random)
+(let ((x ((Distribution gamma 2 4) variate (Random sw 5))))
+  (list (< 0 x) (< x 10)))
+```
+---
+    (#t #t)
+
+### a count below 1 is refused
+
+```x
+(import x/num/distribution) (import x/num/random)
+(guard (e (Err label e)) ((Distribution normal) variate (Random sw 1) 0))
+```
+---
+    'value
+
+### other libraries' words find it
+
+```x
+(import x/num/distribution)
+((Doc entry 'Distribution/variate) known-as)
+```
+---
+    ("rvs" "sample" "draw" "simulate")
+
 ## Other names
 
 ### the names statistics texts use find the constructors

@@ -11,11 +11,14 @@
 ;                digits far out in the upper tail
 ;   quantile     the x at which the cumulative is p, its inverse
 ;
-; and its mean, variance and deviation.  Every answer is a Float.
+; and its mean, variance and deviation.  Every answer is a Float.  Given
+; a Random it answers a variate, a random value that follows it, or a
+; Tensor of them.
 ;
 ; Distribution is the base class.  It holds what every distribution
 ; shares: the survival as 1 less the cumulative, the deviation as the
-; variance's root, and a quantile found by searching the cumulative.  A
+; variance's root, a quantile found by searching the cumulative, and a
+; variate as the quantile of a uniform value from the Random.  A
 ; distribution is a subclass that supplies its density, cumulative, mean
 ; and variance, and overrides the shared methods where it has a closed
 ; form.  The subclasses are reached through the constructors and are not
@@ -389,7 +392,32 @@
       (returns FLOAT "The deviation")
       (example "((Distribution normal 3 2) deviation)" "2.0")
       (example "((Distribution uniform 0 12) deviation)" "3.46410161513775"))
-    (fsqrt (self variance))))
+    (fsqrt (self variance)))
+
+  ; A uniform value of exactly 0 is passed over: the quantile there is the
+  ; low end of the values, which may be infinite.  With a count the values
+  ; stand in the order they were made, so a count of n answers what n
+  ; single variates from the same source would.
+  (method variate (self (param random Random "The source of the randomness, as (Random sw 7) or (Random hw)")
+                        . (param count INTEGER "Optional: how many values, at least 1"))
+    (doc "A random value that follows the distribution: a uniform value above 0 and below 1 from random, passed through the quantile. With a count it answers that many as an f64 Tensor. A seeded source answers the same values each time."
+      (known-as "rvs" "sample" "draw" "simulate")
+      (returns FLOAT|Tensor "One value, or a Tensor of count values in the order they were made")
+      (sample "((Distribution normal 10 2) variate (Random sw 7))" "a value near 10, the same for every (Random sw 7)")
+      (sample "((Distribution exponential 2) variate (Random hw) 1000)" "a Tensor of 1000 waiting times")
+      (see quantile))
+    (def one
+      (fn (again)
+        (let ((p (random float)))
+          (if (f-lt %zero p) (self quantile p) (again)))))
+    (if (null? count) (one)
+      (let ((n (first count)))
+        (if (< n 1) (Err raise (lit value) "Distribution variate: the count must be at least 1" n) ())
+        (import x/num/tensor)
+        (Tensor from
+          (let go ((i n) (acc ()))
+            (if (< i 1) (List reverse acc) (go (- i 1) (pair (one) acc))))
+          (lit f64))))))
 
 ; The normal distribution of a mean and a deviation.
 (def-class Normal (extends Distribution)
@@ -585,5 +613,5 @@
         (#t %infinity)))))
 
 (doc (provide x/num/distribution Distribution)
-  "Probability distributions as values: the Distribution class makes the normal, uniform, exponential, gamma, chi-squared, standardized-mean and variance-ratio distributions from their parameters, each answering its density, cumulative, survival and quantile, mean, variance and deviation."
+  "Probability distributions as values: the Distribution class makes the normal, uniform, exponential, gamma, chi-squared, standardized-mean and variance-ratio distributions from their parameters, each answering its density, cumulative, survival and quantile, its mean, variance and deviation, and random variates."
   (example "((Distribution normal 0 1) quantile 0.5)" "0.0"))
