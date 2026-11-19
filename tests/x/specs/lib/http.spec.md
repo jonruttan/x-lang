@@ -132,6 +132,34 @@ and `openssl s_server` serves https.
 ---
     "http://h/p?q=a%20b&n=2"
 
+### multipart: a text part, then a file part whose bytes hold NULs, sent whole; a filename's quote sent as %22
+
+The body's text up to the file's first byte, then the rest as hex: the
+file's bytes, the CRLF after them and the closing boundary.
+
+```x
+(do (import x/net/http)
+  (import x/codec/bytes)
+  (def %mp-r (Http multipart (list (pair "t" "hi") (list "f" "a\"b.bin" (Bytes of-hex "00ff00")))))
+  (def %mp-run (first %mp-r))
+  (def %mp-head (Str8 sub 0 (rest %mp-run) (first %mp-run)))
+  (list (rest %mp-r) (rest %mp-run) %mp-head
+        (Bytes hex (Bytes region (first %mp-run) (Str8 length %mp-head) (- (rest %mp-run) (Str8 length %mp-head))))))
+```
+---
+    ("multipart/form-data; boundary=x-lang-form-0" 212 "--x-lang-form-0\r\nContent-Disposition: form-data; name=\"t\"\r\n\r\nhi\r\n--x-lang-form-0\r\nContent-Disposition: form-data; name=\"f\"; filename=\"a%22b.bin\"\r\nContent-Type: application/octet-stream\r\n\r\n" "00ff000d0a2d2d782d6c616e672d666f726d2d302d2d0d0a")
+
+### multipart: a part that holds a boundary moves the boundary on
+
+```x
+(do (import x/net/http)
+  (import x/codec/bytes)
+  (list (rest (Http multipart (list (pair "a" "--x-lang-form-0") (list "f" "x" (Bytes of-hex "782d6c616e672d666f726d2d31")))))
+        (rest (Http multipart ()))))
+```
+---
+    ("multipart/form-data; boundary=x-lang-form-2" "multipart/form-data; boundary=x-lang-form-0")
+
 ### quad detection routes names to resolve
 
 ```x

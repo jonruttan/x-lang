@@ -36,6 +36,7 @@
 (import x/sys/socket)
 (import x/net/tls)
 (import x/codec/base64)   ; basic-auth's credential encoding (#412)
+(import x/codec/bytes)    ; multipart's body, NULs among its bytes
 (import x/type/record)
 (import x/core/doors char->int int->ptr ptr->int ptr-call str->ptr str-byte-len str-byte-ref str-make)
 
@@ -445,6 +446,35 @@
                   (if (if (= c 37) (if (null? hi) #f (not (null? lo))) #f)
                     (go (+ i 3) (pair (+ (* hi 16) lo) acc))
                     (go (+ i 1) (pair c acc))))))))))
+
+    (method multipart (self (param parts LIST "Each (NAME . VALUE), text, or (NAME FILENAME REGION), a file's bytes as a region (BUF START LEN)"))
+      (doc "A multipart/form-data body (RFC 7578) for parts, as a form with enctype multipart/form-data sends them: the body as a run, NULs kept, for Http post, and its Content-Type, the boundary in it. The boundary is the first x-lang-form-N, N from 0, that no part's bytes contain. A file part is sent as application/octet-stream. A name or filename's \", CR and LF are sent as %22, %0D and %0A, as browsers send them."
+        (returns PAIR "(RUN . CONTENT-TYPE), RUN (STRING . COUNT)")
+        (example "(rest (Http multipart (list (pair \"a\" \"1\"))))" "\"multipart/form-data; boundary=x-lang-form-0\"")
+        (example "((fn (_ r) (Str8 sub 0 (rest (first r)) (first (first r)))) (Http multipart (list (pair \"a\" \"1\"))))" "\"--x-lang-form-0\\r\\nContent-Disposition: form-data; name=\\\"a\\\"\\r\\n\\r\\n1\\r\\n--x-lang-form-0--\\r\\n\""))
+      (def file? (fn (_ p) (not (str? (rest p)))))
+      (def data (fn (_ p) (if (file? p) (first (rest (rest p))) (rest p))))
+      (def quoted
+        (fn (_ s) (Str8 replace "\n" "%0A" (Str8 replace "\r" "%0D" (Str8 replace "\"" "%22" s)))))
+      (def boundary
+        (let go ((k 0))
+          (let ((b (Str8 append "x-lang-form-" (%number->str k))))
+            (if (List any? (fn (_ p) (not (null? (Bytes find (data p) b)))) parts) (go (+ k 1)) b))))
+      (def w (Bytes writer))
+      (List for-each
+        (fn (_ p)
+          (Bytes put w (Str8 append "--" boundary "\r\nContent-Disposition: form-data; name=\"" (quoted (first p)) "\""
+                         (if (file? p)
+                           (Str8 append "; filename=\"" (quoted (first (rest p))) "\"\r\nContent-Type: application/octet-stream")
+                           "")
+                         "\r\n\r\n"))
+          (Bytes put w (data p))
+          (Bytes put w "\r\n"))
+        parts)
+      (Bytes put w (Str8 append "--" boundary "--\r\n"))
+      (def r (Bytes written w))
+      (pair (pair (first r) (first (rest (rest r))))
+            (Str8 append "multipart/form-data; boundary=" boundary)))
 
     (method with-query (self (param url STRING "Base url (may already carry a query)")
                              (param params ALIST "(name . value) strings, both percent-encoded here"))
