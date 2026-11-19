@@ -16,7 +16,7 @@
 (import x/type/gen)
 
 ; libc doors (cold: fetched once at load; calls go through ptr-call)
-(import x/core/doors char->int ffi-dlopen ffi-dlsym int% int->ptr int/ ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! str->ptr str-byte-ref str-make)
+(import x/core/doors char->int ffi-dlopen ffi-dlsym int% int->ptr int/ mem-set ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! str->ptr str-byte-ref str-make)
 ; Cached int prims (#335): port math is int-only; ambient % and /
 ; would ride the tower's op dispatch.
 (def %sk-libc (ffi-dlopen () 1))
@@ -32,7 +32,11 @@
 (def %c-setsockopt (%sk "setsockopt"))
 (def %c-malloc (%sk "malloc"))
 (def %c-free (%sk "free"))
-(def %c-memset (%sk "memset"))
+; A region is zeroed with the engine's (mem set), not libc's memset.  glibc
+; resolves memset to a routine picked for the processor, whose address has
+; no name to look it up by again, and a state image cannot carry a pointer
+; it cannot name: a library that loaded this module was refused its image
+; on Linux.
 
 ; Per-OS socket-level constants. AF_INET=2 and SOCK_STREAM=1 agree on
 ; both; the SOL/SO pair does not.
@@ -77,7 +81,7 @@
 (def %make-sockaddr-in
   (fn (_ port host)
     (def addr (int->ptr (ptr-call %c-malloc 16)))
-    (ptr-call %c-memset addr 0 16)
+    (mem-set addr 0 16)
     (if os-darwin?
       (do (%sk-set1! addr 0 16) (%sk-set1! addr 1 %AF-INET))
       (do (%sk-set1! addr 0 %AF-INET) (%sk-set1! addr 1 0)))
@@ -108,7 +112,7 @@
     ; SO_REUSEADDR: an int 1 (4 LE bytes) so quick restarts do not
     ; trip on TIME_WAIT.
     (def optval (int->ptr (ptr-call %c-malloc 4)))
-    (ptr-call %c-memset optval 0 4)
+    (mem-set optval 0 4)
     (%sk-set1! optval 0 1)
     (ptr-call %c-setsockopt fd %SOL-SOCKET %SO-REUSEADDR optval 4)
     (ptr-call %c-free optval)
@@ -352,7 +356,7 @@
         (sample "(Socket local-port (Socket tcp-listen 0))" "an ephemeral port, e.g. 52341"))
       (def addr (int->ptr (ptr-call %c-malloc 16)))
       (def alen (int->ptr (ptr-call %c-malloc 4)))
-      (ptr-call %c-memset addr 0 16)
+      (mem-set addr 0 16)
       (%sk-set1! alen 0 16)
       (%sk-set1! alen 1 0) (%sk-set1! alen 2 0) (%sk-set1! alen 3 0)
       (def %free-both (fn (_)
@@ -385,7 +389,7 @@
         (sample "(Socket peer (Socket accept lfd))" "(\"127.0.0.1\" . 52341)"))
       (def addr (int->ptr (ptr-call %c-malloc 16)))
       (def alen (int->ptr (ptr-call %c-malloc 4)))
-      (ptr-call %c-memset addr 0 16)
+      (mem-set addr 0 16)
       (%sk-set1! alen 0 16)
       (%sk-set1! alen 1 0) (%sk-set1! alen 2 0) (%sk-set1! alen 3 0)
       (def %free-both (fn (_)
@@ -453,7 +457,7 @@
       (def buf (int->ptr (ptr-call %c-malloc (+ maxlen 1))))
       (def addr (int->ptr (ptr-call %c-malloc 16)))
       (def alen (int->ptr (ptr-call %c-malloc 4)))
-      (ptr-call %c-memset addr 0 16)
+      (mem-set addr 0 16)
       (%sk-set1! alen 0 16)
       (%sk-set1! alen 1 0) (%sk-set1! alen 2 0) (%sk-set1! alen 3 0)
       (def %free-all (fn (_)
@@ -496,7 +500,7 @@
       (def region (str-make (if (< maxlen 1) 1 maxlen)))
       (def addr (int->ptr (ptr-call %c-malloc 16)))
       (def alen (int->ptr (ptr-call %c-malloc 4)))
-      (ptr-call %c-memset addr 0 16)
+      (mem-set addr 0 16)
       (%sk-set1! alen 0 16)
       (%sk-set1! alen 1 0) (%sk-set1! alen 2 0) (%sk-set1! alen 3 0)
       (def %free-both (fn (_)
@@ -528,7 +532,7 @@
       (when (> plen 99)
         (Err raise 'value "Socket: unix path exceeds sockaddr_un capacity" path))
       (def addr (int->ptr (ptr-call %c-malloc 110)))
-      (ptr-call %c-memset addr 0 110)
+      (mem-set addr 0 110)
       (if os-darwin?
         (do (%sk-set1! addr 0 (+ plen 3)) (%sk-set1! addr 1 1))
         (do (%sk-set1! addr 0 1) (%sk-set1! addr 1 0)))
