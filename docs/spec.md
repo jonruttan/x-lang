@@ -1490,14 +1490,14 @@ Left-to-right function composition.
 ((Fn pipe (method-ref Num inc) (method-ref Num inc)) 3) -> 5
 ```
 
-### `Fn curry`
+### `Fn partial`
 
-`(Fn curry f x) -> (fn (_ y) (f x y))`
+`(Fn partial f x) -> (fn (_ y) (f x y))`
 
 Partially applies a two-argument function by fixing its first argument.
 
 ```x-repl
-((Fn curry + 10) 5) -> 15
+((Fn partial + 10) 5) -> 15
 ```
 
 ### `Fn flip`

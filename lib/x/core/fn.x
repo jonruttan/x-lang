@@ -160,10 +160,11 @@
         (returns CALLABLE "Piped function g(f(x))")
         (example "((Fn pipe (method-ref Num inc) (fn (_ x) (* x 10))) 1)" "20"))
       (fn (_ x) (g (f x))))
-    (method curry (self (param f CALLABLE "Binary function to partially apply") (param x ANY "First argument to bind"))
+    (method partial (self (param f CALLABLE "Binary function to partially apply") (param x ANY "First argument to bind"))
       (doc "Partially apply a binary function by fixing its first argument."
+        (known-as "curry")
         (returns CALLABLE "Function awaiting one argument")
-        (example "((Fn curry - 10) 3)" "7"))
+        (example "((Fn partial - 10) 3)" "7"))
       (fn (_ y) (f x y)))
     (method flip (self (param f CALLABLE "Binary function"))
       (doc "Return a function that calls f with its two arguments reversed."

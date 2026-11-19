@@ -729,12 +729,12 @@
 ; amplitude and its imaginary part the sine's, negated.
 (def %cycle-harmonic
   (fn (_ a frames)
-    (import x/num/fourier)
+    (import x/num/frequency)
     (import x/num/float float-of)
     (def re (Vector make frames (float-of 0)))
     (def im (Vector make frames (float-of 0)))
     ((fn (self i) (when (int< i frames) (do (%put! re i (float-of (%wref a i))) (self (int+ i 1))))) 0)
-    ((Fourier plan frames) forward! re im)
+    ((Frequency plan frames) forward! re im)
     (def word (fn (_ x) (Float ->int (Float round (Float / (Float * 2 x) frames)))))
     (def n (int+ (int>> (int- frames 1) 1) 1))
     (def amps (Vector make n (pair 0 0)))

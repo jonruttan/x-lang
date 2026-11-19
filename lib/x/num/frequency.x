@@ -1,6 +1,6 @@
-; fourier.x -- the discrete Fourier transform: a plan per length, any length.
+; frequency.x -- the discrete Fourier transform: a plan per length, any length.
 ;
-; A Fourier plan holds what a length n needs, computed once: the twiddle
+; A Frequency plan holds what a length n needs, computed once: the twiddle
 ; table and bit-reversal table for a power of two (iterative radix-2), or for
 ; any other n the chirp and the transformed kernel of Bluestein's algorithm,
 ; which turns the transform into a convolution done by a power-of-two plan.
@@ -32,7 +32,7 @@
 ; @copyright 2026 Jon Ruttan
 ; @license MIT No Attribution (MIT-0)
 
-(module x/num/fourier)
+(module x/num/frequency)
 (import x/type/class)
 (import x/type/vector)
 (import x/type/list)
@@ -44,10 +44,11 @@
 (import x/core/doors int+ int- int* int/ int% int< int= int& int>> obj-ref obj-set!
   mem-cmp ptr->int ptr-ref-word ptr-set-word! str->ptr str-make type-make-instance type-of type?)
 
-(def-class Fourier ()
-  (doc "A discrete Fourier transform plan for one length n: forward and inverse transforms in O(n log n) for every n (radix-2 for a power of two, Bluestein's algorithm otherwise). Make one with (Fourier plan n) and reuse it; (Fourier fft v) makes one per call. The plan keeps its tables and data in buffers of its own, its kernels run compiled where the JIT can build them, and it collects its own garbage."
+(def-class Frequency ()
+  (doc "A discrete Fourier transform plan for one length n: forward and inverse transforms in O(n log n) for every n (radix-2 for a power of two, Bluestein's algorithm otherwise). Make one with (Frequency plan n) and reuse it; (Frequency fft v) makes one per call. The plan keeps its tables and data in buffers of its own, its kernels run compiled where the JIT can build them, and it collects its own garbage."
+    (known-as "Fourier transform" "FFT" "DFT")
     (note "The forward transform is unscaled, X[k] = sum x[j] e^(-2 pi i jk/n); the inverse divides by n, so (p inverse (p forward v)) is v to rounding.")
-    (example "(Fourier fft #(1 2 3 4))" "#(10.0+0.0i -2.0+2.0i -2.0+0.0i -2.0-2.0i)")
+    (example "(Frequency fft #(1 2 3 4))" "#(10.0+0.0i -2.0+2.0i -2.0+0.0i -2.0-2.0i)")
     (see plan) (see forward) (see forward!) (see jit!) (see dft))
 
   n       ; the length
@@ -68,53 +69,53 @@
     ; --- the plan ---------------------------------------------------------
     (method plan (self (param n INTEGER "Transform length, at least 1"))
       (doc "A plan for transforms of length n. A power of two runs radix-2; any other n runs Bluestein's algorithm on a power-of-two plan of at least 2n-1 points."
-        (returns Fourier "A reusable plan")
-        (example "((Fourier plan 6) size)" "6"))
-      (if (int< n 1) (Err raise 'value "Fourier plan: n must be at least 1" n) ())
+        (returns Frequency "A reusable plan")
+        (example "((Frequency plan 6) size)" "6"))
+      (if (int< n 1) (Err raise 'value "Frequency plan: n must be at least 1" n) ())
       (self %make n))
 
     (method fft (self (param v VECTOR|LIST "Numbers: Complex values or reals"))
       (doc "The forward transform of v, through a plan made for its length."
         (returns VECTOR "A vector of Complex values, X[k] = sum v[j] e^(-2 pi i jk/n)")
-        (example "(Fourier fft #(1 1 1 1))" "#(4.0+0.0i 0.0+0.0i 0.0+0.0i 0.0+0.0i)"))
+        (example "(Frequency fft #(1 1 1 1))" "#(4.0+0.0i 0.0+0.0i 0.0+0.0i 0.0+0.0i)"))
       (let ((w (self %vec v)))
         ((self plan (Vector length w)) forward w)))
 
     (method ifft (self (param v VECTOR|LIST "Numbers: Complex values or reals"))
       (doc "The inverse transform of v, scaled by 1/n, through a plan made for its length."
         (returns VECTOR "A vector of Complex values, x[j] = (1/n) sum v[k] e^(2 pi i jk/n)")
-        (example "(Fourier ifft #(4 0 0 0))" "#(1.0+0.0i 1.0+0.0i 1.0+0.0i 1.0+0.0i)"))
+        (example "(Frequency ifft #(4 0 0 0))" "#(1.0+0.0i 1.0+0.0i 1.0+0.0i 1.0+0.0i)"))
       (let ((w (self %vec v)))
         ((self plan (Vector length w)) inverse w)))
 
     (method dft (self (param v VECTOR|LIST "Numbers: Complex values or reals"))
       (doc "The forward transform by its definition, O(n^2) in Float arithmetic: the reference fft is checked against."
         (returns VECTOR "A vector of Complex values, the same transform as fft")
-        (example "(Fourier dft #(1 2 3 4))" "#(10.0+0.0i -2.0+2.0i -2.0+0.0i -2.0-2.0i)"))
+        (example "(Frequency dft #(1 2 3 4))" "#(10.0+0.0i -2.0+2.0i -2.0+0.0i -2.0-2.0i)"))
       (self %direct (self %vec v) #f))
 
     (method idft (self (param v VECTOR|LIST "Numbers: Complex values or reals"))
       (doc "The inverse transform by its definition, O(n^2), scaled by 1/n."
         (returns VECTOR "A vector of Complex values, the same transform as ifft")
-        (example "(Fourier idft #(4 0 0 0))" "#(1.0+0.0i 1.0+0.0i 1.0+0.0i 1.0+0.0i)"))
+        (example "(Frequency idft #(4 0 0 0))" "#(1.0+0.0i 1.0+0.0i 1.0+0.0i 1.0+0.0i)"))
       (self %direct (self %vec v) #t))
 
     ; --- the kernels' lane --------------------------------------------------
     (method jit! (self)
       (doc "Build and adopt the compiled kernels (JIT; ARM64 and x86-64) now, if they transform the check inputs to exactly the bits the pure kernels do. Idempotent. Answers #t when the compiled kernels are active, #f where none can be built; the transforms are the same either way. The transforms call this on their own once the pure kernels have run about as long as building the compiled ones takes."
         (returns BOOL "#t when the compiled kernels are active")
-        (sample "(Fourier jit!)" "#t once the compiled kernels have proved themselves on this host, #f elsewhere"))
+        (sample "(Frequency jit!)" "#t once the compiled kernels have proved themselves on this host, #f elsewhere"))
       ; The cell is marked first: the check's own plans run kernels, and a
       ; step counted there must not start a second build.
       (if (null? (first (self %engine-cell)))
         (do (%set-first! (self %engine-cell) (lit building))
             (%set-first! (self %engine-cell)
-              (Compiled make-on-demand (lit fourier) (self %pure)
+              (Compiled make-on-demand (lit frequency) (self %pure)
                 (fn (_)
                   (import x/tool/word-form-jit)
                   ((prim-ref (lit word-form) (lit jit-make)) (self %forms)
-                   (fn (_ engine) (Fourier %agrees? engine))))
-                (fn (_ v) (%set-first! (Fourier %lane-cell) (pair (not (eq? v (Fourier %pure))) v))))))
+                   (fn (_ engine) (Frequency %agrees? engine))))
+                (fn (_ v) (%set-first! (Frequency %lane-cell) (pair (not (eq? v (Frequency %pure))) v))))))
         ())
       (let ((e (first (self %engine-cell))))
         (if (eq? e (lit building)) #f
@@ -124,7 +125,7 @@
     (method compiled? (self)
       (doc "Whether the compiled kernels are the ones transforms run on."
         (returns BOOL "#t when the compiled kernels are active")
-        (sample "(Fourier compiled?)" "#t after (Fourier jit!) has succeeded on this host"))
+        (sample "(Frequency compiled?)" "#t after (Frequency jit!) has succeeded on this host"))
       (first (self %kernels)))
 
     ; The kernels the plans run, (COMPILED? RADIX2 POINTWISE): Compiled
@@ -333,7 +334,7 @@
     (method %bits (self)
       (if (null? (first (self %bits-cell)))
         (%set-first! (self %bits-cell)
-          (let ((i->d (libm-fn (lit %fourier-i->d) "i->d" ())) (int-t (type-of 0)))
+          (let ((i->d (libm-fn (lit %frequency-i->d) "i->d" ())) (int-t (type-of 0)))
             (fn (_ x)
               (match
                 ((type? x float) (first x))
@@ -492,13 +493,13 @@
   (method size (self)
     (doc "The length this plan transforms."
       (returns INTEGER "n")
-      (example "((Fourier plan 8) size)" "8"))
+      (example "((Frequency plan 8) size)" "8"))
     (field 'n))
 
   (method forward (self (param v VECTOR|LIST "n numbers: Complex values or reals"))
     (doc "The forward transform of v: X[k] = sum v[j] e^(-2 pi i jk/n), unscaled."
       (returns VECTOR "A vector of n Complex values")
-      (example "((Fourier plan 2) forward #(1 2))" "#(3.0+0.0i -1.0+0.0i)"))
+      (example "((Frequency plan 2) forward #(1 2))" "#(3.0+0.0i -1.0+0.0i)"))
     (self %load! v)
     (self %forward-at! (self %addr 're) (self %addr 'im) ())
     (self %unload))
@@ -506,15 +507,15 @@
   (method inverse (self (param v VECTOR|LIST "n numbers: Complex values or reals"))
     (doc "The inverse transform of v: x[j] = (1/n) sum v[k] e^(2 pi i jk/n)."
       (returns VECTOR "A vector of n Complex values")
-      (example "((Fourier plan 2) inverse #(3 -1))" "#(1.0+0.0i 2.0+0.0i)"))
+      (example "((Frequency plan 2) inverse #(3 -1))" "#(1.0+0.0i 2.0+0.0i)"))
     (self %load! v)
     (self %inverse-at! ())
     (self %unload))
 
   (method forward! (self (param re VECTOR "n floats, the real parts") (param im VECTOR "n floats, the imaginary parts"))
     (doc "The forward transform in place on split form: re and im are overwritten with the real and imaginary parts of X. The vectors are reused, so a stream of transforms keeps its buffers."
-      (returns Fourier "self, for chaining")
-      (example "(let ((re (Vector of 1.0 2.0)) (im (Vector of 0.0 0.0))) ((Fourier plan 2) forward! re im) re)" "#(3.0 -1.0)"))
+      (returns Frequency "self, for chaining")
+      (example "(let ((re (Vector of 1.0 2.0)) (im (Vector of 0.0 0.0))) ((Frequency plan 2) forward! re im) re)" "#(3.0 -1.0)"))
     (self %split-in! re im)
     (self %forward-at! (self %addr 're) (self %addr 'im) ())
     (self %split-out! re im)
@@ -522,25 +523,25 @@
 
   (method inverse! (self (param re VECTOR "n floats, the real parts") (param im VECTOR "n floats, the imaginary parts"))
     (doc "The inverse transform in place on split form, scaled by 1/n."
-      (returns Fourier "self, for chaining")
-      (example "(let ((re (Vector of 3.0 -1.0)) (im (Vector of 0.0 0.0))) ((Fourier plan 2) inverse! re im) re)" "#(1.0 2.0)"))
+      (returns Frequency "self, for chaining")
+      (example "(let ((re (Vector of 3.0 -1.0)) (im (Vector of 0.0 0.0))) ((Frequency plan 2) inverse! re im) re)" "#(1.0 2.0)"))
     (self %split-in! re im)
     (self %inverse-at! ())
     (self %split-out! re im)
     self)
 
   (method %field (self name) (field name))
-  (method %addr (self name) (Fourier %at (field name)))
+  (method %addr (self name) (Frequency %at (field name)))
 
   ; --- converting in and out ------------------------------------------------
   ; The doors are fetched once a call: a class dispatch per element would
   ; cost more than the element.
   (method %load! (self v)
-    (let ((w (Fourier %vec v)) (n (field 'n)) (re (self %addr 're)) (im (self %addr 'im))
-          (ct (Complex type)) (fset (rest (Fourier %doubles))) (zero (first (float-of 0))))
+    (let ((w (Frequency %vec v)) (n (field 'n)) (re (self %addr 're)) (im (self %addr 'im))
+          (ct (Complex type)) (fset (rest (Frequency %doubles))) (zero (first (float-of 0))))
       (if (int= (Vector length w) n) ()
-        (Err raise 'value "Fourier: input length is not the plan's" (Vector length w)))
-      (def bits (Fourier %bits))
+        (Err raise 'value "Frequency: input length is not the plan's" (Vector length w)))
+      (def bits (Frequency %bits))
       (def go
         (fn (go i)
           (if (int< i n)
@@ -553,19 +554,19 @@
               (go (int+ i 1)))
             ())))
       (go 0)
-      (Fourier %owe! (int* n (Fourier %elem-cost)))))
+      (Frequency %owe! (int* n (Frequency %elem-cost)))))
 
   (method %unload (self)
-    (let ((n (field 'n)) (re (self %addr 're)) (im (self %addr 'im)) (fget (first (Fourier %doubles))))
-      (Fourier %owe! (int* n (Fourier %elem-cost)))
+    (let ((n (field 'n)) (re (self %addr 're)) (im (self %addr 'im)) (fget (first (Frequency %doubles))))
+      (Frequency %owe! (int* n (Frequency %elem-cost)))
       (Vector build n
         (fn (_ k) (make-complex (type-make-instance float (fget re k)) (type-make-instance float (fget im k)))))))
 
   (method %split-in! (self re im)
-    (let ((n (field 'n)) (ra (self %addr 're)) (ia (self %addr 'im)) (fset (rest (Fourier %doubles))))
+    (let ((n (field 'n)) (ra (self %addr 're)) (ia (self %addr 'im)) (fset (rest (Frequency %doubles))))
       (if (if (int= (Vector length re) n) (int= (Vector length im) n) #f) ()
-        (Err raise 'value "Fourier: split vectors must both have the plan's length" n))
-      (def bits (Fourier %bits))
+        (Err raise 'value "Frequency: split vectors must both have the plan's length" n))
+      (def bits (Frequency %bits))
       (def go
         (fn (go i)
           (if (int< i n)
@@ -576,7 +577,7 @@
       (go 0)))
 
   (method %split-out! (self re im)
-    (let ((n (field 'n)) (ra (self %addr 're)) (ia (self %addr 'im)) (fget (first (Fourier %doubles))))
+    (let ((n (field 'n)) (ra (self %addr 're)) (ia (self %addr 'im)) (fget (first (Frequency %doubles))))
       (def go
         (fn (go i)
           (if (int< i n)
@@ -585,10 +586,10 @@
                 (go (int+ i 1)))
             ())))
       (go 0)
-      (Fourier %owe! (int* n (Fourier %elem-cost)))))
+      (Frequency %owe! (int* n (Frequency %elem-cost)))))
 
   (method %fill-check! (self)
-    (let ((n (field 'n)) (re (self %addr 're)) (im (self %addr 'im)) (fset (rest (Fourier %doubles))))
+    (let ((n (field 'n)) (re (self %addr 're)) (im (self %addr 'im)) (fset (rest (Frequency %doubles))))
       (def go
         (fn (go i)
           (if (int< i n)
@@ -625,7 +626,7 @@
 
   (method %radix2-at! (self re im kern)
     (let ((n (field 'n)))
-      (Fourier %drive kern 1
+      (Frequency %drive kern 1
         (self %words! (list re im (ptr->int (str->ptr (field 'cos))) (ptr->int (str->ptr (field 'sin)))
                             (ptr->int (str->ptr (field 'rev))) n 0 0 2 0 0 (int>> n 1))))))
 
@@ -633,7 +634,7 @@
   ; double 16, written when it was made: no radix-2 run shares this
   ; scratch with a pointwise one that reads them.
   (method %pointwise! (self kern ore oim xr xi yr yi ys cnt len)
-    (Fourier %drive kern 2 (self %words! (list ore oim xr xi yr yi ys cnt len 0))))
+    (Frequency %drive kern 2 (self %words! (list ore oim xr xi yr yi ys cnt len 0))))
 
   (method %bluestein-at! (self re im kern)
     (let ((n (field 'n)) (inner (field 'inner))
@@ -645,7 +646,7 @@
         (inner %radix2-at! ai ar kern)
         (self %pointwise! kern re im ar ai wre wim 1 n n)))))
 
-(doc (provide x/num/fourier Fourier)
-  (example "(Fourier fft #(1 2 3 4))" "#(10.0+0.0i -2.0+2.0i -2.0+0.0i -2.0-2.0i)")
-  (example "((Fourier plan 3) size)" "3")
+(doc (provide x/num/frequency Frequency)
+  (example "(Frequency fft #(1 2 3 4))" "#(10.0+0.0i -2.0+2.0i -2.0+0.0i -2.0-2.0i)")
+  (example "((Frequency plan 3) size)" "3")
   "The discrete Fourier transform: reusable plans, O(n log n) for every length, on compiled kernels where the JIT can build them.")

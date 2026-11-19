@@ -55,12 +55,12 @@
 ---
     8
 
-## curry
+## partial
 
 ### partially applies first argument
 
 ```x
-((Fn curry + 10) 5)
+((Fn partial + 10) 5)
 ```
 ---
     15
