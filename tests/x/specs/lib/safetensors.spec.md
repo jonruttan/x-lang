@@ -24,13 +24,13 @@ The header is `{"w":{"dtype":"F32","shape":[2],"data_offsets":[0,8]}}`,
 
 ### a dtype Tensor has no encoding for raises a label type
 
-The file holds an F16 tensor in its first two bytes and an F64 tensor of
+The file holds a U16 tensor in its first two bytes and an F64 tensor of
 extent (2 1) after it. decode answers every tensor, so it cannot answer
 this file; an open file reads the F64 one, below.
 
 ```x
 (do (import x/codec/safetensors) (import x/codec/bytes)
-  (def r (Bytes of-hex "8f000000000000007b225f5f6d657461646174615f5f223a7b22666f726d6174223a227074227d2c22626967223a7b226474797065223a22463136222c227368617065223a5b315d2c22646174615f6f666673657473223a5b302c325d7d2c226d223a7b226474797065223a22463634222c227368617065223a5b322c315d2c22646174615f6f666673657473223a5b322c31385d7d7dffff000000000000e03f00000000000000c0"))
+  (def r (Bytes of-hex "8f000000000000007b225f5f6d657461646174615f5f223a7b22666f726d6174223a227074227d2c22626967223a7b226474797065223a22553136222c227368617065223a5b315d2c22646174615f6f666673657473223a5b302c325d7d2c226d223a7b226474797065223a22463634222c227368617065223a5b322c315d2c22646174615f6f666673657473223a5b322c31385d7d7dffff000000000000e03f00000000000000c0"))
   (guard (e (Err label e)) (Safetensors decode r)))
 ```
 ---
@@ -62,6 +62,82 @@ The header gives an F32 tensor of two elements six bytes.
 ```x
 (do (import x/codec/safetensors) (import x/codec/bytes)
   (def r (Bytes of-hex "36000000000000007b2277223a7b226474797065223a22463332222c227368617065223a5b325d2c22646174615f6f666673657473223a5b302c365d7d7d0000c03f00002040"))
+  (guard (e (Err label e)) (Safetensors decode r)))
+```
+---
+    'value
+
+## the half-width floats
+
+F16 and BF16 tensors are read as f32, which holds every value of either
+exactly.
+
+### an F16 tensor is read as f32
+
+The halves are 1, -2 and a half.
+
+```x
+(do (import x/codec/safetensors) (import x/codec/bytes)
+  (def r (Bytes of-hex "36000000000000007b2268223a7b226474797065223a22463136222c227368617065223a5b335d2c22646174615f6f666673657473223a5b302c365d7d7d003c00c00038"))
+  (def h ((Safetensors decode r) get "h"))
+  (list (h encoding) (h extent) (h ->list)))
+```
+---
+    ('f32 (3) (1.0 -2.0 0.5))
+
+### every kind of half becomes the single of the same value
+
+The halves are 1, -2, 0, -0, infinity, a NaN, the least and the greatest
+below the normal range, and two ordinary values. The tensor is written
+back out as F32, and its 40 bytes are the singles.
+
+```x
+(do (import x/codec/safetensors) (import x/codec/bytes)
+  (def r (Bytes of-hex "39000000000000007b2268223a7b226474797065223a22463136222c227368617065223a5b322c355d2c22646174615f6f666673657473223a5b302c32305d7d7d003c00c000000080007c017e0100ff035535cdfb"))
+  (def out (Safetensors encode (Safetensors decode r)))
+  (Bytes hex (list (first out) (- (List ref 2 out) 40) 40)))
+```
+---
+    "0000803f000000c000000000000000800000807f0020c07f0000803300c07f3800a0aa3e00a079c7"
+
+### a BF16 tensor is read as f32
+
+The four elements are the upper halves of the singles 1.5, 2.5, -0.75
+and 0.
+
+```x
+(do (import x/codec/safetensors) (import x/codec/bytes)
+  (def r (Bytes of-hex "39000000000000007b2262223a7b226474797065223a2242463136222c227368617065223a5b322c325d2c22646174615f6f666673657473223a5b302c385d7d7dc03f204040bf0000"))
+  (def b ((Safetensors decode r) get "b"))
+  (list (b encoding) (b ->list)))
+```
+---
+    ('f32 ((1.5 2.5) (-0.75 0.0)))
+
+### an open file reads a half-width tensor as f32
+
+```x
+(do (import x/codec/safetensors) (import x/codec/bytes)
+  (def r (Bytes of-hex "39000000000000007b2262223a7b226474797065223a2242463136222c227368617065223a5b322c325d2c22646174615f6f666673657473223a5b302c385d7d7dc03f204040bf0000"))
+  (def tmp (File temp "/tmp/x-safetensors-half-"))
+  (File write (first tmp) (first r) (List ref 2 r))
+  (File close (first tmp))
+  (def f (Safetensors open (rest tmp)))
+  (def out (list (f encoding "b") (f extent "b") ((f ref "b") ->list)))
+  (f close)
+  (File unlink (rest tmp))
+  out)
+```
+---
+    ('f32 (2 2) ((1.5 2.5) (-0.75 0.0)))
+
+### a half-width tensor's bytes are two an element
+
+The header gives an F16 tensor of three elements eight bytes.
+
+```x
+(do (import x/codec/safetensors) (import x/codec/bytes)
+  (def r (Bytes of-hex "36000000000000007b2268223a7b226474797065223a22463136222c227368617065223a5b335d2c22646174615f6f666673657473223a5b302c385d7d7d003c00c000380000"))
   (guard (e (Err label e)) (Safetensors decode r)))
 ```
 ---
@@ -230,11 +306,11 @@ round trip would have.
 
 ### a dtype Tensor has no encoding for is listed, and ref raises a label type
 
-The file is the hand-made one above: an F16 tensor and an F64 one.
+The file is the hand-made one above: a U16 tensor and an F64 one.
 
 ```x
 (do (import x/codec/safetensors) (import x/codec/bytes)
-  (def r (Bytes of-hex "8f000000000000007b225f5f6d657461646174615f5f223a7b22666f726d6174223a227074227d2c22626967223a7b226474797065223a22463136222c227368617065223a5b315d2c22646174615f6f666673657473223a5b302c325d7d2c226d223a7b226474797065223a22463634222c227368617065223a5b322c315d2c22646174615f6f666673657473223a5b322c31385d7d7dffff000000000000e03f00000000000000c0"))
+  (def r (Bytes of-hex "8f000000000000007b225f5f6d657461646174615f5f223a7b22666f726d6174223a227074227d2c22626967223a7b226474797065223a22553136222c227368617065223a5b315d2c22646174615f6f666673657473223a5b302c325d7d2c226d223a7b226474797065223a22463634222c227368617065223a5b322c315d2c22646174615f6f666673657473223a5b322c31385d7d7dffff000000000000e03f00000000000000c0"))
   (def tmp (File temp "/tmp/x-safetensors-dtype-"))
   (File write (first tmp) (first r) (List ref 2 r))
   (File close (first tmp))

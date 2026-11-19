@@ -34,10 +34,21 @@
 ; beside the buffer.
 ;
 ; The encodings are those Tensor has and the format names: F64 is f64,
-; F32 is f32 and I64 is i64.  A tensor of another dtype is listed by names,
+; F32 is f32 and I64 is i64.  The two half-width floats are read as f32,
+; which holds every value of either exactly: F16, the IEEE half, and BF16,
+; a single's upper 16 bits.  A tensor of another dtype is listed by names,
 ; and ref raises a label 'type for it; encode raises a label 'type for a
-; c128 tensor, which the format has no dtype for.  The hosts this runs on
-; are little-endian, so the bytes are a tensor's data as it stands.
+; c128 tensor, which the format has no dtype for, and writes an f32 tensor
+; as F32 whatever it was read from.  The hosts this runs on are
+; little-endian, so F64, F32 and I64 bytes are a tensor's data as it
+; stands.
+;
+; Widening a half is a kernel over bytes, a word form registered with
+; Tensor and run on its lanes: pure at first, and compiled once it has
+; done a compile's worth of steps, where the compiled one writes what the
+; pure one does.  An open file widens through a buffer of %st-chunk
+; elements, so reading a half-width tensor costs the tensor and that
+; buffer.
 ;
 ; @copyright 2026 Jon Ruttan
 ; @license MIT No Attribution (MIT-0)
@@ -49,11 +60,20 @@
 (import x/codec/json)
 (import x/num/tensor)
 (import x/sys/file)
-(import x/core/doors int% int* int+ int- int->ptr int< int= mem-copy obj-ref ptr->int ptr-ref ptr-set!
-  str->ptr str-byte-len str-byte-sub str-make type-of type?)
+(import x/tool/word-form word-form-pure)
+(import x/core/doors int% int* int+ int- int/ int->ptr int< int= mem-cmp mem-copy obj-ref ptr->int ptr-ref ptr-set!
+  ptr-set-word! str->ptr str-byte-len str-byte-sub str-make type-of type?)
 
-; The format's dtype for each encoding it shares with Tensor.
-(def %st-dtypes (list (pair "F64" (lit f64)) (pair "F32" (lit f32)) (pair "I64" (lit i64))))
+; Each dtype read: (DTYPE ENC WIDTH KERNEL), the encoding it is read as,
+; an element's bytes in the file, and the kernel that widens it, nil for
+; a dtype whose bytes are the tensor's.  encode writes an encoding as the
+; first dtype listed for it.
+(def %st-dtypes
+  (list (list "F64" (lit f64) 8 ()) (list "F32" (lit f32) 4 ()) (list "I64" (lit i64) 8 ())
+        (list "F16" (lit f32) 2 (lit f16->f32)) (list "BF16" (lit f32) 2 (lit bf16->f32))))
+
+; The elements an open file widens at a time: the buffer is 2 bytes each.
+(def %st-chunk 1048576)
 
 ; The header's length is 8 bytes; the high 4 are 0 for any header a
 ; machine holds, and reading the two halves suits a 4-byte word as well.
@@ -61,13 +81,14 @@
 
 (def %st-bad (fn (_ msg data) (Err raise (lit value) (Str8 append "Safetensors: " msg) data)))
 
-(def %st-enc-of
+; A dtype's row of %st-dtypes, or nil.
+(def %st-row
   (fn (go name l)
-    (match ((null? l) ()) ((equal? (first (first l)) name) (rest (first l))) (#t (go name (rest l))))))
+    (match ((null? l) ()) ((equal? (first (first l)) name) (first l)) (#t (go name (rest l))))))
 
 (def %st-dtype-of
   (fn (go enc l)
-    (match ((null? l) ()) ((eq? (rest (first l)) enc) (first (first l))) (#t (go enc (rest l))))))
+    (match ((null? l) ()) ((eq? (List ref 1 (first l)) enc) (first (first l))) (#t (go enc (rest l))))))
 
 (def %st-width (fn (_ enc) (if (eq? enc (lit f32)) 4 8)))
 
@@ -84,8 +105,9 @@
       (if (int= (ptr-ref p 4 4) 0) (ptr-ref p 0 4)
         (%st-bad "the header's length is not one a file has" ())))))
 
-; One header entry as (DTYPE ENC EXTENT BEGIN END), ENC nil for a dtype
-; Tensor has no encoding for.  room is the data's length in bytes.
+; One header entry as (DTYPE ENC EXTENT BEGIN END KERNEL), ENC nil for a
+; dtype Tensor has no encoding for and KERNEL nil unless the elements are
+; widened.  room is the data's length in bytes.
 (def %st-entry
   (fn (_ name e room)
     (if (Dict dict? e) () (%st-bad "an entry is not an object" name))
@@ -94,12 +116,13 @@
         (%st-bad "an entry lacks dtype, shape or data_offsets" name))
       (if (List all? (fn (_ n) (if (type? n (type-of 0)) (if (int< n 0) #f #t) #f)) (List append ext at)) ()
         (%st-bad "a shape or an offset is not a whole number" name))
-      (let ((enc (%st-enc-of dtype %st-dtypes)) (b (first at)) (end (first (rest at))))
+      (let ((row (%st-row dtype %st-dtypes)) (b (first at)) (end (first (rest at))))
         (if (if (int< end b) #t (int< room end)) (%st-bad "an entry's bytes lie outside the data" name) ())
-        (if (null? enc) ()
-          (if (int= (int- end b) (int* (%st-width enc) (%st-count ext))) ()
-            (%st-bad "an entry's bytes are not its shape's" name)))
-        (list dtype enc ext b end)))))
+        (if (null? row) (list dtype () ext b end ())
+          (do
+            (if (int= (int- end b) (int* (List ref 2 row) (%st-count ext))) ()
+              (%st-bad "an entry's bytes are not its shape's" name))
+            (list dtype (List ref 1 row) ext b end (List ref 3 row))))))))
 
 ; A header's text as (METADATA . ENTRIES), each a Dict.
 (def %st-header
@@ -123,6 +146,104 @@
 
 (def %st-bytes (fn (_ entry) (int- (List ref 4 entry) (List ref 3 entry))))
 
+; --- the half-width floats ---------------------------------------------------
+; A kernel keeps Tensor's lane convention: the scratch s holds the input's
+; address in word 0, the output's in word 2, the element count in word 6,
+; the element reached in word 7 and the budget in word 8; it answers 1 when
+; its run is done and 0 when the budget is spent.  Element K is 2 bytes at
+; 2K of the input and 4 bytes at 4K of the output.
+(def %st-w (fn (_ k) (list (lit %mem-ref) (lit s) k)))
+(def %st-w! (fn (_ k v) (list (lit %mem-set!) (lit s) k v)))
+(def %st-in
+  (fn (_ j) (list (lit %mem-byte-ref-at) (%st-w 0) (list (lit +) (list (lit *) 2 (%st-w 7)) j))))
+(def %st-out
+  (fn (_ j v)
+    (list (lit %mem-byte-set-at!) (%st-w 2) (list (lit +) (list (lit *) 4 (%st-w 7)) j) (list (lit &) v 255))))
+
+(def %st-kernel
+  (fn (_ step)
+    (list (lit fn) (lit (self s))
+      (list (lit match)
+        (list (list (lit =) (%st-w 8) 0) 0)
+        (list (list (lit <) (%st-w 7) (%st-w 6))
+          (pair (lit do)
+            (List append step
+              (list (%st-w! 7 (list (lit +) (%st-w 7) 1))
+                    (%st-w! 8 (list (lit -) (%st-w 8) 1))
+                    (lit (self s))))))
+        (lit (#t 1))))))
+
+; BF16 is a single's upper 16 bits: the single is those two bytes above
+; two of zero.
+(def %st-bf16-form
+  (%st-kernel (list (%st-out 0 0) (%st-out 1 0) (%st-out 2 (%st-in 0)) (%st-out 3 (%st-in 1)))))
+
+; F16 is a sign, 5 bits of exponent and 10 of fraction.  Word 9 holds the
+; fraction, word 10 the exponent, word 12 the sign and word 11 the single
+; below its sign.  An exponent of 31 is an infinity or a NaN, the single's
+; 255; any other but 0 moves by the difference of the two biases, 112.  At
+; exponent 0 the half is the fraction times 2^-24: the fraction is shifted
+; up until its top bit reaches bit 10, the single's exponent falling by 1
+; a place from 113, and that bit is then the single's implied one.  Ten
+; shifts cover a fraction of 10 bits.
+(def %st-f16-form
+  (let ((up (list (lit if) (list (lit <) (%st-w 9) 1024)
+                  (list (lit do) (%st-w! 9 (list (lit <<) (%st-w 9) 1)) (%st-w! 10 (list (lit -) (%st-w 10) 1)))
+                  0)))
+    (%st-kernel
+      (list
+        (%st-w! 9 (list (lit +) (%st-in 0) (list (lit <<) (%st-in 1) 8)))
+        (%st-w! 10 (list (lit &) (list (lit >>) (%st-w 9) 10) 31))
+        (%st-w! 12 (list (lit &) (list (lit >>) (%st-w 9) 15) 1))
+        (%st-w! 9 (list (lit &) (%st-w 9) 1023))
+        (list (lit if) (list (lit =) (%st-w 10) 31) (%st-w! 10 255)
+          (list (lit if) (list (lit =) (%st-w 10) 0)
+            (list (lit if) (list (lit =) (%st-w 9) 0) 0
+              (list (lit do) (%st-w! 10 113) up up up up up up up up up up
+                    (%st-w! 9 (list (lit &) (%st-w 9) 1023))))
+            (%st-w! 10 (list (lit +) (%st-w 10) 112))))
+        (%st-w! 11 (list (lit +) (list (lit <<) (%st-w 10) 23) (list (lit <<) (%st-w 9) 13)))
+        (%st-out 0 (%st-w 11))
+        (%st-out 1 (list (lit >>) (%st-w 11) 8))
+        (%st-out 2 (list (lit >>) (%st-w 11) 16))
+        (%st-out 3 (list (lit +) (list (lit >>) (%st-w 11) 24) (list (lit <<) (%st-w 12) 7)))))))
+
+; Run a kernel function over count halves at src into singles at dst, all
+; in one call.
+(def %st-run
+  (fn (_ kern src dst count)
+    (let ((s (str-make 256)))
+      (def w (fn (_ i v) (ptr-set-word! (str->ptr s) (int* i %word-size) v)))
+      (w 0 src) (w 2 dst) (w 6 count) (w 7 0) (w 8 1073741823)
+      (kern (ptr->int (str->ptr s))))))
+
+; The halves a compiled kernel is checked on, low byte first: 1, -2, 0,
+; -0, infinity, a NaN, the least and the greatest below the normal range,
+; and two ordinary values.
+(def %st-check-bytes (list 0 60 0 192 0 0 0 128 0 124 1 126 1 0 255 3 85 53 205 251))
+(def %st-check-count 10)
+
+; Whether a compiled kernel writes what the pure form does on the check halves.
+(def %st-agrees?
+  (fn (_ form compiled)
+    (let ((in (str-make 32)) (a (str-make 64)) (b (str-make 64)))
+      ((fn (go i l) (if (null? l) () (do (ptr-set! (str->ptr in) i (first l) 1) (go (int+ i 1) (rest l)))))
+        0 %st-check-bytes)
+      (%st-run (word-form-pure form) (ptr->int (str->ptr in)) (ptr->int (str->ptr a)) %st-check-count)
+      (%st-run compiled (ptr->int (str->ptr in)) (ptr->int (str->ptr b)) %st-check-count)
+      (int= (mem-cmp (str->ptr a) (str->ptr b) (int* 4 %st-check-count)) 0))))
+
+(Tensor %register! (lit bf16->f32) %st-bf16-form (fn (_ compiled) (%st-agrees? %st-bf16-form compiled)))
+(Tensor %register! (lit f16->f32) %st-f16-form (fn (_ compiled) (%st-agrees? %st-f16-form compiled)))
+
+; Widen count halves at src into singles at dst on kernel NAME's lane.
+(def %st-widen
+  (fn (_ name src dst count)
+    (let ((s (str-make 256)))
+      (def w (fn (_ i v) (ptr-set-word! (str->ptr s) (int* i %word-size) v)))
+      (w 0 src) (w 2 dst) (w 6 count) (w 7 0)
+      ((obj-ref (Tensor %fast) 14) name s))))
+
 (def %st-sorted (fn (_ names) (List sort (fn (_ a b) (Str8 <? a b)) names)))
 
 ; A tensor as (DTYPE EXTENT ADDRESS BYTES KEEP): its elements contiguous
@@ -143,7 +264,7 @@
 
 (def-class Safetensors ()
   (doc "The safetensors file format: named tensors behind a JSON header. An open file reads each tensor when asked; decode and encode work on a whole file's bytes."
-    (note "F64, F32 and I64 are read as f64, f32 and i64 tensors. A tensor of another dtype is listed, and ref raises a label 'type for it.")
+    (note "F64, F32 and I64 are read as f64, f32 and i64 tensors, and the half-width F16 and BF16 as f32, which holds them exactly. A tensor of another dtype is listed, and ref raises a label 'type for it.")
     (note "A malformed file raises a label 'value; a file that cannot be opened or read raises a label 'io.")
     (example "(((Safetensors decode (Safetensors encode (Dict from-plist (list \"w\" (Tensor from '(1.5 2.5) 'f32))))) get \"w\") ->list)" "(1.5 2.5)")
     (see open) (see ref) (see decode) (see encode) (see write))
@@ -187,9 +308,13 @@
           (let ((h (%st-header (str-byte-sub s (int+ at %st-prefix) n) (int- len (int+ %st-prefix n)))))
             ((rest h) for-each
               (fn (_ kv)
-                (let ((st (%st-state (first kv) (rest kv))) (bytes (%st-bytes (rest kv))))
+                (let ((st (%st-state (first kv) (rest kv))) (bytes (%st-bytes (rest kv)))
+                      (kernel (List ref 5 (rest kv))))
                   (if (int< 0 bytes)
-                    (mem-copy (str->ptr (List ref 4 st)) (%st-addr s (int+ start (List ref 3 (rest kv)))) bytes)
+                    (if (null? kernel)
+                      (mem-copy (str->ptr (List ref 4 st)) (%st-addr s (int+ start (List ref 3 (rest kv)))) bytes)
+                      (%st-widen kernel (ptr->int (%st-addr s (int+ start (List ref 3 (rest kv)))))
+                        (ptr->int (str->ptr (List ref 4 st))) (int/ bytes 2)))
                     ())
                   (out set! (first kv) (Tensor %make st)))))
             out))))
@@ -269,7 +394,7 @@
 
   (method encoding (self (param name STRING "A tensor's name"))
     (doc "The encoding the named tensor is read as, from the header."
-      (returns SYMBOL "f64, f32 or i64; nil for a name the file lacks or a dtype Tensor has no encoding for")
+      (returns SYMBOL "f64, f32 or i64, f32 for an F16 or BF16 tensor; nil for a name the file lacks or a dtype Tensor has no encoding for")
       (sample "(f encoding \"wte.weight\")" "'f32"))
     (let ((e ((field (lit entries)) get name))) (if (null? e) () (List ref 1 e))))
 
@@ -281,11 +406,24 @@
       (if (null? e) ()
         (do
           (if (null? fd) (Err raise (lit state) "Safetensors: the file is closed" name) ())
-          (let ((st (%st-state name e)) (bytes (%st-bytes e)))
+          (let ((st (%st-state name e)) (bytes (%st-bytes e)) (kernel (List ref 5 e)))
+            (def fill
+              (fn (_ buf n)
+                (if (int= (File read fd buf n) n) ()
+                  (Err raise (lit io) "Safetensors: the tensor's bytes do not read" name))))
             (if (int< 0 bytes)
               (do (File seek fd (int+ (field (lit start)) (List ref 3 e)))
-                  (if (int= (File read fd (List ref 4 st) bytes) bytes) ()
-                    (Err raise (lit io) "Safetensors: the tensor's bytes do not read" name)))
+                  (if (null? kernel) (fill (List ref 4 st) bytes)
+                    (let ((count (int/ bytes 2)) (dst (ptr->int (str->ptr (List ref 4 st)))))
+                      (let ((buf (str-make (int* 2 (if (int< count %st-chunk) count %st-chunk)))))
+                        ((fn (go done)
+                           (if (int< done count)
+                             (let ((n (if (int< (int- count done) %st-chunk) (int- count done) %st-chunk)))
+                               (fill buf (int* 2 n))
+                               (%st-widen kernel (ptr->int (str->ptr buf)) (int+ dst (int* 4 done)) n)
+                               (go (int+ done n)))
+                             ()))
+                          0)))))
               ())
             (Tensor %make st))))))
 
