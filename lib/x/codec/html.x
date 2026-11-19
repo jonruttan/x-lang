@@ -21,10 +21,11 @@
 ; too, each (field TYPE NAME VALUE ON OPTIONS FORM):
 ;
 ;   input                     TYPE text, search, password, email, url,
-;                             number, hidden, checkbox, radio or submit
-;                             (an unknown type is text; a button, reset,
-;                             image or file input is nothing), VALUE its
-;                             value ("on" for a box, "Submit" for a button)
+;                             number, hidden, checkbox, radio, file or
+;                             submit (an unknown type is text; a button,
+;                             reset or image input is nothing), VALUE its
+;                             value ("on" for a box, "Submit" for a button,
+;                             "" for a file, whose value a page cannot set)
 ;   textarea                  TYPE textarea, VALUE its text
 ;   select                    TYPE select, OPTIONS its options, each
 ;                             (VALUE . LABEL), VALUE the selected one's
@@ -33,9 +34,10 @@
 ;                             reset button is nothing)
 ;
 ; NAME is the name attribute or nil, ON whether a checkbox or radio is
-; checked, and FORM the form the field is in, (INDEX ACTION METHOD): the
-; form's number among the page's forms from 0, its action ("" with none)
-; and get or post; nil for a field in no form.  Any other element is its
+; checked, and FORM the form the field is in, (INDEX ACTION METHOD
+; ENCODING): the form's number among the page's forms from 0, its action
+; ("" with none), get or post, and multipart when its enctype is
+; multipart/form-data, else urlencoded; nil for a field in no form.  Any other element is its
 ; content: div and the other sectioning elements part blocks, span and the
 ; other phrasing elements join inlines.  head, script, style, template and
 ; iframe are dropped, as comments, doctypes and processing instructions
@@ -158,7 +160,7 @@
 
 ; An element is a vector: 0 its name, 1 its attributes ((NAME . VALUE) ...),
 ; 2 its children, last first, each a string or an element, 3 its parent, 4
-; a form's (INDEX ACTION METHOD), nil on any other element.  (eq? compares
+; a form's (INDEX ACTION METHOD ENCODING), nil on any other element.  (eq? compares
 ; a vector by its value word, its length: identity is same?.)
 (def %ht-node
   (fn (_ name attrs parent)
@@ -252,7 +254,7 @@
     (match ((null? (%ht-parent cur)) ())
            ((str=? (%ht-name cur) name) cur)
            (#t (go (%ht-parent cur) name)))))
-; The form ND is in, (INDEX ACTION METHOD), or nil.
+; The form ND is in, (INDEX ACTION METHOD ENCODING), or nil.
 (def %ht-form
   (fn (_ nd) ((fn (_ f) (match ((null? f) ()) (#t (obj-ref f 5)))) (%ht-nearest nd "form"))))
 ; CUR with the outermost open element named in NAMES closed, when one is
@@ -305,7 +307,9 @@
       (when (str=? name "form")
         (do (obj-set! nd 5
               (list forms (%ht-attr-or nd "action" "")
-                    (match ((str=? (%ht-lower (%ht-attr-or nd "method" "")) "post") (lit post)) (#t (lit get)))))
+                    (match ((str=? (%ht-lower (%ht-attr-or nd "method" "")) "post") (lit post)) (#t (lit get)))
+                    (match ((str=? (%ht-lower (%ht-attr-or nd "enctype" "")) "multipart/form-data") (lit multipart))
+                           (#t (lit urlencoded)))))
             (set! forms (int+ forms 1))))
       (set! cur (%ht-parent nd))
       (match
@@ -401,22 +405,23 @@
   (list (pair "text" (lit text)) (pair "search" (lit search)) (pair "password" (lit password))
         (pair "email" (lit email)) (pair "url" (lit url)) (pair "number" (lit number))
         (pair "hidden" (lit hidden)) (pair "checkbox" (lit checkbox)) (pair "radio" (lit radio))
-        (pair "submit" (lit submit))))
-; An input's field: an unknown type is text; a button, reset, image or file
-; input is nil.
+        (pair "file" (lit file)) (pair "submit" (lit submit))))
+; An input's field: an unknown type is text; a button, reset or image input
+; is nil.  A file input's value is "": a page cannot name the file.
 (def %ht-input
   (fn (_ x)
     (def kind (%ht-lower (%ht-attr-or x "type" "text")))
     (def hit (%ht-assoc kind %ht-input-types))
     (def type
       (match ((not (null? hit)) (rest hit))
-             ((%ht-member? kind (list "button" "reset" "image" "file")) ())
+             ((%ht-member? kind (list "button" "reset" "image")) ())
              (#t (lit text))))
     (match
       ((null? type) ())
       ((match ((eq? type (lit checkbox)) #t) (#t (eq? type (lit radio))))
         (%ht-field type x (%ht-attr-or x "value" "on") (not (null? (%ht-attr x "checked"))) ()))
       ((eq? type (lit submit)) (%ht-field type x (%ht-attr-or x "value" "Submit") #f ()))
+      ((eq? type (lit file)) (%ht-field type x "" #f ()))
       (#t (%ht-field type x (%ht-attr-or x "value" "") #f ())))))
 ; A textarea's field: its text as written, one line end after the tag left off.
 (def %ht-textarea
@@ -652,11 +657,11 @@
     (see parse) (see title))
   (static
     (method parse (self (param text STRING "HTML text"))
-      (doc "Parse HTML into a list of blocks as (Markdown parse) answers them: (heading LEVEL INLINES), (paragraph INLINES), (code-block INFO TEXT), (block-quote BLOCKS), (list ORDERED? START TIGHT? ITEMS) with each item a list of blocks, (thematic-break); a table a paragraph a row.  Inlines are strings and (emph INLINES), (strong INLINES), (code TEXT), (link HREF TITLE INLINES), (hardbreak), and a form's fields, (field TYPE NAME VALUE ON OPTIONS FORM): TYPE text, search, password, email, url, number, hidden, textarea, checkbox, radio, select or submit, ON whether a box is checked, OPTIONS a select's (VALUE . LABEL) options or a button element's one, FORM the form's (INDEX ACTION METHOD) or nil.  Tolerant of unclosed p, li, td and th, attributes in either quote or none, and names in any case; head, script, style and comments are dropped, entities decoded, white space collapsed."
+      (doc "Parse HTML into a list of blocks as (Markdown parse) answers them: (heading LEVEL INLINES), (paragraph INLINES), (code-block INFO TEXT), (block-quote BLOCKS), (list ORDERED? START TIGHT? ITEMS) with each item a list of blocks, (thematic-break); a table a paragraph a row.  Inlines are strings and (emph INLINES), (strong INLINES), (code TEXT), (link HREF TITLE INLINES), (hardbreak), and a form's fields, (field TYPE NAME VALUE ON OPTIONS FORM): TYPE text, search, password, email, url, number, hidden, file, textarea, checkbox, radio, select or submit, ON whether a box is checked, OPTIONS a select's (VALUE . LABEL) options or a button element's one, FORM the form's (INDEX ACTION METHOD ENCODING), ENCODING multipart or urlencoded, or nil.  Tolerant of unclosed p, li, td and th, attributes in either quote or none, and names in any case; head, script, style and comments are dropped, entities decoded, white space collapsed."
         (returns LIST "The page's blocks")
         (example "(Html parse \"<UL><li>one<li><a href=/u title='t'>two</a></UL>\")" "(('list #f () #t ((('paragraph (\"one\"))) (('paragraph (('link \"/u\" \"t\" (\"two\"))))))))")
         (example "(Html parse \"<pre>\\nx &lt; y\\n</pre><hr><blockquote>q</blockquote>\")" "(('code-block \"\" \"x < y\\n\") ('thematic-break) ('block-quote (('paragraph (\"q\")))))")
-        (example "(Html parse \"<form action=/s><input name=q> <input type=submit value=Go></form>\")" "(('paragraph (('field 'text \"q\" \"\" #f () (0 \"/s\" 'get)) \" \" ('field 'submit () \"Go\" #f () (0 \"/s\" 'get)))))"))
+        (example "(Html parse \"<form action=/s><input name=q> <input type=submit value=Go></form>\")" "(('paragraph (('field 'text \"q\" \"\" #f () (0 \"/s\" 'get 'urlencoded)) \" \" ('field 'submit () \"Go\" #f () (0 \"/s\" 'get 'urlencoded)))))"))
       (%ht-flow (%ht-kids (%ht-tree text))))
     (method title (self (param text STRING "HTML text"))
       (doc "The text of the page's <title>, its white space collapsed, or nil when it has none."

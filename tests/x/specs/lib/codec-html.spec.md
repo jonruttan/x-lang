@@ -101,7 +101,7 @@ decode) and (Entity at) read character references for both codecs.
   (Html parse "<form action=\"/s\" method=POST><p>Q: <input name=q value=\"a b\"> <input type=hidden name=h value=1><input type=checkbox name=c checked> <input type=radio name=r value=x> <select name=s><option>One<optgroup><option value=2 selected>Two</optgroup></select> <textarea name=t>\nline</textarea> <button name=b>Go</button> <input type=submit value=Send> <input type=reset value=Clear></p></form><form><input type=search name=z><button type=button>No</button></form><input type=password name=p>"))
 ```
 ---
-    (('paragraph ("Q: " ('field 'text "q" "a b" #f () (0 "/s" 'post)) " " ('field 'hidden "h" "1" #f () (0 "/s" 'post)) ('field 'checkbox "c" "on" #t () (0 "/s" 'post)) " " ('field 'radio "r" "x" #f () (0 "/s" 'post)) " " ('field 'select "s" "2" #f (("One" . "One") ("2" . "Two")) (0 "/s" 'post)) " " ('field 'textarea "t" "line" #f () (0 "/s" 'post)) " " ('field 'submit "b" "Go" #f (("Go" . "Go")) (0 "/s" 'post)) " " ('field 'submit () "Send" #f () (0 "/s" 'post)))) ('paragraph (('field 'search "z" "" #f () (1 "" 'get)))) ('paragraph (('field 'password "p" "" #f () ()))))
+    (('paragraph ("Q: " ('field 'text "q" "a b" #f () (0 "/s" 'post 'urlencoded)) " " ('field 'hidden "h" "1" #f () (0 "/s" 'post 'urlencoded)) ('field 'checkbox "c" "on" #t () (0 "/s" 'post 'urlencoded)) " " ('field 'radio "r" "x" #f () (0 "/s" 'post 'urlencoded)) " " ('field 'select "s" "2" #f (("One" . "One") ("2" . "Two")) (0 "/s" 'post 'urlencoded)) " " ('field 'textarea "t" "line" #f () (0 "/s" 'post 'urlencoded)) " " ('field 'submit "b" "Go" #f (("Go" . "Go")) (0 "/s" 'post 'urlencoded)) " " ('field 'submit () "Send" #f () (0 "/s" 'post 'urlencoded)))) ('paragraph (('field 'search "z" "" #f () (1 "" 'get 'urlencoded)))) ('paragraph (('field 'password "p" "" #f () ()))))
 
 ### a field keeps its place among the text: a label, a list item, a table cell; an unknown input type is text; a button's value and its text are both kept, a button with no text is Submit
 
@@ -110,7 +110,16 @@ decode) and (Entity at) read character references for both codecs.
   (Html parse "<form><label>Name <input type=tel name=n></label><ul><li><input type=checkbox name=a> a</ul><table><tr><td>k<td><input name=v value=1></table><button name=b value=1>Send</button><button></button></form>"))
 ```
 ---
-    (('paragraph ("Name " ('field 'text "n" "" #f () (0 "" 'get)))) ('list #f () #t ((('paragraph (('field 'checkbox "a" "on" #f () (0 "" 'get)) " a"))))) ('paragraph ("k | " ('field 'text "v" "1" #f () (0 "" 'get)))) ('paragraph (('field 'submit "b" "1" #f (("1" . "Send")) (0 "" 'get)) ('field 'submit () "Submit" #f (("Submit" . "Submit")) (0 "" 'get)))))
+    (('paragraph ("Name " ('field 'text "n" "" #f () (0 "" 'get 'urlencoded)))) ('list #f () #t ((('paragraph (('field 'checkbox "a" "on" #f () (0 "" 'get 'urlencoded)) " a"))))) ('paragraph ("k | " ('field 'text "v" "1" #f () (0 "" 'get 'urlencoded)))) ('paragraph (('field 'submit "b" "1" #f (("1" . "Send")) (0 "" 'get 'urlencoded)) ('field 'submit () "Submit" #f (("Submit" . "Submit")) (0 "" 'get 'urlencoded)))))
+
+### a file input is a field with no value; a form's enctype names its encoding, multipart/form-data in any case, anything else urlencoded
+
+```x
+(do (import x/codec/html)
+  (Html parse "<form method=post enctype=Multipart/Form-Data action=/up><input type=file name=f value=x.txt><input name=t></form><form enctype=text/plain><input type=file></form>"))
+```
+---
+    (('paragraph (('field 'file "f" "" #f () (0 "/up" 'post 'multipart)) ('field 'text "t" "" #f () (0 "/up" 'post 'multipart)))) ('paragraph (('field 'file () "" #f () (1 "" 'get 'urlencoded)))))
 
 ## title
 
