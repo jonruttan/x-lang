@@ -503,15 +503,19 @@ and a lang bundle's card has the same format.
   once and its standard output must be those lines, in order. A fence opened
   as `input`, earlier in the section, is its standard input: show the data a
   program reads.
+- **Output fences.** A lang with no comments cannot carry those lines. There
+  a fence opened as `output`, the next fence after the program, is what the
+  program prints, whole. A program has arrow comments or an output fence,
+  not both.
 - **Shell rows.** In a fence opened as `sh`, a row `COMMAND -> OUTPUT` is
   run from the project root and its standard output compared; `x` in a row is
   the x under test, and a trailing `  # note` is not part of the output.
   Shell rows are for the command line, in `## Run`.
 - **x-lang rows.** In a fence opened as `x-repl`, a row `EXPR -> VALUE` is an
   x-lang assertion, the form [spec.md](spec.md) uses, with a note after `;`.
-- **Not run.** A row without ` -> `, and a program with no such line, is not
-  run: write one only for what cannot be asserted, such as the interactive
-  session.
+- **Not run.** A row without ` -> `, and a program with neither arrows nor
+  an output fence, is not run: write one only for what cannot be asserted,
+  such as the interactive session.
 
 `make check-card` holds the format and runs the shell rows, and
 `make doc-examples` runs the x rows. In a bundle the check is the lang kit's:
