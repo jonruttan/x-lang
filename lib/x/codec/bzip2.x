@@ -124,10 +124,16 @@
     (if (int= i 256) ()
       (do (%wset! p i (%crc-entry (int<< i 24) 8)) (self p (int+ i 1))))))
 
-; The table, made once, as bunzip2.x's is; each encoder copies it into its
-; own tables, where the compiled engine reads it.
-(def %crc-words (%words 256))
-(%crc-fill! (str->ptr %crc-words) 0)
+; The table, made once, at the first encoder; each encoder copies it into its
+; own tables, where the compiled engine reads it.  Not made at load: its
+; words hold zero bytes, and a state image keeps a string only to its first.
+(def %crc-words ())
+(def %crc-table
+  (fn (_)
+    (do (when (null? %crc-words)
+          (let ((w (%words 256)))
+            (do (%crc-fill! (str->ptr w) 0) (set! %crc-words w))))
+        %crc-words)))
 
 (def %crc-byte
   (fn (_ p crc b)
@@ -821,7 +827,7 @@
     (obj-set! e %BLOCKP (str->ptr (obj-ref e %BLOCK)))
     (obj-set! e %TABLES (%words %TWORDS))
     (obj-set! e %TABP (str->ptr (obj-ref e %TABLES)))
-    (mem-copy (%at (obj-ref e %TABP) (int<< %CT %wshift)) (str->ptr %crc-words) (int<< 256 %wshift))
+    (mem-copy (%at (obj-ref e %TABP) (int<< %CT %wshift)) (str->ptr (%crc-table)) (int<< 256 %wshift))
     (obj-set! e %OUT (str-make 4096))
     (obj-set! e %OUTP (str->ptr (obj-ref e %OUT)))
     (obj-set! e %OUTCAP 4096)
