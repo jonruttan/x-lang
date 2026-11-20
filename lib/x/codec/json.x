@@ -20,6 +20,11 @@
 ; passes %json-window bytes of text.  A text of any length then costs the
 ; values it answers and a window's garbage.
 ;
+; Bytes and positions are machine integers, and the parser and the emitter
+; compare and step them through the int doors: under the numeric tower the
+; generic = < + and - dispatch on their operands' types, at a cost that a
+; walk over every byte of a text pays for every byte.
+;
 ; Emission escapes properly -- the gap that kept lib/x/logo/json.x app-only:
 ; " \ and control bytes come out as \" \\ \n \r \t \b \f or \u00XX.
 
@@ -31,7 +36,7 @@
 (import x/sys/gc)
 
 ; Fetch the byte-level string prims from the catalogue (ns `str` de-registered, R5).
-(import x/core/doors char->int io-display-to-str str-append str-byte-len str-byte-ref str-byte-sub)
+(import x/core/doors char->int int* int+ int- int< int= io-display-to-str str-append str-byte-len str-byte-ref str-byte-sub)
 ; display-to-str renders any number the way the printer would (int/bigint/float).
 ; The conversion dispatcher: (%json-cvt "2.5" %float) parses AND boxes a float
 ; via the float type's from-alist (%float is the documented convert type
@@ -47,15 +52,15 @@
 
 (def %json-ws?
   (fn (_ b) (match
-              ((= b 32) #t)
-              ((= b 9) #t)
-              ((= b 10) #t)
-              (#t (= b 13)))))
+              ((int= b 32) #t)
+              ((int= b 9) #t)
+              ((int= b 10) #t)
+              (#t (int= b 13)))))
 
 (def %json-skip-ws
   (fn (self s i len)
-    (if (< i len)
-      (if (%json-ws? (%json-byte s i)) (self s (+ i 1) len) i)
+    (if (int< i len)
+      (if (%json-ws? (%json-byte s i)) (self s (int+ i 1) len) i)
       i)))
 
 (def %json-err
@@ -67,9 +72,9 @@
 (def %json-word
   (fn (_ s i len w v)
     (def n (str-byte-len w))
-    (if (> (+ i n) len) (%json-err "truncated literal" i)
+    (if (int< len (int+ i n)) (%json-err "truncated literal" i)
       (if (str=? (str-byte-sub s i n) w)
-        (pair v (+ i n))
+        (pair v (int+ i n))
         (%json-err "unknown literal" i)))))
 
 ; --- numbers ---------------------------------------------------------------
@@ -78,42 +83,42 @@
 (def %json-num-byte?
   (fn (_ b)
     (match
-      ((if (>= b 48) (<= b 57) #f) #t)   ; 0-9
-      ((= b 45) #t) ((= b 43) #t)        ; - +
-      ((= b 46) #t)                      ; .
-      ((= b 101) #t) ((= b 69) #t)       ; e E
+      ((if (not (int< b 48)) (not (int< 57 b)) #f) #t)   ; 0-9
+      ((int= b 45) #t) ((int= b 43) #t)        ; - +
+      ((int= b 46) #t)                      ; .
+      ((int= b 101) #t) ((int= b 69) #t)       ; e E
       (#t #f))))
 
 (def %json-parse-number
   (fn (_ s i len)
     (def %end
       (let go ((j i))
-        (if (< j len) (if (%json-num-byte? (%json-byte s j)) (go (+ j 1)) j) j)))
-    (def %text (str-byte-sub s i (- %end i)))
+        (if (int< j len) (if (%json-num-byte? (%json-byte s j)) (go (int+ j 1)) j) j)))
+    (def %text (str-byte-sub s i (int- %end i)))
     (def %floaty
       (let go ((j i))
-        (if (>= j %end) #f
+        (if (not (int< j %end)) #f
           (let ((b (%json-byte s j)))
             (match
-              ((= b 46) #t)
-              ((= b 101) #t)
-              ((= b 69) #t)
-              (#t (go (+ j 1))))))))
+              ((int= b 46) #t)
+              ((int= b 101) #t)
+              ((int= b 69) #t)
+              (#t (go (int+ j 1))))))))
     ; JSON allows an exponent with no point (1e3); the float reader needs
     ; one, so an exponent with no point before it gets ".0" before its e.
     (def %epos
       (let go ((j i))
-        (if (>= j %end) ()
+        (if (not (int< j %end)) ()
           (let ((b (%json-byte s j)))
             (match
-              ((= b 46) ())
-              ((= b 101) (- j i))
-              ((= b 69) (- j i))
-              (#t (go (+ j 1))))))))
+              ((int= b 46) ())
+              ((int= b 101) (int- j i))
+              ((int= b 69) (int- j i))
+              (#t (go (int+ j 1))))))))
     (def %read-text
       (if (null? %epos) %text
         (str-append (str-append (str-byte-sub %text 0 %epos) ".0")
-          (str-byte-sub %text %epos (- (- %end i) %epos)))))
+          (str-byte-sub %text %epos (int- (int- %end i) %epos)))))
     ; %json-cvt, not the bits door (Float str->bits): that returns the raw IEEE bit
     ; pattern; the convert path boxes a real FLOAT value.
     (def %v (if %floaty (%json-cvt %read-text (eval (lit float) (module x/num/float))) (%str->number %text)))
@@ -125,7 +130,7 @@
 ; 4 hex digits at i -> integer (%str->number radix 16), error on short input.
 (def %json-hex4
   (fn (_ s i len)
-    (if (> (+ i 4) len) (%json-err "truncated \\u escape" i)
+    (if (int< len (int+ i 4)) (%json-err "truncated \\u escape" i)
       (let ((v (%str->number (str-byte-sub s i 4) 16)))
         (if (null? v) (%json-err "malformed \\u escape" i) v)))))
 
@@ -133,35 +138,35 @@
 (def %json-unicode
   (fn (_ s i len)
     (def hi (%json-hex4 s i len))
-    (if (if (>= hi 55296) (<= hi 56319) #f)          ; D800-DBFF: lead surrogate
-      (if (if (> (+ i 6) len) #t
-            (not (str=? (str-byte-sub s (+ i 4) 2) (str-append %json-bs "u"))))
+    (if (if (not (int< hi 55296)) (not (int< 56319 hi)) #f)          ; D800-DBFF: lead surrogate
+      (if (if (int< len (int+ i 6)) #t
+            (not (str=? (str-byte-sub s (int+ i 4) 2) (str-append %json-bs "u"))))
         (%json-err "lone lead surrogate" i)
-        (let ((lo (%json-hex4 s (+ i 6) len)))
-          (if (if (>= lo 56320) (<= lo 57343) #f)    ; DC00-DFFF: tail surrogate
+        (let ((lo (%json-hex4 s (int+ i 6) len)))
+          (if (if (not (int< lo 56320)) (not (int< 57343 lo)) #f)    ; DC00-DFFF: tail surrogate
             (pair (bytes->str (StrUtf8 encode
-                    (+ 65536 (+ (* 1024 (- hi 55296)) (- lo 56320)))))
-                  (+ i 10))
+                    (int+ 65536 (int+ (int* 1024 (int- hi 55296)) (int- lo 56320)))))
+                  (int+ i 10))
             (%json-err "lone lead surrogate" i))))
-      (if (if (>= hi 56320) (<= hi 57343) #f)
+      (if (if (not (int< hi 56320)) (not (int< 57343 hi)) #f)
         (%json-err "lone tail surrogate" i)
-        (pair (bytes->str (StrUtf8 encode hi)) (+ i 4))))))
+        (pair (bytes->str (StrUtf8 encode hi)) (int+ i 4))))))
 
 ; One escape char after the backslash -> (string . next-pos)
 (def %json-escape
   (fn (_ s i len)
-    (if (>= i len) (%json-err "truncated escape" i)
+    (if (not (int< i len)) (%json-err "truncated escape" i)
       (let ((b (%json-byte s i)))
         (match
-          ((= b 34) (pair %json-quote (+ i 1)))
-          ((= b 92) (pair %json-bs (+ i 1)))
-          ((= b 47) (pair "/" (+ i 1)))
-          ((= b 110) (pair (bytes->str (list 10)) (+ i 1)))   ; \n
-          ((= b 116) (pair (bytes->str (list 9)) (+ i 1)))    ; \t
-          ((= b 114) (pair (bytes->str (list 13)) (+ i 1)))   ; \r
-          ((= b 98) (pair (bytes->str (list 8)) (+ i 1)))     ; \b
-          ((= b 102) (pair (bytes->str (list 12)) (+ i 1)))   ; \f
-          ((= b 117) (%json-unicode s (+ i 1) len))           ; \uXXXX
+          ((int= b 34) (pair %json-quote (int+ i 1)))
+          ((int= b 92) (pair %json-bs (int+ i 1)))
+          ((int= b 47) (pair "/" (int+ i 1)))
+          ((int= b 110) (pair (bytes->str (list 10)) (int+ i 1)))   ; \n
+          ((int= b 116) (pair (bytes->str (list 9)) (int+ i 1)))    ; \t
+          ((int= b 114) (pair (bytes->str (list 13)) (int+ i 1)))   ; \r
+          ((int= b 98) (pair (bytes->str (list 8)) (int+ i 1)))     ; \b
+          ((int= b 102) (pair (bytes->str (list 12)) (int+ i 1)))   ; \f
+          ((int= b 117) (%json-unicode s (int+ i 1) len))           ; \uXXXX
           (#t (%json-err "unknown escape" i)))))))
 
 ; String body after the opening quote. seg marks the start of the pending
@@ -169,17 +174,17 @@
 ; finish as one byte-sub.
 (def %json-parse-string
   (fn (self s i len seg acc)
-    (if (>= i len) (%json-err "unterminated string" i)
+    (if (not (int< i len)) (%json-err "unterminated string" i)
       (let ((b (%json-byte s i)))
         (match
-          ((= b 34)
-            (pair (str-append acc (str-byte-sub s seg (- i seg))) (+ i 1)))
-          ((= b 92)
-            (let ((esc (%json-escape s (+ i 1) len)))
+          ((int= b 34)
+            (pair (str-append acc (str-byte-sub s seg (int- i seg))) (int+ i 1)))
+          ((int= b 92)
+            (let ((esc (%json-escape s (int+ i 1) len)))
               (self s (rest esc) len (rest esc)
                 (str-append acc
-                  (str-append (str-byte-sub s seg (- i seg)) (first esc))))))
-          (#t (self s (+ i 1) len seg acc)))))))
+                  (str-append (str-byte-sub s seg (int- i seg)) (first esc))))))
+          (#t (self s (int+ i 1) len seg acc)))))))
 
 ; --- values ----------------------------------------------------------------
 (def %json-parse-value ())
@@ -189,69 +194,69 @@
 (def %json-debt (pair 0 ()))
 (def %json-owe!
   (fn (_ k)
-    (let ((d (+ (first %json-debt) k)))
-      (if (< d %json-window) (%set-first! %json-debt d)
+    (let ((d (int+ (first %json-debt) k)))
+      (if (int< d %json-window) (%set-first! %json-debt d)
         (do (%set-first! %json-debt 0) (Heap collect))))))
 
 (def %json-parse-array
   (fn (self s i len acc)
     (def j (%json-skip-ws s i len))
-    (if (>= j len) (%json-err "unterminated array" j)
-      (if (= (%json-byte s j) 93)                              ; ]
-        (pair (%reverse acc) (+ j 1))
+    (if (not (int< j len)) (%json-err "unterminated array" j)
+      (if (int= (%json-byte s j) 93)                              ; ]
+        (pair (%reverse acc) (int+ j 1))
         (let ((v (%json-parse-value s j len)))
           (let ((k (%json-skip-ws s (rest v) len)))
-            (if (>= k len) (%json-err "unterminated array" k)
+            (if (not (int< k len)) (%json-err "unterminated array" k)
               (match
-                ((= (%json-byte s k) 44)                       ; ,
-                  (self s (+ k 1) len (pair (first v) acc)))
-                ((= (%json-byte s k) 93)                       ; ]
-                  (pair (%reverse (pair (first v) acc)) (+ k 1)))
+                ((int= (%json-byte s k) 44)                       ; ,
+                  (self s (int+ k 1) len (pair (first v) acc)))
+                ((int= (%json-byte s k) 93)                       ; ]
+                  (pair (%reverse (pair (first v) acc)) (int+ k 1)))
                 (#t (%json-err "expected , or ] in array" k))))))))))
 
 (def %json-parse-object
   (fn (self s i len d)
     (def j (%json-skip-ws s i len))
     (match
-      ((>= j len) (%json-err "unterminated object" j))
-      ((= (%json-byte s j) 125)
+      ((not (int< j len)) (%json-err "unterminated object" j))
+      ((int= (%json-byte s j) 125)
         ; }
-        (pair d (+ j 1)))
-      ((not (= (%json-byte s j) 34)) (%json-err "expected a string key" j))
+        (pair d (int+ j 1)))
+      ((not (int= (%json-byte s j) 34)) (%json-err "expected a string key" j))
       (#t
-        (let ((key (%json-parse-string s (+ j 1) len (+ j 1) "")))
-          (%json-owe! (- (rest key) j))
+        (let ((key (%json-parse-string s (int+ j 1) len (int+ j 1) "")))
+          (%json-owe! (int- (rest key) j))
           (let ((c (%json-skip-ws s (rest key) len)))
-            (if (if (>= c len) #t (not (= (%json-byte s c) 58)))   ; :
+            (if (if (not (int< c len)) #t (not (int= (%json-byte s c) 58)))   ; :
               (%json-err "expected : after key" c)
-              (let ((v (%json-parse-value s (+ c 1) len)))
+              (let ((v (%json-parse-value s (int+ c 1) len)))
                 (do (d set! (first key) (first v))
                     (let ((k (%json-skip-ws s (rest v) len)))
-                      (if (>= k len) (%json-err "unterminated object" k)
+                      (if (not (int< k len)) (%json-err "unterminated object" k)
                         (match
-                          ((= (%json-byte s k) 44) (self s (+ k 1) len d))
-                          ((= (%json-byte s k) 125) (pair d (+ k 1)))
+                          ((int= (%json-byte s k) 44) (self s (int+ k 1) len d))
+                          ((int= (%json-byte s k) 125) (pair d (int+ k 1)))
                           (#t (%json-err "expected , or } in object" k))))))))))))))
 
 (set! %json-parse-value
   (fn (_ s i len)
     (def j (%json-skip-ws s i len))
-    (if (>= j len) (%json-err "unexpected end of input" j)
+    (if (not (int< j len)) (%json-err "unexpected end of input" j)
       (let ((b (%json-byte s j)))
         (match
-          ((= b 123) (%json-parse-object s (+ j 1) len (Dict make)))
-          ((= b 91) (%json-parse-array s (+ j 1) len ()))
+          ((int= b 123) (%json-parse-object s (int+ j 1) len (Dict make)))
+          ((int= b 91) (%json-parse-array s (int+ j 1) len ()))
           (#t
             ; a string, a number or a word: its length is owed once it is parsed
             (let ((v (match
-                       ((= b 34) (%json-parse-string s (+ j 1) len (+ j 1) ""))
-                       ((= b 116) (%json-word s j len "true" #t))
-                       ((= b 102) (%json-word s j len "false" #f))
-                       ((= b 110) (%json-word s j len "null" 'null))
-                       ((= b 45) (%json-parse-number s j len))
-                       ((if (>= b 48) (<= b 57) #f) (%json-parse-number s j len))
+                       ((int= b 34) (%json-parse-string s (int+ j 1) len (int+ j 1) ""))
+                       ((int= b 116) (%json-word s j len "true" #t))
+                       ((int= b 102) (%json-word s j len "false" #f))
+                       ((int= b 110) (%json-word s j len "null" 'null))
+                       ((int= b 45) (%json-parse-number s j len))
+                       ((if (not (int< b 48)) (not (int< 57 b)) #f) (%json-parse-number s j len))
                        (#t (%json-err "unexpected byte" j)))))
-              (%json-owe! (- (rest v) j))
+              (%json-owe! (int- (rest v) j))
               v)))))))
 
 ; --- emission ---------------------------------------------------------------
@@ -269,26 +274,26 @@
     (def %esc
       (fn (_ b)
         (match
-          ((= b 34) (str-append %json-bs %json-quote))
-          ((= b 92) (str-append %json-bs %json-bs))
-          ((= b 10) (str-append %json-bs "n"))
-          ((= b 9) (str-append %json-bs "t"))
-          ((= b 13) (str-append %json-bs "r"))
-          ((= b 8) (str-append %json-bs "b"))
-          ((= b 12) (str-append %json-bs "f"))
+          ((int= b 34) (str-append %json-bs %json-quote))
+          ((int= b 92) (str-append %json-bs %json-bs))
+          ((int= b 10) (str-append %json-bs "n"))
+          ((int= b 9) (str-append %json-bs "t"))
+          ((int= b 13) (str-append %json-bs "r"))
+          ((int= b 8) (str-append %json-bs "b"))
+          ((int= b 12) (str-append %json-bs "f"))
           (#t (%json-ctl b)))))
     (def %needs?
-      (fn (_ b) (if (= b 34) #t (if (= b 92) #t (< b 32)))))
+      (fn (_ b) (if (int= b 34) #t (if (int= b 92) #t (int< b 32)))))
     (let go ((i 0) (seg 0) (acc %json-quote))
-      (if (>= i len)
+      (if (not (int< i len))
         (str-append acc
-          (str-append (str-byte-sub s seg (- i seg)) %json-quote))
+          (str-append (str-byte-sub s seg (int- i seg)) %json-quote))
         (let ((b (%json-byte s i)))
           (if (%needs? b)
-            (go (+ i 1) (+ i 1)
+            (go (int+ i 1) (int+ i 1)
                 (str-append acc
-                  (str-append (str-byte-sub s seg (- i seg)) (%esc b))))
-            (go (+ i 1) seg acc)))))))
+                  (str-append (str-byte-sub s seg (int- i seg)) (%esc b))))
+            (go (int+ i 1) seg acc)))))))
 
 (def %json-emit ())
 
@@ -352,7 +357,7 @@
         (example "(Json parse \"[1, 2.5, null]\")" "(1 2.5 'null)"))
       (def len (str-byte-len s))
       (def v (%json-parse-value s 0 len))
-      (if (< (%json-skip-ws s (rest v) len) len)
+      (if (int< (%json-skip-ws s (rest v) len) len)
         (%json-err "trailing content" (rest v))
         (first v)))
     (method emit (self (param v ANY "Value to serialize"))
