@@ -279,6 +279,86 @@ jobs:
       - name: Contract gates
         run: make gates
 
+  # THE HOSTED LANGUAGES, AGAINST THIS TREE.  `make gates` runs check-langs
+  # and on a runner it skips every bundle, since none is on the disk; a
+  # bundle's own CI tests this repository's main only after a push to the
+  # bundle, or weekly, and that leg is allowed to fail.  So a change here
+  # that breaks Python, Logo or Scheme was first seen in another repository
+  # days later.  This job clones the four bundles at their default branches
+  # and runs check-langs on each: the counts and budgets are
+  # tools/contract/langs.x's, so recorded debt stays green and a new failure
+  # is red.
+  #
+  # A pull request runs it when it touches what a bundle is built on: the
+  # library, the engine pin, the wrapper, the spec runner, the lang kit or
+  # this gate.  A push to main that no pull request tested runs it always.
+  # Linux only: the macOS legs are at the plan's concurrency cap.  Python is
+  # four shards, as in its own CI; a shard reports `suite shrank`, which is
+  # loud and not a failure.  r7rs is written on r5rs and finds it beside
+  # itself, so every leg clones all four.
+  langs:
+    name: hosted langs (${{ matrix.lang }}${{ matrix.shard }})
+    needs: reuse
+    if: ${{ !cancelled() && needs.reuse.outputs.tested != 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      pull-requests: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { lang: python, shard: ' 0/4', env: 'SPEC_SHARD=0/4' }
+          - { lang: python, shard: ' 1/4', env: 'SPEC_SHARD=1/4' }
+          - { lang: python, shard: ' 2/4', env: 'SPEC_SHARD=2/4' }
+          - { lang: python, shard: ' 3/4', env: 'SPEC_SHARD=3/4' }
+          - { lang: logo, shard: '', env: '' }
+          - { lang: r5rs, shard: '', env: 'SPEC_BATCH=1' }
+          - { lang: r7rs, shard: '', env: 'SPEC_BATCH=1' }
+    steps:
+      - uses: actions/checkout@v7
+      - id: touched
+        name: Whether the change touches what a bundle is built on
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          run=true
+          if [ -n "$PR" ]; then
+            run=false
+            if gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename' \
+               | grep -E -q '^(lib/|x\.sh$|Makefile$|tools/engine/engine\.pin\.xon$|tools/lang-kit/|tests/x/spec-runner|tools/check/langs\.sh$|tools/contract/langs\.x$|\.github/workflows/ci\.yml$)'; then
+              run=true
+            fi
+          fi
+          [ "$run" = true ] || echo "nothing a bundle is built on changed: not run"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - name: Clone the hosted languages
+        if: steps.touched.outputs.run == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/languages"
+          for name in python logo r5rs r7rs; do
+            git clone --quiet --depth 1 "https://github.com/jonruttan/x-$name.git" \
+              "$RUNNER_TEMP/languages/x-$name"
+            echo "x-$name $(git -C "$RUNNER_TEMP/languages/x-$name" rev-parse --short HEAD)"
+          done
+      - name: Build the platform
+        if: steps.touched.outputs.run == 'true'
+        run: |
+          make engine
+          make
+          make boot
+      - name: Run the suite against this tree
+        if: steps.touched.outputs.run == 'true'
+        run: |
+          env ${{ matrix.env }} LANGS="${{ matrix.lang }}" \
+            X_LANGS_DIR="$RUNNER_TEMP/languages" LANGS_LOG_DIR="$RUNNER_TEMP/langs-log" \
+            make check-langs
+      - name: The suite's log
+        if: ${{ failure() && steps.touched.outputs.run == 'true' }}
+        run: tail -n 200 "$RUNNER_TEMP/langs-log/${{ matrix.lang }}.log"
+
   lint:
     name: lint (${{ matrix.os }})
     needs: reuse
