@@ -8,7 +8,7 @@
 ; adopted only after it agrees with this one.
 ;
 ; A word holds an integer or a double's IEEE bits, and the operator says
-; which.  + - * < = >> << & and (*>> A B K) are the integer operations,
+; which.  + - * / < = >> << & and (*>> A B K) are the integer operations,
 ; through the int doors.
 ;
 ; Addresses are integers.  (%mem-byte-ref-at A I) is the byte at A + I,
@@ -35,7 +35,7 @@
 ; rounded to a single is the one single arithmetic answers.
 (module x/tool/word-form)
 
-(import x/core/doors int& int* int+ int- int->ptr int< int= int>> int<< ptr-ref ptr-set! ptr-ref-word ptr-set-word! type-make-instance)
+(import x/core/doors int& int* int+ int- int/ int->ptr int< int= int>> int<< ptr-ref ptr-set! ptr-ref-word ptr-set-word! type-make-instance)
 (import x/num/fixed fixed*)
 (import x/type/vector)
 (import x/type/list)
@@ -58,7 +58,7 @@
           v))))
 
 (def %word-form-ops
-  (list (pair (lit +) int+) (pair (lit -) int-) (pair (lit *) int*) (pair (lit <) int<)
+  (list (pair (lit +) int+) (pair (lit -) int-) (pair (lit *) int*) (pair (lit /) int/) (pair (lit <) int<)
         (pair (lit =) int=) (pair (lit >>) int>>) (pair (lit <<) int<<) (pair (lit &) int&)
         (pair (lit *>>) fixed*)
         (pair (lit %mem-byte-ref-at) (fn (_ a i) (int& (ptr-ref (int->ptr (int+ a i)) 0 1) 255)))
@@ -140,9 +140,10 @@
       (#t form))))
 
 (doc word-form-pure "The function FORM means, as pure x: its operators bound to the int doors and x/num/float's stubs, so it runs where compile-asm cannot and answers what compile-asm's answers."
-  (param form LIST "A (fn (self ...) ...) form over machine words: on integers + - * < = >> << &, (*>> a b k) for a product shifted down k places through 64 bits; on doubles' bits f+ f- f* f/ f-sqrt, libm's f-exp, f-tanh and f-erf, the comparisons f< f=, and i->f f->i between the two; if, match, do; the %mem- byte and word loads and stores, the double loads and stores f-ref and f-set!, and f32-ref and f32-set!, which load a single as a double and store a double rounded to a single")
+  (param form LIST "A (fn (self ...) ...) form over machine words: on integers + - * / < = >> << &, (*>> a b k) for a product shifted down k places through 64 bits; on doubles' bits f+ f- f* f/ f-sqrt, libm's f-exp, f-tanh and f-erf, the comparisons f< f=, and i->f f->i between the two; if, match, do; the %mem- byte and word loads and stores, the double loads and stores f-ref and f-set!, and f32-ref and f32-set!, which load a single as a double and store a double rounded to a single")
   (returns CALLABLE "The function")
   (example "(do (import x/tool/word-form word-form-pure) ((word-form-pure (lit (fn (self n acc) (if (< n 1) acc (self (- n 1) (+ acc n)))))) 4 0))" "10")
+  (example "(do (import x/tool/word-form word-form-pure) ((word-form-pure (lit (fn (_ a b) (/ a b)))) 17 5))" "3")
   (example "(do (import x/tool/word-form word-form-pure) (import x/num/float) (equal? ((word-form-pure (lit (fn (_ a b) (f* a b)))) (first (Float from 3)) (first (Float from 2))) (first (Float from 6))))" "#t"))
 
 (doc word-form-wide "FORM as compile-asm takes it on an 8-byte word, where one word holds a product and a double: each (*>> a b k) written as (>> (* a b) k), each f-ref and f-set! as the word load and store."
