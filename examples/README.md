@@ -38,6 +38,7 @@ Needs `-l xe` (xenon), which adds the numeric tower, regular expressions,
 |------|---------------|
 | [`xe/numeric-tower.x`](xe/numeric-tower.x) | Automatic promotion across integers, bigints, rationals, floats, and complex numbers |
 | [`xe/regex.x`](xe/regex.x) | The `#/pattern/` literal, and a regex used as a **callable value** |
+| [`xe/scenes.x`](xe/scenes.x) | Seven animated scenes: figures made, placed and morphed, drawn as frames or played in a browser or a window |
 
 ```sh
 sh x.sh -l xe -f examples/xe/numeric-tower.x

@@ -1,0 +1,7 @@
+create-circle (105 36 95 255)
+square-to-circle (0 0 0 255)
+square-and-circle (105 36 95 255)
+animated-square-to-circle (105 36 95 255)
+different-rotations (0 0 0 255)
+two-transforms (0 0 0 255)
+transform-cycle (0 0 0 255)
