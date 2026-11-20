@@ -190,6 +190,107 @@ word.
 ---
     ("b" "d" "a" "c")
 
+## Column arithmetic and map
+
+### add, sub, mul and div, by a column or by a number
+
+```x
+(import x/data/table)
+(let ((a (Column from '(3.0 5.0))) (b (Column from '(2.0 4.0))))
+  (list ((a add b) ->list) ((a sub b) ->list) ((a mul b) ->list) ((a div b) ->list)
+        ((a add 1.5) ->list) ((a mul 2.0) ->list) (a ->list)))
+```
+---
+    ((5.0 9.0) (1.0 1.0) (6.0 20.0) (1.5 1.25) (4.5 6.5) (6.0 10.0) (3.0 5.0))
+
+### map answers a column of what the function answers, its encoding read from them
+
+```x
+(import x/data/table)
+(let ((names (Column from '("Ann" "Bo"))) (nums (Column from '(1.5 2.5))))
+  (list ((names map (fn (_ s) (equal? s "Bo"))) ->list)
+        ((nums map (fn (_ x) (Float * x x))) ->list)
+        ((nums map (fn (_ x) (Float * x x))) encoding)
+        ((nums map (fn (_ x) (< 2 x))) encoding)))
+```
+---
+    ((#f #t) (2.25 6.25) 'f64 'any)
+
+### arithmetic on a column of encoding any is refused
+
+```x
+(import x/data/table)
+(guard (e (Err label e)) ((Column from '("Ann")) add 1.0))
+```
+---
+    'value
+
+## Adding and changing columns
+
+### put adds a new column last, and replaces one where it stands
+
+```x
+(import x/data/table)
+(let ((t (Table from '((age (31.0 45.0)) (name ("Ann" "Bo"))))))
+  (let ((added (t put 'city '("Ely" "Ayr")))
+        (replaced (t put 'age '(1.0 2.0))))
+    (list (added names) (added row 0)
+          (replaced names) (replaced row 0)
+          (t names) (t row 0))))
+```
+---
+    (('age 'name 'city) (31.0 "Ann" "Ely") ('age 'name) (1.0 "Ann") ('age 'name) (31.0 "Ann"))
+
+### put takes a Column, so a column worked out from others goes straight in
+
+```x
+(import x/data/table)
+(let ((t (Table from '((w (8.0 18.0)) (h (2.0 3.0))))))
+  (((t put 'r ((t column 'w) div ((t column 'h) mul (t column 'h)))) column 'r) ->list))
+```
+---
+    (2.0 2.0)
+
+### derive calls a function with each row's values of the named columns
+
+```x
+(import x/data/table)
+(let ((t (Table from '((w (8.0 18.0)) (h (2.0 3.0)) (name ("Ann" "Bo"))))))
+  (list (((t derive 'r '(w h) (fn (_ w h) (Float / w (Float * h h)))) column 'r) ->list)
+        (((t derive 'big '(w) (fn (_ w) (< 10 w))) column 'big) ->list)
+        ((t derive 'big '(w) (fn (_ w) (< 10 w))) names)
+        (((t derive 'w '(w) (fn (_ w) (Float * w 2.0))) column 'w) ->list)))
+```
+---
+    ((2.0 2.0) (#f #t) ('w 'h 'name 'big) (16.0 36.0))
+
+### remove and rename
+
+```x
+(import x/data/table)
+(let ((t (Table from '((age (31.0)) (name ("Ann")) (city ("Ely"))))))
+  (list ((t remove 'name) names) ((t remove 'name) row 0)
+        ((t rename 'age 'years) names) (((t rename 'age "years") column 'years) ->list)
+        (t names)))
+```
+---
+    (('age 'city) (31.0 "Ely") ('years 'name 'city) (31.0) ('age 'name 'city))
+
+### a column of the wrong length, an unknown name, a name taken, and derive of no columns are refused
+
+```x
+(import x/data/table)
+(let ((t (Table from '((age (31.0 45.0)) (name ("Ann" "Bo"))))))
+  (list (guard (e (Err label e)) (t put 'city '("Ely")))
+        (guard (e (Err label e)) (t remove 'height))
+        (guard (e (Err label e)) (t rename 'height 'h))
+        (guard (e (Err label e)) (t rename 'age 'name))
+        (guard (e (Err label e)) (t derive 'x '() (fn (_) 1.0)))
+        (guard (e (Err label e)) (t derive 'x '(height) (fn (_ h) h)))))
+```
+---
+    ('value 'value 'value 'value 'value 'value)
+
 ## Handing a table to a model
 
 ### matrix answers the named columns as an f64 Matrix, a row for each row
@@ -236,7 +337,8 @@ word.
 
 ```x
 (import x/data/table)
-(list ((Doc entry 'Table) known-as) ((Doc entry 'Table/sort) known-as))
+(list ((Doc entry 'Table) known-as) ((Doc entry 'Table/sort) known-as)
+      ((Doc entry 'Table/derive) known-as) ((Doc entry 'Table/put) known-as))
 ```
 ---
-    (("DataFrame" "data frame") ("arrange" "order by"))
+    (("DataFrame" "data frame") ("arrange" "order by") ("mutate" "transform") ("assign" "with column"))
