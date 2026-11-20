@@ -29,7 +29,8 @@
 ; element as a Tensor's do, and any Column answers map.
 ;
 ; filter and sort find the rows to keep as a list of row numbers, once,
-; and each column is then gathered by it.
+; and each column is then gathered by it: a column of numbers by its
+; Tensor's gather.
 ;
 ; @copyright 2026 Jon Ruttan
 ; @license MIT No Attribution (MIT-0)
@@ -98,16 +99,10 @@
     (method %of-list (self lst)
       (if (if (pair? lst) (%numbers? lst) #f)
         (self %of-tensor (Tensor from lst))
-        (new-from self (list (lit encoding) (lit any) (lit data) (Vector from-list lst)))))
+        (self %of-any lst)))
 
-    ; A column of LST in the encoding of LIKE, which the values came from:
-    ; a list of none keeps the encoding, where from would answer any.
-    (method %as (self like lst)
-      (match
-        ((eq? (like encoding) (lit any))
-          (new-from self (list (lit encoding) (lit any) (lit data) (Vector from-list lst))))
-        ((null? lst) (self %of-tensor (Tensor zeros 0 (like encoding))))
-        (#t (self %of-tensor (Tensor from lst (like encoding)))))))
+    (method %of-any (self lst)
+      (new-from self (list (lit encoding) (lit any) (lit data) (Vector from-list lst)))))
 
   (method encoding (self)
     (doc "How the values are held: a Tensor's encoding, or any."
@@ -180,10 +175,14 @@
       (example "(((Column from '(1.5 2.5)) map (fn (_ x) (< 2 x))) ->list)" "(#f #t)"))
     (Column from (List map f (self ->list))))
 
-  ; The values at the row numbers of ROWS, as a column of this encoding.
+  ; The values at the row numbers of ROWS, as a column of this encoding:
+  ; a Tensor's by its gather, a copy of each value's bytes, and a
+  ; Vector's by reading each.
   (method %take (self rows)
-    (let ((v (Vector from-list (self ->list))))
-      (Column %as self (List map (fn (_ i) (Vector ref i v)) rows))))
+    (if (eq? (field (lit encoding)) (lit any))
+      (let ((v (field (lit data))))
+        (Column %of-any (List map (fn (_ i) (Vector ref i v)) rows)))
+      (Column %of-tensor ((field (lit data)) gather rows))))
 
   (method sum (self)
     (doc "The sum of the values." (returns NUMBER "The sum")
