@@ -332,6 +332,33 @@ word.
 ---
     ((2020.0 2021.0) 'f64 (("Ann" "Cy") ("Bo")))
 
+### whole numbers, numbers with fractions, and values of mixed kinds all part the same way
+
+```x
+(import x/data/table)
+(let ((whole (Table from '((k (3.0 1.0 3.0 2.0 1.0)) (v (1.0 2.0 3.0 4.0 5.0)))))
+      (parts (Table from '((k (0.5 1.5 0.5)) (v (1.0 2.0 3.0)))))
+      (mixed (Table from (list (list 'k (list "a" () "a" 2.5 ())) (list 'v '(1.0 2.0 3.0 4.0 5.0))))))
+  (let ((sums (fn (_ t) ((t aggregate 'k (list (list 's 'v (fn (_ c) (c sum))))) ->list))))
+    (list (sums whole) (sums parts) (sums mixed))))
+```
+---
+    ((('k (3.0 1.0 2.0)) ('s (4.0 7.0 4.0))) (('k (0.5 1.5)) ('s (4.0 2.0))) (('k ("a" () 2.5)) ('s (4.0 7.0 4.0))))
+
+### many distinct values come in first-seen order, each with all its rows
+
+```x
+(import x/data/table)
+(let ((keys (List map (fn (_ i) (Float from (% (* i 7) 50))) (List range 0 200))))
+  (let ((t (Table from (list (list 'k keys) (list 'one (List map (fn (_ i) 1.0) keys))))))
+    (let ((a (t aggregate 'k (list (list 'n 'one (fn (_ c) (c sum)))))))
+      (list (a extent)
+            (List take 4 ((a column 'k) ->list))
+            ((a column 'n) least) ((a column 'n) greatest) ((a column 'n) sum)))))
+```
+---
+    ((50 2) (0.0 7.0 14.0 21.0) 4.0 4.0 200.0)
+
 ### a count of the rows with each value
 
 ```x

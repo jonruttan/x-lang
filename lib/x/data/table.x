@@ -41,8 +41,8 @@
 (import x/type/class)
 (import x/type/list)
 (import x/type/vector)
-(import x/core/doors str->sym)
-(import x/num/float float? float-of)
+(import x/core/doors str->sym type-of)
+(import x/num/float Float float? float-of f-eq f-lt)
 (import x/num/tensor)
 
 ; A name as a symbol: a symbol as it is, a string made one.
@@ -69,6 +69,34 @@
       (let go ((lists lists) (acc ()))
         (if (null? (first lists)) (List reverse acc)
           (go (List map rest lists) (pair (List map first lists) acc)))))))
+
+; What a value is looked up by in a hashed table, for the values of LST
+; taken together: a function from a value to its key, or () where the
+; values have none.  Strings, symbols and integers are their own keys;
+; an integer is told by its type, since number? is true of a Float too.
+; Floats that are whole, and within a thousand million of 0 so they are
+; integers on any word, are keyed by that integer.  A list that mixes the
+; two, or holds any other value, has none.
+(def %whole-bound (float-of 1000000000))
+(def %int-type (type-of 0))
+(def %category-key
+  (fn (_ lst)
+    (let go ((left lst) (plain #t) (whole #t))
+      (match
+        ((null? left)
+          (match (plain (fn (_ v) v)) (whole (fn (_ v) (Float ->int v))) (#t ())))
+        ((if plain #f (not whole)) ())
+        (#t
+          (let ((v (first left)))
+            (go (rest left)
+                (if plain (if (str? v) #t (if (symbol? v) #t (if (null? v) #f (eq? (type-of v) %int-type)))) #f)
+                (if whole
+                  (if (float? v)
+                    (if (f-lt v %whole-bound)
+                      (if (f-lt (float-of -1000000000) v) (f-eq (float-of (Float ->int v)) v) #f)
+                      #f)
+                    #f)
+                  #f))))))))
 
 (def-class Column ()
   (doc "A run of values of one encoding, as a table holds under a name. Where every value is an integer or a Float it is held as a rank-1 Tensor and answers its statistics; any other column holds the values as they are, its encoding any."
@@ -406,23 +434,41 @@
                  (field (lit columns)))))
 
   ; The distinct values of the named column, in the order they first
-  ; come, each with the row numbers it stands at.  The values are walked
-  ; once to find the distinct ones and once for each of those.
+  ; come, each with the row numbers it stands at.  Where the values have
+  ; keys they are found in a hashed table, one lookup a row; where they
+  ; have none, by %categories-walk.
   (method %categories (self name)
+    (import x/type/dict)
     (let ((values ((self column name) ->list)))
-      (List map
-        (fn (_ key)
-          (pair key
-            (let go ((left values) (i 0) (acc ()))
-              (match
-                ((null? left) (List reverse acc))
-                ((equal? (first left) key) (go (rest left) (+ i 1) (pair i acc)))
-                (#t (go (rest left) (+ i 1) acc))))))
-        (let go ((left values) (acc ()))
-          (match
-            ((null? left) (List reverse acc))
-            ((List includes? (first left) acc) (go (rest left) acc))
-            (#t (go (rest left) (pair (first left) acc))))))))
+      (let ((key (%category-key values)))
+        (if (null? key) (self %categories-walk values)
+          (let ((rows (Dict make)))
+            (let go ((left values) (i 0) (seen ()))
+              (if (null? left)
+                (List map (fn (_ c) (pair (rest c) (List reverse (rows get (first c)))))
+                          (List reverse seen))
+                (let ((k (key (first left))))
+                  (let ((had (rows get k)))
+                    (rows set! k (pair i had))
+                    (go (rest left) (+ i 1)
+                        (if (null? had) (pair (pair k (first left)) seen) seen)))))))))))
+
+  ; The same by comparing values with equal?: the values are walked once
+  ; to find the distinct ones and once for each of those.
+  (method %categories-walk (self values)
+    (List map
+      (fn (_ key)
+        (pair key
+          (let go ((left values) (i 0) (acc ()))
+            (match
+              ((null? left) (List reverse acc))
+              ((equal? (first left) key) (go (rest left) (+ i 1) (pair i acc)))
+              (#t (go (rest left) (+ i 1) acc))))))
+      (let go ((left values) (acc ()))
+        (match
+          ((null? left) (List reverse acc))
+          ((List includes? (first left) acc) (go (rest left) acc))
+          (#t (go (rest left) (pair (first left) acc)))))))
 
   (method split (self (param name SYMBOL|STRING "The column whose distinct values part the rows"))
     (doc "Each distinct value of the named column with the table of the rows that have it, in the order the values first come. Rows keep their order."
