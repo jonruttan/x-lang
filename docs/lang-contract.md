@@ -418,6 +418,12 @@ for equality with the `version` stamp the install wrote, and
 `--allow-lang-skew` waives it, for a lang and a library alike. A required
 library keys the bundle's state image.
 
+**A library's own suite uses the same generator.** Run on a tree that
+carries a `lib.xon`, `tools/lang-kit/gen-harness.sh` boots helium, or the
+dialect `DIALECT` names, since a library declares none; arms the library's
+own root first, then what it requires and what is installed; and reads a
+`tests/harness.x` only when the library has one.
+
 ## The seam
 
 This is what a lang may rely on. It is declared in
@@ -674,6 +680,11 @@ Four things that are not obvious, each of which costs an afternoon:
     loaded from the amalgam `make boot` writes -- `<root>/boot/` in an install,
     `<root>/build/boot/` in a checkout. An entry itself would start its REPL
     underneath the suite;
+  - an `(import-path! … 'after)` for each library: those the
+    `(requires-lib …)` rows name, deepest first, found in `X_LIBS_DIR`,
+    beside the bundle, then among the acquired libs, and then every
+    installed one, as `x.sh` arms them. A library is armed once by name, so
+    a sibling checkout answers ahead of an installed copy;
   - an `import-path!` for each `(requires-lang …)`, deepest first, each lang
     found by the name its `lang.xon` declares in `X_LANG_DIR`, beside the
     bundle, then among the acquired langs, with versions not compared (a

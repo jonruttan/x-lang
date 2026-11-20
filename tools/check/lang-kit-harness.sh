@@ -10,6 +10,11 @@
 #     bundle's siblings, and armed deepest first, each once;
 #   - the bundle's own root, %lang-root and %lang-lead follow, then its
 #     tests/harness.x;
+#   - required libraries are found the same way, X_LIBS_DIR ahead of the
+#     siblings, and armed after the platform's root with every installed
+#     one, each once by name;
+#   - a library's own suite boots helium or the dialect DIALECT names, with
+#     its own root the first library armed and no lang root;
 #   - each way the inputs can be wrong stops with a message naming it;
 #   - in this tree, every dialect's body has an amalgam in build/boot/.
 #
@@ -151,6 +156,77 @@ refuses "two bundles claiming one name" "two bundles both call themselves 'dup'"
 
 bundle "$TMP/missing/t" t he nowhere
 refuses "a required lang that is not there" "lang 'nowhere' is required but was not found" "$(gen "$TMP/missing/t" || true)"
+
+# lib DIR NAME [REQUIRED...] -- a library
+lib() {
+	_d="$1" _n="$2"
+	shift 2
+	mkdir -p "$_d"
+	{
+		printf '(lib "%s")\n' "$_n"
+		for _r in "$@"; do printf '(requires-lib "%s")\n' "$_r"; done
+	} > "$_d/lib.xon"
+}
+
+# A lang that requires a library, which requires another: both are armed
+# after the platform's root, deepest first, ahead of the lang's own roots.
+B="$TMP/lb"
+lib "$B/base" base
+lib "$B/top" top base
+bundle "$B/uses" uses he
+printf '(requires-lib "top" "v9.9.9")\n' >> "$B/uses/lang.xon"
+got=$(gen "$B/uses" || true)
+want "required libraries armed after the platform, deepest first" \
+"(def %install-root \"$ROOT\")
+(include \"$ROOT/build/boot/helium.x\")
+(import-path! \"$B/base\" (lit after))
+(import-path! \"$B/top\" (lit after))
+(import-path! \"$B/uses\")
+(def %lang-root \"$B/uses\")
+(def %lang-lead \"uses\")
+(import uses/base)" "$got"
+
+# Every installed library is armed too, as x.sh arms them, and one a sibling
+# checkout already answers for is passed over.
+cp -R "$ROOT" "$TMP/withlibs"
+lib "$TMP/withlibs/libs/inst" inst
+lib "$TMP/withlibs/libs/base-v1" base
+got=$(gen "$B/uses" "$TMP/withlibs" | grep 'lit after' || true)
+want "installed libraries armed, a sibling ahead of an installed copy" \
+"(import-path! \"$B/base\" (lit after))
+(import-path! \"$B/top\" (lit after))
+(import-path! \"$TMP/withlibs/libs/inst\" (lit after))" "$got"
+
+lib "$TMP/xl/only" only
+got=$(X_LIBS_DIR="$TMP/xl" gen "$B/uses" "$TMP/withlibs" | grep 'lit after' || true)
+want "X_LIBS_DIR in place of the installed libraries" \
+"(import-path! \"$B/base\" (lit after))
+(import-path! \"$B/top\" (lit after))
+(import-path! \"$TMP/xl/only\" (lit after))" "$got"
+
+# A library's own suite: helium, its own root the first library armed, no
+# lang root, and no tests/harness.x asked for.
+got=$(gen "$B/top" || true)
+want "a library's suite arms itself, then what it requires" \
+"(def %install-root \"$ROOT\")
+(include \"$ROOT/build/boot/helium.x\")
+(import-path! \"$B/top\" (lit after))
+(import-path! \"$B/base\" (lit after))" "$got"
+
+got=$(DIALECT=xe gen "$B/top" | sed -n 2p || true)
+want "a library's suite boots the dialect DIALECT names" "(include \"$ROOT/build/boot/xenon.x\")" "$got"
+
+mkdir -p "$B/top/tests"
+printf '(import x/test/assert)\n' > "$B/top/tests/harness.x"
+got=$(gen "$B/top" | sed -n '$p' || true)
+want "a library's tests/harness.x is read when it has one" "(import x/test/assert)" "$got"
+
+bundle "$TMP/nolib/t" t he
+printf '(requires-lib "nowhere")\n' >> "$TMP/nolib/t/lang.xon"
+refuses "a required library that is not there" "lib 'nowhere' is required but was not found" "$(gen "$TMP/nolib/t" || true)"
+
+mkdir -p "$TMP/neither/t"
+refuses "a directory that declares nothing" "no lang.xon or lib.xon" "$(gen "$TMP/neither/t" || true)"
 
 # This tree: each dialect's body has the amalgam `make boot` writes.
 for _dl in he xe rn; do
