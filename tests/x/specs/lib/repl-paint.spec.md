@@ -351,3 +351,47 @@ reset sequence.
 ```
 ---
     "ab ba"
+
+## a painter made from a grammar
+
+`(Paint grammar g)` colours a line by the spans of a `Syntax` grammar, each
+class in the theme in use: what `Syntax ansi` draws for the same spans.
+Colour is forced on here.
+
+### the line is drawn as the grammar's spans, a line with no classed token is plain, and the text before is read with the window
+
+```x
+(do (import x/repl/paint) (import x/reader/lexer) (import x/tool/syntax)
+    (let ((was (Ansi enabled?))
+          (g (Syntax make 'paint-spec-grammar
+               (list (Lexer run 'blank " " " ")
+                     (Lexer until 'c "#" "\n" 'to-end)
+                     (Lexer run 'w "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz"))
+               (list (pair 'c 'comment)
+                     (pair 'w (fn (_ t) (if (Str8 =? t "if") 'keyword ())))))))
+      (eval (lit (set! %ansi? #t)) (module x/repl/ansi))
+      (let ((p (Paint grammar g)) (s "if x # z"))
+        (let ((r (list (Str8 =? (p s () ()) (Syntax ansi s (g spans s) 0 (Str8 length s)))
+                       (Str8 =? (p s () ()) s)
+                       (p "x y" () ())
+                       (Str8 =? (p "z" () "if x # ") (Syntax ansi s (g spans s 7 1) 7 1)))))
+          (eval (list (lit set!) (lit %ansi?) was) (module x/repl/ansi))
+          r))))
+```
+---
+    (#t #f "x y" #t)
+
+### with colour off it answers the window unchanged
+
+```x
+(do (import x/repl/paint) (import x/reader/lexer) (import x/tool/syntax)
+    (let ((was (Ansi enabled?))
+          (g (Syntax make 'paint-spec-grammar-off
+               (list (Lexer run 'w "ab" "ab")) (list (pair 'w 'keyword)))))
+      (eval (lit (set! %ansi? #f)) (module x/repl/ansi))
+      (let ((r ((Paint grammar g) "ab ba" () ())))
+        (eval (list (lit set!) (lit %ansi?) was) (module x/repl/ansi))
+        r)))
+```
+---
+    "ab ba"

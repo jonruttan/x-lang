@@ -221,6 +221,30 @@
                     (%set-rest! last out)
                     out))))))))
 
+    ; The last window painted lives in the closure, as the Lexer painter's
+    ; does, and an image load forgets it with the terminal's colours.
+    (method grammar (self (param g Syntax "A grammar, as (Syntax named 'x) answers one"))
+      (doc "A painter for %repl-paint that colours a line by a grammar's spans, each class in the theme in use: the colouring x/tool/syntax gives the language's files, on the line being typed. The text before the window is read with it, so a string or comment opened there colours the window's start. Answers the window unchanged when colour is off."
+        (returns CALLABLE "A painter: (fn (_ window marks before))")
+        (note "A lang that ships a grammar registers its prompt's colour with this and one line: the grammar's rules and its class table are the whole of what the painter knows.")
+        (sample "(Lang register! \"scheme\" (list (pair '%repl-paint (Paint grammar (Syntax named 'scheme)))))" "(lang scheme) colours the line being typed as Scheme"))
+      (let ((last (pair () ())))
+        (set! %image-recache-hooks
+          (pair (fn (_) (%set-first! last ())) %image-recache-hooks))
+        (fn (_ window . more)
+          (if (not (Ansi enabled?)) window
+            (let ((before (if (if (null? more) #t (null? (rest more))) () (first (rest more)))))
+              (let ((b (if (null? before) "" before)))
+                (if (if (null? (first last)) #f
+                      (if (obj-same? window (first (first last))) (obj-same? b (rest (first last))) #f))
+                  (rest last)
+                  (let ((from (str-byte-len b)) (s (if (null? before) window (str-append b window)))
+                        (n (str-byte-len window)))
+                    (let ((out (Syntax ansi s (g spans s from n) from n)))
+                      (%set-first! last (pair window b))
+                      (%set-rest! last out)
+                      out)))))))))
+
     (method marks (self (param s STRING "The text: a line, or a whole multi-line entry") (param at INTEGER "The cursor, as a byte offset"))
       (doc "A mark for every paren in the line, as (offset depth focused): depth is the nesting level from 0, shared by both halves of a pair so they colour alike, and -1 for a close paren with nothing to close; focused is true on the two halves of the pair the cursor is beside, a close just before the cursor first, then an open under it. A cursor outside the line, -1 say, is beside nothing, which is how a settled line keeps its colours and loses its focus. Strings, comments and character literals are stepped over, so #\\( is not an open paren and a paren inside a string is not counted."
         (returns LIST "((offset depth focused) ...) in source order")
@@ -304,6 +328,7 @@
 (doc (provide x/repl/paint Paint)
   (note "The spans are (Syntax x)'s: x/tool/syntax reads the line and classes each token, and this file draws them, adding the paren depths and the pair beside the cursor.")
   (note "A lang whose syntax a Lexer reads colours its line with (Paint lexer l colours), each token by its tag, through the same span walk.")
+  (note "A lang that ships a Syntax grammar colours its line with (Paint grammar g), each class in the theme in use.")
   (note "marks gives every paren its nesting depth; line colours them by depth when handed the result. The editor threads the two together on every redraw.")
   (example "(Paint classify \"def\")" "'keyword")
   "Paint: ANSI syntax colouring for a REPL line that is still being typed.")
