@@ -1,0 +1,326 @@
+; table.x -- tables of named columns, as values.
+;
+; A Column is a run of values of one encoding.  Where every value is an
+; integer or a Float it is held as a rank-1 Tensor, of the encoding the
+; Tensor gives those numbers, and answers its statistics.  Any other
+; column is held as a Vector of the values as they are, its encoding any.
+;
+; A Table is columns of one length, each under a name, in order.  A name
+; is a symbol, so finding a column compares addresses; a string given as
+; a name is made a symbol.  Every operation answers a new Table or Column
+; and changes none.
+;
+;   (Table from '((age (31.0 45.0)) (name ("Ann" "Bo"))))
+;   (Table from-csv text)        the first row names the columns
+;
+;   (t names)  (t extent)        the names; the rows and the columns
+;   (t column 'age)              one Column
+;   (t row 0)                    one row's values, in column order
+;   (t select '(age))            a Table of those columns
+;   (t filter 'age pred)         the rows where pred answers true of age
+;   (t sort 'age)                the rows in the order of age
+;   (t matrix '(age height))     those columns as an f64 Matrix
+;
+; filter and sort find the rows to keep as a list of row numbers, once,
+; and each column is then gathered by it.
+;
+; @copyright 2026 Jon Ruttan
+; @license MIT No Attribution (MIT-0)
+
+(module x/data/table)
+(import x/type/class)
+(import x/type/list)
+(import x/type/vector)
+(import x/core/doors str->sym)
+(import x/num/float float? float-of)
+(import x/num/tensor)
+
+; A name as a symbol: a symbol as it is, a string made one.
+(def %name
+  (fn (_ x)
+    (match
+      ((symbol? x) x)
+      ((str? x) (str->sym x))
+      (#t (Err raise (lit value) "Table: a column's name is a symbol or a string" x)))))
+
+; #t where every element of LST is an integer or a Float.
+(def %numbers?
+  (fn (self lst)
+    (match
+      ((null? lst) #t)
+      ((if (number? (first lst)) #t (float? (first lst))) (self (rest lst)))
+      (#t #f))))
+
+; The lists of LISTS turned on their side: the first of each, then the
+; second of each, to the end of the first list.
+(def %transpose
+  (fn (_ lists)
+    (if (null? lists) ()
+      (let go ((lists lists) (acc ()))
+        (if (null? (first lists)) (List reverse acc)
+          (go (List map rest lists) (pair (List map first lists) acc)))))))
+
+(def-class Column ()
+  (doc "A run of values of one encoding, as a table holds under a name. Where every value is an integer or a Float it is held as a rank-1 Tensor and answers its statistics; any other column holds the values as they are, its encoding any."
+    (example "((Column from '(31.0 45.0 28.0)) mean)" "34.6666666666667")
+    (example "((Column from '(\"Ann\" \"Bo\")) encoding)" "'any")
+    (see from) (see size) (see encoding) (see ref) (see ->list) (see tensor))
+
+  encoding   ; a Tensor's encoding, or any
+  data       ; a rank-1 Tensor, or for any a Vector
+
+  (static
+    (method from (self (param values LIST|VECTOR|Tensor|Column "The values, in order"))
+      (doc "A column of the values. A Tensor is kept as it is; a list or a Vector of integers and Floats becomes a Tensor, of f64 unless every one is an integer; any other becomes a column of encoding any."
+        (returns Column "The column")
+        (example "((Column from '(1.5 2.5)) ->list)" "(1.5 2.5)")
+        (example "((Column from '(1.5 \"two\")) encoding)" "'any"))
+      (match
+        ((pair? values) (self %of-list values))
+        ((null? values) (self %of-list ()))
+        ((if (object? values) (instance-of? values Column) #f) values)
+        ((if (object? values) (instance-of? values Tensor) #f) (self %of-tensor values))
+        (#t (self %of-list (Vector ->list values)))))
+
+    (method %of-tensor (self t)
+      (if (= (t rank) 1) ()
+        (Err raise (lit value) "Column from: a Tensor must have rank 1" (t extent)))
+      (new-from self (list (lit encoding) (t encoding) (lit data) t)))
+
+    (method %of-list (self lst)
+      (if (if (pair? lst) (%numbers? lst) #f)
+        (self %of-tensor (Tensor from lst))
+        (new-from self (list (lit encoding) (lit any) (lit data) (Vector from-list lst)))))
+
+    ; A column of LST in the encoding of LIKE, which the values came from:
+    ; a list of none keeps the encoding, where from would answer any.
+    (method %as (self like lst)
+      (match
+        ((eq? (like encoding) (lit any))
+          (new-from self (list (lit encoding) (lit any) (lit data) (Vector from-list lst))))
+        ((null? lst) (self %of-tensor (Tensor zeros 0 (like encoding))))
+        (#t (self %of-tensor (Tensor from lst (like encoding)))))))
+
+  (method encoding (self)
+    (doc "How the values are held: a Tensor's encoding, or any."
+      (returns SYMBOL "The encoding")
+      (example "((Column from '(1.5 2.5)) encoding)" "'f64"))
+    (field (lit encoding)))
+
+  (method size (self)
+    (doc "The number of values."
+      (returns INTEGER "The size")
+      (example "((Column from '(1.5 2.5 4.0)) size)" "3"))
+    (if (eq? (field (lit encoding)) (lit any))
+      (Vector length (field (lit data)))
+      ((field (lit data)) size)))
+
+  (method ref (self (param i INTEGER "The index; negative counts from the end"))
+    (doc "The value at an index."
+      (returns ANY "The value")
+      (example "((Column from '(\"Ann\" \"Bo\")) ref 1)" "\"Bo\""))
+    (if (eq? (field (lit encoding)) (lit any))
+      (Vector ref i (field (lit data)))
+      ((field (lit data)) ref i)))
+
+  (method ->list (self)
+    (doc "The values as a list."
+      (returns LIST "The values, in order")
+      (example "((Column from '(1.5 2.5)) ->list)" "(1.5 2.5)"))
+    (if (eq? (field (lit encoding)) (lit any))
+      (Vector ->list (field (lit data)))
+      ((field (lit data)) ->list)))
+
+  (method tensor (self)
+    (doc "The values as a rank-1 Tensor. A column of encoding any is refused."
+      (returns Tensor "The Tensor the column holds, not a copy")
+      (example "(((Column from '(1.5 2.5)) tensor) sum)" "4.0"))
+    (if (eq? (field (lit encoding)) (lit any))
+      (Err raise (lit value) "Column tensor: a column of encoding any holds no numbers" self)
+      (field (lit data))))
+
+  ; The values at the row numbers of ROWS, as a column of this encoding.
+  (method %take (self rows)
+    (let ((v (Vector from-list (self ->list))))
+      (Column %as self (List map (fn (_ i) (Vector ref i v)) rows))))
+
+  (method sum (self)
+    (doc "The sum of the values." (returns NUMBER "The sum")
+      (example "((Column from '(1.5 2.5)) sum)" "4.0"))
+    ((self tensor) sum))
+  (method mean (self)
+    (doc "The mean of the values." (returns FLOAT "The mean")
+      (example "((Column from '(1.5 2.5)) mean)" "2.0"))
+    ((self tensor) mean))
+  (method least (self)
+    (doc "The least of the values." (returns NUMBER "The least")
+      (example "((Column from '(2.5 1.5 4.0)) least)" "1.5"))
+    ((self tensor) least))
+  (method greatest (self)
+    (doc "The greatest of the values." (returns NUMBER "The greatest")
+      (example "((Column from '(2.5 1.5 4.0)) greatest)" "4.0"))
+    ((self tensor) greatest))
+  (method variance (self . (param correction INTEGER "Optional, as a Tensor's variance takes it: 1 by default, 0 for the population"))
+    (doc "The variance of the values." (returns FLOAT "The variance")
+      (example "((Column from '(1.0 2.0 3.0)) variance)" "1.0"))
+    (if (null? correction) ((self tensor) variance) ((self tensor) variance (first correction))))
+  (method deviation (self . (param correction INTEGER "Optional, as for variance"))
+    (doc "The standard deviation of the values." (returns FLOAT "The deviation")
+      (known-as "standard deviation" "std")
+      (example "((Column from '(1.0 2.0 3.0)) deviation)" "1.0"))
+    (if (null? correction) ((self tensor) deviation) ((self tensor) deviation (first correction))))
+  (method quantile (self (param q NUMBER "The fraction, from 0 to 1"))
+    (doc "The value with the fraction q of the values at or below it, as a Tensor's quantile answers it." (returns FLOAT "The quantile")
+      (example "((Column from '(1.0 2.0 3.0 4.0)) quantile 0.25)" "1.75"))
+    ((self tensor) quantile q))
+  (method median (self)
+    (doc "The middle of the values in order: the quantile at a half." (returns FLOAT "The median")
+      (example "((Column from '(3.0 1.0 2.0)) median)" "2.0"))
+    ((self tensor) median)))
+
+(def-class Table ()
+  (doc "Columns of one length, each under a name, in order: rows are observations and columns what was observed of each. A name is a symbol; a string given as one is made a symbol. Every operation answers a new Table and changes none."
+    (known-as "DataFrame" "data frame")
+    (example "((Table from '((age (31.0 45.0)) (name (\"Ann\" \"Bo\")))) extent)" "(2 2)")
+    (see from) (see from-csv) (see names) (see extent) (see column) (see row)
+    (see select) (see filter) (see sort) (see matrix) (see ->list))
+
+  names     ; the columns' names, symbols, in order
+  columns   ; the Columns, in the order of the names
+  rows      ; the length of every column
+
+  (static
+    (method from (self (param pairs LIST "A list for each column: its name, then its values as Column from takes them"))
+      (doc "A table of the columns given, each a name and its values. Every column must have the same length, and no name may come twice."
+        (returns Table "The table")
+        (example "((Table from '((age (31.0 45.0)) (name (\"Ann\" \"Bo\")))) names)" "('age 'name)"))
+      (self %of (List map (fn (_ p) (%name (first p))) pairs)
+                (List map (fn (_ p) (Column from (List ref 1 p))) pairs)))
+
+    (method from-csv (self (param text STRING "csv text whose first row names the columns"))
+      (doc "A table read from csv text, the first row naming the columns. A column whose every field reads as a number becomes f64; any other holds its fields as strings."
+        (returns Table "The table")
+        (example "(((Table from-csv \"name,age\\nida,7\\nbo,9\\n\") column 'age) ->list)" "(7.0 9.0)")
+        (example "(((Table from-csv \"name,age\\nida,7\\nbo,9\\n\") column 'name) ->list)" "(\"ida\" \"bo\")"))
+      (import x/codec/csv)
+      (let ((parsed (Csv parse text)))
+        (if (null? parsed) (Err raise (lit value) "Table from-csv: the text has no row of names" text) ())
+        (let ((width (List length (first parsed))))
+          (List map
+            (fn (_ record)
+              (if (= (List length record) width) ()
+                (Err raise (lit value) "Table from-csv: a row's width differs from the names'" record)))
+            (rest parsed))
+          (self %of (List map %name (first parsed))
+                    (if (null? (rest parsed))
+                      (List map (fn (_ n) (Column from ())) (first parsed))
+                      (List map (fn (_ fields) (Column from (self %read fields)))
+                                (%transpose (rest parsed))))))))
+
+    ; FIELDS as Floats where every one reads as a number, else as they are.
+    (method %read (self fields)
+      (let go ((left fields) (acc ()))
+        (if (null? left) (List reverse acc)
+          (let ((x (guard (e ()) (float-of (first left)))))
+            (if (float? x) (go (rest left) (pair x acc)) fields)))))
+
+    (method %of (self names columns)
+      (let ((rows (if (null? columns) 0 ((first columns) size))))
+        (let go ((left names) (cols columns))
+          (if (null? left) ()
+            (do
+              (if (List includes? (first left) (rest left))
+                (Err raise (lit value) "Table: a column's name comes twice" (first left)) ())
+              (if (= ((first cols) size) rows) ()
+                (Err raise (lit value) "Table: every column must have the same length" (first left)))
+              (go (rest left) (rest cols)))))
+        (new-from self (list (lit names) names (lit columns) columns (lit rows) rows)))))
+
+  (method names (self)
+    (doc "The columns' names, in order."
+      (returns LIST "The names, symbols")
+      (example "((Table from '((age (31.0)) (name (\"Ann\")))) names)" "('age 'name)"))
+    (field (lit names)))
+
+  (method extent (self)
+    (doc "The number of rows, then of columns."
+      (known-as "shape" "dim")
+      (returns LIST "(ROWS COLUMNS)")
+      (example "((Table from '((age (31.0 45.0 28.0)))) extent)" "(3 1)"))
+    (list (field (lit rows)) (List length (field (lit names)))))
+
+  (method column (self (param name SYMBOL|STRING "The column's name"))
+    (doc "The column under a name. A name the table does not have is refused."
+      (returns Column "The column")
+      (example "(((Table from '((age (31.0 45.0)))) column 'age) mean)" "38.0"))
+    (let ((name (%name name)))
+      (let go ((names (field (lit names))) (cols (field (lit columns))))
+        (match
+          ((null? names) (Err raise (lit value) "Table column: the table has no column of that name" name))
+          ((eq? (first names) name) (first cols))
+          (#t (go (rest names) (rest cols)))))))
+
+  (method row (self (param i INTEGER "The row's number; negative counts from the end"))
+    (doc "One row's values, in the order of the columns."
+      (returns LIST "The values")
+      (example "((Table from '((age (31.0 45.0)) (name (\"Ann\" \"Bo\")))) row 1)" "(45.0 \"Bo\")"))
+    (List map (fn (_ c) (c ref i)) (field (lit columns))))
+
+  (method select (self (param names LIST "The names of the columns to keep, in the order wanted"))
+    (doc "The table of the named columns, in the order named."
+      (returns Table "A table of those columns")
+      (example "((Table from '((age (31.0)) (name (\"Ann\")) (city (\"Ely\")))) select '(city age)) names)" "('city 'age)"))
+    (let ((names (List map %name names)))
+      (Table %of names (List map (fn (_ n) (self column n)) names))))
+
+  (method filter (self (param name SYMBOL|STRING "The column the rows are judged by")
+                       (param pred CALLABLE "Called with that column's value in a row; true keeps the row"))
+    (doc "The table of the rows where pred answers true of the named column's value, in their order."
+      (returns Table "A table of the rows kept")
+      (example "(((Table from '((age (31.0 45.0 28.0)) (name (\"Ann\" \"Bo\" \"Cy\")))) filter 'age (fn (_ a) (< 30 a))) column 'name) ->list)" "(\"Ann\" \"Bo\")"))
+    (self %take
+      (let go ((values ((self column name) ->list)) (i 0) (acc ()))
+        (match
+          ((null? values) (List reverse acc))
+          ((pred (first values)) (go (rest values) (+ i 1) (pair i acc)))
+          (#t (go (rest values) (+ i 1) acc))))))
+
+  (method sort (self (param name SYMBOL|STRING "The column the rows are ordered by")
+                     . (param before CALLABLE "Optional: called with two values, true where the first comes strictly first; < by default"))
+    (doc "The table with its rows in the order of the named column, least first. Rows whose values are equal keep their order. A column < does not order, as one of strings, takes a before of its own."
+      (known-as "arrange" "order by")
+      (returns Table "A table of the rows in order")
+      (example "(((Table from '((age (31.0 45.0 28.0)) (name (\"Ann\" \"Bo\" \"Cy\")))) sort 'age) column 'name) ->list)" "(\"Cy\" \"Ann\" \"Bo\")")
+      (example "(((Table from '((age (31.0 45.0 28.0)))) sort 'age (fn (_ a b) (< b a))) column 'age) ->list)" "(45.0 31.0 28.0)"))
+    (let ((before (if (null? before) < (first before))))
+      (self %take
+        (List map rest
+          (List sort (fn (_ a b) (before (first a) (first b)))
+            (let go ((values ((self column name) ->list)) (i 0) (acc ()))
+              (if (null? values) (List reverse acc)
+                (go (rest values) (+ i 1) (pair (pair (first values) i) acc)))))))))
+
+  (method matrix (self (param names LIST "The names of the columns, in the order wanted"))
+    (doc "The named columns as an f64 Matrix, a row for each of the table's rows: what a model takes as its predictors. Every one must hold numbers."
+      (returns Matrix "A fresh f64 Matrix of the table's rows by the columns named")
+      (example "(((Table from '((a (1.0 2.0)) (b (3.0 4.0)))) matrix '(b a)) ->list)" "((3.0 1.0) (4.0 2.0))"))
+    (import x/num/matrix)
+    (if (null? names) (Err raise (lit value) "Table matrix: no column is named" names) ())
+    (Matrix from
+      (%transpose (List map (fn (_ n) (((self column n) tensor) ->list)) names))
+      (lit f64)))
+
+  (method ->list (self)
+    (doc "The table as from takes it: a list for each column, its name and then its values."
+      (returns LIST "((NAME VALUES) ...)")
+      (example "((Table from '((age (31.0 45.0)) (name (\"Ann\" \"Bo\")))) ->list)" "(('age (31.0 45.0)) ('name (\"Ann\" \"Bo\")))"))
+    (List map (fn (_ n c) (list n (c ->list))) (field (lit names)) (field (lit columns))))
+
+  ; The table of the rows at the row numbers of ROWS.
+  (method %take (self rows)
+    (Table %of (field (lit names))
+               (List map (fn (_ c) (c %take rows)) (field (lit columns))))))
+
+(doc (provide x/data/table Table Column)
+  "Tables of named columns, as values: a Table is read from lists or csv text and answers its columns, rows, a selection of columns, the rows a column's value passes, the rows in a column's order, and columns as a Matrix; a Column of numbers answers its statistics."
+  (example "(((Table from-csv \"name,age\\nida,7\\nbo,9\\n\") column 'age) mean)" "8.0"))

@@ -20,6 +20,7 @@ in it; it does not repeat the reference.
 | `lib/x/type/` | the classes: `List`, `Str`, `Char`, `Vector`, `Array`, `Dict`, `Hash`, `Assoc`, `Deque`, `Path`, `Promise`, `Regex`, `Iter`, the object system, records, traits, generics |
 | `lib/x/protocol/` | the sequence and string protocols a class implements to join those families |
 | `lib/x/num/` | the numeric tower: bigint, float, rational, complex, decimal, the mixed-type policy in `x/num/tower`, and the discrete Fourier transform in `x/num/frequency` |
+| `lib/x/data/` | tables of named columns: `Table` and `Column` |
 | `lib/x/sys/` | POSIX, files, streams, processes, pseudo-terminals, sockets, the collector, dates, command-line options |
 | `lib/x/codec/` | JSON, XON, CSV, Markdown, HTML, PNG, base64, hex, UTF-8, structs; deflate, zlib, bzip2 and lzma; the MD5, SHA-1, SHA-2 and SHA-3 digests; AES, ChaCha20-Poly1305, RSA, ECDSA, Ed25519 and X25519 |
 | `lib/x/net/` | TLS, X.509 and HTTP |
