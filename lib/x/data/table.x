@@ -269,7 +269,7 @@
   (method select (self (param names LIST "The names of the columns to keep, in the order wanted"))
     (doc "The table of the named columns, in the order named."
       (returns Table "A table of those columns")
-      (example "((Table from '((age (31.0)) (name (\"Ann\")) (city (\"Ely\")))) select '(city age)) names)" "('city 'age)"))
+      (example "(((Table from '((age (31.0)) (name (\"Ann\")) (city (\"Ely\")))) select '(city age)) names)" "('city 'age)"))
     (let ((names (List map %name names)))
       (Table %of names (List map (fn (_ n) (self column n)) names))))
 
@@ -277,7 +277,7 @@
                        (param pred CALLABLE "Called with that column's value in a row; true keeps the row"))
     (doc "The table of the rows where pred answers true of the named column's value, in their order."
       (returns Table "A table of the rows kept")
-      (example "(((Table from '((age (31.0 45.0 28.0)) (name (\"Ann\" \"Bo\" \"Cy\")))) filter 'age (fn (_ a) (< 30 a))) column 'name) ->list)" "(\"Ann\" \"Bo\")"))
+      (example "((((Table from '((age (31.0 45.0 28.0)) (name (\"Ann\" \"Bo\" \"Cy\")))) filter 'age (fn (_ a) (< 30 a))) column 'name) ->list)" "(\"Ann\" \"Bo\")"))
     (self %take
       (let go ((values ((self column name) ->list)) (i 0) (acc ()))
         (match
@@ -290,8 +290,8 @@
     (doc "The table with its rows in the order of the named column, least first. Rows whose values are equal keep their order. A column < does not order, as one of strings, takes a before of its own."
       (known-as "arrange" "order by")
       (returns Table "A table of the rows in order")
-      (example "(((Table from '((age (31.0 45.0 28.0)) (name (\"Ann\" \"Bo\" \"Cy\")))) sort 'age) column 'name) ->list)" "(\"Cy\" \"Ann\" \"Bo\")")
-      (example "(((Table from '((age (31.0 45.0 28.0)))) sort 'age (fn (_ a b) (< b a))) column 'age) ->list)" "(45.0 31.0 28.0)"))
+      (example "((((Table from '((age (31.0 45.0 28.0)) (name (\"Ann\" \"Bo\" \"Cy\")))) sort 'age) column 'name) ->list)" "(\"Cy\" \"Ann\" \"Bo\")")
+      (example "((((Table from '((age (31.0 45.0 28.0)))) sort 'age (fn (_ a b) (< b a))) column 'age) ->list)" "(45.0 31.0 28.0)"))
     (let ((before (if (null? before) < (first before))))
       (self %take
         (List map rest
