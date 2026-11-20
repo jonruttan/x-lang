@@ -22,6 +22,11 @@
 ;            hyphen or a number where a marker began the block -- is
 ;            an item, and the items side by side are a list.
 ;
+; A link annotation that goes to a URI makes the runs its rectangle is
+; over a (link DEST nil INLINES): a run is the link's when its middle is
+; inside, so a run that is part link and part not is all one or the
+; other.  Rectangles side by side that go to one place are one link.
+;
 ; A code is a character through the font's /ToUnicode map; with none, a
 ; simple font's /Encoding and its /Differences, or the encoding an embedded
 ; Type 1 font program declares.  Lengths are integers in thousandths of a
@@ -30,7 +35,8 @@
 ; Not yet here: a composite font with no /ToUnicode, vertical writing, a
 ; rotated page, text set out of reading order or in columns the producer
 ; interleaved, tables, a list inside a list (its items join the outer
-; one), quotes, links, and inline images' bytes, which are
+; one), quotes, a link that goes to a place in the file and not to a
+; URI, and inline images' bytes, which are
 ; passed over as they lex.
 
 (module x/codec/pdf-text)
@@ -743,7 +749,7 @@
      group ())))
 ; Pieces as inlines: neighbours of one style joined, a bold piece strong, an
 ; italic one emph, a break marker a softbreak.
-(def %pt-inlines
+(def %pt-styled
   (fn (_ pieces)
     (def wrap
       (fn (_ text style)
@@ -773,6 +779,109 @@
          ((int= style (rest (first l))) (self (rest l) (%str-concat (list text (first (first l)))) style acc))
          (#t (self (rest l) (first (first l)) (rest (first l)) (flush)))))
      pieces () 0 ())))
+; --- links ------------------------------------------------------------------
+; A page's link annotations that go to a URI, each (X1 Y1 X2 Y2 DEST) in
+; thousandths of a point, the rectangle's corners in order.
+(def %pt-annotations
+  (fn (_ f page)
+    (List flat-map
+      (fn (_ a)
+        ((fn (_ rect uri)
+           (match ((match ((str=? (%pt-name (Pdf lookup f a "Subtype")) "Link")
+                            (match ((int= (List length rect) 4) (%pt-tagged? uri (lit string))) (#t #f)))
+                           (#t #f))
+                    (list (list (%pt-min (%pt-nth rect 0) (%pt-nth rect 2)) (%pt-min (%pt-nth rect 1) (%pt-nth rect 3))
+                                (%pt-max (%pt-nth rect 0) (%pt-nth rect 2)) (%pt-max (%pt-nth rect 1) (%pt-nth rect 3))
+                                (str-byte-sub (first (rest uri)) 0 (first (rest (rest uri)))))))
+                  (#t ())))
+         (List map (fn (_ n) (%pt-milli n)) (%pt-items (Pdf lookup f a "Rect")))
+         (Pdf lookup f (Pdf lookup f a "A") "URI")))
+      (List map (fn (_ a) (Pdf resolve f a)) (%pt-items (Pdf lookup f page "Annots"))))))
+(def %pt-min (fn (_ a b) (match ((int< a b) a) (#t b))))
+; The place among ANNOTATIONS, from 0, of the first whose rectangle holds
+; the middle of the run from X on the baseline Y, WIDTH long at SIZE; nil
+; for none.
+(def %pt-over
+  (fn (self annotations x y width size k)
+    (match ((null? annotations) ())
+           (#t ((fn (_ a mid)
+                  (match ((match ((int< mid (%pt-nth a 0)) #f) ((int< (%pt-nth a 2) mid) #f)
+                                 ((int< y (int- (%pt-nth a 1) (int/ size 2))) #f) ((int< (%pt-nth a 3) y) #f) (#t #t))
+                           k)
+                         (#t (self (rest annotations) x y width size (int+ k 1)))))
+                (first annotations) (int+ x (int/ width 2)))))))
+; The place of the first of the annotations side by side that go where
+; the one at K goes: a link set over two lines is two rectangles and one
+; link.
+(def %pt-first-of
+  (fn (self annotations k)
+    (match ((int= k 0) 0)
+           ((str=? (%pt-nth (%pt-nth annotations k) 4) (%pt-nth (%pt-nth annotations (int- k 1)) 4)) (self annotations (int- k 1)))
+           (#t k))))
+; RUNS with each run a link is over marked in its style: 8 times the
+; link's number is added, the links numbered from BASE plus 1, so a
+; style's low three bits stay the font's.
+(def %pt-linked
+  (fn (_ runs annotations base)
+    (match ((null? annotations) runs)
+           (#t (List map
+                 (fn (_ r)
+                   ((fn (_ k)
+                      (match ((null? k) r)
+                             (#t (list (%pt-nth r 0) (%pt-nth r 1) (%pt-nth r 2) (%pt-nth r 3) (%pt-nth r 4)
+                                       (int+ (%pt-nth r 5) (int* 8 (int+ (int+ base (%pt-first-of annotations k)) 1)))))))
+                    (%pt-over annotations (%pt-nth r 0) (%pt-nth r 1) (%pt-nth r 3) (%pt-nth r 2) 0)))
+                 runs)))))
+; PIECES with a break marker between two pieces of one link put in it.
+(def %pt-bridged
+  (fn (self pieces before)
+    (match ((null? pieces) ())
+           ((match ((null? (first (first pieces))) (not (null? (rest pieces)))) (#t #f))
+             ((fn (_ after)
+                (pair (pair () (match ((int= before after) (int* 8 before)) (#t 0))) (self (rest pieces) 0)))
+              (int/ (rest (first (rest pieces))) 8)))
+           (#t (pair (first pieces) (self (rest pieces) (int/ (rest (first pieces)) 8)))))))
+; The pieces that lead L and are in the link numbered K, their styles the
+; fonts' alone, and what follows: (PIECES . REST).
+(def %pt-segment
+  (fn (self l k acc)
+    (match ((null? l) (pair (List reverse acc) ()))
+           ((int= (int/ (rest (first l)) 8) k) (self (rest l) k (pair (pair (first (first l)) (int% (rest (first l)) 8)) acc)))
+           (#t (pair (List reverse acc) l)))))
+; INLINES as a link to DEST, a space at either end left outside it.
+(def %pt-link
+  (fn (_ dest inlines)
+    (def lead? (match ((str? (first inlines)) (int= (%pt-first-byte (first inlines)) 32)) (#t #f)))
+    (def tail? (match ((str? (List last inlines)) (int= (%pt-last-byte (List last inlines)) 32)) (#t #f)))
+    (def cut
+      (fn (_ x front?)
+        ((fn (_ n) (match (front? (str-byte-sub x n (int- (str-byte-len x) n))) (#t (str-byte-sub x 0 (int- (str-byte-len x) n)))))
+         (%pt-spaces x (not front?)))))
+    (def inner
+      (List filter (fn (_ x) (match ((str? x) (not (str=? x ""))) (#t #t)))
+        ((fn (_ led) (match (tail? (List append (List init led) (list (cut (List last led) #f)))) (#t led)))
+         (match (lead? (pair (cut (first inlines) #t) (rest inlines))) (#t inlines)))))
+    (match ((null? inner) inlines)
+           (#t (List append (match (lead? (list " ")) (#t ()))
+                            (list (list (lit link) dest () (%pt-merged inner)))
+                            (match (tail? (list " ")) (#t ())))))))
+; Pieces as inlines, the pieces a link is over inside a (link DEST nil
+; INLINES): DESTS holds the destinations in the order the links are
+; numbered.
+(def %pt-inlines
+  (fn (_ pieces dests)
+    ((fn (self l)
+       (match ((null? l) ())
+              (#t ((fn (_ k)
+                     ((fn (_ cut)
+                        ((fn (_ inlines)
+                           (List append
+                             (match ((int= k 0) inlines) ((null? inlines) ()) (#t (%pt-link (List ref (int- k 1) dests) inlines)))
+                             (self (rest cut))))
+                         (%pt-styled (first cut))))
+                      (%pt-segment l k ())))
+                   (int/ (rest (first l)) 8)))))
+     (%pt-bridged pieces 0))))
 ; Inlines with strings side by side made one.
 (def %pt-merged
   (fn (self l)
@@ -795,9 +904,10 @@
       (fn (_ sorted k)
         ((fn (self l) (match ((null? l) (list k)) ((int< (first l) k) (pair k l)) (#t (pair (first l) (self (rest l)))))) sorted))
       () sizes)))
-; The blocks of the pages' lines.
+; The blocks of the pages' lines, DESTS the destinations of the links the
+; lines' pieces are numbered into.
 (def %pt-blocks
-  (fn (_ pages)
+  (fn (_ pages dests)
     (def all (List flat-map (fn (_ lines) lines) pages))
     (def body (%pt-body all))
     (def sizes (%pt-heading-sizes all body))
@@ -819,7 +929,7 @@
                        (match ((null? inlines) ())
                               (#t ((fn (_ item) (list (match ((null? item) (list (lit paragraph) inlines)) (#t item))))
                                    (%pt-item inlines group)))))
-                     (%pt-merged (%pt-inlines (%pt-joined group)))))))
+                     (%pt-merged (%pt-inlines (%pt-joined group) dests))))))
             (%pt-groups lines body))))
       pages)))
 
@@ -854,14 +964,23 @@
       (doc "The file's text as blocks: each page's runs gathered into lines and the lines into headings and paragraphs. A paragraph ends with its page."
         (returns LIST "A document's blocks")
         (sample "(PdfText blocks (Pdf open bytes size))" "what (PdfText parse bytes size) answers"))
-      (%pt-blocks
-        (List map
-          (fn (_ page)
-            ((fn (_ lines) (heap-collect) lines) (%pt-lines (%pt-runs f page))))
-          (Pdf pages f))))
+      ; Each page's lines, and the destinations of the links met so far: a
+      ; link's number is its place among them, so it is one number in
+      ; the whole file.
+      ((fn (_ read) (%pt-blocks (List reverse (first read)) (rest read)))
+       (List fold
+         (fn (_ acc page)
+           ((fn (_ annotations)
+              ((fn (_ lines)
+                 (heap-collect)
+                 (pair (pair lines (first acc)) (List append (rest acc) (List map (fn (_ a) (%pt-nth a 4)) annotations))))
+               (%pt-lines (%pt-linked (%pt-runs f page) annotations (List length (rest acc))))))
+            (%pt-annotations f page)))
+         (pair () ())
+         (Pdf pages f))))
     (method parse (self (param s STRING "Bytes holding a PDF file")
                         . (param length INTEGER "How many bytes; default s's length to its first NUL"))
-      (doc "Read a PDF into blocks: (heading LEVEL INLINES) for a line set larger than the body's size, the largest level 1, (list ORDERED? START TIGHT? ITEMS) for paragraphs side by side that each lead with a bullet or a number, the marker taken off, and (paragraph INLINES) for the rest, a line end a (softbreak), a bold run (strong INLINES) and an italic one (emph INLINES). Raises a label 'value for a file (Pdf open) refuses."
+      (doc "Read a PDF into blocks: (heading LEVEL INLINES) for a line set larger than the body's size, the largest level 1, (list ORDERED? START TIGHT? ITEMS) for paragraphs side by side that each lead with a bullet or a number, the marker taken off, and (paragraph INLINES) for the rest, a line end a (softbreak), a bold run (strong INLINES), an italic one (emph INLINES), and the runs under a link annotation that goes to a URI (link DEST nil INLINES). Raises a label 'value for a file (Pdf open) refuses."
         (returns LIST "A document's blocks")
         (sample "(PdfText parse bytes size)" "(('heading 1 (\"1 Hello\")) ('paragraph (\"This is a small paragraph\" ('softbreak) \"of text.\")))"))
       (PdfText blocks (Pdf open s (match ((null? length) (str-byte-len s)) (#t (first length))))))

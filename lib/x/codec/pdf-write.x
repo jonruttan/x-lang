@@ -14,12 +14,14 @@
 ;
 ; Text is written in WinAnsiEncoding, so a character outside it -- outside
 ; Latin-1 and the quotes, dashes and few letters Windows adds -- is written
-; as a question mark.  A link is its text, an image its alternative text,
+; as a question mark.  A link is its text with an annotation over it that
+; goes where the link goes, one rectangle a line; an image is its
+; alternative text,
 ; a form's field its value, and raw HTML is left out.  Lengths are integers
 ; in thousandths of a point: a width in the tables times a size is one.
 ;
 ; The file is plain: its content streams are not compressed, and the only
-; bytes past ASCII are text's.  Not yet here: links as annotations, images,
+; bytes past ASCII are text's.  Not yet here: a link's title, images,
 ; tables, other page sizes and fonts, and justified text.
 
 (module x/codec/pdf-write)
@@ -132,20 +134,22 @@
 
 ; --- chunks -----------------------------------------------------------------
 ; Inlines become chunks, the runs of text between spaces: a chunk is a list
-; of pieces, each (FONT CODES WIDTH), its codes most recent first and its
-; width in thousandths of the size.  A line may end after any chunk; the
+; of pieces, each (FONT CODES WIDTH LINK), its codes most recent first, its
+; width in thousandths of the size, and the destination of the link it is
+; in or nil.  A line may end after any chunk; the
 ; symbol break among the chunks ends one.
 (def %pw-chunks
   (fn (_ inlines style)
     (def codes ())
     (def wide 0)
     (def font 0)
+    (def link ())
     (def pieces ())
     (def chunks ())
     (def end-piece!
       (fn (_)
         (unless (null? codes)
-          (set! pieces (pair (list font codes wide) pieces))
+          (set! pieces (pair (list font codes wide link) pieces))
           (set! codes ())
           (set! wide 0))))
     (def end-chunk!
@@ -177,7 +181,10 @@
               ((eq? (first x) (lit code)) (text! (first (rest x)) 4))
               ((eq? (first x) (lit softbreak)) (end-chunk!))
               ((eq? (first x) (lit hardbreak)) (do (end-chunk!) (set! chunks (pair (lit break) chunks))))
-              ((eq? (first x) (lit link)) (walk (List ref 3 x) style))
+              ((eq? (first x) (lit link))
+                (do (end-piece!) (set! link (List ref 1 x))
+                    (walk (List ref 3 x) style)
+                    (end-piece!) (set! link ())))
               ((eq? (first x) (lit image)) (walk (List ref 3 x) style))
               ((eq? (first x) (lit field)) (when (str? (List ref 3 x)) (text! (List ref 3 x) style)))
               (#t ())))
@@ -194,7 +201,7 @@
     ((fn (self i codes)
        (match ((int< i n) ((fn (_ at) (self (rest at) (pair (%pw-code (first at)) codes))) (%pw-cp p i n)))
               ((null? codes) ())
-              (#t (list (list (list 4 codes (int* 600 (List length codes))))))))
+              (#t (list (list (list 4 codes (int* 600 (List length codes)) ()))))))
      0 ())))
 (def %pw-chunk-width(fn (_ chunk) (List fold (fn (_ w piece) (int+ w (List ref 2 piece))) 0 chunk)))
 ; The space after CHUNK: its last piece's font's, so a styled word's space
@@ -218,22 +225,25 @@
 
 ; --- pages ------------------------------------------------------------------
 ; The state a document is set in: a vector of where the next line's top is,
-; the page being set as content strings most recent first, and the pages
-; done, each its content.
+; the page being set as content strings most recent first, the pages
+; done, each (CONTENT . ANNOTATIONS), and the page being set's link
+; annotations most recent first.
 (def %pw-vector (type-of (Vector make 0 ())))
 (def %pw-state
   (fn (_)
-    (def s (obj-make %pw-vector 4))
+    (def s (obj-make %pw-vector 5))
     (obj-set! s 0 3)
     (obj-set! s 1 (int- %pw-height %pw-margin))
     (obj-set! s 2 ())
     (obj-set! s 3 ())
+    (obj-set! s 4 ())
     s))
 (def %pw-y (fn (_ s) (obj-ref s 1)))
 (def %pw-put! (fn (_ s text) (obj-set! s 2 (pair text (obj-ref s 2)))))
 (def %pw-page!
   (fn (_ s)
-    (obj-set! s 3 (pair (%str-concat (List reverse (obj-ref s 2))) (obj-ref s 3)))
+    (obj-set! s 3 (pair (pair (%str-concat (List reverse (obj-ref s 2))) (%str-concat (List reverse (obj-ref s 4)))) (obj-ref s 3)))
+    (obj-set! s 4 ())
     (obj-set! s 2 ())
     (obj-set! s 1 (int- %pw-height %pw-margin))))
 ; Make room for HIGH below the cursor, on a new page when this one has none.
@@ -242,6 +252,44 @@
 (def %pw-down!
   (fn (_ s high)
     (unless (int= (%pw-y s) (int- %pw-height %pw-margin)) (obj-set! s 1 (int- (%pw-y s) high)))))
+; The link the space between the chunks A and B is in: theirs when A ends
+; and B begins in one link, else none.
+(def %pw-between
+  (fn (_ a b)
+    ((fn (_ x y) (match ((eq? x y) x) (#t ()))) (List ref 3 (List last a)) (List ref 3 (first b)))))
+; The bytes of S as a literal string's inside.
+(def %pw-bytes
+  (fn (_ s)
+    (def p (str->ptr s))
+    (def n (str-byte-len s))
+    (%pw-literal ((fn (self i acc) (match ((int< i n) (self (int+ i 1) (pair (%pw-u8 p i) acc))) (#t (List reverse acc)))) 0 ()))))
+; A link annotation over the baseline Y from X1 to X2 at SIZE, to DEST.
+(def %pw-annotation
+  (fn (_ x1 x2 y size dest)
+    (Str8 append "<</Type/Annot/Subtype/Link/Rect[" (%pw-number x1) " " (%pw-number (int- y (int* size 200))) " "
+                 (%pw-number x2) " " (%pw-number (int+ y (int* size 800))) "]/Border[0 0 0]/A<</S/URI/URI(" (%pw-bytes dest) ")>>>>")))
+; The annotations of a line's chunks set from X on the baseline Y at SIZE:
+; one for each run of pieces in one link, the space between two chunks of
+; the link inside it.
+(def %pw-annotations
+  (fn (_ chunks x y size)
+    ; The line's pieces in order, each space between chunks a piece too.
+    (def pieces
+      ((fn (self l prev acc)
+         (match ((null? l) (List reverse acc))
+                (#t (self (rest l) (first l)
+                          (List append (List reverse (first l))
+                                       (match ((null? prev) acc)
+                                              (#t (pair (list 0 () (%pw-space prev) (%pw-between prev (first l))) acc))))))))
+       chunks () ()))
+    ((fn (self l at link from acc)
+       (def close (fn (_ to) (match ((null? link) acc) (#t (pair (%pw-annotation from to y size link) acc)))))
+       (match ((null? l) (List reverse (close at)))
+              (#t ((fn (_ piece next)
+                     (match ((eq? (List ref 3 piece) link) (self (rest l) next link from acc))
+                            (#t (self (rest l) next (List ref 3 piece) at (close at)))))
+                   (first l) (int+ at (int* (List ref 2 (first l)) size))))))
+     pieces x () x ())))
 ; The text operators that show a line's chunks from X on the baseline Y at
 ; SIZE: a font named when it changes, a space between chunks.
 (def %pw-show
@@ -254,19 +302,25 @@
         (unless (null? codes)
           (set! out (pair (Str8 append " (" (%pw-literal (List reverse codes)) ") Tj") out))
           (set! codes ()))))
+    (def link ())
+    ; A string ends where the font or the link changes, so a link's text is
+    ; a string of its own and a reader can tell it from the text beside it.
     (def piece!
-      (fn (_ f cs)
+      (fn (_ f cs to)
+        (unless (eq? to link)
+          (flush!)
+          (set! link to))
         (unless (int= f font)
           (flush!)
           (set! font f)
           (set! out (pair (Str8 append " /F" (Str8 str f) " " (Str8 str size) " Tf") out)))
         (set! codes (List append cs codes))))
-    ((fn (self l first?)
+    ((fn (self l prev)
        (unless (null? l)
-         (unless first? (piece! font (list 32)))
-         (List for-each (fn (_ piece) (piece! (first piece) (List ref 1 piece))) (first l))
-         (self (rest l) #f)))
-     chunks #t)
+         (unless (null? prev) (piece! font (list 32) (%pw-between prev (first l))))
+         (List for-each (fn (_ piece) (piece! (first piece) (List ref 1 piece) (List ref 3 piece))) (first l))
+         (self (rest l) (first l))))
+     chunks ())
     (flush!)
     (%str-concat (List reverse (pair " ET\n" out)))))
 ; Set CHUNKS as lines from the left edge X at SIZE, LEADING apart.
@@ -275,7 +329,9 @@
     (List for-each
       (fn (_ line)
         (%pw-need! s leading)
-        (unless (null? line) (%pw-put! s (%pw-show line x (int- (%pw-y s) (int* size 1000)) size)))
+        (unless (null? line)
+          (%pw-put! s (%pw-show line x (int- (%pw-y s) (int* size 1000)) size))
+          (obj-set! s 4 (List append (List reverse (%pw-annotations line x (int- (%pw-y s) (int* size 1000)) size)) (obj-ref s 4))))
         (obj-set! s 1 (int- (%pw-y s) leading)))
       (%pw-lines chunks (int/ (int- (int- %pw-width %pw-margin) x) size)))))
 ; The lines of TEXT, each cut to WIDE bytes a piece.
@@ -349,7 +405,8 @@
          (match ((int< i n) ((fn (_ at) (self (rest at) (pair (%pw-code (first at)) acc))) (%pw-cp p i n)))
                 (#t (List reverse acc))))
        0 ()))))
-; The file of the page contents PAGES, in order, with TITLE or nil.
+; The file of PAGES, each (CONTENT . ANNOTATIONS), in order, with TITLE or
+; nil.
 (def %pw-file
   (fn (_ pages title)
     (def count (List length pages))
@@ -372,10 +429,12 @@
           (List range 0 5))
         (list (match ((null? title) "<<>>") (#t (Str8 append "<</Title(" (%pw-title title) ")>>"))))
         (List flat-map
-          (fn (_ content)
-            (list (Str8 append "<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents "
+          (fn (_ page)
+            (list (Str8 append "<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]"
+                               (match ((str=? (rest page) "") "") (#t (Str8 append "/Annots[" (rest page) "]")))
+                               "/Contents "
                                "0 0 R/Resources<</Font<</F0 3 0 R/F1 5 0 R/F2 7 0 R/F3 9 0 R/F4 11 0 R>>>>>>")
-                  (Str8 append "<</Length " (Str8 str (Str8 length content)) ">>\nstream\n" content "endstream")))
+                  (Str8 append "<</Length " (Str8 str (Str8 length (first page))) ">>\nstream\n" (first page) "endstream")))
           pages)))
     ; A page names its content, the object after it; the number is known
     ; only here.
@@ -400,7 +459,7 @@
   (static
     (method bytes (self (param blocks LIST "A document's blocks")
                         . (param title STRING "Optionally the document's title, for the file's /Info"))
-      (doc "The bytes of a PDF that sets the blocks: headings bold at a size for each level, paragraphs broken at spaces and set ragged right, emph oblique and strong bold, code and code blocks in Courier, quotes and list items indented, a rule for a thematic break, a new page when one is full. Text is WinAnsiEncoding, a character outside it a question mark. A link is its text, an image its alternative text, a field its value; raw HTML is left out."
+      (doc "The bytes of a PDF that sets the blocks: headings bold at a size for each level, paragraphs broken at spaces and set ragged right, emph oblique and strong bold, code and code blocks in Courier, quotes and list items indented, a rule for a thematic break, a new page when one is full. Text is WinAnsiEncoding, a character outside it a question mark. A link is its text under a link annotation that goes to its destination; an image is its alternative text, a field its value; raw HTML is left out."
         (returns LIST "(BUF START LENGTH): the file")
         (example "(do (import x/codec/pdf-text) (def r (PdfWrite bytes (list (list 'heading 1 (list \"Hi\")) (list 'paragraph (list \"a \" (list 'strong (list \"b\")) \" c\"))) \"T\")) (list (PdfText title (first r) (List ref 2 r)) (PdfText parse (first r) (List ref 2 r))))" "(\"T\" (('heading 1 (\"Hi\")) ('paragraph (\"a \" ('strong (\"b\")) \" c\"))))"))
       (def s (%pw-state))

@@ -81,7 +81,7 @@ objects, where its runs are placed, and the document its text spells.
 
 ## characters
 
-### WinAnsi's characters are their bytes, a character outside it a question mark; a link is its text, an image its alternative text, raw HTML nothing
+### WinAnsi's characters are their bytes, a character outside it a question mark; a link is read back, an image is its alternative text, raw HTML nothing
 
 ```x
 (do (import x/codec/pdf-write) (import x/codec/pdf-text)
@@ -90,7 +90,7 @@ objects, where its runs are placed, and the document its text spells.
                    (list (lit html-block) "<div>x</div>"))))
 ```
 ---
-    (('paragraph ("café “q” – € • ?? link alt.")))
+    (('paragraph ("café “q” – € • ?? " ('link "/u" () ("link")) " alt.")))
 
 ## read back
 
