@@ -44,6 +44,34 @@ equal?-keyed door).
 ---
     ("a,b\n" #t)
 
+## another separator
+
+### parse-by and emit-by: a tab, a semicolon, a bar; the separator inside quotes; a comma is then a plain byte
+
+```x
+(do (import x/codec/csv)
+  (list (Csv parse-by "\t" "a\tb\n1\t2\n")
+        (Csv parse-by ";" "a;\"b;c\";d,e\n")
+        (Csv emit-by "|" (list (list "a" "b|c" "d,e")))
+        (equal? (Csv parse-by ";" (Csv emit-by ";" (list (list "x;y" "q\"r" "")))) (list (list "x;y" "q\"r" "")))
+        (Csv parse "a;b,c")))
+```
+---
+    ((("a" "b") ("1" "2")) (("a" "b;c" "d,e")) "a|\"b|c\"|d,e\n" #t (("a;b" "c")))
+
+### a separator a field cannot be told from is refused
+
+```x
+(do (import x/codec/csv)
+  (list (guard (e (Err label e)) (Csv parse-by "" "a"))
+        (guard (e (Err label e)) (Csv parse-by "::" "a"))
+        (guard (e (Err label e)) (Csv parse-by "\"" "a"))
+        (guard (e (Err label e)) (Csv parse-by "\n" "a"))
+        (guard (e (Err label e)) (Csv emit-by "\r" (list (list "a"))))))
+```
+---
+    ('value 'value 'value 'value 'value)
+
 ## the records layer
 
 ### header-keyed alists in, explicit header order out
