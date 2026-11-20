@@ -42,6 +42,12 @@ and `item` and `id` go between an id and its bytes.
 of text, so a long text costs the values it answers and no longer every
 byte's garbage at once.
 
+**`Csv parse-by` and `Csv emit-by` take the separator.** ([#1379])
+`(Csv parse-by ";" text)` and `(Csv emit-by "\t" rows)` read and write
+fields separated by any one byte below 128 that is not a quote, a CR or
+an LF; `parse` and `emit` are the same with a comma. A separator a field
+cannot be told from raises a label `value`.
+
 **A PDF's lists are read as lists.** ([#1377]) `(PdfText parse)` answers
 `(list ORDERED? START TIGHT? ITEMS)` for paragraphs side by side that
 each lead with a bullet or a number, where it answered paragraphs
@@ -71,6 +77,7 @@ now boots from source each time.
 [#1376]: https://github.com/jonruttan/x-lang/pull/1376
 [#1377]: https://github.com/jonruttan/x-lang/pull/1377
 [#1378]: https://github.com/jonruttan/x-lang/pull/1378
+[#1379]: https://github.com/jonruttan/x-lang/pull/1379
 
 ## [0.58.0] - 2026-11-19
 
