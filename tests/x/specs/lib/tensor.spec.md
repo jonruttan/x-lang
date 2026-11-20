@@ -679,6 +679,70 @@ nearest single: 0.1 reads back as 0.100000001490116.
     (#t #t)
 
 
+## gather
+
+### the entries the indexes pick, in their order, an index as often as it comes
+
+```x
+(import x/num/tensor)
+(let ((t (Tensor from '(10 20 30 40) 'f64)))
+  (list ((t gather '(2 0 2)) ->list) ((t gather '(-1 -4)) ->list)
+        ((t gather '(3 2 1 0)) ->list) (t ->list)))
+```
+---
+    ((30.0 10.0 30.0) (40.0 10.0) (40.0 30.0 20.0 10.0) (10.0 20.0 30.0 40.0))
+
+### rows of a matrix, and whole slabs of a higher rank
+
+```x
+(import x/num/tensor)
+(let ((m (Tensor from '((1 2) (3 4) (5 6)) 'f64))
+      (c (Tensor from '(((1 2) (3 4)) ((5 6) (7 8))) 'f64)))
+  (list ((m gather '(2 0)) ->list) ((m gather '(2 0)) extent)
+        ((c gather '(1 1 0)) extent) ((c gather '(1)) ->list)))
+```
+---
+    (((5.0 6.0) (1.0 2.0)) (2 2) (3 2 2) (((5.0 6.0) (7.0 8.0))))
+
+### the encoding is kept, and a view that is not contiguous gathers as it reads
+
+```x
+(import x/num/tensor)
+(let ((m (Tensor from '((1 2 3) (4 5 6)) 'f64)))
+  (list (((Tensor from '(1.5 2.5 3.5) 'f32) gather '(2 0)) encoding)
+        (((Tensor from '(1.5 2.5 3.5) 'f32) gather '(2 0)) ->list)
+        (((m transpose) gather '(2 0)) ->list)
+        (((m slice 1 1 3) gather '(1)) ->list)
+        ((((Tensor from '((1 2) (3 4) (5 6)) 'f64) slice 0 1 3) gather '(1 0)) ->list)))
+```
+---
+    ('f32 (3.5 1.5) ((3.0 6.0) (1.0 4.0)) ((5.0 6.0)) ((5.0 6.0) (3.0 4.0)))
+
+### no indexes answers a tensor of no entries; a Matrix stays a Matrix
+
+```x
+(import x/num/tensor) (import x/num/matrix)
+(list (((Tensor from '(1 2 3) 'f64) gather ()) extent)
+      (((Tensor from '((1 2) (3 4)) 'f64) gather ()) extent)
+      (class-name ((Matrix from '((1 2) (3 4)) 'f64) gather '(1 0)))
+      (((Matrix from '((1 2) (3 4)) 'f64) gather '(1 0)) ->list))
+```
+---
+    ((0) (0 2) 'Matrix ((3.0 4.0) (1.0 2.0)))
+
+### an index outside the axis, one that is no integer, and a rank-0 tensor are refused
+
+```x
+(import x/num/tensor)
+(let ((t (Tensor from '(10 20 30) 'f64)))
+  (list (guard (e (Err label e)) (t gather '(3)))
+        (guard (e (Err label e)) (t gather '(-4)))
+        (guard (e (Err label e)) (t gather '(1.5)))
+        (guard (e (Err label e)) ((Tensor from 7.0) gather '(0)))))
+```
+---
+    ('value 'value 'type 'value)
+
 ## Other names
 
 ### extent, encoding and deviation carry the names other libraries use
