@@ -112,6 +112,22 @@ loaded code forever.
 ---
     (#t #t)
 
+### a root armed after is searched last, behind the platform
+
+An installed library's root is armed this way: it adds modules, and a name
+the platform holds still resolves to the platform's file.
+
+```x
+(import-path! "build/ipafter" 'after)
+(def %ip-last
+  (fn (self l) (if (null? (rest l)) (first l) (self (rest l)))))
+(list (str=? (%ip-last (first %import-roots-cell)) "build/ipafter")
+      (str=? (%module-resolve 'x/num/random) "lib/x/num/random.x")
+      (str=? (%module-resolve 'ipafter/only) "build/ipafter/ipafter/only.x"))
+```
+---
+    (#t #t #t)
+
 ## Versioned module lines (GH #214)
 
 A module may exist in several versions at once as sibling files: `grid.x`

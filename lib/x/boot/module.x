@@ -473,9 +473,21 @@
   (guard (_ %engine-contract-root) (%path-join %install-root %engine-contract-root)))
 (def %file-exists?
   (fn (_ path) (guard (_ #f) (Sys file-exists? path))))
+; A root is searched FIRST by default: an overlay or a bundle shadows the
+; platform.  A second argument puts it LAST instead, after the platform:
+; (import-path! "dir" 'after) is how an installed library's root is armed,
+; so a library adds modules and can never replace one the platform holds.
 (def import-path!
-  (fn (_ dir)
-    (%set-first! %import-roots-cell (pair dir (first %import-roots-cell)))
+  (fn (_ dir . after)
+    (def %go
+      (fn (self roots)
+        (match
+          ((eq? roots ()) (pair dir ()))
+          (#t (pair (first roots) (self (rest roots)))))))
+    (%set-first! %import-roots-cell
+      (match
+        ((eq? after ()) (pair dir (first %import-roots-cell)))
+        (#t (%go (first %import-roots-cell)))))
     (first %import-roots-cell)))
 (def %module-resolve-file
   (fn (_ %file)
