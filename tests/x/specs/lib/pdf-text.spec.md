@@ -162,6 +162,58 @@ extent can be counted.
 ---
     (('list #f () #f ((('paragraph ("outer"))) (('paragraph ("inner"))) (('paragraph ("next"))))))
 
+## links
+
+### a link written is read back: its destination, its text, the styles in it, the spaces beside it outside
+
+```x
+(do (import x/codec/pdf-write) (import x/codec/pdf-text)
+  (def %ptk-back (fn (_ blocks) ((fn (_ r) (PdfText parse (first r) (List ref 2 r))) (PdfWrite bytes blocks))))
+  (def %ptk-doc
+    (list (list (lit paragraph)
+            (list "See " (list (lit link) "https://example.com/a?b=1" () (list "the site")) " and "
+                  (list (lit link) "/u (v)\\w" () (list "a " (list (lit strong) (list "bold")) " one")) "."))
+          (list (lit paragraph) (list (list (lit link) "one" () (list "first")) " " (list (lit link) "two" () (list "second"))))
+          (list (lit list) #f () #t (list (list (list (lit paragraph) (list "item " (list (lit link) "three" () (list "third")))))))))
+  (list (equal? (%ptk-back %ptk-doc) %ptk-doc) (%ptk-back %ptk-doc)))
+```
+---
+    (#t (('paragraph ("See " ('link "https://example.com/a?b=1" () ("the site")) " and " ('link "/u (v)\\w" () ("a " ('strong ("bold")) " one")) ".")) ('paragraph (('link "one" () ("first")) " " ('link "two" () ("second")))) ('list #f () #t ((('paragraph ("item " ('link "three" () ("third")))))))))
+
+### a link over a line's end is one link; the links of a second page are their own
+
+```x
+(do (import x/codec/pdf-write) (import x/codec/pdf-text)
+  (def %ptk-words "word word word word word word word word word word word word word word word word word")
+  (def %ptk-para (fn (_ dest) (list (lit paragraph) (list "Then " (list (lit link) dest () (list %ptk-words " " %ptk-words)) " end."))))
+  (def %ptk-links
+    (fn (self inlines)
+      (List flat-map
+        (fn (_ x) (match ((str? x) ()) ((eq? (first x) (lit link)) (list (list (List ref 1 x) (List length (List ref 3 x))))) (#t ())))
+        inlines)))
+  (List map (fn (_ b) (%ptk-links (List ref 1 b)))
+    (%ptk-back (List append (list (%ptk-para "first"))
+                            (List map (fn (_ k) (list (lit paragraph) (list "filler"))) (List range 0 40))
+                            (list (%ptk-para "second"))))))
+```
+---
+    ((("first" 5)) () () () () () () () () () () () () () () () () () () () () () () () () () () () () () () () () () () () () () () () () (("second" 5)))
+
+### the file: a page's /Annots, each a Link with its rectangle over the text and its URI; a page with no link has none
+
+```x
+(do (import x/codec/pdf-write) (import x/codec/pdf)
+  (def %ptk-open (fn (_ r) (Pdf open (first r) (List ref 2 r))))
+  (def %ptk-f (%ptk-open (PdfWrite bytes (list (list (lit paragraph) (list "A " (list (lit link) "https://x.test/" () (list "link")) " here."))))))
+  (def %ptk-a (first (rest (Pdf lookup %ptk-f (first (Pdf pages %ptk-f)) "Annots"))))
+  (list (List length (rest (Pdf lookup %ptk-f (first (Pdf pages %ptk-f)) "Annots")))
+        (Pdf lookup %ptk-f %ptk-a "Subtype") (Pdf lookup %ptk-f %ptk-a "Rect")
+        ((fn (_ u) (Str8 sub 0 (List ref 2 u) (List ref 1 u))) (Pdf lookup %ptk-f (Pdf lookup %ptk-f %ptk-a "A") "URI"))
+        (null? (Pdf lookup (%ptk-open (PdfWrite bytes (list (list (lit paragraph) (list "none"))))) (first (Pdf pages (%ptk-open (PdfWrite bytes (list (list (lit paragraph) (list "none"))))))) "Annots"))))
+```
+---
+    (1 ('name "Link") ('array ('real "82.395") ('real "706.8") ('real "98.895") ('real "717.8")) "https://x.test/" #t)
+
 ## title
 
 ### the /Info dictionary's /Title, trimmed
