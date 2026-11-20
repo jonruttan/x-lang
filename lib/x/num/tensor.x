@@ -927,6 +927,39 @@
       (example "((((Tensor range 3 'f64) transpose) copy) ->list)" "(0.0 1.0 2.0)"))
     (let ((st (field (lit st)))) (self %wrap ((obj-ref (Tensor %fast) 10) st (first st)))))
 
+  ; Each entry is one run of bytes in a contiguous tensor, so an index
+  ; costs one copy of that run whatever the rank.  A tensor that is not
+  ; contiguous is copied to one first, and held to the end so its
+  ; address stays good.
+  (method gather (self (param indexes LIST "Indexes along the first axis; a negative one counts from the end"))
+    (doc "The entries along the first axis the indexes pick, in the indexes' order: the elements of a rank-1 tensor, the rows of a matrix, and so on up. An index may come more than once. An index outside the axis is refused."
+      (known-as "take" "fancy indexing")
+      (returns Tensor "A fresh tensor in self's encoding: an entry for each index, each of self's extent after the first axis")
+      (example "(((Tensor from '(10 20 30) 'f64) gather '(2 0 2)) ->list)" "(30.0 10.0 30.0)")
+      (example "(((Tensor from '((1 2) (3 4) (5 6)) 'f64) gather '(-1 0)) ->list)" "((5.0 6.0) (1.0 2.0))"))
+    (let ((f (Tensor %fast)) (st (field (lit st))))
+      (let ((ext (List ref 1 st)))
+        (if (null? ext) (Err raise (lit value) "Tensor gather: a rank-0 tensor has no axis" ext) ())
+        (let ((src (if ((obj-ref f 3) st) st ((obj-ref f 10) st (first st))))
+              (entries (first ext))
+              (bytes (int* ((obj-ref f 1) (rest ext))
+                           (match ((eq? (first st) (lit c128)) 16) ((eq? (first st) (lit f32)) 4) (#t 8)))))
+          (let ((out ((obj-ref f 4) (first st) (pair (List length indexes) (rest ext)))))
+            (let ((from ((obj-ref f 13) src)) (to ((obj-ref f 13) out)))
+              ((fn (go l k)
+                 (if (null? l) ()
+                   (let ((i (first l)))
+                     (if (type? i (type-of 0)) () (Err raise (lit type) "Tensor gather: an index is an integer" i))
+                     (let ((r (if (int< i 0) (int+ entries i) i)))
+                       (if (if (int< r 0) #t (not (int< r entries)))
+                         (Err raise (lit value) "Tensor gather: no such index along the first axis" i) ())
+                       (if (int< 0 bytes)
+                         (mem-copy (int->ptr (int+ to (int* k bytes))) (int->ptr (int+ from (int* r bytes))) bytes)
+                         ())
+                       (go (rest l) (int+ k 1))))))
+                indexes 0)
+              (do src (self %wrap out))))))))
+
   (method as (self (param enc SYMBOL "The encoding: f64, f32, i64 or c128"))
     (doc "A contiguous copy in another encoding. f64 to f32 rounds each element to the nearest single, and f32 to f64 is exact; f64 or f32 to i64 truncates toward zero; a real encoding to c128 gives each element a 0 imaginary part. A c128 tensor is refused: take its real or imaginary part."
       (returns Tensor "A fresh tensor of the same extent")
