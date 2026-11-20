@@ -241,6 +241,15 @@ same job, and the langs do not even agree on where that answer lives: x-logo
 registers its tokens as types on the base, while x-python parses Python itself
 and never touches the base tokenizer. One painter cannot serve both.
 
+A lang that ships a highlighting grammar (`x/tool/syntax`) has its painter
+already: `(Paint grammar g)` answers one that draws the line being typed by
+the grammar's spans, in the theme in use, so the prompt and the lang's files
+are coloured by the same rules.
+
+```x
+(set! %repl-paint (Paint grammar (Syntax named 'scheme)))
+```
+
 The platform installs its own painter over nil, or over the painter it last
 installed, and over nothing else -- so a lang's painter survives whether it is
 set before the editor loads or after, and across a state image reload. Nil
