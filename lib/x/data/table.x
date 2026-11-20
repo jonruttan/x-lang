@@ -20,6 +20,13 @@
 ;   (t filter 'age pred)         the rows where pred answers true of age
 ;   (t sort 'age)                the rows in the order of age
 ;   (t matrix '(age height))     those columns as an f64 Matrix
+;   (t put 'bmi values)          the table with that column added or replaced
+;   (t derive 'bmi '(weight height) f)   put, the values f answers of the
+;                                named columns' values, row by row
+;   (t remove 'age)  (t rename 'age 'years)
+;
+; A Column of numbers also answers add, sub, mul and div, element by
+; element as a Tensor's do, and any Column answers map.
 ;
 ; filter and sort find the rows to keep as a list of row numbers, once,
 ; and each column is then gathered by it.
@@ -64,7 +71,8 @@
   (doc "A run of values of one encoding, as a table holds under a name. Where every value is an integer or a Float it is held as a rank-1 Tensor and answers its statistics; any other column holds the values as they are, its encoding any."
     (example "((Column from '(31.0 45.0 28.0)) mean)" "34.6666666666667")
     (example "((Column from '(\"Ann\" \"Bo\")) encoding)" "'any")
-    (see from) (see size) (see encoding) (see ref) (see ->list) (see tensor))
+    (see from) (see size) (see encoding) (see ref) (see ->list) (see tensor)
+    (see add) (see sub) (see mul) (see div) (see map))
 
   encoding   ; a Tensor's encoding, or any
   data       ; a rank-1 Tensor, or for any a Vector
@@ -139,6 +147,39 @@
       (Err raise (lit value) "Column tensor: a column of encoding any holds no numbers" self)
       (field (lit data))))
 
+  ; OTHER as a Tensor's arithmetic takes it: a Column's Tensor, or the
+  ; number or Tensor it is.
+  (method %operand (self other)
+    (if (if (object? other) (instance-of? other Column) #f) (other tensor) other))
+
+  (method add (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
+    (doc "The sum, element by element, as a Tensor's add answers it."
+      (returns Column "A column of the sums")
+      (example "(((Column from '(1.5 2.5)) add (Column from '(10.0 20.0))) ->list)" "(11.5 22.5)"))
+    (Column from ((self tensor) add (self %operand other))))
+  (method sub (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
+    (doc "The difference, self less other, element by element."
+      (returns Column "A column of the differences")
+      (example "(((Column from '(1.5 2.5)) sub 0.5) ->list)" "(1.0 2.0)"))
+    (Column from ((self tensor) sub (self %operand other))))
+  (method mul (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
+    (doc "The product, element by element."
+      (returns Column "A column of the products")
+      (example "(((Column from '(1.5 2.5)) mul 2.0) ->list)" "(3.0 5.0)"))
+    (Column from ((self tensor) mul (self %operand other))))
+  (method div (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
+    (doc "The quotient, self over other, element by element."
+      (returns Column "A column of the quotients")
+      (example "(((Column from '(3.0 5.0)) div (Column from '(2.0 4.0))) ->list)" "(1.5 1.25)"))
+    (Column from ((self tensor) div (self %operand other))))
+
+  (method map (self (param f CALLABLE "Called with each value"))
+    (doc "The column of what f answers of each value, in order. Its encoding is read from the answers, as from reads it."
+      (returns Column "A column of the answers")
+      (example "(((Column from '(\"Ann\" \"Bo\")) map (fn (_ s) (equal? s \"Bo\"))) ->list)" "(#f #t)")
+      (example "(((Column from '(1.5 2.5)) map (fn (_ x) (< 2 x))) ->list)" "(#f #t)"))
+    (Column from (List map f (self ->list))))
+
   ; The values at the row numbers of ROWS, as a column of this encoding.
   (method %take (self rows)
     (let ((v (Vector from-list (self ->list))))
@@ -183,7 +224,8 @@
     (known-as "DataFrame" "data frame")
     (example "((Table from '((age (31.0 45.0)) (name (\"Ann\" \"Bo\")))) extent)" "(2 2)")
     (see from) (see from-csv) (see names) (see extent) (see column) (see row)
-    (see select) (see filter) (see sort) (see matrix) (see ->list))
+    (see select) (see filter) (see sort) (see matrix) (see ->list)
+    (see put) (see derive) (see remove) (see rename))
 
   names     ; the columns' names, symbols, in order
   columns   ; the Columns, in the order of the names
@@ -310,6 +352,56 @@
       (%transpose (List map (fn (_ n) (((self column n) tensor) ->list)) names))
       (lit f64)))
 
+  (method put (self (param name SYMBOL|STRING "The column's name")
+                    (param values LIST|VECTOR|Tensor|Column "The values, a row for each of the table's, as Column from takes them"))
+    (doc "The table with the column under that name: a name the table has is replaced where it stands, a new one is added last."
+      (known-as "assign" "with column")
+      (returns Table "A table with that column")
+      (example "(((Table from '((age (31.0 45.0)))) put 'name '(\"Ann\" \"Bo\")) names)" "('age 'name)")
+      (example "((((Table from '((age (31.0 45.0)) (name (\"Ann\" \"Bo\")))) put 'age '(1.0 2.0)) column 'age) ->list)" "(1.0 2.0)"))
+    (let ((name (%name name)) (column (Column from values)))
+      (let go ((names (field (lit names))) (cols (field (lit columns))) (kept-names ()) (kept-cols ()))
+        (match
+          ((null? names)
+            (Table %of (List reverse (pair name kept-names)) (List reverse (pair column kept-cols))))
+          ((eq? (first names) name)
+            (Table %of (List append (List reverse kept-names) (pair name (rest names)))
+                       (List append (List reverse kept-cols) (pair column (rest cols)))))
+          (#t (go (rest names) (rest cols) (pair (first names) kept-names) (pair (first cols) kept-cols)))))))
+
+  (method derive (self (param name SYMBOL|STRING "The name of the column made")
+                       (param names LIST "The names of the columns f is called with, in order")
+                       (param f CALLABLE "Called for each row with that row's value of each named column; its answer is the row's value"))
+    (doc "The table with a column worked out from others: put, of what f answers of the named columns' values, row by row."
+      (known-as "mutate" "transform")
+      (returns Table "A table with that column")
+      (example "((((Table from '((w (8.0 18.0)) (h (2.0 3.0)))) derive 'r '(w h) (fn (_ w h) (Float / w (Float * h h)))) column 'r) ->list)" "(2.0 2.0)")
+      (example "((((Table from '((score (40.0 70.0)))) derive 'grade '(score) (fn (_ s) (if (< 50 s) \"pass\" \"fail\"))) column 'grade) ->list)" "(\"fail\" \"pass\")"))
+    (if (null? names) (Err raise (lit value) "Table derive: no column is named" names) ())
+    (let ((lists (List map (fn (_ n) ((self column n) ->list)) names)))
+      (self put name
+        (if (null? (rest lists))
+          (List map f (first lists))
+          (List map (fn (_ row) (apply f row)) (%transpose lists))))))
+
+  (method remove (self (param name SYMBOL|STRING "The column's name"))
+    (doc "The table without the column under that name. A name the table does not have is refused."
+      (known-as "drop")
+      (returns Table "A table of the other columns")
+      (example "(((Table from '((age (31.0)) (name (\"Ann\")))) remove 'age) names)" "('name)"))
+    (let ((name (%name name)))
+      (self column name)
+      (self select (List filter (fn (_ n) (not (eq? n name))) (field (lit names))))))
+
+  (method rename (self (param name SYMBOL|STRING "The column's name") (param to SYMBOL|STRING "Its new name"))
+    (doc "The table with one column under a new name, where it stood. A name the table does not have, or a new name it has already, is refused."
+      (returns Table "A table with that column renamed")
+      (example "(((Table from '((age (31.0)) (name (\"Ann\")))) rename 'age 'years) names)" "('years 'name)"))
+    (let ((name (%name name)) (to (%name to)))
+      (self column name)
+      (Table %of (List map (fn (_ n) (if (eq? n name) to n)) (field (lit names)))
+                 (field (lit columns)))))
+
   (method ->list (self)
     (doc "The table as from takes it: a list for each column, its name and then its values."
       (returns LIST "((NAME VALUES) ...)")
@@ -322,5 +414,5 @@
                (List map (fn (_ c) (c %take rows)) (field (lit columns))))))
 
 (doc (provide x/data/table Table Column)
-  "Tables of named columns, as values: a Table is read from lists or csv text and answers its columns, rows, a selection of columns, the rows a column's value passes, the rows in a column's order, and columns as a Matrix; a Column of numbers answers its statistics."
+  "Tables of named columns, as values: a Table is read from lists or csv text and answers its columns, rows, a selection of columns, the rows a column's value passes, the rows in a column's order, and columns as a Matrix, and a table with a column put, derived, removed or renamed; a Column of numbers answers its statistics and its arithmetic."
   (example "(((Table from-csv \"name,age\\nida,7\\nbo,9\\n\") column 'age) mean)" "8.0"))
