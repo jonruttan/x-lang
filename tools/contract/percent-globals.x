@@ -320,7 +320,10 @@
 ; error-handler cell, which %tab-find! empties around its three writes so that
 ; a STOP cannot fall between them; resolved once rather than walked to on
 ; every move.
-(file "lib/x/type/class.x" 82)   ; +1 %apply: the dispatcher applies resolved methods and displaced C handler atoms through the engine's apply
+; class.x rose 82 to 84 for %class-pair-type and %class-sym-type: the send
+; paths test types with the type? door, not pair? and symbol? (7 objects a
+; call), and a static send fell from 88 objects to 54.
+(file "lib/x/type/class.x" 84)   ; +1 %apply: the dispatcher applies resolved methods and displaced C handler atoms through the engine's apply
 (file "lib/x/type/unit-label-rows.x" 2)
 (file "tools/check/boot-order.x" 33)
 (file "tools/check/dialect-cover.x" 9)
