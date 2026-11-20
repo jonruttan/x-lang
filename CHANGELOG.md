@@ -5,6 +5,80 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-11-19
+
+**`x/num/model` fits a linear model.** ([#1374]) `(Model linear)`
+is the model and `((Model linear) fit x y)` a `Fit`, which answers
+`coefficients`, `intercept`, `fitted`, `residuals`, `determination`
+and `(f predict x)`. `fit` answers a new value and leaves the model
+unchanged. `(Model linear 'origin)` fits no intercept. `apropos`
+finds it as "lm", "linear regression" and "OLS", and `determination`
+as "R-squared".
+
+**A `Fit` judges its coefficients.** ([#1376]) `(f standard-errors)`,
+`(f statistics)` and `(f significance)` answer, for each predictor,
+the coefficient's standard error, the coefficient over it, and the
+chance of a statistic that far from 0 where the true coefficient is 0.
+`(f freedom)` is the residual degrees of freedom and
+`(f residual-deviation)` the spread of the residuals. `apropos` finds
+them as "p-value", "t value" and "residual standard error".
+
+**`x/num/neural` has a transformer's operations.** ([#1375]) On
+tensors: `Neural softmax`, `gelu` (exact, or `'tanh` for the
+approximation), `layer-norm`, `embed` and `causal-mask`. softmax, gelu
+and layer-norm run as compiled kernels where a JIT backend is.
+
+**A word form takes `f-exp`, `f-tanh` and `f-erf`.** ([#1371]) libm's
+exp, tanh and erf on a double. `compile-asm` compiles each as a call to
+libm on the 64-bit backends, and `word-form-pure` answers the same bits.
+
+**`x/codec/byte-pair` tokenizes for a language model.** ([#1378]) It
+turns text into the ids of a model's vocabulary and back.
+`(BytePair from-files vocabulary merges)` reads the two files GPT-2 is
+published with; `encode` answers a text's ids, `decode` the ids' text,
+and `item` and `id` go between an id and its bytes.
+
+**`Json parse` collects garbage as it goes.** ([#1378]) Every 8192 bytes
+of text, so a long text costs the values it answers and no longer every
+byte's garbage at once.
+
+**`Csv parse-by` and `Csv emit-by` take the separator.** ([#1379])
+`(Csv parse-by ";" text)` and `(Csv emit-by "\t" rows)` read and write
+fields separated by any one byte below 128 that is not a quote, a CR or
+an LF; `parse` and `emit` are the same with a comma. A separator a field
+cannot be told from raises a label `value`.
+
+**A PDF's lists are read as lists.** ([#1377]) `(PdfText parse)` answers
+`(list ORDERED? START TIGHT? ITEMS)` for paragraphs side by side that
+each lead with a bullet or a number, where it answered paragraphs
+that began with their markers. A list `(PdfWrite bytes)` writes reads
+back as the list it was given, so a document keeps its lists through
+a PDF.
+
+**A card's program may give what it prints in an `output` fence.**
+([#1372]) A lang with no comment syntax, such as a grep pattern file,
+cannot carry the `# -> TEXT` lines the card check reads. A fence opened
+as `output`, the next fence after the program, is now that program's
+standard output, whole; the check runs the program and compares. An
+output fence with no program before it, or after a program that has
+arrow comments, is refused.
+
+**An app's command runs on every boot.** ([#1373]) `x -l bitwise --
+NAME` drew nothing, with status 0, on every run after the first: the
+wrapper saved a state image of the app's entry, whose last form is the
+command, and later boots loaded the image without running it. An app
+now boots from source each time.
+
+[#1371]: https://github.com/jonruttan/x-lang/pull/1371
+[#1372]: https://github.com/jonruttan/x-lang/pull/1372
+[#1373]: https://github.com/jonruttan/x-lang/pull/1373
+[#1374]: https://github.com/jonruttan/x-lang/pull/1374
+[#1375]: https://github.com/jonruttan/x-lang/pull/1375
+[#1376]: https://github.com/jonruttan/x-lang/pull/1376
+[#1377]: https://github.com/jonruttan/x-lang/pull/1377
+[#1378]: https://github.com/jonruttan/x-lang/pull/1378
+[#1379]: https://github.com/jonruttan/x-lang/pull/1379
+
 ## [0.58.0] - 2026-11-19
 
 **A state image holds two million live objects.** ([#1360]) The writer
