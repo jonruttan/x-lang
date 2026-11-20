@@ -278,3 +278,22 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 ```
 ---
     (1 "two" #t 'null)
+
+## a long text
+
+### values parsed before a collection are kept
+
+parse collects garbage as it goes, every few thousand bytes of text. The
+text here is 800 elements, each an array holding a number, a string and an
+object, about 17,000 bytes: several collections come and go while the
+outer array is being made.
+
+```x
+(do (import x/codec/json)
+  (def pieces (fn (go n) (if (= n 0) () (pair "[1,\"ab\",{\"k\":[2,3]}]" (go (- n 1))))))
+  (def v (Json parse (Str8 append "[" (Str8 join "," (pieces 800)) "]")))
+  (list (List length v) (List length (first v)) ((List ref 2 (List ref 0 v)) get "k") ((List ref 2 (List ref 799 v)) get "k")
+        (List all? (fn (_ e) (equal? (List ref 1 e) "ab")) v)))
+```
+---
+    (800 3 (2 3) (2 3) #t)
