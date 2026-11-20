@@ -104,6 +104,64 @@ extent can be counted.
 ---
     (('heading 1 ("Big")) ('heading 2 ("Small")) ('paragraph ("A full line of text that reaches the edge" ('softbreak) "short.")) ('paragraph ("Next paragraph, also reaching the margin." ('softbreak) "It continues to the right hand margin too")) ('paragraph ("Indented start of a third, long line")))
 
+## lists
+
+### items led by a bullet or by numbers are a list: the marker taken off, the first number kept, tight when a line apart
+
+```x
+(do (import x/codec/pdf-write) (import x/codec/pdf-text)
+  (def %ptl-back (fn (_ blocks) ((fn (_ r) (PdfText parse (first r) (List ref 2 r))) (PdfWrite bytes blocks))))
+  (def %ptl-item (fn (_ . inlines) (list (list (lit paragraph) inlines))))
+  (def %ptl-doc
+    (list (list (lit paragraph) (list "Before."))
+          (list (lit list) #f () #t (list (%ptl-item "one") (%ptl-item "two " (list (lit strong) (list "bold")))))
+          (list (lit list) #t 3 #t (list (%ptl-item "three") (%ptl-item "four")))
+          (list (lit list) #f () #f (list (%ptl-item "loose") (%ptl-item "apart")))
+          (list (lit paragraph) (list "After."))))
+  (list (equal? (%ptl-back %ptl-doc) %ptl-doc) (%ptl-back %ptl-doc)))
+```
+---
+    (#t (('paragraph ("Before.")) ('list #f () #t ((('paragraph ("one"))) (('paragraph ("two " ('strong ("bold"))))))) ('list #t 3 #t ((('paragraph ("three"))) (('paragraph ("four"))))) ('list #f () #f ((('paragraph ("loose"))) (('paragraph ("apart"))))) ('paragraph ("After."))))
+
+### an item of several lines is one item, and a list of them stays apart item by item
+
+```x
+(do (import x/codec/pdf-write) (import x/codec/pdf-text)
+  (def %ptl-long "word word word word word word word word word word word word word word word word word word word word word word word word")
+  (List map
+    (fn (_ b) (match ((eq? (first b) (lit list)) (list (List ref 1 b) (List ref 2 b) (List ref 3 b) (List length (List ref 4 b)))) (#t (first b))))
+    (%ptl-back (list (list (lit list) #f () #t (list (%ptl-item %ptl-long) (%ptl-item %ptl-long) (%ptl-item "short")))
+                     (list (lit list) #t 1 #t (list (%ptl-item %ptl-long) (%ptl-item %ptl-long)))))))
+```
+---
+    ((#f () #t 3) (#t 1 #t 2))
+
+### prose is not a list: a hyphen or a number that a wrapped line begins with, a year, a decimal, a marker with no space, a numbered heading
+
+```x
+(do (import x/codec/pdf-write) (import x/codec/pdf-text)
+  (List map first
+    (%ptl-back (list (list (lit paragraph) (list "word word word word word word word word word word word word word word word word word word word word wor - and on it goes, then 12. more words follow here"))
+                     (list (lit paragraph) (list "1999. A year begins this."))
+                     (list (lit paragraph) (list "1.5 times as many."))
+                     (list (lit paragraph) (list "-dashed and *starred."))
+                     (list (lit heading) 2 (list "1. Introduction"))
+                     (list (lit paragraph) (list "- one hyphen item"))))))
+```
+---
+    ('paragraph 'paragraph 'paragraph 'paragraph 'heading 'list)
+
+### a list inside an item is read as items of the one list
+
+```x
+(do (import x/codec/pdf-write) (import x/codec/pdf-text)
+  (%ptl-back (list (list (lit list) #f () #t
+                     (list (list (list (lit paragraph) (list "outer")) (list (lit list) #f () #t (list (%ptl-item "inner"))))
+                           (%ptl-item "next"))))))
+```
+---
+    (('list #f () #f ((('paragraph ("outer"))) (('paragraph ("inner"))) (('paragraph ("next"))))))
+
 ## title
 
 ### the /Info dictionary's /Title, trimmed
