@@ -4,7 +4,8 @@
 ; tree (x/codec/document) on US Letter pages: headings in bold at six sizes,
 ; paragraphs broken at spaces to the page's width and set ragged right,
 ; code in Courier, quotes and list items indented, a rule for a thematic
-; break, and a new page when one is full.
+; break, a table's rows a line each, its cells parted by bars, and a new
+; page when one is full.
 ;
 ; The fonts are five of the standard fourteen, which a reader of PDF has
 ; and a file need not carry: Helvetica, its bold, its oblique and its bold
@@ -22,7 +23,7 @@
 ;
 ; The file is plain: its content streams are not compressed, and the only
 ; bytes past ASCII are text's.  Not yet here: a link's title, images,
-; tables, other page sizes and fonts, and justified text.
+; tables as grids, other page sizes and fonts, and justified text.
 
 (module x/codec/pdf-write)
 (import x/type/class)
@@ -344,6 +345,20 @@
                   (#t (List reverse (pair l acc)))))
          line ()))
       ((fn (_ ls) (match ((null? ls) ()) ((str=? (List last ls) "") (List init ls)) (#t ls))) (Str8 split "\n" text)))))
+; A table's rows as paragraphs, a row's cells parted by " | ", a header
+; row's strong.
+(def %pw-table-rows
+  (fn (_ b)
+    ((fn (self rows head)
+       (match ((null? rows) ())
+              (#t (pair (list (lit paragraph)
+                              ((fn (_ inl) (match (head (list (list (lit strong) inl))) (#t inl)))
+                               (List flat-map (fn (_ c) c)
+                                 ((fn (join cs) (match ((null? cs) ()) ((null? (rest cs)) (list (first cs)))
+                                                       (#t (pair (first cs) (pair (list " | ") (join (rest cs)))))))
+                                  (first rows)))))
+                        (self (rest rows) #f)))))
+     (List ref 3 b) (List ref 1 b))))
 ; Set BLOCKS from the left edge X.  TIGHT? leaves less after a paragraph.
 (def %pw-blocks!
   (fn (blocks! s blocks x tight?)
@@ -370,6 +385,7 @@
                      (%pw-code-lines (List ref 2 b) (int/ (int- (int- %pw-width %pw-margin) x) 5400)))
                    (%pw-down! s 7000)))
              ((eq? kind (lit block-quote)) (blocks! s (List ref 1 b) (int+ x %pw-indent) tight?))
+             ((eq? kind (lit table)) (do (blocks! s (%pw-table-rows b) x #t) (%pw-down! s 5000)))
              ((eq? kind (lit list))
                (do ((fn (self items n)
                       (unless (null? items)

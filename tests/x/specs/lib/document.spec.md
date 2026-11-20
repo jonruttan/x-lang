@@ -31,14 +31,14 @@ NODE), or nil.  What the Markdown and HTML readers answer is sound.
 
 ```x
 (do (import x/codec/document)
-  (list (Document check (list (list (lit table) ())))
+  (list (Document check (list (list (lit figure) ())))
         (Document check (list (list (lit paragraph) (list (list (lit bold) (list "x"))))))
         (Document check (list "text"))
         (Document check (list (list (lit emph) (list "x"))))
         (Document check (list ()))))
 ```
 ---
-    (('block 'name ('table ())) ('inline 'name ('bold ("x"))) ('block 'name "text") ('block 'name ('emph ("x"))) ('block 'name ()))
+    (('block 'name ('figure ())) ('inline 'name ('bold ("x"))) ('block 'name "text") ('block 'name ('emph ("x"))) ('block 'name ()))
 
 ### too few parts or too many
 
@@ -77,6 +77,20 @@ NODE), or nil.  What the Markdown and HTML readers answer is sound.
 ---
     (('document 'blocks "text") ('paragraph 'inlines ('paragraph "x")) ('block-quote 'blocks ('block-quote 'quote)) ('list 'items "a") ('block 'name "a"))
 
+### a table: a sound one, an alignment none of left, center and right, rows no list, a row or a cell no list, a cell's inline unknown
+
+```x
+(do (import x/codec/document)
+  (list (Document check (list (list (lit table) #t (list () (lit right)) (list (list (list "a") ()) (list (list (list (lit emph) (list "b"))))))))
+        (Document check (list (list (lit table) #f (list (lit up)) ())))
+        (Document check (list (list (lit table) #f () "r")))
+        (Document check (list (list (lit table) #f () (list "r"))))
+        (Document check (list (list (lit table) #f () (list (list "c")))))
+        (Document check (list (list (lit table) #f () (list (list (list (list (lit bold) ())))))))))
+```
+---
+    (() ('table 'aligns ('table #f ('up) ())) ('table 'rows ('table #f () "r")) ('table 'rows "r") ('table 'rows "c") ('inline 'name ('bold ())))
+
 ### the fault is the first one, and the innermost node's
 
 ```x
@@ -100,7 +114,7 @@ NODE), or nil.  What the Markdown and HTML readers answer is sound.
   (list (Document blocks) (Document inlines)))
 ```
 ---
-    ((('heading 'level 'inlines) ('paragraph 'inlines) ('code-block 'text 'text) ('block-quote 'blocks) ('list 'flag 'start 'flag 'items) ('thematic-break) ('html-block 'text)) (('emph 'inlines) ('strong 'inlines) ('code 'text) ('softbreak) ('hardbreak) ('link 'text 'title 'inlines) ('image 'text 'title 'inlines) ('html-inline 'text) ('field 'symbol 'title 'title 'flag 'options 'form)))
+    ((('heading 'level 'inlines) ('paragraph 'inlines) ('code-block 'text 'text) ('block-quote 'blocks) ('list 'flag 'start 'flag 'items) ('thematic-break) ('html-block 'text) ('table 'flag 'aligns 'rows)) (('emph 'inlines) ('strong 'inlines) ('code 'text) ('softbreak) ('hardbreak) ('link 'text 'title 'inlines) ('image 'text 'title 'inlines) ('html-inline 'text) ('field 'symbol 'title 'title 'flag 'options 'form)))
 
 ## formats
 

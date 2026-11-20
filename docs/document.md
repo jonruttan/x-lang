@@ -67,10 +67,16 @@ else: a reader builds it with `list`, and a writer reads it with `first` and
 | `(list ORDERED? START TIGHT? ITEMS)` | A list. ITEMS is a list of items, each a list of blocks |
 | `(thematic-break)` | A rule between sections |
 | `(html-block TEXT)` | HTML carried through as it was written |
+| `(table HEADER? ALIGNS ROWS)` | A table. ROWS is a list of rows, each a list of cells, each a list of inlines |
 
 In a list, START is the number of an ordered list's first item, and nil for
 a list with no numbers. TIGHT? is `#t` when the items' paragraphs are set
 with no space between them.
+
+In a table, HEADER? is `#t` when the first row is a header. ALIGNS holds a
+column's alignment, `left`, `center`, `right`, or nil for none, one a
+column. A row may have fewer cells than another; a writer sets the missing
+ones empty.
 
 ### Inlines
 
@@ -96,16 +102,18 @@ INLINES is a list of strings and inline nodes. A string is text.
   destinations and titles are decoded too. A writer escapes for its own
   format.
 - Blocks hold blocks only through `block-quote` and `list`; inlines hold
-  inlines only through `emph`, `strong`, `link` and `image`.
+  inlines only through `emph`, `strong`, `link` and `image`, and a
+  `table`'s cells hold inlines.
 - A node a writer has no form for has a plain reading: an `image` is its
-  alternative text, a `field` its value, `html-block` and `html-inline`
-  nothing, and a `softbreak` a space.
+  alternative text, a `field` its value, a `table` a paragraph a row with
+  its cells parted by ` | `, `html-block` and `html-inline` nothing, and a
+  `softbreak` a space.
 
 ## What a reader must do
 
 - Answer only the nodes above. Structure the format has and the tree does
-  not is set with the nodes there are, as `x/codec/html` sets a table as a
-  paragraph a row.
+  not is set with the nodes there are, as `x/codec/html` sets a definition
+  list as paragraphs.
 - Decode the format's escapes, so that no text in the tree is written in
   the source format's notation.
 - Pass `(Document check)`: a reader's spec checks what it answers.

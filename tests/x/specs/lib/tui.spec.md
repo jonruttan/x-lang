@@ -94,6 +94,18 @@ On the last row, where the cells end, and on a row above a wide character the ne
 ---
     (("Name: Ann Lee_____________" "***_________________" "[X] yes ( ) no [Two] [Go now]" "u [Submit]") (("n" ((0 6 20))) ("p" ((1 0 20))) ("c" ((2 0 3))) ("r" ((2 8 3))) ("s" ((2 15 5))) ("b" ((2 21 8))) ("/u" ((3 0 1))) (() ((3 2 8)))) 0 1 'field 0)
 
+### a table is a grid: its columns as wide as their widest cells when they fit, sharing the width when they do not, a rule under a header row, a column aligned, a link in a cell numbered in reading order
+
+```x
+(do (import x/codec/html) (import x/tui/page)
+  (def b (Html parse "<table><caption>Cap</caption><thead><tr><th>Name<th align=right>Count</thead><tr><td>apples and pears<td>12<tr><td><a href=/x>x</a><td>3</table><p><a href=/y>y</a>"))
+  (def lines (fn (_ p) (List map (fn (_ i) (Page line-text p i)) (List range 0 (Page count p)))))
+  (list (lines (Page markdown b 30)) (lines (Page markdown b 14))
+        (List map (fn (_ l) (list (first l) (List ref 2 l))) (Page links (Page markdown b 30)))))
+```
+---
+    (("Cap" "" "Name             │ Count" "─────────────────┼──────" "apples and pears │    12" "x                │     3" "" "y") ("Cap" "" "Name   │ Count" "───────┼──────" "apples │    12" "and    │ " "pears  │ " "x      │     3" "" "y") (("/x" ((5 0 1))) ("/y" ((7 0 1)))))
+
 ### plain text keeps its spaces and expands tabs
 
 ```x

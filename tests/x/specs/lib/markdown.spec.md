@@ -157,3 +157,13 @@ its own way).
 ```
 ---
     "<div>\nx\n</div>\n<p>a <i>b</i><br />\nc</p>\n"
+
+### a table renders as GitHub's renderer writes one: a header row in a thead, a column's alignment on its cells, a short row filled out
+
+```x
+(do (import x/codec/markdown)
+  (list (Markdown html (list (list (lit table) #t (list () (lit right)) (list (list (list "a") (list "n")) (list (list (list (lit emph) (list "c"))) (list "1")) (list (list "d"))))))
+        (Markdown html (list (list (lit table) #f () (list (list (list "x") (list "y"))))))))
+```
+---
+    ("<table>\n<thead>\n<tr>\n<th>a</th>\n<th align=\"right\">n</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><em>c</em></td>\n<td align=\"right\">1</td>\n</tr>\n<tr>\n<td>d</td>\n<td align=\"right\"></td>\n</tr>\n</tbody>\n</table>\n" "<table>\n<tbody>\n<tr>\n<td>x</td>\n<td>y</td>\n</tr>\n</tbody>\n</table>\n")

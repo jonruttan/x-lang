@@ -165,6 +165,27 @@
     (match ((null? items) ())
            ((null? n) (pair (f (first items) "- ") (self f (rest items) ())))
            (#t (pair (f (first items) (Str8 append (Str8 str n) ". ")) (self f (rest items) (int+ n 1)))))))
+; A table cell's inlines on one line, its bars escaped.
+(def %mw-cell
+  (fn (_ inlines)
+    (Str8 replace "|" "\\|" (Str8 replace "\n" " " (Str8 replace "\\\n" " " (%mw-inlines inlines))))))
+(def %mw-row (fn (_ cells) (Str8 append "| " (Str8 join " | " cells) " |")))
+; A table as a GitHub pipe table: a header row, empty when it has none,
+; and the delimiter row giving each column's alignment.
+(def %mw-table
+  (fn (_ b)
+    (def rows (List ref 3 b))
+    (def n (List fold (fn (_ m r) (match ((int< m (List length r)) (List length r)) (#t m))) (List length (List ref 2 b)) rows))
+    (def cells (fn (_ r) (List map (fn (_ k) (match ((int< k (List length r)) (%mw-cell (List ref k r))) (#t ""))) (List range 0 n))))
+    (def aligns (List ref 2 b))
+    (def delim (List map (fn (_ k) ((fn (_ a) (match ((eq? a (lit left)) ":--") ((eq? a (lit center)) ":-:") ((eq? a (lit right)) "--:") (#t "---")))
+                                    (match ((int< k (List length aligns)) (List ref k aligns)) (#t ()))))
+                         (List range 0 n)))
+    (Str8 join "\n"
+      (List append
+        (list (%mw-row (match ((List ref 1 b) (cells (first rows))) (#t (List map (fn (_ _) "") delim))))
+              (%mw-row delim))
+        (List map (fn (_ r) (%mw-row (cells r))) (match ((List ref 1 b) (rest rows)) (#t rows)))))))
 (def %mw-block
   (fn (self b)
     (def t (first b))
@@ -188,6 +209,7 @@
                (List ref 4 b)
                (match ((List ref 1 b) (match ((null? (List ref 2 b)) 1) (#t (List ref 2 b)))) (#t ())))))
          (match ((List ref 3 b) "\n") (#t "\n\n"))))
+      ((eq? t (lit table)) (%mw-table b))
       (#t ""))))
 (def-class MarkdownWrite ()
   (doc "A document as Markdown: (MarkdownWrite text blocks) writes the document tree (x/codec/document) as CommonMark that (Markdown parse) reads back as the same tree."
@@ -195,7 +217,7 @@
     (see text))
   (static
     (method text (self (param blocks LIST "A document's blocks"))
-      (doc "The blocks as Markdown text: headings as number signs, emph and strong in asterisks, code in backticks, a code block fenced, a quote led by >, list items by - or their numbers, a rule as ---, a blank line between blocks and none in a tight list. Text is escaped where Markdown would read it as markup. Raw HTML is written as it is and a form's field is its value."
+      (doc "The blocks as Markdown text: headings as number signs, emph and strong in asterisks, code in backticks, a code block fenced, a quote led by >, list items by - or their numbers, a rule as ---, a table as a GitHub pipe table (which CommonMark, and so (Markdown parse), reads as its rows' text), a blank line between blocks and none in a tight list. Text is escaped where Markdown would read it as markup. Raw HTML is written as it is and a form's field is its value."
         (returns STRING "Markdown text, empty for no blocks")
         (example "(MarkdownWrite text (list (list 'paragraph (list \"2 * 3 \" (list 'code \"x\") \" \" (list 'link \"/u\" () (list \"here\"))))))" "\"2 \\\\* 3 `x` [here](/u)\\n\"")
         (example "(MarkdownWrite text (list (list 'list #t 3 #t (list (list (list 'paragraph (list \"a\"))) (list (list 'paragraph (list \"b\")))))))" "\"3. a\\n4. b\\n\""))
