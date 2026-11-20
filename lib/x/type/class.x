@@ -3,7 +3,7 @@
 ; wrapper class -- one name per concept)
 (import x/core/alist)
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(import x/core/doors io-display-to-str str->sym str-append str-byte-len str-byte-ref type-by-atom type-make type-make-instance type-push-call type?)
+(import x/core/doors io-display-to-str str->sym str-append str-byte-len str-byte-ref type-by-atom type-make type-make-instance type-of type-push-call type?)
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %type-call-top (prim-ref (lit type) (lit call-top)))
 ; The engine's apply, kept under a fixed name.  The dispatcher applies what
@@ -12,6 +12,11 @@
 ; a C handler atom -- and none of that is for the library's apply (fn.x),
 ; whose door looks at a value's type to find such a handler.
 (def %apply apply)
+; The pair and symbol types' handles, for the type? door: the send paths test
+; a selector and an entry with them on every send, where pair? and symbol?
+; cost 7 objects a call.
+(def %class-pair-type (type-of (pair 1 2)))
+(def %class-sym-type (type-of (lit a)))
 
 
 ;
@@ -503,9 +508,13 @@
 ; as in the call templates of x/tool/fn-compile, as well as its name.
 (def %selector
   (fn (_ s)
-    (if (if (pair? s) (if (eq? (first s) (lit lit)) #t (eq? (first s) lit)) #f)
-      (first (rest s))
-      s)))
+    (match
+      ((type? s %class-pair-type)
+        (match
+          ((eq? (first s) (lit lit)) (first (rest s)))
+          ((eq? (first s) lit) (first (rest s)))
+          (#t s)))
+      (#t s))))
 
 ; Reject an init key that names no declared field, so (new Cell 1 2) -- where 1
 ; is read as a field name -- fails loudly instead of silently using defaults.
@@ -647,17 +656,17 @@
 ; list guard exactly as it always did.
 (def %object-dispatch
   (op (self sel-raw . args) e
-    (def selector (if (pair? sel-raw) (%selector sel-raw) sel-raw))
+    (def selector (match ((type? sel-raw %class-pair-type) (%selector sel-raw)) (#t sel-raw)))
     (def cls (%obj-class self))
     (def hot (rest cls))
-    (def itab (first (if (eq? hot ()) (%class-hot cls) hot)))
+    (def itab (first (match ((eq? hot ()) (%class-hot cls)) (#t hot))))
     (def entry (%tab-find! itab itab selector))
     (match
       ((eq? entry %field-label)
         (match
           ((null? args) (%assoc-get selector (%obj-fields self)))
           (#t (%box-put! (%obj-box self) selector (eval (first args) e)))))
-      ((pair? entry)                                 ; privacy wrapper
+      ((type? entry %class-pair-type)                      ; privacy wrapper
         (%pair-entry self cls entry selector args e))
       ((eq? entry ())
         (match
@@ -707,16 +716,18 @@
 ;
 ; The walk is shaped for the common send: a symbol selector skips the
 ; quote unwrap, a built hot record is read in place, and the entry is
-; sorted by one pair? (a static field or a privacy wrapper) and one nil
-; test before the method runs.
+; sorted by one pair test (a static field or a privacy wrapper) and one nil
+; test before the method runs.  The four send paths branch with match and
+; test types with the type? door: an if costs 10 objects a run and a pair?
+; 7, and these run on every send.
 (def %class-dispatch
   (op (self sel-raw . args) e
-    (def selector (if (pair? sel-raw) (%selector sel-raw) sel-raw))
+    (def selector (match ((type? sel-raw %class-pair-type) (%selector sel-raw)) (#t sel-raw)))
     (def hot (rest self))
-    (def stab (first (rest (if (eq? hot ()) (%class-hot self) hot))))
+    (def stab (first (rest (match ((eq? hot ()) (%class-hot self)) (#t hot)))))
     (def entry (%tab-find! stab stab selector))
     (match
-      ((pair? entry)                       ; a static field or a privacy wrapper
+      ((type? entry %class-pair-type)            ; a static field or a privacy wrapper
         (%pair-entry self self entry selector args e))
       ((eq? entry ())
         ; no member of that name: the builtins, then the miss
@@ -776,27 +787,30 @@
       ; args can be a bare ATOM -- (1 . 2) binds args to 2 via the dotted
       ; spec -- so the pair? test comes BEFORE any first/rest touches it
       ; (#69: (first args) on the atom was the crash).
-      (if (null? args)
-        (list obj)
-        (if (not (pair? args))
-          (pair obj (eval args e))
+      (match
+        ((eq? args ()) (list obj))
+        ((type? args %class-pair-type)
           (do (def sel (%selector (first args)))
-            (if (symbol? sel)
+            (match
               ; Static-method resolve via the flat table; a static-field
               ; marker is not callable here (same miss as before). The call
               ; is re-driven through tail-eval: raw arg forms evaluate once
               ; in the caller's env, and the receiver rides LAST, spliced as
               ; (lit obj) so a list-valued subject is data, never a call.
-              (do
-                (def stab (first (rest (%class-hot class))))
-                (def m (%entry-method (%tab-find! stab stab sel)))
-                (if (eq? m ())
-                  (error (str-append "object: no such method "
-                    (str-append (symbol->str sel) (%sug-hint stab sel))))
-                  (tail-eval
-                    (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
-                    e)))
-              (pair obj (%data-echo (fn (_ a) (eval a e)) args)))))))))
+              ((type? sel %class-sym-type)
+                (do
+                  (def stab (first (rest (%class-hot class))))
+                  (def m (%entry-method (%tab-find! stab stab sel)))
+                  (match
+                    ((eq? m ())
+                      (error (str-append "object: no such method "
+                        (str-append (symbol->str sel) (%sug-hint stab sel)))))
+                    (#t
+                      (tail-eval
+                        (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
+                        e)))))
+              (#t (pair obj (%data-echo (fn (_ a) (eval a e)) args))))))
+        (#t (pair obj (eval args e)))))))
 
 ; Variant for types that ALREADY have a call handler (indexing/matching): a
 ; SYMBOL selector dispatches to the class method (subject-LAST, as above);
@@ -811,27 +825,30 @@
       ; Same atom-tail guard as class-call-handler (#69): a dotted form
       ; binds args to a bare atom, which no prior handler can index into
       ; either -- echo it as data rather than delegating.
-      (if (null? args)
-        (%apply prior (list obj))
-        (if (not (pair? args))
-          (pair obj (eval args e))
+      (match
+        ((eq? args ()) (%apply prior (list obj)))
+        ((type? args %class-pair-type)
           (do (def sel (%selector (first args)))
-            (if (symbol? sel)
+            (match
               ; Static-method resolve via the flat table; a static-field
               ; marker is not callable here (same miss as before). The call
               ; is re-driven through tail-eval: raw arg forms evaluate once
               ; in the caller's env, and the receiver rides LAST, spliced as
               ; (lit obj) so a list-valued subject is data, never a call.
-              (do
-                (def stab (first (rest (%class-hot class))))
-                (def m (%entry-method (%tab-find! stab stab sel)))
-                (if (eq? m ())
-                  (error (str-append "object: no such method "
-                    (str-append (symbol->str sel) (%sug-hint stab sel))))
-                  (tail-eval
-                    (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
-                    e)))
-              (%apply prior (pair obj (%data-echo (fn (_ a) (eval a e)) args))))))))))
+              ((type? sel %class-sym-type)
+                (do
+                  (def stab (first (rest (%class-hot class))))
+                  (def m (%entry-method (%tab-find! stab stab sel)))
+                  (match
+                    ((eq? m ())
+                      (error (str-append "object: no such method "
+                        (str-append (symbol->str sel) (%sug-hint stab sel)))))
+                    (#t
+                      (tail-eval
+                        (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
+                        e)))))
+              (#t (%apply prior (pair obj (%data-echo (fn (_ a) (eval a e)) args)))))))
+        (#t (pair obj (eval args e)))))))
 
 ; Install value-to-class method dispatch OVER a type's existing call handler:
 ; symbol selector -> the class's static method (subject-last); anything else
