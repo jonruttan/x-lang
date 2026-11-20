@@ -24,6 +24,9 @@
 ;   (t derive 'bmi '(weight height) f)   put, the values f answers of the
 ;                                named columns' values, row by row
 ;   (t remove 'age)  (t rename 'age 'years)
+;   (t split 'city)              each distinct city with the table of its rows
+;   (t aggregate 'city specs)    a table with a row for each distinct city
+;                                and a column for each summary asked for
 ;
 ; A Column of numbers also answers add, sub, mul and div, element by
 ; element as a Tensor's do, and any Column answers map.
@@ -225,7 +228,7 @@
     (example "((Table from '((age (31.0 45.0)) (name (\"Ann\" \"Bo\")))) extent)" "(2 2)")
     (see from) (see from-csv) (see names) (see extent) (see column) (see row)
     (see select) (see filter) (see sort) (see matrix) (see ->list)
-    (see put) (see derive) (see remove) (see rename))
+    (see put) (see derive) (see remove) (see rename) (see split) (see aggregate))
 
   names     ; the columns' names, symbols, in order
   columns   ; the Columns, in the order of the names
@@ -402,6 +405,49 @@
       (Table %of (List map (fn (_ n) (if (eq? n name) to n)) (field (lit names)))
                  (field (lit columns)))))
 
+  ; The distinct values of the named column, in the order they first
+  ; come, each with the row numbers it stands at.  The values are walked
+  ; once to find the distinct ones and once for each of those.
+  (method %categories (self name)
+    (let ((values ((self column name) ->list)))
+      (List map
+        (fn (_ key)
+          (pair key
+            (let go ((left values) (i 0) (acc ()))
+              (match
+                ((null? left) (List reverse acc))
+                ((equal? (first left) key) (go (rest left) (+ i 1) (pair i acc)))
+                (#t (go (rest left) (+ i 1) acc))))))
+        (let go ((left values) (acc ()))
+          (match
+            ((null? left) (List reverse acc))
+            ((List includes? (first left) acc) (go (rest left) acc))
+            (#t (go (rest left) (pair (first left) acc))))))))
+
+  (method split (self (param name SYMBOL|STRING "The column whose distinct values part the rows"))
+    (doc "Each distinct value of the named column with the table of the rows that have it, in the order the values first come. Rows keep their order."
+      (known-as "group by" "partition by")
+      (returns LIST "((VALUE . TABLE) ...)")
+      (example "(List map first ((Table from '((city (\"Ely\" \"Ayr\" \"Ely\")) (age (31.0 45.0 28.0)))) split 'city))" "(\"Ely\" \"Ayr\")")
+      (example "(((rest (first ((Table from '((city (\"Ely\" \"Ayr\" \"Ely\")) (age (31.0 45.0 28.0)))) split 'city))) column 'age) ->list)" "(31.0 28.0)"))
+    (List map (fn (_ c) (pair (first c) (self %take (rest c)))) (self %categories name)))
+
+  (method aggregate (self (param name SYMBOL|STRING "The column whose distinct values make the rows")
+                          (param specs LIST "A list for each column made: its name, the column it is worked out from, and a function called with that column's values for one distinct value, as a Column"))
+    (doc "A table with a row for each distinct value of the named column, in the order the values first come: that column, then a column for each spec, holding what its function answers of the source column's values among the rows with that value."
+      (known-as "group by" "summarize" "summarise")
+      (returns Table "A table of the named column and a column for each spec")
+      (example "(((Table from '((city (\"Ely\" \"Ayr\" \"Ely\")) (age (31.0 45.0 29.0)))) aggregate 'city (list (list 'mean-age 'age (fn (_ c) (c mean))))) ->list)" "(('city (\"Ely\" \"Ayr\")) ('mean-age (30.0 45.0)))"))
+    (let ((name (%name name)) (categories (self %categories name)))
+      (Table %of
+        (pair name (List map (fn (_ s) (%name (first s))) specs))
+        (pair (Column from (List map first categories))
+              (List map
+                (fn (_ s)
+                  (let ((source (self column (List ref 1 s))) (f (List ref 2 s)))
+                    (Column from (List map (fn (_ c) (f (source %take (rest c)))) categories))))
+                specs)))))
+
   (method ->list (self)
     (doc "The table as from takes it: a list for each column, its name and then its values."
       (returns LIST "((NAME VALUES) ...)")
@@ -414,5 +460,5 @@
                (List map (fn (_ c) (c %take rows)) (field (lit columns))))))
 
 (doc (provide x/data/table Table Column)
-  "Tables of named columns, as values: a Table is read from lists or csv text and answers its columns, rows, a selection of columns, the rows a column's value passes, the rows in a column's order, and columns as a Matrix, and a table with a column put, derived, removed or renamed; a Column of numbers answers its statistics and its arithmetic."
+  "Tables of named columns, as values: a Table is read from lists or csv text and answers its columns, rows, a selection of columns, the rows a column's value passes, the rows in a column's order, and columns as a Matrix, a table with a column put, derived, removed or renamed, and its rows parted or summarized by a column's distinct values; a Column of numbers answers its statistics and its arithmetic."
   (example "(((Table from-csv \"name,age\\nida,7\\nbo,9\\n\") column 'age) mean)" "8.0"))
