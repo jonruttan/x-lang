@@ -291,6 +291,83 @@ word.
 ---
     ('value 'value 'value 'value 'value 'value)
 
+## Parting and summarizing by a column
+
+### split answers each distinct value with the table of its rows, in first-seen order
+
+```x
+(import x/data/table)
+(let ((t (Table from '((city ("Ely" "Ayr" "Ely" "Usk")) (age (31.0 45.0 28.0 60.0))))))
+  (let ((parts (t split 'city)))
+    (list (List map first parts)
+          (List map (fn (_ p) (((rest p) column 'age) ->list)) parts)
+          (List map (fn (_ p) ((rest p) names)) parts)
+          (t extent))))
+```
+---
+    (("Ely" "Ayr" "Usk") ((31.0 28.0) (45.0) (60.0)) (('city 'age) ('city 'age) ('city 'age)) (4 2))
+
+### aggregate answers a row for each distinct value and a column for each spec
+
+```x
+(import x/data/table)
+(let ((t (Table from '((city ("Ely" "Ayr" "Ely" "Usk")) (age (31.0 45.0 29.0 60.0)) (pay (10.0 20.0 30.0 40.0))))))
+  (let ((a (t aggregate 'city
+             (list (list 'mean-age 'age (fn (_ c) (c mean)))
+                   (list 'top-pay 'pay (fn (_ c) (c greatest)))
+                   (list 'total-pay 'pay (fn (_ c) (c sum)))))))
+    (list (a names) (a extent) (a ->list))))
+```
+---
+    (('city 'mean-age 'top-pay 'total-pay) (3 4) (('city ("Ely" "Ayr" "Usk")) ('mean-age (30.0 45.0 60.0)) ('top-pay (30.0 20.0 40.0)) ('total-pay (40.0 20.0 40.0))))
+
+### the distinct values may be numbers, and a summary may be any value
+
+```x
+(import x/data/table)
+(let ((t (Table from '((year (2020.0 2021.0 2020.0)) (name ("Ann" "Bo" "Cy"))))))
+  (let ((a (t aggregate 'year (list (list 'names 'name (fn (_ c) (c ->list)))))))
+    (list ((a column 'year) ->list) ((a column 'year) encoding) ((a column 'names) ->list))))
+```
+---
+    ((2020.0 2021.0) 'f64 (("Ann" "Cy") ("Bo")))
+
+### a count of the rows with each value
+
+```x
+(import x/data/table)
+(let ((t (Table from '((city ("Ely" "Ayr" "Ely")) (age (31.0 45.0 28.0))))))
+  (List map (fn (_ n) (= n 2))
+    (((t aggregate 'city (list (list 'rows 'age (fn (_ c) (c size))))) column 'rows) ->list)))
+```
+---
+    (#t #f)
+
+### no specs answers the distinct values alone, and a table of no rows answers none
+
+```x
+(import x/data/table)
+(let ((t (Table from '((city ("Ely" "Ayr" "Ely"))))) (none (Table from-csv "city,age\n")))
+  (list ((t aggregate 'city ()) ->list)
+        (none split 'city)
+        ((none aggregate 'city (list (list 'mean-age 'age (fn (_ c) (c mean))))) extent)))
+```
+---
+    ((('city ("Ely" "Ayr"))) () (0 2))
+
+### a column the table does not have is refused, as the one parted by or as a source
+
+```x
+(import x/data/table)
+(let ((t (Table from '((city ("Ely" "Ayr")) (age (31.0 45.0))))))
+  (list (guard (e (Err label e)) (t split 'height))
+        (guard (e (Err label e)) (t aggregate 'height ()))
+        (guard (e (Err label e)) (t aggregate 'city (list (list 'm 'height (fn (_ c) (c mean))))))
+        (guard (e (Err label e)) (t aggregate 'city (list (list 'city 'age (fn (_ c) (c mean))))))))
+```
+---
+    ('value 'value 'value 'value)
+
 ## Handing a table to a model
 
 ### matrix answers the named columns as an f64 Matrix, a row for each row
