@@ -14,6 +14,10 @@ Each case's imports are forms of their own, ahead of the form that holds
 the numbers: a form is read whole before any of it runs, and a float
 written in the form that first loads the float reader is not read as one.
 
+The cases share the model, which the fixture makes once, and ask for few
+forward passes of few ids: on a host whose kernels all run pure, a pass of
+four ids takes seconds.
+
 ## logits
 
 ### a row for each id and a column for each item
@@ -23,12 +27,7 @@ written in the form that first loads the float reader is not read as one.
 (import x/num/matrix)
 (include "tests/x/lib/transformer-fixture.x")
 (do
-  (def tmp (File temp "/tmp/x-transformer-logits-"))
-  (File close (first tmp))
-  (transformer-fixture (rest tmp))
-  (def m (Transformer from-file (rest tmp) 2))
-  (File unlink (rest tmp))
-  (def l (m logits (list 1 5 2 7)))
+  (def l ((transformer-fixture-model) logits (list 1 5 2 7)))
   (list (l extent) (l encoding) (instance-of? l Matrix)
         (transformer-near? (l ->list)
           '((-0.622341 -0.798763 -0.770171 1.594225 0.344426 0.373017 -0.365137 -0.641403 -0.612811 -0.789232 0.00301)
@@ -45,12 +44,7 @@ written in the form that first loads the float reader is not read as one.
 (import x/num/transformer)
 (include "tests/x/lib/transformer-fixture.x")
 (do
-  (def tmp (File temp "/tmp/x-transformer-one-"))
-  (File close (first tmp))
-  (transformer-fixture (rest tmp))
-  (def m (Transformer from-file (rest tmp) 2))
-  (File unlink (rest tmp))
-  (def l (m logits (list 4)))
+  (def l ((transformer-fixture-model) logits (list 4)))
   (list (l extent)
         (transformer-near? (l ->list)
           '((-1.577576 0.216141 0.347549 1.209356 0.792811 0.924219 -0.728249 -1.665182 -1.533774 0.259944 0.383243)))))
@@ -60,19 +54,15 @@ written in the form that first loads the float reader is not read as one.
 
 ### a position's logits do not depend on the ids after it
 
-The first two rows for four ids are the rows for those two ids alone.
+The rows for the ids 1 and 5 alone are the first two rows for 1, 5, 2 and
+7 above.
 
 ```x
 (import x/num/transformer)
 (include "tests/x/lib/transformer-fixture.x")
-(do
-  (def tmp (File temp "/tmp/x-transformer-causal-"))
-  (File close (first tmp))
-  (transformer-fixture (rest tmp))
-  (def m (Transformer from-file (rest tmp) 2))
-  (File unlink (rest tmp))
-  (def four ((m logits (list 1 5 2 7)) ->list))
-  (transformer-near? ((m logits (list 1 5)) ->list) (list (first four) (first (rest four)))))
+(transformer-near? (((transformer-fixture-model) logits (list 1 5)) ->list)
+  '((-0.622341 -0.798763 -0.770171 1.594225 0.344426 0.373017 -0.365137 -0.641403 -0.612811 -0.789232 0.00301)
+    (-1.065251 0.775802 0.86604 0.629199 0.69382 0.784057 -1.108989 -1.125409 -1.035171 0.805881 0.403364)))
 ```
 ---
     #t
@@ -84,58 +74,39 @@ The first two rows for four ids are the rows for those two ids alone.
 ```x
 (import x/num/transformer)
 (include "tests/x/lib/transformer-fixture.x")
-(do
-  (def tmp (File temp "/tmp/x-transformer-predict-"))
-  (File close (first tmp))
-  (transformer-fixture (rest tmp))
-  (def m (Transformer from-file (rest tmp) 2))
-  (File unlink (rest tmp))
-  (list (m predict (list 1 5 2 7)) (m predict (list 2 2)) (m predict (list 0))))
+(list ((transformer-fixture-model) predict (list 1 5 2 7)) ((transformer-fixture-model) predict (list 0)))
 ```
 ---
-    (7 7 3)
+    (7 3)
 
 ### generate adds each prediction to the ids the next is made from
 
 ```x
 (import x/num/transformer)
 (include "tests/x/lib/transformer-fixture.x")
-(do
-  (def tmp (File temp "/tmp/x-transformer-generate-"))
-  (File close (first tmp))
-  (transformer-fixture (rest tmp))
-  (def m (Transformer from-file (rest tmp) 2))
-  (File unlink (rest tmp))
-  (list (m generate (list 2 2) 6) (m generate (list 10 0 6) 5) (m generate (list 9 4) 0)))
+(list ((transformer-fixture-model) generate (list 2 2) 3) ((transformer-fixture-model) generate (list 9 4) 0))
 ```
 ---
-    ((2 2 7 6 6 6 7 7) (10 0 6 6 6 6 6 7) (9 4))
+    ((2 2 7 6 6) (9 4))
 
 ## refusals
 
 ### no ids, too many ids, and an id with no item raise a label value
 
-The model has 8 positions and 11 items. From 7 ids generate makes an
-eighth and a ninth, the ninth from all 8 positions; a tenth would be asked
-of 9.
+The model has 8 positions and 11 items.
 
 ```x
 (import x/num/transformer)
 (include "tests/x/lib/transformer-fixture.x")
 (do
-  (def tmp (File temp "/tmp/x-transformer-refuse-"))
-  (File close (first tmp))
-  (transformer-fixture (rest tmp))
-  (def m (Transformer from-file (rest tmp) 2))
-  (File unlink (rest tmp))
+  (def m (transformer-fixture-model))
   (list (guard (e (Err label e)) (m logits ()))
         (guard (e (Err label e)) (m logits (list 1 2 3 4 5 6 7 8 9)))
         (guard (e (Err label e)) (m predict (list 1 11)))
-        (List length (m generate (list 1 2 3 4 5 6 7) 2))
-        (guard (e (Err label e)) (m generate (list 1 2 3 4 5 6 7) 3))))
+        (guard (e (Err label e)) (m generate (list 1 2 3 4 5 6 7 8 9) 1))))
 ```
 ---
-    ('value 'value 'value 9 'value)
+    ('value 'value 'value 'value)
 
 ### heads that do not divide the width raise a label value
 

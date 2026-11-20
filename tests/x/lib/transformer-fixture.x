@@ -8,6 +8,11 @@
 ; expect are those a reference implementation of GPT-2 answers for a model
 ; made by the same formula.
 ;
+; (transformer-fixture-model) answers that model, read with 2 heads.  It is
+; made once for the process and kept: a spec file's cases share one
+; interpreter, and making the model costs about what a forward pass does,
+; which on a host whose kernels all run pure is seconds.
+;
 ; (transformer-near? got want) answers whether two lists of rows agree,
 ; element by element, within a ten-thousandth.
 (def transformer-fixture
@@ -57,3 +62,18 @@
       ((pair? (first got)) (if (go (first got) (first want)) (go (rest got) (rest want)) #f))
       (#t (let ((d (- (first got) (first want))))
             (if (< (* d d) 1.0e-08) (go (rest got) (rest want)) #f))))))
+
+; The kept model, nil until the first case asks for it.  The file is
+; included by every case, so the binding is kept when there is one.
+(def transformer-fixture-kept (guard (e ()) transformer-fixture-kept))
+
+(def transformer-fixture-model
+  (fn (_)
+    (if (null? transformer-fixture-kept)
+      (let ((tmp (File temp "/tmp/x-transformer-fixture-")))
+        (File close (first tmp))
+        (transformer-fixture (rest tmp))
+        (set! transformer-fixture-kept (Transformer from-file (rest tmp) 2))
+        (File unlink (rest tmp)))
+      ())
+    transformer-fixture-kept))
