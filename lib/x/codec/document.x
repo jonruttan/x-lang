@@ -17,6 +17,8 @@
 ;   symbol    a symbol
 ;   options   a list
 ;   form      a list, or nil for none
+;   aligns    a list, each left, center, right, or nil for none
+;   rows      a list of rows, each a list of cells, each a list of inlines
 ;
 ; docs/document.md says what each node means and what a writer may rely on.
 ;
@@ -37,7 +39,8 @@
         (block-quote blocks)
         (list flag start flag items)
         (thematic-break)
-        (html-block text))))
+        (html-block text)
+        (table flag aligns rows))))
 (def %dc-inlines
   (lit ((emph inlines)
         (strong inlines)
@@ -64,7 +67,7 @@
            (#t ((fn (_ r) (match ((null? r) (self f (rest l))) (#t r))) (f (first l)))))))
 (def %dc-nested?
   (fn (_ kind)
-    (match ((eq? kind (lit blocks)) #t) ((eq? kind (lit inlines)) #t) ((eq? kind (lit items)) #t) (#t #f))))
+    (match ((eq? kind (lit blocks)) #t) ((eq? kind (lit inlines)) #t) ((eq? kind (lit items)) #t) ((eq? kind (lit rows)) #t) (#t #f))))
 ; Whether X is a sound part of the kind KIND, a kind that holds no nodes.
 (def %dc-leaf?
   (fn (_ kind x)
@@ -76,6 +79,12 @@
            ((eq? kind (lit symbol)) (symbol? x))
            ((eq? kind (lit options)) (%dc-list? x))
            ((eq? kind (lit form)) (%dc-list? x))
+           ((eq? kind (lit aligns))
+             (match ((%dc-list? x)
+                      (null? (%dc-each (fn (_ a) (match ((null? a) ()) ((eq? a (lit left)) ())
+                                                       ((eq? a (lit center)) ()) ((eq? a (lit right)) ()) (#t a)))
+                                       x)))
+                    (#t #f)))
            (#t #f))))
 ; The fault in V, the part of kind KIND of the node X, or nil.
 (def %dc-part
@@ -108,6 +117,15 @@
     (match ((eq? kind (lit blocks)) (%dc-each (fn (_ b) (%dc-node self %dc-blocks (lit block) b)) x))
            ((eq? kind (lit inlines))
              (%dc-each (fn (_ i) (match ((str? i) ()) (#t (%dc-node self %dc-inlines (lit inline) i)))) x))
+           ((eq? kind (lit rows))
+             (%dc-each
+               (fn (_ row)
+                 (match ((%dc-list? row)
+                          (%dc-each (fn (_ cell) (match ((%dc-list? cell) (self (lit inlines) cell))
+                                                       (#t (list (lit table) (lit rows) cell))))
+                                    row))
+                        (#t (list (lit table) (lit rows) row))))
+               x))
            (#t (%dc-each
                  (fn (_ item) (match ((%dc-list? item) (self (lit blocks) item)) (#t (list (lit list) (lit items) item))))
                  x)))))

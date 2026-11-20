@@ -25,14 +25,24 @@ decode) and (Entity at) read character references for both codecs.
 ---
     (('list #f () #t ((('paragraph ("x")) ('list #f () #t ((('paragraph ("y")))))) (('paragraph ("z"))))) ('list #t 3 #t ((('paragraph ("c"))) (('paragraph ("d")) ('paragraph ("e"))))))
 
-### a table is a paragraph a row, cells parted, a th bold, its caption first; a dl's terms bold
+### a table is a table, its thead row a header and an empty cell kept, its caption a paragraph first; a dl's terms bold
 
 ```x
 (do (import x/codec/html)
   (Html parse "<table><caption>Cap</caption><thead><tr><th>H1<th>H2</thead><tr><td>a<td><b>b</b><tr><td></td><td>only</table><dl><dt>Term<dd>Def</dl>"))
 ```
 ---
-    (('paragraph ("Cap")) ('paragraph (('strong ("H1")) " | " ('strong ("H2")))) ('paragraph ("a | " ('strong ("b")))) ('paragraph ("only")) ('paragraph (('strong ("Term")))) ('paragraph ("Def")))
+    (('paragraph ("Cap")) ('table #t (() ()) ((("H1") ("H2")) (("a") (('strong ("b")))) (() ("only")))) ('paragraph (('strong ("Term")))) ('paragraph ("Def")))
+
+### a first row of th is a header with its cells' alignments; a th in another row is bold; a short row and a row with no cells
+
+```x
+(do (import x/codec/html)
+  (list (Html parse "<table><tr><th align=Right>n<th align=center>m<th>o<tr><th>k<td>v<tr></table>")
+        (Html parse "<table><tr><th>k<td>v</table>")))
+```
+---
+    ((('table #t ('right 'center ()) ((("n") ("m") ("o")) ((('strong ("k"))) ("v") ())))) (('table #f (() ()) (((('strong ("k"))) ("v"))))))
 
 ### pre keeps its text, its language from a class; hr; block quotes; a heading closes an open one
 
@@ -81,7 +91,7 @@ decode) and (Entity at) read character references for both codecs.
   (Html parse "<P CLASS=foo>one<P>two</b><TABLE><TR><TD>a<TD>b</TABLE><div><A HREF='/x'><div>in a link</div></A></div>"))
 ```
 ---
-    (('paragraph ("one")) ('paragraph ("two")) ('paragraph ("a | b")) ('paragraph (('link "/x" () ("in a link")))))
+    (('paragraph ("one")) ('paragraph ("two")) ('table #f (() ()) ((("a") ("b")))) ('paragraph (('link "/x" () ("in a link")))))
 
 ### iframe is dropped, parting blocks; a select and a textarea outside any form are fields in none; a page with no html, head or body
 
@@ -110,7 +120,7 @@ decode) and (Entity at) read character references for both codecs.
   (Html parse "<form><label>Name <input type=tel name=n></label><ul><li><input type=checkbox name=a> a</ul><table><tr><td>k<td><input name=v value=1></table><button name=b value=1>Send</button><button></button></form>"))
 ```
 ---
-    (('paragraph ("Name " ('field 'text "n" "" #f () (0 "" 'get 'urlencoded)))) ('list #f () #t ((('paragraph (('field 'checkbox "a" "on" #f () (0 "" 'get 'urlencoded)) " a"))))) ('paragraph ("k | " ('field 'text "v" "1" #f () (0 "" 'get 'urlencoded)))) ('paragraph (('field 'submit "b" "1" #f (("1" . "Send")) (0 "" 'get 'urlencoded)) ('field 'submit () "Submit" #f (("Submit" . "Submit")) (0 "" 'get 'urlencoded)))))
+    (('paragraph ("Name " ('field 'text "n" "" #f () (0 "" 'get 'urlencoded)))) ('list #f () #t ((('paragraph (('field 'checkbox "a" "on" #f () (0 "" 'get 'urlencoded)) " a"))))) ('table #f (() ()) ((("k") (('field 'text "v" "1" #f () (0 "" 'get 'urlencoded)))))) ('paragraph (('field 'submit "b" "1" #f (("1" . "Send")) (0 "" 'get 'urlencoded)) ('field 'submit () "Submit" #f (("Submit" . "Submit")) (0 "" 'get 'urlencoded)))))
 
 ### a file input is a field with no value; a form's enctype names its encoding, multipart/form-data in any case, anything else urlencoded
 

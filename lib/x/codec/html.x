@@ -11,8 +11,9 @@
 ;   ul, ol                    (list ORDERED? START #t ITEMS), an item a list
 ;                             of blocks, START an ol's start or 1
 ;   hr                        (thematic-break)
-;   table                     a paragraph a row, its cells parted by " | ",
-;                             a th's bold; a caption a paragraph before them
+;   table                     (table HEADER? ALIGNS ROWS), a row a list of
+;                             cells, a cell its inlines; a caption a
+;                             paragraph before it
 ;   dl                        a dt a paragraph, bold; a dd's blocks
 ;
 ; and inlines: a (link HREF TITLE INLINES), b and strong (strong INLINES),
@@ -559,34 +560,57 @@
        (%ht-kids nd) ()))
     (match ((null? items) ())
            (#t (list (list (lit list) ordered? (match (ordered? (%ht-start nd)) (#t ())) #t items))))))
-; A table's rows as paragraphs, a row's cells parted by " | ", a th's bold;
-; its caption a paragraph first.
+; A cell's align attribute: left, center, right, or nil.
+(def %ht-align
+  (fn (_ nd)
+    ((fn (_ a) (match ((null? a) ()) ((str=? a "left") (lit left)) ((str=? a "center") (lit center))
+                      ((str=? a "right") (lit right)) (#t ())))
+     (%ht-lower (%ht-attr-or nd "align" "")))))
+(def %ht-len (fn (self l) (match ((null? l) 0) (#t (int+ 1 (self (rest l)))))))
+; L's first N, nil after its end.
+(def %ht-pad (fn (self l n) (match ((int< n 1) ()) ((null? l) (pair () (self l (int+ n -1)))) (#t (pair (first l) (self (rest l) (int+ n -1)))))))
+; A table: its caption a paragraph, then (table HEADER? ALIGNS ROWS), a
+; cell a column whatever its colspan.  The first row is a header when it is
+; in a thead or every cell of it is a th; ALIGNS are its cells' align
+; attributes, and a th in any other row is bold.  A row with no cells is
+; dropped.
 (def %ht-table
   (fn (_ nd)
-    (def rows ())
-    (def row! (fn (_ inl) (unless (null? inl) (set! rows (pair (list (lit paragraph) inl) rows)))))
-    (def cells (fn (go kids out)
-      (match
-        ((null? kids) (%reverse out))
-        ((match ((%ht-named? (first kids) "td") #t) (#t (%ht-named? (first kids) "th")))
-          (go (rest kids)
-              ((fn (_ inl)
-                 (match ((null? inl) out)
-                        (#t (%ht-splice (match ((%ht-named? (first kids) "th") (list (list (lit strong) inl))) (#t inl))
-                                        (match ((null? out) out) (#t (%ht-text-onto " | " out)))))))
-               (%ht-phrase (%ht-kids (first kids))))))
-        (#t (go (rest kids) out)))))
-    ((fn (walk kids)
+    (def rows ()) (def head #f) (def aligns ()) (def caption ())
+    (def cell? (fn (_ x) (match ((%ht-named? x "td") #t) (#t (%ht-named? x "th")))))
+    (def all-th? (fn (self l) (match ((null? l) #t) ((%ht-named? (first l) "th") (self (rest l))) (#t #f))))
+    (def add-row! (fn (_ cells in-head)
+      (def first? (null? rows))
+      (def header (match (first? (match (in-head #t) (#t (all-th? cells)))) (#t #f)))
+      (when first? (set! head header) (set! aligns (%ht-map %ht-align cells)))
+      (set! rows (pair (%ht-map (fn (_ c)
+                                  ((fn (_ inl) (match ((match (header #f) ((null? inl) #f) (#t (%ht-named? c "th")))
+                                                        (list (list (lit strong) inl)))
+                                                       (#t inl)))
+                                   (%ht-phrase (%ht-kids c))))
+                                cells)
+                       rows))))
+    (def row! (fn (_ tr in-head)
+      ((fn (_ cells) (unless (null? cells) (add-row! cells in-head)))
+       ((fn (go kids) (match ((null? kids) ()) ((cell? (first kids)) (pair (first kids) (go (rest kids)))) (#t (go (rest kids)))))
+        (%ht-kids tr)))))
+    ((fn (walk kids in-head)
        (%ht-each
          (fn (_ x)
            (unless (str? x)
-             (match ((str=? (%ht-name x) "tr") (row! (cells (%ht-kids x) ())))
-                    ((str=? (%ht-name x) "caption") (row! (%ht-phrase (%ht-kids x))))
-                    ((%ht-member? (%ht-name x) (list "thead" "tbody" "tfoot")) (walk (%ht-kids x)))
+             (match ((str=? (%ht-name x) "tr") (row! x in-head))
+                    ((str=? (%ht-name x) "caption") (when (null? caption) (set! caption (%ht-phrase (%ht-kids x)))))
+                    ((str=? (%ht-name x) "thead") (walk (%ht-kids x) #t))
+                    ((%ht-member? (%ht-name x) (list "tbody" "tfoot")) (walk (%ht-kids x) #f))
                     (#t ()))))
          kids))
-     (%ht-kids nd))
-    (%reverse rows)))
+     (%ht-kids nd) #f)
+    (def width ((fn (go l n) (match ((null? l) n) ((int< n (%ht-len (first l))) (go (rest l) (%ht-len (first l)))) (#t (go (rest l) n))))
+                rows 0))
+    (%ht-onto (match ((null? caption) ()) (#t (list (list (lit paragraph) caption))))
+              (match ((null? rows) ())
+                     (#t (list (list (lit table) head (%ht-pad aligns width)
+                                     (%reverse (%ht-map (fn (_ r) (%ht-pad r width)) rows)))))))))
 ; KIDS, in order, as blocks: text and phrasing elements between blocks a
 ; paragraph, each block element its block or blocks.
 (def %ht-flow
@@ -657,7 +681,7 @@
     (see parse) (see title))
   (static
     (method parse (self (param text STRING "HTML text"))
-      (doc "Parse HTML into a list of blocks as (Markdown parse) answers them: (heading LEVEL INLINES), (paragraph INLINES), (code-block INFO TEXT), (block-quote BLOCKS), (list ORDERED? START TIGHT? ITEMS) with each item a list of blocks, (thematic-break); a table a paragraph a row.  Inlines are strings and (emph INLINES), (strong INLINES), (code TEXT), (link HREF TITLE INLINES), (hardbreak), and a form's fields, (field TYPE NAME VALUE ON OPTIONS FORM): TYPE text, search, password, email, url, number, hidden, file, textarea, checkbox, radio, select or submit, ON whether a box is checked, OPTIONS a select's (VALUE . LABEL) options or a button element's one, FORM the form's (INDEX ACTION METHOD ENCODING), ENCODING multipart or urlencoded, or nil.  Tolerant of unclosed p, li, td and th, attributes in either quote or none, and names in any case; head, script, style and comments are dropped, entities decoded, white space collapsed."
+      (doc "Parse HTML into a list of blocks as (Markdown parse) answers them: (heading LEVEL INLINES), (paragraph INLINES), (code-block INFO TEXT), (block-quote BLOCKS), (list ORDERED? START TIGHT? ITEMS) with each item a list of blocks, (thematic-break), (table HEADER? ALIGNS ROWS) with each row a list of cells and each cell its inlines, a caption a paragraph before it.  Inlines are strings and (emph INLINES), (strong INLINES), (code TEXT), (link HREF TITLE INLINES), (hardbreak), and a form's fields, (field TYPE NAME VALUE ON OPTIONS FORM): TYPE text, search, password, email, url, number, hidden, file, textarea, checkbox, radio, select or submit, ON whether a box is checked, OPTIONS a select's (VALUE . LABEL) options or a button element's one, FORM the form's (INDEX ACTION METHOD ENCODING), ENCODING multipart or urlencoded, or nil.  Tolerant of unclosed p, li, td and th, attributes in either quote or none, and names in any case; head, script, style and comments are dropped, entities decoded, white space collapsed."
         (returns LIST "The page's blocks")
         (example "(Html parse \"<UL><li>one<li><a href=/u title='t'>two</a></UL>\")" "(('list #f () #t ((('paragraph (\"one\"))) (('paragraph (('link \"/u\" \"t\" (\"two\"))))))))")
         (example "(Html parse \"<pre>\\nx &lt; y\\n</pre><hr><blockquote>q</blockquote>\")" "(('code-block \"\" \"x < y\\n\") ('thematic-break) ('block-quote (('paragraph (\"q\")))))")

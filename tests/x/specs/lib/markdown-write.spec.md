@@ -43,6 +43,16 @@ give the text written and read it back with (Markdown parse).
 ---
     "````\n```\nin\n```\n````\n\n```\n```\n"
 
+### a table is a pipe table: its header row, or an empty one, a delimiter row of alignments, a bar in a cell escaped, a short row filled out
+
+```x
+(do (import x/codec/markdown-write)
+  (list (MarkdownWrite text (list (list (lit table) #t (list (lit left) (lit center) (lit right)) (list (list (list "a|b") (list "m") (list "n")) (list (list (list (lit emph) (list "c"))) (list "x" (list (lit hardbreak)) "y") (list "1")) (list (list "d"))))))
+        (MarkdownWrite text (list (list (lit table) #f () (list (list (list "x") (list "y"))))))))
+```
+---
+    ("| a\\|b | m | n |\n| :-- | :-: | --: |\n| *c* | x y | 1 |\n| d |  |  |\n" "|  |  |\n| --- | --- |\n| x | y |\n")
+
 ## inlines
 
 ### emphasis, strong, code holding backticks, a link and an image with titles, a destination with a space

@@ -8,7 +8,10 @@
 ; broken where it runs out; code blocks keep their lines and are clipped
 ; when drawn.  Emphasis is italic, strong bold, code and links coloured,
 ; headings bold; block quotes have a bar, list items their markers, and
-; blocks a blank line between them, none in a tight list.  An image is its
+; blocks a blank line between them, none in a tight list.  A table is a
+; grid: its columns parted by a bar, a rule under a header row, its
+; columns as wide as their widest cells when they fit and sharing the
+; width when they do not, a cell wrapped to its column.  An image is its
 ; alternative text in brackets, linked to the image; raw HTML in a
 ; paragraph is dropped, an HTML block shown as it is, dim.
 ;
@@ -34,7 +37,7 @@
 (import x/tui/style)
 (import x/tui/screen Screen screen-put! screen-fill!)
 
-(import x/core/doors char->int int& int+ int< int| obj-make obj-ref obj-set! str-byte-len str-byte-ref str-byte-sub)
+(import x/core/doors char->int int& int* int+ int/ int< int| obj-make obj-ref obj-set! str-byte-len str-byte-ref str-byte-sub)
 (def %pg-cvt (prim-ref (lit convert) (lit to)))
 (def %pg-string (Type named STRING))
 (def %pg-num (fn (_ n) (%pg-cvt n %pg-string 10)))
@@ -290,6 +293,114 @@
            (#t (pair (%pg-append first-runs (first lines))
                      (%pg-map (fn (_ l) (%pg-append rest-runs l)) (rest lines)))))))
 (def %pg-bullets (list "•" "◦"))
+
+; --- tables ----------------------------------------------------------------
+(def %pg-max (fn (_ a b) (match ((int< a b) b) (#t a))))
+(def %pg-runs-width
+  (fn (self runs) (match ((eq? runs ()) 0) (#t (int+ (text-width (first (first runs))) (self (rest runs)))))))
+(def %pg-pad (fn (_ n) (match ((int< n 1) ()) (#t (list (list (%pg-repeat " " n) 0 ()))))))
+; The widest line TOKENS make laid out with no limit.
+(def %pg-natural
+  (fn (_ tokens)
+    ((fn (go ls w) (match ((eq? ls ()) w) (#t (go (rest ls) (%pg-max w (%pg-runs-width (first ls)))))))
+     (%pg-wrap tokens 1000000) 0)))
+; COLS, ((K . NATURAL) ...), given widths that fill AVAIL: a column no wider
+; than an even share keeps its natural width, and the rest share what is
+; left, the first of them a column more where it does not divide.  OUT
+; ((K . WIDTH) ...).
+(def %pg-share
+  (fn (self cols avail out)
+    (match
+      ((eq? cols ()) out)
+      (#t ((fn (_ share)
+             ((fn (_ small)
+                (match
+                  ((eq? small ())
+                    ((fn (go cs extra out)
+                       (match ((eq? cs ()) out)
+                              (#t (go (rest cs) (int+ extra -1)
+                                      (pair (pair (first (first cs)) (match ((int< 0 extra) (int+ share 1)) (#t share))) out)))))
+                     cols (int+ avail (- 0 (int* share (%pg-len cols)))) out))
+                  (#t (self ((fn (go cs) (match ((eq? cs ()) ()) ((int< share (rest (first cs))) (pair (first cs) (go (rest cs)))) (#t (go (rest cs)))))
+                             cols)
+                            (int+ avail (- 0 ((fn (go cs) (match ((eq? cs ()) 0) (#t (int+ (rest (first cs)) (go (rest cs)))))) small)))
+                            (%pg-onto small out)))))
+              ((fn (go cs) (match ((eq? cs ()) ()) ((int< share (rest (first cs))) (go (rest cs))) (#t (pair (first cs) (go (rest cs))))))
+               cols)))
+           (%pg-max 1 (int/ avail (%pg-len cols))))))))
+; A cell's line RUNS set W wide by ALIGN; LAST, the row's last cell, adds
+; no blanks after.
+(def %pg-aligned
+  (fn (_ runs w align last)
+    (def gap (int+ w (- 0 (%pg-runs-width runs))))
+    (def before (match ((eq? align (lit right)) gap) ((eq? align (lit center)) (int/ gap 2)) (#t 0)))
+    (match ((match (last (eq? runs ())) (#t #f)) ())
+           (#t (%pg-append (%pg-pad before) (%pg-append runs (match (last ()) (#t (%pg-pad (int+ gap (- 0 before)))))))))))
+(def %pg-sep (list (list " │ " %pg-dim ())))
+; A table as a grid: its columns parted by a bar, a rule under a header
+; row, a cell's text wrapped to its column.  The columns take their natural
+; widths when they fit WIDTH, and share it when they do not.
+(def %pg-table
+  (fn (_ b width links)
+    (def header (%pg-2nd b))
+    (def ncols ((fn (go rs n) (match ((eq? rs ()) n) (#t (go (rest rs) (%pg-max n (%pg-len (first rs)))))))
+                (%pg-4th b) (%pg-len (%pg-3rd b))))
+    (def padded (fn (self l n) (match ((int< n 1) ()) ((eq? l ()) (pair () (self l (int+ n -1)))) (#t (pair (first l) (self (rest l) (int+ n -1)))))))
+    (def aligns (padded (%pg-3rd b) ncols))
+    ; Each cell's tokens, the links filed in reading order.
+    (def rows ())
+    ((fn (go rs head)
+       (match ((eq? rs ()) ())
+              (#t (do ((fn (go2 cs out)
+                         (match ((eq? cs ()) (set! rows (pair (%pg-rev out) rows)))
+                                (#t (go2 (rest cs)
+                                         (pair (%pg-tokens (%pg-rev (%pg-pieces (first cs) (match (head %pg-strong) (#t 0)) () links ())) () ())
+                                               out)))))
+                       (padded (first rs) ncols) ())
+                      (go (rest rs) #f)))))
+     (%pg-4th b) header)
+    (set! rows (%pg-rev rows))
+    (def naturals ((fn (go k) (match ((= k ncols) ())
+                                     (#t (pair ((fn (walk rs w) (match ((eq? rs ()) w) (#t (walk (rest rs) (%pg-max w (%pg-natural (%pg-nth k (first rs))))))))
+                                                rows 1)
+                                               (go (int+ k 1))))))
+                   0))
+    (def avail (int+ width (- 0 (int* 3 (int+ ncols -1)))))
+    (def total ((fn (go l) (match ((eq? l ()) 0) (#t (int+ (first l) (go (rest l)))))) naturals))
+    (def shared
+      (fn (_ given) ((fn (go k) (match ((= k ncols) ()) (#t (pair (rest (%pg-assq k given)) (go (int+ k 1)))))) 0)))
+    (def widths
+      (match ((int< avail total)
+               (shared (%pg-share ((fn (go l k) (match ((eq? l ()) ()) (#t (pair (pair k (first l)) (go (rest l) (int+ k 1)))))) naturals 0)
+                                  avail ())))
+             (#t naturals)))
+    (def row-lines
+      (fn (_ cells)
+        (def cell-lines ((fn (go cs ws) (match ((eq? cs ()) ()) (#t (pair (%pg-wrap (first cs) (first ws)) (go (rest cs) (rest ws))))))
+                         cells widths))
+        (def height (%pg-max 1 ((fn (go l n) (match ((eq? l ()) n) (#t (go (rest l) (%pg-max n (%pg-len (first l))))))) cell-lines 0)))
+        ((fn (go i)
+           (match ((= i height) ())
+                  (#t (pair ((fn (join ls ws as)
+                               ((fn (_ runs)
+                                  (match ((eq? (rest ls) ()) runs)
+                                         (#t (%pg-append runs (%pg-append %pg-sep (join (rest ls) (rest ws) (rest as)))))))
+                                (%pg-aligned (match ((int< i (%pg-len (first ls))) (%pg-nth i (first ls))) (#t ()))
+                                             (first ws) (first as) (eq? (rest ls) ()))))
+                             cell-lines widths aligns)
+                            (go (int+ i 1))))))
+         0)))
+    (def rule
+      (list ((fn (join ws) (match ((eq? (rest ws) ()) (list (%pg-repeat "─" (first ws)) %pg-dim ()))
+                                  (#t (list (%str-concat (list (%pg-repeat "─" (first ws)) "─┼─" (first (join (rest ws))))) %pg-dim ()))))
+             widths)))
+    ((fn (go rs head out)
+       (match ((eq? rs ()) (%pg-rev out))
+              (#t (go (rest rs) #f
+                      ((fn (_ lines) (match (head (pair rule lines)) (#t lines)))
+                       (%pg-onto (row-lines (first rs)) out))))))
+     rows header ())))
+(def %pg-assq (fn (self k l) (match ((eq? l ()) ()) ((= k (first (first l))) (first l)) (#t (self k (rest l))))))
 (def %pg-block
   (fn (self b width depth links)
     (def t (first b))
@@ -302,6 +413,7 @@
       ((eq? t (lit html-block))
         (%pg-map (fn (_ l) (list (list l %pg-dim ()))) (%pg-text-lines (%pg-2nd b))))
       ((eq? t (lit thematic-break)) (list (list (list (%pg-repeat "─" width) %pg-dim ()))))
+      ((eq? t (lit table)) (%pg-table b width links))
       ((eq? t (lit block-quote))
         ((fn (_ bar) (%pg-prefix (%pg-blocks (%pg-2nd b) (int+ width -2) depth #f links) bar bar))
          (list (list "│ " %pg-dim ()))))
@@ -410,7 +522,7 @@
   (static
     (method markdown (self (param blocks LIST "Blocks, as (Markdown parse) answers them")
                            (param width INTEGER "Columns"))
-      (doc "Lay BLOCKS out WIDTH wide: paragraphs and headings wrapped, code kept as it is, quotes barred, list items marked, a blank line between blocks (none in a tight list).  A form's field, as (Html parse) answers one, is drawn as lynx draws it: a text field as its value padded with underscores, a checkbox as [ ] or [X], a radio button as ( ) or (*), a select as its chosen option in brackets, a submit button as its label in brackets."
+      (doc "Lay BLOCKS out WIDTH wide: paragraphs and headings wrapped, code kept as it is, quotes barred, list items marked, a table as a grid, a blank line between blocks (none in a tight list).  A form's field, as (Html parse) answers one, is drawn as lynx draws it: a text field as its value padded with underscores, a checkbox as [ ] or [X], a radio button as ( ) or (*), a select as its chosen option in brackets, a submit button as its label in brackets."
         (returns VECTOR "The page")
         (example "(do (import x/codec/markdown) (Page count (Page markdown (Markdown parse \"a\\n\\n- b\\n- c\") 20)))" "4")
         (example "(Page line-text (Page markdown (list (list 'paragraph (list \"Q: \" (list 'field 'text \"q\" \"hi\" #f () ()) \" \" (list 'field 'checkbox \"c\" \"on\" #t () ())))) 40) 0)" "\"Q: hi__________________ [X]\""))
