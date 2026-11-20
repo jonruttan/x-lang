@@ -28,10 +28,16 @@
 ;   perceptron   the layer norm ln_2; c_fc; gelu in its tanh form; c_proj
 ;
 ; A weight here has a row for each input and a column for each output, so
-; a layer is the input times the weight, plus the bias.  The heads'
-; answers are not laid side by side: their product with c_proj's weight is
-; the sum of each head's product with its own rows of the weight, and that
-; sum is taken.
+; a layer is the input times the weight, plus the bias.
+;
+; Everything between c_attn and c_proj is one kernel, f32-attention, a
+; word form registered with Tensor and run on its lanes.  A tensor
+; operation costs its dispatch whatever its size, and a block's attention
+; as products, slices and softmaxes is about ten of them for each head:
+; in one kernel a block's attention is one.  For a position and a head it
+; takes the scores of the positions up to it, keeping the greatest; then
+; each score's exponential less that, and their sum; then each column of
+; the answer, the values weighed by those and over the sum.
 ;
 ; A file does not say how many heads its attention has, so from-file is
 ; told.  Everything else is read from the tensors' extents.  Tensors are
@@ -47,7 +53,7 @@
 ; generate works out every position again for each new id; it keeps
 ; nothing from one prediction to the next.  The pure-x steps between the
 ; kernels leave garbage, and nothing collects it during a call, so the
-; heap is collected after each block.
+; heap is collected every %tf-collect-every blocks.
 ;
 ; @copyright 2026 Jon Ruttan
 ; @license MIT No Attribution (MIT-0)
@@ -56,14 +62,14 @@
 (import x/type/class)
 (import x/type/list)
 (import x/codec/safetensors)
-(import x/num/float float-of fsqrt)
+(import x/num/float float-of fsqrt f-div)
 (import x/num/tensor)
 (import x/num/matrix)
 (import x/num/neural)
 (import x/num/gpu)
 (import x/sys/gc)
 (import x/tool/word-form word-form-pure)
-(import x/core/doors int* int+ int- int/ int% int->ptr int< int= mem-cmp obj-ref ptr->int ptr-ref-word ptr-set-word!
+(import x/core/doors int* int+ int- int/ int% int->ptr int< int= mem-cmp mem-set obj-ref ptr->int ptr-ref-word ptr-set-word!
   str->ptr str-make type-of type?)
 
 ; --- the place of the greatest element ------------------------------------------
@@ -135,45 +141,162 @@
 ; A tensor as f32.
 (def %tf-f32 (fn (_ t) (if (eq? (t encoding) (lit f32)) t (t as (lit f32)))))
 
-; One block's attention of x: heads of width wide each, of a block's
-; (WEIGHT . BIAS) pairs attend, the query, key and value maker, and project.
+; --- attention ----------------------------------------------------------------------
+; A kernel of Tensor's lane convention.  Scratch words: 0 the address of
+; the queries, keys and values, a row for each position, the three side
+; by side and each a head after another; 1 the address of a row of
+; doubles, a score for each position; 2 the address of the answer, a row
+; for each position; 3 the positions; 4 the width; 5 a head's width; 8 the
+; budget; 9 the phase; 10 the position; 11 the head; 12 the position
+; attended to; 13 the column within the head; 14 the heads.  Doubles: 16
+; the sum being made, 17 the greatest score, 18 the exponentials' sum, 19
+; the root of a head's width.
+;
+; Phase 0 makes a score for each position up to this one, a column of
+; the head at a step, and keeps the greatest.  Phase 1 turns each score
+; into its exponential less the greatest, and sums them.  Phase 2 makes
+; each column of the answer, a position attended to at a step.  A step is
+; one visit, and takes one from the budget.
+(def %tf-attention-form
+  (let ((w (fn (_ k) (list (lit %mem-ref) (lit s) k)))
+        (w! (fn (_ k v) (list (lit %mem-set!) (lit s) k v)))
+        (d (fn (_ k) (list (lit f-ref) (lit s) k)))
+        (d! (fn (_ k v) (list (lit f-set!) (lit s) k v))))
+    (let ((add (fn (_ a b) (list (lit +) a b))) (mul (fn (_ a b) (list (lit *) a b))))
+      ; element (ROW, PART, the head's column) of the queries, keys and values
+      (let ((qkv (fn (_ row part)
+                   (list (lit f32-ref) (w 0)
+                     (add (add (mul row (mul 3 (w 4))) (mul part (w 4))) (add (mul (w 11) (w 5)) (w 13))))))
+            (score (fn (_) (list (lit f-ref) (w 1) (w 12))))
+            (score! (fn (_ v) (list (lit f-set!) (w 1) (w 12) v)))
+            (zero (lit (i->f 0)))
+            (next (fn (_ k) (w! k (add (w k) 1))))
+            (upto? (list (lit <) (w 12) (add (w 10) 1))))
+        (list (lit fn) (lit (self s))
+          (list (lit match)
+            (list (list (lit =) (w 8) 0) 0)
+            (list (list (lit =) (w 10) (w 3)) 1)
+            (list (lit #t)
+              (list (lit do)
+                (list (lit if) (list (lit =) (w 9) 0)
+                  (list (lit if) (list (lit <) (w 13) (w 5))
+                    (list (lit do)
+                      (d! 16 (list (lit f+) (d 16) (list (lit f*) (qkv (w 10) 0) (qkv (w 12) 1))))
+                      (next 13))
+                    (list (lit do)
+                      (d! 16 (list (lit f/) (d 16) (d 19)))
+                      (score! (d 16))
+                      (list (lit if) (list (lit =) (w 12) 0) (d! 17 (d 16))
+                        (list (lit if) (list (lit f<) (d 17) (d 16)) (d! 17 (d 16)) 0))
+                      (d! 16 zero) (w! 13 0) (next 12)
+                      (list (lit if) upto? 0
+                        (list (lit do) (w! 9 1) (w! 12 0) (d! 18 zero)))))
+                  (list (lit if) (list (lit =) (w 9) 1)
+                    (list (lit if) upto?
+                      (list (lit do)
+                        (score! (list (lit f-exp) (list (lit f-) (score) (d 17))))
+                        (d! 18 (list (lit f+) (d 18) (score)))
+                        (next 12))
+                      (list (lit do) (w! 9 2) (w! 12 0) (w! 13 0) (d! 16 zero)))
+                    (list (lit if) (list (lit <) (w 13) (w 5))
+                      (list (lit if) upto?
+                        (list (lit do)
+                          (d! 16 (list (lit f+) (d 16) (list (lit f*) (score) (qkv (w 12) 2))))
+                          (next 12))
+                        (list (lit do)
+                          (list (lit f32-set!) (w 2) (add (mul (w 10) (w 4)) (add (mul (w 11) (w 5)) (w 13)))
+                            (list (lit f/) (d 16) (d 18)))
+                          (d! 16 zero) (w! 12 0) (next 13)))
+                      (list (lit do)
+                        (w! 9 0) (w! 12 0) (w! 13 0) (d! 16 zero) (next 11)
+                        (list (lit if) (list (lit =) (w 11) (w 14))
+                          (list (lit do) (w! 11 0) (next 10))
+                          0)))))
+                (w! 8 (list (lit -) (w 8) 1))
+                (lit (self s))))))))))
+
+; A scratch for the attention kernel: the queries, keys and values at
+; address made, the answer at address out, for count positions.  The row
+; of scores is held in the scratch's pair, which the caller keeps.
+(def %tf-attention-scratch
+  (fn (_ made out count width heads)
+    (let ((s (str-make 256)) (scores (str-make (int* 8 (if (int< count 1) 1 count))))
+          (fset (word-form-pure (lit (fn (_ a i v) (f-set! a i v))))))
+      (mem-set (str->ptr s) 0 256)
+      (%tf-word! s 0 made) (%tf-word! s 1 (ptr->int (str->ptr scores))) (%tf-word! s 2 out)
+      (%tf-word! s 3 count) (%tf-word! s 4 width) (%tf-word! s 5 (int/ width heads)) (%tf-word! s 14 heads)
+      (fset (ptr->int (str->ptr s)) 16 (first (float-of 0)))
+      (fset (ptr->int (str->ptr s)) 19 (first (fsqrt (float-of (int/ width heads)))))
+      (pair s scores))))
+
+; The answer's bytes after a kernel function has run over the check
+; problem: 3 positions, a width of 4 and 2 heads, the elements quarters.
+(def %tf-attention-check-run
+  (fn (_ kern)
+    (let ((f (Tensor %fast)))
+      (let ((made ((obj-ref f 4) (lit f32) (list 3 12))) (out ((obj-ref f 4) (lit f32) (list 3 4)))
+            (put ((obj-ref f 6) (lit f32))))
+        ((fn (go i)
+           (if (int< i 36)
+             (do (put ((obj-ref f 13) made) i (f-div (float-of (int- (int% (int+ 3 (int* 7 i)) 11) 5)) (float-of 4)))
+                 (go (int+ i 1)))
+             ()))
+          0)
+        (let ((sc (%tf-attention-scratch ((obj-ref f 13) made) ((obj-ref f 13) out) 3 4 2)))
+          (%tf-word! (first sc) 8 1073741823)
+          (kern (ptr->int (str->ptr (first sc))))
+          ; made and the scratch are held to here, so their addresses stayed good
+          (do made sc (List ref 4 out)))))))
+
+(def %tf-attention-agrees?
+  (fn (_ compiled)
+    (int= (mem-cmp (str->ptr (%tf-attention-check-run (word-form-pure %tf-attention-form)))
+                   (str->ptr (%tf-attention-check-run compiled)) 48)
+          0)))
+
+(Tensor %register! (lit f32-attention) %tf-attention-form %tf-attention-agrees?)
+
+; One block's attention of x: attend, a (WEIGHT . BIAS), makes the
+; queries, keys and values, the kernel makes the heads' answers side by
+; side, and project, another, takes them through c_proj.
 (def %tf-attention
-  (fn (_ x attend project heads wide)
-    (let ((made (%tf-layer x attend)) (width (int* heads wide)) (root (fsqrt (float-of wide))))
-      (def head
-        (fn (_ h)
-          (let ((at (int* h wide)))
-            (let ((q (made slice 1 at (int+ at wide)))
-                  (k (made slice 1 (int+ width at) (int+ width (int+ at wide))))
-                  (v (made slice 1 (int+ (int* 2 width) at) (int+ (int* 2 width) (int+ at wide)))))
-              (%tf-product
-                (%tf-product (Neural softmax (Neural causal-mask ((%tf-product q (k transpose)) div root))) v)
-                ((first project) slice 0 at (int+ at wide)))))))
-      ((fn (go h sum) (if (int< h heads) (go (int+ h 1) (sum add (head h))) (sum add (rest project))))
-        1 (head 0)))))
+  (fn (_ x attend project heads)
+    (let ((f (Tensor %fast)) (made (%tf-f32 (%tf-layer x attend))))
+      (let ((st (if ((obj-ref f 3) (made %st)) (made %st) ((obj-ref f 10) (made %st) (lit f32)))))
+        (let ((count (first (List ref 1 st))) (width (int/ (first (rest (List ref 1 st))) 3)))
+          (let ((out ((obj-ref f 4) (lit f32) (list count width))))
+            (let ((sc (%tf-attention-scratch ((obj-ref f 13) st) ((obj-ref f 13) out) count width heads)))
+              ((obj-ref f 14) (lit f32-attention) (first sc))
+              ; st and the scratch are held to here, so their addresses stayed good
+              (do st sc (%tf-layer (Matrix %make out) project)))))))))
+
+; The blocks between collections.  A block's operations leave about
+; 700,000 objects behind on GPT-2, and Tensor's own window is 4,400,000.
+(def %tf-collect-every 4)
 
 ; The model's last hidden rows for ids, one for each, after ln_f.
 (def %tf-hidden
   (fn (_ m ids)
-    (let ((count (List length ids)) (heads (m %heads)) (wide (int/ (m %width) (m %heads))))
+    (let ((count (List length ids)) (heads (m %heads)))
       (if (int= count 0) (Err raise (lit value) "Transformer: there are no ids" ()) ())
       (if (int< (m %context) count)
         (Err raise (lit value) "Transformer: more ids than the model has positions" (list count (m %context))) ())
-      ((fn (go blocks x)
+      ((fn (go blocks x n)
          (if (null? blocks)
            (Neural layer-norm x (first (m %norm)) (rest (m %norm)))
            (let ((b (first blocks)))
              (let ((x (x add (%tf-attention (Neural layer-norm x (first (List ref 0 b)) (rest (List ref 0 b)))
-                                (List ref 1 b) (List ref 2 b) heads wide))))
+                                (List ref 1 b) (List ref 2 b) heads))))
                (let ((x (x add (%tf-layer
                                  (Neural gelu (%tf-layer (Neural layer-norm x (first (List ref 3 b)) (rest (List ref 3 b)))
                                                 (List ref 4 b))
                                    (lit tanh))
                                  (List ref 5 b)))))
-                 (Heap collect)
-                 (go (rest blocks) x))))))
+                 (if (int= (int% n %tf-collect-every) 0) (Heap collect) ())
+                 (go (rest blocks) x (int+ n 1)))))))
         (m %blocks)
-        ((Neural embed (m %items) ids) add (Neural embed (m %positions) (List range 0 count)))))))
+        ((Neural embed (m %items) ids) add (Neural embed (m %positions) (List range 0 count)))
+        1))))
 
 (def-class Transformer ()
   (doc "A language model's forward pass, in the layout GPT-2 is published in: from a list of ids, a score for every vocabulary item at every position, and the ids predicted to follow."
