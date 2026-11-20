@@ -369,6 +369,65 @@ is named here (docs/lang-contract.md, "The declaration").
 ---
     run.x
 
+### a library's declaration reads, and answers its kind and name
+
+A library is a bundle with no entry: `lib.xon` names it with `(lib ...)`,
+the prefixes it provides and the libraries it requires.
+
+```x
+(do
+  (import x/tool/pin)
+  (let ((%pm-lib (Pin %pin-lang-parse (Pin %pin-forms
+          "(lib \"codec\") (requires-release \"v0.60.0\") (provides x/codec x/net) (requires-lib \"num\" \"v0.1.0\") (requires-lib \"media\")"))))
+    (write (list (%assoc-get 'kind %pm-lib) (%assoc-get 'lang %pm-lib)))))
+```
+---
+    ('lib "codec")
+
+### a library that declares an entry is a loud error
+
+```x
+(do
+  (import x/tool/pin)
+  (display (throws? (fn (_) (Pin %pin-lang-parse (Pin %pin-forms "(lib \"codec\") (entry \"run.x\")"))))))
+```
+---
+    #t
+
+### a lang may require a library, and stays a lang
+
+```x
+(do
+  (import x/tool/pin)
+  (display (%assoc-get 'kind (Pin %pin-lang-parse (Pin %pin-forms
+    "(lang \"git\") (dialect he) (requires-lib \"codec\" \"v0.1.0\") (entry \"run.x\")")))))
+```
+---
+    lang
+
+### a pin names a lang or a lib, and answers which
+
+```x
+(do
+  (import x/tool/pin)
+  (let ((%pm-pin (Pin %pin-bundle-parse (Pin %pin-forms
+          "(lib \"codec\") (release \"v0.1.0\") (bundle \"sha256:00\" \"file:///dev/null\")"))))
+    (write (list (%assoc-get 'kind %pm-pin) (%assoc-get 'lang %pm-pin) (%assoc-get 'release %pm-pin)))))
+```
+---
+    ('lib "codec" "v0.1.0")
+
+### a pin that names both a lang and a lib is a loud error
+
+```x
+(do
+  (import x/tool/pin)
+  (display (throws? (fn (_) (Pin %pin-bundle-parse (Pin %pin-forms
+    "(lang \"a\") (lib \"b\") (release \"v1\") (bundle \"sha256:00\" \"file:///dev/null\")"))))))
+```
+---
+    #t
+
 ### a grammar form with no name is a loud error
 
 ```x
