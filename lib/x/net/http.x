@@ -142,7 +142,7 @@
     (method %run-join (self (param a STRING "The first buffer")
                             (param off INTEGER "Where its bytes start")
                             (param n INTEGER "How many of them")
-                            (param b STRING "The second buffer, or nil")
+                            (param b STRING|NIL "The second buffer, or nil")
                             (param m INTEGER "How many of its bytes, from its start"))
       (doc "A new run of a's n bytes from off followed by b's first m, copied by libc's memcpy: NUL bytes and all, a few objects whatever the size."
         (returns PAIR "(STRING . n+m)")

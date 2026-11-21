@@ -955,12 +955,12 @@
              s (first sp) (first (rest sp)) #t))
     (method stream (self (param level INTEGER "The block size digit, 1 to 9"))
       (doc "A bzip2 stream written a piece at a time with (Bzip2 feed): what bzip2 wants of a file it must not read whole. The output is the bytes compress writes for the pieces joined."
-        (returns OBJECT "The stream")
+        (returns VECTOR "The stream")
         (sample "(let ((z (Bzip2 stream 9))) (first (rest (Bzip2 feed z \"hello\" 0 5 #t))))" "41, the size (Bzip2 compress \"hello\" 9) answers; a stream builds the compiled engine"))
       ; A piece at a time says nothing about the whole, so a stream asks for
       ; the engine outright rather than by the first piece's size.
       (%encoder (%level-ok level) (%engine-for %jit-threshold)))
-    (method feed (self (param z OBJECT "A (Bzip2 stream)")
+    (method feed (self (param z VECTOR "A (Bzip2 stream)")
                        (param s STRING "Bytes holding the next piece")
                        (param start INTEGER "Where the piece starts in s")
                        (param n INTEGER "How many bytes it is")

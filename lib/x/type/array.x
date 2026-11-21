@@ -30,7 +30,7 @@
   (static
     (method make (self . opt)
       (doc "An empty array. Pass a capacity to pre-size the backing store."
-        (param opt LIST "Optional (capacity) -- initial backing size, default 8")
+        (param opt INTEGER "Optional (capacity) -- initial backing size, default 8")
         (returns Array "A new empty array")
         (example "((Array make) length)" "0")
         (example "((Array make 64) empty?)" "#t"))

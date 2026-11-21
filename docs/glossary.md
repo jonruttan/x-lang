@@ -63,7 +63,7 @@ this tree.
   (unions), `ALIST`, `TYPE` (a runtime type's handle). Unions are written
   `INTEGER|BIGINT`. A rest parameter's annotation names the type of each
   argument it collects. The linter tests a literal argument against it;
-  nothing tests it at a call.
+  the doctest gate tests it at each call a doc example makes.
 
 ## Objects and classes
 

@@ -623,7 +623,7 @@
         (int* acc x)))))
 
 (doc + "Add numbers, promoting to bigint on overflow."
-  (param args INTEGER|BIGINT "Numbers to add")
+  (param args NUMBER "Numbers to add")
   (returns INTEGER|BIGINT "Sum")
   (example "(+ 1 2 3)" "6")
   (example "(+ 9223372036854775807 1)" "9223372036854775808"))
@@ -637,7 +637,7 @@
       (#t (%fold %big-add2 (first args) (rest args))))))
 
 (doc - "Subtract numbers, promoting to bigint on overflow. Unary form negates."
-  (param args INTEGER|BIGINT "Numbers to subtract")
+  (param args NUMBER "Numbers to subtract")
   (returns INTEGER|BIGINT "Difference")
   (example "(- 10 3 2)" "5")
   (example "(- 5)" "-5")
@@ -657,7 +657,7 @@
       (#t (%fold %big-sub2 (first args) (rest args))))))
 
 (doc * "Multiply numbers, promoting to bigint on overflow."
-  (param args INTEGER|BIGINT "Numbers to multiply")
+  (param args NUMBER "Numbers to multiply")
   (returns INTEGER|BIGINT "Product")
   (example "(* 2 3 4)" "24")
   (example "(* 4294967296 4294967296)" "18446744073709551616"))

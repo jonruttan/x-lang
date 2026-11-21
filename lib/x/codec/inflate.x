@@ -789,10 +789,10 @@
       (%zlib s (first sp) (first (rest sp))))
     (method stream (self)
       (doc "A raw DEFLATE stream (RFC 1951) to be fed a piece at a time with (Inflate feed): what gunzip wants of a file it must not read whole. Each feed decodes the blocks the input so far completes; a block cut off waits for the next piece, and the input it holds is at most a block's."
-        (returns OBJECT "The stream")
+        (returns VECTOR "The stream")
         (example "(let ((z (Inflate stream))) (Inflate done? z))" "#f"))
       (%stream-new))
-    (method feed (self (param z OBJECT "An (Inflate stream)")
+    (method feed (self (param z VECTOR "An (Inflate stream)")
                        (param s STRING "Bytes holding the next piece")
                        (param start INTEGER "Where the piece starts in s")
                        (param n INTEGER "How many bytes it is"))
@@ -800,12 +800,12 @@
         (returns LIST "(OUT N): a region and how many of its bytes came out")
         (example "(do (import x/codec/deflate) (let ((z (Inflate stream)) (c (Deflate raw \"hello\"))) (let ((o (Inflate feed z (first c) 0 (first (rest c))))) (Str8 sub 0 (first (rest o)) (first o)))))" "\"hello\""))
       (%stream-feed z s start n))
-    (method done? (self (param z OBJECT "An (Inflate stream)"))
+    (method done? (self (param z VECTOR "An (Inflate stream)"))
       (doc "Has the stream's final block been decoded?"
         (returns BOOL "#t once it has")
         (example "(do (import x/codec/deflate) (let ((z (Inflate stream)) (c (Deflate raw \"hello\"))) (do (Inflate feed z (first c) 0 (first (rest c))) (Inflate done? z))))" "#t"))
       (obj-ref z %ZDONE))
-    (method rest (self (param z OBJECT "An (Inflate stream)"))
+    (method rest (self (param z VECTOR "An (Inflate stream)"))
       (doc "The input not used: once the stream is done, the bytes fed after its end -- a gzip member's trailer, say; before, the part of a block still waiting for more."
         (returns LIST "(BUF N): a region and how many bytes of it")
         (example "(do (import x/codec/deflate) (let ((z (Inflate stream)) (c (Deflate raw \"hello\"))) (do (Inflate feed z (first c) 0 (first (rest c))) (Inflate feed z \"tail\" 0 4) (let ((r (Inflate rest z))) (Str8 sub 0 (first (rest r)) (first r))))))" "\"tail\""))

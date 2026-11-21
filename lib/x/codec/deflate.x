@@ -826,10 +826,10 @@
       (%run s span %stored-body 1))
     (method stream (self)
       (doc "A raw DEFLATE stream (RFC 1951) written a piece at a time with (Deflate feed): what gzip wants of a file it must not read whole. Each piece is compressed as raw's input is, matches reaching back only inside it."
-        (returns OBJECT "The stream")
+        (returns VECTOR "The stream")
         (example "(first (rest (Deflate feed (Deflate stream) \"\" 0 0 #t)))" "2"))
       (%writer 64))
-    (method feed (self (param w OBJECT "A (Deflate stream)")
+    (method feed (self (param w VECTOR "A (Deflate stream)")
                        (param s STRING "Bytes holding the next piece")
                        (param start INTEGER "Where the piece starts in s")
                        (param n INTEGER "How many bytes it is")

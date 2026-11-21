@@ -216,8 +216,8 @@
   (example "(= 3 4)" "#f"))
 
 (doc < "Test numeric less-than."
-  (param a INTEGER "First number")
-  (param b INTEGER "Second number")
+  (param a NUMBER "First number")
+  (param b NUMBER "Second number")
   (returns BOOL "t if a < b")
   (example "(< 1 2)" "#t")
   (example "(< 2 1)" "#f"))

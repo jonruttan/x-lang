@@ -45,7 +45,7 @@
   (static
     (method sw (self . opt)
       (doc "A software xorshift PRNG. Deterministic; pass a seed for a reproducible stream."
-        (param opt LIST "Optional (seed) -- a nonzero integer seed")
+        (param opt INTEGER "Optional (seed) -- a nonzero integer seed")
         (returns Random "A software RNG")
         (sample "(Random sw 42)" "a seeded, reproducible PRNG"))
       (let ((r (new-from self (list 'label 'sw))))
