@@ -886,19 +886,19 @@ grep -q '(release "v9.9.9")' "$_TMP/proj9/deps.lock.xon" || fail "lock-root: upg
 # length the whole archive digests in pure x, and tar never runs over
 # bytes nothing has vouched for.
 _bsrc="$_TMP/bsrc"
-mkdir -p "$_bsrc/demo"
-printf '(lang "x-smoke")\n(dialect he)\n(requires-release "v0.0.0")\n(requires-lang "r5rs" "v0.2.4")\n(entry "run.x")\n' > "$_bsrc/lang.xon"
-printf '(provide demo/g g)\n(def g (fn (_) "ok"))\n' > "$_bsrc/demo/g.x"
-printf '; entry\n' > "$_bsrc/run.x"
+mkdir -p "$_bsrc/lib/demo" "$_bsrc/lib/x-smoke"
+printf '(name "x-smoke")\n(dialect he)\n(requires-release "v0.0.0")\n(requires-bundle "r5rs" "v0.2.4")\n(entry run)\n' > "$_bsrc/bundle.xon"
+printf '(provide demo/g g)\n(def g (fn (_) "ok"))\n' > "$_bsrc/lib/demo/g.x"
+printf '(module x-smoke/run)\n(def main (fn (_) ()))\n(provide x-smoke/run main)\n' > "$_bsrc/lib/x-smoke/run.x"
 # A non-.x file on purpose: a lang may ship data (the Logo viewer
 # is the worked case), so a bundle is a tree, not one amalgam.
 printf '<html>v</html>\n' > "$_bsrc/viewer.html"
 ( cd "$_bsrc" && tar -czf "$_TMP/x-smoke-v1.tar.gz" . )
 _bpin() { # $1=projdir $2=tag $3=archive-digest $4=tarball
   mkdir -p "$1"
-  { printf '(lang "x-smoke")\n'; printf '(release "%s")\n' "$2"
+  { printf '(name "x-smoke")\n'; printf '(release "%s")\n' "$2"
     printf '(bundle "sha256:%s" "file://%s")\n' "$3" "$4"
-  } > "$1/lang.pin.xon"
+  } > "$1/bundle.pin.xon"
 }
 _brun() { # $1=projdir $2=depsdir
   printf '(alloc-limit! 300000000)\n(import x/tool/pin)\n(display (Pin bundle "%s" "%s"))\n' \
@@ -908,7 +908,7 @@ _brun() { # $1=projdir $2=depsdir
 _bpin "$_TMP/bproj" v1 "$(_dg "$_TMP/x-smoke-v1.tar.gz")" "$_TMP/x-smoke-v1.tar.gz"
 _brun "$_TMP/bproj" "$_TMP/bdeps"
 [ $? -eq 0 ] || fail "bundle: acquire failed" "$_TMP/err" "$_TMP/out"
-[ -f "$_TMP/bdeps/x-smoke-v1/demo/g.x" ] || fail "bundle: module not unpacked" "$_TMP/out"
+[ -f "$_TMP/bdeps/x-smoke-v1/lib/demo/g.x" ] || fail "bundle: module not unpacked" "$_TMP/out"
 [ -f "$_TMP/bdeps/x-smoke-v1/viewer.html" ] || fail "bundle: data file not unpacked" "$_TMP/out"
 grep -q "x-smoke-v1" "$_TMP/out" || fail "bundle: no bundle path in output" "$_TMP/out"
 # Idempotent: a second run honours the tree and does not re-download.
@@ -920,7 +920,7 @@ grep -q "already acquired" "$_TMP/out" || fail "bundle: re-run did not honour th
 # compared equal on its first three bytes, so a tampered archive verified
 # clean.  Here the payload differs but the leading bytes do not.
 rm -rf "$_TMP/btam"; cp -R "$_bsrc" "$_TMP/btam"
-printf '(provide demo/g g)\n(def g (fn (_) "PWNED"))\n' > "$_TMP/btam/demo/g.x"
+printf '(provide demo/g g)\n(def g (fn (_) "PWNED"))\n' > "$_TMP/btam/lib/demo/g.x"
 ( cd "$_TMP/btam" && tar -czf "$_TMP/x-smoke-tam.tar.gz" . )
 _bpin "$_TMP/bproj2" tam "$(_dg "$_TMP/x-smoke-v1.tar.gz")" "$_TMP/x-smoke-tam.tar.gz"
 _brun "$_TMP/bproj2" "$_TMP/bdeps2"
@@ -937,7 +937,7 @@ grep -q "digest mismatch" "$_TMP/err" "$_TMP/out" \
 # The bundle must agree with the pin about which lang it is: a digest
 # proves the bytes are the ones published, not that the right thing was.
 rm -rf "$_TMP/blie"; cp -R "$_bsrc" "$_TMP/blie"
-printf '(lang "x-evil")\n(dialect he)\n' > "$_TMP/blie/lang.xon"
+printf '(name "x-evil")\n(dialect he)\n' > "$_TMP/blie/bundle.xon"
 ( cd "$_TMP/blie" && tar -czf "$_TMP/x-smoke-lie.tar.gz" . )
 _bpin "$_TMP/bproj5" lie "$(_dg "$_TMP/x-smoke-lie.tar.gz")" "$_TMP/x-smoke-lie.tar.gz"
 _brun "$_TMP/bproj5" "$_TMP/bdeps5"
@@ -950,14 +950,14 @@ rm -rf "$_TMP/bnod"; mkdir -p "$_TMP/bnod"; printf 'x\n' > "$_TMP/bnod/stray.x"
 ( cd "$_TMP/bnod" && tar -czf "$_TMP/x-smoke-nod.tar.gz" . )
 _bpin "$_TMP/bproj7" nod "$(_dg "$_TMP/x-smoke-nod.tar.gz")" "$_TMP/x-smoke-nod.tar.gz"
 _brun "$_TMP/bproj7" "$_TMP/bdeps7"
-[ $? -ne 0 ] || fail "bundle-nodecl: a bundle with no lang.xon was accepted" "$_TMP/out" "$_TMP/err"
-grep -q "ships no lang.xon" "$_TMP/err" "$_TMP/out" \
+[ $? -ne 0 ] || fail "bundle-nodecl: a bundle with no bundle.xon was accepted" "$_TMP/out" "$_TMP/err"
+grep -q "ships no bundle.xon" "$_TMP/err" "$_TMP/out" \
   || fail "bundle-nodecl: the missing declaration was not named" "$_TMP/err" "$_TMP/out"
 
 # Closed vocabulary: an unknown form in the pin is an error, never a skip.
 mkdir -p "$_TMP/bproj6"
-printf '(lang "x-smoke")\n(release "v1")\n(bundle "sha256:00" "file:///dev/null")\n(surprise "hi")\n' \
-  > "$_TMP/bproj6/lang.pin.xon"
+printf '(name "x-smoke")\n(release "v1")\n(bundle "sha256:00" "file:///dev/null")\n(surprise "hi")\n' \
+  > "$_TMP/bproj6/bundle.pin.xon"
 _brun "$_TMP/bproj6" "$_TMP/bdeps6"
 [ $? -ne 0 ] || fail "bundle-closed: an unknown pin form was ignored" "$_TMP/out" "$_TMP/err"
 grep -q "unknown form in bundle pin: surprise" "$_TMP/err" "$_TMP/out" \
@@ -968,26 +968,29 @@ grep -q "unknown form in bundle pin: surprise" "$_TMP/err" "$_TMP/out" \
 # loading is half a feature, and the two halves can rot apart: this case
 # runs the bundle the case above just verified, through the wrapper.
 #
-# X_LANG_DIR keeps it out of the repo's own langs/ dir, so
+# X_BUNDLE_DIR keeps it out of the repo's own bundles/ dir, so
 # the smoke never depends on -- or leaves behind -- state in the checkout.
-cat > "$_TMP/bdeps/x-smoke-v1/run.x" <<'XEOF'
+cat > "$_TMP/bdeps/x-smoke-v1/lib/x-smoke/run.x" <<'XEOF'
+(module x-smoke/run)
 (import demo/g)
 (set! %lang-name "x-smoke")
+(def main (fn (_) ()))
+(provide x-smoke/run main)
 XEOF
 # The manifest the pin verified does not list run.x, so re-pack: this case
 # is about LOADING, and it uses its own tree rather than the verified one.
 _lpers="$_TMP/lpers"
 mkdir -p "$_lpers"
 cp -R "$_TMP/bdeps/x-smoke-v1" "$_lpers/x-smoke-v1"
-# The bundle declares (requires-lang "r5rs" "v0.2.4"), and the wrapper refuses
+# The bundle declares (requires-bundle "r5rs" "v0.2.4"), and the wrapper refuses
 # a missing requirement before anything boots.  A stub stands in for it: a
-# lang.xon and the version stamp an install writes, which is all the
+# bundle.xon and the version stamp an install writes, which is all the
 # resolution reads.
 mkdir -p "$_lpers/r5rs"
-printf '(lang "r5rs")\n(dialect he)\n' > "$_lpers/r5rs/lang.xon"
+printf '(name "r5rs")\n(dialect he)\n' > "$_lpers/r5rs/bundle.xon"
 printf 'v0.2.4\n' > "$_lpers/r5rs/version"
 printf '(display (g))(display "|")(display %%lang-name)(newline)\n' > "$_TMP/load.x"
-X_LANG_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-smoke -f "$_TMP/load.x" \
+X_BUNDLE_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-smoke -f "$_TMP/load.x" \
   >"$_TMP/out" 2>"$_TMP/err"
 [ $? -eq 0 ] || fail "load: -l on an acquired bundle failed" "$_TMP/err" "$_TMP/out"
 grep -q "^ok|x-smoke$" "$_TMP/out" \
@@ -996,16 +999,16 @@ grep -q "^ok|x-smoke$" "$_TMP/out" \
 # A name nothing declares still fails loudly, and the inventory now NAMES
 # the langs it searched -- a listing that omitted them would send a
 # reader hunting for a bundle that is sitting right there.
-X_LANG_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l nosuchsurface -f /dev/null \
+X_BUNDLE_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l nosuchsurface -f /dev/null \
   >"$_TMP/out" 2>"$_TMP/err"
 [ $? -ne 0 ] || fail "load: an unknown -l name exited clean" "$_TMP/out" "$_TMP/err"
-grep -q "langs:.* x-smoke" "$_TMP/err" \
+grep -q "bundles:.* x-smoke" "$_TMP/err" \
   || fail "load: the inventory did not list the acquired lang" "$_TMP/err"
 
 # Two bundles claiming one name is a misconfiguration, not a race won by
 # directory order.
 cp -R "$_lpers/x-smoke-v1" "$_lpers/x-smoke-v2"
-X_LANG_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-smoke -f /dev/null \
+X_BUNDLE_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-smoke -f /dev/null \
   >"$_TMP/out" 2>"$_TMP/err"
 [ $? -ne 0 ] || fail "load-dup: two bundles with one name resolved anyway" "$_TMP/out" "$_TMP/err"
 grep -q "two bundles both call themselves" "$_TMP/err" \
@@ -1013,9 +1016,11 @@ grep -q "two bundles both call themselves" "$_TMP/err" \
 rm -rf "$_lpers/x-smoke-v2"
 
 # A dialect this tree has no entry for is refused by name, before any boot.
-printf '(lang "x-nodialect")\n(dialect zz)\n(entry "run.x")\n' \
-  > "$_lpers/x-smoke-v1/lang.xon"
-X_LANG_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-nodialect -f /dev/null \
+mkdir -p "$_lpers/x-smoke-v1/lib/x-nodialect"
+sed 's|x-smoke/run|x-nodialect/run|' "$_lpers/x-smoke-v1/lib/x-smoke/run.x" > "$_lpers/x-smoke-v1/lib/x-nodialect/run.x"
+printf '(name "x-nodialect")\n(dialect zz)\n(entry run)\n' \
+  > "$_lpers/x-smoke-v1/bundle.xon"
+X_BUNDLE_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-nodialect -f /dev/null \
   >"$_TMP/out" 2>"$_TMP/err"
 [ $? -ne 0 ] || fail "load-dialect: an undeclarable dialect booted anyway" "$_TMP/out" "$_TMP/err"
 grep -q "declares dialect 'zz'" "$_TMP/err" \
@@ -1023,7 +1028,7 @@ grep -q "declares dialect 'zz'" "$_TMP/err" \
 
 # A tarball with a top-level directory, which a tarball normally has: `git archive
 # --prefix=NAME/` is how a publisher rolls one and what every release tarball
-# looks like.  Refusing it would mean saying "ships no lang.xon" about a bundle
+# looks like.  Refusing it would mean saying "ships no bundle.xon" about a bundle
 # that plainly does -- found the first time a bundle was rolled for release.
 rm -rf "$_TMP/bpfx"; mkdir -p "$_TMP/bpfx"
 cp -R "$_bsrc" "$_TMP/bpfx/x-smoke-v1"
@@ -1031,9 +1036,9 @@ cp -R "$_bsrc" "$_TMP/bpfx/x-smoke-v1"
 _bpin "$_TMP/bproj8" pfx "$(_dg "$_TMP/x-smoke-pfx.tar.gz")" "$_TMP/x-smoke-pfx.tar.gz"
 _brun "$_TMP/bproj8" "$_TMP/bdeps8"
 [ $? -eq 0 ] || fail "bundle-prefix: a git-archive-style tarball was refused" "$_TMP/err" "$_TMP/out"
-[ -f "$_TMP/bdeps8/x-smoke-pfx/lang.xon" ] \
+[ -f "$_TMP/bdeps8/x-smoke-pfx/bundle.xon" ] \
   || fail "bundle-prefix: the wrapper directory was not descended" "$_TMP/out"
-[ -f "$_TMP/bdeps8/x-smoke-pfx/demo/g.x" ] \
+[ -f "$_TMP/bdeps8/x-smoke-pfx/lib/demo/g.x" ] \
   || fail "bundle-prefix: modules did not land at the tree root" "$_TMP/out"
 
 # TWO entries at the top is ambiguous and stays where it unpacked: descending
@@ -1045,39 +1050,39 @@ printf 'x\n' > "$_TMP/bamb/two/stray"
 _bpin "$_TMP/bproj9" amb "$(_dg "$_TMP/x-smoke-amb.tar.gz")" "$_TMP/x-smoke-amb.tar.gz"
 _brun "$_TMP/bproj9" "$_TMP/bdeps9"
 [ $? -ne 0 ] || fail "bundle-ambiguous: a two-entry archive was descended anyway" "$_TMP/out" "$_TMP/err"
-grep -q "ships no lang.xon" "$_TMP/err" "$_TMP/out" \
+grep -q "ships no bundle.xon" "$_TMP/err" "$_TMP/out" \
   || fail "bundle-ambiguous: the refusal did not name the missing declaration" "$_TMP/err"
 
 # install: a lang from a PUBLISHED PIN, with nothing cloned.  This is the
-# everyday path -- `x --install-lang <url>` -- and it differs from Pin bundle in
+# everyday path -- `x --install-bundle <url>` -- and it differs from Pin bundle in
 # what it is for: one unversioned copy on the machine, at the stable name `-l`
 # resolves, rather than a digest-pinned tree for one project.
 _ipub="$_TMP/ipub"; mkdir -p "$_ipub"
 cp "$_TMP/x-smoke-v1.tar.gz" "$_ipub/"
-{ printf '(lang "x-smoke")\n'; printf '(release "v1")\n'
+{ printf '(name "x-smoke")\n'; printf '(release "v1")\n'
   printf '(bundle "sha256:%s" "file://%s/x-smoke-v1.tar.gz")\n' \
     "$(_dg "$_ipub/x-smoke-v1.tar.gz")" "$_ipub"
-} > "$_ipub/lang.pin.xon"
+} > "$_ipub/bundle.pin.xon"
 _ilangs="$_TMP/ilangs"; mkdir -p "$_ilangs"
-printf '(alloc-limit! 300000000)\n(import x/tool/pin)\n(display (Pin install "file://%s/lang.pin.xon" "%s"))\n' \
+printf '(alloc-limit! 300000000)\n(import x/tool/pin)\n(display (Pin install "file://%s/bundle.pin.xon" "%s"))\n' \
   "$_ipub" "$_ilangs" > "$_TMP/inst.x"
 $TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/inst.x" >"$_TMP/out" 2>"$_TMP/err"
 [ $? -eq 0 ] || fail "install: acquiring from a published pin failed" "$_TMP/err" "$_TMP/out"
 # The stable name, not <name>-<release>: -l resolves it and an install is one
 # copy per machine, so a versioned directory would collide with itself on
 # upgrade -- two trees both declaring the same lang, which -l refuses.
-[ -f "$_ilangs/x-smoke/lang.xon" ] \
+[ -f "$_ilangs/x-smoke/bundle.xon" ] \
   || fail "install: did not land at the stable <langs>/<name>" "$_TMP/out"
 
 # A failed upgrade leaves the working install in place.  The digest is checked before
 # anything replaces a working installation, so a bad pin costs you nothing.
 sed 's/sha256:[0-9a-f]*/sha256:0000000000000000000000000000000000000000000000000000000000000000/' \
-  "$_ipub/lang.pin.xon" > "$_ipub/bad.pin.xon"
+  "$_ipub/bundle.pin.xon" > "$_ipub/bad.pin.xon"
 printf '(alloc-limit! 300000000)\n(import x/tool/pin)\n(Pin install "file://%s/bad.pin.xon" "%s")\n' \
   "$_ipub" "$_ilangs" > "$_TMP/inst2.x"
 $TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/inst2.x" >"$_TMP/out" 2>"$_TMP/err"
 [ $? -ne 0 ] || fail "install-tamper: a bad digest installed clean" "$_TMP/out" "$_TMP/err"
-[ -f "$_ilangs/x-smoke/lang.xon" ] \
+[ -f "$_ilangs/x-smoke/bundle.xon" ] \
   || fail "install-tamper: a failed upgrade destroyed the working install" "$_TMP/err"
 
 # --share-dir must answer from outside the tree, because that is the entire

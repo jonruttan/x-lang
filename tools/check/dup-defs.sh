@@ -1,7 +1,7 @@
 #!/bin/sh
 # dup-defs.sh -- cross-module duplicate-global-def ratchet (#47)
 #
-# The platform's sources, held to tools/lang-kit/dup-defs.sh, the scanner
+# The platform's sources, held to tools/bundle-kit/dup-defs.sh, the scanner
 # every bundle's spec gate runs too.  Its header gives the rule; this file
 # gives the platform's scope and its adjudicated names.
 #
@@ -39,4 +39,4 @@ cd "$PROJECT_DIR" || exit 1
 DUP_DEFS_ALLOW="let compile-asm %c-read %c-malloc %c-free %c-close %obj-set! %ptr %ptr-ref %int->ptr" \
 DUP_DEFS_ONE_LOADS="lib/x/tool/asm/" \
 DUP_DEFS_SCRIPTS="tools/" \
-	exec sh tools/lang-kit/dup-defs.sh $(find lib apps tools -name '*.x' ! -path 'lib/img.x' 2>/dev/null | sort)
+	exec sh tools/bundle-kit/dup-defs.sh $(find lib apps tools -name '*.x' ! -path 'lib/img.x' 2>/dev/null | sort)

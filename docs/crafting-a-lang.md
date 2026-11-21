@@ -15,18 +15,19 @@ ignored.
 
 ## 1. The layout of a bundle
 
-A lang is a bundle: `lang.xon` declares it, `run.x` is the entry, the
-implementation lives in one directory named for the lang, and
-`tests/spec-runner.sh` sources the **platform's** runner and vendors nothing.
+A lang is a bundle: `bundle.xon` declares it, its entry is the module
+`NAME/run`, the implementation lives under `lib/` in one directory named for
+the lang, and `tests/spec-runner.sh` sources the **platform's** runner and
+vendors nothing.
 
 ```
-lang.xon                (lang "python") (dialect xe) (requires-release "…") (entry "run.x")
-run.x                   imports the implementation, wires the REPL
-python/tokens.x         the reader: token types on an isolated base
-python/indent.x         (historical) line structure — now a name, see §4
-python/types.x          the lang's values, as x types
-python/runtime.x        what the lang's operators and rules MEAN
-python/parse.x          grammar → emitted x forms
+bundle.xon                  (name "python") (dialect xe) (requires-release "…") (entry run)
+lib/python/run.x            the entry: imports the implementation, wires the REPL, exports main
+lib/python/tokens.x         the reader: token types on an isolated base
+lib/python/indent.x         (historical) line structure — now a name, see §4
+lib/python/types.x          the lang's values, as x types
+lib/python/runtime.x        what the lang's operators and rules MEAN
+lib/python/parse.x          grammar → emitted x forms
 tests/spec-runner.sh    sources the platform runner; sets policy knobs
 tests/specs/*.spec.md   the hand-written suite — the real construction record
 ```
@@ -322,7 +323,7 @@ reader is — a "Python" prompt over a sexp reader evaluates `1 + 2` as three
 forms across three prompts.  A lang REPL replaces the **loop**: read a line
 (a block, when it opens one), parse with the lang's parser, evaluate, echo by
 the lang's rules.  Wire it by `set!`-ing the launcher's globals (`%banner`,
-`repl`) from `run.x`.
+`repl`) from the entry, `lib/NAME/run.x`.
 
 What the loop must know:
 

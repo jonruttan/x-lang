@@ -2,10 +2,10 @@
 
 | Directory | What lives here |
 |---|---|
-| `contract/` | Machine-readable single sources of truth: what x-lang needs from an engine (`requires.x`) and the engine contract's vocabulary (`features.x`, the compliance specs, `gen-engine-xon.sh`), what a lang may rely on (`seam.x`, `langs.x`), and the ratchet budgets (`bare-globals.x`, `percent-globals.x`, `private-reads.x`, `shared-privates.x`, `constraints.x`, the doc vocabularies).  These are the SPEC of the system, not tooling.  The C binding surface and object layout moved to the engine with the C source. |
+| `contract/` | Machine-readable single sources of truth: what x-lang needs from an engine (`requires.x`) and the engine contract's vocabulary (`features.x`, the compliance specs, `gen-engine-xon.sh`), what a lang may rely on (`seam.x`, `bundles.x`), and the ratchet budgets (`bare-globals.x`, `percent-globals.x`, `private-reads.x`, `shared-privates.x`, `constraints.x`, the doc vocabularies).  These are the SPEC of the system, not tooling.  The C binding surface and object layout moved to the engine with the C source. |
 | `check/` | Everything `make gates` / `make test` drives.  One file per gate; the Makefile target names are the stable external contract, and `make help` is their catalogue -- the scripts are not listed again here. |
 | `engine/` | The engine pin (`engine.pin.xon`) and the scripts that fetch the engine it names, bump it, and refuse a directory it does not name. |
-| `lang-kit/` | What a lang bundle's own build runs against this tree: the spec harness generator, the lint, the provide and duplicate-definition checks, the release references.  [docs/lang-contract.md](../docs/lang-contract.md) is the reference. |
+| `bundle-kit/` | What a lang bundle's own build runs against this tree: the spec harness generator, the lint, the provide and duplicate-definition checks, the release references.  [docs/lang-contract.md](../docs/lang-contract.md) is the reference. |
 | `release/` | Artifact production: amalgam generation, binary tarballs, the release manifest, macOS signing. |
 | `dev/` | Conveniences: formatter, linter, coverage, benchmarks, images, doc generation.  See `dev/README.md`. |
 | `fuzz/` | Cross-engine differential input: a deterministic batch of forms both engines evaluate. |

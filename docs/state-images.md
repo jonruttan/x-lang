@@ -322,7 +322,7 @@ The compiled version is remade, not carried. The cache carries the bytes.
   (`tools/dev/lint-image.x`), keyed as above and on `tools/dev/lint.x`. It
   boots every lint child from that image, then loads the child's preload and
   the driver. `X_LINT_IMAGE=0` boots from source, as an installed tree's
-  lint (the lang kit's) does.
+  lint (the bundle kit's) does.
 - **A lang bundle's suite** boots from an image of its harness, keyed on the
   bundle's module tree as well ([lang-contract.md](lang-contract.md)). The
   harness is on `x-core.x`, the dialect the bundle ships, not on

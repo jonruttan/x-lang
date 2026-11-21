@@ -22,7 +22,7 @@ they carry 98.6% of the logged invocations (18,467 of 18,734):
   head install join ln ls mkdir mktemp mv nproc readlink rm sha1sum
   sha256sum sleep sort sysctl tail tar timeout tr uname wc xargs.
 
-`tools/contract/langs.x` carries each bundle's current suite size.
+`tools/contract/bundles.x` carries each bundle's current suite size.
 
 Pipelines of x tools compose today:
 `... | x -l awk '{print $1}' | x -l coreutils -- sort | x -l coreutils -- uniq -c`.

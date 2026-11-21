@@ -9,9 +9,9 @@
 # The lang rows (r5rs/r7rs/sweet) are BUNDLES (docs/lang-contract.md), loaded
 # through x.sh so the wrapper does its own dialect boot and import-path
 # arming; X_BIN aims it at the profile engine.  Bundle checkouts are expected
-# as siblings under ../languages/ -- override with X_LANG_DIR (trailing slash,
-# x.sh globs "$X_LANG_DIR"*/).  --allow-lang-skew because checkouts carry no
-# version stamp for the (requires-lang ...) equality check.
+# as siblings under ../languages/ -- override with X_BUNDLE_DIR (trailing slash,
+# x.sh globs "$X_BUNDLE_DIR"*/).  --allow-bundle-skew because checkouts carry no
+# version stamp for the (requires-bundle ...) equality check.
 #
 # Every unsuffixed row boots from source.  The -img rows boot the same
 # bundles from their state images (docs/state-images.md), the start a user
@@ -25,7 +25,7 @@ cd "$BASEDIR"
 DATE=$(date +%Y-%m-%d_%H%M%S)
 OUTFILE="benchmarks/${DATE}.tsv"
 TMPDIR="${TMPDIR:-/tmp}"
-LANGS="${X_LANG_DIR:-$BASEDIR/../languages/}"
+LANGS="${X_BUNDLE_DIR:-$BASEDIR/../languages/}"
 
 # Build unless --no-build
 if [ "$1" != "--no-build" ]; then
@@ -117,7 +117,7 @@ run_bench() {
 # A bundle row: x.sh boots the bundle's dialect, arms its root, cats its
 # entry, then the snippet (-f also keeps the interactive launcher off).
 # --no-image boots from source, the work the x-core row does.
-XSH="X_BIN='$BASEDIR/x-bin-profile' X_LANG_DIR='$LANGS' sh ./x.sh --no-pin --allow-lang-skew"
+XSH="X_BIN='$BASEDIR/x-bin-profile' X_BUNDLE_DIR='$LANGS' sh ./x.sh --no-pin --allow-bundle-skew"
 run_bench_lang() {
     run_bench "$1" "$XSH --no-image -l $1 -f '$SNIPPET'"
 }

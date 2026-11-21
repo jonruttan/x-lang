@@ -14,6 +14,6 @@
 ; helium: the cheapest dialect that boots, and the probe reaches for nothing
 ; a tower provides.
 
-(lang "seamprobe")
+(name "seamprobe")
 (dialect he)
-(entry "run.x")
+(entry run)

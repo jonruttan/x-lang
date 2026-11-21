@@ -91,7 +91,7 @@ implemented in x-lang and loaded as a library. Each lives in its own
 repository and is acquired as a pinned, verified bundle:
 
 ```sh
-x --install-lang https://github.com/jonruttan/x-logo/releases/latest/download/lang.pin.xon
+x --install-bundle https://github.com/jonruttan/x-logo/releases/latest/download/bundle.pin.xon
 x -l logo                   # REPL + viewer at http://localhost:8080
 ```
 
@@ -134,7 +134,7 @@ A lang without a release installs from its checkout: clone it and run
 | [x-roguelike](https://github.com/jonruttan/x-roguelike) | a roguelike: a data-driven dungeon crawl | unreleased |
 
 A lang's version, and the x-lang release it is paired with, are in its own
-`lang.xon`.
+`bundle.xon`.
 
 awk, grep, sed, make, the coreutils and cc are tools x-lang's own build
 invokes. [The bootstrap tool closure](docs/bootstrap-closure.md) measures
@@ -150,8 +150,8 @@ arm64.
 [The Lang Contract](docs/lang-contract.md) is the terms a lang is held to
 and what it may rely on; [Crafting a Lang](docs/crafting-a-lang.md) is how
 one is built. For the bundles present on disk,
-[`tools/contract/langs.x`](tools/contract/langs.x) records each one's suite
-counts and `make check-langs` holds them.
+[`tools/contract/bundles.x`](tools/contract/bundles.x) records each one's suite
+counts and `make check-bundles` holds them.
 
 ## Status
 

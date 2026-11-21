@@ -1,7 +1,7 @@
 #!/bin/sh
-# # x-lang -- the lang kit
+# # x-lang -- the bundle kit
 #
-# ## tools/lang-kit/lint.sh -- the linter, for a bundle's own sources
+# ## tools/bundle-kit/lint.sh -- the linter, for a bundle's own sources
 #
 # @description Lints a lang bundle's .x files with the platform's linter,
 #   resolved from the installed tree.  --strict fails on advisory warnings.
@@ -39,7 +39,7 @@ STRICT=0
 [ "${1:-}" = "--strict" ] && { STRICT=1; shift; }
 
 command -v "$X" >/dev/null 2>&1 || {
-	echo "lang-kit lint: no x on PATH.  Set X=/path/to/x and retry." >&2
+	echo "bundle-kit lint: no x on PATH.  Set X=/path/to/x and retry." >&2
 	exit 2
 }
 
@@ -48,7 +48,7 @@ X_BIN="${X_BIN:-$("$X" --engine-path)}"
 LINT="$X_ROOT/tools/dev/lint.sh"
 
 [ -f "$LINT" ] || {
-	echo "lang-kit lint: no linter at $LINT -- upgrade x" >&2
+	echo "bundle-kit lint: no linter at $LINT -- upgrade x" >&2
 	exit 2
 }
 
@@ -88,9 +88,9 @@ _CONSTRUCTS=$(find "$BUNDLE" -name constructs.x -not -path '*/tests/*' -not -pat
 # beside the bundle, named after the lang or after its repository.  Their
 # roots go to the linter so a module's import from a required lang resolves.
 _DEPS=""
-for _req in $(sed -n 's/^(requires-lang "\([^"]*\)".*/\1/p' "$BUNDLE/lang.xon" 2>/dev/null); do
+for _req in $(sed -n 's/^(requires-bundle "\([^"]*\)".*/\1/p' "$BUNDLE/bundle.xon" 2>/dev/null); do
 	for _c in "$BUNDLE/../$_req" "$BUNDLE/../x-$_req"; do
-		if [ -f "$_c/lang.xon" ]; then _DEPS="$_DEPS $(cd "$_c" && pwd)"; break; fi
+		if [ -f "$_c/bundle.xon" ]; then _DEPS="$_DEPS $(cd "$_c" && pwd)/lib"; break; fi
 	done
 done
 [ -z "$_DEPS" ] || { X_LINT_MODULE_DEPS="$_DEPS"; export X_LINT_MODULE_DEPS; }
@@ -98,14 +98,14 @@ _STATUS=0
 _WARNINGS=0
 _DIRS=$(for _t in "$@"; do dirname "$_t"; done | sort -u)
 for _d in $_DIRS; do
-	_LIST=$(mktemp "${TMPDIR:-/tmp}/lang-kit-lint.XXXXXX") || exit 1
+	_LIST=$(mktemp "${TMPDIR:-/tmp}/bundle-kit-lint.XXXXXX") || exit 1
 	for _t in "$@"; do
 		[ "$(dirname "$_t")" = "$_d" ] && printf '%s\n' "$_t"
 	done > "$_LIST"
 	# --lib: a bundle's modules export to each other, so an unused
 	# warning on a provided name is noise.  --warnings surfaces the
 	# advisory rules, which is the point of running this at all.
-	if _OUT=$(X_LINT_ROOT="$X_ROOT" X_BIN="$X_BIN" X_LINT_MODULE_ROOT="$BUNDLE" \
+	if _OUT=$(X_LINT_ROOT="$X_ROOT" X_BIN="$X_BIN" X_LINT_MODULE_ROOT="$BUNDLE/lib" \
 		sh "$LINT" --lib --warnings --group "$_LIST" 2>&1); then
 		:
 	else
@@ -125,22 +125,24 @@ done
 # "Modules, names and classes"), read textually the way the manifests are.
 #
 # Every file the lang loads is a scoped module: its first form is
-# (module NAME).  A file is loaded when it is the entry lang.xon names, a
+# (module NAME).  A file is loaded when it is an entry bundle.xon lists, a
 # module some file imports, or a file some file includes by a ./-relative
 # path; a file nothing loads -- a data file a tool reads, a script -- is not
-# held to the rule, and the entry is the one loaded file exempt from it.  A
+# held to the rule.  An entry is a module like any other, and is held to it.  A
 # file headed with a module's name that is not the module's own file is one
 # of its files: the module's file includes it, and it provides nothing.  A
 # provide list names no %-private; the scan is the kit's own
 # provide-names.sh.  All are findings like the linter's, indented under a
 # heading, counted into the strict verdict.
-_ENTRY=$(sed -n 's/^(entry "\([^"]*\)")$/\1/p' "$BUNDLE/lang.xon" 2>/dev/null | head -1)
-_ENTRY="$BUNDLE/${_ENTRY:-run.x}"
-_LOADED=" $_ENTRY "
+_NAME=$(sed -n 's/^(name "\([^"]*\)").*/\1/p' "$BUNDLE/bundle.xon" 2>/dev/null | head -1)
+_LOADED=" "
+for _e in $(sed -n 's/^(entry \([a-z0-9][a-z0-9-]*\)).*/\1/p' "$BUNDLE/bundle.xon" 2>/dev/null); do
+	_LOADED="$_LOADED$BUNDLE/lib/$_NAME/$_e.x "
+done
 for _g in "$@"; do
 	_gd=$(dirname "$_g")
 	for _m in $(sed -n 's/^[[:space:]]*(import \([^ )]*\).*/\1/p' "$_g"); do
-		_LOADED="$_LOADED$BUNDLE/$_m.x "
+		_LOADED="$_LOADED$BUNDLE/lib/$_m.x "
 	done
 	for _i in $(sed -n 's/^[[:space:]]*(include\(-once\)\{0,1\} "\.\/\([^"]*\)".*/\2/p' "$_g"); do
 		_LOADED="$_LOADED$_gd/$_i "
@@ -148,7 +150,6 @@ for _g in "$@"; do
 done
 _MODS=""
 for _t in "$@"; do
-	[ "$_t" = "$_ENTRY" ] && continue
 	case "$_LOADED" in *" $_t "*) _MODS="$_MODS $_t" ;; esac
 done
 _BUNDLE_OUT=""
@@ -161,7 +162,7 @@ for _t in $_MODS; do
       module: ${_t#"$BUNDLE"/} has no (module ...) header"; continue ;;
 	esac
 	_name=${_first#"(module "}; _name=${_name%%[ )]*}
-	_own="$BUNDLE/$_name.x"
+	_own="$BUNDLE/lib/$_name.x"
 	[ "$_t" = "$_own" ] && continue
 	_included=0
 	if [ -f "$_own" ]; then
@@ -185,12 +186,12 @@ if [ -n "$_BUNDLE_OUT" ]; then
 	_WARNINGS=$((_WARNINGS + _N))
 fi
 
-[ "$_STATUS" -eq 0 ] || { echo "lang-kit lint: FAILED" >&2; exit 1; }
+[ "$_STATUS" -eq 0 ] || { echo "bundle-kit lint: FAILED" >&2; exit 1; }
 
 # A warning line is indented under the file it belongs to; the verdict
 # lines are not.  Strict mode fails when any appears.
 if [ "$STRICT" -eq 1 ] && [ "$_WARNINGS" -gt 0 ]; then
-	echo "lang-kit lint: $_WARNINGS structural finding(s) -- ladder/dispatch/depth/module/provide -- and --strict was asked" >&2
+	echo "bundle-kit lint: $_WARNINGS structural finding(s) -- ladder/dispatch/depth/module/provide -- and --strict was asked" >&2
 	exit 1
 fi
-echo "lang-kit lint: ok"
+echo "bundle-kit lint: ok"

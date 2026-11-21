@@ -72,7 +72,7 @@ It is now [x-logo](https://github.com/jonruttan/x-logo), acquired rather than
 bundled with the platform, and the example went with it:
 
 ```sh
-x --install-lang https://github.com/jonruttan/x-logo/releases/latest/download/lang.pin.xon
+x --install-bundle https://github.com/jonruttan/x-logo/releases/latest/download/bundle.pin.xon
 x -l logo             # REPL + live turtle at http://localhost:8080
 ```
 

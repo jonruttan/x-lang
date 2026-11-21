@@ -1,9 +1,9 @@
 #!/bin/sh
-# # x-lang -- the lang kit
+# # x-lang -- the bundle kit
 #
-# ## tools/lang-kit/release-refs.sh -- a declared version is named once
+# ## tools/bundle-kit/release-refs.sh -- a declared version is named once
 #
-# @description Asserts that every version a bundle's lang.xon declares is
+# @description Asserts that every version a bundle's bundle.xon declares is
 #   named in exactly one place, and gated everywhere else.
 # @author [Jon Ruttan](jonruttan@gmail.com)
 # @copyright 2026 Jon Ruttan
@@ -16,10 +16,10 @@
 #
 # The platform ships this check; a bundle runs it rather than vendoring a copy.
 #
-# lang.xon declares the versions:
+# bundle.xon declares the versions:
 #
 #   (requires-release "vN.N.N")        the x-lang the bundle was built against
-#   (requires-lang "NAME" "vN.N.N")    a lang it is written on top of
+#   (requires-bundle "NAME" "vN.N.N")    a lang it is written on top of
 #
 # Anywhere else a version appears -- a README status line, a workflow, a doc --
 # is a copy, and a stale copy claims a pairing nobody tested while the bundle
@@ -45,7 +45,7 @@ set -e
 BUNDLE="${BUNDLE:-$(pwd)}"
 cd "$BUNDLE"
 
-MANIFEST=lang.xon
+MANIFEST=bundle.xon
 [ -f "$MANIFEST" ] || { echo "release-refs: no $MANIFEST in $BUNDLE" >&2; exit 2; }
 
 # --- The table, read from the manifest ------------------------------------
@@ -54,7 +54,7 @@ MANIFEST=lang.xon
 # prose and workflows actually write.
 decls=$(
 	sed -n 's/^(requires-release "\(.*\)")$/x-lang \1/p' "$MANIFEST"
-	sed -n 's/^(requires-lang "\([^"]*\)" "\(.*\)")$/x-\1 \2/p' "$MANIFEST"
+	sed -n 's/^(requires-bundle "\([^"]*\)" "\(.*\)")$/x-\1 \2/p' "$MANIFEST"
 )
 [ -n "$decls" ] || {
 	echo "release-refs: $MANIFEST declares no versions to check" >&2
@@ -90,7 +90,7 @@ scan() {
 				win = substr(text, from, start - from)
 				at  = index(win, name)
 				if (at > 0 && index(substr(win, at), "#") == 0 && ver != want)
-					printf "%s:%s names %s %s, lang.xon declares %s\n",
+					printf "%s:%s names %s %s, bundle.xon declares %s\n",
 						file, lineno, name, ver, want
 				prev = start + RLENGTH - 1
 				off  = off + RSTART + RLENGTH - 1

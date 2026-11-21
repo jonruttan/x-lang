@@ -75,8 +75,8 @@ the `lang` switch, `import-path!`, `eval!`, and the names that say where a
 bundle is. [The Lang Contract](lang-contract.md) lists each with its meaning.
 
 A change to the library, the engine pin or the wrapper also runs the Python,
-Logo and Scheme suites against the changed tree in CI (`make check-langs`,
-with the budgets of `tools/contract/langs.x`).
+Logo and Scheme suites against the changed tree in CI (`make check-bundles`,
+with the budgets of `tools/contract/bundles.x`).
 
 ## What is not promised
 

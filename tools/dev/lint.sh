@@ -57,7 +57,7 @@ CONSTRUCTS="$PROJECT_DIR/lib/x/constructs.x"
 # is given.  A lang bundle's constructs.x declares the lang's binding forms --
 # Kernel's $lambda and $define!, Scheme's define -- so the linter reads a
 # parameter they bind as bound; --constructs or X_LINT_CONSTRUCTS names it,
-# and the lang kit's shim sets the latter.  Both lint paths, per file and
+# and the bundle kit's shim sets the latter.  Both lint paths, per file and
 # --group, read the same input from here.
 _constructs_input() {
   if [ -n "${X_LINT_CONSTRUCTS:-}" ] && [ -f "$X_LINT_CONSTRUCTS" ]; then
@@ -190,7 +190,7 @@ _import_forms() {
 # of the directory --group computes it from.
 # The roots of the langs a bundle requires, as import-path! forms: a module
 # that imports from a required lang (sed's from grep's) resolves it there.
-# The lang kit's shim names them in X_LINT_MODULE_DEPS, space-separated.
+# The bundle kit's shim names them in X_LINT_MODULE_DEPS, space-separated.
 _dep_paths() {
   for _d in ${X_LINT_MODULE_DEPS:-}; do printf ' (import-path! "%s")' "$_d"; done
 }
@@ -270,11 +270,11 @@ _preload_for() {
       ;;
     *)
       # A bundle names its own module root; anything under it is
-      # preloaded with its siblings, and its entry (run.x, no provide)
-      # is analysed as data exactly as an app's is.
+      # preloaded with its siblings; a file of the bundle outside that
+      # root (a tool, a script) is analysed against the whole bundle.
       if [ -n "${X_LINT_MODULE_ROOT:-}" ]; then
         case "$1" in
-          "$X_LINT_MODULE_ROOT"/*)
+          "$X_LINT_MODULE_ROOT"/*|"${X_LINT_MODULE_ROOT%/lib}"/*)
             if ls "$(dirname "$1")"/*.x >/dev/null 2>&1 &&
                grep -lq '(provide ' "$(dirname "$1")"/*.x 2>/dev/null; then
               _preload_siblings "$1"
@@ -318,7 +318,7 @@ if [ -n "${GROUP_LIST:-}" ]; then
   # construction.  Declarations do not -- a `; lint-known:` line names its own
   # file's references -- so they are collected from every file in the group.
   # A caller that groups by directory rather than by preload signature (the
-  # lang kit's driver does) otherwise leaves every file but the first without
+  # bundle kit's driver does) otherwise leaves every file but the first without
   # its declarations.
   while IFS= read -r _gf; do
     [ "$_gf" = "$_FIRST" ] || _lint_known_from "$_gf"

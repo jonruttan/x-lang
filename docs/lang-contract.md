@@ -76,7 +76,7 @@ acquired the same way:
 | **engine** | `tools/engine/engine.pin.xon` | `tools/engine/fetch.sh` | shipped |
 | **platform boot** | `(boot …)` in `pin.xon` | `Pin boot` / `Pin fetch` | shipped |
 | **library overlay** | `(root …)` in `pin.xon` | `Pin vendor` — copies from the *installed platform* | shipped |
-| **lang bundle** | `lang.pin.xon` | `Pin bundle`, run with `-l NAME` | **shipped** |
+| **lang bundle** | `bundle.pin.xon` | `Pin bundle`, run with `-l NAME` | **shipped** |
 
 The third and fourth rows differ in where the tree comes from. `Pin vendor`
 freezes library modules by copying them out of the installed platform; `Pin
@@ -84,73 +84,110 @@ bundle` acquires a tree the platform does not carry.
 
 ## What a bundle is
 
-A lang bundle is a **tree laid out as an app's is**: a directory holding one entry
-file and the modules it loads.
+A bundle is a repository with one name. The name gives the repository
+(`x-NAME`), the directory its modules live in (`lib/NAME/`) and the names of
+those modules (`NAME/…`). x-lang has the same shape, with the name `x`.
 
 ```
-x-r5rs-v0.2.0/
-├── lang.xon      ; the bundle's own declaration (see below)
-├── run.x                ; THE entry -- what `-l r5rs` boots
-├── r5rs/                ; modules, resolved by import
-│   ├── base.x
-│   └── ports.x
+x-r5rs/
+├── bundle.xon           ; the bundle's own declaration (see below)
+├── lib/                 ; the import root
+│   └── r5rs/
+│       ├── run.x        ; an entry: the module r5rs/run
+│       ├── base.x       ; r5rs/base
+│       └── ports.x      ; r5rs/ports
+├── docs/
 └── tests/specs/*.spec.md
 ```
 
-**The layout is not new, and that is the point.** `x.sh -l NAME` already resolves
-`lib/NAME.x` first and then `apps/NAME/run.x`; Logo has ridden that seam since
-#35. A bundle is the **third step**: the wrapper searches
-`<root>/langs/*/lang.xon` for one declaring `NAME`, reading it
-textually the way it reads every other manifest. `X_LANG_DIR` moves that
+`lib/` is the import root and holds nothing but modules, so `docs/`, `tests/`
+and `tools/` are not importable. The directory under `lib/` is always the
+bundle's name.
+
+A bundle whose declaration lists no entry is a **library**: it is imported
+and never booted. A bundle other bundles import from is a library of its
+own; an app keeps only its own internals under `lib/`.
+
+`x.sh -l NAME` resolves `lib/NAME.x` first and then `apps/NAME/run.x`. A
+bundle is the **third step**: the wrapper searches
+`<root>/bundles/*/bundle.xon` for one declaring `NAME`, reading it
+textually the way it reads every other manifest. `X_BUNDLE_DIR` moves that
 search for a project keeping its bundles elsewhere.
+
+### Entries
+
+An entry is a module the declaration lists, and `-l` names it:
+
+| Command | Boots |
+|---|---|
+| `x -l ssh` | the module `ssh/run` |
+| `x -l ssh/scp` | the module `ssh/scp` |
+
+A bare bundle name is short for its `run`. A bundle may list several: other
+commands that share its modules, or other ways to start the same thing.
+Subcommands and flags of one program stay arguments.
+
+An entry is a [scoped module](modules.md#module-scope) that exports `main`:
+
+```x
+(module awk/run)
+(import awk/cli awk-argv awk-main)
+(set! %repl-prompt "awk> ")
+(def main (fn (_) (awk-main args)))
+(provide awk/run main)
+```
+
+**Importing an entry sets the bundle up and starts nothing.** Its top level
+imports the bundle's modules and sets the session's globals. `main` starts
+it: the command line is run, or the lang's own reader takes over. So another
+bundle can import `awk/run` and get awk without awk running.
+
+`main` is the entry's own, since two scoped modules may export the same
+plain name, and a session that loads two bundles has two.
 
 ### A bundle does not boot itself
 
-The third step differs from the first two in what it makes the entry, and the
-difference is worth stating because it removes work rather than adding it.
 `lib/he.x` and an app entry (`apps/NAME/run.x`) are *self-booting* — they
-include the platform themselves. A bundle does not. The wrapper boots the dialect the bundle
-**declares**, then loads the bundle on top:
+include the platform themselves. A bundle does not. The wrapper boots the
+dialect the bundle **declares**, arms its root, imports the entry and calls
+its `main`:
 
 ```
-(def %install-root "…")        ; as always
-cat lib/he.x                    ; the DECLARED dialect, in --batch so its
-                                ; own launcher stays quiet
-(import-path! "…/r5rs-v0.2.0")  ; the bundle's module root
-cat …/r5rs-v0.2.0/run.x         ; the lang
-cat lib/x/repl/launch.x         ; the prompt, when no -f was given
+(def %install-root "…")          ; as always
+cat lib/he.x                      ; the DECLARED dialect, in --batch so its
+                                  ; own launcher stays quiet
+(import-path! "…/x-r5rs/lib")     ; the bundle's module root
+(import r5rs/run)                 ; the entry: sets the lang up
+((main of r5rs/run))              ; and starts it
+cat lib/x/repl/launch.x           ; the prompt, when no -f was given
 ```
 
-That is exactly the layout `-F` has had all along — entry in batch, file, then
-launcher — so there is no new loader and no new composition.
-
-**A bundle's entry therefore needs no root-relative literals at all.** The
-platform is already up when it is read, and the bundle's own modules resolve
-through the root emitted above. The one-entry-file rule below still governs
-*in-tree apps*, which do self-boot; a bundle is freer than the rule requires.
+`main` is called at the top of the stream and never from inside the import.
+A lang's own reader takes the rest of the stream, and inside a module's load
+that stream is the module's file.
 
 A bundle declaring a dialect this tree has no entry for is refused **by name,
-before anything boots**, and two bundles claiming one name are refused rather
-than resolved by directory order — which one you got would otherwise depend on
-the filesystem.
+before anything boots**. So are an entry the declaration does not list, a
+listed entry whose module is not there, and a library named to `-l`. Two
+bundles claiming one name are refused rather than resolved by directory
+order — which one you got would otherwise depend on the filesystem.
 
-A session boots one lang and may load others beside it: `-l` is repeatable,
-the first names the lang that owns the prompt, and each further one names a
-bundle to load as a library to it. The wrapper resolves those exactly as it
-resolves the first — the same lookup, the same dependency walk — and reads
-their entries ahead of the first lang's, so what the first installs is what
-the session gets. `%lang-lead` carries the first name into the pipe; a
-bundle's entry compares it with its own to know whether to take the prompt
-or only register what it is:
+A session boots one bundle and may load others beside it: `-l` is
+repeatable, the first names the entry that is started, and each further one
+names a bundle to load beside it. The wrapper resolves those exactly as it
+resolves the first — the same lookup, the same dependency walk — arms their
+roots and imports their `run` entry, where they list one, without calling
+its `main`. `%lang-lead` carries the first bundle's name into the pipe; an
+entry compares it with its own to know whether it owns the prompt:
 
 ```
-(def %lang-lead "xe")           ; x -l xe -l python
-(import-path! "…/x-python")     ; the extra's root
-cat …/x-python/run.x            ; registers python, leaves the prompt alone
-cat lib/x/repl/launch.x         ; the prompt: xe's, with (lang python) a call away
+(def %lang-lead "xe")             ; x -l xe -l python
+(import-path! "…/x-python/lib")   ; the extra's root
+(import python/run)               ; registers python, starts nothing
+cat lib/x/repl/launch.x           ; the prompt: xe's, with (lang python) a call away
 ```
 
-### One entry file, and one only
+### No root-relative literals
 
 `tools/check/path-literals.sh` forbids root-relative load literals
 (`(include "lib/…")`) everywhere except the boot closure and **`apps/*/run.x`** —
@@ -158,10 +195,10 @@ app entries, which are self-booting and flattened away by the amalgam generator.
 Everything else must use `import` (root-resolved) or `./`-relative
 `include-once` (file-relative), both of which work from any tree root.
 
-For a bundle this stops being a lint and becomes the load-bearing rule:
+For a bundle this is the load-bearing rule:
 
-> **A bundle has exactly one file that may carry root-relative literals: its
-> entry. Every other file resolves its siblings by `import` or `./`-relative
+> **No file of a bundle carries a root-relative literal. Every file, its
+> entries included, resolves its siblings by `import` or `./`-relative
 > `include-once`.**
 
 A bundle that obeys this relocates. A bundle that does not is nailed to the
@@ -201,7 +238,7 @@ a value goes. It does not say a bundle has no classes: the bundle's own
 machinery, its tables of applets, builtins and options, is a class wherever
 a name picks a function, and a module otherwise.
 
-`tools/lang-kit/lint.sh --strict` holds a bundle to the first rule and to
+`tools/bundle-kit/lint.sh --strict` holds a bundle to the first rule and to
 a `%` name staying unprovided, beside the linter's own structural findings.
 A file nothing loads, a data file a tool reads or a script, is not held to
 the module rule: the rule is for the files the entry reaches by import or
@@ -209,14 +246,15 @@ include.
 
 ### The declaration
 
-`lang.xon` — xon, read with the ordinary reader and never evaluated, like
+`bundle.xon` — xon, read with the ordinary reader and never evaluated, like
 every other manifest here:
 
 ```x
-(lang "r5rs")          ; the -l name, and the name the pin must agree with
+(name "r5rs")                 ; the bundle's name, and the name the pin must agree with
 (dialect he)                  ; which dialect the wrapper boots for it
 (requires-release "v0.5.2")   ; the x-lang the bundle was built against
-(entry "run.x")               ; loaded after the dialect, not instead of it
+(entry run)                   ; an entry: the module r5rs/run; one row each
+(requires-bundle "grep")       ; a bundle this one imports from
 ```
 
 `(dialect …)` is a **requirement**, not a preference: a lang that calls
@@ -255,11 +293,11 @@ in `files` or its whole name in `names`.
 
 ## The pin
 
-A project names the langs it uses in `lang.pin.xon`, mirroring
+A project names the langs it uses in `bundle.pin.xon`, mirroring
 `engine.pin.xon`'s closed vocabulary:
 
 ```x
-(lang "r5rs")
+(name "r5rs")
 (release "v0.2.0")
 (bundle "sha256:…" "https://github.com/jonruttan/x-r5rs/releases/download/v0.2.0/x-r5rs-v0.2.0.tar.gz")
 (source "https://github.com/jonruttan/x-r5rs.git")
@@ -289,18 +327,18 @@ spellings, the source-build fallback for platforms nobody publishes for —
 evaporates. Do not copy it across out of symmetry; every row of it would be a row
 that cannot be wrong in an interesting way.
 
-### Installing one: `x --install-lang`
+### Installing one: `x --install-bundle`
 
 For everyday use — one copy on the machine, available from any directory,
 nothing cloned:
 
 ```sh
-x --install-lang https://github.com/jonruttan/x-krn/releases/latest/download/lang.pin.xon
+x --install-bundle https://github.com/jonruttan/x-krn/releases/latest/download/bundle.pin.xon
 x -l krn
 ```
 
-x fetches the published `lang.pin.xon`, then the tarball it names, digests it,
-and installs to `<install-root>/langs/<name>` — the stable name `-l` resolves.
+x fetches the published `bundle.pin.xon`, then the tarball it names, digests it,
+and installs to `<install-root>/bundles/<name>` — the stable name `-l` resolves.
 A versioned directory would collide with itself on upgrade: two trees both
 declaring the same lang, which `-l` refuses.
 
@@ -338,12 +376,12 @@ The order is the whole design, and it is the order of what is trusted when:
 5. Unpack the verified archive into a per-pid **staging** directory, and rename
    it into place only once whole. A tarball rolled the usual way — `git archive
    --prefix=NAME/`, one top-level directory — is descended one level, but only
-   when that is unambiguous: no `lang.xon` at the top, exactly one entry, and
+   when that is unambiguous: no `bundle.xon` at the top, exactly one entry, and
    the declaration inside it. Anything else stays as it unpacked. Staging is for **atomicity** here, not
    quarantine: a `tar` that dies half way (a full disk, a truncated member) must
    not leave a partial tree at the published path, where step 2 would later read
    it as a complete one.
-6. Check the bundle's `lang.xon` agrees with the pin about which
+6. Check the bundle's `bundle.xon` agrees with the pin about which
    lang it is — a digest proves the bytes are the ones published, not
    that the right thing was published — and report release pairing.
 
@@ -442,8 +480,8 @@ pinned. A bundle that joined its data path onto `%install-root` would look
 inside x-lang's tree and read nothing.
 
 The wrapper emits it because the wrapper is the only thing that ever knows: it
-is what searched `langs/*/lang.xon` and found the directory. It is emitted for
-the bundle whose entry is about to run, never for a `(requires-lang …)`
+is what searched `langs/*/bundle.xon` and found the directory. It is emitted for
+the bundle whose entry is about to run, never for a `(requires-bundle …)`
 dependency — to the bundle that needs it, a required lang is a library, and a
 second definition would overwrite the one about to be used.
 
@@ -486,7 +524,7 @@ declared waiver (`allow-release-skew`, as the boot pin already spells it), so
 that running a bundle against an untested x-lang is a decision someone made
 rather than something that happened.
 
-`lang.xon` is also the one place a version is written. A bundle's CI matrix
+`bundle.xon` is also the one place a version is written. A bundle's CI matrix
 derives the release from `(requires-release …)`, and the kit's
 `release-refs.sh` holds every other file to the manifest: a version within 24
 characters of the name it belongs to, `x-lang` or a required lang, must be
@@ -604,7 +642,7 @@ BUNDLE="$(cd "$(dirname "$0")/.." && pwd)"
 X_ROOT="$(x --share-dir)"
 X_BIN="$(x --engine-path)"
 SPEC_RUNNER_DIR="$X_ROOT/tests"; export SPEC_RUNNER_DIR
-BUNDLE="$BUNDLE" X=x sh "$X_ROOT/tools/lang-kit/gen-harness.sh"
+BUNDLE="$BUNDLE" X=x sh "$X_ROOT/tools/bundle-kit/gen-harness.sh"
 LANG_LIB="$BUNDLE/tests/lib/harness.gen.x"
 SPEC_PATH="$BUNDLE/tests/specs"
 . "$X_ROOT/tests/spec-runner.sh"
@@ -619,7 +657,7 @@ Four things that are not obvious, each of which costs an afternoon:
   path, so the caller says. Unset and wrong, the runner now names the path it
   looked at instead of dying without one.
 - **The platform writes the harness; the bundle writes only its tail.**
-  `tools/lang-kit/gen-harness.sh` boots the dialect `lang.xon` declares, so a
+  `tools/bundle-kit/gen-harness.sh` boots the dialect `bundle.xon` declares, so a
   suite runs on what `x -l NAME` runs on. A helium bundle tested under the full
   numeric tower passes on what the shipped lang lacks: x-awk's arithmetic was
   wrong under `x -l awk` for as long as its suite booted `x-base.x`. The
@@ -632,8 +670,8 @@ Four things that are not obvious, each of which costs an afternoon:
     loaded from the amalgam `make boot` writes -- `<root>/boot/` in an install,
     `<root>/build/boot/` in a checkout. An entry itself would start its REPL
     underneath the suite;
-  - an `import-path!` for each `(requires-lang …)`, deepest first, each lang
-    found by the name its `lang.xon` declares in `X_LANG_DIR`, beside the
+  - an `import-path!` for each `(requires-bundle …)`, deepest first, each lang
+    found by the name its `bundle.xon` declares in `X_BUNDLE_DIR`, beside the
     bundle, then among the acquired langs, with versions not compared (a
     checkout carries no version stamp);
   - the bundle's own `import-path!`, `%lang-root` and `%lang-lead`, as `x.sh`
@@ -643,7 +681,7 @@ Four things that are not obvious, each of which costs an afternoon:
 
   Every way the inputs can be wrong stops with a message: no `tests/harness.x`,
   a dialect with no entry or no built body, a required lang not found or
-  claimed twice, a cycle. `make check-lang-kit-harness` holds the generator to
+  claimed twice, a cycle. `make check-bundle-kit-harness` holds the generator to
   this, and to every dialect's body being built.
 - **The suite can boot from a state image of the harness.** The platform's
   `tools/dev/image-build.sh` images a child that loaded the harness and keys

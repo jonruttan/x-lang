@@ -118,20 +118,20 @@ script is an image probe, the suite falls back to booting from source.
 A capability probe for a fix the declared release already carries can only
 fail for another reason, and its message then names the wrong one.
 - **Check:** for each probe in `tests/`, the release that brought the fix,
-  against `(requires-release ...)` in `lang.xon`.
+  against `(requires-release ...)` in `bundle.xon`.
 - **Remedy:** delete the probe.
 
 ### I4. Runner logic copied across bundles
 A block copied into many bundles' `tests/spec-runner.sh` carries one defect
 into all of them.
 - **Check:** `md5` the same block across the bundles' runners.
-- **Remedy:** move it into the platform runner or the lang kit, behind a knob
+- **Remedy:** move it into the platform runner or the bundle kit, behind a knob
   a bundle sets.
 
 ### I5. A stale image after an edit
 `x -l NAME` boots from an image keyed by the bundle's path, not its contents.
 The spec runner's image is keyed on contents.
-- **Check:** an edit, then a run from the same `X_LANG_DIR`.
+- **Check:** an edit, then a run from the same `X_BUNDLE_DIR`.
 - **Remedy:** a fresh langs directory after an edit, or an empty
   `~/.cache/x/images/`.
 
@@ -170,7 +170,7 @@ its image or in x-os.
 ### I10. A pin moved past an untested release
 - **Check:** the suite on the tag before `(requires-release ...)` moves; for
   a failure on the main leg only, `git log v<declared>..origin/main --
-  tools/lang-kit`.
+  tools/bundle-kit`.
 - **Remedy:** move the pin once the tag's suite passes. Until a bundle has CI
   (I1), its PR body carries the local tally.
 

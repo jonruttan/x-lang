@@ -1,7 +1,7 @@
 #!/bin/sh
-# # x-lang -- the lang kit
+# # x-lang -- the bundle kit
 #
-# ## tools/lang-kit/card.sh -- the card check
+# ## tools/bundle-kit/card.sh -- the card check
 #
 # @description Holds docs/card.md to the card format and runs its shell rows.
 # @author [Jon Ruttan](jonruttan@gmail.com)
@@ -42,14 +42,14 @@
 # Rows in other fences are not run by this check, and the summary counts
 # them.
 #
-# The lang's name is the `(lang "NAME")` row of BUNDLE/lang.xon.  How a
+# The lang's name is the `(name "NAME")` row of BUNDLE/bundle.xon.  How a
 # program is run is the bundle's to say: BUNDLE/tests/card-run.sh FILE, with
 # X in the environment and the input on standard input.
 #
 # In a row, `x` is the x under test: set X to it (default: the x on PATH).
 # Set BUNDLE to the project root (default: the working directory).
 #
-#   BUNDLE=. X=x sh "$(x --share-dir)/tools/lang-kit/card.sh" [CARD]
+#   BUNDLE=. X=x sh "$(x --share-dir)/tools/bundle-kit/card.sh" [CARD]
 set -e
 
 BUNDLE="${BUNDLE:-$(pwd)}"
@@ -65,8 +65,8 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 LANG_NAME=
-[ -f "$BUNDLE/lang.xon" ] \
-	&& LANG_NAME=$(sed -n 's/^(lang "\([^"]*\)").*/\1/p' "$BUNDLE/lang.xon" | head -1)
+[ -f "$BUNDLE/bundle.xon" ] \
+	&& LANG_NAME=$(sed -n 's/^(name "\([^"]*\)").*/\1/p' "$BUNDLE/bundle.xon" | head -1)
 
 # The format.  Shell rows go to $TMP/rows as LINE<TAB>COMMAND<TAB>OUTPUT.  A
 # program goes to $TMP/prog.N with the lines it prints in $TMP/want.N and its

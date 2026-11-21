@@ -469,7 +469,7 @@ check-help-examples: $(EXECUTABLE) ## Count the doc entries that show no example
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-lang-kit-harness check-lang-kit-lint check-lang-kit-spec-gate check-lang-kit-dup-defs check-lang-kit-card check-card check-pin check-release-manifest check-bootstrap check-package check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-highlight-roundtrip check-primitives-doc check-help-examples ## Run the contract gates
+gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-bundle-kit-harness check-bundle-kit-lint check-bundle-kit-spec-gate check-bundle-kit-dup-defs check-bundle-kit-card check-card check-pin check-release-manifest check-bootstrap check-package check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-bundles check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-highlight-roundtrip check-primitives-doc check-help-examples ## Run the contract gates
 .PHONY: gates
 
 .PHONY: check-spec-weights
@@ -500,7 +500,7 @@ check-spec-globals: ## No spec rebinds a name the engine or library owns
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-lang-kit-harness check-lang-kit-lint check-lang-kit-spec-gate check-lang-kit-dup-defs check-lang-kit-card check-card check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
+gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-bundle-kit-harness check-bundle-kit-lint check-bundle-kit-spec-gate check-bundle-kit-dup-defs check-bundle-kit-card check-card check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast check-asan-boot test-c test-x ## Pre-push gate: fast gates, the ASan boot, both spec suites (CI runs full `make test`)
@@ -651,7 +651,7 @@ boot: ## Generate amalgamated boot entries into build/boot
 	@for e in x he xe rn x-core x-base; do \
 		sh tools/release/amalgamate.sh "lib/$$e.x" > "build/boot/$$e.x" || exit 1; done
 	@# Each dialect's BODY, the entry less its launcher: what a lang bundle's
-	@# spec harness boots (tools/lang-kit/gen-harness.sh), since an entry
+	@# spec harness boots (tools/bundle-kit/gen-harness.sh), since an entry
 	@# would start its REPL underneath the suite.
 	@for b in helium xenon radon; do \
 		sh tools/release/amalgamate.sh "lib/x/boot/$$b.x" > "build/boot/$$b.x" || exit 1; done
@@ -670,29 +670,29 @@ check-boot-amalgam: $(EXECUTABLE) boot ## Boot every amalgam in batch mode and p
 	sh tools/check/amalgam-smoke.sh
 .PHONY: check-boot-amalgam
 
-check-lang-kit-harness: boot ## The lang kit's harness generator boots the dialect lang.xon declares, and every dialect's body is built
-	sh tools/check/lang-kit-harness.sh
-.PHONY: check-lang-kit-harness
+check-bundle-kit-harness: boot ## The bundle kit's harness generator boots the dialect bundle.xon declares, and every dialect's body is built
+	sh tools/check/bundle-kit-harness.sh
+.PHONY: check-bundle-kit-harness
 
-check-lang-kit-lint: boot ## The lang kit's lint takes a scoped module's imports from its siblings as defined
-	sh tools/check/lang-kit-lint.sh
-.PHONY: check-lang-kit-lint
+check-bundle-kit-lint: boot ## The bundle kit's lint takes a scoped module's imports from its siblings as defined
+	sh tools/check/bundle-kit-lint.sh
+.PHONY: check-bundle-kit-lint
 
-check-lang-kit-spec-gate: ## The lang kit's spec gate names a failure whose output holds a raw 0xff byte
-	sh tools/check/lang-kit-spec-gate.sh
-.PHONY: check-lang-kit-spec-gate
+check-bundle-kit-spec-gate: ## The bundle kit's spec gate names a failure whose output holds a raw 0xff byte
+	sh tools/check/bundle-kit-spec-gate.sh
+.PHONY: check-bundle-kit-spec-gate
 
-check-lang-kit-dup-defs: ## The lang kit's dup-defs fails a bundle whose files give one global name two meanings
-	sh tools/check/lang-kit-dup-defs.sh
-.PHONY: check-lang-kit-dup-defs
+check-bundle-kit-dup-defs: ## The bundle kit's dup-defs fails a bundle whose files give one global name two meanings
+	sh tools/check/bundle-kit-dup-defs.sh
+.PHONY: check-bundle-kit-dup-defs
 
-check-lang-kit-card: ## The lang kit's card check refuses a card outside the format, and a shell row that gives other output
-	sh tools/check/lang-kit-card.sh
-.PHONY: check-lang-kit-card
+check-bundle-kit-card: ## The bundle kit's card check refuses a card outside the format, and a shell row that gives other output
+	sh tools/check/bundle-kit-card.sh
+.PHONY: check-bundle-kit-card
 
 # The x rows of docs/card.md run under doc-examples (doc-examples.conf).
 check-card: boot ## Hold docs/card.md to the card format and run its shell rows
-	BUNDLE=. X=./x.sh sh tools/lang-kit/card.sh
+	BUNDLE=. X=./x.sh sh tools/bundle-kit/card.sh
 .PHONY: check-card
 
 # THE TOP LEVEL IS SACRED (#108): the runtime library may bind only the names
@@ -852,11 +852,11 @@ check-asan-boot: ## Boot every dialect on an ASan engine: a freed read fails her
 # rides the deep pass and check-seam rides the fast one.  Advisory about
 # presence -- a bundle that is not on the disk is announced and skipped, because
 # this tree must build for someone who cloned nothing else -- and strict about
-# regression.  Budgets in tools/contract/langs.x, which may only shrink.
-# LANGS='krn sweet' runs a subset; X_LANGS_DIR moves where bundles are found.
-check-langs: $(EXECUTABLE) ## Run every lang bundle's suite against this tree
-	sh tools/check/langs.sh
-.PHONY: check-langs
+# regression.  Budgets in tools/contract/bundles.x, which may only shrink.
+# BUNDLES='krn sweet' runs a subset; X_BUNDLE_DIR moves where bundles are found.
+check-bundles: $(EXECUTABLE) ## Run every lang bundle's suite against this tree
+	sh tools/check/bundles.sh
+.PHONY: check-bundles
 
 # THE VERSION A RELEASE REPORTS.  v0.6.0 shipped saying `helium 0.5.2`, because
 # the tag and the changelog moved and lib/x-core.x did not.  Only meaningful at
@@ -1189,18 +1189,18 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tools/dev
 	install $C -m 0644 tools/dev/nul-escape.x $(DESTDIR)$(LIBDIR)/tools/dev/nul-escape.x
 	diff tools/dev/nul-escape.x $(DESTDIR)$(LIBDIR)/tools/dev/nul-escape.x
-	# THE LANG KIT, on exactly the argument above.  The spec runner was the
+	# THE BUNDLE KIT, on exactly the argument above.  The spec runner was the
 	# first thing every bundle would otherwise have vendored; it is not the
 	# only one.  These checks are byte-identical in every bundle -- the same
 	# file was written twice and needed three fixes backported to the second
 	# copy the day it was written -- so they ship here and bundles carry a
-	# shim, addressed as <root>/tools/lang-kit where <root> is what
+	# shim, addressed as <root>/tools/bundle-kit where <root> is what
 	# `x --share-dir` answers.  The whole directory ships, so a file added
 	# to the kit is in every install without a line of its own here.
 	#
 	# Outside the payload fingerprint, for the same reason the runner is.
-	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tools/lang-kit
-	for f in tools/lang-kit/*; do \
+	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tools/bundle-kit
+	for f in tools/bundle-kit/*; do \
 		install $C -m 0644 $$f $(DESTDIR)$(LIBDIR)/$$f || exit 1; \
 		diff $$f $(DESTDIR)$(LIBDIR)/$$f || exit 1; done
 	# THE LINTER ITSELF, which the kit shim drives: `make lint-x` sweeps

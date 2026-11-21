@@ -1,7 +1,7 @@
 #!/bin/sh
-# # x-lang -- the lang kit
+# # x-lang -- the bundle kit
 #
-# ## tools/lang-kit/spec-gate.sh -- the suite, judged against recorded failures
+# ## tools/bundle-kit/spec-gate.sh -- the suite, judged against recorded failures
 #
 # @description Runs a bundle's spec suite and compares its failures to
 #   tests/contract/known-failures.txt.  Green when they match exactly.

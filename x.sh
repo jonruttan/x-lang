@@ -54,21 +54,21 @@ INSTALL_ROOT=
 # tarball fetched from somebody else's repository.  They resemble each other
 # only in that -l searches all three.  Nor build/ -- a bundle was not BUILT
 # here, and filing acquired things under output is how the engine came to need
-# a symlink to be findable at all.  X_LANG_DIR moves it.
-LANGS_PATH="${X_LANG_DIR:-deps/langs/}"
+# a symlink to be findable at all.  X_BUNDLE_DIR moves it.
+BUNDLES_PATH="${X_BUNDLE_DIR:-deps/bundles/}"
 if [ ! -e "${LIB_PATH}${X_LIB}${X_EXT}" ]; then
 	INSTALL_ROOT="$SCRIPT_PATH/../${X_SHARE}"
 	LIB_PATH="$INSTALL_ROOT/lib/"
 	APPS_PATH="$INSTALL_ROOT/apps/"
 	ENTRY_DIR="$INSTALL_ROOT/boot/"
-	[ -n "${X_LANG_DIR:-}" ] || LANGS_PATH="$INSTALL_ROOT/langs/"
+	[ -n "${X_BUNDLE_DIR:-}" ] || BUNDLES_PATH="$INSTALL_ROOT/bundles/"
 fi
 # Every use below appends "*/" or a name to it, so it ends in a slash
-# whatever X_LANG_DIR was given as: `X_LANG_DIR=/path/to/x-ash/..` found
+# whatever X_BUNDLE_DIR was given as: `X_BUNDLE_DIR=/path/to/x-ash/..` found
 # nothing, and said only that the lang was not installed.
-case "$LANGS_PATH" in
+case "$BUNDLES_PATH" in
 	*/) ;;
-	*) LANGS_PATH="$LANGS_PATH/" ;;
+	*) BUNDLES_PATH="$BUNDLES_PATH/" ;;
 esac
 
 # Both forms below emit a path as an x-lang STRING LITERAL ahead of the
@@ -121,7 +121,8 @@ x_sha1() {
 # every other manifest read in this file follows.  The wrapper must choose
 # an entry before the pipe exists, so it cannot ask x to parse this.
 BUNDLE_DIR=
-BUNDLE_ENTRY=
+BUNDLE_NAME=
+BUNDLE_MODULE=
 BUNDLE_DIALECT=
 BUNDLE_COMPILED=
 BUNDLE_DEPS=
@@ -133,21 +134,21 @@ BUNDLE_DEPS=
 lib_given=
 EXTRA_LIBS=
 EXTRA_DIRS=
-EXTRA_ENTRIES=
+EXTRA_MODULES=
 
-# _n set to the name the first `(lang "NAME")` line of the lang.xon $1
-# declares, or empty: what `sed -n 's/^(lang "\([^"]*\)").*/\1/p' | head -1`
+# _n set to the name the first `(name "NAME")` line of the bundle.xon $1
+# declares, or empty: what `sed -n 's/^(name "\([^"]*\)").*/\1/p' | head -1`
 # answers, read by the shell itself.  Every launch reads every bundle's
-# lang.xon, so two processes a bundle were most of a bundle launch's shell
+# bundle.xon, so two processes a bundle were most of a bundle launch's shell
 # time.
 xon_lang_name() {
 	_n=
 	while IFS= read -r _l || [ -n "$_l" ]; do
 		case $_l in
-		'(lang "'*)
-			_v=${_l#'(lang "'}
+		'(name "'*)
+			_v=${_l#'(name "'}
 			_v=${_v%%\"*}
-			case ${_l#'(lang "'"$_v"} in '")'*) _n=$_v; return 0 ;; esac
+			case ${_l#'(name "'"$_v"} in '")'*) _n=$_v; return 0 ;; esac
 			;;
 		esac
 	done < "$1"
@@ -159,9 +160,9 @@ xon_lang_name() {
 # to be ambiguous than one named on the command line.
 bundle_dir_of() {
 	_found=
-	for _d in "$LANGS_PATH"*/; do
-		[ -f "$_d/lang.xon" ] || continue
-		xon_lang_name "$_d/lang.xon"
+	for _d in "$BUNDLES_PATH"*/; do
+		[ -f "$_d/bundle.xon" ] || continue
+		xon_lang_name "$_d/bundle.xon"
 		[ "$_n" = "$1" ] || continue
 		# TWO BUNDLES CLAIMING ONE NAME IS A MISCONFIGURATION, not a race to
 		# be won by directory order: a project pins ONE release, and picking
@@ -179,16 +180,16 @@ bundle_dir_of() {
 	(cd "$_found" && pwd)
 }
 
-# The (requires-lang ...) rows of $1's lang.xon, as NAME|VERSION tokens with
+# The (requires-bundle ...) rows of $1's bundle.xon, as NAME|VERSION tokens with
 # VERSION empty when the row names none.  Two expressions rather than one
 # optional group, because BRE has no optional group worth relying on.
 bundle_reqs_of() {
-	sed -n 's/^(requires-lang "\([^"]*\)"[^"]*"\([^"]*\)").*/\1|\2/p' "$1/lang.xon"
-	sed -n 's/^(requires-lang "\([^"]*\)")[[:space:]]*$/\1|/p' "$1/lang.xon"
+	sed -n 's/^(requires-bundle "\([^"]*\)"[^"]*"\([^"]*\)").*/\1|\2/p' "$1/bundle.xon"
+	sed -n 's/^(requires-bundle "\([^"]*\)")[[:space:]]*$/\1|/p' "$1/bundle.xon"
 }
 
 # What an INSTALLED lang says it is.  Written by its `make install` from git
-# describe, never committed -- a version in lang.xon could only be true at the
+# describe, never committed -- a version in bundle.xon could only be true at the
 # one commit that gets tagged, and would lie on every other.  Absent in a
 # checkout, which is a fact worth reporting rather than papering over.
 bundle_version_of() {
@@ -217,8 +218,8 @@ bundle_deps_collect() {
 	_dir=$(bundle_dir_of "$1") || {
 		echo "Error: lang '$1' is required but not installed" >&2
 		echo "  required by: $2" >&2
-		echo "  searched ${LANGS_PATH}*/lang.xon" >&2
-		echo "  install it, or set X_LANG_DIR to where it lives" >&2
+		echo "  searched ${BUNDLES_PATH}*/bundle.xon" >&2
+		echo "  install it, or set X_BUNDLE_DIR to where it lives" >&2
 		exit 1
 	}
 	case " $2 " in
@@ -233,20 +234,20 @@ bundle_deps_collect() {
 	# release strings, and the reason there is no resolver here.  Ordering and
 	# ranges would need a version algebra this tree has avoided everywhere
 	# else; equality plus a declared waiver is smaller and says what it means.
-	if [ -n "$3" ] && [ -z "$allow_lang_skew" ]; then
+	if [ -n "$3" ] && [ -z "$allow_bundle_skew" ]; then
 		_have=$(bundle_version_of "$_dir")
 		if [ -z "$_have" ]; then
 			echo "Error: lang '$1' is required at $3 but reports no version" >&2
 			echo "  required by: $2" >&2
 			echo "  $_dir carries no version stamp -- it is a checkout, not an install" >&2
-			echo "  run 'make install' in it, or pass --allow-lang-skew" >&2
+			echo "  run 'make install' in it, or pass --allow-bundle-skew" >&2
 			exit 1
 		fi
 		if [ "$_have" != "$3" ]; then
 			echo "Error: lang '$1' is $_have, but $3 is required" >&2
 			echo "  required by: $2" >&2
 			echo "  found in $_dir" >&2
-			echo "  install the version asked for, or pass --allow-lang-skew" >&2
+			echo "  install the version asked for, or pass --allow-bundle-skew" >&2
 			exit 1
 		fi
 	fi
@@ -261,61 +262,114 @@ bundle_deps_collect() {
 	esac
 }
 
-bundle_resolve() {
-	[ -d "$LANGS_PATH" ] || return 0
-	_found=$(bundle_dir_of "$1") || return 0
-	BUNDLE_DIR="$_found"
-	BUNDLE_DIALECT=$(sed -n 's/^(dialect \([a-z0-9-]*\)).*/\1/p' "$BUNDLE_DIR/lang.xon" | head -1)
-	BUNDLE_ENTRY=$(sed -n 's/^(entry "\([^"]*\)").*/\1/p' "$BUNDLE_DIR/lang.xon" | head -1)
-	# (image compiled): the state image its installer writes carries the
-	# lang's closures compiled (compile-root! in x/tool/fn-compile).
-	BUNDLE_COMPILED=$(sed -n 's/^(image compiled).*/1/p' "$BUNDLE_DIR/lang.xon" | head -1)
-	: "${BUNDLE_DIALECT:=he}"
-	: "${BUNDLE_ENTRY:=run.x}"
-	if [ ! -f "$BUNDLE_DIR/$BUNDLE_ENTRY" ]; then
-		echo "Error: bundle '$1' names an entry that is not there: $BUNDLE_ENTRY" >&2
-		echo "  looked in $BUNDLE_DIR" >&2
+# The entries a bundle.xon lists, one name a line: its (entry NAME) rows.
+# A bundle that lists none is a library, imported and never booted.
+bundle_entries_of() {
+	sed -n 's/^(entry \([a-z0-9][a-z0-9-]*\)).*/\1/p' "$1/bundle.xon"
+}
+
+# The entry $3 of the bundle $2 at $1 is one it lists, and its module is
+# there: lib/NAME/ENTRY.x under the bundle, the module NAME/ENTRY.  Says
+# what is wrong and exits when not.
+bundle_entry_check() {
+	_es=$(bundle_entries_of "$1" | tr '\n' ' ')
+	if [ -z "$_es" ]; then
+		echo "Error: '$2' is a library: its bundle.xon lists no entry" >&2
+		echo "  import its modules; there is nothing to boot" >&2
+		echo "  found in $1" >&2
 		exit 1
 	fi
+	case " $_es " in
+		*" $3 "*) ;;
+		*)
+			echo "Error: bundle '$2' lists no entry '$3'" >&2
+			echo "  its entries: $_es" >&2
+			exit 1
+			;;
+	esac
+	if [ ! -f "$1/lib/$2/$3$X_EXT" ]; then
+		echo "Error: bundle '$2' lists an entry whose module is not there: $2/$3" >&2
+		echo "  looked for $1/lib/$2/$3$X_EXT" >&2
+		exit 1
+	fi
+}
+
+# -l names an entry module: NAME is short for NAME/run, and NAME/ENTRY is
+# another of the bundle's entries.  The module is imported, which sets the
+# bundle up, and its `main` is called, which starts it (entry_forms).
+bundle_resolve() {
+	[ -d "$BUNDLES_PATH" ] || return 0
+	case "$1" in
+		*/*/*) return 0 ;;
+		*/*) _bn=${1%%/*}; _be=${1#*/} ;;
+		*) _bn=$1; _be=$X_RUN ;;
+	esac
+	_found=$(bundle_dir_of "$_bn") || return 0
+	BUNDLE_DIR="$_found"
+	BUNDLE_NAME="$_bn"
+	BUNDLE_MODULE="$_bn/$_be"
+	BUNDLE_DIALECT=$(sed -n 's/^(dialect \([a-z0-9-]*\)).*/\1/p' "$BUNDLE_DIR/bundle.xon" | head -1)
+	# (image compiled): the state image its installer writes carries the
+	# lang's closures compiled (compile-root! in x/tool/fn-compile).
+	BUNDLE_COMPILED=$(sed -n 's/^(image compiled).*/1/p' "$BUNDLE_DIR/bundle.xon" | head -1)
+	: "${BUNDLE_DIALECT:=he}"
+	bundle_entry_check "$BUNDLE_DIR" "$_bn" "$_be"
 	path_form_safe "$BUNDLE_DIR" "bundle root"
 	# Dependencies of the bundle itself, not the bundle -- it is armed by
 	# bundle_form, after these and therefore ahead of them in the search.
 	for _row in $(bundle_reqs_of "$BUNDLE_DIR"); do
-		bundle_deps_collect "${_row%%|*}" "$1" "${_row#*|}"
+		bundle_deps_collect "${_row%%|*}" "$_bn" "${_row#*|}"
 	done
 	for _d in $BUNDLE_DEPS; do
-		path_form_safe "$_d" "required lang root"
+		path_form_safe "$_d" "required bundle root"
 	done
 }
 
 # A bundle named by a second or later -l.  It must be a bundle -- a dialect
 # or an app is a way of booting, and a session boots once -- and it is
 # resolved exactly as the first is: the same directory lookup, the same
-# entry check, the same dependency walk into BUNDLE_DEPS.  What differs is
-# only where it lands: its root and entry go ahead of the first lang's.
+# dependency walk into BUNDLE_DEPS.  What differs is what is done with it:
+# its root is armed ahead of the first bundle's, and its `run` entry, when
+# it lists one, is imported and not started.  A library named here is armed
+# and nothing is imported.
 extra_resolve() {
 	_found=$(bundle_dir_of "$1") || {
-		echo "Error: lang '$1' is not an installed bundle" >&2
+		echo "Error: '$1' is not an installed bundle" >&2
 		echo "  a further -l names a bundle to load beside the first;" >&2
-		echo "  searched ${LANGS_PATH}*/lang.xon" >&2
+		echo "  searched ${BUNDLES_PATH}*/bundle.xon" >&2
 		exit 1
 	}
-	_entry=$(sed -n 's/^(entry "\([^"]*\)").*/\1/p' "$_found/lang.xon" | head -1)
-	: "${_entry:=run.x}"
-	if [ ! -f "$_found/$_entry" ]; then
-		echo "Error: bundle '$1' names an entry that is not there: $_entry" >&2
-		echo "  looked in $_found" >&2
-		exit 1
-	fi
 	path_form_safe "$_found" "bundle root"
+	case " $(bundle_entries_of "$_found" | tr '\n' ' ') " in
+		*" $X_RUN "*)
+			bundle_entry_check "$_found" "$1" "$X_RUN"
+			EXTRA_MODULES="$EXTRA_MODULES $1/$X_RUN"
+			;;
+	esac
 	for _row in $(bundle_reqs_of "$_found"); do
 		bundle_deps_collect "${_row%%|*}" "$1" "${_row#*|}"
 	done
 	for _d in $BUNDLE_DEPS; do
-		path_form_safe "$_d" "required lang root"
+		path_form_safe "$_d" "required bundle root"
 	done
 	EXTRA_DIRS="$EXTRA_DIRS $_found"
-	EXTRA_ENTRIES="$EXTRA_ENTRIES $(shquote "$_found/$_entry")"
+}
+
+# What stands where a bundle's entry file used to be pasted.  An entry is a
+# module: importing it sets the bundle up, and the `main` it exports starts
+# it.  The bundles loaded beside the first are imported and not started.
+# `main` is called at the top of the stream, never from inside the import:
+# a lang's own reader takes the rest of the stream, and inside a module's
+# load that stream is the module's file.
+entry_import_forms() {
+	for _m in $EXTRA_MODULES; do
+		printf '(import %s)\n' "$_m"
+	done
+	[ -z "$BUNDLE_DIR" ] || printf '(import %s)\n' "$BUNDLE_MODULE"
+}
+entry_forms() {
+	entry_import_forms
+	[ -z "$BUNDLE_DIR" ] || printf '((eval (lit main) (Module env (lit %s))))\n' "$BUNDLE_MODULE"
 }
 
 # The bundle's module root, emitted after the dialect has booted (import-path!
@@ -336,7 +390,7 @@ extra_resolve() {
 # thing that ever knows where a bundle sits -- it is what searched for it --
 # so it says, once, rather than every bundle guessing.  Only for the bundle
 # itself, never for its dependencies: a required lang reached through
-# (requires-lang ...) is a library to the bundle that needs it, and a second
+# (requires-bundle ...) is a library to the bundle that needs it, and a second
 # %lang-root would overwrite the one whose entry is about to run.
 bundle_form() {
 	if [ -n "$BUNDLE_DIR" ] || [ -n "$EXTRA_DIRS" ]; then
@@ -345,17 +399,17 @@ bundle_form() {
 		# the bundles loaded beside the session's lang, then that lang's
 		# own root, searched first of all.
 		for _d in $BUNDLE_DEPS; do
-			printf '(import-path! "%s")\n' "$_d"
+			printf '(import-path! "%s")\n' "$_d/lib"
 		done
 		for _d in $EXTRA_DIRS; do
-			printf '(import-path! "%s")\n' "$_d"
+			printf '(import-path! "%s")\n' "$_d/lib"
 		done
-		[ -z "$BUNDLE_DIR" ] || printf '(import-path! "%s")\n' "$BUNDLE_DIR"
+		[ -z "$BUNDLE_DIR" ] || printf '(import-path! "%s")\n' "$BUNDLE_DIR/lib"
 		[ -z "$BUNDLE_DIR" ] || printf '(def %%lang-root "%s")\n' "$BUNDLE_DIR"
 		# Which lang owns the prompt: the first -l, by the name it was asked
 		# for.  A bundle whose name this is not was loaded beside the
 		# session's lang, and registers itself without taking the prompt.
-		printf '(def %%lang-lead "%s")\n' "$X_LIB"
+		printf '(def %%lang-lead "%s")\n' "${BUNDLE_NAME:-$X_LIB}"
 		# %batch? MEANS "A FILE WAS SUPPLIED", and for a bundle it had stopped
 		# meaning that.  --batch is passed unconditionally down there (the
 		# `if [ "$file" ]` below is always true once the bundle entry joins
@@ -571,7 +625,7 @@ file1=""
 # holds both for every test that asks whether a file was supplied.
 # user_files is newline-separated and path_form_safe'd at parse time,
 # since it is written into an x-lang string literal.
-entry_files=""
+entry_boot=""
 user_files=""
 # -c/--eval expressions, accumulated in order and emitted onto the pipe
 # after the library (see eval_form).  Kept separate from $file because
@@ -626,13 +680,13 @@ display_help() {
 	echo "  -q, --quiet     suppress the startup banner"
 	echo "      --no-color  disable ANSI colour in the REPL"
 	echo "      --no-pin    ignore any $X_PIN manifest"
-	echo "      --allow-lang-skew  load a required lang whose version"
+	echo "      --allow-bundle-skew  load a required lang whose version"
 	echo "                  differs from the one asked for"
 	echo "      --allow-release-skew  boot a pinned amalgam whose release"
 	echo "                  differs from this engine's (it may crash)"
 	echo "      --fetch-release  fetch the release a pinned project names"
 	echo "                  into the per-user cache without asking first"
-	echo "      --install-lang URL  install the lang a published lang.pin.xon"
+	echo "      --install-bundle URL  install the lang a published bundle.pin.xon"
 	echo "                  names, verified, under the langs directory, and exit"
 	echo "      --share-dir print the directory this x reads its tree from, and exit"
 	echo "      --engine-path  print the engine this x would run, and exit"
@@ -710,8 +764,8 @@ $user_files}"
 			allow_skew=1
 			shift
 			;;
-		--allow-lang-skew)
-			allow_lang_skew=1
+		--allow-bundle-skew)
+			allow_bundle_skew=1
 			shift
 			;;
 		--fetch-release)
@@ -817,15 +871,15 @@ $user_files}"
 			fi
 			exit 0
 			;;
-		--install-lang)
+		--install-bundle)
 			# INSTALL A LANG WITHOUT CLONING IT.  The argument is the URL of a
-			# published lang.pin.xon; x fetches that, then the tarball it
+			# published bundle.pin.xon; x fetches that, then the tarball it
 			# names, verifies the digest and installs to <install-root>/langs.
 			# A thin front for (Pin install ...) -- the work is there, because
 			# verification is x's job and not the shell's.
 			[ -n "$2" ] || {
-				echo "Error: --install-lang needs the URL of a lang.pin.xon" >&2
-				echo "  e.g. x --install-lang https://host/x-krn/releases/latest/download/lang.pin.xon" >&2
+				echo "Error: --install-bundle needs the URL of a bundle.pin.xon" >&2
+				echo "  e.g. x --install-bundle https://host/x-krn/releases/latest/download/bundle.pin.xon" >&2
 				exit 1; }
 			require_engine
 			{ root_form; param_forms; cat "${ENTRY_DIR}${X_LIB}${X_EXT}"; \
@@ -1027,8 +1081,7 @@ if [ ! -e "$ENTRY" ]; then
 		# BEFORE any -f/-F file: the lang must exist before a program
 		# written in it is read.  file1 is the USER's file, so an untouched
 		# file1 is how we know to hand back a prompt rather than exit.
-		file="$(shquote "$BUNDLE_DIR/$BUNDLE_ENTRY") $file"
-		entry_files="$(shquote "$BUNDLE_DIR/$BUNDLE_ENTRY") $entry_files"
+		entry_boot=1
 		[ -n "$file1" ] || post="$(shquote "${LIB_PATH}${X_LAUNCH}")"
 	fi
 fi
@@ -1041,8 +1094,7 @@ if [ -n "$EXTRA_LIBS" ]; then
 	for _n in $EXTRA_LIBS; do
 		extra_resolve "$_n"
 	done
-	file="${EXTRA_ENTRIES# } $file"
-	entry_files="${EXTRA_ENTRIES# } $entry_files"
+	entry_boot=1
 	[ -n "$file1" ] || post="$(shquote "${LIB_PATH}${X_LAUNCH}")"
 fi
 
@@ -1399,7 +1451,7 @@ fi
 if [ ! -e "$ENTRY" ]; then
 	echo "Error: no library, app or lang named '$X_LIB'" >&2
 	echo "  searched ${ENTRY_DIR}${X_LIB}${X_EXT}, ${APPS_PATH}${X_LIB}/${X_RUN}${X_EXT}" >&2
-	echo "      and ${LANGS_PATH}*/lang.xon" >&2
+	echo "      and ${BUNDLES_PATH}*/bundle.xon" >&2
 	# Inventory by discovery, not by hand: entries are ${ENTRY_DIR}*.x
 	# files, apps are ${APPS_PATH}*/run.x -- the same rule the resolution
 	# above follows.  (An empty listing also means ENTRY_DIR itself is
@@ -1423,12 +1475,12 @@ if [ ! -e "$ENTRY" ]; then
 	# a bundle unpacks as <name>-<release>/, so the directory is not what
 	# -l takes, and printing it would be an inventory of wrong answers.
 	pers=""
-	for _p in "${LANGS_PATH}"*/; do
-		[ -f "$_p/lang.xon" ] || continue
-		_pn=$(sed -n 's/^(lang "\([^"]*\)").*/\1/p' "$_p/lang.xon" | head -1)
+	for _p in "${BUNDLES_PATH}"*/; do
+		[ -f "$_p/bundle.xon" ] || continue
+		_pn=$(sed -n 's/^(name "\([^"]*\)").*/\1/p' "$_p/bundle.xon" | head -1)
 		[ -n "$_pn" ] && pers="$pers $_pn"
 	done
-	[ -n "$pers" ] && echo "  langs:$pers" >&2
+	[ -n "$pers" ] && echo "  bundles:$pers" >&2
 	exit 1
 fi
 
@@ -1452,7 +1504,7 @@ fi
 # | x-bin` -- put back where the wrapper can reach it: piped stdin is
 # program text, appended after the library, in batch.  A terminal keeps
 # the REPL, and -f/-c win over the pipe (they named their source).
-if [ "$file" ] || [ -n "$have_eval" ]; then
+if [ "$file" ] || [ -n "$have_eval" ] || [ -n "$entry_boot" ]; then
 	xflags="$xflags \"--batch\""
 elif [ ! -t 0 ]; then
 	stdin_prog=1
@@ -1510,9 +1562,10 @@ if [ -n "$user_files" ] || [ -n "$stdin_prog" ] || [ -n "$have_eval" ]; then
 	TAIL="batch_form; "
 fi
 if [ -n "$BUNDLE_DIR" ]; then
+	TAIL="${TAIL}entry_forms; "
 	[ -n "$file" ] && TAIL="${TAIL}cat ${file}; "
 else
-	[ -n "$entry_files" ] && TAIL="${TAIL}cat ${entry_files}; "
+	[ -n "$entry_boot" ] && TAIL="${TAIL}entry_forms; "
 	[ -n "$user_files" ]  && TAIL="${TAIL}user_files_form; "
 fi
 [ -n "$stdin_prog" ]  && TAIL="${TAIL}cat; "
@@ -1577,7 +1630,7 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$app_entry" ] && [ "$X_LIB
 		# The bundles loaded beside the lang are in the image too, so they
 		# key it and name it: `xe+python.boot.x.ximg` is not
 		# `xe.boot.x.ximg`, and a change to either bundle rewrites it.
-		_iname="$X_LIB"
+		_iname=$(printf "%s" "$X_LIB" | tr / .)
 		for _n in $EXTRA_LIBS; do _iname="$_iname+$_n"; done
 		if [ -n "$BUNDLE_DIR" ]; then
 			_idir="$BUNDLE_DIR/.images"
@@ -1620,9 +1673,8 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$app_entry" ] && [ "$X_LIB
 		_ilib="$_itmp/$_iname.boot.x"
 		_iimg="$_idir/$_iname.boot.x.ximg"
 		if [ -n "$_itmp" ] && { root_form; param_forms; pin_form; cat "$ENTRY"; pin_arm; bundle_form image; \
-		     [ -z "$EXTRA_ENTRIES" ] || eval "cat $EXTRA_ENTRIES"; \
-		     [ -z "$BUNDLE_DIR" ] || cat "$BUNDLE_DIR/$BUNDLE_ENTRY"; \
-		     [ -z "$BUNDLE_COMPILED" ] || printf '(import x/tool/fn-compile)\n((eval (lit compile-root!) (Module env (lit x/tool/fn-compile))) "%s")\n' "$BUNDLE_DIR"; } > "$_ilib" 2>/dev/null; then
+		     entry_import_forms; \
+		     [ -z "$BUNDLE_COMPILED" ] || printf '(import x/tool/fn-compile)\n((eval (lit compile-root!) (Module env (lit x/tool/fn-compile))) "%s")\n' "$BUNDLE_DIR/lib"; } > "$_ilib" 2>/dev/null; then
 			_ish="$SCRIPT_PATH/$(basename "$0")"
 			[ -n "$INSTALL_ROOT" ] || _ish="$0"
 			if [ -n "$image_write" ]; then

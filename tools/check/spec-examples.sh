@@ -20,7 +20,7 @@
 # docs/tutorial.md writes its examples this way.
 #
 # A fence opened as ```sh holds shell, not x-lang, and is not read: docs/card.md
-# writes `COMMAND -> OUTPUT` rows there, which tools/lang-kit/card.sh runs.
+# writes `COMMAND -> OUTPUT` rows there, which tools/bundle-kit/card.sh runs.
 #
 # The document is a parameter.  The format is not unique to the spec:
 # docs/primitives.md and docs/standard-library.md write their examples the same

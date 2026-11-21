@@ -518,13 +518,13 @@ and a lang bundle's card has the same format.
   such as the interactive session.
 
 `make check-card` holds the format and runs the shell rows, and
-`make doc-examples` runs the x rows. In a bundle the check is the lang kit's:
+`make doc-examples` runs the x rows. In a bundle the check is the bundle kit's:
 
 ```sh
-X_LANG_DIR="$PWD/.." BUNDLE=. X=x sh "$(x --share-dir)/tools/lang-kit/card.sh"
+X_BUNDLE_DIR="$PWD/.." BUNDLE=. X=x sh "$(x --share-dir)/tools/bundle-kit/card.sh"
 ```
 
-`X_LANG_DIR` is the directory holding the bundle, so `x -l NAME` loads this
+`X_BUNDLE_DIR` is the directory holding the bundle, so `x -l NAME` loads this
 tree and not an installed copy. The x is an installed one: a checkout's
 wrapper runs only from its own root, and the card runs from the bundle's.
 The bundle says how one of its programs is run, in `tests/card-run.sh`: it

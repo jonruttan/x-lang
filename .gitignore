@@ -95,7 +95,7 @@ x-engine-build.xon
 
 # ACQUIRED, NOT BUILT.  deps/ holds what this tree fetches from elsewhere --
 # the engine (deps/engine/), its sources when a platform has no published
-# artifact (deps/engine-src/), and lang bundles (deps/langs/).  None of it is
+# artifact (deps/engine-src/), and lang bundles (deps/bundles/).  None of it is
 # produced here, which is why none of it is under build/: that directory is
 # for output, and conflating the two is how `engine` came to need a symlink
 # to be findable at all.  The PIN is committed; the bytes it names are not.

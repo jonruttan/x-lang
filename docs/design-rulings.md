@@ -87,7 +87,7 @@ and returns an object.
 A caller with a new need gets a door onto the mechanism that exists, or that
 mechanism's contract is widened. It does not get its own copy. This holds for
 evaluation (one top-level bracket, entered by the loader and by `eval!`), for
-body walking, and for resolution: `lang.xon` declares a dependency, the pin
+body walking, and for resolution: `bundle.xon` declares a dependency, the pin
 acquires it, and `x.sh` resolves it against the installed langs with the
 version held by equality. A tool that probes for a sibling directory or reads
 its own environment variable is a second resolver, and it drops the version

@@ -89,8 +89,8 @@ for d in he xe rn; do
 done
 
 # --- the bundle label, with a bundle actually loaded -----------------------
-# The other half.  X_LANG_DIR points -l at the fixture's parent (see
-# tools/contract/bundles/seamprobe/lang.xon); the entry defines nothing, so
+# The other half.  X_BUNDLE_DIR points -l at the fixture's parent (see
+# tools/contract/bundles/seamprobe/bundle.xon); the entry defines nothing, so
 # everything the probe finds came from the wrapper's bundle_form.
 #
 # One dialect is enough here, unlike the loop above: what varies across
@@ -99,7 +99,7 @@ done
 # twice to re-prove a shell function's output.
 if [ -n "$BUNDLE" ]; then
 	out="$W/bundle.out"
-	if ! X_LANG_DIR=tools/contract/bundles/ \
+	if ! X_BUNDLE_DIR=tools/contract/bundles/ \
 			sh x.sh --no-pin -q -l seamprobe -f "$PROBE" > "$out" 2>"$W/bundle.err"; then
 		echo "seam: the seamprobe fixture failed to load" >&2
 		sed 's/^/  /' "$W/bundle.err" | head -5 >&2
