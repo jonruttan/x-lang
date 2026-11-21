@@ -25,11 +25,12 @@
 
 (import x/gfx/canvas)
 (import x/gfx/shape)
+(import x/gfx/font)
 (import x/num/float Float float-of f-add f-sub f-mul f-div f-lt fsin fcos)
 (import x/num/tensor)
 (import x/num/matrix)
 
-(import x/core/doors int* int+ int- int/ int< int=)
+(import x/core/doors char->int int& int* int+ int- int/ int< int= str-byte-len str-byte-ref)
 
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "Figure: " what) ())))
 
@@ -400,6 +401,41 @@
         wide (%stroke fig)))
     c))
 
+; --- Labels ----------------------------------------------------------------
+
+(def %twenty-four (float-of 24))
+
+; TEXT as a figure, a capital HEIGHT high: each stroke of each glyph a
+; line, a dot a line half a grid unit long.  The text's box, as wide as
+; its glyphs and a capital high, is about 0 0.  Places are worked in
+; quarters of a grid unit, whole numbers, 24 a character.
+(def %label
+  (fn (_ text height)
+    (def n (str-byte-len text))
+    (def quarter (f-div height %twenty-four))
+    (def left (int- 0 (int* 2 (int- (int* 6 n) 2))))
+    (def at (fn (_ x y) (list (f-mul quarter (float-of x)) (f-mul quarter (float-of y)))))
+    (def line
+      (fn (_ base stroke)
+        (if (null? (rest stroke))
+          ((fn (_ x y) (pair (%chain (list (at (int- x 1) y) (at (int+ x 1) y))) #f))
+           (int+ base (int* 4 (first (first stroke))))
+           (int* 4 (int- (rest (first stroke)) 3)))
+          (pair (%chain (List map (fn (_ p) (at (int+ base (int* 4 (first p))) (int* 4 (int- (rest p) 3)))) stroke))
+                #f))))
+    (def parts
+      ((fn (self i)
+         (if (int< i n)
+           (List append
+             (List map (fn (_ s) (line (int+ left (int* 24 i)) s))
+               (Font glyph (int& (char->int (str-byte-ref text i)) 255)))
+             (self (int+ i 1)))
+           ()))
+       0))
+    (when (null? parts) (%fail "label: nothing to draw"))
+    ((fn (_ f) (list (%points f) (%paths f) (%fill f) (%stroke f) (f-div height (float-of 10)) (%drawn f)))
+     (%new parts))))
+
 (def-class Figure ()
   (doc "Paths of curves with a fill and a stroke, placed in a scene and changed over time. A figure is (POINTS PATHS FILL STROKE WIDTH DRAWN): POINTS a Matrix of the paths' points and PATHS each path's (ROWS . CLOSED), #t for an outline and #f for a line. Lengths are floats in scene units, the frame 8 units high, 0 0 its centre, y up. Each operation answers another figure, and an animation is a function of progress, 0 to 1, answering the figure to draw then."
     (example "(Figure bounds (Figure circle 1))" "(-1.0 -1.0 1.0 1.0)")
@@ -445,6 +481,14 @@
         (returns LIST "A figure")
         (example "(Figure bounds (Figure arrow 0 0 2 0))" "(0.0 -0.15 2.0 0.15)"))
       (%arrow (list (float-of x0) (float-of y0)) (list (float-of x1) (float-of y1))))
+
+    (method label (self (param text STRING "The text, printable ASCII")
+                        (param height NUMBER "A capital's height in units"))
+      (doc "TEXT as a figure of lines, a capital HEIGHT high, drawn with x/gfx/font's strokes: one line a stroke, none closed. Its box, as wide as its characters and a capital high, is about 0 0; a character is HEIGHT across with its space. Its stroke is white, a tenth of HEIGHT wide. A character outside printable ASCII is left as a space. Raises a label 'value when no character has a stroke."
+        (returns LIST "A figure")
+        (example "(Figure bounds (Figure label \"L\" 6))" "(-2.0 -3.0 2.0 3.0)")
+        (example "(List ref 1 (Figure label \"Hi\" 1))" "((4 . #f) (4 . #f) (4 . #f) (4 . #f) (4 . #f))"))
+      (%label text (float-of height)))
 
     (method bounds (self (param fig LIST "A figure"))
       (doc "The least and greatest x and y among the figure's points, its curves' control points with them."
@@ -542,5 +586,5 @@
       (%draw! c fig))))
 
 (doc (provide x/gfx/figure Figure)
-  "Figures for a scene: paths of curves with a fill and a stroke, made (circle, square, triangle, polygon, line, arrow), placed (shift, scale, rotate, next-to, onto), animated (morph, turn, create, fade-out) and drawn on a canvas (draw!)."
+  "Figures for a scene: paths of curves with a fill and a stroke, made (circle, square, triangle, polygon, line, arrow, label), placed (shift, scale, rotate, next-to, onto), animated (morph, turn, create, fade-out) and drawn on a canvas (draw!)."
   (example "(Figure bounds (Figure circle 1))" "(-1.0 -1.0 1.0 1.0)"))
