@@ -156,19 +156,29 @@ on port 0 and reads the port back with local-port.
 
 ### audio-queued counts down from what was sent, by the clock
 
+The stream plays 10 bytes a second, so the 100 sent last ten seconds: a
+slow runner still reads a count above nothing.  The second reading
+follows a wait of 200 ms, which plays at least 2 bytes, so it is below
+the first at any speed.  The numbers are small because the count is
+reckoned in microseconds, and 100 bytes times a million stays within a
+32-bit engine's integers.
+
 ```x
 (do (import x/sys/web)
   (Web listen! "127.0.0.1" 0)
   (def w-win (Web open "t" 2 1 1))
-  (def w-s (Web audio-open 1000 1))
-  (def w-buf (Str8 append "abcdefghij"))
-  (Web audio-put! w-s w-buf 10)
-  (def w-queued (Web audio-queued w-s))
+  (def w-s (Web audio-open 5 1))
+  (def w-n 100)
+  (def w-buf (Str8 make w-n))
+  (Web audio-put! w-s w-buf w-n)
+  (def w-first (Web audio-queued w-s))
+  (Sys usleep 200000)
+  (def w-later (Web audio-queued w-s))
   (Web audio-clear! w-s)
   (def w-cleared (Web audio-queued w-s))
   (Web audio-close w-s)
   (Web close w-win)
-  (list (> w-queued 0) (<= w-queued 10) w-cleared))
+  (list (<= w-first w-n) (< w-later w-first) (> w-later 0) w-cleared))
 ```
 ---
-    (#t #t 0)
+    (#t #t #t 0)
