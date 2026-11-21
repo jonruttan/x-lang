@@ -15,7 +15,7 @@
 
 (doc (def %as-list
   (fn (_ x)
-    (if (or (null? x) (pair? x)) x
+    (if (match ((eq? x ()) #t) (#t (pair? x))) x
       (let ((it (Iter new x)))
         ; Drain via %i-empty?/%i-next like (Iter ->list): APPLYING the
         ; iter object never advances it -- (it) yields a singleton of
@@ -41,8 +41,9 @@
 ; arithmetic wrappers into the system-wide allocation disease.
 (def %fold-go
   (fn (self f acc lst)
-    (if (null? lst) acc
-      (self f (f acc (first lst)) (rest lst)))))
+    (match
+      ((eq? lst ()) acc)
+      (#t (self f (f acc (first lst)) (rest lst))))))
 
 (doc (def %fold
   (fn (_ (param f CALLABLE "Binary function: (accumulator, element) -> new accumulator")
@@ -67,7 +68,7 @@
 ; elements -- now accumulates through this and reverses once (#333).
 (def %rev-onto
   (fn (self l acc)
-    (if (null? l) acc (self (rest l) (pair (first l) acc)))))
+    (match ((eq? l ()) acc) (#t (self (rest l) (pair (first l) acc))))))
 
 (def %append2
   (fn (_ a b)
@@ -87,9 +88,10 @@
 
 (def %any-null?
   (fn (self lsts)
-    (if (null? lsts)
-      ()
-      (if (null? (first lsts)) #t (self (rest lsts))))))
+    (match
+      ((eq? lsts ()) ())
+      ((eq? (first lsts) ()) #t)
+      (#t (self (rest lsts))))))
 
 ; first/rest are unchecked, so an improper tail walks off the end into UB.
 ; The Err lookup resolves at CALL time, long after err.x loads (x-core.x:221),
@@ -102,9 +104,9 @@
 (def %map1-go
   (fn (self f lst acc)
     (match
-      ((null? lst) (%rev-onto acc ()))
-      ((not (pair? lst)) (Err raise (lit type) "map: improper list" ()))
-      (#t (self f (rest lst) (pair (f (first lst)) acc))))))
+      ((eq? lst ()) (%rev-onto acc ()))
+      ((pair? lst) (self f (rest lst) (pair (f (first lst)) acc)))
+      (#t (Err raise (lit type) "map: improper list" ())))))
 
 (def %map1 (fn (_ f lst) (%map1-go f lst ())))
 
@@ -135,7 +137,7 @@
 (def %filter-go
   (fn (self pred lst acc)
     (match
-      ((null? lst) (%rev-onto acc ()))
+      ((eq? lst ()) (%rev-onto acc ()))
       ((pred (first lst))
         (self pred (rest lst) (pair (first lst) acc)))
       (#t (self pred (rest lst) acc)))))
@@ -184,7 +186,7 @@
   (fn (self (param pred CALLABLE "Predicate")
        (param lst LIST "List to search"))
     (match
-      ((null? lst) ())
+      ((eq? lst ()) ())
       ((pred (first lst)) (first lst))
       (#t (self pred (rest lst))))))
   (returns ANY "First element satisfying pred, or nil")
@@ -194,9 +196,10 @@
 
 (def %for-each1
   (fn (self f lst)
-    (if (null? lst) ()
-      (if (pair? lst)
-        (do (f (first lst)) (self f (rest lst)))
+    (match
+      ((eq? lst ()) ())
+      ((pair? lst) (do (f (first lst)) (self f (rest lst))))
+      (#t
         (let ((it (Iter new lst)))
           (def %iter-loop
             (fn (self )

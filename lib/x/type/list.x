@@ -20,14 +20,17 @@
 ; value errors. Coercion runs ONCE per public entry -- self-recursive
 ; walks move into inner `go` fns so the loop never re-probes. Explicit
 ; control: pre-convert yourself ((Convert to x %int)).
-(import x/core/doors int+ int- int< type-of)
+(import x/core/doors int+ int- int< type-of type?)
 (def %list-int-type (type-of 0))
+; The pair type's handle, for the type? door: the walks below test each
+; cell with it, where a pair? costs 7 objects a call.
+(def %list-pair-type (type-of (pair 1 2)))
 (def %list-cvt (prim-ref (lit convert) (lit to)))
-(def %list-int? (fn (_ n) (if (eq? n ()) #f (eq? (type-of n) %list-int-type))))
+(def %list-int? (fn (_ n) (match ((eq? n ()) #f) (#t (eq? (type-of n) %list-int-type)))))
 (def %list->int (fn (_ n what)
-  (if (%list-int? n) n
-    (let ((k (%list-cvt n %list-int-type)))
-      (if (%list-int? k) k (error what))))))
+  (match
+    ((%list-int? n) n)
+    (#t ((fn (_ k) (match ((%list-int? k) k) (#t (error what)))) (%list-cvt n %list-int-type))))))
 
 ; --- sort ---
 ; A stable merge sort over a proper list, its pieces made once rather than
@@ -82,7 +85,11 @@
 ;
 ; from-seq: lists and nil pass through; anything else goes through Iter.
 (def %list-from-seq
-  (fn (_ x) (if (eq? x ()) x (if (pair? x) x (Iter ->list (Iter new x))))))
+  (fn (_ x)
+    (match
+      ((eq? x ()) x)
+      ((type? x %list-pair-type) x)
+      (#t (Iter ->list (Iter new x))))))
 
 ; fold: first/rest are unchecked C prims, so an improper tail walks off the
 ; end of the list into UB -- (pair 1 2) is ordinary data, not hostile input.
@@ -94,7 +101,7 @@
     (def go
       (fn (self acc xs)
         (match
-          ((pair? xs) (self (f acc (first xs)) (rest xs)))
+          ((type? xs %list-pair-type) (self (f acc (first xs)) (rest xs)))
           ((eq? xs ()) acc)
           (#t (Err raise (lit type) "List fold: improper list" ())))))
     (go init (%list-from-seq lst))))
@@ -148,13 +155,15 @@
       (def i (%list->int n "List ref: index not convertible to INT"))
       (def go (fn (self j xs)
         (match
-          ((not (pair? xs)) (Err raise (lit index) "List ref: index out of range" ()))
-          ((= j 0) (first xs))
-          (#t (self (- j 1) (rest xs))))))
-      (if (< i 0)
-        (let ((k (+ i (List length lst))))
-          (if (< k 0) (Err raise (lit index) "List ref: index out of range" ()) (go k lst)))
-        (go i lst)))
+          ((type? xs %list-pair-type)
+            (match ((eq? j 0) (first xs)) (#t (self (int- j 1) (rest xs)))))
+          (#t (Err raise (lit index) "List ref: index out of range" ())))))
+      (match
+        ((int< i 0)
+          ((fn (_ k)
+             (match ((int< k 0) (Err raise (lit index) "List ref: index out of range" ())) (#t (go k lst))))
+           (int+ i (List length lst))))
+        (#t (go i lst))))
     (method last (self lst)
       (doc "Return the last element of a list." (param lst LIST "Non-empty list") (example "(List last (list 1 2 3))" "3"))
       (if (eq? (rest lst) ()) (first lst) (recur self (rest lst))))
@@ -192,12 +201,13 @@
     (method map (self f . lsts)
       (doc "Apply a function to each element. Supports multiple lists." (param f CALLABLE "Function to apply") (param lsts LIST "One or more lists") (returns LIST "New list") (example "(List map (fn (_ x) (* x 2)) (list 1 2 3))" "(2 4 6)") (example "(List map + (list 1 2) (list 10 20))" "(11 22)"))
       (def ls (%map1 %list-from-seq lsts))
-      (if (eq? (rest ls) ())
-        (%map1 f (first ls))
-        ((fn (self ls acc)
-           (if (%any-null? ls) (%reverse acc)
-             (self (%map1 rest ls) (pair (apply f (%map1 first ls)) acc))))
-         ls ())))
+      (match
+        ((eq? (rest ls) ()) (%map1 f (first ls)))
+        (#t
+          ((fn (self ls acc)
+             (if (%any-null? ls) (%reverse acc)
+               (self (%map1 rest ls) (pair (apply f (%map1 first ls)) acc))))
+           ls ()))))
     ; Inner go loops (#336), the fold precedent: `recur` re-entered the
     ; method and re-ran the from-seq normalization dispatch on EVERY
     ; tail; the accumulate-and-reverse pattern also makes the walks
@@ -215,12 +225,13 @@
     (method for-each (self f . lsts)
       (doc "Apply a function to each element for side effects." (param f CALLABLE "Function to apply") (param lsts LIST "One or more lists") (sample "(List for-each display (list 1 2 3))" "prints 123"))
       (def ls (%map1 %list-from-seq lsts))
-      (if (eq? (rest ls) ())
-        (%for-each1 f (first ls))
-        ((fn (self ls)
-           (if (%any-null? ls) ()
-             (do (apply f (%map1 first ls)) (self (%map1 rest ls)))))
-         ls)))
+      (match
+        ((eq? (rest ls) ()) (%for-each1 f (first ls)))
+        (#t
+          ((fn (self ls)
+             (if (%any-null? ls) ()
+               (do (apply f (%map1 first ls)) (self (%map1 rest ls)))))
+           ls))))
     (method flat-map (self f lst)
       (doc "Map then flatten one level." (param f CALLABLE "Function returning a list") (param lst LIST "List or iterable") (example "(List flat-map (fn (_ x) (list x x)) (list 1 2))" "(1 1 2 2)"))
       ; Helper first: a closure only sees sibling defs made BEFORE it.
