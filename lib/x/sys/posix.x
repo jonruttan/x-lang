@@ -24,7 +24,7 @@
 (def %O_APPEND (first (%assoc-get (lit append) file-modes)))
 
 ; Fetch the ptr/ffi prims from the catalogue (ns `ptr`/`ffi` are de-registered, R5).
-(import x/core/doors ffi-dlopen ffi-dlsym int- int< ptr-call ptr-ref ptr-ref-word ptr-set-word! str->ptr str-make)
+(import x/core/doors ffi-dlopen ffi-dlsym int& int* int+ int- int< int| ptr-call ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make)
 
 ; GC-owned byte regions for FFI out-params (pipe's fd pair, fd-read's read
 ; block): allocate as a string -- the collector owns the region, so there is
@@ -94,6 +94,39 @@
 (def %c-free (%resolve "free"))
 
 (def %c-isatty (%resolve "isatty"))
+
+; The rest of the methods' symbols, resolved once like those above: a
+; resolve is a dlsym and a call on every use, and an image records each
+; pointer by its symbol and resolves it again at load.  A symbol the C
+; library lacks is nil here, as a per-call resolve answered at the call.
+(def %c-kill (%resolve "kill"))
+(def %c-signal (%resolve "signal"))
+(def %c-write (%resolve "write"))
+(def %c-read (%resolve "read"))
+(def %c-access (%resolve "access"))
+(def %c-getcwd (%resolve "getcwd"))
+(def %c-unsetenv (%resolve "unsetenv"))
+(def %c-environ (%resolve "environ"))
+(def %c-getuid (%resolve "getuid"))
+(def %c-geteuid (%resolve "geteuid"))
+(def %c-getgid (%resolve "getgid"))
+(def %c-getegid (%resolve "getegid"))
+(def %c-getgroups (%resolve "getgroups"))
+(def %c-getpwuid (%resolve "getpwuid"))
+(def %c-gethostname (%resolve "gethostname"))
+(def %c-uname (%resolve "uname"))
+(def %c-sysconf (%resolve "sysconf"))
+(def %c-sync (%resolve "sync"))
+(def %c-fsync (%resolve "fsync"))
+(def %c-nice (%resolve "nice"))
+(def %c-chroot (%resolve "chroot"))
+(def %c-sleep (%resolve "sleep"))
+(def %c-usleep (%resolve "usleep"))
+(def %c-poll (%resolve "poll"))
+(def %c-gettimeofday (%resolve "gettimeofday"))
+(def %c-tzset (%resolve "tzset"))
+(def %c-localtime-r (%resolve "localtime_r"))
+(def %c-mktime (%resolve "mktime"))
 
 (def-class Sys ()
   (static
@@ -203,9 +236,7 @@
       (doc "Send a signal to a process." (returns INTEGER "0 on success, -1 on error")
         (example "(Sys kill (Sys getpid) 0)" "0")
         (sample "(Sys kill child (Sys sigterm))" "0, and the child is asked to end"))
-      ; Cold path: resolve per call (the file-exists? pattern), keeping
-      ; the module inside its %-globals budget.
-      (%sys-fold (ptr-call (%resolve "kill") pid sig)))
+      (%sys-fold (ptr-call %c-kill pid sig)))
     (method signal (self (param sig INTEGER "Signal number")
                          (param disposition INTEGER "(Sys sig-ign) or (Sys sig-dfl) ONLY -- an x-lang closure cannot be a C signal handler"))
       (doc "Set a signal's disposition to ignore or default."
@@ -213,7 +244,7 @@
         (sample "(Sys signal 13 (Sys sig-ign))" "SIGPIPE is ignored from now on: a write to a closed pipe answers -1"))
       ; signal(2) returns a POINTER (the old handler) -- never %sys-fold
       ; a pointer return (see the fold's comment above).
-      (ptr-call (%resolve "signal") sig disposition))
+      (ptr-call %c-signal sig disposition))
     (sigwinch 28 "SIGWINCH: the terminal's window changed size (28 on Darwin and Linux)")
     (sigttou 22 "SIGTTOU: a background process set or wrote to its terminal (22 on Darwin and Linux)")
     (method sigtstp (self)
@@ -302,7 +333,7 @@
       (doc "Write a string to a file descriptor." (returns NUMBER "Bytes written")
         (example "(Sys fd-write -1 \"hi\")" "-1")
         (sample "(Sys fd-write 1 \"hi\\n\")" "3, after hi on standard output"))
-      (%sys-fold (ptr-call (%resolve "write") fd s (%str-length s))))
+      (%sys-fold (ptr-call %c-write fd s (%str-length s))))
     (method fd-read (self (param fd NUMBER "File descriptor to read from")
                           (param n NUMBER "Maximum number of bytes to read"))
       (doc "Read up to n bytes from a file descriptor (libc read via FFI)."
@@ -314,7 +345,7 @@
       ; to a byte. got<=0 (EOF/error) leaves the loop at i<0 and yields ().
       (let ((s (str-make n)))
         (let ((buf (str->ptr s)))
-          (let ((got (%sys-fold (ptr-call (%resolve "read") fd buf n))))
+          (let ((got (%sys-fold (ptr-call %c-read fd buf n))))
             (let go ((i (- got 1)) (acc ()))
               (if (< i 0) acc
                 (go (- i 1) (pair (& (ptr-ref buf i 1) 255) acc))))))))
@@ -324,7 +355,7 @@
         (note "Deliberately duplicated across profiles with (File exists?) (#361): boot/module.x resolves imports through THIS door before sys/file (stat + Err, the ergonomic sibling) can load. Post-boot callers doing file work generally want the File class.")
         (example "(Sys file-exists? \"/\")" "#t")
         (example "(Sys file-exists? \"/nonexistent/file\")" "#f"))
-      (= (%sys-fold (ptr-call (%resolve "access") path 0)) 0))
+      (= (%sys-fold (ptr-call %c-access path 0)) 0))
     ; --- Environment ---
     (method chdir (self (param path STRING "Directory path"))
       (doc "Change the current working directory -- (Sys getcwd) reads it back." (returns INTEGER "0 on success, -1 on error")
@@ -338,7 +369,7 @@
       ; POINTER return (the buffer on success, NULL on failure) -- must NOT
       ; go through %sys-fold (see its comment). Cold path: resolve per call.
       (let ((s (str-make 4096)))
-        (let ((r (ptr-call (%resolve "getcwd") (str->ptr s) 4096)))
+        (let ((r (ptr-call %c-getcwd (str->ptr s) 4096)))
           (if (= r 0) () (%cvt (%cvt r %ptr) %string)))))
     (method setenv (self (param name STRING "Variable name") (param val STRING "Variable value"))
       (doc "Set an environment variable, overwriting any existing value -- (Sys unsetenv) removes it." (returns INTEGER "0 on success, -1 on error")
@@ -356,7 +387,7 @@
       (doc "Remove an environment variable -- the symmetric half of (Sys setenv) (#361). Removing an absent name succeeds."
         (returns INTEGER "0 on success, -1 on error")
         (example "(Sys unsetenv \"X_HELP_NO_SUCH_NAME\")" "0"))
-      (%sys-fold (ptr-call (%resolve "unsetenv") name)))
+      (%sys-fold (ptr-call %c-unsetenv name)))
     (method environ (self)
       (doc "The whole environment as a list of \"NAME=VALUE\" strings, in table order (#361). Split an entry at its FIRST '=' only -- values may themselves contain '='."
         (returns LIST "\"NAME=VALUE\" strings")
@@ -364,7 +395,7 @@
       ; environ is a DATA symbol: deref the char** once, then walk word by
       ; word (byte offsets, %word-size stride) to the NULL terminator; each
       ; entry is a C-string pointer. Pointer values throughout -- no fold.
-      (let ((envp (ptr-ref (%resolve "environ") 0 %word-size)))
+      (let ((envp (ptr-ref %c-environ 0 %word-size)))
         (let go ((i 0) (acc ()))
           (let ((e (ptr-ref (%cvt envp %ptr) (* i %word-size) %word-size)))
             (if (= e 0) (%reverse acc)
@@ -379,35 +410,35 @@
       (doc "The process's REAL user id -- who invoked it, before any setuid."
         (returns INTEGER "User id")
         (sample "(Sys getuid)" "501"))
-      (%sys-fold (ptr-call (%resolve "getuid"))))
+      (%sys-fold (ptr-call %c-getuid)))
     (method geteuid (self)
       (doc "The process's EFFECTIVE user id -- who it acts as, which is what a permission check reads."
         (returns INTEGER "User id")
         (example "(<= 0 (Sys geteuid))" "#t")
         (sample "(Sys geteuid)" "0 under sudo; otherwise the same as (Sys getuid)"))
-      (%sys-fold (ptr-call (%resolve "geteuid"))))
+      (%sys-fold (ptr-call %c-geteuid)))
     (method getgid (self)
       (doc "The process's real group id."
         (returns INTEGER "Group id")
         (example "(<= 0 (Sys getgid))" "#t")
         (sample "(Sys getgid)" "20"))
-      (%sys-fold (ptr-call (%resolve "getgid"))))
+      (%sys-fold (ptr-call %c-getgid)))
     (method getegid (self)
       (doc "The process's effective group id."
         (returns INTEGER "Group id")
         (example "(<= 0 (Sys getegid))" "#t")
         (sample "(Sys getegid)" "20"))
-      (%sys-fold (ptr-call (%resolve "getegid"))))
+      (%sys-fold (ptr-call %c-getegid)))
     (method getgroups (self)
       (doc "The process's supplementary group ids, as a list. getgroups is asked its own count first, so the buffer is never guessed."
         (returns LIST "Group ids")
         (sample "(Sys getgroups)" "(20 12 61 79)"))
       ; size 0 with a null list is the documented "how many?" call
-      (let ((n (%sys-fold (ptr-call (%resolve "getgroups") 0 0))))
+      (let ((n (%sys-fold (ptr-call %c-getgroups 0 0))))
         (if (< n 1) ()
           (let ((buf (str-make (* n 4))))
             (let ((p (str->ptr buf)))
-              (ptr-call (%resolve "getgroups") n p)
+              (ptr-call %c-getgroups n p)
               (let go ((i 0) (acc ()))
                 (if (= i n) (%reverse acc)
                   (go (+ i 1) (pair (ptr-ref p (* i 4) 4) acc)))))))))
@@ -429,7 +460,7 @@
       ; POINTER return -- must NOT go through %sys-fold (see its comment).
       ; The strings live in the C library's static area, so each is copied
       ; out before anything else can call getpwuid again.
-      (let ((pw (ptr-call (%resolve "getpwuid") uid)))
+      (let ((pw (ptr-call %c-getpwuid uid)))
         (if (= pw 0) ()
           (let ((p (%cvt pw %ptr))
                 (gecos (if os-darwin? 40 (+ (* 2 %word-size) 8))))
@@ -452,10 +483,10 @@
         (note "A fully qualified name for it, when the resolver knows one, is (Socket canonical-name (Sys gethostname)).")
         (example "(< 0 (Str8 length (Sys gethostname)))" "#t")
         (sample "(Sys gethostname)" "\"Mac\""))
-      (let ((s (str-make 256)) (set (prim-ref (lit ptr) (lit set!))))
+      (let ((s (str-make 256)))
         (let ((p (str->ptr s)))
-          (set p 255 0 1)
-          (let ((r (%sys-fold (ptr-call (%resolve "gethostname") p 255))))
+          (ptr-set! p 255 0 1)
+          (let ((r (%sys-fold (ptr-call %c-gethostname p 255))))
             (when (< r 0) (error (Err from-errno (Err errno-of r) (lit gethostname) ())))
             (%cvt p %string)))))
     ; struct utsname is five fixed char arrays back to back, and the
@@ -470,7 +501,7 @@
       ; each array is NUL-terminated and none needs the codec.
       (let ((w (if os-darwin? 256 65)))
         (let ((buf (str-make (* w 6))))
-          (ptr-call (%resolve "uname") (str->ptr buf))
+          (ptr-call %c-uname (str->ptr buf))
           (let ((base (%cvt (str->ptr buf) %int)))
             (def %at (fn (_ k) (%cvt (%cvt (+ base (* k w)) %ptr) %string)))
             (list (pair (lit sysname) (%at 0)) (pair (lit nodename) (%at 1))
@@ -482,43 +513,43 @@
         (sample "(Sys cpu-count)" "10"))
       ; _SC_NPROCESSORS_ONLN is one of the sysconf names that is NOT
       ; shared: 58 on Darwin, 84 on Linux.
-      (let ((n (%sys-fold (ptr-call (%resolve "sysconf") (if os-darwin? 58 84)))))
+      (let ((n (%sys-fold (ptr-call %c-sysconf (if os-darwin? 58 84)))))
         (if (< n 1) 1 n)))
     (method sync (self)
       (doc "Flush the filesystem write buffers (sync). Returns nil; there is nothing to fail."
         (returns ANY "nil")
         (sample "(Sys sync)" "nil, after the kernel is told to write its dirty buffers"))
-      (ptr-call (%resolve "sync"))
+      (ptr-call %c-sync)
       ())
     (method fsync (self (param fd INTEGER "File descriptor to flush"))
       (doc "Flush ONE open file's buffers to disk (fsync), rather than the whole system."
         (returns INTEGER "0 on success, -1 on error")
         (example "(Sys fsync -1)" "-1")
         (sample "(Sys fsync fd)" "0, once fd's writes are on the disk"))
-      (%sys-fold (ptr-call (%resolve "fsync") fd)))
+      (%sys-fold (ptr-call %c-fsync fd)))
     (method nice (self (param increment INTEGER "Amount to add to the scheduling priority"))
       (doc "Raise the process's nice value -- a HIGHER number means a LOWER priority, and only a privileged process may lower it."
         (returns INTEGER "The new nice value, or -1 on error")
         (sample "(Sys nice 5)" "5, from a process that ran at 0"))
-      (%sys-fold (ptr-call (%resolve "nice") increment)))
+      (%sys-fold (ptr-call %c-nice increment)))
     (method chroot (self (param path STRING "New filesystem root"))
       (doc "Change the process's filesystem root. Privileged: an unprivileged caller gets -1 with EPERM."
         (returns INTEGER "0 on success, -1 on error")
         (example "(Sys chroot \"/nonexistent/dir\")" "-1")
         (sample "(Sys chroot \"/srv/jail\")" "0 as root; -1 for anyone else"))
-      (%sys-fold (ptr-call (%resolve "chroot") path)))
+      (%sys-fold (ptr-call %c-chroot path)))
     ; --- Sleep (#361) ---
     (method sleep (self (param seconds INTEGER "Whole seconds to block"))
       (doc "Block for the given number of seconds (libc sleep). A signal can wake it early; sub-second waits are (Sys usleep)."
         (returns INTEGER "0 after the full interval; the seconds left unslept when a signal woke it early")
         (example "(Sys sleep 0)" "0")
         (sample "(Sys sleep 2)" "0, two seconds later"))
-      (%sys-fold (ptr-call (%resolve "sleep") seconds)))
+      (%sys-fold (ptr-call %c-sleep seconds)))
     (method usleep (self (param micros INTEGER "Microseconds to block"))
       (doc "Block for the given number of microseconds (libc usleep) -- the sub-second door; whole seconds read better through (Sys sleep)."
         (returns INTEGER "0 on success, -1 on error")
         (example "(Sys usleep 1000)" "0"))
-      (%sys-fold (ptr-call (%resolve "usleep") micros)))
+      (%sys-fold (ptr-call %c-usleep micros)))
     (method isatty (self (param fd NUMBER "File descriptor to test"))
       (doc "Test whether a file descriptor refers to a terminal (TTY)."
         (returns BOOL "True if fd refers to a terminal")
@@ -534,27 +565,35 @@
       (doc "Wait until a descriptor is ready, through poll(2). Answers each one that is, with what it is ready for -- among in, out, hup (the other end closed), err and nval (not an open descriptor) -- or nil when the timeout passes first. A signal that interrupts the wait answers nil as well, so a caller's loop asks again; any other failure raises an io Err."
         (returns LIST "((FD . EVENTS) ...) for the ready descriptors, or nil")
         (sample "(Sys poll (list (pair 0 (list 'in)) (pair sock (list 'in))) 1000)" "((5 in)) -- the socket has bytes to read"))
-      (def pset (prim-ref (lit ptr) (lit set!)))
+      ; Runs every turn of an event loop: the ptr set! door is bound once
+      ; (it was fetched per call), the loops are tail self-calls branching
+      ; with match, and the offsets step on the int doors.
       (def n (%length fds))
-      (def region (str-make (* 8 (if (= n 0) 1 n))))
+      (def region (str-make (int* 8 (match ((eq? n 0) 1) (#t n)))))
       (def p (str->ptr region))
-      (let put ((l fds) (off 0))
-        (unless (null? l)
-          (do (pset p off (first (first l)) 4)
-              (pset p (+ off 4) (Sys %poll-bits (rest (first l))) 2)
-              (pset p (+ off 6) 0 2)
-              (put (rest l) (+ off 8)))))
-      (def r (%sys-fold (ptr-call (%resolve "poll") p n timeout)))
+      ((fn (put l off)
+         (match
+           ((eq? l ()) ())
+           (#t (do (ptr-set! p off (first (first l)) 4)
+                   (ptr-set! p (int+ off 4) (self %poll-bits (rest (first l))) 2)
+                   (ptr-set! p (int+ off 6) 0 2)
+                   (put (rest l) (int+ off 8))))))
+       fds 0)
+      (def r (%sys-fold (ptr-call %c-poll p n timeout)))
       (match
-        ((> r 0)
-          (let walk ((l fds) (off 0) (acc ()))
-            (if (null? l) (%reverse acc)
-              (let ((rev (ptr-ref p (+ off 6) 2)))
-                (walk (rest l) (+ off 8)
-                      (if (= rev 0) acc
-                        (pair (pair (first (first l)) (Sys %poll-events rev)) acc)))))))
-        ((= r 0) ())
-        ((= (Err errno-of r) 4) ())             ; EINTR, the same number on both
+        ((int< 0 r)
+          ((fn (walk l off acc)
+             (match
+               ((eq? l ()) (%reverse acc))
+               (#t (walk (rest l) (int+ off 8)
+                         ((fn (_ rev)
+                            (match
+                              ((eq? rev 0) acc)
+                              (#t (pair (pair (first (first l)) (self %poll-events rev)) acc))))
+                          (ptr-ref p (int+ off 6) 2))))))
+           fds 0 ()))
+        ((eq? r 0) ())
+        ((eq? (Err errno-of r) 4) ())             ; EINTR, the same number on both
         (#t (error (Err from-errno (Err errno-of r) (lit poll) ())))))
 
     (method %poll-bits (self (param events LIST "Symbols: in, out"))
@@ -562,19 +601,20 @@
         (returns INTEGER "POLLIN | POLLOUT as asked")
         (example "(Sys %poll-bits (list 'in))" "1")
         (example "(Sys %poll-bits (list 'in 'out))" "5"))
-      (let go ((l events) (bits 0))
-        (match
-          ((null? l) bits)
-          ((eq? (first l) (lit in)) (go (rest l) (if (= (& bits 1) 0) (+ bits 1) bits)))
-          ((eq? (first l) (lit out)) (go (rest l) (if (= (& bits 4) 0) (+ bits 4) bits)))
-          (#t (Err raise (lit value) "Sys poll: an event is in or out" (first l))))))
+      ((fn (go l bits)
+         (match
+           ((eq? l ()) bits)
+           ((eq? (first l) (lit in)) (go (rest l) (int| bits 1)))
+           ((eq? (first l) (lit out)) (go (rest l) (int| bits 4)))
+           (#t (Err raise (lit value) "Sys poll: an event is in or out" (first l)))))
+       events 0))
 
     (method %poll-events (self (param rev INTEGER "A pollfd's revents"))
       (doc "The symbols for a revents word: in (POLLIN or POLLPRI), out, err, hup, nval."
         (returns LIST "The events, in that order")
         (example "(Sys %poll-events 1)" "('in)")
         (example "(Sys %poll-events 17)" "('in 'hup)"))
-      (def bit (fn (_ mask name rest) (if (= (& rev mask) 0) rest (pair name rest))))
+      (def bit (fn (_ mask name rest) (match ((eq? (int& rev mask) 0) rest) (#t (pair name rest)))))
       (bit 3 (lit in) (bit 4 (lit out) (bit 8 (lit err) (bit 16 (lit hup) (bit 32 (lit nval) ()))))))
 
     (method nonblock! (self (param fd INTEGER "Descriptor")
@@ -635,13 +675,18 @@
       (doc "Wall-clock time from gettimeofday: (unix-seconds . microseconds)."
         (returns PAIR "(seconds . microseconds)")
         (sample "(Sys time-of-day)" "(1752861000 . 123456)"))
-      (let ((s (str-make 16)))
-        (let ((buf (str->ptr s)))
-          (when (< %word-size 8) (ptr-set-word! buf 8 -1))
-          (let ((r (%sys-fold (ptr-call (%resolve "gettimeofday") buf 0))))
-            (when (< r 0) (error (Err from-errno (Err errno-of r) (lit gettimeofday) ())))
-            (pair (ptr-ref buf 0 %word-size)
-                  (ptr-ref buf (if (< %word-size 8) (if (= (ptr-ref buf 8 4) -1) 4 8) 8) 4))))))
+      ; Runs on every clock read, so it binds with def, branches with
+      ; match and compares on the int doors: each let, when and tower <
+      ; costs objects a call.  s holds the region the pointer reads.
+      (def s (str-make 16))
+      (def buf (str->ptr s))
+      (def narrow (int< %word-size 8))
+      (match (narrow (ptr-set-word! buf 8 -1)) (#t ()))
+      (def r (%sys-fold (ptr-call %c-gettimeofday buf 0)))
+      (match
+        ((int< r 0) (error (Err from-errno (Err errno-of r) (lit gettimeofday) ())))
+        (#t (pair (ptr-ref buf 0 %word-size)
+                  (ptr-ref buf (match ((match (narrow (eq? (ptr-ref buf 8 4) -1)) (#t #f)) 4) (#t 8)) 4)))))
 
     (method now (self)
       (doc "Wall-clock time as unix seconds (UTC) -- the noun reading; (Sys time thunk) is the verb. CPU time is (Sys clock); civil dates are the Date class (x/sys/date)."
@@ -669,8 +714,8 @@
             (gmtoff (if (< %word-size 8) 36 40)))
         (ptr-set-word! (str->ptr t) 0 secs)
         (when (< %word-size 8) (ptr-set-word! (str->ptr t) %word-size (if (< secs 0) -1 0)))
-        (ptr-call (%resolve "tzset"))
-        (when (= 0 (ptr-call (%resolve "localtime_r") (str->ptr t) (str->ptr tm)))
+        (ptr-call %c-tzset)
+        (when (= 0 (ptr-call %c-localtime-r (str->ptr t) (str->ptr tm)))
           (Err raise (lit value) "Sys zone: localtime_r cannot convert the time" secs))
         (let ((p (str->ptr tm)))
           (list (pair (lit offset) (%sys-fold (ptr-ref p gmtoff 4)))
@@ -692,16 +737,16 @@
         (returns INTEGER "Seconds since the unix epoch")
         (note "The inverse of the clock fields (Date local) reads; (Date local->unix date) takes a date alist.")
         (sample "(Sys local->unix 2026 9 21 10 13 20)" "1790000000, under TZ=EST5EDT,M3.2.0,M11.1.0"))
-      (let ((tm (str-make 64)) (set (prim-ref (lit ptr) (lit set!))))
+      (let ((tm (str-make 64)))
         (let ((p (str->ptr tm)))
           (ptr-set-word! p 0 0) (ptr-set-word! p 8 0) (ptr-set-word! p 16 0)
           (ptr-set-word! p 24 0) (ptr-set-word! p 32 0) (ptr-set-word! p 40 0)
           (ptr-set-word! p 48 0) (ptr-set-word! p 56 0)
-          (set p 0 second 4) (set p 4 minute 4) (set p 8 hour 4)
-          (set p 12 day 4) (set p 16 (- month 1) 4) (set p 20 (- year 1900) 4)
-          (set p 32 -1 4)
-          (ptr-call (%resolve "tzset"))
-          (ptr-call (%resolve "mktime") p))))))))
+          (ptr-set! p 0 second 4) (ptr-set! p 4 minute 4) (ptr-set! p 8 hour 4)
+          (ptr-set! p 12 day 4) (ptr-set! p 16 (- month 1) 4) (ptr-set! p 20 (- year 1900) 4)
+          (ptr-set! p 32 -1 4)
+          (ptr-call %c-tzset)
+          (ptr-call %c-mktime p))))))))
 
 (doc (provide x/sys/posix Sys)
   (note "POSIX via the Sys class: (Sys fork), (Sys exec name args), (Sys pipe),")
