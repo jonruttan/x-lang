@@ -6,7 +6,7 @@
 
 (import x/protocol/seq)
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(import x/core/doors char->int int+ int- int->ptr int< io-display-to-str mem-cmp ptr->int str->ptr str->sym str-append str-byte-len str-byte-ref str-byte-sub type-of)
+(import x/core/doors char->int int+ int- int->ptr int< io-display-to-str mem-cmp ptr->int str->ptr str->sym str-append str-byte-len str-byte-ref str-byte-sub type-of type? int& int>> int->char)
 ; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 ; The raw C arithmetic and comparison, fetched from the catalogue: the bare
 ; + - < dispatch through the tower, and the byte loops below want the
@@ -66,13 +66,29 @@
 ; the suite's loops, and they keep the same documented-unchecked status as
 ; first/rest. See #51.
 (def %str8-str-type (type-of ""))
+; Both guards branch with match on the (type ?) door, which answers #f for
+; nil: they run on every length, sub, ref and append, where each if is ten
+; objects and each null? a fn call.
 (def %str8-check (fn (_ v what)
-  (if (if (null? v) #f (eq? (type-of v) %str8-str-type)) v
-    (Err raise (lit type) what ()))))
+  (match
+    ((type? v %str8-str-type) v)
+    (#t (Err raise (lit type) what ())))))
+; append's walks.  Under five pieces %str-concat appends pairwise anyway,
+; so the short walk does that directly with no length pass; five and up
+; check first and take %str-concat's spans.
+(def %str8-append-walk (fn (self acc vs what)
+  (match
+    ((eq? vs ()) acc)
+    (#t (self (str-append acc (%str8-check (first vs) what)) (rest vs) what)))))
+(def %str8-check-all (fn (self vs what)
+  (match
+    ((eq? vs ()) ())
+    (#t (do (%str8-check (first vs) what) (self (rest vs) what))))))
 (def %str8->int (fn (_ n what)
-  (if (if (null? n) #f (eq? (type-of n) %str8-int-type)) n
-    (let ((k (%str8-cvt n %str8-int-type)))
-      (if (if (null? k) #f (eq? (type-of k) %str8-int-type)) k (error what))))))
+  (match
+    ((type? n %str8-int-type) n)
+    (#t (let ((k (%str8-cvt n %str8-int-type)))
+          (match ((type? k %str8-int-type) k) (#t (error what))))))))
 
 ; Per-element C arithmetic (#332): the catalogue carries int < and = but
 ; NO >= or > (a prim-ref miss is a SILENT nil, and a nil head returns
@@ -94,21 +110,23 @@
   (fn (_ sub from s)
     (def m (str-byte-len sub))
     (def n (str-byte-len s))
-    (if (eq? m 0) (if (int< n from) () from)
-      (do
+    (match
+      ((eq? m 0) (match ((int< n from) ()) (#t from)))
+      (#t (do
         (def c0 (char->int (str-byte-ref sub 0)))
         (def last (int- n m))
         (def subp (str->ptr sub))
         (def sbase (ptr->int (str->ptr s)))
         (def go
           (fn (go i)
-            (if (int< last i) ()
-              (if (eq? (char->int (str-byte-ref s i)) c0)
-                (if (eq? 0 (mem-cmp (int->ptr (int+ sbase i)) subp m))
-                  i
-                  (go (int+ i 1)))
-                (go (int+ i 1))))))
-        (go from)))))
+            (match
+              ((int< last i) ())
+              ((eq? (char->int (str-byte-ref s i)) c0)
+                (match
+                  ((eq? 0 (mem-cmp (int->ptr (int+ sbase i)) subp m)) i)
+                  (#t (go (int+ i 1)))))
+              (#t (go (int+ i 1))))))
+        (go from))))))
 
 (def %str8-space?
   (fn (_ s i)
@@ -148,12 +166,16 @@
       ; the byte-length compare here is the x-lang guard. The entry coercion
       ; makes a piped index-search miss (nil, unconvertible) fail loudly; only
       ; the negative case pays the second byte-len fetch.
+      ; j is an INT past the coercion, so the int doors stand in for the
+      ; tower's < and +.
       (def j (%str8->int i "Str8 ref: index not convertible to INT"))
-      (if (< j 0)
-        (if (< (+ j (str-byte-len v)) 0) (Err raise (lit index) "Str8 ref: index out of range" ())
-          (str-byte-ref v (+ j (str-byte-len v))))
-        (if (< j (str-byte-len v)) (str-byte-ref v j)
-          (Err raise (lit index) "Str8 ref: index out of range" ()))))
+      (match
+        ((int< j 0)
+          (match
+            ((int< (int+ j (str-byte-len v)) 0) (Err raise (lit index) "Str8 ref: index out of range" ()))
+            (#t (str-byte-ref v (int+ j (str-byte-len v))))))
+        ((int< j (str-byte-len v)) (str-byte-ref v j))
+        (#t (Err raise (lit index) "Str8 ref: index out of range" ()))))
     (method sub    (self (param st INTEGER "Start byte offset (0-based)") (param len INTEGER "Number of bytes") (param v STRING "Source string"))
       (doc "Substring of len bytes starting at byte offset st; st and len clamp to v's bounds (like StrUtf8 sub)."
         (returns STRING "The len-byte slice of v from st")
@@ -163,10 +185,10 @@
       (def st2 (%str8->int st "Str8 sub: start not convertible to INT"))
       (def len2 (%str8->int len "Str8 sub: length not convertible to INT"))
       (%str8-check v "Str8 sub: not a string")
-      (let ((n (str-byte-len v)))
-        (let ((s0 (if (< st2 0) 0 (if (< st2 n) st2 n))))
-          (str-byte-sub v s0
-            (if (< len2 0) 0 (if (< len2 (- n s0)) len2 (- n s0)))))))
+      (def n (str-byte-len v))
+      (def s0 (match ((int< st2 0) 0) ((int< st2 n) st2) (#t n)))
+      (str-byte-sub v s0
+        (match ((int< len2 0) 0) ((int< len2 (int- n s0)) len2) (#t (int- n s0)))))
     (method slice  (self (param st INTEGER "Start offset (0-based, inclusive)") (param end INTEGER "End offset (exclusive)") (param v STRING "Source string"))
       (doc "Substring [st, end) -- the slice convention (start/end-exclusive), delegating to sub (start/length). Dispatches through (self sub), so StrUtf8 slices code points."
         (returns STRING "The [st, end) slice of v")
@@ -197,7 +219,7 @@
 
     ; encode: one byte element is its own low byte. Makes
     ; (Str8 ->str (Str8 ->list s)) an identity on the byte view.
-    (method char->bytes (self el) (list (& (char->int el) 255)))
+    (method char->bytes (self el) (list (int& (char->int el) 255)))
 
     ; --- equality (byte equality; correct code-point equality for UTF-8 too) ---
     (method =? (self (param a STRING "First string") (param b STRING "Second string"))
@@ -238,12 +260,13 @@
           (def subp (str->ptr sub))
           (def sbase (ptr->int (str->ptr s)))
           (let go ((i (int- n m)))
-            (if (int< i 0) ()
-              (if (eq? (char->int (str-byte-ref s i)) c0)
-                (if (eq? 0 (mem-cmp (int->ptr (int+ sbase i)) subp m))
-                  i
-                  (go (int- i 1)))
-                (go (int- i 1))))))))
+            (match
+              ((int< i 0) ())
+              ((eq? (char->int (str-byte-ref s i)) c0)
+                (match
+                  ((eq? 0 (mem-cmp (int->ptr (int+ sbase i)) subp m)) i)
+                  (#t (go (int- i 1)))))
+              (#t (go (int- i 1))))))))
 
     ; --- construction ---
     (method append (self . (param args STRING "Strings to concatenate"))
@@ -256,8 +279,24 @@
       ; per-argument check is noise next to the allocation each step pays.
       ; Checks per argument as ever; the concatenation is one pass
       ; (#333), not an accumulator re-copy per argument.
-      (%str-concat
-        (%map (fn (_ s) (%str8-check s "Str8 append: not a string")) args)))
+      ; Up to four strings, the common calls, append directly with no piece
+      ; list or length pass; one string still answers a fresh copy.  Five
+      ; and up check in a tail walk, not a %map copy.  The four-piece test
+      ; asks for three first: rest of nil is unchecked.
+      (match
+        ((eq? args ()) "")
+        ((eq? (rest args) ())
+          (str-append "" (%str8-check (first args) "Str8 append: not a string")))
+        ((eq? (rest (rest args)) ())
+          (str-append (%str8-check (first args) "Str8 append: not a string")
+                      (%str8-check (first (rest args)) "Str8 append: not a string")))
+        ((match
+           ((eq? (rest (rest (rest args))) ()) #t)
+           (#t (eq? (rest (rest (rest (rest args)))) ())))
+          (%str8-append-walk (%str8-check (first args) "Str8 append: not a string")
+                             (rest args) "Str8 append: not a string"))
+        (#t (do (%str8-check-all args "Str8 append: not a string")
+                (%str-concat args)))))
     (method str (self . (param args ANY "Values to render and concatenate"))
       (doc "Concatenate values into one string, coercing each via display (so non-strings render too). The target of #\"...{expr}...\" interpolation."
         (returns STRING "The rendered values joined end to end")
@@ -271,14 +310,17 @@
       (doc "A string of k copies of the fill character (space if omitted)."
         (returns STRING "k-element string of the fill character")
         (example "(Str8 make 3 (\" \" 0))" "\"   \""))
-      (def ch (if (null? rest) #\space (first rest)))
+      (def ch (match ((eq? rest ()) #\space) (#t (first rest))))
       ; Encode the fill character ONCE, then delegate to repeat's binary
       ; doubling.  The old representation encoded a k-element char list through
       ; ->str, whose %map recursion is non-tail -- one C eval frame per
       ; element, so (Str8 make 16384 c) overflowed the C stack outright
       ; (segfault; found via x-awk's stdin slurp).  The same crash repeats
       ; here, already fixed once (#333); same cure.
-      (def unit (self ->str (list ch)))
+      ; One character goes char->bytes -> bytes->str directly, as ->str
+      ; does per element, without its fold and two reversals.  The send
+      ; keeps the subclass's encoding: UTF-8 under StrUtf8.
+      (def unit (bytes->str (%map int->char (self char->bytes ch))))
       ; A fill that encodes to NUL is a request the string model cannot
       ; hold: strings are C strings, so the result would BE "" -- and the
       ; old list-encode path silently allocated an n-byte buffer behind
@@ -296,7 +338,9 @@
       (doc "True if s has no elements."
         (returns BOOL "#t when s is the empty string")
         (example "(Str8 empty? \"\")" "#t"))
-      (= (self length s) 0))
+      ; Zero bytes is zero elements in every protocol, so the byte length
+      ; answers for StrUtf8 too, with no send.
+      (eq? (str-byte-len (%str8-check s "Str8 empty?: not a string")) 0))
 
     ; --- ordering (element order; byte order == code-point order for UTF-8) ---
     (method <? (self (param a STRING "First string") (param b STRING "Second string"))
@@ -368,15 +412,20 @@
       ; non-strings; join deliberately does not coerce.
       (%str8-check sep "Str8 join: separator not a string")
       (match
-        ((null? lst) "")
-        ((null? (rest lst)) (%str8-check (first lst) "Str8 join: element not a string"))
+        ((eq? lst ()) "")
+        ((eq? (rest lst) ()) (%str8-check (first lst) "Str8 join: element not a string"))
         ; Interleave into a piece list, concatenate ONCE (#333): joining
-        ; n pieces of average length L was O(n^2 L) bytes copied.
+        ; n pieces of average length L was O(n^2 L) bytes copied.  One
+        ; walk builds the pieces backwards and %rev-onto turns them round.
         (#t (%str-concat
-              (pair (%str8-check (first lst) "Str8 join: element not a string")
-                    (%fold (fn (_ acc s)
-                             (pair sep (pair (%str8-check s "Str8 join: element not a string") acc)))
-                           () (%reverse (rest lst))))))))
+              ((fn (self xs acc)
+                 (match
+                   ((eq? xs ()) (%rev-onto acc ()))
+                   (#t (self (rest xs)
+                             (pair (%str8-check (first xs) "Str8 join: element not a string")
+                                   (pair sep acc))))))
+               (rest lst)
+               (list (%str8-check (first lst) "Str8 join: element not a string")))))))
     (method repeat (self (param n INTEGER "Number of copies") (param s STRING "String to repeat"))
       (doc "Concatenate n copies of s (empty string when n <= 0)."
         (returns STRING "s repeated n times")
@@ -388,12 +437,16 @@
       ; issue); a flat n-piece concat fixed the crash but paid
       ; interpreter overhead per piece (measured ~40us/piece), where
       ; doubling pays it per BIT of n.
+      ; k is an INT past the coercion, and j only shifts right from it, so
+      ; the int doors stand in for the tower's four operators per bit.
       (def go (fn (self j base acc)
-        (if (<= j 0) acc
-          (self (>> j 1)
-                (str-append base base)
-                (if (= 1 (& j 1)) (str-append acc base) acc)))))
-      (if (<= k 0) "" (go k s "")))
+        (match
+          ((int< 0 j)
+            (self (int>> j 1)
+                  (str-append base base)
+                  (match ((eq? 1 (int& j 1)) (str-append acc base)) (#t acc))))
+          (#t acc))))
+      (match ((int< 0 k) (go k (%str8-check s "Str8 repeat: not a string") "")) (#t "")))
 
     ; --- padding (to n ELEMENTS: bytes for Str8, code points for Str --
     ; NOT display columns; wcwidth-style column tables are a known gap) ---
@@ -403,8 +456,7 @@
         (example "(Str8 pad-left 5 #\\0 \"42\")" "\"00042\""))
       (def k (%str8->int n "Str8 pad-left: count not convertible to INT"))
       (def len (self length s))
-      (if (not (< len k)) s
-        (str-append (self make (- k len) ch) s)))
+      (match ((int< len k) (str-append (self make (int- k len) ch) s)) (#t s)))
 
     (method pad-right (self (param n INTEGER "Target element count") (param ch CHARACTER "Padding character") (param s STRING "String to pad"))
       (doc "Right-pad s with ch until it is at least n ELEMENTS long (bytes for Str8, code points for Str) -- pad-left's missing twin."
@@ -412,8 +464,7 @@
         (example "(Str8 pad-right 5 #\\0 \"42\")" "\"42000\""))
       (def k (%str8->int n "Str8 pad-right: count not convertible to INT"))
       (def len (self length s))
-      (if (not (< len k)) s
-        (str-append s (self make (- k len) ch))))
+      (match ((int< len k) (str-append s (self make (int- k len) ch))) (#t s)))
 
     ; --- searching ---
     (method includes? (self (param sub STRING "Substring to search for") (param s STRING "String to search in"))
@@ -669,17 +720,19 @@
       ; contract (code points under StrUtf8).
       (def sep-len (str-byte-len sep))
       (def s-len (str-byte-len s))
-      (if (eq? sep-len 0)
-        (%map (fn (_ c) (self ->str (list c))) (self ->list s))
-        (do
+      (match
+        ((eq? sep-len 0)
+          (%map (fn (_ c) (self ->str (list c))) (self ->list s)))
+        (#t (do
           (def go
             (fn (go start acc)
               (def hit (%str8-find-bytes sep start s))
-              (if (eq? hit ())
-                (%reverse (pair (str-byte-sub s start (int- s-len start)) acc))
-                (go (int+ hit sep-len)
-                    (pair (str-byte-sub s start (int- hit start)) acc)))))
-          (go 0 ()))))))
+              (match
+                ((eq? hit ())
+                  (%rev-onto (pair (str-byte-sub s start (int- s-len start)) acc) ()))
+                (#t (go (int+ hit sep-len)
+                        (pair (str-byte-sub s start (int- hit start)) acc))))))
+          (go 0 ())))))))
 
 (doc (provide x/protocol/str/str8 Str8)
   (note "The 8-bit byte view. Use (Str8 length s), (Str8 upcase s), etc.; (help Str8) lists every method, (help Str8 method) shows one.")
