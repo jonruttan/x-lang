@@ -10,6 +10,8 @@
 #   - a listed entry is not imported, so its main never runs and nothing it
 #     sets at its top level reaches the walk;
 #   - a file of another module, and constructs.x, are not imported;
+#   - an example of a platform module the bundle imports is not the bundle's:
+#     it is not emitted, and a bundle with none of its own still says so;
 #   - a bundle with no example passes and says so;
 #   - a tree with no bundle.xon is refused.
 #
@@ -106,6 +108,19 @@ run "$D"
 case "$st:$out" in
 	0:*"ok (no examples)"*) printf '  a bundle with no example passes and says so: ok\n' ;;
 	*) printf 'bundle-kit-doctest: a bundle with no example did not pass plainly:\n%s\n' "$out" >&2
+	   fails=$((fails + 1)) ;;
+esac
+
+# A helium bundle that imports a platform module helium does not boot, and
+# whose documentation carries examples.  They are the platform's.
+E="$TMP/outside"
+mkdir -p "$E/lib/do"
+printf '(name "do")\n(dialect he)\n' > "$E/bundle.xon"
+printf '(module do/m)\n(import x/type/dict)\n(def one (fn (_) 1))\n(provide do/m one)\n' > "$E/lib/do/m.x"
+run "$E"
+case "$st:$out" in
+	0:*"ok (no examples)"*) printf '  an imported platform module'"'"'s examples are not the bundle'"'"'s: ok\n' ;;
+	*) printf 'bundle-kit-doctest: a bundle was held to the examples of a platform module it imports:\n%s\n' "$out" | head -20 >&2
 	   fails=$((fails + 1)) ;;
 esac
 
