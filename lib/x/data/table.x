@@ -209,11 +209,12 @@
   ; The values at the row numbers of ROWS, as a column of this encoding:
   ; a Tensor's by its gather, a copy of each value's bytes, and a
   ; Vector's by reading each.
-  (method %take (self rows)
+  ; PACKED is ROWS, each a row of this column, from (Tensor %pack-rows ROWS).
+  (method %take (self rows packed)
     (if (eq? (field (lit encoding)) (lit any))
       (let ((v (field (lit data))))
         (Column %of-any (List map (fn (_ i) (Vector ref i v)) rows)))
-      (Column %of-tensor ((field (lit data)) gather rows))))
+      (Column %of-tensor ((field (lit data)) %gather-packed packed))))
 
   (method sum (self)
     (doc "The sum of the values." (returns NUMBER "The sum")
@@ -484,14 +485,16 @@
       (returns Table "A table of the named column and a column for each spec")
       (example "(((Table from '((city (\"Ely\" \"Ayr\" \"Ely\")) (age (31.0 45.0 29.0)))) aggregate 'city (list (list 'mean-age 'age (fn (_ c) (c mean))))) ->list)" "(('city (\"Ely\" \"Ayr\")) ('mean-age (30.0 45.0)))"))
     (let ((name (%name name)) (categories (self %categories name)))
-      (Table %of
-        (pair name (List map (fn (_ s) (%name (first s))) specs))
-        (pair (Column from (List map first categories))
-              (List map
-                (fn (_ s)
-                  (let ((source (self column (List ref 1 s))) (f (List ref 2 s)))
-                    (Column from (List map (fn (_ c) (f (source %take (rest c)))) categories))))
-                specs)))))
+      ; each category's rows, packed once for every spec: (ROWS . PACKED)
+      (let ((picks (List map (fn (_ c) (pair (rest c) (Tensor %pack-rows (rest c)))) categories)))
+        (Table %of
+          (pair name (List map (fn (_ s) (%name (first s))) specs))
+          (pair (Column from (List map first categories))
+                (List map
+                  (fn (_ s)
+                    (let ((source (self column (List ref 1 s))) (f (List ref 2 s)))
+                      (Column from (List map (fn (_ p) (f (source %take (first p) (rest p)))) picks))))
+                  specs))))))
 
   (method ->list (self)
     (doc "The table as from takes it: a list for each column, its name and then its values."
@@ -500,9 +503,12 @@
     (List map (fn (_ n c) (list n (c ->list))) (field (lit names)) (field (lit columns))))
 
   ; The table of the rows at the row numbers of ROWS.
+  ; ROWS are rows of this table, which every caller here makes by counting
+  ; them.  They are packed once, and each column of numbers gathers by that.
   (method %take (self rows)
-    (Table %of (field (lit names))
-               (List map (fn (_ c) (c %take rows)) (field (lit columns))))))
+    (let ((packed (Tensor %pack-rows rows)))
+      (Table %of (field (lit names))
+                 (List map (fn (_ c) (c %take rows packed)) (field (lit columns))))))))
 
 (doc (provide x/data/table Table Column)
   "Tables of named columns, as values: a Table is read from lists or csv text and answers its columns, rows, a selection of columns, the rows a column's value passes, the rows in a column's order, and columns as a Matrix, a table with a column put, derived, removed or renamed, and its rows parted or summarized by a column's distinct values; a Column of numbers answers its statistics and its arithmetic."

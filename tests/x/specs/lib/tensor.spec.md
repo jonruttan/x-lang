@@ -673,7 +673,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
       (Tensor jit!)
       (list (equal? before (run))
             (List all? (fn (_ k) (List any? (fn (_ c) (eq? c k)) (Tensor compiled)))
-              (if (List empty? (Tensor compiled)) () (lit (f32-add f32-div f32-sum f32-copy f32->f64 f64->f32))))))))
+              (if (List includes? (lit f64-add) (Tensor compiled)) (lit (f32-add f32-div f32-sum f32-copy f32->f64 f64->f32)) ()))))))
 ```
 ---
     (#t #t)
@@ -742,6 +742,23 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ```
 ---
     ('value 'value 'type 'value)
+
+### the answers are the same once the kernels are compiled
+
+```x
+(import x/num/tensor)
+(let ((m (Tensor from '((1 2) (3 4) (5 6)) 'f64))
+      (z (Tensor from (list 1+2i 3-1i 5) 'c128))
+      (s (Tensor from '(1.5 2.5 3.5) 'f32)))
+  (let ((run (fn (_) (list ((m gather '(2 0 -1 1)) ->list) ((m gather ()) extent)
+                           (((m transpose) gather '(1 1)) ->list)
+                           ((z gather '(2 0)) ->list) ((s gather '(2 0 1)) ->list)))))
+    (let ((before (run)))
+      (Tensor jit!)
+      (list (equal? before (run)) (first before)))))
+```
+---
+    (#t ((5.0 6.0) (1.0 2.0) (5.0 6.0) (3.0 4.0)))
 
 ## Other names
 
