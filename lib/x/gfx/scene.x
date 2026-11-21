@@ -13,8 +13,10 @@
 ;
 ; Playing goes by the clock.  Each frame is drawn at the share of the time
 ; gone, eased, so animations last what they were given however long a frame
-; takes, and the last frame is the animations' end.  The heap is collected
-; after every frame.
+; takes, and the last frame is the animations' end.  The figures that do
+; not change are drawn once a play, and each frame is a copy of that with
+; the animations' figures drawn on.  The heap is collected after every
+; frame.
 (module x/gfx/scene)
 
 (import x/gfx/canvas)
@@ -80,6 +82,15 @@
     ((%front s) show! (%window s)
       (first (rest (rest (%frame figures animations progress (%width s) (%height s))))))))
 
+; A frame from BACK, the frame of the figures that do not change: a copy
+; of it with the animations' figures drawn on.
+(def %show-over!
+  (fn (_ s back animations progress)
+    ((fn (_ c)
+       (do (List for-each (fn (_ a) (Figure draw! c (a progress))) animations)
+           ((%front s) show! (%window s) (first (rest (rest c))))))
+     (Canvas copy! (Canvas make (%width s) (%height s)) 0 0 back 0 0 (%width s) (%height s)))))
+
 ; Sleep what is left of a frame's time, STARTED microseconds after T0.
 (def %pace!
   (fn (_ s t0 started)
@@ -90,10 +101,10 @@
   (fn (_ s figures animations seconds)
     (def total (%micros seconds))
     (unless (%stopped? s)
-      ((fn (_ t0)
+      ((fn (_ t0 back)
          ((fn (self)
             ((fn (_ gone)
-               (do (%show! s figures animations
+               (do (%show-over! s back animations
                      (if (int< gone total) (%smooth (f-div (float-of gone) (float-of total))) %one))
                    (%events! s)
                    (Heap collect)
@@ -101,7 +112,8 @@
                      (do (%pace! s t0 gone)
                          (self)))))
              (%since t0)))))
-       (Sys time-of-day)))
+       (Sys time-of-day)
+       (%frame figures () %one (%width s) (%height s))))
     (%after figures animations)))
 
 (def %wait

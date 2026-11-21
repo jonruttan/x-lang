@@ -570,25 +570,28 @@
           (%cubic (pair n 0) (pair n k) (pair j r) (pair 0 r) 0
             (%cubic (pair 0 r) (pair k r) (pair r k) (pair r 0) 0 ())))))))
 
-; The mask of a stroke WIDTH wide through POINTS on a canvas CW x CH: a
-; quadrilateral a segment and a disc a point, packed as one outline.  The
-; frame is the points' bounds and half the width more, and a pixel past
-; that for the disc's rounding.
+; The mask of strokes WIDTH wide along LINES on a canvas CW x CH, each line
+; (CLOSED . POINTS): a quadrilateral a segment and a disc a point, all
+; packed as one outline, so lines that cross are drawn once.  The frame is
+; the points' bounds and half the width more, and a pixel past that for
+; the disc's rounding.
 (def %stroke-mask
-  (fn (_ points width closed cw ch)
+  (fn (_ lines width cw ch)
     (def half (int/ width 2))
     (def disc (%disc half))
     (def dn (List length disc))
-    (def b (%bounds (list points)))
+    (def b (%bounds (List map rest lines)))
     (def pad (int+ half 256))
     (def frame
-      (%frame (list (int- (first b) pad) (int- (first (rest b)) pad)
-                    (int+ (first (rest (rest b))) pad) (int+ (first (rest (rest (rest b)))) pad))
-              #t 0 0 cw ch))
+      (if (null? b)
+        ()
+        (%frame (list (int- (first b) pad) (int- (first (rest b)) pad)
+                      (int+ (first (rest (rest b))) pad) (int+ (first (rest (rest (rest b)))) pad))
+                #t 0 0 cw ch)))
     (if (null? frame)
       ()
       (do
-        (def nv (List length points))
+        (def nv (List fold (fn (_ n line) (int+ n (List length (rest line)))) 0 lines))
         (def tmpl (%words (int* 2 dn)))
         (def buf (%words (int+ 1 (int* nv (int+ 9 (int+ 1 (int* 2 dn)))))))
         (def a (%at buf))
@@ -597,19 +600,25 @@
         (List fold
           (fn (_ k p) (do (%put! (%at tmpl) k (first p)) (%put! (%at tmpl) (int+ k 1) (rest p)) (int+ k 2)))
           0 disc)
-        (def quads
-          (fn (self pos p more)
-            (if (null? more)
-              (if closed (%quad! a pos p (first points) half dx dy) pos)
-              (self (%quad! a pos p (first more) half dx dy) (first more) (rest more)))))
+        ; One line's quadrilaterals and discs from word START; the word after.
+        (def line!
+          (fn (_ start closed points)
+            (def quads
+              (fn (self pos p more)
+                (if (null? more)
+                  (if closed (%quad! a pos p (first points) half dx dy) pos)
+                  (self (%quad! a pos p (first more) half dx dy) (first more) (rest more)))))
+            (List fold
+              (fn (_ word p)
+                (do (%put! a word dn)
+                    (%k-move (int+ a (int* (int+ word 1) %word-size)) (%at tmpl) 0 dn
+                      (int- (first p) dx) (int- (rest p) dy))
+                    (int+ word (int+ 1 (int* 2 dn)))))
+              (quads start (first points) (rest points))
+              points)))
         (List fold
-          (fn (_ pos p)
-            (do (%put! a pos dn)
-                (%k-move (int+ a (int* (int+ pos 1) %word-size)) (%at tmpl) 0 dn
-                  (int- (first p) dx) (int- (rest p) dy))
-                (int+ pos (int+ 1 (int* 2 dn)))))
-          (quads 0 (first points) (rest points))
-          points)
+          (fn (_ next line) (if (null? (rest line)) next (line! next (first line) (rest line))))
+          0 lines)
         (%render a frame)))))
 
 (def-class Shape ()
@@ -640,9 +649,17 @@
         (returns LIST "The canvas")
         (example "(do (import x/gfx/canvas) (Canvas pixel (Shape stroke! (Canvas make 4 4) (list (pair 256 512) (pair 768 512)) 512 (list 9 8 7) #f) 1 1))" "(9 8 7 255)"))
       (when (int< width 2) (%fail "stroke!: WIDTH is at least 2"))
-      (if (null? points)
-        c
-        (%stamp! c (%stroke-mask points width closed (first c) (first (rest c))) colour)))
+      (%stamp! c (%stroke-mask (list (pair closed points)) width (first c) (first (rest c))) colour))
+
+    (method strokes! (self (param c LIST "The canvas drawn on")
+                           (param lines LIST "Lines, each (CLOSED . POINTS): #t to join the last point to the first, then the (X . Y) points")
+                           (param width INTEGER "The lines' width in 1/256 of a pixel, 2 or more")
+                           (param colour LIST "(R G B) or (R G B A)"))
+      (doc "Draw every line WIDTH wide in COLOUR as stroke! draws one, all of them together: where two lines cross or touch they are drawn once, and the cost is one drawing's. Raises a label 'value when WIDTH is under 2."
+        (returns LIST "The canvas")
+        (example "(do (import x/gfx/canvas) (def c (Shape strokes! (Canvas make 6 6) (list (pair #f (list (pair 256 768) (pair 1280 768))) (pair #f (list (pair 768 256) (pair 768 1280)))) 512 (list 200 0 0 128))) (list (Canvas pixel c 1 2) (Canvas pixel c 2 2) (Canvas pixel c 2 4)))" "((100 0 0 128) (100 0 0 128) (100 0 0 128))"))
+      (when (int< width 2) (%fail "strokes!: WIDTH is at least 2"))
+      (%stamp! c (%stroke-mask lines width (first c) (first (rest c))) colour))
 
     (method cubic (self (param p0 LIST "The start, (X . Y)")
                         (param p1 LIST "The first control point")
