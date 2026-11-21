@@ -5,8 +5,10 @@
 ; (Annotation ? v TYPE) asks whether a value fits.  AnnotationCheck puts the
 ; two together for a run of tests: it puts one form at the head of a
 ; documented closure's body, and on every call that form tests each annotated
-; argument and records the ones that do not fit.  Nothing is raised: the call
-; goes on as it would have, and the findings are read at the end.
+; argument and records the ones that do not fit.  A (returns TYPE ...) form
+; is tested the same way: the body's last form is handed to a test of what
+; it answered.  Nothing is raised: the call goes on as it would have, and
+; the findings are read at the end.
 ;
 ; The doctest gate is the first user (tools/check/doctest-split.awk): each
 ; generated file installs the checks on its module's entries before the
@@ -16,8 +18,8 @@
 ; (tools/check/doctest.x).
 ;
 ; What is covered: a closure made by fn that a bare documented name or a
-; Class/method name reaches, and of its parameters the ones annotated with
-; something other than ANY.  A primitive, an operative and a wrapped
+; Class/method name reaches, and of its parameters and its answer the ones
+; annotated with something other than ANY.  A primitive, an operative and a wrapped
 ; combiner have no body to put the form in and are passed over.
 
 (import x/core/fn)
@@ -28,7 +30,8 @@
 (def-class AnnotationCheck ()
   (static
     ; The findings, newest first, in the first of a pair:
-    ; (KEY PARAMETER ANNOTATION TYPE-NAME) each.
+    ; (KEY PARAMETER ANNOTATION TYPE-NAME) each, PARAMETER being returns for
+    ; an answer.
     (%found (pair () ()))
 
     ; #t in the first of a pair while nothing is to be tested: while a test
@@ -99,6 +102,25 @@
                 (walk rows vals)
                 (%set-first! busy #f))))))
 
+    ; The closure the form around a body's last form calls: it is handed
+    ; what that form answered, tests it against the returns annotation as
+    ; an argument is tested, and answers it unchanged.  row is a row as
+    ; above, named returns.
+    (method %make-returns (self key row)
+      (let ((busy (self %busy))
+            (type-of (prim-ref (lit type) (lit of))))
+        (def seen?
+          (fn (go ty l)
+            (match ((null? l) #f) ((eq? (first l) ty) #t) (#t (go ty (rest l))))))
+        (fn (_ v)
+          (unless (first busy)
+            (do (%set-first! busy #t)
+                (unless (if (null? v) #f
+                          (seen? (type-of v) (first (first (rest (rest (rest row)))))))
+                  (guard (_ ()) (self %fits! key row v)))
+                (%set-first! busy #f)))
+          v)))
+
     (method %type-str (self t) (if (symbol? t) (symbol->str t) t))
 
     ; The annotation NAME is documented with, as a string, or () when it
@@ -133,21 +155,44 @@
     (method %drop (self ps n)
       (if (= n 0) ps (if (pair? ps) (self %drop (rest ps) (- n 1)) ())))
 
-    ; A body that already opens with the form: its head is a closure, where
-    ; a written form's head is a symbol.
-    (method %installed? (self body)
-      (if (pair? (first body)) (eq? (Fn label (first (first body))) (lit fn)) #f))
+    ; The returns annotation of entry e as a row, or () when it states none
+    ; or states ANY.
+    (method %returns-row (self e)
+      (let ((r (e returns)))
+        (let ((t (if (pair? r) (first r) ())))
+          (match ((null? t) ())
+                 ((str=? (self %type-str t) "ANY") ())
+                 (#t (list (lit returns) (self %type-str t) #f (pair () ())))))))
 
-    ; Put the form at the head of f's body.  The body list is the closure's
-    ; own, so its first pair is rewritten in place: the form goes into it
-    ; and the form that was there moves to a new pair behind it.  drop is
-    ; how many leading parameters are not arguments of the documented call:
-    ; the closure itself, and for a class method the receiver too.
+    (method %last-pair (self l)
+      (if (pair? (rest l)) (self %last-pair (rest l)) l))
+
+    ; A form the checks put there: its head is a closure, where a written
+    ; form's head is a symbol.
+    (method %ours? (self form)
+      (if (pair? form) (eq? (Fn label (first form)) (lit fn)) #f))
+
+    (method %installed? (self body)
+      (if (self %ours? (first body)) #t
+        (self %ours? (first (self %last-pair body)))))
+
+    ; Put the forms into f's body.  The body list is the closure's own, so
+    ; its pairs are rewritten in place.  For the returns annotation the last
+    ; form F becomes (TEST F): the call answers what F answered, and F is
+    ; no longer in tail position while the checks are installed.  For the
+    ; parameters a form goes into the body's first pair and the form that
+    ; was there moves to a new pair behind it.  drop is how many leading
+    ; parameters are not arguments of the documented call: the closure
+    ; itself, and for a class method the receiver too.
     (method %install-one! (self key f drop)
       (let ((e (Doc entry key))
             (body (if (eq? (Fn label f) (lit fn)) (Fn body f) ())))
         (when (if (pair? body) (if (null? e) #f (not (self %installed? body))) #f)
-          (let ((r (self %rows (self %drop (Fn params f) drop) (e params) () ())))
+          (let ((r (self %rows (self %drop (Fn params f) drop) (e params) () ()))
+                (ret (self %returns-row e)))
+            (unless (null? ret)
+              (let ((last (self %last-pair body)))
+                (%set-first! last (list (self %make-returns key ret) (first last)))))
             (unless (null? (first r))
               (let ((old (pair (first body) (rest body))))
                 (%set-first! body (pair (self %make key (rest r)) (first r)))
