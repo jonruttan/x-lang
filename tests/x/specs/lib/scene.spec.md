@@ -114,6 +114,22 @@ keeps the last and answers the events it is given.
 ---
     (#t 0)
 
+### figures that do not change are behind every frame, drawn once a play
+
+```x
+(import x/gfx/canvas)
+(import x/gfx/figure)
+(import x/gfx/scene)
+(import x/core/doors mem-cmp str->ptr)
+(do
+  (def sc-still (list (Figure fill (Figure square 6) (list 40 50 60))))
+  (def sc-both (Scene play sc-stage sc-still sc-grow 0.1))
+  (list (mem-cmp (str->ptr (first sc-last)) (str->ptr (List ref 2 (Scene frame sc-still sc-grow 1 16 16))) (* 4 16 16))
+        (List length sc-both)))
+```
+---
+    (0 2)
+
 ### wait shows the figures once and answers them
 
 ```x

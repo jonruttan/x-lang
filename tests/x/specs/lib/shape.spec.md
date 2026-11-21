@@ -196,3 +196,34 @@ Radius 100 pixels: 16 lines, every point within 16/256 of the radius.
 ```
 ---
     0
+
+## strokes
+
+### several lines are drawn together: where they cross they are drawn once
+
+Two translucent lines 2 pixels wide, one across and one down, crossing at
+2 2.
+
+```x
+(do (import x/gfx/canvas) (import x/gfx/shape)
+  (def c (Shape strokes! (Canvas make 6 6)
+           (list (pair #f (list (pair 256 768) (pair 1280 768)))
+                 (pair #f (list (pair 768 256) (pair 768 1280))))
+           512 (list 200 0 0 128)))
+  (list (Canvas pixel c 1 2) (Canvas pixel c 2 2) (Canvas pixel c 2 4) (Canvas pixel c 4 4)))
+```
+---
+    ((100 0 0 128) (100 0 0 128) (100 0 0 128) (0 0 0 0))
+
+### one line is what stroke! draws; no line and a line of no points draw nothing
+
+```x
+(do (import x/gfx/canvas) (import x/gfx/shape) (import x/core/doors mem-cmp str->ptr)
+  (def pts (list (pair 512 512) (pair 2560 512) (pair 2560 2560)))
+  (def one (Shape stroke! (Canvas make 12 12) pts 700 (list 9 8 7 200) #t))
+  (def all (Shape strokes! (Canvas make 12 12) (list (pair #t pts) (pair #f ())) 700 (list 9 8 7 200)))
+  (list (mem-cmp (str->ptr (List ref 2 one)) (str->ptr (List ref 2 all)) (* 4 12 12))
+        (Canvas pixel (Shape strokes! (Canvas make 2 2) () 700 (list 9 8 7)) 1 1)))
+```
+---
+    (0 (0 0 0 0))
