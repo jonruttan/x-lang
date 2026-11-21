@@ -71,7 +71,7 @@ echo "include-paths: ok"
 # may know the layout -- its entry, which is exempt above and is where the
 # amalgam generator flattens the literals away.  Every other file reaches data
 # through a root the entry armed and named.  A lang bundle is covered from the
-# other side: x-logo's CI asserts its data goes through %lang-root and never
+# other side: x-logo's CI asserts its data goes through (Bundle root ...) and never
 # %install-root.
 #
 # apps/ is empty at present, so this scan has nothing to read.  It stays

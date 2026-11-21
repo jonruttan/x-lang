@@ -77,7 +77,7 @@
 ; cwd-relative literal, resolves only from the repo root and breaks in an
 ; installed tree.  One name in the entry is the fix.
 ;
-; The bundle needs even that one no longer: x.sh defines %lang-root for it
+; The bundle needs even that one no longer: x/sys/bundle answers (Bundle root ...) for it
 ; (tools/contract/seam.x), so the fact is stated once by the only thing that
 ; knows it rather than derived once by the file most likely to be moved.  A
 ; budget row is a ratchet on a repo's own inventory; a lang in its own
