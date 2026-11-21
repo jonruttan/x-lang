@@ -74,18 +74,11 @@
 
 (seam installed %install-root "the installed tree's root; ABSENT in a checkout, so a lang must guard it")
 
-; %lang-root is not %install-root, which is why it has a row of its own.
-; %install-root is where the platform lives; a bundle lives wherever it was
-; installed or pinned to -- under langs/ in one case, a project's deps/ in
-; another.  A bundle that ships a data file and reaches for %install-root finds
-; the platform's tree and reads nothing.
-;
-; Modules do not need this.  `import` resolves through the root the wrapper
-; arms, and a sibling source file is reached with a ./-relative include-once;
-; both work without knowing an absolute path.  Data is the case neither covers:
-; x-logo's serve.x hands viewer.html to a browser, and no import means "the
-; bytes of that file".
-(seam bundle %lang-root "the bundle's own directory; how a lang reaches DATA it ships, not modules")
+; A bundle's own directory is not %install-root.  %install-root is where the
+; platform lives; a bundle lives wherever it was installed or pinned to.  A
+; bundle that ships a data file reaches it through (Bundle root "NAME") in
+; x/sys/bundle, which reads the answer from the import roots, so there is no
+; seam row for it: it is a library call, not a name the wrapper defines.
 ; A session boots one lang and may load others beside it (`-l xe -l python`).
 ; Every bundle's entry runs either way, and this is how one tells whether it
 ; owns the prompt or was loaded as a library to the lang that does: the name

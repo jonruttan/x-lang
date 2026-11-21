@@ -987,12 +987,35 @@
                 ((eq? (rest roots) ()) (first roots))
                 (#t (%str-append (first roots)
                       (%str-append " " (self (rest roots))))))))
-          (def %fd (%open %path 0))
+          (def %readable?
+            (fn (_ p)
+              (def %fd (%open p 0))
+              (match
+                ((%int< %fd 0) #f)
+                (#t (do (%close %fd) #t)))))
+          ; A name no root holds may be an installed bundle's: its first
+          ; segment names the bundle, and arming it adds the root that
+          ; holds the module.  x/sys/bundle is asked, (Bundle arm-module!
+          ; "NAME/..."), and is imported here, on the first miss, so a
+          ; session that misses nothing does not load it.  It is the one
+          ; module a miss never asks about: asking would import it.
+          (def %bundle-arm
+            (fn (_)
+              (match
+                ((eq? name (lit x/sys/bundle)) #f)
+                (#t
+                  (do
+                    (import x/sys/bundle)
+                    (not (eq? ()
+                           (eval (list (lit Bundle) (lit arm-module!) (symbol->str name))
+                                 (%module-root-env)))))))))
+          ; Resolved again when a bundle was armed.
           (match
-            ((%int< %fd 0) ())
-            (#t (%close %fd)))
+            ((%readable? %path) ())
+            ((%bundle-arm) (set! %path (%module-resolve name)))
+            (#t ()))
           (match
-            ((not (%int< %fd 0)) ())
+            ((%readable? %path) ())
             (#t (error (%str-append "import: no module "
                   (%str-append (symbol->str name)
                     (%str-append " -- searched "

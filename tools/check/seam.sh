@@ -94,7 +94,7 @@ done
 # everything the probe finds came from the wrapper's bundle_form.
 #
 # One dialect is enough here, unlike the loop above: what varies across
-# he/xe/rn is the library, and %lang-root is emitted by the wrapper ahead of
+# he/xe/rn is the library, and %lang-lead is emitted by the wrapper ahead of
 # any of it.  Running the fixture three times would cost the tower's boot
 # twice to re-prove a shell function's output.
 if [ -n "$BUNDLE" ]; then

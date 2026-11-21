@@ -8,7 +8,7 @@
 #     the install layout ahead of the checkout's;
 #   - required langs are found by declared name, X_BUNDLE_DIR ahead of the
 #     bundle's siblings, and armed deepest first, each once;
-#   - the bundle's own root, %lang-root and %lang-lead follow, then its
+#   - the bundle's own root and %lang-lead follow, then its
 #     tests/harness.x;
 #   - each way the inputs can be wrong stops with a message naming it;
 #   - in this tree, every dialect's body has an amalgam in build/boot/.
@@ -100,11 +100,11 @@ mv "$L/app.bundle" "$L/app/bundle.xon"
 got=$(gen "$L/app" || true)
 want "helium by default, required bundles deepest first and once, then the bundle" \
 "(def %install-root \"$ROOT\")
+(def %bundle-dir \"$L\")
 (include \"$ROOT/build/boot/helium.x\")
 (import-path! \"$L/core/lib\")
 (import-path! \"$L/mid/lib\")
 (import-path! \"$L/app/lib\")
-(def %lang-root \"$L/app\")
 (def %lang-lead \"app\")
 (import app/base)
 
@@ -116,17 +116,17 @@ got=$( (FAKE_X_ROOT="$ROOT" BUNDLE="$L/core" X="$TMP/x"; export FAKE_X_ROOT BUND
 want "runs sourced from a shim" "11" "$got"
 
 bundle "$TMP/xe/lisp" lisp xe
-got=$(gen "$TMP/xe/lisp" | sed -n 2p || true)
+got=$(gen "$TMP/xe/lisp" | sed -n 3p || true)
 want "a declared dialect boots its own body" "(include \"$ROOT/build/boot/xenon.x\")" "$got"
 
 cp -R "$ROOT" "$TMP/installed"
 mkdir -p "$TMP/installed/boot"
 : > "$TMP/installed/boot/helium.x"
-got=$(gen "$L/core" "$TMP/installed" | sed -n 2p || true)
+got=$(gen "$L/core" "$TMP/installed" | sed -n 3p || true)
 want "the install layout ahead of the checkout's" "(include \"$TMP/installed/boot/helium.x\")" "$got"
 
 bundle "$TMP/elsewhere/core" core he
-got=$(X_BUNDLE_DIR="$TMP/elsewhere" gen "$L/mid" | sed -n 3p || true)
+got=$(X_BUNDLE_DIR="$TMP/elsewhere" gen "$L/mid" | sed -n 4p || true)
 want "X_BUNDLE_DIR ahead of the siblings" "(import-path! \"$TMP/elsewhere/core/lib\")" "$got"
 
 bundle "$TMP/notail/t" t he

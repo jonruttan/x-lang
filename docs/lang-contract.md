@@ -438,7 +438,6 @@ in every dialect:
 | `lang` | the switch: `(lang NAME)` installs a registered lang, `(lang)` lists them | `lib/x/repl/lang.x` |
 | `%batch?` | `-f`/`--batch` was passed | x-core, via `repl/banner.x` |
 | `%install-root` | the installed tree's root, when installed | `lib/x/boot/module.x` |
-| `%lang-root` | the bundle's own directory — how a lang reaches **data** it ships | `x.sh`, when `-l` resolved a bundle |
 | `%lang-lead` | the name the first `-l` asked for — the lang that owns the prompt; a bundle whose name this is not was loaded beside it | `x.sh`, when any `-l` resolved a bundle |
 | `import-path!` | arm an import root at runtime | `lib/x/boot/module.x` |
 | `eval!` | evaluate without env save/restore — **how a lang's `define` binds in its caller** | engine, via `x/doc/doc-prims.x` |
@@ -446,16 +445,16 @@ in every dialect:
 
 The idiom an in-tree app uses to arm its own root — the `guard` is what makes
 one file work in both a repo checkout and an installed tree. A **bundle needs
-none of it**: the wrapper arms the root and defines `%lang-root` before the
-entry is read, which is what the Logo extraction removed from that file:
+none of it**: the wrapper arms the root before the entry is imported, which is
+what the Logo extraction removed from that file:
 
 ```x
 (import-path! (guard (_ "apps") (%path-join %install-root "apps")))
 ```
 
-`%install-root` and `%lang-root` are the two conditional rows, and they are
+`%install-root` and `%lang-lead` are the two conditional rows, and they are
 conditional on different things. A checkout has no `%install-root`, which is
-why the idiom above guards it. `%lang-root` is bound whenever `-l` resolved a
+why the idiom above guards it. `%lang-lead` is bound whenever `-l` resolved a
 **bundle** and never in a bare dialect, so a bundle's own code may read it
 plainly — it cannot run in a tree where it is absent. The gate checks both
 from both sides: a row that quietly became unconditional would turn every
@@ -466,28 +465,43 @@ lang's guard into superstition, so it fails if a checkout starts providing an
 
 `import` answers *where do my modules come from*, and a `./`-relative
 `include-once` reaches a sibling **source** file. Neither means *the bytes of
-that file*. A lang that ships a grammar table, a template, a viewer — anything
-it opens rather than loads — needs an absolute path, and `%lang-root` is it:
+that file*. A bundle that ships a grammar table, a template, a viewer —
+anything it opens rather than loads — needs its own directory, and
+`(Bundle root "NAME")` in `x/sys/bundle` answers it:
 
 ```x
-(def html (%read-or-empty (%path-join %lang-root "logo/viewer.html")))
+(import x/sys/bundle)
+(def html (%read-or-empty (%path-join (Bundle root "logo") "data/viewer.html")))
 ```
 
-**It is not `%install-root`, and reaching for that instead is the mistake this
-row exists to prevent.** `%install-root` is where the *platform* lives; a
-bundle lives under `langs/` when installed and under a project's `deps/` when
-pinned. A bundle that joined its data path onto `%install-root` would look
-inside x-lang's tree and read nothing.
+The answer is the directory that holds the bundle's `lib/`, read from the
+import roots. So it holds for any loaded bundle: the one booted, one it
+requires, and one armed by a missed import. A library, which is never
+booted, reaches its files the same way. For a bundle that is not loaded the
+answer is nil.
 
-The wrapper emits it because the wrapper is the only thing that ever knows: it
-is what searched `langs/*/bundle.xon` and found the directory. It is emitted for
-the bundle whose entry is about to run, never for a `(requires-bundle …)`
-dependency — to the bundle that needs it, a required lang is a library, and a
-second definition would overwrite the one about to be used.
+**It is not `%install-root`.** `%install-root` is where the *platform*
+lives; a bundle lives under `bundles/` when installed and under a project's
+`deps/` when pinned. A bundle that joined its data path onto
+`%install-root` would look inside x-lang's tree and read nothing.
 
-This row is younger than the five bundles above it, and none of them wants it:
-Sweet, Kernel, R5RS, R7RS and Python are modules all the way down. Logo is the
-first lang that hands a file to a browser, which is what surfaced the gap.
+### A missed import arms a bundle
+
+A module's first segment is its bundle's name, so an import no root holds
+says which bundle to look for. `import` asks `x/sys/bundle`, which arms the
+installed bundle of that name and the import is resolved again:
+
+| Installed | A miss on `fancy/thing` |
+|---|---|
+| a bundle `fancy` directly under the bundles directory | armed |
+| none there, and exactly one under an author's directory | armed |
+| none there, and several under authors' directories | refused, naming them: a `(requires-bundle "AUTHOR/NAME")` says which |
+| none | `import: no module fancy/thing`, as before |
+
+So a session imports an installed library's module with nothing declared,
+and a session that misses nothing never loads `x/sys/bundle`. The wrapper
+says where bundles are installed in `%bundle-dir`, ahead of the library, as
+it says `%install-root`; `(Bundle dir)` answers it.
 
 A lang that reads a `%`-prefixed name not in this table is relying on a
 platform internal, and the platform owes it nothing. **This table is the
@@ -665,6 +679,9 @@ Four things that are not obvious, each of which costs an afternoon:
   - `(def %install-root "…")`, as `x.sh` emits it ahead of every boot entry:
     an amalgam's deferred `import` forms resolve against the tree `module.x`
     learns from it;
+  - `(def %bundle-dir "…")`, where a missed import looks for an installed
+    bundle: `X_BUNDLE_DIR` when it is set, else the bundle's siblings, where
+    a checkout and CI put the bundles it requires;
   - the dialect's **body**, the file its entry includes before starting a
     REPL (`lib/he.x` includes `lib/x/boot/helium.x`), read out of the entry and
     loaded from the amalgam `make boot` writes -- `<root>/boot/` in an install,
@@ -674,7 +691,7 @@ Four things that are not obvious, each of which costs an afternoon:
     found by the name its `bundle.xon` declares in `X_BUNDLE_DIR`, beside the
     bundle, then among the acquired langs, with versions not compared (a
     checkout carries no version stamp);
-  - the bundle's own `import-path!`, `%lang-root` and `%lang-lead`, as `x.sh`
+  - the bundle's own `import-path!` and `%lang-lead`, as `x.sh`
     emits them before a bundle's entry;
   - the bundle's committed `tests/harness.x`: its imports and REPL printer,
     the part of its entry that sets the lang up without starting it.
