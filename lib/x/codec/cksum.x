@@ -124,7 +124,7 @@
     (method of (self (param s STRING "Bytes")
                      . (param span INTEGER "START, then LENGTH: which bytes of s; default all of s"))
       (doc "The CRC cksum prints for the bytes, their length folded in. Give LENGTH for binary input: s's own length is measured to its first NUL."
-        (returns INTEGER "The CRC, 0 to 4294967295")
+        (returns INTEGER|BIGINT "The CRC, 0 to 4294967295")
         (example "(Cksum of \"123456789\")" "930766865")
         (example "(Cksum of \"\")" "4294967295"))
       (def sp (%span s span))
