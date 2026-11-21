@@ -216,7 +216,7 @@
         (returns BOOL "#t when k1's type converts from k2")
         (example "(Generic absorbs? (Type of 1.5) (Type of 1))" "#t")
         (example "(not (Generic absorbs? #t (Type of 1)))" "#t"))
-      (%g-absorbs? k1 k2))
+      (if (%g-absorbs? k1 k2) #t #f))
     (method methods-of (self (param g ANY "The generic"))
       (doc "The registered (keys . fn) method records, newest first."
         (returns LIST "Method records")
