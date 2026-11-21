@@ -53,6 +53,10 @@ fail() { echo "package: FAIL: $1" >&2; exit 1; }
 # shallow clone, or a tag it never fetched -- and a tarball whose engine
 # disagrees with its own release is exactly the confusion the stamp exists
 # to end.
+#
+# The official bundles first: `make install` copies each one
+# tools/bundles/ pins and fails on one that was not acquired.
+make bundles >/dev/null || fail "make bundles failed"
 make install PREFIX="/x-$TAG" DESTDIR="$STAGE" X_RELEASE="$TAG" >/dev/null \
 	|| fail "make install failed"
 [ -x "$STAGE/x-$TAG/bin/x" ]       || fail "no wrapper staged"

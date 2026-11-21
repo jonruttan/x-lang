@@ -250,6 +250,13 @@ engine: ## Acquire the engine tools/engine/engine.pin.xon names (release, or sou
 	@echo "engine -> $$(readlink $(ENGINE_DIR))"
 .PHONY: engine
 
+# The official bundles: the libraries and apps a release carries, one pin each
+# in tools/bundles/.  x-lang imports none of them, so no build, spec or gate
+# here waits on this; `make install` does, for each bundle that is pinned.
+bundles: $(EXECUTABLE) ## Acquire the official bundles tools/bundles/*.pin.xon name, into deps/bundles/
+	sh tools/bundles/fetch.sh
+.PHONY: bundles
+
 # NOT ABOVE `default:`.  A rule placed before it becomes the default goal --
 # `make` then built the symlink, reported success, and produced no engine.
 # check-bootstrap caught it; nothing else did, because every other tree
@@ -469,7 +476,7 @@ check-help-examples: $(EXECUTABLE) ## Count the doc entries that show no example
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-bundle-kit-harness check-bundle-kit-lint check-bundle-kit-spec-gate check-bundle-kit-dup-defs check-bundle-kit-card check-bundle-kit-doctest check-card check-pin check-release-manifest check-bootstrap check-package check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-bundles check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-highlight-roundtrip check-primitives-doc check-help-examples ## Run the contract gates
+gates: engine-link check-engine-fetch check-bundles-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-bundle-kit-harness check-bundle-kit-lint check-bundle-kit-spec-gate check-bundle-kit-dup-defs check-bundle-kit-card check-bundle-kit-doctest check-card check-pin check-release-manifest check-bootstrap check-package check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-bundles check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-highlight-roundtrip check-primitives-doc check-help-examples ## Run the contract gates
 .PHONY: gates
 
 .PHONY: check-spec-weights
@@ -500,7 +507,7 @@ check-spec-globals: ## No spec rebinds a name the engine or library owns
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-bundle-kit-harness check-bundle-kit-lint check-bundle-kit-spec-gate check-bundle-kit-dup-defs check-bundle-kit-card check-bundle-kit-doctest check-card check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
+gates-fast: engine-link check-engine-fetch check-bundles-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-bundle-kit-harness check-bundle-kit-lint check-bundle-kit-spec-gate check-bundle-kit-dup-defs check-bundle-kit-card check-bundle-kit-doctest check-card check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast check-asan-boot test-c test-x ## Pre-push gate: fast gates, the ASan boot, both spec suites (CI runs full `make test`)
@@ -617,6 +624,12 @@ check-prim-coverage: ## Assert every C primitive is exercised by a spec, or says
 check-engine-fetch: ## Smoke the engine acquisition path (hermetic, file://)
 	sh tools/check/engine-fetch.sh
 .PHONY: check-engine-fetch
+
+# The same for the official bundles, over file:// against a fixture bundle:
+# acquire, leave alone, fetch again on a changed pin, and the refusals.
+check-bundles-fetch: $(EXECUTABLE) ## Smoke the official-bundle acquisition path (hermetic, file://)
+	sh tools/check/bundles-fetch.sh
+.PHONY: check-bundles-fetch
 
 # An amalgam claims to be a whole boot.  It was true of what the entry includes
 # and false of what it imports -- those resolved against the platform at boot,
@@ -1240,6 +1253,11 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	install $C -m 0644 tools/lib/digest.sh $(DESTDIR)$(LIBDIR)/tools/lib/digest.sh
 	for p in $(ENGINE_DIR)/tools/contract/*.x; do \
 		install $C -m 0644 $$p $(DESTDIR)$(LIBDIR)/engine/tools/contract/$${p##*/} || exit 1; done
+	# THE OFFICIAL BUNDLES, each as `make bundles` acquired it, at the
+	# install's bundles/ where the wrapper looks.  A pinned bundle that is
+	# absent, or was acquired at another pin, fails the install.  Outside the
+	# payload fingerprint: each has a digest of its own in its pin.
+	sh tools/bundles/install.sh $(DESTDIR)$(LIBDIR)/bundles
 	# The tree's RELEASE IDENTITY, beside the engine's ISA fingerprint and
 	# for the same reason: an installed tree has no source checkout and no
 	# git, so without these two lines it cannot answer "which release is
