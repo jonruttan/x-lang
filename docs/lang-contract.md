@@ -794,6 +794,11 @@ Each module under `lib/` is imported in turn, the examples its import
 registers are written as a spec under `tests/lib/doctest/`, and the spec is
 run on the platform's runner. A bundle with no example passes and says so.
 
+An import registers the examples of everything it loads, and a helium bundle
+loads platform modules its dialect did not boot. Those examples are the
+platform's. So what the bundle's sources import from outside the bundle is
+loaded before the walk, and the spec holds the bundle's own examples alone.
+
 Not imported: a listed entry, since importing one sets a session up; a file
 that is one of another module's files; and `constructs.x`, which is data.
 
