@@ -760,6 +760,23 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ---
     (#t ((5.0 6.0) (1.0 2.0) (5.0 6.0) (3.0 4.0)))
 
+### the refusals are the same once the kernels are compiled, the first in the list's order
+
+```x
+(import x/num/tensor)
+(let ((t (Tensor from '(10 20 30) 'f64)))
+  (let ((run (fn (_) (list (guard (e (list (Err label e) (e data))) (t gather '(0 3 1.5)))
+                           (guard (e (list (Err label e) (e data))) (t gather '(0 1.5 3)))
+                           (guard (e (list (Err label e) (e data))) (t gather '(2 -4)))
+                           (guard (e (Err label e)) (t gather '(1.5)))
+                           ((t gather '(-1 -3 2 0)) ->list)))))
+    (let ((before (run)))
+      (Tensor jit!)
+      (list (equal? before (run)) (List map first (List take 3 before)) (List ref 4 before)))))
+```
+---
+    (#t ('value 'type 'value) (30.0 10.0 30.0 10.0))
+
 ## Other names
 
 ### extent, encoding and deviation carry the names other libraries use
