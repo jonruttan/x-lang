@@ -119,6 +119,7 @@
 (shared "lib/x/boot/module.x" %path-join "a directory and a relative part joined, not normalised")
 (shared "lib/x/boot/module.x" %rewrite "overwrites a pair's first and rest")
 (shared "lib/x/boot/module.x" %expanded "marks a form whose expansion is cached in place")
+(shared "lib/x/boot/module.x" %module-program! "ends a dialect's boot: the rest of the input is the program, in an environment of its own")
 
 ; --- core/list.x: the walkers the List class stands on -----------------------
 ; The two walker files are not boot files: a read of one of their other %

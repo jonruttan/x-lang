@@ -111,12 +111,14 @@ want "helium by default, required langs deepest first and once, then the bundle"
 (import-path! \"$L/app\")
 (def %lang-root \"$L/app\")
 (def %lang-lead \"app\")
-(import app/base)" "$got"
+(import app/base)
+
+(%module-program!)" "$got"
 
 # Sourced, as a bundle's shim runs it.
 rm -f "$L/core/tests/lib/harness.gen.x"
 got=$( (FAKE_X_ROOT="$ROOT" BUNDLE="$L/core" X="$TMP/x"; export FAKE_X_ROOT BUNDLE X; . "$GEN") 2>&1 && grep -c '' "$L/core/tests/lib/harness.gen.x" || true)
-want "runs sourced from a shim" "9" "$got"
+want "runs sourced from a shim" "11" "$got"
 
 bundle "$TMP/xe/lisp" lisp xe
 got=$(gen "$TMP/xe/lisp" | sed -n 2p || true)
@@ -184,7 +186,9 @@ want "required libraries armed after the platform, deepest first" \
 (import-path! \"$B/uses\")
 (def %lang-root \"$B/uses\")
 (def %lang-lead \"uses\")
-(import uses/base)" "$got"
+(import uses/base)
+
+(%module-program!)" "$got"
 
 # Every installed library is armed too, as x.sh arms them, and one a sibling
 # checkout already answers for is passed over.
@@ -211,14 +215,16 @@ want "a library's suite arms itself, then what it requires" \
 "(def %install-root \"$ROOT\")
 (include \"$ROOT/build/boot/helium.x\")
 (import-path! \"$B/top\" (lit after))
-(import-path! \"$B/base\" (lit after))" "$got"
+(import-path! \"$B/base\" (lit after))
+
+(%module-program!)" "$got"
 
 got=$(DIALECT=xe gen "$B/top" | sed -n 2p || true)
 want "a library's suite boots the dialect DIALECT names" "(include \"$ROOT/build/boot/xenon.x\")" "$got"
 
 mkdir -p "$B/top/tests"
 printf '(import x/test/assert)\n' > "$B/top/tests/harness.x"
-got=$(gen "$B/top" | sed -n '$p' || true)
+got=$(gen "$B/top" | tail -n 3 | head -n 1 || true)
 want "a library's tests/harness.x is read when it has one" "(import x/test/assert)" "$got"
 
 bundle "$TMP/nolib/t" t he

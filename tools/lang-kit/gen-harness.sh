@@ -261,4 +261,10 @@ mkdir -p "$BUNDLE/tests/lib"
 		printf '(def %%lang-lead "%s")\n' "$_gh_name"
 	fi
 	[ ! -f "$_gh_tail" ] || cat "$_gh_tail"
+	# The harness is the platform the specs run on: the specs after it are
+	# the program, read into an environment of their own, so a name a spec
+	# defines shadows the library's and never reaches its modules.
+	# On a line of its own: a tail whose last line is a comment with no
+	# newline would otherwise swallow it.
+	printf '\n(%%module-program!)\n'
 } > "$BUNDLE/tests/lib/harness.gen.x"

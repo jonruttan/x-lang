@@ -277,15 +277,19 @@
 ; the writer's child's (an engine path, "--batch", "--").  A lang booted from
 ; an image reads its operands from `args`, so the install is followed --
 ; inside the same form, since nothing this loader named survives it -- by a
-; def of this process's list, evaluated with eval! in the root: atomic (a C
-; prim) evaluates the writes, then the rebind.  The name is interned after
-; the install, in the image's table, so the def form is built after it too,
-; by the pair primitive resolved before; the list goes under lit, so def
-; binds it as it is.  atomic leaves the environment as its forms leave it,
+; set! of this process's list, evaluated with eval!: atomic (a C
+; prim) evaluates the writes, then the rebind.  set!, not def: once the
+; program has an environment of its own (boot/module.x, %module-program!)
+; the root slot is the program's, and a def there would leave the library's
+; modules reading the child's `args` from the platform environment; set!
+; rewrites the one binding there is.  The name is interned after
+; the install, in the image's table, so the form is built after it too,
+; by the pair primitive resolved before; the list goes under lit, so set!
+; stores it as it is.  atomic leaves the environment as its forms leave it,
 ; which is the image's.
 (eval (list (eval (lit atomic)) %INSTALL
         (list (eval (lit eval!))
-              (list (eval (lit pair)) (list (lit lit) (lit def))
+              (list (eval (lit pair)) (list (lit lit) (lit set!))
                     (list (eval (lit pair)) (list %->sym (list (lit lit) "args"))
                           (list (eval (lit pair)) (list (lit lit) (list (lit lit) args)) ()))))))
 
