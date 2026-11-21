@@ -1,11 +1,11 @@
-; langs.x -- the lang bundles this platform is checked against.
+; bundles.x -- the lang bundles this platform is checked against.
 ;
-; (langs-dir "PATH")             where bundles live, relative to the repo root.
-;                                X_LANGS_DIR overrides it.
-; (lang "NAME" "DIR" TESTS FAILED)   NAME as `-l` spells it, DIR under langs-dir,
+; (bundles-dir "PATH")             where bundles live, relative to the repo root.
+;                                X_BUNDLE_DIR overrides it.
+; (bundle "NAME" "DIR" TESTS FAILED)   NAME as `-l` spells it, DIR under bundles-dir,
 ;                                and the suite's counts as of the last edit.
 ;
-; FAILED may only shrink (tools/check/langs.sh), the rule percent-globals.x
+; FAILED may only shrink (tools/check/bundles.sh), the rule percent-globals.x
 ; runs on.  A number here is not a target; it is the debt this platform is
 ; known to be carrying, recorded so it cannot quietly grow.
 ;
@@ -26,11 +26,11 @@
 ; that shrank is a different suite, and the gate says so rather than silently
 ; comparing a smaller run to an older number.
 
-(langs-dir "../languages")
+(bundles-dir "../languages")
 
 ; Green, and expected to stay that way.
-(lang "krn"   "x-krn"    74  0)
-(lang "sweet" "x-sweet"  32  0)
+(bundle "krn"   "x-krn"    74  0)
+(bundle "sweet" "x-sweet"  32  0)
 ; python's one failure was `what a class body accepts: only defs and pass`,
 ; which the bundle accepted instead of raising -- x-python's own bug, in
 ; x-python's own repository, measured identically on x-lang 41bca38f +
@@ -43,7 +43,7 @@
 ; measured number is the safe one to record -- the column exists to catch a
 ; suite that SHRANK, and a floor set to a moving high-water mark cries wolf.
 ; It stays at 592 for that reason, not because the suite is that size.
-(lang "python" "x-python" 592  0)
+(bundle "python" "x-python" 592  0)
 ; awk is the self-hosting arc's first tool bundle: the build closure's
 ; heaviest external after the regex trio (docs/bootstrap-closure.md).
 ; 167 = feature-complete: the language, the CLI (`x -l awk -- ...` with
@@ -53,23 +53,23 @@
 ; done: byte-door scans, if-chain dispatchers, no defs at depth -- the
 ; record loop is 2.8x its first measure; the next step is the compile
 ; lanes.
-(lang "awk"   "x-awk"   167  0)
+(bundle "awk"   "x-awk"   167  0)
 ; grep is the arc's second tool, and the closure's MOST-invoked external
 ; (4,186 calls).  BRE by escape-swap translation onto the regex engine,
 ; -E native, -F bytes; -i compiled into the pattern; the full POSIX flag
 ; set minus back-references and [:named:] classes, which refuse loudly.
-(lang "grep"  "x-grep"   29  0)
+(bundle "grep"  "x-grep"   29  0)
 ; sed is the arc's third tool and its first CROSS-BUNDLE build: it
-; requires-lang grep and rides its BRE translator and byte doors.
+; requires-bundle grep and rides its BRE translator and byte doors.
 ; s/// with backrefs on the regex engine's capture groups, addresses
 ; and ranges, the cycle; hold space and multiline are recorded pending.
-(lang "sed"   "x-sed"    21  0)
+(bundle "sed"   "x-sed"    21  0)
 ; make completes the arc's core set (awk, grep, sed, make), and is
 ; deliberately self-contained -- the bootstrap's root requires no other
 ; lang.  The measured GNU subset: the functions, conditionals, pattern
 ; rules and automatics x-lang's own Makefiles use; it dry-runs x-awk's
 ; real Makefile.
-(lang "make"  "x-make"   23  0)
+(bundle "make"  "x-make"   23  0)
 ; coreutils comes second in the arc: NINETY-TWO applets in one bundle
 ; (as busybox is) -- parity with busybox's coreutils set.  The measured
 ; core (sort/tr/cut/join/comm), every digest byte-identical with the
@@ -77,7 +77,7 @@
 ; its own anchored matcher, od, the scripting set, and the nineteen
 ; applets that ride v0.11.0's doors (chmod ln readlink realpath df
 ; uname id ...).  Absent for want of a door: who stty hostid mknod.
-(lang "coreutils" "x-coreutils" 2213 0)
+(bundle "coreutils" "x-coreutils" 2213 0)
 ; cc comes last in the arc: the full C front end, a cell-machine
 ; evaluator (`run` -- every spec an oracle row against /usr/bin/cc),
 ; and `build` -- eligible integer functions lower through the engine's
@@ -100,13 +100,13 @@
 ; macros (argument text, boundary substitution, rescan).
 ; #ifdef/#ifndef/#else/#endif/#undef/#if-defined and initializer lists;
 ; the heap zero-fills (str make is space-filled).
-(lang "cc"    "x-cc"    119  0)
+(bundle "cc"    "x-cc"    119  0)
 ; logo's 83/0 here is the same 83 tests that ran as lib/logo.spec.md in this
 ; tree, against the same turtle kernel, through the bundle's own harness
 ; instead of tests/x/lib.
 ;
 ; It is the one row to run alone.  The turtle kernel's resident heap is 5-7GB
-; (its @weight 7 travelled with it), and check-langs runs these suites in
+; (its @weight 7 travelled with it), and check-bundles runs these suites in
 ; sequence on whatever machine invoked it -- the condition the r7rs note below
 ; describes.  Measured beside another heavy suite, the numbers here do not
 ; mean anything.
@@ -114,7 +114,7 @@
 ; Its two other suites are not counted here and cannot be: the examples gate
 ; and the pty contract live in the bundle's CI, and one of them needs a
 ; terminal this gate cannot provide.
-(lang "logo"  "x-logo"   83  0)
+(bundle "logo"  "x-logo"   83  0)
 
 ; The recorded debt, each row with its reason.
 ;
@@ -126,7 +126,7 @@
 ; ash's.  The bundle has since fixed both: 974 specs, 0 failed, measured at
 ; x-ash b975506 against this tree.  Ratcheted 2 -> 0.  The 82 floor stays, for
 ; the reason the python row states.
-(lang "ash"   "x-ash"    82  0)
+(bundle "ash"   "x-ash"    82  0)
 ; r5rs is GREEN, and it took both halves.  37 -> 9 came from the bundle: R5RS
 ; 6.6 ports rewritten against File (21), and exactness under 6.2.5 (7).  The
 ; last nine were the ELLIPSIS group, and they were the engine's: every token
@@ -185,7 +185,7 @@
 ; (pair () env), so a definition the expansion makes goes with the child.  The
 ; engine's model stayed as it is; the lang chose where its definitions live.
 ; Measured at x-r5rs e1d261e on x-lang v0.15.0: 667/0.
-(lang "r5rs"  "x-r5rs"  667  0)
+(bundle "r5rs"  "x-r5rs"  667  0)
 ; r7rs moved 43 -> 27 on x-engine-c v0.1.5, and the sixteen are all of `error`,
 ; `error objects` and `guard`.  An operative defining for its caller is what
 ; this bundle's `guard` needed: R7RS guard and x's guard are different forms
@@ -198,7 +198,7 @@
 ; 43, not 58, and the correction is about measurement.  58 is what this suite
 ; reports when something else is running: an orphaned engine holding a core has
 ; made it say 49, 58 and 247 for one unchanged tree, with batches dying
-; mid-run.  check-langs runs six suites in sequence, which is precisely that
+; mid-run.  check-bundles runs six suites in sequence, which is precisely that
 ; condition.  Measured twice on a quiet machine it is 43, on both engines.
 ; 27 -> 30, and the three are NOT this platform's doing.  Measured on x-lang
 ; 41bca38f + x-engine-c v0.1.6 -- a tree with none of the ERR work and the old
@@ -226,4 +226,4 @@
 ; environment now (x-r7rs#19).  Measured at x-r7rs b705c54 with x-r5rs v0.2.4
 ; beside it, on x-lang v0.15.0 and on main at f66ab6cf: 637/27, the 27 the
 ; bundle records by name.
-(lang "r7rs"  "x-r7rs"  637 27)
+(bundle "r7rs"  "x-r7rs"  637 27)

@@ -98,10 +98,10 @@ Langs are loaded as additional libraries on top of a dialect, aliasing x-lang pr
 Each lang is a sibling project, installed as a pinned bundle and selected with the same `-l` flag:
 
 ```sh
-x --install-lang https://github.com/jonruttan/x-r5rs/releases/latest/download/lang.pin.xon
+x --install-bundle https://github.com/jonruttan/x-r5rs/releases/latest/download/bundle.pin.xon
 x -l r5rs
 ```
 
-A lang declares the dialect it loads over in its own `lang.xon`. The [README](../README.md#languages-on-top) lists the langs; [The Lang Contract](lang-contract.md) is the terms one is held to.
+A lang declares the dialect it loads over in its own `bundle.xon`. The [README](../README.md#languages-on-top) lists the langs; [The Lang Contract](lang-contract.md) is the terms one is held to.
 
 The interpreter core has no knowledge of any lang. All lang semantics are implemented in x-lang library code.

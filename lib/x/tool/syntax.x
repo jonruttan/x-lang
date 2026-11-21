@@ -20,7 +20,7 @@
 ; lib/x/constructs.x, the list the formatter, the linter and the
 ; documentation read.
 ;
-; Other languages' grammars come from their bundles: a lang.xon's
+; Other languages' grammars come from their bundles: a bundle.xon's
 ; (grammar ...) forms are the catalogue, with the formats' grammars x-lang
 ; ships, and a grammar's module is imported the first time a
 ; file needs it.  A file's grammar is the one its modeline names, else the
@@ -407,7 +407,7 @@
 
 ; --- the catalogue --------------------------------------------------------------
 
-; A grammar a lang bundle declares in its lang.xon, as
+; A grammar a lang bundle declares in its bundle.xon, as
 ; (grammar NAME (module MODULE) (files SUFFIX ...) (names NAME ...)
 ;               (interpreters INTERPRETER ...)),
 ; is a row (NAME MODULE ROOT FILES NAMES INTERPRETERS): ROOT the bundle's
@@ -436,13 +436,13 @@
     (Stream with-fd 2
       (fn (_) (display (Str8 join "" (pair "x/tool/syntax: " (List map (fn (_ p) (Str8 str p)) parts))) "\n")))))
 
-; The langs directory, as x.sh finds it: $X_LANG_DIR, else the install's
-; langs, else deps/langs in a checkout.
-(def %sx-langs-dir
+; The bundles directory, as x.sh finds it: $X_BUNDLE_DIR, else the install's
+; bundles, else deps/bundles in a checkout.
+(def %sx-bundle-dir
   (fn (_)
-    (let ((d (Sys getenv "X_LANG_DIR")))
+    (let ((d (Sys getenv "X_BUNDLE_DIR")))
       (if (if (null? d) #f (< 0 (str-byte-len d))) d
-        (guard (_ "deps/langs") (%path-join %install-root "langs"))))))
+        (guard (_ "deps/bundles") (%path-join %install-root "bundles"))))))
 
 (def %sx-grammar-keys (list (lit module) (lit files) (lit names) (lit interpreters)))
 (def %sx-rule-keys (rest %sx-grammar-keys))
@@ -507,19 +507,20 @@
       ())
     (first (first %sx-rules))))
 
-; Every bundle's rows; a lang.xon that does not read is one line on stderr
+; Every bundle's rows; a bundle.xon that does not read is one line on stderr
 ; and its grammars left out.
 (def %sx-read-bundles
   (fn (_)
-    (def dir (%sx-langs-dir))
+    (def dir (%sx-bundle-dir))
     (List flat-map
       (fn (_ k)
         (let ((root (%path-join dir k)))
-          (def manifest (%path-join root "lang.xon"))
+          (def manifest (%path-join root "bundle.xon"))
           (if (not (File exists? manifest)) ()
             (guard (e (do (%sx-warn (list manifest " unreadable (" e ") -- its grammars are left out"))
                           ()))
-              (List map (fn (_ f) (%sx-grammar-row f root))
+              ; A row's root is the bundle's import root, its lib/.
+              (List map (fn (_ f) (%sx-grammar-row f (%path-join root "lib")))
                 (List filter (fn (_ f) (if (pair? f) (eq? (first f) (lit grammar)) #f))
                   (tok-read-str (%base) (File read-all manifest))))))))
       (guard (_ ()) (File list-dir dir)))))
@@ -547,7 +548,7 @@
       (List filter (fn (_ r) (null? (%sx-row (first r) own))) (%sx-bundles)))))
 
 ; A row's grammar: its root, where it has one, made an import root and its module
-; imported, which registers the grammar.  The lang.xon's files, names and
+; imported, which registers the grammar.  The bundle.xon's files, names and
 ; interpreters are the grammar's where it sets none.  One that does not load
 ; is one line on stderr, and the row is dropped so it is not tried again.
 (def %sx-load
@@ -819,7 +820,7 @@
   (doc "A lexical grammar for highlighting: a Lexer whose rules read every byte, and a table from each token's tag to its class. spans answers (offset length class) for a stretch of text; ansi, html and cells render spans for a terminal, a web page and a screen editor. (Syntax x) is x-lang's own grammar."
     (note "The classes are one vocabulary, (Syntax classes), so a renderer knows every grammar's output: comment string char number keyword constant class private name punct operator escape error.")
     (note "A grammar's lexer is made on its first read, not when the grammar is: making a Lexer compiles its states, which a process that never highlights should not pay for.")
-    (note "The user's syntax file, (Syntax rules-file), gives files grammars their own do not: each (grammar NAME (files ...) (names ...) (interpreters ...)) is a rule, as a lang.xon's grammar form is without its module, asked before every grammar's own and after a modeline. It is data, read and never evaluated, on the first for-file and again after forget!; one that does not read is one line on stderr and no rules.")
+    (note "The user's syntax file, (Syntax rules-file), gives files grammars their own do not: each (grammar NAME (files ...) (names ...) (interpreters ...)) is a rule, as a bundle.xon's grammar form is without its module, asked before every grammar's own and after a modeline. It is data, read and never evaluated, on the first for-file and again after forget!; one that does not read is one line on stderr and no rules.")
     (sample "; ~/.config/x/syntax.x\n(grammar sh (files \".zsh\" \".env\") (names \"PKGBUILD\"))" "a .zsh file, a .env file and a PKGBUILD read as sh")
     (example "((Syntax x) spans \"(def x 42) ; hi\")" "((0 1 'punct) (1 3 'keyword) (5 1 'name) (7 2 'number) (9 1 'punct) (11 4 'comment))"))
   (doc (name ()) "The grammar's name, a symbol"
@@ -900,7 +901,7 @@
         (first %sx-x)))
 
     (method register! (self (param g Syntax "A grammar"))
-      (doc "Add a grammar to the ones named and for-file finds; one of the same name is replaced. A grammar module a bundle's lang.xon names registers its grammar this way when it loads."
+      (doc "Add a grammar to the ones named and for-file finds; one of the same name is replaced. A grammar module a bundle's bundle.xon names registers its grammar this way when it loads."
         (returns Syntax "The grammar")
         (example "(eq? (Syntax register! (Syntax x)) (Syntax named 'x))" "#t"))
       (%set-first! %sx-registry
@@ -908,7 +909,7 @@
       g)
 
     (method named (self (param name SYMBOL "A grammar's name"))
-      (doc "The grammar of that name: a registered one, else one a bundle's lang.xon declares or x-lang ships (json, markdown, html, xml, css, yaml, toml, ini, diff), its module loaded now; nil for none."
+      (doc "The grammar of that name: a registered one, else one a bundle's bundle.xon declares or x-lang ships (json, markdown, html, xml, css, yaml, toml, ini, diff), its module loaded now; nil for none."
         (returns Syntax "The grammar, or nil")
         (example "(eq? (Syntax named 'x) (Syntax x))" "#t"))
       (Syntax x)
@@ -934,7 +935,7 @@
       (%sx-rules-file))
 
     (method catalogue (self)
-      (doc "Every grammar named and for-file can find, as (NAME MODULE ROOT FILES NAMES INTERPRETERS): the registered ones with no module or root, then each bundle's (grammar ...) forms in its lang.xon, read once, then x-lang's own, whose modules are in its library and so have no root, but for a name a bundle declares too."
+      (doc "Every grammar named and for-file can find, as (NAME MODULE ROOT FILES NAMES INTERPRETERS): the registered ones with no module or root, then each bundle's (grammar ...) forms in its bundle.xon, read once, then x-lang's own, whose modules are in its library and so have no root, but for a name a bundle declares too."
         (returns LIST "The rows")
         (example "(first (Syntax catalogue))" "('x () () (\".x\" \".xon\") () (\"x\"))"))
       (Syntax x)

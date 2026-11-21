@@ -1,9 +1,9 @@
 #!/bin/sh
 # # Computational Expressions in C
 #
-# ## tools/check/langs.sh -- run every lang bundle against THIS working tree
+# ## tools/check/bundles.sh -- run every lang bundle against THIS working tree
 #
-# @description Reads tools/contract/langs.x, runs each bundle's spec suite
+# @description Reads tools/contract/bundles.x, runs each bundle's spec suite
 #   against the checkout, and fails if any of them got worse.
 # @author [Jon Ruttan](jonruttan@gmail.com)
 # @copyright 2026 Jon Ruttan
@@ -24,8 +24,8 @@
 # missing bundle is announced and skipped.  A bundle that is present and got
 # worse is fatal.
 #
-# X_LANGS_DIR overrides where bundles are looked for.  LANGS='krn sweet' runs a
-# subset.  LANGS_LOG_DIR keeps each suite's whole output as NAME.log there, so
+# X_BUNDLE_DIR overrides where bundles are looked for.  BUNDLES='krn sweet' runs a
+# subset.  BUNDLES_LOG_DIR keeps each suite's whole output as NAME.log there, so
 # the failing tests can be named after the run.
 #
 # PARALLEL is not forced, and the runners default to serial here.  Several
@@ -38,17 +38,17 @@
 set -e
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-MANIFEST="$ROOT/tools/contract/langs.x"
+MANIFEST="$ROOT/tools/contract/bundles.x"
 
-[ -f "$MANIFEST" ] || { echo "langs: no $MANIFEST" >&2; exit 1; }
+[ -f "$MANIFEST" ] || { echo "bundles: no $MANIFEST" >&2; exit 1; }
 
 # Read the manifest the way every other one here is read: textually, by row.
-DEFAULT_DIR="$(sed -n 's/^(langs-dir "\([^"]*\)").*/\1/p' "$MANIFEST" | head -1)"
-LANGS_DIR="${X_LANGS_DIR:-$ROOT/$DEFAULT_DIR}"
+DEFAULT_DIR="$(sed -n 's/^(bundles-dir "\([^"]*\)").*/\1/p' "$MANIFEST" | head -1)"
+BUNDLES_DIR="${X_BUNDLE_DIR:-$ROOT/$DEFAULT_DIR}"
 
-if [ ! -d "$LANGS_DIR" ]; then
-	echo "langs: SKIPPED -- no bundles at $LANGS_DIR"
-	echo "  set X_LANGS_DIR to point at a directory of lang bundles"
+if [ ! -d "$BUNDLES_DIR" ]; then
+	echo "bundles: SKIPPED -- no bundles at $BUNDLES_DIR"
+	echo "  set X_BUNDLE_DIR to point at a directory of lang bundles"
 	exit 0
 fi
 
@@ -57,7 +57,7 @@ fi
 # from a bundle directory the x on PATH answers the install, so a suite run
 # without this scores the last release rather than the working tree.
 X_UNDER_TEST="$ROOT/x.sh"
-[ -x "$X_UNDER_TEST" ] || { echo "langs: no wrapper at $X_UNDER_TEST" >&2; exit 1; }
+[ -x "$X_UNDER_TEST" ] || { echo "bundles: no wrapper at $X_UNDER_TEST" >&2; exit 1; }
 
 _fails=0
 _skips=0
@@ -66,16 +66,23 @@ _ratchet=""
 printf '%-8s %8s %8s %8s   %s\n' "LANG" "TESTS" "FAILED" "BUDGET" "VERDICT"
 
 # One row per lang: NAME DIR TESTS FAILED
-sed -n 's/^(lang "\([^"]*\)"  *"\([^"]*\)"  *\([0-9]*\)  *\([0-9]*\)).*/\1 \2 \3 \4/p' "$MANIFEST" \
+sed -n 's/^(bundle "\([^"]*\)"  *"\([^"]*\)"  *\([0-9]*\)  *\([0-9]*\)).*/\1 \2 \3 \4/p' "$MANIFEST" \
 | while read -r name dir want_tests budget; do
-	if [ -n "${LANGS:-}" ]; then
-		case " $LANGS " in *" $name "*) ;; *) continue ;; esac
+	if [ -n "${BUNDLES:-}" ]; then
+		case " $BUNDLES " in *" $name "*) ;; *) continue ;; esac
 	fi
 
-	D="$LANGS_DIR/$dir"
+	D="$BUNDLES_DIR/$dir"
 	if [ ! -f "$D/tests/spec-runner.sh" ]; then
 		printf '%-8s %8s %8s %8s   %s\n' "$name" "-" "-" "$budget" "SKIPPED (not present)"
-		echo "$name" >> "$ROOT/.langs-skips.$$"
+		echo "$name" >> "$ROOT/.bundles-skips.$$"
+		continue
+	fi
+	# A directory with no bundle.xon is not a bundle to this platform: the
+	# wrapper would not find it either.  Skipped like one that is not there.
+	if [ ! -f "$D/bundle.xon" ]; then
+		printf '%-8s %8s %8s %8s   %s\n' "$name" "-" "-" "$budget" "SKIPPED (no bundle.xon)"
+		echo "$name" >> "$ROOT/.bundles-skips.$$"
 		continue
 	fi
 
@@ -87,9 +94,9 @@ sed -n 's/^(lang "\([^"]*\)"  *"\([^"]*\)"  *\([0-9]*\)  *\([0-9]*\)).*/\1 \2 \3
 	# The suite runs inside the bundle's directory, so the log directory is
 	# made absolute here, where it was named.
 	log=/dev/null
-	if [ -n "${LANGS_LOG_DIR:-}" ]; then
-		mkdir -p "$LANGS_LOG_DIR"
-		log="$(cd "$LANGS_LOG_DIR" && pwd)/$name.log"
+	if [ -n "${BUNDLES_LOG_DIR:-}" ]; then
+		mkdir -p "$BUNDLES_LOG_DIR"
+		log="$(cd "$BUNDLES_LOG_DIR" && pwd)/$name.log"
 	fi
 	line="$(cd "$D" && X="$X_UNDER_TEST" sh tests/spec-runner.sh 2>&1 \
 		| tee "$log" \
@@ -107,7 +114,7 @@ sed -n 's/^(lang "\([^"]*\)"  *"\([^"]*\)"  *\([0-9]*\)  *\([0-9]*\)).*/\1 \2 \3
 	# a broken platform read as a green one.
 	if [ -z "$line" ] || [ -z "$failed" ]; then
 		printf '%-8s %8s %8s %8s   %s\n' "$name" "?" "?" "$budget" "FAIL (no result -- suite did not report)"
-		echo "$name" >> "$ROOT/.langs-fails.$$"
+		echo "$name" >> "$ROOT/.bundles-fails.$$"
 		continue
 	fi
 
@@ -116,7 +123,7 @@ sed -n 's/^(lang "\([^"]*\)"  *"\([^"]*\)"  *\([0-9]*\)  *\([0-9]*\)).*/\1 \2 \3
 	if [ "$failed" -gt "$budget" ]; then
 		verdict="FAIL (+$((failed - budget)) over budget)"; bad=1
 	elif [ "$failed" -lt "$budget" ]; then
-		verdict="improved -- ratchet langs.x to $failed"
+		verdict="improved -- ratchet bundles.x to $failed"
 	fi
 	# A suite that shrank is compared against a number describing a bigger
 	# run, so the budget no longer means what it said.  Loud, not fatal: a
@@ -130,23 +137,23 @@ sed -n 's/^(lang "\([^"]*\)"  *"\([^"]*\)"  *\([0-9]*\)  *\([0-9]*\)).*/\1 \2 \3
 	# is a non-zero last command, which kills this pipeline's subshell before
 	# the summary below ever runs -- so a clean run of every lang exited 1 with
 	# no verdict line.  The happy path is the one that trips it.
-	if [ "$bad" = 1 ]; then echo "$name" >> "$ROOT/.langs-fails.$$"; fi
+	if [ "$bad" = 1 ]; then echo "$name" >> "$ROOT/.bundles-fails.$$"; fi
 done
 
 # The loop above runs in a subshell (the pipe), so its counters do not survive
 # it.  Files do.
-if [ -f "$ROOT/.langs-skips.$$" ]; then
-	_skips="$(wc -l < "$ROOT/.langs-skips.$$" | tr -d ' ')"
-	rm -f "$ROOT/.langs-skips.$$"
+if [ -f "$ROOT/.bundles-skips.$$" ]; then
+	_skips="$(wc -l < "$ROOT/.bundles-skips.$$" | tr -d ' ')"
+	rm -f "$ROOT/.bundles-skips.$$"
 fi
-if [ -f "$ROOT/.langs-fails.$$" ]; then
-	_fails="$(wc -l < "$ROOT/.langs-fails.$$" | tr -d ' ')"
-	rm -f "$ROOT/.langs-fails.$$"
+if [ -f "$ROOT/.bundles-fails.$$" ]; then
+	_fails="$(wc -l < "$ROOT/.bundles-fails.$$" | tr -d ' ')"
+	rm -f "$ROOT/.bundles-fails.$$"
 fi
 
 echo
 if [ "$_fails" -gt 0 ]; then
-	echo "langs: FAIL -- $_fails bundle(s) worse than tools/contract/langs.x records"
+	echo "bundles: FAIL -- $_fails bundle(s) worse than tools/contract/bundles.x records"
 	exit 1
 fi
-echo "langs: ok ($_skips skipped as absent)"
+echo "bundles: ok ($_skips skipped as absent)"

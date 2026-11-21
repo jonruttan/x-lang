@@ -9,13 +9,13 @@
 # one level deeper and is skipped with its group; the strings and notes a doc
 # form carries follow the close of the provide form and are never reached.
 #
-# Part of the lang kit, so a bundle is held to it by tools/lang-kit/lint.sh
+# Part of the bundle kit, so a bundle is held to it by tools/bundle-kit/lint.sh
 # from an installed tree; tools/check/provide-names.sh runs it over lib/.
 #
-# Usage: sh tools/lang-kit/provide-names.sh FILE...
+# Usage: sh tools/bundle-kit/provide-names.sh FILE...
 set -u
 fail=0
-[ $# -gt 0 ] || { echo "usage: sh tools/lang-kit/provide-names.sh FILE..." >&2; exit 2; }
+[ $# -gt 0 ] || { echo "usage: sh tools/bundle-kit/provide-names.sh FILE..." >&2; exit 2; }
 files=$*
 for f in $files; do
   awk -v file="$f" '

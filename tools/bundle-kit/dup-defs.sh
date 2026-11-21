@@ -1,7 +1,7 @@
 #!/bin/sh
-# # x-lang -- the lang kit
+# # x-lang -- the bundle kit
 #
-# ## tools/lang-kit/dup-defs.sh -- one global name, one meaning
+# ## tools/bundle-kit/dup-defs.sh -- one global name, one meaning
 #
 # @description Fails when two files that load into one root define the same
 #   global name differently.  The platform's own sources and every bundle's

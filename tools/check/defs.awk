@@ -14,7 +14,7 @@
 #
 # Consumers: tools/check/percent-globals.sh (counts %-names per file) and
 # tools/check/spec-globals.sh (the %-names a spec may not rebind).
-# tools/lang-kit/dup-defs.sh carries its own copy of this scan, because the
+# tools/bundle-kit/dup-defs.sh carries its own copy of this scan, because the
 # kit ships to installs and tools/check does not.
 
 # Split the children of a top-level (do ...) body into kids[1..n], tracking

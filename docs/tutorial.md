@@ -341,7 +341,7 @@ as a bundle. Each lives in its own repository; the
 installs from its pin:
 
 ```sh
-x --install-lang https://github.com/jonruttan/x-r5rs/releases/latest/download/lang.pin.xon
+x --install-bundle https://github.com/jonruttan/x-r5rs/releases/latest/download/bundle.pin.xon
 x -l r5rs
 ```
 

@@ -1250,8 +1250,8 @@
 (doc compile-root!
   (param dir STRING "An import root, as import-path! was given it")
   (returns LIST "A Compiled entry for each closure compiled or refused")
-  (sample "(compile-root! %lang-root)" "the closures of every module the lang's root holds, compiled")
-  "Compile, by compile-module!, every loaded module whose file the import roots resolve under DIR: a lang's own modules, when DIR is its root. A lang whose lang.xon says (image compiled) has this run on its root before its state image is written, so the image carries its closures compiled.")
+  (sample "(compile-root! \"bundles/doc/lib\")" "the closures of every module the bundle's root holds, compiled")
+  "Compile, by compile-module!, every loaded module whose file the import roots resolve under DIR: a bundle's own modules, when DIR is its root, the lib/ directory under it. A bundle whose bundle.xon says (image compiled) has this run on its root before its state image is written, so the image carries its closures compiled.")
 
 (doc (provide x/tool/fn-compile compile-fn! compile-module! compile-root!)
   (sample "(import x/tool/fn-compile compile-fn!) (compile-fn! 'fib fib)" "fib compiled where it stands, its interpreted version kept on the Compiled list")

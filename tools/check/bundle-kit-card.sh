@@ -1,7 +1,7 @@
 #!/bin/sh
-# lang-kit-card.sh -- the lang kit's card check refuses what the format refuses.
+# bundle-kit-card.sh -- the bundle kit's card check refuses what the format refuses.
 #
-# tools/lang-kit/card.sh holds a docs/card.md to the card format
+# tools/bundle-kit/card.sh holds a docs/card.md to the card format
 # (docs/contributing.md "The card").  Held here, on fixture cards whose rows
 # need no x:
 #
@@ -32,21 +32,21 @@ card() { mkdir -p "$TMP/$1/docs"; cat > "$TMP/$1/docs/card.md"; }
 # passes NAME / refuses NAME TEXT -- run the check on a fixture; a refusal
 # must say TEXT.
 passes() {
-	if out=$(BUNDLE="$TMP/$1" sh tools/lang-kit/card.sh 2>&1); then
+	if out=$(BUNDLE="$TMP/$1" sh tools/bundle-kit/card.sh 2>&1); then
 		printf '  %s: ok\n' "$1"
 	else
-		printf 'lang-kit-card: %s was refused:\n%s\n' "$1" "$out" >&2
+		printf 'bundle-kit-card: %s was refused:\n%s\n' "$1" "$out" >&2
 		fails=$((fails + 1))
 	fi
 }
 refuses() {
-	if out=$(BUNDLE="$TMP/$1" sh tools/lang-kit/card.sh 2>&1); then
-		printf 'lang-kit-card: %s passed:\n%s\n' "$1" "$out" >&2
+	if out=$(BUNDLE="$TMP/$1" sh tools/bundle-kit/card.sh 2>&1); then
+		printf 'bundle-kit-card: %s passed:\n%s\n' "$1" "$out" >&2
 		fails=$((fails + 1))
 	elif printf '%s\n' "$out" | grep -q -- "$2"; then
 		printf '  %s is refused: ok\n' "$1"
 	else
-		printf 'lang-kit-card: %s was refused without "%s":\n%s\n' "$1" "$2" "$out" >&2
+		printf 'bundle-kit-card: %s was refused without "%s":\n%s\n' "$1" "$2" "$out" >&2
 		fails=$((fails + 1))
 	fi
 }
@@ -213,7 +213,7 @@ refuses output 'expected: ho'
 # are shell: the check knows no lang, only the bundle's runner.
 lang() {
 	mkdir -p "$TMP/$1/tests"
-	echo '(lang "demo")' > "$TMP/$1/lang.xon"
+	echo '(name "demo")' > "$TMP/$1/bundle.xon"
 	echo 'exec sh "$1"' > "$TMP/$1/tests/card-run.sh"
 }
 
@@ -356,7 +356,7 @@ lang outboth
 refuses outboth 'that has arrow comments'
 
 if [ "$fails" -gt 0 ]; then
-	echo "lang-kit-card: FAIL ($fails)" >&2
+	echo "bundle-kit-card: FAIL ($fails)" >&2
 	exit 1
 fi
-echo "lang-kit-card: ok"
+echo "bundle-kit-card: ok"

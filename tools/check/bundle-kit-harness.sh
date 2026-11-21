@@ -1,12 +1,12 @@
 #!/bin/sh
-# lang-kit-harness.sh -- the lang kit's harness generator boots what lang.xon
+# bundle-kit-harness.sh -- the bundle kit's harness generator boots what bundle.xon
 # declares.
 #
-# tools/lang-kit/gen-harness.sh writes a bundle's spec harness.  Held here:
+# tools/bundle-kit/gen-harness.sh writes a bundle's spec harness.  Held here:
 #
 #   - the dialect's body is found through its entry, loaded from its amalgam,
 #     the install layout ahead of the checkout's;
-#   - required langs are found by declared name, X_LANG_DIR ahead of the
+#   - required langs are found by declared name, X_BUNDLE_DIR ahead of the
 #     bundle's siblings, and armed deepest first, each once;
 #   - the bundle's own root, %lang-root and %lang-lead follow, then its
 #     tests/harness.x;
@@ -21,7 +21,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR" || exit 1
-GEN="$PROJECT_DIR/tools/lang-kit/gen-harness.sh"
+GEN="$PROJECT_DIR/tools/bundle-kit/gen-harness.sh"
 
 TMP=$(mktemp -d)
 TMP=$(cd "$TMP" && pwd)
@@ -36,7 +36,7 @@ want() {
 	if [ "$2" = "$3" ]; then
 		printf '  %s: ok\n' "$1"
 	else
-		printf 'lang-kit-harness: %s -- expected [%s], got [%s]\n' "$1" "$2" "$3" >&2
+		printf 'bundle-kit-harness: %s -- expected [%s], got [%s]\n' "$1" "$2" "$3" >&2
 		fails=$((fails + 1))
 	fi
 }
@@ -46,7 +46,7 @@ refuses() {
 	case "$3" in
 		"FAILED:"*"$2"*) printf '  %s: ok\n' "$1" ;;
 		*)
-			printf 'lang-kit-harness: %s -- expected a refusal naming [%s], got [%s]\n' "$1" "$2" "$3" >&2
+			printf 'bundle-kit-harness: %s -- expected a refusal naming [%s], got [%s]\n' "$1" "$2" "$3" >&2
 			fails=$((fails + 1))
 			;;
 	esac
@@ -73,10 +73,10 @@ bundle() {
 	shift 3
 	mkdir -p "$_d/tests"
 	{
-		printf '(lang "%s")\n' "$_n"
+		printf '(name "%s")\n' "$_n"
 		[ -z "$_dl" ] || printf '(dialect %s)\n' "$_dl"
-		for _r in "$@"; do printf '(requires-lang "%s")\n' "$_r"; done
-	} > "$_d/lang.xon"
+		for _r in "$@"; do printf '(requires-bundle "%s")\n' "$_r"; done
+	} > "$_d/bundle.xon"
 	printf '(import %s/base)\n' "$_n" > "$_d/tests/harness.x"
 }
 
@@ -93,17 +93,17 @@ L="$TMP/langs"
 bundle "$L/core" core he
 bundle "$L/mid" mid he core
 # the version rides on the row and is not compared
-printf '(lang "app")\n(requires-lang "mid" "v9.9.9")\n(requires-lang "core")\n' > "$L/app.xon"
+printf '(name "app")\n(requires-bundle "mid" "v9.9.9")\n(requires-bundle "core")\n' > "$L/app.bundle"
 bundle "$L/app" app ""
-mv "$L/app.xon" "$L/app/lang.xon"
+mv "$L/app.bundle" "$L/app/bundle.xon"
 
 got=$(gen "$L/app" || true)
-want "helium by default, required langs deepest first and once, then the bundle" \
+want "helium by default, required bundles deepest first and once, then the bundle" \
 "(def %install-root \"$ROOT\")
 (include \"$ROOT/build/boot/helium.x\")
-(import-path! \"$L/core\")
-(import-path! \"$L/mid\")
-(import-path! \"$L/app\")
+(import-path! \"$L/core/lib\")
+(import-path! \"$L/mid/lib\")
+(import-path! \"$L/app/lib\")
 (def %lang-root \"$L/app\")
 (def %lang-lead \"app\")
 (import app/base)
@@ -126,8 +126,8 @@ got=$(gen "$L/core" "$TMP/installed" | sed -n 2p || true)
 want "the install layout ahead of the checkout's" "(include \"$TMP/installed/boot/helium.x\")" "$got"
 
 bundle "$TMP/elsewhere/core" core he
-got=$(X_LANG_DIR="$TMP/elsewhere" gen "$L/mid" | sed -n 3p || true)
-want "X_LANG_DIR ahead of the siblings" "(import-path! \"$TMP/elsewhere/core\")" "$got"
+got=$(X_BUNDLE_DIR="$TMP/elsewhere" gen "$L/mid" | sed -n 3p || true)
+want "X_BUNDLE_DIR ahead of the siblings" "(import-path! \"$TMP/elsewhere/core/lib\")" "$got"
 
 bundle "$TMP/notail/t" t he
 rm "$TMP/notail/t/tests/harness.x"
@@ -152,7 +152,7 @@ bundle "$TMP/twice/t" t he dup
 refuses "two bundles claiming one name" "two bundles both call themselves 'dup'" "$(gen "$TMP/twice/t" || true)"
 
 bundle "$TMP/missing/t" t he nowhere
-refuses "a required lang that is not there" "lang 'nowhere' is required but was not found" "$(gen "$TMP/missing/t" || true)"
+refuses "a required bundle that is not there" "bundle 'nowhere' is required but was not found" "$(gen "$TMP/missing/t" || true)"
 
 # This tree: each dialect's body has the amalgam `make boot` writes.
 for _dl in he xe rn; do
@@ -161,13 +161,13 @@ for _dl in he xe rn; do
 	if [ -n "$_inc" ] && [ -f "$_inc" ]; then
 		printf '  %s boots a built body: ok\n' "$_dl"
 	else
-		printf 'lang-kit-harness: dialect %s -- no built body amalgam (%s); does make boot write it?\n' "$_dl" "${_inc:-none}" >&2
+		printf 'bundle-kit-harness: dialect %s -- no built body amalgam (%s); does make boot write it?\n' "$_dl" "${_inc:-none}" >&2
 		fails=$((fails + 1))
 	fi
 done
 
 if [ "$fails" -gt 0 ]; then
-	echo "lang-kit-harness: $fails failed" >&2
+	echo "bundle-kit-harness: $fails failed" >&2
 	exit 1
 fi
-echo "lang-kit-harness: ok"
+echo "bundle-kit-harness: ok"

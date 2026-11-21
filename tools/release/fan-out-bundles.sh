@@ -1,16 +1,16 @@
 #!/bin/sh
-# fan-out-langs.sh -- run every language bundle's suite against an x, and
+# fan-out-bundles.sh -- run every language bundle's suite against an x, and
 # stage the release bump for the ones that pass.
 #
-#   sh tools/release/fan-out-langs.sh TAG /path/to/x [LANGS_DIR]
+#   sh tools/release/fan-out-bundles.sh TAG /path/to/x [LANGS_DIR]
 #
 # The x-lang half of a release fan-out: eight bundles, each needing the
 # same four motions -- point X at the new tree, run the suite, bump
-# (requires-release ...) in lang.xon, leave the change for review.  This
+# (requires-release ...) in bundle.xon, leave the change for review.  This
 # script sequences them and stops exactly where a human should look:
 #
 #   - Nothing is pushed and no PR is opened.  A green bundle gets a local
-#     branch (bump/x-lang-TAG) carrying the one-line lang.xon commit; a
+#     branch (bump/x-lang-TAG) carrying the one-line bundle.xon commit; a
 #     red one gets a log and a report line.  Red means the release
 #     surfaced a real incompatibility, and a bump staged over it would
 #     claim otherwise.
@@ -32,8 +32,8 @@
 set -e
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-TAG="${1:?usage: sh tools/release/fan-out-langs.sh TAG /path/to/x [LANGS_DIR]}"
-XBIN="${2:?usage: sh tools/release/fan-out-langs.sh TAG /path/to/x [LANGS_DIR]}"
+TAG="${1:?usage: sh tools/release/fan-out-bundles.sh TAG /path/to/x [LANGS_DIR]}"
+XBIN="${2:?usage: sh tools/release/fan-out-bundles.sh TAG /path/to/x [LANGS_DIR]}"
 LANGS="${3:-$ROOT/../languages}"
 
 case "$XBIN" in /*) ;; *) XBIN="$(pwd)/$XBIN" ;; esac
@@ -88,11 +88,11 @@ for repo in "$LANGS"/*/; do
 	[ -L "$wt" ] && rm "$wt"      # a sibling link from an earlier bundle
 	git -C "$repo" worktree add -q "$wt" -b "$BRANCH" "$base"
 
-	# A bundle may declare (requires-lang "NAME") siblings it expects
+	# A bundle may declare (requires-bundle "NAME") siblings it expects
 	# BESIDE itself; the isolated worktree has none, so link each
 	# declared sibling's checkout in.  Read-only use: the suite loads
 	# the sibling's lang tree, it does not run the sibling's gate.
-	for lang in $(sed -n 's/^(requires-lang "\([^"]*\)".*/\1/p' "$wt/lang.xon"); do
+	for lang in $(sed -n 's/^(requires-bundle "\([^"]*\)".*/\1/p' "$wt/bundle.xon"); do
 		for cand in "$LANGS/$lang" "$LANGS/x-$lang"; do
 			if [ -d "$cand" ] && [ ! -e "$WORK/$(basename "$cand")" ]; then
 				ln -s "$cand" "$WORK/$(basename "$cand")"
@@ -108,17 +108,17 @@ for repo in "$LANGS"/*/; do
 
 	if ( cd "$wt" && X="$XBIN" sh "$runner" ) > "$log" 2>&1; then
 		sed "s|^(requires-release \"[^\"]*\")|(requires-release \"$TAG\")|" \
-			"$wt/lang.xon" > "$wt/lang.xon.new"
-		if cmp -s "$wt/lang.xon" "$wt/lang.xon.new"; then
-			rm -f "$wt/lang.xon.new"
+			"$wt/bundle.xon" > "$wt/bundle.xon.new"
+		if cmp -s "$wt/bundle.xon" "$wt/bundle.xon.new"; then
+			rm -f "$wt/bundle.xon.new"
 			echo "$name: SKIP -- green ($door) but no (requires-release ...) row to bump"
 			skipped="$skipped $name"
 			git -C "$repo" worktree remove -f "$wt"
 			git -C "$repo" branch -q -D "$BRANCH"
 			continue
 		fi
-		mv "$wt/lang.xon.new" "$wt/lang.xon"
-		git -C "$wt" commit -q lang.xon -m "chore: require x-lang $TAG ($door green)"
+		mv "$wt/bundle.xon.new" "$wt/bundle.xon"
+		git -C "$wt" commit -q bundle.xon -m "chore: require x-lang $TAG ($door green)"
 		echo "$name: staged -- $BRANCH off $base ($door green)"
 		staged="$staged $name"
 	else

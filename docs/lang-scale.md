@@ -5,15 +5,15 @@ what has to be true for there to be twenty of them, and it exists because the
 answers are different: nothing in the contract is wrong at a dozen bundles,
 and three things in it are O(N) by hand.
 
-> **Status.** Rulings 1, 2 and 5 are built: the lang kit under
-> `tools/lang-kit/`, the release-refs gate in four bundles (x-coreutils,
-> x-logo, x-r5rs, x-r7rs), and `requires-lang`. Ruling 3 is settled by
+> **Status.** Rulings 1, 2 and 5 are built: the bundle kit under
+> `tools/bundle-kit/`, the release-refs gate in four bundles (x-coreutils,
+> x-logo, x-r5rs, x-r7rs), and `requires-bundle`. Ruling 3 is settled by
 > pinning, and its checks are each bundle's own. Ruling 4, the pins in the
 > registry, is not built.
 
 ## The problem
 
-The registry, `tools/contract/langs.x`, lists thirteen langs. The cost of
+The registry, `tools/contract/bundles.x`, lists thirteen langs. The cost of
 the next one is not in the language. It is in everything around it:
 
 **The scaffolding is a copy.** `tools/bundle.sh`, `tests/spec-gate.sh`,
@@ -24,12 +24,12 @@ Fixing a bug in one means a pull request per bundle, and the bug stays fixed
 only in the ones that got it.
 
 **One fact is written in many places.** The platform release a bundle
-requires appears in `lang.xon`, `README.md` and `.github/workflows/ci.yml`.
+requires appears in `bundle.xon`, `README.md` and `.github/workflows/ci.yml`.
 A platform release is a hand edit in each of them, in every bundle, and the
 count grows with the catalogue.
 
-**The cross-repo gate runs every suite in sequence.** `check-langs` is the
-right idea and it rides gates, not gates-fast, but `tools/contract/langs.x`
+**The cross-repo gate runs every suite in sequence.** `check-bundles` is the
+right idea and it rides gates, not gates-fast, but `tools/contract/bundles.x`
 records what running the suites back to back does to the count: one
 unchanged tree reported different failure counts on successive runs under
 that load, with batches dying mid-run. The gate that exists to detect
@@ -48,13 +48,13 @@ replace it:
 | | catches | cost |
 |---|---|---|
 | `check-seam` | a rename in the platform breaking every lang | gates-fast |
-| `check-langs` | a behaviour change the platform cannot see | every registered suite, gates |
+| `check-bundles` | a behaviour change the platform cannot see | every registered suite, gates |
 | per-bundle CI | the bundle's own correctness, on a release matrix | per bundle |
 | `requires-release` | running against an untested platform | a string compare |
-| `requires-lang` | a lang's dependency on another lang | a string compare |
+| `requires-bundle` | a lang's dependency on another lang | a string compare |
 
 Four of the five ways the last generation rotted are closed by these. The
-record in `langs.x` shows the fifth being caught in the act: the bundles
+record in `bundles.x` shows the fifth being caught in the act: the bundles
 carried failures between them while x-lang was green, and pinning a newer
 engine removed most of them without a line changing in any bundle.
 
@@ -65,7 +65,7 @@ copies — the engine, the boot amalgam, the library overlay. **The scaffolding
 is a fourth.**
 
 Nothing in the 12 lines that differ between two `bundle.sh` copies is
-information `lang.xon` does not already carry. The manifest knows the lang's
+information `bundle.xon` does not already carry. The manifest knows the lang's
 name, its dialect, its required release and its required langs. A kit
 acquired by pin and parameterized from the manifest reduces a new bundle to
 the only two things that are actually its own: **the language, and its specs.**
@@ -87,7 +87,7 @@ vendored into the release tarball so an unpacked bundle needs nothing.
 > shipping it taught](#what-shipping-ruling-2-taught) below. The other
 > bundles do neither yet.
 
-`requires-release` in `lang.xon` is the truth about which platform a bundle was
+`requires-release` in `bundle.xon` is the truth about which platform a bundle was
 built against. The README and the CI matrix should **derive** it, not repeat
 it.
 
@@ -139,7 +139,7 @@ release that does not exist yet. Pinning makes it unnecessary.
 
 ## Ruling 4: the registry carries pins, not just directories
 
-`tools/contract/langs.x` is already the registry. It records where a bundle
+`tools/contract/bundles.x` is already the registry. It records where a bundle
 sits on disk and what its suite last reported, and it is honest that those
 counts are "against whatever revision of each bundle is checked out".
 
@@ -158,14 +158,14 @@ about.
 ## Ruling 5: a dependent lang is a lang that requires a lang
 
 R5RS and R7RS are the first case, and no new concept was needed to express
-the relationship: `x-r7rs` declares `(requires-lang "r5rs" "v0.2.0")` and the
+the relationship: `x-r7rs` declares `(requires-bundle "r5rs" "v0.2.0")` and the
 platform arms the dependency's root before the dependent's own. A Python 2
 beside a Python 3, or several related shells, falls out the same way.
 
 **Resist a dependency mechanism.** The axes are already named and already
 checked — a lang declares its dialect, and `check-dialect-cover` holds the
 platform to all three. What grows with a large catalogue is the *matrix*
-(lang × release), not the *vocabulary*. A new row in `lang.xon`
+(lang × release), not the *vocabulary*. A new row in `bundle.xon`
 would have to be understood by every reader of every manifest, forever, to
 express something two existing rows already say.
 

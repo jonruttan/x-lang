@@ -104,7 +104,7 @@ want "a raise in -c is reported bare" "Error: Unbound SYMBOL 'no-such-binding'" 
 # stdin (x-logo's batch reader, x-python's loop), so it is cat'd whole and
 # not wrapped in an include form: a raise in it carries no file and line,
 # which is the visible half of that.  seamprobe stands in for a lang.
-err=$(X_LANG_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l seamprobe -f "$TMP/e.x" 2>&1 >/dev/null || true)
+err=$(X_BUNDLE_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l seamprobe -f "$TMP/e.x" 2>&1 >/dev/null || true)
 want "a lang's -f file is text for its reader, not an include form" "Error: Unbound SYMBOL 'no-such-binding'" "$err"
 
 # An interactive session is no program, so its lang's entry runs with no guard
@@ -123,8 +123,8 @@ cat > "$TMP/session.x" <<'EOF'
     (let go ((acc ""))
       (let ((n (File read fd buf 256)))
         (if (<= n 0) acc (go (Str8 append acc (Str8 sub 0 n buf))))))))
-(def %line "(write (guard (_ 'unbound) guardprobe-unguarded)) (Sys exit 0)\n")
-(def c (Pty spawn "/bin/sh" (list "-c" "X_LANG_DIR=tools/contract/bundles/ exec sh x.sh --no-pin -q -l guardprobe") 80 24))
+(def %line "(write (guard (_ 'unbound) (eval (lit guardprobe-unguarded) (Module env (lit guardprobe/run))))) (Sys exit 0)\n")
+(def c (Pty spawn "/bin/sh" (list "-c" "X_BUNDLE_DIR=tools/contract/bundles/ exec sh x.sh --no-pin -q -l guardprobe") 80 24))
 (File write (rest c) %line (Str8 length %line))
 (def out (%drain (rest c)))
 (File close (rest c))
@@ -141,19 +141,19 @@ want "-l selects the dialect" "1/2" "$got"
 # A further -l loads a bundle beside the first lang.  The fixture bundle the
 # seam gate uses is enough: what is under test is the wrapper's arrangement
 # -- the root armed, the entry read, and %lang-lead naming the first.
-got=$(X_LANG_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l he -l seamprobe \
-	-c '(write (list %lang-lead (Str8 ends? "seamprobe/run.x" (%module-resolve-file "run.x")) (guard (_ "no root") %lang-root)))' 2>/dev/null || true)
+got=$(X_BUNDLE_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l he -l seamprobe \
+	-c '(write (list %lang-lead (Str8 ends? "seamprobe/lib/seamprobe/run.x" (%module-resolve (lit seamprobe/run))) (guard (_ "no root") %lang-root)))' 2>/dev/null || true)
 want "a further -l loads a bundle beside a dialect" '("he" #t "no root")' "$got"
-got=$(X_LANG_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l seamprobe -c '(write %lang-lead)' 2>/dev/null || true)
+got=$(X_BUNDLE_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l seamprobe -c '(write %lang-lead)' 2>/dev/null || true)
 want "the first -l is the lead" '"seamprobe"' "$got"
-# X_LANG_DIR with no trailing slash finds the same bundles: the wrapper
+# X_BUNDLE_DIR with no trailing slash finds the same bundles: the wrapper
 # appends the slash, since every bundle README spells the checkout form
-# `X_LANG_DIR=/path/to/x-NAME/..`.
-got=$(X_LANG_DIR=tools/contract/bundles sh x.sh --no-pin -q -l seamprobe -c '(write %lang-lead)' 2>/dev/null || true)
-want "X_LANG_DIR without a trailing slash finds a bundle" '"seamprobe"' "$got"
+# `X_BUNDLE_DIR=/path/to/x-NAME/..`.
+got=$(X_BUNDLE_DIR=tools/contract/bundles sh x.sh --no-pin -q -l seamprobe -c '(write %lang-lead)' 2>/dev/null || true)
+want "X_BUNDLE_DIR without a trailing slash finds a bundle" '"seamprobe"' "$got"
 got=$(sh x.sh --no-pin -q -l he -c '(write (guard (_ "unbound") %lang-lead))' 2>/dev/null || true)
 want "no bundle, no lead" '"unbound"' "$got"
-if X_LANG_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l he -l xe -c '()' >/dev/null 2>&1; then
+if X_BUNDLE_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l he -l xe -c '()' >/dev/null 2>&1; then
 	printf 'wrapper: a further -l naming a dialect was accepted\n' >&2
 	fails=$((fails + 1))
 else
@@ -162,7 +162,7 @@ fi
 
 # --help lists every option the parser accepts.  The labels are read off the
 # option loop's case arms, so an option added there without a help line fails
-# here rather than staying undocumented, which is how --install-lang,
+# here rather than staying undocumented, which is how --install-bundle,
 # --share-dir and --engine-path went unlisted.
 help=$(sh x.sh --help 2>/dev/null || true)
 case "$help" in

@@ -29,7 +29,7 @@
 ;              checking the name is absent from a checkout -- a seam row that
 ;              became unconditional would make every guard unnecessary.
 ;   bundle     bound only while a lang bundle is loaded (`-l NAME` resolving
-;              through langs/*/lang.xon); absent in a bare dialect.  The gate
+;              through bundles/*/bundle.xon); absent in a bare dialect.  The gate
 ;              checks both halves, and the second half needs a bundle to load:
 ;              tools/contract/bundles/seamprobe/ is that bundle, a fixture
 ;              rather than a lang, nine lines whose only job is to be loaded.

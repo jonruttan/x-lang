@@ -1,7 +1,7 @@
 #!/bin/sh
-# lang-kit-dup-defs.sh -- the lang kit's dup-defs reads a bundle's sources.
+# bundle-kit-dup-defs.sh -- the bundle kit's dup-defs reads a bundle's sources.
 #
-# tools/lang-kit/dup-defs.sh, run over a fixture bundle, one case each:
+# tools/bundle-kit/dup-defs.sh, run over a fixture bundle, one case each:
 #
 #   - two files defining one name differently are red, and both are named;
 #   - the same definition, text for text, in two files is green;
@@ -22,7 +22,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR" || exit 1
-KIT="$PROJECT_DIR/tools/lang-kit"
+KIT="$PROJECT_DIR/tools/bundle-kit"
 
 TMP=$(mktemp -d)
 TMP=$(cd "$TMP" && pwd)
@@ -46,19 +46,19 @@ _case() {
 
 _green() {
 	if [ "$st" = 0 ]; then printf '  %s: ok\n' "$1"
-	else printf 'lang-kit-dup-defs: %s read as red:\n%s\n' "$1" "$out" >&2; fails=$((fails + 1)); fi
+	else printf 'bundle-kit-dup-defs: %s read as red:\n%s\n' "$1" "$out" >&2; fails=$((fails + 1)); fi
 }
 
 # _red WHAT TEXT...: red, and the output holds every TEXT.
 _red() {
 	_what=$1; shift
 	if [ "$st" = 0 ]; then
-		printf 'lang-kit-dup-defs: %s read as green\n' "$_what" >&2; fails=$((fails + 1)); return
+		printf 'bundle-kit-dup-defs: %s read as green\n' "$_what" >&2; fails=$((fails + 1)); return
 	fi
 	for _t in "$@"; do
 		case "$out" in
 			*"$_t"*) ;;
-			*) printf 'lang-kit-dup-defs: %s is red without naming %s:\n%s\n' "$_what" "$_t" "$out" >&2
+			*) printf 'bundle-kit-dup-defs: %s is red without naming %s:\n%s\n' "$_what" "$_t" "$out" >&2
 			   fails=$((fails + 1)); return ;;
 		esac
 	done
@@ -132,10 +132,10 @@ printf 'touch "%s/ran"\n' "$TMP" > "$TMP/b/tests/spec-runner.sh"
 printf '# none\n' > "$TMP/b/tests/contract/known-failures.txt"
 out=$(BUNDLE="$TMP/b" KIT="$KIT" sh "$KIT/spec-gate.sh" 2>&1) && st=0 || st=$?
 if [ -f "$TMP/ran" ]; then
-	printf 'lang-kit-dup-defs: the spec gate ran the suite past a clash\n' >&2; fails=$((fails + 1))
+	printf 'bundle-kit-dup-defs: the spec gate ran the suite past a clash\n' >&2; fails=$((fails + 1))
 else
 	_red "the spec gate on a clash" "%v" "two meanings"
 fi
 
-[ "$fails" = 0 ] || { echo "lang-kit-dup-defs: $fails failed" >&2; exit 1; }
-echo "lang-kit-dup-defs: one global name, one meaning, across a bundle's files."
+[ "$fails" = 0 ] || { echo "bundle-kit-dup-defs: $fails failed" >&2; exit 1; }
+echo "bundle-kit-dup-defs: one global name, one meaning, across a bundle's files."

@@ -330,30 +330,30 @@ so the fact is optional and reads back as nil.
 ---
     127
 
-## pin: a bundle's lang.xon
+## pin: a bundle's bundle.xon
 
 A bundle's declaration is read when it is acquired and held against the pin
 that asked for it.  Like every manifest here it is a closed vocabulary: a
 form the reader does not know is refused, so every form a bundle may write
 is named here (docs/lang-contract.md, "The declaration").
 
-### a declaration with every form reads, and answers its lang
+### a declaration with every form reads, and answers its name
 
 ```x
 (do
   (import x/tool/pin)
-  (display (%assoc-get 'lang (Pin %pin-lang-parse (Pin %pin-forms
-    "(lang \"r7rs\") (dialect he) (requires-release \"v0.26.0\") (requires-lang \"r5rs\" \"v0.2.4\") (requires-lang \"grep\") (entry \"run.x\")")))))
+  (display (%assoc-get 'name (Pin %pin-lang-parse (Pin %pin-forms
+    "(name \"r7rs\") (dialect he) (requires-release \"v0.26.0\") (requires-bundle \"r5rs\" \"v0.2.4\") (requires-bundle \"grep\") (entry run) (entry serve) (image compiled)")))))
 ```
 ---
     r7rs
 
-### an unknown lang.xon form is still a loud error
+### an unknown bundle.xon form is still a loud error
 
 ```x
 (do
   (import x/tool/pin)
-  (display (throws? (fn (_) (Pin %pin-lang-parse (Pin %pin-forms "(lang \"x\") (evil 1)"))))))
+  (display (throws? (fn (_) (Pin %pin-lang-parse (Pin %pin-forms "(name \"x\") (evil 1)"))))))
 ```
 ---
     #t
@@ -364,17 +364,17 @@ is named here (docs/lang-contract.md, "The declaration").
 (do
   (import x/tool/pin)
   (display (%assoc-get 'entry (Pin %pin-lang-parse (Pin %pin-forms
-    "(lang \"x\") (grammar sh (module ash/syntax) (files \".sh\")) (entry \"run.x\")")))))
+    "(name \"x\") (grammar sh (module ash/syntax) (files \".sh\")) (entry run)")))))
 ```
 ---
-    run.x
+    (run)
 
 ### a grammar form with no name is a loud error
 
 ```x
 (do
   (import x/tool/pin)
-  (display (throws? (fn (_) (Pin %pin-lang-parse (Pin %pin-forms "(lang \"x\") (grammar \"sh\")"))))))
+  (display (throws? (fn (_) (Pin %pin-lang-parse (Pin %pin-forms "(name \"x\") (grammar \"sh\")"))))))
 ```
 ---
     #t
