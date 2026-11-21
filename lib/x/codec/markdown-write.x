@@ -217,7 +217,7 @@
     (see text))
   (static
     (method text (self (param blocks LIST "A document's blocks"))
-      (doc "The blocks as Markdown text: headings as number signs, emph and strong in asterisks, code in backticks, a code block fenced, a quote led by >, list items by - or their numbers, a rule as ---, a table as a GitHub pipe table (which CommonMark, and so (Markdown parse), reads as its rows' text), a blank line between blocks and none in a tight list. Text is escaped where Markdown would read it as markup. Raw HTML is written as it is and a form's field is its value."
+      (doc "The blocks as Markdown text: headings as number signs, emph and strong in asterisks, code in backticks, a code block fenced, a quote led by >, list items by - or their numbers, a rule as ---, a table as a GitHub pipe table (one with no header row given an empty one, which (Markdown parse) reads back as a header), a blank line between blocks and none in a tight list. Text is escaped where Markdown would read it as markup. Raw HTML is written as it is and a form's field is its value."
         (returns STRING "Markdown text, empty for no blocks")
         (example "(MarkdownWrite text (list (list 'paragraph (list \"2 * 3 \" (list 'code \"x\") \" \" (list 'link \"/u\" () (list \"here\"))))))" "\"2 \\\\* 3 `x` [here](/u)\\n\"")
         (example "(MarkdownWrite text (list (list 'list #t 3 #t (list (list (list 'paragraph (list \"a\"))) (list (list 'paragraph (list \"b\")))))))" "\"3. a\\n4. b\\n\""))
