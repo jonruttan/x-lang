@@ -232,6 +232,15 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 ---
     "\"h\\ni\""
 
+### a control byte with no short escape comes out as \u00XX
+
+```x
+(do (import x/codec/json)
+  (Json emit (bytes->str (list 104 1 31 105))))
+```
+---
+    "\"h\\u0001\\u001fi\""
+
 ### lists emit as arrays
 
 ```x
