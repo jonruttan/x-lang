@@ -311,3 +311,55 @@ pixels out, does not reach.
 ```
 ---
     (((13 . #t) (7 . #f)) (0 0 0 0) (1 2 3 255))
+
+## labels
+
+### a label is its glyphs' strokes as lines, its box about 0 0
+
+A capital 6 high makes a grid unit one unit: L is 4 wide and 6 high, three
+points and so 7 rows, and its line a tenth of the height. H is three
+strokes and i a stem and a dot.
+
+```x
+(import x/gfx/figure)
+(do
+  (def fig-ell (Figure label "L" 6))
+  (list (Figure bounds fig-ell) (List ref 1 fig-ell) (List ref 4 fig-ell)
+        (List ref 1 (Figure label "Hi" 1))))
+```
+---
+    ((-2.0 -3.0 2.0 3.0) ((7 . #f)) 0.6 ((4 . #f) (4 . #f) (4 . #f) (4 . #f) (4 . #f)))
+
+### a character is 6 across with its space; a space draws nothing and keeps its place
+
+```x
+(import x/gfx/figure)
+(list (Figure bounds (Figure label "LL" 6)) (Figure bounds (Figure label "L L" 6))
+      (List length (List ref 1 (Figure label "L L" 6))))
+```
+---
+    ((-5.0 -3.0 5.0 3.0) (-8.0 -3.0 8.0 3.0) 2)
+
+### text with no stroke raises
+
+```x
+(import x/gfx/figure)
+(guard (e (Err text e)) (Figure label "  " 1))
+```
+---
+    "Figure: label: nothing to draw"
+
+### a label is drawn: on its strokes and off them
+
+Eight pixels a unit on 64 by 64, a capital 4 units high: L's upright is at
+x = 21.3 and its foot at y = 48, the line 3.2 wide.
+
+```x
+(import x/gfx/canvas)
+(import x/gfx/figure)
+(do
+  (def fig-ell-pic (Figure draw! (Canvas make 64 64) (Figure label "L" 4)))
+  (list (Canvas pixel fig-ell-pic 21 30) (Canvas pixel fig-ell-pic 30 47) (Canvas pixel fig-ell-pic 30 30)))
+```
+---
+    ((255 255 255 255) (255 255 255 255) (0 0 0 0))
