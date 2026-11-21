@@ -7,6 +7,7 @@
 ;   (code-block INFO TEXT)           (block-quote BLOCKS)
 ;   (list ORDERED? START TIGHT? ITEMS), each item a list of blocks
 ;   (thematic-break)                 (html-block TEXT)
+;   (table #t ALIGNS ROWS), GitHub's pipe table, each row a list of cells
 ;
 ; and inlines a list of strings (text) and lists:
 ;
@@ -21,6 +22,8 @@
 ; The parse is commonmark.js's: a line at a time against the stack of open
 ; blocks (continue each, start new ones, then add the rest as text), then each
 ; paragraph and heading's text through the delimiter and bracket stacks.
+; A paragraph holding a line followed by a delimiter row of as many cells
+; (| --- | :-: |) is a table from that line, as GitHub reads one.
 ; Character references are x/codec/entity's.  Not yet here: Unicode case
 ; folding and punctuation (labels fold ASCII; flanking sees ASCII punctuation).
 ;
@@ -1069,11 +1072,86 @@
               (#t (go (%md-get k 5) (pair (list t) out)))))
           (%md-get k 0) (%md-get k 1))))
      (%md-get nd 3) ())))
+; --- tables (GitHub's extension) --------------------------------------------
+; LINE's cells: split at each bar no backslash escapes, a bar at either end
+; dropping the empty cell beyond it, each trimmed and its \| a bar.
+(def %md-cells
+  (fn (_ line)
+    (def s (%md-trim line))
+    (def n (str-byte-len s))
+    (def cell (fn (_ i j) (%md-trim (Str8 replace "\\|" "|" (%md-sub s i j)))))
+    ((fn (go i from out)
+       (def c (%md-at s i))
+       (match
+         ((= c -1) (%reverse (match ((match ((= from n) (int< 0 n)) (#t #f)) out) (#t (pair (cell from i) out)))))
+         ((= c #\\) (go (int+ i (match ((= (%md-at s (int+ i 1)) -1) 1) (#t 2))) from out))
+         ((= c 124) (go (int+ i 1) (int+ i 1) (match ((= i 0) out) (#t (pair (cell from i) out)))))
+         (#t (go (int+ i 1) from out))))
+     0 0 ())))
+; A delimiter row's cell's alignment: left, center, right or nil; or the
+; symbol bad for a cell that is no run of dashes with a colon at either end.
+(def %md-align
+  (fn (_ c)
+    (def n (str-byte-len c))
+    (def a (match ((= (%md-at c 0) #\:) 1) (#t 0)))
+    (def b (match ((match ((int< 1 n) (= (%md-at c (- n 1)) #\:)) (#t #f)) (- n 1)) (#t n)))
+    (match ((match ((int< a b) (= (%md-run c a #\-) b)) (#t #f))
+             (match ((match ((= a 1) (int< b n)) (#t #f)) (lit center)) ((int< b n) (lit right)) ((= a 1) (lit left)) (#t ())))
+           (#t (lit bad)))))
+; LINE as a delimiter row of N cells: their alignments, or bad.
+(def %md-delimiters
+  (fn (_ line n)
+    (match ((= (%md-find "|" line 0) -1) (lit bad))
+           (#t ((fn (_ cs)
+                  (match ((= (%md-len cs) n)
+                           ((fn (_ as) (match ((%md-memq (lit bad) as) (lit bad)) (#t as))) (%md-map %md-align cs)))
+                         (#t (lit bad))))
+                (%md-cells line))))))
+(def %md-len (fn (self l) (match ((eq? l ()) 0) (#t (int+ 1 (self (rest l)))))))
+(def %md-memq (fn (self x l) (match ((eq? l ()) #f) ((eq? x (first l)) #t) (#t (self x (rest l))))))
+; L's first N, nil after its end.
+(def %md-take-pad
+  (fn (self l n) (match ((int< n 1) ()) ((eq? l ()) (pair "" (self l (- n 1)))) (#t (pair (first l) (self (rest l) (- n 1)))))))
+; A paragraph's TEXT as blocks: a paragraph, or where a line of it is
+; followed by a delimiter row of as many cells, the lines before it a
+; paragraph and the rest a (table #t ALIGNS ROWS), each later line a row
+; filled out or cut to the header's cells.
+(def %md-paragraph-blocks
+  (fn (_ text refs)
+    (def para (fn (_ s) (list (lit paragraph) (%md-inlines s refs))))
+    (match
+      ((= (%md-find "|" text 0) -1) (list (para text)))
+      (#t ((fn (go before ls)
+             (match
+               ((match ((eq? ls ()) #t) (#t (eq? (rest ls) ()))) (list (para text)))
+               (#t ((fn (_ head)
+                      ((fn (_ as)
+                         (match
+                           ((eq? as (lit bad)) (go (pair (first ls) before) (rest ls)))
+                           (#t (%md-onto-blocks
+                                 (match ((eq? before ()) ())
+                                        (#t (list (para (Str8 join "\n" (%reverse before))))))
+                                 (list (lit table) #t as
+                                       (%md-map (fn (_ r) (%md-map (fn (_ c) (%md-inlines c refs)) (%md-take-pad r (%md-len head))))
+                                                (pair head (%md-map %md-cells (rest (rest ls))))))))))
+                       (%md-delimiters (first (rest ls)) (%md-len head))))
+                    (%md-cells (first ls))))))
+           () (%md-lines text))))))
+(def %md-onto-blocks (fn (_ bs b) (%reverse (pair b (%reverse bs)))))
 ; A block under construction as the parse answers it.
 (def %md-tree
   (fn (self nd refs)
     (def t (%md-get nd 0))
-    (def kids (fn (_ nd) (%md-map (fn (_ k) (self k refs)) (%reverse (%md-get nd 2)))))
+    ; A paragraph's text may answer a table, and a paragraph before it.
+    (def kids (fn (_ nd)
+      ((fn (go ks out)
+         (match ((eq? ks ()) (%reverse out))
+                (#t (go (rest ks)
+                        (match ((eq? (%md-get (first ks) 0) (lit paragraph))
+                                 ((fn (onto bs acc) (match ((eq? bs ()) acc) (#t (onto (rest bs) (pair (first bs) acc)))))
+                                  (%md-paragraph-blocks (%md-join (%md-get (first ks) 5)) refs) out))
+                               (#t (pair (self (first ks) refs) out)))))))
+       (%reverse (%md-get nd 2)) ())))
     (def text (fn (_) (%md-join (%md-get nd 5))))
     (match
       ((eq? t (lit paragraph)) (list t (%md-inlines (text) refs)))
@@ -1241,14 +1319,14 @@
     (see parse) (see html))
   (static
     (method parse (self (param text STRING "Markdown text"))
-      (doc "Parse Markdown (CommonMark) into a list of blocks: (heading LEVEL INLINES), (paragraph INLINES), (code-block INFO TEXT), (block-quote BLOCKS), (list ORDERED? START TIGHT? ITEMS) with each item a list of blocks, (thematic-break), (html-block TEXT). Inlines are strings and (emph INLINES), (strong INLINES), (code TEXT), (link DESTINATION TITLE INLINES), (image DESTINATION TITLE INLINES), (html-inline TEXT), (softbreak), (hardbreak)."
+      (doc "Parse Markdown (CommonMark) into a list of blocks: (heading LEVEL INLINES), (paragraph INLINES), (code-block INFO TEXT), (block-quote BLOCKS), (list ORDERED? START TIGHT? ITEMS) with each item a list of blocks, (thematic-break), (html-block TEXT), and GitHub's pipe tables as (table #t ALIGNS ROWS) with each row a list of cells and each cell its inlines. Inlines are strings and (emph INLINES), (strong INLINES), (code TEXT), (link DESTINATION TITLE INLINES), (image DESTINATION TITLE INLINES), (html-inline TEXT), (softbreak), (hardbreak)."
         (returns LIST "The document's blocks")
         (example "(Markdown parse \"- a\\n- b\")" "(('list #f () #t ((('paragraph (\"a\"))) (('paragraph (\"b\"))))))")
         (example "(Markdown parse \"[x][1]\\n\\n[1]: /u\")" "(('paragraph (('link \"/u\" () (\"x\")))))"))
       (def refs (pair () ()))
       (%md-tree (%md-blocks text refs) refs))
     (method html (self (param blocks LIST "Blocks, as (Markdown parse) answers them"))
-      (doc "Render blocks as HTML, line for line as the CommonMark reference renderer does: a tight list's paragraphs without <p>, an ordered list's start when it is not 1, a code block's info as language-INFO; a table, which Markdown does not read, as GitHub's renderer writes one, its header row in a thead and a column's alignment on each of its cells."
+      (doc "Render blocks as HTML, line for line as the CommonMark reference renderer does: a tight list's paragraphs without <p>, an ordered list's start when it is not 1, a code block's info as language-INFO; a table as GitHub's renderer writes one, its header row in a thead and a column's alignment on each of its cells."
         (returns STRING "HTML text")
         (example "(Markdown html (Markdown parse \"> *a*\"))" "\"<blockquote>\\n<p><em>a</em></p>\\n</blockquote>\\n\""))
       (%md-html blocks))))

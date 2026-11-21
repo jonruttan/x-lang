@@ -53,6 +53,16 @@ give the text written and read it back with (Markdown parse).
 ---
     ("| a\\|b | m | n |\n| :-- | :-: | --: |\n| *c* | x y | 1 |\n| d |  |  |\n" "|  |  |\n| --- | --- |\n| x | y |\n")
 
+### a pipe table read back is the same table
+
+```x
+(do (import x/codec/markdown) (import x/codec/markdown-write)
+  (def %mws-table (Markdown parse "| a\\|b | `x` |\n| :-- | --: |\n| *c* | 1 |"))
+  (equal? %mws-table (Markdown parse (MarkdownWrite text %mws-table))))
+```
+---
+    #t
+
 ## inlines
 
 ### emphasis, strong, code holding backticks, a link and an image with titles, a destination with a space

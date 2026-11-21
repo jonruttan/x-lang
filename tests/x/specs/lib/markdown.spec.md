@@ -167,3 +167,26 @@ its own way).
 ```
 ---
     ("<table>\n<thead>\n<tr>\n<th>a</th>\n<th align=\"right\">n</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><em>c</em></td>\n<td align=\"right\">1</td>\n</tr>\n<tr>\n<td>d</td>\n<td align=\"right\"></td>\n</tr>\n</tbody>\n</table>\n" "<table>\n<tbody>\n<tr>\n<td>x</td>\n<td>y</td>\n</tr>\n</tbody>\n</table>\n")
+
+### a pipe table, as GitHub reads one: a header and a delimiter row of as many cells, its alignments, a short row filled out and a long one cut, after a paragraph's lines and before the next block
+
+```x
+(do (import x/codec/markdown)
+  (list (Markdown parse "| a | *b* |\n| --- | :-: |\n| c | d |\n| e |\n| f | g | h |")
+        (Markdown parse "intro\na | b\n--- | ---:\n1 | 2\n\nafter")
+        (Markdown parse "- | a |\n  | - |\n  | 1 |")))
+```
+---
+    ((('table #t (() 'center) ((("a") (('emph ("b")))) (("c") ("d")) (("e") ()) (("f") ("g"))))) (('paragraph ("intro")) ('table #t (() 'right) ((("a") ("b")) (("1") ("2")))) ('paragraph ("after"))) (('list #f () #t ((('table #t (()) ((("a")) (("1")))))))))
+
+### no table: a delimiter row of other cells, a dash line with no bar a setext heading, a bar with no delimiter row; an escaped bar is a cell's, in code too
+
+```x
+(do (import x/codec/markdown)
+  (list (Markdown parse "a | b\n--- | --- | ---")
+        (Markdown parse "a|b\n---")
+        (Markdown parse "a | b")
+        (Markdown parse "x \\| y | `c\\|d`\n:-|-")))
+```
+---
+    ((('paragraph ("a | b" ('softbreak) "--- | --- | ---"))) (('heading 2 ("a|b"))) (('paragraph ("a | b"))) (('table #t ('left ()) ((("x | y") (('code "c|d")))))))
