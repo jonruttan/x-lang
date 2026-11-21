@@ -376,22 +376,11 @@ entry_forms() {
 # is module.x's, so it does not exist before that) and before the bundle's own
 # entry is read.  Same route %install-root takes, and for the same reason.
 #
-# %lang-root IS THE SAME FACT AS A VALUE, and it exists because a bundle may
-# ship DATA as well as modules.  import-path! answers "where do my modules
-# come from" for the module system; it answers nothing for a file the bundle
-# reads itself -- x-logo's serve.x hands viewer.html to a browser, and no
-# `import` can express that.  Without this row such a bundle has three bad
-# options: a cwd-relative literal (broken in every installed tree -- the exact
-# defect x-lang#467 fixed in the in-tree Logo app), a root re-derived from
-# %install-root (wrong, a bundle is not under the platform's tree), or reading
-# %import-roots-cell, which is a platform internal the seam does not cover.
-#
-# ONE DEFINITION, EMITTED WHERE THE FACT IS KNOWN.  The wrapper is the only
-# thing that ever knows where a bundle sits -- it is what searched for it --
-# so it says, once, rather than every bundle guessing.  Only for the bundle
-# itself, never for its dependencies: a required lang reached through
-# (requires-bundle ...) is a library to the bundle that needs it, and a second
-# %lang-root would overwrite the one whose entry is about to run.
+# A bundle may ship DATA as well as modules, and reaches it through
+# (Bundle root "NAME") in x/sys/bundle: the directory holding the lib/ that
+# is armed here.  Nothing is emitted for it -- the answer is read from the
+# import roots, so it holds for a required bundle and one armed on a missed
+# import as it does for the one booted.
 bundle_form() {
 	if [ -n "$BUNDLE_DIR" ] || [ -n "$EXTRA_DIRS" ]; then
 		# Required langs first: import-path! prepends, so the bundle's own
@@ -405,7 +394,6 @@ bundle_form() {
 			printf '(import-path! "%s")\n' "$_d/lib"
 		done
 		[ -z "$BUNDLE_DIR" ] || printf '(import-path! "%s")\n' "$BUNDLE_DIR/lib"
-		[ -z "$BUNDLE_DIR" ] || printf '(def %%lang-root "%s")\n' "$BUNDLE_DIR"
 		# Which lang owns the prompt: the first -l, by the name it was asked
 		# for.  A bundle whose name this is not was loaded beside the
 		# session's lang, and registers itself without taking the prompt.
@@ -474,6 +462,11 @@ param_forms() {
 # The install-root form, emitted ahead of the entry in installed mode; a
 # no-op command in repo mode (nothing defines %install-root there).
 root_form() {
+	# Where bundles are installed: x/sys/bundle answers it as (Bundle dir),
+	# and a missed import arms a bundle found there.  Said here, once: the
+	# wrapper is what knows X_BUNDLE_DIR, the install and the checkout.
+	path_form_safe "${BUNDLES_PATH%/}" "bundle directory"
+	printf '(def %%bundle-dir "%s")\n' "${BUNDLES_PATH%/}"
 	if [ -n "$INSTALL_ROOT" ]; then
 		printf '(def %%install-root "%s")\n' "$INSTALL_ROOT"
 		# The platform's own release, as DATA, the way %param-release already

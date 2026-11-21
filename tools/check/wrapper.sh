@@ -142,8 +142,19 @@ want "-l selects the dialect" "1/2" "$got"
 # seam gate uses is enough: what is under test is the wrapper's arrangement
 # -- the root armed, the entry read, and %lang-lead naming the first.
 got=$(X_BUNDLE_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l he -l seamprobe \
-	-c '(write (list %lang-lead (Str8 ends? "seamprobe/lib/seamprobe/run.x" (%module-resolve (lit seamprobe/run))) (guard (_ "no root") %lang-root)))' 2>/dev/null || true)
-want "a further -l loads a bundle beside a dialect" '("he" #t "no root")' "$got"
+	-c '(write (list %lang-lead (Str8 ends? "seamprobe/lib/seamprobe/run.x" (%module-resolve (lit seamprobe/run))) (do (import x/sys/bundle) (Str8 ends? "bundles/seamprobe" (Bundle root "seamprobe")))))' 2>/dev/null || true)
+want "a further -l loads a bundle beside a dialect" '("he" #t #t)' "$got"
+# A missed import arms the installed bundle its first segment names: no -l,
+# nothing declared, and the module is found.  (Bundle root ...) then answers
+# where it was armed from.
+got=$(X_BUNDLE_DIR=tools/contract/bundles/ sh x.sh --no-pin -q \
+	-c '(import seamprobe/run) (write (Str8 ends? "bundles/seamprobe" (Bundle root "seamprobe")))' 2>/dev/null || true)
+want "a missed import arms the bundle its name says" "#t" "$got"
+err=$(X_BUNDLE_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -c '(import nosuchbundle/thing)' 2>&1 >/dev/null || true)
+case "$err" in
+	*"import: no module nosuchbundle/thing"*) printf '  a module no installed bundle holds is still refused by name: ok\n' ;;
+	*) printf 'wrapper: a miss with no bundle to arm was not refused by name: %s\n' "$err" >&2; fails=$((fails + 1)) ;;
+esac
 got=$(X_BUNDLE_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l seamprobe -c '(write %lang-lead)' 2>/dev/null || true)
 want "the first -l is the lead" '"seamprobe"' "$got"
 # X_BUNDLE_DIR with no trailing slash finds the same bundles: the wrapper
