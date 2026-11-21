@@ -123,7 +123,8 @@
       (doc "Run THUNK once all NAMES have joined: immediately if they already have, else at the completing join. Fires exactly once; never fires if a name never joins."
         (returns NIL "Nothing")
         (example "(do (Pact when (list 'doc-when-a) (fn (_ v) (Pact join 'doc-when-b (* v 2)))) (Pact join 'doc-when-a 5) (Pact get 'doc-when-b))" "10"))
-      (%pact-when names thunk))
+      (%pact-when names thunk)
+      ())
     (method get (self (param name SYMBOL "Name to look up"))
       (doc "The value NAME published on join (the newest, if re-joined)."
         (returns ANY "The joined value, or nil if NAME has not joined")
