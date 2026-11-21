@@ -50,34 +50,53 @@
             (pair (list key name t (guard (_ (lit ?)) (Type name v)))
                   (first cell))))))
 
-    ; Every item of a rest parameter's list against its annotation.
-    (method %test-items (self key name t xs)
-      (when (pair? xs)
-        (do (unless (Annotation ? (first xs) t) (self %note! key name t (first xs)))
-            (self %test-items key name t (rest xs)))))
+    ; Whether v fits the row's annotation, noting it when it does not.  A
+    ; row is (NAME TYPE REST? PASSED), and PASSED holds, in the first of a
+    ; pair, the runtime types whose values have fitted: whether a value fits
+    ; follows from its runtime type, so a type that has fitted is not asked
+    ; about again.  nil and an object are asked about every time: nil has no
+    ; type to remember, and whether an object fits depends on its class.
+    (method %fits! (self key row v)
+      (let ((name (first row))
+            (t (first (rest row)))
+            (passed (first (rest (rest (rest row))))))
+        (if (Annotation ? v t)
+          (unless (if (null? v) #t (object? v))
+            (%set-first! passed (pair ((prim-ref (lit type) (lit of)) v) (first passed))))
+          (self %note! key name t v))))
 
-    ; rows holds one (NAME TYPE REST?) per tested parameter, in call order,
-    ; and vals the arguments in the same order.  A rest parameter's
-    ; annotation is each item's type.
-    (method %test (self key rows vals)
-      (unless (null? rows)
-        (let ((name (first (first rows)))
-              (t (first (rest (first rows))))
-              (v (first vals)))
-          (if (first (rest (rest (first rows))))
-            (self %test-items key name t v)
-            (unless (Annotation ? v t) (self %note! key name t v)))
-          (self %test key (rest rows) (rest vals)))))
-
-    ; The closure the installed form calls.  A failure inside the test is
-    ; the test's own and is dropped, so a check never changes what a call
-    ; answers.
+    ; The closure the installed form calls.  It walks the rows and the
+    ; arguments together; a rest parameter's annotation is each item's type,
+    ; so its row is asked of every item.  The walk is the closure's own and
+    ; asks the engine for a value's type, so a call whose arguments are of
+    ; types seen before costs a few comparisons.  Anything else goes to
+    ; %fits!, where a failure is the test's own and is dropped: a check
+    ; never changes what a call answers.
     (method %make (self key rows)
-      (let ((busy (self %busy)))
+      (let ((busy (self %busy))
+            (type-of (prim-ref (lit type) (lit of))))
+        (def seen?
+          (fn (go ty l)
+            (match ((null? l) #f) ((eq? (first l) ty) #t) (#t (go ty (rest l))))))
+        (def one
+          (fn (_ row v)
+            (unless (if (null? v) #f
+                      (seen? (type-of v) (first (first (rest (rest (rest row)))))))
+              (guard (_ ()) (self %fits! key row v)))))
+        (def items
+          (fn (go row xs)
+            (when (pair? xs) (do (one row (first xs)) (go row (rest xs))))))
+        (def walk
+          (fn (go rs vals)
+            (unless (null? rs)
+              (do (if (first (rest (rest (first rs))))
+                    (items (first rs) (first vals))
+                    (one (first rs) (first vals)))
+                  (go (rest rs) (rest vals))))))
         (fn (_ . vals)
           (unless (first busy)
             (do (%set-first! busy #t)
-                (guard (_ ()) (self %test key rows vals))
+                (walk rows vals)
                 (%set-first! busy #f))))))
 
     (method %type-str (self t) (if (symbol? t) (symbol->str t) t))
@@ -104,12 +123,12 @@
         ((not (pair? ps))
           (let ((t (self %type-of ps triples)))
             (if (null? t) (self %rows () triples names rows)
-              (self %rows () triples (pair ps names) (pair (list ps t #t) rows)))))
+              (self %rows () triples (pair ps names) (pair (list ps t #t (pair () ())) rows)))))
         (#t
           (let ((t (self %type-of (first ps) triples)))
             (if (null? t) (self %rows (rest ps) triples names rows)
               (self %rows (rest ps) triples
-                    (pair (first ps) names) (pair (list (first ps) t #f) rows)))))))
+                    (pair (first ps) names) (pair (list (first ps) t #f (pair () ())) rows)))))))
 
     (method %drop (self ps n)
       (if (= n 0) ps (if (pair? ps) (self %drop (rest ps) (- n 1)) ())))
