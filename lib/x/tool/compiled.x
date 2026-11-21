@@ -98,7 +98,7 @@
     state)
 
   (method compile! (self)
-    (doc "Compile the function and install the compiled version. A compile that raises has failed: the interpreted version is installed and the raise's text is kept as the reason. A compile that answers the interpreted version has declined, and the interpreted version is installed."
+    (doc "Compile the function and install the compiled version. A compile that raises has failed: the interpreted version is installed and the raise's text is kept as the reason, and with X_COMPILED_REPORT set in the process environment a line naming the entry and the reason goes to stderr. A compile that answers the interpreted version has declined, and the interpreted version is installed."
       (returns SYMBOL "The state the entry is left in: compiled, interpreted or failed")
       (example "((new Compiled name 'f interpreted first compile (fn (_) (Err raise 'value \"no compiler here\" ())) install (fn (_ v) v)) compile!)" "'failed")
       (example "((new Compiled name 'f interpreted first compile (fn (_) first) install (fn (_ v) v)) compile!)" "'interpreted"))
@@ -111,7 +111,10 @@
                  (lit interpreted)
                  (lit compiled))
                "")
-         (self %install! (self interpreted) (lit failed) (rest made))))
+         ((fn (_ state)
+            (Compiled %tell-failed (self name) (rest made))
+            state)
+          (self %install! (self interpreted) (lit failed) (rest made)))))
      (guard (e (pair #f (io-display-to-str e)))
        (pair #t ((self compile))))))
 
@@ -122,6 +125,20 @@
     (self %install! (self interpreted) (lit interpreted) ""))
 
   (static
+    ; A failed compile is quiet by default: on a host with no assembler
+    ; backend every compile through asm fails, and that is the designed
+    ; outcome there.  A gate sets X_COMPILED_REPORT to see each one as it
+    ; happens.  Sys and Stream are imported here, at the first failure,
+    ; so an entry that compiles loads neither.
+    (method %tell-failed (self name reason)
+      (import x/sys/posix Sys)
+      (if (null? (Sys getenv "X_COMPILED_REPORT"))
+        ()
+        ((fn (_)
+           (import x/sys/stream Stream)
+           (Stream with-fd 2
+             (fn (_) (display "compiled: " name " failed: " reason "\n")))))))
+
     (doc all "Every entry, newest first"
       (sample "(List map (fn (_ c) (c name)) (Compiled all))" "the names of the entries this process made, newest first, as ('or 'and 'null? 'obj-set! 'obj-ref)"))
 
