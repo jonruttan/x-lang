@@ -250,11 +250,11 @@
         (str->ptr (rest s)))
       ())
 
-    (method crc32 (self (param crc INTEGER "The CRC so far; 0 to start")
+    (method crc32 (self (param crc INTEGER|BIGINT "The CRC so far; 0 to start")
                         (param buf STRING "Bytes")
                         (param n INTEGER "How many, from its start"))
       (doc "The CRC-32 (ISO 3309, as gzip and zip carry it) of CRC's data followed by N bytes of BUF."
-        (returns INTEGER "The CRC, 0 to 4294967295")
+        (returns INTEGER|BIGINT "The CRC, 0 to 4294967295")
         (example "(Zlib crc32 0 \"123456789\" 9)" "3421780262"))
       (u32 (ptr-call (Zlib %sym "crc32") (u32-bits crc) (str->ptr buf) n)))
 

@@ -624,7 +624,7 @@
 
 (doc + "Add numbers, promoting to bigint on overflow."
   (param args NUMBER "Numbers to add")
-  (returns INTEGER|BIGINT "Sum")
+  (returns NUMBER "Sum")
   (example "(+ 1 2 3)" "6")
   (example "(+ 9223372036854775807 1)" "9223372036854775808"))
 (set! +
@@ -638,7 +638,7 @@
 
 (doc - "Subtract numbers, promoting to bigint on overflow. Unary form negates."
   (param args NUMBER "Numbers to subtract")
-  (returns INTEGER|BIGINT "Difference")
+  (returns NUMBER "Difference")
   (example "(- 10 3 2)" "5")
   (example "(- 5)" "-5")
   (example "(- -9223372036854775807 2)" "-9223372036854775809"))
@@ -658,7 +658,7 @@
 
 (doc * "Multiply numbers, promoting to bigint on overflow."
   (param args NUMBER "Numbers to multiply")
-  (returns INTEGER|BIGINT "Product")
+  (returns NUMBER "Product")
   (example "(* 2 3 4)" "24")
   (example "(* 4294967296 4294967296)" "18446744073709551616"))
 (set! *

@@ -83,7 +83,7 @@
     (method dlopen (self (param path STRING|NIL "Library file path (() for the main program)")
                          (param mode INTEGER "dlopen mode flags (e.g. 1 = RTLD_LAZY)"))
       (doc "Load a shared library."
-        (returns POINTER "Library handle, or () on failure")
+        (returns POINTER|NIL "Library handle, or () on failure")
         (example "(null? (Ffi dlopen \"/no/such/lib.so\" 1))" "#t")
         (sample "(Ffi dlopen () 1)" "a handle on the main program and the libraries it loaded"))
       ((prim-ref (lit ffi) (lit dlopen)) path mode))

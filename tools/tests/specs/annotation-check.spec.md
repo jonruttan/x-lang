@@ -87,3 +87,42 @@ that do not fit. The doctest gate installs it on each module's entries.
 ```
 ---
     4
+
+## The returns annotation
+
+### an answer that fits records nothing
+
+```x
+(doc (def cc-spec-ret
+  (fn (_ (param a ANY "A value")) a))
+  (returns STRING "a")
+  "Answer a.")
+(AnnotationCheck install! (list 'cc-spec-ret))
+(def cc-ret-before (List length (AnnotationCheck found)))
+(write (list (cc-spec-ret "s") (- (List length (AnnotationCheck found)) cc-ret-before)))
+```
+---
+    ("s" 0)
+
+### an answer that does not fit is recorded, and the call still answers
+
+```x
+(write (list (cc-spec-ret 7) (List last (AnnotationCheck found))))
+```
+---
+    (7 ('cc-spec-ret 'returns "STRING" "INTEGER"))
+
+### parameters and the answer are both tested
+
+```x
+(doc (def cc-spec-both
+  (fn (_ (param a INTEGER "A number")) a))
+  (returns INTEGER "a")
+  "Answer a.")
+(AnnotationCheck install! (list 'cc-spec-both))
+(AnnotationCheck install! (list 'cc-spec-both))
+(cc-spec-both "x")
+(write (List length (List filter (fn (_ f) (eq? (first f) 'cc-spec-both)) (AnnotationCheck found))))
+```
+---
+    2

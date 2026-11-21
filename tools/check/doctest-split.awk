@@ -57,7 +57,7 @@ function install(section, out) {
 # The case that reads the findings, after a file's examples.
 function findings(out) {
 	print "" >> out
-	print "### annotation checks -- every argument fits its annotation" >> out
+	print "### annotation checks -- every argument and answer fits its annotation" >> out
 	print "" >> out
 	print "```scheme" >> out
 	print "(write (AnnotationCheck found))" >> out

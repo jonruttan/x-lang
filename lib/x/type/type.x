@@ -164,7 +164,7 @@
       ((prim-ref (lit type) (lit ?)) v ts))
     (method of (self (param v ANY "Value"))
       (doc "Return the type handle of a value (nil for nil)."
-        (returns ATOM "The type's handle atom")
+        (returns ATOM|NIL "The type's handle atom")
         (example "(same? (Type of 1) (Type of 2))" "#t")
         (example "(null? (Type of ()))" "#t"))
       ((prim-ref (lit type) (lit of)) v))

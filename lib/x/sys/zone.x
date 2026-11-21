@@ -336,7 +336,7 @@
   (static
     (method named (self (param name STRING "A zone's name in the database, as \"America/New_York\""))
       (doc "The zone a name names, or nil when the system has no such zone. \"UTC\", in any case, is always there."
-        (returns Zone "The zone, or nil")
+        (returns Zone|NIL "The zone, or nil")
         (example "((Zone named \"UTC\") offset 0)" "0")
         (example "(null? (Zone named \"Nowhere/Land\"))" "#t")
         (sample "((Zone named \"Asia/Kolkata\") name)" "\"Asia/Kolkata\""))
