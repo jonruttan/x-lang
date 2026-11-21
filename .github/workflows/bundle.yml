@@ -116,6 +116,19 @@ jobs:
       - name: Run the spec gate
         run: env ${{ inputs.spec-env }} X="$PWD/.x-lang/x.sh" sh tests/spec-gate.sh
 
+      # The examples the bundle's documentation carries, each run and held to
+      # what it says it prints (tools/bundle-kit/doctest.sh).  The kit is the
+      # one in the x-lang under test, and a release from before it had the
+      # check has nothing to run.
+      - name: Run the documentation examples
+        run: |
+          if [ -f .x-lang/tools/bundle-kit/doctest.sh ]; then
+            env ${{ inputs.spec-env }} BUNDLE=. X="$PWD/.x-lang/x.sh" \
+              sh .x-lang/tools/bundle-kit/doctest.sh
+          else
+            echo "this x-lang has no bundle-kit doctest: not run"
+          fi
+
       # docs/card.md, where the bundle has one (docs/contributing.md, "The
       # card").  The card runs from the bundle's root and a checkout's wrapper
       # runs only from its own, so the platform is installed first; X_BUNDLE_DIR

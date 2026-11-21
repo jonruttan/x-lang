@@ -27,7 +27,7 @@
       ((if (eq? (type-of v) %int-t) (int< v 0) #f) (+ v %span))
       (#t v))))
   (param v INTEGER "A word whose low 32 bits are the value, or the value itself")
-  (returns INTEGER "The value, 0 to 4294967295: a bigint from 2^31 up on a 4-byte word")
+  (returns INTEGER|BIGINT "The value, 0 to 4294967295: a bigint from 2^31 up on a 4-byte word")
   (example "(do (import x/num/u32 u32) (u32 -1))" "4294967295")
   "The unsigned value of a word's low 32 bits.")
 

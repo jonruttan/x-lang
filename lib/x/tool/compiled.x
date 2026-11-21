@@ -207,7 +207,7 @@
 
     (method named (self (param name SYMBOL "An entry's name"))
       (doc "The newest entry of that name."
-        (returns Compiled "The entry, or nil when no entry has the name")
+        (returns Compiled|NIL "The entry, or nil when no entry has the name")
         (example "(null? (Compiled named 'no-such-entry))" "#t"))
       ((fn (loop l)
          (if (null? l)

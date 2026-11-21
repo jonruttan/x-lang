@@ -55,17 +55,17 @@
         #f))
     (method line (self (param form ANY "A form the reader read: a list's first cell carries the stamp"))
       (doc "The line form was read on, counted from 1 in the file include read it from, or in the stream for a program on standard input. () for a form built at run time, or for a list cell other than a form's first."
-        (returns INTEGER "The line, or ()")
+        (returns INTEGER|NIL "The line, or ()")
         (example "(null? (Source line (list 1 2)))" "#t"))
       (if (Source %believed? form) (Source %meta form 0) ()))
     (method file (self (param form ANY "A form the reader read"))
       (doc "The path of the file form was read from, \"\" when it was read from standard input, () for a form that carries no stamp."
-        (returns STRING "A path, \"\", or ()")
+        (returns STRING|NIL "A path, \"\", or ()")
         (example "(null? (Source file (list 1 2)))" "#t"))
       (if (Source %believed? form) (Source %path-of (Source %meta form 1)) ()))
     (method path (self (param id INTEGER "A file id, as a stamp's second word or a (Source files) entry carries it"))
       (doc "The path filed under a file id: \"\" for 0, standard input; () for an id no include filed."
-        (returns STRING "A path, \"\", or ()")
+        (returns STRING|NIL "A path, \"\", or ()")
         (example "(Source path 0)" "\"\"")
         (example "(null? (Source path 999999))" "#t"))
       (Source %path-of id))
