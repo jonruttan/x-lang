@@ -20,6 +20,13 @@
 # process of its own, where files sharing a process would keep each other's
 # modules loaded.
 #
+# Each file also tests its calls against the parameter annotations
+# (tools/check/annotation-check.x).  Its first case loads the module and installs
+# the checks on the entries that import documents -- on every documented
+# name, for the boot surface -- and its last case expects no finding.  Those
+# two cases are written here and are not among the examples the census
+# counts.
+#
 # One file is open at a time: there are a few hundred, more than an awk can
 # hold open at once.
 
@@ -30,9 +37,40 @@ function name(section) {
 	return section
 }
 
+# The case that installs the annotation checks, ahead of a file's examples.
+function install(section, out) {
+	print "### annotation checks -- install" >> out
+	print "" >> out
+	print "```scheme" >> out
+	print "(include \"tools/check/annotation-check.x\")" >> out
+	if (section == "boot surface")
+		print "(AnnotationCheck install! (Doc names))" >> out
+	else
+		printf "(AnnotationCheck import! (lit %s))\n", section >> out
+	print "(display \"installed\")" >> out
+	print "```" >> out
+	print "---" >> out
+	print "    installed" >> out
+	print "" >> out
+}
+
+# The case that reads the findings, after a file's examples.
+function findings(out) {
+	print "" >> out
+	print "### annotation checks -- every argument fits its annotation" >> out
+	print "" >> out
+	print "```scheme" >> out
+	print "(write (AnnotationCheck found))" >> out
+	print "```" >> out
+	print "---" >> out
+	print "    ()" >> out
+}
+
 /^## / {
-	if (out != "")
+	if (out != "") {
+		findings(out)
 		close(out)
+	}
 	section = substr($0, 4)
 	out = ""
 	pending = (section == "census") ? "" : $0
@@ -52,6 +90,7 @@ function name(section) {
 	print "" >> out
 	print pending >> out
 	print "" >> out
+	install(section, out)
 	pending = ""
 }
 

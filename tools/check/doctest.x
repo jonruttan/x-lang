@@ -77,6 +77,10 @@
       ((not (null? (%doc-entry-samples e))) (%tally! 'sample-only))
       (#t (%tally! group)))))
 
+; An example that guards an error calls something with an argument it
+; refuses, on purpose, so the annotation checks
+; (tools/check/annotation-check.x) are off for its case and on for every
+; other.  A file's cases share one interpreter, so each case says which.
 ; Emit one example as a harness test. mod is the import path string, or
 ; nil for boot-registered names.
 (def %emit-example
@@ -91,6 +95,8 @@
         (%emit "```scheme")
         (when mod
           (do (display "(import " mod) (%emit ")")))
+        (%emit (if (%doc-str-contains? "(guard " in)
+                 "(AnnotationCheck off!)" "(AnnotationCheck on!)"))
         (%emit in)
         (%emit "```")
         (%emit "---")
