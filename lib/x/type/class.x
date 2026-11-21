@@ -104,27 +104,30 @@
         %image-recache-hooks))
 
 ; Find `sel` in a flat table and self-organize: a hit DEEPER THAN POSITION
-; TWO moves its (sel . entry) pair to the head, the head's pair to second
-; place and the second's to the hit's cell, so a hot selector is a front hit
-; from its second call on. The top-2 exemption matters: a method that reads
-; a field alternates two hot selectors, and unconditional move-to-front made
-; them ping-pong the head slot -- writes on every call, measured slower than
-; no table at all. With the exemption an alternating pair settles into the
-; top two and never moves again, because the pair a hit displaces lands
-; second: put back in the hit's cell instead, the two would trade places at
-; the hit's depth, and each would walk the table that far on every call.
+; TWO moves its (sel . entry) pair to the head and every pair above it one
+; cell down, so a hot selector is a front hit from its second call on. The
+; top-2 exemption matters: a method that reads a field alternates two hot
+; selectors, and unconditional move-to-front made them ping-pong the head
+; slot -- writes on every call, measured slower than no table at all. With
+; the exemption an alternating pair settles into the top two and never
+; moves again.  The step down keeps a cycle of k selectors within the top k
+; cells: the old move put the second pair into the hit's cell, so of three
+; cycling selectors one went back to the hit's depth on every send --
+; (Str8 ->str) then (Str8 length) made 1590 objects, against 530 and 55
+; each alone.
 ; Returns the entry (a method closure or %field-label) or nil. `head` is the
 ; table's first spine cell; callers pass the table twice.  The walk is a
 ; plain loop: it runs on every dispatch, a cell at a time.
 ;
-; The three writes run with the base's error handler set aside.  Between two
-; of them a pair is held only in `p`, and ctrl-c raises STOP at the next
+; The writes run with the base's error handler set aside.  Between two of
+; them a pair is held only in `p` or `carry`, and ctrl-c raises STOP at the next
 ; evaluation step while a handler is set (docs/engine-laws.md 6): a STOP
 ; there dropped the pair, and since the table is never rebuilt the member
 ; was gone for the rest of the process.  With no handler the flag waits, and
 ; STOP is raised at the first step after the handler is back.  The move
-; allocates nothing and brings nothing into the table from outside it, which
-; is what lets a type's mark handler dispatch during a collect (Cont's does):
+; brings nothing into the table from outside it -- the step-down's call
+; frames never enter it -- which is what lets a type's mark handler
+; dispatch during a collect (Cont's does):
 ; an object allocated while the collector marks is born unmarked (engine law
 ; 4), and one linked into an already marked table would be swept.
 (def %tab-find!
@@ -138,8 +141,12 @@
           ; p and the handler are bound before the writes
           (#t ((fn (_ p h)
                  (%set-first! %tab-handler-cell ())
-                 (%set-first! cell (first (rest head)))
-                 (%set-first! (rest head) (first head))
+                 ((fn (shift c carry)
+                    (match
+                      ((eq? c cell) (%set-first! c carry))
+                      (#t ((fn (_ next) (%set-first! c carry) (shift (rest c) next))
+                           (first c)))))
+                  (rest head) (first head))
                  (%set-first! head p)
                  (%set-first! %tab-handler-cell h)
                  (rest p))
