@@ -24,7 +24,11 @@
 ; casts.  A c128 kernel reads and writes an element's two doubles; complex
 ; numbers have no order, so c128 has no min, max, least or greatest.  An operation walks the outer axes in x and hands each run of
 ; the last axis to its kernel; operands that are all contiguous and of one
-; extent are one run.  A kernel runs pure until it has done about a
+; extent are one run.  A run costs far more than an element, so the axes
+; are first made as few as the strides allow, and where the order of the
+; elements does not matter the longest axis is the one run along: a number
+; or a row against a tensor of a few columns is one run or a few, however
+; many its rows.  A kernel runs pure until it has done about a
 ; compile's worth of steps, then compiles through compile-asm, and the
 ; compiled one is adopted only after it writes the bytes the pure one
 ; writes on the check inputs.  A pure step allocates, so a pure kernel runs
@@ -395,33 +399,68 @@
               (go)
               (owe! run-cost))))
         ; --- runs
-        ; (each OFFS STRIDES COUNT) for each run of the last axis: OFFS each
-        ; state's element offset at the run's start, STRIDES its stride along
-        ; the run.  STS share extent EXT.  Contiguous states are one run.
+        ; (each OFFS STRIDES COUNT) for each run: OFFS each state's element
+        ; offset at the run's start, STRIDES its stride along the run.  STS
+        ; share extent EXT.  Contiguous states are one run.
+        ;
+        ; Otherwise the axes are made as few as they can be before they are
+        ; walked, a run costing more than its elements when they are few.
+        ; An axis is (LENGTH . STEPS), STEPS each state's stride along it.
+        ; An axis of length 1 is dropped.  Two axes next to each other are
+        ; one when, for every state, a step along the outer is the inner's
+        ; whole length: so a number stretched over a tensor, every stride 0,
+        ; is one run with it.  Both keep the elements in row-major order.
+        ; With FREE the order is the caller's to give up, and the longest
+        ; axis is made the run: a row added to each of 13 rows of 2 is 2
+        ; runs of 13.
+        (def axes-of
+          (fn (go ext strs)
+            (if (null? ext) ()
+              (let ((more (go (rest ext) (map1 rest strs))))
+                (if (int= (first ext) 1) more (pair (pair (first ext) (map1 first strs)) more))))))
+        (def joined
+          (fn (go axes)
+            (if (if (null? axes) #t (null? (rest axes))) axes
+              (let ((a (first axes)) (r (go (rest axes))))
+                (let ((b (first r)))
+                  (if (same (rest a) (map1 (fn (_ s) (int* (first b) s)) (rest b)))
+                    (pair (pair (int* (first a) (first b)) (rest b)) (rest r))
+                    (pair a r)))))))
+        ; AXES with its longest last.
+        (def longest-last
+          (fn (_ axes)
+            (def most (fn (go l m) (if (null? l) m (go (rest l) (if (int< (first m) (first (first l))) (first l) m)))))
+            (def without (fn (go l x) (if (eq? (first l) x) (rest l) (pair (first l) (go (rest l) x)))))
+            (let ((m (most (rest axes) (first axes))))
+              (if (eq? m (nth (int- (len axes 0) 1) axes)) axes
+                (rev (pair m (rev (without axes m) ())) ())))))
         (def runs
-          (fn (_ sts ext each)
-            (let ((r (len ext 0)) (n (size-of ext)))
-              (match
-                ((int= n 0) ())
-                ((int= r 0) (each (map1 off-of sts) (map1 (fn (_ st) 0) sts) 1))
-                ((every contig? sts) (each (map1 off-of sts) (map1 (fn (_ st) 1) sts) n))
-                (#t
-                  (let ((last (int- r 1)))
-                    (def go
-                      (fn (go axis offs)
-                        (if (int= axis last)
-                          (each offs (map1 (fn (_ st) (nth last (str-of st))) sts) (nth last ext))
-                          (let ((n (nth axis ext)) (steps (map1 (fn (_ st) (nth axis (str-of st))) sts)))
-                            (def walk
-                              (fn (walk j offs)
-                                (if (int< j n)
-                                  (do (go (int+ axis 1) offs)
-                                      (walk (int+ j 1) (map2 int+ offs steps)))
-                                  ())))
-                            (walk 0 offs)))))
-                    (go 0 (map1 off-of sts))))))))
+          (fn (_ sts ext each free)
+            (match
+              ((int= (size-of ext) 0) ())
+              ((every contig? sts) (each (map1 off-of sts) (map1 (fn (_ st) 1) sts) (size-of ext)))
+              (#t
+                (let ((axes (joined (axes-of ext (map1 str-of sts)))))
+                  (def go
+                    (fn (go left offs)
+                      (if (null? (rest left))
+                        (each offs (rest (first left)) (first (first left)))
+                        (let ((n (first (first left))) (steps (rest (first left))))
+                          (def walk
+                            (fn (walk j offs)
+                              (if (int< j n)
+                                (do (go (rest left) offs)
+                                    (walk (int+ j 1) (map2 int+ offs steps)))
+                                ())))
+                          (walk 0 offs)))))
+                  (match
+                    ((null? axes) (each (map1 off-of sts) (map1 (fn (_ st) 0) sts) 1))
+                    ((null? (rest axes)) (go axes (map1 off-of sts)))
+                    (#t (go (if free (longest-last axes) axes) (map1 off-of sts)))))))))
+        ; FREE says the elements may be met in any order: no state shares
+        ; another's bytes and nothing is added up along the way.
         (def apply-kernel
-          (fn (_ name s sts slots ext)
+          (fn (_ name s sts slots ext free)
             (let ((bases (map2 pair (map1 base sts) (map1 (fn (_ st) (width (enc-of st))) sts))))
               (runs sts ext
                 (fn (_ offs strides cnt)
@@ -429,8 +468,24 @@
                   (map2 (fn (_ slot st) (set-word! s (rest slot) st)) slots strides)
                   (set-word! s 6 cnt)
                   (set-word! s 7 0)
-                  (drive name s))))))
-        (def kname (fn (_ enc which) (str->sym (Str8 append (symbol->str enc) "-" (symbol->str which)))))
+                  (drive name s))
+                free))))
+        ; A kernel's name, ENC-WHICH, made once and kept: (ENC WHICH NAME).
+        (def knames (pair () ()))
+        (def kname
+          (fn (_ enc which)
+            (def find
+              (fn (go l)
+                (if (null? l) ()
+                  (if (if (eq? (first (first l)) enc) (eq? (first (rest (first l))) which) #f)
+                    (first (rest (rest (first l))))
+                    (go (rest l))))))
+            (let ((k (find (first knames))))
+              (if (null? k)
+                (let ((made (str->sym (Str8 append (symbol->str enc) "-" (symbol->str which)))))
+                  (%set-first! knames (pair (list enc which made) (first knames)))
+                  made)
+                k))))
         ; --- broadcasting
         (def broadcast
           (fn (_ ea eb)
@@ -466,7 +521,7 @@
                 ((eq? enc c128)
                   (do (fset (ptr->int (str->ptr s)) 16 (bits (re-of x))) (fset (ptr->int (str->ptr s)) 17 (bits (im-of x)))))
                 (#t (set-word! s 14 (int-of x))))
-              (apply-kernel (kname enc (lit fill)) s (list st) (list (pair 2 5)) (ext-of st))
+              (apply-kernel (kname enc (lit fill)) s (list st) (list (pair 2 5)) (ext-of st) #t)
               st)))
         (def convert
           (fn (_ st enc)
@@ -478,7 +533,7 @@
                 (apply-kernel
                   (if (eq? enc (enc-of st)) (kname enc (lit copy))
                     (str->sym (Str8 append (symbol->str (enc-of st)) "->" (symbol->str enc))))
-                  (str-make 256) (list st out) (list (pair 0 3) (pair 2 5)) (ext-of st)))
+                  (str-make 256) (list st out) (list (pair 0 3) (pair 2 5)) (ext-of st) #t))
               out)))
         ; A number as a rank-0 state, in the encoding an operation with ENC needs.
         (def scalar
@@ -506,7 +561,7 @@
                   (let ((ext (broadcast (ext-of a) (ext-of b))))
                     (let ((out (new enc ext)))
                       (apply-kernel (kname enc which) (str-make 256)
-                        (list (stretch a ext) (stretch b ext) out) (list (pair 0 3) (pair 1 4) (pair 2 5)) ext)
+                        (list (stretch a ext) (stretch b ext) out) (list (pair 0 3) (pair 1 4) (pair 2 5)) ext #t)
                       out)))))))
         (def reduce
           (fn (_ which st)
@@ -523,7 +578,7 @@
                       ((real? enc) (fset (ptr->int (str->ptr s)) 16 (bits init)))
                       ((eq? enc c128) (do (fset (ptr->int (str->ptr s)) 16 (bits 0)) (fset (ptr->int (str->ptr s)) 17 (bits 0))))
                       (#t (set-word! s 13 init))))
-                  (apply-kernel (kname enc which) s (list st) (list (pair 0 3)) (ext-of st))
+                  (apply-kernel (kname enc which) s (list st) (list (pair 0 3)) (ext-of st) #f)
                   (match
                     ((real? enc) (type-make-instance float (fget (ptr->int (str->ptr s)) 16)))
                     ((eq? enc c128)
@@ -536,7 +591,7 @@
             (apply-kernel
               (if (eq? (enc-of src) f64) (kname f64 (lit copy))
                 (str->sym (Str8 append (symbol->str (enc-of src)) "->f64")))
-              (str-make 256) (list (stretch src (ext-of dst)) dst) (list (pair 0 3) (pair 2 5)) (ext-of dst))
+              (str-make 256) (list (stretch src (ext-of dst)) dst) (list (pair 0 3) (pair 2 5)) (ext-of dst) #f)
             dst))
         (Vector of size-of row-major contig? new get put zip reduce fill! convert view index addr drive bits
           broadcast assign! base)))
@@ -897,19 +952,24 @@
       (returns Tensor "A view sharing self's bytes")
       (example "(((Tensor range 6 'f64) slice 0 1 4) ->list)" "(1.0 2.0 3.0)")
       (example "(((Tensor from '((1 2 3) (4 5 6)) 'f64) slice 1 1 3) ->list)" "((2.0 3.0) (5.0 6.0))"))
-    (let ((st (field (lit st))) (r (self rank)))
-      (let ((ax (if (int< axis 0) (int+ axis r) axis)))
-        (if (if (int< ax 0) #t (not (int< ax r)))
-          (Err raise (lit value) "Tensor slice: no such axis" axis) ())
-        (let ((n (List ref ax (List ref 1 st))))
-          (let ((s (if (int< start 0) (int+ start n) start)) (e (if (int< end 0) (int+ end n) end)))
-            (if (if (int< s 0) #t (if (int< n e) #t (int< e s)))
-              (Err raise (lit value) "Tensor slice: the range is outside the axis" (list start end)) ())
-            (self %wrap
-              ((obj-ref (Tensor %fast) 11) st
-                (List map (fn (_ i len) (if (int= i ax) (int- e s) len)) (List range 0 r) (List ref 1 st))
-                (List ref 2 st)
-                (int+ (List ref 3 st) (int* s (List ref ax (List ref 2 st)))))))))))
+    ; The lists are walked here, with no send a step: a slice is taken of
+    ; small tensors often, and a send costs more than the walk.
+    (let ((st (field (lit st))))
+      (def len (fn (go l n) (if (null? l) n (go (rest l) (int+ n 1)))))
+      (def nth (fn (go k l) (if (int= k 0) (first l) (go (int- k 1) (rest l)))))
+      (let ((ext (first (rest st))) (str (first (rest (rest st)))) (off (first (rest (rest (rest st))))))
+        (let ((r (len ext 0)))
+          (let ((ax (if (int< axis 0) (int+ axis r) axis)))
+            (if (if (int< ax 0) #t (not (int< ax r)))
+              (Err raise (lit value) "Tensor slice: no such axis" axis) ())
+            (let ((n (nth ax ext)))
+              (let ((s (if (int< start 0) (int+ start n) start)) (e (if (int< end 0) (int+ end n) end)))
+                (if (if (int< s 0) #t (if (int< n e) #t (int< e s)))
+                  (Err raise (lit value) "Tensor slice: the range is outside the axis" (list start end)) ())
+                (def cut
+                  (fn (go i l) (if (null? l) () (pair (if (int= i ax) (int- e s) (first l)) (go (int+ i 1) (rest l))))))
+                (self %wrap
+                  ((obj-ref (Tensor %fast) 11) st (cut 0 ext) str (int+ off (int* s (nth ax str))))))))))))
 
   (method reshape (self (param extent INTEGER|LIST "The new axis lengths; their product must be the size"))
     (doc "The same elements in row-major order under another extent: a view when self is contiguous, else a view of a copy."
