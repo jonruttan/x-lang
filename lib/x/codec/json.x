@@ -64,7 +64,9 @@
     (if (null? (first %json-lexer-cell))
       (let ((blank " \t\r\n")
             (letters (list (pair 97 122) (pair 65 90)))
-            (unquoted (list (pair 1 33) (pair 35 91) (pair 93 127) (pair -128 -1))))
+            ; a byte past 127 is a negative code where the machine's char is
+            ; signed and a code of 128 to 255 where it is not: both are listed
+            (unquoted (list (pair 1 33) (pair 35 91) (pair 93 127) (pair -128 -1) (pair 128 255))))
         (%set-first! %json-lexer-cell
           (pair
             (Lexer make (list
