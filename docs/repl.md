@@ -202,7 +202,7 @@ descriptor:
 | Module | Holds |
 |---|---|
 | [`x/repl/edit`](../lib/x/repl/edit.x) | the buffer, the cursor, the kill ring, the history walk — no terminal at all |
-| [`x/repl/term`](../lib/x/repl/term.x) | raw mode, the window geometry, and turning bytes into keys |
+| [`x/repl/term`](../lib/x/repl/term.x) | raw mode, the terminal's settings and modes by name, the window geometry read and set, and turning bytes into keys |
 | [`x/repl/paint`](../lib/x/repl/paint.x) | colouring a line that may still be half-typed |
 | [`x/repl/line`](../lib/x/repl/line.x) | the loop that joins them, plus history and completion |
 | [`x/repl/lang`](../lib/x/repl/lang.x) | the named bundles of prompt seams a session switches between ([Switching languages](#switching-languages)) |
