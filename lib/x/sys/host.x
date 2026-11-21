@@ -39,10 +39,95 @@
 (import x/num/float)
 (import x/codec/struct)
 (import x/platform/syscall stat-layout)
+(import x/core/doors int+ int- int* int< int= str-make str-append str-byte-ref str-byte-len str-byte-sub)
 ; CPU times are nanoseconds and byte totals pass 2^31 within seconds of
 ; boot: on a 4-byte word they are bigints, which the tower's * and + make
 ; once bigint is loaded.  An 8-byte word holds them all.
 (when (< %word-size 8) (import x/num/bigint))
+
+; --- reading /proc text ---------------------------------------------------
+;
+; A process record reads two files and dozens of numbers, for every
+; process, every sample.  These are plain functions over the doors, every
+; closure made once here: a class dispatch, a Str8 call or a closure made
+; per call costs thousands of objects, and the tower's comparisons and
+; arithmetic allocate on every digit.
+
+; A 4-byte word's counters pass it: there the sums are the tower's, with
+; bigint loaded.
+(def %wide? (int= %word-size 8))
+(def %acc+ (if %wide? int+ +))
+(def %acc* (if %wide? int* *))
+
+(def %digit-at? (fn (_ s j n) (if (int< j n) (if (int< 47 (str-byte-ref s j)) (int< (str-byte-ref s j) 58) #f) #f)))
+
+; The digits from byte j onto acc: (value . the byte after them).
+(def %digits
+  (fn (self s j n acc)
+    (if (%digit-at? s j n) (self s (int+ j 1) n (%acc+ (%acc* acc 10) (int- (str-byte-ref s j) 48))) (pair acc j))))
+
+(def %negated (fn (_ r) (pair (if %wide? (int- 0 (first r)) (- 0 (first r))) (rest r))))
+
+; The decimal at byte i of s, before byte n: (value . the byte after its
+; digits), or nil when no digit is there.  A leading - negates it.
+(def %number-at
+  (fn (_ s i n)
+    (match
+      ((%digit-at? s i n) (%digits s i n 0))
+      ((if (int< i n) (if (int= (str-byte-ref s i) 45) (%digit-at? s (int+ i 1) n) #f) #f)
+        (%negated (%digits s (int+ i 1) n 0)))
+      (#t ()))))
+
+; The first byte at or after i, before n, that is not a space or a tab.
+(def %past-blanks
+  (fn (self s i n)
+    (if (if (int< i n) (if (int= (str-byte-ref s i) 32) #t (int= (str-byte-ref s i) 9)) #f) (self s (int+ i 1) n) i)))
+
+(def %reverse-onto (fn (self l acc) (if (null? l) acc (self (rest l) (pair (first l) acc)))))
+
+; A field's value as read: nil for no digits, negated for a leading -.
+(def %signed (fn (_ v neg) (if (null? v) () (if neg (if %wide? (int- 0 v) (- 0 v)) v))))
+
+; One pass over a stat line, a call a byte: k the fields still wanted, acc
+; the values so far, reversed; v the field's digits so far, nil before one;
+; neg its sign; at 0 between fields, 1 reading digits, 2 past them.
+; match, not let, at every byte: a let costs several times a match clause.
+(def %stat-scan
+  (fn (self s j n k acc v neg at)
+    (match
+      ((if (int< j n) (if (int< 0 k) (int= (str-byte-ref s j) 10) #t) #t)
+        (%reverse-onto (if (if (int= at 0) #t (int< k 1)) acc (pair (%signed v neg) acc)) ()))
+      ((int= (str-byte-ref s j) 32)
+        (if (int= at 0) (self s (int+ j 1) n k acc () #f 0)
+          (self s (int+ j 1) n (int- k 1) (pair (%signed v neg) acc) () #f 0)))
+      ((%digit-at? s j n)
+        (if (int= at 2) (self s (int+ j 1) n k acc v neg 2)
+          (self s (int+ j 1) n k acc (%acc+ (%acc* (if (null? v) 0 v) 10) (int- (str-byte-ref s j) 48)) neg 1)))
+      ((if (int= (str-byte-ref s j) 45) (int= at 0) #f) (self s (int+ j 1) n k acc () #t 1))
+      (#t (self s (int+ j 1) n k acc v neg 2)))))
+
+; The first k fields of a /proc stat line from byte i, before n or its
+; newline, as the integers each one spells, nil for a field that spells
+; none (the state letter).  A field is read up to its first byte that is
+; not a digit, as %int reads one.
+(def %stat-numbers (fn (_ s i n k) (%stat-scan s i n k () () #f 0)))
+
+(def %same-at
+  (fn (self key s at j m)
+    (if (int= j m) #t (if (int= (str-byte-ref s (int+ at j)) (str-byte-ref key j)) (self key s at (int+ j 1) m) #f))))
+; the first byte compared here, the rest only where it matches
+(def %index-walk
+  (fn (self key b s at last m)
+    (if (int< last at) ()
+      (if (if (int= (str-byte-ref s at) b) (%same-at key s at 1 m) #f) at (self key b s (int+ at 1) last m)))))
+
+; The byte index of key in s, before n, at or after i; nil when absent.
+(def %bytes-index
+  (fn (_ key s i n) (let ((m (str-byte-len key))) (%index-walk key (str-byte-ref key 0) s i (int- n m) m))))
+
+; The last byte index of the byte b in s, before n; nil when absent.
+(def %byte-last
+  (fn (self s b i) (if (int< i 1) () (if (int= (str-byte-ref s (int- i 1)) b) (int- i 1) (self s b (int- i 1))))))
 
 ; The device and inode of a stat, cut from the platform's layout as File
 ; stat's fields are (x/sys/file): the two kept, everything before and between
@@ -56,9 +141,115 @@
       (#t (go (rest rows) (+ gap (Struct length (list (first rows)))) acc)))))
 (def %dev-ino-read (Struct reader %dev-ino-fields))
 
+; The uid's and the gid's (name offset reader) in the platform's struct
+; stat: a process's owner is two reads at their offsets, not a record.
+(def %stat-owner
+  (let ((fs (Struct %fields (Struct %plan stat-layout))))
+    (pair (List find (fn (_ f) (eq? (first f) (lit uid))) fs)
+          (List find (fn (_ f) (eq? (first f) (lit gid))) fs))))
+
 ; The stat call, resolved once: syscall-door searches the platform's table,
 ; and holders stats every link and descriptor of every process.
 (def %stat-door (syscall-door (if os-darwin? (lit stat64) (lit stat))))
+
+; --- a process's record from /proc ------------------------------------------
+;
+; The bodies of Host %read, %owner, %real-ids and %linux-record-at, as plain
+; functions, so a walk over every process pays no dispatch per record.
+
+(def %read-parts
+  (fn (self fd buf acc)
+    (let ((n (File read fd buf 4096)))
+      (if (> n 0) (self fd buf (pair (str-byte-sub buf 0 n) acc)) acc))))
+
+; A /proc file whole, or nil when it cannot be opened.
+(def %proc-read
+  (fn (_ path)
+    (let ((fd (File open path (lit rdonly))))
+      (if (< fd 0) ()
+        (let ((parts (%read-parts fd (str-make 4096) ())))
+          (File close fd)
+          ; a process's stat and status files come in one read
+          (match
+            ((null? parts) "")
+            ((null? (rest parts)) (first parts))
+            (#t (Str8 join "" (%reverse-onto parts ())))))))))
+
+; The uid and gid owning a path, or nil when it will not stat.
+(def %proc-owner
+  (fn (_ path)
+    (let ((b (str-make 160)))
+      (if (< (%stat-door path b) 0) ()
+        (pair ((first (rest (rest (first %stat-owner)))) b (first (rest (first %stat-owner))))
+              ((first (rest (rest (rest %stat-owner)))) b (first (rest (rest %stat-owner)))))))))
+
+; The first number past the key found at byte k of s, before n.
+(def %number-past
+  (fn (_ key s k n)
+    (let ((r (%number-at s (%past-blanks s (int+ k (str-byte-len key)) n) n)))
+      (if (null? r) () (first r)))))
+
+; The real uid and gid from a /proc/PID/status, found in place, not by
+; splitting the file into lines: Uid: and Gid: are never the first line,
+; and Gid: is looked for from Uid:, the line before it.
+(def %proc-real-ids
+  (fn (_ dir)
+    (let ((s (%proc-read (str-append dir "/status"))))
+      (if (null? s) ()
+        (let ((n (str-byte-len s)))
+          (let ((ku (%bytes-index "\nUid:" s 0 n)))
+            (let ((kg (if (null? ku) () (%bytes-index "\nGid:" s ku n))))
+              (if (null? kg) ()
+                (let ((u (%number-past "\nUid:" s ku n)) (g (%number-past "\nGid:" s kg n)))
+                  (if (if (null? u) #t (null? g)) () (pair u g)))))))))))
+
+; Where a stat line's comm ends: the last ) a comm's length can reach past
+; the ( at open, the kernel keeping a comm to 15 bytes.
+(def %comm-close
+  (fn (_ s open n) (%byte-last s 41 (if (int< (int+ open 17) n) (int+ open 17) n))))
+
+(def %nth (fn (self i l) (if (null? l) () (if (int= i 0) (first l) (self (int- i 1) (rest l))))))
+(def %no-tty? (fn (_ t) (if (null? t) #t (= t 0))))
+
+; The record of a /proc/PID or /proc/PID/task/TID directory, or nil when it
+; is gone; HZ and PAGE are the clock ticks a second and the page size.
+(def %proc-record
+  (fn (_ btime hz page dir id)
+    (let ((s (%proc-read (str-append dir "/stat"))))
+      (let ((n (if (null? s) 0 (str-byte-len s))))
+        (let ((open (if (null? s) () (%bytes-index "(" s 0 n))))
+          (let ((close (if (null? open) () (%comm-close s open n))))
+            (if (if (null? close) #t (int< close open)) ()
+              (let ((from (%past-blanks s (int+ close 1) n)))
+                ; the fields after comm, the state letter (nil here) first,
+                ; to the processor, field 39 of the line and the last read
+                (let ((f (%stat-numbers s from n 37)))
+                  (let ((tty (%nth 4 f)) (start (%nth 19 f)) (rss (%nth 21 f))
+                        (ut (%nth 11 f)) (st (%nth 12 f))
+                        (owner (%proc-owner dir)) (real (%proc-real-ids dir)))
+                    (list (pair (lit pid) id)
+                          (pair (lit ppid) (%nth 1 f))
+                          (pair (lit pgid) (%nth 2 f))
+                          (pair (lit sid) (%nth 3 f))
+                          (pair (lit uid) (if (null? owner) () (first owner)))
+                          (pair (lit gid) (if (null? owner) () (rest owner)))
+                          (pair (lit ruid) (if (null? real) () (first real)))
+                          (pair (lit rgid) (if (null? real) () (rest real)))
+                          (pair (lit state) (if (int< from n) (str-byte-sub s from 1) ()))
+                          (pair (lit comm) (str-byte-sub s (int+ open 1) (int- close (int+ open 1))))
+                          (pair (lit tty) (if (%no-tty? tty) () tty))
+                          ; tty_nr: the major in bits 8-19, the minor in 0-7 and 20-31
+                          (pair (lit tty-major) (if (%no-tty? tty) () (& (>> tty 8) 4095)))
+                          (pair (lit tty-minor) (if (%no-tty? tty) () (| (& tty 255) (& (>> tty 12) 1048320))))
+                          (pair (lit nice) (%nth 16 f))
+                          (pair (lit start) (if (null? start) () (+ btime (/ start hz))))
+                          (pair (lit threads) (%nth 17 f))
+                          (pair (lit vsz) (%nth 20 f))
+                          (pair (lit rss) (if (null? rss) () (* rss page)))
+                          (pair (lit utime) (if (null? ut) () (/ (* ut 1000000000) hz)))
+                          (pair (lit stime) (if (null? st) () (/ (* st 1000000000) hz)))
+                          ; field 39, past rss and fourteen more, as BusyBox's top reads it
+                          (pair (lit processor) (%nth 36 f)))))))))))))
 
 (def-class Host ()
   (doc "The machine as the kernel reports it: boot time, load, memory, CPU time, system-wide counters, disk, network and interrupt totals, processes and logged-in users, the same records on Linux and Darwin."
@@ -70,6 +261,8 @@
     (source    ()      "'linux or 'darwin: which reader answers; nil means this kernel's")
     (proc-root "/proc" "The /proc tree the Linux reader opens")
     (types     ()      "The STRING, POINTER and INTEGER type handles, once %types has looked them up")
+    (hz        ()      "Clock ticks a second, once %hz has asked; cleared when an image is loaded")
+    (page-size ()      "The page size, once %page-size has asked; cleared when an image is loaded")
     (ctx       ()      "What %darwin-ctx resolves, once it has; cleared when an image is loaded")
 
     ; --- plumbing -------------------------------------------------------------
@@ -155,31 +348,8 @@
         (returns ANY "INTEGER, or nil")
         (example "(Host %int \"-42\")" "-42")
         (example "(null? (Host %int \"x\"))" "#t"))
-      ; the int doors throughout: a record parses a dozen of these, and the
-      ; tower's comparisons and arithmetic allocate on every digit
-      (def at (prim-ref (lit str) (lit byte-ref)))
-      (def i+ (prim-ref (lit int) (lit +)))
-      (def i- (prim-ref (lit int) (lit -)))
-      (def i* (prim-ref (lit int) (lit *)))
-      (def i< (prim-ref (lit int) (lit <)))
-      (def i= (prim-ref (lit int) (lit =)))
-      (def digit? (fn (_ b) (if (i< 47 b) (i< b 58) #f)))
-      (def n (Str8 length s))
-      (def neg (if (i< 0 n) (i= (at s 0) 45) #f))
-      ; a 4-byte word's counters pass it: the tower's, with bigint loaded
-      (def wide (i= %word-size 8))
-      (def a+ (if wide i+ +))
-      (def a* (if wide i* *))
-      (def go
-        (fn (self i acc)
-          (match
-            ((if (i< i n) #f #t) acc)
-            ((digit? (at s i)) (self (i+ i 1) (a+ (a* acc 10) (i- (at s i) 48))))
-            (#t acc))))
-      (def start (if neg 1 0))
-      (if (if (i< start n) (digit? (at s start)) #f)
-        (let ((v (go start 0))) (if neg (if wide (i- 0 v) (- 0 v)) v))
-        ()))
+      (def r (%number-at s 0 (str-byte-len s)))
+      (if (null? r) () (first r)))
 
     (method %hex (self (param s STRING "Hexadecimal digits"))
       (doc "The integer a run of hex digits spells, read up to the first byte that is not one; 0 for none. Sixteen digits are its 64 bits, through the int doors whether or not the tower is loaded, so a value past the signed range, such as an address in the top half of the address space, is negative."
@@ -242,16 +412,7 @@
         (returns ANY "STRING, or nil")
         (example "(null? (Host %read \"/nonexistent/file\"))" "#t")
         (sample "(Host %read \"/proc/loadavg\")" "\"0.52 0.58 0.59 2/913 48213\\n\""))
-      (def fd (File open path (lit rdonly)))
-      (if (< fd 0) ()
-        (let ((buf (Host %buf 4096)))
-          (def go
-            (fn (self acc)
-              (def n (File read fd buf 4096))
-              (if (> n 0) (self (pair (Str8 sub 0 n buf) acc)) acc)))
-          (def parts (go ()))
-          (File close fd)
-          (Str8 join "" (List reverse parts)))))
+      (%proc-read path))
 
     (method %fields (self (param s STRING "A line"))
       (doc "The line's fields, split on runs of spaces."
@@ -287,13 +448,15 @@
         (returns INTEGER "Ticks a second")
         (example "(< 0 (Host %hz))" "#t")
         (sample "(Host %hz)" "100"))
-      (Host %sysconf 2 3))
+      (when (null? (Host hz)) (Host hz (Host %sysconf 2 3)))
+      (Host hz))
 
-    (method %ticks->ns (self (param t INTEGER "Clock ticks"))
-      (doc "Clock ticks in nanoseconds."
-        (returns INTEGER "Nanoseconds")
-        (example "(Host %ticks->ns (Host %hz))" "1000000000"))
-      (/ (* t 1000000000) (Host %hz)))
+    (method %ticks->ns (self (param t ANY "Clock ticks, or nil"))
+      (doc "Clock ticks in nanoseconds; nil for nil, a field a short line lacks."
+        (returns ANY "INTEGER nanoseconds, or nil")
+        (example "(Host %ticks->ns (Host %hz))" "1000000000")
+        (example "(null? (Host %ticks->ns ()))" "#t"))
+      (if (null? t) () (/ (* t 1000000000) (Host %hz))))
 
     ; --- Linux: sysinfo(2) ----------------------------------------------------
 
@@ -334,7 +497,8 @@
         (returns INTEGER "Bytes")
         (example "(< 0 (Host %page-size))" "#t")
         (sample "(Host %page-size)" "16384 on Apple silicon, 4096 on most Linux machines"))
-      (Host %sysconf 30 29))
+      (when (null? (Host page-size)) (Host page-size (Host %sysconf 30 29)))
+      (Host page-size))
 
     (method %mach-ns (self (param t INTEGER "Mach absolute time units"))
       (doc "Mach time units in nanoseconds, by mach_timebase_info."
@@ -1531,90 +1695,46 @@
       (doc "processes, from /proc/PID/stat; a process that exits mid-walk is left out."
         (returns LIST "Process records")
         (sample "(Assoc get 'comm (first (Host %linux-processes)))" "\"init\", on Linux"))
+      ; the walk's constants asked once, and each record read by the plain
+      ; function: a Host call costs thousands of objects, a process a dozen
       (def btime (Host %linux-btime))
-      (def pids (List filter (fn (_ name) (not (null? (Host %int name))))
-                  (File list-dir (Host proc-root))))
-      (List reject null? (List map (fn (_ name) (Host %linux-record btime name)) pids)))
+      (def hz (Host %hz))
+      (def page (Host %page-size))
+      (def root (str-append (Host proc-root) "/"))
+      (def go
+        (fn (self names acc)
+          (if (null? names) acc
+            (let ((id (%number-at (first names) 0 (str-byte-len (first names)))))
+              (if (null? id) (self (rest names) acc)
+                (let ((r (%proc-record btime hz page (str-append root (first names)) (first id))))
+                  (self (rest names) (if (null? r) acc (pair r acc)))))))))
+      (%reverse-onto (go (File list-dir (Host proc-root)) ()) ()))
 
     (method %linux-record (self (param btime INTEGER "Boot time, unix seconds") (param name STRING "The pid, as its /proc directory is named"))
       (doc "One process's record from /proc/PID/stat, or nil when it is gone."
         (returns ANY "A process record, or nil")
         (sample "(Assoc get 'comm (Host %linux-record (Host %linux-btime) \"1\"))" "\"init\", on Linux"))
-      (Host %linux-record-at btime (Str8 append (Host proc-root) "/" name) (Host %int name)))
+      (Host %linux-record-at btime (str-append (str-append (Host proc-root) "/") name) (Host %int name)))
 
     (method %linux-record-at (self (param btime INTEGER "Boot time, unix seconds") (param dir STRING "A /proc/PID or /proc/PID/task/TID directory")
                                    (param id INTEGER "The pid or thread id the directory is named for"))
-      (doc "A record from a directory's stat file, or nil when it is gone. comm is read between the first ( and the last ), since a name may hold either. A field past the end of a short line is nil."
+      (doc "A record from a directory's stat file, or nil when it is gone: unreadable, or read empty or cut short before comm's ) by a process that exited mid-read. comm is read between the first ( and the last ), since a name may hold either. A field past the end of a short line is nil."
         (returns ANY "A process record, or nil")
         (sample "(Assoc get 'pid (Host %linux-record-at (Host %linux-btime) \"/proc/1/task/1\" 1))" "1, on Linux"))
-      (def s (Host %read (Str8 append dir "/stat")))
-      (if (null? s) ()
-        (let ((open (Str8 index-of "(" s)) (close (Str8 last-index-of ")" s)))
-          (def f (Host %fields (Str8 sub (+ close 2) (Str8 length s) s)))
-          (def n (List length f))
-          (def at (fn (_ i) (if (< i n) (Host %int (List ref i f)) ())))
-          (def tty (at 4))
-          (def owner (Host %owner dir))
-          (def real (Host %real-ids dir))
-          (list (pair (lit pid) id)
-                (pair (lit ppid) (at 1))
-                (pair (lit pgid) (at 2))
-                (pair (lit sid) (at 3))
-                (pair (lit uid) (if (null? owner) () (first owner)))
-                (pair (lit gid) (if (null? owner) () (rest owner)))
-                (pair (lit ruid) (if (null? real) () (first real)))
-                (pair (lit rgid) (if (null? real) () (rest real)))
-                (pair (lit state) (Str8 sub 0 1 (first f)))
-                (pair (lit comm) (Str8 sub (+ open 1) (- close (+ open 1)) s))
-                (pair (lit tty) (if (= tty 0) () tty))
-                ; tty_nr: the major in bits 8-19, the minor in 0-7 and 20-31
-                (pair (lit tty-major) (if (= tty 0) () (& (>> tty 8) 4095)))
-                (pair (lit tty-minor) (if (= tty 0) () (| (& tty 255) (& (>> tty 12) 1048320))))
-                (pair (lit nice) (at 16))
-                (pair (lit start) (+ btime (/ (at 19) (Host %hz))))
-                (pair (lit threads) (at 17))
-                (pair (lit vsz) (at 20))
-                (pair (lit rss) (* (at 21) (Host %page-size)))
-                (pair (lit utime) (Host %ticks->ns (at 11)))
-                (pair (lit stime) (Host %ticks->ns (at 12)))
-                ; field 39, past rss and fourteen more, as BusyBox's top reads it
-                (pair (lit processor) (at 36))))))
+      (%proc-record btime (Host %hz) (Host %page-size) dir id))
 
     (method %owner (self (param path STRING "A /proc/PID directory"))
       (doc "The uid and gid owning a path, as BusyBox's ps reads a process's user and group."
         (returns ANY "PAIR (uid . gid), or nil")
         (example "(null? (Host %owner \"/nonexistent/file\"))" "#t")
         (sample "(Host %owner \"/\")" "(0 . 0)"))
-      (def b (Host %buf 160))
-      (if (< (%stat-door path b) 0) ()
-        (let ((st (Struct unpack stat-layout b)))
-          (pair (Assoc get (lit uid) st) (Assoc get (lit gid) st)))))
+      (%proc-owner path))
 
     (method %real-ids (self (param dir STRING "A /proc/PID directory"))
       (doc "The real uid and gid, the first number of /proc/PID/status's Uid: and Gid: lines, as BusyBox's ps reads ruser and rgroup."
         (returns ANY "PAIR (ruid . rgid), or nil")
         (sample "(Host %real-ids \"/proc/1\")" "(0 . 0), on Linux"))
-      (def s (Host %read (Str8 append dir "/status")))
-      ; found in place, not by splitting the file into lines: Uid: and Gid:
-      ; are never the first line, and a record is read for every process
-      (def at (prim-ref (lit str) (lit byte-ref)))
-      (def i+ (prim-ref (lit int) (lit +)))
-      (def i- (prim-ref (lit int) (lit -)))
-      (def i< (prim-ref (lit int) (lit <)))
-      (def i= (prim-ref (lit int) (lit =)))
-      (def first-of
-        (fn (_ key)
-          (def k (Str8 index-of key s))
-          (if (null? k) ()
-            (let ((n (Str8 length s)))
-              (def skip
-                (fn (self i)
-                  (if (if (i< i n) (if (i= (at s i) 9) #t (i= (at s i) 32)) #f) (self (i+ i 1)) i)))
-              (def from (skip (i+ k (Str8 length key))))
-              (Host %int (Str8 sub from (if (i< (i+ from 20) n) 20 (i- n from)) s))))))
-      (if (null? s) ()
-        (let ((u (first-of "\nUid:")) (g (first-of "\nGid:")))
-          (if (if (null? u) #t (null? g)) () (pair u g)))))
+      (%proc-real-ids dir))
 
     (method %linux-args (self (param pid INTEGER "Process ID"))
       (doc "args, from /proc/PID/cmdline: the strings between its NUL bytes, split as each read lands, since a string holding a NUL cannot be carried whole."
@@ -1863,7 +1983,7 @@
 
 ; A resolved symbol is a fact of the process that resolved it: a process
 ; restored from an image resolves its own the first time it asks.
-(set! %image-recache-hooks (pair (fn (_) (Host ctx ())) %image-recache-hooks))
+(set! %image-recache-hooks (pair (fn (_) (Host ctx ()) (Host hz ()) (Host page-size ())) %image-recache-hooks))
 
 (doc (provide x/sys/host Host)
   (note "Linux reads sysinfo(2) and /proc; Darwin reads sysctl, the Mach host statistics, IOKit and proc_pidinfo over the dlopen FFI; both read utmpx through libc.")

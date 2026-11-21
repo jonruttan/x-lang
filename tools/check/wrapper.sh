@@ -202,6 +202,30 @@ if [ -e apps/bitwise/run.x ]; then
 	esac
 fi
 
+# A dialect's entry ends its boot with (%module-program!): the program is read
+# into an environment of its own, a child of the library's.  A program that
+# defines a library name has it for itself, and a module loaded after it --
+# the fixture calls `note` as it loads, as x/tool/compile does -- reads the
+# library's.  The library's modules read the process's own `args`, not the
+# image writer's.  From source and from a state image, each with a cache of
+# its own, since the two install the program environment by different paths.
+cat > "$TMP/program-env.x" <<'EOF'
+(def note (fn (_ . a) 'program))
+(import-path! "tests/x/fixtures/progenv")
+(import x/type/env)
+(write (list (note "a section")
+             ((fn (_) (import program/reads reads-noted) (reads-noted)))
+             (null? (Env parent (Env root)))
+             (null? (Env parent (Env parent (Env root))))
+             (first (rest (Sys args 'program)))))
+EOF
+for boot in --no-image ""; do
+	XDG_CACHE_HOME="$TMP/cache-pe" sh x.sh -q $boot -f "$TMP/program-env.x" -- arg >/dev/null 2>&1 || true
+	got=$(XDG_CACHE_HOME="$TMP/cache-pe" sh x.sh -q $boot -f "$TMP/program-env.x" -- arg 2>&1 || true)
+	want "a program's definitions shadow the library's and reach no module (${boot:-image})" \
+		"('program #t #f #t \"arg\")" "$got"
+done
+
 if [ "$fails" -gt 0 ]; then
 	printf 'wrapper: %d failure(s).\n' "$fails" >&2
 	exit 1

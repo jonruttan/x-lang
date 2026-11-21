@@ -96,9 +96,9 @@
          (str-make (* 2 %word-size)))
         (Err raise (lit type) "Env cell: a name is a symbol" name)))
     (method root (self)
-      (doc "The root environment of the running base: where top-level forms bind, every frame's outermost parent, with the library's names in its tree and no parent of its own."
+      (doc "The root environment of the running base: where top-level forms bind. During a boot it holds the library's names and has no parent. A dialect's entry ends its boot by giving the program an environment of its own, a child of the library's, which this then answers: a program's definition of a library name shadows it for the program and leaves the library's modules reading their own."
         (returns ANY "The root environment")
-        (example "(null? (Env parent (Env root)))" "#t"))
+        (example "(Env has? (Env root) 'first)" "#t"))
       (%reflect-base-cell (lit env-root)))))
 
 ; (Env current) answers the environment the form is evaluated in.  It is an

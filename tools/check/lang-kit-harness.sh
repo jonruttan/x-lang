@@ -106,12 +106,14 @@ want "helium by default, required langs deepest first and once, then the bundle"
 (import-path! \"$L/app\")
 (def %lang-root \"$L/app\")
 (def %lang-lead \"app\")
-(import app/base)" "$got"
+(import app/base)
+
+(%module-program!)" "$got"
 
 # Sourced, as a bundle's shim runs it.
 rm -f "$L/core/tests/lib/harness.gen.x"
 got=$( (FAKE_X_ROOT="$ROOT" BUNDLE="$L/core" X="$TMP/x"; export FAKE_X_ROOT BUNDLE X; . "$GEN") 2>&1 && grep -c '' "$L/core/tests/lib/harness.gen.x" || true)
-want "runs sourced from a shim" "9" "$got"
+want "runs sourced from a shim" "11" "$got"
 
 bundle "$TMP/xe/lisp" lisp xe
 got=$(gen "$TMP/xe/lisp" | sed -n 2p || true)
