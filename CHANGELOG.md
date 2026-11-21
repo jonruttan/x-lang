@@ -5,6 +5,324 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.60.0] - 2026-11-21
+
+**A bundle is `lib/NAME/` with a `bundle.xon`, and its entries are
+modules.** ([#1420]) Breaking. `bundle.xon` replaces `lang.xon`
+(`(name "NAME")`, one `(entry NAME)` row an entry, `(requires-bundle
+...)`), `lib/` is the bundle's import root, and an entry is the scoped
+module `NAME/ENTRY` that exports `main`: importing it sets the bundle
+up, and `x -l NAME` or `x -l NAME/ENTRY` imports it and calls `main`. A
+bundle that lists no entry is a library. `bundles/`, `X_BUNDLE_DIR`,
+`--install-bundle`, `--allow-bundle-skew`, `bundle.pin.xon`,
+`tools/bundle-kit/`, `tools/contract/bundles.x` and `make
+check-bundles` replace their `lang` names. The old shape is not read: a
+bundle stays on the release it declares until it moves.
+
+**A missed import arms the installed bundle its name says, and
+`(Bundle root "NAME")` replaces `%lang-root`.** ([#1421]) Breaking.
+`x/sys/bundle` adds `Bundle`: `dir`, `installed`, `root`, `arm!`. An
+import no root holds arms the bundle named by the module's first
+segment, an official one or the single third-party one, so a session
+imports an installed library's module with nothing declared; several
+candidates are refused, naming them. `(Bundle root "NAME")` answers a
+loaded bundle's directory, for a library and a required bundle as for
+the one booted. `%lang-root` is no longer defined; the wrapper defines
+`%bundle-dir`.
+
+**Official bundles are pinned and installed with x.** ([#1424]) A
+library or app a release carries has one pin,
+`tools/bundles/NAME.pin.xon`. `make bundles` acquires each into
+`deps/bundles/`, digest-verified, and skips one already at its pin;
+`make install` copies them to the install's `bundles/` and fails on one
+that was not acquired. None is pinned yet. The root `lang.pin.xon`,
+which nothing read, is removed.
+
+**The bundle kit runs a bundle's documentation examples.** ([#1423])
+`tools/bundle-kit/doctest.sh` extracts every `(example "IN" "OUT")` from
+the `(doc ...)` forms of a bundle's modules, with the generator `make
+doctest` uses, and runs them on the platform's spec runner; the shared
+bundle workflow runs it after the spec gate. A library that leaves
+x-lang keeps its examples checked. `make install` ships
+`tools/check/doctest.x`.
+
+**A program's definitions shadow the library's names and never reach
+its modules.** ([#1406]) A dialect's entry ends its boot with
+`(%module-program!)`: the rest of the input is read into a program
+environment, a child of the platform environment the library was loaded
+into, and every module, loaded at boot or later, is a child of the
+platform's. A program defining a library name, as x-tracker's specs
+defining `note` did, had rebound the root binding every module reads:
+x/tool/compile's top-level `(note ...)` reached the spec's function as
+the mixer's JIT loaded it, the compile failed and the mixer ran its
+pure-x loops, and the gate's footprint reached 3.6-4 GB. With those
+specs restored, x-tracker's gate on this change is 106/106 under the
+3500 MB guard, peak footprint 1157 MB. Bundle harnesses end with the
+same form, and a state image's `args` is rebound with `set!` so the
+library's modules read the process's own.
+
+**The doctest gate tests calls against annotations.** ([#1411]) Each
+generated doctest file installs a check on its module's documented
+closures, and every call the examples make has its arguments tested
+against the `(param NAME TYPE ...)` annotations. A file's last case
+fails when an argument did not fit. Examples that guard an error are
+not tested. A value whose type has already fitted a parameter's
+annotation is passed without a second test: the boot-surface doctest
+file with the checks installed takes 11 s, where it took 37 s.
+
+**The doctest gate tests what a call answers against its `returns`
+annotation.** ([#1422]) Each call a doc example makes has its answer
+tested as its arguments are, and an answer that does not fit fails the
+module's file. The first run found 16: thirteen functions that answer
+nil on a miss (now `TYPE|NIL`), the sum of floats, `Generic absorbs?`
+and `Pact when`. `Pact when` now answers nil, as its documentation
+says; it answered an internal list. `Generic absorbs?` answers `#f`
+where it answered nil: a key that absorbs nothing -- a class, the
+wildcard, a type with no conversion from the other -- now gets the
+predicate's own false.
+
+**`x/data/table` holds tables of named columns.** ([#1381])
+`(Table from '((age (31.0 45.0)) (name ("Ann" "Bo"))))` and
+`(Table from-csv text)` make a `Table`; it answers `names`, `extent`,
+`(t column 'age)`, `(t row 0)`, `(t select names)`,
+`(t filter 'age pred)`, `(t sort 'age)` and `(t matrix names)`, which
+a model takes as its predictors. A `Column` of numbers answers `sum`,
+`mean`, `least`, `greatest`, `variance`, `deviation`, `quantile` and
+`median`. `apropos` finds `Table` as "DataFrame".
+
+**A `Table`'s columns are put, derived, removed and renamed.**
+([#1383]) `(t put 'bmi values)` adds or replaces a column,
+`(t derive 'bmi '(weight height) f)` works one out from others row by
+row, and `(t remove 'age)` and `(t rename 'age 'years)` do as they say.
+A `Column` of numbers answers `add`, `sub`, `mul` and `div`, by a
+column or a number, and any `Column` answers `(c map f)`. `apropos`
+finds `derive` as "mutate" and `put` as "assign".
+
+**A `Table` parts and summarizes its rows by a column's distinct
+values.** ([#1390]) `(t split 'city)` answers each distinct city with
+the table of its rows, and `(t aggregate 'city (list (list 'mean-age
+'age (fn (_ c) (c mean)))))` a table with a row for each city and a
+column for each summary asked for. `apropos` finds both as "group by".
+
+**`(t gather indexes)` answers the entries of a `Tensor` that a list
+of indexes picks.** ([#1386]) Along the first axis, in the indexes'
+order, in the tensor's encoding: `((Tensor from '(10 20 30) 'f64)
+gather '(2 0 2))` is `(30.0 10.0 30.0)`, and a matrix answers its rows.
+`apropos` finds it as "take".
+
+**`x/num/transformer` runs a language model in GPT-2's layout from a
+safetensors file.** ([#1382]) `(Transformer from-file path heads)`
+reads the model; `logits` answers every position's score for every
+vocabulary item, `predict` the id scored highest after a list of ids,
+and `generate` the ids with n more predicted after them.
+
+**Added `x/gfx/shape`: anti-aliased filled and stroked outlines on a
+canvas.** ([#1385]) `(Shape fill! c contours colour)` fills contours of
+`(X . Y)` points, each in 1/256 of a pixel, by the non-zero rule;
+`(Shape stroke! c points width colour closed)` draws a line with round
+ends and joins, even where its pieces overlap; `(Shape mask contours)`
+answers the coverage as a canvas, and `(Shape cubic p0 p1 p2 p3)` the
+points of a Bezier curve within a quarter pixel. The coverage loop is
+compiled (`Shape jit!`) and checked against pure x.
+
+**Added `x/gfx/figure` and `x/gfx/scene`: figures placed, animated and
+drawn as frames.** ([#1392]) `Figure` makes outlines of curves
+(`circle`, `square`, `triangle`, `polygon`) in scene units, places them
+(`shift`, `scale`, `rotate`, `next-to`), styles them (`fill`,
+`stroke`) and answers animations as functions of progress (`morph`,
+`turn`, `create`, `fade-out`); `Figure draw!` draws one through
+`Shape`. `(Scene frame figures animations progress width height)`
+answers the frame as a canvas and `Scene smooth` eases a progress.
+
+**`Scene` plays on a stage.** ([#1398]) `(Scene open front title width
+height rate)` makes a stage on `Sdl`, `Web` or `Linux`; `(Scene play
+stage figures animations seconds)` shows frames by the clock, eased,
+and answers the figures afterwards; `wait` holds them, `stopped?` says
+whether the window was closed, and `close` closes it. `(Scene after
+figures animations)` answers the figures at the animations' end with no
+stage. `examples/xe/scenes.x` plays seven short scenes.
+
+**A `Figure` holds several paths, and there are lines and arrows.**
+([#1410]) A figure is now `(POINTS PATHS FILL STROKE WIDTH DRAWN)`,
+each path an outline or a line. `(Figure line x0 y0 x1 y1)` and
+`(Figure arrow x0 y0 x1 y1)` make them, `(Figure onto fig other)`
+centres one figure on another, and `morph` pairs paths, growing or
+shrinking one with no partner. `(Shape strokes! c lines width colour)`
+draws several lines as one. `Scene play` draws its unchanging figures
+once a play: a frame of one animation over 12 figures takes 28 ms,
+where drawing all of them took 217 ms.
+
+**Added `x/gfx/font`, a stroke font, and `Figure label`.** ([#1418])
+`(Font glyph code)` answers a printable ASCII character as lines on a
+small grid, 95 original glyphs. `(Figure label text height)` makes text
+a figure of those lines, so it is placed, turned, faded and drawn in as
+any figure is. A label of six letters takes 68 ms to make and 32 ms to
+draw at 854 x 480.
+
+**A table is a table.** ([#1397]) The document tree has a `(table
+HEADER? ALIGNS ROWS)` node: `(Html parse)` answers one for an HTML
+table, and `(Page markdown)` draws it as a grid, its columns fitted to
+the width and aligned, a rule under its header row. `(Markdown html)`
+writes it as GitHub's renderer does, `(MarkdownWrite text)` as a pipe
+table, and `(PdfWrite bytes)` a line a row. A reader of `(Html parse)`
+that took a table's rows as paragraphs now meets the table node.
+
+**`(Markdown parse)` reads GitHub pipe tables** ([#1400]) as the table
+node, alignments and all.
+
+**A link keeps its destination through a PDF.** ([#1389]) `(PdfWrite
+bytes)` puts a link annotation over a link's text, and `(PdfText
+parse)` answers `(link DEST nil INLINES)` for the text under a link
+annotation that goes to a URI, where the writer wrote the text alone
+and the reader read no links. A link the writer writes reads back as
+the link it was given.
+
+**`(Paint grammar g)` colours a prompt by a `Syntax` grammar.**
+([#1384]) It answers a painter for `%repl-paint` that draws the line
+being typed by the grammar's spans, in the theme in use, so a lang's
+prompt and its files are coloured by the same rules: `(set! %repl-paint
+(Paint grammar (Syntax named 'scheme)))`.
+
+**`Term` names every mode busybox's stty does.** ([#1416]) It takes a
+terminal's settings as a value (`settings`, `setting`, `setting!`,
+`words`, `words!`, `apply!`), sets the window's size (`window!`) and
+lists the bauds it takes.
+
+**`X_COMPILED_REPORT` reports each failed compile as it happens.**
+([#1409]) With it set in the process environment, a `Compiled` entry
+whose compile raises writes `compiled: NAME failed: REASON` to stderr
+as it falls back to its interpreted version. Unset, a failure stays
+quiet, as on a host with no assembler backend, and `(Compiled report)`
+still lists every entry's state and reason.
+
+**`make changelog-collect` leaves out an entry whose commit was
+reverted.** ([#1407]) A commit, or a pull request's merge, that a later
+commit in the range names in git's `This reverts commit` line is not
+read for an entry, and `check-changelog-commits` does not ask it for
+one; a revert that was itself reverted takes nothing back. The same
+change reverts #1396 and #1399, the first library kind, which #1420
+replaces.
+
+**`Host processes` on Linux makes about a quarter of the objects it did
+for each process** ([#1405]), and a process that exits while it is read
+is left out, where it could raise.
+
+**`Transformer` runs a block's attention as one kernel** ([#1393]),
+where it ran about ten tensor operations for each head. A forward pass
+on GPT-2 small takes 1.7 seconds for eight ids, where it took 14.
+
+**`Shape` walks its edges in a compiled loop.** ([#1387]) The walk over
+an outline's edges is a word form, as the row sum was, and a stroke's
+discs are placed by another; all three are checked against pure x
+before they are adopted. A circle 120 pixels across fills in 4.4 ms,
+from 17 ms, and strokes in 6.0 ms, from 101 ms. `x/tool/word-form`
+takes `/`, which `compile-asm` already compiled.
+
+**Element-wise `Tensor` operations on small tensors are about three
+times faster.** ([#1404]) An operation makes its axes as few as the
+strides allow before walking them and, where the order of the elements
+does not matter, runs along the longest: a number or a row against a
+tensor of 13 rows of 2 is one run or two where it was 13. On such a
+tensor a row multiplied in and a row added take 3.3 ms, from 9.5 ms,
+and a `slice` 0.24 ms, from 0.69 ms; a frame of `x/gfx/scene` with one
+morphing figure takes 26 ms, from 35 to 40 ms. Answers are unchanged.
+
+**`Tensor gather` copies its entries by a compiled kernel, and a
+`Table` packs the rows it takes once for every column.** ([#1403])
+Taking, filtering, sorting, splitting and aggregating a table of number
+columns allocate less, the more so the more columns it has. Once its
+own kernel has compiled, gathering by a list of indexes checks them in
+under a third of the allocation it took ([#1417]); the kernel is listed
+by `(Tensor compiled)` as `gather-check`. `Table filter` and `Table
+sort` gather a column of numbers by `Tensor gather`: 1000 rows of an
+f64 column allocate about a fifth of the objects they did ([#1388]).
+The answers and the refusals are unchanged.
+
+**`Table sort` orders a column of numbers by a compiled kernel.**
+([#1414]) Once the kernel has compiled, sorting by an f64 column under
+the default order allocates a small fraction of what it did; a `before`
+of your own, a column of strings and a column holding a NaN sort as
+before, and the answers are unchanged. The kernel is listed by
+`(Tensor compiled)` as `f64-order`.
+
+**`Table split` and `Table aggregate` find a column's distinct values
+in a hashed table.** ([#1394]) A column of strings, symbols, integers
+or whole numbers costs one lookup a row whatever the count of distinct
+values, where it cost a walk of the column for each. For 50 distinct
+values in 1000 rows that is about a sixth of the objects allocated, and
+the saving grows with the count.
+
+**A class send makes fewer objects.** ([#1391], [#1419]) About a third
+fewer (a static send 88 -> 54), so code that sends in a loop collects
+less often. A send that alternates among three or more methods no
+longer walks the method table each time: method lookup moves the found
+method to the front and steps the others down, so a call such as
+`(Str8 ->str)` followed by `(Str8 length)` makes half the objects it
+did.
+
+**`Str8` and `List` methods make fewer objects a call.** ([#1412],
+[#1402]) Str8 append of two to four strings a seventh to a fifth of
+what it did, sub about a quarter, ref, empty? and index-of about half,
+and length and pad-right about a quarter less. List ref walks each cell
+for about a third of what it did, and map, for-each, append, length and
+reverse a quarter to a third less.
+
+**A `Lexer` and `Json` step through text with integer operations.**
+([#1408], [#1395], [#1415]) A `Lexer` read cuts each token's text with
+integer operations, where it used the numeric tower's generic ones:
+about a third of the time and of the objects for each token read.
+`Json parse` and `Json emit` step through a text's bytes the same way,
+about a third fewer objects for a text parsed, and `Json parse` now
+reads a text through a `Lexer`, a piece at a time: a large text parses
+about a seventh faster. A word that is not `true`, `false` or `null` is
+refused as an unknown literal whatever its first letter, and an error
+inside a string names the string's first byte.
+
+**The bootstrap-closure scorecard is re-measured** ([#1401]): 40 of 47
+tools have an x implementation, carrying 98.6% of the calls.
+
+[#1381]: https://github.com/jonruttan/x-lang/pull/1381
+[#1382]: https://github.com/jonruttan/x-lang/pull/1382
+[#1383]: https://github.com/jonruttan/x-lang/pull/1383
+[#1384]: https://github.com/jonruttan/x-lang/pull/1384
+[#1385]: https://github.com/jonruttan/x-lang/pull/1385
+[#1386]: https://github.com/jonruttan/x-lang/pull/1386
+[#1387]: https://github.com/jonruttan/x-lang/pull/1387
+[#1388]: https://github.com/jonruttan/x-lang/pull/1388
+[#1389]: https://github.com/jonruttan/x-lang/pull/1389
+[#1390]: https://github.com/jonruttan/x-lang/pull/1390
+[#1391]: https://github.com/jonruttan/x-lang/pull/1391
+[#1392]: https://github.com/jonruttan/x-lang/pull/1392
+[#1393]: https://github.com/jonruttan/x-lang/pull/1393
+[#1394]: https://github.com/jonruttan/x-lang/pull/1394
+[#1395]: https://github.com/jonruttan/x-lang/pull/1395
+[#1397]: https://github.com/jonruttan/x-lang/pull/1397
+[#1398]: https://github.com/jonruttan/x-lang/pull/1398
+[#1400]: https://github.com/jonruttan/x-lang/pull/1400
+[#1401]: https://github.com/jonruttan/x-lang/pull/1401
+[#1402]: https://github.com/jonruttan/x-lang/pull/1402
+[#1403]: https://github.com/jonruttan/x-lang/pull/1403
+[#1404]: https://github.com/jonruttan/x-lang/pull/1404
+[#1405]: https://github.com/jonruttan/x-lang/pull/1405
+[#1406]: https://github.com/jonruttan/x-lang/pull/1406
+[#1407]: https://github.com/jonruttan/x-lang/pull/1407
+[#1408]: https://github.com/jonruttan/x-lang/pull/1408
+[#1409]: https://github.com/jonruttan/x-lang/pull/1409
+[#1410]: https://github.com/jonruttan/x-lang/pull/1410
+[#1411]: https://github.com/jonruttan/x-lang/pull/1411
+[#1412]: https://github.com/jonruttan/x-lang/pull/1412
+[#1414]: https://github.com/jonruttan/x-lang/pull/1414
+[#1415]: https://github.com/jonruttan/x-lang/pull/1415
+[#1416]: https://github.com/jonruttan/x-lang/pull/1416
+[#1417]: https://github.com/jonruttan/x-lang/pull/1417
+[#1418]: https://github.com/jonruttan/x-lang/pull/1418
+[#1419]: https://github.com/jonruttan/x-lang/pull/1419
+[#1420]: https://github.com/jonruttan/x-lang/pull/1420
+[#1421]: https://github.com/jonruttan/x-lang/pull/1421
+[#1422]: https://github.com/jonruttan/x-lang/pull/1422
+[#1423]: https://github.com/jonruttan/x-lang/pull/1423
+[#1424]: https://github.com/jonruttan/x-lang/pull/1424
+
 ## [0.59.0] - 2026-11-19
 
 **`x/num/model` fits a linear model.** ([#1374]) `(Model linear)`
