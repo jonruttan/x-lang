@@ -167,6 +167,7 @@
         (sample "(Tensor jit!)" "every kernel's name where a JIT backend is, () elsewhere"))
       (List map (fn (_ k) (self %jit (first k))) (self %kernel-specs))
       (self %jit (lit gather))
+      (self %jit (lit f64-order))
       (self compiled))
 
     (method compiled (self)
@@ -744,6 +745,112 @@
              rows 0)
             (pair buf n)))))
 
+    ; The rows PACKED holds, as a list.
+    (method %unpack-rows (self packed)
+      (let ((p (str->ptr (first packed))))
+        ((fn (go k acc)
+           (if (int< k 0) acc
+             (go (int- k 1) (pair (ptr-ref-word p (int* k %word-size)) acc))))
+         (int- (rest packed) 1) ())))
+
+    ; --- the order kernel -----------------------------------------------------
+    ; The places of a run of doubles in the order of their values, least
+    ; first, places of equal values in their own order: a merge sort of
+    ; the places, from runs of one upward, between two buffers of words.
+    ; The doubles' address is in word 0, the buffer read in word 1 and the
+    ; one written in word 2, the count in word 3 and the length of a sorted
+    ; run in word 4.  Word 5 counts a first walk that writes each place
+    ; into the buffer read and sets word 13 to 1 at a NaN, which has no
+    ; order, and the kernel stops there.  In a merge the left run is read
+    ; at word 6 up to word 10, the right at word 7 up to word 11, and word
+    ; 9 is the place written; word 12 holds a buffer while the two change
+    ; over.  The budget is word 8.  When it answers 1 the order is in the
+    ; buffer word 2 names.  It runs only once compiled.
+    (%order-form
+      (let ((at (fn (_ k) (list (lit f-ref) (lit (%mem-ref s 0)) (list (lit %mem-ref-at) (lit (%mem-ref s 1)) k))))
+            (take (fn (_ k)
+                    (list (lit do)
+                      (list (lit %mem-set-at!) (lit (%mem-ref s 2)) (lit (%mem-ref s 9))
+                            (list (lit %mem-ref-at) (lit (%mem-ref s 1)) (list (lit %mem-ref) (lit s) k)))
+                      (list (lit %mem-set!) (lit s) k (list (lit +) (list (lit %mem-ref) (lit s) k) 1)))))
+            (spend (lit (%mem-set! s 8 (- (%mem-ref s 8) 1)))))
+        (list (lit fn) (lit (self s))
+          (list (lit match)
+            (lit ((= (%mem-ref s 8) 0) 0))
+            (list (lit (< (%mem-ref s 5) (%mem-ref s 3)))
+              (list (lit do)
+                (lit (%mem-set-at! (%mem-ref s 1) (%mem-ref s 5) (%mem-ref s 5)))
+                (lit (if (f= (f-ref (%mem-ref s 0) (%mem-ref s 5)) (f-ref (%mem-ref s 0) (%mem-ref s 5)))
+                       0 (%mem-set! s 13 1)))
+                (lit (%mem-set! s 5 (+ (%mem-ref s 5) 1)))
+                spend
+                (lit (self s))))
+            (lit ((= (%mem-ref s 13) 1) 1))
+            (list (lit (< (%mem-ref s 9) (%mem-ref s 11)))
+              (list (lit do)
+                (list (lit if) (lit (< (%mem-ref s 6) (%mem-ref s 10)))
+                  (list (lit if) (lit (< (%mem-ref s 7) (%mem-ref s 11)))
+                    (list (lit if) (list (lit f<) (at (lit (%mem-ref s 7))) (at (lit (%mem-ref s 6))))
+                      (take 7) (take 6))
+                    (take 6))
+                  (take 7))
+                (lit (%mem-set! s 9 (+ (%mem-ref s 9) 1)))
+                spend
+                (lit (self s))))
+            (list (lit (< (%mem-ref s 11) (%mem-ref s 3)))
+              (list (lit do)
+                (lit (%mem-set! s 6 (%mem-ref s 11)))
+                (lit (%mem-set! s 9 (%mem-ref s 11)))
+                (lit (%mem-set! s 10 (if (< (+ (%mem-ref s 11) (%mem-ref s 4)) (%mem-ref s 3))
+                                       (+ (%mem-ref s 11) (%mem-ref s 4)) (%mem-ref s 3))))
+                (lit (%mem-set! s 7 (%mem-ref s 10)))
+                (lit (%mem-set! s 11 (if (< (+ (%mem-ref s 10) (%mem-ref s 4)) (%mem-ref s 3))
+                                       (+ (%mem-ref s 10) (%mem-ref s 4)) (%mem-ref s 3))))
+                spend
+                (lit (self s))))
+            (list (lit (< (* (%mem-ref s 4) 2) (%mem-ref s 3)))
+              (list (lit do)
+                (lit (%mem-set! s 12 (%mem-ref s 1)))
+                (lit (%mem-set! s 1 (%mem-ref s 2)))
+                (lit (%mem-set! s 2 (%mem-ref s 12)))
+                (lit (%mem-set! s 4 (* (%mem-ref s 4) 2)))
+                (lit (%mem-set! s 11 0))
+                (lit (%mem-set! s 9 0))
+                spend
+                (lit (self s))))
+            (lit (#t 1))))))
+
+    ; A scratch for the order kernel over N doubles at ADDR, and its two
+    ; buffers: (SCRATCH A B).
+    (method %order-scratch (self addr n)
+      (let ((a (str-make (int* n %word-size))) (b (str-make (int* n %word-size))) (s (str-make 256)))
+        (def fill
+          (fn (go i xs)
+            (if (null? xs) () (do (ptr-set-word! (str->ptr s) (int* i %word-size) (first xs)) (go (int+ i 1) (rest xs))))))
+        (fill 0 (list addr (ptr->int (str->ptr a)) (ptr->int (str->ptr b)) n 1 0 0 0 1073741823 0 0 0 0 0))
+        (list s a b)))
+
+    ; The order in the scratch SC after its kernel has run, packed as rows
+    ; are; () where it met a NaN.
+    (method %order-result (self sc n)
+      (let ((s (str->ptr (first sc))))
+        (if (int= (ptr-ref-word s (int* 13 %word-size)) 1) ()
+          (pair (if (int= (ptr-ref-word s (int* 2 %word-size)) (ptr->int (str->ptr (List ref 1 sc))))
+                  (List ref 1 sc) (List ref 2 sc))
+                n))))
+
+    ; Whether the compiled kernel orders eight doubles, two pairs of them
+    ; equal, as the pure one does.
+    (method %order-agrees? (self compiled)
+      (let ((in (self %check-input (lit f64) (list 3 -2 7 0 -2 9 1 3))))
+        (let ((run (fn (_ kern)
+                     (let ((sc (Tensor %order-scratch (rest in) 8)))
+                       (kern (ptr->int (str->ptr (first sc))))
+                       (Tensor %order-result sc 8)))))
+          (let ((a (run (word-form-pure (self %order-form)))) (b (run compiled)))
+            ; in is held to here, so its address stayed good
+            (do in (int= (mem-cmp (str->ptr (first a)) (str->ptr (first b)) (int* 8 %word-size)) 0))))))
+
     ; --- the class a result takes ------------------------------------------
     ; A subclass, Matrix, keeps its class through the operations that keep
     ; what makes it one.  %make builds an instance of this class from a
@@ -1121,6 +1228,27 @@
             ())
           (do src packed (self %wrap out))))))
 
+  ; The places of a rank-1 f64 tensor's elements in the order of their
+  ; values, least first and equal ones in their own order, packed as rows
+  ; are; () where the order kernel does not answer: before it has
+  ; compiled, for another encoding or rank, for fewer than two elements,
+  ; and where an element is a NaN.  The caller then orders them itself.
+  (method %order-packed (self)
+    (let ((f (Tensor %fast)) (st (field (lit st))))
+      (let ((ext (List ref 1 st)))
+        (if (if (eq? (first st) (lit f64)) (if (null? ext) #f (null? (rest ext))) #f)
+          (let ((n (first ext)))
+            (match
+              ((int< n 2) ())
+              ((List ref 1 (Tensor %lane (lit f64-order)))
+                (let ((src (if ((obj-ref f 3) st) st ((obj-ref f 10) st (first st)))))
+                  (let ((sc (Tensor %order-scratch ((obj-ref f 13) src) n)))
+                    ((obj-ref f 14) (lit f64-order) (first sc))
+                    (do src (Tensor %order-result sc n)))))
+              ; about the steps the kernel would have taken: a walk and four merges
+              (#t (do (Tensor %lane-credit! (lit f64-order) (int* n 5)) ()))))
+          ()))))
+
   (method as (self (param enc SYMBOL "The encoding: f64, f32, i64 or c128"))
     (doc "A contiguous copy in another encoding. f64 to f32 rounds each element to the nearest single, and f32 to f64 is exact; f64 or f32 to i64 truncates toward zero; a real encoding to c128 gives each element a 0 imaginary part. A c128 tensor is refused: take its real or imaginary part."
       (returns Tensor "A fresh tensor of the same extent")
@@ -1278,6 +1406,7 @@
         (if (if (object? other) (instance-of? other Tensor) #f) (other %st) other)))))
 
 (Tensor %register! (lit gather) (Tensor %gather-form) (fn (_ compiled) (Tensor %gather-agrees? compiled)))
+(Tensor %register! (lit f64-order) (Tensor %order-form) (fn (_ compiled) (Tensor %order-agrees? compiled)))
 
 (doc (provide x/num/tensor Tensor)
   "Tensor: n-dimensional arrays of f64, f32, i64 or c128 packed in bytes, with views that share them, broadcasting element-wise arithmetic and reductions run in kernels that compile once they have run long enough."

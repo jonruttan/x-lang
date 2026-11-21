@@ -209,6 +209,11 @@
   ; The values at the row numbers of ROWS, as a column of this encoding:
   ; a Tensor's by its gather, a copy of each value's bytes, and a
   ; Vector's by reading each.
+  ; The rows in the order of the values under <, packed, where Tensor's
+  ; order kernel answers; () where it does not, and for encoding any.
+  (method %order-packed (self)
+    (if (eq? (field (lit encoding)) (lit any)) () ((field (lit data)) %order-packed)))
+
   ; PACKED is ROWS, each a row of this column, from (Tensor %pack-rows ROWS).
   (method %take (self rows packed)
     (if (eq? (field (lit encoding)) (lit any))
@@ -365,13 +370,16 @@
       (returns Table "A table of the rows in order")
       (example "((((Table from '((age (31.0 45.0 28.0)) (name (\"Ann\" \"Bo\" \"Cy\")))) sort 'age) column 'name) ->list)" "(\"Cy\" \"Ann\" \"Bo\")")
       (example "((((Table from '((age (31.0 45.0 28.0)))) sort 'age (fn (_ a b) (< b a))) column 'age) ->list)" "(45.0 31.0 28.0)"))
-    (let ((before (if (null? before) < (first before))))
-      (self %take
-        (List map rest
-          (List sort (fn (_ a b) (before (first a) (first b)))
-            (let go ((values ((self column name) ->list)) (i 0) (acc ()))
-              (if (null? values) (List reverse acc)
-                (go (rest values) (+ i 1) (pair (pair (first values) i) acc)))))))))
+    (let ((packed (if (null? before) ((self column name) %order-packed) ()))
+          (before (if (null? before) < (first before))))
+      (if (null? packed)
+        (self %take
+          (List map rest
+            (List sort (fn (_ a b) (before (first a) (first b)))
+              (let go ((values ((self column name) ->list)) (i 0) (acc ()))
+                (if (null? values) (List reverse acc)
+                  (go (rest values) (+ i 1) (pair (pair (first values) i) acc)))))))
+        (self %take-packed packed))))
 
   (method matrix (self (param names LIST "The names of the columns, in the order wanted"))
     (doc "The named columns as an f64 Matrix, a row for each of the table's rows: what a model takes as its predictors. Every one must hold numbers."
@@ -503,6 +511,13 @@
     (List map (fn (_ n c) (list n (c ->list))) (field (lit names)) (field (lit columns))))
 
   ; The table of the rows at the row numbers of ROWS.
+  ; %take for rows already packed; the list of them is made only where a
+  ; column of encoding any reads by it.
+  (method %take-packed (self packed)
+    (let ((columns (field (lit columns))))
+      (let ((rows (if (List any? (fn (_ c) (eq? (c encoding) (lit any))) columns) (Tensor %unpack-rows packed) ())))
+        (Table %of (field (lit names)) (List map (fn (_ c) (c %take rows packed)) columns)))))
+
   ; ROWS are rows of this table, which every caller here makes by counting
   ; them.  They are packed once, and each column of numbers gathers by that.
   (method %take (self rows)
