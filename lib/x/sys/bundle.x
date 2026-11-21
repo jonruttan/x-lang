@@ -19,6 +19,8 @@
 ; reach a file it ships that is not a module: (Bundle root "logo").  And
 ; which installed bundle holds a module no import root does, so `import` can
 ; arm it: (Bundle arm! "crypto"), which x/boot/module.x asks on a miss.
+;
+; lint-known: %bundle-dir
 
 (module x/sys/bundle)
 
