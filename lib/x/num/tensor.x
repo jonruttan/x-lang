@@ -167,6 +167,7 @@
         (sample "(Tensor jit!)" "every kernel's name where a JIT backend is, () elsewhere"))
       (List map (fn (_ k) (self %jit (first k))) (self %kernel-specs))
       (self %jit (lit gather))
+      (self %jit (lit gather-check))
       (self %jit (lit f64-order))
       (self compiled))
 
@@ -714,23 +715,104 @@
             (b (self %gather-check-run compiled)))
         (int= (mem-cmp (str->ptr a) (str->ptr b) (int* 10 %word-size)) 0)))
 
+    ; --- the check of gather's indexes ----------------------------------------
+    ; Packed indexes resolved and checked where they lie: the indexes'
+    ; address in word 0, their count in word 1, the axis's length in word
+    ; 2, the index reached in word 5 and the budget in word 8.  A negative
+    ; index has the length added.  At one outside the axis word 13 is set
+    ; to 1 and the kernel stops, word 5 naming it.  It runs only once
+    ; compiled; until then %pack-indexes checks each index itself.
+    (%gather-check-form
+      (lit (fn (self s)
+             (match
+               ((= (%mem-ref s 8) 0) 0)
+               ((= (%mem-ref s 13) 1) 1)
+               ((< (%mem-ref s 5) (%mem-ref s 1))
+                 (do (if (< (%mem-ref-at (%mem-ref s 0) (%mem-ref s 5)) 0)
+                       (%mem-set-at! (%mem-ref s 0) (%mem-ref s 5)
+                         (+ (%mem-ref-at (%mem-ref s 0) (%mem-ref s 5)) (%mem-ref s 2)))
+                       0)
+                     (if (< (%mem-ref-at (%mem-ref s 0) (%mem-ref s 5)) 0)
+                       (%mem-set! s 13 1)
+                       (if (< (%mem-ref-at (%mem-ref s 0) (%mem-ref s 5)) (%mem-ref s 2))
+                         (%mem-set! s 5 (+ (%mem-ref s 5) 1))
+                         (%mem-set! s 13 1)))
+                     (%mem-set! s 8 (- (%mem-ref s 8) 1))
+                     (self s)))
+               (#t 1)))))
+
+    ; A scratch for the check kernel over the N words of BUF and an axis
+    ; of ENTRIES.
+    (method %gather-check-scratch (self buf n entries)
+      (let ((s (str-make 256)))
+        (def fill
+          (fn (go i xs)
+            (if (null? xs) () (do (ptr-set-word! (str->ptr s) (int* i %word-size) (first xs)) (go (int+ i 1) (rest xs))))))
+        (fill 0 (list (ptr->int (str->ptr buf)) n entries 0 0 0 0 0 1073741823 0 0 0 0 0))
+        s))
+
+    ; (BUF . SCRATCH) after KERN has checked XS along an axis of three.
+    (method %gather-check-try (self kern xs)
+      (let ((buf (str-make (int* 5 %word-size))))
+        (def fill
+          (fn (go i xs)
+            (if (null? xs) () (do (ptr-set-word! (str->ptr buf) (int* i %word-size) (first xs)) (go (int+ i 1) (rest xs))))))
+        (fill 0 xs)
+        (let ((s (self %gather-check-scratch buf 5 3)))
+          (kern (ptr->int (str->ptr s)))
+          (pair buf s))))
+
+    ; Whether the compiled check leaves the indexes, the index reached and
+    ; the refusal the pure one does, for indexes within the axis and for
+    ; one beyond each end.
+    (method %gather-check-agrees? (self compiled)
+      (let ((pure (word-form-pure (self %gather-check-form))))
+        (List all?
+          (fn (_ xs)
+            (let ((a (Tensor %gather-check-try pure xs)) (b (Tensor %gather-check-try compiled xs)))
+              (let ((word (fn (_ r k) (ptr-ref-word (str->ptr (rest r)) (int* k %word-size)))))
+                (if (int= (mem-cmp (str->ptr (first a)) (str->ptr (first b)) (int* 5 %word-size)) 0)
+                  (if (int= (word a 5) (word b 5)) (int= (word a 13) (word b 13)) #f)
+                  #f))))
+          (lit ((2 -1 0 -3 1) (1 0 3 0 0) (0 -4 1 2 0))))))
+
     ; INDEXES along an axis of ENTRIES as machine words in a string, each
     ; resolved from the end where negative and refused where outside the
-    ; axis: (WORDS . COUNT).
+    ; axis: (WORDS . COUNT).  Once the check kernel has compiled the
+    ; indexes are packed as they come and it resolves and checks them;
+    ; the first refusal in the list's order is the one raised either way.
     (method %pack-indexes (self indexes entries)
       (let ((n (List length indexes)) (integer (type-of 0)))
         (let ((buf (str-make (int* (if (int< n 1) 1 n) %word-size))))
           (let ((p (str->ptr buf)))
-            ((fn (go l k)
-               (if (null? l) ()
-                 (let ((i (first l)))
-                   (if (type? i integer) () (Err raise (lit type) "Tensor gather: an index is an integer" i))
-                   (let ((r (if (int< i 0) (int+ entries i) i)))
-                     (if (if (int< r 0) #t (not (int< r entries)))
-                       (Err raise (lit value) "Tensor gather: no such index along the first axis" i) ())
-                     (ptr-set-word! p (int* k %word-size) r)
-                     (go (rest l) (int+ k 1))))))
-             indexes 0)
+            (if (List ref 1 (Tensor %lane (lit gather-check)))
+              ; (K . REST): the integers before the first index that is none
+              (let ((packed ((fn (go l k)
+                               (if (null? l) (pair k l)
+                                 (if (type? (first l) integer)
+                                   (do (ptr-set-word! p (int* k %word-size) (first l)) (go (rest l) (int+ k 1)))
+                                   (pair k l))))
+                             indexes 0)))
+                (let ((s (Tensor %gather-check-scratch buf (first packed) entries)))
+                  (if (int< 0 (first packed)) ((obj-ref (Tensor %fast) 14) (lit gather-check) s) ())
+                  (if (int= (ptr-ref-word (str->ptr s) (int* 13 %word-size)) 1)
+                    (Err raise (lit value) "Tensor gather: no such index along the first axis"
+                      (List ref (ptr-ref-word (str->ptr s) (int* 5 %word-size)) indexes))
+                    ())
+                  (if (null? (rest packed)) ()
+                    (Err raise (lit type) "Tensor gather: an index is an integer" (first (rest packed))))))
+              (do
+                ((fn (go l k)
+                   (if (null? l) ()
+                     (let ((i (first l)))
+                       (if (type? i integer) () (Err raise (lit type) "Tensor gather: an index is an integer" i))
+                       (let ((r (if (int< i 0) (int+ entries i) i)))
+                         (if (if (int< r 0) #t (not (int< r entries)))
+                           (Err raise (lit value) "Tensor gather: no such index along the first axis" i) ())
+                         (ptr-set-word! p (int* k %word-size) r)
+                         (go (rest l) (int+ k 1))))))
+                 indexes 0)
+                (Tensor %lane-credit! (lit gather-check) n)))
             (pair buf n)))))
 
     ; ROWS packed as %pack-indexes packs them, unchecked: for a caller whose
@@ -1406,6 +1488,7 @@
         (if (if (object? other) (instance-of? other Tensor) #f) (other %st) other)))))
 
 (Tensor %register! (lit gather) (Tensor %gather-form) (fn (_ compiled) (Tensor %gather-agrees? compiled)))
+(Tensor %register! (lit gather-check) (Tensor %gather-check-form) (fn (_ compiled) (Tensor %gather-check-agrees? compiled)))
 (Tensor %register! (lit f64-order) (Tensor %order-form) (fn (_ compiled) (Tensor %order-agrees? compiled)))
 
 (doc (provide x/num/tensor Tensor)
