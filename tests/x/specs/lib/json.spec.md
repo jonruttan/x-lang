@@ -232,6 +232,15 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 ---
     "\"h\\ni\""
 
+### a control byte with no short escape comes out as \u00XX
+
+```x
+(do (import x/codec/json)
+  (Json emit (bytes->str (list 104 1 31 105))))
+```
+---
+    "\"h\\u0001\\u001fi\""
+
 ### lists emit as arrays
 
 ```x
@@ -283,17 +292,17 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### values parsed before a collection are kept
 
-parse collects garbage as it goes, every few thousand bytes of text. The
-text here is 800 elements, each an array holding a number, a string and an
-object, about 17,000 bytes: several collections come and go while the
-outer array is being made.
+parse reads a text a piece at a time, 32,768 bytes to a piece, and collects
+garbage between pieces. The text here is 2000 elements, each an array
+holding a number, a string and an object, about 42,000 bytes: a
+collection comes and goes while the outer array is being made.
 
 ```x
 (do (import x/codec/json)
   (def pieces (fn (go n) (if (= n 0) () (pair "[1,\"ab\",{\"k\":[2,3]}]" (go (- n 1))))))
-  (def v (Json parse (Str8 append "[" (Str8 join "," (pieces 800)) "]")))
-  (list (List length v) (List length (first v)) ((List ref 2 (List ref 0 v)) get "k") ((List ref 2 (List ref 799 v)) get "k")
+  (def v (Json parse (Str8 append "[" (Str8 join "," (pieces 2000)) "]")))
+  (list (List length v) (List length (first v)) ((List ref 2 (List ref 0 v)) get "k") ((List ref 2 (List ref 1999 v)) get "k")
         (List all? (fn (_ e) (equal? (List ref 1 e) "ab")) v)))
 ```
 ---
-    (800 3 (2 3) (2 3) #t)
+    (2000 3 (2 3) (2 3) #t)
