@@ -394,6 +394,32 @@ an unlisted file is a failure. The lesson is worth keeping even though the code
 is gone: **a constraint that shapes a design is worth re-testing before the
 design hardens around it.**
 
+### Official bundles: what a release carries
+
+An official bundle is one an x-lang release carries: a library such as `net`,
+or an app. x-lang holds one pin for each, `tools/bundles/NAME.pin.xon`, in
+the form above, and the file is named for the bundle it pins.
+
+| | |
+|---|---|
+| `make bundles` | acquires each pinned bundle into `deps/bundles/NAME`, where a checkout's wrapper looks |
+| `make install` | copies each pinned bundle into the install's `bundles/` |
+
+`make bundles` is `(Pin install ...)` once a pin, so the digest is checked
+before tar runs and a failed acquisition keeps the copy that was there. The
+pin a bundle was acquired at is kept beside it, `deps/bundles/NAME.pin`; a
+bundle whose record matches its pin is left alone, with no network, and a pin
+that changed is fetched again.
+
+`make install` fails on a pinned bundle that is absent or was acquired at
+another pin, so a release does not ship without a bundle it names. Only the
+pinned bundles are copied. They are outside the payload fingerprint: each has
+a digest of its own in its pin.
+
+x-lang imports no bundle, so its own build, specs and gates need none of
+this. An installed x has them, and [a missed import arms
+them](#a-missed-import-arms-a-bundle).
+
 ### Acquisition happens in x, not in shell
 
 `tools/engine/fetch.sh` is shell, and its header is explicit that this is a
