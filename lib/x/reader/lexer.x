@@ -1269,8 +1269,8 @@
           (fn (_ args)
             (def text (tok (first args)))
             (def inner (rest (first args)))
-            (def over (- (%cell-int inner) (- (ptr-ref-word (obj->ptr inner) write-at) end-len)))
-            (if (> over 0) (sub text 0 (- (len text) over)) text)))
+            (def over (int- (%cell-int inner) (int- (ptr-ref-word (obj->ptr inner) write-at) end-len)))
+            (if (int< 0 over) (sub text 0 (int- (len text) over)) text)))
         (def mk
           (if labelled?
             (fn (_ args) (list tag (text-of args) (%read-label args)))
