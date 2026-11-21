@@ -346,7 +346,7 @@
         (example "((fn (_ r) (Sys getenv \"X_HELP_SETENV\")) (Sys setenv \"X_HELP_SETENV\" \"on\"))" "\"on\""))
       (%sys-fold (ptr-call %c-setenv name val 1)))
     (method getenv (self (param name STRING "Variable name"))
-      (doc "Get the value of an environment variable." (returns STRING "Variable value, or nil if not set")
+      (doc "Get the value of an environment variable." (returns STRING|NIL "Variable value, or nil if not set")
         (example "(null? (Sys getenv \"X_HELP_NO_SUCH_NAME\"))" "#t")
         (sample "(Sys getenv \"HOME\")" "\"/home/user\""))
       ; POINTER return -- must NOT go through %sys-fold (see its comment).

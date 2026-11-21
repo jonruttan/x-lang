@@ -236,7 +236,7 @@
       ())
     (method label (self (param f ANY "Any value"))
       (doc "Which callable f is: 'fn for a closure made by fn, 'op for an operative made by op, 'wrap for a wrapped combiner made by wrap, 'prim for an engine primitive, and () for anything else, including a value that is callable only through its type's call handler."
-        (returns SYMBOL "'fn, 'op, 'wrap or 'prim, or () for a value that is none of them")
+        (returns SYMBOL|NIL "'fn, 'op, 'wrap or 'prim, or () for a value that is none of them")
         (example "(Fn label (fn (_ x) x))" "'fn")
         (example "(Fn label (op (x) e x))" "'op")
         (example "(Fn label (wrap (op (x) e x)))" "'wrap")

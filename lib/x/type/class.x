@@ -1025,7 +1025,7 @@
 (doc (def class-parent
   (fn (_ (param c CLASS "A class"))
     (%assoc-get (lit parent) (%class-data c))))
-  (returns CLASS "The parent class, or nil for a root class")
+  (returns CLASS|NIL "The parent class, or nil for a root class")
   (example "(do (def-class Pet ()) (def-class Cat (extends Pet)) (class-name (class-parent Cat)))" "'Pet")
   (example "(null? (class-parent List))" "#t")
   (see class-name)
@@ -1098,7 +1098,7 @@
     (if (not (class? c)) ()
       (let ((entry (%assq name (%assoc-get (lit s-methods) (%class-data c)))))
         (if (null? entry) (self (class-parent c) name) (rest entry))))))
-  (returns CALLABLE "The static method as defined -- a procedure or an operative -- or nil, also for a C that is not a class")
+  (returns CALLABLE|NIL "The static method as defined -- a procedure or an operative -- or nil, also for a C that is not a class")
   (example "(do (def-class Pet () (static (method kind (self) 'pet))) (def-class Cat (extends Pet)) ((class-static-ref Cat 'kind) Cat))" "'pet")
   (example "(null? (class-static-ref List 'no-such-method))" "#t")
   (see method-ref)
