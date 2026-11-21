@@ -751,6 +751,36 @@ Four things that are not obvious, each of which costs an afternoon:
 The harness is *generated* rather than committed, because it embeds two
 absolute paths that are facts of the machine, not of the bundle.
 
+### A bundle's documentation examples
+
+An `(example "IN" "OUT")` in a `(doc …)` form is a claim: evaluating `IN`
+prints `OUT`. x-lang holds its own library to that with `make doctest`, and
+`tools/bundle-kit/doctest.sh` holds a bundle to it with the same generator:
+
+```sh
+BUNDLE=. X=x sh "$(x --share-dir)/tools/bundle-kit/doctest.sh"
+```
+
+It boots the dialect `bundle.xon` declares and arms the bundle's root and the
+roots of what it requires, as the spec harness does, without the bundle's
+`tests/harness.x`: the generator is x-lang, whatever language the bundle is.
+Each module under `lib/` is imported in turn, the examples its import
+registers are written as a spec under `tests/lib/doctest/`, and the spec is
+run on the platform's runner. A bundle with no example passes and says so.
+
+Not imported: a listed entry, since importing one sets a session up; a file
+that is one of another module's files; and `constructs.x`, which is data.
+
+An example is evaluated after `(import MODULE)`, so what it calls has to be
+reachable from there: a class, or a name the module provides as `(global …)`.
+
+What it does not do, where `make doctest` does: test each call's arguments
+against the parameter annotations. A bundle's examples are held to what they
+print.
+
+The shared bundle workflow runs it after the spec gate, where the x-lang
+under test ships it.
+
 ## Writing or extracting a lang
 
 The order that gets you running soonest:
