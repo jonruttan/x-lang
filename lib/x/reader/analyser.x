@@ -138,13 +138,13 @@
       (%tok-reject buffer score chr))
 
     ; --- state builders ---
-    (method make-digit-state (self (param done CALLABLE "Called on non-digit: (done buffer score chr)"))
+    (method make-digit-state (self (param done CALLABLE|NIL "Called on non-digit: (done buffer score chr)"))
       (doc "A state that loops while reading digits [0-9], then calls done on a non-digit."
         (returns CALLABLE "Analyzer state")
         (sample "(Analyser make-digit-state done)" "consumes digits then calls done"))
       (%make-digit-state done))
 
-    (method make-xdigit-state (self (param done CALLABLE "Called on non-xdigit"))
+    (method make-xdigit-state (self (param done CALLABLE|NIL "Called on non-xdigit"))
       (doc "A state that loops while reading hex digits [0-9a-fA-F], then calls done."
         (returns CALLABLE "Analyzer state")
         (example "(procedure? (Analyser make-xdigit-state ()))" "#t"))

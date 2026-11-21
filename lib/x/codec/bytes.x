@@ -224,49 +224,49 @@
     ; --- writers
     (method writer (self)
       (doc "A fresh writer: an empty buffer that grows as bytes are put."
-        (returns OBJECT "A writer")
+        (returns VECTOR "A writer")
         (example "(Bytes hex (Bytes written (Bytes writer)))" "\"\""))
       (def w (Vector make 3 0))
       (obj-set! w 1 (str-make 256))
       (obj-set! w 2 0)
       (obj-set! w 3 256)
       w)
-    (method put-u8 (self (param w OBJECT "A writer") (param n INTEGER "The byte, 0-255"))
+    (method put-u8 (self (param w VECTOR "A writer") (param n INTEGER "The byte, 0-255"))
       (doc "Put one byte."
         (returns ANY "nil")
         (example "((fn (_ w) (Bytes put-u8 w 7) (Bytes hex (Bytes written w))) (Bytes writer))" "\"07\""))
       (%put-byte! w n))
-    (method put-u16 (self (param w OBJECT "A writer") (param n INTEGER "The value, below 2^16"))
+    (method put-u16 (self (param w VECTOR "A writer") (param n INTEGER "The value, below 2^16"))
       (doc "Put a 16-bit big-endian integer."
         (returns ANY "nil")
         (example "((fn (_ w) (Bytes put-u16 w 772) (Bytes hex (Bytes written w))) (Bytes writer))" "\"0304\""))
       (%put-int! w n 2))
-    (method put-u24 (self (param w OBJECT "A writer") (param n INTEGER "The value, below 2^24"))
+    (method put-u24 (self (param w VECTOR "A writer") (param n INTEGER "The value, below 2^24"))
       (doc "Put a 24-bit big-endian integer."
         (returns ANY "nil")
         (example "((fn (_ w) (Bytes put-u24 w 65536) (Bytes hex (Bytes written w))) (Bytes writer))" "\"010000\""))
       (%put-int! w n 3))
-    (method put-u32 (self (param w OBJECT "A writer") (param n INTEGER "The value, below 2^32"))
+    (method put-u32 (self (param w VECTOR "A writer") (param n INTEGER "The value, below 2^32"))
       (doc "Put a 32-bit big-endian integer."
         (returns ANY "nil")
         (example "((fn (_ w) (Bytes put-u32 w 258) (Bytes hex (Bytes written w))) (Bytes writer))" "\"00000102\""))
       (%put-int! w n 4))
-    (method put (self (param w OBJECT "A writer") (param r ANY "A region (BUF START LEN), or a STRING up to its first NUL"))
+    (method put (self (param w VECTOR "A writer") (param r ANY "A region (BUF START LEN), or a STRING up to its first NUL"))
       (doc "Put a region's bytes."
         (returns ANY "nil")
         (example "((fn (_ w) (Bytes put w \"ab\") (Bytes put w (Bytes of-hex \"00\")) (Bytes hex (Bytes written w))) (Bytes writer))" "\"616200\""))
       (%put-region! w (%as-region r)))
-    (method written (self (param w OBJECT "A writer"))
+    (method written (self (param w VECTOR "A writer"))
       (doc "What has been put so far, as a region of the writer's buffer. Putting more may move the buffer; take the region again after."
         (returns LIST "(BUF 0 LEN)")
         (example "(Bytes length (Bytes written (Bytes writer)))" "0"))
       (list (obj-ref w 1) 0 (obj-ref w 2)))
-    (method size (self (param w OBJECT "A writer"))
+    (method size (self (param w VECTOR "A writer"))
       (doc "How many bytes have been put."
         (returns INTEGER "The count")
         (example "(Bytes size (Bytes writer))" "0"))
       (obj-ref w 2))
-    (method patch-u16 (self (param w OBJECT "A writer") (param at INTEGER "Where, a byte already put") (param n INTEGER "The value, below 2^16"))
+    (method patch-u16 (self (param w VECTOR "A writer") (param at INTEGER "Where, a byte already put") (param n INTEGER "The value, below 2^16"))
       (doc "Overwrite two bytes already put with n, big-endian: how a length is filled in once what it measures has been written."
         (returns ANY "nil")
         (example "((fn (_ w) (Bytes put-u16 w 0) (Bytes put w \"abc\") (Bytes patch-u16 w 0 3) (Bytes hex (Bytes written w))) (Bytes writer))" "\"0003616263\""))
@@ -274,7 +274,7 @@
       (def p (str->ptr (obj-ref w 1)))
       (ptr-set! p at (& (>> n 8) 255) 1)
       (ptr-set! p (int+ at 1) (& n 255) 1))
-    (method patch-u24 (self (param w OBJECT "A writer") (param at INTEGER "Where, a byte already put") (param n INTEGER "The value, below 2^24"))
+    (method patch-u24 (self (param w VECTOR "A writer") (param at INTEGER "Where, a byte already put") (param n INTEGER "The value, below 2^24"))
       (doc "Overwrite three bytes already put with n, big-endian."
         (returns ANY "nil")
         (example "((fn (_ w) (Bytes put-u24 w 0) (Bytes patch-u24 w 0 258) (Bytes hex (Bytes written w))) (Bytes writer))" "\"000102\""))
@@ -287,7 +287,7 @@
     ; --- readers
     (method reader (self (param r ANY "A region (BUF START LEN), or a STRING up to its first NUL"))
       (doc "A reader over the region, at its first byte."
-        (returns OBJECT "A reader")
+        (returns VECTOR "A reader")
         (example "(Bytes get-u16 (Bytes reader (Bytes of-hex \"0304\")))" "772"))
       (def rr (%as-region r))
       (def rd (Vector make 3 0))
@@ -295,27 +295,27 @@
       (obj-set! rd 2 (%r-start rr))
       (obj-set! rd 3 (int+ (%r-start rr) (%r-len rr)))
       rd)
-    (method get-u8 (self (param rd OBJECT "A reader"))
+    (method get-u8 (self (param rd VECTOR "A reader"))
       (doc "Read one byte. Raises a label 'value past the end."
         (returns INTEGER "0-255")
         (example "(Bytes get-u8 (Bytes reader (Bytes of-hex \"ff\")))" "255"))
       (%get-int rd 1))
-    (method get-u16 (self (param rd OBJECT "A reader"))
+    (method get-u16 (self (param rd VECTOR "A reader"))
       (doc "Read a 16-bit big-endian integer."
         (returns INTEGER "The value")
         (example "(Bytes get-u16 (Bytes reader (Bytes of-hex \"0100\")))" "256"))
       (%get-int rd 2))
-    (method get-u24 (self (param rd OBJECT "A reader"))
+    (method get-u24 (self (param rd VECTOR "A reader"))
       (doc "Read a 24-bit big-endian integer."
         (returns INTEGER "The value")
         (example "(Bytes get-u24 (Bytes reader (Bytes of-hex \"010000\")))" "65536"))
       (%get-int rd 3))
-    (method get-u32 (self (param rd OBJECT "A reader"))
+    (method get-u32 (self (param rd VECTOR "A reader"))
       (doc "Read a 32-bit big-endian integer."
         (returns INTEGER "The value")
         (example "(Bytes get-u32 (Bytes reader (Bytes of-hex \"00000102\")))" "258"))
       (%get-int rd 4))
-    (method get (self (param rd OBJECT "A reader") (param n INTEGER "How many bytes"))
+    (method get (self (param rd VECTOR "A reader") (param n INTEGER "How many bytes"))
       (doc "The next n bytes as a region of the reader's buffer, no copy. Raises a label 'value when fewer are left."
         (returns LIST "(BUF POS n)")
         (example "(Bytes hex (Bytes get (Bytes reader (Bytes of-hex \"00112233\")) 3))" "\"001122\""))
@@ -323,12 +323,12 @@
       (def pos (obj-ref rd 2))
       (obj-set! rd 2 (int+ pos n))
       (list (obj-ref rd 1) pos n))
-    (method left (self (param rd OBJECT "A reader"))
+    (method left (self (param rd VECTOR "A reader"))
       (doc "How many bytes are left to read."
         (returns INTEGER "The count")
         (example "(Bytes left (Bytes reader (Bytes of-hex \"0011\")))" "2"))
       (int- (obj-ref rd 3) (obj-ref rd 2)))
-    (method rest (self (param rd OBJECT "A reader"))
+    (method rest (self (param rd VECTOR "A reader"))
       (doc "What is left to read, as a region; the reader is then at its end."
         (returns LIST "(BUF POS LEFT)")
         (example "((fn (_ rd) (Bytes get-u8 rd) (Bytes hex (Bytes rest rd))) (Bytes reader (Bytes of-hex \"001122\")))" "\"1122\""))

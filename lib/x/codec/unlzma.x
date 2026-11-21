@@ -897,10 +897,10 @@
       (%decode-all s (first sp) (first (rest sp)) (%engine-for (first (rest sp)))))
     (method stream (self)
       (doc "A .lzma stream to be fed a piece at a time with (Unlzma feed), what unlzma wants of a file it must not read whole. A decision is decoded once the input holds every byte it might read, so between pieces the input held is under 48 bytes."
-        (returns OBJECT "The stream")
+        (returns VECTOR "The stream")
         (example "(let ((z (Unlzma stream))) (Unlzma done? z))" "#f"))
       (%stream-new ()))
-    (method feed (self (param z OBJECT "A (Unlzma stream)")
+    (method feed (self (param z VECTOR "A (Unlzma stream)")
                        (param s STRING "Bytes holding the next piece")
                        (param start INTEGER "Where the piece starts in s")
                        (param n INTEGER "How many bytes it is"))
@@ -908,17 +908,17 @@
         (returns LIST "(OUT N): a region and how many of its bytes came out")
         (example "(do (import x/codec/bytes) (def b (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (def z (Unlzma stream)) (first (rest (Unlzma feed z (first b) 0 (Bytes length b)))))" "0"))
       (%stream-feed z s start n))
-    (method finish (self (param z OBJECT "A (Unlzma stream)"))
+    (method finish (self (param z VECTOR "A (Unlzma stream)"))
       (doc "The input has ended: what is held is decoded, and a stream cut short raises a label 'value whose data holds (lzma . short) and (out OUT N), what this call decoded before the decision that ran out, as busybox writes it before it stops."
         (returns LIST "(OUT N), as feed answers")
         (example "(do (import x/codec/bytes) (def b (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (def z (Unlzma stream)) (Unlzma feed z (first b) 0 (Bytes length b)) (first (rest (Unlzma finish z))))" "13"))
       (%stream-run z #t))
-    (method done? (self (param z OBJECT "A (Unlzma stream)"))
+    (method done? (self (param z VECTOR "A (Unlzma stream)"))
       (doc "Has the stream's end been reached: its end marker read, the length its header declares written, or a raise?"
         (returns BOOL "#t once it has")
         (example "(do (import x/codec/bytes) (def b (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (def z (Unlzma stream)) (Unlzma feed z (first b) 0 (Bytes length b)) (Unlzma finish z) (Unlzma done? z))" "#t"))
       (obj-ref z %ZDONE))
-    (method rest (self (param z OBJECT "A (Unlzma stream)"))
+    (method rest (self (param z VECTOR "A (Unlzma stream)"))
       (doc "The input not used: once the stream is done, the bytes after its end. A stream that declares its length can leave the coder's last bytes among them."
         (returns LIST "(BUF N): a region and how many bytes of it")
         (example "(do (import x/codec/bytes) (def b (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000414243\")) (def z (Unlzma stream)) (Unlzma feed z (first b) 0 (Bytes length b)) (Unlzma finish z) (first (rest (Unlzma rest z))))" "3"))

@@ -172,7 +172,7 @@
               'cols (list 0))))
 
     (method advance (self (param col INTEGER "Column so far")
-                          (param chr INTEGER "The character")
+                          (param chr INTEGER|CHARACTER "The character")
                           (param tab-stop INTEGER "A tab advances to the next multiple of this"))
       (doc "The column after one character: a space is one, a tab advances to the next multiple of tab-stop, anything else leaves it alone."
         (returns INTEGER "The new column")

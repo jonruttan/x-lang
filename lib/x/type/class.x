@@ -1087,7 +1087,7 @@
 ; whether it is an operative, whose arguments are not references.  Walks the
 ; parent chain, as dispatch does; nil when no class in the chain has it.
 (doc (def class-static-ref
-  (fn (self (param c CLASS "A class") (param name SYMBOL "A static method's name"))
+  (fn (self (param c CLASS|NIL "A class; nil, where a parent chain ends, answers nil") (param name SYMBOL "A static method's name"))
     (if (not (class? c)) ()
       (let ((entry (%assq name (%assoc-get (lit s-methods) (%class-data c)))))
         (if (null? entry) (self (class-parent c) name) (rest entry))))))
