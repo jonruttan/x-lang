@@ -162,6 +162,7 @@
         (returns LIST "The names of the kernels running compiled, () where none can be built")
         (sample "(Tensor jit!)" "every kernel's name where a JIT backend is, () elsewhere"))
       (List map (fn (_ k) (self %jit (first k))) (self %kernel-specs))
+      (self %jit (lit gather))
       (self compiled))
 
     (method compiled (self)
@@ -602,6 +603,92 @@
       (let ((e (Assoc entry name (first (self %registered-cell)))))
         (if (null? e) (fn (_ compiled) (Tensor %agrees? name compiled)) (List ref 2 e))))
 
+    ; STEPS more of kernel NAME's work, done by a loop standing in for its
+    ; pure form; the kernel compiles at the count it would have in its lane.
+    (method %lane-credit! (self name steps)
+      (let ((e (self %lane name)))
+        (let ((t (int+ (List ref 3 e) steps)))
+          (%set-first! (List drop 3 e) t)
+          (if (int< t (self %jit-after)) () (self %jit name)))))
+
+    ; --- gather's kernel ------------------------------------------------------
+    ; Entries copied a machine word at a time: the source's address in word
+    ; 0, the packed indexes' in word 1, the output's in word 2, an entry's
+    ; length in words in word 3, the count of indexes in word 4, the index
+    ; reached in word 6, the word reached within its entry in word 7 and the
+    ; budget in word 8.  The indexes are %pack-indexes': resolved and in
+    ; range.  It runs only once compiled; until then gather copies each
+    ; entry itself, which costs less than this form run pure.
+    (%gather-form
+      (lit (fn (self s)
+             (match
+               ((= (%mem-ref s 8) 0) 0)
+               ((< (%mem-ref s 7) (%mem-ref s 3))
+                 (do (%mem-set-at! (%mem-ref s 2) (+ (* (%mem-ref s 6) (%mem-ref s 3)) (%mem-ref s 7))
+                       (%mem-ref-at (%mem-ref s 0)
+                         (+ (* (%mem-ref-at (%mem-ref s 1) (%mem-ref s 6)) (%mem-ref s 3)) (%mem-ref s 7))))
+                     (%mem-set! s 7 (+ (%mem-ref s 7) 1))
+                     (%mem-set! s 8 (- (%mem-ref s 8) 1))
+                     (self s)))
+               ((< (+ (%mem-ref s 6) 1) (%mem-ref s 4))
+                 (do (%mem-set! s 6 (+ (%mem-ref s 6) 1))
+                     (%mem-set! s 7 0)
+                     (%mem-set! s 8 (- (%mem-ref s 8) 1))
+                     (self s)))
+               (#t 1)))))
+
+    ; The output after KERN has gathered five entries of two words from four.
+    (method %gather-check-run (self kern)
+      (let ((src (str-make (int* 8 %word-size))) (idx (str-make (int* 5 %word-size)))
+            (out (str-make (int* 10 %word-size))) (s (str-make 256)))
+        (let ((w (fn (_ b i v) (ptr-set-word! (str->ptr b) (int* i %word-size) v))))
+          (def fill (fn (go b i xs) (if (null? xs) () (do (w b i (first xs)) (go b (int+ i 1) (rest xs))))))
+          (fill src 0 (list 11 12 21 22 31 32 41 42))
+          (fill idx 0 (list 3 0 3 1 1))
+          (fill out 0 (list 0 0 0 0 0 0 0 0 0 0))
+          (fill s 0 (list (ptr->int (str->ptr src)) (ptr->int (str->ptr idx)) (ptr->int (str->ptr out))
+                          2 5 0 0 0 1073741823))
+          (kern (ptr->int (str->ptr s)))
+          ; src and idx are held to here, so their addresses stayed good
+          (do src idx out))))
+
+    ; Whether the compiled kernel writes the words the pure one does.
+    (method %gather-agrees? (self compiled)
+      (let ((a (self %gather-check-run (word-form-pure (self %gather-form))))
+            (b (self %gather-check-run compiled)))
+        (int= (mem-cmp (str->ptr a) (str->ptr b) (int* 10 %word-size)) 0)))
+
+    ; INDEXES along an axis of ENTRIES as machine words in a string, each
+    ; resolved from the end where negative and refused where outside the
+    ; axis: (WORDS . COUNT).
+    (method %pack-indexes (self indexes entries)
+      (let ((n (List length indexes)) (integer (type-of 0)))
+        (let ((buf (str-make (int* (if (int< n 1) 1 n) %word-size))))
+          (let ((p (str->ptr buf)))
+            ((fn (go l k)
+               (if (null? l) ()
+                 (let ((i (first l)))
+                   (if (type? i integer) () (Err raise (lit type) "Tensor gather: an index is an integer" i))
+                   (let ((r (if (int< i 0) (int+ entries i) i)))
+                     (if (if (int< r 0) #t (not (int< r entries)))
+                       (Err raise (lit value) "Tensor gather: no such index along the first axis" i) ())
+                     (ptr-set-word! p (int* k %word-size) r)
+                     (go (rest l) (int+ k 1))))))
+             indexes 0)
+            (pair buf n)))))
+
+    ; ROWS packed as %pack-indexes packs them, unchecked: for a caller whose
+    ; rows are whole numbers within the axis by the way it made them.
+    (method %pack-rows (self rows)
+      (let ((n (List length rows)))
+        (let ((buf (str-make (int* (if (int< n 1) 1 n) %word-size))))
+          (let ((p (str->ptr buf)))
+            ((fn (go l k)
+               (if (null? l) ()
+                 (do (ptr-set-word! p k (first l)) (go (rest l) (int+ k %word-size)))))
+             rows 0)
+            (pair buf n)))))
+
     ; --- the class a result takes ------------------------------------------
     ; A subclass, Matrix, keeps its class through the operations that keep
     ; what makes it one.  %make builds an instance of this class from a
@@ -937,28 +1024,42 @@
       (returns Tensor "A fresh tensor in self's encoding: an entry for each index, each of self's extent after the first axis")
       (example "(((Tensor from '(10 20 30) 'f64) gather '(2 0 2)) ->list)" "(30.0 10.0 30.0)")
       (example "(((Tensor from '((1 2) (3 4) (5 6)) 'f64) gather '(-1 0)) ->list)" "((5.0 6.0) (1.0 2.0))"))
-    (let ((f (Tensor %fast)) (st (field (lit st))))
-      (let ((ext (List ref 1 st)))
-        (if (null? ext) (Err raise (lit value) "Tensor gather: a rank-0 tensor has no axis" ext) ())
-        (let ((src (if ((obj-ref f 3) st) st ((obj-ref f 10) st (first st))))
-              (entries (first ext))
-              (bytes (int* ((obj-ref f 1) (rest ext))
-                           (match ((eq? (first st) (lit c128)) 16) ((eq? (first st) (lit f32)) 4) (#t 8)))))
-          (let ((out ((obj-ref f 4) (first st) (pair (List length indexes) (rest ext)))))
-            (let ((from ((obj-ref f 13) src)) (to ((obj-ref f 13) out)))
-              ((fn (go l k)
-                 (if (null? l) ()
-                   (let ((i (first l)))
-                     (if (type? i (type-of 0)) () (Err raise (lit type) "Tensor gather: an index is an integer" i))
-                     (let ((r (if (int< i 0) (int+ entries i) i)))
-                       (if (if (int< r 0) #t (not (int< r entries)))
-                         (Err raise (lit value) "Tensor gather: no such index along the first axis" i) ())
-                       (if (int< 0 bytes)
-                         (mem-copy (int->ptr (int+ to (int* k bytes))) (int->ptr (int+ from (int* r bytes))) bytes)
-                         ())
-                       (go (rest l) (int+ k 1))))))
-                indexes 0)
-              (do src (self %wrap out))))))))
+    (let ((ext (List ref 1 (field (lit st)))))
+      (if (null? ext) (Err raise (lit value) "Tensor gather: a rank-0 tensor has no axis" ext) ())
+      (self %gather-packed (Tensor %pack-indexes indexes (first ext)))))
+
+  ; gather for indexes already packed by (Tensor %pack-indexes INDEXES N),
+  ; N the length of self's first axis: one packing serves every tensor of
+  ; that length.  An entry that is a whole number of machine words is
+  ; copied by the kernel once that has compiled; until then, and for any
+  ; other entry, each is copied here.
+  (method %gather-packed (self packed)
+    (let ((f (Tensor %fast)) (st (field (lit st))) (n (rest packed)))
+      (let ((src (if ((obj-ref f 3) st) st ((obj-ref f 10) st (first st))))
+            (bytes (int* ((obj-ref f 1) (rest (List ref 1 st)))
+                         (match ((eq? (first st) (lit c128)) 16) ((eq? (first st) (lit f32)) 4) (#t 8)))))
+        (let ((out ((obj-ref f 4) (first st) (pair n (rest (List ref 1 st)))))
+              (words (int/ bytes %word-size)))
+          (if (if (int< 0 n) (int< 0 bytes) #f)
+            (let ((from ((obj-ref f 13) src)) (to ((obj-ref f 13) out)) (p (str->ptr (first packed)))
+                  (whole? (int= (int* words %word-size) bytes)))
+              (if (if whole? (List ref 1 (Tensor %lane (lit gather))) #f)
+                (let ((s (str-make 256)))
+                  (def w (fn (_ i v) (ptr-set-word! (str->ptr s) (int* i %word-size) v)))
+                  (w 0 from) (w 1 (ptr->int p)) (w 2 to) (w 3 words) (w 4 n) (w 6 0) (w 7 0)
+                  ((obj-ref f 14) (lit gather) s))
+                (do
+                  ((fn (go k)
+                     (if (int< k n)
+                       (do (mem-copy (int->ptr (int+ to (int* k bytes)))
+                                     (int->ptr (int+ from (int* (ptr-ref-word p (int* k %word-size)) bytes)))
+                                     bytes)
+                           (go (int+ k 1)))
+                       ()))
+                   0)
+                  (if whole? (Tensor %lane-credit! (lit gather) (int* n (int+ words 1))) ()))))
+            ())
+          (do src packed (self %wrap out))))))
 
   (method as (self (param enc SYMBOL "The encoding: f64, f32, i64 or c128"))
     (doc "A contiguous copy in another encoding. f64 to f32 rounds each element to the nearest single, and f32 to f64 is exact; f64 or f32 to i64 truncates toward zero; a real encoding to c128 gives each element a 0 imaginary part. A c128 tensor is refused: take its real or imaginary part."
@@ -1115,6 +1216,8 @@
     (self %wrap
       ((obj-ref (Tensor %fast) 7) which (field (lit st))
         (if (if (object? other) (instance-of? other Tensor) #f) (other %st) other)))))
+
+(Tensor %register! (lit gather) (Tensor %gather-form) (fn (_ compiled) (Tensor %gather-agrees? compiled)))
 
 (doc (provide x/num/tensor Tensor)
   "Tensor: n-dimensional arrays of f64, f32, i64 or c128 packed in bytes, with views that share them, broadcasting element-wise arithmetic and reductions run in kernels that compile once they have run long enough."
