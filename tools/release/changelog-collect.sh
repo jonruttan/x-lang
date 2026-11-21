@@ -17,7 +17,10 @@
 # a run of commits made straight on the branch is another.  An entry that
 # does not name its own pull request has `([#N])` put after its lead
 # sentence, N from the merge commit.  A group that added lines to
-# CHANGELOG.md is left out: its entry is in the file already.
+# CHANGELOG.md is left out: its entry is in the file already.  So is a
+# commit, or a pull request's merge, that a later commit in the range
+# reverted: git's `This reverts commit SHA` line names it.  A revert that
+# was itself reverted takes nothing back.
 #
 #   changelog-collect.sh --check [--since COMMIT] [FROM [TO]]
 #
@@ -49,6 +52,34 @@ if [ -z "$from" ]; then
 	exit 0
 fi
 
+# The commits a later commit in the range took back, as " SHA SHA ... ".
+# git writes `This reverts commit SHA` into a revert's message, and that
+# line is the whole rule: a reverted commit's entry is for a change the
+# tree no longer has.  Every commit in the range is read, not the first
+# parent alone, since a revert arrives inside a pull request's branch.
+# Newest first, so a revert that was itself reverted is known to be dead
+# before its own line is read, and the commit it took back stands again.
+dead=" "
+is_dead() {
+	case "$dead" in
+		*" $1 "*) return 0 ;;
+	esac
+	return 1
+}
+reverts=$(git log --format='%x01%H%n%B' "$from..$to" | awk '
+	substr($0, 1, 1) == "\001" { by = substr($0, 2); next }
+	match($0, /This reverts commit [0-9a-f]+/) {
+		print by, substr($0, RSTART + 20, RLENGTH - 20)
+	}')
+while read -r by sha; do
+	[ -n "$by" ] || continue
+	is_dead "$by" && continue
+	full=$(git rev-parse -q --verify "$sha^{commit}" 2>/dev/null) || continue
+	dead="$dead$full "
+done <<EOF
+$reverts
+EOF
+
 # The entry a commit's message carries: the lines after `Changelog:`, led by
 # the rest of that line when the entry starts on it, the trailers and blank
 # lines at the end dropped.  Prints nothing for none.
@@ -70,6 +101,7 @@ entry_of() {
 # Whether any commit of the group, given on stdin, is a feat, fix or perf.
 needs_entry() {
 	while read -r c; do
+		[ -n "$c" ] || continue
 		if git log -1 --format=%s "$c" | grep -q '^\(feat\|fix\|perf\)[(:]'; then
 			return 0
 		fi
@@ -100,7 +132,12 @@ print_entry() {
 group() {
 	n=$1
 	head=$2
-	commits=$(cat)
+	# A commit a later one took back is not read, for an entry or for the
+	# check: its change is gone, and so is what the entry would announce.
+	commits=$(while read -r c; do
+		[ -n "$c" ] || continue
+		is_dead "$c" || echo "$c"
+	done)
 	if [ -n "$since" ] && git merge-base --is-ancestor "$head" "$since" 2>/dev/null; then
 		return 0
 	fi
@@ -155,6 +192,10 @@ for h in $(git log --first-parent --format=%H "$from..$to"); do
 	n=$(git log -1 --format=%s "$h" | sed -n 's/^Merge pull request #\([0-9][0-9]*\) .*/\1/p')
 	if [ $# -ge 2 ] && [ -n "$n" ]; then
 		flush_run
+		# A pull request whose merge was taken back is left out whole.
+		if is_dead "$h"; then
+			continue
+		fi
 		if ! git log --no-merges --format=%H "$1..$2" | group "$n" "$h"; then
 			bad=1
 		fi

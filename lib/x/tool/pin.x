@@ -641,11 +641,9 @@
     ;
     ;   lang.pin.xon   WHICH bundle this project wants, and where from.
     ;                         The project writes it.  Closed vocabulary:
-    ;                         lang | lib | release | bundle | source.
+    ;                         lang | release | bundle | source.
     ;   lang.xon       WHAT the bundle IS -- name, dialect, the release
     ;                         it was built against.  Shipped inside it.
-    ;   lib.xon        the same for a library: name, release, the
-    ;                         prefixes it provides, the libs it requires.
     ;
     ; THE ARCHIVE ITSELF IS THE DIGEST SUBJECT, which it could not be until
     ; Sha256 grew hex-n: the plain hex bounds itself by Str8 length, so a gzip
@@ -658,43 +656,23 @@
     ; x-lang, so a release has exactly one artifact.  The engine pin carries a
     ; row per platform because an engine is a binary; copying that apparatus
     ; here would be rows that cannot be wrong in an interesting way.
-    ; A LIBRARY IS A BUNDLE WITHOUT AN ENTRY: modules under an import root,
-    ; acquired, verified and installed exactly as a lang is.  Its pin names
-    ; it with (lib "NAME") where a lang's says (lang "NAME"), its own
-    ; declaration is lib.xon where a lang's is lang.xon, and it installs to
-    ; <install-root>/libs.  The kind is the one thing that differs, so it is
-    ; read once here and carried in the answer.
-    (method %pin-bundle-kind (self forms)
-      (def %go
-            (fn (self forms lang? lib?)
-              (match
-                ((null? forms)
-                  (match
-                    ((if lang? lib? #f) (Pin %pin-bad "names both a lang and a lib -- a bundle is one or the other"))
-                    (lib? 'lib)
-                    (#t 'lang)))
-                ((not (pair? (first forms))) (self (rest forms) lang? lib?))
-                ((eq? (first (first forms)) 'lang) (self (rest forms) #t lib?))
-                ((eq? (first (first forms)) 'lib) (self (rest forms) lang? #t))
-                (#t (self (rest forms) lang? lib?)))))
-      (%go forms #f #f))
     (method %pin-bundle-parse (self forms)
       (def %go
             (fn (self forms name tag dg url src)
               (match
                 ((null? forms)
                   (match
-                    ((null? name) (Pin %pin-bad "bundle pin has no (lang ...) or (lib ...)"))
+                    ((null? name) (Pin %pin-bad "bundle pin has no (lang ...)"))
                     ((null? tag) (Pin %pin-bad "bundle pin has no (release ...)"))
                     ((null? dg) (Pin %pin-bad "bundle pin has no (bundle ...)"))
                     (#t (list (pair 'lang name) (pair 'release tag)
                               (pair 'digest dg) (pair 'url url) (pair 'source src)))))
                 ((not (pair? (first forms))) (Pin %pin-bad "bundle-pin form is not a list"))
-                ((if (eq? (first (first forms)) 'lang) #t (eq? (first (first forms)) 'lib))
+                ((eq? (first (first forms)) 'lang)
                   (match
                     ((str? (first (rest (first forms))))
                       (self (rest forms) (first (rest (first forms))) tag dg url src))
-                    (#t (Pin %pin-bad "lang and lib need a name string"))))
+                    (#t (Pin %pin-bad "lang needs a name string"))))
                 ((eq? (first (first forms)) 'release)
                   (match
                     ((str? (first (rest (first forms))))
@@ -722,15 +700,13 @@
                 ; wondering which readers obeyed which half of it.
                 (#t (Pin %pin-bad (Str8 append "unknown form in bundle pin: "
                                     (symbol->str (first (first forms)))))))))
-      (pair (pair 'kind (Pin %pin-bundle-kind forms))
-            (%go forms () () () () ())))
-    (method %pin-bundle-decl-name (self kind)
-      (if (eq? kind 'lib) "lib.xon" "lang.xon"))
+      (%go forms () () () () ()))
+    (method %pin-bundle-decl-name (self) "lang.xon")
     ; stage -> the directory the bundle actually is: stage itself, or its one
     ; child when the archive carried a top-level directory (see the caller).
-    (method %pin-bundle-tree (self stage kind)
+    (method %pin-bundle-tree (self stage)
       (match
-        ((File exists? (%path-join stage (Pin %pin-bundle-decl-name kind))) stage)
+        ((File exists? (%path-join stage (Pin %pin-bundle-decl-name))) stage)
         (#t
           (let ((kids (guard (_ ()) (File list-dir stage))))
             (match
@@ -739,7 +715,7 @@
               (#t
                 (let ((one (%path-join stage (first kids))))
                   (match
-                    ((File exists? (%path-join one (Pin %pin-bundle-decl-name kind))) one)
+                    ((File exists? (%path-join one (Pin %pin-bundle-decl-name))) one)
                     (#t stage)))))))))
     ; A BINARY file's digest, and the sibling of %pin-digest rather than a
     ; change to it: %pin-digest serves amalgams and lockfiles, which are text,
@@ -765,28 +741,15 @@
               (match
                 ((null? forms)
                   (match
-                    ((null? name) (Pin %pin-bad "declaration has no (lang ...) or (lib ...)"))
+                    ((null? name) (Pin %pin-bad "lang.xon has no (lang ...)"))
                     (#t (list (pair 'lang name) (pair 'dialect dialect)
                               (pair 'requires-release req) (pair 'entry entry)))))
-                ((not (pair? (first forms))) (Pin %pin-bad "declaration form is not a list"))
-                ((if (eq? (first (first forms)) 'lang) #t (eq? (first (first forms)) 'lib))
+                ((not (pair? (first forms))) (Pin %pin-bad "lang.xon form is not a list"))
+                ((eq? (first (first forms)) 'lang)
                   (match
                     ((str? (first (rest (first forms))))
                       (self (rest forms) (first (rest (first forms))) dialect req entry))
-                    (#t (Pin %pin-bad "lang and lib need a name string"))))
-                ; (requires-lib "NAME" ["VERSION"]) -- a library whose modules
-                ; this bundle imports; the wrapper refuses a missing one before
-                ; anything boots, acquisition only checks its shape.
-                ((eq? (first (first forms)) 'requires-lib)
-                  (match
-                    ((str? (first (rest (first forms)))) (self (rest forms) name dialect req entry))
-                    (#t (Pin %pin-bad "requires-lib needs a lib name string"))))
-                ; (provides PREFIX ...) -- the module-name prefixes a library
-                ; owns, as symbols: x/codec, x/net.
-                ((eq? (first (first forms)) 'provides)
-                  (match
-                    ((Pin %pin-all-symbols? (rest (first forms))) (self (rest forms) name dialect req entry))
-                    (#t (Pin %pin-bad "provides needs module-name prefixes as symbols"))))
+                    (#t (Pin %pin-bad "lang needs a name string"))))
                 ; (dialect he|xe|rn) -- a REQUIREMENT, not a preference: a
                 ; lang reaching x/sys/socket needs radon, and declaring
                 ; helium means it dies at boot on a missing import instead of
@@ -820,26 +783,9 @@
                     ((if (pair? (rest (first forms))) (symbol? (first (rest (first forms)))) #f)
                       (self (rest forms) name dialect req entry))
                     (#t (Pin %pin-bad "grammar needs a name symbol"))))
-                (#t (Pin %pin-bad (Str8 append "unknown form in the declaration: "
+                (#t (Pin %pin-bad (Str8 append "unknown form in lang.xon: "
                                     (symbol->str (first (first forms)))))))))
-      (let ((kind (Pin %pin-bundle-kind forms))
-            (pd (%go forms () () () ())))
-        (match
-          ; A library is loaded by import and by nothing else: a dialect or
-          ; an entry in its declaration is a lang's form in the wrong file.
-          ((if (eq? kind 'lib)
-               (if (null? (%assoc-get 'dialect pd)) (not (null? (%assoc-get 'entry pd))) #t)
-               #f)
-            (Pin %pin-bad "a lib declares no dialect and no entry"))
-          (#t (pair (pair 'kind kind) pd)))))
-    (method %pin-all-symbols? (self l)
-      (def %go
-            (fn (self l)
-              (match
-                ((null? l) #t)
-                ((symbol? (first l)) (self (rest l)))
-                (#t #f))))
-      (if (null? l) #f (%go l)))
+      (%go forms () () () ()))
     ; two lists, a ++ b
     (method %pin-concat (self a b)
       (def %rec (fn (self a b)
@@ -1619,7 +1565,7 @@
                     target))))))))
     (method install (self (param url STRING "URL of a published lang.pin.xon")
                           . (param dest STRING "Where to install; default the running x's langs directory"))
-      (doc "Install a lang from a published pin, with nothing cloned. Downloads the lang.pin.xon the URL names, reads it (closed vocabulary -- an unknown form is a loud error), then acquires the tarball that pin describes exactly as (Pin bundle) does: digested with pure-x Sha256 before tar runs, quarantined on mismatch, staged and renamed only once whole. Installs to <langs>/<name>, the STABLE name `-l` resolves, replacing any previous version only after the new one has verified. Default destination is the running x's <install-root>/langs, so an installed x needs no argument; a checkout has no install root and must be given one. A pin that names a (lib ...) installs a library the same way, to <install-root>/libs/<name>, where every session finds its modules by import. Returns the installed directory."
+      (doc "Install a lang from a published pin, with nothing cloned. Downloads the lang.pin.xon the URL names, reads it (closed vocabulary -- an unknown form is a loud error), then acquires the tarball that pin describes exactly as (Pin bundle) does: digested with pure-x Sha256 before tar runs, quarantined on mismatch, staged and renamed only once whole. Installs to <langs>/<name>, the STABLE name `-l` resolves, replacing any previous version only after the new one has verified. Default destination is the running x's <install-root>/langs, so an installed x needs no argument; a checkout has no install root and must be given one. Returns the installed directory."
         (returns STRING "Path of the installed lang")
         (sample "(Pin install \"https://example.org/x-krn/releases/latest/download/lang.pin.xon\")" "\"/usr/local/share/x/langs/krn\""))
       (let ((root (match
@@ -1645,37 +1591,22 @@
                 (do
                   (guard (_ ()) (File unlink pinf))
                   (let ((name (%assoc-get 'lang m))
-                        (kind (%assoc-get 'kind m))
                         (tag (%assoc-get 'release m))
                         (want (%assoc-get 'digest m))
                         (burl (%assoc-get 'url m)))
-                    ; A lib installs beside the langs, never among them: the
-                    ; wrapper arms every directory under libs as an import
-                    ; root.  A destination the caller gave is used as given.
-                    (let ((root (match
-                                  ((if (null? dest) (eq? kind 'lib) #f)
-                                    (%path-join %install-root "libs"))
-                                  (#t root))))
                     (let ((final (%path-join root name))
                           (staged (%path-join root
                                     (Str8 append ".install." (%cvt (Sys getpid) %string)))))
                       (do
-                        (Pin %pin-mkdirs root)
-                        (Pin %pin-bundle-acquire! name tag want burl root staged kind)
+                        (Pin %pin-bundle-acquire! name tag want burl root staged)
                         ; The bundle must agree with the pin about what it is,
                         ; before anything replaces a working installation.
                         (let ((pd (Pin %pin-lang-parse
                                     (Pin %pin-forms
-                                      (File read-all (%path-join staged (Pin %pin-bundle-decl-name kind)))))))
+                                      (File read-all (%path-join staged (Pin %pin-bundle-decl-name)))))))
                           (do
                             (match
-                              ((not (eq? (%assoc-get 'kind pd) kind))
-                            (Pin %pin-bad
-                              (Str8 append "the pin asked for a "
-                                (Str8 append (symbol->str kind)
-                                  (Str8 append ", and the bundle declares a "
-                                    (symbol->str (%assoc-get 'kind pd)))))))
-                          ((str=? (%assoc-get 'lang pd) name) ())
+                              ((str=? (%assoc-get 'lang pd) name) ())
                               (#t (Pin %pin-bad
                                     (Str8 append "bundle calls itself "
                                       (Str8 append (%assoc-get 'lang pd)
@@ -1684,19 +1615,11 @@
                             ; intact through the download, the digest and the
                             ; unpack: a failed upgrade leaves what you had,
                             ; not nothing.
-                            ; The stamp a (requires-lang ...) or (requires-lib
-                            ; ...) version is held against.  A release
-                            ; archive carries none, and the pin's tag is what
-                            ; was verified, so the install says so.
-                            (match
-                              ((File exists? (%path-join staged "version")) ())
-                              (#t (File write-all (%path-join staged "version")
-                                    (Str8 append tag "\n"))))
                             (guard (_ ()) (Proc run! (list "rm" "-rf" final)))
                             (File rename staged final)
                             (display "pin: installed " name " " tag " to " final "\n")
                             (display (Pin %pin-bundle-pairing pd) "\n")
-                            final)))))))))))))
+                            final))))))))))))
     (method bundle (self (param dest STRING "Directory to unpack the bundle into")
                          . (param dir STRING "Project directory holding lang.pin.xon; default \".\""))
       (doc "Acquire a lang bundle, verified or nothing. Reads lang.pin.xon (closed vocabulary -- an unknown form is a loud error, never a skip), downloads the tarball its (bundle \"sha256:...\" \"URL\") row names to a temp path, and digests it THERE with pure-x Sha256 before tar is run at all: an archive that does not match is quarantined as <archive>.rejected -- the bytes are the evidence -- and nothing is unpacked. A verified archive unpacks into a per-pid staging directory and is renamed into place at <dest>/<name>-<release>/ only once whole, so a tar that dies half way cannot leave a partial tree where the already-acquired check would later read it as complete. The bundle's lang.xon must agree with the pin about which lang it is, and its (requires-release ...) is reported against this tree's stamp -- drift named, not fatal. An already-acquired bundle at the same release is honoured without touching the network. Returns the bundle's directory."
@@ -1710,7 +1633,6 @@
               (#t (Pin %pin-bad (Str8 append "no bundle pin: " mpath))))
             (let ((m (Pin %pin-bundle-parse (Pin %pin-forms (File read-all mpath)))))
               (let ((name (%assoc-get 'lang m))
-                    (kind (%assoc-get 'kind m))
                     (tag (%assoc-get 'release m))
                     (want (%assoc-get 'digest m))
                     (url (%assoc-get 'url m)))
@@ -1722,23 +1644,17 @@
                     ; once, and a tag cannot change its bytes -- the tag IS the
                     ; identity.
                     (match
-                      ((File exists? (%path-join home (Pin %pin-bundle-decl-name kind)))
+                      ((File exists? (%path-join home (Pin %pin-bundle-decl-name)))
                         (display "pin: " name " " tag " already acquired at " home "\n"))
-                      (#t (Pin %pin-bundle-acquire! name tag want url dest home kind)))
+                      (#t (Pin %pin-bundle-acquire! name tag want url dest home)))
                     ; THE BUNDLE MUST AGREE WITH THE PIN ABOUT WHAT IT IS.  The
                     ; digests prove the bytes are the ones published; they say
                     ; nothing about whether the right thing was published.
                     (let ((pd (Pin %pin-lang-parse
                                 (Pin %pin-forms
-                                  (File read-all (%path-join home (Pin %pin-bundle-decl-name kind)))))))
+                                  (File read-all (%path-join home (Pin %pin-bundle-decl-name)))))))
                       (do
                         (match
-                          ((not (eq? (%assoc-get 'kind pd) kind))
-                            (Pin %pin-bad
-                              (Str8 append "the pin asked for a "
-                                (Str8 append (symbol->str kind)
-                                  (Str8 append ", and the bundle declares a "
-                                    (symbol->str (%assoc-get 'kind pd)))))))
                           ((str=? (%assoc-get 'lang pd) name) ())
                           (#t (Pin %pin-bad
                                 (Str8 append "bundle calls itself "
@@ -1750,7 +1666,7 @@
     ; Split out of the verb because the already-acquired arm skips all of it,
     ; and a conditional that long inside the verb hid which half was the fast
     ; path.
-    (method %pin-bundle-acquire! (self name tag want url dest home kind)
+    (method %pin-bundle-acquire! (self name tag want url dest home)
       (let ((archive (%path-join dest (Str8 append name (Str8 append "-" (Str8 append tag ".tar.gz")))))
             (stage (%path-join dest (Str8 append ".staging-" (%cvt (Sys getpid) %string)))))
         ; VERIFIED BEFORE UNPACKED.  The download lands on a pid-tagged temp
@@ -1796,13 +1712,13 @@
             ; Descend exactly one level, and only when the descent is
             ; unambiguous: no declaration at the top, one entry, and the
             ; declaration inside it.  Anything else is left as it unpacked.
-            (let ((tree (Pin %pin-bundle-tree stage kind)))
+            (let ((tree (Pin %pin-bundle-tree stage)))
               (do
-                (let ((decl (%path-join tree (Pin %pin-bundle-decl-name kind))))
+                (let ((decl (%path-join tree (Pin %pin-bundle-decl-name))))
                   (match
                     ((File exists? decl) ())
                     (#t (Pin %pin-bad (Str8 append "bundle ships no "
-                          (Str8 append (Pin %pin-bundle-decl-name kind)
+                          (Str8 append (Pin %pin-bundle-decl-name)
                             (Str8 append " -- left at " stage)))))))
                 (File rename tree home)))))))
     ; Release pairing, REPORTED not enforced -- the ruling the amalgam's isa
