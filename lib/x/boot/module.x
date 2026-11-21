@@ -260,7 +260,11 @@
              (%set-first! %module-expected-cell expected)
              (def %result
                (match
-                 ((%module-same? env (%module-root-env)) (%raw-include %io-path))
+                 ; The engine's include evaluates in the program
+                 ; environment, so it loads only there; a load into the
+                 ; platform environment, once the program has its own, is
+                 ; read in like a module's.
+                 ((%module-same? env (%module-program-env)) (%raw-include %io-path))
                  (#t (%load env %io-path))))
              (%set-first! %module-expected-cell ())
              (%include-dir-pop!)
@@ -407,16 +411,37 @@
 (def %module-env-cell (rest (rest %module-loaded-cell)))
 (%set-rest! %module-env-cell (pair () ()))
 (def %module-owner-cell (rest %module-env-cell))
-; The root environment, read through the contract each time rather than
-; held in a global: it is the base's, and a global holding it would be one
-; more reference for the image writer to explain.
-(def %module-root-env
+; Two environments, read through the contract each time rather than held in
+; globals: they are the base's, and a global holding one would be one more
+; reference for the image writer to explain.
+;
+; The program environment is the base's root slot, where a top-level form
+; binds: the engine's include and eval! evaluate there.  The platform
+; environment is the outermost one, with no parent: the library's names, and
+; where every module is loaded and its exports bound.  During the boot they
+; are one environment.  %module-program! ends the boot by making the program
+; environment a child of the platform's, so a program's definitions shadow
+; the library's names and never replace them: a module loaded later, the
+; library's or the program's, is a child of the platform environment and
+; reads the library's names as the library defined them.
+(def %module-program-env
   (fn (_) (%reflect-base-cell (lit env-root))))
+(def %module-root-env
+  (fn (_)
+    (def %up (fn (self e) (match ((eq? (rest e) ()) e) (#t (self (rest e))))))
+    (%up (%module-program-env))))
 ; Object identity, never eq?: eq? compares the operand word, and every
 ; closure carries the same call handler in that word, so eq? is #t for any
 ; two procedures.  A re-export and an import repeat compare values, which
 ; are usually closures, so they must ask same?.
 (def %module-same? (prim-ref (lit obj) (lit same?)))
+; Whether E is a top level, where an unscoped file's definitions bind as
+; `include` reaches them: the platform environment or the program's.
+(def %module-top?
+  (fn (_ e)
+    (match
+      ((%module-same? e (%module-root-env)) #t)
+      (#t (%module-same? e (%module-program-env))))))
 ; The marker a guarded lookup answers for a name that is not bound: a
 ; fresh pair, so nothing a lookup could return is the same object.
 (def %module-unbound (pair () ()))
@@ -428,11 +453,13 @@
       (#t (self k (rest l))))))
 (def %module-env-of
   ; The environment a module's names live in: its own when scoped, the
-  ; root when it was loaded by include.
+  ; top level when it was loaded by include.  The program environment
+  ; reads both tops: an unscoped file `import` loads binds in the
+  ; platform's, one the program includes in its own.
   (fn (_ name)
     (def %e (%module-assoc name (first %module-env-cell)))
     (match
-      ((eq? %e ()) (%module-root-env))
+      ((eq? %e ()) (%module-program-env))
       (#t (rest %e)))))
 (def %module-owner-of
   (fn (_ sym)
@@ -680,7 +707,7 @@
     (def %value (guard (_ %module-unbound) (eval sym e)))
     (match
       ((not (%module-same? %value %module-unbound)) ())
-      ((%module-same? e (%module-root-env)) ())
+      ((%module-top? e) ())
       (#t (error (%str-append "provide: "
             (%str-append (symbol->str name)
               (%str-append " exports "
@@ -689,7 +716,7 @@
     ; unbound until x/type/class loads, and nothing is a class before then.
     (def %root
       (match
-        ((%module-same? e (%module-root-env)) #t)
+        ((%module-top? e) #t)
         (%global #t)
         (#t (guard (_ #f) (class? %value)))))
     (match
@@ -710,7 +737,7 @@
     ; records the owner.  A scoped module's value lives in its own
     ; environment and is copied to the root here when it goes there.
     (match
-      ((%module-same? e (%module-root-env)) ())
+      ((%module-top? e) ())
       ((not %root) ())
       (#t (%module-define! (%module-root-env) sym %value)))))
 
@@ -819,6 +846,39 @@
         (do
           (%set-first! %module-expected-cell ())
           (%module-load-into (rest %entry)))))))
+
+; --- The program's environment ---
+; The end of a dialect's boot, the last form of its entry file before the
+; REPL: the program gets an environment of its own, a child of the
+; platform's, and the rest of the input -- the program -- is read into it.
+;
+; The base's root slot is pointed at the new environment, so the engine's
+; include and eval!, which evaluate a top-level form there, place the
+; program's files and the forms the REPL reads in it too.  It is a tree, as
+; a module's is (made with pair, law 10), so a program's names are searched
+; as fast as the library's.  The platform environment keeps everything the
+; boot bound, and every module, loaded at boot or later, is its child and
+; never the program's: a program that defines a name the library has, as a
+; spec defining `note`, shadows the library's for itself and leaves it, as
+; it was, to the library's modules.
+;
+; Once only: in a base whose program environment is already a child, as an
+; entry file loaded again, it is the rest of the input read there.
+(def %module-program!
+  (fn (_)
+    (def %top (%module-program-env))
+    (match
+      ((eq? (rest %top) ())
+        (do
+          (def %steps (%reflect-path (lit env-root) %base-paths))
+          (def %last (fn (self l) (match ((eq? (rest l) ()) (first l)) (#t (self (rest l))))))
+          (match
+            ((eq? (%last %steps) (lit r)) ())
+            (#t (error (pair (lit env-root-not-a-rest-slot) %steps))))
+          (%set-rest! (%reflect-step (%base) (%reflect-path-parent %steps))
+                      (pair () %top))))
+      (#t ()))
+    (%module-load-into (%module-program-env))))
 
 ; Look up a module entry in the registry by name
 (def %module-find

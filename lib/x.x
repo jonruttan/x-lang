@@ -5,4 +5,7 @@
 (include "lib/x/boot/helium.x")
 ; The launcher is lib/he.x's, line editor included; the comment there says
 ; why the editor is imported here and not in the boot.
+; The boot ends here: the rest of the input is the program, read into an
+; environment of its own (boot/module.x, %module-program!).
+(%module-program!)
 (unless %batch? (do (guard (_ ()) (import x/repl/line)) (%banner) (repl)))

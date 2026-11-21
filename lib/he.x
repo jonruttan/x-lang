@@ -27,4 +27,7 @@
 ; terminal to edit on, so a pipe or a -f run reads through the C reader's
 ; loop as before.  The guard leaves a plain REPL on a build without those
 ; modules.
+; The boot ends here: the rest of the input is the program, read into an
+; environment of its own (boot/module.x, %module-program!).
+(%module-program!)
 (unless %batch? (do (guard (_ ()) (import x/repl/line)) (%banner) (repl)))
