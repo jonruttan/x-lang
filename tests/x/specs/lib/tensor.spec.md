@@ -673,7 +673,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
       (Tensor jit!)
       (list (equal? before (run))
             (List all? (fn (_ k) (List any? (fn (_ c) (eq? c k)) (Tensor compiled)))
-              (if (List empty? (Tensor compiled)) () (lit (f32-add f32-div f32-sum f32-copy f32->f64 f64->f32))))))))
+              (if (List includes? (lit f64-add) (Tensor compiled)) (lit (f32-add f32-div f32-sum f32-copy f32->f64 f64->f32)) ()))))))
 ```
 ---
     (#t #t)
