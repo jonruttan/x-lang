@@ -190,6 +190,25 @@ word.
 ---
     ("b" "d" "a" "c")
 
+### sort answers the same once the kernels are compiled, equal values in their order
+
+```x
+(import x/data/table) (import x/num/tensor)
+(let ((t (Table from '((age (31.0 45.0 28.0 45.0 -2.5 31.0 0.0)) (name ("a" "b" "c" "d" "e" "f" "g"))
+                       (n (1.0 2.0 3.0 4.0 5.0 6.0 7.0)))))
+      (two (Table from '((x (2.0 1.0)))))
+      (one (Table from '((x (2.0))))))
+  (let ((run (fn (_) (list (((t sort 'age) column 'name) ->list) (((t sort 'age) column 'n) ->list)
+                           (((t select '(n age)) sort 'age) ->list)
+                           (((t sort 'age (fn (_ a b) (< b a))) column 'name) ->list)
+                           ((two sort 'x) ->list) ((one sort 'x) ->list)))))
+    (let ((before (run)))
+      (Tensor jit!)
+      (list (equal? before (run)) (first before) (List ref 3 before)))))
+```
+---
+    (#t ("e" "g" "c" "a" "f" "b" "d") ("b" "d" "a" "f" "c" "g" "e"))
+
 ## Column arithmetic and map
 
 ### add, sub, mul and div, by a column or by a number
