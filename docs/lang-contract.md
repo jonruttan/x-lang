@@ -376,48 +376,6 @@ Two rules inherited from the engine fetch, for the same reasons:
 - **An existing valid tree is honoured** — same digest, no network. Offline is the
   normal case for anyone who has fetched once.
 
-## Libraries
-
-A **library** is a bundle with no entry: modules under an import root, in a
-repository of their own. It is acquired, verified and installed by the same
-code a lang is, and three things differ.
-
-Its declaration is `lib.xon`:
-
-```x
-(lib "codec")                 ; the name a pin and a (requires-lib ...) use
-(requires-release "v0.60.0")  ; the x-lang it was built against
-(provides x/codec x/net)      ; the module-name prefixes it owns
-(requires-lib "num" "v0.1.0") ; a library its modules import from
-```
-
-A library declares no dialect and no entry, and one that does is refused: it
-is loaded by `import` and by nothing else. `x -l NAME` on a library says so.
-
-Its pin names it with `(lib "NAME")` where a lang's says `(lang "NAME")`, and
-`x --install-lang URL` installs it to `<install-root>/libs/<name>`.
-`X_LIBS_DIR` moves that directory, as `X_LANG_DIR` moves the langs'.
-
-**Every installed library is armed on every launch**, after the platform's
-own root. A session imports a library's module by the name it has, with
-nothing declared, so a module that moves from the platform into a library
-is imported exactly as before. A root armed after the platform's adds
-modules and cannot replace one: the platform, a bundle and a pin overlay are
-all searched first.
-
-**A bundle that imports from a library says so**, in its own declaration:
-
-```x
-(requires-lib "codec" "v0.1.0")
-```
-
-The wrapper walks these rows with the `(requires-lang …)` rows, depth first,
-and refuses a library that is missing, or at another version, before
-anything boots, naming the chain that asked for it. The version is compared
-for equality with the `version` stamp the install wrote, and
-`--allow-lang-skew` waives it, for a lang and a library alike. A required
-library keys the bundle's state image.
-
 ## The seam
 
 This is what a lang may rely on. It is declared in

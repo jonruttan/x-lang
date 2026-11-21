@@ -277,10 +277,7 @@ Two extensions to the rule:
 
 - **Search roots** — `(import-path! "path/to/root")` adds a search root, so
   `(import my/module)` can resolve outside `lib/` (e.g. an application tree).
-  The default root is `lib`. A new root is searched first;
-  `(import-path! "path/to/root" 'after)` puts it last instead, behind the
-  platform, which is how an [installed library](lang-contract.md#libraries)
-  is armed.
+  The default root is `lib`.
 - **Relative includes** — an `include-once`/`import` path starting with `./`
   or `../` resolves against the *including file's* directory, not the working
   directory. Raw `include` paths stay verbatim.

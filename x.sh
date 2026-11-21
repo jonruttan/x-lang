@@ -70,19 +70,6 @@ case "$LANGS_PATH" in
 	*/) ;;
 	*) LANGS_PATH="$LANGS_PATH/" ;;
 esac
-# Where acquired libraries live: beside the langs, never among them.  A
-# library is a bundle with no entry -- modules under an import root -- and
-# every directory here that carries a lib.xon is armed as a root on every
-# launch (lib_roots_form), so a directory of its own makes that a glob with
-# no manifest read.  X_LIBS_DIR moves it.
-LIBS_PATH="${X_LIBS_DIR:-deps/libs/}"
-if [ -n "${INSTALL_ROOT:-}" ] && [ -z "${X_LIBS_DIR:-}" ]; then
-	LIBS_PATH="$INSTALL_ROOT/libs/"
-fi
-case "$LIBS_PATH" in
-	*/) ;;
-	*) LIBS_PATH="$LIBS_PATH/" ;;
-esac
 
 # Both forms below emit a path as an x-lang STRING LITERAL ahead of the
 # boot entry.  A path holding a double quote or a backslash would close
@@ -138,9 +125,6 @@ BUNDLE_ENTRY=
 BUNDLE_DIALECT=
 BUNDLE_COMPILED=
 BUNDLE_DEPS=
-# The libraries the bundles above require: checked by the same walk, armed
-# by lib_roots_form with every other installed library.
-LIB_DEPS=
 # Bundles loaded BESIDE the session's lang: every -l after the first.  Their
 # roots are armed and their entries read before the first lang's entry, and
 # their dependencies join BUNDLE_DEPS.  A bundle loaded this way registers
@@ -156,18 +140,14 @@ EXTRA_ENTRIES=
 # answers, read by the shell itself.  Every launch reads every bundle's
 # lang.xon, so two processes a bundle were most of a bundle launch's shell
 # time.
-#
-# $2 names the form when it is not `lang`: a library's lib.xon declares
-# itself with `(lib "NAME")`, and is read the same way.
 xon_lang_name() {
 	_n=
-	_f="(${2:-lang} \""
 	while IFS= read -r _l || [ -n "$_l" ]; do
 		case $_l in
-		"$_f"*)
-			_v=${_l#"$_f"}
+		'(lang "'*)
+			_v=${_l#'(lang "'}
 			_v=${_v%%\"*}
-			case ${_l#"$_f$_v"} in '")'*) _n=$_v; return 0 ;; esac
+			case ${_l#'(lang "'"$_v"} in '")'*) _n=$_v; return 0 ;; esac
 			;;
 		esac
 	done < "$1"
@@ -177,17 +157,11 @@ xon_lang_name() {
 # because dependency resolution needs exactly the same lookup, including the
 # duplicate-name refusal: a bundle reached as a dependency is no more allowed
 # to be ambiguous than one named on the command line.
-#
-# $2 is the kind, `lang` when absent.  A `lib` is looked up under LIBS_PATH
-# by the name its lib.xon declares; nothing else differs.
 bundle_dir_of() {
 	_found=
-	_k=${2:-lang}
-	_kp=$LANGS_PATH
-	[ "$_k" = lang ] || _kp=$LIBS_PATH
-	for _d in "$_kp"*/; do
-		[ -f "$_d/$_k.xon" ] || continue
-		xon_lang_name "$_d/$_k.xon" "$_k"
+	for _d in "$LANGS_PATH"*/; do
+		[ -f "$_d/lang.xon" ] || continue
+		xon_lang_name "$_d/lang.xon"
 		[ "$_n" = "$1" ] || continue
 		# TWO BUNDLES CLAIMING ONE NAME IS A MISCONFIGURATION, not a race to
 		# be won by directory order: a project pins ONE release, and picking
@@ -208,26 +182,9 @@ bundle_dir_of() {
 # The (requires-lang ...) rows of $1's lang.xon, as NAME|VERSION tokens with
 # VERSION empty when the row names none.  Two expressions rather than one
 # optional group, because BRE has no optional group worth relying on.
-#
-# $2 is the kind of the bundle at $1, `lang` when absent, and names its
-# manifest.  The (requires-lib ...) rows follow, as lib:NAME|VERSION: a lang
-# may require libraries, and a library may require only other libraries.
 bundle_reqs_of() {
-	_rk=${2:-lang}
-	if [ "$_rk" = lang ]; then
-		sed -n 's/^(requires-lang "\([^"]*\)"[^"]*"\([^"]*\)").*/\1|\2/p' "$1/lang.xon"
-		sed -n 's/^(requires-lang "\([^"]*\)")[[:space:]]*$/\1|/p' "$1/lang.xon"
-	fi
-	sed -n 's/^(requires-lib "\([^"]*\)"[^"]*"\([^"]*\)").*/lib:\1|\2/p' "$1/$_rk.xon"
-	sed -n 's/^(requires-lib "\([^"]*\)")[[:space:]]*$/lib:\1|/p' "$1/$_rk.xon"
-}
-
-# One row of bundle_reqs_of, walked: $1 the row, $2 the chain so far.
-bundle_req_walk() {
-	case "$1" in
-		lib:*) _rw=${1#lib:}; bundle_deps_collect "${_rw%%|*}" "$2" "${_rw#*|}" lib ;;
-		*) bundle_deps_collect "${1%%|*}" "$2" "${1#*|}" ;;
-	esac
+	sed -n 's/^(requires-lang "\([^"]*\)"[^"]*"\([^"]*\)").*/\1|\2/p' "$1/lang.xon"
+	sed -n 's/^(requires-lang "\([^"]*\)")[[:space:]]*$/\1|/p' "$1/lang.xon"
 }
 
 # What an INSTALLED lang says it is.  Written by its `make install` from git
@@ -256,29 +213,17 @@ bundle_version_of() {
 #
 # $2 is the chain so far, used both to break cycles and to say where a missing
 # lang was asked for.
-#
-# $4 is the kind, `lang` when absent.  A required LIBRARY is walked the same
-# way and refused the same way, and lands in LIB_DEPS instead: its root is
-# armed with every other installed library's (lib_roots_form), so the walk
-# only checks that it is there, at the version asked for, and keys the
-# state image on it.
 bundle_deps_collect() {
-	_dk=${4:-lang}
-	_dir=$(bundle_dir_of "$1" "$_dk") || {
-		echo "Error: $_dk '$1' is required but not installed" >&2
+	_dir=$(bundle_dir_of "$1") || {
+		echo "Error: lang '$1' is required but not installed" >&2
 		echo "  required by: $2" >&2
-		if [ "$_dk" = lang ]; then
-			echo "  searched ${LANGS_PATH}*/lang.xon" >&2
-			echo "  install it, or set X_LANG_DIR to where it lives" >&2
-		else
-			echo "  searched ${LIBS_PATH}*/lib.xon" >&2
-			echo "  install it, or set X_LIBS_DIR to where it lives" >&2
-		fi
+		echo "  searched ${LANGS_PATH}*/lang.xon" >&2
+		echo "  install it, or set X_LANG_DIR to where it lives" >&2
 		exit 1
 	}
 	case " $2 " in
 		*" $1 "*)
-			echo "Error: ${_dk}s require each other in a cycle: $2 $1" >&2
+			echo "Error: langs require each other in a cycle: $2 $1" >&2
 			exit 1
 			;;
 	esac
@@ -291,40 +236,29 @@ bundle_deps_collect() {
 	if [ -n "$3" ] && [ -z "$allow_lang_skew" ]; then
 		_have=$(bundle_version_of "$_dir")
 		if [ -z "$_have" ]; then
-			echo "Error: $_dk '$1' is required at $3 but reports no version" >&2
+			echo "Error: lang '$1' is required at $3 but reports no version" >&2
 			echo "  required by: $2" >&2
 			echo "  $_dir carries no version stamp -- it is a checkout, not an install" >&2
 			echo "  run 'make install' in it, or pass --allow-lang-skew" >&2
 			exit 1
 		fi
 		if [ "$_have" != "$3" ]; then
-			echo "Error: $_dk '$1' is $_have, but $3 is required" >&2
+			echo "Error: lang '$1' is $_have, but $3 is required" >&2
 			echo "  required by: $2" >&2
 			echo "  found in $_dir" >&2
 			echo "  install the version asked for, or pass --allow-lang-skew" >&2
 			exit 1
 		fi
 	fi
-	# The walk below runs this function again, and _dir and _dk are the
-	# shell's, not this call's: carried in the positional parameters, which
-	# are, so the bundle appended after its dependencies is this one.
-	set -- "$1" "$2" "$_dir" "$_dk"
-	for _row in $(bundle_reqs_of "$3" "$4"); do
-		bundle_req_walk "$_row" "$2 $1"
+	for _row in $(bundle_reqs_of "$_dir"); do
+		bundle_deps_collect "${_row%%|*}" "$2 $1" "${_row#*|}"
 	done
 	# Append after our own dependencies, so a diamond arms the shared one
 	# once and earliest.
-	if [ "$4" = lang ]; then
-		case " $BUNDLE_DEPS " in
-			*" $3 "*) ;;
-			*) BUNDLE_DEPS="$BUNDLE_DEPS $3" ;;
-		esac
-	else
-		case " $LIB_DEPS " in
-			*" $3 "*) ;;
-			*) LIB_DEPS="$LIB_DEPS $3" ;;
-		esac
-	fi
+	case " $BUNDLE_DEPS " in
+		*" $_dir "*) ;;
+		*) BUNDLE_DEPS="$BUNDLE_DEPS $_dir" ;;
+	esac
 }
 
 bundle_resolve() {
@@ -347,7 +281,7 @@ bundle_resolve() {
 	# Dependencies of the bundle itself, not the bundle -- it is armed by
 	# bundle_form, after these and therefore ahead of them in the search.
 	for _row in $(bundle_reqs_of "$BUNDLE_DIR"); do
-		bundle_req_walk "$_row" "$1"
+		bundle_deps_collect "${_row%%|*}" "$1" "${_row#*|}"
 	done
 	for _d in $BUNDLE_DEPS; do
 		path_form_safe "$_d" "required lang root"
@@ -375,35 +309,13 @@ extra_resolve() {
 	fi
 	path_form_safe "$_found" "bundle root"
 	for _row in $(bundle_reqs_of "$_found"); do
-		bundle_req_walk "$_row" "$1"
+		bundle_deps_collect "${_row%%|*}" "$1" "${_row#*|}"
 	done
 	for _d in $BUNDLE_DEPS; do
 		path_form_safe "$_d" "required lang root"
 	done
 	EXTRA_DIRS="$EXTRA_DIRS $_found"
 	EXTRA_ENTRIES="$EXTRA_ENTRIES $(shquote "$_found/$_entry")"
-}
-
-# Every installed library's root, armed AFTER the platform's: a library adds
-# modules to a session and can never stand in front of one the platform, a
-# bundle or a pin overlay holds.  Every launch arms them all, with no
-# declaration asked for: a module that moves from the platform into a
-# library is imported under the name it always had.  (requires-lib ...) is
-# what refuses a missing one before boot; this is what makes a present one
-# found.  A glob and a test a library, and no manifest read.
-LIB_ROOTS=
-lib_roots_collect() {
-	for _d in "$LIBS_PATH"*/; do
-		[ -f "${_d}lib.xon" ] || continue
-		_d=${_d%/}
-		path_form_safe "$_d" "library root"
-		LIB_ROOTS="$LIB_ROOTS $_d"
-	done
-}
-lib_roots_form() {
-	for _d in $LIB_ROOTS; do
-		printf '(import-path! "%s" (lit after))\n' "$_d"
-	done
 }
 
 # The bundle's module root, emitted after the dialect has booted (import-path!
@@ -427,7 +339,6 @@ lib_roots_form() {
 # (requires-lang ...) is a library to the bundle that needs it, and a second
 # %lang-root would overwrite the one whose entry is about to run.
 bundle_form() {
-	lib_roots_form
 	if [ -n "$BUNDLE_DIR" ] || [ -n "$EXTRA_DIRS" ]; then
 		# Required langs first: import-path! prepends, so the bundle's own
 		# root ends up searched ahead of everything it depends on.  Then
@@ -721,8 +632,8 @@ display_help() {
 	echo "                  differs from this engine's (it may crash)"
 	echo "      --fetch-release  fetch the release a pinned project names"
 	echo "                  into the per-user cache without asking first"
-	echo "      --install-lang URL  install the lang or library a published pin"
-	echo "                  names, verified, under the langs or libs directory, and exit"
+	echo "      --install-lang URL  install the lang a published lang.pin.xon"
+	echo "                  names, verified, under the langs directory, and exit"
 	echo "      --share-dir print the directory this x reads its tree from, and exit"
 	echo "      --engine-path  print the engine this x would run, and exit"
 	echo "  -v, --verbose   display extra output"
@@ -1101,7 +1012,6 @@ fi
 # the entry dir; the app's own directory is what says it is one.
 app_entry=
 [ -e "${APPS_PATH}${X_LIB}/${X_RUN}${X_EXT}" ] && app_entry=1
-lib_roots_collect
 # THIRD STEP: an acquired lang bundle.  Unlike the first two this
 # does not make the NAMED file the entry -- the entry becomes the DIALECT
 # the bundle declares, and the bundle rides after it as a load made the way -F makes one.
@@ -1519,11 +1429,6 @@ if [ ! -e "$ENTRY" ]; then
 		[ -n "$_pn" ] && pers="$pers $_pn"
 	done
 	[ -n "$pers" ] && echo "  langs:$pers" >&2
-	# A library is not a way of booting: its modules are imported, by any
-	# session, and -l has nothing of it to load.
-	if _ld=$(bundle_dir_of "$X_LIB" lib); then
-		echo "  '$X_LIB' is an installed library ($_ld): import its modules, there is nothing to boot" >&2
-	fi
 	exit 1
 fi
 
@@ -1676,7 +1581,7 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$app_entry" ] && [ "$X_LIB
 		for _n in $EXTRA_LIBS; do _iname="$_iname+$_n"; done
 		if [ -n "$BUNDLE_DIR" ]; then
 			_idir="$BUNDLE_DIR/.images"
-			_ikeys="$BUNDLE_DIR $EXTRA_DIRS $BUNDLE_DEPS $LIB_DEPS"
+			_ikeys="$BUNDLE_DIR $EXTRA_DIRS $BUNDLE_DEPS"
 		elif [ -n "$PIN_FILE" ]; then
 			# The project's own, beside its manifest; the manifest keys it
 			# (a file as a KEY-PATH is hashed as one).  PIN_FILE is
@@ -1685,7 +1590,7 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$app_entry" ] && [ "$X_LIB
 			_ikeys="$PIN_FILE $EXTRA_DIRS"
 		else
 			_idir="${XDG_CACHE_HOME:-$HOME/.cache}/x/images/$(printf '%s' "$_iroot" | x_sha1 | cut -c1-12)"
-			_ikeys="$EXTRA_DIRS $BUNDLE_DEPS $LIB_DEPS"
+			_ikeys="$EXTRA_DIRS $BUNDLE_DEPS"
 		fi
 		require_engine
 		# The prefix, written where the builder can key it and the child
