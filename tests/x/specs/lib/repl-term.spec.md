@@ -336,6 +336,115 @@ are the system's defaults and can be set and read back.
 ---
     (#f #t)
 
+### busybox's modes beyond RFC 4254's set and read back: counts, a delay field, a top bit
+
+```x
+(do (import x/repl/term) (import x/sys/pty) (import x/sys/file)
+    (def p (Pty open))
+    (def s (File open (rest p) (list 'rdwr 'noctty)))
+    (def ok (Term modes! s (list (pair 'icanon #f) (pair 'vmin 5) (pair 'vtime 2) (pair 'tab3 #t)
+                                 (pair 'brkint #t) (pair 'echoprt #t) (pair 'noflsh #t))))
+    (def m (Term modes s))
+    (def r (List map (fn (_ k) (Assoc get k m)) (list 'vmin 'vtime 'tab0 'tab3 'brkint 'echoprt 'noflsh)))
+    (File close s) (File close (first p))
+    (list ok r))
+```
+---
+    (#t (5 2 #f #t #t #t #t))
+
+### a field holds one setting: tab3 then tab1 leaves tab1 alone
+
+```x
+(do (import x/repl/term) (import x/sys/pty) (import x/sys/file)
+    (def p (Pty open))
+    (def s (File open (rest p) (list 'rdwr 'noctty)))
+    (Term modes! s (list (pair 'tab3 #t) (pair 'tab1 #t) (pair 'tab2 #f)))
+    (def m (Term modes s))
+    (def r (List map (fn (_ k) (Assoc get k m)) (list 'tab0 'tab1 'tab2 'tab3)))
+    (File close s) (File close (first p))
+    r)
+```
+---
+    (#f #t #f #f)
+
+### settings edited by name, applied, and read again
+
+```x
+(do (import x/repl/term) (import x/sys/pty) (import x/sys/file)
+    (def p (Pty open))
+    (def s (File open (rest p) (list 'rdwr 'noctty)))
+    (def st (Term settings s))
+    (def r1 (list (Term setting! st 'echo #f) (Term setting! st 'vkill 11) (Term setting! st 'no-such-mode #t)))
+    (def before (Term setting (Term settings s) 'echo))
+    (def ok (Term apply! s st))
+    (def again (Term settings s))
+    (def r2 (list (Term setting again 'echo) (Term setting again 'vkill) (Term setting again 'no-such-mode)))
+    (File close s) (File close (first p))
+    (list r1 before ok r2))
+```
+---
+    ((#t #t #f) #t #t (#f 11 ()))
+
+### words: four flag words then nccs bytes, and words! takes them back
+
+```x
+(do (import x/repl/term) (import x/sys/pty) (import x/sys/file)
+    (def p (Pty open))
+    (def s (File open (rest p) (list 'rdwr 'noctty)))
+    (def w (Term words (Term settings s)))
+    (def st (Term settings s))
+    (Term setting! st 'icanon #f)
+    (def changed (Term words st))
+    (def back (Term words! st w))
+    (def short (Term words! st (list 1 2 3)))
+    (def r (list (= (List length w) (+ 4 (Term nccs))) (eq? (List ref 3 w) (List ref 3 changed))
+                 back short (= (List ref 3 (Term words st)) (List ref 3 w))))
+    (File close s) (File close (first p))
+    r)
+```
+---
+    (#t #f #t #f #t)
+
+### settings of a pipe is nil, and apply! declines
+
+```x
+(do (import x/repl/term)
+    (def fds (Sys pipe))
+    (def r (list (Term settings (first fds)) (Term apply! (first fds) ((prim-ref 'str 'make) 128))))
+    (Sys close (first fds)) (Sys close (rest fds))
+    r)
+```
+---
+    (() #f)
+
+### window! sets the size measure then reads, nil keeping one side
+
+```x
+(do (import x/repl/term) (import x/sys/pty) (import x/sys/file)
+    (def p (Pty open))
+    (def s (File open (rest p) (list 'rdwr 'noctty)))
+    (def a (Term window! s 100 30))
+    (def m1 (Term measure s))
+    (def b (Term window! s () 41))
+    (def m2 (Term measure s))
+    (File close s) (File close (first p))
+    (list a m1 b m2))
+```
+---
+    (#t (100 . 30) #t (100 . 41))
+
+### window! on a pipe declines
+
+```x
+(do (import x/repl/term)
+    (def fds (Sys pipe))
+    (def r (Term window! (first fds) 80 24))
+    (Sys close (first fds)) (Sys close (rest fds))
+    r)
+```
+---
+    #f
+
 ### a pipe has no modes: modes is nil and modes! declines
 
 ```x
