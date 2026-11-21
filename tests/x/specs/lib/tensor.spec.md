@@ -755,3 +755,65 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ```
 ---
     (("shape") ("dtype") ("standard deviation" "std"))
+
+## Runs along other axes
+
+An element-wise operation is free to walk its axes in any order and to make
+them fewer first; the answers are the ones row-major order gives.
+
+### a row against a tall tensor
+
+```x
+(import x/num/tensor)
+(((Tensor from '((1 2) (3 4) (5 6)) 'f64) add (Tensor from '(10 20) 'f64)) ->list)
+```
+---
+    ((11.0 22.0) (13.0 24.0) (15.0 26.0))
+
+### a transposed view against a tensor
+
+```x
+(import x/num/tensor)
+((((Tensor from '((1 2 3) (4 5 6)) 'f64) transpose) mul (Tensor from '((1 10) (2 20) (3 30)) 'f64)) ->list)
+```
+---
+    ((1.0 40.0) (4.0 100.0) (9.0 180.0))
+
+### a column stretched across three axes, the last the longest
+
+Element (i j k) of the first is 12i + 4j + k, and row j of the column adds
+100(j + 1).
+
+```x
+(import x/num/tensor)
+(do
+  (def tn-sum3 (((Tensor range 24 'f64) reshape '(2 3 4)) add (Tensor from '((100) (200) (300)) 'f64)))
+  (list (tn-sum3 ref 0 0 0) (tn-sum3 ref 0 2 3) (tn-sum3 ref 1 1 2) (tn-sum3 ref 1 2 3) (tn-sum3 sum)))
+```
+---
+    (100.0 311.0 218.0 323.0 5076.0)
+
+### a column stretched across three axes, the first the longest
+
+Element (i j k) of the first is 6i + 3j + k, and row j of the column adds
+10(j + 1).
+
+```x
+(import x/num/tensor)
+(do
+  (def tn-sum5 (((Tensor range 30 'f64) reshape '(5 2 3)) add (Tensor from '((10) (20)) 'f64)))
+  (list (tn-sum5 extent) (tn-sum5 ref 0 0 0) (tn-sum5 ref 4 1 2) (tn-sum5 ref 2 0 1) (tn-sum5 sum)))
+```
+---
+    ((5 2 3) 10.0 49.0 23.0 885.0)
+
+### a column of a matrix: its reductions, and a number against it
+
+```x
+(import x/num/tensor)
+(do
+  (def tn-col ((Tensor from '((1 2) (3 4) (5 6)) 'f64) slice 1 1 2))
+  (list (tn-col sum) (tn-col least) (tn-col greatest) ((tn-col mul 2) ->list)))
+```
+---
+    (12.0 2.0 6.0 ((4.0) (8.0) (12.0)))
