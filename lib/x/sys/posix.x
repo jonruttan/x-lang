@@ -99,6 +99,7 @@
 ; resolve is a dlsym and a call on every use, and an image records each
 ; pointer by its symbol and resolves it again at load.  A symbol the C
 ; library lacks is nil here, as a per-call resolve answered at the call.
+; gettimeofday is the one left per call; time-of-day says why.
 (def %c-kill (%resolve "kill"))
 (def %c-signal (%resolve "signal"))
 (def %c-write (%resolve "write"))
@@ -123,7 +124,6 @@
 (def %c-sleep (%resolve "sleep"))
 (def %c-usleep (%resolve "usleep"))
 (def %c-poll (%resolve "poll"))
-(def %c-gettimeofday (%resolve "gettimeofday"))
 (def %c-tzset (%resolve "tzset"))
 (def %c-localtime-r (%resolve "localtime_r"))
 (def %c-mktime (%resolve "mktime"))
@@ -682,7 +682,10 @@
       (def buf (str->ptr s))
       (def narrow (int< %word-size 8))
       (match (narrow (ptr-set-word! buf 8 -1)) (#t ()))
-      (def r (%sys-fold (ptr-call %c-gettimeofday buf 0)))
+      ; gettimeofday alone is resolved per call: under glibc it is an IFUNC
+      ; that lands in the vDSO, whose name dladdr gives and dlsym does not
+      ; take back, so a pointer held at load is one an image cannot name.
+      (def r (%sys-fold (ptr-call (%resolve "gettimeofday") buf 0)))
       (match
         ((int< r 0) (error (Err from-errno (Err errno-of r) (lit gettimeofday) ())))
         (#t (pair (ptr-ref buf 0 %word-size)
