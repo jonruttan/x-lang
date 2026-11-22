@@ -414,6 +414,26 @@ word.
 ---
     ('value 'value 'value 'value)
 
+### split and aggregate answer the same once the kernels are compiled
+
+```x
+(import x/data/table) (import x/num/tensor)
+(let ((t (Table from '((k (2.5 1.0 2.5 -3.0 1.0 2.5 0.25)) (name ("a" "b" "c" "d" "e" "f" "g"))
+                       (n (1.0 2.0 3.0 4.0 5.0 6.0 7.0)))))
+      (one (Table from '((k (4.0)) (n (9.0))))))
+  (let ((run (fn (_) (list (List map (fn (_ c) (list (first c) ((rest c) ->list))) (t split 'k))
+                           (List map (fn (_ c) (list (first c) ((rest c) ->list))) ((t select '(k n)) split 'k))
+                           ((t aggregate 'k (list (list 'total 'n (fn (_ c) (c sum)))
+                                                  (list 'first-name 'name (fn (_ c) (first (c ->list)))))) ->list)
+                           (List map first (t split 'name))
+                           ((one aggregate 'k (list (list 'total 'n (fn (_ c) (c sum))))) ->list)))))
+    (let ((before (run)))
+      (Tensor jit!)
+      (list (equal? before (run)) (List ref 2 before)))))
+```
+---
+    (#t (('k (2.5 1.0 -3.0 0.25)) ('total (10.0 7.0 4.0 7.0)) ('first-name ("a" "b" "d" "g"))))
+
 ## Handing a table to a model
 
 ### matrix answers the named columns as an f64 Matrix, a row for each row
