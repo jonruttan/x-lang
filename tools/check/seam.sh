@@ -91,7 +91,7 @@ done
 # --- the bundle label, with a bundle actually loaded -----------------------
 # The other half.  X_BUNDLE_DIR points -l at the fixture's parent (see
 # tools/contract/bundles/seamprobe/bundle.xon); the entry defines nothing, so
-# everything the probe finds came from the wrapper's bundle_form.
+# everything the probe finds came from the wrapper's bundle_form and lead_form.
 #
 # One dialect is enough here, unlike the loop above: what varies across
 # he/xe/rn is the library, and %lang-lead is emitted by the wrapper ahead of

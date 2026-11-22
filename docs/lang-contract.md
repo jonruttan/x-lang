@@ -177,10 +177,14 @@ names a bundle to load beside it. The wrapper resolves those exactly as it
 resolves the first — the same lookup, the same dependency walk — arms their
 roots and imports their `run` entry, where they list one, without calling
 its `main`. `%lang-lead` carries the first bundle's name into the pipe; an
-entry compares it with its own to know whether it owns the prompt:
+entry compares it with its own to know whether it owns the prompt. It is
+bound ahead of the dialect's entry, in the platform environment, so a
+bundle's modules read it; a def after the entry would bind in the program's
+environment, which modules do not see:
 
 ```
 (def %lang-lead "xe")             ; x -l xe -l python
+cat lib/xe.x                      ; the dialect, ending in (%module-program!)
 (import-path! "…/x-python/lib")   ; the extra's root
 (import python/run)               ; registers python, starts nothing
 cat lib/x/repl/launch.x           ; the prompt: xe's, with (lang python) a call away

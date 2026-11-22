@@ -130,7 +130,7 @@ BUNDLE_DEPS=
 # roots are armed and their entries read before the first lang's entry, and
 # their dependencies join BUNDLE_DEPS.  A bundle loaded this way registers
 # what it is and leaves the prompt to the lang that leads; %lang-lead, emitted
-# by bundle_form, is how it knows which it is.
+# by lead_form, is how it knows which it is.
 lib_given=
 EXTRA_LIBS=
 EXTRA_DIRS=
@@ -394,10 +394,6 @@ bundle_form() {
 			printf '(import-path! "%s")\n' "$_d/lib"
 		done
 		[ -z "$BUNDLE_DIR" ] || printf '(import-path! "%s")\n' "$BUNDLE_DIR/lib"
-		# Which lang owns the prompt: the first -l, by the name it was asked
-		# for.  A bundle whose name this is not was loaded beside the
-		# session's lang, and registers itself without taking the prompt.
-		printf '(def %%lang-lead "%s")\n' "${BUNDLE_NAME:-$X_LIB}"
 		# %batch? MEANS "A FILE WAS SUPPLIED", and for a bundle it had stopped
 		# meaning that.  --batch is passed unconditionally down there (the
 		# `if [ "$file" ]` below is always true once the bundle entry joins
@@ -421,6 +417,18 @@ bundle_form() {
 		# emits the reset after the loader, since a def made before the
 		# install is replaced with it.
 		[ -n "$file1" ] || [ "$1" = image ] || printf '(set! %%batch? ())\n'
+	fi
+}
+
+# Which lang owns the prompt: the first -l, by the name it was asked for.  A
+# bundle whose name this is not was loaded beside the session's lang, and
+# registers itself without taking the prompt.  Emitted ahead of the entry, as
+# root_form's are: the entry ends the boot with (%module-program!), and a def
+# read after it binds in the program's environment, where the bundles'
+# modules, children of the platform's, cannot see it.
+lead_form() {
+	if [ -n "$BUNDLE_DIR" ] || [ -n "$EXTRA_DIRS" ]; then
+		printf '(def %%lang-lead "%s")\n' "${BUNDLE_NAME:-$X_LIB}"
 	fi
 }
 
@@ -1665,7 +1673,7 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$app_entry" ] && [ "$X_LIB
 		trap 'exit 143' TERM
 		_ilib="$_itmp/$_iname.boot.x"
 		_iimg="$_idir/$_iname.boot.x.ximg"
-		if [ -n "$_itmp" ] && { root_form; param_forms; pin_form; cat "$ENTRY"; pin_arm; bundle_form image; \
+		if [ -n "$_itmp" ] && { root_form; param_forms; pin_form; lead_form; cat "$ENTRY"; pin_arm; bundle_form image; \
 		     entry_import_forms; \
 		     [ -z "$BUNDLE_COMPILED" ] || printf '(import x/tool/fn-compile)\n((eval (lit compile-root!) (Module env (lit x/tool/fn-compile))) "%s")\n' "$BUNDLE_DIR/lib"; } > "$_ilib" 2>/dev/null; then
 			_ish="$SCRIPT_PATH/$(basename "$0")"
@@ -1770,7 +1778,7 @@ if [ -n "$IMAGE" ]; then
 	[ "$verbose" ] && echo "x.sh: booting from state image $IMAGE" >&2
 	CMD="{ img_loader; ${_ipost}${TAIL}} | $(shquote "$X_BIN")$xflags --$args"
 else
-	CMD="{ root_form; param_forms; pin_form; cat $(shquote "$ENTRY"); pin_arm; bundle_form; ${TAIL}} | $(shquote "$X_BIN")$xflags --$args"
+	CMD="{ root_form; param_forms; pin_form; lead_form; cat $(shquote "$ENTRY"); pin_arm; bundle_form; ${TAIL}} | $(shquote "$X_BIN")$xflags --$args"
 fi
 
 if [ "$verbose" ]; then
