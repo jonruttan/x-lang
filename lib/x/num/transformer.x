@@ -11,6 +11,7 @@
 ;   (m predict ids)                     -> the id scored highest after the ids
 ;   (m generate ids n)                  -> the ids and n more, each the prediction
 ;                                          from those before it
+;   (m release)                         -> the GPU buffers holding the weights given back
 ;
 ; The layout is the one GPT-2 is published in.  An id's row of the table
 ; wte and its position's row of wpe are added.  Each block h.N then adds
@@ -44,14 +45,18 @@
 ; kept in f32, whatever the file holds them in.
 ;
 ; The products run on the GPU where there is one (x/num/gpu) and through
-; Matrix's kernels otherwise.  The GPU sums in single precision and Matrix
+; Matrix's kernels otherwise.  On the GPU the weights are held there from
+; the start, so a product reads them where they lie; only release gives
+; their buffers back, and a model is not to be kept in a state image.  The GPU sums in single precision and Matrix
 ; in double, so logits differ in their last places from one host to
 ; another, as they do from one framework to another.  Matrix's product
 ; makes an f64 copy of each operand, wte among them: on a host with no GPU
 ; a large model costs that copy at every call.
 ;
-; generate works out every position again for each new id; it keeps
-; nothing from one prediction to the next.  The pure-x steps between the
+; Each block keeps a cache: a row of queries, keys and values for each
+; position worked out.  A pass writes its positions' rows there and
+; attends to every row up to each, so generate works out the prompt once
+; and then one position for each new id.  The pure-x steps between the
 ; kernels leave garbage, and nothing collects it during a call, so the
 ; heap is collected every %tf-collect-every blocks.
 ;
@@ -69,7 +74,7 @@
 (import x/num/gpu)
 (import x/sys/gc)
 (import x/tool/word-form word-form-pure)
-(import x/core/doors int* int+ int- int/ int% int->ptr int< int= mem-cmp mem-set obj-ref ptr->int ptr-ref-word ptr-set-word!
+(import x/core/doors int* int+ int- int/ int% int->ptr int< int= mem-cmp mem-copy mem-set obj-ref ptr->int ptr-ref-word ptr-set-word!
   str->ptr str-make type-of type?)
 
 ; --- the place of the greatest element ------------------------------------------
@@ -135,8 +140,18 @@
     (if (Gpu available?) (Gpu product a b)
       (((Matrix %make (a %st)) product b) as (lit f32)))))
 
-; A layer: x times the weight, plus the bias along each row.
-(def %tf-layer (fn (_ x layer) ((%tf-product x (first layer)) add (rest layer))))
+; A held product's buffer given back: a product of a held weight is held,
+; and nothing else gives its buffer back.
+(def %tf-done (fn (_ p) (if (Gpu held? p) (Gpu release p) ())))
+
+; A layer: x times the weight, plus the bias along each row.  The sum is a
+; fresh tensor, so the product is done with once it is made.
+(def %tf-layer
+  (fn (_ x layer)
+    (let ((p (%tf-product x (first layer))))
+      (let ((r (p add (rest layer))))
+        (%tf-done p)
+        r))))
 
 ; A tensor as f32.
 (def %tf-f32 (fn (_ t) (if (eq? (t encoding) (lit f32)) t (t as (lit f32)))))
@@ -146,9 +161,11 @@
 ; the queries, keys and values, a row for each position, the three side
 ; by side and each a head after another; 1 the address of a row of
 ; doubles, a score for each position; 2 the address of the answer, a row
-; for each position; 3 the positions; 4 the width; 5 a head's width; 8 the
-; budget; 9 the phase; 10 the position; 11 the head; 12 the position
-; attended to; 13 the column within the head; 14 the heads.  Doubles: 16
+; for each position worked out; 3 the positions; 4 the width; 5 a head's
+; width; 8 the budget; 9 the phase; 10 the position; 11 the head; 12 the
+; position attended to; 13 the column within the head; 14 the heads; 15
+; the first position worked out, whose answer is the answer's row 0: the
+; positions before it are attended to and not worked out.  Doubles: 16
 ; the sum being made, 17 the greatest score, 18 the exponentials' sum, 19
 ; the root of a head's width.
 ;
@@ -204,7 +221,8 @@
                           (d! 16 (list (lit f+) (d 16) (list (lit f*) (score) (qkv (w 12) 2))))
                           (next 12))
                         (list (lit do)
-                          (list (lit f32-set!) (w 2) (add (mul (w 10) (w 4)) (add (mul (w 11) (w 5)) (w 13)))
+                          (list (lit f32-set!) (w 2)
+                            (add (mul (list (lit -) (w 10) (w 15)) (w 4)) (add (mul (w 11) (w 5)) (w 13)))
                             (list (lit f/) (d 16) (d 18)))
                           (d! 16 zero) (w! 12 0) (next 13)))
                       (list (lit do)
@@ -216,15 +234,17 @@
                 (lit (self s))))))))))
 
 ; A scratch for the attention kernel: the queries, keys and values at
-; address made, the answer at address out, for count positions.  The row
-; of scores is held in the scratch's pair, which the caller keeps.
+; address made, the answer at address out, for count positions, of which
+; those from from on are worked out.  The row of scores is held in the
+; scratch's pair, which the caller keeps.
 (def %tf-attention-scratch
-  (fn (_ made out count width heads)
+  (fn (_ made out count width heads from)
     (let ((s (str-make 256)) (scores (str-make (int* 8 (if (int< count 1) 1 count))))
           (fset (word-form-pure (lit (fn (_ a i v) (f-set! a i v))))))
       (mem-set (str->ptr s) 0 256)
       (%tf-word! s 0 made) (%tf-word! s 1 (ptr->int (str->ptr scores))) (%tf-word! s 2 out)
       (%tf-word! s 3 count) (%tf-word! s 4 width) (%tf-word! s 5 (int/ width heads)) (%tf-word! s 14 heads)
+      (%tf-word! s 10 from) (%tf-word! s 15 from)
       (fset (ptr->int (str->ptr s)) 16 (first (float-of 0)))
       (fset (ptr->int (str->ptr s)) 19 (first (fsqrt (float-of (int/ width heads)))))
       (pair s scores))))
@@ -242,7 +262,7 @@
                  (go (int+ i 1)))
              ()))
           0)
-        (let ((sc (%tf-attention-scratch ((obj-ref f 13) made) ((obj-ref f 13) out) 3 4 2)))
+        (let ((sc (%tf-attention-scratch ((obj-ref f 13) made) ((obj-ref f 13) out) 3 4 2 0)))
           (%tf-word! (first sc) 8 1073741823)
           (kern (ptr->int (str->ptr (first sc))))
           ; made and the scratch are held to here, so their addresses stayed good
@@ -256,56 +276,83 @@
 
 (Tensor %register! (lit f32-attention) %tf-attention-form %tf-attention-agrees?)
 
-; One block's attention of x: attend, a (WEIGHT . BIAS), makes the
-; queries, keys and values, the kernel makes the heads' answers side by
-; side, and project, another, takes them through c_proj.
+; One block's attention of x, whose rows are the positions from from on:
+; attend, a (WEIGHT . BIAS), makes their queries, keys and values, which
+; are written into the block's cache at those positions' rows; the kernel
+; makes the heads' answers side by side for those positions, attending to
+; every position the cache holds up to each; and project, another, takes
+; them through c_proj.
 (def %tf-attention
-  (fn (_ x attend project heads)
+  (fn (_ x attend project heads cache from)
     (let ((f (Tensor %fast)) (made (%tf-f32 (%tf-layer x attend))))
       (let ((st (if ((obj-ref f 3) (made %st)) (made %st) ((obj-ref f 10) (made %st) (lit f32)))))
-        (let ((count (first (List ref 1 st))) (width (int/ (first (rest (List ref 1 st))) 3)))
-          (let ((out ((obj-ref f 4) (lit f32) (list count width))))
-            (let ((sc (%tf-attention-scratch ((obj-ref f 13) st) ((obj-ref f 13) out) count width heads)))
-              ((obj-ref f 14) (lit f32-attention) (first sc))
-              ; st and the scratch are held to here, so their addresses stayed good
-              (do st sc (%tf-layer (Matrix %make out) project)))))))))
+        (let ((count (first (List ref 1 st))) (across (first (rest (List ref 1 st)))))
+          (let ((width (int/ across 3)) (row (int* 4 across)))
+            (mem-copy (int->ptr (int+ ((obj-ref f 13) cache) (int* from row)))
+                      (int->ptr ((obj-ref f 13) st)) (int* count row))
+            (let ((out ((obj-ref f 4) (lit f32) (list count width))))
+              (let ((sc (%tf-attention-scratch ((obj-ref f 13) cache) ((obj-ref f 13) out)
+                          (int+ from count) width heads from)))
+                ((obj-ref f 14) (lit f32-attention) (first sc))
+                ; st, the cache and the scratch are held to here, so their addresses stayed good
+                (do st cache sc (%tf-layer (Matrix %make out) project))))))))))
+
+; A cache for each block: room for the queries, keys and values of rows
+; positions, a row of them for each.
+(def %tf-caches
+  (fn (_ m rows)
+    (let ((f (Tensor %fast)) (across (int* 3 (m %width))))
+      (List map (fn (_ b) ((obj-ref f 4) (lit f32) (list rows across))) (m %blocks)))))
 
 ; The blocks between collections.  A block's operations leave about
 ; 700,000 objects behind on GPT-2, and Tensor's own window is 4,400,000.
 (def %tf-collect-every 4)
 
-; The model's last hidden rows for ids, one for each, after ln_f.
+; The model's last hidden rows, after ln_f, for ids at the positions from
+; from on, one row for each; caches holds a cache for each block, with
+; room for those positions, and the positions before them already in it.
 (def %tf-hidden
-  (fn (_ m ids)
+  (fn (_ m ids from caches)
     (let ((count (List length ids)) (heads (m %heads)))
       (if (int= count 0) (Err raise (lit value) "Transformer: there are no ids" ()) ())
-      (if (int< (m %context) count)
-        (Err raise (lit value) "Transformer: more ids than the model has positions" (list count (m %context))) ())
-      ((fn (go blocks x n)
+      (if (int< (m %context) (int+ from count))
+        (Err raise (lit value) "Transformer: more ids than the model has positions" (list (int+ from count) (m %context))) ())
+      ((fn (go blocks cs x n)
          (if (null? blocks)
            (Neural layer-norm x (first (m %norm)) (rest (m %norm)))
            (let ((b (first blocks)))
              (let ((x (x add (%tf-attention (Neural layer-norm x (first (List ref 0 b)) (rest (List ref 0 b)))
-                                (List ref 1 b) (List ref 2 b) heads))))
+                                (List ref 1 b) (List ref 2 b) heads (first cs) from))))
                (let ((x (x add (%tf-layer
                                  (Neural gelu (%tf-layer (Neural layer-norm x (first (List ref 3 b)) (rest (List ref 3 b)))
                                                 (List ref 4 b))
                                    (lit tanh))
                                  (List ref 5 b)))))
                  (if (int= (int% n %tf-collect-every) 0) (Heap collect) ())
-                 (go (rest blocks) x (int+ n 1)))))))
+                 (go (rest blocks) (rest cs) x (int+ n 1)))))))
         (m %blocks)
-        ((Neural embed (m %items) ids) add (Neural embed (m %positions) (List range 0 count)))
+        caches
+        ((Neural embed (m %items) ids) add (Neural embed (m %positions) (List range from (int+ from count))))
         1))))
+
+; The id scored highest after the last of the hidden rows h.
+(def %tf-next
+  (fn (_ m h)
+    (let ((count (first (h extent))))
+      (let ((scores (%tf-product (m %items) ((h slice 0 (int- count 1) count) reshape (list (m %width))))))
+        (let ((at (%tf-greatest-at ((%tf-f32 scores) %st))))
+          (%tf-done scores)
+          at)))))
 
 (def-class Transformer ()
   (doc "A language model's forward pass, in the layout GPT-2 is published in: from a list of ids, a score for every vocabulary item at every position, and the ids predicted to follow."
     (note "from-file reads a safetensors file with GPT-2's tensor names. The file does not say how many heads the attention has, so the caller does.")
     (note "The products run on the GPU where there is one and through Matrix's kernels otherwise, so logits differ in their last places from one host to another.")
-    (note "generate works out every position again for each new id.")
+    (note "generate keeps each block's queries, keys and values from one prediction to the next, and works out one new position for each id.")
+    (note "On a host with a GPU the weights are held there; (m release) gives the buffers back.")
     (sample "((Transformer from-file \"model.safetensors\" 12) generate (list 15496 11 995 0) 8)" "the four ids and the eight GPT-2 predicts after them")
     (known-as "GPT" "decoder-only transformer")
-    (see from-file) (see logits) (see predict) (see generate))
+    (see from-file) (see logits) (see predict) (see generate) (see release))
 
   heads       ; how many heads each block's attention has
   width       ; the length of a position's hidden row
@@ -315,6 +362,7 @@
   blocks      ; each block: ((GAIN . BIAS) (WEIGHT . BIAS) ...) for ln_1,
               ; attn.c_attn, attn.c_proj, ln_2, mlp.c_fc and mlp.c_proj
   norm        ; ln_f: (GAIN . BIAS)
+  held        ; #t when the weights are held on the GPU, to be given back by release
 
   (static
     (method from-file (self (param path STRING "A safetensors file with GPT-2's tensor names")
@@ -328,10 +376,14 @@
                   (fn (_ name)
                     (let ((t (f ref name)))
                       (if (null? t) (Err raise (lit value) "Transformer: the file lacks a tensor" name) (%tf-f32 t)))))
-                (matrix (fn (_ t) (Matrix %make (t %st)))))
+                (matrix (fn (_ t) (Matrix %make (t %st))))
+                (held (Gpu available?)))
+            ; A weight on the GPU is read where it lies by every product
+            ; that uses it; an ordinary one is copied in for each.
+            (def weight (fn (_ t) (if held (Gpu hold t) t)))
             (let ((pair-of (fn (_ stem) (pair (tensor (Str8 append stem ".weight")) (tensor (Str8 append stem ".bias")))))
-                  (layer (fn (_ stem) (pair (matrix (tensor (Str8 append stem ".weight"))) (tensor (Str8 append stem ".bias"))))))
-              (let ((items (matrix (tensor "wte.weight"))) (positions (matrix (tensor "wpe.weight"))))
+                  (layer (fn (_ stem) (pair (weight (matrix (tensor (Str8 append stem ".weight")))) (tensor (Str8 append stem ".bias"))))))
+              (let ((items (weight (matrix (tensor "wte.weight")))) (positions (matrix (tensor "wpe.weight"))))
                 (let ((width (List ref 1 (items extent))))
                   (if (if (type? heads (type-of 0)) (if (int< 0 heads) (int= (int% width heads) 0) #f) #f) ()
                     (Err raise (lit value) "Transformer: the heads do not divide the width" (list heads width)))
@@ -351,7 +403,8 @@
                     (f close)
                     (new-from self
                       (list (lit heads) heads (lit width) width (lit context) (first (positions extent))
-                            (lit items) items (lit positions) positions (lit blocks) blocks (lit norm) norm)))))))))))
+                            (lit items) items (lit positions) positions (lit blocks) blocks (lit norm) norm
+                            (lit held) held)))))))))))
 
   (method %heads (self) (field (lit heads)))
   (method %width (self) (field (lit width)))
@@ -367,24 +420,50 @@
       (sample "((m logits (list 15496 11 995 0)) extent)" "(4 50257)"))
     ; items times the hidden rows as columns is a column of scores for each
     ; position; its transpose is a row for each
-    (((%tf-product (field (lit items)) ((%tf-hidden self ids) transpose)) transpose) copy))
+    (let ((p (%tf-product (field (lit items))
+               ((%tf-hidden self ids 0 (%tf-caches self (List length ids))) transpose))))
+      (let ((r ((p transpose) copy)))
+        (%tf-done p)
+        r)))
 
   (method predict (self (param ids LIST "Ids, at least one and no more than the model has positions"))
     (doc "The id the model scores highest after the ids; of equal scores, the least id."
       (returns INTEGER "An id")
       (sample "(m predict (list 15496 11 995 0))" "the id of the item most likely to follow"))
-    (let ((h (%tf-hidden self ids)) (count (List length ids)))
-      (let ((scores (%tf-product (field (lit items))
-                      ((h slice 0 (int- count 1) count) reshape (list (field (lit width)))))))
-        (%tf-greatest-at ((%tf-f32 scores) %st)))))
+    (%tf-next self (%tf-hidden self ids 0 (%tf-caches self (List length ids)))))
 
   (method generate (self (param ids LIST "Ids to begin from, at least one")
                          (param n INTEGER "How many ids to add"))
-    (doc "The ids and n more, each the prediction from all those before it. A prediction is made from no more ids than the model has positions: one asked of more raises a label 'value."
+    (doc "The ids and n more, each the prediction from all those before it. Each block keeps its queries, keys and values from one prediction to the next, so a prediction works out the one new position. The ids and the n less one fed back must be no more than the model has positions, or a label 'value is raised."
       (returns LIST "The ids, n longer")
       (sample "(m generate (list 15496 11 995 0) 8)" "the four ids and eight that follow"))
-    ((fn (go ids k) (if (int< 0 k) (go (List append ids (list (self predict ids))) (int- k 1)) ids))
-      ids n)))
+    (if (int< n 1) ids
+      (let ((count (List length ids)))
+        (if (int< (field (lit context)) (int- (int+ count n) 1))
+          (Err raise (lit value) "Transformer: more ids than the model has positions"
+            (list (int- (int+ count n) 1) (field (lit context))))
+          ())
+        (let ((caches (%tf-caches self (int- (int+ count n) 1))))
+          ; made, the ids generated so far, last first; new, the ids to feed
+          ; at the positions from from on
+          ((fn (go made new from k)
+             (let ((next (%tf-next self (%tf-hidden self new from caches))))
+               (if (int= k 1)
+                 (List append ids (List reverse (pair next made)))
+                 (go (pair next made) (list next) (int+ from (List length new)) (int- k 1)))))
+            () ids 0 n)))))
+
+  (method release (self)
+    (doc "Give back the GPU buffers that hold the model's weights. The model is finished: using it afterwards raises a label 'state. A model whose weights are not held, on a host with no GPU, has nothing to give back; releasing twice does nothing."
+      (returns ANY "nil")
+      (sample "(m release)" "the weights' buffers given back"))
+    (if (field (lit held))
+      (do (Gpu release (field (lit items)))
+          (List for-each
+            (fn (_ b) (List for-each (fn (_ k) (Gpu release (first (List ref k b)))) (list 1 2 4 5)))
+            (field (lit blocks))))
+      ())
+    ()))
 
 (doc (provide x/num/transformer Transformer)
   (sample "((Transformer from-file \"model.safetensors\" 12) predict (list 15496 11 995 0))" "the id GPT-2 scores highest after the four")
