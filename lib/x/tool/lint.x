@@ -13,7 +13,7 @@
 ; STRINGS; lint-has? tests membership.
 (import x/core/list)
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(import x/core/doors buf-tok io-write-to-str str->sym str-byte-len str-byte-ref type-push-write)
+(import x/core/doors buf-tok int% int* int+ io-write-to-str obj-ref obj-set! str->sym str-byte-len str-byte-ref type-push-write)
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 (def %type-pop-write (prim-ref 'type 'pop-write))
@@ -42,6 +42,7 @@
 (def %lint-write (prim-ref 'io 'write))
 
 (import x/type/struct)
+(import x/type/vector)
 ; The annotation check asks a callee for its parameters as written
 ; (Fn params), for the annotations its doc form states (Doc entry), and
 ; whether a literal argument satisfies one (Annotation ?).
@@ -74,6 +75,33 @@
 ; the root (lint-forms sets it; see Lint %lint-module-of).
 (def %lint-scope  (pair () (Env root)))
 (def %lint-uses   (list ()))    ; names referenced (unique, in first-seen order)
+
+; --- Name sets ---
+; A set of name strings: a vector of %name-slots lists, a name kept in the
+; list its first byte, last byte and length choose.  A vector's object slot 0
+; is its length, so the lists are slots 1 to %name-slots.  The walk asks whether a
+; name is among a class's methods or among the names already referenced for
+; every symbol and every form's head, and each of those is a few hundred
+; names in a large class: asked of one list it is a comparison a name, asked
+; here a comparison for each name sharing the slot.
+(def %name-slots 64)
+(def %name-slot (fn (_ nm)
+  (let ((n (str-byte-len nm)))
+    (if (< n 1) 1
+      (int+ 1 (int% (int+ (int+ (int* 7 (%char->integer (str-byte-ref nm 0)))
+                                (int* 31 (%char->integer (str-byte-ref nm (- n 1)))))
+                          n)
+                    %name-slots))))))
+(def %name-set-add! (fn (_ set nm)
+  (let ((k (%name-slot nm)))
+    (obj-set! set k (pair nm (obj-ref set k))))))
+(def %name-set-has? (fn (_ set nm)
+  (if (null? set) #f (%member-str? nm (obj-ref set (%name-slot nm))))))
+; The names of %lint-uses, as a set.
+(def %lint-uses-set (list ()))
+; The sibling method names of the method being walked, as a set; () outside
+; a method.  A method's body resolves them after its own bindings.
+(def %lint-sibling-set (list ()))
 ; ADJUDICATED BY BENCHMARK (#344): membership stays %member-str? and
 ; the tables stay alists.  A Dict variant was built and measured SLOWER
 ; (5.6s vs 4.0s on class.x): every (d get k) rides the class value-call
@@ -130,7 +158,7 @@
 ; Does scope (a list of (name . used-box) entries) already bind this name?
 ; Entries are always pairs, so the canonical entry lookup is safe here.
 (def %scope-has-name? (fn (_ pn scope)
-  (not (null? (%assoc-str pn scope)))))
+  (if (null? (%assoc-str pn scope)) (%name-set-has? (first %lint-sibling-set) pn) #t)))
 
 ; Warn "shadow" when nm shadows an ENCLOSING LOCAL already present in `scope`
 ; (an outer param/let-var, or an earlier param of the same list -- a duplicate).
@@ -188,7 +216,7 @@
 ; This is how we learn which locals are actually used.  Walks from the head, so
 ; the INNERMOST binding of a shadowed name is the one marked (lexically correct).
 (def %scope-mark-used! (fn (self name scope)
-  (unless (null? scope)
+  (if (null? scope) (%name-set-has? (first %lint-sibling-set) name)
     (if (str=? name (first (first scope)))
       (do (%set-first! (rest (first scope)) #t) #t)
       (self name (rest scope))))))
@@ -957,7 +985,8 @@
               (if (eq? 35 (%char->integer (str-byte-ref name 0)))
                   (eq? 47 (%char->integer (str-byte-ref name 1))) #f))
       (unless (%scope-mark-used! name (first %lint-scope))   ; local ref -> mark its box used
-        (unless (%member-str? name (first %lint-uses))
+        (unless (%name-set-has? (first %lint-uses-set) name)
+          (%name-set-add! (first %lint-uses-set) name)
           (%set-first! %lint-uses (pair name (first %lint-uses)))))))
   ()))
 
@@ -1055,6 +1084,13 @@
         ((prim-ref (lit heap) (lit collect)))
         ()))
     (%lint-class-siblings (list ()) "Sibling method names of the class being walked")
+    (%lint-class-sibling-set (list ()) "The same names as a name set, () for a class with no methods")
+    ; A name set of NAMES, made once a file and once a class, so it is the
+    ; one set operation homed here rather than beside the other three.
+    (method %name-set-of (self names)
+      (let ((set (Vector make %name-slots ())))
+        (%for-each (fn (_ nm) (%name-set-add! set nm)) names)
+        set))
     (%lint-self-name (list ()) "The name a (def NAME (fn ...)) binds, for that fn's self slot")
     ; A loop helper's parameter that its call fills with the outer variable
     ; of the same name carries that variable on, as (let ((x (f x)))) refines
@@ -1365,11 +1401,15 @@
   (implicit! "recur")
   (implicit! "field")
   (implicit! "set-field!")
-  (%for-each implicit! (first (Lint %lint-class-siblings)))
+  ; the siblings are a set of their own, asked after the scope: in the
+  ; scope they were a comparison each for every name the body looked up
+  (def saved-siblings (first %lint-sibling-set))
+  (%set-first! %lint-sibling-set (first (Lint %lint-class-sibling-set)))
   (%set-first! %lint-scope (%add-params (first (rest (rest form))) (first %lint-scope)))
   (%lint-seq (rest (rest (rest form))))
   (%lint-leak-scan (%last (rest (rest (rest form)))))
   (%set-first! %lint-scope saved)
+  (%set-first! %lint-sibling-set saved-siblings)
   ; a class is ONE top-level form -- a lib file is one def-class -- so its
   ; methods are where the walk can sweep
   (Lint %lint-sweep!))
@@ -1390,11 +1430,15 @@
             ((if (pair? parents) (eq? (first parents) 'extends) #f) (%lint-seq (rest parents)))
             (#t (%for-each (fn (_ p) (%lint-form p)) parents))))
         (rest (rest (rest form))))))
-  (let ((saved-sibs (first (Lint %lint-class-siblings))))
+  (let ((saved-sibs (first (Lint %lint-class-siblings)))
+        (saved-set (first (Lint %lint-class-sibling-set))))
     (%set-first! (Lint %lint-class-siblings)
       (Lint %lint-class-methods body ()))
+    (%set-first! (Lint %lint-class-sibling-set)
+      (if (null? (first (Lint %lint-class-siblings))) () (Lint %name-set-of (first (Lint %lint-class-siblings)))))
     (%for-each (fn (_ c) (Lint %lint-class-clause c)) body)
-    (%set-first! (Lint %lint-class-siblings) saved-sibs)))
+    (%set-first! (Lint %lint-class-siblings) saved-sibs)
+    (%set-first! (Lint %lint-class-sibling-set) saved-set)))
     (method %lint-class-prepass (self forms)
   (unless (null? forms)
     (do (let ((f (%lint-unwrap-doc (first forms))))
@@ -1558,6 +1602,8 @@
 
 (doc (def lint-forms (fn (_ forms defs uses)
   (%set-first! %lint-uses uses)
+  (%set-first! %lint-uses-set (Lint %name-set-of uses))
+  (%set-first! %lint-sibling-set ())
   (%set-first! %lint-issues ())
   (%set-first! %lint-leaks ())
   (%set-first! %lint-warn ())
@@ -1565,6 +1611,7 @@
   (%set-first! %lint-scope ())
   (%set-first! %lint-class-names ())
   (%set-first! (Lint %lint-class-siblings) ())
+  (%set-first! (Lint %lint-class-sibling-set) ())
   (%set-first! (Lint %lint-self-name) ())
   (%set-first! (Lint %lint-carried) ())
   (%set-first! (Lint %lint-no-shadow) ())
