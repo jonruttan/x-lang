@@ -147,6 +147,11 @@ jobs:
       - name: Check the card
         if: hashFiles('docs/card.md') != ''
         run: |
+          # An x-lang that pins official bundles installs only once they
+          # are acquired; one from before it had them has no such target.
+          if grep -q '^bundles:' .x-lang/Makefile; then
+            make -C .x-lang bundles
+          fi
           make -C .x-lang install PREFIX="$RUNNER_TEMP/x"
           X_BUNDLE_DIR="$PWD/.." BUNDLE=. X="$RUNNER_TEMP/x/bin/x" \
             sh .x-kit/tools/bundle-kit/card.sh

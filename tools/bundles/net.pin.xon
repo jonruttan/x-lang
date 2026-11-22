@@ -1,0 +1,4 @@
+(name "net")
+(release "v0.1.0")
+(bundle "sha256:34b5053c3897883284265376ab3ae56bb20d59c9c487b92446237fb4a0dc1ab0" "https://github.com/jonruttan/x-lib-net/releases/download/v0.1.0/x-lib-net-v0.1.0.tar.gz")
+(source "https://github.com/jonruttan/x-lib-net.git")
