@@ -182,3 +182,28 @@ reckoned in microseconds, and 100 bytes times a million stays within a
 ```
 ---
     (#t #t #t 0)
+
+### a stream's times hold at CD sound's rate on a 32-bit engine
+
+A stream of CD sound plays 176400 bytes a second.  4096 bytes times a
+million, or an hour's seconds times a million, does not fit a 32-bit
+integer; each answer here is exact.
+
+```x
+(do (import x/sys/web)
+  (Web listen! "127.0.0.1" 0)
+  (def w-win (Web open "t" 2 1 1))
+  (def w-s (Web audio-open 44100 2))
+  (Web audio-put! w-s (Str8 make 4096) 4096)
+  (def w-queued (Web audio-queued w-s))
+  (Web audio-close w-s)
+  (Web close w-win)
+  (list (> w-queued 0) (<= w-queued 4096)
+        (Web %after (pair 10 990000) 4096 176400)
+        (Web %unplayed (pair 10 990000) (pair 11 13219) 176400)
+        (Web %after (pair 1752861000 0) 635040000 176400)
+        (Web %unplayed (pair 1752861000 0) (pair 1752864600 0) 176400)
+        (Web %unplayed (pair 11 0) (pair 10 500000) 176400)))
+```
+---
+    (#t #t (11 . 13219) 4095 (1752864600 . 0) 635040000 0)
