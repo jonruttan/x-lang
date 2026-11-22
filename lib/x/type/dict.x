@@ -49,11 +49,16 @@
 ; the entry lives. >>4 drops the malloc-alignment zero bits before bucketing.
 ; Non-negative by construction, so the bucket index (% h cap) never goes
 ; negative (C-truncating % keeps the sign).
+; Hash fnv-1a's closure, fetched once: (Hash fnv-1a k) is a class dispatch
+; on every key hashed, and the closure called with its class is the same
+; call without one.
+(def %dict-fnv (class-static-ref Hash 'fnv-1a))
+
 (def %dict-hash
   (fn (_ k)
     (match
-      ((symbol? k) (int& (Hash fnv-1a (symbol->str k)) %dict-mask31))
-      ((str? k) (int& (Hash fnv-1a k) %dict-mask31))
+      ((symbol? k) (int& (%dict-fnv Hash (symbol->str k)) %dict-mask31))
+      ((str? k) (int& (%dict-fnv Hash k) %dict-mask31))
       ((%dict-int? k) (int& k %dict-mask31))
       ((char? k) (char->int k))
       ((object? k) (int& (int>> (ptr->int (obj->ptr k)) 4) %dict-mask31))
@@ -83,7 +88,13 @@
 ; that followed a rebinding would miss without failing.  core/logic.x states
 ; the rule; this file already caches its other dependencies, for speed.
 (def %dict-key=
-  (fn (_ a b) (if (object? a) (same? a b) (equal? a b))))
+  (fn (_ a b)
+    (match
+      ; a string key, the common one, is compared as equal? would compare
+      ; it, without equal?'s walk through the kinds of value it is not
+      ((str? a) (if (str? b) (str=? a b) #f))
+      ((object? a) (same? a b))
+      (#t (equal? a b)))))
 
 ; Find the (key . val) entry pair in a bucket, or (). Returning the ENTRY
 ; (a box), not the value, keeps presence distinguishable from a stored nil.
@@ -111,7 +122,8 @@
     (see make) (see get) (see set!) (see from-plist))
 
   store  ; bucket vector: slot 0 = cap, slots 1..cap = (key . val) alists
-  cap    ; bucket count
+  cap    ; bucket count; the operations read it from the store's slot 0,
+         ; one field read where reading both fields was two
   n      ; entry count
 
   (static
@@ -195,9 +207,9 @@
       (param k ANY "Key (symbol, string, integer, or char)")
       (returns ANY "Stored value, or nil")
       (example "(let ((d (Dict make))) (d set! 'a 1) (d get 'a))" "1"))
-    (def %cap (field 'cap))
-    (if (eq? %cap ()) (%dict-uninit!))
-    (def hit (%dict-find k (obj-ref (field 'store) (%dict-slot %cap k))))
+    (def %store (field 'store))
+    (if (eq? %store ()) (%dict-uninit!))
+    (def hit (%dict-find k (obj-ref %store (%dict-slot (obj-ref %store 0) k))))
     (if (eq? hit ()) () (rest hit)))
 
   (method get-or (self d k)
@@ -207,9 +219,9 @@
       (returns ANY "Stored value (a stored nil included), or the default")
       (example "((Dict from-plist (list 'a 1)) get-or 0 'b)" "0")
       (example "(null? ((Dict from-plist (list 'a ())) get-or 0 'a))" "#t"))
-    (def %cap (field 'cap))
-    (if (eq? %cap ()) (%dict-uninit!))
-    (def hit (%dict-find k (obj-ref (field 'store) (%dict-slot %cap k))))
+    (def %store (field 'store))
+    (if (eq? %store ()) (%dict-uninit!))
+    (def hit (%dict-find k (obj-ref %store (%dict-slot (obj-ref %store 0) k))))
     (if (eq? hit ()) d (rest hit)))
 
   (method get-or-else (self thunk k)
@@ -218,9 +230,9 @@
       (param k ANY "Key to look up")
       (returns ANY "Stored value (a stored nil included), or (thunk)")
       (example "((Dict make) get-or-else (fn (_) 42) 'a)" "42"))
-    (def %cap (field 'cap))
-    (if (eq? %cap ()) (%dict-uninit!))
-    (def hit (%dict-find k (obj-ref (field 'store) (%dict-slot %cap k))))
+    (def %store (field 'store))
+    (if (eq? %store ()) (%dict-uninit!))
+    (def hit (%dict-find k (obj-ref %store (%dict-slot (obj-ref %store 0) k))))
     (if (eq? hit ()) (thunk) (rest hit)))
 
   (method has? (self k)
@@ -229,9 +241,9 @@
       (returns BOOL "#t when the key is stored")
       (example "((Dict from-plist (list 'a 1)) has? 'a)" "#t")
       (example "((Dict from-plist (list 'a 1)) has? 'b)" "#f"))
-    (def %cap (field 'cap))
-    (if (eq? %cap ()) (%dict-uninit!))
-    (pair? (%dict-find k (obj-ref (field 'store) (%dict-slot %cap k)))))
+    (def %store (field 'store))
+    (if (eq? %store ()) (%dict-uninit!))
+    (pair? (%dict-find k (obj-ref %store (%dict-slot (obj-ref %store 0) k)))))
 
   ; --- mutation -----------------------------------------------------------
   (method set! (self k v)
@@ -241,8 +253,8 @@
       (returns Dict "self")
       (example "(((Dict make) set! 'a 1) get 'a)" "1"))
     (def %store (field 'store))
-    (def %cap (field 'cap))
-    (if (eq? %cap ()) (%dict-uninit!))
+    (if (eq? %store ()) (%dict-uninit!))
+    (def %cap (obj-ref %store 0))
     (def i (%dict-slot %cap k))
     (def bucket (obj-ref %store i))
     (def hit (%dict-find k bucket))
@@ -261,8 +273,8 @@
       (returns Dict "self")
       (example "(((Dict from-plist (list 'a 1 'b 2)) del! 'a) has? 'a)" "#f"))
     (def %store (field 'store))
-    (def %cap (field 'cap))
-    (if (eq? %cap ()) (%dict-uninit!))
+    (if (eq? %store ()) (%dict-uninit!))
+    (def %cap (obj-ref %store 0))
     (def i (%dict-slot %cap k))
     (def bucket (obj-ref %store i))
     (if (pair? (%dict-find k bucket))
@@ -289,8 +301,8 @@
     ; copy each entry: the live (key . val) pairs are mutated by set!, so a
     ; snapshot must not alias them
     (def %store (field 'store))
-    (def %cap (field 'cap))
-    (if (eq? %cap ()) (%dict-uninit!))
+    (if (eq? %store ()) (%dict-uninit!))
+    (def %cap (obj-ref %store 0))
     (def go
       (fn (go i acc)
         (if (int< %cap i) acc
