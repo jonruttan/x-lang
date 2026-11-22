@@ -405,6 +405,24 @@ are the system's defaults and can be set and read back.
 ---
     (#t #f #t #f #t)
 
+### the control bytes tcgetattr does not write are 0, not a new string's spaces
+
+Linux's TCGETS writes the kernel's 19 control characters; musl's termios
+holds 32, and the 12 from the 20th on are left as settings found them.
+
+```x
+(do (import x/repl/term) (import x/sys/pty) (import x/sys/file)
+    (def p (Pty open))
+    (def s (File open (rest p) (list 'rdwr 'noctty)))
+    (def w (Term words (Term settings s)))
+    (def past (fn (self i) (if (>= i (Term nccs)) () (pair (List ref (+ 4 i) w) (self (+ i 1))))))
+    (def r (null? (List find (fn (_ b) (not (= b 0))) (past 20))))
+    (File close s) (File close (first p))
+    r)
+```
+---
+    #t
+
 ### settings of a pipe is nil, and apply! declines
 
 ```x
