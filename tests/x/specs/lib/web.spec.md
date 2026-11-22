@@ -29,6 +29,19 @@ on port 0 and reads the port back with local-port.
 ---
     (('key-down 97 1 0) ('pad-up 'south 0))
 
+### the mouse's messages make Sdl's mouse events, a motion's flags the buttons held
+
+```x
+(do (import x/sys/web) (import x/core/doors char->int)
+  (def w-msg (fn (_ s) (Web %event (List map char->int (Str8 ->list s)))))
+  (list (w-msg "mouse-down left 3 4")
+        (w-msg "mouse-up right -1 9")
+        (w-msg "mouse-motion 12 5 5")
+        (w-msg "mouse-motion 0 0 0")))
+```
+---
+    (('mouse-down 'left 3 4) ('mouse-up 'right -1 9) ('mouse-motion 12 5 ('left 'right)) ('mouse-motion 0 0 ()))
+
 ### a mask comes off four bytes round
 
 ```x

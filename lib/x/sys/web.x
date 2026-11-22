@@ -4,7 +4,7 @@
 ;
 ; open listens on a TCP port and serves one page.  The page's canvas shows
 ; the picture and Web Audio plays the sound; a WebSocket carries frames and
-; samples to it, and keys and gamepad input back as Sdl's events.  Nothing
+; samples to it, and keys, the mouse and gamepad input back as Sdl's events.  Nothing
 ; runs but x and the browser: the socket is Socket's, the handshake's digest
 ; Sha1's, and the page is the string below.
 ;
@@ -44,7 +44,13 @@
 ;
 ; Messages to the page are text, a word and its arguments, or binary, a tag
 ; byte then data: F and the RGBA bytes, A and a stream number then samples.
-; Messages from the page are an event's words: "key-down 97 1 0".
+; Messages from the page are an event's words: "key-down 97 1 0".  The
+; mouse's places are in the picture's pixels, mapped through the canvas's
+; box on the page, whole and toward zero, below 0 or past the size in the
+; bars beside it, as Sdl's poll gives them with the window.  A motion's held
+; buttons come as Sdl's flags, "mouse-motion 12 5 1", and poll answers them
+; as names.  The context menu is kept off the canvas, so a right click there
+; is the program's.
 
 (module x/sys/web)
 (import x/type/class)
@@ -59,7 +65,7 @@
 (import x/core/doors char->int int% int/ ptr-set! str->ptr str-byte-ref str-make)
 
 (def-class Web ()
-  (doc "A window in a browser tab: Sdl's messages answered by a page that shows an RGBA picture on a canvas, plays signed 16-bit sound through Web Audio, and sends keys and gamepad input back over a WebSocket."
+  (doc "A window in a browser tab: Sdl's messages answered by a page that shows an RGBA picture on a canvas, plays signed 16-bit sound through Web Audio, and sends keys, the mouse and gamepad input back over a WebSocket."
     (note "open listens on 127.0.0.1, ports 8080 to 8089 then any the kernel gives, unless listen! names others, and prints the page's address on stderr.")
     (example "(Web key (lit up))" "1073741906")
     (see open) (see show!) (see poll) (see listen!))
@@ -102,7 +108,14 @@ if(/^Key[A-Z]$/.test(k))return k.charCodeAt(3)+32;if(/^Digit[0-9]$/.test(k))retu
 if(punct[k])return punct[k].charCodeAt(0);if(e.key&&e.key.length==1)return e.key.toLowerCase().charCodeAt(0);return 0;}
 function mods(e){return (e.shiftKey?1:0)|(e.ctrlKey?64:0)|(e.altKey?256:0)|(e.metaKey?1024:0);}
 function key(down){return function(e){wake();var k=code(e);if(!k)return;e.preventDefault();send((down?'key-down ':'key-up ')+k+' '+mods(e)+' '+(e.repeat?1:0));};}
-addEventListener('keydown',key(true));addEventListener('keyup',key(false));addEventListener('mousedown',wake);
+addEventListener('keydown',key(true));addEventListener('keyup',key(false));
+var MB=['left','middle','right','x1','x2'],mx=null,my=null,mh=-1;
+function at(e){var r=c.getBoundingClientRect();return [Math.trunc((e.clientX-r.left)*W/r.width),Math.trunc((e.clientY-r.top)*H/r.height)];}
+function held(b){return (b&1)|((b&4)>>1)|((b&2)<<1)|(b&24);}
+function press(down){return function(e){if(down)wake();if(!W||!MB[e.button])return;if(e.target==c)e.preventDefault();var p=at(e);send((down?'mouse-down ':'mouse-up ')+MB[e.button]+' '+p[0]+' '+p[1]);};}
+addEventListener('mousedown',press(true));addEventListener('mouseup',press(false));
+addEventListener('mousemove',function(e){if(!W)return;var p=at(e),h=held(e.buttons);if(p[0]==mx&&p[1]==my&&h==mh)return;mx=p[0];my=p[1];mh=h;send('mouse-motion '+mx+' '+my+' '+h);});
+c.addEventListener('contextmenu',function(e){e.preventDefault();});
 function axis(v){return Math.max(-32768,Math.min(32767,Math.round(v*32767)));}
 function padLoop(){var gp=navigator.getGamepads?navigator.getGamepads():[];var seen={};
 for(var i=0;i<gp.length;i++){var p=gp[i];if(!p)continue;seen[p.index]=1;var st=pads[p.index];if(!st){st=pads[p.index]={b:[],a:[]};send('pad-added '+p.index);}
@@ -434,18 +447,22 @@ connect();requestAnimationFrame(padLoop);
               (go (rest l) (+ i 1) (pair (- (| a b) (& a b)) acc)))))))
 
     (method %event (self (param bytes LIST "A text message's bytes: an event's words"))
-      (doc "The event a message names: its first word a symbol, each other word a number when it reads as one and a symbol when not."
+      (doc "The event a message names: its first word a symbol, each other word a number when it reads as one and a symbol when not; a mouse-motion's flags become the names of the buttons held, as Sdl's."
         (returns LIST "The event")
-        (example "(Web %event (list 112 97 100 45 117 112 32 115 111 117 116 104 32 48))" "('pad-up 'south 0)"))
+        (example "(Web %event (list 112 97 100 45 117 112 32 115 111 117 116 104 32 48))" "('pad-up 'south 0)")
+        (example "(Web %event (list 109 111 117 115 101 45 109 111 116 105 111 110 32 49 32 50 32 53))" "('mouse-motion 1 2 ('left 'right))"))
       (def word (fn (_ chars)
                   (def s (Web %text (List reverse chars)))
                   (def v (%str->number s))
                   (if (null? v) (Str8 ->sym s) v)))
-      (let go ((l bytes) (chars ()) (acc ()))
-        (match
-          ((null? l) (List reverse (if (null? chars) acc (pair (word chars) acc))))
-          ((= (first l) 32) (go (rest l) () (if (null? chars) acc (pair (word chars) acc))))
-          (#t (go (rest l) (pair (first l) chars) acc)))))
+      (def event (let go ((l bytes) (chars ()) (acc ()))
+                   (match
+                     ((null? l) (List reverse (if (null? chars) acc (pair (word chars) acc))))
+                     ((= (first l) 32) (go (rest l) () (if (null? chars) acc (pair (word chars) acc))))
+                     (#t (go (rest l) (pair (first l) chars) acc)))))
+      (if (and (= (List length event) 4) (eq? (first event) (lit mouse-motion)))
+        (list (lit mouse-motion) (List ref 1 event) (List ref 2 event) (Sdl %held (List ref 3 event)))
+        event))
 
     (method %text (self (param bytes LIST "Byte values"))
       (doc "A string of the bytes."
@@ -529,7 +546,8 @@ connect();requestAnimationFrame(padLoop);
 
     (method poll (self)
       (doc "The next event from the page, or nil; the same events as Sdl's poll answers."
-        (returns ANY "An event list, or nil")
+        (note "The mouse's X Y are in the picture's pixels, whole and toward zero; a place in the bars beside the picture lies outside it, below 0 or past its size.")
+        (returns LIST|NIL "(key-down KEY MOD REPEAT), (key-up KEY MOD REPEAT), (mouse-down BUTTON X Y), (mouse-up BUTTON X Y), (mouse-motion X Y HELD), (pad-down BUTTON PAD), (pad-up BUTTON PAD), (pad-axis AXIS VALUE PAD), (pad-added PAD) or (pad-removed PAD)")
         (sample "(Web poll)" "('key-down 97 0 0)"))
       (def win (Web %window))
       (if (null? win) ()
@@ -679,4 +697,4 @@ connect();requestAnimationFrame(padLoop);
 
 (doc (provide x/sys/web Web)
   (example "(Web available?)" "#t")
-  "A window in a browser tab: (Web open title w h scale) listens for a page, and Sdl's other messages draw to it, play sound on it, and read its keys and gamepads.")
+  "A window in a browser tab: (Web open title w h scale) listens for a page, and Sdl's other messages draw to it, play sound on it, and read its keys, mouse and gamepads.")
