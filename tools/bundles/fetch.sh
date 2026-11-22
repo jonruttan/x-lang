@@ -16,8 +16,8 @@
 # `make install` copies it from there into the install's bundles/.
 #
 # The pin tool does the work: (Pin install ...) downloads the archive,
-# digests it before tar runs, and replaces a previous copy only once the new
-# one has verified.  This script adds one thing, the same the engine fetch
+# digests it before unpacking it, and replaces a previous copy only once the
+# new one has verified.  This script adds one thing, the same the engine fetch
 # has: a bundle already acquired at its pin is left alone, with no network.
 # The pin it was acquired at is kept beside it, deps/bundles/NAME.pin, and a
 # pin that differs is what makes it fetched again.
