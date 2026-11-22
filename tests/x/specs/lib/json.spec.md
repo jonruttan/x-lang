@@ -170,7 +170,57 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 ---
     2
 
+## parse: whitespace around the value
+
+### a value followed by a newline
+
+```x
+(do (import x/codec/json) (Json parse "[1, 2]\n"))
+```
+---
+    (1 2)
+
+### a value followed by a space and CRLF
+
+```x
+(do (import x/codec/json) (Json parse "42 \r\n"))
+```
+---
+    42
+
+### an object followed by a newline, as a file ends
+
+```x
+(do (import x/codec/json) ((Json parse "{\"a\": \"b\"}\n") get "a"))
+```
+---
+    "b"
+
+### blanks before and after the value
+
+```x
+(do (import x/codec/json) (Json parse "\t \r\n true \t\r\n "))
+```
+---
+    #t
+
 ## parse: errors
+
+### content after a trailing newline errors
+
+```x
+(do (import x/codec/json) (Json parse "1\nx\n"))
+```
+---
+    Error: value: Json parse: trailing content at byte 1
+
+### blanks alone are no value
+
+```x
+(do (import x/codec/json) (Json parse " \r\n"))
+```
+---
+    Error: value: Json parse: unexpected end of input at byte 3
 
 ### trailing content errors
 
