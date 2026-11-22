@@ -147,7 +147,7 @@ same value on any word: when it changes, bump
   (newline))
 ```
 ---
-    (42 #t 576075713)
+    (42 #t 2530260570)
 
 ### the plan's text reads back as the plan, and text that is not one is no plan
 
