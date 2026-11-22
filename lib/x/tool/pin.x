@@ -43,16 +43,16 @@
 (def %cvt (prim-ref (lit convert) (lit to)))
 
 (import x/sys/file)
-; Eager on purpose, both: sha256 (and posix, which fetch's curl runner
-; rides) must resolve PLATFORM-side, before any overlay root is armed
+; Eager on purpose, both: sha256 (and posix) must resolve PLATFORM-side,
+; before any overlay root is armed
 ; below -- a lazy import inside verify/fetch could be shadowed by the
 ; very overlay it is checking (the pin-the-pinner hole, closed the same
 ; way the wrapper closes it for this module itself).
 (import x/sys/posix)
 (import x/codec/sha256)
-(import x/sys/proc)
 (import x/codec/xon)
 (import x/type/path)
+(import x/core/doors int% int/)
 
 ; --- The Pin class: the whole tool, one namespace ---------------------
 ; Every helper is a %-prefixed STATIC on the class -- private by
@@ -538,29 +538,51 @@
     ; seam collapse would eat the scheme's "//").
     (method %pin-url (self base tag file)
       (Str8 append base (Str8 append "/" (Str8 append tag (Str8 append "/" file)))))
-    ; Download via curl through Proc run! (#226): 127 = curl absent,
-    ; anything else nonzero = the download failed.
+    ; Download in x: a file:// url is copied, an http(s) one is read off
+    ; Http a piece at a time and written away, so no body is held whole.
+    ; Nothing outside x is run: x-os has no curl.
     ;
-    ; ATOMIC (#145): curl writes a pid-tagged TEMP name -- an HTTP error
-    ; or a mid-transfer failure must never occupy the target path, which
-    ; for an amalgam is the path the wrapper boots.  %pin-download-tmp!
-    ; returns the temp path so fetch can DIGEST BEFORE PUBLISHING;
-    ; %pin-download! is the download-and-publish composition for
-    ; artifacts with no digest of their own (the release manifest).
+    ; ATOMIC (#145): the bytes land on a pid-tagged TEMP name -- an HTTP
+    ; error or a mid-transfer failure must never occupy the target path,
+    ; which for an amalgam is the path the wrapper boots.
+    ; %pin-download-tmp! returns the temp path so fetch can DIGEST BEFORE
+    ; PUBLISHING; %pin-download! is the download-and-publish composition
+    ; for artifacts with no digest of their own (the release manifest).
+    ;
+    ; Http is imported here, on the first download, and not with the
+    ; eager imports above: it brings TLS and its crypto, which a session
+    ; that only arms a pin never uses.  Its being late is safe for the
+    ; pin-the-pinner hole: what it hands back is held to a digest the
+    ; eagerly-imported Sha256 computes.
     (method %pin-download-tmp! (self url target)
-      ; -f: HTTP errors fail the exit status; -L: release downloads
-      ; redirect; -sS: quiet but errors still print
       (let ((tmp (Str8 append target
                    (Str8 append "." (Str8 append (%cvt (Sys getpid) %string) ".tmp")))))
-        (let ((status (Proc run! (list "curl" "-fsSL" "-o" tmp url))))
+        (guard (_ ((do (guard (_ ()) (File unlink tmp))
+                       (Pin %pin-bad (Str8 append "download failed: " url)))))
           (match
-            ((= status 0) tmp)
-            ((= status 127)
-              (do (guard (_ ()) (File unlink tmp))
-                  (Pin %pin-bad (Str8 append "curl not found -- download manually and re-run against the files:\n  " url))))
-            (#t
-              (do (guard (_ ()) (File unlink tmp))
-                  (Pin %pin-bad (Str8 append "download failed: " url))))))))
+            ((Str8 starts? "file://" url)
+              (File copy (Str8 sub 7 (- (Str8 length url) 7) url) tmp))
+            (#t (Pin %pin-http-get! url tmp))))
+        tmp))
+    ; url's body written to path, or a raise: a status other than 200 is a
+    ; failed download.
+    (method %pin-http-get! (self url path)
+      (import x/net/http)
+      (let ((s (Http open "GET" url () ())))
+        (match
+          ((not (= (s status) 200))
+            (do (Http close s)
+                (error (Str8 append "pin: the download answered "
+                         (%cvt (s status) %string)))))
+          (#t
+            (let ((fd (File open path (list (lit wronly) (lit creat) (lit trunc)))))
+              (let loop ((r (Http read s 65536)))
+                (match
+                  ((null? r) ())
+                  (#t (do (File write fd (first r) (rest r))
+                          (loop (Http read s 65536))))))
+              (File close fd)
+              (Http close s))))))
     (method %pin-download! (self url target)
       (File rename (Pin %pin-download-tmp! url target) target))
     ; pin.release.xon -> ((release . TAG) (isa . DIGEST) (layout . DIGEST)
@@ -724,14 +746,213 @@
     (method %pin-digest-bin (self path)
       (Str8 append "sha256:"
         (Sha256 hex-n (File read-all path) (%assoc-get 'size (File stat path)))))
-    ; Unpack via tar through Proc run!, the pattern %pin-download-tmp! uses for
-    ; curl: 127 = tar absent, anything else nonzero = the archive is bad.
+    ; Unpack a .tar.gz in x: the gzip member is inflated a piece at a time
+    ; and the tar read off what comes out, so neither is held whole.  No
+    ; outside program is run: x-os has no tar.
+    ;
+    ; The archive has already been held to the pin's digest, so the gzip
+    ; trailer's CRC adds nothing and is not checked.  A member name that is
+    ; absolute or climbs out with `..` is refused all the same.
+    ;
+    ; Inflate and Bytes are imported here, on the first unpack, for the
+    ; reason Http is imported in %pin-download-tmp!.
     (method %pin-untar! (self archive dest)
-      (let ((status (Proc run! (list "tar" "-xzf" archive "-C" dest))))
+      (import x/codec/inflate)
+      (import x/codec/bytes)
+      (guard (_ ((Pin %pin-bad (Str8 append "bundle did not unpack: " archive))))
+        (Pin %pin-ungz-untar archive dest))
+      dest)
+    (method %pin-ungz-untar (self archive dest)
+      (let ((fd (File open archive (lit rdonly)))
+            (buf (first (Bytes zeros 65536)))
+            (z (Inflate stream)))
+        (let loop ((st (Pin %tar-start dest)) (head? #t))
+          (let ((n (File read fd buf 65536)))
+            (match
+              ((< n 0) (do (File close fd) (error "pin: archive read failed")))
+              ((= n 0)
+                (do (File close fd)
+                    (match
+                      ((not (Inflate done? z)) (error "pin: the archive ends inside its gzip stream"))
+                      ((not (eq? (first st) (lit end))) (error "pin: the archive ends inside its tar"))
+                      (#t ()))))
+              (#t
+                (let ((at (if head? (Pin %gz-header-length buf n) 0)))
+                  (let ((o (Inflate feed z buf at (- n at))))
+                    (loop (Pin %tar-feed st (first o) 0 (first (rest o))) #f)))))))))
+    ; The bytes a gzip member header (RFC 1952) takes before its deflate
+    ; data: ten fixed, then the optional extra, name, comment and header CRC
+    ; the flags name.  The header must lie in the first piece read.
+    (method %gz-header-length (self buf n)
+      (let ((b (fn (_ i) (Bytes ref (list buf 0 n) i))))
         (match
-          ((= status 0) dest)
-          ((= status 127) (Pin %pin-bad "tar not found -- cannot unpack the bundle"))
-          (#t (Pin %pin-bad (Str8 append "bundle did not unpack: " archive))))))
+          ((< n 10) (error "pin: the archive is too short for a gzip header"))
+          ((not (if (= (b 0) 31) (if (= (b 1) 139) (= (b 2) 8) #f) #f))
+            (error "pin: the archive is not gzip"))
+          (#t
+            (let ((flg (b 3))
+                  (past-nul (fn (self i) (if (= (b i) 0) (+ i 1) (self (+ i 1))))))
+              (let ((a (if (= (int% (int/ flg 4) 2) 1) (+ 12 (+ (b 10) (* 256 (b 11)))) 10)))
+                (let ((c (if (= (int% (int/ flg 8) 2) 1) (past-nul a) a)))
+                  (let ((d (if (= (int% (int/ flg 16) 2) 1) (past-nul c) c)))
+                    (if (= (int% (int/ flg 2) 2) 1) (+ d 2) d)))))))))
+    ; The tar walk's state, threaded through every piece, a list read by
+    ; position: (MODE W LEFT FD DEST NAME PAD KIND).
+    ;   MODE head  W is the writer the next 512-byte header fills
+    ;        data  LEFT bytes of a member go to FD (nil: the member is skipped)
+    ;        meta  LEFT bytes of a record go to W: a pax header (KIND 120,
+    ;              "x") or a GNU long name (KIND 76, "L")
+    ;        pad   LEFT bytes of block padding are skipped
+    ;        end   the zero block was read; what follows it is ignored
+    ;   NAME  the path a record gave the next member, or nil
+    ;   PAD   the padding after the data or record being read
+    (method %tar-start (self dest) (Pin %tar-head dest ()))
+    (method %tar-head (self dest name)
+      (list (lit head) (Bytes writer) 0 () dest name 0 ()))
+    (method %tar-min (self a b) (if (< a b) a b))
+    (method %tar-feed (self st buf i n)
+      (let ((mode (st 0)) (left (st 2)))
+        (match
+          ((>= i n) st)
+          ((eq? mode (lit end)) st)
+          ((eq? mode (lit head))
+            (let ((w (st 1)))
+              (let ((take (Pin %tar-min (- 512 (Bytes size w)) (- n i))))
+                (do (Bytes put w (list buf i take))
+                    (match
+                      ((< (Bytes size w) 512) st)
+                      (#t (Pin %tar-feed (Pin %tar-header (Bytes written w) (st 4) (st 5))
+                               buf (+ i take) n)))))))
+          (#t
+            (let ((take (Pin %tar-min left (- n i))))
+              (do
+                (match
+                  ((eq? mode (lit data))
+                    (if (null? (st 3)) ()
+                        (File write (st 3) (first (Bytes copy (list buf i take))) take)))
+                  ((eq? mode (lit meta)) (Bytes put (st 1) (list buf i take)))
+                  (#t ()))
+                (Pin %tar-feed
+                     (match
+                       ((< take left)
+                         (list mode (st 1) (- left take) (st 3) (st 4) (st 5) (st 6) (st 7)))
+                       (#t (Pin %tar-done st)))
+                     buf (+ i take) n)))))))
+    ; A run of data, record or padding has ended: the state that follows.
+    (method %tar-done (self st)
+      (match
+        ((eq? (st 0) (lit pad)) (Pin %tar-head (st 4) (st 5)))
+        (#t
+          (let ((name (if (eq? (st 0) (lit meta))
+                          (Pin %tar-record-name (st 7) (Bytes written (st 1)))
+                          (st 5))))
+            (do (if (if (eq? (st 0) (lit data)) (not (null? (st 3))) #f)
+                    (File close (st 3))
+                    ())
+                (match
+                  ((= (st 6) 0) (Pin %tar-head (st 4) name))
+                  (#t (list (lit pad) () (st 6) () (st 4) name 0 ()))))))))
+    ; A run of size bytes in mode: the run, or what follows it when it is
+    ; empty, so that no state waits on bytes that never come.
+    (method %tar-run (self mode w size fd dest name kind)
+      (let ((st (list mode w size fd dest name
+                      (int% (- 512 (int% size 512)) 512) kind)))
+        (if (= size 0) (Pin %tar-done st) st)))
+    ; One 512-byte header h (a region): the zero block ends the archive; a
+    ; record is read for the member after it; a directory is made; a file is
+    ; opened and its bytes are the run that follows; a symlink is made; any
+    ; other member is skipped.  name, when a record gave one, is its path.
+    (method %tar-header (self h dest name)
+      (match
+        ((= (Bytes ref h 0) 0) (list (lit end) () 0 () dest () 0 ()))
+        (#t
+          (let ((size (Pin %tar-octal h 124 12))
+                (type (Bytes ref h 156))
+                (path (if (null? name) (Pin %tar-path h) name)))
+            (match
+              ((if (= type 120) #t (= type 76))
+                (Pin %tar-run (lit meta) (Bytes writer) size () dest () type))
+              ((not (Pin %tar-safe? path))
+                (error (Str8 append "pin: the archive names a path outside it: " path)))
+              ((= type 53)
+                (do (Pin %tar-mkdirs (%path-join dest path))
+                    (Pin %tar-run (lit data) () size () dest () ())))
+              ((if (= type 48) #t (= type 0))
+                (let ((to (%path-join dest path)))
+                  (do (Pin %tar-mkdirs (Path dirname to))
+                      (let ((fd (File open to (list (lit wronly) (lit creat) (lit trunc)))))
+                        (do (File chmod to (int% (Pin %tar-octal h 100 8) 4096))
+                            (Pin %tar-run (lit data) () size fd dest () ()))))))
+              ((= type 50)
+                (let ((to (%path-join dest path)))
+                  (do (Pin %tar-mkdirs (Path dirname to))
+                      (File symlink (Pin %tar-field h 157 100) to)
+                      (Pin %tar-run (lit data) () size () dest () ()))))
+              (#t (Pin %tar-run (lit data) () size () dest () ())))))))
+    ; A header field as a string: its bytes up to the first NUL.
+    (method %tar-field (self h off len)
+      (first (Bytes copy (Bytes sub h off len))))
+    ; A member's path: the ustar prefix, when there is one, then the name.
+    (method %tar-path (self h)
+      (let ((nm (Pin %tar-field h 0 100))
+            (pre (if (str=? (Pin %tar-field h 257 5) "ustar") (Pin %tar-field h 345 155) "")))
+        (if (str=? pre "") nm (Str8 append pre (Str8 append "/" nm)))))
+    ; An octal header number: digits read until the first that is not one.
+    (method %tar-octal (self h off len)
+      (let loop ((i off) (v 0) (seen #f))
+        (match
+          ((>= i (+ off len)) v)
+          (#t
+            (let ((c (Bytes ref h i)))
+              (match
+                ((if (>= c 48) (<= c 55) #f) (loop (+ i 1) (+ (* v 8) (- c 48)) #t))
+                (seen v)
+                (#t (loop (+ i 1) v #f))))))))
+    ; The path a record r (a region) gives the next member: a GNU long
+    ; name is the record; a pax header's path= line names it, and one with
+    ; none leaves the member its own.
+    (method %tar-record-name (self kind r)
+      (let ((s (first (Bytes copy r))))
+        (match
+          ((= kind 76) s)
+          (#t
+            (let ((at (Str8 index-of " path=" s)))
+              (match
+                ((null? at) ())
+                (#t
+                  (let ((from (+ at 6)))
+                    (let ((nl (Str8 index-of "\n" (Str8 sub from (- (Str8 length s) from) s))))
+                      (Str8 sub from (if (null? nl) (- (Str8 length s) from) nl) s))))))))))
+    ; Neither absolute nor climbing out through a `..` part.
+    (method %tar-safe? (self path)
+      (match
+        ((Str8 starts? "/" path) #f)
+        ((null? (Str8 index-of ".." path)) #t)
+        (#t (let loop ((parts (Str8 split "/" path)))
+              (match
+                ((null? parts) #t)
+                ((str=? (first parts) "..") #f)
+                (#t (loop (rest parts))))))))
+    ; path removed with everything under it, a symlink as the link and never
+    ; what it names; a path with nothing there is left as it is.
+    (method %pin-rm-tree (self path)
+      (let ((kind (File ltype path)))
+        (match
+          ((null? kind) ())
+          ((eq? kind (lit dir))
+            (do (let loop ((names (File list-dir path)))
+                  (match
+                    ((null? names) ())
+                    (#t (do (Pin %pin-rm-tree (%path-join path (first names)))
+                            (loop (rest names))))))
+                (File rmdir path)))
+          (#t (File unlink path)))))
+    ; dir and every directory above it that is missing.
+    (method %tar-mkdirs (self dir)
+      (match
+        ((File exists? dir) ())
+        (#t (do (Pin %tar-mkdirs (Path dirname dir))
+                (File mkdir dir)))))
     ; The bundle's own declaration, read after the tree verifies and held
     ; against the pin that asked for it.  Digests prove the bytes are the ones
     ; published; they say nothing about WHICH thing was published.
@@ -1489,7 +1710,7 @@
                         (param tag STRING "Release tag, e.g. \"v0.4.0\"")
                         (param entry SYMBOL "Boot entry to fetch, e.g. 'xe")
                         . (param base STRING "Base URL; default the project's releases"))
-      (doc "Fetch a released amalgam, verified or nothing: downloads the tag's pin.release.xon and <entry>.x (curl via fork/execvp -- absent curl prints the URLs and stops), checks the manifest names the tag, digests the amalgam with Sha256 -- the differentially-verified JIT engine where the host supports it (seconds), pure-x elsewhere (minutes for an amalgam; either way announced), and errors on any mismatch, naming the offending file (left in place for inspection; do not boot it). Reports whether the release's ISA fingerprint matches this tree's engine/tools/contract/isa.x when present -- drift is information, not an error: a pinned platform pairs with its own engine. Returns the amalgam's path."
+      (doc "Fetch a released amalgam, verified or nothing: downloads the tag's pin.release.xon and <entry>.x with x's own Http (a file:// url is copied), checks the manifest names the tag, digests the amalgam with Sha256 -- the differentially-verified JIT engine where the host supports it (seconds), pure-x elsewhere (minutes for an amalgam; either way announced), and errors on any mismatch, naming the offending file (left in place for inspection; do not boot it). Reports whether the release's ISA fingerprint matches this tree's engine/tools/contract/isa.x when present -- drift is information, not an error: a pinned platform pairs with its own engine. Returns the amalgam's path."
         (returns STRING "Path of the verified amalgam")
         (sample "(Pin fetch \"boot\" \"v0.4.0\" 'xe)" "\"boot/xe.x\""))
       (let ((b (match ((null? base) (Pin %pin-release-base)) (#t (first base)))))
@@ -1622,7 +1843,7 @@
                             ; intact through the download, the digest and the
                             ; unpack: a failed upgrade leaves what you had,
                             ; not nothing.
-                            (guard (_ ()) (Proc run! (list "rm" "-rf" final)))
+                            (Pin %pin-rm-tree final)
                             (File rename staged final)
                             (display "pin: installed " name " " tag " to " final "\n")
                             (display (Pin %pin-bundle-pairing pd) "\n")

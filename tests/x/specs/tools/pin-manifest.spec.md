@@ -322,13 +322,23 @@ so the fact is optional and reads back as nil.
 ---
     #t
 
-### an absent command reports 127 (the print-the-URLs fallback's trigger)
+### a download that fails is a loud error and writes nothing at the target
 
 ```x
-(display (Proc run! (list "no-such-command-pin-spec-xyz")))
+(display (list (throws? (fn (_) (Pin %pin-download-tmp! "file:///no/such/pin-spec-xyz" "/tmp/pin-spec-xyz")))
+               (null? (File type "/tmp/pin-spec-xyz"))))
 ```
 ---
-    127
+    (#t #t)
+
+### an archive member outside the tree is refused
+
+```x
+(display (list (Pin %tar-safe? "lib/net/http.x") (Pin %tar-safe? "a..b/c")
+               (Pin %tar-safe? "/etc/passwd") (Pin %tar-safe? "lib/../../x")))
+```
+---
+    (#t #t #f #f)
 
 ## pin: a bundle's bundle.xon
 
