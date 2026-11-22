@@ -5,6 +5,124 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-11-22
+
+**x carries the net library.** ([#1437]) `net` (TLS 1.3, X.509, HTTP and
+REST) is pinned at x-lib-net v0.1.0 and installed with x under
+`bundles/net`, so `(import net/http)` resolves in an installed x with
+nothing declared. The same modules are still in the platform as
+`x/net/...` for now. `bootstrap.sh --install` acquires the official
+bundles before it installs.
+
+**The pin tool and `make bundles` no longer need curl, tar or rm.**
+([#1443]) Downloads use x's own Http, and archives unpack in x.
+
+**A bundle's release is rolled by the kit.** ([#1430])
+`tools/bundle-kit/roll.sh` writes a bundle's tarball, its digest and its
+`bundle.pin.xon` from a tag, holding only what runs, and
+`.github/workflows/bundle-release.yml` is a release workflow a bundle
+calls: the suite, the roll, and the GitHub release.
+
+**A bundle's doctest runs the bundle's own examples.** ([#1427], [#1444])
+`tools/bundle-kit/doctest.sh` loads what a bundle imports from outside
+itself before it walks the bundle's modules, so a helium bundle is no
+longer held to the examples of the platform modules it imports. It
+keeps a bundle's own examples by asking which names its modules export,
+not by grepping its source.
+
+**The Web window sends the mouse as Sdl's events.** ([#1442])
+`(Web poll)` answers `(mouse-down BUTTON X Y)`, `(mouse-up BUTTON X Y)`
+and `(mouse-motion X Y HELD)`, the same shapes as `(Sdl poll win)`: X Y
+in the picture's pixels through the canvas's scaling, BUTTON a name from
+`(Sdl mouse-buttons)`, HELD a list of them. A program written to Sdl's
+mouse now plays in a browser tab. The context menu is kept off the
+canvas, so a right click there is the program's.
+
+**`Transformer generate` keeps each block's queries, keys and values**
+([#1436]) and works out one position for each id it adds; on a host
+with a GPU the weights are held there, and the new `(m release)` gives
+their buffers back. `Metal` looks up the Objective-C runtime's
+functions, each selector and the default device once in a process,
+where it looked each up for every message: a GPU dispatch through `Gpu`
+costs about half what it did.
+
+**A quoted rule whose escape byte is its close reads a close written
+twice as part of the literal.** ([#1438]) `(Lexer quoted 'str 39 39 39)`
+reads `'it''s'` as one token, as SQL and CSV write a quote inside a
+quoted literal.
+
+**An example scene tells how x comes together.** ([#1431])
+`examples/x-lang/story.x` draws x-expr, the engine, x-lang, its
+libraries and toolchain, bundles, langs and their dialects as one pair
+tree that grows, with `x/gfx/scene`; `SCENES=web` or `SCENES=sdl` plays
+it. The examples gate boots `examples/x-lang/` with the default entry,
+`lib/x.x`.
+
+**`Json parse` accepts whitespace after the value again.** ([#1441]) A
+text ending in a newline (a file, an HTTP body) failed with "trailing
+content at byte N" since the parser moved onto the Lexer; RFC 8259
+allows space, tab, CR and LF around the value, and v0.59.0 accepted
+them.
+
+**A bundle loaded by a second or later `-l` leaves the prompt to the
+first again.** ([#1439]) `%lang-lead` is bound ahead of the dialect's
+entry, in the platform environment, where a bundle's modules read it.
+Since a program's definitions moved to an environment of their own, the
+wrapper's def of it had landed there, out of the modules' sight:
+`x -l xe -l python` showed Python's banner and prompt, and the
+xe+python state image carried Python's `%banner`.
+
+**Web's audio-queued is right on a 32-bit engine.** ([#1435]) A
+stream's times are kept as (seconds . microseconds) and no product
+passes the rate times a thousand, so a 4096-byte put at 44100 Hz stereo
+and a stream running past the clock's 72-minute wrap no longer read 0
+on linux/arm/v7.
+
+**`Term settings` zeroes its buffer** ([#1434]), so the control
+characters tcgetattr does not write read as 0 rather than a new
+string's spaces.
+
+**`Table split` and `aggregate` part a column of numbers by compiled
+kernels.** ([#1433]) Once the kernels have compiled, finding the
+distinct values of an f64 column and their rows allocates a small
+fraction of what it did, and a column of values that are not whole
+numbers no longer takes the walk that compared every row with every
+distinct value; the answers are unchanged. The new kernel is listed by
+`(Tensor compiled)` as `f64-runs`.
+
+**The linter takes much less memory on a large class.** ([#1432])
+Linting a file whose class has many methods no longer costs more for
+each method the class gains; `lib/x/num/tensor.x` lints at about two
+thirds of its former peak, and the findings are unchanged.
+
+**`Sys` calls cost less.** ([#1428]) `(Sys now)`, `(Sys time-of-day)`
+and `(Sys poll)` cost about a third of what they did a call, and every
+Sys method that calls libc resolves its function once at load rather
+than on each call.
+
+**`Dict` costs less for a string key.** ([#1429]) `get`, `has?`, `set!`
+and `del!` cost about two fifths less: the hash function is fetched
+once, two strings are compared with `str=?`, and the bucket count is
+read from the store.
+
+[#1427]: https://github.com/jonruttan/x-lang/pull/1427
+[#1428]: https://github.com/jonruttan/x-lang/pull/1428
+[#1429]: https://github.com/jonruttan/x-lang/pull/1429
+[#1430]: https://github.com/jonruttan/x-lang/pull/1430
+[#1431]: https://github.com/jonruttan/x-lang/pull/1431
+[#1432]: https://github.com/jonruttan/x-lang/pull/1432
+[#1433]: https://github.com/jonruttan/x-lang/pull/1433
+[#1434]: https://github.com/jonruttan/x-lang/pull/1434
+[#1435]: https://github.com/jonruttan/x-lang/pull/1435
+[#1436]: https://github.com/jonruttan/x-lang/pull/1436
+[#1437]: https://github.com/jonruttan/x-lang/pull/1437
+[#1438]: https://github.com/jonruttan/x-lang/pull/1438
+[#1439]: https://github.com/jonruttan/x-lang/pull/1439
+[#1441]: https://github.com/jonruttan/x-lang/pull/1441
+[#1442]: https://github.com/jonruttan/x-lang/pull/1442
+[#1443]: https://github.com/jonruttan/x-lang/pull/1443
+[#1444]: https://github.com/jonruttan/x-lang/pull/1444
+
 ## [0.60.0] - 2026-11-21
 
 **A bundle is `lib/NAME/` with a `bundle.xon`, and its entries are
