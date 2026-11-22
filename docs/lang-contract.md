@@ -429,9 +429,9 @@ with a tag it rolls and publishes nothing.
 
 ### Official bundles: what a release carries
 
-An official bundle is one an x-lang release carries: a library such as `net`,
-or an app. x-lang holds one pin for each, `tools/bundles/NAME.pin.xon`, in
-the form above, and the file is named for the bundle it pins.
+An official bundle is one an x-lang release carries: a library or an app.
+x-lang holds one pin for each, `tools/bundles/NAME.pin.xon`, in the form
+above, and the file is named for the bundle it pins.
 
 | | |
 |---|---|
@@ -439,8 +439,9 @@ the form above, and the file is named for the bundle it pins.
 | `make install` | copies each pinned bundle into the install's `bundles/` |
 
 `make bundles` is `(Pin install ...)` once a pin, so the digest is checked
-before tar runs and a failed acquisition keeps the copy that was there. The
-pin a bundle was acquired at is kept beside it, `deps/bundles/NAME.pin`; a
+before the archive is unpacked and a failed acquisition keeps the copy that
+was there. The pin a bundle was acquired at is kept beside it,
+`deps/bundles/NAME.pin`; a
 bundle whose record matches its pin is left alone, with no network, and a pin
 that changed is fetched again.
 
