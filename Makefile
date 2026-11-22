@@ -476,7 +476,7 @@ check-help-examples: $(EXECUTABLE) ## Count the doc entries that show no example
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: engine-link check-engine-fetch check-bundles-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-bundle-kit-harness check-bundle-kit-lint check-bundle-kit-spec-gate check-bundle-kit-dup-defs check-bundle-kit-card check-bundle-kit-doctest check-card check-pin check-release-manifest check-bootstrap check-package check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-bundles check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-highlight-roundtrip check-primitives-doc check-help-examples ## Run the contract gates
+gates: engine-link check-engine-fetch check-bundles-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-bundle-kit-harness check-bundle-kit-lint check-bundle-kit-spec-gate check-bundle-kit-dup-defs check-bundle-kit-card check-bundle-kit-doctest check-bundle-kit-roll check-card check-pin check-release-manifest check-bootstrap check-package check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-bundles check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-highlight-roundtrip check-primitives-doc check-help-examples ## Run the contract gates
 .PHONY: gates
 
 .PHONY: check-spec-weights
@@ -507,7 +507,7 @@ check-spec-globals: ## No spec rebinds a name the engine or library owns
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: engine-link check-engine-fetch check-bundles-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-bundle-kit-harness check-bundle-kit-lint check-bundle-kit-spec-gate check-bundle-kit-dup-defs check-bundle-kit-card check-bundle-kit-doctest check-card check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
+gates-fast: engine-link check-engine-fetch check-bundles-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-bundle-kit-harness check-bundle-kit-lint check-bundle-kit-spec-gate check-bundle-kit-dup-defs check-bundle-kit-card check-bundle-kit-doctest check-bundle-kit-roll check-card check-dup-defs check-bare-globals check-private-reads check-provide-names check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-changelog-commits check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast check-asan-boot test-c test-x ## Pre-push gate: fast gates, the ASan boot, both spec suites (CI runs full `make test`)
@@ -702,6 +702,10 @@ check-bundle-kit-dup-defs: ## The bundle kit's dup-defs fails a bundle whose fil
 check-bundle-kit-doctest: boot ## The bundle kit's doctest runs a bundle's documentation examples, and fails one that does not print what it says
 	sh tools/check/bundle-kit-doctest.sh
 .PHONY: check-bundle-kit-doctest
+
+check-bundle-kit-roll: $(EXECUTABLE) ## The bundle kit's roll writes a tarball and a pin a consumer installs from
+	sh tools/check/bundle-kit-roll.sh
+.PHONY: check-bundle-kit-roll
 
 check-bundle-kit-card: ## The bundle kit's card check refuses a card outside the format, and a shell row that gives other output
 	sh tools/check/bundle-kit-card.sh

@@ -1,0 +1,165 @@
+name: Bundle release
+
+# A bundle's release, for a bundle to call: the suite on the x-lang it
+# declares, then the tarball and the pin a consumer installs from
+# (tools/bundle-kit/roll.sh), published as a GitHub release.
+#
+# A bundle's own .github/workflows/release.yml:
+#
+#   on:
+#     push:
+#       tags: ['v*']
+#     workflow_dispatch:
+#       inputs:
+#         tag:
+#           description: 'Tag to roll (a dry run: publishes nothing)'
+#           required: true
+#   jobs:
+#     release:
+#       permissions:
+#         contents: write
+#       uses: jonruttan/x-lang/.github/workflows/bundle-release.yml@main
+#       with:
+#         tag: ${{ inputs.tag }}
+#
+# A pushed tag publishes.  A run started by hand rolls the tag it is given,
+# keeps the files as an artifact, and publishes nothing.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: >-
+          The tag to roll when the run was not started by a pushed tag.
+        type: string
+        default: ""
+      spec-env:
+        description: >-
+          Environment for the spec gate, as space-separated NAME=VALUE pairs:
+          the runner knobs a suite needs, such as SPEC_BATCH or
+          TIMEOUT_UNIT_SECS.
+        type: string
+        default: ""
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      # The whole history: roll.sh archives from the tag.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - id: tag
+        name: The tag
+        run: |
+          if [ "${{ github.event_name }}" = push ]; then
+            tag="${{ github.ref_name }}"
+          else
+            tag="${{ inputs.tag }}"
+          fi
+          if [ -z "$tag" ]; then
+            echo "no tag: push one, or give one to a run started by hand" >&2
+            exit 1
+          fi
+          git rev-parse --verify --quiet "$tag^{commit}" >/dev/null || {
+            echo "no such tag: $tag" >&2
+            exit 1
+          }
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      # The bundle as it is at the tag is what is tested and what is rolled.
+      - name: Check the tag out
+        run: git checkout --quiet "${{ steps.tag.outputs.tag }}"
+
+      - id: declared
+        name: Read (requires-release ...) from bundle.xon
+        run: |
+          version=$(sed -n 's/^(requires-release "\(.*\)")$/\1/p' bundle.xon)
+          if [ -z "$version" ]; then
+            echo "bundle.xon declares no (requires-release ...)" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check out x-lang
+        uses: actions/checkout@v7
+        with:
+          repository: jonruttan/x-lang
+          ref: ${{ steps.declared.outputs.version }}
+          path: .x-lang
+
+      # As bundle.yml does: each (requires-bundle "NAME") row, cloned beside
+      # the bundle.
+      - name: Check out the bundles this bundle requires
+        run: |
+          {
+            sed -n 's/^(requires-bundle "\([^"]*\)"[^"]*"\([^"]*\)").*/\1 \2/p' bundle.xon
+            sed -n 's/^(requires-bundle "\([^"]*\)")[[:space:]]*$/\1/p' bundle.xon
+          } | while read -r name version; do
+            echo "x-$name ${version:-default branch}"
+            git clone --quiet --depth 1 ${version:+--branch "$version"} \
+              "https://github.com/jonruttan/x-$name.git" "../x-$name"
+          done
+
+      - name: Build the platform
+        working-directory: .x-lang
+        run: |
+          make engine
+          make
+          make boot
+
+      # The last point a bad bundle can be stopped before it has a digest and
+      # a URL.
+      - name: Run the spec gate
+        run: env ${{ inputs.spec-env }} X="$PWD/.x-lang/x.sh" sh tests/spec-gate.sh
+
+      # The roll is main's, as the checks in bundle.yml are: a bundle does
+      # not move its release to follow a fix to it.
+      - name: Check out the bundle kit
+        uses: actions/checkout@v7
+        with:
+          repository: jonruttan/x-lang
+          ref: main
+          path: .x-kit
+          sparse-checkout: tools/bundle-kit
+
+      - name: Roll the bundle
+        run: |
+          BUNDLE=. BUNDLE_REPO="${{ github.repository }}" \
+            sh .x-kit/tools/bundle-kit/roll.sh "${{ steps.tag.outputs.tag }}" dist
+          cat dist/bundle.pin.xon
+
+      - name: Keep the files
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ steps.tag.outputs.tag }}
+          path: dist/
+
+      - name: Publish
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ steps.tag.outputs.tag }}"
+          repo="${{ github.repository }}"
+          {
+            echo '## Install'
+            echo
+            echo '```sh'
+            echo "x --install-bundle https://github.com/$repo/releases/download/$tag/bundle.pin.xon"
+            echo '```'
+            echo
+            echo '## The pin'
+            echo
+            echo '```x'
+            cat dist/bundle.pin.xon
+            echo '```'
+          } > notes.md
+          gh release create "$tag" --repo "$repo" \
+            --title "${repo##*/} $tag" \
+            --notes-file notes.md \
+            dist/*.tar.gz dist/*.tar.gz.sha256 dist/bundle.pin.xon
