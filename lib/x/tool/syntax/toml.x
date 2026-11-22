@@ -102,13 +102,11 @@
 
 (Syntax register!
   (let ((g (Syntax make (lit toml) (%sxt-rules) %sxt-classes)))
-    (g end "\n")
     (g files (list ".toml"))
     g))
 
 (Syntax register!
   (let ((g (Syntax make (lit ini) (%sxt-rules) %sxt-classes)))
-    (g end "\n")
     (g files (list ".ini" ".cfg"))
     g))
 

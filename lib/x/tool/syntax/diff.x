@@ -49,7 +49,6 @@
 (Syntax register!
   (let ((g (Syntax make (lit diff) (%sxd-rules) (list (pair (lit line) %sxd-line)))))
     (g sync (fn (_ _ _) #t))
-    (g end "\n")
     (g files (list ".diff" ".patch"))
     g))
 

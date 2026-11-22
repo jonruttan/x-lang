@@ -216,7 +216,6 @@
   (let ((g (Syntax make (lit markdown) (%sxm-rules)
              (list (pair (lit comment) (lit comment)) (pair (lit fence) %sxm-fence)
                    (pair (lit line) %sxm-line)))))
-    (g end "\n")
     (g files (list ".md" ".markdown"))
     g))
 

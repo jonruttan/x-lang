@@ -133,7 +133,7 @@ same value on any word: when it changes, bump
 (do
   (import x/codec/crc32)
   (def %lp-key (Str append "lexer:" (%number->str (Lexer %plan-version)) ":"
-                 ((prim-ref (lit io) (lit write-to-str)) (pair " " %lp-rules))))
+                 ((prim-ref (lit io) (lit write-to-str)) %lp-rules)))
   (def %lp-held ((prim-ref (lit compile) (lit asm-cache-group)) %lp-key
                   (fn (_) ((prim-ref (lit compile) (lit asm-cache-group-held))))))
   (def %lp-id (%lp-ac (lit %asm-cache-identity)))
@@ -147,7 +147,7 @@ same value on any word: when it changes, bump
   (newline))
 ```
 ---
-    (42 #t 2530260570)
+    (42 #t 914687093)
 
 ### the plan's text reads back as the plan, and text that is not one is no plan
 

@@ -827,8 +827,6 @@
     (example "((Syntax x) name)" "'x"))
   (doc (rules ()) "The Lexer rules, each token's tag looked up in classes"
     (example "((Syntax make 'plain (list (Lexer any 'text)) ()) rules)" "(('any \"text\" 'text))"))
-  (doc (end " ") "The Lexer's end text: see Lexer's end field"
-    (example "((Syntax x) end)" "\" \""))
   (doc (classes ()) "Each (TAG . CLASS): CLASS a class symbol, nil to leave the token plain, or a function of the token's text answering one, or answering the token's pieces, each (offset length class) inside the text, in order, a piece of class nil left plain"
     (example "(List map (fn (_ p) (first p)) ((Syntax x) classes))" "('comment 'string 'char 'paren 'atom 'bad)"))
   (doc (sync ()) "A test (fn (_ text offset)) of a line start, true where the lexer can start outside any string or comment; nil to read from the text's start"
@@ -863,7 +861,7 @@
     (%sx-class-of (self classes) tag text))
 
   (method %lexer (self)
-    (if (null? (self lexer)) (self lexer (Lexer make (self rules) (self end))) ())
+    (if (null? (self lexer)) (self lexer (Lexer make (self rules))) ())
     (self lexer))
 
   (static
@@ -873,15 +871,15 @@
       (doc "A grammar. Set sync, lines and files on it after, and register! it to have for-file find it."
         (returns Syntax "The grammar")
         (sample "(Syntax make 'ini (list (Lexer until 'comment \";\" \"\\n\" 'to-end) (Lexer run 'blank \" \\t\\n\" \" \\t\\n\") (Lexer any 'text)) (list (pair 'comment 'comment)))" "comments coloured, everything else plain"))
-      (let ((lexer ()) (sync ()) (lines 100) (files ()) (names ()) (interpreters ()) (end " "))
-        (new Syntax name name rules rules end end classes classes sync sync lines lines files files
+      (let ((lexer ()) (sync ()) (lines 100) (files ()) (names ()) (interpreters ()))
+        (new Syntax name name rules rules classes classes sync sync lines lines files files
                     names names interpreters interpreters lexer lexer)))
 
     (method over (self (param l Lexer "A Lexer whose rules read every byte")
                        (param classes LIST "Each (TAG . CLASS), as the classes field takes them"))
       (doc "A grammar over a Lexer already made, reading from the text's start."
         (returns Syntax "The grammar")
-        (example "((Syntax over (Lexer make (list (Lexer run 'w \"ab\" \"ab\")) \" \") (list (pair 'w 'name))) spans \"ab\")" "((0 2 'name))"))
+        (example "((Syntax over (Lexer make (list (Lexer run 'w \"ab\" \"ab\"))) (list (pair 'w 'name))) spans \"ab\")" "((0 2 'name))"))
       (let ((g (Syntax make (lit lexer) (l rules) classes))) (g lexer l) g))
 
     (method x (self)
