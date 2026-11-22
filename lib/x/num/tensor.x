@@ -169,6 +169,7 @@
       (self %jit (lit gather))
       (self %jit (lit gather-check))
       (self %jit (lit f64-order))
+      (self %jit (lit f64-runs))
       (self compiled))
 
     (method compiled (self)
@@ -933,6 +934,60 @@
             ; in is held to here, so its address stayed good
             (do in (int= (mem-cmp (str->ptr (first a)) (str->ptr (first b)) (int* 8 %word-size)) 0))))))
 
+    ; --- the runs kernel ------------------------------------------------------
+    ; Where each run of equal values starts among doubles taken in an
+    ; order that brings equal ones together: the doubles' address in word
+    ; 0, the order's in word 1, the buffer the starts are written to in
+    ; word 2, the count in word 3, the place reached in word 5, from 1,
+    ; and the number of runs in word 6, from 1 with a 0 already written for
+    ; the first.  The budget is word 8.  It runs only once compiled.
+    (%runs-form
+      (lit (fn (self s)
+             (match
+               ((= (%mem-ref s 8) 0) 0)
+               ((< (%mem-ref s 5) (%mem-ref s 3))
+                 (do (if (f= (f-ref (%mem-ref s 0) (%mem-ref-at (%mem-ref s 1) (%mem-ref s 5)))
+                             (f-ref (%mem-ref s 0) (%mem-ref-at (%mem-ref s 1) (- (%mem-ref s 5) 1))))
+                       0
+                       (do (%mem-set-at! (%mem-ref s 2) (%mem-ref s 6) (%mem-ref s 5))
+                           (%mem-set! s 6 (+ (%mem-ref s 6) 1))))
+                     (%mem-set! s 5 (+ (%mem-ref s 5) 1))
+                     (%mem-set! s 8 (- (%mem-ref s 8) 1))
+                     (self s)))
+               (#t 1)))))
+
+    ; (STARTS . SCRATCH) for the runs kernel over N doubles at ADDR taken
+    ; in the order of the words at ORDER.  After it has run, the scratch's
+    ; word 6 is the number of runs.
+    (method %runs-scratch (self addr order n)
+      (let ((out (str-make (int* n %word-size))) (s (str-make 256)))
+        (def fill
+          (fn (go i xs)
+            (if (null? xs) () (do (ptr-set-word! (str->ptr s) (int* i %word-size) (first xs)) (go (int+ i 1) (rest xs))))))
+        (ptr-set-word! (str->ptr out) 0 0)
+        (fill 0 (list addr order (ptr->int (str->ptr out)) n 0 1 1 0 1073741823))
+        (pair out s)))
+
+    ; Whether the compiled kernel finds the runs of eight doubles in their
+    ; order, two pairs of them equal, that the pure one does.
+    (method %runs-agrees? (self compiled)
+      (let ((in (self %check-input (lit f64) (list 3 -2 7 0 -2 9 1 3))) (order (str-make (int* 8 %word-size))))
+        (def fill
+          (fn (go i xs)
+            (if (null? xs) () (do (ptr-set-word! (str->ptr order) (int* i %word-size) (first xs)) (go (int+ i 1) (rest xs))))))
+        (fill 0 (list 1 4 3 6 0 7 2 5))
+        (let ((run (fn (_ kern)
+                     (let ((r (Tensor %runs-scratch (rest in) (ptr->int (str->ptr order)) 8)))
+                       (kern (ptr->int (str->ptr (rest r))))
+                       r)))
+              (runs (fn (_ r) (ptr-ref-word (str->ptr (rest r)) (int* 6 %word-size)))))
+          (let ((a (run (word-form-pure (self %runs-form)))) (b (run compiled)))
+            ; in and order are held to here, so their addresses stayed good
+            (do in order
+                (if (int= (runs a) (runs b))
+                  (int= (mem-cmp (str->ptr (first a)) (str->ptr (first b)) (int* (runs a) %word-size)) 0)
+                  #f))))))
+
     ; --- the class a result takes ------------------------------------------
     ; A subclass, Matrix, keeps its class through the operations that keep
     ; what makes it one.  %make builds an instance of this class from a
@@ -1331,6 +1386,39 @@
               (#t (do (Tensor %lane-credit! (lit f64-order) (int* n 5)) ()))))
           ()))))
 
+  ; The places of a rank-1 f64 tensor's elements parted by value: for
+  ; each distinct value (FIRST . PACKED), the first place it stands at
+  ; and all its places in their order, packed as rows are, the distinct
+  ; values in the order they first come.  () where %order-packed answers
+  ; () or the runs kernel has not compiled; the caller then parts them
+  ; itself.  The runs kernel is built when the order kernel first answers.
+  (method %runs-packed (self)
+    (let ((order (self %order-packed)))
+      (match
+        ((null? order) ())
+        ((not (List ref 1 (Tensor %lane (lit f64-runs)))) (do (Tensor %jit (lit f64-runs)) ()))
+        (#t
+          (let ((f (Tensor %fast)) (st (field (lit st))) (n (rest order)))
+            (let ((src (if ((obj-ref f 3) st) st ((obj-ref f 10) st (first st))))
+                  (ord (str->ptr (first order))))
+              (let ((r (Tensor %runs-scratch ((obj-ref f 13) src) (ptr->int ord) n)))
+                ((obj-ref f 14) (lit f64-runs) (rest r))
+                (let ((starts (str->ptr (first r)))
+                      (m (ptr-ref-word (str->ptr (rest r)) (int* 6 %word-size))))
+                  ; each run copied out to words of its own, the last first
+                  (def go
+                    (fn (go j end acc)
+                      (if (int< j 0) acc
+                        (let ((start (ptr-ref-word starts (int* j %word-size))))
+                          (let ((len (int- end start)))
+                            (let ((buf (str-make (int* len %word-size))))
+                              (mem-copy (str->ptr buf) (int->ptr (int+ (ptr->int ord) (int* start %word-size)))
+                                        (int* len %word-size))
+                              (go (int- j 1) start
+                                  (pair (pair (ptr-ref-word ord (int* start %word-size)) (pair buf len)) acc))))))))
+                  (do src order
+                      (List sort (fn (_ a b) (int< (first a) (first b))) (go (int- m 1) n ())))))))))))
+
   (method as (self (param enc SYMBOL "The encoding: f64, f32, i64 or c128"))
     (doc "A contiguous copy in another encoding. f64 to f32 rounds each element to the nearest single, and f32 to f64 is exact; f64 or f32 to i64 truncates toward zero; a real encoding to c128 gives each element a 0 imaginary part. A c128 tensor is refused: take its real or imaginary part."
       (returns Tensor "A fresh tensor of the same extent")
@@ -1490,6 +1578,7 @@
 (Tensor %register! (lit gather) (Tensor %gather-form) (fn (_ compiled) (Tensor %gather-agrees? compiled)))
 (Tensor %register! (lit gather-check) (Tensor %gather-check-form) (fn (_ compiled) (Tensor %gather-check-agrees? compiled)))
 (Tensor %register! (lit f64-order) (Tensor %order-form) (fn (_ compiled) (Tensor %order-agrees? compiled)))
+(Tensor %register! (lit f64-runs) (Tensor %runs-form) (fn (_ compiled) (Tensor %runs-agrees? compiled)))
 
 (doc (provide x/num/tensor Tensor)
   "Tensor: n-dimensional arrays of f64, f32, i64 or c128 packed in bytes, with views that share them, broadcasting element-wise arithmetic and reductions run in kernels that compile once they have run long enough."
