@@ -76,7 +76,6 @@
 
 ; --- boot/reflect.x: type words, and what a state image has to remake --------
 (shared "lib/x/boot/reflect.x" %image-recache! "runs the recache hooks once a state image has loaded")
-(shared "lib/x/boot/reflect.x" %image-recache-hooks "the thunks that recompute cached addresses after a state image loads; a module adds its own")
 (shared "lib/x/boot/reflect.x" %image-transients "the names and thunks a state image leaves out; a module adds its own")
 (shared "lib/x/boot/reflect.x" %ptr->obj "the catalogue's ptr ->obj, fetched once")
 (shared "lib/x/boot/reflect.x" %reflect-satom-tw "the type word a type handle carries")

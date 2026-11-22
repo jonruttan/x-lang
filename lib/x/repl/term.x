@@ -31,6 +31,7 @@
 (import x/type/str)
 (import x/sys/posix)
 (import x/platform/syscall)
+(import x/core/doors image-recache-hook!)
 
 (def-class Term ()
   (doc "The terminal a REPL line is read on: raw mode, window size, and byte-to-key decoding. Every method takes the descriptor explicitly -- this class holds no ambient tty."
@@ -730,7 +731,7 @@
 ; different one -- the same rule repl/ansi.x follows for whether there is a
 ; terminal at all.
 (Term %resolve!)
-(set! %image-recache-hooks (pair (fn (_) (Term %resolve!)) %image-recache-hooks))
+(image-recache-hook! (fn (_) (Term %resolve!)))
 
 (doc (provide x/repl/term Term)
   (note "Raw mode is meant to bracket a single line read: repl/line.x restores the terminal before the form it read is evaluated.")

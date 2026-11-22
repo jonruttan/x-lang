@@ -41,7 +41,7 @@
 (import x/repl/paint)
 (import x/reader/indent)
 
-(import x/core/doors char->int heap-collect int& int+ int- int< int= str-append str-byte-len str-byte-ref str-byte-sub)
+(import x/core/doors char->int heap-collect int& int+ int- int< int= str-append str-byte-len str-byte-ref str-byte-sub image-recache-hook!)
 (def %ln-byte (fn (_ s i) (char->int (str-byte-ref s i))))
 
 ; x has no automatic collect, and the turn sweep runs between lines; every key
@@ -919,7 +919,7 @@
       (set! %ln-own %ln-repl))))
 
 (%ln-install!)
-(set! %image-recache-hooks (pair (fn (_) (%ln-install!)) %image-recache-hooks))
+(image-recache-hook! (fn (_) (%ln-install!)))
 
 (doc (provide x/repl/line Line)
   (note "Built on repl/edit.x (the buffer), repl/term.x (the tty) and repl/paint.x (the colour); each is usable on its own.")

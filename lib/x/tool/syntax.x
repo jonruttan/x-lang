@@ -46,7 +46,7 @@
 
 ; The walks run per token and per byte, so they ride cached prims: a class
 ; door costs a dispatch and allocates.
-(import x/core/doors char->int int+ int- str-append str-byte-len str-byte-ref str-byte-sub tok-read-str)
+(import x/core/doors char->int int+ int- str-append str-byte-len str-byte-ref str-byte-sub tok-read-str image-recache-hook!)
 (def %sx-bytes  (prim-ref (lit str)  (lit from-list)))
 (def %sx-byte (fn (_ s i) (char->int (str-byte-ref s i))))
 
@@ -1053,8 +1053,8 @@
 ; A run string holds no state an image cannot carry, but what the reader
 ; answers can change across a load, so the memo goes with it.  The theme in
 ; use goes too: the theme file an image is made under is not its user's.
-(set! %image-recache-hooks
-  (pair (fn (_) (do (Syntax forget!) (Theme forget!))) %image-recache-hooks))
+(image-recache-hook!
+  (fn (_) (do (Syntax forget!) (Theme forget!))))
 
 (doc (provide x/tool/syntax Syntax Theme)
   (note "One vocabulary of classes, one span shape, three renderers: a grammar never writes markup, and a renderer never reads text.")

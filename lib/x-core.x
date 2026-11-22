@@ -361,7 +361,7 @@
 ; every boot from an image ran with SIGINT at its default: ctrl-c killed the
 ; session outright instead of raising STOP, in every lang and every dialect.
 ; A build without signal support installed the no-op above and re-installs it.
-(set! %image-recache-hooks (pair (fn (_) (sigint-install)) %image-recache-hooks))
+((prim-ref (lit image) (lit recache-hook!)) (fn (_) (sigint-install)))
 
 ; --- Provide ---
 ; Retroactive provides for the boot layer: those files load BEFORE the

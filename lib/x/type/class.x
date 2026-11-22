@@ -3,7 +3,7 @@
 ; wrapper class -- one name per concept)
 (import x/core/alist)
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(import x/core/doors io-display-to-str str->sym str-append str-byte-len str-byte-ref type-by-atom type-make type-make-instance type-of type-push-call type?)
+(import x/core/doors io-display-to-str str->sym str-append str-byte-len str-byte-ref type-by-atom type-make type-make-instance type-of type-push-call type? image-recache-hook! image-transient!)
 ; Fetch the type prims from the catalogue (ns `type` is de-registered, R5).
 (def %type-call-top (prim-ref (lit type) (lit call-top)))
 ; The engine's apply, kept under a fixed name.  The dispatcher applies what
@@ -97,11 +97,10 @@
 ; again.  A move made before then sets aside and restores the spare, which
 ; costs nothing and keeps the move free of a nil test.
 (def %tab-handler-cell (%reflect-base-cell (lit error-handler)))
-(set! %image-transients
-  (pair (fn (_) (set! %tab-handler-cell (list ()))) %image-transients))
-(set! %image-recache-hooks
-  (pair (fn (_) (set! %tab-handler-cell (%reflect-base-cell (lit error-handler))))
-        %image-recache-hooks))
+(image-transient!
+  (fn (_) (set! %tab-handler-cell (list ()))))
+(image-recache-hook!
+  (fn (_) (set! %tab-handler-cell (%reflect-base-cell (lit error-handler)))))
 
 ; Find `sel` in a flat table and self-organize: a hit DEEPER THAN POSITION
 ; TWO moves its (sel . entry) pair to the head and every pair above it one
