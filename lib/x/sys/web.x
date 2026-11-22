@@ -56,7 +56,7 @@
 (import x/codec/bytes)
 (import x/codec/sha1)
 (import x/codec/base64)
-(import x/core/doors char->int int/ ptr-set! str->ptr str-byte-ref str-make)
+(import x/core/doors char->int int% int/ ptr-set! str->ptr str-byte-ref str-make)
 
 (def-class Web ()
   (doc "A window in a browser tab: Sdl's messages answered by a page that shows an RGBA picture on a canvas, plays signed 16-bit sound through Web Audio, and sends keys and gamepad input back over a WebSocket."
@@ -558,13 +558,45 @@ connect();requestAnimationFrame(padLoop);
       ())
 
     ; --- Sound: a stream is a vector of its number, its rate, its channels
-    ; and the time, in microseconds, when what was sent to it ends.
+    ; and the time when what was sent to it ends.  A time is kept as the
+    ; clock gives it, (seconds . microseconds): seconds times a million
+    ; does not fit a 32-bit engine's integer.  %after and %unplayed split
+    ; their products so that none exceeds the rate times a thousand or the
+    ; answer, which keeps a stream's arithmetic within a 32-bit integer for
+    ; rates below 2,147,483 bytes a second.
     (method %now (self)
-      (doc "The wall clock in microseconds."
-        (returns INTEGER "Microseconds since the epoch")
-        (sample "(Web %now)" "1752861000123456"))
-      (def t (Sys time-of-day))
-      (+ (* 1000000 (first t)) (rest t)))
+      (doc "The wall clock, as a stream's times are kept."
+        (returns PAIR "(seconds . microseconds)")
+        (sample "(Web %now)" "(1752861000 . 123456)"))
+      (Sys time-of-day))
+
+    (method %after (self (param t PAIR "A time, (seconds . microseconds)")
+                         (param n INTEGER "Bytes, 0 or more")
+                         (param rate INTEGER "Bytes a second"))
+      (doc "The time at which n bytes played at rate from t end, to the microsecond below."
+        (returns PAIR "(seconds . microseconds)")
+        (example "(Web %after (pair 10 990000) 4096 176400)" "(11 . 13219)")
+        (example "(Web %after (pair 0 0) 635040000 176400)" "(3600 . 0)"))
+      (def part (* 1000 (int% n rate)))
+      (def us (+ (rest t) (* 1000 (int/ part rate)) (int/ (* 1000 (int% part rate)) rate)))
+      (pair (+ (first t) (int/ n rate) (int/ us 1000000)) (int% us 1000000)))
+
+    (method %unplayed (self (param t PAIR "A time, (seconds . microseconds)")
+                            (param end PAIR "When what was sent ends")
+                            (param rate INTEGER "Bytes a second"))
+      (doc "The bytes at rate that play between t and end, to the byte below; 0 once end has passed."
+        (returns INTEGER "Bytes")
+        (example "(Web %unplayed (pair 10 990000) (pair 11 13219) 176400)" "4095")
+        (example "(Web %unplayed (pair 0 0) (pair 3600 0) 176400)" "635040000")
+        (example "(Web %unplayed (pair 11 0) (pair 10 500000) 176400)" "0"))
+      (def dus (- (rest end) (rest t)))
+      (def ds (- (first end) (first t) (if (< dus 0) 1 0)))
+      (def us (if (< dus 0) (+ dus 1000000) dus))
+      (if (< ds 0)
+        0
+        (let ((ms-part (* rate (int/ us 1000))))
+          (+ (* ds rate) (int/ ms-part 1000)
+             (int/ (+ (* 1000 (int% ms-part 1000)) (* rate (int% us 1000))) 1000000)))))
 
     (method %opened (self (param s VECTOR "A stream"))
       (doc "The message that opens a stream on the page."
@@ -606,8 +638,11 @@ connect();requestAnimationFrame(padLoop);
         (sample "(Web audio-put! s buf 4096)" "s"))
       (def win (Web %window))
       (def now (Web %now))
-      (def from (if (> (Vector ref 3 s) now) (Vector ref 3 s) now))
-      (Vector set! 3 (+ from (int/ (* n 1000000) (Web %rate s))) s)
+      (def end (Vector ref 3 s))
+      (def from (if (or (> (first end) (first now))
+                        (and (= (first end) (first now)) (> (rest end) (rest now))))
+                  end now))
+      (Vector set! 3 (Web %after from n (Web %rate s)) s)
       (unless (null? win)
         (do (Web %serve! win)
             (let ((head (str-make 3)))
@@ -620,8 +655,7 @@ connect();requestAnimationFrame(padLoop);
       (doc "Bytes sent to the stream and not yet played, by the clock."
         (returns INTEGER "Bytes")
         (sample "(Web audio-queued s)" "8820"))
-      (def left (- (Vector ref 3 s) (Web %now)))
-      (if (> left 0) (int/ (* left (Web %rate s)) 1000000) 0))
+      (Web %unplayed (Web %now) (Vector ref 3 s) (Web %rate s)))
 
     (method audio-clear! (self (param s VECTOR "A stream from audio-open"))
       (doc "Drop what the stream has not played."
