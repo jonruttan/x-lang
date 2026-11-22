@@ -124,7 +124,10 @@ jobs:
           repository: jonruttan/x-lang
           ref: main
           path: .x-kit
-          sparse-checkout: tools/bundle-kit
+          sparse-checkout: |
+            /tools/bundle-kit/
+            /tools/check/doctest.x
+          sparse-checkout-cone-mode: false
 
       # The examples the bundle's documentation carries, each run and held to
       # what it says it prints (tools/bundle-kit/doctest.sh).  The script is
