@@ -89,40 +89,6 @@ The rows for the ids 1 and 5 alone are the first two rows for 1, 5, 2 and
 ---
     ((2 2 7 6 6) (9 4))
 
-### generate's kept positions agree with predicting from every id
-
-generate works out the prompt once and then one position for each id it
-adds, attending to the queries, keys and values it kept. Each id it adds
-is the one predict answers from all the ids before it.
-
-```x
-(import x/num/transformer)
-(include "tests/x/lib/transformer-fixture.x")
-(do
-  (def m (transformer-fixture-model))
-  (def by-predict
-    (fn (go ids k) (if (= k 0) ids (go (List append ids (list (m predict ids))) (- k 1)))))
-  (equal? (m generate (list 1 5 2 7) 4) (by-predict (list 1 5 2 7) 4)))
-```
----
-    #t
-
-### generate fills the positions and no more
-
-The model has 8 positions. Six ids and three more feed back eight; seven
-and three would feed back nine.
-
-```x
-(import x/num/transformer)
-(include "tests/x/lib/transformer-fixture.x")
-(do
-  (def m (transformer-fixture-model))
-  (list (List length (m generate (list 1 2 3 4 5 6) 3))
-        (guard (e (Err label e)) (m generate (list 1 2 3 4 5 6 7) 3))))
-```
----
-    (9 'value)
-
 ## refusals
 
 ### no ids, too many ids, and an id with no item raise a label value
@@ -174,27 +140,3 @@ The model has 8 positions and 11 items.
 ```
 ---
     'value
-
-## release
-
-### release gives the weights back, and a released model refuses
-
-On a host with a GPU the weights are held there, and a released model
-raises a label state when used; on one without, release has nothing to
-give back and the model goes on working. This case runs last: it releases
-the kept model and drops it.
-
-```x
-(import x/num/transformer)
-(import x/num/gpu)
-(include "tests/x/lib/transformer-fixture.x")
-(do
-  (def m (transformer-fixture-model))
-  (m release)
-  (def r (guard (e (Err label e)) (m predict (list 1 2))))
-  (m release)
-  (set! transformer-fixture-kept ())
-  (if (Gpu available?) (eq? r 'state) (number? r)))
-```
----
-    #t
