@@ -127,7 +127,7 @@
     ; recorded by the old code would otherwise be replayed as the new.  The
     ; digest case in tests/x/specs/lib/lexer-plan.spec.md fails on any such
     ; change until both it and this number are updated.
-    (%plan-version 6)
+    (%plan-version 7)
     ; Group keys made, as ((RULES END . KEY) ...): a key is the rules and the
     ; end text printed, which costs a make more than its replay's types do, and
     ; a remake -- the recache hook after every image load -- asks again for
@@ -269,10 +269,11 @@
     (method quoted (self (param tag SYMBOL "The token's tag")
                          (param open INTEGER "The opening byte")
                          (param close INTEGER "The closing byte")
-                         (param esc ANY "The escape byte, or nil for none"))
-      (doc "A rule for a quoted literal: open, a body in which esc takes the next byte literally, close. The token's text is the raw literal with its quotes; decoding escapes is the reader's work, done once per token rather than per character."
+                         (param esc ANY "The escape byte, the close byte for a doubled close, or nil for none"))
+      (doc "A rule for a quoted literal: open, a body in which esc takes the next byte literally, close. When esc is the close byte, a close written twice is one byte of the body, as SQL and CSV write a quote inside a quoted literal. The token's text is the raw literal with its quotes; decoding escapes is the reader's work, done once per token rather than per character."
         (returns LIST "The rule")
-        (sample "(Lexer quoted 'str 34 34 92)" "a C string literal"))
+        (sample "(Lexer quoted 'str 34 34 92)" "a C string literal")
+        (sample "(Lexer quoted 'str 39 39 39)" "an SQL string literal, 'it''s' one token"))
       (list (lit quoted) (Str8 str tag) tag open close esc))
 
     (method until (self (param tag ANY "The token's tag, or nil to drop the token")
@@ -618,10 +619,24 @@
       (Lexer %trie-state l root))
 
     ; A quoted body loops until close; esc hands the next byte, whatever it
-    ; is, back to the body.  The closing byte is taken into the token.
+    ; is, back to the body.  The closing byte is taken into the token.  When
+    ; esc is the close itself, a close followed by another is one byte of the
+    ; body: the state after a close goes back to the body on a second one,
+    ; and otherwise ends the token before the byte it reads.
     (method %quoted-states (self l open close esc)
       (def body-cell (pair () ()))
+      (def doubled? (if (null? esc) #f (= (Lexer %code esc) (Lexer %code close))))
       (def body
+        (if doubled?
+          (let ((closed (Lexer %state l
+                          (Lexer %state-form
+                            (list (lit if) (list (lit =) (lit chr) (Lexer %code close))
+                              (lit (first cell)) (Lexer %accept)))
+                          (list (pair (lit cell) body-cell)))))
+            (Lexer %state l
+              (Lexer %state-form
+                (list (lit if) (list (lit =) (lit chr) (Lexer %code close)) (lit closed) (lit me)))
+              (list (pair (lit closed) closed))))
         (if (null? esc)
           (Lexer %state l
             (Lexer %state-form
@@ -640,7 +655,7 @@
               (Lexer %state-form
                 (list (lit if) (list (lit =) (lit chr) (Lexer %code close)) (Lexer %take)
                   (list (lit if) (list (lit =) (lit chr) (Lexer %code esc)) (lit esc) (lit me))))
-              (list (pair (lit esc) after))))))
+              (list (pair (lit esc) after)))))))
       (%set-first! body-cell body)
       ; the cell is reached only through the compiled states' baked address, so
       ; the lexer holds it, or a collect frees it under them
