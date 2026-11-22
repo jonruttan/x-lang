@@ -128,6 +128,10 @@ say "built: $VER"
 # --- Optionally install to a user prefix (no sudo).
 if [ -n "$X_INSTALL" ]; then
 	say "installing to $X_PREFIX (no sudo)"
+	# The official bundles the release carries (tools/bundles/): `make install`
+	# copies each pinned one and fails on one that was not acquired.
+	( cd "$SRC" && make --no-print-directory bundles >/dev/null ) \
+		|| die "could not acquire the official bundles"
 	( cd "$SRC" && CC="$CC_BIN" make --no-print-directory install PREFIX="$X_PREFIX" >/dev/null ) \
 		|| die "install failed"
 	BIN="$X_PREFIX/bin/x"

@@ -40,6 +40,12 @@ fail() { echo "bootstrap-smoke: FAIL: $1" >&2; [ -f "$T/log" ] && sed 's/^/  /' 
 	| { mkdir -p "$T/tree" && tar -x -C "$T/tree" -f -; } \
 	|| fail "staging the tracked-source copy failed"
 
+# The copy pins no official bundle.  bootstrap --install acquires the pinned
+# ones, which is a download, and what a pin does to an install is
+# check-bundles-fetch's, on a fixture.  With none pinned the same steps run
+# and fetch nothing.
+rm -f "$T/tree/tools/bundles"/*.pin.xon
+
 # Build + install to the temp prefix from INSIDE the copy; run from $T so
 # the in-checkout detection triggers on the copy, never the repo.
 # Offline, deliberately.  bootstrap acquires an engine, and a gate that
