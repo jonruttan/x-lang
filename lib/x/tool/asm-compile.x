@@ -8,7 +8,7 @@
 ; two accessors emit exports.
 (import x/tool/compile/emit compile-fvars-set! compile-fvar-lookup)
 ; Fetch the raw-object prims from the catalogue (ns `obj` is de-registered, R5).
-(import x/core/doors ffi-dlopen ffi-dlsym int% io-write-to-str obj->ptr ptr->int ptr-call ptr-set-word! str->sym type-of)
+(import x/core/doors ffi-dlopen ffi-dlsym int% io-write-to-str obj->ptr ptr->int ptr-call ptr-set-word! str->sym type-of image-recache-hook! image-transient!)
 (def %make-callable (prim-ref 'obj 'make-callable))
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
@@ -98,16 +98,15 @@
 ; the handle and the rows' names live in this module's frame.  Each row's
 ; binding is cleared by a set! evaluated here, in the module's frame; the
 ; rows are read at run time, so every row made below is covered.
-(set! %image-transients
-  (pair (fn (_)
-          (do (set! %jit-lib ())
-              (set! %jit-libm ())
-              ((fn (self l)
-                 (if (null? l) ()
-                   (do (self (rest l))
-                       (eval (list (lit set!) (first (first l)) ())))))
-               %jit-rows)))
-        %image-transients))
+(image-transient!
+  (fn (_)
+    (do (set! %jit-lib ())
+        (set! %jit-libm ())
+        ((fn (self l)
+           (if (null? l) ()
+             (do (self (rest l))
+                 (eval (list (lit set!) (first (first l)) ())))))
+         %jit-rows))))
 (def %jit-mkint    (%jit-bind! (lit %jit-mkint) "jit_mkint" #f))
 (def %jit-mkpair   (%jit-bind! (lit %jit-mkpair) "jit_mkpair" #f))
 (def %jit-firstobj (%jit-bind! (lit %jit-firstobj) "jit_firstobj" #f))
@@ -171,19 +170,18 @@
       %jit-rows)))
 ; After a load: the handle, then every address in the order it was made
 ; (rows are newest first), then the name table over the new addresses.
-(set! %image-recache-hooks
-  (pair (fn (_)
-          (do (set! %jit-lib (ffi-dlopen () 1))
-              (set! %jit-libm (ffi-dlopen "libm.so.6" 1))
-              (set! %jit-missing ())
-              ((fn (self l)
-                 (if (null? l) ()
-                   (do (self (rest l))
-                       (eval (list (lit set!) (first (first l))
-                               (list %jit-addr (first (rest (first l)))
-                                     (first (rest (rest (first l))))))))))
-               %jit-rows)))
-        %image-recache-hooks))
+(image-recache-hook!
+  (fn (_)
+    (do (set! %jit-lib (ffi-dlopen () 1))
+        (set! %jit-libm (ffi-dlopen "libm.so.6" 1))
+        (set! %jit-missing ())
+        ((fn (self l)
+           (if (null? l) ()
+             (do (self (rest l))
+                 (eval (list (lit set!) (first (first l))
+                         (list %jit-addr (first (rest (first l)))
+                               (first (rest (rest (first l))))))))))
+         %jit-rows))))
 
 ; Stack push/pop ride the per-arch asm-push!/asm-pop! FUNCTIONS: each
 ; backend owns its 16-byte discipline (arm64 pre/post-indexed str/ldr;

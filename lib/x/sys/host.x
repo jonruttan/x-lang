@@ -39,7 +39,7 @@
 (import x/num/float)
 (import x/codec/struct)
 (import x/platform/syscall stat-layout)
-(import x/core/doors int+ int- int* int< int= str-make str-append str-byte-ref str-byte-len str-byte-sub)
+(import x/core/doors int+ int- int* int< int= str-make str-append str-byte-ref str-byte-len str-byte-sub image-recache-hook!)
 ; CPU times are nanoseconds and byte totals pass 2^31 within seconds of
 ; boot: on a 4-byte word they are bigints, which the tower's * and + make
 ; once bigint is loaded.  An 8-byte word holds them all.
@@ -1983,7 +1983,7 @@
 
 ; A resolved symbol is a fact of the process that resolved it: a process
 ; restored from an image resolves its own the first time it asks.
-(set! %image-recache-hooks (pair (fn (_) (Host ctx ()) (Host hz ()) (Host page-size ())) %image-recache-hooks))
+(image-recache-hook! (fn (_) (Host ctx ()) (Host hz ()) (Host page-size ())))
 
 (doc (provide x/sys/host Host)
   (note "Linux reads sysinfo(2) and /proc; Darwin reads sysctl, the Mach host statistics, IOKit and proc_pidinfo over the dlopen FFI; both read utmpx through libc.")

@@ -22,7 +22,7 @@
 (import x/sys/posix)
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
-(import x/core/doors str-append type-push-write)
+(import x/core/doors str-append type-push-write image-recache-hook!)
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 
@@ -248,7 +248,7 @@
 ; the process that has the terminal, after the loader has put back the real
 ; `args` (which --no-color is read from).
 (Ansi install)
-(set! %image-recache-hooks (pair (fn (_) (Ansi install)) %image-recache-hooks))
+(image-recache-hook! (fn (_) (Ansi install)))
 
 (doc (provide x/repl/ansi Ansi)
   (note "Color scheme: LSP semantic tokens — number=yellow, string=green, symbol=blue, char=magenta, bool=bold-red, function=cyan.")

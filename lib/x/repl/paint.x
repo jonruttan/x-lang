@@ -19,7 +19,7 @@
 (import x/tool/syntax)
 
 ; --- cached prims (the walks run per span; none of these may be a door) ---
-(import x/core/doors char->int int% int+ int- obj-same? str-append str-byte-len str-byte-ref)
+(import x/core/doors char->int int% int+ int- obj-same? str-append str-byte-len str-byte-ref image-recache-hook!)
 
 ; --- state, all of it rebuilt by %paint-install! -------------------------
 (def %paint-c-depth ())   ; the codes parens cycle through by nesting depth
@@ -194,8 +194,8 @@
     ; the codes depend on the terminal.
     (method %lexer-painter (self l colours)
       (let ((codes (pair () ())) (last (pair () ())) (g (Syntax over l colours)))
-        (set! %image-recache-hooks
-          (pair (fn (_) (%set-first! codes ()) (%set-first! last ())) %image-recache-hooks))
+        (image-recache-hook!
+          (fn (_) (%set-first! codes ()) (%set-first! last ())))
         (def code
           (fn (_ style)
             (if (null? style) ""
@@ -229,8 +229,8 @@
         (note "A lang that ships a grammar registers its prompt's colour with this and one line: the grammar's rules and its class table are the whole of what the painter knows.")
         (sample "(Lang register! \"scheme\" (list (pair '%repl-paint (Paint grammar (Syntax named 'scheme)))))" "(lang scheme) colours the line being typed as Scheme"))
       (let ((last (pair () ())))
-        (set! %image-recache-hooks
-          (pair (fn (_) (%set-first! last ())) %image-recache-hooks))
+        (image-recache-hook!
+          (fn (_) (%set-first! last ())))
         (fn (_ window . more)
           (if (not (Ansi enabled?)) window
             (let ((before (if (if (null? more) #t (null? (rest more))) () (first (rest more)))))
@@ -322,8 +322,8 @@
 
 (%paint-install!)
 (%paint-install-hook!)
-(set! %image-recache-hooks
-  (pair (fn (_) (do (%paint-install!) (%paint-install-hook!))) %image-recache-hooks))
+(image-recache-hook!
+  (fn (_) (do (%paint-install!) (%paint-install-hook!))))
 
 (doc (provide x/repl/paint Paint)
   (note "The spans are (Syntax x)'s: x/tool/syntax reads the line and classes each token, and this file draws them, adding the paren depths and the pair beside the cursor.")

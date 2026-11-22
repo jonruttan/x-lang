@@ -19,7 +19,7 @@
 
 ; Fetch the raw-object, type and ptr/ffi prims from the catalogue (ns `obj`,
 ; `type`, `ptr` and `ffi` are de-registered, R5).
-(import x/core/doors ffi-dlopen ffi-dlsym obj-make obj-ref obj-set! ptr->int ptr-call ptr-ref ptr-set! type-make type-of)
+(import x/core/doors ffi-dlopen ffi-dlsym obj-make obj-ref obj-set! ptr->int ptr-call ptr-ref ptr-set! type-make type-of image-transient!)
 
 ; --- Platform detection ---
 ; Read from the platform layer, not sniffed from x-machine here.  This module
@@ -130,9 +130,8 @@
 (def %asm-last-buf ())
 ; The buffer is native code, which no image can hold, and the facts are read
 ; straight after a compile and never across a load: an image write drops them.
-(set! %image-transients
-  (pair (fn (_) (do (set! %asm-last-buf ()) (set! %asm-last-relocs ()) (set! %asm-last-size 0)))
-        %image-transients))
+(image-transient!
+  (fn (_) (do (set! %asm-last-buf ()) (set! %asm-last-relocs ()) (set! %asm-last-size 0))))
 
 ; --- Buffers ---
 (def asm-new

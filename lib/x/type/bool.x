@@ -27,7 +27,7 @@
 ; bases, so the first claim serves every base.
 
 (module x/type/bool)
-(import x/core/doors type-make)
+(import x/core/doors type-make image-recache-hook!)
 (def %bool ())
 (set! %bool
   (type-make "BOOL"
@@ -70,21 +70,20 @@
 ; produces to the evaluated one: (eq? (first (lit (#t))) #t).  The image
 ; carries the two interned symbols with bytes of their own, so each is
 ; pointed back at this process's singleton.
-(set! %image-recache-hooks
-  (pair (fn (_)
-          (do (%bool-relabel #t %bool)
-              (%bool-relabel #f %bool)
-              ((fn (self l)
-                 (if (null? l) ()
-                   (do ((prim-ref (lit ptr) (lit set-word!))
-                        ((prim-ref (lit obj) (lit ->ptr)) ((prim-ref (lit str) (lit ->sym)) (first (first l))))
-                        %data-off-0
-                        ((prim-ref (lit ptr) (lit ref-word))
-                         ((prim-ref (lit obj) (lit ->ptr)) (first (rest (first l))))
-                         %data-off-0))
-                       (self (rest l)))))
-               (list (list "#t" #t) (list "#f" #f)))))
-        %image-recache-hooks))
+(image-recache-hook!
+  (fn (_)
+    (do (%bool-relabel #t %bool)
+        (%bool-relabel #f %bool)
+        ((fn (self l)
+           (if (null? l) ()
+             (do ((prim-ref (lit ptr) (lit set-word!))
+                  ((prim-ref (lit obj) (lit ->ptr)) ((prim-ref (lit str) (lit ->sym)) (first (first l))))
+                  %data-off-0
+                  ((prim-ref (lit ptr) (lit ref-word))
+                   ((prim-ref (lit obj) (lit ->ptr)) (first (rest (first l))))
+                   %data-off-0))
+                 (self (rest l)))))
+         (list (list "#t" #t) (list "#f" #f))))))
 
 (doc (provide x/type/bool)
   (example "(Type name (Type of #t))" "\"BOOL\"")

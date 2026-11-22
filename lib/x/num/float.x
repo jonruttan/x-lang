@@ -4,7 +4,7 @@
 
 (import x/type/class)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(import x/core/doors buf-tok tok-read-str str-append char->int ffi-dlopen ffi-dlsym int% int* int+ int/ int= io-display-to-str obj-make obj-ref obj-set! ptr->int ptr-call ptr-ref str-byte-len str-byte-ref str-byte-sub type-by-atom type-from-cell type-make type-make-instance type-of type-push-call type-push-op type?)
+(import x/core/doors buf-tok tok-read-str str-append char->int ffi-dlopen ffi-dlsym int% int* int+ int/ int= io-display-to-str obj-make obj-ref obj-set! ptr->int ptr-call ptr-ref str-byte-len str-byte-ref str-byte-sub type-by-atom type-from-cell type-make type-make-instance type-of type-push-call type-push-op type? image-recache-hook! image-transient!)
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 
@@ -577,49 +577,47 @@
 ; three: the handle, each row's binding (a set! evaluated here, in the
 ; module's frame) and each row's cell.  Registered after the maker and read
 ; at RUN time, so it covers every row made below it.
-(set! %image-transients
-  (pair (fn (_)
-          (do (set! %libm ())
-              (set! %out ())
-              ((fn (self l)
-                 (if (null? l) ()
-                   (do (self (rest l))
-                       ; A held row's closure went to a caller, who holds it by a
-                       ; name of its own, in a frame this one may not reach: its
-                       ; cell is what is emptied, and the name is left alone.  A
-                       ; "ptr" row's caller holds the pointer itself, so its name
-                       ; is set, as every row's was.
-                       (if (if (first (rest (rest (rest (rest (first l))))))
-                             (not (str=? (first (rest (first l))) "ptr")) #f)
-                         ()
-                         (eval (list (lit set!) (first (first l)) ())))
-                       (%set-first! (first (rest (rest (rest (first l))))) ()))))
-               %stub-rows)))
-        %image-transients))
-(set! %image-recache-hooks
-  (pair (fn (_)
-          (do (set! %libm (%libm-open))
-              (set! %out (%out-make))
-              ((fn (self l)
-                 (if (null? l) ()
-                   (do (self (rest l))
-                       ((fn (_ global label name cell held?)
-                          ; A held closure reads its cell, so refilling the cell is
-                          ; the whole of remaking it; the caller's name is not
-                          ; touched, since it may be a module's.  A "ptr" row and
-                          ; a lazy row are rebound, as before.
-                          (if (if held? (not (str=? label "ptr")) #f)
-                            (%set-first! cell (%stub-address label name))
-                            (eval (list (lit set!) global
-                                        (list (lit lit)
-                                              (if (if held? #t (str=? label "ptr"))
-                                                (do (%set-first! cell (%stub-address label name))
-                                                    (%stub-make label cell))
-                                                (%stub-lazy global label name cell)))))))
-                        (first (first l)) (first (rest (first l))) (first (rest (rest (first l))))
-                        (first (rest (rest (rest (first l))))) (first (rest (rest (rest (rest (first l))))))))))
-               %stub-rows)))
-        %image-recache-hooks))
+(image-transient!
+  (fn (_)
+    (do (set! %libm ())
+        (set! %out ())
+        ((fn (self l)
+           (if (null? l) ()
+             (do (self (rest l))
+                 ; A held row's closure went to a caller, who holds it by a
+                 ; name of its own, in a frame this one may not reach: its
+                 ; cell is what is emptied, and the name is left alone.  A
+                 ; "ptr" row's caller holds the pointer itself, so its name
+                 ; is set, as every row's was.
+                 (if (if (first (rest (rest (rest (rest (first l))))))
+                       (not (str=? (first (rest (first l))) "ptr")) #f)
+                   ()
+                   (eval (list (lit set!) (first (first l)) ())))
+                 (%set-first! (first (rest (rest (rest (first l))))) ()))))
+         %stub-rows))))
+(image-recache-hook!
+  (fn (_)
+    (do (set! %libm (%libm-open))
+        (set! %out (%out-make))
+        ((fn (self l)
+           (if (null? l) ()
+             (do (self (rest l))
+                 ((fn (_ global label name cell held?)
+                    ; A held closure reads its cell, so refilling the cell is
+                    ; the whole of remaking it; the caller's name is not
+                    ; touched, since it may be a module's.  A "ptr" row and
+                    ; a lazy row are rebound, as before.
+                    (if (if held? (not (str=? label "ptr")) #f)
+                      (%set-first! cell (%stub-address label name))
+                      (eval (list (lit set!) global
+                                  (list (lit lit)
+                                        (if (if held? #t (str=? label "ptr"))
+                                          (do (%set-first! cell (%stub-address label name))
+                                              (%stub-make label cell))
+                                          (%stub-lazy global label name cell)))))))
+                  (first (first l)) (first (rest (first l))) (first (rest (rest (first l))))
+                  (first (rest (rest (rest (first l))))) (first (rest (rest (rest (rest (first l))))))))))
+         %stub-rows))))
 
 ; The operations on bits.  float's arithmetic, comparisons and conversions
 ; below are these, wrapped.
