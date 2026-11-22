@@ -424,7 +424,7 @@ word.
   (let ((run (fn (_) (list (List map (fn (_ c) (list (first c) ((rest c) ->list))) (t split 'k))
                            (List map (fn (_ c) (list (first c) ((rest c) ->list))) ((t select '(k n)) split 'k))
                            ((t aggregate 'k (list (list 'total 'n (fn (_ c) (c sum)))
-                                                  (list 'names 'name (fn (_ c) (c size))))) ->list)
+                                                  (list 'first-name 'name (fn (_ c) (first (c ->list)))))) ->list)
                            (List map first (t split 'name))
                            ((one aggregate 'k (list (list 'total 'n (fn (_ c) (c sum))))) ->list)))))
     (let ((before (run)))
@@ -432,7 +432,7 @@ word.
       (list (equal? before (run)) (List ref 2 before)))))
 ```
 ---
-    (#t (('k (2.5 1.0 -3.0 0.25)) ('total (10.0 7.0 4.0 7.0)) ('names (3 2 1 1))))
+    (#t (('k (2.5 1.0 -3.0 0.25)) ('total (10.0 7.0 4.0 7.0)) ('first-name ("a" "b" "d" "g"))))
 
 ## Handing a table to a model
 
