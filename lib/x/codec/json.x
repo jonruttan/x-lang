@@ -98,10 +98,25 @@
 (def %json-piece 32768)
 (def %json-more (list 'more ""))
 
-; The text being parsed, its length, where the next piece starts, where the
-; piece in hand started, and that piece's tokens.
+; The text being parsed, its length, where the blank run it ends in starts,
+; where the next piece starts, where the piece in hand started, and that
+; piece's tokens.  The pieces stop where that blank run starts: the Lexer
+; appends a space to every read so a last token meets a byte that ends it,
+; and a blank run takes that space too, so a run at the end of the text
+; never ends and the read drops it, or a lone newline there reads as bad.
 (def %json-src (pair () ()))
 (def %json-len (pair 0 ()))
+(def %json-end (pair 0 ()))
+
+; Where the run of space, tab, CR and LF that ends the first n bytes of s
+; starts; n when they end in none.
+(def %json-blank-from
+  (fn (self s n)
+    (if (int= n 0) 0
+      (let ((b (%json-byte s (int- n 1))))
+        (if (if (int= b 32) #t (if (int= b 10) #t (if (int= b 13) #t (int= b 9))))
+          (self s (int- n 1))
+          n)))))
 (def %json-pos (pair 0 ()))
 (def %json-base (pair 0 ()))
 (def %json-all (pair () ()))
@@ -122,7 +137,7 @@
 (def %json-read
   (fn (_)
     (def s (first %json-src))
-    (def n (first %json-len))
+    (def n (first %json-end))
     (def l (first (%json-lexer)))
     (def hold
       (fn (_ ts i next)
@@ -509,6 +524,7 @@
         (example "(Json parse \"[1, 2.5, null]\")" "(1 2.5 'null)"))
       (%set-first! %json-src s)
       (%set-first! %json-len (str-byte-len s))
+      (%set-first! %json-end (%json-blank-from s (str-byte-len s)))
       (%set-first! %json-pos 0)
       (def v (%json-parse-value (%json-read)))
       (if (null? (%json-skip (rest v)))
