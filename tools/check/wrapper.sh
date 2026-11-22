@@ -162,6 +162,17 @@ want "the first -l is the lead" '"seamprobe"' "$got"
 # `X_BUNDLE_DIR=/path/to/x-NAME/..`.
 got=$(X_BUNDLE_DIR=tools/contract/bundles sh x.sh --no-pin -q -l seamprobe -c '(write %lang-lead)' 2>/dev/null || true)
 want "X_BUNDLE_DIR without a trailing slash finds a bundle" '"seamprobe"' "$got"
+# A bundle's modules read %lang-lead, so it must be bound where they look: in
+# the platform environment, not the program's, which (%module-program!) puts
+# between the program and the library.  Read from the module's own
+# environment, under a second -l, from source and from a state image: the
+# image writer reads the same prefix, and a lead bound in the wrong place
+# there is baked into the image.
+for _route in --no-image ""; do
+	got=$(X_BUNDLE_DIR=tools/contract/bundles/ sh x.sh --no-pin $_route -q -l he -l seamprobe \
+		-c '(write (guard (_ "unbound") (eval (lit %lang-lead) (Module env (lit seamprobe/run)))))' 2>/dev/null || true)
+	want "a bundle's module sees %lang-lead under a second -l${_route:+ ($_route)}" '"he"' "$got"
+done
 got=$(sh x.sh --no-pin -q -l he -c '(write (guard (_ "unbound") %lang-lead))' 2>/dev/null || true)
 want "no bundle, no lead" '"unbound"' "$got"
 if X_BUNDLE_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l he -l xe -c '()' >/dev/null 2>&1; then
