@@ -31,7 +31,7 @@
 (import x/type/str)
 (import x/sys/posix)
 (import x/platform/syscall)
-(import x/core/doors image-recache-hook!)
+(import x/core/doors image-recache-hook! mem-set)
 
 (def-class Term ()
   (doc "The terminal a REPL line is read on: raw mode, window size, and byte-to-key decoding. Every method takes the descriptor explicitly -- this class holds no ambient tty."
@@ -371,10 +371,13 @@
         (returns ANY "The settings, or nil")
         (see apply!) (see setting) (see words)
         (sample "(Term setting (Term settings 0) 'echo)" "#t, at a cooked terminal"))
+      ; Cleared first: a new string's bytes are spaces, and Linux's TCGETS writes
+      ; the kernel's 19 control characters of the 32 musl's termios holds.
       (if (not (Term tty? fd)) ()
         (let ((buf ((prim-ref (lit str) (lit make)) 128)))
-          (if (< (Sys %sign-fold ((prim-ref (lit ptr) (lit call)) (Term c-tcget) fd ((prim-ref (lit str) (lit ->ptr)) buf))) 0) ()
-            buf))))
+          (do (mem-set ((prim-ref (lit str) (lit ->ptr)) buf) 0 128)
+              (if (< (Sys %sign-fold ((prim-ref (lit ptr) (lit call)) (Term c-tcget) fd ((prim-ref (lit str) (lit ->ptr)) buf))) 0) ()
+                buf)))))
 
     (method apply! (self (param fd INTEGER "A terminal's descriptor")
                          (param settings ANY "Settings, as settings answers them"))

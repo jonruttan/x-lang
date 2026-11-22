@@ -25,6 +25,12 @@
 # hand the reader to another language, is left out.  Each module under lib/
 # is imported in turn and the examples its import registers are emitted.
 #
+# An import registers the examples of everything it loads, and a helium
+# bundle loads platform modules its dialect did not boot.  Those examples
+# are the platform's, which `make doctest` holds there.  So what the
+# bundle's sources import from outside the bundle is loaded before the
+# walk, and the walk sees the bundle's own entries alone.
+#
 # Not walked: a listed entry, since importing one sets a session up; a file
 # that is one of another module's files, headed with that module's name; and
 # constructs.x, which is data.
@@ -38,7 +44,6 @@ set -e
 BUNDLE="${BUNDLE:-$(pwd)}"
 BUNDLE=$(cd "$BUNDLE" && pwd)
 X="${X:-x}"
-KIT=$(cd "$(dirname "$0")" && pwd)
 
 _dt_die() {
 	echo "bundle-kit doctest: $*" >&2
@@ -65,7 +70,10 @@ mkdir -p "$OUT"
 rm -f "$OUT"/*.spec.md
 
 # The boot and the roots, with no tail.
-BUNDLE="$BUNDLE" X="$X" GEN_HARNESS_TAIL=0 GEN_HARNESS_OUT="$BOOT" sh "$KIT/gen-harness.sh"
+# The generator is the platform's own, beside the examples generator, so
+# this script may be newer than the x it runs on.
+BUNDLE="$BUNDLE" X="$X" GEN_HARNESS_TAIL=0 GEN_HARNESS_OUT="$BOOT" \
+	sh "${X_BUNDLE_KIT:-$X_ROOT/tools/bundle-kit}/gen-harness.sh"
 
 _NAME=$(sed -n 's/^(name "\([^"]*\)").*/\1/p' "$BUNDLE/bundle.xon" | head -1)
 _ENTRIES=" "
@@ -92,9 +100,22 @@ for _f in $(find "$BUNDLE/lib" -name '*.x' -not -name 'constructs.x' | sort); do
 done
 
 _TMP=$(mktemp) || exit 1
-trap 'rm -f "$_TMP"' EXIT
+_PRE=$(mktemp) || exit 1
+trap 'rm -f "$_TMP" "$_PRE"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+# What the bundle imports from outside itself, read from its sources: a
+# module name whose first segment is not the bundle's.  Comment lines are
+# left out.  Each is loaded under a guard, so a name the text holds that
+# is no module costs nothing.
+find "$BUNDLE/lib" -name '*.x' -exec grep -h -v '^[[:space:]]*;' {} + \
+	| grep -o '(import [a-z0-9][a-z0-9/._-]*' \
+	| sed 's/^(import //' | sort -u \
+	| while read -r _i; do
+		case "$_i" in "$_NAME"/*) continue ;; esac
+		printf "(guard (e ()) (eval! (list 'import '%s)))\n" "$_i"
+	done > "$_PRE"
 
 # Generated to a temporary file and verified before it is used: an import
 # that reads the stream eats the rest of the generator, the process exits 0
@@ -103,7 +124,7 @@ trap 'exit 143' TERM
 # shellcheck disable=SC2086
 {
 	printf '(alloc-limit! %s)\n' "$X_ALLOC_LIMIT_OBJS"
-	cat "$BOOT" "$GEN"
+	cat "$BOOT" "$_PRE" "$GEN"
 } | "$X_BIN" $_MODS > "$_TMP"
 
 if ! grep -q '^failed imports: ' "$_TMP"; then

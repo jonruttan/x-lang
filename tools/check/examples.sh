@@ -54,9 +54,12 @@ fi
 
 # x.sh's -l resolution (#35): lib/DIR.x (this is all x.sh does for libs
 # -- the noble-gas entries he/xe/rn resolve here, and DIR=x hits the
-# lib/x.x default pointer), then apps/DIR/run.x.
+# lib/x.x default pointer), then apps/DIR/run.x.  examples/x-lang/ is about
+# the language as a whole, not one dialect, and boots the default.
 entry_for_dir() {
-  if [ -e "lib/$1.x" ]; then
+  if [ "$1" = "x-lang" ]; then
+    echo "lib/x.x"
+  elif [ -e "lib/$1.x" ]; then
     echo "lib/$1.x"
   elif [ -e "apps/$1/run.x" ]; then
     echo "apps/$1/run.x"

@@ -165,6 +165,34 @@ contract, the realization is not.
 ---
     (('sq "'a\\'") ('sq "'b'"))
 
+### a quoted rule whose escape is its close reads a doubled close as body
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer skip " ")
+    (Lexer quoted 'sq 39 39 39))))
+  (write (%lx-l read-str "'it''s' '' '''' 'a' 'b'"))
+  (newline))
+```
+---
+    (('sq "'it''s'") ('sq "''") ('sq "''''") ('sq "'a'") ('sq "'b'"))
+
+### a doubled close ends a literal at the end of the text
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lx-l (Lexer make (list
+    (Lexer run 'w "abc" "abc")
+    (Lexer quoted 'sq 39 39 39))))
+  (write (list (%lx-l read-str "a'b''c'") (%lx-l read-str "'b''")))
+  (newline))
+```
+---
+    ((('w "a") ('sq "'b''c'")) ())
+
 ### a literal left open is not a token
 
 ```x

@@ -116,15 +116,26 @@ jobs:
       - name: Run the spec gate
         run: env ${{ inputs.spec-env }} X="$PWD/.x-lang/x.sh" sh tests/spec-gate.sh
 
+      # The kit's checks that are main's on every leg: the workflow is main's,
+      # and a bundle does not move its release to follow a fix to a check.
+      - name: Check out the bundle kit's checks
+        uses: actions/checkout@v7
+        with:
+          repository: jonruttan/x-lang
+          ref: main
+          path: .x-kit
+          sparse-checkout: tools/bundle-kit
+
       # The examples the bundle's documentation carries, each run and held to
-      # what it says it prints (tools/bundle-kit/doctest.sh).  The kit is the
-      # one in the x-lang under test, and a release from before it had the
-      # check has nothing to run.
+      # what it says it prints (tools/bundle-kit/doctest.sh).  The script is
+      # main's; the examples generator and the harness generator it drives
+      # are the ones in the x-lang under test, and a release from before it
+      # had the check has nothing to run.
       - name: Run the documentation examples
         run: |
           if [ -f .x-lang/tools/bundle-kit/doctest.sh ]; then
             env ${{ inputs.spec-env }} BUNDLE=. X="$PWD/.x-lang/x.sh" \
-              sh .x-lang/tools/bundle-kit/doctest.sh
+              sh .x-kit/tools/bundle-kit/doctest.sh
           else
             echo "this x-lang has no bundle-kit doctest: not run"
           fi
@@ -132,17 +143,7 @@ jobs:
       # docs/card.md, where the bundle has one (docs/contributing.md, "The
       # card").  The card runs from the bundle's root and a checkout's wrapper
       # runs only from its own, so the platform is installed first; X_BUNDLE_DIR
-      # is where this bundle and the langs it requires were checked out.  The
-      # check itself is main's on every leg: the format is this workflow's,
-      # and a bundle does not move its release to follow it.
-      - name: Check out the card check
-        if: hashFiles('docs/card.md') != ''
-        uses: actions/checkout@v7
-        with:
-          repository: jonruttan/x-lang
-          ref: main
-          path: .x-kit
-          sparse-checkout: tools/bundle-kit
+      # is where this bundle and the langs it requires were checked out.
       - name: Check the card
         if: hashFiles('docs/card.md') != ''
         run: |

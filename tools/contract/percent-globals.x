@@ -68,6 +68,12 @@
 ; through, fetched at load as %write-to-str and %cvt beside it are.  It is read
 ; once per node of the same walk, so homing it on the class would add a send to
 ; every node of every file.
+; tool/lint.x grew by six, 84 -> 90, for its name sets: %name-slots,
+; %name-slot, %name-set-add! and %name-set-has?, and the two sets the walk
+; asks, %lint-uses-set and %lint-sibling-set.  They are asked at every symbol
+; and every form's head, the same walk-core ground as the ladder and depth
+; helpers above; the set made once a file or a class, %name-set-of, is homed
+; on the class.
 ; platform/syscall.x grew by two for %declared-os and %declared-arch: the engine's
 ; BUILD now declares its os and arch, and the triple parse became the fallback for
 ; an engine that could not establish them.  Boot-constrained like the rest of that
@@ -313,7 +319,7 @@
 ; their exports are bare names.  Both are unscoped, the walk being per object.
 (file "lib/x/tool/image/name.x" 14)
 (file "lib/x/tool/image/walk.x" 17)
-(file "lib/x/tool/lint.x" 84)
+(file "lib/x/tool/lint.x" 90)
 ; class.x fell 91 to 89: its two exported hooks, class-call-handler and
 ; bind-call-over!, are bare names now (x-lang#719, the last %-named exports).
 ; class.x grew by one, 89 -> 90, for %tab-handler-cell: the base's

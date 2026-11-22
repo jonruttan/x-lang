@@ -13,10 +13,9 @@ The platform already used the word before this document did: a lang announces
 itself by setting `%lang-name` and `%lang-version`, which is what puts its own
 name on the banner and its own prompt on the REPL.
 
-> **Status: shipped, with one gap.** Acquisition, loading and the seam are
-> gated (`Pin bundle`, `-l NAME`, `make check-pin`, `make check-seam`). What is
-> still missing is on the *bundle* side, not this one: nothing generates a
-> bundle tarball yet, so a publisher rolls one by hand. Each section says where
+> **Status: shipped.** Acquisition, loading, the seam and the roll are
+> gated (`Pin bundle`, `-l NAME`, `make check-pin`, `make check-seam`,
+> `make check-bundle-kit-roll`). Each section says where
 > it stands. The terms are written down first *because* the last generation of
 > langs rotted while nobody was holding them to any: see [Why the last
 > generation rotted](#why-the-last-generation-rotted), which is the evidence
@@ -393,6 +392,36 @@ its generation step, and the rules that a manifest may not list itself and that
 an unlisted file is a failure. The lesson is worth keeping even though the code
 is gone: **a constraint that shapes a design is worth re-testing before the
 design hardens around it.**
+
+### Publishing one: the roll
+
+A bundle's release is three files, written by `tools/bundle-kit/roll.sh`:
+
+```sh
+BUNDLE=. sh "$(x --share-dir)/tools/bundle-kit/roll.sh" v0.1.0
+```
+
+| File | |
+|---|---|
+| `REPO-TAG.tar.gz` | the bundle |
+| `REPO-TAG.tar.gz.sha256` | its digest |
+| `bundle.pin.xon` | the pin: the bundle's name, the tag, the digest and the URL the tarball is published at |
+
+The tarball holds what runs, not the repository: `bundle.xon`, `lib/`, and
+`LICENSE` and `README.md` where the bundle has them, under one directory, with
+a file `version` holding the tag. It is cut from the tag with `git archive`,
+so the same tag rolls the same bytes.
+
+The files are named for the repository, which is read and never derived from
+the bundle's name: a bundle named `net` may live at `x-lib-net`, or wherever
+its author keeps it. It is `BUNDLE_REPO` as `OWNER/REPO`, then the origin
+remote. The URL in the pin is that repository's GitHub release for the tag;
+`BUNDLE_URL_BASE` names another place the files will sit.
+
+`.github/workflows/bundle-release.yml` is the release for a bundle to call:
+on a pushed `v*` tag it runs the suite on the x-lang the bundle declares,
+rolls, and publishes the three files as a GitHub release. Started by hand
+with a tag it rolls and publishes nothing.
 
 ### Official bundles: what a release carries
 
@@ -793,6 +822,11 @@ roots of what it requires, as the spec harness does, without the bundle's
 Each module under `lib/` is imported in turn, the examples its import
 registers are written as a spec under `tests/lib/doctest/`, and the spec is
 run on the platform's runner. A bundle with no example passes and says so.
+
+An import registers the examples of everything it loads, and a helium bundle
+loads platform modules its dialect did not boot. Those examples are the
+platform's. So what the bundle's sources import from outside the bundle is
+loaded before the walk, and the spec holds the bundle's own examples alone.
 
 Not imported: a listed entry, since importing one sets a session up; a file
 that is one of another module's files; and `constructs.x`, which is data.
