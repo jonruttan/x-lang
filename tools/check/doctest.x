@@ -133,6 +133,15 @@
 
 ; Boot surface: everything the x-core boot registered.
 (%doc-commit!)
+; X_DOCTEST_OWN set (the bundle kit's doctest.sh sets it): the walk is a
+; bundle's, and a module's section keeps only the entries the walk owns.  A
+; bundle module's import also loads the platform modules it needs, directly
+; or through another bundle module, and the docs those add land in its diff.
+; The module registry says which are the walk's: an entry is kept when it
+; documents a walked module, or a name a walked module exports (Dict/get is
+; kept when a walked module exports Dict).  `make doctest` does not set the
+; variable: the platform's walk lists every module, so it keeps everything.
+(unless (null? (Sys getenv "X_DOCTEST_OWN")) (eval! (list 'import 'x/type/module)))
 (def %boot-head (first %doc-registry-cell))
 (%emit "")
 (%emit "## boot surface")
@@ -141,6 +150,22 @@
 ; Each module from argv, one import at a time.
 (List for-each
   (fn (_ m)
+    (def own-only? (not (null? (Sys getenv "X_DOCTEST_OWN"))))
+    (def walk-names (List map (fn (_ w) (%str->sym w)) (rest args)))
+    ; An entry is the walk's when it documents a walked module, or its
+    ; subject -- what comes before the first slash of its name, or all of
+    ; it -- is a name a walked module exports.
+    (def owned?
+      (fn (_ e)
+        (let ((name (let ((n (%doc-entry-name e))) (if (symbol? n) (symbol->str n) n))))
+          (match
+            ((List includes? (%str->sym name) walk-names) #t)
+            (#t
+              (let ((at (Str8 index-of "/" name)))
+                (let ((head (%str->sym (if (null? at) name (Str8 sub 0 at name)))))
+                  (List any?
+                    (fn (_ w) (List includes? head (Module exports w)))
+                    walk-names))))))))
     (def %before (first %doc-registry-cell))
     (def %ok (pair #t ()))
     (guard (err
@@ -150,7 +175,9 @@
     (when (first %ok)
       (do
         (%doc-commit!)
-        (let ((new (%new-entries (first %doc-registry-cell) %before)))
+        (let ((new (if own-only?
+                       (List filter owned? (%new-entries (first %doc-registry-cell) %before))
+                       (%new-entries (first %doc-registry-cell) %before))))
           (unless (null? new)
             (do
               (%emit "")

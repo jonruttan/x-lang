@@ -27,9 +27,9 @@
 #
 # An import registers the examples of everything it loads, and a helium
 # bundle loads platform modules its dialect did not boot.  Those examples
-# are the platform's, which `make doctest` holds there.  So what the
-# bundle's sources import from outside the bundle is loaded before the
-# walk, and the walk sees the bundle's own entries alone.
+# are the platform's, which `make doctest` holds there.  So the generator
+# runs with X_DOCTEST_OWN set and asks the module registry which entries
+# the bundle's modules own; the rest are left out.
 #
 # Not walked: a listed entry, since importing one sets a session up; a file
 # that is one of another module's files, headed with that module's name; and
@@ -56,7 +56,10 @@ _dt_die() {
 X_ROOT="$("$X" --share-dir)"
 [ -n "$X_ROOT" ] || _dt_die "$X --share-dir answered nothing"
 X_BIN="${X_BIN:-$("$X" --engine-path)}"
-GEN="$X_ROOT/tools/check/doctest.x"
+# The generator beside this script when there is one, so a kit newer than
+# the x it runs on brings its own; else the x's.
+GEN="$(cd "$(dirname "$0")/.." && pwd)/check/doctest.x"
+[ -f "$GEN" ] || GEN="$X_ROOT/tools/check/doctest.x"
 [ -f "$GEN" ] || _dt_die "no generator at $GEN"
 
 X_ALLOC_LIMIT_OBJS="${X_ALLOC_LIMIT_OBJS:-300000000}"
@@ -100,32 +103,22 @@ for _f in $(find "$BUNDLE/lib" -name '*.x' -not -name 'constructs.x' | sort); do
 done
 
 _TMP=$(mktemp) || exit 1
-_PRE=$(mktemp) || exit 1
-trap 'rm -f "$_TMP" "$_PRE"' EXIT
+trap 'rm -f "$_TMP"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-
-# What the bundle imports from outside itself, read from its sources: a
-# module name whose first segment is not the bundle's.  Comment lines are
-# left out.  Each is loaded under a guard, so a name the text holds that
-# is no module costs nothing.
-find "$BUNDLE/lib" -name '*.x' -exec grep -h -v '^[[:space:]]*;' {} + \
-	| grep -o '(import [a-z0-9][a-z0-9/._-]*' \
-	| sed 's/^(import //' | sort -u \
-	| while read -r _i; do
-		case "$_i" in "$_NAME"/*) continue ;; esac
-		printf "(guard (e ()) (eval! (list 'import '%s)))\n" "$_i"
-	done > "$_PRE"
 
 # Generated to a temporary file and verified before it is used: an import
 # that reads the stream eats the rest of the generator, the process exits 0
 # and a shrunken spec runs green.  The census trailer is the generator's last
 # output, so its absence shows the walk did not finish.
+# X_DOCTEST_OWN has the generator keep, in each module's section, only the
+# entries the bundle's modules own: what an import loads from the platform
+# stays out.
 # shellcheck disable=SC2086
 {
 	printf '(alloc-limit! %s)\n' "$X_ALLOC_LIMIT_OBJS"
-	cat "$BOOT" "$_PRE" "$GEN"
-} | "$X_BIN" $_MODS > "$_TMP"
+	cat "$BOOT" "$GEN"
+} | X_DOCTEST_OWN=1 "$X_BIN" $_MODS > "$_TMP"
 
 if ! grep -q '^failed imports: ' "$_TMP"; then
 	_dt_die "the module walk was cut short: an import is reading the stream"
