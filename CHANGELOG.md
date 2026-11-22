@@ -7,12 +7,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.61.0] - 2026-11-22
 
-**x carries the net library.** ([#1437]) `net` (TLS 1.3, X.509, HTTP and
-REST) is pinned at x-lib-net v0.1.0 and installed with x under
-`bundles/net`, so `(import net/http)` resolves in an installed x with
-nothing declared. The same modules are still in the platform as
-`x/net/...` for now. `bootstrap.sh --install` acquires the official
-bundles before it installs.
+**`bootstrap.sh --install` acquires the official bundles before it
+installs.** ([#1437], [#1445]) No bundle is pinned yet: `x/net` ships
+in x-lang, and `make bundles` and `make install` fetch nothing.
 
 **The pin tool and `make bundles` no longer need curl, tar or rm.**
 ([#1443]) Downloads use x's own Http, and archives unpack in x.
@@ -122,6 +119,7 @@ read from the store.
 [#1442]: https://github.com/jonruttan/x-lang/pull/1442
 [#1443]: https://github.com/jonruttan/x-lang/pull/1443
 [#1444]: https://github.com/jonruttan/x-lang/pull/1444
+[#1445]: https://github.com/jonruttan/x-lang/pull/1445
 
 ## [0.60.0] - 2026-11-21
 
