@@ -557,7 +557,7 @@
     (method %pin-download-tmp! (self url target)
       (let ((tmp (Str8 append target
                    (Str8 append "." (Str8 append (%cvt (Sys getpid) %string) ".tmp")))))
-        (guard (e ((do (guard (_ ()) (File unlink tmp))
+        (guard (_ ((do (guard (_ ()) (File unlink tmp))
                        (Pin %pin-bad (Str8 append "download failed: " url)))))
           (match
             ((Str8 starts? "file://" url)
@@ -567,7 +567,7 @@
     ; url's body written to path, or a raise: a status other than 200 is a
     ; failed download.
     (method %pin-http-get! (self url path)
-      (eval! (list (lit import) (lit x/net/http)))
+      (import x/net/http)
       (let ((s (Http open "GET" url () ())))
         (match
           ((not (= (s status) 200))
@@ -757,9 +757,9 @@
     ; Inflate and Bytes are imported here, on the first unpack, for the
     ; reason Http is imported in %pin-download-tmp!.
     (method %pin-untar! (self archive dest)
-      (eval! (list (lit import) (lit x/codec/inflate)))
-      (eval! (list (lit import) (lit x/codec/bytes)))
-      (guard (e ((Pin %pin-bad (Str8 append "bundle did not unpack: " archive))))
+      (import x/codec/inflate)
+      (import x/codec/bytes)
+      (guard (_ ((Pin %pin-bad (Str8 append "bundle did not unpack: " archive))))
         (Pin %pin-ungz-untar archive dest))
       dest)
     (method %pin-ungz-untar (self archive dest)
