@@ -35,6 +35,7 @@
 (def int= (prim-ref (lit int) (lit =)))
 (def int& (prim-ref (lit int) (lit &)))
 (def int| (prim-ref (lit int) (lit |)))
+(def int^ (prim-ref (lit int) (lit ^)))
 (def int<< (prim-ref (lit int) (lit <<)))
 (def int>> (prim-ref (lit int) (lit >>)))
 (def int->ptr (prim-ref (lit int) (lit ->ptr)))
@@ -95,7 +96,7 @@
 (def image-recache-hook! (prim-ref (lit image) (lit recache-hook!)))
 
 (doc (provide x/core/doors
-  int+ int- int* int/ int% int< int= int& int| int<< int>> int->ptr int->char
+  int+ int- int* int/ int% int< int= int& int| int^ int<< int>> int->ptr int->char
   str-make str-append str-byte-ref str-byte-len str-byte-sub str->ptr str->sym char->int
   ptr-ref ptr-set! ptr-ref-word ptr-set-word! ptr-call ptr->int ptr->str ptr->obj mem-copy mem-cmp mem-set
   obj-make obj-ref obj-set! obj->ptr obj-same?

@@ -10,7 +10,7 @@
 ;
 ; What the rewrite carries:
 ;
-;   integers   int+ int- int* int/ int% int& int| int<< int>> on raw words,
+;   integers   int+ int- int* int/ int% int& int| int^ int<< int>> on raw words,
 ;              boxed only where a value leaves the arithmetic; int< and int=
 ;              as a branch in a test, #t or #f as a value; + - < > <= >= =
 ;              of two operands, bound at the root, on raw words when both
@@ -51,7 +51,7 @@
 (import x/tool/compiled)
 (import x/tool/asm-cache asm-compile-cached asm-compile-kept asm-fn-values)
 (import x/type/base)
-(import x/core/doors int+ int- int* int/ int% int< int= int& int| int<< int>>
+(import x/core/doors int+ int- int* int/ int% int< int= int& int| int^ int<< int>>
   char->int image-transient! obj-ref obj-set! obj-same? obj->ptr ptr->int ptr-ref-word ptr-set-word! io-display-to-str
   str->sym str-byte-len str-byte-ref str-byte-sub
   type-of)
@@ -62,7 +62,7 @@
 (def %fc-raw-ops
   (list (pair int+ (lit +)) (pair int- (lit -)) (pair int* (lit *))
         (pair int/ (lit /)) (pair int% (lit %)) (pair int& (lit &))
-        (pair int| (lit |)) (pair int<< (lit <<)) (pair int>> (lit >>))))
+        (pair int| (lit |)) (pair int^ (lit ^)) (pair int<< (lit <<)) (pair int>> (lit >>))))
 (def %fc-cmp-ops
   (list (pair int< (lit <)) (pair int= (lit =))))
 
