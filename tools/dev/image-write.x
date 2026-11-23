@@ -135,7 +135,15 @@
       ; Cleared rather than unbound: the entry reads it through a guard
       ; (there is no bound? predicate), and a bound nil is what a normal
       ; boot's guard answers anyway.
-      (%child-def! (lit %image-writing) (list (lit lit) ()))
+      ;  Cleared with set!, on the binding made above, never a second def.
+      ; A second def left every module of a bundle reading #t from the image
+      ; (x.sh -l NAME, which imports the bundle's entry after the dialect),
+      ; while the top level read nil; set! changes the one binding both
+      ; read.  The name is the child's own symbol, as a transient's is.
+      (%B eval (list (eval (lit set!))
+                     (%B eval (list (prim-ref (lit str) (lit ->sym))
+                                    (list (prim-ref (lit str) (lit append)) "" "%image-writing")))
+                     ()))
       ; A transient is imaged as nil, or put down.  reflect.x's
       ; %image-transients holds the globals whose value belongs to this
       ; process alone -- float.x's libm handle -- and a recache hook of the
