@@ -93,6 +93,11 @@ jobs:
       # OWNER/REPO: (requires-bundle "gfx" "v0.1.0" "jonruttan/x-lib-gfx").
       # A row that names none is cloned from jonruttan/x-NAME.  actions/checkout
       # writes only inside the workspace, so this is git.
+      #
+      # A clone at a tag is that release's tree, so it carries the `version`
+      # stamp an install and a release tarball carry: x.sh compares a
+      # versioned row against it and refuses a checkout without one.  A row
+      # with no version is not compared, and its clone is left unstamped.
       - name: Check out the bundles this bundle requires
         run: |
           {
@@ -104,6 +109,9 @@ jobs:
             echo "$repo ${version:-default branch}"
             git clone --quiet --depth 1 ${version:+--branch "$version"} \
               "https://github.com/$repo.git" "../${repo##*/}"
+            if [ -n "$version" ]; then
+              printf '%s\n' "$version" > "../${repo##*/}/version"
+            fi
           done
 
       # The engine is acquired: x-lang pins one and fetches it, or on arm64
