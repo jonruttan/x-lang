@@ -198,8 +198,34 @@ kernel void product(device const float* a [[buffer(0)]],
         (sample "((Gpu product (Matrix from '((1 2) (3 4))) (Matrix from '((0 1) (1 0)))) ->list)" "((2.0 1.0) (4.0 3.0)) on a host with a GPU")
         (see available?) (see hold))
       (def backend (Gpu %need-backend))
-      (let ((f (Tensor %fast)) (ea (List ref 1 (a %st))) (eb (List ref 1 (b %st)))
-            (held (if (Gpu held? a) #t (Gpu held? b))))
+      (let ((f (Tensor %fast)) (held (if (Gpu held? a) #t (Gpu held? b))) (plan (Gpu %plan a b)))
+        (Gpu %plan-run plan)
+        (Gpu %plan-done plan #t)
+        (let ((bc (List ref 2 (first plan))) (ext (List ref 3 plan)))
+          (let ((bytes (int* 4 ((obj-ref f 1) ext))))
+            (let ((out (if held
+                         (list (lit f32) ext ((obj-ref f 2) ext) 0 (pair (ptr->int (backend pointer bc)) bc))
+                         (let ((o ((obj-ref f 4) (lit f32) ext)))
+                           (if (int< bytes 4) ()
+                             (mem-copy (int->ptr ((obj-ref f 13) o)) (backend pointer bc) bytes))
+                           (backend release bc)
+                           o))))
+              ((Matrix %result-class out) %make out))))))
+
+    ; --- a product planned once and run again -------------------------------
+    ; A plan is (BUFFERS K R EXT EMPTY? OPERANDS): the kernel's four buffers
+    ; (a's, b's, the result's and the dimensions'), the grid, the result's
+    ; extent, whether there is nothing to work out, and the two operands as
+    ; %operand answers them.  The dimensions are written when it is made, so
+    ; a plan of held operands is run again for whatever their bytes then
+    ; hold, with nothing made: the result is in the same buffer each time.
+    (method %plan (self (param a Tensor "A Matrix, or a Tensor of two axes")
+                        (param b Tensor "A Matrix, or a rank-1 Tensor, whose rows match a's columns"))
+      (doc "A product's buffers and dimensions, made ready to run. An operand that is not held is copied in now, and a later run reads that copy."
+        (returns LIST "The plan; give it back with %plan-done")
+        (sample "(Gpu %plan (Gpu hold a) (Gpu hold b))" "a plan"))
+      (def backend (Gpu %need-backend))
+      (let ((ea (List ref 1 (a %st))) (eb (List ref 1 (b %st))))
         (if (int= (List length ea) 2) ()
           (Err raise (lit value) "Gpu product: a has two axes" ea))
         (if (if (int= (List length eb) 1) #t (int= (List length eb) 2)) ()
@@ -208,28 +234,45 @@ kernel void product(device const float* a [[buffer(0)]],
           (let ((k (if column 1 (List ref 1 eb))) (ext (if column (list r) (list r (List ref 1 eb)))))
             (if (int= m (first eb)) ()
               (Err raise (lit value) "Gpu product: a's columns and b's rows differ" (list m (first eb))))
-            (let ((bytes (int* 4 (int* r k))))
+            (let ((bytes (int* 4 (int* r k))) (empty (if (int= r 0) #t (if (int= m 0) #t (int= k 0)))))
               (let ((oa (Gpu %operand backend a)) (ob (Gpu %operand backend b))
                     (bc (backend buffer (if (int< bytes 4) 4 bytes))) (dims (backend buffer 32)))
                 ; a product with no elements, or summed over none, is the zeros a fresh buffer holds
-                (if (if (int= r 0) #t (if (int= m 0) #t (int= k 0))) ()
-                  (let ((sa (List ref 2 oa)) (sb (List ref 2 ob)))
-                    (List for-each (fn (_ w) (ptr-set! (backend pointer dims) (int* 4 (first w)) (rest w) 4))
+                (if empty ()
+                  (let ((sa (List ref 2 oa)) (sb (List ref 2 ob)) (at (backend pointer dims)))
+                    (List for-each (fn (_ w) (ptr-set! at (int* 4 (first w)) (rest w) 4))
                       (list (pair 0 m) (pair 1 k)
                             (pair 2 (List ref 1 oa)) (pair 3 (first sa)) (pair 4 (List ref 1 sa))
-                            (pair 5 (List ref 1 ob)) (pair 6 (first sb)) (pair 7 (if column 0 (List ref 1 sb)))))
-                    (backend run (Gpu %pipeline backend (lit product) (Gpu %product-source))
-                      (list (first oa) (first ob) bc dims) k r)))
-                (backend release dims)
-                (List for-each (fn (_ o) (if (List ref 3 o) (backend release (first o)) ())) (list oa ob))
-                (let ((out (if held
-                             (list (lit f32) ext ((obj-ref f 2) ext) 0 (pair (ptr->int (backend pointer bc)) bc))
-                             (let ((o ((obj-ref f 4) (lit f32) ext)))
-                               (if (int< bytes 4) ()
-                                 (mem-copy (int->ptr ((obj-ref f 13) o)) (backend pointer bc) bytes))
-                               (backend release bc)
-                               o))))
-                  ((Matrix %result-class out) %make out))))))))))
+                            (pair 5 (List ref 1 ob)) (pair 6 (first sb)) (pair 7 (if column 0 (List ref 1 sb)))))))
+                (list (list (first oa) (first ob) bc dims) k r ext empty (list oa ob))))))))
+
+    (method %plan-run (self (param plan LIST "A plan from %plan"))
+      (doc "Run the plan's product: its result's buffer then holds a times b for the bytes the operands' buffers hold now."
+        (returns ANY "nil")
+        (sample "(Gpu %plan-run plan)" "nil"))
+      (if (List ref 4 plan) ()
+        (let ((backend (Gpu %need-backend)))
+          (backend run (Gpu %pipeline backend (lit product) (Gpu %product-source))
+            (first plan) (List ref 1 plan) (List ref 2 plan)))))
+
+    (method %plan-out (self (param plan LIST "A plan from %plan"))
+      (doc "The plan's result as a held tensor over its buffer, which every run writes."
+        (returns Tensor "A held f32 Matrix, or a rank-1 Tensor for a rank-1 b")
+        (sample "(Gpu %plan-out plan)" "the result"))
+      (let ((f (Tensor %fast)) (backend (Gpu %need-backend)) (bc (List ref 2 (first plan))) (ext (List ref 3 plan)))
+        (let ((out (list (lit f32) ext ((obj-ref f 2) ext) 0 (pair (ptr->int (backend pointer bc)) bc))))
+          ((Matrix %result-class out) %make out))))
+
+    (method %plan-done (self (param plan LIST "A plan from %plan")
+                             (param keep BOOL "Whether the result's buffer is kept"))
+      (doc "Give back the plan's dimensions, each buffer an operand was copied into, and the result's buffer unless it is kept."
+        (returns ANY "nil")
+        (sample "(Gpu %plan-done plan #f)" "nil"))
+      (let ((backend (Gpu %need-backend)) (bufs (first plan)))
+        (backend release (List ref 3 bufs))
+        (List for-each (fn (_ o) (if (List ref 3 o) (backend release (first o)) ())) (List ref 5 plan))
+        (if keep () (backend release (List ref 2 bufs)))
+        ()))))
 
 (image-transient! (fn (_) (Gpu %forget!)))
 
