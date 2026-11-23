@@ -40,7 +40,7 @@
 (import x/num/float float-of f-div)
 (import x/num/tensor)
 (import x/tool/word-form word-form-pure)
-(import x/core/doors int* int+ int- int->ptr int< int= mem-cmp mem-copy obj-ref ptr->int ptr-set-word!
+(import x/core/doors int* int+ int- int->ptr int< int= mem-cmp mem-copy mem-set obj-ref ptr->int ptr-set-word!
   str->ptr str->sym str-make type-of type?)
 
 ; --- the kernels ---------------------------------------------------------------
@@ -152,20 +152,48 @@
               (list (name "layer-norm") (%nn-layer-norm-form enc) enc))))
     (list (lit f64) (lit f32))))
 
-(def %nn-epsilon (fn (_) (f-div (float-of 1) (float-of 100000))))
+; The default epsilon and zero, each a Float made once.
+(def %nn-kept (fn (_ cell make) (if (null? (first cell)) (%set-first! cell (make)) ()) (first cell)))
+(def %nn-epsilon-cell (pair () ()))
+(def %nn-epsilon (fn (_) (%nn-kept %nn-epsilon-cell (fn (_) (f-div (float-of 1) (float-of 100000))))))
+(def %nn-zero-cell (pair () ()))
+(def %nn-zero (fn (_) (%nn-kept %nn-zero-cell (fn (_) (float-of 0)))))
 
-; A scratch with the constants every kernel finds in its doubles, and
+; A double stored at double I of address A: made the first time it is
+; wanted and kept, since making it walks the form.
+(def %nn-fset-cell (pair () ()))
+(def %nn-fset
+  (fn (_ a i v)
+    (if (null? (first %nn-fset-cell))
+      (%set-first! %nn-fset-cell (word-form-pure (lit (fn (_ a i v) (f-set! a i v)))))
+      ())
+    ((first %nn-fset-cell) a i v)))
+
+; The constants every kernel finds in its doubles, in a scratch made once
+; and copied for each use.
+(def %nn-constants-cell (pair () ()))
+(def %nn-constants
+  (fn (_)
+    (if (null? (first %nn-constants-cell))
+      (let ((s (str-make 256)))
+        (let ((put (fn (_ k x) (%nn-fset (ptr->int (str->ptr s)) k (first x)))))
+          (mem-set (str->ptr s) 0 256)
+          (put 20 (f-div (float-of 1) (float-of 2)))
+          (put 21 (float-of "0.7978845608028654"))
+          (put 22 (float-of "0.044715"))
+          (put 23 (float-of "0.7071067811865476"))
+          (%set-first! %nn-constants-cell s)))
+      ())
+    (first %nn-constants-cell)))
+
+; A scratch with those constants, the doubles 16, 17 and 19 zero, and
 ; EPSILON, a Float, in 18.
 (def %nn-scratch
   (fn (_ epsilon)
-    (let ((s (str-make 256)) (fset (word-form-pure (lit (fn (_ a i v) (f-set! a i v))))))
-      (let ((put (fn (_ k x) (fset (ptr->int (str->ptr s)) k (first x)))))
-        (put 16 (float-of 0)) (put 17 (float-of 0)) (put 18 epsilon) (put 19 (float-of 0))
-        (put 20 (f-div (float-of 1) (float-of 2)))
-        (put 21 (float-of "0.7978845608028654"))
-        (put 22 (float-of "0.044715"))
-        (put 23 (float-of "0.7071067811865476"))
-        s))))
+    (let ((s (str-make 256)))
+      (mem-copy (str->ptr s) (str->ptr (%nn-constants)) 256)
+      (%nn-fset (ptr->int (str->ptr s)) 18 (first epsilon))
+      s)))
 
 (def %nn-word! (fn (_ s k v) (ptr-set-word! (str->ptr s) (int* k %word-size) v)))
 
@@ -211,15 +239,14 @@
       (if (if (int= count 0) #t (int= length 0)) out
         (let ((s (%nn-scratch epsilon)) (base ((obj-ref f 13) out)) (width (if (eq? enc (lit f32)) 4 8))
               (name (str->sym (Str8 append (symbol->str enc) "-" which)))
-              (zero (first (float-of 0)))
-              (fset (word-form-pure (lit (fn (_ a i v) (f-set! a i v))))))
+              (zero (first (%nn-zero))))
           (List for-each (fn (_ w) (%nn-word! s (first w) (rest w))) words)
           ((fn (go at)
              (if (int< at count)
                (let ((a (int+ base (int* width at))))
                  (%nn-word! s 0 a) (%nn-word! s 2 a) (%nn-word! s 6 length) (%nn-word! s 7 0) (%nn-word! s 9 0)
-                 (fset (ptr->int (str->ptr s)) 16 zero)
-                 (fset (ptr->int (str->ptr s)) 17 zero)
+                 (%nn-fset (ptr->int (str->ptr s)) 16 zero)
+                 (%nn-fset (ptr->int (str->ptr s)) 17 zero)
                  ((obj-ref f 14) name s)
                  (go (int+ at length)))
                ()))
@@ -246,6 +273,12 @@
       (List for-each (fn (_ k) (Tensor %jit (first k))) %nn-kernels)
       (let ((mine (List map first %nn-kernels)))
         (List filter (fn (_ name) (List includes? name mine)) (Tensor compiled))))
+
+    (method %scratch (self)
+      (doc "A fresh scratch for a Neural kernel a caller drives itself: the constants in their doubles, the default epsilon in 18, every word zero."
+        (returns STRING "256 bytes")
+        (sample "(Neural %scratch)" "a scratch"))
+      (%nn-scratch (%nn-epsilon)))
 
     (method softmax (self (param t Tensor "A real tensor of rank 1 or more"))
       (doc "Each run of the last axis as shares that sum to 1: every element's exponential over the sum of the run's. The run's greatest element is taken from each first, so a large element does not overflow."
