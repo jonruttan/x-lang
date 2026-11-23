@@ -1,5 +1,5 @@
-; obj-compiled.x -- (obj ref), (obj set!), null?, and and or compiled where
-; they stand
+; obj-compiled.x -- (obj ref), (obj set!), null?, and, or, < and > compiled
+; where they stand
 ;
 ; Every vector, record and object field access in the library reads or
 ; writes one data word through (obj ref) or (obj set!), every list walk ends
@@ -80,6 +80,27 @@
                (#t (or (%eval (first l)) (self (rest l)))))))
       () (lit operative))))
 
+; < and >, each a nil test of both operands before the engine's < (the
+; prim behind x/core/doors' int<), which dispatches every number type
+; itself.  Interpreted, each is a closure call of ~10 objects on top of the
+; prim's 0, and they sit under every loop bound; <= and >= call <.  A raise
+; names the operator the caller wrote, as the interpreted versions' do.
+; <= and >= stay interpreted: a body that reads its parameters again after
+; a call, (if (lt a b) t (eq a b)), raises on float operands in this world.
+(def %obj-compiled-lt (prim-ref (lit int) (lit <)))
+(def %obj-compiled-order
+  (fn (_ body name text)
+    (Compiled in-place name (eval name)
+      (fn (_)
+        (asm-compile-cached body
+          (list (pair (lit error) error) (pair (lit m) text) (pair (lit lt) %obj-compiled-lt))
+          (lit object))))))
+
+(%obj-compiled-order (lit (fn (_ a b) (if (= a 0) (error m) (if (= b 0) (error m) (lt a b)))))
+  (lit <) "<: needs two operands, neither nil")
+(%obj-compiled-order (lit (fn (_ a b) (if (= a 0) (error m) (if (= b 0) (error m) (lt b a)))))
+  (lit >) ">: needs two arguments")
+
 (doc (provide x/tool/obj-compiled)
-  (sample "(import x/tool/obj-compiled)" "(null? ()), (and ...), (or ...), (obj ref) and (obj set!) now run the compiled versions; their answers are unchanged")
-  "Compiles (obj ref), (obj set!), null?, and and or, and installs each into its own object, so every holder of any of them calls the compiled version.")
+  (sample "(import x/tool/obj-compiled)" "(null? ()), (and ...), (or ...), (obj ref), (obj set!), < and > now run the compiled versions; their answers are unchanged")
+  "Compiles (obj ref), (obj set!), null?, and, or, < and >, and installs each into its own object, so every holder of any of them calls the compiled version.")
