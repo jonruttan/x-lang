@@ -181,9 +181,12 @@ bundle_dir_of() {
 }
 
 # The (requires-bundle ...) rows of $1's bundle.xon, as NAME|VERSION tokens with
-# VERSION empty when the row names none.  Two expressions rather than one
-# optional group, because BRE has no optional group worth relying on.
+# VERSION empty when the row names none.  One expression for each shape rather
+# than optional groups, because BRE has no optional group worth relying on.  A
+# row's third string is the repository the bundle comes from, which only the
+# workflows that clone it read.
 bundle_reqs_of() {
+	sed -n 's/^(requires-bundle "\([^"]*\)"[^"]*"\([^"]*\)"[^"]*"[^"]*").*/\1|\2/p' "$1/bundle.xon"
 	sed -n 's/^(requires-bundle "\([^"]*\)"[^"]*"\([^"]*\)").*/\1|\2/p' "$1/bundle.xon"
 	sed -n 's/^(requires-bundle "\([^"]*\)")[[:space:]]*$/\1|/p' "$1/bundle.xon"
 }

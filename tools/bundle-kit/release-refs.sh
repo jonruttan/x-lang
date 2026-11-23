@@ -20,6 +20,7 @@
 #
 #   (requires-release "vN.N.N")        the x-lang the bundle was built against
 #   (requires-bundle "NAME" "vN.N.N")    a lang it is written on top of
+#   (requires-bundle "NAME" "vN.N.N" "OWNER/REPO")   the same, from REPO
 #
 # Anywhere else a version appears -- a README status line, a workflow, a doc --
 # is a copy, and a stale copy claims a pairing nobody tested while the bundle
@@ -49,12 +50,13 @@ MANIFEST=bundle.xon
 [ -f "$MANIFEST" ] || { echo "release-refs: no $MANIFEST in $BUNDLE" >&2; exit 2; }
 
 # --- The table, read from the manifest ------------------------------------
-# One "NAME VERSION" per line.  A required lang's repository is x-NAME by the
-# convention every published bundle follows, and that prefixed form is what
-# prose and workflows actually write.
+# One "NAME VERSION" per line, NAME the required bundle's repository: the
+# REPO a row names, else x-NAME, and that form is what prose and workflows
+# actually write.
 decls=$(
 	sed -n 's/^(requires-release "\(.*\)")$/x-lang \1/p' "$MANIFEST"
-	sed -n 's/^(requires-bundle "\([^"]*\)" "\(.*\)")$/x-\1 \2/p' "$MANIFEST"
+	sed -n 's/^(requires-bundle "[^"]*" "\([^"]*\)" "\([^"]*\/\)*\([^"]*\)")$/\3 \1/p' "$MANIFEST"
+	sed -n 's/^(requires-bundle "\([^"]*\)" "\([^"]*\)")$/x-\1 \2/p' "$MANIFEST"
 )
 [ -n "$decls" ] || {
 	echo "release-refs: $MANIFEST declares no versions to check" >&2

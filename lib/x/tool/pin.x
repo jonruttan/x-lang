@@ -993,9 +993,9 @@
                     ((if (pair? (rest (first forms))) (symbol? (first (rest (first forms)))) #f)
                       (self (rest forms) name dialect req (pair (first (rest (first forms))) entry)))
                     (#t (Pin %pin-bad "entry needs an entry name, a symbol"))))
-                ; (requires-bundle "NAME" ["VERSION"]) -- a bundle loaded
-                ; from beside this one; the wrapper resolves it, acquisition
-                ; only checks its shape.
+                ; (requires-bundle "NAME" ["VERSION" ["OWNER/REPO"]]) -- a
+                ; bundle loaded from beside this one; the wrapper resolves
+                ; it, acquisition only checks its shape.
                 ((eq? (first (first forms)) 'requires-bundle)
                   (match
                     ((str? (first (rest (first forms)))) (self (rest forms) name dialect req entry))

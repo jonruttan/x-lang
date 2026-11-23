@@ -996,6 +996,21 @@ X_BUNDLE_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-smoke -f "$_
 grep -q "^ok|x-smoke$" "$_TMP/out" \
   || fail "load: the bundle's module and surface name did not both arrive" "$_TMP/out" "$_TMP/err"
 
+# A row may name the repository after the version:
+# (requires-bundle "NAME" "VERSION" "OWNER/REPO").  The wrapper reads its
+# name and version as it reads a two-string row's.  A row it failed to read
+# would require nothing, so a version the stub does not have must be refused.
+_lrepo="$_TMP/lrepo"
+mkdir -p "$_lrepo"
+cp -R "$_lpers/x-smoke-v1" "$_lpers/r5rs" "$_lrepo/"
+printf '(name "x-smoke")\n(dialect he)\n(requires-release "v0.0.0")\n(requires-bundle "r5rs" "v9.9.9" "jonruttan/x-r5rs")\n(entry run)\n' \
+  > "$_lrepo/x-smoke-v1/bundle.xon"
+X_BUNDLE_DIR="$_lrepo/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-smoke -f /dev/null \
+  >"$_TMP/out" 2>"$_TMP/err"
+[ $? -ne 0 ] || fail "load-repo: a requires-bundle row naming its repository was not read" "$_TMP/out" "$_TMP/err"
+grep -q "lang 'r5rs' is v0.2.4, but v9.9.9 is required" "$_TMP/err" \
+  || fail "load-repo: the version on a row naming its repository was not compared" "$_TMP/err"
+
 # A name nothing declares still fails loudly, and the inventory now NAMES
 # the langs it searched -- a listing that omitted them would send a
 # reader hunting for a bundle that is sitting right there.

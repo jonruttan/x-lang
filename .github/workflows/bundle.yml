@@ -85,20 +85,25 @@ jobs:
           ref: ${{ matrix.x-lang == 'main' && 'main' || needs.release.outputs.version }}
           path: .x-lang
 
-      # The langs this bundle is written on top of: each (requires-bundle "NAME")
-      # row of bundle.xon, cloned beside the bundle as x-NAME, the layout x.sh's
-      # bundle_reqs_of reads and the harnesses look for.  A row that names a
-      # version gets that tag; one that names none gets the default branch.
-      # actions/checkout writes only inside the workspace, so this is git.
-      - name: Check out the langs this bundle requires
+      # The bundles this one is written on top of: each (requires-bundle "NAME")
+      # row of bundle.xon, cloned beside the bundle, where x.sh and the
+      # harnesses find a bundle by the name its bundle.xon declares.  A row
+      # that names a version gets that tag; one that names none gets the
+      # default branch.  A row's third string is the repository, as
+      # OWNER/REPO: (requires-bundle "gfx" "v0.1.0" "jonruttan/x-lib-gfx").
+      # A row that names none is cloned from jonruttan/x-NAME.  actions/checkout
+      # writes only inside the workspace, so this is git.
+      - name: Check out the bundles this bundle requires
         run: |
           {
+            sed -n 's/^(requires-bundle "\([^"]*\)"[^"]*"\([^"]*\)"[^"]*"\([^"]*\)").*/\1 \2 \3/p' bundle.xon
             sed -n 's/^(requires-bundle "\([^"]*\)"[^"]*"\([^"]*\)").*/\1 \2/p' bundle.xon
             sed -n 's/^(requires-bundle "\([^"]*\)")[[:space:]]*$/\1/p' bundle.xon
-          } | while read -r name version; do
-            echo "x-$name ${version:-default branch}"
+          } | while read -r name version repo; do
+            repo="${repo:-jonruttan/x-$name}"
+            echo "$repo ${version:-default branch}"
             git clone --quiet --depth 1 ${version:+--branch "$version"} \
-              "https://github.com/jonruttan/x-$name.git" "../x-$name"
+              "https://github.com/$repo.git" "../${repo##*/}"
           done
 
       # The engine is acquired: x-lang pins one and fetches it, or on arm64
