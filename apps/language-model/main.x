@@ -48,7 +48,8 @@
           (greatest (if (if (null? more) #t (if (null? (rest more)) #t (null? (rest (rest more))))) ()
                       (lm-count (first (rest (rest more))) "GREATEST")))
           (file (fn (_ name) (Str8 append dir "/" name)))
-          (kept (guard (_ ()) language-model-pieces)))
+          ; the name is the prelude's to bind, so it is looked up, not written
+          (kept (guard (_ ()) (eval (lit language-model-pieces)))))
       (let ((lm (LanguageModel make
                   (Transformer from-file (file "model.safetensors") 12)
                   (if (null? kept) (BytePair from-files (file "vocab.json") (file "merges.txt")) kept))))
