@@ -71,7 +71,7 @@
 (import x/type/vector)
 (import x/type/list)
 (import x/sys/gc)
-(import x/num/float Float float float-of f-add f-sub f-mul f-div f-lt fsqrt libm-fn)
+(import x/num/float Float float float-of f-add f-sub f-mul f-div f-eq f-lt fsqrt libm-fn)
 (import x/tool/word-form word-form-pure)
 (import x/tool/compiled)
 (import x/core/doors int+ int- int* int/ int< int= int->ptr mem-copy mem-cmp obj-ref ptr->int
@@ -170,6 +170,7 @@
       (self %jit (lit gather-check))
       (self %jit (lit f64-order))
       (self %jit (lit f64-runs))
+      (self %jit (lit f64-places))
       (self compiled))
 
     (method compiled (self)
@@ -249,6 +250,7 @@
     ;   10 convert ST ENC      11 view ST EXT STR OFF  12 index ST IDX
     ;   13 addr ST             14 drive NAME S        15 bits X
     ;   16 broadcast EA EB      17 assign! DST SRC     18 base ST
+    ;   19 compare WHICH ST OTHER SWAP
     ; A state is (ENC EXTENT STRIDES OFFSET DATA); OTHER is a state or a number.
     (%fast-cell (pair () ()))
     (method %fast (self)
@@ -567,6 +569,27 @@
                       (apply-kernel (kname enc which) (str-make 256)
                         (list (stretch a ext) (stretch b ext) out) (list (pair 0 3) (pair 1 4) (pair 2 5)) ext #t)
                       out)))))))
+        ; WHICH of A against OTHER, element by element: an f64 state of 1s
+        ; and 0s.  With SWAP the operands change sides, so greater is less
+        ; swapped and at-least is at-most swapped.
+        (def compare
+          (fn (_ which a other swap)
+            (let ((b (if (pair? other) other (scalar other (enc-of a)))))
+              (if (if (eq? (enc-of a) c128) #t (eq? (enc-of b) c128))
+                (Err raise (lit value) "Tensor: complex numbers are not compared" which) ())
+              (let ((enc (match
+                           ((if (eq? (enc-of a) f64) #t (eq? (enc-of b) f64)) f64)
+                           ((if (eq? (enc-of a) f32) #t (eq? (enc-of b) f32)) f32)
+                           (#t (lit i64)))))
+                (let ((a (if (eq? (enc-of a) enc) a (convert a enc)))
+                      (b (if (eq? (enc-of b) enc) b (convert b enc))))
+                  (let ((ext (broadcast (ext-of a) (ext-of b))))
+                    (let ((out (new f64 ext)))
+                      (apply-kernel (kname enc which) (str-make 256)
+                        (list (stretch a ext) (stretch b ext) out)
+                        (if swap (list (pair 1 4) (pair 0 3) (pair 2 5)) (list (pair 0 3) (pair 1 4) (pair 2 5)))
+                        ext #t)
+                      out)))))))
         (def reduce
           (fn (_ which st)
             (let ((enc (enc-of st)))
@@ -598,7 +621,7 @@
               (str-make 256) (list (stretch src (ext-of dst)) dst) (list (pair 0 3) (pair 2 5)) (ext-of dst) #f)
             dst))
         (Vector of size-of row-major contig? new get put zip reduce fill! convert view index addr drive bits
-          broadcast assign! base)))
+          broadcast assign! base compare)))
 
     ; --- the lanes ----------------------------------------------------------
     ; As x/num/frequency's: what the pure kernels allocate is owed in objects
@@ -988,6 +1011,52 @@
                   (int= (mem-cmp (str->ptr (first a)) (str->ptr (first b)) (int* (runs a) %word-size)) 0)
                   #f))))))
 
+    ; --- the places kernel ----------------------------------------------------
+    ; The places of the doubles that are not 0, in order: the doubles'
+    ; address in word 0, the buffer the places are written to in word 1,
+    ; the count in word 3, the place reached in word 5 and the number
+    ; written in word 6.  The budget is word 8.  A NaN is not 0.  It runs
+    ; only once compiled.
+    (%places-form
+      (lit (fn (self s)
+             (match
+               ((= (%mem-ref s 8) 0) 0)
+               ((< (%mem-ref s 5) (%mem-ref s 3))
+                 (do (if (f= (f-ref (%mem-ref s 0) (%mem-ref s 5)) (i->f 0))
+                       0
+                       (do (%mem-set-at! (%mem-ref s 1) (%mem-ref s 6) (%mem-ref s 5))
+                           (%mem-set! s 6 (+ (%mem-ref s 6) 1))))
+                     (%mem-set! s 5 (+ (%mem-ref s 5) 1))
+                     (%mem-set! s 8 (- (%mem-ref s 8) 1))
+                     (self s)))
+               (#t 1)))))
+
+    ; (PLACES . SCRATCH) for the places kernel over N doubles at ADDR.
+    ; After it has run, the scratch's word 6 is the number of places.
+    (method %places-scratch (self addr n)
+      (let ((out (str-make (int* (if (int< n 1) 1 n) %word-size))) (s (str-make 256)))
+        (def fill
+          (fn (go i xs)
+            (if (null? xs) () (do (ptr-set-word! (str->ptr s) (int* i %word-size) (first xs)) (go (int+ i 1) (rest xs))))))
+        (fill 0 (list addr (ptr->int (str->ptr out)) 0 n 0 0 0 0 1073741823))
+        (pair out s)))
+
+    ; Whether the compiled kernel finds the places of eight doubles, three
+    ; of them 0, that the pure one does.
+    (method %places-agrees? (self compiled)
+      (let ((in (self %check-input (lit f64) (list 3 0 7 0 -5 0 1 4))))
+        (let ((run (fn (_ kern)
+                     (let ((r (Tensor %places-scratch (rest in) 8)))
+                       (kern (ptr->int (str->ptr (rest r))))
+                       r)))
+              (kept (fn (_ r) (ptr-ref-word (str->ptr (rest r)) (int* 6 %word-size)))))
+          (let ((a (run (word-form-pure (self %places-form)))) (b (run compiled)))
+            ; in is held to here, so its address stayed good
+            (do in
+                (if (int= (kept a) (kept b))
+                  (int= (mem-cmp (str->ptr (first a)) (str->ptr (first b)) (int* (kept a) %word-size)) 0)
+                  #f))))))
+
     ; --- the class a result takes ------------------------------------------
     ; A subclass, Matrix, keeps its class through the operations that keep
     ; what makes it one.  %make builds an instance of this class from a
@@ -1047,7 +1116,8 @@
     ; A kernel is named for its encoding and operation, f64-add, and its
     ; spec is (NAME KIND IN OUT WHICH).  map2 is O[k] = A[k] which B[k],
     ; fold is ACC = ACC which A[k] (sum, least, greatest), fill is O[k] = V,
-    ; and map1 is O[k] = A[k] converted from IN to OUT.  Each answers 1 when
+    ; map1 is O[k] = A[k] converted from IN to OUT, and cmp is O[k] = 1 or
+    ; 0, an f64, as A[k] which B[k] holds or not.  Each answers 1 when
     ; its run is done and 0 when its budget is spent.
     (method %kernel-specs (self)
       (let ((encs (if (int= %word-size 8) (list (lit f64) (lit f32) (lit i64)) (list (lit f64) (lit f32)))))
@@ -1060,6 +1130,8 @@
                     (list (lit add) (lit sub) (lit mul) (lit min) (lit max))))
                 (List map (fn (_ which) (list (self %name enc which) (lit fold) enc enc which))
                   (list (lit sum) (lit least) (lit greatest)))
+                (List map (fn (_ which) (list (self %name enc which) (lit cmp) enc (lit f64) which))
+                  (list (lit less) (lit at-most) (lit equal) (lit differ)))
                 (list (list (self %name enc (lit fill)) (lit fill) enc enc ())
                       (list (self %name enc (lit copy)) (lit map1) enc enc ()))))
             encs)
@@ -1101,6 +1173,8 @@
                     ((eq? out (lit c128)) (self %c128-step kind which in))
                     ((eq? kind (lit map2))
                       (self %vset out 2 5 (self %op which in (self %vref in 0 3) (self %vref in 1 4))))
+                    ((eq? kind (lit cmp))
+                      (self %vset out 2 5 (self %cmp which in (self %vref in 0 3) (self %vref in 1 4))))
                     ((eq? kind (lit fold))
                       (self %acc! in (self %op which in (self %acc in) (self %vref in 0 3))))
                     ((eq? kind (lit fill)) (self %vset out 2 5 (self %v out)))
@@ -1183,6 +1257,16 @@
         ((if (self %real? in) (self %real? out) #f) x)
         ((self %real? out) (list (lit i->f) x))
         (#t (list (lit f->i) x))))
+    ; X which Y as a form answering the double 1 or 0: less, at-most, equal
+    ; or differ.  A NaN is less than, at most and equal to nothing.
+    (method %cmp (self which enc x y)
+      (let ((lt (if (self %real? enc) (lit f<) (lit <))) (same (if (self %real? enc) (lit f=) (lit =)))
+            (one (lit (i->f 1))) (zero (lit (i->f 0))))
+        (match
+          ((eq? which (lit less)) (list (lit if) (list lt x y) one zero))
+          ((eq? which (lit equal)) (list (lit if) (list same x y) one zero))
+          ((eq? which (lit differ)) (list (lit if) (list same x y) zero one))
+          (#t (list (lit if) (list lt x y) one (list (lit if) (list same x y) one zero))))))
     ; X which Y as a form: the arithmetic, or the lesser or greater by <.
     (method %op (self which enc x y)
       (let ((f (self %real? enc)))
@@ -1416,6 +1500,24 @@
                   (do src
                       (pair order (List sort (fn (_ a b) (int< (first a) (first b))) (go (int- m 1) n ()))))))))))))
 
+  ; The places of a rank-1 tensor's elements that are not 0, in order,
+  ; packed as rows are.  Until the places kernel has compiled the elements
+  ; are read one at a time.
+  (method %mask-packed (self)
+    (let ((f (Tensor %fast)) (st (field (lit st))))
+      (let ((n (first (List ref 1 st)))
+            (src (if (if (eq? (first st) (lit f64)) ((obj-ref f 3) st) #f) st ((obj-ref f 10) st (lit f64)))))
+        (if (List ref 1 (Tensor %lane (lit f64-places)))
+          (let ((r (Tensor %places-scratch ((obj-ref f 13) src) n)))
+            (if (int< 0 n) ((obj-ref f 14) (lit f64-places) (rest r)) ())
+            (do src (pair (first r) (ptr-ref-word (str->ptr (rest r)) (int* 6 %word-size)))))
+          (let ((get ((obj-ref f 5) (lit f64))) (a ((obj-ref f 13) src)) (zero (float-of 0)))
+            (let ((rows ((fn (go k acc)
+                           (if (int< k 0) acc (go (int- k 1) (if (f-eq (get a k) zero) acc (pair k acc)))))
+                         (int- n 1) ())))
+              (Tensor %lane-credit! (lit f64-places) n)
+              (do src (Tensor %pack-rows rows))))))))
+
   ; The view of COUNT elements of a rank-1 tensor from START, sharing its
   ; bytes, with no check: for a caller whose range lies within it by the
   ; way it was made.
@@ -1497,6 +1599,43 @@
       (example "(((Tensor from '(1 5 3) 'f64) max 2) ->list)" "(2.0 5.0 3.0)"))
     (self %zip (lit max) other))
 
+  ; --- comparisons ------------------------------------------------------------
+  (method less (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
+    (doc "A mask: 1.0 where self's element is less than other's and 0.0 where it is not, broadcast as add is. The mask is f64 whatever the operands' encodings. A NaN is less than nothing. c128 is refused."
+      (returns Tensor "A fresh f64 tensor of the broadcast extent")
+      (example "(((Tensor from '(1 5 3)) less 3) ->list)" "(1.0 0.0 0.0)"))
+    (self %compare (lit less) other #f))
+
+  (method greater (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
+    (doc "A mask: 1.0 where self's element is greater than other's and 0.0 where it is not, as less answers."
+      (returns Tensor "A fresh f64 tensor of the broadcast extent")
+      (example "(((Tensor from '(1 5 3)) greater 3) ->list)" "(0.0 1.0 0.0)"))
+    (self %compare (lit less) other #t))
+
+  (method at-most (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
+    (doc "A mask: 1.0 where self's element is less than other's or equal to it and 0.0 where it is not, as less answers."
+      (returns Tensor "A fresh f64 tensor of the broadcast extent")
+      (example "(((Tensor from '(1 5 3)) at-most 3) ->list)" "(1.0 0.0 1.0)"))
+    (self %compare (lit at-most) other #f))
+
+  (method at-least (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
+    (doc "A mask: 1.0 where self's element is greater than other's or equal to it and 0.0 where it is not, as less answers."
+      (returns Tensor "A fresh f64 tensor of the broadcast extent")
+      (example "(((Tensor from '(1 5 3)) at-least 3) ->list)" "(0.0 1.0 1.0)"))
+    (self %compare (lit at-most) other #t))
+
+  (method equal (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
+    (doc "A mask: 1.0 where self's element equals other's and 0.0 where it does not, as less answers. A NaN equals nothing."
+      (returns Tensor "A fresh f64 tensor of the broadcast extent")
+      (example "(((Tensor from '(1 5 3)) equal 3) ->list)" "(0.0 0.0 1.0)"))
+    (self %compare (lit equal) other #f))
+
+  (method differ (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
+    (doc "A mask: 1.0 where self's element does not equal other's and 0.0 where it does, as less answers. A NaN differs from everything."
+      (returns Tensor "A fresh f64 tensor of the broadcast extent")
+      (example "(((Tensor from '(1 5 3)) differ 3) ->list)" "(1.0 1.0 0.0)"))
+    (self %compare (lit differ) other #f))
+
   ; --- reductions -------------------------------------------------------------
   (method sum (self)
     (doc "The sum of every element: a Float for f64 or f32, an integer (wrapping at 64 bits) for i64, a Complex for c128. An f32 sum is added up in a double."
@@ -1577,6 +1716,10 @@
   (method %st (self) (field (lit st)))
   (method %wrap (self st)
     (let ((c ((class-of self) %result-class st))) (new-from c (list (lit st) st))))
+  (method %compare (self which other swap)
+    (self %wrap
+      ((obj-ref (Tensor %fast) 19) which (field (lit st))
+        (if (if (object? other) (instance-of? other Tensor) #f) (other %st) other) swap)))
   (method %zip (self which other)
     (self %wrap
       ((obj-ref (Tensor %fast) 7) which (field (lit st))
@@ -1586,6 +1729,7 @@
 (Tensor %register! (lit gather-check) (Tensor %gather-check-form) (fn (_ compiled) (Tensor %gather-check-agrees? compiled)))
 (Tensor %register! (lit f64-order) (Tensor %order-form) (fn (_ compiled) (Tensor %order-agrees? compiled)))
 (Tensor %register! (lit f64-runs) (Tensor %runs-form) (fn (_ compiled) (Tensor %runs-agrees? compiled)))
+(Tensor %register! (lit f64-places) (Tensor %places-form) (fn (_ compiled) (Tensor %places-agrees? compiled)))
 
 (doc (provide x/num/tensor Tensor)
   "Tensor: n-dimensional arrays of f64, f32, i64 or c128 packed in bytes, with views that share them, broadcasting element-wise arithmetic and reductions run in kernels that compile once they have run long enough."

@@ -434,6 +434,76 @@ word.
 ---
     (#t (('k (2.5 1.0 -3.0 0.25)) ('total (10.0 7.0 4.0 7.0)) ('first-name ("a" "b" "d" "g"))))
 
+## Masks
+
+### a column's comparisons answer masks, columns of 1.0 and 0.0
+
+```x
+(import x/data/table)
+(let ((c (Column from '(1.5 2.5 4.0))))
+  (list (List map (fn (_ m) (m ->list))
+          (list (c less 2.5) (c greater 2.5) (c at-most 2.5) (c at-least 2.5) (c equal 2.5) (c differ 2.5)
+                (c less (Column from '(2.0 2.0 5.0)))))
+        ((c less 2.5) encoding)))
+```
+---
+    (((1.0 0.0 0.0) (0.0 0.0 1.0) (1.0 1.0 0.0) (0.0 1.0 1.0) (0.0 1.0 0.0) (1.0 0.0 1.0) (1.0 0.0 1.0)) 'f64)
+
+### a column of encoding any answers equal and differ, against a value or a column
+
+```x
+(import x/data/table)
+(let ((c (Column from '("Ann" "Bo" "Cy"))))
+  (list ((c equal "Bo") ->list) ((c differ "Bo") ->list) ((c equal (Column from '("Ann" "Bo" "Di"))) ->list)))
+```
+---
+    ((0.0 1.0 0.0) (1.0 0.0 1.0) (1.0 1.0 0.0))
+
+### filter keeps the rows where a mask is not 0; mul is both masks, max either, and sum the count
+
+```x
+(import x/data/table)
+(let ((t (Table from '((age (31.0 45.0 28.0 52.0)) (name ("Ann" "Bo" "Cy" "Di")) (height (1.5 1.75 1.5 2.0))))))
+  (let ((age (t column 'age)) (height (t column 'height))
+        (names (fn (_ t) ((t column 'name) ->list))))
+    (list (names (t filter (age greater 30)))
+          (names (t filter ((age greater 30) mul (height less 2))))
+          (names (t filter ((age less 30) max (height equal 2))))
+          (names (t filter ((t column 'name) equal "Bo")))
+          (names (t filter ((age greater 30) tensor)))
+          ((t filter (age greater 99)) extent)
+          ((age greater 30) sum))))
+```
+---
+    (("Ann" "Bo" "Di") ("Ann" "Bo") ("Cy" "Di") ("Bo") ("Ann" "Bo" "Di") (0 3) 3.0)
+
+### a mask keeps the rows a function keeps, before and once the kernels are compiled
+
+```x
+(import x/data/table) (import x/num/tensor)
+(let ((t (Table from '((k (2.5 1.0 2.5 -3.0 1.0 2.5 0.25)) (name ("a" "b" "c" "d" "e" "f" "g"))))))
+  (let ((run (fn (_) ((t filter ((t column 'k) at-least 1)) ->list)))
+        (by-function ((t filter 'k (fn (_ k) (not (< k 1)))) ->list)))
+    (let ((before (run)))
+      (Tensor jit!)
+      (list (equal? before by-function) (equal? before (run)) (((t filter ((t column 'k) at-least 1)) column 'name) ->list)))))
+```
+---
+    (#t #t ("a" "b" "c" "e" "f"))
+
+### an order on a column of encoding any, a mask of another size, and a mask that is neither a Column nor a Tensor are refused
+
+```x
+(import x/data/table)
+(let ((t (Table from '((age (31.0 45.0)) (name ("Ann" "Bo"))))))
+  (list (guard (e (Err label e)) ((t column 'name) less "Bo"))
+        (guard (e (Err label e)) ((t column 'name) equal (Column from '("Ann"))))
+        (guard (e (Err label e)) (t filter ((Column from '(1.0 2.0 3.0)) greater 1)))
+        (guard (e (Err label e)) (t filter 'age))))
+```
+---
+    ('value 'value 'value 'type)
+
 ## Handing a table to a model
 
 ### matrix answers the named columns as an f64 Matrix, a row for each row
