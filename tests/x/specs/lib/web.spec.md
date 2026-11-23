@@ -80,7 +80,7 @@ on port 0 and reads the port back with local-port.
 ### the page's socket is told the window's state, its keys come back as events, and a frame goes to it
 
 ```x
-(do (import x/sys/web) (import x/sys/socket) (import x/core/doors ptr-set! str->ptr str-make)
+(do (import x/sys/web) (import x/sys/socket) (import x/sys/posix) (import x/core/doors ptr-set! str->ptr str-make)
   (Web listen! "127.0.0.1" 0)
   (def w-win (Web open "Delve" 2 1 1))
   (def w-port (Socket local-port (Web %ref w-win (lit listener))))
@@ -101,7 +101,12 @@ on port 0 and reads the port back with local-port.
       (do (ptr-set! w-p (+ 6 i) (- (| (first l) (+ 1 (& i 3))) (& (first l) (+ 1 (& i 3)))) 1)
           (put (rest l) (+ i 1)))))
   (Socket send-run w-c w-frame 21)
-  (def w-event (Web poll))
+  ; poll does not wait, and the frame may not have arrived when it is first
+  ; asked, so it is asked again, 10 ms apart, for up to two seconds.
+  (def w-event (let again ((n 200))
+                 (let ((e (Web poll)))
+                   (if (or (not (null? e)) (= n 0)) e
+                     (do (Sys usleep 10000) (again (- n 1)))))))
   (def w-buf (Web canvas w-win))
   (ptr-set! (str->ptr w-buf) 0 200 1)
   (Web show! w-win w-buf)

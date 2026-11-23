@@ -339,6 +339,15 @@ The compiled version is remade, not carried. The cache carries the bytes.
   never imaged either: its entry runs its command as it loads, and a boot
   from the load's result would never reach it. `--no-image` boots from
   source.
+- **`x --prelude FILE`** adds FILE to that prefix, after the boot and
+  before the program, so the image carries what the prelude made: a
+  tokenizer read from its files, a table built at load. The prelude's
+  text is in the key and its path names the image, which goes to the
+  per-user cache even beside a bundle. What the prelude reads is not in
+  the key, so an image made from a data file is rewritten when the
+  prelude changes, not when the file does. The writer runs at the tree's
+  root and a source boot where the caller is, so a path the prelude
+  names is absolute.
 
 An image is a cache, not an artifact. It carries no release of its own, it
 is rewritten whenever its key changes, and it may be deleted at any time.

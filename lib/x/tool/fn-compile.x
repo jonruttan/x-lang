@@ -122,7 +122,8 @@
   (fn (_ v)
     (or (eq? (Fn label v) (lit fn))
         (List any? (fn (_ a) (obj-same? a v)) %fc-applicatives)
-        (List any? (fn (_ a) (obj-same? a v)) %fc-compiled))))
+        (List any? (fn (_ a) (obj-same? a v)) %fc-compiled)
+        (List any? (fn (_ a) (obj-same? a v)) %fc-generic-values))))
 
 (def %fc-assq
   (fn (self v l)
@@ -486,6 +487,15 @@
 ; under the numeric tower (/ 1 2) is a rational.  * is not yet: its
 ; overflow test needs a division.
 (def %fc-generic-ops (list (lit +) (lit -) (lit <) (lit >) (lit <=) (lit >=) (lit =)))
+
+; The root's bindings of the generic operators when this file loads.  Each
+; is a closure, applicative, but one compiled into its own object, as
+; x/tool/obj-compiled compiles < and >, is labelled a primitive like any
+; compiled closure; the object is the same before and after that compile,
+; so it is known here by identity rather than by its label.
+(def %fc-generic-values
+  (List map (fn (_ h) ((fn (_ cell) (if (null? cell) () (rest cell))) (Env cell (Env root) h)))
+            %fc-generic-ops))
 
 ; Is (H A B), H bound to V, a generic operator of two operands?  V must be
 ; the root environment's binding of H when F is compiled, so a name F's own
