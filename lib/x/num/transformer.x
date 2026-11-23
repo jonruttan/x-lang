@@ -60,6 +60,15 @@
 ; kernels leave garbage, and nothing collects it during a call, so the
 ; heap is collected every %tf-collect-every blocks.
 ;
+; A tensor operation's cost is mostly its making: a result, a scratch, a
+; product's buffers and dimensions.  Where the weights are held, generate
+; makes those once for its one-position predictions (%tf-work): a held
+; row for the hidden row, a plan for each product (Gpu %plan) whose
+; result is the next step's operand, and a scratch for each kernel.  A
+; prediction then runs the plans and drives the kernels, and makes no
+; tensor.  The kernels and the products are the same ones, so the ids
+; are the same.
+;
 ; @copyright 2026 Jon Ruttan
 ; @license MIT No Attribution (MIT-0)
 
@@ -344,11 +353,152 @@
           (%tf-done scores)
           at)))))
 
+; --- one new position, with nothing made --------------------------------------------
+; generate's predictions after the first each work out one position.  On a
+; host with a GPU the work for that is made once: a held row for the
+; position's hidden row and two more to work in, a plan for each product
+; (Gpu %plan) whose result is the next step's operand, and a scratch for
+; each kernel with its addresses in it.  A prediction then runs the plans
+; and drives the kernels, and makes no tensor.
+;
+; The work is (STEP . RELEASE): STEP takes an id and its position and
+; answers the id predicted after it; RELEASE gives the buffers back.
+
+; The address of a tensor's elements as contiguous f32, and the state
+; that keeps them alive.
+(def %tf-flat
+  (fn (_ t)
+    (let ((f (Tensor %fast)) (st ((%tf-f32 t) %st)))
+      (let ((c (if ((obj-ref f 3) st) st ((obj-ref f 10) st (lit f32)))))
+        (pair ((obj-ref f 13) c) c)))))
+
+(def %tf-zero! (fn (go s ks) (if (null? ks) () (do (%tf-word! s (first ks) 0) (go s (rest ks))))))
+
+; A kernel driven over a scratch whose addresses are in it: the words KS
+; are set to zero first, since the last run left them where it ended.
+(def %tf-driven
+  (fn (_ name s ks)
+    (let ((drive (obj-ref (Tensor %fast) 14)))
+      (fn (_) (%tf-zero! s ks) (drive name s)))))
+
+; O[k] = A[k] + B[k] over N singles at those addresses.
+(def %tf-add-scratch
+  (fn (_ a b o n)
+    (let ((s (str-make 256)))
+      (mem-set (str->ptr s) 0 256)
+      (%tf-word! s 0 a) (%tf-word! s 1 b) (%tf-word! s 2 o)
+      (%tf-word! s 3 1) (%tf-word! s 4 1) (%tf-word! s 5 1) (%tf-word! s 6 n)
+      s)))
+(def %tf-adding (fn (_ a b o n) (%tf-driven (lit f32-add) (%tf-add-scratch a b o n) (list 7))))
+
+; The N singles at IN normalized into OUT with a gain and a bias.
+(def %tf-norming
+  (fn (_ in gain bias out n)
+    (let ((s (Neural %scratch)))
+      (%tf-word! s 0 in) (%tf-word! s 1 gain) (%tf-word! s 2 out) (%tf-word! s 6 n) (%tf-word! s 10 bias)
+      ; the doubles 16 and 17, the two sums, are words on a host with a GPU
+      (%tf-driven (lit f32-layer-norm) s (list 7 9 16 17)))))
+
+; gelu, the tanh form, in place over N singles.
+(def %tf-gelu-ing
+  (fn (_ a n)
+    (let ((s (Neural %scratch)))
+      (%tf-word! s 0 a) (%tf-word! s 2 a) (%tf-word! s 6 n)
+      (%tf-driven (lit f32-gelu-tanh) s (list 7 9)))))
+
+; Attention for the one position AT, whose queries, keys and values are
+; the row at MADE: they are copied into the cache, and the answer is
+; written at OUT.  AT is read from the cell at the time of each run.
+(def %tf-attending
+  (fn (_ made cache out rows width heads at)
+    (let ((f (Tensor %fast)) (row (int* 12 width)))
+      (let ((sc (%tf-attention-scratch ((obj-ref f 13) cache) out rows width heads 0))
+            (drive (obj-ref f 14)))
+        (fn (_)
+          (let ((from (first at)) (s (first sc)))
+            (mem-copy (int->ptr (int+ ((obj-ref f 13) cache) (int* from row))) (int->ptr made) row)
+            (%tf-word! s 3 (int+ from 1)) (%tf-word! s 10 from) (%tf-word! s 15 from)
+            (%tf-zero! s (list 9 11 12 13 16))
+            (drive (lit f32-attention) s)
+            ; the cache and the scratch are held to here, so their addresses stayed good
+            (do cache sc ())))))))
+
+(def %tf-each (fn (go l) (if (null? l) () (do ((first l)) (go (rest l))))))
+
+(def %tf-work
+  (fn (_ m caches)
+    (let ((f (Tensor %fast)) (width (m %width)) (heads (m %heads)) (at (pair 0 ())) (kept (pair () ())) (plans (pair () ())))
+      (let ((row (fn (_) (Gpu hold (Matrix %make ((obj-ref f 4) (lit f32) (list 1 width))))))
+            (addr (fn (_ t) ((obj-ref f 13) (t %st))))
+            (flat (fn (_ t) (let ((a (%tf-flat t))) (%set-first! kept (pair (rest a) (first kept))) (first a)))))
+        (let ((x (row)) (n (row)) (t (row)))
+          ; a times the layer's weight, plus its bias: the plan, its result
+          ; and the two steps that work it out
+          (let ((layer
+                  (fn (_ a l)
+                    (let ((plan (Gpu %plan a (first l))))
+                      (%set-first! plans (pair plan (first plans)))
+                      (let ((out (Gpu %plan-out plan)))
+                        (let ((o (addr out)) (count ((obj-ref f 1) (List ref 1 (out %st)))))
+                          (list out
+                                (fn (_) (Gpu %plan-run plan))
+                                (%tf-adding o (flat (rest l)) o count)))))))
+                (norming (fn (_ g) (%tf-norming (addr x) (flat (first g)) (flat (rest g)) (addr n) width)))
+                (rows (first (List ref 1 (first caches)))))
+            (let ((steps
+                    (List flat-map
+                      (fn (_ bc)
+                        (let ((b (first bc)) (cache (rest bc)))
+                          (let ((attend (layer n (List ref 1 b))) (project (layer t (List ref 2 b)))
+                                (wide (layer n (List ref 4 b))))
+                            (let ((narrow (layer (first wide) (List ref 5 b))))
+                              (list (norming (List ref 0 b))
+                                    (List ref 1 attend) (List ref 2 attend)
+                                    (%tf-attending (addr (first attend)) cache (addr t) rows width heads at)
+                                    (List ref 1 project) (List ref 2 project)
+                                    (%tf-adding (addr x) (addr (first project)) (addr x) width)
+                                    (norming (List ref 3 b))
+                                    (List ref 1 wide) (List ref 2 wide)
+                                    (%tf-gelu-ing (addr (first wide)) ((obj-ref f 1) (List ref 1 ((first wide) %st))))
+                                    (List ref 1 narrow) (List ref 2 narrow)
+                                    (%tf-adding (addr x) (addr (first narrow)) (addr x) width))))))
+                      (List zip (m %blocks) caches)))
+                  (finish (norming (m %norm)))
+                  ; the scores: the items times the last row as a column
+                  (column (Tensor %make ((obj-ref f 11) (n %st) (list width) (list 1) 0))))
+              (let ((scoring (Gpu %plan (m %items) column)))
+                (%set-first! plans (pair scoring (first plans)))
+                (let ((scores (Gpu %plan-out scoring)) (items (flat (m %items))) (places (flat (m %positions)))
+                      (bytes (int* 4 width)) (greatest (str-make 256)) (drive (obj-ref f 14)))
+                  (let ((embed (%tf-add-scratch 0 0 (addr x) width)))
+                    (mem-set (str->ptr greatest) 0 256)
+                    (%tf-word! greatest 0 (addr scores)) (%tf-word! greatest 6 (first (scores extent)))
+                    (pair
+                      (fn (_ id from)
+                        (%set-first! at from)
+                        (%tf-word! embed 0 (int+ items (int* id bytes)))
+                        (%tf-word! embed 1 (int+ places (int* from bytes)))
+                        (%tf-word! embed 7 0)
+                        (drive (lit f32-add) embed)
+                        (%tf-each steps)
+                        (finish)
+                        (Gpu %plan-run scoring)
+                        (%tf-zero! greatest (list 7 13))
+                        (drive (lit f32-greatest-at) greatest)
+                        ; the rows, the states and the scratches are held to here, so their addresses stayed good
+                        (do x n t kept scores embed (%tf-word greatest 13)))
+                      (fn (_)
+                        (List for-each (fn (_ p) (Gpu %plan-done p #f)) (first plans))
+                        (%set-first! plans ())
+                        (List for-each (fn (_ r) (Gpu release r)) (list x n t))
+                        ()))))))))))))
+
 (def-class Transformer ()
   (doc "A language model's forward pass, in the layout GPT-2 is published in: from a list of ids, a score for every vocabulary item at every position, and the ids predicted to follow."
     (note "from-file reads a safetensors file with GPT-2's tensor names. The file does not say how many heads the attention has, so the caller does.")
     (note "The products run on the GPU where there is one and through Matrix's kernels otherwise, so logits differ in their last places from one host to another.")
     (note "generate keeps each block's queries, keys and values from one prediction to the next, and works out one new position for each id.")
+    (note "On a host with a GPU, generate's predictions after the first run products planned once over buffers made once, and make no tensor.")
     (note "On a host with a GPU the weights are held there; (m release) gives the buffers back.")
     (sample "((Transformer from-file \"model.safetensors\" 12) generate (list 15496 11 995 0) 8)" "the four ids and the eight GPT-2 predicts after them")
     (known-as "GPT" "decoder-only transformer")
@@ -444,14 +594,25 @@
             (list (int- (int+ count n) 1) (field (lit context))))
           ())
         (let ((caches (%tf-caches self (int- (int+ count n) 1))))
-          ; made, the ids generated so far, last first; new, the ids to feed
-          ; at the positions from from on
-          ((fn (go made new from k)
-             (let ((next (%tf-next self (%tf-hidden self new from caches))))
-               (if (int= k 1)
-                 (List append ids (List reverse (pair next made)))
-                 (go (pair next made) (list next) (int+ from (List length new)) (int- k 1)))))
-            () ids 0 n)))))
+          ; the first prediction works out every position of ids
+          (let ((first-id (%tf-next self (%tf-hidden self ids 0 caches))))
+            (if (int= n 1) (List append ids (list first-id))
+              ; each one after it works out one position: by the work made
+              ; once where the weights are held, else as the first did.
+              ; made, the ids generated so far, last first; from, the
+              ; position of the last of them
+              (let ((work (if (field (lit held)) (%tf-work self caches) ())))
+                (let ((step (if (null? work)
+                              (fn (_ id from) (%tf-next self (%tf-hidden self (list id) from caches)))
+                              (first work))))
+                  (let ((made
+                          (guard (e (do (if (null? work) () ((rest work))) (error e)))
+                            ((fn (go made from k)
+                               (if (int= k 0) made
+                                 (go (pair (step (first made) from) made) (int+ from 1) (int- k 1))))
+                              (list first-id) count (int- n 1)))))
+                    (if (null? work) () ((rest work)))
+                    (List append ids (List reverse made)))))))))))
 
   (method release (self)
     (doc "Give back the GPU buffers that hold the model's weights. The model is finished: using it afterwards raises a label 'state. A model whose weights are not held, on a host with no GPU, has nothing to give back; releasing twice does nothing."

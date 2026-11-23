@@ -223,6 +223,31 @@ any other, and product reads it, and answers one, with no copy.
 ---
     ((32.0 65.0) #t ((5.0 14.0) (11.0 32.0)) #t)
 
+### a planned product is run again for what its operands then hold
+
+A plan keeps a product's buffers and dimensions, so a second run makes
+nothing: the result is written where the first was.
+
+```x
+(import x/num/gpu)
+(if (Gpu available?)
+  (let ((a (Gpu hold (Matrix from '((1 2))))) (b (Gpu hold (Matrix from '((1 0) (0 1))))))
+    (let ((plan (Gpu %plan a b)))
+      (let ((out (Gpu %plan-out plan)))
+        (Gpu %plan-run plan)
+        (let ((once (out ->list)))
+          (a set! 0 0 5)
+          (Gpu %plan-run plan)
+          (let ((r (list once (out ->list) (Gpu held? out))))
+            (Gpu %plan-done plan #f)
+            (Gpu release a)
+            (Gpu release b)
+            r)))))
+  (list (lit ((1.0 2.0))) (lit ((5.0 2.0))) #t))
+```
+---
+    (((1.0 2.0)) ((5.0 2.0)) #t)
+
 ### two ordinary operands answer an ordinary matrix
 
 ```x
