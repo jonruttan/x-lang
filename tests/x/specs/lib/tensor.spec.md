@@ -315,12 +315,12 @@ on a 4-byte word only when i64 is refused there.
 
 ## Reductions
 
-### sum, least, greatest
+### sum, min, max
 
 ```x
 (import x/num/tensor)
 (let ((t (Tensor from '((3 -1) (2 4)) 'f64)))
-  (list (t sum) (t least) (t greatest)))
+  (list (t sum) (t min) (t max)))
 ```
 ---
     (8.0 -1.0 4.0)
@@ -472,7 +472,7 @@ on a 4-byte word only when i64 is refused there.
 (import x/num/tensor)
 (if (< %word-size 8) (lit (8 -1 4 0))
   (let ((t (Tensor from '((3 -1) (2 4)))))
-    (list (t sum) (t least) (t greatest) ((Tensor zeros 0 'i64) sum))))
+    (list (t sum) (t min) (t max) ((Tensor zeros 0 'i64) sum))))
 ```
 ---
     (8 -1 4 0)
@@ -551,7 +551,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ```x
 (import x/num/tensor)
 (let ((t (Tensor from '(1 2.5 3) 'f32)))
-  (list (t sum) (t least) (t greatest) (t mean) ((Tensor zeros 0 'f32) sum)))
+  (list (t sum) (t min) (t max) (t mean) ((Tensor zeros 0 'f32) sum)))
 ```
 ---
     (6.5 1.0 3.0 2.16666666666667 0.0)
@@ -674,7 +674,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 (import x/num/tensor)
 (import x/num/complex)
 (let ((t (Tensor from (list (Complex make 1 2)))))
-  (list (guard (e (Err label e)) (t least))
+  (list (guard (e (Err label e)) (t min))
         (guard (e (Err label e)) (t min 0))
         (guard (e (Err label e)) (t as 'f64))
         (guard (e (Err label e)) ((Tensor zeros 1) set! 0 (Complex make 1 1)))))
@@ -728,7 +728,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 (import x/num/tensor)
 (let ((a (Tensor from '((1.5 2) (3 0.1)) 'f32)) (b (Tensor from '(0.25 -3) 'f32)))
   (let ((run (fn (_) (list ((a add b) ->list) ((a mul b) ->list) ((a div b) ->list) ((a max b) ->list)
-                          (a sum) (a least) (((a transpose) copy) ->list)
+                          (a sum) (a min) (((a transpose) copy) ->list)
                           ((a as 'f64) ->list) (((Tensor from '(0.1 0.7)) as 'f32) ->list)
                           ((Tensor fill 2 0.3 'f32) ->list) ((a as 'c128) ->list)))))
     (let ((before (run)))
@@ -909,7 +909,7 @@ Element (i j k) of the first is 6i + 3j + k, and row j of the column adds
 (import x/num/tensor)
 (do
   (def tn-col ((Tensor from '((1 2) (3 4) (5 6)) 'f64) slice 1 1 2))
-  (list (tn-col sum) (tn-col least) (tn-col greatest) ((tn-col mul 2) ->list)))
+  (list (tn-col sum) (tn-col min) (tn-col max) ((tn-col mul 2) ->list)))
 ```
 ---
     (12.0 2.0 6.0 ((4.0) (8.0) (12.0)))

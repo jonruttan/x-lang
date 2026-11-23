@@ -36,7 +36,7 @@ word.
 ```x
 (import x/data/table)
 (let ((c (Column from '(2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0))))
-  (list (c sum) (c mean) (c least) (c greatest) (c median)
+  (list (c sum) (c mean) (c min) (c max) (c median)
         (c variance 0) (c deviation 0) (c quantile 0.5)))
 ```
 ---
@@ -333,7 +333,7 @@ word.
 (let ((t (Table from '((city ("Ely" "Ayr" "Ely" "Usk")) (age (31.0 45.0 29.0 60.0)) (pay (10.0 20.0 30.0 40.0))))))
   (let ((a (t aggregate 'city
              (list (list 'mean-age 'age (fn (_ c) (c mean)))
-                   (list 'top-pay 'pay (fn (_ c) (c greatest)))
+                   (list 'top-pay 'pay (fn (_ c) (c max)))
                    (list 'total-pay 'pay (fn (_ c) (c sum)))))))
     (list (a names) (a extent) (a ->list))))
 ```
@@ -373,7 +373,7 @@ word.
     (let ((a (t aggregate 'k (list (list 'n 'one (fn (_ c) (c sum)))))))
       (list (a extent)
             (List take 4 ((a column 'k) ->list))
-            ((a column 'n) least) ((a column 'n) greatest) ((a column 'n) sum)))))
+            ((a column 'n) min) ((a column 'n) max) ((a column 'n) sum)))))
 ```
 ---
     ((50 2) (0.0 7.0 14.0 21.0) 4.0 4.0 200.0)

@@ -168,7 +168,7 @@ any other, and product reads it, and answers one, with no copy.
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((h (Gpu hold (Matrix from '((1 2) (3 4))))))
-    (let ((r (list ((h add 1) ->list) (Gpu held? (h add 1)) (h sum) (h least))))
+    (let ((r (list ((h add 1) ->list) (Gpu held? (h add 1)) (h sum) (h min))))
       (Gpu release h)
       r))
   (list (lit ((2.0 3.0) (4.0 5.0))) #f 10.0 1.0))

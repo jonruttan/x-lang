@@ -271,15 +271,13 @@
       (doc "Return elements that do NOT satisfy a predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List") (returns LIST "Filtered list") (example "(List reject (fn (_ x) (< x 3)) (list 1 2 3 4))" "(3 4)"))
       (List filter (Fn complement pred) lst))
     ; concat was byte-identical to append -- one name, one operation.
-    ; least/greatest ask a collection; min/max (Num) operate on values, as
-    ; sum asks a list and + adds its arguments.
-    (method least (self lst)
-      (doc "The least element (by <); errors on an empty list." (param lst LIST "Non-empty list") (returns ANY "The least element") (example "(List least (list 3 1 2))" "1"))
-      (if (eq? lst ()) (Err raise (lit value) "List least: empty list" ())
+    (method min (self lst)
+      (doc "The least element (by <); errors on an empty list." (param lst LIST "Non-empty list") (returns ANY "The least element") (example "(List min (list 3 1 2))" "1"))
+      (if (eq? lst ()) (Err raise (lit value) "List min: empty list" ())
         (%list-fold (fn (_ m x) (if (< x m) x m)) (first lst) (rest lst))))
-    (method greatest (self lst)
-      (doc "The greatest element (by <); errors on an empty list." (param lst LIST "Non-empty list") (returns ANY "The greatest element") (example "(List greatest (list 3 1 2))" "3"))
-      (if (eq? lst ()) (Err raise (lit value) "List greatest: empty list" ())
+    (method max (self lst)
+      (doc "The greatest element (by <); errors on an empty list." (param lst LIST "Non-empty list") (returns ANY "The greatest element") (example "(List max (list 3 1 2))" "3"))
+      (if (eq? lst ()) (Err raise (lit value) "List max: empty list" ())
         (%list-fold (fn (_ m x) (if (< m x) x m)) (first lst) (rest lst))))
     (method sum (self lst)
       (doc "Sum all elements of a list." (param lst LIST "List of numbers") (returns INTEGER "Sum") (example "(List sum (list 1 2 3))" "6"))

@@ -22,7 +22,8 @@
 ; (x/tool/word-form) over a run of elements, a start and a stride per
 ; operand: the element-wise operations, the reductions, fill, copy and the
 ; casts.  A c128 kernel reads and writes an element's two doubles; complex
-; numbers have no order, so c128 has no min, max, least or greatest.  An operation walks the outer axes in x and hands each run of
+; numbers have no order, so c128 has no min or max.  An operation walks
+; the outer axes in x and hands each run of
 ; the last axis to its kernel; operands that are all contiguous and of one
 ; extent are one run.  A run costs far more than an element, so the axes
 ; are first made as few as the strides allow, and where the order of the
@@ -1115,7 +1116,7 @@
     ; --- the kernels, written once ------------------------------------------
     ; A kernel is named for its encoding and operation, f64-add, and its
     ; spec is (NAME KIND IN OUT WHICH).  map2 is O[k] = A[k] which B[k],
-    ; fold is ACC = ACC which A[k] (sum, least, greatest), fill is O[k] = V,
+    ; fold is ACC = ACC which A[k] (sum, fold-min, fold-max), fill is O[k] = V,
     ; map1 is O[k] = A[k] converted from IN to OUT, and cmp is O[k] = 1 or
     ; 0, an f64, as A[k] which B[k] holds or not.  Each answers 1 when
     ; its run is done and 0 when its budget is spent.
@@ -1129,7 +1130,7 @@
                   (if (self %real? enc) (list (lit add) (lit sub) (lit mul) (lit div) (lit min) (lit max))
                     (list (lit add) (lit sub) (lit mul) (lit min) (lit max))))
                 (List map (fn (_ which) (list (self %name enc which) (lit fold) enc enc which))
-                  (list (lit sum) (lit least) (lit greatest)))
+                  (list (lit sum) (lit fold-min) (lit fold-max)))
                 (List map (fn (_ which) (list (self %name enc which) (lit cmp) enc (lit f64) which))
                   (list (lit less) (lit at-most) (lit equal) (lit differ)))
                 (list (list (self %name enc (lit fill)) (lit fill) enc enc ())
@@ -1276,7 +1277,7 @@
           ((eq? which (lit sub)) (list (if f (lit f-) (lit -)) x y))
           ((eq? which (lit mul)) (list (if f (lit f*) (lit *)) x y))
           ((eq? which (lit div)) (list (lit f/) x y))
-          ((if (eq? which (lit min)) #t (eq? which (lit least)))
+          ((if (eq? which (lit min)) #t (eq? which (lit fold-min)))
             (list (lit if) (list (if f (lit f<) (lit <)) x y) x y))
           (#t (list (lit if) (list (if f (lit f<) (lit <)) y x) x y))))))
 
@@ -1587,17 +1588,23 @@
       (example "(((Tensor from '(1 2 3)) div 2) ->list)" "(0.5 1.0 1.5)"))
     (self %zip (lit div) other))
 
-  (method min (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
-    (doc "The element-wise lesser, broadcast as add is. Against a NaN the other operand is kept. c128 is refused: complex numbers have no order."
-      (returns Tensor "A fresh tensor of the broadcast extent")
-      (example "(((Tensor from '(1 5 3) 'f64) min 2) ->list)" "(1.0 2.0 2.0)"))
-    (self %zip (lit min) other))
+  (method min (self . (param other Tensor|NUMBER "Optional: a tensor that broadcasts with self, or a number"))
+    (doc "Given other, the element-wise lesser, broadcast as add is; against a NaN the other operand is kept. Given nothing, the least element, to which a NaN loses. c128 is refused: complex numbers have no order."
+      (returns Tensor|NUMBER "A fresh tensor of the broadcast extent; or the least element, a raise for no elements")
+      (example "(((Tensor from '(1 5 3) 'f64) min 2) ->list)" "(1.0 2.0 2.0)")
+      (example "((Tensor from '(3 -1 2) 'f64) min)" "-1.0"))
+    (if (null? other)
+      ((obj-ref (Tensor %fast) 8) (lit fold-min) (field (lit st)))
+      (self %zip (lit min) (first other))))
 
-  (method max (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
-    (doc "The element-wise greater, broadcast as add is. Against a NaN the other operand is kept. c128 is refused: complex numbers have no order."
-      (returns Tensor "A fresh tensor of the broadcast extent")
-      (example "(((Tensor from '(1 5 3) 'f64) max 2) ->list)" "(2.0 5.0 3.0)"))
-    (self %zip (lit max) other))
+  (method max (self . (param other Tensor|NUMBER "Optional: a tensor that broadcasts with self, or a number"))
+    (doc "Given other, the element-wise greater, broadcast as add is; against a NaN the other operand is kept. Given nothing, the greatest element, to which a NaN loses. c128 is refused: complex numbers have no order."
+      (returns Tensor|NUMBER "A fresh tensor of the broadcast extent; or the greatest element, a raise for no elements")
+      (example "(((Tensor from '(1 5 3) 'f64) max 2) ->list)" "(2.0 5.0 3.0)")
+      (example "((Tensor from '(3 -1 2) 'f64) max)" "3.0"))
+    (if (null? other)
+      ((obj-ref (Tensor %fast) 8) (lit fold-max) (field (lit st)))
+      (self %zip (lit max) (first other))))
 
   ; --- comparisons ------------------------------------------------------------
   (method less (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
@@ -1643,18 +1650,6 @@
       (example "((Tensor from '((1 2) (3 4)) 'f64) sum)" "10.0")
       (example "((Tensor range 4 'f64) sum)" "6.0"))
     ((obj-ref (Tensor %fast) 8) (lit sum) (field (lit st))))
-
-  (method least (self)
-    (doc "The least element. A NaN loses to every number. c128 is refused: complex numbers have no order."
-      (returns NUMBER "The least element; a raise for no elements")
-      (example "((Tensor from '(3 -1 2) 'f64) least)" "-1.0"))
-    ((obj-ref (Tensor %fast) 8) (lit least) (field (lit st))))
-
-  (method greatest (self)
-    (doc "The greatest element. A NaN loses to every number. c128 is refused: complex numbers have no order."
-      (returns NUMBER "The greatest element; a raise for no elements")
-      (example "((Tensor from '(3 -1 2) 'f64) greatest)" "3.0"))
-    ((obj-ref (Tensor %fast) 8) (lit greatest) (field (lit st))))
 
   (method mean (self)
     (doc "The mean of every element: a Float, or a Complex for c128."

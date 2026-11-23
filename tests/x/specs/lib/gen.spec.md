@@ -213,10 +213,10 @@ intermediate list is built between stages.
 ---
     (3 5 8)
 
-### least / greatest
+### min / max
 
 ```x
-(list ((Gen of 3 1 4 1 5) least) ((Gen of 3 1 4 1 5) greatest))
+(list ((Gen of 3 1 4 1 5) min) ((Gen of 3 1 4 1 5) max))
 ```
 ---
     (1 5)

@@ -155,8 +155,8 @@
 ; (MINX MINY MAXX MAXY) of the points, control points among them.
 (def %bounds
   (fn (_ m)
-    (list ((%column m 0) least) ((%column m 1) least)
-          ((%column m 0) greatest) ((%column m 1) greatest))))
+    (list ((%column m 0) min) ((%column m 1) min)
+          ((%column m 0) max) ((%column m 1) max))))
 
 (def %mid (fn (_ b k) (f-div (f-add (List ref k b) (List ref (int+ k 2) b)) %two)))
 
