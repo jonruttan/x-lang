@@ -643,6 +643,11 @@ no_pin=""
 allow_skew=""
 fetch_release=""
 boot_file=""
+# --prelude FILE: x-lang loaded after the boot (the dialect, a bundle) and
+# before the program, as the prefix's last part, so a state image of the
+# boot carries what it made.  An absolute path: the image writer runs at the
+# tree's root, not where the caller is.
+prelude=""
 verbose=""
 xflags=""
 # Appended after the -F file so the interactive launcher runs once the
@@ -681,6 +686,8 @@ display_help() {
 	echo "      --boot FILE boot from FILE (a pinned amalgam) instead of -l's entry"
 	echo "      --image     write the state image -l's boot loads from, and exit"
 	echo "      --no-image  boot from source even when a state image is current"
+	echo "      --prelude FILE  load FILE after the boot and before the program;"
+	echo "                  a state image of the boot carries what it made"
 	echo "  -q, --quiet     suppress the startup banner"
 	echo "      --no-color  disable ANSI colour in the REPL"
 	echo "      --no-pin    ignore any $X_PIN manifest"
@@ -783,6 +790,13 @@ $user_files}"
 		--image)
 			image_write=1
 			shift
+			;;
+		--prelude)
+			[ -n "$2" ] && [ -f "$2" ] || { echo "Error: --prelude: no such file: $2" >&2; exit 1; }
+			[ -z "$prelude" ] || { echo "Error: --prelude is given once" >&2; exit 1; }
+			prelude="$(cd "$(dirname "$2")" && pwd)/$(basename "$2")"
+			path_form_safe "$prelude" "prelude"
+			shift 2
 			;;
 		--no-image)
 			no_image=1
@@ -1556,6 +1570,11 @@ fi
 batch_form() {
 	printf '(guard (_ ()) (batch))\n'
 }
+# The prelude is the boot's last part, from source and in the prefix an image
+# is written from alike, so a program sees the same names either way.
+prelude_form() {
+	[ -z "$prelude" ] || cat "$prelude"
+}
 user_files_form() {
 	printf '%s\n' "$user_files" | while IFS= read -r _p; do
 		printf '(include "%s")\n' "$_p"
@@ -1636,7 +1655,18 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$app_entry" ] && [ "$X_LIB
 		# `xe.boot.x.ximg`, and a change to either bundle rewrites it.
 		_iname=$(printf "%s" "$X_LIB" | tr / .)
 		for _n in $EXTRA_LIBS; do _iname="$_iname+$_n"; done
-		if [ -n "$BUNDLE_DIR" ]; then
+		# A prelude is in the prefix, so its text keys the image; its path
+		# names it, so two preludes keep an image each rather than taking
+		# turns rewriting one.  What it reads is not in the key: an image
+		# of a prelude that loads a data file is rewritten when the prelude
+		# changes, not when the file does.
+		[ -z "$prelude" ] || _iname="$_iname+$(basename "$prelude" "$X_EXT")-$(printf '%s' "$prelude" | x_sha1 | cut -c1-8)"
+		if [ -n "$BUNDLE_DIR" ] && [ -n "$prelude" ]; then
+			# A bundle's .images/ is its installer's, and a prelude is the
+			# caller's own: its image goes to the per-user cache.
+			_idir="${XDG_CACHE_HOME:-$HOME/.cache}/x/images/$(printf '%s' "$_iroot $BUNDLE_DIR" | x_sha1 | cut -c1-12)"
+			_ikeys="$BUNDLE_DIR $EXTRA_DIRS $BUNDLE_DEPS"
+		elif [ -n "$BUNDLE_DIR" ]; then
 			_idir="$BUNDLE_DIR/.images"
 			_ikeys="$BUNDLE_DIR $EXTRA_DIRS $BUNDLE_DEPS"
 		elif [ -n "$PIN_FILE" ]; then
@@ -1678,7 +1708,8 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$app_entry" ] && [ "$X_LIB
 		_iimg="$_idir/$_iname.boot.x.ximg"
 		if [ -n "$_itmp" ] && { root_form; param_forms; pin_form; lead_form; cat "$ENTRY"; pin_arm; bundle_form image; \
 		     entry_import_forms; \
-		     [ -z "$BUNDLE_COMPILED" ] || printf '(import x/tool/fn-compile)\n((eval (lit compile-root!) (Module env (lit x/tool/fn-compile))) "%s")\n' "$BUNDLE_DIR/lib"; } > "$_ilib" 2>/dev/null; then
+		     [ -z "$BUNDLE_COMPILED" ] || printf '(import x/tool/fn-compile)\n((eval (lit compile-root!) (Module env (lit x/tool/fn-compile))) "%s")\n' "$BUNDLE_DIR/lib"; \
+		     prelude_form; } > "$_ilib" 2>/dev/null; then
 			_ish="$SCRIPT_PATH/$(basename "$0")"
 			[ -n "$INSTALL_ROOT" ] || _ish="$0"
 			if [ -n "$image_write" ]; then
@@ -1738,6 +1769,7 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$app_entry" ] && [ "$X_LIB
 						_iwhat="the library or the engine"
 						[ -z "$BUNDLE_DIR$EXTRA_DIRS" ] || _iwhat="the library, the bundle or the engine"
 						[ -z "$PIN_FILE" ] || _iwhat="the library, the manifest or the engine"
+						[ -z "$prelude" ] || _iwhat="${_iwhat% or the engine}, the prelude or the engine"
 						echo "x: no current state image for $_iname -- writing one to $_idir (once per change of $_iwhat)" >&2
 						X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys > /dev/null 2>&1 || true
 					fi
@@ -1781,7 +1813,7 @@ if [ -n "$IMAGE" ]; then
 	[ "$verbose" ] && echo "x.sh: booting from state image $IMAGE" >&2
 	CMD="{ img_loader; ${_ipost}${TAIL}} | $(shquote "$X_BIN")$xflags --$args"
 else
-	CMD="{ root_form; param_forms; pin_form; lead_form; cat $(shquote "$ENTRY"); pin_arm; bundle_form; ${TAIL}} | $(shquote "$X_BIN")$xflags --$args"
+	CMD="{ root_form; param_forms; pin_form; lead_form; cat $(shquote "$ENTRY"); pin_arm; bundle_form; prelude_form; ${TAIL}} | $(shquote "$X_BIN")$xflags --$args"
 fi
 
 if [ "$verbose" ]; then
