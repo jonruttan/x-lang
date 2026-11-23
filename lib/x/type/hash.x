@@ -11,7 +11,7 @@
 
 ; The binary integer primitives, fetched from the catalogue: the C operators as
 ; they were before core/arithmetic.x wrapped the bare names.
-(import x/core/doors char->int int* int+ int- int< int<< int= int& int| str-append str-byte-len str-byte-ref)
+(import x/core/doors char->int int* int+ int- int< int<< int= int& int| int^ str-append str-byte-len str-byte-ref)
 (import x/type/class)
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 
@@ -43,15 +43,12 @@
 ; The loop over S's bytes from I, LEN its length, H the hash so far.  A
 ; module-level closure on integer doors only, so compile-fn! can rewrite it
 ; in place: loading x/tool/fn-compile compiles it where the engine has a
-; JIT (the tower dialects load it at boot), and elsewhere it runs as written.  The xor is spelled (a|b)-(a&b),
-; which compile-fn! carries; it equals (^ a b) for every pair of words.
+; JIT (the tower dialects load it at boot), and elsewhere it runs as written.
 (def %fnv-go
   (fn (self s len i h)
     (if (int= i len) h
       (self s len (int+ i 1)
-        (int* (do (def b (char->int (str-byte-ref s i)))
-                  (int- (int| h b) (int& h b)))
-              %fnv-prime)))))
+        (int* (int^ h (char->int (str-byte-ref s i))) %fnv-prime)))))
 
 (def-class Hash ()
   (static
