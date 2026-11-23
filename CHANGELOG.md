@@ -5,6 +5,92 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.62.0] - 2026-11-23
+
+**The Lexer appends nothing to a read: the end of the text ends the last
+token wherever its rule would end it before any byte.** ([#1447])
+Breaking. A rule whose class held the appended space never ended at the
+end of the text, which dropped Json's trailing whitespace and made
+grammars and codecs set end texts of their own. `Lexer make` refuses an
+end text now, and the `end` fields of Lexer and Syntax are gone; a line
+comment that may end the text wants until's `to-end`. A trailing lone
+escape byte or an incomplete pattern is no token, and an any rule reads
+its bytes. Bundles that pass an end text (x-coreutils' printf and echo
+lexers, x-ash, x-sql, and x-awk and x-make, which pass one through) need
+their `Lexer make` calls changed at their next pin bump.
+
+**`x --prelude FILE` loads a file after the boot and before the
+program, and the boot's state image carries what it made.** ([#1449]) A
+program whose setup is slow, such as a tokenizer read from its files,
+puts the setup in a prelude, and every boot after the first loads it
+from the image. The prelude's text keys the image; files it reads do
+not.
+
+**`LanguageModel` reads and writes text: a `Transformer` and its
+`BytePair` together.** ([#1459]) `generate` adds pieces to a text, the
+highest scored or drawn at random with a temperature and `greatest`;
+`each` hands every piece over as it is made. `Transformer variate` draws
+the next id at random from the model's scores, with an optional
+temperature and `greatest`, the number of highest-scored items the draw
+is among. `apps/language-model/main.x` continues a prompt with a model
+in GPT-2's layout, printing each piece as it is written; with
+`x --prelude` the vocabulary is read once and imaged.
+
+**`Transformer generate` is about four times as fast on a host with a
+GPU.** ([#1458]) Its one-position predictions run products planned once
+over buffers made once, and make no tensor. The ids are the same.
+`Neural`'s softmax, gelu and layer-norm no longer rebuild their
+constants at every call: a call on a short run costs about a third of
+what it did.
+
+**Masks: `Tensor` and `Column` answer `less`, `greater`, `at-most`,
+`at-least`, `equal` and `differ`, and `Table filter` takes the mask.**
+([#1457]) A comparison answers 1.0 where it holds and 0.0 where it does
+not, so `(t filter ((t column 'age) greater 30))` keeps the rows without
+calling a function for each one. `Column` gains `min` and `max`.
+
+**A `(requires-bundle "NAME" "VERSION" "OWNER/REPO")` row names the
+repository the bundle CI clones the required bundle from.** ([#1450])
+The shared bundle CI stamps a required bundle cloned at a version with
+that version, so a bundle that requires another at a version boots
+through x.sh in CI ([#1451]).
+
+**A bundle booted from its state image no longer reads
+`%image-writing` as true in its own modules.** ([#1452])
+
+**Compiled closures run `+ - < > <= >= =` in place on two integers.**
+([#1454]) When both operands are integers and the result fits a word,
+the operation runs on raw words, and otherwise the operator is called as
+before. A compiled 1000-step loop on `+ - <` under xenon allocates 6,346
+objects, down from 192,356. `<` and `>` run compiled, 3 objects a call
+instead of 10 ([#1453]), and compile-fn! again compiles a function that
+calls `<` or `>`: with them compiled in place, such a function was
+refused and stayed interpreted ([#1456]).
+
+**Hash fnv-1a's byte loop makes two door calls fewer a byte where it
+runs interpreted, and x/core/doors binds the engine's xor as `int^`.**
+([#1455]) compile-fn! carries `int^` as one instruction. In helium,
+where the loop is not compiled, a byte costs about 31 objects instead of
+35.
+
+**`Table split` and `aggregate` gather each column once.** ([#1448])
+Each category's rows are cut from the one sorted gather as a view, so
+splitting 500 rows into 50 categories allocates about 60% less.
+
+[#1447]: https://github.com/jonruttan/x-lang/pull/1447
+[#1448]: https://github.com/jonruttan/x-lang/pull/1448
+[#1449]: https://github.com/jonruttan/x-lang/pull/1449
+[#1450]: https://github.com/jonruttan/x-lang/pull/1450
+[#1451]: https://github.com/jonruttan/x-lang/pull/1451
+[#1452]: https://github.com/jonruttan/x-lang/pull/1452
+[#1453]: https://github.com/jonruttan/x-lang/pull/1453
+[#1454]: https://github.com/jonruttan/x-lang/pull/1454
+[#1455]: https://github.com/jonruttan/x-lang/pull/1455
+[#1456]: https://github.com/jonruttan/x-lang/pull/1456
+[#1457]: https://github.com/jonruttan/x-lang/pull/1457
+[#1458]: https://github.com/jonruttan/x-lang/pull/1458
+[#1459]: https://github.com/jonruttan/x-lang/pull/1459
+
 ## [0.61.0] - 2026-11-22
 
 **`bootstrap.sh --install` acquires the official bundles before it
