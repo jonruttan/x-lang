@@ -12,6 +12,11 @@ second step was added for (#35) — and it left for
 carry it. Bitwise is the second use of this pattern: a program that belongs to this
 repository and is not a language.
 
+**Beside it: [`language-model/`](language-model/README.md)**, a program
+and not an entry: it is run with `-f` on xenon
+(`x -l xe -f apps/language-model/main.x -- DIR PROMPT`), so that the
+dialect's boot, and a prelude with it, is imaged. Its README says why.
+
 ## When something belongs here
 
 An app entry is **self-booting**: it opens with `(include "lib/x-core.x")` and
