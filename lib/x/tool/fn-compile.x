@@ -12,7 +12,10 @@
 ;
 ;   integers   int+ int- int* int/ int% int& int| int<< int>> on raw words,
 ;              boxed only where a value leaves the arithmetic; int< and int=
-;              as a branch in a test, #t or #f as a value
+;              as a branch in a test, #t or #f as a value; + - < > <= >= =
+;              of two operands, bound at the root, on raw words when both
+;              are integers and the sum or difference fits a word, and a
+;              call of the operator otherwise
 ;   objects    first rest pair eq? null? not obj-ref obj-set!, and pair? and
 ;              symbol? as a read of the operand's type name
 ;   control    if when unless match do and or, def of a local, set! of a
@@ -79,7 +82,8 @@
 (def %fc-type-of (prim-ref (lit type) (lit of)))
 (def %fc-type-names
   (list (pair (lit pair?) (%fc-type-of (pair 1 2)))
-        (pair (lit symbol?) (%fc-type-of (lit a)))))
+        (pair (lit symbol?) (%fc-type-of (lit a)))
+        (pair (lit integer?) (%fc-type-of 0))))
 
 ; The primitives a compiled body may call with values: every one the engine's
 ; ISA manifest files under a label other than spine.  A spine primitive is
@@ -165,7 +169,8 @@
 ;   %l:K             the K-th literal of F's body, as %fc-literals walks it
 ;   %q:NAME          the symbol NAME
 ;   %m:HEAD:SEL      the method (method-of C SEL), C the value of HEAD
-;   %y:FORM          the type name pair? or symbol? asks for
+;   %y:FORM          the type name pair? or symbol? asks for, or
+;                    integer? for the generic operators' fast path
 ;   %x:pair %x:guard the pair primitive and the door a guard runs through
 ;
 ; A constant that is none of these has a name that says nothing, %fc-kN: an
@@ -470,11 +475,72 @@
         ((fn (_ t) (if (eq? mode (lit test)) t (value (%fc-bool t))))
          (list (rest cmp) (%fc-raw (first args)) (%fc-raw (first (rest args))))))
       ((not (null? form)) (value (%fc-form (rest form) args)))
+      ((%fc-generic? h v args) (%fc-generic h args mode))
       ((%fc-applicative? v)
         (value (%fc-call (list (lit rest) (%fc-cell h)) args)))
       ((and (class? v) (pair? args)) (value (%fc-send h v args)))
       (#t (%fc-refuse "the head " (symbol->str h)
             " is bound to neither a closure nor a form the rewrite knows")))))
+
+; The generic operators with an integer fast path, by name.  / is not one:
+; under the numeric tower (/ 1 2) is a rational.  * is not yet: its
+; overflow test needs a division.
+(def %fc-generic-ops (list (lit +) (lit -) (lit <) (lit >) (lit <=) (lit >=) (lit =)))
+
+; Is (H A B), H bound to V, a generic operator of two operands?  V must be
+; the root environment's binding of H when F is compiled, so a name F's own
+; environment rebinds is called as written.
+(def %fc-generic?
+  (fn (_ h v args)
+    (and (%fc-memq h %fc-generic-ops)
+         (pair? args) (pair? (rest args)) (null? (rest (rest args)))
+         (%fc-applicative? v)
+         ((fn (_ cell) (if (null? cell) #f (obj-same? (rest cell) v)))
+          (Env cell (Env root) h)))))
+
+; (H A B) with H a generic operator: when A and B are both integers the
+; operation runs on their raw words, and otherwise H is called with them,
+; as the interpreter calls it.  The words' + and - wrap, so the sum or
+; difference R fits a word exactly when it lies on the side of A that B's
+; sign says: A + B with B < 0 is below A, and with B >= 0 is not; A - B is
+; the reverse.  A result that does not fit is H's to make (a bigint, under
+; the tower), so that case calls H too.  Both operands are bound to locals,
+; in order, and the test's answer to a third: a raw word is never held in a
+; local, whose cell the collector reads.
+(def %fc-generic
+  (fn (_ h args mode)
+    (def a (%fc-fresh "%fc-t"))
+    (def b (%fc-fresh "%fc-t"))
+    (def ok (%fc-fresh "%fc-t"))
+    (set! %fc-names (pair a (pair b (pair ok %fc-names))))
+    (def int
+      (%fc-const (rest (%fc-assq (lit integer?) %fc-type-names)) (%fc-name "%y:integer?")))
+    (def yes (%fc-const #t))
+    (def ua (list (lit %unbox) a))
+    (def ub (list (lit %unbox) b))
+    (def r (list h ua ub))
+    (def side
+      (fn (_ negative-side)
+        (list (lit if) (list (lit <) ub 0)
+          (list (lit if) negative-side yes (lit %false))
+          (list (lit if) negative-side (lit %false) yes))))
+    (def fits
+      (match
+        ((eq? h (lit +)) (side (list (lit <) r ua)))
+        ((eq? h (lit -)) (side (list (lit <) ua r)))
+        (#t yes)))
+    (def form
+      (list (lit do)
+        (list (lit def) a (%fc-value (first args)))
+        (list (lit def) b (%fc-value (first (rest args))))
+        (list (lit def) ok
+          (list (lit if) (list (lit %type-is?) a int)
+            (list (lit if) (list (lit %type-is?) b int) fits (lit %false))
+            (lit %false)))
+        (list (lit if) ok
+          (if (or (eq? h (lit +)) (eq? h (lit -))) (list (lit %box) r) (%fc-bool r))
+          (%fc-call (list (lit rest) (%fc-cell h)) (list a b)))))
+    (if (eq? mode (lit raw)) (list (lit %unbox) form) form)))
 
 ; (C SEL ARG ...) with C a class: the class runs its public static method
 ; SEL as (M C ARG ...), so the send is that call, M resolved by method-of

@@ -107,6 +107,39 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 ---
     (#t ('lt 7 3 #f #t))
 
+### + - < > <= >= = on two integers answer as the interpreter does
+
+Bound at the root, each of these runs on the operands' raw words when both
+are integers and the result fits a word, and calls the operator otherwise.
+
+```x
+(def %fc-gen (fn (_ a b) (list (< a b) (> a b) (<= a b) (>= a b) (= a b) (+ a b) (- a b))))
+(def %fc-gen-in (list (list 1 2) (list 2 1) (list 2 2) (list -3 4) (list 0 -7)))
+(def %fc-gen-all (fn (_) (List map (fn (_ p) (%fc-gen (first p) (first (rest p)))) %fc-gen-in)))
+(def %fc-gen-before (%fc-gen-all))
+(def %fc-e (compile-fn! (lit %fc-gen) %fc-gen))
+(write (list (%fc-e state) (equal? %fc-gen-before (%fc-gen-all)) (%fc-gen -3 4)))
+```
+---
+    ('compiled #t (#t #f #t #f #f 1 -7))
+
+### a loop on the generic operators allocates what one on the integer doors does
+
+```x
+(def %fc-gl (fn (self n acc) (if (< n 1) acc (self (- n 1) (+ acc n)))))
+(def %fc-rl (fn (self n acc) (if (int< n 1) acc (self (int- n 1) (int+ acc n)))))
+(compile-fn! (lit %fc-gl) %fc-gl)
+(compile-fn! (lit %fc-rl) %fc-rl)
+(def %fc-c0 (Heap count))
+(def %fc-gl-n (%fc-gl 1000 0))
+(def %fc-c1 (Heap count))
+(def %fc-rl-n (%fc-rl 1000 0))
+(def %fc-c2 (Heap count))
+(write (list %fc-gl-n %fc-rl-n (int< (- (- %fc-c1 %fc-c0) (- %fc-c2 %fc-c1)) 100)))
+```
+---
+    (500500 500500 #t)
+
 ### eq? compares value words as the interpreter does
 
 ```x
@@ -417,6 +450,19 @@ closure and the names, with no rewrite.
 ```
 ---
     (('%self '%y:symbol? '%x:pair '%t:2:1 '%l:0 '%c:%fc-nm-g '%t:2:2 '%q:tag) #t)
+
+### the integer type name a generic operator asks for is read back
+
+```x
+(def %fc-nm-add (fn (_ a b) (+ a b)))
+(def %fc-nm-add-made ((eval (lit %fc-rewrite) %fc-nm-m) %fc-nm-add))
+(def %fc-nm-add-names (List map first (rest %fc-nm-add-made)))
+(write (list (List any? (fn (_ n) (eq? n (lit %y:integer?))) %fc-nm-add-names)
+             (%fc-nm-same ((eval (lit %fc-fvar-values) %fc-nm-m) %fc-nm-add %fc-nm-add-names)
+                          (List map rest (rest %fc-nm-add-made)))))
+```
+---
+    (#t #t)
 
 ### a guard's closures have no name that says them
 
