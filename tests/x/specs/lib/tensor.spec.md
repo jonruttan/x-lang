@@ -251,6 +251,68 @@ on a 4-byte word only when i64 is refused there.
 ---
     'value
 
+## Comparisons
+
+### the six comparisons answer masks of 1.0 and 0.0
+
+```x
+(import x/num/tensor)
+(let ((t (Tensor from '(1 5 3) 'f64)))
+  (List map (fn (_ m) (m ->list))
+    (list (t less 3) (t greater 3) (t at-most 3) (t at-least 3) (t equal 3) (t differ 3))))
+```
+---
+    ((1.0 0.0 0.0) (0.0 1.0 0.0) (1.0 0.0 1.0) (0.0 1.0 1.0) (0.0 0.0 1.0) (1.0 1.0 0.0))
+
+### a comparison broadcasts, reads a strided view, and answers f64 whatever it compares
+
+```x
+(import x/num/tensor)
+(let ((t (Tensor from '((1 2) (3 4)) 'f64)))
+  (list ((t less (Tensor from '(2 4) 'f64)) ->list)
+        (((t transpose) greater 2) ->list)
+        (((Tensor from '(1 2) 'f32) less 2) encoding)
+        (((Tensor from '(1 2)) at-least (Tensor from '(2 2))) ->list)))
+```
+---
+    (((1.0 1.0) (0.0 0.0)) ((0.0 1.0) (0.0 1.0)) 'f64 (0.0 1.0))
+
+### a NaN is less than, at most and equal to nothing, and differs from everything
+
+```x
+(import x/num/tensor)
+(let ((n ((Tensor from '(0 1) 'f64) div (Tensor from '(0 1) 'f64))))
+  (List map (fn (_ m) (m ->list))
+    (list (n less 2) (n greater 0) (n at-most n) (n at-least n) (n equal n) (n differ n))))
+```
+---
+    ((0.0 1.0) (0.0 1.0) (0.0 1.0) (0.0 1.0) (0.0 1.0) (1.0 0.0))
+
+### complex numbers are not compared
+
+```x
+(import x/num/tensor)
+(let ((z (Tensor complex (Tensor from '(1 2)) (Tensor from '(3 4)))))
+  (list (guard (e (Err label e)) (z equal z)) (guard (e (Err label e)) ((Tensor from '(1 2) 'f64) less z))))
+```
+---
+    ('value 'value)
+
+### the masks are the same once the kernels are compiled
+
+```x
+(import x/num/tensor)
+(let ((a (Tensor from '((1.5 2) (3 4)))) (b (Tensor from '(2 4) 'f32)) (c (Tensor from '(3 1 3 7))))
+  (let ((run (fn (_) (List map (fn (_ m) (m ->list))
+                       (list (a less b) (a greater b) (a at-most b) (a at-least b) (a equal b) (a differ b)
+                             (b less 3) (b equal 4) (c at-most 3) (c differ 3) (c greater 2))))))
+    (let ((before (run)))
+      (Tensor jit!)
+      (list (equal? before (run)) (first before)))))
+```
+---
+    (#t ((1.0 1.0) (0.0 0.0)))
+
 ## Reductions
 
 ### sum, least, greatest

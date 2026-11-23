@@ -18,6 +18,8 @@
 ;   (t row 0)                    one row's values, in column order
 ;   (t select '(age))            a Table of those columns
 ;   (t filter 'age pred)         the rows where pred answers true of age
+;   (t filter mask)              the rows where the mask is not 0, as
+;                                (t filter ((t column 'age) greater 30))
 ;   (t sort 'age)                the rows in the order of age
 ;   (t matrix '(age height))     those columns as an f64 Matrix
 ;   (t put 'bmi values)          the table with that column added or replaced
@@ -28,12 +30,16 @@
 ;   (t aggregate 'city specs)    a table with a row for each distinct city
 ;                                and a column for each summary asked for
 ;
-; A Column of numbers also answers add, sub, mul and div, element by
-; element as a Tensor's do, and any Column answers map.
+; A Column of numbers also answers add, sub, mul, div, min and max,
+; element by element as a Tensor's do, and any Column answers map.
 ;
 ; filter and sort find the rows to keep as a list of row numbers, once,
 ; and each column is then gathered by it: a column of numbers by its
 ; Tensor's gather.
+;
+; A mask is a column of 1.0 and 0.0, as a Column's less, greater, at-most,
+; at-least, equal and differ answer one: filter keeps the rows where a
+; mask is not 0, and reads the mask without making a value of each row.
 ;
 ; @copyright 2026 Jon Ruttan
 ; @license MIT No Attribution (MIT-0)
@@ -198,6 +204,70 @@
       (returns Column "A column of the quotients")
       (example "(((Column from '(3.0 5.0)) div (Column from '(2.0 4.0))) ->list)" "(1.5 1.25)"))
     (Column from ((self tensor) div (self %operand other))))
+
+  (method min (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
+    (doc "The lesser, element by element, as a Tensor's min answers it. Of two masks, the rows both keep, as mul is."
+      (returns Column "A column of the lesser values")
+      (example "(((Column from '(1.5 2.5)) min 2.0) ->list)" "(1.5 2.0)"))
+    (Column from ((self tensor) min (self %operand other))))
+  (method max (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
+    (doc "The greater, element by element, as a Tensor's max answers it. Of two masks, the rows either keeps."
+      (returns Column "A column of the greater values")
+      (example "(((Column from '(1.5 2.5)) max 2.0) ->list)" "(2.0 2.5)"))
+    (Column from ((self tensor) max (self %operand other))))
+
+  ; The mask of WHICH against OTHER, with the operands changed over where
+  ; SWAP.  A column of numbers asks its Tensor.  A column of encoding any
+  ; answers equal and differ by equal?, against a value or a column of its
+  ; size, and has no order.
+  (method %compare (self which other swap)
+    (if (eq? (field (lit encoding)) (lit any))
+      (let ((mine (self ->list)) (one (float-of 1)) (zero (float-of 0))
+            (column? (if (object? other) (instance-of? other Column) #f)))
+        (if (if (eq? which (lit equal)) #f (not (eq? which (lit differ))))
+          (Err raise (lit value) "Column: a column of encoding any has no order" which) ())
+        (if (if column? (not (= (other size) (self size))) #f)
+          (Err raise (lit value) "Column: the columns differ in size" (list (self size) (other size))) ())
+        (let ((yes (if (eq? which (lit equal)) one zero)) (no (if (eq? which (lit equal)) zero one)))
+          (Column from
+            (Tensor from
+              (if column?
+                (List map (fn (_ a b) (if (equal? a b) yes no)) mine (other ->list))
+                (List map (fn (_ a) (if (equal? a other) yes no)) mine))
+              (lit f64)))))
+      (Column from ((self tensor) %compare which (self %operand other) swap))))
+
+  (method less (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
+    (doc "A mask: a column of 1.0 where the value is less than other's and 0.0 where it is not, as a Tensor's less answers it. Table filter keeps the rows where a mask is not 0; mul of two masks is the rows both keep, max the rows either keeps, and a mask's sum is how many it keeps."
+      (returns Column "An f64 column of 1.0 and 0.0")
+      (example "(((Column from '(1.5 2.5 4.0)) less 2.5) ->list)" "(1.0 0.0 0.0)"))
+    (self %compare (lit less) other #f))
+  (method greater (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
+    (doc "A mask: 1.0 where the value is greater than other's and 0.0 where it is not."
+      (returns Column "An f64 column of 1.0 and 0.0")
+      (example "(((Column from '(1.5 2.5 4.0)) greater 2.5) ->list)" "(0.0 0.0 1.0)"))
+    (self %compare (lit less) other #t))
+  (method at-most (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
+    (doc "A mask: 1.0 where the value is less than other's or equal to it and 0.0 where it is not."
+      (returns Column "An f64 column of 1.0 and 0.0")
+      (example "(((Column from '(1.5 2.5 4.0)) at-most 2.5) ->list)" "(1.0 1.0 0.0)"))
+    (self %compare (lit at-most) other #f))
+  (method at-least (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
+    (doc "A mask: 1.0 where the value is greater than other's or equal to it and 0.0 where it is not."
+      (returns Column "An f64 column of 1.0 and 0.0")
+      (example "(((Column from '(1.5 2.5 4.0)) at-least 2.5) ->list)" "(0.0 1.0 1.0)"))
+    (self %compare (lit at-most) other #t))
+  (method equal (self (param other ANY "A column of the same size, or a value"))
+    (doc "A mask: 1.0 where the value equals other's and 0.0 where it does not. A column of encoding any answers by equal?."
+      (returns Column "An f64 column of 1.0 and 0.0")
+      (example "(((Column from '(1.5 2.5 4.0)) equal 2.5) ->list)" "(0.0 1.0 0.0)")
+      (example "(((Column from '(\"Ann\" \"Bo\")) equal \"Bo\") ->list)" "(0.0 1.0)"))
+    (self %compare (lit equal) other #f))
+  (method differ (self (param other ANY "A column of the same size, or a value"))
+    (doc "A mask: 1.0 where the value does not equal other's and 0.0 where it does. A column of encoding any answers by equal?."
+      (returns Column "An f64 column of 1.0 and 0.0")
+      (example "(((Column from '(1.5 2.5 4.0)) differ 2.5) ->list)" "(1.0 0.0 1.0)"))
+    (self %compare (lit differ) other #f))
 
   (method map (self (param f CALLABLE "Called with each value"))
     (doc "The column of what f answers of each value, in order. Its encoding is read from the answers, as from reads it."
@@ -371,17 +441,26 @@
     (let ((names (List map %name names)))
       (Table %of names (List map (fn (_ n) (self column n)) names))))
 
-  (method filter (self (param name SYMBOL|STRING "The column the rows are judged by")
-                       (param pred CALLABLE "Called with that column's value in a row; true keeps the row"))
-    (doc "The table of the rows where pred answers true of the named column's value, in their order."
+  (method filter (self (param name SYMBOL|STRING|Column|Tensor "The column the rows are judged by, or a mask: a column or rank-1 tensor of a number for each row")
+                       . (param pred CALLABLE "With a column's name: called with that column's value in a row; true keeps the row"))
+    (doc "The table of the rows kept, in their order. Given a column's name and pred, the rows where pred answers true of that column's value. Given a mask, such as a Column's greater answers, the rows where its number is not 0."
       (returns Table "A table of the rows kept")
-      (example "((((Table from '((age (31.0 45.0 28.0)) (name (\"Ann\" \"Bo\" \"Cy\")))) filter 'age (fn (_ a) (< 30 a))) column 'name) ->list)" "(\"Ann\" \"Bo\")"))
-    (self %take
-      (let go ((values ((self column name) ->list)) (i 0) (acc ()))
-        (match
-          ((null? values) (List reverse acc))
-          ((pred (first values)) (go (rest values) (+ i 1) (pair i acc)))
-          (#t (go (rest values) (+ i 1) acc))))))
+      (example "((((Table from '((age (31.0 45.0 28.0)) (name (\"Ann\" \"Bo\" \"Cy\")))) filter 'age (fn (_ a) (< 30 a))) column 'name) ->list)" "(\"Ann\" \"Bo\")")
+      (example "(let ((t (Table from '((age (31.0 45.0 28.0)) (name (\"Ann\" \"Bo\" \"Cy\")))))) (((t filter ((t column 'age) greater 30)) column 'name) ->list))" "(\"Ann\" \"Bo\")"))
+    (if (null? pred)
+      (let ((mask (if (if (object? name) (instance-of? name Column) #f) (name tensor) name)))
+        (if (if (object? mask) (instance-of? mask Tensor) #f) ()
+          (Err raise (lit type) "Table filter: a mask is a Column or a Tensor" name))
+        (if (equal? (mask extent) (list (field (lit rows)))) ()
+          (Err raise (lit value) "Table filter: a mask has a number for each row" (mask extent)))
+        (self %take-packed (mask %mask-packed)))
+      (let ((pred (first pred)))
+        (self %take
+          (let go ((values ((self column name) ->list)) (i 0) (acc ()))
+            (match
+              ((null? values) (List reverse acc))
+              ((pred (first values)) (go (rest values) (+ i 1) (pair i acc)))
+              (#t (go (rest values) (+ i 1) acc))))))))
 
   (method sort (self (param name SYMBOL|STRING "The column the rows are ordered by")
                      . (param before CALLABLE "Optional: called with two values, true where the first comes strictly first; < by default"))
@@ -581,5 +660,5 @@
                  (List map (fn (_ c) (c %take rows packed)) (field (lit columns))))))))
 
 (doc (provide x/data/table Table Column)
-  "Tables of named columns, as values: a Table is read from lists or csv text and answers its columns, rows, a selection of columns, the rows a column's value passes, the rows in a column's order, and columns as a Matrix, a table with a column put, derived, removed or renamed, and its rows parted or summarized by a column's distinct values; a Column of numbers answers its statistics and its arithmetic."
+  "Tables of named columns, as values: a Table is read from lists or csv text and answers its columns, rows, a selection of columns, the rows a column's value passes, the rows in a column's order, and columns as a Matrix, a table with a column put, derived, removed or renamed, and its rows parted or summarized by a column's distinct values; a Column of numbers answers its statistics, its arithmetic and its comparisons, each a mask of the rows that pass."
   (example "(((Table from-csv \"name,age\\nida,7\\nbo,9\\n\") column 'age) mean)" "8.0"))
