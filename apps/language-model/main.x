@@ -27,26 +27,26 @@
 (import x/num/float float-of f-lt)
 (import x/num/random)
 
-(def %usage
+(def lm-usage
   (fn (_ said)
     (display said) (newline)
     (display "usage: x -l xe -f apps/language-model/main.x -- DIR PROMPT [N [TEMPERATURE [GREATEST]]]") (newline)
     (Sys exit 2)))
 
 ; A whole number above 0 from an argument, or the usage.
-(def %count
+(def lm-count
   (fn (_ text what)
     (let ((x (guard (_ ()) (float-of text))))
       (if (if (null? x) #f (f-lt (float-of 0) x)) (Float ->int x)
-        (%usage (Str8 append what " is a whole number above 0: " text))))))
+        (lm-usage (Str8 append what " is a whole number above 0: " text))))))
 
 (let ((args (rest (Sys args (lit program)))))
-  (if (if (null? args) #t (null? (rest args))) (%usage "a model's directory and a prompt are needed") ())
+  (if (if (null? args) #t (null? (rest args))) (lm-usage "a model's directory and a prompt are needed") ())
   (let ((dir (first args)) (prompt (first (rest args))) (more (rest (rest args))))
-    (let ((n (if (null? more) 32 (%count (first more) "N")))
+    (let ((n (if (null? more) 32 (lm-count (first more) "N")))
           (temperature (if (if (null? more) #t (null? (rest more))) () (float-of (first (rest more)))))
           (greatest (if (if (null? more) #t (if (null? (rest more)) #t (null? (rest (rest more))))) ()
-                      (%count (first (rest (rest more))) "GREATEST")))
+                      (lm-count (first (rest (rest more))) "GREATEST")))
           (file (fn (_ name) (Str8 append dir "/" name)))
           (kept (guard (_ ()) language-model-pieces)))
       (let ((lm (LanguageModel make
