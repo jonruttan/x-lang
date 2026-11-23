@@ -260,6 +260,18 @@ every other manifest here:
 (requires-bundle "grep")       ; a bundle this one imports from
 ```
 
+A `(requires-bundle …)` row may name the version it needs, and after that
+the repository the bundle comes from, as `OWNER/REPO`:
+
+```x
+(requires-bundle "gfx" "v0.1.0" "jonruttan/x-lib-gfx")
+```
+
+A library's repository is not named for its bundle: `gfx` lives at
+`x-lib-gfx`. A row that names no repository is cloned by the bundle CI from
+`jonruttan/x-NAME`, where the langs that declared their requirements before
+this row live.
+
 `(dialect …)` is a **requirement**, not a preference: a lang that calls
 `x/sys/socket` needs radon, and declaring helium means it dies at boot on a
 missing import rather than at acquisition on a legible refusal.

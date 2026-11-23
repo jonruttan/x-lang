@@ -97,12 +97,14 @@ jobs:
       - name: Check out the bundles this bundle requires
         run: |
           {
+            sed -n 's/^(requires-bundle "\([^"]*\)"[^"]*"\([^"]*\)"[^"]*"\([^"]*\)").*/\1 \2 \3/p' bundle.xon
             sed -n 's/^(requires-bundle "\([^"]*\)"[^"]*"\([^"]*\)").*/\1 \2/p' bundle.xon
             sed -n 's/^(requires-bundle "\([^"]*\)")[[:space:]]*$/\1/p' bundle.xon
-          } | while read -r name version; do
-            echo "x-$name ${version:-default branch}"
+          } | while read -r name version repo; do
+            repo="${repo:-jonruttan/x-$name}"
+            echo "$repo ${version:-default branch}"
             git clone --quiet --depth 1 ${version:+--branch "$version"} \
-              "https://github.com/jonruttan/x-$name.git" "../x-$name"
+              "https://github.com/$repo.git" "../${repo##*/}"
           done
 
       - name: Build the platform
