@@ -214,10 +214,20 @@
   (method %order-packed (self)
     (if (eq? (field (lit encoding)) (lit any)) () ((field (lit data)) %order-packed)))
 
-  ; The rows parted by value where Tensor's kernels answer, as its
-  ; %runs-packed gives them; () where they do not, and for encoding any.
-  (method %runs-packed (self)
-    (if (eq? (field (lit encoding)) (lit any)) () ((field (lit data)) %runs-packed)))
+  ; The rows parted by value where Tensor's kernels answer, as its %runs
+  ; gives them; () where they do not, and for encoding any.
+  (method %runs (self)
+    (if (eq? (field (lit encoding)) (lit any)) () ((field (lit data)) %runs)))
+
+  ; COUNT values from START, with no check: a view of the tensor for a
+  ; column of numbers, a copy of those values for encoding any.
+  (method %rows (self start count)
+    (let ((data (field (lit data))))
+      (if (eq? (field (lit encoding)) (lit any))
+        (Column %of-any
+          (let go ((k (+ start count -1)) (acc ()))
+            (if (< k start) acc (go (- k 1) (pair (Vector ref k data) acc)))))
+        (new-from Column (list (lit encoding) (field (lit encoding)) (lit data) (data %rows start count))))))
 
   ; PACKED is ROWS, each a row of this column, from (Tensor %pack-rows ROWS).
   (method %take (self rows packed)
@@ -317,7 +327,12 @@
               (if (= ((first cols) size) rows) ()
                 (Err raise (lit value) "Table: every column must have the same length" (first left)))
               (go (rest left) (rest cols)))))
-        (new-from self (list (lit names) names (lit columns) columns (lit rows) rows)))))
+        (new-from self (list (lit names) names (lit columns) columns (lit rows) rows))))
+
+    ; A table of COLUMNS under NAMES, each of ROWS values, with no check:
+    ; for a caller whose columns are a table's own, cut alike.
+    (method %of-parts (self names columns rows)
+      (new-from self (list (lit names) names (lit columns) columns (lit rows) rows))))
 
   (method names (self)
     (doc "The columns' names, in order."
@@ -447,18 +462,39 @@
                  (field (lit columns)))))
 
   ; The distinct values of the named column, in the order they first
-  ; come, each with the rows it stands at: (VALUE ROWS . PACKED), the
-  ; rows as a list, packed, or both, what is not made being ().  A column
-  ; of numbers is parted by Tensor's kernels where they answer, and the
-  ; rows come packed.  Else the rows come as a list: where the values have
-  ; keys they are found in a hashed table, one lookup a row; where they
-  ; have none, by %categories-walk.
+  ; come, and the rows each stands at: (ORDER . CATEGORIES).  A column of
+  ; numbers is parted by Tensor's kernels where they answer: ORDER is the
+  ; rows in the order of the values, packed, and each category is (VALUE
+  ; START . COUNT), its rows the COUNT in ORDER from START, in their own
+  ; order.  Else ORDER is () and each category is (VALUE . ROWS), the rows
+  ; a list: found in a hashed table where the values have keys, one lookup
+  ; a row, and where they have none by %categories-walk.
   (method %categories (self name)
     (let ((column (self column name)))
-      (let ((runs (column %runs-packed)))
+      (let ((runs (column %runs)))
         (if (null? runs)
-          (List map (fn (_ c) (pair (first c) (pair (rest c) ()))) (self %categories-listed (column ->list)))
-          (List map (fn (_ r) (pair (column ref (first r)) (pair () (rest r)))) runs)))))
+          (pair () (self %categories-listed (column ->list)))
+          (pair (first runs) (List map (fn (_ r) (pair (column ref (first r)) (rest r))) (rest runs)))))))
+
+  ; Column SOURCE's values for each category of CATS, from %categories,
+  ; as a Column each.  PICKS is each category's (ROWS . PACKED) where the
+  ; categories came as lists, and () where they came in an order: then
+  ; SOURCE is gathered once in that order, and each category's Column is
+  ; its range of it.
+  (method %pieces (self source cats picks)
+    (if (null? (first cats))
+      (List map (fn (_ p) (source %take (first p) (rest p))) picks)
+      (let ((sorted (source %take
+                      (if (eq? (source encoding) (lit any)) (Tensor %unpack-rows (first cats)) ())
+                      (first cats))))
+        (List map (fn (_ c) (sorted %rows (first (rest c)) (rest (rest c)))) (rest cats)))))
+
+  ; Each category's (ROWS . PACKED), made once for every column, where the
+  ; categories came as lists; () where they came in an order.
+  (method %picks (self cats)
+    (if (null? (first cats))
+      (List map (fn (_ c) (pair (rest c) (Tensor %pack-rows (rest c)))) (rest cats))
+      ()))
 
   ; ((VALUE . ROWS) ...) for VALUES, by a hashed table or by the walk.
   (method %categories-listed (self values)
@@ -499,7 +535,12 @@
       (returns LIST "((VALUE . TABLE) ...)")
       (example "(List map first ((Table from '((city (\"Ely\" \"Ayr\" \"Ely\")) (age (31.0 45.0 28.0)))) split 'city))" "(\"Ely\" \"Ayr\")")
       (example "(((rest (first ((Table from '((city (\"Ely\" \"Ayr\" \"Ely\")) (age (31.0 45.0 28.0)))) split 'city))) column 'age) ->list)" "(31.0 28.0)"))
-    (List map (fn (_ c) (pair (first c) (self %take-both (first (rest c)) (rest (rest c))))) (self %categories name)))
+    (let ((cats (self %categories name)) (names (field (lit names))))
+      (let ((picks (self %picks cats)))
+        ; each column's pieces, a category's columns then the list of those
+        (let ((pieces (%transpose (List map (fn (_ c) (self %pieces c cats picks)) (field (lit columns))))))
+          (List map (fn (_ v cols) (pair (first v) (Table %of-parts names cols ((first cols) size))))
+            (rest cats) pieces)))))
 
   (method aggregate (self (param name SYMBOL|STRING "The column whose distinct values make the rows")
                           (param specs LIST "A list for each column made: its name, the column it is worked out from, and a function called with that column's values for one distinct value, as a Column"))
@@ -507,29 +548,15 @@
       (known-as "group by" "summarize" "summarise")
       (returns Table "A table of the named column and a column for each spec")
       (example "(((Table from '((city (\"Ely\" \"Ayr\" \"Ely\")) (age (31.0 45.0 29.0)))) aggregate 'city (list (list 'mean-age 'age (fn (_ c) (c mean))))) ->list)" "(('city (\"Ely\" \"Ayr\")) ('mean-age (30.0 45.0)))"))
-    (let ((name (%name name)) (categories (self %categories name)))
-      ; each category's rows, packed once for every spec: (ROWS . PACKED),
-      ; ROWS () where they came packed
-      (let ((picks (List map
-                     (fn (_ c)
-                       (let ((rows (first (rest c))) (packed (rest (rest c))))
-                         (pair rows (if (null? packed) (Tensor %pack-rows rows) packed))))
-                     categories)))
+    (let ((name (%name name)) (cats (self %categories name)))
+      (let ((picks (self %picks cats)))
         (Table %of
           (pair name (List map (fn (_ s) (%name (first s))) specs))
-          (pair (Column from (List map first categories))
+          (pair (Column from (List map first (rest cats)))
                 (List map
                   (fn (_ s)
-                    (let ((source (self column (List ref 1 s))) (f (List ref 2 s)))
-                      (Column from
-                        (List map
-                          (fn (_ p)
-                            (f (source %take
-                                 (if (if (null? (first p)) (eq? (source encoding) (lit any)) #f)
-                                   (Tensor %unpack-rows (rest p))
-                                   (first p))
-                                 (rest p))))
-                          picks))))
+                    (let ((f (List ref 2 s)))
+                      (Column from (List map f (self %pieces (self column (List ref 1 s)) cats picks)))))
                   specs))))))
 
   (method ->list (self)
@@ -545,14 +572,6 @@
     (let ((columns (field (lit columns))))
       (let ((rows (if (List any? (fn (_ c) (eq? (c encoding) (lit any))) columns) (Tensor %unpack-rows packed) ())))
         (Table %of (field (lit names)) (List map (fn (_ c) (c %take rows packed)) columns)))))
-
-  ; %take for rows that came as a list, packed, or both, what was not
-  ; made being ().
-  (method %take-both (self rows packed)
-    (if (null? packed) (self %take rows)
-      (if (null? rows) (self %take-packed packed)
-        (Table %of (field (lit names))
-                   (List map (fn (_ c) (c %take rows packed)) (field (lit columns)))))))
 
   ; ROWS are rows of this table, which every caller here makes by counting
   ; them.  They are packed once, and each column of numbers gathers by that.

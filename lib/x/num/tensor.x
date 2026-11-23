@@ -1386,13 +1386,15 @@
               (#t (do (Tensor %lane-credit! (lit f64-order) (int* n 5)) ()))))
           ()))))
 
-  ; The places of a rank-1 f64 tensor's elements parted by value: for
-  ; each distinct value (FIRST . PACKED), the first place it stands at
-  ; and all its places in their order, packed as rows are, the distinct
-  ; values in the order they first come.  () where %order-packed answers
-  ; () or the runs kernel has not compiled; the caller then parts them
-  ; itself.  The runs kernel is built when the order kernel first answers.
-  (method %runs-packed (self)
+  ; The places of a rank-1 f64 tensor's elements parted by value: (ORDER
+  ; . RUNS), ORDER every place in the order of the values, packed as rows
+  ; are, places of equal values in their own order, and RUNS a (FIRST
+  ; START . COUNT) for each distinct value, in the order the values first
+  ; come: the first place it stands at, and where its places start in
+  ; ORDER and how many there are.  () where %order-packed answers () or
+  ; the runs kernel has not compiled; the caller then parts them itself.
+  ; The runs kernel is built when the order kernel first answers.
+  (method %runs (self)
     (let ((order (self %order-packed)))
       (match
         ((null? order) ())
@@ -1405,19 +1407,24 @@
                 ((obj-ref f 14) (lit f64-runs) (rest r))
                 (let ((starts (str->ptr (first r)))
                       (m (ptr-ref-word (str->ptr (rest r)) (int* 6 %word-size))))
-                  ; each run copied out to words of its own, the last first
                   (def go
                     (fn (go j end acc)
                       (if (int< j 0) acc
                         (let ((start (ptr-ref-word starts (int* j %word-size))))
-                          (let ((len (int- end start)))
-                            (let ((buf (str-make (int* len %word-size))))
-                              (mem-copy (str->ptr buf) (int->ptr (int+ (ptr->int ord) (int* start %word-size)))
-                                        (int* len %word-size))
-                              (go (int- j 1) start
-                                  (pair (pair (ptr-ref-word ord (int* start %word-size)) (pair buf len)) acc))))))))
-                  (do src order
-                      (List sort (fn (_ a b) (int< (first a) (first b))) (go (int- m 1) n ())))))))))))
+                          (go (int- j 1) start
+                              (pair (pair (ptr-ref-word ord (int* start %word-size)) (pair start (int- end start))) acc))))))
+                  (do src
+                      (pair order (List sort (fn (_ a b) (int< (first a) (first b))) (go (int- m 1) n ()))))))))))))
+
+  ; The view of COUNT elements of a rank-1 tensor from START, sharing its
+  ; bytes, with no check: for a caller whose range lies within it by the
+  ; way it was made.
+  (method %rows (self start count)
+    (let ((st (field (lit st))))
+      (let ((strides (first (rest (rest st)))))
+        (self %wrap (list (first st) (list count) strides
+                          (int+ (first (rest (rest (rest st)))) (int* start (first strides)))
+                          (first (rest (rest (rest (rest st))))))))))
 
   (method as (self (param enc SYMBOL "The encoding: f64, f32, i64 or c128"))
     (doc "A contiguous copy in another encoding. f64 to f32 rounds each element to the nearest single, and f32 to f64 is exact; f64 or f32 to i64 truncates toward zero; a real encoding to c128 gives each element a 0 imaginary part. A c128 tensor is refused: take its real or imaginary part."
