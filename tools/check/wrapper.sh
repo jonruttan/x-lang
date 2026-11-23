@@ -248,6 +248,27 @@ for boot in --no-image ""; do
 		"('program #t #f #t \"arg\")" "$got"
 done
 
+# --prelude loads its file after the boot and before the program, from
+# source and from a state image alike, and the program may shadow what it
+# defined.  An edit to the prelude is a different image: the third boot reads
+# the edited definition, not the one the first image carries.
+printf '(def pre-note "prelude")\n(def pre-twice (fn (_ n) (* 2 n)))\n' > "$TMP/pre.x"
+for boot in --no-image ""; do
+	XDG_CACHE_HOME="$TMP/cache-pre" sh x.sh -q $boot --prelude "$TMP/pre.x" -c '()' >/dev/null 2>&1 || true
+	got=$(XDG_CACHE_HOME="$TMP/cache-pre" sh x.sh -q $boot --prelude "$TMP/pre.x" \
+		-c '(def pre-twice (fn (_ n) (* 3 n)))' -c '(write (list pre-note (pre-twice 2)))' 2>&1 || true)
+	want "--prelude loads before the program, which may shadow it (${boot:-image})" '("prelude" 6)' "$got"
+done
+printf '(def pre-note "edited")\n' > "$TMP/pre.x"
+got=$(XDG_CACHE_HOME="$TMP/cache-pre" sh x.sh -q --prelude "$TMP/pre.x" -c '(write pre-note)' 2>/dev/null || true)
+want "an edited prelude is a new image" '"edited"' "$got"
+if sh x.sh -q --prelude "$TMP/absent.x" -c '()' >/dev/null 2>&1; then
+	printf 'wrapper: --prelude accepted a file that is not there\n' >&2
+	fails=$((fails + 1))
+else
+	printf '  --prelude refuses a file that is not there: ok\n'
+fi
+
 if [ "$fails" -gt 0 ]; then
 	printf 'wrapper: %d failure(s).\n' "$fails" >&2
 	exit 1

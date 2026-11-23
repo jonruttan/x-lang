@@ -162,6 +162,9 @@ this tree.
   a repository or an installed tree, the JIT's analyser or integer
   calling convention. A stored symbol that names one alternative is a
   label.
+- **prelude** — a file of x-lang the wrapper loads after the boot (the
+  dialect, any bundle) and before the program, named by `x --prelude
+  FILE`. A state image of the boot carries what the prelude made.
 
 ## Callables
 
