@@ -1,4 +1,4 @@
-# @weight 2
+# @weight 4
 # x/sys/bundle: the bundles a session can reach
 
 A bundle is a directory with a `bundle.xon` and its modules under
@@ -160,6 +160,32 @@ each carry a `bsmany`; `ann` alone carries `bssolo`.
 ```
 ---
     'refused
+
+## a bundle booted from its state image
+
+### its modules read %image-writing as nil
+
+The image writer binds `%image-writing` to `#t` in its child while the
+bundle loads, and clears it before the walk. A module of the bundle must read
+the cleared binding after the boot, or a guard on it skips, on every boot,
+what it skips while being imaged. The image is written into the fixture.
+
+```x
+(do
+  (import x/sys/proc)
+  (def d (Str8 append bsdir "/imaged/bsimg"))
+  (List for-each (fn (_ s) (File mkdir (Str8 append bsdir s)))
+    (list "/imaged" "/imaged/bsimg" "/imaged/bsimg/lib" "/imaged/bsimg/lib/bsimg" "/cache"))
+  (File write-all (Str8 append d "/bundle.xon") "(name \"bsimg\")\n(dialect he)\n(entry run)\n")
+  (File write-all (Str8 append d "/lib/bsimg/run.x")
+    "(module bsimg/run)\n(import x/sys/posix)\n(def bsimg-writing (fn (_) (guard (_ (lit unbound)) %image-writing)))\n(def main (fn (_) (write (bsimg-writing)) (Sys exit 0)))\n(provide bsimg/run main)\n")
+  (def out (Str8 append bsdir "/imaged/out.txt"))
+  (Proc run! (list "sh" "-c"
+    (Str8 append "X_BUNDLE_DIR=" (Str8 append bsdir (Str8 append "/imaged/ XDG_CACHE_HOME=" (Str8 append bsdir (Str8 append "/cache sh x.sh -q -l bsimg </dev/null >" out)))))))
+  (display (File read-all out)))
+```
+---
+    ()
 
 ## teardown
 
