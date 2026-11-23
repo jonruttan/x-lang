@@ -76,7 +76,8 @@
 (import x/type/class)
 (import x/type/list)
 (import x/codec/safetensors)
-(import x/num/float float-of fsqrt f-div)
+(import x/num/float float-of fsqrt f-div f-lt)
+(import x/num/random)
 (import x/num/tensor)
 (import x/num/matrix)
 (import x/num/neural)
@@ -132,14 +133,140 @@
 
 (Tensor %register! (lit f32-greatest-at) %tf-greatest-at-form %tf-agrees?)
 
-; The place of the greatest element of a contiguous f32 state.
+; The place of the greatest of COUNT singles at ADDR.
 (def %tf-greatest-at
-  (fn (_ st)
-    (let ((f (Tensor %fast)) (s (str-make 256)))
-      (%tf-word! s 0 ((obj-ref f 13) st)) (%tf-word! s 6 ((obj-ref f 1) (List ref 1 st))) (%tf-word! s 7 0)
-      (%tf-word! s 13 0)
-      ((obj-ref f 14) (lit f32-greatest-at) s)
+  (fn (_ addr count)
+    (let ((s (str-make 256)))
+      (%tf-word! s 0 addr) (%tf-word! s 6 count) (%tf-word! s 7 0) (%tf-word! s 13 0)
+      ((obj-ref (Tensor %fast) 14) (lit f32-greatest-at) s)
       (%tf-word s 13))))
+
+; --- a place drawn at random ----------------------------------------------------
+; A kernel of the lane convention over one contiguous run of singles, the
+; scores: each score's share is the exponential of its difference from the
+; greatest, over the temperature, and a place is drawn with a chance in
+; proportion to its share.  Scratch words: 0 the run's address, 6 its
+; length, 7 the element reached, 8 the budget, 9 the phase, 10 the passes
+; made, 11 the passes left, 12 whether the draw is limited to the
+; greatest, 13 the place, 14 whether this pass has a candidate.  Doubles:
+; 16 the greatest score, 17 a sum, 18 the floor, 19 a number from 0 to 1
+; and then the sum it reaches, 20 the temperature, 21 a pass's candidate.
+;
+; Phase 0 is a pass for each of the greatest asked for, 1 where there is
+; no limit: the first finds the greatest score, and each one after it the
+; greatest below the last, which is then the floor.  Equal scores are one
+; pass, so scores equal to the floor are all kept.  Phase 1 sums the
+; shares of the scores not below the floor.  Phase 2 sums them again and
+; stops at the first place where the sum passes word 19's part of the
+; whole; the last place kept is the answer if rounding leaves none.
+(def %tf-variate-form
+  (let ((w (fn (_ k) (list (lit %mem-ref) (lit s) k)))
+        (w! (fn (_ k v) (list (lit %mem-set!) (lit s) k v)))
+        (d (fn (_ k) (list (lit f-ref) (lit s) k)))
+        (d! (fn (_ k v) (list (lit f-set!) (lit s) k v))))
+    (let ((x (list (lit f32-ref) (w 0) (w 7))) (zero (lit (i->f 0))))
+      (let ((share (list (lit f-exp) (list (lit f/) (list (lit f-) x (d 16)) (d 20))))
+            (take (list (lit do) (d! 21 x) (w! 14 1)))
+            (kept (fn (_ then) (list (lit if) (list (lit =) (w 12) 0) then (list (lit if) (list (lit f<) x (d 18)) 0 then)))))
+        (let ((consider (list (lit if) (list (lit =) (w 14) 0) take (list (lit if) (list (lit f<) (d 21) x) take 0))))
+          (list (lit fn) (lit (self s))
+            (list (lit match)
+              (list (list (lit =) (w 8) 0) 0)
+              (list (list (lit <) (w 7) (w 6))
+                (list (lit do)
+                  (list (lit if) (list (lit =) (w 9) 0)
+                    (list (lit if) (list (lit =) (w 10) 0) consider (list (lit if) (list (lit f<) x (d 18)) consider 0))
+                    (list (lit if) (list (lit =) (w 9) 1)
+                      (kept (d! 17 (list (lit f+) (d 17) share)))
+                      (kept (list (lit do)
+                              (d! 17 (list (lit f+) (d 17) share))
+                              (w! 13 (w 7))
+                              (list (lit if) (list (lit f<) (d 19) (d 17)) (w! 7 (list (lit -) (w 6) 1)) 0)))))
+                  (w! 7 (list (lit +) (w 7) 1))
+                  (w! 8 (list (lit -) (w 8) 1))
+                  (lit (self s))))
+              (list (list (lit =) (w 9) 0)
+                (list (lit do)
+                  (list (lit if) (list (lit =) (w 14) 0) (w! 11 1)
+                    (list (lit do) (list (lit if) (list (lit =) (w 10) 0) (d! 16 (d 21)) 0) (d! 18 (d 21))))
+                  (w! 14 0) (w! 10 (list (lit +) (w 10) 1)) (w! 11 (list (lit -) (w 11) 1)) (w! 7 0)
+                  (list (lit if) (list (lit <) (w 11) 1) (list (lit do) (w! 9 1) (d! 17 zero)) 0)
+                  (lit (self s))))
+              (list (list (lit =) (w 9) 1)
+                (list (lit do) (d! 19 (list (lit f*) (d 19) (d 17))) (d! 17 zero) (w! 9 2) (w! 7 0) (lit (self s))))
+              (lit (#t 1)))))))))
+
+; A double stored at double I of address A: made the first time it is
+; wanted and kept, since making it walks the form.
+(def %tf-fset-cell (pair () ()))
+(def %tf-fset
+  (fn (_ a i v)
+    (if (null? (first %tf-fset-cell))
+      (%set-first! %tf-fset-cell (word-form-pure (lit (fn (_ a i v) (f-set! a i v)))))
+      ())
+    ((first %tf-fset-cell) a i v)))
+
+; A scratch for the kernel: COUNT singles at ADDR, U a Float from 0 to 1,
+; TEMPERATURE a Float, GREATEST how many of the greatest are kept, or nil.
+(def %tf-variate-scratch
+  (fn (_ addr count u temperature greatest)
+    (let ((s (str-make 256)))
+      (mem-set (str->ptr s) 0 256)
+      (%tf-word! s 0 addr) (%tf-word! s 6 count)
+      (%tf-word! s 11 (if (null? greatest) 1 greatest)) (%tf-word! s 12 (if (null? greatest) 0 1))
+      (%tf-fset (ptr->int (str->ptr s)) 19 (first u))
+      (%tf-fset (ptr->int (str->ptr s)) 20 (first temperature))
+      s)))
+
+; The scratch after a kernel function has drawn among the three greatest
+; of eight check singles, at a temperature of 2 and three fifths of the way.
+(def %tf-variate-check-run
+  (fn (_ kern)
+    (let ((in (Tensor %check-input (lit f32) (list 3 -2 7 0 -5 9 1 9))))
+      (let ((s (%tf-variate-scratch (rest in) 8 (f-div (float-of 3) (float-of 5)) (float-of 2) 3)))
+        (%tf-word! s 8 1073741823)
+        (kern (ptr->int (str->ptr s)))
+        ; in is held to here, so its address stayed good
+        (do in s)))))
+
+; Whether the compiled kernel draws the place the pure one does, with the same sum.
+(def %tf-variate-agrees?
+  (fn (_ compiled)
+    (let ((a (%tf-variate-check-run (word-form-pure %tf-variate-form))) (b (%tf-variate-check-run compiled)))
+      ; word 13, and the double 17, 136 bytes in
+      (if (int= (%tf-word a 13) (%tf-word b 13))
+        (int= (mem-cmp (int->ptr (int+ (ptr->int (str->ptr a)) 136))
+                       (int->ptr (int+ (ptr->int (str->ptr b)) 136)) 8) 0)
+        #f))))
+
+(Tensor %register! (lit f32-variate-at) %tf-variate-form %tf-variate-agrees?)
+
+; A place drawn from COUNT singles at ADDR.
+(def %tf-variate-at
+  (fn (_ addr count u temperature greatest)
+    (let ((s (%tf-variate-scratch addr count u temperature greatest)))
+      ((obj-ref (Tensor %fast) 14) (lit f32-variate-at) s)
+      (%tf-word s 13))))
+
+; The function that picks an id from scores, (fn (_ ADDR COUNT)): the
+; greatest with no RANDOM and no OPTIONS, else a draw from RANDOM with
+; OPTIONS, an optional temperature and greatest.
+(def %tf-picking
+  (fn (_ random options)
+    (if (if (null? random) (null? options) #f) %tf-greatest-at (%tf-drawing random options))))
+
+(def %tf-drawing
+  (fn (_ random options)
+    (let ((temperature (if (null? options) 1 (first options)))
+          (greatest (if (if (null? options) #t (null? (rest options))) () (first (rest options)))))
+      (if (if (object? random) (instance-of? random Random) #f) ()
+        (Err raise (lit type) "Transformer: not a Random" random))
+      (if (if (null? greatest) #t (if (type? greatest (type-of 0)) (int< 0 greatest) #f)) ()
+        (Err raise (lit value) "Transformer: greatest is an integer above 0" greatest))
+      (let ((t (guard (_ ()) (float-of temperature))))
+        (if (if (null? t) #f (f-lt (float-of 0) t)) ()
+          (Err raise (lit value) "Transformer: the temperature is a number above 0" temperature))
+        (fn (_ addr count) (%tf-variate-at addr count (random float) t greatest))))))
 
 ; --- the pieces ---------------------------------------------------------------------
 ; a times b: on the GPU where there is one, else by Matrix's kernels, cast
@@ -344,14 +471,17 @@
         ((Neural embed (m %items) ids) add (Neural embed (m %positions) (List range from (int+ from count))))
         1))))
 
-; The id scored highest after the last of the hidden rows h.
+; The id PICK takes from the scores after the last of the hidden rows h:
+; PICK is (fn (_ ADDR COUNT)) over the scores as singles.
 (def %tf-next
-  (fn (_ m h)
-    (let ((count (first (h extent))))
+  (fn (_ m h pick)
+    (let ((f (Tensor %fast)) (count (first (h extent))))
       (let ((scores (%tf-product (m %items) ((h slice 0 (int- count 1) count) reshape (list (m %width))))))
-        (let ((at (%tf-greatest-at ((%tf-f32 scores) %st))))
-          (%tf-done scores)
-          at)))))
+        (let ((st ((%tf-f32 scores) %st)))
+          (let ((at (pick ((obj-ref f 13) st) ((obj-ref f 1) (List ref 1 st)))))
+            (%tf-done scores)
+            ; st is held to here, so its address stayed good
+            (do st at)))))))
 
 ; --- one new position, with nothing made --------------------------------------------
 ; generate's predictions after the first each work out one position.  On a
@@ -362,7 +492,8 @@
 ; and drives the kernels, and makes no tensor.
 ;
 ; The work is (STEP . RELEASE): STEP takes an id and its position and
-; answers the id predicted after it; RELEASE gives the buffers back.
+; answers the id PICK takes from the scores after it; RELEASE gives the
+; buffers back.
 
 ; The address of a tensor's elements as contiguous f32, and the state
 ; that keeps them alive.
@@ -426,7 +557,7 @@
 (def %tf-each (fn (go l) (if (null? l) () (do ((first l)) (go (rest l))))))
 
 (def %tf-work
-  (fn (_ m caches)
+  (fn (_ m caches pick)
     (let ((f (Tensor %fast)) (width (m %width)) (heads (m %heads)) (at (pair 0 ())) (kept (pair () ())) (plans (pair () ())))
       (let ((row (fn (_) (Gpu hold (Matrix %make ((obj-ref f 4) (lit f32) (list 1 width))))))
             (addr (fn (_ t) ((obj-ref f 13) (t %st))))
@@ -469,10 +600,8 @@
               (let ((scoring (Gpu %plan (m %items) column)))
                 (%set-first! plans (pair scoring (first plans)))
                 (let ((scores (Gpu %plan-out scoring)) (items (flat (m %items))) (places (flat (m %positions)))
-                      (bytes (int* 4 width)) (greatest (str-make 256)) (drive (obj-ref f 14)))
-                  (let ((embed (%tf-add-scratch 0 0 (addr x) width)))
-                    (mem-set (str->ptr greatest) 0 256)
-                    (%tf-word! greatest 0 (addr scores)) (%tf-word! greatest 6 (first (scores extent)))
+                      (bytes (int* 4 width)) (drive (obj-ref f 14)))
+                  (let ((embed (%tf-add-scratch 0 0 (addr x) width)) (at-scores (addr scores)) (many (first (scores extent))))
                     (pair
                       (fn (_ id from)
                         (%set-first! at from)
@@ -483,15 +612,48 @@
                         (%tf-each steps)
                         (finish)
                         (Gpu %plan-run scoring)
-                        (%tf-zero! greatest (list 7 13))
-                        (drive (lit f32-greatest-at) greatest)
-                        ; the rows, the states and the scratches are held to here, so their addresses stayed good
-                        (do x n t kept scores embed (%tf-word greatest 13)))
+                        (let ((id (pick at-scores many)))
+                          ; the rows, the states and the scratch are held to here, so their addresses stayed good
+                          (do x n t kept scores embed id)))
                       (fn (_)
                         (List for-each (fn (_ p) (Gpu %plan-done p #f)) (first plans))
                         (%set-first! plans ())
                         (List for-each (fn (_ r) (Gpu release r)) (list x n t))
                         ()))))))))))))
+
+; IDS and N more, each one PICK takes from the scores after those before
+; it; EACH is called with each as it is made.
+(def %tf-generate
+  (fn (_ m ids n pick each)
+    (if (int< n 1) ids
+      (let ((count (List length ids)))
+        (if (int< (m %context) (int- (int+ count n) 1))
+          (Err raise (lit value) "Transformer: more ids than the model has positions"
+            (list (int- (int+ count n) 1) (m %context)))
+          ())
+        (let ((caches (%tf-caches m (int- (int+ count n) 1))))
+          ; the first prediction works out every position of ids
+          (let ((first-id (%tf-next m (%tf-hidden m ids 0 caches) pick)))
+            (each first-id)
+            (if (int= n 1) (List append ids (list first-id))
+              ; each one after it works out one position: by the work made
+              ; once where the weights are held, else as the first did.
+              ; made, the ids generated so far, last first; from, the
+              ; position of the last of them
+              (let ((work (if (m %held) (%tf-work m caches pick) ())))
+                (let ((step (if (null? work)
+                              (fn (_ id from) (%tf-next m (%tf-hidden m (list id) from caches) pick))
+                              (first work))))
+                  (let ((made
+                          (guard (e (do (if (null? work) () ((rest work))) (error e)))
+                            ((fn (go made from k)
+                               (if (int= k 0) made
+                                 (let ((id (step (first made) from)))
+                                   (each id)
+                                   (go (pair id made) (int+ from 1) (int- k 1)))))
+                              (list first-id) count (int- n 1)))))
+                    (if (null? work) () ((rest work)))
+                    (List append ids (List reverse made))))))))))))
 
 (def-class Transformer ()
   (doc "A language model's forward pass, in the layout GPT-2 is published in: from a list of ids, a score for every vocabulary item at every position, and the ids predicted to follow."
@@ -502,7 +664,7 @@
     (note "On a host with a GPU the weights are held there; (m release) gives the buffers back.")
     (sample "((Transformer from-file \"model.safetensors\" 12) generate (list 15496 11 995 0) 8)" "the four ids and the eight GPT-2 predicts after them")
     (known-as "GPT" "decoder-only transformer")
-    (see from-file) (see logits) (see predict) (see generate) (see release))
+    (see from-file) (see logits) (see predict) (see variate) (see generate) (see release))
 
   heads       ; how many heads each block's attention has
   width       ; the length of a position's hidden row
@@ -563,6 +725,7 @@
   (method %positions (self) (field (lit positions)))
   (method %blocks (self) (field (lit blocks)))
   (method %norm (self) (field (lit norm)))
+  (method %held (self) (field (lit held)))
 
   (method logits (self (param ids LIST "Ids, at least one and no more than the model has positions"))
     (doc "Every position's score for every vocabulary item: row i is the model's scores for the item after ids 0 to i. No ids, more than the model has positions, or an id it has no item for raises a label 'value."
@@ -580,39 +743,29 @@
     (doc "The id the model scores highest after the ids; of equal scores, the least id."
       (returns INTEGER "An id")
       (sample "(m predict (list 15496 11 995 0))" "the id of the item most likely to follow"))
-    (%tf-next self (%tf-hidden self ids 0 (%tf-caches self (List length ids)))))
+    (%tf-next self (%tf-hidden self ids 0 (%tf-caches self (List length ids))) %tf-greatest-at))
 
   (method generate (self (param ids LIST "Ids to begin from, at least one")
                          (param n INTEGER "How many ids to add"))
     (doc "The ids and n more, each the prediction from all those before it. Each block keeps its queries, keys and values from one prediction to the next, so a prediction works out the one new position. The ids and the n less one fed back must be no more than the model has positions, or a label 'value is raised."
       (returns LIST "The ids, n longer")
       (sample "(m generate (list 15496 11 995 0) 8)" "the four ids and eight that follow"))
-    (if (int< n 1) ids
-      (let ((count (List length ids)))
-        (if (int< (field (lit context)) (int- (int+ count n) 1))
-          (Err raise (lit value) "Transformer: more ids than the model has positions"
-            (list (int- (int+ count n) 1) (field (lit context))))
-          ())
-        (let ((caches (%tf-caches self (int- (int+ count n) 1))))
-          ; the first prediction works out every position of ids
-          (let ((first-id (%tf-next self (%tf-hidden self ids 0 caches))))
-            (if (int= n 1) (List append ids (list first-id))
-              ; each one after it works out one position: by the work made
-              ; once where the weights are held, else as the first did.
-              ; made, the ids generated so far, last first; from, the
-              ; position of the last of them
-              (let ((work (if (field (lit held)) (%tf-work self caches) ())))
-                (let ((step (if (null? work)
-                              (fn (_ id from) (%tf-next self (%tf-hidden self (list id) from caches)))
-                              (first work))))
-                  (let ((made
-                          (guard (e (do (if (null? work) () ((rest work))) (error e)))
-                            ((fn (go made from k)
-                               (if (int= k 0) made
-                                 (go (pair (step (first made) from) made) (int+ from 1) (int- k 1))))
-                              (list first-id) count (int- n 1)))))
-                    (if (null? work) () ((rest work)))
-                    (List append ids (List reverse made)))))))))))
+    (%tf-generate self ids n %tf-greatest-at (fn (_ id) ())))
+
+  (method variate (self (param ids LIST "Ids, at least one and no more than the model has positions")
+                        (param random Random "The source of the randomness, as (Random sw 7) or (Random hw)")
+                        . (param options NUMBER "Optional (TEMPERATURE GREATEST): 1 and no limit by default"))
+    (doc "An id drawn at random after the ids: each item's chance is in proportion to the exponential of its score over the temperature. A temperature below 1 favours the items scored highest and one above 1 evens the chances. With greatest, the draw is among that many of the highest scores, and every item scored equal to the last of them. A temperature not above 0, or a greatest that is not an integer above 0, raises a label 'value."
+      (returns INTEGER "An id")
+      (sample "(m variate (list 15496 11 995 0) (Random sw 7) 0.8 40)" "an id among the 40 scored highest")
+      (known-as "sample" "temperature sampling" "top-k sampling")
+      (see predict))
+    ; the options are refused before any position is worked out
+    (let ((pick (%tf-drawing random options)))
+      (%tf-next self (%tf-hidden self ids 0 (%tf-caches self (List length ids))) pick)))
+
+  (method %picking (self random options) (%tf-picking random options))
+  (method %generate (self ids n pick each) (%tf-generate self ids n pick each))
 
   (method release (self)
     (doc "Give back the GPU buffers that hold the model's weights. The model is finished: using it afterwards raises a label 'state. A model whose weights are not held, on a host with no GPU, has nothing to give back; releasing twice does nothing."
