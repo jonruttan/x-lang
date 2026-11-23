@@ -148,10 +148,10 @@ and the same form is evaluated as the interpreted twin when it is not, so
 the token stream is the contract and the realization is reported
 (`(l compiled)`).  The base and its states are process state — they are
 dropped before a state image is written and made again after a load — so a
-bundle holds the Lexer and nothing else.  `(l end "\n")` sets the text
-appended before every read, which is how the last token meets a delimiter;
-a space unless set.  Binary input has a rule of its own: `(Lexer record
-tag shapes)` reads a record whose first byte picks a shape and whose length
+bundle holds the Lexer and nothing else.  Nothing is appended to a read: the
+end of the text ends the last token wherever its rule would end it before
+any byte, and a span that may run to the end says so with `to-end`.
+Binary input has a rule of its own: `(Lexer record tag shapes)` reads a record whose first byte picks a shape and whose length
 the shape's steps read from its own bytes -- a machine instruction, a tagged
 field -- and `(l read-span s start len)` reads a span of bytes, NULs
 included, with nothing appended, since a record ends on its own last byte.

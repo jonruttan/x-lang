@@ -32,7 +32,7 @@
 (import x/type/base)
 (import x/type/buf)
 (import x/protocol/str/str8)
-(import x/core/doors buf-tok char->int heap-collect image-recache-hook! image-transient! int+ int- int< int= int>> obj->ptr ptr->int ptr-ref-word str-byte-len str-byte-ref str-make tok-read-str)
+(import x/core/doors buf-tok char->int heap-collect image-recache-hook! image-transient! int+ int= int>> obj->ptr ptr->int str-byte-len str-byte-ref str-make tok-read-str)
 (import x/type/dict)
 
 (def-class Lexer ()
@@ -54,15 +54,13 @@
     (sample "(l compiled)" "the count from l's make, which differs with the lane"))
   (doc (replayed #f) "Whether the last make rebuilt the states from the plan its cache group holds, with no form made, rather than making them"
     (example "((new Lexer) replayed)" "#f"))
-  (doc (reader ()) "The closure read-str calls: the tokenizing door, the raw base and the end text bound once, so a read costs no class dispatch. Made with the base, and nil while the base is"
+  (doc (reader ()) "The closure read-str calls: the tokenizing door and the raw base bound once, so a read costs no class dispatch. Made with the base, and nil while the base is"
     (example "(null? ((new Lexer) reader))" "#t"))
   (doc (resets ()) "A state for each nested and word rule that puts its return stack at depth 0, called before every read: a read that ended inside an open span leaves the depth where it stopped"
     (example "(null? ((new Lexer) resets))" "#t"))
-  (doc (end " ") "Text appended to every read, so the last token meets a delimiter: a token is only read once a character ends it, and the engine drops an unterminated tail. One space unless make was given another; a C lexer wants a newline, which also ends a last line comment. An any rule is built to refuse its bytes, so setting it after make wants a remake!"
-    (example "((new Lexer) end)" "\" \""))
 
   (method read-str (self (param s STRING "Text to tokenize"))
-    (doc "The tokens of s, in order, each (tag text) or (tag text label); dropped tokens (skip, an until rule with no tag) do not appear. The end text (a space unless set) is appended first, so the last token is seen."
+    (doc "The tokens of s, in order, each (tag text) or (tag text label); dropped tokens (skip, an until rule with no tag) do not appear. Nothing is appended: the end of the text ends the last token wherever its rule would end it before any byte."
       (returns LIST "The token list, nil for empty input")
       (example "(let ((l (Lexer make (list (Lexer skip \" \") (Lexer run 'word \"ab\" \"ab\"))))) (l read-str \"a b\"))" "(('word \"a\") ('word \"b\"))"))
     ; One field read and a call: the reader closes over everything a read
@@ -73,7 +71,7 @@
   (method read-span (self (param s STRING "Bytes, NULs included: a (str make) region, a file read whole")
                           (param start INTEGER "Byte offset of the span")
                           (param len INTEGER "Its length in bytes"))
-    (doc "The tokens of the len bytes of s at start, in order. Nothing is appended: a record ends on its own last byte, so a span of them needs no end text, and the read stops at the first byte no rule claims -- the end of the records. Needs an engine whose tok read-str takes a span (x-engine-c after v0.2.20); raises a label 'lexer Err on one that does not."
+    (doc "The tokens of the len bytes of s at start, in order. Nothing is appended, as read-str appends nothing: a record ends on its own last byte, and the read stops at the first byte no rule claims -- the end of the records. Needs an engine whose tok read-str takes a span (x-engine-c after v0.2.20); raises a label 'lexer Err on one that does not."
       (returns LIST "The token list, nil when the span starts with no token")
       (sample "(l read-span story pc 64)" "the instructions at pc, up to the first byte that starts none"))
     (Lexer %span-check)
@@ -95,7 +93,7 @@
     (self resets ())
     (self raw (Base raw-of (Base make-tok)))
     ; One rule list makes the same states in every process, so their compiles
-    ; run as one cache group keyed by the rules and the end text: a later
+    ; run as one cache group keyed by the rules: a later
     ; process loads all of them in one read instead of hashing and reading
     ; each state's entry.  A make with every state compiled also records a
     ; plan in the group -- each state's entry and what its free variables
@@ -103,7 +101,7 @@
     ; states from it, with no form made, printed or checked.
     (if (Lexer %jit?)
       ((prim-ref (lit compile) (lit asm-cache-group))
-        (Lexer %group-key (self rules) (self end))
+        (Lexer %group-key (self rules))
         (fn (_)
           (if (Lexer %replay! self)
             (self replayed #t)
@@ -127,9 +125,9 @@
     ; recorded by the old code would otherwise be replayed as the new.  The
     ; digest case in tests/x/specs/lib/lexer-plan.spec.md fails on any such
     ; change until both it and this number are updated.
-    (%plan-version 7)
-    ; Group keys made, as ((RULES END . KEY) ...): a key is the rules and the
-    ; end text printed, which costs a make more than its replay's types do, and
+    (%plan-version 8)
+    ; Group keys made, as ((RULES . KEY) ...): a key is the rules printed,
+    ; which costs a make more than its replay's types do, and
     ; a remake -- the recache hook after every image load -- asks again for
     ; the same rule list, the same object.
     (%keys (pair () ()))
@@ -153,13 +151,15 @@
     (%entries (pair () ()))
 
     (method make (self (param rules LIST "Rules in priority order, each from run, skip, table, quoted, until, number, nested, word, escape, pattern, any or record")
-                       . (param more ANY "Optionally the end text, a space when left out: see the end field"))
+                       . (param more ANY "Nothing: an end text is refused"))
       (doc "A lexer over rules: a tokenizer base with one type a rule, its states compiled where the lane allows."
         (returns Lexer "The lexer")
-        (sample "(Lexer make (list (Lexer skip \" \\n\") (Lexer number 'num ()) (Lexer run 'id \"abc\" \"abc\")))" "a lexer of numbers and words")
-        (sample "(Lexer make c-rules \"\\n\")" "a lexer whose last line comment ends"))
-      (let ((raw ()) (states ()) (compiled 0) (replayed #f) (reader ()) (resets ()) (end (if (null? more) " " (first more))))
-        (def l (new Lexer rules rules raw raw states states compiled compiled replayed replayed reader reader resets resets end end))
+        (note "No text is appended to a read, so no rule depends on a byte after the last token: the end of the text ends a token wherever its rule would end it before any byte. A line comment that may end the text says so with until's flag to-end. An end text, which earlier makes took, is refused.")
+        (sample "(Lexer make (list (Lexer skip \" \\n\") (Lexer number 'num ()) (Lexer run 'id \"abc\" \"abc\")))" "a lexer of numbers and words"))
+      (if (null? more) ()
+        (Err raise (lit lexer) "Lexer make: no end text is appended to a read; the end of the text ends the last token (a line comment at the end wants until's to-end)" (first more)))
+      (let ((raw ()) (states ()) (compiled 0) (replayed #f) (reader ()) (resets ()))
+        (def l (new Lexer rules rules raw raw states states compiled compiled replayed replayed reader reader resets resets))
         (l remake!)
         ; Everything that holds a compiled state is dropped before an image is
         ; written -- native code cannot be written into one -- and remake!
@@ -179,10 +179,10 @@
       (import x/tool/asm-cache)
       ((prim-ref (lit compile) (lit asm-cached)) form fvars #t))
 
-    ; The read for lexer L, made when its base is: the tokenizing door, the raw
-    ; base, the end text and the string append bound here rather than fetched
-    ; per read.  Fetching them per read was nine tenths of a short read --
-    ; 1,049 us for ten bytes, the engine's own share 61 us.  A dropped span's
+    ; The read for lexer L, made when its base is: the tokenizing door and the
+    ; raw base bound here rather than fetched per read.  Fetching them per
+    ; read was nine tenths of a short read -- 1,049 us for ten bytes, the
+    ; engine's own share 61 us.  A dropped span's
     ; handler answers the dropped marker, so only a rule list with one filters,
     ; and with a local loop: List's reverse is a class call per read.
     (method %reader-for (self l)
@@ -195,14 +195,14 @@
       ; A nested or word rule's reset puts its return stack at depth 0 before
       ; each read, since a read that ended inside an open span leaves the depth
       ; where it stopped; a rule list with none has nothing to run.
-      ((fn (_ read base end append dropped resets)
+      ((fn (_ read base dropped resets)
          (def tokens
            (if (null? resets)
-             (fn (_ s) (read base (append s end)))
+             (fn (_ s) (read base s))
              (fn (_ s)
                ((fn (self rs) (if (null? rs) () (do ((first rs) () () () 0) (self (rest rs)))))
                 resets)
-               (read base (append s end)))))
+               (read base s))))
          (if drops?
            (fn (_ s)
              ((fn (self ts acc)
@@ -211,7 +211,7 @@
                   (self (rest ts) (if (eq? (first ts) dropped) acc (pair (first ts) acc)))))
               (tokens s) ()))
            tokens))
-       tok-read-str (l raw) (l end) (prim-ref (lit str) (lit append)) (Lexer %dropped)
+       tok-read-str (l raw) (Lexer %dropped)
        (l resets)))
 
     (method %jit-probe! (self)
@@ -247,7 +247,7 @@
                       (param first LIST|STRING "Class of the first character")
                       (param rest LIST|STRING "Class of every following character")
                       . (param follow LIST|STRING "Optionally the class of the byte that must come next"))
-      (doc "A rule for a run of characters: one of first, then any number of rest. Identifiers, words. Given follow, the run is a token only when the byte after it is in follow; that byte is left for the next token."
+      (doc "A rule for a run of characters: one of first, then any number of rest. Identifiers, words. Given follow, the run is a token only when the byte after it is in follow; that byte is left for the next token, and a run at the end of the text, which no byte follows, is no token."
         (returns LIST "The rule")
         (sample "(Lexer run 'id (list (pair 97 122) 95) (list (pair 97 122) (pair 48 57) 95))" "C-style identifiers")
         (sample "(Lexer run 'io (list (pair 48 57)) (list (pair 48 57)) \"<>\")" "a shell descriptor: the digits of 2>, not of 2 alone"))
@@ -280,7 +280,7 @@
                         (param open STRING "The opening literal")
                         (param close STRING "The closing literal")
                         . (param flags SYMBOL "Optionally take, to-end, or both"))
-      (doc "A rule for a span from open to close: comments, delimited patterns. A one-byte close is left for the next token (a newline ends a line comment and is then read on its own) unless the flag take is given, which makes it part of the token; a longer close is always taken, and ends the span at its first whole occurrence, so a `\"\"\"` span holds `\"\"` followed by another byte. With the flag to-end a span that meets no close runs to the end of the text and is a token all the same, the end text not part of it; without it, such a span is not a token."
+      (doc "A rule for a span from open to close: comments, delimited patterns. A one-byte close is left for the next token (a newline ends a line comment and is then read on its own) unless the flag take is given, which makes it part of the token; a longer close is always taken, and ends the span at its first whole occurrence, so a `\"\"\"` span holds `\"\"` followed by another byte. With the flag to-end a span that meets no close runs to the end of the text and is a token all the same; without it, such a span is not a token."
         (returns LIST "The rule")
         (sample "(Lexer until () \"/*\" \"*/\")" "drop block comments")
         (sample "(Lexer until 'str \"\\\"\\\"\\\"\" \"\\\"\\\"\\\"\" 'to-end)" "a Python triple-quoted string, open to the end of the text while unclosed")
@@ -311,7 +311,7 @@
                          (param start SYMBOL "The context the body after open is read in")
                          (param contexts LIST "Each (NAME CLOSE ESC OPENS): see the doc")
                          . (param flags SYMBOL "Optionally to-end"))
-      (doc "A rule for a span whose body holds spans of its own: open, then a body read in the context start, to the byte that closes start. A context is (NAME CLOSE ESC OPENS): CLOSE the byte that ends it, ESC the byte that takes the next byte literally (nil for none), OPENS a list of (LITERAL . CONTEXT), each literal entering that context, whose close returns to the one it was entered from. The token's text is the whole span, raw; contexts nest up to 63 deep, and a deeper one ends the match there. With the flag to-end a span still open at the end of the text is a token all the same, the end text not part of it; without it, such a span is not a token."
+      (doc "A rule for a span whose body holds spans of its own: open, then a body read in the context start, to the byte that closes start. A context is (NAME CLOSE ESC OPENS): CLOSE the byte that ends it, ESC the byte that takes the next byte literally (nil for none), OPENS a list of (LITERAL . CONTEXT), each literal entering that context, whose close returns to the one it was entered from. The token's text is the whole span, raw; contexts nest up to 63 deep, and a deeper one ends the match there. With the flag to-end a span still open at the end of the text is a token all the same; without it, such a span is not a token."
         (returns LIST "The rule")
         (note "Within a context no opening literal may be a prefix of another, and none may start with the context's close or escape byte; make refuses such a rule.")
         (sample "(Lexer nested 'dq \"\\\"\" 'dq (list (list 'dq 34 92 (list (pair \"$(\" 'cmd))) (list 'cmd 41 92 (list (pair \"(\" 'cmd) (pair \"\\\"\" 'dq) (pair \"'\" 'sq))) (list 'sq 39 () ())))" "a shell double-quoted string, $(...) inside it read whole, quotes in that included"))
@@ -323,7 +323,7 @@
                        (param contexts LIST "Each (NAME CLOSE ESC OPENS), as nested takes them; start's CLOSE may be nil")
                        (param stop LIST|STRING "Class of the bytes that end the word, at depth 0")
                        . (param flags SYMBOL "Optionally to-end"))
-      (doc "A rule for a word whose bytes may hold spans: a nested span with no opening literal, read in the context start from its first byte, and ending before a byte of stop met at depth 0 -- that byte is left for the next token. A first byte in stop is no word. Spans opened inside it read as nested reads them, a stop byte inside one being an ordinary byte. With the flag to-end a word whose span is still open at the end of the text is a token all the same, the end text not part of it; without it, such a word is not a token."
+      (doc "A rule for a word whose bytes may hold spans: a nested span with no opening literal, read in the context start from its first byte, and ending before a byte of stop met at depth 0 -- that byte is left for the next token. A first byte in stop is no word. Spans opened inside it read as nested reads them, a stop byte inside one being an ordinary byte. The end of the text ends a word at depth 0 as a stop byte would. With the flag to-end a word whose span is still open at the end of the text is a token all the same; without it, such a word is not a token."
         (returns LIST "The rule")
         (sample "(Lexer word 'word 'w (list (list 'w () 92 (list (pair \"\\\"\" 'dq) (pair \"$(\" 'cmd))) (list 'dq 34 92 (list (pair \"$(\" 'cmd))) (list 'cmd 41 92 (list (pair \"(\" 'cmd) (pair \"\\\"\" 'dq)))) \" \\t\\n;&|<>()\")" "a shell word: a\\ b\"c d\"$(e f) is one token")
         (sample "(Lexer word 'word 'w contexts \" \\t\\n\" 'to-end)" "an unclosed ${x at the end is the word ${x"))
@@ -450,6 +450,23 @@
     (method %state-form (self body)
       (list (lit fn) (lit (me buffer score chr)) body))
 
+    ; --- the end of the text ------------------------------------------------
+    ; Nothing is appended to a read.  At the end of the text the engine
+    ; calls no state; it takes, with every byte read, a handler whose score
+    ; is set, and drops one whose score is 0.  So a state's END MARK is what
+    ; the token read so far is if the text ends there: #f none, #t a token,
+    ; a number K a token with label K -- and a byte that moves the read from
+    ; one mark to another sets the score to the new one on its way.  The
+    ; engine clears the score for each handler, so an entry state's mark is
+    ; #f.  The form going FROM a state marked FROM to TARGET marked TO:
+    (method %mark-to (self from to target)
+      (match
+        ((if (number? from) (if (number? to) (= from to) #f) (eq? from to)) target)
+        ((not to) (list (lit %seq) (lit (%score-set score 0 buffer)) target))
+        ((eq? to #t) (list (lit %seq) (lit (%score-set score 1 buffer)) target))
+        (#t (list (lit %seq) (list (lit %score-label!) (lit score) to)
+              (list (lit %seq) (lit (%score-set score 1 buffer)) target)))))
+
     ; --- realizing a state --------------------------------------------------
     ; (Lexer %state l form fvars): the compiled state when the lane is open
     ; and the compile succeeds, the interpreted twin otherwise.  FVARS is an
@@ -519,8 +536,9 @@
     ; start and hands the body back for the rest.
 
     ; With a follow class the body refuses a byte in neither class, so the run
-    ; is no token there.  FOLLOW is the rule's optional tail, a one-member
-    ; class list when given -- a class already.
+    ; is no token there, nor at the end of the text, where no byte follows.
+    ; FOLLOW is the rule's optional tail, a one-member class list when given
+    ; -- a class already.
     (method %run-states (self l first rest follow)
       (let ((body (Lexer %state l
                     (Lexer %state-form
@@ -530,7 +548,7 @@
                     ())))
         (Lexer %state l
           (Lexer %state-form
-            (list (lit if) (Lexer %class-form first) (lit body) ()))
+            (list (lit if) (Lexer %class-form first) (Lexer %mark-to #f (null? follow) (lit body)) ()))
           (list (pair (lit body) body)))))
 
     (method %skip-states (self l class)
@@ -545,11 +563,9 @@
               (lit (%seq (%score-set score -1 buffer) body)) ()))
           (list (pair (lit body) body)))))
 
-    ; One byte, whatever it is, taken -- except a byte a skip rule drops, and
-    ; the end text's: the engine lets a positive score beat a negative one
-    ; whatever the order, so the skip classes are refused here rather than
-    ; contested; and at the buffer's end only a state that accepts on its own
-    ; byte can win, which would hand the appended end text to this rule.
+    ; One byte, whatever it is, taken -- except a byte a skip rule drops: the
+    ; engine lets a positive score beat a negative one whatever the order, so
+    ; the skip classes are refused here rather than contested.
     (method %any-states (self l)
       (def refused
         ((fn (self rs acc)
@@ -558,10 +574,11 @@
                (if (eq? (first (first rs)) (lit skip))
                  (pair (Lexer %class-form (first (rest (rest (rest (first rs)))))) acc)
                  acc))))
-         (l rules) (list (Lexer %class-form (l end)))))
+         (l rules) ()))
       (Lexer %state l
         (Lexer %state-form
-          (list (lit if) (pair (lit or) refused) () (Lexer %take)))
+          (if (null? refused) (Lexer %take)
+            (list (lit if) (pair (lit or) refused) () (Lexer %take))))
         ()))
 
     ; A trie node is (terminal? . kids), kids an alist of (code . node); a
@@ -590,22 +607,27 @@
            (self (- i 1) (pair (Str8 ->sym (Str8 append "k" (%number->str i))) acc))))
        (- n 1) ()))
 
-    (method %trie-state (self l node)
+    ; HERE is the node's end mark: whether it is terminal, #f for the root,
+    ; which is the entry.
+    (method %trie-state (self l node here)
       (def kids
         ((fn (self ks acc)
            (if (null? ks) acc
-             (self (rest ks) (pair (pair (first (first ks)) (Lexer %trie-state l (rest (first ks)))) acc))))
+             (self (rest ks)
+               (let ((mark (if (first (rest (first ks))) #t #f)))
+                 (pair (list (first (first ks)) (Lexer %trie-state l (rest (first ks)) mark) mark) acc)))))
          (rest node) ()))
       (def names (Lexer %fvar-names (List length kids)))
       (def dispatch
         (fn (self ks names tail)
           (if (null? ks) tail
-            (list (lit if) (list (lit =) (lit chr) (first (first ks))) (first names)
+            (list (lit if) (list (lit =) (lit chr) (first (first ks)))
+              (Lexer %mark-to here (first (rest (rest (first ks)))) (first names))
               (self (rest ks) (rest names) tail)))))
       (def fvars
         (fn (self ks names acc)
           (if (null? ks) acc
-            (self (rest ks) (rest names) (pair (pair (first names) (rest (first ks))) acc)))))
+            (self (rest ks) (rest names) (pair (pair (first names) (first (rest (first ks)))) acc)))))
       (Lexer %state l
         (Lexer %state-form
           (dispatch kids names (if (first node) (Lexer %accept) ())))
@@ -616,13 +638,14 @@
         ((fn (self ss node)
            (if (null? ss) node (self (rest ss) (Lexer %trie-add node (first ss) 0))))
          strings (pair () ())))
-      (Lexer %trie-state l root))
+      (Lexer %trie-state l root #f))
 
     ; A quoted body loops until close; esc hands the next byte, whatever it
     ; is, back to the body.  The closing byte is taken into the token.  When
     ; esc is the close itself, a close followed by another is one byte of the
     ; body: the state after a close goes back to the body on a second one,
-    ; and otherwise ends the token before the byte it reads.
+    ; and otherwise ends the token before the byte it reads -- or at the end
+    ; of the text, its end mark.
     (method %quoted-states (self l open close esc)
       (def body-cell (pair () ()))
       (def doubled? (if (null? esc) #f (= (Lexer %code esc) (Lexer %code close))))
@@ -631,11 +654,11 @@
           (let ((closed (Lexer %state l
                           (Lexer %state-form
                             (list (lit if) (list (lit =) (lit chr) (Lexer %code close))
-                              (lit (first cell)) (Lexer %accept)))
+                              (Lexer %mark-to #t #f (lit (first cell))) (Lexer %accept)))
                           (list (pair (lit cell) body-cell)))))
             (Lexer %state l
               (Lexer %state-form
-                (list (lit if) (list (lit =) (lit chr) (Lexer %code close)) (lit closed) (lit me)))
+                (list (lit if) (list (lit =) (lit chr) (Lexer %code close)) (Lexer %mark-to #f #t (lit closed)) (lit me)))
               (list (pair (lit closed) closed))))
         (if (null? esc)
           (Lexer %state l
@@ -679,8 +702,7 @@
     ; TAKE makes a one-byte close part of the token; a longer close always
     ; is.  TO-END scores the span once its opener has matched, so that the
     ; engine, which accepts at the end of the text whatever has a score,
-    ; takes a span the close never ended; the read handler then cuts the end
-    ; text off it (%reader).
+    ; takes a span the close never ended.  Without it such a span is no token.
     (method %until-states (self l tag open close take? to-end?)
       (def n (str-byte-len close))
       (def at (fn (_ i) (char->int (str-byte-ref close i))))
@@ -779,18 +801,22 @@
       (def e2 (ender 2))
       (def e3 (ender 3))
       (def fv (fn (_ e more) (if (null? e) more (pair e more))))
+      ; the form moving to the state TARGET names, from a state marked FROM to
+      ; one marked TO: each state's end mark is its label, #f where the
+      ; literal is not whole yet
+      (def go (fn (_ from to target) (Lexer %mark-to from to target)))
       (def exp-digits
         (Lexer %state l
           (Lexer %state-form (list (lit if) digit (lit me) (end-form 2 e2)))
           (fv e2 ())))
       (def exp-first
         (Lexer %state l
-          (Lexer %state-form (list (lit if) digit (lit k) ()))
+          (Lexer %state-form (list (lit if) digit (go #f 2 (lit k)) ()))
           (list (pair (lit k) exp-digits))))
       (def exp-sign
         (Lexer %state l
           (Lexer %state-form
-            (list (lit if) digit (lit k)
+            (list (lit if) digit (go #f 2 (lit k))
               (list (lit if) (lit (or (= chr 43) (= chr 45))) (lit f) ())))
           (list (pair (lit k) exp-digits) (pair (lit f) exp-first))))
       ; 0x and hex digits, an integer; a hex fraction (0x1.8, 0x.8) or a p
@@ -800,35 +826,35 @@
       (def hex-frac-digits
         (Lexer %state l
           (Lexer %state-form
-            (list (lit if) xdigit (lit me) (list (lit if) p? (lit es) (end-form 2 e2))))
+            (list (lit if) xdigit (lit me) (list (lit if) p? (go 2 #f (lit es)) (end-form 2 e2))))
           (fv e2 (list (pair (lit es) exp-sign)))))
       (def hex-frac-first
         (Lexer %state l
-          (Lexer %state-form (list (lit if) xdigit (lit k) ()))
+          (Lexer %state-form (list (lit if) xdigit (go #f 2 (lit k)) ()))
           (list (pair (lit k) hex-frac-digits))))
       (def hex-digits
         (Lexer %state l
           (Lexer %state-form
             (list (lit if) xdigit (lit me)
-              (list (lit if) (lit (= chr 46)) (lit frac)
-                (list (lit if) p? (lit es) (end-form 3 e3)))))
+              (list (lit if) (lit (= chr 46)) (go 3 2 (lit frac))
+                (list (lit if) p? (go 3 #f (lit es)) (end-form 3 e3)))))
           (fv e3 (list (pair (lit frac) hex-frac-digits) (pair (lit es) exp-sign)))))
       (def hex-first
         (Lexer %state l
           (Lexer %state-form
-            (list (lit if) xdigit (lit k) (list (lit if) (lit (= chr 46)) (lit dot) ())))
+            (list (lit if) xdigit (go #f 3 (lit k)) (list (lit if) (lit (= chr 46)) (lit dot) ())))
           (list (pair (lit k) hex-digits) (pair (lit dot) hex-frac-first))))
       (def frac-digits
         (Lexer %state l
           (Lexer %state-form
             (list (lit if) digit (lit me)
-              (list (lit if) (lit (or (= chr 101) (= chr 69))) (lit es) (end-form 2 e2))))
+              (list (lit if) (lit (or (= chr 101) (= chr 69))) (go 2 #f (lit es)) (end-form 2 e2))))
           (fv e2 (list (pair (lit es) exp-sign)))))
       ; after a leading dot a digit must follow; after digits and a dot the
       ; literal is already a fraction (1. is 1.0 in C and Python)
       (def frac-first
         (Lexer %state l
-          (Lexer %state-form (list (lit if) digit (lit k) ()))
+          (Lexer %state-form (list (lit if) digit (go #f 2 (lit k)) ()))
           (list (pair (lit k) frac-digits))))
       (def frac-after-int
         (Lexer %state l
@@ -838,21 +864,21 @@
         (Lexer %state l
           (Lexer %state-form
             (list (lit if) digit (lit me)
-              (list (lit if) (lit (= chr 46)) (lit frac)
-                (list (lit if) (lit (or (= chr 101) (= chr 69))) (lit es) (end-form 1 e1)))))
+              (list (lit if) (lit (= chr 46)) (go 1 2 (lit frac))
+                (list (lit if) (lit (or (= chr 101) (= chr 69))) (go 1 #f (lit es)) (end-form 1 e1)))))
           (fv e1 (list (pair (lit frac) frac-after-int) (pair (lit es) exp-sign)))))
       (def zero
         (Lexer %state l
           (Lexer %state-form
-            (list (lit if) (lit (or (= chr 120) (= chr 88))) (lit hex)
+            (list (lit if) (lit (or (= chr 120) (= chr 88))) (go 1 #f (lit hex))
               (list (lit if) digit (lit me)
-                (list (lit if) (lit (= chr 46)) (lit frac)
-                  (list (lit if) (lit (or (= chr 101) (= chr 69))) (lit es) (end-form 1 e1))))))
+                (list (lit if) (lit (= chr 46)) (go 1 2 (lit frac))
+                  (list (lit if) (lit (or (= chr 101) (= chr 69))) (go 1 #f (lit es)) (end-form 1 e1))))))
           (fv e1 (list (pair (lit hex) hex-first) (pair (lit frac) frac-after-int) (pair (lit es) exp-sign)))))
       (Lexer %state l
         (Lexer %state-form
-          (list (lit if) (lit (= chr 48)) (lit zero)
-            (list (lit if) digit (lit body)
+          (list (lit if) (lit (= chr 48)) (go #f 1 (lit zero))
+            (list (lit if) digit (go #f 1 (lit body))
               (list (lit if) (lit (= chr 46)) (lit dot) ()))))
         (list (pair (lit zero) zero) (pair (lit body) int-digits) (pair (lit dot) frac-first))))
 
@@ -886,28 +912,41 @@
         (fn (_ i k)
           (Str8 ->sym (Str8 append "p" (Str8 append (%number->str i) (Str8 append "-" (%number->str k)))))))
       (def made (pair () ()))
-      ; what a byte of step I, read with K of it already read, leads to
+      ; Whether every step from J on may be absent.
+      (def optional?
+        (fn (self j) (if (= j n) #t (if (= (fewest (nth steps j)) 0) (self (+ j 1)) #f))))
+      ; A state's end mark: the pattern is whole once its step has its fewest
+      ; and every step after it may be absent.
+      (def mark
+        (fn (_ i k) (if (>= k (fewest (nth steps i))) (optional? (+ i 1)) #f)))
+      ; what a byte of step I, read with K of it already read, leads to, from
+      ; the state at I and K: another state is named, the score set to its
+      ; end mark on the way
+      (def to
+        (fn (_ i k ti tk) (Lexer %mark-to (mark i k) (mark ti tk) (name ti tk))))
       (def target
-        (fn (_ i k)
-          (def s (nth steps i))
+        (fn (_ i k j)
+          (def s (nth steps j))
+          (def jk (if (= i j) k 0))
           (match
-            ((null? (most s)) (if (< k (fewest s)) (name i (+ k 1)) (lit me)))
-            ((< (+ k 1) (most s)) (name i (+ k 1)))
-            ((= i (- n 1)) (Lexer %take))
-            (#t (name (+ i 1) 0)))))
-      ; the decision for step J on a byte no step before it read
+            ((null? (most s)) (if (< jk (fewest s)) (to i k j (+ jk 1)) (lit me)))
+            ((< (+ jk 1) (most s)) (to i k j (+ jk 1)))
+            ((= j (- n 1)) (Lexer %take))
+            (#t (to i k (+ j 1) 0)))))
+      ; the decision for step J on a byte no step before it read, in the state
+      ; at I and K
       (def open
-        (fn (self j)
+        (fn (self i k j)
           (if (= j n) (Lexer %accept)
             (let ((s (nth steps j)))
-              (list (lit if) (Lexer %class-form (class s)) (target j 0)
-                (if (= (fewest s) 0) (self (+ j 1)) ()))))))
+              (list (lit if) (Lexer %class-form (class s)) (target i k j)
+                (if (= (fewest s) 0) (self i k (+ j 1)) ()))))))
       (def form
         (fn (_ i k)
           (def s (nth steps i))
           (Lexer %state-form
-            (list (lit if) (Lexer %class-form (class s)) (target i k)
-              (if (>= k (fewest s)) (open (+ i 1)) ())))))
+            (list (lit if) (Lexer %class-form (class s)) (target i k i)
+              (if (>= k (fewest s)) (open i k (+ i 1)) ())))))
       (def make-step
         (fn (self i k)
           (unless (< k 0)
@@ -938,12 +977,26 @@
     ; open at the end of the text is a token.  TO-END scores the span once it
     ; is committed -- a word at its first byte, a nested span at its opener's
     ; last -- so that the engine, which accepts at the end of the text
-    ; whatever has a score, takes one the close never ended; its read handler
-    ; then cuts the end text off it, as an until span's does.
+    ; whatever has a score, takes one the close never ended.
+    ;
+    ; A word without TO-END is whole at the end of the text where a stop byte
+    ; would have ended it: at depth 0, not inside an escape.  Its score goes
+    ; with the depth, which only the stack knows: set at its first byte,
+    ; cleared by an opener and an escape byte, and set again by a close or an
+    ; escaped byte that leaves the depth at 0.
     (method %nested-states (self l open start contexts . more)
       (def stop (if (null? more) () (first more)))
       (def to-end? (if (null? more) #f (if (null? (rest more)) #f (first (rest more)))))
-      (def scored (fn (_ form) (if to-end? (list (lit %seq) (lit (%score-set score 1 buffer)) form) form)))
+      (def tracked? (if (null? stop) #f (not to-end?)))
+      (def scored (fn (_ form) (if (or to-end? tracked?) (list (lit %seq) (lit (%score-set score 1 buffer)) form) form)))
+      (def cleared (fn (_ form) (if tracked? (list (lit %seq) (lit (%score-set score 0 buffer)) form) form)))
+      (def by-depth
+        (fn (_ form)
+          (if tracked?
+            (list (lit %seq)
+              (lit (if (= (%mem-ref (first stk) 0) 0) (%score-set score 1 buffer) (%score-set score 0 buffer)))
+              form)
+            form)))
       (Lexer %nested-check open start contexts stop)
       (def slots (pair () ()))
       (def count (pair 0 ()))
@@ -970,11 +1023,11 @@
           (list (lit if) (lit (>= (%mem-ref (first stk) 0) 63)) (lit (%seq (%mem-set! (first stk) 0 0) ()))
             (list (lit %seq) (lit (%mem-set! (first stk) 0 (+ (%mem-ref (first stk) 0) 1)))
               (list (lit %seq) (list (lit %mem-set-at!) (lit (first stk)) (lit (%mem-ref (first stk) 0)) (ref (body-of from)))
-                (ref (body-of to)))))))
+                (cleared (ref (body-of to))))))))
       (def close-form
-        (lit (if (= (%mem-ref (first stk) 0) 0) (%score-set score 1 buffer)
-               (%seq (%mem-set! (first stk) 0 (- (%mem-ref (first stk) 0) 1))
-                     (%mem-ref-at (first stk) (+ (%mem-ref (first stk) 0) 1))))))
+        (list (lit if) (lit (= (%mem-ref (first stk) 0) 0)) (lit (%score-set score 1 buffer))
+          (list (lit %seq) (lit (%mem-set! (first stk) 0 (- (%mem-ref (first stk) 0) 1)))
+            (by-depth (lit (%mem-ref-at (first stk) (+ (%mem-ref (first stk) 0) 1)))))))
       ; OPENS grouped by their byte at I, in order: ((code . opens) ...)
       (def groups
         (fn (_ opens i)
@@ -1032,7 +1085,7 @@
           (def tests (opens-tests name (Lexer %nested-opens c) 0 other))
           (def escaped
             (if (null? esc) tests
-              (list (lit if) (list (lit =) (lit chr) (Lexer %code (first (rest (rest c))))) (ref esc) tests)))
+              (list (lit if) (list (lit =) (lit chr) (Lexer %code (first (rest (rest c))))) (cleared (ref esc)) tests)))
           (def closed
             (if (null? (first (rest c))) escaped
               (list (lit if) (list (lit =) (lit chr) (Lexer %code (first (rest c)))) close-form escaped)))
@@ -1043,7 +1096,7 @@
         (fn (_ c)
           (emit! (body-of (first c)) (dispatch (first c) (lit me)))
           (def esc (rest (Lexer %assoc (first c) escs)))
-          (if (null? esc) () (emit! esc (ref (body-of (first c))))))
+          (if (null? esc) () (emit! esc (by-depth (ref (body-of (first c)))))))
         contexts)
       ; the stack, and the twin's
       (def buf (str-make 512))
@@ -1065,12 +1118,15 @@
                       (l resets)))
       (def first-body (body-of start))
       ; A word has no opening literal: its first byte, unless it stops the
-      ; word, is read as the start context's body reads a byte, the stack
-      ; already at depth 0.  Otherwise the open chain, last byte first; its
-      ; last byte starts the stack.
+      ; word, starts the stack at depth 0 -- a word the read gave up on left
+      ; it where that word stopped -- and is read as the start context's body
+      ; reads a byte.  Otherwise the open chain, last byte first; its last
+      ; byte starts the stack.
       (if (null? open)
         (Lexer %state l
-          (Lexer %state-form (list (lit if) stop-form () (scored (dispatch start (ref first-body)))))
+          (Lexer %state-form
+            (list (lit if) stop-form ()
+              (list (lit %seq) (lit (%mem-set! (first stk) 0 0)) (scored (dispatch start (ref first-body))))))
           fvars twin)
       ((fn (self i next)
          (if (< i 0) next
@@ -1267,29 +1323,12 @@
     ; target's: the text, the label and the list are all parent objects, and
     ; the child registers nothing.  The doors are captured outside the
     ; closure: a static read is a class dispatch, and this runs once a token.
-    ;
-    ; THE END TEXT IS NEVER PART OF A TOKEN.  A token the engine took at the
-    ; end of the buffer -- a span that ran to the end, an escape or a pattern
-    ; whose last byte was the end text's, a directive `%` with nothing after
-    ; it -- holds bytes read-str appended, and is cut back by as many as it
-    ; holds: the bytes the read cursor has gone past the point the end text
-    ; starts at, the write cursor less the end text's length.  The cursors
-    ; are the first and second words of the buffer's inner object.  A token
-    ; that stopped before the end text costs one comparison here.
-    (method %reader (self tag labelled? end-len)
-      (let ((tok buf-tok) (ev (Lexer %base-eval)) (parent (%base))
-            (sub (prim-ref (lit str) (lit byte-sub))) (len str-byte-len)
-            (write-at (%data-word-off 1)))
-        (def text-of
-          (fn (_ args)
-            (def text (tok (first args)))
-            (def inner (rest (first args)))
-            (def over (int- (%cell-int inner) (int- (ptr-ref-word (obj->ptr inner) write-at) end-len)))
-            (if (int< 0 over) (sub text 0 (int- (len text) over)) text)))
+    (method %reader (self tag labelled?)
+      (let ((tok buf-tok) (ev (Lexer %base-eval)) (parent (%base)))
         (def mk
           (if labelled?
-            (fn (_ args) (list tag (text-of args) (%read-label args)))
-            (fn (_ args) (list tag (text-of args)))))
+            (fn (_ args) (list tag (tok (first args)) (%read-label args)))
+            (fn (_ args) (list tag (tok (first args))))))
         (fn (_ . args)
           (ev parent (list (list (lit lit) mk) (list (lit lit) args))))))
 
@@ -1368,7 +1407,7 @@
               (pair (lit read)
                 (if (eq? kind (lit record))
                   (Lexer %reader-record tag)
-                  (Lexer %reader tag (eq? kind (lit number)) (str-byte-len (l end))))))))
+                  (Lexer %reader tag (eq? kind (lit number))))))))
 
     ; Register in list order: the type registered first wins a tie.
     (method %install! (self l rules)
@@ -1651,21 +1690,21 @@
 
     ; The plan in the group text S: the one read from this very text before,
     ; else read now and kept.
-    ; The cache group key for RULES and END: printed once for a rule list and
-    ; an end text, found again by identity.
-    (method %group-key (self rules end)
+    ; The cache group key for RULES: printed once for a rule list, found
+    ; again by identity.
+    (method %group-key (self rules)
       (def hit
         ((fn (self l)
            (if (null? l) ()
-             (if (if (eq? (first (first l)) rules) (eq? (first (rest (first l))) end) #f) (first l) (self (rest l)))))
+             (if (eq? (first (first l)) rules) (first l) (self (rest l)))))
          (first (Lexer %keys))))
       (if (null? hit)
         (do
           (def key (Str8 append "lexer:" (%number->str (Lexer %plan-version)) ":"
-                     ((prim-ref (lit io) (lit write-to-str)) (pair end rules))))
-          (%set-first! (Lexer %keys) (pair (pair rules (pair end key)) (first (Lexer %keys))))
+                     ((prim-ref (lit io) (lit write-to-str)) rules)))
+          (%set-first! (Lexer %keys) (pair (pair rules key) (first (Lexer %keys))))
           key)
-        (rest (rest hit))))
+        (rest hit)))
 
     (method %held-plan (self s)
       (def hit

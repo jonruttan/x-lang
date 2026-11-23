@@ -367,7 +367,7 @@ declares a grammar and whose `fx/syntax.x` registers it, and points
   seen)
 ```
 ---
-    ('fx/syntax 'fx () (".fx") ("fx") ((0 2 'keyword)))
+    ('fx/syntax 'fx () (".fx") ("fx") ((0 2 'keyword) (3 1 'keyword)))
 
 ### a file's grammar: modeline, then #! interpreter, then suffix or name
 

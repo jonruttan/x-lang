@@ -487,11 +487,7 @@ number's integer label does not teach the child to read `+1` as an integer.
 ---
     (('w "a") ('bad "@") ('w "b") ('op "@@") ('w "c"))
 
-### an any rule leaves the end text alone
-
-The end text is appended so the last token meets a delimiter; at the
-buffer's end only a state that accepts on its own byte can win, so the any
-rule refuses the end text's bytes as it refuses a skip rule's.
+### an any rule beside a blank run, a byte last
 
 ```x
 (do
@@ -500,7 +496,7 @@ rule refuses the end text's bytes as it refuses a skip rule's.
     (Lexer run 'sp " \t" " \t")
     (Lexer table 'nl (list "\n"))
     (Lexer run 'id "abc" "abc")
-    (Lexer any 'bad)) "\n"))
+    (Lexer any 'bad))))
   (write (%lx-l read-str "a\nb @"))
   (newline))
 ```
@@ -694,7 +690,7 @@ substitutions are spans inside the word, and blanks and operators end it.
   (newline))
 ```
 ---
-    ((('bad "a") ('bad "$") ('bad "(") ('bad "b")) (('word "c") ('word "d")) 15 ('word "y"))
+    ((('bad "a") ('bad "$") ('word "(b")) (('word "c") ('word "d")) 15 ('word "y"))
 
 ### a word with no stop class, or a span with no close, is refused at make
 
@@ -729,10 +725,9 @@ substitutions are spans inside the word, and blanks and operators end it.
 ---
     (('pat "/ab/") ('w "c") ('pat "/d/"))
 
-### to-end takes a span no close ended, and the end text is not part of it
+### to-end takes a span no close ended
 
-The end text is a space here, and a space inside the span stays: only the
-bytes read-str appended are cut.
+A space inside the span stays.
 
 ```x
 (do
@@ -766,8 +761,8 @@ bytes read-str appended are cut.
 ### to-end with a close left for the next token, and a close the input supplies
 
 A line comment that the text's own newline ends is the comment up to it; one
-the text ends without a newline is the comment to the end.  With a newline as
-the end text and take, a close the input supplies stays in the token.
+the text ends without a newline is the comment to the end.  With take, a
+close the input supplies stays in the token.
 
 ```x
 (do
@@ -779,8 +774,7 @@ the end text and take, a close the input supplies stays in the token.
     (Lexer run 'w "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz"))))
   (def %lx-t (Lexer make (list
     (Lexer until 'c "//" "\n" 'take 'to-end)
-    (Lexer run 'w "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz"))
-    "\n"))
+    (Lexer run 'w "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz"))))
   (write (list (%lx-l read-str "a # c") (%lx-l read-str "a # c\nb")
                (%lx-t read-str "// x") (%lx-t read-str "// x\n")))
   (newline))
@@ -855,10 +849,10 @@ After `aa` of the close `aab`, another `a` is still two bytes of it, so
 
 ## nested and word: a span still open at the end
 
-### to-end makes a word or a nested span left open at the end a token, the end text cut
+### to-end makes a word or a nested span left open at the end a token
 
-The end text is a newline, and a blank inside the open span stays; spans that
-close read as they do without the flag.
+A blank inside the open span stays; spans that close read as they do without
+the flag.
 
 ```x
 (do
@@ -873,8 +867,7 @@ close read as they do without the flag.
     (Lexer skip " ")
     (Lexer table 'nl (list "\n"))
     (Lexer nested 'dq "\"" 'dq (rest %lxe-ctx) 'to-end)
-    (Lexer word 'word 'w %lxe-ctx " \n" 'to-end))
-    "\n"))
+    (Lexer word 'word 'w %lxe-ctx " \n" 'to-end))))
   (write (list (%lxe-l read-str "a ${X") (%lxe-l read-str "'a'\"b") (%lxe-l read-str "x $(echo a")
                (%lxe-l read-str "\"a $(b") (%lxe-l read-str "\"a\" b${c}\n")))
   (newline))
@@ -962,41 +955,158 @@ wants a hex digit, so `\xg` falls to the two-byte escape rule after it.
 ---
     ('refused 'refused 'refused 'made)
 
-## the end text is never part of a token
+## the end of the text ends the last token
 
-read-str appends the end text so the last token meets a delimiter.  A rule
-that takes its last byte -- an escape, a pattern's final step -- takes the
-end text's byte when nothing else follows, and the token is cut back to
-what the text held.
+Nothing is appended to a read.  A token the text ends on is read when its
+rule could end there before any further byte; a rule the text leaves short
+is no token, and an any rule reads its bytes.  Each rule kind is read here
+with its token last.
 
-### a trailing backslash is the escape token by itself, and a trailing % the directive
+### a run whose class holds blanks reads to the end, and from the start
 
 ```x
 (do
   (import x/reader/lexer)
-  (def %lx-l (Lexer make (list
+  (def %lxz-l (Lexer make (list
+    (Lexer run 'ws " \t\r\n" " \t\r\n")
+    (Lexer run 'w "ab" "ab"))))
+  (write (list (%lxz-l read-str "ab \r\n") (%lxz-l read-str " \tab") (%lxz-l read-str "\n")))
+  (newline))
+```
+---
+    ((('w "ab") ('ws " \r\n")) (('ws " \t") ('w "ab")) (('ws "\n")))
+
+### a run with a follow class is no token at the end, where no byte follows
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxz-l (Lexer make (list
+    (Lexer run 'io "0123456789" "0123456789" "<>")
+    (Lexer run 'w "0123456789" "0123456789")
+    (Lexer table 'op (list ">")))))
+  (write (list (%lxz-l read-str "2") (%lxz-l read-str "2>")))
+  (newline))
+```
+---
+    ((('w "2")) (('io "2") ('op ">")))
+
+### a table's longest literal at the end, and a literal the end cuts short
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxz-l (Lexer make (list
+    (Lexer table 'p (list "=" "==" "->"))
+    (Lexer any 'bad))))
+  (write (list (%lxz-l read-str "a==") (%lxz-l read-str "=-")))
+  (newline))
+```
+---
+    ((('bad "a") ('p "==")) (('p "=") ('bad "-")))
+
+### a quoted literal's close at the end, a doubled close's too
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxz-c (Lexer make (list (Lexer quoted 'q 34 34 92))))
+  (def %lxz-s (Lexer make (list (Lexer quoted 'q 39 39 39))))
+  (write (list (%lxz-c read-str "\"a\\\"b\"") (%lxz-s read-str "'it''s'") (%lxz-s read-str "''")))
+  (newline))
+```
+---
+    ((('q "\"a\\\"b\"")) (('q "'it''s'")) (('q "''")))
+
+### a number at the end carries its label, and one the end cuts short is no number
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxz-l (Lexer make (list (Lexer number 'n ()) (Lexer any 'bad))))
+  (def %lxz-u (Lexer make (list (Lexer number 'n "uU"))))
+  (write (list (List map (fn (_ s) (%lxz-l read-str s)) (list "12" "0" "1.5" "1." "1e5" "0x1f" "0x1.8" "1e" "0x"))
+               (%lxz-u read-str "7u")))
+  (newline))
+```
+---
+    (((('n "12" 1)) (('n "0" 1)) (('n "1.5" 2)) (('n "1." 2)) (('n "1e5" 2)) (('n "0x1f" 3)) (('n "0x1.8" 2)) (('bad "1") ('bad "e")) (('bad "0") ('bad "x"))) (('n "7u" 1)))
+
+### an escape or a pattern the end cuts short is no token
+
+A trailing backslash has no byte to escape, and a trailing % no conversion:
+each is the any rule's byte, for the reader to refuse by name.
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxz-l (Lexer make (list
     (Lexer pattern 'dir (list (list "%" 1 1) (list "0123456789" 0 ()) (list #t 1 1)))
     (Lexer escape 'esc 92)
-    (Lexer run 'lit "abc" "abc"))))
-  (write (list (%lx-l read-str "a\\") (%lx-l read-str "a%") (%lx-l read-str "a%5") (%lx-l read-str "a% ")))
+    (Lexer run 'lit "abc" "abc")
+    (Lexer any 'bad))))
+  (write (list (%lxz-l read-str "a\\n") (%lxz-l read-str "a\\") (%lxz-l read-str "a%")
+               (%lxz-l read-str "a%5") (%lxz-l read-str "a% ")))
   (newline))
 ```
 ---
-    ((('lit "a") ('esc "\\")) (('lit "a") ('dir "%")) (('lit "a") ('dir "%5")) (('lit "a") ('dir "% ")))
+    ((('lit "a") ('esc "\\n")) (('lit "a") ('bad "\\")) (('lit "a") ('bad "%")) (('lit "a") ('bad "%") ('bad "5")) (('lit "a") ('dir "% ")))
 
-### a two-byte end text is cut back by as many of its bytes as the token took
+### a pattern whose steps after the end may be absent ends there
 
 ```x
 (do
   (import x/reader/lexer)
-  (def %lx-l (Lexer make (list
-    (Lexer escape 'esc 92)
-    (Lexer run 'lit "abc" "abc")) "\n\n"))
-  (write (list (%lx-l read-str "ab\\") (%lx-l read-str "\\")))
+  (def %lxz-l (Lexer make (list
+    (Lexer pattern 'p (list (list "a" 1 1) (list "b" 0 ())))
+    (Lexer pattern 'q (list (list "c" 1 1) (list "d" 1 2)))
+    (Lexer any 'bad))))
+  (write (list (%lxz-l read-str "abb") (%lxz-l read-str "a") (%lxz-l read-str "cd") (%lxz-l read-str "c")))
   (newline))
 ```
 ---
-    ((('lit "ab") ('esc "\\")) (('esc "\\")))
+    ((('p "abb")) (('p "a")) (('q "cd")) (('bad "c")))
+
+### a word at depth 0 ends at the end; one the end leaves inside a span or an escape is no token
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxz-l (Lexer make (list
+    (Lexer word 'w 'w (list (list 'w () 92 (list (pair "\"" 'dq))) (list 'dq 34 92 ())) " ")
+    (Lexer any 'bad))))
+  (write (list (%lxz-l read-str "a\"b c\"d") (%lxz-l read-str "a\\ b") (%lxz-l read-str "a\"b")
+               (%lxz-l read-str "a\\")))
+  (newline))
+```
+---
+    ((('w "a\"b c\"d")) (('w "a\\ b")) (('bad "a") ('bad "\"") ('w "b")) (('bad "a") ('bad "\\")))
+
+### a line comment the end cuts short is a token only with to-end
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxz-t (Lexer make (list (Lexer until 'c "#" "\n" 'to-end) (Lexer any 'bad))))
+  (def %lxz-n (Lexer make (list (Lexer until 'c "#" "\n") (Lexer any 'bad))))
+  (write (list (%lxz-t read-str "#hi") (%lxz-n read-str "#hi") (%lxz-n read-str "#hi\n")))
+  (newline))
+```
+---
+    ((('c "#hi")) (('bad "#") ('bad "h") ('bad "i")) (('c "#hi") ('bad "\n")))
+
+### an any rule takes the last byte, and make refuses an end text
+
+```x
+(do
+  (import x/reader/lexer)
+  (def %lxz-l (Lexer make (list (Lexer any 'x))))
+  (write (list (%lxz-l read-str " a ")
+               (guard (e (lit refused)) (Lexer make (list (Lexer any 'x)) "\n"))))
+  (newline))
+```
+---
+    ((('x " ") ('x "a") ('x " ")) 'refused)
 
 ## record: a binary record that says its own length
 

@@ -44,8 +44,7 @@
     ; bytes either way the engine hands them over); CR and LF are each a
     ; newline; a quoted field is quote to quote, no escape byte, so a doubled
     ; quote arrives as two quoted tokens side by side; a quote no closing
-    ; quote follows is a stray byte.  The end text is a newline: it ends the
-    ; last row, and is never a row of its own.
+    ; quote follows is a stray byte.  The end of the tokens ends the last row.
     (%lexer-cell (pair () ()))
     ; The separator's byte, or a raise when SEP is not one a field can be told
     ; from: more or less than one byte, a high byte, a quote, a CR or an LF.
@@ -85,8 +84,7 @@
               (Lexer table (lit nl) (list "\n" "\r"))
               (Lexer quoted (lit q) 34 34 ())
               (Lexer run (lit f) plain plain)
-              (Lexer any (lit bad)))
-              "\n")))
+              (Lexer any (lit bad))))))
          (%plain))
         held))
 
@@ -120,9 +118,8 @@
             (match
               ((eq? tag (lit sep))
                 (go (rest ts) "" (lit none) (pair field row) rows))
-              ; CR and LF are separate tokens, so that the appended LF never
-              ; joins a trailing CR into one it cannot end; a CR with an LF
-              ; straight after it is one row end.
+              ; CR and LF are separate tokens; a CR with an LF straight
+              ; after it is one row end.
               ((eq? tag (lit nl))
                 (go (if (if (str=? tx "\r") (if (null? (rest ts)) #f
                           (if (eq? (first (first (rest ts))) (lit nl))

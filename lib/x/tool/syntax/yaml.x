@@ -100,7 +100,6 @@
   (let ((g (Syntax make (lit yaml) (%sxy-rules)
              (list (pair (lit comment) (lit comment)) (pair (lit string) (lit string))
                    (pair (lit punct) (lit punct)) (pair (lit word) %sxy-word)))))
-    (g end "\n")
     (g files (list ".yaml" ".yml"))
     g))
 
