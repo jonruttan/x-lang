@@ -19,6 +19,14 @@ its bytes. Bundles that pass an end text (x-coreutils' printf and echo
 lexers, x-ash, x-sql, and x-awk and x-make, which pass one through) need
 their `Lexer make` calls changed at their next pin bump.
 
+**`min` and `max` replace `least` and `greatest`.** ([#1460]) Breaking.
+`List min`, `List max`, `Gen min` and `Gen max` are back under those
+names. A `Tensor` and a `Column` answer both meanings from one verb:
+`(t min other)` is the lesser element by element, and `(t min)` the
+least element. `least` and `greatest` are gone; the reduction kernels in
+`(Tensor compiled)` are now `f64-fold-min`, `f64-fold-max` and their f32
+and i64 twins.
+
 **`x --prelude FILE` loads a file after the boot and before the
 program, and the boot's state image carries what it made.** ([#1449]) A
 program whose setup is slow, such as a tokenizer read from its files,
@@ -90,6 +98,7 @@ splitting 500 rows into 50 categories allocates about 60% less.
 [#1457]: https://github.com/jonruttan/x-lang/pull/1457
 [#1458]: https://github.com/jonruttan/x-lang/pull/1458
 [#1459]: https://github.com/jonruttan/x-lang/pull/1459
+[#1460]: https://github.com/jonruttan/x-lang/pull/1460
 
 ## [0.61.0] - 2026-11-22
 
