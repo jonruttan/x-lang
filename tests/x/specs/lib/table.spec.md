@@ -603,6 +603,38 @@ word.
 ---
     (#t ((0.0 1.0 0.0 1.0 0.0) (1.0 0.0 1.0 0.0 1.0) (2.5 0.0 1.0 0.0 4.0) #t #t))
 
+### sort puts the rows with a missing value last, in their own order
+
+```x
+(import x/data/table)
+(let ((t (Table from (list (list 'k (list 2 () 1 2 () 3)) (list 'name (list "a" "b" "c" "d" "e" "f")))))
+      (s (Table from (list (list 'k (list "ccc" () "a" "bb" ())) (list 'n (list 1 2 3 4 5))))))
+  (list (((t sort 'k) column 'name) ->list)
+        (((t sort 'k (fn (_ a b) (< b a))) column 'name) ->list)
+        (((s sort 'k (fn (_ a b) (< (Str8 length a) (Str8 length b)))) column 'k) ->list)))
+```
+---
+    (("c" "a" "d" "f" "b" "e") ("f" "a" "d" "c" "b" "e") ("a" "bb" "ccc" () ()))
+
+### split and aggregate make one category of the rows with a missing value
+
+```x
+(import x/data/table) (import x/num/float) (import x/num/tensor)
+(let ((t (Table from (list (list 'k (list 2 () 1 2 () 3)) (list 'name (list "a" "b" "c" "d" "e" "f")))))
+      (s (Table from (list (list 'k (list "x" () "y" "x" ())) (list 'name (list "a" "b" "c" "d" "e")))))
+      (gone (Table from (list (list 'k (list () ())) (list 'name (list "a" "b")))))
+      (key (fn (_ k) (if (Float nan? k) 'missing k)))
+      (count (list (list 'count 'name (fn (_ c) (c size))))))
+  (let ((parts (fn (_ t) (List map (fn (_ p) (list (key (first p)) (((rest p) column 'name) ->list))) (t split 'k))))
+        (counts (fn (_ t) (let ((a (t aggregate 'k count))) (list (((a column 'k) missing) ->list) ((a column 'count) ->list))))))
+    (let ((run (fn (_) (list (parts t) (counts t) (parts s) (counts s) (parts gone)))))
+      (let ((before (run)))
+        (Tensor jit!)
+        (list (equal? before (run)) before)))))
+```
+---
+    (#t (((2.0 ("a" "d")) ('missing ("b" "e")) (1.0 ("c")) (3.0 ("f"))) ((0.0 1.0 0.0 0.0) (2 2 1 1)) (("x" ("a" "d")) (() ("b" "e")) ("y" ("c"))) ((0.0 1.0 0.0) (2 2 1)) ((() ("a" "b")))))
+
 ## Handing a table to a model
 
 ### matrix answers the named columns as an f64 Matrix, a row for each row

@@ -41,6 +41,8 @@
 ; encoding any; an empty csv field and a nil among numbers read as one.
 ; missing and present answer masks of them and fill-missing replaces
 ; them.  The statistics do not skip a missing number: they answer a NaN.
+; sort puts the rows with a missing value last, and split and aggregate
+; make one category of them.
 ;
 ; A mask is a column of 1.0 and 0.0, as a Column's less, greater, at-most,
 ; at-least, equal and differ answer one: filter keeps the rows where a
@@ -305,6 +307,15 @@
     (self %compare (lit differ) other #f))
 
   ; --- missing values ----------------------------------------------------------
+  ; (fn (_ v) -> BOOL), true of a value of this column that is missing: nil
+  ; for encoding any, a NaN for f64 and f32, and nothing for the rest.
+  (method %missing-test (self)
+    (let ((enc (field (lit encoding))))
+      (match
+        ((eq? enc (lit any)) (fn (_ v) (null? v)))
+        ((if (eq? enc (lit f64)) #t (eq? enc (lit f32))) (fn (_ v) (not (f-eq v v))))
+        (#t (fn (_ v) #f)))))
+
   (method missing (self)
     (doc "A mask: 1.0 where the value is missing and 0.0 where it is not. A missing number is a NaN, and in a column of encoding any the missing value is nil. The statistics of a column with a missing number answer a NaN; filter by present first to leave the missing rows out."
       (known-as "isna" "isnull" "is null")
@@ -530,7 +541,7 @@
 
   (method sort (self (param name SYMBOL|STRING "The column the rows are ordered by")
                      . (param before CALLABLE "Optional: called with two values, true where the first comes strictly first; < by default"))
-    (doc "The table with its rows in the order of the named column, least first. Rows whose values are equal keep their order. A column < does not order, as one of strings, takes a before of its own."
+    (doc "The table with its rows in the order of the named column, least first. Rows whose values are equal keep their order. Rows whose value is missing come last, in their own order, and before is not called with one. A column < does not order, as one of strings, takes a before of its own."
       (known-as "arrange" "order by")
       (returns Table "A table of the rows in order")
       (example "((((Table from '((age (31.0 45.0 28.0)) (name (\"Ann\" \"Bo\" \"Cy\")))) sort 'age) column 'name) ->list)" "(\"Cy\" \"Ann\" \"Bo\")")
@@ -538,12 +549,17 @@
     (let ((packed (if (null? before) ((self column name) %order-packed) ()))
           (before (if (null? before) < (first before))))
       (if (null? packed)
-        (self %take
-          (List map rest
-            (List sort (fn (_ a b) (before (first a) (first b)))
-              (let go ((values ((self column name) ->list)) (i 0) (acc ()))
-                (if (null? values) (List reverse acc)
-                  (go (rest values) (+ i 1) (pair (pair (first values) i) acc)))))))
+        ; HERE is each value not missing with its row, GONE the rows of the rest
+        (let ((gone? ((self column name) %missing-test)))
+          (let go ((values ((self column name) ->list)) (i 0) (here ()) (gone ()))
+            (match
+              ((null? values)
+                (self %take
+                  (List append
+                    (List map rest (List sort (fn (_ a b) (before (first a) (first b))) (List reverse here)))
+                    (List reverse gone))))
+              ((gone? (first values)) (go (rest values) (+ i 1) here (pair i gone)))
+              (#t (go (rest values) (+ i 1) (pair (pair (first values) i) here) gone)))))
         (self %take-packed packed))))
 
   (method matrix (self (param names LIST "The names of the columns, in the order wanted"))
@@ -613,12 +629,13 @@
   ; START . COUNT), its rows the COUNT in ORDER from START, in their own
   ; order.  Else ORDER is () and each category is (VALUE . ROWS), the rows
   ; a list: found in a hashed table where the values have keys, one lookup
-  ; a row, and where they have none by %categories-walk.
+  ; a row, and where they have none by %categories-walk.  The rows whose
+  ; value is missing are one category, under the last such value.
   (method %categories (self name)
     (let ((column (self column name)))
       (let ((runs (column %runs)))
         (if (null? runs)
-          (pair () (self %categories-listed (column ->list)))
+          (pair () (self %categories-parted column))
           (pair (first runs) (List map (fn (_ r) (pair (column ref (first r)) (rest r))) (rest runs)))))))
 
   ; Column SOURCE's values for each category of CATS, from %categories,
@@ -640,6 +657,25 @@
     (if (null? (first cats))
       (List map (fn (_ c) (pair (rest c) (Tensor %pack-rows (rest c)))) (rest cats))
       ()))
+
+  ; ((VALUE . ROWS) ...) for COLUMN's values.  Where one is missing, the
+  ; values that are not are parted on their own, their rows put back to
+  ; the column's, and the missing rows' category takes its place by the
+  ; row it first comes at.
+  (method %categories-parted (self column)
+    (let ((values (column ->list)) (gone? (column %missing-test)))
+      (if (List any? gone? values)
+        (let go ((left values) (i 0) (here ()) (gone ()) (value ()))
+          (match
+            ((null? left)
+              (let ((at (Vector from-list (List reverse (List map rest here)))))
+                (List sort (fn (_ a b) (< (first (rest a)) (first (rest b))))
+                  (pair (pair value (List reverse gone))
+                        (List map (fn (_ c) (pair (first c) (List map (fn (_ r) (Vector ref r at)) (rest c))))
+                                  (self %categories-listed (List reverse (List map first here))))))))
+            ((gone? (first left)) (go (rest left) (+ i 1) here (pair i gone) (first left)))
+            (#t (go (rest left) (+ i 1) (pair (pair (first left) i) here) gone value))))
+        (self %categories-listed values))))
 
   ; ((VALUE . ROWS) ...) for VALUES, by a hashed table or by the walk.
   (method %categories-listed (self values)
@@ -675,7 +711,7 @@
           (#t (go (rest left) (pair (first left) acc)))))))
 
   (method split (self (param name SYMBOL|STRING "The column whose distinct values part the rows"))
-    (doc "Each distinct value of the named column with the table of the rows that have it, in the order the values first come. Rows keep their order."
+    (doc "Each distinct value of the named column with the table of the rows that have it, in the order the values first come. Rows keep their order. The rows whose value is missing make one such table, under a missing value."
       (known-as "group by" "partition by")
       (returns LIST "((VALUE . TABLE) ...)")
       (example "(List map first ((Table from '((city (\"Ely\" \"Ayr\" \"Ely\")) (age (31.0 45.0 28.0)))) split 'city))" "(\"Ely\" \"Ayr\")")
@@ -689,7 +725,7 @@
 
   (method aggregate (self (param name SYMBOL|STRING "The column whose distinct values make the rows")
                           (param specs LIST "A list for each column made: its name, the column it is worked out from, and a function called with that column's values for one distinct value, as a Column"))
-    (doc "A table with a row for each distinct value of the named column, in the order the values first come: that column, then a column for each spec, holding what its function answers of the source column's values among the rows with that value."
+    (doc "A table with a row for each distinct value of the named column, in the order the values first come: that column, then a column for each spec, holding what its function answers of the source column's values among the rows with that value. The rows whose value is missing make one row of it."
       (known-as "group by" "summarize" "summarise")
       (returns Table "A table of the named column and a column for each spec")
       (example "(((Table from '((city (\"Ely\" \"Ayr\" \"Ely\")) (age (31.0 45.0 29.0)))) aggregate 'city (list (list 'mean-age 'age (fn (_ c) (c mean))))) ->list)" "(('city (\"Ely\" \"Ayr\")) ('mean-age (30.0 45.0)))"))
