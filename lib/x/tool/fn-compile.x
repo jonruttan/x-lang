@@ -146,15 +146,19 @@
 (def %fc-cells ())               ; ((free-name . fvar-name) ...)
 (def %fc-lits ())                ; the body's literals, in the order %fc-literals walks them
 (def %fc-count 0)
+(def %fc-taken ())               ; the names F's parameters and body hold
 
 (def %fc-refuse
   (fn (_ . parts)
     (Err raise (lit value) (%fold (fn (_ a s) (Str append a s)) "fn-compile: " parts) ())))
 
+; A name F does not hold.  The count starts again for each closure, and a
+; closure outlined from another holds that one's fresh names as parameters.
 (def %fc-fresh
-  (fn (_ stem)
+  (fn (self stem)
     (set! %fc-count (int+ %fc-count 1))
-    (str->sym (Str append stem (%number->str %fc-count)))))
+    ((fn (_ s) (if (%fc-memq s %fc-taken) (self stem) s))
+     (str->sym (Str append stem (%number->str %fc-count))))))
 
 ; --- What an fvar's name says ---------------------------------------------------
 ; An fvar's value is this process's: a binding cell, a list a call site
@@ -1065,6 +1069,7 @@
     (set! %fc-env (Fn env f))
     (set! %fc-self (first ps))
     (set! %fc-count 0)
+    (set! %fc-taken (%append ps (%fc-mentions (Fn body f))))
     (set! %fc-outlined ())
     (set! %fc-outer (%append ps (%fc-defs (Fn body f))))
     (set! %fc-let? (%fc-core-here? (lit let) let ps (Fn body f)))

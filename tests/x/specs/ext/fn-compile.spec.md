@@ -723,6 +723,41 @@ evaluator or an apply, so a chain of them runs in constant stack.
 ---
     ('compiled 'compiled 1500000)
 
+### the field of a call's value read in tail position is read from the value
+
+A call whose operands make calls is held as a `do` that ends with the
+call.  `first` in tail position reads the field of that call's value, so
+the call is no tail call.
+
+```x
+(def %fc-two (fn (_ a b) (list (Str8 append a b))))
+(def %fc-g (fn (_ x) (Str8 append "g" x)))
+(def %fc-h (fn (_ x) (Str8 append "h" x)))
+(def %fc-field (fn (_ lv) (first (%fc-two (%fc-g (first lv)) (%fc-h (first (rest lv)))))))
+(def %fc-e (compile-fn! (lit %fc-field) %fc-field))
+(write (list (%fc-e state) (%fc-field (list "a" "b"))))
+```
+---
+    ('compiled "gahb")
+
+### a let inside a closure made inside a let keeps the outer let's name
+
+The closure is outlined with the outer let's renamed local as a
+parameter, and compiled after; its own let is renamed then, and the name
+it is given is not that parameter's.
+
+```x
+(def %fc-nest
+  (fn (_ l)
+    (let ((s (first l)))
+      (def go (fn (_ pos) (let ((st pos)) (list s st))))
+      (go 0))))
+(def %fc-e (compile-fn! (lit %fc-nest) %fc-nest))
+(write (list (%fc-e state) (%fc-nest (list "ab"))))
+```
+---
+    ('compiled ("ab" 0))
+
 ### an apply of a compiled closure makes the tail call it leaves
 
 ```x
