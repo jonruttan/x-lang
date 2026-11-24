@@ -1044,8 +1044,11 @@
             "code is to read.") ()))
       (#t
         (do
+          ; A form operand goes through %asm-compile-expr, which clears tail
+          ; position: the field is read from its value, so a call the operand
+          ; ends with is no tail call.
           (if (pair? operand)
-            (%asm-compile-call asm operand params)
+            (%asm-compile-expr asm operand params)
             (%asm-compile-param asm operand params #f))
           (if %asm-function?
             (%asm-emit-nil-guard! asm
