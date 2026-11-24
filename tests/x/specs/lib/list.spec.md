@@ -1190,12 +1190,12 @@ first or the last element of each run survives. Assert the value.
 ---
     ("a" "b")
 
-## least / greatest
+## min / max
 
 ### finds extremes
 
 ```x
-(list (List least (list 3 1 2)) (List greatest (list 3 1 2)))
+(list (List min (list 3 1 2)) (List max (list 3 1 2)))
 ```
 ---
     (1 3)
@@ -1203,10 +1203,10 @@ first or the last element of each run survives. Assert the value.
 ### errors on empty
 
 ```x
-(List least ())
+(List min ())
 ```
 ---
-    Error: value: List least: empty list
+    Error: value: List min: empty list
 
 ### fold rejects an improper list
 

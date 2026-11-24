@@ -205,16 +205,22 @@
       (example "(((Column from '(3.0 5.0)) div (Column from '(2.0 4.0))) ->list)" "(1.5 1.25)"))
     (Column from ((self tensor) div (self %operand other))))
 
-  (method min (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
-    (doc "The lesser, element by element, as a Tensor's min answers it. Of two masks, the rows both keep, as mul is."
-      (returns Column "A column of the lesser values")
-      (example "(((Column from '(1.5 2.5)) min 2.0) ->list)" "(1.5 2.0)"))
-    (Column from ((self tensor) min (self %operand other))))
-  (method max (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
-    (doc "The greater, element by element, as a Tensor's max answers it. Of two masks, the rows either keeps."
-      (returns Column "A column of the greater values")
-      (example "(((Column from '(1.5 2.5)) max 2.0) ->list)" "(2.0 2.5)"))
-    (Column from ((self tensor) max (self %operand other))))
+  (method min (self . (param other Column|Tensor|NUMBER "Optional: a column of the same size, or a number"))
+    (doc "Given other, the lesser, element by element, as a Tensor's min answers it: of two masks, the rows both keep, as mul is. Given nothing, the least of the values."
+      (returns Column|NUMBER "A column of the lesser values, or the least value")
+      (example "(((Column from '(1.5 2.5)) min 2.0) ->list)" "(1.5 2.0)")
+      (example "((Column from '(2.5 1.5 4.0)) min)" "1.5"))
+    (if (null? other)
+      ((self tensor) min)
+      (Column from ((self tensor) min (self %operand (first other))))))
+  (method max (self . (param other Column|Tensor|NUMBER "Optional: a column of the same size, or a number"))
+    (doc "Given other, the greater, element by element, as a Tensor's max answers it: of two masks, the rows either keeps. Given nothing, the greatest of the values."
+      (returns Column|NUMBER "A column of the greater values, or the greatest value")
+      (example "(((Column from '(1.5 2.5)) max 2.0) ->list)" "(2.0 2.5)")
+      (example "((Column from '(2.5 1.5 4.0)) max)" "4.0"))
+    (if (null? other)
+      ((self tensor) max)
+      (Column from ((self tensor) max (self %operand (first other))))))
 
   ; The mask of WHICH against OTHER, with the operands changed over where
   ; SWAP.  A column of numbers asks its Tensor.  A column of encoding any
@@ -314,14 +320,6 @@
     (doc "The mean of the values." (returns FLOAT "The mean")
       (example "((Column from '(1.5 2.5)) mean)" "2.0"))
     ((self tensor) mean))
-  (method least (self)
-    (doc "The least of the values." (returns NUMBER "The least")
-      (example "((Column from '(2.5 1.5 4.0)) least)" "1.5"))
-    ((self tensor) least))
-  (method greatest (self)
-    (doc "The greatest of the values." (returns NUMBER "The greatest")
-      (example "((Column from '(2.5 1.5 4.0)) greatest)" "4.0"))
-    ((self tensor) greatest))
   (method variance (self . (param correction INTEGER "Optional, as a Tensor's variance takes it: 1 by default, 0 for the population"))
     (doc "The variance of the values." (returns FLOAT "The variance")
       (example "((Column from '(1.0 2.0 3.0)) variance)" "1.0"))

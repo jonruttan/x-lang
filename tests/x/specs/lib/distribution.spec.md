@@ -373,7 +373,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 (import x/num/distribution) (import x/num/random) (import x/num/tensor)
 (let ((u ((Distribution uniform 2 6) variate (Random sw 1) 200))
       (n ((Distribution normal 10 2) variate (Random sw 1) 400)))
-  (list (<= 2 (u least)) (< (u greatest) 6)
+  (list (<= 2 (u min)) (< (u max) 6)
         (< 9.5 (n mean)) (< (n mean) 10.5)))
 ```
 ---
