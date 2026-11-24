@@ -37,7 +37,8 @@
   (pair (lit x/num/rational)
   (pair (lit x/num/complex)
   (pair (lit x/num/decimal)
-    (first %module-loaded-cell)))))))))))
+  (pair (lit x/num/decimal/literal)
+    (first %module-loaded-cell))))))))))))
 
 ; Load compiler infrastructure FIRST (before numeric tower)
 ; (posix.x already loaded by x-core.x)
@@ -611,7 +612,9 @@
 ; is a longer claim than float's on the same digits -- 1.5d beats 1.5 by the
 ; suffix, and a token without one is never contested.
 (include "../num/decimal.x")
-(def %dec-env (module x/num/decimal))
+; The 1.5d literal is a module of its own; the states compiled below are its.
+(include "../num/decimal/literal.x")
+(def %dec-env (module x/num/decimal/literal))
 (%tower-jit-global! dec-exp-digits #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57)) me
