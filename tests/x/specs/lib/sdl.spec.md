@@ -72,6 +72,24 @@ pixels it drew. The host needs libSDL3 installed.
 ---
     (#t #t 'value)
 
+### density is whole pixels a point; picture! shows a new picture's size
+
+```x
+(do (import x/sys/sdl)
+  (Sdl hint! "SDL_VIDEO_DRIVER" "dummy")
+  (Sdl hint! "SDL_RENDER_DRIVER" "software")
+  (def win (Sdl open "spec" 4 2 1))
+  (def d (Sdl density win))
+  (Sdl scaling! win (lit fit))
+  (def big (Sdl picture! win 8 4))
+  ; an 8 x 4 frame uploads to the new picture and is shown
+  (def shown (eq? (Sdl show! big (Sdl canvas big)) big))
+  (Sdl close big)
+  (list (< 0 d) (List drop 3 big) shown))
+```
+---
+    (#t (8 4) #t)
+
 ## events
 
 ### a posted key comes back from poll as key-down

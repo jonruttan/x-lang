@@ -170,6 +170,24 @@ on port 0 and reads the port back with local-port.
 ---
     (#t () #t)
 
+### the page's density is kept, not queued; picture! sets the picture's size
+
+```x
+(do (import x/sys/web)
+  (Web listen! "127.0.0.1" 0)
+  (def d-win (Web open "spec" 4 2 1))
+  (def d-before (Web density d-win))
+  (Web %take! d-win (list (lit density) 2))
+  (def d-after (Web density d-win))
+  (def d-polled (Web poll))
+  (Web picture! d-win 8 4)
+  (def d-size (list (Web %ref d-win (lit w)) (Web %ref d-win (lit h))))
+  (Web close d-win)
+  (list d-before d-after d-polled d-size))
+```
+---
+    (1 2 () (8 4))
+
 ## sound
 
 ### audio-queued counts down from what was sent, by the clock
