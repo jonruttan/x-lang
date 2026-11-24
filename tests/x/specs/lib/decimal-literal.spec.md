@@ -45,8 +45,13 @@ installs `1.5d` on the base that imports it.
 
 ### a run without the suffix is not a decimal
 
+With the float literal installed beside it, the float reader keeps the
+token.
+
 ```x
-(write (List map (fn (_ v) (Decimal decimal? v)) (Tok read-str (%base) "1.5 15 ")))
+(import x/num/float/literal)
+(write (List map (fn (_ v) (list (Decimal decimal? v) (Float float? v)))
+         (Tok read-str (%base) "1.5 15 ")))
 ```
 ---
-    (#f #f)
+    ((#f #t) (#f #f))

@@ -3,7 +3,8 @@
 (include "lib/x-core.x")
 (import x/tool/asm)
 (import x/core/doors int= int* int+ int<)
-(when (< %word-size 8) (import x/num/bigint))
+; The specs write a double's bits as an integer, which is past a 4-byte word.
+(when (< %word-size 8) (import x/num/bigint) (import x/num/bigint/literal))
 (import x/num/u32 u32)
 
 ; A double's bits travel in one general register on an 8-byte word, and as

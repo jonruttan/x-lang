@@ -27,17 +27,19 @@
 ; root (a hot path, see docs/modules.md) and takes their operations by
 ; import, so the names it wires below are the root's copies of each module's
 ; exports.
-(import x/num/bigint ensure-big big-add big-sub big-mul big-div big-mod big-eq big-lt bigint-type)
-(import x/num/float ensure-float f-add f-sub f-mul f-div f-mod f-eq f-lt float-type)
-(import x/num/rational ensure-rat rat-add rat-sub rat-mul rat-div rat-mod rat-eq rat-lt rational-type)
-(import x/num/complex ensure-complex cx-add cx-sub cx-mul cx-div cx-eq complex-type)
-(import x/num/decimal ensure-dec dec-add dec-sub dec-mul dec-div dec-mod dec-eq dec-lt decimal-type)
 ; The tower is x-lang's numbers as x-lang writes them, so it brings each
-; type's literal with the type.
+; type's literal with the type, and straight after it: a module below may
+; write a literal of a type above, as decimal.x writes an integer past a
+; 4-byte word.
+(import x/num/bigint ensure-big big-add big-sub big-mul big-div big-mod big-eq big-lt bigint-type)
 (import x/num/bigint/literal)
+(import x/num/float ensure-float f-add f-sub f-mul f-div f-mod f-eq f-lt float-type)
 (import x/num/float/literal)
+(import x/num/rational ensure-rat rat-add rat-sub rat-mul rat-div rat-mod rat-eq rat-lt rational-type)
 (import x/num/rational/literal)
+(import x/num/complex ensure-complex cx-add cx-sub cx-mul cx-div cx-eq complex-type)
 (import x/num/complex/literal)
+(import x/num/decimal ensure-dec dec-add dec-sub dec-mul dec-div dec-mod dec-eq dec-lt decimal-type)
 (import x/num/decimal/literal)
 (import x/type/generic)
 

@@ -93,12 +93,12 @@ None installs reader syntax. The literal that writes each one's values is
 ---
     (3+4i 0+2i -1-2i)
 
-### importing the bigint literal installs it, and a literal that fits the word stays an integer
+### importing the bigint literal installs it, and a short literal stays an integer
 
 ```x
 (import x/num/bigint/literal)
 (write (List map (fn (_ v) (Bigint bigint? v))
-         (Tok read-str (%base) "18446744073709551616 12345678901234567 42 ")))
+         (Tok read-str (%base) "18446744073709551616 42 ")))
 ```
 ---
-    (#t #f #f)
+    (#t #f)

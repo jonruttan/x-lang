@@ -773,6 +773,9 @@
 ; The fields come from float-split.  On a 4-byte word the high word's twenty
 ; fraction bits and the low word's thirty-two make the mantissa through the
 ; promoting + and *, the low word read unsigned.
+; 2^32, by the promoting *: written as a literal it is past a 4-byte word,
+; and this module does not ask for the bigint literal to be installed.
+(def %dec-two32 (* 65536 65536))
 (def %dec-from-float
   (fn (_ f)
     (let ((fields (float-split (first f))))
@@ -784,7 +787,7 @@
           (let ((hiw (if (int= em 0) fhi (int+ fhi (<< 1 (if (int= %word-size 8) 52 20)))))
                 (e2 (if (int= em 0) -1074 (int- em 1075))))
             (let ((m (if (int= %word-size 8) hiw
-                       (+ (* hiw 4294967296) (if (int< lo 0) (+ lo 4294967296) lo)))))
+                       (+ (* hiw %dec-two32) (if (int< lo 0) (+ lo %dec-two32) lo)))))
               (let ((d (if (int< e2 0)
                          (%make-dec (* m (%dec-powi 5 (int- 0 e2))) e2)
                          (%make-dec (* m (%dec-powi 2 e2)) 0))))
