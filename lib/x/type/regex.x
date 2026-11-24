@@ -1,8 +1,10 @@
 ; regex.x -- Regex type with #/pattern/ reader syntax; operations on the Regex class.
 ;
 ; Supports: literal chars, . * + ? \ escape,
-;   [abc] [a-z] [^abc] character classes,
-;   \d \w \s \D \W \S shorthand classes,
+;   [abc] [a-z] [^abc] character classes, [:space:] and the other POSIX
+;   classes inside them,
+;   \d \w \s \D \W \S shorthand classes, \t \n \r \f \v \a control
+;   escapes in a class and out of one,
 ;   ^ $ anchors, {n} {n,} {n,m} counted repetition,
 ;   (group) and | alternation.
 ;
@@ -16,7 +18,7 @@
 (def %char (Type named CHARACTER))
 (import x/type/class)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(import x/core/doors buf-tok char->int str-append type-make type-make-instance type?)
+(import x/core/doors buf-tok char->int int->char str-append type-make type-make-instance type?)
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 
@@ -426,7 +428,63 @@
       ((= ch #\S) (pair (list 'nclass 32 9 10 13) (+ pos 1)))
       ((= ch #\b) (pair (list 'anchor-word-boundary) (+ pos 1)))
       ((= ch #\B) (pair (list 'anchor-not-word-boundary) (+ pos 1)))
-      (#t (pair (list 'lit ch) (+ pos 1))))))
+      (#t (pair (list 'lit (int->char (%regex-escape-code (char->int ch)))) (+ pos 1))))))
+
+; A control escape's code, \t \n \r \f \v \a; any other character is itself.
+(def %regex-escape-code
+  (fn (_ c)
+    (match
+      ((= c #\t) 9)
+      ((= c #\n) 10)
+      ((= c #\r) 13)
+      ((= c #\f) 12)
+      ((= c #\v) 11)
+      ((= c #\a) 7)
+      (#t c))))
+
+; The POSIX bracket classes, [:NAME:] inside [...]: each name as its
+; character codes, with the entries it adds to the class.
+(def %regex-posix-classes
+  (list
+    (pair (list #\a #\l #\p #\h #\a) (list (pair 65 90) (pair 97 122)))
+    (pair (list #\d #\i #\g #\i #\t) (list (pair 48 57)))
+    (pair (list #\a #\l #\n #\u #\m) (list (pair 48 57) (pair 65 90) (pair 97 122)))
+    (pair (list #\u #\p #\p #\e #\r) (list (pair 65 90)))
+    (pair (list #\l #\o #\w #\e #\r) (list (pair 97 122)))
+    (pair (list #\s #\p #\a #\c #\e) (list (pair 9 13) 32))
+    (pair (list #\b #\l #\a #\n #\k) (list 9 32))
+    (pair (list #\p #\u #\n #\c #\t) (list (pair 33 47) (pair 58 64) (pair 91 96) (pair 123 126)))
+    (pair (list #\p #\r #\i #\n #\t) (list (pair 32 126)))
+    (pair (list #\g #\r #\a #\p #\h) (list (pair 33 126)))
+    (pair (list #\c #\n #\t #\r #\l) (list (pair 0 31) 127))
+    (pair (list #\x #\d #\i #\g #\i #\t) (list (pair 48 57) (pair 65 70) (pair 97 102)))))
+
+; The POSIX class at i, where s holds [: : (entries . the position after
+; its :]), or () when no known name closes there.
+(def %regex-posix-at
+  (fn (_ s i end)
+    (def name-at
+      (fn (self cs j)
+        (if (null? cs)
+          (if (< (+ j 1) end)
+            (if (= (char->int (%str-ref s j)) #\:)
+              (if (= (char->int (%str-ref s (+ j 1))) #\]) (+ j 2) ())
+              ())
+            ())
+          (if (< j end)
+            (if (= (char->int (%str-ref s j)) (first cs)) (self (rest cs) (+ j 1)) ())
+            ()))))
+    (def go
+      (fn (self cls)
+        (if (null? cls) ()
+          (let ((next (name-at (first (first cls)) (+ i 2))))
+            (if (null? next) (self (rest cls)) (pair (rest (first cls)) next))))))
+    (go %regex-posix-classes)))
+
+; es pushed onto acc, one by one
+(def %regex-push-all
+  (fn (self es acc)
+    (if (null? es) acc (self (rest es) (pair (first es) acc)))))
 
 ; Parse character class [...] or [^...]
 (def %regex-parse-class
@@ -449,7 +507,13 @@
                       ((= esc #\d) (self (+ i 2) (pair (pair 48 57) acc)))
                       ((= esc #\w) (self (+ i 2) (pair 95 (pair (pair 97 122) (pair (pair 65 90) (pair (pair 48 57) acc))))))
                       ((= esc #\s) (self (+ i 2) (pair 13 (pair 10 (pair 9 (pair 32 acc))))))
-                      (#t (self (+ i 2) (pair esc acc)))))))
+                      (#t (self (+ i 2) (pair (%regex-escape-code esc) acc)))))))
+              ; POSIX class: [:space:] and its siblings add their entries
+              ((and (= ch #\[)
+                    (and (< (+ i 1) end) (= (char->int (%str-ref s (+ i 1))) #\:)))
+                (let ((hit (%regex-posix-at s i end)))
+                  (if (null? hit) (self (+ i 1) (pair ch acc))
+                    (self (rest hit) (%regex-push-all (first hit) acc)))))
               ; Range: a-z.  A - just before the closing ] is a literal
               ; (POSIX), so [+-] is the two characters, not + to ].
               ((and (< (+ i 2) end)
