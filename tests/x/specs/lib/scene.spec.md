@@ -9,6 +9,7 @@ animation's figure at one progress.
 ### slow at both ends, a half at a half
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/scene)
 (do
   (list (Scene smooth 0) (Scene smooth 0.25) (Scene smooth 0.5) (Scene smooth 1)))
@@ -101,6 +102,7 @@ keeps the last and answers the events it is given.
 ### play over a time shows more than one frame and ends on the animations' end
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/canvas)
 (import x/gfx/figure)
 (import x/gfx/scene)
@@ -117,6 +119,7 @@ keeps the last and answers the events it is given.
 ### figures that do not change are behind every frame, drawn once a play
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/canvas)
 (import x/gfx/figure)
 (import x/gfx/scene)
@@ -133,6 +136,7 @@ keeps the last and answers the events it is given.
 ### wait shows the figures once and answers them
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/figure)
 (import x/gfx/scene)
 (do

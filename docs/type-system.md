@@ -400,10 +400,10 @@ The fix is to **JIT-compile the analyser to native code** with `compile`, then i
 ```x
 ; Fetch the wiring helpers from the catalogue (registered by sys/type.x), and
 ; import the two states the compiled body hands back to -- they are exports
-; of x/num/bigint, which is a module of its own.
+; of x/num/bigint/literal, which is a module of its own.
 (def %type-by-atom      (prim-ref 'type 'by-atom))
 (def %type-push-analyse (prim-ref 'type 'push-analyse))
-(import x/num/bigint int-capped-sign int-capped-digits)
+(import x/num/bigint/literal int-capped-sign int-capped-digits)
 
 ; Compile + install the int-capped analyser (digits, with +/- sign).  The
 ; free variables travel as compile's second argument, an alist of

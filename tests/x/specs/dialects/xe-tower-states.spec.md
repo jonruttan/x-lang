@@ -30,7 +30,7 @@ also says that its compile failed, and that is what these cases read.  These fiv
 (def %seated?
   (fn (_ env name) (same? (eval name env) ((Compiled named name) compiled))))
 (write (list (%seated? (module x/num/decimal/literal) (lit dec-int))
-             (%seated? (module x/num/complex) (lit cx-real-int))))
+             (%seated? (module x/num/complex/literal) (lit cx-real-int))))
 ```
 ---
     (#t #t)

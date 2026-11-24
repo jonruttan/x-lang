@@ -26,6 +26,7 @@ on a 4-byte word only when i64 is refused there.
 ### a non-integer element makes f64
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 ((Tensor from '(1 2.5)) ->list)
 ```
@@ -53,6 +54,7 @@ on a 4-byte word only when i64 is refused there.
 ### zeros and fill
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (list ((Tensor zeros '(2 2)) ->list) ((Tensor fill '(2 3) 7.5) ->list))
 ```
@@ -301,6 +303,7 @@ on a 4-byte word only when i64 is refused there.
 ### the masks are the same once the kernels are compiled
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (let ((a (Tensor from '((1.5 2) (3 4)))) (b (Tensor from '(2 4) 'f32)) (c (Tensor from '(3 1 3 7))))
   (let ((run (fn (_) (List map (fn (_ m) (m ->list))
@@ -406,6 +409,7 @@ on a 4-byte word only when i64 is refused there.
 ### quantile interpolates between the sorted elements
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (let ((t (Tensor from '(4 1 3 2) 'f64)))
   (list (t quantile 0) (t quantile 0.25) (t quantile 0.5) (t quantile 1)))
@@ -480,6 +484,7 @@ on a 4-byte word only when i64 is refused there.
 ### as converts to i64, truncating toward zero
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (if (< %word-size 8) (lit (2 -2))
   (((Tensor from '(2.5 -2.5)) as 'i64) ->list))
@@ -496,6 +501,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### an f32 tensor is asked for, and holds singles
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (let ((t (Tensor from '(1 2.5 0.1) 'f32)))
   (list (t encoding) (t ->list)))
@@ -506,6 +512,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### zeros, fill, ref and set!
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (list ((Tensor zeros 2 'f32) ->list) ((Tensor fill 2 1.5 'f32) ->list)
       (((Tensor zeros 3 'f32) set! -1 0.1) ref 2))
@@ -516,6 +523,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### f32 stays f32 with f32 and with a number, div included; an f64 tensor makes f64
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (let ((a (Tensor from '(1 2) 'f32)))
   (list ((a add a) encoding) ((a mul 0.5) encoding) ((a div 3) encoding)
@@ -527,6 +535,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### f32 stays f32 with an i64 tensor
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (if (< %word-size 8) (lit (f32 (2.0 5.0)))
   (let ((t ((Tensor from '(1 2.5) 'f32) mul (Tensor from '(2 2)))))
@@ -538,6 +547,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### the arithmetic answers what single arithmetic does: 1 over 3 is the single nearest a third
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (list (((Tensor from '(1) 'f32) div 3) ->list)
       (((Tensor from '(1 2.5 3) 'f32) add 0.1) ->list)
@@ -549,6 +559,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### the reductions answer Floats, the sum kept in a double
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (let ((t (Tensor from '(1 2.5 3) 'f32)))
   (list (t sum) (t min) (t max) (t mean) ((Tensor zeros 0 'f32) sum)))
@@ -571,6 +582,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### as rounds f64 to f32, and widens f32 to f64 exactly
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (let ((t ((Tensor from '(0.1 2.5) 'f64) as 'f32)))
   (list (t encoding) (t ->list) ((t as 'f64) encoding) ((t as 'f64) ->list)))
@@ -581,6 +593,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### as converts between f32 and i64, truncating toward zero
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (if (< %word-size 8) (lit ((2 -2) f32 (1.0 2.0)))
   (list (((Tensor from '(2.5 -2.5) 'f32) as 'i64) ->list)
@@ -592,6 +605,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### f32 mixes with complex numbers to c128
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (let ((a (Tensor from '(1 2.5) 'f32)))
   (list ((a as 'c128) ->list) ((Tensor complex a 1) ->list)))
@@ -614,6 +628,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### a complex element makes a c128 tensor
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (import x/num/complex)
 (let ((t (Tensor from (list 1 (Complex make 0 2) 3.5))))
@@ -649,6 +664,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### reals and complex numbers mix to c128
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (import x/num/complex)
 (list (((Tensor from '(1 2)) add (Complex make 0 1)) ->list)
@@ -687,6 +703,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### a compiled kernel answers what the pure one does
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (let ((a (Tensor from '((1.5 2) (3 4)))) (b (Tensor from '(0.25 -1))))
   (let ((before ((a add b) ->list)))
@@ -709,6 +726,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### the compiled c128 kernels answer what the pure ones do
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (import x/num/complex)
 (let ((a (Tensor from (list (Complex make 1 2) (Complex make 3 -1) 0.5)))
@@ -725,6 +743,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### the compiled f32 kernels answer what the pure ones do
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (let ((a (Tensor from '((1.5 2) (3 0.1)) 'f32)) (b (Tensor from '(0.25 -3) 'f32)))
   (let ((run (fn (_) (list ((a add b) ->list) ((a mul b) ->list) ((a div b) ->list) ((a max b) ->list)
@@ -769,6 +788,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### the encoding is kept, and a view that is not contiguous gathers as it reads
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (let ((m (Tensor from '((1 2 3) (4 5 6)) 'f64)))
   (list (((Tensor from '(1.5 2.5 3.5) 'f32) gather '(2 0)) encoding)
@@ -795,6 +815,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### an index outside the axis, one that is no integer, and a rank-0 tensor are refused
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (let ((t (Tensor from '(10 20 30) 'f64)))
   (list (guard (e (Err label e)) (t gather '(3)))
@@ -808,6 +829,8 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### the answers are the same once the kernels are compiled
 
 ```x
+(import x/num/float/literal)
+(import x/num/complex/literal)
 (import x/num/tensor)
 (let ((m (Tensor from '((1 2) (3 4) (5 6)) 'f64))
       (z (Tensor from (list 1+2i 3-1i 5) 'c128))
@@ -825,6 +848,7 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ### the refusals are the same once the kernels are compiled, the first in the list's order
 
 ```x
+(import x/num/float/literal)
 (import x/num/tensor)
 (let ((t (Tensor from '(10 20 30) 'f64)))
   (let ((run (fn (_) (list (guard (e (list (Err label e) (e data))) (t gather '(0 3 1.5)))

@@ -21,6 +21,7 @@ millionth of a millionth of it, or a millionth for f32.
 ### each element's exponential over their sum
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (def nn-near (fn (go a b) (if (null? a) (null? b) (let ((d (- (first a) (first b)))) (if (< (* d d) 1.0e-24) (go (rest a) (rest b)) #f)))))
   (nn-near ((Neural softmax (Tensor from '(1 2 3))) ->list)
@@ -32,6 +33,7 @@ millionth of a millionth of it, or a millionth for f32.
 ### large elements do not overflow
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (def nn-near (fn (go a b) (if (null? a) (null? b) (let ((d (- (first a) (first b)))) (if (< (* d d) 1.0e-24) (go (rest a) (rest b)) #f)))))
   (nn-near ((Neural softmax (Tensor from '(1000 1000 999) 'f64)) ->list)
@@ -43,6 +45,7 @@ millionth of a millionth of it, or a millionth for f32.
 ### each run of the last axis is taken alone
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (def nn-near32 (fn (go a b) (if (null? a) (null? b) (let ((d (- (first a) (first b)))) (if (< (* d d) 1.0e-12) (go (rest a) (rest b)) #f)))))
   (def rows ((Neural softmax (Tensor from '((0 0) (1 2)) 'f32)) ->list))
@@ -63,6 +66,7 @@ millionth of a millionth of it, or a millionth for f32.
 ### the operand is left as it was
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (def t (Tensor from '(1.5 2.5)))
   (Neural softmax t)
@@ -104,6 +108,7 @@ millionth of a millionth of it, or a millionth for f32.
 ### x times the normal's cumulative at x
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (def nn-near (fn (go a b) (if (null? a) (null? b) (let ((d (- (first a) (first b)))) (if (< (* d d) 1.0e-24) (go (rest a) (rest b)) #f)))))
   (nn-near ((Neural gelu (Tensor from '(-1.0 0.0 1.0 2.5))) ->list)
@@ -115,6 +120,7 @@ millionth of a millionth of it, or a millionth for f32.
 ### the tanh form
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (def nn-near (fn (go a b) (if (null? a) (null? b) (let ((d (- (first a) (first b)))) (if (< (* d d) 1.0e-24) (go (rest a) (rest b)) #f)))))
   (nn-near ((Neural gelu (Tensor from '(-1.0 0.0 1.0 2.5)) 'tanh) ->list)
@@ -126,6 +132,7 @@ millionth of a millionth of it, or a millionth for f32.
 ### every element of every axis, in f32
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (def nn-near32 (fn (go a b) (if (null? a) (null? b) (let ((d (- (first a) (first b)))) (if (< (* d d) 1.0e-12) (go (rest a) (rest b)) #f)))))
   (def g (Neural gelu (Tensor from '((-1.0 0.0) (1.0 2.5)) 'f32)))
@@ -161,6 +168,7 @@ Every difference from the mean is 0.
 ### mean 0 and deviation 1, with a gain of 1 and a bias of 0
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (def nn-near (fn (go a b) (if (null? a) (null? b) (let ((d (- (first a) (first b)))) (if (< (* d d) 1.0e-24) (go (rest a) (rest b)) #f)))))
   (nn-near ((Neural layer-norm (Tensor from '(1.0 2.0 3.0 4.0)) (Tensor from '(1 1 1 1)) (Tensor from '(0 0 0 0))) ->list)
@@ -172,6 +180,7 @@ Every difference from the mean is 0.
 ### each run alone, scaled by the gain and moved by the bias, in f32
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (def nn-near32 (fn (go a b) (if (null? a) (null? b) (let ((d (- (first a) (first b)))) (if (< (* d d) 1.0e-12) (go (rest a) (rest b)) #f)))))
   (def n (Neural layer-norm (Tensor from '((1.0 2.0 3.0 4.0) (4.0 3.0 2.0 1.0)) 'f32)
@@ -189,6 +198,7 @@ The run 1, 3 has a mean of 2 and a variance of 1; with an epsilon of 1
 the deviation is the root of 2.
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (def nn-near (fn (go a b) (if (null? a) (null? b) (let ((d (- (first a) (first b)))) (if (< (* d d) 1.0e-24) (go (rest a) (rest b)) #f)))))
   (nn-near ((Neural layer-norm (Tensor from '(1.0 3.0)) (Tensor from '(1 1)) (Tensor from '(0 0)) 1.0) ->list)
@@ -200,6 +210,7 @@ the deviation is the root of 2.
 ### a gain of another length raises a label value
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (guard (e (Err label e))
     (Neural layer-norm (Tensor from '(1.0 2.0 3.0)) (Tensor from '(1 1)) (Tensor from '(0 0 0)))))
@@ -221,6 +232,7 @@ the deviation is the root of 2.
 ### a negative index counts from the end, and the encoding is the table's
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (def e (Neural embed (Tensor from '((1.5 2.5) (3.5 4.5) (5.5 6.5)) 'f32) '(-1 0)))
   (list (e encoding) (e ->list)))
@@ -231,6 +243,7 @@ the deviation is the root of 2.
 ### a view's rows are picked as the view has them
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   ((Neural embed ((Tensor from '((1.5 2.5) (3.5 4.5)) 'f64) transpose) '(1)) ->list))
 ```
@@ -240,6 +253,7 @@ the deviation is the root of 2.
 ### no indexes answer no rows
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   ((Neural embed (Tensor from '((1.5 2.5) (3.5 4.5)) 'f64) '()) extent))
 ```
@@ -249,6 +263,7 @@ the deviation is the root of 2.
 ### a row the table lacks raises a label value, and an index that is no integer a label type
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (def table (Tensor from '((1.5 2.5) (3.5 4.5)) 'f64))
   (list (guard (e (Err label e)) (Neural embed table '(2)))
@@ -272,6 +287,7 @@ the deviation is the root of 2.
 ### the elements on and below the diagonal stay
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (def m (Neural causal-mask (Tensor from '((1.5 2.5 3.5) (4.5 5.5 6.5) (7.5 8.5 9.5)) 'f64)))
   (list (m ref 0 0) (m ref 1 0) (m ref 1 1) (m ref 2 2) (Float inf? (m ref 0 1)) (Float inf? (m ref 1 2)) (< (m ref 0 2) 0)))
@@ -292,6 +308,7 @@ the deviation is the root of 2.
 ### a tensor of rank 1 raises a label value
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (guard (e (Err label e)) (Neural causal-mask (Tensor from '(1.5 2.5)))))
 ```
@@ -306,6 +323,7 @@ jit! compiles every kernel where a JIT backend is and answers a list;
 the answers before and after it agree to the bit either way.
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/neural)
   (def run (fn (_ enc)
     (list ((Neural softmax (Tensor from '((1.0 2.0 3.0) (-4.0 0.5 2.5)) enc)) ->list)

@@ -15,6 +15,9 @@
 ;
 ; (transformer-near? got want) answers whether two lists of rows agree,
 ; element by element, within a ten-thousandth.
+; transformer-near? below writes a float.
+(import x/num/float/literal)
+
 (def transformer-fixture
   (fn (_ path)
     (import x/codec/safetensors)

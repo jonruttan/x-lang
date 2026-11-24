@@ -32,8 +32,12 @@
 (import x/num/rational ensure-rat rat-add rat-sub rat-mul rat-div rat-mod rat-eq rat-lt rational-type)
 (import x/num/complex ensure-complex cx-add cx-sub cx-mul cx-div cx-eq complex-type)
 (import x/num/decimal ensure-dec dec-add dec-sub dec-mul dec-div dec-mod dec-eq dec-lt decimal-type)
-; The tower is x-lang's numbers as x-lang writes them, so it brings the
-; decimal literal with the decimal type.
+; The tower is x-lang's numbers as x-lang writes them, so it brings each
+; type's literal with the type.
+(import x/num/bigint/literal)
+(import x/num/float/literal)
+(import x/num/rational/literal)
+(import x/num/complex/literal)
 (import x/num/decimal/literal)
 (import x/type/generic)
 

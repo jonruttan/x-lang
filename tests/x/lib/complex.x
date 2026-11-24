@@ -1,6 +1,10 @@
 ; Test harness: x-core.x + bigint + float + rational + complex
 (include "lib/x-core.x")
 (import x/num/bigint)
+(import x/num/bigint/literal)
 (import x/num/float)
+(import x/num/float/literal)
 (import x/num/rational)
+(import x/num/rational/literal)
 (import x/num/complex)
+(import x/num/complex/literal)

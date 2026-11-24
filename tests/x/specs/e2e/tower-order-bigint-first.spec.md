@@ -29,6 +29,7 @@ LONG_MAX plus one, from the word's sign bit: 2^63 on an 8-byte word.
 ### bigint literals parse from the next form on
 
 ```x
+(import x/num/bigint/literal)
 (Bigint bigint? 10000000000000000000)
 ```
 ---
@@ -53,6 +54,7 @@ LONG_MAX plus one, from the word's sign bit: 2^63 on an 8-byte word.
 ### mixed literal arithmetic in the next form
 
 ```x
+(import x/num/float/literal)
 (= (+ 0.0 10000000000000000000) 10000000000000000000.0)
 ```
 ---
@@ -70,6 +72,7 @@ LONG_MAX plus one, from the word's sign bit: 2^63 on an 8-byte word.
 ### rational literals parse from the next form on
 
 ```x
+(import x/num/rational/literal)
 (+ 1/3 1/6)
 ```
 ---

@@ -545,7 +545,7 @@ the same block as (import x/num/float) would parse BEFORE the import
 evaluates -- the tower parse-before-eval trap, begin-flavored.
 
 ```x
-(do (import x/num/float) #t)
+(do (import x/num/float) (import x/num/float/literal) #t)
 ```
 ---
     #t

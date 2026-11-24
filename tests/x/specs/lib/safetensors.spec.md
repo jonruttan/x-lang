@@ -150,6 +150,7 @@ The header gives an F16 tensor of three elements eight bytes.
 encode answers a region, the buffer with its start and length.
 
 ```x
+(import x/num/float/literal)
 (do (import x/codec/safetensors) (import x/codec/bytes)
   (def r (Safetensors encode (Dict from-plist (list "w" (Tensor from '(1.5 2.5) 'f32)))))
   (list (List ref 1 r) (List ref 2 r) (Bytes hex (list (first r) 0 8)) (Bytes hex (list (first r) 64 8))))
@@ -160,6 +161,7 @@ encode answers a region, the buffer with its start and length.
 ### the header names each tensor in the order of the names
 
 ```x
+(import x/num/float/literal)
 (do (import x/codec/safetensors)
   (def s (Safetensors encode
            (Dict from-plist (list "b" (Tensor from '(0.5) 'f64) "a" (Tensor from '((1.5 2.5)) 'f32)))))
@@ -171,6 +173,7 @@ encode answers a region, the buffer with its start and length.
 ### what encode writes, decode reads back
 
 ```x
+(import x/num/float/literal)
 (do (import x/codec/safetensors)
   (def back (Safetensors decode
               (Safetensors encode
@@ -184,6 +187,7 @@ encode answers a region, the buffer with its start and length.
 ### a view is written in its own order
 
 ```x
+(import x/num/float/literal)
 (do (import x/codec/safetensors)
   (def t ((Tensor from '((1.5 2.5 3.5) (4.5 5.5 6.5)) 'f32) transpose))
   (((Safetensors decode (Safetensors encode (Dict from-plist (list "t" t)))) get "t") ->list))
@@ -227,6 +231,7 @@ round trip would have.
 ### metadata is written under __metadata__, ahead of the tensors
 
 ```x
+(import x/num/float/literal)
 (do (import x/codec/safetensors)
   (def s (Safetensors encode (Dict from-plist (list "w" (Tensor from '(1.5) 'f32)))
                              (Dict from-plist (list "format" "x"))))
@@ -240,6 +245,7 @@ round trip would have.
 ### names, extent and encoding come from the header
 
 ```x
+(import x/num/float/literal)
 (do (import x/codec/safetensors)
   (def tmp (File temp "/tmp/x-safetensors-header-"))
   (File close (first tmp))
@@ -258,6 +264,7 @@ round trip would have.
 ### ref reads the named tensor
 
 ```x
+(import x/num/float/literal)
 (do (import x/codec/safetensors)
   (def tmp (File temp "/tmp/x-safetensors-ref-"))
   (File close (first tmp))
@@ -275,6 +282,7 @@ round trip would have.
 ### a name the file lacks answers nil
 
 ```x
+(import x/num/float/literal)
 (do (import x/codec/safetensors)
   (def tmp (File temp "/tmp/x-safetensors-miss-"))
   (File close (first tmp))
@@ -291,6 +299,7 @@ round trip would have.
 ### a tensor read before close stays, and ref after it raises a label state
 
 ```x
+(import x/num/float/literal)
 (do (import x/codec/safetensors)
   (def tmp (File temp "/tmp/x-safetensors-close-"))
   (File close (first tmp))

@@ -10,6 +10,7 @@ reads. See `tests/spec-runner.awk`.
 ### a float literal reads in the snippet whose import loads the float reader
 
 ```x
+(import x/num/float/literal)
 (import x/num/float)
 (write (list 1.96 -2.5e3))
 ```

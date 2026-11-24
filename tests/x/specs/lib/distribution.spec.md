@@ -22,6 +22,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### density, cumulative and survival of the standard normal
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((n (Distribution normal)))
   (list (n density 0) (n cumulative 1.96) (n survival 1.96) (n cumulative 0) (n cumulative -3)))
@@ -32,6 +33,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### quantiles in the centre and both tails
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((n (Distribution normal 0 1)))
   (List map (fn (_ p) (n quantile p)) '(0.5 0.975 0.025 0.001 0.999 0.000001 0.999999)))
@@ -42,6 +44,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### the cumulative of the quantile is p
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((n (Distribution normal)))
   (List map (fn (_ p) (n cumulative (n quantile p))) '(0.1 0.3 0.7 0.9 0.02 0.98 0.0001)))
@@ -52,6 +55,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### a mean and deviation shift and scale it
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((n (Distribution normal 10 2)))
   (list (n quantile 0.5) (n cumulative 12) (n density 10) (n mean) (n variance) (n deviation)))
@@ -73,6 +77,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### density, cumulative, survival and quantile
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((u (Distribution uniform 0 4)))
   (list (u density 1) (u density 5) (u cumulative -1) (u cumulative 3) (u cumulative 9)
@@ -96,6 +101,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### density, cumulative, survival and quantile
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((e (Distribution exponential 2)))
   (list (e density 0) (e density -1) (e cumulative 1) (e survival 1) (e quantile 0.5) (e quantile 0) (e quantile 1)))
@@ -117,6 +123,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### density, cumulative and survival of a shape and a rate
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((g (Distribution gamma 2 3)))
   (list (g density 0.5) (g cumulative 0.5) (g survival 0.5) (g cumulative 3) (g survival 3) (g cumulative -1)))
@@ -127,6 +134,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### quantiles in the centre and both tails
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((g (Distribution gamma 2 3)))
   (list (g quantile 0.5) (g quantile 0.975) (g quantile 0.001) (g quantile 0) (g quantile 1)))
@@ -147,6 +155,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### a shape below 1: an infinite density at 0, and a quantile near 0
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((g (Distribution gamma 0.5)))
   (list (g density 0) (g density 0.1) (g cumulative 0.1) (g survival 20) (g quantile 0.01) (g quantile 0.99)
@@ -158,6 +167,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### a large shape
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((g (Distribution gamma 100 2)))
   (list (g cumulative 50) (g survival 70) (g quantile 0.5) (g quantile 0.999)))
@@ -168,6 +178,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### shape 1 is the exponential
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (import x/num/float f-sub f-lt)
 (def %close? (fn (_ a b) (let ((d (f-sub a b))) (if (f-lt d 1.0e-12) (f-lt -1.0e-12 d) #f))))
@@ -182,6 +193,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### density, cumulative, survival and quantile
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((c (Distribution chi-squared 3)))
   (list (c density 1) (c cumulative 1) (c survival 7.815) (c quantile 0.95) (c quantile 0.05)))
@@ -201,6 +213,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### one degree of freedom is a squared standard normal
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((c (Distribution chi-squared 1)))
   (list (c quantile 0.95) (c survival 30)))
@@ -224,6 +237,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### quantiles on both sides of 0
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((t (Distribution standardized-mean 5)))
   (list (t quantile 0.975) (t quantile 0.025) (t quantile 0.5) (t quantile 1.0e-6) (t quantile 0) (t quantile 1)))
@@ -234,6 +248,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### it nears the normal as the freedom grows
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((t (Distribution standardized-mean 30)))
   (list (t quantile 0.975) (t survival 10)))
@@ -244,6 +259,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### the mean and variance exist only above 1 and 2 degrees of freedom
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (list ((Distribution standardized-mean 5) mean) ((Distribution standardized-mean 5) variance)
       ((Distribution standardized-mean 1.5) variance) ((Distribution standardized-mean 1) mean)
@@ -255,6 +271,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### one degree of freedom: the quantile at 3/4 is 1
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((t (Distribution standardized-mean 1)))
   (list (t cumulative 1) (t quantile 0.75) (t quantile 0.999)))
@@ -277,6 +294,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### quantiles
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (let ((f (Distribution variance-ratio 3 10)))
   (list (f quantile 0.95) (f quantile 0.05) (f quantile 0) (f quantile 1)))
@@ -310,6 +328,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### the cumulative of the quantile is p
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (import x/num/float float-of)
 (List map
@@ -326,6 +345,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### a parameter out of range, and a p outside 0 to 1
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution)
 (List map (fn (_ thunk) (guard (x (Err label x)) (thunk)))
   (list (fn (_) (Distribution normal 0 0)) (fn (_) (Distribution uniform 2 2)) (fn (_) (Distribution exponential -1))
@@ -370,6 +390,7 @@ are those of SciPy's `scipy.stats` to the digits printed.
 ### the values lie where the distribution does, about its mean
 
 ```x
+(import x/num/float/literal)
 (import x/num/distribution) (import x/num/random) (import x/num/tensor)
 (let ((u ((Distribution uniform 2 6) variate (Random sw 1) 200))
       (n ((Distribution normal 10 2) variate (Random sw 1) 400)))

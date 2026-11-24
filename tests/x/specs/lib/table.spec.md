@@ -11,6 +11,7 @@ word.
 ### numbers are held as a Tensor, any other values as they are
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (list ((Column from '(1.5 2.5)) encoding)
       ((Column from '("Ann" "Bo")) encoding)
@@ -23,6 +24,7 @@ word.
 ### size, ref and ->list, for either kind
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((n (Column from '(1.5 2.5 4.0))) (s (Column from '("Ann" "Bo"))))
   (list (n size) (n ref 1) (n ref -1) (n ->list)
@@ -34,6 +36,7 @@ word.
 ### a column of numbers answers its statistics
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((c (Column from '(2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0))))
   (list (c sum) (c mean) (c min) (c max) (c median)
@@ -45,6 +48,7 @@ word.
 ### a Tensor, a Vector and a Column are taken as values too
 
 ```x
+(import x/num/float/literal)
 (import x/data/table) (import x/num/tensor) (import x/type/vector)
 (let ((c (Column from '(1.5 2.5))))
   (list ((Column from (Tensor from '(1.5 2.5))) ->list)
@@ -69,6 +73,7 @@ word.
 ### from a list for each column: names, extent and the columns
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((age (31.0 45.0 28.0)) (name ("Ann" "Bo" "Cy"))))))
   (list (t names) (t extent) ((t column 'age) ->list) ((t column 'name) ->list)))
@@ -79,6 +84,7 @@ word.
 ### a name given as a string is the same name
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '(("unit price" (2.5 4.0)) (item ("pen" "cup"))))))
   (list ((t column "unit price") ->list)
@@ -114,6 +120,7 @@ word.
 ### ->list answers what from takes
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((age (31.0 45.0)) (name ("Ann" "Bo"))))))
   (list (t ->list) (((Table from (t ->list)) column 'name) ->list)))
@@ -126,6 +133,7 @@ word.
 ### row answers one row's values, in column order
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((age (31.0 45.0 28.0)) (name ("Ann" "Bo" "Cy"))))))
   (list (t row 0) (t row -1)))
@@ -136,6 +144,7 @@ word.
 ### select keeps the named columns, in the order named
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((age (31.0)) (name ("Ann")) (city ("Ely"))))))
   (let ((s (t select '(city age))))
@@ -147,6 +156,7 @@ word.
 ### filter keeps the rows a column's value passes, in every column
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((age (31.0 45.0 28.0)) (name ("Ann" "Bo" "Cy"))))))
   (let ((f (t filter 'age (fn (_ a) (< 30 a)))))
@@ -159,6 +169,7 @@ word.
 ### filter by a column of strings, and a filter that keeps no row
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((age (31.0 45.0 28.0)) (name ("Ann" "Bo" "Cy"))))))
   (let ((one (t filter 'name (fn (_ n) (equal? n "Bo"))))
@@ -171,6 +182,7 @@ word.
 ### sort orders the rows by a column, least first, or by a before of its own
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((age (31.0 45.0 28.0)) (name ("Ann" "Bo" "Cy"))))))
   (list (((t sort 'age) column 'name) ->list)
@@ -183,6 +195,7 @@ word.
 ### rows whose values are equal keep their order
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((rank (2.0 1.0 2.0 1.0)) (name ("a" "b" "c" "d"))))))
   (((t sort 'rank) column 'name) ->list))
@@ -193,6 +206,7 @@ word.
 ### sort answers the same once the kernels are compiled, equal values in their order
 
 ```x
+(import x/num/float/literal)
 (import x/data/table) (import x/num/tensor)
 (let ((t (Table from '((age (31.0 45.0 28.0 45.0 -2.5 31.0 0.0)) (name ("a" "b" "c" "d" "e" "f" "g"))
                        (n (1.0 2.0 3.0 4.0 5.0 6.0 7.0)))))
@@ -214,6 +228,7 @@ word.
 ### add, sub, mul and div, by a column or by a number
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((a (Column from '(3.0 5.0))) (b (Column from '(2.0 4.0))))
   (list ((a add b) ->list) ((a sub b) ->list) ((a mul b) ->list) ((a div b) ->list)
@@ -225,6 +240,7 @@ word.
 ### map answers a column of what the function answers, its encoding read from them
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((names (Column from '("Ann" "Bo"))) (nums (Column from '(1.5 2.5))))
   (list ((names map (fn (_ s) (equal? s "Bo"))) ->list)
@@ -238,6 +254,7 @@ word.
 ### arithmetic on a column of encoding any is refused
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (guard (e (Err label e)) ((Column from '("Ann")) add 1.0))
 ```
@@ -249,6 +266,7 @@ word.
 ### put adds a new column last, and replaces one where it stands
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((age (31.0 45.0)) (name ("Ann" "Bo"))))))
   (let ((added (t put 'city '("Ely" "Ayr")))
@@ -263,6 +281,7 @@ word.
 ### put takes a Column, so a column worked out from others goes straight in
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((w (8.0 18.0)) (h (2.0 3.0))))))
   (((t put 'r ((t column 'w) div ((t column 'h) mul (t column 'h)))) column 'r) ->list))
@@ -273,6 +292,7 @@ word.
 ### derive calls a function with each row's values of the named columns
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((w (8.0 18.0)) (h (2.0 3.0)) (name ("Ann" "Bo"))))))
   (list (((t derive 'r '(w h) (fn (_ w h) (Float / w (Float * h h)))) column 'r) ->list)
@@ -286,6 +306,7 @@ word.
 ### remove and rename
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((age (31.0)) (name ("Ann")) (city ("Ely"))))))
   (list ((t remove 'name) names) ((t remove 'name) row 0)
@@ -298,6 +319,7 @@ word.
 ### a column of the wrong length, an unknown name, a name taken, and derive of no columns are refused
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((age (31.0 45.0)) (name ("Ann" "Bo"))))))
   (list (guard (e (Err label e)) (t put 'city '("Ely")))
@@ -315,6 +337,7 @@ word.
 ### split answers each distinct value with the table of its rows, in first-seen order
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((city ("Ely" "Ayr" "Ely" "Usk")) (age (31.0 45.0 28.0 60.0))))))
   (let ((parts (t split 'city)))
@@ -329,6 +352,7 @@ word.
 ### aggregate answers a row for each distinct value and a column for each spec
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((city ("Ely" "Ayr" "Ely" "Usk")) (age (31.0 45.0 29.0 60.0)) (pay (10.0 20.0 30.0 40.0))))))
   (let ((a (t aggregate 'city
@@ -343,6 +367,7 @@ word.
 ### the distinct values may be numbers, and a summary may be any value
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((year (2020.0 2021.0 2020.0)) (name ("Ann" "Bo" "Cy"))))))
   (let ((a (t aggregate 'year (list (list 'names 'name (fn (_ c) (c ->list)))))))
@@ -354,6 +379,7 @@ word.
 ### whole numbers, numbers with fractions, and values of mixed kinds all part the same way
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((whole (Table from '((k (3.0 1.0 3.0 2.0 1.0)) (v (1.0 2.0 3.0 4.0 5.0)))))
       (parts (Table from '((k (0.5 1.5 0.5)) (v (1.0 2.0 3.0)))))
@@ -367,6 +393,7 @@ word.
 ### many distinct values come in first-seen order, each with all its rows
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((keys (List map (fn (_ i) (Float from (% (* i 7) 50))) (List range 0 200))))
   (let ((t (Table from (list (list 'k keys) (list 'one (List map (fn (_ i) 1.0) keys))))))
@@ -381,6 +408,7 @@ word.
 ### a count of the rows with each value
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((city ("Ely" "Ayr" "Ely")) (age (31.0 45.0 28.0))))))
   (List map (fn (_ n) (= n 2))
@@ -404,6 +432,7 @@ word.
 ### a column the table does not have is refused, as the one parted by or as a source
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((city ("Ely" "Ayr")) (age (31.0 45.0))))))
   (list (guard (e (Err label e)) (t split 'height))
@@ -417,6 +446,7 @@ word.
 ### split and aggregate answer the same once the kernels are compiled
 
 ```x
+(import x/num/float/literal)
 (import x/data/table) (import x/num/tensor)
 (let ((t (Table from '((k (2.5 1.0 2.5 -3.0 1.0 2.5 0.25)) (name ("a" "b" "c" "d" "e" "f" "g"))
                        (n (1.0 2.0 3.0 4.0 5.0 6.0 7.0)))))
@@ -439,6 +469,7 @@ word.
 ### a column's comparisons answer masks, columns of 1.0 and 0.0
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((c (Column from '(1.5 2.5 4.0))))
   (list (List map (fn (_ m) (m ->list))
@@ -462,6 +493,7 @@ word.
 ### filter keeps the rows where a mask is not 0; mul is both masks, max either, and sum the count
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((age (31.0 45.0 28.0 52.0)) (name ("Ann" "Bo" "Cy" "Di")) (height (1.5 1.75 1.5 2.0))))))
   (let ((age (t column 'age)) (height (t column 'height))
@@ -480,6 +512,7 @@ word.
 ### a mask keeps the rows a function keeps, before and once the kernels are compiled
 
 ```x
+(import x/num/float/literal)
 (import x/data/table) (import x/num/tensor)
 (let ((t (Table from '((k (2.5 1.0 2.5 -3.0 1.0 2.5 0.25)) (name ("a" "b" "c" "d" "e" "f" "g"))))))
   (let ((run (fn (_) ((t filter ((t column 'k) at-least 1)) ->list)))
@@ -494,6 +527,7 @@ word.
 ### an order on a column of encoding any, a mask of another size, and a mask that is neither a Column nor a Tensor are refused
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((age (31.0 45.0)) (name ("Ann" "Bo"))))))
   (list (guard (e (Err label e)) ((t column 'name) less "Bo"))
@@ -509,6 +543,7 @@ word.
 ### matrix answers the named columns as an f64 Matrix, a row for each row
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((a (1.0 2.0 3.0)) (b (4.0 5.0 6.0)) (name ("x" "y" "z"))))))
   (list ((t matrix '(b a)) ->list) ((t matrix '(a)) extent)))
@@ -532,6 +567,7 @@ word.
 ### columns of different lengths, a name twice, an unknown name, a bad name, text columns as a matrix, and a ragged csv row
 
 ```x
+(import x/num/float/literal)
 (import x/data/table)
 (let ((t (Table from '((age (31.0)) (name ("Ann"))))))
   (list (guard (e (Err label e)) (Table from '((a (1.0 2.0)) (b (1.0)))))

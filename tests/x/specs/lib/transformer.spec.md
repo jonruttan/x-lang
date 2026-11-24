@@ -23,6 +23,7 @@ four ids takes seconds.
 ### a row for each id and a column for each item
 
 ```x
+(import x/num/float/literal)
 (import x/num/transformer)
 (import x/num/matrix)
 (include "tests/x/lib/transformer-fixture.x")
@@ -41,6 +42,7 @@ four ids takes seconds.
 ### one id answers one row
 
 ```x
+(import x/num/float/literal)
 (import x/num/transformer)
 (include "tests/x/lib/transformer-fixture.x")
 (do
@@ -58,6 +60,7 @@ The rows for the ids 1 and 5 alone are the first two rows for 1, 5, 2 and
 7 above.
 
 ```x
+(import x/num/float/literal)
 (import x/num/transformer)
 (include "tests/x/lib/transformer-fixture.x")
 (transformer-near? (((transformer-fixture-model) logits (list 1 5)) ->list)

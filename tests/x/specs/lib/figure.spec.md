@@ -63,6 +63,7 @@ A 4 by 2 triangle a quarter turn round is 2 by 4 about the same middle.
 ### next-to leaves the gap on each side, the middles in line
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/figure)
 (do
   (def fig-ring (Figure circle 1))
@@ -75,6 +76,7 @@ A 4 by 2 triangle a quarter turn round is 2 by 4 about the same middle.
 ### next-to refuses another side
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/figure)
 (do
   (guard (e (Err text e)) (Figure next-to (Figure square 2) (Figure circle 1) 'over 0.5)))
@@ -89,6 +91,7 @@ A 4 by 2 triangle a quarter turn round is 2 by 4 about the same middle.
 The circle's first point is 1 0 and the square's 2 2.
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/figure)
 (do
   (def fig-morph
@@ -118,6 +121,7 @@ The circle's first point is 1 0 and the square's 2 2.
 ### a half turn keeps the square's width on the way; a morph to the turned square does not
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/figure)
 (import x/num/float)
 (do
@@ -141,6 +145,7 @@ that is the half above the diagonal. Four pixels a unit, the square from 8
 to 24.
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/canvas)
 (import x/gfx/figure)
 (do
@@ -154,6 +159,7 @@ to 24.
 ### fade-out takes the alphas evenly to 0
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/figure)
 (do
   (def fig-fade (Figure fade-out (Figure fill (Figure circle 1) (list 200 100 50))))
@@ -169,6 +175,7 @@ to 24.
 Ten pixels a unit: radius 20 about 40 40, the line from 18 to 22.
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/canvas)
 (import x/gfx/figure)
 (do
@@ -213,6 +220,7 @@ Eight pixels a unit on 64 by 64: a line 4 pixels wide along y = 32 from 16
 to 48, given a fill it has no use for.
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/canvas)
 (import x/gfx/figure)
 (do
@@ -230,6 +238,7 @@ y = 160 from 80 to 240, and the upper barb from 228 154 to the tip, its
 round end covering 226 150 above the shaft.
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/canvas)
 (import x/gfx/figure)
 (do
@@ -245,6 +254,7 @@ The shaft is one curve of the arrow's three, so at 3/10 only part of it is
 drawn.
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/canvas)
 (import x/gfx/figure)
 (do
@@ -274,6 +284,7 @@ A line to an arrow: the line pairs with the shaft, and the head grows from
 the line's middle, 0 0, to its place.
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/figure)
 (do
   (def fig-point (Figure morph (Figure line -2 0 2 0) (Figure arrow -2 0 2 0)))
@@ -287,6 +298,7 @@ the line's middle, 0 0, to its place.
 ### a path is closed on the way while either is, and as the second at the end
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/figure)
 (do
   (def fig-open (Figure morph (Figure square 2) (Figure line -1 0 1 0)))
@@ -302,6 +314,7 @@ middle, 32 32 on 64 by 64, where the square's own stroke, 4 wide at 8
 pixels out, does not reach.
 
 ```x
+(import x/num/float/literal)
 (import x/gfx/canvas)
 (import x/gfx/figure)
 (do

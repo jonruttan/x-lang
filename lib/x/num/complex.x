@@ -4,9 +4,9 @@
 ; The base type handles, from their public door, fetched once at load.
 (def %int (Type named INTEGER))
 
-(import x/num/float float float? float-of float-split f-add f-mul fsqrt fsin fcos fatan2 pi str->float)
+(import x/num/float float float? float-of float-split f-add f-mul fsqrt fsin fcos fatan2 pi)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(import x/core/doors buf-tok int+ int- int= io-write-to-str type-by-atom type-make type-make-instance type-of type-push-call type-push-op type?)
+(import x/core/doors int+ int- int= io-write-to-str type-by-atom type-make type-make-instance type-of type-push-call type-push-op type?)
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 
@@ -31,7 +31,6 @@
 ; Promotion chain: integer -> rational -> float -> complex
 
 (def %complex ())
-(def %cx-read ())
 ; --- Constructor: collapse to real when imag is exactly integer 0 ---
 
 (def make-complex
@@ -56,104 +55,6 @@
 
 (def %complex-im
   (fn (_ x) (if (%complex? x) (rest (first x)) 0)))
-; --- Tokenizer state machine for complex literals ---
-; Matches: <digits>[.<digits>][+-]<digits>[.<digits>]i
-; Also: <digits>[.<digits>]i  (pure imaginary)
-
-(def cx-imag-frac ())
-(set! cx-imag-frac
-  (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57))
-      cx-imag-frac
-      (if (= chr 105)
-        (%score-set score 1 buffer)
-        ()))))
-
-(def cx-imag-dot
-  (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57))
-      cx-imag-frac
-      ())))
-
-(def cx-imag-int ())
-(set! cx-imag-int
-  (fn (_ buffer score chr)
-    (match
-      ((and (>= chr 48) (<= chr 57)) cx-imag-int)
-      ((= chr 46) cx-imag-dot)
-      ((= chr 105) (%score-set score 1 buffer))
-      (#t ()))))
-
-(def cx-sign
-  (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57))
-      cx-imag-int
-      ())))
-
-(def cx-real-frac ())
-(set! cx-real-frac
-  (fn (_ buffer score chr)
-    (match
-      ((and (>= chr 48) (<= chr 57)) cx-real-frac)
-      ((= chr 43) cx-sign)
-      ((= chr 45) cx-sign)
-      ((= chr 105) (%score-set score 1 buffer))
-      (#t ()))))
-
-(def cx-real-dot
-  (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57))
-      cx-real-frac
-      ())))
-
-; Entry after a leading '-': a digit starts the (negative) real part.
-; The read side already handles the sign (its separator search starts
-; at index 1), so this state is all -1+2i needed (#45 R4).
-(def cx-neg
-  (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) cx-real-int ())))
-
-(def cx-real-int ())
-(set! cx-real-int
-  (fn (_ buffer score chr)
-    (match
-      ((and (>= chr 48) (<= chr 57)) cx-real-int)
-      ((= chr 46) cx-real-dot)
-      ((= chr 43) cx-sign)
-      ((= chr 45) cx-sign)
-      ((= chr 105) (%score-set score 1 buffer))
-      (#t ()))))
-
-; --- Reader helpers ---
-
-(def %cx-find-char
-  (fn (self s i len ch)
-    (if (>= i len) ()
-      (if (= (%cvt (%str-ref s i) %int) ch)
-        i
-        (self s (int+ i 1) len ch)))))
-
-(def %cx-parse-num
-  (fn (_ s)
-    (if (%cx-find-char s 0 (%str-length s) 46)
-      (type-make-instance float (str->float s))
-      (%cvt s %int))))
-
-(set! %cx-read
-  (fn (_ . args)
-    (let ((tok (buf-tok (first args))))
-      (let ((len (%str-length tok)))
-        (let ((body (%substring tok 0 (int- len 1))))
-          (let ((blen (int- len 1)))
-            (let ((sign-pos (%cx-find-char body 1 blen 43)))
-              (if (null? sign-pos)
-                (set! sign-pos (%cx-find-char body 1 blen 45)))
-              (if sign-pos
-                (make-complex
-                  (%cx-parse-num (%substring body 0 sign-pos))
-                  (%cx-parse-num (%substring body sign-pos blen)))
-                (make-complex 0 (%cx-parse-num body))))))))))
-
 ; --- Type definition ---
 
 (set! %complex
@@ -173,13 +74,6 @@
               (display re)
               (display (if neg "-" "+"))
               (display (if neg (%real- 0 im) im) "i")))))
-      (pair
-        'analyse
-        (fn (_ buffer score chr)
-          ; Entry: digit, or '-' then digit (negative real part, R4)
-          (if (and (>= chr 48) (<= chr 57)) cx-real-int
-            (if (= chr 45) cx-neg ()))))
-      (pair 'read (fn (_ . args) (%cx-read (first args))))
       (pair
         'from
         (list
@@ -379,9 +273,8 @@
 
 (doc (provide x/num/complex Complex (global complex?)
   complex-type ensure-complex make-complex
-  cx-add cx-sub cx-mul cx-div cx-eq
-  cx-real-int cx-real-dot cx-real-frac cx-sign cx-neg cx-imag-int cx-imag-dot cx-imag-frac)
-  (note "Literal syntax: a+bi, a-bi (e.g. 3+4i, 0+1i, 2-3i)")
+  cx-add cx-sub cx-mul cx-div cx-eq)
+  (note "The literal a+bi (3+4i, 0+1i, 2-3i) is x/num/complex/literal's: this module installs no reader syntax.")
   (note "Extends arithmetic operators (+, -, *, /, =) with complex promotion.")
   (example "3+4i" "3+4i")
   (example "(+ 1 2i)" "1+2i")

@@ -30,6 +30,7 @@ top-level form, so literal tests simply follow their import's test.
 ### rational literals parse from the next form on
 
 ```x
+(import x/num/rational/literal)
 (Rational rational? 1/3)
 ```
 ---
@@ -38,6 +39,7 @@ top-level form, so literal tests simply follow their import's test.
 ### float literals and arithmetic work without bigint
 
 ```x
+(import x/num/float/literal)
 (+ 0.5 0.25)
 ```
 ---
@@ -48,6 +50,7 @@ top-level form, so literal tests simply follow their import's test.
 ### bigint joins later; the pact installs bigint->float
 
 ```x
+(import x/num/bigint/literal)
 (import x/num/bigint)
 (import x/sys/pact)
 (def %t-big1 (Bigint + 9223372036854775807 1))
