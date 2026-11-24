@@ -5,8 +5,9 @@
 descriptor, which is the whole reason a terminal's key decoding can be tested
 here at all: a spec hands it a list and never opens a tty.
 
-Each case below builds such a reader over a byte list. Three cases come
-back: a STRING of literal text to insert, a SYMBOL naming a key, or nil when
+Each case below builds such a reader over a byte list. Four kinds come
+back: a STRING of literal text to insert, a SYMBOL naming a key, a (mouse ...)
+list once mouse! has asked for the mouse, or nil when
 the input ended.
 
 ## Literal text
@@ -203,6 +204,58 @@ parameters are kept rather than dropped at the final byte.
 ```
 ---
     'escape
+
+## The mouse, once mouse! asks for it
+
+An SGR report, ESC [ < B ; X ; Y and M or m, comes back as a list:
+(mouse ACTION BUTTON ROW COL MODS), the row and column from 0.
+
+### a press, a drag and a release of the left button
+
+```x
+(do (import x/repl/term)
+    (import x/core/doors char->int)
+    (def key-of (fn (_ s) (let ((bs (List map (fn (_ i) (char->int (Str8 ref i s))) (List range 0 (Str8 length s)))))
+                            (Term key (fn (_) (if (null? bs) () (let ((b (first bs))) (set! bs (rest bs)) b)))))))
+    (List map key-of (list "\x1b[<0;10;3M" "\x1b[<32;12;3M" "\x1b[<0;12;3m")))
+```
+---
+    (('mouse 'press 'left 2 9 ()) ('mouse 'drag 'left 2 11 ()) ('mouse 'release 'left 2 11 ()))
+
+### the right and middle buttons, the wheel, a move with none held, and the modifiers
+
+```x
+(do (import x/repl/term)
+    (import x/core/doors char->int)
+    (def key-of (fn (_ s) (let ((bs (List map (fn (_ i) (char->int (Str8 ref i s))) (List range 0 (Str8 length s)))))
+                            (Term key (fn (_) (if (null? bs) () (let ((b (first bs))) (set! bs (rest bs)) b)))))))
+    (List map key-of (list "\x1b[<2;1;1M" "\x1b[<1;1;1M" "\x1b[<64;5;6M" "\x1b[<65;5;6M" "\x1b[<35;7;8M" "\x1b[<28;1;1M")))
+```
+---
+    (('mouse 'press 'right 0 0 ()) ('mouse 'press 'middle 0 0 ()) ('mouse 'wheel 'up 5 4 ()) ('mouse 'wheel 'down 5 4 ()) ('mouse 'move () 7 6 ()) ('mouse 'press 'left 0 0 ('shift 'alt 'ctrl)))
+
+### a report cut short is no key
+
+```x
+(do (import x/repl/term)
+    (def bs (list 27 91 60 48 59 49 77))
+    (Term key (fn (_) (if (null? bs) () (let ((b (first bs))) (set! bs (rest bs)) b)))))
+```
+---
+    'unbound
+
+### mouse! writes the modes on, and off
+
+```x
+(do (import x/repl/term)
+    (def fds (Sys pipe))
+    (def n (list (Term mouse! (rest fds) #t) (Term mouse! (rest fds) #f)))
+    (def got (Sys fd-read (first fds) 64))
+    (Sys close (first fds)) (Sys close (rest fds))
+    (list n (str=? (bytes->str got) "\x1b[?1002h\x1b[?1006h\x1b[?1006l\x1b[?1002l")))
+```
+---
+    ((16 16) #t)
 
 ## Capability, without a terminal
 

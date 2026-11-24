@@ -541,7 +541,7 @@
 
     ; --- keys -----------------------------------------------------------------
     ;
-    ; `key` returns one of three types, and the caller tells them apart with
+    ; `key` returns one of four types, and the caller tells them apart with
     ; the ordinary predicates:
     ;
     ;   a STRING  -- literal text to insert (one whole character, UTF-8 included)
@@ -551,6 +551,8 @@
     ;                'complete 'quoted-insert 'search-back 'search-forward 'abort
     ;                'f1 to 'f12, and 'kp0 to 'kp9 from a keypad in
     ;                application mode
+    ;   a LIST    -- (mouse ACTION BUTTON ROW COL MODS), once mouse! has asked
+    ;                the terminal for SGR mouse reports (%mouse names the parts)
     ;   nil       -- the descriptor ended (EOF on the read itself)
     ;
     ; read-byte is a function of no arguments returning a byte value or nil.
@@ -559,7 +561,7 @@
 
     (method key (self (param read-byte CALLABLE "Zero-argument reader returning a byte, or nil at end of input"))
       (doc "Decode one keystroke: a STRING of literal text, a SYMBOL naming a key, or nil at end of input."
-        (returns ANY "String, symbol, or nil")
+        (returns ANY "String, symbol, (mouse ...) list, or nil")
         (note "Control bytes map to readline's names. ESC is followed blockingly, so a lone Escape resolves only when the next key arrives.")
         (sample "(Term key (fn (_) 65))" "\"A\""))
       (let ((b (read-byte)))
@@ -688,6 +690,9 @@
       ; ctrl-shift, which this treats the same -- the motion is what matters).
       (let ((ctrl? (or (List includes? 53 params) (List includes? 54 params))))
         (match
+          ; ESC [ < B ; X ; Y M or m: an SGR mouse report (mouse!).
+          ((and (pair? params) (= (first params) 60))
+            (if (or (= final 77) (= final 109)) (Term %mouse final (rest params)) (lit unbound)))
           ((= final 65) (lit up))
           ((= final 66) (lit down))
           ((= final 67) (if ctrl? (lit word-right) (lit right)))
@@ -701,6 +706,48 @@
           ((= final 83) (lit f4))
           ((= final 126) (Term %tilde (Term %csi-number params)))
           (#t (lit unbound)))))
+
+    (method %mouse (self (param final INTEGER "M for a press or a motion, m for a release")
+                         (param params LIST "The parameter bytes after the <: B;X;Y"))
+      (doc "Decode an SGR mouse report, ESC [ < B ; X ; Y M or m, as (mouse ACTION BUTTON ROW COL MODS)."
+        (returns LIST "(mouse ACTION BUTTON ROW COL MODS)")
+        (note "ACTION is press, release, drag (a motion with a button held), move (with none) or wheel. BUTTON is left, middle or right, up, down, left or right for the wheel, and nil for a move.")
+        (note "ROW and COL count from 0 at the top left. MODS lists shift, alt and ctrl, those held.")
+        (example "(Term %mouse 77 (list 48 59 49 48 59 51))" "('mouse 'press 'left 2 9 ())")
+        (example "(Term %mouse 77 (list 54 53 59 49 59 49))" "('mouse 'wheel 'down 0 0 ())"))
+      ; The parameters are three decimal numbers split at ';'.
+      (let ((nums ((fn (self ps n acc)
+                     (match ((null? ps) (List reverse (pair n acc)))
+                            ((= (first ps) 59) (self (rest ps) 0 (pair n acc)))
+                            (#t (self (rest ps) (+ (* n 10) (- (first ps) 48)) acc))))
+                   params 0 ())))
+        (if (< (List length nums) 3) (lit unbound)
+          (let ((b (first nums))
+                (col (- (List ref 1 nums) 1))
+                (row (- (List ref 2 nums) 1)))
+            (let ((low (& b 3))
+                  (mods (List filter (fn (_ m) (not (null? m)))
+                          (list (if (= 4 (& b 4)) (lit shift) ())
+                                (if (= 8 (& b 8)) (lit alt) ())
+                                (if (= 16 (& b 16)) (lit ctrl) ())))))
+              (list (lit mouse)
+                    (match ((= 64 (& b 64)) (lit wheel))
+                           ((= final 109) (lit release))
+                           ((= 32 (& b 32)) (if (= low 3) (lit move) (lit drag)))
+                           (#t (lit press)))
+                    (match ((= 64 (& b 64))
+                             (match ((= low 0) (lit up)) ((= low 1) (lit down)) ((= low 2) (lit left)) (#t (lit right))))
+                           ((= low 0) (lit left)) ((= low 1) (lit middle)) ((= low 2) (lit right))
+                           (#t ()))
+                    row col mods))))))
+
+    (method mouse! (self (param fd INTEGER "The terminal's descriptor")
+                         (param on BOOLEAN "#t to report the mouse, #f to stop"))
+      (doc "Ask the terminal to report the mouse, or to stop: presses, releases, drags with a button held and the wheel, in SGR form, which key decodes as (mouse ...) lists."
+        (returns INTEGER "Bytes written")
+        (note "Modes 1002 and 1006. A terminal that knows neither ignores them. Turn it off before the program leaves, or the shell gets the reports.")
+        (sample "(Term mouse! 1 #t)" "the bytes written; key answers (mouse ...) from then on"))
+      (Sys fd-write fd (if on "\x1b[?1002h\x1b[?1006h" "\x1b[?1006l\x1b[?1002l")))
 
     (method %csi-number (self (param params LIST "The parameter bytes, in order"))
       (doc "A CSI sequence's first parameter as a number: its digits up to the first ';', 0 when there are none."
