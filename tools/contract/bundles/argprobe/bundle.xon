@@ -1,0 +1,8 @@
+; argprobe -- a FIXTURE, not a lang.
+;
+; tools/check/wrapper.sh runs it by its bare name, `x argprobe ARG...`, and
+; reads back the arguments its entry was given.
+
+(name "argprobe")
+(dialect he)
+(entry run)

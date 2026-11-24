@@ -668,10 +668,12 @@ done
 
 display_help() {
 	echo "Usage: $0 [OPTION]... [-- ARG...]"
+	echo "       $0 NAME [ARG]..."
 	echo
 	echo "x-lang: evaluate a file, expressions or piped stdin, or start a session."
 	echo "With no file, expressions or pipe, and a terminal, it is a session."
 	echo "ARG... reach the program as (Sys args 'program), never as options here."
+	echo "A first bare word NAME runs that installed bundle: -l NAME -- ARG..."
 	echo
 	echo "Options"
 	echo "  -h, --help      display this help and exit"
@@ -927,6 +929,22 @@ $user_files}"
 			exit 1
 			;;
 		*)  # No more options
+			# A first bare word names an installed bundle: `x NAME ARG...`
+			# is `x -l NAME -- ARG...`, so everything after the word is the
+			# bundle's.  NAME/ENTRY names another of its entries, as -l
+			# does.  With a lang, a file or an expression already given the
+			# word is the program's argument, as it always was.
+			if [ -n "$1" ] && [ -z "$lib_given" ] && [ -z "$file1" ] && [ -z "$have_eval" ]; then
+				bundle_dir_of "${1%%/*}" >/dev/null || {
+					echo "Error: '${1%%/*}' is not an installed bundle" >&2
+					echo "  x NAME ARG... runs the bundle NAME; searched ${BUNDLES_PATH}*/bundle.xon" >&2
+					echo "  a program's arguments follow --" >&2
+					exit 1
+				}
+				X_LIB="$1"
+				lib_given=1
+				shift
+			fi
 			break
 			;;
 	esac

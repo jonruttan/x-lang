@@ -182,6 +182,22 @@ else
 	printf '  a further -l must name a bundle: ok\n'
 fi
 
+# A first bare word names an installed bundle: `x NAME ARG...` is
+# `x -l NAME -- ARG...`.  What follows the word is the bundle's, options
+# included; a word no installed bundle carries is refused by name; and with
+# an expression given, a bare word is the program's argument as before.
+got=$(X_BUNDLE_DIR=tools/contract/bundles/ sh x.sh --no-pin -q argprobe a -q --dir d </dev/null 2>/dev/null || true)
+want "a bare word runs the bundle it names, the rest its arguments" '("a" "-q" "--dir" "d")' "$got"
+got=$(X_BUNDLE_DIR=tools/contract/bundles/ sh x.sh --no-pin -q argprobe/run b </dev/null 2>/dev/null || true)
+want "a bare NAME/ENTRY names the entry" '("b")' "$got"
+err=$(X_BUNDLE_DIR=tools/contract/bundles/ sh x.sh --no-pin -q nosuchbundle a </dev/null 2>&1 >/dev/null || true)
+case "$err" in
+	"Error: 'nosuchbundle' is not an installed bundle"*) printf '  a bare word no bundle carries is refused by name: ok\n' ;;
+	*) printf 'wrapper: an unknown bare word was not refused by name: %s\n' "$err" >&2; fails=$((fails + 1)) ;;
+esac
+got=$(X_BUNDLE_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -c '(write (rest (Sys args (lit program))))' argprobe 2>/dev/null || true)
+want "with an expression given, a bare word is the program's argument" '("argprobe")' "$got"
+
 # --help lists every option the parser accepts.  The labels are read off the
 # option loop's case arms, so an option added there without a help line fails
 # here rather than staying undocumented, which is how --install-bundle,
