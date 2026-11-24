@@ -331,14 +331,14 @@
         (let ((step (self step)))
           (let go ((st (rest s)) (lastv (first s))) (let ((s2 (step st))) (if (null? s2) lastv (go (rest s2) (first s2)))))))))
 
-  (method least (self)
+  (method min (self)
     (doc "The least value; errors on an empty generator (drives the whole generator)." (returns ANY "The least value")
-      (example "((Gen of 3 1 2) least)" "1"))
+      (example "((Gen of 3 1 2) min)" "1"))
     (self reduce (fn (_ a x) (if (< x a) x a))))
 
-  (method greatest (self)
+  (method max (self)
     (doc "The greatest value; errors on an empty generator (drives the whole generator)." (returns ANY "The greatest value")
-      (example "((Gen of 3 1 2) greatest)" "3"))
+      (example "((Gen of 3 1 2) max)" "3"))
     (self reduce (fn (_ a x) (if (< a x) x a)))))
 
 
