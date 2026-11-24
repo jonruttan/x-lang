@@ -504,6 +504,71 @@ word.
 ---
     ('value 'value 'value 'type)
 
+## Missing values
+
+### an empty csv field is missing: a NaN among numbers, nil among strings
+
+```x
+(import x/data/table)
+(let ((t (Table from-csv "name,age\nida,7\n,\ncy,9\n")))
+  (list ((t column 'age) encoding) (((t column 'age) missing) ->list)
+        ((t column 'name) ->list) (((t column 'name) present) ->list)))
+```
+---
+    ('f64 (0.0 1.0 0.0) ("ida" () "cy") (1.0 0.0 1.0))
+
+### a nil among numbers is missing, and a list with no number stays as it is
+
+```x
+(import x/data/table)
+(list ((Column from (list 1 () 3)) encoding)
+      (((Column from (list 1 () 3)) present) ->list)
+      ((Column from (list () ())) encoding)
+      ((Column from (list "a" () "c")) ->list)
+      (((Column from '(1.5 2.5)) missing) ->list))
+```
+---
+    ('f64 (1.0 0.0 1.0) 'any ("a" () "c") (0.0 0.0))
+
+### the statistics answer a NaN for a missing number; filter by present leaves the row out
+
+```x
+(import x/data/table) (import x/num/float)
+(let ((t (Table from-csv "name,age\nida,7\nbo,\ncy,9\n")))
+  (let ((age (t column 'age)) (kept (t filter ((t column 'age) present))))
+    (list (List map (fn (_ x) (Float nan? x)) (list (age sum) (age mean) (age min) (age max) (age median)))
+          ((kept column 'name) ->list) ((kept column 'age) mean) ((age missing) sum))))
+```
+---
+    ((#t #t #t #t #t) ("ida" "cy") 8.0 1.0)
+
+### fill-missing puts a value where one is missing and leaves the rest
+
+```x
+(import x/data/table)
+(let ((c (Column from (list 1.5 () 4.0))))
+  (list ((c fill-missing 0.5) ->list) ((c fill-missing 0.5) sum)
+        (((Column from (list "a" () "c")) fill-missing "?") ->list)
+        (((Column from '(1.5 2.5)) fill-missing 9.0) ->list)
+        (guard (e (Err label e)) (c fill-missing "none"))))
+```
+---
+    ((1.5 0.5 4.0) 6.0 ("a" "?" "c") (1.5 2.5) 'type)
+
+### missing values read the same once the kernels are compiled
+
+```x
+(import x/data/table) (import x/num/tensor) (import x/num/float)
+(let ((c (Column from (list 2.5 () 1.0 () 4.0))))
+  (let ((run (fn (_) (list ((c missing) ->list) ((c present) ->list) ((c fill-missing 0.0) ->list)
+                           (Float nan? (c min)) (Float nan? (c max))))))
+    (let ((before (run)))
+      (Tensor jit!)
+      (list (equal? before (run)) before))))
+```
+---
+    (#t ((0.0 1.0 0.0 1.0 0.0) (1.0 0.0 1.0 0.0 1.0) (2.5 0.0 1.0 0.0 4.0) #t #t))
+
 ## Handing a table to a model
 
 ### matrix answers the named columns as an f64 Matrix, a row for each row
