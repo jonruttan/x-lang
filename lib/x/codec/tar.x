@@ -62,7 +62,7 @@
                          (param mode INTEGER "Its permission bits, such as 420 for rw-r--r--")
                          (param mtime INTEGER "When it was modified, in seconds since the epoch")
                          (param kind SYMBOL "file or dir"))
-      (doc "The 512-byte ustar header of one member. A directory's path is given its trailing /. Raises a label 'value for a path past 100 bytes with no / to split it at, a size or time its field cannot hold, and a kind that is neither."
+      (doc "The 512-byte ustar header of one member. A directory's path is given its trailing /. Raises a label 'value for a path past 100 bytes with no / to split it at, a size or time that is below 0 or past what its field holds (8 GB for a size), and a kind that is neither."
         (returns LIST "A region (BUF 0 512)")
         (example "(Bytes length (Tar header \"a\" 0 493 0 (lit dir)))" "512")
         (example "(first (Bytes copy (Bytes sub (Tar header \"a\" 0 493 0 (lit dir)) 0 2)))" "\"a/\"")
@@ -75,6 +75,8 @@
       (def at (if (< 100 (Str8 length full)) (%split-at full) ()))
       (when (if (< 100 (Str8 length full)) (null? at) #f)
         (%bad "a path past 100 bytes with no / to split it at"))
+      (when (< size 0) (%bad "a size below 0"))
+      (when (< mtime 0) (%bad "a time below 0"))
       (def size-field (%octal (if dir? 0 size) 12))
       (def mtime-field (%octal mtime 12))
       (when (null? size-field) (%bad "a size past 8 GB"))

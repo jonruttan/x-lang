@@ -79,11 +79,11 @@ in `x/tool/pin`, which unpacks what they describe.
   (def %tr (fn (_ work) (guard (e (Err text e)) (do (work) "no raise"))))
   (write (list (%tr (fn (_) (Tar header (Str8 append %ta "b") 0 420 0 (lit file))))
                (%tr (fn (_) (Tar header "" 0 420 0 (lit file))))
-               (%tr (fn (_) (Tar header "a" 8589934592 420 0 (lit file))))
+               (%tr (fn (_) (Tar header "a" -1 420 0 (lit file))))
                (%tr (fn (_) (Tar header "a" 0 420 0 (lit link)))))))
 ```
 ---
-    ("Tar header: a path past 100 bytes with no / to split it at" "Tar header: an empty path" "Tar header: a size past 8 GB" "Tar header: a kind that is not file or dir")
+    ("Tar header: a path past 100 bytes with no / to split it at" "Tar header: an empty path" "Tar header: a size below 0" "Tar header: a kind that is not file or dir")
 
 ## against the reader
 
