@@ -555,3 +555,13 @@ word.
 ```
 ---
     (("DataFrame" "data frame") ("arrange" "order by") ("mutate" "transform") ("assign" "with column"))
+
+### a column's comparisons carry the short names other libraries use
+
+```x
+(import x/data/table)
+(List map (fn (_ n) ((Doc entry n) known-as))
+  '(Column/less Column/greater Column/at-most Column/at-least Column/equal Column/differ))
+```
+---
+    (("lt" "less than") ("gt" "greater than") ("le" "lte" "less than or equal") ("ge" "gte" "greater than or equal") ("eq" "equal to") ("ne" "neq" "not equal"))

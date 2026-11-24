@@ -1609,36 +1609,42 @@
   ; --- comparisons ------------------------------------------------------------
   (method less (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
     (doc "A mask: 1.0 where self's element is less than other's and 0.0 where it is not, broadcast as add is. The mask is f64 whatever the operands' encodings. A NaN is less than nothing. c128 is refused."
+      (known-as "lt" "less than")
       (returns Tensor "A fresh f64 tensor of the broadcast extent")
       (example "(((Tensor from '(1 5 3)) less 3) ->list)" "(1.0 0.0 0.0)"))
     (self %compare (lit less) other #f))
 
   (method greater (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
     (doc "A mask: 1.0 where self's element is greater than other's and 0.0 where it is not, as less answers."
+      (known-as "gt" "greater than")
       (returns Tensor "A fresh f64 tensor of the broadcast extent")
       (example "(((Tensor from '(1 5 3)) greater 3) ->list)" "(0.0 1.0 0.0)"))
     (self %compare (lit less) other #t))
 
   (method at-most (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
     (doc "A mask: 1.0 where self's element is less than other's or equal to it and 0.0 where it is not, as less answers."
+      (known-as "le" "lte" "less than or equal")
       (returns Tensor "A fresh f64 tensor of the broadcast extent")
       (example "(((Tensor from '(1 5 3)) at-most 3) ->list)" "(1.0 0.0 1.0)"))
     (self %compare (lit at-most) other #f))
 
   (method at-least (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
     (doc "A mask: 1.0 where self's element is greater than other's or equal to it and 0.0 where it is not, as less answers."
+      (known-as "ge" "gte" "greater than or equal")
       (returns Tensor "A fresh f64 tensor of the broadcast extent")
       (example "(((Tensor from '(1 5 3)) at-least 3) ->list)" "(0.0 1.0 1.0)"))
     (self %compare (lit at-most) other #t))
 
   (method equal (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
     (doc "A mask: 1.0 where self's element equals other's and 0.0 where it does not, as less answers. A NaN equals nothing."
+      (known-as "eq" "equal to")
       (returns Tensor "A fresh f64 tensor of the broadcast extent")
       (example "(((Tensor from '(1 5 3)) equal 3) ->list)" "(0.0 0.0 1.0)"))
     (self %compare (lit equal) other #f))
 
   (method differ (self (param other Tensor|NUMBER "A tensor that broadcasts with self, or a number"))
     (doc "A mask: 1.0 where self's element does not equal other's and 0.0 where it does, as less answers. A NaN differs from everything."
+      (known-as "ne" "neq" "not equal")
       (returns Tensor "A fresh f64 tensor of the broadcast extent")
       (example "(((Tensor from '(1 5 3)) differ 3) ->list)" "(1.0 1.0 0.0)"))
     (self %compare (lit differ) other #f))
