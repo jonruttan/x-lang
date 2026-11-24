@@ -852,6 +852,16 @@ nearest single: 0.1 reads back as 0.100000001490116.
 ---
     (("shape") ("dtype") ("standard deviation" "std"))
 
+### the comparisons carry the short names other libraries use
+
+```x
+(import x/num/tensor)
+(List map (fn (_ n) ((Doc entry n) known-as))
+  '(Tensor/less Tensor/greater Tensor/at-most Tensor/at-least Tensor/equal Tensor/differ))
+```
+---
+    (("lt" "less than") ("gt" "greater than") ("le" "lte" "less than or equal") ("ge" "gte" "greater than or equal") ("eq" "equal to") ("ne" "neq" "not equal"))
+
 ## Runs along other axes
 
 An element-wise operation is free to walk its axes in any order and to make

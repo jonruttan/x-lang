@@ -245,32 +245,38 @@
 
   (method less (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
     (doc "A mask: a column of 1.0 where the value is less than other's and 0.0 where it is not, as a Tensor's less answers it. Table filter keeps the rows where a mask is not 0; mul of two masks is the rows both keep, max the rows either keeps, and a mask's sum is how many it keeps."
+      (known-as "lt" "less than")
       (returns Column "An f64 column of 1.0 and 0.0")
       (example "(((Column from '(1.5 2.5 4.0)) less 2.5) ->list)" "(1.0 0.0 0.0)"))
     (self %compare (lit less) other #f))
   (method greater (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
     (doc "A mask: 1.0 where the value is greater than other's and 0.0 where it is not."
+      (known-as "gt" "greater than")
       (returns Column "An f64 column of 1.0 and 0.0")
       (example "(((Column from '(1.5 2.5 4.0)) greater 2.5) ->list)" "(0.0 0.0 1.0)"))
     (self %compare (lit less) other #t))
   (method at-most (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
     (doc "A mask: 1.0 where the value is less than other's or equal to it and 0.0 where it is not."
+      (known-as "le" "lte" "less than or equal")
       (returns Column "An f64 column of 1.0 and 0.0")
       (example "(((Column from '(1.5 2.5 4.0)) at-most 2.5) ->list)" "(1.0 1.0 0.0)"))
     (self %compare (lit at-most) other #f))
   (method at-least (self (param other Column|Tensor|NUMBER "A column of the same size, or a number"))
     (doc "A mask: 1.0 where the value is greater than other's or equal to it and 0.0 where it is not."
+      (known-as "ge" "gte" "greater than or equal")
       (returns Column "An f64 column of 1.0 and 0.0")
       (example "(((Column from '(1.5 2.5 4.0)) at-least 2.5) ->list)" "(0.0 1.0 1.0)"))
     (self %compare (lit at-most) other #t))
   (method equal (self (param other ANY "A column of the same size, or a value"))
     (doc "A mask: 1.0 where the value equals other's and 0.0 where it does not. A column of encoding any answers by equal?."
+      (known-as "eq" "equal to")
       (returns Column "An f64 column of 1.0 and 0.0")
       (example "(((Column from '(1.5 2.5 4.0)) equal 2.5) ->list)" "(0.0 1.0 0.0)")
       (example "(((Column from '(\"Ann\" \"Bo\")) equal \"Bo\") ->list)" "(0.0 1.0)"))
     (self %compare (lit equal) other #f))
   (method differ (self (param other ANY "A column of the same size, or a value"))
     (doc "A mask: 1.0 where the value does not equal other's and 0.0 where it does. A column of encoding any answers by equal?."
+      (known-as "ne" "neq" "not equal")
       (returns Column "An f64 column of 1.0 and 0.0")
       (example "(((Column from '(1.5 2.5 4.0)) differ 2.5) ->list)" "(1.0 0.0 1.0)"))
     (self %compare (lit differ) other #f))
