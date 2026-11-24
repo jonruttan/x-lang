@@ -1597,7 +1597,7 @@
     (doc "The matrix's rank: how many singular values are greater than the tolerance. The default tolerance scales with the matrix, so a value left by rounding in place of 0 is not counted. This is the matrix's rank in linear algebra, not a Tensor's rank, its number of axes."
       (returns INTEGER "The number of values above the tolerance")
       (example "(((Matrix from '((1 2) (2 4))) factor-singular) rank)" "1")
-      (example "(((Matrix from '((1 0) (0 1/1000))) factor-singular) rank 1/100)" "1"))
+      (example "(((Matrix from '((1 0) (0 0.001))) factor-singular) rank 0.01)" "1"))
     (let ((vals ((field (lit values)) ->list))
           (e (f-div (float-of 1) (float-of 67108864))))
       (let ((cut (if (null? tolerance)
