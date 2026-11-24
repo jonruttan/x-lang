@@ -92,7 +92,7 @@
 ; the run's address in word 0, its length in word 6, the element reached
 ; in word 7 and the budget in word 8.  The greatest element so far is the
 ; double 16 and its place word 13; of equal elements the first is kept.
-(def %tf-greatest-at-form
+(def %tf-max-at-form
   (let ((x (lit (f32-ref (%mem-ref s 0) (%mem-ref s 7)))))
     (list (lit fn) (lit (self s))
       (list (lit match)
@@ -124,21 +124,21 @@
 ; Whether the compiled kernel finds the place and the element the pure one does.
 (def %tf-agrees?
   (fn (_ compiled)
-    (let ((a (%tf-check-run (word-form-pure %tf-greatest-at-form))) (b (%tf-check-run compiled)))
+    (let ((a (%tf-check-run (word-form-pure %tf-max-at-form))) (b (%tf-check-run compiled)))
       ; word 13, and the double 16, 128 bytes in
       (if (int= (%tf-word a 13) (%tf-word b 13))
         (int= (mem-cmp (int->ptr (int+ (ptr->int (str->ptr a)) 128))
                        (int->ptr (int+ (ptr->int (str->ptr b)) 128)) 8) 0)
         #f))))
 
-(Tensor %register! (lit f32-greatest-at) %tf-greatest-at-form %tf-agrees?)
+(Tensor %register! (lit f32-max-at) %tf-max-at-form %tf-agrees?)
 
 ; The place of the greatest of COUNT singles at ADDR.
-(def %tf-greatest-at
+(def %tf-max-at
   (fn (_ addr count)
     (let ((s (str-make 256)))
       (%tf-word! s 0 addr) (%tf-word! s 6 count) (%tf-word! s 7 0) (%tf-word! s 13 0)
-      ((obj-ref (Tensor %fast) 14) (lit f32-greatest-at) s)
+      ((obj-ref (Tensor %fast) 14) (lit f32-max-at) s)
       (%tf-word s 13))))
 
 ; --- a place drawn at random ----------------------------------------------------
@@ -207,13 +207,13 @@
     ((first %tf-fset-cell) a i v)))
 
 ; A scratch for the kernel: COUNT singles at ADDR, U a Float from 0 to 1,
-; TEMPERATURE a Float, GREATEST how many of the greatest are kept, or nil.
+; TEMPERATURE a Float, MAX how many of the greatest are kept, or nil.
 (def %tf-variate-scratch
-  (fn (_ addr count u temperature greatest)
+  (fn (_ addr count u temperature max)
     (let ((s (str-make 256)))
       (mem-set (str->ptr s) 0 256)
       (%tf-word! s 0 addr) (%tf-word! s 6 count)
-      (%tf-word! s 11 (if (null? greatest) 1 greatest)) (%tf-word! s 12 (if (null? greatest) 0 1))
+      (%tf-word! s 11 (if (null? max) 1 max)) (%tf-word! s 12 (if (null? max) 0 1))
       (%tf-fset (ptr->int (str->ptr s)) 19 (first u))
       (%tf-fset (ptr->int (str->ptr s)) 20 (first temperature))
       s)))
@@ -243,30 +243,30 @@
 
 ; A place drawn from COUNT singles at ADDR.
 (def %tf-variate-at
-  (fn (_ addr count u temperature greatest)
-    (let ((s (%tf-variate-scratch addr count u temperature greatest)))
+  (fn (_ addr count u temperature max)
+    (let ((s (%tf-variate-scratch addr count u temperature max)))
       ((obj-ref (Tensor %fast) 14) (lit f32-variate-at) s)
       (%tf-word s 13))))
 
 ; The function that picks an id from scores, (fn (_ ADDR COUNT)): the
 ; greatest with no RANDOM and no OPTIONS, else a draw from RANDOM with
-; OPTIONS, an optional temperature and greatest.
+; OPTIONS, an optional temperature and max.
 (def %tf-picking
   (fn (_ random options)
-    (if (if (null? random) (null? options) #f) %tf-greatest-at (%tf-drawing random options))))
+    (if (if (null? random) (null? options) #f) %tf-max-at (%tf-drawing random options))))
 
 (def %tf-drawing
   (fn (_ random options)
     (let ((temperature (if (null? options) 1 (first options)))
-          (greatest (if (if (null? options) #t (null? (rest options))) () (first (rest options)))))
+          (max (if (if (null? options) #t (null? (rest options))) () (first (rest options)))))
       (if (if (object? random) (instance-of? random Random) #f) ()
         (Err raise (lit type) "Transformer: not a Random" random))
-      (if (if (null? greatest) #t (if (type? greatest (type-of 0)) (int< 0 greatest) #f)) ()
-        (Err raise (lit value) "Transformer: greatest is an integer above 0" greatest))
+      (if (if (null? max) #t (if (type? max (type-of 0)) (int< 0 max) #f)) ()
+        (Err raise (lit value) "Transformer: max is an integer above 0" max))
       (let ((t (guard (_ ()) (float-of temperature))))
         (if (if (null? t) #f (f-lt (float-of 0) t)) ()
           (Err raise (lit value) "Transformer: the temperature is a number above 0" temperature))
-        (fn (_ addr count) (%tf-variate-at addr count (random float) t greatest))))))
+        (fn (_ addr count) (%tf-variate-at addr count (random float) t max))))))
 
 ; --- the pieces ---------------------------------------------------------------------
 ; a times b: on the GPU where there is one, else by Matrix's kernels, cast
@@ -743,19 +743,19 @@
     (doc "The id the model scores highest after the ids; of equal scores, the least id."
       (returns INTEGER "An id")
       (sample "(m predict (list 15496 11 995 0))" "the id of the item most likely to follow"))
-    (%tf-next self (%tf-hidden self ids 0 (%tf-caches self (List length ids))) %tf-greatest-at))
+    (%tf-next self (%tf-hidden self ids 0 (%tf-caches self (List length ids))) %tf-max-at))
 
   (method generate (self (param ids LIST "Ids to begin from, at least one")
                          (param n INTEGER "How many ids to add"))
     (doc "The ids and n more, each the prediction from all those before it. Each block keeps its queries, keys and values from one prediction to the next, so a prediction works out the one new position. The ids and the n less one fed back must be no more than the model has positions, or a label 'value is raised."
       (returns LIST "The ids, n longer")
       (sample "(m generate (list 15496 11 995 0) 8)" "the four ids and eight that follow"))
-    (%tf-generate self ids n %tf-greatest-at (fn (_ id) ())))
+    (%tf-generate self ids n %tf-max-at (fn (_ id) ())))
 
   (method variate (self (param ids LIST "Ids, at least one and no more than the model has positions")
                         (param random Random "The source of the randomness, as (Random sw 7) or (Random hw)")
-                        . (param options NUMBER "Optional (TEMPERATURE GREATEST): 1 and no limit by default"))
-    (doc "An id drawn at random after the ids: each item's chance is in proportion to the exponential of its score over the temperature. A temperature below 1 favours the items scored highest and one above 1 evens the chances. With greatest, the draw is among that many of the highest scores, and every item scored equal to the last of them. A temperature not above 0, or a greatest that is not an integer above 0, raises a label 'value."
+                        . (param options NUMBER "Optional (TEMPERATURE MAX): 1 and no limit by default"))
+    (doc "An id drawn at random after the ids: each item's chance is in proportion to the exponential of its score over the temperature. A temperature below 1 favours the items scored highest and one above 1 evens the chances. With max, the draw is among that many of the highest scores, and every item scored equal to the last of them. A temperature not above 0, or a max that is not an integer above 0, raises a label 'value."
       (returns INTEGER "An id")
       (sample "(m variate (list 15496 11 995 0) (Random sw 7) 0.8 40)" "an id among the 40 scored highest")
       (known-as "sample" "temperature sampling" "top-k sampling")
