@@ -37,6 +37,11 @@
 ; and each column is then gathered by it: a column of numbers by its
 ; Tensor's gather.
 ;
+; A missing value is a NaN in a column of numbers and nil in a column of
+; encoding any; an empty csv field and a nil among numbers read as one.
+; missing and present answer masks of them and fill-missing replaces
+; them.  The statistics do not skip a missing number: they answer a NaN.
+;
 ; A mask is a column of 1.0 and 0.0, as a Column's less, greater, at-most,
 ; at-least, equal and differ answer one: filter keeps the rows where a
 ; mask is not 0, and reads the mask without making a value of each row.
@@ -49,7 +54,7 @@
 (import x/type/list)
 (import x/type/vector)
 (import x/core/doors str->sym type-of)
-(import x/num/float Float float? float-of f-eq f-lt)
+(import x/num/float Float float? float-of f-div f-eq f-lt)
 (import x/num/tensor)
 
 ; A name as a symbol: a symbol as it is, a string made one.
@@ -110,16 +115,18 @@
     (example "((Column from '(31.0 45.0 28.0)) mean)" "34.6666666666667")
     (example "((Column from '(\"Ann\" \"Bo\")) encoding)" "'any")
     (see from) (see size) (see encoding) (see ref) (see ->list) (see tensor)
-    (see add) (see sub) (see mul) (see div) (see map))
+    (see add) (see sub) (see mul) (see div) (see map)
+    (see missing) (see present) (see fill-missing))
 
   encoding   ; a Tensor's encoding, or any
   data       ; a rank-1 Tensor, or for any a Vector
 
   (static
     (method from (self (param values LIST|VECTOR|Tensor|Column "The values, in order"))
-      (doc "A column of the values. A Tensor is kept as it is; a list or a Vector of integers and Floats becomes a Tensor, of f64 unless every one is an integer; any other becomes a column of encoding any."
+      (doc "A column of the values. A Tensor is kept as it is; a list or a Vector of integers and Floats becomes a Tensor, of f64 unless every one is an integer; any other becomes a column of encoding any. A nil among numbers is a missing value: the column is f64 and holds a NaN there. In a column of encoding any a nil is the missing value."
         (returns Column "The column")
         (example "((Column from '(1.5 2.5)) ->list)" "(1.5 2.5)")
+        (example "((Column from (list 1.5 () 4.0)) encoding)" "'f64")
         (example "((Column from '(1.5 \"two\")) encoding)" "'any"))
       (match
         ((pair? values) (self %of-list values))
@@ -134,9 +141,25 @@
       (new-from self (list (lit encoding) (t encoding) (lit data) t)))
 
     (method %of-list (self lst)
-      (if (if (pair? lst) (%numbers? lst) #f)
-        (self %of-tensor (Tensor from lst))
-        (self %of-any lst)))
+      (match
+        ((not (pair? lst)) (self %of-any lst))
+        ((%numbers? lst) (self %of-tensor (Tensor from lst)))
+        ((self %numbers-or-nil? lst)
+          (let ((nan (self %nan)))
+            (self %of-tensor (Tensor from (List map (fn (_ x) (if (null? x) nan x)) lst) (lit f64)))))
+        (#t (self %of-any lst))))
+
+    ; A missing number: a NaN.
+    (method %nan (self) (f-div (float-of 0) (float-of 0)))
+
+    ; #t where every element of LST is a number or nil, and one is a number.
+    (method %numbers-or-nil? (self lst)
+      (let go ((left lst) (seen #f))
+        (match
+          ((null? left) seen)
+          ((null? (first left)) (go (rest left) seen))
+          ((if (number? (first left)) #t (float? (first left))) (go (rest left) #t))
+          (#t #f))))
 
     (method %of-any (self lst)
       (new-from self (list (lit encoding) (lit any) (lit data) (Vector from-list lst)))))
@@ -281,6 +304,39 @@
       (example "(((Column from '(1.5 2.5 4.0)) differ 2.5) ->list)" "(1.0 0.0 1.0)"))
     (self %compare (lit differ) other #f))
 
+  ; --- missing values ----------------------------------------------------------
+  (method missing (self)
+    (doc "A mask: 1.0 where the value is missing and 0.0 where it is not. A missing number is a NaN, and in a column of encoding any the missing value is nil. The statistics of a column with a missing number answer a NaN; filter by present first to leave the missing rows out."
+      (known-as "isna" "isnull" "is null")
+      (returns Column "An f64 column of 1.0 and 0.0")
+      (example "(((Column from (list 1.5 () 4.0)) missing) ->list)" "(0.0 1.0 0.0)"))
+    (if (eq? (field (lit encoding)) (lit any))
+      (let ((one (float-of 1)) (zero (float-of 0)))
+        (Column from (Tensor from (List map (fn (_ v) (if (null? v) one zero)) (self ->list)) (lit f64))))
+      (let ((t (field (lit data)))) (Column from (t differ t)))))
+  (method present (self)
+    (doc "A mask: 1.0 where the value is not missing and 0.0 where it is, as missing reads it."
+      (known-as "notna" "notnull" "is not null")
+      (returns Column "An f64 column of 1.0 and 0.0")
+      (example "(((Column from (list 1.5 () 4.0)) present) ->list)" "(1.0 0.0 1.0)"))
+    (if (eq? (field (lit encoding)) (lit any))
+      (let ((one (float-of 1)) (zero (float-of 0)))
+        (Column from (Tensor from (List map (fn (_ v) (if (null? v) zero one)) (self ->list)) (lit f64))))
+      (let ((t (field (lit data)))) (Column from (t equal t)))))
+  (method fill-missing (self (param value ANY "What stands where a value is missing: a number for a column of numbers"))
+    (doc "The column with value where a value is missing, and every other value as it is."
+      (known-as "fillna" "coalesce")
+      (returns Column "A column with no missing value; self where none is missing")
+      (example "(((Column from (list 1.5 () 4.0)) fill-missing 0.0) ->list)" "(1.5 0.0 4.0)"))
+    (if (eq? (field (lit encoding)) (lit any))
+      (Column from (List map (fn (_ v) (if (null? v) value v)) (self ->list)))
+      (let ((t (field (lit data))))
+        (let ((places (Tensor %unpack-rows ((t differ t) %mask-packed))))
+          (if (null? places) self
+            (let ((out (t copy)))
+              (List map (fn (_ i) (out set! i value)) places)
+              (Column from out)))))))
+
   (method map (self (param f CALLABLE "Called with each value"))
     (doc "The column of what f answers of each value, in order. Its encoding is read from the answers, as from reads it."
       (returns Column "A column of the answers")
@@ -365,8 +421,9 @@
                 (List map (fn (_ p) (Column from (List ref 1 p))) pairs)))
 
     (method from-csv (self (param text STRING "csv text whose first row names the columns"))
-      (doc "A table read from csv text, the first row naming the columns. A column whose every field reads as a number becomes f64; any other holds its fields as strings."
+      (doc "A table read from csv text, the first row naming the columns. A column whose every field reads as a number becomes f64; any other holds its fields as strings. An empty field is a missing value: a NaN in a column of numbers, nil in a column of strings."
         (returns Table "The table")
+        (example "((((Table from-csv \"name,age\\nida,7\\nbo,\\n\") column 'age) missing) ->list)" "(0.0 1.0)")
         (example "(((Table from-csv \"name,age\\nida,7\\nbo,9\\n\") column 'age) ->list)" "(7.0 9.0)")
         (example "(((Table from-csv \"name,age\\nida,7\\nbo,9\\n\") column 'name) ->list)" "(\"ida\" \"bo\")"))
       (import x/codec/csv)
@@ -384,12 +441,17 @@
                       (List map (fn (_ fields) (Column from (self %read fields)))
                                 (%transpose (rest parsed))))))))
 
-    ; FIELDS as Floats where every one reads as a number, else as they are.
+    ; FIELDS as Floats where every one that is not empty reads as a number
+    ; and one does, else as they are; an empty field is nil either way.
     (method %read (self fields)
-      (let go ((left fields) (acc ()))
-        (if (null? left) (List reverse acc)
-          (let ((x (guard (e ()) (float-of (first left)))))
-            (if (float? x) (go (rest left) (pair x acc)) fields)))))
+      (let ((text (fn (_) (List map (fn (_ s) (if (equal? s "") () s)) fields))))
+        (let go ((left fields) (acc ()) (seen #f))
+          (match
+            ((null? left) (if seen (List reverse acc) (text)))
+            ((equal? (first left) "") (go (rest left) (pair () acc) seen))
+            (#t
+              (let ((x (guard (e ()) (float-of (first left)))))
+                (if (float? x) (go (rest left) (pair x acc) #t) (text))))))))
 
     (method %of (self names columns)
       (let ((rows (if (null? columns) 0 ((first columns) size))))
