@@ -1,8 +1,8 @@
 ; word-form-jit.x -- (fn ...) forms over machine words compiled, and
 ; adopted only when they agree with their pure-x twins.
 ;
-; Loaded lazily by the libraries whose loops are word forms (x/gfx/canvas,
-; x/audio/mixer, x/codec/wav), never on their import: this module pulls the JIT
+; Loaded lazily by the libraries whose loops are word forms (x/audio/mixer,
+; x/codec/wav, gfx/canvas), never on their import: this module pulls the JIT
 ; toolchain, and each library stays usable and correct on a host with no
 ; JIT.  It compiles the forms a library hands it, the same forms its pure-x
 ; loops are made from (x/tool/word-form), and answers them only after the
@@ -32,4 +32,4 @@
 
 (doc (provide x/tool/word-form-jit word-form-jit-make)
   "Loops compiled by the JIT (ARM64 and x86-64 backends) from their word forms, adopted only after a library's check finds they agree with the pure-x loops: what (Canvas jit!) and (Mixer jit!) build."
-  (sample "(do (import x/gfx/canvas) (Canvas jit!))" "#t where a JIT backend is, #f elsewhere"))
+  (sample "(do (import x/audio/mixer) (Mixer jit!))" "#t where a JIT backend is, #f elsewhere"))

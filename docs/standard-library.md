@@ -25,7 +25,7 @@ in it; it does not repeat the reference.
 | `lib/x/codec/` | JSON, XON, CSV, Markdown, HTML, PNG, base64, hex, UTF-8, structs; deflate, zlib, bzip2 and lzma; the MD5, SHA-1, SHA-2 and SHA-3 digests; AES, ChaCha20-Poly1305, RSA, ECDSA, Ed25519 and X25519 |
 | `lib/x/net/` | TLS, X.509 and HTTP |
 | `lib/x/tui/` | the terminal screen, windows, tabs, styles and pictures |
-| `lib/x/gfx/`, `lib/x/audio/` | a drawing canvas; a mixer and a tracker |
+| `lib/x/audio/` | a mixer and a tracker |
 | `lib/x/test/` | assertions |
 | `lib/x/reader/` | the tokenizer's intrinsics, the lexer, the analyser, and the literal, quasiquote and indentation readers |
 | `lib/x/repl/` | the line editor, colour, the banner and the loop a lang hands its session to |
