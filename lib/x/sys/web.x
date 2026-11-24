@@ -13,6 +13,8 @@
 ;   (Web open title w h scale)  -> a window: a w x h RGBA picture
 ;   (Web url win)               -> the page's address
 ;   (Web scaling! win mode)     -> win; whole or fit, as Sdl's
+;   (Web density win)           -> the screen's pixels to the page's, 1 until told
+;   (Web picture! win w h)      -> win, showing a w x h picture from now on
 ;   (Web canvas win)            -> a zeroed RGBA buffer the window's size
 ;   (Web draw! win buf)         -> the buffer kept as the frame, not yet sent
 ;   (Web present! win)          -> the frame sent to the page
@@ -44,7 +46,8 @@
 ;
 ; Messages to the page are text, a word and its arguments, or binary, a tag
 ; byte then data: F and the RGBA bytes, A and a stream number then samples.
-; Messages from the page are an event's words: "key-down 97 1 0".  The
+; Messages from the page are an event's words: "key-down 97 1 0", or
+; "density 2", the screen's pixels to the page's, which is kept.  The
 ; mouse's places are in the picture's pixels, mapped through the canvas's
 ; box on the page, whole and toward zero, below 0 or past the size in the
 ; bars beside it, as Sdl's poll gives them with the window.  A motion's held
@@ -80,7 +83,8 @@ var named={ArrowUp:1073741906,ArrowDown:1073741905,ArrowLeft:1073741904,ArrowRig
 var punct={Minus:'-',Equal:'=',BracketLeft:'[',BracketRight:']',Backslash:String.fromCharCode(92),Semicolon:';',Quote:String.fromCharCode(39),Comma:',',Period:'.',Slash:'/',Backquote:'`'};
 var BN=['south','east','west','north','left-shoulder','right-shoulder','','','back','start','left-stick','right-stick','dpad-up','dpad-down','dpad-left','dpad-right','guide'];
 var AN=['left-x','left-y','right-x','right-y'];
-function fit(){if(!W)return;var vw=innerWidth,vh=innerHeight,s=Math.min(vw/W,vh/H);if(mode=='whole')s=Math.max(1,Math.floor(s));var cw=Math.round(W*s),ch=Math.round(H*s);c.style.width=cw+'px';c.style.height=ch+'px';c.style.left=((vw-cw)>>1)+'px';c.style.top=((vh-ch)>>1)+'px';}
+function fit(){dens();if(!W)return;var d=devicePixelRatio||1,vw=innerWidth,vh=innerHeight,s=Math.min(vw*d/W,vh*d/H);if(mode=='whole')s=Math.max(1,Math.floor(s));var cw=Math.round(W*s/d),ch=Math.round(H*s/d);c.style.width=cw+'px';c.style.height=ch+'px';c.style.left=((vw-cw)>>1)+'px';c.style.top=((vh-ch)>>1)+'px';}
+var told=0;function dens(){var n=Math.max(1,Math.round(devicePixelRatio||1));if(n!=told&&ws&&ws.readyState==1){told=n;ws.send('density '+n);}}
 addEventListener('resize',fit);
 function send(t){if(ws&&ws.readyState==1)ws.send(t);}
 function full(on){var d=document;if(on){want=!d.fullscreenElement;if(want&&d.documentElement.requestFullscreen)d.documentElement.requestFullscreen().then(function(){want=false;},function(){});}else{want=false;if(d.fullscreenElement)d.exitFullscreen();}}
@@ -98,7 +102,7 @@ var ab=ac.createBuffer(s.chans,n,s.rate);for(var ch=0;ch<s.chans;ch++){var d=ab.
 var src=ac.createBufferSource();src.buffer=ab;src.connect(ac.destination);var t=Math.max(s.next,ac.currentTime+0.05);src.start(t);s.next=t+ab.duration;s.nodes.push(src);
 src.onended=function(){var i=s.nodes.indexOf(src);if(i>=0)s.nodes.splice(i,1);};}
 function data(buf){var b=new Uint8Array(buf);if(b[0]==70){if(img&&b.length>=1+W*H*4){img.data.set(b.subarray(1,1+W*H*4));g.putImageData(img,0,0);}}else if(b[0]==65)play(b[1],buf);}
-function connect(){ws=new WebSocket('ws://'+location.host+'/socket');ws.binaryType='arraybuffer';
+function connect(){ws=new WebSocket('ws://'+location.host+'/socket');ws.binaryType='arraybuffer';ws.onopen=function(){told=0;dens();};
 ws.onmessage=function(e){if(typeof e.data=='string')control(e.data.split(' '));else data(e.data);};
 ws.onclose=function(){ws=null;setTimeout(connect,1000);};}
 function wake(){if(!ac){var A=window.AudioContext||window.webkitAudioContext;if(A)ac=new A();}if(ac&&ac.state=='suspended')ac.resume();if(want)full(true);}
@@ -198,6 +202,7 @@ connect();requestAnimationFrame(padLoop);
         ((eq? field (lit w)) 2) ((eq? field (lit h)) 3) ((eq? field (lit title)) 4)
         ((eq? field (lit unread)) 5) ((eq? field (lit events)) 6) ((eq? field (lit frame)) 7)
         ((eq? field (lit scaling)) 8) ((eq? field (lit fullscreen)) 9) ((eq? field (lit streams)) 10)
+        ((eq? field (lit density)) 11)
         (#t (Err raise (lit value) "Web: no such field" field))))
 
     (method %window (self)
@@ -217,13 +222,14 @@ connect();requestAnimationFrame(padLoop);
         (Err raise (lit state) "Web open: a window is open already" ()))
       (def where (first (Web %listen-cell)))
       (def lfd (Socket tcp-listen-on (first where) (List ref 1 where)))
-      (def win (Vector make 11 ()))
+      (def win (Vector make 12 ()))
       (Vector set! 0 lfd win)
       (Web %set! win (lit w) w)
       (Web %set! win (lit h) h)
       (Web %set! win (lit title) title)
       (Web %set! win (lit scaling) (lit whole))
       (Web %set! win (lit fullscreen) #f)
+      (Web %set! win (lit density) 1)
       (%set-first! (Web %window-cell) win)
       (def line (Str8 append "Web: " title " is at " (Web url win) "\n"))
       (File write 2 line (Str8 length line))
@@ -422,7 +428,7 @@ connect();requestAnimationFrame(padLoop);
                     (let ((payload (Web %unmask (List take len (List drop head bytes))
                                                 (if masked (List take 4 (List drop (+ 2 len-n) bytes)) ()))))
                       (match
-                        ((= op 1) (Web %queue! win (Web %event payload)))
+                        ((= op 1) (Web %take! win (Web %event payload)))
                         ((= op 8) (Web %drop! win))
                         (#t ()))
                       (unless (null? (Web %ref win (lit page)))
@@ -477,6 +483,15 @@ connect();requestAnimationFrame(padLoop);
       (ptr-set! p n 0 1)
       s)
 
+    (method %take! (self (param win VECTOR "A window from open") (param event LIST "What a text message said"))
+      (doc "Act on what the page said: its density kept, anything else queued as an event."
+        (returns ANY "nil")
+        (sample "(Web %take! win (list (lit density) 2))" "nil"))
+      (if (and (eq? (first event) (lit density)) (= (List length event) 2))
+        (Web %set! win (lit density) (List ref 1 event))
+        (Web %queue! win event))
+      ())
+
     (method %queue! (self (param win VECTOR "A window from open") (param event LIST "An event"))
       (doc "Put an event at the end of the queue poll answers from."
         (returns ANY "nil")
@@ -495,6 +510,27 @@ connect();requestAnimationFrame(padLoop);
       (Web %set! win (lit scaling) mode)
       (Web %serve! win)
       (Web %tell! win (Str8 append "scaling " (Str8 str mode)))
+      win)
+
+    (method density (self (param win VECTOR "A window from open"))
+      (doc "The screen's pixels to the page's, as the page last said: 2 on most high-density screens, 1 until a page has connected."
+        (note "A program drawing its picture at this many times its size and setting it with picture! is shown sharp; the page sends it again when the tab moves to another screen.")
+        (returns INTEGER "Whole pixels a page pixel, at least 1")
+        (sample "(Web density win)" "2"))
+      (Web %serve! win)
+      (Web %ref win (lit density)))
+
+    (method picture! (self (param win VECTOR "A window from open")
+                           (param w INTEGER "Picture width in pixels")
+                           (param h INTEGER "Picture height in pixels"))
+      (doc "Show a w x h picture from now on, the page told; the frame drawn before is dropped."
+        (returns VECTOR "The window")
+        (sample "(Web picture! win 640 400)" "win"))
+      (Web %set! win (lit w) w)
+      (Web %set! win (lit h) h)
+      (Web %set! win (lit frame) ())
+      (Web %serve! win)
+      (Web %tell! win (Str8 append "size " (Str8 str w) " " (Str8 str h)))
       win)
 
     (method canvas (self (param win VECTOR "A window from open"))

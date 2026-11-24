@@ -12,6 +12,9 @@
 ;                                  scale, kept at whole multiples on resize
 ;   (Sdl scaling! win mode)     -> win; mode whole (whole multiples) or fit
 ;                                  (as large as fits, its shape kept)
+;   (Sdl density win)           -> the window's pixels a point, whole: 2 on most
+;                                  high-density screens
+;   (Sdl picture! win w h)      -> the window showing a w x h picture from now on
 ;   (Sdl canvas win)            -> a zeroed RGBA buffer the window's size
 ;   (Sdl draw! win buf)         -> the buffer drawn, not yet presented
 ;   (Sdl present! win)          -> the drawn frame on screen
@@ -54,7 +57,7 @@
 (import x/type/class)
 (import x/core/list)
 (import x/codec/bytes)
-(import x/core/doors ffi-dlopen ffi-dlsym int- int->ptr int& int< int<< int= int>> int| ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! str->ptr str-make mem-copy)
+(import x/core/doors ffi-dlopen ffi-dlsym int- int->ptr int& int/ int< int<< int= int>> int| ptr->int ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! str->ptr str-make mem-copy)
 
 (def-class Sdl ()
   (doc "A window that shows an RGBA pixel buffer, its keyboard and window events, and streams of sound, through the host's SDL3 loaded with dlopen."
@@ -78,6 +81,7 @@
     (%letterbox 2)
     (%nearest 0)
     (%resizable 32)
+    (%high-density 8192)
     (%event-size 128)
     (%keys (lit ((up . 1073741906) (down . 1073741905) (left . 1073741904) (right . 1073741903)
             (escape . 27) (return . 13) (backspace . 8) (tab . 9) (space . 32))))
@@ -155,11 +159,12 @@
                        (param h INTEGER "Picture height in pixels")
                        (param scale INTEGER "Initial window size, in multiples of the picture"))
       (doc "Start SDL's video and open a resizable window that shows a w x h RGBA picture, scaled by whole multiples with nearest-pixel sampling."
+        (note "The window is w*scale by h*scale in the screen's points and has all of a high-density screen's pixels, so the picture is scaled in pixels: density says how many a point, and picture! sets a picture that many times larger to be drawn sharp.")
         (returns LIST "The window: (window renderer texture w h)")
         (sample "(Sdl open \"x\" 320 200 3)" "a 960 x 600 window"))
       (Sdl %ok (ptr-call (Sdl %sym "SDL_Init") (| (Sdl %init-video) (Sdl %init-gamepad))) "init")
       (def win (Sdl %made (ptr-call (Sdl %sym "SDL_CreateWindow") title (* w scale) (* h scale)
-                                    (Sdl %resizable))
+                                    (| (Sdl %resizable) (Sdl %high-density)))
                           "window"))
       (def ren (Sdl %made (ptr-call (Sdl %sym "SDL_CreateRenderer") win ()) "renderer"))
       (Sdl %ok (ptr-call (Sdl %sym "SDL_SetRenderLogicalPresentation") ren w h (Sdl %integer-scale))
@@ -180,6 +185,40 @@
                                 (#t (Err raise (lit value) "Sdl scaling!: the mode is whole or fit" mode))))
                "logical size")
       win)
+
+    (method density (self (param win LIST "A window from open"))
+      (doc "The window's pixels a point, whole: 2 on most high-density screens, 1 elsewhere; it changes as the window moves between screens."
+        (returns INTEGER "Whole pixels a point, at least 1")
+        (sample "(Sdl density win)" "2"))
+      (def b (first (Bytes zeros 16)))
+      (def p (str->ptr b))
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_GetWindowSize") (first win) p (int->ptr (+ (ptr->int p) 4))) "window size")
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_GetWindowSizeInPixels") (first win) (int->ptr (+ (ptr->int p) 8))
+                         (int->ptr (+ (ptr->int p) 12)))
+               "window pixels")
+      (def points (ptr-ref p 0 4))
+      (if (< points 1) 1
+        (let ((n (int/ (+ (ptr-ref p 8 4) (int/ points 2)) points)))
+          (if (< n 1) 1 n))))
+
+    (method picture! (self (param win LIST "A window from open")
+                           (param w INTEGER "Picture width in pixels")
+                           (param h INTEGER "Picture height in pixels"))
+      (doc "Show a w x h picture in the window from now on, scaled as before; the window keeps its size."
+        (returns LIST "The window with its new picture: use it in place of win")
+        (sample "(Sdl picture! win 640 400)" "(window renderer texture 640 400)"))
+      (def ren (List ref 1 win))
+      (def b (first (Bytes zeros 12)))
+      (def p (str->ptr b))
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_GetRenderLogicalPresentation") ren p (int->ptr (+ (ptr->int p) 4))
+                         (int->ptr (+ (ptr->int p) 8)))
+               "logical size")
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_SetRenderLogicalPresentation") ren w h (ptr-ref p 8 4)) "logical size")
+      (ptr-call (Sdl %sym "SDL_DestroyTexture") (List ref 2 win))
+      (def tex (Sdl %made (ptr-call (Sdl %sym "SDL_CreateTexture") ren (Sdl %rgba32) (Sdl %streaming) w h)
+                          "texture"))
+      (Sdl %ok (ptr-call (Sdl %sym "SDL_SetTextureScaleMode") tex (Sdl %nearest)) "scale mode")
+      (list (first win) ren tex w h))
 
     (method canvas (self (param win LIST "A window from open"))
       (doc "A zeroed RGBA buffer the size of the window's picture: transparent black."
