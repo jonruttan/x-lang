@@ -10,7 +10,7 @@
 
 (import x/core/list)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(import x/core/doors buf-tok char->int int% int* int+ int- int/ int< int= str-append type-by-atom type-from-cell type-make type-make-instance type-of type-push-analyse type-push-call type-push-op type?)
+(import x/core/doors char->int int% int* int+ int- int/ int< int= str-append type-by-atom type-from-cell type-make type-make-instance type-of type-push-call type-push-op type?)
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 
@@ -44,8 +44,6 @@
 ; stays the same value in each of them.
 (def %long-min (int- (int- 0 %long-max) 1))
 
-; Safe max decimal digits for native integer (conservative: 2 per byte)
-(def %int-max-digits (int* %word-size 2))
 
 ; Find largest power of 10 whose square fits in native integer
 ; This gives us the bigint base and digits-per-limb
@@ -366,7 +364,6 @@
 
 ; Forward declare bigint and reader
 (def bigint ())
-(def %bigint-read ())
 
 (def %make-bigint
   (fn (_ sign limbs)
@@ -702,39 +699,11 @@
 
 ; --- Type registration ---
 
-; Analyser: consumes [+-]?[0-9]+ but only scores when too many digits for int
-(def big-digits ())
-(set! big-digits
-  (fn (_ buffer score chr)
-    (if (if (>= chr 48) (<= chr 57) #f)
-      big-digits
-      (do (%buffer-unread buffer)
-          ; Only score if digit count exceeds native integer range
-          (if (int< %int-max-digits (%buffer-len buffer))
-            (%score-set score 1 buffer)
-            ())))))
-
-(def big-sign-state
-  (fn (_ buffer score chr)
-    (if (if (>= chr 48) (<= chr 57) #f)
-      big-digits
-      ())))
-
-(def %big-analyse
-  (fn (_ buffer score chr)
-    (if (if (>= chr 48) (<= chr 57) #f)
-      big-digits
-      (if (if (= chr 45) #t (= chr 43))
-        big-sign-state
-        ()))))
-
 (set! bigint
   (type-make "BIGINT"
     (list
       (pair 'write
         (fn (_ self) (display (%bigint-to-string (first (first self)) (rest (first self))))))
-      (pair 'analyse %big-analyse)
-      (pair 'read (fn (_ . args) (%bigint-read (first args))))
       (pair 'from
         (list
           (pair (type-of 42)
@@ -749,82 +718,6 @@
             (fn (_ self) (%bigint-to-int (first (first self)) (rest (first self)))))
           (pair (type-of "")
             (fn (_ self) (%bigint-to-string (first (first self)) (rest (first self))))))))))
-
-; --- Reader (set after make-type so closure captures the real bigint) ---
-; Through %make-bigint for the same reason as %bigint-from-string: the
-; capped analyser triggers on digit COUNT, and a 17-19 digit literal that
-; fits the native int must come out native, not as a stealth bigint.
-(set! %bigint-read
-  (fn (_ . args)
-    (let ((parsed (%bigint-parse-digits (buf-tok (first args)))))
-      (%make-bigint (first parsed) (rest parsed)))))
-
-; --- Cap the integer analyser ---
-; Push a capped analyser onto the integer type's analyse stack
-; that rejects numbers with too many digits for native int
-
-; Type struct navigation via type.x (available from x-core.x boot)
-(def %int-type (type-by-atom (type-of 0)))
-
-(def int-capped-digits ())
-(set! int-capped-digits
-  (fn (_ buffer score chr)
-    (if (if (>= chr 48) (<= chr 57) #f)
-      int-capped-digits
-      (do (%buffer-unread buffer)
-          (if (not (int< %int-max-digits (%buffer-len buffer)))
-            (%score-set score 1 buffer)
-            ())))))
-
-; Hex literals (#507): a leading 0 may open 0x/0X, and the engine's own
-; xdigits machine is shadowed by this push, so the cap must read hex too.
-; "0x" plus 16 hex digits fills the 64-bit word, so the cap is 18 bytes;
-; a bare "0x" declines (no digit was consumed).  Character constants
-; throughout: chr arrives as the character CODE and eq?/< compare
-; operand words (engine law 1), so #\x and 120 are the same test.
-(def %int-capped-xdigits ())
-(set! %int-capped-xdigits
-  (fn (_ buffer score chr)
-    (match
-      ((if (>= chr #\0) (<= chr #\9) #f) %int-capped-xdigits)
-      ((if (>= chr #\a) (<= chr #\f) #f) %int-capped-xdigits)
-      ((if (>= chr #\A) (<= chr #\F) #f) %int-capped-xdigits)
-      (#t (do (%buffer-unread buffer)
-              (if (not (int< 18 (%buffer-len buffer)))
-                (%score-set score 1 buffer)
-                ()))))))
-
-(def %int-capped-xfirst
-  (fn (_ buffer score chr)
-    (match
-      ((if (>= chr #\0) (<= chr #\9) #f) %int-capped-xdigits)
-      ((if (>= chr #\a) (<= chr #\f) #f) %int-capped-xdigits)
-      ((if (>= chr #\A) (<= chr #\F) #f) %int-capped-xdigits)
-      (#t ()))))
-
-(def int-capped-base
-  (fn (_ buffer score chr)
-    (if (if (= chr #\x) #t (= chr #\X))
-      %int-capped-xfirst
-      (int-capped-digits buffer score chr))))
-
-(def int-capped-sign
-  (fn (_ buffer score chr)
-    (if (= chr #\0)
-      int-capped-base
-      (if (if (>= chr #\1) (<= chr #\9) #f)
-        int-capped-digits
-        ()))))
-
-(def %int-capped-analyse
-  (fn (_ buffer score chr)
-    (match
-      ((= chr #\0) int-capped-base)
-      ((if (>= chr #\1) (<= chr #\9) #f) int-capped-digits)
-      ((if (= chr #\-) #t (= chr #\+)) int-capped-sign)
-      (#t ()))))
-
-(type-push-analyse %int-type %int-capped-analyse)
 
 ; --- Type ops: the generic operators dispatch here for bigint operands ---
 ; Handlers receive raw operands; the non-bigint side is always an int (a wider
@@ -916,8 +809,8 @@
 (doc (provide x/num/bigint Bigint
   bigint bigint? bigint-type ensure-big
   big-add big-sub big-mul big-div big-mod big-eq big-lt
-  big-limbs bigint-digits-per-limb bigint-base
-  big-digits big-sign-state int-capped-base int-capped-digits int-capped-sign)
+  big-limbs bigint-digits-per-limb bigint-base)
+  (note "A literal past the native range is x/num/bigint/literal's: this module installs no reader syntax.")
   (note "Auto-promotes when integers exceed native range; the generic operators")
   (note "dispatch bigint operands through the type ops. API: (Bigint + a b), ...")
   (example "(* 18446744073709551616 2)" "36893488147419103232")

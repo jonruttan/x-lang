@@ -32,6 +32,7 @@ answers are whole, or compare within a rounding.
 ### the least-squares line through points no line passes through
 
 ```x
+(import x/num/float/literal)
 (import x/num/model)
 (let ((f ((Model linear) fit '(1 2 3 4 5) '(2.2 4.1 6.2 7.9 10.1)))
       (near (fn (_ a b) (let ((d (- a b))) (< (* d d) 1.0e-18)))))
@@ -109,6 +110,7 @@ answers are whole, or compare within a rounding.
 ### the residuals' deviation, and a slope's standard error, statistic and significance
 
 ```x
+(import x/num/float/literal)
 (import x/num/model)
 (let ((f ((Model linear) fit '(0 1 2) '(0 0 3)))
       (near (fn (_ a b) (let ((d (- a b))) (< (* d d) 1.0e-24)))))
@@ -123,6 +125,7 @@ answers are whole, or compare within a rounding.
 ### a line through scattered points, against the values worked by hand
 
 ```x
+(import x/num/float/literal)
 (import x/num/model)
 (let ((f ((Model linear) fit '(1 2 3 4 5) '(2.2 4.1 6.2 7.9 10.1)))
       (near (fn (_ a b) (let ((d (- a b))) (< (* d d) 1.0e-16)))))
@@ -149,6 +152,7 @@ answers are whole, or compare within a rounding.
 ### a predictor that matters has a small significance, one that does not a large one
 
 ```x
+(import x/num/float/literal)
 (import x/num/model)
 (let ((f ((Model linear) fit '((1 1) (2 -1) (3 -1) (4 1) (5 1) (6 -1)) '(2.1 3.9 6.2 7.8 10.1 11.9))))
   (list (< ((f significance) ref 0) 0.001) (< 0.1 ((f significance) ref 1))))

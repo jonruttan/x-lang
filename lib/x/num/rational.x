@@ -7,7 +7,7 @@
 
 (import x/num/float float f-div int->float)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(import x/core/doors buf-tok int% int* int+ int- int/ int< int= str-append type-by-atom type-from-cell type-make type-make-instance type-of type-push-call type-push-op type?)
+(import x/core/doors int% int* int+ int- int/ int< int= str-append type-by-atom type-from-cell type-make type-make-instance type-of type-push-call type-push-op type?)
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 
@@ -25,13 +25,11 @@
 
 ;
 ; Rational values are stored as (numerator . denominator) pairs,
-; auto-reduced via GCD on construction. The tokenizer matches
-; [+-]?[0-9]+/[0-9]+ and outscores the integer tokenizer.
+; auto-reduced via GCD on construction.
 ;
 ; Promotion chain: integer -> rational -> float
-; Forward-declare reader and type handle
+; Forward-declare the type handle
 
-(def %rational-read ())
 (def rational ())
 ; --- GCD (Euclidean algorithm) ---
 
@@ -56,6 +54,20 @@
       (if (= (%cvt (%str-ref s i) %int) 47)
         i
         (self s (int+ i 1) len)))))
+; --- A component from text ---
+
+; A component is the integer its digits write.  A run the word cannot wrap
+; (two digits a byte, less one) converts directly.  A longer one is asked of
+; the BIGINT type when the program has one, which answers a plain integer
+; where the digits fit the word; with no bigint it converts as a short one
+; does.
+(def %rat-short (int- (int* 2 %word-size) 1))
+(def %rat-component
+  (fn (_ s)
+    (if (int< %rat-short (%str-length s))
+      (let ((big (Type named BIGINT)))
+        (%cvt s (if (null? big) %int big)))
+      (%cvt s %int))))
 ; --- Constructor: auto-reduce and normalize sign ---
 
 (def make-rational
@@ -70,45 +82,6 @@
             ; Reduce to integer if denominator is 1
             (if (int= rd 1) rn
               (type-make-instance rational (pair rn rd)))))))))
-; --- Tokenizer state machine: [+-]?[0-9]+/[0-9]+ ---
-; After '/' — must see at least one digit
-
-(def rat-denom ())
-
-(set! rat-denom
-  (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57))
-      (%seq (%score-set score 1 buffer) rat-denom)
-      (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
-
-(def rat-first-denom
-  (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57))
-      (%seq (%score-set score 1 buffer) rat-denom)
-      ())))
-; Integer digits before '/'
-
-(def rat-numer ())
-
-(set! rat-numer
-  (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57))
-      rat-numer
-      (if (= chr 47) rat-first-denom ()))))
-
-; The state after a leading sign: digits continue into the numerator, anything
-; else rejects. A module-level def, NOT an inline closure, for two reasons --
-; the interpreted analyser below would otherwise allocate a fresh closure on
-; every '-'/'+' char it sees, and the COMPILED analyser in
-; boot/tower-compiled.x captures this value ONCE as a free variable. An
-; anonymous closure there is rooted by nothing after the compile's free-variable alist is cleared,
-; so a later collect frees the code the compiled analyser jumps to (#49).
-; Every other tower stage already uses a module-level def for its sign state
-; (%big-sign-state, %int-capped-sign, %float-neg-int, %cx-neg); rational was
-; the odd one out.
-(def rat-sign
-  (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) rat-numer ())))
 ; --- Rational type ---
 
 (set! rational
@@ -120,15 +93,6 @@
         (fn (_ self)
           (display (first (first self)) "/" (rest (first self)))))
       (pair
-        'analyse
-        (fn (_ buffer score chr)
-          (match
-            ((and (>= chr 48) (<= chr 57)) rat-numer)
-            ((= chr 45) rat-sign)
-            ((= chr 43) rat-sign)
-            (#t ()))))
-      (pair 'read (fn (_ . args) (%rational-read (first args))))
-      (pair
         'from
         (list
           (pair (type-of 42) (fn (_ value) (make-rational value 1)))
@@ -138,9 +102,9 @@
               (let ((pos (%rat-find-slash value 0 (%str-length value))))
                 (if pos
                   (make-rational
-                    (%cvt (%substring value 0 pos) %int)
-                    (%cvt
-                      (%substring value (int+ pos 1) (%str-length value)) %int))
+                    (%rat-component (%substring value 0 pos))
+                    (%rat-component
+                      (%substring value (int+ pos 1) (%str-length value))))
                   ()))))))
       (pair
         'to
@@ -314,30 +278,6 @@
         (%rat-div-policy 1 (first args))
         (%fold %rat-div-policy (first args) (rest args))))))
 
-; --- Reader ---
-
-; A component is read as the same digits written alone would be.  A run the
-; word cannot wrap (two digits a byte, less one) converts directly; a longer
-; one goes through the reader, whose analysers make it a bigint when the
-; tower has one -- past 2^63 on an 8-byte word, past 2^31 on a 4-byte one.
-(def %rat-short (int- (int* 2 %word-size) 1))
-(def %rat-tok-read (prim-ref (lit tok) (lit read-str)))
-(def %rat-component
-  (fn (_ s)
-    (if (int< %rat-short (%str-length s))
-      (first (%rat-tok-read (%base) (str-append s " ")))
-      (%cvt s %int))))
-
-(set! %rational-read
-  (fn (_ . args)
-    (let ((tok (buf-tok (first args))))
-      (let ((pos (%rat-find-slash tok 0 (%str-length tok))))
-        (if pos
-          (make-rational
-            (%rat-component (%substring tok 0 pos))
-            (%rat-component (%substring tok (int+ pos 1) (%str-length tok))))
-          ())))))
-
 (import x/type/class)
 
 (def-class Rational ()
@@ -418,9 +358,8 @@
 
 (doc (provide x/num/rational Rational
   rational rational-type rat? ensure-rat make-rational
-  rat-add rat-sub rat-mul rat-div rat-mod rat-eq rat-lt
-  rat-numer rat-denom rat-first-denom rat-sign)
-  (note "Literal syntax: 1/3, -2/7. The generic operators dispatch rational")
-  (note "operands through the type ops; / promotes inexact int division.")
+  rat-add rat-sub rat-mul rat-div rat-mod rat-eq rat-lt)
+  (note "The literal 1/3 is x/num/rational/literal's: this module installs no reader syntax.")
+  (note "The generic operators dispatch rational operands through the type ops; / promotes inexact int division.")
   (example "(+ 1/3 1/6)" "1/2")
   "Exact rational number arithmetic, homed on the Rational class.")

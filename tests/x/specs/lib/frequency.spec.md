@@ -50,6 +50,7 @@ largest distance between two vectors of numbers, below 1e-9.
 ### length 1 is the identity
 
 ```x
+(import x/num/complex/literal)
 (import x/num/frequency)
 (list (Frequency fft #(7)) (Frequency fft #(3+4i)))
 ```
@@ -70,6 +71,8 @@ largest distance between two vectors of numbers, below 1e-9.
 ### radix-2 matches dft on complex input, n = 8
 
 ```x
+(import x/num/float/literal)
+(import x/num/complex/literal)
 (do (import x/num/frequency)
   (def near? (fn (_ a b)
     (< (Vector fold (fn (_ m x) (if (< m x) x m)) 0
@@ -85,6 +88,7 @@ largest distance between two vectors of numbers, below 1e-9.
 ### Bluestein matches dft for n = 3, 5, 6, 7, 12
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/frequency)
   (def near? (fn (_ a b)
     (< (Vector fold (fn (_ m x) (if (< m x) x m)) 0
@@ -100,6 +104,7 @@ largest distance between two vectors of numbers, below 1e-9.
 ### the inverse matches idft for n = 6 and 8
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/frequency)
   (def near? (fn (_ a b)
     (< (Vector fold (fn (_ m x) (if (< m x) x m)) 0
@@ -117,6 +122,7 @@ largest distance between two vectors of numbers, below 1e-9.
 ### inverse undoes forward on one plan, n = 16 and n = 10
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/frequency)
   (def near? (fn (_ a b)
     (< (Vector fold (fn (_ m x) (if (< m x) x m)) 0
@@ -146,6 +152,7 @@ largest distance between two vectors of numbers, below 1e-9.
 ### forward! overwrites the two float vectors
 
 ```x
+(import x/num/float/literal)
 (import x/num/frequency)
 (let ((re (Vector of 1.0 2.0 3.0 4.0)) (im (Vector of 0.0 0.0 0.0 0.0)))
   ((Frequency plan 4) forward! re im)
@@ -157,6 +164,7 @@ largest distance between two vectors of numbers, below 1e-9.
 ### inverse! returns them, on a Bluestein length
 
 ```x
+(import x/num/float/literal)
 (do (import x/num/frequency)
   (def re (Vector of 1.0 -2.0 0.5))
   (def im (Vector of 0.0 1.0 3.0))
@@ -174,6 +182,7 @@ largest distance between two vectors of numbers, below 1e-9.
 ### a length below 1, a mismatched input, mismatched split vectors
 
 ```x
+(import x/num/float/literal)
 (import x/num/frequency)
 (let ((p (Frequency plan 4)))
   (list (guard (e (Err label e)) (Frequency plan 0))

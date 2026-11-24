@@ -4,7 +4,7 @@
 
 (import x/type/class)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(import x/core/doors buf-tok tok-read-str str-append char->int ffi-dlopen ffi-dlsym int% int* int+ int/ int= io-display-to-str obj-make obj-ref obj-set! ptr->int ptr-call ptr-ref str-byte-len str-byte-ref str-byte-sub type-by-atom type-from-cell type-make type-make-instance type-of type-push-call type-push-op type? image-recache-hook! image-transient!)
+(import x/core/doors tok-read-str str-append char->int ffi-dlopen ffi-dlsym int% int* int+ int/ int= io-display-to-str obj-make obj-ref obj-set! ptr->int ptr-call ptr-ref str-byte-len str-byte-ref str-byte-sub type-by-atom type-from-cell type-make type-make-instance type-of type-push-call type-push-op type? image-recache-hook! image-transient!)
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 
@@ -31,13 +31,6 @@
 ; value)` on either; what reads or makes one below asks %word-size, and the
 ; stubs take the two-word form as two arguments a double and give their
 ; answer back through a pointer.
-; The tokenizer's competitive scoring system ensures "3.14" (score 4)
-; outscores the integer match "3" (score 1).
-;
-; Forward-declare reader
-
-(def %float-read ())
-
 (note "Conversion")
 
 ; --- Printing: %.15g, in x ---
@@ -256,6 +249,9 @@
 
 ; State machine for tokenizer: matches [0-9]+\.[0-9]+([eE][+-]?[0-9]+)?
 ; Uses intrinsic scoring — score computed from buffer length.
+; The states are the library's: text converted to a float is read by them
+; on a tokenizer base of this module's own (%read-number below), and
+; x/num/float/literal installs the same states on a program's reader.
 ; The exponent wants a point before it, so 1e3 is no float, and at least
 ; one digit, so a token that stops after its e or its sign is no float at
 ; all.  The printer writes a point before every exponent to match.
@@ -581,6 +577,7 @@
   (fn (_)
     (do (set! %libm ())
         (set! %out ())
+        (set! %text-base ())
         ((fn (self l)
            (if (null? l) ()
              (do (self (rest l))
@@ -635,26 +632,106 @@
 (def str->float
   (fn (_ s) (%strtod s)))
 
-; The number the string S reads as: S read by the base's own tokenizers,
-; a float literal by the float type's, as the reader reads source, and
-; kept only when it is one form and that form a float or an integer.
-; Nil for anything else, so "2.5x" and "abc" convert to nothing.  A space
-; ends the last token, as the reader needs.  An integer's text goes to
-; strtod, which rounds it correctly at any size; the integer read from
-; it may be a BIGINT, or may not fit a word.
-(def %type-name (prim-ref (lit type) (lit name)))
+; --- Text to a float ---
+;
+; The number the string S reads as.  S is read by a tokenizer base of this
+; module's own, which holds four types: blanks, which are dropped; the
+; float literal, by the states above; an integer's digits with an optional
+; sign; and any other run of bytes.  S is a number when it is one token and
+; that token a float or an integer -- so "2.5x" and "abc" convert to
+; nothing, each being a longer token of the fourth type -- and its value is
+; strtod's, which rounds an integer's text correctly at any size.
+;
+; The base is this module's rather than the program's so that the answer is
+; the same whatever literals the program's reader has: a library may write
+; (float-of "0.5") where no float literal is installed.
+;
+; A type registered first wins an equal-length match, so the two number
+; types go in ahead of the one that takes anything.
+(import x/type/base)
+
+(def %text-blank?
+  (fn (_ chr) (if (= chr 32) #t (if (>= chr 9) (<= chr 13) #f))))
+
+(def %text-blank ())
+(set! %text-blank
+  (fn (_ buffer score chr)
+    (if (%text-blank? chr)
+      %text-blank
+      (%seq (%buffer-unread buffer) (%score-set score -1 buffer)))))
+(def %text-blank-entry
+  (fn (_ buffer score chr) (if (%text-blank? chr) %text-blank ())))
+
+(def %text-float-entry
+  (fn (_ buffer score chr)
+    (if (and (>= chr 48) (<= chr 57))
+      float-int-digits
+      (if (= chr 45) float-neg-int ()))))
+
+(def %text-digits ())
+(set! %text-digits
+  (fn (_ buffer score chr)
+    (if (and (>= chr 48) (<= chr 57))
+      %text-digits
+      (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
+(def %text-sign
+  (fn (_ buffer score chr)
+    (if (and (>= chr 48) (<= chr 57)) %text-digits ())))
+(def %text-integer-entry
+  (fn (_ buffer score chr)
+    (if (and (>= chr 48) (<= chr 57))
+      %text-digits
+      (if (or (= chr 45) (= chr 43)) %text-sign ()))))
+
+(def %text-other ())
+(set! %text-other
+  (fn (_ buffer score chr)
+    (if (%text-blank? chr)
+      (%seq (%buffer-unread buffer) (%score-set score 1 buffer))
+      %text-other)))
+(def %text-other-entry
+  (fn (_ buffer score chr) (if (%text-blank? chr) () %text-other)))
+
+; What a token reads as: one of two symbols, so a read makes no object in
+; the tokenizer base.
+(def %text-number-read (fn (_ . args) (lit number)))
+(def %text-other-read (fn (_ . args) (lit other)))
+
+; The handler lists are bound here: a list held only by the tokenizer base
+; is not held by this heap.
+(def %text-blank-handlers (list (pair (lit analyse) %text-blank-entry)))
+(def %text-float-handlers
+  (list (pair (lit analyse) %text-float-entry) (pair (lit read) %text-number-read)))
+(def %text-integer-handlers
+  (list (pair (lit analyse) %text-integer-entry) (pair (lit read) %text-number-read)))
+(def %text-other-handlers
+  (list (pair (lit analyse) %text-other-entry) (pair (lit read) %text-other-read)))
+
+; The base is made on the first conversion from text.  No state image can
+; carry it, so the transient thunk below drops it and the next conversion
+; makes it again.
+(def %text-base ())
+(def %text-base!
+  (fn (_)
+    (do (set! %text-base (Base raw-of (Base make-tok)))
+        (Base make-type %text-base "BLANK" %text-blank-handlers)
+        (Base make-type %text-base "FLOAT" %text-float-handlers)
+        (Base make-type %text-base "INTEGER" %text-integer-handlers)
+        (Base make-type %text-base "OTHER" %text-other-handlers)
+        %text-base)))
+
 (def %read-number
   (fn (_ s)
-    (let ((forms (tok-read-str (%base) (str-append s " "))))
-      (if (if (pair? forms) (null? (rest forms)) #f)
-        (match
-          ((type? (first forms) float) (first forms))
-          ((if (type? (first forms) (type-of 42)) #t (str=? (%type-name (type-of (first forms))) "BIGINT"))
-           (type-make-instance float (str->float s)))
-          (#t ()))
+    (let ((forms (tok-read-str (if (null? %text-base) (%text-base!) %text-base)
+                               (str-append s " "))))
+      (if (if (pair? forms)
+            (if (null? (rest forms)) (eq? (first forms) (lit number)) #f)
+            #f)
+        (type-make-instance float (str->float s))
         ()))))
 
-; Float type with tokenizer, display, and alist-based convert
+; Float type with display and alist-based convert.  It has no analyse and
+; no read handler: importing this module leaves the reader as it was.
 
 (def float ())
 (set! float
@@ -664,15 +741,6 @@
       (pair
         'write
         (fn (_ self) (display (%float->str (first self)))))
-      (pair
-        'analyse
-        (fn (_ buffer score chr)
-          ; Entry: digit [0-9], or '-' followed by a digit
-
-          (if (and (>= chr 48) (<= chr 57))
-            float-int-digits
-            (if (= chr 45) float-neg-int ()))))
-      (pair 'read (fn (_ . args) (%float-read (first args))))
       (pair
         'from
         (list
@@ -747,15 +815,6 @@
 
 (def f-eq
   (fn (_ a b) (%d=d (first a) (first b))))
-
-; Reader: called by tokenizer after successful analyse
-; Uses buf-tok to extract consumed text, then strtod to parse
-
-(set! %float-read
-  (fn (_ . args)
-    (type-make-instance
-      float
-      (%strtod (buf-tok (first args))))))
 
 (note "Math Functions")
 
@@ -1111,7 +1170,7 @@
   float float? float-of float-type ensure-float
   f-add f-sub f-mul f-div f-mod f-eq f-lt fsin fcos fsqrt fatan2 str->float int->float pi
   float-frac float-first-frac float-int-digits float-neg-int float-split libm-fn)
-  (note "Literal syntax: 3.14. The generic operators dispatch float operands")
-  (note "through the type ops; mixed operands resolve by the from-relation.")
+  (note "The literal 3.14 is x/num/float/literal's: this module installs no reader syntax, and (float-of \"3.14\") reads text wherever it is imported.")
+  (note "The generic operators dispatch float operands through the type ops; mixed operands resolve by the from-relation.")
   (example "(+ 1 3.14)" "4.14")
   "IEEE 754 floating-point arithmetic, homed on the Float class.")

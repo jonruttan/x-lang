@@ -171,6 +171,7 @@ on an 8-byte one.
 ### a matrix times its inverse is near the identity
 
 ```x
+(import x/num/float/literal)
 (import x/num/matrix)
 (import x/num/float f-lt)
 (let ((a (Matrix from '((4 -2 1) (3 6 -4) (2 1 8)))))
@@ -214,6 +215,7 @@ on an 8-byte one.
 ### the permutation times the matrix is the lower times the upper
 
 ```x
+(import x/num/float/literal)
 (import x/num/matrix)
 (import x/num/float f-lt)
 (let ((a (Matrix from '((1 2 3) (4 5 6) (7 8 10)))))
@@ -273,6 +275,7 @@ on an 8-byte one.
 ### it solves and answers the determinant
 
 ```x
+(import x/num/float/literal)
 (import x/num/matrix)
 (import x/num/float f-lt)
 (let ((a (Matrix from '((4 12 -16) (12 37 -43) (-16 -43 98)))))
@@ -311,6 +314,7 @@ on an 8-byte one.
 ### Q times R is the matrix, and Q's columns are orthonormal
 
 ```x
+(import x/num/float/literal)
 (import x/num/matrix)
 (import x/num/float f-lt)
 (let ((near (fn (_ a b) (let ((d (a sub b))) (f-lt ((d mul d) sum) 0.000000000000000001)))))
@@ -329,6 +333,7 @@ on an 8-byte one.
 ### solve fits least squares
 
 ```x
+(import x/num/float/literal)
 (import x/num/matrix)
 (import x/num/float f-lt)
 (let ((near (fn (_ a b) (let ((d (a sub b))) (f-lt ((d mul d) sum) 0.000000000000000001))))
@@ -343,6 +348,7 @@ on an 8-byte one.
 ### a square solve agrees with the lower-upper one
 
 ```x
+(import x/num/float/literal)
 (import x/num/matrix)
 (import x/num/float f-lt)
 (let ((a (Matrix from '((4 -2 1) (3 6 -4) (2 1 8)))) (b (Matrix from '((1 0) (2 1) (3 0)))))
@@ -378,6 +384,7 @@ on an 8-byte one.
 ### the vectors are orthonormal and rebuild the matrix
 
 ```x
+(import x/num/float/literal)
 (import x/num/matrix)
 (import x/num/float f-lt)
 (let ((near (fn (_ a b) (let ((d (a sub b))) (f-lt ((d mul d) sum) 0.000000000000000001)))))
@@ -396,6 +403,7 @@ on an 8-byte one.
 ### the values of a known matrix
 
 ```x
+(import x/num/float/literal)
 (import x/num/matrix)
 (import x/num/float f-lt)
 (let ((w (((Matrix from '((2 1) (1 2))) factor-symmetric-eigen) values))
@@ -443,6 +451,7 @@ on an 8-byte one.
 ### the matrix times the vectors is the vectors times the values
 
 ```x
+(import x/num/float/literal)
 (import x/num/matrix)
 (import x/num/float f-lt)
 (let ((near (fn (_ a b) (let ((d (a sub b))) (f-lt ((d mul d) sum) 0.000000000000000001)))))
@@ -464,6 +473,7 @@ on an 8-byte one.
 ### the values of a known matrix, and the vectors' length
 
 ```x
+(import x/num/float/literal)
 (import x/num/matrix)
 (import x/num/float f-lt)
 (let ((e ((Matrix from '((0 0 1) (1 0 0) (0 1 0))) factor-eigen)))
@@ -526,6 +536,7 @@ on an 8-byte one.
 ### left times the values times right's transpose is the matrix, and the vectors are orthonormal
 
 ```x
+(import x/num/float/literal)
 (import x/num/matrix)
 (import x/num/float f-lt)
 (let ((near (fn (_ a b) (let ((d (a sub b))) (f-lt ((d mul d) sum) 0.000000000000000001)))))
@@ -560,6 +571,7 @@ on an 8-byte one.
 ### the values of a known matrix
 
 ```x
+(import x/num/float/literal)
 (import x/num/matrix)
 (import x/num/float f-lt)
 (let ((w (((Matrix from '((2 0) (0 0) (0 1))) factor-singular) values)))
@@ -583,6 +595,7 @@ on an 8-byte one.
 ### an explicit tolerance
 
 ```x
+(import x/num/rational/literal)
 (import x/num/matrix)
 (let ((d ((Matrix from '((1 0) (0 1/1000))) factor-singular)))
   (list (d rank) (d rank 1/100) (d rank 2)))
@@ -648,6 +661,7 @@ on an 8-byte one.
 ### the correlation of the columns
 
 ```x
+(import x/num/float/literal)
 (import x/num/matrix)
 (import x/num/float f-lt)
 (let ((r ((Matrix from '((1 2 10) (2 4 7) (3 6 4) (4 8 3))) correlation))

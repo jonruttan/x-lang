@@ -70,6 +70,7 @@ compiled kernels write the pure kernels' bits.
 ### radix-2 and Bluestein match the definition: n = 64, 100, 127
 
 ```x
+(import x/num/float/literal)
 (if (< %word-size 8) (list #t #t #t)
   (do (import x/num/frequency)
     (Frequency jit!)
@@ -87,6 +88,7 @@ compiled kernels write the pure kernels' bits.
 ### a 4096-point round trip in place
 
 ```x
+(import x/num/float/literal)
 (if (< %word-size 8) #t
   (do (import x/num/frequency)
     (Frequency jit!)

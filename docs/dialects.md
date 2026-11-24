@@ -61,11 +61,13 @@ Then loads the numeric tower with immediate analyser compilation (the shared
 block `lib/x/boot/tower-compiled.x`, included by every full-tower
 composition — `x-base.x` and the xenon/radon bodies):
 
-1. **Bigint** (`x/num/bigint.x`) — Arbitrary-precision integers. Analysers for bigint and int-capped types are compiled to native code immediately after loading.
+Each tower module is a library: importing one installs no reader syntax. The literal that writes its values is a module beside it, named after it (`x/num/float/literal`), which installs the literal on the base that imports it. `x/num/tower` and this block load both.
+
+1. **Bigint** (`x/num/bigint.x`) — Arbitrary-precision integers. Its literal, and the cap on the integer reader that hands a long run of digits to it, are `x/num/bigint/literal.x`; their analysers are compiled to native code immediately after loading.
 2. **Regex** (`x/type/regex.x`) — Regular expressions with `#/pattern/` literal syntax. Uses a C-level analyser, no compilation needed.
-3. **Float** (`x/num/float.x`) — IEEE 754 floating-point. Analyser compiled after loading.
-4. **Rational** (`x/num/rational.x`) — Exact rationals. Analyser compiled after loading.
-5. **Complex** (`x/num/complex.x`) — Complex numbers with rectangular and polar forms. Analyser compiled after loading.
+3. **Float** (`x/num/float.x`) — IEEE 754 floating-point. The literal is `x/num/float/literal.x`; its analyser is compiled after loading.
+4. **Rational** (`x/num/rational.x`) — Exact rationals. The literal is `x/num/rational/literal.x`; its analyser is compiled after loading.
+5. **Complex** (`x/num/complex.x`) — Complex numbers with rectangular and polar forms. The literal is `x/num/complex/literal.x`; its analyser is compiled after loading.
 6. **Decimal** (`x/num/decimal.x`) — Arbitrary-precision decimal floating-point. The library installs no reader syntax; the literal suffix `d` (`1.5d`) is `x/num/decimal/literal.x`, loaded straight after it, and its analyser is compiled after loading. Last on purpose: its conversions declare float, rational and complex, and its analyser only claims a digit run that ends in `d`, so it never contests a token the earlier readers want.
 
 The analyser compilation pattern is the key design choice: each numeric type's tokenizer analyser is compiled to native code right after the type loads, so subsequent source files (including later numeric types) are parsed through fast compiled analysers rather than interpreted ones.

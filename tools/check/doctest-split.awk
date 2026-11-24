@@ -27,6 +27,10 @@
 # two cases are written here and are not among the examples the census
 # counts.
 #
+# The first case also includes tools/check/doctest-literals.x, which imports
+# the literal of each number library the module loaded: an example writes
+# numbers as x-lang does, and a library installs no literal.
+#
 # One file is open at a time: there are a few hundred, more than an awk can
 # hold open at once.
 
@@ -47,6 +51,7 @@ function install(section, out) {
 		print "(AnnotationCheck install! (Doc names))" >> out
 	else
 		printf "(AnnotationCheck import! (lit %s))\n", section >> out
+	print "(include \"tools/check/doctest-literals.x\")" >> out
 	print "(display \"installed\")" >> out
 	print "```" >> out
 	print "---" >> out

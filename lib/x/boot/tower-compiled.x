@@ -32,13 +32,17 @@
   (pair (lit x/type/hash)
   (pair (lit x/tool/compile)
   (pair (lit x/num/bigint)
+  (pair (lit x/num/bigint/literal)
   (pair (lit x/type/regex)
   (pair (lit x/num/float)
+  (pair (lit x/num/float/literal)
   (pair (lit x/num/rational)
+  (pair (lit x/num/rational/literal)
   (pair (lit x/num/complex)
+  (pair (lit x/num/complex/literal)
   (pair (lit x/num/decimal)
   (pair (lit x/num/decimal/literal)
-    (first %module-loaded-cell))))))))))))
+    (first %module-loaded-cell))))))))))))))))
 
 ; Load compiler infrastructure FIRST (before numeric tower)
 ; (posix.x already loaded by x-core.x)
@@ -322,8 +326,12 @@
 ; --- Load numeric tower with immediate analyser compilation ---
 
 ; 1. Bigint + int-capped
+; Each tower type is a library and, in a module of its own, the literal that
+; writes it; the states compiled below are the literal module's, float's
+; apart, whose states the library keeps to read text by.
 (include "../num/bigint.x")
-(import x/num/bigint big-digits big-sign-state int-capped-base int-capped-digits int-capped-sign)
+(include "../num/bigint/literal.x")
+(import x/num/bigint/literal big-digits big-sign-state int-capped-base int-capped-digits int-capped-sign)
 ; These two PUSH a new analyser rather than swapping one, so there is no
 ; interpreted twin already installed to fall back to -- the twin is written
 ; here.  The bodies must agree with the compiled forms below; they can, because
@@ -387,6 +395,7 @@
 
 ; 3. Float
 (include "../num/float.x")
+(include "../num/float/literal.x")
 ; bigint's states above are imported: the tower reads them and never rebinds
 ; them, so the root's copies stay exact.  The float states are rebound by the
 ; compiles below, in the module's own frame, and a copy would keep the
@@ -500,6 +509,7 @@
 
 ; 4. Rational
 (include "../num/rational.x")
+(include "../num/rational/literal.x")
 ; %rat-sign is rational.x's module-level def, like every other stage's sign
 ; state. It used to be an anonymous closure built right here, which the
 ; compiled analyser captured and nothing rooted once the fvar list was
@@ -507,7 +517,7 @@
 ; jumped into freed memory (#49).
 ; The states are the module's own, read and set through its frame as float's
 ; are above.
-(def %rat-env (module x/num/rational))
+(def %rat-env (module x/num/rational/literal))
 (%tower-jit-global! rat-denom #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
@@ -543,7 +553,8 @@
 
 ; 5. Complex
 (include "../num/complex.x")
-(def %cx-env (module x/num/complex))
+(include "../num/complex/literal.x")
+(def %cx-env (module x/num/complex/literal))
 (%tower-jit-global! cx-imag-frac #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))

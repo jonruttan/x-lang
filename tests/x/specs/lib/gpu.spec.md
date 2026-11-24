@@ -34,6 +34,7 @@ bit as the CPU's.
 ### two matrices: the result is an f32 Matrix
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((p (Gpu product (Matrix from '((1 2) (3 4)) 'f32) (Matrix from '((0 1) (1 0)) 'f32))))
@@ -46,6 +47,7 @@ bit as the CPU's.
 ### rows and columns that differ: 2 by 3 times 3 by 2
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((m (Matrix from '((1 2 3) (4 5 6)) 'f32)))
@@ -58,6 +60,7 @@ bit as the CPU's.
 ### a rank-1 other is a column, and the product a rank-1 Tensor
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((p (Gpu product (Matrix from '((1 2) (3 4)) 'f32) (Tensor from '(1 1) 'f32))))
@@ -70,6 +73,7 @@ bit as the CPU's.
 ### operands of another encoding are cast to f32
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((p (Gpu product (Matrix from '((1 2) (3 4))) (Matrix from '((0.5 0) (0 0.5)) 'f64))))
@@ -82,6 +86,7 @@ bit as the CPU's.
 ### a view is read through its strides: a transpose and a slice
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((m (Matrix from '((1 2 3) (4 5 6)) 'f32)))
@@ -95,6 +100,7 @@ bit as the CPU's.
 ### it answers what Matrix's product does on the same numbers
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((a (Matrix from '((1 2 3) (4 5 6) (7 8 9)) 'f32)) (b (Matrix from '((0.5 1 0) (2 0 1) (1 1 1)) 'f32)))
@@ -107,6 +113,7 @@ bit as the CPU's.
 ### a larger product: 64 by 64 of ones is 64 everywhere
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((m (Matrix fill '(64 64) 1 'f32)))
@@ -120,6 +127,7 @@ bit as the CPU's.
 ### a product with no rows, or summed over nothing, is zeros
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (if (Gpu available?)
   (list ((Gpu product (Matrix zeros '(0 3) 'f32) (Matrix zeros '(3 2) 'f32)) extent)
@@ -132,6 +140,7 @@ bit as the CPU's.
 ### the kernel is compiled again after it is forgotten, as after a state image
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((a (Matrix from '((1 2) (3 4)) 'f32)))
@@ -151,6 +160,7 @@ any other, and product reads it, and answers one, with no copy.
 ### hold answers an f32 copy of the same class, and held? tells it from an ordinary tensor
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((h (Gpu hold (Matrix from '((1 2) (3 4))))))
@@ -165,6 +175,7 @@ any other, and product reads it, and answers one, with no copy.
 ### Tensor's operations work on a held tensor, and their results are ordinary
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((h (Gpu hold (Matrix from '((1 2) (3 4))))))
@@ -179,6 +190,7 @@ any other, and product reads it, and answers one, with no copy.
 ### a view of a held tensor shares its buffer
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((h (Gpu hold (Matrix from '((1 2) (3 4))))))
@@ -194,6 +206,7 @@ any other, and product reads it, and answers one, with no copy.
 ### a product of held tensors is held, and a chain of products stays on the GPU
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((a (Gpu hold (Matrix from '((1 2) (3 4))))))
@@ -210,6 +223,7 @@ any other, and product reads it, and answers one, with no copy.
 ### a held view is read where it lies: a slice against a column, and an ordinary matrix against a held transpose
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((m (Gpu hold (Matrix from '((1 2 3) (4 5 6))))))
@@ -229,6 +243,7 @@ A plan keeps a product's buffers and dimensions, so a second run makes
 nothing: the result is written where the first was.
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((a (Gpu hold (Matrix from '((1 2))))) (b (Gpu hold (Matrix from '((1 0) (0 1))))))
@@ -277,6 +292,7 @@ nothing: the result is written where the first was.
 ### releasing an ordinary tensor does nothing
 
 ```x
+(import x/num/float/literal)
 (import x/num/gpu)
 (let ((t (Tensor from '(1.5 2.5))))
   (list (Gpu release t) (Gpu held? t) (t ->list)))
