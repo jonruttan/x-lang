@@ -4,7 +4,7 @@
 ; migrate to (List ...) and the globals are removed once nothing references them.
 ; This class loads AFTER object.x (it needs def-class); core/list.x loads before
 ; it (and the object system) as the low-level layer -- the %-helpers (%map1,
-; %any-null?, %for-each1, %append2) stay there, shared by both.
+; %any-null?, %for-each1) stay there, shared by both.
 ;
 ; Recursion uses `recur` (a method's own self-reference); cross-calls to other
 ; list operations go through (List ...).
@@ -106,6 +106,36 @@
           (#t (Err raise (lit type) "List fold: improper list" ())))))
     (go init (%list-from-seq lst))))
 
+; length, reverse and append walk the list themselves: through the fold,
+; each element cost a call of the step function on top of the walk's own
+; step, ~24 objects an element.  The same pair? test leads each step, so
+; an improper tail raises, naming the method.
+(def %list-length-go
+  (fn (self n xs)
+    (match
+      ((type? xs %list-pair-type) (self (int+ n 1) (rest xs)))
+      ((eq? xs ()) n)
+      (#t (Err raise (lit type) "List length: improper list" ())))))
+(def %list-reverse-go
+  (fn (self acc xs)
+    (match
+      ((type? xs %list-pair-type) (self (pair (first xs) acc) (rest xs)))
+      ((eq? xs ()) acc)
+      (#t (Err raise (lit type) "List reverse: improper list" ())))))
+; Every list but the last reversed onto one accumulator, which is then
+; reversed onto the last: each element before the last list is copied
+; twice, and the last list is shared, as it is unchanged.  The walk ends
+; on nil and tests no pair type, as %append2's did: a list a child base
+; built is made of that base's pairs.
+(def %list-onto
+  (fn (self l tail) (match ((eq? l ()) tail) (#t (self (rest l) (pair (first l) tail))))))
+(def %list-append-go
+  (fn (self acc lists)
+    (match
+      ((eq? lists ()) ())
+      ((eq? (rest lists) ()) (%list-onto acc (first lists)))
+      (#t (self (%list-onto (first lists) acc) (rest lists))))))
+
 ; The integer doors, for counts.
 
 (def-class List ()
@@ -144,7 +174,7 @@
     ; --- Basics ---
     (method length (self lst)
       (doc "Return the number of elements." (param lst LIST "List or iterable") (example "(List length (list 1 2 3))" "3"))
-      (%list-fold (fn (_ acc _) (int+ acc 1)) 0 lst))
+      (%list-length-go 0 (%list-from-seq lst)))
     (method ref (self n lst)
       (doc "Return the element at index n (zero-based; negative counts from the end; coerced to INT); errors when n is unconvertible or out of range." (param n INTEGER "Zero-based index (negative counts from the end)") (param lst LIST "List") (example "(List ref 1 (list 10 20 30))" "20") (example "(List ref -1 (list 10 20 30))" "30"))
       ; first/rest are unchecked C prims (UB on a non-pair -- segfaults on
@@ -180,13 +210,13 @@
       (go lst ()))
     (method append (self . args)
       (doc "Concatenate zero or more lists." (example "(List append (list 1 2) (list 3))" "(1 2 3)"))
-      (%list-fold %append2 () args))
+      (%list-append-go () args))
     (method prepend (self x lst)
       (doc "Add an element to the front of a list." (param x ANY "Element to prepend") (param lst LIST "List") (example "(List prepend 0 (list 1 2))" "(0 1 2)"))
       (pair x lst))
     (method reverse (self lst)
       (doc "Reverse a list." (param lst LIST "List or iterable") (example "(List reverse (list 1 2 3))" "(3 2 1)"))
-      (%list-fold (fn (_ acc x) (pair x acc)) () lst))
+      (%list-reverse-go () (%list-from-seq lst)))
     (method flatten (self lst)
       (doc "Recursively flatten nested lists into a single list." (param lst LIST "Nested list") (example "(List flatten (list 1 (list 2 (list 3))))" "(1 2 3)"))
       ; Reverse-flatten onto acc: spine calls are tail; only structural

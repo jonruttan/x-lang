@@ -1222,7 +1222,7 @@ first or the last element of each run survives. Assert the value.
 (List length (pair 1 2))
 ```
 ---
-    Error: type: List fold: improper list
+    Error: type: List length: improper list
 
 ### reverse rejects an improper list
 
@@ -1230,7 +1230,17 @@ first or the last element of each run survives. Assert the value.
 (List reverse (pair 1 2))
 ```
 ---
-    Error: type: List fold: improper list
+    Error: type: List reverse: improper list
+
+### append shares the last list and keeps a dotted tail
+
+```x
+(do (def tl (list 9))
+    (list (eq? (rest (List append (list 1) tl)) tl) (List append (list 1 2) 3)
+          (List append (list 1) () (list 2 3) (list 4)) (List append) (List append ())))
+```
+---
+    (#t (1 2 . 3) (1 2 3 4) () ())
 
 ### map rejects an improper list
 
