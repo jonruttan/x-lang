@@ -6,4 +6,5 @@
 (import x/num/rational)
 (import x/num/complex)
 (import x/num/decimal)
+(import x/num/decimal/literal)
 (include "tests/x/lib/word-edges.x")

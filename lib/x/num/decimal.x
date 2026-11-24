@@ -27,7 +27,7 @@
 
 ; The binary integer primitives, fetched from the catalogue: the C operators as
 ; they were before core/arithmetic.x wrapped the bare names.
-(import x/core/doors buf-tok char->int int% int* int+ int- int/ int< int= str-append type-by-atom type-from-cell type-make type-make-instance type-of type-push-call type-push-op type?)
+(import x/core/doors char->int int% int* int+ int- int/ int< int= str-append type-by-atom type-from-cell type-make type-make-instance type-of type-push-call type-push-op type?)
 (import x/num/bigint bigint bigint? big-limbs bigint-digits-per-limb)
 (import x/num/float float float-split)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
@@ -43,7 +43,6 @@
 
 ; Forward-declare the handle and the reader (set below, after make-type).
 (def %decimal ())
-(def %dec-read ())
 
 ; --- Context ---
 ; The significant digits / and sqrt round to.  34 is decimal128's
@@ -810,76 +809,14 @@
 
 (note "Type registration")
 
-; --- Tokenizer state machine: [+-]?DIGITS[.DIGITS][eE[+-]DIGITS]d ---
-;
-; The states are module-level defs, not inline closures, for the reason
-; every other tower stage records: the COMPILED analyser in
-; boot/tower-compiled.x captures them as free variables once, and an
-; anonymous closure there is rooted by nothing after the compile's free-variable alist is
-; cleared (#49).
-;
-; Only the terminal `d` scores, and the score covers the suffix, so 1.5d
-; (4 chars) outbids float's 1.5 (3) on the same run.  Without the suffix
-; nothing here scores at all and the float reader keeps the token.
-;
-; dec-int, dec-frac and dec-exp-digits have compiled twins in
-; boot/tower-compiled.x that must agree with them form for form, so a
-; change to one of them here is a change there.
-
-(def dec-exp-digits ())
-(set! dec-exp-digits
-  (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) dec-exp-digits
-      (if (= chr 100) (%score-set score 1 buffer) ()))))
-
-(def %dec-exp-first
-  (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) dec-exp-digits ())))
-
-(def dec-exp-sign
-  (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) dec-exp-digits
-      (if (or (= chr 45) (= chr 43)) %dec-exp-first ()))))
-
-(def dec-frac ())
-(set! dec-frac
-  (fn (_ buffer score chr)
-    (match
-      ((and (>= chr 48) (<= chr 57)) dec-frac)
-      ((= chr 100) (%score-set score 1 buffer))
-      ((or (= chr 101) (= chr 69)) dec-exp-sign)
-      (#t ()))))
-
-(def dec-first-frac
-  (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) dec-frac ())))
-
-(def dec-int ())
-(set! dec-int
-  (fn (_ buffer score chr)
-    (match
-      ((and (>= chr 48) (<= chr 57)) dec-int)
-      ((= chr 100) (%score-set score 1 buffer))
-      ((= chr 46) dec-first-frac)
-      ((or (= chr 101) (= chr 69)) dec-exp-sign)
-      (#t ()))))
-
-; A lone sign must see a digit next, so `-` and `+` stay operators.
-(def dec-sign
-  (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57)) dec-int ())))
-
+; The type has no analyse and no read handler: importing this module leaves
+; the reader as it was.  x/num/decimal/literal installs the 1.5d literal.
 (set! %decimal
   (type-make
     "DECIMAL"
     (list
       (pair 'write
         (fn (_ self) (display (%dec->str self) "d")))
-      (pair 'analyse
-        (fn (_ buffer score chr)
-          (if (and (>= chr 48) (<= chr 57)) dec-int
-            (if (or (= chr 45) (= chr 43)) dec-sign ()))))
-      (pair 'read (fn (_ . args) (%dec-read (first args))))
       (pair 'from
         (list
           (pair (type-of 42) (fn (_ value) (%make-dec value 0)))
@@ -895,10 +832,6 @@
           ; Out through the text door on purpose: strtod is correctly
           ; rounded, and re-deriving that here would be a worse copy.
           (pair float (fn (_ self) (%cvt (%dec->str self) float))))))))
-
-; --- Reader (set after make-type so the closure captures the real handle) ---
-(set! %dec-read
-  (fn (_ . args) (%dec-parse (buf-tok (first args)))))
 
 (note "Operator Overrides")
 
@@ -1157,9 +1090,10 @@
 
 (doc (provide x/num/decimal Decimal
   decimal-type ensure-dec
-  dec-add dec-sub dec-mul dec-div dec-mod dec-eq dec-lt
-  dec-int dec-first-frac dec-frac dec-exp-sign dec-exp-digits dec-sign)
-  (note "Literal syntax: 1.5d, -0.001d, 3d, 1.5e-8d. The generic operators")
+  dec-add dec-sub dec-mul dec-div dec-mod dec-eq dec-lt)
+  (note "The literal 1.5d is x/num/decimal/literal's: this module installs no")
+  (note "reader syntax, and (Decimal from \"1.5\") reads a decimal from text.")
+  (note "The generic operators")
   (note "dispatch decimal operands through the type ops; mixed operands")
   (note "resolve by the from-relation, and a double widens EXACTLY.")
   (note "+ - * % are exact; / sqrt ln exp log10 round half-even to")
