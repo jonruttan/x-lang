@@ -779,6 +779,20 @@
     (if (type? rx %regex) (first rx)
       (Err raise 'type "Regex: expected a compiled regex -- use #/.../ or (Regex compile pattern)" ()))))
 
+; The first match at or after pos: (start end), or ().  A pattern that
+; opens with ^ can match only at 0 -- there is no multiline mode -- so it
+; is tried there once, not again at every later position of the line.
+(def %regex-search-from
+  (fn (_ nodes str pos end)
+    (def anchored (if (pair? nodes) (eq? (first (first nodes)) 'anchor-start) #f))
+    (def %try
+      (fn (self i)
+        (if (> i end) ()
+          (let ((result (%regex-exec nodes str i end ())))
+            (if result (list i (first result))
+              (if anchored () (self (+ i 1))))))))
+    (if (if anchored (> pos 0) #f) () (%try pos))))
+
 (def-class Regex ()
   (static
     (method regex? (self (param x ANY "Value to test"))
@@ -797,27 +811,11 @@
     (method search (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Search for the first occurrence of a regex pattern in a string." (returns LIST "Pair (start end) of first match, or nil if not found")
         (example "(Regex search \"xx123\" #/[0-9]+/)" "(2 5)"))
-      (def end (%str-length str))
-      (def nodes (%rx-nodes rx))   ; hoisted: guard once, not per position (#337)
-      (def %try
-        (fn (self i)
-          (if (> i end) ()
-            (let ((result (%regex-exec nodes str i end ())))
-              (if result (list i (first result))
-                (self (+ i 1)))))))
-      (%try 0))
+      (%regex-search-from (%rx-nodes rx) str 0 (%str-length str)))
     (method find-at (self (param str STRING "Input string") (param pos INTEGER "Start position") (param rx REGEX "Compiled regex"))
       (doc "Search for regex starting from position pos." (returns LIST "Pair (start end) of match, or nil")
         (example "(Regex find-at \"1a2b\" 1 #/[0-9]/)" "(2 3)"))
-      (def end (%str-length str))
-      (def nodes (%rx-nodes rx))   ; hoisted: guard once, not per position (#337)
-      (def %try
-        (fn (self i)
-          (if (> i end) ()
-            (let ((result (%regex-exec nodes str i end ())))
-              (if result (list i (first result))
-                (self (+ i 1)))))))
-      (%try pos))
+      (%regex-search-from (%rx-nodes rx) str pos (%str-length str)))
     (method find (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Find first match and return the matched substring." (returns STRING "Matched substring, or nil")
         (example "(Regex find \"abc123def\" #/[0-9]+/)" "\"123\""))

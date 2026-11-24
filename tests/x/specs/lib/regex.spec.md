@@ -143,3 +143,17 @@
 ```
 ---
     (#t #t #t #f #t #t)
+
+## anchored search
+
+### a ^ pattern matches only at the start, from search and from find-at
+
+```x
+(list (Regex search "ba" (Regex compile "^b"))
+      (Regex search "ab" (Regex compile "^b"))
+      (Regex find-at "aa" 0 (Regex compile "^a"))
+      (Regex find-at "aa" 1 (Regex compile "^a"))
+      (Regex search "xab" (Regex compile "^a|b")))
+```
+---
+    ((0 1) () (0 1) () (2 3))
