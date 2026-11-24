@@ -7,7 +7,7 @@
 ;   (LanguageModel from-files model vocabulary merges heads)  -> one, from a model's three files
 ;   (LanguageModel make transformer byte-pair)                -> one, from the two parts
 ;   (lm generate text n)                                      -> the text and n more pieces
-;   (lm generate text n random temperature greatest)          -> the same, each piece drawn at random
+;   (lm generate text n random temperature max)               -> the same, each piece drawn at random
 ;   (lm each text n f)                                        -> the same, f called with each piece as it is made
 ;   (lm release)                                              -> the model's GPU buffers given back
 ;
@@ -28,7 +28,7 @@
 (def-class LanguageModel ()
   (doc "A language model that reads and writes text: a Transformer and the BytePair of its vocabulary. It takes a text and answers it with the pieces the model writes after it."
     (note "A piece is one item of the vocabulary: a word, part of one, or a few bytes. A character of several bytes may be split between two pieces.")
-    (note "With no Random each piece is the one scored highest; with one, each is drawn as Transformer's variate draws it, with its temperature and greatest.")
+    (note "With no Random each piece is the one scored highest; with one, each is drawn as Transformer's variate draws it, with its temperature and max.")
     (sample "((LanguageModel from-files \"model.safetensors\" \"vocab.json\" \"merges.txt\" 12) generate \"Hello, I'm a language model,\" 8)" "the text and the eight pieces GPT-2 writes after it")
     (known-as "LLM" "text generation" "text completion")
     (see from-files) (see make) (see generate) (see each) (see release))
@@ -59,7 +59,7 @@
       (LanguageModel make (Transformer from-file model heads) (BytePair from-files vocabulary merges))))
 
   ; The text and n more pieces; f is called with each piece's text as it
-  ; is made.  OPTIONS is () or (RANDOM TEMPERATURE GREATEST), the last two
+  ; is made.  OPTIONS is () or (RANDOM TEMPERATURE MAX), the last two
   ; optional.
   (method %run (self text n f options)
     (let ((tf (field (lit transformer))) (bp (field (lit pieces))))
@@ -70,7 +70,7 @@
 
   (method generate (self (param text STRING "The text to begin from, in UTF-8, of at least one piece")
                          (param n INTEGER "How many pieces to add")
-                         . (param options ANY "Optional (RANDOM TEMPERATURE GREATEST): a Random, and Transformer variate's temperature and greatest"))
+                         . (param options ANY "Optional (RANDOM TEMPERATURE MAX): a Random, and Transformer variate's temperature and max"))
     (doc "The text and n more pieces after it. With no Random each piece is the one the model scores highest after all those before it; with one, each is drawn at random. The text's pieces and the n less one fed back must be no more than the model has positions, or a label 'value is raised; so is a text of no pieces."
       (returns STRING "The text, n pieces longer")
       (sample "(lm generate \"Hello, I'm a language model,\" 8)" "\"Hello, I'm a language model, not a programming language. I'm a\" from GPT-2")
@@ -82,7 +82,7 @@
   (method each (self (param text STRING "The text to begin from, in UTF-8, of at least one piece")
                      (param n INTEGER "How many pieces to add")
                      (param f CALLABLE "Called with each new piece's text as it is made")
-                     . (param options ANY "Optional (RANDOM TEMPERATURE GREATEST), as generate takes them"))
+                     . (param options ANY "Optional (RANDOM TEMPERATURE MAX), as generate takes them"))
     (doc "generate, with f called on each new piece as soon as the model has written it: a caller shows the text as it grows. A piece is the bytes of one vocabulary item, so a character of several bytes may arrive in two pieces."
       (returns STRING "The text, n pieces longer")
       (sample "(lm each \"Hello,\" 8 display)" "the eight pieces displayed one at a time, then the whole text answered")

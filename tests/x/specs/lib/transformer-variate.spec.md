@@ -3,7 +3,7 @@
 
 `variate` draws the next id at random from the model's scores, each
 item's chance in proportion to the exponential of its score over the
-temperature; `greatest` limits the draw to that many of the highest
+temperature; `max` limits the draw to that many of the highest
 scores. The model is the small one of
 `tests/x/lib/transformer-fixture.x`: 11 items, 8 positions, a width of 8,
 2 blocks and 2 heads. These cases are a file of their own because each
@@ -39,7 +39,7 @@ seconds.
 ---
     #t
 
-### a temperature not above 0, a greatest not above 0 and a source that is no Random are refused
+### a temperature not above 0, a max not above 0 and a source that is no Random are refused
 
 Each is refused before any position is worked out.
 

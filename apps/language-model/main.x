@@ -2,13 +2,13 @@
 ;
 ; ## apps/language-model/main.x -- continue a prompt with a language model
 ;
-;   x -l xe -f apps/language-model/main.x -- DIR PROMPT [N [TEMPERATURE [GREATEST]]]
+;   x -l xe -f apps/language-model/main.x -- DIR PROMPT [N [TEMPERATURE [MAX]]]
 ;
 ; DIR holds a model as GPT-2 is published: model.safetensors, vocab.json
 ; and merges.txt.  The prompt is printed, and N pieces after it, 32 by
 ; default, each as the model writes it.  With no TEMPERATURE each piece
 ; is the one scored highest; with one, each is drawn at random, among
-; GREATEST of the highest-scored where that is given.
+; MAX of the highest-scored where that is given.
 ;
 ; Reading the vocabulary is most of a run.  A prelude that binds
 ; language-model-pieces to the model's BytePair is imaged with the boot
@@ -30,7 +30,7 @@
 (def lm-usage
   (fn (_ said)
     (display said) (newline)
-    (display "usage: x -l xe -f apps/language-model/main.x -- DIR PROMPT [N [TEMPERATURE [GREATEST]]]") (newline)
+    (display "usage: x -l xe -f apps/language-model/main.x -- DIR PROMPT [N [TEMPERATURE [MAX]]]") (newline)
     (Sys exit 2)))
 
 ; A whole number above 0 from an argument, or the usage.
@@ -45,8 +45,8 @@
   (let ((dir (first args)) (prompt (first (rest args))) (more (rest (rest args))))
     (let ((n (if (null? more) 32 (lm-count (first more) "N")))
           (temperature (if (if (null? more) #t (null? (rest more))) () (float-of (first (rest more)))))
-          (greatest (if (if (null? more) #t (if (null? (rest more)) #t (null? (rest (rest more))))) ()
-                      (lm-count (first (rest (rest more))) "GREATEST")))
+          (max (if (if (null? more) #t (if (null? (rest more)) #t (null? (rest (rest more))))) ()
+                      (lm-count (first (rest (rest more))) "MAX")))
           (file (fn (_ name) (Str8 append dir "/" name)))
           ; the name is the prelude's to bind, so it is looked up, not written
           (kept (guard (_ ()) (eval (lit language-model-pieces)))))
@@ -56,8 +56,8 @@
         (display prompt)
         (if (null? temperature)
           (lm each prompt n display)
-          (if (null? greatest)
+          (if (null? max)
             (lm each prompt n display (Random hw) temperature)
-            (lm each prompt n display (Random hw) temperature greatest)))
+            (lm each prompt n display (Random hw) temperature max)))
         (newline)
         (lm release)))))
