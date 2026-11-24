@@ -361,6 +361,24 @@ on a 4-byte word only when i64 is refused there.
 ---
     0.0
 
+### min and max of a tensor holding a NaN answer a NaN, wherever it stands
+
+```x
+(import x/num/tensor) (import x/num/float)
+(let ((a ((Tensor from '(0 -1 2) 'f64) div (Tensor from '(0 1 1) 'f64)))
+      (b ((Tensor from '(3 0 2) 'f64) div (Tensor from '(1 0 1) 'f64)))
+      (c ((Tensor from '(3 -1 0) 'f64) div (Tensor from '(1 1 0) 'f64)))
+      (whole (Tensor from '(3 -1 2) 'f64)))
+  (let ((run (fn (_) (list (List map (fn (_ t) (list (Float nan? (t min)) (Float nan? (t max))))
+                             (list a b c (b as 'f32)))
+                           (whole min) (whole max)))))
+    (let ((before (run)))
+      (Tensor jit!)
+      (list (equal? before (run)) before))))
+```
+---
+    (#t (((#t #t) (#t #t) (#t #t) (#t #t)) -1.0 3.0))
+
 ## Statistics
 
 ### variance divides by the count less 1, or less the correction given

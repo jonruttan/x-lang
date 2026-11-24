@@ -1277,6 +1277,13 @@
           ((eq? which (lit sub)) (list (if f (lit f-) (lit -)) x y))
           ((eq? which (lit mul)) (list (if f (lit f*) (lit *)) x y))
           ((eq? which (lit div)) (list (lit f/) x y))
+          ; A fold of doubles keeps a NaN once it meets one: X is the
+          ; accumulator, and an element that is not less than it replaces
+          ; it only where the element is a NaN.
+          ((if f (eq? which (lit fold-min)) #f)
+            (list (lit if) (list (lit f<) y x) y (list (lit if) (list (lit f=) y y) x y)))
+          ((if f (eq? which (lit fold-max)) #f)
+            (list (lit if) (list (lit f<) x y) y (list (lit if) (list (lit f=) y y) x y)))
           ((if (eq? which (lit min)) #t (eq? which (lit fold-min)))
             (list (lit if) (list (if f (lit f<) (lit <)) x y) x y))
           (#t (list (lit if) (list (if f (lit f<) (lit <)) y x) x y))))))
@@ -1589,7 +1596,7 @@
     (self %zip (lit div) other))
 
   (method min (self . (param other Tensor|NUMBER "Optional: a tensor that broadcasts with self, or a number"))
-    (doc "Given other, the element-wise lesser, broadcast as add is; against a NaN the other operand is kept. Given nothing, the least element, to which a NaN loses. c128 is refused: complex numbers have no order."
+    (doc "Given other, the element-wise lesser, broadcast as add is; against a NaN the other operand is kept. Given nothing, the least element, or a NaN where an element is one. c128 is refused: complex numbers have no order."
       (returns Tensor|NUMBER "A fresh tensor of the broadcast extent; or the least element, a raise for no elements")
       (example "(((Tensor from '(1 5 3) 'f64) min 2) ->list)" "(1.0 2.0 2.0)")
       (example "((Tensor from '(3 -1 2) 'f64) min)" "-1.0"))
@@ -1598,7 +1605,7 @@
       (self %zip (lit min) (first other))))
 
   (method max (self . (param other Tensor|NUMBER "Optional: a tensor that broadcasts with self, or a number"))
-    (doc "Given other, the element-wise greater, broadcast as add is; against a NaN the other operand is kept. Given nothing, the greatest element, to which a NaN loses. c128 is refused: complex numbers have no order."
+    (doc "Given other, the element-wise greater, broadcast as add is; against a NaN the other operand is kept. Given nothing, the greatest element, or a NaN where an element is one. c128 is refused: complex numbers have no order."
       (returns Tensor|NUMBER "A fresh tensor of the broadcast extent; or the greatest element, a raise for no elements")
       (example "(((Tensor from '(1 5 3) 'f64) max 2) ->list)" "(2.0 5.0 3.0)")
       (example "((Tensor from '(3 -1 2) 'f64) max)" "3.0"))
