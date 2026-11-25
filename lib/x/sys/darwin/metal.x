@@ -45,7 +45,7 @@
 (module x/sys/darwin/metal)
 (import x/type/class)
 (import x/core/list)
-(import x/core/doors ffi-dlopen ffi-dlsym image-transient! int->ptr ptr->str ptr-call ptr-ref-word ptr-set-word! str->ptr str-make)
+(import x/core/doors ffi-dlopen ffi-dlsym image-transient! int+ int->ptr ptr->str ptr-call ptr-ref-word ptr-set-word! str->ptr str-make)
 
 ; The runtime's functions by name, ((NAME . POINTER) ...), and the
 ; selectors by name, ((NAME . SELECTOR) ...), each looked up the first time
@@ -253,6 +253,63 @@
             (def grid (Metal %size width height))
             (def group (Metal %size across down))
             (%mt-send encoder "dispatchThreads:threadsPerThreadgroup:" (str->ptr grid) (str->ptr group))
+            (%mt-send encoder "endEncoding")
+            (%mt-send commands "commit")
+            (%mt-send commands "waitUntilCompleted")
+            (if (= (%mt-send commands "status") (Metal %completed)) ()
+              (let ((e (%mt-send commands "error")))
+                (if (= e 0) "the run did not complete"
+                  (Metal %string (%mt-send e "localizedDescription"))))))))
+      (when (str? failure)
+        (Err raise (lit io) (Str8 append "Metal run: " failure) ()))
+      ())
+
+    ; --- many kernels in one command buffer -----------------------------------
+    ; A run costs its command buffer and its wait whatever it works out, and
+    ; a message sent through %mt-send costs its lookups.  A step is a
+    ; kernel's run made ready, (STATE QUEUE BUFFERS GRID GROUP), and
+    ; %run-steps encodes a list of them into one command buffer, each
+    ; message sent with its selector already found, and waits once.  The
+    ; steps run in order, each seeing what those before it wrote.
+    (method %step (self (param pipeline LIST "A pipeline from compile")
+                        (param buffers LIST "The buffers the kernel reads and writes, in the order of its buffer indexes")
+                        (param width INTEGER "The grid's points across, above 0")
+                        (param height INTEGER "The grid's points down, above 0"))
+      (doc "A kernel's run made ready for %run-steps: the grid and the group it runs in are worked out now."
+        (returns LIST "The step")
+        (sample "(Metal %step pipeline (list buf) 1024 1)" "a step"))
+      (def state (first pipeline))
+      (def across (%mt-send state "threadExecutionWidth"))
+      (def down (/ (%mt-send state "maxTotalThreadsPerThreadgroup") across))
+      (list state (List ref 1 pipeline) buffers (Metal %size width height) (Metal %size across down)))
+
+    (method %run-steps (self (param steps LIST "Steps from %step, at least one"))
+      (doc "Run the steps' kernels in order in one command buffer, and wait until the GPU has finished them all. Raises a label 'io with Metal's message when the run fails."
+        (returns ANY "nil")
+        (sample "(Metal %run-steps (list step))" "nil, every step's kernel run"))
+      (def msg (%mt-fn "objc_msgSend"))
+      (def pipe (%mt-sel "setComputePipelineState:"))
+      (def bind (%mt-sel "setBuffer:offset:atIndex:"))
+      (def dispatch (%mt-sel "dispatchThreads:threadsPerThreadgroup:"))
+      (def failure
+        (Metal %pooled
+          (fn (_)
+            (def commands (%mt-send (List ref 1 (first steps)) "commandBuffer"))
+            (def encoder (%mt-send commands "computeCommandEncoder"))
+            ((fn (go l)
+               (if (null? l) ()
+                 (let ((step (first l)))
+                   (ptr-call msg encoder pipe (first step))
+                   ((fn (each bufs i)
+                      (if (null? bufs) ()
+                        (do (ptr-call msg encoder bind (first bufs) 0 i)
+                            (each (rest bufs) (int+ i 1)))))
+                     (first (rest (rest step))) 0)
+                   (ptr-call msg encoder dispatch
+                     (str->ptr (first (rest (rest (rest step)))))
+                     (str->ptr (first (rest (rest (rest (rest step)))))))
+                   (go (rest l)))))
+              steps)
             (%mt-send encoder "endEncoding")
             (%mt-send commands "commit")
             (%mt-send commands "waitUntilCompleted")

@@ -98,6 +98,31 @@ everywhere and tests the GPU where there is one.
 ---
     1024
 
+### steps run in order in one command buffer, each on what the last left
+
+A step is a kernel's run made ready. Three steps here are three kernels'
+runs in one command buffer, waited for once: add 1, double, add 1.
+
+```x
+(do (import x/sys/darwin/metal) (import x/core/doors ptr-ref ptr-set!)
+  (if (Metal available?)
+    (do (def buf (Metal buffer 4))
+        (def p (Metal pointer buf))
+        (ptr-set! p 0 3 4)
+        (def twice (Metal compile "kernel void twice(device uint* a [[buffer(0)]], uint2 at [[thread_position_in_grid]]) { a[at.x] *= 2; }" "twice"))
+        (def more (Metal compile "kernel void more(device uint* a [[buffer(0)]], uint2 at [[thread_position_in_grid]]) { a[at.x] += 1; }" "more"))
+        (def up (Metal %step more (list buf) 1 1))
+        (Metal %run-steps (list up (Metal %step twice (list buf) 1 1) up))
+        (def out (ptr-ref p 0 4))
+        (Metal release twice)
+        (Metal release more)
+        (Metal release buf)
+        out)
+    9))
+```
+---
+    9
+
 ### a kernel is called once for each point of the grid, x across and y down
 
 ```x
