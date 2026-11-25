@@ -2,10 +2,20 @@
 
 ## capture groups (#23)
 
-### setup: regex loads in its own block (the begin-wrap rule)
+### the library alone makes a regex from text and leaves the reader as it was
 
 ```x
-(do (import x/type/regex) #t)
+(import x/type/regex)
+(write (list (Regex find "abc123" (Regex compile "[0-9]+"))
+             (Type name (Type of (first (Tok read-str (%base) "#/a/ "))))))
+```
+---
+    ("123" "SYMBOL")
+
+### setup: the literal loads in its own block (the begin-wrap rule)
+
+```x
+(do (import x/type/regex/literal) #t)
 ```
 ---
     #t

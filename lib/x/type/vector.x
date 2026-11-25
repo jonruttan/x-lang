@@ -1,6 +1,7 @@
-; vector.x -- Vector type (#() reader) + the Vector class for its operations.
+; vector.x -- Vector type + the Vector class for its operations.  The #()
+; reader syntax is x/type/vector/literal's.
 ;
-; The %vector TYPE machinery (reader/write/iter/call slots) is type infrastructure
+; The %vector TYPE machinery (write/iter/call slots) is type infrastructure
 ; and stays as module-level defs. The 7 public operations are homed on the Vector
 ; class. Loads after object.x (relocated in x-core.x) so def-class is available;
 ; nothing before object.x uses vectors or #() literals.
@@ -44,7 +45,6 @@
     (go lst 0)
     v))
 
-(def %vector-read ())
 
 (def %vector ())
 
@@ -134,16 +134,6 @@
           (write-vec 0 #f)
           (display ")")))
       (pair
-        (lit analyse)
-        (fn (_ buffer score chr)
-          (if (= chr (char->int #\#))
-            (fn (_ buf sc c0)
-              (if (= c0 (char->int #\())
-                (do (%buffer-unread buf) (%score-set sc 1 buf))
-                ()))
-            ())))
-      (pair (lit read) (fn (_ . args) (%vector-read (first args))))
-      (pair
         (lit from)
         (list
           (pair
@@ -182,17 +172,6 @@
 ; out from under any Dict held across a REPL turn (SEGV on next get).
 ((prim-ref (lit type) (lit set-units!))
   ((prim-ref (lit type) (lit by-atom)) %vector) -1)
-
-; The read primitive answers the EOF sentinel at end of input; a vector
-; literal cut off there reads as an empty vector, as it did when the
-; primitive answered nil.
-(set! %vector-read
-  (fn (_ . args)
-    (let ((%v (%read)))
-      (%vector-from-list %vector
-        (match
-          ((same? %v %token-eof) ())
-          (#t %v))))))
 
 (def-class Vector ()
   (static
@@ -378,6 +357,7 @@
 (Block method! Vector (lit build) (lit element) 0 1)
 
 (doc (provide x/type/vector Vector)
-  (note "Literal syntax: #(1 2 3), with negative indexing via the vector's call slot.")
+  (note "The literal #(1 2 3) is x/type/vector/literal's: this module installs no reader syntax, and (Vector of 1 2 3) makes a vector.")
+  (note "A vector is called with an index, negative counting from the end.")
   (example "(Vector ref 1 (Vector of 10 20 30))" "20")
   "Fixed-size indexed vectors; operations homed on the Vector class.")

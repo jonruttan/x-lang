@@ -80,8 +80,11 @@
 
 ; The token's text is read by the library's own door from text, so the
 ; reader and (Decimal from "...") share one parser.
+; The door is fetched once: a tokenizer callback does not dispatch on a class
+; (lib/x/type/io.x).
+(def %dec-from (class-static-ref Decimal (lit from)))
 (def %dec-literal-read
-  (fn (_ . args) (Decimal from (buf-tok (first args)))))
+  (fn (_ . args) (%dec-from Decimal (buf-tok (first args)))))
 
 (type-push-analyse decimal-type %dec-literal-analyse)
 ((prim-ref (lit type) (lit push-read)) decimal-type %dec-literal-read)

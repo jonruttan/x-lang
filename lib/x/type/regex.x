@@ -1,4 +1,5 @@
-; regex.x -- Regex type with #/pattern/ reader syntax; operations on the Regex class.
+; regex.x -- the Regex type and the Regex class of operations on it.  The
+; #/pattern/ reader syntax is x/type/regex/literal's.
 ;
 ; Supports: literal chars, . * + ? \ escape,
 ;   [abc] [a-z] [^abc] character classes, [:space:] and the other POSIX
@@ -8,9 +9,8 @@
 ;   ^ $ anchors, {n} {n,} {n,m} counted repetition,
 ;   (group) and | alternation.
 ;
-; The %regex-exec/%regex-parse engine and the type machinery (the #/.../ reader,
-; call/write slots) stay module-level %-privates -- the reader runs in tokenizer
-; context and must not go through class dispatch. The Regex class wraps them.
+; The %regex-exec/%regex-parse engine and the type machinery (the call and
+; write slots) stay module-level %-privates. The Regex class wraps them.
 
 (module x/type/regex)
 
@@ -18,7 +18,7 @@
 (def %char (Type named CHARACTER))
 (import x/type/class)
 ; Fetch the tokenizer prims from the catalogue (ns `buf`/`tok` are de-registered, R5).
-(import x/core/doors buf-tok char->int int->char str-append type-make type-make-instance type?)
+(import x/core/doors char->int int->char str-append type-make type-make-instance type?)
 
 ; Fetch the string prims from the catalogue (ns `str` is de-registered, R5).
 
@@ -636,24 +636,8 @@
     (def result (%regex-parse-alt-full pattern 0 len 0))
     (%regex-number-groups (first result))))
 
-; --- Analyser: just match #/ ... / (handle \/ escapes) ---
-
 (def %regex ())
 (def %regex-read ())
-
-; Simple analyser: after seeing #, check for /, then scan until unescaped /
-(def %regex-scan-escape ())
-
-(def %regex-scan-body
-  (fn (self buffer score chr)
-    (match
-      ((= chr #\/) (%score-set score 1 buffer))
-      ((= chr #\\) %regex-scan-escape)
-      (#t self))))
-
-(set! %regex-scan-escape
-  (fn (_ _ _ _)
-    %regex-scan-body))
 
 ; --- Type definition ---
 
@@ -674,20 +658,7 @@
         (fn (_ self)
           (display "#/")
           (%regex-write (first self))
-          (display "/")))
-      (pair
-        'analyse
-        (fn (_ buffer score chr)
-          (if (= chr #\#)
-            (fn (_ buf sc c0)
-              (if (= c0 #\/) %regex-scan-body ()))
-            ())))
-      (pair 'read
-        (fn (_ . args)
-          (def tok (buf-tok (first args)))
-          ; Strip #/ prefix and / suffix
-          (def pattern (%substring tok 2 (- (%str-length tok) 1)))
-          (type-make-instance %regex (%regex-parse pattern)))))))
+          (display "/"))))))
 
 (set! %regex-read
   (fn (_ . args) (type-make-instance %regex (first args))))
@@ -924,10 +895,11 @@
 
 ; Value dispatch over the existing match call handler: (rx match s) / (rx find s)
 ; dispatch to Regex methods; (rx "input") still runs the bare match.
-(bind-call-over! (Type of #/x/) Regex)
+(bind-call-over! %regex Regex)
 
 (doc (provide x/type/regex Regex)
-  (note "Syntax: #/pattern/. Supports: . * + ? \\ [class] [^neg] (group) | alternation ^ $ anchors {n,m} repetition \\d \\w \\s.")
+  (note "The literal #/pattern/ is x/type/regex/literal's: this module installs no reader syntax, and (Regex compile \"pattern\") makes a regex from text.")
+  (note "A pattern supports: . * + ? \\ [class] [^neg] (group) | alternation ^ $ anchors {n,m} repetition \\d \\w \\s.")
   (example "(Regex find \"abc123def\" #/[0-9]+/)" "\"123\"")
   (example "(Regex replace-all \"a1b2\" \"N\" #/[0-9]+/)" "\"aNbN\"")
   (example "(#/,/ split \"a,b,c\")" "(\"a\" \"b\" \"c\")")

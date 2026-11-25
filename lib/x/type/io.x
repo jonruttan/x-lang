@@ -25,7 +25,7 @@
 ; The others (read, read-char, write-to-str, display-to-str, error-line,
 ; error-file, repl-read) have NO bare name; the Io class -- or a catalogue fetch, for
 ; reader-context/hot code -- is the only surface. Reader-context callers
-; (e.g. the %vector-read handler) must fetch-and-cache, never class-dispatch
+; (e.g. the vector literal's read handler) must fetch-and-cache, never class-dispatch
 ; inside a tokenizer callback:
 ;   (def %read (prim-ref (lit io) (lit read)))
 
