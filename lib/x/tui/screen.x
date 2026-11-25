@@ -6,7 +6,9 @@
 ; a blank.  (Screen render) answers the escape sequences that bring the
 ; terminal from what it showed after the last render to what the screen
 ; holds now: for each row written since, the cells from the first that
-; differs to the last.  The first render, and the first after a resize or
+; differs to the last, a row that ends blank erased to its end in one escape,
+; and rows shown a row or more away moved there (see --- scrolling).  The
+; first render, and the first after a resize or
 ; (Screen repaint), clears the terminal and draws every row.
 ;
 ; The cells are a buffer of 8-byte slots, the character's code point and
@@ -16,8 +18,12 @@
 ; buffer, big enough for the longest render, takes the render's bytes.  A
 ; character of no width (a combining mark, a control) takes no cell and is
 ; dropped.  Work per cell walks offsets in the buffers and allocates
-; nothing; screen-put! and screen-fill! are (Screen put) and (Screen fill)
-; for the tui modules, without the class send.
+; nothing.  A fill copies its first cell over the rest, doubling; a render
+; passes a written row whose cells match what is shown in one compare.
+; screen-put! and screen-fill! are (Screen put) and (Screen fill)
+; for the tui modules, without the class send; screen-row-cells and
+; screen-row! copy a row's cells out and back, for a page that draws a
+; line once and puts it back on the next frame.
 
 (module x/tui/screen)
 (import x/type/class)
@@ -26,13 +32,13 @@
 (import x/tui/width char-width)
 (import x/tui/style style-sgr)
 
-(import x/core/doors char->int int% int& int* int+ int/ int< int= int>> int| obj-make obj-ref obj-set! ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-byte-sub str-make)
+(import x/core/doors char->int int% int& int* int+ int- int/ int< int= int>> int| int->ptr mem-cmp mem-copy obj-make obj-ref obj-set! ptr->int ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-byte-sub str-make)
 (def %sc-vector ((prim-ref (lit type) (lit of)) (Vector make 0 ())))
 
 ; A screen is a vector: 0 rows, 1 columns, 2 the cells, 3 what the terminal
 ; shows, 4 the written rows, 5 whether to draw everything, 6 and 7 the row
 ; and column the cursor is left at, 8 the render buffer, 9 the SGR of each
-; style rendered so far, an alist.
+; style rendered so far, an alist, 10 a row of blank cells.
 (def %sc-get (fn (_ s k) (obj-ref s (int+ k 1))))
 (def %sc-put! (fn (_ s k x) (obj-set! s (int+ k 1) x)))
 (def %sc-cells (fn (_ s) (str->ptr (%sc-get s 2))))
@@ -44,34 +50,39 @@
 (def %sc-cp (fn (_ p o) (ptr-ref p o 4)))
 (def %sc-style (fn (_ p o) (ptr-ref p (int+ o 4) 4)))
 (def %sc-set! (fn (_ p o cp style) (ptr-set! p o cp 4) (ptr-set! p (int+ o 4) style 4)))
-; Whether cell O is the same in P and Q, and cell O of P copied to Q: the
-; cell's 8 bytes in one access where the word holds them, in its two
-; 4-byte halves where it does not.
+; Whether cell O is the same in P and Q: the cell's 8 bytes in one access
+; where the word holds them, in its two 4-byte halves where it does not.
 (def %sc-same?
   (if (int< %word-size 8)
     (fn (_ p q o) (if (int= (ptr-ref p o 4) (ptr-ref q o 4)) (int= (%sc-style p o) (%sc-style q o)) #f))
     (fn (_ p q o) (int= (ptr-ref p o 8) (ptr-ref q o 8)))))
-(def %sc-copy!
-  (if (int< %word-size 8)
-    (fn (_ p q o) (%sc-set! q o (%sc-cp p o) (%sc-style p o)))
-    (fn (_ p q o) (ptr-set! q o (ptr-ref p o 8) 8))))
 
-; Every cell from offset O to E blank in STYLE.
+; Every cell from offset O to E blank in STYLE: the first cell written, then
+; the cells written so far copied after them, doubling, a call each.
+(def %sc-ptr (fn (_ p o) (int->ptr (int+ (ptr->int p) o))))
+(def %sc-spread!
+  (fn (self p o w n)
+    (match ((int< w n)
+             (do (mem-copy (%sc-ptr p (int+ o w)) (%sc-ptr p o) (match ((int< (int+ w w) n) w) (#t (int- n w))))
+                 (self p o (int+ w w) n)))
+           (#t ()))))
 (def %sc-paint!
-  (fn (self p o e style)
-    (match ((int< o e) (do (%sc-set! p o 32 style) (self p (int+ o 8) e style))) (#t ()))))
+  (fn (_ p o e style)
+    (match ((int< o e) (do (%sc-set! p o 32 style) (%sc-spread! p o 8 (int- e o)))) (#t ()))))
 (def %sc-zero!
   (fn (self p i n) (match ((int< i n) (do (ptr-set! p i 0 1) (self p (int+ i 1) n))) (#t ()))))
 
 ; The longest SGR (every attribute, two 256-colour colours) and a cell's
-; widest character, a cursor move a row, and the ends.
+; widest character, a cursor move a row, and the ends and a scroll.
 (def %sc-alloc!
   (fn (_ s rows cols)
     (def n (int* 8 (int* rows cols)))
     (%sc-put! s 0 rows) (%sc-put! s 1 cols)
     (%sc-put! s 2 (str-make n)) (%sc-put! s 3 (str-make n))
     (%sc-put! s 4 (str-make rows))
-    (%sc-put! s 8 (str-make (int+ (int* (int* rows cols) 40) (int+ (int* rows 16) 48))))
+    (%sc-put! s 10 (str-make (int* 8 cols)))
+    (%sc-paint! (str->ptr (%sc-get s 10)) 0 (int* 8 cols) 0)
+    (%sc-put! s 8 (str-make (int+ (int* (int* rows cols) 40) (int+ (int* rows 16) 96))))
     (%sc-paint! (%sc-cells s) 0 n 0)
     (%sc-paint! (%sc-shown s) 0 n 0)
     (%sc-zero! (%sc-dirty s) 0 rows)
@@ -79,8 +90,8 @@
     s))
 (def %sc-new
   (fn (_ rows cols)
-    (def s (obj-make %sc-vector 11))
-    (obj-set! s 0 10)
+    (def s (obj-make %sc-vector 12))
+    (obj-set! s 0 11)
     (%sc-put! s 6 0) (%sc-put! s 7 0) (%sc-put! s 9 ())
     (%sc-alloc! s rows cols)))
 
@@ -150,6 +161,23 @@
          (%sc-cells s) (%sc-off cols r 0)))
       (#t ()))))
 
+; Row R's cells, a copy for screen-row! to put back on a row of a screen as
+; wide: a page keeps a line drawn this way and puts it back in one copy.
+; Cells hold zero bytes, so they are copied by count and are no text.
+(def screen-row-cells
+  (fn (_ s r)
+    ((fn (_ n out)
+       (mem-copy (str->ptr out) (%sc-ptr (%sc-cells s) (%sc-off (%sc-get s 1) r 0)) n)
+       out)
+     (int* 8 (%sc-get s 1)) (str-make (int* 8 (%sc-get s 1))))))
+(def screen-row!
+  (fn (_ s r cells)
+    (match
+      ((%sc-in? s r 0)
+        (do (ptr-set! (%sc-dirty s) r 1 1)
+            (mem-copy (%sc-ptr (%sc-cells s) (%sc-off (%sc-get s 1) r 0)) (str->ptr cells) (int* 8 (%sc-get s 1)))))
+      (#t ()))))
+
 ; --- rendering -------------------------------------------------------------
 ; Writers into the render buffer B at I: each answers the I after.
 (def %sc-w! (fn (_ b i x) (ptr-set! b i x 1) (int+ i 1)))
@@ -191,20 +219,111 @@
   (fn (self p q o e)
     (match ((%sc-same? p q e) (self p q o (int+ e -8)))
            (#t e))))
-; The cells from offset O to E written into B from I, each copied to what
-; is shown, Q.  STYLE is the style the terminal has: -1 when it is not
-; known.  (I . STYLE) after.
+; The cells from offset O to E written into B from I.  STYLE is the style
+; the terminal has: -1 when it is not known.  (I . STYLE) after.  A cell
+; is read once and an ASCII one written in place: this runs a cell.
 (def %sc-emit
-  (fn (self s p q b o e i style)
+  (fn (self s p b o e i style)
     (match
       ((int< e o) (pair i style))
-      (#t (do (def cp (%sc-cp p o))
-              (def st (%sc-style p o))
-              (%sc-copy! p q o)
-              (match
-                ((= cp 0) (self s p q b (int+ o 8) e i style))
-                ((= st style) (self s p q b (int+ o 8) e (%sc-wcp! b i cp) style))
-                (#t (self s p q b (int+ o 8) e (%sc-wcp! b (%sc-ws! b i (%sc-sgr s st) 0) cp) st))))))))
+      (#t ((fn (_ cp st)
+             (match
+               ((int= cp 0) (self s p b (int+ o 8) e i style))
+               ((int= st style)
+                 (self s p b (int+ o 8) e (match ((int< cp 128) (do (ptr-set! b i cp 1) (int+ i 1))) (#t (%sc-wcp! b i cp))) style))
+               (#t (self s p b (int+ o 8) e (%sc-wcp! b (%sc-ws! b i (%sc-sgr s st) 0) cp) st))))
+           (ptr-ref p o 4) (ptr-ref p (int+ o 4) 4))))))
+; The first of the COLS cells of the row at offset BASE from which every
+; cell is blank and plain, BLANK a row of them: found by halves, a compare
+; each.
+(def %sc-tail
+  (fn (self p base blank lo hi cols)
+    (match ((int< lo hi)
+             ((fn (_ m)
+                (match ((eq? 0 (mem-cmp (%sc-ptr p (int+ base (int* 8 m))) blank (int* 8 (int- cols m))))
+                         (self p base blank lo m cols))
+                       (#t (self p base blank (int+ m 1) hi cols))))
+              (int/ (int+ lo hi) 2)))
+           (#t lo))))
+; The changed cells from offset A to E of the row at BASE, W bytes, written
+; into B from I and copied to what is shown, Q: where the row ends in blank
+; plain cells, the cells to there, then an erase to the end of the line.
+(def %sc-out
+  (fn (_ s p q b base w a e i style)
+    ((fn (_ t)
+       (match
+         ((int< e t) (do (mem-copy (%sc-ptr q a) (%sc-ptr p a) (int+ (int- e a) 8)) (%sc-emit s p b a e i style)))
+         (#t (do (mem-copy (%sc-ptr q a) (%sc-ptr p a) (int- (int+ base w) a))
+                 ((fn (_ done)
+                    (pair (%sc-ws! b (match ((= (rest done) 0) (first done)) (#t (%sc-ws! b (first done) (%sc-sgr s 0) 0))) "\x1b[K" 0)
+                          0))
+                  (%sc-emit s p b a (int+ t -8) i style))))))
+     (int+ base (int* 8 (%sc-tail p base (str->ptr (%sc-get s 10)) 0 (int/ w 8) (int/ w 8)))))))
+; --- scrolling -------------------------------------------------------------
+; A frame that scrolls writes rows the terminal already shows, a row or
+; more from where it shows them.  Before the rows are compared, the first
+; changed row, and the rows after it, are looked for among the shown rows
+; K up or down; found, the terminal moves them itself (a scroll region,
+; delete or insert K lines: VT102), what is shown moves with them, and
+; only the rows they leave are written.  W is a row's bytes.
+(def %sc-row= (fn (_ p q w a b) (eq? 0 (mem-cmp (%sc-ptr p (int* a w)) (%sc-ptr q (int* b w)) w))))
+; The first row from R written since the last render and not as shown,
+; or ROWS.
+(def %sc-changed
+  (fn (self p q d w rows r)
+    (match ((= r rows) r)
+           ((match ((= (ptr-ref d r 1) 1) (not (%sc-row= p q w r r))) (#t #f)) r)
+           (#t (self p q d w rows (int+ r 1))))))
+; How many rows from R the cells hold as shown K rows down (UP), or K
+; rows up.
+(def %sc-run
+  (fn (self p q w rows r k up n)
+    (match ((match ((int< (int+ r k) rows)
+                     (match (up (%sc-row= p q w r (int+ r k))) (#t (%sc-row= p q w (int+ r k) r))))
+                   (#t #f))
+             (self p q w rows (int+ r 1) k up (int+ n 1)))
+           (#t n))))
+; From R0, the first K with two rows or more moved: (K UP . N), or nil.
+(def %sc-shift
+  (fn (self p q w rows r0 k)
+    (match ((int< (int+ r0 k) rows)
+             ((fn (_ up)
+                (match ((int< 1 up) (pair k (pair #t up)))
+                       (#t ((fn (_ down) (match ((int< 1 down) (pair k (pair #f down))) (#t (self p q w rows r0 (int+ k 1)))))
+                            (%sc-run p q w rows r0 k #f 0)))))
+              (%sc-run p q w rows r0 k #t 0)))
+           (#t ()))))
+; Shown row A copied to row B, and rows from R, N of them, shown blank and
+; marked written.
+(def %sc-move-row! (fn (_ q w a b) (mem-copy (%sc-ptr q (int* b w)) (%sc-ptr q (int* a w)) w)))
+(def %sc-freed!
+  (fn (self q d w r n)
+    (match ((int< 0 n)
+             (do (%sc-paint! q (int* r w) (int* (int+ r 1) w) 0) (ptr-set! d r 1 1) (self q d w (int+ r 1) (int+ n -1))))
+           (#t ()))))
+; Rows R0 + J for J from 0 below N moved K down in what is shown (DOWN),
+; or K up, each read before it is written over.
+(def %sc-move-up! (fn (self q w r0 k j n) (match ((int< j n) (do (%sc-move-row! q w (int+ r0 (int+ k j)) (int+ r0 j)) (self q w r0 k (int+ j 1) n))) (#t ()))))
+(def %sc-move-down! (fn (self q w r0 k j) (match ((int< j 0) ()) (#t (do (%sc-move-row! q w (int+ r0 j) (int+ r0 (int+ k j))) (self q w r0 k (int+ j -1)))))))
+; The scroll written into B from 0: (I . STYLE) after, (0 . -1) for none.
+(def %sc-scroll!
+  (fn (_ s p q d b w rows)
+    ((fn (_ r0)
+       ((fn (_ found)
+          (match
+            ((eq? found ()) (pair 0 -1))
+            (#t ((fn (_ k up n)
+                   ((fn (_ i)
+                      (match (up (do (%sc-move-up! q w r0 k 0 n) (%sc-freed! q d w (int+ r0 n) k)))
+                             (#t (do (%sc-move-down! q w r0 k (int+ n -1)) (%sc-freed! q d w r0 k))))
+                      (pair i 0))
+                    (%sc-ws! b (%sc-w! b (%sc-wnum! b (%sc-ws! b (%sc-wcup! b
+                       (%sc-w! b (%sc-wnum! b (%sc-w! b (%sc-wnum! b (%sc-ws! b 0 "\x1b[0m\x1b[" 0) (int+ r0 1)) 59)
+                                 (int+ r0 (int+ n k))) 114)
+                       r0 0) "\x1b[" 0) k) (match (up 77) (#t 76))) "\x1b[r" 0)))
+                 (first found) (first (rest found)) (rest (rest found))))))
+        (match ((int< r0 rows) (%sc-shift p q w rows r0 1)) (#t ()))))
+     (%sc-changed p q d w rows 0))))
 (def %sc-render
   (fn (_ s)
     (def rows (%sc-get s 0)) (def cols (%sc-get s 1))
@@ -212,6 +331,7 @@
     (def b (str->ptr (%sc-get s 8)))
     (def whole (%sc-get s 5))
     (def width (int* 8 cols))
+    (def start (match (whole (pair (%sc-ws! b 0 "\x1b[0m\x1b[H\x1b[2J" 0) 0)) (#t (%sc-scroll! s p q d b width rows))))
     ((fn (go r i style)
        (match
          ((= r rows)
@@ -222,21 +342,26 @@
          ((match (whole #t) (#t (= (ptr-ref d r 1) 1)))
            (do (ptr-set! d r 0 1)
                ((fn (_ base)
-                  ((fn (_ a)
-                     (match
-                       ((int< a 0) (go (int+ r 1) i style))
-                       (#t ((fn (_ a e)
-                              ((fn (_ done) (go (int+ r 1) (first done) (rest done)))
-                               (%sc-emit s p q b a e (%sc-wcup! b i r (int/ (int+ a (- 0 base)) 8)) style)))
-                            (match ((match ((int< base a) (= (%sc-cp p a) 0)) (#t #f)) (int+ a -8)) (#t a))
-                            ((fn (_ e) (match ((match ((int< (int+ e 8) (int+ base width)) (= (%sc-cp p (int+ e 8)) 0)) (#t #f))
-                                                (int+ e 8))
-                                               (#t e)))
-                             (match (whole (int+ base (int+ width -8))) (#t (%sc-last p q base (int+ base (int+ width -8))))))))))
-                   (match (whole base) (#t (%sc-first p q base (int+ base (int+ width -8)))))))
+                ; A row written as it was shown, one compare of the whole
+                ; row: drawn again, a frame writes most rows the same.
+                (match
+                  ((match (whole #f) (#t (eq? 0 (mem-cmp (%sc-ptr p base) (%sc-ptr q base) width)))) (go (int+ r 1) i style))
+                  (#t
+                    ((fn (_ a)
+                       (match
+                         ((int< a 0) (go (int+ r 1) i style))
+                         (#t ((fn (_ a e)
+                                ((fn (_ done) (go (int+ r 1) (first done) (rest done)))
+                                 (%sc-out s p q b base width a e (%sc-wcup! b i r (int/ (int+ a (- 0 base)) 8)) style)))
+                              (match ((match ((int< base a) (= (%sc-cp p a) 0)) (#t #f)) (int+ a -8)) (#t a))
+                              ((fn (_ e) (match ((match ((int< (int+ e 8) (int+ base width)) (= (%sc-cp p (int+ e 8)) 0)) (#t #f))
+                                                  (int+ e 8))
+                                                 (#t e)))
+                               (match (whole (int+ base (int+ width -8))) (#t (%sc-last p q base (int+ base (int+ width -8))))))))))
+                     (match (whole base) (#t (%sc-first p q base (int+ base (int+ width -8)))))))))
                 (int* r width))))
          (#t (go (int+ r 1) i style))))
-     0 (match (whole (%sc-ws! b 0 "\x1b[0m\x1b[H\x1b[2J" 0)) (#t 0)) (match (whole 0) (#t -1)))))
+     0 (first start) (rest start))))
 ; Row R's characters, as text.
 (def %sc-onto (fn (self l acc) (match ((eq? l ()) acc) (#t (self (rest l) (pair (first l) acc))))))
 (def %sc-row-text
@@ -321,4 +446,4 @@
         (example "(Screen style-at (Screen make 1 1) 0 0)" "0"))
       (%sc-style (%sc-cells screen) (%sc-off (%sc-get screen 1) row col)))))
 
-(provide x/tui/screen Screen screen-put! screen-fill!)
+(provide x/tui/screen Screen screen-put! screen-fill! screen-row-cells screen-row!)

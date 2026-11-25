@@ -32,7 +32,7 @@ Wide CJK and emoji take two columns, combining marks and controls none.
 
 ### the first render draws every row, later ones only the changed cells
 
-A wide character over half of another blanks the half left behind.
+A wide character over half of another blanks the half left behind; a row that ends blank is erased to its end.
 
 ```x
 (do (import x/tui/screen) (import x/tui/style)
@@ -49,7 +49,25 @@ A wide character over half of another blanks the half left behind.
         (Screen put s 0 3 "中中" 0) (Screen row-text s 0)))
 ```
 ---
-    ("\x1b[0m\x1b[H\x1b[2J\x1b[1;1H\x1b[0;1mab\x1b[0m   \x1b[2;1H     \x1b[0m\x1b[1;1H" "" "\x1b[2;3H\x1b[0mx中\x1b[0m\x1b[1;1H" "\x1b[2;4H\x1b[0m z\x1b[0m\x1b[1;1H" "\x1b[2;2H\x1b[0mQ\x1b[0m\x1b[1;1H" "ab   " " Qx z" 5 "ab 中")
+    ("\x1b[0m\x1b[H\x1b[2J\x1b[1;1H\x1b[0;1mab\x1b[0m\x1b[K\x1b[2;1H\x1b[K\x1b[0m\x1b[1;1H" "" "\x1b[2;3H\x1b[0mx中\x1b[0m\x1b[1;1H" "\x1b[2;4H\x1b[0m z\x1b[0m\x1b[1;1H" "\x1b[2;2H\x1b[0mQ\x1b[0m\x1b[1;1H" "ab   " " Qx z" 5 "ab 中")
+
+### rows the terminal shows a row away are scrolled, not written
+
+The rows moved up a row are deleted a line in a scroll region, and only the row they leave is written; moved down, a line is inserted.
+
+```x
+(do (import x/tui/screen)
+  (def s (Screen make 6 3))
+  (def rows! (fn (_ l) ((fn (go r l) (if (null? l) () (do (Screen put s r 0 (first l) 0) (go (+ r 1) (rest l))))) 0 l)))
+  (rows! '("a" "b" "c" "d" "e" "f"))
+  (Screen render s)
+  (rows! '("b" "c" "d" "e" "f" "g"))
+  (def up (Screen render s))
+  (rows! '("x" "b" "c" "d" "e" "f"))
+  (list up (Screen render s) (Screen render s) (Screen row-text s 0) (Screen row-text s 5)))
+```
+---
+    ("\x1b[0m\x1b[1;6r\x1b[1;1H\x1b[1M\x1b[r\x1b[6;1Hg\x1b[0m\x1b[1;1H" "\x1b[0m\x1b[1;6r\x1b[1;1H\x1b[1L\x1b[r\x1b[1;1Hx\x1b[0m\x1b[1;1H" "" "x  " "f  ")
 
 ### a put at or past the right edge puts nothing and answers its column
 
