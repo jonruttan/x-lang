@@ -35,7 +35,7 @@
 (import x/codec/utf8 utf8-cp-at utf8-width)
 (import x/tui/width char-width text-width)
 (import x/tui/style)
-(import x/tui/screen Screen screen-put! screen-fill!)
+(import x/tui/screen Screen screen-put! screen-fill! screen-row-cells screen-row!)
 
 (import x/core/doors char->int int& int* int+ int/ int< int| obj-make obj-ref obj-set! str-byte-len str-byte-ref str-byte-sub)
 (def %pg-cvt (prim-ref (lit convert) (lit to)))
@@ -447,7 +447,8 @@
 ; Whether a run of RUNS is in a link.
 (def %pg-linked?
   (fn (self runs) (match ((eq? runs ()) #f) ((eq? (%pg-3rd (first runs)) ()) (self (rest runs))) (#t #t))))
-; A page is a vector: 0 its lines, 1 its links, 2 its width; lines and
+; A page is a vector: 0 its lines, 1 its links, 2 its width, 3 the lines
+; drawn (see %pg-cells); lines and
 ; links vectors.  A link is (DESTINATION TITLE SPANS).
 (def %pg-make
   (fn (_ lines links width)
@@ -481,36 +482,78 @@
                       (#t (go (rest ls) (int+ k 1)
                               (pair (list (first (first ls)) (%pg-2nd (first ls)) (%pg-rev (%pg-at spans k))) out)))))
              links 0 ()))
-    (def page (obj-make %pg-vector 4))
-    (obj-set! page 0 3)
-    (obj-set! page 1 lv) (obj-set! page 2 (%pg-vec lk)) (obj-set! page 3 width)
+    (def page (obj-make %pg-vector 5))
+    (obj-set! page 0 4)
+    (obj-set! page 1 lv) (obj-set! page 2 (%pg-vec lk)) (obj-set! page 3 width) (obj-set! page 4 ())
     page))
 (def %pg-lines (fn (_ p) (obj-ref p 1)))
 (def %pg-links (fn (_ p) (obj-ref p 2)))
 (def %pg-line-text (fn (_ p i) (%str-concat (%pg-map first (%pg-at (%pg-lines p) i)))))
+; Link K, (DESTINATION TITLE SPANS), or nil past the last; how many links:
+; what (Page links) lists, read in place, for x/tui/window to step through.
+(def page-link
+  (fn (_ p k)
+    (match ((int< k 0) ()) ((int< k (%pg-count (%pg-links p))) (%pg-at (%pg-links p) k)) (#t ()))))
+(def page-link-count (fn (_ p) (%pg-count (%pg-links p))))
+; Whether link K has a run in RUNS.
+(def %pg-has-link?
+  (fn (self runs k) (match ((eq? runs ()) #f) ((eq? (%pg-3rd (first runs)) ()) (self (rest runs) k))
+                           ((= (%pg-3rd (first runs)) k) #t) (#t (self (rest runs) k)))))
+; A page keeps each line it draws as the cells of a screen row COLS wide,
+; slot 4 (COLS . CELLS), CELLS a vector a line, nil for one not yet drawn:
+; a line drawn again is put back in one copy, where its runs are put a
+; character at a time.  A line with the selected link is drawn from its
+; runs, its link reversed.
+(def %pg-cells
+  (fn (_ p cols)
+    (def c (obj-ref p 4))
+    (match ((match ((eq? c ()) #f) (#t (= (first c) cols))) (rest c))
+           (#t ((fn (_ n)
+                  ((fn (_ v)
+                     (obj-set! v 0 n)
+                     ((fn (go k) (match ((int< n k) ()) (#t (do (obj-set! v k ()) (go (int+ k 1)))))) 1)
+                     (obj-set! p 4 (pair cols v))
+                     v)
+                   (obj-make %pg-vector (int+ n 1))))
+                (%pg-count (%pg-lines p)))))))
+; RUNS on SCREEN's ROW, COLS wide, link SELECTED reversed.
+(def %pg-draw-runs!
+  (fn (_ screen row cols runs selected)
+    (screen-fill! screen row 0 cols 0)
+    ((fn (put runs col)
+       (match ((eq? runs ()) ())
+              (#t ((fn (_ run)
+                     (put (rest runs)
+                          (screen-put! screen row col (first run)
+                            (match ((match ((eq? (%pg-3rd run) ()) #f) (#t (= (%pg-3rd run) selected)))
+                                     (int| (%pg-2nd run) %pg-reverse))
+                                   (#t (%pg-2nd run))))))
+                   (first runs)))))
+     runs 0)))
 ; Lines from TOP on SCREEN's rows from ROW0, ROWS of them, link SELECTED
 ; reversed; rows past the last line blank.
 (def %pg-draw
   (fn (_ p screen row0 rows top selected)
     (def lv (%pg-lines p))
     (def cols (Screen cols screen))
+    (def cells (%pg-cells p cols))
     ((fn (go r)
        (match
          ((int< r rows)
-           (do (screen-fill! screen (int+ row0 r) 0 cols 0)
-               (match
-                 ((int< (int+ top r) (%pg-count lv))
-                   ((fn (put runs col)
-                      (match ((eq? runs ()) ())
-                             (#t ((fn (_ run)
-                                    (put (rest runs)
-                                         (screen-put! screen (int+ row0 r) col (first run)
-                                                 (match ((match ((eq? (%pg-3rd run) ()) #f) (#t (= (%pg-3rd run) selected)))
-                                                          (int| (%pg-2nd run) %pg-reverse))
-                                                        (#t (%pg-2nd run))))))
-                                  (first runs)))))
-                    (%pg-at lv (int+ top r)) 0))
-                 (#t ()))
+           (do ((fn (_ row i)
+                  (match
+                    ((int< i (%pg-count lv))
+                      ((fn (_ runs kept)
+                         (match
+                           ((match ((eq? selected ()) #f) (#t (%pg-has-link? runs selected)))
+                             (%pg-draw-runs! screen row cols runs selected))
+                           ((eq? kept ())
+                             (do (%pg-draw-runs! screen row cols runs ())
+                                 (obj-set! cells (int+ i 1) (screen-row-cells screen row))))
+                           (#t (screen-row! screen row kept))))
+                       (%pg-at lv i) (obj-ref cells (int+ i 1))))
+                    (#t (screen-fill! screen row 0 cols 0))))
+                (int+ row0 r) (int+ top r))
                (go (int+ r 1))))
          (#t ())))
      0)))
@@ -565,4 +608,4 @@
         (example "(Page draw (Page text \"a\" 9) (Screen make 2 9) 0 2 0 ())" ""))
       (%pg-draw page screen row rows top selected))))
 
-(provide x/tui/page Page)
+(provide x/tui/page Page page-link page-link-count)
