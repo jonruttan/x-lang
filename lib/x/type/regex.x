@@ -14,6 +14,10 @@
 
 (module x/type/regex)
 
+; A program that matches spends its time here: an image built with
+; (image compiled) compiles this module along with the bundle's own.
+(def image-compiled #t)
+
 ; The base type handles, from their public door, fetched once at load.
 (def %char (Type named CHARACTER))
 (import x/type/class)

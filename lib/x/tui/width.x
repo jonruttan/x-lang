@@ -17,7 +17,7 @@
 (import x/type/class)
 (import x/codec/utf8 utf8-cp-at utf8-width)
 
-(import x/core/doors char->int int* int+ int/ int< ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-make)
+(import x/core/doors char->int ffi-dlopen ffi-dlsym int* int+ int- int->ptr int/ int< ptr->int ptr-call ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-make)
 
 (def %wd-ranges (list
   768 879 0 1155 1161 0 1425 1469 0 1471 1471 0 1473 1474 0 1476 1477 0
@@ -149,23 +149,32 @@
       ((int< cp 32) 0)
       ((int< cp 127) 1)
       ((int< cp 160) 0)
+      ((int< cp (first %wd-ranges)) 1)
       (#t (do (match ((eq? %wd-table ()) (%wd-pack!)) (#t ()))
               (%wd-search (str->ptr %wd-table) cp 0 (int+ %wd-count -1)))))))
-; The width of S, UTF-8, from byte I.
+; A run of printable ASCII, a cell a byte, is measured in one call to the
+; C library's strspn over the bytes from U+0020 to U+007E; the byte after
+; it, a control character or the start of a wider one, is measured here.
+(def %wd-strspn (ffi-dlsym (ffi-dlopen () 1) "strspn"))
+(def %wd-printable
+  (bytes->str ((fn (self b) (match ((int< b 127) (pair b (self (int+ b 1)))) (#t ()))) 32)))
+; The width of S's bytes from I to END, UTF-8, added to N.
 (def %wd-text
-  (fn (self s i n)
+  (fn (self s i end n)
     (match
-      ((int< i (str-byte-len s))
-        ((fn (_ b)
-           (match ((int< b 32) (self s (int+ i 1) n))
-                  ((int< b 127) (self s (int+ i 1) (int+ n 1)))
-                  ((int< b 128) (self s (int+ i 1) n))
-                  (#t (self s (int+ i (utf8-width s i)) (int+ n (char-width (utf8-cp-at s i)))))))
-         (char->int (str-byte-ref s i))))
+      ((int< i end)
+        ((fn (_ j)
+           (match ((int< j end)
+                    ((fn (_ b m)
+                       (match ((int< b 128) (self s (int+ j 1) end m))
+                              (#t (self s (int+ j (utf8-width s j)) end (int+ m (char-width (utf8-cp-at s j)))))))
+                     (char->int (str-byte-ref s j)) (int+ n (int- j i))))
+                  (#t (int+ n (int- end i)))))
+         (int+ i (ptr-call %wd-strspn (int->ptr (int+ (ptr->int (str->ptr s)) i)) (str->ptr %wd-printable)))))
       (#t n))))
 
 ; S's width.
-(def text-width (fn (_ s) (%wd-text s 0 0)))
+(def text-width (fn (_ s) (%wd-text s 0 (str-byte-len s) 0)))
 
 (def-class Width ()
   (doc "Terminal cell widths: how many columns a character, or a UTF-8 string, takes on a terminal, as tmux counts them."
