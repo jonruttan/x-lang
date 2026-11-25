@@ -121,12 +121,26 @@
           (fn (go i)
             (match
               ((int< last i) ())
-              ((eq? (char->int (str-byte-ref s i)) c0)
-                (match
-                  ((eq? 0 (mem-cmp (int->ptr (int+ sbase i)) subp m)) i)
-                  (#t (go (int+ i 1)))))
-              (#t (go (int+ i 1))))))
+              (#t ((fn (_ k)
+                     (match
+                       ((eq? k ()) ())
+                       ((int< last k) ())
+                       ((eq? 0 (mem-cmp (int->ptr (int+ sbase k)) subp m)) k)
+                       (#t (go (int+ k 1)))))
+                   (str-find-byte s c0 i))))))
         (go from))))))
+
+; Where byte C (1 to 255) is first in S at or after byte FROM, or nil:
+; the C library's strchr, one call where a walk would make a call a byte.
+; FROM is within S or at its end.  strchr stops where str-byte-len does,
+; at the first NUL, so the answer is the walk's.
+(def %str8-strchr (prim-ref (lit ptr) (lit strchr)))
+(def str-find-byte
+  (fn (_ s c from)
+    ((fn (_ base)
+       ((fn (_ hit) (match ((eq? hit ()) ()) (#t (int- (ptr->int hit) base))))
+        (%str8-strchr (int->ptr (int+ base from)) c)))
+     (ptr->int (str->ptr s)))))
 
 (def %str8-space?
   (fn (_ s i)
@@ -734,7 +748,7 @@
                         (pair (str-byte-sub s start (int- hit start)) acc))))))
           (go 0 ())))))))
 
-(doc (provide x/protocol/str/str8 Str8)
+(doc (provide x/protocol/str/str8 Str8 str-find-byte)
   (note "The 8-bit byte view. Use (Str8 length s), (Str8 upcase s), etc.; (help Str8) lists every method, (help Str8 method) shows one.")
   (example "(Str8 upcase \"abc\")" "\"ABC\"")
   "The 8-bit byte string protocol (a Seq subclass) with the full string method suite.")
