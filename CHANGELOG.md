@@ -5,6 +5,184 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-11-25
+
+**`x/gfx` moves out to the `gfx` library.** ([#1474], [#1468]) Breaking.
+`x/gfx/canvas`, `x/gfx/shape`, `x/gfx/font`, `x/gfx/figure` and
+`x/gfx/scene` are removed with their specs and the scene examples,
+`unit-and-object.x` among them. They are the `gfx` library at
+jonruttan/x-lib-gfx, imported as `gfx/canvas` and so on; a bundle names
+it with `(requires-bundle "gfx" "v0.1.0" "jonruttan/x-lib-gfx")`.
+
+**`x NAME ARG...` runs the installed bundle NAME.** ([#1469]) Breaking.
+A first bare word is `-l NAME -- ARG...`, so `x top` and `x bundle
+install gfx` need no flag; a word no installed bundle carries is an
+error naming it. A bare positional argument given with no `-l`, `-f`,
+`-F` or `-c` was passed to the session as a program argument, and is
+now read as a bundle's name. Arguments after `--` are unchanged.
+
+**Importing `x/num/bigint`, `x/num/float`, `x/num/rational`,
+`x/num/complex` or `x/num/decimal` no longer installs a literal.**
+([#1472], [#1467]) Breaking. Each is the type, its arithmetic, its
+conversions and its printer; the literal is `x/num/NAME/literal`, which
+installs it on the base that imports it. `x/num/tower`, and so xenon and
+radon, import both and read numbers as before. A helium program that
+imported one of these, or a library built on one such as
+`x/num/tensor`, and wrote `1.5`, `1/3`, `3+4i`, `1.5d` or an integer
+past the word adds the literal import. `(Float from "2.5")` and
+`float-of` on text no longer depend on the float literal being
+installed; text such as `"0x10"` no longer converts. Text converted to a
+rational may have a component past the word where `x/num/bigint` is
+loaded.
+
+**Fixed, vector and regex literals are modules of their own.**
+([#1483]) Breaking. `x/num/fixed`, `x/type/vector` and `x/type/regex`
+no longer install reader syntax when imported. The syntax is in
+`x/num/fixed/literal` (`0.75q16`), `x/type/vector/literal` (`#(…)`) and
+`x/type/regex/literal` (`#/…/`). Helium loads the vector literal and
+xenon loads the regex literal as before; a program that imported
+`x/num/fixed` or `x/type/regex` for the literal imports the literal
+module instead. `Regex compile` makes a regex from text without it.
+
+**Neon, a dialect for languages built on x-lang.** ([#1485]) `x -l ne`,
+or `(dialect ne)` in a `bundle.xon`, boots helium with the assembler,
+the compiler, the function compiler, the Lexer and `Dict` already loaded
+and the reader's hooks compiled, so a bundle's first byte is tokenized
+through native code. Neon loads no numeric tower and adds no reader
+syntax; a bundle imports the libraries it needs. Xenon and radon are now
+built on neon, and both load the Lexer at boot.
+
+**`Transformer variate`'s and `LanguageModel`'s limit on a draw is
+named `max`, where it was `greatest`**, as Tensor's method now is.
+([#1464]) It is given by position, so calls are unchanged; the kernel
+`f32-greatest-at` is `f32-max-at`.
+
+**Missing values in a `Table`.** ([#1471]) An empty csv field and a nil
+among numbers are missing: a NaN in a column of numbers, nil in a column
+of strings, so a numeric column with a blank stays numeric. `Column
+missing` and `present` answer masks, and `fill-missing` puts a value
+where one is missing. A column's statistics answer a NaN while a number
+is missing.
+
+**`Table sort`, `split` and `aggregate` handle a missing value in the
+column they work by.** ([#1480]) `sort` puts those rows last, in their
+own order. `split` and `aggregate` make one category of them, where each
+missing number made a category with no rows and its row was left out.
+
+**`Tensor min` and `max` with no operand answer a NaN where an element
+is one.** ([#1471]) They answered the least or greatest of only the
+elements after the last NaN.
+
+**MIDI input: `x/sys/midi`.** ([#1481]) `(Midi devices)`, `(Midi open
+NAME)` and `(m messages)` read a MIDI keyboard on a descriptor that `Sys
+poll` waits on: raw MIDI under /dev/snd on Linux, and CoreMIDI on macOS,
+through a native read callback that writes packets to a pipe and never
+enters the interpreter. `(Midi decode BYTES)` gives notes, controllers,
+programs, pressure and the pitch bend, with running status.
+
+**Term key decodes the terminal's mouse.** ([#1479]) `(Term mouse! fd
+#t)` turns on SGR mouse reports, and `Term key` answers each as `(mouse
+ACTION BUTTON ROW COL MODS)`: press, release, drag, move and wheel, the
+row and column from 0, and the shift, alt and ctrl held.
+
+**Sdl windows use all of a high-density screen's pixels.** ([#1473]) Sdl
+and Web gain `density` and `picture!` for drawing at that density.
+
+**`Jpeg decode` and `Jpeg size` read baseline JPEG images.** ([#1470])
+`x/codec/jpeg` reads grey, YCbCr or RGB, any sampling and restart
+intervals, pixel for pixel as libjpeg decodes them.
+
+**`Tar` writes ustar archives.** ([#1476]) `x/codec/tar` answers a
+member's header (`Tar header`), the padding after its bytes (`Tar
+padding`) and the archive's end (`Tar end`) as regions, for a caller
+that streams the members itself.
+
+**A bundle's release carries the payload its `bundle.xon` declares.**
+([#1477]) A `(payload "data" "art")` row names the files and directories
+a bundle ships beside `lib/`, and `tools/bundle-kit/roll.sh` archives
+them with the rest. A payload the tag lacks, or a path not at the
+bundle's top, is refused.
+
+**A `Regex` reads `\t` and the other control escapes, and the POSIX
+bracket classes.** ([#1462]) `\t \n \r \f \v \a` were the letters
+themselves, in a bracket expression and out of one, and `[[:space:]]`
+was a class of its own spelling. Both now mean what POSIX and awk mean,
+so x-awk, x-grep and x-sed match tabs and `[:space:]`, `[:alpha:]` and
+the other ten classes.
+
+**compile-fn! compiles x-awk whole.** ([#1475]) Two miscompiles are
+fixed: a field read in tail position, `(first (f (g x) y))`, no longer
+makes the held call a tail call that answers nil, and a `let` inside a
+closure made inside a `let` no longer reads the outer local as its own.
+The asm cache epoch moves to g8. With `(image compiled)`, x-awk runs the
+release amalgamation's awk program over `lib/x/reader/lexer.x` in 18 s,
+against 28.5 s interpreted.
+
+**Compiled closures call `display`, `error` and `symbol->str`.**
+([#1486]) A closure that called one of them was refused by `compile-fn!`
+and stayed interpreted. Of the module-level closures loaded under
+xenon, the compiler now refuses 62 of 754, down from 105 of 749.
+
+**Compiled loops run up to three times as fast.** ([#1484]) A literal or
+parameter operand loads straight into a register, a literal memory
+index folds into the offset, and a tail self-call stores only the
+arguments that change.
+
+**Html parse is about fourteen times as fast on a large page, and no
+longer quadratic in its length.** ([#1487]) Racket's net/url.html
+(213 KB) parses in 2.1 s where it took 29 s, with an eighth of the
+objects; x-browse opens it in 2.9 s where it took 30. Str8 gains
+`str-find-byte`, the C library's strchr from a byte on, and Str8 find
+skips by it.
+
+**A tui page scrolls and steps through its links about ten times as
+fast.** ([#1488]) A page keeps each line it draws and puts it back in
+one copy, a render moves rows the terminal already shows with a scroll
+region and erases a row's blank end, and a window steps through links
+by number. In x-browse on a 213 KB page a line down takes 4 ms where it
+took 43, a Tab 8 where it took 47. Screen gains `screen-row-cells` and
+`screen-row!`, Page `page-link` and `page-link-count`.
+
+**`Transformer generate` is about four times as fast again on a host
+with a GPU.** ([#1482]) Each position, the prompt's as well, is one run
+of GPU kernels, waited for once. The ids GPT-2 small generates are the
+same.
+
+**A `Regex` that opens with `^` is tried at the start of the string
+only.** ([#1463]) `Regex search` and `Regex find-at` used to try it
+again at every later position, where it could only fail. Under x-awk, a
+`^` pattern over 5,000 lines went from 29 s to 2 s.
+
+**List length, reverse and append make about half the objects.**
+([#1465]) An improper list raises naming length or reverse instead of
+fold.
+
+[#1462]: https://github.com/jonruttan/x-lang/pull/1462
+[#1463]: https://github.com/jonruttan/x-lang/pull/1463
+[#1464]: https://github.com/jonruttan/x-lang/pull/1464
+[#1465]: https://github.com/jonruttan/x-lang/pull/1465
+[#1467]: https://github.com/jonruttan/x-lang/pull/1467
+[#1468]: https://github.com/jonruttan/x-lang/pull/1468
+[#1469]: https://github.com/jonruttan/x-lang/pull/1469
+[#1470]: https://github.com/jonruttan/x-lang/pull/1470
+[#1471]: https://github.com/jonruttan/x-lang/pull/1471
+[#1472]: https://github.com/jonruttan/x-lang/pull/1472
+[#1473]: https://github.com/jonruttan/x-lang/pull/1473
+[#1474]: https://github.com/jonruttan/x-lang/pull/1474
+[#1475]: https://github.com/jonruttan/x-lang/pull/1475
+[#1476]: https://github.com/jonruttan/x-lang/pull/1476
+[#1477]: https://github.com/jonruttan/x-lang/pull/1477
+[#1479]: https://github.com/jonruttan/x-lang/pull/1479
+[#1480]: https://github.com/jonruttan/x-lang/pull/1480
+[#1481]: https://github.com/jonruttan/x-lang/pull/1481
+[#1482]: https://github.com/jonruttan/x-lang/pull/1482
+[#1483]: https://github.com/jonruttan/x-lang/pull/1483
+[#1484]: https://github.com/jonruttan/x-lang/pull/1484
+[#1485]: https://github.com/jonruttan/x-lang/pull/1485
+[#1486]: https://github.com/jonruttan/x-lang/pull/1486
+[#1487]: https://github.com/jonruttan/x-lang/pull/1487
+[#1488]: https://github.com/jonruttan/x-lang/pull/1488
+
 ## [0.62.0] - 2026-11-23
 
 **The Lexer appends nothing to a read: the end of the text ends the last
