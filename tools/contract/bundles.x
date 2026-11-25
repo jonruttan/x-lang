@@ -76,7 +76,7 @@
 ; system tool (md5sum sha1sum sha256sum sha512sum cksum sum), expr with
 ; its own anchored matcher, od, the scripting set, and the nineteen
 ; applets that ride v0.11.0's doors (chmod ln readlink realpath df
-; uname id ...).  Absent for want of a door: who stty hostid mknod.
+; uname id ...).
 (bundle "coreutils" "x-coreutils" 2213 0)
 ; cc comes last in the arc: the full C front end, a cell-machine
 ; evaluator (`run` -- every spec an oracle row against /usr/bin/cc),
