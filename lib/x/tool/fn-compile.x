@@ -1326,6 +1326,15 @@
   (sample "(compile-module! 'chess/board)" "each closure chess/board defines, compiled where it stands")
   "Compile, by compile-fn!, each closure the scoped module NAME defines at its top level: those whose environment is the module's own frame, not those it imports. A module that is not loaded, or was loaded by include into the root, answers ().")
 
+; A library module that is worth compiling wherever it is loaded says so
+; with (def image-compiled #t) at its top level: the name in its own frame,
+; not one it reaches through the root.
+(def %fc-marked?
+  (fn (_ name)
+    (def env (Module env name))
+    (and (not (null? env)) (not (obj-same? env (Env root)))
+         (List includes? (lit image-compiled) (Env names env)))))
+
 ; x collects only when asked, and a compile leaves hundreds of thousands
 ; of objects behind it: a module's compiles are collected before the next
 ; module's begin.
@@ -1333,7 +1342,7 @@
   (fn (_ dir)
     (List fold
       (fn (_ acc name)
-        (if (Str8 starts? dir (%module-resolve name))
+        (if (or (Str8 starts? dir (%module-resolve name)) (%fc-marked? name))
           (do (def made (compile-module! name))
               (Heap collect)
               (%append made acc))
@@ -1344,7 +1353,7 @@
   (param dir STRING "An import root, as import-path! was given it")
   (returns LIST "A Compiled entry for each closure compiled or refused")
   (sample "(compile-root! \"bundles/doc/lib\")" "the closures of every module the bundle's root holds, compiled")
-  "Compile, by compile-module!, every loaded module whose file the import roots resolve under DIR: a bundle's own modules, when DIR is its root, the lib/ directory under it. A bundle whose bundle.xon says (image compiled) has this run on its root before its state image is written, so the image carries its closures compiled.")
+  "Compile, by compile-module!, every loaded module whose file the import roots resolve under DIR: a bundle's own modules, when DIR is its root, the lib/ directory under it. Every other loaded module whose top level says (def image-compiled #t) is compiled too: a library the bundle imports and spends its time in, such as x/type/regex. A bundle whose bundle.xon says (image compiled) has this run on its root before its state image is written, so the image carries its closures compiled.")
 
 (doc (provide x/tool/fn-compile compile-fn! compile-module! compile-root!)
   (sample "(import x/tool/fn-compile compile-fn!) (compile-fn! 'fib fib)" "fib compiled where it stands, its interpreted version kept on the Compiled list")
