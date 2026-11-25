@@ -215,6 +215,32 @@ are integers and the result fits a word, and calls the operator otherwise.
 ---
     ('compiled 'tag-a 'tag-b)
 
+### error and symbol->str are called with values
+
+```x
+(def %fc-ev
+  (fn (_ s n)
+    (if (int< n 0) (error (list (lit negative) n)) (pair (symbol->str s) n))))
+(def %fc-ev-all (fn (_) (list (%fc-ev (lit tag) 7) (guard (e e) (%fc-ev (lit tag) -1)))))
+(def %fc-ev-before (%fc-ev-all))
+(def %fc-e (compile-fn! (lit %fc-ev) %fc-ev))
+(write (list (%fc-e state) (equal? %fc-ev-before (%fc-ev-all)) (%fc-ev-all)))
+```
+---
+    ('compiled #t (("tag" . 7) ('negative -1)))
+
+### display prints the values it is handed, in order
+
+```x
+(def %fc-show (fn (_ s n) (display (symbol->str s) " " (int+ n 1) " " (lit (a b)))))
+(def %fc-e (compile-fn! (lit %fc-show) %fc-show))
+(write (%fc-e state))
+(newline)
+(%fc-show (lit tag) 7)
+```
+---
+    tag 8 (a b)
+
 ### a call with values is made the same from a caller that binds lit
 
 The call's values are handed over quoted by the operative lit itself, not
