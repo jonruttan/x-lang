@@ -14,6 +14,7 @@
 (import x/type/class)
 (import x/codec/utf8 utf8-encode)
 
+(import x/protocol/str/str8 str-find-byte)
 (import x/core/doors char->int int+ int< str-byte-len str-byte-ref str-byte-sub)
 
 ; The byte at I of S as an integer, -1 past either end.
@@ -131,18 +132,19 @@
                 (%en-assoc (%en-sub s (+ i 1) j) %en-names)))
              (#t ())))
          (+ i 1))))))
+; S, N bytes long, decoded from byte I, the text from FROM not yet taken:
+; strchr finds each & in one call, so a span with none is not walked.
+(def %en-amp (char->int #\&))
 (def %en-decode-from
-  (fn (self s i from out)
-    (def c (%en-at s i))
+  (fn (self s n i from out)
+    (def k (match ((int< i n) (str-find-byte s %en-amp i)) (#t ())))
     (match
-      ((= c -1) (match ((= from 0) s) (#t (%str-concat (%reverse (pair (%en-sub s from i) out))))))
-      ((= c #\&)
-        ((fn (_ e)
-           (match ((eq? e ()) (self s (int+ i 1) from out))
-                  (#t (self s (rest e) (rest e) (pair (first e) (pair (%en-sub s from i) out))))))
-         (entity-at s i)))
-      (#t (self s (int+ i 1) from out)))))
-(def entity-decode (fn (_ s) (%en-decode-from s 0 0 ())))
+      ((eq? k ()) (match ((= from 0) s) (#t (%str-concat (%reverse (pair (%en-sub s from n) out))))))
+      (#t ((fn (_ e)
+             (match ((eq? e ()) (self s n (int+ k 1) from out))
+                    (#t (self s n (rest e) (rest e) (pair (first e) (pair (%en-sub s from k) out))))))
+           (entity-at s k))))))
+(def entity-decode (fn (_ s) (%en-decode-from s (str-byte-len s) 0 0 ())))
 
 (def-class Entity ()
   (doc "HTML character references: (Entity at s i) reads the one at I of S as (TEXT . END), or nil; (Entity decode s) decodes every one in S."
