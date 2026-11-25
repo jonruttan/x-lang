@@ -15,8 +15,8 @@
 ; The compiler, and the core's reader hooks compiled by it.  Named from the
 ; root, as the core is: this body is included before the core has loaded
 ; the module system, so no directory is on the include stack for a ./ path
-; to resolve against.  boot/tower-compiled.x names the same file as its
-; sibling, which resolves to this spelling, so the two load it once.
+; to resolve against.  It registers its own name, so the import of it in
+; boot/tower-compiled.x is then a no-op.
 (include-once "lib/x/boot/compiler.x")
 
 ; Pre-seed invariant (check-boot-order): loaded via raw `include` from the

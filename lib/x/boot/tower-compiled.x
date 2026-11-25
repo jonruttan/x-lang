@@ -10,11 +10,13 @@
 ;
 ; Loads via raw `include` from the dialect bodies -- registered in the
 ; pre-seed below (with the tower modules) per the pre-seed invariant that
-; make check-boot-order enforces.  Its own includes are ./- and ../-relative,
+; make check-boot-order enforces.  Its own includes are ../-relative,
 ; so it loads from any directory: an installed tree's importer runs anywhere.
 
-; The compiler and the compile ladder; a no-op under a body that loaded it.
-(include-once "./compiler.x")
+; The compiler and the compile ladder.  An import, so it is a no-op wherever
+; the name is already registered: under a body that included the file, and
+; in a base that imported it by name before this one.
+(import x/boot/compiler)
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))

@@ -10,10 +10,10 @@
 ; The helpers the tower's literal compiles use (%tower-asm, %tower-jit-global!
 ; and the rest) are defined here, since they are the compile ladder itself.
 ;
-; Loaded with include-once, so a body that includes it and then the tower
-; loads it once.  It registers its own name below, per the pre-seed
-; invariant that make check-boot-order enforces.  Its includes are
-; ../-relative, so it loads from any directory.
+; The neon body includes it and boot/tower-compiled.x imports it.  It
+; registers its own name below, per the pre-seed invariant that make
+; check-boot-order enforces, so whichever comes second is a no-op.  Its
+; includes are ../-relative, so it loads from any directory.
 
 ; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
 (def %type-by-atom (prim-ref 'type 'by-atom))
