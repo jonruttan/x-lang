@@ -624,16 +624,16 @@ word.
       (s (Table from (list (list 'k (list "x" () "y" "x" ())) (list 'name (list "a" "b" "c" "d" "e")))))
       (gone (Table from (list (list 'k (list () ())) (list 'name (list "a" "b")))))
       (key (fn (_ k) (if (Float nan? k) 'missing k)))
-      (count (list (list 'count 'name (fn (_ c) (c size))))))
+      (names (list (list 'names 'name (fn (_ c) (c ->list))))))
   (let ((parts (fn (_ t) (List map (fn (_ p) (list (key (first p)) (((rest p) column 'name) ->list))) (t split 'k))))
-        (counts (fn (_ t) (let ((a (t aggregate 'k count))) (list (((a column 'k) missing) ->list) ((a column 'count) ->list))))))
-    (let ((run (fn (_) (list (parts t) (counts t) (parts s) (counts s) (parts gone)))))
+        (rows (fn (_ t) (let ((a (t aggregate 'k names))) (list (((a column 'k) missing) ->list) ((a column 'names) ->list))))))
+    (let ((run (fn (_) (list (parts t) (rows t) (parts s) (rows s) (parts gone)))))
       (let ((before (run)))
         (Tensor jit!)
         (list (equal? before (run)) before)))))
 ```
 ---
-    (#t (((2.0 ("a" "d")) ('missing ("b" "e")) (1.0 ("c")) (3.0 ("f"))) ((0.0 1.0 0.0 0.0) (2 2 1 1)) (("x" ("a" "d")) (() ("b" "e")) ("y" ("c"))) ((0.0 1.0 0.0) (2 2 1)) ((() ("a" "b")))))
+    (#t (((2.0 ("a" "d")) ('missing ("b" "e")) (1.0 ("c")) (3.0 ("f"))) ((0.0 1.0 0.0 0.0) (("a" "d") ("b" "e") ("c") ("f"))) (("x" ("a" "d")) (() ("b" "e")) ("y" ("c"))) ((0.0 1.0 0.0) (("a" "d") ("b" "e") ("c"))) ((() ("a" "b")))))
 
 ## Handing a table to a model
 
