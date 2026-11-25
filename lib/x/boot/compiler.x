@@ -146,9 +146,6 @@
 ; be in a module's own environment as the float states' are, and one cell
 ; of a type's handler list.
 
-; (%tower-state ENV NAME): a module's binding of one of its states, as it
-; stands -- the interpreted twin before its compile, the compiled one after.
-(def %tower-state (fn (_ env name) (eval name env)))
 ; An entry whose compile is one of the two ladders over SRC and the fvars
 ; FVARSF answers.
 (def %tower-compiled!

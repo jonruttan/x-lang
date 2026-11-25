@@ -57,7 +57,7 @@
   (needs "lib/x-base.x" isa/gc)
   (needs "lib/x-core.x" isa/gc)      ; collects between its own includes (the boot rule)
   (needs "lib/x/boot/module.x" isa/gc isa/sys isa/syscall)
-  (needs "lib/x/boot/tower-compiled.x" isa/ffi-call)
+  (needs "lib/x/boot/compiler.x" isa/ffi-call)
   ; The doors module fetches the foreign door (dlopen, dlsym, ptr call) and
   ; the collector once, for every file that imports them: codec/bytes.x,
   ; codec/zlib.x, num/float.x, sys/socket.x, the asm and compile tools, and

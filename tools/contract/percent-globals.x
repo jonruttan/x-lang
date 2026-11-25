@@ -186,7 +186,10 @@
 ; x/tool/compiled: the list, its accessors and the two walks are the
 ; module's, and the tower keeps the ladders, the probe and the three states
 ; its entries take.
-(file "lib/x/boot/tower-compiled.x" 36)
+; boot/compiler.x took 25 of tower-compiled.x's 36 when the compiler half
+; became a file of its own; tower-compiled.x keeps 11 and two type aliases.
+(file "lib/x/boot/compiler.x" 25)
+(file "lib/x/boot/tower-compiled.x" 13)
 ; codec/sha256.x grew by one, 32 -> 33, for %cvt: the catalogue converter it read
 ; from the root while x/sys/posix bound it there.  posix is scoped, and under
 ; the plain x dialect nothing else binds it (x-lang#719, step 4).

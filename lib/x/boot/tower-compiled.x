@@ -16,6 +16,14 @@
 ; The compiler and the compile ladder; a no-op under a body that loaded it.
 (include-once "./compiler.x")
 
+; Fetch the type-system helpers from the catalogue (registered by sys/type.x).
+(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(def %type-of (prim-ref (lit type) (lit of)))
+
+; (%tower-state ENV NAME): a module's binding of one of its states, as it
+; stands -- the interpreted twin before its compile, the compiled one after.
+(def %tower-state (fn (_ env name) (eval name env)))
+
 ; Pre-register the heavy module NAMES so the tower's internal imports are
 ; no-ops and the curated load order below stays authoritative.
 (%set-first! %module-loaded-cell

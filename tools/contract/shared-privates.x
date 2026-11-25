@@ -48,6 +48,10 @@
 (shared "lib/x/boot/engine.x" %engine-root "the engine's root, as a path")
 (shared "lib/x/boot/engine.x" %engine-contract-root "the engine's contract directory, as a path")
 
+; --- boot/compiler.x: the compile ladder -------------------------------------
+(shared "lib/x/boot/compiler.x" %tower-jit-global! "compiles a state and binds it under its name, or binds the interpreted twin")
+(shared "lib/x/boot/compiler.x" %tower-jit-push! "pushes an analyser on a type and compiles it in the cell it landed in")
+
 ; --- boot/registry.x: the walk from the base to a cell -----------------------
 (shared "lib/x/boot/registry.x" %reflect-base-cell "the object a base path name addresses: how a file reaches an engine cell")
 (shared "lib/x/boot/registry.x" %reflect-path "the step list filed under a path name")
