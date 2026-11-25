@@ -274,12 +274,6 @@
       (let ((mine (List map first %nn-kernels)))
         (List filter (fn (_ name) (List includes? name mine)) (Tensor compiled))))
 
-    (method %scratch (self)
-      (doc "A fresh scratch for a Neural kernel a caller drives itself: the constants in their doubles, the default epsilon in 18, every word zero."
-        (returns STRING "256 bytes")
-        (sample "(Neural %scratch)" "a scratch"))
-      (%nn-scratch (%nn-epsilon)))
-
     (method softmax (self (param t Tensor "A real tensor of rank 1 or more"))
       (doc "Each run of the last axis as shares that sum to 1: every element's exponential over the sum of the run's. The run's greatest element is taken from each first, so a large element does not overflow."
         (returns Tensor "A fresh tensor of t's extent")

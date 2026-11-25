@@ -48,7 +48,7 @@
 (import x/num/tensor)
 (import x/num/matrix)
 (import x/sys/darwin/metal)
-(import x/core/doors image-transient! int* int->ptr int< int= mem-copy obj-ref ptr->int ptr-set!)
+(import x/core/doors image-transient! int* int+ int->ptr int< int= mem-copy obj-ref ptr->int ptr-set!)
 
 (def-class Gpu ()
   (doc "Tensor arithmetic run on the host's GPU, in f32, through whichever backend is available: Metal on macOS."
@@ -262,6 +262,67 @@ kernel void product(device const float* a [[buffer(0)]],
       (let ((f (Tensor %fast)) (backend (Gpu %need-backend)) (bc (List ref 2 (first plan))) (ext (List ref 3 plan)))
         (let ((out (list (lit f32) ext ((obj-ref f 2) ext) 0 (pair (ptr->int (backend pointer bc)) bc))))
           ((Matrix %result-class out) %make out))))
+
+    ; --- kernels of a caller's own, run together --------------------------------
+    ; A caller with a kernel of its own makes each run of it a step, over
+    ; buffers it keeps, and runs a list of steps as one: the backend's one
+    ; command buffer and one wait for them all, each step seeing what those
+    ; before it wrote.  %words is a buffer of 32-bit words, for a kernel's
+    ; dimensions; %buffer-of is the buffer a held tensor's bytes are in.
+    (method %step (self (param name SYMBOL "The kernel's name")
+                        (param source STRING "Its source")
+                        (param buffers LIST "The buffers it reads and writes, in the order of its buffer indexes")
+                        (param width INTEGER "The grid's points across, above 0")
+                        (param height INTEGER "The grid's points down, above 0"))
+      (doc "A run of the kernel, compiled the first time it is asked for, made ready to run with others."
+        (returns LIST "The step")
+        (sample "(Gpu %step (lit double) source (list buf) 1024 1)" "a step"))
+      (let ((backend (Gpu %need-backend)))
+        (backend %step (Gpu %pipeline backend name source) buffers width height)))
+
+    (method %plan-step (self (param plan LIST "A plan from %plan"))
+      (doc "The plan's product as a step."
+        (returns LIST "The step")
+        (sample "(Gpu %plan-step plan)" "a step"))
+      (Gpu %step (lit product) (Gpu %product-source) (first plan) (List ref 1 plan) (List ref 2 plan)))
+
+    (method %steps-run (self (param steps LIST "Steps from %step, at least one"))
+      (doc "Run the steps in order and wait for them all."
+        (returns ANY "nil")
+        (sample "(Gpu %steps-run (list step))" "nil"))
+      ((Gpu %need-backend) %run-steps steps))
+
+    (method %words (self (param values LIST "Integers from 0, each below 2 to the 32nd"))
+      (doc "A buffer holding the values as 32-bit words, in order; give it back with %words-done."
+        (returns INTEGER "The buffer")
+        (sample "(Gpu %words (list 768 3072))" "a buffer of two words"))
+      (let ((backend (Gpu %need-backend)))
+        (let ((buf (backend buffer (int* 4 (if (null? values) 1 (List length values))))))
+          ((fn (go l i) (if (null? l) () (do (Gpu %word! buf i (first l)) (go (rest l) (int+ i 1))))) values 0)
+          buf)))
+
+    (method %word! (self (param buf INTEGER "A buffer from %words")
+                         (param i INTEGER "Which word")
+                         (param value INTEGER "An integer from 0, below 2 to the 32nd"))
+      (doc "Store a 32-bit word in a buffer of them."
+        (returns ANY "nil")
+        (sample "(Gpu %word! buf 0 7)" "nil"))
+      (ptr-set! ((Gpu %need-backend) pointer buf) (int* 4 i) value 4)
+      ())
+
+    (method %words-done (self (param buf INTEGER "A buffer from %words"))
+      (doc "Give a buffer of words back."
+        (returns ANY "nil")
+        (sample "(Gpu %words-done buf)" "nil"))
+      ((Gpu %need-backend) release buf))
+
+    (method %buffer-of (self (param t Tensor "A held tensor"))
+      (doc "The buffer a held tensor's bytes are in; raises a label 'state when they were given back."
+        (returns INTEGER "The buffer")
+        (sample "(Gpu %buffer-of (Gpu hold t))" "a buffer"))
+      (let ((st (t %st)))
+        ((obj-ref (Tensor %fast) 18) st)
+        (rest (List ref 4 st))))
 
     (method %plan-done (self (param plan LIST "A plan from %plan")
                              (param keep BOOL "Whether the result's buffer is kept"))

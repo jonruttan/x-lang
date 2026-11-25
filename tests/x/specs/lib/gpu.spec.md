@@ -263,6 +263,33 @@ nothing: the result is written where the first was.
 ---
     (((1.0 2.0)) ((5.0 2.0)) #t)
 
+### a caller's kernels run as steps, with a planned product among them
+
+A step is a run of a kernel over buffers the caller keeps, and a list of
+steps runs as one. Here a kernel doubles a held row, a planned product
+multiplies it by the identity, and the kernel doubles the row again: the
+product saw the row doubled once.
+
+```x
+(import x/num/gpu)
+(if (Gpu available?)
+  (let ((a (Gpu hold (Matrix from '((1 2))))) (b (Gpu hold (Matrix from '((1 0) (0 1)))))
+        (source "#include <metal_stdlib>\nusing namespace metal;\nkernel void twice(device float* a [[buffer(0)]], device const uint* n [[buffer(1)]], uint2 at [[thread_position_in_grid]]) { if (at.x < n[0]) a[at.x] *= 2.0f; }")
+        (count (Gpu %words (list 2))))
+    (let ((plan (Gpu %plan a b)))
+      (let ((twice (Gpu %step (lit twice) source (list (Gpu %buffer-of a) count) 2 1)))
+        (Gpu %steps-run (list twice (Gpu %plan-step plan) twice))
+        (let ((r (list (a ->list) ((Gpu %plan-out plan) ->list))))
+          (Gpu %plan-done plan #f)
+          (Gpu %words-done count)
+          (Gpu release a)
+          (Gpu release b)
+          r))))
+  (list (lit ((4.0 8.0))) (lit ((2.0 4.0)))))
+```
+---
+    (((4.0 8.0)) ((2.0 4.0)))
+
 ### two ordinary operands answer an ordinary matrix
 
 ```x
