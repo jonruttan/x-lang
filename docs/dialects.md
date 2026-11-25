@@ -64,7 +64,7 @@ composition — `x-base.x` and the xenon/radon bodies):
 Each tower module is a library: importing one installs no reader syntax. The literal that writes its values is a module beside it, named after it (`x/num/float/literal`), which installs the literal on the base that imports it. `x/num/tower` and this block load both.
 
 1. **Bigint** (`x/num/bigint.x`) — Arbitrary-precision integers. Its literal, and the cap on the integer reader that hands a long run of digits to it, are `x/num/bigint/literal.x`; their analysers are compiled to native code immediately after loading.
-2. **Regex** (`x/type/regex.x`) — Regular expressions with `#/pattern/` literal syntax. Uses a C-level analyser, no compilation needed.
+2. **Regex** (`x/type/regex.x`) — Regular expressions. The `#/pattern/` literal is `x/type/regex/literal.x`, loaded straight after it; its states run inside a literal only and are not compiled.
 3. **Float** (`x/num/float.x`) — IEEE 754 floating-point. The literal is `x/num/float/literal.x`; its analyser is compiled after loading.
 4. **Rational** (`x/num/rational.x`) — Exact rationals. The literal is `x/num/rational/literal.x`; its analyser is compiled after loading.
 5. **Complex** (`x/num/complex.x`) — Complex numbers with rectangular and polar forms. The literal is `x/num/complex/literal.x`; its analyser is compiled after loading.

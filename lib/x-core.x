@@ -123,6 +123,7 @@
   (pair (lit x/type/str-utf8)
   (pair (lit x/type/char-io)
   (pair (lit x/type/vector)
+  (pair (lit x/type/vector/literal)
   (pair (lit x/type/promise)
   (pair (lit x/type/class)
   (pair (lit x/type/record)
@@ -151,7 +152,7 @@
   (pair (lit x/repl/lang)
   (pair (lit x/repl/ansi)
   (pair (lit x/repl/banner)
-    (first %module-loaded-cell)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+    (first %module-loaded-cell))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 ; --- Standard modules ---
 (include-once "lib/x/core/predicates.x")
@@ -255,6 +256,8 @@
 ; Vector: #() type machinery + the Vector class. Needs def-class; relocated past
 ; object.x from the early block -- nothing before it uses vectors or #() literals.
 (include-once "lib/x/type/vector.x")
+; The #(1 2 3) literal is a module of its own; this boot installs it.
+(include-once "lib/x/type/vector/literal.x")
 ((prim-ref (lit heap) (lit collect)))
 ; Char: classification / case / comparison (the Char class). Needs def-class; the
 ; pre-object string layer uses char->integer, not these, so it relocated here.

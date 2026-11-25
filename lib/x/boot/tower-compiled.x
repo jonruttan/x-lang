@@ -34,6 +34,7 @@
   (pair (lit x/num/bigint)
   (pair (lit x/num/bigint/literal)
   (pair (lit x/type/regex)
+  (pair (lit x/type/regex/literal)
   (pair (lit x/num/float)
   (pair (lit x/num/float/literal)
   (pair (lit x/num/rational)
@@ -42,7 +43,7 @@
   (pair (lit x/num/complex/literal)
   (pair (lit x/num/decimal)
   (pair (lit x/num/decimal/literal)
-    (first %module-loaded-cell))))))))))))))))
+    (first %module-loaded-cell)))))))))))))))))
 
 ; Load compiler infrastructure FIRST (before numeric tower)
 ; (posix.x already loaded by x-core.x)
@@ -390,8 +391,10 @@
           (pair (lit int-capped-digits) int-capped-digits))
     %int-analyse-interp)
 
-; 2. Regex (C analyser, no compile needed)
+; 2. Regex, and its #/pattern/ literal (no compile: its states run inside a
+; literal only)
 (include "../type/regex.x")
+(include "../type/regex/literal.x")
 
 ; 3. Float
 (include "../num/float.x")
