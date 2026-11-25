@@ -15,14 +15,14 @@
 ; Fetch the char/int casts from the catalogue (ns `char`/`int` utility members de-registered, R5).
 (module x/codec/utf8)
 
-(import x/core/doors char->int)
+(import x/core/doors char->int int& int+ int< int<< int|)
 
 (def utf8-seq-len
   (fn (_ b)
     (match
-      ((< b 192) 1)   ; 0xxxxxxx  ASCII (or a stray continuation byte)
-      ((< b 224) 2)   ; 110xxxxx
-      ((< b 240) 3)   ; 1110xxxx
+      ((int< b 192) 1)   ; 0xxxxxxx  ASCII (or a stray continuation byte)
+      ((int< b 224) 2)   ; 110xxxxx
+      ((int< b 240) 3)   ; 1110xxxx
       (#t 4))))       ; 11110xxx
 
 ; Decode the UTF-8 sequence at byte index i of s -> (code-point . next-index).
@@ -57,19 +57,19 @@
   (fn (_ s i)
     (def b0 (char->int (%str-ref s i)))
     (match
-      ((< b0 128) b0)
-      ((< b0 224)
-        (| (<< (& b0 31) 6)
-           (& (char->int (%str-ref s (+ i 1))) 63)))
-      ((< b0 240)
-        (| (| (<< (& b0 15) 12)
-              (<< (& (char->int (%str-ref s (+ i 1))) 63) 6))
-           (& (char->int (%str-ref s (+ i 2))) 63)))
+      ((int< b0 128) b0)
+      ((int< b0 224)
+        (int| (int<< (int& b0 31) 6)
+              (int& (char->int (%str-ref s (int+ i 1))) 63)))
+      ((int< b0 240)
+        (int| (int| (int<< (int& b0 15) 12)
+                    (int<< (int& (char->int (%str-ref s (int+ i 1))) 63) 6))
+              (int& (char->int (%str-ref s (int+ i 2))) 63)))
       (#t
-        (| (| (| (<< (& b0 7) 18)
-                 (<< (& (char->int (%str-ref s (+ i 1))) 63) 12))
-              (<< (& (char->int (%str-ref s (+ i 2))) 63) 6))
-           (& (char->int (%str-ref s (+ i 3))) 63))))))
+        (int| (int| (int| (int<< (int& b0 7) 18)
+                          (int<< (int& (char->int (%str-ref s (int+ i 1))) 63) 12))
+                    (int<< (int& (char->int (%str-ref s (int+ i 2))) 63) 6))
+              (int& (char->int (%str-ref s (int+ i 3))) 63))))))
 
 ; Encode code point cp as a list of its 1-4 UTF-8 byte values (0-255). Out-of-
 ; range code points emit U+FFFD (the replacement character), matching the C
