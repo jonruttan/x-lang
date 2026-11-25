@@ -141,6 +141,38 @@ The scaled offset is a 12-bit field: 0..4095 words.
 ---
     77
 
+### a literal index is the slot a constant index names, near or past an offset's reach
+
+Index 3 is folded into the load's offset; index 600 is 4800 bytes in on
+an 8-byte word, past what an offset holds, and is added at run time.
+
+```x
+(do
+  (def %make-str (prim-ref (lit str) (lit make)))
+  (def %jit-mem-str->ptr (prim-ref (lit str) (lit ->ptr)))
+  (def %jit-mem-ptr->int (prim-ref (lit ptr) (lit ->int)))
+  (def %buf (%make-str 8192))
+  (def %addr (%jit-mem-ptr->int (%jit-mem-str->ptr %buf)))
+  ((compile-asm '(fn (_ a v) (%mem-set-at! a 3 v))) %addr 31)
+  ((compile-asm '(fn (_ a v) (%mem-set-at! a 600 v))) %addr 600)
+  (display (list ((compile-asm '(fn (_ a) (%mem-ref a 3))) %addr)
+                 ((compile-asm '(fn (_ a i) (%mem-ref-at a i))) %addr 600)
+                 ((compile-asm '(fn (_ a) (+ (%mem-ref-at a 3) (%mem-ref-at a 600)))) %addr))))
+```
+---
+    (31 600 631)
+
+### a second operand that is a literal or a parameter: each width of literal
+
+```x
+(display ((compile-asm '(fn (_ x n)
+  (+ (* 1000 (< x n))
+     (+ (- x 100000)
+        (+ (& x -2) (% x 7)))))) 100004 100005))
+```
+---
+    101010
+
 ## byte-width access
 
 The word operations above are the JIT's own scratch state; the byte operations are

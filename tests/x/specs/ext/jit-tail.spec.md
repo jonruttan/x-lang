@@ -40,6 +40,18 @@ would show as a hundred thousand.
 ---
     #t
 
+### an argument that is its own parameter keeps its slot; one that is another's moves
+
+K is passed through unchanged; A and B trade places, so each is stored.
+
+```x
+(display (list
+  ((compile-asm '(fn (self k n acc) (if (= n 0) acc (self k (- n 1) (+ acc k))))) 7 100000 0)
+  ((compile-asm '(fn (self k a b n) (if (= n 0) (+ (* a 100) (+ (* b 10) k)) (self k b a (- n 1))))) 5 1 2 3)))
+```
+---
+    (700000 215)
+
 ### the new arguments are all computed before any is stored
 
 Each argument reads the parameters it replaces: a swap.

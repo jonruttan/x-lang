@@ -677,6 +677,46 @@
     (asm-emit! asm 'mov x0 (imm 1))
     (asm-label! asm lbl-end)))
 
+
+; --- Leaves straight into a register ----------------------------------
+; A form of two operands holds the first on the stack while the second is
+; compiled into x0.  A second operand that is a LEAF -- a literal, or a
+; parameter in a slot -- touches no register but the one it is loaded into,
+; so it goes straight there and the push and pop are not emitted.  A loop's
+; steps are mostly such forms, (+ i 8), (< i n), (%mem-ref-at a 0).
+
+; Can expr be loaded into a register other than x0 by %asm-leaf-to!?
+(def %asm-leaf?
+  (fn (_ expr)
+    (match
+      ((number? expr) #t)
+      ((symbol? expr)
+        (if %asm-analyser? #f
+          (if (not (null? (compile-fvar-lookup expr))) #f
+            (if (null? (%asm-slot-offset expr)) #f
+              (or %asm-object? (not (%asm-memq expr %asm-object-params)))))))
+      (#t #f))))
+
+; Load leaf expr into register reg, as %asm-compile-expr would into x0.
+(def %asm-leaf-to!
+  (fn (_ asm expr reg)
+    (set! %asm-tail #f)
+    (if (number? expr)
+      (if (and (>= expr 0) (<= expr 65535))
+        (asm-emit! asm 'mov reg (imm expr))
+        (asm-load-imm64! asm reg expr))
+      (asm-emit! asm (lit ldr) reg (mem x22 (%asm-slot-offset expr))))))
+
+; With the first operand's value in x0: the second's into x1, x0 kept.
+(def %asm-second-to-x1!
+  (fn (_ asm expr params)
+    (if (%asm-leaf? expr)
+      (%asm-leaf-to! asm expr x1)
+      (do (asm-push! asm x0)
+          (%asm-compile-expr asm expr params)
+          (asm-emit! asm 'mov x1 x0)
+          (asm-pop! asm x0)))))
+
 ; --- Scratch memory: the JIT's state mechanism -------------------------
 ; The compiler keeps every value in x0 as a raw integer, so an
 ; expression cannot hold state across steps.  These two forms give it
@@ -708,10 +748,7 @@
   (fn (_ asm args params)
     (def %off (%asm-mem-offset (first (rest args))))
     (%asm-compile-expr asm (first args) params)      ; base
-    (asm-push! asm x0)
-    (%asm-compile-expr asm (first (rest (rest args))) params) ; value
-    (asm-emit! asm 'mov x1 x0)
-    (asm-pop! asm x0)                         ; x0 = base
+    (%asm-second-to-x1! asm (first (rest (rest args))) params) ; value
     (asm-emit! asm (lit str) x1 (mem 0 %off))
     (asm-emit! asm 'mov x0 x1)))                     ; yield the value
 
@@ -733,29 +770,42 @@
     (asm-emit! asm 'lslv x0 x0 x2)
     (asm-emit! asm 'mov x1 x0)))
 
+; An index that is a literal is folded into the load's or store's offset
+; while that offset is within the 4095 bytes every backend encodes.
+(def %asm-literal-index?
+  (fn (_ idx) (if (number? idx) (and (>= idx 0) (<= (* idx %word-size) 4095)) #f)))
+
+; x0 = the base, then the address of word IDX past it in x0 and the
+; offset left to the load or store: IDX's when it is a literal, else 0.
+(def %asm-emit-index-address!
+  (fn (_ asm base idx params)
+    (%asm-compile-expr asm base params)                  ; base
+    (match
+      ((%asm-literal-index? idx) (* idx %word-size))
+      ((%asm-leaf? idx)
+        (do (%asm-leaf-to! asm idx x1)
+            (asm-emit! asm 'mov x2 (imm (if (= %word-size 8) 3 2)))
+            (asm-emit! asm 'lslv x1 x1 x2)
+            (asm-emit! asm 'add x0 x0 x1)
+            0))
+      (#t
+        (do (asm-push! asm x0)
+            (%asm-compile-expr asm idx params)           ; index
+            (%asm-emit-scale-index! asm)                 ; x1 = index*word
+            (asm-pop! asm x0)                            ; x0 = base
+            (asm-emit! asm 'add x0 x0 x1)
+            0)))))
+
 (def %asm-compile-mem-ref-at
   (fn (_ asm args params)
-    (%asm-compile-expr asm (first args) params)          ; base
-    (asm-push! asm x0)
-    (%asm-compile-expr asm (first (rest args)) params)   ; index
-    (%asm-emit-scale-index! asm)                         ; x1 = index*word
-    (asm-pop! asm x0)                             ; x0 = base
-    (asm-emit! asm 'add x0 x0 x1)
-    (asm-emit! asm (lit ldr) x0 (mem 0 0))))
+    (def off (%asm-emit-index-address! asm (first args) (first (rest args)) params))
+    (asm-emit! asm (lit ldr) x0 (mem 0 off))))
 
 (def %asm-compile-mem-set-at
   (fn (_ asm args params)
-    (%asm-compile-expr asm (first args) params)          ; base
-    (asm-push! asm x0)
-    (%asm-compile-expr asm (first (rest args)) params)   ; index
-    (%asm-emit-scale-index! asm)
-    (asm-pop! asm x0)                             ; x0 = base
-    (asm-emit! asm 'add x0 x0 x1)                        ; x0 = address
-    (asm-push! asm x0)                            ; save address
-    (%asm-compile-expr asm (first (rest (rest args))) params) ; value
-    (asm-emit! asm 'mov x1 x0)                           ; x1 = value
-    (asm-pop! asm x0)                             ; x0 = address
-    (asm-emit! asm (lit str) x1 (mem 0 0))
+    (def off (%asm-emit-index-address! asm (first args) (first (rest args)) params))
+    (%asm-second-to-x1! asm (first (rest (rest args))) params) ; value
+    (asm-emit! asm (lit str) x1 (mem 0 off))
     (asm-emit! asm 'mov x0 x1)))                         ; yield the value
 
 ; --- Byte-width scratch access -----------------------------------------
@@ -787,35 +837,23 @@
   (fn (_ asm args params)
     (def %off (%asm-mem-byte-offset (first (rest args))))
     (%asm-compile-expr asm (first args) params)      ; base
-    (asm-push! asm x0)
-    (%asm-compile-expr asm (first (rest (rest args))) params) ; value
-    (asm-emit! asm 'mov x1 x0)
-    (asm-pop! asm x0)                         ; x0 = base
+    (%asm-second-to-x1! asm (first (rest (rest args))) params) ; value
     (asm-emit! asm (lit strb) x1 (mem 0 %off))
     (asm-emit! asm 'mov x0 x1)))                     ; yield the value
 
 (def %asm-compile-mem-byte-ref-at
   (fn (_ asm args params)
     (%asm-compile-expr asm (first args) params)          ; base
-    (asm-push! asm x0)
-    (%asm-compile-expr asm (first (rest args)) params)   ; index (bytes)
-    (asm-emit! asm 'mov x1 x0)                           ; no scaling
-    (asm-pop! asm x0)                             ; x0 = base
+    (%asm-second-to-x1! asm (first (rest args)) params)  ; index (bytes), no scaling
     (asm-emit! asm 'add x0 x0 x1)
     (asm-emit! asm (lit ldrb) x0 (mem 0 0))))
 
 (def %asm-compile-mem-byte-set-at
   (fn (_ asm args params)
     (%asm-compile-expr asm (first args) params)          ; base
-    (asm-push! asm x0)
-    (%asm-compile-expr asm (first (rest args)) params)   ; index (bytes)
-    (asm-emit! asm 'mov x1 x0)                           ; no scaling
-    (asm-pop! asm x0)                             ; x0 = base
+    (%asm-second-to-x1! asm (first (rest args)) params)  ; index (bytes), no scaling
     (asm-emit! asm 'add x0 x0 x1)                        ; x0 = address
-    (asm-push! asm x0)                            ; save address
-    (%asm-compile-expr asm (first (rest (rest args))) params) ; value
-    (asm-emit! asm 'mov x1 x0)                           ; x1 = value
-    (asm-pop! asm x0)                             ; x0 = address
+    (%asm-second-to-x1! asm (first (rest (rest args))) params) ; x1 = value
     (asm-emit! asm (lit strb) x1 (mem 0 0))
     (asm-emit! asm 'mov x0 x1)))                         ; yield the value
 
@@ -908,10 +946,7 @@
     (def lbl-true (%asm-genlabel "%cmp_t"))
     (def lbl-end  (%asm-genlabel "%cmp_e"))
     (%asm-compile-expr asm (first args) params)
-    (asm-push! asm x0)
-    (%asm-compile-expr asm (first (rest args)) params)
-    (asm-emit! asm 'mov x1 x0)
-    (asm-pop! asm x0)
+    (%asm-second-to-x1! asm (first (rest args)) params)
     (asm-emit! asm 'cmp x0 x1)
     (asm-emit! asm cond-insn (label lbl-true))
     (asm-emit! asm 'mov x0 (imm 0))
@@ -1393,10 +1428,7 @@
 (set! %asm-compile-binop
   (fn (_ asm insn args params)
     (%asm-compile-expr asm (first args) params)
-    (asm-push! asm x0)
-    (%asm-compile-expr asm (first (rest args)) params)
-    (asm-emit! asm 'mov x1 x0)
-    (asm-pop! asm x0)
+    (%asm-second-to-x1! asm (first (rest args)) params)
     (asm-emit! asm insn x0 x0 x1)))
 
 ; Double arithmetic: (f+ A B), f-, f*, f/.  Each operand is a word
@@ -1416,10 +1448,7 @@
   (fn (_ asm insn args params)
     (%asm-require-wide-word)
     (%asm-compile-expr asm (first args) params)
-    (asm-push! asm x0)
-    (%asm-compile-expr asm (first (rest args)) params)
-    (asm-emit! asm 'mov x1 x0)
-    (asm-pop! asm x0)
+    (%asm-second-to-x1! asm (first (rest args)) params)
     (asm-emit! asm 'fmov/d d0 x0)
     (asm-emit! asm 'fmov/d d1 x1)
     (if (or (eq? insn 'flt) (eq? insn 'feq))
@@ -1487,10 +1516,7 @@
 (def %asm-compile-f32-set
   (fn (_ asm args params)
     (%asm-compile-f32-address asm args params)
-    (asm-push! asm x0)                                   ; save address
-    (%asm-compile-expr asm (first (rest (rest args))) params) ; value
-    (asm-emit! asm 'mov x1 x0)                           ; x1 = the double
-    (asm-pop! asm x0)                                    ; x0 = address
+    (%asm-second-to-x1! asm (first (rest (rest args))) params) ; x1 = the double
     (asm-emit! asm 'fmov/d d0 x1)
     (asm-emit! asm 'fcvt/s d0 d0)
     (asm-emit! asm 'fmov/x x2 d0)                        ; x2 = the single's bits
@@ -1501,10 +1527,7 @@
 (set! %asm-compile-mod
   (fn (_ asm args params)
     (%asm-compile-expr asm (first args) params)
-    (asm-push! asm x0)
-    (%asm-compile-expr asm (first (rest args)) params)
-    (asm-emit! asm 'mov x1 x0)
-    (asm-pop! asm x0)
+    (%asm-second-to-x1! asm (first (rest args)) params)
     (asm-emit! asm 'sdiv x2 x0 x1)
     (asm-emit! asm 'msub x0 x2 x1 x0)))
 
@@ -1544,10 +1567,7 @@
             ; %asm-check-int-operands gives.
             (%asm-check-int-operands cmp-op cmp-args)
             (%asm-compile-expr asm (first cmp-args) params)
-            (asm-push! asm x0)
-            (%asm-compile-expr asm (first (rest cmp-args)) params)
-            (asm-emit! asm 'mov x1 x0)
-            (asm-pop! asm x0)
+            (%asm-second-to-x1! asm (first (rest cmp-args)) params)
             (asm-emit! asm 'cmp x0 x1)
             (asm-emit! asm (%cmp-branch cmp-op) (label lbl)))
           (do
@@ -1682,7 +1702,10 @@
 
 ; A self-call in tail position: every new argument evaluated first and
 ; held on the stack, since each may read the parameters it replaces; then
-; stored over the slots, last first; then back to the top of the body.
+; stored over the slots, last first; then back to the top of the body.  An
+; argument that is its own parameter's name, as a loop passes what does
+; not change, is the value already in the slot: it is neither evaluated
+; nor stored.
 (def %asm-compile-tail-jump
   (fn (_ asm args params)
     (def stored (if %asm-function? %asm-fn-params %asm-slots))
@@ -1691,19 +1714,26 @@
     ; The new values wait on the machine stack, where a collect cannot see
     ; them.
     (when %asm-function? (%asm-fn-check-operands! %asm-self-name args))
-    ((fn (self as)
-       (if (null? as) ()
-         (do (%asm-compile-expr asm (first as) params)
+    ; (ARG . PARAM) for each argument that changes its parameter.
+    (def moved
+      ((fn (self as ps)
+         (match ((null? as) ())
+                ((eq? (first as) (first ps)) (self (rest as) (rest ps)))
+                (#t (pair (pair (first as) (first ps)) (self (rest as) (rest ps))))))
+       args stored))
+    ((fn (self ms)
+       (if (null? ms) ()
+         (do (%asm-compile-expr asm (first (first ms)) params)
              (asm-push! asm x0)
-             (self (rest as)))))
-     args)
+             (self (rest ms)))))
+     moved)
     ; The last parameter's value is on top: the walk emits on its way back.
-    ((fn (self ps)
-       (if (null? ps) ()
-         (do (self (rest ps))
+    ((fn (self ms)
+       (if (null? ms) ()
+         (do (self (rest ms))
              (asm-pop! asm x0)
-             (asm-emit! asm (lit str) x0 (mem x22 (%asm-slot-offset (first ps)))))))
-     stored)
+             (asm-emit! asm (lit str) x0 (mem x22 (%asm-slot-offset (rest (first ms))))))))
+     moved)
     (asm-emit! asm 'b (label %asm-loop-label))))
 
 ; A self-call that returns here: a call through the trampoline cell.
