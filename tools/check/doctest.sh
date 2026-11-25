@@ -43,7 +43,7 @@ esac
 
 # lib/x/type/dict.x -> x/type/dict; sorted for stable output.
 _MODS=$(find lib/x -name '*.x' | sed 's|^lib/||; s|\.x$||' | sort \
-  | grep -v -E '^x/tool/asm/|^x/constructs$|^x/repl/launch$|^x/boot/(helium|xenon|radon)$')
+  | grep -v -E '^x/tool/asm/|^x/constructs$|^x/repl/launch$|^x/boot/(helium|neon|xenon|radon)$')
 
 # Generate to a temp file so the output can be VERIFIED before it is emitted.
 # The failure mode this guards is silent truncation: an import that reads

@@ -52,6 +52,7 @@
   ; coverage and profiling are a VARIANT build (x-bin-profile) and the
   ; default x-bin honestly does not have them.
   (profile posix)
+  (needs "lib/ne.x" isa/gc)
   (needs "lib/rn.x" isa/gc)
   (needs "lib/x-base.x" isa/gc)
   (needs "lib/x-core.x" isa/gc)      ; collects between its own includes (the boot rule)

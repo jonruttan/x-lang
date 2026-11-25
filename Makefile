@@ -661,12 +661,12 @@ check-path-literals: ## Lint for root-relative load literals outside the boot cl
 # amalgams cannot drift from the sources they are made of.
 boot: ## Generate amalgamated boot entries into build/boot
 	@mkdir -p build/boot
-	@for e in x he xe rn x-core x-base; do \
+	@for e in x he ne xe rn x-core x-base; do \
 		sh tools/release/amalgamate.sh "lib/$$e.x" > "build/boot/$$e.x" || exit 1; done
 	@# Each dialect's BODY, the entry less its launcher: what a lang bundle's
 	@# spec harness boots (tools/bundle-kit/gen-harness.sh), since an entry
 	@# would start its REPL underneath the suite.
-	@for b in helium xenon radon; do \
+	@for b in helium neon xenon radon; do \
 		sh tools/release/amalgamate.sh "lib/x/boot/$$b.x" > "build/boot/$$b.x" || exit 1; done
 	@# GUARDED, because apps/ is empty since Logo became a bundle and an
 	@# unmatched glob is the literal pattern, which amalgamate.sh would then
