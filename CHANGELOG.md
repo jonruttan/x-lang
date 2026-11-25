@@ -123,6 +123,15 @@ against 28.5 s interpreted.
 and stayed interpreted. Of the module-level closures loaded under
 xenon, the compiler now refuses 62 of 754, down from 105 of 749.
 
+**A library module can ask to be compiled into a bundle's image, and
+x/type/regex does.** ([#1489]) A module whose top level says
+`(def image-compiled #t)` is compiled by `compile-root!` wherever it is
+loaded, so a bundle with `(image compiled)` carries it compiled along
+with its own modules. x-awk with `(image compiled)` runs the release
+amalgamation's awk program over `lib/x/reader/lexer.x` in 10.5 s,
+against 19 s with regex interpreted; its image write peaks at 2.6 GB,
+against 2.1 GB.
+
 **Compiled loops run up to three times as fast.** ([#1484]) A literal or
 parameter operand loads straight into a register, a literal memory
 index folds into the offset, and a tail self-call stores only the
@@ -142,6 +151,9 @@ region and erases a row's blank end, and a window steps through links
 by number. In x-browse on a 213 KB page a line down takes 4 ms where it
 took 43, a Tab 8 where it took 47. Screen gains `screen-row-cells` and
 `screen-row!`, Page `page-link` and `page-link-count`.
+
+**Page markdown lays a page out about 2.5 times as fast, with 60% fewer
+objects.** ([#1490])
 
 **`Transformer generate` is about four times as fast again on a host
 with a GPU.** ([#1482]) Each position, the prompt's as well, is one run
@@ -182,6 +194,8 @@ fold.
 [#1486]: https://github.com/jonruttan/x-lang/pull/1486
 [#1487]: https://github.com/jonruttan/x-lang/pull/1487
 [#1488]: https://github.com/jonruttan/x-lang/pull/1488
+[#1489]: https://github.com/jonruttan/x-lang/pull/1489
+[#1490]: https://github.com/jonruttan/x-lang/pull/1490
 
 ## [0.62.0] - 2026-11-23
 
