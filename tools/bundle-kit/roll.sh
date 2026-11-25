@@ -23,10 +23,14 @@
 #   bundle.pin.xon           the pin: the bundle's name, the tag, the digest
 #                            and the URL the tarball is published at
 #
-# The tarball holds what runs, not the repository: bundle.xon, lib/, and
-# LICENSE and README.md where the bundle has them, under one directory
-# REPO-TAG/, with a file `version` holding the tag.  The suite, the tooling
-# and the CI stay in the repository.  It is cut from the tag with git archive,
+# The tarball holds what runs, not the repository: bundle.xon, lib/, the
+# payload bundle.xon declares, and LICENSE and README.md where the bundle
+# has them, under one directory REPO-TAG/, with a file `version` holding the
+# tag.  The suite, the tooling and the CI stay in the repository.
+#
+# The payload is what a bundle ships beside lib/, named by a row of its
+# bundle.xon, on one line: (payload "data" "art").  Each is a file or
+# directory at the bundle's top.  One the tag does not have is refused.  It is cut from the tag with git archive,
 # so an uncommitted file is not in it, and gzip writes no time, so the same
 # tag rolls the same bytes.
 #
@@ -80,6 +84,22 @@ BASE="${BUNDLE_URL_BASE:-https://github.com/$REPO/releases/download/$TAG}"
 PATHS="bundle.xon lib"
 for _p in LICENSE README.md; do
 	if git cat-file -e "$TAG:$_p" 2>/dev/null; then PATHS="$PATHS $_p"; fi
+done
+
+# The payload the declaration names, a row to a line.  A path is one name at
+# the bundle's top, and not one every tarball carries already.
+_PAYLOAD=$(printf '%s\n' "$_XON" | sed -n 's/^(payload \(.*\)).*/\1/p' | tr -d '"' | tr '\n' ' ')
+for _p in $_PAYLOAD; do
+	case "$_p" in
+		*/* | .*) _roll_die "not a path at the bundle's top: payload $_p" ;;
+		bundle.xon | lib | version) _roll_die "payload names $_p, which every tarball carries" ;;
+	esac
+	git cat-file -e "$TAG:$_p" 2>/dev/null \
+		|| _roll_die "bundle.xon at $TAG declares payload $_p, and the tag has no such file or directory"
+	case " $PATHS " in
+		*" $_p "*) ;;
+		*) PATHS="$PATHS $_p" ;;
+	esac
 done
 
 mkdir -p "$OUT"

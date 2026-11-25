@@ -423,10 +423,20 @@ BUNDLE=. sh "$(x --share-dir)/tools/bundle-kit/roll.sh" v0.1.0
 | `REPO-TAG.tar.gz.sha256` | its digest |
 | `bundle.pin.xon` | the pin: the bundle's name, the tag, the digest and the URL the tarball is published at |
 
-The tarball holds what runs, not the repository: `bundle.xon`, `lib/`, and
-`LICENSE` and `README.md` where the bundle has them, under one directory, with
-a file `version` holding the tag. It is cut from the tag with `git archive`,
-so the same tag rolls the same bytes.
+The tarball holds what runs, not the repository: `bundle.xon`, `lib/`, the
+payload the bundle declares, and `LICENSE` and `README.md` where the bundle
+has them, under one directory, with a file `version` holding the tag. It is
+cut from the tag with `git archive`, so the same tag rolls the same bytes.
+
+A bundle that ships more than `lib/` names the rest in its `bundle.xon`, on
+one line:
+
+```x
+(payload "data" "art")
+```
+
+Each is a file or directory at the bundle's top. The roll refuses one the
+tag does not have, and one that is not at the top.
 
 The files are named for the repository, which is read and never derived from
 the bundle's name: a bundle named `net` may live at `x-lib-net`, or wherever

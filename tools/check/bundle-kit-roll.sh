@@ -8,6 +8,8 @@
 #   - the tarball holds bundle.xon, lib/, LICENSE, README.md and the version
 #     stamp under one directory, and nothing else the repository has;
 #   - a file that is not committed at the tag is not in it;
+#   - the payload bundle.xon declares is in it, and a payload the tag
+#     lacks, or one outside the bundle, is refused;
 #   - the pin names the bundle, the tag, the tarball's digest and its URL;
 #   - the same tag rolls the same bytes;
 #   - the files are named for the repository, read from BUNDLE_REPO or the
@@ -163,6 +165,51 @@ case "$st:$(cat "$TMP/out")" in
 	0:*) bad "a bundle with no lib/NAME was rolled" ;;
 	*"no lib/other"*) ok "a bundle with no lib/NAME is refused" ;;
 	*) bad "the refusal did not name the missing directory" "$TMP/out" ;;
+esac
+
+# What a bundle ships beside lib/: a directory and a file, declared.
+mkdir -p "$R/lib/pay" "$R/data/deep" "$R/art"
+printf '(module pay/m)\n' > "$R/lib/pay/m.x"
+printf '(d)\n' > "$R/data/deep/d.xon"
+printf 'pixels\n' > "$R/art/a.txt"
+printf 'notice\n' > "$R/NOTICE"
+printf '(name "pay")\n(payload "data" "NOTICE")\n' > "$R/bundle.xon"
+g add -A
+g commit -q -m "pay"
+g tag pay
+REPO=someone/x-lib-rl roll pay "$TMP/pay"
+want="x-lib-rl-pay/LICENSE
+x-lib-rl-pay/NOTICE
+x-lib-rl-pay/README.md
+x-lib-rl-pay/bundle.xon
+x-lib-rl-pay/data/deep/d.xon
+x-lib-rl-pay/version"
+got=$(tar -tzf "$TMP/pay/x-lib-rl-pay.tar.gz" 2>/dev/null | grep -v '/$' | grep -v '/lib/' | LC_ALL=C sort)
+if [ "$st" = 0 ] && [ "$got" = "$want" ]; then
+	ok "the payload bundle.xon declares is in the tarball, and no more"
+else
+	printf '%s\n' "$got" > "$TMP/got"
+	bad "the declared payload is not what was rolled" "$TMP/got"
+fi
+
+printf '(name "pay")\n(payload "sound")\n' > "$R/bundle.xon"
+g commit -q -am "payload the tag lacks"
+g tag lacks
+roll lacks "$TMP/none"
+case "$st:$(cat "$TMP/out")" in
+	0:*) bad "a payload the tag does not have was rolled" ;;
+	*"declares payload sound"*) ok "a payload the tag does not have is refused" ;;
+	*) bad "the refusal did not name the missing payload" "$TMP/out" ;;
+esac
+
+printf '(name "pay")\n(payload "../x")\n' > "$R/bundle.xon"
+g commit -q -am "payload outside"
+g tag outside
+roll outside "$TMP/none"
+case "$st:$(cat "$TMP/out")" in
+	0:*) bad "a payload outside the bundle was rolled" ;;
+	*"not a path at the bundle's top"*) ok "a payload outside the bundle is refused" ;;
+	*) bad "the refusal did not name the path" "$TMP/out" ;;
 esac
 
 [ "$fails" = 0 ] || { echo "bundle-kit-roll: $fails failed" >&2; exit 1; }
