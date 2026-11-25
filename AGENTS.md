@@ -119,12 +119,13 @@ environment's bindings, are mapped in [docs/reflection.md](docs/reflection.md).
 
 ## Dialects: pick the right one or things will be "missing"
 
-The library composes into three dialects, and **helium is the default**.
+The library composes into four dialects, and **helium is the default**.
 Most "that function doesn't exist" confusion is a dialect mismatch.
 
 | Flag | Dialect | Has |
 |---|---|---|
 | *(none)* | helium (`lib/x.x` → `lib/he.x`) | combinators, lists, sort, strings, vectors, promises, quasiquote, POSIX, REPL. **No numeric tower.** |
+| `-l ne` | neon | helium + the assembler, the compiler and the Lexer, with `Dict`. No tower and no added syntax: the base for a lang bundle. |
 | `-l xe` | xenon | helium + the full numeric tower (bigint, float, rational, complex, decimal), regex, `Dict` and `Set`, the assembler and compiler |
 | `-l rn` | radon | xenon + raw syscalls, char/IO constants; file I/O and sockets on demand. **Experimental.** |
 

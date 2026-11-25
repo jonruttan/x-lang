@@ -52,7 +52,7 @@ for n in $ALWAYS $INSTALLED $BUNDLE; do
 done
 
 fail=0
-for d in he xe rn; do
+for d in he ne xe rn; do
 	out="$W/$d.out"
 	if ! sh x.sh --no-pin -q -l "$d" -f "$PROBE" > "$out" 2>"$W/$d.err"; then
 		echo "seam: $d failed to boot the probe" >&2
@@ -137,4 +137,4 @@ if [ -f "$DOC" ]; then
 fi
 
 [ "$fail" = 0 ] || { echo "seam: FAIL" >&2; exit 1; }
-echo "seam: ok ($(printf '%s\n' $ALWAYS | wc -l | tr -d ' ') always, $(printf '%s\n' $INSTALLED | wc -l | tr -d ' ') installed, $(printf '%s\n' $BUNDLE | wc -l | tr -d ' ') bundle, he/xe/rn)"
+echo "seam: ok ($(printf '%s\n' $ALWAYS | wc -l | tr -d ' ') always, $(printf '%s\n' $INSTALLED | wc -l | tr -d ' ') installed, $(printf '%s\n' $BUNDLE | wc -l | tr -d ' ') bundle, he/ne/xe/rn)"

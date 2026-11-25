@@ -114,7 +114,7 @@ echoes them in shorthand.
 
 ## Dialect matrix
 
-| Syntax | bare x | helium | xenon/radon, x-base |
+| Syntax | bare x | helium, neon | xenon/radon, x-base |
 |---|---|---|---|
 | ints (signed, hex), strings, `#\` chars, lists, `( . x)`, `;` | ✓ | ✓ | ✓ |
 | `#t`/`#f` as booleans, printer | — | ✓ | ✓ |

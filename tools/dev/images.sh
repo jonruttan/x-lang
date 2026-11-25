@@ -49,7 +49,7 @@ mkdir -p "$out"
 # it and the rest hit the cache; that boot is the wrapper's ordinary path,
 # refusals included.
 sh x.sh -q -c 1 > /dev/null 2>&1 || true
-{ printf '%s\n' lib/x-core.x lib/x.x lib/he.x lib/x-base.x lib/xe.x lib/rn.x
+{ printf '%s\n' lib/x-core.x lib/x.x lib/he.x lib/x-base.x lib/ne.x lib/xe.x lib/rn.x
   grep -rho '^# @lib \.\./tests/x/lib/[a-z-]*\.x' tests/x/specs | sed 's|^# @lib \.\./||' | sort -u
 } | IMG_OUT="$out" xargs -P "$jobs" -n 1 sh -c '
   sh tools/dev/image-build.sh "$1" "$IMG_OUT"; s=$?

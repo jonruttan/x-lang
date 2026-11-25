@@ -7,9 +7,9 @@
 ; stream top level and includes this body.  (Same extraction idiom as
 ; boot/tower-compiled.x.)
 
-; Load core first (fast, no numeric tower)
-(include "lib/x-core.x")
-; Numeric tower with compiled tokenizer analysers (shared dialect heart)
+; Neon first: the core, the compiler and the Lexer (boot/neon.x).
+(include "lib/x/boot/neon.x")
+; The numeric tower and its literals, each analyser compiled as it loads.
 (include "lib/x/boot/tower-compiled.x")
 
 ; Load the x/rn extensions (parsed through all compiled analysers).  Pre-registered

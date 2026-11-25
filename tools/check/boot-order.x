@@ -409,6 +409,7 @@
         (%simulate "lib/x-core.x")
         (%simulate "lib/x-base.x")
         (%simulate "lib/he.x")
+        (%simulate "lib/ne.x")
         (%simulate "lib/xe.x")
         (%simulate "lib/rn.x")
         (match

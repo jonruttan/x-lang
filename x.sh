@@ -681,7 +681,7 @@ display_help() {
 	echo "  -e, --ext EXT   file extension (default: \"$X_EXT\")"
 	echo "  -f, --file FILE evaluate file and exit"
 	echo "  -F, --load FILE evaluate file then continue"
-	echo "  -l, --lib NAME  what to boot (default: \"$X_LIB\"): a dialect (he, xe, rn),"
+	echo "  -l, --lib NAME  what to boot (default: \"$X_LIB\"): a dialect (he, ne, xe, rn),"
 	echo "                  a library or app of this tree, or an installed lang"
 	echo "                  (python, ash, ...); a further -l names a lang bundle"
 	echo "                  to load beside the first"

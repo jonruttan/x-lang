@@ -12,6 +12,7 @@ A dialect is a composition of x-lang library modules that determines what capabi
 |------|---------|----|
 | — | — | the engine binary: no libraries, substrate rather than a dialect |
 | `he` | helium | light, fast boot, interactive; no tower — the **default** |
+| `ne` | neon | helium plus the compiler and the Lexer, and no syntax beyond helium's; the base for a language built on x-lang |
 | `xe` | xenon | full numeric tower, regular expressions, `Dict` and `Set`, compiler; stable |
 | `rn` | radon | xenon's surface plus experimental/raw APIs; explicitly volatile |
 
@@ -21,6 +22,7 @@ The interpreter core has no knowledge of any dialect. A dialect is library sourc
 
 ```sh
 sh x.sh                  # helium (default)
+sh x.sh -l ne            # neon
 sh x.sh -l xe            # xenon
 sh x.sh -l rn            # radon
 ```
@@ -49,9 +51,23 @@ Helium provides everything needed for general-purpose programming: combinators, 
 
 ---
 
+### neon (`lib/ne.x`)
+
+The base for a language built on x-lang. Includes all of helium's surface, then adds what a hosted language stands on:
+
+- **Assembler** and **compiler** (`x/tool/asm.x`, `x/tool/compile.x`), loaded by `lib/x/boot/compiler.x`, which also compiles the reader hooks the core installed, so every file read afterwards is tokenized through native code
+- **Function compiler** (`x/tool/fn-compile.x`) — compiles the library's own hot loops
+- **Lexer** (`x/reader/lexer.x`) and the **Dict** it is built on
+
+Neon installs no reader syntax beyond helium's: a bundle that declares `(dialect ne)` reads its own language through its own Lexer, and imports a library such as `x/num/decimal` without that library's literal reaching its reader. It loads no numeric tower, regex or `Set`; a bundle that needs one imports it.
+
+Xenon and radon are each built on neon.
+
+---
+
 ### xenon (`lib/xe.x`)
 
-Stable full-stack dialect. Includes all of helium's surface, then adds:
+Stable full-stack dialect. Built on neon, so it includes helium's surface, the assembler, the compiler and the Lexer:
 
 - **Dict** and **Set** (`x/type/dict.x`, `x/type/set.x`) — content-hashed mutable containers (symbol, string, integer, and char keys), loaded by default in both tower dialects
 - **Assembler** (`x/tool/asm.x`) — emits machine code in process on ARM64, x86-64 and 32-bit ARM

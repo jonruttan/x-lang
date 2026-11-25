@@ -155,7 +155,7 @@ bundle "$TMP/missing/t" t he nowhere
 refuses "a required bundle that is not there" "bundle 'nowhere' is required but was not found" "$(gen "$TMP/missing/t" || true)"
 
 # This tree: each dialect's body has the amalgam `make boot` writes.
-for _dl in he xe rn; do
+for _dl in he ne xe rn; do
 	bundle "$TMP/tree/$_dl" "t$_dl" "$_dl"
 	_inc=$(gen "$TMP/tree/$_dl" "$PROJECT_DIR" | sed -n 's/^(include "\(.*\)")$/\1/p' || true)
 	if [ -n "$_inc" ] && [ -f "$_inc" ]; then
