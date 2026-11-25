@@ -857,6 +857,21 @@ closure, and two-f, compiled already, is not compiled again.
 ---
     (('%sq 'one-sum) ('compiled 'compiled) 20 ())
 
+### compile-root! compiles a loaded module that says image-compiled, under any root
+
+fcmk/lib is under another root, and its top level says
+`(def image-compiled #t)`.
+
+```x
+(import-path! "tests/x/fixtures/fncompile-marked")
+(import fcmk/lib lib-inc)
+(def %fc-rk (compile-root! "tests/x/fixtures/fncompile"))
+(write (list (List map (fn (_ e) (e name)) %fc-rk) (List map (fn (_ e) (e state)) %fc-rk)
+             (lib-inc 4) (Fn label lib-inc)))
+```
+---
+    (('lib-inc) ('compiled) 5 'prim)
+
 ### a module loaded by include, or not loaded, has no closures of its own
 
 ```x
