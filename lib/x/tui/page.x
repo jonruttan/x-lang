@@ -36,8 +36,9 @@
 (import x/tui/width char-width text-width)
 (import x/tui/style)
 (import x/tui/screen Screen screen-put! screen-fill! screen-row-cells screen-row!)
+(import x/protocol/str/str8 str-find-byte)
 
-(import x/core/doors char->int int& int* int+ int/ int< int| obj-make obj-ref obj-set! str-byte-len str-byte-ref str-byte-sub)
+(import x/core/doors char->int int& int* int+ int- int/ int< int= int| obj-make obj-ref obj-set! str-byte-len str-byte-ref str-byte-sub)
 (def %pg-cvt (prim-ref (lit convert) (lit to)))
 (def %pg-string (Type named STRING))
 (def %pg-num (fn (_ n) (%pg-cvt n %pg-string 10)))
@@ -62,7 +63,7 @@
     ((fn (go l k) (match ((eq? l ()) v) (#t (do (obj-set! v k (first l)) (go (rest l) (int+ k 1)))))) l 1)))
 (def %pg-at (fn (_ v k) (obj-ref v (int+ k 1))))
 (def %pg-count (fn (_ v) (obj-ref v 0)))
-(def %pg-nth (fn (self k l) (match ((= k 0) (first l)) (#t (self (int+ k -1) (rest l))))))
+(def %pg-nth (fn (self k l) (match ((int= k 0) (first l)) (#t (self (int+ k -1) (rest l))))))
 (def %pg-2nd (fn (_ l) (first (rest l))))
 (def %pg-3rd (fn (_ l) (first (rest (rest l)))))
 (def %pg-4th (fn (_ l) (first (rest (rest (rest l))))))
@@ -82,13 +83,13 @@
     (def fg (fn (_ s) (int& s 130816)))
     (def bg (fn (_ s) (int& s 66977792)))
     (int| (int| (int& (int| outer inner) %pg-attr-bits)
-                    (match ((= (fg inner) 0) (fg outer)) (#t (fg inner))))
-            (match ((= (bg inner) 0) (bg outer)) (#t (bg inner))))))
+                    (match ((int= (fg inner) 0) (fg outer)) (#t (fg inner))))
+            (match ((int= (bg inner) 0) (bg outer)) (#t (bg inner))))))
 
 ; --- inlines to pieces -----------------------------------------------------
 ; Inlines become pieces, (TEXT STYLE LINK), and (lit br) for a hard break,
 ; onto OUT, last first; a link or image is filed in LINKS (a cell holding
-; its (DESTINATION TITLE) entries, last first) and numbered.
+; its (DESTINATION TITLE) entries, last first, and how many) and numbered.
 (def %pg-plain
   (fn (self inl)
     (%str-concat
@@ -105,14 +106,15 @@
 (def %pg-file-link!
   (fn (_ links dest title)
     (%set-first! links (pair (list dest title) (first links)))
-    (int+ (%pg-len (first links)) -1)))
+    (%set-rest! links (int+ (rest links) 1))
+    (int+ (rest links) -1)))
 ; The field F drawn: its text, or nil for a hidden field.
 (def %pg-field-width 20)
 (def %pg-field-text
   (fn (_ f)
     (def type (%pg-2nd f))
     (def value (%pg-4th f))
-    (def padded (fn (_ s) (%str-concat (list s (%pg-repeat "_" (int+ %pg-field-width (- 0 (text-width s))))))))
+    (def padded (fn (_ s) (%str-concat (list s (%pg-repeat "_" (int+ %pg-field-width (int- 0 (text-width s))))))))
     ; The label of the option that is the value: a select's chosen one, a
     ; button's text; the value itself with none.
     (def label
@@ -165,26 +167,24 @@
            (first inl))))))
 
 ; --- pieces to tokens ------------------------------------------------------
-; Tokens: (w FRAGMENTS) a word, its pieces in order; (s STYLE LINK) the
-; space between two words; (lit br).  OUT last first.  A piece ending in
-; (lit whole), a field's, is one fragment whatever it holds.
+; Tokens: (w FRAGMENTS) a word, its pieces in order, each (TEXT STYLE LINK
+; WIDTH); (s STYLE LINK) the space between two words; (lit br).  OUT last
+; first.  A piece ending in (lit whole), a field's, is one fragment
+; whatever it holds.
 (def %pg-space
   (fn (_ style link out)
     (match ((match ((eq? out ()) #t) ((eq? (first out) (lit br)) #f) (#t (eq? (first (first out)) (lit s)))) out)
            (#t (pair (list (lit s) style link) out)))))
 (def %pg-word (fn (_ frags out) (match ((eq? frags ()) out) (#t (pair (list (lit w) (%pg-rev frags)) out)))))
-; Piece TEXT's bytes from I split at spaces: (FRAGS . OUT) after.
+(def %pg-frag (fn (_ text style link) (list text style link (text-width text))))
+; Piece TEXT's bytes from I to N split at spaces: (FRAGS . OUT) after.
 (def %pg-split
-  (fn (self text style link i from frags out)
-    (match
-      ((= i (str-byte-len text))
-        (pair (match ((= from i) frags) (#t (pair (list (str-byte-sub text from (int+ i (- 0 from))) style link) frags))) out))
-      ((= (char->int (str-byte-ref text i)) 32)
-        (self text style link (int+ i 1) (int+ i 1) ()
-          (%pg-space style link
-            (%pg-word (match ((= from i) frags) (#t (pair (list (str-byte-sub text from (int+ i (- 0 from))) style link) frags)))
-                      out))))
-      (#t (self text style link (int+ i 1) from frags out)))))
+  (fn (self text style link i n frags out)
+    (def at (str-find-byte text 32 i))
+    (def e (match ((eq? at ()) n) (#t at)))
+    (def word (match ((int= e i) frags) (#t (pair (%pg-frag (str-byte-sub text i (int- e i)) style link) frags))))
+    (match ((eq? at ()) (pair word out))
+           (#t (self text style link (int+ at 1) n () (%pg-space style link (%pg-word word out)))))))
 (def %pg-tokens
   (fn (self pieces frags out)
     (match
@@ -193,20 +193,20 @@
       ((eq? (rest (rest (rest (first pieces)))) ())
         ((fn (_ p)
            ((fn (_ done) (self (rest pieces) (first done) (rest done)))
-            (%pg-split (first p) (%pg-2nd p) (%pg-3rd p) 0 0 frags out)))
+            (%pg-split (first p) (%pg-2nd p) (%pg-3rd p) 0 (str-byte-len (first p)) frags out)))
          (first pieces)))
-      (#t ((fn (_ p) (self (rest pieces) (pair (list (first p) (%pg-2nd p) (%pg-3rd p)) frags) out))
+      (#t ((fn (_ p) (self (rest pieces) (pair (%pg-frag (first p) (%pg-2nd p) (%pg-3rd p)) frags) out))
            (first pieces))))))
 
 ; --- tokens to lines -------------------------------------------------------
 ; The first bytes of S, from I, that fit in W columns: their end.
 (def %pg-fit
   (fn (self s i w)
-    (match ((= i (str-byte-len s)) i)
+    (match ((int= i (str-byte-len s)) i)
            ((int< w (char-width (utf8-cp-at s i))) i)
-           (#t (self s (int+ i (utf8-width s i)) (int+ w (- 0 (char-width (utf8-cp-at s i)))))))))
+           (#t (self s (int+ i (utf8-width s i)) (int+ w (int- 0 (char-width (utf8-cp-at s i)))))))))
 (def %pg-frags-width
-  (fn (self frags) (match ((eq? frags ()) 0) (#t (int+ (text-width (first (first frags))) (self (rest frags)))))))
+  (fn (self frags) (match ((eq? frags ()) 0) (#t (int+ (%pg-4th (first frags)) (self (rest frags)))))))
 ; Tokens laid out WIDTH wide: lines, in order.
 (def %pg-wrap
   (fn (_ tokens width)
@@ -216,17 +216,17 @@
     ; A fragment wider than what is left of the line, broken where it runs out.
     (def broken! (fn (go f)
       (def s (first f))
-      (def e (%pg-fit s 0 (int+ width (- 0 col))))
+      (def e (%pg-fit s 0 (int+ width (int- 0 col))))
       (match
-        ((= e (str-byte-len s)) (run! s (%pg-2nd f) (%pg-3rd f) (text-width s)))
-        ((match ((= e 0) (= col 0)) (#t #f))
+        ((int= e (str-byte-len s)) (run! s (%pg-2nd f) (%pg-3rd f) (text-width s)))
+        ((match ((int= e 0) (int= col 0)) (#t #f))
           (do (run! (str-byte-sub s 0 (utf8-width s 0)) (%pg-2nd f) (%pg-3rd f) 1)
               (finish!)
-              (go (list (str-byte-sub s (utf8-width s 0) (int+ (str-byte-len s) (- 0 (utf8-width s 0)))) (%pg-2nd f) (%pg-3rd f)))))
+              (go (list (str-byte-sub s (utf8-width s 0) (int+ (str-byte-len s) (int- 0 (utf8-width s 0)))) (%pg-2nd f) (%pg-3rd f)))))
         (#t (do (match ((int< 0 e) (run! (str-byte-sub s 0 e) (%pg-2nd f) (%pg-3rd f) (text-width (str-byte-sub s 0 e))))
                        (#t ()))
                 (finish!)
-                (go (list (str-byte-sub s e (int+ (str-byte-len s) (- 0 e))) (%pg-2nd f) (%pg-3rd f))))))))
+                (go (list (str-byte-sub s e (int+ (str-byte-len s) (int- 0 e))) (%pg-2nd f) (%pg-3rd f))))))))
     (%pg-each
       (fn (_ t)
         (match
@@ -240,7 +240,7 @@
                         (#t ()))
                  (set! gap ())
                  (match ((int< width (int+ col w)) (%pg-each broken! frags))
-                        (#t (%pg-each (fn (_ f) (run! (first f) (%pg-2nd f) (%pg-3rd f) (text-width (first f)))) frags))))
+                        (#t (%pg-each (fn (_ f) (run! (first f) (%pg-2nd f) (%pg-3rd f) (%pg-4th f))) frags))))
                (%pg-2nd t) (%pg-frags-width (%pg-2nd t))))))
       tokens)
     (match ((match ((eq? runs ()) (eq? lines ())) (#t #f)) ()) (#t (finish!)))
@@ -254,12 +254,12 @@
 (def %pg-expand
   (fn (self s i col out)
     (match
-      ((= i (str-byte-len s)) (bytes->str (%pg-rev out)))
-      ((= (char->int (str-byte-ref s i)) 9)
+      ((int= i (str-byte-len s)) (bytes->str (%pg-rev out)))
+      ((int= (char->int (str-byte-ref s i)) 9)
         ((fn (_ n) (self s (int+ i 1) (int+ col n) (%pg-onto (%pg-repeat-list 32 n) out)))
-         (- 4 (int& col 3))))
+         (int- 4 (int& col 3))))
       (#t (self s (int+ i 1)
-                (match ((= (int& (char->int (str-byte-ref s i)) 192) 128) col) (#t (int+ col 1)))
+                (match ((int= (int& (char->int (str-byte-ref s i)) 192) 128) col) (#t (int+ col 1)))
                 (pair (char->int (str-byte-ref s i)) out))))))
 (def %pg-repeat-list (fn (self x n) (match ((int< n 1) ()) (#t (pair x (self x (int+ n -1)))))))
 (def %pg-text-lines
@@ -278,10 +278,10 @@
       (#t ((fn (_ s)
              ((fn (_ e)
                 (match
-                  ((= e (str-byte-len s)) (self (rest ls) width (pair (list (list s 0 ())) out)))
-                  (#t (self (pair (str-byte-sub s e (int+ (str-byte-len s) (- 0 e))) (rest ls)) width
+                  ((int= e (str-byte-len s)) (self (rest ls) width (pair (list (list s 0 ())) out)))
+                  (#t (self (pair (str-byte-sub s e (int+ (str-byte-len s) (int- 0 e))) (rest ls)) width
                             (pair (list (list (str-byte-sub s 0 e) 0 ())) out)))))
-              ((fn (_ e) (match ((match ((= e 0) (int< 0 (str-byte-len s))) (#t #f)) (utf8-width s 0)) (#t e)))
+              ((fn (_ e) (match ((match ((int= e 0) (int< 0 (str-byte-len s))) (#t #f)) (utf8-width s 0)) (#t e)))
                (%pg-fit s 0 width))))
            (first ls))))))
 
@@ -320,10 +320,10 @@
                        (match ((eq? cs ()) out)
                               (#t (go (rest cs) (int+ extra -1)
                                       (pair (pair (first (first cs)) (match ((int< 0 extra) (int+ share 1)) (#t share))) out)))))
-                     cols (int+ avail (- 0 (int* share (%pg-len cols)))) out))
+                     cols (int+ avail (int- 0 (int* share (%pg-len cols)))) out))
                   (#t (self ((fn (go cs) (match ((eq? cs ()) ()) ((int< share (rest (first cs))) (pair (first cs) (go (rest cs)))) (#t (go (rest cs)))))
                              cols)
-                            (int+ avail (- 0 ((fn (go cs) (match ((eq? cs ()) 0) (#t (int+ (rest (first cs)) (go (rest cs)))))) small)))
+                            (int+ avail (int- 0 ((fn (go cs) (match ((eq? cs ()) 0) (#t (int+ (rest (first cs)) (go (rest cs)))))) small)))
                             (%pg-onto small out)))))
               ((fn (go cs) (match ((eq? cs ()) ()) ((int< share (rest (first cs))) (go (rest cs))) (#t (pair (first cs) (go (rest cs))))))
                cols)))
@@ -332,10 +332,10 @@
 ; no blanks after.
 (def %pg-aligned
   (fn (_ runs w align last)
-    (def gap (int+ w (- 0 (%pg-runs-width runs))))
+    (def gap (int+ w (int- 0 (%pg-runs-width runs))))
     (def before (match ((eq? align (lit right)) gap) ((eq? align (lit center)) (int/ gap 2)) (#t 0)))
     (match ((match (last (eq? runs ())) (#t #f)) ())
-           (#t (%pg-append (%pg-pad before) (%pg-append runs (match (last ()) (#t (%pg-pad (int+ gap (- 0 before)))))))))))
+           (#t (%pg-append (%pg-pad before) (%pg-append runs (match (last ()) (#t (%pg-pad (int+ gap (int- 0 before)))))))))))
 (def %pg-sep (list (list " │ " %pg-dim ())))
 ; A table as a grid: its columns parted by a bar, a rule under a header
 ; row, a cell's text wrapped to its column.  The columns take their natural
@@ -360,15 +360,15 @@
                       (go (rest rs) #f)))))
      (%pg-4th b) header)
     (set! rows (%pg-rev rows))
-    (def naturals ((fn (go k) (match ((= k ncols) ())
+    (def naturals ((fn (go k) (match ((int= k ncols) ())
                                      (#t (pair ((fn (walk rs w) (match ((eq? rs ()) w) (#t (walk (rest rs) (%pg-max w (%pg-natural (%pg-nth k (first rs))))))))
                                                 rows 1)
                                                (go (int+ k 1))))))
                    0))
-    (def avail (int+ width (- 0 (int* 3 (int+ ncols -1)))))
+    (def avail (int+ width (int- 0 (int* 3 (int+ ncols -1)))))
     (def total ((fn (go l) (match ((eq? l ()) 0) (#t (int+ (first l) (go (rest l)))))) naturals))
     (def shared
-      (fn (_ given) ((fn (go k) (match ((= k ncols) ()) (#t (pair (rest (%pg-assq k given)) (go (int+ k 1)))))) 0)))
+      (fn (_ given) ((fn (go k) (match ((int= k ncols) ()) (#t (pair (rest (%pg-assq k given)) (go (int+ k 1)))))) 0)))
     (def widths
       (match ((int< avail total)
                (shared (%pg-share ((fn (go l k) (match ((eq? l ()) ()) (#t (pair (pair k (first l)) (go (rest l) (int+ k 1)))))) naturals 0)
@@ -380,7 +380,7 @@
                          cells widths))
         (def height (%pg-max 1 ((fn (go l n) (match ((eq? l ()) n) (#t (go (rest l) (%pg-max n (%pg-len (first l))))))) cell-lines 0)))
         ((fn (go i)
-           (match ((= i height) ())
+           (match ((int= i height) ())
                   (#t (pair ((fn (join ls ws as)
                                ((fn (_ runs)
                                   (match ((eq? (rest ls) ()) runs)
@@ -400,14 +400,14 @@
                       ((fn (_ lines) (match (head (pair rule lines)) (#t lines)))
                        (%pg-onto (row-lines (first rs)) out))))))
      rows header ())))
-(def %pg-assq (fn (self k l) (match ((eq? l ()) ()) ((= k (first (first l))) (first l)) (#t (self k (rest l))))))
+(def %pg-assq (fn (self k l) (match ((eq? l ()) ()) ((int= k (first (first l))) (first l)) (#t (self k (rest l))))))
 (def %pg-block
   (fn (self b width depth links)
     (def t (first b))
     (match
       ((eq? t (lit paragraph)) (%pg-inline-lines (%pg-2nd b) 0 width links))
       ((eq? t (lit heading))
-        (%pg-inline-lines (%pg-3rd b) (match ((= (%pg-2nd b) 1) %pg-h1) (#t %pg-h2)) width links))
+        (%pg-inline-lines (%pg-3rd b) (match ((int= (%pg-2nd b) 1) %pg-h1) (#t %pg-h2)) width links))
       ((eq? t (lit code-block))
         (%pg-map (fn (_ l) (list (list l %pg-code ()))) (%pg-text-lines (%pg-3rd b))))
       ((eq? t (lit html-block))
@@ -427,7 +427,7 @@
                           (go (rest items) (int+ k 1)
                               (%pg-onto (%pg-prefix lines (list (list marker 0 ())) (list (list (%pg-repeat " " mw) 0 ())))
                                         (match ((match ((eq? out ()) #t) (#t (%pg-4th b))) out) (#t (pair () out))))))
-                        (%pg-blocks (first items) (int+ width (- 0 mw)) (int+ depth 1) (%pg-4th b) links)))
+                        (%pg-blocks (first items) (int+ width (int- 0 mw)) (int+ depth 1) (%pg-4th b) links)))
                      (text-width marker)))
                   (match ((%pg-2nd b) (%str-concat (list (%pg-num (int+ (%pg-3rd b) k)) ". ")))
                          (#t (%str-concat (list (%pg-nth (int& depth 1) %pg-bullets) " "))))))))
@@ -464,8 +464,8 @@
                                        (#t ((fn (_ k cur)
                                               (obj-set! spans (int+ k 1)
                                                 (match ((match ((eq? cur ()) #f)
-                                                               ((= (first (first cur)) i)
-                                                                 (= (int+ (%pg-2nd (first cur)) (%pg-3rd (first cur))) col))
+                                                               ((int= (first (first cur)) i)
+                                                                 (int= (int+ (%pg-2nd (first cur)) (%pg-3rd (first cur))) col))
                                                                (#t #f))
                                                          (pair (list i (%pg-2nd (first cur)) (int+ (%pg-3rd (first cur)) w))
                                                                (rest cur)))
@@ -498,7 +498,7 @@
 ; Whether link K has a run in RUNS.
 (def %pg-has-link?
   (fn (self runs k) (match ((eq? runs ()) #f) ((eq? (%pg-3rd (first runs)) ()) (self (rest runs) k))
-                           ((= (%pg-3rd (first runs)) k) #t) (#t (self (rest runs) k)))))
+                           ((int= (%pg-3rd (first runs)) k) #t) (#t (self (rest runs) k)))))
 ; A page keeps each line it draws as the cells of a screen row COLS wide,
 ; slot 4 (COLS . CELLS), CELLS a vector a line, nil for one not yet drawn:
 ; a line drawn again is put back in one copy, where its runs are put a
@@ -507,7 +507,7 @@
 (def %pg-cells
   (fn (_ p cols)
     (def c (obj-ref p 4))
-    (match ((match ((eq? c ()) #f) (#t (= (first c) cols))) (rest c))
+    (match ((match ((eq? c ()) #f) (#t (int= (first c) cols))) (rest c))
            (#t ((fn (_ n)
                   ((fn (_ v)
                      (obj-set! v 0 n)
@@ -525,7 +525,7 @@
               (#t ((fn (_ run)
                      (put (rest runs)
                           (screen-put! screen row col (first run)
-                            (match ((match ((eq? (%pg-3rd run) ()) #f) (#t (= (%pg-3rd run) selected)))
+                            (match ((match ((eq? (%pg-3rd run) ()) #f) (#t (int= (%pg-3rd run) selected)))
                                      (int| (%pg-2nd run) %pg-reverse))
                                    (#t (%pg-2nd run))))))
                    (first runs)))))
@@ -569,7 +569,7 @@
         (returns VECTOR "The page")
         (example "(do (import x/codec/markdown) (Page count (Page markdown (Markdown parse \"a\\n\\n- b\\n- c\") 20)))" "4")
         (example "(Page line-text (Page markdown (list (list 'paragraph (list \"Q: \" (list 'field 'text \"q\" \"hi\" #f () ()) \" \" (list 'field 'checkbox \"c\" \"on\" #t () ())))) 40) 0)" "\"Q: hi__________________ [X]\""))
-      (def links (pair () ()))
+      (def links (pair () 0))
       (def lines (%pg-blocks blocks width 0 #f links))
       (%pg-make lines (%pg-rev (first links)) width))
     (method text (self (param text STRING "Plain text") (param width INTEGER "Columns"))
