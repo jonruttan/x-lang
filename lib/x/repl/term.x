@@ -742,7 +742,7 @@
                     row col mods))))))
 
     (method mouse! (self (param fd INTEGER "The terminal's descriptor")
-                         (param on BOOLEAN "#t to report the mouse, #f to stop"))
+                         (param on BOOL "#t to report the mouse, #f to stop"))
       (doc "Ask the terminal to report the mouse, or to stop: presses, releases, drags with a button held and the wheel, in SGR form, which key decodes as (mouse ...) lists."
         (returns INTEGER "Bytes written")
         (note "Modes 1002 and 1006. A terminal that knows neither ignores them. Turn it off before the program leaves, or the shell gets the reports.")
