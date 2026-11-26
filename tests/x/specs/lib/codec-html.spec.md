@@ -102,6 +102,15 @@ decode) and (Entity at) read character references for both codecs.
 ---
     (('paragraph (('field 'select () "a" #f (("a" . "a") ("b" . "b")) ()) ('field 'textarea () "t" #f () ()))) ('paragraph ("just " ('strong ("text")))))
 
+### a name the parse does not know is phrasing and its close tag closes it; a known name in any case is the one known
+
+```x
+(do (import x/codec/html)
+  (Html parse "<foo><p>a</foo><x-y>b<custom>c</custom>d</x-y><DIV>e</div><h3>f</h3><H2>g<h4>h</h4></h2><textarea>q</TEXTAREA>"))
+```
+---
+    (('paragraph ("abcd")) ('paragraph ("e")) ('heading 3 ("f")) ('heading 2 ("g")) ('heading 4 ("h")) ('paragraph (('field 'textarea () "q" #f () ()))))
+
 ## forms
 
 ### a form's fields are inlines, each with its form: inputs by type, a textarea, a select with its options and the one selected, boxes, buttons; reset and button inputs are nothing
