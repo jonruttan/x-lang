@@ -134,6 +134,9 @@
 ; The place of the greatest of COUNT singles at ADDR.
 (def %tf-max-at
   (fn (_ addr count)
+    ; over a vocabulary the pure kernel takes most of a second, so the
+    ; compiled one is made before the first run and not after many
+    (Tensor %jit (lit f32-max-at))
     (let ((s (str-make 256)))
       (%tf-word! s 0 addr) (%tf-word! s 6 count) (%tf-word! s 7 0) (%tf-word! s 13 0)
       ((obj-ref (Tensor %fast) 14) (lit f32-max-at) s)
@@ -242,6 +245,7 @@
 ; A place drawn from COUNT singles at ADDR.
 (def %tf-variate-at
   (fn (_ addr count u temperature max)
+    (Tensor %jit (lit f32-variate-at))
     (let ((s (%tf-variate-scratch addr count u temperature max)))
       ((obj-ref (Tensor %fast) 14) (lit f32-variate-at) s)
       (%tf-word s 13))))
@@ -490,6 +494,7 @@
 ; buffers made once.  The rows worked in are shared by every block, since
 ; the steps run in order.
 ;
+;   embed    an id's row of the items plus its position's row
 ;   layer    a row times a weight, plus a bias
 ;   norm     a row less its mean and over its deviation, times a gain, plus a bias
 ;   gelu     a row's gelu, the tanh form, in place
@@ -501,10 +506,11 @@
 ; general pass sum in double: a score differs in its last places between
 ; the two, as it does between one host and another.
 ;
-; The work is (STEP . RELEASE).  STEP takes an id, its position and
-; whether the next id is wanted: it works the position out, and answers
-; the id PICK takes from the scores after it, or nil when none is wanted.
-; RELEASE gives the buffers back.
+; The work is (STEP . RELEASE).  STEP takes an id, its position and the
+; function that picks the next id from the scores, or nil when none is
+; wanted: it works the position out, and answers the id picked or nil.
+; RELEASE gives the buffers back.  A model keeps its work from one
+; generate to the next (%tf-work-for), and release gives it back.
 (def %tf-layer-source "#include <metal_stdlib>
 using namespace metal;
 kernel void layer(device const float* a [[buffer(0)]],
@@ -600,26 +606,22 @@ kernel void attend(device const float* cache [[buffer(0)]],
   for (uint c = 0; c < hw; c++) out[head + c] /= sum;
 }")
 
-; The address of a tensor's elements as contiguous f32, and the state
-; that keeps them alive.
-(def %tf-flat
-  (fn (_ t)
-    (let ((f (Tensor %fast)) (st ((%tf-f32 t) %st)))
-      (let ((c (if ((obj-ref f 3) st) st ((obj-ref f 10) st (lit f32)))))
-        (pair ((obj-ref f 13) c) c)))))
-
-; O[k] = A[k] + B[k] over N singles at those addresses.
-(def %tf-add-scratch
-  (fn (_ a b o n)
-    (let ((s (str-make 256)))
-      (mem-set (str->ptr s) 0 256)
-      (%tf-word! s 0 a) (%tf-word! s 1 b) (%tf-word! s 2 o)
-      (%tf-word! s 3 1) (%tf-word! s 4 1) (%tf-word! s 5 1) (%tf-word! s 6 n)
-      s)))
+; place: the position, then the id.  dims: the width.
+(def %tf-embed-source "#include <metal_stdlib>
+using namespace metal;
+kernel void embed(device const float* items [[buffer(0)]],
+                  device const float* places [[buffer(1)]],
+                  device float* x [[buffer(2)]],
+                  device const uint* place [[buffer(3)]],
+                  device const uint* dims [[buffer(4)]],
+                  uint2 at [[thread_position_in_grid]]) {
+  uint w = dims[0];
+  x[at.x] = items[place[1] * w + at.x] + places[place[0] * w + at.x];
+}")
 
 ; The work for one position of M, for ROWS positions in all.
 (def %tf-work
-  (fn (_ m pick rows)
+  (fn (_ m rows)
     ; a released model is refused before anything is made
     (Gpu %buffer-of (m %items))
     (let ((f (Tensor %fast)) (width (m %width)) (heads (m %heads))
@@ -631,7 +633,7 @@ kernel void attend(device const float* cache [[buffer(0)]],
               (wide (int* 4 width)) (across (int* 3 width)))
           (let ((x (zeros 1 width)) (n (zeros 1 width)) (t (zeros 1 width)) (o (zeros 1 width))
                 (qkv (zeros 1 across)) (h (zeros 1 wide))
-                (place (word (list 0)))
+                (place (word (list 0 0)))
                 (d-width (word (list width))) (d-across (word (list across)))
                 (d-attend (word (list width (int/ width heads))))
                 (d-in (word (list width across))) (d-same (word (list width width)))
@@ -643,7 +645,7 @@ kernel void attend(device const float* cache [[buffer(0)]],
                           (Gpu %step (lit norm) %tf-norm-source
                             (list (buf x) (buf (hold (first g))) (buf (hold (rest g))) (buf n) d-width) 1 1)))
                   (add (fn (_ y) (Gpu %step (lit add) %tf-add-source (list (buf x) (buf y)) width 1))))
-              (let ((body
+              (let ((blocks
                       (List flat-map
                         (fn (_ b)
                           (let ((cache (zeros rows across)))
@@ -661,22 +663,20 @@ kernel void attend(device const float* cache [[buffer(0)]],
                         (m %blocks)))
                     ; the scores: the items times the last row as a column
                     (scoring (Gpu %plan (m %items) (Tensor %make ((obj-ref f 11) (n %st) (list width) (list 1) 0)))))
-                (let ((all (List append body (list (norm (m %norm)) (Gpu %plan-step scoring))))
-                      (scores (Gpu %plan-out scoring)) (items (%tf-flat (m %items))) (places (%tf-flat (m %positions)))
-                      (bytes (int* 4 width)) (drive (obj-ref f 14)))
-                  (let ((embed (%tf-add-scratch 0 0 ((obj-ref f 13) (x %st)) width))
+                (let ((body (pair (Gpu %step (lit embed) %tf-embed-source
+                                    (list (buf (m %items)) (buf (hold (m %positions))) (buf x) place d-width) width 1)
+                                  blocks))
+                      (scores (Gpu %plan-out scoring)))
+                  (let ((all (List append body (list (norm (m %norm)) (Gpu %plan-step scoring))))
                         (at-scores ((obj-ref f 13) (scores %st))) (many (first (scores extent))))
                     (pair
-                      (fn (_ id from want)
+                      (fn (_ id from pick)
                         (Gpu %word! place 0 from)
-                        (%tf-word! embed 0 (int+ (first items) (int* id bytes)))
-                        (%tf-word! embed 1 (int+ (first places) (int* from bytes)))
-                        (%tf-word! embed 7 0)
-                        (drive (lit f32-add) embed)
-                        (Gpu %steps-run (if want all body))
-                        (let ((next (if want (pick at-scores many) ())))
-                          ; the row, the tables and the scratch are held to here, so their addresses stayed good
-                          (do x items places scores embed next)))
+                        (Gpu %word! place 1 id)
+                        (Gpu %steps-run (if (null? pick) body all))
+                        (let ((next (if (null? pick) () (pick at-scores many))))
+                          ; the scores are held to here, so their address stayed good
+                          (do scores next)))
                       (fn (_)
                         (Gpu %plan-done scoring #f)
                         (List for-each (fn (_ b) (Gpu %words-done b)) (first words))
@@ -684,6 +684,26 @@ kernel void attend(device const float* cache [[buffer(0)]],
                         (List for-each (fn (_ r) (Gpu release r)) (first holds))
                         (%set-first! holds ())
                         ()))))))))))))
+
+; M's work for ROWS positions: the one it keeps when that has room, else
+; one made now and kept, the last given back.  Making the work costs
+; about what four positions do, so a model generates again without it.
+(def %tf-work-for
+  (fn (_ m rows)
+    (let ((cell (m %work)))
+      (if (if (null? (first cell)) #f (not (int< (first (first cell)) rows)))
+        (rest (first cell))
+        (do (%tf-work-done m)
+            (let ((w (%tf-work m rows)))
+              (%set-first! cell (pair rows w))
+              w))))))
+
+(def %tf-work-done
+  (fn (_ m)
+    (let ((cell (m %work)))
+      (if (null? (first cell)) ()
+        (do ((rest (rest (first cell))))
+            (%set-first! cell ()))))))
 
 ; IDS and N more, each one PICK takes from the scores after those before
 ; it; EACH is called with each as it is made.
@@ -704,23 +724,19 @@ kernel void attend(device const float* cache [[buffer(0)]],
                 (if (if (type? id (type-of 0)) (if (int< id 0) #f (int< id items)) #f) ()
                   (Err raise (lit value) "Transformer: an id the model has no item for" id)))
               ids)
-            (let ((work (%tf-work m pick (int- (int+ count n) 1))))
-              (let ((made
-                      (guard (e (do ((rest work)) (error e)))
-                        ; the ids not yet worked out, the position of the first of
-                        ; them, the ids generated so far, last first, and how many
-                        ; are still to be generated
-                        ((fn (go todo from made k)
-                           (if (null? (rest todo))
-                             (let ((id ((first work) (first todo) from #t)))
-                               (each id)
-                               (if (int= k 1) (pair id made)
-                                 (go (list id) (int+ from 1) (pair id made) (int- k 1))))
-                             (do ((first work) (first todo) from #f)
-                                 (go (rest todo) (int+ from 1) made k))))
-                          ids 0 () n))))
-                ((rest work))
-                (List append ids (List reverse made)))))
+            (let ((step (first (%tf-work-for m (int- (int+ count n) 1)))))
+              ; the ids not yet worked out, the position of the first of
+              ; them, the ids generated so far, last first, and how many
+              ; are still to be generated
+              ((fn (go todo from made k)
+                 (if (null? (rest todo))
+                   (let ((id (step (first todo) from pick)))
+                     (each id)
+                     (if (int= k 1) (List append ids (List reverse (pair id made)))
+                       (go (list id) (int+ from 1) (pair id made) (int- k 1))))
+                   (do (step (first todo) from ())
+                       (go (rest todo) (int+ from 1) made k))))
+                ids 0 () n)))
           ; with no GPU the first prediction works out every position of
           ; ids, and each one after it the one new position
           (let ((caches (%tf-caches m (int- (int+ count n) 1))))
@@ -752,6 +768,7 @@ kernel void attend(device const float* cache [[buffer(0)]],
               ; attn.c_attn, attn.c_proj, ln_2, mlp.c_fc and mlp.c_proj
   norm        ; ln_f: (GAIN . BIAS)
   held        ; #t when the weights are held on the GPU, to be given back by release
+  work        ; a cell: nil, or (ROWS . WORK), the work kept for generate
 
   (static
     (method from-file (self (param path STRING "A safetensors file with GPT-2's tensor names")
@@ -793,7 +810,7 @@ kernel void attend(device const float* cache [[buffer(0)]],
                     (new-from self
                       (list (lit heads) heads (lit width) width (lit context) (first (positions extent))
                             (lit items) items (lit positions) positions (lit blocks) blocks (lit norm) norm
-                            (lit held) held)))))))))))
+                            (lit held) held (lit work) (pair () ()))))))))))))
 
   (method %heads (self) (field (lit heads)))
   (method %width (self) (field (lit width)))
@@ -803,6 +820,7 @@ kernel void attend(device const float* cache [[buffer(0)]],
   (method %blocks (self) (field (lit blocks)))
   (method %norm (self) (field (lit norm)))
   (method %held (self) (field (lit held)))
+  (method %work (self) (field (lit work)))
 
   (method logits (self (param ids LIST "Ids, at least one and no more than the model has positions"))
     (doc "Every position's score for every vocabulary item: row i is the model's scores for the item after ids 0 to i. No ids, more than the model has positions, or an id it has no item for raises a label 'value."
@@ -849,7 +867,8 @@ kernel void attend(device const float* cache [[buffer(0)]],
       (returns ANY "nil")
       (sample "(m release)" "the weights' buffers given back"))
     (if (field (lit held))
-      (do (Gpu release (field (lit items)))
+      (do (%tf-work-done self)
+          (Gpu release (field (lit items)))
           (List for-each
             (fn (_ b) (List for-each (fn (_ k) (Gpu release (first (List ref k b)))) (list 1 2 4 5)))
             (field (lit blocks))))

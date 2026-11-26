@@ -1356,8 +1356,13 @@
           (fn (go ext str off)
             (if (null? ext) (get a off)
               (let ((n (first ext)) (s (first str)))
-                (def each (fn (each j off) (if (int< j n) (pair (go (rest ext) (rest str) off) (each (int+ j 1) (int+ off s))) ())))
-                (each 0 off)))))
+                ; from the last element back, so the list is built with no
+                ; call left waiting on each element: an axis may be long
+                (def each
+                  (fn (each j acc)
+                    (if (int< j 0) acc
+                      (each (int- j 1) (pair (go (rest ext) (rest str) (int+ off (int* j s))) acc)))))
+                (each (int- n 1) ())))))
         (go (List ref 1 st) (List ref 2 st) (List ref 3 st)))))
 
   ; --- views ------------------------------------------------------------------
