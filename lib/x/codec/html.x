@@ -61,7 +61,7 @@
 (import x/codec/entity entity-decode)
 
 (import x/protocol/str/str8 str-find-byte)
-(import x/core/doors char->int heap-collect int& int+ int< obj-make obj-ref obj-same? obj-set! str-byte-len str-byte-ref str-byte-sub)
+(import x/core/doors char->int heap-collect int& int+ int- int< int= obj-make obj-ref obj-same? obj-set! str-byte-len str-byte-ref str-byte-sub)
 (def %ht-cvt (prim-ref (lit convert) (lit to)))
 (def %ht-integer (Type named INTEGER))
 (def %ht-vector ((prim-ref (lit type) (lit of)) (Vector make 0 ())))
@@ -82,10 +82,13 @@
 ; The byte at I of S as an integer, -1 past either end.
 (def %ht-at
   (fn (_ s i)
-    (match ((int< i 0) -1) ((int< i (%ht-size s)) (char->int (str-byte-ref s i))) (#t -1))))
-(def %ht-sub (fn (_ s i j) (str-byte-sub s i (- j i))))
+    (match ((int< i 0) -1)
+           ((int< i (match ((obj-same? s (obj-ref %ht-doc 1)) (obj-ref %ht-doc 2)) (#t (str-byte-len s))))
+             (char->int (str-byte-ref s i)))
+           (#t -1))))
+(def %ht-sub (fn (_ s i j) (str-byte-sub s i (int- j i))))
 (def %ht-white?
-  (fn (_ c) (match ((= c 32) #t) ((= c 10) #t) ((= c 9) #t) ((= c 13) #t) ((= c 12) #t) (#t #f))))
+  (fn (_ c) (match ((int= c 32) #t) ((int= c 10) #t) ((int= c 9) #t) ((int= c 13) #t) ((int= c 12) #t) (#t #f))))
 (def %ht-digit? (fn (_ c) (match ((int< c #\0) #f) ((int< #\9 c) #f) (#t #t))))
 (def %ht-alpha?
   (fn (_ c) (match ((int< c #\A) #f) ((int< #\z c) #f) ((int< c #\[) #t) ((int< c #\a) #f) (#t #t))))
@@ -97,9 +100,9 @@
   (fn (go s i)
     (def b (char->int (str-byte-ref s i)))
     (match ((int< 62 b) (go s (int+ i 1)))
-           ((= b 62) i) ((= b 47) i) ((= b 61) i)
+           ((int= b 62) i) ((int= b 47) i) ((int= b 61) i)
            ((int< 32 b) (go s (int+ i 1)))
-           ((= b 0) i)
+           ((int= b 0) i)
            ((%ht-white? b) i)
            (#t (go s (int+ i 1))))))
 ; I past the bytes of S from I that PRED? holds for; on to the byte B, an
@@ -117,13 +120,13 @@
 ; or after I, or -1.
 (def %ht-at?
   (fn (self pat s i k)
-    (match ((= k (str-byte-len pat)) #t)
-           ((= (%ht-at s (int+ i k)) (char->int (str-byte-ref pat k))) (self pat s i (int+ k 1)))
+    (match ((int= k (str-byte-len pat)) #t)
+           ((int= (%ht-at s (int+ i k)) (char->int (str-byte-ref pat k))) (self pat s i (int+ k 1)))
            (#t #f))))
 (def %ht-find
   (fn (self pat s i)
     ((fn (_ k)
-       (match ((= (%ht-at s k) -1) -1) ((%ht-at? pat s k 0) k) (#t (self pat s (int+ k 1)))))
+       (match ((int= (%ht-at s k) -1) -1) ((%ht-at? pat s k 0) k) (#t (self pat s (int+ k 1)))))
      (%ht-upto s i (char->int (str-byte-ref pat 0))))))
 ; S in lower case; S itself when it has no upper-case letter.
 (def %ht-lower
@@ -132,12 +135,12 @@
        (def c (char->int (str-byte-ref s i)))
        (match
          ((int< 90 c) (go (int+ i 1)))
-         ((= c 0) s)
+         ((int= c 0) s)
          ((%ht-upper? c)
            (bytes->str
              ((fn (walk k out)
                 (def b (%ht-at s k))
-                (match ((= b -1) (%reverse out))
+                (match ((int= b -1) (%reverse out))
                        ((%ht-upper? b) (walk (int+ k 1) (pair (int+ b 32) out)))
                        (#t (walk (int+ k 1) (pair b out)))))
               0 ())))
@@ -146,17 +149,22 @@
 ; S without its trailing spaces.
 (def %ht-rtrim
   (fn (_ s)
-    ((fn (go j) (match ((= (%ht-at s (int+ j -1)) 32) (go (int+ j -1))) ((= j (str-byte-len s)) s) (#t (%ht-sub s 0 j))))
+    ((fn (go j) (match ((int= (%ht-at s (int+ j -1)) 32) (go (int+ j -1))) ((int= j (str-byte-len s)) s) (#t (%ht-sub s 0 j))))
      (str-byte-len s))))
 ; List helpers: a class send costs hundreds of objects, and the tree pass
 ; makes one a node.
-(def %ht-nth (fn (self k l) (match ((= k 0) (first l)) (#t (self (int+ k -1) (rest l))))))
+(def %ht-nth (fn (self k l) (match ((int= k 0) (first l)) (#t (self (int+ k -1) (rest l))))))
 (def %ht-map (fn (self f l) (match ((eq? l ()) ()) (#t (pair (f (first l)) (self f (rest l)))))))
 (def %ht-each (fn (self f l) (match ((eq? l ()) ()) (#t (do (f (first l)) (self f (rest l)))))))
 (def %ht-onto (fn (self l acc) (match ((eq? l ()) acc) (#t (self (rest l) (pair (first l) acc))))))
 (def %ht-append (fn (_ a b) (%ht-onto (%reverse a) b)))
+; Names are compared a first byte before the whole: most names asked about
+; are not the one compared, and differ there.
 (def %ht-member?
-  (fn (self s l) (match ((eq? l ()) #f) ((str=? s (first l)) #t) (#t (self s (rest l))))))
+  (fn (self s l)
+    (match ((eq? l ()) #f)
+           ((match ((int= (str-byte-ref s 0) (str-byte-ref (first l) 0)) (str=? s (first l))) (#t #f)) #t)
+           (#t (self s (rest l))))))
 (def %ht-assoc
   (fn (self k al) (match ((eq? al ()) ()) ((str=? k (first (first al))) (first al)) (#t (self k (rest al))))))
 
@@ -165,7 +173,7 @@
 ; the rest, so whether a tag's name is in it takes a str=? or two where the
 ; list took one a name: a tag is looked up in a dozen sets.
 (def %ht-bucket
-  (fn (_ s) ((fn (_ c) (match ((int< c 97) 27) ((int< 122 c) 27) (#t (int+ c -96)))) (%ht-at s 0))))
+  (fn (_ s) ((fn (_ c) (match ((int< c 97) 27) ((int< 122 c) 27) (#t (int+ c -96)))) (char->int (str-byte-ref s 0)))))
 (def %ht-set
   (fn (_ names)
     (def v (obj-make %ht-vector 28))
@@ -189,7 +197,7 @@
     (list "address" "article" "aside" "blockquote" "center" "dd" "details" "dialog" "dir" "div" "dl" "dt"
           "fieldset" "figcaption" "figure" "footer" "form" "h1" "h2" "h3" "h4" "h5" "h6" "header" "hgroup"
           "hr" "li" "main" "menu" "nav" "ol" "p" "pre" "search" "section" "summary" "table" "ul")))
-(def %ht-p-stop (list "html" "table" "td" "th" "caption" "button"))
+(def %ht-p-stop (%ht-set (list "html" "table" "td" "th" "caption" "button")))
 (def %ht-headings (%ht-set (list "h1" "h2" "h3" "h4" "h5" "h6")))
 (def %ht-strongs (%ht-set (list "b" "strong")))
 (def %ht-emphs (%ht-set (list "i" "em" "cite" "dfn" "var")))
@@ -206,14 +214,33 @@
 
 ; An element is a vector: 0 its name, 1 its attributes ((NAME . VALUE) ...),
 ; 2 its children, last first, each a string or an element, 3 its parent, 4
-; a form's (INDEX ACTION METHOD ENCODING), nil on any other element.  (eq? compares
-; a vector by its value word, its length: identity is same?.)
+; a form's (INDEX ACTION METHOD ENCODING), nil on any other element; 5 the
+; outermost head at or above it, 6 the outermost p at or above it below
+; any element named in %ht-p-stop, each nil for none or the root.  A start
+; tag asks for those two, and they are kept as an element is made, from
+; its parent's, where asking walked every element open above.  (eq?
+; compares a vector by its value word, its length: identity is same?.)
 (def %ht-node
   (fn (_ name attrs parent)
-    (def v (obj-make %ht-vector 6))
-    (obj-set! v 0 5) (obj-set! v 1 name) (obj-set! v 2 attrs) (obj-set! v 3 ()) (obj-set! v 4 parent)
+    (def v (obj-make %ht-vector 8))
+    (obj-set! v 0 7) (obj-set! v 1 name) (obj-set! v 2 attrs) (obj-set! v 3 ()) (obj-set! v 4 parent)
     (obj-set! v 5 ())
+    (obj-set! v 6
+      (match ((null? parent) ())
+             ((not (null? (obj-ref parent 6))) (obj-ref parent 6))
+             ((str=? name "head") v)
+             (#t ())))
+    (obj-set! v 7
+      (match ((null? parent) ())
+             ((%ht-in? name %ht-p-stop) ())
+             ((not (null? (obj-ref parent 7))) (obj-ref parent 7))
+             ((str=? name "p") v)
+             (#t ())))
     v))
+; The open head or p at or above ND, as %ht-node keeps them, closed: ND's
+; place after.
+(def %ht-closed-kept
+  (fn (_ nd slot) ((fn (_ x) (match ((null? x) nd) (#t (%ht-parent x)))) (obj-ref nd slot))))
 (def %ht-name (fn (_ nd) (obj-ref nd 1)))
 (def %ht-kids (fn (_ nd) (%reverse (obj-ref nd 3))))
 (def %ht-parent (fn (_ nd) (obj-ref nd 4)))
@@ -227,34 +254,36 @@
 ; --- tags ------------------------------------------------------------------
 ; The attributes from I of S to the tag's >: (ATTRS . END), END past the >.
 ; A name alone has the value ""; a value is in either quote or none.
+(def %ht-gap? (fn (_ c) (match ((int= c #\/) #t) (#t (%ht-white? c)))))
+(def %ht-bare? (fn (_ b) (match ((int= b -1) #f) ((int= b #\>) #f) (#t (not (%ht-white? b))))))
 (def %ht-attrs
   (fn (go s i attrs)
-    (def w (%ht-skip (fn (_ c) (match ((= c #\/) #t) (#t (%ht-white? c)))) s i))
+    (def w (%ht-skip %ht-gap? s i))
     (def c (%ht-at s w))
     (match
-      ((= c -1) (pair (%reverse attrs) w))
-      ((= c #\>) (pair (%reverse attrs) (int+ w 1)))
+      ((int= c -1) (pair (%reverse attrs) w))
+      ((int= c #\>) (pair (%reverse attrs) (int+ w 1)))
       (#t
         ((fn (_ e)
            (def name (%ht-lower (%ht-sub s w e)))
            (def q (%ht-skip %ht-white? s e))
            (match
-             ((= (%ht-at s q) #\=)
+             ((int= (%ht-at s q) #\=)
                ((fn (_ v)
                   (def d (%ht-at s v))
                   (match
-                    ((match ((= d #\") #t) ((= d #\') #t) (#t #f))
+                    ((match ((int= d #\") #t) ((int= d #\') #t) (#t #f))
                       ((fn (_ z)
-                         (go s (match ((= (%ht-at s z) -1) z) (#t (int+ z 1)))
+                         (go s (match ((int= (%ht-at s z) -1) z) (#t (int+ z 1)))
                              (pair (pair name (entity-decode (%ht-sub s (int+ v 1) z))) attrs)))
                        (%ht-upto s (int+ v 1) d)))
                     (#t ((fn (_ z) (go s z (pair (pair name (entity-decode (%ht-sub s v z))) attrs)))
-                         (%ht-skip (fn (_ b) (match ((= b -1) #f) ((= b #\>) #f) (#t (not (%ht-white? b))))) s v)))))
+                         (%ht-skip %ht-bare? s v)))))
                 (%ht-skip %ht-white? s (int+ q 1))))
              (#t (go s e (pair (pair name "") attrs)))))
          (%ht-name-end s (int+ w 1)))))))
 ; I past the > of the tag that ends at or after I.
-(def %ht-past (fn (_ s i) ((fn (_ k) (match ((= (%ht-at s k) -1) k) (#t (int+ k 1)))) (%ht-upto s i %ht-gt))))
+(def %ht-past (fn (_ s i) ((fn (_ k) (match ((int= (%ht-at s k) -1) k) (#t (int+ k 1)))) (%ht-upto s i %ht-gt))))
 ; The tag at I of S, a <, as (KIND NAME ATTRS END): KIND open, close or
 ; skip (a comment, doctype or processing instruction); nil when the < is
 ; text.
@@ -262,10 +291,10 @@
   (fn (_ s i)
     (def c (%ht-at s (int+ i 1)))
     (match
-      ((%ht-at? "<!--" s i 0)
+      ((match ((int= c #\!) (%ht-at? "<!--" s i 0)) (#t #f))
         (list (lit skip) "" () ((fn (_ k) (match ((int< k 0) (str-byte-len s)) (#t (int+ k 3)))) (%ht-find "-->" s (int+ i 4)))))
-      ((match ((= c #\!) #t) (#t (= c #\?))) (list (lit skip) "" () (%ht-past s i)))
-      ((match ((= c #\/) (%ht-alpha? (%ht-at s (int+ i 2)))) (#t #f))
+      ((match ((int= c #\!) #t) (#t (int= c #\?))) (list (lit skip) "" () (%ht-past s i)))
+      ((match ((int= c #\/) (%ht-alpha? (%ht-at s (int+ i 2)))) (#t #f))
         ((fn (_ e) (list (lit close) (%ht-lower (%ht-sub s (int+ i 2) e)) () (%ht-past s e)))
          (%ht-name-end s (int+ i 2))))
       ((%ht-alpha? c)
@@ -279,21 +308,22 @@
   (fn (go s i name)
     (def k (%ht-upto s i %ht-lt))
     (match
-      ((= (%ht-at s k) -1) k)
-      ((match ((= (%ht-at s (int+ k 1)) #\/)
+      ((int= (%ht-at s k) -1) k)
+      ((match ((int= (%ht-at s (int+ k 1)) #\/)
                 (str=? (%ht-lower (%ht-sub s (int+ k 2) (%ht-name-end s (int+ k 2)))) name))
               (#t #f))
         k)
       (#t (go s (int+ k 1) name)))))
 
 ; --- the tree --------------------------------------------------------------
-; The outermost open element at or above CUR named in NAMES below one named
-; in STOP or the root, or nil; the nearest one named NAME, or nil.
+; The outermost open element at or above CUR named in the set NAMES below
+; one named in the set STOP or the root, or nil; the nearest one named
+; NAME, or nil.
 (def %ht-outermost
   (fn (go cur names stop found)
     (match ((null? (%ht-parent cur)) found)
-           ((%ht-member? (%ht-name cur) stop) found)
-           ((%ht-member? (%ht-name cur) names) (go (%ht-parent cur) names stop cur))
+           ((%ht-in? (%ht-name cur) stop) found)
+           ((%ht-in? (%ht-name cur) names) (go (%ht-parent cur) names stop cur))
            (#t (go (%ht-parent cur) names stop found)))))
 (def %ht-nearest
   (fn (go cur name)
@@ -303,21 +333,26 @@
 ; The form ND is in, (INDEX ACTION METHOD ENCODING), or nil.
 (def %ht-form
   (fn (_ nd) ((fn (_ f) (match ((null? f) ()) (#t (obj-ref f 5)))) (%ht-nearest nd "form"))))
-; CUR with the outermost open element named in NAMES closed, when one is
-; open below an element named in STOP.
+; CUR with the outermost open element named in the set NAMES closed, when
+; one is open below an element named in the set STOP.
 (def %ht-closed
   (fn (_ cur names stop)
     ((fn (_ nd) (match ((null? nd) cur) (#t (%ht-parent nd)))) (%ht-outermost cur names stop ()))))
 ; What a start tag closes first: (NAMES CLOSES STOP) -- a tag named in NAMES
 ; closes the nearest open element named in CLOSES, unless one named in STOP
-; is nearer.
+; is nearer.  CLOSES and STOP are sets; %ht-implied-names holds every
+; NAMES, so a tag no rule names is not looked for in each.
+(def %ht-rule
+  (fn (_ names closes stop) (list names (%ht-set closes) (%ht-set stop))))
 (def %ht-implied
-  (list (list (list "li") (list "li") (list "ul" "ol" "menu" "dir" "table" "td" "th"))
-        (list (list "dt" "dd") (list "dt" "dd") (list "dl" "table" "td" "th"))
-        (list (list "td" "th") (list "td" "th") (list "tr" "table"))
-        (list (list "tr") (list "td" "th" "tr") (list "thead" "tbody" "tfoot" "table"))
-        (list (list "thead" "tbody" "tfoot") (list "td" "th" "tr" "thead" "tbody" "tfoot") (list "table"))
-        (list (list "option") (list "option") (list "select" "datalist"))))
+  (list (%ht-rule (list "li") (list "li") (list "ul" "ol" "menu" "dir" "table" "td" "th"))
+        (%ht-rule (list "dt" "dd") (list "dt" "dd") (list "dl" "table" "td" "th"))
+        (%ht-rule (list "td" "th") (list "td" "th") (list "tr" "table"))
+        (%ht-rule (list "tr") (list "td" "th" "tr") (list "thead" "tbody" "tfoot" "table"))
+        (%ht-rule (list "thead" "tbody" "tfoot") (list "td" "th" "tr" "thead" "tbody" "tfoot") (list "table"))
+        (%ht-rule (list "option") (list "option") (list "select" "datalist"))))
+(def %ht-implied-names
+  (%ht-set ((fn (go rules) (match ((null? rules) ()) (#t (%ht-append (first (first rules)) (go (rest rules)))))) %ht-implied)))
 (def %ht-implied-closed
   (fn (go cur name rules)
     (match ((null? rules) cur)
@@ -329,10 +364,10 @@
 ; element, its parent the element it is in.
 (def %ht-opened
   (fn (_ cur name attrs)
-    (def c1 (match ((%ht-in? name %ht-head) cur) (#t (%ht-closed cur (list "head") ()))))
-    (def c2 (match ((%ht-in? name %ht-closes-p) (%ht-closed c1 (list "p") %ht-p-stop)) (#t c1)))
-    (def c3 (match ((not (%ht-in? name %ht-headings)) (%ht-implied-closed c2 name %ht-implied))
-                   ((%ht-in? (%ht-name c2) %ht-headings) (%ht-parent c2))
+    (def c1 (match ((%ht-in? name %ht-head) cur) (#t (%ht-closed-kept cur 6))))
+    (def c2 (match ((%ht-in? name %ht-closes-p) (%ht-closed-kept c1 7)) (#t c1)))
+    (def c3 (match ((%ht-in? name %ht-headings) (match ((%ht-in? (%ht-name c2) %ht-headings) (%ht-parent c2)) (#t c2)))
+                   ((%ht-in? name %ht-implied-names) (%ht-implied-closed c2 name %ht-implied))
                    (#t c2)))
     (def nd (%ht-node name attrs c3))
     (%ht-add! c3 nd)
@@ -348,42 +383,44 @@
     (def cur root)
     (def forms 0)
     (def tags 0)
-    (def tagged! (fn (_) (set! tags (int+ tags 1)) (when (= (int& tags 1023) 0) (heap-collect))))
-    (def text! (fn (_ i j) (unless (= i j) (%ht-add! cur (entity-decode (%ht-sub s i j))))))
+    (def tagged! (fn (_) (set! tags (int+ tags 1)) (match ((int= (int& tags 1023) 0) (heap-collect)) (#t ()))))
+    (def text! (fn (_ i j) (match ((int= i j) ()) (#t (%ht-add! cur (entity-decode (%ht-sub s i j)))))))
     (def raw! (fn (_ nd name i j)
-      (unless (match ((str=? name "script") #t) (#t (str=? name "style")))
-        (%ht-add! nd (entity-decode (%ht-sub s i j))))))
+      (match ((match ((str=? name "script") #t) (#t (str=? name "style"))) ())
+             (#t (%ht-add! nd (entity-decode (%ht-sub s i j)))))))
     (def open! (fn (_ name attrs end)
       (def nd (%ht-opened cur name attrs))
-      (when (str=? name "form")
-        (do (obj-set! nd 5
-              (list forms (%ht-attr-or nd "action" "")
-                    (match ((str=? (%ht-lower (%ht-attr-or nd "method" "")) "post") (lit post)) (#t (lit get)))
-                    (match ((str=? (%ht-lower (%ht-attr-or nd "enctype" "")) "multipart/form-data") (lit multipart))
-                           (#t (lit urlencoded)))))
-            (set! forms (int+ forms 1))))
+      (match
+        ((str=? name "form")
+          (do (obj-set! nd 5
+                (list forms (%ht-attr-or nd "action" "")
+                      (match ((str=? (%ht-lower (%ht-attr-or nd "method" "")) "post") (lit post)) (#t (lit get)))
+                      (match ((str=? (%ht-lower (%ht-attr-or nd "enctype" "")) "multipart/form-data") (lit multipart))
+                             (#t (lit urlencoded)))))
+              (set! forms (int+ forms 1))))
+        (#t ()))
       (set! cur (%ht-parent nd))
       (match
         ((%ht-in? name %ht-void) end)
         ((%ht-in? name %ht-raw) ((fn (_ e) (raw! nd name end e) e) (%ht-raw-end s end name)))
         (#t (do (set! cur nd) end)))))
     (def close! (fn (_ name)
-      (unless (str=? name "br")
-        ((fn (_ nd) (unless (null? nd) (set! cur (%ht-parent nd)))) (%ht-nearest cur name)))))
+      (match ((str=? name "br") ())
+             (#t ((fn (_ nd) (match ((null? nd) ()) (#t (set! cur (%ht-parent nd))))) (%ht-nearest cur name))))))
     ((fn (go i from)
        (def k (%ht-upto s i %ht-lt))
-       (def tag (match ((= (%ht-at s k) -1) ()) (#t (%ht-tag s k))))
+       (def tag (match ((int= (%ht-at s k) -1) ()) (#t (%ht-tag s k))))
        (match
-         ((= (%ht-at s k) -1) (text! from k))
+         ((int= (%ht-at s k) -1) (text! from k))
          ((null? tag) (go (int+ k 1) from))
          (#t (do (text! from k)
                  (tagged!)
                  ((fn (_ kind name end)
                     (match
-                      ((eq? kind (lit open)) ((fn (_ e) (go e e)) (open! name (%ht-nth 2 tag) end)))
+                      ((eq? kind (lit open)) ((fn (_ e) (go e e)) (open! name (first (rest (rest tag))) end)))
                       ((eq? kind (lit close)) (do (close! name) (go end end)))
                       (#t (go end end))))
-                  (first tag) (%ht-nth 1 tag) (%ht-nth 3 tag))))))
+                  (first tag) (first (rest tag)) (first (rest (rest (rest tag)))))))))
      0 0)
     root))
 
@@ -400,7 +437,7 @@
                       (match ((eq? (str-find-byte s 13 0) ())
                                (match ((eq? (str-find-byte s 12 0) ())
                                         ((fn (go i)
-                                           ((fn (_ k) (match ((eq? k ()) #t) ((= (char->int (str-byte-ref s (int+ k 1))) 32) #f) (#t (go (int+ k 1)))))
+                                           ((fn (_ k) (match ((eq? k ()) #t) ((int= (char->int (str-byte-ref s (int+ k 1))) 32) #f) (#t (go (int+ k 1)))))
                                             (str-find-byte s 32 i)))
                                          0))
                                       (#t #f)))
@@ -411,17 +448,17 @@
   (fn (_ s sp)
     (def n (str-byte-len s))
     (match
-      ((= n 0) (pair s sp))
+      ((int= n 0) (pair s sp))
       ((%ht-spaced? s)
-        (pair (match ((match (sp (= (%ht-at s 0) 32)) (#t #f)) (%ht-sub s 1 n)) (#t s))
-              (= (%ht-at s (int+ n -1)) 32)))
+        (pair (match ((match (sp (int= (%ht-at s 0) 32)) (#t #f)) (%ht-sub s 1 n)) (#t s))
+              (int= (%ht-at s (int+ n -1)) 32)))
       (#t (%ht-collapse-walk s sp)))))
 (def %ht-collapse-walk
   (fn (_ s sp)
     ((fn (go i out pending)
        (def c (%ht-at s i))
        (match
-         ((= c -1) (pair (bytes->str (%reverse out)) pending))
+         ((int= c -1) (pair (bytes->str (%reverse out)) pending))
          ((%ht-white? c) (go (int+ i 1) (match (pending out) (#t (pair 32 out))) #t))
          (#t (go (int+ i 1) (pair c out) #f))))
      0 () sp)))
@@ -505,7 +542,7 @@
 (def %ht-textarea
   (fn (_ x)
     (def t (Str8 replace "\r" "" (%ht-text x)))
-    (%ht-field (lit textarea) x (match ((= (%ht-at t 0) #\newline) (%ht-sub t 1 (str-byte-len t))) (#t t)) #f ())))
+    (%ht-field (lit textarea) x (match ((int= (%ht-at t 0) #\newline) (%ht-sub t 1 (str-byte-len t))) (#t t)) #f ())))
 ; A select's field: its options, in order, each (VALUE . LABEL), VALUE the
 ; value attribute or the label; the value selected, else the first's.
 (def %ht-select
@@ -584,13 +621,13 @@
 (def %ht-phrase (fn (_ kids) (%reverse (%ht-trim-end (%ht-inlines kids (pair #t ()) ())))))
 
 ; --- blocks ----------------------------------------------------------------
-(def %ht-level (fn (_ name) (- (%ht-at name 1) #\0)))
+(def %ht-level (fn (_ name) (int- (%ht-at name 1) #\0)))
 ; An ol's start: its start attribute when that is a number, else 1.
 (def %ht-start
   (fn (_ nd)
     (def v (%ht-attr-or nd "start" ""))
     (match ((str=? v "") 1)
-           ((= (%ht-skip %ht-digit? v 0) (str-byte-len v)) (%ht-cvt v %ht-integer 10))
+           ((int= (%ht-skip %ht-digit? v 0) (str-byte-len v)) (%ht-cvt v %ht-integer 10))
            (#t 1))))
 ; The language of a pre: a class language-NAME on it, else on its code.
 (def %ht-info
@@ -615,9 +652,9 @@
 (def %ht-pre-text
   (fn (_ nd)
     (def t (Str8 replace "\r" "" (%ht-text nd)))
-    (def u (match ((= (%ht-at t 0) #\newline) (%ht-sub t 1 (str-byte-len t))) (#t t)))
+    (def u (match ((int= (%ht-at t 0) #\newline) (%ht-sub t 1 (str-byte-len t))) (#t t)))
     (match ((str=? u "") "")
-           ((= (%ht-at u (int+ (str-byte-len u) -1)) #\newline) u)
+           ((int= (%ht-at u (int+ (str-byte-len u) -1)) #\newline) u)
            (#t (%str-concat (list u "\n"))))))
 ; A list's items: each li's blocks; what is not an li joins the item before it.
 (def %ht-list
@@ -694,13 +731,14 @@
   (fn (self kids)
     (def out ()) (def phrase ())
     (def flush! (fn (_)
-      (unless (null? phrase)
-        ((fn (_ inl) (unless (null? inl) (set! out (pair (list (lit paragraph) inl) out))))
-         (%ht-phrase (%reverse phrase)))
-        (set! phrase ()))))
+      (match
+        ((null? phrase) ())
+        (#t (do ((fn (_ inl) (match ((null? inl) ()) (#t (set! out (pair (list (lit paragraph) inl) out)))))
+                 (%ht-phrase (%reverse phrase)))
+                (set! phrase ()))))))
     (def block! (fn (_ b) (flush!) (set! out (pair b out))))
     (def blocks! (fn (_ bs) (flush!) (set! out (%ht-onto bs out))))
-    (def paragraph! (fn (_ inl) (flush!) (unless (null? inl) (set! out (pair (list (lit paragraph) inl) out)))))
+    (def paragraph! (fn (_ inl) (flush!) (match ((null? inl) ()) (#t (set! out (pair (list (lit paragraph) inl) out))))))
     (%ht-each
       (fn (_ x)
         (match
@@ -736,7 +774,7 @@
     ((fn (go i)
        (def k (%ht-upto s i %ht-lt))
        (match
-         ((= (%ht-at s k) -1) ())
+         ((int= (%ht-at s k) -1) ())
          (#t ((fn (_ tag)
                 (match
                   ((null? tag) (go (int+ k 1)))
