@@ -11,7 +11,9 @@
 ; and changes none.
 ;
 ;   (Table from '((age (31.0 45.0)) (name ("Ann" "Bo"))))
-;   (Table from-csv text)        the first row names the columns
+;   (Table read 'csv text)       the first row names the columns; a tab
+;                                after the text reads tab-separated text
+;   (t write 'csv)               the table as csv text
 ;
 ;   (t names)  (t extent)        the names; the rows and the columns
 ;   (t column 'age)              one Column
@@ -58,7 +60,7 @@
 (import x/type/class)
 (import x/type/list)
 (import x/type/vector)
-(import x/core/doors str->sym type-of)
+(import x/core/doors io-display-to-str str->sym type-of)
 (import x/num/float Float float? float-of f-div f-eq f-lt)
 (import x/num/tensor)
 
@@ -381,6 +383,14 @@
             (if (< k start) acc (go (- k 1) (pair (Vector ref k data) acc)))))
         (new-from Column (list (lit encoding) (field (lit encoding)) (lit data) (data %rows start count))))))
 
+  ; Each value as a field of text: a string as it is, a missing value
+  ; empty, and any other as it prints.
+  (method %fields (self)
+    (let ((gone? (self %missing-test)))
+      (List map
+        (fn (_ v) (match ((gone? v) "") ((str? v) v) (#t (io-display-to-str v))))
+        (self ->list))))
+
   ; The values at ROWS, and a missing value where a row is nil.
   (method %take-or-missing (self rows)
     (if (List any? (fn (_ i) (null? i)) rows)
@@ -425,7 +435,7 @@
   (doc "Columns of one length, each under a name, in order: rows are observations and columns what was observed of each. A name is a symbol; a string given as one is made a symbol. Every operation answers a new Table and changes none."
     (known-as "DataFrame" "data frame")
     (example "((Table from '((age (31.0 45.0)) (name (\"Ann\" \"Bo\")))) extent)" "(2 2)")
-    (see from) (see from-csv) (see names) (see extent) (see column) (see row)
+    (see from) (see read) (see write) (see formats) (see names) (see extent) (see column) (see row)
     (see select) (see filter) (see sort) (see matrix) (see ->list)
     (see put) (see derive) (see remove) (see rename) (see split) (see aggregate) (see join))
 
@@ -441,20 +451,39 @@
       (self %of (List map (fn (_ p) (%name (first p))) pairs)
                 (List map (fn (_ p) (Column from (List ref 1 p))) pairs)))
 
-    (method from-csv (self (param text STRING "csv text whose first row names the columns"))
-      (doc "A table read from csv text, the first row naming the columns. A column whose every field reads as a number becomes f64; any other holds its fields as strings. An empty field is a missing value: a NaN in a column of numbers, nil in a column of strings."
+    (method formats (self)
+      (doc "The formats (Table read) reads and a table's write writes."
+        (returns LIST "The formats' names")
+        (example "(Table formats)" "('csv)"))
+      (list (lit csv)))
+
+    ; FORMAT as one of formats' names: a symbol as it is, a string made one.
+    (method %format (self format)
+      (let ((name (match ((symbol? format) format) ((str? format) (str->sym format)) (#t ()))))
+        (if (if (null? name) #f (List includes? name (self formats))) name
+          (Err raise (lit value) "Table: no such format" format))))
+
+    (method read (self (param format SYMBOL|STRING "A format's name, from (Table formats)")
+                       (param text STRING "The table's text")
+                       . (param separator STRING "Optional, for csv: the character between fields, a comma by default"))
+      (doc "A table read from text in a format. csv: the first row names the columns; a column whose every field reads as a number becomes f64, and any other holds its fields as strings; an empty field is a missing value, a NaN in a column of numbers and nil in a column of strings. With a tab for the separator it reads tab-separated text."
+        (known-as "read_csv" "read csv" "tsv" "tab-separated")
         (returns Table "The table")
-        (example "((((Table from-csv \"name,age\\nida,7\\nbo,\\n\") column 'age) missing) ->list)" "(0.0 1.0)")
-        (example "(((Table from-csv \"name,age\\nida,7\\nbo,9\\n\") column 'age) ->list)" "(7.0 9.0)")
-        (example "(((Table from-csv \"name,age\\nida,7\\nbo,9\\n\") column 'name) ->list)" "(\"ida\" \"bo\")"))
+        (example "(((Table read 'csv \"name,age\\nida,7\\nbo,9\\n\") column 'age) ->list)" "(7.0 9.0)")
+        (example "((((Table read 'csv \"name,age\\nida,7\\nbo,\\n\") column 'age) missing) ->list)" "(0.0 1.0)")
+        (example "((Table read \"csv\" \"name|age\\nida|7\\n\" \"|\") names)" "('name 'age)"))
+      (self %format format)
+      (self %read-csv text (if (null? separator) "," (first separator))))
+
+    (method %read-csv (self text separator)
       (import x/codec/csv)
-      (let ((parsed (Csv parse text)))
-        (if (null? parsed) (Err raise (lit value) "Table from-csv: the text has no row of names" text) ())
+      (let ((parsed (Csv parse-by separator text)))
+        (if (null? parsed) (Err raise (lit value) "Table read: the text has no row of names" text) ())
         (let ((width (List length (first parsed))))
           (List map
             (fn (_ record)
               (if (= (List length record) width) ()
-                (Err raise (lit value) "Table from-csv: a row's width differs from the names'" record)))
+                (Err raise (lit value) "Table read: a row's width differs from the names'" record)))
             (rest parsed))
           (self %of (List map %name (first parsed))
                     (if (null? (rest parsed))
@@ -842,6 +871,18 @@
                   (if (null? ids) numbers
                     (List map (fn (_ a b) (if (if (< a 0) #t (< b 0)) -1 (+ (* a count) b))) ids numbers)))))))))
 
+  (method write (self (param format SYMBOL|STRING "A format's name, from (Table formats)")
+                      . (param separator STRING "Optional, for csv: the character between fields, a comma by default"))
+    (doc "The table as text in a format. csv: a row of the columns' names, then a row for each of the table's; a number is written as it prints and a string as it is, quoted where it holds the separator, a quote or a line's end; a missing value is an empty field. (Table read) reads the text back, but for a string that is empty, which comes back missing, and a column of strings that all read as numbers, which comes back as numbers. With a tab for the separator it writes tab-separated text."
+      (known-as "to_csv" "write csv" "tsv" "tab-separated")
+      (returns STRING "The text")
+      (example "((Table from '((name (\"Ann\" \"Bo\")) (age (31.0 45.0)))) write 'csv)" "\"name,age\\nAnn,31.0\\nBo,45.0\\n\""))
+    (Table %format format)
+    (import x/codec/csv)
+    (Csv emit-by (if (null? separator) "," (first separator))
+      (pair (List map (fn (_ n) (symbol->str n)) (field (lit names)))
+            (%transpose (List map (fn (_ c) (c %fields)) (field (lit columns)))))))
+
   (method ->list (self)
     (doc "The table as from takes it: a list for each column, its name and then its values."
       (returns LIST "((NAME VALUES) ...)")
@@ -864,5 +905,5 @@
                  (List map (fn (_ c) (c %take rows packed)) (field (lit columns))))))))
 
 (doc (provide x/data/table Table Column)
-  "Tables of named columns, as values: a Table is read from lists or csv text and answers its columns, rows, a selection of columns, the rows a column's value passes, the rows in a column's order, and columns as a Matrix, a table with a column put, derived, removed or renamed, its rows parted or summarized by a column's distinct values, and its rows paired with another table's by a column they share; a Column of numbers answers its statistics, its arithmetic and its comparisons, each a mask of the rows that pass."
-  (example "(((Table from-csv \"name,age\\nida,7\\nbo,9\\n\") column 'age) mean)" "8.0"))
+  "Tables of named columns, as values: a Table is read from lists or csv text, written as csv text, and answers its columns, rows, a selection of columns, the rows a column's value passes, the rows in a column's order, and columns as a Matrix, a table with a column put, derived, removed or renamed, its rows parted or summarized by a column's distinct values, and its rows paired with another table's by a column they share; a Column of numbers answers its statistics, its arithmetic and its comparisons, each a mask of the rows that pass."
+  (example "(((Table read 'csv \"name,age\\nida,7\\nbo,9\\n\") column 'age) mean)" "8.0"))

@@ -98,7 +98,7 @@ word.
 
 ```x
 (import x/data/table)
-(let ((t (Table from-csv "name,age,code\nida,7,a1\nbo,9.5,22\n")))
+(let ((t (Table read 'csv "name,age,code\nida,7,a1\nbo,9.5,22\n")))
   (list (t names) (t extent)
         ((t column 'age) ->list) ((t column 'age) encoding)
         ((t column 'name) ->list)
@@ -111,7 +111,7 @@ word.
 
 ```x
 (import x/data/table)
-(let ((t (Table from-csv "name,age\n")))
+(let ((t (Table read 'csv "name,age\n")))
   (list (t names) (t extent)))
 ```
 ---
@@ -421,7 +421,7 @@ word.
 
 ```x
 (import x/data/table)
-(let ((t (Table from '((city ("Ely" "Ayr" "Ely"))))) (none (Table from-csv "city,age\n")))
+(let ((t (Table from '((city ("Ely" "Ayr" "Ely"))))) (none (Table read 'csv "city,age\n")))
   (list ((t aggregate 'city ()) ->list)
         (none split 'city)
         ((none aggregate 'city (list (list 'mean-age 'age (fn (_ c) (c mean))))) extent)))
@@ -544,7 +544,7 @@ word.
 
 ```x
 (import x/data/table)
-(let ((t (Table from-csv "name,age\nida,7\n,\ncy,9\n")))
+(let ((t (Table read 'csv "name,age\nida,7\n,\ncy,9\n")))
   (list ((t column 'age) encoding) (((t column 'age) missing) ->list)
         ((t column 'name) ->list) (((t column 'name) present) ->list)))
 ```
@@ -568,7 +568,7 @@ word.
 
 ```x
 (import x/data/table) (import x/num/float)
-(let ((t (Table from-csv "name,age\nida,7\nbo,\ncy,9\n")))
+(let ((t (Table read 'csv "name,age\nida,7\nbo,\ncy,9\n")))
   (let ((age (t column 'age)) (kept (t filter ((t column 'age) present))))
     (list (List map (fn (_ x) (Float nan? x)) (list (age sum) (age mean) (age min) (age max) (age median)))
           ((kept column 'name) ->list) ((kept column 'age) mean) ((age missing) sum))))
@@ -722,6 +722,73 @@ word.
 ---
     ('value 'value 'value 'value)
 
+## Reading and writing text
+
+### write answers csv text, and read reads it back
+
+```x
+(import x/num/float/literal)
+(import x/data/table)
+(let ((t (Table from '((name ("Ann" "Bo")) (age (31.0 45.5))))))
+  (list (t write 'csv) ((Table read 'csv (t write 'csv)) ->list) (Table formats)))
+```
+---
+    ("name,age\nAnn,31.0\nBo,45.5\n" (('name ("Ann" "Bo")) ('age (31.0 45.5))) ('csv))
+
+### a missing value is an empty field, and a field is quoted where it must be
+
+```x
+(import x/num/float/literal)
+(import x/data/table)
+(let ((t (Table from (list (list 'name (list "Ann" () "C, \"D\"")) (list 'age (list 31.0 () 28.5))))))
+  (let ((text (t write 'csv)))
+    (let ((back (Table read 'csv text)))
+      (list text (equal? text (back write 'csv))
+            (((back column 'name) missing) ->list) (((back column 'age) missing) ->list)
+            ((back column 'name) ref 2)))))
+```
+---
+    ("name,age\nAnn,31.0\n,\n\"C, \"\"D\"\"\",28.5\n" #t (0.0 1.0 0.0) (0.0 1.0 0.0) "C, \"D\"")
+
+### another separator, a tab among them, and a format named by a string
+
+```x
+(import x/num/float/literal)
+(import x/data/table)
+(let ((t (Table from '((name ("Ann" "B|o")) (age (31.0 45.5))))))
+  (let ((tabbed (t write "csv" "\t")))
+    (list (t write 'csv "|")
+          ((Table read "csv" (t write 'csv "|") "|") ->list)
+          ((Table read 'csv tabbed "\t") ->list)
+          (List length ((Table read 'csv tabbed) names)))))
+```
+---
+    ("name|age\nAnn|31.0\n\"B|o\"|45.5\n" (('name ("Ann" "B|o")) ('age (31.0 45.5))) (('name ("Ann" "B|o")) ('age (31.0 45.5))) 1)
+
+### a missing number reads back missing, and a table of no rows writes its names
+
+```x
+(import x/num/float/literal)
+(import x/data/table)
+(list ((Table read 'csv "name,age\nida,7\nbo,\n") write 'csv)
+      ((Table read 'csv "a,b\n") write 'csv))
+```
+---
+    ("name,age\nida,7.0\nbo,\n" "a,b\n")
+
+### a format the table does not know, and one that is no name, are refused
+
+```x
+(import x/data/table)
+(let ((t (Table from '((name ("Ann"))))))
+  (list (guard (e (Err label e)) (Table read 'parquet "x"))
+        (guard (e (Err label e)) (Table read 7 "x"))
+        (guard (e (Err label e)) (t write 'parquet))
+        (guard (e (Err label e)) (Table read 'csv ""))))
+```
+---
+    ('value 'value 'value 'value)
+
 ## Handing a table to a model
 
 ### matrix answers the named columns as an f64 Matrix, a row for each row
@@ -739,7 +806,7 @@ word.
 
 ```x
 (import x/data/table) (import x/num/model)
-(let ((t (Table from-csv "height,age,weight\n1,0,3\n0,1,4\n1,1,6\n2,1,8\n")))
+(let ((t (Table read 'csv "height,age,weight\n1,0,3\n0,1,4\n1,1,6\n2,1,8\n")))
   (let ((f ((Model linear) fit (t matrix '(height age)) (t column 'weight))))
     (list (f intercept) ((f coefficients) ->list))))
 ```
@@ -759,7 +826,7 @@ word.
         (guard (e (Err label e)) (t column 'height))
         (guard (e (Err label e)) (t column 7))
         (guard (e (Err label e)) (t matrix '(name)))
-        (guard (e (Err label e)) (Table from-csv "a,b\n1\n"))))
+        (guard (e (Err label e)) (Table read 'csv "a,b\n1\n"))))
 ```
 ---
     ('value 'value 'value 'value 'value 'value)
