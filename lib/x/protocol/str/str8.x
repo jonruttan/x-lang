@@ -83,7 +83,8 @@
 (def %str8-check-all (fn (self vs what)
   (match
     ((eq? vs ()) ())
-    (#t (do (%str8-check (first vs) what) (self (rest vs) what))))))
+    ((type? (first vs) %str8-str-type) (self (rest vs) what))
+    (#t (Err raise (lit type) what ())))))
 (def %str8->int (fn (_ n what)
   (match
     ((type? n %str8-int-type) n)
@@ -428,6 +429,11 @@
       (match
         ((eq? lst ()) "")
         ((eq? (rest lst) ()) (%str8-check (first lst) "Str8 join: element not a string"))
+        ; With no separator the list is the piece list: checked where it
+        ; stands and concatenated, with no interleaving or reversal.
+        ((eq? (str-byte-len sep) 0)
+          (do (%str8-check-all lst "Str8 join: element not a string")
+              (%str-concat lst)))
         ; Interleave into a piece list, concatenate ONCE (#333): joining
         ; n pieces of average length L was O(n^2 L) bytes copied.  One
         ; walk builds the pieces backwards and %rev-onto turns them round.
@@ -435,9 +441,8 @@
               ((fn (self xs acc)
                  (match
                    ((eq? xs ()) (%rev-onto acc ()))
-                   (#t (self (rest xs)
-                             (pair (%str8-check (first xs) "Str8 join: element not a string")
-                                   (pair sep acc))))))
+                   ((type? (first xs) %str8-str-type) (self (rest xs) (pair (first xs) (pair sep acc))))
+                   (#t (Err raise (lit type) "Str8 join: element not a string" ()))))
                (rest lst)
                (list (%str8-check (first lst) "Str8 join: element not a string")))))))
     (method repeat (self (param n INTEGER "Number of copies") (param s STRING "String to repeat"))
