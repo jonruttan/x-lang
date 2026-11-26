@@ -192,6 +192,91 @@ largest distance between two vectors of numbers, below 1e-9.
 ---
     ('value 'value 'value)
 
+## The spectrum of frames
+
+`spectrum!` reads signed 16-bit little-endian stereo frames, a mixer's
+block, in place. `frames` makes a region of N frames from a function of the
+frame giving (LEFT . RIGHT), and `tone` is a sine of K cycles over 256
+frames. With h = 129, eight bands of a 256-point plan have the edges
+1 2 3 6 11 20 38 70 129, the floor of h^(b/8) at least one past the last,
+so bin 16 is in band 4, bins 11 to 19.
+
+### a sine's power is in the band that holds its bin
+
+```x
+(do (import x/num/frequency) (import x/num/float pi)
+  (import x/core/doors ptr-set! str->ptr str-make int& int>>)
+  (def frames (fn (_ n f)
+    (def r (str-make (* 4 n)))
+    (def put (fn (_ at v) (ptr-set! (str->ptr r) at (int& v 255) 1) (ptr-set! (str->ptr r) (+ at 1) (int& (int>> v 8) 255) 1)))
+    ((fn (self j) (when (< j n) (do (put (* 4 j) (first (f j))) (put (+ 2 (* 4 j)) (rest (f j))) (self (+ j 1))))) 0)
+    r))
+  (def tone (fn (_ k j) (Float ->int (* 8000 (Float sin (/ (* 2 pi k j) 256))))))
+  (def out ((Frequency plan 256) spectrum! (frames 256 (fn (_ j) (pair (tone 16 j) 0))) 256 'left (Vector make 8 ())))
+  (Vector fold (fn (_ m k) (if (< (Vector ref m out) (Vector ref k out)) k m)) 0 (Vector build 8 (fn (_ k) k))))
+```
+---
+    4
+
+### a channel is read alone, and both adds the two
+
+The right channel of a sound only on the left is silent. The same sine in
+both channels is twice the amplitude of one, so four times its power: the
+doubling is exact in doubles, through the window and the transform.
+
+```x
+(do (import x/num/frequency) (import x/num/float pi)
+  (import x/core/doors ptr-set! str->ptr str-make int& int>>)
+  (def frames (fn (_ n f)
+    (def r (str-make (* 4 n)))
+    (def put (fn (_ at v) (ptr-set! (str->ptr r) at (int& v 255) 1) (ptr-set! (str->ptr r) (+ at 1) (int& (int>> v 8) 255) 1)))
+    ((fn (self j) (when (< j n) (do (put (* 4 j) (first (f j))) (put (+ 2 (* 4 j)) (rest (f j))) (self (+ j 1))))) 0)
+    r))
+  (def tone (fn (_ k j) (Float ->int (* 8000 (Float sin (/ (* 2 pi k j) 256))))))
+  (def p (Frequency plan 256))
+  (def left (frames 256 (fn (_ j) (pair (tone 16 j) 0))))
+  (def same (frames 256 (fn (_ j) (pair (tone 16 j) (tone 16 j)))))
+  (def right (p spectrum! left 256 'right (Vector make 8 ())))
+  (def one (Vector ref 4 (p spectrum! left 256 'left (Vector make 8 ()))))
+  (def two (Vector ref 4 (p spectrum! same 256 'both (Vector make 8 ()))))
+  (list (Vector fold (fn (_ ok x) (if ok (= x 0) #f)) #t right) (/ two one)))
+```
+---
+    (#t 4.0)
+
+### fewer frames than the plan's length are padded, and nothing past them is read
+
+```x
+(do (import x/num/frequency) (import x/num/float pi)
+  (import x/core/doors ptr-set! str->ptr str-make int& int>>)
+  (def frames (fn (_ n f)
+    (def r (str-make (* 4 n)))
+    (def put (fn (_ at v) (ptr-set! (str->ptr r) at (int& v 255) 1) (ptr-set! (str->ptr r) (+ at 1) (int& (int>> v 8) 255) 1)))
+    ((fn (self j) (when (< j n) (do (put (* 4 j) (first (f j))) (put (+ 2 (* 4 j)) (rest (f j))) (self (+ j 1))))) 0)
+    r))
+  (def tone (fn (_ k j) (Float ->int (* 8000 (Float sin (/ (* 2 pi k j) 256))))))
+  (def p (Frequency plan 256))
+  (def quiet (frames 256 (fn (_ j) (if (< j 128) (pair (tone 5 j) 0) (pair 0 0)))))
+  (def loud (frames 256 (fn (_ j) (if (< j 128) (pair (tone 5 j) 0) (pair 30000 -30000)))))
+  (equal? (p spectrum! quiet 128 'left (Vector make 8 ())) (p spectrum! loud 128 'left (Vector make 8 ()))))
+```
+---
+    #t
+
+### a count, a channel or a band count the plan cannot take is refused
+
+```x
+(do (import x/num/frequency) (import x/core/doors str-make)
+  (def p (Frequency plan 8))
+  (def r (str-make 64))
+  (list (guard (e (Err label e)) (p spectrum! r 9 'left (Vector make 2 ())))
+        (guard (e (Err label e)) (p spectrum! r 0 'left (Vector make 2 ())))
+        (guard (e (Err label e)) (p spectrum! r 8 'middle (Vector make 2 ())))
+        (guard (e (Err label e)) (p spectrum! r 8 'left (Vector make 5 ())))))
+```
+---
+    ('value 'value 'value 'value)
+
 ## Memory
 
 ### the pure kernels collect their own garbage

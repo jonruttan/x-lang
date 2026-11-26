@@ -9,12 +9,20 @@
 ;
 ; The plan owns its memory: every table and the data being transformed are
 ; doubles in buffers of its own, as IEEE bits, so a transform makes no
-; Float. Two kernels do all the arithmetic, each written once as a word form
+; Float. Four kernels do all the arithmetic, each written once as a word form
 ; (x/tool/word-form): %radix2, the bit reversal and every butterfly pass of a
 ; power-of-two transform, and %pointwise, a complex multiply of one buffer
 ; by another that serves Bluestein's three steps and the inverse's 1/n. The
 ; inverse is the forward transform with real and imaginary parts swapped
 ; (swap(DFT(swap x)) is n times the inverse), so no kernel negates.
+;
+; spectrum! takes sound straight from memory, as a mixer's block of signed
+; 16-bit stereo frames: %frames reads a channel (or both added) through the
+; plan's Hann window into the data, and after the forward transform %bands
+; sums each band's power, re^2 + im^2 over a range of bins. The bands are
+; spaced evenly in log frequency from bin 1 (bin 0, the constant, is left
+; out) to bin n/2. Only the bands become Floats, so a transform a mixer
+; block costs the kernels and one call.
 ;
 ; The kernels run compiled where compile-asm can build them (an 8-byte
 ; word, an assembler backend) and only after they write the same bits as
@@ -37,19 +45,19 @@
 (import x/type/vector)
 (import x/type/list)
 (import x/sys/gc)
-(import x/num/float float float-of f-add f-sub f-mul f-div fsin fcos pi libm-fn)
+(import x/num/float Float float float-of f-add f-sub f-mul f-div fsin fcos pi libm-fn)
 (import x/num/complex Complex make-complex)
 (import x/tool/word-form word-form-pure)
 (import x/tool/compiled)
 (import x/core/doors int+ int- int* int/ int% int< int= int& int>> obj-ref obj-set!
-  mem-cmp ptr->int ptr-ref-word ptr-set-word! str->ptr str-make type-make-instance type-of type?)
+  mem-cmp int->ptr ptr->int ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make type-make-instance type-of type?)
 
 (def-class Frequency ()
   (doc "A discrete Fourier transform plan for one length n: forward and inverse transforms in O(n log n) for every n (radix-2 for a power of two, Bluestein's algorithm otherwise). Make one with (Frequency plan n) and reuse it; (Frequency fft v) makes one per call. The plan keeps its tables and data in buffers of its own, its kernels run compiled where the JIT can build them, and it collects its own garbage."
     (known-as "Fourier transform" "FFT" "DFT")
     (note "The forward transform is unscaled, X[k] = sum x[j] e^(-2 pi i jk/n); the inverse divides by n, so (p inverse (p forward v)) is v to rounding.")
     (example "(Frequency fft #(1 2 3 4))" "#(10.0+0.0i -2.0+2.0i -2.0+0.0i -2.0-2.0i)")
-    (see plan) (see forward) (see forward!) (see jit!) (see dft))
+    (see plan) (see forward) (see forward!) (see spectrum!) (see jit!) (see dft))
 
   n       ; the length
   scr     ; the kernels' scratch: words, then doubles from double 16
@@ -64,6 +72,11 @@
   wim
   bre     ; Bluestein: the kernel's transform over m, scaled by 1/m
   bim
+  win     ; spectrum!: the Hann window over wlen frames, doubles, else ()
+  wlen
+  edges   ; spectrum!: the nb bands' bin edges, nb + 1 words, else ()
+  nb
+  bands   ; spectrum!: the bands' power, nb doubles
 
   (static
     ; --- the plan ---------------------------------------------------------
@@ -128,7 +141,7 @@
         (sample "(Frequency compiled?)" "#t after (Frequency jit!) has succeeded on this host"))
       (first (self %kernels)))
 
-    ; The kernels the plans run, (COMPILED? RADIX2 POINTWISE): Compiled
+    ; The kernels the plans run, (COMPILED? RADIX2 POINTWISE FRAMES BANDS): Compiled
     ; installs a version into the lane cell, the pure one before a state
     ; image is written, so no compiled code outlives its process.
     (%lane-cell (pair () ()))
@@ -145,11 +158,33 @@
       (first (self %pure-cell)))
 
     ; The compiled kernels against the pure ones: a radix-2 plan and a
-    ; Bluestein one each transform the same input under both, and every
-    ; byte of the results must agree.
+    ; Bluestein one each transform the same input under both, and a
+    ; radix-2 plan takes the same frames to bands under both; every byte of
+    ; the results must agree.
     (method %agrees? (self engine)
       (let ((ok (List map (fn (_ n) (self %agrees-at? n (pair #t engine))) (list 8 5))))
-        (if (first ok) (if (first (rest ok)) #t #f) #f)))
+        (if (first ok) (if (first (rest ok)) (self %agrees-spectrum? (pair #t engine)) #f) #f)))
+
+    ; Eight frames whose samples cover both signs and both bytes, as both
+    ; channels added, into three bands: the data and the bands compared.
+    (method %agrees-spectrum? (self kern)
+      (let ((a (self %make 8)) (b (self %make 8)) (fr (str-make 32)))
+        (def fill
+          (fn (go i)
+            (if (int< i 16)
+              (let ((v (int& (int- (int* i 4099) 30000) 65535)))
+                (ptr-set! (str->ptr fr) (int* 2 i) (int& v 255) 1)
+                (ptr-set! (str->ptr fr) (int+ (int* 2 i) 1) (int>> v 8) 1)
+                (go (int+ i 1)))
+              ())))
+        (fill 0)
+        (a %spectrum-at! (ptr->int (str->ptr fr)) 8 0 1 3 kern)
+        (b %spectrum-at! (ptr->int (str->ptr fr)) 8 0 1 3 (pair #f (self %pure)))
+        (if (int= (mem-cmp (str->ptr (a %field 're)) (str->ptr (b %field 're)) 64) 0)
+          (if (int= (mem-cmp (str->ptr (a %field 'im)) (str->ptr (b %field 'im)) 64) 0)
+            (int= (mem-cmp (str->ptr (a %field 'bands)) (str->ptr (b %field 'bands)) 24) 0)
+            #f)
+          #f)))
 
     (method %agrees-at? (self n kern)
       (let ((a (self %make n)) (b (self %make n)))
@@ -195,16 +230,17 @@
           (%set-first! (self %debt-cell) d)
           (do (%set-first! (self %debt-cell) 0) (Heap collect)))))
 
-    ; Run kernel WHICH (1 radix-2, 2 pointwise) over scratch S (a pointer)
-    ; to its end. KERN is the kernels to run, or () for the lane's own,
-    ; asked again after each pure call. The budget is scratch word 12.
+    ; Run kernel WHICH (1 radix-2, 2 pointwise, 3 frames, 4 bands) over
+    ; scratch S (a pointer) to its end. KERN is the kernels to run, or ()
+    ; for the lane's own, asked again after each pure call. The budget is
+    ; scratch word 12.
     (method %drive (self kern which s)
       (let ((addr (ptr->int s)) (at (int* 12 %word-size)))
         (def go
           (fn (go ks)
             (let ((b (if (first ks) 1073741823 (int/ (self %window) (self %step-cost)))))
               (ptr-set-word! s at b)
-              (let ((r ((if (int= which 1) (first (rest ks)) (first (rest (rest ks)))) addr)))
+              (let ((r ((List ref which ks) addr)))
                 (if (first ks) () (self %ran! kern (int- b (ptr-ref-word s at))))
                 (if (int= r 0) (go (if (null? kern) (self %kernels) ks)) ())))))
         (go (if (null? kern) (self %kernels) kern))
@@ -229,6 +265,8 @@
             (pair 'BUDGET 12) (pair 'A 13) (pair 'B 14) (pair 'T 15)
             (pair 'OR 0) (pair 'OI 1) (pair 'XR 2) (pair 'XI 3) (pair 'YR 4) (pair 'YI 5)
             (pair 'YS 6) (pair 'CNT 7) (pair 'LEN 8) (pair 'J 9) (pair 'YJ 13)
+            (pair 'FA 2) (pair 'WIN 3) (pair 'CHAN 4) (pair 'BOTH 5) (pair 'FV 13) (pair 'FW 14)
+            (pair 'EDGES 2) (pair 'OUT 3)
             (pair 'T0 16) (pair 'ZERO 16) (pair 'TR 17) (pair 'TI 18)))
 
     (method %fill-slots (self form)
@@ -238,7 +276,8 @@
         (#t form)))
 
     (method %forms (self)
-      (List map (fn (_ f) (self %fill-slots f)) (list (self %radix2-form) (self %pointwise-form))))
+      (List map (fn (_ f) (self %fill-slots f))
+        (list (self %radix2-form) (self %pointwise-form) (self %frames-form) (self %bands-form))))
 
     ; The radix-2 transform in place: phase 0 swaps each i with its bit
     ; reversal, phase 1 runs the butterflies, a pass of span SIZE taking
@@ -315,6 +354,60 @@
                   (%mem-set! s J (+ (%mem-ref s J) 1))
                   (%mem-set! s BUDGET (- (%mem-ref s BUDGET) 1))
                   (self s)))
+            (#t 1)))))
+
+    ; RE[j] = WIN[j] times frame j's sample for j < CNT, IM[j] = 0, then
+    ; zeros to LEN. Frames are 4 bytes from FA, two signed 16-bit
+    ; little-endian samples; the sample read is CHAN bytes in (0 left, 2
+    ; right), with the right one added when BOTH is 1. Answers 1 when done,
+    ; 0 when its budget is spent.
+    (method %frames-form (self)
+      (lit
+        (fn (self s)
+          (match
+            ((= (%mem-ref s BUDGET) 0) 0)
+            ((< (%mem-ref s J) (%mem-ref s CNT))
+              (do (%mem-set! s FV (+ (%mem-byte-ref-at (%mem-ref s FA) (+ (<< (%mem-ref s J) 2) (%mem-ref s CHAN)))
+                                     (<< (%mem-byte-ref-at (%mem-ref s FA) (+ (+ (<< (%mem-ref s J) 2) (%mem-ref s CHAN)) 1)) 8)))
+                  (if (< 32767 (%mem-ref s FV)) (%mem-set! s FV (- (%mem-ref s FV) 65536)) 0)
+                  (%mem-set! s FW (+ (%mem-byte-ref-at (%mem-ref s FA) (+ (<< (%mem-ref s J) 2) 2))
+                                     (<< (%mem-byte-ref-at (%mem-ref s FA) (+ (<< (%mem-ref s J) 2) 3)) 8)))
+                  (if (< 32767 (%mem-ref s FW)) (%mem-set! s FW (- (%mem-ref s FW) 65536)) 0)
+                  (%mem-set! s FV (+ (%mem-ref s FV) (* (%mem-ref s FW) (%mem-ref s BOTH))))
+                  (f-set! (%mem-ref s RE) (%mem-ref s J) (f* (i->f (%mem-ref s FV)) (f-ref (%mem-ref s WIN) (%mem-ref s J))))
+                  (f-set! (%mem-ref s IM) (%mem-ref s J) (f-ref s ZERO))
+                  (%mem-set! s J (+ (%mem-ref s J) 1))
+                  (%mem-set! s BUDGET (- (%mem-ref s BUDGET) 1))
+                  (self s)))
+            ((< (%mem-ref s J) (%mem-ref s LEN))
+              (do (f-set! (%mem-ref s RE) (%mem-ref s J) (f-ref s ZERO))
+                  (f-set! (%mem-ref s IM) (%mem-ref s J) (f-ref s ZERO))
+                  (%mem-set! s J (+ (%mem-ref s J) 1))
+                  (%mem-set! s BUDGET (- (%mem-ref s BUDGET) 1))
+                  (self s)))
+            (#t 1)))))
+
+    ; OUT[j] = the sum of RE[k]^2 + IM[k]^2 over EDGES[j] <= k < EDGES[j+1],
+    ; for the CNT bands; K starts at EDGES[0] and TR at 0. Answers 1 when
+    ; done, 0 when its budget is spent.
+    (method %bands-form (self)
+      (lit
+        (fn (self s)
+          (match
+            ((= (%mem-ref s BUDGET) 0) 0)
+            ((< (%mem-ref s J) (%mem-ref s CNT))
+              (if (< (%mem-ref s K) (%mem-ref-at (%mem-ref s EDGES) (+ (%mem-ref s J) 1)))
+                (do (f-set! s TR (f+ (f-ref s TR)
+                                     (f+ (f* (f-ref (%mem-ref s RE) (%mem-ref s K)) (f-ref (%mem-ref s RE) (%mem-ref s K)))
+                                         (f* (f-ref (%mem-ref s IM) (%mem-ref s K)) (f-ref (%mem-ref s IM) (%mem-ref s K))))))
+                    (%mem-set! s K (+ (%mem-ref s K) 1))
+                    (%mem-set! s BUDGET (- (%mem-ref s BUDGET) 1))
+                    (self s))
+                (do (f-set! (%mem-ref s OUT) (%mem-ref s J) (f-ref s TR))
+                    (f-set! s TR (f-ref s ZERO))
+                    (%mem-set! s J (+ (%mem-ref s J) 1))
+                    (%mem-set! s BUDGET (- (%mem-ref s BUDGET) 1))
+                    (self s))))
             (#t 1)))))
 
     ; --- doubles in buffers -------------------------------------------------
@@ -530,6 +623,119 @@
     (self %split-out! re im)
     self)
 
+  (method spectrum! (self (param frames STRING|INTEGER "Signed 16-bit little-endian stereo frames, left then right: a region, as (Mixer block! m) answers, or its address")
+                          (param count INTEGER "Frames to read, 1 to n; fewer than n are padded with zeros")
+                          (param channel SYMBOL "left, right, or both, the two added")
+                          (param out VECTOR "1 to n/2 elements, one a band: overwritten"))
+    (doc "The power of the sound in FRAMES, band by band, into OUT: COUNT frames of CHANNEL through a Hann window of COUNT points, the forward transform, and for each band the sum of re^2 + im^2 over its bins, a Float. The bands are spaced evenly in log frequency from bin 1 to bin n/2, at least one bin each; bin 0, the constant, is left out. The frames are read in place and only the bands become Floats, so a plan can take every block of a mixer as it plays. For decibels, 10 log10 of a band."
+      (returns VECTOR "out")
+      (sample "((Frequency plan 2048) spectrum! (Mixer block! m) 1024 'both (Vector make 64 ()))" "64 Floats, the bands' power, lowest band first"))
+    (let ((n (field 'n)) (nb (Vector length out)))
+      (if (if (int< count 1) #t (int< n count))
+        (Err raise 'value "Frequency spectrum!: count must be 1 to the plan's length" count) ())
+      (if (if (int< nb 1) #t (int< (int>> n 1) nb))
+        (Err raise 'value "Frequency spectrum!: out must have 1 to n/2 elements" nb) ())
+      (let ((chan (match ((eq? channel 'left) 0) ((eq? channel 'right) 2) ((eq? channel 'both) 0)
+                         (#t (Err raise 'value "Frequency spectrum!: channel must be left, right or both" channel))))
+            (fa (if (type? frames (type-of 0)) frames (ptr->int (str->ptr frames)))))
+        (self %spectrum-run! fa count chan (if (eq? channel 'both) 1 0) nb)
+        ; On an 8-byte word a double's bits are the word, read by the door;
+        ; on a 4-byte one through the pure f-ref.
+        (let ((ba (ptr->int (str->ptr (field 'bands))))
+              (bits (if (int= %word-size 8)
+                      (fn (_ a i) (ptr-ref-word (int->ptr a) (int* 8 i)))
+                      (first (Frequency %doubles)))))
+          (def go
+            (fn (go i)
+              (if (int< i nb)
+                (do (obj-set! out (int+ i 1) (type-make-instance float (bits ba i))) (go (int+ i 1)))
+                ())))
+          (go 0))
+        (Frequency %owe! (int* nb (Frequency %elem-cost)))
+        out)))
+
+  ; COUNT frames at address FA into the data (CHAN and BOTH as %frames
+  ; takes them), transformed, and summed into NB bands. With the lane
+  ; compiled and a radix-2 plan, the three kernels are called straight,
+  ; their budget unbounded: %drive's dispatch measured more than the
+  ; kernels at 2048 points. Otherwise every kernel runs through %drive.
+  (method %spectrum-run! (self fa count chan both nb)
+    (let ((ks (Frequency %kernels)))
+      (if (if (first ks) (null? (field 'inner)) #f)
+        (let ((re (ptr->int (str->ptr (field 're)))) (im (ptr->int (str->ptr (field 'im)))) (big 1073741823))
+          (self %window! count)
+          (self %edges! nb)
+          (let ((s (ptr->int (self %frames-words fa count chan both big))))
+            ((List ref 3 ks) s)
+            (self %words! (self %radix2-words re im big))
+            ((List ref 1 ks) s)
+            (Frequency %fset! s 17 (first (float-of 0)))
+            (self %words! (self %bands-words nb big))
+            ((List ref 4 ks) s))
+          (Frequency %owe! (int* 3 (Frequency %run-cost))))
+        (self %spectrum-at! fa count chan both nb ()))))
+
+  (method %spectrum-at! (self fa count chan both nb kern)
+    (let ((re (self %addr 're)) (im (self %addr 'im)))
+      (self %window! count)
+      (self %edges! nb)
+      (Frequency %drive kern 3 (self %frames-words fa count chan both 0))
+      (self %forward-at! re im kern)
+      (Frequency %fset! (self %addr 'scr) 17 (first (float-of 0)))
+      (Frequency %drive kern 4 (self %words! (self %bands-words nb 0)))))
+
+  ; The frames and bands kernels' scratch words, written for %frames and
+  ; listed for %bands, the budget BUDGET.
+  ; A field's address read through the doors: %addr is a class dispatch,
+  ; which these run once a block.
+  (method %frames-words (self fa count chan both budget)
+    (self %words! (list (ptr->int (str->ptr (field 're))) (ptr->int (str->ptr (field 'im))) fa
+                        (ptr->int (str->ptr (field 'win))) chan both 0 count (field 'n) 0 0 0 budget 0 0)))
+  (method %bands-words (self nb budget)
+    (list (ptr->int (str->ptr (field 're))) (ptr->int (str->ptr (field 'im))) (ptr->int (str->ptr (field 'edges)))
+          (ptr->int (str->ptr (field 'bands))) 0 0 0 nb 0 0 1 0 budget))
+
+  ; The Hann window over COUNT frames, 1/2 - 1/2 cos(2 pi j/COUNT), made
+  ; when the count changes.
+  (method %window! (self count)
+    (if (if (null? (field 'win)) #f (int= (field 'wlen) count)) ()
+      (let ((buf (Frequency %buf count)) (unit (Frequency %unit)) (fset (rest (Frequency %doubles)))
+            (half (f-div (float-of 1) (float-of 2))))
+        (let ((a (Frequency %at buf)))
+          (def go
+            (fn (go j)
+              (if (int< j count)
+                (do (fset a j (first (f-sub half (f-mul half (first (unit j count)))))) (go (int+ j 1)))
+                ())))
+          (go 0))
+        (Frequency %owe! (int* count (Frequency %plan-cost)))
+        (set-field! 'win buf)
+        (set-field! 'wlen count))))
+
+  ; NB bands' edges, NB + 1 words: band b is bins [e(b), e(b+1)). With
+  ; h = n/2 + 1, e(0) is 1, e(NB) is h, and e(b) between is the floor of
+  ; h^(b/NB), at least one past e(b-1) and room left for a bin a band
+  ; after it. Made when the count changes, with the bands' doubles.
+  (method %edges! (self nb)
+    (if (if (null? (field 'edges)) #f (int= (field 'nb) nb)) ()
+      (let ((h (int+ (int>> (field 'n) 1) 1)) (buf (str-make (int* %word-size (int+ nb 1)))))
+        (let ((p (str->ptr buf)))
+          (ptr-set-word! p 0 1)
+          (def go
+            (fn (go b prev)
+              (if (int< b nb)
+                (let ((g (Float ->int (Float pow (float-of h) (f-div (float-of b) (float-of nb))))))
+                  (let ((e ((fn (_ e cap) (if (int< cap e) cap e))
+                            (if (int< g (int+ prev 1)) (int+ prev 1) g) (int- h (int- nb b)))))
+                    (ptr-set-word! p (int* b %word-size) e)
+                    (go (int+ b 1) e)))
+                ())))
+          (go 1 1)
+          (ptr-set-word! p (int* nb %word-size) h))
+        (set-field! 'edges buf)
+        (set-field! 'nb nb)
+        (set-field! 'bands (Frequency %buf nb)))))
+
   (method %field (self name) (field name))
   (method %addr (self name) (Frequency %at (field name)))
 
@@ -625,10 +831,14 @@
       (go 0 vs)))
 
   (method %radix2-at! (self re im kern)
+    (Frequency %drive kern 1 (self %words! (self %radix2-words re im 0))))
+
+  ; The radix-2 kernel's scratch words for the data at RE and IM, the
+  ; budget BUDGET (%drive sets its own over a 0).
+  (method %radix2-words (self re im budget)
     (let ((n (field 'n)))
-      (Frequency %drive kern 1
-        (self %words! (list re im (ptr->int (str->ptr (field 'cos))) (ptr->int (str->ptr (field 'sin)))
-                            (ptr->int (str->ptr (field 'rev))) n 0 0 2 0 0 (int>> n 1))))))
+      (list re im (ptr->int (str->ptr (field 'cos))) (ptr->int (str->ptr (field 'sin)))
+            (ptr->int (str->ptr (field 'rev))) n 0 0 2 0 0 (int>> n 1) budget)))
 
   ; OUT = X Y[j ys] over cnt, zeros to len. The zeros are the plan's
   ; double 16, written when it was made: no radix-2 run shares this
