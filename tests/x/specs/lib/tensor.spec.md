@@ -118,6 +118,19 @@ on a 4-byte word only when i64 is refused there.
 ---
     'value
 
+### ->list answers a long axis whole
+
+The list is built from the last element back, with no call left waiting
+on each element, so an axis of tens of thousands is a list like any other.
+
+```x
+(import x/num/tensor)
+(let ((l ((Tensor range 40000 'f32) ->list)))
+  (list (List length l) (first l) (List ref 39999 l)))
+```
+---
+    (40000 0.0 39999.0)
+
 ## Views
 
 ### transpose
