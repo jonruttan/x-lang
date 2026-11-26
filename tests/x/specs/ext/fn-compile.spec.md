@@ -241,6 +241,32 @@ are integers and the result fits a word, and calls the operator otherwise.
 ---
     tag 8 (a b)
 
+### a primitive fetched at the head of a call is called with values
+
+```x
+(def %fc-ph
+  (fn (_ s n)
+    (list ((prim-ref (lit sym) (lit ->str)) s)
+          (eq? ((prim-ref (lit type) (lit of)) (int+ n 1)) ((prim-ref (lit type) (lit of)) 0)))))
+(def %fc-ph-before (%fc-ph (lit tag) 7))
+(def %fc-e (compile-fn! (lit %fc-ph) %fc-ph))
+(write (list (%fc-e state) (equal? %fc-ph-before (%fc-ph (lit tag) 7)) (%fc-ph (lit tag) 7)))
+```
+---
+    ('compiled #t ("tag" #t))
+
+### a fetched head the ISA labels spine, or one that is not the engine's prim-ref, is refused
+
+```x
+(def %fc-ph-spine (fn (_ x) ((prim-ref (lit base) (lit eval)) x)))
+(def %fc-ph-local (fn (_ prim-ref x) ((prim-ref (lit type) (lit of)) x)))
+(def %fc-ph-none (fn (_ x) ((prim-ref (lit type) (lit %fc-no-such)) x)))
+(write (List map (fn (_ f) ((compile-fn! (lit f) f) state))
+         (list %fc-ph-spine %fc-ph-local %fc-ph-none)))
+```
+---
+    ('failed 'failed 'failed)
+
 ### a call with values is made the same from a caller that binds lit
 
 The call's values are handed over quoted by the operative lit itself, not
