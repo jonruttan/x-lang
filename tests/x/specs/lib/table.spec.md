@@ -635,6 +635,93 @@ word.
 ---
     (#t (((2.0 ("a" "d")) ('missing ("b" "e")) (1.0 ("c")) (3.0 ("f"))) ((0.0 1.0 0.0 0.0) (("a" "d") ("b" "e") ("c") ("f"))) (("x" ("a" "d")) (() ("b" "e")) ("y" ("c"))) ((0.0 1.0 0.0) (("a" "d") ("b" "e") ("c"))) ((() ("a" "b")))))
 
+## Joining two tables
+
+### join pairs each row with the rows of the other that share its value
+
+```x
+(import x/num/float/literal)
+(import x/data/table)
+(let ((a (Table from '((city ("Ely" "Ayr" "Ely" "Usk")) (age (31.0 45.0 28.0 52.0)))))
+      (b (Table from '((city ("Ayr" "Ely" "Oban")) (pop (46.0 20.0 8.0))))))
+  (list ((a join b 'city) ->list) ((a join b "city") names)
+        ((a join (Table from '((city ("Oban")) (pop (8.0)))) 'city) extent)))
+```
+---
+    ((('city ("Ely" "Ayr" "Ely")) ('age (31.0 45.0 28.0)) ('pop (20.0 46.0 20.0))) ('city 'age 'pop) (0 3))
+
+### left keeps every row of self, and full every row of both, with missing values where there is no partner
+
+```x
+(import x/num/float/literal)
+(import x/data/table)
+(let ((a (Table from '((city ("Ely" "Ayr" "Ely" "Usk")) (age (31.0 45.0 28.0 52.0)))))
+      (b (Table from '((city ("Ayr" "Ely" "Oban")) (pop (46.0 20.0 8.0))))))
+  (let ((left (a join b 'city 'left)) (full (a join b 'city 'full)))
+    (list ((left column 'city) ->list) (((left column 'pop) missing) ->list) ((left column 'age) ->list)
+          ((full column 'city) ->list) (((full column 'age) missing) ->list) (((full column 'pop) missing) ->list)
+          (((full column 'pop) fill-missing 0.0) ->list))))
+```
+---
+    (("Ely" "Ayr" "Ely" "Usk") (0.0 0.0 0.0 1.0) (31.0 45.0 28.0 52.0) ("Ely" "Ayr" "Ely" "Usk" "Oban") (0.0 0.0 0.0 0.0 1.0) (0.0 0.0 0.0 1.0 0.0) (20.0 46.0 20.0 0.0 8.0))
+
+### a row is paired with every partner it has, in self's order and then the other's
+
+```x
+(import x/data/table)
+(let ((a (Table from '((k ("x" "y" "x")) (v ("1" "2" "3")))))
+      (b (Table from '((k ("x" "z" "x")) (w ("a" "b" "c"))))))
+  (let ((j (a join b 'k)))
+    (list ((j column 'v) ->list) ((j column 'w) ->list))))
+```
+---
+    (("1" "1" "3" "3") ("a" "c" "a" "c"))
+
+### a list of names matches by every one of them
+
+```x
+(import x/num/float/literal)
+(import x/data/table)
+(let ((a (Table from '((city ("Ely" "Ely" "Ayr")) (year (1.0 2.0 1.0)) (n ("p" "q" "r")))))
+      (b (Table from '((year (2.0 1.0 3.0)) (city ("Ely" "Ayr" "Ely")) (m ("u" "v" "w"))))))
+  (let ((j (a join b '(city year))) (full (a join b '(city year) 'full)))
+    (list (j names) ((j column 'n) ->list) ((j column 'm) ->list)
+          ((full column 'city) ->list) ((full column 'year) ->list) ((full column 'm) ->list))))
+```
+---
+    (('city 'year 'n 'm) ("q" "r") ("u" "v") ("Ely" "Ely" "Ayr" "Ely") (1.0 2.0 1.0 3.0) (() "u" "v" "w"))
+
+### a missing value has no partner, and whole numbers match whatever their encoding
+
+```x
+(import x/num/float/literal)
+(import x/data/table)
+(let ((a (Table from (list (list 'k (list 1.0 () 2.0)) (list 'x (list "a" "b" "c")))))
+      (b (Table from (list (list 'k (list () 1.0)) (list 'y (list "p" "q")))))
+      (whole (Table from (list (list 'k (list 2 3)) (list 'z (list "two" "three"))))))
+  (let ((full (a join b 'k 'full)))
+    (list (((a join b 'k) column 'x) ->list) (((a join b 'k) column 'y) ->list)
+          ((full column 'x) ->list) ((full column 'y) ->list) (((full column 'k) missing) ->list)
+          (((a join whole 'k) column 'z) ->list))))
+```
+---
+    (("a") ("q") ("a" "b" "c" ()) ("q" () () "p") (0.0 1.0 0.0 1.0) ("two"))
+
+### a name in both tables, a column neither has, a keep that is neither word, and no name to match by are refused
+
+```x
+(import x/num/float/literal)
+(import x/data/table)
+(let ((a (Table from '((city ("Ely")) (age (31.0)))))
+      (b (Table from '((city ("Ely")) (age (9.0))))))
+  (list (guard (e (Err label e)) (a join b 'city))
+        (guard (e (Err label e)) (a join b 'height))
+        (guard (e (Err label e)) ((a select '(city)) join b 'city 'right))
+        (guard (e (Err label e)) (a join b ()))))
+```
+---
+    ('value 'value 'value 'value)
+
 ## Handing a table to a model
 
 ### matrix answers the named columns as an f64 Matrix, a row for each row

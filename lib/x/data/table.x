@@ -29,6 +29,9 @@
 ;   (t split 'city)              each distinct city with the table of its rows
 ;   (t aggregate 'city specs)    a table with a row for each distinct city
 ;                                and a column for each summary asked for
+;   (t join other 'city)         each row with the rows of other of its city;
+;                                'left or 'full after it keeps the rows
+;                                with no partner, their other values missing
 ;
 ; A Column of numbers also answers add, sub, mul, div, min and max,
 ; element by element as a Tensor's do, and any Column answers map.
@@ -378,6 +381,13 @@
             (if (< k start) acc (go (- k 1) (pair (Vector ref k data) acc)))))
         (new-from Column (list (lit encoding) (field (lit encoding)) (lit data) (data %rows start count))))))
 
+  ; The values at ROWS, and a missing value where a row is nil.
+  (method %take-or-missing (self rows)
+    (if (List any? (fn (_ i) (null? i)) rows)
+      (let ((values (if (eq? (field (lit encoding)) (lit any)) (field (lit data)) (Vector from-list (self ->list)))))
+        (Column from (List map (fn (_ i) (if (null? i) () (Vector ref i values))) rows)))
+      (self %take rows (Tensor %pack-rows rows))))
+
   ; PACKED is ROWS, each a row of this column, from (Tensor %pack-rows ROWS).
   (method %take (self rows packed)
     (if (eq? (field (lit encoding)) (lit any))
@@ -417,7 +427,7 @@
     (example "((Table from '((age (31.0 45.0)) (name (\"Ann\" \"Bo\")))) extent)" "(2 2)")
     (see from) (see from-csv) (see names) (see extent) (see column) (see row)
     (see select) (see filter) (see sort) (see matrix) (see ->list)
-    (see put) (see derive) (see remove) (see rename) (see split) (see aggregate))
+    (see put) (see derive) (see remove) (see rename) (see split) (see aggregate) (see join))
 
   names     ; the columns' names, symbols, in order
   columns   ; the Columns, in the order of the names
@@ -740,6 +750,98 @@
                       (Column from (List map f (self %pieces (self column (List ref 1 s)) cats picks)))))
                   specs))))))
 
+  (method join (self (param other Table "The table whose rows are paired with self's")
+                     (param on SYMBOL|STRING|LIST "The name of the column both tables are matched by, or a list of such names")
+                     . (param keep SYMBOL "Optional: left keeps every row of self, and full every row of both; by default only rows with a partner are kept"))
+    (doc "The table of self's rows, each paired with the rows of other whose values under on equal its own: self's columns, then other's columns but the ones matched by. A row is paired with every partner it has, in other's order, and the rows come in self's order. A row with no partner is left out unless keep says otherwise: with left it is kept with missing values for other's columns, and with full other's rows with no partner follow as well, with missing values for self's. A row whose value under on is missing has no partner. A column other than on with one name in both tables is refused."
+      (known-as "merge" "inner join" "left join" "outer join")
+      (returns Table "A table of the paired rows")
+      (example "(((Table from '((city (\"Ely\" \"Ayr\")) (age (31.0 45.0)))) join (Table from '((city (\"Ayr\" \"Oban\")) (pop (46.0 8.0)))) 'city) ->list)" "(('city (\"Ayr\")) ('age (45.0)) ('pop (46.0)))")
+      (example "((((Table from '((city (\"Ely\" \"Ayr\")) (age (31.0 45.0)))) join (Table from '((city (\"Ayr\" \"Oban\")) (pop (46.0 8.0)))) 'city 'left) column 'city) ->list)" "(\"Ely\" \"Ayr\")"))
+    (let ((keys (List map %name (if (if (pair? on) #t (null? on)) on (list on))))
+          (keep (if (null? keep) () (first keep))))
+      (if (null? keys) (Err raise (lit value) "Table join: no column to match by" on) ())
+      (if (if (null? keep) #t (if (eq? keep (lit left)) #t (eq? keep (lit full)))) ()
+        (Err raise (lit value) "Table join: keep is left or full" keep))
+      (let ((mine (field (lit names)))
+            (theirs (List filter (fn (_ n) (not (List includes? n keys))) (other names))))
+        (List map
+          (fn (_ n) (if (List includes? n mine) (Err raise (lit value) "Table join: a column's name is in both tables" n) ()))
+          theirs)
+        (let ((pairs (self %join-pairs other keys keep)))
+          (let ((left (List map first pairs)) (right (List map rest pairs)))
+            (Table %of (List append mine theirs)
+              (List append
+                (List map
+                  (fn (_ n)
+                    (if (List includes? n keys)
+                      (self %join-key (self column n) (other column n) pairs)
+                      ((self column n) %take-or-missing left)))
+                  mine)
+                (List map (fn (_ n) ((other column n) %take-or-missing right)) theirs))))))))
+
+  ; A column matched by, for PAIRS: self's value where the pair has a row
+  ; of self, and other's where it has none.
+  (method %join-key (self mine theirs pairs)
+    (if (List any? (fn (_ p) (null? (first p))) pairs)
+      (let ((a (Vector from-list (mine ->list))) (b (Vector from-list (theirs ->list))))
+        (Column from
+          (List map (fn (_ p) (if (null? (first p)) (Vector ref (rest p) b) (Vector ref (first p) a))) pairs)))
+      (mine %take-or-missing (List map first pairs))))
+
+  ; ((MINE . THEIRS) ...): each row of self with each row of OTHER that has
+  ; its values under KEYS, in self's order and then other's.  With KEEP a
+  ; row of self with no partner is paired with nil, and with KEEP full
+  ; the rows of OTHER with no partner follow, nil before each.
+  (method %join-pairs (self other keys keep)
+    (import x/type/dict)
+    (let ((n (field (lit rows))) (m (first (other extent))))
+      (let ((ids (self %join-ids other keys (+ n m))) (partners (Dict make)) (met (Dict make)))
+        ; other's rows under each id, in their order
+        (let go ((j (- m 1)))
+          (if (< j 0) ()
+            (let ((id (Vector ref (+ n j) ids)))
+              (if (< id 0) () (partners set! id (pair j (partners get id))))
+              (go (- j 1)))))
+        (let ((paired
+                (let go ((i (- n 1)) (acc ()))
+                  (if (< i 0) acc
+                    (let ((id (Vector ref i ids)))
+                      (let ((found (if (< id 0) () (partners get id))))
+                        (if (null? found) () (met set! id #t))
+                        (go (- i 1)
+                            (match
+                              ((null? found) (if (null? keep) acc (pair (pair i ()) acc)))
+                              (#t (List append (List map (fn (_ j) (pair i j)) found) acc))))))))))
+          (if (eq? keep (lit full))
+            (List append paired
+              (let go ((j (- m 1)) (acc ()))
+                (if (< j 0) acc
+                  (let ((id (Vector ref (+ n j) ids)))
+                    (go (- j 1) (if (if (< id 0) #f (met get id)) acc (pair (pair () j) acc)))))))
+            paired)))))
+
+  ; A number for each row of self and then of OTHER, TOTAL in all, the
+  ; same for two rows where their values under KEYS are equal, and -1 for
+  ; a row with a missing value under one.  Each key's values, self's and
+  ; other's together, are parted as split parts them, and a row's number
+  ; is made of its category's place under each key.
+  (method %join-ids (self other keys total)
+    (import x/type/dict)
+    (let go ((left keys) (ids ()))
+      (if (null? left) (Vector from-list ids)
+        (let ((column (Column from (List append ((self column (first left)) ->list) ((other column (first left)) ->list)))))
+          (let ((cats (self %categories-parted column)) (gone? (column %missing-test)) (place (Dict make)))
+            (let number ((cats cats) (k 0))
+              (if (null? cats) ()
+                (let ((mark (if (gone? (first (first cats))) -1 k)))
+                  (List map (fn (_ row) (place set! row mark)) (rest (first cats)))
+                  (number (rest cats) (+ k 1)))))
+            (let ((numbers (List map (fn (_ row) (place get row)) (List range 0 total))) (count (List length cats)))
+              (go (rest left)
+                  (if (null? ids) numbers
+                    (List map (fn (_ a b) (if (if (< a 0) #t (< b 0)) -1 (+ (* a count) b))) ids numbers)))))))))
+
   (method ->list (self)
     (doc "The table as from takes it: a list for each column, its name and then its values."
       (returns LIST "((NAME VALUES) ...)")
@@ -762,5 +864,5 @@
                  (List map (fn (_ c) (c %take rows packed)) (field (lit columns))))))))
 
 (doc (provide x/data/table Table Column)
-  "Tables of named columns, as values: a Table is read from lists or csv text and answers its columns, rows, a selection of columns, the rows a column's value passes, the rows in a column's order, and columns as a Matrix, a table with a column put, derived, removed or renamed, and its rows parted or summarized by a column's distinct values; a Column of numbers answers its statistics, its arithmetic and its comparisons, each a mask of the rows that pass."
+  "Tables of named columns, as values: a Table is read from lists or csv text and answers its columns, rows, a selection of columns, the rows a column's value passes, the rows in a column's order, and columns as a Matrix, a table with a column put, derived, removed or renamed, its rows parted or summarized by a column's distinct values, and its rows paired with another table's by a column they share; a Column of numbers answers its statistics, its arithmetic and its comparisons, each a mask of the rows that pass."
   (example "(((Table from-csv \"name,age\\nida,7\\nbo,9\\n\") column 'age) mean)" "8.0"))
