@@ -47,13 +47,24 @@ is held by the spec suite (`make test-x`), the doctests in each module
 - Types: integer, character, string, symbol, pair, vector, promise.
 - No numeric tower: an integer is a machine word.
 
+## neon
+
+helium's surface, unchanged, plus what a language built on x-lang stands on:
+
+- The assembler and the compiler (`compile-asm`, `compile`), and the
+  function compiler.
+- The Lexer, and `Dict`.
+
+Neon adds no reader syntax and loads no numeric tower. It is held by its
+smoke spec (`tests/x/specs/dialects/smoke-ne.spec.md`) and, through xenon,
+by everything that holds xenon.
+
 ## xenon
 
-helium's surface, unchanged, plus:
+neon's surface, unchanged, plus:
 
-- Types: `Dict`, `Set`, regular expressions, and the numeric tower: bigint,
-  float, rational, complex, decimal.
-- The assembler and the compiler (`compile-asm`, `compile`).
+- Types: `Set`, regular expressions, and the numeric tower: bigint, float,
+  rational, complex, decimal, with the literals that write them.
 
 Xenon is the stable full surface. A spelling shared with helium means the
 same thing in both: a dialect may differ in what is loaded and never in what
@@ -61,8 +72,8 @@ a loaded name means.
 
 ## radon
 
-xenon's surface, plus raw system access: syscall tables, file and socket
-constants, `system`. Nothing radon adds is promised. Its additions may change
+neon's surface and everything xenon adds, plus raw system access: syscall
+tables, file and socket constants, `system`. Nothing radon adds is promised. Its additions may change
 or be removed in any release.
 
 ## What a hosted language is promised

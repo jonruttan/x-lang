@@ -3,18 +3,22 @@
 *x-lang: computational expressions over a minimal, type-agnostic engine.*
 
 
-A dialect is a composition of x-lang library modules that determines what capabilities are loaded. The dialects are named after noble gases — the theme ties to the x-expr/Xe etymology, and read correctly it is self-teaching along the two axes that actually distinguish the entries:
+A dialect is a composition of x-lang library modules that determines what is loaded when a session starts. The dialects are named after noble gases, the theme tying to the x-expr/Xe etymology. Each is for something different; they are not one language at four sizes.
 
-- **Atomic weight = library weight.** Helium is light: fast boot, no numeric tower. Xenon and radon are heavy: the full tower, regular expressions, the compiler.
-- **Radioactivity = instability.** Xenon is inert: the stable full-stack surface. Radon is radioactive: xenon's surface plus experimental, raw, volatile APIs.
+- **Helium** is the minimal base: the core libraries, and nothing a program did not ask for. It is the default.
+- **Neon** is built on helium and is the base for a language built on x-lang: it adds the compiler and the Lexer, which such a language stands on, and nothing that language might not want.
+- **Xenon** is built on neon and is x-lang's own full language: the numeric tower, regular expressions, the containers, and the literals that write them. It grows as x-lang does.
+- **Radon** is built on neon as xenon is. It is where changes that would break xenon are to land once xenon is declared stable. Today it also loads some raw system names that xenon does not, listed below.
+
+**A missing function is an import, not a heavier dialect.** A helium program that needs rationals imports `x/num/tower`; one that needs a `Dict` imports `x/type/dict`. A bundle declares neon and imports the libraries its language uses. Declaring xenon to get one library ties the program to everything xenon is and becomes.
 
 | Name | Element | Is |
 |------|---------|----|
 | — | — | the engine binary: no libraries, substrate rather than a dialect |
-| `he` | helium | light, fast boot, interactive; no tower — the **default** |
+| `he` | helium | the minimal base: the core libraries; no tower — the **default** |
 | `ne` | neon | helium plus the compiler and the Lexer, and no syntax beyond helium's; the base for a language built on x-lang |
-| `xe` | xenon | full numeric tower, regular expressions, `Dict` and `Set`, compiler; stable |
-| `rn` | radon | xenon's surface plus experimental/raw APIs; explicitly volatile |
+| `xe` | xenon | neon plus the full numeric tower, regular expressions, `Set`, and their literals; x-lang's own language |
+| `rn` | radon | built on neon as xenon is, with the same additions; also raw system names that are not promised |
 
 **The rule dialects follow: they may differ in what surface is *loaded*; they must never differ in what a shared spelling *means*.** A `+` that means pointer arithmetic in one dialect, or a `+` that coerces `"123"` to a number, is not a dialect — it is a different language wearing the same clothes (that would be a *lang*, below). If radon ever grows ergonomic address math, it gets a distinct spelling (the `Ptr` class), not an overload.
 
@@ -94,7 +98,7 @@ Xenon does NOT include raw syscall access, file I/O, or socket constants.
 
 ### radon (`lib/rn.x`)
 
-Experimental/hacking dialect. Everything in xenon, plus:
+Built on neon with everything xenon adds. Radon is where changes that would break xenon are to land once xenon is declared stable. Today it also loads:
 
 - **Syscall tables** (`x/platform/syscall.x`) — Symbolic syscall number lookup for x86_64 and i386/BSD (loaded via the POSIX layer)
 - **File I/O** (`x/sys/file.x`) — File operations via POSIX syscalls with symbolic mode flags. **Opt-in** (#36): `(import x/sys/file)`
@@ -105,7 +109,7 @@ Experimental/hacking dialect. Everything in xenon, plus:
 - **`system`** — Execute a shell command via fork/execve
 - **`do-loop`** — Scheme-style iteration form
 
-Radon is the right choice for systems programming, kernel hacking, or any task that needs direct access to the operating system. It is chemically honest: heavy AND radioactive — full-featured and explicitly unstable. APIs here may change or vanish between releases.
+None of these additions is promised: they may change or be removed in any release. A program that needs one and is not written for radon can import the module that holds it.
 
 ---
 

@@ -218,8 +218,9 @@ the arbiter the others are measured against.
 The library is composed into dialects that control what capabilities are loaded:
 
 - **helium** (`lib/he.x`) — The light dialect and the default (`lib/x.x` points to it). Combinators, list operations, sorting, strings, vectors, promises, quasiquote, the POSIX interface and a REPL. No numeric tower.
-- **xenon** (`lib/xe.x`) — Stable full-stack dialect. Adds the numeric tower (bigint, float, rational, complex, decimal), regular expressions, `Dict` and `Set`, and the assembler and compiler, with the reader's analysers compiled to native code at boot.
-- **radon** (`lib/rn.x`) — Experimental dialect. Everything in xenon plus the raw syscall surface, character constants, and I/O handle constants; file I/O and sockets load on demand (`(import x/sys/file)`, `x/platform/socket`).
+- **neon** (`lib/ne.x`) — The base for a language built on x-lang. Helium plus the assembler, the compiler and the Lexer, with the reader's analysers compiled to native code at boot. No numeric tower and no added syntax; a lang bundle declares it and imports the libraries it uses.
+- **xenon** (`lib/xe.x`) — x-lang's own full language, built on neon. Adds the numeric tower (bigint, float, rational, complex, decimal), regular expressions and `Set`, with the literals that write them.
+- **radon** (`lib/rn.x`) — Built on neon with everything xenon adds, plus the raw syscall surface, character constants, and I/O handle constants; file I/O and sockets load on demand (`(import x/sys/file)`, `x/platform/socket`).
 
 Dialects are selected with the wrapper's `-l` flag, which also selects a
 lang: `x -l xe`, `x -l r5rs`. [docs/dialects.md](docs/dialects.md) has the
@@ -349,7 +350,7 @@ above. [llms.txt](llms.txt) is the machine-readable index of this list.
 - [Architecture](docs/architecture.md) — System design, evaluation model, the contract pattern
 - [Type System](docs/type-system.md) — Objects, types, the base, dispatch, extensibility
 - [Object System](docs/object-system.md) — Classes, instances, statics, inheritance, encapsulation
-- [Dialects](docs/dialects.md) — the helium, xenon, and radon dialect layers
+- [Dialects](docs/dialects.md) — helium, neon, xenon and radon, and what each is for
 - [Tutorial](docs/tutorial.md) — Getting started guide
 - [Modules](docs/modules.md) — The provide/import module system
 

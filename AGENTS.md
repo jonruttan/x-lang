@@ -117,32 +117,40 @@ in CI, not committed, so a fresh clone will not have it until you build it).
 doors by level, from a value's type to a closure's parts to an
 environment's bindings, are mapped in [docs/reflection.md](docs/reflection.md).
 
-## Dialects: pick the right one or things will be "missing"
+## Dialects: a missing function is an import
 
 The library composes into four dialects, and **helium is the default**.
-Most "that function doesn't exist" confusion is a dialect mismatch.
+They are not one language at four sizes: helium is the minimal base, neon
+the base for a lang bundle, xenon x-lang's own full language. When helium
+lacks something, import the module that has it. Do not answer "helium
+lacks X" with xenon, and never declare xenon in a bundle to get one
+library: declare neon and import it.
 
 | Flag | Dialect | Has |
 |---|---|---|
 | *(none)* | helium (`lib/x.x` → `lib/he.x`) | combinators, lists, sort, strings, vectors, promises, quasiquote, POSIX, REPL. **No numeric tower.** |
 | `-l ne` | neon | helium + the assembler, the compiler and the Lexer, with `Dict`. No tower and no added syntax: the base for a lang bundle. |
-| `-l xe` | xenon | helium + the full numeric tower (bigint, float, rational, complex, decimal), regex, `Dict` and `Set`, the assembler and compiler |
-| `-l rn` | radon | xenon + raw syscalls, char/IO constants; file I/O and sockets on demand. **Experimental.** |
+| `-l xe` | xenon | neon + the full numeric tower (bigint, float, rational, complex, decimal), regex, `Set`, and their literals |
+| `-l rn` | radon | neon + everything xenon adds, and raw syscalls and char/IO constants that are not promised. |
 
 ```bash
-sh x.sh -q -c '(write (+ 1/3 1/6))'        # helium: fails, no tower
-sh x.sh -q -l xe -c '(write (+ 1/3 1/6))'  # xenon: 1/2
+sh x.sh -q -c '(write (+ 1/3 1/6))'                           # helium: fails, no tower
+sh x.sh -q -c '(import x/num/tower)' -c '(write (+ 1/3 1/6))' # helium with the tower imported: 1/2
+sh x.sh -q -l xe -c '(write (+ 1/3 1/6))'                     # xenon, which loads it at boot: 1/2
 ```
 
-Load a module explicitly with `(import x/type/regex)`. Modules are
-auto-discovered and deduplicated.
+A library and the literal that writes its values are separate modules:
+`(import x/type/regex)` gives `Regex compile`, and
+`(import x/type/regex/literal)` adds `#/…/`. `x/num/tower` imports the
+numeric types with their literals. Modules are auto-discovered and
+deduplicated.
 
 ## Where things are
 
 | Path | What |
 |---|---|
 | `lib/x/**` | the library, all x-lang. The `(doc …)` forms here generate the API reference. |
-| `lib/x.x`, `lib/xe.x`, `lib/rn.x` | dialect entry points |
+| `lib/x.x`, `lib/he.x`, `lib/ne.x`, `lib/xe.x`, `lib/rn.x` | dialect entry points |
 | `engine` → | symlink to the engine checkout or unpacked release. Not this repo. |
 | `tests/x/specs/**` | **spec files: executable examples with expected output.** The best corpus for "how is this actually used". |
 | `tests/x/conformance/**` | what judges an engine implementation |
