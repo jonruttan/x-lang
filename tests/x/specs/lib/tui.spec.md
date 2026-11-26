@@ -3,6 +3,15 @@
 
 ## Width
 
+### no C pointer is held until a text is measured, so a state image can carry the module
+
+```x
+(import x/tui/width)
+(write (null? (eval (lit %wd-strspn) (module x/tui/width))))
+```
+---
+    #t
+
 ### columns of code points and strings
 
 Wide CJK and emoji take two columns, combining marks and controls none.

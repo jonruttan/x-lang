@@ -17,7 +17,7 @@
 (import x/type/class)
 (import x/codec/utf8 utf8-cp-at utf8-width)
 
-(import x/core/doors char->int ffi-dlopen ffi-dlsym int* int+ int- int->ptr int/ int< ptr->int ptr-call ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-make)
+(import x/core/doors char->int ffi-dlopen ffi-dlsym image-transient! int* int+ int- int->ptr int/ int< ptr->int ptr-call ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-make)
 
 (def %wd-ranges (list
   768 879 0 1155 1161 0 1425 1469 0 1471 1471 0 1473 1474 0 1476 1477 0
@@ -155,7 +155,14 @@
 ; A run of printable ASCII, a cell a byte, is measured in one call to the
 ; C library's strspn over the bytes from U+0020 to U+007E; the byte after
 ; it, a control character or the start of a wider one, is measured here.
-(def %wd-strspn (ffi-dlsym (ffi-dlopen () 1) "strspn"))
+; The pointer is resolved on the first run measured and forgotten before a
+; state image is written: under glibc on x86-64 strspn is an IFUNC, whose
+; resolved address dladdr names as the variant chosen and dlsym does not
+; take back, so a pointer held at load is one an image cannot name.
+(def %wd-strspn ())
+(def %wd-strspn!
+  (fn (_) (do (set! %wd-strspn (ffi-dlsym (ffi-dlopen () 1) "strspn")) %wd-strspn)))
+(image-transient! (fn (_) (set! %wd-strspn ())))
 (def %wd-printable
   (bytes->str ((fn (self b) (match ((int< b 127) (pair b (self (int+ b 1)))) (#t ()))) 32)))
 ; The width of S's bytes from I to END, UTF-8, added to N.
@@ -170,7 +177,7 @@
                               (#t (self s (int+ j (utf8-width s j)) end (int+ m (char-width (utf8-cp-at s j)))))))
                      (char->int (str-byte-ref s j)) (int+ n (int- j i))))
                   (#t (int+ n (int- end i)))))
-         (int+ i (ptr-call %wd-strspn (int->ptr (int+ (ptr->int (str->ptr s)) i)) (str->ptr %wd-printable)))))
+         (int+ i (ptr-call (match ((eq? %wd-strspn ()) (%wd-strspn!)) (#t %wd-strspn)) (int->ptr (int+ (ptr->int (str->ptr s)) i)) (str->ptr %wd-printable)))))
       (#t n))))
 
 ; S's width.
