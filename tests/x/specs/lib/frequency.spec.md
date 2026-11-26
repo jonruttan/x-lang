@@ -277,6 +277,134 @@ doubling is exact in doubles, through the window and the transform.
 ---
     ('value 'value 'value 'value)
 
+## The convolver
+
+`convolver` cuts an impulse of machine words, one a frame, into pieces of
+a block, and `convolve!` adds a block of one channel of a stereo word
+buffer convolved with it. `words` makes a region of N words from a
+function of the index, and `dump` reads the first N back as a list.
+
+### a unit impulse adds the block to itself, and the other channel is untouched
+
+```x
+(do (import x/num/frequency)
+  (import x/core/doors ptr-set-word! ptr-ref-word str->ptr str-make int>>)
+  (def words (fn (_ n f)
+    (def r (str-make (* n %word-size)))
+    ((fn (self i) (when (< i n) (do (ptr-set-word! (str->ptr r) (* i %word-size) (f i)) (self (+ i 1))))) 0)
+    r))
+  (def dump (fn (_ r n) ((fn (self i acc) (if (< i n) (self (+ i 1) (pair (ptr-ref-word (str->ptr r) (* i %word-size)) acc)) (List reverse acc))) 0 ())))
+  (def m (words 16 (fn (_ i) (- (* i 100) 700))))
+  ((Frequency convolver (words 1 (fn (_ i) 1)) 1 8) convolve! m 2 0 1)
+  (dump m 16))
+```
+---
+    (-1400 -600 -1000 -400 -600 -200 -200 0 200 200 600 400 1000 600 1400 800)
+
+### the gain scales what is added, rounded to the nearest
+
+```x
+(do (import x/num/frequency)
+  (import x/core/doors ptr-set-word! ptr-ref-word str->ptr str-make int>>)
+  (def words (fn (_ n f)
+    (def r (str-make (* n %word-size)))
+    ((fn (self i) (when (< i n) (do (ptr-set-word! (str->ptr r) (* i %word-size) (f i)) (self (+ i 1))))) 0)
+    r))
+  (def dump (fn (_ r n) ((fn (self i acc) (if (< i n) (self (+ i 1) (pair (ptr-ref-word (str->ptr r) (* i %word-size)) acc)) (List reverse acc))) 0 ())))
+  (def m (words 4 (fn (_ i) (List ref i (list 6 -6 10 -20)))))
+  ((Frequency convolver (words 1 (fn (_ i) 1)) 1 4) convolve! m 1 0 (/ 1 3))
+  (dump m 4))
+```
+---
+    (8 -8 13 -27)
+
+### a delayed impulse echoes into the next block
+
+A 1 at frame 5 of the impulse, blocks of 4: frame 0's sample sounds again
+at frame 5, the second frame of the block after.
+
+```x
+(do (import x/num/frequency)
+  (import x/core/doors ptr-set-word! ptr-ref-word str->ptr str-make int>>)
+  (def words (fn (_ n f)
+    (def r (str-make (* n %word-size)))
+    ((fn (self i) (when (< i n) (do (ptr-set-word! (str->ptr r) (* i %word-size) (f i)) (self (+ i 1))))) 0)
+    r))
+  (def dump (fn (_ r n) ((fn (self i acc) (if (< i n) (self (+ i 1) (pair (ptr-ref-word (str->ptr r) (* i %word-size)) acc)) (List reverse acc))) 0 ())))
+  (def c (Frequency convolver (words 6 (fn (_ i) (if (= i 5) 1 0))) 6 4))
+  (def a (words 8 (fn (_ i) (if (= i 0) 1000 0))))
+  (def b (words 8 (fn (_ i) 0)))
+  (c convolve! a 2 0 1)
+  (c convolve! b 2 0 1)
+  (list (dump a 8) (dump b 8)))
+```
+---
+    ((1000 0 0 0 0 0 0 0) (0 0 1000 0 0 0 0 0))
+
+### an impulse of three pieces gives the convolution by its definition
+
+Twenty frames of impulse in pieces of 8, over five blocks of a mono
+signal: each block's words are the signal plus the sum of signal[s]
+impulse[t - s], exactly.
+
+```x
+(do (import x/num/frequency)
+  (import x/core/doors ptr-set-word! ptr-ref-word str->ptr str-make int>>)
+  (def words (fn (_ n f)
+    (def r (str-make (* n %word-size)))
+    ((fn (self i) (when (< i n) (do (ptr-set-word! (str->ptr r) (* i %word-size) (f i)) (self (+ i 1))))) 0)
+    r))
+  (def dump (fn (_ r n) ((fn (self i acc) (if (< i n) (self (+ i 1) (pair (ptr-ref-word (str->ptr r) (* i %word-size)) acc)) (List reverse acc))) 0 ())))
+  (def h (fn (_ i) (- (% (* i 7919) 61) 30)))
+  (def x (fn (_ t) (- (% (* t 104729) 2001) 1000)))
+  (def c (Frequency convolver (words 20 h) 20 8))
+  (def got ((fn (self k acc) (if (< k 5)
+    (do (def m (words 8 (fn (_ j) (x (+ (* 8 k) j)))))
+        (c convolve! m 1 0 1)
+        (self (+ k 1) (List append acc (dump m 8))))
+    acc)) 0 ()))
+  (def conv (fn (_ t) ((fn (self s acc) (if (< t s) acc (self (+ s 1) (if (< (- t s) 20) (+ acc (* (x s) (h (- t s)))) acc)))) 0 0)))
+  (equal? got ((fn (self t acc) (if (< t 0) acc (self (- t 1) (pair (+ (x t) (conv t)) acc)))) 39 ())))
+```
+---
+    #t
+
+### a twin shares the pieces and keeps its own ring
+
+The left channel through a convolver and the right through its twin, the
+two blocks the same sound: the two channels come out the same.
+
+```x
+(do (import x/num/frequency)
+  (import x/core/doors ptr-set-word! ptr-ref-word str->ptr str-make int>>)
+  (def words (fn (_ n f)
+    (def r (str-make (* n %word-size)))
+    ((fn (self i) (when (< i n) (do (ptr-set-word! (str->ptr r) (* i %word-size) (f i)) (self (+ i 1))))) 0)
+    r))
+  (def dump (fn (_ r n) ((fn (self i acc) (if (< i n) (self (+ i 1) (pair (ptr-ref-word (str->ptr r) (* i %word-size)) acc)) (List reverse acc))) 0 ())))
+  (def l (Frequency convolver (words 10 (fn (_ i) (- 5 i))) 10 4))
+  (def r (l twin))
+  (def run (fn (_ m) (l convolve! m 2 0 1) (r convolve! m 2 1 1) (dump m 8)))
+  (def pairs (fn (self v) (if (null? v) #t (if (= (first v) (first (rest v))) (self (rest (rest v))) #f))))
+  (list (pairs (run (words 8 (fn (_ i) (* 100 (int>> i 1))))))
+        (pairs (run (words 8 (fn (_ i) (- 50 (* 30 (int>> i 1)))))))))
+```
+---
+    (#t #t)
+
+### a block that is not a power of two, an empty impulse, a stride of 0, a plain plan
+
+```x
+(do (import x/num/frequency) (import x/core/doors str-make)
+  (def r (str-make 64))
+  (list (guard (e (Err label e)) (Frequency convolver r 4 3))
+        (guard (e (Err label e)) (Frequency convolver r 0 4))
+        (guard (e (Err label e)) ((Frequency convolver r 4 4) convolve! r 0 0 1))
+        (guard (e (Err label e)) ((Frequency plan 8) convolve! r 2 0 1))))
+```
+---
+    ('value 'value 'value 'value)
+
 ## Memory
 
 ### the pure kernels collect their own garbage
