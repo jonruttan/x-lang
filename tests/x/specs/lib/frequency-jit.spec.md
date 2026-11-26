@@ -105,6 +105,41 @@ compiled kernels write the pure kernels' bits.
 ---
     #t
 
+## the spectrum
+
+### the compiled kernels take frames to the bands the definition gives
+
+The frames of a 64-point plan, both channels added, windowed by Hann's
+1/2 - 1/2 cos(2 pi j/64), through the O(n^2) definition, and each band's
+re^2 + im^2 summed over its bins: the bands spectrum! answers on the
+compiled kernels, which call them straight, past %drive. With h = 33, four
+bands have the edges 1 2 5 13 33. On a 4-byte word jit! answers #f and the
+pure kernels answer the same.
+
+```x
+(do (import x/num/frequency) (import x/num/float pi)
+  (import x/core/doors ptr-set! str->ptr str-make int& int>>)
+  (def sample (fn (_ i) (- (int& (- (* i 4099) 30000) 65535) (if (< 32767 (int& (- (* i 4099) 30000) 65535)) 65536 0))))
+  (def r (str-make 256))
+  ((fn (self i) (when (< i 128)
+     (do (def v (int& (- (* i 4099) 30000) 65535))
+         (ptr-set! (str->ptr r) (* 2 i) (int& v 255) 1)
+         (ptr-set! (str->ptr r) (+ (* 2 i) 1) (int>> v 8) 1)
+         (self (+ i 1))))) 0)
+  (Frequency jit!)
+  (def got ((Frequency plan 64) spectrum! r 64 'both (Vector make 4 ())))
+  (def x (Frequency dft (Vector build 64 (fn (_ j)
+    (* (+ (sample (* 2 j)) (sample (+ 1 (* 2 j)))) (- (/ 1 2) (* (/ 1 2) (Float cos (/ (* 2 pi j) 64)))))))))
+  (def power (fn (_ k) (+ (* (Complex real-part (Vector ref k x)) (Complex real-part (Vector ref k x)))
+                          (* (Complex imag-part (Vector ref k x)) (Complex imag-part (Vector ref k x))))))
+  (def band (fn (_ lo hi) (if (< lo hi) (+ (power lo) (band (+ lo 1) hi)) 0)))
+  (def want (Vector of (band 1 2) (band 2 5) (band 5 13) (band 13 33)))
+  (Vector fold (fn (_ ok k) (if ok (< (Float abs (- (Vector ref k got) (Vector ref k want))) (* (Vector ref k want) (/ 1 1000000000))) #f))
+    #t (Vector of 0 1 2 3)))
+```
+---
+    #t
+
 ## memory
 
 ### a loop of transforms keeps the heap flat
