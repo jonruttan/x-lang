@@ -455,7 +455,7 @@
             (#t (self (rest xs) yes (pair (first xs) no))))))
       (go lst () ()))
     (method group-by (self f lst)
-      (doc "Group list elements by a key function." (param f CALLABLE "Key function: element -> group key") (param lst LIST "List") (returns LIST "Alist of (key . elements), keys in first-seen order") (example "(List group-by (fn (_ x) (< x 3)) (list 1 2 3 4))" "((#t 1 2) (#f 3 4))"))
+      (doc "Group list elements by a key function. Two elements are in one group where their keys are equal?, so a key may be a string or a list." (param f CALLABLE "Key function: element -> group key") (param lst LIST "List") (returns LIST "Alist of (key . elements), keys in first-seen order") (example "(List group-by (fn (_ x) (< x 3)) (list 1 2 3 4))" "((#t 1 2) (#f 3 4))"))
       ; Prepend into each group (O(1)) and reverse once at the end -- the old
       ; per-element (List append group (list val)) was O(n^2) on skewed keys.
       (def add-to-group
@@ -465,7 +465,7 @@
           (def go (fn (self pre xs)
             (match
               ((eq? xs ()) (%rev-onto pre (list (pair key (list val)))))
-              ((eq? (first (first xs)) key)
+              ((equal? (first (first xs)) key)
                 (%rev-onto pre
                   (pair (pair key (pair val (rest (first xs)))) (rest xs))))
               (#t (self (pair (first xs) pre) (rest xs))))))
