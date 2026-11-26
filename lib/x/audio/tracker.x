@@ -97,7 +97,7 @@
       (%fail (Str8 append "not a number: " s)))
     (if neg (int- 0 (%digits ds)) (%digits ds))))
 
-(def %effect-letters (list "a" "v" "s" "p" "t" "f" "l" "w" "o" "x" "y" "c" "d" "r"))
+(def %effect-letters (list "a" "v" "s" "p" "t" "f" "l" "w" "o" "x" "y" "c" "d" "r" "e"))
 
 ; An effect in a cell, a letter and its numbers apart by commas, "v30,4",
 ; as (LETTER ARG ...).
@@ -260,6 +260,8 @@
 ;   c N         cut: let go N ticks into the row
 ;   d N         delay: start N ticks into the row (on the note's own cell)
 ;   r N         retrigger: start again every N ticks
+;   e MS,P,N    echo: the note again MS ms later at P percent (50), N times
+;               (1), each at P percent of the one before
 ;
 ; The pitch and the level are paths of points: a voice's (bend (MS CENTS)
 ; ...) and its envelope, straight between, with a point either side of
@@ -456,6 +458,26 @@
     (List fold (fn (_ acc lk) ((fn (_ e) (if (null? e) acc (pair (list (rest lk) (%fx-arg e 0)) acc))) (%fx fx (first lk))))
                v (list (pair "x" (lit ring)) (pair "y" (lit sync))))))
 
+; The times and levels a note sounds at, (MS . PERCENT) each: itself at 0
+; and 100, then the echoes of E, the note's e MS,PCT,N: N of them (1
+; when it gives none), each MS after the one before at PCT percent of
+; it (50 when it gives none).  An echo at 0 percent is not played.
+(def %echoes
+  (fn (_ e)
+    (if (null? e) (list (pair 0 100))
+      ((fn (_ gap pct n)
+         ((fn (self k at level acc)
+            (if (if (int< n k) #t (int= level 0)) (List reverse acc)
+              (self (int+ k 1) (int+ at gap) (int/ (int* level pct) 100) (pair (pair at level) acc))))
+          0 0 100 ()))
+       (%max 1 (%fx-nth e 0 1)) (%max 0 (%min 100 (%fx-nth e 1 50))) (%max 0 (%fx-nth e 2 1))))))
+
+; Effect E's number K from 0, or DEFAULT when it has none there.
+(def %fx-nth
+  (fn (_ e k default)
+    ((fn (self args k) (match ((null? args) default) ((int= k 0) (first args)) (#t (self (rest args) (int- k 1)))))
+     (rest (rest e)) k)))
+
 ; The note at the head of CELLS, in channel CI, started in M at MS a row:
 ; each voice of instrument INST at W percent, shaped by its effects.
 (def %note!
@@ -472,22 +494,26 @@
     (def last (Assoc entry ci (%get t %t-last)))
     (def from (if (if (null? last) #t (null? (%fx fx "p"))) ()
                 (int* 100 (int- (Mixer semitone (rest last)) (Mixer semitone note)))))
+    (def echoes (%echoes (%fx fx "e")))
     (List for-each
       (fn (_ start)
         (def shape (%shape fx (%min every (int- len start)) ms tick (List ref 2 inst) (List ref 3 inst) from))
-        (def at (int+ delay start))
-        (Mixer play! m
-          (List map (fn (_ v)
-                      (def end (int+ (%min every (int- len start)) (List ref 3 inst)))
-                      (def own (%coupled (%moved (%widened (if (%pitched? v) v (pair (list (lit note) note) v)) (List ref 3 shape) end)
-                                                 (lit cutoff) (List ref 4 shape) end (%start v (lit cutoff)))
-                                         fx))
-                      (def timed (if (int= at 0) own (pair (list (lit at) (int+ at (%prop1 v (lit at) 0))) own)))
-                      (def bent (if (null? (List ref 1 shape)) timed (pair (pair (lit bend) (List ref 1 shape)) timed)))
-                      (pair (pair (lit env) (first shape))
-                            (if (null? (List ref 2 shape)) bent (pair (pair (lit filter) (List ref 2 shape)) bent))))
-                    (List ref 1 inst))
-          0 (int/ (int* w (List ref 2 cell)) 100)))
+        (List for-each
+          (fn (_ echo)
+            (def at (int+ (int+ delay start) (first echo)))
+            (Mixer play! m
+              (List map (fn (_ v)
+                          (def end (int+ (%min every (int- len start)) (List ref 3 inst)))
+                          (def own (%coupled (%moved (%widened (if (%pitched? v) v (pair (list (lit note) note) v)) (List ref 3 shape) end)
+                                                     (lit cutoff) (List ref 4 shape) end (%start v (lit cutoff)))
+                                             fx))
+                          (def timed (if (int= at 0) own (pair (list (lit at) (int+ at (%prop1 v (lit at) 0))) own)))
+                          (def bent (if (null? (List ref 1 shape)) timed (pair (pair (lit bend) (List ref 1 shape)) timed)))
+                          (pair (pair (lit env) (first shape))
+                                (if (null? (List ref 2 shape)) bent (pair (pair (lit filter) (List ref 2 shape)) bent))))
+                        (List ref 1 inst))
+              0 (int/ (int* (int/ (int* w (List ref 2 cell)) 100) (rest echo)) 100)))
+          echoes))
       (List filter (fn (_ s) (int< s len)) (%marks 0 len every)))
     (%put! t %t-last (pair (pair ci note) (List filter (fn (_ e) (not (int= (first e) ci))) (%get t %t-last))))))
 
