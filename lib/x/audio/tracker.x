@@ -7,6 +7,8 @@
 ;     (bpm 60) (rows 4)              beats a minute, rows a beat
 ;     (ticks 6)                      ticks a row, for a cell's effects
 ;     (tension-bpm 30)               beats a minute added at full tension
+;     (let gap (* 3 tick))           a name a number can be, worked out as
+;                                    the song plays (see "Names" below)
 ;     (echo 370 40 25)               an effect over the whole mixer, in
 ;     (reverb 120 80 30)             order: (echo MS FB WET), (reverb SIZE
 ;     (phase 1 4 3000 40 60)         DECAY WET), (phase LEAST-MS MOST-MS
@@ -42,7 +44,7 @@
 (module x/audio/tracker)
 
 (import x/audio/mixer)
-(import x/core/doors int* int+ int- int/ int% int< int= obj-make obj-ref obj-set! str-byte-len str-byte-ref char->int)
+(import x/core/doors int* int+ int- int/ int% int< int= obj-make obj-ref obj-set! str-byte-len str-byte-ref str->sym char->int)
 
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "Tracker: " what) ())))
 
@@ -55,16 +57,97 @@
 ; --- Songs -----------------------------------------------------------------
 ;
 ; A song made from its form: (NAME BPM ROWS TENSION-BPM EFFECTS INSTRUMENTS
-; PATTERNS ORDER TICKS).  An instrument is (NAME VOICES ENV RELEASE LAYER), a
-; pattern (NAME CHANNEL ...), a channel (INSTRUMENT CELL ...), a cell
-; (KIND NOTE PCT EFFECTS): KIND note, hold (".") or off ("-"), and each
-; effect (LETTER ARG ...).
+; PATTERNS ORDER TICKS LETS NAMED-EFFECTS NAMED), LETS its (let ...) forms
+; as (NAME . EXPR), NAMED-EFFECTS whether its effects use a name and NAMED
+; whether anything does.  An instrument is (NAME VOICES ENV RELEASE LAYER
+; NAMED), NAMED whether its props use a name, a pattern (NAME CHANNEL ...),
+; a channel (INSTRUMENT CELL ...), a cell (KIND NOTE PCT EFFECTS): KIND
+; note, hold (".") or off ("-"), and each effect (LETTER ARG ...), an ARG
+; an integer or a name.
 
 (def %tracker-keys (lit (release layer voice)))
 (def %effect-heads (lit (echo reverb phase chorus drive crush sweep limit)))
 
+; --- Names -----------------------------------------------------------------
+;
+; A number in an instrument, a song effect or a cell's effect can be a
+; name, worked out each time it is used, with the tempo then:
+;
+;   bpm     beats a minute as played: the song's, its tension's share of
+;           tension-bpm added, at the pace
+;   rows    rows a beat         ticks   ticks a row
+;   row     a row's length in ms        beat    a beat's, rows rows
+;   tick    a tick's, a row over ticks, at least 1
+;
+; and any the song defines, (let NAME EXPR), each from the ones before
+; it.  An instrument or a song effect can also have a sum where a number
+; goes: (+ A B ...), (- A B ...), (* A B ...), (/ A B) whole, (min A B
+; ...), (max A B ...), each of integers and names.  A cell's effect takes
+; a name, "C4/eecho,30,16", and no sum.  A word a prop takes, (wave sine),
+; (pass low) or (layer calm), is never a name.
+
+(def %own-names (lit (bpm rows ticks row beat tick)))
+(def %ops (lit (+ - * / min max)))
+(def %word-props (lit (wave pass layer)))
+
+(def %op?
+  (fn (_ x) (if (pair? x) (List includes? (first x) %ops) #f)))
+
+; Whether X, a prop or a part of one, uses a name of NAMES or a sum;
+; raises for a name in a sum that NAMES has not.
+(def %uses?
+  (fn (self x names)
+    (match ((symbol? x) (List includes? x names))
+           ((%op? x)
+             (do (List for-each
+                   (fn (_ a) (when (if (symbol? a) (not (List includes? a names)) #f)
+                               (%fail (Str8 append "no name " (symbol->str a)))))
+                   (rest x))
+                 #t))
+           ((pair? x) (if (List includes? (first x) %word-props) #f (List any? (fn (_ y) (self y names)) x)))
+           (#t #f))))
+
+; X with each name worked out from ENV, ((NAME . VALUE) ...), and each sum
+; done: the integer for a name or a sum, X itself for anything else.
+(def %resolve
+  (fn (self x env)
+    (match ((symbol? x) ((fn (_ b) (if (null? b) x (rest b))) (Assoc entry x env)))
+           ((%op? x)
+             ((fn (_ op args)
+                (when (List any? (fn (_ a) (not (number? a))) args)
+                  (%fail (Str8 append "not a number in " (symbol->str op))))
+                (match ((null? args) (%fail (Str8 append "nothing to " (symbol->str op))))
+                       ((eq? op (lit +)) (List fold int+ 0 args))
+                       ((eq? op (lit *)) (List fold int* 1 args))
+                       ((eq? op (lit -)) (if (null? (rest args)) (int- 0 (first args)) (List fold int- (first args) (rest args))))
+                       ((eq? op (lit /))
+                         (if (int= 0 (List ref 1 args)) (%fail "a sum divides by 0") (int/ (first args) (List ref 1 args))))
+                       ((eq? op (lit min)) (List fold %min (first args) (rest args)))
+                       (#t (List fold %max (first args) (rest args)))))
+              (first x) (List map (fn (_ a) (self a env)) (rest x))))
+           ((pair? x) (if (List includes? (first x) %word-props) x (List map (fn (_ y) (self y env)) x)))
+           (#t x))))
+
+; The lets of the song's PROPS, ((NAME . EXPR) ...) in order, each name
+; new and its EXPR of integers and the names before it.
+(def %lets
+  (fn (_ props)
+    (List fold
+      (fn (_ acc f)
+        (def name (if (pair? (rest f)) (List ref 1 f) ()))
+        (unless (if (symbol? name) (if (pair? (rest (rest f))) (null? (rest (rest (rest f)))) #f) #f)
+          (%fail "a let is (let NAME EXPR)"))
+        (when (List includes? name (List append %own-names (List map first acc)))
+          (%fail (Str8 append "a let names " (symbol->str name) " twice, or a name of the song's own")))
+        (def expr (List ref 2 f))
+        (def known (List append %own-names (List map first acc)))
+        (unless (if (number? expr) #t (if (symbol? expr) (List includes? expr known) (if (%op? expr) (%uses? expr known) #f)))
+          (%fail (Str8 append "not a number or a name: let " (symbol->str name))))
+        (List append acc (list (pair name expr))))
+      () (%props props (lit let)))))
+
 (def %instrument
-  (fn (_ f)
+  (fn (_ f names)
     (def name (first (rest f)))
     (def props (rest (rest f)))
     (def shared (List filter (fn (_ p) (not (List find (fn (_ k) (eq? k (first p))) %tracker-keys))) props))
@@ -72,7 +155,16 @@
     (def all (if (null? voices) (list shared) voices))
     (def env (%prop (first all) (lit env)))
     (list name all (if (null? env) (lit ((0 100))) (rest env)) (%prop1 props (lit release) 200)
-          (%prop1 props (lit layer) ()))))
+          (%prop1 props (lit layer) ()) (%uses? props names))))
+
+; Instrument INST, (NAME VOICES ENV RELEASE LAYER NAMED), with its names
+; worked out from ENV when it has any.
+(def %instrument-now
+  (fn (_ inst env)
+    (if (List ref 5 inst)
+      (list (first inst) (%resolve (List ref 1 inst) env) (%resolve (List ref 2 inst) env) (%resolve (List ref 3 inst) env)
+            (List ref 4 inst) #f)
+      inst)))
 
 (def %cells
   (fn (_ s) (List filter (fn (_ c) (not (str=? c ""))) (Str8 split " " s))))
@@ -99,14 +191,19 @@
 
 (def %effect-letters (list "a" "v" "s" "p" "t" "f" "l" "w" "o" "x" "y" "c" "d" "r" "e"))
 
+; Whether S starts as a name does, with a letter.
+(def %name-text?
+  (fn (_ s) (if (int< 0 (str-byte-len s)) ((fn (_ b) (if (int< b 97) #f (not (int< 122 b)))) (str-byte-ref s 0)) #f)))
+
 ; An effect in a cell, a letter and its numbers apart by commas, "v30,4",
-; as (LETTER ARG ...).
+; as (LETTER ARG ...); an ARG that starts with a letter is a name, kept
+; as its symbol.
 (def %effect
   (fn (_ s)
     (def letter (if (int< 0 (str-byte-len s)) (Str8 sub 0 1 s) ""))
     (unless (List any? (fn (_ l) (str=? l letter)) %effect-letters) (%fail (Str8 append "no effect " s)))
     (def args (Str8 sub 1 (int- (str-byte-len s) 1) s))
-    (pair letter (if (str=? args "") () (List map %int (Str8 split "," args))))))
+    (pair letter (if (str=? args "") () (List map (fn (_ a) (if (%name-text? a) (str->sym a) (%int a))) (Str8 split "," args))))))
 
 (def %note-gain
   (fn (_ cell)
@@ -125,29 +222,48 @@
            (#t ((fn (_ ng) (list (lit note) (first ng) (rest ng) effects)) (%note-gain (first parts)))))))
 
 (def %pattern
-  (fn (_ f instruments)
+  (fn (_ f instruments names)
     (pair (first (rest f))
       (List map
         (fn (_ ch)
           (when (null? (Assoc entry (first ch) instruments))
             (%fail (Str8 append "no instrument named " (symbol->str (first ch)))))
-          (pair (first ch) (List map %cell (%cells (first (rest ch))))))
+          (def cells (List map %cell (%cells (first (rest ch)))))
+          (List for-each
+            (fn (_ c) (List for-each
+                        (fn (_ e) (List for-each (fn (_ a) (when (if (symbol? a) (not (List includes? a names)) #f)
+                                                            (%fail (Str8 append "no name " (symbol->str a)))))
+                                    (rest e)))
+                        (List ref 3 c)))
+            cells)
+          (pair (first ch) cells))
         (rest (rest f))))))
 
 (def %song
   (fn (_ form)
     (unless (if (pair? form) (eq? (first form) (lit song)) #f) (%fail "a song is (song NAME ...)"))
     (def props (rest (rest form)))
-    (def instruments (List map (fn (_ f) (pair (first (rest f)) (%instrument f))) (%props props (lit instrument))))
-    (def patterns (List map (fn (_ f) (%pattern f instruments)) (%props props (lit pattern))))
+    (def lets (%lets props))
+    (def names (List append %own-names (List map first lets)))
+    (def instruments (List map (fn (_ f) (pair (first (rest f)) (%instrument f names))) (%props props (lit instrument))))
+    (def patterns (List map (fn (_ f) (%pattern f instruments names)) (%props props (lit pattern))))
     (def order ((fn (_ f) (if (null? f) () (rest f))) (%prop props (lit order))))
     (when (null? order) (%fail "the song has no order"))
     (List for-each (fn (_ p) (when (null? (Assoc entry p patterns)) (%fail (Str8 append "no pattern named " (symbol->str p)))))
       order)
+    (def effects (List filter (fn (_ f) (if (pair? f) (List includes? (first f) %effect-heads) #f)) props))
+    (def named-effects (List any? (fn (_ e) (%uses? e names)) effects))
+    (def named-cells
+      (List any? (fn (_ p) (List any? (fn (_ ch) (List any? (fn (_ c) (List any? (fn (_ e) (List any? symbol? (rest e))) (List ref 3 c)))
+                                                          (rest ch)))
+                                    (rest p)))
+            patterns))
     (list (first (rest form)) (%prop1 props (lit bpm) 90) (%prop1 props (lit rows) 4)
           (%prop1 props (lit tension-bpm) 0)
-          (List filter (fn (_ f) (if (pair? f) (List includes? (first f) %effect-heads) #f)) props)
-          instruments patterns order (%prop1 props (lit ticks) 6))))
+          effects
+          instruments patterns order (%prop1 props (lit ticks) 6)
+          lets named-effects
+          (if named-effects #t (if named-cells #t (List any? (fn (_ i) (List ref 5 (rest i))) instruments))))))
 
 (def %s-bpm (fn (_ s) (List ref 1 s)))
 (def %s-rows (fn (_ s) (List ref 2 s)))
@@ -157,6 +273,9 @@
 (def %s-patterns (fn (_ s) (List ref 6 s)))
 (def %s-order (fn (_ s) (List ref 7 s)))
 (def %s-ticks (fn (_ s) (List ref 8 s)))
+(def %s-lets (fn (_ s) (List ref 9 s)))
+(def %s-named-effects (fn (_ s) (List ref 10 s)))
+(def %s-named (fn (_ s) (List ref 11 s)))
 
 ; --- Trackers --------------------------------------------------------------
 ;
@@ -164,19 +283,20 @@
 ; row, the tension, whether it has been stopped, the pace, a percentage of
 ; the song's own tempo, the names its effects have in the mixer, each
 ; a pair of its own, so two trackers in one mixer keep theirs apart, and
-; each channel's last note, ((CHANNEL . NOTE) ...), for a portamento.
+; each channel's last note, ((CHANNEL . NOTE) ...), for a portamento, and
+; the song's effects as last put, their names worked out.
 
 (def %vector-type ((prim-ref (lit type) (lit of)) (Vector make 0 ())))
 (def %get (fn (_ r k) (obj-ref r (int+ k 1))))
 (def %put! (fn (_ r k x) (obj-set! r (int+ k 1) x)))
 
 (def %t-song 0) (def %t-next 1) (def %t-at 2) (def %t-row 3) (def %t-tension 4) (def %t-stopped 5)
-(def %t-pace 6) (def %t-names 7) (def %t-last 8)
+(def %t-pace 6) (def %t-names 7) (def %t-last 8) (def %t-specs 9)
 
 (def %make
   (fn (_ form)
-    (def t (obj-make %vector-type 10))
-    (obj-set! t 0 9)
+    (def t (obj-make %vector-type 11))
+    (obj-set! t 0 10)
     (%put! t %t-song (%song form))
     (%put! t %t-next ())
     (%put! t %t-at 0)
@@ -186,6 +306,7 @@
     (%put! t %t-pace 100)
     (%put! t %t-names ())
     (%put! t %t-last ())
+    (%put! t %t-specs ())
     t))
 
 (def %pattern-now
@@ -202,6 +323,24 @@
     (def s (%get t %t-song))
     (def bpm (int+ (%s-bpm s) (int/ (int* (%s-tbpm s) (%get t %t-tension)) 100)))
     (int/ 6000000 (int* (int* bpm (%s-rows s)) (%get t %t-pace)))))
+
+; The names the song playing in T has now, ((NAME . VALUE) ...): its own,
+; from the tempo, then its lets in order.
+(def %names-now
+  (fn (_ t)
+    (def s (%get t %t-song))
+    (def row (%row-ms t))
+    (def bpm (int/ (int* (int+ (%s-bpm s) (int/ (int* (%s-tbpm s) (%get t %t-tension)) 100)) (%get t %t-pace)) 100))
+    (List fold (fn (_ env l) (List append env (list (pair (first l) (%resolve (rest l) env)))))
+      (list (pair (lit bpm) bpm) (pair (lit rows) (%s-rows s)) (pair (lit ticks) (%s-ticks s))
+            (pair (lit row) row) (pair (lit beat) (int* row (%s-rows s))) (pair (lit tick) (%max 1 (int/ row (%s-ticks s)))))
+      (%s-lets s))))
+
+; The song's effects in T with their names worked out from ENV.
+(def %specs-now
+  (fn (_ t env)
+    ((fn (_ specs) (if (%s-named-effects (%get t %t-song)) (List map (fn (_ e) (%resolve e env)) specs) specs))
+     (%s-effects (%get t %t-song)))))
 
 (def %weight
   (fn (_ layer tension)
@@ -481,11 +620,11 @@
 ; The note at the head of CELLS, in channel CI, started in M at MS a row:
 ; each voice of instrument INST at W percent, shaped by its effects.
 (def %note!
-  (fn (_ t m ci cells ms inst w)
+  (fn (_ t m ci cells ms inst w env)
     (def cell (first cells))
     (def note (List ref 1 cell))
     (def h (%held (rest cells) 1))
-    (def fx (%note-effects cells h))
+    (def fx ((fn (_ es) (if (null? env) es (List map (fn (_ e) (%resolve e env)) es))) (%note-effects cells h)))
     (def tick (%max 1 (int/ ms (%s-ticks (%get t %t-song)))))
     (def cut (%fx fx "c"))
     (def len (if (null? cut) (int* h ms) (%min (int* h ms) (int+ (int* ms (first cut)) (int* tick (%fx-arg cut 0))))))
@@ -523,23 +662,26 @@
     (def s (%get t %t-song))
     (def ms (%row-ms t))
     (def tension (%get t %t-tension))
+    (def env (if (%s-named s) (%names-now t) ()))
     (List fold
       (fn (_ ci ch)
         (def cells (List drop row (rest ch)))
         (unless (null? cells)
           (when (eq? (first (first cells)) (lit note))
-            (do (def inst (rest (Assoc entry (first ch) (%s-instruments s))))
+            (do (def inst (%instrument-now (rest (Assoc entry (first ch) (%s-instruments s))) env))
                 (def w (%weight (List ref 4 inst) tension))
-                (unless (int= w 0) (%note! t m ci cells ms inst w)))))
+                (unless (int= w 0) (%note! t m ci cells ms inst w env)))))
         (int+ ci 1))
       0 (%pattern-now t))))
 
 ; The song's effects put over M, each under the tracker's name for its
 ; place, made the first time; a name with no effect left in the song is
-; taken off.
+; taken off.  Their names are worked out with the tempo now, and the specs
+; put kept to tell when a change of tempo changes them.
 (def %effects!
   (fn (_ t m)
-    (def specs (%s-effects (%get t %t-song)))
+    (def specs (%specs-now t (if (%s-named-effects (%get t %t-song)) (%names-now t) ())))
+    (%put! t %t-specs specs)
     (def names
       ((fn (self ns n)
          (if (int< (List length ns) n) (self (List append ns (list (pair (lit tracker) (List length ns)))) n) ns))
@@ -552,12 +694,16 @@
      names specs)))
 
 ; The tracker as a mixer source: the row due now played, the place moved
-; on, the next row's frame answered.
+; on, the next row's frame answered.  The song's effects are put again
+; before a row when a name they use has changed with the tempo.
 (def %source
   (fn (_ t)
     (fn (_ m now)
       (if (%get t %t-stopped) ()
         (do (def rows (%pattern-rows (%pattern-now t)))
+            (when (if (%s-named-effects (%get t %t-song))
+                    (not (equal? (%specs-now t (%names-now t)) (%get t %t-specs))) #f)
+              (%effects! t m))
             (%play-row! t m (%get t %t-row))
             (def ms (%row-ms t))
             (if (int< (int+ (%get t %t-row) 1) rows)
@@ -649,7 +795,13 @@
       (doc "A row's length at the tension now."
         (returns INTEGER "Milliseconds")
         (example "(Tracker row-ms (Tracker make (lit (song \"hum\" (bpm 60) (rows 4) (instrument a) (pattern p (a \"A3\")) (order p)))))" "250"))
-      (%row-ms t))))
+      (%row-ms t))
+
+    (method names (self (param t VECTOR "A tracker"))
+      (doc "The names a number in the song can be, worked out at the tension and pace now: bpm, rows, ticks, row, beat and tick, then the song's lets in order."
+        (returns LIST "((NAME . VALUE) ...)")
+        (example "(rest (Assoc entry (lit gap) (Tracker names (Tracker make (lit (song \"hum\" (bpm 60) (rows 4) (let gap (* 3 tick)) (instrument a) (pattern p (a \"A3\")) (order p)))))))" "123"))
+      (%names-now t))))
 
 (doc (provide x/audio/tracker Tracker)
   "A music tracker over x/audio/mixer: songs as data, instruments, patterns of rows and an order, played row by row as a mixer source, the tempo and the layers following a tension."
