@@ -131,7 +131,7 @@ library: declare neon and import it.
 | *(none)* | helium (`lib/x.x` → `lib/he.x`) | combinators, lists, sort, strings, vectors, promises, quasiquote, POSIX, REPL. **No numeric tower.** |
 | `-l ne` | neon | helium + the assembler, the compiler and the Lexer, with `Dict`. No tower and no added syntax: the base for a lang bundle. |
 | `-l xe` | xenon | neon + the full numeric tower (bigint, float, rational, complex, decimal), regex, `Set`, and their literals |
-| `-l rn` | radon | neon + everything xenon adds, and raw syscalls and char/IO constants that are not promised. |
+| `-l rn` | radon | neon + everything xenon adds, and a few names of its own that are not promised: character and I/O constants, the `cadr` family, `system`, `do-loop`. |
 
 ```bash
 sh x.sh -q -c '(write (+ 1/3 1/6))'                           # helium: fails, no tower

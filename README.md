@@ -217,10 +217,10 @@ the arbiter the others are measured against.
 
 The library is composed into dialects that control what capabilities are loaded:
 
-- **helium** (`lib/he.x`) — The light dialect and the default (`lib/x.x` points to it). Combinators, list operations, sorting, strings, vectors, promises, quasiquote, the POSIX interface and a REPL. No numeric tower.
+- **helium** (`lib/he.x`) — The minimal base and the default (`lib/x.x` points to it). Combinators, list operations, sorting, strings, vectors, promises, quasiquote, the POSIX interface and a REPL. No numeric tower.
 - **neon** (`lib/ne.x`) — The base for a language built on x-lang. Helium plus the assembler, the compiler and the Lexer, with the reader's analysers compiled to native code at boot. No numeric tower and no added syntax; a lang bundle declares it and imports the libraries it uses.
 - **xenon** (`lib/xe.x`) — x-lang's own full language, built on neon. Adds the numeric tower (bigint, float, rational, complex, decimal), regular expressions and `Set`, with the literals that write them.
-- **radon** (`lib/rn.x`) — Built on neon with everything xenon adds, plus the raw syscall surface, character constants, and I/O handle constants; file I/O and sockets load on demand (`(import x/sys/file)`, `x/platform/socket`).
+- **radon** (`lib/rn.x`) — Built on neon with everything xenon adds, plus a few names of its own that are not promised: character constants, I/O handle constants, the `cadr` family, `system` and `do-loop`.
 
 Dialects are selected with the wrapper's `-l` flag, which also selects a
 lang: `x -l xe`, `x -l r5rs`. [docs/dialects.md](docs/dialects.md) has the

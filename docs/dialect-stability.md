@@ -72,9 +72,10 @@ a loaded name means.
 
 ## radon
 
-neon's surface and everything xenon adds, plus raw system access: syscall
-tables, file and socket constants, `system`. Nothing radon adds is promised. Its additions may change
-or be removed in any release.
+neon's surface and everything xenon adds, plus the names `lib/x/rn.x`
+defines: character and I/O constants, the `cadr` family, `list-ref` and
+`list-tail`, `system`, `do-loop`. Nothing radon adds is promised. Its
+additions may change or be removed in any release.
 
 ## What a hosted language is promised
 
